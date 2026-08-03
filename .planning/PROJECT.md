@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Lightamer 是一个 macOS 原生（Swift + SwiftUI + Metal 直渲）的 RAW 编辑器与图片管理器，目标是对标 Darktable 的全量图像处理（iop）能力，同时采用 Capture One 的 Session 工作流（文件夹即会话，而非 Lightroom 的中央库）来组织照片。它面向摄影作者，把"调整 → 评分 → 批量导出 → 印框/水印出图"压缩成一个原生丝滑的工作流，并内置壹印（yiyin）的印框/水印能力作为一等公民面板。
+Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Image RAW）的 RAW 编辑器与图片管理器，目标是对标 Darktable 的全量图像处理（iop）能力，同时采用 Capture One 的 Session 工作流（文件夹即会话）+ Capture One 风格的调整图层（adjustment layers）来组织照片与局部调整。它面向摄影作者，把"调整 → 评分 → 批量导出 → 印框/水印出图"压缩成一个原生丝滑的工作流，并内置壹印（yiyin）的印框/水印能力作为一等公民面板。
 
 ## Core Value
 
@@ -17,15 +17,16 @@ Lightamer 是一个 macOS 原生（Swift + SwiftUI + Metal 直渲）的 RAW 编�
 ### Active
 
 - [ ] 读取主流相机 RAW（CR3/NEF/ARW/RAF/RW2/ORF 等）、DNG、HDR/堆栈源文件，以及 JPEG/HEIC/PNG/WebP/TIFF 等非 RAW 格式
-- [ ] Capture One Session 模式：文件夹即会话，自动维护 Capture/Crop/Output 三级子目录，sidecar（.XMP/.RAW）调整文件随原片存放，多 Session 切换 + 最近会话列表
-- [ ] Darktable 级 iop（图像操作模块）能力，按 Darktable 全量对标，Core Image RAW 9 覆盖的直接用，缺口用 Metal compute shader 自实现（具体能力边界由研究阶段确定）
+- [ ] Capture One Session 模式：文件夹即会话，自动维护 Capture/Crop/Output 三级子目录，sidecar 调整文件（Lightamer 自有格式，不与 Darktable 二进制兼容）随原片存放，多 Session 切换 + 最近会话列表
+- [ ] Darktable 级 iop（图像操作模块）能力，按 Darktable 全量对标（91 个模块，Fine 粒度分阶段交付）；Core Image RAW（macOS 27 起原生 RAW 9 Neural Engine demosaic+denoise）覆盖的直接用，缺口用 Metal compute shader 自实现
+- [ ] Capture One 风格 adjustment layers（每层独立 iop + 每层蒙版 + 层管理 + 混合模式）作为局部调整的核心组织机制
 - [ ] Metal 直渲（MTKView/MTLTexture）主编辑视图，100MP+ 高分辨率下交互 60fps
 - [ ] 批量导出队列 + 多规格同导（同一原片一次性输出多种尺寸/格式/水印组合）
 - [ ] 导出格式：JPG、PNG、TIFF、HEIF/HEIC、WebP、AVIF
 - [ ] 内置 yiyin（壹印）印框/水印面板：白边/日期/EXIF 叠加/Logo 水印/自定义字体；与 yiyin 项目双轨维护
 - [ ] 调整同步/复制粘贴（一张图的调整参数复制到其他图）
 - [ ] 前后对比预览（before/after 分屏、快照点对比）
-- [ ] 预设系统：与 Darktable 互通（含 .cube LUT 作为 iop 模块，与 Darktable 的 LUT 模块互通）
+- [ ] 预设系统：原生预设系统（保存完整调整堆栈为 Lightamer 预设）+ .cube LUT 作为 iop 模块（不与 Darktable/Lightroom 预设互通）
 - [ ] 元数据/评分/颜色标签/关键字，与 sidecar 同步
 - [ ] Spotlight / Quick Look 集成（Quick Look 扩展、Spotlight 索引）
 - [ ] 多语言跟随系统（String Catalog，zh/en/…）
@@ -56,26 +57,33 @@ Lightamer 是一个 macOS 原生（Swift + SwiftUI + Metal 直渲）的 RAW 编�
 
 ## Constraints
 
-- **平台**：macOS 专属（Swift）— 依赖 Metal / Core Image / SwiftUI，最低 macOS 版本由研究阶段确定（倾向 macOS 14+，平衡 Metal 3 / SwiftUI 成熟度与覆盖机型）
-- **语言/运行时**：Swift + SwiftUI + Metal + Core Image RAW 9 — 不引入跨平台框架（Electron/Qt/Flutter 等）
+- **平台**：macOS 专属（Swift 6）— 最低版本 **macOS 27**（Lock-early 决策，研究阶段确认）。理由：原生 CIRAW 9 Neural Engine demosaic+denoise、原生 AVIF 写入、最新 SwiftUI/Metal 3 成熟度。代价：覆盖机型窄，但开源项目且个人自用可接受
+- **语言/运行时**：Swift 6 + SwiftUI + Metal 3 + Core Image（CIRAW，macOS 27 起原生 RAW 9）+ ImageIO + ColorSync/EDR — 不引入跨平台框架（Electron/Qt/Flutter 等）
 - **渲染架构**：Metal 直渲（MTKView/MTLTexture）作为主编辑视图 — 从第一天就按此架构，避免后期重写
-- **照片管理**：Capture One Session 模式 — 文件夹即会话，三级子目录（Capture/Crop/Output）+ sidecar 调整文件，不做中央库
+- **色彩管线**：working space = linear Rec2020 scene-referred；pixelpipe 数据类型 = float32 RGBA（Lock-early，与 Darktable modern pipeline 对齐，便于移植 filmicrgb 等 iop）
+- **照片管理**：Capture One Session 模式 — 文件夹即会话，三级子目录（Capture/Crop/Output）+ sidecar 调整文件（Lightamer 自有格式），不做中央库
+- **局部调整**：Capture One 风格 adjustment layers（每层独立 iop + 蒙版 + 混合模式）— 与 Darktable 全局 pixelpipe+per-iop-mask 架构不同，需在 pixelpipe 设计时纳入
 - **分发**：开源免费、独立分发（Developer ID 签名 + 公证，不做沙盒）— GitHub 开源
-- **功能对标**：对标 Darktable 全量（100+ iop 模块）— 长期工程，v1 先工作流闭环，iop 分阶段逼近
-- **互通性**：sidecar（.XMP/.RAW）与 Darktable 二进制兼容为目标；预设与 Darktable（.dtstyle / .cube LUT）互通
-- **依赖最小化**：能用 Apple 原生框架（Core Image / Metal / Core Text / ImageIO / AVFoundation）实现的不引入第三方库
+- **功能对标**：对标 Darktable 全量（91 个 iop 模块）— 长期工程，Fine 粒度分阶段交付，v1 不设上限但分阶段逼近
+- **互通性（决策）**：sidecar 与 Darktable **不互通、不兼容**（研究确认二进制兼容做不到）；预设与 Darktable/Lightroom **不互通**；标准 EXIF/IPTC/XMP 元数据仍读写（与其他工具兼容）
+- **依赖最小化**：能用 Apple 原生框架（Core Image / Metal / Core Text / ImageIO / AVFoundation / ColorSync）实现的不引入第三方库；v1 预期仅 libwebp、libavif 两个 SPM 依赖（WebP 写入 macOS 仍无原生；AVIF macOS 27 起原生但保留 libavif 作为兜底）
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Swift + SwiftUI + Metal + Core Image RAW 9 | macOS 原生体验，Metal 加速满足 100MP+ 性能，与 Apple 生态深度集成 | — Pending |
+| Swift 6 + SwiftUI + Metal 3 + Core Image + ImageIO | macOS 原生体验，Metal 加速满足 100MP+ 性能，与 Apple 生态深度集成 | — Pending |
+| macOS 27 最低版本 | 获得 CIRAW 9 Neural Engine demosaic+denoise、原生 AVIF 写入、最新 SwiftUI/Metal 3；代价是覆盖机型窄 | — Pending（研究后锁定） |
+| 工作色彩空间 = linear Rec2020 scene-referred | 与 Darktable modern pipeline 对齐，便于移植 filmicrgb 等场景参照算法；scene-referred 比 display-referred 更适合 HDR | — Pending（研究后锁定） |
+| pixelpipe 数据类型 = float32 RGBA | 精度足够避免阴影 banding；半精度会在阴影出错（研究 Pitfalls 确认） | — Pending |
+| iop 模块顺序采用 Darktable v50_order | 与 Darktable 算法移植路径一致；固定位置便于色彩管理 | — Pending |
+| Capture One 风格 adjustment layers（非 Darktable per-iop 蒙版） | 个人工作流偏好；图层是 C1 局部调整的核心，体验更直观；架构需在 pixelpipe 设计时纳入图层栈 | — Pending |
 | Capture One Session 模式（非 Lightroom catalog） | 个人工作流偏好，文件夹即会话便于备份/迁移/版本控制 | — Pending |
+| sidecar 自有格式，不与 Darktable 互通 | 研究确认 Darktable base64 二进制 blob + modversion 跨实现兼容做不到；自有格式可最大化参数能力 | — Pending（研究后调整原 PROJECT.md 的互通意图） |
 | Metal 直渲（MTKView）作为主编辑视图 | 大图零延迟交互是 Core Value，必须从第一天按此架构 | — Pending |
-| 对标 Darktable 全量（长期工程，v1 先闭环） | 全功能 RAW 编辑器是产品存在的理由，但接受分阶段交付 | — Pending |
+| 对标 Darktable 全量（长期工程，Fine 粒度分阶段） | 全功能 RAW 编辑器是产品存在的理由；接受分阶段交付，v1 不设上限 | — Pending |
 | yiyin 双轨（Lightamer 内置面板 + yiyin 独立维护） | yiyin 已有用户基础，Lightamer 内置为重写但功能对齐 | — Pending |
 | 开源免费 + 独立签名公证（非 Mac App Store） | 沙盒限制与 Session 文件访问冲突；开源路线与 yiyin/Darktable 一致 | — Pending |
-| Core Image RAW 9 定位"先调研再说" | CIRAW 9 实际能力边界（覆盖哪些 iop）是关键技术风险，研究阶段必须澄清 | — Pending |
 | 多语言跟随系统（String Catalog） | 开源项目便于外部贡献者，与 Darktable/yiyin 国际化路线一致 | — Pending |
 
 ## Evolution
@@ -96,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-03 after initialization*
+*Last updated: 2026-08-03 after research findings + requirements definition（macOS 27 floor、linear Rec2020、Capture One adjustment layers、sidecar 不互通等决策锁定）*
