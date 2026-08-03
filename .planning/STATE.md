@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 1 — Foundation, App Skeleton & Capability Spikes
 status: not_started
-stopped_at: Phase 1 context gathered
-last_updated: "2026-08-03T15:29:34.142Z"
+stopped_at: Phase 1 UI-SPEC approved
+last_updated: "2026-08-03T15:59:45.028Z"
 progress:
   total_phases: 1
   completed_phases: 0
@@ -69,6 +69,6 @@ Foundation (1) → Pixelpipe core + history (2) → Tone/Filmic (3) → Geometry
 
 ## Session
 
-**Last session:** 2026-08-03T14:46:44.607Z
-**Stopped at:** Phase 1 context gathered
-**Resume file:** .planning/phases/01-foundation-app-skeleton-capability-spikes/01-CONTEXT.md
+**Last session:** 2026-08-03T15:59:44.862Z
+**Stopped at:** Phase 1 UI-SPEC approved
+**Resume file:** .planning/phases/01-foundation-app-skeleton-capability-spikes/01-UI-SPEC.md
