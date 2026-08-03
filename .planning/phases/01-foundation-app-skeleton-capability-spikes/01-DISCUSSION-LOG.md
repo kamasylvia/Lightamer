@@ -3,9 +3,40 @@
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-08-03
+**Date:** 2026-08-03 (initial), 2026-08-04 (revision)
 **Phase:** 1-Foundation, App Skeleton & Capability Spikes
-**Areas discussed:** Xcode 工程搭建, App 窗口布局, MetalContext 设计, CIRAW 解码封装, Spike 交付形式, 错误处理与用户提示, 测试与 CI 策略, 性能预算与插桩, Swift Concurrency 模型
+**Areas discussed:** Xcode 工程搭建, App 窗口布局, MetalContext 设计, CIRAW 解码封装, Spike 交付形式, 错误处理与用户提示, 测试与 CI 策略, 性能预算与插桩, Swift Concurrency 模型, **解耦架构修订（多 target + Tuist）**
+
+---
+
+## 解耦架构修订（2026-08-04）
+
+### 触发
+用户提出："如今的规划足够解耦吗？未来可能的改动会很多，因此希望项目尽量解耦。"
+
+### 分析
+识别出 5 处真实耦合风险：(1) 单 app target 无编译器强制的边界（最大缺口）；(2) Capture One 图层模型没在 Phase 1/2 抽象（延迟耦合，L005 警告）；(3) EditorState 有 god-object 风险；(4) 没有子系统 public API 表面定义；(5) RAWDecoder 是 class 不是 protocol（one-way）。
+
+### 工具选型（Tuist vs XcodeGen vs SPM）
+| Option | Description | Selected |
+|--------|-------------|----------|
+| 多 target + Tuist | Project.swift 类型安全、依赖图、缓存；多 target 运维优势 | ✓ |
+| 多 target + XcodeGen | YAML 配置冗长，不如 Tuist 干净 | |
+| 本地 SPM package | 最纯粹，但无依赖图可视化；agent 推荐，用户选 Tuist | |
+
+**User's choice:** 多 target + Tuist。理由：未来 target 数量可能增长（iop 按类别拆、Session/Export 独立），Tuist 的依赖图与缓存红利显现；Project.swift 类型安全比 YAML 干净。
+**Notes:** 三条路在"解耦强度"上完全相同（都靠 Swift module 边界）。差异在多 target 配置运维。用户明确选 Tuist。
+
+### 修订的决策
+- **D-02 REVISED**: 单 app target → 多 target + Tuist（one-way）
+- **D-03 REVISED**: 子系统目录 → 多 target module 布局（LightamerCore / LightamerIOP / app / Tests / UITests，每个独立 Swift module，internal 限定模块内、public 暴露 API 表面）
+- **D-03a NEW**: Layer 抽象骨架在 Phase 1 定义（LightamerCore 内 protocol Layer / struct LayerStack），Phase 2 pixelpipe layer-aware，Phase 6 填实现（L005 对策）
+- **D-03b NEW**: 状态隔离契约（SessionState / EditorState / ExportState / InspectorState 独立 @Observable 对象，禁止 god-object）
+- **D-03c NEW**: 子系统 API 契约文档（每个 module 目录 API.md，列 public 表面 vs internal）
+
+**影响**: Phase 1 的 6 个 PLAN.md 需要修订以匹配新 module 结构（Plan 01 的 project.yml → Project.swift + 多 target；Plan 02-04 的文件路径调整到 LightamerCore/LightamerIOP；新增 Layer 骨架任务；状态对象按 D-03b 隔离）。
+
+---
 
 ---
 
