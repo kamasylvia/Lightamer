@@ -20,6 +20,7 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 - [ ] Capture One Session 模式：文件夹即会话，自动维护 Capture/Crop/Output 三级子目录，sidecar 调整文件（Lightamer 自有格式，不与 Darktable 二进制兼容）随原片存放，多 Session 切换 + 最近会话列表
 - [ ] Darktable 级 iop（图像操作模块）能力，按 Darktable 全量对标（91 个模块，Fine 粒度分阶段交付）；Core Image RAW（macOS 27 起原生 RAW 9 Neural Engine demosaic+denoise）覆盖的直接用，缺口用 Metal compute shader 自实现
 - [ ] Capture One 风格 adjustment layers（每层独立 iop + 每层蒙版 + 层管理 + 混合模式）作为局部调整的核心组织机制
+- [ ] AI 能力：v1 仅含 Apple 原生框架（Vision/Core Image）可直接实现的——主体检测蒙版（`VNGenerateForegroundInstanceMaskRequest`）+ 频率分离 AI 磨皮；需自定义 Core ML 模型的（天空分离/人像部位/通用语义分割/追色/评分）留 v2
 - [ ] Metal 直渲（MTKView/MTLTexture）主编辑视图，100MP+ 高分辨率下交互 60fps
 - [ ] 批量导出队列 + 多规格同导（同一原片一次性输出多种尺寸/格式/水印组合）
 - [ ] 导出格式：JPG、PNG、TIFF、HEIF/HEIC、WebP、AVIF

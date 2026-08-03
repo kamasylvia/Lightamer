@@ -136,6 +136,22 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 - [ ] **IOP-FX-04**: dehaze（除雾）
 - [ ] **IOP-FX-05**: watermark/text overlay（作为 iop 层，独立于 yiyin 面板的最终出图水印）
 
+### AI Modules (AI) — 基于 Apple Vision / Core Image 原生框架（v1 仅含原生可实现项）
+
+**划分原则**：v1 仅纳入 Apple 原生框架（Vision / Core Image / Core ML 系统提供）可直接实现、无需自定义训练模型的 AI 能力。需自定义 Core ML 模型的进 v2。研究阶段已确认能力边界（见 `.planning/research/SUMMARY.md` 与 STACK.md）。
+
+**v1 AI（全部基于公开 Vision/Core Image API，零自定义模型、Neural Engine 加速、本地运行无联网）：**
+
+- [ ] **AI-01**: 主体检测蒙版（subject isolation）——基于 `VNGenerateForegroundInstanceMaskRequest`（macOS 14+，WWDC26 增强 iterative tap/scribble/lasso），自动识别人/动物/食物/物体（class-agnostic），适用于任意 demosaic 后的 RAW 图像
+- [ ] **AI-05**: AI 磨皮——基于 `VNFaceLandmarks2D` + `VNGeneratePersonSegmentationRequest` 定位皮肤区域，Core Image 高斯模糊/高通滤波实现频率分离（frequency separation），保细节平滑、肤色自然不塑料感；无需自定义模型
+- [ ] **AI-06**: AI 蒙版作为图层/参数蒙版输入——AI 生成的 mask 可烘焙为 raster mask 或直接作为 parametric mask 应用到任意调整图层
+- [ ] **AI-07**: AI 蒙版可编辑/精修——AI 生成的蒙版不是黑盒，可手动调整边缘、羽化、反向、与其他蒙版组合
+
+**以下 AI 能力因 Apple 无公开原生 API（需自定义 Core ML 模型）→ 移至 v2（见 v2 章节 AIV2）：**
+- 天空分离（通用 RAW）——`CIRAWFilter.semanticSegmentationSkyMatteImage` 仅能读取 iPhone ProRAW 嵌入的 matte，不能从任意 DSLR RAW 计算
+- 人像部位分割（皮肤/头发/嘴唇/眼睛等独立 mask）——`AVSemanticSegmentationMatte` 仅 iPhone 捕获时数据；DSLR RAW 需自定义 face-parsing Core ML 模型
+- 通用语义分割（植被/建筑/水体/雪地等）——无公开多类分割 API，需自定义 DeepLab/Mask2Former 模型
+
 ### Color Management (COLOR)
 
 - [ ] **COLOR-01**: 色彩管理 pipeline——camera RGB → linear Rec2020 working → display (Display P3 / ICC profile) → output (sRGB / Display P3 / Adobe RGB / ProPhoto / Rec2020)
@@ -216,10 +232,15 @@ Deferred to future release. Tracked but not in current roadmap.
 
 - **PRINT-01**: 打印模块（色彩管理打印、布局、contact sheet）
 
-### Advanced Masking & AI
+### Advanced AI (v2) — 需自定义 Core ML 模型或非原生 API
 
-- **MASKADV-01**: AI 主体/天空选择（Apple Vision）
-- **MASKADV-02**: 智能对象检测蒙版
+这些能力 Apple 原生框架（Vision/Core Image）无公开 API 直接实现，需自定义训练 Core ML 模型或外部依赖，故留 v2。
+
+- **AIV2-01**: AI 追色（color match）——分析参考图/参考风格，自动调整当前图色彩向其靠拢；Apple 无 `CIColorTransfer`，需实现经典 Reinhard/直方图匹配或自定义 Core ML 色彩映射模型
+- **AIV2-02**: AI 评分/筛图（culling assist）——基于构图/曝光/对焦/清晰度自动给候选图打分排序；Apple 无质量评分 API，需自定义（Laplacian 方差模糊度量 + 直方图分析 + 可能的审美评分 Core ML 模型）
+- **AIV2-03**: 天空分离蒙版（通用 RAW）——从任意 DSLR/无反 RAW 计算天空 mask（非仅读 iPhone ProRAW 嵌入 matte）；需自定义 Core ML 天空分割模型
+- **AIV2-04**: 人像部位分割蒙版——皮肤/头发/嘴唇/眼睛/眉毛/牙齿等独立 mask，用于任意 RAW（非仅 iPhone 捕获时数据）；需自定义 face-parsing Core ML 模型（如 BiSeNet 风格）
+- **AIV2-05**: 通用语义分割蒙版——植被/建筑/水体/雪地/地面等多类语义分割（Lightroom Adaptive Presets 风格）；需自定义 DeepLab/Mask2Former Core ML 模型
 
 ### Editor Workflow Extensions
 
@@ -240,21 +261,169 @@ Explicitly excluded. Documented to prevent scope creep.
 | 与 Darktable sidecar 二进制兼容 | 研究确认 Darktable 用 base64 二进制 blob + modversion，跨实现兼容做不到；Lightamer 用自有格式最大化参数能力 |
 | 与 Darktable/Lightroom 预设互通 | 与 sidecar 决策一致；不互通，自有预设格式 + 标准 .cube LUT 即可 |
 | 移动端配套 app | macOS 专属定位；移动端不在范围 |
-| AI 自动标签/智能识别（v1） | AI 能力留 v2（Apple Vision 主体/天空选择）；v1 不做自动标签 |
+| AI 追色/AI 评分/AI 天空/人像部位/通用分割（v1） | v1 仅做 Apple 原生 API 可实现的 AI（主体检测 + 频率分离磨皮）；天空分离/人像部位/通用语义分割/追色/评分需自定义 Core ML 模型，留 v2 |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which phases cover which requirements. Updated during roadmap creation (2026-08-03).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (to be filled by roadmapper) | — | Pending |
+| FOUND-01 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| FOUND-02 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| FOUND-03 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| FOUND-04 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
+| FOUND-05 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| FOUND-06 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| FOUND-07 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| RAW-01 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| RAW-02 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| RAW-03 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
+| RAW-04 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| RAW-05 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| RAW-06 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
+| SESS-01 | Phase 9 — Capture One Session Management | Pending |
+| SESS-02 | Phase 9 — Capture One Session Management | Pending |
+| SESS-03 | Phase 9 — Capture One Session Management | Pending |
+| SESS-04 | Phase 9 — Capture One Session Management | Pending |
+| SESS-05 | Phase 9 — Capture One Session Management | Pending |
+| SESS-06 | Phase 9 — Capture One Session Management | Pending |
+| HIST-01 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
+| HIST-02 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
+| HIST-03 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
+| HIST-04 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
+| HIST-05 | Phase 9 — Capture One Session Management | Pending |
+| HIST-06 | Phase 9 — Capture One Session Management | Pending |
+| IOP-TONE-01 | Phase 3 — Tone & Filmic iops | Pending |
+| IOP-TONE-02 | Phase 3 — Tone & Filmic iops | Pending |
+| IOP-TONE-03 | Phase 3 — Tone & Filmic iops | Pending |
+| IOP-TONE-04 | Phase 3 — Tone & Filmic iops | Pending |
+| IOP-TONE-05 | Phase 3 — Tone & Filmic iops | Pending |
+| IOP-TONE-06 | Phase 3 — Tone & Filmic iops | Pending |
+| IOP-TONE-07 | Phase 3 — Tone & Filmic iops | Pending |
+| IOP-FILM-01 | Phase 3 — Tone & Filmic iops | Pending |
+| IOP-FILM-02 | Phase 3 — Tone & Filmic iops | Pending |
+| IOP-FILM-03 | Phase 3 — Tone & Filmic iops | Pending |
+| IOP-COLOR-01 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-COLOR-02 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-COLOR-03 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-COLOR-04 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-COLOR-05 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-COLOR-06 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-COLOR-07 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-COLOR-08 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| IOP-COLOR-09 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-DETAIL-01 | Phase 4 — Geometry, Lens & Detail iops | Pending |
+| IOP-DETAIL-02 | Phase 4 — Geometry, Lens & Detail iops | Pending |
+| IOP-DETAIL-03 | Phase 4 — Geometry, Lens & Detail iops | Pending |
+| IOP-DETAIL-04 | Phase 4 — Geometry, Lens & Detail iops | Pending |
+| IOP-DENOISE-01 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-DENOISE-02 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-DENOISE-03 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-DENOISE-04 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-GEO-01 | Phase 4 — Geometry, Lens & Detail iops | Pending |
+| IOP-GEO-02 | Phase 4 — Geometry, Lens & Detail iops | Pending |
+| IOP-GEO-03 | Phase 4 — Geometry, Lens & Detail iops | Pending |
+| IOP-GEO-04 | Phase 4 — Geometry, Lens & Detail iops | Pending |
+| IOP-GEO-05 | Phase 6 — Layers & Masking System | Pending |
+| IOP-GEO-06 | Phase 6 — Layers & Masking System | Pending |
+| LAYER-01 | Phase 6 — Layers & Masking System | Pending |
+| LAYER-02 | Phase 6 — Layers & Masking System | Pending |
+| LAYER-03 | Phase 6 — Layers & Masking System | Pending |
+| LAYER-04 | Phase 6 — Layers & Masking System | Pending |
+| LAYER-05 | Phase 6 — Layers & Masking System | Pending |
+| LAYER-06 | Phase 6 — Layers & Masking System | Pending |
+| LAYER-07 | Phase 6 — Layers & Masking System | Pending |
+| IOP-MASK-01 | Phase 6 — Layers & Masking System | Pending |
+| IOP-MASK-02 | Phase 6 — Layers & Masking System | Pending |
+| IOP-MASK-03 | Phase 6 — Layers & Masking System | Pending |
+| IOP-MASK-04 | Phase 6 — Layers & Masking System | Pending |
+| IOP-MASK-05 | Phase 6 — Layers & Masking System | Pending |
+| AI-01 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |
+| AI-05 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |
+| AI-06 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |
+| AI-07 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |
+| IOP-HDR-01 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| IOP-HDR-02 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| IOP-HDR-03 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| IOP-HDR-04 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| IOP-HDR-05 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| IOP-FX-01 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| IOP-FX-02 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| IOP-FX-03 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| IOP-FX-04 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| IOP-FX-05 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| COLOR-01 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
+| COLOR-02 | Phase 13 — System Integration & Distribution | Pending |
+| COLOR-03 | Phase 13 — System Integration & Distribution | Pending |
+| COLOR-04 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
+| YIYIN-01 | Phase 10 — yiyin Border/Watermark Panel | Pending |
+| YIYIN-02 | Phase 10 — yiyin Border/Watermark Panel | Pending |
+| YIYIN-03 | Phase 10 — yiyin Border/Watermark Panel | Pending |
+| YIYIN-04 | Phase 10 — yiyin Border/Watermark Panel | Pending |
+| YIYIN-05 | Phase 10 — yiyin Border/Watermark Panel | Pending |
+| YIYIN-06 | Phase 10 — yiyin Border/Watermark Panel | Pending |
+| YIYIN-07 | Phase 10 — yiyin Border/Watermark Panel | Pending |
+| YIYIN-08 | Phase 10 — yiyin Border/Watermark Panel | Pending |
+| META-01 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| META-02 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| META-03 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| META-04 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| META-05 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| META-06 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| PRES-01 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| PRES-02 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| PRES-03 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| PRES-04 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| EXP-01 | Phase 11 — Export Pipeline & Batch Queue | Pending |
+| EXP-02 | Phase 11 — Export Pipeline & Batch Queue | Pending |
+| EXP-03 | Phase 11 — Export Pipeline & Batch Queue | Pending |
+| EXP-04 | Phase 11 — Export Pipeline & Batch Queue | Pending |
+| EXP-05 | Phase 11 — Export Pipeline & Batch Queue | Pending |
+| EXP-06 | Phase 11 — Export Pipeline & Batch Queue | Pending |
+| EXP-07 | Phase 11 — Export Pipeline & Batch Queue | Pending |
+| EXP-08 | Phase 11 — Export Pipeline & Batch Queue | Pending |
+| SYS-01 | Phase 13 — System Integration & Distribution | Pending |
+| SYS-02 | Phase 13 — System Integration & Distribution | Pending |
+| SYS-03 | Phase 13 — System Integration & Distribution | Pending |
+| SYS-04 | Phase 13 — System Integration & Distribution | Pending |
+| SYS-05 | Phase 13 — System Integration & Distribution | Pending |
+| DIST-01 | Phase 13 — System Integration & Distribution | Pending |
+| DIST-02 | Phase 13 — System Integration & Distribution | Pending |
+| DIST-03 | Phase 13 — System Integration & Distribution | Pending |
+| DIST-04 | Phase 13 — System Integration & Distribution | Pending |
 
 **Coverage:**
-- v1 requirements: ~117 total (count to be confirmed after roadmap mapping)
-- Mapped to phases: 0
-- Unmapped: ~117 ⚠️ (pending roadmap creation)
+- v1 requirements: 123 total (119 + 4 AI)
+- Mapped to phases: 123 (100%)
+- Unmapped: 0 ✓
+
+### Per-phase coverage counts
+
+| Phase | Requirements | Count |
+|-------|--------------|-------|
+| 1 — Foundation, App Skeleton & Capability Spikes | FOUND-01..03, FOUND-05..07, RAW-01, RAW-02, RAW-04..06 | 11 |
+| 2 — Pixelpipe Core, Color Management & History Stack | FOUND-04, RAW-03, COLOR-01, COLOR-04, HIST-01..04 | 8 |
+| 3 — Tone & Filmic iops | IOP-TONE-01..07, IOP-FILM-01..03 | 10 |
+| 4 — Geometry, Lens & Detail iops | IOP-GEO-01..04, IOP-DETAIL-01..04 | 8 |
+| 5 — Color & Denoise iops | IOP-COLOR-01..07, IOP-COLOR-09, IOP-DENOISE-01..04 | 12 |
+| 6 — Layers & Masking System | LAYER-01..07, IOP-MASK-01..05, IOP-GEO-05, IOP-GEO-06 | 14 |
+| 7 — AI Modules (Native Vision Masking & Retouching) | AI-01, AI-05..07 | 4 |
+| 8 — HDR/Stacking & Effects iops | IOP-HDR-01..05, IOP-FX-01..05 | 10 |
+| 9 — Capture One Session Management | SESS-01..06, HIST-05, HIST-06 | 8 |
+| 10 — yiyin Border/Watermark Panel | YIYIN-01..08 | 8 |
+| 11 — Export Pipeline & Batch Queue | EXP-01..08 | 8 |
+| 12 — Metadata, Rating, Presets & LUT | META-01..06, PRES-01..04, IOP-COLOR-08 | 11 |
+| 13 — System Integration & Distribution | SYS-01..05, DIST-01..04, COLOR-02, COLOR-03 | 11 |
+| **Total** | | **123** |
+
+### Cross-phase placement rationale
+- **IOP-GEO-05 (liquify) / IOP-GEO-06 (retouch) → Phase 6 (Layers/Masking):** both architecturally depend on the mask/distortion framework; they cannot ship before masking exists.
+- **AI-01, AI-05..07 → Phase 7 (AI Modules):** the v1 AI features (subject masking + frequency-separation retouching + mask integration/editability) depend on the Phase 6 layer/mask system (AI-06 feeds masks into layers), so AI ships immediately after Layers/Masking. These are the only AI capabilities Apple's native Vision/Core Image frameworks implement without a custom Core ML model; sky/portrait-parts/semantic segmentation (AI-02/03/04 → AIV2-03/04/05) moved to v2.
+- **IOP-COLOR-08 (.cube LUT) → Phase 12 (Presets/LUT):** it is the same feature as PRES-03; they ship together as the `.cube` LUT module + its preset entry point.
+- **HIST-05 (copy/paste) / HIST-06 (before/after) → Phase 9 (Session):** workflow features layered on the Phase 2 history stack, best delivered alongside the session browse modes they operate within.
+- **COLOR-02 (soft proof) / COLOR-03 (multi-display ICC) → Phase 13 (System):** complete the color pipeline alongside system integration (Quick Look/Spotlight), which is where multi-display behavior becomes observable.
 
 ---
 *Requirements defined: 2026-08-03*
-*Last updated: 2026-08-03 after initial definition*
+*Last updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs: AI-01, AI-05, AI-06, AI-07); AI-02/03/04 moved to v2 as AIV2-03/04/05*
