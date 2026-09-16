@@ -1,3 +1,4 @@
+import LightamerCore
 import SwiftUI
 
 /// Three-column shell (D-07): sidebar / editor area / inspector.
@@ -7,6 +8,9 @@ import SwiftUI
 /// (b) host the toolbar + blocking decode-error alert. Child columns re-inject
 /// exactly the one state they need.
 internal struct ContentView: View {
+
+    /// The app-owned decode actor (D-21), passed on to `EditorState.load`.
+    let decoder: RAWDecoder
 
     @Environment(SessionState.self) private var sessionState
     @Environment(EditorState.self) private var editorState
@@ -28,7 +32,7 @@ internal struct ContentView: View {
             // D-08 layout-memory value (default 240 matches the spec).
                 .navigationSplitViewColumnWidth(min: 180, ideal: clamped(sidebarWidth, 180, 320), max: 320)
         } content: {
-            EditorAreaView()
+            EditorAreaView(decoder: decoder)
         } detail: {
             InspectorView()
             // UI-SPEC dims: min 240 / ideal 320 / max 460 — ideal is the
@@ -73,7 +77,9 @@ internal struct ContentView: View {
             .accessibilityHint(Text("a11y_toggle_sidebar_hint"))
 
             Button {
-                FileOpener.openImage { editorState.load(url: $0) }
+                FileOpener.openImage {
+                    editorState.load(url: $0, decoder: decoder, logger: EditorState.decodeLogger)
+                }
             } label: {
                 Label(String(localized: "toolbar_open"), systemImage: "folder")
             }

@@ -1,3 +1,4 @@
+import LightamerCore
 import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -32,13 +33,17 @@ internal struct LightamerApp: App {
     @State private var exportState = ExportState()
     @State private var inspectorState = InspectorState()
 
+    /// The decode actor (D-21) — one app-wide instance, injected into
+    /// `ContentView` so every Open path feeds `EditorState.load`.
+    @State private var decoder = RAWDecoder()
+
     /// Column visibility, as seen from the menu commands (View menu toggles).
     @FocusedBinding(\.lightamerColumnVisibility)
     private var focusedColumnVisibility: NavigationSplitViewVisibility?
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(decoder: decoder)
                 .environment(sessionState)
                 .environment(editorState)
                 .environment(exportState)
@@ -56,10 +61,16 @@ internal struct LightamerApp: App {
                     .keyboardShortcut("n", modifiers: [.command, .shift])
             }
             CommandGroup(after: .newItem) {
-                // Phase 1 active: file picker → EditorState.load (integration
-                // point Plan 02 replaces with the real decode).
+                // Phase 1 active: file picker → EditorState.load (real
+                // RAWDecoder decode since Plan 02).
                 Button(String(localized: "menu_open")) {
-                    FileOpener.openImage { editorState.load(url: $0) }
+                    FileOpener.openImage {
+                        editorState.load(
+                            url: $0,
+                            decoder: decoder,
+                            logger: EditorState.decodeLogger
+                        )
+                    }
                 }
                 .keyboardShortcut("o", modifiers: .command)
                 // Phase 9 fills the recent-sessions list; empty in Phase 1.
