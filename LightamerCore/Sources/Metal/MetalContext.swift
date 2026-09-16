@@ -317,7 +317,8 @@ public actor MetalContext {
     public nonisolated func renderToTexture(_ image: CIImage) async throws -> sending any MTLTexture {
         let pool = await getOrCreatePool()
         do {
-            return try await pool.renderToTexture(image)
+            let rendered = try await pool.renderToTexture(image)
+            return rendered.texture
         } catch let error as MetalError {
             throw error.asAppError
         }

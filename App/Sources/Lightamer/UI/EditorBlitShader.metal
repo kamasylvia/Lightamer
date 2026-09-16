@@ -29,10 +29,11 @@ vertex BlitOut editor_blit_vertex(
     float2 ndc = quad[vid] * uniforms.scale + uniforms.offset;
     BlitOut out;
     out.position = float4(ndc, 0.0, 1.0);
-    // CIContext.render maps the image's bottom-left origin to texture pixel
-    // (0,0); the drawable's row 0 is the TOP of the view, so uv = ndc*0.5+0.5
-    // reproduces the upright image (no v-flip).
-    out.uv = ndc * 0.5 + 0.5;
+    // Orientation chain (verified by .work/01-03/smoke against the fixture):
+    // CIContext renders the image BOTTOM-UP (texture row 0 = image bottom,
+    // CI's lower-left origin), while the drawable's row 0 displays at the
+    // TOP of the view. uv.y is therefore flipped so the image shows upright.
+    out.uv = float2(ndc.x * 0.5 + 0.5, 1.0 - (ndc.y * 0.5 + 0.5));
     return out;
 }
 
