@@ -310,6 +310,13 @@ public actor RAWDecoder {
                 meta.iso = iso
             } else if let iso = exif[kCGImagePropertyExifISOSpeedRatings] as? Int {
                 meta.iso = iso
+            } else if let iso = doubleValue(exif[kCGImagePropertyExifISOSpeed]) {
+                // EXIF 2.3+ keys — modern Canon CR3 reports ISO only here
+                // (IMG_4276.CR3: ISOSpeedRatings nil, ISOSpeed 1600), found
+                // by the Plan 06 real-RAW metadata tests.
+                meta.iso = Int(iso)
+            } else if let iso = doubleValue(exif[kCGImagePropertyExifRecommendedExposureIndex]) {
+                meta.iso = Int(iso)
             }
             if let raw = exif[kCGImagePropertyExifDateTimeOriginal] as? String {
                 meta.captureTime = Self.parseEXIFDate(raw)
