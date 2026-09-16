@@ -1,0 +1,38 @@
+## PERF: Nikon_Z8_raw_14_bit_lossless_compression.NEF
+device: Apple M4  recommendedMaxWorkingSetSize: 12124 MB  RAM: 16384 MB
+macOS: Version 27.0 (Build 26A428)
+init: 330 ms
+supportedDecoderVersions: [7, 8]
+nativeSize: 8256x5504 (45.4 MP)  full RGBA32Float plane ≈ 693 MB
+[7] decode+full RGBA8 render n=5: med 345 ms (min 335 / max 355)  footprintPeak med +88 MB (max +127 MB)
+blit-A render→MTLTexture(.rgba32Float) 1024x768 crop: 45 ms  contentNonZero=false
+blit-B bitmap render 5 ms + texture.replace 1.16 ms = 6 ms
+[8] decode+full RGBA8 render n=5: med 354 ms (min 346 / max 358)  footprintPeak med +87 MB (max +283 MB)
+blit-A render→MTLTexture(.rgba32Float) 1024x768 crop: 38 ms  contentNonZero=false
+blit-B bitmap render 3 ms + texture.replace 1.19 ms = 4 ms
+float32 RGBA native-res render: 479 ms  footprintPeak=+1582 MB
+viewport 2560x1440 aspect-fit n=60: med 330.2 ms/frame (min 308.8 / max 379.8)  est fps=3  frames>16.67ms: 60/60  [decoder 8]
+footprint at end: 4258 MB
+Stack dump:
+0.	Program arguments: /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -interpret perf-harness.swift -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk -no-color-diagnostics -Xcc -fno-color-diagnostics -new-driver-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-driver -empty-abi-descriptor -no-auto-bridging-header-chaining -module-name main -disable-clang-spi -target-sdk-version 27.0 -target-sdk-name macosx27.0 -external-plugin-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins#/Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server -external-plugin-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/local/lib/swift/host/plugins#/Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server -in-process-plugin-server-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -plugin-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -- samples/Nikon_Z8_raw_14_bit_lossless_compression.NEF 5
+1.	Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)
+Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+0  swift-frontend           0x000000010b7cbbd0 llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) + 56
+1  swift-frontend           0x000000010b7c9358 llvm::sys::RunSignalHandlers() + 172
+2  swift-frontend           0x000000010b7cc1c8 SignalHandler(int, __siginfo*, void*) + 360
+3  libsystem_platform.dylib 0x000000018c860144 _sigtramp + 56
+4  swift-frontend           0x00000001091dd038 clang::ASTReader::~ASTReader() + 136
+5  swift-frontend           0x00000001091dd038 clang::ASTReader::~ASTReader() + 136
+6  swift-frontend           0x00000001091deaec non-virtual thunk to clang::ASTReader::~ASTReader() + 16
+7  swift-frontend           0x000000010a193d4c clang::ASTContext::~ASTContext() + 1500
+8  swift-frontend           0x0000000108d77cc8 clang::CompilerInstance::~CompilerInstance() + 756
+9  swift-frontend           0x0000000108d77fd0 clang::CompilerInstance::~CompilerInstance() + 12
+10 swift-frontend           0x000000010558db50 swift::ClangImporter::Implementation::~Implementation() + 2068
+11 swift-frontend           0x000000010558df08 swift::ClangImporter::Implementation::~Implementation() + 12
+12 swift-frontend           0x00000001055787f0 swift::ClangImporter::~ClangImporter() + 44
+13 swift-frontend           0x00000001055788f4 swift::ClangImporter::~ClangImporter() + 12
+14 swift-frontend           0x0000000106aa7c2c swift::ASTContext::~ASTContext() + 2496
+15 swift-frontend           0x000000010570b2f0 swift::CompilerInstance::~CompilerInstance() + 500
+16 swift-frontend           0x00000001052ddaf8 swift::performFrontend(llvm::ArrayRef<char const*>, char const*, void*, swift::FrontendObserver*) + 3060
+17 swift-frontend           0x000000010525d008 swift::mainEntry(int, char const**) + 5600
+18 dyld                     0x000000018c47fe80 start + 6688

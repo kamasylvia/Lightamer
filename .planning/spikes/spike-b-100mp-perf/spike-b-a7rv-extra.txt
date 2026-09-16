@@ -1,0 +1,6 @@
+## EXTRA: 7RM5-LosslessCompressedLarge.ARW
+nativeSize: 9504x6336 (60.2 MP)  float32 plane ≈ 919 MB  supported=[7,8,9]
+warm full decode (v8): 25075 ms
+float32 RGBA native render: 848 ms  footprintPeak=+2147 MB  end=3140 MB
+CACHED viewport 2560x1440 (decode-once + per-frame transform) n=60: med 8.50 ms/frame (min 8.34 / max 33.32)  est fps=118  frames>16.67ms: 1/60
+footprint at end: 3090 MB

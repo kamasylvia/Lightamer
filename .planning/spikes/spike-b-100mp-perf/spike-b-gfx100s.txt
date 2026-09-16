@@ -1,0 +1,30 @@
+## PERF: Fujifilm-GFX100S-14bits-losslescompressed-4_3.RAF
+device: Apple M4  recommendedMaxWorkingSetSize: 12124 MB  RAM: 16384 MB
+macOS: Version 27.0 (Build 26A428)
+init: 344 ms
+supportedDecoderVersions: [7, 8]
+nativeSize: 11648x8736 (101.8 MP)  full RGBA32Float plane ≈ 1553 MB
+[7] decode+full RGBA8 render n=5: med 21532 ms (min 19000 / max 23179)  footprintPeak med +266 MB (max +345 MB)
+blit-A render→MTLTexture(.rgba32Float) 1024x768 crop: 320 ms  contentNonZero=false
+blit-B bitmap render 4 ms + texture.replace 1.83 ms = 6 ms
+[8] decode+full RGBA8 render n=5: med 20894 ms (min 20635 / max 24388)  footprintPeak med +330 MB (max +503 MB)
+blit-A render→MTLTexture(.rgba32Float) 1024x768 crop: 335 ms  contentNonZero=true
+blit-B bitmap render 5 ms + texture.replace 1.78 ms = 6 ms
+float32 RGBA native-res render: 28115 ms  footprintPeak=+1466 MB
+viewport 2560x1440 aspect-fit n=60: med 1019.6 ms/frame (min 641.8 / max 14239.6)  est fps=1  frames>16.67ms: 60/60  [decoder 8]
+footprint at end: 4754 MB
+Stack dump:
+0.	Program arguments: /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -interpret perf-harness.swift -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk -no-color-diagnostics -Xcc -fno-color-diagnostics -new-driver-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-driver -empty-abi-descriptor -no-auto-bridging-header-chaining -module-name main -disable-clang-spi -target-sdk-version 27.0 -target-sdk-name macosx27.0 -external-plugin-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins#/Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server -external-plugin-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/local/lib/swift/host/plugins#/Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server -in-process-plugin-server-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -plugin-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -- samples/Fujifilm-GFX100S-14bits-losslescompressed-4_3.RAF 5
+1.	Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)
+Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+0  swift-frontend           0x0000000108fc3bd0 llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) + 56
+1  swift-frontend           0x0000000108fc1358 llvm::sys::RunSignalHandlers() + 172
+2  swift-frontend           0x0000000108fc41c8 SignalHandler(int, __siginfo*, void*) + 360
+3  libsystem_platform.dylib 0x000000018c860144 _sigtramp + 56
+4  swift-frontend           0x0000000104612c78 swift::SourceLookupCache::~SourceLookupCache() + 564
+5  swift-frontend           0x00000001045fdcb8 std::__1::__function::__func<void swift::ASTContext::addDestructorCleanup<swift::ModuleDecl>(swift::ModuleDecl&)::'lambda'(), std::__1::allocator<void swift::ASTContext::addDestructorCleanup<swift::ModuleDecl>(swift::ModuleDecl&)::'lambda'()>, void ()>::operator()() + 172
+6  swift-frontend           0x000000010429f764 swift::ASTContext::~ASTContext() + 1272
+7  swift-frontend           0x0000000102f032f0 swift::CompilerInstance::~CompilerInstance() + 500
+8  swift-frontend           0x0000000102ad5af8 swift::performFrontend(llvm::ArrayRef<char const*>, char const*, void*, swift::FrontendObserver*) + 3060
+9  swift-frontend           0x0000000102a55008 swift::mainEntry(int, char const**) + 5600
+10 dyld                     0x000000018c47fe80 start + 6688
