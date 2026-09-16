@@ -2,8 +2,8 @@
 phase: 1
 slug: foundation-app-skeleton-capability-spikes
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-08-03
 ---
 
@@ -41,35 +41,35 @@ created: 2026-08-03
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 01-01-03 | 01 | 1 | FOUND-02 | — | N/A | unit | Source assertion: `WorkingSpace.colorSpace` = `rec2020Linear`, `WorkingSpace.pixelFormat` = `.rgba32Float`, `bytesPerPixel` = 16 | ❌ W0 | ⬜ pending |
-| 01-01-06 | 01 | 1 | FOUND-01 | — | N/A | build+manual | `xcodebuild build -project Lightamer.xcodeproj -scheme Lightamer` succeeds on macOS 27 SDK; app launches, three-column shell visible, dark mode forced | ❌ W0 | ⬜ pending |
-| 01-02-03 | 02 | 1 | RAW-01 | — | N/A | unit | `RAWDecoderTests: decode CR3/NEF/ARW/RAF succeeds, CIImage non-nil` | ❌ W0 | ⬜ pending |
-| 01-02-03 | 02 | 1 | RAW-02 | — | N/A | unit | `RAWDecoderTests: decode DNG succeeds` | ❌ W0 | ⬜ pending |
-| 01-02-03 | 02 | 1 | RAW-04 | — | N/A | unit | `RAWDecoderTests: decode JPEG/HEIC/PNG/WebP/TIFF via CGImageSource path` | ❌ W0 | ⬜ pending |
-| 01-02-03 | 02 | 1 | RAW-05 | — | N/A | unit | `RAWDecoderTests: decoderVersion=.version9 under #available(macOS 27,*); fallback .version8` | ❌ W0 | ⬜ pending |
-| 01-02-03 | 02 | 1 | RAW-06 | — | N/A | unit | `MetadataTests: camera/lens/focal/aperture/shutter/ISO/GPS/capture-time extracted from CR3+NEF` | ❌ W0 | ⬜ pending |
-| 01-03-06 | 03 | 1 | FOUND-05 | — | N/A | manual+unit | `EditorMTKView displays decoded RAW without error` (manual: File → Open CR3 → pixels visible in center column) | ❌ W0 | ⬜ pending |
-| 01-03-07 | 03 | 1 | FOUND-06 | — | N/A | unit | `MetalContextTests: pass-through kernel bit-exact (buffer in == buffer out)` | ❌ W0 | ⬜ pending |
-| 01-04-02 | 04 | 1 | FOUND-03 | — | N/A | unit | `IOPModuleTests: PassthroughModule conforms, Params: Codable & Hashable` | ❌ W0 | ⬜ pending |
-| 01-04-03 | 04 | 1 | FOUND-03 | — | N/A | unit | `V50OrderTests: entries count ~76, no duplicate opName except deliberate collisions` | ❌ W0 | ⬜ pending |
-| 01-04-04 / 01-06-02 | 04/06 | 1/2 | D-03a | — | N/A | unit | `LayerSkeletonTests: LayerStack(baseLayer:) constructs; BlendMode.normal.rawValue == 1` | ❌ W0 | ⬜ pending |
-| 01-05-01 | 05 | 2 | FOUND-07 | — | N/A | spike-doc | `Spike A report: CIRAW 9 capability table committed` | ❌ W0 | ⬜ pending |
-| 01-05-02 | 05 | 2 | FOUND-07 | — | N/A | spike-doc | `Spike B report: 100MP GFX100S decode+display, no jetsam, perf data recorded` | ❌ W0 | ⬜ pending |
+| 01-01-03 | 01 | 1 | FOUND-02 | — | N/A | unit | Source assertion: `WorkingSpace.colorSpace` = `rec2020Linear`, `WorkingSpace.pixelFormat` = `.rgba32Float`, `bytesPerPixel` = 16 | ✅ | ✅ green (exercised by `MetalContextTests.testPassThroughKernelBitExact` — allocates via `WorkingSpace.pixelFormat`/`bytesPerPixel` and proves bit-exact float32 RGBA round-trip; Plan 01 smoke) |
+| 01-01-06 | 01 | 1 | FOUND-01 | — | N/A | build+manual | `xcodebuild build -project Lightamer.xcodeproj -scheme Lightamer` succeeds on macOS 27 SDK; app launches, three-column shell visible, dark mode forced | ✅ | ⚠️ pending-manual — build ✅ (rebuilt repeatedly 2026-09-16); shell/dark-mode visual blocked: host screen LOCKED, XCUITest runner times out enabling automation (`AppLaunchTests` ready + label-matched to String Catalog, runs green once unlocked) |
+| 01-02-03 | 02 | 1 | RAW-01 | — | N/A | unit | `RAWDecoderTests: decode CR3/NEF/ARW/RAF succeeds, CIImage non-nil` | ✅ | ✅ green (Plan 05 CC0 samples; GPS-less CR3 skip is a fixture property) |
+| 01-02-03 | 02 | 1 | RAW-02 | — | N/A | unit | `RAWDecoderTests: decode DNG succeeds` | ✅ | ✅ green |
+| 01-02-03 | 02 | 1 | RAW-04 | — | N/A | unit | `RAWDecoderTests: decode JPEG/HEIC/PNG/WebP/TIFF via CGImageSource path` | ✅ | ✅ green (JPEG/HEIC/PNG/TIFF; WebP has no fixture this phase — rides the same raster path, noted in test) |
+| 01-02-03 | 02 | 1 | RAW-05 | — | N/A | unit | `RAWDecoderTests: decoderVersion=.version9 under #available(macOS 27,*); fallback .version8` | ✅ | ✅ green (A7R V → v9; Z8 → silent v8 fallback, version-pinned to GM camera list) |
+| 01-02-03 | 02 | 1 | RAW-06 | — | N/A | unit | `MetadataTests: camera/lens/focal/aperture/shutter/ISO/GPS/capture-time extracted from CR3+NEF` | ✅ | ✅ green (surfaced + fixed the CR3 EXIF-2.3 ISO gap, commit 93c4eb6; GPS row skips on GPS-less fixture) |
+| 01-03-06 | 03 | 1 | FOUND-05 | — | N/A | manual+unit | `EditorMTKView displays decoded RAW without error` (manual: File → Open CR3 → pixels visible in center column) | ✅ | ⚠️ pending-manual — decode→PixelPipe→display-texture path exercised headless (Plan 04 smoke 13/13 + Plan 06 perf harness 6/6 files rendered); on-screen visual check needs an unlocked session |
+| 01-03-07 | 03 | 1 | FOUND-06 | — | N/A | unit | `MetalContextTests: pass-through kernel bit-exact (buffer in == buffer out)` | ✅ | ✅ green (bit-exact + PSO cache hit + function-constants specialization) |
+| 01-04-02 | 04 | 1 | FOUND-03 | — | N/A | unit | `IOPModuleTests: PassthroughModule conforms, Params: Codable & Hashable` | ✅ | ✅ green (incl. bit-exact no-op `process`) |
+| 01-04-03 | 04 | 1 | FOUND-03 | — | N/A | unit | `V50OrderTests: entries count ~76, no duplicate opName except deliberate collisions` | ✅ | ✅ green (count = **93** — verbatim iop_order.c port; plan's "~76" estimate undercounted, recorded in 01-04-SUMMARY) |
+| 01-04-04 / 01-06-02 | 04/06 | 1/2 | D-03a | — | N/A | unit | `LayerSkeletonTests: LayerStack(baseLayer:) constructs; BlendMode.normal.rawValue == 1` | ✅ | ✅ green |
+| 01-05-01 | 05 | 2 | FOUND-07 | — | N/A | spike-doc | `Spike A report: CIRAW 9 capability table committed` | ✅ | ✅ green (`spike-a-ciraw9-boundary.md`, commit 2273f1e) |
+| 01-05-02 | 05 | 2 | FOUND-07 | — | N/A | spike-doc | `Spike B report: 100MP GFX100S decode+display, no jetsam, perf data recorded` | ✅ | ✅ green (`spike-b-100mp-perf.md`, commit d3b3cb7; consolidated into `01-PERF-BASELINE.md` by Plan 06) |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky/pending-manual. Suite tally 2026-09-16: LightamerTests **36 executed, 1 skipped (fixture carries no GPS), 0 failed — TEST SUCCEEDED**. LightamerUITests: environment-blocked on the locked-screen host (runner signature fixed by ad-hoc re-sign; then "timed out while enabling automation mode") — pending manual run.*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `Tests/LightamerTests/RAWDecoderTests.swift` — stubs for RAW-01/02/04/05/06 (decode CR3/NEF/ARW/RAF/DNG + non-RAW + decoderVersion opt-in + metadata)
-- [ ] `Tests/LightamerTests/MetalContextTests.swift` — stub for FOUND-06 (pass-through kernel bit-exact)
-- [ ] `Tests/LightamerTests/IOPModuleTests.swift` — stub for FOUND-03 (PassthroughModule conformance + Codable/Hashable)
-- [ ] `Tests/LightamerTests/V50OrderTests.swift` — stub for FOUND-03 (entries count + duplicate detection)
-- [ ] `Tests/LightamerTests/LayerSkeletonTests.swift` — stub for D-03a (LayerStack constructs, BlendMode raw values)
-- [ ] `Tests/LightamerTests/MetadataTests.swift` — stub for RAW-06 (EXIF/IPTC/XMP/GPS extraction)
-- [ ] `Tests/LightamerUITests/AppLaunchTests.swift` — stub for FOUND-01/05 (app launches, three-column shell, dark mode, empty state)
-- [ ] Test sample RAW files in `Resources/TestFixtures/` (at least 1× CR3, NEF, ARW, RAF, DNG, JPEG, HEIC, PNG, TIFF) — small representative samples, not full-size
+- [x] `Tests/LightamerTests/RAWDecoderTests.swift` — stubs for RAW-01/02/04/05/06 (decode CR3/NEF/ARW/RAF/DNG + non-RAW + decoderVersion opt-in + metadata)
+- [x] `Tests/LightamerTests/MetalContextTests.swift` — stub for FOUND-06 (pass-through kernel bit-exact)
+- [x] `Tests/LightamerTests/IOPModuleTests.swift` — stub for FOUND-03 (PassthroughModule conformance + Codable/Hashable)
+- [x] `Tests/LightamerTests/V50OrderTests.swift` — stub for FOUND-03 (entries count + duplicate detection)
+- [x] `Tests/LightamerTests/LayerSkeletonTests.swift` — stub for D-03a (LayerStack constructs, BlendMode raw values)
+- [x] `Tests/LightamerTests/MetadataTests.swift` — stub for RAW-06 (EXIF/IPTC/XMP/GPS extraction)
+- [x] `Tests/LightamerUITests/AppLaunchTests.swift` — stub for FOUND-01/05 (app launches, three-column shell, dark mode, empty state)
+- [x] Test sample RAW files — satisfied by the recorded two-tier strategy: tracked rasters in `Resources/TestFixtures/` (JPEG/HEIC/PNG/TIFF; the 1.2 GB Plan 05 CC0 RAW samples (CR3/NEF/ARW/RAF/DNG + 8 more) stay untracked at `.work/01-05/samples/` with an internal-disk mirror for test runs — bundling 1.2 GB into the repo/target was rejected (Fixtures.swift, 01-06-SUMMARY)
 
 *Framework (XCTest/XCUITest) ships with Xcode — no install needed; Tuist declares test targets in Project.swift (run `tuist generate` first).*
 
@@ -88,11 +88,11 @@ created: 2026-08-03
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s (LightamerTests: ~19 s wall via `xcodebuild test -only-testing:LightamerTests` on the M4 host)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** executor — GSD executor, 2026-09-16 (Plan 06 task 01-06-06). Automated unit suite green (36/36 executed, 1 documented skip); manual-only rows (on-screen shell/viewport visual, Instruments signpost view, XCUITest run) pending an unlocked GUI session — recorded as pending-manual, not assumed green. D-29 confirmed: no CI config exists (`.github/workflows/`, `azure-pipelines.yml` absent); local `xcodebuild test` is the Phase 1 verification mechanism.

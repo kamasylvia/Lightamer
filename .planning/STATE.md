@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 1 — Foundation, App Skeleton & Capability Spikes
-status: not_started
-stopped_at: Phase 1 UI-SPEC approved
-last_updated: "2026-08-03T15:59:45.028Z"
+status: executed_pending_verify
+stopped_at: Phase 1 Plan 06 complete — unit suite green, VALIDATION signed (manual-only rows pending-manual)
+last_updated: "2026-09-16T11:10:00.000Z"
 progress:
-  total_phases: 1
+  total_phases: 13
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
+  completed_plans: 6
 ---
 
 # Project State: Lightamer
 
-**Last updated:** 2026-08-03
+**Last updated:** 2026-09-16
 **Current phase:** Phase 1 — Foundation, App Skeleton & Capability Spikes
-**Status:** not_started
+**Status:** executed_pending_verify (6/6 plans executed + committed; pending `$gsd-verify-work` / phase verification)
 
 ## Roadmap Snapshot
 
@@ -26,13 +26,13 @@ progress:
 - **Mode:** standard (Horizontal Layers)
 - **Total v1 requirements:** 123
 - **Mapped:** 123 (100%)
-- **Completed phases:** 0 / 13
+- **Completed phases:** 0 / 13 (Phase 1 executed, verification gate next)
 
 ## Phase Progress
 
 | # | Phase | Status | Requirements |
 |---|-------|--------|--------------|
-| 1 | Foundation, App Skeleton & Capability Spikes | not_started | 11 |
+| 1 | Foundation, App Skeleton & Capability Spikes | executed_pending_verify | 11 |
 | 2 | Pixelpipe Core, Color Management & History Stack | pending | 8 |
 | 3 | Tone & Filmic iops | pending | 10 |
 | 4 | Geometry, Lens & Detail iops | pending | 8 |
@@ -52,8 +52,9 @@ progress:
 
 - **Goal:** Stand up the macOS 27 native app, Metal dispatch framework, CIRAW 9 RAW decode, the `IOPModule` protocol + `v50_order` table, and an MTKView viewport blitting a decoded RAW. Resolve the CIRAW 9 capability boundary and 100MP Metal performance vertebra — these determine v1 iop scope.
 - **Requirements:** FOUND-01, FOUND-02, FOUND-03, FOUND-05, FOUND-06, FOUND-07, RAW-01, RAW-02, RAW-04, RAW-05, RAW-06
-- **Spikes (run here):** CIRAW 9 vs RAW 8 capability boundary; 100MP Metal performance; preliminary filmicrgb port feasibility; preliminary raw denoise profiling.
+- **Spikes (run here):** CIRAW 9 vs RAW 8 capability boundary (done — `spike-a-ciraw9-boundary.md`); 100MP Metal performance (done — `spike-b-100mp-perf.md` + `01-PERF-BASELINE.md`); preliminary filmicrgb port feasibility; preliminary raw denoise profiling.
 - **Locked decisions (per research):** macOS 27 floor; linear Rec2020 scene-referred working space; float32 RGBA premultiplied-alpha pipe buffers; `v50_order` module ordering; Metal-first pipe with CIRAW strictly as decoder; Lightamer-own-format sidecar (NOT Darktable-binary-compatible).
+- **Execution state (2026-09-16):** Plans 01-06 all executed and committed. LightamerTests green (36 executed / 1 skip / 0 failed). Pending-manual (host screen locked during execution): XCUITest run, on-screen shell/viewport visual, Instruments signpost view — see `01-VALIDATION.md` and `01-06-SUMMARY.md`.
 
 ### Phase Build Order (dependency-driven)
 
@@ -61,14 +62,16 @@ Foundation (1) → Pixelpipe core + history (2) → Tone/Filmic (3) → Geometry
 
 ## Decisions Log
 
-(To be updated at phase transitions and milestone boundaries.)
+- 2026-09-16 (Plan 05): D-20 evidence recorded — tiling deferred is correct for Phase 1; Phase 2 must treat tiling/multi-resolution caching as a hard requirement (see `spike-b-100mp-perf.md` §4).
+- 2026-09-16 (Plan 05): demosaic algorithm menu NOT a v1 hard requirement (CIRAW 8/9 boundary; user phase-verification call recorded in 01-05-SUMMARY).
 
 ---
 *Initialized: 2026-08-03 after roadmap creation*
 *Updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs); AI-02/03/04 moved to v2*
+*Updated: 2026-09-16 — Phase 1 Plans 01-06 executed (status not_started → executed_pending_verify)*
 
 ## Session
 
-**Last session:** 2026-08-03T15:59:44.862Z
-**Stopped at:** Phase 1 UI-SPEC approved
-**Resume file:** .planning/phases/01-foundation-app-skeleton-capability-spikes/01-UI-SPEC.md
+**Last session:** 2026-09-16
+**Stopped at:** Phase 1 Plan 06 complete — unit suite green, VALIDATION signed (manual-only rows pending-manual)
+**Resume file:** .planning/phases/01-foundation-app-skeleton-capability-spikes/01-06-SUMMARY.md
