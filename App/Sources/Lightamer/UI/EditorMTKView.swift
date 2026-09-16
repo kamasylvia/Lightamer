@@ -129,21 +129,21 @@ internal struct EditorMTKView: NSViewRepresentable {
             renderPass.colorAttachments[0].clearColor = Self.canvasClearColor
 
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPass) else { return }
-            defer { encoder.endEncoding() }
 
-            guard let state = blitPipelineState, let texture = sourceTexture else {
-                return // no image yet — solid canvas mat (UI-SPEC "no image" viewport state)
-            }
+            // endEncoding MUST precede commit — a defer here would run after
+            // commit() and abort validation ("uncommitted encoder").
+            if let state = blitPipelineState, let texture = sourceTexture {
+                encoder.setRenderPipelineState(state)
+                var uniforms = Self.aspectFitUniforms(
+                    textureSize: SIMD2(Float(texture.width), Float(texture.height)),
+                    drawableSize: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height))
+                )
+                encoder.setVertexBytes(&uniforms, length: MemoryLayout<BlitUniforms>.stride, index: 0)
+                encoder.setFragmentTexture(texture, index: 0)
+                encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            } // else: no image yet — solid canvas mat (UI-SPEC "no image" viewport state)
 
-            encoder.setRenderPipelineState(state)
-            var uniforms = Self.aspectFitUniforms(
-                textureSize: SIMD2(Float(texture.width), Float(texture.height)),
-                drawableSize: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height))
-            )
-            encoder.setVertexBytes(&uniforms, length: MemoryLayout<BlitUniforms>.stride, index: 0)
-            encoder.setFragmentTexture(texture, index: 0)
-            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-
+            encoder.endEncoding()
             commandBuffer.present(drawable)
             commandBuffer.commit()
         }
