@@ -37,7 +37,7 @@
 - [x] **Plan 04** — IOPModule 协议（Core/Pipe, public）+ V50Order（Core/Foundation, port iop_order.c:298-415）+ **Layer 骨架（Core/Layers, D-03a）** + PassthroughModule（IOP）+ PixelPipe 骨架（layer-aware）（2026-09-16 完成：iop 契约 + 93 条 V50Order + Layer 骨架 + PassthroughModule 全 conformance + 内部 PixelPipe（持 LayerStack）+ `RenderPipeline` public 桥接入 EditorState→EditorMTKView；无头冒烟 13 项 PASS（含 process 缓冲 bit-exact、decode→PixelPipe→texture）；absorb macOS 27 SDK blit/completed 签名；MTKView 屏显待人工目检（同 Plan 03 遗留类），见 `01-04-SUMMARY.md`）
 
 ### Wave 2（验证 + 包装）
-- [ ] **Plan 05** — Spike A（CIRAW 9 能力边界）+ Spike B（100MP GFX100S 性能），独立 spike 分支 + 报告 + golden samples
+- [x] **Plan 05** — Spike A（CIRAW 9 能力边界）+ Spike B（100MP 性能）（2026-09-16 完成：真实相机样本 13 份 CC0（raw.pixls.us）实测；Spike A = RAW 9 GM 仅 69 机型（GFX100S/Z8/X100VI 不在列）、v9 no-op NR keys 双重证实、IQ4 150MP CIRAW 无法解码、ProRAW skyMatte 实测、demosaic 菜单建议不列为 v1 硬需求（用户 phase verification 定夺）；Spike B = 100MP 解码 Bayer 833ms/uncompressed RAF 848ms 达标、lossless-c GFX RAF 20.9s 超标 10×（RAF 无损解压器病态）、float32 1.55GB plane 峰值 2.0-2.8GB 达标、cached 帧 15.6ms≈64fps 达标、D-20 维持（Phase 2 tiling 硬需求证据落账）、render-to-texture 首写空复现+clearCaches 新要求；报告 `spike-a-ciraw9-boundary.md` / `spike-b-100mp-perf.md` + golden samples 入 `.planning/spikes/`；执行形式改为无头 harness（无独立 spike 分支，见 SUMMARY 记录），见 `01-05-SUMMARY.md`）
 - [ ] **Plan 06** — 测试骨架（Tests+UITests）+ 模块 API.md（D-03c）+ os.signpost 性能基线
 
 **执行命令**：`$gsd-execute-phase 1`

@@ -292,6 +292,18 @@ public final class RAWDecoder: @unchecked Sendable {   // actor or @unchecked �
 
 **⚠ DECISION REVIEW: D-22 (RAW 9 default + auto-fallback).** The pattern is feasible. One nuance: when RAW 9 silently produces different output for a camera (e.g. applies its own ML denoise the user did not ask for), the user has no in-app signal that "RAW 9 happened." Sidecars should stamp the decoder version used (per PITFALLS CIRAW-2: "version-stamp sidecars with the decoder used"). **Recommendation:** `DecodedImage.decoderVersionUsed` is already `public` and carries this — reserve the sidecar field now even though sidecars are Phase 2.
 
+#### 2.a Spike A back-port (append-only, 2026-09-16 — macOS 27.0 GM 26A428 measured, full report `spike-a-ciraw9-boundary.md`)
+
+1. **RAW 9 coverage at GM = 69 models, NOT "hundreds"** (the §2 bullet above is wrong at GM). `CIRAWFilter.supportedCameraModels(with: .version9)` — GFX100S, X100VI, X-H2S, Z8, OM-1 II, X2D, R10 all **absent**; only X-T5/X-T50 among Fuji. D-22's fallback fires for most bodies; Plan 02's probe+fallback stands unchanged. Full lists: `.planning/spikes/spike-a-ciraw9-boundary/models.txt`.
+2. **`supportedCameraModels(with:)` (macOS 27+)** — zero-cost camera-support probe without instantiating a filter; use it in `RAWDecoder` for the unsupported-camera fast path (cheaper than the two-instantiation probe; init costs 0.2–2.3 s cold, CR3 worst).
+3. `supportedDecoderVersions` rawValues are strings: `"7"`, `"8"`, `"9"`, `"6.dng"`, `"7.dng"`, `"8.dng"`, `"9.dng"` — compare via `CIRAWDecoderVersion` constants' `rawValue`, never integers.
+4. **No-op keys under v9 confirmed at GM with two mechanisms**: `colorNoiseReduction/detailAmount/moireReduction` flags drop to UNSUPPORTED on every v9 file; `luminanceNoiseReductionAmount` keeps its flag but is behaviorally inert under v9 (pixel-diff 0.00). `sharpnessAmount` is behaviorally inert at 1:1 under BOTH versions (scale-dependent). UI must gate on `decoderVersionUsed` (as §2 already prescribes).
+5. **Phase One IQ4 150MP IIQ is NOT decodable by CIRAWFilter** (`[None]`, 0×0, preview only) — the unsupported-RAW typed-error path is real; the IQ4 sample is a Plan 06 fixture candidate; libraw fallback (D-24, v2+) has its first concrete case.
+6. Lens-correction flag is per-file AND per-version (A7R V: UNSUPPORTED v8 → supported v9). No user-tunable CA/distortion/vignette at GM — the Phase 4 lens iop remains in scope.
+7. ProRAW mattes: iPhone 12 Pro DNG surfaces `semanticSegmentationSkyMatte` at GM; other mattes nil per capture. Read opportunistically (D-23c).
+8. Setting `decoderVersion = .version9` on a file that does not support it does NOT throw — CIRAW silently clamps to a supported version. `decoderVersionUsed` (not the requested version) must always be recorded.
+9. `previewImage` present on every sample (GFX100S 4000×3000, Z8 full-size) — Phase 9 browser thumbnails should consume it, never first-decode.
+
 ### 3. MetalContext Dispatch Framework  [module placement note added]
 
 **Confidence: High** for the dispatch shape (1:1 port of Darktable's `dt_opencl_enqueue_kernel_2d` pattern). **Med** for PSO cache sizing under the full 91-module set (Phase 1 only has ~1 kernel, so memory is trivial here; the real test is Phase 3+).
@@ -435,6 +447,14 @@ internal actor CIContextPool {
 - **CIContext workingFormat `kCIFormatRGBAh` vs float32 output**: CIContext internally works in half-float for performance but you can render to a `.rgba32Float` texture — the cast happens at the render step. For the pixelpipe core (Phase 2+), prefer rendering CIRAW output to a float32 buffer ONCE, then running everything else as Metal buffer-to-buffer (per ARCHITECTURE.md §5).
 - **`cacheIntermediates: false`** (CIRAW-4) is mandatory — without it, lazy CIImage chains on 100MP hold gigabytes of ROI descriptors. Verify with the Spike B 100MP test.
 - **Single `MTLCommandQueue` (D-15)** is fine for Phase 1 (display-only, no contention). The seam to add a low-priority export queue (Phase 11) is just `device.makeCommandQueue()` again — keep `commandQueue` as `private(set)` and add a second property later.
+
+#### 3.a Spike B back-port (append-only, 2026-09-16 — macOS 27.0 GM 26A428 measured, full report `spike-b-100mp-perf.md`)
+
+1. **`CIContext.render(_:to:)` into an `.rgba32Float` MTLTexture writes EMPTY content on its FIRST use per process** — reproduced 6/6 processes on GM (this refines Plan 03's "render-to-MTLTexture silently writes empty" Phase 2 retest item: it is a first-use ordering issue, subsequent renders in the same process work). Phase 2: either warm up the render-to-texture path once at `CIContextPool` creation, or keep the validated **bitmap + `texture.replace(region:)`** path (1024×768 crop = 4–6 ms total). Plan 03's workaround is confirmed correct.
+2. **`cacheIntermediates: false` validated (CIRAW-4 closed at GM)**: 100MP decode footprint peaks +0.3–0.6 GB per decode. BUT footprint ACCUMULATES across repeated decodes in one process (4.3–4.8 GB after ~11 full 100MP renders) — **`CIContextPool` must expose/trigger `clearCaches()` on image switch** (new Phase 2 requirement; without it a session drifts past the D-32 4 GB budget). Under accumulated pressure CoreImage can SIGSEGV in `CI::recursive_tile` instead of erroring.
+3. 100MP float32 RGBA single plane (1.55 GB) allocates and renders fine on a 16 GB M4 (peak 2.0–2.8 GB ≈ plane × ~1.3 CI overhead) — the D-20 Phase 1 assumption is measured-safe.
+4. A lazy CIRAW `CIImage` is NOT a frame cache: per-frame re-render at 2560×1440 = 330 ms (45–60MP) to 1020 ms (100MP X-Trans). Cached-plane path: 6.7–15.6 ms/frame → 60fps needs the Phase 2 per-module cache; <1 ms headroom at 100MP.
+5. Decode cost is compression-variant dependent, not MP-dependent: GFX100S lossless-compressed RAF = 20.9 s vs uncompressed = 848 ms at identical 101.8MP (Apple's lossless-RAF decompressor at GFX scale is pathological at GM); Bayer 100MP (X2D 3FR) = 833 ms. RAW 9 does not speed up full-size decode (A7R V v9≈v8 766 ms; X-T5 v9 4.3× slower than v8). Progress UX for >2 s decodes is a Phase 9 requirement.
 
 ### 4. MTKView + NSViewRepresentable Bridge  [module placement note added]
 
