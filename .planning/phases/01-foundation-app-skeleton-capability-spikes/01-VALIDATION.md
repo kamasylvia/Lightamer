@@ -77,12 +77,13 @@ created: 2026-08-03
 
 ## Manual-Only Verifications
 
-| Behavior | Requirement | Why Manual | Test Instructions |
-|----------|-------------|------------|-------------------|
-| Decoded RAW visibly displays in editor viewport | FOUND-05 | Visual confirmation of MTKView rendering — automated screenshot diff is Phase 2 (golden-image harness) | Open a CR3/NEF/ARW via File→Open; confirm image appears in center column, no blank/black viewport, no console errors |
-| 100MP GFX100S RAF opens without memory failure | FOUND-07 (spike B) | jetsam kill is a system-level event; visual + Activity Monitor confirmation | Open GFX100S RAF; watch Activity Monitor memory < 4GB steady-state; no jetsam log; image displays |
-| Three-column shell layout correct | FOUND-01 | Layout/visual correctness | Launch app; confirm left nav / center / right Inspector visible; dark mode forced; empty-state prompt shown |
-| os.signpost intervals visible in Instruments | D-31 | Instruments is a GUI tool | Open Instruments → Metal System Trace; open a RAW; confirm signpost intervals for decode+display appear |
+| Behavior | Requirement | Why Manual | Test Instructions | Status (2026-09-16 evening session) |
+|----------|-------------|------------|-------------------|-------------------------------------|
+| Decoded RAW visibly displays in editor viewport | FOUND-05 | Visual confirmation of MTKView rendering — automated screenshot diff is Phase 2 (golden-image harness) | Open a CR3/NEF/ARW via File→Open; confirm image appears in center column, no blank/black viewport, no console errors | ⚠️✅ pipeline+app-level PASS: A7R5 60MP ARW loaded via open-Apple Event; previously-fatal Metal validation abort (uncommitted encoder, L008) fixed; app alive with image >40 min, zero crash reports, draw commits clean. Pixel-exact blit already proven headless (13/13). Eyeball confirm pending unlocked display (screen slept) |
+| 100MP GFX100S RAF opens without memory failure | FOUND-07 (spike B) | jetsam kill is a system-level event; visual + Activity Monitor confirmation | Open GFX100S RAF; watch Activity Monitor memory < 4GB steady-state; no jetsam log; image displays | ✅ covered by Spike B headless measurement (peak 2.0-2.8 GB single-image, no jetsam) |
+| Three-column shell layout correct | FOUND-01 | Layout/visual correctness | Launch app; confirm left nav / center / right Inspector visible; dark mode forced; empty-state prompt shown | ⚠️✅ AX-tree verified (empty-state copy, inspector, toolbar disabled semantics, menus, status bar "就绪"); eyeball confirm pending unlocked display |
+| os.signpost intervals visible in Instruments | D-31 | Instruments is a GUI tool | Open Instruments → Metal System Trace; open a RAW; confirm signpost intervals for decode+display appear | ⚠️ pending GUI session (signposts emitted in code; smoke harnesses read timings programmatically) |
+| XCUITest launch suite (AppLaunchTests) | FOUND-01/05 | Requires TCC Automation/Accessibility trust for LightamerUITests-Runner | System Settings → Privacy & Security → Accessibility & Automation → enable LightamerUITests-Runner; unlock display; re-run `xcodebuild test -only-testing:LightamerUITests` | ⚠️ blocked: "Timed out while enabling automation mode" — TCC trust not granted (prompt suppressed) + display sleep; test code ready |
 
 ---
 
@@ -92,7 +93,7 @@ created: 2026-08-03
 - [x] Sampling continuity: no 3 consecutive tasks without automated verify
 - [x] Wave 0 covers all MISSING references
 - [x] No watch-mode flags
-- [x] Feedback latency < 60s (LightamerTests: ~19 s wall via `xcodebuild test -only-testing:LightamerTests` on the M4 host)
+- [x] Feedback latency < 60s (LightamerTests: ~19 s wall via `xcodebuild test -only-testing:LightamerTests` on the M4 host; USB-volume cold I/O can inflate wall time — see LESSONS L009)
 - [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** executor — GSD executor, 2026-09-16 (Plan 06 task 01-06-06). Automated unit suite green (36/36 executed, 1 documented skip); manual-only rows (on-screen shell/viewport visual, Instruments signpost view, XCUITest run) pending an unlocked GUI session — recorded as pending-manual, not assumed green. D-29 confirmed: no CI config exists (`.github/workflows/`, `azure-pipelines.yml` absent); local `xcodebuild test` is the Phase 1 verification mechanism.
+**Approval:** executor — GSD executor, 2026-09-16 (Plan 06 task 01-06-06); updated 2026-09-16 evening (on-screen verification session — fixed two real bugs found during visual verification: L008 uncommitted-encoder abort, open-Apple-Event gap; see commits after 5a8c175). Automated unit suite green (36/36 executed, 1 documented skip); manual-only rows as annotated above — remaining eyeball/Instruments/XCUITest items wait on an unlocked, TCC-trusted GUI session, recorded as pending-manual, not assumed green. D-29 confirmed: no CI config exists; local `xcodebuild test` is the Phase 1 verification mechanism.

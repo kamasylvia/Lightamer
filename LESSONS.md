@@ -64,6 +64,22 @@
 - **适用**：Phase 9（SESS-05 FSEvents 监视）。
 - **来源**：`.planning/research/PITFALLS.md` SESS-1..5。
 
+### L008: Metal render encoder 的 `defer endEncoding` 会在 commit 之后才执行 → validation abort
+- **背景**：Phase 1 屏显验证（打开 60MP ARW）时 app 启动后 8 秒 SIGABRT，崩溃栈 `EditorMTKView.Coordinator.draw → commit → IOGPUMetalCommandBuffer.validate → MTLReportFailure`。
+- **现象**：错误消息 `commit command buffer with uncommitted encoder`。空状态（texture nil 提前 return）完全不触发——只有真实图片走到 commit 才炸。
+- **根因**：`defer { encoder.endEncoding() }` 在**函数退出时**才执行，而 `commandBuffer.commit()` 写在函数体内——commit 执行时 render encoder 仍然 open。Swift 的 defer 语义与 Metal 的 encoder 生命周期约定冲突：**endEncoding 必须显式先于 commit 调用，不能依赖 defer**。
+- **对策**：手写顺序：draw → `encoder.endEncoding()` → `present` → `commit`。无图路径也要 endEncoding 后再 commit（clear 出画布底色）。同类陷阱适用于 ComputeEncoderSession（Plan 06 已踩过一次：未 endEncoding 就丢弃 session 导致 runner 崩溃）。
+- **适用**：所有 Metal encoder 使用（render + compute）。code review 检查项：commit 前必须有显式 endEncoding。
+- **来源**：Phase 1 屏显验证崩溃报告（2026-09-16）+ 崩溃日志 `-[IOGPUMetalCommandBuffer validate]:215`。
+
+### L009: 开发环境在 USB 机械盘上时，冷读 I/O 会让构建病态化
+- **背景**：仓库与 Xcode 均在 `/Volumes/UNITEK`（14TB USB HDD，非 SSD），DerivedData 在内置 SSD。
+- **现象**：构建曾稳定工作（缓存热），随后 xcodebuild 卡死在 dlopen/类实例化（0% CPU）、`xcodebuild -version` 从瞬时变 9.9 秒。随机读实测 ~250ms/文件（90 个 4KB 文件 23.6 秒）。
+- **根因**：机械盘 + 同卷 Resilio Sync 并发同步 → 磁头寻道冲突；磁盘缓存被挤出后冷读全部打在慢卷上。
+- **对策**：(1) 构建时段暂停 Resilio；(2) 长期把 Xcode 与仓库迁回内置 SSD；(3) 本机构建前先 `time xcodebuild -version`（>2s 即卷处于慢态，先查 I/O）。诊断手法：`sample <pid>` 看卡点是否在 dlopen/IO；`dd` 随机小文件测卷延迟。
+- **适用**：本机所有 Xcode/构建活动；跨机器开发时注意目标卷类型。
+- **来源**：Phase 1 屏显验证会话（2026-09-16）。
+
 ---
 
 *本文件随开发进展持续更新。阶段完成后运行 `$gsd-extract-learnings` 自动提取。*
