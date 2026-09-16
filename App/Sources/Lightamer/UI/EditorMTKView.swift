@@ -41,6 +41,14 @@ internal struct EditorMTKView: NSViewRepresentable {
         if let metalLayer = view.layer as? CAMetalLayer {
             metalLayer.backgroundColor = NSColor(LightamerColors.canvas).cgColor
         }
+        // UI-SPEC Accessibility: the viewport is a named region for
+        // VoiceOver/XCUITest (MTKView is not exposed to the AX tree by
+        // default — the shell's "editor viewport" region query relies on
+        // this label). AppKit NSAccessibility setter methods, not UIKit
+        // properties.
+        view.setAccessibilityElement(true)
+        view.setAccessibilityRole(.image)
+        view.setAccessibilityLabel(String(localized: "editor_viewport_label"))
         return view
     }
 

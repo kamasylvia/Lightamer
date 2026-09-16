@@ -48,27 +48,18 @@ final class AppLaunchTests: XCTestCase {
         XCTAssertTrue(emptyState.exists, "empty state prompt visible (D-11)")
     }
 
-    /// D-10: v1 forces dark mode. Read via KVC on the host window
-    /// (`effectiveAppearance` — XCUITest exposes no typed API). If the
-    /// KVC channel is unavailable in a future macOS, this skips with the
-    /// documented manual fallback per VALIDATION.
+    /// D-10: v1 forces dark mode. XCUITest exposes no typed API for the
+    /// host window's appearance — KVC (`value(forKey: "effectiveAppearance")`)
+    /// raises an ObjC NSUnknownKeyException that Swift's guard cannot catch,
+    /// so the documented VALIDATION fallback applies: the app root sets
+    /// `.preferredColorScheme(.dark)` (LightamerApp.swift, D-10) and the
+    /// visual confirm is the VALIDATION manual row (screenshot evidence,
+    /// 2026-09-16 evening session).
     func testForcedDarkMode() throws {
-        let app = XCUIApplication()
-        app.launch()
-        let window = try XCTUnwrap(
-            app.windows.firstMatch.waitForExistence(timeout: 10) ? app.windows.firstMatch : nil
-        )
-
-        let appearance = window.value(forKey: "effectiveAppearance") as? String
-        guard let appearance else {
-            throw XCTSkip(
-                "effectiveAppearance not readable via XCUI on this OS build — "
-                    + "dark mode stays a manual confirm per VALIDATION (D-10)"
-            )
-        }
-        XCTAssertTrue(
-            appearance.lowercased().contains("dark"),
-            "app appearance must be dark (D-10), got \(appearance)"
+        throw XCTSkip(
+            "XCUI exposes no appearance API (KVC throws uncatchable NSUnknownKeyException) — "
+                + "dark mode is verified by .preferredColorScheme(.dark) at the app root + "
+                + "VALIDATION manual screenshot confirm (D-10)"
         )
     }
 
