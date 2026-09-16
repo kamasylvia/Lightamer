@@ -92,7 +92,12 @@ internal struct ContentView: View {
 
             Button {
                 FileOpener.openImage {
-                    editorState.load(url: $0, decoder: decoder, logger: EditorState.decodeLogger)
+                    editorState.load(
+                        url: $0,
+                        decoder: decoder,
+                        metal: metalContext,
+                        logger: EditorState.decodeLogger
+                    )
                 }
             } label: {
                 Label(String(localized: "toolbar_open"), systemImage: "folder")

@@ -25,7 +25,12 @@ internal struct EditorAreaView: View {
             ZStack {
                 if editorState.loadedImageURL == nil {
                     EmptyStateView(onOpen: {
-                        editorState.load(url: $0, decoder: decoder, logger: EditorState.decodeLogger)
+                        editorState.load(
+                            url: $0,
+                            decoder: decoder,
+                            metal: metalContext,
+                            logger: EditorState.decodeLogger
+                        )
                     })
                         .transition(.opacity)
                 } else if let metalContext {

@@ -85,6 +85,7 @@ internal struct LightamerApp: App {
                         editorState.load(
                             url: $0,
                             decoder: decoder,
+                            metal: metalContext,
                             logger: EditorState.decodeLogger
                         )
                     }

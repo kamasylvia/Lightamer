@@ -27,12 +27,18 @@ final class EditorState {
     /// `EditorMTKView` consumes `image?.ciImage` via `MetalContext`.
     private(set) var image: DecodedImage?
 
-    /// The decoded CIImage rendered into a float32 linear-Rec2020 texture by
-    /// Core (`MetalContext.renderToTexture` over the internal CIContextPool).
-    /// `EditorMTKView` blits THIS to the drawable. Cleared on every new load.
+    /// The layer stack for the loaded image (D-03a skeleton — D-03b places
+    /// ownership here). Constructed fresh on every successful decode with
+    /// a `BackgroundLayer` base (LAYER-01); adjustment layers arrive in
+    /// Phase 6. nil = no image loaded.
+    private(set) var layerStack: LayerStack?
+
+    /// The pixelpipe output — what `EditorMTKView` blits to the drawable.
+    /// Produced by Core's render bridge (`RenderPipeline.render`, the
+    /// public face of the internal `PixelPipe`). Cleared on every new load.
     /// The setter is deliberately internal (not `private(set)`): the
     /// `$editorState.displayTexture` binding that `EditorAreaView` derives
-    /// via `@Bindable` needs it; `renderDisplayTexture` is the only writer.
+    /// via `@Bindable` needs it; the pixelpipe paths are the only writers.
     var displayTexture: (any MTLTexture)?
 
     /// Guards the render step: the URL whose texture `displayTexture` holds.
@@ -48,20 +54,27 @@ final class EditorState {
     /// (D-34: background async decode, cancellable, MainActor UI updates).
     private var decodeTask: Task<Void, Never>?
 
-    /// Load an image/RAW file through `RAWDecoder` (D-21/D-24). Cancels any
-    /// in-flight decode first (D-34). The decode itself runs off-MainActor
-    /// (`RAWDecoder` is an actor); state mutations below hop back implicitly
-    /// because this `Task` inherits the `@MainActor` context. Failures land
-    /// in `decodeError` as typed `AppError`s (D-25). The whole decode is
-    /// wrapped in an `os.signpost` interval for Instruments (D-31).
-    func load(url: URL, decoder: RAWDecoder, logger: Logger) {
+    /// Load an image/RAW file through `RAWDecoder` (D-21/D-24) and run the
+    /// no-op pixelpipe over the result (success criterion #3). Cancels any
+    /// in-flight decode first (D-34). The decode runs off-MainActor
+    /// (`RAWDecoder` is an actor); on success a fresh
+    /// `LayerStack(baseLayer: BackgroundLayer())` is installed (D-03a) and
+    /// Core's render bridge produces the display texture. Failures land in
+    /// `decodeError` as typed `AppError`s (D-25); pixelpipe failures are
+    /// non-blocking (logged only — same severity as the Plan 03 render
+    /// leg). The decode leg is wrapped in an `os.signpost` interval (D-31);
+    /// the pixelpipe leg is signposted inside `RenderPipeline` itself.
+    /// `metal` nil = no GPU — decode still succeeds, display stays empty
+    /// (the fatal no-GPU alert is hosted by `ContentView`).
+    func load(url: URL, decoder: RAWDecoder, metal: MetalContext?, logger: Logger) {
         decodeTask?.cancel()
         loadedImageURL = url
         decodeError = nil
         isDecoding = true
-        // Drop the previous image's viewport texture immediately so the
+        // Drop the previous image's viewport texture + layer stack so the
         // editor never shows a stale frame while the new decode runs.
         displayTexture = nil
+        layerStack = nil
         displayTextureRenderedForURL = nil
 
         decodeTask = Task { [weak self] in
@@ -87,13 +100,39 @@ final class EditorState {
                 logger.info(
                     "camera=\(camera, privacy: .public) blackLevel=\(decoded.rawTech.blackLevel, privacy: .public)"
                 )
+
+                // D-03a: every decoded image gets a fresh layer stack —
+                // base layer only in Phase 1 (adjustment layers: Phase 6).
+                let stack = LayerStack(baseLayer: BackgroundLayer())
+                self.layerStack = stack
+
+                // The no-op pixelpipe (success criterion #3): the decoded
+                // image flows through Core's internal `PixelPipe` (which
+                // now holds the layer stack) and lands as the display
+                // texture `EditorMTKView` blits.
+                if let metal {
+                    let texture = try await RenderPipeline.render(
+                        image: decoded,
+                        layerStack: stack,
+                        metal: metal
+                    )
+                    guard !Task.isCancelled else { // superseded mid-pipe
+                        logger.info("pixelpipe superseded: \(url.lastPathComponent, privacy: .public)")
+                        return
+                    }
+                    self.displayTexture = texture
+                    self.displayTextureRenderedForURL = url
+                    logger.info(
+                        "pixelpipe output ready: \(url.lastPathComponent, privacy: .public)"
+                    )
+                }
             } catch {
                 let appError = AppError(error) // D-25 bridge
                 if case .cancelled = appError {
                     logger.info("decode cancelled: \(url.lastPathComponent, privacy: .public)")
                 } else {
                     logger.error(
-                        "decode failed (\(url.lastPathComponent, privacy: .public)): \(appError.localizedDescription, privacy: .public)"
+                        "pixelpipe/decode failed (\(url.lastPathComponent, privacy: .public)): \(appError.localizedDescription, privacy: .public)"
                     )
                     self.decodeError = appError
                 }
@@ -101,16 +140,22 @@ final class EditorState {
         }
     }
 
-    /// Render the decoded `image.ciImage` into `displayTexture` via Core's
-    /// `MetalContext` (Plan 03 render leg of the vertebra). Idempotent per
-    /// loaded URL. Failures are non-blocking (UI-SPEC severity table: Metal
-    /// render issues log; they don't clear the decode state).
+    /// Re-render the decoded `image` through the no-op pixelpipe via Core's
+    /// `RenderPipeline` bridge. Idempotent per loaded URL — `load` already
+    /// renders on the success path, so this is the URL-keyed `.task`
+    /// fallback in `EditorAreaView` (no-op once `load`'s render landed).
+    /// Failures are non-blocking (UI-SPEC severity table: render issues
+    /// log; they don't clear the decode state).
     func renderDisplayTexture(using metal: MetalContext) async {
         guard let image, let url = loadedImageURL else { return }
         if displayTexture != nil, displayTextureRenderedForURL == url { return }
         displayTextureRenderedForURL = url
         do {
-            displayTexture = try await metal.renderToTexture(image.ciImage)
+            displayTexture = try await RenderPipeline.render(
+                image: image,
+                layerStack: layerStack,
+                metal: metal
+            )
             Self.decodeLogger.info(
                 "display texture ready: \(url.lastPathComponent, privacy: .public)"
             )
