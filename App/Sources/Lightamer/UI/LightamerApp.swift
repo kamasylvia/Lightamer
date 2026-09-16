@@ -20,6 +20,30 @@ internal extension FocusedValues {
     }
 }
 
+/// Handles the open-document Apple Event (Finder double-click, `open` CLI,
+/// drag onto the Dock icon) so declared CFBundleDocumentTypes actually route
+/// into `EditorState.load`. Opens that arrive before the scene is ready are
+/// buffered and flushed on first appearance.
+internal final class AppDelegate: NSObject, NSApplicationDelegate {
+    var openHandler: (([URL]) -> Void)?
+    private var buffered: [URL] = []
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        if let openHandler {
+            openHandler(urls)
+        } else {
+            buffered.append(contentsOf: urls)
+        }
+    }
+
+    /// Drains opens that arrived before the handler was installed.
+    func flushBuffered() -> [URL] {
+        let pending = buffered
+        buffered = []
+        return pending
+    }
+}
+
 /// App entry point.
 ///
 /// Owns the four D-03b state objects at the root via `@State` (D-35:
@@ -27,6 +51,8 @@ internal extension FocusedValues {
 /// injects them into the environment. Forces dark mode (D-10).
 @main
 internal struct LightamerApp: App {
+
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     // D-03b: four isolated state objects — no god-object.
     @State private var sessionState = SessionState()
@@ -63,6 +89,27 @@ internal struct LightamerApp: App {
                     if let metalContext {
                         try? await metalContext.registerDefaultLibrary(
                             in: PassthroughKernel.metalBundle
+                        )
+                    }
+                    // Wire the open-document Apple Event (Finder / `open` /
+                    // Dock drops) into the same load path as File → Open,
+                    // then drain any opens that arrived during launch.
+                    appDelegate.openHandler = { urls in
+                        for url in urls {
+                            editorState.load(
+                                url: url,
+                                decoder: decoder,
+                                metal: metalContext,
+                                logger: EditorState.decodeLogger
+                            )
+                        }
+                    }
+                    for url in appDelegate.flushBuffered() {
+                        editorState.load(
+                            url: url,
+                            decoder: decoder,
+                            metal: metalContext,
+                            logger: EditorState.decodeLogger
                         )
                     }
                 }
