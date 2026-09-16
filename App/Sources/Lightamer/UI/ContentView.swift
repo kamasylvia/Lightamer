@@ -24,20 +24,16 @@ internal struct ContentView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView()
-                .navigationSplitViewColumnWidth(
-                    min: 180,
-                    ideal: clamped(sidebarWidth, 180, 320),
-                    max: 320
-                )
+            // UI-SPEC dims: min 180 / ideal 240 / max 320 — ideal is the
+            // D-08 layout-memory value (default 240 matches the spec).
+                .navigationSplitViewColumnWidth(min: 180, ideal: clamped(sidebarWidth, 180, 320), max: 320)
         } content: {
             EditorAreaView()
         } detail: {
             InspectorView()
-                .navigationSplitViewColumnWidth(
-                    min: 240,
-                    ideal: clamped(inspectorWidth, 240, 460),
-                    max: 460
-                )
+            // UI-SPEC dims: min 240 / ideal 320 / max 460 — ideal is the
+            // D-08 layout-memory value (default 320 matches the spec).
+                .navigationSplitViewColumnWidth(min: 240, ideal: clamped(inspectorWidth, 240, 460), max: 460)
         }
         .navigationSplitViewStyle(.balanced)
         .focusedSceneValue(\.lightamerColumnVisibility, $columnVisibility)
