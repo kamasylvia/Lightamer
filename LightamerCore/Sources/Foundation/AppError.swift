@@ -36,10 +36,15 @@ public enum AppError: Error, LocalizedError {
     /// typed errors; this is the catch-site bridge Plan 02/03 throw through).
     /// - `CancellationError` → `.cancelled`
     /// - an already-typed `AppError` → passed through unchanged
+    /// - a `MetalError` → its tiered case (`.metalDeviceUnavailable` /
+    ///   `.metalPSOFailed` / `.memoryExceeded` — the same mapping the
+    ///   `MetalContext.renderToTexture` facade performs internally)
     /// - anything else → `.decodeFailed(underlying.localizedDescription)`
     public init(_ error: Error) {
         if let appError = error as? AppError {
             self = appError
+        } else if let metalError = error as? MetalError {
+            self = metalError.asAppError
         } else if error is CancellationError {
             self = .cancelled
         } else {
