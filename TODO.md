@@ -5,19 +5,11 @@
 
 ---
 
-## 🚧 当前阻塞：环境就绪（换机后第一件事）
+## ✅ 环境已就绪（2026-09-16）
 
-Phase 1 已规划完成（6 plans, 2 waves, 全部 verified），但执行被环境阻塞。换到另一台机器后，**先确认以下两项就绪**：
-
-- [ ] **Xcode 27 beta**（含 macOS 27 SDK）已安装并 `xcode-select` 切换到位
-  - 下载：[developer.apple.com/download](https://developer.apple.com/download)（需 Apple Developer 账号）
-  - 切换：`sudo xcode-select -s /Applications/Xcode-beta.app/Contents/Developer`
-  - 验证：`xcodebuild -showsdks | grep "macOS 27"` 应输出 macOS 27.x
-- [ ] **Tuist** 已安装
-  - `brew install tuist`
-  - 验证：`tuist version`
-
-两项就绪后，运行 `$gsd-execute-phase 1` 开始执行（Plan 01→02→03→04→05→06 顺序，因依赖链 Wave 1 必须顺序）。
+- [x] **Xcode 27.0 正式版**（27A266a）+ macOS 27.0 SDK + license 已接受
+- [x] **Tuist 4.208.0**（brew install）
+- [x] Swift 6.4（target `arm64-apple-macosx27.0.0`）
 
 ---
 
@@ -39,8 +31,8 @@ Phase 1 已规划完成（6 plans, 2 waves, 全部 verified），但执行被环
 - `LightamerTests` + `LightamerUITests`
 
 ### Wave 1（顺序，构建端到端 vertebra "打开 RAW → 显示"）
-- [ ] **Plan 01** — Tuist Project.swift + app shell（三栏 NavigationSplitView、强制深色、空状态、toolbar、菜单栏）+ WorkingSpace/AppError（Core/Foundation, public）+ SessionState/EditorState/ExportState/InspectorState 隔离（D-03b）
-- [ ] **Plan 02** — RAWDecoder（Core/Decode, public）CIRAWFilter 封装 + RAW 9 opt-in+降级 + 元数据三类 + 统一 RAW/非RAW 入口 + async 可取消解码
+- [x] **Plan 01** — Tuist Project.swift + app shell（三栏 NavigationSplitView、强制深色、空状态、toolbar、菜单栏）+ WorkingSpace/AppError（Core/Foundation, public）+ SessionState/EditorState/ExportState/InspectorState 隔离（D-03b）（2026-09-16 完成，见 `01-01-SUMMARY.md`）
+- [x] **Plan 02** — RAWDecoder（Core/Decode, public）CIRAWFilter 封装 + RAW 9 opt-in+降级 + 元数据三类 + 统一 RAW/非RAW 入口 + async 可取消解码（2026-09-16 完成：actor + RAW9 探测回退 + D-23 三类元数据 + signpost；冒烟 JPEG/HEIC/TIFF/取消/损坏文件 typed error 全过；RAW 实机样本留给 Plan 06，见 `01-02-SUMMARY.md`）
 - [ ] **Plan 03** — MetalContext（Core/Metal, public）+ CIContextPool + 两层 dispatch + 懒加载 PSO cache + function-constants + EditorMTKView（app/UI）render-pipeline blit — **完成 tracer**
 - [ ] **Plan 04** — IOPModule 协议（Core/Pipe, public）+ V50Order（Core/Foundation, port iop_order.c:298-415）+ **Layer 骨架（Core/Layers, D-03a）** + PassthroughModule（IOP）+ PixelPipe 骨架（layer-aware）
 

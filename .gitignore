@@ -7,3 +7,6 @@ Derived/
 Tuist/Dependencies/
 Tuist/Cache/
 .DS_Store
+
+# Local build products (xcodebuild incremental) — never commit.
+build/
