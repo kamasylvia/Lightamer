@@ -107,6 +107,27 @@
         "zh" : { "stringUnit" : { "state" : "translated", "value" : "选择要打开的 RAW 或图像文件。" } }
       }
     },
+    "menu_view" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "View" } },
+        "zh" : { "stringUnit" : { "state" : "translated", "value" : "显示" } }
+      }
+    },
+    "alert_decode_failed_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to Decode" } },
+        "zh" : { "stringUnit" : { "state" : "translated", "value" : "解码失败" } }
+      }
+    },
+    "alert_ok" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "zh" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
+      }
+    },
     "menu_new_session" : {
       "extractionState" : "manual",
       "localizations" : {
