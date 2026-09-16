@@ -12,6 +12,10 @@ internal struct ContentView: View {
     /// The app-owned decode actor (D-21), passed on to `EditorState.load`.
     let decoder: RAWDecoder
 
+    /// The app-owned Metal context (Plan 03); nil = no Metal GPU → the fatal
+    /// `.metalDeviceUnavailable` alert below (UI-SPEC Error Messages).
+    let metalContext: MetalContext?
+
     @Environment(SessionState.self) private var sessionState
     @Environment(EditorState.self) private var editorState
     @Environment(ExportState.self) private var exportState
@@ -32,7 +36,7 @@ internal struct ContentView: View {
             // D-08 layout-memory value (default 240 matches the spec).
                 .navigationSplitViewColumnWidth(min: 180, ideal: clamped(sidebarWidth, 180, 320), max: 320)
         } content: {
-            EditorAreaView(decoder: decoder)
+            EditorAreaView(decoder: decoder, metalContext: metalContext)
         } detail: {
             InspectorView()
             // UI-SPEC dims: min 240 / ideal 320 / max 460 — ideal is the
@@ -53,6 +57,16 @@ internal struct ContentView: View {
             Button(String(localized: "alert_ok"), role: .cancel) {}
         } message: { error in
             Text(error.localizedDescription)
+        }
+        // Fatal (UI-SPEC): no Metal GPU — the editor cannot proceed. The
+        // binding never dismisses; the app stays at the empty-state canvas.
+        .alert(
+            String(localized: "alert_metal_unavailable_title"),
+            isPresented: .constant(metalContext == nil)
+        ) {
+            Button(String(localized: "alert_ok"), role: .cancel) {}
+        } message: {
+            Text(AppError.metalDeviceUnavailable.localizedDescription)
         }
         .onAppear {
             // D-08: restore inspector visibility from layout memory.

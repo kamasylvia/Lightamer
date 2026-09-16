@@ -1,19 +1,26 @@
 import LightamerCore
 import SwiftUI
 
-/// Editor center column: empty state ↔ loaded placeholder (D-11).
+/// Editor center column: empty state ↔ Metal viewport (D-11/D-13).
 ///
-/// D-03b: injects ONLY `EditorState`. Plan 03 replaces the loaded branch's
-/// placeholder with the real `EditorMTKView` (D-13 display-only viewport).
+/// D-03b: injects ONLY `EditorState` (plus the app-owned `decoder` and
+/// `metalContext` passed down from the app root). The loaded branch renders
+/// `EditorMTKView` (Plan 03) over `EditorState.displayTexture`; the render
+/// trigger lives here as a URL-keyed `.task` — one render per loaded image.
 internal struct EditorAreaView: View {
 
     /// The app-owned decode actor (D-21), passed through to `EditorState.load`
     /// for the empty-state open path.
     let decoder: RAWDecoder
 
+    /// The app-owned Metal context (D-14/15); nil = no GPU (fatal alert is
+    /// hosted by `ContentView` per UI-SPEC Error Messages).
+    let metalContext: MetalContext?
+
     @Environment(EditorState.self) private var editorState
 
     var body: some View {
+        @Bindable var editorState = editorState
         VStack(spacing: 0) {
             ZStack {
                 if editorState.loadedImageURL == nil {
@@ -21,14 +28,21 @@ internal struct EditorAreaView: View {
                         editorState.load(url: $0, decoder: decoder, logger: EditorState.decodeLogger)
                     })
                         .transition(.opacity)
+                } else if let metalContext {
+                    EditorMTKView(
+                        device: metalContext.device,
+                        commandQueue: metalContext.commandQueue,
+                        sourceTexture: $editorState.displayTexture
+                    )
+                    // One display render per loaded image (not per frame).
+                    .task(id: editorState.loadedImageURL) {
+                        await editorState.renderDisplayTexture(using: metalContext)
+                    }
+                    .transition(.opacity)
+                    .accessibilityLabel(Text("editor_viewport"))
                 } else {
-                    Text("editor_loaded_placeholder")
-                        .font(.body)
-                        .foregroundStyle(LightamerColors.textSecondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(LightamerColors.canvas)
+                    Color.clear
                         .transition(.opacity)
-                        .accessibilityLabel(Text("editor_loaded_placeholder"))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

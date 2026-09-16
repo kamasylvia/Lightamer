@@ -1,5 +1,6 @@
 import Foundation
 import LightamerCore
+import Metal
 import Observation
 import os
 
@@ -26,6 +27,17 @@ final class EditorState {
     /// `EditorMTKView` consumes `image?.ciImage` via `MetalContext`.
     private(set) var image: DecodedImage?
 
+    /// The decoded CIImage rendered into a float32 linear-Rec2020 texture by
+    /// Core (`MetalContext.renderToTexture` over the internal CIContextPool).
+    /// `EditorMTKView` blits THIS to the drawable. Cleared on every new load.
+    /// The setter is deliberately internal (not `private(set)`): the
+    /// `$editorState.displayTexture` binding that `EditorAreaView` derives
+    /// via `@Bindable` needs it; `renderDisplayTexture` is the only writer.
+    var displayTexture: (any MTLTexture)?
+
+    /// Guards the render step: the URL whose texture `displayTexture` holds.
+    private var displayTextureRenderedForURL: URL?
+
     /// True while a decode task is in flight (status bar "Decoding…").
     private(set) var isDecoding: Bool = false
 
@@ -47,6 +59,10 @@ final class EditorState {
         loadedImageURL = url
         decodeError = nil
         isDecoding = true
+        // Drop the previous image's viewport texture immediately so the
+        // editor never shows a stale frame while the new decode runs.
+        displayTexture = nil
+        displayTextureRenderedForURL = nil
 
         decodeTask = Task { [weak self] in
             guard let self else { return }
@@ -82,6 +98,26 @@ final class EditorState {
                     self.decodeError = appError
                 }
             }
+        }
+    }
+
+    /// Render the decoded `image.ciImage` into `displayTexture` via Core's
+    /// `MetalContext` (Plan 03 render leg of the vertebra). Idempotent per
+    /// loaded URL. Failures are non-blocking (UI-SPEC severity table: Metal
+    /// render issues log; they don't clear the decode state).
+    func renderDisplayTexture(using metal: MetalContext) async {
+        guard let image, let url = loadedImageURL else { return }
+        if displayTexture != nil, displayTextureRenderedForURL == url { return }
+        displayTextureRenderedForURL = url
+        do {
+            displayTexture = try await metal.renderToTexture(image.ciImage)
+            Self.decodeLogger.info(
+                "display texture ready: \(url.lastPathComponent, privacy: .public)"
+            )
+        } catch {
+            Self.decodeLogger.error(
+                "display render failed (\(url.lastPathComponent, privacy: .public)): \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 

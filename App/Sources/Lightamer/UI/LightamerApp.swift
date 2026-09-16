@@ -1,4 +1,5 @@
 import LightamerCore
+import LightamerIOP
 import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,18 +38,34 @@ internal struct LightamerApp: App {
     /// `ContentView` so every Open path feeds `EditorState.load`.
     @State private var decoder = RAWDecoder()
 
+    /// The app-owned Metal dispatch context (D-14/15; RESEARCH Open Question
+    /// #2 — owned via `@State` and injected, never a singleton). nil = no
+    /// Metal GPU → the fatal `.metalDeviceUnavailable` alert (UI-SPEC).
+    @State private var metalContext: MetalContext? = (try? MetalContext())
+
     /// Column visibility, as seen from the menu commands (View menu toggles).
     @FocusedBinding(\.lightamerColumnVisibility)
     private var focusedColumnVisibility: NavigationSplitViewVisibility?
 
     var body: some Scene {
         WindowGroup {
-            ContentView(decoder: decoder)
+            ContentView(decoder: decoder, metalContext: metalContext)
                 .environment(sessionState)
                 .environment(editorState)
                 .environment(exportState)
                 .environment(inspectorState)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
+                .task {
+                    // Register the IOP framework's default.metallib (which
+                    // carries the pass_through kernel) with the dispatch
+                    // context. Plan 04's pixelpipe dispatches through it;
+                    // registering at the app root keeps the pipeline ready.
+                    if let metalContext {
+                        try? await metalContext.registerDefaultLibrary(
+                            in: PassthroughKernel.metalBundle
+                        )
+                    }
+                }
         }
         .defaultSize(width: 1440, height: 900)
         .windowToolbarStyle(.unified) // UI-SPEC: unified toolbar

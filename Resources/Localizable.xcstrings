@@ -79,11 +79,11 @@
         "zh" : { "stringUnit" : { "state" : "translated", "value" : "解码中…" } }
       }
     },
-    "editor_loaded_placeholder" : {
+    "editor_viewport" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Image viewport — the Metal view is wired in the next build." } },
-        "zh" : { "stringUnit" : { "state" : "translated", "value" : "图像视口 — Metal 视图将于下一个构建接入。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Image viewport" } },
+        "zh" : { "stringUnit" : { "state" : "translated", "value" : "图像视口" } }
       }
     },
     "settings_placeholder" : {
@@ -119,6 +119,13 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to Decode" } },
         "zh" : { "stringUnit" : { "state" : "translated", "value" : "解码失败" } }
+      }
+    },
+    "alert_metal_unavailable_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Metal Unavailable" } },
+        "zh" : { "stringUnit" : { "state" : "translated", "value" : "Metal 不可用" } }
       }
     },
     "alert_ok" : {
