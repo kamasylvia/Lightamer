@@ -40,6 +40,8 @@ public actor RAWDecoder {
         )
         defer { Self.signposter.endInterval("decode", interval) }
 
+        try Task.checkCancellation() // D-34: honour cancellation on both paths
+
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
               !isDirectory.boolValue
