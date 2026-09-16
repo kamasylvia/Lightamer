@@ -159,9 +159,11 @@ public final class PassthroughModule: IOPModule {
             sourceOffset: 0,
             sourceBytesPerRow: bytesPerRow,
             sourceBytesPerImage: bytesPerRow,
+            sourceSize: MTLSize(width: width, height: height, depth: 1),
             to: textures.input,
             destinationSlice: 0,
-            destinationLevel: 0
+            destinationLevel: 0,
+            destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0)
         )
         blitIn.endEncoding()
         stageIn.commit()
@@ -187,7 +189,7 @@ public final class PassthroughModule: IOPModule {
             throw MetalError.deviceUnavailable
         }
         drain.commit()
-        _ = try? await drain.completed()
+        _ = await drain.completed()
 
         // 5. Stage the output texture back into the output buffer, awaited
         // so `process` returning implies the output buffer is valid.
@@ -199,6 +201,8 @@ public final class PassthroughModule: IOPModule {
             from: textures.output,
             sourceSlice: 0,
             sourceLevel: 0,
+            sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+            sourceSize: MTLSize(width: width, height: height, depth: 1),
             to: output,
             destinationOffset: 0,
             destinationBytesPerRow: bytesPerRow,
@@ -206,6 +210,6 @@ public final class PassthroughModule: IOPModule {
         )
         blitOut.endEncoding()
         stageOut.commit()
-        _ = try? await stageOut.completed()
+        _ = await stageOut.completed()
     }
 }
