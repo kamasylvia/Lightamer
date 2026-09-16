@@ -14,11 +14,13 @@ import Metal
 /// consume these constants.
 public enum WorkingSpace {
 
-    /// Linear Rec2020 — the scene-referred working space (FOUND-02).
-    /// Force-unwrap is safe: `CGColorSpace.rec2020Linear` is a system-provided
-    /// name that is always present on macOS.
-    public nonisolated(unsafe) static let colorSpace: CGColorSpace =
-        CGColorSpace(name: CGColorSpace.rec2020Linear)!
+    /// Linear Rec2020 (ITU-R BT.2020, linear transfer) — the scene-referred
+    /// working space (FOUND-02). Typed member `CGColorSpace.linearITUR_2020`
+    /// (renamed from the legacy `rec2020Linear` spelling in recent SDKs).
+    /// Force-unwrap is safe: the name is a system-provided constant that is
+    /// always present on macOS.
+    public static let colorSpace: CGColorSpace =
+        CGColorSpace(name: CGColorSpace.linearITUR_2020)!
 
     /// float32 RGBA — the pixelpipe-internal texture/buffer format (FOUND-02).
     /// NOT a display format; the Phase 2 `gamma` terminal performs the

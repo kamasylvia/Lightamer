@@ -32,8 +32,9 @@ let project = Project(
     name: "Lightamer",
     organizationName: "kamasylvia",
     options: .options(
-        // Project-wide default; per-target deploymentTargets below also set (RESEARCH §1 gotcha).
-        deploymentTargets: .macOS("27.0"),
+        // Tuist 4.208: Project.Options carries no project-wide deploymentTargets
+        // — the per-target `deploymentTargets: .macOS("27.0")` below is the
+        // single source (RESEARCH §1 gotcha satisfied on every target).
         textSettings: .textSettings(indentWidth: 4, tabWidth: 4)
     ),
     settings: .settings(base: baseSettings),
@@ -41,7 +42,7 @@ let project = Project(
         // ═════════ LightamerCore (framework, no Lightamer deps) ═════════
         .target(
             name: "LightamerCore",
-            destinations: [.macOS],
+            destinations: [.mac],
             product: .framework,
             bundleId: "com.kamasylvia.lightamer.core",
             deploymentTargets: .macOS("27.0"),
@@ -54,7 +55,7 @@ let project = Project(
         // ═════════ LightamerIOP (framework, depends on Core) ═════════
         .target(
             name: "LightamerIOP",
-            destinations: [.macOS],
+            destinations: [.mac],
             product: .framework,
             bundleId: "com.kamasylvia.lightamer.iop",
             deploymentTargets: .macOS("27.0"),
@@ -69,7 +70,7 @@ let project = Project(
         // ═════════ Lightamer (app, depends on Core + IOP) ═════════
         .target(
             name: "Lightamer",
-            destinations: [.macOS],
+            destinations: [.mac],
             product: .app,
             bundleId: "com.kamasylvia.lightamer", // D-05 (one-way)
             deploymentTargets: .macOS("27.0"),
@@ -108,7 +109,7 @@ let project = Project(
         // ═════════ LightamerTests (unit, depends on Core + IOP) ═════════
         .target(
             name: "LightamerTests",
-            destinations: [.macOS],
+            destinations: [.mac],
             product: .unitTests,
             bundleId: "com.kamasylvia.lightamer.tests",
             deploymentTargets: .macOS("27.0"),
@@ -123,7 +124,7 @@ let project = Project(
         // ═════════ LightamerUITests (UI, depends on the app) ═════════
         .target(
             name: "LightamerUITests",
-            destinations: [.macOS],
+            destinations: [.mac],
             product: .uiTests,
             bundleId: "com.kamasylvia.lightamer.uitests",
             deploymentTargets: .macOS("27.0"),
@@ -138,11 +139,11 @@ let project = Project(
         .scheme(
             name: "Lightamer",
             buildAction: .buildAction(targets: [.target("Lightamer")]),
+            testAction: .targets(
+                ["LightamerTests", "LightamerUITests"],
+                configuration: .debug
+            ),
             runAction: .runAction(configuration: .debug),
-            testAction: .testAction(targets: [
-                .target("LightamerTests"),
-                .target("LightamerUITests"),
-            ], configuration: .debug),
             archiveAction: .archiveAction(configuration: .release)
         )
     ]

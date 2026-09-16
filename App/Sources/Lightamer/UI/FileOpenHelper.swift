@@ -19,7 +19,6 @@ internal enum FileOpener {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         load(url)
     }
-
     /// Pick a folder (or a file). Phase 1 fallback per UI-SPEC drag rule 2:
     /// folder → session is Phase 9, so opening a folder loads its first image.
     static func openFolder(load: @MainActor @escaping (URL) -> Void) {
@@ -50,8 +49,8 @@ internal enum FileOpener {
     // MARK: - Helpers
 
     private static func makePanel(
-        titleKey: StaticString,
-        messageKey: StaticString,
+        titleKey: String,
+        messageKey: String,
         canChooseDirectories: Bool,
         types: [UTType]
     ) -> NSOpenPanel {

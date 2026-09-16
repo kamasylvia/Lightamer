@@ -65,6 +65,12 @@ internal struct LightamerApp: App {
                 // Phase 9 fills the recent-sessions list; empty in Phase 1.
                 Menu(String(localized: "menu_open_recent")) {}
                     .disabled(true)
+                Divider()
+                // Phase 9 — disabled. (No .closeItem placement in SwiftUI's
+                // CommandGroupPlacement, so it sits with the File items.)
+                Button(String(localized: "menu_close_session")) {}
+                    .disabled(true)
+                    .keyboardShortcut("w", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .saveItem) {
                 // Phase 2 (sidecar) — disabled.
@@ -77,12 +83,6 @@ internal struct LightamerApp: App {
                 Button(String(localized: "menu_export")) {}
                     .disabled(true)
                     .keyboardShortcut("e", modifiers: [.command, .shift])
-            }
-            CommandGroup(after: .closeItem) {
-                // Phase 9 — disabled.
-                Button(String(localized: "menu_close_session")) {}
-                    .disabled(true)
-                    .keyboardShortcut("w", modifiers: [.command, .shift])
             }
 
             // ── Edit ────────────────────────────────────────────────
