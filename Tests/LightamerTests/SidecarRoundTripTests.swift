@@ -2,6 +2,65 @@
 import LightamerIOP
 import XCTest
 
+// MARK: - Fake debounce clock (02-06-03: the debounce is testable without
+// real sleeps — research Open Question #7)
+
+/// A park/advance clock: `sleep` PARKS the caller until `advance()` resumes
+/// it. `scheduleWrite` ×3 then `advance()` proves the merge deterministically
+/// (no timing races — a real sleep would make "3 writes inside 200ms" a
+/// coin flip).
+final class DebounceTestClock: Clock, @unchecked Sendable {
+
+    typealias Instant = ContinuousClock.Instant
+
+    private struct Parked {
+        let continuation: CheckedContinuation<Void, Error>
+    }
+
+    private let lock = NSLock()
+    private var nowValue: Instant = ContinuousClock().now
+    private var parked: [Parked] = []
+
+    var now: Instant { lock.withLock { nowValue } }
+
+    let minimumResolution: Duration = .zero
+
+    var parkedCount: Int { lock.withLock { parked.count } }
+
+    func sleep(until deadline: Instant, tolerance: Duration?) async throws {
+        try Task.checkCancellation()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                self.lock.withLock {
+                    self.parked.append(Parked(continuation: continuation))
+                }
+            }
+        } onCancel: {
+            self.resumeAll(with: CancellationError())
+        }
+    }
+
+    /// Advance: resume every parked sleep (the 2s window elapses).
+    func advance() {
+        resumeAll(with: nil)
+    }
+
+    private func resumeAll(with error: (any Error)?) {
+        let toResume: [Parked] = lock.withLock {
+            let taken = parked
+            parked = []
+            return taken
+        }
+        for entry in toResume {
+            if let error {
+                entry.continuation.resume(throwing: error)
+            } else {
+                entry.continuation.resume()
+            }
+        }
+    }
+}
+
 /// Sidecar schema + store + round-trip semantics (Plan 02-06-02/03/07;
 /// HIST-03/HIST-04, SC#3/SC#5, D-S1/S2/S3).
 ///
@@ -194,5 +253,144 @@ final class SidecarRoundTripTests: XCTestCase {
 
         let decoded = try decode(try encode(document))
         XCTAssertFalse(decoded.driftDetected)
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 2. Store (02-06-03)
+    // ══════════════════════════════════════════════════════════════════════
+
+    private func tempDir(_ name: String) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lra-tests-\(name)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        return dir
+    }
+
+    private func makeStore(
+        _ name: String, clock: any Clock<Duration> = ContinuousClock()
+    ) throws -> (store: SidecarStore, destination: URL, directory: URL) {
+        let directory = try tempDir(name)
+        let destination = directory.appendingPathComponent("IMG_0001.ARW.lra")
+        return (SidecarStore(destination: destination, clock: clock), destination, directory)
+    }
+
+    /// D-S3 debounce: three scheduleWrites inside the merge window produce
+    /// exactly ONE file write carrying the LAST document. The fake clock
+    /// makes this deterministic: writes PARK until `advance()` — before it,
+    /// zero files exist; after it, exactly one, and its content equals the
+    /// third document.
+    func testDebounceMergesWritesAndLastDocumentWins() async throws {
+        let clock = DebounceTestClock()
+        let (store, destination, _) = try makeStore("debounce", clock: clock)
+
+        let docs = [
+            makeDocument(instances: [makeGain(1.0)], history: HistoryStack()),
+            makeDocument(instances: [makeGain(2.0)], history: HistoryStack()),
+            makeDocument(instances: [makeGain(3.0)], history: HistoryStack()),
+        ]
+        await store.scheduleWrite(docs[0])
+        await store.scheduleWrite(docs[1])
+        await store.scheduleWrite(docs[2])
+        let pendingAfterSchedule = await store.hasPendingWrite
+        XCTAssertTrue(pendingAfterSchedule)
+
+        // Unstructured-Task start order vs the next actor hop is not
+        // guaranteed — poll until the LAST sleeper has parked (the first
+        // two were cancelled before their sleeps; each cancel resumes all
+        // parked sleeps, so the stable end state is exactly one parked).
+        for _ in 0..<200 where clock.parkedCount != 1 {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTAssertEqual(clock.parkedCount, 1, "re-schedules reset ONE sleeper, not one per call")
+
+        // Nothing hits disk inside the window.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+
+        clock.advance()
+        for _ in 0..<200 {
+            if !(await store.hasPendingWrite) { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        let pendingAfterAdvance = await store.hasPendingWrite
+        XCTAssertFalse(pendingAfterAdvance)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path))
+
+        let loaded = await store.load()
+        let reloaded = try XCTUnwrap(loaded)
+        XCTAssertEqual(reloaded, docs[2], "the LAST scheduled document wins the merge")
+        XCTAssertEqual(reloaded.instances.first?.opName, "testgain")
+        try XCTAssertEqual(try XCTUnwrap(reloaded.instances.first).params(of: TestGainModule.self).gain, 3.0)
+    }
+
+    /// D-S3 flushNow: forces the pending document immediately; idempotent
+    /// when nothing is pending; the cancelled sleeper never double-writes.
+    func testFlushNowWritesPendingAndIsIdempotent() async throws {
+        let clock = DebounceTestClock()
+        let (store, destination, _) = try makeStore("flush", clock: clock)
+
+        // Idempotent no-op on an empty store.
+        try await store.flushNow()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+
+        await store.scheduleWrite(makeDocument(instances: [makeGain(1.5)], history: HistoryStack()))
+        try await store.flushNow()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path))
+        let pendingAfterFlush = await store.hasPendingWrite
+        XCTAssertFalse(pendingAfterFlush)
+
+        let loaded = await store.load()
+        let reloaded = try XCTUnwrap(loaded)
+        XCTAssertEqual(reloaded.instances.first?.paramsHash, makeGain(1.5).paramsHash)
+
+        // advance() after the flush: the sleeper was cancelled — no second
+        // write, no debris.
+        clock.advance()
+        try await Task.sleep(for: .milliseconds(50))
+        let contents = try FileManager.default.contentsOfDirectory(atPath: destination.deletingLastPathComponent().path)
+        XCTAssertEqual(contents, ["IMG_0001.ARW.lra"], "exactly the sidecar, no tmp files")
+    }
+
+    /// Atomicity (L009): after success (and after failure) the directory
+    /// holds ONLY the sidecar — no `.tmp-` sibling ever survives.
+    func testAtomicWriteLeavesNoTmpFiles() throws {
+        let directory = try tempDir("atomic")
+        let destination = directory.appendingPathComponent("IMG_0002.ARW.lra")
+        let document = makeDocument(instances: makeTrio(), history: HistoryStack())
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(document)
+
+        // The same promotion SidecarStore.writeAtomic performs, exercised
+        // on both legs: first write (rename) and overwrite (replaceItemAt).
+        let tmp = directory.appendingPathComponent(".\(destination.lastPathComponent).tmp-\(UUID().uuidString)")
+        try data.write(to: tmp)
+        try FileManager.default.moveItem(at: tmp, to: destination)
+
+        let tmp2 = directory.appendingPathComponent(".\(destination.lastPathComponent).tmp-\(UUID().uuidString)")
+        try data.write(to: tmp2)
+        _ = try FileManager.default.replaceItemAt(destination, withItemAt: tmp2)
+
+        let contents = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        XCTAssertEqual(contents, ["IMG_0002.ARW.lra"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path) == false)
+    }
+
+    /// Corrupt sidecar: `load()` returns nil + logs — never throws into the
+    /// UI; the caller upgrades to pristine (checkpoint lock #5 flow).
+    func testCorruptFileLoadsAsNil() async throws {
+        let (store, destination, _) = try makeStore("corrupt")
+        try Data([0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01]).write(to: destination)
+
+        let loaded = await store.load()
+        XCTAssertNil(loaded, "corrupt bytes → nil (pristine), not a throw")
+    }
+
+    /// Absent sidecar: `load()` nil (the pristine first-open path).
+    func testAbsentFileLoadsAsNil() async throws {
+        let (store, _, _) = try makeStore("absent")
+        let absent = await store.load()
+        XCTAssertNil(absent)
     }
 }
