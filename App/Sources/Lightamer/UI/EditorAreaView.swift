@@ -70,19 +70,31 @@ internal struct EditorAreaView: View {
                 .animation(.easeInOut(duration: 0.2), value: editorState.loadedImageURL)
                 // Geometry → the coordinator's bucket re-evaluation (D-C3).
                 // Fire-and-forget Task: the view NEVER awaits or renders.
-                // Scale: main-screen backing factor (Retina 2×); per-window
-                // screen tracking refines this with 02-04's display-profile
-                // work.
+                // POINT sizes are passed through (the bucket function owns
+                // the backing-scale conversion). Also fires on APPEAR so
+                // the load-time cap-bucket render reconciles to the actual
+                // window bucket even without a user resize.
                 .onChange(of: geo.size) { _, newSize in
-                    let scale = NSScreen.main?.backingScaleFactor ?? 2
-                    let longEdge = Int(max(newSize.width, newSize.height) * scale)
-                    Task { await pipeCoordinator.drawableDidChange(drawableLongEdge: longEdge) }
+                    sendDrawableGeometry(newSize)
                 }
+                .onAppear { sendDrawableGeometry(geo.size) }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             StatusBar(isDecoding: editorState.isDecoding)
         }
         .background(LightamerColors.canvas)
+    }
+
+    /// Viewport POINT-size long edge → the coordinator's bucket
+    /// re-evaluation. `PreviewBucket.longEdge(forDrawable:pixelScale:)`
+    /// applies the backing scale ITSELF (contract: callers pass POINTS —
+    /// doubling here would double-scale and pin every bucket at the cap).
+    /// This is an INPUT event: the coordinator decides whether the D-C3
+    /// bucket crossed and only then re-renders.
+    private func sendDrawableGeometry(_ size: CGSize) {
+        let longEdge = Int(max(size.width, size.height).rounded())
+        guard longEdge > 0 else { return }
+        Task { await pipeCoordinator.drawableDidChange(drawableLongEdge: longEdge) }
     }
 }

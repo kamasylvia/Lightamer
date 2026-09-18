@@ -1,6 +1,7 @@
 import LightamerCore
 import LightamerIOP
 import SwiftUI
+import os
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Focused-value plumbing: the split-view column visibility lives in
@@ -135,6 +136,7 @@ internal struct LightamerApp: App {
                             logger: EditorState.decodeLogger
                         )
                     }
+                    resizeProbeIfRequested()
                 }
         }
         .defaultSize(width: 1440, height: 900)
@@ -236,6 +238,45 @@ internal struct LightamerApp: App {
     }
 
     // MARK: - View menu actions (via focused binding into ContentView)
+
+    /// D-X2 probe (Plan 02-03 manual resize verification — RETIRE after
+    /// verification per the D-X2 probe policy): osascript/AX window
+    /// resizing is unavailable to headless drivers (no Accessibility grant
+    /// for the CLI), so `-la_resize_probe` drives the REAL window-geometry
+    /// chain (NSWindow.setFrame → drawable resize → GeometryReader →
+    /// `PipeCoordinator.drawableDidChange`) through a scripted sequence
+    /// sized for this 1504×846pt display (viewport ≈ window − 260pt, long
+    /// edge height-capped): t+6s within-bucket grow (2200 stays 2200),
+    /// t+14s aggressive shrink crossing down to the 1120 bucket (exactly
+    /// one re-render), t+22s within-bucket jitter (no re-render).
+    /// `#if DEBUG`: never ships.
+    #if DEBUG
+    private nonisolated(unsafe) static var resizeProbeArmed = false
+    private func resizeProbeIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-la_resize_probe") else { return }
+        guard !Self.resizeProbeArmed else { return } // .task can re-run on scene re-activation
+        Self.resizeProbeArmed = true
+        let logger = Logger(subsystem: "com.kamasylvia.lightamer", category: "probe")
+        logger.info("resize probe armed")
+        let sequence: [(Double, CGFloat, CGFloat)] = [
+            (6, 1460, 920), // grow within the current bucket → no re-render
+            (14, 1000, 700), // cross DOWN a bucket boundary → exactly one re-render
+            (22, 990, 695), // jitter within the new bucket → no re-render
+        ]
+        for (delay, width, height) in sequence {
+            Task {
+                try? await Task.sleep(for: .seconds(delay))
+                for window in NSApp.windows where window.isVisible {
+                    var frame = window.frame
+                    frame.origin.y += frame.height - height
+                    frame.size = CGSize(width: width, height: height)
+                    window.setFrame(frame, display: true)
+                    logger.info("resize probe: window → \(Int(width))×\(Int(height))")
+                }
+            }
+        }
+    }
+    #endif
 
     /// Toggle the sessions sidebar (`.all ↔ .doubleColumn` — content and
     /// detail stay visible).

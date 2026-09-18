@@ -94,6 +94,12 @@ final class PipeCoordinator {
     /// bucket decided yet — first drawable event or load picks one).
     private var currentBucket: Int?
 
+    /// Last reported viewport point long edge — remembered even when no
+    /// image is loaded (the view's `onAppear` input typically precedes the
+    /// decode), so `load` renders PREVIEW directly at the REAL window
+    /// bucket instead of the cap fallback.
+    private var lastDrawableLongEdge: Int?
+
     /// THUMBNAIL lazy lifecycle (`PipeResolution.isLazy` mirror): armed on
     /// load/param-change WITHOUT rendering; `fetchThumbnail()` renders only
     /// when armed (Phase 9 browser seam).
@@ -146,6 +152,14 @@ final class PipeCoordinator {
         // SEAM(02-06): the load-entry `cache.clearCaches(keeping:)` fires
         // right here, keyed on currentImageID/previousImageID.
 
+        // Reconcile the bucket before the first render: a drawable input
+        // that arrived before the decode finished is honored now (else the
+        // first PREVIEW would render at the cap and wait for the next
+        // resize to correct).
+        if currentBucket == nil, let last = lastDrawableLongEdge {
+            currentBucket = PreviewBucket.longEdge(forDrawable: last)
+        }
+
         thumbnailNeedsRender = true
         lastThumbnail = nil
         await renderPreview(
@@ -175,6 +189,7 @@ final class PipeCoordinator {
     /// bucket's planes stay cached, so jittering back across the boundary
     /// is a cache hit, not a re-render (02-RESEARCH §2.3).
     func drawableDidChange(drawableLongEdge: Int) async {
+        lastDrawableLongEdge = drawableLongEdge // remembered even pre-image
         guard decoded != nil else { return }
         let bucket = PreviewBucket.longEdge(forDrawable: drawableLongEdge)
         guard bucket != currentBucket else {
