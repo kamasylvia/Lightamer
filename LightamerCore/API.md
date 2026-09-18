@@ -199,6 +199,51 @@
   (identity for standard modules; the colorout stableID fold for the
   terminal — without adoption the fold is invisible to the cache chain)
 
+### History stack, identity & tiling (02-05, `Sources/Pipe/History/` + `Sources/Pipe/Tiling/`)
+- `struct ModuleInstance: Codable, Sendable, Equatable, Hashable` — the
+  persisted identity+params record (NDE-1: `(opName, multiPriority)` is
+  the dedup tuple, UUID `id` the reference anchor, `iopOrder` the v50
+  position). FROZEN CodingKeys `{id, opName, multiPriority, multiName,
+  iopOrder, version, enabled, paramsData, paramsHash}` — the 02-06
+  sidecar `instances[]` schema; renames after 02-06 are migrations.
+  Typed `init(id:module:multiPriority:multiName:params:version:enabled:)`
+  (canonical `ParamsCoding` encode + `StableHash`), `params(of:) throws`
+  / `setParams(_:as:) throws` (typed `AppError` failures)
+- `struct HistoryStack: Codable, Sendable, Equatable` + nested
+  `HistoryItem: Identifiable` — HIST-01/02 value core. `commit(_:label:
+  layerScope:)` (truncate redo tail + append — D-H1 drag-end lands
+  here), `undo()/redo()/jump(to:)` (clamping; `position -1` = pristine,
+  Darktable `history_end`), `currentValue`, `effectiveInstances()`
+  (the `history.c:1600-1607` translation: newest-first first-occurrence
+  per `(opName, multiPriority)`, v50-sorted with the
+  `(iopOrder, multiPriority, opName)` stable tiebreak; disabled
+  instances included). `HistoryItem` INLINES the full `ModuleInstance`
+  snapshot (checkpoint lock #5) and reserves `layerScope: String?` for
+  Phase 6 (D-H2); the stack is UNCAPPED (D-H2). Frozen CodingKeys
+  `{items, position}` + `{id, snapshot, label, timestamp, layerScope}`
+- `enum HistoryHash` — HIST-04/D-H4: `hash(instances:decodeParamsHash:)`
+  / `hash(stack:decodeParamsHash:)` (enabled-only, caller-ordered v50
+  chain: `opName` UTF-8 ‖ `multiPriority` LE ‖ `version` LE ‖
+  `paramsData`; FNV-1a 64 via `StableHash` ONLY — Swift `Hasher` is
+  banned in `Pipe/History/`). Plus `decodeParamsHash(for: DecodedImage)`
+  — the shared decode-side atom (field-explicit `RAWTechnicalParams`
+  fold, L013) consumed by `PixelPipe.run`'s position-0 cache seed AND
+  the 02-06 sidecar drift check, so the two can never diverge
+- `struct TilingPlan` + nested `Tile` — pure tile-grid geometry
+  (`tiles(forWidth:height:maxTileBytes:bytesPerPixel:overlap:)`), D-20
+  scaffolding; UNWIRED into `processRec` (Phase 5 engagement hook
+  documented at `PixelPipe`); `overlap` = placeholder interior-edge
+  shrink until Phase 5 defines kernel-specific halos
+- `ModuleBoxing.apply(_ record: ModuleInstance)` (02-05) — the
+  record→box re-materialization seam: identity-preserving
+  (`record.id` must equal `instanceID`), syncs enabled/multiName,
+  decodes + re-commits params; byte-identical params = committed-piece
+  no-op (uniforms + cache keys untouched)
+- `ModuleRegistry.makeDefaultInstances()` (02-05) — the pristine
+  default-chain RECORDS (terminal trio, default params canonically
+  committed); EditorState seeds its live instance set with them and the
+  coordinator materializes boxes FROM the records
+
 ## Internal (NOT for cross-module use — may change without notice)
 
 - **Pipe internals (02-02/02-03):** `struct PipeCacheKey` (imageID/pipeType/

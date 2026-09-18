@@ -24,7 +24,7 @@ Four separate `@Observable` objects — **no god-object**:
 | State object | Owns | Does NOT own |
 |---|---|---|
 | `SessionState` | current session folder, recent list, watch status | image data, layers, inspector |
-| `EditorState` | current image (`DecodedImage`), `LayerStack`, `displayTexture`, decode/error lifecycle, in-flight decode task | export queue, inspector selection |
+| `EditorState` | current image (`DecodedImage`), `LayerStack`, `history` (`HistoryStack`) + live `instances` records (02-05; D-03b history ownership), `displayTexture`, decode/error lifecycle, in-flight decode task | export queue, inspector selection |
 | `ExportState` | export queue, recipes, progress | image data, inspector |
 | `InspectorState` | selected iop panel, expand state, metadata display | image data, layers |
 
@@ -39,7 +39,15 @@ Rules:
 ## Cross-module touch points (all via Core/IOP `public` surface)
 
 - `EditorState.load(url:decoder:metal:logger:)` → `RAWDecoder.decode` →
-  `RenderPipeline.render` → `displayTexture` (float32 linear-Rec2020).
+  `PipeCoordinator.load` (02-03) → `RenderPipeline.process` →
+  `displayTexture` (float32 linear-Rec2020).
+- `PipeCoordinator` (02-03/02-05, internal) is the ONLY render producer
+  and the ONLY writer of `displayTexture` (D-X1). Editing controls
+  consume its D-H1 trio — `beginContinuousEdit` /
+  `setLiveParams(_:)` / `commitContinuousEdit(label:)` (one drag = ONE
+  history item) — and the HIST-02 entries `undo()` / `redo()` /
+  `jumpToHistory(_:)`; `EditorState` owns the stack + records, the
+  coordinator re-materializes boxes from them.
 - `LightamerApp.task` registers the IOP metallib once:
   `metalContext.registerDefaultLibrary(in: PassthroughKernel.metalBundle)`.
 - `EditorMTKView` consumes `MetalContext.device` + the `displayTexture`.
