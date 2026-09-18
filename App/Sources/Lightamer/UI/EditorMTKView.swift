@@ -1,5 +1,6 @@
 import LightamerCore
 import MetalKit
+import os
 import SwiftUI
 
 /// SwiftUI ↔ MetalKit bridge for the editor viewport (FOUND-05, D-13).
@@ -70,6 +71,8 @@ internal struct EditorMTKView: NSViewRepresentable {
 
     final class Coordinator: NSObject, MTKViewDelegate {
 
+        private let drawProbe = Logger(subsystem: "com.kamasylvia.lightamer", category: "draw")
+
         /// neutral-1 #161619 (UI-SPEC canvas mat) as the Metal clear color —
         /// sRGB-encoded values written raw into the `.bgra8Unorm` drawable.
         static let canvasClearColor = MTLClearColor(
@@ -128,10 +131,21 @@ internal struct EditorMTKView: NSViewRepresentable {
         }
 
         func draw(in view: MTKView) {
+            drawProbe.debug("DRAW src=\(self.sourceTexture != nil ? "\(self.sourceTexture!.width)x\(self.sourceTexture!.height)" : "nil") pso=\(self.blitPipelineState != nil) drawable=\(view.currentDrawable != nil)")
             guard let commandBuffer = commandQueue.makeCommandBuffer(),
                   let renderPass = view.currentRenderPassDescriptor,
                   let drawable = view.currentDrawable
-            else { return }
+            else {
+                // currentDrawable is nil transiently around window/file
+                // switches; in isPaused mode nothing else re-arms the draw,
+                // so a dropped frame here would stick as a black viewport
+                // (UAT issue #1). Retry shortly.
+                let bounds = view.bounds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak view] in
+                    view?.setNeedsDisplay(bounds)
+                }
+                return
+            }
             renderPass.colorAttachments[0].loadAction = .clear
             renderPass.colorAttachments[0].storeAction = .store
             renderPass.colorAttachments[0].clearColor = Self.canvasClearColor

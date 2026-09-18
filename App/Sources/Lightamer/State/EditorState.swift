@@ -147,22 +147,23 @@ final class EditorState {
     /// Failures are non-blocking (UI-SPEC severity table: render issues
     /// log; they don't clear the decode state).
     func renderDisplayTexture(using metal: MetalContext) async {
-        guard let image, let url = loadedImageURL else { return }
+        guard let image, let url = loadedImageURL else {
+            let hasImage = image != nil; let urlName = loadedImageURL?.lastPathComponent ?? "nil"
+            Self.decodeLogger.info("RENDER skip: image=\(hasImage) url=\(urlName, privacy: .public)")
+            return
+        }
         if displayTexture != nil, displayTextureRenderedForURL == url { return }
         displayTextureRenderedForURL = url
         do {
-            displayTexture = try await RenderPipeline.render(
+            let tex = try await RenderPipeline.render(
                 image: image,
                 layerStack: layerStack,
                 metal: metal
             )
-            Self.decodeLogger.info(
-                "display texture ready: \(url.lastPathComponent, privacy: .public)"
-            )
+            displayTexture = tex
+            Self.decodeLogger.info("RENDER ok: \(url.lastPathComponent, privacy: .public) → \(tex.width)x\(tex.height)")
         } catch {
-            Self.decodeLogger.error(
-                "display render failed (\(url.lastPathComponent, privacy: .public)): \(error.localizedDescription, privacy: .public)"
-            )
+            Self.decodeLogger.error("RENDER FAIL: \(url.lastPathComponent, privacy: .public): \(error)")
         }
     }
 
