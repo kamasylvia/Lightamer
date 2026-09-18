@@ -17,6 +17,7 @@ internal struct InspectorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(LightamerColors.surface)
         .accessibilityLabel(Text("a11y_inspector_label"))
+        .accessibilityIdentifier("Inspector")
         .accessibilityHint(Text("a11y_inspector_hint"))
     }
 }

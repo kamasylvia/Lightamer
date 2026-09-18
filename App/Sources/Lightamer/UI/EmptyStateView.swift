@@ -64,5 +64,6 @@ internal struct EmptyStateView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("a11y_empty_state_label"))
+        .accessibilityIdentifier("Empty state")
     }
 }

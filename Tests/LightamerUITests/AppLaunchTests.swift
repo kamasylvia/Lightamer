@@ -39,13 +39,19 @@ final class AppLaunchTests: XCTestCase {
             .matching(Self.labelPredicate(en: "Inspector", zh: "检查器")).firstMatch
         XCTAssertTrue(inspector.waitForExistence(timeout: 5), "inspector present")
 
-        // D-11: empty-state hero copy while no image is loaded.
-        let emptyState = app.descendants(matching: .any)
-            .matching(Self.labelPredicate(
-                en: "Empty state: no session loaded. Press the button to select a folder, or drag a RAW file here.",
-                zh: "空状态：未加载会话。点按按钮选择文件夹，或将 RAW 文件拖放到此处。"
-            )).firstMatch
-        XCTAssertTrue(emptyState.exists, "empty state prompt visible (D-11)")
+        // D-11: empty-state hero copy while no image is loaded. The combined
+        // element surfaces as a BUTTON; label matching uses CONTAINS because
+        // SwiftUI combine semantics may append the hint to the label.
+        let emptyState = app.buttons
+            .matching(NSPredicate(
+                format: "label CONTAINS %@ OR label CONTAINS %@",
+                "Empty state", "空状态"
+            ))
+            .firstMatch
+        XCTAssertTrue(
+            emptyState.waitForExistence(timeout: 5),
+            "empty state prompt visible (D-11). TREE DUMP:\n\(app.debugDescription)"
+        )
     }
 
     /// D-10: v1 forces dark mode. XCUITest exposes no typed API for the

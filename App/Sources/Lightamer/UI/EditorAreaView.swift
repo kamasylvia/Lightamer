@@ -51,6 +51,11 @@ internal struct EditorAreaView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // UI-SPEC Accessibility: stable identifier for VoiceOver/XCUITest.
+            // NO accessibilityLabel here — a container label absorbs the
+            // child elements (the empty-state card would vanish from the AX
+            // tree); the MTKView carries its own label in the loaded state.
+            .accessibilityIdentifier("Image viewport")
             .animation(.easeInOut(duration: 0.2), value: editorState.loadedImageURL)
 
             StatusBar(isDecoding: editorState.isDecoding)

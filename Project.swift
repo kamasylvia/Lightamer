@@ -22,10 +22,27 @@ let baseSettings: SettingsDictionary = [
     "SWIFT_STRICT_CONCURRENCY": "complete", // D-33 (one-way)
     "MARKETING_VERSION": "0.1.0",
     "CURRENT_PROJECT_VERSION": "1",
-    "CODE_SIGN_STYLE": "Automatic",
-    "CODE_SIGN_IDENTITY": "-",
-    "ENABLE_HARDENED_RUNTIME": "YES", // DIST-5
+    // Manual signing with the local self-signed "Lightamer Dev" identity —
+    // every target signs with the SAME stable certificate so macOS TCC grants
+    // (XCUITest automation, keychain) key to the certificate instead of the
+    // per-build cdhash; ad-hoc "-" re-prompts after every rebuild and breaks
+    // plugin dlopen (Team-ID mismatch). Distribution switches to a real
+    // Developer ID in Phase 13 (DIST-02).
+    "CODE_SIGN_STYLE": "Manual",
+    "CODE_SIGN_IDENTITY": "Lightamer Dev",
     "METAL_ENABLE_DEBUGGING_INFO": "YES",
+]
+
+// Per-configuration hardening (the Xcode 26 debug-dylib + library-validation
+// trap: a hardened Debug app cannot load its .debug.dylib when incremental
+// builds leave mixed ad-hoc/cert signatures → SIGABRT at spawn). Debug runs
+// unhardened + monolithic; Release keeps hardened runtime for DIST-5.
+let debugConfigSettings: SettingsDictionary = [
+    "ENABLE_DEBUG_DYLIB": "NO",
+    "ENABLE_HARDENED_RUNTIME": "NO",
+]
+let releaseConfigSettings: SettingsDictionary = [
+    "ENABLE_HARDENED_RUNTIME": "YES", // DIST-5
 ]
 
 let project = Project(
@@ -37,7 +54,13 @@ let project = Project(
         // single source (RESEARCH §1 gotcha satisfied on every target).
         textSettings: .textSettings(indentWidth: 4, tabWidth: 4)
     ),
-    settings: .settings(base: baseSettings),
+            settings: .settings(
+                base: baseSettings,
+                configurations: [
+                    .debug(name: "Debug", settings: debugConfigSettings),
+                    .release(name: "Release", settings: releaseConfigSettings),
+                ]
+            ),
     targets: [
         // ═════════ LightamerCore (framework, no Lightamer deps) ═════════
         .target(
@@ -133,7 +156,16 @@ let project = Project(
             sources: ["Tests/LightamerUITests/**"],
             dependencies: [
                 .target(name: "Lightamer") // UITests drive the app
-            ]
+            ],
+            // Hardened runtime OFF for the test runner: a hardened + ad-hoc
+            // process enforces library validation, and an ad-hoc plugin can
+            // never match ("different Team IDs" dlopen failure — the runner
+            // and its .xctest each carry a unique ad-hoc identity). DIST-5
+            // hardened-runtime applies to the shipped Release app; Debug is
+            // unhardened per-configuration (see debugConfigSettings).
+            settings: .settings(base: baseSettings.merging([
+                "CODE_SIGN_INJECT_BASE_ENTITLEMENTS": "YES",
+            ]))
         ),
     ],
     schemes: [

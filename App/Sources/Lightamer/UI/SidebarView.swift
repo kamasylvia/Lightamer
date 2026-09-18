@@ -24,6 +24,7 @@ internal struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .accessibilityLabel(Text("sessions"))
+        .accessibilityIdentifier("Sessions")
         .accessibilityHint(Text("a11y_sidebar_hint"))
     }
 }
