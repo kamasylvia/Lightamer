@@ -61,6 +61,14 @@ internal final class PixelPipe: @unchecked Sendable {
     /// into position-0 keys (§1.3). Computed once per pipe run.
     internal var decodeParamsHash: UInt64 = StableHash.fnvOffsetBasis
 
+    /// Per-level upstream hashes: `levelHash[i]` = decodeParamsHash ⊕ every
+    /// ENABLED module's `paramsHash` at indices ≤ i (disabled modules fold
+    /// NOTHING in). Line i+1 (module i's output) keys on `levelHash[i]`, so
+    /// a param change at module m flips EXACTLY the lines ≥ m — SC#2's
+    /// invalidation semantics. Precomputed in `run()` (O(n) once) instead of
+    /// threaded through the recursion.
+    internal var levelHash: [UInt64] = []
+
     /// Cache namespace anchor (the sidecar-persisted image UUID).
     internal var imageID: UUID = UUID()
 
@@ -150,18 +158,49 @@ internal final class PixelPipe: @unchecked Sendable {
         decodedImage = image
         planesRendered = 0
 
-        // §1.3: decodeParamsHash = FNV(decoderVersion ⊕ rawTech JSON) — the
-        // position-0 seed. Recompute per run; stable via StableHash.
+        // §1.3: decodeParamsHash = FNV chain over (decoderVersion ⊕ the
+        // RAWTechnicalParams fields) — the position-0 seed. FIELD-EXPLICIT
+        // by design: Foundation's keyed-container JSON emission order is
+        // NOT contractually stable (observed scrambling on macOS 27), so
+        // hashing JSONEncoder bytes would make cache keys unstable. Adding
+        // a RAWTechnicalParams field MUST extend this list.
+        // TODO(02-05): extract into a shared D-H4 decode-hash helper so the
+        // sidecar drift check and the cache use the identical formula.
         var seed = StableHash.hash(image.decoderVersionUsed.rawValue)
-        let techBytes = (try? JSONEncoder().encode(image.rawTech)) ?? Data()
-        seed = techBytes.withUnsafeBytes { StableHash.combine(seed, $0) }
+        seed = Self.chain(seed, image.rawTech.blackLevel.bitPattern)
+        seed = Self.chain(seed, image.rawTech.whiteLevel.bitPattern)
+        seed = Self.chain(seed, image.rawTech.baselineExposure.bitPattern)
+        seed = Self.chain(seed, UInt64(image.rawTech.neutralChromaticity.x.bitPattern))
+        seed = Self.chain(seed, UInt64(image.rawTech.neutralChromaticity.y.bitPattern))
+        seed = Self.chain(seed, image.rawTech.noiseReductionAmount.bitPattern)
+        if let value = image.rawTech.luminanceNoiseReduction {
+            seed = Self.chain(seed, value.bitPattern)
+        }
+        if let value = image.rawTech.colorNoiseReduction {
+            seed = Self.chain(seed, value.bitPattern)
+        }
         decodeParamsHash = seed
 
+        // Per-level chain: levelHash[i] = decode ⊕ (enabled hashes ≤ i).
+        var running = decodeParamsHash
+        levelHash = pieces.map { piece in
+            if piece.box.enabled {
+                running = Self.chain(running, piece.box.paramsHash)
+            }
+            return running
+        }
+
         let statsBefore = await cache.stats
+        // The pipe ROI: the full decoded extent at scale 1.0 (pass-through
+        // era; Plan 02-03 replaces this with scale-at-entry quantization).
+        let fullROI = ROI(
+            width: Int(image.ciImage.extent.width),
+            height: Int(image.ciImage.extent.height),
+            scale: 1.0
+        )
         let final = try await processRec(
             position: pieces.count - 1,
-            roiOut: ROI(), // stamped by the base case from the decoded extent
-            upstreamHash: decodeParamsHash,
+            roiOut: fullROI,
             metal: metal
         )
         let statsDelta = (await cache.stats) - statsBefore
@@ -179,25 +218,22 @@ internal final class PixelPipe: @unchecked Sendable {
     ///
     /// - Parameter position: chain index of the module whose OUTPUT is
     ///   requested; -1 = the input plane (cache line 0).
-    /// - Parameter upstreamHash: running FNV chain over the ENABLED pieces'
-    ///   `paramsHash` at positions < `position`, seeded with
-    ///   `decodeParamsHash` — threaded incrementally, O(1)/level.
+    ///
+    /// Line identity: module i's output = cache line i+1, keyed on
+    /// `levelHash[i]` (decode ⊕ enabled hashes ≤ i — see `levelHash`). The
+    /// walk probes TOP-DOWN and a hit returns immediately WITHOUT probing
+    /// further up — the fast path's whole point (upstream planes untouched).
     internal func processRec(
         position: Int,
         roiOut: ROI,
-        upstreamHash: UInt64,
         metal: MetalContext
     ) async throws -> PipeCache.CachedPlane {
         // ═══ BASE (position -1): the input plane — cache line 0, keyed on
-        // decodeParamsHash ONLY (pixelpipe_hb.c:1930-1999 entry; this plan
-        // renders the full extent from the decoded CIImage, scale-at-entry
-        // is Plan 02-03). EXPORT bypasses the cache entirely (lock #4).
+        // decodeParamsHash ONLY (pixelpipe_hb.c:1930-1999 entry; `roiOut`
+        // already IS the full decoded extent — run() computes it — and this
+        // plan renders the full extent from the decoded CIImage; scale-at-
+        // entry is Plan 02-03). EXPORT bypasses the cache entirely (lock #4).
         guard position >= 0 else {
-            let roi = ROI(
-                width: Int(decodedImage?.ciImage.extent.width ?? 0),
-                height: Int(decodedImage?.ciImage.extent.height ?? 0),
-                scale: 1.0
-            )
             if resolution == .export {
                 guard let image = decodedImage else {
                     throw MetalError.deviceUnavailable
@@ -209,9 +245,9 @@ internal final class PixelPipe: @unchecked Sendable {
             return try await cache.plane(
                 for: PipeCacheKey(
                     imageID: imageID, pipeType: resolution, position: 0,
-                    upstreamHash: upstreamHash, roi: roi
+                    upstreamHash: decodeParamsHash, roi: roiOut
                 ),
-                byteCount: Self.planeBytes(roi)
+                byteCount: Self.planeBytes(roiOut)
             ) { [self] in
                 // Miss closure: build the input plane ONCE; hits skip this
                 // entirely (no decode-leg render on a cache hit).
@@ -232,18 +268,18 @@ internal final class PixelPipe: @unchecked Sendable {
             return try await processRec(
                 position: position - 1,
                 roiOut: roiOut,
-                upstreamHash: upstreamHash, // disabled pieces fold NOTHING in
                 metal: metal
             )
         }
 
         // (b) cache line for this module's OUTPUT: position + 1 (position 0
-        // is the input plane), upstreamHash covers enabled pieces BELOW us.
+        // is the input plane), keyed on levelHash[position] = decode ⊕ the
+        // enabled hashes of modules ≤ this one.
         let key = PipeCacheKey(
             imageID: imageID,
             pipeType: resolution,
             position: position + 1,
-            upstreamHash: upstreamHash,
+            upstreamHash: levelHash[position],
             roi: roiOut
         )
         let isFinalOutput = position == topEnabledPosition
@@ -258,7 +294,6 @@ internal final class PixelPipe: @unchecked Sendable {
                 let upstream = try await processRec(
                     position: position - 1,
                     roiOut: roiOut,
-                    upstreamHash: Self.chain(upstreamHash, box.paramsHash),
                     metal: metal
                 )
                 // Risk #7 invariant: pass-through era ROI identity — the
@@ -285,7 +320,6 @@ internal final class PixelPipe: @unchecked Sendable {
         let upstream = try await processRec(
             position: position - 1,
             roiOut: roiOut,
-            upstreamHash: Self.chain(upstreamHash, box.paramsHash),
             metal: metal
         )
         assert(

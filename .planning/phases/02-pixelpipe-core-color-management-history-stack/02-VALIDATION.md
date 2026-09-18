@@ -40,7 +40,7 @@ created: 2026-09-18
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (planner) | — | 2 | FOUND-04 | — | N/A | unit | PipeCache: run1 全 miss → 改 testGain → colorin hit/testGain miss → undo → 双 hit（计数器断言）| ❌ W0 | ⬜ pending |
+| 02-02-06 | 02-02 | 2 | FOUND-04 | — | N/A | unit | PipeCacheTests：run1 全 miss → 改 testGain → 上游命中/下游 miss → undo 全命中（精确计数器断言）| ✅ | ✅ green（9/9）|
 | (planner) | — | 4 | HIST-01..04 | — | N/A | unit | HistoryStack: drag-end 提交一步、undo/redo 指针、paramsHash 稳定（FNV-1a 跨进程）| ❌ W0 | ⬜ pending |
 | (planner) | — | 5 | HIST-03 | — | N/A | unit | Sidecar round-trip: 写→清状态→重开→逐字段一致；漂移注入→检测不回写 | ❌ W0 | ⬜ pending |
 | (planner) | — | 3 | COLOR-01 | — | N/A | golden | 中性度（灰块通道差<2/255）+ 交叉一致性（vs ColorSync 基准逐像素<2/255）| ❌ W0 | ⬜ pending |
@@ -53,7 +53,7 @@ created: 2026-09-18
 
 ## Wave 0 Requirements
 
-- [ ] `Tests/LightamerTests/PipeCacheTests.swift` — FOUND-04 缓存快路径 + 失效语义
+- [x] `Tests/LightamerTests/PipeCacheTests.swift` — FOUND-04 缓存快路径 + 失效语义（02-02：9 测试全绿，含 SC#2 主链/禁用跳过/FULL 政策/LRU 淘汰/decodeHash 失效/PipeHash 组成/invalidate 扫除）
 - [ ] `Tests/LightamerTests/HistoryStackTests.swift` — HIST-01..04
 - [ ] `Tests/LightamerTests/SidecarRoundTripTests.swift` — HIST-03
 - [ ] `Tests/LightamerTests/GoldenColorTests.swift` — COLOR-01 双判据（需 ColorChecker 样本采集）

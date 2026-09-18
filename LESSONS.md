@@ -105,6 +105,14 @@
 - **适用**：所有 macOS SwiftUI + WindowGroup + odoc/Finder/Drop 打开文件的 app；任何"第二次打开就不对"类症状优先数窗口数。
 - **来源**：Plan 02-01 checkpoint→修复全过程（2026-09-19），证据 `.work/02-01/uat-results.md` + `uat-t*.log` + 截图链。
 
+### L013: JSONEncoder keyed 输出顺序无契约稳定性 → 哈希输入禁止用 JSON 字节（跨场域语义）
+- **背景**：Plan 02-02 把 `decodeParamsHash` 实现为 `FNV(JSONEncoder().encode(rawTech))`，PipeCacheTests 全链缓存语义测试"第二轮全 miss"。
+- **现象**：同一进程内两次 encode 同一 struct，产出的 JSON 键序为 `blackLevel,noiseReductionAmount,neutralChromaticity,whiteLevel,...` —— 既非 encode(to:) 调用序也非属性声明序；缓存 key 跨轮漂移（且 macOS 27 Foundation 的 keyed 容器发射顺序无稳定性契约）。
+- **根因**：JSONEncoder 的 keyed 容器发射顺序是实现细节（内部哈希表序），不是 ABI/文档承诺。任何"哈希 JSON 字节当稳定身份"的用法都在踩 RESEARCH Risk #2 的变体——不稳定源从 Hasher 换成了 JSON 键序。
+- **对策**：进入哈希/持久化身份的载荷一律**字段显式折叠**（`StableHash.chain(seed, field.bitPattern)`，Double 用 bitPattern）；decodeParamsHash 已改此实现（`PixelPipe.run`）。02-05 sidecar 的 `paramsHash` 若需要跨进程/跨版本稳定，须用规范化编码（排序键）或显式字段序，不能依赖 JSONEncoder 原生输出。paramsHash 当前 JSON 字节方案在"同二进制同进程"内稳定（缓存够用），sidecar 漂移检测前必须复核。
+- **适用**：所有"内容寻址"场景：PipeCacheKey/HistoryHash/sidecar historyHash/golden 测试输出指纹。
+- **来源**：Plan 02-02-06 调试过程（2026-09-19），PipeCacheTests 全 miss 复现 → DBGPIPE 探针定位。
+
 ---
 
 *本文件随开发进展持续更新。阶段完成后运行 `$gsd-extract-learnings` 自动提取。*

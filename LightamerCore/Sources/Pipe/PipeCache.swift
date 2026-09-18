@@ -36,7 +36,9 @@ public actor PipeCache {
 
     /// Eviction floor (0.66 × budget): once over budget, evict until back
     /// here — evicting line-by-line to the exact budget would thrash on
-    /// every insert while hovering at the threshold.
+    /// every insert while hovering at the threshold. The EFFECTIVE floor is
+    /// `min(Self.evictTarget, byteBudget × 2/3)` per instance so test-sized
+    /// budgets get the same hysteresis as the 3 GB production budget.
     public static let evictTarget = 2 * 1024 * 1024 * 1024
 
     /// One cached plane. `@unchecked Sendable` carries the OWNERSHIP
@@ -152,7 +154,8 @@ public actor PipeCache {
     /// to 02-06's session-level enforcement).
     private func evictUnderBudget(keeping freshlyInserted: PipeCacheKey) {
         guard trackedBytes > byteBudget else { return }
-        while trackedBytes > Self.evictTarget {
+        let floor = min(Self.evictTarget, byteBudget * 2 / 3)
+        while trackedBytes > floor {
             guard let oldest = planes
                 .filter({ $0.key != freshlyInserted })
                 .min(by: { $0.value.lastHit < $1.value.lastHit })
