@@ -94,6 +94,22 @@
   The ONLY hash for cache keys (02-02), history hashes (02-05), and sidecar
   drift detection (02-06); Swift `Hasher` (per-process seed) is banned
   across persistence boundaries
+- `enum ParamsCoding` (02-04) — `encode(_ params: some Encodable) -> Data`,
+  the CANONICAL params encoder with `.sortedKeys` (MANDATORY: Foundation's
+  keyed emission order is nondeterministic ACROSS CALLS within one process
+  — host-proven, LESSONS L013 — and paramsHash hashes these bytes). All
+  `commitParams` implementations MUST route through it; decoding stays
+  plain `JSONDecoder` (order-agnostic)
+- `enum DisplayProfile` (02-04, `@unchecked Sendable, Equatable`) — the
+  resolved display profile (D-COL2): `displayP3` / `sRGB` (Metal fast-path
+  families) / `colorSyncFallback(CGColorSpace)`. `resolve(_ NSColorSpace?)`
+  matching table (CGColorSpace registered names → NSColorSpace equality →
+  ICC-data equality → fallback); `current()` (NSScreen.main);
+  `stableID: UInt64` (StableHash; the terminal-segment invalidation atom —
+  fallback profiles hash their ICC bytes); `label` (log text);
+  `linearCGColorSpace` / `displayCGColorSpace` (the linear workalike for
+  the ColorSync leg is extendedLinearSRGB — documented approximation;
+  exact unknown-profile primaries land with Phase 13 COLOR-03)
 
 ### Render bridge (`Sources/Pipe/PixelPipe.swift`)
 - `enum RenderPipeline` — `static func render(image:layerStack:metal:) async
@@ -136,6 +152,53 @@
 - `RenderPipeline.render(image:layerStack:metal:)` — KEPT: the Phase 1
   no-op display path (empty instances)
 
+### Terminal trio & module registry (02-04, `Sources/Pipe/Terminal/` + `Sources/Pipe/`)
+
+> Terminal modules live in CORE (pipeline infrastructure — the pipe and the
+> golden harness run with ZERO LightamerIOP dependency; research Open
+> Question #2 resolution). Kernels in Core's own `default.metallib`
+> (`TerminalKernels.metal`), resolved automatically via the
+> `Bundle(for: MetalContextMarker.self)` walk.
+
+- `final class ColorInModule: IOPModule` — `opName "colorin"`, `iopOrder
+  28.0`; IDENTITY (copy via `terminal_copy`) — the pipeline input is
+  CIRAW-developed imagery in linear Rec2020, NOT camera-RGB (architecture
+  note in the file header; Phase 3 scene-referred iops calibrate golden
+  tolerances to this). `Params.inputProfile: String?` = COLOR-04/DCP
+  reservation (Phase 13+; nil = trust CIRAW)
+- `final class ColorOutModule: IOPModule` — `opName "colorout"`,
+  `iopOrder 70.0`; linear Rec2020 → linear display gamut (gamut matrix
+  ONLY — TRC is gamma's job, D-COL4). Dual path: `colorout_matrix` kernel
+  with function-constant `isP3` over two compile-time constant matrices
+  (derivation cited in-source; generator `.work/02-04/matrix-derive.swift`)
+  + ColorSync precise leg via `MetalContext.convertToLinearSpace` (internal)
+  then `terminal_copy`. `Params.outputProfile` (.display/.sRGB/.displayP3)
+  + `intent` = D-COL3 reservation (Phase 13 printer/soft-proof profiles).
+  `displayProfileOverride: DisplayProfile?` — coordinator-injected live
+  display; `commitParams` folds the resolved `DisplayProfile.stableID`
+  into the piece hash (terminal-segment invalidation: display change ⇒
+  keys ≥ colorout flip, upstream planes survive)
+- `final class GammaModule: IOPModule` — `opName "gamma"`, `iopOrder 78.0`
+  (the pipe TAIL); exact sRGB segmented TRC ENCODE
+  (`c ≤ 0.04045 ? c/12.92 : 1.055·c^(1/2.4) − 0.055`, float math L006),
+  clamp to [0,1] (THE only clamp in the pipe, D-COL4), writes
+  `.bgra8Unorm` (`GammaModule.outputPixelFormat`; the EditorMTKView blit
+  passthrough + CAMetalLayer colorspace complete the handoff)
+- `enum TerminalKernels` — Core kernel names: `terminal_copy`,
+  `colorout_matrix`, `gamma_encode`
+- `actor ModuleRegistry` (02-04-01) — `opName → @Sendable (UUID) ->
+  any ModuleBoxing` factory registry. `register(opName:factory:)`
+  (idempotent last-wins + debug log); `makeBox(opName:instanceID:) -> nil`
+  for unknown ops (02-06 degrade path); `makeDefaultChain()` = terminal
+  trio v50-sorted; `static makeDefault()`. Self-registers the trio in
+  `init()` (direct storage mutation — actor inits cannot hop). Phase 3+
+  registers via `LightamerIOPRegistry.populate(_:)`
+- `ModuleBox` additions (02-04): `init(module:instanceID:...)` — the
+  identity-RESTORING initializer (sidecar/registry UUID injection); and
+  `setParams` now ADOPTS the module-committed `committedPiece.paramsHash`
+  (identity for standard modules; the colorout stableID fold for the
+  terminal — without adoption the fold is invisible to the cache chain)
+
 ## Internal (NOT for cross-module use — may change without notice)
 
 - **Pipe internals (02-02/02-03):** `struct PipeCacheKey` (imageID/pipeType/
@@ -150,6 +213,18 @@
   input-plane miss leg (`renderToTexture(_:longEdge:)` when
   `roi.scale < 1`). Test surface via `@testable import LightamerCore`
   (precedent: `RAWDecoderTests`).
+- **02-04 pipe tail policy** (internal): when the TOP enabled module is
+  `gamma`, the final plane is allocated `.bgra8Unorm` (4 B/px accounting)
+  — cached planes at positions < gamma stay float32 linear (a display
+  change re-runs only the colorout+gamma segment). FULL gets the same
+  treatment (its output is display-format for 100% viewing).
+- `struct TextureBox` — the pipe's `@unchecked Sendable` plane
+  ownership-transfer wrap (also used by the colorout ColorSync leg).
+- `MetalContext.convertToLinearSpace(_ sending any MTLTexture, target:)`
+  + `CIContextPool.convertTexture(_:toLinearSpace:)` (02-04, internal —
+  the colorout ColorSync leg: CIImage(mtlTexture:) tagged with the working
+  space → bitmap render (RGBAf) with the per-call LINEAR target colorspace
+  → replace; host finding referenced at the pool header).
 - `PSOKey` (PSO cache key, D-16), `CIContextPool` (CIImage→texture bridge;
   02-03 adds the internal `renderToTexture(_:longEdge:)` scale-at-entry leg
   with the `render-scaled` signpost),

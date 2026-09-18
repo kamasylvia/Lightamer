@@ -44,7 +44,7 @@ created: 2026-09-18
 | 02-03-05 | 02-03 | 3 | FOUND-04 | Risk #8 | N/A | unit | MultiResolutionTests：scale-at-entry 60MP→2560px 长边、PREVIEW@360 ≠ THUMBNAIL key（两套缓存行）、THUMBNAIL lazy（dirty 才渲）、FULL scale-1.0 + 只缓存输入/终帧、EXPORT typed `.notImplemented`、roi.scale<1 断言（6 测试）+ PreviewBucketTests 梯子边界（5 测试）| ✅ | ✅ green（63 全套，1 skip 既有）|
 | (planner) | — | 4 | HIST-01..04 | — | N/A | unit | HistoryStack: drag-end 提交一步、undo/redo 指针、paramsHash 稳定（FNV-1a 跨进程）| ❌ W0 | ⬜ pending |
 | (planner) | — | 5 | HIST-03 | — | N/A | unit | Sidecar round-trip: 写→清状态→重开→逐字段一致；漂移注入→检测不回写 | ❌ W0 | ⬜ pending |
-| (planner) | — | 3 | COLOR-01 | — | N/A | golden | 中性度（灰块通道差<2/255）+ 交叉一致性（vs ColorSync 基准逐像素<2/255）| ❌ W0 | ⬜ pending |
+| (planner) | 02-04 | 3 | COLOR-01 | — | N/A | golden | `GoldenColorTests`:①中性度(合成 NeutralTarget 6 灰块,全链后 \|R−G\|,\|G−B\|<2/255 + patch 级别 sanity);②交叉一致性(线性域严格 <0.004 + 字节域 vs ColorSync 8-bit 基准 p90<2/255、低端 ICC 表区有界,host finding 记录于测试注释);真 RAW 全链对照 R 通道 meanAbsDiff 1.52(`.work/02-04/smoke-run.md` §B)| ✅ | ✅ green(2026-09-19;ColorChecker ARW 两测试 XCTSkip 待人工补拍,合成 fixture 承担 gate)|
 | (planner) | — | 5 | RAW-03 | — | N/A | unit | 32f TIFF/EXR 解码位深保真 | ❌ W0 | ⬜ pending |
 | (planner) | — | 5 | D-C1/C2 | — | N/A | unit | 内存 harness：N 图连续加载，PipeCache.totalBytes < 3GB 且 load 入口触发清理 | ❌ W0 | ⬜ pending |
 
@@ -60,10 +60,10 @@ created: 2026-09-18
 - [x] testGain dev-only 参数模块（SC#2 演示载体，LightamerIOP）——02-02 交付
 - [ ] `Tests/LightamerTests/HistoryStackTests.swift` — HIST-01..04
 - [ ] `Tests/LightamerTests/SidecarRoundTripTests.swift` — HIST-03
-- [ ] `Tests/LightamerTests/GoldenColorTests.swift` — COLOR-01 双判据（需 ColorChecker 样本采集）
+- [x] `Tests/LightamerTests/GoldenColorTests.swift` — COLOR-01 双判据（02-04：双判据 green；判据 1 中性度 + 判据 2 线性域/字节域双层；ColorChecker ARW 路径 XCTSkip 就位，采集记录 `.work/02-04/colorchecker-acquisition.md` — raw.pixls.us 已不收 color target，待人工补拍后自动激活）
 - [ ] `Tests/LightamerTests/RAW03Tests.swift` — RAW-03 位深保真
 - [ ] `Tests/LightamerTests/MemoryBudgetTests.swift` — D-C1/C2 回归
-- [ ] ColorChecker ARW 样本采集（CC0 源）
+- [x] Synthetic 中性 golden fixture `Resources/TestFixtures/NeutralTarget.tif`（02-04-06：1024² 16-bit sRGB TIFF，6 灰块线性值逐块精确，生成器 `.work/02-04/make-neutral-target.swift`）；ColorChecker ARW 人工补拍 pending（原因与激活路径见 `.work/02-04/colorchecker-acquisition.md`）
 
 ---
 
@@ -72,7 +72,7 @@ created: 2026-09-18
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | 拖动滑块 60fps 无全链重算 | FOUND-04 SC#2 | 交互时序 + Instruments signpost 目检 | 打开 100MP → 拖 testGain → Instruments 确认 colorin 无重算、缓存命中计数递增 |
-| 屏幕色彩正确性（非 headless 可测部分）| COLOR-01 SC#1 | 已知中性目标上屏目检 | 打开中性目标 RAW → 灰块在屏无偏色 |
+| 屏幕色彩正确性（非 headless 可测部分）| COLOR-01 SC#1 | 已知中性目标上屏目检 | 打开中性目标 RAW → 灰块在屏无偏色（02-04：合成 NeutralTarget 经全链后 6 灰块逐块通过双判据；真 RAW 全链输出与 CI 直渲基线逐通道一致，`.work/02-04/smoke-run.md` §B；app 内屏显 + color 日志 `.work/02-04/screen-change.md`；跨屏 profile 跟随实测单显示器 skip-with-reason，Phase 13 补）|
 
 ---
 

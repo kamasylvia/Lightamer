@@ -51,7 +51,15 @@
   - Task 05 UAT 曾 CHECKPOINT：黑屏复现 → **真根因 = SwiftUI WindowGroup 每 odoc Apple Event 开新窗口**（10 窗/10 MTKView，新窗 decode 期建、盖住真显示窗），非渲染路径竞争。修复 = 单 `Window` scene（ac84596，Phase 9 多窗口再回归）→ 9/9 UAT 步全显示（含压力循环）
   - Task 06 D-X2 探针退役（88afa0c）：drawable 回读/drawProbe/身份探针全删，`framebufferOnly` 等诊断配置还原默认；paused 模式（D-13）保留无偏离
   - 收尾：单测 43/43 绿（1 跳过）；UITest 未跑（screen 环境同 Phase 1 pending-manual 口径，三栏断言代码就绪）；SUMMARY 见 `02-01-SUMMARY.md`；根因教训入 LESSONS L012
-- [ ] Plan 02-02（PipeCache + 递归快路径）待执行 — 消费 StableHash 与 `rerender()` 单路径骨架
+- [x] **Plan 02-02**（PipeCache + 递归快路径）完成（2026-09-19：StableHash FNV 原子 + PipeCache 3GB LRU actor + PipeCacheKey hash 链 + PixelPipe processRec + IOPModule Buffer→Texture 迁移 + TestGain dev-only 模块；PipeCacheTests 9/9；教训入 LESSONS L013，见 `02-02-SUMMARY.md`）
+- [x] **Plan 02-03**（多分辨率管线 + PipeCoordinator）完成（2026-09-19：PreviewBucket D-C3 梯子 + renderToTexture(longEdge:) + PipeResolution 生命周期 + PipeCoordinator 单渲染路径；单测 63 全绿零回归；D-C3 resize app 内实证 + 60MP 冒烟内存 2.07GB<3GB，见 `02-03-SUMMARY.md`）
+- [x] **Plan 02-04**（终端三件套 + ModuleRegistry + golden 双判据 harness）完成（2026-09-19）：
+  - colorin 恒等（28.0，COLOR-04 inputProfile 预留 + displayed-domain 架构注记）/ colorout 双路径（70.0，Rec2020→P3/sRGB 常量矩阵快路径 + ColorSync 精确腿 + D-COL3 参数位）/ gamma（78.0，sRGB TRC → .bgra8Unorm 管尾，D-COL4 唯一 clamp 点）+ TerminalKernels.metal（Core 首个 metallib）
+  - ModuleRegistry actor（default chain + 未知 op nil 降级位）+ LightamerIOPRegistry.populate + ModuleBox instanceID 注入 init + setParams 采纳 committed hash
+  - DisplayProfile（P3/sRGB 匹配表 + ICC fallback + stableID）+ D-COL2 屏幕跟随（configure(window:) + 双通知 + 幂等 guard）+ EditorMTKView display-ready blit regime + CAMetalLayer colorspace
+  - Golden 双判据 harness green：①中性度 6 灰块逐块 <2/255；②交叉一致性（线性域 <0.004 + 字节域 ColorSync 基准分层断言）；缓存断言（display change → 仅 ≥colorout miss）；合成 NeutralTarget.tif committed；ColorChecker ARW 采集 pending（raw.pixls.us 不收 color target，skip-with-reason 就位，`.work/02-04/colorchecker-acquisition.md`）
+  - 单测 83 全绿（3 skip 合规）；真 RAW 冒烟 7/7 + 全链 vs CI 直渲对照一致（`.work/02-04/smoke-run.md`）；修复 3 个真缺陷：gamma TRC 写成 decode 方向、ModuleBox 不采纳 committed hash（stableID fold 对缓存不可见）、JSONEncoder 键序不稳定全面切 ParamsCoding(sortedKeys)（L013 对策落地）
+  - SUMMARY 见 `02-04-SUMMARY.md`
 
 ## Phase 2-13（已规划，未开始）
 

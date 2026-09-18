@@ -109,7 +109,7 @@
 - **背景**：Plan 02-02 把 `decodeParamsHash` 实现为 `FNV(JSONEncoder().encode(rawTech))`，PipeCacheTests 全链缓存语义测试"第二轮全 miss"。
 - **现象**：同一进程内两次 encode 同一 struct，产出的 JSON 键序为 `blackLevel,noiseReductionAmount,neutralChromaticity,whiteLevel,...` —— 既非 encode(to:) 调用序也非属性声明序；缓存 key 跨轮漂移（且 macOS 27 Foundation 的 keyed 容器发射顺序无稳定性契约）。
 - **根因**：JSONEncoder 的 keyed 容器发射顺序是实现细节（内部哈希表序），不是 ABI/文档承诺。任何"哈希 JSON 字节当稳定身份"的用法都在踩 RESEARCH Risk #2 的变体——不稳定源从 Hasher 换成了 JSON 键序。
-- **对策**：进入哈希/持久化身份的载荷一律**字段显式折叠**（`StableHash.chain(seed, field.bitPattern)`，Double 用 bitPattern）；decodeParamsHash 已改此实现（`PixelPipe.run`）。02-05 sidecar 的 `paramsHash` 若需要跨进程/跨版本稳定，须用规范化编码（排序键）或显式字段序，不能依赖 JSONEncoder 原生输出。paramsHash 当前 JSON 字节方案在"同二进制同进程"内稳定（缓存够用），sidecar 漂移检测前必须复核。
+- **对策**：进入哈希/持久化身份的载荷一律**字段显式折叠**（`StableHash.chain(seed, field.bitPattern)`，Double 用 bitPattern）；decodeParamsHash 已改此实现（`PixelPipe.run`）。**02-04 补：params 载荷哈希已全面切到规范化编码**——`ParamsCoding.encode`（`.sortedKeys`）实测同进程跨调用仍会分裂键序（02-04 cache 测试 run4 复现），sortedKeys 后稳定；全部 `commitParams` + `ModuleBox.setParams` 已路由经它，sidecar 漂移检测（02-06）直接复用。
 - **适用**：所有"内容寻址"场景：PipeCacheKey/HistoryHash/sidecar historyHash/golden 测试输出指纹。
 - **来源**：Plan 02-02-06 调试过程（2026-09-19），PipeCacheTests 全 miss 复现 → DBGPIPE 探针定位。
 

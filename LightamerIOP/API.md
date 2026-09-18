@@ -63,12 +63,22 @@
 
 ## Phase 2+ additions (reserved, not yet present)
 
-- `ModuleRegistry` — `opName → IOPModule.Type` mapping (Phase 2 fills;
-  Phase 1 has only Passthrough). Registry stores METATYPES (Sendable);
-  module instances are owned per pipe run.
+- ~~`ModuleRegistry`~~ — **02-04 交付于 LightamerCore**(`Sources/Pipe/
+  ModuleRegistry.swift`,terminal trio 是管线基础设施故留在 Core;本框架经
+  `LightamerIOPRegistry.populate(_:)` 注册)
+- `enum LightamerIOPRegistry` (02-04, `Sources/Registry.swift`) —
+  `populate(_ registry: ModuleRegistry) async`:the ONE registration hook
+  the app calls at launch. DEBUG registers `testgain`; Release leaves it
+  unregistered (a Release sidecar carrying `testgain` = unknown op →
+  02-06 degrade). `passthrough_spike` deliberately unregistered
+  (test-only). Async because the registry is an actor (D-33; recorded
+  plan note). Phase 3+ modules add one line here
 - Phase 3+ modules follow the same shape: one `public final class
   XXXModule: IOPModule` + one `.metal` kernel per file pair
   (`XXX.swift` + `XXX.metal`), `opName` mirroring Darktable's op string.
+  **commitParams MUST encode via `LightamerCore.ParamsCoding.encode`
+  (sortedKeys canonical — LESSONS L013; `JSONEncoder()` raw output is
+  nondeterministic across calls)**
 
 ## Code-review enforcement
 
