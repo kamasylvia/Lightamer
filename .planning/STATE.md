@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 1 — Foundation, App Skeleton & Capability Spikes
-status: executed_pending_verify
+status: complete
 stopped_at: Phase 1 Plan 06 complete — unit suite green, VALIDATION signed (manual-only rows pending-manual)
 last_updated: "2026-09-16T11:10:00.000Z"
 progress:
@@ -17,7 +17,7 @@ progress:
 
 **Last updated:** 2026-09-16
 **Current phase:** Phase 1 — Foundation, App Skeleton & Capability Spikes
-**Status:** executed_pending_verify (6/6 plans executed + committed; pending `$gsd-verify-work` / phase verification)
+**Status:** complete (UAT closed 2026-09-18: 5 pass + 1 partial; issue #1 reclassified as multi-window presentation contention → Phase 2 backlog)
 
 ## Roadmap Snapshot
 
@@ -26,7 +26,7 @@ progress:
 - **Mode:** standard (Horizontal Layers)
 - **Total v1 requirements:** 123
 - **Mapped:** 123 (100%)
-- **Completed phases:** 0 / 13 (Phase 1 executed, verification gate next)
+- **Completed phases:** 1 / 13 (Phase 1 UAT closed; next: Phase 2 Pixelpipe Core)
 
 ## Phase Progress
 
@@ -68,7 +68,7 @@ Foundation (1) → Pixelpipe core + history (2) → Tone/Filmic (3) → Geometry
 ---
 *Initialized: 2026-08-03 after roadmap creation*
 *Updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs); AI-02/03/04 moved to v2*
-*Updated: 2026-09-16 — Phase 1 Plans 01-06 executed (status not_started → executed_pending_verify)*
+*Updated: 2026-09-18 — Phase 1 UAT closed (executed_pending_verify → complete); next Phase 2*
 
 ## Session
 
