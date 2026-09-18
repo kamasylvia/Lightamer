@@ -88,12 +88,14 @@ internal struct EditorMTKView: NSViewRepresentable {
         )
 
         private let commandQueue: any MTLCommandQueue
+        private let device: any MTLDevice
         /// Built ONCE; nil only if the app-bundle metallib/PSO failed
         /// (draw then just clears to canvas and the failure is logged).
         private var blitPipelineState: (any MTLRenderPipelineState)?
         var sourceTexture: (any MTLTexture)?
 
         init(device: any MTLDevice, commandQueue: any MTLCommandQueue, sourceTexture: (any MTLTexture)?) {
+            self.device = device
             self.commandQueue = commandQueue
             self.sourceTexture = sourceTexture
             super.init()
@@ -174,6 +176,32 @@ internal struct EditorMTKView: NSViewRepresentable {
             } // else: no image yet — solid canvas mat (UI-SPEC "no image" viewport state)
 
             encoder.endEncoding()
+
+            // UAT issue #1 probe: read back a 2×2 drawable sample before
+            // present to distinguish "blit wrote black" vs "presentation
+            // black". Debug-only; removed with the fix.
+            let readback = device.makeBuffer(length: 16)
+            if let readback, let blit = commandBuffer.makeBlitCommandEncoder() {
+                let dw = Int(view.drawableSize.width)
+                let dh = Int(view.drawableSize.height)
+                blit.copy(
+                    from: drawable.texture,
+                    sourceSlice: 0, sourceLevel: 0,
+                    sourceOrigin: MTLOrigin(x: max(0, dw / 2 - 1), y: max(0, dh / 2 - 1), z: 0),
+                    sourceSize: MTLSize(width: 2, height: 2, depth: 1),
+                    to: readback, destinationOffset: 0,
+                    destinationBytesPerRow: 8, destinationBytesPerImage: 16
+                )
+                blit.endEncoding()
+                commandBuffer.addCompletedHandler { [weak self] _ in
+                    let p = readback.contents().bindMemory(to: UInt8.self, capacity: 8)
+                    let values = (0..<8).map { p[$0] }
+                    self?.drawProbe.debug(
+                        "DRAWABLE sample: \(values, privacy: .public)"
+                    )
+                }
+            }
+
             commandBuffer.present(drawable)
             commandBuffer.commit()
         }
