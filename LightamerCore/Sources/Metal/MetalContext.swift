@@ -324,6 +324,26 @@ public actor MetalContext {
         }
     }
 
+    /// Scale-at-entry variant (Plan 02-03-02): renders `image` transformed
+    /// to `longEdge` pixels on its long dimension (downscale-only) in ONE
+    /// pass — the PREVIEW/THUMBNAIL input-plane builder (D-C3; Darktable
+    /// entry resampling mirror, `pixelpipe_hb.c:1930-1999`). Same float32
+    /// linear-Rec2020 contract and ownership handoff as the full-extent
+    /// facade above; signposted `"render-scaled"` (the 02-01 spike Test C
+    /// decode-at-scale numbers are cited at `CIContextPool.renderToTexture
+    /// (_:longEdge:)` — the win is plane MEMORY, not decode time).
+    public nonisolated func renderToTexture(
+        _ image: CIImage, longEdge: Int
+    ) async throws -> sending any MTLTexture {
+        let pool = await getOrCreatePool()
+        do {
+            let rendered = try await pool.renderToTexture(image, longEdge: longEdge)
+            return rendered.texture
+        } catch let error as MetalError {
+            throw error.asAppError
+        }
+    }
+
     // MARK: - Private helpers
 
     /// Actor-isolated get-or-create; returns the actor REFERENCE (actor

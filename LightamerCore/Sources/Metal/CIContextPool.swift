@@ -72,12 +72,79 @@ internal actor CIContextPool {
 
     internal func renderToTexture(_ image: CIImage) throws -> RenderedTexture {
         let extent = image.extent
+        guard extent.width >= 1, extent.height >= 1 else {
+            throw AppError.decodeFailed("CIImage has an empty extent")
+        }
+        return try renderScaled(
+            image, width: Int(extent.width), height: Int(extent.height), signpost: "render"
+        )
+    }
+
+    /// Scale-at-entry render (Plan 02-03-02; the mirror of Darktable's
+    /// entry resampling, `pixelpipe_hb.c:1930-1999`): the CIImage is
+    /// transformed to the requested long edge FIRST and rendered ONCE at
+    /// that size — never render 100MP then downscale. This is the PREVIEW/
+    /// THUMBNAIL input-plane builder.
+    ///
+    /// Spike evidence (02-01 Test C, `.work/02-01/spike-render-leg.md`):
+    /// scaled rendering gives NO reliable decode-time win — medians were
+    /// inverted (scaled-2560 922ms vs full-60MP 304ms on DSC09991.ARW) with
+    /// 10–20× run-to-run variance, because `cacheIntermediates:false` makes
+    /// CIRAW re-execute per render and its internal state thrashes across
+    /// alternating scales. The win of this path is MEMORY: a 2560px float32
+    /// input plane is ~70MB vs 1.55GB at 60MP (the spike-b plane-multiplication
+    /// guard), which is why the ladder (D-C3) still matters for footprint.
+    /// First-render seconds are a one-time decode cost (Phase 3 UX affords
+    /// the progress indicator; do not add one per-render).
+    ///
+    /// - Parameters:
+    ///   - image: the decoded CIImage (any extent).
+    ///   - longEdge: target long edge in pixels. The result never exceeds
+    ///     the source extent (`scale` clamps at 1.0 — small images render
+    ///     at their native size; no upscale).
+    internal func renderToTexture(_ image: CIImage, longEdge: Int) throws -> RenderedTexture {
+        guard longEdge >= 1 else {
+            throw AppError.decodeFailed("renderToTexture(longEdge:) needs a positive long edge, got \(longEdge)")
+        }
+        let extent = image.extent
         let width = Int(extent.width)
         let height = Int(extent.height)
         guard width >= 1, height >= 1 else {
             throw AppError.decodeFailed("CIImage has an empty extent")
         }
+        // Downscale-only fit: the long edge lands exactly on the target
+        // (or at 1.0 for images already smaller than it).
+        let scale = min(
+            CGFloat(longEdge) / CGFloat(max(width, 1)),
+            CGFloat(longEdge) / CGFloat(max(height, 1)),
+            1.0
+        )
+        guard scale.isFinite, scale > 0 else {
+            throw AppError.decodeFailed("degenerate scale computing longEdge \(longEdge) for \(width)×\(height)")
+        }
+        let scaledWidth = max(1, Int((CGFloat(width) * scale).rounded()))
+        let scaledHeight = max(1, Int((CGFloat(height) * scale).rounded()))
+        // CI is lazy: the transform folds into the ONE bitmap render below.
+        let scaled = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        return try renderScaled(
+            scaled, width: scaledWidth, height: scaledHeight, signpost: "render-scaled",
+            scale: scale
+        )
+    }
 
+    /// The shared bitmap+replace leg (host finding: direct
+    /// `render(_:toMTLTexture:)` is a silent no-op on this host — see the
+    /// decision header). Renders `image` into a fresh `.rgba32Float` texture
+    /// of exactly `width × height`; signpost name distinguishes the
+    /// full-extent ("render") and scaled ("render-scaled") callers so the
+    /// decode-at-scale cost is measurable in Instruments (D-31).
+    private func renderScaled(
+        _ image: CIImage,
+        width: Int,
+        height: Int,
+        signpost: StaticString,
+        scale: CGFloat? = nil
+    ) throws -> RenderedTexture {
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: WorkingSpace.pixelFormat, // .rgba32Float
             width: width,
@@ -93,8 +160,13 @@ internal actor CIContextPool {
         }
 
         let signposter = Self.signposter
-        let interval = signposter.beginInterval("render", id: signposter.makeSignpostID())
-        defer { signposter.endInterval("render", interval) }
+        let interval = signposter.beginInterval(signpost, id: signposter.makeSignpostID())
+        defer { signposter.endInterval(signpost, interval) }
+        if let scale {
+            AppError.logger.debug(
+                "render-scaled \(width)×\(height) (scale \(scale, privacy: .public))"
+            )
+        }
 
         let rowBytes = width * WorkingSpace.bytesPerPixel
         let byteCount = rowBytes * height
@@ -107,7 +179,7 @@ internal actor CIContextPool {
             image,
             toBitmap: buffer,
             rowBytes: rowBytes,
-            bounds: extent,
+            bounds: image.extent,
             format: CIFormat.RGBAf,
             colorSpace: WorkingSpace.colorSpace
         )
