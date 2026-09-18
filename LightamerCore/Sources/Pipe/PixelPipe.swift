@@ -76,6 +76,21 @@ internal final class PixelPipe: @unchecked Sendable {
     /// output (cached even in FULL mode). -1 = everything disabled.
     internal var topEnabledPosition = -1
 
+    /// The ROI this pipe instance is running at — set by `run`/`runIfDirty`/
+    /// `runOnce` from the image extent + the resolution's long edge (scale-
+    /// at-entry, `pixelpipe_hb.c:1930-1999` mirror: the INPUT plane is
+    /// rendered at the target size, modules see `roi.scale` but stay
+    /// geometry-blind in the pass-through era). `scale < 1.0` on
+    /// PREVIEW/THUMBNAIL runs; exactly 1.0 on FULL.
+    internal private(set) var roi: ROI = ROI()
+
+    /// THUMBNAIL lazy lifecycle (`PipeResolution.isLazy`): a fresh pipe is
+    /// dirty (the first fetch renders); the coordinator re-arms the flag on
+    /// param change WITHOUT rendering; `runIfDirty` renders only when armed
+    /// and disarms itself. PREVIEW/FULL ignore the flag (their runs are
+    /// driven explicitly).
+    internal var isDirty = true
+
     /// Pipe-private ping-pong scratch (FULL/EXPORT intermediates) — NEVER
     /// cached, never handed out.
     private var scratchPlanes: [any MTLTexture] = []
@@ -137,14 +152,25 @@ internal final class PixelPipe: @unchecked Sendable {
 
     /// Run the pipe over a decoded image with the given (unsorted) module
     /// instances; returns the final plane + this run's stats delta.
-    /// `longEdge` is reserved for Plan 02-03's scale-at-entry (this plan
-    /// renders the full extent — pass-through era).
+    ///
+    /// Scale-at-entry (Plan 02-03-03): `longEdge` (or the resolution's
+    /// `defaultLongEdge` for THUMBNAIL) sizes the INPUT plane — `roi.scale
+    /// = target/fullExtent` and the base case renders the decoded CIImage
+    /// at the target long edge in ONE pass (`renderToTexture(_:longEdge:)`).
+    /// nil long edge + no resolution default (FULL) = full extent, scale 1.0.
+    /// PREVIEW re-renders through plain `run` on every params change.
     internal func run(
         image: DecodedImage,
         instances: [any ModuleBoxing],
         metal: MetalContext,
         longEdge: Int?
     ) async throws -> (output: any MTLTexture, stats: RenderPipeline.PipeRunStats) {
+        // EXPORT is a Phase 11 seam — typed placeholder, never a fatalError
+        // (D-25 / Plan 02-03-03).
+        if resolution == .export {
+            throw AppError.notImplemented("Phase 11")
+        }
+
         // Base layer invariant (D-03a) — L005 field preserved.
         if layerStack == nil {
             layerStack = LayerStack(baseLayer: BackgroundLayer())
@@ -191,16 +217,32 @@ internal final class PixelPipe: @unchecked Sendable {
         }
 
         let statsBefore = await cache.stats
-        // The pipe ROI: the full decoded extent at scale 1.0 (pass-through
-        // era; Plan 02-03 replaces this with scale-at-entry quantization).
-        let fullROI = ROI(
-            width: Int(image.ciImage.extent.width),
-            height: Int(image.ciImage.extent.height),
-            scale: 1.0
-        )
+        // Scale-at-entry ROI (Plan 02-03-03): the effective long edge is
+        // the explicit `longEdge` (PREVIEW's D-C3 bucket) or the
+        // resolution's `defaultLongEdge` (THUMBNAIL 360); none → full
+        // extent at scale 1.0 (FULL). Downscale-only: images smaller than
+        // the target render at native size.
+        let fullWidth = max(Int(image.ciImage.extent.width), 1)
+        let fullHeight = max(Int(image.ciImage.extent.height), 1)
+        let targetLongEdge = longEdge ?? resolution.defaultLongEdge
+        if let targetLongEdge, targetLongEdge >= 1 {
+            let scale = min(
+                CGFloat(targetLongEdge) / CGFloat(fullWidth),
+                CGFloat(targetLongEdge) / CGFloat(fullHeight),
+                1.0
+            )
+            roi = ROI(
+                x: 0, y: 0,
+                width: max(1, Int((CGFloat(fullWidth) * scale).rounded())),
+                height: max(1, Int((CGFloat(fullHeight) * scale).rounded())),
+                scale: Float(scale)
+            )
+        } else {
+            roi = ROI(width: fullWidth, height: fullHeight, scale: 1.0)
+        }
         let final = try await processRec(
             position: pieces.count - 1,
-            roiOut: fullROI,
+            roiOut: roi,
             metal: metal
         )
         let statsDelta = (await cache.stats) - statsBefore
@@ -212,6 +254,35 @@ internal final class PixelPipe: @unchecked Sendable {
                 planesRendered: planesRendered
             )
         )
+    }
+
+    /// THUMBNAIL lazy fetch (`PipeResolution.isLazy` lifecycle): renders
+    /// ONLY when `isDirty` (a fresh pipe is dirty — the first fetch renders),
+    /// then disarms. The coordinator re-arms the flag on param change
+    /// WITHOUT rendering, so the plane rebuilds lazily on the next fetch
+    /// (Phase 9 browser seam). Clean pipe → nil, zero work.
+    internal func runIfDirty(
+        image: DecodedImage,
+        instances: [any ModuleBoxing],
+        metal: MetalContext
+    ) async throws -> (output: any MTLTexture, stats: RenderPipeline.PipeRunStats)? {
+        guard isDirty else { return nil }
+        let result = try await run(image: image, instances: instances, metal: metal, longEdge: nil)
+        isDirty = false
+        return result
+    }
+
+    /// FULL on-demand entry (`PipeResolution.full` lifecycle): renders
+    /// scale 1.0 ONCE per call and returns the plane to the caller — the
+    /// pipe retains NO reference (only the cache's input + final lines
+    /// survive, per lock #4), so the 1.55GB@100MP planes are evictable as
+    /// soon as the caller drops the result. NEVER called on param change.
+    internal func runOnce(
+        image: DecodedImage,
+        instances: [any ModuleBoxing],
+        metal: MetalContext
+    ) async throws -> (output: any MTLTexture, stats: RenderPipeline.PipeRunStats) {
+        try await run(image: image, instances: instances, metal: metal, longEdge: nil)
     }
 
     /// The recursive walk (`pixelpipe_hb.c:1838` direct translation).
@@ -229,18 +300,17 @@ internal final class PixelPipe: @unchecked Sendable {
         metal: MetalContext
     ) async throws -> PipeCache.CachedPlane {
         // ═══ BASE (position -1): the input plane — cache line 0, keyed on
-        // decodeParamsHash ONLY (pixelpipe_hb.c:1930-1999 entry; `roiOut`
-        // already IS the full decoded extent — run() computes it — and this
-        // plan renders the full extent from the decoded CIImage; scale-at-
-        // entry is Plan 02-03). EXPORT bypasses the cache entirely (lock #4).
+        // decodeParamsHash + the ROI (`pixelpipe_hb.c:1930-1999` entry).
+        // Scale-at-entry (Plan 02-03-03): when `roiOut.scale < 1.0` the
+        // decoded CIImage renders DIRECTLY at the target long edge (ONE
+        // pass — never 100MP-then-downscale); scale 1.0 renders the full
+        // extent. Either way the miss closure builds the plane ONCE; hits
+        // skip the decode leg entirely. A scale-1.0 roi (FULL, or an image
+        // smaller than its bucket) has a DIFFERENT cache key than any
+        // scaled roi (the roi is part of the key), so the two never alias.
         guard position >= 0 else {
-            if resolution == .export {
-                guard let image = decodedImage else {
-                    throw MetalError.deviceUnavailable
-                }
-                planesRendered += 1
-                let texture = try await metal.renderToTexture(image.ciImage)
-                return PipeCache.CachedPlane(texture: texture, byteCount: 0, lastHit: .now)
+            guard let image = decodedImage else {
+                throw MetalError.deviceUnavailable
             }
             return try await cache.plane(
                 for: PipeCacheKey(
@@ -249,14 +319,13 @@ internal final class PixelPipe: @unchecked Sendable {
                 ),
                 byteCount: Self.planeBytes(roiOut)
             ) { [self] in
-                // Miss closure: build the input plane ONCE; hits skip this
-                // entirely (no decode-leg render on a cache hit).
-                guard let image = decodedImage else {
-                    throw MetalError.deviceUnavailable
-                }
                 planesRendered += 1
-                let texture = try await metal.renderToTexture(image.ciImage)
-                return texture
+                if roiOut.scale < 1.0 {
+                    return try await metal.renderToTexture(
+                        image.ciImage, longEdge: max(roiOut.width, roiOut.height)
+                    )
+                }
+                return try await metal.renderToTexture(image.ciImage)
             }
         }
 
@@ -315,8 +384,9 @@ internal final class PixelPipe: @unchecked Sendable {
             }
         }
 
-        // Uncached leg (FULL intermediates / all EXPORT positions):
-        // ping-pong through pipe-private scratch — never stored.
+        // Uncached leg (FULL intermediates — EXPORT never reaches the walk,
+        // `run` throws first): ping-pong through pipe-private scratch —
+        // never stored.
         let upstream = try await processRec(
             position: position - 1,
             roiOut: roiOut,
@@ -398,8 +468,9 @@ public enum RenderPipeline {
     ///   - imageID: the image's stable UUID (sidecar anchor) — the cache
     ///     namespace; pass the SAME UUID across runs to prove hits.
     ///   - cache: INJECTED pipe cache (tests share one actor across runs).
-    ///   - longEdge: reserved for Plan 02-03's scale-at-entry; nil/ignored
-    ///     in this plan (full-extent render, pass-through era).
+    ///   - longEdge: scale-at-entry target for the INPUT plane (Plan 02-03):
+    ///     the coordinator passes the D-C3 bucket for PREVIEW; nil resolves
+    ///     to the resolution default (THUMBNAIL 360) or full extent (FULL).
     public static func process(
         image: DecodedImage,
         instances: [any ModuleBoxing],

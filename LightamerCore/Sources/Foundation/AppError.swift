@@ -32,6 +32,11 @@ public enum AppError: Error, LocalizedError {
     /// The file exists but cannot be opened/read (permissions, truncated, …).
     case fileUnreadable(String)
 
+    /// A capability is deliberately not implemented yet — a typed placeholder
+    /// for reserved seams (D-25: NEVER a `fatalError`). The payload names the
+    /// phase/plan that lands the capability (e.g. EXPORT pipe → "Phase 11").
+    case notImplemented(String)
+
     /// Bridge a foreign `Error` into the typed enum (D-18/D-25: layers throw
     /// typed errors; this is the catch-site bridge Plan 02/03 throw through).
     /// - `CancellationError` → `.cancelled`
@@ -73,6 +78,8 @@ public enum AppError: Error, LocalizedError {
             return nil
         case let .fileUnreadable(path):
             return "Lightamer can't read the file at “\(path)”."
+        case let .notImplemented(phase):
+            return "This capability isn't available yet (planned for \(phase))."
         }
     }
 

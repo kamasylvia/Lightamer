@@ -1,49 +1,9 @@
 import Foundation
 
-/// The pixelpipe resolution buckets (02-RESEARCH §2.1; Darktable
-/// `pixelpipe.h:41-62` FULL/PREVIEW/THUMBNAIL/EXPORT analog) — one pipe
-/// instance + one cache-key namespace per case (`PipeCacheKey.pipeType`).
-///
-/// `public` (cross-module): Plan 02-03 grows the pipe lifecycle around it;
-/// `Codable` for the sidecar-adjacent state the coordinator persists later.
-public enum PipeResolution: String, Codable, Sendable, CaseIterable {
-
-    /// Interactive workhorse — `min(drawableSize×2, 2560px)` long edge,
-    /// quantized to the 360px ladder (D-C3). Always-current.
-    case preview
-
-    /// Fixed 360px browser strip (Phase 9 consumer). Rendered once, kept.
-    case thumbnail
-
-    /// scale-1.0 full extent — on-demand (100% view / export pre-pass).
-    /// Short-lived: intermediates ping-pong uncached.
-    case full
-
-    /// Phase 11 target-size run — no caching (Darktable parity:
-    /// `pixelpipe_hb.h:346-355` — export/thumbnail pipes build no history
-    /// cache; thumbnail IS cached here, export is not).
-    case export
-
-    /// Per-pipeType intermediate-caching policy (02-02 checkpoint lock #4).
-    /// PREVIEW/THUMBNAIL cache every module output plane (~70MB/plane at
-    /// 2560px float32); FULL must NOT (spike-b §4: a 100MP float32 plane is
-    /// 1.55GB — three concurrent planes ≈ 4.7GB, over the 4GB session
-    /// budget), EXPORT caches nothing at all.
-    public var cachesIntermediatePlanes: Bool {
-        switch self {
-        case .preview, .thumbnail: return true
-        case .full, .export: return false
-        }
-    }
-
-    /// THUMBNAIL dirty-lifecycle flag (Plan 02-03 consumes): a lazy pipe is
-    /// not re-rendered on param change — it is marked dirty and rebuilt on
-    /// next fetch, which `PipeCache.texture(for:make:)` provides for free
-    /// (new keys miss, old planes stay until evicted).
-    public var isLazy: Bool {
-        self == .thumbnail
-    }
-}
+// NOTE (Plan 02-03-03): `PipeResolution` moved to its own file,
+// `PipeResolution.swift`, which now also carries the lifecycle surface
+// (`defaultLongEdge`, `isLazy`, `cachesIntermediatePlanes`) and the
+// four-pipe lifecycle table. This file keeps ONLY the cache-key machinery.
 
 /// One pipe-cache line's identity — the Swift translation of Darktable's
 /// cache-line hash (`pixelpipe_cache.c:99-172`), simplified to a dictionary
