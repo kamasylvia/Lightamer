@@ -1,0 +1,14 @@
+[2026-09-18 21:45] updateNSView 探针确认 Binding 链完好（UPDATE×6 changed=true）；剩余：drawable 回读 + ARW 阶段对比
+[2026-09-18 21:45] committed probe results + pushed
+[2026-09-18 22:15] issue #1 关闭：JPEG 干净单窗口完美显示（drawable 回读+截图证据）；黑屏重定性为多窗口呈现竞争转 backlog
+[2026-09-18 22:16] issue #1 closed + pushed
+[2026-09-18 22:20] Phase 1 闭环：STATE complete，队列下一项 = Phase 2 discuss
+[2026-09-18 22:20] committed + pushed Phase 1 closure
+[2026-09-18 22:25] 巡检推进：Phase 1 已闭环，启动 Phase 2 discuss
+[2026-09-18 22:30] Phase 2 CONTEXT.md 定稿（自主决策 4 域 13 项），待 research
+[2026-09-18 22:30] pushed
+[2026-09-18 22:35] plan-checker 10 项修复完成，plans 定稿
+[2026-09-18 22:40] Phase 2 plans 定稿（6 plans, 4 waves, checker 10 项修复）。下轮巡检执行 Phase 2
+[2026-09-18 22:40] pushed
+[2026-09-19 patrol] pre-exec: committed leftover drawable probe
+[2026-09-19 patrol] 02-01 complete (9 commits pushed), UAT 9/9 green; queue → 02-02
