@@ -22,16 +22,22 @@ import os
 ///
 /// Verification channel (SC#2): hit/miss counters + `cache HIT`/`cache
 /// MISS` signposts — the exact counts `PipeCacheTests` asserts.
-internal actor PipeCache {
+///
+/// `public` (02-02 executor resolution): `RenderPipeline.process` injects a
+/// shared cache instance — a `public` parameter cannot expose an `internal`
+/// type, so the ACTOR is public while the key machinery (`PipeCacheKey`/
+/// `PipeHash`) and the stored-plane type (`CachedPlane`) stay internal.
+/// Tests share one actor across runs to prove hits.
+public actor PipeCache {
 
     /// D-C1: 4 GB session budget − 1 GB headroom. Constructor constant —
     /// tests shrink it via `init(byteBudget:)`.
-    static let defaultBudget = 3 * 1024 * 1024 * 1024
+    public static let defaultBudget = 3 * 1024 * 1024 * 1024
 
     /// Eviction floor (0.66 × budget): once over budget, evict until back
     /// here — evicting line-by-line to the exact budget would thrash on
     /// every insert while hovering at the threshold.
-    static let evictTarget = 2 * 1024 * 1024 * 1024
+    public static let evictTarget = 2 * 1024 * 1024 * 1024
 
     /// One cached plane. `@unchecked Sendable` carries the OWNERSHIP
     /// transfer contract (not free-for-all sharing): the producing pipe run
@@ -52,9 +58,27 @@ internal actor PipeCache {
 
     /// SC#2 verification counters (cumulative over the cache's lifetime —
     /// NOT reset by invalidation, so tests can assert across runs).
-    internal struct CacheStats: Sendable {
-        internal private(set) var hits: Int = 0
-        internal private(set) var misses: Int = 0
+    public struct CacheStats: Sendable {
+        public private(set) var hits: Int = 0
+        public private(set) var misses: Int = 0
+
+        public init(hits: Int = 0, misses: Int = 0) {
+            self.hits = hits
+            self.misses = misses
+        }
+
+        /// Mutation seam for the enclosing actor (the fields are publicly
+        /// read-only; only these counters move them).
+        internal mutating func incrementHit() { hits += 1 }
+        internal mutating func incrementMiss() { misses += 1 }
+
+        public static func + (lhs: CacheStats, rhs: CacheStats) -> CacheStats {
+            CacheStats(hits: lhs.hits + rhs.hits, misses: lhs.misses + rhs.misses)
+        }
+
+        public static func - (lhs: CacheStats, rhs: CacheStats) -> CacheStats {
+            CacheStats(hits: lhs.hits - rhs.hits, misses: lhs.misses - rhs.misses)
+        }
     }
 
     private var planes: [PipeCacheKey: CachedPlane] = [:]
@@ -66,15 +90,15 @@ internal actor PipeCache {
         subsystem: "com.kamasylvia.lightamer", category: "pixelpipe"
     )
 
-    init(byteBudget: Int = PipeCache.defaultBudget) {
+    public init(byteBudget: Int = PipeCache.defaultBudget) {
         self.byteBudget = byteBudget
     }
 
     /// Bytes currently held (incrementally tracked — never walked).
-    var totalBytes: Int { trackedBytes }
+    public var totalBytes: Int { trackedBytes }
 
     /// Cumulative hit/miss counters (SC#2 assertions).
-    var stats: CacheStats { statsValue }
+    public var stats: CacheStats { statsValue }
 
     /// Probe the cache; on miss build the plane through `make`, store it,
     /// and enforce the budget. The hit path never invokes `make` (upstream
@@ -91,11 +115,11 @@ internal actor PipeCache {
         if var cached = planes[key] {
             cached.lastHit = .now // LRU touch (Darktable sets used = -entries)
             planes[key] = cached
-            statsValue.hits += 1
+            statsValue.incrementHit()
             Self.signposter.emitEvent("cache HIT")
             return cached
         }
-        statsValue.misses += 1
+        statsValue.incrementMiss()
         Self.signposter.emitEvent("cache MISS")
         let texture = try await make()
         let plane = CachedPlane(texture: texture, byteCount: byteCount, lastHit: .now)
@@ -107,7 +131,7 @@ internal actor PipeCache {
 
     /// Per-image sweep — the load-entry cleanup anchor (D-C1/D-C2; Plan
     /// 02-03 wires the coordinator, 02-06 the budget enforcement).
-    func invalidate(imageID: UUID) {
+    public func invalidate(imageID: UUID) {
         for key in planes.keys where key.imageID == imageID {
             trackedBytes -= planes[key]?.byteCount ?? 0
             planes.removeValue(forKey: key)
@@ -115,7 +139,7 @@ internal actor PipeCache {
     }
 
     /// Tests / teardown.
-    func invalidateAll() {
+    public func invalidateAll() {
         planes.removeAll()
         trackedBytes = 0
     }
@@ -126,7 +150,7 @@ internal actor PipeCache {
     /// (the freshly inserted plane is never its own eviction victim — a
     /// single plane larger than the whole budget is tolerated here and left
     /// to 02-06's session-level enforcement).
-    private mutating func evictUnderBudget(keeping freshlyInserted: PipeCacheKey) {
+    private func evictUnderBudget(keeping freshlyInserted: PipeCacheKey) {
         guard trackedBytes > byteBudget else { return }
         while trackedBytes > Self.evictTarget {
             guard let oldest = planes
