@@ -74,7 +74,18 @@ internal struct LightamerApp: App {
     private var focusedColumnVisibility: NavigationSplitViewVisibility?
 
     var body: some Scene {
-        WindowGroup {
+        // SINGLE WINDOW (Plan 02-01, UAT issue #1 ROOT CAUSE): SwiftUI's
+        // WindowGroup opens a NEW WINDOW per incoming odoc Apple Event on
+        // macOS 27. Every `open` of a second image spawned an extra window
+        // whose fresh EditorMTKView raced the shared state (created while
+        // `displayTexture` was still nil during the decode) and covered the
+        // window that actually displayed — the "black viewport on reopen".
+        // The first open worked because opens arriving during launch are
+        // buffered by AppDelegate and flushed into the FIRST window.
+        // 10 windows / 10 MTKViews were created across the 9-open UAT
+        // sequence (view-identity probes). One editor = one window until
+        // Phase 9 revisits multi-window Session management.
+        Window("Lightamer", id: "main") {
             ContentView(decoder: decoder, metalContext: metalContext)
                 .environment(sessionState)
                 .environment(editorState)
