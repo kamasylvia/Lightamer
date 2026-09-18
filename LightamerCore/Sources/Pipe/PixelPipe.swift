@@ -34,6 +34,13 @@ internal struct TextureBox: @unchecked Sendable {
 /// one, so a Phase 3 WB change that re-decodes invalidates EVERYTHING, not
 /// just the input plane — no silent cache staleness.
 ///
+/// **Tiling (D-20 scaffolding):** the walk is deliberately WHOLE-PLANE —
+/// 100MP float32 fits unified memory at pipe level (spike-b). When Phase
+/// 5's denoise working sets need tile-wise execution, `TilingPlan.tiles`
+/// supplies the grid and the recursion gains a tile driver here.
+/// Phase 5: engage `TilingPlan` inside `processRec` (tile-wise recursion +
+/// per-tile cache keys + halo stitching).
+///
 /// **Layers (L005):** `layerStack` is held from the Phase 1 shape onward;
 /// the Phase 6 composite attaches here without changing this file's pipe
 /// walk contract.
