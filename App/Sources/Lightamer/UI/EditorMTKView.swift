@@ -1,6 +1,5 @@
 import LightamerCore
 import MetalKit
-import os
 import SwiftUI
 
 /// SwiftUI ↔ MetalKit bridge for the editor viewport (FOUND-05, D-13).
@@ -10,13 +9,18 @@ import SwiftUI
 /// and the display texture `EditorState` produces via
 /// `MetalContext.renderToTexture`.
 ///
-/// Phase 1 = near-static blit (D-13: no zoom/pan): `isPaused` +
+/// Phase 2 = near-static blit (D-13: no zoom/pan): `isPaused` +
 /// `enableSetNeedsDisplay` redraw only on demand — texture change (pushed
 /// from `updateNSView`, UI-1 pitfall: ONLY on identity change, never
 /// per-frame) or drawable resize. The blit render pipeline state is built
 /// ONCE in the Coordinator and reused every frame (RESEARCH §4).
 /// `pixelFormat = .bgra8Unorm` per UI-SPEC (`.rgba16Float` reserved for the
 /// Phase 8 EDR viewport).
+///
+/// UAT issue #1 root cause (Plan 02-01, fixed in `LightamerApp`): SwiftUI's
+/// `WindowGroup` opened a NEW WINDOW per odoc Apple Event, stacking fresh
+/// viewports that raced the shared `displayTexture`. The single-`Window`
+/// scene is the fix; this view stayed a pure paused-mode blit throughout.
 internal struct EditorMTKView: NSViewRepresentable {
 
     /// The shared GPU (injected `MetalContext.device`, D-14).
@@ -54,21 +58,13 @@ internal struct EditorMTKView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: MTKView, context: Context) {
-        let coordinator = context.coordinator
         // UI-1 pitfall prevention: the Coordinator owns per-frame state;
-        // SwiftUI only pushes the SOURCE OF TRUTH, and only when it changes.
-        let incoming: String
-        if let t = sourceTexture {
-            incoming = "\(t.width)x\(t.height)"
-        } else {
-            incoming = "nil"
-        }
-        let changed = !coordinator.hasSameSourceTexture(as: sourceTexture)
-        context.coordinator.drawProbe.debug("UPDATE incoming=\(incoming, privacy: .public) changed=\(changed, privacy: .public)")
-        if changed {
-            coordinator.sourceTexture = sourceTexture
-            view.setNeedsDisplay(view.bounds)
-        }
+        // SwiftUI only pushes the SOURCE OF TRUTH, and only when it changes
+        // (`===` identity — every pixelpipe pass produces a new texture).
+        // Paused mode: arm exactly one redraw per texture change.
+        guard !context.coordinator.hasSameSourceTexture(as: sourceTexture) else { return }
+        context.coordinator.sourceTexture = sourceTexture
+        view.setNeedsDisplay(view.bounds)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -78,8 +74,6 @@ internal struct EditorMTKView: NSViewRepresentable {
     // MARK: - Coordinator (per-frame render loop owner)
 
     final class Coordinator: NSObject, MTKViewDelegate {
-
-        let drawProbe = Logger(subsystem: "com.kamasylvia.lightamer", category: "draw")
 
         /// neutral-1 #161619 (UI-SPEC canvas mat) as the Metal clear color —
         /// sRGB-encoded values written raw into the `.bgra8Unorm` drawable.
@@ -93,10 +87,6 @@ internal struct EditorMTKView: NSViewRepresentable {
         /// (draw then just clears to canvas and the failure is logged).
         private var blitPipelineState: (any MTLRenderPipelineState)?
         var sourceTexture: (any MTLTexture)?
-        /// UAT issue #1 presentation probe: identity of the drawable used by
-        /// the previous draw — consecutive draws sharing one drawable means
-        /// the second `present` targets an already-presented drawable.
-        var lastDrawableID: ObjectIdentifier?
 
         init(device: any MTLDevice, commandQueue: any MTLCommandQueue, sourceTexture: (any MTLTexture)?) {
             self.device = device
@@ -145,15 +135,14 @@ internal struct EditorMTKView: NSViewRepresentable {
         }
 
         func draw(in view: MTKView) {
-            drawProbe.debug("DRAW src=\(self.sourceTexture != nil ? "\(self.sourceTexture!.width)x\(self.sourceTexture!.height)" : "nil") pso=\(self.blitPipelineState != nil) drawable=\(view.currentDrawable != nil)")
             guard let commandBuffer = commandQueue.makeCommandBuffer(),
                   let renderPass = view.currentRenderPassDescriptor,
                   let drawable = view.currentDrawable
             else {
                 // currentDrawable is nil transiently around window/file
                 // switches; in isPaused mode nothing else re-arms the draw,
-                // so a dropped frame here would stick as a black viewport
-                // (UAT issue #1). Retry shortly.
+                // so a dropped frame here would stick as a black viewport.
+                // Retry shortly.
                 let bounds = view.bounds
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak view] in
                     view?.setNeedsDisplay(bounds)
@@ -163,13 +152,6 @@ internal struct EditorMTKView: NSViewRepresentable {
             renderPass.colorAttachments[0].loadAction = .clear
             renderPass.colorAttachments[0].storeAction = .store
             renderPass.colorAttachments[0].clearColor = Self.canvasClearColor
-
-            // UAT issue #1 presentation probe: is this drawable the SAME one
-            // the previous draw presented? (Double-present → dropped frame.)
-            let drawableID = ObjectIdentifier(drawable)
-            let reusesPrevious = lastDrawableID == drawableID
-            lastDrawableID = drawableID
-            drawProbe.debug("DRAWABLE reuse=\(reusesPrevious, privacy: .public)")
 
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPass) else { return }
 
@@ -187,31 +169,6 @@ internal struct EditorMTKView: NSViewRepresentable {
             } // else: no image yet — solid canvas mat (UI-SPEC "no image" viewport state)
 
             encoder.endEncoding()
-
-            // UAT issue #1 probe: read back a 2×2 drawable sample before
-            // present to distinguish "blit wrote black" vs "presentation
-            // black". Debug-only; removed with the fix.
-            let readback = device.makeBuffer(length: 16)
-            if let readback, let blit = commandBuffer.makeBlitCommandEncoder() {
-                let dw = Int(view.drawableSize.width)
-                let dh = Int(view.drawableSize.height)
-                blit.copy(
-                    from: drawable.texture,
-                    sourceSlice: 0, sourceLevel: 0,
-                    sourceOrigin: MTLOrigin(x: max(0, dw / 2 - 1), y: max(0, dh / 2 - 1), z: 0),
-                    sourceSize: MTLSize(width: 2, height: 2, depth: 1),
-                    to: readback, destinationOffset: 0,
-                    destinationBytesPerRow: 8, destinationBytesPerImage: 16
-                )
-                blit.endEncoding()
-                commandBuffer.addCompletedHandler { [weak self] _ in
-                    let p = readback.contents().bindMemory(to: UInt8.self, capacity: 8)
-                    let values = (0..<8).map { p[$0] }
-                    self?.drawProbe.debug(
-                        "DRAWABLE sample: \(values, privacy: .public)"
-                    )
-                }
-            }
 
             commandBuffer.present(drawable)
             commandBuffer.commit()
