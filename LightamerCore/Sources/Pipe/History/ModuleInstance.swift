@@ -109,6 +109,36 @@ public struct ModuleInstance: Codable, Sendable, Equatable, Hashable {
         self.paramsHash = StableHash.hash(encoded)
     }
 
+    /// The persistence restore initializer (Plan 02-06 sidecar decode):
+    /// constructs a record from RAW persisted fields — `paramsData` and
+    /// `paramsHash` are adopted VERBATIM (no re-encode, no re-hash). This
+    /// bypasses the derived-from-params invariant deliberately: unknown-op
+    /// preservation (checkpoint 02-06-01 lock #4) must round-trip bytes
+    /// the current binary cannot even decode. Internal: app code reaches
+    /// records through `LightamerSidecar`'s projections, never through
+    /// this constructor.
+    init(
+        id: UUID,
+        opName: String,
+        multiPriority: Int,
+        multiName: String,
+        iopOrder: Float,
+        version: Int,
+        enabled: Bool,
+        paramsData: Data,
+        paramsHash: UInt64
+    ) {
+        self.id = id
+        self.opName = opName
+        self.multiPriority = multiPriority
+        self.multiName = multiName
+        self.iopOrder = iopOrder
+        self.version = version
+        self.enabled = enabled
+        self.paramsData = paramsData
+        self.paramsHash = paramsHash
+    }
+
     /// Decode the params payload against a concrete module's Params type.
     /// A mismatched type (or corrupt bytes) surfaces as a typed
     /// `AppError` (D-25) — never a crash; the 02-06 unknown-op degrade

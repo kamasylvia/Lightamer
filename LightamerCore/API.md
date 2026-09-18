@@ -244,6 +244,34 @@
   committed); EditorState seeds its live instance set with them and the
   coordinator materializes boxes FROM the records
 
+### Sidecar — `.lra` persistence (02-06, `Sources/Sidecar/`)
+
+- `struct LightamerSidecar: Codable, Sendable, Equatable` — the per-image
+  persisted document (`<original FULL name>.lra`, D-S2). Schema v1 keys
+  (checkpoint 02-06-01 lock, ONE-WAY): `schemaVersion`(=1)/`appVersion`/
+  `imageID`(UUID)/`decoderVersionUsed`/`decodeParamsHash`/`instances`
+  (02-05 `ModuleInstance` spelling verbatim)/`history`(`{items,position}`
+  verbatim)/`historyHash`/`layerStack`(null; Phase 6 reservation).
+  Pretty-printed + `.sortedKeys`. Members: `schemaVersionCurrent`,
+  `sidecarURL(for:)` / `imageURL(for:)` (the D-S2 naming rule),
+  `currentAppVersion`, `driftDetected` (HIST-04/SC#5 primitive — recompute
+  vs stored anchor, seeded with the FILE's own decode hash so a decoder
+  upgrade never false-positives), `degradedForUnknownOps(registry:)`
+  (unknown-op degrade: keep `paramsData` verbatim + `enabled=false`;
+  checkpoint lock #4 — user data is never dropped)
+- `@propertyWrapper struct UInt64String: Codable, Sendable, Hashable` —
+  the UInt64-as-Decimal-String JSON rule (checkpoint lock #2, ONE-WAY):
+  FNV-1a 64 exceeds 2^53, so every persisted hash
+  (`decodeParamsHash`/`historyHash`/`paramsHash`) serializes as a String;
+  decode defensively accepts bare numbers too
+- `actor SidecarStore` — per-image writer/reader (D-S3): `scheduleWrite(_)`
+  (2s debounce, re-schedule resets the clock, LAST document wins),
+  `flushNow()` (awaitable, idempotent), `load()` (nil = absent/corrupt →
+  pristine + logged, never throws into the UI). Atomic write = same-dir
+  tmp + `replaceItemAt`/rename (L009: same-volume rename or atomicity is
+  lost). Injected `Clock` (default `ContinuousClock`) makes the debounce
+  testable; per-image destination = `LightamerSidecar.sidecarURL(for:)`
+
 ## Internal (NOT for cross-module use — may change without notice)
 
 - **Pipe internals (02-02/02-03):** `struct PipeCacheKey` (imageID/pipeType/

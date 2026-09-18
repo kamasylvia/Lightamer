@@ -87,6 +87,18 @@ public struct HistoryStack: Codable, Sendable, Equatable {
 
     public init() {}
 
+    /// The persistence restore path (Plan 02-06 sidecar projections):
+    /// reconstructs a stack with EXACT items + position — the runtime
+    /// mutation surface (`commit/undo/redo/jump`) cannot re-create
+    /// historical item ids/timestamps, and a reloaded sidecar must be
+    /// byte-faithful. Internal by design: `items`/`position` stay
+    /// write-protected for app code (the projections live in Core).
+    /// `position` clamps into `-1 ... count-1` (same contract as `jump`).
+    init(items: [HistoryItem], position: Int) {
+        self.items = items
+        self.position = min(max(position, -1), items.count - 1)
+    }
+
     // MARK: - Mutation (the only writers of items/position)
 
     /// Commit one edit step (D-H1 drag-end lands here): truncate the redo
