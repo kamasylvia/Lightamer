@@ -30,7 +30,7 @@ import Foundation
 ///
 /// Phase 13 (COLOR-03) adds manual profile selection + printer/soft-proof
 /// profiles on top of this enum (D-COL3).
-public enum DisplayProfile: @unchecked Sendable {
+public enum DisplayProfile: @unchecked Sendable, Equatable {
 
     /// Display P3 (the wide-gamut Apple panel family) — fast path,
     /// Rec2020→P3 linear constant matrix.
@@ -88,6 +88,18 @@ public enum DisplayProfile: @unchecked Sendable {
     }
 
     // MARK: Identity + derived spaces
+
+    /// Case-level equality (not synthesized — the CGColorSpace payload is
+    /// not Equatable; identity `===` is the right notion for fallback
+    /// profiles).
+    public static func == (lhs: DisplayProfile, rhs: DisplayProfile) -> Bool {
+        switch (lhs, rhs) {
+        case (.displayP3, .displayP3): return true
+        case (.sRGB, .sRGB): return true
+        case let (.colorSyncFallback(a), .colorSyncFallback(b)): return a === b
+        default: return false
+        }
+    }
 
     /// Stable cache-key identity: the terminal-segment invalidation atom
     /// (a display change ⇒ colorout's `paramsHash` changes ⇒ every cache

@@ -4,8 +4,8 @@ import Metal
 /// The `gamma` terminal module (v50 order 78.0, the pipe TAIL) — the
 /// display handoff (research §3.3; Darktable `gamma.c` analog).
 ///
-/// **Semantics:** the exact sRGB segmented TRC
-/// (`c ≤ 0.04045 ? c/12.92 : pow((c+0.055)/1.055, 2.4)`), full float math
+/// **Semantics:** the exact sRGB segmented TRC ENCODE
+/// (`c ≤ 0.04045 ? c/12.92 : 1.055·c^(1/2.4) − 0.055`), full float math
 /// (L006), clamped to [0,1] (D-COL4: THE only clamp in the pipe — the
 /// interior stays float32 unclamped; EDR headroom is Phase 8), written to
 /// a `.bgra8Unorm` display plane. P3 and sRGB share this TRC, so one
@@ -55,7 +55,7 @@ public final class GammaModule: IOPModule {
         // Constant (empty params) — the display change propagates through
         // the colorout `stableID` fold upstream of this module, so gamma's
         // own hash needs no display component.
-        let encoded = (try? JSONEncoder().encode(params)) ?? Data()
+        let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
     }
 

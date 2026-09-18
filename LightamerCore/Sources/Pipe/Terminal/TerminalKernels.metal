@@ -69,13 +69,15 @@ kernel void colorout_matrix(
 
 // ── gamma_encode ─────────────────────────────────────────────────────────
 // The ONLY place display encoding happens (research §3.3 — Darktable
-// `gamma.c` analog): the exact sRGB segmented TRC
-//   c <= 0.04045 ? c/12.92 : pow((c + 0.055)/1.055, 2.4)
-// per channel, in FULL FLOAT precision (L006 — no half on the TRC math),
-// clamped to [0,1] (D-COL4: clamping happens HERE only — pipe interior
-// stays float32 unclamped; EDR headroom is Phase 8) and written to the
-// `.bgra8Unorm` display plane. Metal converts float→unorm on write; BGRA
-// byte order is transparent for compute write (rgba vector semantics).
+// `gamma.c` analog): the exact sRGB segmented TRC ENCODE
+//   c <= 0.04045 ? c/12.92 : 1.055*pow(c, 1.0/2.4) - 0.055
+// per channel (the INVERSE — pow((c+0.055)/1.055, 2.4) — is the DECODE
+// direction; the exponent is 1/2.4 here), in FULL FLOAT precision (L006 —
+// no half on the TRC math), clamped to [0,1] (D-COL4: clamping happens
+// HERE only — pipe interior stays float32 unclamped; EDR headroom is
+// Phase 8) and written to the `.bgra8Unorm` display plane. Metal converts
+// float→unorm on write; BGRA byte order is transparent for compute write
+// (rgba vector semantics).
 //
 // P3 and sRGB share this TRC, so ONE kernel serves both fast-path gamuts
 // and the ColorSync workalike.
@@ -87,7 +89,7 @@ kernel void gamma_encode(
     float4 px = in.read(gid);
     float3 c = clamp(px.rgb, 0.0, 1.0);
     c = select(c / 12.92,
-               pow((c + 0.055) / 1.055, float3(2.4)),
+               1.055 * pow(c, float3(1.0 / 2.4)) - 0.055,
                c > 0.04045);
     out.write(float4(c, 1.0), gid);
 }

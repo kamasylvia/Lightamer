@@ -61,7 +61,7 @@ public protocol IOPModule {
     /// Commit `params` into the per-instance pipe piece (Darktable
     /// `commit_params`): recompute derived piece state — uniform buffers in
     /// `piece.data`, and `piece.paramsHash` (UInt64) which MUST be computed
-    /// as `StableHash.hash(JSONEncoder().encode(params))` — `StableHash` is
+    /// as `StableHash.hash(ParamsCoding.encode(params))` — `StableHash` is
     /// the only legal generator (D-H4: cache identity == history identity).
     func commitParams(_ params: Params, into piece: inout IOPiece) async
 

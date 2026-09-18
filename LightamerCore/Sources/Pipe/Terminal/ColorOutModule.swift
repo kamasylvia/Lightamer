@@ -137,7 +137,7 @@ public final class ColorOutModule: IOPModule {
 
     public func commitParams(_ params: Params, into piece: inout IOPiece) async {
         lastCommittedParams = params // `process` reads the committed params here
-        let encoded = (try? JSONEncoder().encode(params)) ?? Data()
+        let encoded = ParamsCoding.encode(params)
         var hash = StableHash.hash(encoded)
         // Terminal-segment invalidation atom: fold the RESOLVED display
         // identity so a screen change re-commits to a different hash even
