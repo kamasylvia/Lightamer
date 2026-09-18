@@ -40,7 +40,10 @@
   (`commandBuffer`, `encoder`, `pipelineState`); function-constants helpers
   `makeConstants(_:at:type:)` / `setConstant(_:at:type:into:)` (D-17);
   CIImage bridge facade `renderToTexture(_:) -> MTLTexture`
-  (float32 linear-Rec2020, FOUND-02)
+  (float32 linear-Rec2020, FOUND-02) + the scale-at-entry variant
+  `renderToTexture(_ image:longEdge:)` (02-03: ONE-pass downscale to the
+  target long edge — the D-C3 input-plane builder; signposted
+  `render-scaled`, 02-01 spike Test C cited at the pool)
 - `enum MetalError: LocalizedError` — `deviceUnavailable`, `functionNotFound`,
   `psoCreationFailed`, `bufferAllocationFailed`
 - Decode-leg status (Plan 02-01 spike): `CIContext.render(_:toMTLTexture:)`
@@ -81,7 +84,9 @@
 - `struct ROI` — `x`, `y`, `width`, `height`, `scale`
 - `enum AppError: LocalizedError` — D-25 unified typed error;
   `init(_ error: Error)` bridge (`CancellationError` → `.cancelled`,
-  `MetalError` → tiered case, else `.decodeFailed`); shared `logger`
+  `MetalError` → tiered case, else `.decodeFailed`); shared `logger`;
+  `.notImplemented(String)` reserved-seam placeholder (02-03: EXPORT →
+  "Phase 11"; NEVER a `fatalError`)
 - `enum WorkingSpace` — FOUND-02 locks: `colorSpace` (linear Rec2020),
   `pixelFormat` (`.rgba32Float`), `bytesPerPixel` (16)
 - `enum StableHash` — stable 64-bit FNV-1a (`fnvOffsetBasis`,
@@ -94,12 +99,18 @@
 - `enum RenderPipeline` — `static func render(image:layerStack:metal:) async
   throws -> MTLTexture`. **This is the app's ONLY render entry point.**
 
-### Pipe cache & pipe machinery (02-02, `Sources/Pipe/`)
-- `enum PipeResolution: String, Codable, Sendable, CaseIterable` —
+### Pipe cache & pipe machinery (02-02/02-03, `Sources/Pipe/`)
+- `enum PipeResolution: String, Codable, Sendable, CaseIterable`
+  (`PipeResolution.swift`, moved out of `PipeCacheKey.swift` in 02-03) —
   `preview` / `thumbnail` / `full` / `export`; computed policy properties
   `cachesIntermediatePlanes` (preview+thumbnail true; full+export false —
-  spike-b: 3×100MP planes ≈ 4.7GB busts the budget) and `isLazy`
-  (thumbnail; 02-03 consumes)
+  spike-b: 3×100MP planes ≈ 4.7GB busts the budget), `isLazy`
+  (thumbnail), and `defaultLongEdge` (02-03: thumbnail 360, others nil —
+  the four-pipe lifecycle table lives on the type)
+- `enum PreviewBucket` (`PreviewBucket.swift`, 02-03) — the D-C3
+  quantization: `cap` 2560, `ladder` [2560, 2200, 1840, 1480, 1120, 760,
+  360], pure `longEdge(forDrawable:pixelScale:)` (POINTS in, snap-DOWN,
+  below-ladder/degenerate → 360 floor; 5K/6K soft-display note in header)
 - `actor PipeCache` — byte-budget LRU plane cache (D-C1):
   `defaultBudget` 3GB / `evictTarget` 2GB hysteresis (effective floor
   scales with the constructor budget); `init(byteBudget:)`; `totalBytes`;
@@ -118,21 +129,30 @@
   REAL pipe entry (02-03 coordinator / 02-04 golden harness consumer);
   `struct PipeRunStats` — `hits` / `misses` / `planesRendered` (per-run
   delta). `imageID` (stable image UUID) parameter added beyond the plan's
-  listed signature: cache keys need it and tests pass one across runs
+  listed signature: cache keys need it and tests pass one across runs.
+  **02-03: `longEdge` is LIVE** — scale-at-entry input plane (PREVIEW gets
+  the D-C3 bucket; nil resolves to the resolution default or full extent).
+  `.export` throws `AppError.notImplemented("Phase 11")`
 - `RenderPipeline.render(image:layerStack:metal:)` — KEPT: the Phase 1
-  no-op display path (empty instances; `EditorState` untouched)
+  no-op display path (empty instances)
 
 ## Internal (NOT for cross-module use — may change without notice)
 
-- **Pipe internals (02-02):** `struct PipeCacheKey` (imageID/pipeType/
+- **Pipe internals (02-02/02-03):** `struct PipeCacheKey` (imageID/pipeType/
   position/upstreamHash/roi — in-memory only, synthesized Hashable is legal
   because the key never persists), `enum PipeHash` (upstream-chain combine
   helper), `PipeCache.CachedPlane` (@unchecked Sendable,
   write-once-then-readonly ownership contract), `PixelPipe.processRec` /
   `pieces` / `levelHash` / `decodeParamsHash` (the app goes through
-  `RenderPipeline`). Test surface via `@testable import LightamerCore`
+  `RenderPipeline`). 02-03 per-resolution lifecycle: `PixelPipe.roi`
+  (scale-at-entry ROI per run), `isDirty` / `runIfDirty(...)` (THUMBNAIL
+  lazy fetch), `runOnce(...)` (FULL on-demand, no retention), scaled
+  input-plane miss leg (`renderToTexture(_:longEdge:)` when
+  `roi.scale < 1`). Test surface via `@testable import LightamerCore`
   (precedent: `RAWDecoderTests`).
-- `PSOKey` (PSO cache key, D-16), `CIContextPool` (CIImage→texture bridge),
+- `PSOKey` (PSO cache key, D-16), `CIContextPool` (CIImage→texture bridge;
+  02-03 adds the internal `renderToTexture(_:longEdge:)` scale-at-entry leg
+  with the `render-scaled` signpost),
   `MetalContextMarker` (`Bundle(for:)` anchor), `MetalContext.psoCache` /
   `lruKeys` / `pipelineState(for:constants:)` / `functionNamed(_:constants:)`
 - `PixelPipe` (layer-aware pipe skeleton — the app goes through
