@@ -1,0 +1,12 @@
+# Tuist conventions: Project.swift is the source of truth — never commit generated projects.
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+Derived/
+.tuist/
+Tuist/Dependencies/
+Tuist/Cache/
+.DS_Store
+
+# Local build products (xcodebuild incremental) — never commit.
+build/
