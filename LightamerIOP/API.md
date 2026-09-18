@@ -32,6 +32,28 @@
   in `Passthrough.metal`) and `metalBundle` (the `Bundle(for:)` anchor the
   app/tests pass to `MetalContext.registerDefaultLibrary(in:)`)
 
+## DEBUG-only surface (NOT part of the Release public contract)
+
+> Compiled out of Release builds entirely (`#if DEBUG`, whole file). Never
+> registered in a default chain; tests register it explicitly. A `testgain`
+> op in a sidecar read by a Release build is an unknown op → 02-06's
+> unknown-op rule (keep `paramsData` verbatim, disable, toast).
+
+- `final class TestGainModule: IOPModule` — the SC#2 demonstration vehicle:
+  one-parameter linear-domain gain (TestGain.swift + TestGain.metal)
+  - `struct Params: Codable, Hashable` — `var gain: Float = 1.0` (1.0 =
+    bit-exact identity)
+  - statics: `opName = "testgain"`, `iopOrder = 50.5` (collides with
+    `passthrough_spike` legally — order collisions are Darktable-legal),
+    `flags = []`, `defaultColorspace = .RGB`
+  - `init(device: (any MTLDevice)? = nil)`
+  - `commitParams` is the **reference implementation of the paramsHash
+    contract**: `piece.paramsHash = StableHash.hash(JSONEncoder params
+    bytes)` + uniforms `piece.data` (float gain, offset 0, 16-byte struct)
+  - `process` — `dispatch2DTexture("test_gain", ...)` with uniforms bound
+    at buffer index 0
+- `enum TestGainKernel` — `functionName = "test_gain"`, `metalBundle`
+
 ## Internal (NOT for cross-module use — may change without notice)
 
 - `IOPBundleMarker` (the class behind `PassthroughKernel.metalBundle`)
