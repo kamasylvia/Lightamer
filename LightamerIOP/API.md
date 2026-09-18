@@ -22,8 +22,10 @@
     never enters sidecars), `iopOrder: Float = 50.5` (arbitrary Phase 1 slot
     between `shadhi` 50.0 and `zonesystem` 51.0, no V50Order collision),
     `flags = []`, `defaultColorspace = .RGB`
-  - `process(input:output:roiIn:roiOut:piece:metal:)` — the no-op pipe step
-    (buffer↔texture staging + `pass_through` dispatch, bit-exact identity)
+  - `process(input:output:roiIn:roiOut:piece:metal:)` — the no-op pipe step,
+    **texture-domain end-to-end** (02-02 lock #1: `dispatch2DTexture`, input/
+    output `MTLTexture` float32 RGBA, bit-exact identity; the Phase 1
+    buffer↔texture staging bridge is deleted)
 
 ### Kernel surface
 - `enum PassthroughKernel` — `functionName = "pass_through"` (the MSL entry

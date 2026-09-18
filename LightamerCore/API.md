@@ -50,12 +50,17 @@
 ### Pipe (`Sources/Pipe/`)
 - `protocol IOPModule` — `associatedtype Params: Codable & Hashable`;
   statics `opName` / `iopOrder` / `flags` / `defaultColorspace`;
-  `reloadDefaults`, `commitParams`, `modifyROIOut`, `modifyROIIn`, `process`
+  `reloadDefaults`, `commitParams`, `modifyROIOut`, `modifyROIIn`,
+  `process(input: any MTLTexture, output: any MTLTexture, roiIn: ROI, roiOut: ROI, piece: inout IOPiece, metal: MetalContext)` —
+  **texture in/out** (02-02 checkpoint lock #1: textures are the pipe's
+  currency; `MTLBuffer` only for `IOPiece.data` uniforms)
 - `struct IOPFlags: OptionSet` — `supportsBlending`, `allowTiling`,
   `oneInstance`, `fence`, `writeDetails`, `allowFastPipe` (bit positions
   stable forever once sidecars ship)
 - `enum IOPColorspace` — `raw`, `rawPrepared`, `RGB`, `Lab`
-- `struct IOPiece` — `paramsHash`, `dscIn`, `dscOut`, `data`
+- `struct IOPiece` — `paramsHash: UInt64` (**StableHash FNV-1a over the
+  JSON-encoded params — the only legal generator**, D-H4), `dscIn`,
+  `dscOut`, `data` (uniforms `MTLBuffer?`)
 - `struct IOPBufferDesc` — `width`, `height`, `channels`
 
 ### Layers — D-03a skeleton (`Sources/Layers/`)
