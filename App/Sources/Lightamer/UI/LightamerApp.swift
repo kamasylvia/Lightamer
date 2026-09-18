@@ -54,9 +54,13 @@ internal struct LightamerApp: App {
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    // D-03b: four isolated state objects — no god-object.
+    // D-03b: isolated state objects — no god-object. PipeCoordinator
+    // (Plan 02-03-04) owns the multi-resolution pipes and is the ONLY
+    // writer of `editorState.displayTexture`; the app root owns both
+    // strongly and each holds a single weak back-reference to the other.
     @State private var sessionState = SessionState()
     @State private var editorState = EditorState()
+    @State private var pipeCoordinator = PipeCoordinator()
     @State private var exportState = ExportState()
     @State private var inspectorState = InspectorState()
 
@@ -89,10 +93,18 @@ internal struct LightamerApp: App {
             ContentView(decoder: decoder, metalContext: metalContext)
                 .environment(sessionState)
                 .environment(editorState)
+                .environment(pipeCoordinator)
                 .environment(exportState)
                 .environment(inspectorState)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
                 .task {
+                    // Wire the pipe owner ↔ editor state pair (both weakly
+                    // linked, root-owned strongly). Runs before any open is
+                    // drained below, so the first decode already has its
+                    // render path.
+                    editorState.attach(pipeCoordinator: pipeCoordinator)
+                    pipeCoordinator.attach(editorState: editorState)
+
                     // Register the IOP framework's default.metallib (which
                     // carries the pass_through kernel) with the dispatch
                     // context. Plan 04's pixelpipe dispatches through it;
