@@ -80,6 +80,22 @@
 - **适用**：本机所有 Xcode/构建活动；跨机器开发时注意目标卷类型。
 - **来源**：Phase 1 屏显验证会话（2026-09-16）。
 
+### L010: SwiftUI 容器上的 accessibilityLabel 会吞掉子元素的 AX 暴露
+- **背景**：为让 XCUITest 查询"编辑视口"区域，在 EditorAreaView 的 ZStack 容器上加了 `.accessibilityLabel`。
+- **现象**：XCUITest 三栏断言中 sidebar/viewport/inspector 全过，但空状态卡片（EmptyStateView 的 combine 元素）从 AX 树里消失——`app.debugDescription` 的树 dump 显示编辑区只剩容器 Button，空状态内容不见了。
+- **根因**：SwiftUI 里容器视图设置 accessibilityLabel 后，AX 把容器变成合成元素并**吸收子元素**——子视图不再单独暴露。identifier 则不会（只是标记，不改变树结构）。
+- **对策**：区域查询用 `.accessibilityIdentifier`（稳定、不本地化、不吞子元素）；label 只加在叶子视图上。XCUITest 匹配优先 identifier（predicate 里已包含）。组合元素（`.accessibilityElement(children: .combine)`）的 label 可能被拼接，用 CONTAINS 或 identifier 更稳。
+- **适用**：所有 SwiftUI + XCUITest 的可查询性设计；新增面板/区域时先加 identifier。
+- **来源**：Phase 1 UITests 闭环会话（2026-09-18），tree-dump 定位法（失败消息里嵌 `app.debugDescription`）。
+
+### L011: XCUITest 稳定授权三件套：统一证书签名 + Debug 去 hardened runtime + 去 debug-dylib
+- **背景**：macOS 27 + Xcode 26 上 XCUITest 反复 "Timed out while enabling automation mode"，与锁屏/授权时序纠缠数日。
+- **现象**：run1（用户刚点过授权）成功；重签/重建后全部 timeout；app 自身也出现启动即崩（debug dylib Team-ID mismatch）。
+- **根因**（三个因素叠加）：(1) ad-hoc 签名的 TCC 授权按 cdhash 记录，重签即失效；(2) hardened runtime 的 library validation 拒绝加载不同签名的插件/debug-dylib（"different Team IDs"）；(3) Xcode 26 的 ENABLE_DEBUG_DYLIB 把 Debug app 拆成薄启动器 + .debug.dylib，增量构建时签名状态混合。
+- **对策**（已固化到 Project.swift）：(a) 全 target 手动签名用本地自签证书 "Lightamer Dev"（openssl 生成 + `security import` + `add-trusted-cert -p codeSign`；无 Apple Developer 证书时的标准做法）；(b) Debug 配置 `ENABLE_DEBUG_DYLIB=NO` + `ENABLE_HARDENED_RUNTIME=NO`，Release 保留 hardened（DIST-5）；(c) 首次授权需真人在密码弹窗输入登录密码——TCC 授权本身无法合成输入（安全边界）。之后重建不再弹窗。
+- **适用**：本机所有 XCUITest；新机器克隆后需重建该证书并重新授权一次。
+- **来源**：Phase 1 UITests 闭环（2026-09-16 → 09-18）。
+
 ---
 
 *本文件随开发进展持续更新。阶段完成后运行 `$gsd-extract-learnings` 自动提取。*
