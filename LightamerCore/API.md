@@ -43,6 +43,9 @@
   (float32 linear-Rec2020, FOUND-02)
 - `enum MetalError: LocalizedError` — `deviceUnavailable`, `functionNotFound`,
   `psoCreationFailed`, `bufferAllocationFailed`
+- Decode-leg status (Plan 02-01 spike): `CIContext.render(_:toMTLTexture:)`
+  is a silent no-op on the dev host even after warm-up — bitmap+replace is
+  the primary AND fallback decode leg (`.work/02-01/spike-render-leg.md`)
 
 ### Pipe (`Sources/Pipe/`)
 - `protocol IOPModule` — `associatedtype Params: Codable & Hashable`;
@@ -76,6 +79,11 @@
   `MetalError` → tiered case, else `.decodeFailed`); shared `logger`
 - `enum WorkingSpace` — FOUND-02 locks: `colorSpace` (linear Rec2020),
   `pixelFormat` (`.rgba32Float`), `bytesPerPixel` (16)
+- `enum StableHash` — stable 64-bit FNV-1a (`fnvOffsetBasis`,
+  `combine(_:bytes:)`, `hash(_:)` over DataProtocol/StringProtocol UTF-8).
+  The ONLY hash for cache keys (02-02), history hashes (02-05), and sidecar
+  drift detection (02-06); Swift `Hasher` (per-process seed) is banned
+  across persistence boundaries
 
 ### Render bridge (`Sources/Pipe/PixelPipe.swift`)
 - `enum RenderPipeline` — `static func render(image:layerStack:metal:) async
