@@ -94,8 +94,23 @@
 - `enum RenderPipeline` — `static func render(image:layerStack:metal:) async
   throws -> MTLTexture`. **This is the app's ONLY render entry point.**
 
+### Pipe cache (02-02, `Sources/Pipe/`)
+- `enum PipeResolution: String, Codable, Sendable, CaseIterable` —
+  `preview` / `thumbnail` / `full` / `export`; computed policy properties
+  `cachesIntermediatePlanes` (preview+thumbnail true; full+export false —
+  spike-b: 3×100MP planes ≈ 4.7GB busts the budget) and `isLazy`
+  (thumbnail; 02-03 consumes)
+- `enum RenderPipeline.process(...)` — added in 02-02-05 (see below)
+
 ## Internal (NOT for cross-module use — may change without notice)
 
+- **Pipe cache (02-02):** `struct PipeCacheKey` (imageID/pipeType/position/
+  upstreamHash/roi — in-memory only, synthesized Hashable is legal because
+  the key never persists), `enum PipeHash` (upstream-chain combine helper),
+  `actor PipeCache` (byte-budget LRU, `defaultBudget` 3GB / `evictTarget`
+  2GB hysteresis, `CachedPlane`, `CacheStats`, `invalidate(imageID:)`,
+  `invalidateAll()`). Test surface via `@testable import LightamerCore`
+  (precedent: `RAWDecoderTests`).
 - `PSOKey` (PSO cache key, D-16), `CIContextPool` (CIImage→texture bridge),
   `MetalContextMarker` (`Bundle(for:)` anchor), `MetalContext.psoCache` /
   `lruKeys` / `pipelineState(for:constants:)` / `functionNamed(_:constants:)`

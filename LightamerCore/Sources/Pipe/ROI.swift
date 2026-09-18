@@ -4,7 +4,10 @@
 /// `scale` is the pipe's downscale factor relative to the full image
 /// (1.0 = full resolution; preview pipes run < 1.0). Multi-resolution
 /// pipes that produce different ROIs per scale are Phase 2 (D-20/FOUND-04).
-public struct ROI: Equatable, Sendable {
+///
+/// `Hashable` (02-02): `PipeCacheKey` embeds the ROI — synthesized over the
+/// five fields (in-memory key only; never persisted).
+public struct ROI: Equatable, Hashable, Sendable {
 
     public var x: Int
     public var y: Int
