@@ -15,16 +15,31 @@ import os
 /// - `cacheIntermediates: false` is MANDATORY (CIRAW-4): lazy CIImage chains
 ///   on 100MP otherwise hold gigabytes of ROI descriptors.
 ///
-/// ⚠ HOST FINDING (Phase 1, 2026-09-16): `CIContext.render(_:toMTLTexture:)`
-/// completes without error but writes NOTHING on this macOS 27.0 / Apple M4
-/// host — verified across rgba8Unorm/rgba16Float/rgba32Float,
-/// shared/managed storage, device/queue contexts, nil/owned command buffers
-/// (`.work/01-03/smoke` + probes). The bitmap render path
-/// (`render(_:toBitmap:...)`, `CIFormat.RGBAf`) is byte-correct, so this
-/// bridge renders to an float32 CPU buffer and stages it into the shared
-/// texture via `replace(region:)`. The extra copy costs ~0.3-0.5 s at 100MP
-/// (within the D-32 display budget); Phase 2 must re-test the direct
-/// texture path before the linear pixelpipe replaces this bridge.
+/// ⚠ HOST FINDING (re-verified by the Plan 02-01 spike, 2026-09-19):
+/// `CIContext.render(_:toMTLTexture:)` is a SILENT NO-OP on this
+/// macOS 27.0 / Apple M4 host — it completes in 0.0ms having enqueued NO
+/// work. The Plan 02-01 warm-up hypothesis is REFUTED: with a fresh context
+/// per round, the direct path wrote empty 6/6 cold AND 6/6 after a throwaway
+/// warm-up render (owned command buffer + completed-wait, race-free
+/// readback), with a real CIRAW-backed image, AND with a DEFAULT CIContext +
+/// rgba8Unorm + deviceRGB (option set ruled out). Full methodology + raw
+/// numbers: `.work/02-01/spike-render-leg.md`.
+///
+/// Decision (spike, quoted verbatim): `Decision: bitmap —
+/// CIContext.render(_:toMTLTexture:) is a silent no-op on this host (macOS
+/// 27.0 / Apple M4): 0/6 non-empty cold AND 0/6 post-warm-up with an owned
+/// command buffer (0.0ms = CI enqueues no work), EMPTY with a real
+/// CIRAW-backed image, and EMPTY even on a DEFAULT CIContext + rgba8Unorm +
+/// deviceRGB; warm-up does not make the direct path reliable, so the decode
+/// leg keeps bitmap+replace (CIContextPool, Phase 1 workaround) for PREVIEW
+/// and FULL. The drag hot path is all-Metal regardless of this outcome
+/// (research §5 — the spike only decides the decode leg and the FULL path).`
+///
+/// This bridge therefore renders to a float32 CPU buffer and stages it into
+/// the shared texture via `replace(region:)` — byte-correct, ~16-20ms at the
+/// 2560px PREVIEW bucket and ~0.3s at 60MP (spike Test B medians). The
+/// bitmap path is BOTH the primary and the fallback; re-test the direct
+/// texture path only on a future macOS point release.
 internal actor CIContextPool {
 
     private let device: any MTLDevice
