@@ -83,17 +83,25 @@ internal struct EditorMTKView: NSViewRepresentable {
 
         private let commandQueue: any MTLCommandQueue
         private let device: any MTLDevice
-        /// Built ONCE; nil only if the app-bundle metallib/PSO failed
+        /// Phase 1 PSO — legacy inline Rec2020→sRGB conversion (float32
+        /// linear source). nil only if the app-bundle metallib/PSO failed
         /// (draw then just clears to canvas and the failure is logged).
         private var blitPipelineState: (any MTLRenderPipelineState)?
+        /// 02-04 PSO — display-ready passthrough (gamma-tail `.bgra8Unorm`
+        /// source; gamut+TRC applied in the pipe, SC#1). Built lazily.
+        private var blitDisplayReadyPipelineState: (any MTLRenderPipelineState)?
         var sourceTexture: (any MTLTexture)?
+
+        /// The colorspace last attached to the CAMetalLayer (D-COL2 — set
+        /// only on change; the compositor re-reads it per present).
+        private var attachedLayerColorSpace: CGColorSpace?
 
         init(device: any MTLDevice, commandQueue: any MTLCommandQueue, sourceTexture: (any MTLTexture)?) {
             self.device = device
             self.commandQueue = commandQueue
             self.sourceTexture = sourceTexture
             super.init()
-            self.blitPipelineState = Self.makeBlitPipelineState(device: device)
+            self.blitPipelineState = Self.makeBlitPipelineState(device: device, displayReady: false)
         }
 
         func hasSameSourceTexture(as texture: (any MTLTexture)?) -> Bool {
@@ -104,15 +112,29 @@ internal struct EditorMTKView: NSViewRepresentable {
             }
         }
 
-        private static func makeBlitPipelineState(device: any MTLDevice) -> (any MTLRenderPipelineState)? {
+        private static func makeBlitPipelineState(
+            device: any MTLDevice, displayReady: Bool
+        ) -> (any MTLRenderPipelineState)? {
             // The blit shaders live in the APP target → Bundle.main is the
             // correct library here (the framework-bundle gotcha applies to
             // Core/IOP kernels, not app shaders).
             guard let library = device.makeDefaultLibrary(),
-                  let vertex = library.makeFunction(name: "editor_blit_vertex"),
-                  let fragment = library.makeFunction(name: "editor_blit_fragment")
+                  let vertex = library.makeFunction(name: "editor_blit_vertex")
             else {
                 AppError.logger.error("editor blit shader functions not found in app default.metallib")
+                return nil
+            }
+            // D-17: the fragment's `display_ready` function constant — set
+            // BOTH regimes' constants explicitly (no MSL defaults).
+            let constants = MTLFunctionConstantValues()
+            var ready = displayReady
+            withUnsafeBytes(of: &ready) {
+                constants.setConstantValue($0.baseAddress!, type: .bool, index: 0)
+            }
+            guard let fragment = try? library.makeFunction(
+                name: "editor_blit_fragment", constantValues: constants
+            ) else {
+                AppError.logger.error("editor_blit_fragment specialization failed (displayReady=\(displayReady))")
                 return nil
             }
             let descriptor = MTLRenderPipelineDescriptor()
@@ -153,19 +175,50 @@ internal struct EditorMTKView: NSViewRepresentable {
             renderPass.colorAttachments[0].storeAction = .store
             renderPass.colorAttachments[0].clearColor = Self.canvasClearColor
 
+            // D-COL2 (Plan 02-04-05): attach the resolved display colorspace
+            // to the CAMetalLayer so the gamma-encoded bytes (fast path:
+            // P3/sRGB gamut; fallback: sRGB workalike) are interpreted
+            // as-emitted — the compositor performs NO further matching.
+            // Window's screen wins (multi-display follows the window).
+            if let metalLayer = view.layer as? CAMetalLayer {
+                let target = (view.window?.screen ?? NSScreen.main)?.colorSpace?.cgColorSpace
+                    ?? metalLayer.colorspace
+                if let target, target !== attachedLayerColorSpace {
+                    metalLayer.colorspace = target
+                    attachedLayerColorSpace = target
+                }
+            }
+
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPass) else { return }
 
             // endEncoding MUST precede commit — a defer here would run after
             // commit() and abort validation ("uncommitted encoder").
-            if let state = blitPipelineState, let texture = sourceTexture {
-                encoder.setRenderPipelineState(state)
-                var uniforms = Self.aspectFitUniforms(
-                    textureSize: SIMD2(Float(texture.width), Float(texture.height)),
-                    drawableSize: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height))
-                )
-                encoder.setVertexBytes(&uniforms, length: MemoryLayout<BlitUniforms>.stride, index: 0)
-                encoder.setFragmentTexture(texture, index: 0)
-                encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            if let texture = sourceTexture {
+                // 02-04: pick the blit regime by SOURCE format — the pipe's
+                // gamma tail produces .bgra8Unorm (display-ready);
+                // everything else is the Phase 1 float32 linear plane.
+                let displayReady = texture.pixelFormat == .bgra8Unorm
+                let state: any MTLRenderPipelineState?
+                if displayReady {
+                    if blitDisplayReadyPipelineState == nil {
+                        blitDisplayReadyPipelineState = Self.makeBlitPipelineState(
+                            device: device, displayReady: true
+                        )
+                    }
+                    state = blitDisplayReadyPipelineState
+                } else {
+                    state = blitPipelineState
+                }
+                if let state {
+                    encoder.setRenderPipelineState(state)
+                    var uniforms = Self.aspectFitUniforms(
+                        textureSize: SIMD2(Float(texture.width), Float(texture.height)),
+                        drawableSize: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height))
+                    )
+                    encoder.setVertexBytes(&uniforms, length: MemoryLayout<BlitUniforms>.stride, index: 0)
+                    encoder.setFragmentTexture(texture, index: 0)
+                    encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                }
             } // else: no image yet — solid canvas mat (UI-SPEC "no image" viewport state)
 
             encoder.endEncoding()

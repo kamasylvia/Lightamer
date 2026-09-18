@@ -25,8 +25,7 @@ internal extension FocusedValues {
 /// drag onto the Dock icon) so declared CFBundleDocumentTypes actually route
 /// into `EditorState.load`. Opens that arrive before the scene is ready are
 /// buffered and flushed on first appearance.
-internal final class AppDelegate: NSObject, NSApplicationDelegate {
-    var openHandler: (([URL]) -> Void)?
+internal final class AppDelegate: NSObject, NSApplicationDelegate {    var openHandler: (([URL]) -> Void)?
     private var buffered: [URL] = []
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -42,6 +41,40 @@ internal final class AppDelegate: NSObject, NSApplicationDelegate {
         let pending = buffered
         buffered = []
         return pending
+    }
+}
+
+/// D-COL2 window capture (Plan 02-04-05): an invisible accessory view that
+/// reports its hosting `NSWindow` the moment SwiftUI places it
+/// (`viewDidMoveToWindow` also fires on window changes). The least-invasive
+/// window source — no invasive scene introspection, no AppKit window
+/// subclassing; the app root forwards the window to
+/// `PipeCoordinator.configure(window:)`.
+private struct WindowCapture: NSViewRepresentable {
+
+    let onWindow: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> CaptureView {
+        CaptureView(onWindow: onWindow)
+    }
+
+    func updateNSView(_ view: CaptureView, context: Context) {}
+
+    final class CaptureView: NSView {
+        let onWindow: (NSWindow) -> Void
+
+        init(onWindow: @escaping (NSWindow) -> Void) {
+            self.onWindow = onWindow
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError("not used") }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window { onWindow(window) }
+        }
     }
 }
 
@@ -68,6 +101,12 @@ internal struct LightamerApp: App {
     /// The decode actor (D-21) — one app-wide instance, injected into
     /// `ContentView` so every Open path feeds `EditorState.load`.
     @State private var decoder = RAWDecoder()
+
+    /// The module registry (Plan 02-04-05): terminal trio self-registered
+    /// in `ModuleRegistry.init()`; LightamerIOP's modules join via
+    /// `LightamerIOPRegistry.populate` in the scene `.task`. One registry
+    /// per app; the coordinator resolves default chains from it.
+    @State private var moduleRegistry = ModuleRegistry.makeDefault()
 
     /// The app-owned Metal dispatch context (D-14/15; RESEARCH Open Question
     /// #2 — owned via `@State` and injected, never a singleton). nil = no
@@ -98,6 +137,12 @@ internal struct LightamerApp: App {
                 .environment(exportState)
                 .environment(inspectorState)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
+                // D-COL2 (Plan 02-04-05): capture the editor window the
+                // moment SwiftUI places it — the coordinator follows THE
+                // WINDOW's screen (multi-display: window's screen wins).
+                .background(WindowCapture { window in
+                    pipeCoordinator.configure(window: window)
+                })
                 .task {
                     // Wire the pipe owner ↔ editor state pair (both weakly
                     // linked, root-owned strongly). Runs before any open is
@@ -106,10 +151,19 @@ internal struct LightamerApp: App {
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
 
+                    // 02-04: register LightamerIOP's modules into the
+                    // registry (testgain in DEBUG; Phase 3+ joins here),
+                    // then hand the registry to the coordinator so loads
+                    // resolve the terminal-trio default chain.
+                    await LightamerIOPRegistry.populate(moduleRegistry)
+                    pipeCoordinator.attach(registry: moduleRegistry)
+
                     // Register the IOP framework's default.metallib (which
                     // carries the pass_through kernel) with the dispatch
                     // context. Plan 04's pixelpipe dispatches through it;
                     // registering at the app root keeps the pipeline ready.
+                    // Core's own metallib (terminal trio kernels) resolves
+                    // automatically inside MetalContext.
                     if let metalContext {
                         try? await metalContext.registerDefaultLibrary(
                             in: PassthroughKernel.metalBundle
