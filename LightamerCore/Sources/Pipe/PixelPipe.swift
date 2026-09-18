@@ -223,28 +223,11 @@ internal final class PixelPipe: @unchecked Sendable {
         decodedImage = image
         planesRendered = 0
 
-        // §1.3: decodeParamsHash = FNV chain over (decoderVersion ⊕ the
-        // RAWTechnicalParams fields) — the position-0 seed. FIELD-EXPLICIT
-        // by design: Foundation's keyed-container JSON emission order is
-        // NOT contractually stable (observed scrambling on macOS 27), so
-        // hashing JSONEncoder bytes would make cache keys unstable. Adding
-        // a RAWTechnicalParams field MUST extend this list.
-        // TODO(02-05): extract into a shared D-H4 decode-hash helper so the
-        // sidecar drift check and the cache use the identical formula.
-        var seed = StableHash.hash(image.decoderVersionUsed.rawValue)
-        seed = Self.chain(seed, image.rawTech.blackLevel.bitPattern)
-        seed = Self.chain(seed, image.rawTech.whiteLevel.bitPattern)
-        seed = Self.chain(seed, image.rawTech.baselineExposure.bitPattern)
-        seed = Self.chain(seed, UInt64(image.rawTech.neutralChromaticity.x.bitPattern))
-        seed = Self.chain(seed, UInt64(image.rawTech.neutralChromaticity.y.bitPattern))
-        seed = Self.chain(seed, image.rawTech.noiseReductionAmount.bitPattern)
-        if let value = image.rawTech.luminanceNoiseReduction {
-            seed = Self.chain(seed, value.bitPattern)
-        }
-        if let value = image.rawTech.colorNoiseReduction {
-            seed = Self.chain(seed, value.bitPattern)
-        }
-        decodeParamsHash = seed
+        // §1.3: decodeParamsHash — the shared D-H4 atom (extracted to
+        // HistoryHash.decodeParamsHash per this plan's TODO; the
+        // field-explicit chain lives there so the sidecar drift check and
+        // the cache seed can never diverge).
+        decodeParamsHash = HistoryHash.decodeParamsHash(for: image)
 
         // Per-level chain: levelHash[i] = decode ⊕ (enabled hashes ≤ i).
         var running = decodeParamsHash
