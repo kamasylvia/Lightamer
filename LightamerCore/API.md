@@ -94,22 +94,43 @@
 - `enum RenderPipeline` — `static func render(image:layerStack:metal:) async
   throws -> MTLTexture`. **This is the app's ONLY render entry point.**
 
-### Pipe cache (02-02, `Sources/Pipe/`)
+### Pipe cache & pipe machinery (02-02, `Sources/Pipe/`)
 - `enum PipeResolution: String, Codable, Sendable, CaseIterable` —
   `preview` / `thumbnail` / `full` / `export`; computed policy properties
   `cachesIntermediatePlanes` (preview+thumbnail true; full+export false —
   spike-b: 3×100MP planes ≈ 4.7GB busts the budget) and `isLazy`
   (thumbnail; 02-03 consumes)
-- `enum RenderPipeline.process(...)` — added in 02-02-05 (see below)
+- `actor PipeCache` — byte-budget LRU plane cache (D-C1):
+  `defaultBudget` 3GB / `evictTarget` 2GB hysteresis (effective floor
+  scales with the constructor budget); `init(byteBudget:)`; `totalBytes`;
+  `stats: CacheStats` (cumulative `hits`/`misses` — SC#2 counters);
+  `invalidate(imageID:)` (02-03 load-entry anchor); `invalidateAll()`.
+  **Public** (02-02 executor resolution): `RenderPipeline.process` injects
+  a shared cache — a public parameter cannot expose an internal type
+- `protocol ModuleBoxing: AnyObject, Sendable` — the type-erased pipe
+  citizen: `instanceID/opName/multiPriority/multiName/iopOrder/enabled/
+  paramsData/paramsHash`, `makeRunPiece()`, `processErased(...)`
+- `final class ModuleBox<M: IOPModule>: ModuleBoxing` — wraps one module
+  instance + its committed piece; `setParams(_:)` = the slider-drag
+  mutation (re-encode → re-hash via StableHash → re-commit)
+- `enum RenderPipeline.process(image:instances:imageID:resolution:cache:
+  metal:longEdge:) async throws -> (any MTLTexture, PipeRunStats)` — the
+  REAL pipe entry (02-03 coordinator / 02-04 golden harness consumer);
+  `struct PipeRunStats` — `hits` / `misses` / `planesRendered` (per-run
+  delta). `imageID` (stable image UUID) parameter added beyond the plan's
+  listed signature: cache keys need it and tests pass one across runs
+- `RenderPipeline.render(image:layerStack:metal:)` — KEPT: the Phase 1
+  no-op display path (empty instances; `EditorState` untouched)
 
 ## Internal (NOT for cross-module use — may change without notice)
 
-- **Pipe cache (02-02):** `struct PipeCacheKey` (imageID/pipeType/position/
-  upstreamHash/roi — in-memory only, synthesized Hashable is legal because
-  the key never persists), `enum PipeHash` (upstream-chain combine helper),
-  `actor PipeCache` (byte-budget LRU, `defaultBudget` 3GB / `evictTarget`
-  2GB hysteresis, `CachedPlane`, `CacheStats`, `invalidate(imageID:)`,
-  `invalidateAll()`). Test surface via `@testable import LightamerCore`
+- **Pipe internals (02-02):** `struct PipeCacheKey` (imageID/pipeType/
+  position/upstreamHash/roi — in-memory only, synthesized Hashable is legal
+  because the key never persists), `enum PipeHash` (upstream-chain combine
+  helper), `PipeCache.CachedPlane` (@unchecked Sendable,
+  write-once-then-readonly ownership contract), `PixelPipe.processRec` /
+  `pieces` / `levelHash` / `decodeParamsHash` (the app goes through
+  `RenderPipeline`). Test surface via `@testable import LightamerCore`
   (precedent: `RAWDecoderTests`).
 - `PSOKey` (PSO cache key, D-16), `CIContextPool` (CIImage→texture bridge),
   `MetalContextMarker` (`Bundle(for:)` anchor), `MetalContext.psoCache` /
