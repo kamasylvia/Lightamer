@@ -60,6 +60,12 @@
   - Golden 双判据 harness green：①中性度 6 灰块逐块 <2/255；②交叉一致性（线性域 <0.004 + 字节域 ColorSync 基准分层断言）；缓存断言（display change → 仅 ≥colorout miss）；合成 NeutralTarget.tif committed；ColorChecker ARW 采集 pending（raw.pixls.us 不收 color target，skip-with-reason 就位，`.work/02-04/colorchecker-acquisition.md`）
   - 单测 83 全绿（3 skip 合规）；真 RAW 冒烟 7/7 + 全链 vs CI 直渲对照一致（`.work/02-04/smoke-run.md`）；修复 3 个真缺陷：gamma TRC 写成 decode 方向、ModuleBox 不采纳 committed hash（stableID fold 对缓存不可见）、JSONEncoder 键序不稳定全面切 ParamsCoding(sortedKeys)（L013 对策落地）
   - SUMMARY 见 `02-04-SUMMARY.md`
+- [x] **Plan 02-05**（HistoryStack + D-H1 API + TilingPlan 脚手架）完成（2026-09-19）：
+  - `ModuleInstance` 身份元组（九冻结字段 = 02-06 sidecar schema）+ `HistoryStack`/`HistoryItem`（inline snapshot、undo/redo/jump、redo 尾截断）+ `effectiveInstances()`（history.c GROUP BY MAX(num) 直译，v50 + (iopOrder,multiPriority,opName) tiebreak）
+  - `HistoryHash`（FNV-1a enabled-only 链 + golden 向量 0x684AEC372467B526）+ PixelPipe `TODO(02-05)` 兑现：`decodeParamsHash(for:)` 提取为共享 D-H4 原子
+  - EditorState 拥有 history/instances（D-03b）；PipeCoordinator `historyDidChange()` 替换 `paramsDidChange()`（record→box 按 UUID 原位物化，未变参数缓存平面存活）+ D-H1 三件套 `beginContinuousEdit/setLiveParams/commitContinuousEdit` + undo/redo/jumpToHistory
+  - `TilingPlan` 纯几何脚手架（D-20，unwired，Phase 5 挂接注记在 PixelPipe 头部）
+  - 单测 106 全绿（3 skip 合规）；`Hasher(` grep 守卫 clean；checkpoint 六锁 affirmed（70cc389）；SUMMARY 见 `02-05-SUMMARY.md`
 
 ## Phase 2-13（已规划，未开始）
 
