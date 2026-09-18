@@ -57,7 +57,15 @@ internal struct EditorMTKView: NSViewRepresentable {
         let coordinator = context.coordinator
         // UI-1 pitfall prevention: the Coordinator owns per-frame state;
         // SwiftUI only pushes the SOURCE OF TRUTH, and only when it changes.
-        if !coordinator.hasSameSourceTexture(as: sourceTexture) {
+        let incoming: String
+        if let t = sourceTexture {
+            incoming = "\(t.width)x\(t.height)"
+        } else {
+            incoming = "nil"
+        }
+        let changed = !coordinator.hasSameSourceTexture(as: sourceTexture)
+        context.coordinator.drawProbe.debug("UPDATE incoming=\(incoming, privacy: .public) changed=\(changed, privacy: .public)")
+        if changed {
             coordinator.sourceTexture = sourceTexture
             view.setNeedsDisplay(view.bounds)
         }
@@ -71,7 +79,7 @@ internal struct EditorMTKView: NSViewRepresentable {
 
     final class Coordinator: NSObject, MTKViewDelegate {
 
-        private let drawProbe = Logger(subsystem: "com.kamasylvia.lightamer", category: "draw")
+        let drawProbe = Logger(subsystem: "com.kamasylvia.lightamer", category: "draw")
 
         /// neutral-1 #161619 (UI-SPEC canvas mat) as the Metal clear color —
         /// sRGB-encoded values written raw into the `.bgra8Unorm` drawable.
