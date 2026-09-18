@@ -93,6 +93,10 @@ internal struct EditorMTKView: NSViewRepresentable {
         /// (draw then just clears to canvas and the failure is logged).
         private var blitPipelineState: (any MTLRenderPipelineState)?
         var sourceTexture: (any MTLTexture)?
+        /// UAT issue #1 presentation probe: identity of the drawable used by
+        /// the previous draw — consecutive draws sharing one drawable means
+        /// the second `present` targets an already-presented drawable.
+        var lastDrawableID: ObjectIdentifier?
 
         init(device: any MTLDevice, commandQueue: any MTLCommandQueue, sourceTexture: (any MTLTexture)?) {
             self.device = device
@@ -159,6 +163,13 @@ internal struct EditorMTKView: NSViewRepresentable {
             renderPass.colorAttachments[0].loadAction = .clear
             renderPass.colorAttachments[0].storeAction = .store
             renderPass.colorAttachments[0].clearColor = Self.canvasClearColor
+
+            // UAT issue #1 presentation probe: is this drawable the SAME one
+            // the previous draw presented? (Double-present → dropped frame.)
+            let drawableID = ObjectIdentifier(drawable)
+            let reusesPrevious = lastDrawableID == drawableID
+            lastDrawableID = drawableID
+            drawProbe.debug("DRAWABLE reuse=\(reusesPrevious, privacy: .public)")
 
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPass) else { return }
 
