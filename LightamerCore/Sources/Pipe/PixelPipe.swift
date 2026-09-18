@@ -112,6 +112,38 @@ internal final class PixelPipe: @unchecked Sendable {
         roi.width * roi.height * WorkingSpace.bytesPerPixel
     }
 
+    /// Plane byte cost at an explicit pixel format (the display-tail plane
+    /// is 4 bytes/px — `GammaModule.outputPixelFormat` — everything else
+    /// stays float32).
+    private static func planeBytes(_ roi: ROI, pixelFormat: MTLPixelFormat) -> Int {
+        roi.width * roi.height * Self.bytesPerPixel(of: pixelFormat)
+    }
+
+    /// The two formats the pipe produces (exhaustive — FOUND-02 interior +
+    /// the 02-04 display tail).
+    private static func bytesPerPixel(of format: MTLPixelFormat) -> Int {
+        switch format {
+        case GammaModule.outputPixelFormat: return 4
+        default: return WorkingSpace.bytesPerPixel
+        }
+    }
+
+    /// Terminal-tail policy (Plan 02-04-04, research §3.3): when the TOP
+    /// enabled module is `gamma`, its output plane is the DISPLAY HANDOFF —
+    /// allocated `.bgra8Unorm` (GammaModule.outputPixelFormat), NOT
+    /// float32. Cached planes at positions < gamma stay float32 linear
+    /// (reusable across screens — a display change re-runs only the
+    /// colorout+gamma segment). FULL gets the same treatment: its output
+    /// is also display-format when run for 100% viewing.
+    private func tailPixelFormat(at position: Int) -> MTLPixelFormat {
+        if position == topEnabledPosition,
+           pieces.indices.contains(position),
+           pieces[position].box.opName == GammaModule.opName {
+            return GammaModule.outputPixelFormat
+        }
+        return WorkingSpace.pixelFormat
+    }
+
     /// One fold of the upstream chain: `seed` ⊕ `paramsHash` (raw little-
     /// endian UInt64 bytes — the SAME encoding `PipeHash.upstream` uses, so
     /// the incremental thread and the test-side recompute agree).
@@ -122,9 +154,16 @@ internal final class PixelPipe: @unchecked Sendable {
 
     /// Allocate a fresh output plane at the ROI (shared storage, UMA —
     /// METAL-4; shaderRead+shaderWrite during processing, read-only after).
-    private static func allocatePlane(roiOut: ROI, metal: MetalContext) throws -> any MTLTexture {
+    /// `pixelFormat` defaults to the FOUND-02 working format; the display
+    /// tail passes `GammaModule.outputPixelFormat`.
+    private static func allocatePlane(
+        roiOut: ROI,
+        metal: MetalContext,
+        pixelFormat: MTLPixelFormat = WorkingSpace.pixelFormat
+    ) throws -> any MTLTexture {
+        let bytesPerPx = bytesPerPixel(of: pixelFormat)
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: WorkingSpace.pixelFormat,
+            pixelFormat: pixelFormat,
             width: max(roiOut.width, 1),
             height: max(roiOut.height, 1),
             mipmapped: false
@@ -133,7 +172,7 @@ internal final class PixelPipe: @unchecked Sendable {
         descriptor.storageMode = .shared
         guard let texture = metal.device.makeTexture(descriptor: descriptor) else {
             throw MetalError.bufferAllocationFailed(
-                roiOut.width * roiOut.height * WorkingSpace.bytesPerPixel
+                roiOut.width * roiOut.height * bytesPerPx
             )
         }
         return texture
@@ -356,9 +395,14 @@ internal final class PixelPipe: @unchecked Sendable {
 
         // (f) PER-PIPETYPE POLICY (lock #4): PREVIEW/THUMBNAIL cache every
         // plane; FULL caches input + final only (intermediates ping-pong);
-        // EXPORT caches nothing.
+        // EXPORT caches nothing. The tail plane's format follows the
+        // terminal-tail policy (gamma tail → .bgra8Unorm).
+        let tailFormat = tailPixelFormat(at: position)
         if resolution.cachesIntermediatePlanes || (isFinalOutput && resolution == .full) {
-            return try await cache.plane(for: key, byteCount: Self.planeBytes(roiOut)) { [self] in
+            return try await cache.plane(
+                for: key,
+                byteCount: Self.planeBytes(roiOut, pixelFormat: tailFormat)
+            ) { [self] in
                 // (d) MISS CLOSURE — recurse upstream, then execute.
                 let upstream = try await processRec(
                     position: position - 1,
@@ -373,7 +417,9 @@ internal final class PixelPipe: @unchecked Sendable {
                         && upstream.texture.height == roiOut.height,
                     "pass-through-era ROI identity violated"
                 )
-                let output = try Self.allocatePlane(roiOut: roiOut, metal: metal)
+                let output = try Self.allocatePlane(
+                    roiOut: roiOut, metal: metal, pixelFormat: tailFormat
+                )
                 try await box.processErased(
                     input: upstream.texture, output: output,
                     roiIn: roiOut, roiOut: roiOut,
@@ -399,9 +445,10 @@ internal final class PixelPipe: @unchecked Sendable {
         )
         // The FINAL output (FULL only — EXPORT finals are also uncached)
         // must not alias scratch the next run overwrites: allocate fresh.
+        // The display tail format applies here too (FULL 100% viewing).
         let output: any MTLTexture =
             if isFinalOutput && resolution == .full {
-                try Self.allocatePlane(roiOut: roiOut, metal: metal)
+                try Self.allocatePlane(roiOut: roiOut, metal: metal, pixelFormat: tailFormat)
             } else {
                 try nextScratchPlane(roiOut: roiOut, metal: metal)
             }

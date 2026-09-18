@@ -65,7 +65,10 @@ public protocol ModuleBoxing: AnyObject, Sendable {
 /// owner. Identity fields are immutable after init.
 public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
 
-    public let instanceID = UUID()
+    /// Instance-stable identity (NDE-1: masks/history reference instances
+    /// by UUID, never by ordinal). Minted fresh by the convenience init;
+    /// injected (persisted sidecar UUID) by the identity-restoring init.
+    public let instanceID: UUID
 
     /// Darktable-style op string — forwarded from the wrapped module's
     /// static (`M.opName`).
@@ -93,12 +96,30 @@ public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
     /// pipe runs.
     private var committedPiece = IOPiece()
 
-    public init(
+    public convenience init(
         module: M,
         multiPriority: Int = 0,
         multiName: String = "",
         enabled: Bool = true
     ) {
+        self.init(
+            module: module, instanceID: UUID(),
+            multiPriority: multiPriority, multiName: multiName, enabled: enabled
+        )
+    }
+
+    /// The identity-restoring initializer: `ModuleRegistry.makeBox` (02-04)
+    /// and the 02-05 sidecar loader inject the PERSISTED instance UUID —
+    /// masks/history reference instances by UUID, so a reloaded sidecar
+    /// must resurrect the SAME identity, not mint a fresh one.
+    public init(
+        module: M,
+        instanceID: UUID,
+        multiPriority: Int = 0,
+        multiName: String = "",
+        enabled: Bool = true
+    ) {
+        self.instanceID = instanceID
         self.module = module
         self.multiPriority = multiPriority
         self.multiName = multiName
