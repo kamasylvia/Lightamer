@@ -39,10 +39,9 @@ final class EditorState {
     /// The setter is deliberately internal (not `private(set)`): the
     /// `$editorState.displayTexture` binding that `EditorAreaView` derives
     /// via `@Bindable` needs it; the pixelpipe paths are the only writers.
+    /// SINGLE-PRODUCER invariant (D-X1): only `load`'s decodeTask (via the
+    /// inline render below or `rerender`) may write this.
     var displayTexture: (any MTLTexture)?
-
-    /// Guards the render step: the URL whose texture `displayTexture` holds.
-    private var displayTextureRenderedForURL: URL?
 
     /// True while a decode task is in flight (status bar "Decoding…").
     private(set) var isDecoding: Bool = false
@@ -75,7 +74,6 @@ final class EditorState {
         // editor never shows a stale frame while the new decode runs.
         displayTexture = nil
         layerStack = nil
-        displayTextureRenderedForURL = nil
 
         decodeTask = Task { [weak self] in
             guard let self else { return }
@@ -121,7 +119,6 @@ final class EditorState {
                         return
                     }
                     self.displayTexture = texture
-                    self.displayTextureRenderedForURL = url
                     logger.info(
                         "pixelpipe output ready: \(url.lastPathComponent, privacy: .public)"
                     )
@@ -140,30 +137,31 @@ final class EditorState {
         }
     }
 
-    /// Re-render the decoded `image` through the no-op pixelpipe via Core's
-    /// `RenderPipeline` bridge. Idempotent per loaded URL — `load` already
-    /// renders on the success path, so this is the URL-keyed `.task`
-    /// fallback in `EditorAreaView` (no-op once `load`'s render landed).
-    /// Failures are non-blocking (UI-SPEC severity table: render issues
-    /// log; they don't clear the decode state).
-    func renderDisplayTexture(using metal: MetalContext) async {
-        guard let image, let url = loadedImageURL else {
-            let hasImage = image != nil; let urlName = loadedImageURL?.lastPathComponent ?? "nil"
-            Self.decodeLogger.info("RENDER skip: image=\(hasImage) url=\(urlName, privacy: .public)")
-            return
-        }
-        if displayTexture != nil, displayTextureRenderedForURL == url { return }
-        displayTextureRenderedForURL = url
+    /// The ONLY re-render entry (D-X1): runs the decoded `image` back
+    /// through the no-op pixelpipe via Core's `RenderPipeline` bridge and
+    /// republishes `displayTexture`. Called by the decodeTask on load and,
+    /// from Plan 02-03, by the PipeCoordinator on param/display changes.
+    /// NEVER call from a view — a second, view-level render producer is
+    /// exactly the race behind issue #1's black frames.
+    ///
+    /// Deliberately has NO URL idempotence guard (the former per-URL render
+    /// bookkeeping is gone): idempotence now
+    /// comes from having exactly one caller chain — the coordinator's
+    /// pipeline generation — not from URL bookkeeping. Failures are
+    /// non-blocking (UI-SPEC severity table: render issues log; they don't
+    /// clear the decode state).
+    func rerender(using metal: MetalContext) async {
+        guard let image else { return }
         do {
-            let tex = try await RenderPipeline.render(
+            displayTexture = try await RenderPipeline.render(
                 image: image,
                 layerStack: layerStack,
                 metal: metal
             )
-            displayTexture = tex
-            Self.decodeLogger.info("RENDER ok: \(url.lastPathComponent, privacy: .public) → \(tex.width)x\(tex.height)")
         } catch {
-            Self.decodeLogger.error("RENDER FAIL: \(url.lastPathComponent, privacy: .public): \(error)")
+            Self.decodeLogger.error(
+                "rerender failed: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 

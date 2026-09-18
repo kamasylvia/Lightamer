@@ -5,8 +5,11 @@ import SwiftUI
 ///
 /// D-03b: injects ONLY `EditorState` (plus the app-owned `decoder` and
 /// `metalContext` passed down from the app root). The loaded branch renders
-/// `EditorMTKView` (Plan 03) over `EditorState.displayTexture`; the render
-/// trigger lives here as a URL-keyed `.task` — one render per loaded image.
+/// `EditorMTKView` (Plan 03) over `EditorState.displayTexture` — a
+/// DISPLAY-ONLY view: it never initiates a render. The sole producer of
+/// `displayTexture` is `EditorState.load`'s decodeTask (D-X1: a second,
+/// view-level `.task` trigger raced it and produced issue #1's black
+/// frames; re-introducing one is the exact bug this fixes).
 internal struct EditorAreaView: View {
 
     /// The app-owned decode actor (D-21), passed through to `EditorState.load`
@@ -39,10 +42,6 @@ internal struct EditorAreaView: View {
                         commandQueue: metalContext.commandQueue,
                         sourceTexture: $editorState.displayTexture
                     )
-                    // One display render per loaded image (not per frame).
-                    .task(id: editorState.loadedImageURL) {
-                        await editorState.renderDisplayTexture(using: metalContext)
-                    }
                     .transition(.opacity)
                     .accessibilityLabel(Text("editor_viewport"))
                 } else {
