@@ -13,6 +13,7 @@ stages the files here under the app target's `Resources/` glob, D-04).
 | `sample-gradient.jpg` | JPEG | Derived from `sample-gradient.png` via `sips`. Same license as the source. |
 | `sample-gradient.tiff` | TIFF | Derived from `sample-gradient.png` via `sips`. Same license as the source. |
 | `sample-gradient.heic` | HEIC | Derived from `sample-gradient.png` via `sips`. Same license as the source. |
+| `NeutralTarget.tif` | TIFF 16-bit RGB, sRGB-tagged, 1024×1024 | Synthetic golden fixture (Plan 02-04-06, D-COL1) — 3×3 patch grid, 6 gray patches (linear Rec2020 1.0/0.75/0.5/0.18/0.09/0.0) + 3 saturated patches. Generated ONCE by `.work/02-04/make-neutral-target.swift` (byte-order gotcha documented there); expected values documented in `Tests/LightamerTests/Fixtures.swift` (`neutralPatches`). No license restrictions. |
 
 ## Pending samples (RAW, RAW-01/02 — deferred to Plan 06)
 

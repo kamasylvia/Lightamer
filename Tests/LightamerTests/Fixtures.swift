@@ -96,4 +96,66 @@ final class Fixtures {
         }
         return url
     }
+
+    // ── Golden color fixtures (Plan 02-04-06, D-COL1 harness) ───────────
+
+    /// The committed synthetic neutral target — 1024×1024 16-bit TIFF,
+    /// sRGB-tagged, 3×3 patch grid. Generated ONCE by
+    /// `.work/02-04/make-neutral-target.swift` (byte-order gotcha
+    /// documented there); regenerate only with that script. Throwing (not
+    /// stored) so a missing bundle resource skips instead of crashing.
+    static func neutralTarget() throws -> URL {
+        try raster("NeutralTarget", "tif")
+    }
+
+    /// Gray patch definitions shared by both golden criteria: normalized
+    /// coordinates are fractions of the image extent in IMAGE space
+    /// (TOP-left origin, as viewed). Sampling converts to texture space
+    /// (row 0 = image BOTTOM, CI lower-left) via `y_texture = 1 − y`.
+    /// `expectedLinearRec2020` is the channel-equal triple the patch
+    /// decodes to (±1/255 in the pipe's 8-bit output). The grays are
+    /// channel-equal because every space in the chain (sRGB → Rec2020 →
+    /// display gamut) shares the D65 white — the D-COL1 criterion-1
+    /// precondition.
+    static let neutralPatches: [(name: String, x: Double, y: Double, expectedLinearRec2020: (Double, Double, Double))] = [
+        ("white L=1.00", 1.0 / 6.0, 1.0 / 6.0, (1.00, 1.00, 1.00)),
+        ("gray  L=0.75", 3.0 / 6.0, 1.0 / 6.0, (0.75, 0.75, 0.75)),
+        ("gray  L=0.50", 5.0 / 6.0, 1.0 / 6.0, (0.50, 0.50, 0.50)),
+        ("gray  L=0.18", 1.0 / 6.0, 3.0 / 6.0, (0.18, 0.18, 0.18)),
+        ("black L=0.00", 3.0 / 6.0, 3.0 / 6.0, (0.00, 0.00, 0.00)),
+        ("gray  L=0.09", 5.0 / 6.0, 5.0 / 6.0, (0.09, 0.09, 0.09)),
+    ]
+
+    /// Saturated patches (grid rows 1-2) — exercise the gamut matrix but
+    /// are NOT gate criteria (documentation only).
+    static let saturatedPatches: [(name: String, x: Double, y: Double)] = [
+        ("sRGB red", 5.0 / 6.0, 3.0 / 6.0),
+        ("sRGB green", 1.0 / 6.0, 5.0 / 6.0),
+        ("sRGB blue", 3.0 / 6.0, 5.0 / 6.0),
+    ]
+
+    /// Real-sensor gate-quality fixture: an X-Rite ColorChecker
+    /// photograph as CC0 RAW. **Acquisition status (2026-09-19):** NOT
+    /// PRESENT — raw.pixls.us no longer accepts/host color-target samples
+    /// (their upload policy excludes "a photo of a color target"), and no
+    /// equivalent CC0 source surfaced in the acquisition sweep (recorded
+    /// in `.work/02-04/`). The synthetic fixture above keeps the harness
+    /// green everywhere; the ARW test path XCTSkips until a manual capture
+    /// lands. To activate: shoot an X-Rite ColorChecker, release CC0, save
+    /// as `input/RAW/ColorChecker.ARW` (untracked per convention), and
+    /// calibrate `colorCheckerGrayPatches` to the shot's patch centers.
+    /// Resolved against the same candidate directories as the RAW samples.
+    static var colorCheckerARW: URL? {
+        for dir in candidateDirectories {
+            let url = dir.appendingPathComponent("ColorChecker.ARW")
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+        return nil
+    }
+
+    /// ColorChecker 24-patch layout for the ARW fixture — normalized
+    /// coordinates per patch, grays first (patches 19-24 in X-Rite order
+    /// include the 6 neutrals). EMPTY until a real capture is calibrated;
+    /// the ARW tests skip while this is empty.
+    static let colorCheckerGrayPatches: [(name: String, x: Double, y: Double)] = []
 }
