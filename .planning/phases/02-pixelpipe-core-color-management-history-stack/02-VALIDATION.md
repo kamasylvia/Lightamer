@@ -40,12 +40,12 @@ created: 2026-09-18
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (planner) | — | 1 | FOUND-04 | — | N/A | unit | PipeCache: run1 全 miss → 改 testGain → colorin hit/testGain miss → undo → 双 hit（计数器断言）| ❌ W0 | ⬜ pending |
-| (planner) | — | 1 | HIST-01..04 | — | N/A | unit | HistoryStack: drag-end 提交一步、undo/redo 指针、paramsHash 稳定（FNV-1a 跨进程）| ❌ W0 | ⬜ pending |
-| (planner) | — | 1 | HIST-03 | — | N/A | unit | Sidecar round-trip: 写→清状态→重开→逐字段一致；漂移注入→检测不回写 | ❌ W0 | ⬜ pending |
-| (planner) | — | 1 | COLOR-01 | — | N/A | golden | 中性度（灰块通道差<2/255）+ 交叉一致性（vs ColorSync 基准逐像素<2/255）| ❌ W0 | ⬜ pending |
-| (planner) | — | 1 | RAW-03 | — | N/A | unit | 32f TIFF/EXR 解码位深保真 | ❌ W0 | ⬜ pending |
-| (planner) | — | 1 | D-C1/C2 | — | N/A | unit | 内存 harness：N 图连续加载，PipeCache.totalBytes < 3GB 且 load 入口触发清理 | ❌ W0 | ⬜ pending |
+| (planner) | — | 2 | FOUND-04 | — | N/A | unit | PipeCache: run1 全 miss → 改 testGain → colorin hit/testGain miss → undo → 双 hit（计数器断言）| ❌ W0 | ⬜ pending |
+| (planner) | — | 4 | HIST-01..04 | — | N/A | unit | HistoryStack: drag-end 提交一步、undo/redo 指针、paramsHash 稳定（FNV-1a 跨进程）| ❌ W0 | ⬜ pending |
+| (planner) | — | 5 | HIST-03 | — | N/A | unit | Sidecar round-trip: 写→清状态→重开→逐字段一致；漂移注入→检测不回写 | ❌ W0 | ⬜ pending |
+| (planner) | — | 3 | COLOR-01 | — | N/A | golden | 中性度（灰块通道差<2/255）+ 交叉一致性（vs ColorSync 基准逐像素<2/255）| ❌ W0 | ⬜ pending |
+| (planner) | — | 5 | RAW-03 | — | N/A | unit | 32f TIFF/EXR 解码位深保真 | ❌ W0 | ⬜ pending |
+| (planner) | — | 5 | D-C1/C2 | — | N/A | unit | 内存 harness：N 图连续加载，PipeCache.totalBytes < 3GB 且 load 入口触发清理 | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
