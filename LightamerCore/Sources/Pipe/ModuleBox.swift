@@ -130,11 +130,21 @@ public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
     /// and re-commit the piece (uniforms). This is the pipe-facing mutation
     /// behind a slider drag — the cache chain does the rest (SC#2: every
     /// key at or below this module flips, everything upstream survives).
+    ///
+    /// Hash authority (02-04 fix): the box ADOPTS the module-committed
+    /// piece hash after `commitParams`. For every standard module the
+    /// piece hash IS `StableHash.hash(paramsData)` (the D-H4 reference
+    /// shape), so adoption is a no-op — but terminal modules may fold
+    /// extra identity into the committed hash (colorout folds the resolved
+    /// `DisplayProfile.stableID`, the terminal-segment invalidation atom),
+    /// and the CACHE chain reads the BOX hash. Without adoption that fold
+    /// would be invisible to the cache.
     public func setParams(_ params: M.Params) async {
-        let encoded = (try? JSONEncoder().encode(params)) ?? Data()
+        let encoded = ParamsCoding.encode(params)
         paramsData = encoded
         paramsHash = StableHash.hash(encoded)
         await module.commitParams(params, into: &committedPiece)
+        paramsHash = committedPiece.paramsHash
     }
 
     public func makeRunPiece() -> IOPiece {

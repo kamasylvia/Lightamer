@@ -84,7 +84,7 @@ public final class TestGainModule: IOPModule {
     /// Also writes the uniforms into `piece.data` (float gain, offset 0,
     /// 16-byte-aligned struct).
     public func commitParams(_ params: Params, into piece: inout IOPiece) async {
-        let encoded = (try? JSONEncoder().encode(params)) ?? Data()
+        let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
 
         guard let resolvedDevice = device ?? MTLCreateSystemDefaultDevice() else {
