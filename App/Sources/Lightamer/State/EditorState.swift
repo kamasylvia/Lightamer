@@ -59,9 +59,126 @@ final class EditorState {
     /// delegates all rendering to it.
     private weak var pipeCoordinator: PipeCoordinator?
 
+    // ── 02-05 history ownership (D-03b: "当前编辑的图像 + 图层栈 + history"
+    // live here; the PipeCoordinator CONSUMES the stack) ──────────────────
+
+    /// The non-destructive edit history (HIST-01/02). Value semantics:
+    /// `commit/undo/redo/jump` are the only writers, through the `record*`
+    /// mutators below (D-H1: one commit per drag-end; D-H2: uncapped).
+    /// Phase 2 keeps the stack in memory per image session; 02-06 persists
+    /// it verbatim into sidecars (and restores it on load).
+    private(set) var history = HistoryStack()
+
+    /// The LIVE instance set — the pipe-facing projection of
+    /// `baseInstances ∪ history.effectiveInstances()`, v50-sorted. The
+    /// PipeCoordinator materializes boxes FROM these records (identity
+    /// preserved by UUID), so this array is the single source of truth for
+    /// what the pipe contains. Seeded pristine (terminal trio, default
+    /// params) on a fresh image load.
+    private(set) var instances: [ModuleInstance] = []
+
+    /// The pristine seed (terminal trio records with default params) —
+    /// the base the history projections merge onto: undoing back to
+    /// pristine restores exactly this set.
+    private var baseInstances: [ModuleInstance] = []
+
     /// Wire the pipe owner (called once from the app root's startup task).
     func attach(pipeCoordinator: PipeCoordinator) {
         self.pipeCoordinator = pipeCoordinator
+    }
+
+    // ── 02-05 history mutators (the ONLY writers of history/instances) ──
+
+    /// Seed a freshly loaded image to PRISTINE: empty history + the
+    /// default-chain records as the live instance set (the coordinator
+    /// passes `ModuleRegistry.makeDefaultInstances()`). 02-06 replaces
+    /// this call's freshness with the sidecar restore (history + instances
+    /// decoded from `.lra`) at the same point in the load flow.
+    func resetHistoryForNewImage(defaultInstances: [ModuleInstance]) {
+        history = HistoryStack()
+        baseInstances = defaultInstances
+        instances = defaultInstances
+    }
+
+    /// D-H1 commit leg: one history entry per interaction
+    /// (`PipeCoordinator.commitContinuousEdit` calls this), then the live
+    /// instance set picks up the snapshot and the coordinator is notified
+    /// (weak back-reference + Task — the same loose coupling as every
+    /// other EditorState → coordinator edge; the render itself is the
+    /// coordinator's business, and is idempotent here: the pipes already
+    /// rendered the live state during the drag, so the post-commit pass
+    /// proves cache hits).
+    func recordChange(_ snapshot: ModuleInstance, label: String) {
+        history.commit(snapshot, label: label)
+        upsert(instance: snapshot)
+        guard let pipeCoordinator else { return }
+        Task { await pipeCoordinator.historyDidChange() }
+    }
+
+    /// D-H1 live leg: drag-preview upsert WITHOUT a history commit (the
+    /// coordinator calls this per `setLiveParams`; zero items accumulate —
+    /// the commit lands once at drag end).
+    func applyLiveInstance(_ snapshot: ModuleInstance) {
+        upsert(instance: snapshot)
+    }
+
+    /// HIST-02 navigation (coordinator-driven): step back; false when
+    /// already pristine. Rebuilds the live instance set from the stack.
+    @discardableResult
+    func performUndo() -> Bool {
+        guard history.undo() != nil else { return false }
+        rebuildInstances()
+        return true
+    }
+
+    /// HIST-02 navigation: step forward into an untruncated tail.
+    @discardableResult
+    func performRedo() -> Bool {
+        guard history.redo() != nil else { return false }
+        rebuildInstances()
+        return true
+    }
+
+    /// HIST-02/D-H3 navigation: jump to an arbitrary point (the stack
+    /// clamps out-of-range indices; −1 = pristine).
+    func performJump(to index: Int) {
+        history.jump(to: index)
+        rebuildInstances()
+    }
+
+    /// Upsert by instance UUID, keep v50 order (records ARE the pipe
+    /// order — boxes are materialized in this sequence).
+    private func upsert(instance: ModuleInstance) {
+        if let index = instances.firstIndex(where: { $0.id == instance.id }) {
+            instances[index] = instance
+        } else {
+            instances.append(instance)
+        }
+        instances.sort {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+    }
+
+    /// Rebuild the live set after undo/redo/jump: the pristine base ∪ the
+    /// stack's effective instances, where a history instance with the same
+    /// `(opName, multiPriority)` REPLACES the base record (the committed
+    /// identity wins — Darktable keeps mandatory modules with their latest
+    /// history params). Instances that exist only in abandoned redo-state
+    /// vanish (their box is dropped at the next materialization).
+    private func rebuildInstances() {
+        var merged = baseInstances
+        for record in history.effectiveInstances() {
+            if let index = merged.firstIndex(where: {
+                $0.opName == record.opName && $0.multiPriority == record.multiPriority
+            }) {
+                merged[index] = record
+            } else {
+                merged.append(record)
+            }
+        }
+        instances = merged.sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
     }
 
     /// Load an image/RAW file through `RAWDecoder` (D-21/D-24); on success
@@ -119,9 +236,11 @@ final class EditorState {
                 // D-X1 single render path (Plan 02-03-04): the decodeTask
                 // hands the decoded image to the PipeCoordinator, which
                 // owns the multi-resolution pipes, renders PREVIEW at the
-                // D-C3 bucket and pushes `displayTexture`. Phase 2
-                // pass-through: `[]` instances until 02-04's registry
-                // supplies the default chain.
+                // D-C3 bucket and pushes `displayTexture`. Since 02-05 the
+                // HISTORY owns the instance set: empty instances → the
+                // coordinator seeds/resets `EditorState` to pristine
+                // (terminal trio records) and materializes boxes from
+                // them; 02-06 restores per-image sidecars here instead.
                 if let metal {
                     guard let pipeCoordinator else {
                         logger.error("PipeCoordinator not attached — no render path")

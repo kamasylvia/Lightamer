@@ -15,10 +15,27 @@ import os
 /// | Event                        | PREVIEW          | THUMBNAIL            | FULL              |
 /// |------------------------------|------------------|----------------------|-------------------|
 /// | `load(...)`                  | create + render  | `needsRender = true` | never             |
-/// | `paramsDidChange()`          | re-render NOW    | `needsRender = true` (lazy) | never       |
+/// | `historyDidChange()`         | re-render NOW    | `needsRender = true` (lazy) | never       |
 /// | `drawableDidChange(_:)`      | re-render iff bucket CROSS (D-C3) | —   | never            |
 /// | `fetchThumbnail()`           | —                | render iff needsRender | —               |
 /// | `requestFull()`              | —                | —                    | render on-demand  |
+///
+/// **History → pipes (Plan 02-05, D-H1 trio + HIST-02):** `EditorState`
+/// owns the `HistoryStack` and the live `[ModuleInstance]` records; this
+/// coordinator is their RENDER side. The contract for every editing
+/// control (Phase 3 sliders call exactly this):
+///
+/// ```
+/// beginContinuousEdit()                    // drag start
+/// await setLiveParams(snapshot)            // per drag tick — preview only,
+///                                          // ZERO history items
+/// await commitContinuousEdit(label:)       // drag end — exactly ONE item
+/// ```
+/// plus the navigation entries `undo()` / `redo()` / `jumpToHistory(_:)`
+/// (HIST-02's UI-facing shape; Phase 3 attaches the first real panel).
+/// Every path funnels into `historyDidChange()`, which RE-MATERIALIZES
+/// the boxes from `editorState.instances` (in-place by instanceUUID —
+/// unchanged params keep their uniforms and cache planes) and re-renders.
 ///
 /// **Display push (D-X1 invariant):** this coordinator is the ONLY writer
 /// of `EditorState.displayTexture` — every path funnels through
@@ -41,16 +58,20 @@ import os
 /// superseded events (newest-wins without task bookkeeping).
 ///
 /// **SEAMS (documented extension points, no code yet per plan):**
-/// - **02-05 history:** `paramsDidChange()` internals are replaced by the
-///   history stack's `effectiveInstances()` — the instance set here is
-///   swapped wholesale on history navigation instead of mutating in place.
 /// - **02-06 clearCaches (D-C1/D-C2):** `load(...)` fires
 ///   `cache.clearCaches(keeping:)` at its entry (KeepingPolicy consumes
 ///   `currentImageID` + `previousImageID`, both tracked here), plus a 60s
 ///   sweep task; the per-URL `imageIDMap` UUIDs persist into sidecars.
+/// - **02-06 sidecar:** `historyDidChange()` is where `scheduleWrite()`
+///   hooks in (every committed history mutation throttles a `.lra`
+///   write), and `load(...)`'s pristine reset is where a sidecar restore
+///   lands (decode history + instances from `.lra` instead of seeding
+///   defaults).
 /// - **02-04 terminal trio / display profile:** a display-profile change
 ///   hooks in next to `drawableDidChange` and invalidates ONLY the terminal
-///   segment (colorout/gamma) — upstream planes must survive it.
+///   segment (colorout/gamma) — upstream planes must survive it. The fold
+///   is environment identity and deliberately stays OUT of history
+///   records; `historyDidChange` re-folds after each re-materialization.
 @Observable
 @MainActor
 final class PipeCoordinator {
@@ -117,6 +138,23 @@ final class PipeCoordinator {
 
     /// Weak back-reference (see linkage note in the header).
     private weak var editorState: EditorState?
+
+    // ── 02-05 history-driven rendering (D-H1 trio state) ─────────────────
+
+    /// True between `beginContinuousEdit()` and `commitContinuousEdit` —
+    /// the drag window. Live params flow WITHOUT history; the commit
+    /// collapses the whole interaction into ONE item.
+    private var isEditingContinuous = false
+
+    /// The live snapshots touched during the current continuous edit,
+    /// keyed by instance UUID — what `commitContinuousEdit` turns into
+    /// history items (usually exactly one entry per drag).
+    private var liveEdited: [UUID: ModuleInstance] = [:]
+
+    /// The URL the in-memory history currently belongs to (Phase 2 keeps
+    /// history per image session; a NEW url resets to pristine — 02-06
+    /// replaces the reset with the sidecar restore).
+    private var historyLoadedURL: URL?
 
     // ── 02-04 terminal trio + display follow ─────────────────────────────
 
@@ -224,13 +262,7 @@ final class PipeCoordinator {
 
         // Re-commit colorout for the new display (params content unchanged;
         // the folded stableID changes the hash).
-        if let box = coloroutBox {
-            box.module.displayProfileOverride = profile
-            let params = (try? JSONDecoder().decode(
-                ColorOutModule.Params.self, from: box.paramsData
-            )) ?? ColorOutModule.Params()
-            await box.setParams(params)
-        }
+        await recommitColoroutForDisplay()
         // Re-render the visible pipe (upstream cache planes survive).
         guard decoded != nil else { return }
         generation += 1
@@ -241,29 +273,39 @@ final class PipeCoordinator {
     }
 
     /// Adopt a chain for rendering: explicit instances win; empty → the
-    /// registry's default chain (terminal trio). Captures the typed
-    /// colorout box and commits its params for the CURRENT display.
+    /// history-owned instance set (02-05). Captures the typed colorout
+    /// box and commits its params for the CURRENT display.
     private func adoptChain(_ explicit: [any ModuleBoxing]) async
         -> [any ModuleBoxing]
     {
         if !explicit.isEmpty {
             captureColoroutBox(from: explicit)
+            await recommitColoroutForDisplay()
             return explicit
         }
         guard let registry else { return [] }
         let chain = await registry.makeDefaultChain()
         captureColoroutBox(from: chain)
-        if let box = coloroutBox {
-            let profile = DisplayProfile.resolve(
-                window?.screen?.colorSpace ?? NSScreen.main?.colorSpace
-            )
-            box.module.displayProfileOverride = profile
-            let params = (try? JSONDecoder().decode(
-                ColorOutModule.Params.self, from: box.paramsData
-            )) ?? ColorOutModule.Params()
-            await box.setParams(params)
-        }
+        await recommitColoroutForDisplay()
         return chain
+    }
+
+    /// Re-commit colorout's params for the CURRENT display (folds the
+    /// resolved `DisplayProfile.stableID` into the committed piece hash —
+    /// D-COL2's terminal-segment invalidation atom). ENVIRONMENT identity:
+    /// deliberately NOT part of history records; `rematerializeInstances`
+    /// re-folds after every canonical re-apply so a history navigation
+    /// never drops the live display follow.
+    private func recommitColoroutForDisplay() async {
+        guard let box = coloroutBox else { return }
+        let profile = DisplayProfile.resolve(
+            window?.screen?.colorSpace ?? NSScreen.main?.colorSpace
+        )
+        box.module.displayProfileOverride = profile
+        let params = (try? JSONDecoder().decode(
+            ColorOutModule.Params.self, from: box.paramsData
+        )) ?? ColorOutModule.Params()
+        await box.setParams(params)
     }
 
     /// Find the colorout box in a chain (typed, for the display follow).
@@ -286,10 +328,23 @@ final class PipeCoordinator {
         let gen = generation
         self.decoded = decoded
         self.metal = metal
-        // 02-04: empty instances → the registry's default chain (terminal
-        // trio), committed for the CURRENT display. SEAM(02-05): the
-        // history stack passes its materialized instance set here instead.
-        self.instances = await adoptChain(instances)
+        if !instances.isEmpty {
+            // Explicit chains (tests, 02-06 restore previews) bypass the
+            // history-owned instance set — adopt as-is (02-04 behavior).
+            self.instances = await adoptChain(instances)
+        } else {
+            // 02-05: the HISTORY owns the instance set. A NEW url resets
+            // EditorState to pristine (default-chain records + empty
+            // stack); a same-url reload keeps the session's history.
+            // SEAM(02-06): the sidecar restore replaces this reset —
+            // decoded history + instances land in EditorState here.
+            if historyLoadedURL != url {
+                let defaults = await registry?.makeDefaultInstances() ?? []
+                editorState?.resetHistoryForNewImage(defaultInstances: defaults)
+                historyLoadedURL = url
+            }
+            await rematerializeInstances()
+        }
 
         previousImageID = currentImageID // D-C1 input for 02-06 (SEAM)
         if let existing = imageIDMap[url] {
@@ -317,19 +372,145 @@ final class PipeCoordinator {
         )
     }
 
-    /// Params changed (slider drag commit, future history navigation):
-    /// PREVIEW re-renders NOW (the interactive workhorse); THUMBNAIL only
-    /// marks dirty (lazy — no render until fetched); FULL never auto-renders.
+    // ── 02-05 history-driven rendering (D-H1 trio + HIST-02 navigation) ──
+
+    /// THE param-change path (replaces 02-03's `paramsDidChange`):
+    /// re-materialize the boxes from `EditorState`'s live instance
+    /// records, then PREVIEW re-renders NOW; THUMBNAIL only marks dirty
+    /// (lazy — no render until fetched); FULL never auto-renders.
     ///
-    /// SEAM(02-05): the history stack replaces `instances` wholesale here
-    /// (`effectiveInstances()`) before the re-render.
-    func paramsDidChange() async {
+    /// Idempotent by construction: re-materialization keeps byte-identical
+    /// params untouched (uniforms survive, cache keys unchanged), so a
+    /// post-commit pass after a live-edited drag re-renders from cache
+    /// hits — and an undo lands on the previous params' planes the same
+    /// way (SC#2's undo leg end-to-end).
+    ///
+    /// SEAM(02-06): the sidecar `scheduleWrite()` hooks right here (every
+    /// committed history mutation throttles a `.lra` write).
+    func historyDidChange() async {
         guard decoded != nil else { return }
+        await rematerializeInstances()
         generation += 1
         thumbnailNeedsRender = true
         await renderPreview(
             bucket: currentBucket ?? PreviewBucket.cap, generation: generation
         )
+    }
+
+    /// History → pipes materialization: rebuild `instances` (the BOXES)
+    /// from `editorState.instances` (the RECORDS). Existing boxes are
+    /// reused IN PLACE by instance UUID (`apply(_:)` fast-paths
+    /// byte-identical params, so unchanged instances keep uniforms + cache
+    /// planes); new records mint boxes via the registry (identity-
+    /// preserving); records whose box vanished from the set are dropped
+    /// (undo past an instance's birth). The colorout display fold is
+    /// re-applied last — records stay canonical, environment folds live
+    /// on boxes only. Unknown ops cannot occur from live edits (commits
+    /// originate from registered boxes); a future sidecar-driven record
+    /// set degrades upstream in 02-06 before reaching here.
+    private func rematerializeInstances() async {
+        guard let editorState else { return }
+        let records = editorState.instances
+        var boxes: [any ModuleBoxing] = []
+        boxes.reserveCapacity(records.count)
+        for record in records {
+            if let existing = instances.first(where: { $0.instanceID == record.id }) {
+                do {
+                    try await existing.apply(record)
+                    boxes.append(existing)
+                } catch {
+                    Self.logger.error(
+                        "instance \(record.opName, privacy: .public) re-apply failed: \(error.localizedDescription, privacy: .public)"
+                    )
+                    boxes.append(existing) // keep last-good committed state
+                }
+            } else if let fresh = await registry?.makeBox(
+                opName: record.opName, instanceID: record.id
+            ) {
+                do {
+                    try await fresh.apply(record)
+                } catch {
+                    Self.logger.error(
+                        "instance \(record.opName, privacy: .public) apply failed: \(error.localizedDescription, privacy: .public)"
+                    )
+                }
+                boxes.append(fresh)
+            } else {
+                Self.logger.error(
+                    "no registered module for op '\(record.opName, privacy: .public)' — record skipped"
+                )
+            }
+        }
+        instances = boxes
+        captureColoroutBox(from: boxes)
+        await recommitColoroutForDisplay()
+    }
+
+    /// D-H1 drag START: open a continuous-edit window. Live param updates
+    /// (`setLiveParams`) drive preview re-renders with ZERO history items
+    /// until `commitContinuousEdit` collapses the interaction into
+    /// exactly ONE entry (checkpoint lock #1 — discrete controls skip the
+    /// trio and commit once per click).
+    func beginContinuousEdit() {
+        isEditingContinuous = true
+        liveEdited.removeAll()
+    }
+
+    /// D-H1 live leg (per drag tick): upsert the snapshot into the live
+    /// instance set WITHOUT history, re-materialize + re-render. Inside
+    /// an edit window the snapshot is remembered for the commit; outside
+    /// one it previews only (defensive — Phase 3 sliders always begin
+    /// first; a stray call must not fabricate history state).
+    func setLiveParams(_ snapshot: ModuleInstance) async {
+        guard let editorState else { return }
+        if isEditingContinuous {
+            liveEdited[snapshot.id] = snapshot
+        }
+        editorState.applyLiveInstance(snapshot)
+        await historyDidChange()
+    }
+
+    /// D-H1 drag END: commit the touched live snapshots as history —
+    /// exactly ONE `HistoryItem` per touched instance (one for every
+    /// slider interaction). The pipes already rendered the live state, so
+    /// the notification-driven `historyDidChange` pass is idempotent
+    /// (cache hits end-to-end) — no second render is issued here.
+    func commitContinuousEdit(label: String) async {
+        isEditingContinuous = false
+        let touched = liveEdited.values.sorted {
+            ($0.iopOrder, $0.multiPriority, $0.opName)
+                < ($1.iopOrder, $1.multiPriority, $1.opName)
+        }
+        liveEdited.removeAll()
+        guard !touched.isEmpty else { return }
+        for snapshot in touched {
+            editorState?.recordChange(snapshot, label: label)
+        }
+    }
+
+    /// HIST-02 undo (UI-facing shape; Phase 3 attaches the first panel):
+    /// step the stack back via EditorState, then re-materialize + render.
+    /// The edited position's plane misses (params reverted); everything
+    /// upstream hits — and the REVERTED-TO params' planes usually still
+    /// sit in the cache from before the edit.
+    func undo() async {
+        guard let editorState, editorState.performUndo() else { return }
+        await historyDidChange()
+    }
+
+    /// HIST-02 redo: into an untruncated tail only.
+    func redo() async {
+        guard let editorState, editorState.performRedo() else { return }
+        await historyDidChange()
+    }
+
+    /// HIST-02/D-H3 jump-to-any-point: the stack clamps out-of-range
+    /// indices (−1 = pristine); a clamp-only no-op still re-renders
+    /// cheaply (all cache hits).
+    func jumpToHistory(_ index: Int) async {
+        guard let editorState else { return }
+        editorState.performJump(to: index)
+        await historyDidChange()
     }
 
     /// Viewport geometry changed (an INPUT event — the view never renders).

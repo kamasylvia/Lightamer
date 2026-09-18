@@ -102,4 +102,23 @@ public actor ModuleRegistry {
         .compactMap { $0 }
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
+
+    /// The pristine instance RECORDS for the default chain (Plan 02-05-05)
+    /// — the same terminal trio as `makeDefaultChain()` as `ModuleInstance`
+    /// values with DEFAULT params canonically committed through the typed
+    /// initializer (real `paramsData` + `paramsHash`, fresh UUIDs).
+    ///
+    /// EditorState seeds its live instance set with these on a fresh image
+    /// load; the coordinator then MATERIALIZES boxes FROM the records
+    /// (`makeBox(opName:instanceID:)` preserves the record UUIDs), so the
+    /// records — not the boxes — are the identity anchor from day one.
+    /// MUST stay in parity with the trio registered in `init()`.
+    public func makeDefaultInstances() -> [ModuleInstance] {
+        [
+            ModuleInstance(module: ColorInModule.self, params: ColorInModule.Params()),
+            ModuleInstance(module: ColorOutModule.self, params: ColorOutModule.Params()),
+            ModuleInstance(module: GammaModule.self, params: GammaModule.Params()),
+        ]
+        .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+    }
 }

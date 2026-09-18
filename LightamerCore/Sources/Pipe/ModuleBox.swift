@@ -44,6 +44,18 @@ public protocol ModuleBoxing: AnyObject, Sendable {
     /// pipe). One per (module instance × pipe run) — `dt_iop_piece_t`.
     func makeRunPiece() -> IOPiece
 
+    /// Re-materialize the box's committed state from an instance record
+    /// (Plan 02-05; the history → pipe seam). The caller guarantees
+    /// `record.id == instanceID` (identity is NEVER touched — records and
+    /// boxes are two views of the same instance). Syncs `enabled`/
+    /// `multiName`, then decodes `record.paramsData` against the wrapped
+    /// module's Params type and re-commits (uniforms + hash). Fast path:
+    /// byte-identical params leave the committed piece untouched
+    /// (uniforms survive; the cache chain sees the same hashes).
+    /// Decode failure throws typed `AppError` — the 02-06 degrade policy
+    /// is the caller's business, not the box's.
+    func apply(_ record: ModuleInstance) async throws
+
     /// Dispatch the wrapped module's `process` (texture in/out, 02-02 lock
     /// #1). The pipe calls this from the cache miss closure.
     func processErased(
@@ -149,6 +161,25 @@ public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
 
     public func makeRunPiece() -> IOPiece {
         committedPiece
+    }
+
+    public func apply(_ record: ModuleInstance) async throws {
+        precondition(
+            record.id == instanceID,
+            "ModuleBox.apply: record identity mismatch (\(record.id) ≠ \(instanceID))"
+        )
+        enabled = record.enabled
+        multiName = record.multiName
+        // Byte-identical params: keep the committed piece exactly as-is
+        // (uniforms survive; hashes unchanged → cache chain unaffected).
+        guard record.paramsData != paramsData else { return }
+        let params: M.Params
+        do {
+            params = try JSONDecoder().decode(M.Params.self, from: record.paramsData)
+        } catch {
+            throw AppError(error)
+        }
+        await setParams(params)
     }
 
     public func processErased(
