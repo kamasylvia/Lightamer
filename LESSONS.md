@@ -96,6 +96,15 @@
 - **适用**：本机所有 XCUITest；新机器克隆后需重建该证书并重新授权一次。
 - **来源**：Phase 1 UITests 闭环（2026-09-16 → 09-18）。
 
+### L012: SwiftUI WindowGroup 在 macOS 27 每 odoc Apple Event 开新窗口 → "黑屏/复开不显示"类 UI bug 的真凶
+- **背景**：issue #1（JPEG 黑屏）最初诊断为"双渲染路径竞争"（load() 的 decodeTask + EditorAreaView 的 `.task(id:)`）。Plan 02-01 按 D-X1 统一为单渲染路径后，UAT 复验黑屏依旧。
+- **现象**：冷启动首开必显示；此后每次 `open`（odoc）视口黑屏。draw 全部执行、drawable 回读（framebufferOnly=false 后合法）含正确像素、零 command buffer error、每帧新 drawable、60fps 连续绘制也一样黑。
+- **根因**：**SwiftUI `WindowGroup` 对每个传入的 odoc Apple Event（`open -a app file`、Finder 双击、Dock 拖放）默认开一个新窗口**。新窗口在 decode 期间（`displayTexture` 尚为 nil）创建，其新 MTKView 与旧窗口的视图层层堆叠，屏幕上可见的是"画布帧"，真正有纹理的窗口被盖住。9 次 open 产生了 10 个窗口 / 10 个 MTKView（view 身份探针实证）。首开必成功是因为启动期到达的 open 走 `AppDelegate` 缓冲、`flushBuffered()` 复用首个窗口。
+- **对策**：Phase 1/2 单编辑器场景改用 `Window("Lightamer", id: "main")` 单窗口 scene（`LightamerApp.swift`），odoc 只路由进 `application(_:open:)` 处理器；修复后 9/9 UAT 步全显示、全程仅 1 个 MTKView。多窗口等 Phase 9 Session 管理再以受控方式回归（不靠 WindowGroup 的 odoc 默认行为）。
+- **教训泛化**：①"渲染/状态层排查到证据完备仍解释不了 UI 症状"时，先查**窗口/视图层级增殖**（每 open 一窗、ZStack transition 残留），别急着怀疑 GPU/present 链路；②排查 MTKView 黑屏时把 `CAMetalLayer.framebufferOnly=false` 才能让 drawable 回读成为合法证据（默认 true 时回读未定义）；③诊断探针（drawable 回读、view 身份日志）按 D-X2 模式"修完即退役"，避免探针自身成为干扰源。
+- **适用**：所有 macOS SwiftUI + WindowGroup + odoc/Finder/Drop 打开文件的 app；任何"第二次打开就不对"类症状优先数窗口数。
+- **来源**：Plan 02-01 checkpoint→修复全过程（2026-09-19），证据 `.work/02-01/uat-results.md` + `uat-t*.log` + 截图链。
+
 ---
 
 *本文件随开发进展持续更新。阶段完成后运行 `$gsd-extract-learnings` 自动提取。*

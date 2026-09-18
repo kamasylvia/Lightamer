@@ -44,12 +44,14 @@
 
 **执行命令**：`$gsd-execute-phase 1`
 
-## Phase 2: Pixelpipe Core — 执行中（CHECKPOINT，2026-09-19）
+## Phase 2: Pixelpipe Core — 执行中
 
-- [x] **Plan 02-01**（tracer）四任务完成并提交：01 单渲染路径统一（0c54a68）、02 CIContext warm-up spike（decision=**bitmap**：直渲在本机为 0.0ms 静默 no-op，连默认 context 也空写，warm-up 无效——Phase 1 "首渲写空第二次正常"理论修正，报告 `.work/02-01/spike-render-leg.md`）、03 CIContextPool bitmap 决议落账（a97ea65）、04 StableHash FNV-1a 64 public + 7 向量测试（376ddaa，43/43 单测绿）
-- [ ] **Plan 02-01 Task 05 UAT ⚠️ 未过 → CHECKPOINT**：(a) 冷启动首开 JPEG ✅ 显示；(b) 切 ARW / (c) 重开 JPEG ❌ 视口仍黑。新机制证据：单视图、draw 全执行、drawable 探针含图像像素、canvas 帧能上屏、image 帧的 present 被静默丢弃；drawable 复用假设已证伪（`DRAWABLE reuse=false` 全部帧）。根因在 MTKView isPaused 呈现层，超出本 plan 修复形状（research §5 "EditorMTKView 不动" 前提被证伪）。证据链 + 候选方向：`.work/02-01/uat-results.md`
-- [ ] **Plan 02-01 Task 06（D-X2 探针退役）被 05 门禁阻塞**——探针（drawable 回读 + drawProbe + DRAWABLE reuse）保留作诊断，修复落地后再退役
-- 待办：协调者排 presentation-layer 修复 plan（可复用 `.work/02-01/sample-png.swift` + log stream 无头验收法）→ 重跑 issue#1 序列 → 补 06 → 02-01-SUMMARY → 继续 02-02..
+- [x] **Plan 02-01**（tracer）完成（2026-09-19，含一次 checkpoint→修复回路）：
+  - Task 01 单渲染路径统一（0c54a68）；Task 02 CIContext warm-up spike（decision=**bitmap**：直渲在本机为 0.0ms 静默 no-op，连默认 context 也空写，warm-up 无效——Phase 1"首渲写空第二次正常"理论修正，报告 `.work/02-01/spike-render-leg.md`）；Task 03 CIContextPool bitmap 决议落账（a97ea65）；Task 04 StableHash FNV-1a 64 public + 7 向量测试（376ddaa）
+  - Task 05 UAT 曾 CHECKPOINT：黑屏复现 → **真根因 = SwiftUI WindowGroup 每 odoc Apple Event 开新窗口**（10 窗/10 MTKView，新窗 decode 期建、盖住真显示窗），非渲染路径竞争。修复 = 单 `Window` scene（ac84596，Phase 9 多窗口再回归）→ 9/9 UAT 步全显示（含压力循环）
+  - Task 06 D-X2 探针退役（88afa0c）：drawable 回读/drawProbe/身份探针全删，`framebufferOnly` 等诊断配置还原默认；paused 模式（D-13）保留无偏离
+  - 收尾：单测 43/43 绿（1 跳过）；UITest 未跑（screen 环境同 Phase 1 pending-manual 口径，三栏断言代码就绪）；SUMMARY 见 `02-01-SUMMARY.md`；根因教训入 LESSONS L012
+- [ ] Plan 02-02（PipeCache + 递归快路径）待执行 — 消费 StableHash 与 `rerender()` 单路径骨架
 
 ## Phase 2-13（已规划，未开始）
 
