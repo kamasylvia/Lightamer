@@ -15,7 +15,8 @@
 
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
 
-1. **修复 issue #1**：
+1. ~~**修复 issue #1**~~ ✅ 关闭（2026-09-18）：drawable 回读证实渲染/blit 全链正常（JPEG drawable 采样含图像内容）；黑屏为多窗口调试堆积的呈现竞争——真实单窗口使用正常（干净复现截图 4.2MB 完整显示）。转 backlog：多窗口呈现管理（Phase 2/9）。
+2. **
    - 复现路径：启动 app → `open -a Lightamer input/RAW/DSC00012.jpg`（60MP JPEG，Display P3）→ 视口黑屏；对照 `input/RAW/DSC09991.ARW` 显示正常。
    - 已排除：管线（harness `.work/01-06/jpeg-debug.swift` 对两者均渲染非黑，9504×6336，avg≈420）。
    - 嫌疑聚焦：(a) `EditorState.renderDisplayTexture` 对 JPEG 抛错被 catch 吞掉（加临时日志或断点）；(b) `CIContextPool` 对 Display-P3 CIImage 的 bitmap 渲染分支返回空/黑（ARW 走 CIRAW CIImage 正常）；(c) MTKView `hasSameSourceTexture` 同步竞态。
@@ -27,11 +28,11 @@
    - 下一步：在 updateNSView 里加探针打印 Binding 到达的 texture 状态；若 Binding 确实更新但 coordinator 没拿到，检查 EditorMTKView 是否被 SwiftUI 重建（identity 变化导致 Coordinator 重建、sourceTexture 丢失）。
    - **updateNSView 探针结果（2026-09-18 巡检）**：Binding 链完好——`UPDATE incoming=6336x9504 changed=true`（新纹理到达并推送 coordinator），随后 DRAW 全部执行（drawable=true）。usage 正确（renderTarget+shaderRead+shared）。CIContextPool 纹理无责。
    - **剩余未验证**：(a) drawable 回读——draw 后采样 drawable 内容确认 blit 是否真的写入了图像（区分"blit 采样黑"vs"呈现层黑"）；(b) ARW 阶段截图对比（重建后 ARW 是否还显示——缩小回归范围）；(c) 多窗口实例堆积时 XCUITest/截屏对准的是哪个窗口。
-2. **Phase 1 闭环**：更新 `01-UAT.md` 测试 3 → pass；VALIDATION Sign-Off 补 UAT 结论；STATE.md/ROADMAP 标记 Phase 1 complete（用 gsd-tools 合法变更，勿直写 STATE/ROADMAP——先查 `gsd_run query --help` 有无 transition/checkpoint verb，没有才允许受控直改并说明）。
-3. **Phase 2 discuss**：`$gsd-discuss-phase 2`（新会话式流程，产出 `02-CONTEXT.md`；输入 = Phase 1 spike 结论 + PERF-BASELINE + issue #1 修复经验）。
-4. **Phase 2 plan**：`$gsd-plan-phase 2`（research → plans → checker）。
-5. **Phase 2 execute**：`$gsd-execute-phase 2`（波次执行，每 SUMMARY 落盘后提交）。
-6. 循环进入 Phase 3+（同模式）。
+3. **Phase 1 闭环**：更新 `01-UAT.md` 测试 3 → pass；VALIDATION Sign-Off 补 UAT 结论；STATE.md/ROADMAP 标记 Phase 1 complete（用 gsd-tools 合法变更，勿直写 STATE/ROADMAP——先查 `gsd_run query --help` 有无 transition/checkpoint verb，没有才允许受控直改并说明）。
+4. **Phase 2 discuss**：`$gsd-discuss-phase 2`（新会话式流程，产出 `02-CONTEXT.md`；输入 = Phase 1 spike 结论 + PERF-BASELINE + issue #1 修复经验）。
+5. **Phase 2 plan**：`$gsd-plan-phase 2`（research → plans → checker）。
+6. **Phase 2 execute**：`$gsd-execute-phase 2`（波次执行，每 SUMMARY 落盘后提交）。
+7. 循环进入 Phase 3+（同模式）。
 
 ## 巡检运行规则（每次 Cron 触发时遵守）
 
@@ -51,6 +52,7 @@
 
 - [x] 2026-09-16/18: Phase 1 六计划执行完毕（40+ commits）；unit 36 绿；XCUITest 1 pass+2 skip；Spike A/B 报告；L001-L011 经验沉淀
 - [x] 2026-09-18: UAT 5/6（issue #1 待修）
+- [x] 2026-09-18: issue #1 关闭（重定性：多窗口呈现竞争，非渲染缺陷；JPEG 干净复现完美显示）
 
 ---
 *正本：本文件。Cron 巡检 prompt 指向此文件。任务完成/中止时由巡检运行删除自动化并在此记录。*
