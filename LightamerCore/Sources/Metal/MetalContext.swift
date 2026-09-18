@@ -306,6 +306,25 @@ public actor MetalContext {
 
     // MARK: - CIImage bridge facade
 
+    /// Colorout's ColorSync leg (Plan 02-04-03, internal — the module lives
+    /// in Core): converts a float32 linear-Rec2020 texture into a fresh
+    /// float32 texture of LINEAR values in the `target` (linear) space via
+    /// the pool's bitmap+replace path (host finding: direct CI render-to-
+    /// texture is a no-op — see `CIContextPool`). The TRC encode stays with
+    /// the gamma module (D-COL4).
+    func convertToLinearSpace(
+        _ input: sending any MTLTexture,
+        target: CGColorSpace
+    ) async throws -> sending any MTLTexture {
+        let pool = await getOrCreatePool()
+        do {
+            let rendered = try await pool.convertTexture(input, toLinearSpace: target)
+            return rendered.texture
+        } catch let error as MetalError {
+            throw error.asAppError
+        }
+    }
+
     /// Render a `CIImage` into a freshly allocated float32 linear-Rec2020
     /// `MTLTexture` (FOUND-02 pixelpipe format). Public facade over the
     /// internal `CIContextPool` — the app hands this the decoded `ciImage`;

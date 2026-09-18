@@ -191,4 +191,69 @@ internal actor CIContextPool {
         )
         return RenderedTexture(texture: texture)
     }
+
+    /// The colorout ColorSync leg (Plan 02-04-03): converts a float32
+    /// linear-Rec2020 TEXTURE into a fresh float32 texture of the same
+    /// dimensions whose pixels are LINEAR values in `target` — ColorSync
+    /// performs the full-ICC gamut conversion (primaries + white), while
+    /// the TRC encode stays with the gamma module (D-COL4: colorout output
+    /// is linear, unclamped). `target` must be a LINEAR colorspace (see
+    /// `DisplayProfile.linearCGColorSpace`).
+    ///
+    /// Mechanism: `CIImage(mtlTexture:options:)` tags the texture with the
+    /// working space, then the SAME bitmap+replace leg as `renderScaled`
+    /// renders with the per-call `colorSpace:` override (the context-level
+    /// output space is a default; the per-render parameter wins). Cost
+    /// 10-30ms at 2560px (CPU round trip) — acceptable for the one-shot
+    /// screen-change path, never the drag hot path (fast path covers it).
+    internal func convertTexture(
+        _ input: any MTLTexture,
+        toLinearSpace target: CGColorSpace
+    ) throws -> RenderedTexture {
+        let width = input.width
+        let height = input.height
+        guard width >= 1, height >= 1 else {
+            throw AppError.decodeFailed("convertTexture: degenerate texture \(width)×\(height)")
+        }
+        guard let image = CIImage(mtlTexture: input, options: [
+            .colorSpace: WorkingSpace.colorSpace, // the plane IS linear Rec2020 (FOUND-02)
+        ]) else {
+            throw AppError.decodeFailed("CIImage(mtlTexture:) failed for the colorout ColorSync leg")
+        }
+        let signposter = Self.signposter
+        let interval = signposter.beginInterval("colorout-colorsync", id: signposter.makeSignpostID())
+        defer { signposter.endInterval("colorout-colorsync", interval) }
+
+        let rowBytes = width * WorkingSpace.bytesPerPixel
+        let byteCount = rowBytes * height
+        let buffer = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 64)
+        defer { buffer.deallocate() }
+        ciContext.render(
+            image,
+            toBitmap: buffer,
+            rowBytes: rowBytes,
+            bounds: CGRect(x: 0, y: 0, width: width, height: height),
+            format: CIFormat.RGBAf,
+            colorSpace: target
+        )
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: WorkingSpace.pixelFormat,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        guard let texture = device.makeTexture(descriptor: descriptor) else {
+            throw MetalError.bufferAllocationFailed(byteCount)
+        }
+        texture.replace(
+            region: MTLRegionMake2D(0, 0, width, height),
+            mipmapLevel: 0,
+            withBytes: buffer,
+            bytesPerRow: rowBytes
+        )
+        return RenderedTexture(texture: texture)
+    }
 }
