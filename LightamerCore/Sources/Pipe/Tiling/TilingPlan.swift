@@ -1,25 +1,18 @@
-/// Pure tile-grid geometry (Plan 02-05-06; D-20 scaffolding + ROADMAP
-/// SC#4 tail: "tiling fallback scaffolding in place"). Given a plane's
+/// Pure tile-grid geometry (Plan 02-05-06; D-20). Given a plane's
 /// dimensions and a per-tile BYTE budget, produce the tile grid — nothing
 /// more.
 ///
-/// **NOT wired into the pipe — by decision.** `PixelPipe.processRec` runs
-/// whole-plane (D-20: 100MP float32 ≈ 1.6GB fits unified memory at pipe
-/// level; spike-b kept the 100MP budget with ping-pong + selective
-/// caching). Tiling becomes LOAD-BEARING in Phase 5 when the denoise iops
-/// arrive (`denoiseprofile`'s 7-band wavelet / NLMeans working sets
-/// exceed the per-tile budget). Phase 5 fills this scaffold WITHOUT
-/// redesign; the explicit hooks it must define are:
+/// **LIVE since Plan 03-05-T6** (the toneequal FULL engagement): the tile
+/// execution driver lives in `PixelPipe.executeTiled` — the grid comes
+/// from `tiles(...)` with the MODULE-REPORTED halo
+/// (`IOPModule.tileHalo`, bytes-per-pixel from `tileWorkingSetBytesPerPixel`)
+/// and per-tile cache keys are NOT needed (the tile driver runs INSIDE a
+/// single module execution: upstream plane rendered once, tiles blitted
+/// out — the cache sees one whole plane either way). Phase 5's denoise
+/// iops (`denoiseprofile`'s 7-band wavelet / NLMeans working sets) reuse
+/// the same driver by declaring the seam values.
 ///
-/// - `// Phase 5:` kernel-specific overlap policy (NLMeans search radius,
-///   wavelet scale halo) — the current `overlap` shrink is a PLACEHOLDER
-///   so the grid math and its tests exist before the semantics do;
-/// - `// Phase 5:` tile execution driver inside `processRec` (tile-wise
-///   recursion + per-tile cache keys + halo stitching);
-/// - `// Phase 5:` budget derivation (`maxTileBytes` from the D-C1 3GB
-///   pipe budget minus plane reservations).
-///
-/// Deterministic pure function — trivially testable, no Metal, no actor.
+/// Deterministic pure function — trivially testable.
 public struct TilingPlan: Sendable, Equatable {
 
     /// One tile rectangle in PLANE pixel coordinates.
@@ -50,12 +43,15 @@ public struct TilingPlan: Sendable, Equatable {
     /// adjacent tiles SHARE an edge — no gaps, no overlaps, full cover:
     /// the sum of `pixelCount` is exactly `width × height`).
     ///
-    /// `overlap` (PLACEHOLDER policy — Phase 5 defines kernel-specific
-    /// overlap, e.g. the NLMeans radius): each tile's rect shrinks by
-    /// `overlap` on every edge it SHARES with a neighbor (interior
-    /// edges). Border edges keep their extent, so a lone tile is
-    /// untouched. Shrunk regions are the kernel's halo input under a real
-    /// policy; documented as the seam Phase 5 replaces.
+    /// `overlap` (LIVE since 03-05-T6 — the toneequal FULL engagement):
+    /// each tile's rect shrinks by `overlap` on every edge it SHARES with
+    /// a neighbor (interior edges); border edges keep their extent. The
+    /// shrunk rects are the OUTPUT regions; the tile driver
+    /// (`PixelPipe.executeTiled`) reads each tile WIDENED by the
+    /// module-reported halo (`IOPModule.tileHalo` — for toneequal the dt
+    /// modify_roi_in radius plus the IIR runway), so the discarded
+    /// shrink ring is exactly the halo-contaminated margin and the tile
+    /// output matches whole-plane execution.
     ///
     /// Degenerate inputs produce ZERO tiles: non-positive dimensions or a
     /// non-positive byte budget.
@@ -85,8 +81,9 @@ public struct TilingPlan: Sendable, Equatable {
                 var tileWidth = min(side, width - x)
                 var tileHeight = min(side, height - y)
 
-                // Placeholder overlap policy: shrink on INTERIOR edges
-                // only (Phase 5 replaces with the kernel-specific halo).
+                // Overlap policy (LIVE, 03-05-T6): shrink on INTERIOR
+                // edges only — the shrunk ring is what the tile driver's
+                // halo-widened read rect covers.
                 let shrinksLeft = column > 0
                 let shrinksRight = column < columns - 1
                 let shrinksTop = row > 0

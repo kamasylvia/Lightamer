@@ -66,6 +66,12 @@ public protocol ModuleBoxing: AnyObject, Sendable {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws
+
+    /// Erased `tileHalo` (03-05-T6 tile seam).
+    func tileHaloErased(roi: ROI, piece: IOPiece) -> Int
+
+    /// Erased `tileWorkingSetBytesPerPixel` (03-05-T6 tile seam).
+    func tileWorkingSetBytesPerPixelErased(piece: IOPiece) -> Int
 }
 
 /// The generic box: wraps one concrete `IOPModule` instance + its committed
@@ -198,5 +204,13 @@ public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
             piece: &piece,
             metal: metal
         )
+    }
+
+    public func tileHaloErased(roi: ROI, piece: IOPiece) -> Int {
+        module.tileHalo(roi: roi, piece: piece)
+    }
+
+    public func tileWorkingSetBytesPerPixelErased(piece: IOPiece) -> Int {
+        module.tileWorkingSetBytesPerPixel(piece: piece)
     }
 }

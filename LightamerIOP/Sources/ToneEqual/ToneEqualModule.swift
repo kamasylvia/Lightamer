@@ -260,6 +260,43 @@ public final class ToneEqualModule: IOPModule {
         input = roi
     }
 
+    // MARK: Tile seam (Plan 03-05-T6 — TilingPlan FULL first engagement)
+
+    /// dt modify_roi_in (toneequal.c:1352-1357) radius + the IIR/filter
+    /// halo requirement. radius = (blending% × full-image max-dim ×
+    /// scale − 1)/2. The halo is MORE than one radius because the EIGF
+    /// leg's gaussian is a RECURSIVE IIR (gaussian.c): its per-edge
+    /// transient decays as exp(−1.695·distance/σ_ds) and the tile output
+    /// must match whole-plane execution to <1e-6, which needs ≈14.5σ_ds
+    /// of runway; with σ_ds = radius/clamp(radius,1,4) that is
+    /// 4·radius + 64 (+1 for the bilinear/quantize edge rounding). The
+    /// guided leg's box mean is a finite window (one radius would do) and
+    /// simply shares the larger EIGF halo. (The plan text's
+    /// "max(radius,1)+halo" is this number — the module reports its real
+    /// requirement through the seam, per the plan's own wording.)
+    public func tileHalo(roi: ROI, piece: IOPiece) -> Int {
+        guard let uniforms = piece.data?.contents()
+            .assumingMemoryBound(to: Derived.self) else { return 0 }
+        let d = uniforms.pointee
+        if d.details == Int32(ToneEqualDetails.none.rawValue) {
+            return 0 // pure per-pixel — never needs a halo
+        }
+        let fullMax = Float(max(max(piece.dscIn.width, 1), max(piece.dscIn.height, 1)))
+        let diameter = d.blending * fullMax * roi.scale
+        let radius = Int((diameter - 1.0) / 2.0)
+        return 4 * max(radius, 1) + 64 + 1
+    }
+
+    /// mask (4 B) + quantized mask (4 B) + the ds-plane share (bilinear
+    /// pairs, packed moments, gaussian planes ≈ 4 B/px of output) — 12
+    /// B/px on the filter legs, mask only on NONE.
+    public func tileWorkingSetBytesPerPixel(piece: IOPiece) -> Int {
+        guard let uniforms = piece.data?.contents()
+            .assumingMemoryBound(to: Derived.self) else { return 0 }
+        let none = uniforms.pointee.details == Int32(ToneEqualDetails.none.rawValue)
+        return none ? 4 : 12
+    }
+
     // MARK: Scratch management (per-size cached; .shared storage — L018)
 
     private struct Scratch {

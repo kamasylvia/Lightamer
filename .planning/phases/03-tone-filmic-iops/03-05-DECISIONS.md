@@ -6,7 +6,7 @@
 
 1. **全局多频段(无蒙版)= 确认**。dt 默认模式即为全局(guidance 分解无 per-region);Phase 6 补 per-region。**Reversibility: costly** — kernel 图(luma→filter→apply)与参数面(无蒙版输入)按此定型;Phase 6 蒙版是在此之上加 per-region 输入,不改 kernel 图结构。
 2. **golden 两档验收顺序 = 确认**:①`details=none`(无滤波直通)<1e-5;②EIGF(dt 默认)<1e-4 + ΔE p99<1.0。CPU(dt)与 Metal 归约顺序不同,EIGF 禁用 1e-5 硬闸(RESEARCH Risk #7)。默认参数(details=EIGF)与验收顺序解耦。**Reversibility: reversible** — 容差是测试常量。
-3. **FULL 分块 overlap = max(radius, 1) + halo(1) = 确认**。radius 按 dt `modify_roi_in`(toneequal.c:1352-1357):`diameter = blending% × max(piece 全图宽,高) × roi.scale;radius = (diameter−1)/2`。halo 1 px 覆盖 bilinear/量化边缘舍入。**Reversibility: reversible** — overlap 是 TilingPlan 参数。
+3. **FULL 分块 overlap = 模块经 seam 上报的实际需求 = 4·radius + 65 = 确认**(radius 按 dt `modify_roi_in`(toneequal.c:1352-1357):`diameter = blending% × max(piece 全图宽,高) × roi.scale;radius = (diameter−1)/2`)。plan 文本的 `max(radius,1)+halo` 落成 seam 上报值——EIGF 的 gaussian 是**递归 IIR**(gaussian.c),边界瞬态按 exp(−1.695·d/σ_ds) 衰减,tile 输出对齐整幅到 <1e-6 需要 ≈14.5σ_ds 的跑道;σ_ds = radius/clamp(radius,1,4) ⇒ halo ≈ 4·radius + 64(+1 bilinear/量化边缘舍入)。guided 档 box mean 有限窗共用同一 halo(无害)。**Reversibility: reversible** — seam 参数。
 
 ## 源码核对勘误(实施前逐文件核对,plan 文本 vs dt 树 dc58cf0ba1)
 
@@ -32,5 +32,5 @@ luma estimator 用 **uniform 分支**,不用 `[[function_constant]]` PSO 特化:
 ## tiling 接缝(实现形态,T6)
 
 - `IOPModule` 协议 extension 新默认缝:`tileHalo(roi:piece:) -> Int`(0 = 永不分块)+ `tileWorkingSetBytesPerPixel(piece:) -> Int`;`ModuleBoxing` 加 erased 转发。默认 0 = 现有模块零破坏。
-- `PixelPipe.processRec`:FULL + 模块声明工作集超预算时,上游整图渲染一次 → `TilingPlan.tiles`(bytesPerPixel = 模块工作集)→ 每 tile:readRect = tile 外扩 halo → 模块在 readRect 尺寸平面上整幅语义执行(模块无感知,边界数据真实存在)→ blit 裁回整图输出。
+- `PixelPipe.executeTiled`(FULL + 模块声明工作集 > 512MB tile 预算时):上游整图渲染一次 → `TilingPlan.tiles`(bytesPerPixel = 模块工作集,overlap = halo)→ 每 tile:readRect = tile 外扩 halo → 模块在 readRect 尺寸平面上整幅语义执行(模块无感知,边界数据真实存在)→ blit 裁回整图输出。tail 非 float32 时不 tile(gamma 尾不可能出现在 toneequal 这类模块上,防御保留)。tile 预算可经 `RenderPipeline.process(maxTileWorkingBytes:)` 注入(测试强制分块)。
 - 模块 radius 语义:`piece.dscIn` 由 pipe 在 run() stamp 为**整图**几何(dt `piece->iwidth` 同构)——tile 不改变 radius,与 dt zoom-pad 行为一致。
