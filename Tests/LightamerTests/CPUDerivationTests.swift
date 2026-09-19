@@ -582,9 +582,252 @@ final class CPUDerivationTests: XCTestCase {
     // Reference: toneequal.c:639-768 (9 EV bands → 8 control points →
     // gaussian RBF σ=√2 interpolation → clamp [0.25, 4]).
 
-    // MARK: - filmic spline (plan 03-06, RESEARCH §2) — placeholder
+    // MARK: - filmicrgb F0 (plan 03-06-T1, RESEARCH §2.1 CPU 段八步)
+    //
+    // Reference: filmicrgb.c:2732-3046 (compute_spline v1→v3),
+    // :2571-2581 (_compute_output_power), :2399-2401 (norm bounds) —
+    // dual implementation (textbook, in-file) + hand-computed anchors.
 
-    // func testFilmicSplineCoefficients() { ... }
-    // Reference: filmicrgb.c:368-560 (M1..M5 poly4 Horner form,
-    // filmic.cl:247-296), _compute_output_power (filmicrgb.c:2560-2570).
+    /// Independent textbook V3 spline (the production `FilmicSpline.derive`
+    /// is a dt-source transliteration; this is the same math re-derived).
+    private func referenceSplineV3(
+        blackSource: Double, whiteSource: Double, outputPower: Double,
+        latitudePercent: Double, contrast: Double, balance: Double,
+        blackTarget: Double, whiteTarget: Double, greyTarget: Double
+    ) -> (greyDisplay: Double, latMin: Double, latMax: Double, contrast: Double,
+          toeLog: Double, shoulderLog: Double, intercept: Double) {
+        let greyDisplay = pow(0.1845, 1.0 / outputPower)
+        let dr = whiteSource - blackSource
+        let greyLog = abs(blackSource) / dr
+        let blackDisplay = pow(max(min(blackTarget, greyTarget), 0.0) / 100.0, 1.0 / outputPower)
+        let whiteDisplay = pow(max(whiteTarget, greyTarget) / 100.0, 1.0 / outputPower)
+        let bal = max(-50.0, min(50.0, balance)) / 100.0
+        let lat = max(0.0, min(100.0, latitudePercent)) / 100.0
+        let slope = contrast * dr / 8.0
+        let minContrast = max(
+            max(1.0, (whiteDisplay - greyDisplay) / (1.0 - greyLog)),
+            (greyDisplay - blackDisplay) / (greyLog - 0.0)
+        ) + 0.01
+        let raw = slope / (outputPower * pow(greyDisplay, outputPower - 1.0))
+        let c = min(max(raw, minContrast), 100.0)
+        let intercept = greyDisplay - c * greyLog
+        let xmin = (blackDisplay + 0.01 * (whiteDisplay - blackDisplay) - intercept) / c
+        let xmax = (whiteDisplay - 0.01 * (whiteDisplay - blackDisplay) - intercept) / c
+        var toeLog = (1.0 - lat) * greyLog + lat * xmin
+        var shoulderLog = (1.0 - lat) * greyLog + lat * xmax
+        let bc = bal > 0 ? 2.0 * bal * (shoulderLog - greyLog) : 2.0 * bal * (greyLog - toeLog)
+        toeLog -= bc
+        shoulderLog -= bc
+        toeLog = max(toeLog, xmin)
+        shoulderLog = min(shoulderLog, xmax)
+        return (greyDisplay, toeLog, shoulderLog, c, toeLog, shoulderLog, intercept)
+    }
+
+    func testFilmicOutputPowerAndNormBounds() {
+        // The hand-computed default anchors (black −8EV / white +4EV /
+        // grey target 18.45%): output_power = log(0.1845)/log(−8/12),
+        // grey_display = 0.1845^(1/op) = 2/3 exactly, norm bounds =
+        // 0.1845·2^(0−8) and 0.1845·2^(12−8).
+        let op = FilmicSpline.computeOutputPower(
+            greyPointTarget: 18.45, blackPointSource: -8, whitePointSource: 4
+        )
+        XCTAssertEqual(op, 4.168313824554027, accuracy: 1e-12)
+        XCTAssertEqual(
+            FilmicSpline.computeOutputPower(
+                greyPointTarget: 12.0, blackPointSource: -8, whitePointSource: 4
+            ),
+            log(0.12) / log(8.0 / 12.0), accuracy: 1e-12
+        )
+
+        let bounds = FilmicSpline.normBounds(greySource: 0.1845, blackSource: -8, dynamicRange: 12)
+        XCTAssertEqual(bounds.min, 0.1845 * pow(2, -8), accuracy: 1e-12) // 0.000720703125
+        XCTAssertEqual(bounds.max, 0.1845 * pow(2, 4), accuracy: 1e-12)  // 2.952
+        XCTAssertEqual(bounds.min, 0.000720703125, accuracy: 1e-15)
+        XCTAssertEqual(bounds.max, 2.952, accuracy: 1e-12)
+
+        // clamp_simd NaN semantics (IEEE fmin/fmax passthrough).
+        XCTAssertEqual(FilmicSpline.clampSIMD(.nan), 1.0)
+        XCTAssertEqual(FilmicSpline.clampSIMD(-3), 0.0)
+        XCTAssertEqual(FilmicSpline.clampSIMD(1.5), 1.0)
+
+        // log/exp tonemapping round-trip.
+        let encoded = FilmicSpline.logTonemapping(0.738, grey: 0.1845, black: -8, dynamicRange: 12)
+        XCTAssertEqual(
+            FilmicSpline.expTonemapping(encoded, grey: 0.1845, black: -8, dynamicRange: 12),
+            0.738, accuracy: 1e-12
+        )
+    }
+
+    func testFilmicSplineDefaultCoefficients() throws {
+        // Defaults: the grey node sits exactly on the diagonal
+        // (grey_log = grey_display = 2/3), latitude 0.01% → a razor-thin
+        // linear segment, poly4 toe/shoulder.
+        let effective = FilmicRGBModule.effectiveParams(FilmicRGBModule.Params())
+        let (spline, trace) = FilmicSpline.derive(params: effective)
+        let ref = referenceSplineV3(
+            blackSource: -8, whiteSource: 4, outputPower: Double(effective.outputPower),
+            latitudePercent: 0.01, contrast: 1.0, balance: 0,
+            blackTarget: 0.01517634, whiteTarget: 100, greyTarget: 18.45
+        )
+        // The auto output power anchor itself (hand value 4.168313824554027
+        // through the Float32 publication).
+        XCTAssertEqual(Double(effective.outputPower), 4.168313824554027, accuracy: 1e-6)
+
+        // grey_display = 0.1845^(1/power) sits exactly on the 2/3 diagonal
+        // at the exact hand power; through the Float32-published power it
+        // lands within ~3e-8.
+        XCTAssertEqual(trace.greyDisplay, 2.0 / 3.0, accuracy: 1e-7)
+        XCTAssertEqual(trace.greyLog, 2.0 / 3.0, accuracy: 1e-12)
+        XCTAssertEqual(trace.dynamicRange, 12, accuracy: 1e-12)
+        // (float32-published grid: latitudeMin/Max/intercept ride through
+        // Float — ~6e-8 relative; the Double TRACE fields stay exact.)
+        XCTAssertEqual(trace.toeLog, ref.latMin, accuracy: 1e-12)
+        XCTAssertEqual(trace.shoulderLog, ref.latMax, accuracy: 1e-12)
+        XCTAssertEqual(trace.contrast, ref.contrast, accuracy: 1e-6,
+                       "trace contrast through the Float32 output power")
+        XCTAssertEqual(trace.linearIntercept, ref.intercept, accuracy: 1e-6)
+        XCTAssertEqual(Double(spline.latitudeMin), ref.latMin, accuracy: 1e-6)
+        XCTAssertEqual(Double(spline.latitudeMax), ref.latMax, accuracy: 1e-6)
+        XCTAssertFalse(spline.contrastClamped, "default contrast must not clamp")
+
+        // The curve passes through the grey node by construction and is
+        // continuous at the toe/shoulder nodes.
+        let greyLog = 2.0 / 3.0
+        // (accuracy = the float32 coefficient grid the kernel consumes —
+        // the published M/latitude values are Float, ~1e-7 relative.)
+        XCTAssertEqual(
+            FilmicSpline.evaluate(greyLog, spline: spline),
+            2.0 / 3.0, accuracy: 1e-6
+        )
+        XCTAssertEqual(
+            FilmicSpline.evaluate(Double(spline.latitudeMin), spline: spline),
+            Double(spline.y[1]), accuracy: 1e-6
+        )
+        XCTAssertEqual(
+            FilmicSpline.evaluate(Double(spline.latitudeMax), spline: spline),
+            Double(spline.y[3]), accuracy: 1e-6
+        )
+        // Endpoint pinning: f(0) = black_display, f(1) = white_display.
+        XCTAssertEqual(FilmicSpline.evaluate(0, spline: spline), Double(spline.y[0]), accuracy: 1e-6)
+        XCTAssertEqual(FilmicSpline.evaluate(1, spline: spline), Double(spline.y[4]), accuracy: 1e-5)
+    }
+
+    func testFilmicSplineVariedParamsAgainstReference() {
+        // latitude/balance/contrast 变参组 against the independent
+        // reference (10 param points spanning the slider ranges).
+        let points: [(lat: Double, contrast: Double, balance: Double)] = [
+            (0.01, 1.0, 0), (10, 1.0, 0), (50, 1.5, 0), (99, 1.0, 0),
+            (20, 2.5, 0), (20, 1.0, 25), (20, 1.0, -40), (35, 3.0, 12),
+            (5, 0.5, -10), (80, 4.0, 30),
+        ]
+        for p in points {
+            let params = FilmicRGBModule.effectiveParams(FilmicRGBModule.Params(
+                latitude: Float(p.lat), contrast: Float(p.contrast), balance: Float(p.balance)
+            ))
+            let (spline, trace) = FilmicSpline.derive(params: params)
+            let ref = referenceSplineV3(
+                blackSource: -8, whiteSource: 4, outputPower: Double(params.outputPower),
+                latitudePercent: p.lat, contrast: p.contrast, balance: p.balance,
+                blackTarget: 0.01517634, whiteTarget: 100, greyTarget: 18.45
+            )
+            XCTAssertEqual(Double(spline.latitudeMin), ref.latMin, accuracy: 1e-6,
+                           "lat \(p.lat) contrast \(p.contrast) balance \(p.balance)")
+            XCTAssertEqual(Double(spline.latitudeMax), ref.latMax, accuracy: 1e-6,
+                           "lat \(p.lat) contrast \(p.contrast) balance \(p.balance)")
+            XCTAssertEqual(trace.contrast, ref.contrast, accuracy: 1e-6,
+                           "contrast at lat \(p.lat) c \(p.contrast) b \(p.balance)")
+            // Node continuity + grey anchor for every variation.
+            XCTAssertEqual(
+                FilmicSpline.evaluate(2.0 / 3.0, spline: spline), trace.greyDisplay,
+                accuracy: 1e-6
+            )
+            XCTAssertFalse(trace.toeLog.isNaN)
+            XCTAssertFalse(trace.shoulderDisplay.isNaN)
+        }
+    }
+
+    func testFilmicSplineVersionBranches() {
+        // v1: black/white display NOT power-folded (the buggy legacy path).
+        let v1 = FilmicSpline.derive(
+            greyPointSource: 18.45, blackPointSource: -8, whitePointSource: 4,
+            securityFactor: 0, greyPointTarget: 18.45, blackPointTarget: 2, whitePointTarget: 90,
+            outputPower: 4, latitude: 10, contrast: 1, balance: 0,
+            shadows: .poly4, highlights: .poly4, splineVersion: .v1, customGrey: false
+        ).spline
+        XCTAssertEqual(v1.y[0], 2.0 / 100.0, accuracy: 1e-12, "v1: raw % target")
+        XCTAssertEqual(v1.y[4], 90.0 / 100.0, accuracy: 1e-12, "v1: raw % target")
+
+        // v2: the fixed power-folded targets.
+        let v2 = FilmicSpline.derive(
+            greyPointSource: 18.45, blackPointSource: -8, whitePointSource: 4,
+            securityFactor: 0, greyPointTarget: 18.45, blackPointTarget: 2, whitePointTarget: 90,
+            outputPower: 4, latitude: 10, contrast: 1, balance: 0,
+            shadows: .poly4, highlights: .poly4, splineVersion: .v2, customGrey: false
+        )
+        XCTAssertEqual(v2.spline.y[0], pow(0.02, 0.25), accuracy: 1e-12, "v2: ^(1/power)")
+        XCTAssertEqual(v2.spline.y[4], pow(0.90, 0.25), accuracy: 1e-12, "v2: ^(1/power)")
+        // v2 uses the log-domain latitude model (contrast clamp [1.00001, 6]
+        // lifts contrast=1 to the clamp floor).
+        XCTAssertEqual(v2.trace.contrast, 1.00001, accuracy: 1e-6)
+
+        // v3: slope from contrast only (covered by the other tests).
+        let v3 = FilmicSpline.derive(
+            greyPointSource: 18.45, blackPointSource: -8, whitePointSource: 4,
+            securityFactor: 0, greyPointTarget: 18.45, blackPointTarget: 2, whitePointTarget: 90,
+            outputPower: 4, latitude: 10, contrast: 1, balance: 0,
+            shadows: .poly4, highlights: .poly4, splineVersion: .v3, customGrey: false
+        )
+        XCTAssertEqual(v3.spline.y[0], pow(0.02, 0.25), accuracy: 1e-12)
+        XCTAssertNotEqual(v3.trace.contrast, 1.0, accuracy: 1e-6, "v3 contrast re-derived")
+    }
+
+    func testFilmicSplineCurveTypes() {
+        // rational/poly3/poly4 × toe/shoulder: node continuity everywhere.
+        for toe in FilmicSpline.CurveType.allCases {
+            for shoulder in FilmicSpline.CurveType.allCases {
+                let params = FilmicRGBModule.effectiveParams(FilmicRGBModule.Params(
+                    latitude: 25, contrast: 1.8,
+                    shadows: toe, highlights: shoulder
+                ))
+                let (spline, _) = FilmicSpline.derive(params: params)
+                let atToe = FilmicSpline.evaluate(Double(spline.latitudeMin) - 1e-9, spline: spline)
+                let atToePlus = FilmicSpline.evaluate(Double(spline.latitudeMin) + 1e-9, spline: spline)
+                XCTAssertEqual(atToe, atToePlus, accuracy: 1e-4,
+                               "toe/linear continuity \(toe)/\(shoulder)")
+                let atSh = FilmicSpline.evaluate(Double(spline.latitudeMax) - 1e-9, spline: spline)
+                let atShPlus = FilmicSpline.evaluate(Double(spline.latitudeMax) + 1e-9, spline: spline)
+                XCTAssertEqual(atSh, atShPlus, accuracy: 1e-4,
+                               "linear/shoulder continuity \(toe)/\(shoulder)")
+            }
+        }
+    }
+
+    func testFilmicIllegalCombinationsNoNaN() {
+        // latitude > 100 / negative contrast / extreme balance — clamped,
+        // never NaN (T1 acceptance).
+        let combos: [FilmicRGBModule.Params] = [
+            FilmicRGBModule.Params(latitude: 250, contrast: -3, balance: -80),
+            FilmicRGBModule.Params(latitude: -5, contrast: 50, balance: 120),
+            FilmicRGBModule.Params(blackPointSource: -0.1, whitePointSource: 0.1),
+            FilmicRGBModule.Params(blackPointSource: -16, whitePointSource: 16, latitude: 99, contrast: 5),
+            FilmicRGBModule.Params(
+                greyPointSource: 18.45, blackPointSource: -8, whitePointSource: 4,
+                securityFactor: 0, greyPointTarget: 1, blackPointTarget: 20, whitePointTarget: 0.5,
+                outputPower: 4, latitude: 10, contrast: 1, balance: 0, noiseLevel: 0.2,
+                preserveColor: .powerNorm, version: .v5, autoHardness: true, customGrey: true
+            ),
+        ]
+        for params in combos {
+            let (spline, trace) = FilmicSpline.derive(params: FilmicRGBModule.effectiveParams(params))
+            for x in stride(from: 0.0, through: 1.0, by: 0.05) {
+                let y = FilmicSpline.evaluate(x, spline: spline)
+                XCTAssertFalse(y.isNaN, "NaN at x=\(x) for \(params)")
+            }
+            XCTAssertFalse(trace.contrast.isNaN)
+            // NOTE: dt does NOT reorder overlapping toe/shoulder nodes under
+            // extreme balance (the "nodes overlap" comment at filmicrgb.c
+            // :2876-2881 only documents the intent); no ordering assert.
+        }
+    }
+
 }

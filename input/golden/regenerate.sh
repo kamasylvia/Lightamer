@@ -100,8 +100,33 @@ for xmp in "$GOLDEN"/cases/temperature_*.xmp "$GOLDEN"/cases/colisa_*.xmp \
     done
 done
 
-echo "== ③c temperature reference synthesis (shared semantic) =="
+echo "== ③c reference synthesis (shared semantic; L017 route) =="
 "$PYTHON" "$FIX/gen_fixtures.py" refs "$FIX"
+
+echo "== ③d filmicrgb/agx XMP adoption probes =="
+# HOST FINDING (extends the 03-04 sigmoid per_channel SIGSEGV family,
+# manifest): this dt build's CPU legs for filmicrgb AND agx crash the
+# export pipe (process line → silence, no output file, CPU and CL legs).
+# The pinned-blob ADOPTION is still fully verifiable: the history loader
+# accepts the blob ('params v. N: version ok params ok' for agx; the
+# load+commit lines for filmicrgb) and the library DB stores the exact
+# op_params hex. One probe run per case; the adoption log is the record.
+ADOPT="$OUT/adoption"
+rm -rf "$ADOPT"
+mkdir -p "$ADOPT"
+for xmp in "$GOLDEN"/cases/filmic_*.xmp "$GOLDEN"/cases/agx_*.xmp; do
+    case_name="$(basename "$xmp" .xmp)"
+    op="$(grep -o '<darktable:operation>[^<]*</darktable:operation>' "$xmp" | head -1 | sed -E 's|</?darktable:operation>||g')"
+    "$DT" "$FIX/flat_0ev.exr" "$xmp" "$ADOPT/$case_name" \
+        --out-ext exr --icc-type LIN_REC2020 \
+        --apply-custom-presets 0 --library "$CONF/adopt.db" \
+        --core --configdir "$CONF" -d params > "$ADOPT/$case_name.log" 2>&1 || true
+    grep -E "successfully loaded module $op from history|params v\." "$ADOPT/$case_name.log" \
+        | sed 's/^/  /' | head -4
+    echo "  $case_name: op_params hex = $(sqlite3 "$CONF/adopt.db" \
+        "SELECT hex(op_params) FROM main.history WHERE operation='$op' LIMIT 1" 2>/dev/null | cut -c1-32)…"
+    rm -f "$CONF/adopt.db"
+done
 
 
 echo "== ④ manifest =="
@@ -401,12 +426,92 @@ echo "== ④ manifest =="
         echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
     done
     echo
+    echo "### filmicrgb cases (Plan 03-06-T2..T5, synthesized references + flat probes)"
+    echo
+    echo "dt blob \`<18f11i\` (116 bytes, dt_iop_filmicrgb_params_t v6,"
+    echo "hex-ASCII) ↔ Lightamer \`FilmicRGBModule.Params\` (JSON):"
+    echo
+    echo "| dt field (offset) | Lightamer field | note |"
+    echo "|---|---|---|"
+    echo "| grey/black/white_point_source (0..12, 3f) | \`grey/black/whitePointSource\` | EV/% domain, dt defaults |"
+    echo "| reconstruct_threshold..structure_vs_texture (12..32, 5f) | \`reconstruct*\` | F5 param slots only (T0 decision 2 — no rebuild) |"
+    echo "| security_factor (32, f) | \`securityFactor\` | auto black/white EV scaling |"
+    echo "| grey/black/white_point_target (36..48, 3f) | \`grey/black/whitePointTarget\` | display side, % |"
+    echo "| output_power (48, f) | \`outputPower\` | autoHardness → re-derived (dt GUI-enforced; divergence #1) |"
+    echo "| latitude/contrast/saturation/balance (52..64, 4f) | \`latitude/contrast/saturation/balance\` | spline shape |"
+    echo "| noise_level (68, f) | \`noiseLevel\` | F5 slot |"
+    echo "| preserve_color (72, i) | \`preserveColor\` | norm family; V5 pins MAX_RGB in-kernel |"
+    echo "| version (76, i) | \`version\` | T0 decision 1: only V5 math (4) |"
+    echo "| auto_hardness/custom_grey (80, 84, i) | \`autoHardness/customGrey\` | bools as int |"
+    echo "| high_quality_reconstruction (88, i) | \`highQualityReconstruction\` | F5 slot |"
+    echo "| noise_distribution (92, i) | — | F5 slot, pinned gaussian |"
+    echo "| shadows/highlights (96, 100, i) | \`shadows/highlights\` | 0 poly4 / 1 poly3 / 2 rational |"
+    echo "| compensate_icc_black (104, i) | \`compensateIccBlack\` | reserved |"
+    echo "| spline_version (108, i) | \`splineVersion\` | runtime pins v3 (all branches unit-tested) |"
+    echo "| enable_highlight_reconstruction (112, i) | \`enableHighlightReconstruction\` | default FALSE |"
+    echo
+    echo "Track-A references SYNTHESIZED (L017 route): float64 transliteration of"
+    echo "compute_spline v3 (filmicrgb.c:2732-3046) + filmic_chroma_v5"
+    echo "(filmic.cl:651-719) + the Yrg gamut stack — V5 colorscience only, ratio"
+    echo "sanitize ABSENT (the plan text's v1 note — 03-06-DECISIONS erratum),"
+    echo "gamut-stage saturation pinned 0. dt-side evidence = XMP adoption (the"
+    echo "116-byte blob byte-identical in the library DB op_params hex + the"
+    echo "history-load/piece-commit lines, see the ③d adoption logs). HOST"
+    echo "FINDING: the filmicrgb CPU leg CRASHES this build's export pipe"
+    echo "(process line → silence; CL disabled-by-pref path dies the same), so"
+    echo "no PFM/EXR probe exists for filmic — the numeric reference is the dual"
+    echo "implementation alone (sigmoid per_channel SIGSEGV precedent)."
+    echo
+    echo "| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |"
+    echo "|---|---|---|---|"
+    for xmp in "$GOLDEN"/cases/filmic_*.xmp; do
+        case_name="$(basename "$xmp" .xmp)"
+        blob="$(grep -o '<darktable:params>[^<]*</darktable:params>' "$xmp" | head -1 | sed -E 's|</?darktable:params>||g')"
+        blob_hash="$(printf '%s' "$blob" | shasum -a 256 | cut -d' ' -f1)"
+        outs=""
+        for f in $COLISA_REF_FIXTURES; do
+            o="$OUT/${case_name}__${f}.exr"
+            if [ -f "$o" ]; then
+                outs="$outs $f:$(shasum -a 256 "$o" | cut -d' ' -f1 | cut -c1-16)"
+            fi
+        done
+        echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
+    done
+    echo
+    echo "### agx cases (Plan 03-06-T6, synthesized references + flat probes)"
+    echo
+    echo "dt blob \`<15f2i11f\`... see AgXTests header for the full mapping;"
+    echo "\`hatchless\` has NO dt counterpart (REQUIREMENTS note — not implemented)."
+    echo "Track-A references SYNTHESIZED (L017 route, float64 tone-mapping"
+    echo "evaluation of agx.c:794-964 + kernel_agx); dt-side evidence = XMP"
+    echo "adoption ('params v. 7: version ok params ok' + DB op_params hex —"
+    echo "the ③d adoption logs). HOST FINDING: the agx CPU leg crashes the"
+    echo "export pipe like filmicrgb — no per-pixel probe exists."
+    echo
+    echo "| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |"
+    echo "|---|---|---|---|"
+    for xmp in "$GOLDEN"/cases/agx_*.xmp; do
+        case_name="$(basename "$xmp" .xmp)"
+        blob="$(grep -o '<darktable:params>[^<]*</darktable:params>' "$xmp" | head -1 | sed -E 's|</?darktable:params>||g')"
+        blob_hash="$(printf '%s' "$blob" | shasum -a 256 | cut -d' ' -f1)"
+        outs=""
+        for f in $COLISA_REF_FIXTURES; do
+            o="$OUT/${case_name}__${f}.exr"
+            if [ -f "$o" ]; then
+                outs="$outs $f:$(shasum -a 256 "$o" | cut -d' ' -f1 | cut -c1-16)"
+            fi
+        done
+        echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
+    done
+    echo
     echo "### dt-cli PFM probes (temperature + colisa + sigmoid + shadhi + toneequal)"
     echo
     echo "Trust roles: temperature/colisa flats = per-pixel semantic evidence;"
     echo "sigmoid flats = derivation+curve evidence (rgb_ratio; per_channel"
     echo "crashes); shadhi flats = the broken-route mechanism record only;"
     echo "toneequal flats = luma+LUT apply evidence (EIGF uniform fixed point)."
+    echo "filmic/agx have NO probes (CPU-leg export crash — ③d adoption logs"
+    echo "are their dt-side record)."
     echo
     echo "| probe | sha256 |"
     echo "|---|---|"

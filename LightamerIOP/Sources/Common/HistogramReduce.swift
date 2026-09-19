@@ -1,6 +1,7 @@
 import LightamerCore
 import Metal
 import os
+import simd
 
 // ─────────────────────────────────────────────────────────────────────────
 // HistogramReduce (Plan 03-03-T5, Common) — the shared full-image 256-bin
@@ -33,6 +34,8 @@ public enum HistogramReduce {
     public enum Kernel {
         public static let partial = "histogram_partial"
         public static let total = "histogram_total"
+        public static let normMinMaxPartial = "norm_minmax_partial"
+        public static let normMinMaxTotal = "norm_minmax_total"
     }
 
     /// Compute the 256-bin histogram of the input's Lab L channel
@@ -127,5 +130,74 @@ public enum HistogramReduce {
             (1.0 - center) * Double(levels[0]) + center * Double(levels[2])
         )
         return levels
+    }
+
+    // MARK: - Per-channel RGB min/max (Plan 03-06-T5)
+
+    /// The full-image per-channel min/max (dt's `picked_color_min/max`
+    /// whole-preview semantics — the filmic auto black/white keys).
+    /// Fences before readback (L014).
+    public static func rgbMinMax(
+        of input: any MTLTexture, metal: MetalContext
+    ) async throws -> (min: simd_float3, max: simd_float3) {
+        let state = signposter.beginInterval("rgb-minmax-reduce")
+        defer {
+            signposter.endInterval("rgb-minmax-reduce", state)
+        }
+
+        let width = input.width
+        let height = input.height
+        let tgWidth = (width + threadgroupSize - 1) / threadgroupSize
+        let tgHeight = (height + threadgroupSize - 1) / threadgroupSize
+        let nPartials = tgWidth * tgHeight
+
+        guard let partialsMin = metal.device.makeBuffer(
+            length: nPartials * 4 * MemoryLayout<Float>.size,
+            options: .storageModeShared
+        ), let partialsMax = metal.device.makeBuffer(
+            length: nPartials * 4 * MemoryLayout<Float>.size,
+            options: .storageModeShared
+        ), let result = metal.device.makeBuffer(
+            length: 8 * MemoryLayout<Float>.size,
+            options: .storageModeShared
+        ) else {
+            throw MetalError.deviceUnavailable
+        }
+
+        // Pass 1: threadgroup partials.
+        let pass1 = try await metal.makeEncoder(functionName: Kernel.normMinMaxPartial)
+        pass1.encoder.setTexture(input, index: 0)
+        pass1.encoder.setBuffer(partialsMin, offset: 0, index: 0)
+        pass1.encoder.setBuffer(partialsMax, offset: 0, index: 1)
+        pass1.encoder.dispatchThreadgroups(
+            MTLSize(width: tgWidth, height: tgHeight, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: threadgroupSize, height: threadgroupSize, depth: 1)
+        )
+        pass1.encoder.endEncoding()
+        pass1.commandBuffer.commit()
+
+        // Pass 2: fold the partials (same queue → ordered after pass 1).
+        let pass2 = try await metal.makeEncoder(functionName: Kernel.normMinMaxTotal)
+        pass2.encoder.setBuffer(partialsMin, offset: 0, index: 0)
+        pass2.encoder.setBuffer(partialsMax, offset: 0, index: 1)
+        pass2.encoder.setBuffer(result, offset: 0, index: 2)
+        var nPartialsU32 = UInt32(nPartials)
+        pass2.encoder.setBytes(&nPartialsU32, length: MemoryLayout<UInt32>.size, index: 3)
+        pass2.encoder.dispatchThreads(
+            MTLSize(width: 4, height: 1, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 4, height: 1, depth: 1)
+        )
+        pass2.encoder.endEncoding()
+        pass2.commandBuffer.commit()
+
+        // L014 fence before the CPU readback.
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        _ = await fence?.completed()
+
+        let floats = result.contents().assumingMemoryBound(to: Float.self)
+        let minV = simd_float3(floats[0], floats[1], floats[2])
+        let maxV = simd_float3(floats[4], floats[5], floats[6])
+        return (minV, maxV)
     }
 }

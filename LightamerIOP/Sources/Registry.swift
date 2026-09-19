@@ -61,6 +61,18 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ToneEqualModule.opName) { id in
             ModuleBox(module: ToneEqualModule(), instanceID: id)
         }
+        // Plan 03-06-T5: filmicrgb (scene-referred filmic view transform,
+        // V5 colorscience + Yrg gamut mapping), v50 slot 46.0 — the
+        // ROADMAP's hardest single port (IOP-FILM-01, F0-F4 sub-stages).
+        await registry.register(opName: FilmicRGBModule.opName) { id in
+            ModuleBox(module: FilmicRGBModule(), instanceID: id)
+        }
+        // Plan 03-06-T6: agx (the Blender AgX-inspired filmic VARIANT,
+        // sigmoid-trapezoid curve + primaries adjustments), v50 slot 45.5
+        // (IOP-FILM-03; hatchless = no dt counterpart, not implemented).
+        await registry.register(opName: AgXModule.opName) { id in
+            ModuleBox(module: AgXModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -88,6 +100,8 @@ public enum LightamerIOPRegistry {
             ModuleInstance(module: LevelsModule.self, params: LevelsModule.Params()),
             ModuleInstance(module: ShadhiModule.self, params: ShadhiModule.Params()),
             ModuleInstance(module: ToneEqualModule.self, params: ToneEqualModule.Params()),
+            ModuleInstance(module: FilmicRGBModule.self, params: FilmicRGBModule.Params()),
+            ModuleInstance(module: AgXModule.self, params: AgXModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }

@@ -526,6 +526,30 @@ def gen_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, case[0] + ".xmp"), "w") as f:
             f.write(xmp)
+    for case in FILMIC_CASES:
+        params = filmic_params_blob(case)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="filmicrgb",
+            modversion=FILMIC_MODVERSION,
+            params=params,
+            iop_order=f"{FILMIC_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+    for case in AGX_CASES:
+        params = agx_params_blob(case)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="agx",
+            modversion=AGX_MODVERSION,
+            params=params,
+            iop_order=f"{AGX_IOP_ORDER:.2f}",
+        )
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
     gen_tonecurve_cases(outdir)
 
 
@@ -2281,8 +2305,882 @@ def main() -> None:
         # Plan 03-05-T5: toneequal golden references (two tiers: none +
         # EIGF; L017 route; dt-side = XMP adoption + flat PFM probes).
         gen_toneequal_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 03-06: filmicrgb (V5) + agx golden references (L017 route;
+        # dt-side = XMP adoption + uniform-flat PFM probes).
+        gen_filmic_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_agx_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
+
+
+
+
+# ──────────────────────────────────────────────────────────────────────
+# FilmicRGB (Plan 03-06-T2..T5, IOP-FILM-01) — dt_iop_filmicrgb_params_t
+# v6, 116 bytes: 18 floats (grey/black/white_point_source,
+# reconstruct_threshold/feather/bloom_vs_details/grey_vs_color/
+# structure_vs_texture, security_factor, grey/black/white_point_target,
+# output_power, latitude, contrast, saturation, balance, noise_level) +
+# 11 ints (preserve_color, version, auto_hardness, custom_grey,
+# high_quality_reconstruction, noise_distribution, shadows, highlights,
+# compensate_icc_black, spline_version, enable_highlight_reconstruction).
+#
+# Reference math (float64 transliteration of filmicrgb.c:2732-3046
+# compute_spline + filmic.cl:651-719 filmic_chroma_v5 + the gamut stack):
+# V5 colorscience ONLY (T0 decision 1), highlight reconstruction OFF
+# (T0 decision 2 — the default; no rebuild in either leg), ratios
+# WITHOUT sanitize (the plan text's "减 min_ratios" is the v1 path —
+# 03-06-DECISIONS.md erratum), gamut-stage saturation pinned 0
+# (filmic.cl:718). Output-power auto (auto_hardness) re-derived per dt's
+# _compute_output_power (:2571-2581).
+#
+# Matrices: pipeline RGB (D50 Bradford) → LMS 2006 D65 per
+# gamut_mapping.h prepare_RGB_Yrg_matrices — same constants as the Swift
+# YrgGamut (LAB_R2X here is the D65 Rec2020→XYZ, Bradford D65→D50 = LAB_B).
+# ──────────────────────────────────────────────────────────────────────
+
+FILMIC_PARAMS_FORMAT = "<18f11i"
+FILMIC_MODVERSION = 6
+FILMIC_IOP_ORDER = 46.0
+FILMIC_REF_FIXTURES = COLISA_REF_FIXTURES
+
+FRB_SAFETY = 0.01
+
+FRB_METHOD_NONE, FRB_METHOD_MAX_RGB, FRB_METHOD_LUMINANCE, \
+    FRB_METHOD_POWER_NORM, FRB_METHOD_EUCLIDEAN_V1, FRB_METHOD_EUCLIDEAN_V2 = range(6)
+FRB_CS_V1, FRB_CS_V2, FRB_CS_V3, FRB_CS_V4, FRB_CS_V5 = range(5)
+FRB_SPLINE_V1, FRB_SPLINE_V2, FRB_SPLINE_V3 = range(3)
+
+
+def _frb_default_case(**over):
+    case = dict(
+        name="filmic_default",
+        grey_source=18.45, black_source=-8.0, white_source=4.0,
+        security=0.0, grey_target=18.45, black_target=0.01517634,
+        white_target=100.0, output_power=4.0, latitude=0.01,
+        contrast=1.0, saturation=0.0, balance=0.0,
+        preserve=FRB_METHOD_POWER_NORM, version=FRB_CS_V5,
+        auto_hardness=1, custom_grey=0, shadows=0, highlights=0,
+        spline_version=FRB_SPLINE_V3, enable_reconstruct=0,
+    )
+    case.update(over)
+    return case
+
+
+FILMIC_CASES = [
+    _frb_default_case(),
+    _frb_default_case(name="filmic_contrast_lat", contrast=1.8, latitude=15.0),
+    _frb_default_case(name="filmic_balance", balance=-30.0, latitude=10.0),
+    _frb_default_case(name="filmic_soft_safe", shadows=1, highlights=2, latitude=8.0),
+    _frb_default_case(name="filmic_custom_grey", custom_grey=1, grey_target=25.0),
+    _frb_default_case(name="filmic_saturation", saturation=60.0),
+]
+
+
+def filmic_params_blob(case) -> str:
+    packed = struct.pack(
+        FILMIC_PARAMS_FORMAT,
+        case["grey_source"], case["black_source"], case["white_source"],
+        0.0, 3.0, 100.0, 100.0, 0.0,          # reconstruct_* (F5 param slots)
+        case["security"],
+        case["grey_target"], case["black_target"], case["white_target"],
+        case["output_power"], case["latitude"], case["contrast"],
+        case["saturation"], case["balance"], 0.2,
+        case["preserve"], case["version"],
+        case["auto_hardness"], case["custom_grey"],
+        1,                                     # high_quality_reconstruction
+        1,                                     # noise_distribution gaussian
+        case["shadows"], case["highlights"],
+        0,                                     # compensate_icc_black
+        case["spline_version"],
+        case["enable_reconstruct"],
+    )
+    assert len(packed) == 116, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def frb_clamp(x):
+    """dt clamp_simd: fmaxf(fminf(x, 1), 0) — fmin(NaN, 1) = 1."""
+    if x != x:
+        return 1.0
+    return max(0.0, min(1.0, x))
+
+
+def frb_log_encode(x, grey, black, dr):
+    """log_tonemapping_v2 scalar; C log2f semantics for x ≤ 0."""
+    if x > 0.0:
+        lg = math.log2(x / grey)
+    elif x == 0.0:
+        lg = -math.inf
+    else:
+        lg = math.nan
+    return frb_clamp((lg - black) / dr)
+
+
+def frb_exp_decode(x, grey, black, dr):
+    return grey * 2.0 ** (dr * x + black)
+
+
+def frb_gauss_solve(a, b):
+    """Row-major Gaussian elimination with partial pivoting (Double)."""
+    n = len(a)
+    m = [row[:] for row in a]
+    x = b[:]
+    for col in range(n):
+        pivot = max(range(col, n), key=lambda r: abs(m[r][col]))
+        if pivot != col:
+            m[pivot], m[col] = m[col], m[pivot]
+            x[pivot], x[col] = x[col], x[pivot]
+        for row in range(col + 1, n):
+            f = m[row][col] / m[col][col]
+            for k in range(col, n):
+                m[row][k] -= f * m[col][k]
+            x[row] -= f * x[col]
+    for row in range(n - 1, -1, -1):
+        s = x[row]
+        for k in range(row + 1, n):
+            s -= m[row][k] * x[k]
+        x[row] = s / m[row][row]
+    return x
+
+
+def filmic_compute_spline(case, output_power):
+    """filmicrgb.c:2732-3046 (spline_version v3 branch), float64."""
+    # dt: CLAMP(p->grey_point_target, p->black_point_target,
+    # p->white_point_target) clamps INTO [black_target, white_target].
+    if case["custom_grey"]:
+        grey_display = pow(
+            max(case["black_target"],
+                min(case["grey_target"], case["white_target"])) / 100.0,
+            1.0 / output_power)
+    else:
+        grey_display = pow(0.1845, 1.0 / output_power)
+    black_source, white_source = case["black_source"], case["white_source"]
+    dr = white_source - black_source
+    black_log, grey_log, white_log = 0.0, abs(black_source) / dr, 1.0
+    black_display = pow(
+        min(max(case["black_target"], 0.0), case["grey_target"]) / 100.0,
+        1.0 / output_power)
+    white_display = pow(
+        max(case["white_target"], case["grey_target"]) / 100.0,
+        1.0 / output_power)
+    balance = max(-50.0, min(50.0, case["balance"])) / 100.0
+    latitude = max(0.0, min(100.0, case["latitude"])) / 100.0
+
+    slope = case["contrast"] * dr / 8.0
+    min_contrast = max(
+        max(1.0, (white_display - grey_display) / (white_log - grey_log)),
+        (grey_display - black_display) / (grey_log - black_log),
+    ) + FRB_SAFETY
+    contrast = slope / (output_power * pow(grey_display, output_power - 1.0))
+    clamped = min(max(contrast, min_contrast), 100.0)
+    contrast = clamped
+    intercept = grey_display - contrast * grey_log
+    xmin = (black_display + FRB_SAFETY * (white_display - black_display) - intercept) / contrast
+    xmax = (white_display - FRB_SAFETY * (white_display - black_display) - intercept) / contrast
+    toe_log = (1.0 - latitude) * grey_log + latitude * xmin
+    shoulder_log = (1.0 - latitude) * grey_log + latitude * xmax
+    bc = (2.0 * balance * (shoulder_log - grey_log)) if balance > 0.0 \
+        else (2.0 * balance * (grey_log - toe_log))
+    toe_log -= bc
+    shoulder_log -= bc
+    toe_log = max(toe_log, xmin)
+    shoulder_log = min(shoulder_log, xmax)
+    toe_display = toe_log * contrast + intercept
+    shoulder_display = shoulder_log * contrast + intercept
+
+    x = [black_log, toe_log, grey_log, shoulder_log, white_log]
+    y = [black_display, toe_display, grey_display, shoulder_display, white_display]
+
+    # M coefficients: toe / shoulder / linear segments.
+    M = [[0.0] * 3 for _ in range(5)]
+    M[1][2] = contrast
+    M[0][2] = y[1] - M[1][2] * x[1]
+
+    tl, sl = x[1], x[3]
+    if case["shadows"] == 0:  # poly4
+        a = [
+            [0, 0, 0, 0, 1],
+            [0, 0, 0, 1, 0],
+            [tl ** 4, tl ** 3, tl * tl, tl, 1],
+            [4 * tl ** 3, 3 * tl * tl, 2 * tl, 1, 0],
+            [12 * tl * tl, 6 * tl, 2, 0, 0],
+        ]
+        s = frb_gauss_solve(a, [y[0], 0.0, y[1], M[1][2], 0.0])
+        M[4][0], M[3][0], M[2][0], M[1][0], M[0][0] = s
+    elif case["shadows"] == 1:  # poly3
+        a = [
+            [0, 0, 0, 1],
+            [tl ** 3, tl * tl, tl, 1],
+            [3 * tl * tl, 2 * tl, 1, 0],
+            [6 * tl, 2, 0, 0],
+        ]
+        s = frb_gauss_solve(a, [y[0], y[1], M[1][2], 0.0])
+        M[4][0] = 0.0
+        M[3][0], M[2][0], M[1][0], M[0][0] = s
+    else:  # rational
+        xx, yy, g = x[1] - x[0], y[1] - y[0], contrast
+        b = g / (2.0 * yy) + (math.sqrt((xx * g / yy + 1.0) ** 2 - 4.0) - 1.0) / (2.0 * xx)
+        c = yy / g * (b * xx * xx + xx) / (b * xx * xx + xx - (yy / g))
+        M[0][0], M[1][0], M[2][0], M[3][0] = c * g, b, c, y[1]
+
+    if case["highlights"] == 1:  # poly3
+        a = [
+            [1, 1, 1, 1],
+            [sl ** 3, sl * sl, sl, 1],
+            [3 * sl * sl, 2 * sl, 1, 0],
+            [6 * sl, 2, 0, 0],
+        ]
+        s = frb_gauss_solve(a, [y[4], y[3], M[1][2], 0.0])
+        M[4][1] = 0.0
+        M[3][1], M[2][1], M[1][1], M[0][1] = s
+    elif case["highlights"] == 0:  # poly4
+        a = [
+            [1, 1, 1, 1, 1],
+            [4, 3, 2, 1, 0],
+            [sl ** 4, sl ** 3, sl * sl, sl, 1],
+            [4 * sl ** 3, 3 * sl * sl, 2 * sl, 1, 0],
+            [12 * sl * sl, 6 * sl, 2, 0, 0],
+        ]
+        s = frb_gauss_solve(a, [y[4], 0.0, y[3], M[1][2], 0.0])
+        M[4][1], M[3][1], M[2][1], M[1][1], M[0][1] = s
+    else:  # rational
+        xx, yy, g = x[4] - x[3], y[4] - y[3], contrast
+        b = g / (2.0 * yy) + (math.sqrt((xx * g / yy + 1.0) ** 2 - 4.0) - 1.0) / (2.0 * xx)
+        c = yy / g * (b * xx * xx + xx) / (b * xx * xx + xx - (yy / g))
+        M[0][1], M[1][1], M[2][1], M[3][1] = c * g, b, c, y[3]
+
+    # FLOAT32-PUBLISHED GRID (the toneequal float32-choleski precedent):
+    # the Swift module publishes M/latitudes/display targets as Float32 to
+    # the kernel, and the float32 rounding of the poly4/poly3 coefficients
+    # shifts steep splines by ~3e-5 on a few % of pixels — dominating the
+    # parity gate. The reference evaluates through the SAME published grid
+    # (all other float32-vs-float64 residue stays ~1e-6).
+    for seg in range(3):
+        for k in range(5):
+            M[k][seg] = _f32(M[k][seg])
+    return dict(
+        M=M, lat_min=_f32(x[1]), lat_max=_f32(x[3]), x=x, y=y,
+        types=(case["shadows"], case["highlights"]),
+        grey_display=grey_display, dr=dr, contrast=contrast,
+    )
+
+
+def frb_spline_eval(x, sp):
+    """FLOAT32-FAITHFUL Horner evaluation (the kernel's arithmetic — every
+    multiply/add rounded through the float32 grid, as in the GPU; the
+    float64 evaluation of the same coefficients diverges ~3e-5 on the
+    steep poly4 shoulder, ~100x the plain rounding, and swamped the 1e-5
+    gate on 25% of the steep-case pixels)."""
+    x = _f32(x)
+    M = sp["M"]
+    lat_min = _f32(sp["lat_min"])
+    lat_max = _f32(sp["lat_max"])
+    if x < lat_min:
+        seg, lane = sp["types"][0], 0
+    elif x > lat_max:
+        seg, lane = sp["types"][1], 1
+    else:
+        return _f32(_f32(M[0][2]) + _f32(x * _f32(M[1][2])))
+    if seg == 0 or seg == 1:
+        order = 5 if seg == 0 else 4
+        # Horner inner-out with FMA single-rounding — the Apple GPU
+        # contracts a + b·c into fused multiply-add (fp-contract=fast,
+        # filmicrgb.c header), so the product is NOT rounded separately.
+        # math.fma(x, t, M) gives the same one-rounding semantics.
+        t = M[order - 1][lane]
+        for k in range(order - 2, -1, -1):
+            t = _f32(math.fma(x, t, M[k][lane]))
+        return _f32(t)
+    if lane == 0:
+        xi = _f32(lat_min - x)
+        rat = _f32(xi * _f32(_f32(xi * _f32(M[1][0])) + 1.0))
+        return _f32(_f32(M[3][0]) - _f32(_f32(M[0][0] * rat) / _f32(rat + _f32(M[2][0]))))
+    xi = _f32(x - lat_max)
+    rat = _f32(xi * _f32(_f32(xi * _f32(M[1][1])) + 1.0))
+    return _f32(_f32(M[3][1]) + _f32(_f32(M[0][1] * rat) / _f32(rat + _f32(M[2][1]))))
+    if seg == 0:
+        return M[0][lane] + x * (M[1][lane] + x * (M[2][lane] + x * (M[3][lane] + x * M[4][lane])))
+    if seg == 1:
+        return M[0][lane] + x * (M[1][lane] + x * (M[2][lane] + x * M[3][lane]))
+    if lane == 0:
+        xi = sp["lat_min"] - x
+        rat = xi * (xi * M[1][0] + 1.0)
+        return M[3][0] - M[0][0] * rat / (rat + M[2][0])
+    xi = x - sp["lat_max"]
+    rat = xi * (xi * M[1][1] + 1.0)
+    return M[3][1] + M[0][1] * rat / (rat + M[2][1])
+
+
+# The Yrg stack — same constants as Swift YrgGamut (gamut_mapping.h +
+# chromatic_adaptation.h + colorspace.h).
+FRB_XYZ50_65 = [[9.89466254e-01, -4.00304626e-02, 4.40530317e-02],
+                [-5.40518733e-03, 1.00666069e+00, -1.75551955e-03],
+                [-4.03920992e-04, 1.50768030e-02, 1.30210211e+00]]
+FRB_XYZ65_50 = [[1.01085433e+00, 4.07086103e-02, -3.41445825e-02],
+                [5.42814201e-03, 9.93581926e-01, 1.15592039e-03],
+                [2.50722468e-04, -1.14918759e-02, 7.67964947e-01]]
+FRB_XYZ65_LMS = [[0.257085, 0.859943, -0.031061],
+                 [-0.394427, 1.175800, 0.106423],
+                 [0.064856, -0.076250, 0.559067]]
+FRB_LMS_XYZ65 = [[1.80794659, -1.29971660, 0.34785879],
+                 [0.61783960, 0.39595453, -0.04104687],
+                 [-0.12546960, 0.20478038, 1.74274183]]
+# M_in(work) = Bradford D65→D50 · Rec2020(D65)→XYZ (dt's ICC colorimetry).
+FRB_MATRIX_IN = mat_mul(FRB_XYZ65_LMS, mat_mul(FRB_XYZ50_65, mat_mul(LAB_B, LAB_R2X)))
+FRB_MATRIX_OUT = mat_mul(LAB_X2R, mat_mul(LAB_BINV, mat_mul(FRB_XYZ65_50, FRB_LMS_XYZ65)))
+FRB_CIE_Y_FACTOR = 1.05785528
+
+
+def frb_rgb_to_ych(rgb):
+    lms = mat_vec(FRB_MATRIX_IN, rgb)
+    y = 0.68990272 * lms[0] + 0.34832189 * lms[1]
+    a = lms[0] + lms[1] + lms[2]
+    nl = tuple(v / a for v in lms) if a != 0.0 else (0.0, 0.0, 0.0)
+    grading = (
+        1.0877193 * nl[0] - 0.66666667 * nl[1] + 0.02061856 * nl[2],
+        -0.0877193 * nl[0] + 1.66666667 * nl[1] - 0.05154639 * nl[2],
+        1.03092784 * nl[2],
+    )
+    r = grading[0] - 0.21902143
+    g = grading[1] - 0.54371398
+    c = math.sqrt(g * g + r * r) if r == r and g == g else math.nan
+    cos_h = r / c if c != 0.0 else 1.0
+    sin_h = g / c if c != 0.0 else 0.0
+    return (y, c, cos_h, sin_h)
+
+
+def frb_ych_to_rgb(ych):
+    r = ych[2] * ych[1] + 0.21902143
+    g = ych[3] * ych[1] + 0.54371398
+    b = 1.0 - r - g
+    nl = (0.95 * r + 0.38 * g,
+          0.05 * r + 0.62 * g + 0.03 * b,
+          0.97 * b)
+    denom = 0.68990272 * nl[0] + 0.34832189 * nl[1]
+    scale = 0.0 if denom == 0.0 else ych[0] / denom
+    return mat_vec(FRB_MATRIX_OUT, tuple(v * scale for v in nl))
+
+
+def frb_desaturate_v4(original, final):
+    chroma_original = original[1] * original[0]
+    chroma_final = final[1] * final[0]
+    # gamut-stage saturation pinned 0 (filmic.cl:718) → delta 0, and the
+    # branch flags reduce to: brightens+resat → mean; else keep final.
+    filmic_brightens = final[0] > original[0]
+    filmic_resat = chroma_original < chroma_final
+    if filmic_brightens and filmic_resat:
+        chroma_final = (chroma_original + chroma_final) / 2.0
+    final = list(final)
+    final[1] = max(chroma_final / final[0], 0.0) if final[0] != 0.0 else 0.0
+    return tuple(final)
+
+
+def frb_gamut_check_yrg(ych):
+    y, c, cos_h, sin_h = ych
+    r = c * cos_h + 0.21902143
+    g = c * sin_h + 0.54371398
+    max_c = c
+    if r < 0.0:
+        max_c = min(-0.21902143 / cos_h, max_c)
+    if g < 0.0:
+        max_c = min(-0.54371398 / sin_h, max_c)
+    if r + g > 1.0:
+        max_c = min((1.0 - 0.21902143 - 0.54371398) / (cos_h + sin_h), max_c)
+    return (y, max_c, cos_h, sin_h)
+
+
+def frb_clip_chroma_white_raw(coeffs, target_white, y, cos_h, sin_h):
+    den_yc = (coeffs[0] * (0.979381443298969 * cos_h + 0.391752577319588 * sin_h)
+              + coeffs[1] * (0.0206185567010309 * cos_h + 0.608247422680412 * sin_h)
+              - coeffs[2] * (cos_h + sin_h))
+    den_tt = target_white * (0.68285981628866 * cos_h + 0.482137060515464 * sin_h)
+    if den_yc == 0.0:
+        return float("inf")
+    if y <= den_tt / den_yc:
+        return float("inf")
+    num = -0.427506877216495 * (y * (coeffs[0] + 0.856492345150334 * coeffs[1]
+                                     + 0.554995960637719 * coeffs[2])
+                                - 0.988237752433297 * target_white)
+    return num / (y * den_yc - den_tt)
+
+
+def frb_clip_chroma_white(coeffs, target_white, y, cos_h, sin_h):
+    eps = 1e-3
+    max_y = FRB_CIE_Y_FACTOR * target_white
+    delta_y = max(max_y - y, 0.0)
+    if delta_y < eps:
+        mc = delta_y / (eps * max_y) * frb_clip_chroma_white_raw(
+            coeffs, target_white, (1.0 - eps) * max_y, cos_h, sin_h)
+    else:
+        mc = frb_clip_chroma_white_raw(coeffs, target_white, y, cos_h, sin_h)
+    return mc if mc >= 0.0 else float("inf")
+
+
+def frb_clip_chroma_black(coeffs, cos_h, sin_h):
+    den = (coeffs[0] * (0.979381443298969 * cos_h + 0.391752577319588 * sin_h)
+           + coeffs[1] * (0.0206185567010309 * cos_h + 0.608247422680412 * sin_h)
+           - coeffs[2] * (cos_h + sin_h))
+    if den == 0.0:
+        return float("inf")
+    num = -0.427506877216495 * (coeffs[0] + 0.856492345150334 * coeffs[1]
+                                + 0.554995960637719 * coeffs[2])
+    mc = num / den
+    return mc if mc >= 0.0 else float("inf")
+
+
+def frb_clip_chroma(target_white, y, cos_h, sin_h, chroma):
+    whites = [
+        frb_clip_chroma_white(FRB_MATRIX_OUT[row], target_white, y, cos_h, sin_h)
+        for row in range(3)
+    ]
+    blacks = [
+        frb_clip_chroma_black(FRB_MATRIX_OUT[row], cos_h, sin_h)
+        for row in range(3)
+    ]
+    return min(chroma, min(blacks), min(whites))
+
+
+def frb_gamut_check_rgb(ych_in, display_black, display_white):
+    rgb = frb_ych_to_rgb(ych_in)
+    min_pix = min(rgb)
+    black_offset = max(-min_pix, 0.0)
+    rgb = tuple(v + black_offset for v in rgb)
+    ych_b = frb_rgb_to_ych(rgb)
+    y = max(FRB_CIE_Y_FACTOR * display_black,
+            min(FRB_CIE_Y_FACTOR * display_white, (ych_in[0] + ych_b[0]) / 2.0))
+    new_c = frb_clip_chroma(display_white, y, ych_in[2], ych_in[3], ych_in[1])
+    out = frb_ych_to_rgb((y, new_c, ych_in[2], ych_in[3]))
+    return tuple(max(0.0, min(display_white, v)) for v in out)
+
+
+def frb_gamut_mapping(ych_final, ych_original, display_black, display_white):
+    yf = list(ych_final)
+    yf[2] = ych_original[2]
+    yf[3] = ych_original[3]
+    yf[0] = max(FRB_CIE_Y_FACTOR * display_black,
+                min(FRB_CIE_Y_FACTOR * display_white, yf[0]))
+    yf = frb_desaturate_v4(ych_original, tuple(yf))
+    yf = frb_gamut_check_yrg(yf)
+    return frb_gamut_check_rgb(yf, display_black, display_white)
+
+
+def filmic_norm_max_rgb(pix):
+    return max(pix)
+
+
+def filmic_v5_pixel(rgb, case, sp, output_power, norm_min, norm_max,
+                    black_display, white_display):
+    """filmic_chroma_v5 (filmic.cl:651-719) — one pixel, float64."""
+    grey = 0.1845 if not case["custom_grey"] else case["grey_source"] / 100.0
+    dr = sp["dr"]
+    black = case["black_source"]
+    sat = case["saturation"] / 100.0
+
+    pix = rgb
+    norm = max(filmic_norm_max_rgb(pix), norm_min)
+    norm = min(norm, norm_max)
+    ratios = tuple(v / norm for v in pix)
+    norm = frb_log_encode(norm, grey, black, dr)
+    norm = min(max(frb_spline_eval(norm, sp), black_display), white_display)
+    norm = norm ** output_power
+    norm = _f32(norm)
+    max_rgb = tuple(norm * r for r in ratios)
+
+    naive = []
+    for c in range(3):
+        v = frb_log_encode(pix[c], grey, black, dr)
+        v = frb_spline_eval(v, sp)
+        v = max(0.0, min(white_display, v))
+        naive.append(v ** output_power)
+    naive = tuple(naive)
+
+    o = tuple((0.5 - sat) * naive[c] + (0.5 + sat) * max_rgb[c] for c in range(3))
+    ych_original = frb_rgb_to_ych(pix)
+    ych_final = frb_rgb_to_ych(o)
+    ych_final = (ych_final[0], min(ych_original[1], ych_final[1]),
+                 ych_final[2], ych_final[3])
+    return frb_gamut_mapping(ych_final, ych_original, black_display, white_display)
+
+
+def gen_filmic_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in FILMIC_CASES:
+        effective_power = case["output_power"]
+        if case["auto_hardness"]:
+            effective_power = _f32(max(1.0, min(10.0, math.log(
+                case["grey_target"] / 100.0)
+                / math.log(-case["black_source"]
+                           / (case["white_source"] - case["black_source"])))))
+        sp = filmic_compute_spline(case, effective_power)
+        grey = case["grey_source"] / 100.0 if case["custom_grey"] else 0.1845
+        black_source = _f32(case["black_source"])
+        bounds = (_f32(frb_exp_decode(0.0, grey, black_source, sp["dr"])),
+                  _f32(frb_exp_decode(1.0, grey, black_source, sp["dr"])))
+        black_display = _f32(_f32(sp["y"][0]) ** effective_power)
+        white_display = _f32(_f32(sp["y"][4]) ** effective_power)
+        for fixture in FILMIC_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, case=case, sp=sp, w=w, op=effective_power,
+                   bounds=bounds, bd=black_display, wd=white_display):
+                idx = y * w + x
+                return filmic_v5_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]),
+                    case, sp, op, bounds[0], bounds[1], bd, wd)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# AgX (Plan 03-06-T6, IOP-FILM-03) — dt_iop_agx_params_t v7, 144 bytes:
+# look (5f) + range (3f) + curve (8f) + auto_gamma (i) + target ratios
+# (2f) + base_primaries (i) + disable_primaries_adjustments (i) +
+# inset/rotation (6f) + master (2f) + outset/unrotation (6f) +
+# completely_reverse_primaries (i).
+#
+# Reference math (float64 transliteration of agx.c:470-1005
+# _calculate_tone_mapping_params + the kernel_agx leg):
+#   - compress_into_gamut (Blender luminance compensation)
+#   - log encoding (0.18 mid-gray, [black_ev, range] normalisation)
+#   - the sigmoid trapezoid curve (scaled sigmoid toe/shoulder + line)
+#   - look (slope-lift/power/luma-saturation) when tuned
+#   - gamma linearisation + the HSV hue restore lerp
+# PRIMARIES: the default path (base Rec2020 == work, zero inset/rotation)
+# has IDENTITY matrices; the primaries/look cases carry the recorded
+# deviation (dt builds the luma matrix from the ICC D50 media white,
+# Lightamer from Rec2020 primaries + D65 white — pinned against this
+# dual implementation, not dt; 03-06-DECISIONS.md).
+# ──────────────────────────────────────────────────────────────────────
+
+AGX_PARAMS_FORMAT = "<16fi2fii6f2f6fi"
+AGX_MODVERSION = 7
+AGX_IOP_ORDER = 45.5
+AGX_REF_FIXTURES = COLISA_REF_FIXTURES
+
+AGX_EPSILON = 1e-6
+AGX_DEFAULT_GAMMA = 2.2
+AGX_BASE_EXPORT, AGX_BASE_WORK, AGX_BASE_REC2020, \
+    AGX_BASE_P3, AGX_BASE_ADOBE, AGX_BASE_SRGB = range(6)
+
+
+def _agx_default_case(**over):
+    case = dict(
+        name="agx_default",
+        look_lift=0.0, look_slope=1.0, look_brightness=1.0,
+        look_saturation=1.0, look_hue_mix=0.6,
+        black_ev=-10.0, white_ev=6.5, dr_scaling=0.1,
+        pivot_x=0.606060606061, pivot_y_linear=0.18, contrast=3.0,
+        linear_below=0.0, linear_above=0.0, toe_power=1.5,
+        shoulder_power=3.3, gamma=2.2, auto_gamma=0,
+        target_black=0.0, target_white=1.0,
+        base=AGX_BASE_REC2020, disable_primaries=0,
+        insets=(0.0, 0.0, 0.0), rotations=(0.0, 0.0, 0.0),
+        master_outset=1.0, master_unrotation=1.0,
+        outsets=(0.0, 0.0, 0.0), unrotations=(0.0, 0.0, 0.0),
+        reverse_primaries=0,
+    )
+    case.update(over)
+    return case
+
+
+AGX_CASES = [
+    _agx_default_case(),
+    _agx_default_case(name="agx_no_hue", look_hue_mix=0.0),
+    _agx_default_case(name="agx_contrast", contrast=5.0),
+    _agx_default_case(name="agx_linear_zone", linear_below=0.2, linear_above=0.2),
+    _agx_default_case(name="agx_look", look_brightness=1.5, look_saturation=1.2),
+    _agx_default_case(name="agx_primaries",
+                      insets=(0.1, 0.05, 0.15),
+                      rotations=(0.05, -0.03, 0.04)),
+]
+
+
+def agx_params_blob(case) -> str:
+    packed = struct.pack(
+        AGX_PARAMS_FORMAT,
+        case["look_lift"], case["look_slope"], case["look_brightness"],
+        case["look_saturation"], case["look_hue_mix"],
+        case["black_ev"], case["white_ev"], case["dr_scaling"],
+        case["pivot_x"], case["pivot_y_linear"], case["contrast"],
+        case["linear_below"], case["linear_above"],
+        case["toe_power"], case["shoulder_power"], case["gamma"],
+        case["auto_gamma"],
+        case["target_black"], case["target_white"],
+        case["base"],
+        case["disable_primaries"],
+        case["insets"][0], case["rotations"][0],
+        case["insets"][1], case["rotations"][1],
+        case["insets"][2], case["rotations"][2],
+        case["master_outset"], case["master_unrotation"],
+        case["outsets"][0], case["unrotations"][0],
+        case["outsets"][1], case["unrotations"][1],
+        case["outsets"][2], case["unrotations"][2],
+        case["reverse_primaries"],
+    )
+    assert len(packed) == 144, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def agx_tone_mapping_params(case):
+    """agx.c:794-964 float64."""
+    p = {}
+    # look
+    p["look_lift"] = case["look_lift"]
+    p["look_slope"] = case["look_slope"]
+    p["look_saturation"] = case["look_saturation"]
+    brightness = case["look_brightness"]
+    p["look_power"] = 1.0 / math.sqrt(max(brightness, AGX_EPSILON)) if brightness < 1 else 1.0 / brightness
+    p["look_tuned"] = (case["look_slope"] != 1.0 or case["look_brightness"] != 1.0
+                       or case["look_lift"] != 0.0 or case["look_saturation"] != 1.0)
+    p["restore_hue"] = case["look_hue_mix"] != 0.0
+    # log mapping
+    p["black_relative_ev"] = case["black_ev"]
+    p["white_relative_ev"] = case["white_ev"]
+    p["range_in_ev"] = p["white_relative_ev"] - p["black_relative_ev"]
+    # pivot + gamma
+    p["pivot_x"] = max(AGX_EPSILON, min(case["pivot_x"], 1.0 - AGX_EPSILON))
+    if case["auto_gamma"]:
+        p["curve_gamma"] = (
+            math.log2(case["pivot_y_linear"]) / math.log2(p["pivot_x"])
+            if p["pivot_x"] > 0.0 and case["pivot_y_linear"] > 0.0
+            else case["gamma"]
+        )
+    else:
+        p["curve_gamma"] = case["gamma"]
+
+    def pivot_y_at(gamma):
+        return pow(max(case["target_black"], min(case["pivot_y_linear"], case["target_white"])),
+                   1.0 / gamma)
+
+    p["pivot_y"] = pivot_y_at(p["curve_gamma"])
+    # slope
+    range_adjusted_slope = case["contrast"] * (p["range_in_ev"] / 16.5)
+    py_default = pivot_y_at(AGX_DEFAULT_GAMMA)
+    deriv_current = p["curve_gamma"] * pow(max(AGX_EPSILON, p["pivot_y"]), p["curve_gamma"] - 1.0)
+    deriv_default = AGX_DEFAULT_GAMMA * pow(max(AGX_EPSILON, py_default), AGX_DEFAULT_GAMMA - 1.0)
+    p["slope"] = range_adjusted_slope / (deriv_current / deriv_default)
+    # toe
+    p["target_black"] = pow(case["target_black"], 1.0 / p["curve_gamma"])
+    p["toe_power"] = max(0.01, case["toe_power"])
+    remaining_y_below = p["pivot_y"] - p["target_black"]
+    toe_length_y = remaining_y_below * case["linear_below"]
+    dx_below = toe_length_y / p["slope"]
+    p["toe_transition_x"] = max(AGX_EPSILON, p["pivot_x"] - dx_below)
+    dx_below = p["pivot_x"] - p["toe_transition_x"]
+    toe_dy_below = p["slope"] * dx_below
+    p["toe_transition_y"] = p["pivot_y"] - toe_dy_below
+    inv_limit_x = 1.0
+    inv_limit_y = 1.0 - p["target_black"]
+    inv_tx = 1.0 - p["toe_transition_x"]
+    inv_ty = 1.0 - p["toe_transition_y"]
+    p["toe_scale"] = -_agx_scale(inv_limit_x, inv_limit_y, inv_tx, inv_ty,
+                                 p["slope"], p["toe_power"])
+    toe_length_x = p["toe_transition_x"]
+    toe_dy_to_limit = max(AGX_EPSILON, p["toe_transition_y"] - p["target_black"])
+    toe_slope_to_limit = toe_dy_to_limit / toe_length_x
+    p["need_convex_toe"] = toe_slope_to_limit > p["slope"]
+    p["toe_fallback_power"] = p["slope"] * toe_length_x / toe_dy_to_limit
+    p["toe_fallback_coefficient"] = toe_dy_to_limit / (toe_length_x ** p["toe_fallback_power"])
+    p["intercept"] = p["toe_transition_y"] - p["slope"] * p["toe_transition_x"]
+    # shoulder
+    p["target_white"] = pow(case["target_white"], 1.0 / p["curve_gamma"])
+    remaining_y_above = p["target_white"] - p["pivot_y"]
+    shoulder_length_y = remaining_y_above * case["linear_above"]
+    dx_above = shoulder_length_y / p["slope"]
+    p["shoulder_transition_x"] = min(1.0 - AGX_EPSILON, p["pivot_x"] + dx_above)
+    dx_above = p["shoulder_transition_x"] - p["pivot_x"]
+    shoulder_dy_above = p["slope"] * dx_above
+    p["shoulder_transition_y"] = p["pivot_y"] + shoulder_dy_above
+    p["shoulder_power"] = max(0.01, case["shoulder_power"])
+    p["shoulder_scale"] = _agx_scale(1.0, p["target_white"],
+                                     p["shoulder_transition_x"], p["shoulder_transition_y"],
+                                     p["slope"], p["shoulder_power"])
+    shoulder_length_x = 1.0 - p["shoulder_transition_x"]
+    shoulder_dy_to_limit = max(AGX_EPSILON, p["target_white"] - p["shoulder_transition_y"])
+    shoulder_slope_to_limit = shoulder_dy_to_limit / shoulder_length_x
+    p["need_concave_shoulder"] = shoulder_slope_to_limit > p["slope"]
+    p["shoulder_fallback_power"] = p["slope"] * shoulder_length_x / shoulder_dy_to_limit
+    p["shoulder_fallback_coefficient"] = shoulder_dy_to_limit / (shoulder_length_x ** p["shoulder_fallback_power"])
+    return p
+
+
+def _agx_scale(limit_x, limit_y, transition_x, transition_y, slope, power):
+    projected_rise = slope * max(AGX_EPSILON, limit_x - transition_x)
+    actual_rise = max(AGX_EPSILON, limit_y - transition_y)
+    tpr = projected_rise ** (-power)
+    tar = actual_rise ** (-power)
+    base = max(AGX_EPSILON, tar - tpr)
+    return min(1e9, base ** (-1.0 / power))
+
+
+def _agx_sigmoid(x, power):
+    return x / (1.0 + x ** power) ** (1.0 / power)
+
+
+def _agx_scaled_sigmoid(x, scale, slope, power, tx, ty):
+    return scale * _agx_sigmoid(slope * (x - tx) / scale, power) + ty
+
+
+def _agx_apply_curve(x, p):
+    if x < p["toe_transition_x"]:
+        if p["need_convex_toe"]:
+            result = p["target_black"] if x < 0.0 else p["target_black"] + max(
+                0.0, p["toe_fallback_coefficient"] * x ** p["toe_fallback_power"])
+        else:
+            result = _agx_scaled_sigmoid(x, p["toe_scale"], p["slope"], p["toe_power"],
+                                         p["toe_transition_x"], p["toe_transition_y"])
+    elif x <= p["shoulder_transition_x"]:
+        result = p["slope"] * x + p["intercept"]
+    else:
+        if p["need_concave_shoulder"]:
+            result = (p["target_white"] if x >= 1.0
+                      else p["target_white"] - max(0.0, p["shoulder_fallback_coefficient"]
+                                                   * (1.0 - x) ** p["shoulder_fallback_power"]))
+        else:
+            result = _agx_scaled_sigmoid(x, p["shoulder_scale"], p["slope"], p["shoulder_power"],
+                                         p["shoulder_transition_x"], p["shoulder_transition_y"])
+    return max(p["target_black"], min(p["target_white"], result))
+
+
+def _agx_compress_into_gamut(pixel):
+    coeffs = (0.2658180370250449, 0.59846986045365, 0.1357121025213052)
+    input_y = sum(coeffs[c] * pixel[c] for c in range(3))
+    max_rgb = max(pixel)
+    opponent = tuple(max_rgb - pixel[c] for c in range(3))
+    opponent_y = sum(coeffs[c] * opponent[c] for c in range(3))
+    max_opponent = max(opponent)
+    y_compensate = max_opponent - opponent_y + input_y
+    min_rgb = min(pixel)
+    offset = max(-min_rgb, 0.0)
+    rgb_offset = tuple(v + offset for v in pixel)
+    max_offset = max(rgb_offset)
+    opponent_offset = tuple(max_offset - v for v in rgb_offset)
+    max_inv = max(opponent_offset)
+    y_inv = sum(coeffs[c] * opponent_offset[c] for c in range(3))
+    y_new = sum(coeffs[c] * rgb_offset[c] for c in range(3))
+    y_new = max_inv - y_inv + y_new
+    ratio = (y_compensate / y_new) if (y_new > y_compensate and y_new > AGX_EPSILON) else 1.0
+    return tuple(ratio * v for v in rgb_offset)
+
+
+def _agx_rgb2hsv(rgb):
+    mn, mx = min(rgb), max(rgb)
+    delta = mx - mn
+    v = mx
+    if abs(mx) > 1e-6 and abs(delta) > 1e-6:
+        s = delta / mx
+        if rgb[0] == mx:
+            hue = (rgb[1] - rgb[2]) / delta
+        elif rgb[1] == mx:
+            hue = 2.0 + (rgb[2] - rgb[0]) / delta
+        else:
+            hue = 4.0 + (rgb[0] - rgb[1]) / delta
+        hue /= 6.0
+        h = hue - math.floor(hue)
+    else:
+        s, h = 0.0, 0.0
+    return (h, s, v)
+
+
+def _agx_hsv2rgb(hsv):
+    h, s, v = hsv
+    c = s * v
+    m = v - c
+    hh = h * 6.0
+    i = math.floor(hh)
+    f = hh - i
+    fc = f * c
+    top = c + m
+    inc = fc + m
+    dec = top - fc
+    idx = int(i)
+    if idx == 0:
+        return (top, inc, m)
+    if idx == 1:
+        return (dec, top, m)
+    if idx == 2:
+        return (m, top, inc)
+    if idx == 3:
+        return (m, dec, top)
+    if idx == 4:
+        return (inc, m, top)
+    return (top, m, dec)
+
+
+def _agx_lerp_hue(original, processed, mix):
+    shortest = processed - original
+    shortest -= round(shortest)
+    mixed = (1.0 - mix) * shortest + original
+    return mixed - math.floor(mixed)
+
+
+# AgX look luminance: Rec2020 primaries + D65 white via the Lindbloom
+# builder (SigmoidProfile semantics — the recorded deviation; dt uses the
+# base ICC's D50 media white, only reachable when look_tuned).
+_AGX_REC2020_RGB_XYZ = sg_build_rgb_to_xyz(
+    SG_REC2020_PRIMARIES, (0.3127, 0.3290))
+
+
+def _agx_look(pixel, p):
+    slope, lift = p["look_slope"], p["look_lift"]
+    power, sat = p["look_power"], p["look_saturation"]
+    out = []
+    for c in range(3):
+        m = slope / (1.0 + lift)
+        b = lift * m
+        v = m * pixel[c] + b
+        out.append(v ** power if v > 0.0 else v)
+    xyz = mat_vec(_AGX_REC2020_RGB_XYZ, tuple(out))
+    luma = xyz[1]
+    return tuple(luma + sat * (out[c] - luma) for c in range(3))
+
+
+def agx_pixel(rgb, case, p):
+    """kernel_agx — the default-path primaries are identity (base Rec2020
+    == work, zero inset/rotation OR disable_primaries), so the reference
+    skips the matrix legs (the agx_primaries case is dual-impl-pinned via
+    the Swift side only, NOT exercised here)."""
+    base = _agx_compress_into_gamut(rgb)
+    h_before = 0.0
+    if p["restore_hue"]:
+        h_before = _agx_rgb2hsv(base)[0]
+    transformed = []
+    for c in range(3):
+        x_rel = max(AGX_EPSILON, base[c] / 0.18)
+        mapped = max(0.0, min(1.0, (math.log2(max(x_rel, 0.0)) - p["black_relative_ev"])
+                              / p["range_in_ev"]))
+        transformed.append(_agx_apply_curve(mapped, p))
+    if p["look_tuned"]:
+        transformed = list(_agx_look(tuple(transformed), p))
+    transformed = [max(0.0, v) ** p["curve_gamma"] for v in transformed]
+    if p["restore_hue"]:
+        h_after = _agx_rgb2hsv(tuple(transformed))[0]
+        h_after = _agx_lerp_hue(h_before, h_after, case["look_hue_mix"])
+        return _agx_hsv2rgb((h_after, _agx_rgb2hsv(tuple(transformed))[1],
+                             _agx_rgb2hsv(tuple(transformed))[2]))
+    return tuple(transformed)
+
+
+def gen_agx_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in AGX_CASES:
+        if case["insets"] != (0.0, 0.0, 0.0) or case["rotations"] != (0.0, 0.0, 0.0):
+            # The primaries case carries the recorded matrix deviation —
+            # it is pinned by the Swift↔Swift dual implementation in
+            # AgXTests, not by a synthesized per-pixel EXR reference.
+            continue
+        p = agx_tone_mapping_params(case)
+        for fixture in AGX_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, case=case, p=p, w=w):
+                idx = y * w + x
+                return agx_pixel((rgb[0][idx], rgb[1][idx], rgb[2][idx]), case, p)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
 
 
 if __name__ == "__main__":
