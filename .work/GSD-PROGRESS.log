@@ -23,3 +23,4 @@
 [2026-09-19 patrol] Phase 3 plans 定稿（6 plans, 5 waves, checker 10 项修复）
 [2026-09-19 patrol] Phase 3 plans 定稿（6 plans, 5 waves）。下轮巡检执行 Phase 3
 [2026-09-19 01:15] 保活巡检暂停（用户指令），automation 已删除；队列进度冻结
+[2026-09-19 11:35] 巡检恢复（新 automation 09a53a4e）；队列 → Phase 3 execute

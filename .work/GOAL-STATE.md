@@ -36,14 +36,7 @@
 6. **Phase 2 execute** ← 进行中：~~02-01~~ ✅ 完成（2026-09-19：issue#1 真根因=WindowGroup per-odoc 开窗，单 Window 修复，UAT 9/9，L012；9 commits）；~~02-02~~ ✅ ~~02-03~~ ✅ ~~02-04~~ ✅（终端三件套+Registry+golden 双判据，83/83，L013 对策 ParamsCoding 落地）~~02-05~~ ✅（HistoryStack 九字段身份元组+compress+D-H1 三件套+TilingPlan 脚手架，106 tests，history wired）~~02-06~~ ✅（.lra schema v1 + 2s debounce 原子写 + 漂移检测；clearCaches 4 层逐出；RAW-03 65504 pinned；L014 ColorSync 跨队列竞态修复）。**Phase 2 执行 6/6 完成**：`$gsd-execute-phase 2`（波次执行，每 SUMMARY 落盘后提交）。
 7. **循环进入 Phase 3+** ← ~~Phase 3 discuss~~ ✅ 完成（03-CONTEXT.md：sigmoid 先行→filmicrgb 全移植、toneequal 全局 5-band、darktable-cli golden 打通、Inspector 面板框架）→ ~~Phase 3 research~~ ✅（45KB：每模块参数/kernel 规格、filmicrgb F0-F4 分解、Lab 域发现、darktable-cli 重建修复）→ ~~plan~~ ✅（6 plans 03-01..06，5 waves，checker 10 项修复）→ **下一项：Phase 3 execute**（巡检暂停中，恢复后执行；wave 1: dt-cli 重建+fixtures+exposure parity tracer；wave 2: WB+面板 ∥ curve/levels/colisa；wave 3: shadhi+sigmoid；wave 4: toneequal TilingPlan 首战；wave 5: filmicrgb+签核）
 
-## ⏸ 保活巡检已暂停（2026-09-19 用户指令）
-
-- 原 Cron automation `automation-7708e4c7-2e8f-4236-8b6b-67787e86476e`（每 30 分钟）已删除。
-- **恢复方式**：用户说"继续"或"恢复巡检"后，用以下参数重建（CronCreate）：
-  - title: `Lightamer GSD 保活巡检（每30分钟）`
-  - cron: `*/30 * * * *`
-  - prompt: 本文件"巡检运行规则" + 队列推进三步（读 GOAL-STATE → 执行第一项未完成 → 更新/提交/推送），与已删除版本一致
-- 队列当前进度不受影响（见下方"下一步动作队列"）。
+~~保活巡检暂停已于 2026-09-19 恢复~~（新 automation `automation-09a53a4e-ebf3-4ae8-b8eb-32c179466a6e`，每 30 分钟；旧 ID 已删）。
 
 ## 阻塞（需人工）
 
@@ -59,14 +52,7 @@
 - **日志**：每次巡检在 `.work/GSD-PROGRESS.log` 追加一行 `[时间] 动作 → 结果`。
 - **遇到不可自动化的阻塞**（需真人密码/锁屏/确认）：写入下方"阻塞（需人工）"章节，跳过并继续队列中可 headless 推进的项。
 
-## ⏸ 保活巡检已暂停（2026-09-19 用户指令）
-
-- 原 Cron automation `automation-7708e4c7-2e8f-4236-8b6b-67787e86476e`（每 30 分钟）已删除。
-- **恢复方式**：用户说"继续"或"恢复巡检"后，用以下参数重建（CronCreate）：
-  - title: `Lightamer GSD 保活巡检（每30分钟）`
-  - cron: `*/30 * * * *`
-  - prompt: 本文件"巡检运行规则" + 队列推进三步（读 GOAL-STATE → 执行第一项未完成 → 更新/提交/推送），与已删除版本一致
-- 队列当前进度不受影响（见下方"下一步动作队列"）。
+~~保活巡检暂停已于 2026-09-19 恢复~~（新 automation `automation-09a53a4e-ebf3-4ae8-b8eb-32c179466a6e`，每 30 分钟；旧 ID 已删）。
 
 ## 阻塞（需人工）
 
