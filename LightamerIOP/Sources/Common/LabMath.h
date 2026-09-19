@@ -109,12 +109,26 @@ inline float3 la_rec2020_to_lab(float3 rgb) {
     return float3(116.0f * fy - 16.0f, 500.0f * (fx - fy), 200.0f * (fy - fz));
 }
 
-/// CIE Lab → linear Rec2020 (exact inverse of la_rec2020_to_lab).
-inline float3 la_lab_to_rec2020(float3 lab) {
+/// CIE Lab → Bradford-adapted D50 XYZ (the intermediate domain dt's
+/// tonecurve XYZ-linked mode maps through; Y ∈ [0,1] for display range).
+inline float3 la_lab_to_xyz(float3 lab) {
     float fy = (lab.x + 16.0f) / 116.0f;
     float fx = fy + lab.y / 500.0f;
     float fz = fy - lab.z / 200.0f;
-    float3 xyz50 = la_lab_white * float3(la_lab_f_inv(fx), la_lab_f_inv(fy), la_lab_f_inv(fz));
+    return la_lab_white * float3(la_lab_f_inv(fx), la_lab_f_inv(fy), la_lab_f_inv(fz));
+}
+
+/// Bradford-adapted D50 XYZ → CIE Lab (inverse of la_lab_to_xyz).
+inline float3 la_xyz_to_lab(float3 xyz) {
+    float fx = la_lab_f(xyz.x / la_lab_white.x);
+    float fy = la_lab_f(xyz.y / la_lab_white.y);
+    float fz = la_lab_f(xyz.z / la_lab_white.z);
+    return float3(116.0f * fy - 16.0f, 500.0f * (fx - fy), 200.0f * (fy - fz));
+}
+
+/// CIE Lab → linear Rec2020 (exact inverse of la_rec2020_to_lab).
+inline float3 la_lab_to_rec2020(float3 lab) {
+    float3 xyz50 = la_lab_to_xyz(lab);
     return la_mul9(la_xyz_to_rec2020, la_mul9(la_bradford_d50_d65, xyz50));
 }
 

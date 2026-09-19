@@ -29,7 +29,11 @@ inline float colisa_lookup(
     const float a1, const float a2)
 {
     if (x < 1.0f) {
-        const uint idx = min((uint)max(x * 65536.0f, 0.0f), 65535u);
+        // Rounded index (see module header deviation #2): dt truncates,
+        // but neutral pixels sit EXACTLY on truncation boundaries
+        // (a=0 → a_in=0.5 → 32768.0) where the float32 chroma noise
+        // flips the index ±1; rounding makes the index stable.
+        const uint idx = min((uint)max(x * 65536.0f + 0.5f, 0.0f), 65535u);
         return lut[idx];
     }
     return a1 * powr(x * a0, a2);

@@ -92,15 +92,28 @@ public enum LabRoundTrip {
         return SIMD3(116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
     }
 
-    /// CIE Lab → linear Rec2020 (exact inverse of `rec2020ToLab`).
-    public static func labToRec2020(_ lab: SIMD3<Double>) -> SIMD3<Double> {
+    /// CIE Lab → Bradford-adapted D50 XYZ (Y ∈ [0,1] display range; the
+    /// intermediate domain tonecurve's XYZ-linked mode maps through).
+    public static func labToXYZ50(_ lab: SIMD3<Double>) -> SIMD3<Double> {
         let fy = (lab.x + 16.0) / 116.0
         let fx = fy + lab.y / 500.0
         let fz = fy - lab.z / 200.0
-        let xyz50 = labReferenceWhite * SIMD3(
+        return labReferenceWhite * SIMD3(
             labFInverse(fx), labFInverse(fy), labFInverse(fz)
         )
-        return mulMatrix(xyzToRec2020, mulMatrix(bradfordD50ToD65, xyz50))
+    }
+
+    /// Bradford-adapted D50 XYZ → CIE Lab (inverse of `labToXYZ50`).
+    public static func xyz50ToLab(_ xyz: SIMD3<Double>) -> SIMD3<Double> {
+        let fx = labF(xyz.x / labReferenceWhite.x)
+        let fy = labF(xyz.y / labReferenceWhite.y)
+        let fz = labF(xyz.z / labReferenceWhite.z)
+        return SIMD3(116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
+    }
+
+    /// CIE Lab → linear Rec2020 (exact inverse of `rec2020ToLab`).
+    public static func labToRec2020(_ lab: SIMD3<Double>) -> SIMD3<Double> {
+        mulMatrix(xyzToRec2020, mulMatrix(bradfordD50ToD65, labToXYZ50(lab)))
     }
 
     // MARK: Float32 conveniences (kernel-mirror evaluation in CPU tests)
