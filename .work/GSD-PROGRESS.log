@@ -27,3 +27,4 @@
 [2026-09-19 patrol] 巡检恢复后首轮：启动 Phase 3 execute（03-01 tracer）
 [2026-09-19 patrol] 03-01 complete: tracer exposure parity <1e-5 green, dt-cli rebuilt, 143 tests; L015/L016
 [2026-09-19 patrol] 03-02 complete: WB module + eyedropper + Inspector panel framework, 165 tests green, L017 (dt-cli spatial corruption)
+[2026-09-19 patrol] 03-03 complete: tonecurve+levels+colisa+LabRoundTrip, 199 tests green, ParityGate dual-gate standard
