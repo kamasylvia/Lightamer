@@ -58,15 +58,15 @@ import os
 /// superseded events (newest-wins without task bookkeeping).
 ///
 /// **SEAMS (documented extension points, no code yet per plan):**
-/// - **02-06 clearCaches (D-C1/D-C2):** `load(...)` fires
-///   `cache.clearCaches(keeping:)` at its entry (KeepingPolicy consumes
+/// - **02-06 sidecar (LANDED):** load-switch flush → restore-or-fresh in
+///   `load(...)`; `scheduleSidecarWrite()` on every history-move caller;
+///   `flushSidecar()` / `flushForTermination()` (AppDelegate's
+///   `applicationWillTerminate`); drift + unknown-op degrade +
+///   `EditorState.presentToast` (D-26 background grading).
+/// - **02-06 clearCaches (D-C1/D-C2):** `load(...)` fires the
+///   `cache.enforceBudget(keeping:)` at its entry (KeepingPolicy consumes
 ///   `currentImageID` + `previousImageID`, both tracked here), plus a 60s
-///   sweep task; the per-URL `imageIDMap` UUIDs persist into sidecars.
-/// - **02-06 sidecar:** `historyDidChange()` is where `scheduleWrite()`
-///   hooks in (every committed history mutation throttles a `.lra`
-///   write), and `load(...)`'s pristine reset is where a sidecar restore
-///   lands (decode history + instances from `.lra` instead of seeding
-///   defaults).
+///   sweep task.
 /// - **02-04 terminal trio / display profile:** a display-profile change
 ///   hooks in next to `drawableDidChange` and invalidates ONLY the terminal
 ///   segment (colorout/gamma) — upstream planes must survive it. The fold
@@ -152,9 +152,17 @@ final class PipeCoordinator {
     private var liveEdited: [UUID: ModuleInstance] = [:]
 
     /// The URL the in-memory history currently belongs to (Phase 2 keeps
-    /// history per image session; a NEW url resets to pristine — 02-06
-    /// replaces the reset with the sidecar restore).
+    /// history per image session; a NEW url flushes the outgoing sidecar,
+    /// then restores the incoming one or resets to pristine).
     private var historyLoadedURL: URL?
+
+    // ── 02-06 sidecar persistence (D-S2/D-S3) ────────────────────────────
+
+    /// The per-image store for the CURRENT url (throttle + atomic write +
+    /// load). Recreated per load switch; the destination is
+    /// `<original FULL name>.lra` beside the original (D-S2).
+    private var sidecarStore: SidecarStore?
+    private var sidecarDestination: URL?
 
     // ── 02-04 terminal trio + display follow ─────────────────────────────
 
@@ -329,24 +337,36 @@ final class PipeCoordinator {
         self.decoded = decoded
         self.metal = metal
         if !instances.isEmpty {
-            // Explicit chains (tests, 02-06 restore previews) bypass the
+            // Explicit chains (tests, restore previews) bypass the
             // history-owned instance set — adopt as-is (02-04 behavior).
             self.instances = await adoptChain(instances)
         } else {
-            // 02-05: the HISTORY owns the instance set. A NEW url resets
-            // EditorState to pristine (default-chain records + empty
-            // stack); a same-url reload keeps the session's history.
-            // SEAM(02-06): the sidecar restore replaces this reset —
-            // decoded history + instances land in EditorState here.
+            // 02-05/02-06: the HISTORY owns the instance set. A NEW url
+            // first FLUSHES the outgoing image's pending sidecar (D-S3),
+            // then restores the incoming `.lra` when present (drift check
+            // + unknown-op degrade) or seeds pristine with a MINTED
+            // imageID (checkpoint lock #7). A same-url reload keeps the
+            // session's in-memory history.
             if historyLoadedURL != url {
-                let defaults = await registry?.makeDefaultInstances() ?? []
-                editorState?.resetHistoryForNewImage(defaultInstances: defaults)
+                await flushSidecar()
+                let destination = LightamerSidecar.sidecarURL(for: url)
+                let store = SidecarStore(destination: destination)
+                sidecarStore = store
+                sidecarDestination = destination
+                if let document = await store.load() {
+                    await restoreFromSidecar(
+                        document: document, url: url, decoded: decoded
+                    )
+                } else {
+                    let defaults = await registry?.makeDefaultInstances() ?? []
+                    editorState?.resetHistoryForNewImage(defaultInstances: defaults)
+                }
                 historyLoadedURL = url
             }
             await rematerializeInstances()
         }
 
-        previousImageID = currentImageID // D-C1 input for 02-06 (SEAM)
+        previousImageID = currentImageID // D-C1 input for the keep policy
         if let existing = imageIDMap[url] {
             currentImageID = existing
         } else {
@@ -354,8 +374,9 @@ final class PipeCoordinator {
             imageIDMap[url] = fresh
             currentImageID = fresh
         }
-        // SEAM(02-06): the load-entry `cache.clearCaches(keeping:)` fires
-        // right here, keyed on currentImageID/previousImageID.
+        // SEAM(02-06): the load-entry `cache.enforceBudget(keeping:)` +
+        // `clearCICaches()` fire right here (D-C2), keyed on
+        // currentImageID/previousImageID.
 
         // Reconcile the bucket before the first render: a drawable input
         // that arrived before the decode finished is honored now (else the
@@ -372,6 +393,149 @@ final class PipeCoordinator {
         )
     }
 
+    // ── 02-06 sidecar persistence (restore + throttled write) ────────────
+
+    /// Restore a decoded `.lra` into EditorState (checkpoint locks #5/#7):
+    /// the stored imageID REPLACES the in-memory UUID (never re-mint), the
+    /// drift anchor is recomputed and compared (mismatch → log + toast,
+    /// memory wins, NO write-back), unknown ops degrade to
+    /// `enabled = false` with `paramsData` verbatim, then the history +
+    /// persisted instances land in EditorState.
+    private func restoreFromSidecar(
+        document: LightamerSidecar, url: URL, decoded: DecodedImage
+    ) async {
+        imageIDMap[url] = document.imageID
+
+        // Decode-stamp diff is INFORMATIONAL: a decoder upgrade (RAW 8 → 9)
+        // changes the live decode hash legitimately. The drift recompute is
+        // seeded with the FILE's own decode hash, so this never reads as
+        // user-data drift.
+        let liveDecodeHash = HistoryHash.decodeParamsHash(for: decoded)
+        if liveDecodeHash != document.decodeParamsHash {
+            Self.logger.info(
+                "sidecar \(url.lastPathComponent, privacy: .public): decode stamp differs from live decode — anchor keeps the stored seed"
+            )
+        }
+
+        // HIST-04/SC#5 drift: external edit detection BEFORE any degrade
+        // (the anchor was written from the as-saved state).
+        if document.driftDetected {
+            Self.logger.error(
+                "sidecar \(url.lastPathComponent, privacy: .public): history hash MISMATCH — externally edited? In-memory (decoded) state wins; file is NOT rewritten until the next user edit"
+            )
+            editorState?.presentToast(String(localized: "toast_drift_detected"))
+        }
+
+        // Unknown-op degrade (checkpoint lock #4): keep params verbatim,
+        // disable, toast — user data is never dropped. No registry (never
+        // expected — attach happens before any load) = restore verbatim.
+        guard let registry else {
+            Self.logger.error("no module registry attached — sidecar restored without unknown-op degrade")
+            editorState?.restoreFromSidecar(
+                history: document.history, persistedInstances: document.instances
+            )
+            return
+        }
+        let (degradedHistory, unknownOps) = await document
+            .degradedForUnknownOps(registry: registry)
+        for op in unknownOps {
+            Self.logger.error(
+                "sidecar \(url.lastPathComponent, privacy: .public): unknown op '\(op, privacy: .public)' — instance kept disabled, params preserved"
+            )
+            editorState?.presentToast(
+                String(format: String(localized: "toast_unknown_module_disabled"), op)
+            )
+        }
+
+        editorState?.restoreFromSidecar(
+            history: degradedHistory, persistedInstances: document.instances
+        )
+        Self.logger.info(
+            "sidecar restored: \(url.lastPathComponent, privacy: .public) (history \(document.history.position + 1)/\(document.history.items.count), imageID \(document.imageID.uuidString, privacy: .public))"
+        )
+    }
+
+    /// The current session as a persistable document (history + live
+    /// records + decode stamps + the current imageID). nil = nothing to
+    /// persist yet (no decode / no imageID).
+    private func makeSidecarDocument() -> LightamerSidecar? {
+        guard let decoded, let editorState, let imageID = currentImageID else {
+            return nil
+        }
+        let decodeHash = HistoryHash.decodeParamsHash(for: decoded)
+        return LightamerSidecar(
+            imageID: imageID,
+            decoderVersionUsed: decoded.decoderVersionUsed.rawValue,
+            decodeParamsHash: decodeHash,
+            instances: editorState.instances,
+            history: editorState.history,
+            historyHash: HistoryHash.hash(
+                stack: editorState.history, decodeParamsHash: decodeHash
+            ),
+            appVersion: LightamerSidecar.currentAppVersion
+        )
+    }
+
+    /// D-S3: every committed history MOVE throttles a `.lra` write (2s
+    /// merge). Live preview ticks (`setLiveParams`) deliberately do NOT
+    /// schedule — the file must always satisfy the rebuild-from-history
+    /// invariant, and uncommitted drag state is not history.
+    private func scheduleSidecarWrite() {
+        guard let sidecarStore, let document = makeSidecarDocument() else { return }
+        Task { await sidecarStore.scheduleWrite(document) }
+    }
+
+    /// Force the pending write NOW (image switch, termination seam).
+    /// Failures toast (D-26 background) — the session keeps working.
+    func flushSidecar() async {
+        guard let sidecarStore else { return }
+        do {
+            try await sidecarStore.flushNow()
+        } catch {
+            let appError = AppError(error)
+            Self.logger.error(
+                "sidecar flush failed: \(appError.localizedDescription, privacy: .public)"
+            )
+            editorState?.presentToast(
+                String(localized: "toast_sidecar_write_failed")
+            )
+        }
+    }
+
+    #if DEBUG
+    /// Probe-only GPU completion fence: getBytes on shared memory does not
+    /// wait for in-flight encoders, and the headless sidecar probe hashes
+    /// the display plane right after the render push. Same pattern as the
+    /// test-suite drain helpers.
+    func drainGPUForProbe() {
+        guard let metal else { return }
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+    }
+    #endif
+
+    /// `applicationWillTerminate` flush: the AppKit callback is SYNCHRONOUS
+    /// and the process exits when it returns, so the actor hop runs on a
+    /// detached task behind a bounded semaphore (5s ceiling — L009: USB-
+    /// volume writes can be slow; a hung disk must not block termination
+    /// forever). Runs on the MainActor (the AppKit callback is main-thread).
+    func flushForTermination() {
+        guard let sidecarStore else { return }
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached {
+            do {
+                try await sidecarStore.flushNow()
+            } catch {
+                AppError.logger.error(
+                    "sidecar flush at termination failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + .seconds(5))
+    }
+
     // ── 02-05 history-driven rendering (D-H1 trio + HIST-02 navigation) ──
 
     /// THE param-change path (replaces 02-03's `paramsDidChange`):
@@ -385,8 +549,11 @@ final class PipeCoordinator {
     /// hits — and an undo lands on the previous params' planes the same
     /// way (SC#2's undo leg end-to-end).
     ///
-    /// SEAM(02-06): the sidecar `scheduleWrite()` hooks right here (every
-    /// committed history mutation throttles a `.lra` write).
+    /// The 02-06 sidecar `scheduleWrite()` lives on the HISTORY-MOVE
+    /// callers below (`commitContinuousEdit`/`undo`/`redo`/
+    /// `jumpToHistory`), NOT here — live drag ticks funnel through this
+    /// too, and uncommitted drag state must never hit disk (the sidecar's
+    /// rebuild-from-history invariant).
     func historyDidChange() async {
         guard decoded != nil else { return }
         await rematerializeInstances()
@@ -486,6 +653,7 @@ final class PipeCoordinator {
         for snapshot in touched {
             editorState?.recordChange(snapshot, label: label)
         }
+        scheduleSidecarWrite() // D-S3: the committed move throttles a write
     }
 
     /// HIST-02 undo (UI-facing shape; Phase 3 attaches the first panel):
@@ -496,12 +664,14 @@ final class PipeCoordinator {
     func undo() async {
         guard let editorState, editorState.performUndo() else { return }
         await historyDidChange()
+        scheduleSidecarWrite() // position moved — persist it too
     }
 
     /// HIST-02 redo: into an untruncated tail only.
     func redo() async {
         guard let editorState, editorState.performRedo() else { return }
         await historyDidChange()
+        scheduleSidecarWrite()
     }
 
     /// HIST-02/D-H3 jump-to-any-point: the stack clamps out-of-range
@@ -511,6 +681,7 @@ final class PipeCoordinator {
         guard let editorState else { return }
         editorState.performJump(to: index)
         await historyDidChange()
+        scheduleSidecarWrite()
     }
 
     /// Viewport geometry changed (an INPUT event — the view never renders).

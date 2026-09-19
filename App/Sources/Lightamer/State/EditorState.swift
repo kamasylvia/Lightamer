@@ -52,6 +52,27 @@ final class EditorState {
     /// (D-34: background async decode, cancellable, MainActor UI updates).
     private var decodeTask: Task<Void, Never>?
 
+    // ── 02-06 toast surface (D-26 background grading) ────────────────────
+
+    /// Non-blocking status-bar notice (drift detected / unknown module
+    /// disabled / cache freed / sidecar write failed). Background grading:
+    /// never steals focus, never blocks — distinct from the blocking
+    /// `decodeError` alert. Auto-clears after 4s.
+    private(set) var toast: String?
+
+    private var toastClearTask: Task<Void, Never>?
+
+    /// Raise a background toast (D-26). Multiple raises reset the timer.
+    func presentToast(_ message: String) {
+        toastClearTask?.cancel()
+        toast = message
+        toastClearTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            self?.toast = nil
+        }
+    }
+
     /// The multi-resolution pipe owner (Plan 02-03-04), attached by the app
     /// root AFTER both `@State` objects exist (the coordinator's display
     /// sink needs this instance; the app root strongly owns BOTH, this is
@@ -91,13 +112,29 @@ final class EditorState {
 
     /// Seed a freshly loaded image to PRISTINE: empty history + the
     /// default-chain records as the live instance set (the coordinator
-    /// passes `ModuleRegistry.makeDefaultInstances()`). 02-06 replaces
-    /// this call's freshness with the sidecar restore (history + instances
-    /// decoded from `.lra`) at the same point in the load flow.
+    /// passes `ModuleRegistry.makeDefaultInstances()`).
     func resetHistoryForNewImage(defaultInstances: [ModuleInstance]) {
         history = HistoryStack()
         baseInstances = defaultInstances
         instances = defaultInstances
+    }
+
+    /// 02-06 sidecar RESTORE (replaces the pristine reset when a `.lra`
+    /// exists): installs the decoded history and derives the live set with
+    /// the SAME merge rule as undo/redo. `baseInstances` = the persisted
+    /// instances NOT owned by the restored history's effective set — their
+    /// persisted UUIDs + params are preserved VERBATIM (NDE-1: identity is
+    /// never re-minted on reload; checkpoint 02-06-01 lock #7), while
+    /// history-owned instances come back through their inline snapshots.
+    func restoreFromSidecar(history restoredHistory: HistoryStack, persistedInstances: [ModuleInstance]) {
+        history = restoredHistory
+        let effective = restoredHistory.effectiveInstances()
+        baseInstances = persistedInstances.filter { record in
+            !effective.contains {
+                $0.opName == record.opName && $0.multiPriority == record.multiPriority
+            }
+        }
+        rebuildInstances()
     }
 
     /// D-H1 commit leg: one history entry per interaction

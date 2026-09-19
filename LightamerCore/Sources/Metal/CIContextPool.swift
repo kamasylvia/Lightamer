@@ -215,6 +215,18 @@ internal actor CIContextPool {
         guard width >= 1, height >= 1 else {
             throw AppError.decodeFailed("convertTexture: degenerate texture \(width)×\(height)")
         }
+        // CROSS-QUEUE ORDERING (Plan 02-06 host finding): CI renders on its
+        // OWN internal queue, but `input` may have kernel writes still
+        // IN FLIGHT on OUR serial queue (dispatch2DTexture commits without
+        // waiting). Without a fence, the ColorSync leg race-reads freshly
+        // allocated (zeroed) planes — deterministic-looking per flow shape
+        // (the 5-dispatch restore render lost the race 4/4; the shorter
+        // live-edit render won it 2/2). An empty committed buffer waits for
+        // every prior write on our queue before CI touches the texture.
+        let fence = commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+
         guard let image = CIImage(mtlTexture: input, options: [
             .colorSpace: WorkingSpace.colorSpace, // the plane IS linear Rec2020 (FOUND-02)
         ]) else {

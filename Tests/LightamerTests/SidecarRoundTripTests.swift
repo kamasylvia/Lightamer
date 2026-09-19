@@ -1,5 +1,7 @@
 @testable import LightamerCore
+import CoreImage
 import LightamerIOP
+import Metal
 import XCTest
 
 // MARK: - Fake debounce clock (02-06-03: the debounce is testable without
@@ -392,5 +394,171 @@ final class SidecarRoundTripTests: XCTestCase {
         let (store, _, _) = try makeStore("absent")
         let absent = await store.load()
         XCTAssertNil(absent)
+    }
+}
+
+// MARK: - SC#3 end-to-end round-trip (02-06-07; the app coordinator's
+// verify path at Core level — the coordinator itself is App-internal and
+// not test-importable, 02-05 recorded deviation #1)
+
+extension SidecarRoundTripTests {
+
+    /// A non-constant synthetic image (a horizontal linear gradient in
+    /// linear Rec2020) — constant colors could mask channel-dependent
+    /// breakage in the terminal trio.
+    private func makeGradientImage(width: Int = 64, height: Int = 48) -> DecodedImage {
+        let gradient = CIImage(color: .white)
+            .cropped(to: CGRect(x: 0, y: 0, width: width, height: height))
+            .applyingFilter("CILinearGradient", parameters: [
+                "inputPoint0": CIVector(x: 0, y: 0),
+                "inputPoint1": CIVector(x: CGFloat(width), y: 0),
+                "inputColor0": CIColor(red: 0.1, green: 0.2, blue: 0.3),
+                "inputColor1": CIColor(red: 0.9, green: 0.8, blue: 0.7),
+            ])
+            .cropped(to: CGRect(x: 0, y: 0, width: width, height: height))
+        return DecodedImage(
+            ciImage: gradient,
+            rawTech: RAWTechnicalParams(),
+            capture: CaptureMetadata(),
+            segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8
+        )
+    }
+
+    /// Materialize boxes from records exactly the way the app coordinator's
+    /// `rematerializeInstances` does (registry.makeBox by op + apply by
+    /// record; unknown ops cannot occur here — degraded upstream).
+    private func materialize(
+        _ records: [ModuleInstance], registry: ModuleRegistry
+    ) async -> [any ModuleBoxing] {
+        var boxes: [any ModuleBoxing] = []
+        for record in records {
+            guard let box = await registry.makeBox(opName: record.opName, instanceID: record.id) else {
+                continue
+            }
+            do {
+                try await box.apply(record)
+            } catch {
+                XCTFail("apply failed for \(record.opName): \(error)")
+            }
+            boxes.append(box)
+        }
+        return boxes
+    }
+
+    /// GPU completion fence — getBytes on shared memory does NOT wait for
+    /// in-flight encoders; every readback in this file MUST drain first
+    /// (same pattern as TerminalTrioTests.drain; without it the bisect
+    /// above races the render and reads half-written zeros).
+    private func drain(_ metal: MetalContext) {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+    }
+
+    private func readPlaneBytes(_ texture: any MTLTexture) -> [UInt8] {
+        // The PREVIEW final plane is the gamma tail: `.bgra8Unorm` (4 B/px —
+        // PixelPipe's terminal-tail policy), NOT the float32 working format.
+        let bytesPerPixel = 4
+        let rowBytes = texture.width * bytesPerPixel
+        var bytes = [UInt8](repeating: 0, count: rowBytes * texture.height)
+        texture.getBytes(
+            &bytes, bytesPerRow: rowBytes,
+            from: MTLRegionMake2D(0, 0, texture.width, texture.height),
+            mipmapLevel: 0
+        )
+        return bytes
+    }
+
+    /// THE SC#3 contract: build state → write sidecar → drop EVERYTHING →
+    /// restore from the file → re-render → instances/history/position/
+    /// imageID identical AND the rendered output plane BYTE-IDENTICAL.
+    func testRoundTripRestoresIdenticalRenderedOutput() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let state = makeState()
+        let decodeSeed: UInt64 = 0x1234_5678_9ABC_DEF0
+        let imageID = UUID()
+
+        // ── session 1: materialize + render + persist ──
+        let registry1 = ModuleRegistry()
+        await registry1.register(opName: TestGainModule.opName) { id in
+            ModuleBox(module: TestGainModule(), instanceID: id)
+        }
+        let boxes1 = await materialize(state.instances, registry: registry1)
+        XCTAssertEqual(boxes1.count, 5, "trio + two testgain instances")
+
+        let metal1 = try MetalContext()
+        try await metal1.registerDefaultLibrary(in: TestGainKernel.metalBundle)
+        let cache1 = PipeCache()
+        let image = makeGradientImage()
+        let (out1, _) = try await RenderPipeline.process(
+            image: image, instances: boxes1, imageID: imageID,
+            resolution: .preview, cache: cache1, metal: metal1, longEdge: 64
+        )
+        drain(metal1)
+        let bytes1 = readPlaneBytes(out1)
+        do {
+            var nonzero = 0
+            for b in bytes1 where b != 0 { nonzero += 1 }
+            print("[debug] session-1 final plane: \(bytes1.count) bytes, \(nonzero) nonzero, first 16: \(Array(bytes1.prefix(16)))")
+        }
+        XCTAssertFalse(bytes1.allSatisfy { $0 == 0 }, "session-1 render is not blank")
+
+        let document = makeDocument(instances: state.instances, history: state.history)
+        let directory = try tempDir("sc3")
+        let destination = directory.appendingPathComponent("IMG_SC3.ARW.lra")
+        let store1 = SidecarStore(destination: destination)
+        await store1.scheduleWrite(document)
+        try await store1.flushNow()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path))
+
+        // ── session 2: EVERYTHING dropped — fresh registry, cache, metal ──
+        let registry2 = ModuleRegistry()
+        await registry2.register(opName: TestGainModule.opName) { id in
+            ModuleBox(module: TestGainModule(), instanceID: id)
+        }
+        let store2 = SidecarStore(destination: destination)
+        let loaded2 = await store2.load()
+        let doc2 = try XCTUnwrap(loaded2)
+        XCTAssertFalse(doc2.driftDetected)
+        let (degradedHistory, unknown) = await doc2.degradedForUnknownOps(registry: registry2)
+        XCTAssertTrue(unknown.isEmpty)
+        XCTAssertEqual(degradedHistory, state.history)
+
+        // The restore projection (EditorState.restoreFromSidecar's rule).
+        let effective = degradedHistory.effectiveInstances()
+        let base = doc2.instances.filter { record in
+            !effective.contains {
+                $0.opName == record.opName && $0.multiPriority == record.multiPriority
+            }
+        }
+        var merged = base
+        for record in effective {
+            if let index = merged.firstIndex(where: {
+                $0.opName == record.opName && $0.multiPriority == record.multiPriority
+            }) {
+                merged[index] = record
+            } else {
+                merged.append(record)
+            }
+        }
+        merged.sort {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+        XCTAssertEqual(merged, state.instances)
+
+        let boxes2 = await materialize(merged, registry: registry2)
+        XCTAssertEqual(boxes2.count, 5)
+        let metal2 = try MetalContext()
+        try await metal2.registerDefaultLibrary(in: TestGainKernel.metalBundle)
+        let cache2 = PipeCache()
+        let (out2, _) = try await RenderPipeline.process(
+            image: image, instances: boxes2, imageID: doc2.imageID,
+            resolution: .preview, cache: cache2, metal: metal2, longEdge: 64
+        )
+        drain(metal2)
+        let bytes2 = readPlaneBytes(out2)
+        XCTAssertFalse(bytes2.allSatisfy { $0 == 0 }, "session-2 render is not blank")
+        XCTAssertEqual(bytes1, bytes2, "SC#3: the restored session re-renders IDENTICAL bytes")
     }
 }

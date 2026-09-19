@@ -81,7 +81,7 @@ internal struct EditorAreaView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            StatusBar(isDecoding: editorState.isDecoding)
+            StatusBar(isDecoding: editorState.isDecoding, toast: editorState.toast)
         }
         .background(LightamerColors.canvas)
     }
