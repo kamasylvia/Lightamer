@@ -244,11 +244,21 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertTrue(state.panelOpNames.contains("colisa"))
         XCTAssertTrue(state.panelOpNames.contains("tonecurve"))
         XCTAssertTrue(state.panelOpNames.contains("levels"))
+        // Plan 03-04-T5: the scene-referred pair
+        XCTAssertTrue(state.panelOpNames.contains("sigmoid"))
+        XCTAssertTrue(state.panelOpNames.contains("shadhi"))
 
         let exposureRecord = ModuleInstance(module: ExposureModule.self, params: .init())
         let session = InspectorEditSession(coordinator: coordinator)
         let view = state.panelView(for: exposureRecord, edit: session)
         XCTAssertNotNil(view, "exposure must dispatch a panel")
+
+        let sigmoidRecord = ModuleInstance(module: SigmoidModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: sigmoidRecord, edit: session),
+                        "sigmoid must dispatch a panel")
+        let shadhiRecord = ModuleInstance(module: ShadhiModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: shadhiRecord, edit: session),
+                        "shadhi must dispatch a panel")
 
         let colorinRecord = ModuleInstance(module: ColorInModule.self, params: .init())
         XCTAssertNil(state.panelView(for: colorinRecord, edit: session),
@@ -341,6 +351,70 @@ final class PanelWiringTests: XCTestCase {
         await coordinator.commitContinuousEdit(label: "levels mode")
         XCTAssertEqual(historyCount(), 2, "mode switch adds exactly ONE item")
         XCTAssertEqual(try instance("levels").params(of: LevelsModule.self).mode, .automatic)
+    }
+
+    // MARK: - 03-04 sigmoid / shadhi panel wiring (T5)
+
+    /// Sigmoid: append via one trio (1 item), then a 6-tick drag via a
+    /// second trio (+1, the last tick wins) — the D-T2 baseline's panel
+    /// wiring.
+    func testSigmoidPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(
+            ModuleInstance(module: SigmoidModule.self, params: .init()))
+        await coordinator.commitContinuousEdit(label: "add sigmoid")
+        XCTAssertEqual(historyCount(), 1, "append = exactly ONE item")
+
+        let sigmoid = try instance("sigmoid")
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(sigmoid, {
+                $0.middleGreyContrast = 1.2 + Float(tick) * 0.05
+            }, as: SigmoidModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_sigmoid"))
+
+        XCTAssertEqual(historyCount(), 2, "drag adds exactly ONE more item")
+        let committed = try instance("sigmoid")
+        XCTAssertEqual(
+            try committed.params(of: SigmoidModule.self).middleGreyContrast,
+            1.5, accuracy: 1e-6
+        )
+    }
+
+    /// Shadhi: same append+drag wiring; the algo picker keeps the Phase-5
+    /// bilateral leg unreachable (gaussian stays the only live value).
+    func testShadhiPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(
+            ModuleInstance(module: ShadhiModule.self, params: .init()))
+        await coordinator.commitContinuousEdit(label: "add shadhi")
+        XCTAssertEqual(historyCount(), 1, "append = exactly ONE item")
+
+        let shadhi = try instance("shadhi")
+        coordinator.beginContinuousEdit()
+        for tick in 1...4 {
+            let record = try withParams(shadhi, {
+                $0.shadows = 50 + Float(tick) * 5
+            }, as: ShadhiModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_shadhi"))
+
+        XCTAssertEqual(historyCount(), 2, "drag adds exactly ONE more item")
+        let committed = try instance("shadhi")
+        XCTAssertEqual(
+            try committed.params(of: ShadhiModule.self).shadows, 70, accuracy: 1e-5
+        )
+        XCTAssertEqual(
+            try committed.params(of: ShadhiModule.self).algo, .gaussian,
+            "bilateral stays Phase 5 — the binding guards non-gaussian"
+        )
     }
 
     // MARK: - Helpers

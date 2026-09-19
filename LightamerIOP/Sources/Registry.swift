@@ -43,6 +43,18 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: LevelsModule.opName) { id in
             ModuleBox(module: LevelsModule(), instanceID: id)
         }
+        // Plan 03-04-T4: sigmoid (scene-referred log-logistic tone mapping),
+        // v50 slot 45.3 — the D-T2 scene-referred baseline (filmicrgb's
+        // risk buffer, plan 03-06's template).
+        await registry.register(opName: SigmoidModule.opName) { id in
+            ModuleBox(module: SigmoidModule(), instanceID: id)
+        }
+        // Plan 03-04-T2: shadhi (shadows & highlights, Lab-domain gaussian
+        // leg), v50 slot 50.0 — Phase 3's first neighborhood-op module
+        // (Common/GaussianBlur consumer; bilateral leg = Phase 5).
+        await registry.register(opName: ShadhiModule.opName) { id in
+            ModuleBox(module: ShadhiModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -64,9 +76,11 @@ public enum LightamerIOPRegistry {
         [
             ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params()),
             ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params()),
+            ModuleInstance(module: SigmoidModule.self, params: SigmoidModule.Params()),
             ModuleInstance(module: ColisaModule.self, params: ColisaModule.Params()),
             ModuleInstance(module: ToneCurveModule.self, params: ToneCurveModule.Params()),
             ModuleInstance(module: LevelsModule.self, params: LevelsModule.Params()),
+            ModuleInstance(module: ShadhiModule.self, params: ShadhiModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }

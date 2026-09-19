@@ -50,13 +50,16 @@ final class InspectorState {
     }
 
     /// The Phase 3 default set: exposure + temperature + the 03-03 Lab
-    /// trio (colisa / tonecurve / levels). Later plans append theirs.
+    /// trio (colisa / tonecurve / levels) + the 03-04 additions (sigmoid
+    /// D-T2 baseline / shadhi). Later plans append theirs.
     func registerDefaultProviders() {
         register(ExposurePanelProvider())
         register(TemperaturePanelProvider())
         register(ColisaPanelProvider())
         register(ToneCurvePanelProvider())
         register(LevelsPanelProvider())
+        register(SigmoidPanelProvider())
+        register(ShadhiPanelProvider())
     }
 
     /// The ops that have a registered panel (for the Inspector list).
