@@ -121,6 +121,22 @@
 - **适用**：任何"我们的队列写纹理 + CI/其他队列读"的混用场景（colorout fallback 腿、未来 CI 复合导出路径）；所有 GPU 纹理读回（测试与探针）。
 - **来源**：Plan 02-06-04 SC#3 验收排障（2026-09-19），证据 `.work/02-06/roundtrip.md` + `SidecarRoundTripTests.testRoundTripRestoresIdenticalRenderedOutput`。
 
+### L015: Darktable XMP 的未压缩 params 是 HEX ASCII，不是 base64
+- **背景**：Plan 03-01-T1 按 03-RESEARCH §6.3 的配方（「纯 base64（>100B 才 zlib）」）生成 exposure 钉参 XMP，darktable-cli 重建后 XMP history 行虽被写入库，但 op_params 全为默认值，输出恒等。
+- **现象**：`--core -d params` 日志显示 `[history] successfully loaded module exposure ... params v. 7: version ok params WRONG`——params blob 尺寸校验失败，dt 静默回退默认参数。
+- **根因**：`dt_exif_xmp_encode_internal`（exif.cc:3292-3311）的两条路径：压缩 = `"gz"` + 2 位压缩因子 + base64；**未压缩 = 小写 HEX ASCII（每字节 2 字符）**。`dt_exif_xmp_decode`（exif.cc:3317+）按 `gz` 前缀分派，无前缀时按 hex 解析——base64 字符串被当 hex 解出错误长度，history loader 标 `params WRONG` 后用模块默认值顶替。
+- **对策**：XMP `darktable:params` 一律 `binascii.hexlify(struct.pack(...))`（小写）。生成脚本 `input/golden/fixtures/gen_fixtures.py` 的 `exposure_params_blob` 是正本；后续模块（WB/sigmoid/…）的钉参 XMP 照此办理。验证手段：`--core -d params` 看 `params v. N: version ok params ok` + `sqlite3 <library.db> "SELECT hex(op_params) FROM main.history WHERE operation='<op>'"`。
+- **适用**：所有 Phase 3+ golden 钉参 XMP 生成；任何「直接改 dt 库 DB」的手工实验。
+- **来源**：Plan 03-01-T1 排障（2026-09-19），RESEARCH §6.3 已知勘误点（exif.cc:3218-3241 段的编码分派读岔）。
+
+### L016: macOS 27 ImageIO 的 float32 EXR 解码逐通道错位；CGColorSpace.itur_2020 不是 linear
+- **背景**：Plan 03-01-T3 golden parity 轨 A 需要把 dt-cli 产出的 float32 EXR fixture 送进 Lightamer 管线；最初走 `RAWDecoder.decodeRaster`（CGImageSource → CGImage → CIImage）。
+- **现象**：管线输入平面每个通道以**不同的列偏移/次采样率**出现（R≈v(50+x/3)、G≈v(29+x/2.7)、B≈v(x/3)），且对 darktable 写的文件与自研 writer 写的文件同样错位；同一文件经 dt（libopenexr）与手写 reader 读取均逐字节正确——错的是 ImageIO 解码器。另：把 fixture CGImage 标成 `CGColorSpace(name: .itur_2020)` 后，CI 腿把已 linear 的值再 gamma 解码（v^2.4，v(0)=2^-8 → 2^-19.2 特征值）。
+- **根因**：① macOS 27 ImageIO 的 float32 EXR 解码路径内部布局假设与 OpenEXR 规范不一致（逐通道错位，机制未深究——官方框架行为，绕开即可）；② `kCGColorSpaceITUR_2020` 带 BT.1886 gamma-2.4 TRC，**不是 linear Rec2020**；linear 版本常量是 `CGColorSpace.linearITUR_2020`（项目内 `WorkingSpace.colorSpace`）。
+- **对策**：① float EXR 精确读取一律走 `GoldenParityTests.UncompressedEXR`（手写 uncompressed scanline float32 reader，regenerate.sh 已用 `--configdir` 把 dt 写出钉成 uncompressed float32，PIZ 输入会 fail-fast）；fixture → 管线用 `CGImageCreate`（float32 字节直构，不经过 ImageIO 解码器）+ `WorkingSpace.colorSpace` 标签。② 任何「linear Rec2020」语义必须用 `WorkingSpace.colorSpace`，禁止 `.itur_2020` 字面常量。
+- **适用**：Phase 3 全部 golden parity 测试；Phase 11 导出 EXR 预览/回读；一切 CI+float 图像的 colorspace 标签。
+- **来源**：Plan 03-01-T3 排障（2026-09-19），证据探针 `/tmp/citest.swift`、`/tmp/cgmake.swift`（会话内），修复后轨 A 全绿。
+
 ---
 
 *本文件随开发进展持续更新。阶段完成后运行 `$gsd-extract-learnings` 自动提取。*

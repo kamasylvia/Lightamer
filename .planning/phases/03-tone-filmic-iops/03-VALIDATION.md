@@ -3,7 +3,7 @@ phase: 3
 slug: tone-filmic-iops
 status: draft
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-09-19
 ---
 
@@ -40,8 +40,8 @@ created: 2026-09-19
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 03-01-T1/T5/T6 | 03-01 | 1 | IOP-TONE-01 (exposure) | — | N/A | golden parity | 合成 fixture → dt-cli 单模块钉参 → EXR vs Lightamer → 逐像素 <1e-5 相对误差（tracer） | ❌ W0 | ⬜ pending |
-| 03-01-T2 | 03-01 | 1 | Wave 0 fixture 组 + dt-cli 重建 | — | N/A | script | `bash input/golden/regenerate.sh` 一键复现 + manifest | ❌ W0 | ⬜ pending |
+| 03-01-T1/T5/T6 | 03-01 | 1 | IOP-TONE-01 (exposure) | — | N/A | golden parity | 合成 fixture → dt-cli 单模块钉参 → EXR vs Lightamer → 逐像素 <1e-5 相对误差（tracer） | ✅ | ✅ green（2026-09-19，`GoldenParityTests.testExposureGoldenParityAgainstDarktableCLI`，commit 5c57916；轨 B 双判据同文件） |
+| 03-01-T2 | 03-01 | 1 | Wave 0 fixture 组 + dt-cli 重建 | — | N/A | script | `bash input/golden/regenerate.sh` 一键复现 + manifest | ✅ | ✅ green（2026-09-19：dt-cli 重建 dc58cf0ba1 + XMP 钉参采纳实证（0.25→0.5 exact）+ roundtrip maxdiff 0.0 + manifest，commit 6c7bc7e） |
 | 03-02-T1/T2/T6 | 03-02 | 2 | IOP-TONE-02 (WB) | — | N/A | unit+golden | K→增益 CPU 单测（已知向量）+ 吸管数学 + fixture golden（增益直设钉参） | ❌ W0 | ⬜ pending |
 | 03-03-T3 | 03-03 | 2 | IOP-TONE-03 (tonecurve) | — | N/A | unit+golden | 10001 点 1D 阶梯 LUT round-trip + dt-cli parity <1e-5 | ❌ W0 | ⬜ pending |
 | 03-04-T1/T2 | 03-04 | 3 | IOP-TONE-04 (shadhi) | — | N/A | golden parity | Lab 往返 + gaussian 腿钉参容差 <1e-4 + ΔE<1.0 99% 分位 | ❌ W0 | ⬜ pending |
@@ -61,10 +61,10 @@ created: 2026-09-19
 
 ## Wave 0 Requirements
 
-- [ ] `input/golden/fixtures/` — 合成 fixture 组脚本（灰阶 ramp −8..0EV、平场、饱和色块、深阴影梯度、中性灰阶梯、1D 阶梯）
-- [ ] darktable-cli 重建（当前树 dc58cf0ba1）+ XMP attach 验证（修复预构建版丢历史缺陷）
-- [ ] `Tests/LightamerTests/GoldenParityTests.swift` — dt-cli parity 双轨 harness
-- [ ] `Tests/LightamerTests/CPUDerivationTests.swift` — 各模块 CPU 推导公式直译互验
+- [x] `input/golden/fixtures/` — 合成 fixture 组脚本（灰阶 ramp −8..−0.125EV 幂次锚列、平场 ×3、饱和色块+out-of-Rec2020 光谱、深阴影梯度、中性灰阶梯、10001 点 1D 阶梯）（03-01-T2，2026-09-19）
+- [x] darktable-cli 重建（当前树 dc58cf0ba1，5.5.0+1862~gdc58cf0ba1-dirty）+ XMP attach 验证（+1EV 钉参 0.25→0.5 采纳实证；预构建版丢历史缺陷随重建消失）（03-01-T1，2026-09-19）
+- [x] `Tests/LightamerTests/GoldenParityTests.swift` — dt-cli parity 双轨 harness（轨 A <1e-5 + 轨 B Phase 2 双判据带新模块插入）（03-01-T3，2026-09-19）
+- [x] `Tests/LightamerTests/CPUDerivationTests.swift` — 各模块 CPU 推导公式直译互验（exposure 节落账 + WB/Lab/sigmoid/toneequal/filmic 占位节）（03-01-T4，2026-09-19）
 
 ---
 

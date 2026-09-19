@@ -77,12 +77,23 @@
   - RAW-03：32f TIFF/EXR fixtures（极值 65504.0 pinned）+ `RAW03Tests` 7 全绿；宿主决策：CGImage 路 float-faithful、fallback 不采纳（记录于 `decodeRaster`），6a72691
   - 单测 **133 全绿**（3 skip 合规）；grep 守卫：`.xmp` 零读写路径；VALIDATION 签核（SC#1..5 证据 + 需求追溯 7/7）+ 真机 round-trip `.work/02-06/roundtrip.md`；SUMMARY 见 `02-06-SUMMARY.md`
 
+## Phase 3: Tone & Filmic iops — 执行中（1/6 plans）
+
+- [x] **Plan 03-01**（Wave 0 基建 + exposure tracer）完成（2026-09-19）：
+  - T1 darktable-cli 从 dc58cf0ba1 重建（5.5.0+1862~gdc58cf0ba1-dirty；构建修复：CLT SDK `-isystem` 与 Xcode 27 clang 的 libc++ `<cstddef>` 冲突 → 缓存 SDK 路径改指 Xcode SDK + fresh configure + 显式 libomp + 内置 Lua），XMP 钉参链路实证采纳（+1EV XMP：ramp 0.25 列 → 0.5 exact；直通 bit-exact）——预构建版丢历史缺陷消失，GUI 模板回退方案无需启用（6c7bc7e）
+  - T2 `input/golden/`：gen_fixtures.py（纯 stdlib EXR writer，8 fixtures + 4 exposure 钉参 XMP cases，**XMP params = 小写 HEX ASCII 非 base64**（RESEARCH §6.3 勘误，exif.cc:3317））+ regenerate.sh 四段管线（--configdir 钉 float32/uncompressed 写出保证机器无关 hash + --apply-custom-presets 0）+ manifest（dt commit + blob hash + 输出 sha256 + dt↔Lightamer 字段映射表）；roundtrip passthrough maxdiff 0.0（预算 ≤1e-6）
+  - T5 `ExposureModule`（.swift+.metal 对，v50=21.0 注册）：v7 params 镜像 + `white=exp2(−EV)`/`scale=1/(white−black)`；divergence 头注（默认 0EV 非 dt 0.7EV / deflicker 不实现位保留 / processed_maximum 不跟踪 / EXIF bias 补偿预留）
+  - T3+T4 `GoldenParityTests`（轨 A：fixture×case 逐像素 <1e-5 **GREEN**；轨 B：Phase 2 双判据带 exposure 插入链 green）+ `CPUDerivationTests`（exposure 公式直译 8 向量 + 后续模块占位节）；全 suite 143 绿（3 skip 合规）
+  - 两个 macOS 27 host finding（L015/L016）：dt XMP 未压缩 params 为 hex ASCII 非 base64；ImageIO float32 EXR 解码逐通道错位（绕道 = 自研 EXR reader + CGImageCreate float32 + WorkingSpace（**linear**）Rec2020 标签；⚠ `CGColorSpace.itur_2020` 是 gamma-2.4 非 linear）
+  - SUMMARY 见 `03-01-SUMMARY.md`；下一批 = 03-02（WB）/ 03-03（Lab 三模块）并行
+
 ## pending-manual（累计，解锁后重跑）
 
 - [ ] XCUITest 三栏断言（L011 授权；Phase 1 起遗留）：`xcodebuild test -only-testing:LightamerUITests`
 - [ ] ColorChecker ARW 实拍补采（02-04 遗留，采集路径 `.work/02-04/colorchecker-acquisition.md`）
 - [ ] 跨屏 profile 跟随实测（02-04 遗留，单显示器环境 skip-with-reason）
 - [ ] 屏显色彩目检（SC#1 非 headless 部分，Phase 13 COLOR-03 前置可复验）
+- [ ] `GoldenColorTests.testCrossConsistencyLinearDomain` 间歇性失败排查（02-04 harness 遗留 flake，03-01 期间复现：全 suite/类内运行偶发 diverge 1.0，单测隔离必现通过；03-01 排除本类后仍复现 → 与 03-01 无关；疑似 CI baseline 腿跨渲染时序，L014 同族）
 
 ## Phase 2-13（已规划，未开始）
 
