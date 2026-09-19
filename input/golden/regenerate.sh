@@ -81,7 +81,15 @@ mkdir -p "$PROBE"
 # writer is exact on UNIFORM images, so the flats pin dt's per-pixel
 # semantic while the synthesized references carry the per-pixel track-A
 # role (host finding: spatially-varying float export is corrupt).
-for xmp in "$GOLDEN"/cases/temperature_*.xmp "$GOLDEN"/cases/colisa_*.xmp; do
+# sigmoid (03-04-T4): the rgb_ratio flat probes MATCH the reference math
+# exactly (three flats, ≤1e-5) — the dt-side semantic evidence for the
+# shared derivation+curve. The per_channel leg SIGSEGVs dt-cli in this
+# build (3/3 runs, manifest note) — its files simply never appear.
+# shadhi (03-04-T2): the probes pin the BROKEN route (the pipe runs the
+# Lab module on unconverted domain — manifest finding), NOT the module
+# semantic; kept as the mechanism's evidence record.
+for xmp in "$GOLDEN"/cases/temperature_*.xmp "$GOLDEN"/cases/colisa_*.xmp \
+           "$GOLDEN"/cases/sigmoid_*.xmp "$GOLDEN"/cases/shadhi_*.xmp; do
     case_name="$(basename "$xmp" .xmp)"
     for f in $FIXTURES; do
         "$DT" "$FIX/$f.exr" "$xmp" "$PROBE/${case_name}__${f}" \
@@ -243,7 +251,110 @@ echo "== ④ manifest =="
     echo "dt build (dlopen failure at startup — non-fatal noise, module unused"
     echo "by the golden chain)."
     echo
-    echo "### dt-cli PFM probes (temperature + colisa, uniform-flat verification)"
+    echo "### shadhi cases (Plan 03-04-T2, synthesized references; gaussian leg pinned)"
+    echo
+    echo "dt blob \`<i8fIfi\` (48 bytes, dt_iop_shadhi_params_t v5, hex-ASCII) ↔"
+    echo "Lightamer \`ShadhiModule.Params\` (JSON):"
+    echo
+    echo "| dt field (offset) | Lightamer field | note |"
+    echo "|---|---|---|"
+    echo "| order (0, i) | — (fixed .zero) | dt_gaussian_order_t; Lightamer v1 always ZERO |"
+    echo "| radius (4, f) | \`radius\` | both clamp ≥ 0.1; sigma = radius × roi.scale / iscale |"
+    echo "| shadows (8, f) | \`shadows\` | commit rescale ×2 (clamped ±1) |"
+    echo "| whitepoint (12, f) | \`whitepoint\` | factor = max(1 − wp/100, 0.01) |"
+    echo "| highlights (16, f) | \`highlights\` | commit rescale ×2; dt default −50 |"
+    echo "| reserved2 (20, f) | — | unused |"
+    echo "| compress (24, f) | \`compress\` | /100, clamp ≤ 0.99 |"
+    echo "| shadows_ccorrect (28, f) | \`shadowsCCorrect\` | sign-folded vs sign(shadows) |"
+    echo "| highlights_ccorrect (32, f) | \`highlightsCCorrect\` | sign-folded vs sign(−highlights) |"
+    echo "| flags (36, I) | \`unbound\` | 127 = UNBOUND_DEFAULT ↔ true; 63 ↔ false |"
+    echo "| low_approximation (40, f) | \`lowApproximation\` | dt default 1e-6 |"
+    echo "| shadhi_algo (44, i) | \`algo\` | 0 = GAUSSIAN (pinned); dt default 1 = bilateral — Phase 5 leg |"
+    echo
+    echo "Pixel math (both sides): Rec2020→Lab, 4-channel Deriche-IIR gaussian"
+    echo "(gaussian.c/gaussian.cl recursion — NOT a truncated FIR; plan-source"
+    echo "erratum recorded), invert+desaturate the blur, whitepoint, highlights"
+    echo "then shadows overlay loops (strength² chunking, chroma factor),"
+    echo "Lab→Rec2020. Track-A references SYNTHESIZED (L017 route)."
+    echo
+    echo "PROBE ROUTE BROKEN for shadhi (extends the 03-03 Lab-chain finding"
+    echo "with a concrete mechanism): libcolorin/libcolorout and ~17 other"
+    echo "plugins are stale in this dt build (\`nm -u\` references the renamed-"
+    echo "away OpenCL symbols → dlopen failure), and the export pipe then runs"
+    echo "the IOP_CS_LAB module on UNCONVERTED domain — the flat probes match"
+    echo "the unconverted model EXACTLY (flat 0.5: highlights-only c=0 →"
+    echo "0.50247 = raw L/100 rescaled; shadows=+50 c=50 → 0.99005 = the"
+    echo "(100−0.5)/100 mask overlay), so they pin the BROKEN route, not the"
+    echo "module semantic. XMP adoption IS verified (DB op_params hex =="
+    echo "pinned blob, \`params v. 5: version ok params ok\`)."
+    echo
+    echo "| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |"
+    echo "|---|---|---|---|"
+    for xmp in "$GOLDEN"/cases/shadhi_*.xmp; do
+        case_name="$(basename "$xmp" .xmp)"
+        blob="$(grep -o '<darktable:params>[^<]*</darktable:params>' "$xmp" | head -1 | sed -E 's|</?darktable:params>||g')"
+        blob_hash="$(printf '%s' "$blob" | shasum -a 256 | cut -d' ' -f1)"
+        outs=""
+        for f in $COLISA_REF_FIXTURES; do
+            o="$OUT/${case_name}__${f}.exr"
+            if [ -f "$o" ]; then
+                outs="$outs $f:$(shasum -a 256 "$o" | cut -d' ' -f1 | cut -c1-16)"
+            fi
+        done
+        echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
+    done
+    echo
+    echo "### sigmoid cases (Plan 03-04-T4, synthesized references + rgb_ratio flat probes)"
+    echo
+    echo "dt blob \`<ffffiffffffffi\` (56 bytes, dt_iop_sigmoid_params_t v3,"
+    echo "hex-ASCII) ↔ Lightamer \`SigmoidModule.Params\` (JSON):"
+    echo
+    echo "| dt field (offset) | Lightamer field | note |"
+    echo "|---|---|---|"
+    echo "| middle_grey_contrast (0, f) | \`middleGreyContrast\` | [0.1,10], default 1.5 |"
+    echo "| contrast_skewness (4, f) | \`contrastSkewness\` | [-1,1]; paper_power = 5^(−skew) |"
+    echo "| display_white_target (8, f) | \`displayWhiteTarget\` | OUTPUT-side; ×0.01 |"
+    echo "| display_black_target (12, f) | \`displayBlackTarget\` | OUTPUT-side; ×0.01 |"
+    echo "| color_processing (16, i) | \`colorProcessing\` | 0 per_channel / 1 rgb_ratio |"
+    echo "| hue_preservation (20, f) | \`huePreservation\` | [0,100] → [0,1] |"
+    echo "| inset/rotation ×3 (24..48, f) | \`red/green/blueInset/Rotation\` | primaries path |"
+    echo "| purity (48, f) | \`purity\` | [0,1] |"
+    echo "| base_primaries (52, i) | \`basePrimaries\` | 0 work / 1 Rec2020 / 2 P3 / 3 Adobe / 4 sRGB |"
+    echo
+    echo "commit_params four-scalar derivation (sigmoid.c:318-407): verified"
+    echo "END-TO-END by the rgb_ratio flat probes — dt matches the float64"
+    echo "reference on flat 0 / −4 / −8 EV to ≤1e-5 (0.5→0.379984,"
+    echo "0.03125→0.037023, 0.001953→0.002539). HOST FINDING: the per_channel"
+    echo "leg SIGSEGVs dt-cli in this build (3/3 runs, exit 139) — per_channel"
+    echo "is pinned by the CPUDerivation dual implementation + the shared"
+    echo "derivation (identical scalars both paths, rgb_ratio-probe-verified)."
+    echo "The primaries inset/rotation path carries a recorded deviation (dt's"
+    echo "stored-matrix product order reads inverted against the applied"
+    echo "chain; Lightamer implements the documented direction semantics —"
+    echo "coincides exactly on the default identity path); sigmoid_smooth is"
+    echo "pinned against the dual implementation, NOT dt."
+    echo
+    echo "| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |"
+    echo "|---|---|---|---|"
+    for xmp in "$GOLDEN"/cases/sigmoid_*.xmp; do
+        case_name="$(basename "$xmp" .xmp)"
+        blob="$(grep -o '<darktable:params>[^<]*</darktable:params>' "$xmp" | head -1 | sed -E 's|</?darktable:params>||g')"
+        blob_hash="$(printf '%s' "$blob" | shasum -a 256 | cut -d' ' -f1)"
+        outs=""
+        for f in $COLISA_REF_FIXTURES; do
+            o="$OUT/${case_name}__${f}.exr"
+            if [ -f "$o" ]; then
+                outs="$outs $f:$(shasum -a 256 "$o" | cut -d' ' -f1 | cut -c1-16)"
+            fi
+        done
+        echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
+    done
+    echo
+    echo "### dt-cli PFM probes (temperature + colisa + sigmoid + shadhi)"
+    echo
+    echo "Trust roles: temperature/colisa flats = per-pixel semantic evidence;"
+    echo "sigmoid flats = derivation+curve evidence (rgb_ratio; per_channel"
+    echo "crashes); shadhi flats = the broken-route mechanism record only."
     echo
     echo "| probe | sha256 |"
     echo "|---|---|"

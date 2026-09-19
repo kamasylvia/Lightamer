@@ -490,6 +490,30 @@ def gen_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, name + ".xmp"), "w") as f:
             f.write(xmp)
+    for case in SHADHI_CASES:
+        params = shadhi_params_blob(case)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="shadhi",
+            modversion=SHADHI_MODVERSION,
+            params=params,
+            iop_order=f"{SHADHI_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+    for case in SIGMOID_CASES:
+        params = sigmoid_params_blob(case)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="sigmoid",
+            modversion=SIGMOID_MODVERSION,
+            params=params,
+            iop_order=f"{SIGMOID_IOP_ORDER:.2f}",
+        )
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
     gen_tonecurve_cases(outdir)
 
 
@@ -1264,6 +1288,595 @@ def gen_levels_refs(canonical_dir: str, out_dir: str) -> None:
             write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Shadhi (Plan 03-04-T2) — dt_iop_shadhi_params_t v5, 48 bytes:
+#   order (i, dt_gaussian_order_t; 0 = ZERO) + radius/shadows/whitepoint/
+#   highlights/reserved2/compress/shadows_ccorrect/highlights_ccorrect
+#   (8f) + flags (I) + low_approximation (f) + shadhi_algo (i;
+#   0 = GAUSSIAN — the plan checkpoint pins the gaussian leg; dt's
+#   DEFAULT is bilateral but that leg is a Phase 5 port).
+#
+# Reference math (float64 transliteration of shadhi.c:336-490 + the
+# gaussian.c:41-100/gaussian.cl recursion — dt's blur is a Deriche IIR,
+# NOT a truncated FIR; recorded plan-source erratum):
+#   1. Rec2020→Lab (project constants), raw Lab buffer (L 0..100).
+#   2. 4-channel (L,a,b,alpha=1) IIR blur, columns then rows, unbounded
+#      (the pinned flags = 127 = UNBOUND_DEFAULT make the box ±FLT_MAX).
+#   3. Overlay: invert+desaturate the blur, whitepoint, highlights then
+#      shadows loops (strength² chunking), chroma factor, Lab→Rec2020.
+# ──────────────────────────────────────────────────────────────────────
+
+SHADHI_PARAMS_FORMAT = "<i8fIfi"
+SHADHI_MODVERSION = 5
+SHADHI_IOP_ORDER = 50.0
+
+SHADHI_FLAG_DEFAULT = 127  # UNBOUND_DEFAULT (shadhi.c:54-56)
+
+SHADHI_CASES = [
+    # dt defaults with shadhi_algo pinned to GAUSSIAN (0) — dt's default
+    # enum is bilateral; the checkpoint decision makes gaussian the
+    # comparable leg on both sides.
+    dict(name="shadhi_default", radius=100.0, shadows=50.0, whitepoint=0.0,
+         highlights=-50.0, compress=50.0, scc=100.0, hcc=50.0, algo=0),
+    dict(name="shadhi_shadows80", radius=100.0, shadows=80.0, whitepoint=0.0,
+         highlights=-50.0, compress=50.0, scc=100.0, hcc=50.0, algo=0),
+    dict(name="shadhi_highlights80", radius=100.0, shadows=50.0, whitepoint=0.0,
+         highlights=-80.0, compress=50.0, scc=100.0, hcc=50.0, algo=0),
+    dict(name="shadhi_compress25", radius=100.0, shadows=50.0, whitepoint=0.0,
+         highlights=-50.0, compress=25.0, scc=100.0, hcc=50.0, algo=0),
+]
+
+SHADHI_REF_FIXTURES = COLISA_REF_FIXTURES
+
+
+def shadhi_params_blob(case) -> str:
+    packed = struct.pack(
+        SHADHI_PARAMS_FORMAT,
+        0,                      # order = DT_IOP_GAUSSIAN_ZERO
+        case["radius"],
+        case["shadows"],
+        case["whitepoint"],
+        case["highlights"],
+        0.0,                    # reserved2
+        case["compress"],
+        case["scc"],
+        case["hcc"],
+        SHADHI_FLAG_DEFAULT,
+        0.000001,               # low_approximation (dt default)
+        case["algo"],
+    )
+    assert len(packed) == 48, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def _sh_sign(x):
+    return -1.0 if x < 0 else 1.0
+
+
+def dt_gauss_coeffs(sigma):
+    """gaussian.c:41-100 `_compute_gauss_params`, ZERO order, float64."""
+    alpha = 1.695 / sigma
+    ema = math.exp(-alpha)
+    ema2 = math.exp(-2.0 * alpha)
+    b1 = -2.0 * ema
+    b2 = ema2
+    k = (1.0 - ema) * (1.0 - ema) / (1.0 + (2.0 * alpha * ema) - ema2)
+    a0 = k
+    a1 = k * (alpha - 1.0) * ema
+    a2 = k * (alpha + 1.0) * ema
+    a3 = -k * ema2
+    coefp = (a0 + a1) / (1.0 + b1 + b2)
+    coefn = (a2 + a3) / (1.0 + b1 + b2)
+    return a0, a1, a2, a3, b1, b2, coefp, coefn
+
+
+def shadhi_blur_lab(channels, w, h, sigma):
+    """The gaussian.c column-then-row recursion over 4 float64 planes.
+
+    `channels` = [L, a, b, alpha] lists (w*h each); UNBOUNDED (flags 127
+    → Labmin/Labmax ±FLT_MAX, clamp = no-op). Returns 4 blurred planes.
+    """
+    a0, a1, a2, a3, b1, b2, coefp, coefn = dt_gauss_coeffs(sigma)
+    n = w * h
+    temp = [[0.0] * n for _ in range(4)]
+    out = [[0.0] * n for _ in range(4)]
+
+    # vertical: column by column (forward write + backward accumulate)
+    for x in range(w):
+        xp = [channels[c][x] for c in range(4)]
+        yb = [xp[c] * coefp for c in range(4)]
+        yp = yb[:]
+        for y in range(h):
+            idx = y * w + x
+            for c in range(4):
+                xc = channels[c][idx]
+                yc = a0 * xc + a1 * xp[c] - b1 * yp[c] - b2 * yb[c]
+                xp[c] = xc
+                yb[c] = yp[c]
+                yp[c] = yc
+                temp[c][idx] = yc
+        xn = [channels[c][(h - 1) * w + x] for c in range(4)]
+        xa = xn[:]
+        yn = [xn[c] * coefn for c in range(4)]
+        ya = yn[:]
+        for y in range(h - 1, -1, -1):
+            idx = y * w + x
+            for c in range(4):
+                xc = channels[c][idx]
+                yc = a2 * xn[c] + a3 * xa[c] - b1 * yn[c] - b2 * ya[c]
+                xa[c] = xn[c]
+                xn[c] = xc
+                ya[c] = yn[c]
+                yn[c] = yc
+                temp[c][idx] += yc
+
+    # horizontal: line by line
+    for y in range(h):
+        base = y * w
+        xp = [temp[c][base] for c in range(4)]
+        yb = [xp[c] * coefp for c in range(4)]
+        yp = yb[:]
+        for x in range(w):
+            idx = base + x
+            for c in range(4):
+                xc = temp[c][idx]
+                yc = a0 * xc + a1 * xp[c] - b1 * yp[c] - b2 * yb[c]
+                xp[c] = xc
+                yb[c] = yp[c]
+                yp[c] = yc
+                out[c][idx] = yc
+        xn = [temp[c][base + w - 1] for c in range(4)]
+        xa = xn[:]
+        yn = [xn[c] * coefn for c in range(4)]
+        ya = yn[:]
+        for x in range(w - 1, -1, -1):
+            idx = base + x
+            for c in range(4):
+                xc = temp[c][idx]
+                yc = a2 * xn[c] + a3 * xa[c] - b1 * yn[c] - b2 * ya[c]
+                xa[c] = xn[c]
+                xn[c] = xc
+                ya[c] = yn[c]
+                yn[c] = yc
+                out[c][idx] += yc
+    return out
+
+
+def shadhi_overlay(ta, tb, opacity, xform, ccorrect, low_approx):
+    """shadhi.c:428-454/:460-487 (unbound path — flags 127): the while
+    loop applies strength-weighted chunks; ta mutates in place."""
+    lmin, lmax, halfmax, doublemax = 0.0, 1.0, 0.5, 2.0
+    strength2 = opacity * opacity
+    while strength2 > 0.0:
+        la = ta[0]  # unbound: no clamp
+        lb = (tb[0] - halfmax) * _sh_sign(opacity) * _sh_sign(lmax - la) + halfmax
+        # unbound: lb not clamped
+        lref = math.copysign(
+            1.0 / abs(la) if abs(la) > low_approx else 1.0 / low_approx, la)
+        href = math.copysign(
+            1.0 / abs(1.0 - la) if abs(1.0 - la) > low_approx else 1.0 / low_approx,
+            1.0 - la)
+        chunk = 1.0 if strength2 > 1.0 else strength2
+        optrans = chunk * xform
+        strength2 -= 1.0
+        ta[0] = la * (1.0 - optrans) + (
+            lmax - (lmax - doublemax * (la - halfmax)) * (lmax - lb)
+            if la > halfmax else doublemax * la * lb
+        ) * optrans
+        chroma_factor = ta[0] * lref * ccorrect + (1.0 - ta[0]) * href * (1.0 - ccorrect)
+        ta[1] = ta[1] * (1.0 - optrans) + (ta[1] + tb[1]) * chroma_factor * optrans
+        ta[2] = ta[2] * (1.0 - optrans) + (ta[2] + tb[2]) * chroma_factor * optrans
+
+
+def gen_shadhi_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in SHADHI_CASES:
+        radius = max(0.1, case["radius"])
+        shadows = 2.0 * max(-1.0, min(1.0, case["shadows"] / 100.0))
+        highlights = 2.0 * max(-1.0, min(1.0, case["highlights"] / 100.0))
+        whitepoint = max(1.0 - case["whitepoint"] / 100.0, 0.01)
+        compress = max(0.0, min(0.99, case["compress"] / 100.0))
+        scc = (max(0.0, min(1.0, case["scc"] / 100.0)) - 0.5) * _sh_sign(shadows) + 0.5
+        hcc = (max(0.0, min(1.0, case["hcc"] / 100.0)) - 0.5) * _sh_sign(-highlights) + 0.5
+        low_approx = 0.000001
+        for fixture in SHADHI_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            n = w * h
+            # raw Lab planes + alpha 1.0 (dt's 4c Lab buffer)
+            lab_planes = [[0.0] * n for _ in range(3)]
+            for i in range(n):
+                l, a, b = lab_from_rec2020((rgb[0][i], rgb[1][i], rgb[2][i]))
+                lab_planes[0][i] = l
+                lab_planes[1][i] = a
+                lab_planes[2][i] = b
+            channels = lab_planes + [[1.0] * n]
+            blurred = shadhi_blur_lab(channels, w, h, radius)  # sigma = radius × scale/iscale(1)
+
+            def px(x, y, blurred=blurred, rgb=rgb, w=w, shadows=shadows,
+                   highlights=highlights, whitepoint=whitepoint, compress=compress,
+                   scc=scc, hcc=hcc, low_approx=low_approx):
+                idx = y * w + x
+                # ta: original Lab scaled; tb: blurred, inverted,
+                # desaturated, scaled (shadhi.c:414-419)
+                l, a, b = lab_from_rec2020((rgb[0][idx], rgb[1][idx], rgb[2][idx]))
+                ta = [l / 100.0, a / 128.0, b / 128.0]
+                tb = [(100.0 - blurred[0][idx]) / 100.0, 0.0, 0.0]
+                # whitepoint (shadhi.c:421-422)
+                ta[0] = ta[0] / whitepoint if ta[0] > 0.0 else ta[0]
+                tb[0] = tb[0] / whitepoint if tb[0] > 0.0 else tb[0]
+                # overlay highlights then shadows (shadhi.c:424-487)
+                xform_h = max(0.0, min(1.0, 1.0 - tb[0] / (1.0 - compress)))
+                shadhi_overlay(ta, tb, -highlights, xform_h, 1.0 - hcc, low_approx)
+                xform_s = max(0.0, min(1.0, tb[0] / (1.0 - compress) - compress / (1.0 - compress)))
+                shadhi_overlay(ta, tb, shadows, xform_s, scc, low_approx)
+                out_lab = (ta[0] * 100.0, ta[1] * 128.0, ta[2] * 128.0)
+                return lab_to_rec2020(out_lab)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Sigmoid (Plan 03-04-T4) — dt_iop_sigmoid_params_t v3, 56 bytes:
+#   contrast/skew/white/black (4f) + color_processing (i) +
+#   hue_preservation + inset/rotation ×3 + purity (8f) + base_primaries (i).
+#
+# Reference math (float64 transliteration of sigmoid.c:300-761 + the
+# primaries builder/rotation from custom_primaries.c + colorspaces.c):
+#   - the four-scalar derivation (commit_params :318-407)
+#   - per_channel: pipe→base → desaturate negatives → base→rendering →
+#     the log-logistic curve per channel → hue+energy preservation →
+#     rendering→pipe
+#   - rgb_ratio: desaturate → luma curve → uniform scale → hyperbolic
+#     gamut compression
+#   - PRIMARIES DEVIATION (recorded on the Swift module): dt's stored-
+#     matrix product order (sigmoid.c:453/:464-466) reads inverted
+#     against the applied-matrix chain; this reference implements the
+#     DOCUMENTED direction semantics (module header), which coincides
+#     with dt exactly on the identity default path. The pinned
+#     per-channel cases use base = work profile.
+# ──────────────────────────────────────────────────────────────────────
+
+SIGMOID_PARAMS_FORMAT = "<ffffiffffffffi"
+SIGMOID_MODVERSION = 3
+SIGMOID_IOP_ORDER = 45.3
+
+SIGMOID_MIDDLE_GREY = 0.1845  # sigmoid.c:37
+
+
+SIGMOID_CASES = [
+    dict(name="sigmoid_default", contrast=1.5, skew=0.0, white=100.0,
+         black=0.0152, mode=0, hue=100.0, insets=(0.0, 0.0, 0.0),
+         rotations=(0.0, 0.0, 0.0), purity=0.0, base=0),
+    # dt "neutral gray" preset
+    dict(name="sigmoid_neutral", contrast=1.22, skew=0.65, white=100.0,
+         black=0.0152, mode=0, hue=100.0, insets=(0.0, 0.0, 0.0),
+         rotations=(0.0, 0.0, 0.0), purity=0.0, base=0),
+    # dt "ACES 100-nit like" preset
+    dict(name="sigmoid_aces", contrast=1.6, skew=-0.2, white=100.0,
+         black=0.0152, mode=0, hue=0.0, insets=(0.0, 0.0, 0.0),
+         rotations=(0.0, 0.0, 0.0), purity=0.0, base=0),
+    # dt "Reinhard" preset — the rgb_ratio path
+    dict(name="sigmoid_rgb_ratio", contrast=1.0, skew=0.0, white=100.0,
+         black=0.0152, mode=1, hue=100.0, insets=(0.0, 0.0, 0.0),
+         rotations=(0.0, 0.0, 0.0), purity=0.0, base=0),
+    # dt "smooth" preset — exercises the primaries path (inset/rotation/
+    # base). Pinned against the dual implementation, NOT dt (the dt-side
+    # matrix-direction ambiguity, see the section header).
+    dict(name="sigmoid_smooth", contrast=1.5, skew=-0.2, white=100.0,
+         black=0.0152, mode=0, hue=0.0, insets=(0.1, 0.1, 0.15),
+         rotations=(math.radians(2.0), math.radians(-1.0), math.radians(-3.0)),
+         purity=0.0, base=1),
+]
+
+SIGMOID_REF_FIXTURES = [
+    "ramp_8ev", "gray_staircase", "flat_0ev", "flat_-4ev", "saturated",
+    "deep_shadow",
+]
+
+
+def sigmoid_params_blob(case) -> str:
+    packed = struct.pack(
+        SIGMOID_PARAMS_FORMAT,
+        case["contrast"],
+        case["skew"],
+        case["white"],
+        case["black"],
+        case["mode"],
+        case["hue"],
+        case["insets"][0], case["rotations"][0],
+        case["insets"][1], case["rotations"][1],
+        case["insets"][2], case["rotations"][2],
+        case["purity"],
+        case["base"],
+    )
+    assert len(packed) == 56, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def sg_loglogistic(value, magnitude, paper_exp, film_fog, film_power, paper_power):
+    """sigmoid.c:300-316 stable form."""
+    v = max(value, 0.0)
+    fr = (film_fog + v) ** film_power
+    pr = magnitude * (fr / (paper_exp + fr)) ** paper_power
+    return magnitude if pr != pr else pr  # NaN guard
+
+
+def sigmoid_derive(contrast, skew, white, black):
+    """sigmoid.c:318-392 float64."""
+    ref_film_power = contrast
+    ref_paper_power = 1.0
+    ref_magnitude = 1.0
+    ref_film_fog = 0.0
+    ref_paper_exposure = (SIGMOID_MIDDLE_GREY + ref_film_fog) ** ref_film_power \
+        * ((ref_magnitude / SIGMOID_MIDDLE_GREY) - 1.0)
+
+    def slope(magnitude, paper_exp, film_fog, film_power, paper_power, delta=1e-6):
+        hi = sg_loglogistic(SIGMOID_MIDDLE_GREY + delta, magnitude, paper_exp, film_fog, film_power, paper_power)
+        lo = sg_loglogistic(SIGMOID_MIDDLE_GREY - delta, magnitude, paper_exp, film_fog, film_power, paper_power)
+        return (hi - lo) / 2.0 / delta
+
+    ref_slope = slope(ref_magnitude, ref_paper_exposure, ref_film_fog, ref_film_power, ref_paper_power)
+    paper_power = 5.0 ** (-skew)
+    temp_film_power = 1.0
+    temp_white_target = 0.01 * white
+    temp_wgr = (temp_white_target / SIGMOID_MIDDLE_GREY) ** (1.0 / paper_power) - 1.0
+    temp_paper_exposure = SIGMOID_MIDDLE_GREY ** temp_film_power * temp_wgr
+    temp_slope = slope(temp_white_target, temp_paper_exposure, ref_film_fog, temp_film_power, paper_power)
+    film_power = ref_slope / temp_slope
+
+    white_target = 0.01 * white
+    black_target = 0.01 * black
+    wgr = (white_target / SIGMOID_MIDDLE_GREY) ** (1.0 / paper_power) - 1.0
+    wbr = (black_target / white_target) ** (-1.0 / paper_power) - 1.0
+    film_fog = SIGMOID_MIDDLE_GREY * wgr ** (1.0 / film_power) \
+        / (wbr ** (1.0 / film_power) - wgr ** (1.0 / film_power))
+    paper_exposure = (film_fog + SIGMOID_MIDDLE_GREY) ** film_power * wgr
+    return dict(white=white_target, black=black_target, paper_exposure=paper_exposure,
+                film_fog=film_fog, film_power=film_power, paper_power=paper_power)
+
+
+def sg_desaturate(v):
+    """sigmoid.c:495-504."""
+    avg = max((v[0] + v[1] + v[2]) / 3.0, 0.0)
+    minv = min(v)
+    sf = -avg / (minv - avg) if minv < 0 else 1.0
+    return (avg + sf * (v[0] - avg), avg + sf * (v[1] - avg), avg + sf * (v[2] - avg))
+
+
+def sg_order(v):
+    """sigmoid.c:513-564 case table → (min, mid, max) indices."""
+    if v[0] >= v[1]:
+        if v[1] > v[2]:
+            return (2, 1, 0)
+        elif v[2] > v[0]:
+            return (1, 0, 2)
+        elif v[2] > v[1]:
+            return (1, 2, 0)
+        else:
+            return (2, 1, 0)
+    else:
+        if v[0] >= v[2]:
+            return (2, 0, 1)
+        elif v[2] > v[1]:
+            return (0, 1, 2)
+        else:
+            return (0, 2, 1)
+
+
+def sg_preserve_hue_energy(pix, per_channel, order, hp):
+    """sigmoid.c:658-701 — pix mutates in place."""
+    omin, omid, omax = order
+    pix_min, pix_mid, pix_max = pix[omin], pix[omid], pix[omax]
+    per_min, per_mid, per_max = per_channel[omin], per_channel[omid], per_channel[omax]
+
+    chroma = pix_max - pix_min
+    midscale = (pix_mid - pix_min) / chroma if chroma != 0.0 else 0.0
+    full_hue_correction = per_min + (per_max - per_min) * midscale
+    naive_hue_mid = (1.0 - hp) * per_mid + hp * full_hue_correction
+
+    per_energy = per_channel[0] + per_channel[1] + per_channel[2]
+    naive_energy = per_min + naive_hue_mid + per_max
+    min_plus_mid = pix_min + pix_mid
+    blend = 2.0 * pix_min / min_plus_mid if min_plus_mid != 0.0 else 0.0
+    energy_target = blend * per_energy + (1.0 - blend) * naive_energy
+
+    if naive_hue_mid <= per_mid:
+        corrected_mid = ((1.0 - hp) * per_mid
+                         + hp * (midscale * per_max + (1.0 - midscale) * (energy_target - per_max))) \
+            / (1.0 + hp * (1.0 - midscale))
+        pix[omin] = energy_target - per_max - corrected_mid
+        pix[omid] = corrected_mid
+        pix[omax] = per_max
+    else:
+        corrected_mid = ((1.0 - hp) * per_mid
+                         + hp * (per_min * (1.0 - midscale) + midscale * (energy_target - per_min))) \
+            / (1.0 + hp * midscale)
+        pix[omin] = per_min
+        pix[omid] = corrected_mid
+        pix[omax] = energy_target - per_min - corrected_mid
+
+
+def _sg_determinant(a, b, c, d):
+    return a * d - b * c
+
+
+def sg_rotate_scale_primary(profile, scaling, rotation, index):
+    """custom_primaries.c:76-96 float64."""
+    px, py = profile["primaries"][index]
+    wx, wy = profile["white"]
+    dx, dy = px - wx, py - wy
+    angle = math.atan2(dy, dx) + rotation
+    ca, sa = math.cos(angle), math.sin(angle)
+    x1, y1 = wx, wy
+    x2, y2 = x1 + ca, y1 + sa
+    distance = float("inf")
+    for i in range(3):
+        nxt = (i + 1) % 3
+        x3, y3 = profile["primaries"][i]
+        x4, y4 = profile["primaries"][nxt]
+        den = _sg_determinant(x1 - x2, x3 - x4, y1 - y2, y3 - y4)
+        if den == 0:
+            t = float("inf")
+        else:
+            t = _sg_determinant(x1 - x3, x3 - x4, y1 - y3, y3 - y4) / den
+            t = t if t >= 0 else float("inf")
+        distance = min(distance, t)
+    return (scaling * distance * ca + wx, scaling * distance * sa + wy)
+
+
+# Named base profiles — D65 white. The WORK/Rec2020 profile matrix is
+# BUILT FROM THE PRIMARIES (the same builder the custom-primaries path
+# uses) so base==work composes to EXACT identity — the project's rounded
+# REC2020_TO_XYZ constants would leave a ~1.8e-4 residue in the
+# pipe_to_base ∘ base_to_pipe product (the xy chromaticities are
+# themselves rounded). Swift side: SigmoidProfile.rec2020 (same choice).
+SG_REC2020_PRIMARIES = [(0.708, 0.292), (0.170, 0.797), (0.131, 0.046)]
+SG_PROFILES = {
+    0: None,  # work / Rec2020 — built below (after the builder def)
+    1: None,  # explicit Rec2020 — same profile object
+    2: None,  # display P3, built below
+    3: None,  # Adobe RGB
+    4: None,  # sRGB
+}
+
+
+def _sg_build_profile(primaries, white):
+    rgb_to_xyz = sg_build_rgb_to_xyz(primaries, white)
+    return dict(primaries=primaries, white=white,
+                rgb_to_xyz=rgb_to_xyz, xyz_to_rgb=mat_inv(rgb_to_xyz))
+
+
+def sg_build_rgb_to_xyz(primaries, white):
+    """colorspaces.c:2571-2600 float64 — logical RGB→XYZ matrix."""
+    p = [[0.0] * 3 for _ in range(3)]  # p[c] = XYZ of primary c (column c)
+    for c in range(3):
+        y = max(primaries[c][1], sys.float_info.epsilon)
+        p[c] = [primaries[c][0] / y, 1.0, (1.0 - primaries[c][0] - y) / y]
+    # P·scale = XYZ_white with P[r][c] = p[c][r]
+    mat = [[p[c][r] for c in range(3)] for r in range(3)]
+    wy = max(white[1], sys.float_info.epsilon)
+    xyz_white = [white[0] / wy, 1.0, (1.0 - white[0] - wy) / wy]
+    scale = _sg_solve3(mat, xyz_white)
+    return [[scale[c] * p[c][r] for c in range(3)] for r in range(3)]
+
+
+def _sg_solve3(mat, b):
+    a = [row[:] for row in mat]
+    x = b[:]
+    for col in range(3):
+        pivot = max(range(col, 3), key=lambda r: abs(a[r][col]))
+        if pivot != col:
+            a[pivot], a[col] = a[col], a[pivot]
+            x[pivot], x[col] = x[col], x[pivot]
+        for row in range(col + 1, 3):
+            f = a[row][col] / a[col][col]
+            for k in range(col, 3):
+                a[row][k] -= f * a[col][k]
+            x[row] -= f * x[col]
+    for row in (2, 1, 0):
+        s = x[row]
+        for k in range(row + 1, 3):
+            s -= a[row][k] * x[k]
+        x[row] = s / a[row][row]
+    return x
+
+
+_SG_REC2020 = _sg_build_profile(SG_REC2020_PRIMARIES, (0.3127, 0.3290))
+SG_PROFILES[0] = _SG_REC2020
+SG_PROFILES[1] = _SG_REC2020
+SG_PROFILES[2] = _sg_build_profile([(0.680, 0.320), (0.265, 0.690), (0.150, 0.060)], (0.3127, 0.3290))
+SG_PROFILES[3] = _sg_build_profile([(0.6400, 0.3300), (0.2100, 0.7100), (0.1500, 0.0600)], (0.3127, 0.3290))
+SG_PROFILES[4] = _sg_build_profile([(0.6400, 0.3300), (0.3000, 0.6000), (0.1500, 0.0600)], (0.3127, 0.3290))
+
+
+def _sg_matmul(a, b):
+    return [[sum(a[r][k] * b[k][c] for k in range(3)) for c in range(3)] for r in range(3)]
+
+
+def _sg_matvec(m, v):
+    return tuple(sum(m[r][k] * v[k] for k in range(3)) for r in range(3))
+
+
+def sg_adjusted_matrices(base, insets, rotations, purity):
+    """SigmoidPrimaries.matrices mirror (see the section-header deviation
+    note): pipe→base identity when base == work (dt sigmoid.c:423-442)."""
+    work = SG_PROFILES[0]
+    basep = SG_PROFILES[base]
+    if base == 0:
+        pipe_to_base = [[1.0 if r == c else 0.0 for c in range(3)] for r in range(3)]
+        base_to_pipe = [row[:] for row in pipe_to_base]
+    else:
+        pipe_to_base = _sg_matmul(basep["xyz_to_rgb"], work["rgb_to_xyz"])
+        base_to_pipe = _sg_matmul(work["xyz_to_rgb"], basep["rgb_to_xyz"])
+
+    custom1 = [sg_rotate_scale_primary(basep, 1.0 - insets[i], rotations[i], i) for i in range(3)]
+    c1_to_xyz = sg_build_rgb_to_xyz(custom1, basep["white"])
+    # base → rendering = M_out(custom₁) · M_in(base) — the custom matrix
+    # enters as its INVERSE (XYZ→custom direction).
+    base_to_rendering = _sg_matmul(mat_inv(c1_to_xyz), basep["rgb_to_xyz"])
+
+    custom2 = [sg_rotate_scale_primary(basep, 1.0 - purity * insets[i], rotations[i], i) for i in range(3)]
+    c2_to_xyz = sg_build_rgb_to_xyz(custom2, basep["white"])
+    # rendering₂ → base = M_out(base) · M_in(custom₂).
+    r2_to_base = _sg_matmul(basep["xyz_to_rgb"], c2_to_xyz)
+    base_to_r2 = mat_inv(r2_to_base)
+    rendering_to_pipe = _sg_matmul(base_to_pipe, base_to_r2)
+    return pipe_to_base, base_to_rendering, rendering_to_pipe
+
+
+def sigmoid_apply_pixel(rgb, case, d, matrices):
+    mode = case["mode"]
+    if mode == 0:
+        pipe_to_base, base_to_rendering, rendering_to_pipe = matrices
+        v = _sg_matvec(pipe_to_base, rgb)
+        v = sg_desaturate(v)
+        v = _sg_matvec(base_to_rendering, v)
+        per = [sg_loglogistic(v[c], d["white"], d["paper_exposure"], d["film_fog"],
+                              d["film_power"], d["paper_power"]) for c in range(3)]
+        pix = list(v)
+        sg_preserve_hue_energy(pix, per, sg_order(v), case["hue"] * 0.01)
+        return _sg_matvec(rendering_to_pipe, pix)
+    # rgb_ratio (sigmoid.c:566-654)
+    v = sg_desaturate(rgb)
+    luma = (v[0] + v[1] + v[2]) / 3.0
+    mapped = sg_loglogistic(luma, d["white"], d["paper_exposure"], d["film_fog"],
+                            d["film_power"], d["paper_power"])
+    if luma > 1e-9:
+        sf = mapped / luma
+        pre = (sf * v[0], sf * v[1], sf * v[2])
+    else:
+        pre = (mapped, mapped, mapped)
+    pmin, pmax = min(pre), max(pre)
+    eps = 1e-6
+    dbw = (d["white"] - mapped) / (pmax - mapped + eps)
+    dbb = (d["black"] - mapped) / (pmin - mapped - eps)
+    dbc = min(dbw, dbb)
+    cvmb = (mapped - pmin) / (mapped + eps)
+    adj = 1.0 / (cvmb * dbc + eps)
+    hc = 2.0 * cvmb / (1.0 - cvmb * cvmb + eps) * adj
+    hz = math.sqrt(hc * hc + 1.0)
+    cf = hc / (1.0 + hz) * dbc
+    return tuple(mapped + cf * (pre[c] - mapped) for c in range(3))
+
+
+def gen_sigmoid_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in SIGMOID_CASES:
+        d = sigmoid_derive(case["contrast"], case["skew"], case["white"], case["black"])
+        matrices = sg_adjusted_matrices(case["base"], case["insets"], case["rotations"], case["purity"])
+        for fixture in SIGMOID_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, case=case, d=d, matrices=matrices, w=w):
+                idx = y * w + x
+                return sigmoid_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), case, d, matrices)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
 def main() -> None:
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
     outdir = sys.argv[2] if len(sys.argv) > 2 else os.path.dirname(os.path.abspath(__file__))
@@ -1291,6 +1904,11 @@ def main() -> None:
         gen_colisa_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_tonecurve_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_levels_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 03-04-T2/T4: shadhi (gaussian leg) + sigmoid golden
+        # references (L017 route; dt-side = XMP adoption + flat PFM
+        # probes).
+        gen_shadhi_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_sigmoid_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 
