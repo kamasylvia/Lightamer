@@ -1,10 +1,11 @@
 ---
 phase: 2
 slug: pixelpipe-core-color-management-history-stack
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-09-18
+signed: 2026-09-19
 ---
 
 # Phase 2 — Validation Strategy
@@ -76,13 +77,42 @@ created: 2026-09-18
 
 ---
 
+## ROADMAP §Phase 2 Success Criteria 对照（SC#1..5）
+
+| SC | 内容 | 判定 | 证据 |
+|----|------|------|------|
+| SC#1 | correct color | ✅（+⚠️ 屏显目检 pending-manual） | `GoldenColorTests` 双判据全绿（①中性度 6 灰块 <2/255；②交叉一致性线性域 <0.004 + 字节域 ColorSync 基准分层）；合成 NeutralTarget.tif gate；ColorChecker ARW 待人工补拍（skip-with-reason 就位）。屏显目检归 Phase 13 COLOR-03 补 |
+| SC#2 | partial invalidation | ✅ | `PipeCacheTests`（9）计数器精确断言：改参数仅下游 miss / undo 全 hit / 禁用跳过 / decodeHash 全失效；`GoldenColorTests.testFullChainCacheAssertions` 终端段变体（换 display 仅 ≥colorout miss）；signpost `cache HIT/MISS` 通道在源 |
+| SC#3 | sidecar round-trip | ✅ | `SidecarRoundTripTests.testRoundTripRestoresIdenticalRenderedOutput`（写→全弃→恢复→重渲**字节级一致**）+ 真机 headless 双跑 `.work/02-06/roundtrip.md`（displayHash 一致 + cmp IDENTICAL + history/position/paramsHash/imageID 恢复） |
+| SC#4 | multi-res + tiling scaffold | ✅（zoom-ROI 交互按 research OQ#4 明确顺延 Phase 4） | `MultiResolutionTests`（6：scale-at-entry / PREVIEW≠THUMBNAIL key / THUMBNAIL lazy / FULL scale-1.0 / EXPORT typed notImplemented / roi 断言）+ `PreviewBucketTests`（5：D-C3 梯子）+ `TilingPlanTests`（5：D-20 脚手架，PixelPipe 挂接注记 Phase 5） |
+| SC#5 | drift + golden harness | ✅ | 漂移：`testDriftInjectionDetectedAndDoesNotRewrite`（手改 JSON → 检测 + 不回写 + 后续编辑正常回写）+ `driftDetected` primitive（file-own decode seed，防解码升级误报）；golden harness：`GoldenColorTests` 双判据 = Phase 3 merge gate（VALIDATION §Golden 色彩 harness） |
+
+## 需求追溯（ROADMAP Phase 2：FOUND-04, COLOR-01, COLOR-04, HIST-01..04, RAW-03）
+
+| Req | 证据 |
+|-----|------|
+| FOUND-04 | PipeCacheTests + MultiResolutionTests + MemoryBudgetTests |
+| COLOR-01 | GoldenColorTests 双判据 |
+| COLOR-04 | ColorInModule inputProfile 参数位 + TerminalTrioTests |
+| HIST-01/02 | HistoryStackTests（18） |
+| HIST-03 | SidecarRoundTripTests（13）+ 真机 roundtrip |
+| HIST-04 | HistoryHash golden 向量 + drift 注入测试 |
+| RAW-03 | RAW03Tests（7）|
+
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 90s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references（本轮 3 个 W0 文件全部落地 ✅）
+- [x] No watch-mode flags
+- [x] Feedback latency < 90s（unit 全套 ~3.4s；full suite 含 UITests 受 L011 环境限制，unit 快速循环为日常闸门）
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Environment note（⚠️ pending-manual，Phase 1 同口径继承）：** `LightamerUITests`
+在本机锁屏/授权态下报 "Timed out while enabling automation mode"（L011 三件套
+已固化，首次真人授权后可跑）。**rerun 命令**：
+`xcodebuild test -project Lightamer.xcodeproj -scheme Lightamer -destination 'platform=macOS' -only-testing:LightamerUITests`
+Unit 侧 133/133 绿（3 skip 合规：RAW 大样本 + ColorChecker 待补拍）。
+
+**Approval:** ✅ APPROVED — 2026-09-19，executor（Plan 02-06 收尾批；Wave 0 全勾、
+SC#1..5 全数有证据指针、需求追溯 7/7 落地）

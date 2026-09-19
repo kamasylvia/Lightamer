@@ -113,6 +113,14 @@
 - **适用**：所有"内容寻址"场景：PipeCacheKey/HistoryHash/sidecar historyHash/golden 测试输出指纹。
 - **来源**：Plan 02-02-06 调试过程（2026-09-19），PipeCacheTests 全 miss 复现 → DBGPIPE 探针定位。
 
+### L014: CI 腿跨队列读竞态——CI 渲染纹理背书 CIImage 前必须 fence 本队列
+- **背景**：Plan 02-06 的 SC#3 真机 round-trip 探针发现：同一份 .lra 恢复后重渲输出全黑（4/4 稳定复现），而 live-edit 路径渲染正确（2/2）；Core 级单测逐级 bisect 显示 input 平面正确、colorout ColorSync 腿（`CIContextPool.convertTexture`）输出为零。
+- **现象**：恢复渲染一次跑完 5 个 dispatch（input→colorin→testgain→colorout→gamma）时，colorout 的 CI bitmap 读到刚分配的**全零**平面；短渲染（live-edit，缓存命中上游）则侥幸通过。
+- **根因**：`CIContext(mtlDevice:)` 在自己的**内部队列**执行 `render(toBitmap:)`，而输入纹理是我们串行队列上 `dispatch2DTexture` **commit 过但未必完成**的写入。Metal 跨队列对同一纹理的读/写没有隐式顺序——CI 读与 kernel 写竞态。字节级排障时还叠加了第二层伪影：`MTLTexture.getBytes` 不等待 in-flight encoder，读回必须先 fence（测试端同款问题，Golden/Trio 测试早已内置 `drain()`，新测试漏抄）。
+- **对策**：(1) `convertTexture` 开头 commit 空 command buffer + `waitUntilCompleted`（fence），保证本队列既有写入对 CI 可见；(2) 所有测试/探针读回纹理前一律 drain；(3) 判定"渲染黑图"前先排除读取竞态（黑图 + alpha=255 是"gamma 写了黑 RGB"，而全 0 才是"没写"）。
+- **适用**：任何"我们的队列写纹理 + CI/其他队列读"的混用场景（colorout fallback 腿、未来 CI 复合导出路径）；所有 GPU 纹理读回（测试与探针）。
+- **来源**：Plan 02-06-04 SC#3 验收排障（2026-09-19），证据 `.work/02-06/roundtrip.md` + `SidecarRoundTripTests.testRoundTripRestoresIdenticalRenderedOutput`。
+
 ---
 
 *本文件随开发进展持续更新。阶段完成后运行 `$gsd-extract-learnings` 自动提取。*

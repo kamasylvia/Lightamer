@@ -245,6 +245,14 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 ### 参考项目
 - **Darktable**（`/Volumes/UNITEK/Documents/Development/darktable`）：iop 算法、OpenCL kernel（`data/kernels/*.cl` → Metal 移植）、pixelpipe 架构、色彩管理的源码参考。
 - **yiyin / 壹印**（`/Volumes/UNITEK/Documents/Development/yiyin`）：边框/水印面板的功能对齐参考（重写为 Swift，yiyin 项目独立维护）。
+
+### Phase 2 架构增量（2026-09-19，Plan 02-06 签核批）
+- **Sidecar（`.lra`）**：JSON schemaVersion 1，`<原文件完整名>.lra` 与原片同目录，`.xmp` 永不读写删。**所有入盘 UInt64 哈希一律 decimal String**（`UInt64String` wrapper；FNV-1a 64 超 2^53，JSON number 会被非 Swift 工具降精度）——ONE-WAY 格式锁，后续持久化文档（Phase 6 layer、Phase 11 export manifest）沿用同规则。`paramsData` 保持 Data→base64（字节精确 > 可读性）。
+- **持久化身份哈希一律 `StableHash`（FNV-1a 64）**；Swift `Hasher` 与未排序 JSON 字节禁止进入任何跨进程身份（L013）。
+- **SidecarStore**：per-image actor，2s debounce 合并写 + 同目录 tmp 原子晋升（L009：禁止 /tmp 跨卷 rename）；`flushNow()` 在切图与 `applicationWillTerminate`（AppDelegate 同步回调 + 5s 有界等待）强制。
+- **clearCaches 分层**：`PipeCache.enforceBudget(keeping:)` 纯策略执行器（阈值可注入）+ `MetalContext.clearCICaches()`（CI/RawCamera 内部态）+ PSO 缓存永不清；触发 = load 入口 + 60s Task sweep（Timer 只做调用者）。>500MB 释放才 toast（D-26）。
+- **GPU 读回纪律（L014）**：`getBytes` 不等 in-flight encoder——测试/探针读回前必须 fence（`drain()` 模式）；CI 腿（convertTexture）读纹理前已有 fence 固化在源。
+- **目录惯例**：`LightamerCore/Sources/{Pipe,Sidecar,Metal,Decode,Foundation,Layers}`；sidecar 读写器放 Core（App 不可 import 进单测——02-05/02-06 连续以"Core 级孪生 + 构建走查 + 进程内探针"验证 App 层）。
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->

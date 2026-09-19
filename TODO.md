@@ -44,7 +44,9 @@
 
 **执行命令**：`$gsd-execute-phase 1`
 
-## Phase 2: Pixelpipe Core — 执行中
+## Phase 2: Pixelpipe Core — 执行完成（6/6 plans，2026-09-19）
+
+**状态**：6 plans 已 executed + committed（1 次 checkpoint 确认 + 1 个 pre-existing 真缺陷修复）；单测 133 全绿（3 skip 合规）；VALIDATION 已签核（`nyquist_compliant: true` / `wave_0_complete: true` / SC#1..5 全数有证据）；UITests 沿用 L011 pending-manual 口径。
 
 - [x] **Plan 02-01**（tracer）完成（2026-09-19，含一次 checkpoint→修复回路）：
   - Task 01 单渲染路径统一（0c54a68）；Task 02 CIContext warm-up spike（decision=**bitmap**：直渲在本机为 0.0ms 静默 no-op，连默认 context 也空写，warm-up 无效——Phase 1"首渲写空第二次正常"理论修正，报告 `.work/02-01/spike-render-leg.md`）；Task 03 CIContextPool bitmap 决议落账（a97ea65）；Task 04 StableHash FNV-1a 64 public + 7 向量测试（376ddaa）
@@ -66,6 +68,21 @@
   - EditorState 拥有 history/instances（D-03b）；PipeCoordinator `historyDidChange()` 替换 `paramsDidChange()`（record→box 按 UUID 原位物化，未变参数缓存平面存活）+ D-H1 三件套 `beginContinuousEdit/setLiveParams/commitContinuousEdit` + undo/redo/jumpToHistory
   - `TilingPlan` 纯几何脚手架（D-20，unwired，Phase 5 挂接注记在 PixelPipe 头部）
   - 单测 106 全绿（3 skip 合规）；`Hasher(` grep 守卫 clean；checkpoint 六锁 affirmed（70cc389）；SUMMARY 见 `02-05-SUMMARY.md`
+- [x] **Plan 02-06**（Sidecar + clearCaches + RAW-03 + 签核）完成（2026-09-19）：
+  - checkpoint 02-06-01：D-S1 sidecar schema 七锁 affirmed（含 **UInt64-as-String** ONE-WAY 锁），e9edd50
+  - `LightamerSidecar` schema v1（02-05 冻结拼写 verbatim + `UInt64String` wrapper + drift primitive + 未知 op 降级）+ `SidecarStore` actor（2s debounce 合并 / 同目录 tmp 原子写 / 损坏→nil），3a11cb6 + 5429570
+  - App 接线：load 切换 flush→restore-or-fresh（imageID 恢复不重铸 / 漂移 toast 不回写 / 未知 op 降级 toast）、history 移动→scheduleWrite、`applicationWillTerminate`→有界同步 flush、D-26 toast 面（StatusBar leading）+ String Catalog zh/en；DEBUG `-la_sidecar_probe` headless 双跑探针，5e0d699
+  - **真缺陷修复（LESSONS L014）**：colorout ColorSync 腿跨队列读竞态（restore 5-dispatch 渲染稳定黑图）→ `convertTexture` 读前 fence；Core 级 SC#3 字节级 round-trip 测试固化
+  - `enforceBudget(keeping:)` 纯策略执行器（锁定 4 层逐出序 + floor）+ `clearCICaches()` + load 入口/60s sweep 双触发 + >500MB toast；`MemoryBudgetTests` 7（注入小预算），c208339
+  - RAW-03：32f TIFF/EXR fixtures（极值 65504.0 pinned）+ `RAW03Tests` 7 全绿；宿主决策：CGImage 路 float-faithful、fallback 不采纳（记录于 `decodeRaster`），6a72691
+  - 单测 **133 全绿**（3 skip 合规）；grep 守卫：`.xmp` 零读写路径；VALIDATION 签核（SC#1..5 证据 + 需求追溯 7/7）+ 真机 round-trip `.work/02-06/roundtrip.md`；SUMMARY 见 `02-06-SUMMARY.md`
+
+## pending-manual（累计，解锁后重跑）
+
+- [ ] XCUITest 三栏断言（L011 授权；Phase 1 起遗留）：`xcodebuild test -only-testing:LightamerUITests`
+- [ ] ColorChecker ARW 实拍补采（02-04 遗留，采集路径 `.work/02-04/colorchecker-acquisition.md`）
+- [ ] 跨屏 profile 跟随实测（02-04 遗留，单显示器环境 skip-with-reason）
+- [ ] 屏显色彩目检（SC#1 非 headless 部分，Phase 13 COLOR-03 前置可复验）
 
 ## Phase 2-13（已规划，未开始）
 
