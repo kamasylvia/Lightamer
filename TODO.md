@@ -77,7 +77,7 @@
   - RAW-03：32f TIFF/EXR fixtures（极值 65504.0 pinned）+ `RAW03Tests` 7 全绿；宿主决策：CGImage 路 float-faithful、fallback 不采纳（记录于 `decodeRaster`），6a72691
   - 单测 **133 全绿**（3 skip 合规）；grep 守卫：`.xmp` 零读写路径；VALIDATION 签核（SC#1..5 证据 + 需求追溯 7/7）+ 真机 round-trip `.work/02-06/roundtrip.md`；SUMMARY 见 `02-06-SUMMARY.md`
 
-## Phase 3: Tone & Filmic iops — 执行中（5/6 plans）
+## Phase 3: Tone & Filmic iops — 执行完成（6/6 plans，2026-09-20）
 
 - [x] **Plan 03-01**（Wave 0 基建 + exposure tracer）完成（2026-09-19）：
   - T1 darktable-cli 从 dc58cf0ba1 重建（5.5.0+1862~gdc58cf0ba1-dirty；构建修复：CLT SDK `-isystem` 与 Xcode 27 clang 的 libc++ `<cstddef>` 冲突 → 缓存 SDK 路径改指 Xcode SDK + fresh configure + 显式 libomp + 内置 Lua），XMP 钉参链路实证采纳（+1EV XMP：ramp 0.25 列 → 0.5 exact；直通 bit-exact）——预构建版丢历史缺陷消失，GUI 模板回退方案无需启用（6c7bc7e）
@@ -117,6 +117,15 @@
   - T6 TilingPlan FULL 首战：`IOPModule.tileHalo/tileWorkingSetBytesPerPixel` seam（默认 0 零破坏）+ `PixelPipe.executeTiled`（上游一次渲染 → TilingPlan 网格 → halo 外扩 readRect 整幅语义执行 → blit 裁回）；toneequal halo = **4r+65**（IIR 跑道 exp(−1.695d/σ) 推导，决策文件）；强制分块 vs 整幅 <1e-5 + 100MP FULL Δfootprint <3GB 双门绿
   - T7 `ToneEqualPanelView`（同源曲线 Canvas + 9 带滑块 + 全参数控件 + zh/en catalog）+ 面板注册 + seed 实例；**PERF-5 预验数据记录**：Debug 构建 PREVIEW 全链（10 模块）warm median 63.4ms > 16.6ms 预算——按 plan「超限先记录后优化」注记，正式门 03-06-T7（杠杆：Release/PSO 预热/dispatch 批合并）
   - 单测 **244 全绿**（3 skip 合规，连续两次全量稳定）；SUMMARY 见 `03-05-SUMMARY.md`；下一批 = 03-06（filmicrgb + agx + PERF-5 正式签收）
+- [x] **Plan 03-06**（filmicrgb F0-F4 + agx 变体 + PERF-5 正式记录 + Phase 3 签核）完成（2026-09-20）：
+  - T0 checkpoint：D-T1 三项范围定稿（V5 only / 高光重建划出（mask kernel + 参数位）/ norm 家族全实现）+ 5 条源码勘误，`03-06-DECISIONS.md`
+  - T1-T5 `FilmicSpline`（compute_spline v1/v2/v3 全分支 + output_power + norm 界）+ `FilmicRGBKernels`（filmic_chroma_v5 直译：MAX_RGB norm→ratios（无 sanitize 勘误）→log→spline→pow + naive + 饱和度混合 + Yrg gamut 全链）+ `YrgGamut`（Bradford/CAT16/LMS2006 编译期常量积 + clip-chroma 族）；`FilmicRGBModule` v50=46.0 注册 + editing seed
+  - golden：F1 三方（Metal vs CPU Double 分段门：toe/linear 1e-6、poly4 shoulder f32/FMA 档 1e-5 + 1e-4 包络）+ F2/F4 组合 parity（5 钉参 case × 5 fixture）+ F3 光谱入域/中性轴 + norm 六模式 + auto 三键（grey 吸管 /2 语义；black/white = 新 `HistogramReduce.rgbMinMax` uint 编码原子归约端到端）+ F5 mask kernel 权重 + 轨 B；参考 = float32-FMA 逐式复刻（M 网格 + math.fma 单舍入 Horner——缺一即 3-5e-5 系统差）；`saturated` 划出数值 parity（log 未定义域 ±1e-7 边界，保留 F3 合法性靶）
+  - dt 侧证据：116B blob 库 DB op_params hex 逐字节 + history load + piece commit（filmic/agx CPU 腿本机导出崩溃 = sigmoid per_channel SIGSEGV 同族，③d adoption probes 落账）
+  - T6 `AgXModule` + `kernel_agx` 直译（tone_mapping_params 全推导 + primaries 四矩阵复用 SigmoidProfile builder）v50=45.5 注册 + 面板；5 case × 6 fixture parity + 曲线不变式 + round-trip；hatchless 无对标注记
+  - T7 PERF-5：`PreviewChainPerfTests` 2/2 进套（真实拖拽形状：稳定 imageID + exposure tick 全链失效 + PSO 启动预热）；**Release warm median 36.23ms**（预算 16.6ms 未达——RESEARCH 7-10 趟假设证伪，实测 ~40 GPU 趟；晚链单滑块 2-6ms ✓；杠杆分配：Lab 往返共享 Phase 5 / dispatch 批合并 Phase 4）`.work/03/perf-record.md`；FULL toneequal Δfootprint 289MB << 3GB ✓
+  - 排障收获：Python 参考 log2 漏除 grey；Swift rational 闭合式漏 −1；f32 系数网格 + FMA 单舍入必须复刻；PSO 预热撞 function-constant validation abort；Release 测试构建三连（DEBUG 探针守卫 / ENABLE_TESTABILITY / hardened runtime 签名验证——CLI 覆盖跑）
+  - 单测 **267 全绿**（3 skip 合规，连续两轮）；SUMMARY 见 `03-06-SUMMARY.md`；**Phase 3 VALIDATION 签核（nyquist_compliant: true；SC#1/2/4 ✓、SC#3 ⚠️ 晚链成立/全链注记）**
 
 ## pending-manual（累计，解锁后重跑）
 
@@ -125,6 +134,13 @@
 - [ ] 跨屏 profile 跟随实测（02-04 遗留，单显示器环境 skip-with-reason）
 - [ ] 屏显色彩目检（SC#1 非 headless 部分，Phase 13 COLOR-03 前置可复验）
 - [ ] `GoldenColorTests.testCrossConsistencyLinearDomain` 间歇性失败排查（02-04 harness 遗留 flake，03-01 期间复现：全 suite/类内运行偶发 diverge 1.0，单测隔离必现通过；03-01 排除本类后仍复现 → 与 03-01 无关；疑似 CI baseline 腿跨渲染时序，L014 同族）
+- [ ] 滑块拖动 60fps Instruments 交互目检（PERF-5/SC#3 手动项；数据面已由 `.work/03/perf-record.md` 覆盖——晚链 2-6ms ✓，全链重渲 36ms 注记）
+
+## Phase 3 遗留/分配（签核注记，非阻塞）
+
+- [ ] PERF-5 全链重渲 36ms → 16.6ms：管线级 Lab 往返共享（Open#9，Phase 5+）+ 跨模块 dispatch 批合并（Phase 4+）
+- [ ] filmicrgb 高光重建子树（F5 à-trous wavelet + HQ 循环）：mask kernel + 参数位已就位，重建挂 Phase 8 HDR/v1 后期
+- [ ] filmic/sigmoid/agx displayed-domain 默认值校准（CIRAW 显影域 vs 场景线性假设）——产品语义任务，随 Phase 8/实机校准
 
 ## Phase 2-13（已规划，未开始）
 
