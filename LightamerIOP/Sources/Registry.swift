@@ -19,12 +19,16 @@ public enum LightamerIOPRegistry {
 
     /// Register every LightamerIOP module into `registry`.
     public static func populate(_ registry: ModuleRegistry) async {
+        // Phase 3's first real iop (Plan 03-01-T5): exposure, v50 slot 21.0.
+        await registry.register(opName: ExposureModule.opName) { id in
+            ModuleBox(module: ExposureModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
         }
         #endif
-        // Phase 3+: exposure, WB, filmic, … register here.
+        // Phase 3+: WB, tonecurve, filmic, … register here.
         // `passthrough_spike` stays test-only (Phase 1 spike module — it
         // never enters app chains, so it is deliberately unregistered).
     }
