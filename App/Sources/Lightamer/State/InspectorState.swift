@@ -49,11 +49,14 @@ final class InspectorState {
         providers[provider.opName] = provider
     }
 
-    /// The Phase 3 default set: exposure + temperature (the first two real
-    /// panels). Later plans append their providers here.
+    /// The Phase 3 default set: exposure + temperature + the 03-03 Lab
+    /// trio (colisa / tonecurve / levels). Later plans append theirs.
     func registerDefaultProviders() {
         register(ExposurePanelProvider())
         register(TemperaturePanelProvider())
+        register(ColisaPanelProvider())
+        register(ToneCurvePanelProvider())
+        register(LevelsPanelProvider())
     }
 
     /// The ops that have a registered panel (for the Inspector list).

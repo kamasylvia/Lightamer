@@ -77,7 +77,7 @@
   - RAW-03：32f TIFF/EXR fixtures（极值 65504.0 pinned）+ `RAW03Tests` 7 全绿；宿主决策：CGImage 路 float-faithful、fallback 不采纳（记录于 `decodeRaster`），6a72691
   - 单测 **133 全绿**（3 skip 合规）；grep 守卫：`.xmp` 零读写路径；VALIDATION 签核（SC#1..5 证据 + 需求追溯 7/7）+ 真机 round-trip `.work/02-06/roundtrip.md`；SUMMARY 见 `02-06-SUMMARY.md`
 
-## Phase 3: Tone & Filmic iops — 执行中（2/6 plans）
+## Phase 3: Tone & Filmic iops — 执行中（3/6 plans）
 
 - [x] **Plan 03-01**（Wave 0 基建 + exposure tracer）完成（2026-09-19）：
   - T1 darktable-cli 从 dc58cf0ba1 重建（5.5.0+1862~gdc58cf0ba1-dirty；构建修复：CLT SDK `-isystem` 与 Xcode 27 clang 的 libc++ `<cstddef>` 冲突 → 缓存 SDK 路径改指 Xcode SDK + fresh configure + 显式 libomp + 内置 Lua），XMP 钉参链路实证采纳（+1EV XMP：ramp 0.25 列 → 0.5 exact；直通 bit-exact）——预构建版丢历史缺陷消失，GUI 模板回退方案无需启用（6c7bc7e）
@@ -93,6 +93,14 @@
   - T5/T6 D-T4 `PipeCoordinator.pickColor`（视口点→真 aspect-fit uv→线性段重渲（缓存全 hit）→L014 fence→5×5 面积均值）+ EditorAreaView 吸管模式（十字光标+点击路由）+ `EyedropperTests`（中性采样 <1e-5、20 连点 fence 安全、采样零污染、蓝偏平场端到端中性化）；**blit shader uv 修复**：aspect-fit 除以 per-axis scale（原先中心裁切；大三角形覆盖的斜边溢出属 Phase 4 fit 路径）
   - 单测 **165 全绿**（3 skip 合规）；LightamerTests 新增 app-target 依赖（@testable 驱动 D-03b 状态层）
   - SUMMARY 见 `03-02-SUMMARY.md`；下一批 = 03-03（Lab 三模块）/ 03-04（shadhi+sigmoid）
+- [x] **Plan 03-03**（Lab 域三模块：tonecurve + levels + colisa + LabRoundTrip 共享件）完成（2026-09-19）：
+  - T1 `LabRoundTrip` 共享件（IOP/Sources/Common/）：BT.2020 Rec2020→XYZ（项目唯一常量集）+ Bradford D65→D50 + Lab 参考白锚定管线白（**中性 a=b=0 精确成立**，轨 B 判据）；dt 同形 f（cbrt/cube，κ/ε）负值有定义；CPU Double 往返 <1e-9（实测 2.4e-15）、GPU float32 <1e-6；**Metal 无 cbrt → 有号 powr(1/3)**；`LabMath.h` 供模块单 pass 内联（无管线级 Lab 共享，RESEARCH Open#9 → Phase 5+）（3932653）
+  - T2 `ColisaModule`（v50=47.0）：ctable/ltable（colisa.c:190-235 逐行；**plan 勘误：gamma = 1/(1+b)/(1−b) 非 10^(−b)**）+ extrapolation 拟合；5 case × 6 fixture parity；**dt-cli Lab 链新 finding**：XMP blob 采纳实证（DB op_params hex + params ok）但导出 piece 态非确定（饱和度=-1 时灰变黑，数学上不可能）→ probe 路线不可用走合成；**顺带修复 libcolisa/libtonecurve/liblevels .so 陈旧**（OpenCL 改名前的旧符号致 dlopen 失败）（a60d43d）
+  - T3 `ToneCurveModule`（v50=48.0）：curve_tools.c 三插值逐行（monotone hermite/catmull-rom/natural cubic + d3_np_fs）+ 0x10000 LUT×3 + XYZ/RGB 联动表重推导（RGB 走工作域 Rec2020）+ 5 组外推拟合 + preserve_colors norm 家族；`CurveEditorView`（拖节点 + 实时 CPU LUT 曲线显示 = 显示即管线数学）+ ToneCurvePanelView；4 case × 5 fixture（含 stair_1d 10001 点 LUT 靶）（b745d72）
+  - T4/T5 `LevelsModule`（v50=49.0）：compute_lut 逐行（manual 0/0.5/1 恒等）+ automatic = `HistogramReduce`（Common/，两趟 256-bin 线程组原子归约，Lab L 内联；MPS 备选不接线；signpost 计时）→ percentile 三点（levels.c:212-250 逐行）→ LUT 重写 → apply；automatic 参考自洽（GPU 直方图→LUT→apply vs float64 同 levels，解析 ±1 bin + <1e-4 + ΔE p99<1.0）（15ea14d / 0c278e8）
+  - T6 三面板（Colisa/Levels/ToneCurve）+ `InspectorState.registerDefaultProviders` + pristine 种子 +39 条本地化；`PanelWiringTests` +4（三面板拖动=恰 1 条 commit、colisa 归零还原 hash、levels 模式切换离散一条）
+  - **关键工程发现 → ParityGate 双闸**：LUT nearest 截断查表在 f32-vs-f64 下有索引翻转悬崖（中性 a_in=0.5 恰在截断边界 → 21% 违规）；Lightamer 改**四舍五入索引**（≤1 LSB 语义差）+ 双闸（≥99% <1e-5 rel + 2.5e-5 abs floor / 1e-4 包络 100%）——ParityGate.swift 是后续 LUT 模块（shadhi/rgblevels…）的标准闸
+  - 单测 **199 全绿**（3 skip 合规）；SUMMARY 见 `03-03-SUMMARY.md`；下一批 = 03-04（shadhi+sigmoid，复用 LabRoundTrip）
 
 ## pending-manual（累计，解锁后重跑）
 

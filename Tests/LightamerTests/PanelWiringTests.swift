@@ -88,6 +88,10 @@ final class PanelWiringTests: XCTestCase {
         let ops = editorState.instances.map(\.opName)
         XCTAssertTrue(ops.contains("exposure"), "pristine seed must include exposure")
         XCTAssertTrue(ops.contains("temperature"), "pristine seed must include temperature")
+        // Plan 03-03-T6: the Lab trio joins the editing seed
+        XCTAssertTrue(ops.contains("colisa"), "pristine seed must include colisa")
+        XCTAssertTrue(ops.contains("tonecurve"), "pristine seed must include tonecurve")
+        XCTAssertTrue(ops.contains("levels"), "pristine seed must include levels")
     }
 
     private func instance(_ opName: String) throws -> ModuleInstance {
@@ -236,6 +240,10 @@ final class PanelWiringTests: XCTestCase {
 
         XCTAssertTrue(state.panelOpNames.contains("exposure"))
         XCTAssertTrue(state.panelOpNames.contains("temperature"))
+        // Plan 03-03-T6: the Lab trio panels
+        XCTAssertTrue(state.panelOpNames.contains("colisa"))
+        XCTAssertTrue(state.panelOpNames.contains("tonecurve"))
+        XCTAssertTrue(state.panelOpNames.contains("levels"))
 
         let exposureRecord = ModuleInstance(module: ExposureModule.self, params: .init())
         let session = InspectorEditSession(coordinator: coordinator)
@@ -248,6 +256,91 @@ final class PanelWiringTests: XCTestCase {
 
         state.selectPanel(instanceID: exposureRecord.id)
         XCTAssertEqual(state.selectedPanel, exposureRecord.id.uuidString)
+    }
+
+    // MARK: - 03-03 Lab trio panel wiring (T6)
+
+    /// Colisa slider drag: 10 ticks → exactly ONE commit; the params hash
+    /// flips (D-H4) and the committed value is the last tick.
+    func testColisaPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let colisa = try instance("colisa")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...10 {
+            let record = try withParams(colisa, { $0.contrast = Float(tick) * 0.05 }, as: ColisaModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_colisa"))
+
+        XCTAssertEqual(historyCount(), 1, "colisa drag = exactly ONE item")
+        let committed = try instance("colisa")
+        XCTAssertEqual(try committed.params(of: ColisaModule.self).contrast, 0.5, accuracy: 1e-6)
+    }
+
+    /// Colisa double-click reset (discrete trio) restores the identity
+    /// paramsHash — the cache-neutral acceptance.
+    func testColisaResetRestoresIdentityHash() async throws {
+        try await loadSynthetic()
+        let colisa = try instance("colisa")
+        let defaultHash = colisa.paramsHash
+
+        coordinator.beginContinuousEdit()
+        let up = try withParams(colisa, { $0.saturation = 0.5 }, as: ColisaModule.self)
+        await coordinator.setLiveParams(up)
+        await coordinator.commitContinuousEdit(label: "colisa")
+
+        let reset = try withParams(try instance("colisa"), { $0.saturation = 0 }, as: ColisaModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(reset)
+        await coordinator.commitContinuousEdit(label: "colisa reset")
+
+        let after = try instance("colisa")
+        XCTAssertEqual(after.paramsHash, defaultHash, "reset restores the original hash")
+    }
+
+    /// Tonecurve node edit (the CurveEditorView payload = a node set): the
+    /// trio lands exactly one item with the last node set.
+    func testToneCurvePanelNodeEditCommitsOnce() async throws {
+        try await loadSynthetic()
+        let tonecurve = try instance("tonecurve")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...5 {
+            let nodes = [
+                ToneCurveModule.Node(x: 0, y: 0),
+                ToneCurveModule.Node(x: 0.5, y: 0.5 + Float(tick) * 0.02),
+                ToneCurveModule.Node(x: 1, y: 1),
+            ]
+            let record = try withParams(tonecurve, { $0.curveL = nodes }, as: ToneCurveModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_tonecurve"))
+
+        XCTAssertEqual(historyCount(), 1, "tonecurve node drag = exactly ONE item")
+        let committed = try instance("tonecurve")
+        XCTAssertEqual(try committed.params(of: ToneCurveModule.self).curveL[1].y, 0.6, accuracy: 1e-6)
+    }
+
+    /// Levels point drag (manual mode) + mode switch (discrete).
+    func testLevelsPanelDragAndModeSwitch() async throws {
+        try await loadSynthetic()
+        let levels = try instance("levels")
+
+        coordinator.beginContinuousEdit()
+        let dragged = try withParams(levels, { $0.levels = [0.2, 0.5, 0.8] }, as: LevelsModule.self)
+        await coordinator.setLiveParams(dragged)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_levels"))
+        XCTAssertEqual(historyCount(), 1, "levels drag = exactly ONE item")
+
+        // mode switch = discrete one-commit edit
+        let current = try instance("levels")
+        let switched = try withParams(current, { $0.mode = .automatic }, as: LevelsModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(switched)
+        await coordinator.commitContinuousEdit(label: "levels mode")
+        XCTAssertEqual(historyCount(), 2, "mode switch adds exactly ONE item")
+        XCTAssertEqual(try instance("levels").params(of: LevelsModule.self).mode, .automatic)
     }
 
     // MARK: - Helpers
