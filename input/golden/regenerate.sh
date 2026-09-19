@@ -89,7 +89,8 @@ mkdir -p "$PROBE"
 # Lab module on unconverted domain — manifest finding), NOT the module
 # semantic; kept as the mechanism's evidence record.
 for xmp in "$GOLDEN"/cases/temperature_*.xmp "$GOLDEN"/cases/colisa_*.xmp \
-           "$GOLDEN"/cases/sigmoid_*.xmp "$GOLDEN"/cases/shadhi_*.xmp; do
+           "$GOLDEN"/cases/sigmoid_*.xmp "$GOLDEN"/cases/shadhi_*.xmp \
+           "$GOLDEN"/cases/toneequal_*.xmp; do
     case_name="$(basename "$xmp" .xmp)"
     for f in $FIXTURES; do
         "$DT" "$FIX/$f.exr" "$xmp" "$PROBE/${case_name}__${f}" \
@@ -350,11 +351,62 @@ echo "== ④ manifest =="
         echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
     done
     echo
-    echo "### dt-cli PFM probes (temperature + colisa + sigmoid + shadhi)"
+    echo "### toneequal cases (Plan 03-05-T5, synthesized references + flat probes)"
+    echo
+    echo "dt blob \`<15f3i\` (72 bytes, dt_iop_toneequalizer_params_t v2,"
+    echo "hex-ASCII) ↔ Lightamer \`ToneEqualModule.Params\` (JSON):"
+    echo
+    echo "| dt field (offset) | Lightamer field | note |"
+    echo "|---|---|---|"
+    echo "| noise..speculars (0..36, 9×f) | \`noise\`..\`speculars\` | the 9 EV bands, ±2 |"
+    echo "| blending (36, f) | \`blending\` | diameter %; radius = (blending/100 × maxDim × scale − 1)/2 |"
+    echo "| smoothing (40, f) | \`smoothing\` | RBF sigma (default √2) |"
+    echo "| feathering (44, f) | \`feathering\` | commit INVERTS: d->feathering = 1/p |"
+    echo "| quantization (48, f) | \`quantization\` | golden cases pin 0 (no-mask EIGF leg) |"
+    echo "| contrast_boost (52, f) | \`contrastBoost\` | commit exp2 → linear |"
+    echo "| exposure_boost (56, f) | \`exposureBoost\` | commit exp2 → linear |"
+    echo "| details (60, i) | \`details\` | 0 none / 1 avg_guided / 2 guided / 3 avg_EIGF / 4 EIGF (dt default) |"
+    echo "| method (64, i) | \`method\` | 0..6 luminance_mask estimators (default 4 NORM_2) |"
+    echo "| iterations (68, i) | \`iterations\` | ≥1, default 1 |"
+    echo
+    echo "Track-A references SYNTHESIZED (L017 route — darktable has NO OpenCL"
+    echo "for toneequal, toneequal.c:313 TODO, so the dt side runs the CPU leg;"
+    echo "the host's float-export corruption rules out spatially-varying EXR"
+    echo "references). The float64 reference replicates the CPU sources:"
+    echo "choleski.h pseudo-solve REPLICATED IN float32 (a float64 solve"
+    echo "drifts ~3e-4 through the 9×8 conditioning and breaks the none"
+    echo "tier's 1e-5 gate; the float32-faithful weights match the Swift port"
+    echo "to ~1e-7), luminance_mask.h NORM_2 + linear_contrast, eigf.h"
+    echo "fast_eigf_surface_blur (no-mask leg, gaussian.c recursion with"
+    echo "per-channel data min/max bounds), and the 80001-entry LUT apply."
+    echo "Gates: details=none <1e-5 (ParityGate dual), EIGF <1e-4 + ΔE76 p99"
+    echo "< 1.0. dt-side evidence = XMP adoption (DB op_params hex + 'params"
+    echo "v. 2: version ok params ok') + flat PFM probes (a uniform field is"
+    echo "the EIGF fixed point: var→0 forces a=0,b=avg ⇒ identity; the flats"
+    echo "pin the luma+LUT apply semantics exactly)."
+    echo
+    echo "| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |"
+    echo "|---|---|---|---|"
+    for xmp in "$GOLDEN"/cases/toneequal_*.xmp; do
+        case_name="$(basename "$xmp" .xmp)"
+        blob="$(grep -o '<darktable:params>[^<]*</darktable:params>' "$xmp" | head -1 | sed -E 's|</?darktable:params>||g')"
+        blob_hash="$(printf '%s' "$blob" | shasum -a 256 | cut -d' ' -f1)"
+        outs=""
+        for f in $COLISA_REF_FIXTURES; do
+            o="$OUT/${case_name}__${f}.exr"
+            if [ -f "$o" ]; then
+                outs="$outs $f:$(shasum -a 256 "$o" | cut -d' ' -f1 | cut -c1-16)"
+            fi
+        done
+        echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
+    done
+    echo
+    echo "### dt-cli PFM probes (temperature + colisa + sigmoid + shadhi + toneequal)"
     echo
     echo "Trust roles: temperature/colisa flats = per-pixel semantic evidence;"
     echo "sigmoid flats = derivation+curve evidence (rgb_ratio; per_channel"
-    echo "crashes); shadhi flats = the broken-route mechanism record only."
+    echo "crashes); shadhi flats = the broken-route mechanism record only;"
+    echo "toneequal flats = luma+LUT apply evidence (EIGF uniform fixed point)."
     echo
     echo "| probe | sha256 |"
     echo "|---|---|"

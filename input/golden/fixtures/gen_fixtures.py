@@ -514,6 +514,18 @@ def gen_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
             f.write(xmp)
+    for case in TONEEQUAL_CASES:
+        params = toneequal_params_blob(case)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="toneequal",
+            modversion=TONEEQUAL_MODVERSION,
+            params=params,
+            iop_order=f"{TONEEQUAL_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case[0] + ".xmp"), "w") as f:
+            f.write(xmp)
     gen_tonecurve_cases(outdir)
 
 
@@ -1877,6 +1889,363 @@ def gen_sigmoid_refs(canonical_dir: str, out_dir: str) -> None:
             write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Tone equalizer (Plan 03-05-T5) — dt_iop_toneequalizer_params_t v2, 72
+# bytes: 9 EV bands + blending + smoothing + feathering + quantization +
+# contrast_boost + exposure_boost (15f) + details + method + iterations
+# (3i). Darktable has NO OpenCL for this iop (toneequal.c:313 TODO) —
+# the reference below is the float64 evaluation of the CPU sources
+# (L017 synthesized route):
+#   - CorrectionLUT: 9 linear band gains → 9×8 RBF least squares
+#     (normal equations + Cholesky, REPLICATED IN float32 — dt's
+#     published weights come from float choleski.h and a float64 solve
+#     drifts ~3e-4 through the conditioning, enough to break the none
+#     tier's 1e-5 gate) → 80001-entry LUT clamp [0.25, 4]
+#   - luma mask: luminance_mask.h (NORM_2 default) + linear_contrast
+#   - EIGF leg: eigf.h fast_eigf_surface_blur — bilinear downsample,
+#     (g, g²) gaussian (gaussian.c recursion, per-channel data min/max
+#     bounds), variance, eigf_blending_no_mask (the exposure-weighted
+#     variance RATIO; NO final spatial averaging), blend at full res
+#   - apply: exposure = clamp(log2(luma), −8, 0); LUT index round;
+#     RGB × correction
+# ──────────────────────────────────────────────────────────────────────
+
+TONEEQUAL_PARAMS_FORMAT = "<15f3i"
+TONEEQUAL_MODVERSION = 2
+TONEEQUAL_IOP_ORDER = 24.0
+TONEEQUAL_REF_FIXTURES = COLISA_REF_FIXTURES
+
+# (name, bands9, blending, smoothing, feathering, quantization,
+#  contrast_boost, exposure_boost, details, method, iterations)
+TONEEQUAL_CASES = [
+    ("toneequal_default",
+     [0.0] * 9, 5.0, 1.414213562, 1.0, 0.0, 0.0, 0.0, 4, 4, 1),
+    ("toneequal_shadow_lift",
+     [0.0, 0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+     5.0, 1.414213562, 1.0, 0.0, 0.0, 0.0, 4, 4, 1),
+    ("toneequal_highlight_compress",
+     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0, -0.5, 0.0],
+     5.0, 1.414213562, 1.0, 0.0, 0.0, 0.0, 4, 4, 1),
+    ("toneequal_contrast_boost",
+     [0.0, 0.0, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 0.0],
+     5.0, 1.414213562, 1.0, 0.0, 4.0, 0.0, 4, 4, 1),
+    ("toneequal_none_ramp",
+     [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -0.5, 0.0, 0.0],
+     5.0, 1.414213562, 1.0, 0.0, 0.0, 0.0, 0, 4, 1),
+]
+
+
+def toneequal_params_blob(case) -> str:
+    (name, bands, blending, smoothing, feathering, quantization,
+     contrast_boost, exposure_boost, details, method, iterations) = case
+    packed = struct.pack(
+        TONEEQUAL_PARAMS_FORMAT,
+        *bands,
+        blending, smoothing, feathering, quantization,
+        contrast_boost, exposure_boost,
+        details, method, iterations,
+    )
+    assert len(packed) == 72, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+_F32 = struct.Struct("<f")
+
+
+def _f32(x):
+    """Round to float32 (the C float arithmetic dt's choleski.h runs)."""
+    return _F32.unpack(_F32.pack(x))[0]
+
+
+def te_pseudo_solve_f32(A, y, m=9, n=8):
+    """choleski.h pseudo_solve in float32 verbatim: the normal equations
+    (lower triangle) + Cholesky-Banachiewicz + the triangular
+    descent/ascent. Float32-faithful — see the section header."""
+    # _transpose_dot_matrix (lower triangle only) + _transpose_dot_vector
+    Asq = [[0.0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1):
+            s = 0.0
+            for k in range(m):
+                s = _f32(s + _f32(_f32(A[k][i]) * _f32(A[k][j])))
+            Asq[i][j] = s
+    ysq = []
+    for i in range(n):
+        s = 0.0
+        for k in range(m):
+            s = _f32(s + _f32(_f32(A[k][i]) * _f32(y[k])))
+        ysq.append(s)
+
+    # _choleski_decompose
+    L = [[0.0] * n for _ in range(n)]
+    if Asq[0][0] <= 0.0:
+        return None
+    for i in range(n):
+        for j in range(i + 1):
+            s = 0.0
+            for k in range(j):
+                s = _f32(s + _f32(L[i][k] * L[j][k]))
+            if i == j:
+                t = _f32(Asq[i][i] - s)
+                if t < 0.0:
+                    return None
+                L[i][j] = _f32(math.sqrt(t))
+            else:
+                d = L[j][j]
+                if d == 0.0:
+                    return None
+                L[i][j] = _f32(_f32(Asq[i][j] - s) / d)
+    # _triangular_descent
+    b = [0.0] * n
+    for i in range(n):
+        s = ysq[i]
+        for j in range(i):
+            s = _f32(s - _f32(L[i][j] * b[j]))
+        if L[i][i] == 0.0:
+            return None
+        b[i] = _f32(s / L[i][i])
+    # _triangular_ascent
+    x = [0.0] * n
+    for i in range(n - 1, -1, -1):
+        s = b[i]
+        for j in range(n - 1, i, -1):
+            s = _f32(s - _f32(L[j][i] * x[j]))
+        if L[i][i] == 0.0:
+            return None
+        x[i] = _f32(s / L[i][i])
+    return x
+
+
+def te_build_lut(bands, sigma):
+    """commit_params :1638-1651 + compute_correction_lut :1225-1243."""
+    centers_params = [-8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0]
+    centers_ops = [-56 / 7, -48 / 7, -40 / 7, -32 / 7, -24 / 7, -16 / 7, -8 / 7, 0.0]
+    denom = 2.0 * sigma * sigma
+
+    def gf(r):
+        return math.exp(-r * r / denom)
+
+    # build_interpolation_matrix (float32 entries — dt stores float)
+    A = [[_f32(gf(centers_params[i] - centers_ops[j])) for j in range(8)] for i in range(9)]
+    gains = [2.0 ** b for b in bands]
+    weights = te_pseudo_solve_f32(A, gains)
+    assert weights is not None, "toneequal choleski failed"
+
+    lut = []
+    for j in range(80001):
+        exposure = j / 10000.0 - 8.0
+        v = 0.0
+        for i in range(8):
+            v += gf(exposure - centers_ops[i]) * weights[i]
+        lut.append(max(0.25, min(4.0, v)))
+    return lut
+
+
+TE_MIN_FLOAT = 2.0 ** -16
+TE_FULCRUM = 2.0 ** -4.0
+
+
+def te_luma_plane(rgb, w, h, exposure_boost, fulcrum, contrast_linear):
+    """luminance_mask.h NORM_2 + linear_contrast over the fixture.
+    `contrast_linear` is the ALREADY-linear slope (commit exp2 of the EV
+    param — the caller applies dt's commit_params; exp2 here again would
+    double it and crush dark lumas into the MIN_FLOAT floor)."""
+    boost = 2.0 ** exposure_boost
+    n = w * h
+    luma = [0.0] * n
+    for i in range(n):
+        r, g, b = rgb[0][i], rgb[1][i], rgb[2][i]
+        lum = boost * math.sqrt(r * r + g * g + b * b)
+        luma[i] = max((lum - fulcrum) * contrast_linear + fulcrum, TE_MIN_FLOAT)
+    return luma
+
+
+def te_bilinear(src, w, h, dw, dh, ch):
+    """fast_guided_filter.h interpolate_bilinear (dt's corner convention)."""
+    out = [[0.0] * dw * dh for _ in range(ch)]
+    for i in range(dh):
+        for j in range(dw):
+            x_in = j / dw * w
+            y_in = i / dh * h
+            xp = min(int(math.floor(x_in)), w - 1)
+            xn = min(xp + 1, w - 1)
+            yp = min(int(math.floor(y_in)), h - 1)
+            yn = min(yp + 1, h - 1)
+            dy_next = yn - y_in
+            dy_prev = 1.0 - dy_next
+            dx_next = xn - x_in
+            dx_prev = 1.0 - dx_next
+            for c in range(ch):
+                nw = src[c][yp * w + xp]
+                ne = src[c][yp * w + xn]
+                sw = src[c][yn * w + xp]
+                se = src[c][yn * w + xn]
+                out[c][i * dw + j] = (dy_prev * (sw * dx_next + se * dx_prev)
+                                      + dy_next * (nw * dx_next + ne * dx_prev))
+    return out
+
+
+def te_gaussian_blur(planes, w, h, sigma, mins, maxs):
+    """gaussian.c recursion (col then row, forward+backward) with the
+    per-channel CLAMPF bounds — the eigf_variance_analysis blur."""
+    a0, a1, a2, a3, b1, b2, coefp, coefn = dt_gauss_coeffs(sigma)
+    ch = len(planes)
+    n = w * h
+    temp = [[0.0] * n for _ in range(ch)]
+    out = [[0.0] * n for _ in range(ch)]
+
+    def clamp(v, c):
+        return max(mins[c], min(maxs[c], v))
+
+    for x in range(w):
+        xp = [clamp(planes[c][x], c) for c in range(ch)]
+        yb = [xp[c] * coefp for c in range(ch)]
+        yp = yb[:]
+        for y in range(h):
+            idx = y * w + x
+            for c in range(ch):
+                xc = clamp(planes[c][idx], c)
+                yc = a0 * xc + a1 * xp[c] - b1 * yp[c] - b2 * yb[c]
+                xp[c] = xc
+                yb[c] = yp[c]
+                yp[c] = yc
+                temp[c][idx] = yc
+        xn = [clamp(planes[c][(h - 1) * w + x], c) for c in range(ch)]
+        xa = xn[:]
+        yn = [xn[c] * coefn for c in range(ch)]
+        ya = yn[:]
+        for y in range(h - 1, -1, -1):
+            idx = y * w + x
+            for c in range(ch):
+                xc = clamp(planes[c][idx], c)
+                yc = a2 * xn[c] + a3 * xa[c] - b1 * yn[c] - b2 * ya[c]
+                xa[c] = xn[c]
+                xn[c] = xc
+                ya[c] = yn[c]
+                yn[c] = yc
+                temp[c][idx] += yc
+    for y in range(h):
+        base = y * w
+        xp = [clamp(temp[c][base], c) for c in range(ch)]
+        yb = [xp[c] * coefp for c in range(ch)]
+        yp = yb[:]
+        for x in range(w):
+            idx = base + x
+            for c in range(ch):
+                xc = clamp(temp[c][idx], c)
+                yc = a0 * xc + a1 * xp[c] - b1 * yp[c] - b2 * yb[c]
+                xp[c] = xc
+                yb[c] = yp[c]
+                yp[c] = yc
+                out[c][idx] = yc
+        xn = [clamp(temp[c][base + w - 1], c) for c in range(ch)]
+        xa = xn[:]
+        yn = [xn[c] * coefn for c in range(ch)]
+        ya = yn[:]
+        for x in range(w - 1, -1, -1):
+            idx = base + x
+            for c in range(ch):
+                xc = clamp(temp[c][idx], c)
+                yc = a2 * xn[c] + a3 * xa[c] - b1 * yn[c] - b2 * ya[c]
+                xa[c] = xn[c]
+                xn[c] = xc
+                ya[c] = yn[c]
+                yn[c] = yc
+                out[c][idx] += yc
+    return out
+
+
+def te_quantize(plane, n, sampling, clip_min, clip_max):
+    """fast_guided_filter.h quantize."""
+    if sampling == 0.0:
+        return plane[:]
+    out = [0.0] * n
+    for k in range(n):
+        if sampling == 1.0:
+            v = 2.0 ** math.floor(math.log2(plane[k]))
+        else:
+            v = 2.0 ** (math.floor(math.log2(plane[k]) / sampling) * sampling)
+        out[k] = max(clip_min, min(clip_max, v))
+    return out
+
+
+def te_eigf(luma, w, h, radius, feathering, iterations, geomean,
+            quantization, qmin, qmax):
+    """eigf.h fast_eigf_surface_blur, float64. The golden cases all ship
+    dt's default quantization 0 (the no-mask path — the exact leg the
+    parity gate pins; the mask path shares the variance+blend math)."""
+    assert quantization == 0.0, "the reference pins the no-mask EIGF leg only"
+    scaling = max(min(radius, 4.0), 1.0)
+    ds_sigma = max(radius / scaling, 1.0)
+    dsw = int(w / scaling)
+    dsh = int(h / scaling)
+    cur = luma[:]
+    n = w * h
+    for it in range(iterations):
+        ds_image = te_bilinear([cur], w, h, dsw, dsh, 1)[0]
+        # eigf_variance_analysis_no_mask: (guide, guide²) blurred with
+        # the per-channel DATA min/max bounds (dt's CLAMPF inputs).
+        g2 = [v * v for v in ds_image]
+        mins = [min(ds_image), min(g2)]
+        maxs = [max(ds_image), max(g2)]
+        blurred = te_gaussian_blur([ds_image, g2], dsw, dsh, ds_sigma, mins, maxs)
+        avg_p = te_bilinear([blurred[0], blurred[1]], dsw, dsh, w, h, 2)
+        # eigf_blending_no_mask at full res (dt upsamples av, then blends
+        # per-pixel with the same weights).
+        geo = geomean and it == iterations - 1
+        nxt = [0.0] * n
+        for k in range(n):
+            avg = avg_p[0][k]
+            var = avg_p[1][k] - avg * avg
+            img = cur[k]
+            norm = max(avg * img, 1e-6)
+            nvar = var / norm
+            a = nvar / (nvar + feathering)
+            b = avg - a * avg
+            if geo:
+                nxt[k] = math.sqrt(img * max(img * a + b, TE_MIN_FLOAT))
+            else:
+                nxt[k] = max(img * a + b, TE_MIN_FLOAT)
+        cur = nxt
+    return cur
+
+
+def gen_toneequal_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in TONEEQUAL_CASES:
+        (name, bands, blending, smoothing, feathering, quantization,
+         contrast_boost, exposure_boost, details, method, iterations) = case
+        lut = te_build_lut(bands, smoothing)
+        # commit_params derived scalars (:1596-1620)
+        feather_d = 1.0 / feathering
+        boosted = details in (2, 4)  # GUIDED / EIGF
+        fulcrum = TE_FULCRUM if boosted else 0.0
+        contrast = 2.0 ** contrast_boost if boosted else 1.0
+        geomean = details in (1, 3)  # AVG_GUIDED / AVG_EIGF
+        for fixture in TONEEQUAL_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            n = w * h
+            # dt keys the smoothing radius on the PIECE's full-image max
+            # dimension (modify_roi_in :1352-1357) at scale 1 here.
+            radius = int((blending / 100.0 * max(w, h) * 1.0 - 1.0) / 2.0)
+            luma = te_luma_plane(rgb, w, h, exposure_boost, fulcrum, contrast)
+            if details == 4:  # EIGF (the pinned golden leg)
+                luma = te_eigf(luma, w, h, radius, feather_d, iterations,
+                               geomean, quantization, 2.0 ** -14, 4.0)
+            elif details != 0:
+                raise ValueError(f"reference leg for details={details} not pinned")
+
+            def px(x, y, rgb=rgb, luma=luma, lut=lut, w=w):
+                idx = y * w + x
+                l = luma[idx]
+                e = max(-8.0, min(0.0, math.log2(l)))
+                c = lut[min(int(round((e + 8.0) * 10000.0)), 80000)]
+                return (rgb[0][idx] * c, rgb[1][idx] * c, rgb[2][idx] * c)
+
+            write_exr(os.path.join(out_dir, f"{name}__{fixture}.exr"), w, h, px)
+
+
 def main() -> None:
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
     outdir = sys.argv[2] if len(sys.argv) > 2 else os.path.dirname(os.path.abspath(__file__))
@@ -1909,6 +2278,9 @@ def main() -> None:
         # probes).
         gen_shadhi_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_sigmoid_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 03-05-T5: toneequal golden references (two tiers: none +
+        # EIGF; L017 route; dt-side = XMP adoption + flat PFM probes).
+        gen_toneequal_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 
