@@ -1,0 +1,41 @@
+<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Lightamer golden fixture gen">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:darktable="http://darktable.sf.net/"
+    darktable:xmp_version="5"
+    darktable:raw_params="0"
+    darktable:auto_presets_applied="1"
+    darktable:history_end="1">
+   <darktable:iop_order_version>5</darktable:iop_order_version>
+   <darktable:history>
+    <rdf:Seq>
+     <rdf:li rdf:parseType="Resource">
+      <darktable:num>0</darktable:num>
+      <darktable:module>3</darktable:module>
+      <darktable:operation>sigmoid</darktable:operation>
+      <darktable:enabled>1</darktable:enabled>
+      <darktable:modversion>3</darktable:modversion>
+      <darktable:params>f6289c3f6666263f0000c8426c09793c000000000000c8420000000000000000000000000000000000000000000000000000000000000000</darktable:params>
+      <darktable:iop_order>45.30</darktable:iop_order>
+      <darktable:multi_priority>0</darktable:multi_priority>
+      <darktable:multi_name></darktable:multi_name>
+     </rdf:li>
+    </rdf:Seq>
+   </darktable:history>
+   <darktable:history_enabled>
+    <rdf:Seq><rdf:li>1</rdf:li></rdf:Seq>
+   </darktable:history_enabled>
+   <darktable:history_modversion>
+    <rdf:Seq><rdf:li>3</rdf:li></rdf:Seq>
+   </darktable:history_modversion>
+   <darktable:history_operation>
+    <rdf:Seq><rdf:li>sigmoid</rdf:li></rdf:Seq>
+   </darktable:history_operation>
+   <darktable:history_params>
+    <rdf:Seq><rdf:li>f6289c3f6666263f0000c8426c09793c000000000000c8420000000000000000000000000000000000000000000000000000000000000000</rdf:li></rdf:Seq>
+   </darktable:history_params>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>

@@ -103,6 +103,21 @@ internal final class PixelPipe: @unchecked Sendable {
     private var scratchPlanes: [any MTLTexture] = []
     private var scratchFlip = false
 
+    // ── Tile driver state (03-05-T6; TilingPlan's first engagement) ──
+
+    /// Per-tile AUXILIARY working-set budget (the module's
+    /// `tileWorkingSetBytesPerPixel` × tile area, D-C1 accounting: the
+    /// toneequal auxiliary planes must stay an order below the pipe
+    /// budget instead of the whole-plane ~1.9GB). Injected in tests to
+    /// force tiling on small planes.
+    internal var maxTileWorkingBytes: Int = 512 << 20
+
+    /// The tile-execution scratch planes (read rect + write rect), cached
+    /// per size — the tile size is uniform across a run's grid.
+    private var tileReadSize = (width: 0, height: 0)
+    private var tileReadPlane: (any MTLTexture)?
+    private var tileWritePlane: (any MTLTexture)?
+
     /// SC#2 instrumentation: process dispatches this run.
     internal private(set) var planesRendered = 0
 
@@ -196,6 +211,123 @@ internal final class PixelPipe: @unchecked Sendable {
         return scratchPlanes[scratchFlip ? 1 : 0]
     }
 
+    // MARK: - Tile driver (Plan 03-05-T6)
+
+    /// Whether THIS module execution must be tiled: FULL resolution only,
+    /// module-declared auxiliary working set above the tile budget, and a
+    /// float32 tail (the blit copy path requires matching formats; a
+    /// toneequal-sized module at the gamma tail does not occur — the
+    /// terminal trio follows every tone module).
+    private func tileNeeded(
+        box: any ModuleBoxing, roiOut: ROI, piece: IOPiece,
+        outputFormat: MTLPixelFormat
+    ) -> Bool {
+        // The blit driver requires matching formats (float32 in/out).
+        guard outputFormat == WorkingSpace.pixelFormat else { return false }
+        guard resolution == .full else { return false }
+        let bytesPerPixel = box.tileWorkingSetBytesPerPixelErased(piece: piece)
+        guard bytesPerPixel > 0 else { return false }
+        guard box.tileHaloErased(roi: roiOut, piece: piece) > 0 else { return false }
+        return roiOut.width * roiOut.height * bytesPerPixel > maxTileWorkingBytes
+    }
+
+    /// Execute the module TILE-WISE over `input` into `output` (same size,
+    /// float32): the upstream plane is rendered ONCE by the caller (the
+    /// recursion above), then `TilingPlan.tiles` supplies the output grid;
+    /// each tile's read rect is the tile widened by the module's halo, the
+    /// module runs at read-rect extent (whole-plane semantics — the halo
+    /// data is real, so border clamping matches the untiled run), and the
+    /// tile's sub-rect is blitted into the plane. The module never knows
+    /// it was tiled.
+    private func executeTiled(
+        box: any ModuleBoxing,
+        piece: inout IOPiece,
+        input: any MTLTexture,
+        output: any MTLTexture,
+        roiOut: ROI,
+        metal: MetalContext
+    ) async throws {
+        let halo = box.tileHaloErased(roi: roiOut, piece: piece)
+        let bytesPerPixel = box.tileWorkingSetBytesPerPixelErased(piece: piece)
+        let tiles = TilingPlan.tiles(
+            forWidth: roiOut.width, height: roiOut.height,
+            maxTileBytes: maxTileWorkingBytes,
+            bytesPerPixel: bytesPerPixel,
+            overlap: halo
+        )
+        for tile in tiles where tile.width > 0 && tile.height > 0 {
+            // The read rect: the output tile widened by the halo, clamped.
+            let rx = max(0, tile.x - halo)
+            let ry = max(0, tile.y - halo)
+            let rw = min(input.width - rx, tile.width + (tile.x - rx) + halo)
+            let rh = min(input.height - ry, tile.height + (tile.y - ry) + halo)
+
+            // Uniform-size scratch (allocated once per run).
+            if tileReadSize.width != rw || tileReadSize.height != rh {
+                tileReadPlane = try Self.allocatePlane(
+                    roiOut: ROI(width: rw, height: rh, scale: roiOut.scale), metal: metal)
+                tileWritePlane = try Self.allocatePlane(
+                    roiOut: ROI(width: rw, height: rh, scale: roiOut.scale), metal: metal)
+                tileReadSize = (rw, rh)
+            }
+            guard let tileIn = tileReadPlane, let tileOut = tileWritePlane else {
+                throw MetalError.bufferAllocationFailed(rw * rh * 16)
+            }
+
+            // input[readRect] → tileIn (blit, same format).
+            try await blit(
+                from: input,
+                sourceOrigin: MTLOrigin(x: rx, y: ry, z: 0),
+                size: MTLSize(width: rw, height: rh, depth: 1),
+                to: tileIn, metal: metal)
+
+            // The module executes at read-rect extent — the piece
+            // geometry (dscIn) stays the PLANE extent, so whole-image
+            // radius semantics hold (toneequal's dt piece->iwidth analog).
+            let readROI = ROI(
+                x: rx, y: ry, width: rw, height: rh, scale: roiOut.scale)
+            try await box.processErased(
+                input: tileIn, output: tileOut,
+                roiIn: readROI, roiOut: readROI,
+                piece: &piece, metal: metal)
+
+            // tileOut[tile sub-rect] → output[tile rect].
+            try await blit(
+                from: tileOut,
+                sourceOrigin: MTLOrigin(x: tile.x - rx, y: tile.y - ry, z: 0),
+                size: MTLSize(width: tile.width, height: tile.height, depth: 1),
+                to: output,
+                destinationOrigin: MTLOrigin(x: tile.x, y: tile.y, z: 0),
+                metal: metal)
+        }
+    }
+
+    /// A same-format texture-to-texture blit on its own command buffer
+    /// (same-queue FIFO keeps it ordered against the neighboring compute
+    /// dispatches; explicit endEncoding before commit — L008).
+    private func blit(
+        from source: any MTLTexture,
+        sourceOrigin: MTLOrigin,
+        size: MTLSize,
+        to destination: any MTLTexture,
+        destinationOrigin: MTLOrigin = MTLOrigin(x: 0, y: 0, z: 0),
+        metal: MetalContext
+    ) async throws {
+        guard let commandBuffer = metal.commandQueue.makeCommandBuffer() else {
+            throw MetalError.deviceUnavailable
+        }
+        guard let blit = commandBuffer.makeBlitCommandEncoder() else {
+            throw MetalError.deviceUnavailable
+        }
+        blit.copy(
+            from: source, sourceSlice: 0, sourceLevel: 0,
+            sourceOrigin: sourceOrigin, sourceSize: size,
+            to: destination, destinationSlice: 0, destinationLevel: 0,
+            destinationOrigin: destinationOrigin)
+        blit.endEncoding()
+        commandBuffer.commit()
+    }
+
     /// Run the pipe over a decoded image with the given (unsorted) module
     /// instances; returns the final plane + this run's stats delta.
     ///
@@ -269,6 +401,18 @@ internal final class PixelPipe: @unchecked Sendable {
         } else {
             roi = ROI(width: fullWidth, height: fullHeight, scale: 1.0)
         }
+        // Piece input geometry (the dt `piece->iwidth/iheight` analog):
+        // the PLANE extent this run renders at, stamped once before the
+        // walk. Modules derive full-image-relative quantities from it —
+        // toneequal's smoothing radius (toneequal.c:1352-1357) and the
+        // tile seam's halo (03-05-T6) key on it; a TILE must not change
+        // it (the halo exists precisely to preserve whole-image radius
+        // semantics under tiles).
+        let pieceGeometry = IOPBufferDesc(width: roi.width, height: roi.height)
+        for index in pieces.indices {
+            pieces[index].state.dscIn = pieceGeometry
+        }
+
         let final = try await processRec(
             position: pieces.count - 1,
             roiOut: roi,
@@ -410,11 +554,22 @@ internal final class PixelPipe: @unchecked Sendable {
                 let output = try Self.allocatePlane(
                     roiOut: roiOut, metal: metal, pixelFormat: tailFormat
                 )
-                try await box.processErased(
-                    input: upstream.texture, output: output,
-                    roiIn: roiOut, roiOut: roiOut,
-                    piece: &pieces[position].state, metal: metal
-                )
+                // (g) TILE DRIVER (03-05-T6): large-working-set FULL
+                // modules execute tile-wise (TilingPlan grid + module
+                // halo); everything else is the plain whole-plane call.
+                if tileNeeded(box: box, roiOut: roiOut, piece: pieces[position].state,
+                              outputFormat: tailFormat) {
+                    try await executeTiled(
+                        box: box, piece: &pieces[position].state,
+                        input: upstream.texture, output: output,
+                        roiOut: roiOut, metal: metal)
+                } else {
+                    try await box.processErased(
+                        input: upstream.texture, output: output,
+                        roiIn: roiOut, roiOut: roiOut,
+                        piece: &pieces[position].state, metal: metal
+                    )
+                }
                 planesRendered += 1
                 return output
             }
@@ -442,11 +597,19 @@ internal final class PixelPipe: @unchecked Sendable {
             } else {
                 try nextScratchPlane(roiOut: roiOut, metal: metal)
             }
-        try await box.processErased(
-            input: upstream.texture, output: output,
-            roiIn: roiOut, roiOut: roiOut,
-            piece: &pieces[position].state, metal: metal
-        )
+        if tileNeeded(box: box, roiOut: roiOut, piece: pieces[position].state,
+                      outputFormat: tailFormat) {
+            try await executeTiled(
+                box: box, piece: &pieces[position].state,
+                input: upstream.texture, output: output,
+                roiOut: roiOut, metal: metal)
+        } else {
+            try await box.processErased(
+                input: upstream.texture, output: output,
+                roiIn: roiOut, roiOut: roiOut,
+                piece: &pieces[position].state, metal: metal
+            )
+        }
         planesRendered += 1
         return PipeCache.CachedPlane(texture: output, byteCount: 0, lastHit: .now)
     }
@@ -515,12 +678,17 @@ public enum RenderPipeline {
         resolution: PipeResolution,
         cache: PipeCache,
         metal: MetalContext,
-        longEdge: Int? = nil
+        longEdge: Int? = nil,
+        maxTileWorkingBytes: Int? = nil
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
         defer { signposter.endInterval("pixelpipe", interval) }
         let pipe = PixelPipe(resolution: resolution, cache: cache)
         pipe.imageID = imageID
+        if let maxTileWorkingBytes {
+            // Test/parametric injection of the per-tile budget (03-05-T6).
+            pipe.maxTileWorkingBytes = maxTileWorkingBytes
+        }
         return try await pipe.run(
             image: image, instances: instances, metal: metal, longEdge: longEdge
         )

@@ -1,8 +1,10 @@
 import AppKit
 import Foundation
 import LightamerCore
+import LightamerIOP
 import Metal
 import Observation
+import simd
 import os
 
 /// The multi-resolution pipe owner (Plan 02-03-04; FOUND-04 SC#4's pipe
@@ -374,8 +376,18 @@ final class PipeCoordinator {
                         document: document, url: url, decoded: decoded
                     )
                 } else {
-                    let defaults = await registry?.makeDefaultInstances() ?? []
-                    editorState?.resetHistoryForNewImage(defaultInstances: defaults)
+                    // Pristine seed (Plan 03-02-T4): terminal trio + the
+                    // LightamerIOP tone iops with permanent panels at
+                    // IDENTITY params — their Inspector panels need
+                    // instances to drive. Identity keeps the chain
+                    // cache-neutral (same hashes as the bare trio).
+                    let defaults = (await registry?.makeDefaultInstances() ?? [])
+                        + LightamerIOPRegistry.editingDefaultInstances()
+                    editorState?.resetHistoryForNewImage(
+                        defaultInstances: defaults.sorted {
+                            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+                        }
+                    )
                 }
                 historyLoadedURL = url
             }
@@ -425,9 +437,32 @@ final class PipeCoordinator {
         await renderPreview(
             bucket: currentBucket ?? PreviewBucket.cap, generation: gen
         )
+
+        // PERF-5 PSO startup pre-warm (Plan 03-06-T7, Open#7 decision):
+        // background task pre-compiles the current chain's compute PSOs so
+        // the FIRST interactive drag does not pay the cold PSO build
+        // (METAL-5). Fire-and-forget — the lazy PSO cache stays the source
+        // of truth and the warm task only touches `pipelineState`.
+        startPSOPrewarmIfNeeded()
+    }
+
+    /// Arm the one-shot PSO pre-warm (idempotent per session).
+    private func startPSOPrewarmIfNeeded() {
+        guard psoPrewarmTask == nil, let metal else { return }
+        psoPrewarmTask = Task { [weak self] in
+            // Small settle delay: let the first frame's own PSO hits land.
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            await metal.prewarmPipelineStates(
+                functionNames: LightamerIOPRegistry.prewarmFunctionNames
+            )
+        }
     }
 
     // ── 02-06 session memory budget (D-C1/D-C2 sweep + toast) ────────────
+
+    /// The one-shot PSO pre-warm task (nil = not armed yet).
+    private var psoPrewarmTask: Task<Void, Never>?
 
     /// Arm the 60s backstop sweep once (idempotent; first load arms it).
     /// The Task inherits the coordinator's MainActor isolation — the loop
@@ -757,6 +792,159 @@ final class PipeCoordinator {
         editorState.performJump(to: index)
         await historyDidChange()
         scheduleSidecarWrite()
+    }
+
+    // ── D-T4 color sampling plumbing (Plan 03-02-T5) ─────────────────────
+
+    /// The picked LINEAR Rec2020 color at a viewport point — the D-T4
+    /// eyedropper base (and Phase 3's shared sampling plumbing for the
+    /// filmic auto keys).
+    ///
+    /// Chain: viewport POINT → aspect-fit normalized uv (mirrors
+    /// `EditorMTKView.Coordinator.aspectFitUniforms` exactly) → the LINEAR
+    /// pipe plane re-run → fence (L014) → 5×5 area mean (dt AREA picker
+    /// semantics, `color_picker_proxy`).
+    ///
+    /// The LINEAR plane is obtained by re-running the chain MINUS the
+    /// display segment (colorout+gamma) at the CURRENT bucket: every plane
+    /// of that segment is already cached from the last full render (same
+    /// imageID/bucket/levelHash — the terminal modules sit above), so this
+    /// costs zero GPU work and yields the float32 working-space values the
+    /// WB module actually operates on. Sampling the display-ready `.bgra8`
+    /// texture instead would be gamma-encoded 8-bit — useless for a
+    /// scene-linear neutral solve (1e-5 tolerance).
+    ///
+    /// nil = nothing loaded, no GPU, click outside the fitted image rect,
+    /// or the linear segment failed. Never mutates `displayTexture` (D-X1).
+    func pickColor(at point: CGPoint, viewportSize: CGSize) async -> simd_float3? {
+        guard let decoded, let metal, let display = editorState?.displayTexture else {
+            return nil
+        }
+        let texSize = SIMD2<Int>(display.width, display.height)
+        guard let uv = Self.viewportUV(
+            at: point, viewportSize: viewportSize, textureSize: texSize
+        ) else {
+            Self.logger.debug("eyedropper click outside the fitted image rect")
+            return nil
+        }
+
+        let linearChain = instances.filter {
+            $0.opName != ColorOutModule.opName && $0.opName != GammaModule.opName
+        }
+        guard !linearChain.isEmpty else { return nil }
+        do {
+            let (texture, _) = try await RenderPipeline.process(
+                image: decoded,
+                instances: linearChain,
+                imageID: currentImageID ?? UUID(),
+                resolution: .preview,
+                cache: cache,
+                metal: metal,
+                longEdge: currentBucket ?? PreviewBucket.cap
+            )
+            // L014: getBytes does not wait for in-flight encoders — fence
+            // the queue before the CPU readback (async-safe completion await;
+            // the CPU-side getBytes follows on this same task).
+            let fence = metal.commandQueue.makeCommandBuffer()
+            fence?.commit()
+            await fence?.completed()
+            return Self.sampleArea(texture: texture, uv: uv)
+        } catch {
+            Self.logger.error(
+                "pickColor linear segment failed: \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    /// Full-image per-channel RGB min/max over the linear chain (Plan
+    /// 03-06-T5, the filmic auto black/white keys — dt's
+    /// `picked_color_min/max` whole-preview semantics via the shared
+    /// HistogramReduce). nil when nothing is loaded or the render failed.
+    /// Never mutates `displayTexture` (D-X1).
+    func sampleLinearNormMinMax() async -> (min: simd_float3, max: simd_float3)? {
+        guard let decoded, let metal else { return nil }
+        let linearChain = instances.filter {
+            $0.opName != ColorOutModule.opName && $0.opName != GammaModule.opName
+        }
+        guard !linearChain.isEmpty else { return nil }
+        do {
+            let (texture, _) = try await RenderPipeline.process(
+                image: decoded,
+                instances: linearChain,
+                imageID: currentImageID ?? UUID(),
+                resolution: .preview,
+                cache: cache,
+                metal: metal,
+                longEdge: currentBucket ?? PreviewBucket.cap
+            )
+            let fence = metal.commandQueue.makeCommandBuffer()
+            fence?.commit()
+            await fence?.completed()
+            return try await HistogramReduce.rgbMinMax(of: texture, metal: metal)
+        } catch {
+            Self.logger.error(
+                "linear norm min/max failed: \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    /// Viewport POINT → normalized texture uv, mirroring the blit's
+    /// aspect-fit (`aspectFitUniforms` + the vertex uv chain):
+    /// `uv.x = 0.5 + scale.x·(p.x/vw − 0.5)`,
+    /// `uv.y = 0.5 − scale.y·(0.5 − p.y/vh)`. nil when the point falls in
+    /// the letterbox (outside the fitted image rect).
+    nonisolated static func viewportUV(
+        at point: CGPoint, viewportSize: CGSize, textureSize: SIMD2<Int>
+    ) -> SIMD2<Double>? {
+        guard viewportSize.width >= 1, viewportSize.height >= 1,
+              textureSize.x >= 1, textureSize.y >= 1
+        else { return nil }
+        let vw = Double(viewportSize.width)
+        let vh = Double(viewportSize.height)
+        let tw = Double(textureSize.x)
+        let th = Double(textureSize.y)
+        let fit = min(vw / tw, vh / th)
+        let scaleX = fit * tw / vw // ≤ 1; 1 on the constraining axis
+        let scaleY = fit * th / vh
+        // uv spans [0,1] across the FITTED rect: divide the viewport
+        // fraction by the per-axis scale (the fitted rect occupies
+        // [0.5(1−s), 0.5(1+s)] of the viewport).
+        let uv = SIMD2<Double>(
+            0.5 + (Double(point.x) / vw - 0.5) / scaleX,
+            0.5 + (Double(point.y) / vh - 0.5) / scaleY
+        )
+        guard uv.x >= 0, uv.x <= 1, uv.y >= 0, uv.y <= 1 else { return nil }
+        return uv
+    }
+
+    /// N×N area mean around the uv point (dt AREA picker; default radius 2
+    /// = 5×5), clamped at the borders. The texture is the float32 linear
+    /// working-space plane.
+    nonisolated static func sampleArea(
+        texture: any MTLTexture, uv: SIMD2<Double>, radius: Int = 2
+    ) -> simd_float3? {
+        guard texture.pixelFormat == WorkingSpace.pixelFormat else { return nil }
+        let width = texture.width
+        let height = texture.height
+        let cx = min(max(Int((uv.x * Double(width)).rounded()), 0), width - 1)
+        let cy = min(max(Int((uv.y * Double(height)).rounded()), 0), height - 1)
+        let x0 = max(cx - radius, 0), y0 = max(cy - radius, 0)
+        let x1 = min(cx + radius, width - 1), y1 = min(cy + radius, height - 1)
+        let w = x1 - x0 + 1, h = y1 - y0 + 1
+        var pixels = [Float](repeating: 0, count: w * h * 4)
+        pixels.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: w * WorkingSpace.bytesPerPixel,
+                from: MTLRegionMake2D(x0, y0, w, h), mipmapLevel: 0
+            )
+        }
+        var acc = simd_float3.zero
+        for i in 0..<(w * h) {
+            acc += simd_float3(pixels[i * 4], pixels[i * 4 + 1], pixels[i * 4 + 2])
+        }
+        return acc / Float(w * h)
     }
 
     /// Viewport geometry changed (an INPUT event — the view never renders).

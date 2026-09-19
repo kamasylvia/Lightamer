@@ -32,6 +32,10 @@ internal struct EditorAreaView: View {
 
     @Environment(EditorState.self) private var editorState
 
+    /// D-T4 eyedropper mode (Plan 03-02-T5): the crosshair + click routing
+    /// state lives here, the sampling in the coordinator.
+    @Environment(InspectorState.self) private var inspectorState
+
     var body: some View {
         @Bindable var editorState = editorState
         VStack(spacing: 0) {
@@ -78,6 +82,33 @@ internal struct EditorAreaView: View {
                     sendDrawableGeometry(newSize)
                 }
                 .onAppear { sendDrawableGeometry(geo.size) }
+                // D-T4 eyedropper: when armed, a click routes into the
+                // coordinator's PREVIEW sampling (an INPUT event — the view
+                // never renders) and the mode disarms itself in
+                // `InspectorState.completeEyedropper`. Crosshair cursor via
+                // AppKit (SwiftUI has no view-level cursor modifier on macOS).
+                .onHover { hovering in
+                    guard inspectorState.isEyedropperActive else { return }
+                    if hovering {
+                        NSCursor.crosshair.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .gesture(
+                    SpatialTapGesture()
+                        .onEnded { value in
+                            guard inspectorState.isEyedropperActive else { return }
+                            let point = value.location
+                            Task {
+                                if let picked = await pipeCoordinator.pickColor(
+                                    at: point, viewportSize: geo.size
+                                ) {
+                                    inspectorState.completeEyedropper(with: picked)
+                                }
+                            }
+                        }
+                )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 

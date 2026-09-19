@@ -180,6 +180,10 @@ internal struct LightamerApp: App {
                     await LightamerIOPRegistry.populate(moduleRegistry)
                     pipeCoordinator.attach(registry: moduleRegistry)
 
+                    // Plan 03-02-T3 (D-T6): register the Inspector panel
+                    // providers (exposure + temperature are the first two).
+                    inspectorState.registerDefaultProviders()
+
                     // Register the IOP framework's default.metallib (which
                     // carries the pass_through kernel) with the dispatch
                     // context. Plan 04's pixelpipe dispatches through it;
@@ -218,8 +222,10 @@ internal struct LightamerApp: App {
                     appDelegate.terminateHandler = {
                         pipeCoordinator.flushForTermination()
                     }
+                    #if DEBUG
                     resizeProbeIfRequested()
                     sidecarProbeIfRequested()
+                    #endif
                 }
         }
         .defaultSize(width: 1440, height: 900)

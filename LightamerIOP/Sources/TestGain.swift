@@ -1,9 +1,14 @@
-#if DEBUG
+// Plan 03-06-T7 revision: the TYPE compiles in all configurations (the
+// Release-configuration PERF-5 test build @testable-imports this module
+// through test files that reference it), but the APP-CHAIN registration
+// below stays DEBUG-only — a Release sidecar carrying a `testgain` op
+// still degrades to UNKNOWN exactly as before (the observable behavior
+// is unchanged: the class is never instantiated outside tests).
 import LightamerCore
 import Metal
 
 // ─────────────────────────────────────────────────────────────────────────
-// DEV-ONLY MODULE — compiled out of Release builds entirely (#if DEBUG).
+// DEV-ONLY MODULE — never registered into app chains outside DEBUG.
 //
 // SC#2's demonstration vehicle (02-RESEARCH Validation Architecture): a
 // one-parameter gain module the cache tests re-parameterize to prove the
@@ -145,4 +150,3 @@ struct TestGainUniforms {
         self.gain = gain
     }
 }
-#endif

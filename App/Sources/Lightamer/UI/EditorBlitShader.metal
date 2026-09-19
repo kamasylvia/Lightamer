@@ -44,7 +44,11 @@ vertex BlitOut editor_blit_vertex(
     // CIContext renders the image BOTTOM-UP (texture row 0 = image bottom,
     // CI's lower-left origin), while the drawable's row 0 displays at the
     // TOP of the view. uv.y is therefore flipped so the image shows upright.
-    out.uv = float2(ndc.x * 0.5 + 0.5, 1.0 - (ndc.y * 0.5 + 0.5));
+    // Plan 03-02: divide by the per-axis scale so the fitted rect maps
+    // uv [0,1] (true aspect fit; previously the center was cropped).
+    // Phase 4's proper fit/zoom path supersedes the big-triangle
+    // coverage (its hypotenuse overhang clamps at the texture edges).
+    out.uv = float2(ndc.x / uniforms.scale.x * 0.5 + 0.5, 1.0 - (ndc.y / uniforms.scale.y * 0.5 + 0.5));
     return out;
 }
 

@@ -91,3 +91,29 @@ public protocol IOPModule {
         metal: MetalContext
     ) async throws
 }
+
+// MARK: - Tile-driving seam (Plan 03-05-T6 — the D-20 scaffold's first
+// consumer; TilingPlan.tiles graduates from placeholder overlap to the
+// module-reported halo)
+
+public extension IOPModule {
+
+    /// The HALO, in pixels, this module needs BEYOND its output rect at
+    /// the given plane ROI: the tile driver executes the module on the
+    /// halo-widened read rect so the tile's output matches whole-plane
+    /// execution. 0 = the module never needs tiling (the default — every
+    /// Phase 1-3 module except toneequal is untouched).
+    ///
+    /// The radius semantics are the module's own; toneequal keys its
+    /// smoothing radius on `piece.dscIn` (the PIPE-LEVEL plane geometry,
+    /// dt's `piece->iwidth`) — deliberately NOT the tile rect, so the
+    /// whole-image radius survives tiling (the halo exists precisely to
+    /// preserve that semantics).
+    func tileHalo(roi: ROI, piece: IOPiece) -> Int { 0 }
+
+    /// The module's AUXILIARY working set in bytes per OUTPUT pixel
+    /// (mask planes, downsampled intermediates, blur scratch — the tile
+    /// budget input; the input/output planes themselves are the pipe's
+    /// accounting). 0 = never tiled.
+    func tileWorkingSetBytesPerPixel(piece: IOPiece) -> Int { 0 }
+}

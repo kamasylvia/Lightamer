@@ -1,18 +1,121 @@
 import Foundation
+import LightamerCore
+import LightamerIOP
 import Observation
+import simd
+import SwiftUI
 
 /// Inspector-subsystem state (D-03b isolation contract).
 ///
-/// Owns ONLY: the selected iop panel and panel expand/collapse state (stubs —
-/// Phase 3+ fills with the real iop panel stack). Does NOT own image data and
-/// holds no references to the other state objects.
+/// Owns ONLY: the selected iop panel, panel expand/collapse state, the
+/// D-T6 `IOPPanelProvider` registry (opName → panel factory dispatch), and
+/// the D-T4 eyedropper interaction mode. Does NOT own image data and holds
+/// no references to the other state objects.
+///
+/// Panel dispatch (Plan 03-02-T3): the app registers the hand-written
+/// providers at launch (`registerDefaultProviders`); `panelView(for:edit:)`
+/// resolves the selected instance's opName to its panel. Registry-driven
+/// per the plan — a provider type lists itself here, the InspectorView
+/// stays generic.
 @Observable
 @MainActor
 final class InspectorState {
 
-    /// Currently selected inspector panel identifier (stub).
+    /// Currently selected inspector panel (the instance UUID string of the
+    /// selected iop instance; empty = nothing selected).
     private(set) var selectedPanel: String = ""
 
-    /// Identifiers of expanded inspector sections (stub).
+    /// Identifiers of expanded inspector sections.
     private(set) var expandedSections: Set<String> = []
+
+    /// The opName → panel factory registry (v1: hand-written providers,
+    /// reflection-based generation stays an extension point).
+    private var providers: [String: any IOPPanelProvider] = [:]
+
+    // ── D-T4 eyedropper plumbing ─────────────────────────────────────────
+
+    /// True while the viewport is in eyedropper mode (crosshair cursor,
+    /// clicks route to `PipeCoordinator` sampling instead of being ignored).
+    private(set) var isEyedropperActive = false
+
+    /// The pending completion handler for the active eyedropper session
+    /// (set by the panel that armed the mode).
+    private var eyedropperHandler: ((simd_float3) -> Void)?
+
+    // MARK: - Provider registry
+
+    /// Register one panel provider (idempotent per opName — last wins).
+    func register(_ provider: any IOPPanelProvider) {
+        providers[provider.opName] = provider
+    }
+
+    /// The Phase 3 default set: exposure + temperature + the 03-03 Lab
+    /// trio (colisa / tonecurve / levels) + the 03-04 additions (sigmoid
+    /// D-T2 baseline / shadhi). Later plans append theirs.
+    func registerDefaultProviders() {
+        register(ExposurePanelProvider())
+        register(TemperaturePanelProvider())
+        register(ColisaPanelProvider())
+        register(ToneCurvePanelProvider())
+        register(LevelsPanelProvider())
+        register(SigmoidPanelProvider())
+        register(ShadhiPanelProvider())
+        register(ToneEqualPanelProvider())
+        // Plan 03-06: filmicrgb (the scene-referred filmic transform) +
+        // agx (the filmic VARIANT).
+        register(FilmicRGBPanelProvider())
+        register(AgXPanelProvider())
+    }
+
+    /// The ops that have a registered panel (for the Inspector list).
+    var panelOpNames: [String] {
+        providers.keys.sorted()
+    }
+
+    /// Dispatch the selected instance's panel view; nil when the op has no
+    /// registered panel (e.g. the terminal trio).
+    func panelView(for instance: ModuleInstance, edit: InspectorEditSession) -> AnyView? {
+        providers[instance.opName]?.panel(for: instance, edit: edit)
+    }
+
+    /// Select the instance whose panel the Inspector should show.
+    func selectPanel(instanceID: UUID) {
+        selectedPanel = instanceID.uuidString
+    }
+
+    /// Toggle a collapsible section.
+    func toggleSection(_ id: String) {
+        if expandedSections.contains(id) {
+            expandedSections.remove(id)
+        } else {
+            expandedSections.insert(id)
+        }
+    }
+
+    // MARK: - Eyedropper mode (D-T4)
+
+    /// Arm eyedropper mode. The next viewport click samples the PREVIEW
+    /// linear color and invokes `handler` once, then the mode disarms
+    /// itself. `cancelEyedropper` disarms without invoking.
+    func beginEyedropper(_ handler: @escaping (simd_float3) -> Void) {
+        eyedropperHandler = handler
+        isEyedropperActive = true
+    }
+
+    /// The viewport click resolved: deliver the picked color and disarm.
+    func completeEyedropper(with picked: simd_float3) {
+        guard isEyedropperActive, let handler = eyedropperHandler else { return }
+        disarmEyedropper()
+        handler(picked)
+    }
+
+    /// Disarm without delivering (second click on the toolbar button, ESC).
+    func cancelEyedropper() {
+        disarmEyedropper()
+    }
+
+    private func disarmEyedropper() {
+        eyedropperHandler = nil
+        isEyedropperActive = false
+    }
 }
