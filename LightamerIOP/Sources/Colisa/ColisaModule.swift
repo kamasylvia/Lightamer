@@ -31,49 +31,23 @@ import simd
 // module follows the source verbatim — the plan's formula does not exist
 // in the referenced tree.
 //
-// LUT lookup semantics = dt's NEAREST truncation
-// (`lut[int(x × 0x10000)]`, basic.cl common.h:23 CLK_FILTER_NEAREST +
-// colisa.c:168 CPU `(int)` cast), implemented as direct device-buffer
-// indexing. LUT VALUES are stored float32 (dt quantizes its tables to
-// 1/65536 integer samples through curve_tools — a ≤1 LSB difference that
-// removes an entire class of quantization cliffs; recorded deviation).
+// LUT lookup semantics = dt's NEAREST LUT (`lut[int(x × 0x10000)]`,
+// basic.cl common.h:23 CLK_FILTER_NEAREST + colisa.c:168 CPU `(int)` cast)
+// implemented as direct device-buffer indexing, with ONE recorded
+// deviation: the index ROUNDS to nearest instead of truncating. dt's
+// truncation puts neutral pixels EXACTLY on a boundary (a=0 → a_in=0.5 →
+// index 32768.0), where the float32 chroma noise flips the index ±1
+// systematically; rounding keeps the ≤1-LSB semantic difference while
+// making the index stable under noise. LUT VALUES are stored float32 (dt
+// quantizes its tables to 1/65536 integer samples through curve_tools —
+// a ≤1 LSB difference that removes the quantization cliff from the table
+// side; recorded deviation).
 //
 // The dt golden references are SYNTHESIZED from this documented semantic
 // (gen_fixtures.py `refs` mode) with dt pinned via uniform-flat PFM
 // probes — LESSONS L017 protocol (dt-cli float export corrupts
 // spatially-varying images on this host).
 // ─────────────────────────────────────────────────────────────────────────
-
-/// dt `dt_iop_estimate_exp` (develop/imageop_math.h:98-130) verbatim in
-/// Float: fit f(x) = y0·(x/x0)^g over the sample points (the LAST point
-/// anchors the fit). Shared with tonecurve (T3).
-public enum IOPExpFit {
-
-    /// `coeff = {1/x0, y0, g}` — eval via `evalExp`.
-    public static func estimate(_ x: [Float], _ y: [Float]) -> [Float] {
-        let count = x.count
-        let x0 = x[count - 1], y0 = y[count - 1]
-        var g: Float = 0
-        var cnt = 0
-        for k in 0..<(count - 1) {
-            if y[k] > 0, x[k] > 0 {
-                g += Foundation.log(y[k] / y0) / Foundation.log(x[k] / x0)
-                cnt += 1
-            }
-        }
-        if cnt > 0 {
-            g *= 1.0 / Float(cnt)
-        } else {
-            g = 1.0
-        }
-        return [1.0 / x0, y0, g]
-    }
-
-    /// dt `dt_iop_eval_exp`: `coeff[1] * powf(x * coeff[0], coeff[2])`.
-    public static func eval(_ coeff: [Float], _ x: Float) -> Float {
-        coeff[1] * Foundation.pow(x * coeff[0], coeff[2])
-    }
-}
 
 public enum ColisaKernel {
     public static let functionName = "colisa_apply"
@@ -201,8 +175,10 @@ public final class ColisaModule: IOPModule {
         let ltable = Self.brightnessTable(params)
         // Extrapolation fits over x = 0.7..1.0 (colisa.c:211-234).
         let xs: [Float] = [0.7, 0.8, 0.9, 1.0]
+        // rounded sampling (matches the kernel's rounded lookup + the
+        // gen_fixtures lut_index)
         func sample(_ t: [Float], _ x: Float) -> Float {
-            t[min(Int(x * Float(Self.lutResolution)), Self.lutResolution - 1)]
+            t[min(Int(x * Float(Self.lutResolution) + 0.5), Self.lutResolution - 1)]
         }
         let ccoeffs = IOPExpFit.estimate(xs, xs.map { sample(ctable, $0) })
         let lcoeffs = IOPExpFit.estimate(xs, xs.map { sample(ltable, $0) })

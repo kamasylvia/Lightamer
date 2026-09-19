@@ -33,6 +33,11 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ColisaModule.opName) { id in
             ModuleBox(module: ColisaModule(), instanceID: id)
         }
+        // Plan 03-03-T3: tonecurve (L/a/b curves, 10001-point LUTs),
+        // Lab-domain, v50 slot 48.0.
+        await registry.register(opName: ToneCurveModule.opName) { id in
+            ModuleBox(module: ToneCurveModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -55,6 +60,7 @@ public enum LightamerIOPRegistry {
             ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params()),
             ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params()),
             ModuleInstance(module: ColisaModule.self, params: ColisaModule.Params()),
+            ModuleInstance(module: ToneCurveModule.self, params: ToneCurveModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }

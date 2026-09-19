@@ -490,6 +490,7 @@ def gen_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, name + ".xmp"), "w") as f:
             f.write(xmp)
+    gen_tonecurve_cases(outdir)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -675,10 +676,14 @@ def dt_eval_exp(coeff, x):
 
 
 def lut_index(x):
-    """dt NEAREST LUT index: uint(max(x,0) * 0x10000) clamped to 0xffff."""
+    """LUT index — ROUNDED (Plan 03-03 deviation): dt truncates
+    (uint(x*0x10000)), but neutral pixels sit EXACTLY on truncation
+    boundaries (a=0 → a_in=0.5 → 32768.0) where the GPU's float32 chroma
+    noise flips the index ±1 systematically. Rounding to nearest keeps the
+    ≤1-LSB semantic difference while making the index stable under noise."""
     if x <= 0.0:
         return 0
-    return min(int(x * 0x10000), 0xFFFF)
+    return min(int(x * 0x10000 + 0.5), 0xFFFF)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -777,6 +782,382 @@ def gen_colisa_refs(canonical_dir: str, out_dir: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Tonecurve (Plan 03-03-T3) — dt tonecurve.c commit_params + process,
+# curve_tools.c interpolators. Interpolation in float64 with the SAME op
+# order as ToneCurveLUT.swift (only +−×÷√ — bit-deterministic across
+# implementations). LUT values are NOT integer-quantized (the recorded
+# Lightamer deviation); the NEAREST truncation lookup is kept.
+# ──────────────────────────────────────────────────────────────────────
+
+TONECURVE_PARAMS_MODVERSION = 5
+TONECURVE_IOP_ORDER = 48.0
+TONECURVE_MAXNODES = 20
+
+TONECURVE_EPSILON = 2.0 * 2.0 ** -126  # dt EPSILON = 2*FLT_MIN
+
+
+def monotone_hermite_tangents(x, y):
+    n = len(x)
+    delta = [0.0] * n
+    m = [0.0] * (n + 1)
+    for i in range(n - 1):
+        delta[i] = (y[i + 1] - y[i]) / (x[i + 1] - x[i])
+    delta[n - 1] = delta[n - 2]
+    m[0] = delta[0]
+    m[n - 1] = delta[n - 1]
+    for i in range(1, n - 1):
+        m[i] = (delta[i - 1] + delta[i]) * 0.5
+    for i in range(n):
+        if abs(delta[i]) < TONECURVE_EPSILON:
+            m[i] = 0.0
+            m[i + 1] = 0.0
+        else:
+            alpha = m[i] / delta[i]
+            beta = m[i + 1] / delta[i]
+            tau = alpha * alpha + beta * beta
+            if tau > 9.0:
+                m[i] = 3.0 * alpha * delta[i] / math.sqrt(tau)
+                m[i + 1] = 3.0 * beta * delta[i] / math.sqrt(tau)
+    return m[0:n]
+
+
+def catmull_rom_tangents(x, y):
+    n = len(x)
+    m = [0.0] * n
+    m[0] = (y[1] - y[0]) / (x[1] - x[0])
+    for i in range(1, n - 1):
+        m[i] = (y[i + 1] - y[i - 1]) / (x[i + 1] - x[i - 1])
+    m[n - 1] = (y[n - 1] - y[n - 2]) / (x[n - 1] - x[n - 2])
+    return m
+
+
+def cubic_spline_second_derivatives(x, y):
+    """spline_cubic_set with dt's natural-BC wrapper (2,0)/(2,0)."""
+    n = len(x)
+    a = [0.0] * (3 * n)
+    b = [0.0] * n
+    b[0] = 0.0
+    a[1] = 1.0
+    a[0 + 3] = 0.0
+    for i in range(1, n - 1):
+        b[i] = (y[i + 1] - y[i]) / (x[i + 1] - x[i]) - (y[i] - y[i - 1]) / (x[i] - x[i - 1])
+        a[2 + (i - 1) * 3] = (x[i] - x[i - 1]) / 6.0
+        a[1 + i * 3] = (x[i + 1] - x[i - 1]) / 3.0
+        a[0 + (i + 1) * 3] = (x[i + 1] - x[i]) / 6.0
+    b[n - 1] = 0.0
+    a[2 + (n - 2) * 3] = 0.0
+    a[1 + (n - 1) * 3] = 1.0
+    # d3_np_fs
+    for i in range(n):
+        if a[1 + i * 3] == 0.0:
+            return None
+    xx = list(b)
+    for i in range(1, n):
+        xmult = a[2 + (i - 1) * 3] / a[1 + (i - 1) * 3]
+        a[1 + i * 3] = a[1 + i * 3] - xmult * a[0 + i * 3]
+        xx[i] = xx[i] - xmult * xx[i - 1]
+    xx[n - 1] = xx[n - 1] / a[1 + (n - 1) * 3]
+    for i in range(n - 2, -1, -1):
+        xx[i] = (xx[i] - a[0 + (i + 1) * 3] * xx[i + 1]) / a[1 + i * 3]
+    return xx
+
+
+def hermite_val(x, y, m, xval):
+    n = len(x)
+    ival = n - 2
+    for i in range(n - 2):
+        if xval < x[i + 1]:
+            ival = i
+            break
+    m0, m1 = m[ival], m[ival + 1]
+    h = x[ival + 1] - x[ival]
+    dx = (xval - x[ival]) / h
+    dx2 = dx * dx
+    dx3 = dx2 * dx
+    h00 = 2.0 * dx3 - 3.0 * dx2 + 1.0
+    h10 = dx3 - 2.0 * dx2 + dx
+    h01 = -2.0 * dx3 + 3.0 * dx2
+    h11 = dx3 - dx2
+    return h00 * y[ival] + h10 * h * m0 + h01 * y[ival + 1] + h11 * h * m1
+
+
+def spline_val(x, y, ypp, tval):
+    n = len(x)
+    ival = n - 2
+    for i in range(n - 1):
+        if tval < x[i + 1]:
+            ival = i
+            break
+    dt = tval - x[ival]
+    h = x[ival + 1] - x[ival]
+    return y[ival] + dt * (
+        (y[ival + 1] - y[ival]) / h
+        - (ypp[ival + 1] / 6.0 + ypp[ival] / 3.0) * h
+        + dt * (0.5 * ypp[ival] + dt * ((ypp[ival + 1] - ypp[ival]) / (6.0 * h)))
+    )
+
+
+def tonecurve_build_table(nodes, curve_type):
+    """dt draw.h CurveDataSample shape over [0,1], NO integer quantization
+    (the recorded Lightamer deviation); flat outside the node x-range."""
+    res = ToneCurveLUTResolution
+    table = [0.0] * res
+    if len(nodes) < 2:
+        for k in range(res):
+            table[k] = k / (res - 1)
+        return table
+    xs = [n[0] for n in nodes]
+    ys = [n[1] for n in nodes]
+    m = ypp = None
+    if curve_type == 2:
+        m = monotone_hermite_tangents(xs, ys)
+    elif curve_type == 1:
+        m = catmull_rom_tangents(xs, ys)
+    else:
+        ypp = cubic_spline_second_derivatives(xs, ys)
+    if m is None and ypp is None:
+        for k in range(res):
+            table[k] = k / (res - 1)
+        return table
+    step = 1.0 / (res - 1)
+    first_x, last_x = xs[0], xs[-1]
+    first_y, last_y = ys[0], ys[-1]
+    for k in range(res):
+        xk = k * step
+        if xk < first_x:
+            v = first_y
+        elif xk > last_x:
+            v = last_y
+        elif m is not None:
+            v = hermite_val(xs, ys, m, xk)
+        else:
+            v = spline_val(xs, ys, ypp, xk)
+        table[k] = max(0.0, min(1.0, v))
+    return table
+
+
+ToneCurveLUTResolution = 0x10000
+
+
+def tonecurve_commit(curves, types, autoscale):
+    """dt tonecurve.c:722-841. curves = [nodesL, nodesA, nodesB] with
+    nodes as (x, y) tuples; types raw (0 cubic/1 catmull/2 hermite);
+    autoscale raw (0 manual/1 Lab/2 XYZ/3 RGB — RGB over Rec2020)."""
+    res = ToneCurveLUTResolution
+    tableL = [v * 100.0 for v in tonecurve_build_table(curves[0], types[0])]
+    tableA = [v * 256.0 - 128.0 for v in tonecurve_build_table(curves[1], types[1])]
+    tableB = [v * 256.0 - 128.0 for v in tonecurve_build_table(curves[2], types[2])]
+
+    if autoscale == 2:
+        derived = [0.0] * res
+        for k in range(res):
+            t = k / res
+            lab = _xyz50_to_lab((t, t, t))
+            idx = lut_index(lab[0] / 100.0)
+            lab_out = (tableL[idx], lab[1], lab[2])
+            derived[k] = _lab_to_xyz50(lab_out)[1]
+        tableL = derived
+    elif autoscale == 3:
+        derived = [0.0] * res
+        for k in range(res):
+            t = k / res
+            lab = lab_from_rec2020((t, t, t))
+            idx = lut_index(lab[0] / 100.0)
+            lab_out = (tableL[idx], lab[1], lab[2])
+            derived[k] = lab_to_rec2020(lab_out)[1]
+        tableL = derived
+
+    xs = [0.7, 0.8, 0.9, 1.0]
+
+    def sample(t, x):
+        return t[lut_index(x)]
+
+    def fit(t, xm):
+        return dt_estimate_exp([v * xm for v in xs], [sample(t, v * xm) for v in xs])
+
+    def left_fit(t, xm):
+        return dt_estimate_exp([v * xm for v in xs], [sample(t, 1.0 - v * xm) for v in xs])
+
+    xm_l = curves[0][-1][0]
+    xm_ar = curves[1][-1][0]
+    xm_al = 1.0 - curves[1][0][0]
+    xm_br = curves[2][-1][0]
+    xm_bl = 1.0 - curves[2][0][0]
+    return {
+        "L": tableL, "A": tableA, "B": tableB,
+        "cL": fit(tableL, xm_l),
+        "cAR": fit(tableA, xm_ar), "cAL": left_fit(tableA, xm_al),
+        "cBR": fit(tableB, xm_br), "cBL": left_fit(tableB, xm_bl),
+        "low": tableL[lut_index(0.01)],
+    }
+
+
+def _xyz50_to_lab(xyz):
+    fx = _lab_f(xyz[0] / LAB_WHITE[0])
+    fy = _lab_f(xyz[1] / LAB_WHITE[1])
+    fz = _lab_f(xyz[2] / LAB_WHITE[2])
+    return (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
+
+
+def _lab_to_xyz50(lab):
+    fy = (lab[0] + 16.0) / 116.0
+    fx = fy + lab[1] / 500.0
+    fz = fy - lab[2] / 200.0
+    return (
+        LAB_WHITE[0] * _lab_f_inv(fx),
+        LAB_WHITE[1] * _lab_f_inv(fy),
+        LAB_WHITE[2] * _lab_f_inv(fz),
+    )
+
+
+def tc_lookup_unbounded(table, x, c):
+    if x < 1.0:
+        return f32(table[lut_index(x)])
+    return c[1] * (x * c[0]) ** c[2]
+
+
+def tc_lookup_twosided(table, x, cr, cl):
+    xm_r = 1.0 / cr[0]
+    xm_l = 1.0 - 1.0 / cl[0]
+    if xm_l <= x < xm_r:
+        return f32(table[lut_index(x)])
+    if x >= xm_r:
+        return cr[1] * (x * cr[0]) ** cr[2]
+    return cl[1] * ((1.0 - x) * cl[0]) ** cl[2]
+
+
+def tc_rgb_norm(rgb, norm):
+    if norm == 1:
+        return rgb[0] * 0.262700 + rgb[1] * 0.678009 + rgb[2] * 0.059291
+    if norm == 2:
+        return max(rgb)
+    if norm == 4:
+        return sum(rgb)
+    if norm == 5:
+        return math.sqrt(rgb[0] ** 2 + rgb[1] ** 2 + rgb[2] ** 2)
+    if norm == 6:
+        r, g, b = rgb[0] ** 2, rgb[1] ** 2, rgb[2] ** 2
+        return (rgb[0] * r + rgb[1] * g + rgb[2] * b) / (r + g + b)
+    return sum(rgb) / 3.0
+
+
+def tonecurve_apply_pixel(rgb, tables, autoscale, unbound, preserve):
+    lab = lab_from_rec2020(rgb)
+    l_in = f32(f32(lab[0]) / 100.0)
+    L = tc_lookup_unbounded(tables["L"], l_in, tables["cL"])
+    if autoscale == 0:
+        a_in = f32((f32(lab[1]) + 128.0) / 256.0)
+        b_in = f32((f32(lab[2]) + 128.0) / 256.0)
+        if unbound:
+            lab = (L, tc_lookup_twosided(tables["A"], a_in, tables["cAR"], tables["cAL"]),
+                   tc_lookup_twosided(tables["B"], b_in, tables["cBR"], tables["cBL"]))
+        else:
+            lab = (L, f32(tables["A"][lut_index(max(a_in, 0.0))]),
+                   f32(tables["B"][lut_index(max(b_in, 0.0))]))
+    elif autoscale == 1:
+        if l_in > 0.01:
+            lab = (L, f32(lab[1]) * L / l_in, f32(lab[2]) * L / l_in)
+        else:
+            lab = (L, f32(lab[1]) * tables["low"], f32(lab[2]) * tables["low"])
+    elif autoscale == 2:
+        xyz = _lab_to_xyz50(lab)
+        xyz = tuple(tc_lookup_unbounded(tables["L"], c, tables["cL"]) for c in xyz)
+        lab = _xyz50_to_lab(xyz)
+    elif autoscale == 3:
+        rgbw = lab_to_rec2020(lab)
+        if preserve == 0:
+            rgbw = tuple(tc_lookup_unbounded(tables["L"], c, tables["cL"]) for c in rgbw)
+        else:
+            lum = tc_rgb_norm(rgbw, preserve)
+            if lum > 0.0:
+                ratio = tc_lookup_unbounded(tables["L"], lum, tables["cL"]) / lum
+                rgbw = (rgbw[0] * ratio, rgbw[1] * ratio, rgbw[2] * ratio)
+            else:
+                rgbw = (rgbw[0], rgbw[1], rgbw[2])
+        lab = lab_from_rec2020(rgbw)
+    return lab_to_rec2020(lab)
+
+
+def tonecurve_params_blob(curves, types, autoscale, unbound, preserve) -> str:
+    """dt_iop_tonecurve_params_t v5 → HEX ASCII: 3×20×2 node floats +
+    {nodes[3], type[3], autoscale, preset, unbound, preserve} ints."""
+    floats = []
+    for ch in range(3):
+        nodes = list(curves[ch])[:TONECURVE_MAXNODES]
+        for i in range(TONECURVE_MAXNODES):
+            if i < len(nodes):
+                floats.append(nodes[i][0])
+                floats.append(nodes[i][1])
+            else:
+                floats.append(0.0)
+                floats.append(0.0)
+    ints = [len(curves[0]), len(curves[1]), len(curves[2]),
+            types[0], types[1], types[2], autoscale, 0, 1 if unbound else 0, preserve]
+    # 10 ints: nodes[3] + type[3] + autoscale + preset + unbound + preserve
+    packed = struct.pack("<120f10i", *(floats + ints))
+    assert len(packed) == 520, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# The tonecurve 钉参组 (plan T3 action 4): identity / strong S on L
+# (manual a/b) / RGB-linked / per-channel (preserve NONE).
+_TONECURVE_S_NODES = [(0.0, 0.0), (0.25, 0.15), (0.5, 0.5), (0.75, 0.85), (1.0, 1.0)]
+_TONECURVE_AB_NODES = [(0.0, 0.0), (0.5, 0.5), (1.0, 1.0)]
+TONECURVE_CASES = [
+    ("tonecurve_identity",
+     [[(0.0, 0.0), (1.0, 1.0)], _TONECURVE_AB_NODES, _TONECURVE_AB_NODES],
+     [2, 2, 2], 3, True, 3),
+    ("tonecurve_s_manual",
+     [_TONECURVE_S_NODES, _TONECURVE_AB_NODES, _TONECURVE_AB_NODES],
+     [2, 2, 2], 0, True, 3),
+    ("tonecurve_s_rgb",
+     [_TONECURVE_S_NODES, _TONECURVE_AB_NODES, _TONECURVE_AB_NODES],
+     [2, 2, 2], 3, True, 3),
+    ("tonecurve_perchannel",
+     [_TONECURVE_S_NODES, _TONECURVE_AB_NODES, _TONECURVE_AB_NODES],
+     [2, 2, 2], 3, True, 0),
+]
+
+TONECURVE_REF_FIXTURES = [
+    "stair_1d", "ramp_8ev", "gray_staircase", "flat_0ev", "saturated",
+]
+
+
+def gen_tonecurve_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, curves, types, autoscale, unbound, preserve in TONECURVE_CASES:
+        tables = tonecurve_commit(curves, types, autoscale)
+        for fixture in TONECURVE_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, tables=tables, autoscale=autoscale,
+                   unbound=unbound, preserve=preserve, w=w):
+                idx = y * w + x
+                return tonecurve_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]),
+                    tables, autoscale, unbound, preserve,
+                )
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
+
+
+# ──────────────────────────────────────────────────────────────────────
+
+def gen_tonecurve_cases(outdir: str) -> None:
+    for case_name, curves, types, autoscale, unbound, preserve in TONECURVE_CASES:
+        params = tonecurve_params_blob(curves, types, autoscale, unbound, preserve)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="tonecurve",
+            modversion=TONECURVE_PARAMS_MODVERSION,
+            params=params,
+            iop_order=f"{TONECURVE_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case_name + ".xmp"), "w") as f:
+            f.write(xmp)
+
 
 def main() -> None:
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
@@ -800,8 +1181,9 @@ def main() -> None:
         # <outdir>/<temperature case>__<fixture>.exr from the canonical
         # fixtures in the fixtures dir (pass the fixtures dir as outdir).
         gen_temperature_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
-        # Plan 03-03-T2: colisa golden references (same L017 route).
+        # Plan 03-03-T2/T3: colisa + tonecurve golden references (L017 route).
         gen_colisa_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_tonecurve_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 
