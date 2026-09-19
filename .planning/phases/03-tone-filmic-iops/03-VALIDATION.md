@@ -40,19 +40,22 @@ created: 2026-09-19
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (planner) | — | 1 | IOP-TONE-01 (exposure) | — | N/A | golden parity | 合成 fixture → dt-cli 单模块钉参 → EXR vs Lightamer → 逐像素 <1e-5 相对误差 | ❌ W0 | ⬜ pending |
-| (planner) | — | 1 | IOP-TONE-02 (WB) | — | N/A | unit+golden | K→增益 CPU 单测（已知向量）+ 吸管数学 + fixture golden | ❌ W0 | ⬜ pending |
-| (planner) | — | 1 | IOP-TONE-03 (tonecurve) | — | N/A | unit+golden | 10001 点 1D 阶梯 LUT round-trip + dt-cli parity | ❌ W0 | ⬜ pending |
-| (planner) | — | 2 | IOP-TONE-04 (shadhi) | — | N/A | golden parity | Lab 往返 + bilateral 容差 <1e-4 + ΔE<1.0 99% 分位 | ❌ W0 | ⬜ pending |
-| (planner) | — | 2 | IOP-TONE-05 (colisa contrast) | — | N/A | golden parity | Lab 域对比度 parity | ❌ W0 | ⬜ pending |
-| (planner) | — | 2 | IOP-TONE-06 (levels) | — | N/A | unit+golden | levels black/white/灰色点 parity | ❌ W0 | ⬜ pending |
-| (planner) | — | 3 | IOP-TONE-07 (toneequal) | — | N/A | unit+golden | CPU correction LUT 单测 + EIGF Metal golden（TilingPlan 首战 FULL 管线）| ❌ W0 | ⬜ pending |
-| (planner) | — | 3 | IOP-FILM-02 (sigmoid) | — | N/A | unit+golden | commit_params 四标量 CPU 互验 + fixture parity <1e-5 | ❌ W0 | ⬜ pending |
-| (planner) | — | 4 | IOP-FILM-01 (filmicrgb) | — | N/A | unit+golden | F0-F4 五子阶段独立 golden + 组合 parity | ❌ W0 | ⬜ pending |
-| (planner) | — | 4 | IOP-FILM-03 (variants) | — | N/A | unit | filmic 变体参数组 round-trip | ❌ W0 | ⬜ pending |
-| (planner) | — | 5 | PERF-5 | — | N/A | signpost | PREVIEW 全模块链单帧 <16.6ms CI 记录（Phase 1 模式）| ❌ W0 | ⬜ pending |
+| 03-01-T1/T5/T6 | 03-01 | 1 | IOP-TONE-01 (exposure) | — | N/A | golden parity | 合成 fixture → dt-cli 单模块钉参 → EXR vs Lightamer → 逐像素 <1e-5 相对误差（tracer） | ❌ W0 | ⬜ pending |
+| 03-01-T2 | 03-01 | 1 | Wave 0 fixture 组 + dt-cli 重建 | — | N/A | script | `bash input/golden/regenerate.sh` 一键复现 + manifest | ❌ W0 | ⬜ pending |
+| 03-02-T1/T2/T6 | 03-02 | 2 | IOP-TONE-02 (WB) | — | N/A | unit+golden | K→增益 CPU 单测（已知向量）+ 吸管数学 + fixture golden（增益直设钉参） | ❌ W0 | ⬜ pending |
+| 03-03-T3 | 03-03 | 2 | IOP-TONE-03 (tonecurve) | — | N/A | unit+golden | 10001 点 1D 阶梯 LUT round-trip + dt-cli parity <1e-5 | ❌ W0 | ⬜ pending |
+| 03-04-T1/T2 | 03-04 | 3 | IOP-TONE-04 (shadhi) | — | N/A | golden parity | Lab 往返 + gaussian 腿钉参容差 <1e-4 + ΔE<1.0 99% 分位 | ❌ W0 | ⬜ pending |
+| 03-03-T1/T2 | 03-03 | 2 | IOP-TONE-05 (colisa contrast) | — | N/A | golden parity | Lab 域对比度 parity <1e-5 | ❌ W0 | ⬜ pending |
+| 03-03-T4/T5 | 03-03 | 2 | IOP-TONE-06 (levels) | — | N/A | unit+golden | levels black/white/灰点 parity（manual <1e-5 / automatic <1e-4+ΔE） | ❌ W0 | ⬜ pending |
+| 03-05-T1..T6 | 03-05 | 4 | IOP-TONE-07 (toneequal) | — | N/A | unit+golden | CPU correction LUT 单测 + golden 两档（none <1e-5 / EIGF <1e-4+ΔE）+ TilingPlan FULL 首战（分块一致 + <3GB） | ❌ W0 | ⬜ pending |
+| 03-04-T3/T4 | 03-04 | 3 | IOP-FILM-02 (sigmoid) | — | N/A | unit+golden | commit_params 四标量 CPU 互验 + fixture parity <1e-5 | ❌ W0 | ⬜ pending |
+| 03-06-T1..T5 | 03-06 | 5 | IOP-FILM-01 (filmicrgb) | — | N/A | unit+golden | F0-F4 五子阶段独立 golden + 组合 parity（F1 <1e-6 / F2-F4 <1e-5） | ❌ W0 | ⬜ pending |
+| 03-06-T6 | 03-06 | 5 | IOP-FILM-03 (variants=agx) | — | N/A | unit+golden | agx 参数组 round-trip + 钉参 parity | ❌ W0 | ⬜ pending |
+| 03-06-T7 | 03-06 | 5 | PERF-5 | — | N/A | signpost | PREVIEW 全模块链单帧 <16.6ms CI 记录（Phase 1 模式）| ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+> **Planner 回填注记（2026-09-19）**：Wave 列已按 plan 系 wave 对齐（1=03-01 基建+exposure → 2=03-02 WB+面板 ∥ 03-03 Lab 三模块 → 3=03-04 shadhi+sigmoid → 4=03-05 toneequal → 5=03-06 filmicrgb+variants+签核）。规划期拍板：①Lab 域往返进模块内部（colisa/shadhi/tonecurve/levels parity 前提，03-03-T1 共享件）；②shadhi golden 钉 `shadhi_algo=gaussian`（bilateral 腿 → Phase 5，03-04 checkpoint）；③toneequal golden 两档 none→EIGF（03-05 checkpoint）；④filmicrgb 只落 V5 + 高光重建子树划出（03-06 checkpoint D-T1）；⑤IOP-FILM-03 交付物 = agx（hatchless 无对标不实现）。checkpoint:decision 详见各 PLAN。
 
 ---
 
@@ -62,7 +65,6 @@ created: 2026-09-19
 - [ ] darktable-cli 重建（当前树 dc58cf0ba1）+ XMP attach 验证（修复预构建版丢历史缺陷）
 - [ ] `Tests/LightamerTests/GoldenParityTests.swift` — dt-cli parity 双轨 harness
 - [ ] `Tests/LightamerTests/CPUDerivationTests.swift` — 各模块 CPU 推导公式直译互验
-- [ ] 各 iop 的 `.swift + .metal` 文件对 stubs（exposure/temperature/tonecurve/shadhi/colisa/levels/toneequal/sigmoid/filmicrgb）
 
 ---
 
