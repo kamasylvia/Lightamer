@@ -123,3 +123,309 @@ kernel void toneeq_luma_estimate(
     const float v = te_linear_contrast(lum, u.fulcrum, u.contrastBoost);
     out.write(float4(v, 0.0f, 0.0f, 0.0f), gid);
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Detail-preserving filter stage (T3). Two legs:
+//
+//   EIGF (dt default)  ds bilinear → [quantize] → pack4 → GaussianBlur
+//                      (Common/GaussianBlur, σ = ds_sigma) → toneeq_blend
+//                      per iteration, blend ALWAYS at full res
+//                      (eigf.h fast_eigf_surface_blur shape).
+//   guided             ds bilinear (scaling fixed 4) → per iteration:
+//                      quantize (on ds) → pack4 → box_mean x/y →
+//                      toneeq_guided_ab → box_mean x/y on ab → ds blend;
+//                      final iteration upsamples ab and blends at full res
+//                      (fast_guided_filter.h fast_surface_blur shape).
+//   none               mask passes straight to the apply kernel.
+// ─────────────────────────────────────────────────────────────────────────
+
+struct ToneEqualBilinearUniforms {
+    uint srcWidth;
+    uint srcHeight;
+    uint dstWidth;
+    uint dstHeight;
+};
+
+// fast_guided_filter.h interpolate_bilinear — dt's exact corner
+// convention (x_out = j/width_out, NOT a half-pixel-center grid).
+// dt's bilinear for a generic (x, y) in output pixels.
+static inline float te_interpolate_bilinear(
+    texture2d<float, access::read> src, uint dstX, uint dstY,
+    uint srcW, uint srcH, uint dstW, uint dstH)
+{
+    const float xOut = float(dstX);
+    const float yOut = float(dstY);
+    const float xIn = xOut / float(dstW) * float(srcW);
+    const float yIn = yOut / float(dstH) * float(srcH);
+
+    uint xPrev = uint(floor(xIn));
+    uint xNext = xPrev + 1;
+    uint yPrev = uint(floor(yIn));
+    uint yNext = yPrev + 1;
+    xPrev = min(xPrev, srcW - 1);
+    xNext = min(xNext, srcW - 1);
+    yPrev = min(yPrev, srcH - 1);
+    yNext = min(yNext, srcH - 1);
+
+    const float nw = src.read(uint2(xPrev, yPrev)).r;
+    const float ne = src.read(uint2(xNext, yPrev)).r;
+    const float sw = src.read(uint2(xPrev, yNext)).r;
+    const float se = src.read(uint2(xNext, yNext)).r;
+
+    const float dyNext = float(yNext) - yIn;   // dt: (float)y_next − y_in
+    const float dyPrev = 1.0f - dyNext;
+    const float dxNext = float(xNext) - xIn;
+    const float dxPrev = 1.0f - dxNext;
+
+    return dyPrev * (sw * dxNext + se * dxPrev)
+         + dyNext * (nw * dxNext + ne * dxPrev);
+}
+
+// Same, reading all four channels of an rgba plane (the ab/av upsample).
+static inline float4 te_interpolate_bilinear4(
+    texture2d<float, access::read> src, uint dstX, uint dstY,
+    uint srcW, uint srcH, uint dstW, uint dstH)
+{
+    const float xIn = float(dstX) / float(dstW) * float(srcW);
+    const float yIn = float(dstY) / float(dstH) * float(srcH);
+
+    uint xPrev = uint(floor(xIn));
+    uint xNext = xPrev + 1;
+    uint yPrev = uint(floor(yIn));
+    uint yNext = yPrev + 1;
+    xPrev = min(xPrev, srcW - 1);
+    xNext = min(xNext, srcW - 1);
+    yPrev = min(yPrev, srcH - 1);
+    yNext = min(yNext, srcH - 1);
+
+    const float4 nw = src.read(uint2(xPrev, yPrev));
+    const float4 ne = src.read(uint2(xNext, yPrev));
+    const float4 sw = src.read(uint2(xPrev, yNext));
+    const float4 se = src.read(uint2(xNext, yNext));
+
+    const float dyNext = float(yNext) - yIn;
+    const float dyPrev = 1.0f - dyNext;
+    const float dxNext = float(xNext) - xIn;
+    const float dxPrev = 1.0f - dxNext;
+
+    return dyPrev * (sw * dxNext + se * dxPrev)
+         + dyNext * (nw * dxNext + ne * dxPrev);
+}
+
+kernel void toneeq_bilinear_1c(
+    texture2d<float, access::read> in [[texture(0)]],
+    texture2d<float, access::write> out [[texture(1)]],
+    constant ToneEqualBilinearUniforms &u [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    if (gid.x >= (uint)out.get_width() || gid.y >= (uint)out.get_height()) return;
+    const float v = te_interpolate_bilinear(
+        in, gid.x, gid.y, u.srcWidth, u.srcHeight, u.dstWidth, u.dstHeight);
+    out.write(float4(v, 0.0f, 0.0f, 0.0f), gid);
+}
+
+struct ToneEqualQuantizeUniforms {
+    float sampling;   // 0 = copy; 1 = fast track; else log2 step
+    float clipMin;    // dt passes exp2(−14)
+    float clipMax;    // dt passes 4
+};
+
+// fast_guided_filter.h quantize — log2-space posterization.
+kernel void toneeq_quantize(
+    texture2d<float, access::read> in [[texture(0)]],
+    texture2d<float, access::write> out [[texture(1)]],
+    constant ToneEqualQuantizeUniforms &u [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    if (gid.x >= (uint)out.get_width() || gid.y >= (uint)out.get_height()) return;
+    const float v = in.read(gid).r;
+    float q;
+    if (u.sampling == 0.0f) {
+        q = v;
+    } else if (u.sampling == 1.0f) {
+        q = exp2(floor(log2(v)));
+    } else {
+        q = exp2(floor(log2(v) / u.sampling) * u.sampling);
+    }
+    q = min(max(q, u.clipMin), u.clipMax);
+    out.write(float4(q, 0.0f, 0.0f, 0.0f), gid);
+}
+
+// eigf.h eigf_variance_analysis packing: (guide, guide², mask, guide·mask)
+// into the float4 plane the 4-channel gaussian blurs. The no-mask path
+// passes the SAME texture as guide and mask (channels 2/3 are then
+// duplicates — eigf's 2-channel variant keeps only the first two, and the
+// blend kernel reads only those; the blur is per-channel independent so
+// the values are identical).
+kernel void toneeq_pack4(
+    texture2d<float, access::read> guide [[texture(0)]],
+    texture2d<float, access::read> mask [[texture(1)]],
+    texture2d<float, access::write> out [[texture(2)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    if (gid.x >= (uint)out.get_width() || gid.y >= (uint)out.get_height()) return;
+    const float g = guide.read(gid).r;
+    const float m = mask.read(gid).r;
+    out.write(float4(g, g * g, m, g * m), gid);
+}
+
+// box_filters.cc _blur_horizontal shape: separable moving average with a
+// boundary-TRUNCATED window (the sum divides by the valid window size).
+// One thread per row; O(1) sliding sums per channel (the guided_filter.cl
+// box_mean_x topology; the CPU non-Kahan float path is the parity source —
+// toneequal never runs OpenCL in dt).
+kernel void toneeq_box_mean_x(
+    texture2d<float, access::read> in [[texture(0)]],
+    texture2d<float, access::write> out [[texture(1)]],
+    constant uint &radius [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    const uint w = in.get_width();
+    if (gid.y >= in.get_height() || w == 0) return;
+    const int r = int(radius);
+    float4 sum = 0.0f;
+    int hits = 0;
+    const int iR = min(r, int(w) - 1);
+    for (int x = 0; x <= iR; x++) {
+        sum += in.read(uint2(x, gid.y));
+        hits++;
+    }
+    float4 acc = sum;
+    int accHits = hits;
+    for (int x = 0; x < int(w); x++) {
+        out.write(acc / float(accHits), uint2(x, gid.y));
+        const int add = x + r + 1;
+        const int rem = x - r;
+        if (add < int(w)) { acc += in.read(uint2(add, gid.y)); accHits++; }
+        if (rem >= 0) { acc -= in.read(uint2(rem, gid.y)); accHits--; }
+    }
+}
+
+// box_filters.cc _blur_vertical — one thread per column.
+kernel void toneeq_box_mean_y(
+    texture2d<float, access::read> in [[texture(0)]],
+    texture2d<float, access::write> out [[texture(1)]],
+    constant uint &radius [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    const uint h = in.get_height();
+    if (gid.x >= in.get_width() || h == 0) return;
+    const int r = int(radius);
+    float4 sum = 0.0f;
+    int hits = 0;
+    const int iR = min(r, int(h) - 1);
+    for (int y = 0; y <= iR; y++) {
+        sum += in.read(uint2(gid.x, y));
+        hits++;
+    }
+    float4 acc = sum;
+    int accHits = hits;
+    for (int y = 0; y < int(h); y++) {
+        out.write(acc / float(accHits), uint2(gid.x, y));
+        const int add = y + r + 1;
+        const int rem = y - r;
+        if (add < int(h)) { acc += in.read(uint2(gid.x, add)); accHits++; }
+        if (rem >= 0) { acc -= in.read(uint2(gid.x, rem)); accHits--; }
+    }
+}
+
+struct ToneEqualABUniforms {
+    float feathering; // d->feathering = 1 / UI value
+};
+
+// fast_guided_filter.h variance_analyse blend segment (:238-243), reading
+// the blurred pack plane (r=ḡ, g²̄, m̄, ḡm̄ in the pack4 channel order):
+//   d = max(g²̄ − ḡ² + feathering, 1e-15);  a = (ḡm̄ − ḡ·m̄)/d;  b = m̄ − a·ḡ
+kernel void toneeq_guided_ab(
+    texture2d<float, access::read> in [[texture(0)]],
+    texture2d<float, access::write> out [[texture(1)]],
+    constant ToneEqualABUniforms &u [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    if (gid.x >= (uint)out.get_width() || gid.y >= (uint)out.get_height()) return;
+    const float4 v = in.read(gid);
+    const float gMean = v.r;
+    const float mMean = v.b;
+    const float d = fmax((v.g - v.r * v.r) + u.feathering, 1e-15f);
+    const float a = (v.a - v.r * v.b) / d;
+    const float b = mMean - a * gMean;
+    out.write(float4(a, b, 0.0f, 0.0f), gid);
+}
+
+struct ToneEqualBlendUniforms {
+    int mode;         // 0 = EIGF no-mask, 1 = EIGF mask, 2 = guided a/b
+    int upsample;     // 1 = bilinear-sample av/ab at full-res coords
+    int geomean;      // dt GF blending: 0 linear, 1 geometric mean
+    float feathering; // EIGF eps (d->feathering)
+    uint auxWidth;    // the av/ab plane dims
+    uint auxHeight;
+    uint srcWidth;    // the CURRENT-mask plane dims (== output dims)
+    uint srcHeight;
+};
+
+// The solve+blend epilogue:
+//   EIGF (eigf.h eigf_blending[_no_mask], the exposure-weighted variance
+//        RATIO — EIGF's whole point): normalized_var = var / max(ā·I, 1e-6),
+//        a = nvar/(nvar + feathering) [no-mask], or the covariant pair with
+//        √(norm_g·norm_m) [mask]; b = ā − a·ā (NO final spatial averaging —
+//        eigf.h's documented divergence from the plain guided filter).
+//   guided (apply_linear_blending): out = I·a + b with the box-smoothed a/b.
+// The full-res path INLINES the bilinear av/ab upsample (dt upsamples into
+// a plane first, then blends per-pixel with the same 4-neighbour weights —
+// point-identical, one less full plane).
+kernel void toneeq_blend(
+    texture2d<float, access::read> image [[texture(0)]],      // the mask being filtered
+    texture2d<float, access::read> mask [[texture(1)]],       // the quantized mask (mode 1); == image otherwise
+    texture2d<float, access::read> aux [[texture(2)]],        // av (modes 0/1) or ab (mode 2)
+    texture2d<float, access::write> out [[texture(3)]],
+    constant ToneEqualBlendUniforms &u [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    if (gid.x >= (uint)out.get_width() || gid.y >= (uint)out.get_height()) return;
+    const float img = image.read(gid).r;
+
+    float4 av;
+    if (u.upsample != 0) {
+        av = te_interpolate_bilinear4(
+            aux, gid.x, gid.y, u.auxWidth, u.auxHeight, u.srcWidth, u.srcHeight);
+    } else {
+        av = aux.read(gid);
+    }
+
+    float a;
+    float b;
+    if (u.mode == 2) {
+        a = av.r;
+        b = av.g;
+    } else if (u.mode == 0) {
+        // EIGF, guide == mask (eigf_blending_no_mask)
+        const float avg = av.r;
+        const float var = av.g - avg * avg;
+        const float norm = fmax(avg * img, 1e-6f);
+        const float nvar = var / norm;
+        a = nvar / (nvar + u.feathering);
+        b = avg - a * avg;
+    } else {
+        // EIGF with a quantized mask (eigf_blending)
+        const float avgG = av.r;
+        const float varG = av.g - avgG * avgG;
+        const float avgM = av.b;
+        const float cov = av.a - avgG * avgM;
+        const float mPix = mask.read(gid).r;
+        const float normG = fmax(avgG * img, 1e-6f);
+        const float normM = fmax(avgM * mPix, 1e-6f);
+        const float nvar = varG / normG;
+        const float ncov = cov / sqrt(normG * normM);
+        a = ncov / (nvar + u.feathering);
+        b = avgM - a * avgG;
+    }
+
+    float outV;
+    if (u.geomean != 0) {
+        // apply_linear_blending_w_geomean / the geomean branch
+        outV = sqrt(img * fmax(img * a + b, TE_MIN_FLOAT));
+    } else {
+        outV = fmax(img * a + b, TE_MIN_FLOAT);
+    }
+    out.write(float4(outV, 0.0f, 0.0f, 0.0f), gid);
+}
