@@ -32,3 +32,4 @@
 [2026-09-19 patrol] 03-05 complete: toneequal 9-band + EIGF + TilingPlan FULL 首战 green, 244 tests, PERF-5 Debug 63.4ms 落账待 03-06 优化
 [2026-09-20 patrol] 03-06 complete: filmicrgb F0-F4+agx+PERF-5 记录（Release 36.23ms，SC#3 注记），267 tests。PHASE 3 EXECUTION DONE (6/6)
 [2026-09-20 patrol] GOAL-STATE 队列 → Phase 4 discuss
+[2026-09-20 patrol] Phase 4 CONTEXT.md 定稿（Lensfun XML 只读三层策略、ROI 协商架构验收、EIGF 复用）
