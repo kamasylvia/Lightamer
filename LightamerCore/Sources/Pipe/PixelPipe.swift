@@ -269,6 +269,18 @@ internal final class PixelPipe: @unchecked Sendable {
         } else {
             roi = ROI(width: fullWidth, height: fullHeight, scale: 1.0)
         }
+        // Piece input geometry (the dt `piece->iwidth/iheight` analog):
+        // the PLANE extent this run renders at, stamped once before the
+        // walk. Modules derive full-image-relative quantities from it —
+        // toneequal's smoothing radius (toneequal.c:1352-1357) and the
+        // tile seam's halo (03-05-T6) key on it; a TILE must not change
+        // it (the halo exists precisely to preserve whole-image radius
+        // semantics under tiles).
+        let pieceGeometry = IOPBufferDesc(width: roi.width, height: roi.height)
+        for index in pieces.indices {
+            pieces[index].state.dscIn = pieceGeometry
+        }
+
         let final = try await processRec(
             position: pieces.count - 1,
             roiOut: roi,

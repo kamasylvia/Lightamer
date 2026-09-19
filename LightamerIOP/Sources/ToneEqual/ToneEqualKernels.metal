@@ -352,6 +352,29 @@ kernel void toneeq_guided_ab(
     out.write(float4(a, b, 0.0f, 0.0f), gid);
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Correction apply (T4) — toneequal.c:771-803 apply_toneequalizer (the
+// LUT version dt ships with): exposure = clamp(log2(luma), −8, 0), LUT
+// index = round((exposure + 8) × 10000), out = correction × in on ALL
+// FOUR channels (dt's `for_each_channel` = 4 — alpha rides along; kept
+// verbatim for the golden compare).
+// ─────────────────────────────────────────────────────────────────────────
+
+kernel void toneeq_apply(
+    texture2d<float, access::read> in [[texture(0)]],
+    texture2d<float, access::read> luma [[texture(1)]],
+    texture2d<float, access::write> out [[texture(2)]],
+    device const float *lut [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    if (gid.x >= (uint)out.get_width() || gid.y >= (uint)out.get_height()) return;
+    const float lum = luma.read(gid).r;
+    const float exposure = clamp(log2(lum), -8.0f, 0.0f);
+    const uint idx = (uint)round((exposure + 8.0f) * 10000.0f);
+    const float correction = lut[idx];
+    out.write(in.read(gid) * correction, gid);
+}
+
 struct ToneEqualBlendUniforms {
     int mode;         // 0 = EIGF no-mask, 1 = EIGF mask, 2 = guided a/b
     int upsample;     // 1 = bilinear-sample av/ab at full-res coords

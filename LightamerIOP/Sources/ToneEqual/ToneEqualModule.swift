@@ -260,7 +260,70 @@ public final class ToneEqualModule: IOPModule {
         input = roi
     }
 
-    // MARK: Process — T2/T3/T4 fill the three stages; T1 ships identity.
+    // MARK: Scratch management (per-size cached; .shared storage — L018)
+
+    private struct Scratch {
+        var width = 0
+        var height = 0
+        var dsWidth = 0
+        var dsHeight = 0
+        // Full-res luma planes (r32): the ping pair + the quantized mask.
+        var maskA: (any MTLTexture)?
+        var maskB: (any MTLTexture)?
+        var quantFull: (any MTLTexture)?
+        // Downsampled planes: two r32 (guided's ds image ping + quantized
+        // mask) + two rgba32 (the packed moments and the av/ab result).
+        var dsImage: (any MTLTexture)?
+        var dsMask: (any MTLTexture)?
+        var dsPacked: (any MTLTexture)?
+        var dsAv: (any MTLTexture)?
+        var gaussPlanes: (any MTLBuffer)?
+    }
+
+    private var scratch = Scratch()
+
+    private static func r32(_ device: any MTLDevice, width: Int, height: Int) -> any MTLTexture {
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .r32Float, width: width, height: height, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        return device.makeTexture(descriptor: d)!
+    }
+
+    private static func rgba32(_ device: any MTLDevice, width: Int, height: Int) -> any MTLTexture {
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: width, height: height, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        return device.makeTexture(descriptor: d)!
+    }
+
+    private func ensureScratch(
+        width: Int, height: Int, dsWidth: Int, dsHeight: Int
+    ) throws {
+        guard let resolved = resolvedDevice else {
+            throw MetalError.psoCreationFailed(ToneEqualKernel.lumaEstimateFunction, nil)
+        }
+        let s = scratch
+        if s.width == width, s.height == height, s.dsWidth == dsWidth, s.dsHeight == dsHeight,
+           s.maskA != nil {
+            return
+        }
+        scratch = Scratch(
+            width: width, height: height, dsWidth: dsWidth, dsHeight: dsHeight,
+            maskA: Self.r32(resolved, width: width, height: height),
+            maskB: Self.r32(resolved, width: width, height: height),
+            quantFull: Self.r32(resolved, width: width, height: height),
+            dsImage: Self.r32(resolved, width: dsWidth, height: dsHeight),
+            dsMask: Self.r32(resolved, width: dsWidth, height: dsHeight),
+            dsPacked: Self.rgba32(resolved, width: dsWidth, height: dsHeight),
+            dsAv: Self.rgba32(resolved, width: dsWidth, height: dsHeight),
+            gaussPlanes: resolved.makeBuffer(
+                length: max(dsWidth, 1) * max(dsHeight, 1) * 16 * 2,
+                options: .storageModeShared))
+    }
+
+    // MARK: Process (toneequal.c:866-934 compute_luminance_mask + :771-803 apply)
 
     public func process(
         input: any MTLTexture,
@@ -270,9 +333,372 @@ public final class ToneEqualModule: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        // T1 interim: identity copy (the apply stage replaces this in T4).
-        try await metal.dispatch2DTexture(
-            functionName: "gaussian_copy", input: input, output: output
-        )
+        guard let uniformsBuffer = piece.data, let lutBuffer else {
+            throw MetalError.psoCreationFailed(ToneEqualKernel.applyFunction, nil)
+        }
+        let derived = uniformsBuffer.contents().assumingMemoryBound(to: Derived.self).pointee
+        let width = input.width
+        let height = input.height
+
+        // dt modify_roi_in (toneequal.c:1352-1357): the smoothing diameter
+        // is blending% of the FULL-IMAGE largest dimension (piece->iwidth,
+        // NOT the current ROI — the piece geometry carries the pipe-scale
+        // plane; the tile driver keeps this semantics stable under tiles).
+        let fullMax = max(max(piece.dscIn.width, 1), max(piece.dscIn.height, 1))
+        let diameter = derived.blending * Float(fullMax) * roiIn.scale
+        let radius = Int((diameter - 1.0) / 2.0)
+
+        // The boost configuration per detail mode (:869-934): the AVG legs
+        // and NONE leave the mask unboosted (fulcrum 0, contrast 1); the
+        // plain GUIDED/EIGF legs contrast-boost around exp2(−4).
+        let boosted = derived.details == Int32(ToneEqualDetails.guided.rawValue)
+            || derived.details == Int32(ToneEqualDetails.eigf.rawValue)
+        let lumaUniforms = LumaUniforms(
+            method: derived.method,
+            exposureBoost: derived.exposureBoost,
+            fulcrum: boosted ? Float(exp2(-4.0)) : 0,
+            contrastBoost: boosted ? derived.contrastBoost : 1)
+        var lumaU = lumaUniforms
+
+        // dt's blending MODE (linear vs geomean) per detail leg.
+        let geomeanFinal =
+            derived.details == Int32(ToneEqualDetails.averagedGuided.rawValue)
+            || derived.details == Int32(ToneEqualDetails.averagedEIGF.rawValue)
+
+        // NONE: mask passes straight to the apply kernel (:871-878).
+        if derived.details == Int32(ToneEqualDetails.none.rawValue) {
+            try await ensureScratch(width: width, height: height, dsWidth: 1, dsHeight: 1)
+            guard let mask = scratch.maskA else {
+                throw MetalError.psoCreationFailed(ToneEqualKernel.lumaEstimateFunction, nil)
+            }
+            try await dispatchLuma(
+                metal, input: input, output: mask, uniforms: &lumaU,
+                width: width, height: height)
+            try await dispatchApply(
+                metal, input: input, luma: mask, output: output, lut: lutBuffer,
+                width: width, height: height)
+            return
+        }
+
+        // The filter legs — EIGF scaling (eigf.h fast_eigf_surface_blur):
+        //   scaling = clamp(sigma(=radius), 1, 4); ds_sigma = max(σ/s, 1)
+        //   ds size = floor(size / scaling)   (float division, truncated)
+        // guided (fast_guided_filter.h fast_surface_blur): scaling fixed 4,
+        // ds_radius = radius < 4 ? 1 : radius / 4 (int division).
+        let sigmaRadius = Float(radius)
+        let scaling: Float
+        let dsSigma: Float
+        var dsRadius: Int = 1
+        let isEigf = derived.details == Int32(ToneEqualDetails.eigf.rawValue)
+            || derived.details == Int32(ToneEqualDetails.averagedEIGF.rawValue)
+        if isEigf {
+            scaling = max(min(sigmaRadius, 4.0), 1.0)
+            dsSigma = max(sigmaRadius / scaling, 1.0)
+        } else {
+            scaling = 4.0
+            dsSigma = 0
+            dsRadius = radius < 4 ? 1 : radius / 4
+        }
+        let dsWidth = max(1, Int(Float(width) / scaling))
+        let dsHeight = max(1, Int(Float(height) / scaling))
+        try await ensureScratch(
+            width: width, height: height, dsWidth: dsWidth, dsHeight: dsHeight)
+        guard let maskA = scratch.maskA, let maskB = scratch.maskB,
+              let quantFull = scratch.quantFull, let dsImage = scratch.dsImage,
+              let dsMask = scratch.dsMask, let dsPacked = scratch.dsPacked,
+              let dsAv = scratch.dsAv, let gaussPlanes = scratch.gaussPlanes
+        else {
+            throw MetalError.psoCreationFailed(ToneEqualKernel.lumaEstimateFunction, nil)
+        }
+
+        // Stage 1 — the luma mask.
+        try await dispatchLuma(
+            metal, input: input, output: maskA, uniforms: &lumaU,
+            width: width, height: height)
+
+        let iterations = max(1, Int(derived.iterations))
+        if isEigf {
+            // ── EIGF leg (eigf.h fast_eigf_surface_blur): every iteration
+            // downsamples the CURRENT full-res mask, gaussian-blurs the
+            // packed moments, and blends AT FULL RES (bilinear av upsample
+            // inlined in the blend kernel).
+            var cur = maskA
+            var next = maskB
+            for i in 0..<iterations {
+                try await dispatchBilinear(
+                    metal, input: cur, output: dsImage,
+                    srcW: width, srcH: height, dstW: dsWidth, dstH: dsHeight,
+                    gridW: dsWidth, gridH: dsHeight)
+                var blendMode = 0 // no-mask
+                var guideSrc = dsImage
+                var maskSrc = dsImage
+                if derived.quantization != 0 {
+                    try await dispatchQuantize(
+                        metal, input: cur, output: quantFull, sampling: derived.quantization,
+                        gridW: width, gridH: height)
+                    try await dispatchBilinear(
+                        metal, input: quantFull, output: dsMask,
+                        srcW: width, srcH: height, dstW: dsWidth, dstH: dsHeight,
+                        gridW: dsWidth, gridH: dsHeight)
+                    blendMode = 1
+                    guideSrc = dsMask
+                    maskSrc = quantFull
+                }
+                try await dispatchPack(
+                    metal, guide: guideSrc, mask: dsImage, output: dsPacked,
+                    gridW: dsWidth, gridH: dsHeight)
+                try await GaussianBlur.blur(
+                    input: dsPacked, output: dsAv, planes: gaussPlanes,
+                    sigma: dsSigma,
+                    boundsMin: SIMD4(repeating: Float(exp2(-16.0))),
+                    boundsMax: SIMD4(repeating: Float.greatestFiniteMagnitude),
+                    metal: metal)
+                try await dispatchBlend(
+                    metal, image: cur, mask: maskSrc, aux: dsAv, output: next,
+                    mode: blendMode, upsample: true,
+                    geomean: geomeanFinal && i == iterations - 1,
+                    feathering: derived.feathering,
+                    auxW: dsWidth, auxH: dsHeight, srcW: width, srcH: height,
+                    gridW: width, gridH: height)
+                // FIFO order makes the swap safe: the next iteration
+                // reads what we just wrote.
+                swap(&cur, &next)
+            }
+            try await dispatchApply(
+                metal, input: input, luma: cur, output: output, lut: lutBuffer,
+                width: width, height: height)
+        } else {
+            // ── guided leg (fast_guided_filter.h fast_surface_blur): ONE
+            // downsample; iterations run ON THE DS PLANE (quantize → pack →
+            // box mean → ab → box mean → ds blend); the final blend
+            // upsamples the box-smoothed a/b to full res.
+            try await dispatchBilinear(
+                metal, input: maskA, output: dsImage,
+                srcW: width, srcH: height, dstW: dsWidth, dstH: dsHeight,
+                gridW: dsWidth, gridH: dsHeight)
+            for i in 0..<iterations {
+                try await dispatchQuantize(
+                    metal, input: dsImage, output: dsMask, sampling: derived.quantization,
+                    gridW: dsWidth, gridH: dsHeight)
+                try await dispatchPack(
+                    metal, guide: dsMask, mask: dsImage, output: dsPacked,
+                    gridW: dsWidth, gridH: dsHeight)
+                var boxRadius = UInt32(dsRadius)
+                try await dispatchBox(metal, input: dsPacked, output: dsAv, radius: &boxRadius,
+                                      width: dsWidth, height: dsHeight, horizontal: true)
+                try await dispatchBox(metal, input: dsAv, output: dsPacked, radius: &boxRadius,
+                                      width: dsWidth, height: dsHeight, horizontal: false)
+                try await dispatchAB(metal, input: dsPacked, output: dsAv,
+                                     feathering: derived.feathering,
+                                     gridW: dsWidth, gridH: dsHeight)
+                try await dispatchBox(metal, input: dsAv, output: dsPacked, radius: &boxRadius,
+                                      width: dsWidth, height: dsHeight, horizontal: true)
+                try await dispatchBox(metal, input: dsPacked, output: dsAv, radius: &boxRadius,
+                                      width: dsWidth, height: dsHeight, horizontal: false)
+                let last = i == iterations - 1
+                try await dispatchBlend(
+                    metal, image: last ? maskA : dsImage, mask: dsImage, aux: dsAv,
+                    output: last ? maskB : dsMask,
+                    mode: 2, upsample: last,
+                    geomean: geomeanFinal && last,
+                    feathering: derived.feathering,
+                    auxW: dsWidth, auxH: dsHeight, srcW: width, srcH: height,
+                    gridW: last ? width : dsWidth, gridH: last ? height : dsHeight)
+                if !last {
+                    // dsImage ← dsMask for the next iteration (ds plane ping).
+                    try await dispatchCopy1C(metal, input: dsMask, output: dsImage,
+                                             width: dsWidth, height: dsHeight)
+                }
+            }
+            try await dispatchApply(
+                metal, input: input, luma: maskB, output: output, lut: lutBuffer,
+                width: width, height: height)
+        }
+    }
+
+    // MARK: Dispatch helpers (each: encode → endEncoding → commit, L008)
+
+    struct LumaUniforms {
+        var method: Int32
+        var exposureBoost: Float
+        var fulcrum: Float
+        var contrastBoost: Float
+    }
+
+    private func dispatchLuma(
+        _ metal: MetalContext, input: any MTLTexture, output: any MTLTexture,
+        uniforms: inout LumaUniforms, width: Int, height: Int
+    ) async throws {
+        let session = try await metal.makeEncoder(functionName: ToneEqualKernel.lumaEstimateFunction)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(output, index: 1)
+        session.encoder.setBytes(&uniforms, length: MemoryLayout<LumaUniforms>.stride, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: width, height: height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+    }
+
+    private func dispatchBilinear(
+        _ metal: MetalContext, input: any MTLTexture, output: any MTLTexture,
+        srcW: Int, srcH: Int, dstW: Int, dstH: Int,
+        gridW: Int, gridH: Int
+    ) async throws {
+        struct U {
+            var srcWidth: UInt32
+            var srcHeight: UInt32
+            var dstWidth: UInt32
+            var dstHeight: UInt32
+        }
+        var u = U(srcWidth: UInt32(srcW), srcHeight: UInt32(srcH),
+                  dstWidth: UInt32(dstW), dstHeight: UInt32(dstH))
+        let session = try await metal.makeEncoder(functionName: ToneEqualKernel.bilinear1cFunction)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(output, index: 1)
+        session.encoder.setBytes(&u, length: MemoryLayout<U>.stride, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: gridW, height: gridH, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+    }
+
+    private func dispatchQuantize(
+        _ metal: MetalContext, input: any MTLTexture, output: any MTLTexture,
+        sampling: Float, gridW: Int, gridH: Int
+    ) async throws {
+        struct U {
+            var sampling: Float
+            var clipMin: Float
+            var clipMax: Float
+        }
+        var u = U(sampling: sampling, clipMin: Float(exp2(-14.0)), clipMax: 4)
+        let session = try await metal.makeEncoder(functionName: ToneEqualKernel.quantizeFunction)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(output, index: 1)
+        session.encoder.setBytes(&u, length: MemoryLayout<U>.stride, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: gridW, height: gridH, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+    }
+
+    private func dispatchPack(
+        _ metal: MetalContext, guide: any MTLTexture, mask: any MTLTexture,
+        output: any MTLTexture, gridW: Int, gridH: Int
+    ) async throws {
+        let session = try await metal.makeEncoder(functionName: ToneEqualKernel.pack4Function)
+        session.encoder.setTexture(guide, index: 0)
+        session.encoder.setTexture(mask, index: 1)
+        session.encoder.setTexture(output, index: 2)
+        session.encoder.dispatchThreads(
+            MTLSize(width: gridW, height: gridH, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+    }
+
+    private func dispatchBox(
+        _ metal: MetalContext, input: any MTLTexture, output: any MTLTexture,
+        radius: inout UInt32, width: Int, height: Int, horizontal: Bool
+    ) async throws {
+        let session = try await metal.makeEncoder(
+            functionName: horizontal ? ToneEqualKernel.boxMeanXFunction : ToneEqualKernel.boxMeanYFunction)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(output, index: 1)
+        session.encoder.setBytes(&radius, length: MemoryLayout<UInt32>.stride, index: 0)
+        if horizontal {
+            session.encoder.dispatchThreads(
+                MTLSize(width: 1, height: height, depth: 1),
+                threadsPerThreadgroup: MTLSize(width: 1, height: min(64, session.pipelineState.maxTotalThreadsPerThreadgroup), depth: 1))
+        } else {
+            session.encoder.dispatchThreads(
+                MTLSize(width: width, height: 1, depth: 1),
+                threadsPerThreadgroup: MTLSize(width: min(64, session.pipelineState.maxTotalThreadsPerThreadgroup), height: 1, depth: 1))
+        }
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+    }
+
+    private func dispatchAB(
+        _ metal: MetalContext, input: any MTLTexture, output: any MTLTexture,
+        feathering: Float, gridW: Int, gridH: Int
+    ) async throws {
+        struct U { var feathering: Float }
+        var u = U(feathering: feathering)
+        let session = try await metal.makeEncoder(functionName: ToneEqualKernel.guidedABFunction)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(output, index: 1)
+        session.encoder.setBytes(&u, length: MemoryLayout<U>.stride, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: gridW, height: gridH, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+    }
+
+    private func dispatchBlend(
+        _ metal: MetalContext, image: any MTLTexture, mask: any MTLTexture,
+        aux: any MTLTexture, output: any MTLTexture,
+        mode: Int, upsample: Bool, geomean: Bool, feathering: Float,
+        auxW: Int, auxH: Int, srcW: Int, srcH: Int, gridW: Int, gridH: Int
+    ) async throws {
+        struct U {
+            var mode: Int32
+            var upsample: Int32
+            var geomean: Int32
+            var feathering: Float
+            var auxWidth: UInt32
+            var auxHeight: UInt32
+            var srcWidth: UInt32
+            var srcHeight: UInt32
+        }
+        var u = U(
+            mode: Int32(mode), upsample: upsample ? 1 : 0, geomean: geomean ? 1 : 0,
+            feathering: feathering,
+            auxWidth: UInt32(auxW), auxHeight: UInt32(auxH),
+            srcWidth: UInt32(srcW), srcHeight: UInt32(srcH))
+        let session = try await metal.makeEncoder(functionName: ToneEqualKernel.blendFunction)
+        session.encoder.setTexture(image, index: 0)
+        session.encoder.setTexture(mask, index: 1)
+        session.encoder.setTexture(aux, index: 2)
+        session.encoder.setTexture(output, index: 3)
+        session.encoder.setBytes(&u, length: MemoryLayout<U>.stride, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: gridW, height: gridH, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+    }
+
+    /// r32 plane copy (the guided ds ping between iterations) — gaussian_copy
+    /// reads rgba; a dedicated r32 copy rides the bilinear kernel with
+    /// identity scaling instead (src == dst dims → dt's bilinear is a copy).
+    private func dispatchCopy1C(
+        _ metal: MetalContext, input: any MTLTexture, output: any MTLTexture,
+        width: Int, height: Int
+    ) async throws {
+        try await dispatchBilinear(
+            metal, input: input, output: output,
+            srcW: width, srcH: height, dstW: width, dstH: height,
+            gridW: width, gridH: height)
+    }
+
+    private func dispatchApply(
+        _ metal: MetalContext, input: any MTLTexture, luma: any MTLTexture,
+        output: any MTLTexture, lut: any MTLBuffer, width: Int, height: Int
+    ) async throws {
+        let session = try await metal.makeEncoder(functionName: ToneEqualKernel.applyFunction)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(luma, index: 1)
+        session.encoder.setTexture(output, index: 2)
+        session.encoder.setBuffer(lut, offset: 0, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: width, height: height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
     }
 }

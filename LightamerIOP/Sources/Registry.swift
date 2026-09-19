@@ -55,6 +55,12 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ShadhiModule.opName) { id in
             ModuleBox(module: ShadhiModule(), instanceID: id)
         }
+        // Plan 03-05-T4: toneequal (tone equalizer, global multi-band +
+        // EIGF detail leg + correction LUT), v50 slot 24.0 — Phase 3's
+        // heaviest module and the TilingPlan FULL first engagement.
+        await registry.register(opName: ToneEqualModule.opName) { id in
+            ModuleBox(module: ToneEqualModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
