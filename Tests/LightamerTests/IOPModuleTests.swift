@@ -45,16 +45,16 @@ final class IOPModuleTests: XCTestCase {
         XCTAssertEqual(params, PassthroughModule.Params())
     }
 
-    /// FOUND-03 + success criterion #3: `process` on known buffer contents
-    /// is a true no-op — output == input bit-for-bit (float32 RGBA), the
-    /// full buffer↔texture staging path included.
+    /// FOUND-03 + success criterion #3: `process` on known texture contents
+    /// is a true no-op — output == input bit-for-bit (float32 RGBA) through
+    /// the texture-domain `dispatch2DTexture` path (02-02 lock #1).
     func testPassthroughProcessIsNoOp() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let metal = try MetalContext()
         try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
 
         let width = 6, height = 4
-        let byteCount = width * height * WorkingSpace.bytesPerPixel
+        let bytesPerRow = width * WorkingSpace.bytesPerPixel
         var input = [Float](repeating: 0, count: width * height * 4)
         for index in stride(from: 0, to: input.count, by: 4) {
             input[index] = Float(index) / Float(input.count)
@@ -63,25 +63,41 @@ final class IOPModuleTests: XCTestCase {
             input[index + 3] = 1.0
         }
 
-        let inputBuffer = try XCTUnwrap(
-            metal.device.makeBuffer(bytes: &input, length: byteCount, options: .storageModeShared)
+        func makeTexture(usage: MTLTextureUsage) -> any MTLTexture {
+            let d = MTLTextureDescriptor.texture2DDescriptor(
+                pixelFormat: WorkingSpace.pixelFormat, width: width, height: height,
+                mipmapped: false
+            )
+            d.usage = usage
+            d.storageMode = .shared
+            return metal.device.makeTexture(descriptor: d)!
+        }
+        let inputTexture = makeTexture(usage: [.shaderRead])
+        let outputTexture = makeTexture(usage: [.shaderWrite])
+        inputTexture.replace(
+            region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0,
+            withBytes: input, bytesPerRow: bytesPerRow
         )
-        let outputBuffer = try XCTUnwrap(
-            metal.device.makeBuffer(length: byteCount, options: .storageModeShared)
-        )
-        memset(outputBuffer.contents(), 0, byteCount)
 
         let roi = ROI(x: 0, y: 0, width: width, height: height, scale: 1.0)
+        var piece = IOPiece()
         try await PassthroughModule().process(
-            input: inputBuffer, output: outputBuffer,
+            input: inputTexture, output: outputTexture,
             roiIn: roi, roiOut: roi,
-            piece: IOPiece(),
+            piece: &piece,
             metal: metal
         )
+        // Drain: a command buffer committed after the kernel completes only
+        // when the kernel has (same-queue FIFO).
+        let drain = try XCTUnwrap(metal.commandQueue.makeCommandBuffer())
+        drain.commit()
+        await drain.completed()
 
-        let outFloats = outputBuffer.contents().bindMemory(to: Float.self, capacity: input.count)
-        var output = [Float](repeating: 0, count: input.count)
-        for index in 0..<input.count { output[index] = outFloats[index] }
+        var output = [Float](repeating: -1, count: input.count)
+        outputTexture.getBytes(
+            &output, bytesPerRow: bytesPerRow,
+            from: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0
+        )
 
         XCTAssertEqual(
             input.map { $0.bitPattern }, output.map { $0.bitPattern },

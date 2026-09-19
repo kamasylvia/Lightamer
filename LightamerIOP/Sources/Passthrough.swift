@@ -34,21 +34,17 @@ final class IOPBundleMarker {}
 /// an arbitrary Phase 1 position between `shadhi` (50.0) and `zonesystem`
 /// (51.0) in the `V50Order` table.
 ///
-/// `process` buffer↔texture staging: the IOPModule contract is
-/// buffer-based (Darktable's `dt_iop_module_t` model), while the Phase 1
-/// `pass_through` kernel is texture-based (Plan 03's MetalContext proof).
-/// The process step therefore stages the input buffer into a texture
-/// (explicit blit command buffer, awaited), dispatches the kernel via
-/// `metal.dispatch2D` with the textures bound in `configure`, drains the
-/// queue (same-queue FIFO ordering — Metal executes command buffers in
-/// commit order), and blits the output texture back into the output
-/// buffer. Phase 2 re-evaluates buffer- vs texture-domain kernels when the
-/// real pipe lands; the staging here is the reference for either choice.
+/// `process` is texture-domain end-to-end (Plan 02-02 checkpoint lock #1):
+/// the pipe's currency is `MTLTexture` (float32 RGBA linear Rec2020), and
+/// `dispatch2DTexture` binds input/output directly at texture indices 0/1 —
+/// the Phase 1 buffer↔texture staging bridge is gone. Same-queue FIFO
+/// ordering makes a chain of dispatches correct without awaiting completion;
+/// CPU-side readers (tests) drain the queue explicitly.
 ///
 /// Not `Sendable` by design: a module instance (and its cached constant
-/// set + staging textures) is owned by its pipe run's isolation domain —
-/// the same contract as `IOPiece`. Phase 2's `ModuleRegistry` stores
-/// METATYPES (`PassthroughModule.Type`), which are Sendable.
+/// set) is owned by its pipe run's isolation domain — the same contract as
+/// `IOPiece`. Phase 2's `ModuleRegistry` stores METATYPES
+/// (`PassthroughModule.Type`), which are Sendable.
 public final class PassthroughModule: IOPModule {
 
     /// Empty parameter record — the pass-through has nothing to tune; the
@@ -70,11 +66,8 @@ public final class PassthroughModule: IOPModule {
     /// `exposureEV = 0`. BOTH constants must be set (the kernel declares no
     /// MSL defaults; RESEARCH §3 gotcha). Cached per instance so every
     /// dispatch hits the same `PSOKey` (D-16: instance identity is the
-    /// constants fingerprint; Plan 03 verified the cache-hit path).
+    /// constants fingerprint).
     private var identityConstants: MTLFunctionConstantValues?
-
-    /// Reused staging textures keyed by ROI size (allocated on first use).
-    private var staging: (input: any MTLTexture, output: any MTLTexture, width: Int, height: Int)?
 
     public init() {}
 
@@ -83,8 +76,11 @@ public final class PassthroughModule: IOPModule {
     }
 
     public func commitParams(_ params: Params, into piece: inout IOPiece) async {
-        // The cache-identity hash (Phase 2 keys pipe output on this).
-        piece.paramsHash = params.hashValue
+        // The cache-identity hash (D-H4): StableHash FNV-1a 64 over the
+        // JSON-encoded params bytes — the ONLY legal generator. The
+        // reference shape every Phase 3+ module copies.
+        let encoded = ParamsCoding.encode(params)
+        piece.paramsHash = StableHash.hash(encoded)
     }
 
     /// Identity: the pass-through produces exactly the input ROI.
@@ -98,22 +94,15 @@ public final class PassthroughModule: IOPModule {
     }
 
     public func process(
-        input: any MTLBuffer,
-        output: any MTLBuffer,
+        input: any MTLTexture,
+        output: any MTLTexture,
         roiIn: ROI,
         roiOut: ROI,
-        piece: IOPiece,
+        piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        let width = roiOut.width
-        let height = roiOut.height
-        guard width >= 1, height >= 1 else {
-            throw MetalError.bufferAllocationFailed(width * height * WorkingSpace.bytesPerPixel)
-        }
-        let bytesPerRow = width * WorkingSpace.bytesPerPixel
-
-        // 0. Kernel constants: identity specialization (lazily built once
-        // per module instance → stable PSOKey → D-16 cache hits).
+        // Kernel constants: identity specialization (lazily built once per
+        // module instance → stable PSOKey → D-16 cache hits).
         let constants: MTLFunctionConstantValues
         if let identityConstants {
             constants = identityConstants
@@ -124,92 +113,15 @@ public final class PassthroughModule: IOPModule {
             constants = built
         }
 
-        // 1. Staging textures (shared storage, UMA — METAL-4).
-        let textures: (input: any MTLTexture, output: any MTLTexture, width: Int, height: Int)
-        if let staging, staging.width == width, staging.height == height {
-            textures = staging
-        } else {
-            func makeTexture() throws -> any MTLTexture {
-                let d = MTLTextureDescriptor.texture2DDescriptor(
-                    pixelFormat: WorkingSpace.pixelFormat,
-                    width: width,
-                    height: height,
-                    mipmapped: false
-                )
-                d.usage = [.shaderRead, .shaderWrite]
-                d.storageMode = .shared
-                guard let t = metal.device.makeTexture(descriptor: d) else {
-                    throw MetalError.bufferAllocationFailed(width * height * WorkingSpace.bytesPerPixel)
-                }
-                return t
-            }
-            textures = (try makeTexture(), try makeTexture(), width, height)
-            staging = textures
-        }
-
-        // 2. Stage the input buffer into the input texture (explicit blit
-        // command buffer, awaited — same-queue FIFO then orders the kernel
-        // dispatch after it).
-        guard let stageIn = metal.commandQueue.makeCommandBuffer(),
-              let blitIn = stageIn.makeBlitCommandEncoder() else {
-            throw MetalError.deviceUnavailable
-        }
-        blitIn.copy(
-            from: input,
-            sourceOffset: 0,
-            sourceBytesPerRow: bytesPerRow,
-            sourceBytesPerImage: bytesPerRow,
-            sourceSize: MTLSize(width: width, height: height, depth: 1),
-            to: textures.input,
-            destinationSlice: 0,
-            destinationLevel: 0,
-            destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0)
-        )
-        blitIn.endEncoding()
-        stageIn.commit()
-
-        // 3. THE iop dispatch (the acceptance-critical path): buffers bound
-        // at 0/1 per the dispatch2D contract; the kernel's textures bound
-        // through `configure`.
-        try await metal.dispatch2D(
+        // THE iop dispatch: textures bound at 0/1 per the dispatch2DTexture
+        // contract; the grid spans the output texture. No uniforms for the
+        // pass-through (`piece.data` is nil). Same-queue FIFO ordering keeps
+        // chained pipe dispatches correctly sequenced.
+        try await metal.dispatch2DTexture(
             functionName: PassthroughKernel.functionName,
             input: input,
             output: output,
-            width: width,
-            height: height,
             constants: constants
-        ) { encoder in
-            encoder.setTexture(textures.input, index: 0)
-            encoder.setTexture(textures.output, index: 1)
-        }
-
-        // 4. Drain: an empty command buffer committed AFTER the kernel's
-        // completes only when the kernel has (same-queue FIFO).
-        guard let drain = metal.commandQueue.makeCommandBuffer() else {
-            throw MetalError.deviceUnavailable
-        }
-        drain.commit()
-        _ = await drain.completed()
-
-        // 5. Stage the output texture back into the output buffer, awaited
-        // so `process` returning implies the output buffer is valid.
-        guard let stageOut = metal.commandQueue.makeCommandBuffer(),
-              let blitOut = stageOut.makeBlitCommandEncoder() else {
-            throw MetalError.deviceUnavailable
-        }
-        blitOut.copy(
-            from: textures.output,
-            sourceSlice: 0,
-            sourceLevel: 0,
-            sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
-            sourceSize: MTLSize(width: width, height: height, depth: 1),
-            to: output,
-            destinationOffset: 0,
-            destinationBytesPerRow: bytesPerRow,
-            destinationBytesPerImage: bytesPerRow
         )
-        blitOut.endEncoding()
-        stageOut.commit()
-        _ = await stageOut.completed()
     }
 }

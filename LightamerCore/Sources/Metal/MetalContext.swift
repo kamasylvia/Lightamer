@@ -304,7 +304,37 @@ public actor MetalContext {
         }
     }
 
+    // MARK: - Session cache management (Plan 02-06-05, D-C1 layer 2)
+
+    /// Clear the CI/RawCamera internal caches (the spike-b cross-decode
+    /// accumulator). Actor-isolated async (the pool is lazily created
+    /// here): callers `await` it. The PSO cache is deliberately NOT
+    /// cleared (MB-scale; clearing costs PSO rebuild stalls for zero
+    /// memory win — research §6 layer-3 decision).
+    public func clearCICaches() async {
+        await getOrCreatePool().clearCaches()
+    }
+
     // MARK: - CIImage bridge facade
+
+    /// Colorout's ColorSync leg (Plan 02-04-03, internal — the module lives
+    /// in Core): converts a float32 linear-Rec2020 texture into a fresh
+    /// float32 texture of LINEAR values in the `target` (linear) space via
+    /// the pool's bitmap+replace path (host finding: direct CI render-to-
+    /// texture is a no-op — see `CIContextPool`). The TRC encode stays with
+    /// the gamma module (D-COL4).
+    func convertToLinearSpace(
+        _ input: sending any MTLTexture,
+        target: CGColorSpace
+    ) async throws -> sending any MTLTexture {
+        let pool = await getOrCreatePool()
+        do {
+            let rendered = try await pool.convertTexture(input, toLinearSpace: target)
+            return rendered.texture
+        } catch let error as MetalError {
+            throw error.asAppError
+        }
+    }
 
     /// Render a `CIImage` into a freshly allocated float32 linear-Rec2020
     /// `MTLTexture` (FOUND-02 pixelpipe format). Public facade over the
@@ -318,6 +348,26 @@ public actor MetalContext {
         let pool = await getOrCreatePool()
         do {
             let rendered = try await pool.renderToTexture(image)
+            return rendered.texture
+        } catch let error as MetalError {
+            throw error.asAppError
+        }
+    }
+
+    /// Scale-at-entry variant (Plan 02-03-02): renders `image` transformed
+    /// to `longEdge` pixels on its long dimension (downscale-only) in ONE
+    /// pass — the PREVIEW/THUMBNAIL input-plane builder (D-C3; Darktable
+    /// entry resampling mirror, `pixelpipe_hb.c:1930-1999`). Same float32
+    /// linear-Rec2020 contract and ownership handoff as the full-extent
+    /// facade above; signposted `"render-scaled"` (the 02-01 spike Test C
+    /// decode-at-scale numbers are cited at `CIContextPool.renderToTexture
+    /// (_:longEdge:)` — the win is plane MEMORY, not decode time).
+    public nonisolated func renderToTexture(
+        _ image: CIImage, longEdge: Int
+    ) async throws -> sending any MTLTexture {
+        let pool = await getOrCreatePool()
+        do {
+            let rendered = try await pool.renderToTexture(image, longEdge: longEdge)
             return rendered.texture
         } catch let error as MetalError {
             throw error.asAppError

@@ -1,856 +1,924 @@
 {
-  "sourceLanguage" : "en",
-  "version" : "1.0",
-  "strings" : {
-    "select_folder_to_create_session" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select a Folder to Create a Session"
+  "sourceLanguage": "en",
+  "strings": {
+    "a11y_empty_state_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empty state: no session loaded. Press the button to select a folder, or drag a RAW file here."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择文件夹以创建会话"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空状态：未加载会话。点按按钮选择文件夹，或将 RAW 文件拖放到此处。"
           }
         }
       }
     },
-    "empty_state_body" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lightamer organizes your photos as sessions. Choose a folder to get started, or drag a RAW file here to open it directly."
+    "a11y_inspector_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image metadata and adjustment modules"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lightamer 以会话方式组织照片。选择一个文件夹即可开始，或将 RAW 文件拖放到此处直接打开。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图像元数据与调整模块"
           }
         }
       }
     },
-    "select_folder" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select Folder…"
+    "a11y_inspector_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inspector"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择文件夹…"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查器"
           }
         }
       }
     },
-    "drag_raw_hint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "or drag a RAW file here"
+    "a11y_open_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open a RAW or image file"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "或将 RAW 文件拖放到此处"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 RAW 或图像文件"
           }
         }
       }
     },
-    "sessions" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sessions"
+    "a11y_select_folder_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a folder to create a session"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "会话"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择文件夹以创建会话"
           }
         }
       }
     },
-    "no_sessions" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No sessions yet"
+    "a11y_sidebar_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navigate sessions and albums"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无会话"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导览会话与相簿"
           }
         }
       }
     },
-    "no_sessions_hint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use File → Open… or drag a folder here."
+    "a11y_toggle_inspector_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show or hide the inspector panel"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 文件 → 打开… 或将文件夹拖放到此处。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示或隐藏检查器面板"
           }
         }
       }
     },
-    "no_image_selected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Image Selected"
+    "a11y_toggle_sidebar_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show or hide the sessions sidebar"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未选择图像"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示或隐藏会话侧边栏"
           }
         }
       }
     },
-    "no_image_selected_body" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open a RAW file to view its metadata and adjustment modules."
+    "alert_decode_failed_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to Decode"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开 RAW 文件以查看元数据和调整模块。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解码失败"
           }
         }
       }
     },
-    "status_ready" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ready"
+    "alert_metal_unavailable_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metal Unavailable"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "就绪"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metal 不可用"
           }
         }
       }
     },
-    "status_decoding" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Decoding…"
+    "alert_ok": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解码中…"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
           }
         }
       }
     },
-    "editor_viewport" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Image viewport"
+    "drag_raw_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "or drag a RAW file here"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "图像视口"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "或将 RAW 文件拖放到此处"
           }
         }
       }
     },
-    "settings_placeholder" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Settings arrive in a later phase."
+    "editor_viewport": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image viewport"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "设置将在后续阶段提供。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图像视口"
           }
         }
       }
     },
-    "open_panel_title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Image"
+    "editor_viewport_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image viewport"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开图像"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图像视口"
           }
         }
       }
     },
-    "open_panel_message" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose a RAW or image file to open."
+    "empty_state_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightamer organizes your photos as sessions. Choose a folder to get started, or drag a RAW file here to open it directly."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择要打开的 RAW 或图像文件。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightamer 以会话方式组织照片。选择一个文件夹即可开始，或将 RAW 文件拖放到此处直接打开。"
           }
         }
       }
     },
-    "menu_view" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View"
+    "menu_actual_size": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actual Size"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实际大小"
           }
         }
       }
     },
-    "alert_decode_failed_title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to Decode"
+    "menu_close_session": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close Session"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解码失败"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭会话"
           }
         }
       }
     },
-    "alert_metal_unavailable_title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Metal Unavailable"
+    "menu_copy_adjustments": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Adjustments"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Metal 不可用"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制调整"
           }
         }
       }
     },
-    "alert_ok" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OK"
+    "menu_export": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export…"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "好"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出…"
           }
         }
       }
     },
-    "menu_new_session" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Session…"
+    "menu_fit_to_screen": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fit to Screen"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新建会话…"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "适配屏幕"
           }
         }
       }
     },
-    "menu_open" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open…"
+    "menu_help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightamer Help"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开…"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightamer 帮助"
           }
         }
       }
     },
-    "menu_open_recent" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Recent"
+    "menu_new_session": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Session…"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近打开"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建会话…"
           }
         }
       }
     },
-    "menu_close_session" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Close Session"
+    "menu_open": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open…"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "关闭会话"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开…"
           }
         }
       }
     },
-    "menu_save_sidecar" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save Sidecar"
+    "menu_open_recent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Recent"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存 Sidecar"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近打开"
           }
         }
       }
     },
-    "menu_export" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export…"
+    "menu_paste_adjustments": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste Adjustments"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导出…"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴调整"
           }
         }
       }
     },
-    "menu_undo" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Undo"
+    "menu_redo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redo"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "撤销"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重做"
           }
         }
       }
     },
-    "menu_redo" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Redo"
+    "menu_save_sidecar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Sidecar"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重做"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存 Sidecar"
           }
         }
       }
     },
-    "menu_copy_adjustments" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy Adjustments"
+    "menu_show_inspector": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Inspector"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "复制调整"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示检查器"
           }
         }
       }
     },
-    "menu_paste_adjustments" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Paste Adjustments"
+    "menu_show_sidebar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Sidebar"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "粘贴调整"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示侧边栏"
           }
         }
       }
     },
-    "menu_show_sidebar" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show Sidebar"
+    "menu_undo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示侧边栏"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销"
           }
         }
       }
     },
-    "menu_show_inspector" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show Inspector"
+    "menu_view": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示检查器"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示"
           }
         }
       }
     },
-    "menu_actual_size" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Actual Size"
+    "no_image_selected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Image Selected"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "实际大小"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择图像"
           }
         }
       }
     },
-    "menu_fit_to_screen" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fit to Screen"
+    "no_image_selected_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open a RAW file to view its metadata and adjustment modules."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "适配屏幕"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 RAW 文件以查看元数据和调整模块。"
           }
         }
       }
     },
-    "menu_help" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lightamer Help"
+    "no_sessions": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No sessions yet"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lightamer 帮助"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无会话"
           }
         }
       }
     },
-    "toolbar_open" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open"
+    "no_sessions_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use File → Open… or drag a folder here."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 文件 → 打开… 或将文件夹拖放到此处。"
           }
         }
       }
     },
-    "toolbar_import" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import"
+    "open_panel_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a RAW or image file to open."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导入"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要打开的 RAW 或图像文件。"
           }
         }
       }
     },
-    "toolbar_before_after" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Before/After"
+    "open_panel_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Image"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "前后对比"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开图像"
           }
         }
       }
     },
-    "toolbar_fit" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fit"
+    "select_folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select Folder…"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "适配"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择文件夹…"
           }
         }
       }
     },
-    "toolbar_zoom_100" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "100%"
+    "select_folder_to_create_session": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a Folder to Create a Session"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "100%"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择文件夹以创建会话"
           }
         }
       }
     },
-    "toolbar_toggle_sidebar" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toggle Sidebar"
+    "sessions": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切换侧边栏"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话"
           }
         }
       }
     },
-    "toolbar_toggle_inspector" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toggle Inspector"
+    "settings_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings arrive in a later phase."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切换检查器"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置将在后续阶段提供。"
           }
         }
       }
     },
-    "a11y_empty_state_label" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty state: no session loaded. Press the button to select a folder, or drag a RAW file here."
+    "status_decoding": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decoding…"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空状态：未加载会话。点按按钮选择文件夹，或将 RAW 文件拖放到此处。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解码中…"
           }
         }
       }
     },
-    "a11y_sidebar_hint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Navigate sessions and albums"
+    "status_ready": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导览会话与相簿"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "就绪"
           }
         }
       }
     },
-    "a11y_open_hint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open a RAW or image file"
+    "toast_cache_freed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freed %@ of pipeline cache"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开 RAW 或图像文件"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已释放 %@ 管线缓存"
           }
         }
       }
     },
-    "a11y_select_folder_hint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose a folder to create a session"
+    "toast_drift_detected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sidecar was edited outside Lightamer — keeping the in-session state (the file will be rewritten on your next edit)"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择文件夹以创建会话"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidecar 在外部被修改——保留当前会话状态（下次编辑时才回写文件）"
           }
         }
       }
     },
-    "a11y_toggle_sidebar_hint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show or hide the sessions sidebar"
+    "toast_sidecar_write_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t save the .lra sidecar — edits stay active in this session"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示或隐藏会话侧边栏"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法写入 .lra sidecar——本次会话中的编辑仍然有效"
           }
         }
       }
     },
-    "a11y_toggle_inspector_hint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show or hide the inspector panel"
+    "toast_unknown_module_disabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown module “%@” disabled — its data was preserved"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示或隐藏检查器面板"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知模块“%@”已停用（数据已保留）"
           }
         }
       }
     },
-    "a11y_inspector_label" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Inspector"
+    "toolbar_before_after": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before/After"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "检查器"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前后对比"
           }
         }
       }
     },
-    "a11y_inspector_hint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Image metadata and adjustment modules"
+    "toolbar_fit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fit"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "图像元数据与调整模块"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "适配"
           }
         }
       }
     },
-    "editor_viewport_label" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Image viewport"
+    "toolbar_import": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "图像视口"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入"
+          }
+        }
+      }
+    },
+    "toolbar_open": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开"
+          }
+        }
+      }
+    },
+    "toolbar_toggle_inspector": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Inspector"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换检查器"
+          }
+        }
+      }
+    },
+    "toolbar_toggle_sidebar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Sidebar"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换侧边栏"
+          }
+        }
+      }
+    },
+    "toolbar_zoom_100": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100%"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100%"
           }
         }
       }
     }
-  }
+  },
+  "version": "1.0"
 }

@@ -10,3 +10,4 @@ Tuist/Cache/
 
 # Local build products (xcodebuild incremental) — never commit.
 build/
+input/

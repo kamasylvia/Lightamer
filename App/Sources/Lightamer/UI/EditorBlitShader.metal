@@ -3,11 +3,22 @@ using namespace metal;
 
 // Editor viewport blit (Phase 1, D-13 display-only).
 //
-// One fullscreen triangle, aspect-fit letterboxed by per-draw uniforms, with
-// the Phase 1 terminal conversion: source is a float32 LINEAR Rec2020
-// texture (WorkingSpace / FOUND-02, produced by Core's CIContextPool); the
-// drawable is .bgra8Unorm interpreted as sRGB. Proper colorout/gamma iops
-// replace this conversion in Phase 2's pixelpipe.
+// One fullscreen triangle, aspect-fit letterboxed by per-draw uniforms.
+// TWO source regimes since Plan 02-04 (terminal trio):
+// - `display_ready == false` (function constant, index 0): the Phase 1
+//   path — source is a float32 LINEAR Rec2020 texture (WorkingSpace /
+//   FOUND-02, produced by Core's CIContextPool) and this shader performs
+//   the interim Rec2020→sRGB conversion inline.
+// - `display_ready == true`: source is the pixelpipe's gamma-tail
+//   `.bgra8Unorm` plane (colorout gamut matrix + gamma sRGB TRC already
+//   applied IN the pipe — SC#1's correct color). The blit is a pure
+//   passthrough; performing the Phase 1 conversion again would double-
+//   encode. Swift builds one PSO per regime and selects on
+//   `texture.pixelFormat`.
+//
+// The drawable stays `.bgra8Unorm` (non-_srgb; D-COL4); the CAMetalLayer
+// carries the resolved display colorspace so the compositor interprets
+// the gamma-encoded bytes without re-matching.
 //
 // L006: full float math throughout — no half on the shadow-sensitive path.
 
@@ -37,6 +48,9 @@ vertex BlitOut editor_blit_vertex(
     return out;
 }
 
+// D-17: no MSL default — Swift sets the constant for BOTH specializations.
+constant bool display_ready [[function_constant(0)]];
+
 fragment float4 editor_blit_fragment(
     BlitOut in [[stage_in]],
     texture2d<float> source [[texture(0)]])
@@ -44,7 +58,12 @@ fragment float4 editor_blit_fragment(
     constexpr sampler s(address::clamp_to_edge, filter::linear);
     float4 c = source.sample(s, in.uv);
 
-    // Linear Rec.2020 → linear Rec.709/sRGB primaries.
+    if (display_ready) {
+        // 02-04 terminal trio output: gamut + TRC applied in the pipe.
+        return float4(c.rgb, 1.0);
+    }
+
+    // Legacy Phase 1 path: Linear Rec.2020 → linear Rec.709/sRGB primaries.
     float3 rgb = float3(
         1.6605f * c.r - 0.5876f * c.g - 0.0728f * c.b,
        -0.1246f * c.r + 1.1329f * c.g - 0.0083f * c.b,

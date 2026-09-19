@@ -29,9 +29,15 @@ public struct IOPBufferDesc: Sendable {
 /// buffers (see `MetalContext` isolation notes).
 public struct IOPiece {
 
-    /// Hash of the committed params — the Phase 2 pipe cache keys module
-    /// output identity on this (cache hit = same params + same input).
-    public var paramsHash: Int
+    /// Hash of the committed params — the pipe cache keys module output
+    /// identity on this (cache hit = same params + same input). UInt64
+    /// (02-02 checkpoint lock #2) so the SAME atom feeds `PipeCacheKey
+    /// .upstreamHash` and the 02-05 history identity (D-H4).
+    /// **`StableHash` is the only legal generator** (FNV-1a 64 over the
+    /// JSON-encoded params; Swift `Hasher` is per-process seeded and banned
+    /// across persistence boundaries — 02-RESEARCH Risk #2). Modules compute
+    /// it in `commitParams`.
+    public var paramsHash: UInt64
 
     /// Input buffer geometry for this piece.
     public var dscIn: IOPBufferDesc
@@ -44,7 +50,7 @@ public struct IOPiece {
     public var data: (any MTLBuffer)?
 
     public init(
-        paramsHash: Int = 0,
+        paramsHash: UInt64 = 0,
         dscIn: IOPBufferDesc = IOPBufferDesc(),
         dscOut: IOPBufferDesc = IOPBufferDesc(),
         data: (any MTLBuffer)? = nil

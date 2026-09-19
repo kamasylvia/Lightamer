@@ -32,6 +32,16 @@ public enum AppError: Error, LocalizedError {
     /// The file exists but cannot be opened/read (permissions, truncated, …).
     case fileUnreadable(String)
 
+    /// A sidecar (`.lra`) write failed (Plan 02-06, D-S3 atomic write).
+    /// UI tiering: background toast, never a blocking alert — the in-memory
+    /// session keeps working; only persistence is affected.
+    case sidecarWriteFailed(String)
+
+    /// A capability is deliberately not implemented yet — a typed placeholder
+    /// for reserved seams (D-25: NEVER a `fatalError`). The payload names the
+    /// phase/plan that lands the capability (e.g. EXPORT pipe → "Phase 11").
+    case notImplemented(String)
+
     /// Bridge a foreign `Error` into the typed enum (D-18/D-25: layers throw
     /// typed errors; this is the catch-site bridge Plan 02/03 throw through).
     /// - `CancellationError` → `.cancelled`
@@ -73,6 +83,10 @@ public enum AppError: Error, LocalizedError {
             return nil
         case let .fileUnreadable(path):
             return "Lightamer can't read the file at “\(path)”."
+        case let .sidecarWriteFailed(path):
+            return "Couldn't save the edit history to \(path). Your edits are still active in this session."
+        case let .notImplemented(phase):
+            return "This capability isn't available yet (planned for \(phase))."
         }
     }
 

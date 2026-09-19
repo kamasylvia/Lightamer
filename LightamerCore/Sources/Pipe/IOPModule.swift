@@ -5,11 +5,18 @@ import Metal
 /// in Lightamer (Phase 3+: exposure, WB, filmic, …) conforms to this protocol;
 /// the pixelpipe (`PixelPipe`, Phase 2) drives a v50-ordered chain of them.
 ///
-/// Design locks (RESEARCH §5a):
-/// - **`Params: Codable & Hashable`** is MANDATORY — `Hashable` feeds the
-///   Phase 2 pipe-cache key (params hash), `Codable` feeds the sidecar
-///   history stack (Phase 2, HIST-03). Structs with all-Codable fields
+/// Design locks (RESEARCH §5a + Plan 02-02 checkpoint):
+/// - **`Params: Codable & Hashable`** is MANDATORY — the encoded params bytes
+///   feed `piece.paramsHash` (via `StableHash`, the ONLY legal generator),
+///   which keys both the Phase 2 pipe cache (`PipeCacheKey.upstreamHash`) and
+///   the sidecar history identity (D-H4). Structs with all-Codable fields
 ///   synthesize both for free; never use a class for params.
+/// - **Textures are the pipe's currency (02-02 checkpoint lock #1):** `process`
+///   reads and writes `MTLTexture` (float32 RGBA linear Rec2020, FOUND-02).
+///   Cached planes, `displayTexture`, and every PREVIEW/FULL plane are
+///   textures; `MTLBuffer` appears ONLY as `IOPiece.data` uniforms. The
+///   Phase 1 buffer signature was a spike artifact (its buffer↔texture
+///   staging bridge is deleted).
 /// - **`opName`** mirrors Darktable's module `op` string wherever the module
 ///   corresponds to one (sidecar compatibility); internal-only spike modules
 ///   may use a custom name (documented at the conformance).
@@ -24,9 +31,9 @@ import Metal
 /// Concurrency: `process` is `async throws` and dispatches GPU work through
 /// the passed `MetalContext` (D-18 typed errors, D-19 two-layer dispatch).
 /// The `associatedtype Params` means `any IOPModule` cannot be formed — the
-/// Phase 2 `ModuleRegistry` works with metatypes (`IOPModule.Type`) and
-/// generics, and any heterogeneous container needs a type-erased wrapper
-/// (RESEARCH §5 gotcha).
+/// Phase 2 pipe drives modules through the type-erased `ModuleBox<M>`/`ModuleBoxing`
+/// surface (checkpoint lock #6), and `ModuleRegistry` (02-04) works with
+/// metatypes (`IOPModule.Type`) and generics (RESEARCH §5 gotcha).
 public protocol IOPModule {
 
     /// The module's parameter record — the unit of sidecar persistence
@@ -52,8 +59,10 @@ public protocol IOPModule {
     func reloadDefaults(image: DecodedImage) async -> Params
 
     /// Commit `params` into the per-instance pipe piece (Darktable
-    /// `commit_params`): recompute derived piece state (the params hash the
-    /// Phase 2 cache keys on, uniform buffers, …).
+    /// `commit_params`): recompute derived piece state — uniform buffers in
+    /// `piece.data`, and `piece.paramsHash` (UInt64) which MUST be computed
+    /// as `StableHash.hash(ParamsCoding.encode(params))` — `StableHash` is
+    /// the only legal generator (D-H4: cache identity == history identity).
     func commitParams(_ params: Params, into piece: inout IOPiece) async
 
     /// Let the module expand/contract the output ROI it can produce from
@@ -67,15 +76,18 @@ public protocol IOPModule {
     func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece)
 
     /// Process `input` → `output` over the given ROIs on the GPU. Called by
-    /// the pixelpipe in v50 order with float32 RGBA linear-Rec2020 data
-    /// (FOUND-02). `piece` carries the per-instance state committed by
-    /// `commitParams`; `metal` is the app-owned dispatch context (D-19).
+    /// the pixelpipe in v50 order with float32 RGBA linear-Rec2020 TEXTURES
+    /// (FOUND-02; 02-02 checkpoint lock #1 — the pipe's currency). `piece`
+    /// carries the per-instance state committed by `commitParams` (inout: a
+    /// module may stamp derived per-run state, e.g. processed ROI geometry);
+    /// `metal` is the app-owned dispatch context (D-19). Same-queue FIFO
+    /// ordering makes chained dispatches correct without awaiting completion.
     func process(
-        input: any MTLBuffer,
-        output: any MTLBuffer,
+        input: any MTLTexture,
+        output: any MTLTexture,
         roiIn: ROI,
         roiOut: ROI,
-        piece: IOPiece,
+        piece: inout IOPiece,
         metal: MetalContext
     ) async throws
 }

@@ -34,15 +34,13 @@ final class EditorState {
     private(set) var layerStack: LayerStack?
 
     /// The pixelpipe output — what `EditorMTKView` blits to the drawable.
-    /// Produced by Core's render bridge (`RenderPipeline.render`, the
-    /// public face of the internal `PixelPipe`). Cleared on every new load.
     /// The setter is deliberately internal (not `private(set)`): the
     /// `$editorState.displayTexture` binding that `EditorAreaView` derives
-    /// via `@Bindable` needs it; the pixelpipe paths are the only writers.
+    /// via `@Bindable` needs it. SINGLE-PRODUCER invariant (D-X1, Plan
+    /// 02-03 shape): ONLY `PipeCoordinator` writes this — its
+    /// `renderPreview` is the one render producer; views never trigger
+    /// renders (issue #1's race is the view-level-producer anti-pattern).
     var displayTexture: (any MTLTexture)?
-
-    /// Guards the render step: the URL whose texture `displayTexture` holds.
-    private var displayTextureRenderedForURL: URL?
 
     /// True while a decode task is in flight (status bar "Decoding…").
     private(set) var isDecoding: Bool = false
@@ -54,12 +52,179 @@ final class EditorState {
     /// (D-34: background async decode, cancellable, MainActor UI updates).
     private var decodeTask: Task<Void, Never>?
 
-    /// Load an image/RAW file through `RAWDecoder` (D-21/D-24) and run the
-    /// no-op pixelpipe over the result (success criterion #3). Cancels any
-    /// in-flight decode first (D-34). The decode runs off-MainActor
-    /// (`RAWDecoder` is an actor); on success a fresh
-    /// `LayerStack(baseLayer: BackgroundLayer())` is installed (D-03a) and
-    /// Core's render bridge produces the display texture. Failures land in
+    // ── 02-06 toast surface (D-26 background grading) ────────────────────
+
+    /// Non-blocking status-bar notice (drift detected / unknown module
+    /// disabled / cache freed / sidecar write failed). Background grading:
+    /// never steals focus, never blocks — distinct from the blocking
+    /// `decodeError` alert. Auto-clears after 4s.
+    private(set) var toast: String?
+
+    private var toastClearTask: Task<Void, Never>?
+
+    /// Raise a background toast (D-26). Multiple raises reset the timer.
+    func presentToast(_ message: String) {
+        toastClearTask?.cancel()
+        toast = message
+        toastClearTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            self?.toast = nil
+        }
+    }
+
+    /// The multi-resolution pipe owner (Plan 02-03-04), attached by the app
+    /// root AFTER both `@State` objects exist (the coordinator's display
+    /// sink needs this instance; the app root strongly owns BOTH, this is
+    /// the single weak back-reference — no retain cycle). The decodeTask
+    /// delegates all rendering to it.
+    private weak var pipeCoordinator: PipeCoordinator?
+
+    // ── 02-05 history ownership (D-03b: "当前编辑的图像 + 图层栈 + history"
+    // live here; the PipeCoordinator CONSUMES the stack) ──────────────────
+
+    /// The non-destructive edit history (HIST-01/02). Value semantics:
+    /// `commit/undo/redo/jump` are the only writers, through the `record*`
+    /// mutators below (D-H1: one commit per drag-end; D-H2: uncapped).
+    /// Phase 2 keeps the stack in memory per image session; 02-06 persists
+    /// it verbatim into sidecars (and restores it on load).
+    private(set) var history = HistoryStack()
+
+    /// The LIVE instance set — the pipe-facing projection of
+    /// `baseInstances ∪ history.effectiveInstances()`, v50-sorted. The
+    /// PipeCoordinator materializes boxes FROM these records (identity
+    /// preserved by UUID), so this array is the single source of truth for
+    /// what the pipe contains. Seeded pristine (terminal trio, default
+    /// params) on a fresh image load.
+    private(set) var instances: [ModuleInstance] = []
+
+    /// The pristine seed (terminal trio records with default params) —
+    /// the base the history projections merge onto: undoing back to
+    /// pristine restores exactly this set.
+    private var baseInstances: [ModuleInstance] = []
+
+    /// Wire the pipe owner (called once from the app root's startup task).
+    func attach(pipeCoordinator: PipeCoordinator) {
+        self.pipeCoordinator = pipeCoordinator
+    }
+
+    // ── 02-05 history mutators (the ONLY writers of history/instances) ──
+
+    /// Seed a freshly loaded image to PRISTINE: empty history + the
+    /// default-chain records as the live instance set (the coordinator
+    /// passes `ModuleRegistry.makeDefaultInstances()`).
+    func resetHistoryForNewImage(defaultInstances: [ModuleInstance]) {
+        history = HistoryStack()
+        baseInstances = defaultInstances
+        instances = defaultInstances
+    }
+
+    /// 02-06 sidecar RESTORE (replaces the pristine reset when a `.lra`
+    /// exists): installs the decoded history and derives the live set with
+    /// the SAME merge rule as undo/redo. `baseInstances` = the persisted
+    /// instances NOT owned by the restored history's effective set — their
+    /// persisted UUIDs + params are preserved VERBATIM (NDE-1: identity is
+    /// never re-minted on reload; checkpoint 02-06-01 lock #7), while
+    /// history-owned instances come back through their inline snapshots.
+    func restoreFromSidecar(history restoredHistory: HistoryStack, persistedInstances: [ModuleInstance]) {
+        history = restoredHistory
+        let effective = restoredHistory.effectiveInstances()
+        baseInstances = persistedInstances.filter { record in
+            !effective.contains {
+                $0.opName == record.opName && $0.multiPriority == record.multiPriority
+            }
+        }
+        rebuildInstances()
+    }
+
+    /// D-H1 commit leg: one history entry per interaction
+    /// (`PipeCoordinator.commitContinuousEdit` calls this), then the live
+    /// instance set picks up the snapshot and the coordinator is notified
+    /// (weak back-reference + Task — the same loose coupling as every
+    /// other EditorState → coordinator edge; the render itself is the
+    /// coordinator's business, and is idempotent here: the pipes already
+    /// rendered the live state during the drag, so the post-commit pass
+    /// proves cache hits).
+    func recordChange(_ snapshot: ModuleInstance, label: String) {
+        history.commit(snapshot, label: label)
+        upsert(instance: snapshot)
+        guard let pipeCoordinator else { return }
+        Task { await pipeCoordinator.historyDidChange() }
+    }
+
+    /// D-H1 live leg: drag-preview upsert WITHOUT a history commit (the
+    /// coordinator calls this per `setLiveParams`; zero items accumulate —
+    /// the commit lands once at drag end).
+    func applyLiveInstance(_ snapshot: ModuleInstance) {
+        upsert(instance: snapshot)
+    }
+
+    /// HIST-02 navigation (coordinator-driven): step back; false when
+    /// already pristine. Rebuilds the live instance set from the stack.
+    @discardableResult
+    func performUndo() -> Bool {
+        guard history.undo() != nil else { return false }
+        rebuildInstances()
+        return true
+    }
+
+    /// HIST-02 navigation: step forward into an untruncated tail.
+    @discardableResult
+    func performRedo() -> Bool {
+        guard history.redo() != nil else { return false }
+        rebuildInstances()
+        return true
+    }
+
+    /// HIST-02/D-H3 navigation: jump to an arbitrary point (the stack
+    /// clamps out-of-range indices; −1 = pristine).
+    func performJump(to index: Int) {
+        history.jump(to: index)
+        rebuildInstances()
+    }
+
+    /// Upsert by instance UUID, keep v50 order (records ARE the pipe
+    /// order — boxes are materialized in this sequence).
+    private func upsert(instance: ModuleInstance) {
+        if let index = instances.firstIndex(where: { $0.id == instance.id }) {
+            instances[index] = instance
+        } else {
+            instances.append(instance)
+        }
+        instances.sort {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+    }
+
+    /// Rebuild the live set after undo/redo/jump: the pristine base ∪ the
+    /// stack's effective instances, where a history instance with the same
+    /// `(opName, multiPriority)` REPLACES the base record (the committed
+    /// identity wins — Darktable keeps mandatory modules with their latest
+    /// history params). Instances that exist only in abandoned redo-state
+    /// vanish (their box is dropped at the next materialization).
+    private func rebuildInstances() {
+        var merged = baseInstances
+        for record in history.effectiveInstances() {
+            if let index = merged.firstIndex(where: {
+                $0.opName == record.opName && $0.multiPriority == record.multiPriority
+            }) {
+                merged[index] = record
+            } else {
+                merged.append(record)
+            }
+        }
+        instances = merged.sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+    }
+
+    /// Load an image/RAW file through `RAWDecoder` (D-21/D-24); on success
+    /// the PipeCoordinator renders PREVIEW and pushes the display texture
+    /// (Plan 02-03-04 — the D-X1 single render path). Cancels any in-flight
+    /// decode first (D-34). The decode runs off-MainActor (`RAWDecoder` is
+    /// an actor); on success a fresh `LayerStack(baseLayer:
+    /// BackgroundLayer())` is installed (D-03a) and the decodeTask hands
+    /// the result to the attached coordinator. Failures land in
     /// `decodeError` as typed `AppError`s (D-25); pixelpipe failures are
     /// non-blocking (logged only — same severity as the Plan 03 render
     /// leg). The decode leg is wrapped in an `os.signpost` interval (D-31);
@@ -75,7 +240,6 @@ final class EditorState {
         // editor never shows a stale frame while the new decode runs.
         displayTexture = nil
         layerStack = nil
-        displayTextureRenderedForURL = nil
 
         decodeTask = Task { [weak self] in
             guard let self else { return }
@@ -106,25 +270,29 @@ final class EditorState {
                 let stack = LayerStack(baseLayer: BackgroundLayer())
                 self.layerStack = stack
 
-                // The no-op pixelpipe (success criterion #3): the decoded
-                // image flows through Core's internal `PixelPipe` (which
-                // now holds the layer stack) and lands as the display
-                // texture `EditorMTKView` blits.
+                // D-X1 single render path (Plan 02-03-04): the decodeTask
+                // hands the decoded image to the PipeCoordinator, which
+                // owns the multi-resolution pipes, renders PREVIEW at the
+                // D-C3 bucket and pushes `displayTexture`. Since 02-05 the
+                // HISTORY owns the instance set: empty instances → the
+                // coordinator seeds/resets `EditorState` to pristine
+                // (terminal trio records) and materializes boxes from
+                // them; 02-06 restores per-image sidecars here instead.
                 if let metal {
-                    let texture = try await RenderPipeline.render(
-                        image: decoded,
-                        layerStack: stack,
+                    guard let pipeCoordinator else {
+                        logger.error("PipeCoordinator not attached — no render path")
+                        return
+                    }
+                    await pipeCoordinator.load(
+                        url: url,
+                        decoded: decoded,
+                        instances: [],
                         metal: metal
                     )
                     guard !Task.isCancelled else { // superseded mid-pipe
                         logger.info("pixelpipe superseded: \(url.lastPathComponent, privacy: .public)")
                         return
                     }
-                    self.displayTexture = texture
-                    self.displayTextureRenderedForURL = url
-                    logger.info(
-                        "pixelpipe output ready: \(url.lastPathComponent, privacy: .public)"
-                    )
                 }
             } catch {
                 let appError = AppError(error) // D-25 bridge
@@ -137,32 +305,6 @@ final class EditorState {
                     self.decodeError = appError
                 }
             }
-        }
-    }
-
-    /// Re-render the decoded `image` through the no-op pixelpipe via Core's
-    /// `RenderPipeline` bridge. Idempotent per loaded URL — `load` already
-    /// renders on the success path, so this is the URL-keyed `.task`
-    /// fallback in `EditorAreaView` (no-op once `load`'s render landed).
-    /// Failures are non-blocking (UI-SPEC severity table: render issues
-    /// log; they don't clear the decode state).
-    func renderDisplayTexture(using metal: MetalContext) async {
-        guard let image, let url = loadedImageURL else { return }
-        if displayTexture != nil, displayTextureRenderedForURL == url { return }
-        displayTextureRenderedForURL = url
-        do {
-            displayTexture = try await RenderPipeline.render(
-                image: image,
-                layerStack: layerStack,
-                metal: metal
-            )
-            Self.decodeLogger.info(
-                "display texture ready: \(url.lastPathComponent, privacy: .public)"
-            )
-        } catch {
-            Self.decodeLogger.error(
-                "display render failed (\(url.lastPathComponent, privacy: .public)): \(error.localizedDescription, privacy: .public)"
-            )
         }
     }
 
