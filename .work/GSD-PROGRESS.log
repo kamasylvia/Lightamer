@@ -16,3 +16,4 @@
 [2026-09-19 patrol] 02-03 complete: 63 tests green, D-C3 in-app proven, PREVIEW on-screen
 [2026-09-19 patrol] 02-04 complete: terminal trio + registry + golden dual-criteria green, 83/83 tests, 3 real bugs fixed (ParamsCoding unified)
 [2026-09-19 patrol] 02-05 complete: HistoryStack+compress+TilingPlan, 106 tests green, history wired via coordinator
+[2026-09-19 patrol] 02-06 complete: sidecar+clearCaches+RAW-03, 133 tests green, L014 race fixed. PHASE 2 EXECUTION DONE (6/6)
