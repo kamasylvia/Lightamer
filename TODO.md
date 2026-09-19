@@ -77,7 +77,7 @@
   - RAW-03：32f TIFF/EXR fixtures（极值 65504.0 pinned）+ `RAW03Tests` 7 全绿；宿主决策：CGImage 路 float-faithful、fallback 不采纳（记录于 `decodeRaster`），6a72691
   - 单测 **133 全绿**（3 skip 合规）；grep 守卫：`.xmp` 零读写路径；VALIDATION 签核（SC#1..5 证据 + 需求追溯 7/7）+ 真机 round-trip `.work/02-06/roundtrip.md`；SUMMARY 见 `02-06-SUMMARY.md`
 
-## Phase 3: Tone & Filmic iops — 执行中（1/6 plans）
+## Phase 3: Tone & Filmic iops — 执行中（2/6 plans）
 
 - [x] **Plan 03-01**（Wave 0 基建 + exposure tracer）完成（2026-09-19）：
   - T1 darktable-cli 从 dc58cf0ba1 重建（5.5.0+1862~gdc58cf0ba1-dirty；构建修复：CLT SDK `-isystem` 与 Xcode 27 clang 的 libc++ `<cstddef>` 冲突 → 缓存 SDK 路径改指 Xcode SDK + fresh configure + 显式 libomp + 内置 Lua），XMP 钉参链路实证采纳（+1EV XMP：ramp 0.25 列 → 0.5 exact；直通 bit-exact）——预构建版丢历史缺陷消失，GUI 模板回退方案无需启用（6c7bc7e）
@@ -85,7 +85,14 @@
   - T5 `ExposureModule`（.swift+.metal 对，v50=21.0 注册）：v7 params 镜像 + `white=exp2(−EV)`/`scale=1/(white−black)`；divergence 头注（默认 0EV 非 dt 0.7EV / deflicker 不实现位保留 / processed_maximum 不跟踪 / EXIF bias 补偿预留）
   - T3+T4 `GoldenParityTests`（轨 A：fixture×case 逐像素 <1e-5 **GREEN**；轨 B：Phase 2 双判据带 exposure 插入链 green）+ `CPUDerivationTests`（exposure 公式直译 8 向量 + 后续模块占位节）；全 suite 143 绿（3 skip 合规）
   - 两个 macOS 27 host finding（L015/L016）：dt XMP 未压缩 params 为 hex ASCII 非 base64；ImageIO float32 EXR 解码逐通道错位（绕道 = 自研 EXR reader + CGImageCreate float32 + WorkingSpace（**linear**）Rec2020 标签；⚠ `CGColorSpace.itur_2020` 是 gamma-2.4 非 linear）
-  - SUMMARY 见 `03-01-SUMMARY.md`；下一批 = 03-02（WB）/ 03-03（Lab 三模块）并行
+  - SUMMARY 见 `03-01-SUMMARY.md`
+- [x] **Plan 03-02**（WB temperature/tint + 吸管 plumbing + Inspector 面板框架）完成（2026-09-19）：
+  - T1/T2 `TemperatureModule`（.swift+.metal 对，v50=3.0 注册；slot 语义 divergence 头注 = post-CIRAW 校正层）：`CIEData.swift`（dt `cie_colorimetric_tables.c` 逐值搬移）+ `WhiteBalanceMath`（SPD→CMF 积分→XYZ 与 dt 同源 <1e-4，C 参照 harness `.work/03-02/wb_reference.c`；Rec2020 原生 `gains = W/T`，W=D65 锚经同一路径 → 恒等 (1,1,1)；dt Y-hack tint 语义保留；K↔gains 二分互求 1e-4K 收敛，round-trip <1e-3K）；吸管 `gainsFromPicked` = dt temperature.c:1933-1955 逐行移植（通道比值域无关）
+  - golden：temperature 钉参组 4 case（增益直设绕开 Kelvin 域差，RESEARCH §5）×5 灰 fixture parity <1e-5；**dt-cli host finding（manifest 落账）**：本环境 dt-cli 对空间变化图像的 float 导出（EXR/PFM/TIFF 全路径）空间损坏，均匀图像精确 → track-A 参考由 gen_fixtures.py `refs` 按共有语义合成（canonical fixture × gains，float64），dt 侧以 ①库 DB op_params hex 采纳实证 ②均匀平场 PFM probe（(0.6,0.5,0.4) exact 4e-8）双证据锁定；no-OMP 重建尝试（USE_OPENMP=OFF）→ dt-cli 启动 hang 不可用
+  - T3/T4 D-T6 `IOPPanelProvider` + `LightamerSlider`（D-H1 三件套映射 + 双击归零）+ `InspectorState` factory 分发 + `InspectorView` 实体化 + exposure/WB 首两面板；pristine 编辑种子 = terminal trio + temperature/exposure（identity，缓存中性）；`PanelWiringTests`（拖动=恰 1 条 history、拖动风暴 newest-wins、归零还原原 paramsHash=缓存全 hit、sidecar 节流写、dispatch）
+  - T5/T6 D-T4 `PipeCoordinator.pickColor`（视口点→真 aspect-fit uv→线性段重渲（缓存全 hit）→L014 fence→5×5 面积均值）+ EditorAreaView 吸管模式（十字光标+点击路由）+ `EyedropperTests`（中性采样 <1e-5、20 连点 fence 安全、采样零污染、蓝偏平场端到端中性化）；**blit shader uv 修复**：aspect-fit 除以 per-axis scale（原先中心裁切；大三角形覆盖的斜边溢出属 Phase 4 fit 路径）
+  - 单测 **165 全绿**（3 skip 合规）；LightamerTests 新增 app-target 依赖（@testable 驱动 D-03b 状态层）
+  - SUMMARY 见 `03-02-SUMMARY.md`；下一批 = 03-03（Lab 三模块）/ 03-04（shadhi+sigmoid）
 
 ## pending-manual（累计，解锁后重跑）
 

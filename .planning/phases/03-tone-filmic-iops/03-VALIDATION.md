@@ -42,7 +42,7 @@ created: 2026-09-19
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 03-01-T1/T5/T6 | 03-01 | 1 | IOP-TONE-01 (exposure) | — | N/A | golden parity | 合成 fixture → dt-cli 单模块钉参 → EXR vs Lightamer → 逐像素 <1e-5 相对误差（tracer） | ✅ | ✅ green（2026-09-19，`GoldenParityTests.testExposureGoldenParityAgainstDarktableCLI`，commit 5c57916；轨 B 双判据同文件） |
 | 03-01-T2 | 03-01 | 1 | Wave 0 fixture 组 + dt-cli 重建 | — | N/A | script | `bash input/golden/regenerate.sh` 一键复现 + manifest | ✅ | ✅ green（2026-09-19：dt-cli 重建 dc58cf0ba1 + XMP 钉参采纳实证（0.25→0.5 exact）+ roundtrip maxdiff 0.0 + manifest，commit 6c7bc7e） |
-| 03-02-T1/T2/T6 | 03-02 | 2 | IOP-TONE-02 (WB) | — | N/A | unit+golden | K→增益 CPU 单测（已知向量）+ 吸管数学 + fixture golden（增益直设钉参） | ❌ W0 | ⬜ pending |
+| 03-02-T1/T2/T6 | 03-02 | 2 | IOP-TONE-02 (WB) | — | N/A | unit+golden | K→增益 CPU 单测（已知向量，C harness 对照 <1e-4）+ 吸管数学 + fixture golden（增益直设钉参 <1e-5；参考合成 + dt 平场 PFM probe，manifest host finding） | ✅ | ✅ green（2026-09-19，`CPUDerivationTests` WB 节 + `TemperatureParityTests` 轨 A/轨 B/probe + `EyedropperTests` 端到端；dt-cli 对空间变化图像 float 导出损坏的 host finding 见 manifest 与 LESSONS L017） |
 | 03-03-T3 | 03-03 | 2 | IOP-TONE-03 (tonecurve) | — | N/A | unit+golden | 10001 点 1D 阶梯 LUT round-trip + dt-cli parity <1e-5 | ❌ W0 | ⬜ pending |
 | 03-04-T1/T2 | 03-04 | 3 | IOP-TONE-04 (shadhi) | — | N/A | golden parity | Lab 往返 + gaussian 腿钉参容差 <1e-4 + ΔE<1.0 99% 分位 | ❌ W0 | ⬜ pending |
 | 03-03-T1/T2 | 03-03 | 2 | IOP-TONE-05 (colisa contrast) | — | N/A | golden parity | Lab 域对比度 parity <1e-5 | ❌ W0 | ⬜ pending |

@@ -137,6 +137,14 @@
 - **适用**：Phase 3 全部 golden parity 测试；Phase 11 导出 EXR 预览/回读；一切 CI+float 图像的 colorspace 标签。
 - **来源**：Plan 03-01-T3 排障（2026-09-19），证据探针 `/tmp/citest.swift`、`/tmp/cgmake.swift`（会话内），修复后轨 A 全绿。
 
+### L017: darktable-cli float 导出对本机 arm64 构建的空间损坏 — golden 参考必须按语义可验证性分流
+- **背景**：Plan 03-02 为 temperature 钉参组生成 dt-cli golden（EXR，03-01 同一管线），轨 A parity 全线失败。
+- **现象**：同一 dt-cli（重建 dc58cf0ba1，Apple clang + libomp，macOS 27/arm64）对**空间均匀**图像（平场）的 float 导出逐值正确，对**空间变化**图像（ramp/阶梯/饱和块）输出空间损坏且模式随输入变化：EXR = 逐通道平面错排；PFM/TIFF = 水平"涂抹"（各通道以 (2/3, 1/3, 0)·w 相位偏移重采样）；同一命令确定性复现。8-bit TIFF（gamma 启用路径）与均匀平场 PFM 输出正确。`--core -d all` 的管线内 min/max 统计显示模块输出正确 → 损坏发生在管线与写出之间。
+- **根因**：未定位到具体提交（需 debugger 级排查）；属本机构建组合（clang OpenMP simd / libomp / arm64 向量化）与 dt 导出路径的相互作用，非 Lightamer 侧问题。旁证：no-OpenMP 重建（`USE_OPENMP=OFF`）后 dt-cli 在启动期 `dt_image_get_camera_id` 死锁，不可用（sidecar_jobs.c 还需压制 clang thread-safety 误报才能编译）。
+- **对策**：golden 参考按"语义可验证性"分流——①参考语义无算法自由度的模块（temperature = 逐通道乘法）：参考由 gen_fixtures.py 按共有语义**合成**（canonical fixture × 钉参增益，float64），dt 侧以三证据锁定：库 DB `op_params` hex 采纳实证 + `--core -d params` 日志 + 均匀平场 PFM probe 逐值对照（(0.6,0.5,0.4) exact，4e-8）；②其他模块继续优先 dt-cli EXR（exposure 已证可用），但**新增 case 首次使用前必须先做均匀平场 + 变化图像的双重 probe**，probe 不过即走①路线并在 manifest 落账。
+- **适用**：Phase 3+ 所有 dt-cli golden 生成；任何"依赖外部工具导出数值参考"的验证链。
+- **来源**：Plan 03-02-T2 排障（2026-09-19），证据链：dt 管线 stats vs 落盘字节对照、库 DB op_params hex、PFM/EXR/TIFF 三 writer 交叉、no-OMP 构建 hang；manifest "dt-cli host finding" 节。
+
 ---
 
 *本文件随开发进展持续更新。阶段完成后运行 `$gsd-extract-learnings` 自动提取。*
