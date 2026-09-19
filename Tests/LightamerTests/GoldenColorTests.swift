@@ -72,9 +72,21 @@ final class GoldenColorTests: XCTestCase {
     private func makeChain(outputProfile: ColorOutModule.OutputProfile = .displayP3) async
         -> [any ModuleBoxing]
     {
-        await TerminalTrioTests.makeCommittedDefaultChain(
+        // D-COL1 is the COLOR-MANAGEMENT neutrality gate (Plan 02's
+        // terminal-trio contract). Since 03-04 the default chain also
+        // carries the tone iops, and shadhi's DEFAULTS are active by design
+        // (shadows +50 — dt enables it the same way; a local operator
+        // shifts patch chroma spatially, exactly like dt's). iop-level
+        // neutrality is gated separately
+        // (SigmoidTests.testGraysStayNeutralOnBothPaths, ShadhiParityTests
+        // track B) — this gate pins the terminal trio.
+        var chain = await TerminalTrioTests.makeCommittedDefaultChain(
             registry: ModuleRegistry.makeDefault(), outputProfile: outputProfile
         )
+        chain.removeAll {
+            $0.opName == SigmoidModule.opName || $0.opName == ShadhiModule.opName
+        }
+        return chain
     }
 
     /// Read the gamma-tail `.bgra8Unorm` plane as (r,g,b) tuples.
