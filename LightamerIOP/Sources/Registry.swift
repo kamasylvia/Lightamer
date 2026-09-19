@@ -38,6 +38,11 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ToneCurveModule.opName) { id in
             ModuleBox(module: ToneCurveModule(), instanceID: id)
         }
+        // Plan 03-03-T4: levels (black/gray/white points, Lab-domain),
+        // v50 slot 49.0 (automatic mode wired by T5's HistogramReduce).
+        await registry.register(opName: LevelsModule.opName) { id in
+            ModuleBox(module: LevelsModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -61,6 +66,7 @@ public enum LightamerIOPRegistry {
             ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params()),
             ModuleInstance(module: ColisaModule.self, params: ColisaModule.Params()),
             ModuleInstance(module: ToneCurveModule.self, params: ToneCurveModule.Params()),
+            ModuleInstance(module: LevelsModule.self, params: LevelsModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }

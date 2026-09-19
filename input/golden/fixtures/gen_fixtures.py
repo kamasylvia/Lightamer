@@ -1157,6 +1157,97 @@ def gen_tonecurve_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, case_name + ".xmp"), "w") as f:
             f.write(xmp)
+    for case_name, mode, levels in LEVELS_CASES:
+        params = levels_params_blob(mode, 0.0, 50.0, 100.0, levels)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="levels",
+            modversion=LEVELS_MODVERSION,
+            params=params,
+            iop_order=f"{LEVELS_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case_name + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Levels (Plan 03-03-T4/T5) — dt_iop_levels_params_t v2 = <iffffff>
+# (24 bytes): mode int + black/gray/white floats (PERCENTILES in
+# automatic mode) + levels[3] floats (manual points, normalized).
+# ──────────────────────────────────────────────────────────────────────
+
+LEVELS_PARAMS_FORMAT = "<iffffff"
+LEVELS_MODVERSION = 2
+LEVELS_IOP_ORDER = 49.0
+
+
+def levels_lut(levels, bins=0x10000):
+    """dt compute_lut (levels.c:252-267) in float64."""
+    l0, l1, l2 = levels
+    delta = max((l2 - l0) / 2.0, 1e-9)  # Lightamer NaN guard (divergence #4)
+    mid = l0 + delta
+    tmp = (l1 - mid) / delta
+    inv_gamma = 10.0 ** tmp
+    return [100.0 * (i / bins) ** inv_gamma for i in range(bins)], inv_gamma
+
+
+def levels_apply_pixel(rgb, lut, inv_gamma, l0, l2):
+    """dt process (levels.c:412-434, CPU chroma form) — Lab fused."""
+    lab = lab_from_rec2020(rgb)
+    l_in = f32(f32(lab[0]) / 100.0)
+    if l_in <= l0:
+        l_out = 0.0
+    else:
+        percentage = f32((l_in - l0) / (l2 - l0))
+        if percentage < 1.0:
+            l_out = f32(lut[lut_index(percentage)])
+        else:
+            l_out = 100.0 * percentage ** inv_gamma
+    denom = max(f32(lab[0]), 0.01)
+    return lab_to_rec2020((l_out, lab[1] * l_out / denom, lab[2] * l_out / denom))
+
+
+# The levels 钉参组 (plan T4 action 3): identity / black=20 white=80 /
+# strong gamma (gray=25). T5 adds the automatic percentile case.
+LEVELS_CASES = [
+    ("levels_default", 0, [0.0, 0.5, 1.0]),
+    ("levels_bw", 0, [0.2, 0.5, 0.8]),
+    ("levels_gamma", 0, [0.0, 0.25, 1.0]),
+]
+
+LEVELS_REF_FIXTURES = [
+    "stair_1d", "ramp_8ev", "gray_staircase", "flat_0ev", "flat_-4ev",
+    "saturated",
+]
+
+
+def levels_params_blob(mode, black, gray, white, levels) -> str:
+    packed = struct.pack(
+        LEVELS_PARAMS_FORMAT, mode, black, gray, white,
+        levels[0], levels[1], levels[2],
+    )
+    assert len(packed) == 28, len(packed)  # 1 int + 6 floats
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_levels_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, mode, levels in LEVELS_CASES:
+        lut, inv_gamma = levels_lut(levels)
+        l0, l2 = levels[0], levels[2]
+        for fixture in LEVELS_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, lut=lut, inv_gamma=inv_gamma, l0=l0, l2=l2, w=w):
+                idx = y * w + x
+                return levels_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]),
+                    lut, inv_gamma, l0, l2,
+                )
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
 
 
 def main() -> None:
@@ -1181,9 +1272,11 @@ def main() -> None:
         # <outdir>/<temperature case>__<fixture>.exr from the canonical
         # fixtures in the fixtures dir (pass the fixtures dir as outdir).
         gen_temperature_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
-        # Plan 03-03-T2/T3: colisa + tonecurve golden references (L017 route).
+        # Plan 03-03-T2/T3/T4: colisa + tonecurve + levels golden
+        # references (L017 route).
         gen_colisa_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_tonecurve_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_levels_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 
