@@ -244,6 +244,27 @@
   committed); EditorState seeds its live instance set with them and the
   coordinator materializes boxes FROM the records
 
+### Session memory budget (02-06, `Sources/Pipe/PipeCache.swift` + `Sources/Metal/`)
+
+- `PipeCache.Keeper`→`KeepingPolicy` / `Freed` (nested types) +
+  `PipeCache.enforceBudget(now:keeping:)` — the D-C1 3 GB POLICY EXECUTOR
+  (pure function; the 60s timer is only a caller, OQ#7). Locked eviction
+  order: other-image THUMBNAIL/EXPORT → other-image FULL → other-image
+  PREVIEW (except `previousImageID`) → current-image non-PREVIEW;
+  current-image PREVIEW planes are never touched. LRU-oldest first within
+  a tier; stops at the hysteresis floor (`min(evictTarget, budget × 2/3)`).
+  Tests inject tiny thresholds — CI never allocates 3 GB
+- `MetalContext.clearCICaches()` (async) → `CIContextPool.clearCaches()`
+  (`ciContext.clearCaches()`) — the D-C1 layer-2 accumulator clear
+  (spike-b: CI/RawCamera internal per-camera state). PSO caches are
+  deliberately NOT cleared (MB-scale; clearing costs rebuild stalls)
+- **Host finding fixed en route (02-06-04):** `CIContextPool
+  .convertTexture` race-read planes whose kernel writes were still
+  in-flight on the app's queue (CI renders on its OWN queue) — restored
+  5-dispatch renders lost the race deterministically (black output). Fix:
+  an empty committed fence buffer + `waitUntilCompleted` before the CI leg
+  (LESSONS L014)
+
 ### Sidecar — `.lra` persistence (02-06, `Sources/Sidecar/`)
 
 - `struct LightamerSidecar: Codable, Sendable, Equatable` — the per-image

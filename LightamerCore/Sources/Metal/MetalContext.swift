@@ -304,6 +304,17 @@ public actor MetalContext {
         }
     }
 
+    // MARK: - Session cache management (Plan 02-06-05, D-C1 layer 2)
+
+    /// Clear the CI/RawCamera internal caches (the spike-b cross-decode
+    /// accumulator). Actor-isolated async (the pool is lazily created
+    /// here): callers `await` it. The PSO cache is deliberately NOT
+    /// cleared (MB-scale; clearing costs PSO rebuild stalls for zero
+    /// memory win — research §6 layer-3 decision).
+    public func clearCICaches() async {
+        await getOrCreatePool().clearCaches()
+    }
+
     // MARK: - CIImage bridge facade
 
     /// Colorout's ColorSync leg (Plan 02-04-03, internal — the module lives

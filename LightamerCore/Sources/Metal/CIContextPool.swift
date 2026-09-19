@@ -70,6 +70,16 @@ internal actor CIContextPool {
         let texture: any MTLTexture
     }
 
+    /// D-C1 layer 2 (Plan 02-06-05): drop the CI/RawCamera internal
+    /// per-camera state that the spike-b cross-decode accumulation
+    /// (4.3-5.4GB) flagged as an accumulator. PSO caches (MetalContext)
+    /// are deliberately NOT touched — MB-scale, clearing them would stall
+    /// the next dispatches on PSO rebuilds.
+    internal func clearCaches() {
+        ciContext.clearCaches()
+        AppError.logger.debug("CIContextPool.clearCaches: ciContext.clearCaches() done")
+    }
+
     internal func renderToTexture(_ image: CIImage) throws -> RenderedTexture {
         let extent = image.extent
         guard extent.width >= 1, extent.height >= 1 else {

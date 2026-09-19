@@ -160,9 +160,25 @@ final class PipeCoordinator {
 
     /// The per-image store for the CURRENT url (throttle + atomic write +
     /// load). Recreated per load switch; the destination is
-    /// `<original FULL name>.lra` beside the original (D-S2).
+    /// `<original FULL name>.lra` beside the original (D-C2/D-S3 era:
+    /// `<original FULL name>.lra`, D-S2).
     private var sidecarStore: SidecarStore?
     private var sidecarDestination: URL?
+
+    // ── 02-06 session memory budget (D-C1/D-C2) ──────────────────────────
+
+    /// The 60-second BACKSTOP sweep task (D-C2 trigger b): long sessions
+    /// on ONE image accumulate PREVIEW bucket versions as the window
+    /// resizes across D-C3 steps; the load-entry sweep alone never fires
+    /// for them. Actor-internal Task loop — NOT a Timer/RunLoop
+    /// (`enforceBudget` stays the unit-testable pure executor; the timer
+    /// is only a caller, research Open Question #7). Cancellation-safe:
+    /// dies with the coordinator (app-lifetime object).
+    private var budgetSweepTask: Task<Void, Never>?
+
+    /// Toast throttle state: one "cache freed" notice per sweep interval
+    /// (D-26 — silent small cleanups never surface).
+    private var lastCacheToastAt: ContinuousClock.Instant = .now - .seconds(61)
 
     // ── 02-04 terminal trio + display follow ─────────────────────────────
 
@@ -374,9 +390,27 @@ final class PipeCoordinator {
             imageIDMap[url] = fresh
             currentImageID = fresh
         }
-        // SEAM(02-06): the load-entry `cache.enforceBudget(keeping:)` +
-        // `clearCICaches()` fire right here (D-C2), keyed on
-        // currentImageID/previousImageID.
+
+        // D-C2 trigger (a): the LOAD-ENTRY sweep — BEFORE the new image's
+        // pipes render, purge the outgoing session's planes. Evidence for
+        // the hard requirement: Phase 1 spike-b measured 4.3-5.4 GB of
+        // cross-decode accumulation WITHOUT it (CI/RawCamera internal
+        // per-camera state included — hence the pool-level clearCaches
+        // below); the D-32 4 GB session budget breaks by the third large
+        // image. Uses the freshly assigned currentImageID (the incoming
+        // image's namespace) + the outgoing one as `previousImageID`.
+        // Phase 9 hook (documented): session SWITCH also calls
+        // `cache.invalidateAll()` + this sweep once multi-session lands.
+        if let currentImageID {
+            let freed = await cache.enforceBudget(
+                keeping: PipeCache.KeepingPolicy(
+                    currentImageID: currentImageID, previousImageID: previousImageID
+                )
+            )
+            await metal.clearCICaches()
+            presentCacheFreedToast(freed)
+        }
+        startBudgetSweepIfNeeded()
 
         // Reconcile the bucket before the first render: a drawable input
         // that arrived before the decode finished is honored now (else the
@@ -390,6 +424,47 @@ final class PipeCoordinator {
         lastThumbnail = nil
         await renderPreview(
             bucket: currentBucket ?? PreviewBucket.cap, generation: gen
+        )
+    }
+
+    // ── 02-06 session memory budget (D-C1/D-C2 sweep + toast) ────────────
+
+    /// Arm the 60s backstop sweep once (idempotent; first load arms it).
+    /// The Task inherits the coordinator's MainActor isolation — the loop
+    /// body reads state directly and only `await`s the cache/pool actors.
+    private func startBudgetSweepIfNeeded() {
+        guard budgetSweepTask == nil else { return }
+        budgetSweepTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                guard let self, !Task.isCancelled, let currentImageID = self.currentImageID else {
+                    continue
+                }
+                let freed = await self.cache.enforceBudget(
+                    keeping: PipeCache.KeepingPolicy(
+                        currentImageID: currentImageID,
+                        previousImageID: self.previousImageID
+                    )
+                )
+                self.presentCacheFreedToast(freed)
+            }
+        }
+    }
+
+    /// D-26 background toast when a sweep freed > 500 MB, throttled to one
+    /// notice per sweep interval.
+    private func presentCacheFreedToast(_ freed: PipeCache.Freed) {
+        guard freed.bytesFreed > 500 * 1024 * 1024 else { return }
+        let now = ContinuousClock.now
+        guard now - lastCacheToastAt > .seconds(60) else { return }
+        lastCacheToastAt = now
+        let gb = Double(freed.bytesFreed) / (1024 * 1024 * 1024)
+        let formatted = String(format: "%.1f GB", gb)
+        editorState?.presentToast(
+            String(format: String(localized: "toast_cache_freed"), formatted)
+        )
+        Self.logger.info(
+            "cache sweep freed \(formatted, privacy: .public) (\(freed.planesEvicted, privacy: .public) planes)"
         )
     }
 

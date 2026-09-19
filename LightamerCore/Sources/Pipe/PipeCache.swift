@@ -146,6 +146,108 @@ public actor PipeCache {
         trackedBytes = 0
     }
 
+    // MARK: - Session-level budget enforcement (Plan 02-06-05; D-C1/D-C2)
+
+    /// The keep policy for `enforceBudget` (checkpoint 02-06-01 lock #6):
+    /// the CURRENT image's planes and the PREVIOUS image's PREVIEW planes
+    /// survive the session sweep.
+    public struct KeepingPolicy: Sendable {
+        /// The image being edited — its FULL+PREVIEW planes are kept.
+        public let currentImageID: UUID
+        /// The image loaded before the current one — only its PREVIEW
+        /// planes are kept (D-C1: "保留当前图 FULL+PREVIEW、最近 1 张历史
+        /// 图的 PREVIEW").
+        public let previousImageID: UUID?
+
+        public init(currentImageID: UUID, previousImageID: UUID?) {
+            self.currentImageID = currentImageID
+            self.previousImageID = previousImageID
+        }
+    }
+
+    /// What an `enforceBudget` pass evicted (the D-26 toast input).
+    public struct Freed: Sendable {
+        public let bytesFreed: Int
+        public let planesEvicted: Int
+
+        public init(bytesFreed: Int, planesEvicted: Int) {
+            self.bytesFreed = bytesFreed
+            self.planesEvicted = planesEvicted
+        }
+    }
+
+    /// The 3 GB policy EXECUTOR (D-C1) — deliberately a pure function of
+    /// (cache contents, threshold, policy): the 60-second sweep timer is
+    /// only a CALLER (research Open Question #7), so unit tests drive this
+    /// directly with an injected threshold and never allocate 3 GB.
+    ///
+    /// No-op at or under `threshold`. Over it, evicts LRU-oldest-first in
+    /// the LOCKED tier order, stopping when bytes fall to the hysteresis
+    /// floor (`min(evictTarget, budget × 2/3)`):
+    ///   1. OTHER images' THUMBNAIL + EXPORT planes (browser/export
+    ///      by-products — cheapest to rebuild),
+    ///   2. OTHER images' FULL planes (on-demand by contract),
+    ///   3. OTHER images' PREVIEW planes, EXCEPT `previousImageID`'s
+    ///      (D-C1 keeps exactly the most recent previous PREVIEW),
+    ///   4. the CURRENT image's non-PREVIEW planes (thumbnail/full —
+    ///      inactive resolutions; its PREVIEW planes are never touched).
+    ///
+    /// The previous image's THUMBNAIL/FULL planes still fall in tiers 1-2
+    /// (only its PREVIEW is protected), and the current image's PREVIEW
+    /// planes are exempt from every tier by construction.
+    public func enforceBudget(
+        now threshold: Int = PipeCache.defaultBudget,
+        keeping policy: KeepingPolicy
+    ) async -> Freed {
+        let floor = min(Self.evictTarget, byteBudget * 2 / 3)
+        guard trackedBytes > threshold else {
+            return Freed(bytesFreed: 0, planesEvicted: 0)
+        }
+
+        func candidates(match: (PipeResolution, UUID) -> Bool) -> [PipeCacheKey] {
+            planes
+                .filter { key, _ in match(key.pipeType, key.imageID) }
+                .sorted { $0.value.lastHit < $1.value.lastHit }
+                .map { $0.key }
+        }
+        let isOther = { (imageID: UUID) in imageID != policy.currentImageID }
+
+        var ordered: [PipeCacheKey] = []
+        // Tier 1: other images' THUMBNAIL + EXPORT.
+        ordered += candidates { res, id in
+            isOther(id) && (res == .thumbnail || res == .export)
+        }
+        // Tier 2: other images' FULL.
+        ordered += candidates { res, id in
+            isOther(id) && res == .full
+        }
+        // Tier 3: other images' PREVIEW except the previous image's.
+        ordered += candidates { res, id in
+            isOther(id) && res == .preview && id != policy.previousImageID
+        }
+        // Tier 4: the CURRENT image's inactive resolutions (non-PREVIEW).
+        ordered += candidates { res, id in
+            !isOther(id) && res != .preview
+        }
+
+        var freedBytes = 0
+        var evicted = 0
+        for key in ordered {
+            guard trackedBytes > floor else { break }
+            guard let plane = planes.removeValue(forKey: key) else { continue }
+            trackedBytes -= plane.byteCount
+            freedBytes += plane.byteCount
+            evicted += 1
+        }
+        if evicted > 0 {
+            Self.signposter.emitEvent("enforceBudget")
+            AppError.logger.info(
+                "enforceBudget: evicted \(evicted, privacy: .public) planes (\(freedBytes, privacy: .public) bytes) at threshold \(threshold, privacy: .public)"
+            )
+        }
+        return Freed(bytesFreed: freedBytes, planesEvicted: evicted)
+    }
+
     // MARK: - Eviction (lock #5: LRU by lastHit, budget → target hysteresis)
 
     /// Only fires after crossing `byteBudget`; evicts oldest-`lastHit` first
