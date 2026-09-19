@@ -397,6 +397,113 @@ final class SidecarRoundTripTests: XCTestCase {
     }
 }
 
+// MARK: - Drift injection + unknown-op degrade (02-06-07)
+
+extension SidecarRoundTripTests {
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 3. Drift + unknown-op (02-06-07; HIST-04/SC#5, checkpoint locks #4/#5)
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// Drift injection (SC#5): hand-edit one `paramsData` in the JSON
+    /// WITHOUT touching `historyHash` (the external-tamper simulation) →
+    /// the next load DETECTS the mismatch, the in-memory (decoded) state
+    /// wins, and — the load-bearing assertion — the store schedules NO
+    /// write-back at detection time; only a subsequent legit edit
+    /// rewrites the file.
+    func testDriftInjectionDetectedAndDoesNotRewrite() async throws {
+        let (store, destination, _) = try makeStore("drift")
+        let state = makeState()
+        let document = makeDocument(instances: state.instances, history: state.history)
+        await store.scheduleWrite(document)
+        try await store.flushNow()
+
+        // Hand-tamper: swap the FIRST instance's paramsData for different
+        // valid base64 (a different gain), historyHash left untouched.
+        let json = try XCTUnwrap(String(data: try Data(contentsOf: destination), encoding: .utf8))
+        let originalParams = try XCTUnwrap(
+            state.instances.first { $0.opName == "testgain" }?.paramsData
+        )
+        let tampered = try JSONEncoder().encode(TestGainModule.Params(gain: 9.75))
+        let jsonTweaked = json.replacingOccurrences(
+            of: originalParams.base64EncodedString(),
+            with: tampered.base64EncodedString(),
+            options: .literal, range: json.range(of: originalParams.base64EncodedString())
+        )
+        XCTAssertNotEqual(json, jsonTweaked, "the tamper must actually change the bytes")
+        try Data(jsonTweaked.utf8).write(to: destination)
+
+        // The drift verdict on the AS-SAVED document (the load path's check).
+        let store2 = SidecarStore(destination: destination)
+        let reloadedDoc = await store2.load()
+        let reloaded = try XCTUnwrap(reloadedDoc)
+        XCTAssertTrue(reloaded.driftDetected, "hand-edited params must read as drift")
+
+        // NO write-back at detection: load() schedules nothing (the
+        // in-memory/decoded state wins; the file is user-inspectable).
+        let pending = await store2.hasPendingWrite
+        XCTAssertFalse(pending, "detection must NOT schedule a rewrite")
+        let afterDetection = try Data(contentsOf: destination)
+        XCTAssertEqual(afterDetection, Data(jsonTweaked.utf8),
+                       "the file is untouched at detection time")
+
+        // A subsequent LEGIT edit rewrites normally (write-back happens on
+        // user action, never on detection) — and the new write is
+        // self-consistent (drift clears).
+        let newState = makeState()
+        var newDoc = makeDocument(instances: newState.instances, history: newState.history)
+        newDoc.imageID = reloaded.imageID // the same session continues
+        await store2.scheduleWrite(newDoc)
+        try await store2.flushNow()
+        let afterEditDoc = await store2.load()
+        let afterEdit = try XCTUnwrap(afterEditDoc)
+        XCTAssertFalse(afterEdit.driftDetected, "the legit rewrite is self-consistent")
+        XCTAssertEqual(afterEdit.instances, newDoc.instances)
+
+    }
+
+    /// Unknown-op degrade (checkpoint lock #4): a sidecar carrying an op
+    /// the current binary cannot build keeps the instance VERBATIM
+    /// (`paramsData` byte-for-byte) and disables it — user data is never
+    /// dropped (research Risk #10). The degraded history is stable against
+    /// `rebuildInstances()` (enabled=false survives a reload projection).
+    func testUnknownOpDegradesDisabledWithParamsPreserved() async throws {
+        let registry = ModuleRegistry() // terminal trio only — no testgain
+        var stack = HistoryStack()
+        let unknown = ModuleInstance(
+            id: UUID(), opName: "futuremodule", multiPriority: 0,
+            multiName: "from the future", iopOrder: 50.5, version: 1,
+            enabled: true,
+            paramsData: Data("\"{\"someParam\":true}\"".utf8),
+            paramsHash: 0xABCD_EF01_2345_6789
+        )
+        stack.commit(unknown, label: "futuremodule edit")
+
+        let document = LightamerSidecar(
+            imageID: UUID(), decoderVersionUsed: "v8", decodeParamsHash: 42,
+            instances: makeTrio() + [unknown], history: stack,
+            historyHash: HistoryHash.hash(stack: stack, decodeParamsHash: 42),
+            appVersion: "99.0.0"
+        )
+        // Sanity: with the op UNKNOWN, the raw document's drift anchor
+        // folds it (it was enabled at write time).
+        let (degraded, unknownOps) = await document.degradedForUnknownOps(registry: registry)
+        XCTAssertEqual(unknownOps, ["futuremodule"])
+        XCTAssertEqual(degraded.items.count, 1)
+        let snapshot = degraded.items[0].snapshot
+        XCTAssertFalse(snapshot.enabled, "the unknown op degrades to disabled")
+        XCTAssertEqual(snapshot.paramsData, unknown.paramsData,
+                       "paramsData must be preserved byte-for-byte")
+        XCTAssertEqual(snapshot.paramsHash, unknown.paramsHash,
+                       "the hash atom rides along untouched")
+        XCTAssertEqual(snapshot.opName, "futuremodule")
+        XCTAssertEqual(snapshot.multiName, "from the future")
+        // Position and item identity survive the projection.
+        XCTAssertEqual(degraded.position, stack.position)
+        XCTAssertEqual(degraded.items[0].id, stack.items[0].id)
+    }
+}
+
 // MARK: - SC#3 end-to-end round-trip (02-06-07; the app coordinator's
 // verify path at Core level — the coordinator itself is App-internal and
 // not test-importable, 02-05 recorded deviation #1)
