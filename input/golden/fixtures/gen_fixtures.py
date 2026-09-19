@@ -1157,8 +1157,11 @@ def gen_tonecurve_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, case_name + ".xmp"), "w") as f:
             f.write(xmp)
-    for case_name, mode, levels in LEVELS_CASES:
-        params = levels_params_blob(mode, 0.0, 50.0, 100.0, levels)
+    auto_cases = LEVELS_CASES + [LEVELS_AUTO_CASE]
+    for case_name, mode, levels in auto_cases:
+        black, gray, white = (LEVELS_AUTO_PERCENTILES + (0.0, 100.0))[:3] \
+            if mode == 1 else (0.0, 50.0, 100.0)
+        params = levels_params_blob(mode, black, gray, white, levels)
         xmp = XMP_TEMPLATE.format(
             xmp_version=XMP_VERSION,
             iop_order_version=5,
@@ -1215,6 +1218,17 @@ LEVELS_CASES = [
     ("levels_bw", 0, [0.2, 0.5, 0.8]),
     ("levels_gamma", 0, [0.0, 0.25, 1.0]),
 ]
+
+# The automatic 钉参组 (plan T5): mode=1 with the black/gray/white fields
+# carrying the PERCENTILES (dt levels.c:514-516 semantics). The XMP pins
+# dt-side adoption (DB op_params); the Lightamer-side reference is the
+# IN-TEST self-consistent evaluation (GPU histogram → percentile → LUT →
+# apply) — a pre-generated per-pixel EXR reference would bake in the
+# float64 histogram binning, which disagrees with the GPU's float32 bin
+# assignment at ~1e-4 of pixels and shifts the percentile level by a bin
+# (a GLOBAL LUT change the <1e-4 gate cannot absorb).
+LEVELS_AUTO_CASE = ("levels_auto", 1, [0.0, 0.5, 1.0])
+LEVELS_AUTO_PERCENTILES = (2.0, 50.0, 98.0)
 
 LEVELS_REF_FIXTURES = [
     "stair_1d", "ramp_8ev", "gray_staircase", "flat_0ev", "flat_-4ev",

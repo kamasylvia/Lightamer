@@ -94,7 +94,7 @@ public final class LevelsModule: IOPModule {
 
     private let device: (any MTLDevice)?
     private var pieceBuffer: (any MTLBuffer)?
-    private var committed: Params?
+    private var committedParams: Params?
 
     public init(device: (any MTLDevice)? = nil) {
         self.device = device
@@ -166,7 +166,7 @@ public final class LevelsModule: IOPModule {
             levels = [0, 0.5, 1]
         }
 
-        if pieceBuffer == nil || committed != params {
+        if pieceBuffer == nil || committedParams != params {
             let lut = Self.buildLUT(levels: levels)
             let gamma = Self.inverseGamma(levels: levels)
             var uniforms = LevelsUniforms(
@@ -191,7 +191,7 @@ public final class LevelsModule: IOPModule {
                         .copyMemory(from: $0.baseAddress!, byteCount: Self.uniformLength)
                 }
             }
-            committed = params
+            committedParams = params
         }
         piece.data = pieceBuffer
     }
@@ -212,6 +212,20 @@ public final class LevelsModule: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
+        // AUTOMATIC mode (T5): histogram the input → percentile levels →
+        // rewrite the piece LUT → apply (dt commit_params_late semantics;
+        // recomputed per run — divergence #1). The CPU rewrite completes
+        // before the apply dispatch encodes (shared storage), so the
+        // kernel reads the fresh LUT.
+        if committedParams?.mode == .automatic {
+            let histogram = try await HistogramReduce.histogramL(of: input, metal: metal)
+            let p = committedParams ?? Params()
+            let derived = HistogramReduce.percentileLevels(
+                histogram: histogram, percentiles: (p.black, p.gray, p.white)
+            )
+            rewriteLUT(levels: derived)
+        }
+
         let buffer = piece.data
         try await metal.dispatch2DTexture(
             functionName: LevelsKernel.functionName,
@@ -222,6 +236,28 @@ public final class LevelsModule: IOPModule {
                 encoder.setBuffer(buffer, offset: Self.lutOffset, index: 0)
                 encoder.setBuffer(buffer, offset: Self.uniformOffset, index: 1)
             }
+        }
+    }
+
+    /// Rewrite the LUT + uniform sections of the piece buffer for the
+    /// freshly-derived automatic levels (T5).
+    private func rewriteLUT(levels: [Float]) {
+        guard let buffer = pieceBuffer else { return }
+        let lut = Self.buildLUT(levels: levels)
+        let gamma = Self.inverseGamma(levels: levels)
+        var uniforms = LevelsUniforms(
+            levelBlack: levels[0],
+            levelRange: levels[2] - levels[0],
+            invGamma: Float(gamma)
+        )
+        let contents = buffer.contents()
+        lut.withUnsafeBytes {
+            contents.advanced(by: Self.lutOffset)
+                .copyMemory(from: $0.baseAddress!, byteCount: Self.lutBytes)
+        }
+        withUnsafeBytes(of: &uniforms) {
+            contents.advanced(by: Self.uniformOffset)
+                .copyMemory(from: $0.baseAddress!, byteCount: Self.uniformLength)
         }
     }
 }

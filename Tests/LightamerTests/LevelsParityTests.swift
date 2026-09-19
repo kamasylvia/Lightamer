@@ -3,6 +3,7 @@ import CoreGraphics
 import CoreImage
 import Foundation
 import LightamerIOP
+import simd
 import Metal
 import XCTest
 
@@ -278,6 +279,160 @@ final class LevelsParityTests: XCTestCase {
             failures.isEmpty,
             "track B neutrality with levels inserted FAILED:\n" + failures.joined(separator: "\n")
         )
+    }
+
+    // MARK: - Automatic mode (Plan 03-03-T5)
+
+    /// A synthetic staircase texture with known gray values (the
+    /// gray_staircase fixture's 12 levels).
+    private func makeStaircaseTexture(_ metal: MetalContext) throws -> any MTLTexture {
+        let levels: [Float] = [0.02, 0.04, 0.07, 0.10, 0.18, 0.25, 0.35, 0.50, 0.65, 0.80, 0.90, 1.00]
+        let width = 96, height = 64 // 8px columns → 12 blocks
+        var pixels = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let v = levels[min(x / 8, 11)]
+                let i = (y * width + x) * 4
+                pixels[i] = v; pixels[i + 1] = v; pixels[i + 2] = v; pixels[i + 3] = 1
+            }
+        }
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: width, height: height, mipmapped: false
+        )
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        let texture = metal.device.makeTexture(descriptor: descriptor)!
+        pixels.withUnsafeBytes {
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0,
+                withBytes: $0.baseAddress!, bytesPerRow: width * 16
+            )
+        }
+        return texture
+    }
+
+    /// The GPU histogram must match the analytic histogram (bins within a
+    /// couple of counts — float32 L noise at bin boundaries), and the
+    /// derived three points must sit within ±1 bin of the analytic ones
+    /// (the plan's ±1 bin acceptance).
+    func testAutomaticHistogramMatchesAnalytic() async throws {
+        let metal = try await makeMetal()
+        let texture = try makeStaircaseTexture(metal)
+
+        let histogram = try await HistogramReduce.histogramL(of: texture, metal: metal)
+        XCTAssertEqual(histogram.reduce(0, +), UInt32(96 * 64), "total pixel count")
+
+        // analytic: f64 L per gray value → f32-quantized bin; each 8px
+        // block × 64 rows = 512 pixels per level
+        var analytic = [Int](repeating: 0, count: HistogramReduce.bins)
+        let levels: [Double] = [0.02, 0.04, 0.07, 0.10, 0.18, 0.25, 0.35, 0.50, 0.65, 0.80, 0.90, 1.00]
+        for v in levels {
+            let lab = LabRoundTrip.rec2020ToLab(SIMD3(v, v, v))
+            let bin = min(max(Int(lab.x * 256.0 / 100.0), 0), 255)
+            analytic[bin] += 8 * 64
+        }
+        var drift = 0
+        for b in 0..<HistogramReduce.bins {
+            drift += abs(Int(histogram[b]) - analytic[b])
+        }
+        XCTAssertLessThanOrEqual(drift, 8, "histogram counts vs analytic (float32 bin noise)")
+
+        // the three points within ±1 bin of the analytic derivation
+        let gpuLevels = HistogramReduce.percentileLevels(
+            histogram: histogram, percentiles: (2, 50, 98)
+        )
+        let analyticLevels = HistogramReduce.percentileLevels(
+            histogram: analytic.map { UInt32($0) }, percentiles: (2, 50, 98)
+        )
+        for k in 0..<3 {
+            XCTAssertLessThanOrEqual(
+                abs(gpuLevels[k] - analyticLevels[k]), 1.0 / 255.0,
+                "level[\(k)] within ±1 bin"
+            )
+        }
+    }
+
+    /// The full automatic chain is self-consistent: percentile levels from
+    /// the GPU's own histogram → LUT → apply, compared against an in-test
+    /// Double evaluation of the SAME levels (the plan's <1e-4 + ΔE gates).
+    /// A pre-generated per-pixel reference cannot be used here: the
+    /// float64 histogram binning disagrees with the GPU's float32 bin
+    /// assignment at ~1e-4 of pixels, which shifts the percentile level
+    /// by a bin — a GLOBAL LUT change (manifest "levels automatic").
+    func testLevelsAutomaticSelfConsistentParity() async throws {
+        let metal = try await makeMetal()
+        let texture = try makeStaircaseTexture(metal)
+
+        // module run
+        let module = LevelsModule()
+        var piece = IOPiece()
+        let params = LevelsModule.Params(mode: .automatic, black: 2, gray: 50, white: 98)
+        await module.commitParams(params, into: &piece)
+        let output = try makeStaircaseTexture(metal)
+        try await module.process(
+            input: texture, output: output, roiIn: ROI(), roiOut: ROI(),
+            piece: &piece, metal: metal
+        )
+        drain(metal)
+
+        // reference: same histogram → same levels → Double evaluation
+        let histogram = try await HistogramReduce.histogramL(of: texture, metal: metal)
+        let derived = HistogramReduce.percentileLevels(
+            histogram: histogram, percentiles: (params.black, params.gray, params.white)
+        )
+        let lut = LevelsModule.buildLUT(levels: derived)
+        let l0 = Double(derived[0]), l2 = Double(derived[2])
+
+        var out = [Float](repeating: 0, count: 96 * 64 * 4)
+        out.withUnsafeMutableBytes {
+            output.getBytes(
+                $0.baseAddress!, bytesPerRow: 96 * 16,
+                from: MTLRegionMake2D(0, 0, 96, 64), mipmapLevel: 0
+            )
+        }
+        let source: [Double] = [0.02, 0.04, 0.07, 0.10, 0.18, 0.25, 0.35, 0.50, 0.65, 0.80, 0.90, 1.00]
+
+        var worstRelative: Double = 0
+        var worstAbs: Double = 0
+        var deltaEs: [Double] = []
+        for y in 0..<64 {
+            for x in 0..<96 {
+                let v = source[min(x / 8, 11)]
+                let lab = LabRoundTrip.rec2020ToLab(SIMD3(v, v, v))
+                let lIn = lab.x / 100
+                let lOut: Double
+                if lIn <= l0 {
+                    lOut = 0
+                } else {
+                    let percentage = (lIn - l0) / (l2 - l0)
+                    lOut = percentage < 1
+                        ? Double(lut[min(max(Int(percentage * 65536.0 + 0.5), 0), 65535)])
+                        : 100.0 * Foundation.pow(percentage, LevelsModule.inverseGamma(levels: derived))
+                }
+                let denom = max(lab.x, 0.01)
+                let refLab = SIMD3(lOut, lab.y * lOut / denom, lab.z * lOut / denom)
+                let refRGB = LabRoundTrip.labToRec2020(refLab)
+
+                let i = (y * 96 + x) * 4
+                let gotLab = LabRoundTrip.rec2020ToLab(
+                    SIMD3(Double(out[i]), Double(out[i + 1]), Double(out[i + 2]))
+                )
+                let refLabQ = LabRoundTrip.rec2020ToLab(refRGB)
+                let dE = simd_length(gotLab - refLabQ)
+                deltaEs.append(dE)
+                for c in 0..<3 {
+                    let got = [Double(out[i]), Double(out[i + 1]), Double(out[i + 2])][c]
+                    let absDiff = abs(got - refRGB[c])
+                    worstAbs = max(worstAbs, absDiff)
+                    worstRelative = max(worstRelative, absDiff / max(abs(refRGB[c]), 1e-9))
+                }
+            }
+        }
+        XCTAssertLessThanOrEqual(worstRelative, 1e-4, "automatic parity relative gate (worst \(worstRelative))")
+        XCTAssertLessThanOrEqual(worstAbs, 1e-4, "automatic parity absolute gate (worst \(worstAbs))")
+        deltaEs.sort()
+        let p99 = deltaEs[Int(Double(deltaEs.count - 1) * 0.99)]
+        XCTAssertLessThan(p99, 1.0, "ΔE p99 (plan automatic gate)")
     }
 
     // MARK: - Registration

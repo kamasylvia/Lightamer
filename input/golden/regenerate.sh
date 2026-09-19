@@ -203,6 +203,46 @@ echo "== ④ manifest =="
         echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
     done
     echo
+    echo "### levels cases (Plan 03-03-T4/T5, synthesized references)"
+    echo
+    echo "dt blob \`<iffffff\` (28 bytes, dt_iop_levels_params_t v2, hex-ASCII) ↔"
+    echo "Lightamer \`LevelsModule.Params\` (JSON):"
+    echo
+    echo "| dt field (offset) | Lightamer field | note |"
+    echo "|---|---|---|"
+    echo "| mode (0, i) | \`mode\` | 0 manual / 1 automatic |"
+    echo "| black (4, f) | \`black\` | manual: unused; automatic: PERCENTILE (levels.c:514-516) |"
+    echo "| gray (8, f) | \`gray\` | same dual role |"
+    echo "| white (12, f) | \`white\` | same dual role |"
+    echo "| levels[3] (16..28, f) | \`levels\` | manual points, normalized [0,1] (init: 0/0.5/1) |"
+    echo
+    echo "Pixel math (both sides): Rec2020→Lab, L_in ≤ black → 0, percentage ="
+    echo "(L_in−l0)/(l2−l0), lut[nearest] below 1.0, 100·percentage^inv_gamma above,"
+    echo "chroma a,b × L_out/max(L_in, 0.01) (CPU form), Lab→Rec2020."
+    echo "Track-A references synthesized (L017 route)."
+    echo
+    echo "### levels automatic reference note (Plan 03-03-T5)"
+    echo
+    echo "The levels_auto case (\`mode=1\`, percentiles 2/50/98) pins dt-side"
+    echo "ADOPTION only (DB op_params hex: 01000000 00000040 00004842 0000c442"
+    echo "+ 'params v. 2: version ok params ok'). The Lightamer-side reference"
+    echo "for the automatic chain is IN-TEST and SELF-CONSISTENT"
+    echo "(testLevelsAutomaticSelfConsistentParity): the GPU histogram →"
+    echo "percentile levels → LUT → apply, compared against a float64"
+    echo "evaluation of the SAME levels. A pre-generated per-pixel EXR"
+    echo "reference would bake in the float64 histogram binning, which"
+    echo "disagrees with the GPU's float32 bin assignment at ~1e-4 of pixels;"
+    echo "a single bin shift at a percentile crossing changes the GLOBAL LUT"
+    echo "(a shift the <1e-4 pixel gate cannot absorb). Gates instead:"
+    echo "histogram vs analytic (drift ≤8 counts, levels ±1 bin), parity"
+    echo "<1e-4 relative+absolute, ΔE p99 < 1.0. 256 bins per the plan (dt:"
+    echo "16384 — divergence #1); histogram recomputed per pipe run."
+    echo
+    echo "Stale-plugin note: the same rebuild that fixed libcolisa (03-03-T2)"
+    echo "applied to libtonecurve/liblevels; librgblevels remains stale in the"
+    echo "dt build (dlopen failure at startup — non-fatal noise, module unused"
+    echo "by the golden chain)."
+    echo
     echo "### dt-cli PFM probes (temperature + colisa, uniform-flat verification)"
     echo
     echo "| probe | sha256 |"
