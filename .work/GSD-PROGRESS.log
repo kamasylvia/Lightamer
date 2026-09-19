@@ -29,3 +29,4 @@
 [2026-09-19 patrol] 03-02 complete: WB module + eyedropper + Inspector panel framework, 165 tests green, L017 (dt-cli spatial corruption)
 [2026-09-19 patrol] 03-03 complete: tonecurve+levels+colisa+LabRoundTrip, 199 tests green, ParityGate dual-gate standard
 [2026-09-19 patrol2] 03-04 complete: 220 tests green, 3 root causes fixed (L018 private buffer), sign-flip=invert3 cofactor typo
+[2026-09-19 patrol] 03-05 complete: toneequal 9-band + EIGF + TilingPlan FULL 首战 green, 244 tests, PERF-5 Debug 63.4ms 落账待 03-06 优化
