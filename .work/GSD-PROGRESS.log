@@ -26,3 +26,4 @@
 [2026-09-19 11:35] 巡检恢复（新 automation 09a53a4e）；队列 → Phase 3 execute
 [2026-09-19 patrol] 巡检恢复后首轮：启动 Phase 3 execute（03-01 tracer）
 [2026-09-19 patrol] 03-01 complete: tracer exposure parity <1e-5 green, dt-cli rebuilt, 143 tests; L015/L016
+[2026-09-19 patrol] 03-02 complete: WB module + eyedropper + Inspector panel framework, 165 tests green, L017 (dt-cli spatial corruption)
