@@ -1,0 +1,443 @@
+#!/usr/bin/env python3
+"""
+Lightamer golden fixture generator (Phase 3, Plan 03-01-T2).
+
+Produces the synthetic scene-linear EXR fixture set + the pinned-parameter
+XMP cases consumed by `regenerate.sh` (dt-cli golden reference generation)
+and by `Tests/LightamerTests/GoldenParityTests.swift` (track A parity).
+
+PURE STDLIB — no numpy/OpenEXR dependency (the plan's uv fallback exists,
+but a zero-dep writer cannot break on a machine without network).
+
+EXR output: uncompressed scanline float32 RGB, channels in alphabetical
+order (B, G, R) per the OpenEXR spec. Written WITHOUT chromaticities →
+darktable reads it as linear Rec709 (imageio_exr.cc:273-275); the
+`regenerate.sh` round-trip step (`--out-ext exr --icc-type LIN_REC2020`)
+then produces the Rec2020-canonical fixture (values converted + attributes
+marked) — RESEARCH §6.1.
+
+Fixture set (RESEARCH §Validation Architecture #2):
+  1. ramp_8ev      — 64×64 gray ramp −8..0EV (tone 主靶; +1EV case maps
+                     0.25 → 0.5, the XMP-attach acceptance probe)
+  2. flat_0ev / flat_-4ev / flat_-8ev — uniform grays (平场)
+  3. saturated     — Rec2020 R,G,B,C,M,Y 100% + out-of-Rec2020 spectral
+                     blocks (gamut 映射靶)
+  4. deep_shadow   — 0..2^-6 fine gradient (banding 靶, METAL-2)
+  5. gray_staircase— 12 neutral steps 0.02..1.0 (WB 吸管靶)
+  6. stair_1d      — 10001-point 1D staircase (曲线 LUT 靶)
+
+XMP cases (Plan 03-01-T2/T6 — exposure 钉参组): +1EV / −2EV / black=0.1 /
+compensate 组合. The params blob is the little-endian direct pack of
+`dt_iop_exposure_params_t` v7 = `<iffffii` (28 bytes), serialized as
+lowercase HEX ASCII (the dt XMP encoding for uncompressed blobs — see
+`exposure_params_blob`; base64 is only used behind the "gz" compressed
+prefix). The dt↔Lightamer field mapping table lives in
+manifest.md (RESEARCH Risk #5).
+
+Usage:
+  gen_fixtures.py raw   [OUTDIR]   # raw (pre-canonicalization) EXRs
+  gen_fixtures.py cases [OUTDIR]   # pinned XMP cases
+  gen_fixtures.py all   [OUTDIR]   # both (default OUTDIR = script dir)
+Deterministic: same inputs → byte-identical outputs (manifest hashes hold).
+"""
+
+import base64
+import binascii
+import math
+import os
+import struct
+import sys
+
+# ──────────────────────────────────────────────────────────────────────
+# Minimal EXR writer (uncompressed scanline float32 RGB)
+# ──────────────────────────────────────────────────────────────────────
+
+EXR_MAGIC = 20000630  # 0x01312f76
+PIXEL_FLOAT = 2
+
+
+def _attr(name: str, type_name: str, data: bytes) -> bytes:
+    return (
+        name.encode() + b"\0"
+        + type_name.encode() + b"\0"
+        + struct.pack("<i", len(data))
+        + data
+    )
+
+
+def _chlist() -> bytes:
+    # Alphabetical channel order (spec requirement); R=G=B grays make the
+    # layout irrelevant for gray fixtures, but keep it correct anyway.
+    body = b""
+    for name in ("B", "G", "R"):
+        body += (
+            name.encode() + b"\0"
+            + struct.pack("<i", PIXEL_FLOAT)  # pixel type: float32
+            + struct.pack("<B", 0)            # pLinear
+            + b"\0\0\0"                       # reserved
+            + struct.pack("<i", 1)            # xSampling
+            + struct.pack("<i", 1)            # ySampling
+        )
+    return body + b"\0"
+
+
+def write_exr(path: str, width: int, height: int, pixel_fn) -> None:
+    """Write an uncompressed scanline float32 RGB EXR.
+
+    `pixel_fn(x, y)` returns the (R, G, B) float triple for pixel (x, y),
+    x = column, y = row (top-left origin, scanlines written top-down,
+    lineOrder = INCREASING_Y).
+    """
+    data_window = (0, 0, width - 1, height - 1)
+
+    header = b""
+    header += _attr("channels", "chlist", _chlist())
+    header += _attr("compression", "compression", struct.pack("<B", 0))  # NONE
+    header += _attr("dataWindow", "box2i", struct.pack("<4i", *data_window))
+    header += _attr("displayWindow", "box2i", struct.pack("<4i", *data_window))
+    header += _attr("lineOrder", "lineOrder", struct.pack("<B", 0))  # INCREASING_Y
+    header += _attr("pixelAspectRatio", "float", struct.pack("<f", 1.0))
+    header += _attr("screenWindowCenter", "v2f", struct.pack("<2f", 0.0, 0.0))
+    header += _attr("screenWindowWidth", "float", struct.pack("<f", 1.0))
+    header += b"\0"
+
+    row_bytes = width * 3 * 4
+    chunk_size = 4 + 4 + row_bytes
+
+    # Offset table: one entry per scanline block (uncompressed = 1 line/chunk).
+    # File prefix = magic(4) + version(4) + header — the 8 leading bytes MUST
+    # be counted (2026-09-19: omitting them shifted every chunk −8B; both
+    # libopenexr and dt still parsed the file into clean-looking garbage).
+    offsets = b""
+    offset = 8 + len(header) + 8 * height
+    for _ in range(height):
+        offsets += struct.pack("<Q", offset)
+        offset += chunk_size
+
+    lines = b""
+    for y in range(height):
+        lines += struct.pack("<i", y) + struct.pack("<i", row_bytes)
+        row = bytearray(row_bytes)
+        for x in range(width):
+            r, g, b = pixel_fn(x, y)
+            base = x * 12
+            row[base:base + 4] = struct.pack("<f", b)   # chlist order: B, G, R
+            row[base + 4:base + 8] = struct.pack("<f", g)
+            row[base + 8:base + 12] = struct.pack("<f", r)
+        lines += bytes(row)
+
+    with open(path, "wb") as f:
+        f.write(struct.pack("<I", EXR_MAGIC))
+        f.write(struct.pack("<I", 2))  # version: scanline, single part
+        f.write(header)
+        f.write(offsets)
+        f.write(lines)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Color matrices (scene-linear RGB domain)
+# ──────────────────────────────────────────────────────────────────────
+
+def mat_mul(a, b):
+    return [
+        [
+            sum(a[i][k] * b[k][j] for k in range(3))
+            for j in range(3)
+        ]
+        for i in range(3)
+    ]
+
+
+def mat_vec(m, v):
+    return tuple(sum(m[i][k] * v[k] for k in range(3)) for i in range(3))
+
+
+def mat_inv(m):
+    det = (
+        m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+        - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+        + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+    )
+    return [
+        [
+            (m[(j + 1) % 3][(i + 1) % 3] * m[(j + 2) % 3][(i + 2) % 3]
+             - m[(j + 1) % 3][(i + 2) % 3] * m[(j + 2) % 3][(i + 1) % 3]) / det
+            for j in range(3)
+        ]
+        for i in range(3)
+    ]
+
+
+# Linear Rec2020 → XYZ (D65) and back — standard primaries/white point.
+REC2020_TO_XYZ = [
+    [0.636958, 0.144617, 0.168881],
+    [0.262700, 0.678009, 0.059291],
+    [0.000000, 0.028073, 1.060806],
+]
+XYZ_TO_REC2020 = mat_inv(REC2020_TO_XYZ)
+
+# Linear Rec709 → XYZ (D65).
+REC709_TO_XYZ = [
+    [0.4123908, 0.3575843, 0.1804808],
+    [0.2126390, 0.7151687, 0.0721923],
+    [0.0193308, 0.1191948, 0.9505322],
+]
+XYZ_TO_REC709 = mat_inv(REC709_TO_XYZ)
+
+# Linear Rec709 → Rec2020: the raw fixtures are read by dt as linear
+# Rec709; to land on a Rec2020 target T after the canonicalization
+# round-trip, the fixture must hold M(709→2020)^-1 · T.
+REC709_TO_REC2020 = mat_mul(REC709_TO_XYZ, XYZ_TO_REC2020)  # 709→XYZ→2020
+REC2020_TO_REC709 = mat_inv(REC709_TO_REC2020)
+
+
+def clamp01(v):
+    return max(0.0, min(1.0, v))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Fixture builders
+# ──────────────────────────────────────────────────────────────────────
+
+def ev_value(ev: float) -> float:
+    """Scene-linear value of an EV offset relative to 0.5 mid-gray."""
+    return 0.5 * (2.0 ** ev)
+
+
+def gen_ramp(outdir: str) -> None:
+    # 64 columns spanning −8..−0.125EV with POWER-OF-TWO-EXACT stops every
+    # 8 columns (v(x) = 2^(−8 + x/8)): column 48 = 0.25 exactly, column 56
+    # = 0.5 — the XMP-attach acceptance probe (+1EV maps 0.25 → 0.5 ±1e-6)
+    # and half-float-safe values throughout.
+    def px(x, y):
+        v = 2.0 ** (-8.0 + x / 8.0)
+        return (v, v, v)
+
+    write_exr(os.path.join(outdir, "ramp_8ev.exr"), 64, 64, px)
+
+
+def gen_flats(outdir: str) -> None:
+    for name, ev in (("flat_0ev", 0.0), ("flat_-4ev", -4.0), ("flat_-8ev", -8.0)):
+        v = ev_value(ev)
+        write_exr(
+            os.path.join(outdir, name + ".exr"), 64, 64,
+            lambda x, y, v=v: (v, v, v),
+        )
+
+
+# Saturated blocks: Rec2020 primaries + secondaries at 100%, plus
+# out-of-Rec2020 spectral colors (CIE 1931 2° xy at 10nm grid).
+def gen_saturated(outdir: str) -> None:
+    # Targets are LINEAR REC2020 values; pre-convert to the Rec709 domain
+    # dt will assume when reading the raw fixture (see header note).
+    targets_2020 = [
+        ("R2020", (1.0, 0.0, 0.0)),
+        ("G2020", (0.0, 1.0, 0.0)),
+        ("B2020", (0.0, 0.0, 1.0)),
+        ("C2020", (0.0, 1.0, 1.0)),
+        ("M2020", (1.0, 0.0, 1.0)),
+        ("Y2020", (1.0, 1.0, 0.0)),
+    ]
+    # Spectral xy (CIE 1931 2°, 10nm grid) — Y-normalized XYZ → Rec2020;
+    # these carry negative/out-of-gamut components by design.
+    spectral_xy = [
+        ("spec500", (0.0082, 0.5384)),   # green spectral, far out of Rec2020
+        ("spec520", (0.0743, 0.8338)),   # green-yellow spectral, out
+        ("spec580", (0.5125, 0.4866)),   # yellow-orange spectral, out
+        ("spec600", (0.6270, 0.3725)),   # orange spectral, marginally out
+    ]
+    for name, xy in spectral_xy:
+        x, y = xy
+        xyz = (x / y, 1.0, (1.0 - x - y) / y)
+        targets_2020.append((name, mat_vec(XYZ_TO_REC2020, xyz)))
+
+    # 10 blocks in a 5×2 grid on 100×64.
+    width, height = 100, 64
+    block_w = width / len(targets_2020)
+
+    def px(x, y):
+        idx = min(int(x / block_w), len(targets_2020) - 1)
+        _, t2020 = targets_2020[idx]
+        # Pre-image in the Rec709 domain (round-trip lands on t2020).
+        pre = mat_vec(REC2020_TO_REC709, t2020)
+        return pre
+
+    write_exr(os.path.join(outdir, "saturated.exr"), width, height, px)
+
+
+def gen_deep_shadow(outdir: str) -> None:
+    # Fine gradient 0 → 2^-6 across the whole 64×64 (banding 靶).
+    width = height = 64
+    count = width * height
+
+    def px(x, y):
+        v = 2.0 ** -6 * (y * width + x) / (count - 1)
+        return (v, v, v)
+
+    write_exr(os.path.join(outdir, "deep_shadow.exr"), width, height, px)
+
+
+def gen_gray_staircase(outdir: str) -> None:
+    # 12 neutral steps, geometric-ish spread (WB 吸管靶).
+    levels = [0.02, 0.04, 0.07, 0.10, 0.18, 0.25, 0.35, 0.50, 0.65, 0.80, 0.90, 1.00]
+    width = height = 120  # 10px per block
+
+    def px(x, y):
+        idx = min(int(x / (width / len(levels))), len(levels) - 1)
+        v = levels[idx]
+        return (v, v, v)
+
+    write_exr(os.path.join(outdir, "gray_staircase.exr"), width, height, px)
+
+
+def gen_stair_1d(outdir: str) -> None:
+    # 10001-point 1D staircase (曲线 LUT 靶): W = 10001, H = 2.
+    points = 10001
+
+    def px(x, y):
+        v = x / (points - 1)
+        return (v, v, v)
+
+    write_exr(os.path.join(outdir, "stair_1d.exr"), points, 2, px)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# XMP pinned-parameter cases (exposure 钉参组)
+# ──────────────────────────────────────────────────────────────────────
+
+EXPOSURE_PARAMS_FORMAT = "<iffffii"  # dt_iop_exposure_params_t v7, 28 bytes
+EXPOSURE_MODVERSION = 7
+EXPOSURE_IOP_ORDER = 21.0  # v50 slot; entry iop_order for the XMP
+XMP_VERSION = 5
+
+
+def exposure_params_blob(
+    exposure: float,
+    black: float = 0.0,
+    compensate_exposure_bias: int = 0,
+    mode: int = 0,
+    deflicker_percentile: float = 50.0,
+    deflicker_target_level: float = -4.0,
+    compensate_hilite_pres: int = 1,
+) -> str:
+    """dt_iop_exposure_params_t v7 → lowercase HEX ASCII (2 chars/byte).
+
+    XMP blob encoding (dt_exif_xmp_encode_internal, exif.cc:3292-3311):
+    uncompressed params are HEX ASCII — NOT base64. Base64 appears ONLY in
+    the compressed form ("gz" + 2-digit factor + base64, used when the
+    encoded blob exceeds the compression threshold). The decoder
+    (dt_exif_xmp_decode, exif.cc:3317+) dispatches on the "gz" prefix and
+    otherwise expects hex — a base64 blob decodes to a garbage length and
+    the history loader marks it "params WRONG" → dt silently falls back to
+    default params (the exact failure that plan 03-01-T1 exists to catch).
+    """
+    packed = struct.pack(
+        EXPOSURE_PARAMS_FORMAT,
+        mode,
+        black,
+        exposure,
+        deflicker_percentile,
+        deflicker_target_level,
+        compensate_exposure_bias,
+        compensate_hilite_pres,
+    )
+    assert len(packed) == 28, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+XMP_TEMPLATE = """<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Lightamer golden fixture gen">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:darktable="http://darktable.sf.net/"
+    darktable:xmp_version="{xmp_version}"
+    darktable:raw_params="0"
+    darktable:auto_presets_applied="1"
+    darktable:history_end="1">
+   <darktable:iop_order_version>{iop_order_version}</darktable:iop_order_version>
+   <darktable:history>
+    <rdf:Seq>
+     <rdf:li rdf:parseType="Resource">
+      <darktable:num>0</darktable:num>
+      <darktable:module>3</darktable:module>
+      <darktable:operation>{operation}</darktable:operation>
+      <darktable:enabled>1</darktable:enabled>
+      <darktable:modversion>{modversion}</darktable:modversion>
+      <darktable:params>{params}</darktable:params>
+      <darktable:iop_order>{iop_order}</darktable:iop_order>
+      <darktable:multi_priority>0</darktable:multi_priority>
+      <darktable:multi_name></darktable:multi_name>
+     </rdf:li>
+    </rdf:Seq>
+   </darktable:history>
+   <darktable:history_enabled>
+    <rdf:Seq><rdf:li>1</rdf:li></rdf:Seq>
+   </darktable:history_enabled>
+   <darktable:history_modversion>
+    <rdf:Seq><rdf:li>{modversion}</rdf:li></rdf:Seq>
+   </darktable:history_modversion>
+   <darktable:history_operation>
+    <rdf:Seq><rdf:li>{operation}</rdf:li></rdf:Seq>
+   </darktable:history_operation>
+   <darktable:history_params>
+    <rdf:Seq><rdf:li>{params}</rdf:li></rdf:Seq>
+   </darktable:history_params>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>
+"""
+
+
+# The exposure 钉参组 (Plan 03-01-T2 action 3 / T6). Field mapping to the
+# Lightamer ExposureModule.Params lives in manifest.md (Risk #5).
+EXPOSURE_CASES = [
+    # (case name, exposure EV, black, compensate_exposure_bias)
+    ("exposure_plus1ev", 1.0, 0.0, 0),
+    ("exposure_minus2ev", -2.0, 0.0, 0),
+    ("exposure_black01", 0.0, 0.1, 0),
+    ("exposure_combo", 0.5, -0.02, 1),  # compensate 组合: bias bit set, EXIF bias = 0 on EXR
+]
+
+
+def gen_cases(outdir: str) -> None:
+    os.makedirs(outdir, exist_ok=True)
+    for name, ev, black, comp in EXPOSURE_CASES:
+        params = exposure_params_blob(exposure=ev, black=black, compensate_exposure_bias=comp)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="exposure",
+            modversion=EXPOSURE_MODVERSION,
+            params=params,
+            iop_order=f"{EXPOSURE_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, name + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+# ──────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    mode = sys.argv[1] if len(sys.argv) > 1 else "all"
+    outdir = sys.argv[2] if len(sys.argv) > 2 else os.path.dirname(os.path.abspath(__file__))
+    os.makedirs(outdir, exist_ok=True)
+
+    if mode in ("raw", "all"):
+        for gen in (gen_ramp, gen_flats, gen_saturated, gen_deep_shadow,
+                    gen_gray_staircase, gen_stair_1d):
+            gen(outdir)
+    if mode in ("cases", "all"):
+        # Cases default to <golden>/cases — one level up from the fixtures
+        # dir when the caller uses the default outdir.
+        if mode == "cases" and len(sys.argv) <= 2:
+            cases_dir = os.path.join(os.path.dirname(outdir), "cases")
+        else:
+            cases_dir = os.path.join(outdir, "cases")
+        gen_cases(cases_dir)
+
+    print(f"gen_fixtures[{mode}] → {outdir}")
+
+
+if __name__ == "__main__":
+    main()

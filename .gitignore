@@ -10,4 +10,18 @@ Tuist/Cache/
 
 # Local build products (xcodebuild incremental) — never commit.
 build/
-input/
+
+# input/ is regenerable sample material, EXCEPT the golden-reference
+# infrastructure (Plan 03-01): regenerate.sh + the fixture generator +
+# the pinned XMP cases + the manifest are committed; the fixtures
+# themselves, golden outputs, and the transient .conf dir regenerate via
+# `bash input/golden/regenerate.sh`.
+input/*
+!input/golden/
+input/golden/*
+!input/golden/regenerate.sh
+!input/golden/manifest.md
+!input/golden/fixtures/
+input/golden/fixtures/*
+!input/golden/fixtures/gen_fixtures.py
+!input/golden/cases/
