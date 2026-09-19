@@ -77,7 +77,7 @@
   - RAW-03：32f TIFF/EXR fixtures（极值 65504.0 pinned）+ `RAW03Tests` 7 全绿；宿主决策：CGImage 路 float-faithful、fallback 不采纳（记录于 `decodeRaster`），6a72691
   - 单测 **133 全绿**（3 skip 合规）；grep 守卫：`.xmp` 零读写路径；VALIDATION 签核（SC#1..5 证据 + 需求追溯 7/7）+ 真机 round-trip `.work/02-06/roundtrip.md`；SUMMARY 见 `02-06-SUMMARY.md`
 
-## Phase 3: Tone & Filmic iops — 执行中（4/6 plans）
+## Phase 3: Tone & Filmic iops — 执行中（5/6 plans）
 
 - [x] **Plan 03-01**（Wave 0 基建 + exposure tracer）完成（2026-09-19）：
   - T1 darktable-cli 从 dc58cf0ba1 重建（5.5.0+1862~gdc58cf0ba1-dirty；构建修复：CLT SDK `-isystem` 与 Xcode 27 clang 的 libc++ `<cstddef>` 冲突 → 缓存 SDK 路径改指 Xcode SDK + fresh configure + 显式 libomp + 内置 Lua），XMP 钉参链路实证采纳（+1EV XMP：ramp 0.25 列 → 0.5 exact；直通 bit-exact）——预构建版丢历史缺陷消失，GUI 模板回退方案无需启用（6c7bc7e）
@@ -108,6 +108,15 @@
   - T5 两面板（Sigmoid 四滑块+Picker+dt 预设 / Shadhi +algo Picker bilateral 禁用+Phase 5 注记）+ `PanelWiringTests` +2 + Registry 注册；golden cases shadhi 4 + sigmoid 5 + manifest/regenerate 落账
   - 附带：GoldenColor D-COL1 链范围收窄为终端三件套（shadhi 默认阴影 +50 按设计生效，iop 级中性由独立门把守）；`GaussianBlur.coeffs` Double 推导（expf ulp 在大 σ 放大破 parity 门）
   - 单测 **220 全绿**（3 skip 合规，连续两次全量稳定）；SUMMARY 见 `03-04-SUMMARY.md`；下一批 = 03-05（toneequal）/ 03-06（filmicrgb，引用 sigmoid 基线）
+- [x] **Plan 03-05**（toneequal：CorrectionLUT + EIGF/guided kernel 群 + TilingPlan FULL 首战）完成（2026-09-19）：
+  - T1 `CorrectionLUT`（ToneEqual/）：9 带 → 9×8 RBF 最小二乘（**float32 逐式复刻 choleski.h**——dt 权重出自 float 运算，Double 推导在条件数下漂 ~3e-4）→ **80001 点 LUT**（plan 勘误：非 10001）clamp [0.25,4]；UI 曲线与 kernel LUT 同源（uiCurveSamples/channelGainsEV）
+  - T2 `toneeq_luma_estimate`：**7 估计器**（plan 勘误「9」= bands 数）+ linear_contrast；method 走 uniform 分支（PSO LRU 预算决策落 DECISIONS）
+  - T3 EIGF/guided kernel 群（bilinear/quantize/pack4/box_mean_x/y/guided_ab/blend）：**plan 勘误——EIGF 的模糊是 Gaussian 非 box**（`guided_filter.cl` 是彩色 guidedfilter 的 kernel；toneequal 真实路径 = eigf.h），复用 03-04 GaussianBlur；常量 bounds 与 dt 数据 min/max clamp 点位等价（论证落 `03-05-DECISIONS.md`）
+  - T4 `toneeq_apply`（**4 通道全乘** dt quirk 保 parity）+ 三段组装（NONE 直通 / EIGF 全分辨率逐迭代 / guided ds 平面迭代）+ `PixelPipe.run` stamp `piece.dscIn`（dt piece->iwidth 同构）；v50=24.0 注册
+  - T5 golden 两档（none <1e-5 双闸 / EIGF <1e-4 + ΔE76 p99<1.0）：float64 参考 + **float32 复刻 choleski**（与 Swift 权重一致 ~1e-7）；5 case × 6 fixture；v2 blob 72B 采纳实证（params v. 2 ok + DB hex）；**中间探针抓参考端 contrast 双重 exp2**（仅 ramp EIGF 档失败的定位法 = Python 逐像素复算参考链）
+  - T6 TilingPlan FULL 首战：`IOPModule.tileHalo/tileWorkingSetBytesPerPixel` seam（默认 0 零破坏）+ `PixelPipe.executeTiled`（上游一次渲染 → TilingPlan 网格 → halo 外扩 readRect 整幅语义执行 → blit 裁回）；toneequal halo = **4r+65**（IIR 跑道 exp(−1.695d/σ) 推导，决策文件）；强制分块 vs 整幅 <1e-5 + 100MP FULL Δfootprint <3GB 双门绿
+  - T7 `ToneEqualPanelView`（同源曲线 Canvas + 9 带滑块 + 全参数控件 + zh/en catalog）+ 面板注册 + seed 实例；**PERF-5 预验数据记录**：Debug 构建 PREVIEW 全链（10 模块）warm median 63.4ms > 16.6ms 预算——按 plan「超限先记录后优化」注记，正式门 03-06-T7（杠杆：Release/PSO 预热/dispatch 批合并）
+  - 单测 **244 全绿**（3 skip 合规，连续两次全量稳定）；SUMMARY 见 `03-05-SUMMARY.md`；下一批 = 03-06（filmicrgb + agx + PERF-5 正式签收）
 
 ## pending-manual（累计，解锁后重跑）
 
