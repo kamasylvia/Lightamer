@@ -77,7 +77,7 @@
   - RAW-03：32f TIFF/EXR fixtures（极值 65504.0 pinned）+ `RAW03Tests` 7 全绿；宿主决策：CGImage 路 float-faithful、fallback 不采纳（记录于 `decodeRaster`），6a72691
   - 单测 **133 全绿**（3 skip 合规）；grep 守卫：`.xmp` 零读写路径；VALIDATION 签核（SC#1..5 证据 + 需求追溯 7/7）+ 真机 round-trip `.work/02-06/roundtrip.md`；SUMMARY 见 `02-06-SUMMARY.md`
 
-## Phase 3: Tone & Filmic iops — 执行中（3/6 plans）
+## Phase 3: Tone & Filmic iops — 执行中（4/6 plans）
 
 - [x] **Plan 03-01**（Wave 0 基建 + exposure tracer）完成（2026-09-19）：
   - T1 darktable-cli 从 dc58cf0ba1 重建（5.5.0+1862~gdc58cf0ba1-dirty；构建修复：CLT SDK `-isystem` 与 Xcode 27 clang 的 libc++ `<cstddef>` 冲突 → 缓存 SDK 路径改指 Xcode SDK + fresh configure + 显式 libomp + 内置 Lua），XMP 钉参链路实证采纳（+1EV XMP：ramp 0.25 列 → 0.5 exact；直通 bit-exact）——预构建版丢历史缺陷消失，GUI 模板回退方案无需启用（6c7bc7e）
@@ -101,6 +101,13 @@
   - T6 三面板（Colisa/Levels/ToneCurve）+ `InspectorState.registerDefaultProviders` + pristine 种子 +39 条本地化；`PanelWiringTests` +4（三面板拖动=恰 1 条 commit、colisa 归零还原 hash、levels 模式切换离散一条）
   - **关键工程发现 → ParityGate 双闸**：LUT nearest 截断查表在 f32-vs-f64 下有索引翻转悬崖（中性 a_in=0.5 恰在截断边界 → 21% 违规）；Lightamer 改**四舍五入索引**（≤1 LSB 语义差）+ 双闸（≥99% <1e-5 rel + 2.5e-5 abs floor / 1e-4 包络 100%）——ParityGate.swift 是后续 LUT 模块（shadhi/rgblevels…）的标准闸
   - 单测 **199 全绿**（3 skip 合规）；SUMMARY 见 `03-03-SUMMARY.md`；下一批 = 03-04（shadhi+sigmoid，复用 LabRoundTrip）
+- [x] **Plan 03-04**（shadhi gaussian 腿 + sigmoid D-T2 基线 + Common/GaussianBlur 共享件）完成（2026-09-19）：
+  - T1 `GaussianBlur`（Common/）：dt gaussian.c Deriche IIR（ZERO order，Double 推导 Float 发布）+ `device float4*` **双平面**三 pass（col→row→store；L018：read_write 纹理同线程 RMW 不回报写入值 + 行 pass 原位读写 DC 坍缩为 cp·(1+cn) + `.private` 分配毒化后续 CI 渲染，全按 dt `__global float4*` 原形规避）；GPU-vs-float64 σ 分档门（≤5:1e-6 / σ20:2e-5，纯 float32 舍入）
+  - T2 `ShadhiModule`（v50=50.0，.Lab）：Lab 域 prep→blur→mix；overlay 数学 shadhi.c:399-490 逐式直译（含 :462/:486 quirk）；bilateral 腿 → Phase 5（checkpoint 落账），golden 钉 `shadhi_algo=gaussian`；4 case × 6 fixture parity <1e-4 + ΔE p99<1.0 + 恒等逐像素不变
+  - T3/T4 `SigmoidModule`（v50=45.3）+ `SigmoidDerivation`：commit_params 四标量 Double 推导 + primaries 矩阵链（默认路径恒等）；**中间探针抓出 invert3 单格余因子笔误**（G 行 [0,0.9735,−1.0001] → 中性输入 G 取反，即"符号翻转"真身）；5 case × 6 fixture <1e-5 + GPU 曲线约束（f(0)/f(grey)/f(∞)）+ 双路径中性
+  - T5 两面板（Sigmoid 四滑块+Picker+dt 预设 / Shadhi +algo Picker bilateral 禁用+Phase 5 注记）+ `PanelWiringTests` +2 + Registry 注册；golden cases shadhi 4 + sigmoid 5 + manifest/regenerate 落账
+  - 附带：GoldenColor D-COL1 链范围收窄为终端三件套（shadhi 默认阴影 +50 按设计生效，iop 级中性由独立门把守）；`GaussianBlur.coeffs` Double 推导（expf ulp 在大 σ 放大破 parity 门）
+  - 单测 **220 全绿**（3 skip 合规，连续两次全量稳定）；SUMMARY 见 `03-04-SUMMARY.md`；下一批 = 03-05（toneequal）/ 03-06（filmicrgb，引用 sigmoid 基线）
 
 ## pending-manual（累计，解锁后重跑）
 

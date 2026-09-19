@@ -145,6 +145,16 @@
 - **适用**：Phase 3+ 所有 dt-cli golden 生成；任何"依赖外部工具导出数值参考"的验证链。
 - **来源**：Plan 03-02-T2 排障（2026-09-19），证据链：dt 管线 stats vs 落盘字节对照、库 DB op_params hex、PFM/EXR/TIFF 三 writer 交叉、no-OMP 构建 hang；manifest "dt-cli host finding" 节。
 
+### L018: read_write 纹理同线程 RMW 不回报写入值；.private buffer 分配毒化后续 CI 渲染（macOS 27 beta）
+- **背景**：Plan 03-04-T1 GaussianBlur（Deriche IIR，需 backward pass 累加 forward 结果）与 T2 shadhi 接线排障（2026-09-19）。两个独立缺陷，均为探针逐层二分定位。
+- **缺陷 1（read_write 纹理 RMW）**：`texture2d<float, access::read_write>` 在**同一 kernel、同一线程**内先 `write` 后 `read`，`read` 返回 0（M4 / macOS 27 beta 实测；MSL 语义上应可见）。症状：IIR backward 累加消失，输出 = 纯 backward 分量（平场 DC 增益 = coefn 而非 1）。dt 的 OpenCL 正因如此用 `__global float4 *` buffer（`gaussian.cl` `out[loc] += ...`）而非 image2d。
+- **对策 1**：按 dt 原形移植——中间结果走 `device float4*` **buffer 平面**（device 内存同线程 store→load 程序序有保证），col pass 写平面、row pass 读平面 0 写平面 1（**双缓冲**）、`gaussian_store` 收尾拷回纹理。
+- **缺陷 2（行 pass 原位读写）**：row pass 若在**同一平面**上原位读写，backward 读到的"输入"是 forward 刚写入的**输出**，DC 增益坍缩为 `coefp·(1+coefn)`（σ=8 实测 0.77578，精确吻合）。dt 的水平 pass 本就是读一个 buffer 写另一个。
+- **缺陷 3（.private 分配毒化 CI 渲染）**：blur 测试中 `.storageModePrivate` plane（σ=20 IIR 写入模式）分配释放后，**同进程后续测试的 CIContext 渲染确定性丢失 viewed-下半帧**（内容上移、上半黑，色彩正确——GoldenColorTests D-COL1 误报）。`.storageModeShared` 分配同一测试内容即消除。判定为 macOS 27 beta 驱动/分配器围栏交互，非代码逻辑错误；UMA 上 shared 无带宽代价，统一用 shared。
+- **对策 2（测试法）**：跨测试状态污染的排查路径——①单跑受害测试（通过→污染）；②按字母序找前驱测试二分；③在嫌疑测试内部按参数二分（σ=0.1 干净 / σ=20 触发）；④换分配路径（private→shared）验证。全量套件绿 ≠ 单测试语义正确，反之亦然。
+- **适用**：Phase 3+ 所有 IIR/邻域 kernel；一切 read_write 纹理累积模式；CI 渲染与 GPU compute 混跑的测试与 App 路径。
+- **来源**：Plan 03-04-T1/T2 排障（2026-09-19），证据链：.work/03-04/probe-gauss*.log（fwd-only uniform 灭零法 + 底部脉冲分解）、bisect-s01/s20/shared 日志、neutral-dump.png（半帧可视化）。
+
 ---
 
 *本文件随开发进展持续更新。阶段完成后运行 `$gsd-extract-learnings` 自动提取。*
