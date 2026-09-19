@@ -478,6 +478,18 @@ def gen_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, name + ".xmp"), "w") as f:
             f.write(xmp)
+    for name, c, b, s in COLISA_CASES:
+        params = colisa_params_blob(c, b, s)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="colisa",
+            modversion=COLISA_MODVERSION,
+            params=params,
+            iop_order=f"{COLISA_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, name + ".xmp"), "w") as f:
+            f.write(xmp)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -577,6 +589,194 @@ def gen_temperature_refs(canonical_dir: str, out_dir: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Lab-domain reference math (Plan 03-03-T1/T2) — the float64 mirror of
+# LightamerIOP/Sources/Common/LabMath.h + LabRoundTrip.swift, used by the
+# `refs` mode to synthesize the colisa/tonecurve/levels golden references
+# (L017 protocol: dt-cli float export is spatially corrupt on this host,
+# so track-A references are SYNTHESIZED from the documented shared
+# semantic; dt's side is pinned by uniform-flat PFM probes + XMP
+# adoption).
+#
+# Index-quantization discipline: the Lightamer kernels look LUTs up with
+# dt's NEAREST truncation (`lut[int(x*0x10000)]`). The reference
+# quantizes every value that FEEDS AN INDEX to float32 (f32) — matching
+# the GPU's float32 pipeline grid — while keeping smooth quantities in
+# float64. This keeps residual disagreement at the int-truncation
+# boundaries below ~1e-5 probability per pixel (absorbed by the parity
+# tests' dual gate: ≥99.9% of samples < 1e-5 relative, ALL samples
+# within a 2e-4 LUT-LSB envelope).
+# ──────────────────────────────────────────────────────────────────────
+
+def f32(x):
+    """Round a Python float to the float32 grid (GPU/storage semantics)."""
+    return struct.unpack("<f", struct.pack("<f", x))[0]
+
+
+LAB_R2X = [[0.636958, 0.144617, 0.168881],
+           [0.262700, 0.678009, 0.059291],
+           [0.000000, 0.028073, 1.060806]]
+LAB_X2R = mat_inv(LAB_R2X)
+LAB_B = [[1.0478112, 0.0228866, -0.0501270],
+         [0.0295424, 0.9904844, -0.0170491],
+         [-0.0092345, 0.0150436, 0.7521316]]
+LAB_BINV = mat_inv(LAB_B)
+# Lab reference white = bradford × rec2020ToXYZ × (1,1,1) — neutrals map
+# to a==b==0 exactly (LabMath.h anchoring decision).
+LAB_WHITE = mat_vec(LAB_B, mat_vec(LAB_R2X, (1.0, 1.0, 1.0)))
+LAB_EPS = 216.0 / 24389.0
+LAB_KAPPA = 24389.0 / 27.0
+
+
+def _lab_f(t):
+    # dt shape: cbrt above ε, linear below (signed — negatives defined).
+    return t ** (1.0 / 3.0) if t > LAB_EPS else (LAB_KAPPA * t + 16.0) / 116.0
+
+
+def _lab_f_inv(x):
+    return x * x * x if x > 0.20689655172413796 else (116.0 * x - 16.0) / LAB_KAPPA
+
+
+def lab_from_rec2020(rgb):
+    x = mat_vec(LAB_B, mat_vec(LAB_R2X, rgb))
+    fx = _lab_f(x[0] / LAB_WHITE[0])
+    fy = _lab_f(x[1] / LAB_WHITE[1])
+    fz = _lab_f(x[2] / LAB_WHITE[2])
+    return (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
+
+
+def lab_to_rec2020(lab):
+    fy = (lab[0] + 16.0) / 116.0
+    fx = fy + lab[1] / 500.0
+    fz = fy - lab[2] / 200.0
+    xyz50 = (
+        LAB_WHITE[0] * _lab_f_inv(fx),
+        LAB_WHITE[1] * _lab_f_inv(fy),
+        LAB_WHITE[2] * _lab_f_inv(fz),
+    )
+    return mat_vec(LAB_X2R, mat_vec(LAB_BINV, xyz50))
+
+
+def dt_estimate_exp(xs, ys):
+    """dt_iop_estimate_exp (develop/imageop_math.h:98) — coeff (1/x0, y0, g)."""
+    x0, y0 = xs[-1], ys[-1]
+    g = 0.0
+    cnt = 0
+    for k in range(len(xs) - 1):
+        if ys[k] > 0 and xs[k] > 0:
+            g += math.log(ys[k] / y0) / math.log(xs[k] / x0)
+            cnt += 1
+    g = g / cnt if cnt else 1.0
+    return (1.0 / x0, y0, g)
+
+
+def dt_eval_exp(coeff, x):
+    """dt_iop_eval_exp: coeff[1] * pow(x*coeff[0], coeff[2])."""
+    return coeff[1] * (x * coeff[0]) ** coeff[2]
+
+
+def lut_index(x):
+    """dt NEAREST LUT index: uint(max(x,0) * 0x10000) clamped to 0xffff."""
+    if x <= 0.0:
+        return 0
+    return min(int(x * 0x10000), 0xFFFF)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Colisa (Plan 03-03-T2) — dt_iop_colisa_params_t v1 = <fff> (12 bytes)
+# ──────────────────────────────────────────────────────────────────────
+
+COLISA_PARAMS_FORMAT = "<fff"
+COLISA_MODVERSION = 1
+COLISA_IOP_ORDER = 47.0
+
+# dt colisa.c:179-235 semantics in float64 (LUT values stored float32 at
+# lookup time via f32(), matching the GPU buffer grid).
+def colisa_tables(contrast_p, brightness_p):
+    contrast = contrast_p + 1.0
+    brightness = brightness_p * 2.0
+    ctable = [0.0] * 0x10000
+    if contrast <= 1.0:
+        for k in range(0x10000):
+            ctable[k] = contrast * (100.0 * k / 0x10000 - 50.0) + 50.0
+    else:
+        boost = 20.0
+        m1sq = boost * (contrast - 1.0) * (contrast - 1.0)
+        scale = math.sqrt(1.0 + m1sq)
+        for k in range(0x10000):
+            kx = 2.0 * k / 0x10000 - 1.0
+            ctable[k] = 50.0 * (scale * kx / math.sqrt(1.0 + m1sq * kx * kx) + 1.0)
+    gamma = 1.0 / (1.0 + brightness) if brightness >= 0 else (1.0 - brightness)
+    ltable = [100.0 * (k / 0x10000) ** gamma for k in range(0x10000)]
+    xs = [0.7, 0.8, 0.9, 1.0]
+    cc = dt_estimate_exp(xs, [ctable[lut_index(x)] for x in xs])
+    lc = dt_estimate_exp(xs, [ltable[lut_index(x)] for x in xs])
+    return ctable, ltable, cc, lc
+
+
+def colisa_apply_pixel(rgb, ctable, ltable, sat, cc, lc):
+    lab = lab_from_rec2020(rgb)
+    # contrast on L (index input quantized to the float32 grid)
+    x = f32(f32(lab[0]) / 100.0)
+    if x < 1.0:
+        L = f32(ctable[lut_index(x)])
+    else:
+        L = dt_eval_exp(cc, x)
+    # brightness on the RESULT (colisa.c:170)
+    xn = f32(f32(L) / 100.0)
+    if xn < 1.0:
+        L2 = f32(ltable[lut_index(xn)])
+    else:
+        L2 = dt_eval_exp(lc, xn)
+    return lab_to_rec2020((L2, lab[1] * sat, lab[2] * sat))
+
+
+# The colisa 钉参组 (plan T2 action 4: contrast ±0.5 / brightness ±0.3 /
+# saturation ±0.5 in combos).
+COLISA_CASES = [
+    ("colisa_default", 0.0, 0.0, 0.0),
+    ("colisa_c05", 0.5, 0.0, 0.0),
+    ("colisa_cm05_b03", -0.5, 0.3, 0.0),
+    ("colisa_bm03_s05", 0.0, -0.3, 0.5),
+    ("colisa_combo", 0.5, -0.3, -0.5),
+]
+
+COLISA_REF_FIXTURES = [
+    "ramp_8ev", "gray_staircase", "flat_0ev", "flat_-4ev", "saturated",
+    "deep_shadow",
+]
+
+
+def colisa_params_blob(contrast, brightness, saturation) -> str:
+    """dt_iop_colisa_params_t v1 → lowercase HEX ASCII (12 bytes)."""
+    packed = struct.pack(COLISA_PARAMS_FORMAT, contrast, brightness, saturation)
+    assert len(packed) == 12, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_colisa_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the colisa golden REFERENCES — the float64 evaluation of
+    the documented shared semantic over the canonical fixture bytes both
+    sides consume (L017 route; see the Lab-domain section header)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, c, b, s in COLISA_CASES:
+        ctable, ltable, cc, lc = colisa_tables(c, b)
+        sat = s + 1.0
+        for fixture in COLISA_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, ctable=ctable, ltable=ltable, sat=sat,
+                   cc=cc, lc=lc, w=w):
+                idx = y * w + x
+                return colisa_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]),
+                    ctable, ltable, sat, cc, lc,
+                )
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
+
+
+# ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
@@ -600,6 +800,8 @@ def main() -> None:
         # <outdir>/<temperature case>__<fixture>.exr from the canonical
         # fixtures in the fixtures dir (pass the fixtures dir as outdir).
         gen_temperature_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 03-03-T2: colisa golden references (same L017 route).
+        gen_colisa_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 

@@ -28,6 +28,11 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: TemperatureModule.opName) { id in
             ModuleBox(module: TemperatureModule(), instanceID: id)
         }
+        // Plan 03-03-T2: colisa (contrast/brightness/saturation), Lab-domain,
+        // v50 slot 47.0 — first LabRoundTrip consumer.
+        await registry.register(opName: ColisaModule.opName) { id in
+            ModuleBox(module: ColisaModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -49,6 +54,7 @@ public enum LightamerIOPRegistry {
         [
             ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params()),
             ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params()),
+            ModuleInstance(module: ColisaModule.self, params: ColisaModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }

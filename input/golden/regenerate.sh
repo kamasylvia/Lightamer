@@ -25,14 +25,18 @@ RAW="$GOLDEN/.conf/raw"
 OUT="$GOLDEN/output"
 FIX="$GOLDEN/fixtures"
 PYTHON="${PYTHON:-python3}"
+COLISA_REF_FIXTURES="ramp_8ev gray_staircase flat_0ev flat_-4ev saturated deep_shadow"
 
 echo "== ① gen_fixtures =="
 rm -rf "$CONF"
 mkdir -p "$CONF" "$RAW" "$OUT"
 # Hermetic writer conf: float32 (bpp encodes pixel_type << 4 → 32 = FLOAT)
 # + no compression. Without these, dt defaults to PIZ-compressed half-prec
-# output and the manifest hashes stop being reproducible.
-printf 'plugins/imageio/format/exr/bpp=32\nplugins/imageio/format/exr/compression=0\n' \
+# output and the manifest hashes stop being reproducible. The work profile
+# is PINNED to linear Rec2020 (Plan 03-03: the Lab-domain modules convert
+# through the pipe's work RGB — the probe evidence assumes the Lightamer
+# working space).
+printf 'plugins/imageio/format/exr/bpp=32\nplugins/imageio/format/exr/compression=0\nplugins/darkroom/workicc=LIN_REC2020\n' \
     > "$CONF/darktablerc"
 "$PYTHON" "$FIX/gen_fixtures.py" raw "$RAW"
 "$PYTHON" "$FIX/gen_fixtures.py" cases "$GOLDEN"
@@ -73,7 +77,11 @@ echo "== ③b temperature dt-cli semantic probes (PFM) =="
 PROBE="$OUT/pfm_probe"
 rm -rf "$PROBE"
 mkdir -p "$PROBE"
-for xmp in "$GOLDEN"/cases/temperature_*.xmp; do
+# temperature (03-02) + colisa (03-03-T2): same probe route — the PFM
+# writer is exact on UNIFORM images, so the flats pin dt's per-pixel
+# semantic while the synthesized references carry the per-pixel track-A
+# role (host finding: spatially-varying float export is corrupt).
+for xmp in "$GOLDEN"/cases/temperature_*.xmp "$GOLDEN"/cases/colisa_*.xmp; do
     case_name="$(basename "$xmp" .xmp)"
     for f in $FIXTURES; do
         "$DT" "$FIX/$f.exr" "$xmp" "$PROBE/${case_name}__${f}" \
@@ -177,7 +185,25 @@ echo "== ④ manifest =="
         echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
     done
     echo
-    echo "### dt-cli PFM probes (temperature, uniform-flat verification)"
+    echo "### colisa cases (Plan 03-03-T2, synthesized references + PFM probes)"
+    echo
+    echo "| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |"
+    echo "|---|---|---|---|"
+    for xmp in "$GOLDEN"/cases/colisa_*.xmp; do
+        case_name="$(basename "$xmp" .xmp)"
+        blob="$(grep -o '<darktable:params>[^<]*</darktable:params>' "$xmp" | head -1 | sed -E 's|</?darktable:params>||g')"
+        blob_hash="$(printf '%s' "$blob" | shasum -a 256 | cut -d' ' -f1)"
+        outs=""
+        for f in $COLISA_REF_FIXTURES; do
+            o="$OUT/${case_name}__${f}.exr"
+            if [ -f "$o" ]; then
+                outs="$outs $f:$(shasum -a 256 "$o" | cut -d' ' -f1 | cut -c1-16)"
+            fi
+        done
+        echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
+    done
+    echo
+    echo "### dt-cli PFM probes (temperature + colisa, uniform-flat verification)"
     echo
     echo "| probe | sha256 |"
     echo "|---|---|"
@@ -187,6 +213,24 @@ echo "== ④ manifest =="
             echo "| $(basename "$p" .pfm) | \`$(shasum -a 256 "$p" | cut -d' ' -f1 | cut -c1-16)\` |"
         done
     fi
+    echo
+    echo "## dt-cli ↔ Lightamer colisa field mapping (Plan 03-03-T2)"
+    echo
+    echo "dt blob \`<fff\` (little-endian pack of dt_iop_colisa_params_t v1,"
+    echo "hex-ASCII in XMP) ↔ Lightamer \`ColisaModule.Params\` (JSON):"
+    echo
+    echo "| dt field (offset) | Lightamer field | note |"
+    echo "|---|---|---|"
+    echo "| contrast (0, f) | \`contrast\` | both ∈ [-1,1]; commit rescale +1 → [0,2] |"
+    echo "| brightness (4, f) | \`brightness\` | commit rescale ×2 → [-2,2]; gamma = 1/(1+b) if b≥0 else 1−b (colisa.c:220 — the plan text's 10^(−b) form does not exist in the source tree; recorded deviation) |"
+    echo "| saturation (8, f) | \`saturation\` | commit rescale +1 → [0,2] (0 = unchanged, NOT b&w) |"
+    echo
+    echo "Pixel math (both sides): Rec2020→Lab (project LabRoundTrip constants;"
+    echo "dt: pixelpipe work-profile conversion), L = ctable[L/100] →"
+    echo "ltable[L/100] (NEAREST truncation lookups, power-law extrapolation"
+    echo "above 1.0), a,b × (saturation+1), Lab→Rec2020. Track-A references"
+    echo "are SYNTHESIZED (L017 route); dt pinned via the PFM probes above on"
+    echo "the uniform flats + XMP op_params adoption."
     echo
     echo "## Canonical fixture sha256 (roundtrip outputs)"
     echo
