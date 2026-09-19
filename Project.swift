@@ -142,6 +142,7 @@ let project = Project(
             dependencies: [
                 .target(name: "LightamerCore"),
                 .target(name: "LightamerIOP"),
+                .target(name: "Lightamer"), // Plan 03-02: D-T6 panel wiring tests drive the APP-side state (InspectorState/PipeCoordinator) via @testable
             ]
         ),
 

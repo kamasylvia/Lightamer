@@ -302,13 +302,26 @@ def gen_stair_1d(outdir: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# XMP pinned-parameter cases (exposure 钉参组)
+# XMP pinned-parameter cases (exposure 钉参组 + temperature 钉参组)
 # ──────────────────────────────────────────────────────────────────────
 
 EXPOSURE_PARAMS_FORMAT = "<iffffii"  # dt_iop_exposure_params_t v7, 28 bytes
 EXPOSURE_MODVERSION = 7
 EXPOSURE_IOP_ORDER = 21.0  # v50 slot; entry iop_order for the XMP
 XMP_VERSION = 5
+
+# dt_iop_temperature_params_t v4, 20 bytes: red/green/blue/various (f) +
+# preset (int). `various` is the CYGM 4th channel — Lightamer does not port
+# it (RGB pipe), golden blobs pin 1.0 so the alpha/CYGM semantics are inert.
+TEMPERATURE_PARAMS_FORMAT = "<ffffi"
+TEMPERATURE_MODVERSION = 4
+TEMPERATURE_IOP_ORDER = 3.0  # v50 slot
+
+# dt DT_IOP_TEMP_* raw values (temperature.c:56-62)
+DT_IOP_TEMP_AS_SHOT = 0
+DT_IOP_TEMP_SPOT = 1
+DT_IOP_TEMP_USER = 2
+DT_IOP_TEMP_D65 = 3
 
 
 def exposure_params_blob(
@@ -342,6 +355,34 @@ def exposure_params_blob(
         compensate_hilite_pres,
     )
     assert len(packed) == 28, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def temperature_params_blob(
+    red: float,
+    green: float,
+    blue: float,
+    preset: int = DT_IOP_TEMP_USER,
+    various: float = 1.0,
+) -> str:
+    """dt_iop_temperature_params_t v4 → lowercase HEX ASCII (20 bytes).
+
+    Plan 03-02-T2: the Kelvin→gain MODEL diverges between dt (sensor-domain
+    XYZ_to_CAM) and Lightamer (Rec2020-native, post-CIRAW correction layer —
+    RESEARCH §5), so the golden cases pin the THREE CHANNEL GAINS directly:
+    the per-pixel `rgb × coeffs` apply is both sides' shared, fully
+    determined semantic (whitebalance_4f). The Kelvin conversion itself is
+    locked by CPUDerivationTests against the C reference harness instead.
+    """
+    packed = struct.pack(
+        TEMPERATURE_PARAMS_FORMAT,
+        red,
+        green,
+        blue,
+        various,
+        preset,
+    )
+    assert len(packed) == 20, len(packed)
     return binascii.hexlify(packed).decode("ascii")
 
 
@@ -399,6 +440,17 @@ EXPOSURE_CASES = [
     ("exposure_combo", 0.5, -0.02, 1),  # compensate 组合: bias bit set, EXIF bias = 0 on EXR
 ]
 
+# The temperature 钉参组 (Plan 03-02-T2 action 4): three-channel GAINS pinned
+# directly (RESEARCH §5 — bypasses the Kelvin model domain divergence). The
+# identity case doubles as an XMP-attach probe for the v4 blob layout.
+TEMPERATURE_CASES = [
+    # (case name, red, green, blue, preset)
+    ("temperature_default", 1.0, 1.0, 1.0, DT_IOP_TEMP_AS_SHOT),
+    ("temperature_r120_b080", 1.2, 1.0, 0.8, DT_IOP_TEMP_USER),
+    ("temperature_r070_b140", 0.7, 1.0, 1.4, DT_IOP_TEMP_USER),
+    ("temperature_spot_warm", 1.35, 1.0, 0.77, DT_IOP_TEMP_SPOT),
+]
+
 
 def gen_cases(outdir: str) -> None:
     os.makedirs(outdir, exist_ok=True)
@@ -414,6 +466,114 @@ def gen_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, name + ".xmp"), "w") as f:
             f.write(xmp)
+    for name, red, green, blue, preset in TEMPERATURE_CASES:
+        params = temperature_params_blob(red=red, green=green, blue=blue, preset=preset)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="temperature",
+            modversion=TEMPERATURE_MODVERSION,
+            params=params,
+            iop_order=f"{TEMPERATURE_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, name + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Minimal EXR reader — the canonical fixtures are dt-roundtripped
+# uncompressed float32 scanline files (regenerate.sh pins the writer conf).
+# Used by `gen_temperature_refs` to synthesize the temperature golden
+# references from the EXACT canonical fixture values.
+# ──────────────────────────────────────────────────────────────────────
+
+def read_exr_rgb(path):
+    """Read an uncompressed float32 scanline RGB(A) EXR → (w, h, rgb list)."""
+    data = open(path, "rb").read()
+    if struct.unpack("<I", data[:4])[0] != EXR_MAGIC:
+        raise ValueError(f"{path}: not an EXR")
+    if struct.unpack("<I", data[4:8])[0] & 0xFF != 2:
+        raise ValueError(f"{path}: not scanline")
+    pos = 8
+    channels = []  # chlist order
+    compression = None
+    dw = None
+    while data[pos] != 0:
+        e = data.index(b"\0", pos); name = data[pos:e].decode(); pos = e + 1
+        e = data.index(b"\0", pos); typ = data[pos:e].decode(); pos = e + 1
+        size = struct.unpack("<i", data[pos:pos + 4])[0]; pos += 4
+        val = data[pos:pos + size]; pos += size
+        if (name, typ) == ("channels", "chlist"):
+            p = 0
+            while val[p] != 0:
+                e2 = val.index(b"\0", p); n = val[p:e2].decode(); p = e2 + 1
+                pt = struct.unpack("<i", val[p:p + 4])[0]; p += 4 + 1 + 3 + 8
+                channels.append((n, pt))
+        elif (name, typ) == ("compression", "compression"):
+            compression = val[0]
+        elif (name, typ) == ("dataWindow", "box2i"):
+            dw = struct.unpack("<4i", val)
+    if compression != 0:
+        raise ValueError(f"{path}: compression={compression} — regenerate with the pinned conf")
+    pos += 1
+    w = dw[2] - dw[0] + 1
+    h = dw[3] - dw[1] + 1
+    offsets = [struct.unpack("<Q", data[pos + i * 8:pos + i * 8 + 8])[0] for i in range(h)]
+    planes = {n: [] for n, _ in channels}
+    for off in offsets:
+        sz = struct.unpack("<i", data[off + 4:off + 8])[0]
+        row = data[off + 8:off + 8 + sz]
+        nch = len(channels)
+        for ci, (n, _) in enumerate(channels):
+            vals = [
+                struct.unpack("<f", row[(x * nch + ci) * 4:(x * nch + ci) * 4 + 4])[0]
+                for x in range(w)
+            ]
+            planes[n].extend(vals)
+    return w, h, [planes["R"], planes["G"], planes["B"]]
+
+
+# Fixtures the temperature references cover (gray 系 — RESEARCH §5 track A
+# scope; color-sensitive fixtures belong to the filmic/gamut plan 03-06).
+TEMPERATURE_REF_FIXTURES = [
+    "ramp_8ev", "flat_0ev", "flat_-4ev", "flat_-8ev", "gray_staircase",
+]
+
+
+def gen_temperature_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the temperature golden REFERENCES: canonical fixture ×
+    pinned gains, float64 math, written with this script's proven EXR
+    writer.
+
+    WHY SYNTHESIZED (Plan 03-02 host finding): darktable-cli in this build
+    environment (macOS 27 / Apple clang / libomp / M4) emits spatially
+    corrupted pixel data for SPATIALLY-VARYING images through its float
+    export writers (EXR: channel-plane mislayout; PFM/TIFF: horizontal
+    smear), while uniform images export exactly. The temperature SEMANTIC
+    (out.rgb = in.rgb × gains, `whitebalance_4f`) is a per-channel multiply
+    with no algorithmic freedom; dt's adoption of the pinned params is
+    verified via the library DB (`op_params` hex) + `--core -d params`, and
+    dt's per-pixel semantic is probed on the UNIFORM fixtures where its
+    export is trustworthy (regenerate.sh step ③b, PFM probes). The
+    synthesized reference is the exact float64 evaluation of the shared
+    semantic over the same canonical fixture bytes both sides consume.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, red, green, blue, _preset in TEMPERATURE_CASES:
+        for fixture in TEMPERATURE_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            gains = (red, green, blue)
+
+            def px(x, y, rgb=rgb, gains=gains, w=w):
+                idx = y * w + x
+                return (
+                    rgb[0][idx] * gains[0],
+                    rgb[1][idx] * gains[1],
+                    rgb[2][idx] * gains[2],
+                )
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -435,6 +595,11 @@ def main() -> None:
         else:
             cases_dir = os.path.join(outdir, "cases")
         gen_cases(cases_dir)
+    if mode == "refs":
+        # Plan 03-02: temperature golden references — synthesizes
+        # <outdir>/<temperature case>__<fixture>.exr from the canonical
+        # fixtures in the fixtures dir (pass the fixtures dir as outdir).
+        gen_temperature_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 

@@ -82,7 +82,8 @@ final class GoldenParityTests: XCTestCase {
     /// 1e-5 relative gate. A PIZ (or otherwise compressed) file fails the
     /// parse — that means the golden tree was generated without the pinned
     /// conf; the error tells the reader to re-run regenerate.sh.
-    private struct UncompressedEXR {
+    /// (internal, not private: TemperatureParityTests reuses it — Plan 03-02.)
+    struct UncompressedEXR {
         var width: Int
         var height: Int
         /// RGB, row-major, channel-last (converted from the file's chlist).

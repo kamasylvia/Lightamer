@@ -1,6 +1,6 @@
 @testable import LightamerCore
 import Foundation
-import LightamerIOP
+@testable import LightamerIOP
 import XCTest
 
 // CPUDerivationTests (Plan 03-01-T4) — the CPU-side derivation harness:
@@ -130,12 +130,159 @@ final class CPUDerivationTests: XCTestCase {
         XCTAssertEqual(pieceA.paramsHash, StableHash.hash(ParamsCoding.encode(params)))
     }
 
-    // MARK: - WB K→gain (plan 03-02, RESEARCH §1.2/§5) — placeholder
+    // MARK: - WB K→gain (plan 03-02-T1, RESEARCH §1.2/§5)
 
-    // func testWBTemperatureToGainVectors() { ... }
-    // Reference: dt temperature.c:287-473 SPD→XYZ→CAM; Lightamer variant
-    // converts via Bradford to Rec2020 (RESEARCH §5). Known vectors from
-    // the D65 anchor (gains ≡ 1) and the 1901K/25000K domain ends.
+    // Reference values computed by `.work/03-02/wb_reference.c` — a harness
+    // that #includes darktable's OWN `src/external/cie_colorimetric_tables.c`
+    // + verbatim copies of temperature.c:287-401's four helpers, linked
+    // against the same lcms2 dt uses. The Swift side (WhiteBalanceMath) is
+    // an independent transliteration; agreement <1e-4 (table quantization).
+    private let wbXYZReferenceVectors: [(kelvin: Double, xyz: SIMD3<Double>)] = [
+        // blackbody branch (< 4000K)
+        (3200, SIMD3(1.0, 0.942360437068977, 0.419677826284935)),
+        // daylight branch (≥ 4000K)
+        (5000, SIMD3(0.964245565128246, 1.0, 0.824679094091967)),
+        (6500, SIMD3(0.873271505962583, 0.918810224834716, 1.0)),
+    ]
+
+    /// K→XYZ cross-check vs the dt reference (RESEARCH §5: "XYZ 之前两侧
+    /// 同源") at the plan's three temperatures, <1e-4.
+    func testWBTemperatureToXYZMatchesDarktable() {
+        for v in wbXYZReferenceVectors {
+            let xyz = WhiteBalanceMath.temperatureToXYZ(v.kelvin)
+            XCTAssertLessThan(
+                abs(xyz.x - v.xyz.x), 1e-4, "K=\(v.kelvin) X"
+            )
+            XCTAssertLessThan(
+                abs(xyz.y - v.xyz.y), 1e-4, "K=\(v.kelvin) Y"
+            )
+            XCTAssertLessThan(
+                abs(xyz.z - v.xyz.z), 1e-4, "K=\(v.kelvin) Z"
+            )
+        }
+    }
+
+    /// The max-normalization is part of the dt-shared semantics
+    /// (`_spectrum_to_XYZ`, temperature.c:376-381).
+    func testWBTemperatureToXYZMaxNormalized() {
+        for kelvin in [1901.0, 3200.0, 5000.0, 6504.0, 25000.0] {
+            let xyz = WhiteBalanceMath.temperatureToXYZ(kelvin)
+            XCTAssertEqual(
+                max(xyz.x, max(xyz.y, xyz.z)), 1.0, accuracy: 1e-12,
+                "K=\(kelvin): max component normalized to 1"
+            )
+        }
+    }
+
+    /// The D65 anchor: `gains(6504K, tint=1) ≡ (1,1,1)` — W and T go through
+    /// the IDENTICAL conversion path, so the identity is exact; the anchor
+    /// chromaticity matches Rec2020's white to ~1e-5 (harness-verified), so
+    /// even 6500K sits within 1e-3 of the identity.
+    func testWBD65AnchorIdentity() {
+        let anchor = WhiteBalanceMath.kelvinTintToGains(
+            kelvin: WhiteBalanceMath.d65Kelvin, tint: 1.0
+        )
+        XCTAssertEqual(anchor.x, 1.0, accuracy: 1e-12)
+        XCTAssertEqual(anchor.y, 1.0, accuracy: 1e-12)
+        XCTAssertEqual(anchor.z, 1.0, accuracy: 1e-12)
+
+        let nearD65 = WhiteBalanceMath.kelvinTintToGains(kelvin: 6500, tint: 1.0)
+        XCTAssertLessThan(abs(nearD65.x - 1.0), 1e-3, "6500K red ≈ 1")
+        XCTAssertLessThan(abs(nearD65.y - 1.0), 1e-3, "6500K green ≈ 1")
+        XCTAssertLessThan(abs(nearD65.z - 1.0), 1e-3, "6500K blue ≈ 1")
+    }
+
+    /// Direction assertions (plan T1 acceptance ②): raising K lowers the
+    /// blue gain and raises the red gain (cooler light ⇒ redder gains); the
+    /// tint Y-hack raises the green gain (dt semantics preserved).
+    func testWBGainsDirection() {
+        var previous = WhiteBalanceMath.kelvinTintToGains(kelvin: 1901, tint: 1.0)
+        for kelvin in stride(from: 2500.0, through: 25000.0, by: 500.0) {
+            let gains = WhiteBalanceMath.kelvinTintToGains(kelvin: kelvin, tint: 1.0)
+            XCTAssertLessThanOrEqual(
+                gains.z, previous.z + 1e-12,
+                "K=\(kelvin): blue gain must not rise with K"
+            )
+            XCTAssertGreaterThanOrEqual(
+                gains.x, previous.x - 1e-12,
+                "K=\(kelvin): red gain must not fall with K"
+            )
+            XCTAssertGreaterThan(gains.x, 0)
+            XCTAssertGreaterThan(gains.y, 0)
+            XCTAssertGreaterThan(gains.z, 0)
+            previous = gains
+        }
+        let tintUp = WhiteBalanceMath.kelvinTintToGains(kelvin: 5000, tint: 1.4)
+        let tint1 = WhiteBalanceMath.kelvinTintToGains(kelvin: 5000, tint: 1.0)
+        XCTAssertGreaterThan(tintUp.y, tint1.y, "tint > 1 raises the green gain (dt Y-hack)")
+        XCTAssertLessThan(tintUp.y, 8.0, "tint gain stays in the [0,8] domain")
+    }
+
+    /// K↔gains round trip <1e-3 K (plan T2 acceptance; the bisection runs
+    /// at 1e-4K — divergence #5). Tint round trip is algebraically exact
+    /// (same path both directions) — pinned at 1e-9.
+    func testWBKelvinGainsRoundTrip() {
+        // NOTE: the 4000K blackbody/daylight branch point is EXCLUDED —
+        // dt's bisection (which this inverts) converges across the tiny
+        // locus gap there (a ~100K jump), by design of the shared algorithm
+        // shape; within-branch round trips close to the bisection epsilon.
+        var kelvins: [Double] = [1901, 2000, 2500, 3200, 3900, 4100, 5000, 6504, 10000, 18000, 25000]
+        kelvins.append(contentsOf: stride(from: 2100.0, through: 24000.0, by: 1733.0))
+        for kelvin in kelvins {
+            for tint in [1.0, 0.8, 1.25] {
+                let gains = WhiteBalanceMath.kelvinTintToGains(kelvin: kelvin, tint: tint)
+                let roundTrip = WhiteBalanceMath.gainsToKelvinTint(gains: gains)
+                XCTAssertEqual(
+                    roundTrip.kelvin, kelvin, accuracy: 1e-3,
+                    "K=\(kelvin) tint=\(tint): kelvin round trip"
+                )
+                XCTAssertEqual(
+                    roundTrip.tint, tint, accuracy: 1e-6,
+                    "K=\(kelvin) tint=\(tint): tint round trip"
+                )
+            }
+        }
+    }
+
+    /// The eyedropper math (dt temperature.c:1933-1955 verbatim):
+    /// `gains = clamp(1/picked, 0, 8)` green-normalized. A neutral pick is
+    /// the (1,1,1) identity; a biased pick maps the bias channel up; the
+    /// dt degenerate-channel and clamp behaviors are pinned.
+    func testWBEyedropperNeutralSolve() {
+        // Neutral pick → identity gains (the plan's 中性灰 criterion).
+        let neutral = WhiteBalanceMath.gainsFromPicked(SIMD3(0.5, 0.5, 0.5))
+        XCTAssertEqual(neutral.x, 1.0, accuracy: 1e-6)
+        XCTAssertEqual(neutral.y, 1.0, accuracy: 1e-6)
+        XCTAssertEqual(neutral.z, 1.0, accuracy: 1e-6)
+
+        // Blue-biased pick (the T6 blue-cast flat scenario at 0.25 green):
+        // 1/picked green-normalized ⇒ blue gain < 1, red gain > 1.
+        let blueCast = WhiteBalanceMath.gainsFromPicked(SIMD3(0.2, 0.25, 0.3))
+        XCTAssertEqual(blueCast.y, 1.0, accuracy: 1e-6)
+        XCTAssertEqual(blueCast.x, 0.25 / 0.2, accuracy: 1e-6) // 1.25
+        XCTAssertEqual(blueCast.z, 0.25 / 0.3, accuracy: 1e-6) // ~0.8333
+
+        // dt's degenerate-channel guard: values ≤ 0.001 fall back to 1.0
+        // (temperature.c:1946-1948). With green ≤ 0.001 the gnormal is 1.0,
+        // so the other channels normalize against 1.0 (and green is then
+        // unconditionally 1).
+        let dark = WhiteBalanceMath.gainsFromPicked(SIMD3(0.0005, 0.0008, 0.4))
+        XCTAssertEqual(dark.x, 1.0, "channel ≤ 0.001 ⇒ gain 1.0")
+        XCTAssertEqual(dark.z, min(1.0 / 0.4, 8.0), accuracy: 1e-6)
+
+        // Clamp at 8 (a near-black pick must not explode).
+        let tiny = WhiteBalanceMath.gainsFromPicked(SIMD3(0.0011, 0.0012, 0.0011))
+        XCTAssertLessThanOrEqual(tiny.x, 8.0)
+        XCTAssertLessThanOrEqual(tiny.z, 8.0)
+
+        // Applying the solve to the picked color neutralizes it exactly:
+        // picked ∘ gains ≙ equal channels (gray-world closure).
+        let picked = SIMD3<Float>(0.31, 0.44, 0.52)
+        let gains = WhiteBalanceMath.gainsFromPicked(picked)
+        let neutralized = picked * gains
+        XCTAssertEqual(neutralized.x, neutralized.y, accuracy: 1e-5)
+        XCTAssertEqual(neutralized.y, neutralized.z, accuracy: 1e-5)
+    }
 
     // MARK: - Lab round-trip (plan 03-03, RESEARCH §Summary #3) — placeholder
 

@@ -23,13 +23,33 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ExposureModule.opName) { id in
             ModuleBox(module: ExposureModule(), instanceID: id)
         }
+        // Plan 03-02-T2: WB temperature, v50 slot 3.0 (post-CIRAW correction
+        // layer — slot semantics divergence documented on the module).
+        await registry.register(opName: TemperatureModule.opName) { id in
+            ModuleBox(module: TemperatureModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
         }
         #endif
-        // Phase 3+: WB, tonecurve, filmic, … register here.
+        // Phase 3+: tonecurve, filmic, … register here.
         // `passthrough_spike` stays test-only (Phase 1 spike module — it
         // never enters app chains, so it is deliberately unregistered).
+    }
+
+    /// The pristine EDITING seed beyond the terminal trio (Plan 03-02-T4):
+    /// the tone iops that ship permanent Inspector panels join a freshly
+    /// loaded image at IDENTITY params, so their panels have instances to
+    /// drive (D-T6's "ModuleRegistry-driven panel generation"). Identity
+    /// params keep the default chain cache-neutral (byte-identical hashes).
+    /// Composed by `PipeCoordinator.load` after
+    /// `ModuleRegistry.makeDefaultInstances()`.
+    public static func editingDefaultInstances() -> [ModuleInstance] {
+        [
+            ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params()),
+            ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params()),
+        ]
+        .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
 }

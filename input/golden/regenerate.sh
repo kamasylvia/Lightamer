@@ -46,7 +46,13 @@ for f in $FIXTURES; do
 done
 
 echo "== ③ golden outputs (fixture × case) =="
-for xmp in "$GOLDEN"/cases/*.xmp; do
+# stale outputs from previous runs must not survive (the temperature case
+# outputs switched from dt-cli EXR to synthesized references in 03-02)
+rm -rf "$OUT"
+mkdir -p "$OUT"
+# Exposure cases: dt-cli EXR outputs are exact (verified by plan 03-01) —
+# these ARE the track-A references for exposure.
+for xmp in "$GOLDEN"/cases/exposure_*.xmp; do
     case_name="$(basename "$xmp" .xmp)"
     for f in $FIXTURES; do
         "$DT" "$FIX/$f.exr" "$xmp" "$OUT/${case_name}__${f}" \
@@ -55,6 +61,31 @@ for xmp in "$GOLDEN"/cases/*.xmp; do
             --core --configdir "$CONF" 2>&1 | grep export_job || true
     done
 done
+
+echo "== ③b temperature dt-cli semantic probes (PFM) =="
+# HOST FINDING (plan 03-02, see manifest): this dt build emits spatially
+# corrupted float output for SPATIALLY-VARYING images (EXR/PFM/TIFF all
+# affected; uniform images exact). The temperature case loop therefore
+# exports dt-cli PFM PROBES (kept under output/pfm_probe/ — trustworthy on
+# the UNIFORM flats, where dt's per-pixel semantic in×gains is verified),
+# while the track-A per-pixel REFERENCES for temperature are SYNTHESIZED
+# from the shared semantic in step ③c.
+PROBE="$OUT/pfm_probe"
+rm -rf "$PROBE"
+mkdir -p "$PROBE"
+for xmp in "$GOLDEN"/cases/temperature_*.xmp; do
+    case_name="$(basename "$xmp" .xmp)"
+    for f in $FIXTURES; do
+        "$DT" "$FIX/$f.exr" "$xmp" "$PROBE/${case_name}__${f}" \
+            --out-ext pfm --icc-type LIN_REC2020 \
+            --apply-custom-presets 0 --library "$CONF/golden.db" \
+            --core --configdir "$CONF" 2>&1 | grep export_job || true
+    done
+done
+
+echo "== ③c temperature reference synthesis (shared semantic) =="
+"$PYTHON" "$FIX/gen_fixtures.py" refs "$FIX"
+
 
 echo "== ④ manifest =="
 {
@@ -83,11 +114,32 @@ echo "== ④ manifest =="
     echo
     echo "Scale math (both sides): \`white = exp2(−exposure)\`; \`out = (in − black) × 1/(white − black)\`."
     echo
+    echo "## dt-cli ↔ Lightamer temperature field mapping (Plan 03-02-T2)"
+    echo
+    echo "dt blob \`<ffffi\` (little-endian pack of dt_iop_temperature_params_t"
+    echo "v4, hex-ASCII in XMP) ↔ Lightamer \`TemperatureModule.Params\` (JSON):"
+    echo
+    echo "| dt field (offset) | Lightamer field | note |"
+    echo "|---|---|---|"
+    echo "| red (0, f) | \`red\` | gain ∈ [0,8] |"
+    echo "| green (4, f) | \`green\` | gain ∈ [0,8] |"
+    echo "| blue (8, f) | \`blue\` | gain ∈ [0,8] |"
+    echo "| various (12, f) | — (not ported) | CYGM 4th channel; Lightamer pipe is RGB (module divergence #3); pinned 1.0 |"
+    echo "| preset (16, int) | \`preset\` | dt DT_IOP_TEMP_* raw values; UI-state bit only |"
+    echo
+    echo "Pixel math (both sides): \`out.rgb = in.rgb × (red, green, blue)\`, alpha untouched"
+    echo "(\`whitebalance_4f\` ↔ \`temperature_apply\`). The Kelvin→gains MODEL diverges by"
+    echo "design (dt: sensor-domain XYZ_to_CAM; Lightamer: Rec2020-native post-CIRAW"
+    echo "correction layer, RESEARCH §5) — the Kelvin math is locked by"
+    echo "CPUDerivationTests against .work/03-02/wb_reference.c instead of golden."
+    echo
     echo "## Cases × params blob hash + golden output sha256"
     echo
+    echo "### exposure cases (dt-cli EXR = track-A reference)"
+    echo
     echo "| case | params blob (hex) | sha256(blob) | outputs (sha256) |"
-    echo "|---|---|---|"
-    for xmp in "$GOLDEN"/cases/*.xmp; do
+    echo "|---|---|---|---|"
+    for xmp in "$GOLDEN"/cases/exposure_*.xmp; do
         case_name="$(basename "$xmp" .xmp)"
         blob="$(grep -o '<darktable:params>[^<]*</darktable:params>' "$xmp" | head -1 | sed -E 's|</?darktable:params>||g')"
         blob_hash="$(printf '%s' "$blob" | shasum -a 256 | cut -d' ' -f1)"
@@ -101,6 +153,41 @@ echo "== ④ manifest =="
         echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
     done
     echo
+    echo "### temperature cases (Plan 03-02)"
+    echo
+    echo "dt-cli EXR outputs for temperature are NOT reference-grade in this build"
+    echo "environment (host finding: spatial corruption for varying content — see"
+    echo "manifest notes). Track-A references = synthesized \`<case>__<fixture>.exr\`"
+    echo "(canonical fixture × gains, float64); dt-cli PFM probes kept under"
+    echo "output/pfm_probe/ (trustworthy on the uniform flats)."
+    echo
+    echo "| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |"
+    echo "|---|---|---|---|"
+    for xmp in "$GOLDEN"/cases/temperature_*.xmp; do
+        case_name="$(basename "$xmp" .xmp)"
+        blob="$(grep -o '<darktable:params>[^<]*</darktable:params>' "$xmp" | head -1 | sed -E 's|</?darktable:params>||g')"
+        blob_hash="$(printf '%s' "$blob" | shasum -a 256 | cut -d' ' -f1)"
+        outs=""
+        for f in ramp_8ev flat_0ev flat_-4ev flat_-8ev gray_staircase; do
+            o="$OUT/${case_name}__${f}.exr"
+            if [ -f "$o" ]; then
+                outs="$outs $f:$(shasum -a 256 "$o" | cut -d' ' -f1 | cut -c1-16)"
+            fi
+        done
+        echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
+    done
+    echo
+    echo "### dt-cli PFM probes (temperature, uniform-flat verification)"
+    echo
+    echo "| probe | sha256 |"
+    echo "|---|---|"
+    if [ -d "$OUT/pfm_probe" ]; then
+        for p in "$OUT"/pfm_probe/*.pfm; do
+            [ -f "$p" ] || continue
+            echo "| $(basename "$p" .pfm) | \`$(shasum -a 256 "$p" | cut -d' ' -f1 | cut -c1-16)\` |"
+        done
+    fi
+    echo
     echo "## Canonical fixture sha256 (roundtrip outputs)"
     echo
     for f in $FIXTURES; do
@@ -113,6 +200,21 @@ echo "== ④ manifest =="
     echo "default-pipeline export keeps 0.25 (±1e-6); \`exposure_plus1ev\` maps it to 0.5 (±1e-6)"
     echo "— i.e. the XMP-pinned history IS adopted by the export pipeline (the prebuilt"
     echo "1263552fab binary dropped it; rebuilt binary dc58cf0ba1 adopts it)."
+    echo
+    echo "## dt-cli host finding (Plan 03-02, 2026-09-19)"
+    echo
+    echo "darktable-cli (rebuilt dc58cf0ba1, Apple clang + libomp, macOS 27/arm64) emits"
+    echo "SPATIALLY CORRUPTED float output for spatially-varying images in ALL float"
+    echo "writers tried (EXR: per-channel-plane mislayout; PFM/TIFF: horizontal smear),"
+    echo "deterministic per input; uniform images (flat_NNev) export exactly. Exposure"
+    echo "on the ramp exports exactly through EXR (the 03-01 gate), temperature does"
+    echo "not. A no-OpenMP rebuild was attempted (USE_OPENMP=OFF): darktable-cli then"
+    echo "hangs at startup in dt_image_get_camera_id — unusable."
+    echo "Consequences: temperature track-A references are SYNTHESIZED from the shared"
+    echo "semantic (canonical fixture × pinned gains, float64 — gen_fixtures.py refs);"
+    echo "dt-cli PFM probes on the uniform flats verify dt's per-pixel semantic"
+    echo "(temperature_r120_b080 on flat_0ev: (0.6, 0.5, 0.4) exact, 4e-8); the pinned"
+    echo "params adoption is verified via the library DB op_params hex + -d params log."
 } > "$GOLDEN/manifest.md"
 
 echo "manifest → $GOLDEN/manifest.md"
