@@ -247,6 +247,8 @@ final class PanelWiringTests: XCTestCase {
         // Plan 03-04-T5: the scene-referred pair
         XCTAssertTrue(state.panelOpNames.contains("sigmoid"))
         XCTAssertTrue(state.panelOpNames.contains("shadhi"))
+        // Plan 03-05-T7: the tone equalizer panel
+        XCTAssertTrue(state.panelOpNames.contains("toneequal"))
 
         let exposureRecord = ModuleInstance(module: ExposureModule.self, params: .init())
         let session = InspectorEditSession(coordinator: coordinator)
@@ -259,6 +261,9 @@ final class PanelWiringTests: XCTestCase {
         let shadhiRecord = ModuleInstance(module: ShadhiModule.self, params: .init())
         XCTAssertNotNil(state.panelView(for: shadhiRecord, edit: session),
                         "shadhi must dispatch a panel")
+        let toneEqualRecord = ModuleInstance(module: ToneEqualModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: toneEqualRecord, edit: session),
+                        "toneequal must dispatch a panel")
 
         let colorinRecord = ModuleInstance(module: ColorInModule.self, params: .init())
         XCTAssertNil(state.panelView(for: colorinRecord, edit: session),
@@ -414,6 +419,35 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertEqual(
             try committed.params(of: ShadhiModule.self).algo, .gaussian,
             "bilateral stays Phase 5 — the binding guards non-gaussian"
+        )
+    }
+
+    // MARK: - 03-05 toneequal panel wiring (T7)
+
+    /// Tone equalizer: the pristine seed now CARRIES the toneequal
+    /// instance (all-zero bands, dt defaults); a band drag lands exactly
+    /// one commit with the last tick.
+    func testToneEqualPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let toneEqual = try instance("toneequal")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...5 {
+            let record = try withParams(toneEqual, {
+                $0.shadows = Float(tick) * 0.2
+            }, as: ToneEqualModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_toneequal"))
+
+        XCTAssertEqual(historyCount(), 1, "toneequal drag = exactly ONE item")
+        let committed = try instance("toneequal")
+        XCTAssertEqual(
+            try committed.params(of: ToneEqualModule.self).shadows, 1.0, accuracy: 1e-5
+        )
+        XCTAssertEqual(
+            try committed.params(of: ToneEqualModule.self).details, .eigf,
+            "the dt default detail leg rides the seed"
         )
     }
 

@@ -87,6 +87,7 @@ public enum LightamerIOPRegistry {
             ModuleInstance(module: ToneCurveModule.self, params: ToneCurveModule.Params()),
             ModuleInstance(module: LevelsModule.self, params: LevelsModule.Params()),
             ModuleInstance(module: ShadhiModule.self, params: ShadhiModule.Params()),
+            ModuleInstance(module: ToneEqualModule.self, params: ToneEqualModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }

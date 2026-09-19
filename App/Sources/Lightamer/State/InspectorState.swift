@@ -60,6 +60,7 @@ final class InspectorState {
         register(LevelsPanelProvider())
         register(SigmoidPanelProvider())
         register(ShadhiPanelProvider())
+        register(ToneEqualPanelProvider())
     }
 
     /// The ops that have a registered panel (for the Inspector list).
