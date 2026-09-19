@@ -43,6 +43,10 @@ let debugConfigSettings: SettingsDictionary = [
 ]
 let releaseConfigSettings: SettingsDictionary = [
     "ENABLE_HARDENED_RUNTIME": "YES", // DIST-5
+    // PERF-5's formal Release-configuration gate (Plan 03-06-T7) builds the
+    // test target against Release frameworks; @testable import requires
+    // testability on those modules (Debug default YES, Release default NO).
+    "ENABLE_TESTABILITY": "YES",
 ]
 
 let project = Project(

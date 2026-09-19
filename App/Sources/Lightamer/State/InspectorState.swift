@@ -61,6 +61,10 @@ final class InspectorState {
         register(SigmoidPanelProvider())
         register(ShadhiPanelProvider())
         register(ToneEqualPanelProvider())
+        // Plan 03-06: filmicrgb (the scene-referred filmic transform) +
+        // agx (the filmic VARIANT).
+        register(FilmicRGBPanelProvider())
+        register(AgXPanelProvider())
     }
 
     /// The ops that have a registered panel (for the Inspector list).

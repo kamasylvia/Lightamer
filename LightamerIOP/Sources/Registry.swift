@@ -83,6 +83,33 @@ public enum LightamerIOPRegistry {
         // never enters app chains, so it is deliberately unregistered).
     }
 
+    /// The kernel function names the editing chain dispatches (Plan
+    /// 03-06-T7's PSO startup pre-warm list — the terminal trio + every
+    /// registered tone iop's kernels; the PSO cache dedupes).
+    public static var prewarmFunctionNames: [String] {
+        [
+            TerminalKernels.copy,
+            // NOTE: colorout_matrix carries the isP3 function constant
+            // (no MSL default) — a generic nil-constants PSO build aborts
+            // in Metal validation; the display-profile PSO warms on the
+            // first render instead.
+            TerminalKernels.gammaEncode,
+            TemperatureKernel.functionName,
+            ExposureKernel.functionName,
+            ColisaKernel.functionName,
+            ToneCurveKernel.functionName,
+            LevelsKernel.functionName,
+            ShadhiKernel.prepFunction,
+            ShadhiKernel.mixFunction,
+            ToneEqualKernel.lumaEstimateFunction,
+            ToneEqualKernel.applyFunction,
+            SigmoidKernel.perChannelFunction,
+            SigmoidKernel.rgbRatioFunction,
+            FilmicRGBKernel.v5Function,
+            AgXKernel.mainFunction,
+        ]
+    }
+
     /// The pristine EDITING seed beyond the terminal trio (Plan 03-02-T4):
     /// the tone iops that ship permanent Inspector panels join a freshly
     /// loaded image at IDENTITY params, so their panels have instances to

@@ -222,8 +222,10 @@ internal struct LightamerApp: App {
                     appDelegate.terminateHandler = {
                         pipeCoordinator.flushForTermination()
                     }
+                    #if DEBUG
                     resizeProbeIfRequested()
                     sidecarProbeIfRequested()
+                    #endif
                 }
         }
         .defaultSize(width: 1440, height: 900)

@@ -311,6 +311,23 @@ public actor MetalContext {
     /// here): callers `await` it. The PSO cache is deliberately NOT
     /// cleared (MB-scale; clearing costs PSO rebuild stalls for zero
     /// memory win — research §6 layer-3 decision).
+    /// PSO startup pre-warm (Plan 03-06-T7, Open#7): build the named
+    /// functions' compute pipeline states off the interactive path so the
+    /// first drag doesn't pay the cold PSO compile (METAL-5). Failures are
+    /// logged, not thrown — the lazy cache remains the source of truth and
+    /// the interactive path would build on demand anyway.
+    public func prewarmPipelineStates(functionNames: [String]) async {
+        for name in functionNames {
+            do {
+                _ = try await pipelineState(for: name, constants: nil)
+            } catch {
+                AppError.logger.debug(
+                    "PSO prewarm skipped \(name, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+    }
+
     public func clearCICaches() async {
         await getOrCreatePool().clearCaches()
     }

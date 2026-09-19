@@ -1,4 +1,5 @@
 import LightamerCore
+import simd
 import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -84,6 +85,13 @@ final class InspectorEditSession {
             await coordinator?.setLiveParams(snapshot)
             await coordinator?.commitContinuousEdit(label: label)
         }
+    }
+
+    /// Full-image per-channel min/max over the LINEAR chain (the filmic
+    /// auto black/white keys' picked_color_min/max statistics, Plan
+    /// 03-06-T5). nil when nothing is loaded or the render failed.
+    func sampleNormMinMax() async -> (min: simd_float3, max: simd_float3)? {
+        await coordinator?.sampleLinearNormMinMax()
     }
 }
 

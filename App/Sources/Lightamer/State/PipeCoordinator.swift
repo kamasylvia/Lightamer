@@ -437,9 +437,32 @@ final class PipeCoordinator {
         await renderPreview(
             bucket: currentBucket ?? PreviewBucket.cap, generation: gen
         )
+
+        // PERF-5 PSO startup pre-warm (Plan 03-06-T7, Open#7 decision):
+        // background task pre-compiles the current chain's compute PSOs so
+        // the FIRST interactive drag does not pay the cold PSO build
+        // (METAL-5). Fire-and-forget — the lazy PSO cache stays the source
+        // of truth and the warm task only touches `pipelineState`.
+        startPSOPrewarmIfNeeded()
+    }
+
+    /// Arm the one-shot PSO pre-warm (idempotent per session).
+    private func startPSOPrewarmIfNeeded() {
+        guard psoPrewarmTask == nil, let metal else { return }
+        psoPrewarmTask = Task { [weak self] in
+            // Small settle delay: let the first frame's own PSO hits land.
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            await metal.prewarmPipelineStates(
+                functionNames: LightamerIOPRegistry.prewarmFunctionNames
+            )
+        }
     }
 
     // ── 02-06 session memory budget (D-C1/D-C2 sweep + toast) ────────────
+
+    /// The one-shot PSO pre-warm task (nil = not armed yet).
+    private var psoPrewarmTask: Task<Void, Never>?
 
     /// Arm the 60s backstop sweep once (idempotent; first load arms it).
     /// The Task inherits the coordinator's MainActor isolation — the loop
@@ -829,6 +852,39 @@ final class PipeCoordinator {
         } catch {
             Self.logger.error(
                 "pickColor linear segment failed: \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    /// Full-image per-channel RGB min/max over the linear chain (Plan
+    /// 03-06-T5, the filmic auto black/white keys — dt's
+    /// `picked_color_min/max` whole-preview semantics via the shared
+    /// HistogramReduce). nil when nothing is loaded or the render failed.
+    /// Never mutates `displayTexture` (D-X1).
+    func sampleLinearNormMinMax() async -> (min: simd_float3, max: simd_float3)? {
+        guard let decoded, let metal else { return nil }
+        let linearChain = instances.filter {
+            $0.opName != ColorOutModule.opName && $0.opName != GammaModule.opName
+        }
+        guard !linearChain.isEmpty else { return nil }
+        do {
+            let (texture, _) = try await RenderPipeline.process(
+                image: decoded,
+                instances: linearChain,
+                imageID: currentImageID ?? UUID(),
+                resolution: .preview,
+                cache: cache,
+                metal: metal,
+                longEdge: currentBucket ?? PreviewBucket.cap
+            )
+            let fence = metal.commandQueue.makeCommandBuffer()
+            fence?.commit()
+            await fence?.completed()
+            return try await HistogramReduce.rgbMinMax(of: texture, metal: metal)
+        } catch {
+            Self.logger.error(
+                "linear norm min/max failed: \(error.localizedDescription, privacy: .public)"
             )
             return nil
         }
