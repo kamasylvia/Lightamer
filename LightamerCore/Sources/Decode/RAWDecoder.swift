@@ -152,8 +152,22 @@ public actor RAWDecoder {
     // MARK: - Raster path (CGImageSource, RAW-04)
 
     /// Non-RAW decode (JPEG/HEIC/PNG/WebP/TIFF/PSD-flat). Multi-image TIFF →
-    /// first image. 32-bit float TIFF must not crash here (RAW-03 HDR support
-    /// is Phase 2; CGImageSource hands back whatever it can).
+    /// first image.
+    ///
+    /// **RAW-03 float decision (Plan 02-06-06, host-proven 2026-09-19,
+    /// macOS 27.0 / M4):** 32-bit float TIFF and EXR preserve their bit
+    /// depth through THIS path — `CGImageSourceCreateImageAtIndex` returns
+    /// bpp=32/96 for float32 RGB TIFF and bpp=32/128 for float32 RGBA EXR
+    /// (`bitsPerComponent == 32`, colorspace extendedLinearSRGB), and the
+    /// pinned extreme values (0.0 / 0.5 / 1.0 / 2.0 / 65504.0) survive into
+    /// the float32 pipe input plane bit-near-exactly (`RAW03Tests`). The
+    /// research-sketched `CIImage(contentsOf:)` fallback is therefore NOT
+    /// adopted: the CGImage leg is float-faithful, and one loader keeps the
+    /// decode surface uniform. Re-probe if a future macOS regresses (probe:
+    /// decode → `CGImageGetBitsPerComponent == 32` else retry via CI — the
+    /// guard would slot right here). Gray test pixels: channel-equal values
+    /// survive ANY white-point-preserving linear RGB→RGB conversion, which
+    /// is why the fixtures are gray.
     internal func decodeRaster(_ url: URL, uti: String) throws -> DecodedImage {
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(url as CFURL, options) else {
