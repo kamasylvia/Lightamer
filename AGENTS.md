@@ -1,5 +1,17 @@
 <!-- GSD:project-start source:PROJECT.md -->
 
+## Phase 执行模型（2026-09-20 用户指令，强制）
+
+Phase **execute** 阶段的执行分工固定为两级：
+
+1. **执行 = omp**（无头 CLI）：每个 plan 由 `omp -p --auto-approve --thinking max "<执行 prompt>"` 在项目根目录无头执行。执行 prompt 指向 plan 文件，要求按任务序推进（read_first → action → 验收标准逐条核验）、每任务独立提交（Conventional Commits，只 add 相关文件）、构建用 `caffeinate -dis` 包裹。产出 SUMMARY.md 后收工。
+2. **验收 = ZCode subagents**：omp 完成后，派 general-purpose subagent 独立验收——按 plan 验收标准逐条核对、跑全套测试、抽查实现与 AC 一致性。发现 issue 回注 omp 修复或验收方直接修（小改动）。
+
+**规则**：
+- omp 运行期间保活巡检**不得重复启动**同一 plan（检查 `.work/GSD-PROGRESS.log` 尾部 + git log 判断）。
+- omp 的提交即执行产出；subagent 验收发现的问题修复提交以 `fix(...)` 标注并可引用 omp 产物。
+- 人工只处理 GOAL-STATE「阻塞（需人工）」章节登记的事项。
+
 ## Project
 
 **Lightamer**
