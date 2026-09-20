@@ -136,21 +136,30 @@
   a shared cache — a public parameter cannot expose an internal type
 - `protocol ModuleBoxing: AnyObject, Sendable` — the type-erased pipe
   citizen: `instanceID/opName/multiPriority/multiName/iopOrder/enabled/
-  paramsData/paramsHash`, `makeRunPiece()`, `processErased(...)`
+  paramsData/paramsHash`, `makeRunPiece()`, `processErased(...)`,
+  `modifyROIOutErased/modifyROIInErased` (04-01 ROI negotiation seam),
+  `tileHaloErased/tileWorkingSetBytesPerPixelErased` (03-05 tile seam)
 - `final class ModuleBox<M: IOPModule>: ModuleBoxing` — wraps one module
   instance + its committed piece; `setParams(_:)` = the slider-drag
   mutation (re-encode → re-hash via StableHash → re-commit)
 - `enum RenderPipeline.process(image:instances:imageID:resolution:cache:
-  metal:longEdge:) async throws -> (any MTLTexture, PipeRunStats)` — the
+  metal:longEdge:maxTileWorkingBytes:roiHint:) async throws -> (any MTLTexture, PipeRunStats)` — the
   REAL pipe entry (02-03 coordinator / 02-04 golden harness consumer);
   `struct PipeRunStats` — `hits` / `misses` / `planesRendered` (per-run
   delta). `imageID` (stable image UUID) parameter added beyond the plan's
   listed signature: cache keys need it and tests pass one across runs.
   **02-03: `longEdge` is LIVE** — scale-at-entry input plane (PREVIEW gets
   the D-C3 bucket; nil resolves to the resolution default or full extent).
+  **04-01: `roiHint: ROI? = nil`** — test/probe-only sub-window entry
+  (nil = full frame; clamped to the entry ROI inside `run`).
   `.export` throws `AppError.notImplemented("Phase 11")`
 - `RenderPipeline.render(image:layerStack:metal:)` — KEPT: the Phase 1
   no-op display path (empty instances)
+- `struct ROI` — `x/y/width/height/scale` + `clamped(to:)`/`aabb(of:)`
+  (04-01 internal negotiation helpers); `struct IOPiece` gains
+  `processedROIIn/Out` stamps (dt `processed_roi` mirror) + per-level
+  `dscIn` (dt `buf_in`); `PixelPipe.bufInROI/levelROI/frameROI`
+  (forward geometry + clamp bound, dt `get_dimensions` mirror)
 
 ### Terminal trio & module registry (02-04, `Sources/Pipe/Terminal/` + `Sources/Pipe/`)
 

@@ -40,12 +40,12 @@ created: 2026-09-20
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (planner) | A | 1 | FOUND-04 (ROI) | — | N/A | unit | ROINegotiationTests: crop 前向收缩（下游平面=窗口尺寸）、sharpen 后向外扩（<全图）、缓存 roi 字段联动 | ❌ W0 | ⬜ pending |
+| 04-01-T1..T5 | 04-01 | 1 | FOUND-04 (ROI) | — | N/A | unit | ROINegotiationTests: crop 前向收缩（下游平面=窗口尺寸）、sharpen 后向外扩（<全图）、缓存 roi 字段联动 | ✅ | ✅ green（2026-09-20：8/8；halo e2e 24×24 hint → 30×30 expanded ≪128；全 suite 279 0 fail） |
 | (planner) | — | 2 | IOP-GEO-01/02/04 | — | N/A | golden+unit | crop/rotate/flip parity（crop/flip 可直用 dt-cli；rotate 合成 float64 参考）| ❌ W0 | ⬜ pending |
 | (planner) | — | 2 | IOP-GEO-03 | — | N/A | golden+unit | lens distortion/CA/vignette parity（合成 float64 参考 + uniform dt 探针）| ❌ W0 | ⬜ pending |
 | (planner) | — | 3 | IOP-DETAIL-01/02/03/04 | — | N/A | golden+unit | sharpen USM/local contrast(EIGF)/highpass-soften/equalizer parity（Lab 域经 LabRoundTrip）| ❌ W0 | ⬜ pending |
 | (planner) | — | — | 轨 B 回归 | — | N/A | golden | 全模块插链后 ColorSync 中性度+交叉一致性不回归（D-COL1 双判据）| ✓ | ⬜ pending |
-| (planner) | — | — | 内存记账 | D-C1/C2 | N/A | unit | crop 后 FULL 平面记账下降、sharpen 外扩 < 全图 | ❌ W0 | ⬜ pending |
+| 04-01-T5 | 04-01 | 1 | 内存记账 | D-C1/C2 | N/A | unit | crop 后 FULL 平面记账下降、sharpen 外扩 < 全图 | ✅ | ✅ green（2026-09-20：MemoryBudgetTests 9/9；crop 1/4 bytes；halo 30×30+24×24 ≪128） |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
