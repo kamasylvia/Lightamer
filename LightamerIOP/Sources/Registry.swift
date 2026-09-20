@@ -73,10 +73,11 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: AgXModule.opName) { id in
             ModuleBox(module: AgXModule(), instanceID: id)
         }
-        // Plan 04-03-T2: ashift (rotate/perspective single-homography warp),
-        // v50 slot 15.0 — BEFORE flip (16.0) per iop_order.c:319-320.
-        await registry.register(opName: AshiftModule.opName) { id in
-            ModuleBox(module: AshiftModule(), instanceID: id)
+        // Plan 04-04-T1: lens (manual warp + Lensfun XML resolve), v50
+        // slot 13.0 — AFTER scalepixels (12.0), BEFORE cacorrectrgb (13.5,
+        // whose source comment orders CA-after-lens).
+        await registry.register(opName: LensModule.opName) { id in
+            ModuleBox(module: LensModule(), instanceID: id)
         }
         // Plan 04-02-T2: flip (orientation index remap), v50 slot 16.0 —
         // AFTER ashift (15.0), BEFORE crop (24.5) per iop_order.c:810-812.
@@ -124,9 +125,9 @@ public enum LightamerIOPRegistry {
             AgXKernel.mainFunction,
             // Plan 04-02-T2: the flip remap (crop needs no kernel — blit).
             FlipKernel.functionName,
-            // Plan 04-03-T2: the single-homography warp (rotation +
-            // perspective share one kernel).
-            AshiftKernel.functionName,
+            // Plan 04-04-T1: the lens manual warp (distortion + TCA +
+            // devignette fusion).
+            LensKernel.functionName,
         ]
     }
 
@@ -138,10 +139,11 @@ public enum LightamerIOPRegistry {
     public static func editingDefaultInstances() -> [ModuleInstance] {
         [
             ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params()),
-            // Plan 04-03-T2: ashift (neutral identity) joins the seed —
-            // neutral ⇒ blit identity ⇒ cache-neutral (exposure-0EV
-            // style), so the rotate/perspective panel has an instance to
-            // drive. Sorted by (iopOrder, multiPriority) at return.
+            // Plan 04-04-T1: lens (neutral OFF) joins the seed — neutral
+            // ⇒ blit identity ⇒ cache-neutral (exposure-0EV style), so
+            // the lens panel has an instance to drive. Sorted by
+            // (iopOrder, multiPriority) at return.
+            ModuleInstance(module: LensModule.self, params: LensModule.Params()),
             ModuleInstance(module: AshiftModule.self, params: AshiftModule.Params()),
             // Plan 04-02: flip (NONE identity) + crop (full-frame neutral)
             // join the seed — both cache-neutral (flip NONE = identity
