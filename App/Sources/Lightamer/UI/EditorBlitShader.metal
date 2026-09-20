@@ -3,7 +3,12 @@ using namespace metal;
 
 // Editor viewport blit (Phase 1, D-13 display-only).
 //
-// One fullscreen triangle, aspect-fit letterboxed by per-draw uniforms.
+// Vertex-rectangle draw (04-06 GUI-2+3): 4 vertices, triangle strip, the
+// quad IS the aspect-fit rect — the letterbox is the renderPass clearColor,
+// never sampled texture. UV is the identity [0,1]×[0,1] (with the y flip
+// below), so no out-of-rect fragment can sample the texture: GUI-2's white
+// hypotenuse (big-triangle overhang + clamp_to_edge) is structurally gone,
+// and drawing is confined to the fit rect by construction (GUI-3).
 // TWO source regimes since Plan 02-04 (terminal trio):
 // - `display_ready == false` (function constant, index 0): the Phase 1
 //   path — source is a float32 LINEAR Rec2020 texture (WorkingSpace /
@@ -21,10 +26,16 @@ using namespace metal;
 // the gamma-encoded bytes without re-matching.
 //
 // L006: full float math throughout — no half on the shadow-sensitive path.
-
-struct BlitUniforms {
-    float2 scale;   // aspect-fit scale, NDC space
-    float2 offset;  // centering offset (0 for Phase 1)
+// L008: the Swift draw encodes exactly one pass then endEncoding — no defer.
+//
+// 04-06 vertex contract: `FitQuad` carries the fit-rect CORNERS in NDC
+// (Swift computes them from `ViewportFit.fittedRect` — the crop overlay's
+// single source of truth — so blit and overlay can never disagree again).
+struct FitQuad {
+    float2 p0;   // bottom-left NDC
+    float2 p1;   // bottom-right NDC
+    float2 p2;   // top-left NDC
+    float2 p3;   // top-right NDC
 };
 
 struct BlitOut {
@@ -34,21 +45,16 @@ struct BlitOut {
 
 vertex BlitOut editor_blit_vertex(
     uint vid [[vertex_id]],
-    constant BlitUniforms &uniforms [[buffer(0)]])
+    constant FitQuad &quad [[buffer(0)]])
 {
-    float2 quad[3] = { float2(-1.0, -1.0), float2(3.0, -1.0), float2(-1.0, 3.0) };
-    float2 ndc = quad[vid] * uniforms.scale + uniforms.offset;
+    // Triangle-strip order: p0, p1, p2, p3 → two triangles covering the
+    // fit rect exactly. UV is the full texture (y flipped: CI texture row
+    // 0 = image bottom, drawable row 0 = view top — the 01-03 smoke chain).
+    float2 pos[4] = { quad.p0, quad.p1, quad.p2, quad.p3 };
+    float2 uv[4] = { float2(0.0, 1.0), float2(1.0, 1.0), float2(0.0, 0.0), float2(1.0, 0.0) };
     BlitOut out;
-    out.position = float4(ndc, 0.0, 1.0);
-    // Orientation chain (verified by .work/01-03/smoke against the fixture):
-    // CIContext renders the image BOTTOM-UP (texture row 0 = image bottom,
-    // CI's lower-left origin), while the drawable's row 0 displays at the
-    // TOP of the view. uv.y is therefore flipped so the image shows upright.
-    // Plan 03-02: divide by the per-axis scale so the fitted rect maps
-    // uv [0,1] (true aspect fit; previously the center was cropped).
-    // Phase 4's proper fit/zoom path supersedes the big-triangle
-    // coverage (its hypotenuse overhang clamps at the texture edges).
-    out.uv = float2(ndc.x / uniforms.scale.x * 0.5 + 0.5, 1.0 - (ndc.y / uniforms.scale.y * 0.5 + 0.5));
+    out.position = float4(pos[vid], 0.0, 1.0);
+    out.uv = uv[vid];
     return out;
 }
 

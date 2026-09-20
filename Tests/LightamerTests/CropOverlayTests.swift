@@ -178,6 +178,43 @@ final class CropOverlayTests: XCTestCase {
             textureSize: SIMD2(64, 128)))
     }
 
+    /// 04-06 GUI-2+3: `fitQuad` emits the fitted rect as NDC corners —
+    /// wide texture in a square viewport ⇒ full-width band; tall texture
+    /// ⇒ full-height band; degenerate ⇒ fullscreen. NDC corners must match
+    /// `ViewportFit.fittedRect` point-for-point (blit == overlay geometry).
+    func testFitQuadMatchesFittedRect() {
+        func ndc(_ p: CGPoint, _ size: CGSize) -> SIMD2<Float> {
+            SIMD2(Float(2 * p.x / size.width - 1), Float(1 - 2 * p.y / size.height))
+        }
+        // 3:2 landscape (300×200) in a 200×200 viewport → 200×133 band.
+        let wide = EditorMTKView.Coordinator.fitQuad(
+            textureSize: SIMD2(300, 200), drawableSize: CGSize(width: 200, height: 200))
+        let wideRect = ViewportFit.fittedRect(
+            viewportSize: CGSize(width: 200, height: 200),
+            textureSize: CGSize(width: 300, height: 200))
+        XCTAssertEqual(wide.p0.x, ndc(CGPoint(x: wideRect.minX, y: wideRect.maxY), CGSize(width: 200, height: 200)).x, accuracy: 1e-5)
+        XCTAssertEqual(wide.p0.y, ndc(CGPoint(x: wideRect.minX, y: wideRect.maxY), CGSize(width: 200, height: 200)).y, accuracy: 1e-5)
+        XCTAssertEqual(wide.p3.x, ndc(CGPoint(x: wideRect.maxX, y: wideRect.minY), CGSize(width: 200, height: 200)).x, accuracy: 1e-5)
+        XCTAssertEqual(wide.p3.y, ndc(CGPoint(x: wideRect.maxX, y: wideRect.minY), CGSize(width: 200, height: 200)).y, accuracy: 1e-5)
+        // No overhang: band edges strictly inside NDC on the letterboxed axis.
+        XCTAssertGreaterThan(wide.p0.y, -1)
+        XCTAssertLessThan(wide.p2.y, 1)
+        XCTAssertEqual(wide.p0.x, -1, accuracy: 1e-5)
+        XCTAssertEqual(wide.p1.x, 1, accuracy: 1e-5)
+        // 2:3 portrait (200×300) in a 200×200 viewport → 133×200 band.
+        let tall = EditorMTKView.Coordinator.fitQuad(
+            textureSize: SIMD2(200, 300), drawableSize: CGSize(width: 200, height: 200))
+        XCTAssertEqual(tall.p0.y, -1, accuracy: 1e-5)
+        XCTAssertEqual(tall.p2.y, 1, accuracy: 1e-5)
+        XCTAssertGreaterThan(tall.p0.x, -1)
+        XCTAssertLessThan(tall.p1.x, 1)
+        // Degenerate ⇒ fullscreen quad (never a collapsed draw).
+        let deg = EditorMTKView.Coordinator.fitQuad(
+            textureSize: SIMD2(0, 0), drawableSize: CGSize(width: 200, height: 200))
+        XCTAssertEqual(deg.p0.x, -1, accuracy: 1e-5)
+        XCTAssertEqual(deg.p3.x, 1, accuracy: 1e-5)
+    }
+
     // MARK: - D-H1 live-disabled drag (T0 (a))
 
     /// Overlay drag shape: begin → N live ticks (enabled=false, zero
