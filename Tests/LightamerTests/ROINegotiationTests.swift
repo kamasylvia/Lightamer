@@ -1,22 +1,23 @@
 @testable import LightamerCore
 import CoreImage
-import LightamerIOP
+@testable import LightamerIOP
 import Metal
 import XCTest
 
 /// SC#4 ROI negotiation harness (04-01; D-G5 / ROADMAP SC#4).
 ///
-/// Driver mix (04-02): ①③④ run the REAL `CropModule` (04-02-T1 — the
-/// stub retired for crop; the CropStub class stays as the CPU-math
-/// reference for the verbatim-formula cross-check); ② keeps the HaloStub
-/// until the real sharpen lands (04-05). Stub process = size-exact /
-/// content-approximate：经 `commandQueue` blit 按 `(roiOut − roiIn)`
+/// Driver mix (04-05): ①③④ run the REAL `CropModule` (04-02-T1); ② runs
+/// BOTH the HaloStub (halo-3 bookkeeping net) AND the REAL `SharpenModule`
+/// (04-05-T1 `testSharpenBackwardExpandsUpstream` — the stub retired for
+/// the D-G5 main proof; the HaloStub class stays as the CPU-math minimal
+/// reference). Stub process = size-exact / content-approximate：经
+/// `commandQueue` blit 按 `(roiOut − roiIn)`
 /// 偏移拷贝窗口（dt `dt_iop_copy_image_roi` 快路径语义）；halo 类 stub
 /// 的采样对齐不是 harness 的断言对象。
 ///
 /// History (04-01 TDD red → green):
 /// - ① RED → T3（前向预计算 + 真协商）green；04-02 换真 crop 回归。
-/// - ②-e2e GREEN (T4 `roiHint` + 子域渲染)；真 sharpen 回归在 04-05。
+/// - ②-e2e GREEN (T4 `roiHint` + 子域渲染)；04-05 换真 sharpen 回归。
 /// - ③④ GREEN（回归网：禁用穿越恒等、旧键保留回拖命中）。
 /// - ROI.clamped/aabb 辅助单测 GREEN（T2 产物）。
 final class ROINegotiationTests: XCTestCase {
@@ -357,6 +358,57 @@ final class ROINegotiationTests: XCTestCase {
         XCTAssertEqual(
             totalAfter, expandedBytes + 2 * windowBytes,
             "input plane (expanded) + gain-out (window) + halo-out (window)")
+    }
+    /// SC#4-②真模块版（04-05-T1 acceptance：stub → 真 sharpen 回归）：
+    /// `[sharpen(r=2.0,a=0.5), gain]` + `roiHint` 24×24 → 终帧 24×24；
+    /// sharpen roiIn == 窗口 + 2·ceil(3σ)=36×36（σ=2.0，halo=6，≪全图）；
+    /// 上游平面（输入 + gain）记账 == 36×36 扩展窗口。HaloStub 版（上）
+    /// 保留为 halo 语义的最小记账网。
+    func testSharpenBackwardExpandsUpstream() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let cache = PipeCache()
+        let recorder = ROIRecorder()
+        let image = makeImage(width: 128, height: 128)
+        let halo = SharpenModule.halo(radius: 2.0, scale: 1.0)
+        XCTAssertEqual(halo, 6, "ceil(3·2.0) = 6 — the D-G5 constant")
+        let gain = ModuleBox(
+            module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
+            multiPriority: 0, multiName: "gain")
+        await gain.setParams(TestGainModule.Params(gain: 1.0))
+        let sharpenBox = ModuleBox(
+            module: ROIRecording(tag: "sharpen", recorder: recorder, inner: SharpenModule()),
+            multiPriority: 0, multiName: "sharpen")
+        await sharpenBox.setParams(SharpenModule.Params(radius: 2.0, amount: 0.5, threshold: 0.5))
+        let chain: [any ModuleBoxing] = [gain, sharpenBox]
+        let hint = ROI(x: 40, y: 40, width: 24, height: 24, scale: 1.0)
+        let expanded = ROI(x: 34, y: 34, width: 36, height: 36, scale: 1.0)
+
+        let (texture, stats) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: cache, metal: metal,
+            longEdge: nil, roiHint: hint)
+        XCTAssertEqual(stats.misses, 3, "input + gain-out + sharpen-out at the hinted window")
+        XCTAssertEqual(texture.width, 24)
+        XCTAssertEqual(texture.height, 24)
+        let sharpenSights = await recorder.sightings(for: "sharpen")
+        XCTAssertEqual(sharpenSights.count, 1)
+        XCTAssertEqual(sharpenSights.first?.roiOut, hint)
+        XCTAssertEqual(
+            sharpenSights.first?.roiIn, expanded,
+            "sharpen input = window + 2·ceil(3σ), numerically exact (< 全图)")
+
+        let gainSights = await recorder.sightings(for: "gain")
+        XCTAssertEqual(gainSights.count, 1)
+        XCTAssertEqual(gainSights.first?.roiIn, hint)
+        XCTAssertEqual(gainSights.first?.roiOut, hint)
+
+        let expandedBytes = 36 * 36 * WorkingSpace.bytesPerPixel
+        let windowBytes = 24 * 24 * WorkingSpace.bytesPerPixel
+        let totalAfter = await cache.totalBytes
+        XCTAssertEqual(
+            totalAfter, expandedBytes + 2 * windowBytes,
+            "input plane (expanded) + gain-out (window) + sharpen-out (window)")
     }
 
     /// HaloStub 自身 `modifyROIIn` 数学（CPU，不经 pipe）：窗口外扩 halo。
