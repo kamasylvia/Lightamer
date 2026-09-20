@@ -160,7 +160,11 @@ private final class LensfunXMLParser: NSObject, XMLParserDelegate {
         text = ""
         textAttr = attributes
         switch name {
-        case "mount": curMount = MountEntry(name: "")
+        case "mount":
+            // Only the top-level `<mount>` ENTRY opens a mount record.
+            // A lens's `<mount>Sony E</mount>` reference is collected as
+            // TEXT at its end element (didEndElement appends to the lens).
+            if curLens == nil { curMount = MountEntry(name: "") }
         case "camera": curCamera = CameraEntry(maker: "")
         case "lens": curLens = LensEntry(maker: "")
         case "distortion":
@@ -253,16 +257,21 @@ private final class LensfunXMLParser: NSObject, XMLParserDelegate {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
         switch name {
         case "mount":
-            if let m = curMount { db.mounts.append(m) }
-            curMount = nil
+            if curLens != nil {
+                // Lens mount REFERENCE (`<mount>Sony E</mount>` text inside
+                // `<lens>`) — the `<mount>` ENTRY close is handled by the
+                // curMount branch below (no lens open there).
+                curLens?.mounts.append(value)
+            } else {
+                if let m = curMount { db.mounts.append(m) }
+                curMount = nil
+            }
         case "camera":
             if let c = curCamera { db.cameras.append(c) }
             curCamera = nil
         case "lens":
             if let l = curLens { db.lenses.append(l) }
             curLens = nil
-        case "name":
-            if curMount != nil { curMount?.name = value }
         case "compat":
             curMount?.compat.append(value)
         case "maker":
