@@ -32,8 +32,9 @@ using namespace metal;
 // clamped-to-edge taps (dt edge pixels are replicated by its border
 // handling); outside writes (0,0,0,0) — linear Rec2020 black + alpha 0,
 // the pipe's FIRST alpha-carrying semantic (FOUND-02 premultiplied;
-// downstream gamma/blit pass it through — AshiftParityTests nails the
-// bgra8 black-corner leg).
+// downstream gamma/blit pass it through — AshiftParityTests pins the
+// RGBA leg and testRotatedBlackCornersSurviveGammaTail the bgra8
+// display-tail leg).
 //
 // L006: float32 math only on the sampling path.
 // L018: no read_write textures, no in-place passes — pure per-pixel read.

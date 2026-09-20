@@ -136,6 +136,7 @@
 - [x] **Plan 04-03**（rotate/perspective ashift + Vision 自动检测）完成（2026-09-20）：T0 单一 ashift op（v50 15.0，`iop_order.c:319` 实测）+ 透视 (a) 参数面 + Vision 填充 + EXIF 分工；T1 Homography CPU（dt `_homography` Double 直译 + DLT + fitParams，HomographyTests 6/6）；T2 ashift_warp kernel + 模块三钩子（L020 帧约定注释钉死）+ Registry/种子/V50 双钉；T3 Vision 探针 4/4（θ<0.2°/矩形<0.5%/符号钉死/0° nil 特性）；T4 L017 合成参考（7 钉参 × 4 fixture，<1e-5/<1e-5）+ manifest 落账 + **管线修复：后向 clamp 改 `frameROI.union(roiOut)`**（grow 契约擦除根因）+ ColorIn 断言松绑；T5 AshiftPanelView + catalog 18 keys + PanelWiring +2 + ROI 回归 +1；排障沉淀：半 texel 采样约定（0.5/63 精确签名）、float 数组 packing 改 float4 行、sub-region getBytes 回零（harness 改全幅读回）；SUMMARY 见 `04-03-SUMMARY.md`
 ## pending-manual（累计，解锁后重跑）
 
+- [ ] Vision 自动检测真机 RAW 抽检（04-03 遗留，素材与步骤 `.work/04-03/vision-field-notes.md`：DSC00012 水平线 / DSC09991 矩形）
 - [ ] XCUITest 三栏断言（L011 授权；Phase 1 起遗留）：`xcodebuild test -only-testing:LightamerUITests`
 - [ ] ColorChecker ARW 实拍补采（02-04 遗留，采集路径 `.work/02-04/colorchecker-acquisition.md`）
 - [ ] 跨屏 profile 跟随实测（02-04 遗留，单显示器环境 skip-with-reason）

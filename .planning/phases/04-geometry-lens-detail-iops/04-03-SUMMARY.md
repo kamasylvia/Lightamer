@@ -37,8 +37,11 @@ Vision horizon/rectangle 自动检测 + 面板/a11y。纯旋转是单应特例�
   <0.5% ✅（VisionDetectTests 4/4；真实 RAW 抽检见下）。
 - **ROI warp AABB（T2）**：modifyROIOut 变大（64→72/87）、modifyROIIn
   有界（clamp bufIn）✅（ROINegotiationTests ashift 用例 + CPU 手算值）。
-- **轨 B 回归（T4）**：ColorSync 中性（黑角不破坏）—— golden 轨 A 的
-  RGB wrap + 黑角 alpha 腿覆盖；全链中性由既有 GoldenColorTests 守卫 ✅。
+- **轨 B 回归（T4）**：黑角经 display 腿（ColorOut + sRGB TRC →
+  .bgra8Unorm）仍为显示黑——`AshiftParityTests.
+  testRotatedBlackCornersSurviveGammaTail` 钉住（验收补，2026-09-20；
+  工作空间 RGBA 黑角腿由 testRotatedCornersCarryTransparentAlpha 钉）；
+  全链中性由既有 GoldenColorTests 守卫 ✅。
 - **a11y（T5）**：identifier 齐全（panel/sliders/buttons/notice）✅
   （PanelWiring + dispatch 断言；XCUITest 腿 L011 pending-manual 口径）。
 

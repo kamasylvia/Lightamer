@@ -257,6 +257,59 @@ final class AshiftParityTests: XCTestCase {
         XCTAssertEqual(rgba[ci], 1.0, accuracy: 1e-5, "warp interior stays opaque")
     }
 
+    /// Track-B black corner through the DISPLAY leg (04-03 plan T2 action
+    /// 3 / T4 轨 B): the working-space RGBA leg is pinned by
+    /// `testRotatedCornersCarryTransparentAlpha`; this pins the
+    /// gamma-tail leg — black corners (RGB=0) must survive ColorOut +
+    /// sRGB TRC as DISPLAY BLACK in the .bgra8Unorm tail (not garbage,
+    /// not NaN-propagated).
+    func testRotatedBlackCornersSurviveGammaTail() async throws {
+        let metal = try await makeMetal()
+        let fixtureURL = try requireGolden("fixtures/gradient_ramp.exr")
+        let image = try GoldenParityTests.decodeFixtureEXR(fixtureURL)
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        let ashiftMade = await registry.makeBox(opName: AshiftModule.opName)
+        let ashift = try XCTUnwrap(ashiftMade as? ModuleBox<AshiftModule>)
+        await ashift.setParams(Self.ashiftParams(rot: 30))
+        let colorinMade = await registry.makeBox(opName: ColorInModule.opName)
+        let colorin = try XCTUnwrap(colorinMade as? ModuleBox<ColorInModule>)
+        await colorin.setParams(.init())
+        let gammaMade = await registry.makeBox(opName: GammaModule.opName)
+        let gamma = try XCTUnwrap(gammaMade as? ModuleBox<GammaModule>)
+        await gamma.setParams(.init())
+        let (texture, _) = try await RenderPipeline.process(
+            image: image,
+            instances: [ashift as any ModuleBoxing, colorin, gamma],
+            imageID: UUID(), resolution: .preview, cache: PipeCache(),
+            metal: metal, longEdge: nil)
+        await drain(metal)
+        XCTAssertEqual(
+            texture.pixelFormat, .bgra8Unorm,
+            "gamma tail must hand back the display-format plane")
+        var bgra = [UInt8](repeating: 0, count: texture.width * texture.height * 4)
+        bgra.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: texture.width * 4,
+                from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0
+            )
+        }
+        // Display-frame corners of a 30° rotation are warp-outside; all
+        // four must be display black.
+        let w = texture.width, h = texture.height
+        for (x, y) in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)] {
+            let i = (y * w + x) * 4
+            XCTAssertEqual(bgra[i], 0, "corner (\(x),\(y)) B must be display black")
+            XCTAssertEqual(bgra[i + 1], 0, "corner (\(x),\(y)) G must be display black")
+            XCTAssertEqual(bgra[i + 2], 0, "corner (\(x),\(y)) R must be display black")
+        }
+        // Interior stays lit (ramp is non-zero in the visible quad).
+        let ci = ((h / 2) * w + w / 2) * 4
+        XCTAssertGreaterThan(
+            max(bgra[ci], bgra[ci + 1], bgra[ci + 2]), 0,
+            "warp interior must remain visible through the display tail")
+    }
+
     /// Identity gate (恒等门): neutral params ⇒ byte-identical RGB plane
     /// through the REAL pipe (the cache-neutrality contract the editing
     /// seed relies on).
