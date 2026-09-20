@@ -372,10 +372,12 @@ final class GeometryGoldenTests: XCTestCase {
     // MARK: - Helpers (GoldenParityTests track-B shape)
 
     /// The default chain with crop (FULL-frame = identity window) + flip
-    /// (NONE identity) + lens (neutral OFF) inserted at their v50 slots.
-    /// Full-frame crop = whole-plane blit; neutral lens = blit identity
-    /// (cache-neutral shapes, exercise the blit legs through the real
-    /// chain without moving patches into the letterbox).
+    /// (NONE identity) + lens (neutral OFF) + the five detail neutrals
+    /// (sharpen/bilat/equalizer enabled-neutral blit, highpass/soften
+    /// DISABLED — plan 04-05-T5 track B) inserted at their v50 slots.
+    /// Full-frame crop = whole-plane blit; neutral lens/detail = blit
+    /// identity (cache-neutral shapes, exercise the blit legs through the
+    /// real chain without moving patches into the letterbox).
     private func makeChainWithCropFlip(
         registry: ModuleRegistry, outputProfile: ColorOutModule.OutputProfile
     ) async throws -> [any ModuleBoxing] {
@@ -395,6 +397,30 @@ final class GeometryGoldenTests: XCTestCase {
         let cropBox = try XCTUnwrap(crop as? ModuleBox<CropModule>)
         await cropBox.setParams(CropModule.Params())
         chain.append(cropBox)
+        // Plan 04-05-T5 track B: the five detail neutrals (blit-identity
+        // legs through the real chain — enabled-neutral ×3, disabled ×2).
+        let sharpenMade = await registry.makeBox(opName: SharpenModule.opName)
+        let sharpenBox = try XCTUnwrap(sharpenMade as? ModuleBox<SharpenModule>)
+        await sharpenBox.setParams(SharpenModule.Params())
+        chain.append(sharpenBox)
+        let bilatMade = await registry.makeBox(opName: LocalContrastModule.opName)
+        let bilatBox = try XCTUnwrap(bilatMade as? ModuleBox<LocalContrastModule>)
+        await bilatBox.setParams(LocalContrastModule.Params())
+        chain.append(bilatBox)
+        let eqMade = await registry.makeBox(opName: EqualizerModule.opName)
+        let eqBox = try XCTUnwrap(eqMade as? ModuleBox<EqualizerModule>)
+        await eqBox.setParams(EqualizerModule.Params())
+        chain.append(eqBox)
+        let highMade = await registry.makeBox(opName: HighpassModule.opName)
+        let highBox = try XCTUnwrap(highMade as? ModuleBox<HighpassModule>)
+        await highBox.setParams(HighpassModule.Params())
+        highBox.enabled = false
+        chain.append(highBox)
+        let softMade = await registry.makeBox(opName: SoftenModule.opName)
+        let softBox = try XCTUnwrap(softMade as? ModuleBox<SoftenModule>)
+        await softBox.setParams(SoftenModule.Params())
+        softBox.enabled = false
+        chain.append(softBox)
         return chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
 
