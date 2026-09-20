@@ -7,8 +7,11 @@
 ///
 /// `Hashable` (02-02): `PipeCacheKey` embeds the ROI — synthesized over the
 /// five fields (in-memory key only; never persisted).
-public struct ROI: Equatable, Hashable, Sendable {
+public struct ROI: Equatable, Hashable, Sendable, CustomStringConvertible {
 
+    public var description: String {
+        "ROI(x:\(x) y:\(y) w:\(width) h:\(height) s:\(scale))"
+    }
     public var x: Int
     public var y: Int
     public var width: Int

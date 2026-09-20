@@ -45,6 +45,13 @@ public struct IOPiece {
     /// Output buffer geometry for this piece.
     public var dscOut: IOPBufferDesc
 
+    /// 04-01 negotiation stamps (dt `processed_roi_in/out`,
+    /// `pixelpipe_hb.c:2095-2096` mirror): the exact ROIs this piece's
+    /// execution consumed. Stamped by `processRec` (post-negotiation) —
+    /// modules and probes read them; `commitParams` never touches them.
+    public var processedROIIn: ROI
+    public var processedROIOut: ROI
+
     /// Module-private piece data (Darktable `piece->data`, iop_api.h:188) —
     /// typically a uniforms buffer written by `commitParams`.
     public var data: (any MTLBuffer)?
@@ -53,11 +60,15 @@ public struct IOPiece {
         paramsHash: UInt64 = 0,
         dscIn: IOPBufferDesc = IOPBufferDesc(),
         dscOut: IOPBufferDesc = IOPBufferDesc(),
+        processedROIIn: ROI = ROI(),
+        processedROIOut: ROI = ROI(),
         data: (any MTLBuffer)? = nil
     ) {
         self.paramsHash = paramsHash
         self.dscIn = dscIn
         self.dscOut = dscOut
+        self.processedROIIn = processedROIIn
+        self.processedROIOut = processedROIOut
         self.data = data
     }
 }

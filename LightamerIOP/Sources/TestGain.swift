@@ -35,6 +35,11 @@ public enum TestGainKernel {
     /// MSL function name of the gain kernel (`TestGain.metal`).
     public static let functionName = "test_gain"
 
+    /// 04-01 ROI probe: offset-sampled gain (`test_gain_windowed`) — reads
+    /// input at `gid + (roiIn.xy − roiOut.xy)`, so a downstream module's
+    /// output proves it consumed the negotiated window.
+    public static let windowedFunctionName = "test_gain_windowed"
+
     /// The LightamerIOP framework bundle — the `registerDefaultLibrary(in:)`
     /// anchor (the IOP metallib lives in the FRAMEWORK bundle, never
     /// `Bundle.main`).
@@ -74,6 +79,10 @@ public final class TestGainModule: IOPModule {
     private var uniformsBuffer: (any MTLBuffer)?
     private var uniformsGain: Float = .nan
 
+    /// Last committed gain (04-01: the windowed `process` path builds its
+    /// uniforms per call — it reads this, not the GPU buffer).
+    private var committedGain: Float = 1.0
+
     public init(device: (any MTLDevice)? = nil) {
         self.device = device
     }
@@ -91,7 +100,7 @@ public final class TestGainModule: IOPModule {
     public func commitParams(_ params: Params, into piece: inout IOPiece) async {
         let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
-
+        committedGain = params.gain
         guard let resolvedDevice = device ?? MTLCreateSystemDefaultDevice() else {
             piece.data = nil
             return
@@ -126,15 +135,33 @@ public final class TestGainModule: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        let uniforms = piece.data // local copy — closures cannot capture inout
+        let uniforms = piece.data // local copy for the gain when offset is zero
+        let dx = Int32(roiIn.x - roiOut.x)
+        let dy = Int32(roiIn.y - roiOut.y)
+        if dx == 0 && dy == 0 {
+            try await metal.dispatch2DTexture(
+                functionName: TestGainKernel.functionName,
+                input: input,
+                output: output
+            ) { encoder in
+                if let uniforms {
+                    encoder.setBuffer(uniforms, offset: 0, index: 0)
+                }
+            }
+            return
+        }
+        let captured = ROIGainUniforms(
+            gain: committedGain, inOffsetX: dx, inOffsetY: dy
+        )
         try await metal.dispatch2DTexture(
-            functionName: TestGainKernel.functionName,
+            functionName: TestGainKernel.windowedFunctionName,
             input: input,
             output: output
         ) { encoder in
-            if let uniforms {
-                encoder.setBuffer(uniforms, offset: 0, index: 0)
-            }
+            var uniformsCopy = captured
+            encoder.setBytes(
+                &uniformsCopy,
+                length: MemoryLayout<ROIGainUniforms>.stride, index: 0)
         }
     }
 }
@@ -148,5 +175,21 @@ struct TestGainUniforms {
 
     init(gain: Float) {
         self.gain = gain
+    }
+}
+
+/// Swift mirror of the MSL `ROIGainUniforms` struct (04-01 probe):
+/// `float gain` + `int2 inOffset` (= `roiIn.xy − roiOut.xy`, negotiated
+/// sampling shift). 16-byte total — constant-addressable aligned.
+struct ROIGainUniforms {
+    var gain: Float
+    var inOffsetX: Int32
+    var inOffsetY: Int32
+    private var _pad: Float = 0
+
+    init(gain: Float, inOffsetX: Int32, inOffsetY: Int32) {
+        self.gain = gain
+        self.inOffsetX = inOffsetX
+        self.inOffsetY = inOffsetY
     }
 }

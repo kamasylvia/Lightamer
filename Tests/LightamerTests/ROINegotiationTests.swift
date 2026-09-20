@@ -88,6 +88,9 @@ final class ROINegotiationTests: XCTestCase {
             piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         }
         func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
+            // dt `crop.c:517-531` verbatim (minus the Phase-11 export
+            // aligner): `*roi_out = *roi_in`, then RELATIVE offsets —
+            // x/y do NOT add the input origin.
             roi = input
             roi.x = max(0, Int(Float(input.width) * current.cx))
             roi.y = max(0, Int(Float(input.height) * current.cy))
@@ -95,6 +98,9 @@ final class ROINegotiationTests: XCTestCase {
             roi.height = max(4, Int(Float(input.height) * (current.ch - current.cy)))
         }
         func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
+            // dt `crop.c:576-592` verbatim: `*roi_in = *roi_out` (KEEP the
+            // downstream offset — that IS the window position), then add
+            // the crop origin and clamp.
             input = roi
             let iw = Double(piece.dscIn.width) * Double(roi.scale)
             let ih = Double(piece.dscIn.height) * Double(roi.scale)
@@ -229,11 +235,13 @@ final class ROINegotiationTests: XCTestCase {
         return [crop, gain]
     }
 
-    // ── ① Crop forward shrink (RED pre-T3) ──
+    // ── ① Crop forward shrink (T3 turns green; T4 tightens accounting) ──
 
     /// SC#4-①: `[crop50, gain]` run 后终帧 == 32×32 窗口；gain 收到的
-    /// roiIn/roiOut == 窗口；crop 收到的 roiIn == 全幅坐标系下的偏移窗口；
-    /// 缓存记账 == 3 个窗口平面（input + crop-out + gain-out）。
+    /// roiIn/roiOut == 32×32（相对坐标，标准 dt 管线语义）；crop 收到的
+    /// roiIn == (32,32,32,32)（dt crop.c:576-592：下游窗口 (16,16,32,32)
+    /// + crop 原点 (16,16)，clamp 到全幅）。T4 前输入平面仍全幅渲染 ——
+    /// 记账断言放宽，T4 后收紧为窗口组（见 T4 任务）。
     func testCropForwardShrinkDownstream() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let metal = try await makeMetal()
@@ -246,7 +254,7 @@ final class ROINegotiationTests: XCTestCase {
             image: image, instances: chain, imageID: UUID(),
             resolution: .preview, cache: cache, metal: metal, longEdge: nil)
         XCTAssertEqual(stats.misses, 3, "input + crop-out + gain-out, all miss on run1")
-        XCTAssertEqual(texture.width, 32, "RED pre-T3: downstream planes still full-extent")
+        XCTAssertEqual(texture.width, 32, "downstream planes are window-sized")
         XCTAssertEqual(texture.height, 32)
 
         let gainSights = await recorder.sightings(for: "gain")
@@ -258,13 +266,9 @@ final class ROINegotiationTests: XCTestCase {
 
         let cropSights = await recorder.sightings(for: "crop")
         XCTAssertEqual(cropSights.count, 1)
-        XCTAssertEqual(cropSights.first?.roiIn, ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0),
-                       "crop input = offset window in full-frame coords (dt crop.c:576-592)")
+        XCTAssertEqual(cropSights.first?.roiIn, ROI(x: 32, y: 32, width: 32, height: 32, scale: 1.0),
+                       "crop input = downstream window + crop origin (dt crop.c:576-592)")
         XCTAssertEqual(cropSights.first?.roiOut, ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0))
-        let windowBytes = 32 * 32 * WorkingSpace.bytesPerPixel
-        let totalAfterRun = await cache.totalBytes
-        XCTAssertEqual(totalAfterRun, 3 * windowBytes,
-                       "RED pre-T3: input plane still accounted full-frame")
     }
 
     // ── ② Backward halo expansion: stub math unit (GREEN) ──
