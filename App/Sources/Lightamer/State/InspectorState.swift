@@ -72,6 +72,13 @@ final class InspectorState {
         register(AshiftPanelProvider())
         // Plan 04-04-T3: lens (embedded note + manual sliders + Lensfun).
         register(LensPanelProvider())
+        // Plan 04-05-T5: detail five (sharpen + local contrast + highpass +
+        // soften + equalizer; highpass/soften share one view, two providers).
+        register(SharpenPanelProvider())
+        register(LocalContrastPanelProvider())
+        register(HighpassPanelProvider())
+        register(SoftenPanelProvider())
+        register(EqualizerPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

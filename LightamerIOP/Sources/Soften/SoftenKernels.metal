@@ -90,7 +90,8 @@ struct SoftenMixUniforms {
     float amount;       // d->amount / 100
     float pad0;
     int2 srcOffset;     // roiOut.xy − roiIn.xy (0 under tiling)
-    float pad2;
+    // NOTE: NO pad2 — struct is 4+4+8 = 16 bytes both sides (Swift drops
+    // it too; the ashift float-array packing postmortem).
 };
 
 // Step 3 — the mix (`soften.cl:164-165` verbatim:

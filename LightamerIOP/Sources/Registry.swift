@@ -205,6 +205,13 @@ public enum LightamerIOPRegistry {
             ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params()),
             ModuleInstance(module: ToneEqualModule.self, params: ToneEqualModule.Params()),
             ModuleInstance(module: CropModule.self, params: CropModule.Params()),
+            ModuleInstance(module: SigmoidModule.self, params: SigmoidModule.Params()),
+            ModuleInstance(module: AgXModule.self, params: AgXModule.Params()),
+            ModuleInstance(module: FilmicRGBModule.self, params: FilmicRGBModule.Params()),
+            ModuleInstance(module: ColisaModule.self, params: ColisaModule.Params()),
+            ModuleInstance(module: ToneCurveModule.self, params: ToneCurveModule.Params()),
+            ModuleInstance(module: LevelsModule.self, params: LevelsModule.Params()),
+            ModuleInstance(module: ShadhiModule.self, params: ShadhiModule.Params()),
             // Plan 04-05-T1/T2: sharpen (amount 0) + local contrast (detail 0)
             // join the seed ENABLED-neutral — blit identity ⇒ cache-neutral
             // (exposure-0EV style), so their panels have instances to drive.

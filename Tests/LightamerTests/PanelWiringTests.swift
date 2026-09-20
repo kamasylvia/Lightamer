@@ -98,6 +98,13 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertTrue(ops.contains("crop"), "pristine seed must include crop")
         XCTAssertTrue(ops.contains("flip"), "pristine seed must include flip")
         XCTAssertTrue(ops.contains("lens"), "pristine seed must include lens")
+        // Plan 04-05-T5: sharpen/bilat/equalizer join the seed
+        // enabled-neutral; highpass/soften join DISABLED (D11).
+        XCTAssertTrue(ops.contains("sharpen"), "pristine seed must include sharpen")
+        XCTAssertTrue(ops.contains("bilat"), "pristine seed must include bilat")
+        XCTAssertTrue(ops.contains("equalizer"), "pristine seed must include equalizer")
+        XCTAssertTrue(ops.contains("highpass"), "pristine seed must include highpass")
+        XCTAssertTrue(ops.contains("soften"), "pristine seed must include soften")
     }
 
     private func instance(_ opName: String) throws -> ModuleInstance {
@@ -594,6 +601,122 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertNotNil(
             state.panelView(for: ModuleInstance(module: LensModule.self, params: .init()), edit: session),
             "lens must dispatch a panel")
+    }
+    // MARK: - 04-05 detail panel wiring (T5: five ops, one commit per drag)
+
+    func testSharpenPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let sharpen = try instance("sharpen")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(sharpen, { $0.amount = Float(tick) * 0.1 }, as: SharpenModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_sharpen"))
+
+        XCTAssertEqual(historyCount(), 1, "sharpen drag = exactly ONE item")
+        let committed = try instance("sharpen")
+        XCTAssertEqual(try committed.params(of: SharpenModule.self).amount, 0.6, accuracy: 1e-6)
+    }
+
+    func testLocalContrastPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let bilat = try instance("bilat")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(bilat, { $0.detail = Float(tick) * 0.2 }, as: LocalContrastModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_localcontrast"))
+
+        XCTAssertEqual(historyCount(), 1, "local-contrast drag = exactly ONE item")
+        let committed = try instance("bilat")
+        XCTAssertEqual(try committed.params(of: LocalContrastModule.self).detail, 1.2, accuracy: 1e-6)
+    }
+
+    func testHighpassSoftenPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let highpass = try instance("highpass")
+        XCTAssertFalse(highpass.enabled, "highpass seed is disabled (creative module)")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(highpass, { $0.contrast = 50 + Float(tick) }, as: HighpassModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_highpass"))
+
+        XCTAssertEqual(historyCount(), 1, "highpass drag = exactly ONE item")
+        let committedH = try instance("highpass")
+        XCTAssertEqual(try committedH.params(of: HighpassModule.self).contrast, 56.0, accuracy: 1e-6)
+
+        let soften = try instance("soften")
+        XCTAssertFalse(soften.enabled, "soften seed is disabled (creative module)")
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(soften, { $0.amount = 50 + Float(tick) * 2 }, as: SoftenModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_soften"))
+
+        XCTAssertEqual(historyCount(), 2, "soften drag = exactly ONE more item")
+        let committedS = try instance("soften")
+        XCTAssertEqual(try committedS.params(of: SoftenModule.self).amount, 62.0, accuracy: 1e-6)
+    }
+
+    func testEqualizerPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let equalizer = try instance("equalizer")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(equalizer, { $0.g0 = Float(tick) * 0.1 }, as: EqualizerModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_equalizer"))
+
+        XCTAssertEqual(historyCount(), 1, "equalizer drag = exactly ONE item")
+        let committed = try instance("equalizer")
+        XCTAssertEqual(try committed.params(of: EqualizerModule.self).g0, 0.6, accuracy: 1e-6)
+    }
+
+    /// Panel dispatch: all five detail ops resolve a panel; the seed
+    /// contains sharpen/bilat/equalizer enabled-neutral + highpass/soften
+    /// disabled (D11).
+    func testDetailPanelDispatch() async throws {
+        try await loadSynthetic()
+        XCTAssertTrue(
+            editorState.instances.map(\.opName).contains("sharpen"),
+            "pristine seed must include sharpen (neutral)")
+        XCTAssertTrue(
+            editorState.instances.map(\.opName).contains("bilat"),
+            "pristine seed must include bilat (neutral)")
+        XCTAssertTrue(
+            editorState.instances.map(\.opName).contains("equalizer"),
+            "pristine seed must include equalizer (neutral)")
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        let session = InspectorEditSession(coordinator: coordinator)
+        for op in ["sharpen", "bilat", "highpass", "soften", "equalizer"] {
+            XCTAssertTrue(state.panelOpNames.contains(op), "\(op) must dispatch a panel")
+        }
+        XCTAssertNotNil(
+            state.panelView(for: ModuleInstance(module: SharpenModule.self, params: .init()), edit: session),
+            "sharpen must dispatch a panel")
+        XCTAssertNotNil(
+            state.panelView(for: ModuleInstance(module: LocalContrastModule.self, params: .init()), edit: session),
+            "bilat must dispatch a panel")
+        XCTAssertNotNil(
+            state.panelView(for: ModuleInstance(module: HighpassModule.self, params: .init()), edit: session),
+            "highpass must dispatch a panel")
+        XCTAssertNotNil(
+            state.panelView(for: ModuleInstance(module: SoftenModule.self, params: .init()), edit: session),
+            "soften must dispatch a panel")
+        XCTAssertNotNil(
+            state.panelView(for: ModuleInstance(module: EqualizerModule.self, params: .init()), edit: session),
+            "equalizer must dispatch a panel")
     }
 
     // MARK: - Helpers
