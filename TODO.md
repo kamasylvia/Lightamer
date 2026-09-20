@@ -133,7 +133,7 @@
 
 - [x] **Plan 04-01**（ROI 协商协议改造）完成（2026-09-20）：omp 执行 8 commits；subagent 验收 PASS——AC 逐条实证 + 独立 282 tests 0 失败 + SC#4 四断言 8/8（真模块回归）+ D-X1 JPEG 冒烟回归确认；SUMMARY 见 `04-01-SUMMARY.md`
 - [x] **Plan 04-02**（crop + flip/orientation + overlay 手柄）完成（2026-09-20）：omp 执行 5 commits；验收初判 FAIL（`testCropGoldenParity` 恒真空转——无比较循环），验收方直接修（补 3 case × 4 fixture 双循环，12 golden EXR 实比对）+ 补 manifest 04-02 节（blob/引用 sha256 表 + L017 probe 落账）后转绿；交付面：T1 CropModule 窗口三钩子（crop.c:517-592 直译）+ CropParity 8/8、T2 FlipModule 8 态 remap + FlipParity 8/8 + V50 flip<crop 顺序硬约束、T3 L017 双重 probe + 轨 A <1e-6 + 轨 B 2/2、T4 ViewportFit 三处同源 + 9 手柄/网格/暗膜 + D-H1 live-disabled 拖拽、T5 CropPanelView + catalog 20 keys + PanelWiring +3；overlay 交互 3 行 Manual-Only 表（L011 口径）；SUMMARY 见 `04-02-SUMMARY.md`
-
+- [x] **Plan 04-03**（rotate/perspective ashift + Vision 自动检测）完成（2026-09-20）：T0 单一 ashift op（v50 15.0，`iop_order.c:319` 实测）+ 透视 (a) 参数面 + Vision 填充 + EXIF 分工；T1 Homography CPU（dt `_homography` Double 直译 + DLT + fitParams，HomographyTests 6/6）；T2 ashift_warp kernel + 模块三钩子（L020 帧约定注释钉死）+ Registry/种子/V50 双钉；T3 Vision 探针 4/4（θ<0.2°/矩形<0.5%/符号钉死/0° nil 特性）；T4 L017 合成参考（7 钉参 × 4 fixture，<1e-5/<1e-5）+ manifest 落账 + **管线修复：后向 clamp 改 `frameROI.union(roiOut)`**（grow 契约擦除根因）+ ColorIn 断言松绑；T5 AshiftPanelView + catalog 18 keys + PanelWiring +2 + ROI 回归 +1；排障沉淀：半 texel 采样约定（0.5/63 精确签名）、float 数组 packing 改 float4 行、sub-region getBytes 回零（harness 改全幅读回）；SUMMARY 见 `04-03-SUMMARY.md`
 ## pending-manual（累计，解锁后重跑）
 
 - [ ] XCUITest 三栏断言（L011 授权；Phase 1 起遗留）：`xcodebuild test -only-testing:LightamerUITests`

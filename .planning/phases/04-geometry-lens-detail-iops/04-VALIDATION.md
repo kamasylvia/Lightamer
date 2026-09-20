@@ -43,8 +43,8 @@ created: 2026-09-20
 | 04-01-T1..T5 | 04-01 | 1 | FOUND-04 (ROI) | — | N/A | unit | ROINegotiationTests: crop 前向收缩（下游平面=窗口尺寸）、sharpen 后向外扩（<全图）、缓存 roi 字段联动 | ✅ | ✅ green（2026-09-20：8/8；halo e2e 24×24 hint → 30×30 expanded ≪128；全 suite 279 0 fail） |
 | 04-02-T1/T3/T4 | 04-02 | 2 | IOP-GEO-01 | — | N/A | golden+unit | crop parity（CropParityTests 8/8 + GeometryGolden track A 3×4 <1e-6 + SC#4 ①③④真模块回归 + overlay drag=1 item）| ✅ | ✅ green（2026-09-20：GeometryGolden 4/4；ROINegotiation 8/8；CropOverlay 6/6；PanelWiring +3 crop） |
 | 04-02-T2/T3 | 04-02 | 2 | IOP-GEO-04 | — | N/A | golden+unit | flip parity（FlipParityTests 8/8 + track A 4×4 <1e-6 + flip<crop 顺序硬约束）| ✅ | ✅ green（2026-09-20：V50OrderTests +1 order constraint） |
-| (planner) | — | 2 | IOP-GEO-03 | — | N/A | golden+unit | lens distortion/CA/vignette parity（合成 float64 参考 + uniform dt 探针）| ❌ W0 | ⬜ pending |
-| (planner) | — | 3 | IOP-DETAIL-01/02/03/04 | — | N/A | golden+unit | sharpen USM/local contrast(EIGF)/highpass-soften/equalizer parity（Lab 域经 LabRoundTrip）| ❌ W0 | ⬜ pending |
+| 04-03-T1/T2/T4 | 04-03 | 2 | IOP-GEO-02 | — | N/A | golden+unit | rotate/perspective parity（HomographyTests 6/6 + AshiftParityTests 7/7：合成 float64 参考 7×4 <1e-5/<1e-5 + 恒等门 + 黑角 alpha + V50 ashift<flip<crop 双钉）| ✅ | ✅ green（2026-09-20：全 suite 331 0 fail；管线 union-clamp 修复含回归） |
+| 04-03-T3 | 04-03 | 2 | IOP-GEO-02 auto-detect | — | N/A | unit | VisionDetectTests 4/4（θ<0.2°/矩形<0.5%/符号钉死；真机抽检 pending-manual 见 .work/04-03/vision-field-notes.md）| ✅ | ✅ green（合成探针全绿） |
 | 04-02-T3 | 04-02 | 2 | 轨 B 回归 | — | N/A | golden | crop-full + flip-none 插链后 ColorSync 中性度+交叉一致性不回归（D-COL1 双判据）| ✅ | ✅ green（2026-09-20：GeometryGolden track B 2/2） |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
