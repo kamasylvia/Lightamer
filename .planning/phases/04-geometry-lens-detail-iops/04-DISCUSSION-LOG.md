@@ -45,3 +45,9 @@
 - **决策：(3) EXIF 方向分工**——90° 步进由 flip（04-02）承担；ashift 只管微调/透视。
 - **理由**：与 dt 槽位 15.0 语义对齐；单应统一旋转/透视同一 kernel；sidecar 持久化身份一次性定稿（事后改 = 格式迁移）。
 - **执行裁决（plan 未覆盖，见 04-03-DECISIONS.md D1–D9）**：mode 锁定 GENERIC；uniforms 走 setBytes per-run（单应依赖 bufIn 尺寸）；前向补 `dscOut` 盖章；bilinear 边框语义钉死；中性/病态→blit 恒等；种子带 ENABLED 中性 ashift；L020 帧约定注释三处钉死；Vision 经 public facade + coordinator 只读源图；符号约定以探针为准。
+## 04-04-T0 Lensfun 集成口径定稿（2026-09-20，executor 采纳 plan 推荐 + 细化）
+
+- **决策 1（数据分发，Open Q4 采纳 plan 推荐）**：首跑下载 lensfun-data master.zip → Application Support/Lensfun/version_1/*.xml（unzip 扁平解包）；UserDefaults lensfun.customPath 可覆盖；失败/缺席 → (c) 静默缺席、(b) 照常。数据不入 git；测试钉 3 个手摘最小子集。
+- **决策 2（归一化半径约定，lensfun GitHub 源码钉死）**：Hugin 畸变/TCA r=1 于半高、vignetting r=1 于像角；换算因子 NS·HW（分辨率无关，preview/full 同参同貌）；结论进 kernel 头注释。Diverge-aside：镜头 `aspect-ratio`/`center`/`real-focal` v1 子集皆无 → 缺省 1.5/0/名义焦段（落账 D-04-04-T0-2）。
+- **决策 3（插值语义，lens.cpp 逐式）**：distortion/TCA = 4 点 Hermite 样条（edge 退化）；vignetting = IDW p=3.5 + exact<1e-4 + mindist>1 缺席。plan 的"三维线性"被源码口径替代（落账 D-04-04-T0-3；偏差方向相反——线性反而是大偏差）。
+- **执行裁决（plan 未覆盖，见 04-04-DECISIONS.md D1–D9）**：vignette 除法语义（D1，plan 乘法字面是错的——配 XML 负 k 会越校越暗）；统一 dc1..dc4 + TCA 全 6 项多项式精确直通（D2）；复合先 D 后 TCA（D3）；出界 clamp（D4）；中性/病态→blit 恒等（D5）；EXIF 快照进 Params + process 期 resolve（D6）；L020 帧约定三处钉死（D7）；测试 XML 内联 + 子集文件双轨（D8）；URLSession+unzip 下载（D9）。
