@@ -46,6 +46,9 @@ created: 2026-09-20
 | 04-03-T1/T2/T4 | 04-03 | 2 | IOP-GEO-02 | — | N/A | golden+unit | rotate/perspective parity（HomographyTests 6/6 + AshiftParityTests 7/7：合成 float64 参考 7×4 <1e-5/<1e-5 + 恒等门 + 黑角 alpha + V50 ashift<flip<crop 双钉）| ✅ | ✅ green（2026-09-20：全 suite 331 0 fail；管线 union-clamp 修复含回归） |
 | 04-03-T3 | 04-03 | 2 | IOP-GEO-02 auto-detect | — | N/A | unit | VisionDetectTests 4/4（θ<0.2°/矩形<0.5%/符号钉死；真机抽检 pending-manual 见 .work/04-03/vision-field-notes.md）| ✅ | ✅ green（合成探针全绿） |
 | 04-02-T3 | 04-02 | 2 | 轨 B 回归 | — | N/A | golden | crop-full + flip-none 插链后 ColorSync 中性度+交叉一致性不回归（D-COL1 双判据）| ✅ | ✅ green（2026-09-20：GeometryGolden track B 2/2） |
+| 04-04-T1/T2/T4 | 04-04 | 3 | IOP-GEO-03 | — | N/A | golden+unit | lens parity（LensParityTests 7/7：合成 float64 参考 6×4 <1e-5/<1e-5 + k=0 恒等门 + vignette 解析点检 + CA 方向 + 统一出口逐字节；LensfunDBTests 15/15：子集钉参 + Hermite/IDW/d-factor 手算 + 4 文件交叉；ROINegotiation +1 收缩回归）| ✅ | ✅ green（2026-09-21：全 suite 355 0 fail；含管线级子域 CI 翻转修复 + ROI 宽度原点修复） |
+| 04-04-T3 | 04-04 | 3 | D-G1 三层完整性 | — | N/A | unit | (a) 模块头 + 面板注记文档化；(b)(c) 同一 kernel 逐字节一致（testUnifiedExitMatchesManual）+ 降级路径（无数据 → 恒等 + 手动可用）；LensPanelView 三段 + a11y 全套 + catalog 20 keys + PanelWiring +2 + launch resolve hook | ✅ | ✅ green（2026-09-21：PanelWiring 19/19；手动滑块 7 键；下载服务失败降级） |
+| 04-04-T4 | 04-04 | 3 | 轨 B 回归 | — | N/A | golden | neutral lens 插链后 ColorSync 中性度+交叉一致性不回归（D-COL1 双判据，GeometryGolden track B 链已含 lens）| ✅ | ✅ green（2026-09-21：GeometryGolden 4/4 含 lens 腿） |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -54,8 +57,8 @@ created: 2026-09-20
 ## Wave 0 Requirements
 
 - [x] `Tests/LightamerTests/ROINegotiationTests.swift` — ROI 协商 4 断言（8/8 独立复跑通过）（research §7）
-- [ ] gen_fixtures.py 增 geometry/detail 节（合成 float64 参考：旋转/透视/畸变/USM 已知向量）
-- [ ] Lensfun XML 数据文件获取 + 解析器 stub（如走 (c) 层）
+- [x] gen_fixtures.py lens 节（合成 float64 参考：径向 warp + vignette，LENS_CASES 7 钉参 × 4 fixture）
+- [x] Lensfun XML 固定子集（`input/golden/fixtures/lensfun/` 4 文件：ptlens/poly3/poly5/linear 全覆盖）
 
 ---
 
@@ -64,10 +67,10 @@ created: 2026-09-20
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | crop overlay 手柄交互 | IOP-GEO-01 SC#1 | 交互时序 + 手柄拖拽 | 拖角手柄/旋转手柄/比例锁定 → 确认实时预览与网格 |
-| 镜头校正视觉效果 | IOP-GEO-03 | 视觉验收 | 开关镜头校正对比畸变线（门框/建筑直线）|
+| crop 比例锁手感（3:2/16:9/original）| IOP-GEO-01 | 锁比拖角的短边贴合手感 | 选 3:2 → 拖角 → 矩形保持 3:2（以短边为准）；original → 以当前图幅比锁定 |
+| 镜头校正视觉（门框/建筑直线） | IOP-GEO-03 | 畸变还原需人眼直线判据 | input/RAW 现有 DSC00012/DSC09991 建筑：lens 面板 distortionK1 ±0.1 拖动 → 边缘直线由弯变直、CA 边缘紫边收敛；复位归零（L011 口径 pending-manual）|
 | crop overlay 拖角 → viewport 纹理尺寸变化 | IOP-GEO-01 SC#1 | XCUITest 需解锁控制台（L011）；自动化腿已由 CropOverlayTests 覆盖（drag=1 item + live-disabled + neutral seed）| 打开图片 → 选 crop 面板 → 拖右下角手柄向内 → viewport 图像变小、暗膜在拖动中可见、松手后 history +1 |
 | crop 三分/黄金网格视觉 | IOP-GEO-01 SC#1 | 像素级视觉（自动化只断言几何存在）| 拖动中确认三分线；切换 phi 网格（showsPhiGrid）确认 0.3819/0.6181 线位 |
-| crop 比例锁手感（3:2/16:9/original）| IOP-GEO-01 | 锁比拖角的短边贴合手感 | 选 3:2 → 拖角 → 矩形保持 3:2（以短边为准）；original → 以当前图幅比锁定 |
 ---
 
 ## Validation Sign-Off
