@@ -51,3 +51,9 @@
 - **决策 2（归一化半径约定，lensfun GitHub 源码钉死）**：Hugin 畸变/TCA r=1 于半高、vignetting r=1 于像角；换算因子 NS·HW（分辨率无关，preview/full 同参同貌）；结论进 kernel 头注释。Diverge-aside：镜头 `aspect-ratio`/`center`/`real-focal` v1 子集皆无 → 缺省 1.5/0/名义焦段（落账 D-04-04-T0-2）。
 - **决策 3（插值语义，lens.cpp 逐式）**：distortion/TCA = 4 点 Hermite 样条（edge 退化）；vignetting = IDW p=3.5 + exact<1e-4 + mindist>1 缺席。plan 的"三维线性"被源码口径替代（落账 D-04-04-T0-3；偏差方向相反——线性反而是大偏差）。
 - **执行裁决（plan 未覆盖，见 04-04-DECISIONS.md D1–D9）**：vignette 除法语义（D1，plan 乘法字面是错的——配 XML 负 k 会越校越暗）；统一 dc1..dc4 + TCA 全 6 项多项式精确直通（D2）；复合先 D 后 TCA（D3）；出界 clamp（D4）；中性/病态→blit 恒等（D5）；EXIF 快照进 Params + process 期 resolve（D6）；L020 帧约定三处钉死（D7）；测试 XML 内联 + 子集文件双轨（D8）；URLSession+unzip 下载（D9）。
+## 04-05-T0 detail 四模块口径定稿（2026-09-21，executor 采纳 plan 推荐 + 细化）
+
+- **决策 1（luma 域，Open Q2 采纳 plan 推荐）**：Lab L（LabMath.h 融合；soften 例外 RGB 线性域）。scene-referred 纯度分歧记 intentional divergence，进各模块头（04-05-DECISIONS.md D-04-05-T0-1）。
+- **决策 2（local contrast golden 口径，Open Q3 采纳 plan 推荐）**：合成 float64 公式参考 + detail=0 精确恒等门 + 内容方向断言；dt-cli 参考不可用（D-G3 必然代价）。
+- **决策 3（equalizer 高斯带，Open Q8 采纳 plan 推荐）**：v1 纯高斯带，不接 edge-aware 权重；偏差注记；EIGF 接入作 stretch（未做）。
+- **执行裁决（plan 未覆盖/勘误，见 04-05-DECISIONS.md D1–D11）**：模块清单以 plan 文件为准（5 ops；任务书 parenthetical 的 cacorrect/cacorrectrgb 按 plan 不交付——Bayer 域不可移植 + lens TCA 已覆盖，defer）；sharpen σ = radius×scale（commit 2.5× 往返抵消）+ amount=0 默认（plan"默认 0 中性"实为 amount 快路径恒等；dt $DEFAULT 2.0/0.5/0.5 勘误）；highpass 两参无 center/radius（plan 三参字面勘误；CL mix 腿为准）；box-mean 模块的 blur 基座取 dt σ 相关式 + IIR 合成镜像（D4）；soften mix = amt·blurred+(1−amt)·in + dt-cli probe 免跑先验结论（D5）；EIGF 腿 no-mask 单迭代 + sigmaR→feathering 映射自定（D6）；ROI halo vs tileHalo 双常数分工（D7）；equalizer 只跑 L + 全零 blit 恒等（D8/D9）；XMP 范围（D10）；seeds（D11：sharpen/bilat/equalizer enabled 中性，highpass/soften disabled）。
