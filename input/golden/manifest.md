@@ -520,3 +520,45 @@ semantic (canonical fixture × pinned gains, float64 — gen_fixtures.py refs);
 dt-cli PFM probes on the uniform flats verify dt's per-pixel semantic
 (temperature_r120_b080 on flat_0ev: (0.6, 0.5, 0.4) exact, 4e-8); the pinned
 params adoption is verified via the library DB op_params hex + -d params log.
+
+## crop + flip golden (Plan 04-02-T3, 2026-09-20)
+
+L017 host finding re-confirmed for the geometry modules: dt-cli EXR export of
+crop center-50% and flipH on the ramp shows the corruption signature (first 3
+columns exact, then phase-shifted/smear blocks, G≠R up to 0.023); both modules
+export uniform flats exactly (flip flat bit-exact; crop flat = constant window
+of a constant, vacuous). dt-side evidence is therefore XMP ADOPTION: the pinned
+XMPs (gen_fixtures.py crop/flip cases, blobs below) attach and dt logs
+"params v. 3 ok" / "params v. 2 ok" + DB op_params hex byte-identical, and the
+rebuild-dc58cf0ba1 export runs the pinned history. Track-A references are
+CPU-SYNTHESIZED (crop window / flip remap over canonical fixture bytes,
+float64 — the gate is <1e-6, index identity is exact integers).
+
+Ratio bits (crop_3x2) ride inert in v3 params until the Phase-11 export
+aligner — crop_center50 and crop_3x2 share identical reference bytes by design.
+
+### crop cases (Plan 04-02-T3, synthesized references)
+
+dt blob `<ffffii` (24 bytes, dt_iop_crop_params_t v3) — cx/cy/cw/ch are the
+ABSOLUTE fraction window (dt crop.c stores right/bottom edges, not w/h):
+
+| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |
+|---|---|---|---|
+| crop_full | `00000000000000000000803f0000803fffffffffffffffff` | `d9627f3b7f320f2a1f1c3b76aca3f4936c1c25a98356011f2163f2aa12177bf3` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| crop_center50 | `0000803e0000803e0000403f0000403fffffffffffffffff` | `ba290d8596052a951a5e78e918d010d5e87ac6ccb31fdf9f34044ef72e659ab9` | ramp_8ev:ffcf6e2a4b8d1996 flat_0ev:6db8f48081a17c94 flat_-4ev:a865d618f94f932b gray_staircase:3d762c13874223ba |
+| crop_3x2 | `0000803e0000803e0000403f0000403f0200000003000000` | `086a2532068b7d936c8fe4848dbb8782311f14f73168cfa51d8a5cfe667f4d16` | ramp_8ev:ffcf6e2a4b8d1996 flat_0ev:6db8f48081a17c94 flat_-4ev:a865d618f94f932b gray_staircase:3d762c13874223ba |
+
+### flip cases (Plan 04-02-T3, synthesized references)
+
+dt blob `<i` (4 bytes, dt_iop_flip_params_t v2) — orientation bits
+(1=flipV, 2=flipH, 4=swap-xy; 6 = swap+flipH = rotCCW90). flip_none /
+flip_v reference sha256 equal the fixture sha256 (vertical remap of the
+canonical fixtures is identity on their symmetric content and exact on
+uniforms; ramp_8ev identity here is the fixture hash itself).
+
+| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |
+|---|---|---|---|
+| flip_none | `00000000` | `df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| flip_h | `02000000` | `26b25d457597a7b0463f9620f666dd10aa2c4373a505967c7c8d70922a2d6ece` | ramp_8ev:29ac28dd44583683 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c52eb070213a5be2 |
+| flip_v | `01000000` | `67abdd721024f0ff4e0b3f4c2fc13bc5bad42d0b7851d456d88d203d15aaa450` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| flip_ccw90 | `06000000` | `7aa8ca4a02506da9133d8f889678b76f716ce45d02e22fdb7b70a15e56a0eff8` | ramp_8ev:1f04d4d7373277a7 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:41e4408b1625cc4c |

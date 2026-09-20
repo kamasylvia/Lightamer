@@ -111,11 +111,16 @@ final class CropParityTests: XCTestCase {
         XCTAssertEqual(out.height, 4, "MAX(4, …) height floor")
     }
 
-    // MARK: - modifyROIIn (dt crop.c:576-592)
+    // MARK: - modifyROIIn (frame convention: our backward walk carries
+    // upstream-relative xy — see CropModule.modifyROIIn doc)
 
-    /// Downstream window (16,16,32,32) + 25% crop origin → upstream
-    /// (32,32,32,32): the SC#4-①真模块版 of the stub assertion.
-    func testModifyROIInAddsBackCropOrigin() async {
+    /// The incoming roiOut already IS the window in upstream coords (our
+    /// backward walk seeds from the forward walk, where modifyROIOut
+    /// recorded the origin) — so modifyROIIn keeps it verbatim (clamped).
+    /// dt's `+= buf_in·cx` re-add is correct only under dt's window-
+    /// relative roi_out; re-adding here double-offsets (golden parity
+    /// caught the pipe reading the [0.75..1] corner).
+    func testModifyROIInKeepsUpstreamRelativeWindow() async {
         let box = ModuleBox(module: CropModule())
         await box.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
         var piece = box.makeRunPiece()
@@ -124,7 +129,7 @@ final class CropParityTests: XCTestCase {
         box.modifyROIInErased(
             output: ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0),
             input: &input, piece: piece)
-        XCTAssertEqual(input, ROI(x: 32, y: 32, width: 32, height: 32, scale: 1.0))
+        XCTAssertEqual(input, ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0))
     }
 
     // MARK: - commit clamp (dt crop.c:635-638)
@@ -181,8 +186,9 @@ final class CropParityTests: XCTestCase {
     /// Window-offset accounting through the REAL pipe: `[crop50, gain]`
     /// with an ROI recorder on the gain — the gain's negotiated roiIn
     /// must equal the 32×32 window (dt's window-into-input identity at
-    /// the NEGOTIATION level; the blit offset math is CPU-pinned by
-    /// `testModifyROIInAddsBackCropOrigin` + the SC#4-① regression).
+    /// the NEGOTIATION level; the frame convention is CPU-pinned by
+    /// `testModifyROIInKeepsUpstreamRelativeWindow` + the SC#4-①
+    /// regression; CONTENT parity is the golden track A).
     /// (The direct-blit variant is retired: the harness `readRGBA`
     /// helper fences via a SEPARATE command buffer, which races the
     /// un-fenced test blit on the shared queue — diagnosed 2026-09-20:

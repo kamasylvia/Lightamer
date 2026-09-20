@@ -75,8 +75,8 @@
 ### L009: 开发环境在 USB 机械盘上时，冷读 I/O 会让构建病态化
 - **背景**：仓库与 Xcode 均在 `/Volumes/UNITEK`（14TB USB HDD，非 SSD），DerivedData 在内置 SSD。
 - **现象**：构建曾稳定工作（缓存热），随后 xcodebuild 卡死在 dlopen/类实例化（0% CPU）、`xcodebuild -version` 从瞬时变 9.9 秒。随机读实测 ~250ms/文件（90 个 4KB 文件 23.6 秒）。
-- **根因**：机械盘 + 同卷 Resilio Sync 并发同步 → 磁头寻道冲突；磁盘缓存被挤出后冷读全部打在慢卷上。
-- **对策**：(1) 构建时段暂停 Resilio；(2) 长期把 Xcode 与仓库迁回内置 SSD；(3) 本机构建前先 `time xcodebuild -version`（>2s 即卷处于慢态，先查 I/O）。诊断手法：`sample <pid>` 看卡点是否在 dlopen/IO；`dd` 随机小文件测卷延迟。
+- **根因**（2026-09-20 归因修正）：机械盘冷读是实测事实；"同卷 Resilio Sync 并发同步 → 磁头寻道冲突"降级为**未完全验证假设**——当时仅凭 Resilio 进程在跑 + SIGSTOP 后一次变快（4.27s→0.095s，非对照 A/B）即归因。用户确认 Resilio 确实同步 UNITEK 上其它目录，机制成立的前提是**其正在活跃传输**（磁头竞争是卷级，不要求目录重叠）；仅进程常驻不构成慢因。慢窗口真因未定案（候选：Resilio 活跃传输 / USB 盘休眠唤醒 / 当日机械盘特性）。
+- **对策**：(1) **不例行 SIGSTOP Resilio**（归因未定案，暂停同步有代价）；卷慢态（>2s）时先查 Resilio 是否在活跃传输（网络/磁盘活动），是则可暂停作**诊断性 A/B**，构建完恢复；(2) 长期把 Xcode 与仓库迁回内置 SSD；(3) 本机构建前先 `time xcodebuild -version`（>2s 即卷处于慢态，先查 I/O）。诊断手法：`sample <pid>` 看卡点是否在 dlopen/IO；`dd` 随机小文件测卷延迟。
 - **适用**：本机所有 Xcode/构建活动；跨机器开发时注意目标卷类型。
 - **来源**：Phase 1 屏显验证会话（2026-09-16）。
 
@@ -154,6 +154,21 @@
 - **对策 2（测试法）**：跨测试状态污染的排查路径——①单跑受害测试（通过→污染）；②按字母序找前驱测试二分；③在嫌疑测试内部按参数二分（σ=0.1 干净 / σ=20 触发）；④换分配路径（private→shared）验证。全量套件绿 ≠ 单测试语义正确，反之亦然。
 - **适用**：Phase 3+ 所有 IIR/邻域 kernel；一切 read_write 纹理累积模式；CI 渲染与 GPU compute 混跑的测试与 App 路径。
 - **来源**：Plan 03-04-T1/T2 排障（2026-09-19），证据链：.work/03-04/probe-gauss*.log（fwd-only uniform 灭零法 + 底部脉冲分解）、bisect-s01/s20/shared 日志、neutral-dump.png（半帧可视化）。
+
+### L019: XCTest「Enable UI Automation」密码弹窗会阻塞 App-host 单测全链；computer-use SDK client 缺失时用 coreautha 重建法消弹窗
+- **背景**：Plan 04-02 验收复跑全量 suite（2026-09-20）。`xcodebuild test` 两个 runner（LightamerTests 单测 + UITests）全部「The test runner hung before establishing connection」——**连不需要 UI Automation 的单测 runner 也挂**。15:07 全量还能过，之后 4 连挂。
+- **根因**：屏幕上悬着系统授权弹窗「XCTest 正在尝试 Enable UI Automation…输入用户密码以继续」（新二进制形态触发，非锁屏）。coreautha（LocalAuthentication）持有 secure input，弹窗对 test 会话的 automation enrollment 是**模态阻塞**——runner 起了但连不回 testmanagerd。误判过程：kCGSSessionSecureInputPID 有值被当成「锁屏」，实际截屏一看是弹窗（**先截屏再推断**，session dict 只能证 secure input 被持有，不能证锁屏）。
+- **排障路径（按序，含死胡同）**：① CGEvent 直发键入密码——osascript/uv-python 进程 **AXIsProcessTrusted=False**，事件被系统静默丢弃；② osascript System Events——进程级 AX 操作同样「不允许辅助访问」；③ computer-use SDK——本安装 **computer-use-client.mjs 缺失**（构建缓存不全，browser-use 0.5.1 里只有 browser-client.mjs），get_app_state 全局未注入；④ 终解：`kill -TERM`→`kill -9` coreautha（弹窗宿主，launchd 按需重生，语义=用户点「取消」），secure input 释放、弹窗消失，单测 runner 立即可连。
+- **对策**：a) 测试 runner「hung before connection」≠ 代码问题，先 `screencapture -x` 看屏幕有无模态弹窗，有则先消弹窗再跑测试；b) 无 AX 权限的 CLI 进程（CGEvent/osascript 均废）消系统弹窗 = 杀宿主进程（coreautha/UserNotificationCenter 均可安全重生）；c) 该弹窗一旦出现**会持续阻塞后续所有 xcodebuild 会话**，不是瞬时故障——15:07 后 4 连挂即此因；d) 消弹窗=放弃 UI Automation 授权（UITests 仍 L011 挂账），单测不受影响。
+- **适用**：所有 xcodebuild/App-host 测试会话；一切「进程有 GUI 会话但 AX 未授权」的自动化场景。
+- **来源**：04-02 验收排障（2026-09-20），证据链：xcresult 双 runner failureText、CGSessionCopyCurrentDictionary、AXIsProcessTrusted=False、前后截屏对照、secure input 释放确认。
+
+### L020: dt modify_roi_in 公式不可直接照搬——backward walk 的 roi 坐标系两边不同（crop 双重偏移真 bug）
+- **背景**：Plan 04-02 验收补真 crop golden track A（原测试恒真空转）后首跑即抓出：crop_center50 输出 (0,0) lightamer=0.25（=fixture(0.75)，[0.75..1] 角）而 ref=0.015625（=fixture(0.25)，正确窗口 [0.25..0.75] 原点）。04-01 ROI 协商测试 8/8 全绿——但那些断言只钉**记账**（尺寸/次数/键），从未钉**内容**；golden track A 是管线首个内容级断言。
+- **根因（坐标系约定冲突）**：dt `crop.c:576-592` 的 `roi_in = roi_out + buf_in·cx` 再加原点公式，前提是其 backward walk（`pixelpipe_hb.c:2085`）从**屏幕 roi** 出发、roi_out 为**窗口相对**坐标（原点=窗口角 (0,0)）。我们的 backward walk（processRec）从 **forward walk 结果**出发（`get_dimensions` 语义，`buf_out.xy` 已是上游相对窗口原点 16）——模块再加一次 left → 双加到 32，上游渲染了 [32..64) 而非 [16..48)；`process` 的 blit 又按全平面假设平移（dx=roiIn−roiOut，dt `copy_image_roi` 实为 `roi_out − roi_in`，`imagebuf.c:194`）→ 双重错位。
+- **对策**：①判断 dt roi 公式可否照搬，先核对其 walk 的坐标系前提（`pixelpipe_hb.c` backward walk vs `get_dimensions` forward walk），两 walk 语义不同；②修复 = modifyROIIn 保形（xy 已是原点，只 clamp）+ process dx=roiOut−roiIn，注释钉死帧约定（**部分下游请求的逐几何边界 re-base 协议留给 04-03 rotate**——旋转会强制帧变换成为一等公民）；③纯记账测试（尺寸/次数/键）对坐标错位免疫——几何模块必须有**内容级**断言（golden/逐像素）兜底，记账绿≠内容对；④照搬 dt 源码时，被移植函数在 dt 中走的分支（如 copy_image_roi 尺寸相等走快路径、坐标数学从未执行）也要核实——死分支里的公式可能从未被 dt 自己验证过。
+- **适用**：04-03 rotate/perspective、04-04 lens（全部几何/重采样模块）；一切「从 dt 移植 ROI/坐标数学」的场景。
+- **来源**：04-02 验收排障（2026-09-20），证据链：golden 失败逐像素值反解 fixture 坐标（0.25=2^(-8+8·0.75)）、dt pixelpipe_hb.c:2085/3368-3405 两 walk 对照、imagebuf.c:188-223 快慢路径分析、修复后 311 全绿。
 
 ---
 

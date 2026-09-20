@@ -264,9 +264,11 @@ final class ROINegotiationTests: XCTestCase {
 
     /// SC#4-①: `[crop50, gain]` run 后终帧 == 32×32 窗口；gain 收到的
     /// roiIn/roiOut == 32×32（相对坐标，标准 dt 管线语义）；crop 收到的
-    /// roiIn == (32,32,32,32)（dt crop.c:576-592：下游窗口 (16,16,32,32)
-    /// + crop 原点 (16,16)，clamp 到全幅）。T4 前输入平面仍全幅渲染 ——
-    /// 记账断言放宽，T4 后收紧为窗口组（见 T4 任务）。
+    /// roiIn == (16,16,32,32)——我们的 backward walk 从 forward 结果出发，
+    /// xy 已是 modifyROIOut 记录的上游相对窗口原点（dt 的 `+= buf_in·cx`
+    /// 再加只适用于其窗口相对 roi_out；双重相加会把窗口推到 [0.75..1] 角，
+    /// golden parity 抓现行）。T4 前输入平面仍全幅渲染 —— 记账断言放宽，
+    /// T4 后收紧为窗口组（见 T4 任务）。
     func testCropForwardShrinkDownstream() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let metal = try await makeMetal()
@@ -291,8 +293,8 @@ final class ROINegotiationTests: XCTestCase {
 
         let cropSights = await recorder.sightings(for: "crop")
         XCTAssertEqual(cropSights.count, 1)
-        XCTAssertEqual(cropSights.first?.roiIn, ROI(x: 32, y: 32, width: 32, height: 32, scale: 1.0),
-                       "crop input = downstream window + crop origin (dt crop.c:576-592)")
+        XCTAssertEqual(cropSights.first?.roiIn, ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0),
+                       "crop input = the window in upstream coords (our walk's frame convention)")
         XCTAssertEqual(cropSights.first?.roiOut, ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0))
     }
 

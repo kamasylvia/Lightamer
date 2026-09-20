@@ -127,6 +127,13 @@
   - 排障收获：Python 参考 log2 漏除 grey；Swift rational 闭合式漏 −1；f32 系数网格 + FMA 单舍入必须复刻；PSO 预热撞 function-constant validation abort；Release 测试构建三连（DEBUG 探针守卫 / ENABLE_TESTABILITY / hardened runtime 签名验证——CLI 覆盖跑）
   - 单测 **267 全绿**（3 skip 合规，连续两轮）；SUMMARY 见 `03-06-SUMMARY.md`；**Phase 3 VALIDATION 签核（nyquist_compliant: true；SC#1/2/4 ✓、SC#3 ⚠️ 晚链成立/全链注记）**
 
+## Phase 4（Geometry, Lens & Detail iops，执行中 2026-09-20）
+
+> 执行模型：omp 无头执行 + ZCode subagent 独立验收（AGENTS.md「Phase 执行模型」）。
+
+- [x] **Plan 04-01**（ROI 协商协议改造）完成（2026-09-20）：omp 执行 8 commits；subagent 验收 PASS——AC 逐条实证 + 独立 282 tests 0 失败 + SC#4 四断言 8/8（真模块回归）+ D-X1 JPEG 冒烟回归确认；SUMMARY 见 `04-01-SUMMARY.md`
+- [x] **Plan 04-02**（crop + flip/orientation + overlay 手柄）完成（2026-09-20）：omp 执行 5 commits；验收初判 FAIL（`testCropGoldenParity` 恒真空转——无比较循环），验收方直接修（补 3 case × 4 fixture 双循环，12 golden EXR 实比对）+ 补 manifest 04-02 节（blob/引用 sha256 表 + L017 probe 落账）后转绿；交付面：T1 CropModule 窗口三钩子（crop.c:517-592 直译）+ CropParity 8/8、T2 FlipModule 8 态 remap + FlipParity 8/8 + V50 flip<crop 顺序硬约束、T3 L017 双重 probe + 轨 A <1e-6 + 轨 B 2/2、T4 ViewportFit 三处同源 + 9 手柄/网格/暗膜 + D-H1 live-disabled 拖拽、T5 CropPanelView + catalog 20 keys + PanelWiring +3；overlay 交互 3 行 Manual-Only 表（L011 口径）；SUMMARY 见 `04-02-SUMMARY.md`
+
 ## pending-manual（累计，解锁后重跑）
 
 - [ ] XCUITest 三栏断言（L011 授权；Phase 1 起遗留）：`xcodebuild test -only-testing:LightamerUITests`

@@ -38,3 +38,7 @@
 [2026-09-20 patrol] GOAL-STATE 队列推进：Phase 4 plans locked, execute next
 [2026-09-20 patrol] AGENTS.md Phase 执行模型节落地（omp 执行 + subagent 验收）
 [2026-09-20 patrol] 04-01 acceptance PASS; 队列 → 04-02
+[2026-09-20] L009 归因修正（去例行 SIGSTOP，改条件性诊断 A/B）+ GOAL-STATE 队列对齐至 Phase 4 + 04-02 验收 subagent 派遣
+2026-09-20 16:15 [04-02] subagent 验收初判 FAIL：testCropGoldenParity 恒真空转（无比较循环，crop golden 路径未真实执行；flip 半边真实）。修复=验收方直接修：GeometryGoldenTests 补 3 case × 4 fixture 双循环（12 golden EXR 实比对，镜像 flip 结构）。挂账补齐：manifest.md +04-02 节（crop/flip blob + 引用 sha256 表 + L017 probe 记录）、TODO.md +Phase 4 节（04-01/04-02 条目）。全量 suite 复跑中（-only-testing 路径 testmanagerd 挂起，走 15:07 验证过的全 scheme 路线）。
+2026-09-20 17:20 [04-02] golden 真跑抓出 crop 双重偏移真 bug：①modifyROIIn 按 dt 公式 `+= buf_in·cx` 再加原点——但 dt 公式只适用于其窗口相对 roi_out（backward walk 从屏幕 roi 出发）；我们的 backward walk 从 forward 结果出发，xy 已是上游相对窗口原点 → 双加把窗口推到 [0.75..1] 角（golden: lightamer(0,0)=0.25=fixture(0.75)，ref=0.015625=fixture(0.25)）。②process 的 blit 偏移符号写反（roiIn−roiOut，dt copy_image_roi 是 roiOut−roiIn）。修复=CropModule 两处（modifyROIIn 保形 + clamp；process dx=roiOut−roiIn）+ 注释定帧约定（部分请求的逐边界 re-base 留给 04-03 rotate 协议）+ 3 处测试期望/注释更新（CropParity testModifyROIIn、ROINegotiation SC#4-①）。04-01 的 ROI 测试只断言记账未断言内容，故 8/8 绿而内容错——golden track A 是首个内容级断言，验收员预言命中。
+2026-09-20 17:25 [04-02] 全量 suite 311 tests / 3 skipped / 0 failures —— 04-02 验收+修复闭环 PASS。沉淀 L019（XCTest 授权弹窗阻塞单测 runner + coreautha 消窗法）+ L020（dt roi 公式坐标系前提）。下一步：04-03（rotate/perspective）omp 执行。

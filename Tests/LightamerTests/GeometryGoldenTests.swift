@@ -81,6 +81,39 @@ final class GeometryGoldenTests: XCTestCase {
         let metal = try await makeMetal()
         var maxRelative: Float = 0
         var failures: [String] = []
+
+        for fixture in Self.trackAFixtures {
+            let fixtureURL = try requireGolden("fixtures/\(fixture).exr")
+            let image = try GoldenParityTests.decodeFixtureEXR(fixtureURL)
+
+            for (caseName, params) in Self.cropCases {
+                let goldenURL = try requireGolden("output/\(caseName)__\(fixture).exr")
+                let golden = try GoldenParityTests.UncompressedEXR.load(goldenURL)
+                let (pipe, pipeW, pipeH) = try await runCropPipe(
+                    image: image, params: params, metal: metal
+                )
+                guard pipeW == golden.width, pipeH == golden.height else {
+                    failures.append("\(caseName)×\(fixture): size \(pipeW)×\(pipeH) vs golden \(golden.width)×\(golden.height)")
+                    continue
+                }
+                let n = golden.width * golden.height
+                for i in 0..<n {
+                    for c in 0..<3 {
+                        let ref = golden.rgb[i * 3 + c]
+                        let la = pipe[i * 3 + c]
+                        let rel = abs(la - ref) / max(abs(ref), 1e-9)
+                        maxRelative = max(maxRelative, rel)
+                        if rel >= ParityTolerance.indexRelative, failures.count < 12 {
+                            let (x, y) = (i % golden.width, i / golden.width)
+                            failures.append(
+                                "\(caseName)×\(fixture) (\(x),\(y)) ch\(c): "
+                                    + "lightamer=\(la) ref=\(ref) rel=\(rel)"
+                            )
+                        }
+                    }
+                }
+            }
+        }
         XCTAssertLessThan(
             Double(maxRelative), Double(ParityTolerance.indexRelative),
             "crop golden parity exceeded \(ParityTolerance.indexRelative) (max \(maxRelative))\n"

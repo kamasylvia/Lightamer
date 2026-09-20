@@ -7,11 +7,12 @@
 
 按 `.planning/ROADMAP.md`（13 阶段）逐阶段推进 Lightamer：每阶段 discuss → plan → execute → verify-work → 闭环。当前聚焦：**Phase 1 闭环（issue #1 修复）→ Phase 2 全周期**。
 
-## 当前状态（2026-09-18 深夜，巡检更新）
+## 当前状态（2026-09-20，巡检更新）
 
 - Phase 1：**已闭环**（STATE status=complete）。UAT 6/6；unit 36 绿；XCUITest 1 pass+2 skip
 - Phase 2：**全部 6 plans 执行完成**（133 tests 绿；VALIDATION 签核；L014）
-- Phase 3：CONTEXT/RESEARCH(45KB)/VALIDATION/6 plans 定稿并通过 checker。待执行
+- Phase 3：**全部 6 plans 执行完成**（267 tests 绿；PERF-5 Release 36.23ms 落账；L015-L018）
+- Phase 4：plans 04-01..06 已定稿锁定；04-01 执行+验收 PASS（282 tests）；04-02 执行+验收+修复闭环 PASS（311 tests 0 失败；验收抓出 crop 双重偏移真 bug 已修，L020）
 - issue #1 已关闭：重定性为多窗口调试堆积的呈现竞争（drawable 回读证实 blit 内容正确），转 Phase 2 backlog（窗口生命周期管理）。单窗口真实使用完全正常。
 - 环境：macOS 27 + Xcode 27.0 + Tuist 4.208；签名证书 "Lightamer Dev"（已装入 login keychain，全 target Manual 签名）；DerivedData 在内置 SSD；仓库在慢速 USB 卷（L009）。
 
@@ -34,7 +35,8 @@
 4. ~~**Phase 2 discuss**~~ ✅ 完成（02-CONTEXT.md + DISCUSSION-LOG.md，13 项自主决策）：`$gsd-discuss-phase 2`（新会话式流程，产出 `02-CONTEXT.md`；输入 = Phase 1 spike 结论 + PERF-BASELINE + issue #1 修复经验）。
 5. ~~**Phase 2 plan**~~ ✅ 完成（02-RESEARCH.md 42KB + 6 plans 02-01..06，checker 10 项修复，VALIDATION waves 校正）：`$gsd-plan-phase 2`（research → plans → checker）。
 6. **Phase 2 execute** ← 进行中：~~02-01~~ ✅ 完成（2026-09-19：issue#1 真根因=WindowGroup per-odoc 开窗，单 Window 修复，UAT 9/9，L012；9 commits）；~~02-02~~ ✅ ~~02-03~~ ✅ ~~02-04~~ ✅（终端三件套+Registry+golden 双判据，83/83，L013 对策 ParamsCoding 落地）~~02-05~~ ✅（HistoryStack 九字段身份元组+compress+D-H1 三件套+TilingPlan 脚手架，106 tests，history wired）~~02-06~~ ✅（.lra schema v1 + 2s debounce 原子写 + 漂移检测；clearCaches 4 层逐出；RAW-03 65504 pinned；L014 ColorSync 跨队列竞态修复）。**Phase 2 执行 6/6 完成**：`$gsd-execute-phase 2`（波次执行，每 SUMMARY 落盘后提交）。
-7. **循环进入 Phase 3+** ← ~~Phase 3 discuss~~ ✅ 完成（03-CONTEXT.md：sigmoid 先行→filmicrgb 全移植、toneequal 全局 5-band、darktable-cli golden 打通、Inspector 面板框架）→ ~~Phase 3 research~~ ✅（45KB：每模块参数/kernel 规格、filmicrgb F0-F4 分解、Lab 域发现、darktable-cli 重建修复）→ ~~plan~~ ✅（6 plans 03-01..06，5 waves，checker 10 项修复）→ **Phase 3 execute 进行中**：~~03-01~~ ✅（dt-cli 重建 + fixtures + parity 双轨 harness + exposure tracer <1e-5 green，143 tests，L015/L016）→ ~~03-02~~ ✅（temperature iop v50=3.0 + Rec2020 原生 K↔gains + D-T6 Inspector 面板框架 + D-T4 吸管 plumbing + golden 合成参考策略，165 tests，L017）→ ~~03-03~~ ✅（Lab 域三模块 tonecurve 48.0/colisa 47.0/levels 49.0 + LabRoundTrip 共享件 + HistogramReduce + ParityGate 双闸 + 三面板，199 tests，L017 扩展：Lab 链 probe 不可用/陈旧插件 .so 重建；8 commits 3932653..3889171）→ **下一项 03-03**✅ → **03-04**（shadhi+sigmoid，复用 LabRoundTrip）→ 03-05 → 03-06
+7. **循环进入 Phase 3+** ← ~~Phase 3 discuss~~ ✅ 完成（03-CONTEXT.md：sigmoid 先行→filmicrgb 全移植、toneequal 全局 5-band、darktable-cli golden 打通、Inspector 面板框架）→ ~~Phase 3 research~~ ✅（45KB：每模块参数/kernel 规格、filmicrgb F0-F4 分解、Lab 域发现、darktable-cli 重建修复）→ ~~plan~~ ✅（6 plans 03-01..06，5 waves，checker 10 项修复）→ **Phase 3 execute 进行中**：~~03-01~~ ✅（dt-cli 重建 + fixtures + parity 双轨 harness + exposure tracer <1e-5 green，143 tests，L015/L016）→ ~~03-02~~ ✅（temperature iop v50=3.0 + Rec2020 原生 K↔gains + D-T6 Inspector 面板框架 + D-T4 吸管 plumbing + golden 合成参考策略，165 tests，L017）→ ~~03-03~~ ✅（Lab 域三模块 tonecurve 48.0/colisa 47.0/levels 49.0 + LabRoundTrip 共享件 + HistogramReduce + ParityGate 双闸 + 三面板，199 tests，L017 扩展：Lab 链 probe 不可用/陈旧插件 .so 重建；8 commits 3932653..3889171）→ ~~03-04~~ ✅（shadhi+sigmoid 复用 LabRoundTrip）→ ~~03-05~~ ✅（toneequal 9-band+EIGF+TilingPlan，244 tests）→ ~~03-06~~ ✅（filmicrgb+agx，267 tests）→ **Phase 3 执行 6/6 完成**
+8. **Phase 4 execute** ← 进行中：~~04-01~~ ✅ 执行+验收 PASS（ROI 协商+executeTiled，282 tests）；~~04-02 omp 执行~~ ✅（crop+flip+overlay，5 commits）→ ~~04-02 验收+修复~~ ✅ PASS（验收抓恒真空转→补真实循环→golden 真跑抓 crop 双重偏移真 bug→帧约定修复→311 全绿，L019/L020）→ **04-03 omp 执行中** → 04-04 → 04-05 → 04-06 → Phase 4 verify-work
 
 ~~保活巡检暂停已于 2026-09-19 恢复~~（新 automation `automation-09a53a4e-ebf3-4ae8-b8eb-32c179466a6e`，每 30 分钟；旧 ID 已删）。
 
@@ -45,7 +47,7 @@
 ## 巡检运行规则（每次 Cron 触发时遵守）
 
 - **顺序推进**：只做队列第一项；完成后立即提交（`node $HOME/.codex/gsd-core/bin/gsd-tools.cjs query commit "..." --files <files>`，或直接 git commit——遵循 Conventional Commits、只 add 相关文件）并 `git push origin main`，然后更新本文件队列与"当前状态"。
-- **构建保护**：构建/测试前 `caffeinate -dis <cmd>` 防休眠；USB 卷慢时（`time xcodebuild -version` >2s）先 `kill -STOP` Resilio 进程（1895/1916 等按当时 pgrep），构建完 `kill -CONT` 恢复。
+- **构建保护**：构建/测试前 `caffeinate -dis <cmd>` 防休眠。USB 卷慢时（`time xcodebuild -version` >2s）只记录慢态，**不例行 SIGSTOP Resilio**（L009 归因已修正 2026-09-20：仅当确认 Resilio 正在活跃传输时才暂停作诊断性 A/B，构建完 `kill -CONT` 恢复）。
 - **GUI 限制**：XCUITest/截图目检需要解锁的控制台——用 `screencapture -x /tmp/probe.png && stat -f%z` 判断（<200KB≈锁屏/黑屏）。锁屏时跳过 GUI 验证，在 GOAL-STATE 标注"待人工解锁"，继续做 headless 可推进项。
 - **密码弹窗**：若出现 "XCTest 正在尝试 Enable UI Automation" 密码弹窗——当前签名授权已持久化，不应再弹；若真弹出（新二进制形态），记录到"阻塞（需人工）"章节并跳过 GUI 测试。
 - **禁止事项**：不 `git add -A`；不直写 STATE.md/ROADMAP.md（用 gsd-tools verb）；不在 NAS 原目录写入（只读参考，样例 Copy 到 `input/RAW/`，已 gitignore）；不动 ZCode 自身进程。

@@ -54,8 +54,10 @@ public enum CropLimits {
 public final class CropModule: IOPModule {
 
     /// dt `dt_iop_crop_params_t` v3 mirror (`crop.c:61-69`). Fractions of
-    /// the upstream plane (`left/top` = cx/cy, `right/bottom` = cw/ch):
-    /// full frame = 0/0/1/1. `ratioN/ratioD` = the pinned aspect preset
+    /// the upstream plane; `left/top` = the window origin (dt cx/cy),
+    /// `right/bottom` = the absolute right/bottom EDGES (dt cw/ch — crop.c
+    /// stores edges, not size; `modify_roi_out` derives `cw − cx`). Full
+    /// frame = 0/0/1/1. `ratioN/ratioD` = the pinned aspect preset
     /// (-1/-1 = freehand; (0,0) legacy free; (1,0) original-image) —
     /// inert until the Phase-11 export aligner (EXP-03).
     public struct Params: Codable, Hashable, Sendable {
@@ -150,16 +152,23 @@ public final class CropModule: IOPModule {
             CropLimits.minPixels, Int(Float(input.height) * (c.bottom - c.top)))
     }
 
-    /// dt `modify_roi_in` (`:576-592`): `*roi_in = *roi_out` (KEEP the
-    /// downstream offset — that IS the window position), add the crop
-    /// origin, clamp into the upstream plane (`piece.dscIn`, dt `buf_in`).
+    /// dt `modify_roi_in` (`:576-592`) under OUR walk's frame convention.
+    /// dt's backward walk hands `roi_out` window-RELATIVE (origin at the
+    /// window corner) so its `+= buf_in·cx` re-add is correct there; our
+    /// backward walk seeds from the FORWARD result, where `modifyROIOut`
+    /// already recorded the window origin in upstream coords (`roi.x =
+    /// input.width·left`, dt get_dimensions `buf_out` semantics) and the
+    /// recursion renders the negotiated window origin-to-origin. Re-adding
+    /// the origin here double-offsets the window (golden parity caught it:
+    /// the pipe read the [0.75..1] corner instead of [0.25..0.75]). So:
+    /// KEEP `roi` verbatim (its xy IS the crop origin upstream), clamp
+    /// into the upstream plane (`piece.dscIn`, dt `buf_in`). Partial
+    /// downstream requests (frame re-basing per geometry boundary) are
+    /// 04-03's protocol work — the exercised path is full-window.
     public func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
-        let c = committed
         input = roi
         let iw = Double(piece.dscIn.width) * Double(roi.scale)
         let ih = Double(piece.dscIn.height) * Double(roi.scale)
-        input.x += Int(iw * Double(c.left))
-        input.y += Int(ih * Double(c.top))
         input.x = min(max(input.x, 0), Int(iw.rounded(.down)))
         input.y = min(max(input.y, 0), Int(ih.rounded(.down)))
         input.width = min(input.width, max(1, Int(iw.rounded(.down)) - input.x))
@@ -167,14 +176,16 @@ public final class CropModule: IOPModule {
     }
 
     /// dt `process` (`:594-602`) = the `copy_image_roi` WINDOW path
-    /// (`imagebuf.c:203-217`): the upstream plane is the NEGOTIATED
-    /// window (`roiIn`-sized at the crop origin); each output pixel reads
-    /// `in[gid + (roiIn.xy − roiOut.xy)]` — the TestGain-windowed
-    /// sampling precedent (04-01). Same-size by construction (commit
-    /// clamps params into [0,1]) so the offset equals the crop origin.
-    /// Product is an INDEPENDENT plane (never alias upstream — FULL
-    /// ping-pong scratch reuses it; cache semantics demand an owned
-    /// product). Encoder failure throws (L008: no silent planes).
+    /// (`imagebuf.c:188-223`). The pipe hands `input` ALREADY extracted to
+    /// the negotiated window (roiIn-sized, origin-to-origin — the
+    /// recursion rendered it), so for the full-window path
+    /// `roiIn.xy == roiOut.xy` and the blit is origin-to-origin (dt fast
+    /// path: same-size whole-buffer copy). The residual offset uses dt's
+    /// `copy_image_roi` sign (`dx = roi_out − roi_in`, `imagebuf.c:194`)
+    /// for any negotiated case where the two disagree. Product is an
+    /// INDEPENDENT plane (never alias upstream — FULL ping-pong scratch
+    /// reuses it; cache semantics demand an owned product). Encoder
+    /// failure throws (L008: no silent planes).
     public func process(
         input: any MTLTexture,
         output: any MTLTexture,
@@ -183,8 +194,8 @@ public final class CropModule: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        let dx = roiIn.x - roiOut.x
-        let dy = roiIn.y - roiOut.y
+        let dx = roiOut.x - roiIn.x
+        let dy = roiOut.y - roiIn.y
         guard dx >= 0, dy >= 0 else { return }
         let width = min(roiOut.width, roiIn.width, output.width, max(0, input.width - dx))
         let height = min(roiOut.height, roiIn.height, output.height, max(0, input.height - dy))
