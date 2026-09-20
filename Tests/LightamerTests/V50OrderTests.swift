@@ -82,4 +82,23 @@ final class V50OrderTests: XCTestCase {
         XCTAssertLessThan(AshiftModule.iopOrder, FlipModule.iopOrder)
         XCTAssertLessThan(FlipModule.iopOrder, CropModule.iopOrder)
     }
+    /// 04-05: detail five slots — equalizer 27.0 < highpass 34.0 <
+    /// sharpen 35.0 < bilat 54.0 < soften 66.0; module statics AND the
+    /// table agree, so the default chain sorts them structurally.
+    func testDetailSlotOrderConstraints() {
+        XCTAssertEqual(V50Order.order(for: "equalizer"), 27.0)
+        XCTAssertEqual(V50Order.order(for: "highpass"), 34.0)
+        XCTAssertEqual(V50Order.order(for: "sharpen"), 35.0)
+        XCTAssertEqual(V50Order.order(for: "bilat"), 54.0)
+        XCTAssertEqual(V50Order.order(for: "soften"), 66.0)
+        XCTAssertEqual(EqualizerModule.iopOrder, 27.0)
+        XCTAssertEqual(HighpassModule.iopOrder, 34.0)
+        XCTAssertEqual(SharpenModule.iopOrder, 35.0)
+        XCTAssertEqual(LocalContrastModule.iopOrder, 54.0)
+        XCTAssertEqual(SoftenModule.iopOrder, 66.0)
+        XCTAssertLessThan(EqualizerModule.iopOrder, ColorInModule.iopOrder)
+        XCTAssertLessThan(HighpassModule.iopOrder, SharpenModule.iopOrder)
+        XCTAssertLessThan(SharpenModule.iopOrder, LocalContrastModule.iopOrder)
+        XCTAssertLessThan(LocalContrastModule.iopOrder, SoftenModule.iopOrder)
+    }
 }
