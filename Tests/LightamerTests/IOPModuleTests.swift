@@ -104,4 +104,71 @@ final class IOPModuleTests: XCTestCase {
             "pass-through process must be a bit-exact no-op"
         )
     }
+
+    // MARK: - 04-01-T2: erased ROI forwarding round-trip
+
+    /// Non-trivial ROI geometry probe (CPU-only — process is never called):
+    /// shrink out by 2px per axis, expand in by 2px per axis.
+    private struct ShrinkROIProbe: IOPModule {
+        struct Params: Codable, Hashable {}
+        static var opName: String { "roiprobe_stub" }
+        static var iopOrder: Float { 10.0 }
+        static var flags: IOPFlags { [] }
+        static var defaultColorspace: IOPColorspace { .RGB }
+        func reloadDefaults(image: DecodedImage) async -> Params { Params() }
+        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+            piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
+        }
+        func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
+            roi = input
+            roi.width = max(1, roi.width - 2)
+            roi.height = max(1, roi.height - 2)
+        }
+        func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
+            input = roi
+            input.width += 2
+            input.height += 2
+        }
+        func process(
+            input: any MTLTexture, output: any MTLTexture,
+            roiIn: ROI, roiOut: ROI, piece: inout IOPiece, metal: MetalContext
+        ) async throws {}
+    }
+
+    /// 04-01-T2: `modifyROIOutErased` forwards through the box to the module.
+    func testModifyROIOutErasedForwards() {
+        let box = ModuleBox(module: ShrinkROIProbe())
+        var out = ROI(x: 0, y: 0, width: 10, height: 8, scale: 1.0)
+        box.modifyROIOutErased(
+            &out, input: ROI(x: 0, y: 0, width: 10, height: 8, scale: 1.0),
+            piece: IOPiece()
+        )
+        XCTAssertEqual(out.width, 8, "erased forward must reach the module")
+        XCTAssertEqual(out.height, 6)
+    }
+
+    /// 04-01-T2: `modifyROIInErased` forwards through the box to the module.
+    func testModifyROIInErasedForwards() {
+        let box = ModuleBox(module: ShrinkROIProbe())
+        var input = ROI()
+        box.modifyROIInErased(
+            output: ROI(x: 0, y: 0, width: 10, height: 8, scale: 1.0),
+            input: &input, piece: IOPiece()
+        )
+        XCTAssertEqual(input.width, 12, "erased backward must reach the module")
+        XCTAssertEqual(input.height, 10)
+    }
+
+    /// 04-01-T2: a default-identity box is a no-op through the erased seam
+    /// (every Phase 1-3 module stays byte-identical under negotiation).
+    func testDefaultIdentityBoxErasedIsNoOp() {
+        let box = ModuleBox(module: PassthroughModule())
+        let full = ROI(x: 0, y: 0, width: 10, height: 8, scale: 1.0)
+        var out = ROI()
+        box.modifyROIOutErased(&out, input: full, piece: IOPiece())
+        XCTAssertEqual(out, full, "identity forward must pass through")
+        var input = ROI()
+        box.modifyROIInErased(output: full, input: &input, piece: IOPiece())
+        XCTAssertEqual(input, full, "identity backward must pass through")
+    }
 }
