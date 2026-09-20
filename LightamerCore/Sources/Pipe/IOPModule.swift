@@ -68,11 +68,23 @@ public protocol IOPModule {
     /// Let the module expand/contract the output ROI it can produce from
     /// `input` (Darktable `modify_roi_out` — e.g. crop/clipping shrink it,
     /// enlargecanvas grows it). Default identity: `roi = input`.
+    ///
+    /// Phase 4 onward this hook is CONSUMED by the pipe's forward pass
+    /// (`PixelPipe.run` pre-computation, dt `get_dimensions` mirror):
+    /// `run()` walks it per piece to size every downstream plane. Modules
+    /// that resample must override; pointwise modules keep identity.
     func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece)
 
     /// Let the module request the input ROI it needs to produce `roi`
     /// (Darktable `modify_roi_in` — e.g. lens correction samples wider).
     /// Default identity: `input = roi`.
+    ///
+    /// Phase 4 onward this hook is CONSUMED by the pipe's backward pass
+    /// (`processRec` miss closure, dt `:2085-2096` mirror): the closure
+    /// negotiates `roiIn` then recurses upstream with it. dt's contract
+    /// applies — `process` may receive an input region different from the
+    /// one requested (the pipe clamps to the upstream plane); modules fill
+    /// it best-effort.
     func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece)
 
     /// Process `input` → `output` over the given ROIs on the GPU. Called by
@@ -116,4 +128,19 @@ public extension IOPModule {
     /// budget input; the input/output planes themselves are the pipe's
     /// accounting). 0 = never tiled.
     func tileWorkingSetBytesPerPixel(piece: IOPiece) -> Int { 0 }
+}
+
+// MARK: - ROI negotiation defaults (04-01: pass-through-era identity;
+// Phase 4's forward/backward passes consume these per piece)
+
+public extension IOPModule {
+    /// Default identity: the module produces exactly the input ROI.
+    func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
+        roi = input
+    }
+
+    /// Default identity: the module needs exactly the output ROI as input.
+    func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
+        input = roi
+    }
 }

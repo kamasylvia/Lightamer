@@ -25,3 +25,46 @@ public struct ROI: Equatable, Hashable, Sendable {
         self.scale = scale
     }
 }
+
+/// 04-01 ROI negotiation helpers (internal — Core Pipe layer only).
+///
+/// dt semantics (`pixelpipe_hb.c` backward leg + crop/lens modify_roi_in):
+/// after a module widens/shifts the requested input region, the pipe
+/// clamps it to the upstream plane so recursion never asks for pixels
+/// that do not exist. Scale rides along unchanged (same pipe run).
+internal extension ROI {
+    /// Clamp this region into `bounds` (intersection; empty → 1×1 at the
+    /// bounds origin — the pipe never renders a zero-size plane).
+    func clamped(to bounds: ROI) -> ROI {
+        let x0 = max(x, bounds.x)
+        let y0 = max(y, bounds.y)
+        let x1 = min(x + width, bounds.x + bounds.width)
+        let y1 = min(y + height, bounds.y + bounds.height)
+        return ROI(
+            x: bounds.x + max(0, x0 - bounds.x),
+            y: bounds.y + max(0, y0 - bounds.y),
+            width: max(1, x1 - x0),
+            height: max(1, y1 - y0),
+            scale: scale
+        )
+    }
+
+    /// Axis-aligned bounding box of `corners` (04-03/04-04 warp modules:
+    /// transformed quad → output/input AABB, `ashift.c` forward/inverse
+    /// corner mapping pattern). Floors the min corner, ceils the max.
+    static func aabb(of corners: [(x: Double, y: Double)], scale: Float) -> ROI {
+        guard let first = corners.first else { return ROI(scale: scale) }
+        var minX = first.x, minY = first.y, maxX = first.x, maxY = first.y
+        for corner in corners.dropFirst() {
+            minX = min(minX, corner.x); minY = min(minY, corner.y)
+            maxX = max(maxX, corner.x); maxY = max(maxY, corner.y)
+        }
+        let ix = Int(minX.rounded(.down)), iy = Int(minY.rounded(.down))
+        return ROI(
+            x: ix, y: iy,
+            width: max(1, Int(maxX.rounded(.up)) - ix),
+            height: max(1, Int(maxY.rounded(.up)) - iy),
+            scale: scale
+        )
+    }
+}
