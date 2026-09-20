@@ -1,10 +1,11 @@
 ---
 phase: 4
 slug: geometry-lens-detail-iops
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-09-20
+validated: 2026-09-21
 ---
 
 # Phase 4 — Validation Strategy
@@ -80,11 +81,21 @@ created: 2026-09-20
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 120s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 120s（全量单测 ~119s）
+- [x] `nyquist_compliant: true` set in frontmatter
+- [x] Phase 4 全 suite 绿：**398 tests / 0 failures / 3 documented skips**（2026-09-21 终轮：389 基线 + Phase4SidecarTests 9；Release PERF 链同轮绿）
+- [x] ROADMAP SC#1: crop 比例锁 + 旋转微调 + rotate/perspective + auto-detect + flip live preview——自动化证据见 DISCUSSION-LOG SC#1-4 核对节（04-07）；overlay 交互 3 行 + Vision 真机抽检 + detail 视觉抽检 Manual-Only 表 pending-manual（L011 口径挂账，不阻塞）
+- [x] ROADMAP SC#2: lens 三层（内嵌直通 + 手动滑块 + Metal warp + Lensfun XML 只读 open decision 落地）——LensParityTests 7/7 + LensfunDBTests 15/15 + 统一出口逐字节；镜头视觉 Manual-Only 行 pending-manual
+- [x] ROADMAP SC#3: detail 五模块 golden（sharpen/bilat/highpass/soften/equalizer 22/22 + 恒等/方向门）——合成 float64 参考（L017）+ manifest detail 节有账
+- [x] ROADMAP SC#4: ROI 协商端到端——ROINegotiationTests 真模块版（crop 前向 32×32 + sharpen 后向 36×36 + 禁用穿越 + 回拖命中）；04-01 8/8 → 终轮 11/11
+- [x] 轨 B 全链回归：GeometryGolden track B 2/2（crop+flip+lens+五 detail 中性插链，双判据不回归）
+- [x] sidecar：9 新 op params round-trip（Phase4SidecarTests 9/9）+ 未知 op 透传降级回归（SidecarRoundTripTests.testUnknownOpDegradesDisabledWithParamsPreserved）
+- [x] 内存记账：crop 下降（testCropHalvesMemoryAccounting 1/4）/ halo 有界（testHaloExpansionStaysBelowFullFrame 30×30≪128）——probe 腿；ashift AABB 上升有界 + sharpen 外扩 < 全图由 ROINegotiation 真模块断言覆盖
+- [x] PERF-5 链长增量：Release warm median 36.23ms（Phase 3）→ 33.42ms（Phase 4 全链，+9 中性模块≈零增量）——只记录不设门，见 `.work/04-07/perf-phase4.md`
+- [x] Issue 关联：Per CONVENTIONS（commit message 带 (04-07) 前缀；GitHub issue 关联按用户手动指令执行）
 
-**Approval:** pending
+**Approval:** signed-off（2026-09-21，04-07 签核轮；Manual-Only 表 6 行 pending-manual 按 L011 口径挂账——XCUITest/overlay 交互/Vision 真机/镜头视觉/detail 视觉/990pt 窗复验；自动化覆盖连续性已满足，不阻塞 nyquist_compliant 判定）

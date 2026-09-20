@@ -737,3 +737,22 @@ bands — no eaw `gweight` edge weights (recorded divergence, stretch: EIGF).
 | equalizer_coarse_boost | `1,1,1,1,1.5,1` | gradient_ramp:1ca7dc460a63d45a flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:31b6629f63597a6a |
 | equalizer_mid_cut | `1,1,0.5,0.5,1,1` | gradient_ramp:6b0f524944205e1c flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:57bea60b2dbefcf2 |
 
+
+## Phase 4 golden 完整性总账（Plan 04-07-T1 核对，2026-09-21）
+
+> 逐模块：轨 A 来源 + 容差 + probe 记录指针。全模块 L017 合成路线（空间算子在本机构建必触 dt-cli 空间损坏；
+> crop/flip 另有均匀平场 probe + XMP 采纳实证；ashift 连采纳都不可用（libashift dlopen 缺符号））。
+
+| 模块 | cases × fixtures | 轨 A 来源 | 容差 | probe/采纳记录 | manifest 节 |
+|---|---|---|---|---|---|
+| crop | 3 × 4（ramp/flat_0/flat_-4/gray） | 合成（窗口裁剪，float64） | <1e-6 | 均匀平场精确 + XMP v3 采纳（DB hex + params ok） | `## crop + flip golden` |
+| flip | 4 × 4（同上） | 合成（索引 remap，float64） | <1e-6 | flat bit-exact + XMP v2 采纳 | `## crop + flip golden` |
+| ashift | 7 × 4（gradient_ramp/flat_0/flat_-4/checkerboard） | 合成（compose + bilinear，float64） | <1e-5/<1e-5 | 均匀平场旋转 probe + v5 blob 版式校验（无采纳：libashift 缺符号） | `## rotate + perspective golden` |
+| lens | 7 × 4（checkerboard/flat/ramp） | 合成（forwardRadius + bilinear，float64） | <1e-5/<1e-5 warp | k=0 恒等 + vignette 解析点 + CA 方向（in-test）；XML→kernel 归一钉 LensfunDBTests | `## lens warp golden` |
+| sharpen | 4 × 4（同 ashift fixture） | 合成（Lab prep + IIR + mix，float64） | <1e-4/<1e-4 | amount=0/平场恒等（in-test）；XMP 仅参数文档（无采纳） | `## detail golden/sharpen` |
+| bilat | 4 × 4 | 合成（EIGF no-mask 单迭代，float64） | <1e-4 | detail=0 逐字节 + 台阶方向 + 分块一致（in-test） | `## detail golden/bilat` |
+| highpass | 3 × 4 | 合成（IIR + CL mix，float64） | <1e-4 | 方向/半径链（in-test）；plan 三参字面勘误（两参为准） | `## detail golden/highpass` |
+| soften | 4 × 4 | 合成（RGB 线性 + IIR + mix，float64） | <1e-4 | 平场恒等先验（D5，dt-cli probe 免跑） | `## detail golden/soften` |
+| equalizer | 4 × 4 | 合成（金字塔分解合成，float64） | <1e-4 | 全零 blit 恒等 + 带能量内容断言（in-test）；无 dt blob（D10） | `## detail golden/equalizer` |
+
+核对结论：9/9 有账（轨 A 合成 refs sha256 + blob 版式 + 容差档全在上表节内）；soften dt-cli probe 免跑先验结论落 04-05-DECISIONS D5。
