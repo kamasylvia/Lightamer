@@ -38,3 +38,10 @@
 - **理由**：crop 拖动每 tick 改 roi → ≤crop 全链键变 → 全链 miss（04-RESEARCH §1 gotcha，dt 同样）；整幅平面全程缓存命中保 60fps，与 C1/Lr「编辑时全图」交互一致。
 - **影响**：overlay 实现含暗膜态（T4）；`setLiveParams` 快照带 `enabled=false`，`commitContinuousEdit` 带 `enabled=true` 最终 rect。
 - **回退**：用户改选 (b) 则 T4 改写 + 注记每 tick 全链重渲（PREVIEW 档可扛，与 PERF-5 叠加）。
+## 04-03-T0 rotate/perspective 模块身份定稿（2026-09-20，executor 采纳 plan 推荐）
+
+- **决策：(1) 单一 `ashift` op**——一个实例、面板两个区块（旋转/透视），内嵌裁切位默认全幅；v50 槽位 15.0（`iop_order.c:319` `{15.0} "ashift"` 实测确认：rotate 在 crop 24.5 之前 ✓）。
+- **决策：(2) 透视交互 = (a) 参数面滑块 + Vision 自动检测填充**——4 角手柄 defer Phase 6（liquify 顶点交互基建复用）。
+- **决策：(3) EXIF 方向分工**——90° 步进由 flip（04-02）承担；ashift 只管微调/透视。
+- **理由**：与 dt 槽位 15.0 语义对齐；单应统一旋转/透视同一 kernel；sidecar 持久化身份一次性定稿（事后改 = 格式迁移）。
+- **执行裁决（plan 未覆盖，见 04-03-DECISIONS.md D1–D9）**：mode 锁定 GENERIC；uniforms 走 setBytes per-run（单应依赖 bufIn 尺寸）；前向补 `dscOut` 盖章；bilinear 边框语义钉死；中性/病态→blit 恒等；种子带 ENABLED 中性 ashift；L020 帧约定注释三处钉死；Vision 经 public facade + coordinator 只读源图；符号约定以探针为准。
