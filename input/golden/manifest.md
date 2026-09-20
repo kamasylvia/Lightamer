@@ -562,6 +562,39 @@ uniforms; ramp_8ev identity here is the fixture hash itself).
 | flip_h | `02000000` | `26b25d457597a7b0463f9620f666dd10aa2c4373a505967c7c8d70922a2d6ece` | ramp_8ev:29ac28dd44583683 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c52eb070213a5be2 |
 | flip_v | `01000000` | `67abdd721024f0ff4e0b3f4c2fc13bc5bad42d0b7851d456d88d203d15aaa450` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
 | flip_ccw90 | `06000000` | `7aa8ca4a02506da9133d8f889678b76f716ce45d02e22fdb7b70a15e56a0eff8` | ramp_8ev:1f04d4d7373277a7 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:41e4408b1625cc4c |
+
+## lens warp golden (Plan 04-04-T4, 2026-09-21)
+
+L017 route ① (synth-only): warp is a spatial operator — dt-cli float
+export is spatially corrupt on this host (manifest "dt-cli host finding"
+re-confirmed for geometry in 04-02-T3). Lens has NO dt-cli leg at all
+(no liblens* XMP adoption exercised in this dt build), so dt-side
+evidence reduces to: (a) the in-test uniform probes (k=0 identity exact,
+vignette flat-field analytic, CA channel direction); (b) the XML resolve
+pins in LensfunDBTests (formula同源: d-factor + hugin rescale + Hermite
+spline + IDW hand values against `mod-coord.cpp` / `mod-color.cpp` /
+`lens.cpp` / `auxfun.cpp`); (c) formula同源: the synth reference
+(`_lens_forward_radius` + `_lens_bilinear` in gen_fixtures.py) mirrors
+`LensModule.forwardRadius` + `LensKernels.metal` formula-for-formula.
+
+Coefficients are KERNEL-unit (u = (p−c)/halfW); the XML→kernel
+normalization is pinned separately in LensfunDBTests, not here.
+
+### lens cases (Plan 04-04-T4, synthesized references, gate <1e-5 warp)
+
+| case | dc1,dc2,dc3,dc4 / vr,vb / vk1,vk2,vk3 | reference sha256 (synthesized) |
+|---|---|---|
+| lens_identity | 0,0,0,0 / 1,1 / 0,0,0 | checkerboard:d9c13dcd38a1e551 flat_-4ev:b677ba768009d5bc flat_0ev:5d3098d9b2949609 gradient_ramp:4749ef33d5fe7e95 |
+| lens_distort_barrel | dc2=+0.08 | checkerboard:a98a3d782f53629d flat_-4ev:b677ba768009d5bc flat_0ev:5d3098d9b2949609 gradient_ramp:35b6318ae569c73a |
+| lens_distort_pincushion | dc2=−0.08 | checkerboard:f292868c744554da flat_-4ev:b677ba768009d5bc flat_0ev:5d3098d9b2949609 gradient_ramp:9c79fe951d034f47 |
+| lens_distort_ptlens | dc1=+0.02,dc2=−0.03,dc3=+0.01 | checkerboard:89cb8e55edc636f9 flat_-4ev:b677ba768009d5bc flat_0ev:5d3098d9b2949609 gradient_ramp:f660e82ce2bef44c |
+| lens_ca | vr=1.002,vb=0.998 | checkerboard:de94995c385b8dd6 flat_-4ev:b677ba768009d5bc flat_0ev:5d3098d9b2949609 gradient_ramp:051e00bdd9f47ad6 |
+| lens_vignette | vk=(−0.5,+0.2,−0.05) | checkerboard:1cce07ecd0a75b81 flat_-4ev:01aed854c7b1b8ff flat_0ev:91844648b604d5cd gradient_ramp:010b3d5fd41658fd |
+| lens_combo | dc2=+0.05,dc4=+0.01,vr=1.0015,vb=0.9985,vk=(−0.3,+0.1,−0.02) | checkerboard:57b9ff54b42d6c92 flat_-4ev:2a2fb555a1d3d675 flat_0ev:ec82132a36cdc334 gradient_ramp:3e4c1b70584064b2 |
+
+(identity flat/ramp refs equal the fixture hashes — zero warp is the fixture.)
+(`sha256(blob)` N/A — lens has no dt params blob; params are kernel-unit floats.)
+
 ## rotate + perspective golden (Plan 04-03-T4, 2026-09-20)
 
 L017 route ① (synth-only): warp is a spatial operator — dt-cli float
