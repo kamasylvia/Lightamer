@@ -100,7 +100,9 @@ final class ROINegotiationTests: XCTestCase {
         func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
             // dt `crop.c:576-592` verbatim: `*roi_in = *roi_out` (KEEP the
             // downstream offset — that IS the window position), then add
-            // the crop origin and clamp.
+            // the crop origin and clamp to [0, floor(iw/ih)] (dt CLAMP —
+            // upper bound INCLUSIVE: a 64px edge window legitimately
+            // addresses x=64 as its far edge).
             input = roi
             let iw = Double(piece.dscIn.width) * Double(roi.scale)
             let ih = Double(piece.dscIn.height) * Double(roi.scale)
@@ -108,6 +110,11 @@ final class ROINegotiationTests: XCTestCase {
             input.y += Int(ih * Double(current.cy))
             input.x = min(max(input.x, 0), Int(iw.rounded(.down)))
             input.y = min(max(input.y, 0), Int(ih.rounded(.down)))
+            // Window far edge stays inside the frame (dt's process reads
+            // `roi_in`-relative rows; the pipe guarantees containment by
+            // clamping the SIZE against the upstream plane below).
+            input.width = min(input.width, max(1, Int(iw.rounded(.down)) - input.x))
+            input.height = min(input.height, max(1, Int(ih.rounded(.down)) - input.y))
         }
         func process(
             input: any MTLTexture, output: any MTLTexture,
@@ -132,14 +139,15 @@ final class ROINegotiationTests: XCTestCase {
         static var defaultColorspace: IOPColorspace { .RGB }
         let tag: String
         let recorder: ROIRecorder
-        private var current = Params(halo: 3)
-        init(tag: String, recorder: ROIRecorder) {
+        var halo: Int
+        init(tag: String, recorder: ROIRecorder, halo: Int = 3) {
             self.tag = tag
             self.recorder = recorder
+            self.halo = halo
         }
-        func reloadDefaults(image: DecodedImage) async -> Params { current }
+        func reloadDefaults(image: DecodedImage) async -> Params { Params(halo: halo) }
         func commitParams(_ params: Params, into piece: inout IOPiece) async {
-            current = params
+            halo = params.halo
             piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         }
         func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
@@ -147,18 +155,31 @@ final class ROINegotiationTests: XCTestCase {
         }
         func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
             input = roi
-            input.x -= current.halo
-            input.y -= current.halo
-            input.width += 2 * current.halo
-            input.height += 2 * current.halo
+            input.x -= halo
+            input.y -= halo
+            input.width += 2 * halo
+            input.height += 2 * halo
         }
         func process(
             input: any MTLTexture, output: any MTLTexture,
             roiIn: ROI, roiOut: ROI, piece: inout IOPiece, metal: MetalContext
         ) async throws {
             await recorder.record(tag: tag, roiIn: roiIn, roiOut: roiOut)
-            try await ROINegotiationTests.roiBlitCopy(
-                input: input, output: output, roiIn: roiIn, roiOut: roiOut, metal: metal)
+            // minimal content proof (ROI geometry is the pipe's assert).
+            guard let commandBuffer = metal.commandQueue.makeCommandBuffer(),
+                  let blit = commandBuffer.makeBlitCommandEncoder() else {
+                throw AppError.decodeFailed("HaloStub center blit: no command buffer")
+            }
+            blit.copy(
+                from: input, sourceSlice: 0, sourceLevel: 0,
+                sourceOrigin: MTLOrigin(
+                    x: roiOut.x - roiIn.x + halo,
+                    y: roiOut.y - roiIn.y + halo, z: 0),
+                sourceSize: MTLSize(width: roiOut.width, height: roiOut.height, depth: 1),
+                to: output, destinationSlice: 0, destinationLevel: 0,
+                destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+            blit.endEncoding() // L008
+            commandBuffer.commit()
         }
     }
 
@@ -271,8 +292,66 @@ final class ROINegotiationTests: XCTestCase {
         XCTAssertEqual(cropSights.first?.roiOut, ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0))
     }
 
-    // ── ② Backward halo expansion: stub math unit (GREEN) ──
-    // e2e (roiHint 子窗口 → 上游平面 == 窗口 + 2·halo) PENDING T4.
+    // ── ② Backward halo expansion e2e (T4 turns green) ──
+
+    /// SC#4-②: `[halo(halo=3), gain]` + `roiHint` 24×24 子窗口 → 终帧
+    /// 24×24；halo 收到的 roiOut == 窗口、roiIn == 窗口 + 2·halo（30×30，
+    /// ≪ 全图）；gain 收到的 roiIn/roiOut == 窗口；输入平面缓存记账 ==
+    /// 30×30 窗口（数值 + 字节双断言）。
+    func testHaloBackwardExpandsUpstream() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let cache = PipeCache()
+        let recorder = ROIRecorder()
+        let image = makeImage(width: 128, height: 128)
+        let halo = 3
+        // Execution order (sorted by iopOrder): [gain(50.5, upstream) →
+        // halo(35.0, downstream)]. The hinted window hits the DOWNSTREAM
+        // halo first; ITS expanded roiIn (window + 2·halo) drives the
+        // negotiation through gain to the input plane. Gain's own
+        // negotiation stays identity (it forwards the expanded window).
+        let gain = ModuleBox(
+            module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
+            multiPriority: 0, multiName: "gain")
+        await gain.setParams(TestGainModule.Params(gain: 1.0))
+        let haloBox = ModuleBox(module: HaloStub(tag: "halo", recorder: recorder),
+                                multiPriority: 0, multiName: "halo")
+        await haloBox.setParams(HaloStub.Params(halo: halo))
+        let chain: [any ModuleBoxing] = [gain, haloBox]
+        let hint = ROI(x: 40, y: 40, width: 24, height: 24, scale: 1.0)
+        let expanded = ROI(x: 37, y: 37, width: 30, height: 30, scale: 1.0)
+
+        let (texture, stats) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: cache, metal: metal,
+            longEdge: nil, roiHint: hint)
+        XCTAssertEqual(stats.misses, 3, "input + gain-out + halo-out at the hinted window")
+        XCTAssertEqual(texture.width, 24)
+        XCTAssertEqual(texture.height, 24)
+        let haloSights = await recorder.sightings(for: "halo")
+        XCTAssertEqual(haloSights.count, 1)
+        XCTAssertEqual(haloSights.first?.roiOut, hint)
+        XCTAssertEqual(
+            haloSights.first?.roiIn, expanded,
+            "halo input = window + 2·halo, numerically exact")
+
+        // Negotiation-order note (dt `:2085-2096` + cache-probe order):
+        // the walk probes TOP-DOWN, so gain's line is keyed on the HINTED
+        // window (its negotiation runs before halo's miss expands the
+        // region). Gain therefore consumes the window, halo consumes the
+        // expansion — each module sees exactly its own negotiated pair.
+        let gainSights = await recorder.sightings(for: "gain")
+        XCTAssertEqual(gainSights.count, 1)
+        XCTAssertEqual(gainSights.first?.roiIn, hint)
+        XCTAssertEqual(gainSights.first?.roiOut, hint)
+
+        let expandedBytes = 30 * 30 * WorkingSpace.bytesPerPixel
+        let windowBytes = 24 * 24 * WorkingSpace.bytesPerPixel
+        let totalAfter = await cache.totalBytes
+        XCTAssertEqual(
+            totalAfter, expandedBytes + 2 * windowBytes,
+            "input plane (expanded) + gain-out (window) + halo-out (window)")
+    }
 
     /// HaloStub 自身 `modifyROIIn` 数学（CPU，不经 pipe）：窗口外扩 halo。
     func testHaloStubExpandsInputByHalo() {

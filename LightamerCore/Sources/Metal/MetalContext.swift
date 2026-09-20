@@ -391,6 +391,21 @@ public actor MetalContext {
         }
     }
 
+    /// Sub-domain facade (04-01-T4): render `region` (source-extent pixels)
+    /// into a `region.size` (× `scale`) plane. `nonisolated` + `sending`
+    /// handoff like the sibling facades; whether CI skips decode outside
+    /// the window is CIRAW-internal (no promise — see `renderRegion`).
+    public nonisolated func renderRegion(
+        _ image: CIImage, region: CGRect, scale: CGFloat = 1.0
+    ) async throws -> sending any MTLTexture {
+        let pool = await getOrCreatePool()
+        do {
+            let rendered = try await pool.renderRegion(image, region: region, scale: scale)
+            return rendered.texture
+        } catch let error as MetalError {
+            throw error.asAppError
+        }
+    }
     // MARK: - Private helpers
 
     /// Actor-isolated get-or-create; returns the actor REFERENCE (actor
