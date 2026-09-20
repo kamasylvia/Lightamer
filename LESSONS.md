@@ -170,6 +170,10 @@
 - **适用**：04-03 rotate/perspective、04-04 lens（全部几何/重采样模块）；一切「从 dt 移植 ROI/坐标数学」的场景。
 - **来源**：04-02 验收排障（2026-09-20），证据链：golden 失败逐像素值反解 fixture 坐标（0.25=2^(-8+8·0.75)）、dt pixelpipe_hb.c:2085/3368-3405 两 walk 对照、imagebuf.c:188-223 快慢路径分析、修复后 311 全绿。
 
----
-
-*本文件随开发进展持续更新。阶段完成后运行 `$gsd-extract-learnings` 自动提取。*
+### L021: dscIn 是本 run 平面像素——模块 ROI 钩子禁止再 ×scale；显示腿（blit+布局）无单测覆盖必须走真实 GUI 验收
+- **背景**：Plan 04-06 GUI 显示腿修复（2026-09-21）。首次真实可执行 GUI 验收（Debug 产物 + DSC00012.ARW）抓出单测全绿但肉眼可见的 4 缺陷：视口近全黑（GUI-1）+ 白对角线（GUI-2）+ fit 溢出（GUI-3）+ 三列均分（GUI-4）。358+ 测试验证的是管线纹理；MTKView→CAMetalLayer 显示腿与布局只有 Phase 1 时代覆盖。
+- **现象**：全 seed 链经 coordinator.load 真实路径黑（2560×1707 mean (0,6,5)，<16=94.2%），trio-only 亮；二分锁定 crop（trio+crop-only 黑 / trio+flip-only 亮）。
+- **根因（GUI-1）**：`CropModule.modifyROIIn` 把已 entry 缩放的 `dscIn` 又 ×`roi.scale`（double-scale）：760 档 clamp 界坍缩 60×40 → 协商 roiIn 60×40 → process 左上小窗 blit、其余全零。scale=1.0 恒等掩盖了它——全部 golden/crop 单测（小合成图全尺寸）免疫。同类 `dscIn × scale` 还有 toneequal blending 直径（preview 半径偏小，质量向）与 flip bw/bh（.none 恒等免疫），修 crop 一处、余者 Phase 5 审计。
+- **对策**：①`modifyROIIn` clamp 界直用 dscIn（同 run 平面像素），注释钉死坐标系（PixelPipe.run 按 bufInROI 逐级 stamp）；②常驻回归 `testScaledFullFrameCropMatchesTrioOnly`（trio+crop 逐字节 == trio-only @longEdge 48，pre-fix 红）；③判别探针（GUIProbeTests，A–Q7 真 RAW 消融）按 L012 D-X2 退役删除，常驻回归只留合成图毫秒级门；④显示腿：大三角形→顶点矩形 strip（quad 即 fit 矩形，ViewportFit.fittedRect 同源，letterbox=clearColor）+ 布局收窄（侧栏 200/Inspector 280，视口 ≥50%）；⑤GUI 复验按 PLAYBOOK §2 观察层量化（screencapture + PIL/numpy 数字进 FINDINGS.md），macOS 持久化 split frames 须 `defaults delete` 后看新窗口默认值。
+- **适用**：一切读 `piece.dscIn` 的 ROI 钩子（crop/lens/ashift/toneequal/flip…）；一切 MTKView blit/布局改动（先 GUI 验收再签收）。
+- **来源**：Plan 04-06 T1–T5（2026-09-21），证据 `.work/04-06/probe-gui1.md` + `.work/gui-acceptance/2026-09-21-fix-*.png` + FINDINGS.md 闭环；全 suite 389 绿（3 skip）。
