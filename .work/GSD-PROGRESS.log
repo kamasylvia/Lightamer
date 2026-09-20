@@ -45,3 +45,4 @@
 [2026-09-20 19:59] [04-03] complete: ashift rotate/perspective 5 commits, 331 tests 0 fail, SUMMARY + VALIDATION signed
 2026-09-20 21:05 [04-03] subagent 验收 PASS-with-notes → 验收方直接修 3 项：①轨 B 缺口补 testRotatedBlackCornersSurviveGammaTail（30° 旋转黑角经 ColorOut+sRGB TRC → bgra8Unorm 四角显示黑 + 内部可见，332 tests 全绿）；②SUMMARY 轨 B 表述 + kernel 注释 bgra8 腿引用更正（原引用不存在之测试）；③TODO pending-manual 补 Vision 真机抽检行。T4 管线修改专项核查：union-clamp 修复正确且最小（grow 契约合法化，crop/halo 行为不变）、ColorIn 断言松绑合理（仅删 DEBUG 同尺寸 assert）。04-03 闭环。
 [2026-09-21] [04-04] complete: lens 三层 12 commits, 355 tests 0 fail, SUMMARY + VALIDATION + TODO 已签收
+2026-09-21 [04-04] subagent 验收 PASS（无必修项，3 备注）：双管线修复专项核查通过——①ROI 宽度原点修复系模块级且逐字忠实 dt lens.cc:1791-1799；②子域 CI bottom-up 坐标翻转修复方向正确、影响面查清（仅 y 偏移子域路径，此前 4 个 e2e 全用 y 不变 fixtures 故为潜伏 bug，无已验收内容断言钉旧行为）；③ashift 注册/prewarm 恢复完整。358 tests 独立实跑全绿。备注修复：SUMMARY 计数 355→358、「逐字节」→「逐分量 ≤1e-6」更正。Lensfun 18→3 RAW 偏差诚实落账（match-ledger）。

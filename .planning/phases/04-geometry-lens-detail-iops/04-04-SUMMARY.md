@@ -4,7 +4,7 @@ plan: "04-04"
 title: "lens correction（IOP-GEO-03，槽位 13.0，D-G1 三层）—— SUMMARY"
 status: complete
 executed: 2026-09-21
-tests: "355 tests, 3 skipped, 0 failures (full LightamerTests)"
+tests: "358 tests, 3 skipped, 0 failures (full LightamerTests; 验收独立实跑 2026-09-21)"
 ---
 
 # Plan 04-04 SUMMARY — lens correction（三层：内嵌直通 / 手动滑块 / Lensfun XML 只读）
@@ -34,8 +34,8 @@ kernel）。槽位 13.0（cacorrectrgb 13.5 注释对齐）。
   XML 解析钉参 ✅（LensParityTests 7/7：6 case × 4 fixture = 24 路实比对，
   anti-vacuum compared>0；LensfunDBTests 15/15：d-factor/Hermite/IDW 手算值）。
 - **D-G1 三层完整性（T1/T3）**：(a) 模块头 + 面板注记文档化；(b)(c) 同一
-  kernel 逐字节一致 ✅（`testUnifiedExitMatchesManual`：同系数双门
-  maxDiff=0；降级路径无数据 → 恒等 + 手动可用）。
+  kernel 逐分量一致 ✅（`testUnifiedExitMatchesManual`：同系数双门
+  maxDiff ≤1e-6；降级路径无数据 → 恒等 + 手动可用）。
 - **ROI 非零外扩（T1）**：forward AABB + 中性恒等缓存零扰动 ✅
   （`testLensShrinkNegotiationBoundsInput`：pincushion → (0,0,62,62)；
   `testNeutralROIIdentity` + `testNonzeroROIGrows`）。
@@ -55,7 +55,7 @@ kernel）。槽位 13.0（cacorrectrgb 13.5 注释对齐）。
    未翻直接当 CI bounds（左下原点）——渲染 file row H−M+r 而非
    region.y+r。y 不变 fixtures（ramp/flat/灰阶）全盲，checkerboard
    以整行翻转抓获。修复 = `region.y = extent.maxY − ryTop − rh`
-   （extent 相对，CIRAW 非零原点同样正确）。全 suite 355 绿验证无回归。
+   （extent 相对，CIRAW 非零原点同样正确）。全 suite 358 绿验证无回归（验收独立实跑）。
 3. **ashift 注册误删（流程）**：T1 整段替换吞掉 ashift register +
    prewarm（seed 行幸存）→ 全套 8 失败（makeBox nil）。修复 =
    `1441a0e` 加回两段。教训：Registry 类共享文件改动后跑全套，
@@ -70,9 +70,10 @@ kernel）。槽位 13.0（cacorrectrgb 13.5 注释对齐）。
 
 ## 全绿闸门
 
-- 全 suite：**355 tests, 3 skipped, 0 failures**（2026-09-21 终轮；
-  04-03 时 331 → +24：LensfunDB 15 + LensParity 7 + PanelWiring 2 +
-  V50Order 1 + ROI 1，减探针退役）。
+- 全 suite：**358 tests, 3 skipped, 0 failures**（2026-09-21 终轮，
+  验收独立实跑更正；omp 自报 355 为运行中计数。04-03 时 331 → +24：
+  LensfunDB 15 + LensParity 7 + PanelWiring 2 + V50Order 1 + ROI 1，
+  减探针退役）。
 - 04-VALIDATION IOP-GEO-03 行 + D-G1 行 + 轨 B 行 ✅；Manual-Only：
   镜头校正视觉登记（L011 口径 pending-manual）。
 - 下游影响：04-06（SC#2 签核——Lensfun open decision 落地证据就绪）；
