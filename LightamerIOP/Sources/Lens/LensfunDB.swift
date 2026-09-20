@@ -10,7 +10,7 @@ import Foundation
 //
 // Data files NEVER enter git (D-G1): the app downloads the full library on
 // first run (LensfunDownloadService, T3); tests use hermetic inline XML or
-// the 3-file hand-picked subset under `input/golden/fixtures/lensfun/`.
+// the 4-file hand-picked subset under `input/golden/fixtures/lensfun/`.
 // `parse(data:)` is pure + synchronous so tests never touch the filesystem.
 //
 // What is DELIBERATELY not parsed (v1 scope, 04-04-DECISIONS D-04-04-T0-2):

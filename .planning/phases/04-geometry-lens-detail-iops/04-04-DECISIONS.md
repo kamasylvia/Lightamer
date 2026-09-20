@@ -9,7 +9,7 @@
   落 `Application Support/Lensfun/version_1/*.xml`（`/usr/bin/unzip -j '*.xml'` 扁平解包）；
   设置经 `UserDefaults lensfun.customPath` 可指用户自备路径（覆盖）；下载失败/未配置 →
   (c) 层静默缺席、(b) 手动层照常。数据文件**不入 git**（D-G1）；测试用
-  `input/golden/fixtures/lensfun/` 3 个手摘最小子集（注明 lensfun-data 来源 + trimmed，
+  `input/golden/fixtures/lensfun/` 4 个手摘最小子集（注明 lensfun-data 来源 + trimmed，
   `.gitignore` 加 `*.xml` 例外——全库仍忽略）。
 - **D-04-04-T0-2 归一化半径约定**（lensfun GitHub 源码钉死，`modifier.cpp` 头注释 + 各 `rescale_*`）：
   - lensfun 内部归一化坐标 = 以 real focal 为单位的自然坐标；Hugin 畸变/TCA 模型 r=1 于**半高**

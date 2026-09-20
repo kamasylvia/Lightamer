@@ -297,12 +297,12 @@ final class GeometryGoldenTests: XCTestCase {
         }
         XCTAssertTrue(
             failures.isEmpty,
-            "track B criterion 1 (neutrality with crop+flip inserted) FAILED:\n"
+            "track B criterion 1 (neutrality with crop+flip+lens inserted) FAILED:\n"
                 + failures.joined(separator: "\n")
         )
     }
 
-    /// Criterion 2 (linear flavor): chain minus gamma (crop+flip
+    /// Criterion 2 (linear flavor): chain minus gamma (crop+flip+lens
     /// inserted) vs a CIContext ColorSync direct render into linear-P3.
     func testTrackBCrossConsistencyLinearWithCropFlipInserted() async throws {
         let metal = try await makeMetal()
@@ -364,7 +364,7 @@ final class GeometryGoldenTests: XCTestCase {
         }
         XCTAssertLessThan(
             Double(maxDiff), 0.004,
-            "track B criterion 2 (linear, crop+flip inserted): pipe vs ColorSync diverges "
+            "track B criterion 2 (linear, crop+flip+lens inserted): pipe vs ColorSync diverges "
                 + "\(maxDiff) (worst at \(worst.0),\(worst.1))"
         )
     }
@@ -372,9 +372,10 @@ final class GeometryGoldenTests: XCTestCase {
     // MARK: - Helpers (GoldenParityTests track-B shape)
 
     /// The default chain with crop (FULL-frame = identity window) + flip
-    /// (NONE identity) inserted at their v50 slots. Full-frame crop =
-    /// whole-plane blit (cache-neutral shape, exercises the blit through
-    /// the real chain without moving patches into the letterbox).
+    /// (NONE identity) + lens (neutral OFF) inserted at their v50 slots.
+    /// Full-frame crop = whole-plane blit; neutral lens = blit identity
+    /// (cache-neutral shapes, exercise the blit legs through the real
+    /// chain without moving patches into the letterbox).
     private func makeChainWithCropFlip(
         registry: ModuleRegistry, outputProfile: ColorOutModule.OutputProfile
     ) async throws -> [any ModuleBoxing] {
@@ -386,6 +387,10 @@ final class GeometryGoldenTests: XCTestCase {
         let flipBox = try XCTUnwrap(flip as? ModuleBox<FlipModule>)
         await flipBox.setParams(FlipModule.Params(orientation: .none))
         chain.append(flipBox)
+        let lens = await registry.makeBox(opName: LensModule.opName)
+        let lensBox = try XCTUnwrap(lens as? ModuleBox<LensModule>)
+        await lensBox.setParams(LensModule.Params())
+        chain.append(lensBox)
         let crop = await registry.makeBox(opName: CropModule.opName)
         let cropBox = try XCTUnwrap(crop as? ModuleBox<CropModule>)
         await cropBox.setParams(CropModule.Params())
