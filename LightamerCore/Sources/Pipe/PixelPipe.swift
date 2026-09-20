@@ -605,8 +605,10 @@ internal final class PixelPipe: @unchecked Sendable {
                 throw MetalError.deviceUnavailable
             }
             // 04-01-T4: negotiated sub-domain render. `roiOut` is in
-            // ENTRY-PIXEL coords (scale-at-entry size when scale < 1):
-            // the source region is `roiOut ÷ scale` in DECODED pixels.
+            // ENTRY-PIXEL coords, TOP-LEFT origin (scale-at-entry size
+            // when scale < 1): the source region is `roiOut ÷ scale` in
+            // DECODED pixels, flipped into CI's bottom-up coords below
+            // (extent-relative — CIRAW extents need not start at zero).
             // Full-frame requests keep the legacy legs; everything else
             // renders exactly its source region (CI lazy: no full-frame
             // buffer, no window copy — the D-G2 read).
@@ -625,13 +627,23 @@ internal final class PixelPipe: @unchecked Sendable {
             ) { [self] in
                 planesRendered += 1
                 if needsSubdomain {
+                    // ROI is top-left origin; CI extent is bottom-up
+                    // (04-04-T4 lens-shrink postmortem: passing the ROI
+                    // rect straight through renders file row H−M+r
+                    // instead of region.y+r — a row shift invisible on
+                    // y-invariant fixtures, fatal on checkerboard).
+                    let ex = image.ciImage.extent
+                    let rw = CGFloat(roiOut.width) / scale
+                    let rh = CGFloat(roiOut.height) / scale
+                    let rx = CGFloat(roiOut.x) / scale
+                    let ryTop = CGFloat(roiOut.y) / scale
                     return try await metal.renderRegion(
                         image.ciImage,
                         region: CGRect(
-                            x: CGFloat(roiOut.x) / scale,
-                            y: CGFloat(roiOut.y) / scale,
-                            width: CGFloat(roiOut.width) / scale,
-                            height: CGFloat(roiOut.height) / scale),
+                            x: rx,
+                            y: ex.maxY - ryTop - rh,
+                            width: rw,
+                            height: rh),
                         scale: scale
                     )
                 }

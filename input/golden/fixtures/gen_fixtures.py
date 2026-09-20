@@ -1032,6 +1032,104 @@ def gen_ashift_refs(canonical_dir: str, out_dir: str) -> None:
             write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), ow, oh, px)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Lens warp (Plan 04-04-T4) — radial distortion + TCA + devignette in
+# float64 + texel-center bilinear with clamped taps, mirroring
+# LensKernels.metal `lens_manual_warp` + LensModule.forwardRadius
+# formula-for-formula (L017 route ① — warp is a spatial operator, dt-cli
+# float export spatially corrupt; lens has no dt-cli leg at all: no
+# liblens* in this dt build is exercised — dt-side evidence = uniform
+# probes in-test + XML resolve pins in LensfunDBTests).
+#
+# Frame convention (L020): forward map is input-frame → input-frame
+# (distortion is self-contained — output == input frame, no homography);
+# the module's modifyROIOut keeps x/y and the reference renders the same
+# window the pipe negotiates (identity for lens: same-size planes).
+# Radius unit: u = (p − c)/halfW, c = frame center, halfW = W/2.
+# ──────────────────────────────────────────────────────────────────────
+
+# The lens 钉参组 (plan T4 action 2): identity / ±distortion / CA /
+# vignette / combined. Coefficients are KERNEL-unit (u = (p−c)/halfW);
+# the XML→kernel normalization is pinned separately in LensfunDBTests.
+LENS_CASES = [
+    # (case name, dc1, dc2, dc3, dc4, tcaR_vr, tcaB_vb, vk1, vk2, vk3)
+    ("lens_identity", 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0),
+    ("lens_distort_barrel", 0.0, 0.08, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0),
+    ("lens_distort_pincushion", 0.0, -0.08, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0),
+    ("lens_distort_ptlens", 0.02, -0.03, 0.01, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0),
+    ("lens_ca", 0.0, 0.0, 0.0, 0.0, 1.002, 0.998, 0.0, 0.0, 0.0),
+    ("lens_vignette", 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, -0.5, 0.2, -0.05),
+    ("lens_combo", 0.0, 0.05, 0.0, 0.01, 1.0015, 0.9985, -0.3, 0.1, -0.02),
+]
+
+LENS_REF_FIXTURES = [
+    "gradient_ramp", "flat_0ev", "flat_-4ev", "checkerboard",
+]
+
+
+def _lens_forward_radius(ru, dc1, dc2, dc3, dc4):
+    return ru * (1.0 + dc1 * ru + dc2 * ru * ru + dc3 * ru ** 3 + dc4 * ru ** 4)
+
+
+def _lens_bilinear(src_rgb, w, h, sx, sy):
+    """Pixel-center bilinear with clamped taps; always in-domain (lens
+    clamps, never transparent) — mirrors lens_sample_clamped."""
+    fx = min(max(sx, 0.0), w - 1)
+    fy = min(max(sy, 0.0), h - 1)
+    x0, y0 = int(math.floor(fx)), int(math.floor(fy))
+    x1, y1 = min(x0 + 1, w - 1), min(y0 + 1, h - 1)
+    tx, ty = fx - x0, fy - y0
+
+    def at(x, y):
+        idx = y * w + x
+        return (src_rgb[0][idx], src_rgb[1][idx], src_rgb[2][idx])
+    p00, p10, p01, p11 = at(x0, y0), at(x1, y0), at(x0, y1), at(x1, y1)
+    top = tuple(p00[c] + (p10[c] - p00[c]) * tx for c in range(3))
+    bot = tuple(p01[c] + (p11[c] - p01[c]) * tx for c in range(3))
+    return tuple(top[c] + (bot[c] - top[c]) * ty for c in range(3))
+
+
+def gen_lens_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the lens golden REFERENCES: radial warp + per-channel
+    TCA + devignette over the canonical fixture bytes in float64 (the
+    gate is <1e-5, warp class). Output shape = input shape (lens never
+    resizes the frame — modifyROIOut identity)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, dc1, dc2, dc3, dc4, vr, vb, vk1, vk2, vk3 in LENS_CASES:
+        for fixture in LENS_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            cx, cy, half = w / 2.0, h / 2.0, w / 2.0
+
+            def px(x, y, rgb=rgb, w=w, h=h):
+                # Normalized radius around the frame center (u units).
+                dx, dy = (x - cx) / half, (y - cy) / half
+                ru = math.hypot(dx, dy)
+                if ru < 1e-12:
+                    s = 1.0
+                    rd = 0.0
+                else:
+                    rd = _lens_forward_radius(ru, dc1, dc2, dc3, dc4)
+                    s = rd / ru
+                # TCA at the post-distortion radius (D3): channel scales.
+                rd2 = rd * rd
+                sR = vr
+                sB = vb
+                # Per-channel sample coords (center-relative, scaled).
+                srx, sry = cx + dx * s * sR * half, cy + dy * s * sR * half
+                sgx, sgy = cx + dx * s * half, cy + dy * s * half
+                sbx, sby = cx + dx * s * sB * half, cy + dy * s * sB * half
+                # Devignette at the post-distortion radius (D1 division).
+                rd4 = rd2 * rd2
+                vmul = 1.0 / (1.0 + vk1 * rd2 + vk2 * rd4 + vk3 * rd4 * rd2)
+                pr = _lens_bilinear(rgb, w, h, srx, sry)
+                pg = _lens_bilinear(rgb, w, h, sgx, sgy)
+                pb = _lens_bilinear(rgb, w, h, sbx, sby)
+                return (pr[0] * vmul, pg[1] * vmul, pb[2] * vmul)
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
+
+
 def gen_ashift_cases(outdir: str) -> None:
     for case in ASHIFT_CASES:
         name, rot, sv, sh, shear, cl, cr, ct, cb = case
@@ -2714,6 +2812,10 @@ def main() -> None:
         # dt-side = XMP adoption + flat rotation probe. Synthetic ref =
         # float64 inverse-homography + bilinear, formula-mirrored below).
         gen_ashift_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 04-04-T4: lens warp golden references (L017 route ① —
+        # warp is a spatial operator; lens has no dt-cli leg. Synthetic
+        # ref = float64 radial warp + TCA + devignette, formula-mirrored).
+        gen_lens_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 

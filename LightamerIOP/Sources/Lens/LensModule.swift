@@ -270,13 +270,19 @@ public final class LensModule: IOPModule {
             ym = min(ym, q.y); yM = max(yM, q.y)
         }
         // dt `:1791-1793`: 2px interpolation margin (bilinear tap = 1,
-        // TCA channel spread folds into the same margin in v1).
+        // TCA channel spread folds into the same margin in v1). The WIDTH
+        // measures from the CLAMPED origin (dt `:1791-1799` clamps x/y
+        // first, then `width = MIN(orig − x, xM − x + interp)`): measuring
+        // from the unclamped xm UNDERCOVERS when the AABB shrinks inside
+        // the frame (pincushion: xm=2.56 → width lost 2.56px + the +1
+        // inclusive fudge never repaid — the input plane missed tap texel
+        // 61 and the kernel froze at x0, caught by track-A golden).
         let m = 2.0
         var ix = xm - m, iy = ym - m
-        var iw = xM + m - xm + 1.0, ih = yM + m - ym + 1.0
-        // dt `:1791-1799` clamp to bufIn.
+        // dt `:1791-1799` clamp to bufIn FIRST.
         ix = min(max(ix, 0), floor(bufW))
         iy = min(max(iy, 0), floor(bufH))
+        var iw = xM + m - ix, ih = yM + m - iy
         iw = min(max(iw, 4), floor(bufW) - ix)
         ih = min(max(ih, 4), floor(bufH) - iy)
         input = ROI(x: Int(ix.rounded(.down)), y: Int(iy.rounded(.down)),
