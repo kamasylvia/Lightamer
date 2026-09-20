@@ -233,13 +233,13 @@ internal struct EditorMTKView: NSViewRepresentable {
         private static func aspectFitUniforms(
             textureSize: SIMD2<Float>, drawableSize: SIMD2<Float>
         ) -> BlitUniforms {
-            guard drawableSize.x >= 1, drawableSize.y >= 1, textureSize.x >= 1, textureSize.y >= 1 else {
-                return BlitUniforms(scale: SIMD2(1, 1), offset: SIMD2(0, 0))
-            }
-            let fit = min(drawableSize.x / textureSize.x, drawableSize.y / textureSize.y)
+            // 04-02-T4: single-source math (ViewportFit); behavior
+            // byte-identical (the guard + scale formula moved verbatim).
+            let scale = ViewportFit.blitScale(
+                viewportSize: CGSize(width: Double(drawableSize.x), height: Double(drawableSize.y)),
+                textureSize: CGSize(width: Double(textureSize.x), height: Double(textureSize.y)))
             return BlitUniforms(
-                scale: SIMD2(fit * textureSize.x / drawableSize.x, fit * textureSize.y / drawableSize.y),
-                offset: SIMD2(0, 0)
+                scale: SIMD2(Float(scale.x), Float(scale.y)), offset: SIMD2(0, 0)
             )
         }
     }

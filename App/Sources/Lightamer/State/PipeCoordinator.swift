@@ -898,25 +898,11 @@ final class PipeCoordinator {
     nonisolated static func viewportUV(
         at point: CGPoint, viewportSize: CGSize, textureSize: SIMD2<Int>
     ) -> SIMD2<Double>? {
-        guard viewportSize.width >= 1, viewportSize.height >= 1,
-              textureSize.x >= 1, textureSize.y >= 1
-        else { return nil }
-        let vw = Double(viewportSize.width)
-        let vh = Double(viewportSize.height)
-        let tw = Double(textureSize.x)
-        let th = Double(textureSize.y)
-        let fit = min(vw / tw, vh / th)
-        let scaleX = fit * tw / vw // ≤ 1; 1 on the constraining axis
-        let scaleY = fit * th / vh
-        // uv spans [0,1] across the FITTED rect: divide the viewport
-        // fraction by the per-axis scale (the fitted rect occupies
-        // [0.5(1−s), 0.5(1+s)] of the viewport).
-        let uv = SIMD2<Double>(
-            0.5 + (Double(point.x) / vw - 0.5) / scaleX,
-            0.5 + (Double(point.y) / vh - 0.5) / scaleY
-        )
-        guard uv.x >= 0, uv.x <= 1, uv.y >= 0, uv.y <= 1 else { return nil }
-        return uv
+        // 04-02-T4: single-source math (ViewportFit); the guard + letterbox
+        // semantics are unchanged (EyedropperTests pin them).
+        ViewportFit.uv(
+            at: point, viewportSize: viewportSize,
+            textureSize: CGSize(width: textureSize.x, height: textureSize.y))
     }
 
     /// N×N area mean around the uv point (dt AREA picker; default radius 2
