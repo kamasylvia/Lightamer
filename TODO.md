@@ -146,6 +146,8 @@
 ## Phase 3 遗留/分配（签核注记，非阻塞）
 
 - [ ] PERF-5 全链重渲 36ms → 16.6ms：管线级 Lab 往返共享（Open#9，Phase 5+）+ 跨模块 dispatch 批合并（Phase 4+）
+- [ ] **Phase 5 审计：toneequal/flip 的 modifyROIIn `dscIn × scale` 同类 double-scale 排查**（04-06 D-GUI-1 附带：crop 已修——dscIn 已含 entry 缩放，再乘 roi.scale 即坍缩；toneequal/flip 若同式需同修；详见 LESSONS L021）
+- [ ] VisionDetectTests 期间 `MDB_MAP_FULL`（LMDB mapsize）杂音排查（04-06 验收发现，不影响结果）
 - [ ] filmicrgb 高光重建子树（F5 à-trous wavelet + HQ 循环）：mask kernel + 参数位已就位，重建挂 Phase 8 HDR/v1 后期
 - [ ] filmic/sigmoid/agx displayed-domain 默认值校准（CIRAW 显影域 vs 场景线性假设）——产品语义任务，随 Phase 8/实机校准
 
