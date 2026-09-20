@@ -97,6 +97,7 @@ final class PanelWiringTests: XCTestCase {
         // crop additionally ships the T5 panel).
         XCTAssertTrue(ops.contains("crop"), "pristine seed must include crop")
         XCTAssertTrue(ops.contains("flip"), "pristine seed must include flip")
+        XCTAssertTrue(ops.contains("lens"), "pristine seed must include lens")
     }
 
     private func instance(_ opName: String) throws -> ModuleInstance {
@@ -543,6 +544,58 @@ final class PanelWiringTests: XCTestCase {
             state.panelView(for: ModuleInstance(module: AshiftModule.self, params: .init()), edit: session),
             "ashift must dispatch a panel")
     }
+
+    // MARK: - 04-04 lens panel wiring (T3)
+
+    func testLensPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let lens = try instance("lens")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(lens, { $0.distortionK1 = Float(tick) * 0.01 }, as: LensModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_lens"))
+
+        XCTAssertEqual(historyCount(), 1, "lens drag = exactly ONE item")
+        let committed = try instance("lens")
+        XCTAssertEqual(try committed.params(of: LensModule.self).distortionK1, 0.06, accuracy: 1e-6)
+    }
+
+    /// Lens discrete reset + apply-match/clear source flips + dispatch.
+    func testLensResetAndDispatch() async throws {
+        try await loadSynthetic()
+        XCTAssertTrue(
+            editorState.instances.map(\.opName).contains("lens"),
+            "pristine seed must include lens (neutral OFF)")
+        let lens = try instance("lens")
+        XCTAssertEqual(try lens.params(of: LensModule.self).distortionK1, 0, accuracy: 1e-6)
+
+        coordinator.beginContinuousEdit()
+        let up = try withParams(lens, { $0.distortionK1 = 0.05; $0.source = .manual }, as: LensModule.self)
+        await coordinator.setLiveParams(up)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_lens"))
+        XCTAssertEqual(historyCount(), 1)
+
+        // apply-match flips source to lensfun (resolve itself is pipe-side).
+        let current = try instance("lens")
+        let matched = try withParams(current, { $0.source = .lensfun }, as: LensModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(matched)
+        await coordinator.commitContinuousEdit(label: "lens apply match")
+        XCTAssertEqual(historyCount(), 2)
+        XCTAssertEqual(try instance("lens").params(of: LensModule.self).source, .lensfun)
+
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("lens"), "lens must dispatch a panel")
+        let session = InspectorEditSession(coordinator: coordinator)
+        XCTAssertNotNil(
+            state.panelView(for: ModuleInstance(module: LensModule.self, params: .init()), edit: session),
+            "lens must dispatch a panel")
+    }
+
     // MARK: - Helpers
     private func historyCount() -> Int { editorState.history.items.count }
 }

@@ -70,6 +70,8 @@ final class InspectorState {
         register(CropPanelProvider())
         // Plan 04-03-T5: ashift (rotate + perspective + Vision auto-detect).
         register(AshiftPanelProvider())
+        // Plan 04-04-T3: lens (embedded note + manual sliders + Lensfun).
+        register(LensPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

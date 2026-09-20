@@ -3995,6 +3995,346 @@
           }
         }
       }
+    },
+    "history_lens": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lens correction"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镜头校正"
+          }
+        }
+      }
+    },
+    "panel_lens_embedded_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Embedded correction"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内嵌校正"
+          }
+        }
+      }
+    },
+    "panel_lens_embedded_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The decoded image already includes the lens correction embedded by the camera/RAW decoder for supported lenses. Manual correction below defaults to OFF — enable only for uncorrected lenses to avoid double correction."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解码后的图像已包含相机/RAW 解码器对支持镜头的内嵌校正。下方手动校正默认关闭——仅对未校正镜头启用，避免双重校正。"
+          }
+        }
+      }
+    },
+    "panel_lens_manual_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual correction"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动校正"
+          }
+        }
+      }
+    },
+    "panel_lens_distortion_k1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distortion k1"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "畸变 k1"
+          }
+        }
+      }
+    },
+    "panel_lens_distortion_k2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distortion k2"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "畸变 k2"
+          }
+        }
+      }
+    },
+    "panel_lens_tca_r": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TCA red"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "横向色差（红）"
+          }
+        }
+      }
+    },
+    "panel_lens_tca_b": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TCA blue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "横向色差（蓝）"
+          }
+        }
+      }
+    },
+    "panel_lens_vignette_k1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vignette k1"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渐晕 k1"
+          }
+        }
+      }
+    },
+    "panel_lens_vignette_k2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vignette k2"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渐晕 k2"
+          }
+        }
+      }
+    },
+    "panel_lens_vignette_k3": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vignette k3"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渐晕 k3"
+          }
+        }
+      }
+    },
+    "panel_lens_reset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset manual correction"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置手动校正"
+          }
+        }
+      }
+    },
+    "panel_lens_lensfun_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lensfun database"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lensfun 数据库"
+          }
+        }
+      }
+    },
+    "panel_lens_apply_match": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply matched lens"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用匹配镜头"
+          }
+        }
+      }
+    },
+    "panel_lens_clear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear to manual"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除回手动"
+          }
+        }
+      }
+    },
+    "panel_lens_no_data": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No lens database on disk. Download the Lensfun database (≈4MB) or point to a local copy."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "磁盘上无镜头数据库。请下载 Lensfun 数据库（约 4MB）或指向本地副本。"
+          }
+        }
+      }
+    },
+    "panel_lens_download": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download lens database"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载镜头数据库"
+          }
+        }
+      }
+    },
+    "panel_lens_downloading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载中…"
+          }
+        }
+      }
+    },
+    "panel_lens_no_exif": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No lens info in this photo — manual sliders below still apply."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此照片无镜头信息——下方手动滑块仍可用。"
+          }
+        }
+      }
+    },
+    "panel_lens_download_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download failed — manual correction still works."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载失败——手动校正仍可用。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

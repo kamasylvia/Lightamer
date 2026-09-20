@@ -69,4 +69,17 @@ final class V50OrderTests: XCTestCase {
         XCTAssertEqual(CropModule.iopOrder, 24.5)
         XCTAssertLessThan(FlipModule.iopOrder, CropModule.iopOrder)
     }
+
+    /// 04-04: lens (13.0) sits after scalepixels (12.0), before
+    /// cacorrectrgb (13.5, whose source comment orders CA-after-lens) —
+    /// mechanism: the module statics AND the table agree.
+    func testLensSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "lens"), 13.0)
+        XCTAssertEqual(V50Order.order(for: "cacorrectrgb"), 13.5)
+        XCTAssertLessThan(V50Order.order(for: "lens")!, V50Order.order(for: "cacorrectrgb")!)
+        XCTAssertEqual(LensModule.iopOrder, 13.0)
+        XCTAssertLessThan(LensModule.iopOrder, AshiftModule.iopOrder)
+        XCTAssertLessThan(AshiftModule.iopOrder, FlipModule.iopOrder)
+        XCTAssertLessThan(FlipModule.iopOrder, CropModule.iopOrder)
+    }
 }

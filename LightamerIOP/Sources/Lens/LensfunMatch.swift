@@ -48,7 +48,7 @@ import LightamerCore
 
 /// Kernel-unit resolved coefficients (the (c)→(b) unified exit — feeds
 /// `LensWarpUniforms` exactly like the manual path).
-struct LensKernelParams: Sendable {
+public struct LensKernelParams: Sendable {
     var dc1: Float = 0
     var dc2: Float = 0
     var dc3: Float = 0
@@ -377,14 +377,14 @@ enum LensfunMatch {
 /// `resolveUniforms` runs on the caller's executor and only needs a
 /// synchronous snapshot lookup; actor isolation would force async hops
 /// through the pipe's Sendable boundary).
-struct LensfunStore: Sendable {
+public struct LensfunStore: Sendable {
     /// The installed snapshot (nil = absent → downgrade to manual).
     private static let lock: NSLock = NSLock()
     private static nonisolated(unsafe) var _db: LensfunDB?
     /// Install the store from a directory (app launch / settings change).
     /// Returns false when the directory holds no parseable XML.
     @discardableResult
-    static func install(directory: URL) -> Bool {
+    public static func install(directory: URL) -> Bool {
         let db = LensfunDBLoader.load(directory: directory)
         guard !db.lenses.isEmpty else { return false }
         lock.lock(); _db = db; lock.unlock()
@@ -397,16 +397,16 @@ struct LensfunStore: Sendable {
     }
 
     /// Remove the store (data deleted / path unset).
-    static func uninstall() { lock.lock(); _db = nil; lock.unlock() }
+    public static func uninstall() { lock.lock(); _db = nil; lock.unlock() }
 
     /// Snapshot predicate for the downgrade path (sync — no async hop).
-    static var isInstalled: Bool {
+    public static var isInstalled: Bool {
         lock.lock(); defer { lock.unlock() }
         return _db != nil
     }
 
     /// Resolve committed params → kernel params (D6, sync snapshot read).
-    static func resolveCommitted(
+    public static func resolveCommitted(
         _ params: LensModule.Params, width: Int, height: Int
     ) -> LensKernelParams? {
         lock.lock(); let db = _db; lock.unlock()
