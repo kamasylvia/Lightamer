@@ -6,16 +6,17 @@ import XCTest
 
 /// SC#4 ROI negotiation harness (04-01; D-G5 / ROADMAP SC#4).
 ///
-/// Stub-driven: crop/sharpen 真模块尚未落地（04-02/04-05），①②用
-/// DEBUG 变体 + 文件内 stub box 驱动协议（模块落地后换真模块回归）。
-/// Stub process = size-exact / content-approximate：经 `commandQueue` blit
-/// 按 `(roiOut − roiIn)` 偏移拷贝窗口（dt `dt_iop_copy_image_roi` 快路径
-///语义）；halo 类 stub 的采样对齐不是 harness 的断言对象。
+/// Driver mix (04-02): ①③④ run the REAL `CropModule` (04-02-T1 — the
+/// stub retired for crop; the CropStub class stays as the CPU-math
+/// reference for the verbatim-formula cross-check); ② keeps the HaloStub
+/// until the real sharpen lands (04-05). Stub process = size-exact /
+/// content-approximate：经 `commandQueue` blit 按 `(roiOut − roiIn)`
+/// 偏移拷贝窗口（dt `dt_iop_copy_image_roi` 快路径语义）；halo 类 stub
+/// 的采样对齐不是 harness 的断言对象。
 ///
-/// TDD 红灯清单（本文件提交时）：
-/// - ① RED → 需 T3（前向预计算 + 真协商）：终帧仍全幅、记账仍全幅。
-/// - ②-e2e PENDING → 需 T4（`roiHint` + 子域渲染）：子窗口调用者不存在；
-///   本文件只含 stub 自身 `modifyROIIn` 数学的 CPU 单测（GREEN）。
+/// History (04-01 TDD red → green):
+/// - ① RED → T3（前向预计算 + 真协商）green；04-02 换真 crop 回归。
+/// - ②-e2e GREEN (T4 `roiHint` + 子域渲染)；真 sharpen 回归在 04-05。
 /// - ③④ GREEN（回归网：禁用穿越恒等、旧键保留回拖命中）。
 /// - ROI.clamped/aabb 辅助单测 GREEN（T2 产物）。
 final class ROINegotiationTests: XCTestCase {
@@ -241,13 +242,16 @@ final class ROINegotiationTests: XCTestCase {
             decoderVersionUsed: .v8
         )
     }
-
+    /// 04-02: the REAL `CropModule` drives ①③④ (stub retired for crop —
+    /// `CropStub` stays as the CPU-math reference below). The recorder
+    /// wraps it so the harness keeps its ROI sightings.
     private func makeCrop50Chain(
         _ recorder: ROIRecorder, enabled: Bool = true
     ) async -> [any ModuleBoxing] {
-        let crop = ModuleBox(module: CropStub(tag: "crop", recorder: recorder),
-                             multiPriority: 0, multiName: "crop")
-        await crop.setParams(CropStub.Params(cx: 0.25, cy: 0.25, cw: 0.75, ch: 0.75))
+        let crop = ModuleBox(
+            module: ROIRecording(tag: "crop", recorder: recorder, inner: CropModule()),
+            multiPriority: 0, multiName: "crop")
+        await crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
         crop.enabled = enabled
         let gain = ModuleBox(
             module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
@@ -430,8 +434,9 @@ final class ROINegotiationTests: XCTestCase {
         let recorder = ROIRecorder()
         let image = makeImage(width: 64, height: 64)
         let imageID = UUID()
-        let crop = ModuleBox(module: CropStub(tag: "crop", recorder: recorder),
-                             multiPriority: 0, multiName: "crop")
+        let crop = ModuleBox(
+            module: ROIRecording(tag: "crop", recorder: recorder, inner: CropModule()),
+            multiPriority: 0, multiName: "crop")
         let gain = ModuleBox(
             module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
             multiPriority: 1, multiName: "gain")
@@ -442,19 +447,18 @@ final class ROINegotiationTests: XCTestCase {
                 image: image, instances: chain, imageID: imageID,
                 resolution: .preview, cache: cache, metal: metal, longEdge: nil).1
         }
-
-        await crop.setParams(CropStub.Params(cx: 0, cy: 0, cw: 0.5, ch: 0.5))
+        await crop.setParams(CropModule.Params(left: 0, top: 0, right: 0.5, bottom: 0.5))
         let statsA = try await run()
         XCTAssertEqual(statsA.misses, 3)
         let bytesA = await cache.totalBytes
 
-        await crop.setParams(CropStub.Params(cx: 0.5, cy: 0.5, cw: 1.0, ch: 1.0))
+        await crop.setParams(CropModule.Params(left: 0.5, top: 0.5, right: 1.0, bottom: 1.0))
         let statsB = try await run()
         XCTAssertGreaterThanOrEqual(statsB.misses, 2, "new window = new keys downstream")
         let bytesAfterB = await cache.totalBytes
         XCTAssertGreaterThan(bytesAfterB, bytesA, "both key groups retained")
 
-        await crop.setParams(CropStub.Params(cx: 0, cy: 0, cw: 0.5, ch: 0.5))
+        await crop.setParams(CropModule.Params(left: 0, top: 0, right: 0.5, bottom: 0.5))
         let bytesBeforeRevert = await cache.totalBytes
         let statsBack = try await run()
         XCTAssertEqual(statsBack.hits, 1, "back-drag hits the retained line, zero work")

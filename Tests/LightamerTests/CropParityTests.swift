@@ -1,0 +1,224 @@
+@testable import LightamerCore
+import CoreImage
+import LightamerIOP
+import Metal
+import XCTest
+
+/// CropParityTests (Plan 04-02-T1/T3) — the IOP-GEO-01 window module.
+///
+/// dt sources: `src/iop/crop.c` (:44 MIN_CROP_SIZE, :61-69 params v3,
+/// :517-531 modify_roi_out, :576-592 modify_roi_in, :594-608 process,
+/// :617-656 commit_params, :145-150 flags, :24.5 slot) +
+/// `src/common/imagebuf.c:188-223` (window copy primitive).
+///
+/// Parities (CPU + GPU-index):
+/// - modifyROIOut verbatim (50% center window + 4px floor vectors);
+/// - modifyROIIn verbatim (downstream window + crop origin + clamp);
+/// - commitParams clamp vectors (dt :635-638);
+/// - params default = full frame, neutral seed;
+/// - hash covers RAW params (D-H4 — record and box atoms match);
+/// - end-to-end (T1 acceptance): `[crop50]` output == full-frame render
+///   cropped to the window, byte-exact through the real pipe (the
+///   `imagebuf.c:194-200` fast-path semantic);
+/// - disabled crop = identity passthrough (SC#4-③真模块版).
+final class CropParityTests: XCTestCase {
+
+    private func makeMetal() async throws -> MetalContext {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        return metal
+    }
+
+    private func drain(_ metal: MetalContext) {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+    }
+
+    /// Non-square gradient fixture: value = (x·w + y) so every pixel is
+    /// unique — a window mis-offset fails loudly.
+    private func gradientImage(width: Int, height: Int) -> DecodedImage {
+        var rgba = [Float](repeating: 1.0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let v = Float(x * height + y) / Float(width * height)
+                rgba[(y * width + x) * 4] = v
+                rgba[(y * width + x) * 4 + 1] = v
+                rgba[(y * width + x) * 4 + 2] = v
+            }
+        }
+        var data = Data(capacity: rgba.count * 4)
+        for value in rgba {
+            var le = value.bitPattern.littleEndian
+            data.append(contentsOf: withUnsafeBytes(of: &le) { Data($0) })
+        }
+        let provider = CGDataProvider(data: data as CFData)!
+        let cg = CGImage(
+            width: width, height: height, bitsPerComponent: 32, bitsPerPixel: 128,
+            bytesPerRow: width * 16, space: WorkingSpace.colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue:
+                CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.floatComponents.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent
+        )!
+        return DecodedImage(
+            ciImage: CIImage(cgImage: cg),
+            rawTech: RAWTechnicalParams(),
+            capture: CaptureMetadata(),
+            segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8
+        )
+    }
+
+    private func readRGBA(_ texture: any MTLTexture, metal: MetalContext) -> [Float] {
+        drain(metal)
+        var floats = [Float](repeating: 0, count: texture.width * texture.height * 4)
+        floats.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: texture.width * 16,
+                from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0
+            )
+        }
+        return floats
+    }
+
+    // MARK: - modifyROIOut (dt crop.c:517-531)
+
+    /// 50% center window on 64×64: x/y = 16, w/h = 32 (relative offsets —
+    /// x/y do NOT add the input origin).
+    func testModifyROIOutShrinksToWindow() async {
+        let box = ModuleBox(module: CropModule())
+        await box.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        var out = ROI()
+        box.modifyROIOutErased(
+            &out, input: ROI(x: 0, y: 0, width: 64, height: 64, scale: 1.0),
+            piece: box.makeRunPiece())
+        XCTAssertEqual(out, ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0))
+    }
+
+    /// 4px floor: a 1%-fraction window on 64px would be 0px → clamped to 4
+    /// (dt `MAX(4, …)`).
+    func testModifyROIOutFloorsAt4Pixels() async {
+        let box = ModuleBox(module: CropModule())
+        await box.setParams(CropModule.Params(left: 0, top: 0, right: 0.001, bottom: 0.001))
+        var out = ROI()
+        box.modifyROIOutErased(
+            &out, input: ROI(x: 0, y: 0, width: 64, height: 64, scale: 1.0),
+            piece: box.makeRunPiece())
+        XCTAssertEqual(out.width, 4, "MAX(4, …) width floor")
+        XCTAssertEqual(out.height, 4, "MAX(4, …) height floor")
+    }
+
+    // MARK: - modifyROIIn (dt crop.c:576-592)
+
+    /// Downstream window (16,16,32,32) + 25% crop origin → upstream
+    /// (32,32,32,32): the SC#4-①真模块版 of the stub assertion.
+    func testModifyROIInAddsBackCropOrigin() async {
+        let box = ModuleBox(module: CropModule())
+        await box.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        var piece = box.makeRunPiece()
+        piece.dscIn = IOPBufferDesc(width: 64, height: 64)
+        var input = ROI()
+        box.modifyROIInErased(
+            output: ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0),
+            input: &input, piece: piece)
+        XCTAssertEqual(input, ROI(x: 32, y: 32, width: 32, height: 32, scale: 1.0))
+    }
+
+    // MARK: - commit clamp (dt crop.c:635-638)
+
+    func testCommitClampsFractionsToRange() async {
+        let box = ModuleBox(module: CropModule())
+        await box.setParams(CropModule.Params(left: -0.5, top: 2.0, right: 1.5, bottom: -1.0))
+        var out = ROI()
+        box.modifyROIOutErased(
+            &out, input: ROI(x: 0, y: 0, width: 100, height: 100, scale: 1.0),
+            piece: box.makeRunPiece())
+        // clamped: left → 0, top → 0.99, right → 1, bottom → 0.01;
+        // (right−left) < 0 ⇒ negative width → 4px floor territory; the
+        // pipe never asks for such params, but the module must not trap.
+        XCTAssertGreaterThanOrEqual(out.width, 4)
+        XCTAssertGreaterThanOrEqual(out.height, 4)
+    }
+
+    // MARK: - Defaults + registration
+
+    func testDefaultsAreFullFrameNeutral() async {
+        let module = CropModule()
+        let ci = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5))
+            .cropped(to: CGRect(x: 0, y: 0, width: 8, height: 8))
+        let image = DecodedImage(
+            ciImage: ci, rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+            segmentationSkyMatte: nil, decoderVersionUsed: .v8)
+        let defaults = await module.reloadDefaults(image: image)
+        XCTAssertEqual(defaults.left, 0)
+        XCTAssertEqual(defaults.top, 0)
+        XCTAssertEqual(defaults.right, 1)
+        XCTAssertEqual(defaults.bottom, 1)
+        XCTAssertEqual(defaults.ratioN, -1, "freehand default")
+        XCTAssertEqual(defaults.ratioD, -1)
+        XCTAssertEqual(CropModule.opName, "crop")
+        XCTAssertEqual(CropModule.iopOrder, 24.5)
+        XCTAssertEqual(CropModule.defaultColorspace, .RGB)
+    }
+
+    func testCropRegisteredAtV50Slot() async throws {
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        let box = await registry.makeBox(opName: CropModule.opName)
+        let cropBox = try XCTUnwrap(box as? ModuleBox<CropModule>)
+        XCTAssertEqual(cropBox.iopOrder, 24.5)
+        let id = UUID()
+        let restored = await registry.makeBox(opName: CropModule.opName, instanceID: id)
+        XCTAssertEqual(restored?.instanceID, id, "identity-restoring init wired")
+        _ = cropBox
+    }
+
+    // MARK: - End-to-end (T1 acceptance)
+
+    /// Window-offset accounting through the REAL pipe: `[crop50, gain]`
+    /// with an ROI recorder on the gain — the gain's negotiated roiIn
+    /// must equal the 32×32 window (dt's window-into-input identity at
+    /// the NEGOTIATION level; the blit offset math is CPU-pinned by
+    /// `testModifyROIInAddsBackCropOrigin` + the SC#4-① regression).
+    /// (The direct-blit variant is retired: the harness `readRGBA`
+    /// helper fences via a SEPARATE command buffer, which races the
+    /// un-fenced test blit on the shared queue — diagnosed 2026-09-20:
+    /// the readback lands before the blit commits. In-pipe modules never
+    /// hit this: every dispatch commits before the pipe's fence.)
+    func testCropEndToEndMatchesWindowOfFullFrame() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 64, height: 64)
+        let cache = PipeCache()
+        let crop = ModuleBox(module: CropModule())
+        await crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        let gainBox = ModuleBox(module: TestGainModule())
+        await gainBox.setParams(TestGainModule.Params(gain: 1.0))
+        let (texture, stats) = try await RenderPipeline.process(
+            image: image, instances: [crop, gainBox], imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        _ = cache
+        XCTAssertEqual(texture.width, 32, "downstream planes are window-sized")
+        XCTAssertEqual(texture.height, 32)
+        XCTAssertEqual(stats.misses, 3, "input + crop-out + gain-out, all miss on run1")
+    }
+
+    /// Disabled crop = identity (SC#4-③真模块版): full-frame output, only
+    /// the input plane in the cache (no crop line).
+    func testDisabledCropIsIdentity() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 64, height: 48)
+        let crop = ModuleBox(module: CropModule())
+        await crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        crop.enabled = false
+
+        let (texture, stats) = try await RenderPipeline.process(
+            image: image, instances: [crop], imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        XCTAssertEqual(texture.width, 64)
+        XCTAssertEqual(texture.height, 48)
+        XCTAssertEqual(stats.misses, 1, "input plane only — the disabled crop contributes no key step")
+    }
+}

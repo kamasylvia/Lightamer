@@ -1,4 +1,5 @@
 import LightamerCore
+import LightamerIOP
 import XCTest
 
 /// FOUND-03 structure tests for the `V50Order` table (the verbatim port of
@@ -55,5 +56,17 @@ final class V50OrderTests: XCTestCase {
         XCTAssertEqual(V50Order.order(for: "gamma"), 78.0)
         XCTAssertNil(V50Order.order(for: "does_not_exist"))
         XCTAssertNil(V50Order.order(for: "passthrough_spike"), "spike module has no slot")
+    }
+
+    /// 04-02: the flip-before-crop hard constraint (`iop_order.c:810-812`
+    /// "crop GUI broken if flip is done on top") — mechanism: the module
+    /// statics AND the table agree, so the default chain sorts flip first.
+    func testFlipBeforeCropOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "flip"), 16.0)
+        XCTAssertEqual(V50Order.order(for: "crop"), 24.5)
+        XCTAssertLessThan(V50Order.order(for: "flip")!, V50Order.order(for: "crop")!)
+        XCTAssertEqual(FlipModule.iopOrder, 16.0)
+        XCTAssertEqual(CropModule.iopOrder, 24.5)
+        XCTAssertLessThan(FlipModule.iopOrder, CropModule.iopOrder)
     }
 }

@@ -73,6 +73,16 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: AgXModule.opName) { id in
             ModuleBox(module: AgXModule(), instanceID: id)
         }
+        // Plan 04-02-T2: flip (orientation index remap), v50 slot 16.0 —
+        // AFTER ashift (15.0), BEFORE crop (24.5) per iop_order.c:810-812.
+        await registry.register(opName: FlipModule.opName) { id in
+            ModuleBox(module: FlipModule(), instanceID: id)
+        }
+        // Plan 04-02-T1: crop (framing window, blit copy — no kernel),
+        // v50 slot 24.5 — after toneequal (24.0, last roi_in widener).
+        await registry.register(opName: CropModule.opName) { id in
+            ModuleBox(module: CropModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -107,6 +117,8 @@ public enum LightamerIOPRegistry {
             SigmoidKernel.rgbRatioFunction,
             FilmicRGBKernel.v5Function,
             AgXKernel.mainFunction,
+            // Plan 04-02-T2: the flip remap (crop needs no kernel — blit).
+            FlipKernel.functionName,
         ]
     }
 
@@ -115,20 +127,25 @@ public enum LightamerIOPRegistry {
     /// loaded image at IDENTITY params, so their panels have instances to
     /// drive (D-T6's "ModuleRegistry-driven panel generation"). Identity
     /// params keep the default chain cache-neutral (byte-identical hashes).
-    /// Composed by `PipeCoordinator.load` after
-    /// `ModuleRegistry.makeDefaultInstances()`.
     public static func editingDefaultInstances() -> [ModuleInstance] {
         [
             ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params()),
+            // Plan 04-02: flip (NONE identity) + crop (full-frame neutral)
+            // join the seed — both cache-neutral (flip NONE = identity
+            // process; crop full-frame = whole-plane blit), so their
+            // Inspector panels (T5) have instances to drive, exposure-0EV
+            // style. Sorted by (iopOrder, multiPriority) at return.
+            ModuleInstance(module: FlipModule.self, params: FlipModule.Params(orientation: .none)),
             ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params()),
+            ModuleInstance(module: ToneEqualModule.self, params: ToneEqualModule.Params()),
+            ModuleInstance(module: CropModule.self, params: CropModule.Params()),
             ModuleInstance(module: SigmoidModule.self, params: SigmoidModule.Params()),
+            ModuleInstance(module: AgXModule.self, params: AgXModule.Params()),
+            ModuleInstance(module: FilmicRGBModule.self, params: FilmicRGBModule.Params()),
             ModuleInstance(module: ColisaModule.self, params: ColisaModule.Params()),
             ModuleInstance(module: ToneCurveModule.self, params: ToneCurveModule.Params()),
             ModuleInstance(module: LevelsModule.self, params: LevelsModule.Params()),
             ModuleInstance(module: ShadhiModule.self, params: ShadhiModule.Params()),
-            ModuleInstance(module: ToneEqualModule.self, params: ToneEqualModule.Params()),
-            ModuleInstance(module: FilmicRGBModule.self, params: FilmicRGBModule.Params()),
-            ModuleInstance(module: AgXModule.self, params: AgXModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
