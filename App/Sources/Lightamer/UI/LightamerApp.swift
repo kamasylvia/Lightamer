@@ -184,6 +184,11 @@ internal struct LightamerApp: App {
                     // providers (exposure + temperature are the first two).
                     inspectorState.registerDefaultProviders()
 
+                    // Plan 04-04-T3: resolve the Lensfun database (custom
+                    // path > downloaded copy > absent-downgrade; sync,
+                    // no network at launch — first download is panel-driven).
+                    _ = LensfunDownloadService.resolveAndInstall()
+
                     // Register the IOP framework's default.metallib (which
                     // carries the pass_through kernel) with the dispatch
                     // context. Plan 04's pixelpipe dispatches through it;
