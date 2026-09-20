@@ -32,3 +32,9 @@
 - **口径 2（roiHint 形状）**：`RenderPipeline.process(roiHint: ROI? = nil)`，nil = 全幅；Phase 4 仅测试/探针面，UI zoom-ROI 另议。
 - **口径 3（验收口径）**：SC#4 四断言为本 plan all-green 闸门 + `04-VALIDATION.md` Wave 1 行签核；04-02..04-05 以本 plan 全绿为开工条件。
 - **dt 依据**：前向 `pixelpipe_hb.c:3368-3405`（get_dimensions，直通分支 `:3378-3384`）+ 后向 `pixelpipe_hb.c:2085-2096`（递归体 modify_roi_in + processed_roi_in/out 盖章）；crop 实例 `crop.c:517-531`（out 收缩）/`:576-592`（in 偏移回取）。
+## 04-02-T0 crop 编辑 live 语义定稿（2026-09-20，executor 采纳 plan 推荐 (a)）
+
+- **决策：(a) live disabled + 暗膜**——拖动中 `setLiveParams(crop enabled=false)` 全图渲染，overlay 画暗膜 + 矩形手柄；commit 才渲裁切窗口一次。
+- **理由**：crop 拖动每 tick 改 roi → ≤crop 全链键变 → 全链 miss（04-RESEARCH §1 gotcha，dt 同样）；整幅平面全程缓存命中保 60fps，与 C1/Lr「编辑时全图」交互一致。
+- **影响**：overlay 实现含暗膜态（T4）；`setLiveParams` 快照带 `enabled=false`，`commitContinuousEdit` 带 `enabled=true` 最终 rect。
+- **回退**：用户改选 (b) 则 T4 改写 + 注记每 tick 全链重渲（PREVIEW 档可扛，与 PERF-5 叠加）。
