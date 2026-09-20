@@ -53,7 +53,7 @@ created: 2026-09-20
 
 ## Wave 0 Requirements
 
-- [ ] `Tests/LightamerTests/ROINegotiationTests.swift` — ROI 协商 4 断言（research §7）
+- [x] `Tests/LightamerTests/ROINegotiationTests.swift` — ROI 协商 4 断言（8/8 独立复跑通过）（research §7）
 - [ ] gen_fixtures.py 增 geometry/detail 节（合成 float64 参考：旋转/透视/畸变/USM 已知向量）
 - [ ] Lensfun XML 数据文件获取 + 解析器 stub（如走 (c) 层）
 
