@@ -380,6 +380,47 @@ final class ROINegotiationTests: XCTestCase {
         XCTAssertEqual(out, ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0))
     }
 
+    // ── ashift warp AABB (04-03-T2: output grows, input stays bounded) ──
+
+    /// SC#4 ROI 回归（ashift 30° 用例，plan 验收标准）：输出 AABB 变大
+    /// （前向 64×64 → 87×87），输入 AABB 有界（clamp 到 bufIn 内）。
+    /// 内容正确性由 AshiftParityTests 的 golden track A 兜底 — 此处只钉
+    /// 协商记账（L020：记账绿 ≠ 内容对，但记账仍是缓存正确性的门）。
+    func testAshiftWarpAABBGrowsOutputAndBoundsInput() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let cache = PipeCache()
+        let recorder = ROIRecorder()
+        let image = makeImage(width: 64, height: 64)
+        let ashift = ModuleBox(
+            module: ROIRecording(tag: "ashift", recorder: recorder, inner: AshiftModule()),
+            multiPriority: 0, multiName: "ashift")
+        await ashift.setParams(AshiftModule.Params(rotation: 30))
+        let gain = ModuleBox(
+            module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
+            multiPriority: 1, multiName: "gain")
+        await gain.setParams(TestGainModule.Params(gain: 1.0))
+        let chain: [any ModuleBoxing] = [ashift, gain]
+
+        let (texture, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: cache, metal: metal, longEdge: nil)
+        XCTAssertEqual(texture.width, 87, "rot30 forward AABB grows the frame")
+        XCTAssertEqual(texture.height, 87)
+
+        let ashiftSights = await recorder.sightings(for: "ashift")
+        XCTAssertEqual(ashiftSights.count, 1)
+        XCTAssertEqual(ashiftSights.first?.roiOut.width, 87)
+        // 输入 AABB：逆变换 + 边距后 clamp 到 64 帧内。
+        let roiIn = ashiftSights.first?.roiIn
+        XCTAssertNotNil(roiIn)
+        XCTAssertLessThanOrEqual((roiIn?.x ?? 0) + (roiIn?.width ?? 0), 64 + 1)
+        XCTAssertLessThanOrEqual((roiIn?.y ?? 0) + (roiIn?.height ?? 0), 64 + 1)
+
+        let gainSights = await recorder.sightings(for: "gain")
+        XCTAssertEqual(gainSights.count, 1, "downstream sees the grown frame")
+        XCTAssertEqual(gainSights.first?.roiOut.width, 87)
+    }
     /// T2 辅助 `clamped(to:)`：交集 + 空交集兜底 1×1。
     func testROIClampedToBounds() {
         let bounds = ROI(x: 0, y: 0, width: 64, height: 64, scale: 1.0)

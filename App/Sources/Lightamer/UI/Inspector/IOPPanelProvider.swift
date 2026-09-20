@@ -93,13 +93,18 @@ final class InspectorEditSession {
     func sampleNormMinMax() async -> (min: simd_float3, max: simd_float3)? {
         await coordinator?.sampleLinearNormMinMax()
     }
+
+    /// The decoded source image for auto-detect (04-03 ashift horizon /
+    /// rectangle): read-only, zero pipe involvement (the panel renders a
+    /// small probe — no pipe-plane readback, L014-clean by construction).
+    func detectionSourceImage() -> DecodedImage? {
+        coordinator?.detectionSourceImage()
+    }
 }
 
 /// Shared helpers for the concrete panels.
 @MainActor
 enum PanelEditing {
-
-    /// Re-parameterize an instance record with a new typed Params value
     /// (same UUID/iopOrder — the D-H4 hash flips through `setParams`).
     static func updated<M: IOPModule>(
         _ instance: ModuleInstance, params: M.Params, as type: M.Type

@@ -68,9 +68,9 @@ final class InspectorState {
         // Plan 04-02-T5: crop (the framing window; flip needs no panel —
         // orientation buttons belong to a future rotate/flip control).
         register(CropPanelProvider())
+        // Plan 04-03-T5: ashift (rotate + perspective + Vision auto-detect).
+        register(AshiftPanelProvider())
     }
-
-    /// The ops that have a registered panel (for the Inspector list).
     var panelOpNames: [String] {
         providers.keys.sorted()
     }

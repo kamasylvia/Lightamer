@@ -489,6 +489,60 @@ final class PanelWiringTests: XCTestCase {
                      "flip has no panel in v1")
     }
 
+    // MARK: - 04-03 ashift panel wiring (T5)
+
+    /// Ashift slider drag: 6 ticks → exactly ONE commit; the committed
+    /// value is the last tick (D-H1 trio through the panel path).
+    func testAshiftPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let ashift = try instance("ashift")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(ashift, { $0.rotation = Float(tick) * 2.0 }, as: AshiftModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_ashift"))
+
+        XCTAssertEqual(historyCount(), 1, "ashift drag = exactly ONE item")
+        let committed = try instance("ashift")
+        XCTAssertEqual(try committed.params(of: AshiftModule.self).rotation, 12.0, accuracy: 1e-6)
+    }
+
+    /// Ashift discrete reset restores neutral + the panel dispatches.
+    func testAshiftResetAndDispatch() async throws {
+        try await loadSynthetic()
+        XCTAssertTrue(
+            editorState.instances.map(\.opName).contains("ashift"),
+            "pristine seed must include ashift (neutral identity)")
+        let ashift = try instance("ashift")
+        XCTAssertEqual(try ashift.params(of: AshiftModule.self).rotation, 0, accuracy: 1e-6)
+
+        coordinator.beginContinuousEdit()
+        let up = try withParams(ashift, { $0.rotation = 8.0; $0.lensShiftV = 0.15 }, as: AshiftModule.self)
+        await coordinator.setLiveParams(up)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_ashift"))
+        XCTAssertEqual(historyCount(), 1)
+
+        let current = try instance("ashift")
+        var reset = current
+        try reset.setParams(AshiftModule.Params(), as: AshiftModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(reset)
+        await coordinator.commitContinuousEdit(label: "ashift reset")
+
+        XCTAssertEqual(historyCount(), 2, "reset adds exactly ONE item")
+        let after = try instance("ashift")
+        XCTAssertEqual(try after.params(of: AshiftModule.self).rotation, 0, accuracy: 1e-6)
+
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("ashift"), "ashift must dispatch a panel")
+        let session = InspectorEditSession(coordinator: coordinator)
+        XCTAssertNotNil(
+            state.panelView(for: ModuleInstance(module: AshiftModule.self, params: .init()), edit: session),
+            "ashift must dispatch a panel")
+    }
     // MARK: - Helpers
     private func historyCount() -> Int { editorState.history.items.count }
 }

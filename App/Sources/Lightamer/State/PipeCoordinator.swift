@@ -857,6 +857,15 @@ final class PipeCoordinator {
         }
     }
 
+    /// The decoded source image for auto-detect features (04-03 ashift
+    /// horizon/rectangle via `AshiftAutoDetect`): read-only, zero pipe
+    /// involvement (panels render small probes from it — no pipe-plane
+    /// readback, L014-clean by construction). nil when nothing is loaded.
+    /// Additive seam (no existing caller touched).
+    func detectionSourceImage() -> DecodedImage? {
+        decoded
+    }
+
     /// Full-image per-channel RGB min/max over the linear chain (Plan
     /// 03-06-T5, the filmic auto black/white keys — dt's
     /// `picked_color_min/max` whole-preview semantics via the shared
