@@ -635,3 +635,105 @@ last_quad_lines[8]:
 
 (`sha256(blob)` truncated to 16 hex — full blobs in `input/golden/cases/ashift_*.xmp`;
 identity flat refs equal the fixture hashes — rotating a flat is the flat.)
+## detail golden (Plan 04-05-T5, 2026-09-21)
+
+L017 route ① (synth-only): ALL five are spatial operators — dt-cli float
+export is spatially corrupt on this host (manifest "dt-cli host finding"
+re-confirmed for geometry in 04-02-T3). NO dt-cli leg is exercised for
+detail (no adoption runs — the Lab-chain probe route is piece-state broken,
+manifest "shadhi PROBE ROUTE BROKEN"). dt-side evidence reduces to: (a) the
+in-test uniform probes (neutral/flat identities, vignette-style analytic
+points where applicable); (b) the dt XMP blob layouts below (field-by-field
+mirrors of the dt param structs — parameter documentation, not adoption);
+(c) formula同源: each synth reference mirrors its Swift module + Metal
+kernel formula-for-formula (IIR via `dt_gauss_coeffs` + recursion, mixes
+verbatim shapes), and the CPU derivation tests pin the σ/radius chains.
+
+Blur-base divergence (04-05-DECISIONS D1/D4): the plan mandates the shared
+Deriche-IIR `GaussianBlur` reuse — dt sharpen/highpass/soften blur with
+truncated FIR / `dt_box_mean`. The references mirror the IIR side, so
+parity proves the port correct, not dt-identical. σ chains use dt's
+published correlations (sharpen σ=radius; highpass/soften σ from the
+box-mean↔gaussian √((r(r+1)·8+2)/3) formula, BOX_ITERATIONS=8).
+
+### sharpen cases (synthesized references, gate <1e-4 IIR-mix)
+
+dt blob `<fff` (12 bytes, dt_iop_sharpen_params_t v1: radius/amount/threshold)
+↔ Lightamer `SharpenModule.Params` (JSON). Commit ×2.5 folds out:
+σ = radius·scale; rad = min(12, ceil(2.5·radius·scale)) (MAXR 12).
+Mix: `delta = L−blurL; out = L+amount·copysign(max(0,|delta|−threshold), delta)`
+(sharpen.cl:165-167). dt $DEFAULT 2.0/0.5/0.5; Lightamer neutral = amount 0
+(cache-neutral seed, blit fast path — recorded divergence).
+
+| case | params blob (hex) | reference sha256 (synthesized) |
+|---|---|---|
+| sharpen_neutral | `00000040000000000000003f` | gradient_ramp:4749ef33d5fe7e95 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:d9c13dcd38a1e551 |
+| sharpen_default | `000000400000003f0000003f` | gradient_ramp:bf2c0c08976769fb flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:0042725e7e0da7d1 |
+| sharpen_strong | `000000400000803f00000000` | gradient_ramp:aed6976658a0e0a0 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:01fd266bf423a1d0 |
+| sharpen_fine | `cdcc4c3f0000803fcdcc4c3e` | gradient_ramp:76573c73028bc25a flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:3d17de48f6cc6ef7 |
+
+### bilat cases (synthesized references, gate <1e-4 IIR-mix)
+
+dt blob `<i4f` (20 bytes, dt_iop_bilat_params_t v3: mode/sigma_r/sigma_s/
+detail/midtone) ↔ Lightamer `LocalContrastModule.Params` (detail/sigmaS/sigmaR).
+D-G3: EIGF no-mask single-iteration leg (toneequal kernels), NOT bilateral /
+local-laplacian — mode/midtone unported. sigmaS = full-res px radius;
+feathering eps = sigmaR²·4 (default 0.5 → 1.0 = toneequal default).
+`out = luma + detail·(luma − base)`. dt-cli reference N/A by construction.
+
+| case | params blob (hex) | reference sha256 (synthesized) |
+|---|---|---|
+| bilat_neutral | `010000000000003f0000a041000000000000003f` | gradient_ramp:4749ef33d5fe7e95 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:d9c13dcd38a1e551 |
+| bilat_clarity | `010000000000003f0000a0410000803f0000003f` | gradient_ramp:02ba6c23f89aacb9 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:630c902a02f6375d |
+| bilat_soften | `010000000000003f0000a041000000bf0000003f` | gradient_ramp:37cee40ce14c5a5b flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:4e44657900d41e31 |
+| bilat_tight | `010000009a99993e000000410000803f0000003f` | gradient_ramp:f7d648f138033b9a flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:d29e25a769d69e71 |
+
+### highpass cases (synthesized references, gate <1e-4 IIR-mix)
+
+dt blob `<ff` (8 bytes, dt_iop_highpass_params_t v1: sharpness/contrast)
+↔ Lightamer `HighpassModule.Params` (TWO params — the plan's
+"contrast/center/radius" triple is a source erratum). Radius chain:
+rad = 16·min(100,sharpness+1)/100, radius = min(16,ceil(rad·scale)),
+σ = √((radius·(radius+1)·8+2)/3). CL mix (`highpass.cl:157`):
+`o.x = 50+((0.5a+0.5b)−50)·contrast_scale`, a/b → 0,
+contrast_scale = (contrast/100)·7.5. contrast 0 ⇒ flat 50-gray (no
+zero-param identity — identity via disabled piece only).
+
+| case | params blob (hex) | reference sha256 (synthesized) |
+|---|---|---|
+| highpass_default | `0000484200004842` | gradient_ramp:977a074f7a72095d flat_0ev:95b31c6fda17dbdd flat_-4ev:95b31c6fda17dbdd checkerboard:d9c13dcd38a1e551 |
+| highpass_strong | `0000a0420000a042` | gradient_ramp:59bb72ff65a2967f flat_0ev:95b31c6fda17dbdd flat_-4ev:95b31c6fda17dbdd checkerboard:d9c13dcd38a1e551 |
+| highpass_fine | `0000a0410000f041` | gradient_ramp:1ca3ee413a2112e9 flat_0ev:95b31c6fda17dbdd flat_-4ev:95b31c6fda17dbdd checkerboard:2fca303844fa3a7e |
+
+### soften cases (synthesized references, gate <1e-4 IIR-mix)
+
+dt blob `<4f` (16 bytes, dt_iop_soften_params_t v1: size/saturation/
+brightness/amount) ↔ Lightamer `SoftenModule.Params`. Radius chain:
+mrad = hypot(dscIn)·0.01, rad = mrad·min(100,size+1)/100,
+radius = min(mrad,ceil(rad·scale)), same σ correlation. RGB LINEAR
+domain (no Lab). Mix: `out = amt·blurred+(1−amt)·in` (imagebuf.c:452).
+Flat probe (D5): saturation 100 + brightness 0 ⇒ overexposed+blur preserve
+flats ⇒ ANY amount is identity (vacuous for any DC-1 blur — no dt-cli leg).
+
+| case | params blob (hex) | reference sha256 (synthesized) |
+|---|---|---|
+| soften_neutral | `000048420000c842c3f5a83e00000000` | gradient_ramp:4749ef33d5fe7e95 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:d9c13dcd38a1e551 |
+| soften_default | `000048420000c842c3f5a83e00004842` | gradient_ramp:a4ddf6447307b24e flat_0ev:cf75b4f314364687 flat_-4ev:27c5b283f20556a9 checkerboard:6ab7bc4947ac85e5 |
+| soften_flatprobe | `000048420000c8420000000000004842` | gradient_ramp:25b8e4994c340651 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:6ab7bc4947ac85e5 |
+| soften_strong | `0000a0420000a0420000003f0000a042` | gradient_ramp:cfd3d896cf1395d2 flat_0ev:ac8c3a0427c69de0 flat_-4ev:18320a2e1a35f2af checkerboard:ed47b8ffa9fe4468 |
+
+### equalizer cases (synthesized references, gate <1e-4 IIR-mix)
+
+NO dt blob in v1 (D10 — single L gain set vs dt 3×6 curves; forcing a blob
+is meaningless). Pyramid: prep + chained IIR (σ 1/2/4/8/16) + 6 gains
+(5 residuals + coarse). All-zero deltas ⇒ blit identity (bit-exact gate);
+the telescopic recombine holds to float rounding otherwise. Pure gaussian
+bands — no eaw `gweight` edge weights (recorded divergence, stretch: EIGF).
+
+| case | gains (1+delta) | reference sha256 (synthesized) |
+|---|---|---|
+| equalizer_neutral | `1,1,1,1,1,1` | gradient_ramp:4749ef33d5fe7e95 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:488ec4edae2e59b6 |
+| equalizer_fine_boost | `1.5,1,1,1,1,1` | gradient_ramp:c02c9758b1863e05 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:01360538ab3c7ee1 |
+| equalizer_coarse_boost | `1,1,1,1,1.5,1` | gradient_ramp:1ca7dc460a63d45a flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:31b6629f63597a6a |
+| equalizer_mid_cut | `1,1,0.5,0.5,1,1` | gradient_ramp:6b0f524944205e1c flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:57bea60b2dbefcf2 |
+
