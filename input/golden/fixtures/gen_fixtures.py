@@ -277,6 +277,31 @@ def gen_deep_shadow(outdir: str) -> None:
     write_exr(os.path.join(outdir, "deep_shadow.exr"), width, height, px)
 
 
+def gen_gradient_ramp(outdir: str) -> None:
+    # 64×64 HORIZONTAL gradient ramp 0..1 (ashift warp 靶 — the warp
+    # sampler's per-pixel identity is only provable on varying content;
+    # v(x) = x/63 floats, written raw = canonical (no Rec709 pre-image:
+    # warp fixtures bypass the dt round-trip entirely, L017 route).
+    # NOTE: the ramp_8ev fixture keeps its power-of-two grid for the
+    # exposure probe; this linear ramp serves the warp parity (uniform
+    # texel spacing ⇒ bilinear weights land mid-tap, max interpolation
+    # signal).
+    write_exr(
+        os.path.join(outdir, "gradient_ramp.exr"), 64, 64,
+        lambda x, y: (x / 63.0, x / 63.0, x / 63.0),
+    )
+
+
+def gen_checkerboard(outdir: str) -> None:
+    # 64×64 checkerboard, 8px cells (warp aliasing/visibility 靶 — a
+    # rotated checkerboard shows sampling breakage as smeared cells;
+    # binary values make any smoothing exactly measurable).
+    write_exr(
+        os.path.join(outdir, "checkerboard.exr"), 64, 64,
+        lambda x, y: (1.0, 1.0, 1.0) if ((x // 8) + (y // 8)) % 2 == 0 else (0.0, 0.0, 0.0),
+    )
+
+
 def gen_gray_staircase(outdir: str) -> None:
     # 12 neutral steps, geometric-ish spread (WB 吸管靶).
     levels = [0.02, 0.04, 0.07, 0.10, 0.18, 0.25, 0.35, 0.50, 0.65, 0.80, 0.90, 1.00]
@@ -291,7 +316,6 @@ def gen_gray_staircase(outdir: str) -> None:
 
 
 def gen_stair_1d(outdir: str) -> None:
-    # 10001-point 1D staircase (曲线 LUT 靶): W = 10001, H = 2.
     points = 10001
 
     def px(x, y):
@@ -626,6 +650,7 @@ def gen_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, name + ".xmp"), "w") as f:
             f.write(xmp)
+    gen_ashift_cases(outdir)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -797,7 +822,230 @@ def gen_flip_refs(canonical_dir: str, out_dir: str) -> None:
                 return (rgb[0][idx], rgb[1][idx], rgb[2][idx])
 
             write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), ow, oh, px)
-# Lab-domain reference math (Plan 03-03-T1/T2) — the float64 mirror of
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Ashift warp (Plan 04-03-T4) — dt _homography (ashift.c:756-979, GENERIC
+# fold) in float64 + texel-center bilinear with clamped taps +
+# transparent-outside, mirroring AshiftKernels.metal + Homography.swift
+# formula-for-formula (L017 route ① — warp is a spatial operator, dt-cli
+# float export spatially corrupt on this host; dt-side evidence = XMP
+# adoption + flat rotation probe, manifest §ashift).
+#
+# Frame convention (L020, Homography.swift header): forward matrix maps
+# bufIn-frame → full-output-frame (step-10 offset included); the module's
+# modifyROIOut keeps x/y and resizes to the forward AABB × clip; process
+# re-bases per pixel (oroi + clip → Hinv → −iroi). The reference below
+# renders the FULL pipeline contract: forward AABB sizing + inverse warp.
+# ──────────────────────────────────────────────────────────────────────
+
+ASHIFT_MODVERSION = 5
+ASHIFT_IOP_ORDER = 15.0
+ASHIFT_PARAMS_FORMAT = "<ffffffffii4f200fi8f"
+
+
+def ashift_params_blob(rotation, lensshift_v=0.0, lensshift_h=0.0, shear=0.0,
+                       f_length=28.0, crop_factor=1.0, mode=0, cropmode=0,
+                       cl=0.0, cr=1.0, ct=0.0, cb=1.0) -> str:
+    """dt_iop_ashift_params_t v5 → lowercase HEX ASCII.
+
+    v5 layout: rotation/lensshift_v/lensshift_h/shear/f_length/
+    crop_factor/orthocorr/aspect (8f) + mode/cropmode (ii) + cl/cr/ct/cb
+    (4f) + last_drawn_lines[200] (200f) + count (i) + last_quad_lines[8]
+    (8f). GENERIC cases pin orthocorr=0/aspect=1/mode=0/cropmode=0/lines=0.
+    """
+    floats = [rotation, lensshift_v, lensshift_h, shear, f_length,
+              crop_factor, 0.0, 1.0]
+    ints = [mode, cropmode]
+    clip = [cl, cr, ct, cb]
+    lines = [0.0] * 200
+    quad = [0.0] * 8
+    packed = struct.pack(
+        "<ffffffffii4f200fi8f",
+        *(floats + ints + clip + lines + [0] + quad))
+    assert len(packed) == 8 * 4 + 2 * 4 + 4 * 4 + 200 * 4 + 4 + 8 * 4, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# The ashift 钉参组 (plan T4 action 2): identity / ±rotations /
+# rot+shift / perspective-ish shear+shift / inner-clip window.
+ASHIFT_CASES = [
+    # (case name, rotation, lensshift_v, lensshift_h, shear, cl, cr, ct, cb)
+    ("ashift_identity", 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_rot08", 8.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_rot-08", -8.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_rot30", 30.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_rot08_shift", 8.0, 0.15, -0.1, 0.0, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_persp", 0.0, 0.3, 0.0, 0.08, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_clip", 8.0, 0.0, 0.0, 0.0, 0.1, 0.9, 0.05, 0.95),
+]
+
+ASHIFT_REF_FIXTURES = [
+    "gradient_ramp", "flat_0ev", "flat_-4ev", "checkerboard",
+]
+
+
+def _ashift_mat_mul(a, b):
+    """dt mat3mul (math.h:213-228): dest = a * b, row-major."""
+    o = [0.0] * 9
+    for k in range(3):
+        for i in range(3):
+            s = 0.0
+            for j in range(3):
+                s += a[3 * k + j] * b[3 * j + i]
+            o[3 * k + i] = s
+    return o
+
+
+def _ashift_compose(rotation, shift_v, shift_h, shear, f_length_kb, width, height):
+    """dt _homography (ashift.c:756-979) GENERIC fold in float64 — mirrors
+    Homography.compose step-for-step (steps 5/8/9 run identity arithmetic).
+    Returns the FORWARD row-major 3×3."""
+    u, v = float(width), float(height)
+    phi = math.radians(rotation)
+    cosi, sini = math.cos(phi), math.sin(phi)
+    exppa_v = math.exp(shift_v)
+    fdb_v = f_length_kb / (14.4 + (v / u - 1.0) * 7.2)
+    rad_v = fdb_v * (exppa_v - 1.0) / (exppa_v + 1.0)
+    alpha_v = max(min(math.atan(rad_v), 1.5), -1.5)
+    exppa_h = math.exp(shift_h)
+    minput = [0, 1, 0, 1, 0, 0, 0, 0, 1]
+    mwork = [cosi, -sini, -0.5 * v * cosi + 0.5 * u * sini + 0.5 * v,
+             sini, cosi, -0.5 * v * sini - 0.5 * u * cosi + 0.5 * u,
+             0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, minput)
+    mwork = [1, shear, 0, shear, 1, 0, 0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [exppa_v, 0, 0,
+             0.5 * ((exppa_v - 1.0) * u) / v, 2.0 * exppa_v / (exppa_v + 1.0),
+             -0.5 * ((exppa_v - 1.0) * u) / (exppa_v + 1.0),
+             (exppa_v - 1.0) / v, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [1, 0, 0, 0, 1, 0.5 * u * 0.0, 0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [0, 1, 0, 1, 0, 0, 0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [exppa_h, 0, 0,
+             0.5 * ((exppa_h - 1.0) * v) / u, 2.0 * exppa_h / (exppa_h + 1.0),
+             -0.5 * ((exppa_h - 1.0) * v) / (exppa_h + 1.0),
+             (exppa_h - 1.0) / u, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [1, 0, 0, 0, 1, 0.5 * v * 0.0, 0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    corners = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)] \
+        if width > 1 and height > 1 else [(0, 0)]
+    umin = min((_ashift_apply(moutput, x, y)[0] / _ashift_apply(moutput, x, y)[2]) for x, y in corners)
+    vmin = min((_ashift_apply(moutput, x, y)[1] / _ashift_apply(moutput, x, y)[2]) for x, y in corners)
+    moutput = _ashift_mat_mul([1, 0, -umin, 0, 1, -vmin, 0, 0, 1], moutput)
+    return moutput
+
+
+def _ashift_apply(m, x, y):
+    return (m[0] * x + m[1] * y + m[2],
+            m[3] * x + m[4] * y + m[5],
+            m[6] * x + m[7] * y + m[8])
+
+
+def _ashift_project(m, x, y):
+    a, b, w = _ashift_apply(m, x, y)
+    return (a / w, b / w)
+
+
+def _ashift_invert(m):
+    """dt mat3inv (matrices.c:53-88) in float64."""
+    def A(y, x):
+        return m[(y - 1) * 3 + (x - 1)]
+    det = (A(1, 1) * (A(3, 3) * A(2, 2) - A(3, 2) * A(2, 3))
+           - A(2, 1) * (A(3, 3) * A(1, 2) - A(3, 2) * A(1, 3))
+           + A(3, 1) * (A(2, 3) * A(1, 2) - A(2, 2) * A(1, 3)))
+    assert abs(det) >= 1e-7, "singular homography in fixture synthesis"
+    inv = 1.0 / det
+    return [
+        inv * (A(3, 3) * A(2, 2) - A(3, 2) * A(2, 3)),
+        -inv * (A(3, 3) * A(1, 2) - A(3, 2) * A(1, 3)),
+        inv * (A(2, 3) * A(1, 2) - A(2, 2) * A(1, 3)),
+        -inv * (A(3, 3) * A(2, 1) - A(3, 1) * A(2, 3)),
+        inv * (A(3, 3) * A(1, 1) - A(3, 1) * A(1, 3)),
+        -inv * (A(2, 3) * A(1, 1) - A(2, 1) * A(1, 3)),
+        inv * (A(3, 2) * A(2, 1) - A(3, 1) * A(2, 2)),
+        -inv * (A(3, 2) * A(1, 1) - A(3, 1) * A(1, 2)),
+        inv * (A(2, 2) * A(1, 1) - A(2, 1) * A(1, 2)),
+    ]
+
+
+def _ashift_bilinear(src_rgb, w, h, sx, sy):
+    """Pixel-center bilinear with clamped taps; None when outside
+    [-0.5, w-0.5) x [-0.5, h-0.5) — mirrors ashift_sample_clamped (D4).
+    Integer coords hit texel centers exactly (identity-exact)."""
+    if sx < -0.5 or sy < -0.5 or sx >= w - 0.5 or sy >= h - 0.5:
+        return None
+    fx = min(max(sx, 0.0), w - 1)
+    fy = min(max(sy, 0.0), h - 1)
+    x0, y0 = int(math.floor(fx)), int(math.floor(fy))
+    x1, y1 = min(x0 + 1, w - 1), min(y0 + 1, h - 1)
+    tx, ty = fx - x0, fy - y0
+
+    def at(x, y):
+        idx = y * w + x
+        return (src_rgb[0][idx], src_rgb[1][idx], src_rgb[2][idx])
+    p00, p10, p01, p11 = at(x0, y0), at(x1, y0), at(x0, y1), at(x1, y1)
+    top = tuple(p00[c] + (p10[c] - p00[c]) * tx for c in range(3))
+    bot = tuple(p01[c] + (p11[c] - p01[c]) * tx for c in range(3))
+    return tuple(top[c] + (bot[c] - top[c]) * ty for c in range(3))
+
+
+def gen_ashift_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the ashift golden REFERENCES: forward AABB sizing +
+    inverse-homography bilinear warp over the canonical fixture bytes in
+    float64 (the gate is <1e-5, warp class). Output shape = the forward
+    AABB (x clip fraction) — the Lightamer leg renders [colorin, ashift]
+    through the pipe and compares same-size planes. Transparent-outside
+    pixels write (0,0,0) RGB (alpha rides separately — the RGBA leg is
+    pinned in AshiftParityTests, not in these RGB EXRs)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, rot, sv, sh, shear, cl, cr, ct, cb in ASHIFT_CASES:
+        for fixture in ASHIFT_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            fwd = _ashift_compose(rot, sv, sh, shear, 28.0, w, h)
+            corners = [(0.0, 0.0), (float(w), 0.0), (0.0, float(h)), (float(w), float(h))]
+            proj = [_ashift_project(fwd, x, y) for x, y in corners]
+            xs = [p[0] for p in proj]
+            ys = [p[1] for p in proj]
+            ow = max(4, int(math.floor((max(xs) - min(xs)) * (cr - cl))))
+            oh = max(4, int(math.floor((max(ys) - min(ys)) * (cb - ct))))
+            # Clip fullwidth recovery (mirrors AshiftModule.fullOutputSpan):
+            # full = floor(span*frac)/frac over the bufIn rect.
+            full_w = math.floor((max(xs) - min(xs)) * max(cr - cl, 1e-6)) / max(cr - cl, 1e-6)
+            full_h = math.floor((max(ys) - min(ys)) * max(cb - ct, 1e-6)) / max(cb - ct, 1e-6)
+            cx, cy = full_w * cl, full_h * ct
+            inv = _ashift_invert(fwd)
+
+            def px(x, y, rgb=rgb, w=w, h=h, inv=inv, cx=cx, cy=cy):
+                ox, oy = float(x) + cx, float(y) + cy
+                ix, iy = _ashift_project(inv, ox, oy)
+                s = _ashift_bilinear(rgb, w, h, ix, iy)
+                return s if s is not None else (0.0, 0.0, 0.0)
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), ow, oh, px)
+
+
+def gen_ashift_cases(outdir: str) -> None:
+    for case in ASHIFT_CASES:
+        name, rot, sv, sh, shear, cl, cr, ct, cb = case
+        params = ashift_params_blob(rot, sv, sh, shear, 28.0, 1.0, 0, 0, cl, cr, ct, cb)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="ashift",
+            modversion=ASHIFT_MODVERSION,
+            params=params,
+            iop_order=f"{ASHIFT_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, name + ".xmp"), "w") as f:
+            f.write(xmp)
 # LightamerIOP/Sources/Common/LabMath.h + LabRoundTrip.swift, used by the
 # `refs` mode to synthesize the colisa/tonecurve/levels golden references
 # (L017 protocol: dt-cli float export is spatially corrupt on this host,
@@ -2424,7 +2672,8 @@ def main() -> None:
 
     if mode in ("raw", "all"):
         for gen in (gen_ramp, gen_flats, gen_saturated, gen_deep_shadow,
-                    gen_gray_staircase, gen_stair_1d):
+                    gen_gray_staircase, gen_stair_1d, gen_gradient_ramp,
+                    gen_checkerboard):
             gen(outdir)
     if mode in ("cases", "all"):
         # Cases default to <golden>/cases — one level up from the fixtures
@@ -2460,6 +2709,11 @@ def main() -> None:
         # dt-side = XMP adoption + flat probes; ramp probe corrupt).
         gen_crop_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_flip_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 04-03-T4: ashift warp golden references (L017 route ① —
+        # warp is a spatial operator, dt-cli float export spatially corrupt;
+        # dt-side = XMP adoption + flat rotation probe. Synthetic ref =
+        # float64 inverse-homography + bilinear, formula-mirrored below).
+        gen_ashift_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 

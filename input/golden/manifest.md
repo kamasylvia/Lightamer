@@ -562,3 +562,43 @@ uniforms; ramp_8ev identity here is the fixture hash itself).
 | flip_h | `02000000` | `26b25d457597a7b0463f9620f666dd10aa2c4373a505967c7c8d70922a2d6ece` | ramp_8ev:29ac28dd44583683 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c52eb070213a5be2 |
 | flip_v | `01000000` | `67abdd721024f0ff4e0b3f4c2fc13bc5bad42d0b7851d456d88d203d15aaa450` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
 | flip_ccw90 | `06000000` | `7aa8ca4a02506da9133d8f889678b76f716ce45d02e22fdb7b70a15e56a0eff8` | ramp_8ev:1f04d4d7373277a7 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:41e4408b1625cc4c |
+## rotate + perspective golden (Plan 04-03-T4, 2026-09-20)
+
+L017 route ① (synth-only): warp is a spatial operator — dt-cli float
+export is spatially corrupt on this host (manifest "dt-cli host finding"
+re-confirmed for geometry in 04-02-T3). ADDITIONALLY this host's dt build
+cannot load libashift at all: `libashift.so` dlopens against the missing
+symbol `_dt_opencl_copy_device_to_host` → history loader reports "the
+module 'ashift' … is not installed on this computer", so even XMP
+ADOPTION is unverifiable. dt-side evidence therefore reduces to: (a) the
+v5 blob layout verified field-by-field (`<8f2i4f200fi8f>`, 892 bytes,
+GENERIC pins orthocorr=0/aspect=1/mode=0/cropmode=0/lines=0, rot08 probe
+above); (b) the in-test uniform-flat rotation probe (flat stays
+flat+opaque under rot08 — dt's per-pixel semantic on uniforms); (c)
+formula同源: the synth reference (`_ashift_compose` + `_ashift_bilinear`
+in gen_fixtures.py) mirrors `Homography.compose` + `AshiftKernels.metal`
+formula-for-formula, and `HomographyTests` pins the CPU side <1e-9.
+
+New fixtures (this plan): `gradient_ramp.exr` (64×64 linear 0..1 ramp —
+uniform texel spacing ⇒ bilinear mid-tap signal) + `checkerboard.exr`
+(64×64, 8px cells — warp breakage shows as smeared cells).
+
+### ashift cases (Plan 04-03-T4, synthesized references, gate <1e-5 warp)
+
+dt blob `<8f2i4f200fi8f` (892 bytes, dt_iop_ashift_params_t v5) —
+rotation/lensshift_v/lensshift_h/shear/f_length/crop_factor/orthocorr/
+aspect + mode/cropmode + cl/cr/ct/cb + last_drawn_lines[200] + count +
+last_quad_lines[8]:
+
+| case | params blob (head hex) | sha256(blob) | reference sha256 (synthesized) |
+|---|---|---|---|
+| ashift_identity | `000000000000000000000000000000000000e0410000803f000000000000803f` | `67990b67cf175445` | gradient_ramp:9ee0dfb1151f8cb7 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:48361471579b90d3 |
+| ashift_rot08 | `000000410000000000000000000000000000e0410000803f000000000000803f` | `817fe8d78e322c8a` | gradient_ramp:c7a3cff33b6826f3 flat_0ev:b86b3865a5b0f24d flat_-4ev:b933228a7dc0e270 checkerboard:ce682a6311482868 |
+| ashift_rot-08 | `000000c10000000000000000000000000000e0410000803f000000000000803f` | `4d24e08132207535` | gradient_ramp:d67f1744bcbdf07a flat_0ev:09aa2123d10814e7 flat_-4ev:be98a9e5d6a20779 checkerboard:2d24004332aa5ab0 |
+| ashift_rot30 | `0000f0410000000000000000000000000000e0410000803f000000000000803f` | `b7232983df9702ab` | gradient_ramp:8f2772339aba6a1e flat_0ev:428f63a969d59d04 flat_-4ev:6aa89983bc6a09ce checkerboard:b004b807d313606b |
+| ashift_rot08_shift | `000000419a99193ecdccccbd000000000000e0410000803f000000000000803f` | `a2c749852220bd1b` | gradient_ramp:f80c4c25f32a12b7 flat_0ev:441fd6d83830920c flat_-4ev:e581f153d5800aff checkerboard:1891a5ed3b18eb6f |
+| ashift_persp | `000000009a99993e000000000ad7a33d0000e0410000803f000000000000803f` | `0dd2d785a5595973` | gradient_ramp:b1a3c84f70b8c665 flat_0ev:67c1a2bc5859f11a flat_-4ev:104f62d3399a6562 checkerboard:0d31068cd4021011 |
+| ashift_clip | `000000410000000000000000000000000000e0410000803f000000000000803f` | `e702fa070e212834` | gradient_ramp:bcfbacc5d892956b flat_0ev:2fa65d7c70db27a9 flat_-4ev:5126c6d6756d1dac checkerboard:16edc5b1811926f0 |
+
+(`sha256(blob)` truncated to 16 hex — full blobs in `input/golden/cases/ashift_*.xmp`;
+identity flat refs equal the fixture hashes — rotating a flat is the flat.)

@@ -52,6 +52,16 @@ internal extension ROI {
         )
     }
 
+    /// Bounding union of two regions (04-03 rotation fix: the backward
+    /// clamp bound must legitimize downstream growth — see `PixelPipe`
+    /// `processRec`). Scale rides from `self` (same pipe run).
+    func union(_ other: ROI) -> ROI {
+        let x0 = min(x, other.x)
+        let y0 = min(y, other.y)
+        let x1 = max(x + width, other.x + other.width)
+        let y1 = max(y + height, other.y + other.height)
+        return ROI(x: x0, y: y0, width: max(1, x1 - x0), height: max(1, y1 - y0), scale: scale)
+    }
     /// Axis-aligned bounding box of `corners` (04-03/04-04 warp modules:
     /// transformed quad → output/input AABB, `ashift.c` forward/inverse
     /// corner mapping pattern). Floors the min corner, ceils the max.

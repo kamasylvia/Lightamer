@@ -14,46 +14,52 @@ using namespace metal;
 // carry no offsets — all geometry lives in these uniform scalars
 // (the crop double-offset postmortem is why this comment exists).
 //
-// UNIFORMS (all scalars — no vector/matrix packing ambiguity between
-// MSL and Swift; `hinv` is dt row-major `float[3][3]`, `math.h` order):
-//   hinv[9]  — row-major inverse 3×3 (Double on CPU, float here)
-//   oroiX/Y  — roiOut.xy (the output window origin in the full frame)
-//   clipX/Y  — the cl/ct clip offset in output pixels (dt `:3668-3669`)
-//   iroiX/Y  — roiIn.xy (the input window origin in the input frame)
-//   inW/H    — input plane dims (bounds for the outside test)
+// UNIFORMS (three float4 rows + int2/float2/int2/int2 — every member
+// 4/8/16-byte aligned on both sides; the inverse 3×3 rides dt row-major
+// `math.h` order in xyz, w pads each row):
+//   hrow0/1/2 — inverse matrix rows (Double on CPU, float here)
+//   oroi     — roiOut.xy (the output window origin in the full frame)
+//   clip     — the cl/ct clip offset in output pixels (dt `:3668-3669`)
+//   iroi     — roiIn.xy (the input window origin in the input frame)
+//   inSize   — input plane dims (bounds for the outside test)
 //
 // SAMPLING (04-03-DECISIONS D4 — Intentional divergence from dt's
 // interpolation dispatch, pinned by the Swift↔Python synthesized pair):
-// sample centers use texel-center convention (c + 0.5): a center inside
-// [0, w) × [0, h) samples with clamped-to-edge taps (dt edge pixels are
-// replicated by its border handling); a center outside writes
-// (0,0,0,0) — linear Rec2020 black + alpha 0, the pipe's FIRST
-// alpha-carrying semantic (FOUND-02 premultiplied; downstream gamma/blit
-// pass it through — AshiftParityTests nails the bgra8 black-corner leg).
+// coords are PIXEL-CENTER (integer = texel center — dt's interpolation
+// convention, so the identity maps integer→integer exactly; a half-texel
+// shift here showed up as a 0.5/63 systematic on the ramp neutral gate).
+// A coord inside [−0.5, w−0.5) × [−0.5, h−0.5) samples with
+// clamped-to-edge taps (dt edge pixels are replicated by its border
+// handling); outside writes (0,0,0,0) — linear Rec2020 black + alpha 0,
+// the pipe's FIRST alpha-carrying semantic (FOUND-02 premultiplied;
+// downstream gamma/blit pass it through — AshiftParityTests nails the
+// bgra8 black-corner leg).
 //
 // L006: float32 math only on the sampling path.
 // L018: no read_write textures, no in-place passes — pure per-pixel read.
 
 struct AshiftWarpUniforms {
-    float hinv[9];
-    int oroiX;
-    int oroiY;
-    float clipX;
-    float clipY;
-    int iroiX;
-    int iroiY;
-    int inW;
-    int inH;
+    // Inverse 3×3 as three float4 ROWS (dt row-major `math.h` order in
+    // xyz; w pads each row to 16 bytes — the Metal constant layout with
+    // zero packing ambiguity, verified against the Swift mirror below).
+    float4 hrow0;
+    float4 hrow1;
+    float4 hrow2;
+    int2 oroi;
+    float2 clip;
+    int2 iroi;
+    int2 inSize;
 };
-
 static inline float4 ashift_sample_clamped(
     texture2d<float, access::read> inTex,
     float sx, float sy)
 {
+    // `sx/sy` are PIXEL-CENTER coords (integer = texel center — dt's
+    // interpolation convention: identity maps integer→integer exactly).
     const int w = int(inTex.get_width());
     const int h = int(inTex.get_height());
-    const float fx = clamp(sx - 0.5f, 0.0f, float(w - 1));
-    const float fy = clamp(sy - 0.5f, 0.0f, float(h - 1));
+    const float fx = clamp(sx, 0.0f, float(w - 1));
+    const float fy = clamp(sy, 0.0f, float(h - 1));
     const int x0 = int(floor(fx));
     const int y0 = int(floor(fy));
     const int x1 = min(x0 + 1, w - 1);
@@ -76,25 +82,25 @@ kernel void ashift_warp(
     uint2 gid                                        [[thread_position_in_grid]])
 {
     // Full-output-frame coords (dt `:3543-3546` + clip `:3668-3669`).
-    const float ox = float(int(gid.x) + u.oroiX) + u.clipX;
-    const float oy = float(int(gid.y) + u.oroiY) + u.clipY;
+    const float ox = float(int(gid.x) + u.oroi.x) + u.clip.x;
+    const float oy = float(int(gid.y) + u.oroi.y) + u.clip.y;
 
     // Inverse homography, dt row-major (math.h `mat3mulv` order) +
     // homogeneous divide (dt `:3550-3554`).
-    const float x = u.hinv[0] * ox + u.hinv[1] * oy + u.hinv[2];
-    const float y = u.hinv[3] * ox + u.hinv[4] * oy + u.hinv[5];
-    const float w = u.hinv[6] * ox + u.hinv[7] * oy + u.hinv[8];
+    const float x = dot(u.hrow0.xyz, float3(ox, oy, 1.0f));
+    const float y = dot(u.hrow1.xyz, float3(ox, oy, 1.0f));
+    const float w = dot(u.hrow2.xyz, float3(ox, oy, 1.0f));
     const float ix = x / w;
     const float iy = y / w;
 
     // Input-plane coords (dt `:3555-3558`: × scale − roi_in.xy;
     // scale folds to 1 — both ROIs share the run scale, Homography.swift).
-    const float sx = ix - float(u.iroiX);
-    const float sy = iy - float(u.iroiY);
+    const float sx = ix - float(u.iroi.x);
+    const float sy = iy - float(u.iroi.y);
 
-    // Outside (texel-center convention) → transparent black.
+    // Outside (pixel-center convention) → transparent black.
     if (sx < -0.5f || sy < -0.5f
-        || sx >= float(u.inW) - 0.5f || sy >= float(u.inH) - 0.5f) {
+        || sx >= float(u.inSize.x) - 0.5f || sy >= float(u.inSize.y) - 0.5f) {
         out.write(float4(0.0f, 0.0f, 0.0f, 0.0f), gid);
         return;
     }

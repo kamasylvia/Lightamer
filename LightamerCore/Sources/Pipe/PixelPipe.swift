@@ -667,9 +667,14 @@ internal final class PixelPipe: @unchecked Sendable {
         var roiIn = roiOut
         box.modifyROIInErased(output: roiOut, input: &roiIn, piece: pieces[position].state)
         roiIn.scale = roiOut.scale
-        roiIn = roiIn.clamped(to: frameROI)
+        // 04-03 rotation fix (L020 sequel): the bound legitimizes
+        // downstream growth — a grow-module's output (rotation AABB 72 on
+        // a 64 frame) is a contract, not an over-request. Clamping to the
+        // bare frame erased it one level down (colorin passed 64 instead
+        // of 72). Halo wings keep today's behavior (union == frame when
+        // the request sits inside the frame).
+        roiIn = roiIn.clamped(to: frameROI.union(roiOut))
         let negotiatedIn = roiIn // freeze for the @Sendable miss closure
-
         // (f) PER-PIPETYPE POLICY (lock #4): PREVIEW/THUMBNAIL cache every
         // plane; FULL caches input + final only (intermediates ping-pong);
         // EXPORT caches nothing. The tail plane's format follows the

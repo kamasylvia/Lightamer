@@ -261,7 +261,6 @@ public final class AshiftModule: IOPModule {
         roi.width = Int(w)
         roi.height = Int(hh)
     }
-
     /// dt `modify_roi_in` (`:1213-1285`) under OUR walk's frame convention
     /// (L020): the incoming `roi` already carries output-FRAME coords, so
     /// the four corners go through the INVERSE matrix with the clip offset
@@ -343,14 +342,24 @@ public final class AshiftModule: IOPModule {
             clipX: cx, clipY: cy,
             iroiX: Int32(roiIn.x), iroiY: Int32(roiIn.y),
             inW: Int32(input.width), inH: Int32(input.height))
+        // Upload through a shared MTLBuffer (NOT setBytes: the 80-byte
+        // struct exceeds the single-digit setBytes path the small-uniform
+        // modules use, and a stack-addressed setBytes upload raced the
+        // async-committed encoder on this host — diagnosed 2026-09-20
+        // when every warp pixel read back pre-dispatch zeros).
+        guard let buffer = metal.device.makeBuffer(
+            bytes: &uniforms,
+            length: MemoryLayout<AshiftWarpUniforms>.stride,
+            options: .storageModeShared)
+        else {
+            throw MetalError.deviceUnavailable
+        }
         try await metal.dispatch2DTexture(
             functionName: AshiftKernel.functionName,
             input: input,
             output: output
         ) { encoder in
-            encoder.setBytes(
-                &uniforms,
-                length: MemoryLayout<AshiftWarpUniforms>.stride, index: 0)
+            encoder.setBuffer(buffer, offset: 0, index: 0)
         }
     }
 
@@ -386,38 +395,31 @@ public final class AshiftModule: IOPModule {
     }
 }
 
-/// Swift mirror of the MSL `AshiftWarpUniforms` struct — scalar fields in
-/// MSL declaration order (no vector/matrix packing ambiguity): 9 floats
-/// (row-major hinv, dt `math.h` order) + 2 int + 2 float + 4 int = 68
-/// bytes, 4-byte aligned both sides.
+/// Swift mirror of the MSL `AshiftWarpUniforms` struct — three float4 ROWS
+/// (dt row-major `math.h` order in xyz, 16-byte rows) + int2 + float2 +
+/// int2 + int2 = 80 bytes. Every member is 4/8/16-byte aligned on both
+/// sides — the scalar-array packing question is designed out (the
+/// all-transparent warp postmortem: a `float hinv[9]` constant array may
+/// stride 16 on the MSL side while Swift packs 4, silently shifting every
+/// field after it).
 struct AshiftWarpUniforms {
-    var hinv0: Float
-    var hinv1: Float
-    var hinv2: Float
-    var hinv3: Float
-    var hinv4: Float
-    var hinv5: Float
-    var hinv6: Float
-    var hinv7: Float
-    var hinv8: Float
-    var oroiX: Int32
-    var oroiY: Int32
-    var clipX: Float
-    var clipY: Float
-    var iroiX: Int32
-    var iroiY: Int32
-    var inW: Int32
-    var inH: Int32
+    var hrow0: SIMD4<Float>
+    var hrow1: SIMD4<Float>
+    var hrow2: SIMD4<Float>
+    var oroi: SIMD2<Int32>
+    var clip: SIMD2<Float>
+    var iroi: SIMD2<Int32>
+    var inSize: SIMD2<Int32>
 
     init(hinv h: Mat3D,
          oroiX: Int32, oroiY: Int32, clipX: Float, clipY: Float,
          iroiX: Int32, iroiY: Int32, inW: Int32, inH: Int32) {
-        self.hinv0 = Float(h[0, 0]); self.hinv1 = Float(h[0, 1]); self.hinv2 = Float(h[0, 2])
-        self.hinv3 = Float(h[1, 0]); self.hinv4 = Float(h[1, 1]); self.hinv5 = Float(h[1, 2])
-        self.hinv6 = Float(h[2, 0]); self.hinv7 = Float(h[2, 1]); self.hinv8 = Float(h[2, 2])
-        self.oroiX = oroiX; self.oroiY = oroiY
-        self.clipX = clipX; self.clipY = clipY
-        self.iroiX = iroiX; self.iroiY = iroiY
-        self.inW = inW; self.inH = inH
+        self.hrow0 = SIMD4(Float(h[0, 0]), Float(h[0, 1]), Float(h[0, 2]), 0)
+        self.hrow1 = SIMD4(Float(h[1, 0]), Float(h[1, 1]), Float(h[1, 2]), 0)
+        self.hrow2 = SIMD4(Float(h[2, 0]), Float(h[2, 1]), Float(h[2, 2]), 0)
+        self.oroi = SIMD2(oroiX, oroiY)
+        self.clip = SIMD2(clipX, clipY)
+        self.iroi = SIMD2(iroiX, iroiY)
+        self.inSize = SIMD2(inW, inH)
     }
 }
