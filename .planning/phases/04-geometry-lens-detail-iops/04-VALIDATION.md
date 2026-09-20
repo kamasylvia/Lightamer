@@ -41,11 +41,11 @@ created: 2026-09-20
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 04-01-T1..T5 | 04-01 | 1 | FOUND-04 (ROI) | — | N/A | unit | ROINegotiationTests: crop 前向收缩（下游平面=窗口尺寸）、sharpen 后向外扩（<全图）、缓存 roi 字段联动 | ✅ | ✅ green（2026-09-20：8/8；halo e2e 24×24 hint → 30×30 expanded ≪128；全 suite 279 0 fail） |
-| (planner) | — | 2 | IOP-GEO-01/02/04 | — | N/A | golden+unit | crop/rotate/flip parity（crop/flip 可直用 dt-cli；rotate 合成 float64 参考）| ❌ W0 | ⬜ pending |
+| 04-02-T1/T3/T4 | 04-02 | 2 | IOP-GEO-01 | — | N/A | golden+unit | crop parity（CropParityTests 8/8 + GeometryGolden track A 3×4 <1e-6 + SC#4 ①③④真模块回归 + overlay drag=1 item）| ✅ | ✅ green（2026-09-20：GeometryGolden 4/4；ROINegotiation 8/8；CropOverlay 6/6；PanelWiring +3 crop） |
+| 04-02-T2/T3 | 04-02 | 2 | IOP-GEO-04 | — | N/A | golden+unit | flip parity（FlipParityTests 8/8 + track A 4×4 <1e-6 + flip<crop 顺序硬约束）| ✅ | ✅ green（2026-09-20：V50OrderTests +1 order constraint） |
 | (planner) | — | 2 | IOP-GEO-03 | — | N/A | golden+unit | lens distortion/CA/vignette parity（合成 float64 参考 + uniform dt 探针）| ❌ W0 | ⬜ pending |
 | (planner) | — | 3 | IOP-DETAIL-01/02/03/04 | — | N/A | golden+unit | sharpen USM/local contrast(EIGF)/highpass-soften/equalizer parity（Lab 域经 LabRoundTrip）| ❌ W0 | ⬜ pending |
-| (planner) | — | — | 轨 B 回归 | — | N/A | golden | 全模块插链后 ColorSync 中性度+交叉一致性不回归（D-COL1 双判据）| ✓ | ⬜ pending |
-| 04-01-T5 | 04-01 | 1 | 内存记账 | D-C1/C2 | N/A | unit | crop 后 FULL 平面记账下降、sharpen 外扩 < 全图 | ✅ | ✅ green（2026-09-20：MemoryBudgetTests 9/9；crop 1/4 bytes；halo 30×30+24×24 ≪128） |
+| 04-02-T3 | 04-02 | 2 | 轨 B 回归 | — | N/A | golden | crop-full + flip-none 插链后 ColorSync 中性度+交叉一致性不回归（D-COL1 双判据）| ✅ | ✅ green（2026-09-20：GeometryGolden track B 2/2） |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -65,7 +65,9 @@ created: 2026-09-20
 |----------|-------------|------------|-------------------|
 | crop overlay 手柄交互 | IOP-GEO-01 SC#1 | 交互时序 + 手柄拖拽 | 拖角手柄/旋转手柄/比例锁定 → 确认实时预览与网格 |
 | 镜头校正视觉效果 | IOP-GEO-03 | 视觉验收 | 开关镜头校正对比畸变线（门框/建筑直线）|
-
+| crop overlay 拖角 → viewport 纹理尺寸变化 | IOP-GEO-01 SC#1 | XCUITest 需解锁控制台（L011）；自动化腿已由 CropOverlayTests 覆盖（drag=1 item + live-disabled + neutral seed）| 打开图片 → 选 crop 面板 → 拖右下角手柄向内 → viewport 图像变小、暗膜在拖动中可见、松手后 history +1 |
+| crop 三分/黄金网格视觉 | IOP-GEO-01 SC#1 | 像素级视觉（自动化只断言几何存在）| 拖动中确认三分线；切换 phi 网格（showsPhiGrid）确认 0.3819/0.6181 线位 |
+| crop 比例锁手感（3:2/16:9/original）| IOP-GEO-01 | 锁比拖角的短边贴合手感 | 选 3:2 → 拖角 → 矩形保持 3:2（以短边为准）；original → 以当前图幅比锁定 |
 ---
 
 ## Validation Sign-Off

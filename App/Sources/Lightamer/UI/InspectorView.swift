@@ -99,6 +99,7 @@ internal struct InspectorView: View {
         switch opName {
         case ExposureModule.opName: return "module_exposure"
         case TemperatureModule.opName: return "module_temperature"
+        case CropModule.opName: return "module_crop"
         default: return opName
         }
     }

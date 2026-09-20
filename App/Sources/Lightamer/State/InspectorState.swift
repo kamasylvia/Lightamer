@@ -65,6 +65,9 @@ final class InspectorState {
         // agx (the filmic VARIANT).
         register(FilmicRGBPanelProvider())
         register(AgXPanelProvider())
+        // Plan 04-02-T5: crop (the framing window; flip needs no panel —
+        // orientation buttons belong to a future rotate/flip control).
+        register(CropPanelProvider())
     }
 
     /// The ops that have a registered panel (for the Inspector list).

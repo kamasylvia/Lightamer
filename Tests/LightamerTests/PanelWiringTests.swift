@@ -92,6 +92,11 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertTrue(ops.contains("colisa"), "pristine seed must include colisa")
         XCTAssertTrue(ops.contains("tonecurve"), "pristine seed must include tonecurve")
         XCTAssertTrue(ops.contains("levels"), "pristine seed must include levels")
+        // Plan 04-02-T5: crop + flip join the seed (NONE-identity flip,
+        // full-frame crop — cache-neutral records so their boxes exist;
+        // crop additionally ships the T5 panel).
+        XCTAssertTrue(ops.contains("crop"), "pristine seed must include crop")
+        XCTAssertTrue(ops.contains("flip"), "pristine seed must include flip")
     }
 
     private func instance(_ opName: String) throws -> ModuleInstance {
@@ -422,36 +427,68 @@ final class PanelWiringTests: XCTestCase {
         )
     }
 
-    // MARK: - 03-05 toneequal panel wiring (T7)
+    // MARK: - 04-02 crop panel wiring (T5)
 
-    /// Tone equalizer: the pristine seed now CARRIES the toneequal
-    /// instance (all-zero bands, dt defaults); a band drag lands exactly
-    /// one commit with the last tick.
-    func testToneEqualPanelDragCommitsOnce() async throws {
+    /// Crop slider drag: 8 ticks → exactly ONE commit; the committed
+    /// value is the last tick (D-H1 trio through the panel path).
+    func testCropPanelDragCommitsOnce() async throws {
         try await loadSynthetic()
-        let toneEqual = try instance("toneequal")
+        let crop = try instance("crop")
 
         coordinator.beginContinuousEdit()
-        for tick in 1...5 {
-            let record = try withParams(toneEqual, {
-                $0.shadows = Float(tick) * 0.2
-            }, as: ToneEqualModule.self)
+        for tick in 1...8 {
+            let record = try withParams(crop, { $0.left = 0.1 + Float(tick) * 0.01 }, as: CropModule.self)
             await coordinator.setLiveParams(record)
         }
-        await coordinator.commitContinuousEdit(label: String(localized: "history_toneequal"))
+        await coordinator.commitContinuousEdit(label: String(localized: "history_crop"))
 
-        XCTAssertEqual(historyCount(), 1, "toneequal drag = exactly ONE item")
-        let committed = try instance("toneequal")
-        XCTAssertEqual(
-            try committed.params(of: ToneEqualModule.self).shadows, 1.0, accuracy: 1e-5
-        )
-        XCTAssertEqual(
-            try committed.params(of: ToneEqualModule.self).details, .eigf,
-            "the dt default detail leg rides the seed"
-        )
+        XCTAssertEqual(historyCount(), 1, "crop drag = exactly ONE item")
+        let committed = try instance("crop")
+        XCTAssertEqual(try committed.params(of: CropModule.self).left, 0.18, accuracy: 1e-6)
+    }
+
+    /// Crop double-click reset (discrete trio) restores full-frame and
+    /// the paneled record decodes from the same source the overlay
+    /// drives (panel/overlay同源 — the T5 acceptance).
+    func testCropResetRestoresFullFrame() async throws {
+        try await loadSynthetic()
+        let crop = try instance("crop")
+
+        coordinator.beginContinuousEdit()
+        let up = try withParams(crop, { $0.left = 0.2; $0.top = 0.1 }, as: CropModule.self)
+        await coordinator.setLiveParams(up)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_crop"))
+        XCTAssertEqual(historyCount(), 1)
+
+        let current = try instance("crop")
+        var reset = current
+        try reset.setParams(CropModule.Params(), as: CropModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(reset)
+        await coordinator.commitContinuousEdit(label: "crop reset")
+
+        XCTAssertEqual(historyCount(), 2, "reset adds exactly ONE item")
+        let after = try instance("crop")
+        XCTAssertEqual(try after.params(of: CropModule.self).left, 0, accuracy: 1e-6)
+        XCTAssertEqual(try after.params(of: CropModule.self).right, 1, accuracy: 1e-6)
+    }
+
+    /// Panel dispatch: crop resolves a panel, flip has none (orientation
+    /// buttons belong to a future rotate/flip control — T5 decision).
+    func testCropPanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+
+        XCTAssertTrue(state.panelOpNames.contains("crop"), "crop must dispatch a panel")
+        let cropRecord = ModuleInstance(module: CropModule.self, params: .init())
+        let session = InspectorEditSession(coordinator: coordinator)
+        XCTAssertNotNil(state.panelView(for: cropRecord, edit: session),
+                        "crop must dispatch a panel")
+        let flipRecord = ModuleInstance(module: FlipModule.self, params: .init())
+        XCTAssertNil(state.panelView(for: flipRecord, edit: session),
+                     "flip has no panel in v1")
     }
 
     // MARK: - Helpers
-
     private func historyCount() -> Int { editorState.history.items.count }
 }
