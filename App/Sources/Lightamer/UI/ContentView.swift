@@ -25,23 +25,26 @@ internal struct ContentView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     // D-08 layout memory — keys survive relaunch.
-    @AppStorage("layout.sidebarWidth") private var sidebarWidth: Double = 240
-    @AppStorage("layout.inspectorWidth") private var inspectorWidth: Double = 320
+    // 04-06 GUI-4 (D-GUI-3): viewport-is-hero redline — the window's
+    // pixels belong to the editor first. Sidebar ideal 240→200 (empty
+    // Phase 9 stub, no content yet), inspector ideal 320→280 (panels have
+    // ONE slider column; 460 max kept for curve editors). Editor eats the
+    // rest: at 990pt the viewport is ≥50% by construction.
+    @AppStorage("layout.sidebarWidth") private var sidebarWidth: Double = 200
+    @AppStorage("layout.inspectorWidth") private var inspectorWidth: Double = 280
     @AppStorage("layout.inspectorVisible") private var inspectorVisible: Bool = true
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView()
-            // UI-SPEC dims: min 180 / ideal 240 / max 320 — ideal is the
-            // D-08 layout-memory value (default 240 matches the spec).
-                .navigationSplitViewColumnWidth(min: 180, ideal: clamped(sidebarWidth, 180, 320), max: 320)
+            // UI-SPEC dims, GUI-4 narrowed: min 150 / ideal 200 / max 240.
+                .navigationSplitViewColumnWidth(min: 150, ideal: clamped(sidebarWidth, 150, 240), max: 240)
         } content: {
             EditorAreaView(decoder: decoder, metalContext: metalContext)
         } detail: {
             InspectorView()
-            // UI-SPEC dims: min 240 / ideal 320 / max 460 — ideal is the
-            // D-08 layout-memory value (default 320 matches the spec).
-                .navigationSplitViewColumnWidth(min: 240, ideal: clamped(inspectorWidth, 240, 460), max: 460)
+            // UI-SPEC dims, GUI-4 narrowed: min 220 / ideal 280 / max 460.
+                .navigationSplitViewColumnWidth(min: 220, ideal: clamped(inspectorWidth, 220, 460), max: 460)
         }
         .navigationSplitViewStyle(.balanced)
         .focusedSceneValue(\.lightamerColumnVisibility, $columnVisibility)
