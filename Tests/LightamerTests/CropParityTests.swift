@@ -227,4 +227,52 @@ final class CropParityTests: XCTestCase {
         XCTAssertEqual(texture.height, 48)
         XCTAssertEqual(stats.misses, 1, "input plane only — the disabled crop contributes no key step")
     }
+
+    // MARK: - 04-06 D-GUI-1 scaled regression (GUI-1 真凶)
+
+    /// Scale<1 全帧 crop 经 trio 必须 == trio-only（逐字节/逐值）：
+    /// 04-06 前 `modifyROIIn` 把 dscIn 又 ×scale（double-scale），clamp 界
+    /// 坍缩 → 协商 roiIn 60×40 → process 只 blit 左上小窗、其余全零
+    /// （DSC00012 GUI-1 近全黑）。pre-fix 此门红（全零 vs 正常曝光），
+    /// post-fix 绿。梯度图每像素唯一，窗错位/零块必炸。
+    func testScaledFullFrameCropMatchesTrioOnly() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 128, height: 96)
+        let registry = ModuleRegistry.makeDefault()
+        let trio = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .displayP3)
+        let crop = ModuleBox(module: CropModule())
+        await crop.setParams(CropModule.Params())
+        let withCrop = (trio + [crop as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        let imageID = UUID()
+        let (plain, _) = try await RenderPipeline.process(
+            image: image, instances: trio, imageID: imageID,
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: 48)
+        let (cropped, _) = try await RenderPipeline.process(
+            image: image, instances: withCrop, imageID: imageID,
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: 48)
+        XCTAssertEqual(cropped.pixelFormat, GammaModule.outputPixelFormat)
+        XCTAssertEqual(cropped.width, plain.width)
+        XCTAssertEqual(cropped.height, plain.height)
+        drain(metal) // L014
+        var a = [UInt8](repeating: 0, count: plain.width * plain.height * 4)
+        var b = [UInt8](repeating: 0, count: a.count)
+        a.withUnsafeMutableBytes {
+            plain.getBytes($0.baseAddress!, bytesPerRow: plain.width * 4,
+                from: MTLRegionMake2D(0, 0, plain.width, plain.height), mipmapLevel: 0)
+        }
+        b.withUnsafeMutableBytes {
+            cropped.getBytes($0.baseAddress!, bytesPerRow: cropped.width * 4,
+                from: MTLRegionMake2D(0, 0, cropped.width, cropped.height), mipmapLevel: 0)
+        }
+        var compared = 0, dark = 0
+        for i in 0..<a.count {
+            compared += 1
+            if b[i] < 16 { dark += 1 }
+        }
+        XCTAssertGreaterThan(compared, 0)
+        XCTAssertEqual(a, b, "scaled full-frame crop must be byte-identical to trio-only")
+        XCTAssertLessThan(Double(dark) / Double(compared), 0.9, "no collapse-to-black")
+    }
 }

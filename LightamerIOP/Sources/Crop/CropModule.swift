@@ -167,8 +167,17 @@ public final class CropModule: IOPModule {
     /// 04-03's protocol work — the exercised path is full-window.
     public func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
         input = roi
-        let iw = Double(piece.dscIn.width) * Double(roi.scale)
-        let ih = Double(piece.dscIn.height) * Double(roi.scale)
+        // 04-06 D-GUI-1: `dscIn` is ALREADY the entry-scaled plane extent
+        // (PixelPipe.run stamps bufInROI per level — 760×507 at the 760
+        // bucket, scale 0.08). Multiplying by `roi.scale` AGAIN collapsed
+        // every scale<1 full-frame clamp to 60×40 → negotiated roiIn 60×40
+        // → process blitted 60×40 origin-to-origin into the 760×507 plane,
+        // rest zeros (GUI-1 near-black, only the TL corner lit — the blit's
+        // vertical flip puts it bottom-left on screen). Scale 1.0 masked
+        // it (×1.0 identity), which is why all golden/crop tests stayed
+        // green. Clamp straight to dscIn (same-run plane pixels).
+        let iw = Double(piece.dscIn.width)
+        let ih = Double(piece.dscIn.height)
         input.x = min(max(input.x, 0), Int(iw.rounded(.down)))
         input.y = min(max(input.y, 0), Int(ih.rounded(.down)))
         input.width = min(input.width, max(1, Int(iw.rounded(.down)) - input.x))
