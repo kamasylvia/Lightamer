@@ -421,6 +421,44 @@ final class ROINegotiationTests: XCTestCase {
         XCTAssertEqual(gainSights.count, 1, "downstream sees the grown frame")
         XCTAssertEqual(gainSights.first?.roiOut.width, 87)
     }
+
+    /// SC#4 ROI 回归（lens pincushion(dc2=−0.08)64×64，plan 验收标准）：
+    /// modifyROIOut 恒等（输出 == 输入帧）；modifyROIIn 收缩为
+    /// (0,0,63,63)——从 CLAMPED 原点起算的宽度（dt `:1791-1799` 字面；
+    /// 旧式子从未 clamp 的 xm 起算会丢 2.56px，输入平面缺 tap 列，
+    /// kernel 在 x0 处冻结——track-A golden 抓现行）。
+    /// 内容正确性由 LensParityTests 兜底 — 此处只钉协商记账。
+    func testLensShrinkNegotiationBoundsInput() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let cache = PipeCache()
+        let recorder = ROIRecorder()
+        let image = makeImage(width: 64, height: 64)
+        let lens = ModuleBox(
+            module: ROIRecording(tag: "lens", recorder: recorder, inner: LensModule()),
+            multiPriority: 0, multiName: "lens")
+        await lens.setParams(LensModule.Params(distortionK1: -0.08, source: .manual))
+        let gain = ModuleBox(
+            module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
+            multiPriority: 1, multiName: "gain")
+        await gain.setParams(TestGainModule.Params(gain: 1.0))
+        let chain: [any ModuleBoxing] = [lens, gain]
+
+        let (texture, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: cache, metal: metal, longEdge: nil)
+        XCTAssertEqual(texture.width, 64, "lens never resizes the frame")
+        XCTAssertEqual(texture.height, 64)
+
+        let lensSights = await recorder.sightings(for: "lens")
+        XCTAssertEqual(lensSights.count, 1)
+        XCTAssertEqual(lensSights.first?.roiOut, ROI(x: 0, y: 0, width: 64, height: 64, scale: 1.0))
+        XCTAssertEqual(
+            lensSights.first?.roiIn, ROI(x: 0, y: 0, width: 62, height: 62, scale: 1.0),
+            "pincushion forward AABB [2.56..61.44] + 2px margin from the clamped origin, "
+                + "intersected with the 64-frame by the pipe clamp")
+    }
+
     /// T2 辅助 `clamped(to:)`：交集 + 空交集兜底 1×1。
     func testROIClampedToBounds() {
         let bounds = ROI(x: 0, y: 0, width: 64, height: 64, scale: 1.0)
