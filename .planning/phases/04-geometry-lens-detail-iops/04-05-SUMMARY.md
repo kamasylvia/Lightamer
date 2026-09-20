@@ -4,7 +4,7 @@ plan: "04-05"
 title: "detail 五模块（IOP-DETAIL-01..04）：sharpen USM + local contrast EIGF + highpass/soften 双域 + equalizer 金字塔—— SUMMARY"
 status: complete
 executed: 2026-09-21
-tests: "386 tests, 3 skipped, 0 failures (full LightamerTests; 2026-09-21 终轮)"
+tests: "387 tests, 3 skipped, 0 failures (full LightamerTests; 2026-09-21 终轮)"
 ---
 
 # Plan 04-05 SUMMARY — detail 五模块
@@ -71,8 +71,8 @@ LabMath / toneequal EIGF 核/CorrectionLUT 架构同构），D-G5 主证（sharp
 
 ## 全绿闸门
 
-- 全 suite：**386 tests, 3 skipped, 0 failures**（2026-09-21 终轮；
-  04-04 时 358 → +28：parity 22 + ROI 1 + PanelWiring 5 + V50 1，减 1 重复计）。
+- 全 suite：**387 tests, 3 skipped, 0 failures**（2026-09-21 终轮；
+  04-04 时 358 → +29：parity 22 + ROI 1 + PanelWiring 5 + V50 1）。
 - 04-VALIDATION IOP-DETAIL-01..04 行 + 轨 B 行 + 面板/PERF 行 ✅；
   Manual-Only：detail 视觉抽检登记（L011 口径 pending-manual）。
 - 下游影响：04-06（SC#3/SC#4 签核——detail golden + ROI 真模块证据就绪）；
