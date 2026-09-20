@@ -101,7 +101,11 @@ public final class CropModule: IOPModule {
     /// The commit-clamped working copy (dt `piece->data` analog — the
     /// geometry the ROI hooks read; hooks receive `piece`, not params).
     /// Owned by the box's isolation domain (TestGain `committedGain`
-    /// precedent — single-owner, never cross-task).
+    /// precedent — single-owner, never cross-task). GOTCHA (04-02-T3):
+    /// `ModuleBox.setParams` is the ONLY commit path — a directly
+    /// constructed module never receives `commitParams` until the box
+    /// commits, so its hooks read the full-frame default. Tests drive
+    /// boxes (registry-made or `ModuleBox(module:)` + `setParams`).
     private var committed: Params = Params()
 
     public init() {}

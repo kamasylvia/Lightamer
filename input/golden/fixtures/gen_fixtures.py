@@ -386,6 +386,58 @@ def temperature_params_blob(
     return binascii.hexlify(packed).decode("ascii")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Crop + flip (Plan 04-02-T3) — dt_iop_crop_params_t v3 (24 bytes:
+# cx/cy/cw/ch floats + ratio_n/ratio_d ints) + dt_iop_flip_params_t v2
+# (4 bytes: orientation int). L017 route: dt-cli float export is
+# spatially corrupt on this host (ramp PFM/EXR probe 2026-09-20), so
+# track-A references are CPU-synthesized below; dt-side evidence = XMP
+# adoption (DB op_params hex + "params v. N ok") + flat probes.
+# ──────────────────────────────────────────────────────────────────────
+
+CROP_PARAMS_FORMAT = "<ffffii"
+CROP_MODVERSION = 3
+CROP_IOP_ORDER = 24.5
+
+FLIP_PARAMS_FORMAT = "<i"
+FLIP_MODVERSION = 2
+FLIP_IOP_ORDER = 16.0
+
+
+def crop_params_blob(cx, cy, cw, ch, ratio_n=-1, ratio_d=-1) -> str:
+    """dt_iop_crop_params_t v3 → lowercase HEX ASCII (24 bytes)."""
+    packed = struct.pack(CROP_PARAMS_FORMAT, cx, cy, cw, ch, ratio_n, ratio_d)
+    assert len(packed) == 24, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def flip_params_blob(orientation) -> str:
+    """dt_iop_flip_params_t v2 → lowercase HEX ASCII (4 bytes)."""
+    packed = struct.pack(FLIP_PARAMS_FORMAT, orientation)
+    assert len(packed) == 4, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# The crop 钉参组 (plan T3 action 2): full-frame / center 50% / 3:2-ratio
+# center window (ratio bits ride inert until the Phase-11 export aligner;
+# the overlay enforces the ratio at edit time).
+CROP_CASES = [
+    # (case name, cx, cy, cw, ch, ratio_n, ratio_d)
+    ("crop_full", 0.0, 0.0, 1.0, 1.0, -1, -1),
+    ("crop_center50", 0.25, 0.25, 0.75, 0.75, -1, -1),
+    ("crop_3x2", 0.25, 0.25, 0.75, 0.75, 2, 3),
+]
+
+# The flip 钉参组 (plan T3 action 2): none / flipH / flipV / rotCCW90 —
+# the 4 representative states (the other 4 ride the same kernel path;
+# FlipParityTests covers all 8 in-pipe).
+FLIP_CASES = [
+    # (case name, orientation bits)
+    ("flip_none", 0),
+    ("flip_h", 2),
+    ("flip_v", 1),
+    ("flip_ccw90", 6),
+]
 XMP_TEMPLATE = """<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Lightamer golden fixture gen">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -550,7 +602,30 @@ def gen_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
             f.write(xmp)
-    gen_tonecurve_cases(outdir)
+    for name, cx, cy, cw, ch, rn, rd in CROP_CASES:
+        params = crop_params_blob(cx, cy, cw, ch, rn, rd)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="crop",
+            modversion=CROP_MODVERSION,
+            params=params,
+            iop_order=f"{CROP_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, name + ".xmp"), "w") as f:
+            f.write(xmp)
+    for name, orientation in FLIP_CASES:
+        params = flip_params_blob(orientation)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="flip",
+            modversion=FLIP_MODVERSION,
+            params=params,
+            iop_order=f"{FLIP_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, name + ".xmp"), "w") as f:
+            f.write(xmp)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -649,7 +724,79 @@ def gen_temperature_refs(canonical_dir: str, out_dir: str) -> None:
             write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
 
 
-# ──────────────────────────────────────────────────────────────────────
+# Fixtures the crop/flip references cover: the ramp (spatially varying —
+# the window/remap identity is only provable on varying content) + the
+# uniform flats (dt trustworthy there; doubles as the probe cross-check).
+CROP_FLIP_REF_FIXTURES = [
+    "ramp_8ev", "flat_0ev", "flat_-4ev", "gray_staircase",
+]
+
+
+def _crop_window(w, h, cx, cy, cw, ch):
+    """dt crop.c:517-531 forward (minus the Phase-11 export aligner)."""
+    x = max(0, int(w * cx))
+    y = max(0, int(h * cy))
+    ww = max(4, int(w * (cw - cx)))
+    hh = max(4, int(h * (ch - cy)))
+    return x, y, ww, hh
+
+
+def _flip_remap(x, y, w, h, orientation):
+    """dt basic.cl:2948-2960 forward map (flip X/Y, then swap)."""
+    ox = (w - x - 1) if (orientation & 2) else x
+    oy = (h - y - 1) if (orientation & 1) else y
+    if orientation & 4:
+        ox, oy = oy, ox
+    return ox, oy
+
+
+def gen_crop_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the crop golden REFERENCES: the canonical fixture's
+    crop window (dt forward math above), written with this script's EXR
+    writer. The reference SHAPE is the window (ww × hh) — the Lightamer
+    leg renders `[crop]` through the pipe and compares same-size planes.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, cx, cy, cw, ch, _rn, _rd in CROP_CASES:
+        for fixture in CROP_FLIP_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            x0, y0, ww, hh = _crop_window(w, h, cx, cy, cw, ch)
+
+            def px(x, y, rgb=rgb, w=w, x0=x0, y0=y0):
+                idx = (y + y0) * w + (x + x0)
+                return (rgb[0][idx], rgb[1][idx], rgb[2][idx])
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), ww, hh, px)
+
+
+def gen_flip_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the flip golden REFERENCES: the canonical fixture
+    remapped by the dt kernel swizzle (90° states transpose the shape).
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, orientation in FLIP_CASES:
+        for fixture in CROP_FLIP_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            ow, oh = (h, w) if (orientation & 4) else (w, h)
+
+            def px(x, y, rgb=rgb, w=w, h=h, ow=ow, oh=oh, orientation=orientation):
+                # Output (x,y) reads input = backward map (swap, then
+                # flip against the POST-swap = output dims).
+                sx, sy = x, y
+                sw, sh = ow, oh
+                if orientation & 4:
+                    sx, sy = sy, sx
+                    sw, sh = sh, sw
+                if orientation & 2:
+                    sx = sw - sx - 1
+                if orientation & 1:
+                    sy = sh - sy - 1
+                idx = sy * w + sx
+                return (rgb[0][idx], rgb[1][idx], rgb[2][idx])
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), ow, oh, px)
 # Lab-domain reference math (Plan 03-03-T1/T2) — the float64 mirror of
 # LightamerIOP/Sources/Common/LabMath.h + LabRoundTrip.swift, used by the
 # `refs` mode to synthesize the colisa/tonecurve/levels golden references
@@ -2309,6 +2456,10 @@ def main() -> None:
         # dt-side = XMP adoption + uniform-flat PFM probes).
         gen_filmic_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_agx_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 04-02-T3: crop + flip golden references (L017 route;
+        # dt-side = XMP adoption + flat probes; ramp probe corrupt).
+        gen_crop_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_flip_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 
