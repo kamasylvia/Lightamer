@@ -514,6 +514,13 @@ internal final class PixelPipe: @unchecked Sendable {
             bufInROI.append(roiWalk)
             pieces[index].state.dscIn = IOPBufferDesc(
                 width: roiWalk.width, height: roiWalk.height)
+            // iscale stamp (05-01-T2; dt `piece->iscale`, `pixelpipe_hb.c:505`
+            // mirror): the ENTRY scale of this run, same source as dscIn
+            // (entry-ROI scale, roiHint applied — the hint is part of the
+            // entry). Run-level constant: every piece gets the same value;
+            // the TILE drivers (executeTiled/executeTiledNegotiated) MUST
+            // NOT rewrite it (tile-local readROI.scale ≠ entry scale).
+            pieces[index].state.iscale = roi.scale
             // Freeze the FORWARD piece state for the backward pass: the
             // miss closures capture `pieces[index].state` by value at
             // probe time (Swift copy), and `processRec` mutates the LIVE

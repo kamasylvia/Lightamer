@@ -47,3 +47,28 @@
 
 - 既有套件 post-fix 全绿：CropParity 9/9、FlipParity 8/8、ToneEqualParity/Module/TilingOverlap/ToneEqualPerf（9 tests 含 100MP 内存门）、GeometryGolden 4/4。
 - MDB_MAP_FULL 杂音：VisionDetectTests 遗留（TODO Phase 3 行），本轮 flip/trio 测试亦见同杂音，不影响结果。
+
+## D-05-01-T2: `IOPiece.iscale` 协议增量 + pipe stamp（2026-09-21）
+
+### 语义
+
+- `iscale` = 本 run 的 ENTRY 缩放（dt `piece->iscale`，`pixelpipe_hb.c:505`
+  同构）：`PixelPipe.run` 在入口平面 stamp（= 本 run 的 entry 缩放，与 dscIn
+  同源同一次性写入）；run 级常量（每 piece 同值）；**tile 驱动
+  （executeTiled/executeTiledNegotiated）不得改写**（RESEARCH §3.3 tile
+  稳定性约束——TILE 不改 dscIn/iscale stamp；`grep iscale PixelPipe.swift`
+  唯一写点 = run 前向 walk）。
+- 半径补偿公式 = `roi.scale ÷ iscale`（denoise 四件消费者在 05-06/07/08
+  落地，此处只供标量；soften.c:141 `rad × roi_in->scale / piece->iscale`
+  先行同式；blend.c:675 feather 同式）。
+- `commitParams` 永不触碰（默认 1.0 = full-res 恒等；`IOPiece()` 默认构造
+  零扰动——全部既有 `IOPiece()` 构造点行为不变）。
+- roiHint 注记：stamp 取 hint 后的 entry ROI scale（hint 即 entry 的一部分；
+  T6 回归覆盖 hint 语义不变）。
+
+### 回归证据
+
+`IOPieceIscaleTests`（4 tests，探针记录真实执行值 + `compared > 0`）：
+PREVIEW@48 iscale==0.375 / FULL==1.0 / THUMBNAIL 原生小图==1.0；
+三探针同 run 全等；FULL toneequal 强制分块下游 probe iscale 仍==1.0。
+邻居套件 post-stamp 全绿：L021 6/6、CropParity 9/9、FlipParity 8/8。
