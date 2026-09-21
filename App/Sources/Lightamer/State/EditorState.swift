@@ -159,6 +159,16 @@ final class EditorState {
         upsert(instance: snapshot)
     }
 
+    /// 04-08-F2 (GUI-9 闭环): menu enablement source — true while the
+    /// stack has an entry at/below the pointer to step back into.
+    /// The Edit → Undo menu binds `.disabled(!canUndo)` to this, so ⌘Z
+    /// availability always mirrors the Phase 2 stack semantics.
+    var canUndo: Bool { history.position >= 0 }
+
+    /// 04-08-F2: redo availability — a non-empty tail past the pointer
+    /// (undo followed by NO new commit; any commit truncates it).
+    var canRedo: Bool { history.position + 1 < history.items.count }
+
     /// HIST-02 navigation (coordinator-driven): step back; false when
     /// already pristine. Rebuilds the live instance set from the stack.
     @discardableResult

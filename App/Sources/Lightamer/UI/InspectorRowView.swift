@@ -52,6 +52,14 @@ internal struct InspectorRowView: View {
 
     var body: some View {
         HStack {
+            // 04-08-F3 (GUI-5 AX 通路)：自绘圆圈 Image 必须包在真实 Button
+            // 内才有 AXPress —— 此处结构已是 Button（select 路径同构可按即
+            // 验收 PASS 的反证）。央行加固两处 AX 语义，确保 AXPress 落到
+            // action：① accessibilityAddTraits(.isButton) —— 纯 Image label
+            // 的 Button 在 AX 树里曾被识别为静态图（无 Press 动作）；②
+            // accessibilityAction(.default) 显式把 Press 路由到 onToggle，
+            // 不依赖 SwiftUI 的隐式转发行（本轮 System Events click/AXPress
+            // 均不触发 action 的直接修复；PanelWiring 语义测试钉住下层）。
             Button {
                 onToggle()
             } label: {
@@ -63,6 +71,8 @@ internal struct InspectorRowView: View {
             .accessibilityIdentifier("inspector.row.\(model.opName).toggle")
             .accessibilityLabel(Text("inspector_row_toggle"))
             .accessibilityValue(Text(LocalizedStringKey(model.toggleValueKey)))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(.default) { onToggle() }
             Button {
                 onSelect()
             } label: {
