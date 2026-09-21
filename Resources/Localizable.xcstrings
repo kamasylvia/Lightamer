@@ -5066,6 +5066,74 @@
           }
         }
       }
+    },
+    "toast_auto_level_applied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto level applied."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动水平已应用。"
+          }
+        }
+      }
+    },
+    "toast_auto_detect_applied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto perspective applied."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动透视已应用。"
+          }
+        }
+      }
+    },
+    "toast_auto_no_change": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto detect found no correction — params unchanged."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动检测无需校正——参数未改动。"
+          }
+        }
+      }
+    },
+    "toast_ashift_reset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ashift reset to neutral."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转透视已重置。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

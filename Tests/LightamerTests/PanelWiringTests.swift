@@ -535,6 +535,16 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertEqual(try committed.params(of: AshiftModule.self).rotation, 12.0, accuracy: 1e-6)
     }
 
+    /// 04-08-T2 (GUI-8): the toast seam exists — coordinator forwards to
+    /// EditorState.toast (the panel's nil/failure path calls this; the
+    /// acceptance round watched the status bar, not the panel notice).
+    func testToastForwardingReachesStatusBar() async throws {
+        try await loadSynthetic()
+        XCTAssertNil(editorState.toast, "no toast before the click")
+        coordinator.presentToast("probe")
+        XCTAssertEqual(editorState.toast, "probe", "toast must surface on EditorState")
+    }
+
     /// Ashift discrete reset restores neutral + the panel dispatches.
     func testAshiftResetAndDispatch() async throws {
         try await loadSynthetic()

@@ -79,11 +79,14 @@ final class InspectorEditSession {
 
     /// Discrete control semantics (double-click reset, preset pick,
     /// eyedropper apply): ONE commit per click, compressed trio.
-    func applyDiscrete(_ snapshot: ModuleInstance, label: String) {
+    /// `autoEnable = false` preserves an explicit enabled=false (the
+    /// 04-08-T4 row toggle-OFF path — the coordinator's GUI-7 flip must
+    /// not resurrect it; D-08-T3-2).
+    func applyDiscrete(_ snapshot: ModuleInstance, label: String, autoEnable: Bool = true) {
         coordinator?.beginContinuousEdit()
-        Task {
-            await coordinator?.setLiveParams(snapshot)
-            await coordinator?.commitContinuousEdit(label: label)
+        Task { [weak self] in
+            await self?.coordinator?.setLiveParams(snapshot)
+            await self?.coordinator?.commitContinuousEdit(label: label, autoEnable: autoEnable)
         }
     }
 
@@ -99,6 +102,14 @@ final class InspectorEditSession {
     /// small probe — no pipe-plane readback, L014-clean by construction).
     func detectionSourceImage() -> DecodedImage? {
         coordinator?.detectionSourceImage()
+    }
+
+    /// Raise a non-blocking global toast (D-26 background grading — the
+    /// 04-08-T2 GUI-8 fix: auto-detect nil/failure must be USER-VISIBLE
+    /// beyond the panel's local notice; the acceptance round only watched
+    /// the status bar).
+    func presentToast(_ message: String) {
+        coordinator?.presentToast(message)
     }
 }
 

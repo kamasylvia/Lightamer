@@ -866,6 +866,13 @@ final class PipeCoordinator {
         decoded
     }
 
+    /// Forward a non-blocking status-bar toast to EditorState (D-26).
+    /// Additive seam for 04-08-T2 (GUI-8): auto-detect nil/failure paths
+    /// must be user-visible; no existing caller touched.
+    func presentToast(_ message: String) {
+        editorState?.presentToast(message)
+    }
+
     /// Full-image per-channel RGB min/max over the linear chain (Plan
     /// 03-06-T5, the filmic auto black/white keys — dt's
     /// `picked_color_min/max` whole-preview semantics via the shared

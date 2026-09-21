@@ -154,7 +154,14 @@ internal struct AshiftPanelView: View {
                     accessibilityID: "inspector.slider.ashift.cb"
                 )
                 Button(String(localized: "panel_ashift_reset")) {
-                    applyDiscrete(AshiftModule.Params())
+                    if params == AshiftModule.Params() {
+                        notice = String(localized: "toast_auto_no_change")
+                        edit.presentToast(String(localized: "toast_auto_no_change"))
+                    } else {
+                        notice = String(localized: "toast_ashift_reset")
+                        edit.presentToast(String(localized: "toast_ashift_reset"))
+                        applyDiscrete(AshiftModule.Params())
+                    }
                 }
                 .accessibilityIdentifier("inspector.ashift.reset")
             } header: {
@@ -191,30 +198,44 @@ internal struct AshiftPanelView: View {
 
     // MARK: - Auto-detect (Vision façade, discrete one-commit each)
 
-    /// Horizon → rotation correction (exactly ONE commit; nil = toast, no params change).
+    /// Horizon → rotation correction (exactly ONE commit; nil/no-change =
+    /// notice + GLOBAL toast, no params change — 04-08-T2 GUI-8 fix: every
+    /// click must have a user-visible effect. D-08-T2-1).
     private func autoLevel() {
         guard let source = edit.detectionSourceImage() else {
             notice = String(localized: "panel_ashift_no_image")
+            edit.presentToast(String(localized: "panel_ashift_no_image"))
             return
         }
         guard let angle = AshiftAutoDetect.horizonAngleDegrees(ciImage: source.ciImage) else {
             notice = String(localized: "panel_ashift_no_horizon")
+            edit.presentToast(String(localized: "panel_ashift_no_horizon"))
+            return
+        }
+        let corrected = Float(AshiftAutoDetect.rotationCorrection(forHorizonAngleDegrees: angle))
+        guard abs(corrected - params.rotation) > 1e-4 else {
+            notice = String(localized: "toast_auto_no_change")
+            edit.presentToast(String(localized: "toast_auto_no_change"))
             return
         }
         var p = params
-        p.rotation = Float(AshiftAutoDetect.rotationCorrection(forHorizonAngleDegrees: angle))
-        notice = nil
+        p.rotation = corrected
+        notice = String(localized: "toast_auto_level_applied")
+        edit.presentToast(String(localized: "toast_auto_level_applied"))
         applyDiscrete(p)
     }
 
-    /// Dominant rectangle → DLT + param fit (exactly ONE commit; nil = toast).
+    /// Dominant rectangle → DLT + param fit (exactly ONE commit; nil =
+    /// notice + GLOBAL toast. D-08-T2-1).
     private func autoPerspective() {
         guard let source = edit.detectionSourceImage() else {
             notice = String(localized: "panel_ashift_no_image")
+            edit.presentToast(String(localized: "panel_ashift_no_image"))
             return
         }
         guard let quad = AshiftAutoDetect.rectangleCorners(ciImage: source.ciImage) else {
             notice = String(localized: "panel_ashift_no_rectangle")
+            edit.presentToast(String(localized: "panel_ashift_no_rectangle"))
             return
         }
         let extent = source.ciImage.extent
@@ -236,7 +257,8 @@ internal struct AshiftPanelView: View {
         p.lensShiftV = Float(fit.shiftV)
         p.lensShiftH = Float(fit.shiftH)
         p.shear = Float(fit.shear)
-        notice = nil
+        notice = String(localized: "toast_auto_detect_applied")
+        edit.presentToast(String(localized: "toast_auto_detect_applied"))
         applyDiscrete(p)
     }
 }
