@@ -252,10 +252,14 @@ public final class ToneEqualModule: IOPModule {
         piece.data = pieceBuffer
     }
 
+    /// ROI 帧约定（L020/L021）：恒等 —— 不读 `piece.dscIn`，无 double-scale
+    /// 余地（审计结论见 05-01-DECISIONS.md D-05-01-T1）。
     public func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
         roi = input
     }
 
+    /// ROI 帧约定（L020/L021）：恒等 —— 不读 `piece.dscIn`，无 double-scale
+    /// 余地（审计结论见 05-01-DECISIONS.md D-05-01-T1）。
     public func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
         input = roi
     }
@@ -263,8 +267,12 @@ public final class ToneEqualModule: IOPModule {
     // MARK: Tile seam (Plan 03-05-T6 — TilingPlan FULL first engagement)
 
     /// dt modify_roi_in (toneequal.c:1352-1357) radius + the IIR/filter
-    /// halo requirement. radius = (blending% × full-image max-dim ×
-    /// scale − 1)/2. The halo is MORE than one radius because the EIGF
+    /// halo requirement. radius = (blending% × full-image max-dim − 1)/2,
+    /// keyed on `piece.dscIn` (the PIPE-LEVEL plane geometry — PixelPipe.run
+    /// 按 bufInROI 逐级 stamp，已含 entry 缩放 = 本 run 平面像素，dt
+    /// `piece->iwidth × roi.scale` 的换算终点) — 禁止再 ×`roi.scale`
+    /// （L021 double-scale：760 档曾 38→20，halo 137→101，预览半径偏小）。
+    /// The halo is MORE than one radius because the EIGF
     /// leg's gaussian is a RECURSIVE IIR (gaussian.c): its per-edge
     /// transient decays as exp(−1.695·distance/σ_ds) and the tile output
     /// must match whole-plane execution to <1e-6, which needs ≈14.5σ_ds
@@ -281,13 +289,12 @@ public final class ToneEqualModule: IOPModule {
         if d.details == Int32(ToneEqualDetails.none.rawValue) {
             return 0 // pure per-pixel — never needs a halo
         }
+        _ = roi // 半径只读 dscIn（本 run 平面像素）；roi 仅作签名占位
         let fullMax = Float(max(max(piece.dscIn.width, 1), max(piece.dscIn.height, 1)))
-        let diameter = d.blending * fullMax * roi.scale
+        let diameter = d.blending * fullMax
         let radius = Int((diameter - 1.0) / 2.0)
         return 4 * max(radius, 1) + 64 + 1
     }
-
-    /// mask (4 B) + quantized mask (4 B) + the ds-plane share (bilinear
     /// pairs, packed moments, gaussian planes ≈ 4 B/px of output) — 12
     /// B/px on the filter legs, mask only on NONE.
     public func tileWorkingSetBytesPerPixel(piece: IOPiece) -> Int {
@@ -378,11 +385,13 @@ public final class ToneEqualModule: IOPModule {
         let height = input.height
 
         // dt modify_roi_in (toneequal.c:1352-1357): the smoothing diameter
-        // is blending% of the FULL-IMAGE largest dimension (piece->iwidth,
-        // NOT the current ROI — the piece geometry carries the pipe-scale
-        // plane; the tile driver keeps this semantics stable under tiles).
+        // is blending% of the FULL-IMAGE largest dimension. ROI 帧约定
+        // (L020/L021)：`piece.dscIn` = 本 run 平面像素（PixelPipe.run 按
+        // bufInROI 逐级 stamp，已含 entry 缩放）= dt `piece->iwidth ×
+        // roi.scale` 的换算终点 —— 禁止再 ×`roiIn.scale`（double-scale：
+        // 760 档直径曾 38→20，预览半径偏小，质量向）。
         let fullMax = max(max(piece.dscIn.width, 1), max(piece.dscIn.height, 1))
-        let diameter = derived.blending * Float(fullMax) * roiIn.scale
+        let diameter = derived.blending * Float(fullMax)
         let radius = Int((diameter - 1.0) / 2.0)
 
         // The boost configuration per detail mode (:869-934): the AVG legs

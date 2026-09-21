@@ -76,12 +76,32 @@ internal final class PixelPipe: @unchecked Sendable {
     /// threaded through the recursion.
     internal var levelHash: [UInt64] = []
 
+    /// Forward-negotiated geometry (04-01; dt `get_dimensions` mirror,
+    /// `pixelpipe_hb.c:3368-3405`): `bufInROI[i]` = piece i's input ROI
+    /// (= dt `piece->buf_in`), `levelROI[i]` = piece i's OUTPUT ROI
+    /// (= dt `piece->buf_out`). Walked in `run()` from the entry ROI:
+    /// enabled pieces drive `modifyROIOutErased`, disabled pieces pass
+    /// through (dt `:3378-3384`). All-identity modules → every entry
+    /// equals the entry ROI (pass-through era byte-identical).
+    internal var bufInROI: [ROI] = []
+    internal var levelROI: [ROI] = []
+
     /// Cache namespace anchor (the sidecar-persisted image UUID).
     internal var imageID: UUID = UUID()
+
+    /// Entry-ROI override (04-01-T4 `roiHint`): when set, `run()` intersects
+    /// it with the scale-at-entry ROI and negotiates that sub-window
+    /// instead of the full frame. Test/probe seam only — nil in production.
+    internal var entryROIHInt: ROI?
 
     /// Highest ENABLED index — that module's output is the pipe's final
     /// output (cached even in FULL mode). -1 = everything disabled.
     internal var topEnabledPosition = -1
+
+    /// Decoded-frame ROI at entry scale (04-01-T4): the backward-negotiation
+    /// clamp bound (halo wings may exceed the hinted/forward window but
+    /// never the frame). Set in `run()` alongside `roi`.
+    internal var frameROI: ROI = ROI()
 
     /// The ROI this pipe instance is running at — set by `run`/`runIfDirty`/
     /// `runOnce` from the image extent + the resolution's long edge (scale-
@@ -302,6 +322,75 @@ internal final class PixelPipe: @unchecked Sendable {
         }
     }
 
+    /// Negotiated-ROI tile driver (04-01): the tile grid spans the OUTPUT
+    /// plane (`roiOut`), but read rects address the NEGOTIATED input plane
+    /// (`roiIn`-sized — wider than output for halo-class modules). Tile
+    /// `(x, y)` is output coords; the input sampling window is the same
+    /// tile shifted by the ROI offset `(roiOut − roiIn)` and widened by
+    /// the module halo, clamped to the input plane. Offsets cancel for
+    /// identity modules (`roiIn == roiOut`), reducing exactly to
+    /// `executeTiled`. `dscIn` stays the forward-pass plane extent
+    /// (whole-image radius semantics — the tile must not change it).
+    private func executeTiledNegotiated(
+        box: any ModuleBoxing,
+        piece: inout IOPiece,
+        input: any MTLTexture,
+        output: any MTLTexture,
+        roiIn: ROI,
+        roiOut: ROI,
+        metal: MetalContext
+    ) async throws {
+        let halo = box.tileHaloErased(roi: roiOut, piece: piece)
+        let bytesPerPixel = box.tileWorkingSetBytesPerPixelErased(piece: piece)
+        let tiles = TilingPlan.tiles(
+            forWidth: roiOut.width, height: roiOut.height,
+            maxTileBytes: maxTileWorkingBytes,
+            bytesPerPixel: bytesPerPixel,
+            overlap: halo
+        )
+        let dx = roiOut.x - roiIn.x
+        let dy = roiOut.y - roiIn.y
+        for tile in tiles where tile.width > 0 && tile.height > 0 {
+            // Output tile → input sampling window (offset + halo, clamped).
+            let rx = max(0, tile.x + dx - halo)
+            let ry = max(0, tile.y + dy - halo)
+            let rw = min(input.width - rx, tile.width + (tile.x + dx - rx) + halo)
+            let rh = min(input.height - ry, tile.height + (tile.y + dy - ry) + halo)
+
+            if tileReadSize.width != rw || tileReadSize.height != rh {
+                tileReadPlane = try Self.allocatePlane(
+                    roiOut: ROI(width: rw, height: rh, scale: roiOut.scale), metal: metal)
+                tileWritePlane = try Self.allocatePlane(
+                    roiOut: ROI(width: rw, height: rh, scale: roiOut.scale), metal: metal)
+                tileReadSize = (rw, rh)
+            }
+            guard let tileIn = tileReadPlane, let tileOut = tileWritePlane else {
+                throw MetalError.bufferAllocationFailed(rw * rh * 16)
+            }
+
+            try await blit(
+                from: input,
+                sourceOrigin: MTLOrigin(x: rx, y: ry, z: 0),
+                size: MTLSize(width: rw, height: rh, depth: 1),
+                to: tileIn, metal: metal)
+
+            let readROI = ROI(
+                x: rx, y: ry, width: rw, height: rh, scale: roiOut.scale)
+            try await box.processErased(
+                input: tileIn, output: tileOut,
+                roiIn: readROI, roiOut: readROI,
+                piece: &piece, metal: metal)
+
+            try await blit(
+                from: tileOut,
+                sourceOrigin: MTLOrigin(x: tile.x + dx - rx, y: tile.y + dy - ry, z: 0),
+                size: MTLSize(width: tile.width, height: tile.height, depth: 1),
+                to: output,
+                destinationOrigin: MTLOrigin(x: tile.x, y: tile.y, z: 0),
+                metal: metal)
+        }
+    }
+
     /// A same-format texture-to-texture blit on its own command buffer
     /// (same-queue FIFO keeps it ordered against the neighboring compute
     /// dispatches; explicit endEncoding before commit — L008).
@@ -401,21 +490,55 @@ internal final class PixelPipe: @unchecked Sendable {
         } else {
             roi = ROI(width: fullWidth, height: fullHeight, scale: 1.0)
         }
-        // Piece input geometry (the dt `piece->iwidth/iheight` analog):
-        // the PLANE extent this run renders at, stamped once before the
-        // walk. Modules derive full-image-relative quantities from it —
-        // toneequal's smoothing radius (toneequal.c:1352-1357) and the
-        // tile seam's halo (03-05-T6) key on it; a TILE must not change
-        // it (the halo exists precisely to preserve whole-image radius
-        // semantics under tiles).
-        let pieceGeometry = IOPBufferDesc(width: roi.width, height: roi.height)
-        for index in pieces.indices {
-            pieces[index].state.dscIn = pieceGeometry
+        frameROI = roi // pre-hint full entry frame = the clamp bound
+        // 04-01-T4 `roiHint`: intersect the caller-requested sub-window
+        // with the entry ROI (clamped — hints outside the frame collapse
+        // to the entry). The forward walk + recursion then negotiate the
+        // hint as the pipeline's final output ROI.
+        if let hint = entryROIHInt {
+            roi = hint.clamped(to: roi)
         }
-
+        // Forward ROI pre-computation (04-01; dt get_dimensions,
+        // `pixelpipe_hb.c:3368-3405`): walk modifyROIOut per piece from the
+        // entry ROI. Disabled pieces pass through (dt `:3378-3384`).
+        // `bufInROI[i]` feeds `dscIn` per level (dt `piece->buf_in` →
+        // `iwidth/iheight`); `levelROI[i]` is the piece's output ROI
+        // (= dt `piece->buf_out`). The recursion still negotiates per
+        // level — this pass sizes planes and stamps geometry.
+        var roiWalk = roi
+        bufInROI = []
+        levelROI = []
+        bufInROI.reserveCapacity(pieces.count)
+        levelROI.reserveCapacity(pieces.count)
+        for index in pieces.indices {
+            bufInROI.append(roiWalk)
+            pieces[index].state.dscIn = IOPBufferDesc(
+                width: roiWalk.width, height: roiWalk.height)
+            // iscale stamp (05-01-T2; dt `piece->iscale`, `pixelpipe_hb.c:505`
+            // mirror): the ENTRY scale of this run, same source as dscIn
+            // (entry-ROI scale, roiHint applied — the hint is part of the
+            // entry). Run-level constant: every piece gets the same value;
+            // the TILE drivers (executeTiled/executeTiledNegotiated) MUST
+            // NOT rewrite it (tile-local readROI.scale ≠ entry scale).
+            pieces[index].state.iscale = roi.scale
+            // Freeze the FORWARD piece state for the backward pass: the
+            // miss closures capture `pieces[index].state` by value at
+            // probe time (Swift copy), and `processRec` mutates the LIVE
+            // array during recursion — without this, a module's
+            // modifyROIIn would read the mutated processedROI stamps.
+            // (No-op today: stamps live in distinct fields; kept explicit
+            // for the 04-02/04-05 modules that read dscIn/process in hooks.)
+            var out = roiWalk
+            if pieces[index].box.enabled {
+                pieces[index].box.modifyROIOutErased(
+                    &out, input: roiWalk, piece: pieces[index].state)
+            }
+            levelROI.append(out)
+            roiWalk = out
+        }
         let final = try await processRec(
             position: pieces.count - 1,
-            roiOut: roi,
+            roiOut: roiWalk,
             metal: metal
         )
         let statsDelta = (await cache.stats) - statsBefore
@@ -481,10 +604,27 @@ internal final class PixelPipe: @unchecked Sendable {
         // skip the decode leg entirely. A scale-1.0 roi (FULL, or an image
         // smaller than its bucket) has a DIFFERENT cache key than any
         // scaled roi (the roi is part of the key), so the two never alias.
+        // 04-01: `roiOut` here is the NEGOTIATED input ROI (offset window
+        // after a crop's backward pass) — T4's sub-domain render consumes
+        // it; until then the legacy full-extent/scaled legs run.
         guard position >= 0 else {
             guard let image = decodedImage else {
                 throw MetalError.deviceUnavailable
             }
+            // 04-01-T4: negotiated sub-domain render. `roiOut` is in
+            // ENTRY-PIXEL coords, TOP-LEFT origin (scale-at-entry size
+            // when scale < 1): the source region is `roiOut ÷ scale` in
+            // DECODED pixels, flipped into CI's bottom-up coords below
+            // (extent-relative — CIRAW extents need not start at zero).
+            // Full-frame requests keep the legacy legs; everything else
+            // renders exactly its source region (CI lazy: no full-frame
+            // buffer, no window copy — the D-G2 read).
+            let fullW = max(Int(image.ciImage.extent.width), 1)
+            let fullH = max(Int(image.ciImage.extent.height), 1)
+            let scale = max(CGFloat(roiOut.scale), 1e-6)
+            let needsSubdomain =
+                roiOut.width < fullW || roiOut.height < fullH
+                || roiOut.x != 0 || roiOut.y != 0
             return try await cache.plane(
                 for: PipeCacheKey(
                     imageID: imageID, pipeType: resolution, position: 0,
@@ -493,6 +633,27 @@ internal final class PixelPipe: @unchecked Sendable {
                 byteCount: Self.planeBytes(roiOut)
             ) { [self] in
                 planesRendered += 1
+                if needsSubdomain {
+                    // ROI is top-left origin; CI extent is bottom-up
+                    // (04-04-T4 lens-shrink postmortem: passing the ROI
+                    // rect straight through renders file row H−M+r
+                    // instead of region.y+r — a row shift invisible on
+                    // y-invariant fixtures, fatal on checkerboard).
+                    let ex = image.ciImage.extent
+                    let rw = CGFloat(roiOut.width) / scale
+                    let rh = CGFloat(roiOut.height) / scale
+                    let rx = CGFloat(roiOut.x) / scale
+                    let ryTop = CGFloat(roiOut.y) / scale
+                    return try await metal.renderRegion(
+                        image.ciImage,
+                        region: CGRect(
+                            x: rx,
+                            y: ex.maxY - ryTop - rh,
+                            width: rw,
+                            height: rh),
+                        scale: scale
+                    )
+                }
                 if roiOut.scale < 1.0 {
                     return try await metal.renderToTexture(
                         image.ciImage, longEdge: max(roiOut.width, roiOut.height)
@@ -501,12 +662,8 @@ internal final class PixelPipe: @unchecked Sendable {
                 return try await metal.renderToTexture(image.ciImage)
             }
         }
-
-        let piece = pieces[position]
-
-        // (a) DISABLED SKIP — no cache-key step, no process call
-        // (Darktable `_skip_piece_on_tags`, pixelpipe_hb.c:1875-1881).
-        guard piece.box.enabled else {
+        // 04-01: passes `roiOut` straight through (dt `:3378-3384`).
+        guard pieces[position].box.enabled else {
             return try await processRec(
                 position: position - 1,
                 roiOut: roiOut,
@@ -525,8 +682,18 @@ internal final class PixelPipe: @unchecked Sendable {
             roi: roiOut
         )
         let isFinalOutput = position == topEnabledPosition
-        let box = piece.box
-
+        let box = pieces[position].box
+        var roiIn = roiOut
+        box.modifyROIInErased(output: roiOut, input: &roiIn, piece: pieces[position].state)
+        roiIn.scale = roiOut.scale
+        // 04-03 rotation fix (L020 sequel): the bound legitimizes
+        // downstream growth — a grow-module's output (rotation AABB 72 on
+        // a 64 frame) is a contract, not an over-request. Clamping to the
+        // bare frame erased it one level down (colorin passed 64 instead
+        // of 72). Halo wings keep today's behavior (union == frame when
+        // the request sits inside the frame).
+        roiIn = roiIn.clamped(to: frameROI.union(roiOut))
+        let negotiatedIn = roiIn // freeze for the @Sendable miss closure
         // (f) PER-PIPETYPE POLICY (lock #4): PREVIEW/THUMBNAIL cache every
         // plane; FULL caches input + final only (intermediates ping-pong);
         // EXPORT caches nothing. The tail plane's format follows the
@@ -537,36 +704,42 @@ internal final class PixelPipe: @unchecked Sendable {
                 for: key,
                 byteCount: Self.planeBytes(roiOut, pixelFormat: tailFormat)
             ) { [self] in
-                // (d) MISS CLOSURE — recurse upstream, then execute.
+                // (d) MISS CLOSURE — recurse upstream with the negotiated
+                // region, then execute.
                 let upstream = try await processRec(
                     position: position - 1,
-                    roiOut: roiOut,
+                    roiOut: negotiatedIn,
                     metal: metal
                 )
-                // Risk #7 invariant: pass-through era ROI identity — the
-                // input plane must match the ROI we are producing (Phase 4's
-                // ROI negotiation replaces this assert with real geometry).
-                assert(
-                    upstream.texture.width == roiOut.width
-                        && upstream.texture.height == roiOut.height,
-                    "pass-through-era ROI identity violated"
+                let upstreamW = upstream.texture.width
+                let upstreamH = upstream.texture.height
+                // 04-01-T4: exact — the base case now renders the negotiated
+                // window (sub-domain), so upstream MUST match `negotiatedIn`
+                // pixel-exact (Risk #7 retired; dt `processed_roi` mirror).
+                precondition(
+                    upstreamW == negotiatedIn.width && upstreamH == negotiatedIn.height,
+                    "negotiated ROI violated at pos \(position): roiOut=\(roiOut) negotiatedIn=\(negotiatedIn) upstream=\(upstreamW)x\(upstreamH) bufIn=\(self.bufInROI[position])"
                 )
+                pieces[position].state.processedROIIn = negotiatedIn
+                pieces[position].state.processedROIOut = roiOut
                 let output = try Self.allocatePlane(
                     roiOut: roiOut, metal: metal, pixelFormat: tailFormat
                 )
                 // (g) TILE DRIVER (03-05-T6): large-working-set FULL
                 // modules execute tile-wise (TilingPlan grid + module
                 // halo); everything else is the plain whole-plane call.
+                // The tile grid spans the module's OUTPUT plane; the read
+                // rects address the negotiated input plane (`roiIn`-sized).
                 if tileNeeded(box: box, roiOut: roiOut, piece: pieces[position].state,
                               outputFormat: tailFormat) {
-                    try await executeTiled(
+                    try await executeTiledNegotiated(
                         box: box, piece: &pieces[position].state,
                         input: upstream.texture, output: output,
-                        roiOut: roiOut, metal: metal)
+                        roiIn: negotiatedIn, roiOut: roiOut, metal: metal)
                 } else {
                     try await box.processErased(
                         input: upstream.texture, output: output,
-                        roiIn: roiOut, roiOut: roiOut,
+                        roiIn: negotiatedIn, roiOut: roiOut,
                         piece: &pieces[position].state, metal: metal
                     )
                 }
@@ -580,14 +753,16 @@ internal final class PixelPipe: @unchecked Sendable {
         // never stored.
         let upstream = try await processRec(
             position: position - 1,
-            roiOut: roiOut,
+            roiOut: roiIn,
             metal: metal
         )
-        assert(
-            upstream.texture.width == roiOut.width
-                && upstream.texture.height == roiOut.height,
-            "pass-through-era ROI identity violated"
+        precondition(
+            upstream.texture.width == roiIn.width
+                && upstream.texture.height == roiIn.height,
+            "negotiated ROI violated (uncached) at pos \(position)"
         )
+        pieces[position].state.processedROIIn = roiIn
+        pieces[position].state.processedROIOut = roiOut
         // The FINAL output (FULL only — EXPORT finals are also uncached)
         // must not alias scratch the next run overwrites: allocate fresh.
         // The display tail format applies here too (FULL 100% viewing).
@@ -599,14 +774,14 @@ internal final class PixelPipe: @unchecked Sendable {
             }
         if tileNeeded(box: box, roiOut: roiOut, piece: pieces[position].state,
                       outputFormat: tailFormat) {
-            try await executeTiled(
+            try await executeTiledNegotiated(
                 box: box, piece: &pieces[position].state,
                 input: upstream.texture, output: output,
-                roiOut: roiOut, metal: metal)
+                roiIn: roiIn, roiOut: roiOut, metal: metal)
         } else {
             try await box.processErased(
                 input: upstream.texture, output: output,
-                roiIn: roiOut, roiOut: roiOut,
+                roiIn: roiIn, roiOut: roiOut,
                 piece: &pieces[position].state, metal: metal
             )
         }
@@ -679,7 +854,8 @@ public enum RenderPipeline {
         cache: PipeCache,
         metal: MetalContext,
         longEdge: Int? = nil,
-        maxTileWorkingBytes: Int? = nil
+        maxTileWorkingBytes: Int? = nil,
+        roiHint: ROI? = nil
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
         defer { signposter.endInterval("pixelpipe", interval) }
@@ -688,6 +864,11 @@ public enum RenderPipeline {
         if let maxTileWorkingBytes {
             // Test/parametric injection of the per-tile budget (03-05-T6).
             pipe.maxTileWorkingBytes = maxTileWorkingBytes
+        }
+        if let roiHint {
+            // Test/probe seam only (04-01-T0 口径 2): clamp to the entry
+            // ROI inside `run` — FULL zoom-ROI UI surface is a later call.
+            pipe.entryROIHInt = roiHint
         }
         return try await pipe.run(
             image: image, instances: instances, metal: metal, longEdge: longEdge

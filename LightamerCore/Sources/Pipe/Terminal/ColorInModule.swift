@@ -117,10 +117,10 @@ public final class ColorInModule: IOPModule {
             input.pixelFormat == WorkingSpace.pixelFormat,
             "colorin expects \(WorkingSpace.pixelFormat.rawValue) input (FOUND-02), got \(input.pixelFormat.rawValue)"
         )
-        assert(
-            input.width == roiOut.width && input.height == roiOut.height,
-            "colorin: input dims \(input.width)×\(input.height) != roiOut \(roiOut.width)×\(roiOut.height)"
-        )
+        // 04-03: upstream geometric modules (ashift 15.0 < colorin 28.0)
+        // legitimately hand a RESIZED plane (rotation AABB) — the pipe
+        // guarantees content/roi consistency, not same-size. The copy
+        // below spans the OUTPUT plane (roiOut-sized by construction).
         #endif
         try await metal.dispatch2DTexture(
             functionName: TerminalKernels.copy,

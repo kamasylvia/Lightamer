@@ -520,3 +520,239 @@ semantic (canonical fixture × pinned gains, float64 — gen_fixtures.py refs);
 dt-cli PFM probes on the uniform flats verify dt's per-pixel semantic
 (temperature_r120_b080 on flat_0ev: (0.6, 0.5, 0.4) exact, 4e-8); the pinned
 params adoption is verified via the library DB op_params hex + -d params log.
+
+## crop + flip golden (Plan 04-02-T3, 2026-09-20)
+
+L017 host finding re-confirmed for the geometry modules: dt-cli EXR export of
+crop center-50% and flipH on the ramp shows the corruption signature (first 3
+columns exact, then phase-shifted/smear blocks, G≠R up to 0.023); both modules
+export uniform flats exactly (flip flat bit-exact; crop flat = constant window
+of a constant, vacuous). dt-side evidence is therefore XMP ADOPTION: the pinned
+XMPs (gen_fixtures.py crop/flip cases, blobs below) attach and dt logs
+"params v. 3 ok" / "params v. 2 ok" + DB op_params hex byte-identical, and the
+rebuild-dc58cf0ba1 export runs the pinned history. Track-A references are
+CPU-SYNTHESIZED (crop window / flip remap over canonical fixture bytes,
+float64 — the gate is <1e-6, index identity is exact integers).
+
+Ratio bits (crop_3x2) ride inert in v3 params until the Phase-11 export
+aligner — crop_center50 and crop_3x2 share identical reference bytes by design.
+
+### crop cases (Plan 04-02-T3, synthesized references)
+
+dt blob `<ffffii` (24 bytes, dt_iop_crop_params_t v3) — cx/cy/cw/ch are the
+ABSOLUTE fraction window (dt crop.c stores right/bottom edges, not w/h):
+
+| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |
+|---|---|---|---|
+| crop_full | `00000000000000000000803f0000803fffffffffffffffff` | `d9627f3b7f320f2a1f1c3b76aca3f4936c1c25a98356011f2163f2aa12177bf3` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| crop_center50 | `0000803e0000803e0000403f0000403fffffffffffffffff` | `ba290d8596052a951a5e78e918d010d5e87ac6ccb31fdf9f34044ef72e659ab9` | ramp_8ev:ffcf6e2a4b8d1996 flat_0ev:6db8f48081a17c94 flat_-4ev:a865d618f94f932b gray_staircase:3d762c13874223ba |
+| crop_3x2 | `0000803e0000803e0000403f0000403f0200000003000000` | `086a2532068b7d936c8fe4848dbb8782311f14f73168cfa51d8a5cfe667f4d16` | ramp_8ev:ffcf6e2a4b8d1996 flat_0ev:6db8f48081a17c94 flat_-4ev:a865d618f94f932b gray_staircase:3d762c13874223ba |
+
+### flip cases (Plan 04-02-T3, synthesized references)
+
+dt blob `<i` (4 bytes, dt_iop_flip_params_t v2) — orientation bits
+(1=flipV, 2=flipH, 4=swap-xy; 6 = swap+flipH = rotCCW90). flip_none /
+flip_v reference sha256 equal the fixture sha256 (vertical remap of the
+canonical fixtures is identity on their symmetric content and exact on
+uniforms; ramp_8ev identity here is the fixture hash itself).
+
+| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |
+|---|---|---|---|
+| flip_none | `00000000` | `df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| flip_h | `02000000` | `26b25d457597a7b0463f9620f666dd10aa2c4373a505967c7c8d70922a2d6ece` | ramp_8ev:29ac28dd44583683 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c52eb070213a5be2 |
+| flip_v | `01000000` | `67abdd721024f0ff4e0b3f4c2fc13bc5bad42d0b7851d456d88d203d15aaa450` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| flip_ccw90 | `06000000` | `7aa8ca4a02506da9133d8f889678b76f716ce45d02e22fdb7b70a15e56a0eff8` | ramp_8ev:1f04d4d7373277a7 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:41e4408b1625cc4c |
+
+## lens warp golden (Plan 04-04-T4, 2026-09-21)
+
+L017 route ① (synth-only): warp is a spatial operator — dt-cli float
+export is spatially corrupt on this host (manifest "dt-cli host finding"
+re-confirmed for geometry in 04-02-T3). Lens has NO dt-cli leg at all
+(no liblens* XMP adoption exercised in this dt build), so dt-side
+evidence reduces to: (a) the in-test uniform probes (k=0 identity exact,
+vignette flat-field analytic, CA channel direction); (b) the XML resolve
+pins in LensfunDBTests (formula同源: d-factor + hugin rescale + Hermite
+spline + IDW hand values against `mod-coord.cpp` / `mod-color.cpp` /
+`lens.cpp` / `auxfun.cpp`); (c) formula同源: the synth reference
+(`_lens_forward_radius` + `_lens_bilinear` in gen_fixtures.py) mirrors
+`LensModule.forwardRadius` + `LensKernels.metal` formula-for-formula.
+
+Coefficients are KERNEL-unit (u = (p−c)/halfW); the XML→kernel
+normalization is pinned separately in LensfunDBTests, not here.
+
+### lens cases (Plan 04-04-T4, synthesized references, gate <1e-5 warp)
+
+| case | dc1,dc2,dc3,dc4 / vr,vb / vk1,vk2,vk3 | reference sha256 (synthesized) |
+|---|---|---|
+| lens_identity | 0,0,0,0 / 1,1 / 0,0,0 | checkerboard:d9c13dcd38a1e551 flat_-4ev:b677ba768009d5bc flat_0ev:5d3098d9b2949609 gradient_ramp:4749ef33d5fe7e95 |
+| lens_distort_barrel | dc2=+0.08 | checkerboard:a98a3d782f53629d flat_-4ev:b677ba768009d5bc flat_0ev:5d3098d9b2949609 gradient_ramp:35b6318ae569c73a |
+| lens_distort_pincushion | dc2=−0.08 | checkerboard:f292868c744554da flat_-4ev:b677ba768009d5bc flat_0ev:5d3098d9b2949609 gradient_ramp:9c79fe951d034f47 |
+| lens_distort_ptlens | dc1=+0.02,dc2=−0.03,dc3=+0.01 | checkerboard:89cb8e55edc636f9 flat_-4ev:b677ba768009d5bc flat_0ev:5d3098d9b2949609 gradient_ramp:f660e82ce2bef44c |
+| lens_ca | vr=1.002,vb=0.998 | checkerboard:de94995c385b8dd6 flat_-4ev:b677ba768009d5bc flat_0ev:5d3098d9b2949609 gradient_ramp:051e00bdd9f47ad6 |
+| lens_vignette | vk=(−0.5,+0.2,−0.05) | checkerboard:1cce07ecd0a75b81 flat_-4ev:01aed854c7b1b8ff flat_0ev:91844648b604d5cd gradient_ramp:010b3d5fd41658fd |
+| lens_combo | dc2=+0.05,dc4=+0.01,vr=1.0015,vb=0.9985,vk=(−0.3,+0.1,−0.02) | checkerboard:57b9ff54b42d6c92 flat_-4ev:2a2fb555a1d3d675 flat_0ev:ec82132a36cdc334 gradient_ramp:3e4c1b70584064b2 |
+
+(identity flat/ramp refs equal the fixture hashes — zero warp is the fixture.)
+(`sha256(blob)` N/A — lens has no dt params blob; params are kernel-unit floats.)
+
+## rotate + perspective golden (Plan 04-03-T4, 2026-09-20)
+
+L017 route ① (synth-only): warp is a spatial operator — dt-cli float
+export is spatially corrupt on this host (manifest "dt-cli host finding"
+re-confirmed for geometry in 04-02-T3). ADDITIONALLY this host's dt build
+cannot load libashift at all: `libashift.so` dlopens against the missing
+symbol `_dt_opencl_copy_device_to_host` → history loader reports "the
+module 'ashift' … is not installed on this computer", so even XMP
+ADOPTION is unverifiable. dt-side evidence therefore reduces to: (a) the
+v5 blob layout verified field-by-field (`<8f2i4f200fi8f>`, 892 bytes,
+GENERIC pins orthocorr=0/aspect=1/mode=0/cropmode=0/lines=0, rot08 probe
+above); (b) the in-test uniform-flat rotation probe (flat stays
+flat+opaque under rot08 — dt's per-pixel semantic on uniforms); (c)
+formula同源: the synth reference (`_ashift_compose` + `_ashift_bilinear`
+in gen_fixtures.py) mirrors `Homography.compose` + `AshiftKernels.metal`
+formula-for-formula, and `HomographyTests` pins the CPU side <1e-9.
+
+New fixtures (this plan): `gradient_ramp.exr` (64×64 linear 0..1 ramp —
+uniform texel spacing ⇒ bilinear mid-tap signal) + `checkerboard.exr`
+(64×64, 8px cells — warp breakage shows as smeared cells).
+
+### ashift cases (Plan 04-03-T4, synthesized references, gate <1e-5 warp)
+
+dt blob `<8f2i4f200fi8f` (892 bytes, dt_iop_ashift_params_t v5) —
+rotation/lensshift_v/lensshift_h/shear/f_length/crop_factor/orthocorr/
+aspect + mode/cropmode + cl/cr/ct/cb + last_drawn_lines[200] + count +
+last_quad_lines[8]:
+
+| case | params blob (head hex) | sha256(blob) | reference sha256 (synthesized) |
+|---|---|---|---|
+| ashift_identity | `000000000000000000000000000000000000e0410000803f000000000000803f` | `67990b67cf175445` | gradient_ramp:9ee0dfb1151f8cb7 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:48361471579b90d3 |
+| ashift_rot08 | `000000410000000000000000000000000000e0410000803f000000000000803f` | `817fe8d78e322c8a` | gradient_ramp:c7a3cff33b6826f3 flat_0ev:b86b3865a5b0f24d flat_-4ev:b933228a7dc0e270 checkerboard:ce682a6311482868 |
+| ashift_rot-08 | `000000c10000000000000000000000000000e0410000803f000000000000803f` | `4d24e08132207535` | gradient_ramp:d67f1744bcbdf07a flat_0ev:09aa2123d10814e7 flat_-4ev:be98a9e5d6a20779 checkerboard:2d24004332aa5ab0 |
+| ashift_rot30 | `0000f0410000000000000000000000000000e0410000803f000000000000803f` | `b7232983df9702ab` | gradient_ramp:8f2772339aba6a1e flat_0ev:428f63a969d59d04 flat_-4ev:6aa89983bc6a09ce checkerboard:b004b807d313606b |
+| ashift_rot08_shift | `000000419a99193ecdccccbd000000000000e0410000803f000000000000803f` | `a2c749852220bd1b` | gradient_ramp:f80c4c25f32a12b7 flat_0ev:441fd6d83830920c flat_-4ev:e581f153d5800aff checkerboard:1891a5ed3b18eb6f |
+| ashift_persp | `000000009a99993e000000000ad7a33d0000e0410000803f000000000000803f` | `0dd2d785a5595973` | gradient_ramp:b1a3c84f70b8c665 flat_0ev:67c1a2bc5859f11a flat_-4ev:104f62d3399a6562 checkerboard:0d31068cd4021011 |
+| ashift_clip | `000000410000000000000000000000000000e0410000803f000000000000803f` | `e702fa070e212834` | gradient_ramp:bcfbacc5d892956b flat_0ev:2fa65d7c70db27a9 flat_-4ev:5126c6d6756d1dac checkerboard:16edc5b1811926f0 |
+
+(`sha256(blob)` truncated to 16 hex — full blobs in `input/golden/cases/ashift_*.xmp`;
+identity flat refs equal the fixture hashes — rotating a flat is the flat.)
+## detail golden (Plan 04-05-T5, 2026-09-21)
+
+L017 route ① (synth-only): ALL five are spatial operators — dt-cli float
+export is spatially corrupt on this host (manifest "dt-cli host finding"
+re-confirmed for geometry in 04-02-T3). NO dt-cli leg is exercised for
+detail (no adoption runs — the Lab-chain probe route is piece-state broken,
+manifest "shadhi PROBE ROUTE BROKEN"). dt-side evidence reduces to: (a) the
+in-test uniform probes (neutral/flat identities, vignette-style analytic
+points where applicable); (b) the dt XMP blob layouts below (field-by-field
+mirrors of the dt param structs — parameter documentation, not adoption);
+(c) formula同源: each synth reference mirrors its Swift module + Metal
+kernel formula-for-formula (IIR via `dt_gauss_coeffs` + recursion, mixes
+verbatim shapes), and the CPU derivation tests pin the σ/radius chains.
+
+Blur-base divergence (04-05-DECISIONS D1/D4): the plan mandates the shared
+Deriche-IIR `GaussianBlur` reuse — dt sharpen/highpass/soften blur with
+truncated FIR / `dt_box_mean`. The references mirror the IIR side, so
+parity proves the port correct, not dt-identical. σ chains use dt's
+published correlations (sharpen σ=radius; highpass/soften σ from the
+box-mean↔gaussian √((r(r+1)·8+2)/3) formula, BOX_ITERATIONS=8).
+
+### sharpen cases (synthesized references, gate <1e-4 IIR-mix)
+
+dt blob `<fff` (12 bytes, dt_iop_sharpen_params_t v1: radius/amount/threshold)
+↔ Lightamer `SharpenModule.Params` (JSON). Commit ×2.5 folds out:
+σ = radius·scale; rad = min(12, ceil(2.5·radius·scale)) (MAXR 12).
+Mix: `delta = L−blurL; out = L+amount·copysign(max(0,|delta|−threshold), delta)`
+(sharpen.cl:165-167). dt $DEFAULT 2.0/0.5/0.5; Lightamer neutral = amount 0
+(cache-neutral seed, blit fast path — recorded divergence).
+
+| case | params blob (hex) | reference sha256 (synthesized) |
+|---|---|---|
+| sharpen_neutral | `00000040000000000000003f` | gradient_ramp:4749ef33d5fe7e95 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:d9c13dcd38a1e551 |
+| sharpen_default | `000000400000003f0000003f` | gradient_ramp:bf2c0c08976769fb flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:0042725e7e0da7d1 |
+| sharpen_strong | `000000400000803f00000000` | gradient_ramp:aed6976658a0e0a0 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:01fd266bf423a1d0 |
+| sharpen_fine | `cdcc4c3f0000803fcdcc4c3e` | gradient_ramp:76573c73028bc25a flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:3d17de48f6cc6ef7 |
+
+### bilat cases (synthesized references, gate <1e-4 IIR-mix)
+
+dt blob `<i4f` (20 bytes, dt_iop_bilat_params_t v3: mode/sigma_r/sigma_s/
+detail/midtone) ↔ Lightamer `LocalContrastModule.Params` (detail/sigmaS/sigmaR).
+D-G3: EIGF no-mask single-iteration leg (toneequal kernels), NOT bilateral /
+local-laplacian — mode/midtone unported. sigmaS = full-res px radius;
+feathering eps = sigmaR²·4 (default 0.5 → 1.0 = toneequal default).
+`out = luma + detail·(luma − base)`. dt-cli reference N/A by construction.
+
+| case | params blob (hex) | reference sha256 (synthesized) |
+|---|---|---|
+| bilat_neutral | `010000000000003f0000a041000000000000003f` | gradient_ramp:4749ef33d5fe7e95 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:d9c13dcd38a1e551 |
+| bilat_clarity | `010000000000003f0000a0410000803f0000003f` | gradient_ramp:02ba6c23f89aacb9 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:630c902a02f6375d |
+| bilat_soften | `010000000000003f0000a041000000bf0000003f` | gradient_ramp:37cee40ce14c5a5b flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:4e44657900d41e31 |
+| bilat_tight | `010000009a99993e000000410000803f0000003f` | gradient_ramp:f7d648f138033b9a flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:d29e25a769d69e71 |
+
+### highpass cases (synthesized references, gate <1e-4 IIR-mix)
+
+dt blob `<ff` (8 bytes, dt_iop_highpass_params_t v1: sharpness/contrast)
+↔ Lightamer `HighpassModule.Params` (TWO params — the plan's
+"contrast/center/radius" triple is a source erratum). Radius chain:
+rad = 16·min(100,sharpness+1)/100, radius = min(16,ceil(rad·scale)),
+σ = √((radius·(radius+1)·8+2)/3). CL mix (`highpass.cl:157`):
+`o.x = 50+((0.5a+0.5b)−50)·contrast_scale`, a/b → 0,
+contrast_scale = (contrast/100)·7.5. contrast 0 ⇒ flat 50-gray (no
+zero-param identity — identity via disabled piece only).
+
+| case | params blob (hex) | reference sha256 (synthesized) |
+|---|---|---|
+| highpass_default | `0000484200004842` | gradient_ramp:977a074f7a72095d flat_0ev:95b31c6fda17dbdd flat_-4ev:95b31c6fda17dbdd checkerboard:d9c13dcd38a1e551 |
+| highpass_strong | `0000a0420000a042` | gradient_ramp:59bb72ff65a2967f flat_0ev:95b31c6fda17dbdd flat_-4ev:95b31c6fda17dbdd checkerboard:d9c13dcd38a1e551 |
+| highpass_fine | `0000a0410000f041` | gradient_ramp:1ca3ee413a2112e9 flat_0ev:95b31c6fda17dbdd flat_-4ev:95b31c6fda17dbdd checkerboard:2fca303844fa3a7e |
+
+### soften cases (synthesized references, gate <1e-4 IIR-mix)
+
+dt blob `<4f` (16 bytes, dt_iop_soften_params_t v1: size/saturation/
+brightness/amount) ↔ Lightamer `SoftenModule.Params`. Radius chain:
+mrad = hypot(dscIn)·0.01, rad = mrad·min(100,size+1)/100,
+radius = min(mrad,ceil(rad·scale)), same σ correlation. RGB LINEAR
+domain (no Lab). Mix: `out = amt·blurred+(1−amt)·in` (imagebuf.c:452).
+Flat probe (D5): saturation 100 + brightness 0 ⇒ overexposed+blur preserve
+flats ⇒ ANY amount is identity (vacuous for any DC-1 blur — no dt-cli leg).
+
+| case | params blob (hex) | reference sha256 (synthesized) |
+|---|---|---|
+| soften_neutral | `000048420000c842c3f5a83e00000000` | gradient_ramp:4749ef33d5fe7e95 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:d9c13dcd38a1e551 |
+| soften_default | `000048420000c842c3f5a83e00004842` | gradient_ramp:a4ddf6447307b24e flat_0ev:cf75b4f314364687 flat_-4ev:27c5b283f20556a9 checkerboard:6ab7bc4947ac85e5 |
+| soften_flatprobe | `000048420000c8420000000000004842` | gradient_ramp:25b8e4994c340651 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:6ab7bc4947ac85e5 |
+| soften_strong | `0000a0420000a0420000003f0000a042` | gradient_ramp:cfd3d896cf1395d2 flat_0ev:ac8c3a0427c69de0 flat_-4ev:18320a2e1a35f2af checkerboard:ed47b8ffa9fe4468 |
+
+### equalizer cases (synthesized references, gate <1e-4 IIR-mix)
+
+NO dt blob in v1 (D10 — single L gain set vs dt 3×6 curves; forcing a blob
+is meaningless). Pyramid: prep + chained IIR (σ 1/2/4/8/16) + 6 gains
+(5 residuals + coarse). All-zero deltas ⇒ blit identity (bit-exact gate);
+the telescopic recombine holds to float rounding otherwise. Pure gaussian
+bands — no eaw `gweight` edge weights (recorded divergence, stretch: EIGF).
+
+| case | gains (1+delta) | reference sha256 (synthesized) |
+|---|---|---|
+| equalizer_neutral | `1,1,1,1,1,1` | gradient_ramp:4749ef33d5fe7e95 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:488ec4edae2e59b6 |
+| equalizer_fine_boost | `1.5,1,1,1,1,1` | gradient_ramp:c02c9758b1863e05 flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:01360538ab3c7ee1 |
+| equalizer_coarse_boost | `1,1,1,1,1.5,1` | gradient_ramp:1ca7dc460a63d45a flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:31b6629f63597a6a |
+| equalizer_mid_cut | `1,1,0.5,0.5,1,1` | gradient_ramp:6b0f524944205e1c flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc checkerboard:57bea60b2dbefcf2 |
+
+
+## Phase 4 golden 完整性总账（Plan 04-07-T1 核对，2026-09-21）
+
+> 逐模块：轨 A 来源 + 容差 + probe 记录指针。全模块 L017 合成路线（空间算子在本机构建必触 dt-cli 空间损坏；
+> crop/flip 另有均匀平场 probe + XMP 采纳实证；ashift 连采纳都不可用（libashift dlopen 缺符号））。
+
+| 模块 | cases × fixtures | 轨 A 来源 | 容差 | probe/采纳记录 | manifest 节 |
+|---|---|---|---|---|---|
+| crop | 3 × 4（ramp/flat_0/flat_-4/gray） | 合成（窗口裁剪，float64） | <1e-6 | 均匀平场精确 + XMP v3 采纳（DB hex + params ok） | `## crop + flip golden` |
+| flip | 4 × 4（同上） | 合成（索引 remap，float64） | <1e-6 | flat bit-exact + XMP v2 采纳 | `## crop + flip golden` |
+| ashift | 7 × 4（gradient_ramp/flat_0/flat_-4/checkerboard） | 合成（compose + bilinear，float64） | <1e-5/<1e-5 | 均匀平场旋转 probe + v5 blob 版式校验（无采纳：libashift 缺符号） | `## rotate + perspective golden` |
+| lens | 7 × 4（checkerboard/flat/ramp） | 合成（forwardRadius + bilinear，float64） | <1e-5/<1e-5 warp | k=0 恒等 + vignette 解析点 + CA 方向（in-test）；XML→kernel 归一钉 LensfunDBTests | `## lens warp golden` |
+| sharpen | 4 × 4（同 ashift fixture） | 合成（Lab prep + IIR + mix，float64） | <1e-4/<1e-4 | amount=0/平场恒等（in-test）；XMP 仅参数文档（无采纳） | `## detail golden/sharpen` |
+| bilat | 4 × 4 | 合成（EIGF no-mask 单迭代，float64） | <1e-4 | detail=0 逐字节 + 台阶方向 + 分块一致（in-test） | `## detail golden/bilat` |
+| highpass | 3 × 4 | 合成（IIR + CL mix，float64） | <1e-4 | 方向/半径链（in-test）；plan 三参字面勘误（两参为准） | `## detail golden/highpass` |
+| soften | 4 × 4 | 合成（RGB 线性 + IIR + mix，float64） | <1e-4 | 平场恒等先验（D5，dt-cli probe 免跑） | `## detail golden/soften` |
+| equalizer | 4 × 4 | 合成（金字塔分解合成，float64） | <1e-4 | 全零 blit 恒等 + 带能量内容断言（in-test）；无 dt blob（D10） | `## detail golden/equalizer` |
+
+核对结论：9/9 有账（轨 A 合成 refs sha256 + blob 版式 + 容差档全在上表节内）；soften dt-cli probe 免跑先验结论落 04-05-DECISIONS D5。

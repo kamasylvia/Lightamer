@@ -72,6 +72,19 @@ public protocol ModuleBoxing: AnyObject, Sendable {
 
     /// Erased `tileWorkingSetBytesPerPixel` (03-05-T6 tile seam).
     func tileWorkingSetBytesPerPixelErased(piece: IOPiece) -> Int
+
+    /// Erased `modifyROIOut` (04-01 ROI negotiation seam): the pipe's
+    /// forward pass (`run()` pre-computation, dt get_dimensions mirror)
+    /// drives geometry through this — crop-like modules shrink the ROI,
+    /// canvas-growers expand it. Default-identity modules are no-ops.
+    func modifyROIOutErased(_ roi: inout ROI, input: ROI, piece: IOPiece)
+
+    /// Erased `modifyROIIn` (04-01 ROI negotiation seam): the pipe's
+    /// backward pass (`processRec` miss closure, dt `:2085-2096` mirror)
+    /// asks what input region is needed to produce `output`. Halo-class
+    /// modules widen it; the pipe clamps to the upstream plane.
+    func modifyROIInErased(output roi: ROI, input: inout ROI, piece: IOPiece)
+
 }
 
 /// The generic box: wraps one concrete `IOPModule` instance + its committed
@@ -212,5 +225,13 @@ public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
 
     public func tileWorkingSetBytesPerPixelErased(piece: IOPiece) -> Int {
         module.tileWorkingSetBytesPerPixel(piece: piece)
+    }
+
+    public func modifyROIOutErased(_ roi: inout ROI, input: ROI, piece: IOPiece) {
+        module.modifyROIOut(&roi, input: input, piece: piece)
+    }
+
+    public func modifyROIInErased(output roi: ROI, input: inout ROI, piece: IOPiece) {
+        module.modifyROIIn(output: roi, input: &input, piece: piece)
     }
 }

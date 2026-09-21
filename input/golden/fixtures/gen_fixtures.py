@@ -45,6 +45,7 @@ import base64
 import binascii
 import math
 import os
+import random
 import struct
 import sys
 
@@ -277,6 +278,171 @@ def gen_deep_shadow(outdir: str) -> None:
     write_exr(os.path.join(outdir, "deep_shadow.exr"), width, height, px)
 
 
+def gen_gradient_ramp(outdir: str) -> None:
+    # 64×64 HORIZONTAL gradient ramp 0..1 (ashift warp 靶 — the warp
+    # sampler's per-pixel identity is only provable on varying content;
+    # v(x) = x/63 floats, written raw = canonical (no Rec709 pre-image:
+    # warp fixtures bypass the dt round-trip entirely, L017 route).
+    # NOTE: the ramp_8ev fixture keeps its power-of-two grid for the
+    # exposure probe; this linear ramp serves the warp parity (uniform
+    # texel spacing ⇒ bilinear weights land mid-tap, max interpolation
+    # signal).
+    write_exr(
+        os.path.join(outdir, "gradient_ramp.exr"), 64, 64,
+        lambda x, y: (x / 63.0, x / 63.0, x / 63.0),
+    )
+
+
+def gen_checkerboard(outdir: str) -> None:
+    # 64×64 checkerboard, 8px cells (warp aliasing/visibility 靶 — a
+    # rotated checkerboard shows sampling breakage as smeared cells;
+    # binary values make any smoothing exactly measurable).
+    write_exr(
+        os.path.join(outdir, "checkerboard.exr"), 64, 64,
+        lambda x, y: (1.0, 1.0, 1.0) if ((x // 8) + (y // 8)) % 2 == 0 else (0.0, 0.0, 0.0),
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 5 denoise fixtures (Plan 05-01-T5) — 加噪器 + hue/delta/torture
+# ──────────────────────────────────────────────────────────────────────
+#
+# 加噪器：`poisson_gaussian_noise(img, a, b, seed)` —— `var = a·I + b`
+# （dt noiseprofiles.json 标定域 = 传感器线性域，RESEARCH §2），
+# `random.Random(seed)` 高斯流（stdlib 确定性：同 seed → 逐值一致；
+# 高斯近似 Poisson-Gaussian —— 剖面加噪的工程惯例，方差精确、均值无偏）。
+# 逐通道独立（R/G/B 各自流）。输出走既有 uncompressed writer（float32）。
+#
+# Gaussians via Box-Muller over random.Random (stdlib-only — the fixture
+# generator stays zero-dependency like the rest of this file).
+
+
+def _gauss_stream(seed: int):
+    rng = random.Random(seed)
+    while True:
+        u1 = max(rng.random(), 1e-12)
+        u2 = rng.random()
+        r = math.sqrt(-2.0 * math.log(u1))
+        yield r * math.cos(2.0 * math.pi * u2)
+        yield r * math.sin(2.0 * math.pi * u2)
+
+
+def poisson_gaussian_noise(img, a, b, seed):
+    """逐通道 Poisson-Gaussian 加噪：`out = img + N(0, a·I + b)`。
+    `img` = (R, G, B) 三通道行主序 float 列表；`a`/`b` = 三元组；
+    `seed` = 整数种子（通道 c 用 seed+c 独立流）。返回同形三通道列表。
+    """
+    out = []
+    for c in range(3):
+        g = _gauss_stream(seed + c)
+        ch = []
+        for v in img[c]:
+            var = max(a[c] * v + b[c], 0.0)
+            ch.append(v + math.sqrt(var) * next(g))
+        out.append(ch)
+    return out
+
+
+# 剖面钉参：ILCE-9M3 ISO 125 / ISO 1600（T3 规范化产物的真实档 —
+# 加噪集的 a/b authority = bundle noiseprofiles.json；此处硬编码值
+# 与 bundle 一致，统计检验以同值为准）。
+NOISE_TIERS = (
+    ("iso125", 125, (7.65705497686894e-06, 1.54601975602981e-06, 2.30077680147848e-06),
+     (2.00608030560566e-09, 3.03636277807135e-09, 4.74823179066283e-09)),
+    ("iso1600", 1600, (2.99037019802356e-05, 8.86355041404361e-06, 1.37779541937624e-05),
+     (4.43124422276964e-08, 2.60617465248865e-08, 3.62731233591954e-08)),
+)
+
+NOISE_SEED = 20260921
+NOISE_SOURCES = ("ramp_8ev", "flat_-4ev", "flat_-8ev", "gray_staircase")
+
+
+def gen_noisy_fixtures(outdir: str, canonical_dir: str = "") -> None:
+    """加噪 fixture 集：canonical 子集（≥3 张）× 真实剖面档 2 档 → ≥6 张。
+    源图读 canonical EXR（`read_exr_rgb`），加噪后写
+    `<src>__noisy_<tier>_s<seed>.exr`。manifest 登记种子与剖面参数。
+    """
+    base = canonical_dir or outdir
+    for src in NOISE_SOURCES:
+        w, h, rgb = read_exr_rgb(os.path.join(base, src + ".exr"))
+        for tier, iso, a, b in NOISE_TIERS:
+            noisy = poisson_gaussian_noise(rgb, a, b, NOISE_SEED)
+            name = f"{src}__noisy_{tier}_s{NOISE_SEED}.exr"
+
+            def px(x, y, w=w, noisy=noisy):
+                idx = y * w + x
+                return (noisy[0][idx], noisy[1][idx], noisy[2][idx])
+
+            write_exr(os.path.join(outdir, name), w, h, px)
+
+
+def gen_hue_sweep(outdir: str) -> None:
+    """hue 全环 sweep 渐变（色相域覆盖，喂自研 parity —— 无 L017 风险）：
+    360×64，H = x/360 全环（S=V=1 HSV→RGB），中性行锚定。
+    """
+
+    def px(x, y):
+        h = (x % 360) / 360.0
+        return _hsv_to_rgb(h, 1.0, 1.0)
+
+    write_exr(os.path.join(outdir, "hue_sweep.exr"), 360, 64, px)
+
+
+def _hsv_to_rgb(h, s, v):
+    i = int(h * 6.0) % 6
+    f = h * 6.0 - int(h * 6.0)
+    p, q, t = v * (1.0 - s), v * (1.0 - f * s), v * (1.0 - (1.0 - f) * s)
+    if i == 0:
+        return (v, t, p)
+    if i == 1:
+        return (q, v, p)
+    if i == 2:
+        return (p, v, t)
+    if i == 3:
+        return (p, q, v)
+    if i == 4:
+        return (t, p, v)
+    return (v, p, q)
+
+
+def gen_delta_impulse(outdir: str) -> None:
+    """delta 脉冲图（nlmeans/bilateral 核响应）：64×64 中灰 0.18 上单白脉冲
+    （中心 1.0）+ 单黑脉冲（1/4 处 0.0）——核支撑/响应的直接探针。
+    """
+    w = h = 64
+
+    def px(x, y):
+        if x == 32 and y == 32:
+            return (1.0, 1.0, 1.0)
+        if x == 16 and y == 16:
+            return (0.0, 0.0, 0.0)
+        return (0.18, 0.18, 0.18)
+
+    write_exr(os.path.join(outdir, "delta_impulse.exr"), w, h, px)
+
+
+def gen_shadow_torture(outdir: str) -> None:
+    """深阴影噪声 torture crop（SC#3 torture 直指，64-128px 级）：
+    96×96 深阴影梯度（2^-8..2^-5）叠加 ISO 1600 档噪声（种子化）——
+    denoise 最难区的直接靶。
+    """
+    w = h = 96
+    base = []
+    for y in range(h):
+        for x in range(w):
+            v = 2.0 ** (-8.0 + 3.0 * (x + y) / (w + h - 2))
+            base.append(v)
+    img = [list(base), list(base), list(base)]
+    _, _, a, b = NOISE_TIERS[1]
+    noisy = poisson_gaussian_noise(img, a, b, NOISE_SEED + 7)
+
+    def px(x, y, w=w, noisy=noisy):
+        idx = y * w + x
+        return (noisy[0][idx], noisy[1][idx], noisy[2][idx])
+
+    write_exr(os.path.join(outdir, "shadow_torture.exr"), w, h, px)
+
+
 def gen_gray_staircase(outdir: str) -> None:
     # 12 neutral steps, geometric-ish spread (WB 吸管靶).
     levels = [0.02, 0.04, 0.07, 0.10, 0.18, 0.25, 0.35, 0.50, 0.65, 0.80, 0.90, 1.00]
@@ -291,7 +457,6 @@ def gen_gray_staircase(outdir: str) -> None:
 
 
 def gen_stair_1d(outdir: str) -> None:
-    # 10001-point 1D staircase (曲线 LUT 靶): W = 10001, H = 2.
     points = 10001
 
     def px(x, y):
@@ -386,6 +551,58 @@ def temperature_params_blob(
     return binascii.hexlify(packed).decode("ascii")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Crop + flip (Plan 04-02-T3) — dt_iop_crop_params_t v3 (24 bytes:
+# cx/cy/cw/ch floats + ratio_n/ratio_d ints) + dt_iop_flip_params_t v2
+# (4 bytes: orientation int). L017 route: dt-cli float export is
+# spatially corrupt on this host (ramp PFM/EXR probe 2026-09-20), so
+# track-A references are CPU-synthesized below; dt-side evidence = XMP
+# adoption (DB op_params hex + "params v. N ok") + flat probes.
+# ──────────────────────────────────────────────────────────────────────
+
+CROP_PARAMS_FORMAT = "<ffffii"
+CROP_MODVERSION = 3
+CROP_IOP_ORDER = 24.5
+
+FLIP_PARAMS_FORMAT = "<i"
+FLIP_MODVERSION = 2
+FLIP_IOP_ORDER = 16.0
+
+
+def crop_params_blob(cx, cy, cw, ch, ratio_n=-1, ratio_d=-1) -> str:
+    """dt_iop_crop_params_t v3 → lowercase HEX ASCII (24 bytes)."""
+    packed = struct.pack(CROP_PARAMS_FORMAT, cx, cy, cw, ch, ratio_n, ratio_d)
+    assert len(packed) == 24, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def flip_params_blob(orientation) -> str:
+    """dt_iop_flip_params_t v2 → lowercase HEX ASCII (4 bytes)."""
+    packed = struct.pack(FLIP_PARAMS_FORMAT, orientation)
+    assert len(packed) == 4, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# The crop 钉参组 (plan T3 action 2): full-frame / center 50% / 3:2-ratio
+# center window (ratio bits ride inert until the Phase-11 export aligner;
+# the overlay enforces the ratio at edit time).
+CROP_CASES = [
+    # (case name, cx, cy, cw, ch, ratio_n, ratio_d)
+    ("crop_full", 0.0, 0.0, 1.0, 1.0, -1, -1),
+    ("crop_center50", 0.25, 0.25, 0.75, 0.75, -1, -1),
+    ("crop_3x2", 0.25, 0.25, 0.75, 0.75, 2, 3),
+]
+
+# The flip 钉参组 (plan T3 action 2): none / flipH / flipV / rotCCW90 —
+# the 4 representative states (the other 4 ride the same kernel path;
+# FlipParityTests covers all 8 in-pipe).
+FLIP_CASES = [
+    # (case name, orientation bits)
+    ("flip_none", 0),
+    ("flip_h", 2),
+    ("flip_v", 1),
+    ("flip_ccw90", 6),
+]
 XMP_TEMPLATE = """<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Lightamer golden fixture gen">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -550,7 +767,32 @@ def gen_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
             f.write(xmp)
-    gen_tonecurve_cases(outdir)
+    for name, cx, cy, cw, ch, rn, rd in CROP_CASES:
+        params = crop_params_blob(cx, cy, cw, ch, rn, rd)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="crop",
+            modversion=CROP_MODVERSION,
+            params=params,
+            iop_order=f"{CROP_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, name + ".xmp"), "w") as f:
+            f.write(xmp)
+    for name, orientation in FLIP_CASES:
+        params = flip_params_blob(orientation)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="flip",
+            modversion=FLIP_MODVERSION,
+            params=params,
+            iop_order=f"{FLIP_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, name + ".xmp"), "w") as f:
+            f.write(xmp)
+    gen_ashift_cases(outdir)
+    gen_detail_cases(outdir)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -649,8 +891,1110 @@ def gen_temperature_refs(canonical_dir: str, out_dir: str) -> None:
             write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
 
 
+# Fixtures the crop/flip references cover: the ramp (spatially varying —
+# the window/remap identity is only provable on varying content) + the
+# uniform flats (dt trustworthy there; doubles as the probe cross-check).
+CROP_FLIP_REF_FIXTURES = [
+    "ramp_8ev", "flat_0ev", "flat_-4ev", "gray_staircase",
+]
+
+
+def _crop_window(w, h, cx, cy, cw, ch):
+    """dt crop.c:517-531 forward (minus the Phase-11 export aligner)."""
+    x = max(0, int(w * cx))
+    y = max(0, int(h * cy))
+    ww = max(4, int(w * (cw - cx)))
+    hh = max(4, int(h * (ch - cy)))
+    return x, y, ww, hh
+
+
+def _flip_remap(x, y, w, h, orientation):
+    """dt basic.cl:2948-2960 forward map (flip X/Y, then swap)."""
+    ox = (w - x - 1) if (orientation & 2) else x
+    oy = (h - y - 1) if (orientation & 1) else y
+    if orientation & 4:
+        ox, oy = oy, ox
+    return ox, oy
+
+
+def gen_crop_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the crop golden REFERENCES: the canonical fixture's
+    crop window (dt forward math above), written with this script's EXR
+    writer. The reference SHAPE is the window (ww × hh) — the Lightamer
+    leg renders `[crop]` through the pipe and compares same-size planes.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, cx, cy, cw, ch, _rn, _rd in CROP_CASES:
+        for fixture in CROP_FLIP_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            x0, y0, ww, hh = _crop_window(w, h, cx, cy, cw, ch)
+
+            def px(x, y, rgb=rgb, w=w, x0=x0, y0=y0):
+                idx = (y + y0) * w + (x + x0)
+                return (rgb[0][idx], rgb[1][idx], rgb[2][idx])
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), ww, hh, px)
+
+
+def gen_flip_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the flip golden REFERENCES: the canonical fixture
+    remapped by the dt kernel swizzle (90° states transpose the shape).
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, orientation in FLIP_CASES:
+        for fixture in CROP_FLIP_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            ow, oh = (h, w) if (orientation & 4) else (w, h)
+
+            def px(x, y, rgb=rgb, w=w, h=h, ow=ow, oh=oh, orientation=orientation):
+                # Output (x,y) reads input = backward map (swap, then
+                # flip against the POST-swap = output dims).
+                sx, sy = x, y
+                sw, sh = ow, oh
+                if orientation & 4:
+                    sx, sy = sy, sx
+                    sw, sh = sh, sw
+                if orientation & 2:
+                    sx = sw - sx - 1
+                if orientation & 1:
+                    sy = sh - sy - 1
+                idx = sy * w + sx
+                return (rgb[0][idx], rgb[1][idx], rgb[2][idx])
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), ow, oh, px)
+
+
 # ──────────────────────────────────────────────────────────────────────
-# Lab-domain reference math (Plan 03-03-T1/T2) — the float64 mirror of
+# Ashift warp (Plan 04-03-T4) — dt _homography (ashift.c:756-979, GENERIC
+# fold) in float64 + texel-center bilinear with clamped taps +
+# transparent-outside, mirroring AshiftKernels.metal + Homography.swift
+# formula-for-formula (L017 route ① — warp is a spatial operator, dt-cli
+# float export spatially corrupt on this host; dt-side evidence = XMP
+# adoption + flat rotation probe, manifest §ashift).
+#
+# Frame convention (L020, Homography.swift header): forward matrix maps
+# bufIn-frame → full-output-frame (step-10 offset included); the module's
+# modifyROIOut keeps x/y and resizes to the forward AABB × clip; process
+# re-bases per pixel (oroi + clip → Hinv → −iroi). The reference below
+# renders the FULL pipeline contract: forward AABB sizing + inverse warp.
+# ──────────────────────────────────────────────────────────────────────
+
+ASHIFT_MODVERSION = 5
+ASHIFT_IOP_ORDER = 15.0
+ASHIFT_PARAMS_FORMAT = "<ffffffffii4f200fi8f"
+
+
+def ashift_params_blob(rotation, lensshift_v=0.0, lensshift_h=0.0, shear=0.0,
+                       f_length=28.0, crop_factor=1.0, mode=0, cropmode=0,
+                       cl=0.0, cr=1.0, ct=0.0, cb=1.0) -> str:
+    """dt_iop_ashift_params_t v5 → lowercase HEX ASCII.
+
+    v5 layout: rotation/lensshift_v/lensshift_h/shear/f_length/
+    crop_factor/orthocorr/aspect (8f) + mode/cropmode (ii) + cl/cr/ct/cb
+    (4f) + last_drawn_lines[200] (200f) + count (i) + last_quad_lines[8]
+    (8f). GENERIC cases pin orthocorr=0/aspect=1/mode=0/cropmode=0/lines=0.
+    """
+    floats = [rotation, lensshift_v, lensshift_h, shear, f_length,
+              crop_factor, 0.0, 1.0]
+    ints = [mode, cropmode]
+    clip = [cl, cr, ct, cb]
+    lines = [0.0] * 200
+    quad = [0.0] * 8
+    packed = struct.pack(
+        "<ffffffffii4f200fi8f",
+        *(floats + ints + clip + lines + [0] + quad))
+    assert len(packed) == 8 * 4 + 2 * 4 + 4 * 4 + 200 * 4 + 4 + 8 * 4, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# The ashift 钉参组 (plan T4 action 2): identity / ±rotations /
+# rot+shift / perspective-ish shear+shift / inner-clip window.
+ASHIFT_CASES = [
+    # (case name, rotation, lensshift_v, lensshift_h, shear, cl, cr, ct, cb)
+    ("ashift_identity", 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_rot08", 8.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_rot-08", -8.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_rot30", 30.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_rot08_shift", 8.0, 0.15, -0.1, 0.0, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_persp", 0.0, 0.3, 0.0, 0.08, 0.0, 1.0, 0.0, 1.0),
+    ("ashift_clip", 8.0, 0.0, 0.0, 0.0, 0.1, 0.9, 0.05, 0.95),
+]
+
+ASHIFT_REF_FIXTURES = [
+    "gradient_ramp", "flat_0ev", "flat_-4ev", "checkerboard",
+]
+
+
+def _ashift_mat_mul(a, b):
+    """dt mat3mul (math.h:213-228): dest = a * b, row-major."""
+    o = [0.0] * 9
+    for k in range(3):
+        for i in range(3):
+            s = 0.0
+            for j in range(3):
+                s += a[3 * k + j] * b[3 * j + i]
+            o[3 * k + i] = s
+    return o
+
+
+def _ashift_compose(rotation, shift_v, shift_h, shear, f_length_kb, width, height):
+    """dt _homography (ashift.c:756-979) GENERIC fold in float64 — mirrors
+    Homography.compose step-for-step (steps 5/8/9 run identity arithmetic).
+    Returns the FORWARD row-major 3×3."""
+    u, v = float(width), float(height)
+    phi = math.radians(rotation)
+    cosi, sini = math.cos(phi), math.sin(phi)
+    exppa_v = math.exp(shift_v)
+    fdb_v = f_length_kb / (14.4 + (v / u - 1.0) * 7.2)
+    rad_v = fdb_v * (exppa_v - 1.0) / (exppa_v + 1.0)
+    alpha_v = max(min(math.atan(rad_v), 1.5), -1.5)
+    exppa_h = math.exp(shift_h)
+    minput = [0, 1, 0, 1, 0, 0, 0, 0, 1]
+    mwork = [cosi, -sini, -0.5 * v * cosi + 0.5 * u * sini + 0.5 * v,
+             sini, cosi, -0.5 * v * sini - 0.5 * u * cosi + 0.5 * u,
+             0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, minput)
+    mwork = [1, shear, 0, shear, 1, 0, 0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [exppa_v, 0, 0,
+             0.5 * ((exppa_v - 1.0) * u) / v, 2.0 * exppa_v / (exppa_v + 1.0),
+             -0.5 * ((exppa_v - 1.0) * u) / (exppa_v + 1.0),
+             (exppa_v - 1.0) / v, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [1, 0, 0, 0, 1, 0.5 * u * 0.0, 0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [0, 1, 0, 1, 0, 0, 0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [exppa_h, 0, 0,
+             0.5 * ((exppa_h - 1.0) * v) / u, 2.0 * exppa_h / (exppa_h + 1.0),
+             -0.5 * ((exppa_h - 1.0) * v) / (exppa_h + 1.0),
+             (exppa_h - 1.0) / u, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [1, 0, 0, 0, 1, 0.5 * v * 0.0, 0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    mwork = [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    moutput = _ashift_mat_mul(mwork, moutput)
+    corners = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)] \
+        if width > 1 and height > 1 else [(0, 0)]
+    umin = min((_ashift_apply(moutput, x, y)[0] / _ashift_apply(moutput, x, y)[2]) for x, y in corners)
+    vmin = min((_ashift_apply(moutput, x, y)[1] / _ashift_apply(moutput, x, y)[2]) for x, y in corners)
+    moutput = _ashift_mat_mul([1, 0, -umin, 0, 1, -vmin, 0, 0, 1], moutput)
+    return moutput
+
+
+def _ashift_apply(m, x, y):
+    return (m[0] * x + m[1] * y + m[2],
+            m[3] * x + m[4] * y + m[5],
+            m[6] * x + m[7] * y + m[8])
+
+
+def _ashift_project(m, x, y):
+    a, b, w = _ashift_apply(m, x, y)
+    return (a / w, b / w)
+
+
+def _ashift_invert(m):
+    """dt mat3inv (matrices.c:53-88) in float64."""
+    def A(y, x):
+        return m[(y - 1) * 3 + (x - 1)]
+    det = (A(1, 1) * (A(3, 3) * A(2, 2) - A(3, 2) * A(2, 3))
+           - A(2, 1) * (A(3, 3) * A(1, 2) - A(3, 2) * A(1, 3))
+           + A(3, 1) * (A(2, 3) * A(1, 2) - A(2, 2) * A(1, 3)))
+    assert abs(det) >= 1e-7, "singular homography in fixture synthesis"
+    inv = 1.0 / det
+    return [
+        inv * (A(3, 3) * A(2, 2) - A(3, 2) * A(2, 3)),
+        -inv * (A(3, 3) * A(1, 2) - A(3, 2) * A(1, 3)),
+        inv * (A(2, 3) * A(1, 2) - A(2, 2) * A(1, 3)),
+        -inv * (A(3, 3) * A(2, 1) - A(3, 1) * A(2, 3)),
+        inv * (A(3, 3) * A(1, 1) - A(3, 1) * A(1, 3)),
+        -inv * (A(2, 3) * A(1, 1) - A(2, 1) * A(1, 3)),
+        inv * (A(3, 2) * A(2, 1) - A(3, 1) * A(2, 2)),
+        -inv * (A(3, 2) * A(1, 1) - A(3, 1) * A(1, 2)),
+        inv * (A(2, 2) * A(1, 1) - A(2, 1) * A(1, 2)),
+    ]
+
+
+def _ashift_bilinear(src_rgb, w, h, sx, sy):
+    """Pixel-center bilinear with clamped taps; None when outside
+    [-0.5, w-0.5) x [-0.5, h-0.5) — mirrors ashift_sample_clamped (D4).
+    Integer coords hit texel centers exactly (identity-exact)."""
+    if sx < -0.5 or sy < -0.5 or sx >= w - 0.5 or sy >= h - 0.5:
+        return None
+    fx = min(max(sx, 0.0), w - 1)
+    fy = min(max(sy, 0.0), h - 1)
+    x0, y0 = int(math.floor(fx)), int(math.floor(fy))
+    x1, y1 = min(x0 + 1, w - 1), min(y0 + 1, h - 1)
+    tx, ty = fx - x0, fy - y0
+
+    def at(x, y):
+        idx = y * w + x
+        return (src_rgb[0][idx], src_rgb[1][idx], src_rgb[2][idx])
+    p00, p10, p01, p11 = at(x0, y0), at(x1, y0), at(x0, y1), at(x1, y1)
+    top = tuple(p00[c] + (p10[c] - p00[c]) * tx for c in range(3))
+    bot = tuple(p01[c] + (p11[c] - p01[c]) * tx for c in range(3))
+    return tuple(top[c] + (bot[c] - top[c]) * ty for c in range(3))
+
+
+def gen_ashift_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the ashift golden REFERENCES: forward AABB sizing +
+    inverse-homography bilinear warp over the canonical fixture bytes in
+    float64 (the gate is <1e-5, warp class). Output shape = the forward
+    AABB (x clip fraction) — the Lightamer leg renders [colorin, ashift]
+    through the pipe and compares same-size planes. Transparent-outside
+    pixels write (0,0,0) RGB (alpha rides separately — the RGBA leg is
+    pinned in AshiftParityTests, not in these RGB EXRs)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, rot, sv, sh, shear, cl, cr, ct, cb in ASHIFT_CASES:
+        for fixture in ASHIFT_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            fwd = _ashift_compose(rot, sv, sh, shear, 28.0, w, h)
+            corners = [(0.0, 0.0), (float(w), 0.0), (0.0, float(h)), (float(w), float(h))]
+            proj = [_ashift_project(fwd, x, y) for x, y in corners]
+            xs = [p[0] for p in proj]
+            ys = [p[1] for p in proj]
+            ow = max(4, int(math.floor((max(xs) - min(xs)) * (cr - cl))))
+            oh = max(4, int(math.floor((max(ys) - min(ys)) * (cb - ct))))
+            # Clip fullwidth recovery (mirrors AshiftModule.fullOutputSpan):
+            # full = floor(span*frac)/frac over the bufIn rect.
+            full_w = math.floor((max(xs) - min(xs)) * max(cr - cl, 1e-6)) / max(cr - cl, 1e-6)
+            full_h = math.floor((max(ys) - min(ys)) * max(cb - ct, 1e-6)) / max(cb - ct, 1e-6)
+            cx, cy = full_w * cl, full_h * ct
+            inv = _ashift_invert(fwd)
+
+            def px(x, y, rgb=rgb, w=w, h=h, inv=inv, cx=cx, cy=cy):
+                ox, oy = float(x) + cx, float(y) + cy
+                ix, iy = _ashift_project(inv, ox, oy)
+                s = _ashift_bilinear(rgb, w, h, ix, iy)
+                return s if s is not None else (0.0, 0.0, 0.0)
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), ow, oh, px)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Lens warp (Plan 04-04-T4) — radial distortion + TCA + devignette in
+# float64 + texel-center bilinear with clamped taps, mirroring
+# LensKernels.metal `lens_manual_warp` + LensModule.forwardRadius
+# formula-for-formula (L017 route ① — warp is a spatial operator, dt-cli
+# float export spatially corrupt; lens has no dt-cli leg at all: no
+# liblens* in this dt build is exercised — dt-side evidence = uniform
+# probes in-test + XML resolve pins in LensfunDBTests).
+#
+# Frame convention (L020): forward map is input-frame → input-frame
+# (distortion is self-contained — output == input frame, no homography);
+# the module's modifyROIOut keeps x/y and the reference renders the same
+# window the pipe negotiates (identity for lens: same-size planes).
+# Radius unit: u = (p − c)/halfW, c = frame center, halfW = W/2.
+# ──────────────────────────────────────────────────────────────────────
+
+# The lens 钉参组 (plan T4 action 2): identity / ±distortion / CA /
+# vignette / combined. Coefficients are KERNEL-unit (u = (p−c)/halfW);
+# the XML→kernel normalization is pinned separately in LensfunDBTests.
+LENS_CASES = [
+    # (case name, dc1, dc2, dc3, dc4, tcaR_vr, tcaB_vb, vk1, vk2, vk3)
+    ("lens_identity", 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0),
+    ("lens_distort_barrel", 0.0, 0.08, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0),
+    ("lens_distort_pincushion", 0.0, -0.08, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0),
+    ("lens_distort_ptlens", 0.02, -0.03, 0.01, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0),
+    ("lens_ca", 0.0, 0.0, 0.0, 0.0, 1.002, 0.998, 0.0, 0.0, 0.0),
+    ("lens_vignette", 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, -0.5, 0.2, -0.05),
+    ("lens_combo", 0.0, 0.05, 0.0, 0.01, 1.0015, 0.9985, -0.3, 0.1, -0.02),
+]
+
+LENS_REF_FIXTURES = [
+    "gradient_ramp", "flat_0ev", "flat_-4ev", "checkerboard",
+]
+
+
+def _lens_forward_radius(ru, dc1, dc2, dc3, dc4):
+    return ru * (1.0 + dc1 * ru + dc2 * ru * ru + dc3 * ru ** 3 + dc4 * ru ** 4)
+
+
+def _lens_bilinear(src_rgb, w, h, sx, sy):
+    """Pixel-center bilinear with clamped taps; always in-domain (lens
+    clamps, never transparent) — mirrors lens_sample_clamped."""
+    fx = min(max(sx, 0.0), w - 1)
+    fy = min(max(sy, 0.0), h - 1)
+    x0, y0 = int(math.floor(fx)), int(math.floor(fy))
+    x1, y1 = min(x0 + 1, w - 1), min(y0 + 1, h - 1)
+    tx, ty = fx - x0, fy - y0
+
+    def at(x, y):
+        idx = y * w + x
+        return (src_rgb[0][idx], src_rgb[1][idx], src_rgb[2][idx])
+    p00, p10, p01, p11 = at(x0, y0), at(x1, y0), at(x0, y1), at(x1, y1)
+    top = tuple(p00[c] + (p10[c] - p00[c]) * tx for c in range(3))
+    bot = tuple(p01[c] + (p11[c] - p01[c]) * tx for c in range(3))
+    return tuple(top[c] + (bot[c] - top[c]) * ty for c in range(3))
+
+
+def gen_lens_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the lens golden REFERENCES: radial warp + per-channel
+    TCA + devignette over the canonical fixture bytes in float64 (the
+    gate is <1e-5, warp class). Output shape = input shape (lens never
+    resizes the frame — modifyROIOut identity)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, dc1, dc2, dc3, dc4, vr, vb, vk1, vk2, vk3 in LENS_CASES:
+        for fixture in LENS_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            cx, cy, half = w / 2.0, h / 2.0, w / 2.0
+
+            def px(x, y, rgb=rgb, w=w, h=h):
+                # Normalized radius around the frame center (u units).
+                dx, dy = (x - cx) / half, (y - cy) / half
+                ru = math.hypot(dx, dy)
+                if ru < 1e-12:
+                    s = 1.0
+                    rd = 0.0
+                else:
+                    rd = _lens_forward_radius(ru, dc1, dc2, dc3, dc4)
+                    s = rd / ru
+                # TCA at the post-distortion radius (D3): channel scales.
+                rd2 = rd * rd
+                sR = vr
+                sB = vb
+                # Per-channel sample coords (center-relative, scaled).
+                srx, sry = cx + dx * s * sR * half, cy + dy * s * sR * half
+                sgx, sgy = cx + dx * s * half, cy + dy * s * half
+                sbx, sby = cx + dx * s * sB * half, cy + dy * s * sB * half
+                # Devignette at the post-distortion radius (D1 division).
+                rd4 = rd2 * rd2
+                vmul = 1.0 / (1.0 + vk1 * rd2 + vk2 * rd4 + vk3 * rd4 * rd2)
+                pr = _lens_bilinear(rgb, w, h, srx, sry)
+                pg = _lens_bilinear(rgb, w, h, sgx, sgy)
+                pb = _lens_bilinear(rgb, w, h, sbx, sby)
+                return (pr[0] * vmul, pg[1] * vmul, pb[2] * vmul)
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
+
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Detail (Plan 04-05-T5) — sharpen / local contrast / highpass / soften /
+# equalizer golden references (L017 route ① — ALL are spatial operators;
+# dt-cli float export is spatially corrupt on this host, manifest "dt-cli
+# host finding" re-confirmed for geometry in 04-02-T3; NO dt-cli leg is
+# exercised — dt-side evidence = in-test uniform probes + XMP param blobs
+# below as parameter documentation + formula同源 with the Swift modules).
+#
+# Conventions shared with the 03-05 toneequal section:
+#   - `dt_gauss_coeffs` + the gaussian.c column-then-row recursion model
+#     the shared Deriche-IIR `GaussianBlur.blur` (NOT dt sharpen's
+#     truncated FIR — DECISIONS D1/D4: the plan mandates the IIR reuse,
+#     so the reference mirrors the IIR side and parity proves the port
+#     correct, not dt-identical).
+#   - Lab conversions use the project constants (LAB_R2X / LAB_B /
+#     LAB_WHITE / _lab_f / lab_from_rec2020 / lab_to_rec2020 above).
+#   - Every reference below renders the FULL pipeline contract: the blur
+#     runs over the FULL plane (halo-correct), then the per-pixel mix
+#     applies — the same contract the pipe negotiates via modifyROIIn.
+# ──────────────────────────────────────────────────────────────────────
+
+# dt_iop_sharpen_params_t v1 = <fff> (12 bytes: radius/amount/threshold).
+SHARPEN_PARAMS_FORMAT = "<fff"
+SHARPEN_MODVERSION = 1
+SHARPEN_IOP_ORDER = 35.0
+
+# dt_iop_bilat_params_t v3 = <i4f> (20 bytes: mode int + sigma_r/sigma_s/
+# detail/midtone). Lightamer ports only detail/sigma_s/sigma_r semantics
+# (D6 — mode/midtone unported; XMP pins the dt layout for documentation).
+BILAT_PARAMS_FORMAT = "<i4f"
+BILAT_MODVERSION = 3
+BILAT_IOP_ORDER = 54.0
+
+# dt_iop_highpass_params_t v1 = <ff> (8 bytes: sharpness/contrast).
+HIGHPASS_PARAMS_FORMAT = "<ff"
+HIGHPASS_MODVERSION = 1
+HIGHPASS_IOP_ORDER = 34.0
+
+# dt_iop_soften_params_t v1 = <4f> (16 bytes: size/saturation/brightness/
+# amount).
+SOFTEN_PARAMS_FORMAT = "<4f"
+SOFTEN_MODVERSION = 1
+SOFTEN_IOP_ORDER = 66.0
+
+# equalizer has NO dt blob in v1 (D10 — single gain set vs dt 3x6 curves).
+
+
+def sharpen_params_blob(radius, amount, threshold) -> str:
+    """dt_iop_sharpen_params_t v1 → lowercase HEX ASCII (12 bytes)."""
+    packed = struct.pack(SHARPEN_PARAMS_FORMAT, radius, amount, threshold)
+    assert len(packed) == 12, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def bilat_params_blob(mode, sigma_r, sigma_s, detail, midtone=0.5) -> str:
+    """dt_iop_bilat_params_t v3 → lowercase HEX ASCII (20 bytes).
+
+    mode: 0 = bilateral grid, 1 = local laplacian (dt default)."""
+    packed = struct.pack(BILAT_PARAMS_FORMAT, mode, sigma_r, sigma_s, detail, midtone)
+    assert len(packed) == 20, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def highpass_params_blob(sharpness, contrast) -> str:
+    """dt_iop_highpass_params_t v1 → lowercase HEX ASCII (8 bytes)."""
+    packed = struct.pack(HIGHPASS_PARAMS_FORMAT, sharpness, contrast)
+    assert len(packed) == 8, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def soften_params_blob(size, saturation, brightness, amount) -> str:
+    """dt_iop_soften_params_t v1 → lowercase HEX ASCII (16 bytes)."""
+    packed = struct.pack(SOFTEN_PARAMS_FORMAT, size, saturation, brightness, amount)
+    assert len(packed) == 16, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# The detail 钉参组 (plan T5 action 1 + T1/T2/T3/T4 acceptance): neutral /
+# single-param-active / combined per module. Soften pins saturation=100 +
+# brightness=0 on the flat probe (D5 vacuous-identity: overexposed+blur
+# preserve flats, so ANY amount is identity there).
+SHARPEN_CASES = [
+    # (case name, radius, amount, threshold)
+    ("sharpen_neutral", 2.0, 0.0, 0.5),
+    ("sharpen_default", 2.0, 0.5, 0.5),
+    ("sharpen_strong", 2.0, 1.0, 0.0),
+    ("sharpen_fine", 0.8, 1.0, 0.2),
+]
+
+# (case name, detail, sigmaS px, sigmaR)
+BILAT_CASES = [
+    ("bilat_neutral", 0.0, 20.0, 0.5),
+    ("bilat_clarity", 1.0, 20.0, 0.5),
+    ("bilat_soften", -0.5, 20.0, 0.5),
+    ("bilat_tight", 1.0, 8.0, 0.3),
+]
+
+# (case name, sharpness, contrast)
+HIGHPASS_CASES = [
+    ("highpass_default", 50.0, 50.0),
+    ("highpass_strong", 80.0, 80.0),
+    ("highpass_fine", 20.0, 30.0),
+]
+
+# (case name, size, saturation, brightness, amount)
+SOFTEN_CASES = [
+    ("soften_neutral", 50.0, 100.0, 0.33, 0.0),
+    ("soften_default", 50.0, 100.0, 0.33, 50.0),
+    ("soften_flatprobe", 50.0, 100.0, 0.0, 50.0),
+    ("soften_strong", 80.0, 80.0, 0.5, 80.0),
+]
+
+# (case name, g0..g5 deltas; 1+g = the multiplier)
+EQUALIZER_CASES = [
+    ("equalizer_neutral", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+    ("equalizer_fine_boost", [0.5, 0.0, 0.0, 0.0, 0.0, 0.0]),
+    ("equalizer_coarse_boost", [0.0, 0.0, 0.0, 0.0, 0.5, 0.0]),
+    ("equalizer_mid_cut", [0.0, 0.0, -0.5, -0.5, 0.0, 0.0]),
+]
+
+DETAIL_REF_FIXTURES = [
+    "gradient_ramp", "flat_0ev", "flat_-4ev", "checkerboard",
+]
+
+
+def _detail_iir_blur(channels, w, h, sigma, mins, maxs):
+    """The shared Deriche-IIR recursion (te_gaussian_blur shape) over an
+    N-channel float64 plane list with per-channel clamp bounds."""
+    a0, a1, a2, a3, b1, b2, coefp, coefn = dt_gauss_coeffs(sigma)
+    ch = len(channels)
+    n = w * h
+    temp = [[0.0] * n for _ in range(ch)]
+    out = [[0.0] * n for _ in range(ch)]
+
+    def clamp(v, c):
+        return max(mins[c], min(maxs[c], v))
+
+    for x in range(w):
+        xp = [clamp(channels[c][x], c) for c in range(ch)]
+        yb = [xp[c] * coefp for c in range(ch)]
+        yp = yb[:]
+        for y in range(h):
+            idx = y * w + x
+            for c in range(ch):
+                xc = clamp(channels[c][idx], c)
+                yc = a0 * xc + a1 * xp[c] - b1 * yp[c] - b2 * yb[c]
+                xp[c] = xc
+                yb[c] = yp[c]
+                yp[c] = yc
+                temp[c][idx] = yc
+        xn = [clamp(channels[c][(h - 1) * w + x], c) for c in range(ch)]
+        xa = xn[:]
+        yn = [xn[c] * coefn for c in range(ch)]
+        ya = yn[:]
+        for y in range(h - 1, -1, -1):
+            idx = y * w + x
+            for c in range(ch):
+                xc = clamp(channels[c][idx], c)
+                yc = a2 * xn[c] + a3 * xa[c] - b1 * yn[c] - b2 * ya[c]
+                xa[c] = xn[c]
+                xn[c] = xc
+                ya[c] = yn[c]
+                yn[c] = yc
+                temp[c][idx] += yc
+    for y in range(h):
+        base = y * w
+        xp = [clamp(temp[c][base], c) for c in range(ch)]
+        yb = [xp[c] * coefp for c in range(ch)]
+        yp = yb[:]
+        for x in range(w):
+            idx = base + x
+            for c in range(ch):
+                xc = clamp(temp[c][idx], c)
+                yc = a0 * xc + a1 * xp[c] - b1 * yp[c] - b2 * yb[c]
+                xp[c] = xc
+                yb[c] = yp[c]
+                yp[c] = yc
+                out[c][idx] = yc
+        xn = [clamp(temp[c][base + w - 1], c) for c in range(ch)]
+        xa = xn[:]
+        yn = [xn[c] * coefn for c in range(ch)]
+        ya = yn[:]
+        for x in range(w - 1, -1, -1):
+            idx = base + x
+            for c in range(ch):
+                xc = clamp(temp[c][idx], c)
+                yc = a2 * xn[c] + a3 * xa[c] - b1 * yn[c] - b2 * ya[c]
+                xa[c] = xn[c]
+                xn[c] = xc
+                ya[c] = yn[c]
+                yn[c] = yc
+                out[c][idx] += yc
+    return out
+
+
+def sharpen_sigma(radius):
+    """D1: sigma = UI-radius * scale (scale 1 in the golden pipe)."""
+    return max(0.0, radius)
+
+
+def sharpen_apply_pixel(lab, blur_l, amount, threshold):
+    """sharpen_mix (sharpen.cl:165-167): soft-threshold USM on L."""
+    delta = lab[0] - blur_l
+    mag = abs(delta) - threshold
+    detail = math.copysign(mag, delta) if mag > 0.0 else 0.0
+    return (lab[0] + amount * detail, lab[1], lab[2])
+
+
+def gen_sharpen_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the sharpen golden REFERENCES: Lab prep + IIR blur +
+    soft-threshold mix in float64 (gate <1e-4, IIR-mix class)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, radius, amount, threshold in SHARPEN_CASES:
+        sigma = sharpen_sigma(radius)
+        for fixture in DETAIL_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            n = w * h
+            lab = [lab_from_rec2020((rgb[0][i], rgb[1][i], rgb[2][i])) for i in range(n)]
+            ch = [[p[c] for p in lab] + [1.0] * 0 for c in range(3)]
+            ch = [[lab[i][c] for i in range(n)] for c in range(3)] + [[1.0] * n]
+            big = 1e30
+            blurred = _detail_iir_blur(ch, w, h, sigma, [-big] * 4, [big] * 4) if sigma > 0 else ch
+
+            def px(x, y, rgb=rgb, lab=lab, blurred=blurred, w=w):
+                idx = y * w + x
+                out_lab = sharpen_apply_pixel(lab[idx], blurred[0][idx], amount, threshold)
+                return lab_to_rec2020(out_lab)
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
+
+
+def _bilat_radius(sigma_s):
+    """D6: effective pixel radius = sigmaS (scale 1 in the golden pipe)."""
+    return max(1.0, sigma_s)
+
+
+def gen_bilat_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the local-contrast golden REFERENCES: Lab-L EIGF
+    no-mask base (te_eigf single iteration) + clarity apply in float64
+    (gate <1e-4, IIR-mix class)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, detail, sigma_s, sigma_r in BILAT_CASES:
+        radius = _bilat_radius(sigma_s)
+        feathering = sigma_r * sigma_r * 4.0
+        for fixture in DETAIL_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            n = w * h
+            labs = [lab_from_rec2020((rgb[0][i], rgb[1][i], rgb[2][i])) for i in range(n)]
+            luma = [labs[i][0] for i in range(n)]
+            base = te_eigf(luma, w, h, radius, feathering, 1, False, 0.0, 2.0 ** -14, 4.0)
+
+            def px(x, y, rgb=rgb, labs=labs, base=base, w=w):
+                idx = y * w + x
+                out_l = labs[idx][0] + detail * (labs[idx][0] - base[idx])
+                return lab_to_rec2020((out_l, labs[idx][1], labs[idx][2]))
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
+
+
+def highpass_sigma(sharpness):
+    """D4: dt highpass.c:135-140 (scale 1 in the golden pipe)."""
+    rad = 16.0 * (min(100.0, sharpness + 1.0) / 100.0)
+    radius = min(16.0, math.ceil(rad))
+    return math.sqrt((radius * (radius + 1.0) * 8.0 + 2.0) / 3.0)
+
+
+def highpass_apply_pixel(lab_l, blur_inv, contrast):
+    """highpass_mix CL leg (highpass.cl:157): desaturated emboss."""
+    cs = (contrast / 100.0) * 7.5
+    return (min(100.0, max(0.0, 50.0 + ((0.5 * lab_l + 0.5 * blur_inv) - 50.0) * cs)), 0.0, 0.0)
+
+
+def gen_highpass_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the highpass golden REFERENCES: invert(100-L) + IIR
+    blur + CL mix in float64 (gate <1e-4, IIR-mix class)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, sharpness, contrast in HIGHPASS_CASES:
+        sigma = highpass_sigma(sharpness)
+        for fixture in DETAIL_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            n = w * h
+            labs = [lab_from_rec2020((rgb[0][i], rgb[1][i], rgb[2][i])) for i in range(n)]
+            inv = [min(100.0, max(0.0, 100.0 - labs[i][0])) for i in range(n)]
+            ch = [inv, [0.0] * n, [0.0] * n, [1.0] * n]
+            big = 1e30
+            blurred = _detail_iir_blur(ch, w, h, sigma, [-big] * 4, [big] * 4)
+
+            def px(x, y, labs=labs, blurred=blurred, w=w):
+                idx = y * w + x
+                return lab_to_rec2020(highpass_apply_pixel(labs[idx][0], blurred[0][idx], contrast))
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
+
+
+def _soften_rgb2hsl(rgb):
+    r, g, b = rgb
+    pmax, pmin = max(rgb), min(rgb)
+    delta = pmax - pmin
+    lv = (pmin + pmax) / 2.0
+    if delta == 0.0:
+        return (0.0, 0.0, lv)
+    sv = delta / max(pmax + pmin, 2.0 ** -16) if lv < 0.5 else delta / max(2.0 - pmax - pmin, 2.0 ** -16)
+    if pmax == r:
+        hv = (g - b) / delta
+    elif pmax == g:
+        hv = 2.0 + (b - r) / delta
+    else:
+        hv = 4.0 + (r - g) / delta
+    hv /= 6.0
+    if hv < 0.0:
+        hv += 1.0
+    elif hv > 1.0:
+        hv -= 1.0
+    return (hv, sv, lv)
+
+
+def _soften_hue2rgb(m1, m2, hue):
+    if hue < 1.0:
+        return m1 + (m2 - m1) * hue
+    elif hue < 3.0:
+        return m2
+    else:
+        return (m1 + (m2 - m1) * (4.0 - hue)) if hue < 4.0 else m1
+
+
+def _soften_hsl2rgb(h, s, l):
+    if s == 0.0:
+        return (l, l, l)
+    m2 = l * (1.0 + s) if l < 0.5 else l + s - l * s
+    m1 = 2.0 * l - m2
+    hh = h * 6.0
+    return (_soften_hue2rgb(m1, m2, hh + 2.0 if hh < 4.0 else hh - 4.0),
+            _soften_hue2rgb(m1, m2, hh),
+            _soften_hue2rgb(m1, m2, hh - 2.0 if hh > 2.0 else hh + 4.0))
+
+
+def soften_radius(size, w, h):
+    """D4: dt soften.c:138-142 (scale 1, iscale 1 in the golden pipe)."""
+    import math as _m
+    mrad = int(_m.sqrt(w * w + h * h) * 0.01)
+    if mrad <= 0:
+        return 0
+    rad = mrad * (min(100.0, size + 1.0) / 100.0)
+    return min(mrad, int(_m.ceil(rad)))
+
+
+def soften_sigma(size, w, h):
+    """D4: dt soften.c:306 (BOX_ITERATIONS = 8)."""
+    r = soften_radius(size, w, h)
+    return math.sqrt((r * (r + 1.0) * 8.0 + 2.0) / 3.0)
+
+
+def gen_soften_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the soften golden REFERENCES: HSL overexpose + IIR
+    blur + amt mix in float64 (gate <1e-4, IIR-mix class)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, size, saturation, brightness, amount in SOFTEN_CASES:
+        sat = saturation / 100.0
+        bri = 2.0 ** brightness
+        amt = amount / 100.0
+        sigma = None  # per-fixture (radius keys on plane size)
+        for fixture in DETAIL_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            n = w * h
+            sigma = soften_sigma(size, w, h)
+            over = []
+            for i in range(n):
+                hv, sv, lv = _soften_rgb2hsl((rgb[0][i], rgb[1][i], rgb[2][i]))
+                sv2 = min(1.0, max(0.0, sv * sat))
+                lv2 = min(1.0, max(0.0, lv * bri))
+                over.append(_soften_hsl2rgb(hv, sv2, lv2))
+            ch = [[over[i][c] for i in range(n)] for c in range(3)] + [[1.0] * n]
+            big = 1e30
+            blurred = _detail_iir_blur(ch, w, h, sigma, [-big] * 4, [big] * 4)
+
+            def px(x, y, rgb=rgb, blurred=blurred, w=w):
+                idx = y * w + x
+                return tuple(rgb[c][idx] * (1.0 - amt)
+                             + min(1.0, max(0.0, blurred[c][idx])) * amt for c in range(3))
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
+
+
+EQUALIZER_SIGMAS = [1.0, 2.0, 4.0, 8.0, 16.0]
+
+
+def gen_equalizer_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the equalizer golden REFERENCES: Lab prep + chained
+    IIR pyramid (sigma 1/2/4/8/16) + gain recombine in float64
+    (gate <1e-4, IIR-mix class)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case_name, deltas in EQUALIZER_CASES:
+        gains = [1.0 + d for d in deltas]
+        for fixture in DETAIL_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            n = w * h
+            labs = [lab_from_rec2020((rgb[0][i], rgb[1][i], rgb[2][i])) for i in range(n)]
+            prep = [[labs[i][c] for i in range(n)] for c in range(3)] + [[1.0] * n]
+            big = 1e30
+            levels = []
+            prev = prep
+            for sigma in EQUALIZER_SIGMAS:
+                lv = _detail_iir_blur(prev, w, h, sigma, [-big] * 4, [big] * 4)
+                levels.append(lv)
+                prev = lv
+            b0 = prep[0]
+            v = [lv[0] for lv in levels]
+
+            def px(x, y, rgb=rgb, labs=labs, b0=b0, v=v, w=w):
+                idx = y * w + x
+                out_l = (gains[0] * (b0[idx] - v[0][idx])
+                         + gains[1] * (v[0][idx] - v[1][idx])
+                         + gains[2] * (v[1][idx] - v[2][idx])
+                         + gains[3] * (v[2][idx] - v[3][idx])
+                         + gains[4] * (v[3][idx] - v[4][idx])
+                         + gains[5] * v[4][idx])
+                return lab_to_rec2020((out_l, labs[idx][1], labs[idx][2]))
+
+            write_exr(os.path.join(out_dir, f"{case_name}__{fixture}.exr"), w, h, px)
+
+
+def gen_detail_cases(outdir: str) -> None:
+    for case_name, radius, amount, threshold in SHARPEN_CASES:
+        params = sharpen_params_blob(radius, amount, threshold)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="sharpen",
+            modversion=SHARPEN_MODVERSION,
+            params=params,
+            iop_order=f"{SHARPEN_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case_name + ".xmp"), "w") as f:
+            f.write(xmp)
+    for case_name, detail, sigma_s, sigma_r in BILAT_CASES:
+        # mode 1 = local laplacian (dt default; documents the slot only —
+        # the Lightamer leg is EIGF by D-G3, not either dt mode).
+        params = bilat_params_blob(1, sigma_r, sigma_s, detail)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="bilat",
+            modversion=BILAT_MODVERSION,
+            params=params,
+            iop_order=f"{BILAT_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case_name + ".xmp"), "w") as f:
+            f.write(xmp)
+    for case_name, sharpness, contrast in HIGHPASS_CASES:
+        params = highpass_params_blob(sharpness, contrast)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="highpass",
+            modversion=HIGHPASS_MODVERSION,
+            params=params,
+            iop_order=f"{HIGHPASS_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case_name + ".xmp"), "w") as f:
+            f.write(xmp)
+    for case_name, size, saturation, brightness, amount in SOFTEN_CASES:
+        params = soften_params_blob(size, saturation, brightness, amount)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="soften",
+            modversion=SOFTEN_MODVERSION,
+            params=params,
+            iop_order=f"{SOFTEN_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case_name + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 5 钉参 blob 配方族骨架（Plan 05-01-T5）—— 05-02..08 各 plan 直接消费。
+# L015：hex 非 base64（dt_exif_xmp_encode_internal 未压缩形）；struct 逐字段
+# little-endian pack；pack 后先过 dt `--d params` 版本校验再入库（见各函数注）。
+# RESEARCH §1.1 字节数正本（逐字段累计），唯 denoiseprofile 勘误见下。
+# ──────────────────────────────────────────────────────────────────────
+
+# dt_iop_denoiseprofile_params_t v12 = 416B（RESEARCH §1.1 "244B" 系算术勘误：
+# 8f + a[3] + b[3] + mode(i) + x[6][7] + y[6][7] + wb/fix/newvst/wavelet/hilite(5i)
+# = (14 + 1 + 84 + 5) × 4 = 416；244 系漏计 y 表。C struct 实证见 DECISIONS
+# D-05-01-T5。pack 后必须先过 dt `--d params` 版本校验再入库。）
+DENOISEPROFILE_PARAMS_FORMAT = "<14fi84f5i"  # v12, 416 bytes
+DENOISEPROFILE_MODVERSION = 12
+DENOISEPROFILE_IOP_ORDER = 9.0
+
+
+def denoiseprofile_params_blob(
+    radius=1.0, nbhood=7.0, strength=1.0, shadows=1.0, bias=0.0,
+    scattering=0.0, central_pixel_weight=0.1, overshooting=1.0,
+    a=(1e-4, 1e-4, 1e-4), b=(0.0, 0.0, 0.0),
+    mode=1, x=None, y=None,
+    wb_adaptive_anscombe=1, fix_anscombe_and_nlmeans_norm=1,
+    use_new_vst=1, wavelet_color_mode=1, compensate_hilite_pres=1,
+) -> str:
+    """dt_iop_denoiseprofile_params_t v12 → lowercase HEX ASCII（L015）。
+    x/y 默认全 0.5（dt v10+ 新增档默认值）；mode 默认 1 = WAVELETS。
+    入库前先过 dt `--d params` 版本校验（RESEARCH §7 钉参三证据之一）。"""
+    if x is None:
+        x = [[b / 6.0] * 7 for b in range(6)]
+        x = [v for row in x for v in row]
+    if y is None:
+        y = [0.5] * 42
+    assert len(x) == 42 and len(y) == 42
+    packed = struct.pack(
+        DENOISEPROFILE_PARAMS_FORMAT,
+        radius, nbhood, strength, shadows, bias, scattering,
+        central_pixel_weight, overshooting,
+        *a, *b, mode, *x, *y,
+        wb_adaptive_anscombe, fix_anscombe_and_nlmeans_norm,
+        use_new_vst, wavelet_color_mode, compensate_hilite_pres,
+    )
+    assert len(packed) == 416, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# dt_iop_channelmixer_rgb_params_t v3 = 160B：6×4 float + 6 gboolean(int) +
+# illuminant/fluo/led/adaptation/version(5 int) + x/y/temp/gamut(4f) + clip(int)。
+# illuminant 默认 2 = DT_ILLUMINANT_D；fluo 默认 2 = F3；led 默认 4 = B5；
+# adaptation 默认 1 = CAT16；version 默认 2 = V3。
+CHANNELMIXERRGB_PARAMS_FORMAT = "<24f6i4i4f2i"  # 24f + normalize[6](i) + illum×4(i) + x/y/temp/gamut(4f) + clip/version(2i)
+CHANNELMIXERRGB_MODVERSION = 3
+CHANNELMIXERRGB_IOP_ORDER = 28.5
+
+
+def channelmixerrgb_params_blob(
+    red=(1.0, 0.0, 0.0, 0.0), green=(0.0, 1.0, 0.0, 0.0),
+    blue=(0.0, 0.0, 1.0, 0.0), saturation=(0.0,) * 4,
+    lightness=(0.0,) * 4, grey=(0.0,) * 4,
+    normalize=(0, 0, 0, 0, 0, 0), illuminant=2, illum_fluo=2,
+    illum_led=4, adaptation=1, x=0.333, y=0.333,
+    temperature=5003.0, gamut=1.0, clip=1, version=2,
+) -> str:
+    """dt_iop_channelmixer_rgb_params_t v3 → hex。默认 = 恒等 mix（对角 1）。"""
+    packed = struct.pack(
+        CHANNELMIXERRGB_PARAMS_FORMAT,
+        *red, *green, *blue, *saturation, *lightness, *grey,
+        *normalize, illuminant, illum_fluo, illum_led, adaptation,
+        x, y, temperature, gamut, clip, version,
+    )
+    assert len(packed) == 160, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# dt_iop_colorbalancergb_params_t v5 = 132B：32 float + saturation_formula(int)。
+# 默认全 0（4-way 中性）+ mask_grey/grey_fulcrum 0.1845 + formula 1 = DTUCS。
+COLORBALANCERGB_PARAMS_FORMAT = "<32fi"
+COLORBALANCERGB_MODVERSION = 5
+COLORBALANCERGB_IOP_ORDER = 41.5
+
+
+def colorbalancergb_params_blob(
+    four_way=(0.0,) * 12, falloff=(1.0, 0.0, 1.0),
+    chroma=(0.0, 0.0, 0.0, 0.0), saturation=(0.0,) * 4,
+    hue_angle=0.0, brilliance=(0.0,) * 4,
+    mask_grey_fulcrum=0.1845, vibrance=0.0, grey_fulcrum=0.1845,
+    contrast=0.0, saturation_formula=1,
+) -> str:
+    """dt_iop_colorbalancergb_params_t v5 → hex。默认 = 全中性（恒等门）。"""
+    floats = list(four_way) + list(falloff) + list(chroma) + list(saturation)
+    floats += [hue_angle] + list(brilliance)
+    floats += [mask_grey_fulcrum, vibrance, grey_fulcrum, contrast]
+    assert len(floats) == 32, len(floats)
+    packed = struct.pack(COLORBALANCERGB_PARAMS_FORMAT, *floats, saturation_formula)
+    assert len(packed) == 132, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# dt_iop_nlmeans_params_t v2 = 16B：radius/strength/luma/chroma（4f）。
+# 默认 radius 2 / strength 50 / luma 0.5 / chroma 1.0。
+NLMEANS_PARAMS_FORMAT = "<4f"
+NLMEANS_MODVERSION = 2
+NLMEANS_IOP_ORDER = 29.0
+
+
+def nlmeans_params_blob(radius=2.0, strength=50.0, luma=0.5, chroma=1.0) -> str:
+    """dt_iop_nlmeans_params_t v2 → hex。"""
+    packed = struct.pack(NLMEANS_PARAMS_FORMAT, radius, strength, luma, chroma)
+    assert len(packed) == 16, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# dt_iop_bilateral_params_t v1 = 20B：radius/reserved/red/green/blue（5f）。
+# 默认 radius 15 / reserved 15 / rgb 0.005。
+BILATERAL_PARAMS_FORMAT = "<5f"
+BILATERAL_MODVERSION = 1
+BILATERAL_IOP_ORDER = 10.0
+
+
+def bilateral_params_blob(
+    radius=15.0, reserved=15.0, red=0.005, green=0.005, blue=0.005,
+) -> str:
+    """dt_iop_bilateral_params_t v1 → hex。"""
+    packed = struct.pack(
+        BILATERAL_PARAMS_FORMAT, radius, reserved, red, green, blue)
+    assert len(packed) == 20, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# 其余 color 组小 blob（默认中性；05-02..05-04 各 plan 消费）。
+# - channelmixer v2 = 52B：red/green/blue[4] + algorithm(int)；默认对角恒等 + v1。
+# - colorzones v5 = 520B：channel(int) + curve[3][20](x,y float) + num[3](int) +
+#   type[3](int) + strength(f) + mode(int) + splines(int)；默认 hue 通道空曲线。
+# - monochrome v2 = 16B：a/b/size/highlights（4f）；默认 a=b=highlights=0, size 2。
+# - vibrance v2 = 4B：amount（f）；默认 25。
+# - velvia v2 = 8B：strength/bias（2f）；默认 25/1。
+# - colorcontrast v2 = 20B：a/b steepness+offset（4f）+ unbound(int)；默认 1/0/1/0/1。
+CHANNELMIXER_PARAMS_FORMAT = "<12fi"
+CHANNELMIXER_MODVERSION = 2
+CHANNELMIXER_IOP_ORDER = 39.0
+
+
+def channelmixer_params_blob(
+    red=(1.0, 0.0, 0.0, 0.0), green=(0.0, 1.0, 0.0, 0.0),
+    blue=(0.0, 0.0, 1.0, 0.0), algorithm_version=1,
+) -> str:
+    """dt_iop_channelmixer_params_t v2 → hex。默认恒等 + CHANNEL_MIXER_VERSION_2。"""
+    packed = struct.pack(
+        CHANNELMIXER_PARAMS_FORMAT, *red, *green, *blue, algorithm_version)
+    assert len(packed) == 52, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+COLORZONES_PARAMS_FORMAT = "<i120f6i2fi"
+COLORZONES_MODVERSION = 5
+COLORZONES_IOP_ORDER = 60.0
+
+
+def colorzones_params_blob(
+    channel=2, nodes=None, strength=0.0, mode=0, splines_version=1,
+) -> str:
+    """dt_iop_colorzones_params_t v5 → hex。默认 hue 通道、空曲线（x=y 对角）。"""
+    if nodes is None:
+        curve = []
+        for _ in range(3):
+            for n in range(20):
+                v = n / 19.0
+                curve += [v, v]
+    else:
+        curve = nodes
+    assert len(curve) == 120, len(curve)
+    packed = struct.pack(
+        COLORZONES_PARAMS_FORMAT, channel, *curve,
+        0, 0, 0, 0, 0, 0, strength, mode, splines_version)
+    assert len(packed) == 520, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+MONOCHROME_PARAMS_FORMAT = "<4f"
+MONOCHROME_MODVERSION = 2
+MONOCHROME_IOP_ORDER = 64.0
+
+
+def monochrome_params_blob(a=0.0, b=0.0, size=2.0, highlights=0.0) -> str:
+    """dt_iop_monochrome_params_t v2 → hex。"""
+    packed = struct.pack(MONOCHROME_PARAMS_FORMAT, a, b, size, highlights)
+    assert len(packed) == 16, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+VIBRANCE_PARAMS_FORMAT = "<f"
+VIBRANCE_MODVERSION = 2
+VIBRANCE_IOP_ORDER = 58.0
+
+
+def vibrance_params_blob(amount=25.0) -> str:
+    """dt_iop_vibrance_params_t v2 → hex。"""
+    packed = struct.pack(VIBRANCE_PARAMS_FORMAT, amount)
+    assert len(packed) == 4, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+VELVIA_PARAMS_FORMAT = "<2f"
+VELVIA_MODVERSION = 2
+VELVIA_IOP_ORDER = 57.0
+
+
+def velvia_params_blob(strength=25.0, bias=1.0) -> str:
+    """dt_iop_velvia_params_t v2 → hex。"""
+    packed = struct.pack(VELVIA_PARAMS_FORMAT, strength, bias)
+    assert len(packed) == 8, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+COLORCONTRAST_PARAMS_FORMAT = "<4fi"
+COLORCONTRAST_MODVERSION = 2
+COLORCONTRAST_IOP_ORDER = 56.0
+
+
+def colorcontrast_params_blob(
+    a_steepness=1.0, a_offset=0.0, b_steepness=1.0, b_offset=0.0, unbound=1,
+) -> str:
+    """dt_iop_colorcontrast_params_t v2 → hex。默认恒等。"""
+    packed = struct.pack(
+        COLORCONTRAST_PARAMS_FORMAT,
+        a_steepness, a_offset, b_steepness, b_offset, unbound)
+    assert len(packed) == 20, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_ashift_cases(outdir: str) -> None:
+    for case in ASHIFT_CASES:
+        name, rot, sv, sh, shear, cl, cr, ct, cb = case
+        params = ashift_params_blob(rot, sv, sh, shear, 28.0, 1.0, 0, 0, cl, cr, ct, cb)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="ashift",
+            modversion=ASHIFT_MODVERSION,
+            params=params,
+            iop_order=f"{ASHIFT_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, name + ".xmp"), "w") as f:
+            f.write(xmp)
 # LightamerIOP/Sources/Common/LabMath.h + LabRoundTrip.swift, used by the
 # `refs` mode to synthesize the colisa/tonecurve/levels golden references
 # (L017 protocol: dt-cli float export is spatially corrupt on this host,
@@ -2277,8 +3621,13 @@ def main() -> None:
 
     if mode in ("raw", "all"):
         for gen in (gen_ramp, gen_flats, gen_saturated, gen_deep_shadow,
-                    gen_gray_staircase, gen_stair_1d):
+                    gen_gray_staircase, gen_stair_1d, gen_gradient_ramp,
+                    gen_checkerboard, gen_hue_sweep, gen_delta_impulse,
+                    gen_shadow_torture):
             gen(outdir)
+        # 加噪集读 canonical 源（raw 直写 outdir 时源即 outdir 本身）——
+        # 无 dt round-trip（噪声 fixture 不进 dt-cli；L017 自研 parity）。
+        gen_noisy_fixtures(outdir, canonical_dir=outdir)
     if mode in ("cases", "all"):
         # Cases default to <golden>/cases — one level up from the fixtures
         # dir when the caller uses the default outdir.
@@ -2309,6 +3658,27 @@ def main() -> None:
         # dt-side = XMP adoption + uniform-flat PFM probes).
         gen_filmic_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_agx_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 04-02-T3: crop + flip golden references (L017 route;
+        # dt-side = XMP adoption + flat probes; ramp probe corrupt).
+        gen_crop_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_flip_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 04-03-T4: ashift warp golden references (L017 route ① —
+        # warp is a spatial operator, dt-cli float export spatially corrupt;
+        # dt-side = XMP adoption + flat rotation probe. Synthetic ref =
+        # float64 inverse-homography + bilinear, formula-mirrored below).
+        gen_ashift_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 04-04-T4: lens warp golden references (L017 route ① —
+        # warp is a spatial operator; lens has no dt-cli leg. Synthetic
+        # ref = float64 radial warp + TCA + devignette, formula-mirrored).
+        gen_lens_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 04-05-T5: detail golden references (L017 route ① —
+        # ALL are spatial operators; no dt-cli leg. Synthetic refs =
+        # float64 IIR + per-pixel mix, formula-mirrored).
+        gen_sharpen_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_bilat_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_highpass_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_soften_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_equalizer_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 

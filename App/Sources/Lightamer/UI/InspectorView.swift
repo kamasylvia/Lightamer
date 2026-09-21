@@ -68,37 +68,24 @@ internal struct InspectorView: View {
     }
 
     private func row(for instance: ModuleInstance) -> some View {
-        let isSelected = inspectorState.selectedPanel == instance.id.uuidString
-        return Button {
-            inspectorState.selectPanel(instanceID: instance.id)
-        } label: {
-            HStack {
-                Image(systemName: isSelected ? "slider.horizontal.3" : "circle.dashed")
-                    .frame(width: 16)
-                    .foregroundStyle(isSelected ? LightamerColors.accent : LightamerColors.textSecondary)
-                Text(LocalizedStringKey(localizedLabel(for: instance.opName)))
-                    .font(.callout)
-                    .foregroundStyle(isSelected ? LightamerColors.textPrimary : LightamerColors.textSecondary)
-                Spacer()
-                if !instance.enabled {
-                    Text("inspector_module_disabled")
-                        .font(.caption2)
-                        .foregroundStyle(LightamerColors.textTertiary)
-                }
+        InspectorRowView(
+            model: InspectorRowModel(instance: instance, isSelected: inspectorState.selectedPanel == instance.id.uuidString),
+            label: localizedLabel(for: instance.opName),
+            onSelect: { inspectorState.selectPanel(instanceID: instance.id) },
+            onToggle: {
+                let record = InspectorRowModel.toggled(instance: instance)
+                InspectorEditSession(coordinator: pipeCoordinator)
+                    .applyDiscrete(record, label: String(localized: "history_toggle"), autoEnable: false)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(isSelected ? LightamerColors.surfaceRaised : Color.clear)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("inspector.row.\(instance.opName)")
+        )
     }
 
     private func localizedLabel(for opName: String) -> String {
         switch opName {
         case ExposureModule.opName: return "module_exposure"
         case TemperatureModule.opName: return "module_temperature"
+        case CropModule.opName: return "module_crop"
+        case FlipModule.opName: return "module_flip"
         default: return opName
         }
     }

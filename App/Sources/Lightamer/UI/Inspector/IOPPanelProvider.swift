@@ -79,12 +79,37 @@ final class InspectorEditSession {
 
     /// Discrete control semantics (double-click reset, preset pick,
     /// eyedropper apply): ONE commit per click, compressed trio.
-    func applyDiscrete(_ snapshot: ModuleInstance, label: String) {
+    /// `autoEnable = false` preserves an explicit enabled=false (the
+    /// 04-08-T4 row toggle-OFF path — the coordinator's GUI-7 flip must
+    /// not resurrect it; D-08-T3-2).
+    ///
+    /// 04-08-F3 root-cause fix: the Task captures the COORDINATOR, not
+    /// `self`. `InspectorView.row()` calls this on a TEMPORARY session
+    /// (`InspectorEditSession(coordinator:).applyDiscrete(...)`) — the
+    /// old `Task { [weak self] }` found `self == nil` and silently did
+    /// nothing (AXPress/click arrived at the Button fine; the commit died
+    /// inside). Panels keep their session in `let edit` (lifetime = view
+    /// lifetime) so they never noticed. Capturing the coordinator value
+    /// directly keeps this correct for both call shapes with no lifetime
+    /// coupling to the session object.
+    func applyDiscrete(_ snapshot: ModuleInstance, label: String, autoEnable: Bool = true) {
         coordinator?.beginContinuousEdit()
-        Task {
+        Task { [coordinator] in
             await coordinator?.setLiveParams(snapshot)
-            await coordinator?.commitContinuousEdit(label: label)
+            await coordinator?.commitContinuousEdit(label: label, autoEnable: autoEnable)
         }
+    }
+
+    /// 04-08-F3 test seam: the same discrete trio as `applyDiscrete`, but
+    /// `await`ed inline so PanelWiringTests asserts post-commit state
+    /// without sleeping on the fire-and-forget Task. Production callers
+    /// keep using `applyDiscrete` (unchanged fire-and-forget timing).
+    func applyDiscreteForTest(
+        _ snapshot: ModuleInstance, label: String, autoEnable: Bool = true
+    ) async {
+        coordinator?.beginContinuousEdit()
+        await coordinator?.setLiveParams(snapshot)
+        await coordinator?.commitContinuousEdit(label: label, autoEnable: autoEnable)
     }
 
     /// Full-image per-channel min/max over the LINEAR chain (the filmic
@@ -93,13 +118,26 @@ final class InspectorEditSession {
     func sampleNormMinMax() async -> (min: simd_float3, max: simd_float3)? {
         await coordinator?.sampleLinearNormMinMax()
     }
+
+    /// The decoded source image for auto-detect (04-03 ashift horizon /
+    /// rectangle): read-only, zero pipe involvement (the panel renders a
+    /// small probe — no pipe-plane readback, L014-clean by construction).
+    func detectionSourceImage() -> DecodedImage? {
+        coordinator?.detectionSourceImage()
+    }
+
+    /// Raise a non-blocking global toast (D-26 background grading — the
+    /// 04-08-T2 GUI-8 fix: auto-detect nil/failure must be USER-VISIBLE
+    /// beyond the panel's local notice; the acceptance round only watched
+    /// the status bar).
+    func presentToast(_ message: String) {
+        coordinator?.presentToast(message)
+    }
 }
 
 /// Shared helpers for the concrete panels.
 @MainActor
 enum PanelEditing {
-
-    /// Re-parameterize an instance record with a new typed Params value
     /// (same UUID/iopOrder — the D-H4 hash flips through `setParams`).
     static func updated<M: IOPModule>(
         _ instance: ModuleInstance, params: M.Params, as type: M.Type

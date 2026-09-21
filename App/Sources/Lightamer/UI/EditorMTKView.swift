@@ -211,13 +211,13 @@ internal struct EditorMTKView: NSViewRepresentable {
                 }
                 if let state {
                     encoder.setRenderPipelineState(state)
-                    var uniforms = Self.aspectFitUniforms(
+                    var quad = Self.fitQuad(
                         textureSize: SIMD2(Float(texture.width), Float(texture.height)),
-                        drawableSize: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height))
+                        drawableSize: view.drawableSize
                     )
-                    encoder.setVertexBytes(&uniforms, length: MemoryLayout<BlitUniforms>.stride, index: 0)
+                    encoder.setVertexBytes(&quad, length: MemoryLayout<FitQuad>.stride, index: 0)
                     encoder.setFragmentTexture(texture, index: 0)
-                    encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                    encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
                 }
             } // else: no image yet — solid canvas mat (UI-SPEC "no image" viewport state)
 
@@ -227,26 +227,69 @@ internal struct EditorMTKView: NSViewRepresentable {
             commandBuffer.commit()
         }
 
+        /// The aspect-fit rect as NDC corners (04-06 GUI-2+3): the SINGLE
+        /// source of truth is `ViewportFit.fittedRect` (the crop overlay's
+        /// geometry) — viewport points → NDC via `2·p/size − 1` with the y
+        /// axis flipped (SwiftUI top-left origin vs Metal NDC bottom-left).
+        /// Degenerate input ⇒ fullscreen quad (the ViewportFit guard's
+        /// `.zero` would otherwise collapse the draw to nothing).
+        static func fitQuad(
+            textureSize: SIMD2<Float>, drawableSize: CGSize
+        ) -> FitQuad {
+            let rect = ViewportFit.fittedRect(
+                viewportSize: drawableSize,
+                textureSize: CGSize(width: Double(textureSize.x), height: Double(textureSize.y)))
+            guard rect.width >= 1, rect.height >= 1,
+                  drawableSize.width >= 1, drawableSize.height >= 1
+            else {
+                return FitQuad(
+                    p0: SIMD2(-1, -1), p1: SIMD2(1, -1),
+                    p2: SIMD2(-1, 1), p3: SIMD2(1, 1))
+            }
+            func ndc(_ p: CGPoint) -> SIMD2<Float> {
+                SIMD2(
+                    Float(2 * p.x / drawableSize.width - 1),
+                    Float(1 - 2 * p.y / drawableSize.height))
+            }
+            return FitQuad(
+                p0: ndc(CGPoint(x: rect.minX, y: rect.maxY)),
+                p1: ndc(CGPoint(x: rect.maxX, y: rect.maxY)),
+                p2: ndc(CGPoint(x: rect.minX, y: rect.minY)),
+                p3: ndc(CGPoint(x: rect.maxX, y: rect.minY)))
+        }
+
         /// Aspect-fit the texture inside the drawable (NDC scale; the
         /// letterbox shows the canvas-mat clear color). Phase 1 keeps the
         /// image centered — fit/100% controls arrive with zoom/pan (Phase 2+).
         private static func aspectFitUniforms(
             textureSize: SIMD2<Float>, drawableSize: SIMD2<Float>
         ) -> BlitUniforms {
-            guard drawableSize.x >= 1, drawableSize.y >= 1, textureSize.x >= 1, textureSize.y >= 1 else {
-                return BlitUniforms(scale: SIMD2(1, 1), offset: SIMD2(0, 0))
-            }
-            let fit = min(drawableSize.x / textureSize.x, drawableSize.y / textureSize.y)
+            // 04-02-T4: single-source math (ViewportFit); behavior
+            // byte-identical (the guard + scale formula moved verbatim).
+            // 04-06: RETIRED by fitQuad (kept for the eyedropper doc chain —
+            // PipeCoordinator.viewportUV mirrors the fitted rect, not this).
+            let scale = ViewportFit.blitScale(
+                viewportSize: CGSize(width: Double(drawableSize.x), height: Double(drawableSize.y)),
+                textureSize: CGSize(width: Double(textureSize.x), height: Double(textureSize.y)))
             return BlitUniforms(
-                scale: SIMD2(fit * textureSize.x / drawableSize.x, fit * textureSize.y / drawableSize.y),
-                offset: SIMD2(0, 0)
+                scale: SIMD2(Float(scale.x), Float(scale.y)), offset: SIMD2(0, 0)
             )
         }
     }
 }
+/// Layout mirror of `FitQuad` in `EditorBlitShader.metal`
+/// (4× float2 NDC corners — 32 bytes, set via `setVertexBytes`).
+struct FitQuad {
+    var p0: SIMD2<Float>
+    var p1: SIMD2<Float>
+    var p2: SIMD2<Float>
+    var p3: SIMD2<Float>
+}
 
 /// Layout mirror of `BlitUniforms` in `EditorBlitShader.metal`
 /// (float2 scale; float2 offset — 16 bytes, set via `setVertexBytes`).
+/// 04-06 RETIRED from the draw (fitQuad carries corners); kept for the
+/// `aspectFitUniforms` doc chain until the eyedropper comment is updated.
 private struct BlitUniforms {
     var scale: SIMD2<Float>
     var offset: SIMD2<Float>

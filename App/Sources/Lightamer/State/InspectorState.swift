@@ -65,9 +65,24 @@ final class InspectorState {
         // agx (the filmic VARIANT).
         register(FilmicRGBPanelProvider())
         register(AgXPanelProvider())
+        // Plan 04-02-T5: crop (the framing window).
+        register(CropPanelProvider())
+        // Plan 04-08-T1 (GUI-6): flip orientation Picker (EXIF auto + 8
+        // states; dt flip.c gui_init 4-button XOR simplified to direct
+        // select — D-08-T1-1).
+        register(FlipPanelProvider())
+        // Plan 04-03-T5: ashift (rotate + perspective + Vision auto-detect).
+        register(AshiftPanelProvider())
+        // Plan 04-04-T3: lens (embedded note + manual sliders + Lensfun).
+        register(LensPanelProvider())
+        // Plan 04-05-T5: detail five (sharpen + local contrast + highpass +
+        // soften + equalizer; highpass/soften share one view, two providers).
+        register(SharpenPanelProvider())
+        register(LocalContrastPanelProvider())
+        register(HighpassPanelProvider())
+        register(SoftenPanelProvider())
+        register(EqualizerPanelProvider())
     }
-
-    /// The ops that have a registered panel (for the Inspector list).
     var panelOpNames: [String] {
         providers.keys.sorted()
     }

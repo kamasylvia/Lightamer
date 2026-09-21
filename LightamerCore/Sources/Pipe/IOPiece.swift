@@ -40,10 +40,28 @@ public struct IOPiece {
     public var paramsHash: UInt64
 
     /// Input buffer geometry for this piece.
+    /// ROI 帧约定（L020/L021）：本 run 平面像素（PixelPipe.run 按 bufInROI
+    /// 逐级 stamp，已含 entry 缩放）——模块 ROI 钩子禁止再 ×scale。
     public var dscIn: IOPBufferDesc
 
     /// Output buffer geometry for this piece.
     public var dscOut: IOPBufferDesc
+
+    /// Entry scale of this run (dt `piece->iscale`, `pixelpipe_hb.c:505`
+    /// mirror) — the run-level constant stamped ONCE by `PixelPipe.run`
+    /// alongside dscIn, from the same entry-ROI source. Radius compensation
+    /// for denoise consumers = `roi.scale ÷ iscale` (dt
+    /// `fmin(roi.scale,2)/fmax(iscale,1)` 同构；soften.c:141 先行同式).
+    /// TILE 驱动不得改写（tile 内 piece.iscale == 整幅执行值）.
+    /// `commitParams` never touches it (default 1.0 = full-res identity).
+    public var iscale: Float
+
+    /// 04-01 negotiation stamps (dt `processed_roi_in/out`,
+    /// `pixelpipe_hb.c:2095-2096` mirror): the exact ROIs this piece's
+    /// execution consumed. Stamped by `processRec` (post-negotiation) —
+    /// modules and probes read them; `commitParams` never touches them.
+    public var processedROIIn: ROI
+    public var processedROIOut: ROI
 
     /// Module-private piece data (Darktable `piece->data`, iop_api.h:188) —
     /// typically a uniforms buffer written by `commitParams`.
@@ -53,11 +71,17 @@ public struct IOPiece {
         paramsHash: UInt64 = 0,
         dscIn: IOPBufferDesc = IOPBufferDesc(),
         dscOut: IOPBufferDesc = IOPBufferDesc(),
+        iscale: Float = 1.0,
+        processedROIIn: ROI = ROI(),
+        processedROIOut: ROI = ROI(),
         data: (any MTLBuffer)? = nil
     ) {
         self.paramsHash = paramsHash
         self.dscIn = dscIn
         self.dscOut = dscOut
+        self.iscale = iscale
+        self.processedROIIn = processedROIIn
+        self.processedROIOut = processedROIOut
         self.data = data
     }
 }

@@ -184,6 +184,11 @@ internal struct LightamerApp: App {
                     // providers (exposure + temperature are the first two).
                     inspectorState.registerDefaultProviders()
 
+                    // Plan 04-04-T3: resolve the Lensfun database (custom
+                    // path > downloaded copy > absent-downgrade; sync,
+                    // no network at launch — first download is panel-driven).
+                    _ = LensfunDownloadService.resolveAndInstall()
+
                     // Register the IOP framework's default.metallib (which
                     // carries the pass_through kernel) with the dispatch
                     // context. Plan 04's pixelpipe dispatches through it;
@@ -276,14 +281,22 @@ internal struct LightamerApp: App {
             }
 
             // ── Edit ────────────────────────────────────────────────
+            // 04-08-F2 (GUI-9 闭环): Undo/Redo 接 Phase 2 HistoryStack 真
+            // 栈语义 —— EditorState.performUndo/performRedo + coordinator
+            // 重渲染（historyDidChange），不再是 Phase 1 的 disabled 占位.
+            // enabled 跟随 canUndo/canRedo（@Observable 绑定，commit 后
+            // 自动点亮，无需手动刷新）.
             CommandGroup(replacing: .undoRedo) {
-                // Phase 2 (history stack) — disabled in Phase 1.
-                Button(String(localized: "menu_undo")) {}
-                    .disabled(true)
-                    .keyboardShortcut("z", modifiers: .command)
-                Button(String(localized: "menu_redo")) {}
-                    .disabled(true)
-                    .keyboardShortcut("z", modifiers: [.command, .shift])
+                Button(String(localized: "menu_undo")) {
+                    Task { await pipeCoordinator.undo() }
+                }
+                .disabled(!editorState.canUndo)
+                .keyboardShortcut("z", modifiers: .command)
+                Button(String(localized: "menu_redo")) {
+                    Task { await pipeCoordinator.redo() }
+                }
+                .disabled(!editorState.canRedo)
+                .keyboardShortcut("z", modifiers: [.command, .shift])
                 Divider()
                 // Phase 9 (HIST-05) — disabled.
                 Button(String(localized: "menu_copy_adjustments")) {}

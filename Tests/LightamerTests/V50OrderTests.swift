@@ -1,4 +1,5 @@
 import LightamerCore
+import LightamerIOP
 import XCTest
 
 /// FOUND-03 structure tests for the `V50Order` table (the verbatim port of
@@ -55,5 +56,49 @@ final class V50OrderTests: XCTestCase {
         XCTAssertEqual(V50Order.order(for: "gamma"), 78.0)
         XCTAssertNil(V50Order.order(for: "does_not_exist"))
         XCTAssertNil(V50Order.order(for: "passthrough_spike"), "spike module has no slot")
+    }
+
+    /// 04-02: the flip-before-crop hard constraint (`iop_order.c:810-812`
+    /// "crop GUI broken if flip is done on top") — mechanism: the module
+    /// statics AND the table agree, so the default chain sorts flip first.
+    func testFlipBeforeCropOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "flip"), 16.0)
+        XCTAssertEqual(V50Order.order(for: "crop"), 24.5)
+        XCTAssertLessThan(V50Order.order(for: "flip")!, V50Order.order(for: "crop")!)
+        XCTAssertEqual(FlipModule.iopOrder, 16.0)
+        XCTAssertEqual(CropModule.iopOrder, 24.5)
+        XCTAssertLessThan(FlipModule.iopOrder, CropModule.iopOrder)
+    }
+
+    /// 04-04: lens (13.0) sits after scalepixels (12.0), before
+    /// cacorrectrgb (13.5, whose source comment orders CA-after-lens) —
+    /// mechanism: the module statics AND the table agree.
+    func testLensSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "lens"), 13.0)
+        XCTAssertEqual(V50Order.order(for: "cacorrectrgb"), 13.5)
+        XCTAssertLessThan(V50Order.order(for: "lens")!, V50Order.order(for: "cacorrectrgb")!)
+        XCTAssertEqual(LensModule.iopOrder, 13.0)
+        XCTAssertLessThan(LensModule.iopOrder, AshiftModule.iopOrder)
+        XCTAssertLessThan(AshiftModule.iopOrder, FlipModule.iopOrder)
+        XCTAssertLessThan(FlipModule.iopOrder, CropModule.iopOrder)
+    }
+    /// 04-05: detail five slots — equalizer 27.0 < highpass 34.0 <
+    /// sharpen 35.0 < bilat 54.0 < soften 66.0; module statics AND the
+    /// table agree, so the default chain sorts them structurally.
+    func testDetailSlotOrderConstraints() {
+        XCTAssertEqual(V50Order.order(for: "equalizer"), 27.0)
+        XCTAssertEqual(V50Order.order(for: "highpass"), 34.0)
+        XCTAssertEqual(V50Order.order(for: "sharpen"), 35.0)
+        XCTAssertEqual(V50Order.order(for: "bilat"), 54.0)
+        XCTAssertEqual(V50Order.order(for: "soften"), 66.0)
+        XCTAssertEqual(EqualizerModule.iopOrder, 27.0)
+        XCTAssertEqual(HighpassModule.iopOrder, 34.0)
+        XCTAssertEqual(SharpenModule.iopOrder, 35.0)
+        XCTAssertEqual(LocalContrastModule.iopOrder, 54.0)
+        XCTAssertEqual(SoftenModule.iopOrder, 66.0)
+        XCTAssertLessThan(EqualizerModule.iopOrder, ColorInModule.iopOrder)
+        XCTAssertLessThan(HighpassModule.iopOrder, SharpenModule.iopOrder)
+        XCTAssertLessThan(SharpenModule.iopOrder, LocalContrastModule.iopOrder)
+        XCTAssertLessThan(LocalContrastModule.iopOrder, SoftenModule.iopOrder)
     }
 }

@@ -1,5 +1,6 @@
 @testable import LightamerCore
 import CoreImage
+import LightamerIOP
 import Metal
 import XCTest
 
@@ -308,5 +309,167 @@ final class MemoryBudgetTests: XCTestCase {
         XCTAssertEqual(texture.width, 16)
         XCTAssertEqual(texture.height, 16)
         await metal.clearCICaches() // idempotent
+    }
+    // ── 6. ROI negotiation accounting (04-01-T5, D-C1/C2 前置) ──────────
+
+    /// File-local crop probe (dt `crop.c:517-531` forward / `:576-592`
+    /// backward, minus the Phase-11 export aligner; params parked on the
+    /// module — modifyROI hooks only receive `piece`).
+    private final class ROICropProbe: IOPModule {
+        struct Params: Codable, Hashable {
+            var cx: Float
+            var cy: Float
+            var cw: Float
+            var ch: Float
+        }
+        static var opName: String { "crop_roi_probe" }
+        static var iopOrder: Float { 24.5 }
+        static var flags: IOPFlags { [] }
+        static var defaultColorspace: IOPColorspace { .RGB }
+        private var rect = Params(cx: 0.25, cy: 0.25, cw: 0.75, ch: 0.75)
+        func reloadDefaults(image: DecodedImage) async -> Params { rect }
+        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+            rect = params
+            piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
+        }
+        func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
+            roi = input
+            roi.x = max(0, Int(Float(input.width) * rect.cx))
+            roi.y = max(0, Int(Float(input.height) * rect.cy))
+            roi.width = max(4, Int(Float(input.width) * (rect.cw - rect.cx)))
+            roi.height = max(4, Int(Float(input.height) * (rect.ch - rect.cy)))
+        }
+        func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
+            input = roi
+            let iw = Double(piece.dscIn.width) * Double(roi.scale)
+            let ih = Double(piece.dscIn.height) * Double(roi.scale)
+            input.x += Int(iw * Double(rect.cx))
+            input.y += Int(ih * Double(rect.cy))
+            input.x = min(max(input.x, 0), Int(iw.rounded(.down)))
+            input.y = min(max(input.y, 0), Int(ih.rounded(.down)))
+            input.width = min(input.width, max(1, Int(iw.rounded(.down)) - input.x))
+            input.height = min(input.height, max(1, Int(ih.rounded(.down)) - input.y))
+        }
+        func process(
+            input: any MTLTexture, output: any MTLTexture,
+            roiIn: ROI, roiOut: ROI, piece: inout IOPiece, metal: MetalContext
+        ) async throws {
+            guard let commandBuffer = metal.commandQueue.makeCommandBuffer(),
+                  let blit = commandBuffer.makeBlitCommandEncoder() else {
+                throw AppError.decodeFailed("ROICropProbe blit: no command buffer")
+            }
+            blit.copy(
+                from: input, sourceSlice: 0, sourceLevel: 0,
+                sourceOrigin: MTLOrigin(x: roiOut.x - roiIn.x, y: roiOut.y - roiIn.y, z: 0),
+                sourceSize: MTLSize(width: roiOut.width, height: roiOut.height, depth: 1),
+                to: output, destinationSlice: 0, destinationLevel: 0,
+                destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+            blit.endEncoding() // L008
+            commandBuffer.commit()
+        }
+    }
+
+    /// File-local halo probe (identity forward, halo-pixel backward
+    /// expansion; center-sample process).
+    private final class ROIHaloProbe: IOPModule {
+        struct Params: Codable, Hashable {
+            var halo: Int
+        }
+        static var opName: String { "sharpen_roi_probe" }
+        static var iopOrder: Float { 35.0 }
+        static var flags: IOPFlags { [] }
+        static var defaultColorspace: IOPColorspace { .RGB }
+        private var haloValue = 3
+        func reloadDefaults(image: DecodedImage) async -> Params { Params(halo: haloValue) }
+        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+            haloValue = params.halo
+            piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
+        }
+        func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
+            roi = input
+        }
+        func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
+            input = roi
+            input.x -= haloValue
+            input.y -= haloValue
+            input.width += 2 * haloValue
+            input.height += 2 * haloValue
+        }
+        func process(
+            input: any MTLTexture, output: any MTLTexture,
+            roiIn: ROI, roiOut: ROI, piece: inout IOPiece, metal: MetalContext
+        ) async throws {
+            guard let commandBuffer = metal.commandQueue.makeCommandBuffer(),
+                  let blit = commandBuffer.makeBlitCommandEncoder() else {
+                throw AppError.decodeFailed("ROIHaloProbe blit: no command buffer")
+            }
+            blit.copy(
+                from: input, sourceSlice: 0, sourceLevel: 0,
+                sourceOrigin: MTLOrigin(
+                    x: roiOut.x - roiIn.x + haloValue,
+                    y: roiOut.y - roiIn.y + haloValue, z: 0),
+                sourceSize: MTLSize(width: roiOut.width, height: roiOut.height, depth: 1),
+                to: output, destinationSlice: 0, destinationLevel: 0,
+                destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+            blit.endEncoding() // L008
+            commandBuffer.commit()
+        }
+    }
+
+    /// Crop 50% 后记账下降：裁切窗口 run 的缓存总字节 ≈ 全幅 run 的 1/4
+    ///（输入平面同样窗口化 — 端到端子域渲染）。
+    func testCropHalvesMemoryAccounting() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let ci = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5))
+            .cropped(to: CGRect(x: 0, y: 0, width: 64, height: 64))
+        let image = DecodedImage(
+            ciImage: ci, rawTech: RAWTechnicalParams(),
+            capture: CaptureMetadata(), segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8)
+
+        func runWithCrop(cx: Float, cy: Float, cw: Float, ch: Float) async throws -> Int {
+            let crop = ModuleBox(module: ROICropProbe(), multiPriority: 0, multiName: "crop")
+            await crop.setParams(ROICropProbe.Params(cx: cx, cy: cy, cw: cw, ch: ch))
+            let cache = PipeCache()
+            _ = try await RenderPipeline.process(
+                image: image, instances: [crop], imageID: UUID(),
+                resolution: .preview, cache: cache, metal: metal, longEdge: nil)
+            return await cache.totalBytes
+        }
+
+        let fullBytes = try await runWithCrop(cx: 0, cy: 0, cw: 1, ch: 1)
+        let cropBytes = try await runWithCrop(cx: 0.25, cy: 0.25, cw: 0.75, ch: 0.75)
+        XCTAssertLessThan(cropBytes, fullBytes, "crop window must account fewer bytes than full frame")
+        XCTAssertEqual(cropBytes * 4, fullBytes, "50% crop ≈ 1/4 bytes (window planes vs full planes)")
+    }
+
+    /// Halo 外扩类请求的上游平面 < 全图：roiHint 子窗口 + halo 后向扩展
+    /// 的输入平面记账 == 扩展窗口（30×30 ≪ 128×128 全图）。
+    func testHaloExpansionStaysBelowFullFrame() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let ci = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5))
+            .cropped(to: CGRect(x: 0, y: 0, width: 128, height: 128))
+        let image = DecodedImage(
+            ciImage: ci, rawTech: RAWTechnicalParams(),
+            capture: CaptureMetadata(), segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8)
+        let haloBox = ModuleBox(module: ROIHaloProbe(), multiPriority: 0, multiName: "halo")
+        await haloBox.setParams(ROIHaloProbe.Params(halo: 3))
+        let cache = PipeCache()
+        _ = try await RenderPipeline.process(
+            image: image, instances: [haloBox], imageID: UUID(),
+            resolution: .preview, cache: cache, metal: metal, longEdge: nil,
+            roiHint: ROI(x: 40, y: 40, width: 24, height: 24, scale: 1.0))
+        let total = await cache.totalBytes
+        let fullFrame = 128 * 128 * WorkingSpace.bytesPerPixel
+        XCTAssertLessThan(total, fullFrame, "expanded-window accounting must stay below one full frame")
+        XCTAssertEqual(
+            total,
+            (30 * 30 + 24 * 24) * WorkingSpace.bytesPerPixel,
+            "input (30×30 expanded) + halo-out (24×24 window)")
     }
 }

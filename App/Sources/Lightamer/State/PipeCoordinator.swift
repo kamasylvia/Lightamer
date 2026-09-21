@@ -752,8 +752,15 @@ final class PipeCoordinator {
     /// slider interaction). The pipes already rendered the live state, so
     /// the notification-driven `historyDidChange` pass is idempotent
     /// (cache hits end-to-end) — no second render is issued here.
-    func commitContinuousEdit(label: String) async {
+    func commitContinuousEdit(label: String, autoEnable: Bool = true) async {
         isEditingContinuous = false
+        // 04-08-T3 (GUI-7, D-08-T3-1): editing a disabled module's params
+        // auto-enables at COMMIT (dt "edit implies enable"; live ticks keep
+        // the stored enabled so the drag preview stays cache-stable —
+        // enabled flips levelHash, and flipping per-tick would miss the
+        // whole chain mid-drag). D-08-T3-2: explicit toggle-OFF
+        // (`autoEnable = false`) bypasses the flip — otherwise the row
+        // toggle could never disable a module.
         let touched = liveEdited.values.sorted {
             ($0.iopOrder, $0.multiPriority, $0.opName)
                 < ($1.iopOrder, $1.multiPriority, $1.opName)
@@ -761,7 +768,9 @@ final class PipeCoordinator {
         liveEdited.removeAll()
         guard !touched.isEmpty else { return }
         for snapshot in touched {
-            editorState?.recordChange(snapshot, label: label)
+            var effective = snapshot
+            if autoEnable, !effective.enabled { effective.enabled = true }
+            editorState?.recordChange(effective, label: label)
         }
         scheduleSidecarWrite() // D-S3: the committed move throttles a write
     }
@@ -857,6 +866,22 @@ final class PipeCoordinator {
         }
     }
 
+    /// The decoded source image for auto-detect features (04-03 ashift
+    /// horizon/rectangle via `AshiftAutoDetect`): read-only, zero pipe
+    /// involvement (panels render small probes from it — no pipe-plane
+    /// readback, L014-clean by construction). nil when nothing is loaded.
+    /// Additive seam (no existing caller touched).
+    func detectionSourceImage() -> DecodedImage? {
+        decoded
+    }
+
+    /// Forward a non-blocking status-bar toast to EditorState (D-26).
+    /// Additive seam for 04-08-T2 (GUI-8): auto-detect nil/failure paths
+    /// must be user-visible; no existing caller touched.
+    func presentToast(_ message: String) {
+        editorState?.presentToast(message)
+    }
+
     /// Full-image per-channel RGB min/max over the linear chain (Plan
     /// 03-06-T5, the filmic auto black/white keys — dt's
     /// `picked_color_min/max` whole-preview semantics via the shared
@@ -898,25 +923,11 @@ final class PipeCoordinator {
     nonisolated static func viewportUV(
         at point: CGPoint, viewportSize: CGSize, textureSize: SIMD2<Int>
     ) -> SIMD2<Double>? {
-        guard viewportSize.width >= 1, viewportSize.height >= 1,
-              textureSize.x >= 1, textureSize.y >= 1
-        else { return nil }
-        let vw = Double(viewportSize.width)
-        let vh = Double(viewportSize.height)
-        let tw = Double(textureSize.x)
-        let th = Double(textureSize.y)
-        let fit = min(vw / tw, vh / th)
-        let scaleX = fit * tw / vw // ≤ 1; 1 on the constraining axis
-        let scaleY = fit * th / vh
-        // uv spans [0,1] across the FITTED rect: divide the viewport
-        // fraction by the per-axis scale (the fitted rect occupies
-        // [0.5(1−s), 0.5(1+s)] of the viewport).
-        let uv = SIMD2<Double>(
-            0.5 + (Double(point.x) / vw - 0.5) / scaleX,
-            0.5 + (Double(point.y) / vh - 0.5) / scaleY
-        )
-        guard uv.x >= 0, uv.x <= 1, uv.y >= 0, uv.y <= 1 else { return nil }
-        return uv
+        // 04-02-T4: single-source math (ViewportFit); the guard + letterbox
+        // semantics are unchanged (EyedropperTests pin them).
+        ViewportFit.uv(
+            at: point, viewportSize: viewportSize,
+            textureSize: CGSize(width: textureSize.x, height: textureSize.y))
     }
 
     /// N×N area mean around the uv point (dt AREA picker; default radius 2

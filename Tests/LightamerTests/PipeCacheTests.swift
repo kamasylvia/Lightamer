@@ -480,4 +480,47 @@ final class PipeCacheTests: XCTestCase {
         total = await cache.totalBytes
         XCTAssertEqual(total, 1024, "only the victim image's lines are swept")
     }
+
+    // ── 8. ROI axis identity (04-01-T1 regression net, pre-negotiation) ──
+
+    /// ROI 轴恒等（现码全绿）：同 params、不同入口 longEdge → 不同键
+    /// （scale 进 roi）；同键二次 run 命中。T3 协商后仍须绿（恒等默认下
+    /// 行为逐字节不变）：不同 scale 的 roi 字段天然分离缓存行。
+    func testSameParamsDifferentEntryScaleMiss() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let cache = PipeCache()
+        let counter = CallCounter()
+        let image = makeImage(width: 128, height: 96)
+        let imageID = UUID()
+        let (instances, _, _) = await makeChain(counter)
+
+        func runAt(_ longEdge: Int?) async throws -> RenderPipeline.PipeRunStats {
+            let result = try await RenderPipeline.process(
+                image: image, instances: instances, imageID: imageID,
+                resolution: .preview, cache: cache, metal: metal, longEdge: longEdge
+            )
+            return result.1
+        }
+
+        let stats64 = try await runAt(64)
+        XCTAssertEqual(stats64.hits, 0)
+        XCTAssertEqual(stats64.misses, 5, "input + 4 outputs at the 64px entry scale")
+        let bytes64 = await cache.totalBytes
+        let stats64Again = try await runAt(64)
+        XCTAssertEqual(stats64Again.hits, 1)
+        XCTAssertEqual(stats64Again.misses, 0, "same key reruns must hit")
+        let bytesAfterHit = await cache.totalBytes
+        XCTAssertEqual(bytesAfterHit, bytes64, "hit builds nothing")
+
+        let stats32 = try await runAt(32)
+        XCTAssertEqual(stats32.hits, 0, "different entry scale = different roi = different keys")
+        XCTAssertEqual(stats32.misses, 5)
+        let bytesAfter32 = await cache.totalBytes
+        XCTAssertGreaterThan(bytesAfter32, bytes64, "both scale groups retained")
+
+        let stats64Back = try await runAt(64)
+        XCTAssertEqual(stats64Back.hits, 1, "the 64px key group survived the 32px run")
+        XCTAssertEqual(stats64Back.misses, 0)
+    }
 }

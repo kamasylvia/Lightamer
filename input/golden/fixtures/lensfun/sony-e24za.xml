@@ -1,0 +1,20 @@
+<lensdatabase version="1">
+<camera>
+        <maker>Sony</maker>
+        <model>ILCE-7M4</model>
+        <model lang="en">Alpha 7 IV</model>
+        <mount>Sony E</mount>
+        <cropfactor>1</cropfactor>
+    </camera>
+<lens>
+        <maker>Sony</maker>
+        <model>E 24mm f/1.8 ZA</model>
+        <mount>Sony E</mount>
+        <cropfactor>1.534</cropfactor>
+        <calibration>
+            <!-- Taken with Sony NEX-C3 -->
+            <distortion model="ptlens" focal="24" a="0.00641" b="-0.0083" c="0.00228"/>
+            <tca model="linear" focal="24" kr="1.0004" kb="1.0002"/>
+        </calibration>
+    </lens>
+</lensdatabase>

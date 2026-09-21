@@ -24,26 +24,51 @@ internal struct ContentView: View {
     /// Split-view column visibility (sidebar/inspector toggles, D-08).
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
-    // D-08 layout memory — keys survive relaunch.
-    @AppStorage("layout.sidebarWidth") private var sidebarWidth: Double = 240
-    @AppStorage("layout.inspectorWidth") private var inspectorWidth: Double = 320
+    // D-08 layout memory — keys survive relaunch (NSSplitView autosave;
+    // the @AppStorage ideals below are the clean-launch defaults).
+    //
+    // 04-08-F1 (GUI-4 真修复): viewport-is-hero 红线 —— 990pt 窗要求视口
+    // ≥50% (≥495pt). 两层保证:
+    // ① ideals 收窄: sidebar 200 + inspector 240 = 440, 余 550 给编辑器
+    // (55.6%). inspector min 220→200 给小窗留 slack; max 460 保留 (曲线
+    // 编辑器手动拉宽).
+    // ② 编辑列硬 min 500pt (下 content 闭包处): 即使 NSSplitView 恢复的旧
+    // frames 压倒 ideal (04-06 教训: 首启顶 max 460 → 视口 33.2%), 小窗下
+    // 编辑器 min 也会先把 inspector 压回 ≤290, 红线按构造守住. 大窗
+    // (1440) 不受影响 (200+500+460=1160<1440, inspector 可留 460).
+    @AppStorage("layout.sidebarWidth") private var sidebarWidth: Double = 200
+    @AppStorage("layout.inspectorWidth") private var inspectorWidth: Double = 240
     @AppStorage("layout.inspectorVisible") private var inspectorVisible: Bool = true
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView()
-            // UI-SPEC dims: min 180 / ideal 240 / max 320 — ideal is the
-            // D-08 layout-memory value (default 240 matches the spec).
-                .navigationSplitViewColumnWidth(min: 180, ideal: clamped(sidebarWidth, 180, 320), max: 320)
+            // UI-SPEC dims, GUI-4 narrowed: min 150 / ideal 200 / max 240.
+                .navigationSplitViewColumnWidth(min: 150, ideal: clamped(sidebarWidth, 150, 240), max: 240)
         } content: {
             EditorAreaView(decoder: decoder, metalContext: metalContext)
+                // 04-08-F1 ②: 编辑列硬 min 495pt = 990pt 窗的 50% 红线 ——
+                // 旧 split frames 恢复压倒 ideal 时 (04-06 教训: 首启顶 max
+                // 460 → 视口 33.2%), 小窗下先压侧栏/inspector (mins 150/
+                // 200, 合计 150+495+200=845 < 990: 常规拖拽不受限)；
+                // 大窗 (1440) inspector 仍可到 max 460. ideal 700 保留：
+                // 富余分配仍由 balanced 定，不干预大窗比例.
+                .navigationSplitViewColumnWidth(min: 495, ideal: 700)
         } detail: {
             InspectorView()
-            // UI-SPEC dims: min 240 / ideal 320 / max 460 — ideal is the
-            // D-08 layout-memory value (default 320 matches the spec).
-                .navigationSplitViewColumnWidth(min: 240, ideal: clamped(inspectorWidth, 240, 460), max: 460)
+            // UI-SPEC dims, GUI-4 真修复（F1 ①）: min 200 / ideal 240 / max 460.
+            // 曲线编辑器满宽 = 240 列 − padding ≈ 216pt 画布；max 460 只在
+            // 用户手动拉宽时到达.
+                .navigationSplitViewColumnWidth(min: 200, ideal: clamped(inspectorWidth, 200, 460), max: 460)
         }
         .navigationSplitViewStyle(.balanced)
+        // 04-08-T2 (GUI-8 fix): the D-26 status bar lives at the WINDOW
+        // bottom (all three columns) — it used to sit inside the editor
+        // column, where the acceptance round read it as viewport chrome
+        // and never saw auto-detect toasts.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            StatusBar(isDecoding: editorState.isDecoding, toast: editorState.toast)
+        }
         .focusedSceneValue(\.lightamerColumnVisibility, $columnVisibility)
         .toolbar { toolbarContent }
         .alert(

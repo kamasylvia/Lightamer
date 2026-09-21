@@ -208,4 +208,31 @@ final class RAW03Tests: XCTestCase {
         XCTAssertNotNil(decoded.ciImage)
         XCTAssertGreaterThan(decoded.capture.width ?? 0, 0)
     }
+
+    // ── 5. D-X1 regression: JPEG open→reopen smoke (04-01 ROI guard) ───
+
+    /// ROI 改造不得破坏单一渲染显示路径：JPEG 解码 → 管线 → 同 cache
+    /// 同 imageID 二次 run（reopen）必须全命中零功耗，且两次输出非空同尺寸。
+    func testJPEGOpenReopenSmoke() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let url = try Fixtures.raster("sample-gradient", "jpg")
+        let decoded = try await decode(url: url)
+        let metal = try MetalContext()
+        let cache = PipeCache()
+        let imageID = UUID()
+        let (first, stats1) = try await RenderPipeline.process(
+            image: decoded, instances: [], imageID: imageID,
+            resolution: .preview, cache: cache, metal: metal, longEdge: 64)
+        XCTAssertGreaterThan(first.width, 0)
+        XCTAssertGreaterThan(first.height, 0)
+        XCTAssertEqual(stats1.misses, 1, "open: input plane miss")
+        let (second, stats2) = try await RenderPipeline.process(
+            image: decoded, instances: [], imageID: imageID,
+            resolution: .preview, cache: cache, metal: metal, longEdge: 64)
+        XCTAssertEqual(second.width, first.width)
+        XCTAssertEqual(second.height, first.height)
+        XCTAssertEqual(stats2.hits, 1, "reopen: same key must hit")
+        XCTAssertEqual(stats2.misses, 0)
+        XCTAssertEqual(stats2.planesRendered, 0, "reopen renders nothing")
+    }
 }

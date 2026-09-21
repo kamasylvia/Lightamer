@@ -1,5 +1,6 @@
 import AppKit
 import LightamerCore
+import LightamerIOP
 import SwiftUI
 
 /// Editor center column: empty state ↔ Metal viewport (D-11/D-13).
@@ -25,11 +26,14 @@ internal struct EditorAreaView: View {
     /// The app-owned Metal context (D-14/15); nil = no GPU (fatal alert is
     /// hosted by `ContentView` per UI-SPEC Error Messages).
     let metalContext: MetalContext?
-
     /// The multi-resolution pipe owner (Plan 02-03-04) — receives the
     /// geometry input events only.
     @Environment(PipeCoordinator.self) private var pipeCoordinator
 
+    /// T0 live state: true between overlay `onBegin` and `onCommit`
+    /// (crop disabled + scrim). View-local mirror of the coordinator's
+    /// `isEditingContinuous` window.
+    @State private var isCropDragging = false
     @Environment(EditorState.self) private var editorState
 
     /// D-T4 eyedropper mode (Plan 03-02-T5): the crosshair + click routing
@@ -59,13 +63,35 @@ internal struct EditorAreaView: View {
                         )
                         .transition(.opacity)
                         .accessibilityLabel(Text("editor_viewport"))
+                        // 04-02-T4: crop overlay above the viewport (D-G6).
+                        .overlay {
+                            GeometryReader { overlayGeo in
+                                CropOverlayHost(
+                                    viewportSize: overlayGeo.size,
+                                    displaySize: displayPixelSize,
+                                    cropRecord: cropRecord,
+                                    isDragging: isCropDragging,
+                                    onBegin: {
+                                        isCropDragging = true
+                                        pipeCoordinator.beginContinuousEdit()
+                                    },
+                                    onLive: { snapshot in
+                                        Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                    },
+                                    onCommit: { snapshot, label in
+                                        isCropDragging = false
+                                        Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                        Task { await pipeCoordinator.commitContinuousEdit(label: label) }
+                                    }
+                                )
+                            }
+                        }
                     } else {
                         Color.clear
                             .transition(.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // UI-SPEC Accessibility: stable identifier for
                 // VoiceOver/XCUITest. NO accessibilityLabel here — a
                 // container label absorbs the child elements (the
                 // empty-state card would vanish from the AX tree); the
@@ -111,8 +137,6 @@ internal struct EditorAreaView: View {
                 )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            StatusBar(isDecoding: editorState.isDecoding, toast: editorState.toast)
         }
         .background(LightamerColors.canvas)
     }
@@ -127,5 +151,20 @@ internal struct EditorAreaView: View {
         let longEdge = Int(max(size.width, size.height).rounded())
         guard longEdge > 0 else { return }
         Task { await pipeCoordinator.drawableDidChange(drawableLongEdge: longEdge) }
+    }
+
+    // MARK: - 04-02-T4 crop overlay inputs (D-G6)
+
+    /// The crop record (nil ⇒ no overlay). Read from the live instance
+    /// set — the panel (T5) and overlay share this record (single source).
+    private var cropRecord: ModuleInstance? {
+        editorState.instances.first { $0.opName == CropModule.opName }
+    }
+
+    /// The display texture's pixel size (upstream geometry for the fitted
+    /// rect + the `original` preset). Nil-texture ⇒ zero size ⇒ no overlay.
+    private var displayPixelSize: CGSize {
+        guard let tex = editorState.displayTexture else { return .zero }
+        return CGSize(width: tex.width, height: tex.height)
     }
 }

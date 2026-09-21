@@ -73,6 +73,55 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: AgXModule.opName) { id in
             ModuleBox(module: AgXModule(), instanceID: id)
         }
+        // Plan 04-04-T1: lens (manual warp + Lensfun XML resolve), v50
+        // slot 13.0 — AFTER scalepixels (12.0), BEFORE cacorrectrgb (13.5,
+        // whose source comment orders CA-after-lens).
+        await registry.register(opName: LensModule.opName) { id in
+            ModuleBox(module: LensModule(), instanceID: id)
+        }
+        // Plan 04-03-T2: ashift (rotate/perspective single-homography warp),
+        // v50 slot 15.0 — BEFORE flip (16.0) per iop_order.c:319-320.
+        await registry.register(opName: AshiftModule.opName) { id in
+            ModuleBox(module: AshiftModule(), instanceID: id)
+        }
+        // Plan 04-02-T2: flip (orientation index remap), v50 slot 16.0 —
+        // AFTER ashift (15.0), BEFORE crop (24.5) per iop_order.c:810-812.
+        await registry.register(opName: FlipModule.opName) { id in
+            ModuleBox(module: FlipModule(), instanceID: id)
+        }
+        // Plan 04-02-T1: crop (framing window, blit copy — no kernel),
+        // v50 slot 24.5 — after toneequal (24.0, last roi_in widener).
+        await registry.register(opName: CropModule.opName) { id in
+            ModuleBox(module: CropModule(), instanceID: id)
+        }
+        // Plan 04-05-T4: equalizer (gaussian half-octave pyramid +
+        // per-band gains), v50 slot 27.0 — after profile_gamma (26.0),
+        // before colorin (28.0).
+        await registry.register(opName: EqualizerModule.opName) { id in
+            ModuleBox(module: EqualizerModule(), instanceID: id)
+        }
+        // Plan 04-05-T3: highpass (Lab inverted highpass), v50 slot 34.0 —
+        // after lowpass (33.0), before sharpen (35.0).
+        await registry.register(opName: HighpassModule.opName) { id in
+            ModuleBox(module: HighpassModule(), instanceID: id)
+        }
+        // Plan 04-05-T1: sharpen (USM: IIR + soft-threshold mix), v50 slot
+        // 35.0 — after highpass (34.0), before colortransfer (37.0). D-G5
+        // backward-expansion prover (replaces the ROINegotiationTests stub).
+        await registry.register(opName: SharpenModule.opName) { id in
+            ModuleBox(module: SharpenModule(), instanceID: id)
+        }
+        // Plan 04-05-T2: local contrast (clarity, EIGF base + detail mix),
+        // v50 slot 54.0 (dt op "bilat") — after relight (53.0), before
+        // colorcorrection (55.0). TilingPlan FULL second consumer.
+        await registry.register(opName: LocalContrastModule.opName) { id in
+            ModuleBox(module: LocalContrastModule(), instanceID: id)
+        }
+        // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
+        // 66.0 (creative) — after grain (65.0), before splittoning (67.0).
+        await registry.register(opName: SoftenModule.opName) { id in
+            ModuleBox(module: SoftenModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -107,6 +156,29 @@ public enum LightamerIOPRegistry {
             SigmoidKernel.rgbRatioFunction,
             FilmicRGBKernel.v5Function,
             AgXKernel.mainFunction,
+            // Plan 04-02-T2: the flip remap (crop needs no kernel — blit).
+            FlipKernel.functionName,
+            // Plan 04-03-T2: the single-homography warp (rotation +
+            // perspective share one kernel).
+            AshiftKernel.functionName,
+            // Plan 04-04-T1: the lens manual warp (distortion + TCA +
+            // devignette fusion).
+            LensKernel.functionName,
+            // Plan 04-05-T1: sharpen prep + soft-threshold mix.
+            SharpenKernel.prepFunction,
+            SharpenKernel.mixFunction,
+            // Plan 04-05-T2: local-contrast prep + clarity apply (the EIGF
+            // leg reuses toneequal's kernels — already warmed above).
+            LocalContrastKernel.prepFunction,
+            LocalContrastKernel.applyFunction,
+            // Plan 04-05-T3: highpass prep + CL mix; soften overexposed + mix.
+            HighpassKernel.prepFunction,
+            HighpassKernel.mixFunction,
+            SoftenKernel.overFunction,
+            SoftenKernel.mixFunction,
+            // Plan 04-05-T4: equalizer prep + pyramid recombine.
+            EqualizerKernel.prepFunction,
+            EqualizerKernel.recombineFunction,
         ]
     }
 
@@ -115,20 +187,45 @@ public enum LightamerIOPRegistry {
     /// loaded image at IDENTITY params, so their panels have instances to
     /// drive (D-T6's "ModuleRegistry-driven panel generation"). Identity
     /// params keep the default chain cache-neutral (byte-identical hashes).
-    /// Composed by `PipeCoordinator.load` after
-    /// `ModuleRegistry.makeDefaultInstances()`.
     public static func editingDefaultInstances() -> [ModuleInstance] {
         [
             ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params()),
+            // Plan 04-04-T1: lens (neutral OFF) joins the seed — neutral
+            // ⇒ blit identity ⇒ cache-neutral (exposure-0EV style), so
+            // the lens panel has an instance to drive. Sorted by
+            // (iopOrder, multiPriority) at return.
+            ModuleInstance(module: LensModule.self, params: LensModule.Params()),
+            ModuleInstance(module: AshiftModule.self, params: AshiftModule.Params()),
+            // Plan 04-02: flip (NONE identity) + crop (full-frame neutral)
+            // join the seed — both cache-neutral (flip NONE = identity
+            // process; crop full-frame = whole-plane blit), so their
+            // Inspector panels (T5) have instances to drive, exposure-0EV
+            // style. Sorted by (iopOrder, multiPriority) at return.
+            ModuleInstance(module: FlipModule.self, params: FlipModule.Params(orientation: .none)),
             ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params()),
+            ModuleInstance(module: ToneEqualModule.self, params: ToneEqualModule.Params()),
+            ModuleInstance(module: CropModule.self, params: CropModule.Params()),
             ModuleInstance(module: SigmoidModule.self, params: SigmoidModule.Params()),
+            ModuleInstance(module: AgXModule.self, params: AgXModule.Params()),
+            ModuleInstance(module: FilmicRGBModule.self, params: FilmicRGBModule.Params()),
             ModuleInstance(module: ColisaModule.self, params: ColisaModule.Params()),
             ModuleInstance(module: ToneCurveModule.self, params: ToneCurveModule.Params()),
             ModuleInstance(module: LevelsModule.self, params: LevelsModule.Params()),
             ModuleInstance(module: ShadhiModule.self, params: ShadhiModule.Params()),
-            ModuleInstance(module: ToneEqualModule.self, params: ToneEqualModule.Params()),
-            ModuleInstance(module: FilmicRGBModule.self, params: FilmicRGBModule.Params()),
-            ModuleInstance(module: AgXModule.self, params: AgXModule.Params()),
+            // Plan 04-05-T1/T2: sharpen (amount 0) + local contrast (detail 0)
+            // join the seed ENABLED-neutral — blit identity ⇒ cache-neutral
+            // (exposure-0EV style), so their panels have instances to drive.
+            ModuleInstance(module: SharpenModule.self, params: SharpenModule.Params()),
+            ModuleInstance(module: LocalContrastModule.self, params: LocalContrastModule.Params()),
+            // Plan 04-05-T4: equalizer (all-zero deltas = neutral) joins the
+            // seed — blit identity ⇒ cache-neutral (exposure-0EV style), so
+            // the equalizer panel has an instance to drive.
+            ModuleInstance(module: EqualizerModule.self, params: EqualizerModule.Params()),
+            // Plan 04-05-T3: highpass + soften join the seed DISABLED
+            // (creative modules — DECISIONS D11: no zero-param identity, so
+            // identity holds only via the disabled piece).
+            ModuleInstance(module: HighpassModule.self, params: HighpassModule.Params(), enabled: false),
+            ModuleInstance(module: SoftenModule.self, params: SoftenModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }

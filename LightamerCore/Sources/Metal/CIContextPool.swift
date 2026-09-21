@@ -142,6 +142,103 @@ internal actor CIContextPool {
         )
     }
 
+    /// Sub-domain render (04-01-T4; dt base-buffer ROI mirror): render the
+    /// `region`-of-`image` window into a `region.size` texture — CI is lazy
+    /// so the crop folds into the ONE bitmap render (no full-frame buffer,
+    /// no window copy — the D-G2 read). `region` is in the SOURCE extent's
+    /// pixel coords; the bitmap bounds keep the region ORIGIN (not
+    /// re-based to zero) so source-anchored content — CIRAW tiles,
+    /// lens-opcode warps — samples at true coords.
+    ///
+    /// Scale composes (`scale < 1` downsamples the window for PREVIEW/
+    /// THUMBNAIL legs): the output is `region.size × scale`, the bitmap
+    /// bounds stay source-anchored.
+    internal func renderRegion(
+        _ image: CIImage, region: CGRect, scale: CGFloat = 1.0
+    ) throws -> RenderedTexture {
+        let extent = image.extent
+        guard extent.width >= 1, extent.height >= 1 else {
+            throw AppError.decodeFailed("CIImage has an empty extent")
+        }
+        // Clamp the requested window into the extent (negotiated far edges
+        // may touch the frame edge exactly — dt CLAMP upper bound is
+        // INCLUSIVE, so intersect-then-require-nonempty, never throw on
+        // edge touch). Threat model: a module bug requesting a fully
+        // outside window still throws below.
+        let clampedOrigin = CGPoint(
+            x: min(max(region.origin.x, extent.origin.x), extent.maxX - 1),
+            y: min(max(region.origin.y, extent.origin.y), extent.maxY - 1))
+        let clampedSize = CGSize(
+            width: min(region.width, extent.maxX - clampedOrigin.x),
+            height: min(region.height, extent.maxY - clampedOrigin.y))
+        let clipped = CGRect(origin: clampedOrigin, size: clampedSize)
+        guard scale.isFinite, scale > 0 else {
+            throw AppError.decodeFailed("renderRegion: degenerate scale \(scale)")
+        }
+        let outWidth = max(1, Int((clipped.width * scale).rounded()))
+        let outHeight = max(1, Int((clipped.height * scale).rounded()))
+        let windowed: CIImage
+        if scale == 1.0 {
+            windowed = image
+        } else {
+            // Scale about the region origin: content lands at (0,0) at the
+            // output size while the BITMAP bounds below stay anchored.
+            let toOrigin = CGAffineTransform(
+                translationX: -clipped.origin.x, y: -clipped.origin.y)
+            let down = CGAffineTransform(scaleX: scale, y: scale)
+            windowed = image.transformed(by: toOrigin.concatenating(down))
+        }
+        return try renderWindowed(
+            windowed, bounds: scale == 1.0 ? clipped : CGRect(
+                x: 0, y: 0, width: clipped.width * scale,
+                height: clipped.height * scale),
+            width: outWidth, height: outHeight, signpost: "render-region")
+    }
+
+    /// Windowed bitmap leg: like `renderScaled` but the bitmap `bounds`
+    /// differ from the (0,0)-based output texture — the D-G2 sub-domain
+    /// primitive. Bounds origin stays source-anchored at scale 1.0.
+    private func renderWindowed(
+        _ image: CIImage,
+        bounds: CGRect,
+        width: Int,
+        height: Int,
+        signpost: StaticString
+    ) throws -> RenderedTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: WorkingSpace.pixelFormat,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        descriptor.usage = [.renderTarget, .shaderRead]
+        descriptor.storageMode = .shared
+        guard let texture = device.makeTexture(descriptor: descriptor) else {
+            throw MetalError.bufferAllocationFailed(width * height * WorkingSpace.bytesPerPixel)
+        }
+        let interval = Self.signposter.beginInterval(signpost, id: Self.signposter.makeSignpostID())
+        defer { Self.signposter.endInterval(signpost, interval) }
+        let rowBytes = width * WorkingSpace.bytesPerPixel
+        let byteCount = rowBytes * height
+        let buffer = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 64)
+        defer { buffer.deallocate() }
+        ciContext.render(
+            image,
+            toBitmap: buffer,
+            rowBytes: rowBytes,
+            bounds: bounds,
+            format: CIFormat.RGBAf,
+            colorSpace: WorkingSpace.colorSpace
+        )
+        texture.replace(
+            region: MTLRegionMake2D(0, 0, width, height),
+            mipmapLevel: 0,
+            withBytes: buffer,
+            bytesPerRow: rowBytes
+        )
+        return RenderedTexture(texture: texture)
+    }
+
     /// The shared bitmap+replace leg (host finding: direct
     /// `render(_:toMTLTexture:)` is a silent no-op on this host — see the
     /// decision header). Renders `image` into a fresh `.rgba32Float` texture
