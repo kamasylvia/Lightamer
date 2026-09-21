@@ -481,8 +481,8 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertEqual(try after.params(of: CropModule.self).right, 1, accuracy: 1e-6)
     }
 
-    /// Panel dispatch: crop resolves a panel, flip has none (orientation
-    /// buttons belong to a future rotate/flip control — T5 decision).
+    /// Panel dispatch: crop + flip resolve a panel (flip joined in
+    /// 04-08-T1 — the GUI-6 gap: parity 8/8 with no UI entry).
     func testCropPanelDispatch() throws {
         let state = InspectorState()
         state.registerDefaultProviders()
@@ -492,9 +492,27 @@ final class PanelWiringTests: XCTestCase {
         let session = InspectorEditSession(coordinator: coordinator)
         XCTAssertNotNil(state.panelView(for: cropRecord, edit: session),
                         "crop must dispatch a panel")
+        XCTAssertTrue(state.panelOpNames.contains("flip"), "flip must dispatch a panel")
         let flipRecord = ModuleInstance(module: FlipModule.self, params: .init())
-        XCTAssertNil(state.panelView(for: flipRecord, edit: session),
-                     "flip has no panel in v1")
+        XCTAssertNotNil(state.panelView(for: flipRecord, edit: session),
+                        "flip must dispatch a panel")
+    }
+
+    /// Flip Picker select (discrete one-commit): none → flipH lands
+    /// exactly ONE history item with the flipped orientation.
+    func testFlipPanelSelectCommitsOnce() async throws {
+        try await loadSynthetic()
+        let flip = try instance("flip")
+        XCTAssertEqual(try flip.params(of: FlipModule.self).orientation, .none)
+
+        coordinator.beginContinuousEdit()
+        let record = try withParams(flip, { $0.orientation = .flipH }, as: FlipModule.self)
+        await coordinator.setLiveParams(record)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_flip"))
+
+        XCTAssertEqual(historyCount(), 1, "flip select = exactly ONE item")
+        let committed = try instance("flip")
+        XCTAssertEqual(try committed.params(of: FlipModule.self).orientation, .flipH)
     }
 
     // MARK: - 04-03 ashift panel wiring (T5)
