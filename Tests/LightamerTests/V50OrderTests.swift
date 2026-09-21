@@ -110,4 +110,14 @@ final class V50OrderTests: XCTestCase {
         XCTAssertLessThan(V50Order.order(for: "colorbalance")!, V50Order.order(for: "colorbalancergb")!)
         XCTAssertLessThan(V50Order.order(for: "colorbalancergb")!, V50Order.order(for: "rgbcurve")!)
     }
+
+    /// 05-03: channelmixerrgb 28.5 — immediately after colorin (28.0),
+    /// before nlmeans (29.0); module statics AND the table agree. The 28.5
+    /// cluster tie-break is covered by SidecarTieBreakTests.
+    func testChannelMixerRGBSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "channelmixerrgb"), 28.5)
+        XCTAssertEqual(ChannelMixerRGBModule.iopOrder, 28.5)
+        XCTAssertLessThan(V50Order.order(for: "colorin")!, V50Order.order(for: "channelmixerrgb")!)
+        XCTAssertLessThan(V50Order.order(for: "channelmixerrgb")!, V50Order.order(for: "nlmeans")!)
+    }
 }

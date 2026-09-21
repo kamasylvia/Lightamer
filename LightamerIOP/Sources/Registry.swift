@@ -123,6 +123,14 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ColorBalanceRGBModule.opName) { id in
             ModuleBox(module: ColorBalanceRGBModule(), instanceID: id)
         }
+        // Plan 05-03-T2: channelmixerrgb ("color calibration",
+        // scene-linear RGB WB + 3x3 mix), v50 slot 28.5 — immediately after
+        // colorin (28.0). Seed DISABLED (dt default_enabled FALSE,
+        // channelmixerrgb.c:3886; default D-illuminant adaptation is not
+        // pixel-identity — colorbalancergb D1 same disposition).
+        await registry.register(opName: ChannelMixerRGBModule.opName) { id in
+            ModuleBox(module: ChannelMixerRGBModule(), instanceID: id)
+        }
         // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
         // 66.0 (creative) — after grain (65.0), before splittoning (67.0).
         await registry.register(opName: SoftenModule.opName) { id in
@@ -181,6 +189,8 @@ public enum LightamerIOPRegistry {
             EqualizerKernel.recombineFunction,
             // Plan 05-02-T2: colorbalancergb single-pass grading.
             ColorBalanceRGBKernel.functionName,
+            // Plan 05-03-T2: channelmixerrgb single-pass 5-path kernel.
+            ChannelMixerRGBKernel.functionName,
             SoftenKernel.overFunction,
             SoftenKernel.mixFunction,
             // Plan 04-05-T4: equalizer prep + pyramid recombine.
@@ -239,6 +249,11 @@ public enum LightamerIOPRegistry {
             // identity holds only via the disabled piece).
             ModuleInstance(module: HighpassModule.self, params: HighpassModule.Params(), enabled: false),
             ModuleInstance(module: SoftenModule.self, params: SoftenModule.Params(), enabled: false),
+            // Plan 05-03-T2: channelmixerrgb joins the seed DISABLED
+            // (dt default_enabled FALSE, channelmixerrgb.c:3886; the default
+            // D-illuminant adaptation is not pixel-identity —
+            // colorbalancergb D1 same disposition).
+            ModuleInstance(module: ChannelMixerRGBModule.self, params: ChannelMixerRGBModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
