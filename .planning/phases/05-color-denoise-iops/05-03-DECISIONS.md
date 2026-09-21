@@ -31,7 +31,7 @@
 - linear-Bradford 腿无 Y 下/上缩放（dt chroma_adapt_bradford full=FALSE），
   full-Bradford/CAT16/XYZ 腿有（downscale/adapt/upscale）；RGB 腿纯 MIX。
 
-## D4: camera illuminant commit 期回落（divergence #1，T2）
+## D4: camera illuminant commit 期回落（divergence #1，T2；F4-b 修订）
 
 - dt 在 process 期读 RAW EXIF WB 系数反解 CCT；commit 无管线 WB 通道，故
   `.camera` 回落 daylight 模型 @params temperature（D→BB→custom fallthrough
@@ -40,6 +40,12 @@
 - `_check_if_close_to_daylight`（daylight-GUI 人机工学开关）不移植：面板常显
   温度滑块，无消费者；其喂给的 camera-adaptation 覆盖一并跳过（用户 adaptation
   保留）。
+- F4 修订（选 b：删死代码——验收 FAIL T1 camera 反解二选一）：
+  `wbCoeffsToIlluminantXY`（WB_coeffs :325-345 直译）+ `bradfordAdaptTM` 无调用
+  者（grep 全仓零引用；commit :3115 与 process :2200/:2311 的 camera 路径都要
+  live RAW image + 管线 WB 通道，post-CIRAW commit 无从喂参——纯函数直译接不上
+  `.camera` 路径，a) 不可行）。删两者 + 头注改为 NOT PORTED（:325-453 双函数
+  均需运行时 behaviour，无纯函数移植面）。测试头注的 camera 手算向量同步删。
 
 ## D5: color-checker 零移植证据（T4）
 

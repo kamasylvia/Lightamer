@@ -8,8 +8,12 @@ import simd
 //   - src/common/illuminants.h (illuminant enums :26-73; F/LED tables
 //     :86-116; CCT_to_xy_daylight :138-155; CCT_to_xy_blackbody :157-178;
 //     illuminant_xy_to_XYZ :181-187; illuminant_to_xy :220-324;
-//     xy_to_CCT (Lee) :124-136; WB_coeffs_to_illuminant_xy :325-345;
-//     find_temperature_from_raw_coeffs :389-453)
+//     xy_to_CCT (Lee) :124-136)
+//     NOT PORTED: WB_coeffs_to_illuminant_xy :325-345,
+//     find_temperature_from_raw_coeffs :389-453 — both need the live RAW
+//     image + pipe WB channel (commit :3115/process :2200+:2311), which
+//     the post-CIRAW commit path has no access to. .camera falls back to
+//     the daylight model (divergence #1 on ChannelMixerRGBModule).
 //   - src/common/chromatic_adaptation.h (XYZ_to_Bradford_LMS :37-55;
 //     XYZ_to_CAT16_LMS :91-109; convert_any_* :145-214;
 //     bradford_adapt_D50 :256-285; CAT16_adapt_D50 :313-338;
@@ -25,10 +29,10 @@ import simd
 // ergonomics switch) is not ported either: our panel always shows the
 // temperature slider, so the switch has no consumer; the camera-illuminant
 // adaptation override it feeds is likewise skipped (user adaptation kept).
-// The camera illuminant resolves through `findTemperature(wb:camToXYZ:)`
-// when the caller supplies WB coeffs + camera matrix, else falls back to
-// the daylight model at the params temperature (commit-time fallback,
-// documented on ChannelMixerRGBModule).
+// The camera illuminant is a runtime behaviour (commit :3115/process
+// per-frame re-detection), not a preset prohibiting a pure-function port —
+// see MARK note at the port site. Falls back to the daylight model at the
+// params temperature (commit-time fallback, ChannelMixerRGBModule #1).
 //
 // D65-NATIVE (05-02-DECISIONS D2 applies here unchanged): Lightamer's
 // working space is linear Rec2020 D65-native, so RGB⇄XYZ uses
@@ -193,11 +197,11 @@ public enum ChannelMixerMath {
     }
 
     /// dt `illuminant_to_xy` for the preset families (illuminants.h:220-324).
-    /// Returns nil for `.custom` (caller keeps params x/y),
-    /// `.detectSurfaces/.detectEdges` (unported AI subtree) and `.camera`
-    /// (resolved separately via `findTemperature`). D falls back to the
-    /// blackbody model when the daylight model is out of range, and BB
-    /// falls back to custom (dt's fallthrough chain verbatim).
+    /// Returns nil for `.detectSurfaces/.detectEdges` (unported AI subtree)
+    /// and `.camera` (needs the live RAW image + pipe WB channel — NOT
+    /// PORTED, see MARK below; the module falls back to the daylight
+    /// model). D falls back to the blackbody model when the daylight model
+    /// is out of range, and BB falls back to custom (dt fallthrough verbatim).
     public static func illuminantToXY(
         _ illuminant: ChannelMixerIlluminant,
         fluo: ChannelMixerFluo, led: ChannelMixerLED,
@@ -222,29 +226,18 @@ public enum ChannelMixerMath {
         }
     }
 
-    // MARK: - Camera WB inversion (illuminants.h:325-453)
+    // MARK: - Camera WB path — NOT PORTED (illuminants.h:325-453)
 
-    /// dt `WB_coeffs_to_illuminant_xy` (illuminants.h:325-345): simulate
-    /// the (1,1,1) camera white through the transposed CAM→XYZ matrix
-    /// divided by the WB coeffs, Bradford-adapt the D65-matrix white to
-    /// D50, return chromaticity. `camToXYZ` rows = camera channels, cols
-    /// = XYZ (dt's `CAM_to_XYZ[4][3]`, first 3 rows used).
-    public static func wbCoeffsToIlluminantXY(
-        camToXYZ: [[Double]], wb: SIMD3<Double>
-    ) -> (x: Double, y: Double) {
-        var xyz = SIMD3<Double>.zero
-        xyz.x = camToXYZ[0][0] / wb.x + camToXYZ[1][0] / wb.y + camToXYZ[2][0] / wb.z
-        xyz.y = camToXYZ[0][1] / wb.x + camToXYZ[1][1] / wb.y + camToXYZ[2][1] / wb.z
-        xyz.z = camToXYZ[0][2] / wb.x + camToXYZ[1][2] / wb.y + camToXYZ[2][2] / wb.z
-        // dt's D65-matrix white in Bradford LMS (chromatic_adaptation.h:239).
-        let d65 = SIMD3<Double>(0.941238, 1.040633, 1.088932)
-        let p = pow(1.088932 / 0.818155, 0.0834)
-        var lms = mul(xyzToBradfordLMS, xyz)
-        lms = bradfordAdaptTM(lms, illuminant: d65, p: p, full: false, target: .d50)
-        xyz = mul(bradfordLMSToXYZ, lms)
-        let sum = xyz.x + xyz.y + xyz.z
-        return (xyz.x / sum, xyz.y / sum)
-    }
+    // dt's camera illuminant is a runtime *behaviour*, not a preset:
+    // commit calls illuminant_to_xy with the live RAW image + user WB
+    // coeffs; process re-runs find_temperature_from_raw_coeffs per frame
+    // (channelmixerrgb.c:2200-2228, :2311-2335, :3115-3121). Both need the
+    // pipeline RAW WB channel + embedded/adobe XYZ→CAM matrix, which the
+    // post-CIRAW commit path has no access to — so .camera falls back to
+    // the daylight model at params temperature (ChannelMixerRGBModule
+    // divergence #1). The WB_coeffs_to_illuminant_xy helper below was
+    // removed as dead code (no caller, no pipe channel to feed it);
+    // re-adding it requires the .camera plumbing first.
 
     // MARK: - Chromatic adaptation (chromatic_adaptation.h)
 
@@ -317,15 +310,8 @@ public enum ChannelMixerMath {
         }
     }
 
-    /// The TM (temperature-module, D65-target) variant of bradfordAdapt
-    /// used by `wbCoeffsToIlluminantXY` above (dt always adapts D65-matrix
-    /// white to D50 there, non-linear flag FALSE).
-    static func bradfordAdaptTM(
-        _ lmsIn: SIMD3<Double>, illuminant: SIMD3<Double>,
-        p: Double, full: Bool, target: AdaptTarget
-    ) -> SIMD3<Double> {
-        bradfordAdapt(lmsIn, illuminant: illuminant, p: p, full: full, target: target)
-    }
+    // (bradfordAdaptTM removed with the dead WB helper above — it had no
+    // other caller. bradfordAdapt is the single Bradford entry point.)
 
     // MARK: - Gamut mapping + luma/chroma (channelmixerrgb.c:648-769)
 

@@ -8,7 +8,7 @@ import XCTest
 ///   - D50 (0.34567, 0.35850) → XYZ (0.964212, 1.0, 0.825188)
 ///   - 黑体 6500K → (0.31349411, 0.32366254)
 ///   - daylight 5500K → (0.33250163, 0.34760768)
-///   - camera 反解：CAM=identity、WB=(2,1,1.5) → xy (0.25423993, 0.49227975)
+///   - camera 路径未移植（F4-b：运行时 behaviour，需 live RAW + 管线 WB 通道）
 final class ChannelMixerCommonTests: XCTestCase {
 
     private func assertClose(_ a: Double, _ b: Double, _ tol: Double = 1e-6, _ msg: String = "") {
