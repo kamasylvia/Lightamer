@@ -84,6 +84,10 @@ final class InspectorState {
         register(EqualizerPanelProvider())
         // Plan 05-02-T4: colorbalancergb (4-way hue discs + lane groups).
         register(ColorBalanceRGBPanelProvider())
+        // Plan 05-03-T5: channelmixerrgb + channelmixer legacy + colorcontrast.
+        register(ChannelMixerRGBPanelProvider())
+        register(ChannelMixerPanelProvider())
+        register(ColorContrastPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

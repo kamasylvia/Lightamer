@@ -107,6 +107,11 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertTrue(ops.contains("soften"), "pristine seed must include soften")
         // Plan 05-02-T4: colorbalancergb joins the seed DISABLED (D1).
         XCTAssertTrue(ops.contains("colorbalancergb"), "pristine seed must include colorbalancergb")
+        // Plan 05-03-T5: the mixer trio joins the seed (channelmixerrgb
+        // DISABLED like colorbalancergb; legacy + contrast ENABLED-neutral).
+        XCTAssertTrue(ops.contains("channelmixerrgb"), "pristine seed must include channelmixerrgb")
+        XCTAssertTrue(ops.contains("channelmixer"), "pristine seed must include channelmixer")
+        XCTAssertTrue(ops.contains("colorcontrast"), "pristine seed must include colorcontrast")
     }
     private func instance(_ opName: String) throws -> ModuleInstance {
         try XCTUnwrap(editorState.instances.first { $0.opName == opName })
@@ -1012,6 +1017,88 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertNotNil(
             state.panelView(for: ModuleInstance(module: ColorBalanceRGBModule.self, params: .init()), edit: session),
             "colorbalancergb must dispatch a panel")
+    }
+
+        // MARK: - 05-03 mixer trio panel wiring (T5)
+
+    /// ChannelMixerRGB red-gain drag = exactly ONE history item (D-H1 trio).
+    func testChannelMixerRGBPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cmr = try instance("channelmixerrgb")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(cmr, {
+                $0.red = SIMD4<Float>(1 + Float(tick) * 0.05, 0, 0, 0)
+            }, as: ChannelMixerRGBModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Color calibration")
+
+        XCTAssertEqual(historyCount(), 1, "channelmixerrgb drag = exactly ONE item")
+        let committed = try instance("channelmixerrgb")
+        XCTAssertEqual(
+            try committed.params(of: ChannelMixerRGBModule.self).red.x, 1.3, accuracy: 1e-6)
+    }
+
+    /// Legacy channelmixer green-gain drag = exactly ONE history item.
+    func testChannelMixerPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cm = try instance("channelmixer")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(cm, {
+                $0.green = [0, 0, 0, 0, 1 + Float(tick) * 0.05, 0, 0]
+            }, as: ChannelMixerModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Channel mixer")
+
+        XCTAssertEqual(historyCount(), 1, "channelmixer drag = exactly ONE item")
+        let committed = try instance("channelmixer")
+        XCTAssertEqual(
+            try committed.params(of: ChannelMixerModule.self).green[4], 1.3, accuracy: 1e-6)
+    }
+
+    /// ColorContrast steepness drag = exactly ONE history item.
+    func testColorContrastPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cc = try instance("colorcontrast")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(cc, {
+                $0.aSteepness = 1 + Float(tick) * 0.1
+            }, as: ColorContrastModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Color contrast")
+
+        XCTAssertEqual(historyCount(), 1, "colorcontrast drag = exactly ONE item")
+        let committed = try instance("colorcontrast")
+        XCTAssertEqual(
+            try committed.params(of: ColorContrastModule.self).aSteepness, 1.6, accuracy: 1e-6)
+    }
+
+    /// The three 05-03 panels dispatch by opName (D-T6 provider registry).
+    func testMixerPanelsDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("channelmixerrgb"))
+        XCTAssertTrue(state.panelOpNames.contains("channelmixer"))
+        XCTAssertTrue(state.panelOpNames.contains("colorcontrast"))
+
+        let session = InspectorEditSession(coordinator: coordinator)
+        let cmrRecord = ModuleInstance(module: ChannelMixerRGBModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: cmrRecord, edit: session),
+                        "channelmixerrgb must dispatch a panel")
+        let cmRecord = ModuleInstance(module: ChannelMixerModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: cmRecord, edit: session),
+                        "channelmixer must dispatch a panel")
+        let ccRecord = ModuleInstance(module: ColorContrastModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: ccRecord, edit: session),
+                        "colorcontrast must dispatch a panel")
     }
 
     // MARK: - Helpers
