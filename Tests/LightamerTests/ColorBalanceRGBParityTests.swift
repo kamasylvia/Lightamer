@@ -448,17 +448,23 @@ final class ColorBalanceRGBParityTests: XCTestCase {
         XCTAssertEqual(d.contrast, 1, accuracy: 1e-6)
     }
 
-    /// Matrix round trip: matrixOut · matrixIn ≈ I (D65-native pair —
-    /// the C-harness cb_verify proof at module level; 1e-6 tolerance for
-    /// the float32 flatten quantization).
+    /// Kernel round trip: the TRUE neutral path is rgb →(matrixIn)→ LMS
+    /// →(cb_lms_to_xyz = YrgGamut.lms2006toXYZD65, INSIDE the kernel,
+    /// colorspace.h:468-476)→ XYZ →(matrixOut)→ rgb, so the identity is
+    /// matrixOut · L2X · matrixIn ≈ I — NOT matrixOut · matrixIn (the
+    /// L2X leg lives in MSL, not the uniforms; mo·mi alone = X2R·mIn =
+    /// xyzD65toLMS2006 ≠ I by construction — T5 fix, 2026-09-22).
+    /// Tolerance 1e-6 (measured max dev ~4e-9: the three published
+    /// matrices are mutually consistent to float64 rounding).
     func testMatricesInvert() {
         let mi = ColorBalanceRGBMatrices.matrixIn
         let mo = ColorBalanceRGBMatrices.matrixOut
+        let l2x = YrgGamut.lms2006toXYZD65
+        let tmp = YrgGamut.matMul(l2x, mi)
+        let roundTrip = YrgGamut.matMul(mo, tmp)
         for r in 0..<3 {
             for c in 0..<3 {
-                var s = 0.0
-                for k in 0..<3 { s += mo[r][k] * mi[k][c] }
-                XCTAssertEqual(s, r == c ? 1 : 0, accuracy: 1e-6)
+                XCTAssertEqual(roundTrip[r][c], r == c ? 1 : 0, accuracy: 1e-6)
             }
         }
     }

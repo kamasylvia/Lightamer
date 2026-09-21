@@ -348,9 +348,14 @@ public enum ColorBalanceRGBMatrices {
         YrgGamut.xyzD65toLMS2006, LabRoundTrip.rec2020ToXYZ)
 
     /// XYZ D65 → RGB = xyzToRec2020 direct (the kernel applies it to
-    /// XYZ D65 out of cb_lms_to_xyz — NOT to LMS; folding lms2006toXYZD65
-    /// in here double-applies LMS→XYZ. Bisect proof: commit readback
-    /// gave 2.9156606 = (X2R·M)[0][0] instead of X2R[0][0] = 1.7166478).
+    /// XYZ D65 out of its INTERNAL cb_lms_to_xyz leg
+    /// (= YrgGamut.lms2006toXYZD65, colorspace.h:468-476 — folded in MSL,
+    /// NOT in the uniforms). The true neutral round trip is therefore
+    /// matrixOut · L2X · matrixIn ≈ I (max dev ~4e-9; the parity test pins
+    /// this, NOT the naive mo·mi = xyzD65toLMS2006 ≠ I by construction).
+    /// Bisect note: folding lms2006toXYZD65 in HERE double-applies
+    /// LMS→XYZ — commit readback gave 2.9156606 = (X2R·M)[0][0] instead
+    /// of X2R[0][0] = 1.7166478 (kept as regression evidence).
     public static let matrixOut: [[Double]] = LabRoundTrip.xyzToRec2020
 }
 // MARK: - Commit derivation (colorbalancergb.c:1105-1241 in Double)

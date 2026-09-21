@@ -105,8 +105,9 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertTrue(ops.contains("equalizer"), "pristine seed must include equalizer")
         XCTAssertTrue(ops.contains("highpass"), "pristine seed must include highpass")
         XCTAssertTrue(ops.contains("soften"), "pristine seed must include soften")
+        // Plan 05-02-T4: colorbalancergb joins the seed DISABLED (D1).
+        XCTAssertTrue(ops.contains("colorbalancergb"), "pristine seed must include colorbalancergb")
     }
-
     private func instance(_ opName: String) throws -> ModuleInstance {
         try XCTUnwrap(editorState.instances.first { $0.opName == opName })
     }
@@ -942,6 +943,75 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertNotNil(
             state.panelView(for: ModuleInstance(module: EqualizerModule.self, params: .init()), edit: session),
             "equalizer must dispatch a panel")
+    }
+    // MARK: - Plan 05-02-T4: colorbalancergb panel wiring
+
+    /// colorbalancergb seed is DISABLED (05-02-DECISIONS D1: default
+    /// params not pixel-identity); a Y-slider drag = exactly ONE item +
+    /// auto-enable at commit (GUI-7); reset restores paramsHash.
+    func testColorBalanceRGBPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cb = try instance("colorbalancergb")
+        XCTAssertFalse(cb.enabled, "colorbalancergb seed is disabled (D1)")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(cb, { $0.globalY = Float(tick) * 0.05 }, as: ColorBalanceRGBModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_colorbalancergb"))
+
+        XCTAssertEqual(historyCount(), 1, "colorbalancergb drag = exactly ONE item")
+        let committed = try instance("colorbalancergb")
+        XCTAssertEqual(try committed.params(of: ColorBalanceRGBModule.self).globalY, 0.3, accuracy: 1e-6)
+        XCTAssertTrue(committed.enabled, "editing a disabled module auto-enables at commit (GUI-7)")
+
+        // Reset to default restores the pristine paramsHash (cache all-hit).
+        let pristineHash = cb.paramsHash
+        let current = try instance("colorbalancergb")
+        let resetRecord = try withParams(current, { $0.globalY = 0 }, as: ColorBalanceRGBModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(resetRecord)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_colorbalancergb"))
+        XCTAssertEqual(try instance("colorbalancergb").paramsHash, pristineHash,
+                       "reset to default restores the pristine paramsHash")
+    }
+
+    /// Hue-disc drag (H+C discrete pair) = exactly ONE item; the committed
+    /// (H, C) equal the last tick (discretized params assertion).
+    func testColorBalanceRGBHueDiscCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cb = try instance("colorbalancergb")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(cb, {
+                $0.globalH = Float(tick) * 10
+                $0.globalC = Float(tick) * 0.1
+            }, as: ColorBalanceRGBModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_colorbalancergb"))
+
+        XCTAssertEqual(historyCount(), 1, "hue-disc drag = exactly ONE item")
+        let committed = try instance("colorbalancergb")
+        XCTAssertEqual(try committed.params(of: ColorBalanceRGBModule.self).globalH, 60.0, accuracy: 1e-6)
+        XCTAssertEqual(try committed.params(of: ColorBalanceRGBModule.self).globalC, 0.6, accuracy: 1e-6)
+    }
+
+    /// Panel dispatch: colorbalancergb resolves a panel.
+    func testColorBalanceRGBPanelDispatch() async throws {
+        try await loadSynthetic()
+        XCTAssertTrue(
+            editorState.instances.map(\.opName).contains("colorbalancergb"),
+            "pristine seed must include colorbalancergb (disabled)")
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        let session = InspectorEditSession(coordinator: coordinator)
+        XCTAssertTrue(state.panelOpNames.contains("colorbalancergb"), "colorbalancergb must dispatch a panel")
+        XCTAssertNotNil(
+            state.panelView(for: ModuleInstance(module: ColorBalanceRGBModule.self, params: .init()), edit: session),
+            "colorbalancergb must dispatch a panel")
     }
 
     // MARK: - Helpers
