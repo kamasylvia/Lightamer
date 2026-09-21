@@ -1,0 +1,104 @@
+# 05-03-SUMMARY.md — channelmixerrgb + channelmixer legacy + colorcontrast 执行总结
+
+> 全套绿 + 本文件落盘后收工；决策见 `05-03-DECISIONS.md`（D1–D8）。
+
+## 任务表（6 项；每任务独立提交）
+
+| 任务 | 内容 | commit |
+|---|---|---|
+| read_first | RESEARCH §5.1/5.6/§1.1 + CONTEXT D1/D5 + dt 源码（channelmixerrgb.c/commit/_loop_switch/illuminants.h/chromatic_adaptation.h/channelmixer.c/colorcontrast.c + channelmixer.cl/extended.cl）+ 05-02 CB 范本 + V50/Registry/面板模式 | —（无代码） |
+| T1 | illuminants/CAT 泛化：ChannelMixerCommon（xy↔XYZ/CCT 双模型/全 illuminant 族/camera WB 反解/广义 Bradford-CAT16-XYZ adapt/gamut/luma_chroma）+ 5 CPU 单测 | `2773bcc` feat(channelmixerrgb) |
+| T2 | channelmixerrgb 模块（params v3 160B verbatim + commit derive + MSL 单 kernel 5 路）+ 注册/prewarm/seed-DISABLED + V50 28.5 + commit pins（5 路非单位门/illuminant hash 链/grey/gamut） | `e3dd050` feat(channelmixerrgb) |
+| T3 | legacy channelmixer（params v2 52B + 4 模式 derive + MSL kernel + rgb2hsl CPU 镜）+ colorcontrast（Lab a/b slope+offset + unbound 双档，LabMath fuse）+ 注册/prewarm/seed-ENABLED-neutral ×2 + V50 39.0/56.0 + CPU 测试 | `00bf530` feat(mixer-contrast) |
+| T4 | gen_fixtures（cm_derive/cm_apply 5 路 + legacy 4 模式 + contrast Lab 链 + 12 XMP + 48 EXR refs generator）+ parity（cmr 6×4 + legacy 3×4 + contrast 3×4，<1e-5）+ 矩阵交叉（float32-fair）+ illuminant 缓存链 + tie-break 回归 + manifest 05-03 节 | `1346b88` test(mixer-contrast) |
+| T5 | 面板 ×3（D-H1 trio + discrete + a11y + 色卡隐藏注记/弃用注记）+ providers + 86 catalog 键 + PanelWiring +4 + 轨 B/PERF + GUI 走查 + SUMMARY/DECISIONS | `cf915a9` feat(panels-05-03) + 本轮 |
+
+## 证据指针
+
+- T1：D65/D50/BB6500/D5500/camera 手算向量（Python 独立值入注释）；Bradford/CAT16
+  恒等往返 1e-9（源=目标白）；XYZ⇄LMS 往返 5e-4（dt 4 位小数常量界，T4 交叉补钉）；
+ 既有 LabRoundTrip/YrgGamut 零回归（全套绿）。
+- T2：params v3 160B 逐字段对齐（6×4 + 6 bool + 5 enum + x/y/temp/gamut/clip/version）；
+  `derive`（commit :3047-3150 + _loop_switch :777-810逐路径矩阵对，D65-native）；
+  MSL 单 kernel 5 运行时路径（channelmixer.cl unswitch 同构）；路径覆盖门
+  （每 adaptation 非单位矩阵对）；V50 28.5（colorin 28.0 < cmr < nlmeans 29.0）。
+- T3：legacy commit（:499-560 verbatim，gray fold + 模式选择）+ 模式相关钳制
+  （v1 clipf vs v2 fmax；首积 vs 全点 HSL 钳制）；contrast Lab 双档；
+  默认 RGB-identity / contrast-identity（CPU 测试钉）。
+- T4：轨 A parity——cmr 6 case（CAT16-D/linear-A/full-BB/XYZ-F/RGB-LED+grey/
+  CAT16-custom，v1/v2/v3 全覆盖）× 4 fixture；legacy 3（RGB 置换/gray/HSL-v1）
+  × 4；contrast 3（含 bound ±128 钳制腿）× 4——全 <1e-5（strict 1e-5/2.5e-5@99%
+  + envelope 1e-4/5e-4）；矩阵交叉（cmr_default CAT16：rgbToLMS 5e-7/mix 1e-6/
+  illum 1e-6/p 1e-6，float32-fair）；illuminant/temp/xy→paramsHash 链；
+  28.5 tie-break（latest-wins + multiPriority + 槽位序）。
+  dt 三证据 ×3：12 XMP blob（160B/52B/20B）+ DB hex + params ok（manifest 落账；
+  平场 probe 方向性备注——cmr 默认非恒等）。
+  color-checker 零移植：grep 仅两处头注（NOT PORTED 声明）。
+- T5：`ChannelMixerRGBPanelView`（3×3 mix + normalize×6 + sat/light/grey 组 +
+  illuminant 区全族 Picker + adaptation/gamut/clip/version + camera 回落注记 +
+  noprofile 注记）；`ChannelMixerPanelView`（输出 Picker + 3 滑块 + 算法 Picker +
+  弃用注记）；`ColorContrastPanelView`（4 滑块 + unbound）。
+  `PanelWiringTests` +4：三面板拖动=恰 1 commit + dispatch 三非 nil；seed 断言
+  （cmr DISABLED 在 seed；legacy/contrast ENABLED-neutral）。
+  catalog 86 键（panel_cmr_*/panel_cm_*/panel_cc_*/history_*，zh/en）。
+  a11y：panel identifier ×3 + slider/toggle/picker/notes 全量。
+- 轨 B / PERF：见下节。
+
+## 防空转自检声明
+
+| 套件 | compared |
+|---|---|
+| ChannelMixerCommonTests（5） | 手算向量逐值 + 全族分支 + 往返 + 反解 + 三版 luma 有限性 |
+| ChannelMixerRGBCommitTests（5） | 5 路非单位矩阵对（每路实算）；hash 链双腿 |
+| ChannelMixerColorContrastTests（9） | 4 模式 derive 选择 + 全模式有限性（3 探针）+ HSL 往返 + contrast 恒等/钳制 |
+| ChannelMixerRGBParityTests（3：parity + 交叉 + 缓存链） | parity 全像素双循环（6×4×RGB；compared>0）；交叉全矩阵有限 + 4 钉点 |
+| ChannelMixerColorContrastParityTests（2） | 全像素双循环（3×4 + 3×4；compared>0） |
+| SidecarTieBreakTests（3） | 真实 HistoryStack commit → effectiveInstances |
+| PanelWiringTests（40：既有 36 + 本轮 4） | drag 6 ticks → history==1 ×3；dispatch 非 nil ×3 |
+| V50Order（+3：cmr 槽位 + legacy + contrast） | order 数值 + 两侧序关系 |
+| GUI 走查 | 视口量化 + history 条数 + 布局红线（FINDINGS 登记，见下） |
+
+## 验收标准核对（plan §验收标准 8 条）
+
+- [x] channelmixerrgb：轨 A 6×4 <1e-5 + 5 矩阵路径覆盖（非常规 illuminant：A/F4/BB/LED/custom 全在内）+ 矩阵 float64 交叉（float32-fair 门）+ illuminant 变更缓存失效断言
+- [x] channelmixer legacy：3 case parity + 弃用头注；colorcontrast：3 case + unbound 双档
+- [x] 28.5/39.0/56.0 三槽位 V50 断言；28.5 共槽 tie-break 回归测试绿
+- [x] color-checker 子树零移植（grep 证：仅头注）+ params 位保留（camera/detect enum + resolver nil + 面板注记）+ 面板注记
+- [x] dt 三证据 ×3（12 XMP blob + DB hex + params ok 口径；manifest 三节落账；probe 值/方向备注落账）
+- [x] 面板 ×3 + PanelWiring +4 + catalog 86 + a11y + GUI 走查登记
+- [x] 轨 B 双判据不回归；PERF 记录落 `.work/05-03/perf.md`
+- [x] 全 suite 绿（0 fail）；ROI 头注钉死 ×3（恒等 + tileHalo=0 + 禁 dscIn×scale）
+
+## T5 证据（面板/GUI/轨 B/PERF）
+
+- T5 面板/GUI：
+  - 右列 23→26 行（删 sidecar 冷载实证：色彩校准/通道混合/色彩对比中文行；
+    `fix(inspector)` 前裸 opName 回落已修）。
+  - 色彩对比面板展开 + a 陡度 1→3 视口块 meanAbsDiff **3.575**/frac>8 **0.1435**；
+    撤销逐位一致 **0.0000**；布局红线不破（FINDINGS.md `05-03 mixer trio` 节 +
+    4 证据截图）。
+  - AX set 只走 live 预览分支（05-02 同口径）；commit 通路由 PanelWiring +4 证明；
+    CGEvent 真拖拽仍 BLOCKED（L011）。
+- 轨 B：零代码增量——channelmixerrgb 以 disabled seed 进默认链（processRec 直通，
+  05-02 D7 同构）；legacy + contrast 以 enabled-neutral 进链（identity 矩阵 ⇒
+  缓存中性，exposure/colisa 同处置）。既有 GeometryGolden 轨 B 双判据终轮全绿即
+  回归证据（显式插入三件的轨 B 腿 == 不插入/恒等腿，防空转纪律禁加）。
+- PERF：`.work/05-03/perf.md`（3 趟单 pass +6ms 量级；seed 政策；启用态计时留 05-08）。
+
+## 全量回归
+
+终轮全 suite：**480 passed / 0 failed / 3 skipped**（基线 445 → 本轮 +35 cases：
+Common 5 + Commit 5 + CPU 9 + CMR parity 3 + CC parity 2 + tiebreak 3 +
+PanelWiring 4 + V50 3 = 34 新增 + GeometryGolden 轨 B 计入既有（+1 口径差来自
+V50OrderTests 方法计数）；skip 3 既有合规：2 ColorChecker ARW + 1 GPS）。
+轨 B 双判据（neutrality + cross-consistency）终轮全绿；MDB_MAP_FULL 杂音未复现。
+
+## 新教训候选
+
+- T4 cm_rgb_swap 误配 HSL 行非零 → v2 下 HSL mix 隐式启用 → 全黑输出（mode 断言
+- Swift Float params vs Python double：交叉门必须 float32-fair（本轮 10× 观测），
+  公式相等由端到端 parity 钉（D6）。
+- Tuist 重生成后 scheme testables 漂移（LightamerTests 掉出 scheme）→
+  regenerate 后必查 `BlueprintName` 双 testable（本轮 T5 实测）。
+- xcodebuild 卡插件扫描（UNITEK 卷 Xcode，plugin scan 读慢）→ 构建超时先看
+  `sample` 调用栈定性（本轮：DVTPlugIn scan read() 阻塞；warm cache 后通过）。
