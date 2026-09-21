@@ -72,12 +72,12 @@ validated: 2026-09-21
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| crop overlay 手柄交互 | IOP-GEO-01 SC#1 | 交互时序 + 手柄拖拽 | 拖角手柄/旋转手柄/比例锁定 → 确认实时预览与网格 |
-| crop 比例锁手感（3:2/16:9/original）| IOP-GEO-01 | 锁比拖角的短边贴合手感 | 选 3:2 → 拖角 → 矩形保持 3:2（以短边为准）；original → 以当前图幅比锁定 |
-| 镜头校正视觉（门框/建筑直线） | IOP-GEO-03 | 畸变还原需人眼直线判据 | input/RAW 现有 DSC00012/DSC09991 建筑：lens 面板 distortionK1 ±0.1 拖动 → 边缘直线由弯变直、CA 边缘紫边收敛；复位归零（L011 口径 pending-manual）|
-| crop overlay 拖角 → viewport 纹理尺寸变化 | IOP-GEO-01 SC#1 | XCUITest 需解锁控制台（L011）；自动化腿已由 CropOverlayTests 覆盖（drag=1 item + live-disabled + neutral seed）| 打开图片 → 选 crop 面板 → 拖右下角手柄向内 → viewport 图像变小、暗膜在拖动中可见、松手后 history +1 |
-| crop 三分/黄金网格视觉 | IOP-GEO-01 SC#1 | 像素级视觉（自动化只断言几何存在）| 拖动中确认三分线；切换 phi 网格（showsPhiGrid）确认 0.3819/0.6181 线位 |
-| detail 五模块视觉抽检（clarity/Orton/高通/均衡器） | IOP-DETAIL-01..04 | 增强方向/强度需人眼判据（自动化已钉方向 + 能量 + parity）| DSC00012：sharpen amount 0.5→ 细节起颗粒但无振铃；bilat detail +1 → 局部对比提升无 halo；soften amount 50 → 高光柔化（Orton）；highpass contrast 50 → 灰底浮雕；equalizer g0 +0.5 → 细纹理增强；复位归零（L011 口径 pending-manual）|
+| crop overlay 手柄交互 | IOP-GEO-01 SC#1 | 交互时序 + 手柄拖拽 | 拖角手柄/旋转手柄/比例锁定 → 确认实时预览与网格 | 交互验收部分 PASS 2026-09-21（overlay 几何/三分网格/8+1 手柄位置经裁切滑块 AX 驱动验证 PASS；手柄拖拽手感 BLOCKED——CGEvent 输入监控缺失，见 .work/gui-acceptance/FINDINGS.md 交互轮） |
+| crop 比例锁手感（3:2/16:9/original）| IOP-GEO-01 | 锁比拖角的短边贴合手感 | 选 3:2 → 拖角 → 矩形保持 3:2（以短边为准）；original → 以当前图幅比锁定 | 部分 PASS 2026-09-21（3:2 preset 经 AX PopUp 选择成功+面板标记更新；拖拽短边联动 BLOCKED——AX 单滑块路径不联动，联动在拖拽手势内） |
+| 镜头校正视觉（门框/建筑直线） | IOP-GEO-03 | 畸变还原需人眼直线判据 | input/RAW 现有 DSC00012/DSC09991 建筑：lens 面板 distortionK1 ±0.1 拖动 → 边缘直线由弯变直、CA 边缘紫边收敛；复位归零（L011 口径 pending-manual）| 部分 PASS 2026-09-21（K1=+0.15 经 AX 滑块驱动生效：45 万 px diff、内容包络收缩+fit 联动、无撕裂伪影；「直线由弯变直」人眼定标 + CA 紫边目检待人工） |
+| crop overlay 拖角 → viewport 纹理尺寸变化 | IOP-GEO-01 SC#1 | XCUITest 需解锁控制台（L011）；自动化腿已由 CropOverlayTests 覆盖（drag=1 item + live-disabled + neutral seed）| 打开图片 → 选 crop 面板 → 拖右下角手柄向内 → viewport 图像变小、暗膜在拖动中可见、松手后 history +1 | BLOCKED 2026-09-21（手柄拖拽+松手 commit 均需真实鼠标；AX 滑块改 rect 仅 overlay 框/网格/手柄更新，视口窗口变化与 history 未验证——AX set 滑块不入 history，撤销菜单 enabled=false 实证） |
+| crop 三分/黄金网格视觉 | IOP-GEO-01 SC#1 | 像素级视觉（自动化只断言几何存在）| 拖动中确认三分线；切换 phi 网格（showsPhiGrid）确认 0.3819/0.6181 线位 | 部分 PASS 2026-09-21（三分线随 rect 内收正确更新，截图 interact-d-crop-inset.png；phi 网格切换入口未在裁切面板发现——待人工/后续轮） |
+| detail 五模块视觉抽检（clarity/Orton/高通/均衡器） | IOP-DETAIL-01..04 | 增强方向/强度需人眼判据（自动化已钉方向 + 能量 + parity）| DSC00012：sharpen amount 0.5→ 细节起颗粒但无振铃；bilat detail +1 → 局部对比提升无 halo；soften amount 50 → 高光柔化（Orton）；highpass contrast 50 → 灰底浮雕；equalizer g0 +0.5 → 细纹理增强；复位归零（L011 口径 pending-manual）| 部分 PASS 2026-09-21（sharpen 数量 1.5 梯度能量 +7.2%、bilat detail +2 +46% 无恶性 halo、equalizer 最细带 +1 +27%，方向正确；highpass/soften「已停用」态滑块调整渲染零变化——启用通路缺 GUI-7；复位归零未验——无 commit 通路） |
 
 ## Validation Sign-Off
 
