@@ -7,14 +7,15 @@
 
 按 `.planning/ROADMAP.md`（13 阶段）逐阶段推进 Lightamer：每阶段 discuss → plan → execute → verify-work → 闭环。当前聚焦：**Phase 1 闭环（issue #1 修复）→ Phase 2 全周期**。
 
-## 当前状态（2026-09-20，巡检更新）
+## 当前状态（2026-09-22，05-02 验收后更新）
 
-- Phase 1：**已闭环**（STATE status=complete）。UAT 6/6；unit 36 绿；XCUITest 1 pass+2 skip
-- Phase 2：**全部 6 plans 执行完成**（133 tests 绿；VALIDATION 签核；L014）
-- Phase 3：**全部 6 plans 执行完成**（267 tests 绿；PERF-5 Release 36.23ms 落账；L015-L018）
-- Phase 4：plans 04-01..06 已定稿锁定；04-01 执行+验收 PASS（282 tests）；04-02 执行+验收+修复闭环 PASS（311 tests 0 失败；验收抓出 crop 双重偏移真 bug 已修，L020）
-- issue #1 已关闭：重定性为多窗口调试堆积的呈现竞争（drawable 回读证实 blit 内容正确），转 Phase 2 backlog（窗口生命周期管理）。单窗口真实使用完全正常。
-- 环境：macOS 27 + Xcode 27.0 + Tuist 4.208；签名证书 "Lightamer Dev"（已装入 login keychain，全 target Manual 签名）；DerivedData 在内置 SSD；仓库在慢速 USB 卷（L009）。
+- **Phase 4：已闭环**（VERIFICATION.md GOAL ACHIEVED；04-01..04-08 全 PASS，含 GUI-1..4 修复轮）
+- **Phase 5：Color & Denoise（12 reqs，第二难）**——RESEARCH+CONTEXT+8 plans 定稿（44 tasks）
+  - 05-01 ✅ 闭环（426 tests）；05-02 ✅ 闭环（colorbalancergb，445 tests，验收 PASS-with-notes；invert 偏差 3.694e-9 独立复现；dt 采纳 sqlite 6/6）
+  - **下一步：05-03（channelmixerrgb+channelmixer+colorcontrast）omp 执行** → 验收 → 05-04/05 → 05-06/07 → 05-08 签核
+- **HOLD 已解除**（2026-09-22，JMS 链路恢复；过夜监测自动续跑成功）
+- **运维要点**：omp 模型 API 地区受限必须走 px 代理；链路劣化（google via proxy >30s）= omp 停滞根因，处置 = px --up 一条龙（禁只 --best）后重启 omp 续跑
+- **待办**：GUI-10（AX commit 单发 SIGSEGV，见 FINDINGS）待取证修复；testCrossConsistencySyntheticTarget 负载 flake 并入 05-08 复估
 
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
 
