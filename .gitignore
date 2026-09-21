@@ -24,6 +24,7 @@ input/golden/*
 !input/golden/fixtures/
 input/golden/fixtures/*
 !input/golden/fixtures/gen_fixtures.py
+!input/golden/fixtures/gen_noise_profiles.py
 !input/golden/fixtures/lensfun/
 input/golden/fixtures/lensfun/*
 !input/golden/fixtures/lensfun/*.xml

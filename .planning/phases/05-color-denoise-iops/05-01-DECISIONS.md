@@ -72,3 +72,38 @@
 PREVIEW@48 iscale==0.375 / FULL==1.0 / THUMBNAIL 原生小图==1.0；
 三探针同 run 全等；FULL toneequal 强制分块下游 probe iscale 仍==1.0。
 邻居套件 post-stamp 全绿：L021 6/6、CropParity 9/9、FlipParity 8/8。
+
+## D-05-01-T3/T4: NoiseProfileStore 规范化转换 + 加载/匹配/插值（2026-09-21）
+
+### 转换格式
+
+- 构建期转换（D-05-CONTEXT-2 采纳 RESEARCH 倾向）：`gen_noise_profiles.py`
+  读 dt `data/noiseprofiles.json`（树 dc58cf0ba1）→ 规范化输出 bundle
+  `noiseprofiles.json`：makers/models 字典序、profiles ISO 升序、a[3]/b[3]
+  浮点显式、skip 档保留（加载器跳过，与 dt 语义一致）、version 保留。
+- 自校验输出：433 models 集合一致 + 8538 档数全部守恒 + 抽 3 model
+  （Canon EOS 1000D / Nikon Z 8 / YI M1）逐值 diff=0 + 有序性 OK。
+- 排障注记：`repo_root()` 曾少上一级致产物落 `input/LightamerIOP/...`
+  （已修 + 复位）；`Bundle.module.url` 不得带 `subdirectory:
+  "NoiseProfiles"`（Tuist/Xcode 资源相位拍平 bundle 根——testRealBundle
+  红转绿的定位点）。
+
+### 加载器语义（dt 直译点）
+
+- 匹配 = maker 子串包含（`maker.contains(jsonMaker)`，大小写敏感——dt
+  `g_strstr_len` 方向：EXIF Make ∋ JSON maker 串）+ model 精确相等（dt
+  `g_strcmp0`）+ skip 档跳过；结果 ISO 升序（dt `g_list_sort`）。
+- 插值 = `t = clamp((iso−iso1)/(iso2−iso1),0,1)` a/b 逐通道线性插值
+  （noiseprofiles.c:375-390 "stupid linear interpolation" 直译；
+  `precondition(p1.iso < p2.iso)` 钉 dt 注释契约）；档外 clamp 首末档。
+- miss → generic（`a=1e-4×3, b=0`，noiseprofiles.c:28）。
+- actor + 懒加载（首问解析，实测 31ms < 1s 上限）+ 按 maker 索引缓存；
+  剖面不进身份（L013）。
+- LICENSE-NOTES：上游/转换/内容 + 许可核对未完成声明 + 待用户知悉项
+  （核对前不对外分发 release；fallback = 用户指 dt 路径 + generic）。
+
+### 回归证据
+
+`NoiseProfileStoreTests`（5 tests，compared>0）：ILCE-9M3 ISO 140 手算向量
+逐通道（t=15/35，a/b 精确到 1e-21/1e-24）+ 精确命中/clamp + maker 子串大小写
+陷阱/model 精确/skip 剔除 + generic 逐值 + 真实 bundle <1s + 二问缓存同值。
