@@ -5,8 +5,9 @@ import simd
 // ─────────────────────────────────────────────────────────────────────────
 // ChannelMixerModule (Plan 05-03-T3, IOP-COLOR-04) — dt's legacy
 // `channelmixer` (v50 39.0), transliterated from
-//   - src/iop/channelmixer.c (params v2 :81-96 = 52B; commit :499-560;
-//     process_rgb/gray/hsl_v1/hsl_v2 :229-420)
+//   - src/iop/channelmixer.c (params v2 :81-96 = 88B = 3×7 floats +
+//     algorithm int, CHANNEL_SIZE=7 :55-72, introspection v2 :53;
+//     commit :499-560; process_rgb/gray/hsl_v1/hsl_v2 :229-420)
 //   - data/kernels/extended.cl:140 `channelmixer` (single kernel, 4-mode
 //     switch — the MSL port below)
 //   - src/common/colorspaces.h:296-352 (rgb2hsl/hsl2rgb verbatim)

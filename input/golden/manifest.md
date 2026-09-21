@@ -810,7 +810,7 @@ dt blobs ↔ Lightamer Params (JSON):
 | dt field | Lightamer field | note |
 |---|---|---|
 | channelmixerrgb v3 `<24f6i4i4f2i` (160B: 6×4 mix/sat/light/grey + 6 normalize + illum/fluo/led/adapt + x/y/temp/gamut + clip/version) | `ChannelMixerRGBModule.Params` | illum raw = dt enum (D=2 default, camera=10); version raw = dt (v3=2 default) |
-| channelmixer v2 `<12fi` (52B: red/green/blue[4] + algorithm) | `ChannelMixerModule.Params` (3×7 + algorithm) | blob 只 carry 前 4/通道（hue/sat/light/red…由 7 通道 Params 前 4 列投影；gray/hsl 行由 XMP 语义保证为零时恒等——本轮 3 case 全零投影区为零） |
+| channelmixer v2 `<21fi` (88B: red/green/blue[7] + algorithm; CHANNEL_SIZE=7 @ channelmixer.c:55-91, introspection v2) | `ChannelMixerModule.Params` (3×7 + algorithm) | blob 即全量 Params（3×7 + algorithm），无投影——XMP 与 Params 一一对应 |
 | colorcontrast v2 `<4fi` (20B: a/b steepness+offset + unbound) | `ColorContrastModule.Params` | unbound bool → int |
 
 Track-A references SYNTHESIZED (L017 route): float64 evaluation of the

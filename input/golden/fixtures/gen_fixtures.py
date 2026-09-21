@@ -1885,26 +1885,27 @@ def bilateral_params_blob(
 
 
 # 其余 color 组小 blob（默认中性；05-02..05-04 各 plan 消费）。
-# - channelmixer v2 = 52B：red/green/blue[4] + algorithm(int)；默认对角恒等 + v1。
+# - channelmixer v2 = 88B：red/green/blue[7] + algorithm(int)；默认 RGB 恒等 + v2。
 # - colorzones v5 = 520B：channel(int) + curve[3][20](x,y float) + num[3](int) +
 #   type[3](int) + strength(f) + mode(int) + splines(int)；默认 hue 通道空曲线。
 # - monochrome v2 = 16B：a/b/size/highlights（4f）；默认 a=b=highlights=0, size 2。
 # - vibrance v2 = 4B：amount（f）；默认 25。
 # - velvia v2 = 8B：strength/bias（2f）；默认 25/1。
 # - colorcontrast v2 = 20B：a/b steepness+offset（4f）+ unbound(int)；默认 1/0/1/0/1。
-CHANNELMIXER_PARAMS_FORMAT = "<12fi"
+CHANNELMIXER_PARAMS_FORMAT = "<21fi"
 CHANNELMIXER_MODVERSION = 2
 CHANNELMIXER_IOP_ORDER = 39.0
 
 
 def channelmixer_params_blob(
-    red=(1.0, 0.0, 0.0, 0.0), green=(0.0, 1.0, 0.0, 0.0),
-    blue=(0.0, 0.0, 1.0, 0.0), algorithm_version=1,
+    red=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0),
+    green=(0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
+    blue=(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0), algorithm_version=1,
 ) -> str:
-    """dt_iop_channelmixer_params_t v2 → hex。默认恒等 + CHANNEL_MIXER_VERSION_2。"""
+    """dt_iop_channelmixer_params_t v2 → hex。默认 RGB 恒等 + CHANNEL_MIXER_VERSION_2。"""
     packed = struct.pack(
         CHANNELMIXER_PARAMS_FORMAT, *red, *green, *blue, algorithm_version)
-    assert len(packed) == 52, len(packed)
+    assert len(packed) == 88, len(packed)
     return binascii.hexlify(packed).decode("ascii")
 
 
@@ -5746,10 +5747,10 @@ def channelmixer_params_blob_for_case(case) -> str:
     if "_gray" in case:
         red[6], green[6], blue[6] = case["_gray"]
     packed = struct.pack(CHANNELMIXER_PARAMS_FORMAT,
-                         *red[:4], *green[:4], *blue[:4],
+                         *red, *green, *blue,
                          case["algorithm"])
-    # 注：legacy v1 7 通道 blob（84B）已由 v2 兼容重载取代；此处 52B v2。
-    assert len(packed) == 52, len(packed)
+    # v2 params = 3×7 floats + algorithm int = 88B（CHANNEL_SIZE=7）。
+    assert len(packed) == 88, len(packed)
     return binascii.hexlify(packed).decode("ascii")
 
 

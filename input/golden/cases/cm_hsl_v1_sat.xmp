@@ -16,7 +16,7 @@
       <darktable:operation>channelmixer</darktable:operation>
       <darktable:enabled>1</darktable:enabled>
       <darktable:modversion>2</darktable:modversion>
-      <darktable:params>000000000000003f000000000000803f000000000000000000000000000000000000000000000000000000000000000000000000</darktable:params>
+      <darktable:params>000000000000003f000000000000803f000000000000000000000000000000000000000000000000000000000000803f00000000000000000000000000000000000000000000000000000000000000000000000000000000</darktable:params>
       <darktable:iop_order>39.0</darktable:iop_order>
       <darktable:multi_priority>0</darktable:multi_priority>
       <darktable:multi_name></darktable:multi_name>
@@ -33,7 +33,7 @@
     <rdf:Seq><rdf:li>channelmixer</rdf:li></rdf:Seq>
    </darktable:history_operation>
    <darktable:history_params>
-    <rdf:Seq><rdf:li>000000000000003f000000000000803f000000000000000000000000000000000000000000000000000000000000000000000000</rdf:li></rdf:Seq>
+    <rdf:Seq><rdf:li>000000000000003f000000000000803f000000000000000000000000000000000000000000000000000000000000803f00000000000000000000000000000000000000000000000000000000000000000000000000000000</rdf:li></rdf:Seq>
    </darktable:history_params>
   </rdf:Description>
  </rdf:RDF>
