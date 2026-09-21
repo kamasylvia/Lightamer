@@ -5726,12 +5726,13 @@ def channelmixer_apply_pixel(rgb, case):
 
 
 CHANNELMIXER_CASES = [
-    {"name": "cm_rgb_swap", "red": (0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0),
-     "green": (0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-     "blue": (1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), "algorithm": 1},
-    {"name": "cm_gray_luma", "red": (0.0,) * 7, "green": (0.0,) * 7,
-     "blue": (0.0,) * 7, "algorithm": 1,
-     "_gray": (0.299, 0.587, 0.114)},
+    {"name": "cm_rgb_swap", "red": (0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+     "green": (0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
+     "blue": (0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0), "algorithm": 1},
+    {"name": "cm_gray_luma",
+     "red": (0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.299),
+     "green": (0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.587),
+     "blue": (0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.114), "algorithm": 1},
     {"name": "cm_hsl_v1_sat", "red": (0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0),
      "green": (0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
      "blue": (0.0,) * 7, "algorithm": 0},
@@ -5741,13 +5742,8 @@ CHANNELMIXER_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev",
 
 
 def channelmixer_params_blob_for_case(case) -> str:
-    red = list(case["red"][:7])
-    green = list(case["green"][:7])
-    blue = list(case["blue"][:7])
-    if "_gray" in case:
-        red[6], green[6], blue[6] = case["_gray"]
     packed = struct.pack(CHANNELMIXER_PARAMS_FORMAT,
-                         *red, *green, *blue,
+                         *case["red"], *case["green"], *case["blue"],
                          case["algorithm"])
     # v2 params = 3×7 floats + algorithm int = 88B（CHANNEL_SIZE=7）。
     assert len(packed) == 88, len(packed)
@@ -5768,19 +5764,14 @@ def gen_channelmixer_cases(outdir: str) -> None:
 def gen_channelmixer_refs(canonical_dir: str, out_dir: str) -> None:
     os.makedirs(out_dir, exist_ok=True)
     for case in CHANNELMIXER_CASES:
-        eff = dict(case)
-        if "_gray" in case:
-            r, g, b = list(case["red"]), list(case["green"]), list(case["blue"])
-            r[6], g[6], b[6] = case["_gray"]
-            eff = dict(case, red=tuple(r), green=tuple(g), blue=tuple(b))
         for fixture in CHANNELMIXER_REF_FIXTURES:
             src = os.path.join(canonical_dir, fixture + ".exr")
             w, h, rgb = read_exr_rgb(src)
 
-            def px(x, y, rgb=rgb, eff=eff, w=w):
+            def px(x, y, rgb=rgb, case=case, w=w):
                 idx = y * w + x
                 return channelmixer_apply_pixel(
-                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), eff)
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), case)
 
             write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
 

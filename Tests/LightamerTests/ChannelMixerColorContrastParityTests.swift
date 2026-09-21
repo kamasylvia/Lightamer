@@ -55,13 +55,13 @@ final class ChannelMixerColorContrastParityTests: XCTestCase {
         let metal = try await makeMetal()
         let cases: [(String, ChannelMixerModule.Params)] = [
             ("cm_rgb_swap", ChannelMixerModule.Params(
-                red: [0, 0, 1, 0, 0, 0, 0],
-                green: [0, 1, 0, 0, 0, 0, 0],
-                blue: [1, 0, 0, 0, 0, 0, 0], algorithm: .v2)),
+                red: [0, 0, 0, 0, 0, 1, 0],
+                green: [0, 0, 0, 0, 1, 0, 0],
+                blue: [0, 0, 0, 1, 0, 0, 0], algorithm: .v2)),
             ("cm_gray_luma", ChannelMixerModule.Params(
-                red: [0, 0, 0, 0, 0, 0, 0.299],
-                green: [0, 0, 0, 0, 0, 0, 0.587],
-                blue: [0, 0, 0, 0, 0, 0, 0.114], algorithm: .v2)),
+                red: [0, 0, 0, 1, 0, 0, 0.299],
+                green: [0, 0, 0, 0, 1, 0, 0.587],
+                blue: [0, 0, 0, 0, 0, 1, 0.114], algorithm: .v2)),
             ("cm_hsl_v1_sat", ChannelMixerModule.Params(
                 red: [0, 0.5, 0, 1, 0, 0, 0],
                 green: [0, 0, 0, 0, 1, 0, 0],
@@ -95,6 +95,16 @@ final class ChannelMixerColorContrastParityTests: XCTestCase {
             }
         }
         XCTAssertGreaterThan(compared, 0, "parity loop compared zero pixels")
+        // 非空转门（F2）：ramp refs 必须随输入变化——flat 全等 refs 即恒黑/恒等
+        // 空转，parity 门再严也判不出。
+        for caseName in ["cm_rgb_swap", "cm_gray_luma"] {
+            let ramp = try GoldenParityTests.UncompressedEXR.load(
+                requireGolden("output/\(caseName)__ramp_8ev.exr"))
+            let flat = try GoldenParityTests.UncompressedEXR.load(
+                requireGolden("output/\(caseName)__flat_0ev.exr"))
+            XCTAssertNotEqual(ramp.rgb, flat.rgb,
+                "\(caseName): ramp refs == flat refs — 输出不随输入变化")
+        }
         if let msg = ParityGate.failureMessage(
             "channelmixer parity", gotAll, refAll,
             strict: 1e-5, strictAbsFloor: 2.5e-5,
