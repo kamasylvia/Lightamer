@@ -131,6 +131,18 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ChannelMixerRGBModule.opName) { id in
             ModuleBox(module: ChannelMixerRGBModule(), instanceID: id)
         }
+        // Plan 05-03-T3: channelmixer legacy (3x3 gain + HSL modes), v50
+        // slot 39.0. Seed ENABLED-neutral (identity RGB + v2 ⇒
+        // OPERATION_MODE_RGB identity — exposure-0EV style). dt DEPRECATED
+        // (channelmixer.c:126) — delivered per IOP-COLOR-04, head note.
+        await registry.register(opName: ChannelMixerModule.opName) { id in
+            ModuleBox(module: ChannelMixerModule(), instanceID: id)
+        }
+        // Plan 05-03-T3: colorcontrast (Lab a/b slope + offset), v50 slot
+        // 56.0. Seed ENABLED-neutral (steepness 1/offset 0 ⇒ identity).
+        await registry.register(opName: ColorContrastModule.opName) { id in
+            ModuleBox(module: ColorContrastModule(), instanceID: id)
+        }
         // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
         // 66.0 (creative) — after grain (65.0), before splittoning (67.0).
         await registry.register(opName: SoftenModule.opName) { id in
@@ -191,6 +203,9 @@ public enum LightamerIOPRegistry {
             ColorBalanceRGBKernel.functionName,
             // Plan 05-03-T2: channelmixerrgb single-pass 5-path kernel.
             ChannelMixerRGBKernel.functionName,
+            // Plan 05-03-T3: channelmixer legacy + colorcontrast.
+            ChannelMixerKernel.functionName,
+            ColorContrastKernel.functionName,
             SoftenKernel.overFunction,
             SoftenKernel.mixFunction,
             // Plan 04-05-T4: equalizer prep + pyramid recombine.
@@ -254,6 +269,11 @@ public enum LightamerIOPRegistry {
             // D-illuminant adaptation is not pixel-identity —
             // colorbalancergb D1 same disposition).
             ModuleInstance(module: ChannelMixerRGBModule.self, params: ChannelMixerRGBModule.Params(), enabled: false),
+            // Plan 05-03-T3: channelmixer legacy + colorcontrast join the
+            // seed ENABLED-neutral (identity matrices ⇒ cache-neutral,
+            // exposure-0EV style, so their panels have instances to drive).
+            ModuleInstance(module: ChannelMixerModule.self, params: ChannelMixerModule.Params()),
+            ModuleInstance(module: ColorContrastModule.self, params: ColorContrastModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
