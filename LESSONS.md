@@ -179,7 +179,14 @@
 - **适用**：一切读 `piece.dscIn` 的 ROI 钩子（crop/lens/ashift/toneequal/flip…）；一切 MTKView blit/布局改动（先 GUI 验收再签收）。
 - **来源**：Plan 04-06 T1–T5（2026-09-21），证据 `.work/04-06/probe-gui1.md` + `.work/gui-acceptance/2026-09-21-fix-*.png` + FINDINGS.md 闭环；全 suite 389 绿（3 skip）。
 
-### L022: uniforms 对是"半边契约"时 parity 测试必须钉全往返，禁止钉半边（matrix-in/out 中性往返恒等式）
+### L022: omp 执行期间禁止一切工作区编辑——整文件回写会吞掉并发改动
+- **背景**：05-01 与 05-02 两次omp 执行期间，orchestrator 并发编辑 LESSONS/GOAL-STATE/PLAYBOOK（纯文本小改、未 git 操作），omp 收尾时按其上下文里的**陈旧快照整文件回写**，并发编辑全部丢失（05-01 丢 3 处；05-02 收尾再次吞掉本条首版）。
+- **根因**：omp 文档任务（SUMMARY/LESSONS/TODO closeout）按启动时读取的快照重写共享文档——orchestrator 运行中段的编辑不在快照里。reflog 无 checkout/stash，纯文件覆写。
+- **对策**：omp 运行期间 orchestrator **零工作区写入**（含纯文本编辑、截屏产物落工作区）；编排侧记录写到 /tmp，omp 收工后搬入并提交。巡检规则同理。
+- **适用**：omp 执行模型全程；一切「子进程整文件回写共享文档」的编排形态。
+- **来源**：05-01/05-02 两次编辑丢失（2026-09-21/22），证据：grep 关键字 = 0 + reflog 仅 commits。
+
+### L023: uniforms 对是"半边契约"时 parity 测试必须钉全往返，禁止钉半边（matrix-in/out 中性往返恒等式）
 - **背景**：Plan 05-02-T5 续跑（2026-09-22）。HOLD 后首跑全套红 9 项 `testMatricesInvert`：断言 `matrixOut · matrixIn ≈ I`，首值 0.643 vs 1.0——T3 落盘时绿？实为 T1→T3 间 `matrixOut` 定义变更（`X2R·L2X` → `X2R` 直接，bisect 2.9156606 回归证据）后测试前提过期：L2X 腿（`cb_lms_to_xyz` = YrgGamut.lms2006toXYZD65）在 MSL kernel 内，不在 uniforms——uniforms 对只是"半边契约"，mo·mi = xyzD65toLMS2006 ≠ I 是构造使然。
 - **根因（契约边界错位）**：commit 进 uniforms 的矩阵对 ≠ kernel 实际走的完整变换链；测试把 uniforms 的半边当全链钉。真中性往返 = mo·L2X·mi ≈ I（实测 max dev 3.7e-9，门 1e-6）。
 - **对策**：①凡 kernel 内含固定折叠腿（LMS↔XYZ、Bradford、CAT 等）的矩阵 uniforms，parity 测试必须从 kernel 源码逐腿列出完整往返式再钉断言；②注释在矩阵定义处写明"半边" + 真往返式（本轮 `matrixOut` 注释已更正）；③矩阵定义变更（T1→T3 bisect）必须同步重审依赖它的测试前提——定义与断言同批提交。
