@@ -169,3 +169,33 @@ PREVIEW@48 iscale==0.375 / FULL==1.0 / THUMBNAIL 原生小图==1.0；
 - 全 <3GB/tile；halo 均 < side/2（tile 全 live，无反转）。
 - monochrome/bilateral 值为占位常量（真实声明待 05-05 定 + 05-08 5D 预算），
   替换责任写进 05-05/06/07/08 各 plan。
+
+## D-05-01-T7: BilateralGrid3D 共享件（2026-09-21）
+
+### 网格语义审计（实现中修正的误读）
+
+- 初版误读：payload/weight 双平面 + slice 比值归一。dt 实证推翻：
+  `dt_bilateral_splat` 的 `contrib[k]` 仅是 `trilinear × 100/σ_s²` 缩放
+  （**无像素值因子**——网格存加权计数；`bilateral.cl` splat 对偶同式），
+  slice（CPU + CL 双形）= `L + norm × trilinear(grid)`（无归一化——splat
+  缩放 + blur 核归一即完整标定；Python 全链仿真交叉：64×64 Lab 内容输出
+  23.6..78.4 有界、4094/4096 像素移动）。
+- `weight` 平面保留为参考实现自带守恒探针（单位权重散射——dt 无此平面，
+  不入 slice；splat 权重守恒 + blur 保和验证通道）。
+- z-blur 是微分型（−2 阶导）：平场非恒等（均值守恒 == 50 ±1e-9 + 网格
+  ripple |Δ|<25）——"平场恒等"初版门面错误，改为守恒门。
+
+### 交付
+
+- Swift 侧 `BilateralGrid3D`（grid_size 直译 + buffer 字节数单平面）+
+  CPU float64 参考（splat/blur×3/slice 逐式复刻）+ MSL 三 kernel
+  （splat 原子散射位模式加 + blur_line/blur_line_z 双缓冲 + slice）。
+- workgroup/原子选型：splat 每像素 1 线程（`dispatchThreads(W,H)`，
+  grid 冲突出原子解决——HistogramReduce 同模式）；blur_line 每 line 1 线程
+  （x 维铺 (ny,nz)、y 维铺 (nx,nz)、z 维铺 (nx,ny)）；out-of-place 双缓冲
+  （L018——CL 对偶 `dev_grid/dev_grid_tmp` ping-pong 同构）。
+- `BilateralGrid3DTests`（5 tests，compared>0）：grid_size 手算 pin
+  （64×64/monochrome 值 → 5×5×5，σ_s=16/σ_r=25）+ clamp + 平场守恒 +
+  小图 Lab 全链（有界/移动/确定性逐字节）+ splat 权重守恒。
+- 未接 IOP 模块（消费责任 05-05 monochrome；monochrome 侧 scale 折算
+  `σ_s = 20/scale`，`monochrome.c:222` + tiling overlap `ceil(4σ_s)`）。
