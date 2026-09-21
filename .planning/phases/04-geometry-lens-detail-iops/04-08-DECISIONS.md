@@ -54,4 +54,57 @@ dt 语义"编辑停用模块参数即自动启用"，落点选在 `PipeCoordinat
 `commitContinuousEdit(autoEnable:)` 默认 true；行 toggle 显式 `autoEnable: false`。
 不加此口径 toggle-OFF（enabled=false 快照）会在 commit 被 GUI-7 翻转回 true——
 模块永远关不掉。`InspectorEditSession.applyDiscrete` 默认 true（全部面板调用不变，
-仅行 toggle 传 false）。
+
+## D-08-F1 GUI-4 真修复：ideal 收窄 + 编辑列硬 min（2026-09-21，修复轮）
+
+验收 FAIL：干净启动（`defaults delete` 后）Inspector 首启顶 max 460、990pt
+窗视口 33.2%<50%。根因：`ideal` 只是 NSSplitView autosave 持久化 frames 的
+初值 —— 恢复的旧 frames 压倒 ideal（04-06 只调 ideal，故 57.4% 是手动 resize
+后持久化的假象）。修法（自选最稳）：
+- ① ideals 收窄：sidebar 200 不变，inspector 280→240（单滑块列面板实测可用；
+  240−padding≈216pt 曲线画布）、min 220→200（小窗 slack）；max 460 保留
+  （曲线编辑器手动拉宽）。
+- ② 编辑列硬 `navigationSplitViewColumnWidth(min: 495)`（= 990pt 窗 50% 红线；
+  mins 合计 150+495+200=845<990，常规拖拽不受限；1440 大窗 inspector 仍可到
+  max 460）。只钉 min 不钉 content-ideal：大窗富余分配仍由 balanced 定。
+- 备选（未选）：delegate splitViewDidResize 一次性约束 / autosave 名清除 ——
+  前者要 AppKit 桥（NSViewRepresentable 包 split，侵入大），后者清掉用户全部
+  resize 记忆（体验差）。min 约束是声明式、一行、无状态，resize 后记忆照常。
+- ContentView.swift:34-47 的「by construction ≥50%」注释随本次收窄重写（旧注
+  释与实测不符即 FAIL 项之一）。
+
+## D-08-F2 撤销入口：CommandGroup 直调 coordinator undo/redo（2026-09-21，修复轮）
+
+`CommandGroup(replacing: .undoRedo)` 原 Phase 1 硬编码 disabled+空 action。
+现 Undo/Redo 直调 `PipeCoordinator.undo()/redo()`（performUndo/redo +
+historyDidChange 重渲染 + sidecar 持久化），enabled 跟随
+`EditorState.canUndo/canRedo`（position≥0 / redo tail 非空；@Observable 绑定，
+commit 后自动点亮，无需手动刷新）。⌘Z/⇧⌘Z 快捷键即菜单 action（替换系统默认
+undo 组后快捷键由我们提供）。PanelWiring 新增
+`testUndoRedoEntryRestoresRenderAndPosition`（commit→canUndo→undo→渲染回退+
+position 回退→redo 前进；渲染经 RenderPipeline 同链快照逐分量比对）。
+
+## D-08-F3 toggle AX 通路根因：临时 session 的 `[weak self]` 空捕（2026-09-21，修复轮）
+
+现象：System Events click 与 AXPress 均不触发 toggle action（同通路 select
+正常）。诊断链：
+- AX 层无辜：actions 表仅 AXPress（真实按钮）、同构 select 可按、显式
+  `.accessibilityAction(.default)` 补强后行为不变 —— press 到达 Button。
+- 根因在语义层：`InspectorView.row()` 调 `InspectorEditSession(coordinator:)`
+  **临时对象** `.applyDiscrete(...)`；旧实现 `Task { [weak self] }` 在临时
+  释放后 `self==nil`，`setLiveParams/commit` 静默丢失。面板调用点 session 由
+  `let edit` 持有（视图寿命）故从未暴露 —— GUI-7/面板离散路径全员免疫，唯独
+  行 toggle（唯一临时-session 调用点）全灭。
+- 修复：Task 改捕 coordinator 值（`Task { [coordinator] in … }`），与 session
+  寿命解耦；生产调用时序不变（仍 fire-and-forget）。另给 toggle 补
+  `.isButton` trait + 显式 default action（AXPress 路由钉死，以防 SwiftUI 隐
+  式转发行回归）。语义层 `testRowToggleAXPressSemantics` 经新增
+  `applyDiscreteForTest`（同 trio 的 await 版）钉住。
+
+## D-08-F4 autoPerspective epsilon guard（2026-09-21，修复轮）
+
+与 `autoLevel` 的 1e-4 rotation guard 对齐：`fitIsNoChange` 纯函数比较
+rotation/shiftV/shiftH/shear 四分量（≤1e-4 全过即 no-change → notice + 全局
+toast，不 commit）。此前拟合落回中性附近会产生空 HistoryItem（污染栈 +
+sidecar）。静态纯函数便于 PanelWiring 无 Vision 直钉
+（`testPerspectiveFitNoChangeGuard`）。

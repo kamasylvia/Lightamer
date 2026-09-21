@@ -38,3 +38,26 @@
 - 决策：`04-08-DECISIONS.md`（D-08-T1-1 九态 Picker / D-08-T2-1 观测盲区 / D-08-T2-2 状态栏迁移 / D-08-T3-1 commit 翻转 / D-08-T3-2 toggle-OFF 旁路 / D-08-T4-1 圆圈语义）。
 - 教训候选（orchestrator 裁决是否入 LESSONS）：①状态栏放编辑列内会被视口量化裁掉——全局 toast 条放窗口底通栏；②xcstrings 手工增键必须落「尾块 `}, version` 之前」且 JSON 校验（T1 曾坏 catalog，两次返工）；③AX set 仅 live 的 D-H1 语义要在复验前先对齐口径（免误判矩阵 c）。
 - 残余：滑块 AXPosition 全 None（功能性 AX 可用，平台侧限制）；UITests 腿仍 L011 挂账（`Timed out while enabling automation mode`——本轮 L019a 授权后单测腿畅通）。
+
+## 修复轮 F1–F6（2026-09-21，验收 FAIL 回注）
+
+- tests: **435 tests / 0 fail / 3 skip**（基线 432 → +3：undo/redo
+  render+position、AX toggle 语义、perspective guard；终轮实测 TEST SUCCEEDED）。
+- commits: 3（F1/F4 布局+guard+测试 / F2/F3 撤销+AX / F3 根因 applyDiscrete
+  捕获修复；F5/F6 文档与证据并入第 3 批后另提交）。
+
+| 项 | 改动 | 实证 |
+|---|---|---|
+| F1 GUI-4 真修复 | inspector ideal 280→240、min 220→200；编辑列硬 min 495pt（990pt 窗 50% 红线） | 干净启动 990×695：frames 200/589/200 = 20.2%/59.5%/20.3% ✓（`fixf1-990-fixed.png`） |
+| F2 撤销入口 (GUI-9) | CommandGroup 接 coordinator undo/redo；enabled 跟随 canUndo/canRedo；`testUndoRedoEntryRestoresRenderAndPosition` | ⌘Z ×2：toggles 回关、position 1→−1、视口差 0.0；redo ×1 回开（`fixf2-undo-fixed.png`） |
+| F3 AX press 通路 | 根因：行临时 session 的 `Task { [weak self] }` 空捕 → 改捕 coordinator；toggle 补 isButton+显式 default action；`testRowToggleAXPressSemantics` | AXPress/click 翻转 soften/highpass（history 恰 1 条/项、渲染 Δ1.293） |
+| F4 perspective guard | `fitIsNoChange`（1e-4 四分量）+ `testPerspectiveFitNoChangeGuard` | 单测钉住；DSC00012 双 nil 路径不变 |
+| F5 文档修正 | FINDINGS 修复轮节（T5 两处失实更正 + GUI-9 登记闭环）；04-VALIDATION:80 GUI-7 注记更新；DECISIONS D-08-F1..F4 | 本文件节 |
+| F6 交互复验 | F1/F2/F3 实测 + GUI-6/7/8 回归（代码路径未动，全套绿）+ 4 截图 | 上表；`.lra` 已删、app 已 quit |
+
+- 决策：`04-08-DECISIONS.md` D-08-F1（min 约束 vs delegate/autosave 备选）/
+  D-08-F2（直调 coordinator）/ D-08-F3（临时 session 空捕）/ D-08-F4（epsilon 对齐）。
+- 教训候选：① `Task { [weak self] }` 在临时对象方法内 = 静默 no-op（本轮 F3；
+  面板 `let edit` 持有掩盖了它）；② T5 百分比正确但绝对值是 Retina 物理像素
+  （2204pt 误读 —— 量化口径要注明 pt vs px）；③ 57.4% 是 resize 记忆值，
+  干净启动才是布局验收口径（L021 增补）。
