@@ -142,3 +142,30 @@ PREVIEW@48 iscale==0.375 / FULL==1.0 / THUMBNAIL 原生小图==1.0；
   `params_v12_t:717-736`）。channelmixerrgb format 勘误同修
   （`<24f6i5i4fi` → `<24f6i4i4f2i`：x/y/temp/gamut 为 float）。
 - 全部配方默认中性 + 入库前 dt `--d params` 版本校验要求（各函数注）。
+
+## D-05-01-T6: executeTiledNegotiated 回归加固 + 四消费者预演（2026-09-21）
+
+### 回归网（`TileNegotiationRegressionTests`，5 tests，compared>0）
+
+- ① 强制分块==整幅：512×384 EIGF 腿 256KB 分块 vs 整幅 maxRel<1e-5
+  （TilingOverlapTests 同款门双门重跑）。
+- ② tile 不改 dscIn/iscale：分块==整幅输出一致（几何 stamp 唯一输入 ⇒
+  stamp 一致）+ hook 级 halo 纯函数 pin（blending 5 @256px halo=85 手算）。
+- ③ tile 记账：读窗 = tile 外扩 halo clamp（512 系 2×2 live 网格，覆盖数
+  116964 pin）+ halo≥side/2 反转 tile 边界钉住（03-05-T6 注释语义，不改
+  TilingPlan——tile 驱动跳过零 tile）。
+- ④ 两极端：单 tile（budget 1GB → 1×1 全覆盖）+ 极小 tile（多块合法）。
+- 本 plan 不改 tile 驱动语义（04-01 纪律：只补网）。
+
+### 四消费者预演（纯 TilingPlan 级，占位常量；替换责任见各 plan）
+
+| 消费者 | halo | B/px | 100MP grid | maxTileBytes |
+|---|---|---|---|---|
+| nlmeans（P=2,K=7） | 9 | 80 | 20 live | 532924880 |
+| denoiseprofile 波列（max_scale=3） | 8 | 104 | 24 live | 533072384 |
+| monochrome grid（σ_s=20，占位） | 40 | 24 | 6 live | 527681304 |
+| bilateral（rad=6，占位） | 6 | 32 | 9 live | 535299200 |
+
+- 全 <3GB/tile；halo 均 < side/2（tile 全 live，无反转）。
+- monochrome/bilateral 值为占位常量（真实声明待 05-05 定 + 05-08 5D 预算），
+  替换责任写进 05-05/06/07/08 各 plan。
