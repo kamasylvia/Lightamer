@@ -802,3 +802,55 @@ bands — no eaw `gweight` edge weights (recorded divergence, stretch: EIGF).
 | equalizer | 4 × 4 | 合成（金字塔分解合成，float64） | <1e-4 | 全零 blit 恒等 + 带能量内容断言（in-test）；无 dt blob（D10） | `## detail golden/equalizer` |
 
 核对结论：9/9 有账（轨 A 合成 refs sha256 + blob 版式 + 容差档全在上表节内）；soften dt-cli probe 免跑先验结论落 04-05-DECISIONS D5。
+
+### channelmixerrgb + channelmixer + colorcontrast cases (Plan 05-03-T4, synthesized references + XMP adoption)
+
+dt blobs ↔ Lightamer Params (JSON):
+
+| dt field | Lightamer field | note |
+|---|---|---|
+| channelmixerrgb v3 `<24f6i4i4f2i` (160B: 6×4 mix/sat/light/grey + 6 normalize + illum/fluo/led/adapt + x/y/temp/gamut + clip/version) | `ChannelMixerRGBModule.Params` | illum raw = dt enum (D=2 default, camera=10); version raw = dt (v3=2 default) |
+| channelmixer v2 `<12fi` (52B: red/green/blue[4] + algorithm) | `ChannelMixerModule.Params` (3×7 + algorithm) | blob 只 carry 前 4/通道（hue/sat/light/red…由 7 通道 Params 前 4 列投影；gray/hsl 行由 XMP 语义保证为零时恒等——本轮 3 case 全零投影区为零） |
+| colorcontrast v2 `<4fi` (20B: a/b steepness+offset + unbound) | `ColorContrastModule.Params` | unbound bool → int |
+
+Track-A references SYNTHESIZED (L017 route): float64 evaluation of the
+documented dt process over canonical fixture bytes (channelmixerrgb
+_loop_switch :771-1000; legacy commit :499-560 + 4 process legs; contrast
+:189-220). dt-side evidence = XMP adoption blobs below (DB op_params hex +
+`params v. N: version ok params ok` per 03-02 定式；跑 dt 采纳时逐 case 核对）.
+Flat PFM probes: direction-only for channelmixerrgb (default D-illuminant
+adaptation is not pixel-identity) — recorded, not a main track.
+
+Parity gates: channelmixerrgb 6×4 <1e-5 rel (strict 1e-5/2.5e-5@99% +
+envelope 1e-4/5e-4); legacy 3×4 <1e-5; contrast 3×4 <1e-5 (Lab 03 gate).
+Matrix cross: Swift derive vs Python cm_derive on cmr_default CAT16 —
+rgbToLMS 5e-7 / mixToXYZ 1e-6 / illuminant 1e-6 / p 1e-6 (float32-fair:
+Swift folds Float params, Python holds doubles; formula equality nailed
+end-to-end by track-A through BOTH chains). illuminant/temp/xy change ⇒
+paramsHash change (cache-invalidation chain, in-test). 28.5 tie-break:
+SidecarTieBreakTests (latest-wins + multiPriority + slot order).
+
+color-checker subtree zero-port evidence: `grep -rn colorchecker
+LightamerIOP/Sources/ChannelMixerRGB/` hits only the two head-note
+comments (NOT PORTED declarations) — no `_extract_color_checker` /
+`run_profile` / `colorchecker.h` code. params 位保留：illuminant enum 含
+camera/detect 项（resolver returns nil → panel hides/disables + 注记）.
+
+| case | params blob sha256 (short) | reference sha256 (synthesized, short) |
+|---|---|---|
+| cmr_default | `88c6b9440f357622` | ramp_8ev:f56d8a305170fbb0 flat_0ev:ebf9425f40583e7a flat_-4ev:71966058e3ca9ed8 gray_staircase:74ad69c57e8850f5 |
+| cmr_tungsten_linear | `a65ce1976615fce9` | ramp_8ev:64ddf77a081ee215 flat_0ev:e8e168ed19495bd0 flat_-4ev:1bce591a0374d596 gray_staircase:bb80638f7f9d9195 |
+| cmr_bb_full_satv1 | `f8edadd70afc40a7` | ramp_8ev:7370ec6452dc92c4 flat_0ev:5ee1c6d0f7e35b47 flat_-4ev:bb8efd226c246fef gray_staircase:0468cd5eec2b4750 |
+| cmr_fluor_xyz | `63c2f04a6432913a` | ramp_8ev:a8328c91c72b7345 flat_0ev:e3ef8820b32e7afd flat_-4ev:03cba7a7563f2aa7 gray_staircase:33f8fda8cb8e5a0e |
+| cmr_led_rgb_grey | `e66d8b854eaa5acc` | ramp_8ev:aa0f22b148bcbe01 flat_0ev:e306bae86b263845 flat_-4ev:6409786eaa9bc799 gray_staircase:a6f9676b826b87e2 |
+| cmr_custom_satv2 | `0ec742e644a81f1b` | ramp_8ev:cc6a28c39d8177c9 flat_0ev:d91f20cffbd68862 flat_-4ev:ee32619273f9f58e gray_staircase:5548f4e2734a4d9b |
+| cm_rgb_swap | `4c80b054da98a6f8` | ramp_8ev:6fc281172bc40bcf flat_0ev:6fc281172bc40bcf flat_-4ev:6fc281172bc40bcf gray_staircase:0a2e2f64c4aa727b |
+| cm_gray_luma | `417fd79981734361` | ramp_8ev:6fc281172bc40bcf flat_0ev:6fc281172bc40bcf flat_-4ev:6fc281172bc40bcf gray_staircase:0a2e2f64c4aa727b |
+| cm_hsl_v1_sat | `5b2311580b070b0c` | ramp_8ev:2c1d611966877665 flat_0ev:a32e708c6aca2f7d flat_-4ev:ab37c607ac54f585 gray_staircase:00be0aaf36e77a0a |
+| cc_default | `949111de550c2e63` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| cc_steep | `d5ee38fe86f6712b` | ramp_8ev:a0458254c0b2ea3e flat_0ev:8f1fd9c236904496 flat_-4ev:7b4a11c65509d6fe gray_staircase:6f0f0b011f0ad059 |
+| cc_bound | `e4944169a5d54543` | ramp_8ev:dd5767a67f067852 flat_0ev:df8c8b57164dab55 flat_-4ev:04f0a5f814f26892 gray_staircase:357073a103d109ab |
+
+注：cc_default refs 与 cb_default refs 在 ramp/flat/gray 四 fixture 上
+全同 hash（恒等参数经 Lab 往返精确：flat_0ev 5d3098d9b2949609 等）——来源不同
+（Lab 链 vs Yrg/LMS2006 链），门各自独立，双记保留。

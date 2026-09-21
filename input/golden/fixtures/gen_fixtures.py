@@ -4274,6 +4274,9 @@ def main() -> None:
             cases_dir = os.path.join(outdir, "cases")
         gen_cases(cases_dir)
         gen_colorbalancergb_cases(cases_dir)
+        gen_channelmixerrgb_cases(cases_dir)
+        gen_channelmixer_cases(cases_dir)
+        gen_colorcontrast_cases(cases_dir)
     if mode == "refs":
         # Plan 03-02: temperature golden references — synthesizes
         # <outdir>/<temperature case>__<fixture>.exr from the canonical
@@ -4320,6 +4323,9 @@ def main() -> None:
         # Plan 05-02-T3: colorbalancergb golden references (L017 route;
         # dt-side = XMP adoption + 平场 PFM probe).
         gen_colorbalancergb_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_channelmixerrgb_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_channelmixer_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_colorcontrast_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 
@@ -5193,6 +5199,646 @@ def gen_agx_refs(canonical_dir: str, out_dir: str) -> None:
 
             write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
 
+
+
+
+# ──────────────────────────────────────────────────────────────────────
+# ChannelMixerRGB / ChannelMixer / ColorContrast (Plan 05-03-T4)
+# ──────────────────────────────────────────────────────────────────────
+# float64 参考链：与 Swift ChannelMixerMath / ChannelMixerRGBModule.derive /
+# ChannelMixerModule.reference / ColorContrastModule.reference 同公式
+# （dt 行号见各模块头注）。L017 route：数值参考合成；dt 侧 = XMP 采纳 +
+# DB hex + params ok（平场 probe：channelmixerrgb 默认 D-illuminant adaptation
+# 非恒等——probe 只记方向/稳定性，不作主轨）。
+
+CM_NORM_MIN = 1.52587890625e-05
+CM_INV_SQRT3 = 0.5773502691896258
+
+CM_XYZ_B = [[0.8951, 0.2664, -0.1614],
+            [-0.7502, 1.7135, 0.0367],
+            [0.0389, -0.0685, 1.0296]]
+CM_B_XYZ = [[0.9870, -0.1471, 0.1600],
+            [0.4323, 0.5184, 0.0493],
+            [-0.0085, 0.0400, 0.9685]]
+CM_XYZ_C = [[0.401288, 0.650173, -0.051461],
+            [-0.250268, 1.204414, 0.045854],
+            [-0.002079, 0.048952, 0.953127]]
+CM_C_XYZ = [[1.862068, -1.011255, 0.149187],
+            [0.38752, 0.621447, -0.008974],
+            [-0.015841, -0.034123, 1.049964]]
+CM_D50_XY = (0.34567, 0.35850)
+CM_D50_UV = (0.20915914598542354, 0.488075320769787)
+CM_FLUO = [(0.31310, 0.33727), (0.37208, 0.37529), (0.40910, 0.39430),
+           (0.44018, 0.40329), (0.31379, 0.34531), (0.37790, 0.38835),
+           (0.31292, 0.32933), (0.34588, 0.35875), (0.37417, 0.37281),
+           (0.34609, 0.35986), (0.38052, 0.37713), (0.43695, 0.40441)]
+CM_LED = [(0.4560, 0.4078), (0.4357, 0.4012), (0.3756, 0.3723),
+          (0.3422, 0.3502), (0.3118, 0.3236), (0.4474, 0.4066),
+          (0.4557, 0.4211), (0.4560, 0.4548), (0.3781, 0.3775)]
+
+
+def cm_cct_daylight(t):
+    x = 0.0
+    if 4000 <= t <= 7000:
+        x = ((-4.6070e9 / t + 2.9678e6) / t + 0.09911e3) / t + 0.244063
+    elif 7000 < t <= 25000:
+        x = ((-2.0064e9 / t + 1.9018e6) / t + 0.24748e3) / t + 0.237040
+    if x == 0:
+        return (0.0, 0.0)
+    return (x, (-3.0 * x + 2.87) * x - 0.275)
+
+
+def cm_cct_blackbody(t):
+    x = 0.0
+    if 1667 <= t <= 4000:
+        x = ((-0.2661239e9 / t - 0.2343589e6) / t + 0.8776956e3) / t + 0.179910
+    elif 4000 < t <= 25000:
+        x = ((-3.0258469e9 / t + 2.1070379e6) / t + 0.2226347e3) / t + 0.240390
+    if x == 0:
+        return (0.0, 0.0)
+    if 1667 <= t <= 2222:
+        y = ((-1.1063814 * x - 1.34811020) * x + 2.18555832) * x - 0.20219683
+    elif 2222 < t <= 4000:
+        y = ((-0.9549476 * x - 1.37418593) * x + 2.09137015) * x - 0.16748867
+    else:
+        y = ((3.0817580 * x - 5.87338670) * x + 3.75112997) * x - 0.37001483
+    return (x, y)
+
+
+def cm_illuminant_to_xy(illuminant, fluo, led, temperature, cx, cy):
+    if illuminant == 0:
+        return CM_D50_XY
+    if illuminant == 3:
+        return (1.0 / 3.0, 1.0 / 3.0)
+    if illuminant == 1:
+        return (0.44757, 0.40745)
+    if illuminant == 4:
+        return CM_FLUO[fluo]
+    if illuminant == 5:
+        return CM_LED[led]
+    if illuminant == 2:
+        x, y = cm_cct_daylight(temperature)
+        if x != 0 and y != 0:
+            return (x, y)
+    if illuminant in (2, 6):
+        x, y = cm_cct_blackbody(temperature)
+        if x != 0 and y != 0:
+            return (x, y)
+        return (cx, cy)
+    return (cx, cy)
+
+
+def cm_xy_to_xyz(x, y):
+    return (x / y, 1.0, (1.0 - x - y) / y)
+
+
+def cm_xyz_to_lms(xyz, adaptation):
+    if adaptation in (0, 2):
+        return mat_vec(CM_XYZ_B, xyz)
+    if adaptation == 1:
+        return mat_vec(CM_XYZ_C, xyz)
+    return xyz
+
+
+def cm_lms_to_xyz(lms, adaptation):
+    if adaptation in (0, 2):
+        return mat_vec(CM_B_XYZ, lms)
+    if adaptation == 1:
+        return mat_vec(CM_C_XYZ, lms)
+    return lms
+
+
+def cm_bradford_adapt(lms, illum, p, full):
+    t = (lms[0] / illum[0], lms[1] / illum[1], lms[2] / illum[2])
+    if full and t[2] > 0:
+        t = (t[0], t[1], t[2] ** p)
+    return (0.996078 * t[0], 1.020646 * t[1], 0.818155 * t[2])
+
+
+def cm_cat16_adapt(lms, illum):
+    return (lms[0] * 0.994535 / illum[0], lms[1] * 1.000997 / illum[1],
+            lms[2] * 0.833036 / illum[2])
+
+
+def cm_xyz_adapt(xyz, illum):
+    return (xyz[0] * 0.9642119944211994 / illum[0], xyz[1] * 1.0 / illum[1],
+            xyz[2] * 0.8251882845188288 / illum[2])
+
+
+def cm_downscale(v, s):
+    f = (s + CM_NORM_MIN) if s > CM_NORM_MIN else CM_NORM_MIN
+    return (v[0] / f, v[1] / f, v[2] / f)
+
+
+def cm_upscale(v, s):
+    f = (s + CM_NORM_MIN) if s > CM_NORM_MIN else CM_NORM_MIN
+    return (v[0] * f, v[1] * f, v[2] * f)
+
+
+def cm_gamut_map(inp, compression, clip):
+    s = inp[0] + inp[1] + inp[2]
+    xyY = (inp[0] / s if s > 0 else CM_D50_XY[0],
+           inp[1] / s if s > 0 else CM_D50_XY[1], inp[1])
+    den = -2.0 * xyY[0] + 12.0 * xyY[1] + 3.0
+    uv = (4.0 * xyY[0] / den, 9.0 * xyY[1] / den)
+    du = (CM_D50_UV[0] - uv[0], CM_D50_UV[1] - uv[1])
+    delta = inp[1] * (du[0] ** 2 + du[1] ** 2)
+    corr = 0.0 if compression == 0 else delta ** compression
+    out_uv = []
+    for c in range(2):
+        tmp = corr * du[c] + uv[c]
+        out_uv.append(max(tmp, CM_D50_UV[c]) if uv[c] > CM_D50_UV[c]
+                      else min(tmp, CM_D50_UV[c]))
+    den2 = 6.0 * out_uv[0] - 16.0 * out_uv[1] + 12.0
+    xyY = (9.0 * out_uv[0] / den2, 4.0 * out_uv[1] / den2, xyY[2])
+    if clip:
+        xyY = (max(xyY[0], 0.0), max(xyY[1], 0.0), xyY[2])
+    xyY = (xyY[0], max(xyY[1], CM_NORM_MIN), xyY[2])
+    sc = xyY[0] + xyY[1]
+    if sc >= 1.0:
+        xyY = (xyY[0] / sc, xyY[1] / sc, xyY[2])
+    return (xyY[2] * xyY[0] / xyY[1], xyY[2],
+            xyY[2] * (1.0 - xyY[0] - xyY[1]) / xyY[1])
+
+
+def cm_luma_chroma(inp, saturation, lightness, version):
+    norm = max(math.sqrt(inp[0] ** 2 + inp[1] ** 2 + inp[2] ** 2), CM_NORM_MIN)
+    avg = max((inp[0] + inp[1] + inp[2]) / 3.0, CM_NORM_MIN)
+    if not (norm > 0 and avg > 0):
+        return inp
+    mix = inp[0] * lightness[0] + inp[1] * lightness[1] + inp[2] * lightness[2]
+    if version == 2:
+        norm *= CM_INV_SQRT3
+    out = (inp[0] / norm, inp[1] / norm, inp[2] / norm)
+    if version == 0:
+        coeff = ((1 - out[0]) * saturation[0] + (1 - out[1]) * saturation[1]
+                 + (1 - out[2]) * saturation[2])
+    else:
+        coeff = (out[0] * saturation[0] + out[1] * saturation[1]
+                 + out[2] * saturation[2]) / 3.0
+    mins = tuple(o if o < 0 else 0.0 for o in out)
+    out = tuple(max((1 - out[c]) * coeff + out[c], mins[c]) for c in range(3))
+    if version == 2:
+        n2 = max(math.sqrt(sum(o * o for o in out)), CM_NORM_MIN)
+        norm /= n2 * CM_INV_SQRT3
+    norm *= max(1.0 + mix / avg, 0.0)
+    return (out[0] * norm, out[1] * norm, out[2] * norm)
+
+
+def cm_derive(case):
+    """dt commit_params（channelmixerrgb.c:3047-3150）float64。"""
+    red, green, blue = case["red"], case["green"], case["blue"]
+    sat, light = case["saturation"], case["lightness"]
+    grey = case["grey"]
+    norm = case["normalize"]
+    nR = (red[0] + red[1] + red[2]) if norm[0] else 1.0
+    nG = (green[0] + green[1] + green[2]) if norm[1] else 1.0
+    nB = (blue[0] + blue[1] + blue[2]) if norm[2] else 1.0
+    nS = ((sat[0] + sat[1] + sat[2]) / 3.0) if norm[3] else 0.0
+    nL = ((light[0] + light[1] + light[2]) / 3.0) if norm[4] else 0.0
+    nGr = grey[0] + grey[1] + grey[2]
+    apply_grey = grey[0] != 0 or grey[1] != 0 or grey[2] != 0
+    if not norm[5] or nGr == 0:
+        nGr = 1.0
+    mix = [[red[0] / nR, red[1] / nR, red[2] / nR],
+           [green[0] / nG, green[1] / nG, green[2] / nG],
+           [blue[0] / nB, blue[1] / nB, blue[2] / nB]]
+    saturation = (-sat[0] + nS, -sat[1] + nS, -sat[2] + nS)
+    if case["version"] == 0:
+        saturation = (-sat[2] + nS, saturation[1], -sat[0] + nS)
+    lightness = (light[0] - nL, light[1] - nL, light[2] - nL)
+    grey_v = (grey[0] / nGr, grey[1] / nGr, grey[2] / nGr)
+    if case["illuminant"] == 10:
+        x, y = cm_cct_daylight(case["temperature"])
+        if x == 0 and y == 0:
+            x, y = cm_cct_blackbody(case["temperature"])
+        if x == 0 and y == 0:
+            x, y = case["x"], case["y"]
+    else:
+        x, y = cm_illuminant_to_xy(case["illuminant"], case["illum_fluo"],
+                                   case["illum_led"], case["temperature"],
+                                   case["x"], case["y"])
+    illuminant = cm_xyz_to_lms(cm_xy_to_xyz(x, y), case["adaptation"])
+    p = (0.818155 / illuminant[2]) ** 0.0834
+    gamut = 0.0 if case["gamut"] == 0 else 1.0 / case["gamut"]
+    adapt = case["adaptation"]
+    if adapt in (0, 2):
+        rgb_to_lms = mat_mul(CM_XYZ_B, LAB_R2X)
+        mix_to_xyz = mat_mul(CM_B_XYZ, mix)
+        xyz_to_lms = CM_XYZ_B
+        lms_to_xyz = CM_B_XYZ
+    elif adapt == 1:
+        rgb_to_lms = mat_mul(CM_XYZ_C, LAB_R2X)
+        mix_to_xyz = mat_mul(CM_C_XYZ, mix)
+        xyz_to_lms = CM_XYZ_C
+        lms_to_xyz = CM_C_XYZ
+    elif adapt == 3:
+        rgb_to_lms = [row[:] for row in LAB_R2X]
+        mix_to_xyz = [row[:] for row in mix]
+        xyz_to_lms = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        lms_to_xyz = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    else:
+        rgb_to_lms = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        mix_to_xyz = mat_mul(LAB_R2X, mix)
+        xyz_to_lms = [row[:] for row in LAB_X2R]
+        lms_to_xyz = [row[:] for row in LAB_R2X]
+    return dict(rgb_to_lms=rgb_to_lms, mix_to_xyz=mix_to_xyz,
+                xyz_to_lms=xyz_to_lms, lms_to_xyz=lms_to_xyz,
+                illuminant=illuminant, p=p, gamut=gamut,
+                saturation=saturation, lightness=lightness, grey=grey_v,
+                apply_grey=apply_grey)
+
+
+def channelmixerrgb_apply_pixel(rgb, case, d):
+    """单像素全链（_loop_switch float64；alpha 直通）。"""
+    adapt, clip = case["adaptation"], case["clip"]
+    pix = tuple(max(v, 0.0) for v in rgb) if clip else rgb
+    if adapt == 2:
+        xyz = mat_vec(d["rgb_to_lms"], pix)
+        Y = xyz[1]
+        lms = cm_xyz_to_lms(xyz, adapt)
+        lms = cm_downscale(lms, Y)
+        lms = cm_bradford_adapt(lms, d["illuminant"], d["p"], True)
+        lms = cm_upscale(lms, Y)
+        lms = mat_vec(d["mix_to_xyz"], lms)
+        xyz = cm_lms_to_xyz(lms, adapt)
+    elif adapt == 0:
+        lms = mat_vec(d["rgb_to_lms"], pix)
+        lms = cm_bradford_adapt(lms, d["illuminant"], d["p"], False)
+        lms = mat_vec(d["mix_to_xyz"], lms)
+        xyz = cm_lms_to_xyz(lms, adapt)
+    elif adapt == 1:
+        xyz = mat_vec(d["rgb_to_lms"], pix)
+        Y = xyz[1]
+        lms = cm_xyz_to_lms(xyz, adapt)
+        lms = cm_downscale(lms, Y)
+        lms = cm_cat16_adapt(lms, d["illuminant"])
+        lms = cm_upscale(lms, Y)
+        lms = mat_vec(d["mix_to_xyz"], lms)
+        xyz = cm_lms_to_xyz(lms, adapt)
+    elif adapt == 3:
+        xyz = mat_vec(d["rgb_to_lms"], pix)
+        Y = xyz[1]
+        xyz = cm_downscale(xyz, Y)
+        xyz = cm_xyz_adapt(xyz, d["illuminant"])
+        xyz = cm_upscale(xyz, Y)
+        xyz = mat_vec(d["mix_to_xyz"], xyz)
+    else:
+        xyz = mat_vec(d["mix_to_xyz"], pix)
+    if clip:
+        xyz = tuple(max(v, 0.0) for v in xyz)
+    xyz = cm_gamut_map(xyz, d["gamut"], clip)
+    lms = cm_xyz_to_lms(xyz, adapt) if adapt != 4 else mat_vec(d["xyz_to_lms"], xyz)
+    if clip:
+        lms = tuple(max(v, 0.0) for v in lms)
+    lms = cm_luma_chroma(lms, d["saturation"], d["lightness"], case["version"])
+    if clip:
+        lms = tuple(max(v, 0.0) for v in lms)
+    if d["apply_grey"]:
+        g = max(lms[0] * d["grey"][0] + lms[1] * d["grey"][1]
+                + lms[2] * d["grey"][2], 0.0)
+        return (g, g, g)
+    back = cm_lms_to_xyz(lms, adapt) if adapt != 4 else mat_vec(d["lms_to_xyz"], lms)
+    if clip:
+        back = tuple(max(v, 0.0) for v in back)
+    out = mat_vec(LAB_X2R, back)
+    if clip:
+        out = tuple(max(v, 0.0) for v in out)
+    return out
+
+
+# 6 case：≥3 矩阵路径（CAT16 D / linear-Bradford A / full-Bradford BB /
+# XYZ E / RGB bypass）+ illuminant 变更 + saturation 三版（v3/v1/v2）。
+CHANNELMIXERRGB_CASES = [
+    {"name": "cmr_default", "red": (1.0, 0.0, 0.0, 0.0),
+     "green": (0.0, 1.0, 0.0, 0.0), "blue": (0.0, 0.0, 1.0, 0.0),
+     "saturation": (0.0,) * 4, "lightness": (0.0,) * 4, "grey": (0.0,) * 4,
+     "normalize": (0,) * 6, "illuminant": 2, "illum_fluo": 2, "illum_led": 4,
+     "adaptation": 1, "x": 0.333, "y": 0.333, "temperature": 5003.0,
+     "gamut": 1.0, "clip": 1, "version": 2},
+    {"name": "cmr_tungsten_linear", "red": (1.1, -0.05, -0.05, 0.0),
+     "green": (-0.1, 1.2, -0.1, 0.0), "blue": (0.0, -0.1, 1.1, 0.0),
+     "saturation": (0.2, -0.1, 0.1, 0.0), "lightness": (0.05, 0.0, -0.05, 0.0),
+     "grey": (0.0,) * 4, "normalize": (1, 1, 1, 0, 0, 0),
+     "illuminant": 1, "illum_fluo": 2, "illum_led": 4,
+     "adaptation": 0, "x": 0.333, "y": 0.333, "temperature": 5003.0,
+     "gamut": 1.0, "clip": 1, "version": 2},
+    {"name": "cmr_bb_full_satv1", "red": (1.0, 0.1, -0.1, 0.0),
+     "green": (0.0, 1.0, 0.0, 0.0), "blue": (-0.05, 0.05, 1.0, 0.0),
+     "saturation": (0.3, 0.0, -0.2, 0.1), "lightness": (0.0,) * 4,
+     "grey": (0.0,) * 4, "normalize": (0,) * 6,
+     "illuminant": 6, "illum_fluo": 2, "illum_led": 4,
+     "adaptation": 2, "x": 0.333, "y": 0.333, "temperature": 3200.0,
+     "gamut": 2.0, "clip": 1, "version": 0},
+    {"name": "cmr_fluor_xyz", "red": (0.9, 0.05, 0.05, 0.0),
+     "green": (0.05, 0.9, 0.05, 0.0), "blue": (0.0, 0.0, 1.0, 0.0),
+     "saturation": (0.0,) * 4, "lightness": (0.1, -0.05, 0.0, 0.05),
+     "grey": (0.0,) * 4, "normalize": (0,) * 6,
+     "illuminant": 4, "illum_fluo": 3, "illum_led": 4,
+     "adaptation": 3, "x": 0.333, "y": 0.333, "temperature": 5003.0,
+     "gamut": 1.0, "clip": 0, "version": 2},
+    {"name": "cmr_led_rgb_grey", "red": (1.0, 0.0, 0.0, 0.0),
+     "green": (0.0, 1.0, 0.0, 0.0), "blue": (0.0, 0.0, 1.0, 0.0),
+     "saturation": (0.0,) * 4, "lightness": (0.0,) * 4,
+     "grey": (0.3, 0.5, 0.2, 0.0), "normalize": (0, 0, 0, 0, 0, 1),
+     "illuminant": 5, "illum_fluo": 2, "illum_led": 4,
+     "adaptation": 4, "x": 0.333, "y": 0.333, "temperature": 5003.0,
+     "gamut": 1.0, "clip": 1, "version": 2},
+    {"name": "cmr_custom_satv2", "red": (1.2, -0.1, -0.1, 0.0),
+     "green": (-0.05, 1.1, -0.05, 0.0), "blue": (0.0, 0.0, 1.0, 0.0),
+     "saturation": (-0.2, 0.3, 0.1, -0.1), "lightness": (0.0,) * 4,
+     "grey": (0.0,) * 4, "normalize": (0, 0, 0, 1, 0, 0),
+     "illuminant": 7, "illum_fluo": 2, "illum_led": 4,
+     "adaptation": 1, "x": 0.42, "y": 0.38, "temperature": 5003.0,
+     "gamut": 1.0, "clip": 1, "version": 1},
+]
+CHANNELMIXERRGB_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev",
+                                "gray_staircase"]
+
+
+def channelmixerrgb_case_params(case):
+    return dict(
+        red=case["red"], green=case["green"], blue=case["blue"],
+        saturation=case["saturation"], lightness=case["lightness"],
+        grey=case["grey"], normalizeR=bool(case["normalize"][0]),
+        normalizeG=bool(case["normalize"][1]), normalizeB=bool(case["normalize"][2]),
+        normalizeSat=bool(case["normalize"][3]),
+        normalizeLight=bool(case["normalize"][4]),
+        normalizeGrey=bool(case["normalize"][5]),
+        illuminant=case["illuminant"], illumFluo=case["illum_fluo"],
+        illumLED=case["illum_led"], adaptation=case["adaptation"],
+        x=case["x"], y=case["y"], temperature=case["temperature"],
+        gamut=case["gamut"], clip=bool(case["clip"]), version=case["version"])
+
+
+def channelmixerrgb_params_blob_for_case(case) -> str:
+    packed = struct.pack(
+        CHANNELMIXERRGB_PARAMS_FORMAT,
+        *case["red"], *case["green"], *case["blue"],
+        *case["saturation"], *case["lightness"], *case["grey"],
+        *case["normalize"], case["illuminant"], case["illum_fluo"],
+        case["illum_led"], case["adaptation"],
+        case["x"], case["y"], case["temperature"], case["gamut"],
+        case["clip"], case["version"])
+    assert len(packed) == 160, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_channelmixerrgb_cases(outdir: str) -> None:
+    for case in CHANNELMIXERRGB_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="channelmixerrgb", modversion=CHANNELMIXERRGB_MODVERSION,
+            params=channelmixerrgb_params_blob_for_case(case),
+            iop_order=f"{CHANNELMIXERRGB_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_channelmixerrgb_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in CHANNELMIXERRGB_CASES:
+        d = cm_derive(case)
+        for fixture in CHANNELMIXERRGB_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, case=case, d=d, w=w):
+                idx = y * w + x
+                return channelmixerrgb_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), case, d)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# legacy channelmixer：4 mode 全覆盖（RGB / gray / HSL v1 / HSL v2）。
+def _cm_legacy_rgb2hsl(r, g, b):
+    pmax, pmin = max(r, g, b), min(r, g, b)
+    delta = pmax - pmin
+    h = s = 0.0
+    l = (pmin + pmax) / 2.0
+    if delta != 0:
+        s = delta / max(pmax + pmin, CM_NORM_MIN) if l < 0.5 else delta / max(2.0 - pmax - pmin, CM_NORM_MIN)
+        if pmax == r:
+            h = (g - b) / delta
+        elif pmax == g:
+            h = 2.0 + (b - r) / delta
+        else:
+            h = 4.0 + (r - g) / delta
+        h /= 6.0
+        if h < 0:
+            h += 1.0
+        elif h > 1:
+            h -= 1.0
+    return (h, s, l)
+
+
+def _cm_legacy_hue2rgb(m1, m2, hue):
+    if hue < 1.0:
+        return m1 + (m2 - m1) * hue
+    if hue < 3.0:
+        return m2
+    return m1 + (m2 - m1) * (4.0 - hue) if hue < 4.0 else m1
+
+
+def _cm_legacy_hsl2rgb(h, s, l):
+    if s == 0:
+        return (l, l, l)
+    m2 = l * (1.0 + s) if l < 0.5 else l + s - l * s
+    m1 = 2.0 * l - m2
+    hh = h * 6.0
+    return (_cm_legacy_hue2rgb(m1, m2, hh + 2.0 if hh < 4.0 else hh - 4.0),
+            _cm_legacy_hue2rgb(m1, m2, hh),
+            _cm_legacy_hue2rgb(m1, m2, hh - 2.0 if hh > 2.0 else hh + 4.0))
+
+
+def _cm_legacy_derive(case):
+    hsl = [0.0] * 9
+    for row in range(3):
+        hsl[row * 3] = case["red"][row]
+        hsl[row * 3 + 1] = case["green"][row]
+        hsl[row * 3 + 2] = case["blue"][row]
+    hsl_mix = any(case["red"][i] != 0 or case["green"][i] != 0 or case["blue"][i] != 0
+                  for i in range(3))
+    rgb = [0.0] * 9
+    for row in range(3):
+        rgb[row * 3] = case["red"][row + 3]
+        rgb[row * 3 + 1] = case["green"][row + 3]
+        rgb[row * 3 + 2] = case["blue"][row + 3]
+    gray = (case["red"][6], case["green"][6], case["blue"][6])
+    gray_mix = gray[0] != 0 or gray[1] != 0 or gray[2] != 0
+    if gray_mix:
+        mixed = [gray[0] * rgb[j] + gray[1] * rgb[3 + j] + gray[2] * rgb[6 + j]
+                 for j in range(3)]
+        for row in range(3):
+            rgb[row * 3:row * 3 + 3] = mixed
+    if case["algorithm"] == 0:
+        mode = 2
+    elif hsl_mix:
+        mode = 3
+    elif gray_mix:
+        mode = 1
+    else:
+        mode = 0
+    return (hsl, rgb, mode)
+
+
+def channelmixer_apply_pixel(rgb, case):
+    def clamp01(v):
+        return min(max(v, 0.0), 1.0)
+    hsl, mx, mode = _cm_legacy_derive(case)
+    if mode == 0:
+        return (max(mx[0] * rgb[0] + mx[1] * rgb[1] + mx[2] * rgb[2], 0.0),
+                max(mx[3] * rgb[0] + mx[4] * rgb[1] + mx[5] * rgb[2], 0.0),
+                max(mx[6] * rgb[0] + mx[7] * rgb[1] + mx[8] * rgb[2], 0.0))
+    if mode == 1:
+        g = max(mx[0] * rgb[0] + mx[1] * rgb[1] + mx[2] * rgb[2], 0.0)
+        return (g, g, g)
+    if mode == 2:
+        hmix = clamp01(rgb[0] * hsl[0]) + rgb[1] * hsl[1] + rgb[2] * hsl[2]
+        smix = clamp01(rgb[0] * hsl[3]) + rgb[1] * hsl[4] + rgb[2] * hsl[5]
+        lmix = clamp01(rgb[0] * hsl[6]) + rgb[1] * hsl[7] + rgb[2] * hsl[8]
+        r, g, b = rgb
+        if hmix != 0 or smix != 0 or lmix != 0:
+            h, s, l = _cm_legacy_rgb2hsl(*rgb)
+            h = hmix if hmix != 0 else h
+            s = smix if smix != 0 else s
+            l = lmix if lmix != 0 else l
+            r, g, b = _cm_legacy_hsl2rgb(h, s, l)
+        return (clamp01(mx[0] * r + mx[1] * g + mx[2] * b),
+                clamp01(mx[3] * r + mx[4] * g + mx[5] * b),
+                clamp01(mx[6] * r + mx[7] * g + mx[8] * b))
+    hmix = clamp01(hsl[0] * rgb[0] + hsl[1] * rgb[1] + hsl[2] * rgb[2])
+    smix = clamp01(hsl[3] * rgb[0] + hsl[4] * rgb[1] + hsl[5] * rgb[2])
+    lmix = clamp01(hsl[6] * rgb[0] + hsl[7] * rgb[1] + hsl[8] * rgb[2])
+    r, g, b = rgb
+    if hmix != 0 or smix != 0 or lmix != 0:
+        r, g, b = (clamp01(v) for v in rgb)
+        h, s, l = _cm_legacy_rgb2hsl(r, g, b)
+        h = hmix if hmix != 0 else h
+        s = smix if smix != 0 else s
+        l = lmix if lmix != 0 else l
+        r, g, b = _cm_legacy_hsl2rgb(h, s, l)
+    return (max(mx[0] * r + mx[1] * g + mx[2] * b, 0.0),
+            max(mx[3] * r + mx[4] * g + mx[5] * b, 0.0),
+            max(mx[6] * r + mx[7] * g + mx[8] * b, 0.0))
+
+
+CHANNELMIXER_CASES = [
+    {"name": "cm_rgb_swap", "red": (0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0),
+     "green": (0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+     "blue": (1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0), "algorithm": 1},
+    {"name": "cm_gray_luma", "red": (0.0,) * 7, "green": (0.0,) * 7,
+     "blue": (0.0,) * 7, "algorithm": 1,
+     "_gray": (0.299, 0.587, 0.114)},
+    {"name": "cm_hsl_v1_sat", "red": (0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0),
+     "green": (0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
+     "blue": (0.0,) * 7, "algorithm": 0},
+]
+CHANNELMIXER_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev",
+                             "gray_staircase"]
+
+
+def channelmixer_params_blob_for_case(case) -> str:
+    red = list(case["red"][:7])
+    green = list(case["green"][:7])
+    blue = list(case["blue"][:7])
+    if "_gray" in case:
+        red[6], green[6], blue[6] = case["_gray"]
+    packed = struct.pack(CHANNELMIXER_PARAMS_FORMAT,
+                         *red[:4], *green[:4], *blue[:4],
+                         case["algorithm"])
+    # 注：legacy v1 7 通道 blob（84B）已由 v2 兼容重载取代；此处 52B v2。
+    assert len(packed) == 52, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_channelmixer_cases(outdir: str) -> None:
+    for case in CHANNELMIXER_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="channelmixer", modversion=CHANNELMIXER_MODVERSION,
+            params=channelmixer_params_blob_for_case(case),
+            iop_order=f"{CHANNELMIXER_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_channelmixer_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in CHANNELMIXER_CASES:
+        eff = dict(case)
+        if "_gray" in case:
+            r, g, b = list(case["red"]), list(case["green"]), list(case["blue"])
+            r[6], g[6], b[6] = case["_gray"]
+            eff = dict(case, red=tuple(r), green=tuple(g), blue=tuple(b))
+        for fixture in CHANNELMIXER_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, eff=eff, w=w):
+                idx = y * w + x
+                return channelmixer_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), eff)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# colorcontrast：3 case（含 unbound 双档）。
+def colorcontrast_apply_pixel(lab, case):
+    a = lab[1] * case["a_steepness"] + case["a_offset"]
+    b = lab[2] * case["b_steepness"] + case["b_offset"]
+    if not case["unbound"]:
+        a = min(max(a, -128.0), 128.0)
+        b = min(max(b, -128.0), 128.0)
+    return (lab[0], a, b)
+
+
+COLORCONTRAST_CASES = [
+    {"name": "cc_default", "a_steepness": 1.0, "a_offset": 0.0,
+     "b_steepness": 1.0, "b_offset": 0.0, "unbound": 1},
+    {"name": "cc_steep", "a_steepness": 1.8, "a_offset": 5.0,
+     "b_steepness": 0.6, "b_offset": -8.0, "unbound": 1},
+    {"name": "cc_bound", "a_steepness": 3.0, "a_offset": 60.0,
+     "b_steepness": 3.0, "b_offset": -60.0, "unbound": 0},
+]
+COLORCONTRAST_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev",
+                              "gray_staircase"]
+
+
+def colorcontrast_params_blob_for_case(case) -> str:
+    packed = struct.pack(COLORCONTRAST_PARAMS_FORMAT,
+                         case["a_steepness"], case["a_offset"],
+                         case["b_steepness"], case["b_offset"],
+                         case["unbound"])
+    assert len(packed) == 20, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_colorcontrast_cases(outdir: str) -> None:
+    for case in COLORCONTRAST_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="colorcontrast", modversion=COLORCONTRAST_MODVERSION,
+            params=colorcontrast_params_blob_for_case(case),
+            iop_order=f"{COLORCONTRAST_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_colorcontrast_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in COLORCONTRAST_CASES:
+        for fixture in COLORCONTRAST_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, case=case, w=w):
+                idx = y * w + x
+                lab = lab_from_rec2020((rgb[0][idx], rgb[1][idx], rgb[2][idx]))
+                return lab_to_rec2020(colorcontrast_apply_pixel(lab, case))
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
 
 if __name__ == "__main__":
     main()
