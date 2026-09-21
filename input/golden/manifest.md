@@ -836,7 +836,7 @@ comments (NOT PORTED declarations) — no `_extract_color_checker` /
 `run_profile` / `colorchecker.h` code. params 位保留：illuminant enum 含
 camera/detect 项（resolver returns nil → panel hides/disables + 注记）.
 
-| case | params blob sha256 (short) | reference sha256 (synthesized, short) |
+| case | params blob sha256 (short, of decoded bytes) | reference sha256 (synthesized, short) |
 |---|---|---|
 | cmr_default | `88c6b9440f357622` | ramp_8ev:f56d8a305170fbb0 flat_0ev:ebf9425f40583e7a flat_-4ev:71966058e3ca9ed8 gray_staircase:74ad69c57e8850f5 |
 | cmr_tungsten_linear | `a65ce1976615fce9` | ramp_8ev:64ddf77a081ee215 flat_0ev:e8e168ed19495bd0 flat_-4ev:1bce591a0374d596 gray_staircase:bb80638f7f9d9195 |
@@ -844,9 +844,9 @@ camera/detect 项（resolver returns nil → panel hides/disables + 注记）.
 | cmr_fluor_xyz | `63c2f04a6432913a` | ramp_8ev:a8328c91c72b7345 flat_0ev:e3ef8820b32e7afd flat_-4ev:03cba7a7563f2aa7 gray_staircase:33f8fda8cb8e5a0e |
 | cmr_led_rgb_grey | `e66d8b854eaa5acc` | ramp_8ev:aa0f22b148bcbe01 flat_0ev:e306bae86b263845 flat_-4ev:6409786eaa9bc799 gray_staircase:a6f9676b826b87e2 |
 | cmr_custom_satv2 | `0ec742e644a81f1b` | ramp_8ev:cc6a28c39d8177c9 flat_0ev:d91f20cffbd68862 flat_-4ev:ee32619273f9f58e gray_staircase:5548f4e2734a4d9b |
-| cm_rgb_swap | `4c80b054da98a6f8` | ramp_8ev:6fc281172bc40bcf flat_0ev:6fc281172bc40bcf flat_-4ev:6fc281172bc40bcf gray_staircase:0a2e2f64c4aa727b |
-| cm_gray_luma | `417fd79981734361` | ramp_8ev:6fc281172bc40bcf flat_0ev:6fc281172bc40bcf flat_-4ev:6fc281172bc40bcf gray_staircase:0a2e2f64c4aa727b |
-| cm_hsl_v1_sat | `5b2311580b070b0c` | ramp_8ev:2c1d611966877665 flat_0ev:a32e708c6aca2f7d flat_-4ev:ab37c607ac54f585 gray_staircase:00be0aaf36e77a0a |
+| cm_rgb_swap | `ea979600370df54b` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| cm_gray_luma | `2e592ed3eeeeb6ea` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| cm_hsl_v1_sat | `6d42014309605a50` | ramp_8ev:2c1d611966877665 flat_0ev:a32e708c6aca2f7d flat_-4ev:ab37c607ac54f585 gray_staircase:00be0aaf36e77a0a |
 | cc_default | `949111de550c2e63` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
 | cc_steep | `d5ee38fe86f6712b` | ramp_8ev:a0458254c0b2ea3e flat_0ev:8f1fd9c236904496 flat_-4ev:7b4a11c65509d6fe gray_staircase:6f0f0b011f0ad059 |
 | cc_bound | `e4944169a5d54543` | ramp_8ev:dd5767a67f067852 flat_0ev:df8c8b57164dab55 flat_-4ev:04f0a5f814f26892 gray_staircase:357073a103d109ab |
