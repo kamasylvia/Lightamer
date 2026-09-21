@@ -47,6 +47,13 @@ internal struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 220, ideal: clamped(inspectorWidth, 220, 460), max: 460)
         }
         .navigationSplitViewStyle(.balanced)
+        // 04-08-T2 (GUI-8 fix): the D-26 status bar lives at the WINDOW
+        // bottom (all three columns) — it used to sit inside the editor
+        // column, where the acceptance round read it as viewport chrome
+        // and never saw auto-detect toasts.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            StatusBar(isDecoding: editorState.isDecoding, toast: editorState.toast)
+        }
         .focusedSceneValue(\.lightamerColumnVisibility, $columnVisibility)
         .toolbar { toolbarContent }
         .alert(

@@ -41,6 +41,14 @@ dt 语义"编辑停用模块参数即自动启用"，落点选在 `PipeCoordinat
 - 圆圈从行按钮装饰升级为**独立 toggle Button**（`InspectorRowModel.toggled` 纯函数 + `applyDiscrete(history_toggle)`）：一举解决"圆圈 AX 不可达"（独立元素 + identifier + label + value）并给 GUI-7 的"圈 toggle"通路一个真实实现（此前圈不可点）；
 - 滑块 AXPosition 全 None：`LightamerSlider` 用 `.contain`（非 `.combine`），功能性 AX（value/min/max/set）实证可用；若 T5 复验仍 None，记平台侧限制，不硬 hack。
 
+## D-08-T2-2 状态栏迁出编辑列 → 窗口底通栏（2026-09-21，executor，T5 复验发现）
+
+`StatusBar` 原先在 `EditorAreaView` 的编辑列内 bottom——PLAYBOOK §2 视口量化
+把它当 viewport chrome 裁掉，T2 的 toast 虽已发出但观测不到（T5 旧构建实证：
+面板 notice 可见、状态栏恒「就绪」）。现迁入 `ContentView.safeAreaInset(bottom)`
+窗口底通栏（三列共用，D-26 toast 全局可见）。viewport 量化裁剪不受影响
+（状态栏在列外）。
+
 ## D-08-T3-2 行圆圈 toggle-OFF 不被自动启用复活（2026-09-21，executor）
 
 `commitContinuousEdit(autoEnable:)` 默认 true；行 toggle 显式 `autoEnable: false`。
