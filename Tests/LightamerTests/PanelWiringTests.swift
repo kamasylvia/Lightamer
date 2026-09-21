@@ -679,19 +679,37 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertEqual(historyCount(), 1, "highpass drag = exactly ONE item")
         let committedH = try instance("highpass")
         XCTAssertEqual(try committedH.params(of: HighpassModule.self).contrast, 56.0, accuracy: 1e-6)
+        XCTAssertTrue(committedH.enabled, "04-08-T3 (GUI-7): editing a disabled module auto-enables at commit")
 
         let soften = try instance("soften")
         XCTAssertFalse(soften.enabled, "soften seed is disabled (creative module)")
         coordinator.beginContinuousEdit()
         for tick in 1...6 {
-            let record = try withParams(soften, { $0.amount = 50 + Float(tick) * 2 }, as: SoftenModule.self)
-            await coordinator.setLiveParams(record)
+            let live = try withParams(soften, { $0.amount = 50 + Float(tick) * 2 }, as: SoftenModule.self)
+            await coordinator.setLiveParams(live)
+            // 04-08-T3 (GUI-7, D-08-T3-1): live ticks must NOT flip
+            // enabled (commit-time flip only — no mid-drag cache storm).
+            XCTAssertFalse(try instance("soften").enabled, "live preview keeps the stored disabled state")
         }
         await coordinator.commitContinuousEdit(label: String(localized: "history_soften"))
 
         XCTAssertEqual(historyCount(), 2, "soften drag = exactly ONE more item")
         let committedS = try instance("soften")
         XCTAssertEqual(try committedS.params(of: SoftenModule.self).amount, 62.0, accuracy: 1e-6)
+        XCTAssertTrue(committedS.enabled, "04-08-T3 (GUI-7): editing a disabled module auto-enables at commit")
+    }
+    /// 04-08-T3 (GUI-7): an already-enabled module keeps enabled through
+    /// the same path (no regression on the exposure round-trip).
+    func testAutoEnableKeepsEnabledModuleEnabled() async throws {
+        try await loadSynthetic()
+        let exposure = try instance("exposure")
+        XCTAssertTrue(exposure.enabled)
+        coordinator.beginContinuousEdit()
+        let up = try withParams(exposure, { $0.exposure = 0.7 }, as: ExposureModule.self)
+        await coordinator.setLiveParams(up)
+        await coordinator.commitContinuousEdit(label: "Exposure")
+        XCTAssertEqual(historyCount(), 1)
+        XCTAssertTrue(try instance("exposure").enabled, "enabled module stays enabled")
     }
 
     func testEqualizerPanelDragCommitsOnce() async throws {

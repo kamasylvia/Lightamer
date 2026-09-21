@@ -752,8 +752,15 @@ final class PipeCoordinator {
     /// slider interaction). The pipes already rendered the live state, so
     /// the notification-driven `historyDidChange` pass is idempotent
     /// (cache hits end-to-end) — no second render is issued here.
-    func commitContinuousEdit(label: String) async {
+    func commitContinuousEdit(label: String, autoEnable: Bool = true) async {
         isEditingContinuous = false
+        // 04-08-T3 (GUI-7, D-08-T3-1): editing a disabled module's params
+        // auto-enables at COMMIT (dt "edit implies enable"; live ticks keep
+        // the stored enabled so the drag preview stays cache-stable —
+        // enabled flips levelHash, and flipping per-tick would miss the
+        // whole chain mid-drag). D-08-T3-2: explicit toggle-OFF
+        // (`autoEnable = false`) bypasses the flip — otherwise the row
+        // toggle could never disable a module.
         let touched = liveEdited.values.sorted {
             ($0.iopOrder, $0.multiPriority, $0.opName)
                 < ($1.iopOrder, $1.multiPriority, $1.opName)
@@ -761,7 +768,9 @@ final class PipeCoordinator {
         liveEdited.removeAll()
         guard !touched.isEmpty else { return }
         for snapshot in touched {
-            editorState?.recordChange(snapshot, label: label)
+            var effective = snapshot
+            if autoEnable, !effective.enabled { effective.enabled = true }
+            editorState?.recordChange(effective, label: label)
         }
         scheduleSidecarWrite() // D-S3: the committed move throttles a write
     }
