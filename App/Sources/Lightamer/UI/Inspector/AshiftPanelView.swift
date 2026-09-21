@@ -227,6 +227,11 @@ internal struct AshiftPanelView: View {
 
     /// Dominant rectangle → DLT + param fit (exactly ONE commit; nil =
     /// notice + GLOBAL toast. D-08-T2-1).
+    ///
+    /// 04-08-F4 (GUI-8 parity with autoLevel): a fit that lands within
+    /// epsilon of the current params is a no-change — notice + GLOBAL
+    /// toast, NO commit (an empty HistoryItem would pollute the stack and
+    /// the sidecar for a byte-identical re-render).
     private func autoPerspective() {
         guard let source = edit.detectionSourceImage() else {
             notice = String(localized: "panel_ashift_no_image")
@@ -252,6 +257,11 @@ internal struct AshiftPanelView: View {
         ]
         let fit = Homography.fitParams(
             src: src, dst: dst, fLengthKB: 28, width: w, height: h)
+        guard !Self.fitIsNoChange(fit, params: params) else {
+            notice = String(localized: "toast_auto_no_change")
+            edit.presentToast(String(localized: "toast_auto_no_change"))
+            return
+        }
         var p = params
         p.rotation = Float(fit.rotation)
         p.lensShiftV = Float(fit.shiftV)
@@ -260,6 +270,21 @@ internal struct AshiftPanelView: View {
         notice = String(localized: "toast_auto_detect_applied")
         edit.presentToast(String(localized: "toast_auto_detect_applied"))
         applyDiscrete(p)
+    }
+
+    /// Pure no-change predicate for the perspective fit (04-08-F4): every
+    /// fitted component within `epsilon` of the stored params. Same 1e-4
+    /// threshold as `autoLevel`'s rotation guard above. Static + pure so
+    /// PanelWiringTests nails it without Vision.
+    static func fitIsNoChange(
+        _ fit: (rotation: Double, shiftV: Double, shiftH: Double, shear: Double, rms: Double),
+        params: AshiftModule.Params,
+        epsilon: Double = 1e-4
+    ) -> Bool {
+        abs(fit.rotation - Double(params.rotation)) <= epsilon
+            && abs(fit.shiftV - Double(params.lensShiftV)) <= epsilon
+            && abs(fit.shiftH - Double(params.lensShiftH)) <= epsilon
+            && abs(fit.shear - Double(params.shear)) <= epsilon
     }
 }
 

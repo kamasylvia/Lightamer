@@ -220,6 +220,83 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertEqual(try reverted.params(of: ExposureModule.self).exposure, 0.0, accuracy: 1e-6,
                        "undo restores the pre-drag params")
     }
+    /// 04-08-F2 (GUI-9 闭环): commit → canUndo → undo → 渲染回退 +
+    /// position 回退；redo → 前进. 菜单 enabled 跟随 canUndo/canRedo
+    /// （CommandGroup 绑定源），⌘Z 走 coordinator.undo → historyDidChange
+    /// 重渲染同一链 —— 回退后渲染与 pre-commit 逐分量一致.
+    func testUndoRedoEntryRestoresRenderAndPosition() async throws {
+        try await loadSynthetic()
+        XCTAssertFalse(editorState.canUndo, "pristine: nothing to undo")
+        XCTAssertFalse(editorState.canRedo, "pristine: nothing to redo")
+
+        let exposure = try instance("exposure")
+        let baseHash = try instance("exposure").paramsHash
+        let basePlane = try await renderExposurePlane()
+
+        coordinator.beginContinuousEdit()
+        let up = try withParams(exposure, { $0.exposure = 0.7 }, as: ExposureModule.self)
+        await coordinator.setLiveParams(up)
+        await coordinator.commitContinuousEdit(label: "Exposure")
+        XCTAssertEqual(historyCount(), 1)
+        XCTAssertTrue(editorState.canUndo, "commit lights the Undo entry")
+        XCTAssertFalse(editorState.canRedo, "fresh commit: no redo tail")
+        XCTAssertEqual(editorState.history.position, 0)
+        let editedParamsHash = try instance("exposure").paramsHash
+        XCTAssertNotEqual(editedParamsHash, baseHash, "commit changes params")
+
+        await coordinator.undo()
+        XCTAssertEqual(editorState.history.position, -1, "undo steps the pointer to pristine")
+        XCTAssertEqual(historyCount(), 1, "items retained (pointer semantics)")
+        XCTAssertFalse(editorState.canUndo, "pristine: Undo dims again")
+        XCTAssertTrue(editorState.canRedo, "undo opens the redo tail")
+        let reverted = try instance("exposure")
+        XCTAssertEqual(reverted.paramsHash, baseHash, "position 回退 → params 回退")
+        let revertedPlane = try await renderExposurePlane()
+        XCTAssertEqual(revertedPlane, basePlane, "渲染回退：undo 后平面与 commit 前逐分量一致")
+
+        await coordinator.redo()
+        XCTAssertEqual(editorState.history.position, 0)
+        XCTAssertTrue(editorState.canUndo)
+        XCTAssertFalse(editorState.canRedo)
+        XCTAssertEqual(try instance("exposure").paramsHash, editedParamsHash, "redo 恢复提交态")
+    }
+
+    /// Render the exposure-only chain at a fixed bucket and snapshot the
+    /// PREVIEW plane bytes (fenced readback, L014). The exposure box is
+    /// materialized from the CURRENT live record — the same path
+    /// `historyDidChange` re-renders through after undo/redo. The registry
+    /// is populated first (bare `makeDefault` only carries the terminal
+    /// trio — exposure joins via the LightamerIOP hook, as in setUp).
+    private func renderExposurePlane() async throws -> [UInt8] {
+        let record = try instance("exposure")
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        let madeExposure = await registry.makeBox(
+            opName: ExposureModule.opName, instanceID: record.id)
+        let box = try XCTUnwrap(madeExposure as? ModuleBox<ExposureModule>)
+        try await box.apply(record)
+        let madeColorin = await registry.makeBox(opName: ColorInModule.opName)
+        let colorin = try XCTUnwrap(madeColorin as? ModuleBox<ColorInModule>)
+        await colorin.setParams(.init())
+        let image = try makeSyntheticImage()
+        let (texture, _) = try await RenderPipeline.process(
+            image: image, instances: [colorin, box], imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: 48)
+        drainForUndo()
+        var bytes = [UInt8](repeating: 0, count: texture.width * texture.height * 16)
+        bytes.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: texture.width * 16,
+                from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0)
+        }
+        return bytes
+    }
+
+    private func drainForUndo() {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+    }
 
     /// Sidecar: the commit schedules a throttled `.lra` write; flushing
     /// yields a document whose history hash matches the live stack.
@@ -579,6 +656,30 @@ final class PanelWiringTests: XCTestCase {
             state.panelView(for: ModuleInstance(module: AshiftModule.self, params: .init()), edit: session),
             "ashift must dispatch a panel")
     }
+    /// 04-08-F4: perspective-fit no-change guard — a fit within epsilon of
+    /// the stored params commits nothing (parity with autoLevel's 1e-4
+    /// rotation guard; an empty HistoryItem would pollute stack + sidecar).
+    func testPerspectiveFitNoChangeGuard() {
+        let neutral = AshiftModule.Params()
+        XCTAssertTrue(
+            AshiftPanelView.fitIsNoChange(
+                (rotation: 0, shiftV: 0, shiftH: 0, shear: 0, rms: 0), params: neutral),
+            "identity fit on neutral params = no-change")
+        XCTAssertFalse(
+            AshiftPanelView.fitIsNoChange(
+                (rotation: 0.5, shiftV: 0, shiftH: 0, shear: 0, rms: 1.2), params: neutral),
+            "0.5° rotation vs neutral = change")
+        var rotated = neutral
+        rotated.rotation = 0.5
+        XCTAssertTrue(
+            AshiftPanelView.fitIsNoChange(
+                (rotation: 0.50005, shiftV: 0, shiftH: 0, shear: 0, rms: 0.01), params: rotated),
+            "fit within 1e-4 of stored params = no-change")
+        XCTAssertFalse(
+            AshiftPanelView.fitIsNoChange(
+                (rotation: 0.5, shiftV: 0.01, shiftH: 0, shear: 0, rms: 0.01), params: rotated),
+            "shiftV drift beyond epsilon = change")
+    }
 
     // MARK: - 04-04 lens panel wiring (T3)
 
@@ -758,6 +859,36 @@ final class PanelWiringTests: XCTestCase {
         await coordinator.commitContinuousEdit(label: String(localized: "history_toggle"), autoEnable: false)
         XCTAssertEqual(historyCount(), 1, "toggle-off = exactly ONE item")
         XCTAssertFalse(try instance("exposure").enabled, "explicit toggle-off survives the commit")
+    }
+    /// 04-08-F3 (GUI-5 AX 通路)：AX Press 走的语义层 = toggle 纯函数 +
+    /// discrete commit（autoEnable=false）。此测试钉住"按一次恰翻转一
+    /// 次、恰 1 commit、render 跟随"——AX 层只负责把 Press 路由到同一
+    /// onToggle（行视图侧 `.accessibilityAction(.default)` 显式绑定），
+    /// 下层语义由此测试守住。
+    func testRowToggleAXPressSemantics() async throws {
+        try await loadSynthetic()
+        // OFF → AX press → ON（恰 1 commit，render 跟随 enabled）。
+        let highpass = try instance("highpass")
+        XCTAssertFalse(highpass.enabled)
+        XCTAssertEqual(
+            InspectorRowModel(instance: highpass, isSelected: false).toggleValueKey,
+            "toggle_off", "AX value announces off before the press")
+        let pressed = InspectorRowModel.toggled(instance: highpass)
+        let session = InspectorEditSession(coordinator: coordinator)
+        await session.applyDiscreteForTest(pressed, label: String(localized: "history_toggle"))
+        try await Task.sleep(for: .milliseconds(50))
+        let on = try instance("highpass")
+        XCTAssertTrue(on.enabled, "AX press enables the module")
+        XCTAssertEqual(
+            InspectorRowModel(instance: on, isSelected: false).toggleValueKey,
+            "toggle_on", "AX value announces on after the press")
+        XCTAssertEqual(historyCount(), 1, "one AX press = exactly ONE item")
+        // ON → AX press → OFF（toggle-OFF 旁路，D-08-T3-2 不复活）。
+        let pressedOff = InspectorRowModel.toggled(instance: on)
+        await session.applyDiscreteForTest(pressedOff, label: String(localized: "history_toggle"), autoEnable: false)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertFalse(try instance("highpass").enabled, "second AX press disables again")
+        XCTAssertEqual(historyCount(), 2, "second press = exactly ONE more item")
     }
 
     func testEqualizerPanelDragCommitsOnce() async throws {

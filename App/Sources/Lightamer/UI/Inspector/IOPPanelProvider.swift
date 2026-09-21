@@ -90,6 +90,18 @@ final class InspectorEditSession {
         }
     }
 
+    /// 04-08-F3 test seam: the same discrete trio as `applyDiscrete`, but
+    /// `await`ed inline so PanelWiringTests asserts post-commit state
+    /// without sleeping on the fire-and-forget Task. Production callers
+    /// keep using `applyDiscrete` (unchanged fire-and-forget timing).
+    func applyDiscreteForTest(
+        _ snapshot: ModuleInstance, label: String, autoEnable: Bool = true
+    ) async {
+        coordinator?.beginContinuousEdit()
+        await coordinator?.setLiveParams(snapshot)
+        await coordinator?.commitContinuousEdit(label: label, autoEnable: autoEnable)
+    }
+
     /// Full-image per-channel min/max over the LINEAR chain (the filmic
     /// auto black/white keys' picked_color_min/max statistics, Plan
     /// 03-06-T5). nil when nothing is loaded or the render failed.
