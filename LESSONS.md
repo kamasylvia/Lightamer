@@ -161,6 +161,7 @@
 - **排障路径（按序，含死胡同）**：① CGEvent 直发键入密码——osascript/uv-python 进程 **AXIsProcessTrusted=False**，事件被系统静默丢弃；② osascript System Events——进程级 AX 操作同样「不允许辅助访问」；③ computer-use SDK——本安装 **computer-use-client.mjs 缺失**（构建缓存不全，browser-use 0.5.1 里只有 browser-client.mjs），get_app_state 全局未注入；④ 终解：`kill -TERM`→`kill -9` coreautha（弹窗宿主，launchd 按需重生，语义=用户点「取消」），secure input 释放、弹窗消失，单测 runner 立即可连。
 - **对策**：a) 测试 runner「hung before connection」≠ 代码问题，先 `screencapture -x` 看屏幕有无模态弹窗，有则先消弹窗再跑测试；b) 无 AX 权限的 CLI 进程（CGEvent/osascript 均废）消系统弹窗 = 杀宿主进程（coreautha/UserNotificationCenter 均可安全重生）；c) 该弹窗一旦出现**会持续阻塞后续所有 xcodebuild 会话**，不是瞬时故障——15:07 后 4 连挂即此因；d) 消弹窗=放弃 UI Automation 授权（UITests 仍 L011 挂账），单测不受影响。
 - **适用**：所有 xcodebuild/App-host 测试会话；一切「进程有 GUI 会话但 AX 未授权」的自动化场景。
+- **修正案（L019a，2026-09-21）**：辅助功能授予 ZCode 后弹窗正解 =「自动完成 enrollment」（AX 填密码 + 点好；app 签名 DR 键 certificate root 跨构建稳定，已实测）。持久化失败主因 = kill coreautha 中止 enrollment 形成循环 + Tuist 重生成改 runner 形态。kill 法降级为兜底。
 - **来源**：04-02 验收排障（2026-09-20），证据链：xcresult 双 runner failureText、CGSessionCopyCurrentDictionary、AXIsProcessTrusted=False、前后截屏对照、secure input 释放确认。
 
 ### L020: dt modify_roi_in 公式不可直接照搬——backward walk 的 roi 坐标系两边不同（crop 双重偏移真 bug）
