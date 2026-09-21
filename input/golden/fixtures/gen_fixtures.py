@@ -45,6 +45,7 @@ import base64
 import binascii
 import math
 import os
+import random
 import struct
 import sys
 
@@ -300,6 +301,146 @@ def gen_checkerboard(outdir: str) -> None:
         os.path.join(outdir, "checkerboard.exr"), 64, 64,
         lambda x, y: (1.0, 1.0, 1.0) if ((x // 8) + (y // 8)) % 2 == 0 else (0.0, 0.0, 0.0),
     )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 5 denoise fixtures (Plan 05-01-T5) — 加噪器 + hue/delta/torture
+# ──────────────────────────────────────────────────────────────────────
+#
+# 加噪器：`poisson_gaussian_noise(img, a, b, seed)` —— `var = a·I + b`
+# （dt noiseprofiles.json 标定域 = 传感器线性域，RESEARCH §2），
+# `random.Random(seed)` 高斯流（stdlib 确定性：同 seed → 逐值一致；
+# 高斯近似 Poisson-Gaussian —— 剖面加噪的工程惯例，方差精确、均值无偏）。
+# 逐通道独立（R/G/B 各自流）。输出走既有 uncompressed writer（float32）。
+#
+# Gaussians via Box-Muller over random.Random (stdlib-only — the fixture
+# generator stays zero-dependency like the rest of this file).
+
+
+def _gauss_stream(seed: int):
+    rng = random.Random(seed)
+    while True:
+        u1 = max(rng.random(), 1e-12)
+        u2 = rng.random()
+        r = math.sqrt(-2.0 * math.log(u1))
+        yield r * math.cos(2.0 * math.pi * u2)
+        yield r * math.sin(2.0 * math.pi * u2)
+
+
+def poisson_gaussian_noise(img, a, b, seed):
+    """逐通道 Poisson-Gaussian 加噪：`out = img + N(0, a·I + b)`。
+    `img` = (R, G, B) 三通道行主序 float 列表；`a`/`b` = 三元组；
+    `seed` = 整数种子（通道 c 用 seed+c 独立流）。返回同形三通道列表。
+    """
+    out = []
+    for c in range(3):
+        g = _gauss_stream(seed + c)
+        ch = []
+        for v in img[c]:
+            var = max(a[c] * v + b[c], 0.0)
+            ch.append(v + math.sqrt(var) * next(g))
+        out.append(ch)
+    return out
+
+
+# 剖面钉参：ILCE-9M3 ISO 125 / ISO 1600（T3 规范化产物的真实档 —
+# 加噪集的 a/b authority = bundle noiseprofiles.json；此处硬编码值
+# 与 bundle 一致，统计检验以同值为准）。
+NOISE_TIERS = (
+    ("iso125", 125, (7.65705497686894e-06, 1.54601975602981e-06, 2.30077680147848e-06),
+     (2.00608030560566e-09, 3.03636277807135e-09, 4.74823179066283e-09)),
+    ("iso1600", 1600, (2.99037019802356e-05, 8.86355041404361e-06, 1.37779541937624e-05),
+     (4.43124422276964e-08, 2.60617465248865e-08, 3.62731233591954e-08)),
+)
+
+NOISE_SEED = 20260921
+NOISE_SOURCES = ("ramp_8ev", "flat_-4ev", "flat_-8ev", "gray_staircase")
+
+
+def gen_noisy_fixtures(outdir: str, canonical_dir: str = "") -> None:
+    """加噪 fixture 集：canonical 子集（≥3 张）× 真实剖面档 2 档 → ≥6 张。
+    源图读 canonical EXR（`read_exr_rgb`），加噪后写
+    `<src>__noisy_<tier>_s<seed>.exr`。manifest 登记种子与剖面参数。
+    """
+    base = canonical_dir or outdir
+    for src in NOISE_SOURCES:
+        w, h, rgb = read_exr_rgb(os.path.join(base, src + ".exr"))
+        for tier, iso, a, b in NOISE_TIERS:
+            noisy = poisson_gaussian_noise(rgb, a, b, NOISE_SEED)
+            name = f"{src}__noisy_{tier}_s{NOISE_SEED}.exr"
+
+            def px(x, y, w=w, noisy=noisy):
+                idx = y * w + x
+                return (noisy[0][idx], noisy[1][idx], noisy[2][idx])
+
+            write_exr(os.path.join(outdir, name), w, h, px)
+
+
+def gen_hue_sweep(outdir: str) -> None:
+    """hue 全环 sweep 渐变（色相域覆盖，喂自研 parity —— 无 L017 风险）：
+    360×64，H = x/360 全环（S=V=1 HSV→RGB），中性行锚定。
+    """
+
+    def px(x, y):
+        h = (x % 360) / 360.0
+        return _hsv_to_rgb(h, 1.0, 1.0)
+
+    write_exr(os.path.join(outdir, "hue_sweep.exr"), 360, 64, px)
+
+
+def _hsv_to_rgb(h, s, v):
+    i = int(h * 6.0) % 6
+    f = h * 6.0 - int(h * 6.0)
+    p, q, t = v * (1.0 - s), v * (1.0 - f * s), v * (1.0 - (1.0 - f) * s)
+    if i == 0:
+        return (v, t, p)
+    if i == 1:
+        return (q, v, p)
+    if i == 2:
+        return (p, v, t)
+    if i == 3:
+        return (p, q, v)
+    if i == 4:
+        return (t, p, v)
+    return (v, p, q)
+
+
+def gen_delta_impulse(outdir: str) -> None:
+    """delta 脉冲图（nlmeans/bilateral 核响应）：64×64 中灰 0.18 上单白脉冲
+    （中心 1.0）+ 单黑脉冲（1/4 处 0.0）——核支撑/响应的直接探针。
+    """
+    w = h = 64
+
+    def px(x, y):
+        if x == 32 and y == 32:
+            return (1.0, 1.0, 1.0)
+        if x == 16 and y == 16:
+            return (0.0, 0.0, 0.0)
+        return (0.18, 0.18, 0.18)
+
+    write_exr(os.path.join(outdir, "delta_impulse.exr"), w, h, px)
+
+
+def gen_shadow_torture(outdir: str) -> None:
+    """深阴影噪声 torture crop（SC#3 torture 直指，64-128px 级）：
+    96×96 深阴影梯度（2^-8..2^-5）叠加 ISO 1600 档噪声（种子化）——
+    denoise 最难区的直接靶。
+    """
+    w = h = 96
+    base = []
+    for y in range(h):
+        for x in range(w):
+            v = 2.0 ** (-8.0 + 3.0 * (x + y) / (w + h - 2))
+            base.append(v)
+    img = [list(base), list(base), list(base)]
+    _, _, a, b = NOISE_TIERS[1]
+    noisy = poisson_gaussian_noise(img, a, b, NOISE_SEED + 7)
+
+    def px(x, y, w=w, noisy=noisy):
+        idx = y * w + x
+        return (noisy[0][idx], noisy[1][idx], noisy[2][idx])
+
+    write_exr(os.path.join(outdir, "shadow_torture.exr"), w, h, px)
 
 
 def gen_gray_staircase(outdir: str) -> None:
@@ -1609,6 +1750,235 @@ def gen_detail_cases(outdir: str) -> None:
         )
         with open(os.path.join(outdir, case_name + ".xmp"), "w") as f:
             f.write(xmp)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 5 钉参 blob 配方族骨架（Plan 05-01-T5）—— 05-02..08 各 plan 直接消费。
+# L015：hex 非 base64（dt_exif_xmp_encode_internal 未压缩形）；struct 逐字段
+# little-endian pack；pack 后先过 dt `--d params` 版本校验再入库（见各函数注）。
+# RESEARCH §1.1 字节数正本（逐字段累计），唯 denoiseprofile 勘误见下。
+# ──────────────────────────────────────────────────────────────────────
+
+# dt_iop_denoiseprofile_params_t v12 = 416B（RESEARCH §1.1 "244B" 系算术勘误：
+# 8f + a[3] + b[3] + mode(i) + x[6][7] + y[6][7] + wb/fix/newvst/wavelet/hilite(5i)
+# = (14 + 1 + 84 + 5) × 4 = 416；244 系漏计 y 表。C struct 实证见 DECISIONS
+# D-05-01-T5。pack 后必须先过 dt `--d params` 版本校验再入库。）
+DENOISEPROFILE_PARAMS_FORMAT = "<14fi84f5i"  # v12, 416 bytes
+DENOISEPROFILE_MODVERSION = 12
+DENOISEPROFILE_IOP_ORDER = 9.0
+
+
+def denoiseprofile_params_blob(
+    radius=1.0, nbhood=7.0, strength=1.0, shadows=1.0, bias=0.0,
+    scattering=0.0, central_pixel_weight=0.1, overshooting=1.0,
+    a=(1e-4, 1e-4, 1e-4), b=(0.0, 0.0, 0.0),
+    mode=1, x=None, y=None,
+    wb_adaptive_anscombe=1, fix_anscombe_and_nlmeans_norm=1,
+    use_new_vst=1, wavelet_color_mode=1, compensate_hilite_pres=1,
+) -> str:
+    """dt_iop_denoiseprofile_params_t v12 → lowercase HEX ASCII（L015）。
+    x/y 默认全 0.5（dt v10+ 新增档默认值）；mode 默认 1 = WAVELETS。
+    入库前先过 dt `--d params` 版本校验（RESEARCH §7 钉参三证据之一）。"""
+    if x is None:
+        x = [[b / 6.0] * 7 for b in range(6)]
+        x = [v for row in x for v in row]
+    if y is None:
+        y = [0.5] * 42
+    assert len(x) == 42 and len(y) == 42
+    packed = struct.pack(
+        DENOISEPROFILE_PARAMS_FORMAT,
+        radius, nbhood, strength, shadows, bias, scattering,
+        central_pixel_weight, overshooting,
+        *a, *b, mode, *x, *y,
+        wb_adaptive_anscombe, fix_anscombe_and_nlmeans_norm,
+        use_new_vst, wavelet_color_mode, compensate_hilite_pres,
+    )
+    assert len(packed) == 416, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# dt_iop_channelmixer_rgb_params_t v3 = 160B：6×4 float + 6 gboolean(int) +
+# illuminant/fluo/led/adaptation/version(5 int) + x/y/temp/gamut(4f) + clip(int)。
+# illuminant 默认 2 = DT_ILLUMINANT_D；fluo 默认 2 = F3；led 默认 4 = B5；
+# adaptation 默认 1 = CAT16；version 默认 2 = V3。
+CHANNELMIXERRGB_PARAMS_FORMAT = "<24f6i4i4f2i"  # 24f + normalize[6](i) + illum×4(i) + x/y/temp/gamut(4f) + clip/version(2i)
+CHANNELMIXERRGB_MODVERSION = 3
+CHANNELMIXERRGB_IOP_ORDER = 28.5
+
+
+def channelmixerrgb_params_blob(
+    red=(1.0, 0.0, 0.0, 0.0), green=(0.0, 1.0, 0.0, 0.0),
+    blue=(0.0, 0.0, 1.0, 0.0), saturation=(0.0,) * 4,
+    lightness=(0.0,) * 4, grey=(0.0,) * 4,
+    normalize=(0, 0, 0, 0, 0, 0), illuminant=2, illum_fluo=2,
+    illum_led=4, adaptation=1, x=0.333, y=0.333,
+    temperature=5003.0, gamut=1.0, clip=1, version=2,
+) -> str:
+    """dt_iop_channelmixer_rgb_params_t v3 → hex。默认 = 恒等 mix（对角 1）。"""
+    packed = struct.pack(
+        CHANNELMIXERRGB_PARAMS_FORMAT,
+        *red, *green, *blue, *saturation, *lightness, *grey,
+        *normalize, illuminant, illum_fluo, illum_led, adaptation,
+        x, y, temperature, gamut, clip, version,
+    )
+    assert len(packed) == 160, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# dt_iop_colorbalancergb_params_t v5 = 132B：32 float + saturation_formula(int)。
+# 默认全 0（4-way 中性）+ mask_grey/grey_fulcrum 0.1845 + formula 1 = DTUCS。
+COLORBALANCERGB_PARAMS_FORMAT = "<32fi"
+COLORBALANCERGB_MODVERSION = 5
+COLORBALANCERGB_IOP_ORDER = 41.5
+
+
+def colorbalancergb_params_blob(
+    four_way=(0.0,) * 12, falloff=(1.0, 0.0, 1.0),
+    chroma=(0.0, 0.0, 0.0, 0.0), saturation=(0.0,) * 4,
+    hue_angle=0.0, brilliance=(0.0,) * 4,
+    mask_grey_fulcrum=0.1845, vibrance=0.0, grey_fulcrum=0.1845,
+    contrast=0.0, saturation_formula=1,
+) -> str:
+    """dt_iop_colorbalancergb_params_t v5 → hex。默认 = 全中性（恒等门）。"""
+    floats = list(four_way) + list(falloff) + list(chroma) + list(saturation)
+    floats += [hue_angle] + list(brilliance)
+    floats += [mask_grey_fulcrum, vibrance, grey_fulcrum, contrast]
+    assert len(floats) == 32, len(floats)
+    packed = struct.pack(COLORBALANCERGB_PARAMS_FORMAT, *floats, saturation_formula)
+    assert len(packed) == 132, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# dt_iop_nlmeans_params_t v2 = 16B：radius/strength/luma/chroma（4f）。
+# 默认 radius 2 / strength 50 / luma 0.5 / chroma 1.0。
+NLMEANS_PARAMS_FORMAT = "<4f"
+NLMEANS_MODVERSION = 2
+NLMEANS_IOP_ORDER = 29.0
+
+
+def nlmeans_params_blob(radius=2.0, strength=50.0, luma=0.5, chroma=1.0) -> str:
+    """dt_iop_nlmeans_params_t v2 → hex。"""
+    packed = struct.pack(NLMEANS_PARAMS_FORMAT, radius, strength, luma, chroma)
+    assert len(packed) == 16, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# dt_iop_bilateral_params_t v1 = 20B：radius/reserved/red/green/blue（5f）。
+# 默认 radius 15 / reserved 15 / rgb 0.005。
+BILATERAL_PARAMS_FORMAT = "<5f"
+BILATERAL_MODVERSION = 1
+BILATERAL_IOP_ORDER = 10.0
+
+
+def bilateral_params_blob(
+    radius=15.0, reserved=15.0, red=0.005, green=0.005, blue=0.005,
+) -> str:
+    """dt_iop_bilateral_params_t v1 → hex。"""
+    packed = struct.pack(
+        BILATERAL_PARAMS_FORMAT, radius, reserved, red, green, blue)
+    assert len(packed) == 20, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# 其余 color 组小 blob（默认中性；05-02..05-04 各 plan 消费）。
+# - channelmixer v2 = 52B：red/green/blue[4] + algorithm(int)；默认对角恒等 + v1。
+# - colorzones v5 = 520B：channel(int) + curve[3][20](x,y float) + num[3](int) +
+#   type[3](int) + strength(f) + mode(int) + splines(int)；默认 hue 通道空曲线。
+# - monochrome v2 = 16B：a/b/size/highlights（4f）；默认 a=b=highlights=0, size 2。
+# - vibrance v2 = 4B：amount（f）；默认 25。
+# - velvia v2 = 8B：strength/bias（2f）；默认 25/1。
+# - colorcontrast v2 = 20B：a/b steepness+offset（4f）+ unbound(int)；默认 1/0/1/0/1。
+CHANNELMIXER_PARAMS_FORMAT = "<12fi"
+CHANNELMIXER_MODVERSION = 2
+CHANNELMIXER_IOP_ORDER = 39.0
+
+
+def channelmixer_params_blob(
+    red=(1.0, 0.0, 0.0, 0.0), green=(0.0, 1.0, 0.0, 0.0),
+    blue=(0.0, 0.0, 1.0, 0.0), algorithm_version=1,
+) -> str:
+    """dt_iop_channelmixer_params_t v2 → hex。默认恒等 + CHANNEL_MIXER_VERSION_2。"""
+    packed = struct.pack(
+        CHANNELMIXER_PARAMS_FORMAT, *red, *green, *blue, algorithm_version)
+    assert len(packed) == 52, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+COLORZONES_PARAMS_FORMAT = "<i120f6i2fi"
+COLORZONES_MODVERSION = 5
+COLORZONES_IOP_ORDER = 60.0
+
+
+def colorzones_params_blob(
+    channel=2, nodes=None, strength=0.0, mode=0, splines_version=1,
+) -> str:
+    """dt_iop_colorzones_params_t v5 → hex。默认 hue 通道、空曲线（x=y 对角）。"""
+    if nodes is None:
+        curve = []
+        for _ in range(3):
+            for n in range(20):
+                v = n / 19.0
+                curve += [v, v]
+    else:
+        curve = nodes
+    assert len(curve) == 120, len(curve)
+    packed = struct.pack(
+        COLORZONES_PARAMS_FORMAT, channel, *curve,
+        0, 0, 0, 0, 0, 0, strength, mode, splines_version)
+    assert len(packed) == 520, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+MONOCHROME_PARAMS_FORMAT = "<4f"
+MONOCHROME_MODVERSION = 2
+MONOCHROME_IOP_ORDER = 64.0
+
+
+def monochrome_params_blob(a=0.0, b=0.0, size=2.0, highlights=0.0) -> str:
+    """dt_iop_monochrome_params_t v2 → hex。"""
+    packed = struct.pack(MONOCHROME_PARAMS_FORMAT, a, b, size, highlights)
+    assert len(packed) == 16, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+VIBRANCE_PARAMS_FORMAT = "<f"
+VIBRANCE_MODVERSION = 2
+VIBRANCE_IOP_ORDER = 58.0
+
+
+def vibrance_params_blob(amount=25.0) -> str:
+    """dt_iop_vibrance_params_t v2 → hex。"""
+    packed = struct.pack(VIBRANCE_PARAMS_FORMAT, amount)
+    assert len(packed) == 4, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+VELVIA_PARAMS_FORMAT = "<2f"
+VELVIA_MODVERSION = 2
+VELVIA_IOP_ORDER = 57.0
+
+
+def velvia_params_blob(strength=25.0, bias=1.0) -> str:
+    """dt_iop_velvia_params_t v2 → hex。"""
+    packed = struct.pack(VELVIA_PARAMS_FORMAT, strength, bias)
+    assert len(packed) == 8, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+COLORCONTRAST_PARAMS_FORMAT = "<4fi"
+COLORCONTRAST_MODVERSION = 2
+COLORCONTRAST_IOP_ORDER = 56.0
+
+
+def colorcontrast_params_blob(
+    a_steepness=1.0, a_offset=0.0, b_steepness=1.0, b_offset=0.0, unbound=1,
+) -> str:
+    """dt_iop_colorcontrast_params_t v2 → hex。默认恒等。"""
+    packed = struct.pack(
+        COLORCONTRAST_PARAMS_FORMAT,
+        a_steepness, a_offset, b_steepness, b_offset, unbound)
+    assert len(packed) == 20, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
 
 
 def gen_ashift_cases(outdir: str) -> None:
@@ -3252,8 +3622,12 @@ def main() -> None:
     if mode in ("raw", "all"):
         for gen in (gen_ramp, gen_flats, gen_saturated, gen_deep_shadow,
                     gen_gray_staircase, gen_stair_1d, gen_gradient_ramp,
-                    gen_checkerboard):
+                    gen_checkerboard, gen_hue_sweep, gen_delta_impulse,
+                    gen_shadow_torture):
             gen(outdir)
+        # 加噪集读 canonical 源（raw 直写 outdir 时源即 outdir 本身）——
+        # 无 dt round-trip（噪声 fixture 不进 dt-cli；L017 自研 parity）。
+        gen_noisy_fixtures(outdir, canonical_dir=outdir)
     if mode in ("cases", "all"):
         # Cases default to <golden>/cases — one level up from the fixtures
         # dir when the caller uses the default outdir.

@@ -107,3 +107,38 @@ PREVIEW@48 iscale==0.375 / FULL==1.0 / THUMBNAIL 原生小图==1.0；
 `NoiseProfileStoreTests`（5 tests，compared>0）：ILCE-9M3 ISO 140 手算向量
 逐通道（t=15/35，a/b 精确到 1e-21/1e-24）+ 精确命中/clamp + maker 子串大小写
 陷阱/model 精确/skip 剔除 + generic 逐值 + 真实 bundle <1s + 二问缓存同值。
+
+## D-05-01-T5: 加噪器 + 新 fixture + 剖面钉参配方（2026-09-21）
+
+### 加噪器
+
+- `poisson_gaussian_noise(img, a, b, seed)`：`var = a·I + b` 逐通道独立高斯
+  （`random.Random(seed)` Box-Muller，stdlib 确定性，同 seed 逐值一致）；
+  高斯近似 Poisson-Gaussian（方差精确、均值无偏——剖面加噪工程惯例）。
+  输出走既有 uncompressed writer（float32 EXR）。
+- 统计检验（`NoiseFixtureStatisticsTests`，compared>0）：gray_staircase
+  12 阶天然分箱回归——斜率 ≈a（±10%，6 通道档全过）、截距数量级 ≈b
+  （|Δ|<6e-8：b~1e-9 外推标准误 ~1e-8，斜率门主证据）、均值无偏 |Δ|<0.01。
+
+### 新 fixture（`gen_fixtures.py raw` 接入，regenerate.sh ① 自动携带）
+
+- 加噪集：canonical 子集 4 张（ramp_8ev / flat_-4ev / flat_-8ev /
+  gray_staircase——flat_-8ev 系暗端杠杆，截距门定位时补入）× 真实剖面档
+  2 档（ILCE-9M3 ISO 125 / ISO 1600，bundle 硬编码交叉）→ 8 张
+  `<src>__noisy_<tier>_s20260921.exr`（83 → 85 EXR）。
+- hue_sweep（360×64 全环 HSV）、delta_impulse（64×64 白/黑脉冲 + 0.18 底）、
+  shadow_torture（96×96 深阴影梯度 + ISO1600 噪声，SC#3 靶）。
+- 噪声 fixture 不进 dt-cli round-trip（L017 自研 parity；regenerate.sh ②
+  FIXTURES 名单未动——既有 canonical 字节不变，已验证 dims/首值）。
+
+### 剖面钉参配方族骨架（05-02..08 直接消费；L015 hex）
+
+- 11 配方全量：denoiseprofile v12 / channelmixerrgb v3 / colorbalancergb v5 /
+  nlmeans v2 / bilateral v1 / channelmixer v2 / colorzones v5 / monochrome v2 /
+  vibrance v2 / velvia v2 / colorcontrast v2（字节数逐项 assert，
+  11/11 `ALL BLOB RECIPES OK`）。
+- **RESEARCH 勘误**：denoiseprofile v12 = **416B**（RESEARCH §1.1/§7 "244B"
+  系算术勘误——漏计 y[6][7] 表：(14+1+84+5)×4 = 416；C struct 实证
+  `params_v12_t:717-736`）。channelmixerrgb format 勘误同修
+  （`<24f6i5i4fi` → `<24f6i4i4f2i`：x/y/temp/gamut 为 float）。
+- 全部配方默认中性 + 入库前 dt `--d params` 版本校验要求（各函数注）。
