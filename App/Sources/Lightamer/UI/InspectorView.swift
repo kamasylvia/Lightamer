@@ -82,14 +82,17 @@ internal struct InspectorView: View {
 
     private func localizedLabel(for opName: String) -> String {
         switch opName {
-        case ExposureModule.opName: return "module_exposure"
-        case TemperatureModule.opName: return "module_temperature"
-        case CropModule.opName: return "module_crop"
-        case FlipModule.opName: return "module_flip"
+        case ExposureModule.opName: return String(localized: "module_exposure")
+        case TemperatureModule.opName: return String(localized: "module_temperature")
+        case CropModule.opName: return String(localized: "module_crop")
+        case FlipModule.opName: return String(localized: "module_flip")
+        case ColorBalanceRGBModule.opName: return String(localized: "history_colorbalancergb")
+        case ChannelMixerRGBModule.opName: return String(localized: "history_channelmixerrgb")
+        case ChannelMixerModule.opName: return String(localized: "history_channelmixer")
+        case ColorContrastModule.opName: return String(localized: "history_colorcontrast")
         default: return opName
         }
     }
-
     // MARK: - Selected panel
 
     @ViewBuilder
