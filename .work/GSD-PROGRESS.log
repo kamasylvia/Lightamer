@@ -58,3 +58,4 @@
 [2026-09-21] [04-08 fix round] F1-F6 closed: layout min-495 + undo menu + toggle root-cause + perspective guard; 435/0/3 green; 4 commits pushed
 2026-09-21 [04-08 修复轮] 复验 PASS：F1 干净启动 990pt 视口 59.5%（200/589/200）；F2 撤销链量化实证（undo 后 vs 基线 meanAbsDiff 2.668 vs 提交态 53.804）；F3 归因核实（InspectorEditSession 临时对象 [weak self] 丢 commit，修法无 retain cycle）；F4 guard 钉住。435/3/0 独立实跑。04-08 闭环。
 2026-09-21 23:25 [HOLD] JMS 机场链路全面劣化（google via proxy 83s，6 探测/1h 全超时），omp 模型 API 不可达（直连 403 RegionError）。已穷尽：节点轮换×3、订阅刷新（直连抓取成功但节点集不变）、omp 重启×4。05-02 挂起（T5 在制品 617 行完好），过夜自动监测每 20 分钟探测、恢复即自动续跑。GOAL-STATE 已落 HOLD 标记与恢复路径。
+2026-09-22 02:30 [05-02] 续跑闭环：T4/T5 提交 1725972（面板四件套 + invert 真往返 L022 + API 误用 2 处）→ 全套 445/0/3 绿 → GUI 走查 PASS（Y+0.3 视口块 73.387/撤销 0.0/FINDINGS 登记 + 5 截图）→ SUMMARY/DECISIONS 落盘 + L022 + TODO 勾选。代理恢复实证 proxy 3.29s/直连 2.35s-200。HOLD 解除，wave 2 剩余 05-03/05-04 可并行。
