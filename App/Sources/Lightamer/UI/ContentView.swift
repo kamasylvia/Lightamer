@@ -32,7 +32,7 @@ internal struct ContentView: View {
     // ① ideals 收窄: sidebar 200 + inspector 240 = 440, 余 550 给编辑器
     // (55.6%). inspector min 220→200 给小窗留 slack; max 460 保留 (曲线
     // 编辑器手动拉宽).
-    // ② 编辑列硬 min 500pt (下 content 闭包处): 即使 NSSplitView 恢复的旧
+    // ② 编辑列硬 min 495pt (下 content 闭包处): 即使 NSSplitView 恢复的旧
     // frames 压倒 ideal (04-06 教训: 首启顶 max 460 → 视口 33.2%), 小窗下
     // 编辑器 min 也会先把 inspector 压回 ≤290, 红线按构造守住. 大窗
     // (1440) 不受影响 (200+500+460=1160<1440, inspector 可留 460).
