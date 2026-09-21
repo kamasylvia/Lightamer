@@ -131,7 +131,7 @@
 
 **状态**：RESEARCH + CONTEXT + 8 PLAN 已定稿（2026-09-21，planner 轮）；执行未开始。12 需求（IOP-COLOR-01..07/09 + IOP-DENOISE-01..04）→ 11 dt 模块；关键勘误：denoiseprofile 为 post-demosaic RGB 域非 raw（RESEARCH §1.2），hotpixels/dark-frame/cacorrect Bayer 域正式 defer（05-08 决议）。依赖链：05-01（wave 1 基建）→ 05-02/03/04（wave 2 可并行）→ 05-05 → 05-06 → 05-07 → 05-08（签核）。裁决 8 项见 `.planning/phases/05-color-denoise-iops/05-CONTEXT.md` D-05-CONTEXT-1..8（全采纳 RESEARCH 推荐）。
 
-- [ ] **Plan 05-01**（基建：NoiseProfileStore + IOPiece.iscale + L021 toneequal/flip 审计还账 + executeTiledNegotiated 回归加固 + TilingPlan 四消费者预演 + BilateralGrid3D + gen_fixtures 加噪器）—— 8 tasks；验收=剖面手算向量 / tile 分块==整幅 / grid float64 交叉
+- [x] **Plan 05-01**（基建：NoiseProfileStore + IOPiece.iscale + L021 toneequal/flip 审计还账 + executeTiledNegotiated 回归加固 + TilingPlan 四消费者预演 + BilateralGrid3D + gen_fixtures 加噪器）完成（2026-09-21）：6 commits（T1 double-scale 修 + T2 iscale + T3/T4 剖面 + T5 加噪器/fixture/blob + T6 tile 回归 + T7 grid）；终轮全 suite **426 tests / 0 fail / 3 skip**（基线 398 → +28）；SUMMARY 见 `05-01-SUMMARY.md`，决策见 `05-01-DECISIONS.md`（D-05-01-T1..T7）；勘误：denoiseprofile v12 = 416B（RESEARCH 244B 误）；下一批 = 05-02/03/04（wave 2 可并行）
 - [ ] **Plan 05-02**（colorbalancergb 41.5：YrgGamut 复用 + extended.cl 直译 + 4-way hue 圆盘面板）—— 5 tasks；in-gamut 全默认恒等门 + seed disabled
 - [ ] **Plan 05-03**（channelmixerrgb 28.5 + channelmixer 39.0 + colorcontrast 56.0）—— 5 tasks；矩阵链 float64 交叉 + 28.5 共槽 tie-break 回归；color-checker 子树划出（D-05-CONTEXT-5）
 - [ ] **Plan 05-04**（vibrance 58.0 + velvia 57.0 + colorzones 60.0 三 tab 曲线）—— 5 tasks；LUT 双闸 + hue sweep 全环；velvia clamp 语义钉死
@@ -161,7 +161,7 @@
 ## Phase 3 遗留/分配（签核注记，非阻塞）
 
 - [ ] PERF-5 全链重渲 36ms → 16.6ms：跨模块 dispatch 批合并 + Release/PSO 预热 + denoise 预览降载三件套（Phase 5 交付）——**管线级 Lab 往返共享（Open#9）已降级为 SC#4 拖动门失败的应急预案**（05-CONTEXT D-05-CONTEXT-6 修订：Lab 链会被 RGB 模块切断、缓存域谓词复杂度 > 收益；03/04 签核批的「Lab 共享 Phase 5」分配随之修订；触发条件与门槛见 05-06/05-08）
-- [ ] **Phase 5 审计：toneequal/flip 的 modifyROIIn `dscIn × scale` 同类 double-scale 排查**（04-06 D-GUI-1 附带：crop 已修——dscIn 已含 entry 缩放，再乘 roi.scale 即坍缩；toneequal/flip 若同式需同修；详见 LESSONS L021）
+- [x] **Phase 5 审计还账闭环（L021，05-01-T1）**：toneequal `tileHalo/process` 半径 `dscIn × scale` 与 flip `modifyROIIn` `bw/bh × scale` 双命中已修（dt 帧语义链见 05-01-DECISIONS D-05-01-T1）；常驻回归 `L021DoubleScaleAuditTests` 6/6（pre-fix 红 post-fix 绿）；toneequal/flip 恒等钩子免疫书面化
 - [ ] VisionDetectTests 期间 `MDB_MAP_FULL`（LMDB mapsize）杂音排查（04-06 验收发现，不影响结果）
 - [ ] filmicrgb 高光重建子树（F5 à-trous wavelet + HQ 循环）：mask kernel + 参数位已就位，重建挂 Phase 8 HDR/v1 后期
 - [ ] filmic/sigmoid/agx displayed-domain 默认值校准（CIRAW 显影域 vs 场景线性假设）——产品语义任务，随 Phase 8/实机校准
