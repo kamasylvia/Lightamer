@@ -712,6 +712,54 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertTrue(try instance("exposure").enabled, "enabled module stays enabled")
     }
 
+    /// 04-08-T4 (GUI-5): the row circle reflects the TRUE enabled state
+    /// (filled = enabled, dashed = disabled), and the toggle flips it as
+    /// exactly ONE history item.
+    func testRowModelCircleBindsEnabled() async throws {
+        try await loadSynthetic()
+        let exposure = try instance("exposure")
+        let highpass = try instance("highpass")
+        XCTAssertEqual(
+            InspectorRowModel(instance: exposure, isSelected: false).circleSymbol, "circle.fill",
+            "enabled module shows the filled circle")
+        XCTAssertEqual(
+            InspectorRowModel(instance: highpass, isSelected: false).circleSymbol, "circle.dashed",
+            "disabled module shows the hollow circle")
+        // Selection must not mask the enabled shape (the GUI-5 bug).
+        XCTAssertEqual(
+            InspectorRowModel(instance: exposure, isSelected: true).circleSymbol, "circle.fill",
+            "selected+enabled stays filled")
+    }
+
+    func testRowToggleCommitsOnce() async throws {
+        try await loadSynthetic()
+        let highpass = try instance("highpass")
+        XCTAssertFalse(highpass.enabled)
+        let toggled = InspectorRowModel.toggled(instance: highpass)
+        XCTAssertTrue(toggled.enabled, "toggle flips the record")
+        XCTAssertEqual(toggled.id, highpass.id, "toggle keeps instance identity")
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(toggled)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_toggle"))
+        XCTAssertEqual(historyCount(), 1, "toggle = exactly ONE item")
+        XCTAssertTrue(try instance("highpass").enabled, "toggle commit enables the module")
+    }
+
+    /// 04-08-T4 + D-08-T3-2: toggle-OFF survives the commit (the GUI-7
+    /// auto-enable must not resurrect an explicit disable).
+    func testRowToggleOffSurvivesCommit() async throws {
+        try await loadSynthetic()
+        let exposure = try instance("exposure")
+        XCTAssertTrue(exposure.enabled)
+        let toggled = InspectorRowModel.toggled(instance: exposure)
+        XCTAssertFalse(toggled.enabled, "toggle flips the record off")
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(toggled)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_toggle"), autoEnable: false)
+        XCTAssertEqual(historyCount(), 1, "toggle-off = exactly ONE item")
+        XCTAssertFalse(try instance("exposure").enabled, "explicit toggle-off survives the commit")
+    }
+
     func testEqualizerPanelDragCommitsOnce() async throws {
         try await loadSynthetic()
         let equalizer = try instance("equalizer")
