@@ -200,6 +200,8 @@ public final class FlipModule: IOPModule {
     }
 
     /// dt `modify_roi_out` (`:299-313`): identity + W/H swap under SWAP_XY.
+    /// ROI 帧约定（L020/L021）：纯几何 swap，不读 `piece.dscIn`，无 scale
+    /// 换算（审计结论见 05-01-DECISIONS.md D-05-01-T1）。
     public func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
         roi = input
         if committed.swapsXY {
@@ -208,20 +210,26 @@ public final class FlipModule: IOPModule {
         }
     }
     /// dt `modify_roi_in` (`:315-350`) verbatim: `backtransform` the four
-    /// output corners against `buf_out × scale` (`:338-339` — the FORWARD
-    /// output size, NOT the roi size, NOT dscIn) → tight AABB. Flips
-    /// alone keep `(x, y, w, h)`; swaps exchange them exactly (no ±1
-    /// slop — the `:324-349` inclusive-point bookkeeping nets to the
-    /// same rect). `piece.dscIn` is unused here (kept for the signature).
+    /// output corners against the FORWARD output size (`:338-339` —
+    /// `buf_out × scale` = 全分辨率输出 × 管线缩放 = 本 run 平面像素) →
+    /// tight AABB. Flips alone keep `(x, y, w, h)`; swaps exchange them
+    /// exactly (no ±1 slop — the `:324-349` inclusive-point bookkeeping nets
+    /// to the same rect).
+    ///
+    /// ROI 帧约定（L020/L021）：`piece.dscIn` = 本 run 平面像素（PixelPipe.run
+    /// 按 bufInROI 逐级 stamp，已含 entry 缩放），禁止再 ×`roi.scale`
+    /// （04-06 crop D-GUI-1 double-scale 教训——760 档曾坍缩 60×40）。
+    /// dt 的 `buf_out × scale` 换算到本管线就是 swapped(dscIn) 直用。
     public func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
         // buf_out = the forward output at this level = levelROI. The
         // forward walk runs before any backward call, so dscIn at THIS
-        // level still holds the FORWARD INPUT size; the output size is
-        // input ± the swap. Recompute exactly like modifyROIOut.
+        // level still holds the FORWARD INPUT size (entry-scaled plane
+        // pixels); the output size is input ± the swap. Recompute exactly
+        // like modifyROIOut — NO ×scale (dscIn 已含缩放).
         var fwd = piece.dscIn
         if committed.swapsXY { swap(&fwd.width, &fwd.height) }
-        let bw = Int(Double(fwd.width) * Double(roi.scale))
-        let bh = Int(Double(fwd.height) * Double(roi.scale))
+        let bw = fwd.width
+        let bh = fwd.height
         let corners = [
             (roi.x, roi.y),
             (roi.x + roi.width - 1, roi.y),
