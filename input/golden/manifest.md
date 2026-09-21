@@ -242,6 +242,52 @@ pin the luma+LUT apply semantics exactly).
 | toneequal_none_ramp | `000000000000000000000000000000000000803f00000000000000bf00000000000000000000a040f304b53f0000803f000000000000000000000000000000000400000001000000` | `65b881a8a039cf603df41f27773d1ef771c79eff1df262c7f5a7ae93dd5ca7a3` | ramp_8ev:9c4e6eff8b8b1e03 gray_staircase:ab44039fa0b0be3f flat_0ev:e7788f2262c69022 flat_-4ev:a11fb1ae166ad1d6 saturated:f8660954695334ed deep_shadow:281d2d1d21ddb10b |
 | toneequal_shadow_lift | `00000000000000000000003f000000000000803f000000000000000000000000000000000000a040f304b53f0000803f000000000000000000000000040000000400000001000000` | `da308686114aece727b032e9550cadda282283cd3546b925f4832414262ee4f3` | ramp_8ev:7c6e64f50f93f9e3 gray_staircase:2118cd591ff56a7d flat_0ev:54e132c49f15bfd9 flat_-4ev:eeab3850a5828451 saturated:365a8dcee32f6d03 deep_shadow:419d8813970c5246 |
 
+### colorbalancergb cases (Plan 05-02-T3, synthesized references + XMP adoption; PFM probe BROKEN)
+
+dt blob `<32fi` (132 bytes, dt_iop_colorbalancergb_params_t v5,
+hex-ASCII) ↔ Lightamer `ColorBalanceRGBModule.Params` (JSON):
+
+| dt field (offset) | Lightamer field | note |
+|---|---|---|
+| shadows_Y/C/H (0..12, 3f) | `shadowsY/C/H` | 4-way shadows |
+| midtones_Y/C/H (12..24, 3f) | `midtonesY/C/H` | 4-way midtones |
+| highlights_Y/C/H (24..36, 3f) | `highlightsY/C/H` | 4-way highlights |
+| global_Y/C/H (36..48, 3f) | `globalY/C/H` | 4-way global |
+| shadows_weight (48, f) | `shadowsWeight` | commit ×2+2 → 4.0 |
+| white_fulcrum (52, f) | `whiteFulcrum` | EV; commit exp2 → 1.0 |
+| highlights_weight (56, f) | `highlightsWeight` | commit ×2+2 → 4.0 |
+| chroma_shadows/highlights/global/midtones (60..76, 4f) | `chromaShadows/Highlights/Global/Midtones` | dt struct order (shadows, highlights, global, midtones) — kernel lanes (shadows, midtones, highlights) + global |
+| saturation_global/highlights/midtones/shadows (76..92, 4f) | `saturationGlobal/Highlights/Midtones/Shadows` | dt struct order (global, highlights, midtones, shadows) |
+| hue_angle (92, f) | `hueAngle` | degrees; commit → rad |
+| brilliance_global/highlights/midtones/shadows (96..112, 4f) | `brillianceGlobal/Highlights/Midtones/Shadows` | dt struct order (global, highlights, midtones, shadows) |
+| mask_grey_fulcrum (112, f) | `maskGreyFulcrum` | commit ^0.41 → 0.5 |
+| vibrance (116, f) | `vibrance` | Ych `vib·(1−chroma^|vib|)` |
+| grey_fulcrum (120, f) | `greyFulcrum` | default 0.1845 |
+| contrast (124, f) | `contrast` | commit +1 |
+| saturation_formula (128, i) | `saturationFormula` | 0 JzAzBz / 1 DTUCS (default) |
+
+Track-A references SYNTHESIZED (L017 route — dt-cli float export is
+spatially corrupt on this host for varying content, AND the
+colorbalancergb CPU leg exports garbage on EXR input in this build:
+flat_0ev at default params → (1.16e27, 1.82e31, 4.7e-39), input-independent;
+exposure control on the same input is exact — colisa-probe-unavailable
+precedent, 03-03-T2). dt-side evidence = XMP adoption (6/6 cases
+`params v. 5: version ok params ok` + library DB op_params hex MATCH).
+The numeric reference is three-way cross-locked: Python float64 ref vs
+Swift ColorBalanceRGBCommit.derive (commit vectors) vs the C-harness
+(dt's REAL CPU code compiled standalone, D65-native — out == in to 1e-7).
+Parity gates: DTUCS 5 cases strict 1e-5/2.5e-5 @99% + envelope
+1e-4/5e-4; JzAzBz legacy 1 case strict 1e-3/2.5e-5 @99% + envelope
+1e-2/5e-4 (PQ-inverse ^6.277 float32 amplification; 05-02-DECISIONS).
+
+| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |
+|---|---|---|---|
+| cb_default | `0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000091ed3c3e0000000091ed3c3e0000000001000000` | `ada0187d9575cffb013e77413130e868f3304fea6c3ddf67b0f542a173b8d416` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f saturated:c3c9571449945d03 deep_shadow:c75456e4e69218c9 hue_sweep:ace8fc3d4601494c delta_impulse:18e7be9b1f88af2e |
+| cb_global_hue | `000000000000000000000000000000000000000000000000000000000000000000000000000000000000003f000034420000803f000000000000803f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000091ed3c3e0000000091ed3c3e0000000001000000` | `116d5e96a495172c486cab8609b68e60fad62d29dedbcd3f9808c77ab135a7df` | ramp_8ev:4c25811ccba3215a flat_0ev:351160d3b93a679e flat_-4ev:48bd14a544538637 gray_staircase:6cc68753d0dc569e saturated:669fdc547c5a560e deep_shadow:c93a4dd36acc36d3 hue_sweep:eca9f1239482f019 delta_impulse:8a4f9acf61d6bfaa |
+| cb_shadows_lift | `9a99193e9a99993e000048430000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803fcdcc4c3e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000091ed3c3e0000000091ed3c3e0000000001000000` | `fee9a48352c2cbe018711fa6ad55135b3128702154d42003d3d6b2900646f7fa` | ramp_8ev:e768313bbc3902b7 flat_0ev:70386bdc4340884d flat_-4ev:474df3f9cf9de29c gray_staircase:7640a3f3b1e72ba9 saturated:d550def3bf500694 deep_shadow:71cee1642786a522 hue_sweep:dd08b4563fcb75ea delta_impulse:850f4ff304c11ee9 |
+| cb_highlights_warm | `000000000000000000000000000000000000000000000000cdccccbd0000803e0000f0410000000000000000000000000000803f000000000000803f00000000000000009a99193e0000000000000000000000000000000000000000000020410000000000000000000000000000000091ed3c3e0000000091ed3c3e0000000001000000` | `7fa238ff6785f00d8efa82ab300fc3e0ced0b57b1c3ed80f7e3e3b0ea3e310bf` | ramp_8ev:e95700311f49bb96 flat_0ev:300aa5dc94f4ed51 flat_-4ev:1ae5c0008b0b55e1 gray_staircase:5a496653f68dbbcb saturated:a5b6c40e67a2a89a deep_shadow:c4d3118007ff595d hue_sweep:218074c3aa8f22f5 delta_impulse:c60c85ab7bc335cc |
+| cb_vibrance | `0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000091ed3c3e9a99193f91ed3c3e0000000001000000` | `12b856e8df58e11062ceb2da169c1d24b5ba2b571c9ff98e9bf1e77809f9ff80` | ramp_8ev:20fd198d9f247334 flat_0ev:8bc701c7a9813ae3 flat_-4ev:01395abb6b09a1cc gray_staircase:66dbbdbf48d72fbc saturated:88079fbf69dd55a5 deep_shadow:5c7d93c576cb52b5 hue_sweep:1e948717e6d361a0 delta_impulse:dc256f018b826c81 |
+| cb_contrast_sat_jz | `0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803f000000000000000000000000000000009a99993ecdcccc3dcdcc4cbe0000000000000000cdcccc3dcdcc4c3dcdcc4cbd0000000091ed3c3e0000000091ed3c3e9a99993e00000000` | `5cfd7dc5dbb6314dd2e8990784aee53c6a135635f8cf9a8d85c3b5c70dd37338` | ramp_8ev:a86e8d07325993a8 flat_0ev:cf72850cdad216eb flat_-4ev:4f7b0ad9c3220662 gray_staircase:3a98e392904e5d40 saturated:92c10fd50ced4ffc deep_shadow:785bdeafebb7e7a6 hue_sweep:bdc3e793310814bf delta_impulse:4ab1e0897f2f08d7 |
 ### filmicrgb cases (Plan 03-06-T2..T5, synthesized references + flat probes)
 
 dt blob `<18f11i` (116 bytes, dt_iop_filmicrgb_params_t v6,

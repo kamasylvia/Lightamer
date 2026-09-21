@@ -28,8 +28,10 @@ enum ParityGate {
         strict: Float = 1e-5,
         strictAbsFloor: Float = 2.5e-5,
         envelope: Float = 1e-4,
+        envelopeAbs: Float? = nil,
         strictFraction: Double = 0.99
     ) -> (maxRelative: Float, strictViolations: Int, envelopeViolations: Int) {
+        let envAbs = envelopeAbs ?? envelope
         precondition(got.count == ref.count)
         var maxRelative: Float = 0
         var strictViolations = 0
@@ -46,7 +48,7 @@ enum ParityGate {
             // All are 40x below the LUT LSB (1.5e-3) and ~100x below the
             // 8-bit display step (3.9e-3).
             let strictOK = rel < strict || diff < strictAbsFloor
-            let envelopeOK = rel < envelope || diff < envelope
+            let envelopeOK = rel < envelope || diff < envAbs
             if !strictOK { strictViolations += 1 }
             if !envelopeOK { envelopeViolations += 1 }
         }
@@ -65,11 +67,12 @@ enum ParityGate {
         strict: Float = 1e-5,
         strictAbsFloor: Float = 2.5e-5,
         envelope: Float = 1e-4,
+        envelopeAbs: Float? = nil,
         strictFraction: Double = 0.99
     ) -> String? {
         let result = evaluate(
             got, ref, strict: strict, strictAbsFloor: strictAbsFloor,
-            envelope: envelope, strictFraction: strictFraction
+            envelope: envelope, envelopeAbs: envelopeAbs, strictFraction: strictFraction
         )
         if result.strictViolations == 0 && result.envelopeViolations == 0 {
             return nil

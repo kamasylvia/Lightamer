@@ -2072,16 +2072,21 @@ def cb_derive(case):
     hue_rad = math.radians(case["hue_angle"])
     l_white = 2.098883786377 * (white_ful ** 0.631651345306265) / (
         white_ful ** 0.631651345306265 + 1.12426773749357)
+    # Lane mapping (dt struct order → kernel lanes (shadows, midtones,
+    # highlights) + global scalar; colorbalancergb.c:78-92):
+    # chroma struct = (shadows[0], highlights[1], global[2], midtones[3]);
+    # saturation/brilliance structs = (global[0], highlights[1],
+    # midtones[2], shadows[3]). Bisect 2026-09-21 (was scrambled).
     return dict(
         global_v=global_v, shadows_v=shadows_v, highlights_v=highlights_v,
         midtones_v=midtones_v, chroma=tuple(case["chroma"]),
         saturation=tuple(case["saturation"]), brilliance=tuple(case["brilliance"]),
-        chroma_global=case["chroma"][3] if len(case["chroma"]) > 3 else 0.0,
-        saturation_global=case["saturation"][3] if len(case["saturation"]) > 3 else 0.0,
-        brilliance_global=case["brilliance"][3] if len(case["brilliance"]) > 3 else 0.0,
-        chroma_v=(case["chroma"][0], case["chroma"][1], case["chroma"][2], 0.0),
-        saturation_v=(case["saturation"][0], case["saturation"][1], case["saturation"][2], 0.0),
-        brilliance_v=(case["brilliance"][0], case["brilliance"][1], case["brilliance"][2], 0.0),
+        chroma_global=case["chroma"][2],
+        saturation_global=case["saturation"][0],
+        brilliance_global=case["brilliance"][0],
+        chroma_v=(case["chroma"][0], case["chroma"][3], case["chroma"][1], 0.0),
+        saturation_v=(case["saturation"][3], case["saturation"][2], case["saturation"][1], 0.0),
+        brilliance_v=(case["brilliance"][3], case["brilliance"][2], case["brilliance"][1], 0.0),
         vibrance=case["vibrance"], contrast=1.0 + case["contrast"],
         grey_fulcrum=case["grey_fulcrum"],
         hue_cos=math.cos(hue_rad), hue_sin=math.sin(hue_rad),
@@ -2235,9 +2240,9 @@ CB_JZM = [[0.41478972, 0.579999, 0.0146480],
 CB_JZA = [[0.5, 0.5, 0.0],
            [3.524000, -4.066708, 0.542708],
            [0.199076, 1.096799, -1.295875]]
-CB_JZAI = [[1.0, 1.0, 1.0],
-            [0.1386050432715393, -0.1386050432715393, -0.0960192420263190],
-            [0.0580473161561189, -0.0580473161561189, -0.8118918960560390]]
+CB_JZAI = [[1.0, 0.1386050432715393, 0.0580473161561189],
+            [1.0, -0.1386050432715393, -0.0580473161561189],
+            [1.0, -0.0960192420263190, -0.8118918960560390]]
 CB_JZMI = [[1.9242264357876067, -1.0047923125953657, 0.0376514040306180],
             [0.3503167620949991, 0.7264811939316552, -0.0653844229480850],
             [-0.0909828109828475, -0.3127282905230739, 1.5227665613052603]]
@@ -2263,8 +2268,9 @@ def cb_jzazbz_to_xyz(jab):
         n = max(v, 0.0) ** (1.0 / 134.034375)
         out.append(10000.0 * max((0.8359375 - n) / (18.6875 * n - 18.8515625), 0.0) ** (1.0 / 0.159301758))
     xyz = mat_vec(CB_JZMI, tuple(out))
+    # dt X'Y'Z→XYZ: X = (X'+(b-1)Z')/b; Y = (Y'+(g-1)X)/g (g-1 = -0.34!).
     x = (xyz[0] + 0.15 * xyz[2]) / 1.15
-    return (x, (xyz[1] + 0.34 * x) / 0.66, xyz[2])
+    return (x, (xyz[1] - 0.34 * x) / 0.66, xyz[2])
 
 
 def cb_lms_to_xyz(lms):

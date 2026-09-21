@@ -189,7 +189,9 @@ inline float4 cb_jzazbz_to_xyz(const float4 jab)
         0.0f);
     float4 out;
     out.x = (xyz.x + 0.15f * xyz.z) / 1.15f;
-    out.y = (xyz.y + 0.34f * out.x) / 0.66f;
+    // dt: Y = (Y' + (g−1)·X)/g, g−1 = −0.34 (bisect 2026-09-21 — plus
+    // here broke the JzAzBz round trip, Y 0.99 vs 0.5).
+    out.y = (xyz.y - 0.34f * out.x) / 0.66f;
     out.z = xyz.z;
     out.w = jab.w;
     return out;

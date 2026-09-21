@@ -186,12 +186,12 @@ public final class ColorBalanceRGBModule: IOPModule {
     //           XYZ D65 → Rec2020 direct)
     static let uniformsCount = 64
     static let lutCount = 512
-    static let bufferFloatCount = 576
     static let gamutLUTOffset = 64
 
     private let device: (any MTLDevice)?
     private var resolvedDevice: (any MTLDevice)?
     private var pieceBuffer: (any MTLBuffer)?
+    private var lutBuffer: (any MTLBuffer)?
     private var committed: Params?
 
     public init(device: (any MTLDevice)? = nil) {
@@ -212,10 +212,10 @@ public final class ColorBalanceRGBModule: IOPModule {
         }
         resolvedDevice = resolved
 
-        if pieceBuffer == nil || committed != params {
+        if pieceBuffer == nil || lutBuffer == nil || committed != params {
             let derived = ColorBalanceRGBCommit.derive(params)
             let lut = ColorBalanceRGBCommit.buildGamutLUT(formula: params.saturationFormula)
-            var floats = [Float](repeating: 0, count: Self.bufferFloatCount)
+            var floats = [Float](repeating: 0, count: Self.uniformsCount)
             floats[0] = derived.global.x
             floats[1] = derived.global.y
             floats[2] = derived.global.z
@@ -261,21 +261,32 @@ public final class ColorBalanceRGBModule: IOPModule {
             floats[42] = derived.whiteFulcrum
             floats[43] = derived.midtonesY
             floats[44] = derived.lWhite
+            floats[45] = Float(params.saturationFormula.rawValue)
             floats.replaceSubrange(46..<55, with: YrgGamut.flatten(ColorBalanceRGBMatrices.matrixIn))
             floats.replaceSubrange(55..<64, with: YrgGamut.flatten(ColorBalanceRGBMatrices.matrixOut))
-            floats.replaceSubrange(
-                Self.gamutLUTOffset..<(Self.gamutLUTOffset + Self.lutCount), with: lut)
-
             if pieceBuffer == nil {
                 pieceBuffer = resolved.makeBuffer(
-                    length: Self.bufferFloatCount * MemoryLayout<Float>.size,
+                    length: Self.uniformsCount * MemoryLayout<Float>.size,
+                    options: .storageModeShared
+                )
+            }
+            if lutBuffer == nil {
+                lutBuffer = resolved.makeBuffer(
+                    length: Self.lutCount * MemoryLayout<Float>.size,
                     options: .storageModeShared
                 )
             }
             if let buffer = pieceBuffer {
                 floats.withUnsafeBytes {
                     buffer.contents().copyMemory(
-                        from: $0.baseAddress!, byteCount: Self.bufferFloatCount * MemoryLayout<Float>.size
+                        from: $0.baseAddress!, byteCount: Self.uniformsCount * MemoryLayout<Float>.size
+                    )
+                }
+            }
+            if let buffer = lutBuffer {
+                lut.withUnsafeBytes {
+                    buffer.contents().copyMemory(
+                        from: $0.baseAddress!, byteCount: Self.lutCount * MemoryLayout<Float>.size
                     )
                 }
             }
@@ -283,7 +294,6 @@ public final class ColorBalanceRGBModule: IOPModule {
         }
         piece.data = pieceBuffer
     }
-
     // MARK: - ROI (L020/L021 — pointwise identity; dscIn already carries
     // the entry scaling, no re-multiplication by scale anywhere here)
 
@@ -306,14 +316,18 @@ public final class ColorBalanceRGBModule: IOPModule {
         metal: MetalContext
     ) async throws {
         guard let buffer = piece.data else { return }
-        let lutOffset = Self.gamutLUTOffset * MemoryLayout<Float>.size
+        // The gamut LUT rides a SEPARATE buffer object (MSL device pointer
+        // arithmetic on a sub-offset is illegal — L018 family; the Soften
+        // postmortem: same-buffer offset bindings fault the address
+        // space). Commit keeps the canonical copy in `lutBuffer`.
+        guard let lut = lutBuffer else { return }
         try await metal.dispatch2DTexture(
             functionName: ColorBalanceRGBKernel.functionName,
             input: input,
             output: output
         ) { encoder in
             encoder.setBuffer(buffer, offset: 0, index: 0)
-            encoder.setBuffer(buffer, offset: lutOffset, index: 1)
+            encoder.setBuffer(lut, offset: 0, index: 1)
         }
     }
 }
@@ -333,9 +347,11 @@ public enum ColorBalanceRGBMatrices {
     public static let matrixIn: [[Double]] = YrgGamut.matMul(
         YrgGamut.xyzD65toLMS2006, LabRoundTrip.rec2020ToXYZ)
 
-    /// LMS2006 D65 → RGB = xyzToRec2020 · lms2006toXYZD65.
-    public static let matrixOut: [[Double]] = YrgGamut.matMul(
-        LabRoundTrip.xyzToRec2020, YrgGamut.lms2006toXYZD65)
+    /// XYZ D65 → RGB = xyzToRec2020 direct (the kernel applies it to
+    /// XYZ D65 out of cb_lms_to_xyz — NOT to LMS; folding lms2006toXYZD65
+    /// in here double-applies LMS→XYZ. Bisect proof: commit readback
+    /// gave 2.9156606 = (X2R·M)[0][0] instead of X2R[0][0] = 1.7166478).
+    public static let matrixOut: [[Double]] = LabRoundTrip.xyzToRec2020
 }
 // MARK: - Commit derivation (colorbalancergb.c:1105-1241 in Double)
 
@@ -639,10 +655,13 @@ public enum ColorBalanceRGBMath {
         [3.524000, -4.066708, 0.542708],
         [0.199076, 1.096799, -1.295875],
     ]
+    // NOTE: dt stores AI/MI as _trans and applies via tapply (= T^T·in);
+    // mul3 is row-major, so these rows are the EFFECTIVE base (= T^T),
+    // matching the kernel matrix_dot form (Python bisect 2026-09-21).
     private static let jzAI: [[Double]] = [
-        [1.0, 1.0, 1.0],
-        [0.1386050432715393, -0.1386050432715393, -0.0960192420263190],
-        [0.0580473161561189, -0.0580473161561189, -0.8118918960560390],
+        [1.0, 0.1386050432715393, 0.0580473161561189],
+        [1.0, -0.1386050432715393, -0.0580473161561189],
+        [1.0, -0.0960192420263190, -0.8118918960560390],
     ]
     private static let jzMI: [[Double]] = [
         [1.9242264357876067, -1.0047923125953657, 0.0376514040306180],
@@ -658,11 +677,12 @@ public enum ColorBalanceRGBMath {
     }
 
     public static func xyzToJzAzBz(_ xyz: SIMD3<Double>) -> SIMD3<Double> {
+        // XYZ -> X'Y'Z.
         let t = SIMD3<Double>(
             1.15 * xyz.x - 0.15 * xyz.z,
             0.66 * xyz.y + 0.34 * xyz.x,
             xyz.z)
-        // X'Y'Z -> LMS -> L'M'S' (dt order: pow-n then PQ).
+        // X'Y'Z -> LMS -> L'M'S' (PQ).
         let lms = mul3(jzM, t)
         var lp = SIMD3<Double>.zero
         for c in 0..<3 {
@@ -692,11 +712,10 @@ public enum ColorBalanceRGBMath {
         // LMS -> X'Y'Z -> XYZ_D65.
         let xyz = mul3(jzMI, lms)
         let x = (xyz.x + 0.15 * xyz.z) / 1.15
-        let y = (xyz.y + 0.34 * x) / 0.66
+        // dt: Y = (Y' + (g−1)·X)/g, g−1 = −0.34.
+        let y = (xyz.y - 0.34 * x) / 0.66
         return SIMD3<Double>(x, y, xyz.z)
     }
-
-    // MARK: Gamut LUT builders
 
     /// dt `dt_UCS_22_build_gamut_LUT` in Double (the default leg).
     /// input = pipeline RGB → XYZ D65 (Rec2020: LabRoundTrip.rec2020ToXYZ).
@@ -732,16 +751,19 @@ public enum ColorBalanceRGBMath {
             var xt = 0.0
             var yt = 0.0
             if t1 == clamp01(t1) {
+                // dt branch 1: blue→red edge (t vs xyY_red/xyY_blue).
                 let t = (d65xy.y - xyB.y + tanA * (xyB.x - d65xy.x))
                     / (xyR.y - xyB.y + tanA * (xyB.x - xyR.x))
                 xt = xyB.x + t * (xyR.x - xyB.x)
                 yt = xyB.y + t * (xyR.y - xyB.y)
             } else if t2 == clamp01(t2) {
+                // dt branch 2: red→green edge.
                 let t = (d65xy.y - xyR.y + tanA * (xyR.x - d65xy.x))
                     / (xyG.y - xyR.y + tanA * (xyR.x - xyG.x))
                 xt = xyR.x + t * (xyG.x - xyR.x)
                 yt = xyR.y + t * (xyG.y - xyR.y)
             } else if t3 == clamp01(t3) {
+                // dt branch 3: green→blue edge.
                 let t = (d65xy.y - xyG.y + tanA * (xyG.x - d65xy.x))
                     / (xyB.y - xyG.y + tanA * (xyG.x - xyB.x))
                 xt = xyG.x + t * (xyB.x - xyG.x)
@@ -776,13 +798,11 @@ public enum ColorBalanceRGBMath {
 
     /// The JzAzBz gamut LUT (commit :1194-1235): 92³ RGB gym →
     /// D65 XYZ → JzAzBz → per-hue max saturation, 5-tap box smoothed.
-    /// input = CAT16(D50→D65) · Bradford(D65→D50) · Rec2020→XYZ(D65)
-    /// (YrgGamut constants — commit :1188-1191).
+    /// input = pipeline RGB → XYZ D65 (D65-native LAB_R2X equivalent;
+    /// JzAzBz is a D65 space — no CAT/Bradford detour. Python bisect
+    /// 2026-09-21: CAT input built the wrong boundary).
     public static func buildJzAzBzGamutLUT() -> [Float] {
-        let input = YrgGamut.matMul(
-            YrgGamut.xyzD50toD65CAT16,
-            YrgGamut.matMul(LabRoundTrip.bradfordD65ToD50, LabRoundTrip.rec2020ToXYZ)
-        )
+        let input = LabRoundTrip.rec2020ToXYZ
         let steps = 92
         var sampler = [Double](repeating: 0, count: lutElem)
         for r in 0..<steps {

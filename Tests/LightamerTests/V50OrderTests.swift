@@ -101,4 +101,13 @@ final class V50OrderTests: XCTestCase {
         XCTAssertLessThan(SharpenModule.iopOrder, LocalContrastModule.iopOrder)
         XCTAssertLessThan(LocalContrastModule.iopOrder, SoftenModule.iopOrder)
     }
+
+    /// 05-02: colorbalancergb 41.5 — after colorbalance (41.0), before
+    /// rgbcurve (42.0); module statics AND the table agree.
+    func testColorBalanceRGBSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "colorbalancergb"), 41.5)
+        XCTAssertEqual(ColorBalanceRGBModule.iopOrder, 41.5)
+        XCTAssertLessThan(V50Order.order(for: "colorbalance")!, V50Order.order(for: "colorbalancergb")!)
+        XCTAssertLessThan(V50Order.order(for: "colorbalancergb")!, V50Order.order(for: "rgbcurve")!)
+    }
 }
