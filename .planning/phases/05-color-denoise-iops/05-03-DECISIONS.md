@@ -65,11 +65,11 @@
 - 同理 T1 Bradford/CAT16 往返门 5e-4（dt 只发布 4 位小数，B·B⁻¹ 自残差
   [1][1]=1.00010082 实测）——常量精度界，非代码错。
 
-## D7: legacy mixer XMP blob 投影注记（T4）
+## D7: legacy mixer XMP blob 即全量（F1 修订——原 52B 投影注记作废）
 
-- dt v2 blob（52B）只 carry 每通道前 4 系数；Params 7 通道中 gray/HSL 行的
-  后 3 列投影区本轮 3 case 全零 → blob 与 Params 一一对应；非零 gray/HSL 的
-  XMP 由面板语义保证（cases 生成器断言 52B）。
+- dt v2 blob = 88B（`<21fi`：3×7 floats + algorithm；CHANNEL_SIZE=7），即全量
+  Params，无投影——XMP 与 Params 一一对应。原注记（52B/前 4 列投影）是布局
+  误读，F1 已修正（gen `<21fi` + regen 3 XMP + manifest 行）。
 ## D8: cc_default/cb_default refs 同 hash（T4 备注）
 
 - 四 fixture（ramp/flat/gray）上逐字节同 hash：恒等参数经 Lab 往返精确
