@@ -117,6 +117,12 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: LocalContrastModule.opName) { id in
             ModuleBox(module: LocalContrastModule(), instanceID: id)
         }
+        // Plan 05-02-T2: colorbalancergb (scene-referred RGB grading,
+        // 4-way + saturation legs), v50 slot 41.5 — after colorbalance
+        // (41.0), before rgbcurve (42.0).
+        await registry.register(opName: ColorBalanceRGBModule.opName) { id in
+            ModuleBox(module: ColorBalanceRGBModule(), instanceID: id)
+        }
         // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
         // 66.0 (creative) — after grain (65.0), before splittoning (67.0).
         await registry.register(opName: SoftenModule.opName) { id in
@@ -170,10 +176,11 @@ public enum LightamerIOPRegistry {
             // Plan 04-05-T2: local-contrast prep + clarity apply (the EIGF
             // leg reuses toneequal's kernels — already warmed above).
             LocalContrastKernel.prepFunction,
-            LocalContrastKernel.applyFunction,
-            // Plan 04-05-T3: highpass prep + CL mix; soften overexposed + mix.
-            HighpassKernel.prepFunction,
-            HighpassKernel.mixFunction,
+            // Plan 04-05-T4: equalizer prep + pyramid recombine.
+            EqualizerKernel.prepFunction,
+            EqualizerKernel.recombineFunction,
+            // Plan 05-02-T2: colorbalancergb single-pass grading.
+            ColorBalanceRGBKernel.functionName,
             SoftenKernel.overFunction,
             SoftenKernel.mixFunction,
             // Plan 04-05-T4: equalizer prep + pyramid recombine.
@@ -221,6 +228,12 @@ public enum LightamerIOPRegistry {
             // seed — blit identity ⇒ cache-neutral (exposure-0EV style), so
             // the equalizer panel has an instance to drive.
             ModuleInstance(module: EqualizerModule.self, params: EqualizerModule.Params()),
+            // Plan 05-02-T2: colorbalancergb joins the seed DISABLED
+            // (05-02-DECISIONS D1: default params are NOT pixel-identity —
+            // the gamut legs move wide-gamut colors even at neutral, so no
+            // zero-param identity exists; identity holds only via the
+            // disabled piece — highpass/soften D11 same disposition).
+            ModuleInstance(module: ColorBalanceRGBModule.self, params: ColorBalanceRGBModule.Params(), enabled: false),
             // Plan 04-05-T3: highpass + soften join the seed DISABLED
             // (creative modules — DECISIONS D11: no zero-param identity, so
             // identity holds only via the disabled piece).

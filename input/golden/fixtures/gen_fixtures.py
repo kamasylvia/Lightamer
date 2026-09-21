@@ -1826,7 +1826,11 @@ def channelmixerrgb_params_blob(
 
 
 # dt_iop_colorbalancergb_params_t v5 = 132B：32 float + saturation_formula(int)。
-# 默认全 0（4-way 中性）+ mask_grey/grey_fulcrum 0.1845 + formula 1 = DTUCS。
+# 默认 = dt default_v5（05-02 钉死）：4-way 全 0 + falloff (1,0,1) + chroma/sat
+# 全 0 + hue 0 + brilliance 全 0（commit 折 shields/slopes powers）+
+# mask_grey 0.1845 + vibrance 0 + grey_fulcrum 0.1845 + contrast 0 +
+# formula 1 = DTUCS。注意 legacy default_v5 的 white_fulcrum EV 槽 = 0.0（线性
+# fulcrum = exp2(0) = 1.0），与 init_presets 的 preset 全零一致。
 COLORBALANCERGB_PARAMS_FORMAT = "<32fi"
 COLORBALANCERGB_MODVERSION = 5
 COLORBALANCERGB_IOP_ORDER = 41.5
@@ -1839,7 +1843,7 @@ def colorbalancergb_params_blob(
     mask_grey_fulcrum=0.1845, vibrance=0.0, grey_fulcrum=0.1845,
     contrast=0.0, saturation_formula=1,
 ) -> str:
-    """dt_iop_colorbalancergb_params_t v5 → hex。默认 = 全中性（恒等门）。"""
+    """dt_iop_colorbalancergb_params_t v5 → hex。默认 = dt default_v5 中性（非恒等：gamut 腿拉伸——恒等门 fixture 须 in-gamut，见 05-02 parity 注释）。"""
     floats = list(four_way) + list(falloff) + list(chroma) + list(saturation)
     floats += [hue_angle] + list(brilliance)
     floats += [mask_grey_fulcrum, vibrance, grey_fulcrum, contrast]
@@ -1980,6 +1984,635 @@ def colorcontrast_params_blob(
     assert len(packed) == 20, len(packed)
     return binascii.hexlify(packed).decode("ascii")
 
+
+# ──────────────────────────────────────────────────────────────────────
+# ColorBalanceRGB (Plan 05-02-T3) — dt_iop_colorbalancergb_params_t v5,
+# 132B: 4-way 各 Y/C/H（12f）+ falloff（shadows_weight/white_fulcrum/
+# highlights_weight 3f）+ chroma（4f）+ saturation（4f）+ hue_angle（1f）+
+# brilliance（4f）+ mask_grey/vibrance/grey_fulcrum/contrast（4f）+
+# saturation_formula（i）。commit 折叠见 ColorBalanceRGBCommit.derive
+# pipeline RGB → LMS2006 D65（D65 原生：CB_XYZ65_LMS * LAB_R2X——C harness
+# 已验：CAT16/Bradford 往返在 D65-native 下恒等相消，沿用即引入 ~2x 伪影；
+# YrgGamut.matrixIn/Out 系 filmic V5 专用链（含 CAT16/Bradford；filmic 自洽），
+# 本模块必须用 D65 原生矩阵——头注见 05-02-DECISIONS D2。LAB_* 在 2608 行后定义，
+# 模块 import 时延迟构造，见 _cb_matrices）。
+_CB_MATRICES = None
+
+
+def _cb_matrices():
+    global _CB_MATRICES
+    if _CB_MATRICES is None:
+        # forward: pipeline RGB → CIE LMS D65 (dt :671-672 D65-native).
+        mat_in = mat_mul(CB_XYZ65_LMS, LAB_R2X)
+        # NOTE: no mat_out product — the final XYZ65 → RGB is LAB_X2R
+        # direct (dt :899-901 D50-detour WP_OUT*CAT collapses D65-natively;
+        # C-harness cb_verify proof: out == in to 1e-7).
+        _CB_MATRICES = (mat_in, LAB_X2R)
+    return _CB_MATRICES
+
+
+def _cb_in():
+    return _cb_matrices()[0]
+
+
+def _cb_out():
+    return _cb_matrices()[1]
+
+
+# Yrg 常量（YrgGamut.swift 同源：CAT16/LMS2006/Kirk Filmlight/Yrg 白点）。
+CB_XYZ50_65 = [[9.89466254e-01, -4.00304626e-02, 4.40530317e-02],
+                [-5.40518733e-03, 1.00666069e+00, -1.75551955e-03],
+                [-4.03920992e-04, 1.50768030e-02, 1.30210211e+00]]
+CB_XYZ65_LMS = [[0.257085, 0.859943, -0.031061],
+                 [-0.394427, 1.175800, 0.106423],
+                 [0.064856, -0.076250, 0.559067]]
+CB_LMS_XYZ65 = [[1.80794659, -1.29971660, 0.34785879],
+                 [0.61783960, 0.39595453, -0.04104687],
+                 [-0.12546960, 0.20478038, 1.74274183]]
+CB_XYZ65_50 = [[1.01085433e+00, 4.07086103e-02, -3.41445825e-02],
+                [5.42814201e-03, 9.93581926e-01, 1.15592039e-03],
+                [2.50722468e-04, -1.14918759e-02, 7.67964947e-01]]
+CB_YRG_WR = 0.21902143
+CB_YRG_WG = 0.54371398
+CB_LUT_ELEM = 512
+
+
+def cb_make_ych(y, c, h_rad):
+    return (y, c, math.cos(h_rad), math.sin(h_rad))
+
+
+
+
+def cb_derive(case):
+    """dt commit_params（colorbalancergb.c:1105-1168）float64。"""
+    fw = case["four_way"]
+    sh_y, sh_c, sh_h, mt_y, mt_c, mt_h = fw[0:6]
+    hl_y, hl_c, hl_h, gl_y, gl_c, gl_h = fw[6:12]
+    sw_p, wf_p, hw_p = case["falloff"]
+    norm = cb_ych_to_grading_rgb(cb_make_ych(1.0, 0.0, 0.0))
+
+    def grading(c, h_deg):
+        return cb_ych_to_grading_rgb(
+            cb_make_ych(1.0, c, math.radians(h_deg - 30.0)))
+
+    gg = grading(gl_c, gl_h)
+    global_v = tuple((gg[c] - norm[c]) + norm[c] * gl_y for c in range(3)) + (0.0,)
+    sg = grading(sh_c, sh_h)
+    shadows_v = tuple(1.0 + (sg[c] - norm[c]) + sh_y for c in range(3)) + (1.0,)
+    hg = grading(hl_c, hl_h)
+    highlights_v = tuple(1.0 + (hg[c] - norm[c]) + hl_y for c in range(3)) + (1.0,)
+    mg = grading(mt_c, mt_h)
+    midtones_v = tuple(1.0 / (1.0 + (mg[c] - norm[c])) for c in range(3)) + (1.0,)
+    sw = 2.0 + sw_p * 2.0
+    hw = 2.0 + hw_p * 2.0
+    mw = sw * sw * hw * hw / (sw * sw + hw * hw)
+    mask_ful = case["mask_grey_fulcrum"] ** 0.4101205819200422
+    white_ful = 2.0 ** wf_p
+    midtones_y = 1.0 / (1.0 + mt_y)
+    hue_rad = math.radians(case["hue_angle"])
+    l_white = 2.098883786377 * (white_ful ** 0.631651345306265) / (
+        white_ful ** 0.631651345306265 + 1.12426773749357)
+    return dict(
+        global_v=global_v, shadows_v=shadows_v, highlights_v=highlights_v,
+        midtones_v=midtones_v, chroma=tuple(case["chroma"]),
+        saturation=tuple(case["saturation"]), brilliance=tuple(case["brilliance"]),
+        chroma_global=case["chroma"][3] if len(case["chroma"]) > 3 else 0.0,
+        saturation_global=case["saturation"][3] if len(case["saturation"]) > 3 else 0.0,
+        brilliance_global=case["brilliance"][3] if len(case["brilliance"]) > 3 else 0.0,
+        chroma_v=(case["chroma"][0], case["chroma"][1], case["chroma"][2], 0.0),
+        saturation_v=(case["saturation"][0], case["saturation"][1], case["saturation"][2], 0.0),
+        brilliance_v=(case["brilliance"][0], case["brilliance"][1], case["brilliance"][2], 0.0),
+        vibrance=case["vibrance"], contrast=1.0 + case["contrast"],
+        grey_fulcrum=case["grey_fulcrum"],
+        hue_cos=math.cos(hue_rad), hue_sin=math.sin(hue_rad),
+        sw=sw, hw=hw, mw=mw, mask_ful=mask_ful, white_ful=white_ful,
+        midtones_y=midtones_y, l_white=l_white,
+        formula=case["saturation_formula"])
+
+
+def cb_rgb_to_ych(rgb):
+    lms = mat_vec(_cb_in(), rgb)
+    y = 0.68990272 * lms[0] + 0.34832189 * lms[1]
+    a = lms[0] + lms[1] + lms[2]
+    nl = (0.0, 0.0, 0.0) if a == 0 else (lms[0] / a, lms[1] / a, lms[2] / a)
+    gx = 1.0877193 * nl[0] - 0.66666667 * nl[1] + 0.02061856 * nl[2]
+    gy = -0.0877193 * nl[0] + 1.66666667 * nl[1] - 0.05154639 * nl[2]
+    r, g = gx - CB_YRG_WR, gy - CB_YRG_WG
+    c = math.hypot(g, r)
+    return (y, c, r / c if c != 0 else 1.0, g / c if c != 0 else 0.0)
+
+
+def cb_ych_to_grading_rgb(ych):
+    """dt :719-726 Ych → grading RGB（Yrg_to_LMS denorm + LMS_to_gradingRGB，
+    无 pipeline 矩阵——middle leg 活在 grading 帧；C-harness 钉死）。"""
+    y, c, cos_h, sin_h = ych
+    r, g = c * cos_h + CB_YRG_WR, c * sin_h + CB_YRG_WG
+    b = 1.0 - r - g
+    lms = (0.95 * r + 0.38 * g, 0.05 * r + 0.62 * g + 0.03 * b, 0.97 * b)
+    denom = 0.68990272 * lms[0] + 0.34832189 * lms[1]
+    s = 0.0 if denom == 0 else y / denom
+    lms2 = (lms[0] * s, lms[1] * s, lms[2] * s)
+    return (1.0877193 * lms2[0] - 0.66666667 * lms2[1] + 0.02061856 * lms2[2],
+            -0.0877193 * lms2[0] + 1.66666667 * lms2[1] - 0.05154639 * lms2[2],
+            1.03092784 * lms2[2])
+
+
+def cb_gamut_check_yrg(ych):
+    y, c, cos_h, sin_h = ych
+    r, g = c * cos_h + CB_YRG_WR, c * sin_h + CB_YRG_WG
+    max_c = c
+    if r < 0:
+        max_c = min(-CB_YRG_WR / cos_h, max_c)
+    if g < 0:
+        max_c = min(-CB_YRG_WG / sin_h, max_c)
+    if r + g > 1.0:
+        max_c = min((1.0 - CB_YRG_WR - CB_YRG_WG) / (cos_h + sin_h), max_c)
+    return (y, max_c, cos_h, sin_h)
+
+
+def cb_opacity_masks(x, sw, hw, mw, ful):
+    x_off = x - ful
+    x_norm = x_off / ful
+    alpha = 1.0 / (1.0 + math.exp(x_norm * sw))
+    beta = 1.0 / (1.0 + math.exp(-x_norm * hw))
+    gamma = math.exp(-x_off * x_off * mw / 4.0) * (1 - alpha) ** 2 * (1 - beta) ** 2 * 8.0
+    return (alpha, gamma, beta, 0.0)
+
+
+def cb_soft_clip(x, soft, hard):
+    norm = hard - soft
+    return soft + (1.0 - math.exp(-(x - soft) / norm)) * norm if x > soft else x
+
+
+def cb_lookup_gamut(lut, hue):
+    x_test = CB_LUT_ELEM * (hue + math.pi) / (2.0 * math.pi)
+    x_prev, x_next = math.floor(x_test), math.ceil(x_test)
+    xi, xii = int(x_prev) & (CB_LUT_ELEM - 1), int(x_next) & (CB_LUT_ELEM - 1)
+    y_prev = lut[xi]
+    return y_prev + ((x_test - x_prev) * (lut[xii] - y_prev) if xi != xii else 0.0)
+
+
+def cb_y_to_lstar(y):
+    yh = y ** 0.631651345306265
+    return 2.098883786377 * yh / (yh + 1.12426773749357)
+
+
+def cb_lstar_to_y(l):
+    return (1.12426773749357 * l / (2.098883786377 - l)) ** 1.5831518565279648
+
+
+def cb_xyz_to_xyy(xyz):
+    c = tuple(max(v, 0.0) for v in xyz)
+    s = c[0] + c[1] + c[2]
+    return (0.31271, 0.32902, c[1]) if s <= 0 else (c[0] / s, c[1] / s, c[1])
+
+
+def cb_xyy_to_xyz(xyy):
+    x, y, Y = xyy
+    return (0.0, 0.0, 0.0) if y == 0 else (Y * x / y, Y, Y * (1 - x - y) / y)
+
+
+def cb_xyy_to_jch(xyy, l_white):
+    x, y, Y = xyy
+    uvd = (-0.783941002840055 * x + 0.277512987809202 * y + 0.153836578598858,
+           0.745273540913283 * x - 0.205375866083878 * y - 0.165478376301988,
+           0.318707282433486 * x + 2.16743692732158 * y + 0.291320554395942)
+    div = uvd[2] if uvd[2] != 0 else 1e-30
+    uvd = (uvd[0] / div, uvd[1] / div, uvd[2])
+    us = (1.39656225667 * uvd[0] / (abs(uvd[0]) + 1.49217352929),
+          1.4513954287 * uvd[1] / (abs(uvd[1]) + 1.52488637914))
+    p = (-1.124983854323892 * us[0] - 0.980483721769325 * us[1],
+         1.86323315098672 * us[0] + 1.971853092390862 * us[1])
+    m2 = p[0] * p[0] + p[1] * p[1]
+    ls = cb_y_to_lstar(max(0.0, min(Y, 1e8)))
+    return (ls / l_white,
+            15.932993652962535 * (ls ** 0.6523997524738018) * (m2 ** 0.6007557017508491) / l_white,
+            math.atan2(p[1], p[0]))
+
+
+def cb_jch_to_xyy(jch, l_white):
+    J, C, h = jch
+    ls = max(0.0, min(J * l_white, 2.09885))
+    m = 0.0 if ls == 0 else (C * l_white / (
+        15.932993652962535 * (ls ** 0.6523997524738018))) ** 0.8322850678616855
+    up, vp = m * math.cos(h), m * math.sin(h)
+    us = (-5.037522385190711 * up - 2.504856328185843 * vp,
+          4.760029407436461 * up + 2.874012963239247 * vp)
+    uv = (-1.49217352929 * us[0] / (abs(us[0]) - 1.39656225667),
+          -1.52488637914 * us[1] / (abs(us[1]) - 1.4513954287))
+    xyD = (0.167171472114775 * uv[0] + 0.141299802443708 * uv[1] - 0.00801531300850582,
+           -0.150959086409163 * uv[0] - 0.155185060382272 * uv[1] - 0.00843312433578007,
+           0.940254742367256 * uv[0] + 1.0 * uv[1] - 0.0256325967652889)
+    div = xyD[2] if xyD[2] != 0 else 1e-30
+    return (xyD[0] / div, xyD[1] / div, cb_lstar_to_y(ls))
+
+
+def cb_jch_to_hsb(jch):
+    J, C, h = jch
+    b = J * (C ** 1.33654221029386 + 1.0)
+    return (h, C / b if b > 0 else 0.0, b)
+
+
+def cb_hsb_to_jch(hsb):
+    h, s, b = hsb
+    c = s * b
+    return (b / (c ** 1.33654221029386 + 1.0), c, h)
+
+
+def cb_jch_to_hcb(jch):
+    J, C, h = jch
+    return (h, C, J * (C ** 1.33654221029386 + 1.0))
+
+
+def cb_hcb_to_jch(hcb):
+    h, C, B = hcb
+    return (B / (C ** 1.33654221029386 + 1.0), C, h)
+
+
+CB_JZM = [[0.41478972, 0.579999, 0.0146480],
+           [-0.2015100, 1.1206490, 0.0531008],
+           [-0.0166008, 0.264800, 0.6684799]]
+CB_JZA = [[0.5, 0.5, 0.0],
+           [3.524000, -4.066708, 0.542708],
+           [0.199076, 1.096799, -1.295875]]
+CB_JZAI = [[1.0, 1.0, 1.0],
+            [0.1386050432715393, -0.1386050432715393, -0.0960192420263190],
+            [0.0580473161561189, -0.0580473161561189, -0.8118918960560390]]
+CB_JZMI = [[1.9242264357876067, -1.0047923125953657, 0.0376514040306180],
+            [0.3503167620949991, 0.7264811939316552, -0.0653844229480850],
+            [-0.0909828109828475, -0.3127282905230739, 1.5227665613052603]]
+
+
+def cb_xyz_to_jzazbz(xyz):
+    t = (1.15 * xyz[0] - 0.15 * xyz[2], 0.66 * xyz[1] + 0.34 * xyz[0], xyz[2])
+    lms = mat_vec(CB_JZM, t)
+    lp = tuple(((0.8359375 + 18.8515625 * (max(l / 10000.0, 0.0) ** 0.159301758))
+                / (1.0 + 18.6875 * (max(l / 10000.0, 0.0) ** 0.159301758))) ** 134.034375
+               for l in lms)
+    jab = mat_vec(CB_JZA, lp)
+    return (max(0.44 * jab[0] / (1.0 - 0.56 * jab[0]) - 1.6295499532821566e-11, 0.0),
+            jab[1], jab[2])
+
+
+def cb_jzazbz_to_xyz(jab):
+    d, d0 = -0.56, 1.6295499532821566e-11
+    iz = (max((jab[0] + d0) / (1.0 + d - d * (jab[0] + d0)), 0.0), jab[1], jab[2])
+    lms = mat_vec(CB_JZAI, iz)
+    out = []
+    for v in lms:
+        n = max(v, 0.0) ** (1.0 / 134.034375)
+        out.append(10000.0 * max((0.8359375 - n) / (18.6875 * n - 18.8515625), 0.0) ** (1.0 / 0.159301758))
+    xyz = mat_vec(CB_JZMI, tuple(out))
+    x = (xyz[0] + 0.15 * xyz[2]) / 1.15
+    return (x, (xyz[1] + 0.34 * x) / 0.66, xyz[2])
+
+
+def cb_lms_to_xyz(lms):
+    return mat_vec(CB_LMS_XYZ65, lms)
+
+
+def cb_build_ucs_lut():
+    """dt_UCS_22_build_gamut_LUT（float64）：Rec2020 色域边界 M²（hue）。
+    input = pipeline RGB → XYZ D65（D65 原生 LAB_R2X；commit :1191 同位）。"""
+    inp = LAB_R2X
+    xyzR, xyzG, xyzB = mat_vec(inp, (1, 0, 0)), mat_vec(inp, (0, 1, 0)), mat_vec(inp, (0, 0, 1))
+    xyR, xyG, xyB = cb_xyz_to_xyy(xyzR), cb_xyz_to_xyy(xyzG), cb_xyz_to_xyy(xyzB)
+    dxy = (0.31271, 0.32902)
+    hR = math.atan2(xyR[1] - dxy[1], xyR[0] - dxy[0])
+    hG = math.atan2(xyG[1] - dxy[1], xyG[0] - dxy[0])
+    hB = math.atan2(xyB[1] - dxy[1], xyB[0] - dxy[0])
+
+    def delta(a, b):
+        d = a - b
+        if d < -math.pi:
+            d += 2 * math.pi
+        if d > math.pi:
+            d -= 2 * math.pi
+        return d
+
+    def clamp01(v):
+        return max(0.0, min(1.0, v))
+
+    gamut, sampler = [0.0] * CB_LUT_ELEM, [0.0] * CB_LUT_ELEM
+    for i in range(50 * CB_LUT_ELEM):
+        angle = -math.pi + i / (50 * CB_LUT_ELEM) * 2 * math.pi
+        tan_a = math.tan(angle)
+        t1 = delta(angle, hB) / delta(hR, hB)
+        t2 = delta(angle, hR) / delta(hG, hR)
+        t3 = delta(angle, hG) / delta(hB, hG)
+        if t1 == clamp01(t1):
+            t = (dxy[1] - xyB[1] + tan_a * (xyB[0] - dxy[0])) / (
+                xyR[1] - xyB[1] + tan_a * (xyB[0] - xyR[0]))
+            xt, yt = xyB[0] + t * (xyR[0] - xyB[0]), xyB[1] + t * (xyR[1] - xyB[1])
+        elif t2 == clamp01(t2):
+            t = (dxy[1] - xyR[1] + tan_a * (xyR[0] - dxy[0])) / (
+                xyG[1] - xyR[1] + tan_a * (xyR[0] - xyG[0]))
+            xt, yt = xyR[0] + t * (xyG[0] - xyR[0]), xyR[1] + t * (xyG[1] - xyR[1])
+        elif t3 == clamp01(t3):
+            t = (dxy[1] - xyG[1] + tan_a * (xyG[0] - dxy[0])) / (
+                xyB[1] - xyG[1] + tan_a * (xyG[0] - xyB[0]))
+            xt, yt = xyG[0] + t * (xyB[0] - xyG[0]), xyG[1] + t * (xyB[1] - xyG[1])
+        else:
+            xt, yt = 0.0, 0.0
+        x, y = xt, yt
+        uvd = (-0.783941002840055 * x + 0.277512987809202 * y + 0.153836578598858,
+               0.745273540913283 * x - 0.205375866083878 * y - 0.165478376301988,
+               0.318707282433486 * x + 2.16743692732158 * y + 0.291320554395942)
+        div = uvd[2] if uvd[2] != 0 else 1e-30
+        uvd = (uvd[0] / div, uvd[1] / div, uvd[2])
+        us = (1.39656225667 * uvd[0] / (abs(uvd[0]) + 1.49217352929),
+              1.4513954287 * uvd[1] / (abs(uvd[1]) + 1.52488637914))
+        p = (-1.124983854323892 * us[0] - 0.980483721769325 * us[1],
+             1.86323315098672 * us[0] + 1.971853092390862 * us[1])
+        hue = math.atan2(p[1], p[0])
+        index = int(round((CB_LUT_ELEM - 1) * (hue + math.pi) / (2 * math.pi)))
+        index = (index + CB_LUT_ELEM) % CB_LUT_ELEM
+        gamut[index] += p[0] * p[0] + p[1] * p[1]
+        sampler[index] += 1.0
+    return [gamut[k] / max(1.0, sampler[k]) for k in range(CB_LUT_ELEM)]
+
+
+def cb_build_jzazbz_lut():
+    """JzAzBz gamut LUT（commit :1194-1235）：92³ gym 最大 saturation。
+    input = pipeline RGB → XYZ D65（D65 原生 LAB_R2X；JzAzBz 系 D65 空间）。"""
+    inp = LAB_R2X
+    steps = 92
+    sampler = [0.0] * CB_LUT_ELEM
+    for r in range(steps):
+        for g in range(steps):
+            for b in range(steps):
+                rgb = (r / (steps - 1), g / (steps - 1), b / (steps - 1))
+                xyz = mat_vec(inp, rgb)
+                jab = cb_xyz_to_jzazbz(xyz)
+                c = math.hypot(jab[1], jab[2])
+                hue = math.atan2(jab[2], jab[1])
+                sat = c / jab[0] if jab[0] > 0 else 0.0
+                index = int(round((CB_LUT_ELEM - 1) * (hue + math.pi) / (2 * math.pi)))
+                index = (index + CB_LUT_ELEM) % CB_LUT_ELEM
+                sampler[index] = max(sampler[index], sat)
+    lut = [0.0] * CB_LUT_ELEM
+    for k in range(2, CB_LUT_ELEM - 2):
+        lut[k] = (sampler[k - 2] + sampler[k - 1] + sampler[k] + sampler[k + 1] + sampler[k + 2]) / 5.0
+    n = CB_LUT_ELEM
+    lut[0] = (sampler[n - 2] + sampler[n - 1] + sampler[0] + sampler[1] + sampler[2]) / 5.0
+    lut[1] = (sampler[n - 1] + sampler[0] + sampler[1] + sampler[2] + sampler[3]) / 5.0
+    lut[n - 1] = (sampler[n - 3] + sampler[n - 2] + sampler[n - 1] + sampler[0] + sampler[1]) / 5.0
+    lut[n - 2] = (sampler[n - 4] + sampler[n - 3] + sampler[n - 2] + sampler[n - 1] + sampler[0]) / 5.0
+    return lut
+
+
+_CB_LUTS = {}
+
+
+def cb_gamut_lut(formula):
+    if formula not in _CB_LUTS:
+        _CB_LUTS[formula] = cb_build_ucs_lut() if formula == 1 else cb_build_jzazbz_lut()
+    return _CB_LUTS[formula]
+
+
+def cb_grading_to_lms(rgb):
+    """dt gradingRGB_to_LMS（float64）：Filmlight grading RGB → CIE LMS（绝对值）。"""
+    return (0.95 * rgb[0] + 0.38 * rgb[1],
+            0.05 * rgb[0] + 0.62 * rgb[1] + 0.03 * rgb[2],
+            0.97 * rgb[2])
+
+
+
+
+def cb_grading_to_lms(rgb):
+    """dt gradingRGB_to_LMS（float64）：Filmlight grading RGB → CIE LMS（绝对值）。"""
+    return (0.95 * rgb[0] + 0.38 * rgb[1],
+            0.05 * rgb[0] + 0.62 * rgb[1] + 0.03 * rgb[2],
+            0.97 * rgb[2])
+
+
+def cb_lms_to_yrg(lms):
+    """dt LMS_to_Yrg（float64）：Y 绝对值 + 归一化 LMS 经 grading 矩阵的色度。"""
+    y = 0.68990272 * lms[0] + 0.34832189 * lms[1]
+    a = lms[0] + lms[1] + lms[2]
+    nl = (0.0, 0.0, 0.0) if a == 0 else (lms[0] / a, lms[1] / a, lms[2] / a)
+    gx = 1.0877193 * nl[0] - 0.66666667 * nl[1] + 0.02061856 * nl[2]
+    gy = -0.0877193 * nl[0] + 1.66666667 * nl[1] - 0.05154639 * nl[2]
+    return (y, gx, gy)
+
+
+def cb_yrg_to_lms(yrg):
+    """dt Yrg_to_LMS（float64）：归一化 grading 色度经 gradingRGB_to_LMS
+    （ROW-MAJOR 形）denorm 回 LMS（绝对值）。"""
+    y, rr, gg = yrg
+    bb = 1.0 - rr - gg
+    nl = (0.95 * rr + 0.38 * gg, 0.05 * rr + 0.62 * gg + 0.03 * bb, 0.97 * bb)
+    den = 0.68990272 * nl[0] + 0.34832189 * nl[1]
+    s = 0.0 if den == 0 else y / den
+    return (nl[0] * s, nl[1] * s, nl[2] * s)
+
+
+def cb_yrg_to_xyz(yrg):
+    """dt Yrg→XYZ D65（:763-765）：Yrg_to_LMS + LMS_to_XYZ（CB_LMS_XYZ65 行优先）。"""
+    return mat_vec(CB_LMS_XYZ65, cb_yrg_to_lms(yrg))
+
+
+def colorbalance_apply_pixel(rgb, case, d, lut):
+    """单像素全链（process :662-941 float64；mask_display 分支恒走 else）。"""
+    pix = tuple(max(v, 0.0) for v in rgb)
+    lms = mat_vec(_cb_in(), pix)
+    y = 0.68990272 * lms[0] + 0.34832189 * lms[1]
+    a = lms[0] + lms[1] + lms[2]
+    nl = (0.0, 0.0, 0.0) if a == 0 else (lms[0] / a, lms[1] / a, lms[2] / a)
+    gx = 1.0877193 * nl[0] - 0.66666667 * nl[1] + 0.02061856 * nl[2]
+    gy = -0.0877193 * nl[0] + 1.66666667 * nl[1] - 0.05154639 * nl[2]
+    r, g = gx - CB_YRG_WR, gy - CB_YRG_WG
+    c = math.hypot(g, r)
+    ych = (max(y, 0.0), c, r / c if c != 0 else 1.0, g / c if c != 0 else 0.0)
+    op = cb_opacity_masks(ych[0] ** 0.4101205819200422, d["sw"], d["hw"], d["mw"], d["mask_ful"])
+    opc = tuple(1.0 - v for v in op)
+    # hue 旋转。
+    cos_h, sin_h = ych[2], ych[3]
+    ych = (ych[0], ych[1], d["hue_cos"] * cos_h - d["hue_sin"] * sin_h,
+           d["hue_sin"] * cos_h + d["hue_cos"] * sin_h)
+    # chroma + vibrance（:711-714）。
+    boost = d["chroma_global"] + sum(o * v for o, v in zip(op, d["chroma_v"]))
+    vib = d["vibrance"] * (1.0 - ych[1] ** abs(d["vibrance"])) if d["vibrance"] != 0 else 0.0
+    ych = (ych[0], ych[1] * max(1.0 + boost + vib, 0.0), ych[2], ych[3])
+    ych = cb_gamut_check_yrg(ych)
+    # middle leg 活在 grading 帧（dt :719-726，无 pipeline 矩阵）。
+    rgb2 = cb_ych_to_grading_rgb(ych)
+    # global offset + shadows/highlights 双斜率。
+    rgb2 = tuple(rgb2[c] + d["global_v"][c] for c in range(3))
+    rgb2 = tuple(rgb2[c] * (opc[2] * (opc[0] + op[0] * d["shadows_v"][c])
+                             + op[2] * d["highlights_v"][c]) for c in range(3))
+    # midtones 幂（保号）。
+    rgb2 = tuple(math.copysign(1.0, v) * (abs(v) / d["white_ful"]) ** d["midtones_v"][c] * d["white_ful"]
+                 for c, v in enumerate(rgb2))
+    # 回 Yrg：gradingRGB_to_LMS + LMS_to_Yrg（:753-755），Y 幂（:757-758）+
+    # contrast（:760-761），Yrg_to_LMS + LMS_to_XYZ（:763-765）。
+    # 注意帧语义：rgb2 是 grading-domain 值（color balance 在 grading RGB 上运算），
+    # 故此处用 grading 矩阵（cb_grading_to_lms），不用 pipeline 矩阵——
+    # 与前腿（pipeline 矩阵，:671-672）不对称是 dt 原样（两腿各管各的帧）。
+    lms4 = cb_grading_to_lms(rgb2)
+    yrg4 = cb_lms_to_yrg(lms4)
+    yrg4 = (max(yrg4[0] / d["white_ful"], 0.0) ** d["midtones_y"] * d["white_ful"],
+            yrg4[1], yrg4[2])
+    yrg4 = (d["grey_fulcrum"] * (yrg4[0] / d["grey_fulcrum"]) ** d["contrast"],
+            yrg4[1], yrg4[2])
+    xyz = cb_yrg_to_xyz(yrg4)
+    if d["formula"] == 0:
+        jab = cb_xyz_to_jzazbz(xyz)
+        J, C = jab[0], math.hypot(jab[1], jab[2])
+        h = math.atan2(jab[2], jab[1])
+        T = math.atan2(C, J) if (J, C) != (0, 0) else 0.0
+        sT, cT = math.sin(T), math.cos(T)
+        b0 = 1.0 + d["brilliance_global"] + sum(o * v for o, v in zip(op, d["brilliance_v"]))
+        b1 = d["saturation_global"] + sum(o * v for o, v in zip(op, d["saturation_v"]))
+        S0 = J * cT + C * sT
+        S1 = S0 * max(-T, min(T * b1, math.pi / 2 - T))
+        S0 = max(S0 * b0, 0.0)
+        J2 = max(S0 * cT - S1 * sT, 0.0)
+        C2 = max(S0 * sT + S1 * cT, 0.0)
+        mx = cb_lookup_gamut(lut, h)
+        sat = cb_soft_clip(C2 / J2, 0.8 * mx, mx) if J2 > 0 else mx
+        maxC, maxJ = J2 * sat, C2 / sat if sat > 0 else J2
+        J2, C2 = (J2 + maxJ) / 2.0, (C2 + maxC) / 2.0
+        ch, sh = math.cos(h), math.sin(h)
+        d0 = 1.6295499532821566e-11
+        Iz = max((J2 + d0) / (1.0 - 0.56 - (-0.56) * (J2 + d0)), 0.0)
+        AI = ((1.0, 0.1386050432715393, 0.0580473161561189),
+              (1.0, -0.1386050432715393, -0.0580473161561189),
+              (1.0, -0.0960192420263190, -0.8118918960560390))
+        test = tuple(AI[r][0] * Iz + AI[r][1] * C2 * ch + AI[r][2] * C2 * sh for r in range(3))
+        maxC = C2
+        for r in range(3):
+            if test[r] < 0:
+                den = AI[r][1] * ch + AI[r][2] * sh
+                maxC = min(-Iz / den, maxC)
+        xyz = cb_jzazbz_to_xyz((J2, maxC * ch, maxC * sh))
+    else:
+        xyy = cb_xyz_to_xyy(xyz)
+        JCH = cb_xyy_to_jch(xyy, d["l_white"])
+        HCB = cb_jch_to_hcb(JCH)
+        rad = math.hypot(HCB[1], HCB[2])
+        sT = HCB[1] / rad if rad > 0 else 0.0
+        cT = HCB[2] / rad if rad > 0 else 0.0
+        P = max(1e-30, HCB[1])
+        W = sT * HCB[1] + cT * HCB[2]
+        a = max(1.0 + d["saturation_global"] + sum(o * v for o, v in zip(op, d["saturation_v"])), 0.0)
+        b = max(1.0 + d["brilliance_global"] + sum(o * v for o, v in zip(op, d["brilliance_v"])), 0.0)
+        max_a = math.hypot(P, W) / P
+        a = cb_soft_clip(a, 0.5 * max_a, max_a)
+        Pp = (a - 1.0) * P
+        Wp = math.sqrt(P * P * (1.0 - a * a) + W * W) * b
+        HCB = (HCB[0], max(cT * Pp + sT * Wp, 0.0), max(-sT * Pp + cT * Wp, 0.0))
+        JCH = cb_hcb_to_jch(HCB)
+        max_col = cb_lookup_gamut(lut, JCH[2])
+        max_ch = 15.932993652962535 * ((JCH[0] * d["l_white"]) ** 0.6523997524738018) * (
+            max_col ** 0.6007557017508491) / d["l_white"]
+        bound = cb_jch_to_hsb((JCH[0], max_ch, JCH[2]))
+        HSB = (HCB[0], HCB[1] / HCB[2] if HCB[2] > 0 else 0.0, HCB[2])
+        HSB = (HSB[0], cb_soft_clip(HSB[1], 0.8 * bound[1], bound[1]), HSB[2])
+        JCH = cb_hsb_to_jch(HSB)
+        xyz = cb_xyy_to_xyz(cb_jch_to_xyy(JCH, d["l_white"]))
+    out = mat_vec(_cb_out(), xyz)
+    return tuple(max(v, 0.0) for v in out)
+
+
+# The colorbalancergb 钉参组（plan T3：global hue/chroma、shadows、
+# highlights、vibrance、contrast；saturation 公式三版各抽一 = JzAzBz 一 +
+# DTUCS 两；默认中性 case 作恒等门 fixture 依据）。
+COLORBALANCERGB_CASES = [
+    {"name": "cb_default", "four_way": (0.0,) * 12, "falloff": (1.0, 0.0, 1.0),
+     "chroma": (0.0, 0.0, 0.0, 0.0), "saturation": (0.0,) * 4, "hue_angle": 0.0,
+     "brilliance": (0.0,) * 4, "mask_grey_fulcrum": 0.1845, "vibrance": 0.0,
+     "grey_fulcrum": 0.1845, "contrast": 0.0, "saturation_formula": 1},
+    {"name": "cb_global_hue", "four_way": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 45.0),
+     "falloff": (1.0, 0.0, 1.0), "chroma": (0.0, 0.0, 0.0, 0.0), "saturation": (0.0,) * 4,
+     "hue_angle": 0.0, "brilliance": (0.0,) * 4, "mask_grey_fulcrum": 0.1845,
+     "vibrance": 0.0, "grey_fulcrum": 0.1845, "contrast": 0.0, "saturation_formula": 1},
+    {"name": "cb_shadows_lift", "four_way": (0.15, 0.3, 200.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+     "falloff": (1.0, 0.0, 1.0), "chroma": (0.2, 0.0, 0.0, 0.0), "saturation": (0.0,) * 4,
+     "hue_angle": 0.0, "brilliance": (0.0,) * 4, "mask_grey_fulcrum": 0.1845,
+     "vibrance": 0.0, "grey_fulcrum": 0.1845, "contrast": 0.0, "saturation_formula": 1},
+    {"name": "cb_highlights_warm", "four_way": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.1, 0.25, 30.0, 0.0, 0.0, 0.0),
+     "falloff": (1.0, 0.0, 1.0), "chroma": (0.0, 0.0, 0.15, 0.0), "saturation": (0.0,) * 4,
+     "hue_angle": 10.0, "brilliance": (0.0,) * 4, "mask_grey_fulcrum": 0.1845,
+     "vibrance": 0.0, "grey_fulcrum": 0.1845, "contrast": 0.0, "saturation_formula": 1},
+    {"name": "cb_vibrance", "four_way": (0.0,) * 12, "falloff": (1.0, 0.0, 1.0),
+     "chroma": (0.0, 0.0, 0.0, 0.0), "saturation": (0.0,) * 4, "hue_angle": 0.0,
+     "brilliance": (0.0,) * 4, "mask_grey_fulcrum": 0.1845, "vibrance": 0.6,
+     "grey_fulcrum": 0.1845, "contrast": 0.0, "saturation_formula": 1},
+    {"name": "cb_contrast_sat_jz", "four_way": (0.0,) * 12, "falloff": (1.0, 0.0, 1.0),
+     "chroma": (0.0, 0.0, 0.0, 0.0), "saturation": (0.3, 0.1, -0.2, 0.0),
+     "hue_angle": 0.0, "brilliance": (0.1, 0.05, -0.05, 0.0),
+     "mask_grey_fulcrum": 0.1845, "vibrance": 0.0, "grey_fulcrum": 0.1845,
+     "contrast": 0.3, "saturation_formula": 0},
+]
+COLORBALANCERGB_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev", "gray_staircase",
+                                "saturated", "deep_shadow", "hue_sweep", "delta_impulse"]
+
+
+def colorbalancergb_case_params(case):
+    """case dict → ColorBalanceRGBModule.Params 构造 kwargs（Swift 侧同名）。"""
+    fw = case["four_way"]
+    return dict(
+        shadowsY=fw[0], shadowsC=fw[1], shadowsH=fw[2],
+        midtonesY=fw[3], midtonesC=fw[4], midtonesH=fw[5],
+        highlightsY=fw[6], highlightsC=fw[7], highlightsH=fw[8],
+        globalY=fw[9], globalC=fw[10], globalH=fw[11],
+        shadowsWeight=case["falloff"][0], whiteFulcrum=case["falloff"][1],
+        highlightsWeight=case["falloff"][2],
+        chromaShadows=case["chroma"][0], chromaMidtones=case["chroma"][1],
+        chromaHighlights=case["chroma"][2], chromaGlobal=case["chroma"][3],
+        saturationShadows=case["saturation"][0], saturationMidtones=case["saturation"][1],
+        saturationHighlights=case["saturation"][2], saturationGlobal=case["saturation"][3],
+        hueAngle=case["hue_angle"],
+        brillianceShadows=case["brilliance"][0], brillianceMidtones=case["brilliance"][1],
+        brillianceHighlights=case["brilliance"][2], brillianceGlobal=case["brilliance"][3],
+        maskGreyFulcrum=case["mask_grey_fulcrum"], vibrance=case["vibrance"],
+        greyFulcrum=case["grey_fulcrum"], contrast=case["contrast"],
+        saturationFormula=case["saturation_formula"])
+
+
+def colorbalancergb_params_blob_for_case(case) -> str:
+    floats = list(case["four_way"]) + list(case["falloff"]) + list(case["chroma"])
+    floats += list(case["saturation"]) + [case["hue_angle"]] + list(case["brilliance"])
+    floats += [case["mask_grey_fulcrum"], case["vibrance"], case["grey_fulcrum"], case["contrast"]]
+    assert len(floats) == 32, len(floats)
+    packed = struct.pack(COLORBALANCERGB_PARAMS_FORMAT, *floats, case["saturation_formula"])
+    assert len(packed) == 132, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_colorbalancergb_cases(outdir: str) -> None:
+    for case in COLORBALANCERGB_CASES:
+        params = colorbalancergb_params_blob_for_case(case)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="colorbalancergb",
+            modversion=COLORBALANCERGB_MODVERSION,
+            params=params,
+            iop_order=f"{COLORBALANCERGB_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_colorbalancergb_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the colorbalancergb golden REFERENCES（L017 route；dt 侧 =
+    XMP adoption + 平场 PFM probe）。6 case × 8 fixture。"""
+    os.makedirs(out_dir, exist_ok=True)
+    for case in COLORBALANCERGB_CASES:
+        d = cb_derive(case)
+        lut = cb_gamut_lut(case["saturation_formula"])
+        for fixture in COLORBALANCERGB_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, case=case, d=d, lut=lut, w=w):
+                idx = y * w + x
+                return colorbalance_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), case, d, lut)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
 
 def gen_ashift_cases(outdir: str) -> None:
     for case in ASHIFT_CASES:
@@ -3594,8 +4227,6 @@ def gen_toneequal_refs(canonical_dir: str, out_dir: str) -> None:
             src = os.path.join(canonical_dir, fixture + ".exr")
             w, h, rgb = read_exr_rgb(src)
             n = w * h
-            # dt keys the smoothing radius on the PIECE's full-image max
-            # dimension (modify_roi_in :1352-1357) at scale 1 here.
             radius = int((blending / 100.0 * max(w, h) * 1.0 - 1.0) / 2.0)
             luma = te_luma_plane(rgb, w, h, exposure_boost, fulcrum, contrast)
             if details == 4:  # EIGF (the pinned golden leg)
@@ -3636,6 +4267,7 @@ def main() -> None:
         else:
             cases_dir = os.path.join(outdir, "cases")
         gen_cases(cases_dir)
+        gen_colorbalancergb_cases(cases_dir)
     if mode == "refs":
         # Plan 03-02: temperature golden references — synthesizes
         # <outdir>/<temperature case>__<fixture>.exr from the canonical
@@ -3679,6 +4311,9 @@ def main() -> None:
         gen_highpass_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_soften_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_equalizer_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 05-02-T3: colorbalancergb golden references (L017 route;
+        # dt-side = XMP adoption + 平场 PFM probe).
+        gen_colorbalancergb_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
 
     print(f"gen_fixtures[{mode}] → {outdir}")
 

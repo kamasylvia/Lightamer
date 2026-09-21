@@ -313,14 +313,13 @@ public enum YrgGamut {
 
     // MARK: - linear-algebra helpers
 
-    static func matMul(_ a: [[Double]], _ b: [[Double]]) -> [[Double]] {
+    public static func matMul(_ a: [[Double]], _ b: [[Double]]) -> [[Double]] {
         var out = [[Double]](repeating: [0, 0, 0], count: 3)
         for r in 0..<3 { for c in 0..<3 {
             out[r][c] = a[r][0] * b[0][c] + a[r][1] * b[1][c] + a[r][2] * b[2][c]
         } }
         return out
     }
-
     static func mul(_ m: [[Double]], _ v: SIMD3<Double>) -> SIMD3<Double> {
         SIMD3<Double>(
             m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z,
