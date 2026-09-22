@@ -35,6 +35,7 @@ v1 = 完整工作流闭环 + 蒙版系统 + HDR/堆栈 + 印框/水印 + 全量 
 - [ ] **SESS-04**: 多 Session 切换 + 最近会话列表（最近打开、快速切换）
 - [ ] **SESS-05**: FSEvents 文件夹监视——外部新增/移动/删除文件时自动同步到 Session 视图（含 edge case：用户在 Finder 中移走文件后的孤儿 sidecar 处理）
 - [ ] **SESS-06**: Session 内浏览模式：网格视图（thumbnail grid）、单图大图、culling 对比视图（多图并排筛选）
+- [ ] **SESS-07**: 会话级索引 DB（可重建派生缓存，C1 `.cosessiondb` 同构）——sidecar 索引（params hash/评分/图层栈摘要）+ 缩略图索引；**真身恒为 sidecar**，DB 删除无损可重建；批量 apply = 索引单事务 + sidecar 批量写队列（懒渲染基座，PERF-07 万张 ≤5s）
 
 ### History & Non-Destructive Editing (HIST)
 

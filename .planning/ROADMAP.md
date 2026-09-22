@@ -158,8 +158,9 @@ compare (the remaining history-stack workflow features) land here.
 3. Multi-session switching with a recent-sessions list works with no state leakage between sessions (explicit session-scope teardown of pixelpipe + caches).
 4. Browse modes functional: thumbnail grid, single large image, culling compare (multi-image side-by-side).
 5. Adjustment copy/paste (full or partial params, batch apply across multi-select) and before/after compare (split, snapshot point, temporary-hold-to-view-original) work.
-**Requirements:** SESS-01, SESS-02, SESS-03, SESS-04, SESS-05, SESS-06, HIST-05, HIST-06
-**Notes:** Do NOT rely solely on FSEvents (coalescing, 4096-path limit, rename loss — Watchexec publicly called choosing FSEvents "a mistake"); use it as a hint and reconcile with a directory scan on focus. Treat the session folder as mutable and untrusted — re-derive state on access. HIST-05 (copy/paste) and HIST-06 (before/after) are workflow features layered on the Phase 2 history stack. Risks: SESS-1..5, NDE-5, PERF-2/3, UI-1/3.
+6. Session-level index database (rebuildable derived cache, `.cosessiondb`-isomorphic): indexes sidecars (params hash / rating / layer-stack summary) + thumbnails. Source of truth stays the sidecars — deleting the DB is lossless and triggers a rebuild. Batch apply (SESS-05/HIST-05) runs as ONE index transaction + a bulk sidecar write queue — the lazy-rendering foundation for PERF-07 (万张 apply ≤5s).
+**Requirements:** SESS-01, SESS-02, SESS-03, SESS-04, SESS-05, SESS-06, SESS-07, HIST-05, HIST-06
+**Notes:** Do NOT rely solely on FSEvents (coalescing, 4096-path limit, rename loss — Watchexec publicly called choosing FSEvents "a mistake"); use it as a hint and reconcile with a directory scan on focus. Treat the session folder as mutable and untrusted — re-derive state on access; the same principle makes the index DB rebuildable-from-sidecars (never authoritative). HIST-05 (copy/paste) and HIST-06 (before/after) are workflow features layered on the Phase 2 history stack. Risks: SESS-1..5, NDE-5, PERF-2/3, UI-1/3.
 
 ### Phase 10: yiyin Border/Watermark Panel
 **Goal:** Port the yiyin (壹印) border/watermark capability to a first-class native panel,
