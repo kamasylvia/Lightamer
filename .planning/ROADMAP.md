@@ -251,5 +251,24 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 | Raw denoise profiling feasibility (per-camera noise profiles) | 1 | 5 |
 | Darktable XMP import round-trip (validate import-tolerant parser) | — | 2 (sidecar) |
 
+### Phase 14: MCP Server（远程 AI 修图接口）【v1 扩展，2026-09-22 用户指令】
+**Goal:** Lightamer 内嵌 MCP（Model Context Protocol）server，使远程 AI 能通过 MCP 协议对本机照片执行 RAW 修图并取回预览图。双入口：GUI 偏好开关（开启即启动 server）与 CLI 无头拉起（不开 GUI 直接启动同一 server）。
+**Success Criteria**:
+1. MCP 工具集可用：load_image（打开 Session/RAW 路径）、apply_params（设置 iop 参数面/图层栈）、render_preview（渲染并返回预览图，分辨率/格式参数化）、iop 清单与参数 schema 元数据。
+2. 双入口：GUI 开关开启即启动（绑定地址/传输可配置，默认 localhost），关闭即停；CLI 无头启动同一 server（无 GUI 进程）。
+3. 端到端：远程 MCP client 载入 DSC00012.ARW → 施加 ≥3 个 iop 参数 → 取回预览图，内容与本地渲染量化一致。
+4. 安全面：默认仅绑定回环地址；非回环暴露必须带鉴权 token；文档明示风险。
+**Requirements:** MCP-01, MCP-02, MCP-03, MCP-04
+**Notes:** 依赖 Phase 2 无头 pipe（已具备）、Phase 9 Session、Phase 11 渲染导出、Phase 5/8 iop 集。Swift MCP SDK 选型入研究。
+
+### Phase 15: Performance 专项（60fps 决战）【v1 扩展，2026-09-22 用户指令】
+**Goal:** 系统性性能专项：满 iop 集（含 denoise、图层栈）下把预览全链重渲从 ~33ms 打进 16.6ms（60fps@100MP 预算），并清算 PERF-5 全部挂账。
+**Success Criteria**:
+1. PREVIEW 全链（满 iop 集 enabled）warm median ≤16.6ms；
+2. 100MP FULL 单帧 + N 层图层栈内存足迹 ≤3GB（TilingPlan 窗口化兑现）；
+3. Instruments 系统级 profile 报告落账（GPU 趟数/热点/内存分布），杠杆兑现记录在案（跨模块 dispatch 批合并、Lab 往返共享应急预案的去留裁决）。
+**Requirements:** PERF-01, PERF-02, PERF-03（PERF-5 债务在此清账）
+**Notes:** 依赖全功能集完成后 profile 才有意义；05-08 的 PERF 复估数字是本 phase 的输入基线。
+
 ---
 *Last updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs); AI-02/03/04 moved to v2*

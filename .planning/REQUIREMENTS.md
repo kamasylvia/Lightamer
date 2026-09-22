@@ -427,3 +427,16 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 ---
 *Requirements defined: 2026-08-03*
 *Last updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs: AI-01, AI-05, AI-06, AI-07); AI-02/03/04 moved to v2 as AIV2-03/04/05*
+
+### MCP Server (MCP)
+
+- [ ] **MCP-01**: MCP 工具集：load_image / apply_params / render_preview / iop 参数 schema 元数据，远程 client 可完成「载入 → 修图 → 取回预览图」闭环
+- [ ] **MCP-02**: 双入口：GUI 偏好开关（开即启动/关即停）与 CLI 无头拉起同一 server（无 GUI 进程）
+- [ ] **MCP-03**: 渲染一致性：MCP 返回的预览图与本地 GUI 渲染量化一致（同参数同输出）
+- [ ] **MCP-04**: 安全面：默认仅回环绑定；非回环暴露必须带鉴权 token
+
+### Performance (PERF)
+
+- [ ] **PERF-01**: PREVIEW 全链（满 iop 集 enabled）warm median ≤16.6ms（60fps@100MP 预算）
+- [ ] **PERF-02**: 100MP FULL 单帧 + N 层图层栈内存足迹 ≤3GB（TilingPlan 窗口化）
+- [ ] **PERF-03**: Instruments 系统级 profile 报告落账（GPU 趟数/热点/内存），杠杆兑现记录在案
