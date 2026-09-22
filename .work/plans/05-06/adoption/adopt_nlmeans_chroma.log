@@ -1,0 +1,12 @@
+     1.1527 [dt_dev_read_history_ext] temporary history initialised with default params and presets
+     1.1529 [history] successfully loaded module gamma from history
+			blendop v. 0:	version WRONG	params WRONG
+			params v. 1:	version ok	params ok
+     1.1529 [history] successfully loaded module flip from history
+			blendop v. 0:	version WRONG	params WRONG
+			params v. 2:	version ok	params ok
+     1.1529 [history] successfully loaded module nlmeans from history
+			blendop v. 1:	version WRONG	params WRONG
+			params v. 2:	version ok	params ok
+     1.1561 committed                     [export]         nlmeans                4000  enabled  piece hash=45a31436c83ca978
+     1.1828 [export_job] exported to `nlmeans_chroma.exr'
