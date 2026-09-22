@@ -4341,6 +4341,14 @@ def main() -> None:
         # Plan 05-06: nlmeans cases + Goossens float64 references.
         gen_nlmeans_cases(cases_dir)
         gen_nlmeans_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 05-07: denoiseprofile cases + wavelets/NLMeans-leg float64
+        # references (L017 route; dt-side = XMP adoption + flat probe).
+        gen_denoiseprofile_cases(cases_dir)
+        gen_denoiseprofile_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+    if mode in ("refs-denoiseprofile", "all"):
+        # targeted: 05-07 golden references only (fixtures dir as outdir;
+        # references land in ../output per the established layout).
+        gen_denoiseprofile_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
     print(f"gen_fixtures[{mode}] → {outdir}")
 
 
@@ -6654,6 +6662,570 @@ def gen_nlmeans_refs(canonical_dir: str, out_dir: str) -> None:
                 return out_rgb[idx]
 
             write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# denoiseprofile (Plan 05-07, IOP-DENOISE-01) — dt `denoiseprofile` v12
+# (416B blob recipe above), v50 slot 9.0, POST-DEMOSAIC RGB domain
+# (denoiseprofile.c:837 IOP_CS_RGB — RESEARCH §1.2 erratum, NOT raw).
+#
+# float64 reference (L017 route ①): wavelets leg = denoiseprofile.c
+# 1423-1658 (process_wavelets CPU form — the dt-cli authority path) +
+# eaw.c:271-363 (eaw_dn_decompose edge-aware 5×5 a-trous) + :1345-1421
+# (Bayesshrink) + denoiseprofile.cl:31-114/327-433 (VST trio + inverse
+# trio, v2/Y0U0V0 default); NLMeans leg = VST sandwich + Goossens with
+# the denoiseprofile vert variant (single-pixel distance + central
+# weight + `norm − 2` offset, denoiseprofile.cl:197-252) + finish_v2
+# (backtransform fused, :327-350).
+#
+# wb policy (D-05-07-T2-1): v1 neutral wb = (1,1,1) — dt reads
+# `dsc.temperature.coeffs`; CIRAW does not expose camera WB gains, so
+# the module runs compute_wb_factors' neutral branch (coeffs==0 → 1s).
+# All formulas stay exact; wb_adaptive_anscombe bit honored in the
+# derivation path.
+# ──────────────────────────────────────────────────────────────────────
+
+DN_BANDS = 7
+DN_P_FULCRUM = 0.05
+DENOISEPROFILE_IOP_ORDER = 9.0
+
+# eaw.c:122-129 / 276-283 — the 5×5 B3-spline outer-product a-trous base
+# filter (shared verbatim by decompose legs).
+FILTER25 = (
+    1.0 / 256.0,  4.0 / 256.0,  6.0 / 256.0,  4.0 / 256.0, 1.0 / 256.0,
+    4.0 / 256.0, 16.0 / 256.0, 24.0 / 256.0, 16.0 / 256.0, 4.0 / 256.0,
+    6.0 / 256.0, 24.0 / 256.0, 36.0 / 256.0, 24.0 / 256.0, 6.0 / 256.0,
+    4.0 / 256.0, 16.0 / 256.0, 24.0 / 256.0, 16.0 / 256.0, 4.0 / 256.0,
+    1.0 / 256.0,  4.0 / 256.0,  6.0 / 256.0,  4.0 / 256.0, 1.0 / 256.0,
+)
+DN_FAST_TEX = ("delta_impulse",
+               "ramp_8ev__noisy_iso125_s20260921",
+               "gray_staircase__noisy_iso1600_s20260921")
+
+# 5 wavelets cases: default (Y0U0V0 + flat force) / RGB mode / strength-
+# dominant + shadows + bias / shaped force curve (Y0+U0V0 rows, course:
+# strong high-freq damping) / AUTO (profile infer hand-check carrier).
+DENOISEPROFILE_WAVE_CASES = [
+    {"name": "dp_wave_default", "mode": 1, "radius": 1.0, "nbhood": 7.0,
+     "strength": 1.0, "shadows": 1.0, "bias": 0.0, "scattering": 0.0,
+     "central_pixel_weight": 0.1, "overshooting": 1.0,
+     "wavelet_color_mode": 1, "y_override": None,
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_wave_rgb", "mode": 1, "wavelet_color_mode": 0,
+     "radius": 1.0, "nbhood": 7.0, "strength": 1.0, "shadows": 1.0,
+     "bias": 0.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0, "y_override": None,
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_wave_strong", "mode": 1, "wavelet_color_mode": 1,
+     "radius": 1.0, "nbhood": 7.0, "strength": 3.0, "shadows": 1.2,
+     "bias": -2.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0, "y_override": None,
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_wave_force", "mode": 1, "wavelet_color_mode": 1,
+     "radius": 1.0, "nbhood": 7.0, "strength": 1.5, "shadows": 1.0,
+     "bias": 0.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0,
+     "y_override": {4: [1.0, 0.9, 0.7, 0.5, 0.3, 0.2, 0.1],
+                    5: [0.9, 0.8, 0.6, 0.4, 0.2, 0.1, 0.0]},
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_wave_auto", "mode": 4, "wavelet_color_mode": 1,
+     "radius": 1.0, "nbhood": 7.0, "strength": 1.0, "shadows": 1.0,
+     "bias": 0.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0, "y_override": None,
+     "a": (2.99037019802356e-05, 8.86355041404361e-06, 1.37779541937624e-05),
+     "b": (4.43124422276964e-08, 2.60617465248865e-08, 3.62731233591954e-08)},
+]
+
+# 3 NLMeans-leg cases: defaults / scattering + central weight / AUTO.
+DENOISEPROFILE_NLM_CASES = [
+    {"name": "dp_nlm_default", "mode": 0, "wavelet_color_mode": 1,
+     "radius": 1.0, "nbhood": 5.0, "strength": 1.0, "shadows": 1.0,
+     "bias": 0.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0, "y_override": None,
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_nlm_scatter", "mode": 0, "wavelet_color_mode": 1,
+     "radius": 2.0, "nbhood": 5.0, "strength": 2.0, "shadows": 1.0,
+     "bias": -1.0, "scattering": 0.5, "central_pixel_weight": 0.3,
+     "overshooting": 1.0, "y_override": None,
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_nlm_auto", "mode": 3, "wavelet_color_mode": 1,
+     "radius": 1.0, "nbhood": 7.0, "strength": 1.0, "shadows": 1.0,
+     "bias": 0.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0, "y_override": None,
+     "a": (2.99037019802356e-05, 8.86355041404361e-06, 1.37779541937624e-05),
+     "b": (4.43124422276964e-08, 2.60617465248865e-08, 3.62731233591954e-08)},
+]
+
+
+def dn_max_scale(w, h, iscale=1.0, in_scale=1.0):
+    """process_wavelets :1436-1456 — the 20% support-domain rule.
+    `in_scale` = fmin(roi.scale/iscale, 1); buf_in dims = the FULL plane
+    (iscale-multiplied back), NOT the tile rect (L021: dscIn is a run
+    stamp — band count is tile-stable)."""
+    max_scale = 0
+    supp0 = min(2 * (2 << (DN_BANDS - 1)) + 1, max(h * iscale, w * iscale) * 0.2)
+    i0 = math.log2((supp0 - 1.0) * 0.5)
+    while max_scale < DN_BANDS:
+        supp = 2 * (2 << max_scale) + 1
+        supp_in = supp * (1.0 / in_scale)
+        i_in = math.log2((supp_in - 1) * 0.5) - 1.0
+        if 1.0 - (i_in + 0.5) / i0 < 0.0:
+            break
+        max_scale += 1
+    return max_scale
+
+
+def dn_force_curve(y_row):
+    """commit_params :2940-2952 → CurveDataSample with the dt quirks:
+    effective anchors = the 7 (k/6, y[k]) points ONLY (the two extra
+    set_point writes die — set_point never grows m_numAnchors, init added
+    exactly BANDS anchors); samples at i/(BANDS−1) stored to force[k]
+    which smaple_values relabels k/BANDS (dt draw.h quirk, force[k] =
+    curve(i/6)); uint16 quantization `val·65535+0.5` then /65536."""
+    xs = [k / 6.0 for k in range(DN_BANDS)]
+    ys = list(y_row)
+    m = [0.0] * DN_BANDS
+    m[0] = (ys[1] - ys[0]) / (xs[1] - xs[0])
+    for i in range(1, DN_BANDS - 1):
+        m[i] = (ys[i + 1] - ys[i - 1]) / (xs[i + 1] - xs[i - 1])
+    m[DN_BANDS - 1] = (ys[6] - ys[5]) / (xs[6] - xs[5])
+
+    def val(xval):
+        ival = DN_BANDS - 2
+        for i in range(DN_BANDS - 2):
+            if xval < xs[i + 1]:
+                ival = i
+                break
+        h = xs[ival + 1] - xs[ival]
+        dx = (xval - xs[ival]) / h
+        dx2 = dx * dx
+        dx3 = dx2 * dx
+        h00 = 2.0 * dx3 - 3.0 * dx2 + 1.0
+        h10 = dx3 - 2.0 * dx2 + dx
+        h01 = -2.0 * dx3 + 3.0 * dx2
+        h11 = dx3 - dx2
+        v = h00 * ys[ival] + h10 * h * m[ival] + h01 * ys[ival + 1] \
+            + h11 * h * m[ival + 1]
+        return min(max(int(v * 65535.0 + 0.5), 0), 65535)
+
+    return [val(i / 6.0) / 65536.0 for i in range(DN_BANDS)]
+
+
+def dn_infer(a):
+    """denoiseprofile.c:2618-2636 verbatim (AUTO parameter family)."""
+    radius = min(int(1.0 + a * 15000.0 + a * a * 300000.0), 8)
+    scattering = min(3000.0 * a, 1.0)
+    shadows = min(max(0.1 - 0.1 * math.log(a), 0.7), 1.8)
+    bias = -max(5.0 + 0.5 * math.log(a), 0.0)
+    return radius, scattering, shadows, bias
+
+
+def dn_setup_matrices(wb):
+    """set_up_conversion_matrices (:1288-1343) + invert_matrix (:1250-
+    1284) — wb-adaptive Y0U0V0 pair, float64."""
+    sum_invwb = 1.0 / wb[0] + 1.0 / wb[1] + 1.0 / wb[2]
+    sum_invwb *= math.sqrt(3.0)
+    m = [[1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0],
+         [0.5, 0.0, -0.5],
+         [0.25, -0.5, 0.25]]
+    m[0][0] = sum_invwb / wb[0]
+    m[0][1] = sum_invwb / wb[1]
+    m[0][2] = sum_invwb / wb[2]
+    stddev_u0 = math.sqrt(0.25 * wb[0] * wb[0] + 0.25 * wb[2] * wb[2])
+    stddev_v0 = math.sqrt(0.0625 * wb[0] * wb[0] + 0.25 * wb[1] * wb[1]
+                          + 0.0625 * wb[2] * wb[2])
+    for c in range(3):
+        m[1][c] /= stddev_u0
+        m[2][c] /= stddev_v0
+    biga = m[1][1] * m[2][2] - m[1][2] * m[2][1]
+    bigb = -m[1][0] * m[2][2] + m[1][2] * m[2][0]
+    bigc = m[1][0] * m[2][1] - m[1][1] * m[2][0]
+    bigd = -m[0][1] * m[2][2] + m[0][2] * m[2][1]
+    bige = m[0][0] * m[2][2] - m[0][2] * m[2][0]
+    bigf = -m[0][0] * m[2][1] + m[0][1] * m[2][0]
+    bigg = m[0][1] * m[1][2] - m[0][2] * m[1][1]
+    bigh = -m[0][0] * m[1][2] + m[0][2] * m[1][0]
+    bigi = m[0][0] * m[1][1] - m[0][1] * m[1][0]
+    det = m[0][0] * biga + m[0][1] * bigb + m[0][2] * bigc
+    if det == 0.0:
+        stddev_y0 = math.sqrt(1.0 / 9.0 * (wb[0] ** 2 + wb[1] ** 2 + wb[2] ** 2))
+        m[0] = [1.0 / (3.0 * stddev_y0)] * 3
+        det = 1.0  # dt reinverts the adjusted matrix; fallback line is near-singular
+        # exact dt fallback: invert the (adjusted) standard matrix
+        biga = m[1][1] * m[2][2] - m[1][2] * m[2][1]
+        bigb = -m[1][0] * m[2][2] + m[1][2] * m[2][0]
+        bigc = m[1][0] * m[2][1] - m[1][1] * m[2][0]
+        bigd = -m[0][1] * m[2][2] + m[0][2] * m[2][1]
+        bige = m[0][0] * m[2][2] - m[0][2] * m[2][0]
+        bigf = -m[0][0] * m[2][1] + m[0][1] * m[2][0]
+        bigg = m[0][1] * m[1][2] - m[0][2] * m[1][1]
+        bigh = -m[0][0] * m[1][2] + m[0][2] * m[1][0]
+        bigi = m[0][0] * m[1][1] - m[0][1] * m[1][0]
+        det = m[0][0] * biga + m[0][1] * bigb + m[0][2] * bigc
+    inv = [[1.0 / det * biga, 1.0 / det * bigd, 1.0 / det * bigg],
+           [1.0 / det * bigb, 1.0 / det * bige, 1.0 / det * bigh],
+           [1.0 / det * bigc, 1.0 / det * bigf, 1.0 / det * bigi]]
+    return m, inv
+
+
+def dn_precondition_v2_px(px, a, p, b, wb):
+    """precondition_v2 (denoiseprofile.cl:56-79; c 991-1023): the general
+    power VST. a = a[1]·compensate_p (scalar), p per channel, b scalar."""
+    out = []
+    for c in range(3):
+        scaled = max(px[c] / wb[c] + b, 0.0)
+        expon = 1.0 - p[c] / 2.0
+        denom = (2.0 - p[c]) * math.sqrt(a)
+        out.append(2.0 * (scaled ** expon) / denom if denom != 0.0 else 0.0)
+    return out
+
+
+def dn_precondition_y0u0v0_px(px, a, p, b, mat):
+    """precondition_Y0U0V0 (denoiseprofile.cl:81-114): VST WITHOUT the
+    wb division (the wb lives in the matrix normalization) then the
+    Y0U0V0 row-vector application (transposed-application = m·t)."""
+    t = []
+    for c in range(3):
+        scaled = max(px[c] + b, 0.0)
+        expon = 1.0 - p[c] / 2.0
+        denom = (2.0 - p[c]) * math.sqrt(a)
+        t.append(2.0 * (scaled ** expon) / denom if denom != 0.0 else 0.0)
+    return [sum(mat[k][c] * t[c] for c in range(3)) for k in range(3)]
+
+
+def dn_precondition_legacy_px(px, aa, sigma2):
+    """precondition (denoiseprofile.cl:31-54): generalized Anscombe."""
+    return [2.0 * math.sqrt(max(px[c] / aa[c] + sigma2[c], 0.0))
+            for c in range(3)]
+
+
+def dn_backtransform_v2_px(px_in, a, p, b, bias, wb):
+    """backtransform_v2 (denoiseprofile.cl:377-399) — the low-bias
+    inverse with the user bias in delta (Taylor 2nd-order derivation,
+    denoiseprofile.c:1025-1084)."""
+    out = []
+    for c in range(3):
+        x = max(px_in[c], 0.0)
+        delta = x * x + bias
+        denominator = 4.0 / (math.sqrt(a) * (2.0 - p[c]))
+        z1 = (x + math.sqrt(max(delta, 0.0))) / denominator
+        out.append(max(z1 ** (1.0 / (1.0 - p[c] / 2.0)) - b, 0.0) * wb[c])
+    return out
+
+
+def dn_backtransform_y0u0v0_px(t, a, p, b, bias, wb, inv):
+    """backtransform_Y0U0V0 (denoiseprofile.cl:401-433): toRGB first,
+    then the inverse VST with bias·wb in delta."""
+    px = [sum(inv[k][c] * t[c] for c in range(3)) for k in range(3)]
+    out = []
+    for c in range(3):
+        x = max(px[c], 0.0)
+        delta = x * x + bias * wb[c]
+        scale = math.sqrt(a) * (2.0 - p[c]) / 4.0
+        z1 = (x + math.sqrt(max(delta, 0.0))) * scale
+        out.append(max(z1 ** (1.0 / (1.0 - p[c] / 2.0)) - b, 0.0))
+    return out
+
+
+def dn_backtransform_legacy_px(px_in, aa, sigma2):
+    """backtransform (denoiseprofile.cl:354-374)."""
+    s32 = math.sqrt(1.5)
+    out = []
+    for c in range(3):
+        x = px_in[c]
+        if x < 0.5:
+            out.append(0.0)
+        else:
+            x2 = x * x
+            out.append(aa[c] * (0.25 * x2 + 0.25 * s32 / x - 1.375 / x2
+                                + 0.625 * s32 / (x * x2) - sigma2[c]))
+    return out
+
+
+def dn_decompose(buf, w, h, mult, inv_sigma2):
+    """eaw_dn_decompose (eaw.c:271-363) — 5×5 B3 a-trous (stride=mult)
+    + edge-aware weight `fast_mexp2f(max(0, |Δc|²·inv_sigma2·0.02 − 9))`;
+    border = nearest clamp (CPU 3-segment structure ≡ clamp-to-edge
+    sampler). Returns (coarse, detail, sum_y2[3]) — detail BEFORE any
+    threshold (the Bayesshrink input)."""
+    wgt_bias = 0.02
+    off2 = 9.0
+    coarse = [None] * (w * h)
+    detail = [None] * (w * h)
+    sum_y2 = [0.0, 0.0, 0.0]
+    cl = lambda v, hi: min(max(v, 0), hi)
+    for y in range(h):
+        for x in range(w):
+            px = buf[y * w + x]
+            s = [0.0, 0.0, 0.0]
+            wg = 0.0
+            for jj in range(5):
+                yy = cl(y + mult * (jj - 2), h - 1)
+                for ii in range(5):
+                    xx = cl(x + mult * (ii - 2), w - 1)
+                    p2 = buf[yy * w + xx]
+                    d = sum((px[c] - p2[c]) ** 2 for c in range(3))
+                    fw = FILTER25[jj * 5 + ii]
+                    wt = fw * nlmeans_fast_mexp2f(max(0.0, d * inv_sigma2 * wgt_bias - off2))
+                    for c in range(3):
+                        s[c] += wt * p2[c]
+                    wg += wt
+            cm = [s[c] / wg for c in range(3)]
+            det = [px[c] - cm[c] for c in range(3)]
+            for c in range(3):
+                sum_y2[c] += det[c] * det[c]
+            coarse[y * w + x] = cm
+            detail[y * w + x] = det
+    return coarse, detail, sum_y2
+
+
+def dn_bayesshrink(sum_y2, npixels, scale, max_scale, force, mode_rgb):
+    """variance_stabilizing_xform (denoiseprofile.c:1345-1421) —
+    thrs[c] = 8·force²·4·sb2/std_x per the mode's channel mapping."""
+    varf = math.sqrt(2.0 + 2.0 * 4.0 * 4.0 + 6.0 * 6.0) / 16.0
+    sb2 = (varf ** scale) * 1.0
+    sb2 *= sb2
+    var_y = [sum_y2[c] / (npixels - 1.0) for c in range(3)]
+    std_x = [math.sqrt(max(1e-6, var_y[c] - sb2)) for c in range(3)]
+    offset_scale = DN_BANDS - max_scale
+    bi = DN_BANDS - (scale + offset_scale + 1)
+    adjt = [8.0, 8.0, 8.0]
+    if mode_rgb:
+        f_all = force[0][bi] ** 2 * 4.0
+        adjt = [f * f_all for f in adjt]
+        adjt[0] *= force[1][bi] ** 2 * 4.0
+        adjt[1] *= force[2][bi] ** 2 * 4.0
+        adjt[2] *= force[3][bi] ** 2 * 4.0
+    else:
+        adjt[0] *= force[4][bi] ** 2 * 4.0
+        f_uv = force[5][bi] ** 2 * 4.0
+        adjt[1] *= f_uv
+        adjt[2] *= f_uv
+    return [adjt[c] * sb2 / std_x[c] for c in range(3)]
+
+
+def dn_wavelets_reference(w, h, rgb, case):
+    """process_wavelets CPU form (denoiseprofile.c:1423-1658) at
+    scale=1/iscale=1, neutral wb (D-05-07-T2-1). Accumulator form:
+    out = Σ softthresh(detail_s) + coarsest, then the inverse VST."""
+    mode = case["mode"]
+    mode_rgb = case["wavelet_color_mode"] == 0
+    strength = case["strength"]
+    shadows = case["shadows"]
+    bias_p = case["bias"]
+    a1 = case["a"][1]
+    b1 = case["b"][1]
+    in_scale = 1.0
+    wb = [1.0, 1.0, 1.0]
+    compensate_strength = 1.0 if mode_rgb else 2.5
+    p = [max(shadows + 0.1 * math.log(in_scale / wb[c]), 0.0) for c in range(3)]
+    compensate_p = DN_P_FULCRUM / (DN_P_FULCRUM ** shadows)
+
+    force = []
+    for ch in range(6):
+        row = case["y_override"].get(ch, [0.5] * DN_BANDS) \
+            if case["y_override"] else [0.5] * DN_BANDS
+        force.append(dn_force_curve(row))
+
+    max_scale = dn_max_scale(w, h)
+    npixels = w * h
+    mult_max = 1 << (max_scale - 1) if max_scale > 0 else 1
+    if w < 2 * mult_max or h < 2 * mult_max:
+        return [(rgb[0][k], rgb[1][k], rgb[2][k]) for k in range(npixels)]
+
+    mat = inv = None
+    if not mode_rgb:
+        mat, inv = dn_setup_matrices(wb)
+        for k in range(3):
+            for c in range(3):
+                mat[k][c] /= strength * compensate_strength * in_scale
+                inv[k][c] *= strength * compensate_strength * in_scale
+
+    def precondition(px):
+        if mode_rgb:
+            return dn_precondition_v2_px(px, a1 * compensate_p, p, b1, wb)
+        return dn_precondition_y0u0v0_px(px, a1 * compensate_p, p, b1, mat)
+
+    def backtransform(px):
+        bias = bias_p - 0.5 * math.log(in_scale)
+        if mode_rgb:
+            return dn_backtransform_v2_px(px, a1 * compensate_p, p, b1, bias, wb)
+        return dn_backtransform_y0u0v0_px(px, a1 * compensate_p, p, b1, bias, wb, inv)
+
+    buf1 = [precondition((rgb[0][k], rgb[1][k], rgb[2][k]))
+            for k in range(npixels)]
+    acc = [[0.0, 0.0, 0.0] for _ in range(npixels)]
+    varf = math.sqrt(70.0) / 16.0
+    for s in range(max_scale):
+        sigma_band = (varf ** s) * 1.0
+        coarse, detail, sum_y2 = dn_decompose(
+            buf1, w, h, 1 << s, 1.0 / (sigma_band * sigma_band))
+        thrs = dn_bayesshrink(sum_y2, npixels, s, max_scale, force, mode_rgb)
+        for k in range(npixels):
+            d = detail[k]
+            for c in range(3):
+                amt = max(0.0, abs(d[c]) - thrs[c])
+                acc[k][c] += math.copysign(amt, d[c])
+        buf1 = coarse
+    out = []
+    for k in range(npixels):
+        v = [acc[k][c] + buf1[k][c] for c in range(3)]
+        out.append(backtransform(v))
+    return out
+
+
+def dn_nlmeans_leg_reference(w, h, rgb, case):
+    """NLMeans leg (process_nlmeans :1772-1824 + denoiseprofile.cl
+    dist/horiz/vert/accu/finish_v2): VST sandwich + Goossens with the
+    denoiseprofile vert variant (single-pixel distance boost +
+    central_pixel_weight + `norm − 2` offset) and norm2 = (1,1,1)."""
+    strength = case["strength"]
+    shadows = case["shadows"]
+    a1 = case["a"][1]
+    b1 = case["b"][1]
+    scale = 1.0
+    wb = [1.0, 1.0, 1.0]
+    p = [max(shadows + 0.1 * math.log(scale / wb[c]), 0.0) for c in range(3)]
+    compensate_p = DN_P_FULCRUM / (DN_P_FULCRUM ** shadows)
+    a_vst = a1 * compensate_p
+    P = int(math.ceil(case["radius"] * scale))
+    K = int(case["nbhood"])
+    # nlmeans_scattering (:1634-1657) — full/preview split; the golden
+    # path is FULL (no clamp), K stays nbhood.
+    maxk = (K ** 3 + 7.0 * K * math.sqrt(K)) * case["scattering"] / 6.0 + K
+    scattering = case["scattering"]
+    central = case["central_pixel_weight"] * scale
+    norm = 0.045 / ((2 * P + 1) ** 2)
+
+    npixels = w * h
+    buf = [dn_precondition_v2_px((rgb[0][k], rgb[1][k], rgb[2][k]),
+                                 a_vst, p, b1, wb) for k in range(npixels)]
+    cl = lambda v, hi: min(max(v, 0), hi)
+
+    def scatter(index1, index2):
+        a1i = abs(index1)
+        a2i = abs(index2)
+        sgn = (index1 > 0) - (index1 < 0)
+        return int(round(scale * ((a1i ** 3 + 7.0 * a1i * math.sqrt(a2i))
+                                  * sgn * scattering / 6.0 + index1)))
+
+    u2 = [[0.0, 0.0, 0.0, 0.0] for _ in range(npixels)]
+    for kj in range(-K, 1):
+        for ki in range(-K, K + 1):
+            qx = scatter(ki, kj)
+            qy = scatter(kj, ki)
+            dist = [0.0] * npixels
+            for y in range(h):
+                for x in range(w):
+                    if not (0 <= x + qx < w and 0 <= y + qy < h):
+                        continue
+                    p1 = buf[y * w + x]
+                    p2 = buf[(y + qy) * w + (x + qx)]
+                    dist[y * w + x] = sum((p1[c] - p2[c]) ** 2 for c in range(3))
+            tmp = [0.0] * npixels
+            for y in range(h):
+                row = y * w
+                for x in range(w):
+                    tmp[row + x] = sum(dist[row + cl(x + pi, w - 1)]
+                                       for pi in range(-P, P + 1))
+            wgt = [0.0] * npixels
+            for y in range(h):
+                for x in range(w):
+                    box = sum(tmp[cl(y + pj, h - 1) * w + x]
+                              for pj in range(-P, P + 1))
+                    single = dist[y * w + x]
+                    box += single * (2 * P + 1) ** 2 * central
+                    box /= (1.0 + central)
+                    wgt[y * w + x] = nlmeans_fast_mexp2f(max(0.0, box * norm - 2.0))
+            dd = 0.0 if (qx == 0 and qy == 0) else 1.0
+            for y in range(h):
+                for x in range(w):
+                    wpq = 1 if (0 <= x + qx < w and 0 <= y + qy < h) else 0
+                    wmq = 1 if (0 <= x - qx < w and 0 <= y - qy < h) else 0
+                    u4 = wgt[y * w + x]
+                    u4_mq = wgt[cl(y - qy, h - 1) * w + cl(x - qx, w - 1)] * dd
+                    cell = u2[y * w + x]
+                    if wpq:
+                        up = buf[(y + qy) * w + (x + qx)]
+                        cell[0] += u4 * up[0]
+                        cell[1] += u4 * up[1]
+                        cell[2] += u4 * up[2]
+                    if wmq:
+                        um = buf[(y - qy) * w + (x - qx)]
+                        cell[0] += u4_mq * um[0]
+                        cell[1] += u4_mq * um[1]
+                        cell[2] += u4_mq * um[2]
+                    cell[3] += wpq * u4 + wmq * u4_mq
+    bias = case["bias"] - 0.5 * math.log(scale)
+    out = []
+    for k in range(npixels):
+        u = u2[k]
+        px = [u[c] / u[3] if u[3] > 0.0 else 0.0 for c in range(3)]
+        out.append(dn_backtransform_v2_px(px, a_vst, p, b1, bias, wb))
+    return out
+
+
+def _dp_case_with_infer(case):
+    """AUTO modes resolve radius/scattering/shadows/bias from a[1] at
+    commit (commit_params :2924-2938) — bake the resolution in."""
+    if case["mode"] in (3, 4):
+        c = dict(case)
+        radius, scattering, shadows, bias = dn_infer(c["a"][1] * c["overshooting"])
+        c["radius"] = float(radius)
+        c["scattering"] = scattering
+        c["shadows"] = shadows
+        c["bias"] = bias
+        return c
+    return case
+
+
+def gen_denoiseprofile_cases(outdir: str) -> None:
+    os.makedirs(outdir, exist_ok=True)
+    for case in DENOISEPROFILE_WAVE_CASES + DENOISEPROFILE_NLM_CASES:
+        y = case["y_override"]
+        rows = {ch: (y.get(ch, [0.5] * DN_BANDS) if y else [0.5] * DN_BANDS)
+                for ch in range(6)}
+        xs = [b / 6.0 for b in range(6) for _ in range(7)]
+        flat_y = [rows[ch][k] for ch in range(6) for k in range(7)]
+        blob = denoiseprofile_params_blob(
+            radius=case["radius"], nbhood=case["nbhood"],
+            strength=case["strength"], shadows=case["shadows"],
+            bias=case["bias"], scattering=case["scattering"],
+            central_pixel_weight=case["central_pixel_weight"],
+            overshooting=case["overshooting"], a=case["a"], b=case["b"],
+            mode=case["mode"], x=xs, y=flat_y,
+            wavelet_color_mode=case["wavelet_color_mode"])
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="denoiseprofile", modversion=DENOISEPROFILE_MODVERSION,
+            params=blob, iop_order=f"{DENOISEPROFILE_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_denoiseprofile_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the denoiseprofile golden REFERENCES (L017 route;
+    dt-side = XMP adoption + flat probe — the flat probe asserts the
+    flat-preserving direction, NOT identity: force=0.5 default keeps
+    thrs>0 so noise-free flat detail≈0 survives soft-threshold as ≈flat).
+    5 wavelets + 3 NLMeans cases × 3 fixtures, float64 at scale 1."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case in DENOISEPROFILE_WAVE_CASES + DENOISEPROFILE_NLM_CASES:
+        resolved = _dp_case_with_infer(case)
+        ref = dn_wavelets_reference if case["mode"] in (1, 4) \
+            else dn_nlmeans_leg_reference
+        for fixture in DN_FAST_TEX:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            out_rgb = ref(w, h, rgb, resolved)
+
+            def px(x, y, out_rgb=out_rgb, w=w):
+                idx = y * w + x
+                return out_rgb[idx]
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"),
+                      w, h, px)
+        print(f"  denoiseprofile ref {case['name']} done")
 
 
 if __name__ == "__main__":
