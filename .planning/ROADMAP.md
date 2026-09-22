@@ -261,14 +261,18 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 **Requirements:** MCP-01, MCP-02, MCP-03, MCP-04
 **Notes:** 依赖 Phase 2 无头 pipe（已具备）、Phase 9 Session、Phase 11 渲染导出、Phase 5/8 iop 集。Swift MCP SDK 选型入研究。
 
-### Phase 15: Performance 专项（60fps 决战）【v1 扩展，2026-09-22 用户指令】
-**Goal:** 系统性性能专项：满 iop 集（含 denoise、图层栈）下把预览全链重渲从 ~33ms 打进 16.6ms（60fps@100MP 预算），并清算 PERF-5 全部挂账。
+### Phase 15: Performance 专项（60fps 决战 + 全链路性能）【v1 扩展，2026-09-22 用户指令；同日扩充范围】
+**Goal:** 系统性性能专项，覆盖六大战场：①预览管线 ②交互流畅性 ③RAW 解码 ④懒加载 ⑤批量修图吞吐 ⑥内存足迹——把全链打进 60fps@100MP 预算并清算 PERF-5 全部挂账。
 **Success Criteria**:
-1. PREVIEW 全链（满 iop 集 enabled）warm median ≤16.6ms；
-2. 100MP FULL 单帧 + N 层图层栈内存足迹 ≤3GB（TilingPlan 窗口化兑现）；
-3. Instruments 系统级 profile 报告落账（GPU 趟数/热点/内存分布），杠杆兑现记录在案（跨模块 dispatch 批合并、Lab 往返共享应急预案的去留裁决）。
-**Requirements:** PERF-01, PERF-02, PERF-03（PERF-5 债务在此清账）
-**Notes:** 依赖全功能集完成后 profile 才有意义；05-08 的 PERF 复估数字是本 phase 的输入基线。
+1. 预览管线：PREVIEW 全链（满 iop 集 enabled）warm median ≤16.6ms；
+2. 交互零卡顿：滑块拖动/缩放/平移的 hitch（>50ms 帧间隙）= 0，主线程长任务清零（MainActor 阻塞审计）；
+3. RAW 解码：100MP 首渲可交互时间 ≤500ms（后台解码 + 渐进显示），CIRAW 9/8 双档计量在案；
+4. 懒加载：万张级 Session 浏览器滚动 60fps，缩略图按需解码，缩略图内存 LRU 预算生效；
+5. 批量修图：N 张批量 apply_params + 导出的 pipe 并行度跑满，单张均摊时间计量在案并有目标门；
+6. 内存：100MP FULL 单帧 + N 层图层栈足迹 ≤3GB（TilingPlan 窗口化兑现）；
+7. Instruments 系统级 profile 报告落账（GPU 趟数/热点/内存分布），杠杆兑现记录在案（dispatch 批合并、Lab 往返共享应急预案裁决）。
+**Requirements:** PERF-01..08（PERF-5 债务在此清账）
+**Notes:** 依赖全功能集完成后 profile 才有意义；05-08 的 PERF 复估数字是本 phase 的输入基线。解码/懒加载/批量的基线计量在对应功能阶段（9/11）建立。
 
 ---
 *Last updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs); AI-02/03/04 moved to v2*
