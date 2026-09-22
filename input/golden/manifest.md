@@ -914,3 +914,55 @@ out=均值=in，与域/构建无关），比 05-05 BROKEN-route 定向探针更�
 数值 parity 由合成参考承载（上节）。
 注 3：blendop v.1 WRONG 为 dt 侧 blendop 参数缺失的正常告警（与 monochrome
 采纳同形态），不影响 op_params 采纳。
+
+## denoiseprofile golden（Plan 05-07，IOP-DENOISE-01）
+
+blob 版式：denoiseprofile v12 = 416B（8f 参数 + a[3]/b[3] + mode + x/y[6][7]
+力曲线 + 5 兼容 int；RESEARCH §1.1 "244B" 系算术勘误，416B 为实打包尺寸）；
+XMP hex 配方 = `input/golden/fixtures/gen_fixtures.py denoiseprofile_params_blob`
+（8 case：dp_wave_default/rgb/strong/force/auto + dp_nlm_default/scatter/auto，
+XMP 落 `input/golden/cases/`）。
+
+### 参考路线（L017 ①——合成参考主轨）
+
+- 参考实现 = gen_fixtures `dn_wavelets_reference`（process_wavelets CPU 形
+  float64 全链：VST 三变体 precondition → eaw 波列逐 band（5×5 B3 a-trous +
+  edge-aware 权重 fast_mexp2f）→ sum_y2 → Bayesshrink（force 曲线 uint16 量化）
+  → 软阈值累加 → 残差合流 → backtransform；:1346-1658 逐式）+
+  `dn_nlmeans_leg_reference`（VST 包夹 + Goossens 半平面散射偏移 + vert 变体
+  single-pixel boost/central weight/norm−2 + finish_v2）。
+- fixture = delta_impulse（核响应）+ ramp_8ev__noisy_iso125 +
+  gray_staircase__noisy_iso1600（05-01 种子化加噪集——clean 加噪 → 双方同
+  去噪比对）。
+- parity 门：8 case × 3 fixture <1e-3 rel（denoise 族档）——实测 maxRel
+  ≤ 9e-6（24/24 全绿；DenoiseProfileParityTests，2026-09-23）。
+
+### dt-cli 采纳（2026-09-23 实跑，证据 `.work/plans/05-07/adoption/`）
+
+| case | loader | version | DB hex vs XMP blob | 平场探针（flat_0ev 输出 max_dev） |
+|---|---|---|---|---|
+| dp_wave_default | ✓ loaded denoiseprofile | v12 ok ok | byte-identical | 8.9e-8 |
+| dp_wave_rgb | ✓ | v12 ok ok | byte-identical | 4.5e-7 |
+| dp_wave_strong | ✓ | v12 ok ok | byte-identical | 2.4e-4（bias −2 进 delta） |
+| dp_wave_force | ✓ | v12 ok ok | byte-identical | 1.8e-7 |
+| dp_wave_auto | ✓ | v12 ok ok | byte-identical | 8.9e-8 |
+| dp_nlm_default | ✓ | v12 ok ok | byte-identical | 1.5e-6 |
+| dp_nlm_scatter | ✓ | v12 ok ok | byte-identical | 2.5e-5 |
+| dp_nlm_auto | ✓ | v12 ok ok | byte-identical | 2.1e-6 |
+
+注 1：环境约束澄清——本机重建 dt 的 OpenCL 桩 dlopen 噪声（多 CL 插件
+`Symbol not found: _dt_opencl_*`）经 05-06 conf（`opencl=false`）解除，
+denoiseprofile CPU 路径正常加载/导出，本 8 case 未受 colorin/colorout
+故障影响；采纳证据齐全，无需落账"受阻"。
+注 2：平场探针为容差档（≈平场），非 nlmeans 式精确 0——波列软阈值在
+force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自用户 bias。
+注 3：sqlite `hex()` 返回大写——XMP（小写）与 DB hex 逐字节比较须经
+`bytes.fromhex` 归一（驱动 `run_adoption.py` 已固化）。
+
+### SC#2 结论行（Phase 1 spike 量化收口，2026-09-23）
+
+**SC#2 = PASS**。正确剖面方向 + 错配欠去噪方向双断言成立
+（DenoiseProfileParityTests.testSC2ProfileDirections，clean-truth 基线
+= ramp_8ev vs 其 iso-1600 种子加噪变体）：noisy RMS 0.00175 → ISO1600
+正确剖面 0.00071 < generic 0.00075 < ISO125 错配 0.00111（欠去噪）。
+05-08 VALIDATION 直接引用本行。
