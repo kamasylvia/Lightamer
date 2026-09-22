@@ -1,6 +1,23 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "a11y_module_list": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjustment modules"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整模块"
+          }
+        }
+      }
+    },
     "a11y_empty_state_label": {
       "extractionState": "manual",
       "localizations": {

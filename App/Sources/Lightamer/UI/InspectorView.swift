@@ -22,6 +22,29 @@ internal struct InspectorView: View {
         ColorInModule.opName, ColorOutModule.opName, GammaModule.opName,
     ]
 
+    // MARK: GUI-11/GUI-12 layout budget (2026-09-23 fix round)
+    //
+    // The module list used to be an UNCONSTRAINED VStack: 26-30 seeded rows
+    // filled the whole column and pushed the selected module's PANEL body
+    // below the visible area (AX-reachable, visually gone — FINDINGS 05-04
+    // GUI-10/11, 05-05 GUI-12, 05-06/05-07 复发确认). The list now lives in
+    // a ScrollView whose height = min(estimated content, 38% of the column)
+    // — short chains hug their content (no dead gap), long chains scroll,
+    // and the panel body keeps ≥62% of the column (≥240pt across the
+    // supported window range, 990×695 included).
+
+    /// Row height estimate: `.callout` line (~16pt) + 2×6pt vertical padding
+    /// (InspectorRowView label padding). Conservative — if real rows are
+    /// taller, the list scrolls slightly earlier, never clips.
+    private static let estimatedRowHeight: CGFloat = 28
+
+    /// The list container's `.padding(.vertical, 4)` (top + bottom).
+    private static let listVerticalPadding: CGFloat = 8
+
+    /// Maximum share of the column the module list may claim; the selected
+    /// panel keeps the rest.
+    private static let listMaxFraction: CGFloat = 0.38
+
     private var editableInstances: [ModuleInstance] {
         editorState.instances.filter { !Self.terminalOps.contains($0.opName) }
     }
@@ -41,10 +64,13 @@ internal struct InspectorView: View {
                     Text("inspector_no_modules_body")
                 }
             } else {
-                VStack(spacing: 0) {
-                    moduleList
-                    Divider()
-                    selectedPanel
+                GeometryReader { geo in
+                    VStack(spacing: 0) {
+                        moduleList
+                            .frame(height: moduleListHeight(in: geo.size.height))
+                        Divider()
+                        selectedPanel
+                    }
                 }
             }
         }
@@ -57,14 +83,24 @@ internal struct InspectorView: View {
 
     // MARK: - Module list
 
+    private func moduleListHeight(in columnHeight: CGFloat) -> CGFloat {
+        let content = CGFloat(editableInstances.count)
+            * Self.estimatedRowHeight + Self.listVerticalPadding
+        return min(content, columnHeight * Self.listMaxFraction)
+    }
+
     private var moduleList: some View {
-        VStack(spacing: 0) {
-            ForEach(editableInstances, id: \.id) { instance in
-                row(for: instance)
+        ScrollView(.vertical) {
+            VStack(spacing: 0) {
+                ForEach(editableInstances, id: \.id) { instance in
+                    row(for: instance)
+                }
             }
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .top)
+            .background(LightamerColors.surface)
         }
-        .padding(.vertical, 4)
-        .background(LightamerColors.surface)
+        .accessibilityLabel(Text("a11y_module_list"))
     }
 
     private func row(for instance: ModuleInstance) -> some View {
