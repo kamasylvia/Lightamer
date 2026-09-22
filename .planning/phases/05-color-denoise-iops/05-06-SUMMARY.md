@@ -1,7 +1,7 @@
 # Plan 05-06 Summary — nlmeans（IOP-DENOISE-02，v50 29.0，Lab）
 
 **执行**：2026-09-22 夜间 subagent（ZCode executor）。**状态：完成**
-（全套 543 tests / 3 skip / 0 fail；GUI 走查 PASS-with-GUI-13——并发崩溃
+（全套 553 tests / 3 skip / 0 fail（收工前 touch + build-for-testing 重编复跑防增量吞测试更新）；GUI 走查 PASS-with-GUI-13——并发崩溃
 发现已立案，非本 plan 修复范围）。
 
 ## 任务完成表
@@ -29,7 +29,7 @@
 - [x] 面板 + PanelWiring +2 + catalog + a11y identifier + GUI 走查（SC#4 首测数字）
 - [x] 轨 B 双判据：`testTrackBNeutralityWithNLMeansInserted`（strength=0 插链
       中性 patch 6/6 + 水位保持——Lab a=b=0 锚定不破）；PERF 两档落 perf.md
-- [x] 全 suite 绿：**543 tests / 3 skip / 0 fail**（基线 535 → +8）；ROI/iscale
+- [x] 全 suite 绿：**553 tests / 3 skip / 0 fail**（基线 535 → +18；收工防护复跑）；ROI/iscale
       头注钉死（modifyROI 恒等 + scale 折算只用 roi.scale ÷ piece.iscale）
 
 ## 新增/改动文件

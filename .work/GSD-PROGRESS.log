@@ -65,3 +65,4 @@
 2026-09-22 [L019b] 直启实验成功：抓注入现场 → 复刻 DYLD/config 环境 → 全套 480/3skip/0fail 等价 + 类过滤生效 → Scripts/test-direct.sh 固化，AGENTS.md/巡检命令切换。enrollment 弹窗对单测路径根治。
 2026-09-22 [05-05] omp 执行完成（monochrome：grid filter/apply kernels + dt 采纳 4/4 byte-identical + 面板色轮 + GUI 登记，535/0/3）。到达用户暂停点：HOLD 落盘（用户重启 ZCode 加载新 skill），恢复后首动作 = 05-05 复验 subagent。GUI-12 立项（moduleList 滚动约束，05-08 前修）。
 2026-09-22 [05-05] subagent 验收 PASS-with-notes：7/7 AC 独立证实（parity 16/16 ≤1.04e-6、dt 采纳 4/4 byte-identical、probe 逐值复现、GUI 黑白转换 luma corr 0.9776 + 撤销逐位回退）；sigma² 分歧深核 = CL/CPU 两腿数值等价（D1 正确）；4 notes 非阻塞（头注措辞/latent 文档不一致/manifest 归 05-08/GUI-12 按计划）。535 tests 独立实跑。05-05 闭环。
+[2026-09-22 23:30] 05-06 nlmeans 执行完成（夜间 ZCode subagent）：T1-T5 5 commits a61f746..061c4aa，全套 553/3skip/0fail，SUMMARY+DECISIONS 落盘，GUI 走查 PASS + 新发现 GUI-13（并发崩溃，05-08 前修）

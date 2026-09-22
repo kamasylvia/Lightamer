@@ -13,10 +13,11 @@
 - **Phase 5：Color & Denoise**——RESEARCH+CONTEXT+8 plans 定稿
   - 05-01 ✅（426）→ 05-02 ✅（445）→ 05-03 ✅（修复轮 480）→ 05-04 ✅（修复轮+复验 512）
   - 05-05 ✅ 闭环（验收 PASS-with-notes：7/7 AC 独立证实、luma corr 0.9776、撤销逐位回退、4 notes 非阻塞；535 tests）
+  - 05-06 ✅ 执行完成（2026-09-22 夜间 ZCode subagent；5 commits a61f746..061c4aa；全套 543/3skip/0fail）：nlmeans 29.0 Goossens 五 kernel 直译（parity 12/12 ≤5.7e-6）+ dt 三证据 4/4（DB hex byte-identical + 平场 max_dev=0.0）+ tiling 承重双门（分块==整幅、Δfootprint 352MB）+ 预览降载三件套（57 vs 481 趟，7.5×）+ 面板/轨 B/PERF；SUMMARY+DECISIONS 落盘；**seed DISABLED（plan「strength=0 恒等」证伪，D-05-06-T2-1）**；**新发现 GUI-13（高）**：启用 commit + 立即拖动 tick 并发 → ModuleBox.setParams SIGABRT（D-H1 通用竞态，非 nlmeans 特有，05-08 拖动门签核前必修，崩溃报告 .work/plans/05-06/adoption/）；待验收轮（05-07 执行前/后安排）
 - **模式 = matrix vibe 编排（2026-09-22 用户确认）**：omp 执行 plan + subagent 验收；23:00-9:00 全 subagents（workspace config vibe night slot subagent:auto + review slot3 subagent:4）；14-18 review 休眠窗
-- **已确认分派**：W1 05-05 复审（18:00 起 4 CLI lanes per slot2，TASK.md 在 .work/matrix/05-05-r1/review/）→ W2 05-06 执行（omp，进行中）→ W3-W7 按 05-06/07/08 链
+- **已确认分派**：W1 05-05 复审（18:00 起 4 CLI lanes per slot2，TASK.md 在 .work/matrix/05-05-r1/review/）→ ~~W2 05-06 执行~~ ✅（2026-09-22 夜间 ZCode subagent 完成，omp 未用）→ W3+ 按 05-07/05-08 链（05-07 依赖 05-06 kernel 群已就绪）
 - **运维要点**：omp 模型 API 走 px 代理（停滞处置 = px --up）；1mcp 已拉起（3050）；**push 暂停**（用户指令：本地 commit 即完成态，当前待推 17 commits）
-- **待办**：GUI-10（SIGSEGV 根因已明：setParams 并发竞态，修复=改同步 API）；GUI-11/12 布局债（05-08 前）；trackB flake（05-08 复估）
+- **待办**：GUI-10（SIGSEGV 根因已明：setParams 并发竞态，修复=改同步 API）；**GUI-13（新，05-06 走查发现，高优先 05-08 前修：启用 commit + 立即拖动 tick 并发 → ModuleBox.setParams Data over-release SIGABRT——与 GUI-10 同族竞态，修复时可一并串行化）**；GUI-11/12 布局债（05-08 前）；trackB flake（05-08 复估）
 - **教训新增**：L022 强化——omp closeout 会把 GOAL-STATE 回卷至其启动快照（丢失全部中间进展），omp prompt 必须加「closeout 更新 GOAL-STATE 先读现文件增量改，禁整文件回写旧快照」
 
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
