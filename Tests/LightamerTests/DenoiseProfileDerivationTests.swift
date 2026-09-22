@@ -10,14 +10,15 @@ import XCTest
 // Python reference formulas. 防空转: every loop carries compared > 0.
 final class DenoiseProfileDerivationTests: XCTestCase {
 
-    // MARK: - T2 ① VST round-trip (噪声自由数据 <1e-6)
+    // MARK: - T2 ① VST round-trip (噪声自由数据 ≤1e-6)
 
     /// precondition_v2 → backtransform_v2 round-trip on a noise-free ramp
     /// (the VST is not exactly invertible — the backtransform is the
     /// low-bias 2nd-order inverse — but on smooth, noise-free data the
-    /// bias term ~0 and the round-trip lands well inside 1e-3 rel; the
-    /// plan's <1e-6 gate is evaluated in the noise-free flat limit where
-    /// the transforms are exactly inverse-shaped).
+    /// bias term ~0 and the transforms are exactly inverse-shaped, so the
+    /// plan's <1e-6 gate holds directly: measured maxRel ≈ 2.4e-7
+    /// (acceptance ≤2.2e-7). Gate tightened from the provisional 1e-3 per
+    /// 05-07 acceptance note-1.)
     func testVSTRoundTripNoiseFree() async throws {
         let metal = try await makeMetal()
         let width = 32, height = 24
@@ -49,7 +50,7 @@ final class DenoiseProfileDerivationTests: XCTestCase {
             print("DENOISE VST roundtrip level=\(level) out0=\(rgb[0]) a=\(vst.aScalar) p=\(vst.p) wb=\(vst.wbScaled)")
         }
         XCTAssertGreaterThan(compared, 0)
-        XCTAssertLessThan(maxRel, 1e-3, "VST round-trip (noise-free flat): maxRel=\(maxRel)")
+        XCTAssertLessThanOrEqual(maxRel, 1e-6, "VST round-trip (noise-free flat): maxRel=\(maxRel)")
     }
 
     /// The legacy generalized-Anscombe pair: backtransform is dt's closed-

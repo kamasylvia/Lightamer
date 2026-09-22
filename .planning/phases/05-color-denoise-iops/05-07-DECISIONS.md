@@ -75,3 +75,16 @@ nlmeans 有 K clamp 3 + decimate 降载；波列 band 数由 20% 支撑域规则
 **run 级 dscIn** 全幅导出（tile 内稳定的前提，L021）——不做 preview 裁剪，
 PREVIEW 经 TilingPlan 分块摊薄（FULL 100MP 35 tiles / 单 tile 读平面
 0.059GB）。PERF7：2048×1536 → max_scale 7 ⇒ 31 趟 41.7ms（Debug）。
+
+## D-05-07-T6-5 — dt 默认滑块预填分歧：manual 模式 dt 预填推断值 vs Lightamer 非 Auto 滑块 = $DEFAULT（已知分歧，明示）
+
+dt 的 denoiseprofile 在 **manual（非 auto）模式**下会把按 EXIF ISO **推断
+出的剖面参数预填进滑块**（`dt_iop_reload_defaults` 依赖图像上下文），用户
+看到的是「该图推断值」；Lightamer 的面板滑块无图像上下文（ModuleInstance
+仅携带 params），**Auto(EXIF) 之外的档位一律显示 `$DEFAULT` 字面默认值**
+（manual 档 = 手动 ISO 滑块 + 默认 a/b，generic 档 = 1e-4 具体档），生效
+剖面只在只读摘要里数值展示。差异的影响：同图同档下 dt 滑块初值 ≠ 本面板
+初值（语义为「推断起点 vs 中性默认」）；Auto(EXIF) 路径两侧一致（均按
+EXIF 解析），故 golden/采纳证据不受影响。05-07 验收 note-3 明示为已知
+分歧；若后续要求 dt 同款预填，需面板侧拿到解码元数据（Phase 6+ 面板刷新
+审计一并议）。

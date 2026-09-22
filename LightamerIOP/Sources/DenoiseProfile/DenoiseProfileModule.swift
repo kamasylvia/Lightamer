@@ -423,7 +423,10 @@ public final class DenoiseProfileModule: IOPModule {
         sumY2: SIMD3<Float>, npixels: Int, scale: Int, maxScale: Int,
         force: [[Float]], modeRGB: Bool
     ) -> SIMD3<Float> {
-        let varf: Float = 0.5229 // sqrt(70)/16 — sqrt(2+2·16+36)/16
+        // 05-07 note-2 closeout: exact expression — matches WaveletEngine
+        // :159 (single-source authority); the 0.5229 rounded literal made
+        // the two bayesshrink sources disagree in the last ULPs.
+        let varf: Float = (Float(70)).squareRoot() / 16 // sqrt(70)/16 ≈ 0.5229 — sqrt(2+2·16+36)/16
         let sb2 = pow(varf, Float(scale))
         let sb2sq = sb2 * sb2
         let n = Float(max(npixels - 1, 1))
