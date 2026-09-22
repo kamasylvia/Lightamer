@@ -50,7 +50,9 @@ kernel void bilateral3d_splat(
     const float fz = gz - (float)zi;
     const float contrib = 100.0f / (u.sigmaS * u.sigmaS);
     const int base = (xi + u.sizeX * yi) * u.sizeZ + zi;
-    const int ox = 1, oy = u.sizeX, oz = u.sizeX * u.sizeY;
+    // dt CPU strides（bilateral.c:204-206: ox=size_z, oy=size_x*size_z,
+    // oz=1；05-01 初版误用 CL x-minor 步长，05-05-T3 非立方网格暴露）。
+    const int ox = u.sizeZ, oy = u.sizeX * u.sizeZ, oz = 1;
     const float qw[4] = {
         (1-fx)*(1-fy), fx*(1-fy),
         (1-fx)*fy,     fx*fy,
@@ -171,7 +173,8 @@ kernel void bilateral3d_slice(
     const float fy = gy - (float)yi;
     const float fz = gz - (float)zi;
     const int base = (xi + u.sizeX * yi) * u.sizeZ + zi;
-    const int ox = 1, oy = u.sizeX, oz = u.sizeX * u.sizeY;
+    // dt CPU strides（同 splat 注释；dt slice_to_output :261-263 对偶）。
+    const int ox = u.sizeZ, oy = u.sizeX * u.sizeZ, oz = 1;
     const int offs[8] = { 0, ox, oy, oy+ox, oz, oz+ox, oz+oy, oz+oy+ox };
     const float ws[8] = {
         (1-fx)*(1-fy)*(1-fz), fx*(1-fy)*(1-fz),

@@ -4284,6 +4284,7 @@ def main() -> None:
         gen_vibrance_cases(cases_dir)
         gen_velvia_cases(cases_dir)
         gen_colorzones_cases(cases_dir)
+        gen_monochrome_cases(cases_dir)
         # Plan 03-02: temperature golden references — synthesizes
         # <outdir>/<temperature case>__<fixture>.exr from the canonical
         # fixtures in the fixtures dir (pass the fixtures dir as outdir).
@@ -4332,10 +4333,11 @@ def main() -> None:
         gen_channelmixerrgb_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_channelmixer_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_colorcontrast_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
-        # Plan 05-04: vibrance + velvia + colorzones (L017 route).
         gen_vibrance_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_velvia_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_colorzones_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 05-05: monochrome (L017 route; CPU sigma2 + grid leg).
+        gen_monochrome_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
     print(f"gen_fixtures[{mode}] → {outdir}")
 
 
@@ -6239,6 +6241,230 @@ def gen_colorzones_refs(canonical_dir: str, out_dir: str) -> None:
                 idx = y * w + x
                 lab = lab_from_rec2020((rgb[0][idx], rgb[1][idx], rgb[2][idx]))
                 return lab_to_rec2020(colorzones_apply_pixel(lab, tables, channel))
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# monochrome: filter + bilateral-grid full-chain mirror (MonochromeModule +
+# BilateralGridReference Swift mirrors; CPU sigma2 = 2*(size*128)^2,
+# monochrome.c:205; grid sigma_s=20/scale, sigma_r=250, detail=-1, :220-229).
+# Small fixtures (<=64px) run the true grid; larger fixtures reuse the
+# slice-through-grid path identically (grid dims grow sub-linearly).
+
+def monochrome_color_filter(ai, bi, a, b, sigma2):
+    """_color_filter (:168-175) in float64 (exact exp; dt_fast_expf
+    deviation recorded in 05-05-DECISIONS D3)."""
+    t = min(max(((ai - a) ** 2 + (bi - b) ** 2) / sigma2, 0.0), 1.0)
+    return math.exp(-t)
+
+
+def monochrome_envelope(L):
+    """_envelope (:177-195) in float64."""
+    x = min(max(L / 100.0, 0.0), 1.0)
+    beta = 0.6
+    if x < beta:
+        tmp = x / beta - 1.0
+        return 1.0 - tmp * tmp
+    tmp1 = (1.0 - x) / (1.0 - beta)
+    tmp2 = tmp1 * tmp1
+    tmp3 = tmp2 * tmp1
+    return 3.0 * tmp2 - 2.0 * tmp3
+
+
+def _mono_grid_point(g, i, j, l):
+    x = min(max(i / g["ss"], 0.0), g["sx"] - 1)
+    y = min(max(j / g["ss"], 0.0), g["sy"] - 1)
+    z = min(max(l / g["sr"], 0.0), g["sz"] - 1)
+    xi = min(int(x), g["sx"] - 2)
+    yi = min(int(y), g["sy"] - 2)
+    zi = min(int(z), g["sz"] - 2)
+    return ((xi + yi * g["sx"]) * g["sz"] + zi, x - xi, y - yi, z - zi)
+
+
+def _mono_make_grid(w, h, sigmaS, sigmaR, lRange=100.0):
+    """BilateralGridReference.makeGrid mirror (grid_size straight port)."""
+    ss = max(sigmaS, 0.5)
+    x0 = min(max(int(round(w / ss)), 4), 3000)
+    y0 = min(max(int(round(h / ss)), 4), 3000)
+    z0 = min(max(int(round(lRange / sigmaR)), 4), 50)
+    ss = max(h / y0, w / x0)
+    sr = lRange / z0
+    sx = int(math.ceil(w / ss)) + 1
+    sy = int(math.ceil(h / ss)) + 1
+    sz = int(math.ceil(lRange / sr)) + 1
+    return {"sx": sx, "sy": sy, "sz": sz, "ss": ss, "sr": sr,
+            "payload": [0.0] * (sx * sy * sz)}
+
+
+def _mono_splat(g, luma, w, h):
+    scale = 100.0 / (g["ss"] * g["ss"])
+    for j in range(h):
+        for i in range(w):
+            l = luma[j * w + i]
+            gi, fx, fy, fz = _mono_grid_point(g, i, j, l)
+            # dt CPU strides (bilateral.c:204-206).
+            ox, oy, oz = g["sz"], g["sx"] * g["sz"], 1
+            for off, wt in ((0, (1 - fx) * (1 - fy)),
+                            (ox, fx * (1 - fy)),
+                            (oy, (1 - fx) * fy),
+                            (oy + ox, fx * fy)):
+                g["payload"][gi + off] += wt * (1 - fz) * scale
+                g["payload"][gi + off + oz] += wt * fz * scale
+
+
+def _mono_blur_dim(g, axis):
+    nx, ny, nz = g["sx"], g["sy"], g["sz"]
+    w0, w1, w2 = 6.0 / 16.0, 4.0 / 16.0, 1.0 / 16.0
+    src = list(g["payload"])
+    dst = list(src)
+
+    def idx(x, y, z):
+        return (x + y * nx) * nz + z
+    if axis == 0:
+        for y in range(ny):
+            for z in range(nz):
+                t1 = src[idx(0, y, z)]
+                dst[idx(0, y, z)] = src[idx(0, y, z)] * w0 + w1 * src[idx(1, y, z)] + w2 * src[idx(2, y, z)]
+                t2 = src[idx(1, y, z)]
+                dst[idx(1, y, z)] = src[idx(1, y, z)] * w0 + w1 * (src[idx(2, y, z)] + t1) + w2 * src[idx(min(3, nx - 1), y, z)]
+                for x in range(2, nx - 2):
+                    t3 = src[idx(x, y, z)]
+                    dst[idx(x, y, z)] = src[idx(x, y, z)] * w0 + w1 * (src[idx(x + 1, y, z)] + t2) + w2 * (src[idx(x + 2, y, z)] + t1)
+                    t1, t2 = t2, t3
+                if nx > 3:
+                    t3 = src[idx(nx - 2, y, z)]
+                    dst[idx(nx - 2, y, z)] = src[idx(nx - 2, y, z)] * w0 + w1 * (src[idx(nx - 1, y, z)] + t2) + w2 * t1
+                    dst[idx(nx - 1, y, z)] = src[idx(nx - 1, y, z)] * w0 + w1 * t3 + w2 * t2
+    else:
+        for x in range(nx):
+            for z in range(nz):
+                t1 = src[idx(x, 0, z)]
+                dst[idx(x, 0, z)] = src[idx(x, 0, z)] * w0 + w1 * src[idx(x, 1, z)] + w2 * src[idx(x, 2, z)]
+                t2 = src[idx(x, 1, z)]
+                dst[idx(x, 1, z)] = src[idx(x, 1, z)] * w0 + w1 * (src[idx(x, 2, z)] + t1) + w2 * src[idx(x, min(3, ny - 1), z)]
+                for y in range(2, ny - 2):
+                    t3 = src[idx(x, y, z)]
+                    dst[idx(x, y, z)] = src[idx(x, y, z)] * w0 + w1 * (src[idx(x, y + 1, z)] + t2) + w2 * (src[idx(x, y + 2, z)] + t1)
+                    t1, t2 = t2, t3
+                if ny > 3:
+                    t3 = src[idx(x, ny - 2, z)]
+                    dst[idx(x, ny - 2, z)] = src[idx(x, ny - 2, z)] * w0 + w1 * (src[idx(x, ny - 1, z)] + t2) + w2 * t1
+                    dst[idx(x, ny - 1, z)] = src[idx(x, ny - 1, z)] * w0 + w1 * t3 + w2 * t2
+    g["payload"] = dst
+
+
+def _mono_blur_z(g):
+    nx, ny, nz = g["sx"], g["sy"], g["sz"]
+    w1, w2 = 4.0 / 16.0, 2.0 / 16.0
+    src = list(g["payload"])
+    dst = list(src)
+
+    def idx(x, y, z):
+        return (x + y * nx) * nz + z
+    for x in range(nx):
+        for y in range(ny):
+            t1 = src[idx(x, y, 0)]
+            dst[idx(x, y, 0)] = w1 * src[idx(x, y, 1)] + w2 * src[idx(x, y, min(2, nz - 1))]
+            t2 = src[idx(x, y, 1)]
+            dst[idx(x, y, 1)] = w1 * (src[idx(x, y, 2)] - t1) + w2 * src[idx(x, y, min(3, nz - 1))]
+            for z in range(2, nz - 2):
+                t3 = src[idx(x, y, z)]
+                dst[idx(x, y, z)] = w1 * (src[idx(x, y, z + 1)] - t2) + w2 * (src[idx(x, y, z + 2)] - t1)
+                t1, t2 = t2, t3
+            if nz > 3:
+                t3 = src[idx(x, y, nz - 2)]
+                dst[idx(x, y, nz - 2)] = w1 * (src[idx(x, y, nz - 1)] - t2) - w2 * t1
+                dst[idx(x, y, nz - 1)] = -w1 * t3 - w2 * t2
+    g["payload"] = dst
+
+
+def _mono_slice(g, luma, w, h, detail=-1.0):
+    norm = -detail * g["sr"] * 0.04
+    out = [0.0] * (w * h)
+    for j in range(h):
+        for i in range(w):
+            l = luma[j * w + i]
+            gi, fx, fy, fz = _mono_grid_point(g, i, j, l)
+            # dt CPU strides (bilateral.c:405-407).
+            ox, oy, oz = g["sz"], g["sx"] * g["sz"], 1
+            ldiff = (g["payload"][gi] * (1 - fx) * (1 - fy) * (1 - fz)
+                     + g["payload"][gi + ox] * fx * (1 - fy) * (1 - fz)
+                     + g["payload"][gi + oy] * (1 - fx) * fy * (1 - fz)
+                     + g["payload"][gi + ox + oy] * fx * fy * (1 - fz)
+                     + g["payload"][gi + oz] * (1 - fx) * (1 - fy) * fz
+                     + g["payload"][gi + ox + oz] * fx * (1 - fy) * fz
+                     + g["payload"][gi + oy + oz] * (1 - fx) * fy * fz
+                     + g["payload"][gi + ox + oy + oz] * fx * fy * fz)
+            out[j * w + i] = max(0.0, l + norm * ldiff)
+    return out
+
+
+def monochrome_apply_pixel(lin, f_smooth, highlights):
+    """process apply leg (:232-238) in float64."""
+    tt = monochrome_envelope(lin)
+    t = tt + (1.0 - tt) * (1.0 - highlights)
+    return (1.0 - t) * lin + t * f_smooth * lin / 100.0
+
+
+# 4 monochrome cases (neutral/size-sweep + warm/cool filters + highlights
+# extreme). size=100 ~ identity-adjacent (filter->1 within 1e-9 on the
+# fixture chroma range); highlights=1 extreme exercises the t-mix floor.
+MONOCHROME_CASES = [
+    {"name": "mono_neutral", "a": 0.0, "b": 0.0, "size": 100.0, "highlights": 0.0},
+    {"name": "mono_warm", "a": 32.0, "b": 64.0, "size": 2.3, "highlights": 0.0},
+    {"name": "mono_cool", "a": 0.0, "b": -64.0, "size": 2.3, "highlights": 0.0},
+    {"name": "mono_highlights", "a": 32.0, "b": 64.0, "size": 2.3, "highlights": 1.0},
+]
+MONOCHROME_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev",
+                           "gray_staircase"]
+
+
+def monochrome_params_blob_for_case(case) -> str:
+    packed = struct.pack(MONOCHROME_PARAMS_FORMAT, case["a"], case["b"],
+                         case["size"], case["highlights"])
+    assert len(packed) == 16, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_monochrome_cases(outdir: str) -> None:
+    for case in MONOCHROME_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="monochrome", modversion=MONOCHROME_MODVERSION,
+            params=monochrome_params_blob_for_case(case),
+            iop_order=f"{MONOCHROME_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_monochrome_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the monochrome golden REFERENCES (L017 route; dt-side =
+    XMP adoption + flat PFM probe). 4 case x 4 fixture (grid leg small-fixture
+    exact; dt CPU sigma2)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case in MONOCHROME_CASES:
+        sigma2 = 2.0 * (case["size"] * 128.0) ** 2
+        for fixture in MONOCHROME_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            labs = [lab_from_rec2020((rgb[0][k], rgb[1][k], rgb[2][k]))
+                    for k in range(w * h)]
+            filt = [100.0 * monochrome_color_filter(
+                lab[1], lab[2], case["a"], case["b"], sigma2) for lab in labs]
+            g = _mono_make_grid(w, h, 20.0, 250.0)
+            _mono_splat(g, filt, w, h)
+            _mono_blur_dim(g, 0)
+            _mono_blur_dim(g, 1)
+            _mono_blur_z(g)
+            smooth = _mono_slice(g, filt, w, h)
+            out_lab = [
+                (monochrome_apply_pixel(labs[k][0], smooth[k], case["highlights"]), 0.0, 0.0)
+                for k in range(w * h)]
+            out_rgb = [lab_to_rec2020(lab) for lab in out_lab]
+
+            def px(x, y, out_rgb=out_rgb, w=w):
+                idx = y * w + x
+                return out_rgb[idx]
 
             write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
 
