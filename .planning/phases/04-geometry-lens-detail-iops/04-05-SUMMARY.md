@@ -44,7 +44,7 @@ LabMath / toneequal EIGF 核/CorrectionLUT 架构同构），D-G5 主证（sharp
   （EqualizerParityTests 4/4，含带能量内容断言）。
 - **SC#4 后向扩展兑现（T1）**：sharpen 真模块 36×36 扩展 + 记账双断言 ✅。
 - **轨 B 回归（T5）**：ColorSync 中性度 + 交叉一致性 ✅（GeometryGolden 4/4）。
-- **PERF-5 增量（T5）**：单帧增量记录落 `.work/04-05/perf.md` ✅
+- **PERF-5 增量（T5）**：单帧增量记录落 `.work/plans/04-05/perf.md` ✅
   （equalizer ~5-8ms 超 6ms 已标注，不阻塞）。
 
 ## 关键修复/裁决（排障记录，教训沉淀候选）
@@ -80,5 +80,5 @@ LabMath / toneequal EIGF 核/CorrectionLUT 架构同构），D-G5 主证（sharp
 
 ## 过程记录
 
-- 本文件 + 各提交 body + 04-05-DECISIONS.md + `.work/04-05/perf.md`；
+- 本文件 + 各提交 body + 04-05-DECISIONS.md + `.work/plans/04-05/perf.md`；
   调试探针无（合成参考一次写对为主；parity 首轮全绿 22/22）。

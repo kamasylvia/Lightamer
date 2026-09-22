@@ -31,8 +31,8 @@ harness** green——Phase 3+ 算法移植的闸门自此生效。
   - 判据 2 交叉一致性:线性域(colorout 平面 vs CI 直渲 linear-P3)严格 <0.004;字节域 vs ColorSync 8-bit 基准 p90 <2/255 + 低端 ICC 表区有界(host finding:ColorSync 8-bit 表 ≈ 纯 gamma-2.2 无线性段,标准 sRGB 曲线才是正确发射——记录于测试注释)
 - **缓存断言**(coordinator 同款操作序列):run1 全 miss(4)→ run2 全 hit → 模拟换屏(override+re-commit)→ **colorin hit / colorout+gamma miss(仅终端段失效)** → 回切全 hit
 - **真 RAW 冒烟 7/7**(DSC09991.ARW@RAW9):.bgra8Unorm 尾、冷 4 平面、暖 0 工作、显示范围、非退化、fallback 腿
-- **真 RAW 全链 vs CI 直渲对照**:解码腿逐位一致(pool vs CI float max 0.0);全链 R 通道 meanAbsDiff **1.52**(<2)、B 差异全部落在低端表区(89.4% 像素含 <60 通道的夜景);两腿 PNG 视觉不可区分(`.work/02-04/real-*.png`)
-- **app 内实证**:color 日志("display profile → ColorSync fallback (custom ICC)")、默认链 4 planes 渲染日志、屏显截图;`.work/02-04/screen-change.md`
+- **真 RAW 全链 vs CI 直渲对照**:解码腿逐位一致(pool vs CI float max 0.0);全链 R 通道 meanAbsDiff **1.52**(<2)、B 差异全部落在低端表区(89.4% 像素含 <60 通道的夜景);两腿 PNG 视觉不可区分(`.work/plans/02-04/real-*.png`)
+- **app 内实证**:color 日志("display profile → ColorSync fallback (custom ICC)")、默认链 4 planes 渲染日志、屏显截图;`.work/plans/02-04/screen-change.md`
 
 ## 执行过程抓出并修复的缺陷(3 真 bug + 2 harness 坑)
 
@@ -65,5 +65,5 @@ harness** green——Phase 3+ 算法移植的闸门自此生效。
 ## 环境注记
 
 - 本机屏 = BenQ PD2705U(自定义 ICC,无内建屏):resolve → ColorSync fallback 为**正确**行为;fast-path 测试全部以显式 Params 驱动(计划允许的 host-variance guard 生效两次)
-- ColorChecker ARW 采集失败(raw.pixls.us 上传政策排除 color target + 无等效 CC0 源)→ 合成 fixture 承担 gate,ARW 路径 XCTSkip,补拍激活路径在案(`.work/02-04/colorchecker-acquisition.md`)
+- ColorChecker ARW 采集失败(raw.pixls.us 上传政策排除 color target + 无等效 CC0 源)→ 合成 fixture 承担 gate,ARW 路径 XCTSkip,补拍激活路径在案(`.work/plans/02-04/colorchecker-acquisition.md`)
 - L009 全程生效(Resilio SIGSTOP/SIGCONT);新文件已 `tuist generate`

@@ -64,7 +64,7 @@
 - [x] BilateralGrid3D：小图 Lab 全链有界/移动/确定性 + 平场守恒 + splat 守恒；
   未接 IOP 模块。
 - [x] 全 suite 绿（0 fail）；每任务独立提交；SUMMARY + DECISIONS 落盘。
-- [x] 剖面/参数 blob 配方齐备（05-02..08 可直接消费）；过程文件归 `.work/05-01/`
+- [x] 剖面/参数 blob 配方齐备（05-02..08 可直接消费）；过程文件归 `.work/plans/05-01/`
   （fixtures 工作拷贝 + 本文件草稿）；无 /tmp 落盘产物。
 
 ## 全量回归

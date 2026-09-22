@@ -57,7 +57,7 @@ Lab 域三模块全量交付：**colisa（47.0）/ tonecurve（48.0，10001 点 
 
 - dt 源码树本地补丁未动（sidecar_jobs.c 两处 no_thread_safety_analysis，03-02 遗留）；本轮仅重建三个插件 target + 生成 golden。
 - Resilio Sync 按 L009 惯例 SIGSTOP 于构建期，会话结束 SIGCONT。
-- `.work/03-03/` 未立卷（过程探针均在 /tmp 内联，无长程产物）；本 SUMMARY + manifest + 模块头即全部记录。
+- `.work/plans/03-03/` 未立卷（过程探针均在 /tmp 内联，无长程产物）；本 SUMMARY + manifest + 模块头即全部记录。
 
 ## Artifacts
 

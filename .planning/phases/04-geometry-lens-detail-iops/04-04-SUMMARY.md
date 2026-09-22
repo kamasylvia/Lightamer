@@ -81,6 +81,6 @@ kernel）。槽位 13.0（cacorrectrgb 13.5 注释对齐）。
 
 ## 过程记录
 
-- 本文件 + 各提交 body + 04-04-DECISIONS.md + `.work/04-04/match-ledger.md`；
+- 本文件 + 各提交 body + 04-04-DECISIONS.md + `.work/plans/04-04/match-ledger.md`；
   调试探针（LensDumpProbe/行列 dump/CI 坐标探针脚本）已全部退役，
-  无 `.work/04-04/` 日志留存（排障全在提交说明；match-ledger 为交付物保留）。
+  无 `.work/plans/04-04/` 日志留存（排障全在提交说明；match-ledger 为交付物保留）。

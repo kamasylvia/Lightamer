@@ -12,7 +12,7 @@ import Foundation
 /// `.colorSyncFallback` (the CIContext/ColorSync precise path; also the
 /// D-COL1 criterion-2 baseline).
 ///
-/// **Matching mechanics (host-verified 2026-09-19, `.work/02-04/`):**
+/// **Matching mechanics (host-verified 2026-09-19, `.work/plans/02-04/`):**
 /// `NSColorSpace` has no `name` property on the macOS 27 SDK — plan wording
 /// "`colorSpace.name` → matching table" is realized as, in order:
 /// 1. `CGColorSpace.name` (the `kCGColorSpace…` registered names — set for

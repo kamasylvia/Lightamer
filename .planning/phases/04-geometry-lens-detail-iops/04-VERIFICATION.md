@@ -17,7 +17,7 @@ deferred:
     evidence: "04-05-DECISIONS.md D-04-05-T0-0（Bayer 域不可移植 + lens TCA 已覆盖横向 CA）；Phase 4 需求清单（IOP-GEO-01..04/DETAIL-01..04）本就不含 cacorrect——defer 与 ROADMAP 语义一致"
   - truth: "PERF-5 全链重渲 33.42ms 未达 16.6ms 预算（Phase 3 36.23ms → Phase 4 全链 +9 中性模块≈零增量）"
     addressed_in: "Phase 5+（Lab 往返共享 Open#9 + dispatch 批合并）"
-    evidence: "TODO.md PERF-5 行 + .work/04-07/perf-phase4.md；04-07 明确「只记录不设门」，SC#1-4 不含该预算"
+    evidence: "TODO.md PERF-5 行 + .work/plans/04-07/perf-phase4.md；04-07 明确「只记录不设门」，SC#1-4 不含该预算"
   - truth: "toneequal/flip 同类 dscIn × scale 模式审计"
     addressed_in: "Phase 5"
     evidence: "04-06-SUMMARY 遗留节 + TODO「Phase 3 遗留/分配」行（L021 引用；当前均被恒等路径免疫，质量向）"
@@ -37,7 +37,7 @@ human_verification:
     why_human: "增强方向/强度人眼判据；方向/能量/parity 已由 22 个 parity 测试自动钉死"
   - test: "Vision 自动检测真机抽检（真实 RAW 地平线/矩形）"
     expected: "地平线 θ 与矩形角点在真实照片上可用"
-    why_human: "合成探针已 4/4 绿（θ<0.2°/矩形<0.5%/符号钉死），真实照片泛化需人看；field notes 落 .work/04-03/vision-field-notes.md"
+    why_human: "合成探针已 4/4 绿（θ<0.2°/矩形<0.5%/符号钉死），真实照片泛化需人看；field notes 落 .work/plans/04-03/vision-field-notes.md"
   - test: "990pt 窗三列布局复验（GUI-4 遗留）"
     expected: "小窗下视口仍为视觉主体（≥50%）"
     why_human: "1440pt 窗已量化达标（13.9%/54.1%/32.0%，FINDINGS.md）；990pt 因 macOS 持久化 split frames 本轮未复现，需人工开窗目验"
@@ -104,13 +104,13 @@ GUI 红线（AGENTS.md Phase 执行模型新增硬性项）：04-06 已执行真
 | # | 挂账 | 记录位置 | 性质 |
 |---|---|---|---|
 | 1 | crop overlay 交互 3 行（拖拽手感/比例锁手感/实时预览目验） | 04-VALIDATION Manual-Only 表 + L011（XCUITest 需解锁控制台，Phase 1 起环境挂账） | 人工交互，自动化腿已覆盖语义 |
-| 2 | Vision 真机抽检 | `.work/04-03/vision-field-notes.md` + VALIDATION 表 | 合成探针 4/4 已绿，真实照片泛化需人看 |
+| 2 | Vision 真机抽检 | `.work/plans/04-03/vision-field-notes.md` + VALIDATION 表 | 合成探针 4/4 已绿，真实照片泛化需人看 |
 | 3 | 镜头校正视觉（建筑直线） | VALIDATION Manual-Only 表 row 3 | 人眼直线判据，数值腿已由 parity 覆盖 |
 | 4 | detail 五模块视觉抽检 | VALIDATION Manual-Only 表 row 6 | 方向/能量/parity 已自动钉死 |
 | 5 | 990pt 窗三列复验 | FINDINGS.md GUI-4 遗留 + 04-07 签核（1440pt 已量化达标） | macOS 持久化 split frames 环境因 |
 | 6 | XCUITest 三栏断言（L011 授权） | TODO.md Phase 4 节 `- [ ]`（Phase 1 起跨阶段挂账，非 Phase 4 引入） | 环境阻塞（TCC/辅助功能权限） |
 
-**Defer（有正式记录、ROADMAP 语义允许）：** cacorrect/cacorrectrgb（04-05-DECISIONS D-04-05-T0-0，Bayer 域不可移植 + lens TCA 覆盖，Phase 5 再议）；PERF-5 预算缺口（TODO + `.work/04-07/perf-phase4.md`，只记录不设门，Phase 5+ Open#9）；toneequal/flip 同类 dscIn×scale 审计（Phase 5，L021 引用）。
+**Defer（有正式记录、ROADMAP 语义允许）：** cacorrect/cacorrectrgb（04-05-DECISIONS D-04-05-T0-0，Bayer 域不可移植 + lens TCA 覆盖，Phase 5 再议）；PERF-5 预算缺口（TODO + `.work/plans/04-07/perf-phase4.md`，只记录不设门，Phase 5+ Open#9）；toneequal/flip 同类 dscIn×scale 审计（Phase 5，L021 引用）。
 
 ### 反模式扫描
 

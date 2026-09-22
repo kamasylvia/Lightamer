@@ -65,14 +65,14 @@
   + `CropOverlayTests.testAspectLockKeepsShortSide/testOverlayDragCommitsOnceWithLiveDisabled`（拖拽=恰 1 commit，live-disabled + 暗膜）；
   旋转微调/透视 `AshiftParityTests` 7/7（28 路 <1e-5/<1e-5）+ `HomographyTests` 6/6；
   auto-detect `VisionDetectTests` 4/4（θ<0.2°/矩形<0.5%/符号 CW+；真机抽检 pending-manual，
-  `.work/04-03/vision-field-notes.md`）；flip `FlipParityTests` 8/8 + V50 flip<crop 硬约束
+  `.work/plans/04-03/vision-field-notes.md`）；flip `FlipParityTests` 8/8 + V50 flip<crop 硬约束
   `V50OrderTests.testFlipBeforeCropOrderConstraint`；面板/a11y `PanelWiringTests` crop+ashift（含 dispatch）。
   交互 3 行 + Vision 真机抽检 Manual-Only 挂账（L011）。
 - **SC#2**（lens 三层：内嵌 opcode + 手动滑块 + Metal warp + Lensfun open decision）✅：
   (a) 内嵌直通 = 零代码 + 模块头/面板注记（防双补）；
   (b)(c) 同一 kernel `testUnifiedExitMatchesManual`（同系数双门 maxDiff ≤1e-6）+ 降级路径无数据→恒等；
   `LensParityTests` 7/7（6 case × 4 fixture <1e-5/<1e-5）+ `LensfunDBTests` 15/15（d-factor/Hermite/IDW 手算 + 4 文件子集）
-  + `.work/04-04/match-ledger.md`（机身盖 3/3 miss 落账）；Lensfun open decision = XML-data-only 落地（本 LOG 04-04-T0）。
+  + `.work/plans/04-04/match-ledger.md`（机身盖 3/3 miss 落账）；Lensfun open decision = XML-data-only 落地（本 LOG 04-04-T0）。
   镜头视觉 Manual-Only 行 pending-manual。
 - **SC#3**（detail 四件 golden）✅：`SharpenParityTests` 5/5 + `LocalContrastTests` 6/6 + `HighpassSoftenTests` 7/7
   + `EqualizerParityTests` 4/4（合成 float64 参考，sharpen/bilat/highpass/soften/equalizer 档 <1e-4/<1e-4 + 恒等/方向门；
@@ -95,6 +95,6 @@
 - **Phase 5 移交清单**（逐条 TODO/plan 引用存在性核对 ✅）：
   ① toneequal/flip double-scale 审计 → TODO「Phase 3 遗留/分配」行（L021 引用）存在；
   ② shadhi bilateral 腿 → 04-05-DECISIONS D-04-05-T0-2/D6 + TODO Phase 3 行（bilateral→Phase 5）存在；
-  ③ PERF-5 杠杆（Lab 往返共享 Open#9 + dispatch 批合并）→ TODO 同节 PERF-5 行 + `.work/04-07/perf-phase4.md` 存在；
+  ③ PERF-5 杠杆（Lab 往返共享 Open#9 + dispatch 批合并）→ TODO 同节 PERF-5 行 + `.work/plans/04-07/perf-phase4.md` 存在；
   ④ cacorrect/cacorrectrgb Bayer 方案 → 04-05-DECISIONS D-04-05-T0-0（Bayer 不可移植，Phase 5 视 Bayer 访问方案再议）存在；
   ⑤ Lab 往返共享 → 03-03 LabRoundTrip 头注记（RESEARCH Open#9 → Phase 5+）+ TODO PERF-5 行存在。

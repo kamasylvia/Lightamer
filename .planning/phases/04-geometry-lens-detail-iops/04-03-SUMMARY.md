@@ -82,4 +82,4 @@ Vision horizon/rectangle 自动检测 + 面板/a11y。纯旋转是单应特例�
 ## 过程记录
 
 - 本文件 + 各提交 body + 04-03-DECISIONS.md；调试探针（echo/AShiftDbg/
-  scratch）已全部退役，无 `.work/04-03/` 日志留存（排障全在提交说明）。
+  scratch）已全部退役，无 `.work/plans/04-03/` 日志留存（排障全在提交说明）。

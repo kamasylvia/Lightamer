@@ -4,7 +4,7 @@ import XCTest
 /// RAWDecoder decode tests (D-21) — real assertions against the Plan 05
 /// CC0 camera samples (RAW) and the bundled gradient rasters (RAW-04).
 ///
-/// RAW samples resolve from the untracked `.work/01-05/samples/` checkout
+/// RAW samples resolve from the untracked `.work/plans/01-05/samples/` checkout
 /// (see `Fixtures.swift` for the two-tier fixture strategy); tests skip
 /// with a documented reason on machines without the download. All
 /// assertions go through the `public` surface (`import LightamerCore`,

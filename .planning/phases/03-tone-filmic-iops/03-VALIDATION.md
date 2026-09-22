@@ -51,7 +51,7 @@ created: 2026-09-19
 | 03-04-T3/T4 | 03-04 | 3 | IOP-FILM-02 (sigmoid) | — | N/A | unit+golden | commit_params 四标量 CPU 互验 + fixture parity <1e-5 | ✅ | ✅ green（2026-09-19，`CPUDerivationTests` sigmoid 节 3/3（四标量互验 <1e-9 + 约束集 Double 档 + 域边界 NaN）+ `SigmoidTests` 6/6：5 case × 6 fixture <1e-5 + GPU 曲线约束（f(0)/f(grey)/f(∞)）+ 双路径中性 + 轨 B + 注册；中间探针抓出 primaries `invert3` 单格余因子笔误（G 行 [0,0.9735,−1.0001] ≠ 恒等 → G 通道取反），修复后 D-T2 基线（面板/golden/缓存）就绪） |
 | 03-06-T1..T5 | 03-06 | 5 | IOP-FILM-01 (filmicrgb) | — | N/A | unit+golden | F0-F4 五子阶段独立 golden + 组合 parity（F1 <1e-6 / F2-F4 <1e-5） | ✅ | ✅ green（2026-09-20，`CPUDerivationTests` filmic F0 节 6/6（默认组手算锚点 output_power=4.168313824554027 / grey_display=2/3 / norm 界 0.000720703125/2.952，v1/v2/v3 params 分支全覆盖 + 非法组合无 NaN）+ `FilmicRGBTests` 10/10：F1 三方（Metal vs CPU Double，toe/linear <1e-6、poly4 shoulder float32 Horner 档 <1e-5 + 1e-4 包络——FMA 单舍入参考逐式复刻）+ F2/F4 组合 parity（5 钉参 case × 5 fixture，ParityGate 98% strict + 1e-4 包络；`saturated` 按 log 未定义域注记划归 F3 合法性靶）+ F3 out-of-Rec2020 光谱全部入域 + 中性轴不变 + norm 六模式解析向量 + auto 三键直译（grey /2 语义、全图 min/max 归约 HistogramReduce.rgbMinMax 端到端）+ F5 mask kernel 权重 + 轨 B + v50=46.0 注册。合成参考（L017 路线，float32-FMA 逐式复刻）；dt 侧 = 116B blob 库 DB op_params hex 采纳实证 + history load + piece commit（CPU 腿崩溃本机导出不可用，sigmoid per_channel SIGSEGV 同族，manifest/DECISIONS 落账）） |
 | 03-06-T6 | 03-06 | 5 | IOP-FILM-03 (variants=agx) | — | N/A | unit+golden | agx 参数组 round-trip + 钉参 parity | ✅ | ✅ green（2026-09-20，`AgXTests` 5/5：5 case × 6 fixture 合成参考 parity <1e-5（agx_primaries 按记录的矩阵偏差钉 Swift 双实现）+ 曲线 pivot/斜率不变式（pivot 在线上、过渡节点在线上、pivot 夹在过渡间、auto_gamma 对角）+ ParamsCoding round-trip + v50=45.5 注册 + look 调态下灰轴不变。dt 侧 = 「params v. 7: version ok params ok」+ DB op_params hex（③d adoption probes；CPU 腿导出崩溃同 filmic，manifest 落账）。hatchless 无对标注记于模块头/manifest/DECISIONS） |
-| 03-06-T7 | 03-06 | 5 | PERF-5 | — | N/A | signpost | PREVIEW 全模块链单帧 <16.6ms CI 记录（Phase 1 模式）| ✅ | ⚠️ 记录完成、预算未达（2026-09-20，`.work/03/perf-record.md`）：`PreviewChainPerfTests` 2/2 进套可复跑——真实拖拽形状（稳定 imageID + exposure tick 全链失效 + PSO 启动预热）Release warm median **36.23ms**（Debug 37.63；03-05 预验 63.4→37.6 的改善来自 PSO 预热 + 形状修正），Release 门 = 45ms 回归界。16.6ms 预算的 7-10 趟假设被证伪（实测 ~40 GPU 趟：toneequal EIGF 多趟 + 每 Lab 模块 2 趟往返 ×3 + shadhi 模糊）。**晚链单滑块拖拽 2-6ms ✓ 60fps**；最坏情形（exposure tick）超预算，剩余杠杆 = 管线级 Lab 往返共享（Open#9→Phase 5）+ 跨模块 dispatch 批合并（Phase 4+），已分配并落账 DECISIONS/VALIDATION。SC#3 相应注记见下 |
+| 03-06-T7 | 03-06 | 5 | PERF-5 | — | N/A | signpost | PREVIEW 全模块链单帧 <16.6ms CI 记录（Phase 1 模式）| ✅ | ⚠️ 记录完成、预算未达（2026-09-20，`.work/plans/03/perf-record.md`）：`PreviewChainPerfTests` 2/2 进套可复跑——真实拖拽形状（稳定 imageID + exposure tick 全链失效 + PSO 启动预热）Release warm median **36.23ms**（Debug 37.63；03-05 预验 63.4→37.6 的改善来自 PSO 预热 + 形状修正），Release 门 = 45ms 回归界。16.6ms 预算的 7-10 趟假设被证伪（实测 ~40 GPU 趟：toneequal EIGF 多趟 + 每 Lab 模块 2 趟往返 ×3 + shadhi 模糊）。**晚链单滑块拖拽 2-6ms ✓ 60fps**；最坏情形（exposure tick）超预算，剩余杠杆 = 管线级 Lab 往返共享（Open#9→Phase 5）+ 跨模块 dispatch 批合并（Phase 4+），已分配并落账 DECISIONS/VALIDATION。SC#3 相应注记见下 |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -72,7 +72,7 @@ created: 2026-09-19
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| 滑块拖动 60fps | PERF-5 SC#3 | 交互时序 + Instruments | 拖任一 tone 滑块 → Instruments 确认 PREVIEW 链帧时。**自动化已覆盖数据面**（`.work/03/perf-record.md`：晚链单滑块 2-6ms ✓；全链重渲 36ms 注记）；交互目检解锁后重跑一次 Instruments 记录即可 |
+| 滑块拖动 60fps | PERF-5 SC#3 | 交互时序 + Instruments | 拖任一 tone 滑块 → Instruments 确认 PREVIEW 链帧时。**自动化已覆盖数据面**（`.work/plans/03/perf-record.md`：晚链单滑块 2-6ms ✓；全链重渲 36ms 注记）；交互目检解锁后重跑一次 Instruments 记录即可 |
 | 色彩视觉效果 | IOP-TONE-01..07 | 视觉验收 | 对真实照片逐模块开关对比，确认无伪影/带状/跳变 |
 
 ## SC#3 结论注记（2026-09-20，T7）
@@ -98,7 +98,7 @@ agx/colisa/tonecurve 调整）实测 2-6ms 达 60fps；最坏情形 = 拖 exposu
 - [x] Phase 3 全 suite 绿：**267 tests / 0 failures / 3 documented skips**（2026-09-20，连续两轮）
 - [x] ROADMAP SC#1: 7 tone 模块（exposure/WB/tonecurve/shadhi/colisa/levels/toneequal）全部钉参 golden green（03-01..03-05 各 VALIDATION 行）
 - [x] ROADMAP SC#2: filmicrgb F0-F4 子阶段独立 golden + F4 组合 parity 在容差内（03-06-T1..T5 行；容差注记：float32 spline/FMA 网格 → 98% strict + 1e-4 包络；saturated 划归 F3 合法性靶）
-- [x] ROADMAP SC#3: 晚链交互 60fps 成立（2-6ms）；全链重渲 36ms 超预算注记 + 杠杆分配（见上节 + `.work/03/perf-record.md`）——⚠️ 部分达成
+- [x] ROADMAP SC#3: 晚链交互 60fps 成立（2-6ms）；全链重渲 36ms 超预算注记 + 杠杆分配（见上节 + `.work/plans/03/perf-record.md`）——⚠️ 部分达成
 - [x] ROADMAP SC#4: sigmoid（03-04）+ agx（03-06-T6）scene-referred tone mapping golden green；全部 11 模块 `IOPColorspace` 声明核查（RGB 模块 .RGB、Lab 模块 .Lab，`V50OrderTests`/各注册测试钉住）
 - [x] Issue 关联：Per CONVENTIONS（commit message 已带 (03-06) 前缀；GitHub issue 关联按用户手动指令执行）
 

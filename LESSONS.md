@@ -103,7 +103,7 @@
 - **对策**：Phase 1/2 单编辑器场景改用 `Window("Lightamer", id: "main")` 单窗口 scene（`LightamerApp.swift`），odoc 只路由进 `application(_:open:)` 处理器；修复后 9/9 UAT 步全显示、全程仅 1 个 MTKView。多窗口等 Phase 9 Session 管理再以受控方式回归（不靠 WindowGroup 的 odoc 默认行为）。
 - **教训泛化**：①"渲染/状态层排查到证据完备仍解释不了 UI 症状"时，先查**窗口/视图层级增殖**（每 open 一窗、ZStack transition 残留），别急着怀疑 GPU/present 链路；②排查 MTKView 黑屏时把 `CAMetalLayer.framebufferOnly=false` 才能让 drawable 回读成为合法证据（默认 true 时回读未定义）；③诊断探针（drawable 回读、view 身份日志）按 D-X2 模式"修完即退役"，避免探针自身成为干扰源。
 - **适用**：所有 macOS SwiftUI + WindowGroup + odoc/Finder/Drop 打开文件的 app；任何"第二次打开就不对"类症状优先数窗口数。
-- **来源**：Plan 02-01 checkpoint→修复全过程（2026-09-19），证据 `.work/02-01/uat-results.md` + `uat-t*.log` + 截图链。
+- **来源**：Plan 02-01 checkpoint→修复全过程（2026-09-19），证据 `.work/plans/02-01/uat-results.md` + `uat-t*.log` + 截图链。
 
 ### L013: JSONEncoder keyed 输出顺序无契约稳定性 → 哈希输入禁止用 JSON 字节（跨场域语义）
 - **背景**：Plan 02-02 把 `decodeParamsHash` 实现为 `FNV(JSONEncoder().encode(rawTech))`，PipeCacheTests 全链缓存语义测试"第二轮全 miss"。
@@ -119,7 +119,7 @@
 - **根因**：`CIContext(mtlDevice:)` 在自己的**内部队列**执行 `render(toBitmap:)`，而输入纹理是我们串行队列上 `dispatch2DTexture` **commit 过但未必完成**的写入。Metal 跨队列对同一纹理的读/写没有隐式顺序——CI 读与 kernel 写竞态。字节级排障时还叠加了第二层伪影：`MTLTexture.getBytes` 不等待 in-flight encoder，读回必须先 fence（测试端同款问题，Golden/Trio 测试早已内置 `drain()`，新测试漏抄）。
 - **对策**：(1) `convertTexture` 开头 commit 空 command buffer + `waitUntilCompleted`（fence），保证本队列既有写入对 CI 可见；(2) 所有测试/探针读回纹理前一律 drain；(3) 判定"渲染黑图"前先排除读取竞态（黑图 + alpha=255 是"gamma 写了黑 RGB"，而全 0 才是"没写"）。
 - **适用**：任何"我们的队列写纹理 + CI/其他队列读"的混用场景（colorout fallback 腿、未来 CI 复合导出路径）；所有 GPU 纹理读回（测试与探针）。
-- **来源**：Plan 02-06-04 SC#3 验收排障（2026-09-19），证据 `.work/02-06/roundtrip.md` + `SidecarRoundTripTests.testRoundTripRestoresIdenticalRenderedOutput`。
+- **来源**：Plan 02-06-04 SC#3 验收排障（2026-09-19），证据 `.work/plans/02-06/roundtrip.md` + `SidecarRoundTripTests.testRoundTripRestoresIdenticalRenderedOutput`。
 
 ### L015: Darktable XMP 的未压缩 params 是 HEX ASCII，不是 base64
 - **背景**：Plan 03-01-T1 按 03-RESEARCH §6.3 的配方（「纯 base64（>100B 才 zlib）」）生成 exposure 钉参 XMP，darktable-cli 重建后 XMP history 行虽被写入库，但 op_params 全为默认值，输出恒等。
@@ -153,7 +153,7 @@
 - **缺陷 3（.private 分配毒化 CI 渲染）**：blur 测试中 `.storageModePrivate` plane（σ=20 IIR 写入模式）分配释放后，**同进程后续测试的 CIContext 渲染确定性丢失 viewed-下半帧**（内容上移、上半黑，色彩正确——GoldenColorTests D-COL1 误报）。`.storageModeShared` 分配同一测试内容即消除。判定为 macOS 27 beta 驱动/分配器围栏交互，非代码逻辑错误；UMA 上 shared 无带宽代价，统一用 shared。
 - **对策 2（测试法）**：跨测试状态污染的排查路径——①单跑受害测试（通过→污染）；②按字母序找前驱测试二分；③在嫌疑测试内部按参数二分（σ=0.1 干净 / σ=20 触发）；④换分配路径（private→shared）验证。全量套件绿 ≠ 单测试语义正确，反之亦然。
 - **适用**：Phase 3+ 所有 IIR/邻域 kernel；一切 read_write 纹理累积模式；CI 渲染与 GPU compute 混跑的测试与 App 路径。
-- **来源**：Plan 03-04-T1/T2 排障（2026-09-19），证据链：.work/03-04/probe-gauss*.log（fwd-only uniform 灭零法 + 底部脉冲分解）、bisect-s01/s20/shared 日志、neutral-dump.png（半帧可视化）。
+- **来源**：Plan 03-04-T1/T2 排障（2026-09-19），证据链：.work/plans/03-04/probe-gauss*.log（fwd-only uniform 灭零法 + 底部脉冲分解）、bisect-s01/s20/shared 日志、neutral-dump.png（半帧可视化）。
 
 ### L019: XCTest「Enable UI Automation」密码弹窗会阻塞 App-host 单测全链；computer-use SDK client 缺失时用 coreautha 重建法消弹窗
 - **背景**：Plan 04-02 验收复跑全量 suite（2026-09-20）。`xcodebuild test` 两个 runner（LightamerTests 单测 + UITests）全部「The test runner hung before establishing connection」——**连不需要 UI Automation 的单测 runner 也挂**。15:07 全量还能过，之后 4 连挂。
@@ -185,7 +185,7 @@
 - **根因（GUI-1）**：`CropModule.modifyROIIn` 把已 entry 缩放的 `dscIn` 又 ×`roi.scale`（double-scale）：760 档 clamp 界坍缩 60×40 → 协商 roiIn 60×40 → process 左上小窗 blit、其余全零。scale=1.0 恒等掩盖了它——全部 golden/crop 单测（小合成图全尺寸）免疫。同类 `dscIn × scale` 还有 toneequal blending 直径（preview 半径偏小，质量向）与 flip bw/bh（.none 恒等免疫），修 crop 一处、余者 Phase 5 审计。
 - **对策**：①`modifyROIIn` clamp 界直用 dscIn（同 run 平面像素），注释钉死坐标系（PixelPipe.run 按 bufInROI 逐级 stamp）；②常驻回归 `testScaledFullFrameCropMatchesTrioOnly`（trio+crop 逐字节 == trio-only @longEdge 48，pre-fix 红）；③判别探针（GUIProbeTests，A–Q7 真 RAW 消融）按 L012 D-X2 退役删除，常驻回归只留合成图毫秒级门；④显示腿：大三角形→顶点矩形 strip（quad 即 fit 矩形，ViewportFit.fittedRect 同源，letterbox=clearColor）+ 布局收窄（侧栏 200/Inspector 280，视口 ≥50%）；⑤GUI 复验按 PLAYBOOK §2 观察层量化（screencapture + PIL/numpy 数字进 FINDINGS.md），macOS 持久化 split frames 须 `defaults delete` 后看新窗口默认值。
 - **适用**：一切读 `piece.dscIn` 的 ROI 钩子（crop/lens/ashift/toneequal/flip…）；一切 MTKView blit/布局改动（先 GUI 验收再签收）。
-- **来源**：Plan 04-06 T1–T5（2026-09-21），证据 `.work/04-06/probe-gui1.md` + `.work/gui-acceptance/2026-09-21-fix-*.png` + FINDINGS.md 闭环；全 suite 389 绿（3 skip）。
+- **来源**：Plan 04-06 T1–T5（2026-09-21），证据 `.work/plans/04-06/probe-gui1.md` + `.work/gui-acceptance/2026-09-21-fix-*.png` + FINDINGS.md 闭环；全 suite 389 绿（3 skip）。
 
 ### L022: omp 执行期间禁止一切工作区编辑——整文件回写会吞掉并发改动
 - **背景**：05-01 与 05-02 两次omp 执行期间，orchestrator 并发编辑 LESSONS/GOAL-STATE/PLAYBOOK（纯文本小改、未 git 操作），omp 收尾时按其上下文里的**陈旧快照整文件回写**，并发编辑全部丢失（05-01 丢 3 处；05-02 收尾再次吞掉本条首版）。

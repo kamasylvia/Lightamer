@@ -14,7 +14,7 @@ import XCTest
 /// 2. **Real camera RAW fixtures** (Plan 05's CC0 downloads,
 ///    ~1.2 GB / 13 samples from raw.pixls.us) are NOT tracked in git and
 ///    NOT bundled — bundling would bloat the repo and every CI checkout.
-///    They live untracked at `<repo>/.work/01-05/samples/` (the same copies
+///    They live untracked at `<repo>/.work/plans/01-05/samples/` (the same copies
 ///    Spike A/B measured). Tests resolve them per the search order below and
 ///    `XCTSkip` with a documented reason when a machine has not run the
 ///    Plan 05 download. On this machine the RAW tests run for real
@@ -29,7 +29,7 @@ import XCTest
 ///    blocks forever inside `open()` when the screen is LOCKED (the consent
 ///    prompt cannot be presented). Copying the samples to the internal disk
 ///    keeps the suite runnable headless/locked (recorded Plan 06 finding).
-/// 3. `<repo>/.work/01-05/samples/` — the canonical Plan 05 location.
+/// 3. `<repo>/.work/plans/01-05/samples/` — the canonical Plan 05 location.
 final class Fixtures {
 
     /// Candidate RAW sample directories, in resolution order.
@@ -47,7 +47,7 @@ final class Fixtures {
         let repoRoot = ((testsDir as NSString).deletingLastPathComponent as NSString)
             .deletingLastPathComponent // repo root
         dirs.append(URL(fileURLWithPath: repoRoot, isDirectory: true)
-            .appendingPathComponent(".work/01-05/samples", isDirectory: true))
+            .appendingPathComponent(".work/plans/01-05/samples", isDirectory: true))
         return dirs
     }()
 
@@ -81,7 +81,7 @@ final class Fixtures {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw XCTSkip(
                 "RAW fixture missing: \(url.lastPathComponent). "
-                    + "Run the Plan 05 sample download (untracked .work/01-05/samples)."
+                    + "Run the Plan 05 sample download (untracked .work/plans/01-05/samples)."
             )
         }
     }
@@ -101,7 +101,7 @@ final class Fixtures {
 
     /// The committed synthetic neutral target — 1024×1024 16-bit TIFF,
     /// sRGB-tagged, 3×3 patch grid. Generated ONCE by
-    /// `.work/02-04/make-neutral-target.swift` (byte-order gotcha
+    /// `.work/plans/02-04/make-neutral-target.swift` (byte-order gotcha
     /// documented there); regenerate only with that script. Throwing (not
     /// stored) so a missing bundle resource skips instead of crashing.
     static func neutralTarget() throws -> URL {
@@ -139,7 +139,7 @@ final class Fixtures {
     /// PRESENT — raw.pixls.us no longer accepts/host color-target samples
     /// (their upload policy excludes "a photo of a color target"), and no
     /// equivalent CC0 source surfaced in the acquisition sweep (recorded
-    /// in `.work/02-04/`). The synthetic fixture above keeps the harness
+    /// in `.work/plans/02-04/`). The synthetic fixture above keeps the harness
     /// green everywhere; the ARW test path XCTSkips until a manual capture
     /// lands. To activate: shoot an X-Rite ColorChecker, release CC0, save
     /// as `input/RAW/ColorChecker.ARW` (untracked per convention), and

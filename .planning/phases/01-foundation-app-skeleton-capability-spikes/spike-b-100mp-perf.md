@@ -11,7 +11,7 @@
 > measured as per-frame render cost at viewport resolution (2560×1440) — the exact
 > work MTKView's drawable blit does — rather than an interactive MTKView session.
 > Probe sources: `.planning/spikes/spike-b-100mp-perf/{perf-harness,perf-extra}.swift`
-> (working copies in untracked `.work/01-05/`); raw outputs `spike-b-*.txt` alongside.
+> (working copies in untracked `.work/plans/01-05/`); raw outputs `spike-b-*.txt` alongside.
 > All timing emits `os.signpost` intervals (`com.kamasylvia.lightamer.spikeb`) — D-31.
 > Real RAW samples only (CC0, raw.pixls.us) — no synthetic/fabricated images.
 > **No 60fps GUI app was built; "drag fps" below is a measured proxy, labeled as such.**
@@ -111,4 +111,4 @@ Samples (see `samples/README.md` for provenance/license): GFX100S RAF 101.8MP (h
 - Raw outputs (tracked): `.planning/spikes/spike-b-100mp-perf/spike-b-*.txt` (8 files, incl. the X2D crash stack)
 - Golden viewport renders (tracked): `.planning/spikes/spike-b-100mp-perf/samples/golden/*-viewport.png` (2560×1440, 4 files)
 - Sample provenance + CC0: `.planning/spikes/spike-b-100mp-perf/samples/README.md`
-- RAW working copies (untracked): `.work/01-05/samples/`
+- RAW working copies (untracked): `.work/plans/01-05/samples/`

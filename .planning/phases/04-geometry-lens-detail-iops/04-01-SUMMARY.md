@@ -63,7 +63,7 @@ tests: "282 tests, 3 skipped, 0 failures (full LightamerTests)"
 
 - 全 suite：**282 tests, 3 skipped, 0 failures**（2026-09-20 终轮）。
 - 04-VALIDATION Wave 1 两行 ✅；04-02..04-05 `depends_on: ["04-01"]` 可开工。
-- 过程记录：本文件 + 各提交 body；无 `.work/04-01/` 调试日志留存（排障全在提交说明）。
+- 过程记录：本文件 + 各提交 body；无 `.work/plans/04-01/` 调试日志留存（排障全在提交说明）。
 
 ## 下游影响
 

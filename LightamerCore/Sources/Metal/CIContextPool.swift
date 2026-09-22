@@ -23,7 +23,7 @@ import os
 /// warm-up render (owned command buffer + completed-wait, race-free
 /// readback), with a real CIRAW-backed image, AND with a DEFAULT CIContext +
 /// rgba8Unorm + deviceRGB (option set ruled out). Full methodology + raw
-/// numbers: `.work/02-01/spike-render-leg.md`.
+/// numbers: `.work/plans/02-01/spike-render-leg.md`.
 ///
 /// Decision (spike, quoted verbatim): `Decision: bitmap —
 /// CIContext.render(_:toMTLTexture:) is a silent no-op on this host (macOS
@@ -96,7 +96,7 @@ internal actor CIContextPool {
     /// that size — never render 100MP then downscale. This is the PREVIEW/
     /// THUMBNAIL input-plane builder.
     ///
-    /// Spike evidence (02-01 Test C, `.work/02-01/spike-render-leg.md`):
+    /// Spike evidence (02-01 Test C, `.work/plans/02-01/spike-render-leg.md`):
     /// scaled rendering gives NO reliable decode-time win — medians were
     /// inverted (scaled-2560 922ms vs full-60MP 304ms on DSC09991.ARW) with
     /// 10–20× run-to-run variance, because `cacheIntermediates:false` makes

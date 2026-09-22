@@ -45,7 +45,7 @@ validated: 2026-09-21
 | 04-02-T1/T3/T4 | 04-02 | 2 | IOP-GEO-01 | — | N/A | golden+unit | crop parity（CropParityTests 8/8 + GeometryGolden track A 3×4 <1e-6 + SC#4 ①③④真模块回归 + overlay drag=1 item）| ✅ | ✅ green（2026-09-20：GeometryGolden 4/4；ROINegotiation 8/8；CropOverlay 6/6；PanelWiring +3 crop） |
 | 04-02-T2/T3 | 04-02 | 2 | IOP-GEO-04 | — | N/A | golden+unit | flip parity（FlipParityTests 8/8 + track A 4×4 <1e-6 + flip<crop 顺序硬约束）| ✅ | ✅ green（2026-09-20：V50OrderTests +1 order constraint） |
 | 04-03-T1/T2/T4 | 04-03 | 2 | IOP-GEO-02 | — | N/A | golden+unit | rotate/perspective parity（HomographyTests 6/6 + AshiftParityTests 7/7：合成 float64 参考 7×4 <1e-5/<1e-5 + 恒等门 + 黑角 alpha + V50 ashift<flip<crop 双钉）| ✅ | ✅ green（2026-09-20：全 suite 331 0 fail；管线 union-clamp 修复含回归） |
-| 04-03-T3 | 04-03 | 2 | IOP-GEO-02 auto-detect | — | N/A | unit | VisionDetectTests 4/4（θ<0.2°/矩形<0.5%/符号钉死；真机抽检 pending-manual 见 .work/04-03/vision-field-notes.md）| ✅ | ✅ green（合成探针全绿） |
+| 04-03-T3 | 04-03 | 2 | IOP-GEO-02 auto-detect | — | N/A | unit | VisionDetectTests 4/4（θ<0.2°/矩形<0.5%/符号钉死；真机抽检 pending-manual 见 .work/plans/04-03/vision-field-notes.md）| ✅ | ✅ green（合成探针全绿） |
 | 04-02-T3 | 04-02 | 2 | 轨 B 回归 | — | N/A | golden | crop-full + flip-none 插链后 ColorSync 中性度+交叉一致性不回归（D-COL1 双判据）| ✅ | ✅ green（2026-09-20：GeometryGolden track B 2/2） |
 | 04-04-T1/T2/T4 | 04-04 | 3 | IOP-GEO-03 | — | N/A | golden+unit | lens parity（LensParityTests 7/7：合成 float64 参考 6×4 <1e-5/<1e-5 + k=0 恒等门 + vignette 解析点检 + CA 方向 + 统一出口逐字节；LensfunDBTests 15/15：子集钉参 + Hermite/IDW/d-factor 手算 + 4 文件交叉；ROINegotiation +1 收缩回归）| ✅ | ✅ green（2026-09-21：全 suite 355 0 fail；含管线级子域 CI 翻转修复 + ROI 宽度原点修复） |
 | 04-04-T3 | 04-04 | 3 | D-G1 三层完整性 | — | N/A | unit | (a) 模块头 + 面板注记文档化；(b)(c) 同一 kernel 逐字节一致（testUnifiedExitMatchesManual）+ 降级路径（无数据 → 恒等 + 手动可用）；LensPanelView 三段 + a11y 全套 + catalog 20 keys + PanelWiring +2 + launch resolve hook | ✅ | ✅ green（2026-09-21：PanelWiring 19/19；手动滑块 7 键；下载服务失败降级） |
@@ -55,7 +55,7 @@ validated: 2026-09-21
 | 04-05-T3/T5 | 04-05 | 3 | IOP-DETAIL-03 | — | N/A | golden+unit | highpass/soften parity（HighpassSoftenTests 7/7：双合成参考 <1e-4 + soften 平场恒等 + amount=0 逐字节 + 去饱和断言 + 半径链 + 注册34.0/66.0；soften dt-cli probe 免跑先验结论落 DECISIONS D5）| ✅ | ✅ green（2026-09-21） |
 | 04-05-T4/T5 | 04-05 | 3 | IOP-DETAIL-04 | — | N/A | golden+unit | equalizer parity（EqualizerParityTests 4/4：合成金字塔参考 4×4 <1e-4 + 全零逐字节 + 带能量内容断言 + 注册27.0；V50OrderTests +1 五槽位约束）| ✅ | ✅ green（2026-09-21） |
 | 04-05-T5 | 04-05 | 3 | 轨 B 回归 | — | N/A | golden | 五 detail 中性实例插链后 ColorSync 中性度+交叉一致性不回归（D-COL1 双判据，GeometryGolden track B 链已含 detail 腿）| ✅ | ✅ green（2026-09-21：GeometryGolden 4/4 含 detail 腿） |
-| 04-05-T5 | 04-05 | 3 | 面板 + PERF | — | N/A | unit | 四面板（Sharpen/LocalContrast/HighpassSoften/Equalizer）各拖动恰 1 commit + dispatch 全覆盖（PanelWiring +5，24/24）；catalog 29 keys zh/en；PERF 增量落 .work/04-05/perf.md | ✅ | ✅ green（2026-09-21） |
+| 04-05-T5 | 04-05 | 3 | 面板 + PERF | — | N/A | unit | 四面板（Sharpen/LocalContrast/HighpassSoften/Equalizer）各拖动恰 1 commit + dispatch 全覆盖（PanelWiring +5，24/24）；catalog 29 keys zh/en；PERF 增量落 .work/plans/04-05/perf.md | ✅ | ✅ green（2026-09-21） |
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
 ---
@@ -95,7 +95,7 @@ validated: 2026-09-21
 - [x] 轨 B 全链回归：GeometryGolden track B 2/2（crop+flip+lens+五 detail 中性插链，双判据不回归）
 - [x] sidecar：9 新 op params round-trip（Phase4SidecarTests 9/9）+ 未知 op 透传降级回归（SidecarRoundTripTests.testUnknownOpDegradesDisabledWithParamsPreserved）
 - [x] 内存记账：crop 下降（testCropHalvesMemoryAccounting 1/4）/ halo 有界（testHaloExpansionStaysBelowFullFrame 30×30≪128）——probe 腿；ashift AABB 上升有界 + sharpen 外扩 < 全图由 ROINegotiation 真模块断言覆盖
-- [x] PERF-5 链长增量：Release warm median 36.23ms（Phase 3）→ 33.42ms（Phase 4 全链，+9 中性模块≈零增量）——只记录不设门，见 `.work/04-07/perf-phase4.md`
+- [x] PERF-5 链长增量：Release warm median 36.23ms（Phase 3）→ 33.42ms（Phase 4 全链，+9 中性模块≈零增量）——只记录不设门，见 `.work/plans/04-07/perf-phase4.md`
 - [x] Issue 关联：Per CONVENTIONS（commit message 带 (04-07) 前缀；GitHub issue 关联按用户手动指令执行）
 
 **Approval:** signed-off（2026-09-21，04-07 签核轮；Manual-Only 表 6 行 pending-manual 按 L011 口径挂账——XCUITest/overlay 交互/Vision 真机/镜头视觉/detail 视觉/990pt 窗复验；自动化覆盖连续性已满足，不阻塞 nyquist_compliant 判定）

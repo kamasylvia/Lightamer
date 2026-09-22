@@ -23,9 +23,9 @@
 1. ~~**修复 issue #1**~~ ✅ 关闭（2026-09-18）：drawable 回读证实渲染/blit 全链正常（JPEG drawable 采样含图像内容）；黑屏为多窗口调试堆积的呈现竞争——真实单窗口使用正常（干净复现截图 4.2MB 完整显示）。转 backlog：多窗口呈现管理（Phase 2/9）。
 2. **
    - 复现路径：启动 app → `open -a Lightamer input/RAW/DSC00012.jpg`（60MP JPEG，Display P3）→ 视口黑屏；对照 `input/RAW/DSC09991.ARW` 显示正常。
-   - 已排除：管线（harness `.work/01-06/jpeg-debug.swift` 对两者均渲染非黑，9504×6336，avg≈420）。
+   - 已排除：管线（harness `.work/plans/01-06/jpeg-debug.swift` 对两者均渲染非黑，9504×6336，avg≈420）。
    - 嫌疑聚焦：(a) `EditorState.renderDisplayTexture` 对 JPEG 抛错被 catch 吞掉（加临时日志或断点）；(b) `CIContextPool` 对 Display-P3 CIImage 的 bitmap 渲染分支返回空/黑（ARW 走 CIRAW CIImage 正常）；(c) MTKView `hasSameSourceTexture` 同步竞态。
-   - 诊断手法：headless harness `.work/01-06/jpeg-debug.swift` 已可复现管线；app 内路径差异 = 真实 layerStack（harness 已加）+ EditorState 前置状态。可给 `renderDisplayTexture` 的 catch 加 `print`（stderr）后直接运行二进制抓 stderr。
+   - 诊断手法：headless harness `.work/plans/01-06/jpeg-debug.swift` 已可复现管线；app 内路径差异 = 真实 layerStack（harness 已加）+ EditorState 前置状态。可给 `renderDisplayTexture` 的 catch 加 `print`（stderr）后直接运行二进制抓 stderr。
    - 修复后：`open -a` JPEG → 截图确认显示 → unit suite 无回归 → UAT 测试 3 改 pass。
    - **已排除**（2026-09-18 晚）：(1) 管线本身——two-render harness 同上下文 ARW→JPEG→ARW 三次渲染全部非黑（377/364/377）；(2) drawable 竞态——加重试后 draw 全部 drawable=true 执行；(3) render 抛错——探针 `RENDER ok: DSC00012.jpg → 6336×9504`。
    - **当前锁定**：MTKView 绑定链。draw 全部执行（21:19:33 一毫秒内 13 次连续 DRAW，反常的 setNeedsDisplay 风暴）、pso=true、drawable=true，但屏幕=画布色 → draw 走了 `sourceTexture == nil` 的 clear 分支，即 Coordinator.sourceTexture 在 draw 时为 nil，尽管 renderDisplayTexture 已设置 displayTexture。→ 检查 EditorMTKView 的 `@Binding sourceTexture` → updateNSView → hasSameSourceTexture(`===` 引用比较) 链路；疑点：`.task(id:)` 重启时机 vs updateNSView 时序，或 Binding 更新丢失。

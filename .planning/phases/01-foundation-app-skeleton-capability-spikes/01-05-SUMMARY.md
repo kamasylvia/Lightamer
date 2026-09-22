@@ -26,7 +26,7 @@ The plan specified standalone Tuist spike apps on branches
 `spike/ciraw9-boundary` + `spike/100mp-perf`. Since Plans 01-04 already
 delivered the real verification apps + smoke-harness pattern, the spikes ran
 as **headless public-API-driven Swift harnesses** (same pattern, zero
-Lightamer dependencies) under `.work/01-05/`, with tracked copies + raw
+Lightamer dependencies) under `.work/plans/01-05/`, with tracked copies + raw
 outputs + golden samples committed under `.planning/spikes/`. No spike
 branches were created; D-06's intent (verification code preserved, reports
 versioned, main app untouched) is met. Zoom/pan in Spike B is a measured
@@ -106,7 +106,7 @@ untiled full-res float32 up to ~60MP with ≤3 planes; tile beyond that.
 | Golden samples checked in | ✅ 13 crops (spike A) + 4 viewport PNGs (spike B) |
 | os.signpost intervals | ✅ both harnesses (`com.kamasylvia.lightamer.spikea/spikeb`) |
 | Reports committed | ✅ 2273f1e (A), d3b3cb7 (B) |
-| No fabricated data | ✅ every number from `.work/01-05/*.txt` raw outputs; anomalies/crashes disclosed in report §5 |
+| No fabricated data | ✅ every number from `.work/plans/01-05/*.txt` raw outputs; anomalies/crashes disclosed in report §5 |
 
 ## Known leftovers
 

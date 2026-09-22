@@ -32,7 +32,7 @@
   illum 1e-6/p 1e-6，float32-fair）；illuminant/temp/xy→paramsHash 链；
   28.5 tie-break（latest-wins + multiPriority + 槽位序）。
   dt 三证据 ×3：12 XMP blob（160B/88B/20B）+ DB hex（逐字节一致）+ params ok
-  （`.work/05-03/ADOPTION.md` 实跑 12/12 落账；此前 52B 口径为假声明，F1–F3 修后为真）。
+  （`.work/plans/05-03/ADOPTION.md` 实跑 12/12 落账；此前 52B 口径为假声明，F1–F3 修后为真）。
   color-checker 零移植：grep 仅两处头注（NOT PORTED 声明）。
 - T5：`ChannelMixerRGBPanelView`（3×3 mix + normalize×6 + sat/light/grey 组 +
   illuminant 区全族 Picker + adaptation/gamut/clip/version + camera 回落注记 +
@@ -64,9 +64,9 @@
 - [x] channelmixer legacy：3 case parity + 弃用头注；colorcontrast：3 case + unbound 双档
 - [x] 28.5/39.0/56.0 三槽位 V50 断言；28.5 共槽 tie-break 回归测试绿
 - [x] color-checker 子树零移植（grep 证：仅头注）+ params 位保留（camera/detect enum + resolver nil + 面板注记）+ 面板注记
-- [x] dt 三证据 ×3（12 XMP blob + DB hex逐字节 + params ok；`.work/05-03/ADOPTION.md` 实跑 12/12；manifest 落账）
+- [x] dt 三证据 ×3（12 XMP blob + DB hex逐字节 + params ok；`.work/plans/05-03/ADOPTION.md` 实跑 12/12；manifest 落账）
 - [x] 面板 ×3 + PanelWiring +4 + catalog 86 + a11y + GUI 走查登记
-- [x] 轨 B 双判据不回归；PERF 记录落 `.work/05-03/perf.md`
+- [x] 轨 B 双判据不回归；PERF 记录落 `.work/plans/05-03/perf.md`
 - [x] 全 suite 绿（0 fail）；ROI 头注钉死 ×3（恒等 + tileHalo=0 + 禁 dscIn×scale）
 
 ## T5 证据（面板/GUI/轨 B/PERF）
@@ -83,7 +83,7 @@
   05-02 D7 同构）；legacy + contrast 以 enabled-neutral 进链（identity 矩阵 ⇒
   缓存中性，exposure/colisa 同处置）。既有 GeometryGolden 轨 B 双判据终轮全绿即
   回归证据（显式插入三件的轨 B 腿 == 不插入/恒等腿，防空转纪律禁加）。
-- PERF：`.work/05-03/perf.md`（3 趟单 pass +6ms 量级；seed 政策；启用态计时留 05-08）。
+- PERF：`.work/plans/05-03/perf.md`（3 趟单 pass +6ms 量级；seed 政策；启用态计时留 05-08）。
 
 ## 全量回归
 
@@ -114,7 +114,7 @@ V50OrderTests 方法计数）；skip 3 既有合规：2 ColorChecker ARW + 1 GPS
 |---|---|---|
 | F1 | legacy blob 52B→88B（`<12fi`→`<21fi`，CHANNEL_SIZE=7 @ channelmixer.c:55-91；v2=3×7+algorithm）：`[:4]` 截断修 + regen 3 XMP + manifest 行 + 模块头注 | `9ba7ae2` |
 | F2 | case 语义：swap 值→idx3-5（RGB 输出行）/gray 改 RGB 恒等+权重（真实 luma）/删 `_gray` shim；regen refs；parity 12/12 maxRel≤1.2e-7；新增 ramp≠flat 非空转门 | `115f526` |
-| F3 | dt-cli 采纳实跑 12/12（loader params v.N ok + DB hex 逐字节）：日志 + hex + `.work/05-03/ADOPTION.md` | `11bf868` |
+| F3 | dt-cli 采纳实跑 12/12（loader params v.N ok + DB hex 逐字节）：日志 + hex + `.work/plans/05-03/ADOPTION.md` | `11bf868` |
 | F4 | camera 反解选 b)删死代码（`wbCoeffsToIlluminantXY`+`bradfordAdaptTM` 零调用；dt 路径需 live RAW+管线 WB 通道，纯函数接不上）；D4 修订记录 | `bc1e9bb` |
 | F5/F6 | 本提交：TODO 挂账 + GOAL-STATE + SUMMARY 勘误（D1–D10/catalog 86/dt 措辞/V50 口径/防空转表） | 本轮 |
 

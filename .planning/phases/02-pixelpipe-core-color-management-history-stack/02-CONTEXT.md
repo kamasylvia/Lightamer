@@ -76,7 +76,7 @@
 - `RAWDecoder`/`DecodedImage` — pixelpipe 输入（含 decoderVersionUsed 戳）
 - `V50Order`（93 条）— iop 排序表
 - `PassthroughModule`（LightamerIOP）— pixelpipe 测试用 no-op
-- 真机 RAW 样本：`input/RAW/`（2×Sony ARW + JPEG）、`.work/01-05/samples/`（13 份全制式）
+- 真机 RAW 样本：`input/RAW/`（2×Sony ARW + JPEG）、`.work/plans/01-05/samples/`（13 份全制式）
 
 ### Established Patterns
 - MetalContext 两层 dispatch（高层 dispatch2D / 低层 encoder session）

@@ -27,7 +27,7 @@ Core 级测试双证）。执行中逼出并修复一个 pre-existing 真缺陷�
 
 - 单测 **133 全绿，0 失败**（3 skip 合规：RAW 大样本 + ColorChecker 待补拍）；`xcodebuild test` unit 腿 ~3.4s
 - UITests：L011 环境遗留（automation-mode 授权超时）→ ⚠️ pending-manual，rerun 命令记录于 VALIDATION sign-off
-- **SC#3 真机双跑**（`.work/02-06/roundtrip.md`）：edit 跑 displayHash `1dbb380e2153fea0` = verify 跑一致，dump 字节 `cmp` IDENTICAL；恢复日志 history 1/1、position 0、topParamsHash/imageID 全对
+- **SC#3 真机双跑**（`.work/plans/02-06/roundtrip.md`）：edit 跑 displayHash `1dbb380e2153fea0` = verify 跑一致，dump 字节 `cmp` IDENTICAL；恢复日志 history 1/1、position 0、topParamsHash/imageID 全对
 - 新测试覆盖（plan 验收逐项）：
   - schema round-trip 全等（真实 HistoryStack + undo 中态 + redo 尾）+ UInt64-as-String 盘上拼写 + 裸数字防御解码 + D-S2 命名可逆
   - debounce 合并（fake clock 单 sleeper / 单文件 / 末文档胜）+ flushNow 幂等 + 原子写双腿无 tmp + 损坏/缺失 → nil

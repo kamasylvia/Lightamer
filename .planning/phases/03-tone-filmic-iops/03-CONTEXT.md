@@ -60,7 +60,7 @@
 - `HistoryStack` + D-H1 drag-end 三件套 — 滑块拖动→history 提交链路现成
 - `StableHash`、`TilingPlan` 脚手架（toneequal/guidedfilter 首个实战场景）
 - golden 双判据 harness（Phase 2）— Phase 3 各 iop golden 复用扩展
-- 真机样本：input/RAW/ + .work/01-05/samples/（18 份）
+- 真机样本：input/RAW/ + .work/plans/01-05/samples/（18 份）
 
 ### Established Patterns
 - `.swift + .metal` 文件对（AGENTS 约定）、MetalContext dispatch、os.signpost 探针

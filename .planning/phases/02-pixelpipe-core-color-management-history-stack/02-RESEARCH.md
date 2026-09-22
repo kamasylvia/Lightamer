@@ -363,7 +363,7 @@ extension CIContextPool { func clearCaches() /* ciContext.clearCaches()，load �
 ### Golden 色彩 harness（D-COL1 + SC#5，Phase 3+ 前置闸门）
 
 - **形态**：headless smoke 模式起步（`.work/*/smoke.swift` 先行），定稿进 `LightamerTests`（golden-image 测试为 AGENTS.md 硬约定）。
-- **样本**（现有 + 需采集）：ColorChecker ARW（**缺，需从 raw.pixls.us 等 CC0 源采集**，含 50% 灰块）；torture set 对齐 ROADMAP SC#5——深阴影 Bayer（Z8 NEF 现有）、饱和 LED（缺，可后补不闸门）、X-Trans RAF（DSCF 系列 + GFX100S 现有）、100MP GFX（现有）、HDR stack（32f TIFF/EXR fixture 自造极值像素 + 真实 EXR 样本）。`.work/01-05/samples/` 18 份全制式可复用。
+- **样本**（现有 + 需采集）：ColorChecker ARW（**缺，需从 raw.pixls.us 等 CC0 源采集**，含 50% 灰块）；torture set 对齐 ROADMAP SC#5——深阴影 Bayer（Z8 NEF 现有）、饱和 LED（缺，可后补不闸门）、X-Trans RAF（DSCF 系列 + GFX100S 现有）、100MP GFX（现有）、HDR stack（32f TIFF/EXR fixture 自造极值像素 + 真实 EXR 样本）。`.work/plans/01-05/samples/` 18 份全制式可复用。
 - **双判据**（§3.5）：① 中性度——管线全链 → sRGB 8-bit → 定位 ColorChecker 灰块归一化坐标采样 → `max|R−G|,|G−B| < 2/255`；② 交叉一致性——同图 `CIContext` 直渲 sRGB（ColorSync 基准）vs 管线路径逐像素 < 2/255（只在已知 display profile 的屏/profile 上跑，快路径与基准互验）。
 - **PASS 判定写死容差常量**，超差输出 per-patch 差值表 + PFM/PGM dump 供人工比对。
 

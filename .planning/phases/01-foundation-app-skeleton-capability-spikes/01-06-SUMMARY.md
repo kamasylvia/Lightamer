@@ -98,7 +98,7 @@ should exercise it.
   CONDITIONAL per-session (needs `clearCaches()` on image switch — app leg
   drifted to 5.4 GB over six files, reproducing Spike B's finding in the
   real pipeline); frame PASS with the pixelpipe cache (15.6 ms @ 102 MP).
-  Harness source: `.work/01-06/perf-baseline.swift` (compiled against
+  Harness source: `.work/plans/01-06/perf-baseline.swift` (compiled against
   DerivedData frameworks, not a build target).
 - **01-06-06 (suite green + verification gate)** — unit suite green;
   VALIDATION map fully updated (automated rows ✅, manual rows
@@ -111,7 +111,7 @@ should exercise it.
 
 1. **RAW fixtures are not bundled** (plan text suggested
    `Resources/TestFixtures/**` for everything): the ~1.2 GB Plan 05 CC0 RAW
-   samples stay untracked at `.work/01-05/samples/` (repo bloat + CI
+   samples stay untracked at `.work/plans/01-05/samples/` (repo bloat + CI
    checkout cost); tracked rasters (JPEG/HEIC/PNG/TIFF) ride in the test
    bundle. `Fixtures.swift` documents the two-tier strategy plus a
    three-tier path search: `LIGHTAMER_RAW_SAMPLES_DIR` env override →

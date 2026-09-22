@@ -1,7 +1,7 @@
 # Plan 03-06 Summary — filmicrgb（F0-F4）+ agx 变体 + PERF-5 正式记录 + Phase 3 签核
 
 **Status:** Complete（2026-09-20）
-**验收:** 全 suite **267 tests / 0 failures / 3 documented skips**（连续两轮）；filmicrgb F0-F4 子阶段独立 golden 全绿 + `AgXTests` 5/5；PERF-5 正式 CI 记录落账（Release warm median 36.23ms，预算 16.6ms 未达、杠杆分配注记，见 `.work/03/perf-record.md`）；`03-VALIDATION.md` 签核（`nyquist_compliant: true`，SC#3 ⚠️ 注记）。
+**验收:** 全 suite **267 tests / 0 failures / 3 documented skips**（连续两轮）；filmicrgb F0-F4 子阶段独立 golden 全绿 + `AgXTests` 5/5；PERF-5 正式 CI 记录落账（Release warm median 36.23ms，预算 16.6ms 未达、杠杆分配注记，见 `.work/plans/03/perf-record.md`）；`03-VALIDATION.md` 签核（`nyquist_compliant: true`，SC#3 ⚠️ 注记）。
 
 ## 交付物
 
@@ -12,7 +12,7 @@
 - **T5 全模块**：`FilmicRGBModule`（v50=46.0 注册 + editing seed）；auto 三键 `AutoKey`（grey=/2 + K 对称移、black/white=全图 min/max 走新 `HistogramReduce.rgbMinMax` 两趟 uint 编码原子归约）+ `FilmicRGBPanelView`（形状滑块 + auto 键——grey 走吸管、black/white 走全图统计 + preserve/colorscience Picker + V5 锁定注记）。
 - **T6 `AgXModule` + `AgXKernels.metal`（IOP-FILM-03）**：`_calculate_tone_mapping_params` 全推导（pivot/gamma 补偿斜率/toe/shoulder scale + fallback）+ primaries 四矩阵（复用 SigmoidProfile builder；base Rec2020==work 恒等）；`kernel_agx`（compress_into_gamut→log→trapezoid curve→look→gamma→HSV hue lerp）直译；v50=45.5 注册 + `AgXPanelView` + editing seed。hatchless 无对标注记。
 - **golden 基建**：gen_fixtures.py +6 filmic case +6 agx case + float64 参考（**float32-FMA 逐式复刻**——M 系数 f32 发布网格 + `math.fma` 单舍入 Horner 复刻 Apple GPU fp-contract，缺一即 3-5e-5 系统差）；regenerate.sh ③d adoption probes（filmic/agx 每 case 单跑采 adoption 证据）；manifest 终稿两节字段映射表。
-- **T7 PERF-5**：`PreviewChainPerfTests` 2/2 进套；`MetalContext.prewarmPipelineStates` + PipeCoordinator load 后台预热 Task（prewarm 名单含 16 kernel，`colorout_matrix` 因 isP3 function-constant 无默认不可泛型预热已注记排除）；`.work/03/perf-record.md` 正式记录。
+- **T7 PERF-5**：`PreviewChainPerfTests` 2/2 进套；`MetalContext.prewarmPipelineStates` + PipeCoordinator load 后台预热 Task（prewarm 名单含 16 kernel，`colorout_matrix` 因 isP3 function-constant 无默认不可泛型预热已注记排除）；`.work/plans/03/perf-record.md` 正式记录。
 
 ## 中间排障（探针抓出的缺陷/勘误）
 
@@ -41,7 +41,7 @@
 |---|---|
 | IOP-FILM-01（filmicrgb F0-F4） | ✅ `CPUDerivationTests` F0 节 6/6 + `FilmicRGBTests` 10/10（F1 三方分段门 + F2/F4 组合 parity + F3 入域/中性 + norm 族 + auto 三键 + F5 mask + 轨 B + 注册） |
 | IOP-FILM-03（agx） | ✅ `AgXTests` 5/5（golden parity + 曲线不变式 + primaries 偏差钉双实现 + round-trip + 注册） |
-| PERF-5 | ⚠️ 记录完成、预算未达：Release 36.23ms / 45ms 回归界；晚链 2-6ms ✓；杠杆分配（`.work/03/perf-record.md`） |
+| PERF-5 | ⚠️ 记录完成、预算未达：Release 36.23ms / 45ms 回归界；晚链 2-6ms ✓；杠杆分配（`.work/plans/03/perf-record.md`） |
 | Phase 3 签核 | ✅ `03-VALIDATION.md` 签核（nyquist_compliant: true；SC#1/2/4 ✓、SC#3 ⚠️ 注记） |
 
 **测试计数**：244（03-05 末）→ **267**（+F0 节 6、FilmicRGB 10、AgX 5、Perf 2；3 documented skips 不变）。

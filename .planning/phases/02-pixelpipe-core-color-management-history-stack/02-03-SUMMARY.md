@@ -12,8 +12,8 @@
 | 02-03-02 | `CIContextPool.renderToTexture(_:longEdge:)`（scale-at-entry 单趟 bitmap 渲染 + `"render-scaled"` signpost + 引用 02-01 spike Test C：省的是**显存**不是解码时间）+ `MetalContext` 公共 facade | 3780aeb |
 | 02-03-03 | `PipeResolution` 迁出独立文件 + `defaultLongEdge` + 四管线生命周期表；`PixelPipe` 增 `roi`（scale-at-entry）/`isDirty`/`runIfDirty`/`runOnce`；输入平面 `roi.scale<1` 走长边渲染（分档平面共存于缓存，抖动回跨档秒回）；EXPORT 在 `run` 入口抛类型化 `AppError.notImplemented("Phase 11")` | 064f40b |
 | 02-03-04 | `PipeCoordinator`（App，@Observable @MainActor：`load/paramsDidChange/drawableDidChange/fetchThumbnail/requestFull` + 三条文档化缝）；`EditorState` 解码后委托 coordinator（弱引用互指、app root 强持有，无环）；删除无调用者的 `rerender(using:)`；`EditorAreaView` 保持 display-only + 几何输入事件 | f1f146d |
-| 02-03-05 | `MultiResolutionTests` 6/6（scale-at-entry 2560/Risk#8 key 分离/THUMBNAIL lazy/FULL scale-1.0+只缓存两端/EXPORT typed/roi.scale<1）；**app 内 D-C3 resize 实证**（跨档=恰好 1 重渲、档内=0、回跨档=纯缓存命中，`.work/02-03/resize-verification.md` + 截图）；VALIDATION FOUND-04 行更新 | 8f6dadb |
-| 冒烟 | `.work/02-03/smoke.swift` 真 RAW 11/11 PASS（PREVIEW 2560/FULL 全幅/THUMBNAIL 360/EXPORT typed + 内存账 2.07GB<3GB） | 22e3189 |
+| 02-03-05 | `MultiResolutionTests` 6/6（scale-at-entry 2560/Risk#8 key 分离/THUMBNAIL lazy/FULL scale-1.0+只缓存两端/EXPORT typed/roi.scale<1）；**app 内 D-C3 resize 实证**（跨档=恰好 1 重渲、档内=0、回跨档=纯缓存命中，`.work/plans/02-03/resize-verification.md` + 截图）；VALIDATION FOUND-04 行更新 | 8f6dadb |
+| 冒烟 | `.work/plans/02-03/smoke.swift` 真 RAW 11/11 PASS（PREVIEW 2560/FULL 全幅/THUMBNAIL 360/EXPORT typed + 内存账 2.07GB<3GB） | 22e3189 |
 | 收尾 | API.md 表面同步 + SUMMARY（本提交） | — |
 
 ## 验证（质量门全过）

@@ -462,14 +462,14 @@ final class GoldenParityTests: XCTestCase {
         return UncompressedEXR(width: texture.width, height: texture.height, rgb: rgb)
     }
 
-    // MARK: - Failure dump (Plan T3: diff table + EXR dump to .work/03-01/)
+    // MARK: - Failure dump (Plan T3: diff table + EXR dump to .work/plans/03-01/)
 
     private func dumpFailure(tag: String, detail: String) {
         let dir = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent(".work/03-01", isDirectory: true)
+            .appendingPathComponent(".work/plans/03-01", isDirectory: true)
             .appendingPathComponent("parity-dump-\(Int(Date().timeIntervalSince1970))-\(tag)", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try? detail.write(to: dir.appendingPathComponent("diff-table.txt"), atomically: true, encoding: .utf8)

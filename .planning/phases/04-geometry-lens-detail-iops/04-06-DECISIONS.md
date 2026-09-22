@@ -6,7 +6,7 @@
 
 **证据**（`Tests/LightamerTests/GUIProbeTests.swift`，DSC00012.ARW 真实 CIRAW v9
 解码 9504×6336，经 coordinator.load 真实路径 + RenderPipeline 消融，
-`.work/04-06/probe-gui1.md` 落盘，L014 每次读回前 fence）：
+`.work/plans/04-06/probe-gui1.md` 落盘，L014 每次读回前 fence）：
 
 | 腿 | 链 | 结果（760×507，bgra8） |
 |---|---|---|

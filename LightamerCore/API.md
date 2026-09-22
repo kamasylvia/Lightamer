@@ -48,7 +48,7 @@
   `psoCreationFailed`, `bufferAllocationFailed`
 - Decode-leg status (Plan 02-01 spike): `CIContext.render(_:toMTLTexture:)`
   is a silent no-op on the dev host even after warm-up — bitmap+replace is
-  the primary AND fallback decode leg (`.work/02-01/spike-render-leg.md`)
+  the primary AND fallback decode leg (`.work/plans/02-01/spike-render-leg.md`)
 
 ### Pipe (`Sources/Pipe/`)
 - `protocol IOPModule` — `associatedtype Params: Codable & Hashable`;
@@ -179,7 +179,7 @@
   `iopOrder 70.0`; linear Rec2020 → linear display gamut (gamut matrix
   ONLY — TRC is gamma's job, D-COL4). Dual path: `colorout_matrix` kernel
   with function-constant `isP3` over two compile-time constant matrices
-  (derivation cited in-source; generator `.work/02-04/matrix-derive.swift`)
+  (derivation cited in-source; generator `.work/plans/02-04/matrix-derive.swift`)
   + ColorSync precise leg via `MetalContext.convertToLinearSpace` (internal)
   then `terminal_copy`. `Params.outputProfile` (.display/.sRGB/.displayP3)
   + `intent` = D-COL3 reservation (Phase 13 printer/soft-proof profiles).

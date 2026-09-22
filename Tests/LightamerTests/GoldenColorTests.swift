@@ -19,7 +19,7 @@ import XCTest
 // committed synthetic NeutralTarget.tif keeps the harness green everywhere.
 //
 // Failures dump a per-patch/percentile diff table + PFM to
-// `.work/02-04/golden-dump-<timestamp>/` (created on failure only).
+// `.work/plans/02-04/golden-dump-<timestamp>/` (created on failure only).
 
 final class GoldenColorTests: XCTestCase {
 
@@ -33,7 +33,7 @@ final class GoldenColorTests: XCTestCase {
         /// Criterion 2 (linear domain): per-pixel abs diff of the LINEAR
         /// display-domain planes (≈2/255 encoded at mid-tones).
         static let crossLinear = 0.004
-        /// HOST FINDING (2026-09-19, `.work/02-04/probe-edge.swift`):
+        /// HOST FINDING (2026-09-19, `.work/plans/02-04/probe-edge.swift`):
         /// ColorSync's 8-bit ICC render (CIContext → displayP3 → RGBA8)
         /// does NOT follow the IEC sRGB segmented curve in the low end —
         /// its tables behave ≈ pure gamma-2.2 (no 1/12.92 toe). Example:
@@ -108,7 +108,7 @@ final class GoldenColorTests: XCTestCase {
 
     /// Sample a normalized IMAGE-space point (top-left origin) with a 3×3
     /// average. ORIENTATION (empirically pinned by the 02-04 viz harness,
-    /// `.work/02-04/viz-chain.swift`): the pixelpipe plane's row 0 is the
+    /// `.work/plans/02-04/viz-chain.swift`): the pixelpipe plane's row 0 is the
     /// image TOP (CI render→bitmap→replace keeps top-down order; the
     /// EditorMTKView blit's uv flip is what makes the app view upright) —
     /// so texture y maps DIRECTLY (no flip): `y_tex = y`.
@@ -133,7 +133,7 @@ final class GoldenColorTests: XCTestCase {
     // MARK: - Failure dump (PFM + diff table)
 
     /// Dump a diff table + float PFM of the abs diff map under
-    /// `.work/02-04/golden-dump-<timestamp>/`. Failure-path only.
+    /// `.work/plans/02-04/golden-dump-<timestamp>/`. Failure-path only.
     private func dumpFailure(
         tag: String, pipe: [(UInt8, UInt8, UInt8)], baseline: [(UInt8, UInt8, UInt8)]?,
         width: Int, height: Int
@@ -142,7 +142,7 @@ final class GoldenColorTests: XCTestCase {
             .deletingLastPathComponent() // Tests/LightamerTests
             .deletingLastPathComponent() // Tests
             .deletingLastPathComponent() // repo root
-            .appendingPathComponent(".work/02-04")
+            .appendingPathComponent(".work/plans/02-04")
         let dir = root.appendingPathComponent(
             "golden-dump-\(Int(Date().timeIntervalSince1970))-\(tag)", isDirectory: true
         )

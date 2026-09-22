@@ -19,7 +19,7 @@ import XCTest
 // build measures ~63.4ms warm (03-05 pre-verification data; the Debug
 // kernel + per-dispatch overhead dominate) and only carries the 120ms
 // pathological-regression bound. The formal CI record lives in
-// `.work/03/perf-record.md`.
+// `.work/plans/03/perf-record.md`.
 final class PreviewChainPerfTests: XCTestCase {
 
     /// true when the test binary carries optimization (no DEBUG flag).

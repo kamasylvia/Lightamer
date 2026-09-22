@@ -2,7 +2,7 @@
 
 Same source as Spike A (`samples/README.md` there): all files downloaded
 2026-09-16 from **raw.pixls.us**, **CC0 1.0 public domain**. RAW files are NOT
-committed (working copies at `.work/01-05/samples/`); golden rendered outputs in
+committed (working copies at `.work/plans/01-05/samples/`); golden rendered outputs in
 `samples/golden/` ARE committed (2560×1440 aspect-fit RGBA8 PNG renders produced
 by `perf-harness`-equivalent render path, linear Rec2020 working space → sRGB
 output).

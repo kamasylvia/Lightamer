@@ -10,7 +10,7 @@
 | T2 | colorzones：V2 splines 核对（cubic/catmull 与 V1 同式→委托；monotone=G-variant 新增；周期腿新增，MONOTONE→variant）+ `ColorZonesLUT`（strength 折叠 + 3×0x10000 构建，select h 时周期）+ `colorzones_v3` kernel（CL 腿 NEAREST documented 偏离）+ 模块（60.0，520B 侧写忠实，SMOOTH/v3 only）+ 注册/prewarm/seed + 11 测试 | `ff57256` feat(colorzones) |
 | T3 | gen_fixtures（vib/vel float64 镜 + V2 colorzones 镜 + 9 XMP 4B/8B/520B + refs 生成器）+ parity（vib 2×6 + vel 3×6 <1e-5 + 恒等门 + clamp 钉；CZ 4×6 双层门 + LUT-direct + hue-sweep 全环）+ dt 采纳（vib/vel 5/5 version-ok；cz 插件坏记录）+ 平场 probe 6/6 + manifest（待 05-08 台账轮落账） | `9da6f89` test(05-04) |
 | T4 | 面板 ×3（vibrance 单滑块 / velvia strength+bias / colorzones L-C-h 三 tab + CurveEditorView 复用 + hue 色带 + select/strength/mode）+ providers + 23 catalog 键 zh/en + a11y + PanelWiring +5（3 拖动=1 commit 含曲线离散化 + reset seed-hash + dispatch）+ seed 断言 ×3 | `600ed00` feat(panels-05-04) |
-| T5 | 轨 B（3 中性件插链，双判据绿）+ PERF（`.work/05-04/perf.md`，3 趟 +6ms）+ GUI 走查（FINDINGS GUI-10/11 + 量化）+ label 修（`fix(inspector)`）+ 全量回归 + SUMMARY/DECISIONS | 本轮（`de62b4f` + 下述修复） |
+| T5 | 轨 B（3 中性件插链，双判据绿）+ PERF（`.work/plans/05-04/perf.md`，3 趟 +6ms）+ GUI 走查（FINDINGS GUI-10/11 + 量化）+ label 修（`fix(inspector)`）+ 全量回归 + SUMMARY/DECISIONS | 本轮（`de62b4f` + 下述修复） |
 
 ## 证据指针
 
@@ -61,7 +61,7 @@
 - [x] 三槽位 V50 断言（57.0/58.0 方法 + 60.0 在 CPU 测试）；seed 中性恒等论证（neutral-identity 门 + PanelWiring reset-hash）
 - [x] dt 三证据 ×3（vib/vel 5/5 version-ok + cz 插件坏记录 + blob 格式断言；manifest 落账待 05-08 台账轮——05-03 同口径，不在本 plan 交付内）
 - [x] 面板 ×3（CurveEditorView 复用 + hue 色带）+ PanelWiring +5 + catalog + a11y
-- [x] GUI 走查登记（GUI-10/11 + 通过项量化）；轨 B 双判据不回归；PERF 记录落 `.work/05-04/perf.md`
+- [x] GUI 走查登记（GUI-10/11 + 通过项量化）；轨 B 双判据不回归；PERF 记录落 `.work/plans/05-04/perf.md`
 - [x] 全 suite 绿（512/0fail/3skip）；ROI 头注钉死 ×3（恒等 + tileHalo=0 + 禁 dscIn×scale）
 
 ## T5 证据（轨 B / PERF / GUI）
@@ -69,7 +69,7 @@
 - 轨 B：`makeChainWithCropFlip` 插 vibrance + velvia + colorzones 中性件
   （ENABLED-neutral ×3）。`GeometryGoldenTests` 4/4（neutrality +
   cross-consistency 双判据，终轮全绿即回归证据）。
-- PERF：`.work/05-04/perf.md`（3 趟单 pass，链增量 +3–6ms@2560 Debug；
+- PERF：`.work/plans/05-04/perf.md`（3 趟单 pass，链增量 +3–6ms@2560 Debug；
   colorzones LUT 768KB commit 期上传，per-frame 零上传；seed 政策 + SC#4 口径）。
 - GUI 走查（PLAYBOOK §2+§3，真机 DSC00012.ARW）：
   - 通过：三模块行注册 + 中文标签（颜色区域/Velvia/自然饱和度，`fix(inspector)`

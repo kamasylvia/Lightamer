@@ -79,7 +79,7 @@
 
 - **采纳**：4 case XMP → `params v. 2: version ok params ok` +
   `successfully loaded module monochrome` + DB op_params hex == XMP blob
-  （byte-identical，4/4；证据 `.work/05-05/adoption/`）。
+  （byte-identical，4/4；证据 `.work/plans/05-05/adoption/`）。
 - **平场 probe**：colorin/colorout 在本机构建树 stale（`libcolorin.so`/
   `libcolorout.so` dlopen 符号缺失——05-04 D-T3-4 同族），导出管跑
   monochrome 于未转换域（fixture RGB 直作 Lab：L=0.5, a=b=0.5）。

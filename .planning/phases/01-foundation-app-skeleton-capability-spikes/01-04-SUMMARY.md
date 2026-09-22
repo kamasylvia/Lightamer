@@ -96,7 +96,7 @@ sessions — the blit path itself was byte-verified headlessly in Plan 03).
 
 ## End-to-end smoke evidence (headless, real GPU: Apple M4)
 
-`.work/01-04/smoke.swift` (public surface only; decode fixture =
+`.work/plans/01-04/smoke.swift` (public surface only; decode fixture =
 `Resources/TestFixtures/sample-gradient.jpg`):
 
 | Check | Result |
@@ -177,7 +177,7 @@ byte-exact in Plan 03's smoke and is unchanged).
 ## Handoff to downstream plans
 
 - **Plan 06** fills the 9 staged test stubs (the smoke in
-  `.work/01-04/smoke.swift` is the reference for `IOPModuleTests`
+  `.work/plans/01-04/smoke.swift` is the reference for `IOPModuleTests`
   bodies) and stages RAW fixtures; document `RenderPipeline` in
   `LightamerCore/API.md` (D-03c).
 - **Phase 2** replaces the no-op body of `PixelPipe.process` with the real
@@ -198,4 +198,4 @@ byte-exact in Plan 03's smoke and is unchanged).
 - `LightamerIOP/Sources/Passthrough.swift`
 - `App/Sources/Lightamer/State/EditorState.swift`, `App/Sources/Lightamer/UI/{ContentView,EditorAreaView,LightamerApp}.swift`
 - `Tests/LightamerTests/{IOPModuleTests,V50OrderTests,LayerSkeletonTests}.swift`
-- Smoke harness: `.work/01-04/smoke.swift` (not a build target)
+- Smoke harness: `.work/plans/01-04/smoke.swift` (not a build target)

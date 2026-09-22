@@ -40,7 +40,7 @@ Pixel math (both sides): `out.rgb = in.rgb × (red, green, blue)`, alpha untouch
 (`whitebalance_4f` ↔ `temperature_apply`). The Kelvin→gains MODEL diverges by
 design (dt: sensor-domain XYZ_to_CAM; Lightamer: Rec2020-native post-CIRAW
 correction layer, RESEARCH §5) — the Kelvin math is locked by
-CPUDerivationTests against .work/03-02/wb_reference.c instead of golden.
+CPUDerivationTests against .work/plans/03-02/wb_reference.c instead of golden.
 
 ## Cases × params blob hash + golden output sha256
 
@@ -860,9 +860,9 @@ camera/detect 项（resolver returns nil → panel hides/disables + 注记）.
 blob 版式：vibrance v? = 4B（amount f32 pre-scaled /100）；velvia v2 = 8B
 （strength/bias 2f，strength 存 /100 后值——vel_clamp 实测 `0000c84200000000`
 = 100.0/0.0）；colorzones v? = 520B（splines V2 + LUT）。sha256 见
-`.work/05-04/` 采纳证据与 XMP 本体。
+`.work/plans/05-04/` 采纳证据与 XMP 本体。
 
-### dt-cli 采纳（2026-09-22 实跑，日志 `.work/05-04/adoption/`）
+### dt-cli 采纳（2026-09-22 实跑，日志 `.work/plans/05-04/adoption/`）
 
 | case | op | loader | version ok | DB hex vs XMP |
 |---|---|---|---|---|

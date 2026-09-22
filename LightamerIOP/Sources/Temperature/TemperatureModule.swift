@@ -56,7 +56,7 @@ import simd
 ///
 /// Reference vectors for every stage are pinned in
 /// `CPUDerivationTests` (WB section) against the C harness
-/// `.work/03-02/wb_reference.c`, which computes the dt-side values from
+/// `.work/plans/03-02/wb_reference.c`, which computes the dt-side values from
 /// darktable's own table file + lcms2.
 public enum WhiteBalanceMath {
 

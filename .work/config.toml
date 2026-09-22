@@ -1,0 +1,72 @@
+# matrix 阵容(2026-09-21 原子切自 [review.*];2026-09-22 slot 列表制 + 两档统一 roster 单列表制;Review 细则见 AGENTS.md §11,调用见 skills/matrix/SKILL.md)
+# 选中规则(2026-09-22 显式优先 + 链式回落):候选集 = 名单显式包含当前 orchestrator 的 slot 子集 E;E 非空时缺省 slot 视若无,E 为空时候选集 = 缺省集 D;候选集内窗口首命中→候选集内 fallback(至多一个);E 非空但 E 内无 fallback → 链式回落 D 的 fallback(恰一个则用,无则停问,多则报错);E 内已有 fallback 不再回落;选中休眠 slot → 静默跳过(见技能正文)
+# 示例:orchestrator=omp + omp 显式 slot 无 windows → 全天只出该 slot;显式 slot 带 windows → 窗内命中显式、窗外链式回落 D 的 fallback;zcode 双窗 + 午休休眠 → 窗外回落?zcode 在 E 内(3 个显式 slot)但 E 无 fallback → 回落 D(slot1),即窗外走全天混合。
+#   roster 条目 type[:count],顺序 = lane/worker 序;type ∈ {subagent,omp,pi,kilo,reasonix};none 禁入 config;未知 type = 不可用 worker 报错(均 dispatch 前校验,停下问用户)
+#   count 语义分档:vibe 缺省 = count_default(见下,内置 auto,导演按§任务分解推导);review 缺省 = 1(每 lane 每轮跑一次),`:auto` 非法报错;显式数字两档皆照单执行、不受 cap 约束
+#   roster 条目 subagent:N → lanes/worker subagent,subagent2,…,subagentN;裸 subagent = 单条;omp 自派生不需要(实测 2026-09-20:同目录多 omp -p 进程各写各报告无串扰,隔离靠任务书+报告路径)
+#   roster = [] = 休眠 slot(两档同):被选中(直接命中或 fallback 命中)→ 静默跳过本次 dispatch,不派发/不报错/不停问/不留待答问题,日志记一行「休眠时段跳过」;不进数量推导,校验自然豁免(空列表无条目)
+#   vibe auto 数量 = min(分得任务在最宽波中的并行数,cap);单类型全自动时退化为 min(W,cap);溢出排队,不静默加实例;auto 可为 0(该类型本波无分得任务 = 不出实例,合法;随分派建议表可见,确认时可改)
+#   cap(type) = cap_override[type] ?? cap_default[类别](subagent/external 两类,见 [matrix.vibe.cap_default];命名统一:<knob>_default 兜底 / <knob>_override 例外)
+#   orchestrator = ["zcode",…]? = slot 适用范围过滤:仅名单内 orchestrator 遵守本 slot,其余 harness 视若无此 slot;缺省 = 全部 orchestrator 生效;名单 = 去己规则同命名空间({omp,pi,kilo,reasonix,zcode},orchestrator 自报其名);未知名/空列表 = 配置报错;选中顺序 = 显式优先 + 链式回落(见文件头),旧「适用性过滤 → 窗口首命中 → fallback」已废
+# 去己规则(两档同):roster 中出现 orchestrator 自身名(如 zcode)→ 该条目原位视为 subagent[:count](count 原样保留,缺省按本档 count 语义),条目工作量改由内置 subagent 承担。
+[matrix.vibe.cap_default]
+subagent = 5
+external = 2
+
+[matrix.vibe.cap_override]
+# 按类型覆盖 cap_default 类别兜底,稀疏配置(只写要改的,未列类型落回 cap_default);示例:
+zcode = 5
+omp = 10
+# kilo = 1
+
+[matrix.vibe.count_default]
+# vibe 裸条目(不带 :count)的数量缺省:default = 全量,类型键 = 单独覆盖;值 "auto" | 非负整数;不配置则内置 auto。数字缺省按显式数字对待(照单、不受 cap 约束)。示例:
+default = "auto"
+# omp = 2
+
+[[matrix.vibe.slot]]
+roster = ["subagent", "omp", "pi", "kilo", "reasonix"]  # 全天 fallback(白天混编:omp 执行 plan + subagent 验收)
+[[matrix.vibe.slot]]
+orchestrator = ["zcode"]
+roster = ["subagent:auto"]  # 跨夜全 subagents(2026-09-22 用户指令:23:00-9:00 全 subagents 工作;auto=按波宽推导,cap 5)
+active_windows = [["23:00", "09:00"]]
+[[matrix.vibe.slot]]
+orchestrator = ["omp"]
+roster = ["subagent"]  # 初值保现行为:无 active_windows = 全天 fallback
+# 分窗示例(按需增 slot,各窗 roster 可同可异;fallback 留一个覆盖剩余时间):
+[[matrix.vibe.slot]]
+orchestrator = ["zcode"]
+roster = ["omp"]
+active_windows = [["09:00", "14:00"], ["18:00", "23:00"]]
+[[matrix.vibe.slot]]
+orchestrator = ["zcode"]
+roster = ["subagent"]
+active_windows = [["23:00", "09:00"]]
+# 休眠示例(要「某时段静默不派发」:加 roster = [] 的休眠 slot 盖住该时段,或以休眠 slot 作 fallback;勿与现有 fallback 并存——fallback 至多一个):
+
+[matrix.review]
+# 数值纪律/质量门(2026-09-21 自 §11 抽出;缺省 = 括号内现行为;判定语义仍在 §11;父表阈值全 slot 共用)
+min_valid_lanes = 4   # §11.8 最低有效路数
+lane_retry = 1        # §11.8 单路失败重试次数,耗尽记缺席
+clean_streak_close = 3  # §11.6 连续清洁轮闭环
+max_rounds = 5        # §11.6 安全阀:总轮次超此停,转人工
+stale_rounds = 3      # §11.6 安全阀:同类问题连续未消停轮次
+min_votes = 2         # §11.5 判违反所需路数;1 = 单路可定罪(herd 风险自负);须 ≤ min_valid_lanes
+short_timeout = 300   # §11.14 短任务 timeout 秒
+stuck_poll = 180      # §11.14 长任务零增长判卡秒(poll 间隔 2-3min 仍见 §11 正文)
+
+# 以下 4 slot = 2026-09-22 自 vibe 阵容镜像(roster 原样;两档 roster 同构):
+[[matrix.review.slot]]
+roster = ["omp", "pi", "kilo", "reasonix", "subagent"]  # ← vibe slot1:全天 fallback(5 路)
+[[matrix.review.slot]]
+orchestrator = ["zcode"]
+roster = ["omp", "pi", "kilo", "reasonix"]  # ← vibe slot2:白天双窗(4 路,恰达 min_valid_lanes)
+active_windows = [["09:00", "14:00"], ["18:00", "23:00"]]
+[[matrix.review.slot]]
+orchestrator = ["zcode"]
+roster = ["subagent:4"]  # ← review slot3:跨夜全 subagents(2026-09-22 用户指令:23:00-9:00 全 subagents 工作;subagent:4 恰达 min_valid_lanes)
+active_windows = [["23:00", "09:00"]]
+[[matrix.review.slot]]
+orchestrator = ["zcode"]
+roster = []  # ← vibe slot4:午休休眠,zcode review 静默跳过
+active_windows = [["14:00", "18:00"]]

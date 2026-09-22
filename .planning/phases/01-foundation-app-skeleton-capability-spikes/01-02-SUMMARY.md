@@ -63,7 +63,7 @@ of the Phase 1 vertebra is in place; Plan 03 renders `DecodedImage.ciImage`.
 - **01-02-06 build + smoke** — `tuist generate` exit 0; `xcodebuild build`
   (scheme `Lightamer`) and `xcodebuild build -target LightamerTests` both
   `** BUILD SUCCEEDED **` (only the known benign LightamerIOP
-  DEFINES_MODULE warning). Smoke harness (`.work/01-02/smoke.swift`, linked
+  DEFINES_MODULE warning). Smoke harness (`.work/plans/01-02/smoke.swift`, linked
   against the built `LightamerCore.framework`, drives the public surface):
   JPEG/HEIC/TIFF decode via the raster path with correct extents and empty
   RAW-tech params; a garbage `.cr3` fails with typed
@@ -77,7 +77,7 @@ of the Phase 1 vertebra is in place; Plan 03 renders `DecodedImage.ciImage`.
 - `App/Sources/Lightamer/UI/{LightamerApp,ContentView,EditorAreaView}.swift`
 - `Tests/LightamerTests/RAWDecoderTests.swift`
 - `Resources/TestFixtures/{README.md,sample-gradient.png,.jpg,.tiff,.heic}`
-- Smoke harness: `.work/01-02/smoke.swift` (not part of any target)
+- Smoke harness: `.work/plans/01-02/smoke.swift` (not part of any target)
 
 ## Deviations from plan (with reasons)
 
@@ -123,7 +123,7 @@ of the Phase 1 vertebra is in place; Plan 03 renders `DecodedImage.ciImage`.
    raster branch is synchronous, so without a `Task.checkCancellation()` at
    `decode()` entry a cancelled raster decode would still complete. Caught
    by the cancellation smoke test.
-8. **`.work/01-02/smoke.swift` retained** as the durable record of the smoke
+8. **`.work/plans/01-02/smoke.swift` retained** as the durable record of the smoke
    verification (per the process-files-in-`.work` convention); it is not a
    build target.
 
@@ -136,7 +136,7 @@ of the Phase 1 vertebra is in place; Plan 03 renders `DecodedImage.ciImage`.
   LightamerIOP (disappears in Plan 04).
 - `xcodebuild build -target LightamerTests` → `** BUILD SUCCEEDED **`
   (RAWDecoderTests stubs compile under Swift 6 strict concurrency).
-- Smoke (`.work/01-02/smoke`): raster path OK ×3 (extent 160×120, v8,
+- Smoke (`.work/plans/01-02/smoke`): raster path OK ×3 (extent 160×120, v8,
   black=0/white=1, matte nil), corrupt `.cr3` →
   `AppError.decodeFailed(...)`, cancel → `CancellationError`.
 

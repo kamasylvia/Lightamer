@@ -132,7 +132,7 @@ final class CPUDerivationTests: XCTestCase {
 
     // MARK: - WB K→gain (plan 03-02-T1, RESEARCH §1.2/§5)
 
-    // Reference values computed by `.work/03-02/wb_reference.c` — a harness
+    // Reference values computed by `.work/plans/03-02/wb_reference.c` — a harness
     // that #includes darktable's OWN `src/external/cie_colorimetric_tables.c`
     // + verbatim copies of temperature.c:287-401's four helpers, linked
     // against the same lcms2 dt uses. The Swift side (WhiteBalanceMath) is

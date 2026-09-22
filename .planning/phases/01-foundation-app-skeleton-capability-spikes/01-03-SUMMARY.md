@@ -83,7 +83,7 @@ single manual remainder (screen locked in this session — same as Plans 01/02).
   (init / bit-exact / PSO-cache-hit / constants-specialization, each
   `XCTSkipIf` GPU-guarded; Plan 06 fills). `xcodebuild build` (scheme) +
   `xcodebuild build -target LightamerTests` both `** BUILD SUCCEEDED **`.
-  Headless smoke (`.work/01-03/smoke.swift`, links the built frameworks,
+  Headless smoke (`.work/plans/01-03/smoke.swift`, links the built frameworks,
   drives the PUBLIC surface): **13/13 PASS** — see below.
 - **Metal Toolchain component** — Xcode 27 required
   `xcodebuild -downloadComponent MetalToolchain` (838.9 MB) before any `.metal`
@@ -123,7 +123,7 @@ is in place on both paths (D-31).
 - `App/Sources/Lightamer/State/EditorState.swift`
 - `Resources/Localizable.xcstrings` (+`alert_metal_unavailable_title`, +`editor_viewport`, −`editor_loaded_placeholder`)
 - `Tests/LightamerTests/MetalContextTests.swift`
-- Smoke harness: `.work/01-03/smoke.swift` (not a build target)
+- Smoke harness: `.work/plans/01-03/smoke.swift` (not a build target)
 
 ## Deviations from plan (with reasons)
 
@@ -202,7 +202,7 @@ is in place on both paths (D-31).
 - `pass_through` present in
   `LightamerIOP.framework/Versions/A/Resources/default.metallib`
   (`metal-objdump --syms`: `FUNCTION_LIST pass_through`).
-- Smoke `.work/01-03/smoke` → `SMOKE PASS` (13/13, exit 0) against the built
+- Smoke `.work/plans/01-03/smoke` → `SMOKE PASS` (13/13, exit 0) against the built
   Debug frameworks + Lightamer.app bundle.
 
 ## Handoff to downstream plans
@@ -213,7 +213,7 @@ is in place on both paths (D-31).
   pattern: `makeConstants` + `setConstant` chaining (both required — no MSL
   defaults in the kernel).
 - **Plan 06** fills `MetalContextTests` stub bodies (bit-exact, cache,
-  specialization — the smoke in `.work/01-03/smoke.swift` is the reference
+  specialization — the smoke in `.work/plans/01-03/smoke.swift` is the reference
   implementation for all four), stages RAW fixtures.
 - **Phase 2** replaces `CIContextPool.renderToTexture` with the linear
   pixelpipe; re-test `render(_:toMTLTexture:)` on newer macOS 27 builds first

@@ -7,7 +7,7 @@ profiling). Every file on raw.pixls.us is published under
 samples are licensed CC0 unless stated otherwise"; the site indexes only CC0
 material and links the license at creativecommons.org/share-your-work/public-domain/cc0/).
 
-Files are NOT committed to this repo (0.5–200 MB each; `.work/01-05/samples/`
+Files are NOT committed to this repo (0.5–200 MB each; `.work/plans/01-05/samples/`
 holds the working copies on this machine). Re-fetch with the URLs below.
 
 Golden crops in `samples/golden/` ARE committed: 320×240 100% center crops

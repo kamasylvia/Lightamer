@@ -14,7 +14,7 @@
 //                        (behavioral no-op evidence), mattes, preview.
 //
 // Output: markdown-ish text on stdout (tee to
-// .work/01-05/spike-a-probe-output.txt by the caller).
+// .work/plans/01-05/spike-a-probe-output.txt by the caller).
 
 import Foundation
 import CoreImage

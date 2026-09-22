@@ -30,7 +30,7 @@
   catalog 5 键（wheel_section/section/size/highlights/history）。
   a11y：panel + wheel + 2 sliders（色轮 AXUnknown，05-02 同类，L011）。
   轨 B 双判据绿（disabled 插链，零增量论证同 05-02 T5）。
-  PERF：`.work/05-05/perf.md`（7 compute + 1 blit，启用态 ~7–14ms）。
+  PERF：`.work/plans/05-05/perf.md`（7 compute + 1 blit，启用态 ~7–14ms）。
 
 ## 防空转自检声明
 
@@ -55,10 +55,10 @@
   （`roi.scale ÷ piece.iscale`；禁 dscIn×scale）
 - [x] dt 三证据 + manifest 节（4/4 采纳 byte-identical + 平场 probe 手算预期；
   manifest monochrome 节待 05-08 台账轮落账——05-03/05-04 同口径，
-  不在本 plan 交付内；XMP + refs 已进仓，证据 `.work/05-05/adoption/`）
+  不在本 plan 交付内；XMP + refs 已进仓，证据 `.work/plans/05-05/adoption/`）
 - [x] 面板色轮交互 + PanelWiring +3 + catalog + a11y + GUI 走查登记
   （FINDINGS GUI-12 + 通过项量化：彩色基线 spread 43.50 + AX 径）
-- [x] 轨 B 双判据不回归；PERF 记录落 `.work/05-05/perf.md`
+- [x] 轨 B 双判据不回归；PERF 记录落 `.work/plans/05-05/perf.md`
 - [x] 全 suite 绿（535/0fail/3skip；基线 513 → 本轮 +22：
   Commit 13 + Grid 3 + Parity 3 + PanelWiring 3；skip 3 既有合规）
 
@@ -68,7 +68,7 @@
   ⇒ disabled ⇒ pipe 跳过 ⇒ 零链增量；05-02 colorbalancergb T5 同论证）。
   `GeometryGoldenTests` 4/4（neutrality + cross-consistency 双判据，终轮全绿
   即回归证据）。
-- PERF：`.work/05-05/perf.md`（7 compute + 1 blit；默认链 +0 趟；启用态
+- PERF：`.work/plans/05-05/perf.md`（7 compute + 1 blit；默认链 +0 趟；启用态
   ~7–14ms@2560 Debug；SC#4 口径）。
 - GUI 走查（PLAYBOOK §2+§3，真机 DSC00012.ARW）：
   - 通过：黑白行注册（fresh sidecar 26 行，`黑白 — 已停用`）+ 中文标签 +

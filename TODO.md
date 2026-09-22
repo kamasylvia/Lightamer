@@ -49,7 +49,7 @@
 **状态**：6 plans 已 executed + committed（1 次 checkpoint 确认 + 1 个 pre-existing 真缺陷修复）；单测 133 全绿（3 skip 合规）；VALIDATION 已签核（`nyquist_compliant: true` / `wave_0_complete: true` / SC#1..5 全数有证据）；UITests 沿用 L011 pending-manual 口径。
 
 - [x] **Plan 02-01**（tracer）完成（2026-09-19，含一次 checkpoint→修复回路）：
-  - Task 01 单渲染路径统一（0c54a68）；Task 02 CIContext warm-up spike（decision=**bitmap**：直渲在本机为 0.0ms 静默 no-op，连默认 context 也空写，warm-up 无效——Phase 1"首渲写空第二次正常"理论修正，报告 `.work/02-01/spike-render-leg.md`）；Task 03 CIContextPool bitmap 决议落账（a97ea65）；Task 04 StableHash FNV-1a 64 public + 7 向量测试（376ddaa）
+  - Task 01 单渲染路径统一（0c54a68）；Task 02 CIContext warm-up spike（decision=**bitmap**：直渲在本机为 0.0ms 静默 no-op，连默认 context 也空写，warm-up 无效——Phase 1"首渲写空第二次正常"理论修正，报告 `.work/plans/02-01/spike-render-leg.md`）；Task 03 CIContextPool bitmap 决议落账（a97ea65）；Task 04 StableHash FNV-1a 64 public + 7 向量测试（376ddaa）
   - Task 05 UAT 曾 CHECKPOINT：黑屏复现 → **真根因 = SwiftUI WindowGroup 每 odoc Apple Event 开新窗口**（10 窗/10 MTKView，新窗 decode 期建、盖住真显示窗），非渲染路径竞争。修复 = 单 `Window` scene（ac84596，Phase 9 多窗口再回归）→ 9/9 UAT 步全显示（含压力循环）
   - Task 06 D-X2 探针退役（88afa0c）：drawable 回读/drawProbe/身份探针全删，`framebufferOnly` 等诊断配置还原默认；paused 模式（D-13）保留无偏离
   - 收尾：单测 43/43 绿（1 跳过）；UITest 未跑（screen 环境同 Phase 1 pending-manual 口径，三栏断言代码就绪）；SUMMARY 见 `02-01-SUMMARY.md`；根因教训入 LESSONS L012
@@ -59,8 +59,8 @@
   - colorin 恒等（28.0，COLOR-04 inputProfile 预留 + displayed-domain 架构注记）/ colorout 双路径（70.0，Rec2020→P3/sRGB 常量矩阵快路径 + ColorSync 精确腿 + D-COL3 参数位）/ gamma（78.0，sRGB TRC → .bgra8Unorm 管尾，D-COL4 唯一 clamp 点）+ TerminalKernels.metal（Core 首个 metallib）
   - ModuleRegistry actor（default chain + 未知 op nil 降级位）+ LightamerIOPRegistry.populate + ModuleBox instanceID 注入 init + setParams 采纳 committed hash
   - DisplayProfile（P3/sRGB 匹配表 + ICC fallback + stableID）+ D-COL2 屏幕跟随（configure(window:) + 双通知 + 幂等 guard）+ EditorMTKView display-ready blit regime + CAMetalLayer colorspace
-  - Golden 双判据 harness green：①中性度 6 灰块逐块 <2/255；②交叉一致性（线性域 <0.004 + 字节域 ColorSync 基准分层断言）；缓存断言（display change → 仅 ≥colorout miss）；合成 NeutralTarget.tif committed；ColorChecker ARW 采集 pending（raw.pixls.us 不收 color target，skip-with-reason 就位，`.work/02-04/colorchecker-acquisition.md`）
-  - 单测 83 全绿（3 skip 合规）；真 RAW 冒烟 7/7 + 全链 vs CI 直渲对照一致（`.work/02-04/smoke-run.md`）；修复 3 个真缺陷：gamma TRC 写成 decode 方向、ModuleBox 不采纳 committed hash（stableID fold 对缓存不可见）、JSONEncoder 键序不稳定全面切 ParamsCoding(sortedKeys)（L013 对策落地）
+  - Golden 双判据 harness green：①中性度 6 灰块逐块 <2/255；②交叉一致性（线性域 <0.004 + 字节域 ColorSync 基准分层断言）；缓存断言（display change → 仅 ≥colorout miss）；合成 NeutralTarget.tif committed；ColorChecker ARW 采集 pending（raw.pixls.us 不收 color target，skip-with-reason 就位，`.work/plans/02-04/colorchecker-acquisition.md`）
+  - 单测 83 全绿（3 skip 合规）；真 RAW 冒烟 7/7 + 全链 vs CI 直渲对照一致（`.work/plans/02-04/smoke-run.md`）；修复 3 个真缺陷：gamma TRC 写成 decode 方向、ModuleBox 不采纳 committed hash（stableID fold 对缓存不可见）、JSONEncoder 键序不稳定全面切 ParamsCoding(sortedKeys)（L013 对策落地）
   - SUMMARY 见 `02-04-SUMMARY.md`
 - [x] **Plan 02-05**（HistoryStack + D-H1 API + TilingPlan 脚手架）完成（2026-09-19）：
   - `ModuleInstance` 身份元组（九冻结字段 = 02-06 sidecar schema）+ `HistoryStack`/`HistoryItem`（inline snapshot、undo/redo/jump、redo 尾截断）+ `effectiveInstances()`（history.c GROUP BY MAX(num) 直译，v50 + (iopOrder,multiPriority,opName) tiebreak）
@@ -75,7 +75,7 @@
   - **真缺陷修复（LESSONS L014）**：colorout ColorSync 腿跨队列读竞态（restore 5-dispatch 渲染稳定黑图）→ `convertTexture` 读前 fence；Core 级 SC#3 字节级 round-trip 测试固化
   - `enforceBudget(keeping:)` 纯策略执行器（锁定 4 层逐出序 + floor）+ `clearCICaches()` + load 入口/60s sweep 双触发 + >500MB toast；`MemoryBudgetTests` 7（注入小预算），c208339
   - RAW-03：32f TIFF/EXR fixtures（极值 65504.0 pinned）+ `RAW03Tests` 7 全绿；宿主决策：CGImage 路 float-faithful、fallback 不采纳（记录于 `decodeRaster`），6a72691
-  - 单测 **133 全绿**（3 skip 合规）；grep 守卫：`.xmp` 零读写路径；VALIDATION 签核（SC#1..5 证据 + 需求追溯 7/7）+ 真机 round-trip `.work/02-06/roundtrip.md`；SUMMARY 见 `02-06-SUMMARY.md`
+  - 单测 **133 全绿**（3 skip 合规）；grep 守卫：`.xmp` 零读写路径；VALIDATION 签核（SC#1..5 证据 + 需求追溯 7/7）+ 真机 round-trip `.work/plans/02-06/roundtrip.md`；SUMMARY 见 `02-06-SUMMARY.md`
 
 ## Phase 3: Tone & Filmic iops — 执行完成（6/6 plans，2026-09-20）
 
@@ -87,7 +87,7 @@
   - 两个 macOS 27 host finding（L015/L016）：dt XMP 未压缩 params 为 hex ASCII 非 base64；ImageIO float32 EXR 解码逐通道错位（绕道 = 自研 EXR reader + CGImageCreate float32 + WorkingSpace（**linear**）Rec2020 标签；⚠ `CGColorSpace.itur_2020` 是 gamma-2.4 非 linear）
   - SUMMARY 见 `03-01-SUMMARY.md`
 - [x] **Plan 03-02**（WB temperature/tint + 吸管 plumbing + Inspector 面板框架）完成（2026-09-19）：
-  - T1/T2 `TemperatureModule`（.swift+.metal 对，v50=3.0 注册；slot 语义 divergence 头注 = post-CIRAW 校正层）：`CIEData.swift`（dt `cie_colorimetric_tables.c` 逐值搬移）+ `WhiteBalanceMath`（SPD→CMF 积分→XYZ 与 dt 同源 <1e-4，C 参照 harness `.work/03-02/wb_reference.c`；Rec2020 原生 `gains = W/T`，W=D65 锚经同一路径 → 恒等 (1,1,1)；dt Y-hack tint 语义保留；K↔gains 二分互求 1e-4K 收敛，round-trip <1e-3K）；吸管 `gainsFromPicked` = dt temperature.c:1933-1955 逐行移植（通道比值域无关）
+  - T1/T2 `TemperatureModule`（.swift+.metal 对，v50=3.0 注册；slot 语义 divergence 头注 = post-CIRAW 校正层）：`CIEData.swift`（dt `cie_colorimetric_tables.c` 逐值搬移）+ `WhiteBalanceMath`（SPD→CMF 积分→XYZ 与 dt 同源 <1e-4，C 参照 harness `.work/plans/03-02/wb_reference.c`；Rec2020 原生 `gains = W/T`，W=D65 锚经同一路径 → 恒等 (1,1,1)；dt Y-hack tint 语义保留；K↔gains 二分互求 1e-4K 收敛，round-trip <1e-3K）；吸管 `gainsFromPicked` = dt temperature.c:1933-1955 逐行移植（通道比值域无关）
   - golden：temperature 钉参组 4 case（增益直设绕开 Kelvin 域差，RESEARCH §5）×5 灰 fixture parity <1e-5；**dt-cli host finding（manifest 落账）**：本环境 dt-cli 对空间变化图像的 float 导出（EXR/PFM/TIFF 全路径）空间损坏，均匀图像精确 → track-A 参考由 gen_fixtures.py `refs` 按共有语义合成（canonical fixture × gains，float64），dt 侧以 ①库 DB op_params hex 采纳实证 ②均匀平场 PFM probe（(0.6,0.5,0.4) exact 4e-8）双证据锁定；no-OMP 重建尝试（USE_OPENMP=OFF）→ dt-cli 启动 hang 不可用
   - T3/T4 D-T6 `IOPPanelProvider` + `LightamerSlider`（D-H1 三件套映射 + 双击归零）+ `InspectorState` factory 分发 + `InspectorView` 实体化 + exposure/WB 首两面板；pristine 编辑种子 = terminal trio + temperature/exposure（identity，缓存中性）；`PanelWiringTests`（拖动=恰 1 条 history、拖动风暴 newest-wins、归零还原原 paramsHash=缓存全 hit、sidecar 节流写、dispatch）
   - T5/T6 D-T4 `PipeCoordinator.pickColor`（视口点→真 aspect-fit uv→线性段重渲（缓存全 hit）→L014 fence→5×5 面积均值）+ EditorAreaView 吸管模式（十字光标+点击路由）+ `EyedropperTests`（中性采样 <1e-5、20 连点 fence 安全、采样零污染、蓝偏平场端到端中性化）；**blit shader uv 修复**：aspect-fit 除以 per-axis scale（原先中心裁切；大三角形覆盖的斜边溢出属 Phase 4 fit 路径）
@@ -123,7 +123,7 @@
   - golden：F1 三方（Metal vs CPU Double 分段门：toe/linear 1e-6、poly4 shoulder f32/FMA 档 1e-5 + 1e-4 包络）+ F2/F4 组合 parity（5 钉参 case × 5 fixture）+ F3 光谱入域/中性轴 + norm 六模式 + auto 三键（grey 吸管 /2 语义；black/white = 新 `HistogramReduce.rgbMinMax` uint 编码原子归约端到端）+ F5 mask kernel 权重 + 轨 B；参考 = float32-FMA 逐式复刻（M 网格 + math.fma 单舍入 Horner——缺一即 3-5e-5 系统差）；`saturated` 划出数值 parity（log 未定义域 ±1e-7 边界，保留 F3 合法性靶）
   - dt 侧证据：116B blob 库 DB op_params hex 逐字节 + history load + piece commit（filmic/agx CPU 腿本机导出崩溃 = sigmoid per_channel SIGSEGV 同族，③d adoption probes 落账）
   - T6 `AgXModule` + `kernel_agx` 直译（tone_mapping_params 全推导 + primaries 四矩阵复用 SigmoidProfile builder）v50=45.5 注册 + 面板；5 case × 6 fixture parity + 曲线不变式 + round-trip；hatchless 无对标注记
-  - T7 PERF-5：`PreviewChainPerfTests` 2/2 进套（真实拖拽形状：稳定 imageID + exposure tick 全链失效 + PSO 启动预热）；**Release warm median 36.23ms**（预算 16.6ms 未达——RESEARCH 7-10 趟假设证伪，实测 ~40 GPU 趟；晚链单滑块 2-6ms ✓；杠杆分配：Lab 往返共享 Phase 5 / dispatch 批合并 Phase 4）`.work/03/perf-record.md`；FULL toneequal Δfootprint 289MB << 3GB ✓
+  - T7 PERF-5：`PreviewChainPerfTests` 2/2 进套（真实拖拽形状：稳定 imageID + exposure tick 全链失效 + PSO 启动预热）；**Release warm median 36.23ms**（预算 16.6ms 未达——RESEARCH 7-10 趟假设证伪，实测 ~40 GPU 趟；晚链单滑块 2-6ms ✓；杠杆分配：Lab 往返共享 Phase 5 / dispatch 批合并 Phase 4）`.work/plans/03/perf-record.md`；FULL toneequal Δfootprint 289MB << 3GB ✓
   - 排障收获：Python 参考 log2 漏除 grey；Swift rational 闭合式漏 −1；f32 系数网格 + FMA 单舍入必须复刻；PSO 预热撞 function-constant validation abort；Release 测试构建三连（DEBUG 探针守卫 / ENABLE_TESTABILITY / hardened runtime 签名验证——CLI 覆盖跑）
   - 单测 **267 全绿**（3 skip 合规，连续两轮）；SUMMARY 见 `03-06-SUMMARY.md`；**Phase 3 VALIDATION 签核（nyquist_compliant: true；SC#1/2/4 ✓、SC#3 ⚠️ 晚链成立/全链注记）**
 
@@ -149,15 +149,15 @@
 - [x] **Plan 04-02**（crop + flip/orientation + overlay 手柄）完成（2026-09-20）：omp 执行 5 commits；验收初判 FAIL（`testCropGoldenParity` 恒真空转——无比较循环），验收方直接修（补 3 case × 4 fixture 双循环，12 golden EXR 实比对）+ 补 manifest 04-02 节（blob/引用 sha256 表 + L017 probe 落账）后转绿；交付面：T1 CropModule 窗口三钩子（crop.c:517-592 直译）+ CropParity 8/8、T2 FlipModule 8 态 remap + FlipParity 8/8 + V50 flip<crop 顺序硬约束、T3 L017 双重 probe + 轨 A <1e-6 + 轨 B 2/2、T4 ViewportFit 三处同源 + 9 手柄/网格/暗膜 + D-H1 live-disabled 拖拽、T5 CropPanelView + catalog 20 keys + PanelWiring +3；overlay 交互 3 行 Manual-Only 表（L011 口径）；SUMMARY 见 `04-02-SUMMARY.md`
 - [x] **Plan 04-04**（lens correction 三层：内嵌直通 + 手动滑块 + Lensfun XML 只读）完成（2026-09-21）：T0 三口径（下载 master.zip 落 Application Support + 半高/像角归一化 + Hermite/IDW，D1–D9 见 DECISIONS）；T1 `lens_manual_warp` 融合 kernel + LensModule（13.0）+ Registry/种子/V50 三钉；T2 LensfunDBTests 15/15（d-factor/Hermite/IDW 手算 + 4 文件子集）+ match-ledger（机身盖样本 3/3 miss 落账）；T3 统一出口逐字节 + LensPanelView 三段 + catalog 20 keys + PanelWiring +2 + 下载服务 + launch hook；T4 L017 合成参考（7 钉参 × 4 fixture，<1e-5/<1e-5）+ manifest lens 节 + 轨 B 链含 lens；排障：ROI 宽度原点 + 子域 CI 翻转（管线级）+ ashift 注册误删恢复；全 suite 355 绿；SUMMARY 见 `04-04-SUMMARY.md`
 - [x] **Plan 04-03**（rotate/perspective: ashift 15.0 + Vision 自动检测）完成（2026-09-20）：omp 5 commits + 验收 PASS-with-notes→验收方 3 项修复（track-B 黑角 gamma 腿 + 悬空 panel provider 注记 + union-clamp 管线修复核查）→ 终轮 332 全绿；交付面：T1 Homography CPU（合成+DLT+fit，6/6）+ T2 ashift_warp kernel + 三钩子 + T3 VisionDetect 4/4（θ<0.2°/矩形<0.5%/符号钉死，真机抽检 pending-manual）+ T4 合成参考 7×4（<1e-5/<1e-5，28 路实比对）+ manifest ashift 节 + T5 面板/catalog 18 keys/PanelWiring +2/ROI +1；排障：后向 clamp 擦除 grow（管线级 union 修复）+ 半 texel + float 数组 packing + setBytes→setBuffer + 子域读回零 + h33 归一化 + 拟合 in-model；SUMMARY 见 `04-03-SUMMARY.md`
-- [x] **Plan 04-05**（detail 五模块：sharpen/bilat/highpass/soften/equalizer）完成（2026-09-21）：omp 8 commits + 验收 PASS（终轮计数 386→387 实测）；交付面：T1-T4 五模块 + 注册/prewarm/seed + T5 合成参考 76 refs + 15 XMP + 四 parity 套件 22/22 + ROI ②真模块（36×36）+ 面板四件/catalog 29 keys/PanelWiring +5 + 轨 B 五中性插链 + V50 五槽位约束 + `.work/04-05/perf.md`（equalizer ~5-8ms 超 6ms 已标注）；排障：模块清单裁决（cacorrect/cacorrectrgb defer）+ uniform 布局 + L020 全模块 + seed 误删恢复 + 字面勘误三处 + soften probe 免跑（D5）；SUMMARY 见 `04-05-SUMMARY.md`
-- [x] **Plan 04-07**（Phase 4 签核：VALIDATION sign-off）完成（2026-09-21）：SC#1-4 逐条核对（证据指针落 DISCUSSION-LOG 04-07 节）+ golden 完整性总账 9/9（manifest 追加 Phase 4 核对节）+ PERF-5 链长增量（Release 36.23→33.42ms，只记录不设门，`.work/04-07/perf-phase4.md`）+ 轨 B 全链回归（GeometryGolden 2/2）+ sidecar 9 新 op round-trip（Phase4SidecarTests 9/9）+ 未知 op 降级回归 + 内存记账复核 + VALIDATION `status: validated` + `nyquist_compliant: true`；新增签核：GUI-1..4 复验数字 + L021/L019/L020 落账确认 + Phase 5 移交清单 5 项；终轮全 suite **398 tests / 0 fail / 3 skip**；SUMMARY 见 `04-07-SUMMARY.md`
+- [x] **Plan 04-05**（detail 五模块：sharpen/bilat/highpass/soften/equalizer）完成（2026-09-21）：omp 8 commits + 验收 PASS（终轮计数 386→387 实测）；交付面：T1-T4 五模块 + 注册/prewarm/seed + T5 合成参考 76 refs + 15 XMP + 四 parity 套件 22/22 + ROI ②真模块（36×36）+ 面板四件/catalog 29 keys/PanelWiring +5 + 轨 B 五中性插链 + V50 五槽位约束 + `.work/plans/04-05/perf.md`（equalizer ~5-8ms 超 6ms 已标注）；排障：模块清单裁决（cacorrect/cacorrectrgb defer）+ uniform 布局 + L020 全模块 + seed 误删恢复 + 字面勘误三处 + soften probe 免跑（D5）；SUMMARY 见 `04-05-SUMMARY.md`
+- [x] **Plan 04-07**（Phase 4 签核：VALIDATION sign-off）完成（2026-09-21）：SC#1-4 逐条核对（证据指针落 DISCUSSION-LOG 04-07 节）+ golden 完整性总账 9/9（manifest 追加 Phase 4 核对节）+ PERF-5 链长增量（Release 36.23→33.42ms，只记录不设门，`.work/plans/04-07/perf-phase4.md`）+ 轨 B 全链回归（GeometryGolden 2/2）+ sidecar 9 新 op round-trip（Phase4SidecarTests 9/9）+ 未知 op 降级回归 + 内存记账复核 + VALIDATION `status: validated` + `nyquist_compliant: true`；新增签核：GUI-1..4 复验数字 + L021/L019/L020 落账确认 + Phase 5 移交清单 5 项；终轮全 suite **398 tests / 0 fail / 3 skip**；SUMMARY 见 `04-07-SUMMARY.md`
 - [x] **Plan 04-08**（GUI-5/6/7/8 修复 + 交互复验闭环）完成（2026-09-21）：omp 执行 5 commits（T1 flip 面板 / T2 ashift 全局 toast / T3 commit 时自动启用 / T4 启用圆圈 toggle / T5 状态栏迁移 + 证据）；交付面：FlipPanelView（9 态 Picker + catalog 14 keys）+ presentToast 三层转发 + commitContinuousEdit(autoEnable) + InspectorRowModel/View + 窗口底通栏状态栏；T5 交互复验 GUI-5..8 全闭环（flip 翻转可逆逐像素 0.0 / soften 自动启用 Δ1.574 / 三按钮全局 toast + history 0 条 / 圆圈 AX 开关逐位一致 + 990pt 57.4%）；终轮全 suite **432 tests / 0 fail / 3 skip**（基线 426 → +6）；SUMMARY 见 `04-08-SUMMARY.md`，决策见 `04-08-DECISIONS.md`
 - [ ] XCUITest 三栏断言（L011 授权；Phase 1 起遗留）：`xcodebuild test -only-testing:LightamerUITests`
-- [ ] ColorChecker ARW 实拍补采（02-04 遗留，采集路径 `.work/02-04/colorchecker-acquisition.md`）
+- [ ] ColorChecker ARW 实拍补采（02-04 遗留，采集路径 `.work/plans/02-04/colorchecker-acquisition.md`）
 - [ ] 跨屏 profile 跟随实测（02-04 遗留，单显示器环境 skip-with-reason）
 - [ ] 屏显色彩目检（SC#1 非 headless 部分，Phase 13 COLOR-03 前置可复验）
 - [ ] `GoldenColorTests.testCrossConsistencyLinearDomain` 间歇性失败排查（02-04 harness 遗留 flake，03-01 期间复现：全 suite/类内运行偶发 diverge 1.0，单测隔离必现通过；03-01 排除本类后仍复现 → 与 03-01 无关；疑似 CI baseline 腿跨渲染时序，L014 同族）
-- [ ] 滑块拖动 60fps Instruments 交互目检（PERF-5/SC#3 手动项；数据面已由 `.work/03/perf-record.md` 覆盖——晚链 2-6ms ✓，全链重渲 36ms 注记）
+- [ ] 滑块拖动 60fps Instruments 交互目检（PERF-5/SC#3 手动项；数据面已由 `.work/plans/03/perf-record.md` 覆盖——晚链 2-6ms ✓，全链重渲 36ms 注记）
 
 ## Phase 3 遗留/分配（签核注记，非阻塞）
 

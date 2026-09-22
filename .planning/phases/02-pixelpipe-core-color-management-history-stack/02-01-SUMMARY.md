@@ -11,7 +11,7 @@
 - `EditorState`: `displayTextureRenderedForURL` deleted; `renderDisplayTexture` → `rerender(using:)` (no URL idempotence guard; doc names it the ONLY re-render entry, coordinator-facing from 02-03, never view-called). `load`'s decodeTask success path is the sole `displayTexture` writer (single-producer invariant documented on the property).
 - Acceptance greps: no `.task(id:` in EditorAreaView, no `displayTextureRenderedForURL` in App/, 1 `func rerender`, 0 `renderDisplayTexture`.
 
-### 02-01-02 — CIContext render-to-texture warm-up spike — `.work/02-01/spike-render-leg.{swift,md}`
+### 02-01-02 — CIContext render-to-texture warm-up spike — `.work/plans/02-01/spike-render-leg.{swift,md}`
 Headless harness (N=6 fresh contexts + controls), results:
 - **Warm-up hypothesis REFUTED**: direct `render(_:toMTLTexture:)` is a **silent no-op** on this host — 0/6 non-empty cold AND 0/6 post-warm-up with an owned command buffer (0.0ms elapsed = CI enqueues no work), EMPTY with a real CIRAW-backed image, EMPTY even on a DEFAULT CIContext + rgba8Unorm + deviceRGB (option set ruled out). Phase 1's "first-render empty, second works" theory is revised: the direct path never works.
 - **Decision: `bitmap`** — decode leg (and FULL) keeps `CIContextPool` bitmap+replace; the drag hot path is all-Metal regardless (research §5).
@@ -25,7 +25,7 @@ Bitmap branch: `CIContextPool` header rewritten — cites the spike file, quotes
 `LightamerCore/Sources/Foundation/StableHash.swift`: `public enum StableHash` — `fnvOffsetBasis`, `combine(_:_:)` (incremental fold), `hash(DataProtocol)` (region-wise), `hash(StringProtocol)` (UTF-8). Doc comments name the three consumers (PipeCacheKey 02-02, paramsHash/HistoryHash 02-05, sidecar drift 02-06) and the Swift-`Hasher` ban. `StableHashTests` (7): published vectors (`"foobar"`→`0x85944171f73967e8`, empty→`0xcbf29ce484222325`), distinctness, determinism, byte-order sensitivity, incremental==one-shot, string/Data agreement. `API.md` Foundation entry appended.
 
 ### 02-01-05 — Tracer UAT — checkpoint then GREEN
-- First runs: (a) cold JPEG displayed ✅ but (b)/(c)/(d) black ❌ → CHECKPOINT (evidence in git history `ee48963` + `.work/02-01/uat-results.md`).
+- First runs: (a) cold JPEG displayed ✅ but (b)/(c)/(d) black ❌ → CHECKPOINT (evidence in git history `ee48963` + `.work/plans/02-01/uat-results.md`).
 - Coordinator authorized in-plan debug. Forensic instruments added then retired: `framebufferOnly=false` (made readback legal — dropped frames provably held image pixels), drawable-identity probe (reuse refuted), `commandBuffer.error` probe (zero errors), continuous-60fps mode (no change → ruled out present timing), view-identity probes (**10 `MTKView CREATE` for 9 opens** — the smoking gun).
 - **ROOT CAUSE: SwiftUI `WindowGroup` opens a new window per odoc Apple Event on macOS 27.** Stacked windows raced the shared state; first-open worked only because launch-time opens are buffered into the first window.
 - **Fix (commit `ac84596`)**: `WindowGroup` → single `Window("Lightamer", id: "main")` in `LightamerApp` (Phase 9 revisits multi-window Session management). Rerun: **9/9 display steps, `MTKView CREATE` = 1**.
@@ -43,7 +43,7 @@ Gated on 05 green — executed: drawable 2×2 readback block, `drawProbe` logger
 - `LightamerCore/Sources/Foundation/StableHash.swift`, `Tests/LightamerTests/StableHashTests.swift`, `LightamerCore/API.md` — as planned.
 - `App/Sources/Lightamer/UI/{EditorAreaView,EditorState,EditorMTKView}.swift`, `LightamerCore/Sources/Metal/CIContextPool.swift` — as planned.
 - **Extra:** `App/Sources/Lightamer/UI/LightamerApp.swift` (single-`Window` root-cause fix).
-- `.work/02-01/`: `spike-render-leg.{swift,md}`, `uat-results.md`, `uat-sequence.sh` + `sample-png.swift` (reusable headless UAT harness), logs + screenshots (t1..t7/final evidence chain).
+- `.work/plans/02-01/`: `spike-render-leg.{swift,md}`, `uat-results.md`, `uat-sequence.sh` + `sample-png.swift` (reusable headless UAT harness), logs + screenshots (t1..t7/final evidence chain).
 - `LESSONS.md` L012 (WindowGroup-per-odoc black-viewport pattern), `TODO.md` Phase 2 progress.
 
 ## Downstream handoffs

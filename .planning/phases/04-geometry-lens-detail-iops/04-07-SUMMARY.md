@@ -24,7 +24,7 @@ round-trip + 未知 op 降级回归 + 内存记账复核 → `04-VALIDATION.md`
 |---|---|---|---|
 | T1 SC#1-4 逐条核对 | SC#1-4 每条证据指针落 DISCUSSION-LOG 04-07 节；manifest 追加 Phase 4 golden 总账节 | ✅ | DISCUSSION-LOG 04-07 两节 + manifest `## Phase 4 golden 完整性总账` |
 | T2 全链回归 | 轨 B（GeometryGolden track B 2/2，全启用链）+ sidecar 9 op（新 Phase4SidecarTests 9/9）+ 未知 op 降级（既有）+ 内存记账复核 | ✅ | 终轮全量 398 绿内含全部 |
-| T3 PERF-5 链长增量 | Release 36.23→33.42ms（+9 中性模块≈零增量），只记录不设门 | ✅ | `.work/04-07/perf-phase4.md` + Release/Debug 双实测 |
+| T3 PERF-5 链长增量 | Release 36.23→33.42ms（+9 中性模块≈零增量），只记录不设门 | ✅ | `.work/plans/04-07/perf-phase4.md` + Release/Debug 双实测 |
 | T4 VALIDATION 签核 | 全行 ✅ + Wave 0 勾销 + frontmatter validated/compliant + TODO/文档收口 + 全量回归 | ✅ | VALIDATION Sign-Off 15 项全勾 + TODO Phase 4 完成态 |
 
 ## 缺口回补（T2 唯一代码改动）
@@ -72,4 +72,4 @@ round-trip + 未知 op 降级回归 + 内存记账复核 → `04-VALIDATION.md`
 
 ## 过程记录
 
-- 本文件 + DISCUSSION-LOG 04-07 节 + `.work/04-07/perf-phase4.md` + 各提交 body。
+- 本文件 + DISCUSSION-LOG 04-07 节 + `.work/plans/04-07/perf-phase4.md` + 各提交 body。

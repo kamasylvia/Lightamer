@@ -2,7 +2,7 @@
 
 **Plan:** 01-06 Task 01-06-05 · **Recorded:** 2026-09-16 · **Owner:** GSD executor
 **Machine:** Apple M4 (Mac mini, Mac16,10), 16 GB unified memory · macOS 27.0 (build 26A428) · Xcode 27.0 (27A266a) · Swift 6.4 · `recommendedMaxWorkingSetSize` = 12 124 MB
-**Samples:** 13 real camera RAW files, CC0, **raw.pixls.us** (provenance + license: `.planning/spikes/spike-b-100mp-perf/samples/README.md`). Working copies untracked at `.work/01-05/samples/`; an internal-disk mirror for test runs lives at `~/Library/Application Support/Lightamer/TestRAW/` (the repo checkout sits on a TCC *Removable Volumes* USB volume — see 01-06-SUMMARY environment note).
+**Samples:** 13 real camera RAW files, CC0, **raw.pixls.us** (provenance + license: `.planning/spikes/spike-b-100mp-perf/samples/README.md`). Working copies untracked at `.work/plans/01-05/samples/`; an internal-disk mirror for test runs lives at `~/Library/Application Support/Lightamer/TestRAW/` (the repo checkout sits on a TCC *Removable Volumes* USB volume — see 01-06-SUMMARY environment note).
 
 > **Phase 1 is baseline-establishing, not budget-gating** (RESEARCH "Performance validation"; 01-CONTEXT D-32). Meeting the hard budgets is Phase 2's gate — the per-module per-ROI cache fast-path is the expected improvement lever. Every gap below is recorded so Phase 2 can be measured against it.
 
@@ -13,7 +13,7 @@
 Two measurement legs, both through public APIs only, both `os.signpost`-instrumented (D-31):
 
 1. **Spike B raw-pipeline matrix** (Plan 05, `.planning/spikes/spike-b-100mp-perf/`): headless harness, one process per file, warm-up + n=5 steady-state runs (median/min/max); memory = `task_vm_info.phys_footprint` sampled every 10 ms; signpost log `com.kamasylvia.lightamer.spikeb`. Full detail in `spike-b-100mp-perf.md` §2.
-2. **Real-app pipeline leg** (this plan, harness source `.work/01-06/perf-baseline.swift`): the actual Phase 1 chain — `RAWDecoder.decode` (signpost `decode`, Plan 02) → `RenderPipeline.render` → internal PixelPipe → float32 linear-Rec2020 display texture (signpost `pixelpipe`, Plan 04). Compiled against the app's built frameworks (`swiftc -F <DerivedData products>`), n=3 medians, same footprint probe. Six fixtures spanning 22–102 MP.
+2. **Real-app pipeline leg** (this plan, harness source `.work/plans/01-06/perf-baseline.swift`): the actual Phase 1 chain — `RAWDecoder.decode` (signpost `decode`, Plan 02) → `RenderPipeline.render` → internal PixelPipe → float32 linear-Rec2020 display texture (signpost `pixelpipe`, Plan 04). Compiled against the app's built frameworks (`swiftc -F <DerivedData products>`), n=3 medians, same footprint probe. Six fixtures spanning 22–102 MP.
 
 p95 is not reported for the app leg (n=3); Spike B's n=5 min/max spread carries the variance record. GPU-only kernel time was **not** separately captured headless (Instruments GPU trace stays a manual verification); the `pixelpipe` signpost bounds it, and Spike B measured the display blit directly (bitmap render + `texture.replace` = 4–6 ms at 1024×768).
 

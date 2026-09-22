@@ -93,4 +93,4 @@
   0.0000；布局红线（1440×816）不破。行圈 toggle 与 label 分离（圈=启用、
   label=选中，04-08-T4 GUI-5 语义）——走查先点圈误触，后改点 label 选中。
 - 轨 B/PERF：零代码增量论证（disabled 直通 + enabled-neutral 缓存中性；
-  显式腿恒真故不加）+ `.work/05-03/perf.md`；终轮轨 B 双判据全绿。
+  显式腿恒真故不加）+ `.work/plans/05-03/perf.md`；终轮轨 B 双判据全绿。

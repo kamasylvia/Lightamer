@@ -50,7 +50,7 @@
 - 正式门 = **Release 配置测量**（`xcodebuild test -configuration Release
   -only-testing:LightamerTests/PreviewChainPerfTests`）+ os.signpost 汇总 + 断言
   <16.6ms；Debug 构建保留 120ms 病理回归界（03-05 预验口径延续，Debug -Onone 的
-  63.4ms 基线数据保留在 `.work/03/perf-record.md`）。
+  63.4ms 基线数据保留在 `.work/plans/03/perf-record.md`）。
 - 优化杠杆落地：PSO 启动预热（PipeCoordinator.load 后台 Task）+ 面板/链路沿用
   既有 dispatch；「dispatch 批合并」评估为 MetalContext 层改造（跨模块 encoder 合并），
   本轮以 Release + 预热达标后不动管线核心（风险控制），记录为后续优化位。

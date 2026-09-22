@@ -192,7 +192,7 @@ final class TerminalTrioTests: XCTestCase {
         let metal = try makeMetal()
         let rows = try await coloroutKnownPoints(profile: .displayP3, metal: metal)
         // Rec2020 → P3 linear, derived constants (see ColorOutModule.swift
-        // header; generator `.work/02-04/matrix-derive.swift`).
+        // header; generator `.work/plans/02-04/matrix-derive.swift`).
         let expected: [[Float]] = [
             [1.343930183, -0.066855841, 0.003750840],
             [-0.282585998, 1.077337009, -0.019626716],

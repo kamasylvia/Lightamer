@@ -398,7 +398,7 @@ internal struct LightamerApp: App {
 
     #if DEBUG
     /// Headless round-trip driver for the SC#3 acceptance artifact
-    /// (`.work/02-06/roundtrip.md`) — `resizeProbeIfRequested`-style:
+    /// (`.work/plans/02-06/roundtrip.md`) — `resizeProbeIfRequested`-style:
     /// AX/menus are unavailable to headless drivers, so the probe applies
     /// the edit and quits by itself. Launch via LaunchServices so window
     /// creation is deterministic (direct exec behind a fullscreen space is

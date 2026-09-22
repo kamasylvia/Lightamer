@@ -14,7 +14,7 @@ import XCTest
 // corrupt on this host for varying content, and the colorbalancergb CPU
 // leg additionally misbehaves on EXR input in this build: flat_0ev at
 // default params exports garbage (first px ~1e20, center ~1e-9 — probed
-// 2026-09-21, .work/05-02/probe-notes.md), while the exposure control on
+// 2026-09-21, .work/plans/05-02/probe-notes.md), while the exposure control on
 // the same input is exact (1.0). So track-A references are SYNTHESIZED by
 // gen_fixtures.py (`refs` mode, colorbalance section): the float64
 // evaluation of dt's documented process (:579-944) over the canonical
@@ -27,7 +27,7 @@ import XCTest
 //      the numeric reference is instead cross-locked THREE ways:
 //      Python float64 ref vs Swift ColorBalanceRGBCommit.derive (commit
 //      vectors) vs the C-harness (dt's REAL CPU code compiled standalone
-//      with D65-native matrices — .work/05-02/cb_verify.c, out == in to
+//      with D65-native matrices — .work/plans/05-02/cb_verify.c, out == in to
 //      1e-7 on neutrals).
 //
 // FRAME RESULT (05-02-DECISIONS D2 — the plan's hard-won finding): dt's

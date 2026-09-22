@@ -8,7 +8,7 @@
 > standalone Tuist spike app on branch `spike/ciraw9-boundary`. Since Plans 01-04
 > already delivered the real verification apps + smoke-harness pattern, the probe was
 > written as a **headless public-API-driven Swift script** (same pattern as the
-> 01-03/01-04 smokes, zero Lightamer dependencies) at `.work/01-05/ciraw-probe.swift`,
+> 01-03/01-04 smokes, zero Lightamer dependencies) at `.work/plans/01-05/ciraw-probe.swift`,
 > with a tracked copy + raw output + golden samples under
 > `.planning/spikes/spike-a-ciraw9-boundary/`. This satisfies D-06's intent
 > (verification code preserved, evidence versioned) without a throwaway GUI app or a
@@ -256,9 +256,9 @@ Evidence summary:
 
 ## 7. Artifacts
 
-- Probe source (tracked copy): `.planning/spikes/spike-a-ciraw9-boundary/ciraw-probe.swift` (working copy in untracked `.work/01-05/`)
+- Probe source (tracked copy): `.planning/spikes/spike-a-ciraw9-boundary/ciraw-probe.swift` (working copy in untracked `.work/plans/01-05/`)
 - Raw probe output: `.planning/spikes/spike-a-ciraw9-boundary/spike-a-probe-output.txt`
 - Full v8/v9 camera lists: `.planning/spikes/spike-a-ciraw9-boundary/models.txt`
 - Golden 100% crops (committed): `.planning/spikes/spike-a-ciraw9-boundary/samples/golden/*.png` (v8/v9 pairs where supported)
 - Sample provenance + CC0 license note: `.planning/spikes/spike-a-ciraw9-boundary/samples/README.md`
-- RAW sample working copies (untracked): `.work/01-05/samples/` (13 files, ~1 GB, CC0)
+- RAW sample working copies (untracked): `.work/plans/01-05/samples/` (13 files, ~1 GB, CC0)

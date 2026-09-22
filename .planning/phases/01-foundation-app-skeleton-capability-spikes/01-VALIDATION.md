@@ -69,7 +69,7 @@ created: 2026-08-03
 - [x] `Tests/LightamerTests/LayerSkeletonTests.swift` — stub for D-03a (LayerStack constructs, BlendMode raw values)
 - [x] `Tests/LightamerTests/MetadataTests.swift` — stub for RAW-06 (EXIF/IPTC/XMP/GPS extraction)
 - [x] `Tests/LightamerUITests/AppLaunchTests.swift` — stub for FOUND-01/05 (app launches, three-column shell, dark mode, empty state)
-- [x] Test sample RAW files — satisfied by the recorded two-tier strategy: tracked rasters in `Resources/TestFixtures/` (JPEG/HEIC/PNG/TIFF; the 1.2 GB Plan 05 CC0 RAW samples (CR3/NEF/ARW/RAF/DNG + 8 more) stay untracked at `.work/01-05/samples/` with an internal-disk mirror for test runs — bundling 1.2 GB into the repo/target was rejected (Fixtures.swift, 01-06-SUMMARY)
+- [x] Test sample RAW files — satisfied by the recorded two-tier strategy: tracked rasters in `Resources/TestFixtures/` (JPEG/HEIC/PNG/TIFF; the 1.2 GB Plan 05 CC0 RAW samples (CR3/NEF/ARW/RAF/DNG + 8 more) stay untracked at `.work/plans/01-05/samples/` with an internal-disk mirror for test runs — bundling 1.2 GB into the repo/target was rejected (Fixtures.swift, 01-06-SUMMARY)
 
 *Framework (XCTest/XCUITest) ships with Xcode — no install needed; Tuist declares test targets in Project.swift (run `tuist generate` first).*
 
