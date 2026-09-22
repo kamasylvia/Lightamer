@@ -98,6 +98,8 @@ final class InspectorState {
         register(NLMeansPanelProvider())
         // Plan 05-07-T6: denoiseprofile (mode/profile/force-curve panel).
         register(DenoiseProfilePanelProvider())
+        // Plan 05-08-T4: bilateral (surface blur — radius + 3 sigma sliders).
+        register(BilateralPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

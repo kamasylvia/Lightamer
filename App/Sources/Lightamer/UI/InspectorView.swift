@@ -135,6 +135,8 @@ internal struct InspectorView: View {
         case NLMeansModule.opName: return String(localized: "history_nlmeans")
         // Plan 05-07-T6: denoiseprofile (same precedent).
         case DenoiseProfileModule.opName: return String(localized: "history_denoiseprofile")
+        // Plan 05-08-T4: bilateral (same precedent).
+        case BilateralModule.opName: return String(localized: "history_bilateral")
         default: return opName
         }
     }

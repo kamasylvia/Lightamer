@@ -78,3 +78,22 @@ tile 执行与整幅执行落同一物理网格：网格坐标 = `(gid + roiIn.o
 
 **执行期缺陷修复归档（防复发）**：
 - blur_line 的混合进制线解码两处错：① 线基数误排除 axis 因子（真步长必须含全维）→ 修复为压缩位权解码 + 真步长基址；② dt CL 逐元素滚动的标量 tmp 被跨通道复用 → val/w 比被污染（平场 0.18→0.495）→ 修复为 float4/SIMD4 逐通道滚动。两错均为移植期引入（dt 原文正确），教训：**CL 标量核的 4 通道并行化必须逐 tmp 审计通道归属**。
+
+---
+
+## D-05-08-T4-1: IOP-DENOISE-04 defer 决议（hotpixels / dark-frame / chromatic / cacorrect）
+
+IOP-DENOISE-04 拆解决议（需求文字「hot-pixel/dark-frame/chromatic-noise reduction」四半边的最终落位；SC#3 措辞落差「NLMeans, bilateral/surface blur, and hot-pixel/dark-frame/chromatic-noise reduction all…」在 05-VALIDATION 以需求注记行澄清）：
+
+| 半边 | 决议 | 证据 / 承载 |
+|---|---|---|
+| **chromatic noise** | **已交付**（非 defer） | 05-06 nlmeans `chroma` 参数（`NLMeansParityTests.testChromaZeroLumaOnlySmoothing` 等方向门）+ 05-07 denoiseprofile Y0U0V0 色度模式（`DenoiseProfileParityTests` 色度腿）——色度去噪由 denoise 双件原生承载。 |
+| **hot pixels** | **正式 defer**（需求解释权裁决，非缺口） | 双重证据：① hotpixels.c:94 `IOP_CS_RAW`——Bayer 单通道域，管线入口（CIRAW 显影 linear Rec2020）不可达；② Spike A 实证 CIRAW 无 hot-pixel/despeckle 键（04 Phase 1 spike A 在案）。类比 04 对 IOP-DETAIL-01「高斯/拉普拉斯变体」的口径：需求文字覆盖不可达域时按域证据裁决。重启条件 = v2 自研 RAW 解码路径论证。 |
+| **dark frame subtraction** | **正式 defer** | 需解码前传感器级访问（暗场帧标定数据 + raw 域逐像素扣除），CIRAW 不暴露暗场合成/原始帧访问——v1 无实现路径（hotpixels 同一 Bayer 域论证，rawdenoise.c:161/510/538 `dt_image_is_raw` 门同证）。 |
+| **cacorrect 复议** | **维持 defer**（04-05 D-04-05-T0-0 结论复核成立） | 同一 Bayer 域论证（cacorrect 5.0 在 demosaic 前，单通道 RAW 域）；**与 Phase 6 无关**——Phase 6 是蒙版/图层域（LAYER/MASK 需求族），cacorrect 是 RAW 域问题，**不随 Phase 6 接收**；重启条件 = v2 自研 RAW 解码路径论证（与 hotpixels/dark-frame 同一门）。 |
+
+**Phase 6 移交口径**：cacorrect/hotpixels/dark-frame 三件均为 RAW 域 defer 终局结论（本次签核定稿），Phase 6 计划无需再复议；rgbcurve/rgblevels（D-05-CONTEXT-1）另列（Phase 6+ stretch，非 defer）。
+
+## D-05-08-T4-2: 面板交互口径（继承既定框架，无新决策）
+
+BilateralPanelView = NLMeansPanelView 模式复用：LightamerSlider 三件套（拖动实时 → 松手恰 1 commit，D-H1）+ 离散复位 applyDiscrete；量程 = dt soft range（radius 1-30、σ 0.0001-0.1 @ 4 位小数——dt gui_init；硬上限 50/1.0 编程可达）；280pt 约束（滑块 only）；a11y id `inspector.slider.bilateral.{radius,red,green,blue}` + zh/en catalog 8 keys + InspectorView zh 显示名同轮落位（05-06 教训预防性）；`PanelWiringTests` +2（dispatch + 拖动恰 1 commit + 复位还原 pristine hash）。5D 网格预算不进 UI（D-05-08-T2-1）。

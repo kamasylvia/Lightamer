@@ -1403,6 +1403,54 @@ final class PanelWiringTests: XCTestCase {
                        "reset to default restores the pristine paramsHash")
     }
 
+    // MARK: - 05-08 bilateral panel wiring (T4)
+
+    /// InspectorState dispatches the bilateral panel by opName.
+    func testBilateralPanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("bilateral"))
+        let session = InspectorEditSession(coordinator: coordinator)
+        let record = ModuleInstance(module: BilateralModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: record, edit: session),
+                        "bilateral must dispatch a panel")
+    }
+
+    /// Plan 05-08-T4: bilateral radius-slider drag = exactly ONE history
+    /// item; reset to default restores the pristine paramsHash (cache
+    /// all-hit); editing the disabled seed auto-enables at commit (GUI-7).
+    func testBilateralRadiusSliderCommitsOnce() async throws {
+        try await loadSynthetic()
+        let bl = try instance("bilateral")
+        XCTAssertFalse(bl.enabled, "bilateral seed is disabled (D-05-08-T1-3)")
+        let pristineHash = bl.paramsHash
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(bl, {
+                $0.radius = 1 + Float(tick) * 2
+            }, as: BilateralModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_bilateral"))
+
+        XCTAssertEqual(historyCount(), 1, "radius drag = exactly ONE item")
+        let committed = try instance("bilateral")
+        XCTAssertEqual(try committed.params(of: BilateralModule.self).radius, 13.0, accuracy: 1e-6)
+        XCTAssertTrue(committed.enabled, "editing a disabled module auto-enables at commit (GUI-7)")
+
+        // Reset to default restores the pristine paramsHash (cache all-hit).
+        let current = try instance("bilateral")
+        let resetRecord = try withParams(current, {
+            $0.radius = 15; $0.reserved = 15; $0.red = 0.005; $0.green = 0.005; $0.blue = 0.005
+        }, as: BilateralModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(resetRecord)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_bilateral"))
+        XCTAssertEqual(try instance("bilateral").paramsHash, pristineHash,
+                       "reset to default restores the pristine paramsHash")
+    }
+
     // MARK: - 05-07 denoiseprofile panel wiring (T6)
 
     /// DenoiseProfile: seeded DISABLED (D-05-07-T2-2); a slider drag = ONE
