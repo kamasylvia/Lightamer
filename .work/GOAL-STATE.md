@@ -7,7 +7,10 @@
 
 按 `.planning/ROADMAP.md`（13 阶段）逐阶段推进 Lightamer：每阶段 discuss → plan → execute → verify-work → 闭环。当前聚焦：**Phase 1 闭环（issue #1 修复）→ Phase 2 全周期**。
 
-## 当前状态（2026-09-22 14:3x，matrix 模式启用）
+## 当前状态（2026-09-23 07:3x，HOLD 待换阵容）
+
+- **HOLD（2026-09-23 07:3x）：用户切换阵容**——在途 05-08 worker 跑完当前任务即停（本标记阻止一切新派遣）；worker 退出后 orchestrator 复确认 HOLD（防 L022 回卷）。切换完成后用户告知新阵容即恢复队列（W7 05-08 重新派遣）。
+
 
 - **Phase 4：已闭环**（VERIFICATION.md GOAL ACHIEVED；04-01..04-08 全 PASS）
 - **Phase 5：Color & Denoise**——RESEARCH+CONTEXT+8 plans 定稿
