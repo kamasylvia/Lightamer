@@ -1,0 +1,111 @@
+ciraw-probe.swift:246:64: warning: immutable value 'i2' was never used; consider replacing with '_' or removing it [#NoUsage]
+244 |             var diffs: [String] = []
+245 |             for (name, isSupported, setKey) in tunables {
+246 |                 guard let f2 = CIRAWFilter(imageURL: url), let i2 = f2.outputImage else { continue }
+    |                                                                `- warning: immutable value 'i2' was never used; consider replacing with '_' or removing it [#NoUsage]
+247 |                 f2.decoderVersion = v
+248 |                 guard isSupported(f2) else { diffs.append("\(name):flag-unsupported"); continue }
+
+ciraw-probe.swift:179:32: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+177 |     do {
+178 |         let before = footprintBytes()
+179 |         let (filter, initMs) = try timed("init") { CIRAWFilter(imageURL: url) }
+    |                                `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+180 |         guard let filter else { print("INIT FAILED"); return }
+181 |         print("init: \(String(format: "%.0f", initMs)) ms")
+
+ciraw-probe.swift:279:7: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+277 |         let mstr = mattes.map { "\($0.key)=\($0.value != nil ? "present" : "nil")" }.joined(separator: " ")
+278 |         print("mattes: \(mstr)")
+279 |     } catch {
+    |       `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+280 |         print("PROBE ERROR: \(error)")
+281 |     }
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+CIContext: device=Apple M4 cacheIntermediates=false
+## CIRAW GM API surface — macOS Version 27.0 (Build 26A428)
+chip: Mac16,10 / Apple M4 — RAM: 16384 MB
+
+### supportedCameraModels (total): 921
+
+### camera-model count per decoder version
+| version | models |
+|---|---|
+| version6 | 492 |
+| version7 | 879 |
+| version8 | 465 |
+| version9 | 69 |
+| version8DNG | 0 |
+| version9DNG | 0 |
+
+### sample-camera membership (exact names found in the v8/v9 lists)
+- GFX100S: v8=Fujifilm GFX100S|Fujifilm GFX100S II v9=ABSENT
+- X-T5: v8=Fujifilm X-T5|Fujifilm X-T50 v9=Fujifilm X-T5|Fujifilm X-T50
+- X100VI: v8=Fujifilm X100VI v9=ABSENT
+- X-H2S: v8=Fujifilm X-H2S v9=ABSENT
+- Z 8: v8=ABSENT v9=ABSENT
+- ILCE-7RM5: v8=Sony Alpha ILCE-7RM5 v9=ABSENT
+- ILCE-6700: v8=Sony Alpha ILCE-6700 v9=Sony Alpha ILCE-6700
+- EOS R10: v8=Canon EOS R10 v9=ABSENT
+- OM-1 Mark II: v8=OM SYSTEM OM-1 Mark II v9=ABSENT
+- iPhone 12 Pro: v8=ABSENT v9=ABSENT
+- EOS 5D Mark III: v8=Canon EOS 5D Mark III v9=Canon EOS 5D Mark III
+- X2D: v8=Hasselblad X2D 100C|Hasselblad X2D II 100C|Panasonic LUMIX DC-TX2D v9=Panasonic LUMIX DC-TX2D
+- IQ4: v8=ABSENT v9=ABSENT
+
+### models covered by v9 but NOT v8: 1
+Canon EOS 5D Mark IV
+
+### CIRAWFilter ObjC runtime properties (50)
+- filterImplementation
+- imageURL
+- imageData
+- imageDataHint
+- supportedDecoderVersions
+- nativeSize
+- properties
+- orientation
+- draftModeEnabled
+- decoderVersion
+- scaleFactor
+- exposure
+- baselineExposure
+- shadowBias
+- boostAmount
+- boostShadowAmount
+- highlightRecoverySupported
+- highlightRecoveryEnabled
+- gamutMappingEnabled
+- lensCorrectionSupported
+- lensCorrectionEnabled
+- luminanceNoiseReductionSupported
+- luminanceNoiseReductionAmount
+- colorNoiseReductionSupported
+- colorNoiseReductionAmount
+- sharpnessSupported
+- sharpnessAmount
+- contrastSupported
+- contrastAmount
+- detailSupported
+- detailAmount
+- moireReductionSupported
+- moireReductionAmount
+- despeckleSupported
+- despeckleAmount
+- localToneMapSupported
+- localToneMapAmount
+- extendedDynamicRangeAmount
+- neutralChromaticity
+- neutralLocation
+- neutralTemperature
+- neutralTint
+- linearSpaceFilter
+- previewImage
+- portraitEffectsMatte
+- semanticSegmentationSkinMatte
+- semanticSegmentationHairMatte
+- semanticSegmentationGlassesMatte
+- semanticSegmentationSkyMatte
+- semanticSegmentationTeethMatte

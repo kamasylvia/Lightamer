@@ -854,3 +854,25 @@ camera/detect 项（resolver returns nil → panel hides/disables + 注记）.
 注：cc_default refs 与 cb_default refs 在 ramp/flat/gray 四 fixture 上
 全同 hash（恒等参数经 Lab 往返精确：flat_0ev 5d3098d9b2949609 等）——来源不同
 （Lab 链 vs Yrg/LMS2006 链），门各自独立，双记保留。
+
+## vibrance + velvia + colorzones golden（Plan 05-04，采纳复验补跑 2026-09-22）
+
+blob 版式：vibrance v? = 4B（amount f32 pre-scaled /100）；velvia v2 = 8B
+（strength/bias 2f，strength 存 /100 后值——vel_clamp 实测 `0000c84200000000`
+= 100.0/0.0）；colorzones v? = 520B（splines V2 + LUT）。sha256 见
+`.work/05-04/` 采纳证据与 XMP 本体。
+
+### dt-cli 采纳（2026-09-22 实跑，日志 `.work/05-04/adoption/`）
+
+| case | op | loader | version ok | DB hex vs XMP |
+|---|---|---|---|---|
+| vib_default / vib_strong | vibrance | ✓ | ok | byte-identical |
+| vel_default / vel_strong / vel_clamp | velvia | ✓ | ok | byte-identical |
+| cz_default / cz_hue / cz_chroma / cz_lightness | colorzones | ✗ host 构建插件坏 | — | 环境约束（OpenCL 桩符号缺失，D-05-04-T3-4；dt 重建后补跑） |
+
+### 饱和 fixture 覆盖（2026-09-22 补）
+
+channelmixer/colorcontrast/vibrance/velvia REF_FIXTURES 补 `saturated`
+（彩块，含 HDR >1 像素）：置换方向、strength≤0 直通（velvia.c:160 copy
+路径）从「灰阶数学不可区分」变为内容级可区分。velvia refs 以 guarded
+mirror 重生成（vel_default saturated 首列含未钳制 1.93，dt 真语义）。

@@ -1,0 +1,97 @@
+Command line invocation:
+    /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -workspace Lightamer.xcworkspace -scheme Lightamer -destination platform=macOS "-only-testing:LightamerTests/GaussianBlurTests/testGPUMatchesFloat64Reference" "-only-testing:LightamerTests/GoldenColorTests/testNeutralPatchesSyntheticTarget"
+
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (5 targets)
+    Target 'LightamerUITests' in project 'Lightamer'
+        ➜ Explicit dependency on target 'Lightamer' in project 'Lightamer'
+    Target 'LightamerTests' in project 'Lightamer'
+        ➜ Explicit dependency on target 'Lightamer' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+    Target 'Lightamer' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+    Target 'LightamerIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+    Target 'LightamerCore' in project 'Lightamer' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk /Users/kamasylvia/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx27.0-26A425-e829b21a6f8c9b70876ba0858053c044e0bd213a318116c3a09f87b97c0d5717.sdkstatcache
+    cd /Volumes/UNITEK/Documents/Development/Lightamer
+    /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk -o /Users/kamasylvia/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx27.0-26A425-e829b21a6f8c9b70876ba0858053c044e0bd213a318116c3a09f87b97c0d5717.sdkstatcache
+
+PruneExplicitPrecompiledModules /Users/kamasylvia/Library/Developer/Xcode/DerivedData/SDKExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/ExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+2026-09-19 23:02:03.617138+0800 Lightamer[88491:2788713] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-19 23:02:03.617302+0800 Lightamer[88491:2788713] [Application] Error registering app with intents framework: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-19 23:02:03.617488+0800 Lightamer[88491:2788712] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-19 23:02:03.617501+0800 Lightamer[88491:2788712] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-19 23:02:03.617764+0800 Lightamer[88491:2788713] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-19 23:02:03.617774+0800 Lightamer[88491:2788713] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-19 23:02:03.618016+0800 Lightamer[88491:2788713] [Connection] Will NOT re-try to establish the connection
+2026-09-19 23:02:03.618032+0800 Lightamer[88491:2788715] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-19 23:02:03.618044+0800 Lightamer[88491:2788715] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-19 23:02:03.626711+0800 Lightamer[88491:2788701] [error] MetalContext ready: Apple M4
+2026-09-19 23:02:03.701422+0800 Lightamer[88491:2788701] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+2026-09-19 23:02:03.806460+0800 Lightamer[88491:2788701] [Invalid Configuration] No symbol named 'sliders' found in system symbol set
+2026-09-19 23:02:03.973729+0800 Lightamer[88491:2788701] [color] display profile → ColorSync fallback (custom ICC)
+2026-09-19 23:02:03.973822+0800 Lightamer[88491:2788701] [color] display profile → ColorSync fallback (custom ICC)
+2026-09-19 23:02:03.976132+0800 Lightamer[88491:2788715] [error] registered default.metallib from LightamerIOP.framework
+Test Suite 'Selected tests' started at 2026-09-19 23:02:04.002.
+Test Suite 'LightamerTests.xctest' started at 2026-09-19 23:02:04.002.
+Test Suite 'GaussianBlurTests' started at 2026-09-19 23:02:04.002.
+Test Case '-[LightamerTests.GaussianBlurTests testGPUMatchesFloat64Reference]' started.
+2026-09-19 23:02:04.004197+0800 Lightamer[88491:2788744] [error] MetalContext ready: Apple M4
+2026-09-19 23:02:04.004251+0800 Lightamer[88491:2788744] [error] registered default.metallib from LightamerIOP.framework
+Test Case '-[LightamerTests.GaussianBlurTests testGPUMatchesFloat64Reference]' passed (0.028 seconds).
+Test Suite 'GaussianBlurTests' passed at 2026-09-19 23:02:04.031.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.028 (0.029) seconds
+Test Suite 'GoldenColorTests' started at 2026-09-19 23:02:04.031.
+Test Case '-[LightamerTests.GoldenColorTests testNeutralPatchesSyntheticTarget]' started.
+2026-09-19 23:02:04.032113+0800 Lightamer[88491:2788742] [error] MetalContext ready: Apple M4
+2026-09-19 23:02:04.528251+0800 Lightamer[88491:2788715] [error] golden failure dump: /Volumes/UNITEK/Documents/Development/Lightamer/.work/02-04/golden-dump-1789830124-neutral-synthetic
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/GoldenColorTests.swift:237: error: -[LightamerTests.GoldenColorTests testNeutralPatchesSyntheticTarget] : XCTAssertTrue failed - D-COL1 criterion 1 (neutrality < 2/255) FAILED:
+white L=1.00: level 0.0 vs expected ≈254.99999999999997
+gray  L=0.75: level 0.0 vs expected ≈224.61038037802643
+gray  L=0.50: level 0.0 vs expected ≈187.51603067837462
+gray  L=0.18: level 0.0 vs expected ≈117.64581302261261
+gray  L=0.09: level 0.0 vs expected ≈84.61665548494338
+Test Case '-[LightamerTests.GoldenColorTests testNeutralPatchesSyntheticTarget]' failed (0.606 seconds).
+Test Suite 'GoldenColorTests' failed at 2026-09-19 23:02:04.638.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.606 (0.606) seconds
+Test Suite 'LightamerTests.xctest' failed at 2026-09-19 23:02:04.638.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.634 (0.636) seconds
+Test Suite 'Selected tests' failed at 2026-09-19 23:02:04.638.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.634 (0.636) seconds
+2026-09-19 23:02:10.829 xcodebuild[88466:2788437] [MT] IDETestOperationsObserverDebug: 7.438 elapsed -- Testing started completed.
+2026-09-19 23:02:10.829 xcodebuild[88466:2788437] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-19 23:02:10.829 xcodebuild[88466:2788437] [MT] IDETestOperationsObserverDebug: 7.438 sec, +7.438 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Logs/Test/Test-Lightamer-2026.09.19_23-02-02-+0800.xcresult
+
+Failing tests:
+	GoldenColorTests.testNeutralPatchesSyntheticTarget()
+
+** TEST FAILED **
+
+Testing started

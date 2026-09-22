@@ -101,3 +101,16 @@ CZ-Commit 内；skip 3 既有合规）。
 
 （*输出 EXR 属 gitignore 再生成物，不进 commit；XMP + 生成器进仓，manifest 台账
 落账按 05-03 口径归 05-08 签核轮。）
+
+## 修复批注记（2026-09-22 验收复验）
+
+- AC4「dt 三证据 + manifest 三节」首验勾选不实（采纳日志未落盘、manifest 无节）
+  ——复验已补真：9 case 采纳实跑（vib/vel 5/5 byte-identical；cz 4/4 host 构建
+  插件坏 = D-T3-4 环境约束），manifest 05-04 节落账。
+- velvia strength≤0 语义修正：kernel/CPU/mirror 三处补 dt velvia.c:160 copy
+  路径 early-return（HDR >1 原样通过；中性 seed cache-neutral 论证在 >1 域
+  因此成立）+ `testVelviaStrengthZeroPassesHDRThroughUnclamped` 钉住。
+- test-direct.sh 三修：容器按 xctest 可执行 mtime 选（目录 mtime 坑）、
+  Executed=0 防假绿、mktemp 残留清理。
+- 终轮：**513 tests / 3 skipped / 0 failures**（clean rebuild 后直启实测；
+  +1 = velvia HDR pass-through 测试）。

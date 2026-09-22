@@ -147,6 +147,11 @@ public final class VelviaModule: IOPModule {
     public static func reference(
         rgb: SIMD3<Double>, strength01: Double, bias: Double
     ) -> SIMD3<Double> {
+        // dt velvia.c:160 — strength <= 0 short-circuits to an unclamped
+        // copy (mirrors the kernel guard; HDR >1 passes through).
+        if strength01 <= 0 {
+            return rgb
+        }
         let pmax = max(rgb.x, max(rgb.y, rgb.z))
         let pmin = min(rgb.x, min(rgb.y, rgb.z))
         let plum = (pmax + pmin) / 2.0

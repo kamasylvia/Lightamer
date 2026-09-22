@@ -1,0 +1,105 @@
+Filtering the log data using "subsystem == "com.kamasylvia.lightamer""
+Timestamp               Ty Process[PID:TID]
+2026-09-19 01:37:22.862 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:error] LightamerCore ships no default.metallib (no Core kernels in Phase 1); kernel modules register their own libraries.
+2026-09-19 01:37:22.862 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:error] MetalContext ready: Apple M4
+2026-09-19 01:37:23.181 I  Lightamer[39164:da690] [com.kamasylvia.lightamer:error] registered default.metallib from LightamerIOP.framework
+2026-09-19 01:37:30.891 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] MTKView CREATE view=-822398357137540904
+2026-09-19 01:37:30.891 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 01:37:30.902 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] DRAW view=-822398357137540904 src=nil pso=true drawable=true
+2026-09-19 01:37:30.902 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] DRAWABLE reuse=false
+2026-09-19 01:37:30.934 Db Lightamer[39164:da8bb] [com.kamasylvia.lightamer:draw] DRAWABLE sample: [25, 22, 22, 255, 25, 22, 22, 255]
+2026-09-19 01:37:31.467 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] decoded DSC00012.jpg vv8
+2026-09-19 01:37:31.467 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 01:37:32.103 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC00012.jpg
+2026-09-19 01:37:32.103 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=true
+2026-09-19 01:37:32.105 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] DRAW view=-822398357137540904 src=9504x6336 pso=true drawable=true
+2026-09-19 01:37:32.105 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] DRAWABLE reuse=true
+2026-09-19 01:37:32.194 Db Lightamer[39164:da8ba] [com.kamasylvia.lightamer:draw] DRAWABLE sample: [48, 48, 76, 255, 58, 56, 82, 255]
+2026-09-19 01:38:16.113 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:16.114 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:16.115 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:16.115 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:16.123 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:16.124 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 01:38:16.125 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 01:38:16.750 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] decoded DSC09991.ARW vv9
+2026-09-19 01:38:16.750 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 01:38:41.047 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC09991.ARW
+2026-09-19 01:38:41.047 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=true
+2026-09-19 01:38:46.669 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:38:46.670 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:38:46.671 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:38:46.671 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:38:46.681 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:38:46.682 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 01:38:46.683 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 01:38:46.907 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] decoded DSC00012.jpg vv8
+2026-09-19 01:38:46.907 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 01:38:47.153 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC00012.jpg
+2026-09-19 01:38:47.153 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=true
+2026-09-19 01:38:48.934 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:48.936 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:48.936 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:48.937 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:48.949 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:48.950 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 01:38:48.951 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 01:38:49.051 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] decoded DSC09991.ARW vv9
+2026-09-19 01:38:49.051 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 01:38:52.468 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC09991.ARW
+2026-09-19 01:38:52.469 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=true
+2026-09-19 01:38:54.498 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:38:54.499 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:38:54.500 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:38:54.501 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:38:54.511 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:38:54.512 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 01:38:54.513 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 01:38:54.589 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] decoded DSC00012.jpg vv8
+2026-09-19 01:38:54.589 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 01:38:54.852 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC00012.jpg
+2026-09-19 01:38:54.852 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=true
+2026-09-19 01:38:56.245 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:56.246 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:56.247 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:56.248 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:56.258 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:38:56.259 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 01:38:56.260 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 01:38:56.357 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] decoded DSC09991.ARW vv9
+2026-09-19 01:38:56.357 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 01:38:59.999 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC09991.ARW
+2026-09-19 01:38:59.999 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=true
+2026-09-19 01:39:02.160 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:39:02.161 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:39:02.162 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:39:02.163 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:39:02.171 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:39:02.172 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 01:39:02.173 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 01:39:02.248 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] decoded DSC00012.jpg vv8
+2026-09-19 01:39:02.248 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 01:39:02.494 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC00012.jpg
+2026-09-19 01:39:02.495 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=true
+2026-09-19 01:39:03.898 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:39:03.899 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:39:03.900 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:39:03.900 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:39:03.909 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 01:39:03.910 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 01:39:03.911 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 01:39:04.019 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] decoded DSC09991.ARW vv9
+2026-09-19 01:39:04.019 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 01:39:07.635 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC09991.ARW
+2026-09-19 01:39:07.635 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=true
+2026-09-19 01:39:09.792 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:39:09.793 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:39:09.794 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:39:09.795 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:39:09.803 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=false
+2026-09-19 01:39:09.804 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 01:39:09.804 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 01:39:09.866 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] decoded DSC00012.jpg vv8
+2026-09-19 01:39:09.866 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 01:39:10.152 I  Lightamer[39164:da67c] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC00012.jpg
+2026-09-19 01:39:10.152 Db Lightamer[39164:da67c] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=true

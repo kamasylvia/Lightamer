@@ -110,4 +110,16 @@ final class VibranceVelviaCommitTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(out.y, 0.0)
         XCTAssertGreaterThanOrEqual(out.z, 0.0)
     }
+
+    /// dt velvia.c:160 — strength <= 0 short-circuits to an UNCLAMPED copy:
+    /// HDR >1 inputs pass through bit-exact instead of truncating to [0,1]
+    /// (05-04 acceptance finding #4 — the neutral-seed cache-neutral
+    /// argument holds on the >1 domain only with this guard).
+    func testVelviaStrengthZeroPassesHDRThroughUnclamped() {
+        let hdr = SIMD3(1.5, 0.2, 0.2)
+        let out = VelviaModule.reference(rgb: hdr, strength01: 0, bias: 1.0)
+        XCTAssertEqual(out.x, 1.5, accuracy: 0)
+        XCTAssertEqual(out.y, 0.2, accuracy: 0)
+        XCTAssertEqual(out.z, 0.2, accuracy: 0)
+    }
 }

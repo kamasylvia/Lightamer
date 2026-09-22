@@ -5858,6 +5858,9 @@ def vibrance_apply_pixel(lab, amount01):
 
 def velvia_apply_pixel(rgb, strength01, bias):
     """velvia.c:165-194 in float64 on linear RGB (clamp is the formula)."""
+    if strength01 <= 0:
+        # dt velvia.c:160 — strength <= 0 short-circuits to an unclamped copy
+        return tuple(rgb)
     pmax = max(rgb)
     pmin = min(rgb)
     plum = (pmax + pmin) / 2.0

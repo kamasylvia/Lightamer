@@ -1,0 +1,32 @@
+device: Apple M4
+── TEST A: direct render-to-texture (OWNED command buffer), fresh CIContext per round (N=6) ──
+round 1: cold=EMPTY (0.1ms) warmup=0.0ms post-warmup=EMPTY
+round 2: cold=EMPTY (0.0ms) warmup=0.0ms post-warmup=EMPTY
+round 3: cold=EMPTY (0.1ms) warmup=0.0ms post-warmup=EMPTY
+round 4: cold=EMPTY (0.1ms) warmup=0.1ms post-warmup=EMPTY
+round 5: cold=EMPTY (0.0ms) warmup=0.0ms post-warmup=EMPTY
+round 6: cold=EMPTY (0.0ms) warmup=0.0ms post-warmup=EMPTY
+TEST A RESULT: first-render-empty WITHOUT warm-up = 6/6; WITH warm-up = 6/6
+FAIL  A. post-warmup direct renders ALL non-empty (0/6)
+── TEST A0: commandBuffer:nil variant (race documentation) ──
+round 1: nil-cb render=0.0ms readback=EMPTY
+round 2: nil-cb render=0.0ms readback=EMPTY
+round 3: nil-cb render=0.0ms readback=EMPTY
+TEST A2 (real CIRAW-backed CIImage, fresh ctx): cold=EMPTY post-warmup=EMPTY
+FAIL  A2. real-image post-warmup direct render non-empty
+── TEST B: bitmap+replace timings (n=3, median reported) ──
+fixture: DSC00012.jpg 9504x6336 (60.2MP); preview-scaled 2560x1706
+preview bitmap+replace run1: 26.0ms
+preview bitmap+replace run2: 15.8ms
+preview bitmap+replace run3: 15.2ms
+full 60MP bitmap+replace run1: 451.5ms
+full 60MP bitmap+replace run2: 314.0ms
+full 60MP bitmap+replace run3: 220.7ms
+TEST B RESULT: preview-2560 median 15.8ms; full-60MP median 314.0ms
+── TEST C: decode + render, FULL extent vs scaled to 2560px long edge ──
+fixture: DSC09991.ARW 6336x9504 (60.2MP); decode 410ms (n=1, CIRAW full)
+run1: FULL 12127.3ms vs scaled-2560 453.3ms
+run2: FULL 317.5ms vs scaled-2560 2082.9ms
+run3: FULL 294.6ms vs scaled-2560 751.1ms
+TEST C RESULT: FULL median 317.5ms vs scaled-2560 median 751.1ms (bitmap leg, incl. texture alloc + replace)
+SPIKE FAIL (2)

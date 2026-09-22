@@ -15,10 +15,12 @@ import XCTest
 // CL-leg NEAREST lookup over canonical fixture bytes. dt-side = XMP
 // adoption + DB hex + params ok (evidence table in the manifest).
 //
-// LOOKUP DIVERGENCE (module header): Swift reference uses the NEAREST
-// lookup (same as the kernel) while dt's CPU leg LERPs — the dual gate
-// absorbs dt's own CPU-vs-CL leg gap; the strict fraction records the
-// measured residual index-flip rate.
+// LOOKUP DIVERGENCE (module header): the LUT-direct gate calls
+// ColorZonesModule.reference which is LERP (dt CPU leg parity), while
+// gen_fixtures' mirror uses the NEAREST lookup (kernel-identical) — the
+// dual gate absorbs dt's own CPU-vs-CL leg gap; the strict fraction
+// records the measured residual index-flip rate. (05-04 复验勘误：原注释
+// 把 LERP reference 误标为 NEAREST。)
 final class ColorZonesParityTests: XCTestCase {
 
     private static let goldenDir: URL = URL(fileURLWithPath: #filePath)

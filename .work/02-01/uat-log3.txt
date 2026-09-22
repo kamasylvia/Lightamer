@@ -1,0 +1,61 @@
+Filtering the log data using "subsystem == "com.kamasylvia.lightamer""
+Timestamp               Ty Process[PID:TID]
+2026-09-19 00:58:55.796 I  Lightamer[25964:c887a] [com.kamasylvia.lightamer:error] LightamerCore ships no default.metallib (no Core kernels in Phase 1); kernel modules register their own libraries.
+2026-09-19 00:58:55.796 I  Lightamer[25964:c887a] [com.kamasylvia.lightamer:error] MetalContext ready: Apple M4
+2026-09-19 00:58:56.276 I  Lightamer[25964:c8897] [com.kamasylvia.lightamer:error] registered default.metallib from LightamerIOP.framework
+2026-09-19 00:59:03.932 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 00:59:03.942 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 00:59:03.960 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAW src=<private> pso=true drawable=true
+2026-09-19 00:59:03.960 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAWABLE reuse=false
+2026-09-19 00:59:03.962 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAW src=<private> pso=true drawable=true
+2026-09-19 00:59:03.962 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAWABLE reuse=false
+2026-09-19 00:59:03.969 Db Lightamer[25964:c88ce] [com.kamasylvia.lightamer:draw] DRAWABLE sample: [25, 22, 22, 255, 25, 22, 22, 255]
+2026-09-19 00:59:03.969 Db Lightamer[25964:c88ce] [com.kamasylvia.lightamer:draw] DRAWABLE sample: [25, 22, 22, 255, 25, 22, 22, 255]
+2026-09-19 00:59:04.008 I  Lightamer[25964:c887a] [com.kamasylvia.lightamer:decode] decoded DSC00012.jpg vv8
+2026-09-19 00:59:04.008 I  Lightamer[25964:c887a] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 00:59:04.500 I  Lightamer[25964:c887a] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC00012.jpg
+2026-09-19 00:59:04.501 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=true
+2026-09-19 00:59:04.513 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=true
+2026-09-19 00:59:04.517 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAW src=<private> pso=true drawable=true
+2026-09-19 00:59:04.517 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAWABLE reuse=false
+2026-09-19 00:59:04.518 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAW src=<private> pso=true drawable=true
+2026-09-19 00:59:04.518 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAWABLE reuse=false
+2026-09-19 00:59:04.586 Db Lightamer[25964:c88cd] [com.kamasylvia.lightamer:draw] DRAWABLE sample: [48, 48, 76, 255, 58, 56, 82, 255]
+2026-09-19 00:59:04.590 Db Lightamer[25964:c8899] [com.kamasylvia.lightamer:draw] DRAWABLE sample: [48, 48, 76, 255, 58, 56, 82, 255]
+2026-09-19 00:59:06.184 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.203 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.204 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.206 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.207 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.296 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.298 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.321 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.323 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.324 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.325 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.326 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=9504x6336 changed=false
+2026-09-19 00:59:06.330 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 00:59:06.331 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 00:59:06.332 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=true
+2026-09-19 00:59:06.332 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 00:59:06.337 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 00:59:06.343 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 00:59:06.347 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=nil changed=false
+2026-09-19 00:59:06.364 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAW src=<private> pso=true drawable=true
+2026-09-19 00:59:06.364 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAWABLE reuse=false
+2026-09-19 00:59:06.364 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAW src=<private> pso=true drawable=true
+2026-09-19 00:59:06.364 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAWABLE reuse=false
+2026-09-19 00:59:06.366 Db Lightamer[25964:c89a4] [com.kamasylvia.lightamer:draw] DRAWABLE sample: [25, 22, 22, 255, 25, 22, 22, 255]
+2026-09-19 00:59:06.367 Db Lightamer[25964:c89a4] [com.kamasylvia.lightamer:draw] DRAWABLE sample: [25, 22, 22, 255, 25, 22, 22, 255]
+2026-09-19 00:59:06.818 I  Lightamer[25964:c887a] [com.kamasylvia.lightamer:decode] decoded DSC09991.ARW vv9
+2026-09-19 00:59:06.818 I  Lightamer[25964:c887a] [com.kamasylvia.lightamer:decode] camera=ILCE-7RM5 blackLevel=0.000000
+2026-09-19 00:59:15.019 I  Lightamer[25964:c887a] [com.kamasylvia.lightamer:decode] pixelpipe output ready: DSC09991.ARW
+2026-09-19 00:59:15.020 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=true
+2026-09-19 00:59:15.021 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=true
+2026-09-19 00:59:15.021 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] UPDATE incoming=6336x9504 changed=true
+2026-09-19 00:59:15.022 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAW src=<private> pso=true drawable=true
+2026-09-19 00:59:15.023 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAWABLE reuse=false
+2026-09-19 00:59:15.023 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAW src=<private> pso=true drawable=true
+2026-09-19 00:59:15.023 Db Lightamer[25964:c887a] [com.kamasylvia.lightamer:draw] DRAWABLE reuse=false
+2026-09-19 00:59:15.121 Db Lightamer[25964:c88ce] [com.kamasylvia.lightamer:draw] DRAWABLE sample: [0, 155, 194, 255, 0, 153, 194, 255]
+2026-09-19 00:59:15.123 Db Lightamer[25964:c88ce] [com.kamasylvia.lightamer:draw] DRAWABLE sample: [0, 155, 194, 255, 0, 153, 194, 255]

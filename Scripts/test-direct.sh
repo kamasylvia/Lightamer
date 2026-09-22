@@ -14,13 +14,15 @@
 set -euo pipefail
 
 ROOT="${0:A:h:h}"
-DD_DEFAULT=(~/Library/Developer/Xcode/DerivedData/Lightamer-*/Build/Products/Debug)
-DD=( $(ls -dt ${~DD_DEFAULT} 2>/dev/null) )
+# 按 xctest 可执行文件 mtime 选容器——Debug 目录 mtime 不随增量构建更新（实测踩坑）
+# (N) = zsh null_glob：无匹配时展开为空而非报错
+DD_DEFAULT=(~/Library/Developer/Xcode/DerivedData/Lightamer-*/Build/Products/Debug/Lightamer.app/Contents/PlugIns/LightamerTests.xctest/Contents/MacOS/LightamerTests(N))
+DD=( $(ls -t ${~DD_DEFAULT}) )
 if [ ${#DD[@]} -eq 0 ]; then
   echo "error: Debug product not found — run: xcodebuild build -workspace Lightamer.xcworkspace -scheme Lightamer -destination 'platform=macOS'" >&2
   exit 2
 fi
-DD="${DD[1]}"
+DD="${DD[1]%Lightamer.app/*}"
 
 CONFIG=$(mktemp /tmp/la-xctest-config.XXXXXX)
 CONFIG="${CONFIG}.plist"
@@ -47,10 +49,15 @@ env \
   "$DD/Lightamer.app/Contents/MacOS/Lightamer" \
   "${ARGS[@]}" > /tmp/la-direct-tests.log 2>&1
 RC=$?
-rm -f "$CONFIG"
+rm -f "$CONFIG" /tmp/la-xctest-config.* 2>/dev/null || true
 
 grep -E "Executed.*tests" /tmp/la-direct-tests.log | tail -1
 FAILED=$(grep -c "' failed" /tmp/la-direct-tests.log || true)
+EXECUTED=$(grep -oE "Executed [0-9]+ tests" /tmp/la-direct-tests.log | tail -1 | grep -oE "[0-9]+" || echo 0)
+if [ "${EXECUTED:-0}" -eq 0 ]; then
+  echo "FAILED — Executed 0 tests（-XCTest 过滤名不匹配或旧容器），防空转假绿" >&2
+  exit 1
+fi
 if [ "$RC" -ne 0 ] || [ "${FAILED:-0}" -gt 0 ]; then
   echo "FAILED — 完整输出: /tmp/la-direct-tests.log" >&2
   grep -B2 "' failed" /tmp/la-direct-tests.log | head -20 >&2

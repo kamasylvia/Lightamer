@@ -31,6 +31,15 @@ kernel void velvia_apply(
 {
     float4 px = in.read(gid);
 
+    // dt velvia.c:160 — strength <= 0 short-circuits to an unclamped copy
+    // (the trailing clamp below is the FORMULA at strength > 0; clamping
+    // HDR >1 inputs at neutral/strength-0 would diverge from dt). 05-04
+    // acceptance finding #4.
+    if (u.strength <= 0.0f) {
+        out.write(px, gid);
+        return;
+    }
+
     float pmax = max(px.x, max(px.y, px.z));
     float pmin = min(px.x, min(px.y, px.z));
     float plum = (pmax + pmin) / 2.0f;

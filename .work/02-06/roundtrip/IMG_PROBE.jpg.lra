@@ -1,0 +1,75 @@
+{
+  "appVersion" : "0.1.0",
+  "decodeParamsHash" : "13144030376096248986",
+  "decoderVersionUsed" : "v8",
+  "history" : {
+    "items" : [
+      {
+        "id" : "5961A6AA-3A3D-41A9-8567-3610E0603A18",
+        "label" : "probe testgain 1.5×",
+        "snapshot" : {
+          "enabled" : true,
+          "id" : "9FBAE156-0270-4166-BB61-53682FC7350E",
+          "iopOrder" : 50.5,
+          "multiName" : "probe",
+          "multiPriority" : 0,
+          "opName" : "testgain",
+          "paramsData" : "eyJnYWluIjoxLjV9",
+          "paramsHash" : "6481113053740982766",
+          "version" : 1
+        },
+        "timestamp" : 811469569.367638
+      }
+    ],
+    "position" : 0
+  },
+  "historyHash" : "8194033680489935039",
+  "imageID" : "ECE13C18-0D86-4FC0-9014-5A1305E4D087",
+  "instances" : [
+    {
+      "enabled" : true,
+      "id" : "967646B6-C1DE-4EFC-AE74-AE5B76A24B76",
+      "iopOrder" : 28,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "colorin",
+      "paramsData" : "e30=",
+      "paramsHash" : "645223143103797797",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "9FBAE156-0270-4166-BB61-53682FC7350E",
+      "iopOrder" : 50.5,
+      "multiName" : "probe",
+      "multiPriority" : 0,
+      "opName" : "testgain",
+      "paramsData" : "eyJnYWluIjoxLjV9",
+      "paramsHash" : "6481113053740982766",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "44EF5560-3B0F-4400-BF4A-A366CBEA0250",
+      "iopOrder" : 70,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "colorout",
+      "paramsData" : "eyJpbnRlbnQiOiJyZWxhdGl2ZUNvbG9yaW1ldHJpYyIsIm91dHB1dFByb2ZpbGUiOiJkaXNwbGF5In0=",
+      "paramsHash" : "7730151441516749841",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "1498C95E-DE83-473E-A4CA-AE1AAFD97A93",
+      "iopOrder" : 78,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "gamma",
+      "paramsData" : "e30=",
+      "paramsHash" : "645223143103797797",
+      "version" : 1
+    }
+  ],
+  "schemaVersion" : 1
+}
