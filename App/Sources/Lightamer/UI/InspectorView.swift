@@ -90,6 +90,9 @@ internal struct InspectorView: View {
         case ChannelMixerRGBModule.opName: return String(localized: "history_channelmixerrgb")
         case ChannelMixerModule.opName: return String(localized: "history_channelmixer")
         case ColorContrastModule.opName: return String(localized: "history_colorcontrast")
+        case VibranceModule.opName: return String(localized: "history_vibrance")
+        case VelviaModule.opName: return String(localized: "history_velvia")
+        case ColorZonesModule.opName: return String(localized: "history_colorzones")
         default: return opName
         }
     }
