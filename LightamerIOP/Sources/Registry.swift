@@ -194,6 +194,15 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: DenoiseProfileModule.opName) { id in
             ModuleBox(module: DenoiseProfileModule(), instanceID: id)
         }
+        // Plan 05-08-T1: bilateral ("surface blur", direct stamp ≤ rad 6 +
+        // 5D grid leg with the OQ7 budget), v50 slot 10.0 — immediately
+        // after denoiseprofile (9.0), before demosaic-adjacent colorin-era
+        // slots. Seed DISABLED (D-05-08-T1-3: no zero-param identity —
+        // radius $MIN 1.0 still smooths, so identity holds only via the
+        // disabled piece; colorbalancergb D1 disposition).
+        await registry.register(opName: BilateralModule.opName) { id in
+            ModuleBox(module: BilateralModule(), instanceID: id)
+        }
         // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
         // 66.0 (creative) — after grain (65.0), before splittoning (67.0).
         await registry.register(opName: SoftenModule.opName) { id in
@@ -289,6 +298,12 @@ public enum LightamerIOPRegistry {
             DenoiseProfileKernel.vert,
             DenoiseProfileKernel.finish,
             DenoiseProfileKernel.finishV2,
+            // Plan 05-08-T1: bilateral kernel pair (direct stamp + the 5D
+            // grid trio — splat/blur/slice; the blur runs ×5 dims).
+            BilateralKernel.directFunction,
+            BilateralKernel.splatFunction,
+            BilateralKernel.blurLineFunction,
+            BilateralKernel.sliceFunction,
             // Plan 05-04-T1: velvia + vibrance.
             VelviaKernel.functionName,
             VibranceKernel.functionName,
@@ -380,6 +395,9 @@ public enum LightamerIOPRegistry {
             // Plan 05-07-T2: denoiseprofile joins the seed DISABLED
             // (D-05-07-T2-2 — see the registration note above).
             ModuleInstance(module: DenoiseProfileModule.self, params: DenoiseProfileModule.Params(), enabled: false),
+            // Plan 05-08-T1: bilateral joins the seed DISABLED (D-05-08-T1-3
+            // — see the registration note above).
+            ModuleInstance(module: BilateralModule.self, params: BilateralModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }

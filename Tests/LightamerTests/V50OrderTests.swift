@@ -141,4 +141,14 @@ final class V50OrderTests: XCTestCase {
         XCTAssertLessThan(V50Order.order(for: "colorcontrast")!, V50Order.order(for: "velvia")!)
         XCTAssertLessThan(V50Order.order(for: "velvia")!, V50Order.order(for: "vibrance")!)
     }
+
+    /// 05-08: bilateral 10.0 — after denoiseprofile (9.0, the first
+    /// post-demosaic RGB slot), before exposure-era slots; module statics
+    /// AND the table agree.
+    func testBilateralSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "bilateral"), 10.0)
+        XCTAssertEqual(BilateralModule.iopOrder, 10.0)
+        XCTAssertLessThan(V50Order.order(for: "denoiseprofile")!, V50Order.order(for: "bilateral")!)
+        XCTAssertLessThan(V50Order.order(for: "bilateral")!, V50Order.order(for: "exposure")!)
+    }
 }
