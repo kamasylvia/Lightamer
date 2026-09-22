@@ -75,6 +75,69 @@ final class MemoryBudgetTests: XCTestCase {
         return after.hits > before.hits
     }
 
+    // ── Plan 05-06: nlmeans FULL Δfootprint gate (tiling 承重) ──────────
+
+    /// nlmeans 启用的 FULL 渲染（强制分块 budget 32MB → 2048×1536@80B/px
+    /// ≈ 252MB > 32MB → 多 tile）：Δfootprint < 3GB（D-C1 门；halo 记账 +
+    /// 80 B/px 摊销的实跑上界）。grid>1 断言 = TilingPlan 同参纯函数
+    /// （驱动用同一函数）。防空转：footprint delta 断言 + grid 断言。
+    func testNLMeansFullFootprintBudget() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        try await metal.registerDefaultLibrary(in: NLMeansKernel.metalBundle)
+
+        let width = 2048, height = 1536
+        var data = Data(capacity: width * height * 16)
+        for y in 0..<height {
+            for x in 0..<width {
+                let v = Float(exp2(-6.0 + 5.0 * Double(x) / Double(width - 1)))
+                for _ in 0..<3 {
+                    var le = v.bitPattern.littleEndian
+                    data.append(contentsOf: withUnsafeBytes(of: &le) { Data($0) })
+                }
+                var one = Float(1.0).bitPattern.littleEndian
+                data.append(contentsOf: withUnsafeBytes(of: &one) { Data($0) })
+            }
+        }
+        let provider = try XCTUnwrap(CGDataProvider(data: data as CFData))
+        let cg = try XCTUnwrap(CGImage(
+            width: width, height: height, bitsPerComponent: 32, bitsPerPixel: 128,
+            bytesPerRow: width * 16, space: WorkingSpace.colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue:
+                CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.floatComponents.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent))
+        let image = DecodedImage(
+            ciImage: CIImage(cgImage: cg), rawTech: RAWTechnicalParams(),
+            capture: CaptureMetadata(), segmentationSkyMatte: nil, decoderVersionUsed: .v8)
+
+        // grid 记账：与 tile 驱动同参（80 B/px, halo 9）→ grid >1。
+        let tiles = TilingPlan.tiles(
+            forWidth: width, height: height, maxTileBytes: 32 << 20,
+            bytesPerPixel: 80, overlap: 9)
+        XCTAssertGreaterThan(tiles.count, 1, "分块真的发生（grid \(tiles.count) >1）")
+
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        let made = await registry.makeBox(opName: NLMeansModule.opName)
+        let box = try XCTUnwrap(made as? ModuleBox<NLMeansModule>)
+        await box.setParams(NLMeansModule.Params(strength: 120))
+
+        let before = mach_footprint()
+        _ = try await RenderPipeline.process(
+            image: image, instances: [box as any ModuleBoxing], imageID: UUID(),
+            resolution: .full, cache: PipeCache(), metal: metal,
+            longEdge: nil, maxTileWorkingBytes: 32 << 20)
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        await fence?.completed()
+        let delta = mach_footprint() - before
+        print(String(format: "MEMORY nlmeans FULL tiled footprint delta: %.0f MB", Double(delta) / 1048576))
+        XCTAssertLessThan(Double(delta), 3.0 * 1024 * 1024 * 1024, "D-C1 FULL budget")
+    }
+
     // ── 1. The keep/evict matrix (one row per locked tier) ──────────────
 
     func testEnforceBudgetKeepEvictMatrix() async throws {
@@ -471,5 +534,16 @@ final class MemoryBudgetTests: XCTestCase {
             total,
             (30 * 30 + 24 * 24) * WorkingSpace.bytesPerPixel,
             "input (30×30 expanded) + halo-out (24×24 window)")
+    }
+    private func mach_footprint() -> UInt64 {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) { infoPtr in
+            infoPtr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), intPtr, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? info.phys_footprint : 0
     }
 }
