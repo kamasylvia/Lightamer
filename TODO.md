@@ -136,7 +136,7 @@
 - [x] **Plan 05-03**（channelmixerrgb 28.5 + channelmixer 39.0 + colorcontrast 56.0）完成（2026-09-22）：5 tasks（T1 illuminants/CAT `2773bcc` + T2 cmr 模块 `e3dd050` + T3 legacy+contrast `00bf530` + T4 golden `1346b88` + T5 面板 `cf915a9`/`777599a`；SUMMARY/DECISIONS/FINDINGS/perf 落盘）；验收 FAIL 回注修复轮 F1–F6（F1 blob 52B→88B `9ba7ae2` + F2 case 语义 `115f526` + F3 dt 采纳 12/12 `11bf868` + F4 删 camera 死代码 `bc1e9bb` + F5/F6 文档挂账勘误本轮）；终轮全 suite **480 passed / 0 failed / 3 skipped**（基线 445 → +35；skip 3 既有合规）；SUMMARY 见 `05-03-SUMMARY.md`，决策见 `05-03-DECISIONS.md`（D1–D10）；下一批 = 05-04（wave 2 剩余并行项）
 - [x] **Plan 05-04**（vibrance 58.0 + velvia 57.0 + colorzones 60.0 三 tab 曲线）—— 5 tasks；LUT 双闸 + hue sweep 全环；velvia clamp 语义钉死
 - [x] **Plan 05-05**（monochrome 64.0：Lab 色轮 + dt 3D grid bilateral 腿）—— 4 tasks；CPU/CL sigma² 分歧钉 CPU 版 + grid==直接窗口交叉 + TilingPlan 第三消费者
-- [ ] **Plan 05-06**（nlmeans 29.0：Goossens 5 kernel + 预览降载三件套 + TilingPlan 承重首验 halo=P+K）—— 5 tasks；分块==整幅 <1e-3 + FULL Δfootprint <3GB + SC#4 拖动首测
+- [x] **Plan 05-06**（nlmeans 29.0：Goossens 5 kernel + 预览降载三件套 + TilingPlan 承重首验 halo=P+K）—— 5 tasks；分块==整幅 <1e-3 + FULL Δfootprint <3GB + SC#4 拖动首测
 - [ ] **Plan 05-07**（denoiseprofile 9.0 第二难：VST 三变体 + eaw 波列 + Bayesshrink + NLMeans 腿 + 剖面接线 + 波列 tiling）—— 6 tasks；**SC#2 正式验证**（加噪→去噪闭环 + 错配方向断言）；L018 双缓冲红线
 - [ ] **Plan 05-08**（bilateral 10.0 直连/5D grid 两档 + OQ7 预算定稿 + IOP-DENOISE-04 defer 决议 + **Phase 5 签核**：VALIDATION / SC#1-4 核对 / sidecar 11 op / PERF-5 / GUI 验收轮 / Phase 6 移交清单）—— 6 tasks；SC#4 拖动门两链实测 + Open#9 启用判定
 - [ ] **待用户知悉项**：noiseprofiles.json 数据文件许可证核对（dt GPL 项目内贡献数据再分发，D-05-CONTEXT-2）——核对完成前不对外分发 release（05-01 落 LICENSE-NOTES，05-08 签核复核）
