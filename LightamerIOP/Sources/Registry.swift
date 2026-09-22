@@ -152,10 +152,12 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: VibranceModule.opName) { id in
             ModuleBox(module: VibranceModule(), instanceID: id)
         }
-        // Plan 05-03-T3: colorcontrast (Lab a/b slope + offset), v50 slot
-        // 56.0. Seed ENABLED-neutral (steepness 1/offset 0 ⇒ identity).
-        await registry.register(opName: ColorContrastModule.opName) { id in
-            ModuleBox(module: ColorContrastModule(), instanceID: id)
+        // Plan 05-04-T2: colorzones (Lab 3-curve L/C/h + 0x10000 LUTs),
+        // v50 slot 60.0. Seed ENABLED-neutral (default curves flat-0.5 ⇒
+        // Lm/hm = 0, Cm = 1 ⇒ in == out). SMOOTH/v3 path only (strong
+        // legacy out of scope — DECISIONS D-05-04-T2-2).
+        await registry.register(opName: ColorZonesModule.opName) { id in
+            ModuleBox(module: ColorZonesModule(), instanceID: id)
         }
         // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
         // 66.0 (creative) — after grain (65.0), before splittoning (67.0).
@@ -223,6 +225,8 @@ public enum LightamerIOPRegistry {
             // Plan 05-04-T1: velvia + vibrance.
             VelviaKernel.functionName,
             VibranceKernel.functionName,
+            // Plan 05-04-T2: colorzones LUT triple.
+            ColorZonesKernel.functionName,
             SoftenKernel.overFunction,
             SoftenKernel.mixFunction,
         ]
@@ -293,6 +297,9 @@ public enum LightamerIOPRegistry {
             // style, so their panels have instances to drive).
             ModuleInstance(module: VelviaModule.self, params: VelviaModule.Params()),
             ModuleInstance(module: VibranceModule.self, params: VibranceModule.Params()),
+            // Plan 05-04-T2: colorzones joins the seed ENABLED-neutral
+            // (flat-0.5 default curves ⇒ identity, cache-neutral).
+            ModuleInstance(module: ColorZonesModule.self, params: ColorZonesModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
