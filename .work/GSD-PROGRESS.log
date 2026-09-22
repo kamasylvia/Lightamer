@@ -68,3 +68,4 @@
 [2026-09-22 23:30] 05-06 nlmeans 执行完成（夜间 ZCode subagent）：T1-T5 5 commits a61f746..061c4aa，全套 553/3skip/0fail，SUMMARY+DECISIONS 落盘，GUI 走查 PASS + 新发现 GUI-13（并发崩溃，05-08 前修）
 2026-09-23 [05-06] 夜间 subagent worker 首战：nlmeans 全模块交付（6 commits a61f746..24b0f5f，553/0/3；parity 12/12 ≤5.7e-6、dt 采纳 4/4、PERF 降载 7.5×）。GUI-13 立项（高：D-H1 live 路径 setParams 竞态 SIGABRT，与 GUI-10 同族，05-08 前与 GUI-10 一并修）。矩阵夜间语义验证成功（执行 worker = subagent）。
 2026-09-23 0[xx] [05-06] subagent 验收 PASS-with-notes：Goossens 5 kernel 与 nlmeans.cl 逐行同构、parity 12/12 独立复跑、dt 采纳 4/4 复验、平场探针精确 0.0、tiling 承重 345MB、553/3/0 独立实跑。seed DISABLED 三点证伪成立。4 notes 非阻塞。W2/W3 闭环 → W4 05-07（denoiseprofile）夜间 subagent 执行。
+[2026-09-23 续跑班] 05-07 denoiseprofile 执行收口：T5 中途在制品接续（parity 8×3 ≤9e-6 + SC#2 PASS + dt 采纳 8/8）+ T6（面板/轨B/PERF7/GUI 走查）→ 全套 581/3skip/0fail，7 commits 2ccbae6..d5576fe + closeout
