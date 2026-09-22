@@ -115,7 +115,7 @@ and ships together. liquify and retouch depend on the mask framework and land he
 **Requirements:** LAYER-01, LAYER-02, LAYER-03, LAYER-04, LAYER-05, LAYER-06, LAYER-07, IOP-MASK-01, IOP-MASK-02, IOP-MASK-03, IOP-MASK-04, IOP-MASK-05, IOP-GEO-05, IOP-GEO-06
 **Notes:** The largest architectural phase. Layers + masking are interdependent (research key finding) and must be designed into the pixelpipe from Phase 2 — they cannot be bolted on. This is the fundamental departure from Darktable's global-pipe + per-iop-mask model: the layer stack is the organizing mechanism for local adjustments. Mask versioning by stable id (not ordinal) and the history identity tuple from Phase 2 are what make this survive reorder/refactor (NDE-1). Risks: NDE-1/3, METAL-8, PERF-2.
 
-### Phase 7: AI & Assistive Modules (Vision Masking, Retouching & Color Transfer)【含追色：2026-09-22 用户指令自 V2 提级】
+### Phase 7: AI Modules (Native Vision Masking & Retouching)【追色已移出至 V2，2026-09-22 用户指令】
 **Goal:** Ship the subset of AI masking/retouching that Apple's **native** Vision/Core
 Image frameworks implement directly — with no custom-trained Core ML models. That means
 subject isolation via `VNGenerateForegroundInstanceMaskRequest` (AI-01) and frequency-
@@ -129,10 +129,8 @@ on the Apple Silicon Neural Engine — no third-party ML models, no network call
 3. AI masks integrate as layer/parametric mask inputs — an AI-generated mask can be baked to a raster mask (IOP-MASK-03) or applied directly as a parametric mask (IOP-MASK-02) on any Phase 6 adjustment layer (AI-06).
 4. AI masks are editable, not black-box — manual edge refinement, feather, invert, and combine with other masks (IOP-MASK-04 operations) all work on a baked AI mask (AI-07).
 5. All AI detection runs locally on the Neural Engine (offline, no network); latency on a 100MP image is acceptable for interactive use (cache result so re-edit does not re-run Vision).
-**Requirements:** AI-01, AI-05, AI-06, AI-07, TRACK-01, TRACK-02, TRACK-03, TRACK-04, TRACK-05
+**Requirements:** AI-01, AI-05, AI-06, AI-07
 **Notes:** Depends on Phase 6 (Layers & Masking) — AI masks are consumed by the layer/mask system, so this phase ships after it. **Native-only scope decision:** research confirmed Apple's native AI capability boundary on macOS 27 — `VNGenerateForegroundInstanceMaskRequest` (subject) and Vision landmarks + Core Image filters (frequency-separation skin) are the only capabilities achievable without a custom-trained Core ML model. AI-02 (sky), AI-03 (portrait body-parts), AI-04 (generic semantic seg) were dropped from v1 because they have no public native multi-class API: `CIRAWFilter.semanticSegmentationSkyMatteImage` and `AVSemanticSegmentationMatte` only read iPhone-captured/ProRAW embedded mattes, and arbitrary-RAW versions would each need a custom DeepLab/face-parsing model — those now ship as AIV2-03/04/05 in the v2 section. AI-01 is implemented via `VNGenerateForegroundInstanceMaskRequest` (available macOS 14+, enhanced in macOS 27); AI-05 uses `VNFaceLandmarks2D` + `VNGeneratePersonSegmentationRequest` for skin-region location and a Metal/Core Image compute pass for the frequency separation. AI masks are NOT black-box — on generation they bake to an editable raster mask (Phase 6 IOP-MASK-03) and from there inherit all Phase 6 mask-edit affordances (AI-07); the baked mask is what is versioned in the history hash (NDE-1). Keep a pluggable segmentation interface so a higher-fidelity custom-model backend can be swapped in later (v2 AIV2 items) without rewriting AI-06/07 integration. Risks: PERF-1 (Neural Engine scheduling vs. Metal pipe), NDE-1/3.
-
-**追色扩展（TRACK-01..05，2026-09-22 自 V2 提级）：** 参考图色彩分布 → 色彩变换求解（Reinhard/CDF/最优传输族择一）→ `colormatch` 模块（内嵌 3D LUT + tetrahedral kernel）非破坏落位；多参考聚合；与 Phase 12 .cube LUT 导入导出协同（追色 LUT 可导出 .cube）。复用 HistogramReduce（Phase 3）做统计。
 
 ### Phase 8: HDR/Stacking & Effects iops
 **Goal:** HDR merge (bracketed exposures, alignment, de-ghosting), focus stacking,
@@ -279,3 +277,7 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 
 ---
 *Last updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs); AI-02/03/04 moved to v2*
+
+## V2 待办（v1 之后；2026-09-22 用户确认）
+
+- **追色（Color Transfer，TRACK-01..05）**：参考图（单/多张）色彩分布 → 色彩变换求解（Reinhard/CDF/最优传输族择一）→ `colormatch` 模块（内嵌 3D LUT + tetrahedral kernel）非破坏落位。需求定义见 `.planning/REQUIREMENTS.md` TRACK 节（V2）；CIRAW 9 无此能力（2026-09-22 查证），需自研经典色彩迁移数学。与 Phase 12 .cube LUT 格式协同。

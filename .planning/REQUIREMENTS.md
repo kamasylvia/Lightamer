@@ -446,7 +446,9 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 - [ ] **PERF-06**: 懒加载——万张级 Session 滚动 60fps，缩略图按需解码 + LRU 内存预算
 - [ ] **PERF-07**: 批量修图（懒渲染）——apply = 纯元数据写入零像素操作，万张 ≤5s（dt sqlite 事务对标；sidecar 批量写策略）；缩略图 stale 后台再生；导出排除
 
-### Color Transfer / 追色 (TRACK)【2026-09-22 用户指令自 V2 提级至 Phase 7】
+## V2 Requirements
+
+### Color Transfer / 追色 (TRACK)【V2；2026-09-22 用户指令维持 V2（当日曾短暂提级 Phase 7，已回撤）】
 
 - [ ] **TRACK-01**: 追色计算——参考图色彩分布特征提取 + 色彩变换求解（Reinhard Lab 对齐 / 直方图 CDF 匹配 / 最优传输族中选定算法），输出 3D LUT（或等效参数曲线组）
 - [ ] **TRACK-02**: 多参考图支持——N 张参考的统计聚合或逐参考混合，权重可调
