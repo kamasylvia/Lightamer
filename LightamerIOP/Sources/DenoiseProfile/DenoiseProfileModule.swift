@@ -375,7 +375,7 @@ public final class DenoiseProfileModule: IOPModule {
     /// set_point writes are DEAD (set_point never grows m_numAnchors;
     /// init_pipe added exactly BANDS) — sampled at i/(bands−1), uint16
     /// quantized `val·65535+0.5`, force[k] = q/65536 (draw.h).
-    static func forceRow(_ yRow: [Float]) -> [Float] {
+    public static func forceRow(_ yRow: [Float]) -> [Float] {
         let bands = DenoiseProfileConsts.bands
         let xs = (0..<bands).map { Float($0) / Float(bands - 1) }
         let ys = Array(yRow.prefix(bands))
@@ -395,6 +395,25 @@ public final class DenoiseProfileModule: IOPModule {
         _ = x // knots' x ride the k/6 grid (defaults); the curve consumes y
         return (0..<ForceChannel.count).map { ch in
             forceRow(Array(y[ch].prefix(bands)))
+        }
+    }
+
+    /// Display sampler for the panel Canvas (CorrectionLUT 同源模式): the
+    /// SAME Catmull-Rom the force curve uses, evaluated at `samples`
+    /// uniform x positions over [0,1] — the quantized anchors the kernel
+    /// consumes are the 7 endpoint values of this family.
+    public static func forceCurveSamples(
+        yRow: [Float], samples: Int = 64
+    ) -> [(x: Float, y: Float)] {
+        let bands = DenoiseProfileConsts.bands
+        let xs = (0..<bands).map { Float($0) / Float(bands - 1) }
+        let ys = Array(yRow.prefix(bands))
+        guard samples >= 2, let tangents = catmullRomTangents(x: xs, y: ys) else {
+            return (0..<max(samples, 2)).map { (Float($0) / Float(max(samples, 2) - 1), 0.5) }
+        }
+        return (0..<samples).map { i in
+            let xval = Float(i) / Float(samples - 1)
+            return (xval, catmullRomVal(x: xs, y: ys, tangents: tangents, xval: xval))
         }
     }
 

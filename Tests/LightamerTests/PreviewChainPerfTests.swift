@@ -307,6 +307,60 @@ final class PreviewChainPerfTests: XCTestCase {
         return texture
     }
 
+    /// Plan 05-07-T6 PERF signpost — the wavelets engine leg at the
+    /// 2048×1536 engine plane: band count from the 20% support rule
+    /// (2048×1536 → max_scale 7 ⇒ 7 bands × 4 encoders + precond/residue/
+    /// backtransform ≈ 31 passes), Debug medians recorded (SC#4 formal
+    /// gate = 05-08 sign-off, same tier policy as the nlmeans test).
+    func testWaveletsEnginePassBudget() async throws {
+        let metal = try await makeMetal()
+        try await metal.registerDefaultLibrary(in: DenoiseProfileKernel.metalBundle)
+        try await metal.registerDefaultLibrary(in: NLMeansKernel.metalBundle)
+        let image = try makeSynthetic()
+        let input = try await decodeToTexture(image, metal: metal)
+        let (w, h) = (input.width, input.height)
+        let output = try makeOutputTexture(metal, width: w, height: h)
+        let scratch = try WaveletEngine.makeScratch(width: w, height: h, metal: metal)
+
+        var params = DenoiseProfileModule.Params()
+        let vst = DenoiseProfileModule.makeVSTUniforms(
+            params: params, inScale: 1, wbCoeffs: nil,
+            compensateStrength: params.waveletColorMode == .rgb ? 1 : 2.5)
+        let force = DenoiseProfileModule.forceCurves(x: params.x, y: params.y)
+        let maxScale = DenoiseProfileModule.maxScale(
+            width: w, height: h, iscale: 1, inScale: 1)
+        let passes = maxScale * 4 + 3
+
+        func frame() async throws -> Double {
+            let clock = ContinuousClock()
+            let start = clock.now
+            try await WaveletEngine.wavelets(
+                input: input, output: output, maxScale: maxScale,
+                useNewVST: true, colorModeRGB: false,
+                vst: vst, force: force, npixels: w * h,
+                metal: metal, scratch: scratch)
+            drain(metal)
+            let elapsed = clock.now - start
+            return Double(elapsed.components.attoseconds) / 1e18 * 1000.0
+        }
+        for _ in 0..<3 { _ = try await frame() } // PSO warm-up
+        var timings: [Double] = []
+        for _ in 0..<8 { timings.append(try await frame()) }
+        let median = timings.sorted()[timings.count / 2]
+        print(String(
+            format: "PERF7 denoiseprofile wavelets engine %dx%d: max_scale %d, %d passes, median %.1f ms — %@",
+            w, h, maxScale, passes, median,
+            timings.map { String(format: "%.1f", $0) }.joined(separator: ", ")))
+        // Pass-count budget: ~25-30 expected for the FULL-scale plane.
+        XCTAssertEqual(maxScale, 7, "2048×1536 support rule → max_scale 7")
+        XCTAssertLessThanOrEqual(passes, 32, "wavelets pass budget")
+        #if DEBUG
+        XCTAssertLessThan(median, 2000, "Debug pathological bound")
+        #else
+        XCTAssertLessThan(median, 120, "Release regression bound")
+        #endif
+    }
+
     private func makeOutputTexture(_ metal: MetalContext, width: Int, height: Int) throws -> any MTLTexture {
         let d = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: WorkingSpace.pixelFormat, width: width, height: height, mipmapped: false)

@@ -1334,6 +1334,78 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertEqual(try instance("nlmeans").paramsHash, pristineHash,
                        "reset to default restores the pristine paramsHash")
     }
+
+    // MARK: - 05-07 denoiseprofile panel wiring (T6)
+
+    /// DenoiseProfile: seeded DISABLED (D-05-07-T2-2); a slider drag = ONE
+    /// commit (auto-enable at commit per GUI-7); the mode Picker and the
+    /// profile-row source flip are DISCRETE single commits; reset restores
+    /// the pristine paramsHash (cache all-hit).
+    func testDenoiseProfilePanelDragAndDiscreteCommits() async throws {
+        try await loadSynthetic()
+        let dp = try instance("denoiseprofile")
+        XCTAssertFalse(dp.enabled, "denoiseprofile seed is disabled (D-05-07-T2-2)")
+        let pristineHash = dp.paramsHash
+
+        // Slider drag (strength): 4 ticks → exactly ONE commit.
+        coordinator.beginContinuousEdit()
+        for tick in 1...4 {
+            let record = try withParams(dp, {
+                $0.strength = 1 + Float(tick) * 0.25
+            }, as: DenoiseProfileModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_denoiseprofile"))
+        XCTAssertEqual(historyCount(), 1, "strength drag = exactly ONE item")
+        let dragged = try instance("denoiseprofile")
+        XCTAssertEqual(
+            try dragged.params(of: DenoiseProfileModule.self).strength,
+            2.0, accuracy: 1e-6)
+        XCTAssertTrue(dragged.enabled, "editing auto-enables at commit (GUI-7)")
+
+        // Mode Picker flip = ONE discrete commit.
+        let afterDrag = try instance("denoiseprofile")
+        let modeRecord = try withParams(afterDrag, {
+            $0.mode = .nlmeans
+        }, as: DenoiseProfileModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(modeRecord)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_denoiseprofile"))
+        XCTAssertEqual(historyCount(), 2, "mode flip = exactly ONE more item")
+        XCTAssertEqual(
+            try instance("denoiseprofile").params(of: DenoiseProfileModule.self).mode,
+            .nlmeans)
+
+        // Profile-row source flip (Auto → generic concrete) = ONE commit.
+        let afterMode = try instance("denoiseprofile")
+        let genericRecord = try withParams(afterMode, {
+            $0.a = SIMD3(repeating: 1e-4)
+            $0.b = SIMD3(repeating: 0)
+            $0.isoOverride = nil
+        }, as: DenoiseProfileModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(genericRecord)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_denoiseprofile"))
+        XCTAssertEqual(historyCount(), 3, "profile flip = exactly ONE more item")
+        XCTAssertEqual(
+            try instance("denoiseprofile").params(of: DenoiseProfileModule.self).a.x,
+            1e-4, accuracy: 1e-12)
+
+        // Reset to defaults restores the pristine paramsHash.
+        let current = try instance("denoiseprofile")
+        let resetRecord = try withParams(current, {
+            $0 = DenoiseProfileModule.Params()
+        }, as: DenoiseProfileModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(resetRecord)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_denoiseprofile"))
+        XCTAssertEqual(try instance("denoiseprofile").paramsHash, pristineHash,
+                       "reset restores the pristine paramsHash")
+    }
     // MARK: - Helpers
     private func historyCount() -> Int { editorState.history.items.count }
 }

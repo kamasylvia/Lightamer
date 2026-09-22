@@ -96,6 +96,8 @@ final class InspectorState {
         register(MonochromePanelProvider())
         // Plan 05-06-T5: nlmeans (astrophoto denoise — 4 sliders).
         register(NLMeansPanelProvider())
+        // Plan 05-07-T6: denoiseprofile (mode/profile/force-curve panel).
+        register(DenoiseProfilePanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

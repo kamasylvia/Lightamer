@@ -496,6 +496,15 @@ final class GeometryGoldenTests: XCTestCase {
         await monoBox.setParams(MonochromeModule.Params())
         monoBox.enabled = false
         chain.append(monoBox)
+        // Plan 05-07-T6 track B: denoiseprofile DISABLED (no zero-param
+        // identity — force 0.5 keeps thrs > 0 — disabled ⇒ pipe skips ⇒
+        // zero chain delta; the LIVE insertion coverage rides the parity
+        // suite; 05-06's nlmeans keeps its own enabled-neutral test).
+        let dpMade = await registry.makeBox(opName: DenoiseProfileModule.opName)
+        let dpBox = try XCTUnwrap(dpMade as? ModuleBox<DenoiseProfileModule>)
+        await dpBox.setParams(DenoiseProfileModule.Params())
+        dpBox.enabled = false
+        chain.append(dpBox)
         return chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
 
