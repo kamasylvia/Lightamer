@@ -137,7 +137,7 @@
 - [x] **Plan 05-04**（vibrance 58.0 + velvia 57.0 + colorzones 60.0 三 tab 曲线）—— 5 tasks；LUT 双闸 + hue sweep 全环；velvia clamp 语义钉死
 - [x] **Plan 05-05**（monochrome 64.0：Lab 色轮 + dt 3D grid bilateral 腿）—— 4 tasks；CPU/CL sigma² 分歧钉 CPU 版 + grid==直接窗口交叉 + TilingPlan 第三消费者
 - [x] **Plan 05-06**（nlmeans 29.0：Goossens 5 kernel + 预览降载三件套 + TilingPlan 承重首验 halo=P+K）—— 5 tasks；分块==整幅 <1e-3 + FULL Δfootprint <3GB + SC#4 拖动首测
-- [ ] **Plan 05-07**（denoiseprofile 9.0 第二难：VST 三变体 + eaw 波列 + Bayesshrink + NLMeans 腿 + 剖面接线 + 波列 tiling）—— 6 tasks；**SC#2 正式验证**（加噪→去噪闭环 + 错配方向断言）；L018 双缓冲红线
+- [x] **Plan 05-07**（denoiseprofile 9.0 第二难：VST 三变体 + eaw 波列 + Bayesshrink + NLMeans 腿 + 剖面接线 + 波列 tiling）—— 6 tasks；**SC#2 正式验证**（加噪→去噪闭环 + 错配方向断言）；L018 双缓冲红线
 - [ ] **Plan 05-08**（bilateral 10.0 直连/5D grid 两档 + OQ7 预算定稿 + IOP-DENOISE-04 defer 决议 + **Phase 5 签核**：VALIDATION / SC#1-4 核对 / sidecar 11 op / PERF-5 / GUI 验收轮 / Phase 6 移交清单）—— 6 tasks；SC#4 拖动门两链实测 + Open#9 启用判定
 - [ ] **待用户知悉项**：noiseprofiles.json 数据文件许可证核对（dt GPL 项目内贡献数据再分发，D-05-CONTEXT-2）——核对完成前不对外分发 release（05-01 落 LICENSE-NOTES，05-08 签核复核）
 
