@@ -5738,7 +5738,7 @@ CHANNELMIXER_CASES = [
      "blue": (0.0,) * 7, "algorithm": 0},
 ]
 CHANNELMIXER_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev",
-                             "gray_staircase"]
+                             "gray_staircase", "saturated"]
 
 
 def channelmixer_params_blob_for_case(case) -> str:
@@ -5794,7 +5794,7 @@ COLORCONTRAST_CASES = [
     {"name": "cc_bound", "a_steepness": 3.0, "a_offset": 60.0,
      "b_steepness": 3.0, "b_offset": -60.0, "unbound": 0},
 ]
-COLORCONTRAST_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev",
+COLORCONTRAST_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev", "saturated",
                               "gray_staircase"]
 
 

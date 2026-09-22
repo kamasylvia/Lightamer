@@ -42,7 +42,7 @@ final class ChannelMixerColorContrastParityTests: XCTestCase {
     }
 
     private static let fixtures = [
-        "ramp_8ev", "flat_0ev", "flat_-4ev", "gray_staircase",
+        "ramp_8ev", "flat_0ev", "flat_-4ev", "gray_staircase", "saturated",
     ]
 
 
