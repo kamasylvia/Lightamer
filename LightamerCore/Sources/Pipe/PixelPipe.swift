@@ -521,6 +521,11 @@ internal final class PixelPipe: @unchecked Sendable {
             // the TILE drivers (executeTiled/executeTiledNegotiated) MUST
             // NOT rewrite it (tile-local readROI.scale ≠ entry scale).
             pieces[index].state.iscale = roi.scale
+            // pipeType stamp (05-06; dt `piece->pipe->type` mirror): the
+            // nlmeans preview-downgrade lever reads it (K clamp + decimate
+            // on PREVIEW/THUMBNAIL). Run-level constant — the TILE drivers
+            // must not rewrite it (same contract as iscale).
+            pieces[index].state.pipeType = resolution
             // Freeze the FORWARD piece state for the backward pass: the
             // miss closures capture `pieces[index].state` by value at
             // probe time (Swift copy), and `processRec` mutates the LIVE
