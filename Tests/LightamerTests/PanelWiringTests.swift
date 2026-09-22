@@ -120,6 +120,9 @@ final class PanelWiringTests: XCTestCase {
         // Plan 05-05-T1: monochrome joins the seed DISABLED (D2: default
         // size=2 red filter is not pixel-identity).
         XCTAssertTrue(ops.contains("monochrome"), "pristine seed must include monochrome")
+        // Plan 05-06-T2: nlmeans joins the seed DISABLED (D-05-06-T2-1:
+        // dt ships it disabled; no zero-param identity exists).
+        XCTAssertTrue(ops.contains("nlmeans"), "pristine seed must include nlmeans")
     }
     private func instance(_ opName: String) throws -> ModuleInstance {
         try XCTUnwrap(editorState.instances.first { $0.opName == opName })

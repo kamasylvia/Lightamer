@@ -4338,6 +4338,9 @@ def main() -> None:
         gen_colorzones_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         # Plan 05-05: monochrome (L017 route; CPU sigma2 + grid leg).
         gen_monochrome_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 05-06: nlmeans cases + Goossens float64 references.
+        gen_nlmeans_cases(cases_dir)
+        gen_nlmeans_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
     print(f"gen_fixtures[{mode}] → {outdir}")
 
 
@@ -6467,6 +6470,191 @@ def gen_monochrome_refs(canonical_dir: str, out_dir: str) -> None:
                 return out_rgb[idx]
 
             write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+# ──────────────────────────────────────────────────────────────────────
+# NLMeans (Plan 05-06-T2, IOP-DENOISE-02) — Goossens float64 reference
+# (L017 route; dt-side = XMP adoption + flat probe). 逐式直译 dt
+# nlmeans.cl:37-253 + nlmeans.c:170-173,362-368 + nlmeans_core.c:103-118：
+# 半平面偏移枚举 (j∈[−K,0], i∈[−K,K])、边界 clamp 的 separable box 和、
+# 对称累积、finish 混合；fast_mexp2f 位级复刻（float 值域构造指数位）。
+# 参考在 scale=1（roi.scale=1, iscale=1）跑：P=ceil(radius), K=7。
+# ──────────────────────────────────────────────────────────────────────
+
+NLMEANS_PARAMS_FORMAT = "<4f"
+NLMEANS_MODVERSION = 2
+NLMEANS_IOP_ORDER = 29.0
+
+
+def nlmeans_fast_mexp2f(x):
+    """dt common.h:181-191 bit-exact: build the float exponent field in
+    VALUE space (i1/i2 are the bit patterns of 1.0/0.5 as integers),
+    truncate to an integer whose bits ARE the result float."""
+    i1 = 1065353216.0  # (float)0x3f800000u
+    i2 = 1056964608.0  # (float)0x3f000000u
+    k0 = i1 + x * (i2 - i1)
+    if k0 >= 8388608.0:
+        return struct.unpack("<f", struct.pack("<I", int(k0)))[0]
+    return 0.0
+
+
+def nlmeans_offsets(k, decimate):
+    """dt GPU half-plane order (nlmeans.c:268-269) with the nlmeans_core
+    decimate skip parity (:103-118 — counter starts 1, pre-increment,
+    odd → skip)."""
+    out = []
+    counter = 1 if decimate else 0
+    for j in range(-k, 1):
+        for i in range(-k, k + 1):
+            if decimate:
+                counter += 1
+                if counter & 1:
+                    continue
+            out.append((i, j))
+    return out
+
+
+def nlmeans_reference(w, h, rgb, radius, strength, luma, chroma):
+    """Full Goossens chain in float64 at scale=1: Lab domain, half-plane
+    offsets, border-clamped box sums (dt wing fills clamp — :94-107),
+    gh weight in vert, symmetric accu (:183-230), finish blend (:233-253).
+    Returns list of linear-Rec2020 triples."""
+    nL2 = 1.0 / (120.0 * 120.0)
+    nC2 = 1.0 / (512.0 * 512.0)
+    sharpness = 3000.0 / (1.0 + strength)
+    P = int(math.ceil(radius))
+    K = 7
+    labs = [lab_from_rec2020((rgb[0][k], rgb[1][k], rgb[2][k])) for k in range(w * h)]
+
+    def cl(v, hi):
+        return min(max(v, 0), hi)
+
+    u2 = [[0.0, 0.0, 0.0, 0.0] for _ in range(w * h)]
+    for (qx, qy) in nlmeans_offsets(K, False):
+        # dist (nlmeans.cl:37-68): OOB offsets → exactly 0.
+        dist = [0.0] * (w * h)
+        for y in range(h):
+            for x in range(w):
+                if not (0 <= x + qx < w and 0 <= y + qy < h):
+                    continue
+                p1 = labs[y * w + x]
+                p2 = labs[(y + qy) * w + (x + qx)]
+                dist[y * w + x] = (
+                    (p1[0] - p2[0]) ** 2 * nL2
+                    + (p1[1] - p2[1]) ** 2 * nC2
+                    + (p1[2] - p2[2]) ** 2 * nC2
+                )
+        # horiz box (:70-123) — border-CLAMPED reads (dt wing fill clamps).
+        tmp = [0.0] * (w * h)
+        for y in range(h):
+            row = y * w
+            for x in range(w):
+                acc = 0.0
+                for pi in range(-P, P + 1):
+                    acc += dist[row + cl(x + pi, w - 1)]
+                tmp[row + x] = acc
+        # vert box + gh weight (:125-181).
+        wgt = [0.0] * (w * h)
+        for y in range(h):
+            for x in range(w):
+                acc = 0.0
+                for pj in range(-P, P + 1):
+                    acc += tmp[cl(y + pj, h - 1) * w + x]
+                wgt[y * w + x] = nlmeans_fast_mexp2f(acc * sharpness)
+        # accu (:183-230) — symmetric half-plane accumulation.
+        dd = 0.0 if (qx == 0 and qy == 0) else 1.0
+        for y in range(h):
+            for x in range(w):
+                wpq = 1 if (0 <= x + qx < w and 0 <= y + qy < h) else 0
+                wmq = 1 if (0 <= x - qx < w and 0 <= y - qy < h) else 0
+                u4 = wgt[y * w + x]
+                u4_mq = wgt[cl(y - qy, h - 1) * w + cl(x - qx, w - 1)] * dd
+                cell = u2[y * w + x]
+                if wpq:
+                    up = labs[(y + qy) * w + (x + qx)]
+                    cell[0] += u4 * up[0]
+                    cell[1] += u4 * up[1]
+                    cell[2] += u4 * up[2]
+                if wmq:
+                    um = labs[(y - qy) * w + (x - qx)]
+                    cell[0] += u4_mq * um[0]
+                    cell[1] += u4_mq * um[1]
+                    cell[2] += u4_mq * um[2]
+                cell[3] += wpq * u4 + wmq * u4_mq
+    # finish (:233-253) — weight = (luma, chroma, chroma), then Lab → RGB.
+    weight = (luma, chroma, chroma)
+    out = []
+    for k in range(w * h):
+        i = labs[k]
+        u = u2[k]
+        u3 = u[3]
+        lab = tuple(
+            i[c] * (1.0 - weight[c]) + (u[c] / u3) * weight[c] for c in range(3)
+        )
+        out.append(lab_to_rec2020(lab))
+    return out
+
+
+# 4 pinned cases (dt $DEFAULT + strength-dominant + chroma-dominant +
+# larger patch). luma 0.1 case doubles as the IOP-DENOISE-04 chroma
+# half-edge carrier (T4 direction assertions read it).
+NLMEANS_CASES = [
+    {"name": "nlmeans_default", "radius": 2.0, "strength": 50.0,
+     "luma": 0.5, "chroma": 1.0},
+    {"name": "nlmeans_strong", "radius": 3.0, "strength": 200.0,
+     "luma": 0.8, "chroma": 0.6},
+    {"name": "nlmeans_chroma", "radius": 2.0, "strength": 50.0,
+     "luma": 0.1, "chroma": 1.0},
+    {"name": "nlmeans_patch4", "radius": 4.0, "strength": 10.0,
+     "luma": 0.5, "chroma": 1.0},
+]
+
+# 3 fixtures: delta impulse (kernel response) + the 05-01 seeded noise set
+# (clean + Poisson-Gaussian ISO125/ISO1600 → both sides denoise the SAME
+# noisy input — the denoise golden strategy, RESEARCH §7).
+NLMEANS_REF_FIXTURES = [
+    "delta_impulse",
+    "ramp_8ev__noisy_iso125_s20260921",
+    "gray_staircase__noisy_iso1600_s20260921",
+]
+
+
+def nlmeans_params_blob_for_case(case) -> str:
+    packed = struct.pack(NLMEANS_PARAMS_FORMAT, case["radius"],
+                         case["strength"], case["luma"], case["chroma"])
+    assert len(packed) == 16, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_nlmeans_cases(outdir: str) -> None:
+    for case in NLMEANS_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="nlmeans", modversion=NLMEANS_MODVERSION,
+            params=nlmeans_params_blob_for_case(case),
+            iop_order=f"{NLMEANS_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_nlmeans_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the nlmeans golden REFERENCES (L017 route; dt-side =
+    XMP adoption + flat probe). 4 case x 3 fixture, float64 reference at
+    scale=1 (P=ceil(radius), K=7)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case in NLMEANS_CASES:
+        for fixture in NLMEANS_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            out_rgb = nlmeans_reference(
+                w, h, rgb, case["radius"], case["strength"],
+                case["luma"], case["chroma"])
+
+            def px(x, y, out_rgb=out_rgb, w=w):
+                idx = y * w + x
+                return out_rgb[idx]
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
 
 if __name__ == "__main__":
     main()

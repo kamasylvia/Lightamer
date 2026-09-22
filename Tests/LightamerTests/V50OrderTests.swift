@@ -121,6 +121,16 @@ final class V50OrderTests: XCTestCase {
         XCTAssertLessThan(V50Order.order(for: "channelmixerrgb")!, V50Order.order(for: "nlmeans")!)
     }
 
+    /// 05-06: nlmeans 29.0 — immediately after colorin (28.0; Lab needs
+    /// calibrated color, iop_order.c note), before colorchecker (30.0);
+    /// module statics AND the table agree.
+    func testNLMeansSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "nlmeans"), 29.0)
+        XCTAssertEqual(NLMeansModule.iopOrder, 29.0)
+        XCTAssertLessThan(V50Order.order(for: "colorin")!, V50Order.order(for: "nlmeans")!)
+        XCTAssertLessThan(V50Order.order(for: "nlmeans")!, V50Order.order(for: "colorchecker")!)
+    }
+
     /// 05-04: velvia 57.0 → vibrance 58.0 → colorzones 60.0; module statics
     /// AND the table agree.
     func testVelviaVibranceColorZonesSlotOrderConstraint() {

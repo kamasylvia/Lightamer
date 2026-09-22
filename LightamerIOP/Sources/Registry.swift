@@ -172,6 +172,17 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: MonochromeModule.opName) { id in
             ModuleBox(module: MonochromeModule(), instanceID: id)
         }
+        // Plan 05-06-T2: nlmeans ("astrophoto denoise", Goossens sliding
+        // window NLMeans), v50 slot 29.0 — immediately after colorin (28.0;
+        // Lab needs calibrated color, iop_order.c note). Seed DISABLED
+        // (dt ships nlmeans without a default_enabled override; no zero-
+        // param identity exists — sharpness=3000 at strength 0 still
+        // smooths similar patches and the commit clamp floors
+        // luma/chroma at 0.0001 so the finish blend never reaches zero
+        // weight; colorbalancergb D1 disposition, DECISIONS D-05-06-T2-1).
+        await registry.register(opName: NLMeansModule.opName) { id in
+            ModuleBox(module: NLMeansModule(), instanceID: id)
+        }
         // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
         // 66.0 (creative) — after grain (65.0), before splittoning (67.0).
         await registry.register(opName: SoftenModule.opName) { id in
@@ -243,6 +254,14 @@ public enum LightamerIOPRegistry {
             BilateralGrid3D.sliceFunction,
             ChannelMixerKernel.functionName,
             ColorContrastKernel.functionName,
+            // Plan 05-06: nlmeans kernel group (the denoiseprofile NLMeans
+            // leg consumes the same five kernels — 05-07 rides this warm-up).
+            NLMeansKernel.labForwardFunction,
+            NLMeansKernel.distFunction,
+            NLMeansKernel.horizFunction,
+            NLMeansKernel.vertFunction,
+            NLMeansKernel.accuFunction,
+            NLMeansKernel.finishFunction,
             // Plan 05-04-T1: velvia + vibrance.
             VelviaKernel.functionName,
             VibranceKernel.functionName,
@@ -323,6 +342,14 @@ public enum LightamerIOPRegistry {
             // size=2 red filter is not pixel-identity — identity holds only
             // via the disabled piece; colorbalancergb D1 same disposition).
             ModuleInstance(module: MonochromeModule.self, params: MonochromeModule.Params(), enabled: false),
+            // Plan 05-06-T2: nlmeans joins the seed DISABLED (DECISIONS
+            // D-05-06-T2-1: dt ships it disabled — no default_enabled
+            // override — and no zero-param identity exists: strength 0
+            // keeps sharpness 3000 which still smooths similar patches,
+            // and the commit clamp floors luma/chroma at 0.0001 so the
+            // finish blend never reaches zero weight; identity holds only
+            // via the disabled piece, colorbalancergb D1 disposition).
+            ModuleInstance(module: NLMeansModule.self, params: NLMeansModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }
