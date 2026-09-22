@@ -268,7 +268,7 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 2. 交互零卡顿：滑块拖动/缩放/平移的 hitch（>50ms 帧间隙）= 0，主线程长任务清零（MainActor 阻塞审计）；
 3. RAW 解码：100MP 首渲可交互时间 ≤500ms（后台解码 + 渐进显示），CIRAW 9/8 双档计量在案；
 4. 懒加载：万张级 Session 浏览器滚动 60fps，缩略图按需解码，缩略图内存 LRU 预算生效；
-5. 批量修图（懒渲染语义，dt 对标）：apply = 纯元数据操作（sidecar/history 写入），**禁止触发任何像素渲染**——万张 apply ≤5s（dt paste-history = 中央 sqlite 事务实测秒级；Lightamer sidecar-per-image 需批量写策略：合并/顺序/异步队列，USB 卷小文件 FS 开销是主要风险，设计约束进 Phase 9/11）；缩略图标记 stale 由后台按需再生（THUMBNAIL lazy 已有）；export 排除在外（Phase 11 范围）；
+5. 批量修图（懒渲染语义，dt 对标）：apply = 纯元数据操作（sidecar/history 写入），**禁止触发任何像素渲染**——万张 apply ≤5s（dt paste-history = 中央 sqlite 事务实测秒级；Lightamer sidecar-per-image 需批量写策略：合并/顺序/异步队列，USB 卷小文件 FS 开销是主要风险，设计约束进 Phase 9/11；可选混合 = C1 .cosessiondb 同构的会话级缓存索引 DB（可重建派生物非真身，真身恒为 sidecar——不做 dt 式中央库，PROJECT.md 立项约束））；缩略图标记 stale 由后台按需再生（THUMBNAIL lazy 已有）；export 排除在外（Phase 11 范围）；
 6. 内存：100MP FULL 单帧 + N 层图层栈足迹 ≤3GB（TilingPlan 窗口化兑现）；
 7. Instruments 系统级 profile 报告落账（GPU 趟数/热点/内存分布），杠杆兑现记录在案（dispatch 批合并、Lab 往返共享应急预案裁决）。
 **Requirements:** PERF-01..08（PERF-5 债务在此清账）
