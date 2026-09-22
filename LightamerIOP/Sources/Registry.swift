@@ -138,6 +138,20 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ChannelMixerModule.opName) { id in
             ModuleBox(module: ChannelMixerModule(), instanceID: id)
         }
+        // Plan 05-04-T1: velvia (RGB linear saturation boost), v50 slot
+        // 57.0 — before vibrance (58.0). Seed ENABLED-neutral (strength 0
+        // ⇒ saturation 0 ⇒ in == out). The trailing clamp is dt's formula
+        // (head note).
+        await registry.register(opName: VelviaModule.opName) { id in
+            ModuleBox(module: VelviaModule(), instanceID: id)
+        }
+        // Plan 05-04-T1: vibrance (Lab single-parameter), v50 slot 58.0.
+        // Seed ENABLED-neutral (amount 0 ⇒ ls=ss=1). dt DEPRECATED in favor
+        // of colorbalancergb's Ych-family slider — delivered independently
+        // per D-05-CONTEXT-8 (different formula family, head note).
+        await registry.register(opName: VibranceModule.opName) { id in
+            ModuleBox(module: VibranceModule(), instanceID: id)
+        }
         // Plan 05-03-T3: colorcontrast (Lab a/b slope + offset), v50 slot
         // 56.0. Seed ENABLED-neutral (steepness 1/offset 0 ⇒ identity).
         await registry.register(opName: ColorContrastModule.opName) { id in
@@ -206,11 +220,11 @@ public enum LightamerIOPRegistry {
             // Plan 05-03-T3: channelmixer legacy + colorcontrast.
             ChannelMixerKernel.functionName,
             ColorContrastKernel.functionName,
+            // Plan 05-04-T1: velvia + vibrance.
+            VelviaKernel.functionName,
+            VibranceKernel.functionName,
             SoftenKernel.overFunction,
             SoftenKernel.mixFunction,
-            // Plan 04-05-T4: equalizer prep + pyramid recombine.
-            EqualizerKernel.prepFunction,
-            EqualizerKernel.recombineFunction,
         ]
     }
 
@@ -274,6 +288,11 @@ public enum LightamerIOPRegistry {
             // exposure-0EV style, so their panels have instances to drive).
             ModuleInstance(module: ChannelMixerModule.self, params: ChannelMixerModule.Params()),
             ModuleInstance(module: ColorContrastModule.self, params: ColorContrastModule.Params()),
+            // Plan 05-04-T1: velvia + vibrance join the seed ENABLED-neutral
+            // (strength/amount 0 ⇒ identity, cache-neutral, exposure-0EV
+            // style, so their panels have instances to drive).
+            ModuleInstance(module: VelviaModule.self, params: VelviaModule.Params()),
+            ModuleInstance(module: VibranceModule.self, params: VibranceModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }

@@ -15,20 +15,21 @@ set -euo pipefail
 
 ROOT="${0:A:h:h}"
 DD_DEFAULT=(~/Library/Developer/Xcode/DerivedData/Lightamer-*/Build/Products/Debug)
-DD=( $(ls -d ${~DD_DEFAULT} 2>/dev/null) )
+DD=( $(ls -dt ${~DD_DEFAULT} 2>/dev/null) )
 if [ ${#DD[@]} -eq 0 ]; then
   echo "error: Debug product not found — run: xcodebuild build -workspace Lightamer.xcworkspace -scheme Lightamer -destination 'platform=macOS'" >&2
   exit 2
 fi
 DD="${DD[1]}"
 
-CONFIG=$(mktemp /tmp/la-xctest-config.XXXXXX.plist)
+CONFIG=$(mktemp /tmp/la-xctest-config.XXXXXX)
+CONFIG="${CONFIG}.plist"
 cat > "$CONFIG" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>TestBundlePath</key><string>$DD/LightamerTests.xctest</string>
+  <key>TestBundlePath</key><string>$DD/Lightamer.app/Contents/PlugIns/LightamerTests.xctest</string>
   <key>productModuleName</key><string>LightamerTests</string>
 </dict>
 </plist>

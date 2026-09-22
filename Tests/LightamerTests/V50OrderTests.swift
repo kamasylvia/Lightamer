@@ -120,4 +120,15 @@ final class V50OrderTests: XCTestCase {
         XCTAssertLessThan(V50Order.order(for: "colorin")!, V50Order.order(for: "channelmixerrgb")!)
         XCTAssertLessThan(V50Order.order(for: "channelmixerrgb")!, V50Order.order(for: "nlmeans")!)
     }
+
+    /// 05-04: velvia 57.0 → vibrance 58.0 → colorzones 60.0; module statics
+    /// AND the table agree.
+    func testVelviaVibranceColorZonesSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "velvia"), 57.0)
+        XCTAssertEqual(VelviaModule.iopOrder, 57.0)
+        XCTAssertEqual(V50Order.order(for: "vibrance"), 58.0)
+        XCTAssertEqual(VibranceModule.iopOrder, 58.0)
+        XCTAssertLessThan(V50Order.order(for: "colorcontrast")!, V50Order.order(for: "velvia")!)
+        XCTAssertLessThan(V50Order.order(for: "velvia")!, V50Order.order(for: "vibrance")!)
+    }
 }
