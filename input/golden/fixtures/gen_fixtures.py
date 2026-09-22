@@ -379,14 +379,17 @@ def gen_noisy_fixtures(outdir: str, canonical_dir: str = "") -> None:
 def gen_hue_sweep(outdir: str) -> None:
     """hue 全环 sweep 渐变（色相域覆盖，喂自研 parity —— 无 L017 风险）：
     360×64，H = x/360 全环（S=V=1 HSV→RGB），中性行锚定。
+    05-04 PEDELTA: S = 0.999（非 1.0）——纯 HSV 主色在 fixture 中含精确 0.0
+    通道，相对误差在该通道上退化（除 ~0），恒等/近恒等 parity 的 maxRel
+    被钉在 1e2 量级空转。0.999 饱和度保持全环 hue 覆盖（C ≈ 127.9/128），
+    同时最小通道 ≈ 0.001，相对度量全程良态。
     """
 
     def px(x, y):
         h = (x % 360) / 360.0
-        return _hsv_to_rgb(h, 1.0, 1.0)
+        return _hsv_to_rgb(h, 0.999, 1.0)
 
     write_exr(os.path.join(outdir, "hue_sweep.exr"), 360, 64, px)
-
 
 def _hsv_to_rgb(h, s, v):
     i = int(h * 6.0) % 6
@@ -4278,7 +4281,9 @@ def main() -> None:
         gen_channelmixerrgb_cases(cases_dir)
         gen_channelmixer_cases(cases_dir)
         gen_colorcontrast_cases(cases_dir)
-    if mode == "refs":
+        gen_vibrance_cases(cases_dir)
+        gen_velvia_cases(cases_dir)
+        gen_colorzones_cases(cases_dir)
         # Plan 03-02: temperature golden references — synthesizes
         # <outdir>/<temperature case>__<fixture>.exr from the canonical
         # fixtures in the fixtures dir (pass the fixtures dir as outdir).
@@ -4327,7 +4332,10 @@ def main() -> None:
         gen_channelmixerrgb_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_channelmixer_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_colorcontrast_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
-
+        # Plan 05-04: vibrance + velvia + colorzones (L017 route).
+        gen_vibrance_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_velvia_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_colorzones_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
     print(f"gen_fixtures[{mode}] → {outdir}")
 
 
@@ -5829,6 +5837,405 @@ def gen_colorcontrast_refs(canonical_dir: str, out_dir: str) -> None:
                 idx = y * w + x
                 lab = lab_from_rec2020((rgb[0][idx], rgb[1][idx], rgb[2][idx]))
                 return lab_to_rec2020(colorcontrast_apply_pixel(lab, case))
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Plan 05-04 (vibrance + velvia + colorzones) — float64 mirrors of the
+# committed Swift references (VibranceModule/VelviaModule.reference +
+# ColorZonesLUT/ColorZonesModule.reference with the CL-leg NEAREST
+# lookup). L017 route: dt-side = XMP adoption + flat PFM probes.
+# ──────────────────────────────────────────────────────────────────────
+
+def vibrance_apply_pixel(lab, amount01):
+    """vibrance.c:117-120 in float64 on Lab."""
+    sw = math.hypot(lab[1], lab[2]) / 256.0
+    ls = 1.0 - amount01 * sw * 0.25
+    ss = 1.0 + amount01 * sw
+    return (lab[0] * ls, lab[1] * ss, lab[2] * ss)
+
+
+def velvia_apply_pixel(rgb, strength01, bias):
+    """velvia.c:165-194 in float64 on linear RGB (clamp is the formula)."""
+    pmax = max(rgb)
+    pmin = min(rgb)
+    plum = (pmax + pmin) / 2.0
+    if plum <= 0.5:
+        psat = (pmax - pmin) / (1e-5 + pmax + pmin)
+    else:
+        psat = (pmax - pmin) / (1e-5 + max(0.0, 2.0 - pmax - pmin))
+    pweight = min(max(
+        ((1.0 - 1.5 * psat) + (1.0 + abs(plum - 0.5) * 2.0) * (1.0 - bias))
+        / (1.0 + (1.0 - bias)), 0.0), 1.0)
+    sat = strength01 * pweight
+    others = (rgb[1] + rgb[2], rgb[2] + rgb[0], rgb[0] + rgb[1])
+    return tuple(min(max(c + sat * (c - 0.5 * o), 0.0), 1.0)
+                 for c, o in zip(rgb, others))
+
+
+VIBRANCE_CASES = [
+    {"name": "vib_default", "amount": 0.0},
+    {"name": "vib_strong", "amount": 75.0},
+]
+VIBRANCE_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev", "saturated",
+                         "gray_staircase", "hue_sweep"]
+
+
+def vibrance_params_blob_for_case(case) -> str:
+    packed = struct.pack(VIBRANCE_PARAMS_FORMAT, case["amount"])
+    assert len(packed) == 4, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_vibrance_cases(outdir: str) -> None:
+    for case in VIBRANCE_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="vibrance", modversion=VIBRANCE_MODVERSION,
+            params=vibrance_params_blob_for_case(case),
+            iop_order=f"{VIBRANCE_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_vibrance_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in VIBRANCE_CASES:
+        amount01 = case["amount"] * 0.01
+        for fixture in VIBRANCE_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, amount01=amount01, w=w):
+                idx = y * w + x
+                lab = lab_from_rec2020((rgb[0][idx], rgb[1][idx], rgb[2][idx]))
+                return lab_to_rec2020(vibrance_apply_pixel(lab, amount01))
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+VELVIA_CASES = [
+    {"name": "vel_default", "strength": 0.0, "bias": 1.0},
+    {"name": "vel_strong", "strength": 75.0, "bias": 1.0},
+    {"name": "vel_clamp", "strength": 100.0, "bias": 0.0},
+]
+VELVIA_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev", "saturated",
+                       "gray_staircase", "hue_sweep"]
+
+
+def velvia_params_blob_for_case(case) -> str:
+    packed = struct.pack(VELVIA_PARAMS_FORMAT, case["strength"], case["bias"])
+    assert len(packed) == 8, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_velvia_cases(outdir: str) -> None:
+    for case in VELVIA_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="velvia", modversion=VELVIA_MODVERSION,
+            params=velvia_params_blob_for_case(case),
+            iop_order=f"{VELVIA_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_velvia_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in VELVIA_CASES:
+        s01 = case["strength"] / 100.0
+        bias = case["bias"]
+        for fixture in VELVIA_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, s01=s01, bias=bias, w=w):
+                idx = y * w + x
+                return velvia_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), s01, bias)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# colorzones: V2-spline mirrors (ColorZonesLUT) + v3 process mirror with
+# the CL-leg NEAREST lookup (the GPU leg the kernel follows).
+
+def _cz_g_variant(s1, s2, h1, h2):
+    if s1 * s2 > 0:
+        alpha = (h1 + 2.0 * h2) / (3.0 * (h1 + h2))
+        return s1 * s2 / (alpha * s2 + (1.0 - alpha) * s1)
+    return 0.0
+
+
+def _cz_monotone_variant_tangents(xs, ys):
+    n = len(xs)
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)]
+    d = [(ys[i + 1] - ys[i]) / h[i] for i in range(n - 1)]
+    dy = [0.0] * n
+    dy[0] = d[0]
+    for i in range(1, n - 1):
+        dy[i] = _cz_g_variant(d[i - 1], d[i], h[i - 1], h[i])
+    dy[n - 1] = d[n - 2]
+    return dy
+
+
+def _cz_periodic_monotone_variant_tangents(xs, ys, period=1.0):
+    n = len(xs)
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)] + [xs[0] - xs[n - 1] + period]
+    d = [(ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]) for i in range(n - 1)]
+    d = d + [(ys[0] - ys[n - 1]) / (xs[0] - xs[n - 1] + period)]
+    return [_cz_g_variant(d[i - 1], d[i], h[i - 1], h[i]) for i in range(n)]
+
+
+def _cz_periodic_catmull_tangents(xs, ys, period=1.0):
+    n = len(xs)
+    if n == 1:
+        return [0.0]
+    dy = [0.0] * n
+    dy[0] = (ys[1] - ys[n - 1]) / (xs[1] - xs[n - 1] + period)
+    for i in range(1, n - 1):
+        dy[i] = (ys[i + 1] - ys[i - 1]) / (xs[i + 1] - xs[i - 1])
+    dy[n - 1] = (ys[0] - ys[n - 2]) / (xs[0] - xs[n - 2] + period)
+    return dy
+
+
+def _cz_periodic_cubic_tangents(xs, ys, period=1.0):
+    # Cyclic natural spline via dense Gauss solve (mirrors
+    # ColorZonesLUT.periodicCubicTangents).
+    n = len(xs)
+    if n == 1:
+        return [0.0]
+    dx = [xs[i + 1] - xs[i] for i in range(n - 1)] + [xs[0] - xs[n - 1] + period]
+    dyv = [ys[i + 1] - ys[i] for i in range(n - 1)] + [ys[0] - ys[n - 1]]
+    A = [[0.0] * n for _ in range(n)]
+    b = [0.0] * n
+    for i in range(1, n - 1):
+        A[i][i - 1] = dx[i - 1] / 6.0
+        A[i][i] = (dx[i - 1] + dx[i]) / 3.0
+        A[i][i + 1] = dx[i] / 6.0
+        b[i] = dyv[i] / dx[i] - dyv[i - 1] / dx[i - 1]
+    if n > 2:
+        A[0][0] = (dx[n - 1] + dx[0]) / 3.0
+        A[n - 1][n - 1] = (dx[n - 2] + dx[n - 1]) / 3.0
+        b[0] = dyv[0] / dx[0] - dyv[n - 1] / dx[n - 1]
+        b[n - 1] = dyv[n - 1] / dx[n - 1] - dyv[n - 2] / dx[n - 2]
+        A[0][1] = dx[0] / 6.0
+        A[n - 1][n - 2] = dx[n - 2] / 6.0
+        A[0][n - 1] = dx[n - 1] / 6.0
+        A[n - 1][0] = dx[n - 1] / 6.0
+    else:
+        A[0][0] = (dx[1] + dx[0]) / 3.0
+        A[1][1] = (dx[0] + dx[1]) / 3.0
+        A[0][1] = (dx[0] + dx[1]) / 6.0
+        A[1][0] = (dx[0] + dx[1]) / 6.0
+        b[0] = dyv[0] / dx[0] - dyv[1] / dx[1]
+        b[1] = dyv[1] / dx[1] - dyv[0] / dx[0]
+    # LU without pivoting (dense).
+    for i in range(n - 1):
+        t = A[i][i]
+        assert t != 0.0
+        for k in range(i + 1, n):
+            A[k][i] /= t
+            for j in range(i + 1, n):
+                A[k][j] -= A[k][i] * A[i][j]
+    for i in range(n):
+        for k in range(i):
+            b[i] -= A[i][k] * b[k]
+    for i in range(n - 1, -1, -1):
+        for k in range(i + 1, n):
+            b[i] -= A[i][k] * b[k]
+        b[i] /= A[i][i]
+    dy = [0.0] * n
+    c_last = 0.0
+    for i in range(n - 1):
+        c = dyv[i] / dx[i] - dx[i] / 6.0 * (b[i + 1] - b[i])
+        dy[i] = -dx[i] * b[i] / 2.0 + c
+        c_last = c
+    dy[n - 1] = dx[n - 2] * b[n - 1] / 2.0 + c_last
+    return dy
+
+
+def _cz_eval_periodic(xs, ys, m, xval, period=1.0):
+    n = len(xs)
+    if n == 1:
+        return ys[0]
+    xv = xval % period
+    if xv < xs[0]:
+        xv += period
+    n0 = n - 1
+    for i in range(n):
+        if xv < xs[i]:
+            n0 = n - 1 if i == 0 else i - 1
+            break
+    n1 = (n0 + 1) % n
+    h = (xs[n1] - xs[n0]) if n1 > n0 else (xs[n1] - (xs[n0] - period))
+    dx = (xv - xs[n0]) / h
+    dx2, dx3 = dx * dx, dx * dx * dx
+    return ((2.0 * dx3 - 3.0 * dx2 + 1.0) * ys[n0]
+            + (dx3 - 2.0 * dx2 + dx) * h * m[n0]
+            + (-2.0 * dx3 + 3.0 * dx2) * ys[n1]
+            + (dx3 - dx2) * h * m[n1])
+
+
+def colorzones_build_table(nodes, curve_type, strength, periodic):
+    """ColorZonesLUT.buildTable mirror (V2 verdict). nodes = [(x,y)]."""
+    res = 0x10000
+    table = [0.0] * res
+    if len(nodes) < 2:
+        return [k / (res - 1) for k in range(res)]
+    xs = [p[0] for p in nodes]
+    ys = [p[1] + (p[1] - 0.5) * (strength / 100.0) for p in nodes]
+    for i in range(len(xs) - 1):
+        if xs[i + 1] <= xs[i]:
+            return [k / (res - 1) for k in range(res)]
+    if periodic:
+        if curve_type == 0:
+            m = _cz_periodic_cubic_tangents(xs, ys)
+        elif curve_type == 1:
+            m = _cz_periodic_catmull_tangents(xs, ys)
+        else:
+            m = _cz_periodic_monotone_variant_tangents(xs, ys)
+        return [_cz_eval_periodic(xs, ys, m, k / (res - 1)) for k in range(res)]
+    else:
+        if curve_type == 0:
+            ypp = cubic_spline_second_derivatives(xs, ys)
+            if ypp is None:
+                return [k / (res - 1) for k in range(res)]
+            # ypp -> dy (same conversion as Swift cubicTangents).
+            n = len(xs)
+            m = [0.0] * n
+            c_last = 0.0
+            for i in range(n - 1):
+                dx = xs[i + 1] - xs[i]
+                c = (ys[i + 1] - ys[i]) / dx - dx / 6.0 * (ypp[i + 1] - ypp[i])
+                m[i] = -dx * ypp[i] / 2.0 + c
+                c_last = c
+            m[n - 1] = c_last
+        elif curve_type == 1:
+            m = catmull_rom_tangents(xs, ys)
+        else:
+            m = _cz_monotone_variant_tangents(xs, ys)
+        step = 1.0 / (res - 1)
+        out = [0.0] * res
+        for k in range(res):
+            xk = k * step
+            if xk < xs[0]:
+                v = ys[0]
+            elif xk > xs[-1]:
+                v = ys[-1]
+            else:
+                v = hermite_val(xs, ys, m, xk)
+            out[k] = max(0.0, min(1.0, v))
+        return out
+
+
+def _cz_lookup_nearest(lut, x):
+    """dt CL lookup (color_conversion.h:70-75): truncation."""
+    return lut[min(max(int(x * 0x10000), 0), 0xFFFF)]
+
+
+def colorzones_apply_pixel(lab, tables, channel):
+    """process_v3 (:526-570) in float64 with the NEAREST lookup."""
+    a, b = lab[1], lab[2]
+    h = math.fmod(math.atan2(b, a) + 2.0 * math.pi, 2.0 * math.pi) / (2.0 * math.pi)
+    c = math.hypot(b, a)
+    blend = 0.0
+    if channel == 0:
+        select = min(1.0, lab[0] / 100.0)
+    elif channel == 1:
+        select = min(1.0, c / 128.0)
+    else:
+        select = h
+        blend = (1.0 - c / 128.0) ** 2
+    lm = (blend * 0.5 + (1.0 - blend) * _cz_lookup_nearest(tables[0], select)) - 0.5
+    hm = (blend * 0.5 + (1.0 - blend) * _cz_lookup_nearest(tables[2], select)) - 0.5
+    blend *= blend
+    cm = 2.0 * _cz_lookup_nearest(tables[1], select)
+    l = lab[0] * (2.0 ** (4.0 * lm))
+    ang = 2.0 * math.pi * (h + hm)
+    return (l, math.cos(ang) * cm * c, math.sin(ang) * cm * c)
+
+
+# 4 colorzones cases (each select domain L/C/h + hue low-sat suppression).
+# Identity nodes mirror _reset_nodes (L/C touch_edges, h centered).
+COLORZONES_CASES = [
+    {"name": "cz_default", "channel": 2,
+     "nodesL": [(0.0, 0.5), (1.0, 0.5)], "typeL": 1,
+     "nodesC": [(0.0, 0.5), (1.0, 0.5)], "typeC": 1,
+     "nodesH": [(0.25, 0.5), (0.75, 0.5)], "typeH": 1,
+     "strength": 0.0, "mode": 0},
+    {"name": "cz_lightness", "channel": 0,
+     "nodesL": [(0.0, 0.3), (0.5, 0.65), (1.0, 0.45)], "typeL": 1,
+     "nodesC": [(0.0, 0.5), (1.0, 0.5)], "typeC": 1,
+     "nodesH": [(0.25, 0.5), (0.75, 0.5)], "typeH": 1,
+     "strength": 0.0, "mode": 0},
+    {"name": "cz_chroma", "channel": 1,
+     "nodesL": [(0.0, 0.5), (1.0, 0.5)], "typeL": 1,
+     "nodesC": [(0.0, 0.2), (0.5, 0.8), (1.0, 0.35)], "typeC": 2,
+     "nodesH": [(0.25, 0.5), (0.75, 0.5)], "typeH": 1,
+     "strength": 0.0, "mode": 0},
+    {"name": "cz_hue", "channel": 2,
+     "nodesL": [(0.0, 0.5), (1.0, 0.5)], "typeL": 1,
+     "nodesC": [(0.0, 0.5), (1.0, 0.5)], "typeC": 1,
+     "nodesH": [(0.0, 0.5), (0.25, 0.75), (0.5, 0.3), (0.75, 0.6)], "typeH": 2,
+     "strength": 50.0, "mode": 0},
+]
+COLORZONES_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev", "saturated",
+                           "gray_staircase", "hue_sweep"]
+
+
+def colorzones_params_blob_for_case(case) -> str:
+    """dt params v5 (520B) for the case. Nodes beyond len pad (0,0)."""
+    curves = []
+    for key in ("nodesL", "nodesC", "nodesH"):
+        nodes = case[key]
+        for i in range(20):
+            if i < len(nodes):
+                curves += [nodes[i][0], nodes[i][1]]
+            else:
+                curves += [0.0, 0.0]
+    packed = struct.pack(
+        COLORZONES_PARAMS_FORMAT,
+        case["channel"], *curves,
+        len(case["nodesL"]), len(case["nodesC"]), len(case["nodesH"]),
+        case["typeL"], case["typeC"], case["typeH"],
+        case["strength"], case["mode"], 1)
+    assert len(packed) == 520, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_colorzones_cases(outdir: str) -> None:
+    for case in COLORZONES_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="colorzones", modversion=COLORZONES_MODVERSION,
+            params=colorzones_params_blob_for_case(case),
+            iop_order=f"{COLORZONES_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_colorzones_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in COLORZONES_CASES:
+        tables = (
+            colorzones_build_table(case["nodesL"], case["typeL"],
+                                   case["strength"], periodic=False),
+            colorzones_build_table(case["nodesC"], case["typeC"],
+                                   case["strength"], periodic=False),
+            colorzones_build_table(case["nodesH"], case["typeH"],
+                                   case["strength"],
+                                   periodic=(case["channel"] == 2)),
+        )
+        for fixture in COLORZONES_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, tables=tables, channel=case["channel"], w=w):
+                idx = y * w + x
+                lab = lab_from_rec2020((rgb[0][idx], rgb[1][idx], rgb[2][idx]))
+                return lab_to_rec2020(colorzones_apply_pixel(lab, tables, channel))
 
             write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
 
