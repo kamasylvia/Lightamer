@@ -164,6 +164,14 @@
 - **修正案（L019a，2026-09-21）**：辅助功能授予 ZCode 后弹窗正解 =「自动完成 enrollment」（AX 填密码 + 点好；app 签名 DR 键 certificate root 跨构建稳定，已实测）。持久化失败主因 = kill coreautha 中止 enrollment 形成循环 + Tuist 重生成改 runner 形态。kill 法降级为兜底。
 - **来源**：04-02 验收排障（2026-09-20），证据链：xcresult 双 runner failureText、CGSessionCopyCurrentDictionary、AXIsProcessTrusted=False、前后截屏对照、secure input 释放确认。
 
+### L019b: 单测直启宿主根治 enrollment 弹窗——XCTestConfigurationFilePath + DYLD 注入绕开 testmanagerd
+- **背景**：L019a 后弹窗仍每轮重建必弹（enrollment 键 = runner cdhash，重建即变；DR 证书根稳定但没用）。根治 = 绕开 testmanagerd：单测不需要 UI automation，直启宿主二进制跑测试即可。
+- **配方**（Scripts/test-direct.sh 正本）：`DYLD_INSERT_LIBRARIES=<Debug>/Lightamer.app/Contents/Frameworks/libXCTestBundleInject.dylib` + `DYLD_LIBRARY_PATH/DYLD_FRAMEWORK_PATH`（DerivedData Debug + Xcode 平台库）+ `XCTestConfigurationFilePath`（最小 plist：TestBundlePath + productModuleName）→ 直启 `Lightamer.app/Contents/MacOS/Lightamer [-XCTest <类>]`。抓取方法：跑一个最小 xcodebuild test，`ps -wwE -p <runner>` 高频轮询抓注入现场（XCTestSessionIdentifier 是 testmanagerd 会话钩子——直启时**不带**它）。
+- **实证**：2026-09-22 全套直启 480/3skip/0fail 与 xcodebuild 逐值等价；-XCTest 类过滤生效（7 tests）；零弹窗、零 testmanagerd 依赖。构建（xcodebuild build）不触发弹窗——弹窗只在 test 会话。
+- **对策**：单测一律 Scripts/test-direct.sh；xcodebuild test 保留给 UITests/xcresult 需求；弹窗若再遇（UITests 路径）按 L019a。
+- **适用**：一切 macOS app-host 单测；一切被 testmanagerd enrollment 阻塞的 CI/自动化场景。
+- **来源**：2026-09-22 直启实验（注入现场 ps -wwE 抓取 + 两轮等价性验证）。
+
 ### L020: dt modify_roi_in 公式不可直接照搬——backward walk 的 roi 坐标系两边不同（crop 双重偏移真 bug）
 - **背景**：Plan 04-02 验收补真 crop golden track A（原测试恒真空转）后首跑即抓出：crop_center50 输出 (0,0) lightamer=0.25（=fixture(0.75)，[0.75..1] 角）而 ref=0.015625（=fixture(0.25)，正确窗口 [0.25..0.75] 原点）。04-01 ROI 协商测试 8/8 全绿——但那些断言只钉**记账**（尺寸/次数/键），从未钉**内容**；golden track A 是管线首个内容级断言。
 - **根因（坐标系约定冲突）**：dt `crop.c:576-592` 的 `roi_in = roi_out + buf_in·cx` 再加原点公式，前提是其 backward walk（`pixelpipe_hb.c:2085`）从**屏幕 roi** 出发、roi_out 为**窗口相对**坐标（原点=窗口角 (0,0)）。我们的 backward walk（processRec）从 **forward walk 结果**出发（`get_dimensions` 语义，`buf_out.xy` 已是上游相对窗口原点 16）——模块再加一次 left → 双加到 32，上游渲染了 [32..64) 而非 [16..48)；`process` 的 blit 又按全平面假设平移（dx=roiIn−roiOut，dt `copy_image_roi` 实为 `roi_out − roi_in`，`imagebuf.c:194`）→ 双重错位。

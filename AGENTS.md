@@ -4,7 +4,7 @@
 
 Phase **execute** 阶段的执行分工固定为两级：
 
-1. **执行 = omp**（无头 CLI）：每个 plan 由 `omp -p --auto-approve --thinking max "<执行 prompt>"` 在项目根目录无头执行。执行 prompt 指向 plan 文件，要求按任务序推进（read_first → action → 验收标准逐条核验）、每任务独立提交（Conventional Commits，只 add 相关文件）、构建用 `caffeinate -dis` 包裹。产出 SUMMARY.md 后收工。
+1. **执行 = omp**（无头 CLI）：每个 plan 由 `omp -p --auto-approve --thinking max "<执行 prompt>"` 在项目根目录无头执行。单测标准命令（2026-09-22 起）= `Scripts/test-direct.sh`（直启宿主，绕开 testmanagerd——根治 enrollment 弹窗，见 LESSONS L019b）；`xcodebuild build` 照常构建（不触发弹窗）；`xcodebuild test` 保留给 UITests/xcresult 需求。执行 prompt 指向 plan 文件，要求按任务序推进（read_first → action → 验收标准逐条核验）、每任务独立提交（Conventional Commits，只 add 相关文件）、构建用 `caffeinate -dis` 包裹。产出 SUMMARY.md 后收工。
 2. **验收 = ZCode subagents**：omp 完成后，派 general-purpose subagent 独立验收——按 plan 验收标准逐条核对、跑全套测试、抽查实现与 AC 一致性。发现 issue 回注 omp 修复或验收方直接修（小改动）。
 
 **规则**：
