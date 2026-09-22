@@ -64,7 +64,7 @@ roster = ["omp", "pi", "kilo", "reasonix"]  # ← vibe slot2:白天双窗(4 路,
 active_windows = [["09:00", "14:00"], ["18:00", "23:00"]]
 [[matrix.review.slot]]
 orchestrator = ["zcode"]
-roster = ["subagent:4"]  # ← review slot3:跨夜全 subagents(2026-09-22 用户指令:23:00-9:00 全 subagents 工作;subagent:4 恰达 min_valid_lanes)
+roster = ["subagent"]  # ← 跨夜验收 = 串行单 subagent(和全天各 plan 验收同款;--review 多路模式不在本工作流使用)
 active_windows = [["23:00", "09:00"]]
 [[matrix.review.slot]]
 orchestrator = ["zcode"]
