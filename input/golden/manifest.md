@@ -876,3 +876,41 @@ channelmixer/colorcontrast/vibrance/velvia REF_FIXTURES 补 `saturated`
 （彩块，含 HDR >1 像素）：置换方向、strength≤0 直通（velvia.c:160 copy
 路径）从「灰阶数学不可区分」变为内容级可区分。velvia refs 以 guarded
 mirror 重生成（vel_default saturated 首列含未钳制 1.93，dt 真语义）。
+
+## nlmeans golden（Plan 05-06，IOP-DENOISE-02）
+
+blob 版式：nlmeans v2 = 16B（radius/strength/luma/chroma 4f32，nlmeans.c:45-52）；
+XMP hex 配方 = `input/golden/fixtures/gen_fixtures.py nlmeans_params_blob_for_case`
+（4 case：nlmeans_default = dt $DEFAULT 2/50/0.5/1、nlmeans_strong 3/200/0.8/0.6、
+nlmeans_chroma 2/50/0.1/1、nlmeans_patch4 4/10/0.5/1）。
+
+### 参考路线（L017 ①——合成参考主轨）
+
+- 参考实现 = gen_fixtures `nlmeans_reference`（Goossens 全链 float64：半平面偏移
+  j∈[−K,0]×i∈[−K,K]、边界 clamp 的 separable box 和、vert 内 gh 权重
+  （fast_mexp2f 位级复刻 dt common.h:181）、对称累积、finish 混合；Lab 域
+  norm2 nL=1/120 nC=1/512；scale=1 ⇒ P=ceil(radius), K=7）。
+- fixture = delta_impulse（核响应）+ ramp_8ev__noisy_iso125 + gray_staircase__noisy_iso1600
+  （05-01 种子化 Poisson-Gaussian 加噪集——clean 加噪 → 双方同去噪比对，
+  RESEARCH §7 denoise golden 策略）。
+- parity 门：4 case × 3 fixture <1e-3 rel（denoise 族档）——实测 maxRel
+  ≤ 5.7e-6（12/12 全绿；NLMeansParityTests.testNLMeansGoldenParity，
+  2026-09-22）。
+
+### dt-cli 采纳（2026-09-22 实跑，证据 `.work/plans/05-06/adoption/`）
+
+| case | loader | version | DB hex vs XMP blob | 平场探针（flat_0ev 输入） |
+|---|---|---|---|---|
+| nlmeans_default | ✓ loaded module nlmeans | v2 ok ok | byte-identical | mean (0.5,0.5,0.5)，max_dev = 0.0 |
+| nlmeans_strong | ✓ | v2 ok ok | byte-identical | mean (0.5,0.5,0.5)，max_dev = 0.0 |
+| nlmeans_chroma | ✓ | v2 ok ok | byte-identical | mean (0.5,0.5,0.5)，max_dev = 0.0 |
+| nlmeans_patch4 | ✓ | v2 ok ok | byte-identical | mean (0.5,0.5,0.5)，max_dev = 0.0 |
+
+注 1：平场探针 = dt 导出 nlmeans_default/strong/chroma/patch4.exr（64×64 全平面
+逐像素 max_dev = 0.0，三通道）——denoise 平场恒等**精确成立**（dist=0 → w=1 →
+out=均值=in，与域/构建无关），比 05-05 BROKEN-route 定向探针更强（本四 case
+导出路径正常，无 colorin/colorout dlopen 故障）。
+注 2：denoise 是空间变化算子——加噪图不可作 dt-cli 数值参考（L017 分流表），
+数值 parity 由合成参考承载（上节）。
+注 3：blendop v.1 WRONG 为 dt 侧 blendop 参数缺失的正常告警（与 monochrome
+采纳同形态），不影响 op_params 采纳。
