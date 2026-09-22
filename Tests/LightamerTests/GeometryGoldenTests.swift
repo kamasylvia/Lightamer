@@ -505,6 +505,20 @@ final class GeometryGoldenTests: XCTestCase {
         dpBox.setParams(DenoiseProfileModule.Params())
         dpBox.enabled = false
         chain.append(dpBox)
+        // Plan 05-08-T5 track B: nlmeans + bilateral DISABLED (no zero-param
+        // identity for either — D-05-06-T2-1 / D-05-08-T1-3; disabled ⇒ pipe
+        // skips ⇒ zero chain delta). With these two the track-B chain now
+        // carries EVERY Phase 3+4+5 module — the Phase 6 baseline.
+        let nlMade = await registry.makeBox(opName: NLMeansModule.opName)
+        let nlBox = try XCTUnwrap(nlMade as? ModuleBox<NLMeansModule>)
+        nlBox.setParams(NLMeansModule.Params())
+        nlBox.enabled = false
+        chain.append(nlBox)
+        let blMade = await registry.makeBox(opName: BilateralModule.opName)
+        let blBox = try XCTUnwrap(blMade as? ModuleBox<BilateralModule>)
+        blBox.setParams(BilateralModule.Params())
+        blBox.enabled = false
+        chain.append(blBox)
         return chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
 

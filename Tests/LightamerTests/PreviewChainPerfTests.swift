@@ -394,3 +394,111 @@ final class PreviewChainPerfTests: XCTestCase {
         return result == KERN_SUCCESS ? info.phys_footprint : 0
     }
 }
+
+// MARK: - Plan 05-08-T6.1 — SC#4 拖动门终测（两条链）
+
+extension PreviewChainPerfTests {
+
+    /// SC#4 拖动门：① Phase 5 color 七件全启用链（colorbalancergb /
+    /// channelmixerrgb / channelmixer / colorzones / vibrance / velvia /
+    /// colorcontrast enabled @ dt defaults）拖 vibrance 代表滑块；
+    /// ② denoise 单件启用链（nlmeans enabled @ defaults）拖 strength。
+    /// PREVIEW 2560 拖动帧型（params tick per frame，全链 miss），每帧全链
+    /// 重渲中位数落账。判定（60fps 16.6ms 达标 / Open#9 应急启用）不在测试
+    /// 内断言——数字落 .work/05/perf.md + 05-08-DECISIONS D-05-08-T6-1，
+    /// 测试断言只防架构回归（界 = Debug 噪声上界 500ms）。
+    func testPhase5DragGateTwoChains() async throws {
+        let metal = try await makeMetal()
+        let image = try makeSynthetic()
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+
+        // The editing seed already carries the five enabled-neutral color
+        // ops (channelmixer/colorzones/vibrance/velvia/colorcontrast); the
+        // extra ops below FLIP the seed's disabled ones to enabled (apply
+        // syncs enabled from the record) — no duplicate boxes.
+        var chain: [any ModuleBoxing] = []
+        for record in LightamerIOPRegistry.editingDefaultInstances() {
+            let maybeBox = await registry.makeBox(opName: record.opName, instanceID: record.id)
+            let box = try XCTUnwrap(maybeBox)
+            try box.apply(record)
+            chain.append(box)
+        }
+
+        func enableBox<M: IOPModule>(_ type: M.Type, _ params: M.Params) async throws {
+            guard let box = chain.first(where: { $0.opName == type.opName }) else { return }
+            // apply 要求 record.id == box.instanceID——用现有实例 id 重建 record。
+            let record = ModuleInstance(
+                id: box.instanceID, module: type, params: params, enabled: true)
+            try box.apply(record)
+        }
+
+        await metal.prewarmPipelineStates(
+            functionNames: LightamerIOPRegistry.prewarmFunctionNames
+        )
+
+        let imageID = UUID()
+        let cache = PipeCache()
+        let clock = ContinuousClock()
+
+        func measure(
+            _ name: String, chain: [any ModuleBoxing],
+            tick: @escaping () -> Void
+        ) async throws -> Double {
+            var timings: [Double] = []
+            for _ in 0..<4 { // warm-up
+                tick()
+                _ = try await RenderPipeline.process(
+                    image: image, instances: chain, imageID: imageID,
+                    resolution: .preview, cache: cache, metal: metal, longEdge: 2560)
+            }
+            drain(metal)
+            for _ in 0..<10 {
+                tick()
+                let start = clock.now
+                _ = try await RenderPipeline.process(
+                    image: image, instances: chain, imageID: imageID,
+                    resolution: .preview, cache: cache, metal: metal, longEdge: 2560)
+                drain(metal)
+                let elapsed = clock.now - start
+                timings.append(Double(elapsed.components.attoseconds) / 1e18 * 1000.0)
+            }
+            let sorted = timings.sorted()
+            let median = sorted[sorted.count / 2]
+            print(String(format: "PERF8 SC#4 %@ (%@): median %.1f ms  all: %@",
+                         name, isReleaseBuild ? "Release" : "Debug", median,
+                         timings.map { String(format: "%.1f", $0) }.joined(separator: ",")))
+            return median
+        }
+
+        // ① color 七件全启用（链 = 编辑种子 + colorin；五件种子已启用，
+        // colorbalancergb/channelmixerrgb 种子 DISABLED 翻转为 enabled）。
+        try await enableBox(ColorBalanceRGBModule.self, .init())
+        try await enableBox(ChannelMixerRGBModule.self, .init())
+        let colorChain = chain
+        var vib = -0.5
+        let colorMedian = try await measure("color7-enabled drag vibrance", chain: colorChain, tick: {
+            if let box = colorChain.first(where: { $0.opName == "vibrance" })
+                as? ModuleBox<VibranceModule> {
+                box.setParams(.init(amount: Float(vib)))
+                vib += 0.01
+            }
+        })
+
+        // ② denoise 单件启用（nlmeans @ defaults，PREVIEW 降载 K=3+decimate）。
+        try await enableBox(NLMeansModule.self, .init())
+        let denoiseChain = chain
+        var strength = 50.0
+        let denoiseMedian = try await measure("nlmeans-enabled drag strength", chain: denoiseChain, tick: {
+            if let box = denoiseChain.first(where: { $0.opName == "nlmeans" })
+                as? ModuleBox<NLMeansModule> {
+                box.setParams(.init(strength: Float(strength)))
+                strength += 1
+            }
+        })
+
+        // 架构回归界（非 60fps 门——判定在 DECISIONS/TODO 落账）。
+        XCTAssertLessThan(colorMedian, 500, "color chain drag gate sanity")
+        XCTAssertLessThan(denoiseMedian, 500, "denoise chain drag gate sanity")
+    }
+}
