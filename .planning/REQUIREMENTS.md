@@ -443,4 +443,4 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 - [ ] **PERF-04**: 交互零卡顿——滑块拖动/缩放/平移 hitch（>50ms 帧间隙）= 0，MainActor 长任务清零
 - [ ] **PERF-05**: RAW 解码——100MP 首渲可交互时间 ≤500ms（后台解码 + 渐进显示），CIRAW 9/8 双档计量
 - [ ] **PERF-06**: 懒加载——万张级 Session 滚动 60fps，缩略图按需解码 + LRU 内存预算
-- [ ] **PERF-07**: 批量修图——N 张批量 apply_params + 导出 pipe 并行度跑满，单张均摊时间有目标门
+- [ ] **PERF-07**: 批量修图（懒渲染）——apply = 纯元数据写入零像素操作，万张 ≤5s（dt sqlite 事务对标；sidecar 批量写策略）；缩略图 stale 后台再生；导出排除
