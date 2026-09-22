@@ -183,6 +183,17 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: NLMeansModule.opName) { id in
             ModuleBox(module: NLMeansModule(), instanceID: id)
         }
+        // Plan 05-07-T2: denoiseprofile ("denoise (profiled)", VST + eaw
+        // wavelets + NLMeans leg + NoiseProfileStore consumption), v50 slot
+        // 9.0 — immediately after temperature (3.0-era WB semantics), the
+        // FIRST post-demosaic RGB slot. Seed DISABLED (D-05-07-T2-2: dt
+        // auto-profiles RAWs at defaults, but no zero-param identity
+        // exists — force 0.5 keeps thrs>0 so noisy pixels move, and the
+        // auto profile makes defaults image-dependent; identity holds only
+        // via the disabled piece, colorbalancergb D1 disposition).
+        await registry.register(opName: DenoiseProfileModule.opName) { id in
+            ModuleBox(module: DenoiseProfileModule(), instanceID: id)
+        }
         // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
         // 66.0 (creative) — after grain (65.0), before splittoning (67.0).
         await registry.register(opName: SoftenModule.opName) { id in
@@ -262,6 +273,22 @@ public enum LightamerIOPRegistry {
             NLMeansKernel.vertFunction,
             NLMeansKernel.accuFunction,
             NLMeansKernel.finishFunction,
+            // Plan 05-07-T2: denoiseprofile kernel group (the NLMeans leg
+            // additionally reuses the nlmeans dist/horiz/accu above).
+            DenoiseProfileKernel.precondition,
+            DenoiseProfileKernel.preconditionV2,
+            DenoiseProfileKernel.preconditionY0U0V0,
+            DenoiseProfileKernel.backtransform,
+            DenoiseProfileKernel.backtransformV2,
+            DenoiseProfileKernel.backtransformY0U0V0,
+            DenoiseProfileKernel.decompose,
+            DenoiseProfileKernel.synthesizeAccum,
+            DenoiseProfileKernel.reduceFirst,
+            DenoiseProfileKernel.reduceSecond,
+            DenoiseProfileKernel.addResidue,
+            DenoiseProfileKernel.vert,
+            DenoiseProfileKernel.finish,
+            DenoiseProfileKernel.finishV2,
             // Plan 05-04-T1: velvia + vibrance.
             VelviaKernel.functionName,
             VibranceKernel.functionName,
@@ -350,6 +377,9 @@ public enum LightamerIOPRegistry {
             // finish blend never reaches zero weight; identity holds only
             // via the disabled piece, colorbalancergb D1 disposition).
             ModuleInstance(module: NLMeansModule.self, params: NLMeansModule.Params(), enabled: false),
+            // Plan 05-07-T2: denoiseprofile joins the seed DISABLED
+            // (D-05-07-T2-2 — see the registration note above).
+            ModuleInstance(module: DenoiseProfileModule.self, params: DenoiseProfileModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }
