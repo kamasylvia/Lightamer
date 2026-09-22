@@ -966,3 +966,42 @@ force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自�
 = ramp_8ev vs 其 iso-1600 种子加噪变体）：noisy RMS 0.00175 → ISO1600
 正确剖面 0.00071 < generic 0.00075 < ISO125 错配 0.00111（欠去噪）。
 05-08 VALIDATION 直接引用本行。
+
+## bilateral golden（Plan 05-08，IOP-DENOISE-03）
+
+- 模块：`bilateral`（"surface blur"，v50 10.0，RGB 域，20B params = radius/reserved/red/green/blue）。
+- 实现：`LightamerIOP/Sources/Bilateral/{BilateralModule,BilateralKernels}.swift/.metal`——直连档（rad ≤ 6，bilateral.cc:175-254 直译）+ 稠密 5D 网格档（rad > 6；dt CPU permutohedral lattice 的稠密对偶，D-05-08-T2-2）。
+- 参考路线（L017 ①——**同算法** float64 参考，nlmeans Goossens 同性质）：
+  - 直连 case → `bilateral_direct_reference`（精确窗口公式 float64，bilateral.cc:219-247）；
+  - grid case → `bilateral_grid_reference`（稠密 5D 网格逐式对偶：splat pentalinear 32 角 → blur 仅 spatial x/y → slice val/w 归一；range 不 blur = 稠密格 adaptation）。
+- gate：直连 <1e-5 / grid <1e-3（denoise 族档）——**实测 9/9 全部 <1e-6**（3 case × 3 fixture，Test `BilateralParityTests.testBilateralGoldenParity`，maxRel 3.3e-7…8.6e-7）。
+- 极限门：σ→0 恒等逐字节；平场恒等两档 <1e-6（实测 2.9e-7）；grid 双跑确定性 <1e-6；分块==整幅 <1e-3（实测 4.5e-7，grid 计数>1）；delta 脉冲核响应剖面（远场逐位回平场）。
+- 近似包络（非 gate，D-05-08-T2-2）：grid vs 精确公式 cell=σ 粒度固有偏差，crossing 实测 maxAbs 0.013-0.021（平滑场景），<0.05 回归界。
+
+### bilateral cases（Plan 05-08，synthesized references）
+
+| case | params blob (hex, 20B) | leg | 参考 | fixtures |
+|---|---|---|---|---|
+| bilat_direct_small | `0000004000007041cdcccc3dcdcccc3dcdcccc3d` | direct（rad 4） | 精确公式 | delta_impulse / ramp_8ev__noisy_iso125 / gray_staircase__noisy_iso1600 |
+| bilat_boundary | `0000004000000040cdcccc3dcdcccc3dcdcccc3d` | grid（rad 7） | 网格同构 | 同上 |
+| bilat_grid_large | `0000c04000007041cdcccc3dcdcccc3dcdcccc3d` | grid（rad 19） | 网格同构 | 同上 |
+
+### bilateral 输出 sha256（synthesized references）
+
+| 文件 | sha256 |
+|---|---|
+| bilat_direct_small__delta_impulse.exr | 1b7177d0eed8dfc49305518b7522a60583507e3d78fe337ec487627ac74dce2b |
+| bilat_direct_small__ramp_8ev__noisy_iso125_s20260921.exr | 8db1c4579332ebc8510e4a97f56dd49ff6e1a7458b033437e19ca0691c3f580f |
+| bilat_direct_small__gray_staircase__noisy_iso1600_s20260921.exr | 65e219ee1bc4c3cd620d28a36fbd20d8a45939192e0746a191f451bce775638b |
+| bilat_boundary__delta_impulse.exr | 18e7be9b1f88af2eae69b876f0985b1910bdb753e1ded490c4910f7ba4f79a9f |
+| bilat_boundary__ramp_8ev__noisy_iso125_s20260921.exr | 6e5c689718e1b9860243d3651ae1a50c8df68b73cad9e3a56837fc9a76864387 |
+| bilat_boundary__gray_staircase__noisy_iso1600_s20260921.exr | 8c0bbb9504101dad8b5cf208f82e31313d44c3e52b5e92c7f17a902097670379 |
+| bilat_grid_large__delta_impulse.exr | 18e7be9b1f88af2eae69b876f0985b1910bdb753e1ded490c4910f7ba4f79a9f（同 boundary×delta——平场脉冲双双归约到同参考值，非空转旁证见 parity 循环 compared>0 + 参考随输入变化断言） |
+| bilat_grid_large__ramp_8ev__noisy_iso125_s20260921.exr | 5364df3f78ca071924b6345fb49c1b4a1a194ef33979d8021d3ecfda9d11fe1e |
+| bilat_grid_large__gray_staircase__noisy_iso1600_s20260921.exr | d961c6c98054ec1649f072b9ece5e8c72ad0ffba60953d5534bf47d70dbb3c8d |
+
+### bilateral dt-cli 采纳（2026-09-23 实跑，证据 `.work/plans/05-08/adoption/`）
+
+- 驱动：`run_adoption.py`（05-06/05-07 同款流：flat_0ev + XMP → export EXR，`-d params`，fresh library，conf = 05-07 同款 darktablerc 含 exr compression=0）。
+- 三证据 **3/3**：① loader line `successfully loaded module bilateral from history`；② `params v. 1: version ok params ok`（dt DT_MODULE_INTROSPECTION(1) 接受我们的 20B blob）；③ DB `hex(op_params)` == XMP blob 逐字节（`00000040…` 三 case 全同）。
+- 平场探针：direct case **maxdev = 0.0**（精确恒等）；boundary case 环内 16px 内区 **0.0**（12px 边环 1455 px-ch 偏差 = dt lattice 边缘行为）；grid_large 出现 dt lattice 未初始化格垃圾（interior 亦有，max 6.7e28）——**上游 lattice 行为**，非 Lightamer 缺陷；本实现稠密格平场恒等由 GPU 门钉死（2.9e-7）。

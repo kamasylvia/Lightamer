@@ -4345,6 +4345,13 @@ def main() -> None:
         # references (L017 route; dt-side = XMP adoption + flat probe).
         gen_denoiseprofile_cases(cases_dir)
         gen_denoiseprofile_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 05-08: bilateral cases + 网格/直连 float64 references.
+        gen_bilateral_cases(cases_dir)
+        gen_bilateral_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+    if mode in ("refs-bilateral", "all"):
+        # targeted: 05-08 golden references only (fixtures dir as outdir;
+        # references land in ../output per the established layout).
+        gen_bilateral_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
     if mode in ("refs-denoiseprofile", "all"):
         # targeted: 05-07 golden references only (fixtures dir as outdir;
         # references land in ../output per the established layout).
@@ -7237,5 +7244,249 @@ def gen_denoiseprofile_refs(canonical_dir: str, out_dir: str) -> None:
         print(f"  denoiseprofile ref {case['name']} done")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# bilateral / surface blur (Plan 05-08, IOP-DENOISE-03) — dt `bilateral`
+# v1, 20 bytes: radius/reserved/red/green/blue (5f, bilateral.cc:52-58),
+# v50 slot 10.0.
+#
+# float64 reference (L017 route ①——同算法参考，与 nlmeans Goossens 参考
+# 同性质）：稠密 5D 网格（splat pentalinear 32 角 → blur 仅 spatial x/y
+#（bilateral.cl blur_line edge 形）→ slice 32 角 val/w 归一）——与 GPU
+# kernel 逐式对偶；直连档 case 用精确窗口公式参考（bilateral.cc:219-247
+# float64 形）。网格 dims 公式 = LightamerModule.gridDims（dt 3D grid
+# dim-clamp/re-derive 语义的 5 维推广，D-05-08-T2-1）。
+# ──────────────────────────────────────────────────────────────────────
+
+BILATERAL_PARAMS_FORMAT = "<5f"
+BILATERAL_MODVERSION = 1
+BILATERAL_IOP_ORDER = 10.0
+
+BILATERAL_CASES = [
+    {"name": "bilat_direct_small", "radius": 1.2, "sigma": 0.1},
+    {"name": "bilat_boundary", "radius": 2.0, "sigma": 0.1},
+    {"name": "bilat_grid_large", "radius": 6.0, "sigma": 0.1},
+]
+
+BILATERAL_REF_FIXTURES = [
+    "delta_impulse",
+    "ramp_8ev__noisy_iso125_s20260921",
+    "gray_staircase__noisy_iso1600_s20260921",
+]
+
+
+def bilateral_params_blob(radius=15.0, reserved=15.0, red=0.005, green=0.005, blue=0.005) -> str:
+    packed = struct.pack(BILATERAL_PARAMS_FORMAT, radius, reserved, red, green, blue)
+    assert len(packed) == 20, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def _bilateral_grid_dims(w, h, ss, sr, sg, sb):
+    def spatial_cells(ext, s):
+        return min(max(int(math.ceil(ext / s)) + 1, 4), 3000)
+
+    def range_cells(s):
+        return max(int(math.ceil(1.0 / s)) + 1, 4)
+
+    cr, cg, cb = range_cells(sr), range_cells(sg), range_cells(sb)
+    ss_eff = max(w / spatial_cells(w, ss), h / spatial_cells(h, ss))
+    cx, cy = spatial_cells(w, ss_eff), spatial_cells(h, ss_eff)
+    return [cx, cy, cr, cg, cb], [ss_eff, 1.0 / (cr - 1), 1.0 / (cg - 1), 1.0 / (cb - 1)]
+
+
+def bilateral_grid_reference(w, h, rgb, ss, sr, sg, sb):
+    """稠密 5D 网格 float64 参考（GPU kernel 逐式对偶——splat → blur x/y →
+    slice val/w 归一；range 维不做 blur——稠密格 adaptation，D-05-08-T2-2）。"""
+    dims, sig = _bilateral_grid_dims(w, h, ss, sr, sg, sb)
+    total = 1
+    for d in dims:
+        total *= d
+    payload = [0.0] * (total * 4)
+    oy = dims[0]
+    orr = dims[0] * dims[1]
+    og = orr * dims[2]
+    ob = og * dims[3]
+
+    def coords(x, y, px):
+        g = [x / sig[0], y / sig[0],
+             min(max(px[0] / sig[1], 0), dims[2] - 1),
+             min(max(px[1] / sig[2], 0), dims[3] - 1),
+             min(max(px[2] / sig[3], 0), dims[4] - 1)]
+        xi = [min(max(int(g[0]), 0), dims[0] - 2), min(max(int(g[1]), 0), dims[1] - 2)]
+        ff = [g[0] - xi[0], g[1] - xi[1]]
+        for d in range(2, 5):
+            xi.append(min(int(g[d]), dims[d] - 2))
+            ff.append(g[d] - xi[d])
+        return xi, ff
+
+    def corners(xi, ff, px, splat_weight=True):
+        out = [0.0] * 4
+        for a in range(2):
+            for b in range(2):
+                for c in range(2):
+                    wr = (ff[2] if a else 1 - ff[2]) * (ff[3] if b else 1 - ff[3]) \
+                        * (ff[4] if c else 1 - ff[4])
+                    for q in range(4):
+                        xj = [xi[0] + (1 if q in (1, 3) else 0),
+                              xi[1] + (1 if q >= 2 else 0), xi[2], xi[3], xi[4]]
+                        base = xj[0] + oy * xj[1] + orr * (xj[2] + a) + og * (xj[3] + b) + ob * (xj[4] + c)
+                        wxy = (1 - ff[0]) * (1 - ff[1]) if q == 0 else \
+                            (ff[0] * (1 - ff[1]) if q == 1 else
+                             ((1 - ff[0]) * ff[1] if q == 2 else ff[0] * ff[1]))
+                        ww = wr * wxy
+                        if splat_weight:
+                            payload[4 * base + 0] += ww * px[0]
+                            payload[4 * base + 1] += ww * px[1]
+                            payload[4 * base + 2] += ww * px[2]
+                            payload[4 * base + 3] += ww
+                        else:
+                            for k in range(4):
+                                out[k] += ww * payload[4 * base + k]
+        return out
+
+    for y in range(h):
+        for x in range(w):
+            px = (rgb[0][y * w + x], rgb[1][y * w + x], rgb[2][y * w + x])
+            xi, ff = coords(x, y, px)
+            corners(xi, ff, px, splat_weight=True)
+
+    for axis in range(2):
+        n = dims[axis]
+        lines = 1
+        tstride = [1] * 5
+        axis_stride = 1
+        for d in range(5):
+            tstride[d] = 1
+            for e in range(d):
+                tstride[d] *= dims[e]
+            if d == axis:
+                axis_stride = tstride[d]
+                continue
+            lines *= dims[d]
+        src = payload[:]
+        w0, w1, w2 = 6.0 / 16, 4.0 / 16, 1.0 / 16
+
+        def cell_at(base, i):
+            return 4 * (base + i * axis_stride)
+
+        for line in range(lines):
+            base = 0
+            rem = line
+            for d in range(5):
+                if d == axis:
+                    continue
+                base += (rem % dims[d]) * tstride[d]
+                rem //= dims[d]
+            t1 = src[cell_at(base, 0):cell_at(base, 0) + 4]
+            t2 = src[cell_at(base, 1):cell_at(base, 1) + 4]
+            for c in range(4):
+                payload[cell_at(base, 0) + c] = src[cell_at(base, 0) + c] * w0 \
+                    + w1 * src[cell_at(base, 1) + c] + w2 * src[cell_at(base, 2) + c]
+            for c in range(4):
+                payload[cell_at(base, 1) + c] = src[cell_at(base, 1) + c] * w0 \
+                    + w1 * (src[cell_at(base, 2) + c] + t1[c]) + w2 * src[cell_at(base, 3) + c]
+            for i in range(2, n - 2):
+                t3 = src[cell_at(base, i):cell_at(base, i) + 4]
+                for c in range(4):
+                    payload[cell_at(base, i) + c] = src[cell_at(base, i) + c] * w0 \
+                        + w1 * (src[cell_at(base, i + 1) + c] + t2[c]) \
+                        + w2 * (src[cell_at(base, i + 2) + c] + t1[c])
+                t1, t2 = t2, t3
+            t3 = src[cell_at(base, n - 2):cell_at(base, n - 2) + 4]
+            for c in range(4):
+                payload[cell_at(base, n - 2) + c] = src[cell_at(base, n - 2) + c] * w0 \
+                    + w1 * (src[cell_at(base, n - 1) + c] + t2[c]) + w2 * t1[c]
+            for c in range(4):
+                payload[cell_at(base, n - 1) + c] = src[cell_at(base, n - 1) + c] * w0 \
+                    + w1 * t3[c] + w2 * t2[c]
+
+    out = []
+    for y in range(h):
+        for x in range(w):
+            px = (rgb[0][y * w + x], rgb[1][y * w + x], rgb[2][y * w + x])
+            xi, ff = coords(x, y, px)
+            val = corners(xi, ff, px, splat_weight=False)
+            out.append(tuple(val[c] / val[3] if val[3] > 0 else px[c] for c in range(3)))
+    return out
+
+
+def bilateral_direct_reference(w, h, rgb, ss, sr, sg, sb):
+    """精确 bilateral 窗口公式 float64（bilateral.cc:219-247 直译；直连档
+    参考——rad ≤ 6 档 GPU 输出与同式对偶 <1e-5）。"""
+    rad = int(3 * ss + 1)
+    out = []
+    isig2 = [1.0 / (2 * sr * sr), 1.0 / (2 * sg * sg), 1.0 / (2 * sb * sb)]
+    wd = 2 * rad + 1
+    m = [0.0] * (wd * wd)
+    wsum = 0.0
+    for l in range(-rad, rad + 1):
+        for k in range(-rad, rad + 1):
+            v = math.exp(-(l * l + k * k) / (2 * ss * ss))
+            m[(l + rad) * wd + (k + rad)] = v
+            wsum += v
+    for i in range(len(m)):
+        m[i] /= wsum
+    def pxv(x, y, c):
+        return rgb[c][y * w + x]
+
+    for y in range(h):
+        for x in range(w):
+            if y < rad or y >= h - rad or x < rad or x >= w - rad:
+                out.append((pxv(x, y, 0), pxv(x, y, 1), pxv(x, y, 2)))
+                continue
+            res = [0.0, 0.0, 0.0]
+            sumw = 0.0
+            for l in range(-rad, rad + 1):
+                for k in range(-rad, rad + 1):
+                    diff = 0.0
+                    for c in range(3):
+                        d = pxv(x, y, c) - pxv(x + k, y + l, c)
+                        diff += d * d * isig2[c]
+                    wgt = m[(l + rad) * wd + (k + rad)] * math.exp(-diff)
+                    for c in range(3):
+                        res[c] += pxv(x + k, y + l, c) * wgt
+                    sumw += wgt
+            out.append((res[0] / sumw, res[1] / sumw, res[2] / sumw))
+    return out
+
+
+def gen_bilateral_cases(outdir: str) -> None:
+    for case in BILATERAL_CASES:
+        params = bilateral_params_blob(
+            radius=case["radius"], red=case["sigma"],
+            green=case["sigma"], blue=case["sigma"])
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="bilateral", modversion=BILATERAL_MODVERSION,
+            params=params, iop_order=f"{BILATERAL_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_bilateral_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the bilateral golden REFERENCES (L017 route ①——同算法
+    float64；dt-side = XMP adoption + 平场 probe). 直连 case = 精确窗口
+    公式；grid case = 网格算法同构参考。3 case × 3 fixture。"""
+    os.makedirs(out_dir, exist_ok=True)
+    for case in BILATERAL_CASES:
+        ss, sr = case["radius"], case["sigma"]
+        prad = int(3 * ss + 1)
+        for fixture in BILATERAL_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            roi_w = min(w, h) - 2 * prad
+            leg_grid = prad > 6 and roi_w >= prad
+            if leg_grid:
+                out_rgb = bilateral_grid_reference(w, h, rgb, ss, sr, sr, sr)
+            else:
+                out_rgb = bilateral_direct_reference(w, h, rgb, ss, sr, sr, sr)
+
+            def px(x, y, out_rgb=out_rgb, w=w):
+                idx = y * w + x
+                return out_rgb[idx]
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
 if __name__ == "__main__":
     main()
+
