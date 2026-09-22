@@ -138,6 +138,7 @@
 - [x] **Plan 05-05**（monochrome 64.0：Lab 色轮 + dt 3D grid bilateral 腿）—— 4 tasks；CPU/CL sigma² 分歧钉 CPU 版 + grid==直接窗口交叉 + TilingPlan 第三消费者
 - [x] **Plan 05-06**（nlmeans 29.0：Goossens 5 kernel + 预览降载三件套 + TilingPlan 承重首验 halo=P+K）—— 5 tasks；分块==整幅 <1e-3 + FULL Δfootprint <3GB + SC#4 拖动首测
 - [x] **Plan 05-07**（denoiseprofile 9.0 第二难：VST 三变体 + eaw 波列 + Bayesshrink + NLMeans 腿 + 剖面接线 + 波列 tiling）—— 6 tasks；**SC#2 正式验证**（加噪→去噪闭环 + 错配方向断言）；L018 双缓冲红线
+- [x] **W6 GUI 修复轮**（GUI-10/13 并发崩溃同根修复 + GUI-11/12 面板体可见 + 05-07 notes 收口）完成（2026-09-23 夜间 subagent）：3 commits `909b7bd`（commitParams/setParams/apply 全同步 + rematerialize 两段式 + TaskGroup×100 回归测试，BREAKING CHANGE 落账）/`fffd51d`（moduleList ScrollView 38% 约束，面板体 472pt ≥ 240 红线）/`bacfd01`（VST 门 1e-6 实测 2.4e-7 + varf sqrt(70)/16 + DECISIONS T6-5）；全套 **582/3skip/0fail**（基线 581 + 1）；真机 AX 20 轮背靠背压力零崩溃无新 .ips + 撤销链/亮度域/布局红线回归 PASS，FINDINGS「W6 修复轮闭环」节落账——05-08 拖动门与签核前 GUI 缺陷清零
 - [ ] **Plan 05-08**（bilateral 10.0 直连/5D grid 两档 + OQ7 预算定稿 + IOP-DENOISE-04 defer 决议 + **Phase 5 签核**：VALIDATION / SC#1-4 核对 / sidecar 11 op / PERF-5 / GUI 验收轮 / Phase 6 移交清单）—— 6 tasks；SC#4 拖动门两链实测 + Open#9 启用判定
 - [ ] **待用户知悉项**：noiseprofiles.json 数据文件许可证核对（dt GPL 项目内贡献数据再分发，D-05-CONTEXT-2）——核对完成前不对外分发 release（05-01 落 LICENSE-NOTES，05-08 签核复核）
 
