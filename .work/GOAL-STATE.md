@@ -12,7 +12,7 @@
 - **Phase 4：已闭环**（VERIFICATION.md GOAL ACHIEVED；04-01..04-08 全 PASS）
 - **Phase 5：Color & Denoise**——RESEARCH+CONTEXT+8 plans 定稿
   - 05-01 ✅（426）→ 05-02 ✅（445）→ 05-03 ✅（修复轮 480）→ 05-04 ✅（修复轮+复验 512）
-  - **05-05 ✅ 执行完成待复验**（monochrome，5 commits，535/0/3；GUI-12 立项：moduleList 挤面板，05-08 前修）
+  - 05-05 ✅ 闭环（验收 PASS-with-notes：7/7 AC 独立证实、luma corr 0.9776、撤销逐位回退、4 notes 非阻塞；535 tests）
 - **模式 = matrix vibe 编排（2026-09-22 用户确认）**：omp 执行 plan + subagent 验收；23:00-9:00 全 subagents（workspace config vibe night slot subagent:auto + review slot3 subagent:4）；14-18 review 休眠窗
 - **已确认分派**：W1 05-05 复审（18:00 起 4 CLI lanes per slot2，TASK.md 在 .work/matrix/05-05-r1/review/）→ W2 05-06 执行（omp，进行中）→ W3-W7 按 05-06/07/08 链
 - **运维要点**：omp 模型 API 走 px 代理（停滞处置 = px --up）；1mcp 已拉起（3050）；**push 暂停**（用户指令：本地 commit 即完成态，当前待推 17 commits）
