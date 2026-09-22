@@ -93,6 +93,7 @@ internal struct InspectorView: View {
         case VibranceModule.opName: return String(localized: "history_vibrance")
         case VelviaModule.opName: return String(localized: "history_velvia")
         case ColorZonesModule.opName: return String(localized: "history_colorzones")
+        case MonochromeModule.opName: return String(localized: "history_monochrome")
         default: return opName
         }
     }

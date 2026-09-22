@@ -92,6 +92,8 @@ final class InspectorState {
         register(VibrancePanelProvider())
         register(VelviaPanelProvider())
         register(ColorZonesPanelProvider())
+        // Plan 05-05-T4: monochrome (Lab chroma wheel + size/highlights).
+        register(MonochromePanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

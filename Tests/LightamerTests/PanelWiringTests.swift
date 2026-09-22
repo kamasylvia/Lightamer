@@ -117,6 +117,9 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertTrue(ops.contains("vibrance"), "pristine seed must include vibrance")
         XCTAssertTrue(ops.contains("velvia"), "pristine seed must include velvia")
         XCTAssertTrue(ops.contains("colorzones"), "pristine seed must include colorzones")
+        // Plan 05-05-T1: monochrome joins the seed DISABLED (D2: default
+        // size=2 red filter is not pixel-identity).
+        XCTAssertTrue(ops.contains("monochrome"), "pristine seed must include monochrome")
     }
     private func instance(_ opName: String) throws -> ModuleInstance {
         try XCTUnwrap(editorState.instances.first { $0.opName == opName })
@@ -1216,6 +1219,72 @@ final class PanelWiringTests: XCTestCase {
                         "colorzones must dispatch a panel")
     }
 
+    /// Monochrome wheel click (a/b pair) = exactly ONE history item; the
+    /// committed (a, b) equal the last tick (discretized params assertion —
+    /// plan T4 色轮点击=恰 1 commit).
+    func testMonochromeWheelCommitsOnce() async throws {
+        try await loadSynthetic()
+        let mono = try instance("monochrome")
+        XCTAssertFalse(mono.enabled, "monochrome seed is disabled (D2)")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(mono, {
+                $0.a = Float(tick) * 10
+                $0.b = Float(tick) * -10
+            }, as: MonochromeModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_monochrome"))
+
+        XCTAssertEqual(historyCount(), 1, "wheel drag = exactly ONE item")
+        let committed = try instance("monochrome")
+        XCTAssertEqual(try committed.params(of: MonochromeModule.self).a, 60.0, accuracy: 1e-6)
+        XCTAssertEqual(try committed.params(of: MonochromeModule.self).b, -60.0, accuracy: 1e-6)
+        XCTAssertTrue(committed.enabled, "editing a disabled module auto-enables at commit (GUI-7)")
+
+        // Reset to default restores the pristine paramsHash (cache all-hit).
+        let pristineHash = mono.paramsHash
+        let current = try instance("monochrome")
+        let resetRecord = try withParams(current, {
+            $0.a = 0; $0.b = 0; $0.size = 2; $0.highlights = 0
+        }, as: MonochromeModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(resetRecord)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_monochrome"))
+        XCTAssertEqual(try instance("monochrome").paramsHash, pristineHash,
+                       "reset to default restores the pristine paramsHash")
+    }
+
+    /// Monochrome size-slider drag = exactly ONE history item.
+    func testMonochromeSizeSliderCommitsOnce() async throws {
+        try await loadSynthetic()
+        let mono = try instance("monochrome")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(mono, {
+                $0.size = 0.5 + Float(tick) * 0.1
+            }, as: MonochromeModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_monochrome"))
+
+        XCTAssertEqual(historyCount(), 1, "size drag = exactly ONE item")
+        let committed = try instance("monochrome")
+        XCTAssertEqual(try committed.params(of: MonochromeModule.self).size, 1.1, accuracy: 1e-6)
+    }
+
+    /// Monochrome panel dispatches by opName (D-T6 provider registry).
+    func testMonochromePanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("monochrome"))
+        let session = InspectorEditSession(coordinator: coordinator)
+        let record = ModuleInstance(module: MonochromeModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: record, edit: session),
+                        "monochrome must dispatch a panel")
+    }
     // MARK: - Helpers
     private func historyCount() -> Int { editorState.history.items.count }
 }

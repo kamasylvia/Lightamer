@@ -436,6 +436,14 @@ final class GeometryGoldenTests: XCTestCase {
         let czBox = try XCTUnwrap(czMade as? ModuleBox<ColorZonesModule>)
         await czBox.setParams(ColorZonesModule.Params())
         chain.append(czBox)
+        // Plan 05-05-T4 track B: monochrome DISABLED seed (default size=2
+        // filter is not neutral — disabled ⇒ pipe skips ⇒ zero chain delta;
+        // 05-02 colorbalancergb T5 zero-increment precedent).
+        let monoMade = await registry.makeBox(opName: MonochromeModule.opName)
+        let monoBox = try XCTUnwrap(monoMade as? ModuleBox<MonochromeModule>)
+        await monoBox.setParams(MonochromeModule.Params())
+        monoBox.enabled = false
+        chain.append(monoBox)
         return chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
 
