@@ -164,6 +164,14 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ColorZonesModule.opName) { id in
             ModuleBox(module: ColorZonesModule(), instanceID: id)
         }
+        // Plan 05-05-T1: monochrome (B&W + color filter, Lab filter leg),
+        // v50 slot 64.0 — after lowlight (63.0), before grain (65.0).
+        // Seed DISABLED (default size=2 red filter is not pixel-identity —
+        // identity holds only via the disabled piece; colorbalancergb D1
+        // same disposition; DECISIONS D2).
+        await registry.register(opName: MonochromeModule.opName) { id in
+            ModuleBox(module: MonochromeModule(), instanceID: id)
+        }
         // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
         // 66.0 (creative) — after grain (65.0), before splittoning (67.0).
         await registry.register(opName: SoftenModule.opName) { id in
@@ -222,16 +230,22 @@ public enum LightamerIOPRegistry {
             EqualizerKernel.recombineFunction,
             // Plan 05-02-T2: colorbalancergb single-pass grading.
             ColorBalanceRGBKernel.functionName,
-            // Plan 05-03-T2: channelmixerrgb single-pass 5-path kernel.
-            ChannelMixerRGBKernel.functionName,
-            // Plan 05-03-T3: channelmixer legacy + colorcontrast.
+            // Plan 05-04-T2: colorzones LUT triple.
+            ColorZonesKernel.functionName,
+            // Plan 05-05-T1/T2: monochrome filter + apply + the 3D grid
+            // quadruple it consumes (splat/blur_line/blur_line_z/slice —
+            // BilateralGrid3D prewarms on first monochrome render otherwise).
+            MonochromeKernel.filterFunction,
+            MonochromeKernel.applyFunction,
+            BilateralGrid3D.splatFunction,
+            BilateralGrid3D.blurLineFunction,
+            BilateralGrid3D.blurLineZFunction,
+            BilateralGrid3D.sliceFunction,
             ChannelMixerKernel.functionName,
             ColorContrastKernel.functionName,
             // Plan 05-04-T1: velvia + vibrance.
             VelviaKernel.functionName,
             VibranceKernel.functionName,
-            // Plan 05-04-T2: colorzones LUT triple.
-            ColorZonesKernel.functionName,
             SoftenKernel.overFunction,
             SoftenKernel.mixFunction,
         ]
@@ -305,7 +319,11 @@ public enum LightamerIOPRegistry {
             // Plan 05-04-T2: colorzones joins the seed ENABLED-neutral
             // (flat-0.5 default curves ⇒ identity, cache-neutral).
             ModuleInstance(module: ColorZonesModule.self, params: ColorZonesModule.Params()),
+            // Plan 05-05-T1: monochrome joins the seed DISABLED (D2: default
+            // size=2 red filter is not pixel-identity — identity holds only
+            // via the disabled piece; colorbalancergb D1 same disposition).
+            ModuleInstance(module: MonochromeModule.self, params: MonochromeModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
-    }
+}
 }
