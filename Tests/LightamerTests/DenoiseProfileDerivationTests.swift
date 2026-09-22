@@ -33,7 +33,8 @@ final class DenoiseProfileDerivationTests: XCTestCase {
             var params = DenoiseProfileModule.Params(strength: 1, shadows: 1)
             params.a = SIMD3(repeating: 1e-4)
             var vst = DenoiseProfileModule.makeVSTUniforms(
-                params: params, inScale: 1, wbCoeffs: nil)
+                params: params, inScale: 1, wbCoeffs: nil,
+                compensateStrength: params.waveletColorMode == .rgb ? 1 : 2.5)
             vst.bias = 0
             try await drivePreconditionV2(input, mid, width, height, vst, metal)
             try await driveBacktransformV2(mid, out, width, height, vst, metal)

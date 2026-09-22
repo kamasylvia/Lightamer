@@ -287,7 +287,8 @@ public final class DenoiseProfileModule: IOPModule {
         let cube = Float(a1 * a1 * a1)
         let cross = 7.0 * Float(a1) * (Float(a2)).squareRoot()
         let v = scale * ((cube + cross) * sign * scattering / 6.0 + Float(index))
-        return Int(v.rounded())
+        // dt `const int` cast = truncation toward zero (NOT round)
+        return Int(v)
     }
 
     static func scatteredOffsets(K: Int, scattering: Float) -> [(qx: Int, qy: Int)] {
@@ -516,11 +517,16 @@ public final class DenoiseProfileModule: IOPModule {
 
     // MARK: - VST uniforms (process_wavelets :1482-1548 / nlmeans_precondition_cl)
 
+    /// `compensateStrength`: the wavelets leg folds 2.5 in Y0U0V0 mode
+    /// (process_wavelets :1511); the NLMeans leg folds NOTHING (dt CPU
+    /// nlmeans_precondition :1682-1688 — wb *= strength·scale only). The
+    /// dt CPU/CL paths diverge here (the old inline CL path folds 2.5);
+    /// the golden authority is the CPU path (dt-cli has no OpenCL).
     static func makeVSTUniforms(
-        params: Params, inScale: Float, wbCoeffs: SIMD3<Float>?
+        params: Params, inScale: Float, wbCoeffs: SIMD3<Float>?,
+        compensateStrength: Float
     ) -> VSTUniforms {
         let modeRGB = params.waveletColorMode == .rgb
-        let compensateStrength: Float = modeRGB ? 1.0 : 2.5
         let compensateP = DenoiseProfileConsts.pFulcrum
             / pow(DenoiseProfileConsts.pFulcrum, params.shadows)
         // Raw wb (pre-strength-fold) for p + matrix derivation.
@@ -782,7 +788,9 @@ public final class DenoiseProfileModule: IOPModule {
             let ms = Self.maxScale(
                 width: piece.dscIn.width, height: piece.dscIn.height,
                 iscale: piece.iscale, inScale: inScale)
-            let vst = Self.makeVSTUniforms(params: params, inScale: inScale, wbCoeffs: nil)
+            let vst = Self.makeVSTUniforms(
+                params: params, inScale: inScale, wbCoeffs: nil,
+                compensateStrength: params.waveletColorMode == .rgb ? 1 : 2.5)
             if npixels < 2 {
                 try await metal.dispatch2DTexture(
                     functionName: PassthroughKernel.functionName, input: input, output: output)
@@ -799,7 +807,8 @@ public final class DenoiseProfileModule: IOPModule {
             let scale = Self.nlMeansScale(roiScale: roiIn.scale, iscale: piece.iscale)
             let p = Int((params.radius * scale).rounded(.up))
             let vst = Self.makeVSTUniforms(
-                params: params, inScale: scale, wbCoeffs: nil)
+                params: params, inScale: scale, wbCoeffs: nil,
+                compensateStrength: 1)
             let (k, sc) = Self.adjustScattering(
                 nbhood: Int(params.nbhood), scattering: params.scattering,
                 pipeType: piece.pipeType)

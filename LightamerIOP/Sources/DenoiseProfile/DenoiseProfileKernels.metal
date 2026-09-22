@@ -409,17 +409,21 @@ kernel void dn_reduce_first(
 }
 
 // :544-577 — single-workgroup grid-stride fold of the partials into
-// result[0] (float4). Dispatch with ONE 256-thread group (the partial
-// count is small: one float4 per 16×16 pixels).
+// result[0] (float4). Dispatch with ONE 256-thread group; `count` = the
+// NUMBER OF PARTIALS (dt CLARG(bufsize) = group count), NOT the pixel
+// count — iterating the pixel count would read past the partials buffer.
+struct DNReduceSecondParams {
+    uint count;
+};
 kernel void dn_reduce_second(
     device const float4* input [[buffer(0)]],
     device float4* result [[buffer(1)]],
-    constant DNReduceFirstParams& params [[buffer(2)]],
+    constant DNReduceSecondParams& params [[buffer(2)]],
     uint2 lid [[thread_position_in_threadgroup]],
     uint2 lsz [[threads_per_threadgroup]],
     threadgroup float4* buffer [[threadgroup(0)]])
 {
-    const int n = (int)(params.width * params.height);
+    const int n = (int)params.count;
     const int stride = (int)(lsz.x * lsz.y);
     const int tid = (int)(lid.y * lsz.x + lid.x);
     float4 sum = float4(0.0f);

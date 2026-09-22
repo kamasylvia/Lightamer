@@ -7046,11 +7046,16 @@ def dn_wavelets_reference(w, h, rgb, case):
             return dn_precondition_v2_px(px, a1 * compensate_p, p, b1, wb)
         return dn_precondition_y0u0v0_px(px, a1 * compensate_p, p, b1, mat)
 
+    # dt :1526-1527 — the SAME strength·compensate_strength·in_scale fold
+    # that hits the matrices ALSO scales wb BEFORE it feeds the inverse
+    # kernels (delta = x² + bias·wb and the RGB ×wb exit).
+    wb_scaled = [wb[c] * strength * compensate_strength * in_scale for c in range(3)]
+
     def backtransform(px):
         bias = bias_p - 0.5 * math.log(in_scale)
         if mode_rgb:
-            return dn_backtransform_v2_px(px, a1 * compensate_p, p, b1, bias, wb)
-        return dn_backtransform_y0u0v0_px(px, a1 * compensate_p, p, b1, bias, wb, inv)
+            return dn_backtransform_v2_px(px, a1 * compensate_p, p, b1, bias, wb_scaled)
+        return dn_backtransform_y0u0v0_px(px, a1 * compensate_p, p, b1, bias, wb_scaled, inv)
 
     buf1 = [precondition((rgb[0][k], rgb[1][k], rgb[2][k]))
             for k in range(npixels)]
@@ -7088,6 +7093,9 @@ def dn_nlmeans_leg_reference(w, h, rgb, case):
     p = [max(shadows + 0.1 * math.log(scale / wb[c]), 0.0) for c in range(3)]
     compensate_p = DN_P_FULCRUM / (DN_P_FULCRUM ** shadows)
     a_vst = a1 * compensate_p
+    # dt nlmeans_precondition :1682-1688 — wb *= strength·scale BEFORE the
+    # precondition/backtransform consume it (raw wb only feeds p above).
+    wb = [wb[c] * strength * scale for c in range(3)]
     P = int(math.ceil(case["radius"] * scale))
     K = int(case["nbhood"])
     # nlmeans_scattering (:1634-1657) — full/preview split; the golden
@@ -7106,8 +7114,9 @@ def dn_nlmeans_leg_reference(w, h, rgb, case):
         a1i = abs(index1)
         a2i = abs(index2)
         sgn = (index1 > 0) - (index1 < 0)
-        return int(round(scale * ((a1i ** 3 + 7.0 * a1i * math.sqrt(a2i))
-                                  * sgn * scattering / 6.0 + index1)))
+        # dt `const int` cast = truncation toward zero (NOT round)
+        return int(scale * ((a1i ** 3 + 7.0 * a1i * math.sqrt(a2i))
+                            * sgn * scattering / 6.0 + index1))
 
     u2 = [[0.0, 0.0, 0.0, 0.0] for _ in range(npixels)]
     for kj in range(-K, 1):

@@ -197,7 +197,9 @@ enum WaveletEngine {
                 functionName: DenoiseProfileKernel.reduceSecond)
             r2.encoder.setBuffer(scratch.partials, offset: 0, index: 0)
             r2.encoder.setBuffer(scratch.sumY2, offset: 0, index: 1)
-            r2.encoder.setBytes(&rparams, length: MemoryLayout<DNReduceFirstParams>.stride, index: 2)
+            var reduce2 = DNReduceSecondParams(
+                count: UInt32(((width + 15) / 16) * ((height + 15) / 16)))
+            r2.encoder.setBytes(&reduce2, length: MemoryLayout<DNReduceSecondParams>.stride, index: 2)
             r2.encoder.setThreadgroupMemoryLength(256 * 16, index: 0)
             r2.encoder.dispatchThreadgroups(
                 MTLSize(width: 1, height: 1, depth: 1),
@@ -613,6 +615,9 @@ struct DNSynthesizeParams {
 struct DNReduceFirstParams {
     var width: UInt32
     var height: UInt32
+}
+struct DNReduceSecondParams {
+    var count: UInt32
 }
 struct DNVertParams {
     var width: UInt32
