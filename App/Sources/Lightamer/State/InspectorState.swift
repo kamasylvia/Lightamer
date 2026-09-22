@@ -88,6 +88,10 @@ final class InspectorState {
         register(ChannelMixerRGBPanelProvider())
         register(ChannelMixerPanelProvider())
         register(ColorContrastPanelProvider())
+        // Plan 05-04-T4: vibrance + velvia + colorzones (L/C/h tabs).
+        register(VibrancePanelProvider())
+        register(VelviaPanelProvider())
+        register(ColorZonesPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

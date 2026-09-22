@@ -112,6 +112,11 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertTrue(ops.contains("channelmixerrgb"), "pristine seed must include channelmixerrgb")
         XCTAssertTrue(ops.contains("channelmixer"), "pristine seed must include channelmixer")
         XCTAssertTrue(ops.contains("colorcontrast"), "pristine seed must include colorcontrast")
+        // Plan 05-04-T1/T2: vibrance + velvia + colorzones join the seed
+        // ENABLED-neutral (amount/strength 0 + flat-0.5 curves ⇒ identity).
+        XCTAssertTrue(ops.contains("vibrance"), "pristine seed must include vibrance")
+        XCTAssertTrue(ops.contains("velvia"), "pristine seed must include velvia")
+        XCTAssertTrue(ops.contains("colorzones"), "pristine seed must include colorzones")
     }
     private func instance(_ opName: String) throws -> ModuleInstance {
         try XCTUnwrap(editorState.instances.first { $0.opName == opName })
@@ -1099,6 +1104,116 @@ final class PanelWiringTests: XCTestCase {
         let ccRecord = ModuleInstance(module: ColorContrastModule.self, params: .init())
         XCTAssertNotNil(state.panelView(for: ccRecord, edit: session),
                         "colorcontrast must dispatch a panel")
+    }
+
+    // MARK: - 05-04 panels (vibrance + velvia + colorzones)
+
+    /// Vibrance amount drag = exactly ONE history item.
+    func testVibrancePanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let vib = try instance("vibrance")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(vib, {
+                $0.amount = Float(tick) * 10
+            }, as: VibranceModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Vibrance")
+
+        XCTAssertEqual(historyCount(), 1, "vibrance drag = exactly ONE item")
+        let committed = try instance("vibrance")
+        XCTAssertEqual(
+            try committed.params(of: VibranceModule.self).amount, 60, accuracy: 1e-6)
+    }
+
+    /// Velvia strength drag = exactly ONE history item.
+    func testVelviaPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let vel = try instance("velvia")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(vel, {
+                $0.strength = Float(tick) * 10
+            }, as: VelviaModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Velvia")
+
+        XCTAssertEqual(historyCount(), 1, "velvia drag = exactly ONE item")
+        let committed = try instance("velvia")
+        XCTAssertEqual(
+            try committed.params(of: VelviaModule.self).strength, 60, accuracy: 1e-6)
+    }
+
+    /// ColorZones hue-node drag = exactly ONE history item (curve
+    /// discretization into params — the node set change must flow through
+    /// the same D-H1 trio as sliders).
+    func testColorZonesPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cz = try instance("colorzones")
+        let baseHash = cz.paramsHash
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            var params = try cz.params(of: ColorZonesModule.self)
+            params.curveH = [
+                .init(x: 0.25, y: 0.5),
+                .init(x: 0.5, y: 0.5 + Float(tick) * 0.05),
+            ]
+            var record = cz
+            try record.setParams(params, as: ColorZonesModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Color zones")
+
+        XCTAssertEqual(historyCount(), 1, "colorzones drag = exactly ONE item")
+        let committed = try instance("colorzones")
+        XCTAssertNotEqual(committed.paramsHash, baseHash, "curve drag must change params")
+        XCTAssertEqual(
+            try committed.params(of: ColorZonesModule.self).curveH[1].y,
+            0.8, accuracy: 1e-6)
+    }
+
+    /// Vibrance reset-to-zero reproduces the seed paramsHash (cache all-hit).
+    func testVibranceResetRestoresSeedHash() async throws {
+        try await loadSynthetic()
+        let vib = try instance("vibrance")
+        let seedHash = vib.paramsHash
+
+        let up = try withParams(vib, { $0.amount = 60 }, as: VibranceModule.self)
+        await coordinator.setLiveParams(up)
+        await coordinator.commitContinuousEdit(label: "Vibrance up")
+        XCTAssertNotEqual(try instance("vibrance").paramsHash, seedHash)
+
+        let current = try instance("vibrance")
+        let reset = try withParams(current, { $0.amount = 0 }, as: VibranceModule.self)
+        await coordinator.setLiveParams(reset)
+        await coordinator.commitContinuousEdit(label: "Vibrance reset")
+        XCTAssertEqual(try instance("vibrance").paramsHash, seedHash,
+            "reset to zero must reproduce the SEED paramsHash (cache all-hit)")
+    }
+
+    /// The three 05-04 panels dispatch by opName (D-T6 provider registry).
+    func testColorZonesPanelsDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("vibrance"))
+        XCTAssertTrue(state.panelOpNames.contains("velvia"))
+        XCTAssertTrue(state.panelOpNames.contains("colorzones"))
+
+        let session = InspectorEditSession(coordinator: coordinator)
+        let vibRecord = ModuleInstance(module: VibranceModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: vibRecord, edit: session),
+                        "vibrance must dispatch a panel")
+        let velRecord = ModuleInstance(module: VelviaModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: velRecord, edit: session),
+                        "velvia must dispatch a panel")
+        let czRecord = ModuleInstance(module: ColorZonesModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: czRecord, edit: session),
+                        "colorzones must dispatch a panel")
     }
 
     // MARK: - Helpers
