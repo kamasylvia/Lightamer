@@ -7,16 +7,17 @@
 
 按 `.planning/ROADMAP.md`（13 阶段）逐阶段推进 Lightamer：每阶段 discuss → plan → execute → verify-work → 闭环。当前聚焦：**Phase 1 闭环（issue #1 修复）→ Phase 2 全周期**。
 
-## 当前状态（2026-09-22，05-03 修复轮完成）
+## 当前状态（2026-09-22 14:3x，matrix 模式启用）
 
-- **Phase 4：已闭环**（VERIFICATION.md GOAL ACHIEVED；04-01..04-08 全 PASS，含 GUI-1..4 修复轮）
-- **Phase 5：Color & Denoise（12 reqs，第二难）**——RESEARCH+CONTEXT+8 plans 定稿（44 tasks）
-  - 05-01 ✅ 闭环（426 tests）；05-02 ✅ 闭环（colorbalancergb，445 tests，验收 PASS-with-notes；invert 偏差 3.694e-9 独立复现；dt 采纳 sqlite 6/6）
-  - 05-03 ✅ 修复轮完成（channelmixerrgb+channelmixer+colorcontrast，480 tests；cmr 全过零改动；F1–F6：blob 88B/case 语义/dt 采纳 12/12/camera 死代码删除/文档挂账勘误）
-  - **下一步：05-04（vibrance+velvia+colorzones）omp 执行** → 验收 → 05-05 → 05-06/07 → 05-08 签核
-- **HOLD 已解除**（2026-09-22，JMS 链路恢复；过夜监测自动续跑成功）
-- **运维要点**：omp 模型 API 地区受限必须走 px 代理；链路劣化（google via proxy >30s）= omp 停滞根因，处置 = px --up 一条龙（禁只 --best）后重启 omp 续跑
-- **待办**：GUI-10（AX commit 单发 SIGSEGV，见 FINDINGS）待取证修复；testCrossConsistencySyntheticTarget 负载 flake 并入 05-08 复估
+- **Phase 4：已闭环**（VERIFICATION.md GOAL ACHIEVED；04-01..04-08 全 PASS）
+- **Phase 5：Color & Denoise**——RESEARCH+CONTEXT+8 plans 定稿
+  - 05-01 ✅（426）→ 05-02 ✅（445）→ 05-03 ✅（修复轮 480）→ 05-04 ✅（修复轮+复验 512）
+  - **05-05 ✅ 执行完成待复验**（monochrome，5 commits，535/0/3；GUI-12 立项：moduleList 挤面板，05-08 前修）
+- **模式 = matrix vibe 编排（2026-09-22 用户确认）**：omp 执行 plan + subagent 验收；23:00-9:00 全 subagents（workspace config vibe night slot subagent:auto + review slot3 subagent:4）；14-18 review 休眠窗
+- **已确认分派**：W1 05-05 复审（18:00 起 4 CLI lanes per slot2，TASK.md 在 .work/matrix/05-05-r1/review/）→ W2 05-06 执行（omp，进行中）→ W3-W7 按 05-06/07/08 链
+- **运维要点**：omp 模型 API 走 px 代理（停滞处置 = px --up）；1mcp 已拉起（3050）；**push 暂停**（用户指令：本地 commit 即完成态，当前待推 17 commits）
+- **待办**：GUI-10（SIGSEGV 根因已明：setParams 并发竞态，修复=改同步 API）；GUI-11/12 布局债（05-08 前）；trackB flake（05-08 复估）
+- **教训新增**：L022 强化——omp closeout 会把 GOAL-STATE 回卷至其启动快照（丢失全部中间进展），omp prompt 必须加「closeout 更新 GOAL-STATE 先读现文件增量改，禁整文件回写旧快照」
 
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
 
