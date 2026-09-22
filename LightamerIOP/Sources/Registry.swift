@@ -138,6 +138,11 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ChannelMixerModule.opName) { id in
             ModuleBox(module: ChannelMixerModule(), instanceID: id)
         }
+        // Plan 05-03-T3: colorcontrast (Lab a/b slope + offset), v50 slot
+        // 56.0. Seed ENABLED-neutral (steepness 1/offset 0 ⇒ identity).
+        await registry.register(opName: ColorContrastModule.opName) { id in
+            ModuleBox(module: ColorContrastModule(), instanceID: id)
+        }
         // Plan 05-04-T1: velvia (RGB linear saturation boost), v50 slot
         // 57.0 — before vibrance (58.0). Seed ENABLED-neutral (strength 0
         // ⇒ saturation 0 ⇒ in == out). The trailing clamp is dt's formula

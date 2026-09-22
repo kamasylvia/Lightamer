@@ -421,6 +421,21 @@ final class GeometryGoldenTests: XCTestCase {
         await softBox.setParams(SoftenModule.Params())
         softBox.enabled = false
         chain.append(softBox)
+        // Plan 05-04-T5 track B: vibrance + velvia + colorzones neutrals
+        // (enabled-neutral ×3 — amount/strength 0 + flat-0.5 curves ⇒
+        // identity through the real chain).
+        let vibMade = await registry.makeBox(opName: VibranceModule.opName)
+        let vibBox = try XCTUnwrap(vibMade as? ModuleBox<VibranceModule>)
+        await vibBox.setParams(VibranceModule.Params())
+        chain.append(vibBox)
+        let velMade = await registry.makeBox(opName: VelviaModule.opName)
+        let velBox = try XCTUnwrap(velMade as? ModuleBox<VelviaModule>)
+        await velBox.setParams(VelviaModule.Params())
+        chain.append(velBox)
+        let czMade = await registry.makeBox(opName: ColorZonesModule.opName)
+        let czBox = try XCTUnwrap(czMade as? ModuleBox<ColorZonesModule>)
+        await czBox.setParams(ColorZonesModule.Params())
+        chain.append(czBox)
         return chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
 
