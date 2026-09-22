@@ -97,6 +97,8 @@ internal struct InspectorView: View {
         // Plan 05-06-T5: nlmeans (05-03 precedent — a new op must land with
         // its zh display name the same round, not the raw opName fallback).
         case NLMeansModule.opName: return String(localized: "history_nlmeans")
+        // Plan 05-07-T6: denoiseprofile (same precedent).
+        case DenoiseProfileModule.opName: return String(localized: "history_denoiseprofile")
         default: return opName
         }
     }
