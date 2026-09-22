@@ -271,7 +271,7 @@ final class NLMeansParityTests: XCTestCase {
         var piece = IOPiece()
         piece.iscale = 1.0
         piece.dscIn = IOPBufferDesc(width: 512, height: 384)
-        await module.commitParams(NLMeansModule.Params(), into: &piece)
+        module.commitParams(NLMeansModule.Params(), into: &piece)
 
         let planeROI = ROI(x: 0, y: 0, width: 512, height: 384, scale: 1.0)
         let halo = module.tileHalo(roi: planeROI, piece: piece)
@@ -300,7 +300,7 @@ final class NLMeansParityTests: XCTestCase {
         var scaledPieceMut = scaledPiece
         scaledPieceMut.iscale = 0.5
         scaledPieceMut.dscIn = IOPBufferDesc(width: 1024, height: 768)
-        await module.commitParams(NLMeansModule.Params(), into: &scaledPieceMut)
+        module.commitParams(NLMeansModule.Params(), into: &scaledPieceMut)
         XCTAssertEqual(
             module.tileHalo(roi: ROI(x: 0, y: 0, width: 1024, height: 768, scale: 2.0), piece: scaledPieceMut),
             18, "scale = min(2,2)/max(0.5,1) = 2 → P=4, K=14")
@@ -348,7 +348,7 @@ final class NLMeansParityTests: XCTestCase {
         var piece = IOPiece()
         piece.iscale = 1.0
         piece.dscIn = IOPBufferDesc(width: width, height: height)
-        await module.commitParams(NLMeansModule.Params(), into: &piece)
+        module.commitParams(NLMeansModule.Params(), into: &piece)
         let halo = module.tileHalo(
             roi: ROI(x: 0, y: 0, width: width, height: height, scale: 1.0), piece: piece)
         XCTAssertEqual(halo, 9)
@@ -362,7 +362,7 @@ final class NLMeansParityTests: XCTestCase {
             await LightamerIOPRegistry.populate(registry)
             let made = await registry.makeBox(opName: NLMeansModule.opName)
             let box = try XCTUnwrap(made as? ModuleBox<NLMeansModule>)
-            await box.setParams(NLMeansModule.Params(strength: 120))
+            box.setParams(NLMeansModule.Params(strength: 120))
             let (texture, _) = try await RenderPipeline.process(
                 image: image, instances: [box as any ModuleBoxing], imageID: UUID(),
                 resolution: .full, cache: PipeCache(), metal: metal,
@@ -463,7 +463,7 @@ final class NLMeansParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let made = await registry.makeBox(opName: NLMeansModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<NLMeansModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: [box as any ModuleBoxing], imageID: UUID(),
             resolution: .full, cache: PipeCache(), metal: metal, longEdge: nil)
@@ -580,7 +580,7 @@ final class NLMeansParityTests: XCTestCase {
             await LightamerIOPRegistry.populate(registry)
             let made = await registry.makeBox(opName: NLMeansModule.opName)
             let box = try XCTUnwrap(made as? ModuleBox<NLMeansModule>)
-            await box.setParams(NLMeansModule.Params(strength: strength))
+            box.setParams(NLMeansModule.Params(strength: strength))
             let (texture, _) = try await RenderPipeline.process(
                 image: image, instances: [box as any ModuleBoxing], imageID: UUID(),
                 resolution: .full, cache: PipeCache(), metal: metal, longEdge: nil)
@@ -617,7 +617,7 @@ final class NLMeansParityTests: XCTestCase {
         func run(_ params: NLMeansModule.Params) async throws -> [Float] {
             let made = await registry.makeBox(opName: NLMeansModule.opName)
             let box = try XCTUnwrap(made as? ModuleBox<NLMeansModule>)
-            await box.setParams(params)
+            box.setParams(params)
             let (texture, _) = try await RenderPipeline.process(
                 image: image, instances: [box as any ModuleBoxing], imageID: UUID(),
                 resolution: .full, cache: PipeCache(), metal: metal, longEdge: nil)
@@ -657,7 +657,7 @@ final class NLMeansParityTests: XCTestCase {
         func run(_ params: NLMeansModule.Params) async throws -> [Float] {
             let made = await registry.makeBox(opName: NLMeansModule.opName)
             let box = try XCTUnwrap(made as? ModuleBox<NLMeansModule>)
-            await box.setParams(params)
+            box.setParams(params)
             let (texture, _) = try await RenderPipeline.process(
                 image: image, instances: [box as any ModuleBoxing], imageID: UUID(),
                 resolution: .full, cache: PipeCache(), metal: metal, longEdge: nil)

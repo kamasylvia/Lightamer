@@ -13,7 +13,7 @@ final class VibranceVelviaCommitTests: XCTestCase {
     func testVibranceCommitScalesAmount() async {
         let module = VibranceModule()
         var piece = IOPiece()
-        await module.commitParams(VibranceModule.Params(amount: 25), into: &piece)
+        module.commitParams(VibranceModule.Params(amount: 25), into: &piece)
         let u = piece.data!.contents().assumingMemoryBound(to: Float.self)
         XCTAssertEqual(u[0], 0.25, accuracy: 1e-7)
     }
@@ -55,7 +55,7 @@ final class VibranceVelviaCommitTests: XCTestCase {
     func testVelviaCommitScalesStrength() async {
         let module = VelviaModule()
         var piece = IOPiece()
-        await module.commitParams(VelviaModule.Params(strength: 25, bias: 0.5), into: &piece)
+        module.commitParams(VelviaModule.Params(strength: 25, bias: 0.5), into: &piece)
         let u = piece.data!.contents().assumingMemoryBound(to: Float.self)
         XCTAssertEqual(u[0], 0.25, accuracy: 1e-7)
         XCTAssertEqual(u[1], 0.5, accuracy: 1e-7)

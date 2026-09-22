@@ -137,10 +137,10 @@ final class EqualizerParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: EqualizerModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<EqualizerModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [box as any ModuleBoxing, colorinBox]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -254,7 +254,7 @@ final class EqualizerParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let made = await registry.makeBox(opName: EqualizerModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<EqualizerModule>)
-        await box.setParams(EqualizerModule.Params())
+        box.setParams(EqualizerModule.Params())
         XCTAssertEqual(EqualizerModule.opName, "equalizer")
         XCTAssertEqual(EqualizerModule.iopOrder, 27.0)
         XCTAssertEqual(EqualizerModule.defaultColorspace, .Lab)

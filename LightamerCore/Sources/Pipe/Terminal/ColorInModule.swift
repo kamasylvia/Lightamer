@@ -84,7 +84,7 @@ public final class ColorInModule: IOPModule {
         Params()
     }
 
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         // D-H4 atom: StableHash FNV-1a over the JSON-encoded params — the
         // reference shape (LightamerIOP `TestGainModule.commitParams`).
         let encoded = ParamsCoding.encode(params)

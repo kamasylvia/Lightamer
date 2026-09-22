@@ -519,7 +519,7 @@ final class GoldenColorTests: XCTestCase {
         // Pin the FIRST display deterministically (host-independent keys):
         // the coordinator's exact move — override + re-commit.
         colorout.module.displayProfileOverride = .displayP3
-        await colorout.setParams(.init(outputProfile: .display))
+        colorout.setParams(.init(outputProfile: .display))
 
         func run() async throws -> RenderPipeline.PipeRunStats {
             try await RenderPipeline.process(
@@ -543,7 +543,7 @@ final class GoldenColorTests: XCTestCase {
         // (override the resolved profile, re-commit params; the folded
         // stableID flips ONLY the ≥colorout keys).
         colorout.module.displayProfileOverride = .sRGB
-        await colorout.setParams(.init(outputProfile: .display))
+        colorout.setParams(.init(outputProfile: .display))
         let s3 = try await run()
         XCTAssertEqual(s3.hits, 1, "colorin plane HIT (upstream survives the display change)")
         XCTAssertEqual(
@@ -554,7 +554,7 @@ final class GoldenColorTests: XCTestCase {
         // run4: back to the first display → the old colorout/gamma planes
         // are still cached → terminal re-hit.
         colorout.module.displayProfileOverride = .displayP3
-        await colorout.setParams(.init(outputProfile: .display))
+        colorout.setParams(.init(outputProfile: .display))
         let s4 = try await run()
         XCTAssertEqual(s4.hits, 1)
         XCTAssertEqual(s4.misses, 0, "jitter back = pure cache hit (research §2.3 mirror)")

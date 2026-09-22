@@ -32,7 +32,7 @@ final class IOPieceIscaleTests: XCTestCase {
             self.recorder = recorder
         }
         func reloadDefaults(image: DecodedImage) async -> Params { Params(tag: tag) }
-        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+        func commitParams(_ params: Params, into piece: inout IOPiece) {
             piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         }
         func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
@@ -123,7 +123,7 @@ final class IOPieceIscaleTests: XCTestCase {
             let probe = ModuleBox(
                 module: IscaleProbe(tag: "p", recorder: recorder),
                 multiPriority: 0, multiName: "p")
-            await probe.setParams(IscaleProbe.Params(tag: "p"))
+            probe.setParams(IscaleProbe.Params(tag: "p"))
             _ = try await RenderPipeline.process(
                 image: testImage(), instances: [probe], imageID: UUID(),
                 resolution: tier.resolution, cache: PipeCache(), metal: metal,
@@ -148,7 +148,7 @@ final class IOPieceIscaleTests: XCTestCase {
         let probe = ModuleBox(
             module: IscaleProbe(tag: "p", recorder: recorder),
             multiPriority: 0, multiName: "p")
-        await probe.setParams(IscaleProbe.Params(tag: "p"))
+        probe.setParams(IscaleProbe.Params(tag: "p"))
         _ = try await RenderPipeline.process(
             image: testImage(width: 64, height: 64), instances: [probe], imageID: UUID(),
             resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
@@ -171,7 +171,7 @@ final class IOPieceIscaleTests: XCTestCase {
             let probe = ModuleBox(
                 module: IscaleProbe(tag: tag, recorder: recorder),
                 multiPriority: 0, multiName: tag)
-            await probe.setParams(IscaleProbe.Params(tag: tag))
+            probe.setParams(IscaleProbe.Params(tag: tag))
             boxes.append(probe)
         }
         _ = try await RenderPipeline.process(
@@ -198,11 +198,11 @@ final class IOPieceIscaleTests: XCTestCase {
         let metal = try await makeMetal()
         let recorder = IscaleRecorder()
         let toneequal = ModuleBox(module: ToneEqualModule())
-        await toneequal.setParams(ToneEqualModule.Params())
+        toneequal.setParams(ToneEqualModule.Params())
         let probe = ModuleBox(
             module: IscaleProbe(tag: "p", recorder: recorder),
             multiPriority: 0, multiName: "p")
-        await probe.setParams(IscaleProbe.Params(tag: "p"))
+        probe.setParams(IscaleProbe.Params(tag: "p"))
         let image = testImage(width: 256, height: 256)
         _ = try await RenderPipeline.process(
             image: image, instances: [toneequal, probe], imageID: UUID(),
@@ -239,7 +239,7 @@ final class IOPieceIscaleTests: XCTestCase {
             let probe = ModuleBox(
                 module: IscaleProbe(tag: "p", recorder: recorder),
                 multiPriority: 0, multiName: "p")
-            await probe.setParams(IscaleProbe.Params(tag: "p"))
+            probe.setParams(IscaleProbe.Params(tag: "p"))
             _ = try await RenderPipeline.process(
                 image: testImage(), instances: [probe], imageID: UUID(),
                 resolution: tier.resolution, cache: PipeCache(), metal: metal,

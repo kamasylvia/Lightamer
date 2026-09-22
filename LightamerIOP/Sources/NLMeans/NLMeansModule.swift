@@ -210,7 +210,7 @@ public final class NLMeansModule: IOPModule {
     }
 
     /// dt `commit_params` (:409-417): passthrough + luma/chroma clamp.
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
         currentRadius = params.radius

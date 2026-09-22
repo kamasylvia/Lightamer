@@ -153,7 +153,7 @@ final class MonochromeParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let made = await registry.makeBox(opName: MonochromeModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<MonochromeModule>)
-        await box.setParams(params)
+        box.setParams(params)
         return try await renderChain(
             image: image, chain: [box as any ModuleBoxing], metal: metal)
     }

@@ -206,7 +206,7 @@ final class TemperatureParityTests: XCTestCase {
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let temperature = await registry.makeBox(opName: TemperatureModule.opName)
         let temperatureBox = try XCTUnwrap(temperature as? ModuleBox<TemperatureModule>)
-        await temperatureBox.setParams(params)
+        temperatureBox.setParams(params)
         let chain = [try XCTUnwrap(colorin), temperatureBox]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -284,7 +284,7 @@ final class TemperatureParityTests: XCTestCase {
         )
         let temperature = await registry.makeBox(opName: TemperatureModule.opName)
         let temperatureBox = try XCTUnwrap(temperature as? ModuleBox<TemperatureModule>)
-        await temperatureBox.setParams(.init()) // identity gains
+        temperatureBox.setParams(.init()) // identity gains
         chain.append(temperatureBox)
         chain.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 
@@ -350,7 +350,7 @@ final class TemperatureParityTests: XCTestCase {
         let module = TemperatureModule()
         var piece = IOPiece()
         let gains = TemperatureModule.Params(gains: SIMD3<Float>(1.2, 1.0, 0.8))
-        await module.commitParams(gains, into: &piece)
+        module.commitParams(gains, into: &piece)
 
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .rgba32Float, width: 4, height: 4, mipmapped: false

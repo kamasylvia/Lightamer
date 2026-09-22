@@ -111,7 +111,7 @@ final class FlipParityTests: XCTestCase {
     func testModifyROIOutSwapsWHOnlyOnSwapXY() async {
         for orientation in FlipOrientation.allCases where orientation != .auto {
             let box = ModuleBox(module: FlipModule())
-            await box.setParams(FlipModule.Params(orientation: orientation))
+            box.setParams(FlipModule.Params(orientation: orientation))
             var out = ROI()
             box.modifyROIOutErased(
                 &out, input: ROI(x: 0, y: 0, width: 64, height: 32, scale: 1.0),
@@ -132,7 +132,7 @@ final class FlipParityTests: XCTestCase {
     /// flipH rect (8,4,16,8) with buf_out 64×32 maps to (40,4,16,8)).
     func testModifyROIInRoundTripsCorners() async {
         let box = ModuleBox(module: FlipModule())
-        await box.setParams(FlipModule.Params(orientation: .rotCCW90))
+        box.setParams(FlipModule.Params(orientation: .rotCCW90))
         var piece = box.makeRunPiece()
         piece.dscIn = IOPBufferDesc(width: 64, height: 32)
         var input = ROI()
@@ -144,7 +144,7 @@ final class FlipParityTests: XCTestCase {
                        "swap-state backward maps the full output to the full input")
 
         let flipBox = ModuleBox(module: FlipModule())
-        await flipBox.setParams(FlipModule.Params(orientation: .flipH))
+        flipBox.setParams(FlipModule.Params(orientation: .flipH))
         var flipPiece = flipBox.makeRunPiece()
         flipPiece.dscIn = IOPBufferDesc(width: 64, height: 32)
         var flipInput = ROI()
@@ -180,7 +180,7 @@ final class FlipParityTests: XCTestCase {
 
     func testAutoCommitFallsBackToIdentity() async {
         let box = ModuleBox(module: FlipModule())
-        await box.setParams(FlipModule.Params(orientation: .auto))
+        box.setParams(FlipModule.Params(orientation: .auto))
         var out = ROI()
         box.modifyROIOutErased(
             &out, input: ROI(x: 0, y: 0, width: 64, height: 32, scale: 1.0),
@@ -209,7 +209,7 @@ final class FlipParityTests: XCTestCase {
         let states: [FlipOrientation] = [.none, .flipV, .flipH, .rot180, .transpose, .rotCW90, .rotCCW90, .transverse]
         for orientation in states {
             let flip = ModuleBox(module: FlipModule())
-            await flip.setParams(FlipModule.Params(orientation: orientation))
+            flip.setParams(FlipModule.Params(orientation: orientation))
             let (texture, _) = try await RenderPipeline.process(
                 image: image, instances: [flip], imageID: UUID(),
                 resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
@@ -242,9 +242,9 @@ final class FlipParityTests: XCTestCase {
     /// + `CropParityTests`, and the v50 constraint by V50OrderTests.)
     func testFlipThenCropComposesInV50Order() async {
         let flip = ModuleBox(module: FlipModule())
-        await flip.setParams(FlipModule.Params(orientation: .rotCCW90))
+        flip.setParams(FlipModule.Params(orientation: .rotCCW90))
         let crop = ModuleBox(module: CropModule())
-        await crop.setParams(CropModule.Params(left: 0, top: 0, right: 0.5, bottom: 0.5))
+        crop.setParams(CropModule.Params(left: 0, top: 0, right: 0.5, bottom: 0.5))
         let unsorted: [any ModuleBoxing] = [crop, flip]
         let sorted = unsorted.sorted {
             ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)

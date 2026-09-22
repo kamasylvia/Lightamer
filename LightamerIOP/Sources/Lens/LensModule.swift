@@ -179,7 +179,7 @@ public final class LensModule: IOPModule {
 
     /// Park the working copy, hash the RAW params (D-H4). No uniforms
     /// buffer (D2 — per-run shared buffer, needs bufIn size).
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         committed = params
         piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         piece.data = nil

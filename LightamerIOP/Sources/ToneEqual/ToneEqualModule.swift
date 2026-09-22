@@ -209,7 +209,7 @@ public final class ToneEqualModule: IOPModule {
 
     // MARK: Commit (toneequal.c:1592-1651)
 
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
 

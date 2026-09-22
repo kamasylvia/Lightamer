@@ -91,7 +91,7 @@ final class FilmicRGBTests: XCTestCase {
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let filmic = await registry.makeBox(opName: FilmicRGBModule.opName)
         let filmicBox = try XCTUnwrap(filmic as? ModuleBox<FilmicRGBModule>)
-        await filmicBox.setParams(params)
+        filmicBox.setParams(params)
         let chain = [try XCTUnwrap(colorin), filmicBox]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -498,7 +498,7 @@ final class FilmicRGBTests: XCTestCase {
         )
         let filmic = await registry.makeBox(opName: FilmicRGBModule.opName)
         let filmicBox = try XCTUnwrap(filmic as? ModuleBox<FilmicRGBModule>)
-        await filmicBox.setParams(.init())
+        filmicBox.setParams(.init())
         chain.append(filmicBox)
         chain.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 

@@ -244,7 +244,7 @@ public final class FilmicRGBModule: IOPModule {
         return effective
     }
 
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         let effective = Self.effectiveParams(params)
 
         let encoded = ParamsCoding.encode(effective)

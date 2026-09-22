@@ -122,7 +122,7 @@ final class ToneEqualModuleTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let maybeBox = await registry.makeBox(opName: ToneEqualModule.opName)
         let box = try XCTUnwrap(maybeBox as? ModuleBox<ToneEqualModule>)
-        await box.setParams(params)
+        box.setParams(params)
         // colorin rides along (identity on the Rec2020 working domain) —
         // the SigmoidTests pipe shape.
         let maybeColorin = await registry.makeBox(opName: ColorInModule.opName)

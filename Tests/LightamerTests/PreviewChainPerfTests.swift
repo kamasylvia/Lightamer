@@ -85,7 +85,7 @@ final class PreviewChainPerfTests: XCTestCase {
         for record in LightamerIOPRegistry.editingDefaultInstances() {
             let maybeBox = await registry.makeBox(opName: record.opName, instanceID: record.id)
             let box = try XCTUnwrap(maybeBox)
-            try await box.apply(record)
+            try box.apply(record)
             chain.append(box)
         }
 
@@ -107,7 +107,7 @@ final class PreviewChainPerfTests: XCTestCase {
         func tickExposure() async {
             if let exposureBox = chain.first(where: { $0.opName == "exposure" })
                 as? ModuleBox<ExposureModule> {
-                await exposureBox.setParams(.init(exposure: Float(ev)))
+                exposureBox.setParams(.init(exposure: Float(ev)))
                 ev += 0.001
             }
         }
@@ -190,7 +190,7 @@ final class PreviewChainPerfTests: XCTestCase {
             opName: toneEqualRecord.opName, instanceID: toneEqualRecord.id
         )
         let box = try XCTUnwrap(maybeBox)
-        try await box.apply(toneEqualRecord)
+        try box.apply(toneEqualRecord)
         chain.append(box)
 
         let before = mach_footprint()
@@ -226,12 +226,12 @@ final class PreviewChainPerfTests: XCTestCase {
         for record in LightamerIOPRegistry.editingDefaultInstances() {
             let maybeBox = await registry.makeBox(opName: record.opName, instanceID: record.id)
             let box = try XCTUnwrap(maybeBox)
-            try await box.apply(record)
+            try box.apply(record)
             chain.append(box)
         }
         let nlMade = await registry.makeBox(opName: NLMeansModule.opName)
         let nlBox = try XCTUnwrap(nlMade as? ModuleBox<NLMeansModule>)
-        await nlBox.setParams(NLMeansModule.Params())
+        nlBox.setParams(NLMeansModule.Params())
         nlBox.enabled = true
         chain.append(nlBox)
 
@@ -241,7 +241,7 @@ final class PreviewChainPerfTests: XCTestCase {
         func frame() async throws -> Double {
             if let exposure = chain.first(where: { $0.opName == "exposure" })
                 as? ModuleBox<ExposureModule> {
-                await exposure.setParams(.init(exposure: Float(tick)))
+                exposure.setParams(.init(exposure: Float(tick)))
                 tick += 0.001
             }
             let clock = ContinuousClock()

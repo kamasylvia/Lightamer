@@ -109,7 +109,7 @@ final class TilingOverlapTests: XCTestCase {
         if let toneEqualParams {
             let maybeBox = await registry.makeBox(opName: ToneEqualModule.opName)
             let box = try XCTUnwrap(maybeBox as? ModuleBox<ToneEqualModule>)
-            await box.setParams(toneEqualParams)
+            box.setParams(toneEqualParams)
             chain.append(box)
         }
 

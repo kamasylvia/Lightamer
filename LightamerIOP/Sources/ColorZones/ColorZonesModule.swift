@@ -159,7 +159,7 @@ public final class ColorZonesModule: IOPModule {
 
     /// dt commit V2 branch (:2874-2892): strength-folded nodes →
     /// 3×0x10000 tables (periodic only for select h) → single buffer.
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
 

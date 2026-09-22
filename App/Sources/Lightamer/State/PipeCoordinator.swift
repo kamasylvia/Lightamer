@@ -288,7 +288,7 @@ final class PipeCoordinator {
 
         // Re-commit colorout for the new display (params content unchanged;
         // the folded stableID changes the hash).
-        await recommitColoroutForDisplay()
+        recommitColoroutForDisplay()
         // Re-render the visible pipe (upstream cache planes survive).
         guard decoded != nil else { return }
         generation += 1
@@ -306,13 +306,13 @@ final class PipeCoordinator {
     {
         if !explicit.isEmpty {
             captureColoroutBox(from: explicit)
-            await recommitColoroutForDisplay()
+            recommitColoroutForDisplay()
             return explicit
         }
         guard let registry else { return [] }
         let chain = await registry.makeDefaultChain()
         captureColoroutBox(from: chain)
-        await recommitColoroutForDisplay()
+        recommitColoroutForDisplay()
         return chain
     }
 
@@ -322,7 +322,7 @@ final class PipeCoordinator {
     /// deliberately NOT part of history records; `rematerializeInstances`
     /// re-folds after every canonical re-apply so a history navigation
     /// never drops the live display follow.
-    private func recommitColoroutForDisplay() async {
+    private func recommitColoroutForDisplay() {
         guard let box = coloroutBox else { return }
         let profile = DisplayProfile.resolve(
             window?.screen?.colorSpace ?? NSScreen.main?.colorSpace
@@ -331,7 +331,7 @@ final class PipeCoordinator {
         let params = (try? JSONDecoder().decode(
             ColorOutModule.Params.self, from: box.paramsData
         )) ?? ColorOutModule.Params()
-        await box.setParams(params)
+        box.setParams(params)
     }
 
     /// Find the colorout box in a chain (typed, for the display follow).
@@ -685,15 +685,48 @@ final class PipeCoordinator {
     /// on boxes only. Unknown ops cannot occur from live edits (commits
     /// originate from registered boxes); a future sidecar-driven record
     /// set degrades upstream in 02-06 before reaching here.
+    ///
+    /// Concurrency (GUI-10/GUI-13 fix, 2026-09-23): `ModuleBox.apply`/
+    /// `setParams` are SYNC (pure CPU), and the registry lookups below are
+    /// hoisted into a pre-pass — the mutation loop contains NO suspension
+    /// point, so this whole pass runs MainActor-atomically. The two
+    /// history-triggering chains (the commit leg `EditorState.recordChange
+    /// → historyDidChange` and the live leg `InspectorEditSession.update →
+    /// setLiveParams → historyDidChange`, both fire-and-forget Tasks) can
+    /// therefore no longer interleave INSIDE a box mutation — the old
+    /// nonisolated-async `apply` let the MainActor hop away mid-apply and
+    /// two cooperative-pool threads wrote the same box's `paramsData`/
+    /// `committedPiece` concurrently (Data over-release → SIGSEGV/
+    /// SIGABRT, forensics `.work/gui-acceptance/gui10-forensics.md`).
+    /// A later pass re-applies over an earlier one idempotently (sync
+    /// apply + byte-identical fast path); a duplicate fresh box from two
+    /// interleaved pre-passes is benign (same UUID, last `instances`
+    /// write wins, the discarded box is never shared).
     private func rematerializeInstances() async {
         guard let editorState else { return }
         let records = editorState.instances
+        // Pre-pass: resolve fresh boxes for unknown records (the ONLY
+        // suspension points) before the mutation loop below.
+        var freshBoxes: [UUID: any ModuleBoxing] = [:]
+        var unknownOps: [UUID: String] = [:]
+        for record in records
+        where !instances.contains(where: { $0.instanceID == record.id }) {
+            if let fresh = await registry?.makeBox(
+                opName: record.opName, instanceID: record.id
+            ) {
+                freshBoxes[record.id] = fresh
+            } else {
+                unknownOps[record.id] = record.opName
+            }
+        }
+        // Mutation loop: NO awaits — MainActor-atomic (see concurrency
+        // note above). Do not reintroduce suspension points here.
         var boxes: [any ModuleBoxing] = []
         boxes.reserveCapacity(records.count)
         for record in records {
             if let existing = instances.first(where: { $0.instanceID == record.id }) {
                 do {
-                    try await existing.apply(record)
+                    try existing.apply(record)
                     boxes.append(existing)
                 } catch {
                     Self.logger.error(
@@ -701,11 +734,9 @@ final class PipeCoordinator {
                     )
                     boxes.append(existing) // keep last-good committed state
                 }
-            } else if let fresh = await registry?.makeBox(
-                opName: record.opName, instanceID: record.id
-            ) {
+            } else if let fresh = freshBoxes[record.id] {
                 do {
-                    try await fresh.apply(record)
+                    try fresh.apply(record)
                 } catch {
                     Self.logger.error(
                         "instance \(record.opName, privacy: .public) apply failed: \(error.localizedDescription, privacy: .public)"
@@ -714,13 +745,13 @@ final class PipeCoordinator {
                 boxes.append(fresh)
             } else {
                 Self.logger.error(
-                    "no registered module for op '\(record.opName, privacy: .public)' — record skipped"
+                    "no registered module for op '\(unknownOps[record.id] ?? record.opName, privacy: .public)' — record skipped"
                 )
             }
         }
         instances = boxes
         captureColoroutBox(from: boxes)
-        await recommitColoroutForDisplay()
+        recommitColoroutForDisplay()
     }
 
     /// D-H1 drag START: open a continuous-edit window. Live param updates

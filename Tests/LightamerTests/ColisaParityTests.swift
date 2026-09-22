@@ -187,7 +187,7 @@ final class ColisaParityTests: XCTestCase {
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colisa = await registry.makeBox(opName: ColisaModule.opName)
         let colisaBox = try XCTUnwrap(colisa as? ModuleBox<ColisaModule>)
-        await colisaBox.setParams(params)
+        colisaBox.setParams(params)
         let chain = [try XCTUnwrap(colorin), colisaBox]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -223,7 +223,7 @@ final class ColisaParityTests: XCTestCase {
         let module = ColisaModule()
         var piece = IOPiece()
         let params = ColisaModule.Params(contrast: 0.5, brightness: -0.3, saturation: -1.0)
-        await module.commitParams(params, into: &piece)
+        module.commitParams(params, into: &piece)
 
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .rgba32Float, width: 4, height: 4, mipmapped: false
@@ -275,7 +275,7 @@ final class ColisaParityTests: XCTestCase {
         )
         let colisa = await registry.makeBox(opName: ColisaModule.opName)
         let colisaBox = try XCTUnwrap(colisa as? ModuleBox<ColisaModule>)
-        await colisaBox.setParams(.init()) // identity
+        colisaBox.setParams(.init()) // identity
         chain.append(colisaBox)
         chain.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 

@@ -246,10 +246,10 @@ final class ColorBalanceRGBParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: ColorBalanceRGBModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<ColorBalanceRGBModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [colorinBox as any ModuleBoxing, box]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -373,7 +373,7 @@ final class ColorBalanceRGBParityTests: XCTestCase {
             var piece = IOPiece()
             var params = ColorBalanceRGBModule.Params()
             params.vibrance = vibrance
-            await module.commitParams(params, into: &piece)
+            module.commitParams(params, into: &piece)
             let descriptor = MTLTextureDescriptor.texture2DDescriptor(
                 pixelFormat: .rgba32Float, width: 2, height: 1, mipmapped: false
             )
@@ -495,7 +495,7 @@ final class ColorBalanceRGBParityTests: XCTestCase {
         let metal = try await makeMetal()
         let module = ColorBalanceRGBModule()
         var piece = IOPiece()
-        await module.commitParams(ColorBalanceRGBModule.Params(), into: &piece)
+        module.commitParams(ColorBalanceRGBModule.Params(), into: &piece)
         // Commit-buffer readback: pin the uniforms the kernel will see
         // (bisect aid — separates commit bugs from kernel bugs).
         let committedBuffer = try XCTUnwrap(piece.data)

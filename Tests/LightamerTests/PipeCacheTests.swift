@@ -60,8 +60,8 @@ final class PipeCacheTests: XCTestCase {
             await inner.reloadDefaults(image: image)
         }
 
-        func commitParams(_ params: Params, into piece: inout IOPiece) async {
-            await inner.commitParams(params, into: &piece)
+        func commitParams(_ params: Params, into piece: inout IOPiece) {
+            inner.commitParams(params, into: &piece)
         }
 
         func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
@@ -117,7 +117,7 @@ final class PipeCacheTests: XCTestCase {
             module: Instrumented(tag: tag, counter: counter, inner: TestGainModule()),
             multiPriority: priority, multiName: tag
         )
-        await box.setParams(TestGainModule.Params(gain: gain))
+        box.setParams(TestGainModule.Params(gain: gain))
         return box
     }
 
@@ -128,7 +128,7 @@ final class PipeCacheTests: XCTestCase {
             module: Instrumented(tag: tag, counter: counter, inner: PassthroughModule()),
             multiPriority: priority, multiName: tag
         )
-        await box.setParams(PassthroughModule.Params())
+        box.setParams(PassthroughModule.Params())
         return box
     }
 
@@ -207,7 +207,7 @@ final class PipeCacheTests: XCTestCase {
         // implemented model caches the input at position 0 (Darktable's
         // pipe->input cacheline); with the top-down short-circuit the exact
         // probe split is 1 hit (p1's cached plane feeds g2) / 2 misses.
-        await g2.setParams(TestGainModule.Params(gain: 1.5))
+        g2.setParams(TestGainModule.Params(gain: 1.5))
         let stats3 = try await run(image, instances, imageID, .preview, cache, metal)
         XCTAssertEqual(stats3.hits, 1, "p1's line survived the mid-chain change and feeds g2")
         XCTAssertEqual(stats3.misses, 2, "g2 and everything above it recompute")
@@ -215,7 +215,7 @@ final class PipeCacheTests: XCTestCase {
 
         // run4: revert (undo) — p2's OLD key matches the line cached in
         // run1/run2 → immediate hit, zero work (old planes still cached).
-        await g2.setParams(TestGainModule.Params(gain: 1.0))
+        g2.setParams(TestGainModule.Params(gain: 1.0))
         let stats4 = try await run(image, instances, imageID, .preview, cache, metal)
         XCTAssertEqual(stats4.hits, 1)
         XCTAssertEqual(stats4.misses, 0)

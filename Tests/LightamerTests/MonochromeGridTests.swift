@@ -75,7 +75,7 @@ final class MonochromeGridTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let made = await registry.makeBox(opName: MonochromeModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<MonochromeModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: [box as any ModuleBoxing], imageID: UUID(),
             resolution: .full, cache: PipeCache(), metal: metal,
@@ -172,7 +172,7 @@ final class MonochromeGridTests: XCTestCase {
             let made = await registry.makeBox(opName: MonochromeModule.opName)
             let box = try XCTUnwrap(made as? ModuleBox<MonochromeModule>)
             box.module.useGridSmoothing = useGrid
-            await box.setParams(params)
+            box.setParams(params)
             let (texture, _) = try await RenderPipeline.process(
                 image: image, instances: [box as any ModuleBoxing], imageID: UUID(),
                 resolution: .full, cache: PipeCache(), metal: metal, longEdge: nil)
@@ -232,7 +232,7 @@ final class MonochromeGridTests: XCTestCase {
         var piece = IOPiece()
         piece.iscale = 1.0
         piece.dscIn = IOPBufferDesc(width: 512, height: 384)
-        await module.commitParams(MonochromeModule.Params(), into: &piece)
+        module.commitParams(MonochromeModule.Params(), into: &piece)
         let halo = module.tileHalo(
             roi: ROI(width: 512, height: 384, scale: 1.0), piece: piece)
         XCTAssertEqual(halo, 80, "tileHalo = ceil(4·σ_s=20) = 80（dt :315）")

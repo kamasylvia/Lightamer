@@ -135,7 +135,7 @@ public final class ColorOutModule: IOPModule {
         }
     }
 
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         lastCommittedParams = params // `process` reads the committed params here
         let encoded = ParamsCoding.encode(params)
         var hash = StableHash.hash(encoded)

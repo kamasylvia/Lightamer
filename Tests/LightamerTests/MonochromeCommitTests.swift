@@ -29,7 +29,7 @@ final class MonochromeCommitTests: XCTestCase {
     func testCommitWritesCPUUniforms() async {
         let module = MonochromeModule()
         var piece = IOPiece()
-        await module.commitParams(
+        module.commitParams(
             MonochromeModule.Params(a: 32, b: 64, size: 2.3, highlights: 0.5),
             into: &piece)
         let floats = piece.data!.contents().assumingMemoryBound(to: Float.self)

@@ -190,10 +190,10 @@ final class ChannelMixerRGBParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: ChannelMixerRGBModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<ChannelMixerRGBModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [colorinBox as any ModuleBoxing, box]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),

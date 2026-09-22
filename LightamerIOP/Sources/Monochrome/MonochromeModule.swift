@@ -98,7 +98,7 @@ public final class MonochromeModule: IOPModule {
     }
 
     /// dt `commit_params`（:319-332 passthrough）+ sigma² 预计算。
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
 

@@ -116,7 +116,7 @@ final class IOPModuleTests: XCTestCase {
         static var flags: IOPFlags { [] }
         static var defaultColorspace: IOPColorspace { .RGB }
         func reloadDefaults(image: DecodedImage) async -> Params { Params() }
-        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+        func commitParams(_ params: Params, into piece: inout IOPiece) {
             piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         }
         func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {

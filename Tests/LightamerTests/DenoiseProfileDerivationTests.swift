@@ -367,7 +367,7 @@ final class DenoiseProfileDerivationTests: XCTestCase {
         var piece = IOPiece()
         piece.iscale = 1.0
         piece.dscIn = IOPBufferDesc(width: 11648, height: 8736)
-        await module.commitParams(DenoiseProfileModule.Params(), into: &piece)
+        module.commitParams(DenoiseProfileModule.Params(), into: &piece)
         let planeROI = ROI(x: 0, y: 0, width: 11648, height: 8736, scale: 1.0)
         // Wavelets defaults @100MP: max_scale 7 → halo 128 (dt :900-906).
         XCTAssertEqual(module.tileHalo(roi: planeROI, piece: piece), 128)
@@ -386,12 +386,12 @@ final class DenoiseProfileDerivationTests: XCTestCase {
         // scale 1 → P=1, K=7, K_scattered=7 → halo 8.
         var p = DenoiseProfileModule.Params()
         p.mode = .nlmeans
-        await module.commitParams(p, into: &piece)
+        module.commitParams(p, into: &piece)
         XCTAssertEqual(module.tileHalo(roi: planeROI, piece: piece), 8)
         XCTAssertEqual(module.tileWorkingSetBytesPerPixel(piece: piece), 80)
         // scattering 0.5 grows the halo by ceil(cubexpr).
         p.scattering = 0.5
-        await module.commitParams(p, into: &piece)
+        module.commitParams(p, into: &piece)
         let expect = 1 + Int((0.5 * (343.0 + 49.0 * (7.0).squareRoot()) / 6.0).rounded(.up)) + 7
         XCTAssertEqual(module.tileHalo(roi: planeROI, piece: piece), expect)
     }
@@ -403,7 +403,7 @@ final class DenoiseProfileDerivationTests: XCTestCase {
         var piece = IOPiece()
         piece.iscale = 1.0
         piece.dscIn = IOPBufferDesc(width: 64, height: 64)
-        await module.commitParams(DenoiseProfileModule.Params(), into: &piece)
+        module.commitParams(DenoiseProfileModule.Params(), into: &piece)
         XCTAssertEqual(
             module.tileHalo(roi: ROI(x: 0, y: 0, width: 64, height: 64, scale: 1.0), piece: piece),
             8)

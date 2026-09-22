@@ -291,10 +291,10 @@ final class PanelWiringTests: XCTestCase {
         let madeExposure = await registry.makeBox(
             opName: ExposureModule.opName, instanceID: record.id)
         let box = try XCTUnwrap(madeExposure as? ModuleBox<ExposureModule>)
-        try await box.apply(record)
+        try box.apply(record)
         let madeColorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorin = try XCTUnwrap(madeColorin as? ModuleBox<ColorInModule>)
-        await colorin.setParams(.init())
+        colorin.setParams(.init())
         let image = try makeSyntheticImage()
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: [colorin, box], imageID: UUID(),
@@ -876,6 +876,74 @@ final class PanelWiringTests: XCTestCase {
         await coordinator.commitContinuousEdit(label: String(localized: "history_toggle"), autoEnable: false)
         XCTAssertEqual(historyCount(), 1, "toggle-off = exactly ONE item")
         XCTAssertFalse(try instance("exposure").enabled, "explicit toggle-off survives the commit")
+    }
+
+    /// GUI-13 (05-06 立案，05-07 修复) + GUI-10 同根回归：启用 commit 与
+    /// 紧随的拖动 live tick 并发。旧实现 `ModuleBox.apply` 是 nonisolated
+    /// async —— rematerialize 在 await 处放开 MainActor，commit 链
+    /// （recordChange → fire Task → historyDidChange）与 live 链
+    /// （update → setLiveParams → historyDidChange）两条链的 box 突变在
+    /// cooperative 池上并发执行，同一 box 的 `paramsData`/`committedPiece`
+    /// 被并发写（Data over-release → SIGSEGV/SIGABRT；取证
+    /// `.work/gui-acceptance/gui10-forensics.md`）。修复 = apply/
+    /// setParams/commitParams 全同步 + 物化循环零挂起点（两段式）。
+    /// 本测试用 TaskGroup 把「启用 commit 链 + 变参 live tick 链」交错发射
+    /// 100 轮（与崩溃报告双栈同构：recordChange 腿 + setLiveParams 腿同发），
+    /// 防空转 + 断言：不崩、commit 计数精确、终态一致（修复前该序列在重复
+    /// 运行/TSan 下踩窗口崩）。
+    func testEnableCommitRacingLiveTicksHundredRounds() async throws {
+        try await loadSynthetic()
+        let seed = try instance("nlmeans")
+        XCTAssertFalse(seed.enabled, "seed DISABLED — GUI-13 的原始发射形态")
+        let baseCount = historyCount()
+
+        // 预备 100 对快照（group 外构造，group 内只发射）。
+        var enables: [ModuleInstance] = []
+        var ticks: [ModuleInstance] = []
+        enables.reserveCapacity(100)
+        ticks.reserveCapacity(100)
+        for tick in 0..<100 {
+            var enable = seed
+            enable.enabled = true
+            try enable.setParams(NLMeansModule.Params(strength: 1), as: NLMeansModule.self)
+            enables.append(enable)
+            var dragged = seed
+            dragged.enabled = true
+            try dragged.setParams(
+                NLMeansModule.Params(strength: 1 + Float(tick) * 0.01), as: NLMeansModule.self)
+            ticks.append(dragged)
+        }
+
+        // 交错发射：每轮 = commit 链（recordChange，sync upsert + 内部
+        // fire Task 渲染）+ 紧随的 live tick（setLiveParams，渲染 await 处
+        // 放开 MainActor）—— 正是崩溃窗口的交错面。
+        let coordinator = self.coordinator!
+        let editorState = self.editorState!
+        await withTaskGroup(of: Void.self) { group in
+            for i in 0..<100 {
+                let enable = enables[i]
+                let tick = ticks[i]
+                group.addTask { [coordinator, editorState] in
+                    await editorState.recordChange(enable, label: "enable")
+                    await coordinator.setLiveParams(tick)
+                }
+            }
+        }
+
+        XCTAssertEqual(historyCount() - baseCount, 100, "每轮恰 1 commit；live tick 零入史")
+
+        // 有序终态（group 已收干，本次提交严格最后执行）。
+        let final = try withParams(try instance("nlmeans"), { $0.strength = 2 }, as: NLMeansModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(final)
+        await coordinator.commitContinuousEdit(label: "final")
+
+        XCTAssertEqual(historyCount() - baseCount, 101, "终态提交恰 +1")
+        let record = try instance("nlmeans")
+        XCTAssertTrue(record.enabled, "终态启用保持")
+        XCTAssertEqual(
+            try record.params(of: NLMeansModule.self).strength, 2, accuracy: 1e-6,
+            "终态参数 = 最后一次有序 tick（box/record 一致性未撕裂）")
     }
     /// 04-08-F3 (GUI-5 AX 通路)：AX Press 走的语义层 = toggle 纯函数 +
     /// discrete commit（autoEnable=false）。此测试钉住"按一次恰翻转一

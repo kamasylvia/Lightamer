@@ -315,10 +315,10 @@ final class ColorZonesParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: ColorZonesModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<ColorZonesModule>)
-        await box.setParams(params)
+        box.setParams(params)
         return try await renderChain(
             image: image, chain: [colorinBox as any ModuleBoxing, box], metal: metal)
     }

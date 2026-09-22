@@ -78,7 +78,7 @@ final class AgXTests: XCTestCase {
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let agx = await registry.makeBox(opName: AgXModule.opName)
         let agxBox = try XCTUnwrap(agx as? ModuleBox<AgXModule>)
-        await agxBox.setParams(params)
+        agxBox.setParams(params)
         let chain = [try XCTUnwrap(colorin), agxBox]
 
         let (texture, _) = try await RenderPipeline.process(

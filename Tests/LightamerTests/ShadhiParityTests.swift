@@ -137,7 +137,7 @@ final class ShadhiParityTests: XCTestCase {
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let shadhi = await registry.makeBox(opName: ShadhiModule.opName)
         let shadhiBox = try XCTUnwrap(shadhi as? ModuleBox<ShadhiModule>)
-        await shadhiBox.setParams(params)
+        shadhiBox.setParams(params)
         let chain = [try XCTUnwrap(colorin), shadhiBox]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -203,7 +203,7 @@ final class ShadhiParityTests: XCTestCase {
         )
         let shadhi = await registry.makeBox(opName: ShadhiModule.opName)
         let shadhiBox = try XCTUnwrap(shadhi as? ModuleBox<ShadhiModule>)
-        await shadhiBox.setParams(.init()) // identity
+        shadhiBox.setParams(.init()) // identity
         chain.append(shadhiBox)
         chain.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 

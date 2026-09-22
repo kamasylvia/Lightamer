@@ -133,7 +133,7 @@ final class SigmoidTests: XCTestCase {
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let sigmoid = await registry.makeBox(opName: SigmoidModule.opName)
         let sigmoidBox = try XCTUnwrap(sigmoid as? ModuleBox<SigmoidModule>)
-        await sigmoidBox.setParams(params)
+        sigmoidBox.setParams(params)
         let chain = [try XCTUnwrap(colorin), sigmoidBox]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -255,7 +255,7 @@ final class SigmoidTests: XCTestCase {
         )
         let sigmoid = await registry.makeBox(opName: SigmoidModule.opName)
         let sigmoidBox = try XCTUnwrap(sigmoid as? ModuleBox<SigmoidModule>)
-        await sigmoidBox.setParams(.init()) // identity-ish defaults
+        sigmoidBox.setParams(.init()) // identity-ish defaults
         chain.append(sigmoidBox)
         chain.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 

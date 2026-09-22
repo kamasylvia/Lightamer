@@ -108,10 +108,10 @@ final class VibranceVelviaParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: VibranceModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<VibranceModule>)
-        await box.setParams(params)
+        box.setParams(params)
         return try await renderChain(
             image: image, chain: [colorinBox as any ModuleBoxing, box], metal: metal)
     }
@@ -179,10 +179,10 @@ final class VibranceVelviaParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: VelviaModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<VelviaModule>)
-        await box.setParams(params)
+        box.setParams(params)
         return try await renderChain(
             image: image, chain: [colorinBox as any ModuleBoxing, box], metal: metal)
     }
@@ -222,7 +222,7 @@ final class VibranceVelviaParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let (rgb, _, _) = try await renderChain(
             image: image, chain: [colorinBox as any ModuleBoxing], metal: metal)
         return rgb

@@ -53,7 +53,7 @@ final class CPUDerivationTests: XCTestCase {
             let module = ExposureModule()
             var piece = IOPiece()
             let params = ExposureModule.Params(black: v.black, exposure: v.exposure)
-            await module.commitParams(params, into: &piece)
+            module.commitParams(params, into: &piece)
 
             // The uniforms carry (black, scale) — decode them back.
             let buffer = try XCTUnwrap(piece.data, "commitParams must produce uniforms")
@@ -93,7 +93,7 @@ final class CPUDerivationTests: XCTestCase {
         // same domain at the widget layer) — document the clamp point.
         let module = ExposureModule()
         var piece = IOPiece()
-        await module.commitParams(ExposureModule.Params(black: 1.5, exposure: 0), into: &piece)
+        module.commitParams(ExposureModule.Params(black: 1.5, exposure: 0), into: &piece)
         let buffer = try XCTUnwrap(piece.data)
         let bytes = buffer.contents().assumingMemoryBound(to: Float.self)
         XCTAssertEqual(bytes[0], 1.0, "black clamped to +1")
@@ -109,7 +109,7 @@ final class CPUDerivationTests: XCTestCase {
         // the pipe cache's default chain relies on.
         let module = ExposureModule()
         var piece = IOPiece()
-        await module.commitParams(ExposureModule.Params(), into: &piece)
+        module.commitParams(ExposureModule.Params(), into: &piece)
         let buffer = try XCTUnwrap(piece.data)
         let bytes = buffer.contents().assumingMemoryBound(to: Float.self)
         XCTAssertEqual(bytes[0], 0.0)
@@ -124,8 +124,8 @@ final class CPUDerivationTests: XCTestCase {
         var pieceA = IOPiece()
         var pieceB = IOPiece()
         let params = ExposureModule.Params(exposure: 1.0)
-        await module.commitParams(params, into: &pieceA)
-        await module.commitParams(params, into: &pieceB)
+        module.commitParams(params, into: &pieceA)
+        module.commitParams(params, into: &pieceB)
         XCTAssertEqual(pieceA.paramsHash, pieceB.paramsHash)
         XCTAssertEqual(pieceA.paramsHash, StableHash.hash(ParamsCoding.encode(params)))
     }

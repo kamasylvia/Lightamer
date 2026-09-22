@@ -54,7 +54,12 @@ public protocol ModuleBoxing: AnyObject, Sendable {
     /// (uniforms survive; the cache chain sees the same hashes).
     /// Decode failure throws typed `AppError` — the 02-06 degrade policy
     /// is the caller's business, not the box's.
-    func apply(_ record: ModuleInstance) async throws
+    ///
+    /// SYNC (GUI-10/GUI-13 fix, 2026-09-23): `apply` must not suspend —
+    /// a suspension here would let a second history Task re-enter the
+    /// coordinator and mutate the SAME box concurrently (the SIGSEGV
+    /// race). Box mutations are atomic on the owning actor.
+    func apply(_ record: ModuleInstance) throws
 
     /// Dispatch the wrapped module's `process` (texture in/out, 02-02 lock
     /// #1). The pipe calls this from the cache miss closure.
@@ -170,11 +175,20 @@ public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
     /// `DisplayProfile.stableID`, the terminal-segment invalidation atom),
     /// and the CACHE chain reads the BOX hash. Without adoption that fold
     /// would be invisible to the cache.
-    public func setParams(_ params: M.Params) async {
+    ///
+    /// SYNC (GUI-10/GUI-13 fix, 2026-09-23): the whole mutation — encode,
+    /// `paramsData`/`paramsHash` writes, `commitParams` into
+    /// `committedPiece` — completes without suspension, so the sequence is
+    /// atomic with respect to any task that also reaches the box through
+    /// its owning (MainActor) coordinator. The old async shape let two
+    /// cooperative-pool threads run this body concurrently (double-release
+    /// of `paramsData`'s old NSData representation → SIGSEGV/SIGABRT;
+    /// forensics `.work/gui-acceptance/gui10-forensics.md`).
+    public func setParams(_ params: M.Params) {
         let encoded = ParamsCoding.encode(params)
         paramsData = encoded
         paramsHash = StableHash.hash(encoded)
-        await module.commitParams(params, into: &committedPiece)
+        module.commitParams(params, into: &committedPiece)
         paramsHash = committedPiece.paramsHash
     }
 
@@ -182,7 +196,7 @@ public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
         committedPiece
     }
 
-    public func apply(_ record: ModuleInstance) async throws {
+    public func apply(_ record: ModuleInstance) throws {
         precondition(
             record.id == instanceID,
             "ModuleBox.apply: record identity mismatch (\(record.id) ≠ \(instanceID))"
@@ -198,7 +212,7 @@ public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
         } catch {
             throw AppError(error)
         }
-        await setParams(params)
+        setParams(params)
     }
 
     public func processErased(

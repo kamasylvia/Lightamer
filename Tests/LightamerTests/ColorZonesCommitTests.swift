@@ -151,7 +151,7 @@ final class ColorZonesCommitTests: XCTestCase {
     func testCommitWritesUniformTables() async {
         let module = ColorZonesModule()
         var piece = IOPiece()
-        await module.commitParams(ColorZonesModule.Params(), into: &piece)
+        module.commitParams(ColorZonesModule.Params(), into: &piece)
         let buffer = try! XCTUnwrap(piece.data)
         XCTAssertEqual(
             buffer.length,

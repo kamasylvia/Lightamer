@@ -123,7 +123,7 @@ final class MemoryBudgetTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let made = await registry.makeBox(opName: NLMeansModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<NLMeansModule>)
-        await box.setParams(NLMeansModule.Params(strength: 120))
+        box.setParams(NLMeansModule.Params(strength: 120))
 
         let before = mach_footprint()
         _ = try await RenderPipeline.process(
@@ -391,7 +391,7 @@ final class MemoryBudgetTests: XCTestCase {
         static var defaultColorspace: IOPColorspace { .RGB }
         private var rect = Params(cx: 0.25, cy: 0.25, cw: 0.75, ch: 0.75)
         func reloadDefaults(image: DecodedImage) async -> Params { rect }
-        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+        func commitParams(_ params: Params, into piece: inout IOPiece) {
             rect = params
             piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         }
@@ -444,7 +444,7 @@ final class MemoryBudgetTests: XCTestCase {
         static var defaultColorspace: IOPColorspace { .RGB }
         private var haloValue = 3
         func reloadDefaults(image: DecodedImage) async -> Params { Params(halo: haloValue) }
-        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+        func commitParams(_ params: Params, into piece: inout IOPiece) {
             haloValue = params.halo
             piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         }
@@ -494,7 +494,7 @@ final class MemoryBudgetTests: XCTestCase {
 
         func runWithCrop(cx: Float, cy: Float, cw: Float, ch: Float) async throws -> Int {
             let crop = ModuleBox(module: ROICropProbe(), multiPriority: 0, multiName: "crop")
-            await crop.setParams(ROICropProbe.Params(cx: cx, cy: cy, cw: cw, ch: ch))
+            crop.setParams(ROICropProbe.Params(cx: cx, cy: cy, cw: cw, ch: ch))
             let cache = PipeCache()
             _ = try await RenderPipeline.process(
                 image: image, instances: [crop], imageID: UUID(),
@@ -521,7 +521,7 @@ final class MemoryBudgetTests: XCTestCase {
             capture: CaptureMetadata(), segmentationSkyMatte: nil,
             decoderVersionUsed: .v8)
         let haloBox = ModuleBox(module: ROIHaloProbe(), multiPriority: 0, multiName: "halo")
-        await haloBox.setParams(ROIHaloProbe.Params(halo: 3))
+        haloBox.setParams(ROIHaloProbe.Params(halo: 3))
         let cache = PipeCache()
         _ = try await RenderPipeline.process(
             image: image, instances: [haloBox], imageID: UUID(),

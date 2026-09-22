@@ -132,10 +132,10 @@ final class GeometryGoldenTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let cropMade = await registry.makeBox(opName: CropModule.opName)
         let crop = try XCTUnwrap(cropMade as? ModuleBox<CropModule>)
-        await crop.setParams(params)
+        crop.setParams(params)
         let chain = [colorinBox as any ModuleBoxing, crop]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -226,10 +226,10 @@ final class GeometryGoldenTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let flipMade = await registry.makeBox(opName: FlipModule.opName)
         let box = try XCTUnwrap(flipMade as? ModuleBox<FlipModule>)
-        await box.setParams(FlipModule.Params(orientation: orientation))
+        box.setParams(FlipModule.Params(orientation: orientation))
         let chain = [colorinBox as any ModuleBoxing, box]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -387,7 +387,7 @@ final class GeometryGoldenTests: XCTestCase {
         )
         let made = await registry.makeBox(opName: NLMeansModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<NLMeansModule>)
-        await box.setParams(NLMeansModule.Params(strength: 0))
+        box.setParams(NLMeansModule.Params(strength: 0))
         box.enabled = true
         chain.append(box)
         let (texture, _) = try await RenderPipeline.process(
@@ -439,38 +439,38 @@ final class GeometryGoldenTests: XCTestCase {
         )
         let flip = await registry.makeBox(opName: FlipModule.opName)
         let flipBox = try XCTUnwrap(flip as? ModuleBox<FlipModule>)
-        await flipBox.setParams(FlipModule.Params(orientation: .none))
+        flipBox.setParams(FlipModule.Params(orientation: .none))
         chain.append(flipBox)
         let lens = await registry.makeBox(opName: LensModule.opName)
         let lensBox = try XCTUnwrap(lens as? ModuleBox<LensModule>)
-        await lensBox.setParams(LensModule.Params())
+        lensBox.setParams(LensModule.Params())
         chain.append(lensBox)
         let crop = await registry.makeBox(opName: CropModule.opName)
         let cropBox = try XCTUnwrap(crop as? ModuleBox<CropModule>)
-        await cropBox.setParams(CropModule.Params())
+        cropBox.setParams(CropModule.Params())
         chain.append(cropBox)
         // Plan 04-05-T5 track B: the five detail neutrals (blit-identity
         // legs through the real chain — enabled-neutral ×3, disabled ×2).
         let sharpenMade = await registry.makeBox(opName: SharpenModule.opName)
         let sharpenBox = try XCTUnwrap(sharpenMade as? ModuleBox<SharpenModule>)
-        await sharpenBox.setParams(SharpenModule.Params())
+        sharpenBox.setParams(SharpenModule.Params())
         chain.append(sharpenBox)
         let bilatMade = await registry.makeBox(opName: LocalContrastModule.opName)
         let bilatBox = try XCTUnwrap(bilatMade as? ModuleBox<LocalContrastModule>)
-        await bilatBox.setParams(LocalContrastModule.Params())
+        bilatBox.setParams(LocalContrastModule.Params())
         chain.append(bilatBox)
         let eqMade = await registry.makeBox(opName: EqualizerModule.opName)
         let eqBox = try XCTUnwrap(eqMade as? ModuleBox<EqualizerModule>)
-        await eqBox.setParams(EqualizerModule.Params())
+        eqBox.setParams(EqualizerModule.Params())
         chain.append(eqBox)
         let highMade = await registry.makeBox(opName: HighpassModule.opName)
         let highBox = try XCTUnwrap(highMade as? ModuleBox<HighpassModule>)
-        await highBox.setParams(HighpassModule.Params())
+        highBox.setParams(HighpassModule.Params())
         highBox.enabled = false
         chain.append(highBox)
         let softMade = await registry.makeBox(opName: SoftenModule.opName)
         let softBox = try XCTUnwrap(softMade as? ModuleBox<SoftenModule>)
-        await softBox.setParams(SoftenModule.Params())
+        softBox.setParams(SoftenModule.Params())
         softBox.enabled = false
         chain.append(softBox)
         // Plan 05-04-T5 track B: vibrance + velvia + colorzones neutrals
@@ -478,22 +478,22 @@ final class GeometryGoldenTests: XCTestCase {
         // identity through the real chain).
         let vibMade = await registry.makeBox(opName: VibranceModule.opName)
         let vibBox = try XCTUnwrap(vibMade as? ModuleBox<VibranceModule>)
-        await vibBox.setParams(VibranceModule.Params())
+        vibBox.setParams(VibranceModule.Params())
         chain.append(vibBox)
         let velMade = await registry.makeBox(opName: VelviaModule.opName)
         let velBox = try XCTUnwrap(velMade as? ModuleBox<VelviaModule>)
-        await velBox.setParams(VelviaModule.Params())
+        velBox.setParams(VelviaModule.Params())
         chain.append(velBox)
         let czMade = await registry.makeBox(opName: ColorZonesModule.opName)
         let czBox = try XCTUnwrap(czMade as? ModuleBox<ColorZonesModule>)
-        await czBox.setParams(ColorZonesModule.Params())
+        czBox.setParams(ColorZonesModule.Params())
         chain.append(czBox)
         // Plan 05-05-T4 track B: monochrome DISABLED seed (default size=2
         // filter is not neutral — disabled ⇒ pipe skips ⇒ zero chain delta;
         // 05-02 colorbalancergb T5 zero-increment precedent).
         let monoMade = await registry.makeBox(opName: MonochromeModule.opName)
         let monoBox = try XCTUnwrap(monoMade as? ModuleBox<MonochromeModule>)
-        await monoBox.setParams(MonochromeModule.Params())
+        monoBox.setParams(MonochromeModule.Params())
         monoBox.enabled = false
         chain.append(monoBox)
         // Plan 05-07-T6 track B: denoiseprofile DISABLED (no zero-param
@@ -502,7 +502,7 @@ final class GeometryGoldenTests: XCTestCase {
         // suite; 05-06's nlmeans keeps its own enabled-neutral test).
         let dpMade = await registry.makeBox(opName: DenoiseProfileModule.opName)
         let dpBox = try XCTUnwrap(dpMade as? ModuleBox<DenoiseProfileModule>)
-        await dpBox.setParams(DenoiseProfileModule.Params())
+        dpBox.setParams(DenoiseProfileModule.Params())
         dpBox.enabled = false
         chain.append(dpBox)
         return chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }

@@ -79,7 +79,7 @@ final class TileNegotiationRegressionTests: XCTestCase {
         toneEqualParams: ToneEqualModule.Params
     ) async throws -> [Float] {
         let toneequal = ModuleBox(module: ToneEqualModule())
-        await toneequal.setParams(toneEqualParams)
+        toneequal.setParams(toneEqualParams)
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: [toneequal], imageID: UUID(),
             resolution: .full, cache: PipeCache(), metal: metal,
@@ -138,7 +138,7 @@ final class TileNegotiationRegressionTests: XCTestCase {
 
         // hook 级：同一 piece（dscIn 256×256）tileHalo 与 budget 无关。
         let box = ModuleBox(module: ToneEqualModule())
-        await box.setParams(ToneEqualModule.Params(blending: 5))
+        box.setParams(ToneEqualModule.Params(blending: 5))
         var piece = box.makeRunPiece()
         piece.dscIn = IOPBufferDesc(width: 256, height: 256)
         piece.iscale = 1.0
@@ -158,7 +158,7 @@ final class TileNegotiationRegressionTests: XCTestCase {
     /// clamp，且输出 tile 全覆盖（pixelCount 和 == 平面）。
     func testTileReadWriteAccountingMatchesHaloContract() async throws {
         let box = ModuleBox(module: ToneEqualModule())
-        await box.setParams(ToneEqualModule.Params(blending: 5))
+        box.setParams(ToneEqualModule.Params(blending: 5))
         var piece = box.makeRunPiece()
         piece.dscIn = IOPBufferDesc(width: 256, height: 256)
         piece.iscale = 1.0
