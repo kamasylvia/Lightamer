@@ -1288,6 +1288,52 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertNotNil(state.panelView(for: record, edit: session),
                         "monochrome must dispatch a panel")
     }
+
+    /// Plan 05-06-T5: nlmeans panel dispatches by opName (D-T6).
+    func testNLMeansPanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("nlmeans"))
+        let session = InspectorEditSession(coordinator: coordinator)
+        let record = ModuleInstance(module: NLMeansModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: record, edit: session),
+                        "nlmeans must dispatch a panel")
+    }
+
+    /// Plan 05-06-T5: nlmeans strength-slider drag = exactly ONE history
+    /// item; reset to default restores the pristine paramsHash (cache
+    /// all-hit); editing the disabled seed auto-enables at commit (GUI-7).
+    func testNLMeansStrengthSliderCommitsOnce() async throws {
+        try await loadSynthetic()
+        let nl = try instance("nlmeans")
+        XCTAssertFalse(nl.enabled, "nlmeans seed is disabled (D-05-06-T2-1)")
+        let pristineHash = nl.paramsHash
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(nl, {
+                $0.strength = Float(tick) * 10
+            }, as: NLMeansModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_nlmeans"))
+
+        XCTAssertEqual(historyCount(), 1, "strength drag = exactly ONE item")
+        let committed = try instance("nlmeans")
+        XCTAssertEqual(try committed.params(of: NLMeansModule.self).strength, 60.0, accuracy: 1e-6)
+        XCTAssertTrue(committed.enabled, "editing a disabled module auto-enables at commit (GUI-7)")
+
+        // Reset to default restores the pristine paramsHash (cache all-hit).
+        let current = try instance("nlmeans")
+        let resetRecord = try withParams(current, {
+            $0.radius = 2; $0.strength = 50; $0.luma = 0.5; $0.chroma = 1
+        }, as: NLMeansModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(resetRecord)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_nlmeans"))
+        XCTAssertEqual(try instance("nlmeans").paramsHash, pristineHash,
+                       "reset to default restores the pristine paramsHash")
+    }
     // MARK: - Helpers
     private func historyCount() -> Int { editorState.history.items.count }
 }

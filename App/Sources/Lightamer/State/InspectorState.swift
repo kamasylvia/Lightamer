@@ -94,6 +94,8 @@ final class InspectorState {
         register(ColorZonesPanelProvider())
         // Plan 05-05-T4: monochrome (Lab chroma wheel + size/highlights).
         register(MonochromePanelProvider())
+        // Plan 05-06-T5: nlmeans (astrophoto denoise — 4 sliders).
+        register(NLMeansPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

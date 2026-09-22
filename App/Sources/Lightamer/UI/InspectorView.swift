@@ -94,6 +94,9 @@ internal struct InspectorView: View {
         case VelviaModule.opName: return String(localized: "history_velvia")
         case ColorZonesModule.opName: return String(localized: "history_colorzones")
         case MonochromeModule.opName: return String(localized: "history_monochrome")
+        // Plan 05-06-T5: nlmeans (05-03 precedent — a new op must land with
+        // its zh display name the same round, not the raw opName fallback).
+        case NLMeansModule.opName: return String(localized: "history_nlmeans")
         default: return opName
         }
     }

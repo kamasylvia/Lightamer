@@ -369,6 +369,58 @@ final class GeometryGoldenTests: XCTestCase {
         )
     }
 
+    /// Plan 05-06-T5 track B: nlmeans inserted ENABLED (strength 0 — on
+    /// neutral flats dist=0 → w=1 → out = neighborhood mean = in; the
+    /// LabMath a=b=0 neutral anchoring survives the in-module Lab round
+    /// trip). Gray patches stay neutral AND at level (the Lab 往返中性度
+    /// criterion the plan names), with the module LIVE in the chain —
+    /// stronger than the disabled-piece pass-through the seed gives.
+    func testTrackBNeutralityWithNLMeansInserted() async throws {
+        let metal = try await makeMetal()
+        let url = try Fixtures.neutralTarget()
+        let decoder = RAWDecoder()
+        let image = try await decoder.decode(url)
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        var chain = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .displayP3
+        )
+        let made = await registry.makeBox(opName: NLMeansModule.opName)
+        let box = try XCTUnwrap(made as? ModuleBox<NLMeansModule>)
+        await box.setParams(NLMeansModule.Params(strength: 0))
+        box.enabled = true
+        chain.append(box)
+        let (texture, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal,
+            longEdge: nil
+        )
+        drain(metal)
+        let rgb = readRGB8(texture)
+        let (w, h) = (texture.width, texture.height)
+
+        var failures: [String] = []
+        func srgbEncode(_ c: Double) -> Double {
+            c <= 0.04045 ? c / 12.92 : 1.055 * pow(c, 1.0 / 2.4) - 0.055
+        }
+        for patch in Fixtures.neutralPatches {
+            let s = sample3x3(rgb, width: w, height: h, x: patch.x, y: patch.y)
+            let rg = abs(s.r - s.g), gb = abs(s.g - s.b)
+            if rg >= 2 || gb >= 2 {
+                failures.append("\(patch.name): |R−G|=\(rg) |G−B|=\(gb)")
+            }
+            let want = srgbEncode(patch.expectedLinearRec2020.0) * 255.0
+            if abs((s.r + s.g + s.b) / 3 - want) > 2 {
+                failures.append("\(patch.name): level \((s.r + s.g + s.b) / 3) vs ≈\(want)")
+            }
+        }
+        XCTAssertTrue(
+            failures.isEmpty,
+            "track B (nlmeans inserted, strength 0) FAILED:\n"
+                + failures.joined(separator: "\n")
+        )
+    }
+
     // MARK: - Helpers (GoldenParityTests track-B shape)
 
     /// The default chain with crop (FULL-frame = identity window) + flip

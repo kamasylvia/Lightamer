@@ -205,6 +205,129 @@ final class PreviewChainPerfTests: XCTestCase {
         XCTAssertLessThan(Double(delta), 3.0 * 1024 * 1024 * 1024, "D-C1 FULL budget")
     }
 
+    /// Plan 05-06 SC#4 拖动门首测（nlmeans 链）：PREVIEW 桶全链（含
+    /// nlmeans 启用）拖动帧型 per-frame 时间 + 引擎级 满血(481 趟) vs
+    /// 降载(57 趟) 两档同平面尺寸对照。降载路径命中 = 帧走 piece.pipeType
+    /// == .preview 派生（K clamp 3 + decimate，单元 pin 见
+    /// NLMeansParityTests.testPreviewDowngradeDerivations）+ 两档时间差。
+    func testNLMeansPreviewDowngradeTiers() async throws {
+        let metal = try await makeMetal()
+        try await metal.registerDefaultLibrary(in: NLMeansKernel.metalBundle)
+        let image = try makeSynthetic()
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        await metal.prewarmPipelineStates(
+            functionNames: LightamerIOPRegistry.prewarmFunctionNames)
+
+        // ① PREVIEW 全链 + nlmeans（拖动帧型：params tick per frame）。
+        var chain: [any ModuleBoxing] = []
+        let colorin = await registry.makeBox(opName: ColorInModule.opName)
+        chain.append(try XCTUnwrap(colorin))
+        for record in LightamerIOPRegistry.editingDefaultInstances() {
+            let maybeBox = await registry.makeBox(opName: record.opName, instanceID: record.id)
+            let box = try XCTUnwrap(maybeBox)
+            try await box.apply(record)
+            chain.append(box)
+        }
+        let nlMade = await registry.makeBox(opName: NLMeansModule.opName)
+        let nlBox = try XCTUnwrap(nlMade as? ModuleBox<NLMeansModule>)
+        await nlBox.setParams(NLMeansModule.Params())
+        nlBox.enabled = true
+        chain.append(nlBox)
+
+        let imageID = UUID()
+        let cache = PipeCache()
+        var tick = 0.001
+        func frame() async throws -> Double {
+            if let exposure = chain.first(where: { $0.opName == "exposure" })
+                as? ModuleBox<ExposureModule> {
+                await exposure.setParams(.init(exposure: Float(tick)))
+                tick += 0.001
+            }
+            let clock = ContinuousClock()
+            let start = clock.now
+            _ = try await RenderPipeline.process(
+                image: image, instances: chain, imageID: imageID,
+                resolution: .preview, cache: cache, metal: metal, longEdge: 2560)
+            drain(metal)
+            let elapsed = clock.now - start
+            return Double(elapsed.components.attoseconds) / 1e18 * 1000.0
+        }
+        for _ in 0..<3 { _ = try await frame() } // warm-up
+        var timings: [Double] = []
+        for _ in 0..<8 { timings.append(try await frame()) }
+        let sorted = timings.sorted()
+        let previewMedian = sorted[sorted.count / 2]
+        print(String(
+            format: "PERF5 nlmeans PREVIEW chain (2048×1536, downgrade K=3+decimate): median %.1f ms — %@",
+            previewMedian, timings.map { String(format: "%.1f", $0) }.joined(separator: ", ")))
+
+        // ② 引擎级两档（同 2048×1536 平面，跳过管线其余）：降载 vs 满血。
+        let input = try await decodeToTexture(image, metal: metal)
+        func engineTier(pipeType: PipeResolution) async throws -> Double {
+            let output = try makeOutputTexture(metal, width: input.width, height: input.height)
+            let scratch = try makeEngineScratch(metal, width: input.width, height: input.height)
+            let clock = ContinuousClock()
+            let start = clock.now
+            try await NLMeansModule.denoise(
+                input: input, output: output,
+                radius: 2, strength: 50, luma: 0.5, chroma: 1,
+                roiScale: 1, iscale: 1, pipeType: pipeType, metal: metal, scratch: scratch)
+            drain(metal)
+            let elapsed = clock.now - start
+            return Double(elapsed.components.attoseconds) / 1e18 * 1000.0
+        }
+        _ = try await engineTier(pipeType: .preview) // PSO warm
+        var down: [Double] = []
+        var full: [Double] = []
+        for _ in 0..<3 { down.append(try await engineTier(pipeType: .preview)) }
+        for _ in 0..<3 { full.append(try await engineTier(pipeType: .full)) }
+        let downMedian = down.sorted()[1]
+        let fullMedian = full.sorted()[1]
+        let passesDown = NLMeansModule.offsets(K: 3, decimate: true).count * 4 + 1
+        let passesFull = NLMeansModule.offsets(K: 7, decimate: false).count * 4 + 1
+        print(String(
+            format: "PERF5 nlmeans engine 2048×1536: downgraded(%d passes) %.1f ms, full(%d passes) %.1f ms, ratio %.1fx",
+            passesDown, downMedian, passesFull, fullMedian, fullMedian / max(downMedian, 0.001)))
+        // 降载路径命中的时间证据：满血应显著慢于降载（同平面）。
+        XCTAssertGreaterThan(fullMedian, downMedian, "满血必须慢于降载（K=7 vs K=3+decimate）")
+        XCTAssertGreaterThan(passesFull, passesDown)
+        // 记录不设门（SC#4 正式门在 05-08 签核；Debug 噪声大）。
+        #if DEBUG
+        XCTAssertLessThan(previewMedian, 2000, "Debug pathological bound")
+        #else
+        XCTAssertLessThan(previewMedian, 500, "Release regression bound")
+        #endif
+    }
+
+    private func decodeToTexture(_ image: DecodedImage, metal: MetalContext) async throws -> any MTLTexture {
+        let (texture, _) = try await RenderPipeline.process(
+            image: image, instances: [], imageID: UUID(),
+            resolution: .full, cache: PipeCache(), metal: metal, longEdge: nil)
+        return texture
+    }
+
+    private func makeOutputTexture(_ metal: MetalContext, width: Int, height: Int) throws -> any MTLTexture {
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: WorkingSpace.pixelFormat, width: width, height: height, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        return try XCTUnwrap(metal.device.makeTexture(descriptor: d))
+    }
+
+    private func makeEngineScratch(_ metal: MetalContext, width: Int, height: Int) throws -> NLMeansModule.Scratch {
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: WorkingSpace.pixelFormat, width: width, height: height, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        let planeBytes = width * height * MemoryLayout<Float>.size
+        return NLMeansModule.Scratch(
+            lab: try XCTUnwrap(metal.device.makeTexture(descriptor: d)),
+            u2: try XCTUnwrap(metal.device.makeBuffer(length: width * height * 16, options: .storageModeShared)),
+            buckets: try XCTUnwrap(metal.device.makeBuffer(length: planeBytes * 4, options: .storageModeShared)),
+            planeBytes: planeBytes)
+    }
+
     private func mach_footprint() -> UInt64 {
         var info = task_vm_info_data_t()
         var count = mach_msg_type_number_t(
