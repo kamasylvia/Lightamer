@@ -232,3 +232,131 @@ public enum BlendOpReference {
         return JzCzhz.toRGB(SIMD3(jb.x, ja.y * (1.0 - op) + jb.y * op, h))
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ParametricReference (Plan 06-04 T1) — the float64 reference of the
+// blendif parametric mask + the mask tone curve, written BEFORE/ALONGSIDE
+// the kernels (the 6-2 three-party-gate pattern). Every function is the
+// transliteration of one dt formula with its source line cited:
+//   - factor        = blendif_rgb_jzczhz.c:64-94 `_blendif_compute_factor`
+//                     (the blendop.cl:386-412 inline trapezoid, same math)
+//   - blendifFactor = blendop.cl:329-408 `blendif_factor_rgb_jzczhz`
+//   - maskPixel     = blendop.cl:1131-1145 `blendop_mask_rgb_jzczhz` body
+//   - toneCurve     = blendop.cl:1309-1449 `blendop_mask_tone_curve`
+// The channel scaling (luma / JzCzhz) rides the SAME-SOURCE float64 chain
+// (JzAzBz.swift) — the kernel's duplicated MSL constants are pinned
+// against THIS by ParametricMaskParityTests.
+// ─────────────────────────────────────────────────────────────────────────────
+public enum ParametricReference {
+
+    /// dt blend.h:120-176 — slot ids and masks (mirror of the MSL block).
+    public static let rgbMask: Int = 0x77FF
+    public static let maxSlot = 14
+
+    /// The Rec2020 luminance row (dt `get_rgb_matrix_luminance` with the
+    /// work profile = the Y row of the same Rec2020→XYZ matrix the Jz
+    /// chain uses — SAME-SOURCE constants).
+    public static let lumaRow = SIMD3<Double>(0.262700, 0.678009, 0.059291)
+
+    /// The scaled channel table (blendop.cl:336-364): 15 slots, gray/luma +
+    /// RGB always, JzCzhz only when the high slots participate.
+    public static func scaledChannels(
+        _ a: SIMD3<Double>, _ b: SIMD3<Double>, blendif: UInt32
+    ) -> [Double] {
+        var scaled = [Double](repeating: 0, count: maxSlot + 1)
+        scaled[0] = dot(lumaRow, a) // GRAY_in
+        scaled[4] = dot(lumaRow, b) // GRAY_out
+        scaled[1] = a.x; scaled[2] = a.y; scaled[3] = a.z
+        scaled[5] = b.x; scaled[6] = b.y; scaled[7] = b.z
+        if blendif & 0x7f00 != 0 {
+            let jchIn = JzCzhz.fromRGB(a)
+            let jchOut = JzCzhz.fromRGB(b)
+            scaled[8] = jchIn.x   // Jz_in
+            scaled[9] = jchIn.y   // Cz_in
+            scaled[10] = jchIn.z  // hz_in
+            scaled[12] = jchOut.x // Jz_out
+            scaled[13] = jchOut.y // Cz_out
+            scaled[14] = jchOut.z // hz_out
+        }
+        return scaled
+    }
+
+    /// The pointwise trapezoid (blendop.cl:386-412 — no inversion inside).
+    public static func factor(_ value: Double, _ p: [Double]) -> Double {
+        if value <= p[0] {
+            return 0
+        } else if value < p[1] {
+            return (value - p[0]) * p[4]
+        } else if value <= p[2] {
+            return 1
+        } else if value < p[3] {
+            return 1 - (value - p[2]) * p[5]
+        }
+        return 0
+    }
+
+    /// `blendif_factor_rgb_jzczhz` (blendop.cl:329-408) in Double.
+    /// `combineINCL` = dt DEVELOP_COMBINE_INCL.
+    public static func blendifFactor(
+        _ a: SIMD3<Double>, _ b: SIMD3<Double>, blendif: UInt32,
+        parameters: [Double], combineINCL: Bool = false
+    ) -> Double {
+        let scaled = scaledChannels(a, b, blendif: blendif)
+        let combineFlags: UInt32 = combineINCL ? 0x02 : 0
+        let invertMask = (blendif >> 16)
+            ^ (combineFlags & 0x02 != 0 ? UInt32(rgbMask) : 0)
+        var result = 1.0
+        for ch in 0...maxSlot where Int(rgbMask) & (1 << ch) != 0 {
+            var factor: Double
+            if blendif & (1 << UInt32(ch)) == 0 {
+                factor = 1
+            } else if result <= 0.000001 {
+                break
+            } else {
+                let base = 6 * ch
+                factor = Self.factor(scaled[ch], Array(parameters[base..<base + 6]))
+            }
+            result *= invertMask & (1 << UInt32(ch)) != 0 ? 1 - factor : factor
+        }
+        return combineINCL ? 1 - result : result
+    }
+
+    /// `blendop_mask_rgb_jzczhz` body (blendop.cl:1131-1145): the effective
+    /// mask value for one pixel — gopacity · opacity.
+    /// `form` = the drawn/form plane value (1 when no form plane).
+    /// `combineINV` = dt DEVELOP_COMBINE_INV (the mask-level invert).
+    public static func maskPixel(
+        _ a: SIMD3<Double>, _ b: SIMD3<Double>, form: Double,
+        blendif: UInt32, parameters: [Double],
+        combineINCL: Bool = false, combineINV: Bool = false,
+        gopacity: Double
+    ) -> Double {
+        let conditional = blendifFactor(
+            a, b, blendif: blendif, parameters: parameters, combineINCL: combineINCL)
+        var opacity = combineINCL
+            ? 1 - (1 - form) * (1 - conditional)
+            : form * conditional
+        if combineINV { opacity = 1 - opacity }
+        return gopacity * opacity
+    }
+
+    /// `blendop_mask_tone_curve` (blendop.cl:1309-1449) in Double.
+    public static func toneCurve(
+        _ opacity: Double, e: Double, brightness: Double, gopacity: Double
+    ) -> Double {
+        let maskEpsilon = 16.0 * Double.ulpOfOne
+        var scaled = 2.0 * opacity / gopacity - 1.0
+        if 1 - brightness <= 0 {
+            scaled = opacity <= maskEpsilon ? -1 : 1
+        } else if 1 + brightness <= 0 {
+            scaled = opacity >= 1 - maskEpsilon ? 1 : -1
+        } else if brightness > 0 {
+            scaled = min((scaled + brightness) / (1 - brightness), 1)
+        } else {
+            scaled = max((scaled + brightness) / (1 + brightness), -1)
+        }
+        let cval = 0.5 * (scaled * e / (1 + (e - 1) * abs(scaled))) + 0.5
+        let mval = cval > 1e-6 ? cval : 0.0
+        return min(max(mval, 0), 1) * gopacity
+    }
+}
