@@ -29,6 +29,18 @@
 // |       |                                      |                | **NOT** a PS color dodge. True PS dodge/burn arrive later as NEW raw  |
 // |       |                                      |                | values (W3C Compositing-1, 6-2); case renamed from `colorDodge`.      |
 // | 0x17  | DEVELOP_BLEND_DIFFERENCE2 (:69)      | difference     | dt DIFFERENCE2 (the modern difference; 0x08 is the deprecated one)    |
+// | 0x02  | DEVELOP_BLEND_LIGHTEN (:48)          | lighten        | dt lighten — max(a,b) mix (added 06-02-T4; the Lab kernel's L-chroma  |
+// |       |                                      |                | legs are Lab-specific and do not transpose to linear Rec2020)         |
+// | 0x03  | DEVELOP_BLEND_DARKEN (:49)           | darken         | dt darken — min(a,b) mix (added 06-02-T4)                             |
+// | 0x2A  | — (OUTSIDE dt's enum; free slot      | psColorDodge   | W3C Compositing-1 §color-dodge (added 06-02-T4). dt has no PS dodge;  |
+// |       | audited against blend.h:44-91)       |                | the slot value 0x2A is beyond dt's 0x29 HARMONIC_MEAN — a sidecar     |
+// |       |                                      |                | carrying it into dt would blend as normal there (documented loss)     |
+// | 0x2B  | — (OUTSIDE dt's enum; free slot)     | psColorBurn    | W3C Compositing-1 §color-burn (added 06-02-T4)                        |
+//
+// FORMULA LANDMARK (06-02 complete): every case above now HAS its formula —
+// the float64 source of truth is `BlendOpReference.swift` (IOP), the kernel
+// `BlendOpKernels.metal` (compositeLayer), gated <1e-5 rel (arithmetic) /
+// measured pow-chain floor (perceptual) by BlendOpParityTests.
 //
 // WHY values are not renumbered (D-06-CONTEXT-2, four reasons):
 // 1. sidecar ONE-WAY format lock — raw values ride every `.lra` since
@@ -104,6 +116,17 @@ public enum BlendMode: Int, Sendable, Codable, CaseIterable {
     case colorAdjust = 0x16
     /// `DEVELOP_BLEND_DIFFERENCE2`
     case difference = 0x17
+    /// `DEVELOP_BLEND_LIGHTEN` (06-02-T4) — max(a,b) mix.
+    case lighten = 0x02
+    /// `DEVELOP_BLEND_DARKEN` (06-02-T4) — min(a,b) mix.
+    case darken = 0x03
+    /// PS color dodge (06-02-T4) — NEW raw value 0x2A, OUTSIDE dt's enum
+    /// (free-slot audit against blend.h:44-91: dt tops out at 0x29). The
+    /// formula is W3C Compositing-1; a document carrying this value into
+    /// dt would blend as normal there (documented one-way loss).
+    case psColorDodge = 0x2A
+    /// PS color burn (06-02-T4) — NEW raw value 0x2B, same audit story.
+    case psColorBurn = 0x2B
 
     /// The dt `DEVELOP_BLEND_MODE_MASK = 0xFF` (blend.h:90) projection —
     /// the mode slot of a dt-style packed value with flag bits stripped.

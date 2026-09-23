@@ -399,6 +399,7 @@ final class BlendOpParityTests: XCTestCase {
         let modes: [BlendMode] = [
             .normal, .multiply, .linearBurn, .screen,
             .overlay, .softLight, .hardLight, .difference,
+            .lighten, .darken, .psColorDodge, .psColorBurn,
         ]
         let opacities: [Float] = [0.25, 0.6, 1.0]
 
@@ -736,5 +737,69 @@ final class BlendOpParityTests: XCTestCase {
                     circ, 5e-5, "sweep x=\(x): hz must reach hz_b (dev \(circ))")
             }
         }
+    }
+
+    // ── T4: REVERSE consumption + enum orthogonality ──
+    // ──────────────────────────────────────────────────────────────────
+
+    /// REVERSE (blend.h:89) at the engine level, byte-exact: swapping the
+    /// flag must equal swapping the PLANES for every arithmetic mode at the
+    /// same opacity (the kernel swaps a/b BEFORE the mode dispatch — the dt
+    /// pointer-swap semantics).
+    func testReverseEqualsPlaneSwap() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let below = try makePlane(8, 6, metal: metal, pixel: Self.fixturePixel)
+        let layer = try makePlane(8, 6, metal: metal, pixel: Self.layerPixel)
+        let modes: [BlendMode] = [
+            .normal, .multiply, .linearBurn, .screen, .lighten, .darken,
+        ]
+        for mode in modes {
+            let reversed = try await BlendOpEngine.composite(
+                below: below, layer: layer, mask: nil, opacity: 0.6,
+                blendMode: mode, reverse: true, metal: metal)
+            let swapped = try await BlendOpEngine.composite(
+                below: layer, layer: below, mask: nil, opacity: 0.6,
+                blendMode: mode, reverse: false, metal: metal)
+            XCTAssertEqual(
+                readPlane(reversed, metal: metal),
+                readPlane(swapped, metal: metal),
+                "\(mode): REVERSE flag == a/b plane swap (byte-exact)")
+        }
+        // The plan's canonical assertion: REVERSE(normal, op=1) == the BELOW
+        // plane — the layer's output becomes the base.
+        let reversedNormal = try await BlendOpEngine.composite(
+            below: below, layer: layer, mask: nil, opacity: 1.0,
+            blendMode: .normal, reverse: true, metal: metal)
+        XCTAssertEqual(
+            readPlane(reversedNormal, metal: metal),
+            readPlane(below, metal: metal),
+            "REVERSE(normal, op=1) == below (byte-exact)")
+    }
+
+    /// Enum/flag orthogonality: BlendOptions rides BESIDE the mode — no
+    /// BlendMode raw value carries flag bits, and the dtModeSlot projection
+    /// of every case equals its own raw value (nothing to strip).
+    func testBlendModeOrthogonality() {
+        for mode in BlendMode.allCases {
+            XCTAssertLessThan(
+                mode.rawValue, 0x8000_0000,
+                "\(mode): raw values must stay below the REVERSE bit")
+            XCTAssertEqual(
+                mode.dtModeSlot, UInt32(mode.rawValue),
+                "\(mode): dtModeSlot projection must be the mode itself")
+        }
+        // The new raw values sit OUTSIDE dt's occupied slots (blend.h:44-91
+        // tops out at 0x29) and inside the 0xFF mask.
+        XCTAssertEqual(BlendMode.psColorDodge.rawValue, 0x2A)
+        XCTAssertEqual(BlendMode.psColorBurn.rawValue, 0x2B)
+        XCTAssertGreaterThan(BlendMode.psColorBurn.dtModeSlot, 0x29)
+        // Sidecar decode regression pin: the 13 Phase-1 frozen values are
+        // untouched by the 06-02 additions (LayerCoreTests owns the JSON
+        // round trip; this pins the slot table itself).
+        XCTAssertEqual(BlendMode(rawValue: 0x01), .normal)
+        XCTAssertEqual(BlendMode(rawValue: 0x16), .colorAdjust)
+        XCTAssertEqual(BlendMode(rawValue: 0x17), .difference)
+        XCTAssertNil(BlendMode(rawValue: 0x18), "0x18 stays unclaimed")
     }
 }

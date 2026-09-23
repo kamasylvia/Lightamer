@@ -61,6 +61,8 @@ public enum BlendOpReference {
         let (a, b) = reverse ? (b, a) : (a, b)
         switch mode {
         case .normal: return normal(a, b, opacity)
+        case .lighten: return lighten(a, b, opacity)
+        case .darken: return darken(a, b, opacity)
         case .multiply: return multiply(a, b, opacity, p)
         case .linearBurn: return linearBurn(a, b, opacity)
         case .screen: return screen(a, b, opacity)
@@ -68,6 +70,8 @@ public enum BlendOpReference {
         case .softLight: return softLight(a, b, opacity)
         case .hardLight: return hardLight(a, b, opacity)
         case .difference: return difference(a, b, opacity)
+        case .psColorDodge: return psColorDodge(a, b, opacity)
+        case .psColorBurn: return psColorBurn(a, b, opacity)
         case .luminosity: return luminosity(a, b, opacity)
         case .saturation: return saturation(a, b, opacity)
         case .hue: return hue(a, b, opacity)
