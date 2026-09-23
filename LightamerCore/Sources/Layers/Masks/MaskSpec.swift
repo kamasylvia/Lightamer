@@ -234,23 +234,55 @@ public struct DrawnMaskSpec: Codable, Sendable, Equatable, Hashable {
     }
 }
 
-/// The per-layer mask record (06-01 shell + 06-03 drawn payload).
+/// The per-layer mask record (06-01 shell + 06-03 drawn payload + the
+/// 06-04 parametric/raster payloads).
 public struct MaskSpec: Codable, Sendable, Equatable, Hashable {
 
     /// Form version (NDE-3) — 1 until a payload shape migrates.
     public var version: Int
 
-    /// The drawn payload (06-03; nil = no drawn mask). The 6-4
-    /// parametric/raster payloads freeze as additional optional fields.
+    /// The drawn payload (06-03; nil = no drawn mask).
     public var drawn: DrawnMaskSpec?
 
-    public init(version: Int = 1, drawn: DrawnMaskSpec? = nil) {
+    /// The parametric payload (06-04 additive optional — decodeIfPresent;
+    /// documents written before 06-04 decode with nil, ONE-WAY rule).
+    public var parametric: ParametricMask?
+
+    /// The raster payload (06-04 additive optional — a sidecar PNG
+    /// reference; pixels never enter this JSON, 06-RESEARCH §6).
+    public var raster: RasterMaskRef?
+
+    public init(
+        version: Int = 1,
+        drawn: DrawnMaskSpec? = nil,
+        parametric: ParametricMask? = nil,
+        raster: RasterMaskRef? = nil
+    ) {
         self.version = version
         self.drawn = drawn
+        self.parametric = parametric
+        self.raster = raster
     }
 
     /// True when the spec carries rasterizable drawn content.
     public var hasDrawnForms: Bool { !(drawn?.forms.isEmpty ?? true) }
+
+    /// True when the spec carries a drawn GROUP with items (the 06-04
+    /// combine path; a group-less spec rides the 06-03 single-form path).
+    public var hasDrawnGroup: Bool {
+        guard let items = drawn?.group?.items else { return false }
+        return !items.isEmpty
+    }
+
+    /// True when the parametric payload has any active channel.
+    public var hasParametric: Bool { parametric?.hasActiveChannels ?? false }
+
+    /// True when a raster reference is present.
+    public var hasRaster: Bool { raster != nil }
+
+    /// True when ANY mask payload is present (the mask-plane cache key
+    /// participates only when this holds).
+    public var hasAnyPayload: Bool { hasDrawnForms || hasParametric || hasRaster }
 
     /// The mask identity hash (L013 discipline): canonical (sortedKeys)
     /// JSON of the whole spec folded through StableHash — the ONLY legal
@@ -258,7 +290,9 @@ public struct MaskSpec: Codable, Sendable, Equatable, Hashable {
     /// `maskPosition`, upstream hash slot) and folds into the composite
     /// prefix hash; it is DERIVED, never persisted. Equal specs → equal
     /// hashes across processes and machines (FNV-1a 64 over sorted-keys
-    /// bytes — no keyed-container order dependence).
+    /// bytes — no keyed-container order dependence). Additive-optional
+    /// fields encode with `encodeIfPresent`, so pre-06-04 specs hash to
+    /// the SAME bytes as before (06-03 documents keep their cache keys).
     public func stableHash() -> UInt64 {
         StableHash.hash(ParamsCoding.encode(self))
     }

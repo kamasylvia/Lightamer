@@ -23,11 +23,13 @@ import Foundation
 // never serialized — LAYER-01 keeps it always-present by construction).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// The persisted mask record — the 06-01 shell + the 06-03 DRAWN payload
-/// (optional additive field, non-destructive decodeIfPresent: documents
-/// written before 06-03 carry no `drawn` and decode with nil). The 6-4
-/// parametric/raster payloads freeze the same way. The mask identity hash
-/// is DERIVED (`MaskSpec.stableHash()`), never persisted.
+/// The persisted mask record — the 06-01 shell + the 06-03 DRAWN payload +
+/// the 06-04 PARAMETRIC/RASTER payloads (optional additive fields,
+/// non-destructive decodeIfPresent: documents written before 06-03/06-04
+/// decode with nil for the absent payloads). The mask identity hash is
+/// DERIVED (`MaskSpec.stableHash()`), never persisted; the RASTER
+/// reference's own `maskHash` (PNG integrity) IS persisted as a
+/// decimal String (the UInt64 lock #2).
 public struct SidecarMaskSpec: Codable, Sendable, Equatable {
 
     public var version: Int
@@ -36,20 +38,37 @@ public struct SidecarMaskSpec: Codable, Sendable, Equatable {
     /// (frozen spelling: `MaskSpec`'s drawn payload verbatim).
     public var drawn: DrawnMaskSpec?
 
-    public init(version: Int = 1, drawn: DrawnMaskSpec? = nil) {
+    /// 06-04 additive optional — the parametric (blendif) payload
+    /// (frozen spelling: `ParametricMask` verbatim).
+    public var parametric: ParametricMask?
+
+    /// 06-04 additive optional — the raster PNG reference (pixels never
+    /// enter this JSON, 06-RESEARCH §6).
+    public var raster: RasterMaskRef?
+
+    public init(
+        version: Int = 1,
+        drawn: DrawnMaskSpec? = nil,
+        parametric: ParametricMask? = nil,
+        raster: RasterMaskRef? = nil
+    ) {
         self.version = version
         self.drawn = drawn
+        self.parametric = parametric
+        self.raster = raster
     }
 
     /// Capture from the runtime record (identity verbatim).
     public init(_ spec: MaskSpec) {
         version = spec.version
         drawn = spec.drawn
+        parametric = spec.parametric
+        raster = spec.raster
     }
 
     /// Restore the runtime record.
     var spec: MaskSpec {
-        MaskSpec(version: version, drawn: drawn)
+        MaskSpec(version: version, drawn: drawn, parametric: parametric, raster: raster)
     }
 }
 
