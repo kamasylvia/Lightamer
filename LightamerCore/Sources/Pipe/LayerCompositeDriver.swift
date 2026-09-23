@@ -112,9 +112,9 @@ enum LayerCompositeDriver {
     /// degenerate `layer_composite_normal` pass is RETIRED, plan 06-02 T2.3).
     internal static let compositeKernel = "compositeLayer"
 
-    /// The 6-1 mask-version placeholder (constant — masks render in 6-3;
-    /// the real StableHash folding lands with the mask payload, L013).
-    internal static let maskVersionPlaceholder: UInt64 = 0
+    /// The 6-1 mask-version placeholder is RETIRED (plan 06-03 T6): the
+    /// real `MaskSpec.stableHash()` folds through `blendTripleHash` and
+    /// keys the mask plane at `maskPosition`.
 
     /// The testable face of the D-06-CONTEXT-5 geometry rejection: returns
     /// the offending op name, or nil when the (effective) chain is legal.
@@ -134,18 +134,20 @@ enum LayerCompositeDriver {
         return withUnsafeBytes(of: &v) { StableHash.combine(seed, $0) }
     }
 
-    /// The blend triple (opacity, blend mode, option flags, mask version) —
-    /// folded into every composite-prefix key so a blend-attribute edit
-    /// invalidates exactly the prefixes at and above that layer without
-    /// touching any chain hash.
+    /// The blend triple (opacity, blend mode, option flags, MASK VERSION) —
+    /// folded into every composite-prefix key so a blend-attribute OR MASK
+    /// edit invalidates exactly the prefixes at and above that layer
+    /// without touching any chain hash (the maskVersion ⊥ chainHash
+    /// independence, plan 06-03 T6 / METAL-8 double insurance).
     internal static func blendTripleHash(
-        opacity: Float, blendMode: BlendMode, blendOptions: BlendOptions
+        opacity: Float, blendMode: BlendMode, blendOptions: BlendOptions,
+        maskHash: UInt64 = 0
     ) -> UInt64 {
         var h = StableHash.fnvOffsetBasis
         h = fold(h, UInt64(bitPattern: Int64(opacity.bitPattern)))
         h = fold(h, UInt64(bitPattern: Int64(blendMode.rawValue)))
         h = fold(h, UInt64(blendOptions.rawValue))
-        h = fold(h, maskVersionPlaceholder)
+        h = fold(h, maskHash)
         return h
     }
 
@@ -267,10 +269,13 @@ enum LayerCompositeDriver {
             }
 
             // Degenerate blend: C_k = C_prev·(1−op) + L_k·op. The prefix
-            // key folds chain ⊕ blend-triple ⊕ (placeholder) mask hash.
+            // key folds chain ⊕ blend-triple ⊕ (REAL) mask-version hash —
+            // a mask edit flips ONLY the prefix + the mask plane while the
+            // layer's chain planes stay cached (T6 incremental semantics).
+            let maskHash = layer.mask?.stableHash() ?? 0
             let tripleHash = blendTripleHash(
                 opacity: layer.opacity, blendMode: layer.blendMode,
-                blendOptions: layer.blendOptions)
+                blendOptions: layer.blendOptions, maskHash: maskHash)
             let chainHash = layerPipe.levelHash.last ?? basePipe.decodeParamsHash
             prefixHash = fold(fold(prefixHash, chainHash), tripleHash)
             let prefixKey = PipeCacheKey(
@@ -278,6 +283,22 @@ enum LayerCompositeDriver {
                 position: PipeCacheKey.compositePosition,
                 upstreamHash: prefixHash, roi: window, layerID: layer.id)
             let planeBytes = window.width * window.height * WorkingSpace.bytesPerPixel
+
+            // ── The MASK leg (plan 06-03 T6; D-06-02-T5-3 pre-multiplied
+            // contract): drawn masks rasterize (or fetch) through the mask
+            // plane cache; nil = the constant-1 uniform path.
+            var maskPlane: (any MTLTexture)?
+            if let mask = layer.mask, mask.hasDrawnForms {
+                let mapper = GeometryPointMapper.compose(
+                    boxes: baseChain,
+                    frameSize: SIMD2(
+                        Double(basePipe.frameROI.width),
+                        Double(basePipe.frameROI.height)))
+                maskPlane = try await DrawnMaskRasterizer.plane(
+                    spec: mask, layerOpacity: max(0, min(1, layer.opacity)),
+                    window: window, mapper: mapper, metal: metal, cache: cache,
+                    imageID: imageID, pipeType: resolution, layerID: layer.id).plane
+            }
 
             var prefixHit = false
             let statsBefore = await cache.stats
@@ -287,11 +308,13 @@ enum LayerCompositeDriver {
                 // planes are built once and read-only inside the closure).
                 let belowBox = TextureBox(texture: accumulator)
                 let topBox = TextureBox(texture: layerPlane)
+                let maskBox = maskPlane.map { TextureBox(texture: $0) }
+                let hasMask = maskPlane != nil
                 let cached = try await cache.plane(for: prefixKey, byteCount: planeBytes) {
-                    [belowBox, topBox, layer] in
+                    [belowBox, topBox, maskBox, layer] in
                     try await Self.blend(
                         below: belowBox.texture, top: topBox.texture,
-                        layer: layer, metal: metal)
+                        mask: maskBox?.texture, layer: layer, metal: metal)
                 }
                 blended = cached.texture
                 let delta = (await cache.stats) - statsBefore
@@ -303,7 +326,8 @@ enum LayerCompositeDriver {
                 // The no-prefix policy (a future FULL variant): compute
                 // without caching.
                 blended = try await Self.blend(
-                    below: accumulator, top: layerPlane, layer: layer, metal: metal)
+                    below: accumulator, top: layerPlane, mask: maskPlane,
+                    layer: layer, metal: metal)
                 blendPasses += 1
             }
             accumulator = blended
@@ -341,12 +365,14 @@ enum LayerCompositeDriver {
     }
 
     /// One blendop composite pass into a fresh plane — the FULL mode table
-    /// (mask × blend × opacity triple, plan 06-02 T2). The mask leg arrives
-    /// with 6-3's rasterized planes; until then the uniform path (the
-    /// `blendop_set_mask` equivalence) is used.
+    /// (mask × blend × opacity triple, plan 06-02 T2). `mask` = the
+    /// pre-multiplied effective-opacity plane from the 06-03 rasterizer
+    /// (red channel consumed directly, D-06-02-T5-3); nil = the uniform
+    /// path (`blendop_set_mask` equivalence, the constant-1 leg).
     private static func blend(
         below: any MTLTexture,
         top: any MTLTexture,
+        mask: (any MTLTexture)?,
         layer: AdjustmentLayer,
         metal: MetalContext
     ) async throws -> any MTLTexture {
@@ -365,11 +391,11 @@ enum LayerCompositeDriver {
             opacity: max(0, min(1, layer.opacity)),
             blendMode: layer.blendMode,
             reverse: layer.blendOptions.contains(.reverse),
-            hasMask: false)
+            hasMask: mask != nil)
         let session = try await metal.makeEncoder(functionName: compositeKernel)
         session.encoder.setTexture(below, index: 0)
         session.encoder.setTexture(top, index: 1)
-        session.encoder.setTexture(nil, index: 2)
+        session.encoder.setTexture(mask, index: 2)
         session.encoder.setTexture(output, index: 3)
         session.encoder.setBytes(&uniforms, length: MemoryLayout<BlendCompositeUniforms>.stride, index: 0)
         let threadsPerGroup = MTLSize(width: 8, height: 8, depth: 1)
