@@ -162,7 +162,7 @@ public final class AshiftModule: IOPModule {
     /// dt `commit_params` GENERIC fold (`:5600-5605`) + neutral predicate
     /// (`_isneutral`); parks the working copy, hashes the RAW params
     /// (D-H4). No uniforms buffer (D2 — per-run setBytes, needs bufIn).
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         committed = params
         piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         piece.data = nil

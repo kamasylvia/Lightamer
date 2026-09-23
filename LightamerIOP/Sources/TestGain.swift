@@ -97,7 +97,7 @@ public final class TestGainModule: IOPModule {
     /// SAME atom the pipe cache keys and the 02-05 history identity hash on.
     /// Also writes the uniforms into `piece.data` (float gain, offset 0,
     /// 16-byte-aligned struct).
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
         committedGain = params.gain

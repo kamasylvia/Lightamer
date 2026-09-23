@@ -70,7 +70,7 @@ final class ToneEqualPerfTests: XCTestCase {
         for record in LightamerIOPRegistry.editingDefaultInstances() {
             let maybeBox = await registry.makeBox(opName: record.opName, instanceID: record.id)
             let box = try XCTUnwrap(maybeBox)
-            try await box.apply(record)
+            try box.apply(record)
             chain.append(box)
         }
 
@@ -81,7 +81,7 @@ final class ToneEqualPerfTests: XCTestCase {
             // frame is a full-chain cache miss.
             if let exposureBox = chain.first(where: { $0.opName == "exposure" })
                 as? ModuleBox<ExposureModule> {
-                await exposureBox.setParams(.init(exposure: Float(frame) * 0.001))
+                exposureBox.setParams(.init(exposure: Float(frame) * 0.001))
             }
             let clock = ContinuousClock()
             let start = clock.now

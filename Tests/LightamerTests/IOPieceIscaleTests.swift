@@ -32,7 +32,7 @@ final class IOPieceIscaleTests: XCTestCase {
             self.recorder = recorder
         }
         func reloadDefaults(image: DecodedImage) async -> Params { Params(tag: tag) }
-        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+        func commitParams(_ params: Params, into piece: inout IOPiece) {
             piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         }
         func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
@@ -47,7 +47,8 @@ final class IOPieceIscaleTests: XCTestCase {
         ) async throws {
             await recorder.record(
                 tag: tag, iscale: piece.iscale,
-                roiInScale: roiIn.scale, roiOutScale: roiOut.scale)
+                roiInScale: roiIn.scale, roiOutScale: roiOut.scale,
+                pipeType: piece.pipeType)
             guard let commandBuffer = metal.commandQueue.makeCommandBuffer(),
                   let blit = commandBuffer.makeBlitCommandEncoder() else {
                 throw AppError.decodeFailed("IscaleProbe blit: no command buffer")
@@ -70,12 +71,17 @@ final class IOPieceIscaleTests: XCTestCase {
             var iscale: Float
             var roiInScale: Float
             var roiOutScale: Float
+            var pipeType: PipeResolution
         }
         private(set) var entries: [Entry] = []
-        func record(tag: String, iscale: Float, roiInScale: Float, roiOutScale: Float) {
+        func record(
+            tag: String, iscale: Float, roiInScale: Float, roiOutScale: Float,
+            pipeType: PipeResolution
+        ) {
             entries.append(Entry(
                 tag: tag, iscale: iscale,
-                roiInScale: roiInScale, roiOutScale: roiOutScale))
+                roiInScale: roiInScale, roiOutScale: roiOutScale,
+                pipeType: pipeType))
         }
     }
 
@@ -117,7 +123,7 @@ final class IOPieceIscaleTests: XCTestCase {
             let probe = ModuleBox(
                 module: IscaleProbe(tag: "p", recorder: recorder),
                 multiPriority: 0, multiName: "p")
-            await probe.setParams(IscaleProbe.Params(tag: "p"))
+            probe.setParams(IscaleProbe.Params(tag: "p"))
             _ = try await RenderPipeline.process(
                 image: testImage(), instances: [probe], imageID: UUID(),
                 resolution: tier.resolution, cache: PipeCache(), metal: metal,
@@ -142,7 +148,7 @@ final class IOPieceIscaleTests: XCTestCase {
         let probe = ModuleBox(
             module: IscaleProbe(tag: "p", recorder: recorder),
             multiPriority: 0, multiName: "p")
-        await probe.setParams(IscaleProbe.Params(tag: "p"))
+        probe.setParams(IscaleProbe.Params(tag: "p"))
         _ = try await RenderPipeline.process(
             image: testImage(width: 64, height: 64), instances: [probe], imageID: UUID(),
             resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
@@ -165,7 +171,7 @@ final class IOPieceIscaleTests: XCTestCase {
             let probe = ModuleBox(
                 module: IscaleProbe(tag: tag, recorder: recorder),
                 multiPriority: 0, multiName: tag)
-            await probe.setParams(IscaleProbe.Params(tag: tag))
+            probe.setParams(IscaleProbe.Params(tag: tag))
             boxes.append(probe)
         }
         _ = try await RenderPipeline.process(
@@ -192,11 +198,11 @@ final class IOPieceIscaleTests: XCTestCase {
         let metal = try await makeMetal()
         let recorder = IscaleRecorder()
         let toneequal = ModuleBox(module: ToneEqualModule())
-        await toneequal.setParams(ToneEqualModule.Params())
+        toneequal.setParams(ToneEqualModule.Params())
         let probe = ModuleBox(
             module: IscaleProbe(tag: "p", recorder: recorder),
             multiPriority: 0, multiName: "p")
-        await probe.setParams(IscaleProbe.Params(tag: "p"))
+        probe.setParams(IscaleProbe.Params(tag: "p"))
         let image = testImage(width: 256, height: 256)
         _ = try await RenderPipeline.process(
             image: image, instances: [toneequal, probe], imageID: UUID(),
@@ -208,6 +214,42 @@ final class IOPieceIscaleTests: XCTestCase {
         for e in entries {
             compared += 1
             XCTAssertEqual(e.iscale, 1.0, accuracy: 1e-9, "FULL tile 下 iscale 仍 == 整幅值")
+        }
+        XCTAssertGreaterThan(compared, 0)
+    }
+
+    /// 05-06 pipeType stamp（dt `piece->pipe->type` 镜像）：三档 probe
+    /// 收到的 piece.pipeType == 各 run 的 resolution——nlmeans 预览降载
+    /// （K clamp + decimate）的挂点。防空转：compared>0。
+    func testThreeTiersStampPipeType() async throws {
+        let metal = try await makeMetal()
+        struct Tier {
+            var resolution: PipeResolution
+            var longEdge: Int?
+            var label: String
+        }
+        let tiers: [Tier] = [
+            Tier(resolution: .preview, longEdge: 48, label: "PREVIEW@48"),
+            Tier(resolution: .full, longEdge: nil, label: "FULL"),
+            Tier(resolution: .thumbnail, longEdge: nil, label: "THUMBNAIL"),
+        ]
+        var compared = 0
+        for tier in tiers {
+            let recorder = IscaleRecorder()
+            let probe = ModuleBox(
+                module: IscaleProbe(tag: "p", recorder: recorder),
+                multiPriority: 0, multiName: "p")
+            probe.setParams(IscaleProbe.Params(tag: "p"))
+            _ = try await RenderPipeline.process(
+                image: testImage(), instances: [probe], imageID: UUID(),
+                resolution: tier.resolution, cache: PipeCache(), metal: metal,
+                longEdge: tier.longEdge)
+            let entries = await recorder.entries
+            XCTAssertEqual(entries.count, 1, "\(tier.label): probe 执行一次")
+            for e in entries {
+                compared += 1
+                XCTAssertEqual(e.pipeType, tier.resolution, "\(tier.label): pipeType stamp")
+            }
         }
         XCTAssertGreaterThan(compared, 0)
     }

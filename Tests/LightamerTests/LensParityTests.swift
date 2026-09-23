@@ -152,10 +152,10 @@ final class LensParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: LensModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<LensModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [box as any ModuleBoxing, colorinBox]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -365,7 +365,7 @@ final class LensParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let made = await registry.makeBox(opName: LensModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<LensModule>)
-        await box.setParams(LensModule.Params())
+        box.setParams(LensModule.Params())
         let input = ROI(x: 0, y: 0, width: 64, height: 64, scale: 1.0)
         var piece = IOPiece(dscIn: IOPBufferDesc(width: 64, height: 64))
         var o = input
@@ -390,7 +390,7 @@ final class LensParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let made = await registry.makeBox(opName: LensModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<LensModule>)
-        await box.setParams(Self.lensParams(dc2: 0.08))
+        box.setParams(Self.lensParams(dc2: 0.08))
         // Render a sub-window hint: the negotiated upstream plane must
         // COVER the output window (grow-only; never shrink below it).
         let fixtureURL = try requireGolden("fixtures/gradient_ramp.exr")
@@ -398,10 +398,10 @@ final class LensParityTests: XCTestCase {
         let metal = try await makeMetal()
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let lensMade = await registry.makeBox(opName: LensModule.opName)
         let lens = try XCTUnwrap(lensMade as? ModuleBox<LensModule>)
-        await lens.setParams(Self.lensParams(dc2: 0.08))
+        lens.setParams(Self.lensParams(dc2: 0.08))
         let chain = [lens as any ModuleBoxing, colorinBox]
         let hint = ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0)
         let (texture, _) = try await RenderPipeline.process(

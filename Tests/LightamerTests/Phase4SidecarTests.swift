@@ -30,7 +30,7 @@ final class Phase4SidecarTests: XCTestCase {
         let made = await registry.makeBox(opName: record.opName, instanceID: record.id)
         let box = try XCTUnwrap(made, "\(record.opName) must materialize through the real registry")
         XCTAssertEqual(box.instanceID, record.id, "identity-restoring init wired")
-        try await box.apply(record)
+        try box.apply(record)
     }
 
     func testCropSidecarRoundTrip() async throws {

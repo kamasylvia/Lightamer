@@ -40,7 +40,7 @@ Pixel math (both sides): `out.rgb = in.rgb × (red, green, blue)`, alpha untouch
 (`whitebalance_4f` ↔ `temperature_apply`). The Kelvin→gains MODEL diverges by
 design (dt: sensor-domain XYZ_to_CAM; Lightamer: Rec2020-native post-CIRAW
 correction layer, RESEARCH §5) — the Kelvin math is locked by
-CPUDerivationTests against .work/03-02/wb_reference.c instead of golden.
+CPUDerivationTests against .work/plans/03-02/wb_reference.c instead of golden.
 
 ## Cases × params blob hash + golden output sha256
 
@@ -242,6 +242,52 @@ pin the luma+LUT apply semantics exactly).
 | toneequal_none_ramp | `000000000000000000000000000000000000803f00000000000000bf00000000000000000000a040f304b53f0000803f000000000000000000000000000000000400000001000000` | `65b881a8a039cf603df41f27773d1ef771c79eff1df262c7f5a7ae93dd5ca7a3` | ramp_8ev:9c4e6eff8b8b1e03 gray_staircase:ab44039fa0b0be3f flat_0ev:e7788f2262c69022 flat_-4ev:a11fb1ae166ad1d6 saturated:f8660954695334ed deep_shadow:281d2d1d21ddb10b |
 | toneequal_shadow_lift | `00000000000000000000003f000000000000803f000000000000000000000000000000000000a040f304b53f0000803f000000000000000000000000040000000400000001000000` | `da308686114aece727b032e9550cadda282283cd3546b925f4832414262ee4f3` | ramp_8ev:7c6e64f50f93f9e3 gray_staircase:2118cd591ff56a7d flat_0ev:54e132c49f15bfd9 flat_-4ev:eeab3850a5828451 saturated:365a8dcee32f6d03 deep_shadow:419d8813970c5246 |
 
+### colorbalancergb cases (Plan 05-02-T3, synthesized references + XMP adoption; PFM probe BROKEN)
+
+dt blob `<32fi` (132 bytes, dt_iop_colorbalancergb_params_t v5,
+hex-ASCII) ↔ Lightamer `ColorBalanceRGBModule.Params` (JSON):
+
+| dt field (offset) | Lightamer field | note |
+|---|---|---|
+| shadows_Y/C/H (0..12, 3f) | `shadowsY/C/H` | 4-way shadows |
+| midtones_Y/C/H (12..24, 3f) | `midtonesY/C/H` | 4-way midtones |
+| highlights_Y/C/H (24..36, 3f) | `highlightsY/C/H` | 4-way highlights |
+| global_Y/C/H (36..48, 3f) | `globalY/C/H` | 4-way global |
+| shadows_weight (48, f) | `shadowsWeight` | commit ×2+2 → 4.0 |
+| white_fulcrum (52, f) | `whiteFulcrum` | EV; commit exp2 → 1.0 |
+| highlights_weight (56, f) | `highlightsWeight` | commit ×2+2 → 4.0 |
+| chroma_shadows/highlights/global/midtones (60..76, 4f) | `chromaShadows/Highlights/Global/Midtones` | dt struct order (shadows, highlights, global, midtones) — kernel lanes (shadows, midtones, highlights) + global |
+| saturation_global/highlights/midtones/shadows (76..92, 4f) | `saturationGlobal/Highlights/Midtones/Shadows` | dt struct order (global, highlights, midtones, shadows) |
+| hue_angle (92, f) | `hueAngle` | degrees; commit → rad |
+| brilliance_global/highlights/midtones/shadows (96..112, 4f) | `brillianceGlobal/Highlights/Midtones/Shadows` | dt struct order (global, highlights, midtones, shadows) |
+| mask_grey_fulcrum (112, f) | `maskGreyFulcrum` | commit ^0.41 → 0.5 |
+| vibrance (116, f) | `vibrance` | Ych `vib·(1−chroma^|vib|)` |
+| grey_fulcrum (120, f) | `greyFulcrum` | default 0.1845 |
+| contrast (124, f) | `contrast` | commit +1 |
+| saturation_formula (128, i) | `saturationFormula` | 0 JzAzBz / 1 DTUCS (default) |
+
+Track-A references SYNTHESIZED (L017 route — dt-cli float export is
+spatially corrupt on this host for varying content, AND the
+colorbalancergb CPU leg exports garbage on EXR input in this build:
+flat_0ev at default params → (1.16e27, 1.82e31, 4.7e-39), input-independent;
+exposure control on the same input is exact — colisa-probe-unavailable
+precedent, 03-03-T2). dt-side evidence = XMP adoption (6/6 cases
+`params v. 5: version ok params ok` + library DB op_params hex MATCH).
+The numeric reference is three-way cross-locked: Python float64 ref vs
+Swift ColorBalanceRGBCommit.derive (commit vectors) vs the C-harness
+(dt's REAL CPU code compiled standalone, D65-native — out == in to 1e-7).
+Parity gates: DTUCS 5 cases strict 1e-5/2.5e-5 @99% + envelope
+1e-4/5e-4; JzAzBz legacy 1 case strict 1e-3/2.5e-5 @99% + envelope
+1e-2/5e-4 (PQ-inverse ^6.277 float32 amplification; 05-02-DECISIONS).
+
+| case | params blob (hex) | sha256(blob) | reference sha256 (synthesized) |
+|---|---|---|---|
+| cb_default | `0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000091ed3c3e0000000091ed3c3e0000000001000000` | `ada0187d9575cffb013e77413130e868f3304fea6c3ddf67b0f542a173b8d416` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f saturated:c3c9571449945d03 deep_shadow:c75456e4e69218c9 hue_sweep:ace8fc3d4601494c delta_impulse:18e7be9b1f88af2e |
+| cb_global_hue | `000000000000000000000000000000000000000000000000000000000000000000000000000000000000003f000034420000803f000000000000803f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000091ed3c3e0000000091ed3c3e0000000001000000` | `116d5e96a495172c486cab8609b68e60fad62d29dedbcd3f9808c77ab135a7df` | ramp_8ev:4c25811ccba3215a flat_0ev:351160d3b93a679e flat_-4ev:48bd14a544538637 gray_staircase:6cc68753d0dc569e saturated:669fdc547c5a560e deep_shadow:c93a4dd36acc36d3 hue_sweep:eca9f1239482f019 delta_impulse:8a4f9acf61d6bfaa |
+| cb_shadows_lift | `9a99193e9a99993e000048430000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803fcdcc4c3e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000091ed3c3e0000000091ed3c3e0000000001000000` | `fee9a48352c2cbe018711fa6ad55135b3128702154d42003d3d6b2900646f7fa` | ramp_8ev:e768313bbc3902b7 flat_0ev:70386bdc4340884d flat_-4ev:474df3f9cf9de29c gray_staircase:7640a3f3b1e72ba9 saturated:d550def3bf500694 deep_shadow:71cee1642786a522 hue_sweep:dd08b4563fcb75ea delta_impulse:850f4ff304c11ee9 |
+| cb_highlights_warm | `000000000000000000000000000000000000000000000000cdccccbd0000803e0000f0410000000000000000000000000000803f000000000000803f00000000000000009a99193e0000000000000000000000000000000000000000000020410000000000000000000000000000000091ed3c3e0000000091ed3c3e0000000001000000` | `7fa238ff6785f00d8efa82ab300fc3e0ced0b57b1c3ed80f7e3e3b0ea3e310bf` | ramp_8ev:e95700311f49bb96 flat_0ev:300aa5dc94f4ed51 flat_-4ev:1ae5c0008b0b55e1 gray_staircase:5a496653f68dbbcb saturated:a5b6c40e67a2a89a deep_shadow:c4d3118007ff595d hue_sweep:218074c3aa8f22f5 delta_impulse:c60c85ab7bc335cc |
+| cb_vibrance | `0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000091ed3c3e9a99193f91ed3c3e0000000001000000` | `12b856e8df58e11062ceb2da169c1d24b5ba2b571c9ff98e9bf1e77809f9ff80` | ramp_8ev:20fd198d9f247334 flat_0ev:8bc701c7a9813ae3 flat_-4ev:01395abb6b09a1cc gray_staircase:66dbbdbf48d72fbc saturated:88079fbf69dd55a5 deep_shadow:5c7d93c576cb52b5 hue_sweep:1e948717e6d361a0 delta_impulse:dc256f018b826c81 |
+| cb_contrast_sat_jz | `0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803f000000000000000000000000000000009a99993ecdcccc3dcdcc4cbe0000000000000000cdcccc3dcdcc4c3dcdcc4cbd0000000091ed3c3e0000000091ed3c3e9a99993e00000000` | `5cfd7dc5dbb6314dd2e8990784aee53c6a135635f8cf9a8d85c3b5c70dd37338` | ramp_8ev:a86e8d07325993a8 flat_0ev:cf72850cdad216eb flat_-4ev:4f7b0ad9c3220662 gray_staircase:3a98e392904e5d40 saturated:92c10fd50ced4ffc deep_shadow:785bdeafebb7e7a6 hue_sweep:bdc3e793310814bf delta_impulse:4ab1e0897f2f08d7 |
 ### filmicrgb cases (Plan 03-06-T2..T5, synthesized references + flat probes)
 
 dt blob `<18f11i` (116 bytes, dt_iop_filmicrgb_params_t v6,
@@ -756,3 +802,228 @@ bands — no eaw `gweight` edge weights (recorded divergence, stretch: EIGF).
 | equalizer | 4 × 4 | 合成（金字塔分解合成，float64） | <1e-4 | 全零 blit 恒等 + 带能量内容断言（in-test）；无 dt blob（D10） | `## detail golden/equalizer` |
 
 核对结论：9/9 有账（轨 A 合成 refs sha256 + blob 版式 + 容差档全在上表节内）；soften dt-cli probe 免跑先验结论落 04-05-DECISIONS D5。
+
+### channelmixerrgb + channelmixer + colorcontrast cases (Plan 05-03-T4, synthesized references + XMP adoption)
+
+dt blobs ↔ Lightamer Params (JSON):
+
+| dt field | Lightamer field | note |
+|---|---|---|
+| channelmixerrgb v3 `<24f6i4i4f2i` (160B: 6×4 mix/sat/light/grey + 6 normalize + illum/fluo/led/adapt + x/y/temp/gamut + clip/version) | `ChannelMixerRGBModule.Params` | illum raw = dt enum (D=2 default, camera=10); version raw = dt (v3=2 default) |
+| channelmixer v2 `<21fi` (88B: red/green/blue[7] + algorithm; CHANNEL_SIZE=7 @ channelmixer.c:55-91, introspection v2) | `ChannelMixerModule.Params` (3×7 + algorithm) | blob 即全量 Params（3×7 + algorithm），无投影——XMP 与 Params 一一对应 |
+| colorcontrast v2 `<4fi` (20B: a/b steepness+offset + unbound) | `ColorContrastModule.Params` | unbound bool → int |
+
+Track-A references SYNTHESIZED (L017 route): float64 evaluation of the
+documented dt process over canonical fixture bytes (channelmixerrgb
+_loop_switch :771-1000; legacy commit :499-560 + 4 process legs; contrast
+:189-220). dt-side evidence = XMP adoption blobs below (DB op_params hex +
+`params v. N: version ok params ok` per 03-02 定式；跑 dt 采纳时逐 case 核对）.
+Flat PFM probes: direction-only for channelmixerrgb (default D-illuminant
+adaptation is not pixel-identity) — recorded, not a main track.
+
+Parity gates: channelmixerrgb 6×4 <1e-5 rel (strict 1e-5/2.5e-5@99% +
+envelope 1e-4/5e-4); legacy 3×4 <1e-5; contrast 3×4 <1e-5 (Lab 03 gate).
+Matrix cross: Swift derive vs Python cm_derive on cmr_default CAT16 —
+rgbToLMS 5e-7 / mixToXYZ 1e-6 / illuminant 1e-6 / p 1e-6 (float32-fair:
+Swift folds Float params, Python holds doubles; formula equality nailed
+end-to-end by track-A through BOTH chains). illuminant/temp/xy change ⇒
+paramsHash change (cache-invalidation chain, in-test). 28.5 tie-break:
+SidecarTieBreakTests (latest-wins + multiPriority + slot order).
+
+color-checker subtree zero-port evidence: `grep -rn colorchecker
+LightamerIOP/Sources/ChannelMixerRGB/` hits only the two head-note
+comments (NOT PORTED declarations) — no `_extract_color_checker` /
+`run_profile` / `colorchecker.h` code. params 位保留：illuminant enum 含
+camera/detect 项（resolver returns nil → panel hides/disables + 注记）.
+
+| case | params blob sha256 (short, of decoded bytes) | reference sha256 (synthesized, short) |
+|---|---|---|
+| cmr_default | `88c6b9440f357622` | ramp_8ev:f56d8a305170fbb0 flat_0ev:ebf9425f40583e7a flat_-4ev:71966058e3ca9ed8 gray_staircase:74ad69c57e8850f5 |
+| cmr_tungsten_linear | `a65ce1976615fce9` | ramp_8ev:64ddf77a081ee215 flat_0ev:e8e168ed19495bd0 flat_-4ev:1bce591a0374d596 gray_staircase:bb80638f7f9d9195 |
+| cmr_bb_full_satv1 | `f8edadd70afc40a7` | ramp_8ev:7370ec6452dc92c4 flat_0ev:5ee1c6d0f7e35b47 flat_-4ev:bb8efd226c246fef gray_staircase:0468cd5eec2b4750 |
+| cmr_fluor_xyz | `63c2f04a6432913a` | ramp_8ev:a8328c91c72b7345 flat_0ev:e3ef8820b32e7afd flat_-4ev:03cba7a7563f2aa7 gray_staircase:33f8fda8cb8e5a0e |
+| cmr_led_rgb_grey | `e66d8b854eaa5acc` | ramp_8ev:aa0f22b148bcbe01 flat_0ev:e306bae86b263845 flat_-4ev:6409786eaa9bc799 gray_staircase:a6f9676b826b87e2 |
+| cmr_custom_satv2 | `0ec742e644a81f1b` | ramp_8ev:cc6a28c39d8177c9 flat_0ev:d91f20cffbd68862 flat_-4ev:ee32619273f9f58e gray_staircase:5548f4e2734a4d9b |
+| cm_rgb_swap | `ea979600370df54b` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| cm_gray_luma | `2e592ed3eeeeb6ea` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| cm_hsl_v1_sat | `6d42014309605a50` | ramp_8ev:2c1d611966877665 flat_0ev:a32e708c6aca2f7d flat_-4ev:ab37c607ac54f585 gray_staircase:00be0aaf36e77a0a |
+| cc_default | `949111de550c2e63` | ramp_8ev:7fc76b57db346f5e flat_0ev:5d3098d9b2949609 flat_-4ev:b677ba768009d5bc gray_staircase:c305e677fe04e69f |
+| cc_steep | `d5ee38fe86f6712b` | ramp_8ev:a0458254c0b2ea3e flat_0ev:8f1fd9c236904496 flat_-4ev:7b4a11c65509d6fe gray_staircase:6f0f0b011f0ad059 |
+| cc_bound | `e4944169a5d54543` | ramp_8ev:dd5767a67f067852 flat_0ev:df8c8b57164dab55 flat_-4ev:04f0a5f814f26892 gray_staircase:357073a103d109ab |
+
+注：cc_default refs 与 cb_default refs 在 ramp/flat/gray 四 fixture 上
+全同 hash（恒等参数经 Lab 往返精确：flat_0ev 5d3098d9b2949609 等）——来源不同
+（Lab 链 vs Yrg/LMS2006 链），门各自独立，双记保留。
+
+## vibrance + velvia + colorzones golden（Plan 05-04，采纳复验补跑 2026-09-22）
+
+blob 版式：vibrance v? = 4B（amount f32 pre-scaled /100）；velvia v2 = 8B
+（strength/bias 2f，strength 存 /100 后值——vel_clamp 实测 `0000c84200000000`
+= 100.0/0.0）；colorzones v? = 520B（splines V2 + LUT）。sha256 见
+`.work/plans/05-04/` 采纳证据与 XMP 本体。
+
+### dt-cli 采纳（2026-09-22 实跑，日志 `.work/plans/05-04/adoption/`）
+
+| case | op | loader | version ok | DB hex vs XMP |
+|---|---|---|---|---|
+| vib_default / vib_strong | vibrance | ✓ | ok | byte-identical |
+| vel_default / vel_strong / vel_clamp | velvia | ✓ | ok | byte-identical |
+| cz_default / cz_hue / cz_chroma / cz_lightness | colorzones | ✗ host 构建插件坏 | — | 环境约束（OpenCL 桩符号缺失，D-05-04-T3-4；dt 重建后补跑） |
+
+### 饱和 fixture 覆盖（2026-09-22 补）
+
+channelmixer/colorcontrast/vibrance/velvia REF_FIXTURES 补 `saturated`
+（彩块，含 HDR >1 像素）：置换方向、strength≤0 直通（velvia.c:160 copy
+路径）从「灰阶数学不可区分」变为内容级可区分。velvia refs 以 guarded
+mirror 重生成（vel_default saturated 首列含未钳制 1.93，dt 真语义）。
+
+## nlmeans golden（Plan 05-06，IOP-DENOISE-02）
+
+blob 版式：nlmeans v2 = 16B（radius/strength/luma/chroma 4f32，nlmeans.c:45-52）；
+XMP hex 配方 = `input/golden/fixtures/gen_fixtures.py nlmeans_params_blob_for_case`
+（4 case：nlmeans_default = dt $DEFAULT 2/50/0.5/1、nlmeans_strong 3/200/0.8/0.6、
+nlmeans_chroma 2/50/0.1/1、nlmeans_patch4 4/10/0.5/1）。
+
+### 参考路线（L017 ①——合成参考主轨）
+
+- 参考实现 = gen_fixtures `nlmeans_reference`（Goossens 全链 float64：半平面偏移
+  j∈[−K,0]×i∈[−K,K]、边界 clamp 的 separable box 和、vert 内 gh 权重
+  （fast_mexp2f 位级复刻 dt common.h:181）、对称累积、finish 混合；Lab 域
+  norm2 nL=1/120 nC=1/512；scale=1 ⇒ P=ceil(radius), K=7）。
+- fixture = delta_impulse（核响应）+ ramp_8ev__noisy_iso125 + gray_staircase__noisy_iso1600
+  （05-01 种子化 Poisson-Gaussian 加噪集——clean 加噪 → 双方同去噪比对，
+  RESEARCH §7 denoise golden 策略）。
+- parity 门：4 case × 3 fixture <1e-3 rel（denoise 族档）——实测 maxRel
+  ≤ 5.7e-6（12/12 全绿；NLMeansParityTests.testNLMeansGoldenParity，
+  2026-09-22）。
+
+### dt-cli 采纳（2026-09-22 实跑，证据 `.work/plans/05-06/adoption/`）
+
+| case | loader | version | DB hex vs XMP blob | 平场探针（flat_0ev 输入） |
+|---|---|---|---|---|
+| nlmeans_default | ✓ loaded module nlmeans | v2 ok ok | byte-identical | mean (0.5,0.5,0.5)，max_dev = 0.0 |
+| nlmeans_strong | ✓ | v2 ok ok | byte-identical | mean (0.5,0.5,0.5)，max_dev = 0.0 |
+| nlmeans_chroma | ✓ | v2 ok ok | byte-identical | mean (0.5,0.5,0.5)，max_dev = 0.0 |
+| nlmeans_patch4 | ✓ | v2 ok ok | byte-identical | mean (0.5,0.5,0.5)，max_dev = 0.0 |
+
+注 1：平场探针 = dt 导出 nlmeans_default/strong/chroma/patch4.exr（64×64 全平面
+逐像素 max_dev = 0.0，三通道）——denoise 平场恒等**精确成立**（dist=0 → w=1 →
+out=均值=in，与域/构建无关），比 05-05 BROKEN-route 定向探针更强（本四 case
+导出路径正常，无 colorin/colorout dlopen 故障）。
+注 2：denoise 是空间变化算子——加噪图不可作 dt-cli 数值参考（L017 分流表），
+数值 parity 由合成参考承载（上节）。
+注 3：blendop v.1 WRONG 为 dt 侧 blendop 参数缺失的正常告警（与 monochrome
+采纳同形态），不影响 op_params 采纳。
+
+## denoiseprofile golden（Plan 05-07，IOP-DENOISE-01）
+
+blob 版式：denoiseprofile v12 = 416B（8f 参数 + a[3]/b[3] + mode + x/y[6][7]
+力曲线 + 5 兼容 int；RESEARCH §1.1 "244B" 系算术勘误，416B 为实打包尺寸）；
+XMP hex 配方 = `input/golden/fixtures/gen_fixtures.py denoiseprofile_params_blob`
+（8 case：dp_wave_default/rgb/strong/force/auto + dp_nlm_default/scatter/auto，
+XMP 落 `input/golden/cases/`）。
+
+### 参考路线（L017 ①——合成参考主轨）
+
+- 参考实现 = gen_fixtures `dn_wavelets_reference`（process_wavelets CPU 形
+  float64 全链：VST 三变体 precondition → eaw 波列逐 band（5×5 B3 a-trous +
+  edge-aware 权重 fast_mexp2f）→ sum_y2 → Bayesshrink（force 曲线 uint16 量化）
+  → 软阈值累加 → 残差合流 → backtransform；:1346-1658 逐式）+
+  `dn_nlmeans_leg_reference`（VST 包夹 + Goossens 半平面散射偏移 + vert 变体
+  single-pixel boost/central weight/norm−2 + finish_v2）。
+- fixture = delta_impulse（核响应）+ ramp_8ev__noisy_iso125 +
+  gray_staircase__noisy_iso1600（05-01 种子化加噪集——clean 加噪 → 双方同
+  去噪比对）。
+- parity 门：8 case × 3 fixture <1e-3 rel（denoise 族档）——实测 maxRel
+  ≤ 9e-6（24/24 全绿；DenoiseProfileParityTests，2026-09-23）。
+
+### dt-cli 采纳（2026-09-23 实跑，证据 `.work/plans/05-07/adoption/`）
+
+| case | loader | version | DB hex vs XMP blob | 平场探针（flat_0ev 输出 max_dev） |
+|---|---|---|---|---|
+| dp_wave_default | ✓ loaded denoiseprofile | v12 ok ok | byte-identical | 8.9e-8 |
+| dp_wave_rgb | ✓ | v12 ok ok | byte-identical | 4.5e-7 |
+| dp_wave_strong | ✓ | v12 ok ok | byte-identical | 2.4e-4（bias −2 进 delta） |
+| dp_wave_force | ✓ | v12 ok ok | byte-identical | 1.8e-7 |
+| dp_wave_auto | ✓ | v12 ok ok | byte-identical | 8.9e-8 |
+| dp_nlm_default | ✓ | v12 ok ok | byte-identical | 1.5e-6 |
+| dp_nlm_scatter | ✓ | v12 ok ok | byte-identical | 2.5e-5 |
+| dp_nlm_auto | ✓ | v12 ok ok | byte-identical | 2.1e-6 |
+
+注 1：环境约束澄清——本机重建 dt 的 OpenCL 桩 dlopen 噪声（多 CL 插件
+`Symbol not found: _dt_opencl_*`）经 05-06 conf（`opencl=false`）解除，
+denoiseprofile CPU 路径正常加载/导出，本 8 case 未受 colorin/colorout
+故障影响；采纳证据齐全，无需落账"受阻"。
+注 2：平场探针为容差档（≈平场），非 nlmeans 式精确 0——波列软阈值在
+force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自用户 bias。
+注 3：sqlite `hex()` 返回大写——XMP（小写）与 DB hex 逐字节比较须经
+`bytes.fromhex` 归一（驱动 `run_adoption.py` 已固化）。
+
+### SC#2 结论行（Phase 1 spike 量化收口，2026-09-23）
+
+**SC#2 = PASS**。正确剖面方向 + 错配欠去噪方向双断言成立
+（DenoiseProfileParityTests.testSC2ProfileDirections，clean-truth 基线
+= ramp_8ev vs 其 iso-1600 种子加噪变体）：noisy RMS 0.00175 → ISO1600
+正确剖面 0.00071 < generic 0.00075 < ISO125 错配 0.00111（欠去噪）。
+05-08 VALIDATION 直接引用本行。
+
+## bilateral golden（Plan 05-08，IOP-DENOISE-03）
+
+- 模块：`bilateral`（"surface blur"，v50 10.0，RGB 域，20B params = radius/reserved/red/green/blue）。
+- 实现：`LightamerIOP/Sources/Bilateral/{BilateralModule,BilateralKernels}.swift/.metal`——直连档（rad ≤ 6，bilateral.cc:175-254 直译）+ 稠密 5D 网格档（rad > 6；dt CPU permutohedral lattice 的稠密对偶，D-05-08-T2-2）。
+- 参考路线（L017 ①——**同算法** float64 参考，nlmeans Goossens 同性质）：
+  - 直连 case → `bilateral_direct_reference`（精确窗口公式 float64，bilateral.cc:219-247）；
+  - grid case → `bilateral_grid_reference`（稠密 5D 网格逐式对偶：splat pentalinear 32 角 → blur 仅 spatial x/y → slice val/w 归一；range 不 blur = 稠密格 adaptation）。
+- gate：直连 <1e-5 / grid <1e-3（denoise 族档）——**实测 9/9 全部 <1e-6**（3 case × 3 fixture，Test `BilateralParityTests.testBilateralGoldenParity`，maxRel 3.3e-7…8.6e-7）。
+- 极限门：σ→0 恒等逐字节；平场恒等两档 <1e-6（实测 2.9e-7）；grid 双跑确定性 <1e-6；分块==整幅 <1e-3（实测 4.5e-7，grid 计数>1）；delta 脉冲核响应剖面（远场逐位回平场）。
+- 近似包络（非 gate，D-05-08-T2-2）：grid vs 精确公式 cell=σ 粒度固有偏差，crossing 实测 maxAbs 0.013-0.021（平滑场景），<0.05 回归界。
+
+### bilateral cases（Plan 05-08，synthesized references）
+
+| case | params blob (hex, 20B) | leg | 参考 | fixtures |
+|---|---|---|---|---|
+| bilat_direct_small | `0000004000007041cdcccc3dcdcccc3dcdcccc3d` | direct（rad 4） | 精确公式 | delta_impulse / ramp_8ev__noisy_iso125 / gray_staircase__noisy_iso1600 |
+| bilat_boundary | `0000004000000040cdcccc3dcdcccc3dcdcccc3d` | grid（rad 7） | 网格同构 | 同上 |
+| bilat_grid_large | `0000c04000007041cdcccc3dcdcccc3dcdcccc3d` | grid（rad 19） | 网格同构 | 同上 |
+
+### bilateral 输出 sha256（synthesized references）
+
+| 文件 | sha256 |
+|---|---|
+| bilat_direct_small__delta_impulse.exr | 1b7177d0eed8dfc49305518b7522a60583507e3d78fe337ec487627ac74dce2b |
+| bilat_direct_small__ramp_8ev__noisy_iso125_s20260921.exr | 8db1c4579332ebc8510e4a97f56dd49ff6e1a7458b033437e19ca0691c3f580f |
+| bilat_direct_small__gray_staircase__noisy_iso1600_s20260921.exr | 65e219ee1bc4c3cd620d28a36fbd20d8a45939192e0746a191f451bce775638b |
+| bilat_boundary__delta_impulse.exr | 18e7be9b1f88af2eae69b876f0985b1910bdb753e1ded490c4910f7ba4f79a9f |
+| bilat_boundary__ramp_8ev__noisy_iso125_s20260921.exr | 6e5c689718e1b9860243d3651ae1a50c8df68b73cad9e3a56837fc9a76864387 |
+| bilat_boundary__gray_staircase__noisy_iso1600_s20260921.exr | 8c0bbb9504101dad8b5cf208f82e31313d44c3e52b5e92c7f17a902097670379 |
+| bilat_grid_large__delta_impulse.exr | 18e7be9b1f88af2eae69b876f0985b1910bdb753e1ded490c4910f7ba4f79a9f（同 boundary×delta——平场脉冲双双归约到同参考值，非空转旁证见 parity 循环 compared>0 + 参考随输入变化断言） |
+| bilat_grid_large__ramp_8ev__noisy_iso125_s20260921.exr | 5364df3f78ca071924b6345fb49c1b4a1a194ef33979d8021d3ecfda9d11fe1e |
+| bilat_grid_large__gray_staircase__noisy_iso1600_s20260921.exr | d961c6c98054ec1649f072b9ece5e8c72ad0ffba60953d5534bf47d70dbb3c8d |
+
+### bilateral dt-cli 采纳（2026-09-23 实跑，证据 `.work/plans/05-08/adoption/`）
+
+- 驱动：`run_adoption.py`（05-06/05-07 同款流：flat_0ev + XMP → export EXR，`-d params`，fresh library，conf = 05-07 同款 darktablerc 含 exr compression=0）。
+- 三证据 **3/3**：① loader line `successfully loaded module bilateral from history`；② `params v. 1: version ok params ok`（dt DT_MODULE_INTROSPECTION(1) 接受我们的 20B blob）；③ DB `hex(op_params)` == XMP blob 逐字节（`00000040…` 三 case 全同）。
+- 平场探针：direct case **maxdev = 0.0**（精确恒等）；boundary case 环内 16px 内区 **0.0**（12px 边环 1455 px-ch 偏差 = dt lattice 边缘行为）；grid_large 出现 dt lattice 未初始化格垃圾（interior 亦有，max 6.7e28）——**上游 lattice 行为**，非 Lightamer 缺陷；本实现稠密格平场恒等由 GPU 门钉死（2.9e-7）。
+
+## Phase 5 golden 完整性总账（Plan 05-08-T5.3/SC#1 核对，2026-09-23）
+
+> 11 模块逐个：轨 A 来源 + 容差 + probe 记录指针 + SC#2 行。sha256 抽验见各节；
+> 「dt 三证据」= blob XMP 采纳 + `--d params` ok + 平场探针（L017 双轨口径）。
+
+| # | 模块（op / slot） | 轨 A 来源 | 容差（门 → 实测） | probe/采纳记录 | SC |
+|---|---|---|---|---|---|
+| 1 | colorbalancerggb（colorbalancergb / 41.5） | gen_fixtures float64（矩阵直译） | <1e-5 → 轨 A 全绿 | 05-02：XMP 采纳 + PFM BROKEN 注记 | SC#1 |
+| 2 | channelmixerrgb / 28.5 | gen_fixtures float64（illuminants/CAT） | <1e-5 → 全绿 | 05-03：dt-cli 采纳 12/12（blob 88B F1 修复） | SC#1 |
+| 3 | channelmixer / 39.0 | gen_fixtures float64（7 系数 RGB/HSL） | <1e-5 → 全绿 | 05-03：采纳（同上轮） | SC#1 |
+| 4 | colorcontrast / 56.0 | gen_fixtures float64（a/b 斜率+偏移） | <1e-5 → 全绿 | 05-03：采纳 | SC#1；IOP-COLOR-09 交付本体 |
+| 5 | vibrance / 58.0 | gen_fixtures float64（Lab 旧式公式） | <1e-5 → 全绿 | 05-04：采纳复验 2026-09-22 + 饱和 fixture | SC#1 |
+| 6 | velvia / 57.0 | gen_fixtures float64（RGB 线性饱和 + clamp） | <1e-5 → 全绿 | 05-04：同上 | SC#1 |
+| 7 | colorzones / 60.0 | gen_fixtures float64（三曲线 LUT） | ParityGate 双闸 → 全绿 | 05-04：hue sweep 全环 | SC#1 |
+| 8 | monochrome / 64.0 | gen_fixtures float64（filter+envelope+grid 腿） | <1e-5 → 全绿 | 05-05：grid==窗口交叉 + CPU sigma² | SC#1 |
+| 9 | denoiseprofile / 9.0 | gen_fixtures float64（VST 三变体+eaw 波列+Bayesshrink+NLMeans 腿） | <1e-5（VST 门 1e-6 → 实测 2.4e-7） | 05-07：dt-cli 采纳 8/8 + 平场探针 | SC#2（加噪→去噪闭环 + 错配方向断言 + spike 收口行见下节） |
+| 10 | nlmeans / 29.0 | gen_fixtures float64（Goossens 同算法参考） | <1e-3 → **≤5.7e-6** | 05-06：采纳 4/4 + 平场 0.0 | SC#3 |
+| 11 | bilateral / 10.0 | gen_fixtures float64（直连=精确公式 / grid=同算法镜像，D-05-08-T2-2） | 直连 <1e-5 / grid <1e-3 → **全部 <1e-6** | 05-08：dt-cli 采纳 3/3 + 平场探针（direct 0.0；grid_large dt lattice 上游垃圾已记录） | SC#3 |
+
+- 抽验（sha256）：bilateral 9 文件见「bilateral 输出 sha256」表；其余 8 模块 sha256 见各自 manifest 节（04-07 模式）。
+- 总账判定：**11/11 有账 + 各 ParityTests 绿 + dt 证据齐** → SC#1 PASS；SC#2 行 = denoiseprofile 节 + 「SC#2 结论行」节；SC#3 行 = nlmeans/bilateral 节 + chromatic 半边断言（NLMeansParityTests luma/chroma 半边）。

@@ -109,7 +109,7 @@ final class L021DoubleScaleAuditTests: XCTestCase {
         var compared = 0
         for (orientation, roiOut, want, label) in cases {
             let box = ModuleBox(module: FlipModule())
-            await box.setParams(FlipModule.Params(orientation: orientation))
+            box.setParams(FlipModule.Params(orientation: orientation))
             var piece = box.makeRunPiece()
             piece.dscIn = IOPBufferDesc(width: dscW, height: dscH)
             var input = ROI()
@@ -125,7 +125,7 @@ final class L021DoubleScaleAuditTests: XCTestCase {
     func testFlipHPartialWindowMirrorsAboutUnscaledWidth() async {
         let scale: Float = 48.0 / 128.0
         let box = ModuleBox(module: FlipModule())
-        await box.setParams(FlipModule.Params(orientation: .flipH))
+        box.setParams(FlipModule.Params(orientation: .flipH))
         var piece = box.makeRunPiece()
         piece.dscIn = IOPBufferDesc(width: 48, height: 36)
         var input = ROI()
@@ -152,7 +152,7 @@ final class L021DoubleScaleAuditTests: XCTestCase {
         var compared = 0
         for orientation in states {
             let flip = ModuleBox(module: FlipModule())
-            await flip.setParams(FlipModule.Params(orientation: orientation))
+            flip.setParams(FlipModule.Params(orientation: orientation))
             let (texture, _) = try await RenderPipeline.process(
                 image: image, instances: [flip], imageID: UUID(),
                 resolution: .preview, cache: PipeCache(), metal: metal, longEdge: 48)
@@ -185,7 +185,7 @@ final class L021DoubleScaleAuditTests: XCTestCase {
         let trio = await TerminalTrioTests.makeCommittedDefaultChain(
             registry: registry, outputProfile: .displayP3)
         let flip = ModuleBox(module: FlipModule())
-        await flip.setParams(FlipModule.Params(orientation: .none))
+        flip.setParams(FlipModule.Params(orientation: .none))
         let withFlip = (trio + [flip as any ModuleBoxing])
             .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
         let imageID = UUID()
@@ -248,7 +248,7 @@ final class L021DoubleScaleAuditTests: XCTestCase {
         var compared = 0
         for v in vectors {
             let box = ModuleBox(module: ToneEqualModule())
-            await box.setParams(ToneEqualModule.Params(
+            box.setParams(ToneEqualModule.Params(
                 blending: v.blending, details: v.details))
             var piece = box.makeRunPiece()
             piece.dscIn = IOPBufferDesc(width: v.dscW, height: v.dscH)
@@ -265,7 +265,7 @@ final class L021DoubleScaleAuditTests: XCTestCase {
     /// 无 double-scale 余地）——免疫的书面化。
     func testToneequalModifyROIInIsIdentity() async {
         let box = ModuleBox(module: ToneEqualModule())
-        await box.setParams(ToneEqualModule.Params())
+        box.setParams(ToneEqualModule.Params())
         var piece = box.makeRunPiece()
         piece.dscIn = IOPBufferDesc(width: 48, height: 36)
         var input = ROI()

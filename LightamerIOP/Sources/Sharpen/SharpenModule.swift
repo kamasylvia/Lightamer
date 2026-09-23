@@ -120,7 +120,7 @@ public final class SharpenModule: IOPModule {
     /// threshold verbatim. The derived σ (= committed radius/2.5·scale) is
     /// evaluated at process time (roi.scale); only the mix uniforms ride
     /// the piece buffer here. Hashes the RAW params (D-H4).
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
 

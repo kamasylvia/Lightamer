@@ -90,7 +90,7 @@ final class CropParityTests: XCTestCase {
     /// x/y do NOT add the input origin).
     func testModifyROIOutShrinksToWindow() async {
         let box = ModuleBox(module: CropModule())
-        await box.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        box.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
         var out = ROI()
         box.modifyROIOutErased(
             &out, input: ROI(x: 0, y: 0, width: 64, height: 64, scale: 1.0),
@@ -102,7 +102,7 @@ final class CropParityTests: XCTestCase {
     /// (dt `MAX(4, …)`).
     func testModifyROIOutFloorsAt4Pixels() async {
         let box = ModuleBox(module: CropModule())
-        await box.setParams(CropModule.Params(left: 0, top: 0, right: 0.001, bottom: 0.001))
+        box.setParams(CropModule.Params(left: 0, top: 0, right: 0.001, bottom: 0.001))
         var out = ROI()
         box.modifyROIOutErased(
             &out, input: ROI(x: 0, y: 0, width: 64, height: 64, scale: 1.0),
@@ -122,7 +122,7 @@ final class CropParityTests: XCTestCase {
     /// caught the pipe reading the [0.75..1] corner).
     func testModifyROIInKeepsUpstreamRelativeWindow() async {
         let box = ModuleBox(module: CropModule())
-        await box.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        box.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
         var piece = box.makeRunPiece()
         piece.dscIn = IOPBufferDesc(width: 64, height: 64)
         var input = ROI()
@@ -136,7 +136,7 @@ final class CropParityTests: XCTestCase {
 
     func testCommitClampsFractionsToRange() async {
         let box = ModuleBox(module: CropModule())
-        await box.setParams(CropModule.Params(left: -0.5, top: 2.0, right: 1.5, bottom: -1.0))
+        box.setParams(CropModule.Params(left: -0.5, top: 2.0, right: 1.5, bottom: -1.0))
         var out = ROI()
         box.modifyROIOutErased(
             &out, input: ROI(x: 0, y: 0, width: 100, height: 100, scale: 1.0),
@@ -199,9 +199,9 @@ final class CropParityTests: XCTestCase {
         let image = gradientImage(width: 64, height: 64)
         let cache = PipeCache()
         let crop = ModuleBox(module: CropModule())
-        await crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
         let gainBox = ModuleBox(module: TestGainModule())
-        await gainBox.setParams(TestGainModule.Params(gain: 1.0))
+        gainBox.setParams(TestGainModule.Params(gain: 1.0))
         let (texture, stats) = try await RenderPipeline.process(
             image: image, instances: [crop, gainBox], imageID: UUID(),
             resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
@@ -217,7 +217,7 @@ final class CropParityTests: XCTestCase {
         let metal = try await makeMetal()
         let image = gradientImage(width: 64, height: 48)
         let crop = ModuleBox(module: CropModule())
-        await crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
         crop.enabled = false
 
         let (texture, stats) = try await RenderPipeline.process(
@@ -242,7 +242,7 @@ final class CropParityTests: XCTestCase {
         let trio = await TerminalTrioTests.makeCommittedDefaultChain(
             registry: registry, outputProfile: .displayP3)
         let crop = ModuleBox(module: CropModule())
-        await crop.setParams(CropModule.Params())
+        crop.setParams(CropModule.Params())
         let withCrop = (trio + [crop as any ModuleBoxing])
             .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
         let imageID = UUID()

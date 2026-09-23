@@ -63,7 +63,18 @@ public protocol IOPModule {
     /// `piece.data`, and `piece.paramsHash` (UInt64) which MUST be computed
     /// as `StableHash.hash(ParamsCoding.encode(params))` — `StableHash` is
     /// the only legal generator (D-H4: cache identity == history identity).
-    func commitParams(_ params: Params, into piece: inout IOPiece) async
+    ///
+    /// Concurrency contract (GUI-10/GUI-13 fix, 2026-09-23): this hook is
+    /// deliberately SYNCHRONOUS. Every conformer is pure CPU work (uniform
+    /// encodes + Metal buffer writes); the historical `async` shape was a
+    /// speculative interface whose only effect was to give
+    /// `PipeCoordinator.rematerializeInstances` a suspension point mid-box —
+    /// two fire-and-forget history Tasks (commit leg + AX live-tick leg)
+    /// then mutated the same `ModuleBox` concurrently on the cooperative
+    /// pool (Data over-release → SIGSEGV/SIGABRT; forensics
+    /// `.work/gui-acceptance/gui10-forensics.md`). Keep it sync: a box
+    /// mutation must stay atomic on its owning actor.
+    func commitParams(_ params: Params, into piece: inout IOPiece)
 
     /// Let the module expand/contract the output ROI it can produce from
     /// `input` (Darktable `modify_roi_out` — e.g. crop/clipping shrink it,

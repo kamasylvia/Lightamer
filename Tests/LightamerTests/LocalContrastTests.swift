@@ -132,10 +132,10 @@ final class LocalContrastTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: LocalContrastModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<LocalContrastModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [box as any ModuleBoxing, colorinBox]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -288,10 +288,10 @@ final class LocalContrastTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: LocalContrastModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<LocalContrastModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [box as any ModuleBoxing, colorinBox]
         let (tiled, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -325,7 +325,7 @@ final class LocalContrastTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let made = await registry.makeBox(opName: LocalContrastModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<LocalContrastModule>)
-        await box.setParams(LocalContrastModule.Params())
+        box.setParams(LocalContrastModule.Params())
         XCTAssertEqual(LocalContrastModule.opName, "bilat")
         XCTAssertEqual(LocalContrastModule.iopOrder, 54.0)
         XCTAssertEqual(LocalContrastModule.defaultColorspace, .Lab)

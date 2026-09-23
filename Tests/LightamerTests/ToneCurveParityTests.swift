@@ -209,7 +209,7 @@ final class ToneCurveParityTests: XCTestCase {
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let tonecurve = await registry.makeBox(opName: ToneCurveModule.opName)
         let tonecurveBox = try XCTUnwrap(tonecurve as? ModuleBox<ToneCurveModule>)
-        await tonecurveBox.setParams(params)
+        tonecurveBox.setParams(params)
         let chain = [try XCTUnwrap(colorin), tonecurveBox]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -250,7 +250,7 @@ final class ToneCurveParityTests: XCTestCase {
         )
         let tonecurve = await registry.makeBox(opName: ToneCurveModule.opName)
         let tonecurveBox = try XCTUnwrap(tonecurve as? ModuleBox<ToneCurveModule>)
-        await tonecurveBox.setParams(.init()) // identity curves
+        tonecurveBox.setParams(.init()) // identity curves
         chain.append(tonecurveBox)
         chain.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 

@@ -117,7 +117,7 @@ final class EyedropperTests: XCTestCase {
         let registry = makeRegistry()
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         try await coordinator.load(url: url, decoded: image, instances: [colorinBox], metal: metal)
     }
 
@@ -238,9 +238,9 @@ final class EyedropperTests: XCTestCase {
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let temperature = await registry.makeBox(opName: TemperatureModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let temperatureBox = try XCTUnwrap(temperature as? ModuleBox<TemperatureModule>)
-        await temperatureBox.setParams(TemperatureModule.Params(gains: gains, preset: .spot))
+        temperatureBox.setParams(TemperatureModule.Params(gains: gains, preset: .spot))
 
         let image = try flatImage(cast)
         let (texture, _) = try await RenderPipeline.process(

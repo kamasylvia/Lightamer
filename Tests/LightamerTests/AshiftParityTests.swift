@@ -151,10 +151,10 @@ final class AshiftParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: AshiftModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<AshiftModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [box as any ModuleBoxing, colorinBox]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -188,10 +188,10 @@ final class AshiftParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: AshiftModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<AshiftModule>)
-        await box.setParams(Self.ashiftParams(rot: 8))
+        box.setParams(Self.ashiftParams(rot: 8))
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: [box as any ModuleBoxing, colorinBox],
             imageID: UUID(), resolution: .preview, cache: PipeCache(),
@@ -232,10 +232,10 @@ final class AshiftParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: AshiftModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<AshiftModule>)
-        await box.setParams(Self.ashiftParams(rot: 30))
+        box.setParams(Self.ashiftParams(rot: 30))
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: [box as any ModuleBoxing, colorinBox],
             imageID: UUID(), resolution: .preview, cache: PipeCache(),
@@ -271,13 +271,13 @@ final class AshiftParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let ashiftMade = await registry.makeBox(opName: AshiftModule.opName)
         let ashift = try XCTUnwrap(ashiftMade as? ModuleBox<AshiftModule>)
-        await ashift.setParams(Self.ashiftParams(rot: 30))
+        ashift.setParams(Self.ashiftParams(rot: 30))
         let colorinMade = await registry.makeBox(opName: ColorInModule.opName)
         let colorin = try XCTUnwrap(colorinMade as? ModuleBox<ColorInModule>)
-        await colorin.setParams(.init())
+        colorin.setParams(.init())
         let gammaMade = await registry.makeBox(opName: GammaModule.opName)
         let gamma = try XCTUnwrap(gammaMade as? ModuleBox<GammaModule>)
-        await gamma.setParams(.init())
+        gamma.setParams(.init())
         let (texture, _) = try await RenderPipeline.process(
             image: image,
             instances: [ashift as any ModuleBoxing, colorin, gamma],
@@ -335,7 +335,7 @@ final class AshiftParityTests: XCTestCase {
     /// neutral keeps input; origin preserved (L020).
     func testModifyROIOutGrowsAABBOnRotation() async {
         let box = ModuleBox(module: AshiftModule())
-        await box.setParams(Self.ashiftParams(rot: 30))
+        box.setParams(Self.ashiftParams(rot: 30))
         var piece = box.makeRunPiece()
         piece.dscIn = IOPBufferDesc(width: 64, height: 64)
         var out = ROI()
@@ -354,7 +354,7 @@ final class AshiftParityTests: XCTestCase {
     /// margin, clamped to bufIn (bounded — the plan's "输入 AABB 有界").
     func testModifyROIInStaysBounded() async {
         let box = ModuleBox(module: AshiftModule())
-        await box.setParams(Self.ashiftParams(rot: 30))
+        box.setParams(Self.ashiftParams(rot: 30))
         var piece = box.makeRunPiece()
         piece.dscIn = IOPBufferDesc(width: 64, height: 64)
         var fwd = ROI()

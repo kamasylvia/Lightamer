@@ -52,6 +52,23 @@
         }
       }
     },
+    "a11y_module_list": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjustment modules"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整模块"
+          }
+        }
+      }
+    },
     "a11y_open_hint": {
       "extractionState": "manual",
       "localizations": {
@@ -188,6 +205,23 @@
         }
       }
     },
+    "colorbalancergb hue disc": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color balance hue disc"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色彩平衡色相盘"
+          }
+        }
+      }
+    },
     "drag_raw_hint": {
       "extractionState": "manual",
       "localizations": {
@@ -273,6 +307,74 @@
         }
       }
     },
+    "history_ashift": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ashift"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转透视"
+          }
+        }
+      }
+    },
+    "history_bilateral": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Surface blur"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表面模糊"
+          }
+        }
+      }
+    },
+    "history_channelmixer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Channel mixer"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道混合"
+          }
+        }
+      }
+    },
+    "history_channelmixerrgb": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color calibration"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色彩校准"
+          }
+        }
+      }
+    },
     "history_colisa": {
       "extractionState": "manual",
       "localizations": {
@@ -286,6 +388,108 @@
           "stringUnit": {
             "state": "translated",
             "value": "对比度 / 亮度 / 饱和度"
+          }
+        }
+      }
+    },
+    "history_colorbalancergb": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color balance RGB"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色彩平衡 RGB"
+          }
+        }
+      }
+    },
+    "history_colorcontrast": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color contrast"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色彩对比"
+          }
+        }
+      }
+    },
+    "history_colorzones": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color zones"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "颜色区域"
+          }
+        }
+      }
+    },
+    "history_crop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁切"
+          }
+        }
+      }
+    },
+    "history_denoiseprofile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denoise (profiled)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去噪（剖面）"
+          }
+        }
+      }
+    },
+    "history_equalizer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Equalizer"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "均衡器"
           }
         }
       }
@@ -324,6 +528,57 @@
         }
       }
     },
+    "history_flip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flip"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻转"
+          }
+        }
+      }
+    },
+    "history_highpass": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highpass"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高通"
+          }
+        }
+      }
+    },
+    "history_lens": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lens correction"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镜头校正"
+          }
+        }
+      }
+    },
     "history_levels": {
       "extractionState": "manual",
       "localizations": {
@@ -337,6 +592,108 @@
           "stringUnit": {
             "state": "translated",
             "value": "色阶"
+          }
+        }
+      }
+    },
+    "history_localcontrast": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local contrast"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "局部对比度"
+          }
+        }
+      }
+    },
+    "history_monochrome": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monochrome"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "黑白"
+          }
+        }
+      }
+    },
+    "history_nlmeans": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Astrophoto denoise"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天文去噪"
+          }
+        }
+      }
+    },
+    "history_sharpen": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sharpen"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "锐化"
+          }
+        }
+      }
+    },
+    "history_soften": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soften"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "柔焦"
+          }
+        }
+      }
+    },
+    "history_toggle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle module"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换模块"
           }
         }
       }
@@ -371,6 +728,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "色调均衡"
+          }
+        }
+      }
+    },
+    "history_velvia": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Velvia"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Velvia"
+          }
+        }
+      }
+    },
+    "history_vibrance": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibrance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自然饱和度"
           }
         }
       }
@@ -473,6 +864,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "该模块还没有 Inspector 面板。"
+          }
+        }
+      }
+    },
+    "inspector_row_toggle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle module enabled"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换模块启用"
           }
         }
       }
@@ -749,6 +1157,40 @@
         }
       }
     },
+    "module_bilateral": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Surface blur"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表面模糊"
+          }
+        }
+      }
+    },
+    "module_crop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁切"
+          }
+        }
+      }
+    },
     "module_exposure": {
       "extractionState": "manual",
       "localizations": {
@@ -762,6 +1204,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "曝光"
+          }
+        }
+      }
+    },
+    "module_flip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flip"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻转"
           }
         }
       }
@@ -1055,6 +1514,2318 @@
         }
       }
     },
+    "panel_ashift_auto_detect": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto detect"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动检测"
+          }
+        }
+      }
+    },
+    "panel_ashift_auto_level": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto level"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动水平"
+          }
+        }
+      }
+    },
+    "panel_ashift_crop_bottom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop bottom"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁切下"
+          }
+        }
+      }
+    },
+    "panel_ashift_crop_left": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop left"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁切左"
+          }
+        }
+      }
+    },
+    "panel_ashift_crop_right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop right"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁切右"
+          }
+        }
+      }
+    },
+    "panel_ashift_crop_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inner crop"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内嵌裁切"
+          }
+        }
+      }
+    },
+    "panel_ashift_crop_top": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop top"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁切上"
+          }
+        }
+      }
+    },
+    "panel_ashift_lens_shift_h": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lens shift horizontal"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镜头位移（水平）"
+          }
+        }
+      }
+    },
+    "panel_ashift_lens_shift_v": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lens shift vertical"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镜头位移（竖直）"
+          }
+        }
+      }
+    },
+    "panel_ashift_no_horizon": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No horizon found — params unchanged."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未检测到地平线——参数未改动。"
+          }
+        }
+      }
+    },
+    "panel_ashift_no_image": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No image loaded."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未加载图像。"
+          }
+        }
+      }
+    },
+    "panel_ashift_no_rectangle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No rectangle found — params unchanged."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未检测到矩形——参数未改动。"
+          }
+        }
+      }
+    },
+    "panel_ashift_perspective_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perspective"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "透视"
+          }
+        }
+      }
+    },
+    "panel_ashift_reset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset to full frame"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置为全幅"
+          }
+        }
+      }
+    },
+    "panel_ashift_rotation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转"
+          }
+        }
+      }
+    },
+    "panel_ashift_rotation_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转"
+          }
+        }
+      }
+    },
+    "panel_ashift_shear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shear"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪切"
+          }
+        }
+      }
+    },
+    "panel_bilateral_blue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝通道"
+          }
+        }
+      }
+    },
+    "panel_bilateral_green": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Green"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绿通道"
+          }
+        }
+      }
+    },
+    "panel_bilateral_radius": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Radius"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "半径"
+          }
+        }
+      }
+    },
+    "panel_bilateral_red": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Red"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "红通道"
+          }
+        }
+      }
+    },
+    "panel_bilateral_section_blur": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Surface blur (edge-aware denoise)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表面模糊（保边去噪）"
+          }
+        }
+      }
+    },
+    "panel_bilateral_section_channels": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Channel smoothness"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道平滑度"
+          }
+        }
+      }
+    },
+    "panel_cb_brilliance_global": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Global brilliance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全局明艳"
+          }
+        }
+      }
+    },
+    "panel_cb_brilliance_highlights": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highlights brilliance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高光明艳"
+          }
+        }
+      }
+    },
+    "panel_cb_brilliance_midtones": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Midtones brilliance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中间调明艳"
+          }
+        }
+      }
+    },
+    "panel_cb_brilliance_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brilliance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明艳"
+          }
+        }
+      }
+    },
+    "panel_cb_brilliance_shadows": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadows brilliance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阴影明艳"
+          }
+        }
+      }
+    },
+    "panel_cb_chroma_global": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Global chroma"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全局色度"
+          }
+        }
+      }
+    },
+    "panel_cb_chroma_highlights": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highlights chroma"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高光色度"
+          }
+        }
+      }
+    },
+    "panel_cb_chroma_midtones": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Midtones chroma"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中间调色度"
+          }
+        }
+      }
+    },
+    "panel_cb_chroma_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chroma"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色度"
+          }
+        }
+      }
+    },
+    "panel_cb_chroma_shadows": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadows chroma"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阴影色度"
+          }
+        }
+      }
+    },
+    "panel_cb_contrast": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contrast"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对比度"
+          }
+        }
+      }
+    },
+    "panel_cb_formula_dtucs": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "darktable UCS (2022)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "darktable UCS (2022)"
+          }
+        }
+      }
+    },
+    "panel_cb_formula_jzazbz": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JzAzBz (2021)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JzAzBz (2021)"
+          }
+        }
+      }
+    },
+    "panel_cb_global": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Global"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全局"
+          }
+        }
+      }
+    },
+    "panel_cb_grey_fulcrum": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contrast fulcrum"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对比度支点"
+          }
+        }
+      }
+    },
+    "panel_cb_highlights": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highlights"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高光"
+          }
+        }
+      }
+    },
+    "panel_cb_hue_angle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hue shift"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色相偏移"
+          }
+        }
+      }
+    },
+    "panel_cb_luminance": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luminance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明度"
+          }
+        }
+      }
+    },
+    "panel_cb_mask_grey_fulcrum": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mask fulcrum"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蒙版支点"
+          }
+        }
+      }
+    },
+    "panel_cb_master_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Master"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "总控"
+          }
+        }
+      }
+    },
+    "panel_cb_midtones": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Midtones"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中间调"
+          }
+        }
+      }
+    },
+    "panel_cb_saturation_formula": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation formula"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度公式"
+          }
+        }
+      }
+    },
+    "panel_cb_saturation_global": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Global saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全局饱和度"
+          }
+        }
+      }
+    },
+    "panel_cb_saturation_highlights": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highlights saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高光饱和度"
+          }
+        }
+      }
+    },
+    "panel_cb_saturation_midtones": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Midtones saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中间调饱和度"
+          }
+        }
+      }
+    },
+    "panel_cb_saturation_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度"
+          }
+        }
+      }
+    },
+    "panel_cb_saturation_shadows": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadows saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阴影饱和度"
+          }
+        }
+      }
+    },
+    "panel_cb_shadows": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadows"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阴影"
+          }
+        }
+      }
+    },
+    "panel_cb_vibrance": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibrance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自然饱和度"
+          }
+        }
+      }
+    },
+    "panel_cb_white_fulcrum": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "White fulcrum"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "白色支点"
+          }
+        }
+      }
+    },
+    "panel_cc_a_offset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Green-magenta offset"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绿-品红偏移"
+          }
+        }
+      }
+    },
+    "panel_cc_a_steepness": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Green-magenta contrast"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绿-品红对比"
+          }
+        }
+      }
+    },
+    "panel_cc_b_offset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blue-yellow offset"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝-黄偏移"
+          }
+        }
+      }
+    },
+    "panel_cc_b_steepness": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blue-yellow contrast"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝-黄对比"
+          }
+        }
+      }
+    },
+    "panel_cc_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color contrast"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色彩对比"
+          }
+        }
+      }
+    },
+    "panel_cc_unbound": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbound"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无界"
+          }
+        }
+      }
+    },
+    "panel_cm_algorithm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algorithm"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "算法"
+          }
+        }
+      }
+    },
+    "panel_cm_algorithm_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algorithm"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "算法"
+          }
+        }
+      }
+    },
+    "panel_cm_blue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝"
+          }
+        }
+      }
+    },
+    "panel_cm_deprecated_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deprecated upstream — prefer Color Calibration."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上游已弃用——请用色彩校准。"
+          }
+        }
+      }
+    },
+    "panel_cm_gains_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Channel gains"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道增益"
+          }
+        }
+      }
+    },
+    "panel_cm_gray": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gray"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "灰"
+          }
+        }
+      }
+    },
+    "panel_cm_green": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Green"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绿"
+          }
+        }
+      }
+    },
+    "panel_cm_hue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色相"
+          }
+        }
+      }
+    },
+    "panel_cm_lightness": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightness"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明度"
+          }
+        }
+      }
+    },
+    "panel_cm_output": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Destination channel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目标通道"
+          }
+        }
+      }
+    },
+    "panel_cm_output_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Destination"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目标"
+          }
+        }
+      }
+    },
+    "panel_cm_red": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Red"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "红"
+          }
+        }
+      }
+    },
+    "panel_cm_saturation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度"
+          }
+        }
+      }
+    },
+    "panel_cm_v1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version 1"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 1"
+          }
+        }
+      }
+    },
+    "panel_cm_v2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version 2"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 2"
+          }
+        }
+      }
+    },
+    "panel_cmr_adapt_bradford_full": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non-linear Bradford"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非线性 Bradford"
+          }
+        }
+      }
+    },
+    "panel_cmr_adapt_bradford_linear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linear Bradford (ICC v4)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "线性 Bradford（ICC v4）"
+          }
+        }
+      }
+    },
+    "panel_cmr_adapt_cat16": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CAT16 (CIECAM16)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CAT16（CIECAM16）"
+          }
+        }
+      }
+    },
+    "panel_cmr_adapt_rgb": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None (bypass)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无（旁路）"
+          }
+        }
+      }
+    },
+    "panel_cmr_adapt_xyz": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "XYZ"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "XYZ"
+          }
+        }
+      }
+    },
+    "panel_cmr_adaptation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chromatic adaptation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色适应"
+          }
+        }
+      }
+    },
+    "panel_cmr_blue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blue channel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝色通道"
+          }
+        }
+      }
+    },
+    "panel_cmr_camera_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera WB resolves at commit from the daylight model when RAW coefficients are unavailable."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无 RAW 系数时按日光模型回落。"
+          }
+        }
+      }
+    },
+    "panel_cmr_clip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clip negative RGB"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁剪负 RGB"
+          }
+        }
+      }
+    },
+    "panel_cmr_fluo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "F source"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "F 光源"
+          }
+        }
+      }
+    },
+    "panel_cmr_gamut": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gamut compression"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色域压缩"
+          }
+        }
+      }
+    },
+    "panel_cmr_green": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Green channel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绿色通道"
+          }
+        }
+      }
+    },
+    "panel_cmr_grey_b": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grey blue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "灰蓝"
+          }
+        }
+      }
+    },
+    "panel_cmr_grey_g": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grey green"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "灰绿"
+          }
+        }
+      }
+    },
+    "panel_cmr_grey_r": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grey red"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "灰红"
+          }
+        }
+      }
+    },
+    "panel_cmr_grey_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grey"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "灰"
+          }
+        }
+      }
+    },
+    "panel_cmr_illum_a": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A (incandescent)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A（白炽灯）"
+          }
+        }
+      }
+    },
+    "panel_cmr_illum_bb": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planckian (black body)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "黑体"
+          }
+        }
+      }
+    },
+    "panel_cmr_illum_camera": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As shot in camera"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按拍摄白平衡"
+          }
+        }
+      }
+    },
+    "panel_cmr_illum_custom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义"
+          }
+        }
+      }
+    },
+    "panel_cmr_illum_d": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D (daylight)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D（日光）"
+          }
+        }
+      }
+    },
+    "panel_cmr_illum_e": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E (equi-energy)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E（等能）"
+          }
+        }
+      }
+    },
+    "panel_cmr_illum_f": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "F (fluorescent)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "F（荧光灯）"
+          }
+        }
+      }
+    },
+    "panel_cmr_illum_led": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LED"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LED"
+          }
+        }
+      }
+    },
+    "panel_cmr_illum_pipe": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Same as pipeline (D50)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "与管线相同（D50）"
+          }
+        }
+      }
+    },
+    "panel_cmr_illuminant": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Illuminant"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "光源"
+          }
+        }
+      }
+    },
+    "panel_cmr_illuminant_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Illuminant"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "光源"
+          }
+        }
+      }
+    },
+    "panel_cmr_led": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LED source"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LED 光源"
+          }
+        }
+      }
+    },
+    "panel_cmr_led_b1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B1 (Blue 2733K)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B1（蓝色 2733K）"
+          }
+        }
+      }
+    },
+    "panel_cmr_led_b2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B2 (Blue 2998K)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B2（蓝色 2998K）"
+          }
+        }
+      }
+    },
+    "panel_cmr_led_b3": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B3 (Blue 4103K)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B3（蓝色 4103K）"
+          }
+        }
+      }
+    },
+    "panel_cmr_led_b4": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B4 (Blue 5109K)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B4（蓝色 5109K）"
+          }
+        }
+      }
+    },
+    "panel_cmr_led_b5": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B5 (Blue 6598K)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B5（蓝色 6598K）"
+          }
+        }
+      }
+    },
+    "panel_cmr_led_bh1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BH1 (Blue-Red hybrid 2851K)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BH1（蓝红混合 2851K）"
+          }
+        }
+      }
+    },
+    "panel_cmr_led_rgb1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RGB1 (RGB 2840K)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RGB1（RGB 2840K）"
+          }
+        }
+      }
+    },
+    "panel_cmr_led_v1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "V1 (Violet 2724K)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "V1（紫色 2724K）"
+          }
+        }
+      }
+    },
+    "panel_cmr_led_v2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "V2 (Violet 4070K)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "V2（紫色 4070K）"
+          }
+        }
+      }
+    },
+    "panel_cmr_light_b": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightness blue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明度蓝"
+          }
+        }
+      }
+    },
+    "panel_cmr_light_g": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightness green"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明度绿"
+          }
+        }
+      }
+    },
+    "panel_cmr_light_r": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightness red"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明度红"
+          }
+        }
+      }
+    },
+    "panel_cmr_lightness_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightness"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明度"
+          }
+        }
+      }
+    },
+    "panel_cmr_noprofile_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color-checker profiling is not in v1 (manual calibration only)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色卡剖面 v1 未提供（仅手动校准）。"
+          }
+        }
+      }
+    },
+    "panel_cmr_normalize_b": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normalize blue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "归一化蓝色"
+          }
+        }
+      }
+    },
+    "panel_cmr_normalize_g": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normalize green"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "归一化绿色"
+          }
+        }
+      }
+    },
+    "panel_cmr_normalize_grey": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normalize grey"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "归一化灰"
+          }
+        }
+      }
+    },
+    "panel_cmr_normalize_light": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normalize lightness"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "归一化明度"
+          }
+        }
+      }
+    },
+    "panel_cmr_normalize_r": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normalize red"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "归一化红色"
+          }
+        }
+      }
+    },
+    "panel_cmr_normalize_sat": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normalize saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "归一化饱和度"
+          }
+        }
+      }
+    },
+    "panel_cmr_normalize_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normalize channels"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道归一化"
+          }
+        }
+      }
+    },
+    "panel_cmr_output_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Output"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输出"
+          }
+        }
+      }
+    },
+    "panel_cmr_red": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Red channel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "红色通道"
+          }
+        }
+      }
+    },
+    "panel_cmr_sat_b": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation blue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度蓝"
+          }
+        }
+      }
+    },
+    "panel_cmr_sat_g": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation green"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度绿"
+          }
+        }
+      }
+    },
+    "panel_cmr_sat_r": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation red"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度红"
+          }
+        }
+      }
+    },
+    "panel_cmr_saturation_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度"
+          }
+        }
+      }
+    },
+    "panel_cmr_temperature": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temperature"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色温"
+          }
+        }
+      }
+    },
+    "panel_cmr_version": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation algorithm"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度算法"
+          }
+        }
+      }
+    },
+    "panel_cmr_version_1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version 1 (2020)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 1（2020）"
+          }
+        }
+      }
+    },
+    "panel_cmr_version_2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version 2 (2021)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 2（2021）"
+          }
+        }
+      }
+    },
+    "panel_cmr_version_3": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version 3 (Apr 2021)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 3（2021-04）"
+          }
+        }
+      }
+    },
+    "panel_cmr_x": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Illuminant x"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "光源 x"
+          }
+        }
+      }
+    },
+    "panel_cmr_y": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Illuminant y"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "光源 y"
+          }
+        }
+      }
+    },
     "panel_colisa_brightness": {
       "extractionState": "manual",
       "localizations": {
@@ -1119,6 +3890,1196 @@
           "stringUnit": {
             "state": "translated",
             "value": "对比度组"
+          }
+        }
+      }
+    },
+    "panel_crop_actions_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actions"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aspect"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长宽比"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_16x10": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "16:10"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "16:10"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_16x9": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "16:9"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "16:9"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_1x1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Square 1:1"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正方形 1:1"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_3x2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3:2"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3:2"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_4x3": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "4:3"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "4:3"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_free": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freehand"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自由"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Locks the overlay drag ratio; the bits ride for export."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "锁定 overlay 拖拽比例；该标记随附导出。"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_original": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original image"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始图像"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aspect ratio"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长宽比"
+          }
+        }
+      }
+    },
+    "panel_crop_bottom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bottom"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下"
+          }
+        }
+      }
+    },
+    "panel_crop_left": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左"
+          }
+        }
+      }
+    },
+    "panel_crop_rect_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop window"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁切窗口"
+          }
+        }
+      }
+    },
+    "panel_crop_reset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset to full frame"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置为全幅"
+          }
+        }
+      }
+    },
+    "panel_crop_right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Right"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右"
+          }
+        }
+      }
+    },
+    "panel_crop_rotation_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotation micro-adjust lives in the rotate panel (04-03)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转微调在旋转面板（04-03）。"
+          }
+        }
+      }
+    },
+    "panel_crop_top": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上"
+          }
+        }
+      }
+    },
+    "panel_cz_channel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Channel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道"
+          }
+        }
+      }
+    },
+    "panel_cz_channel_c": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chroma"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色度"
+          }
+        }
+      }
+    },
+    "panel_cz_channel_h": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色相"
+          }
+        }
+      }
+    },
+    "panel_cz_channel_l": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightness"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明度"
+          }
+        }
+      }
+    },
+    "panel_cz_curves": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Curves"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲线"
+          }
+        }
+      }
+    },
+    "panel_cz_mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Process mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "处理模式"
+          }
+        }
+      }
+    },
+    "panel_cz_mode_smooth": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smooth"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平滑"
+          }
+        }
+      }
+    },
+    "panel_cz_mode_strong": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strong"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强烈"
+          }
+        }
+      }
+    },
+    "panel_cz_options": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Options"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选项"
+          }
+        }
+      }
+    },
+    "panel_cz_reset_flat": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset flat"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置为平直"
+          }
+        }
+      }
+    },
+    "panel_cz_select": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select by"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择依据"
+          }
+        }
+      }
+    },
+    "panel_cz_select_c": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chroma"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色度"
+          }
+        }
+      }
+    },
+    "panel_cz_select_h": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色相"
+          }
+        }
+      }
+    },
+    "panel_cz_select_l": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightness"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明度"
+          }
+        }
+      }
+    },
+    "panel_cz_strength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mix"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "混合"
+          }
+        }
+      }
+    },
+    "panel_dp_bias": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bias correction"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "偏差校正"
+          }
+        }
+      }
+    },
+    "panel_dp_central": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Central pixel weight"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中心像素权重"
+          }
+        }
+      }
+    },
+    "panel_dp_colormode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wavelet channels"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小波通道"
+          }
+        }
+      }
+    },
+    "panel_dp_colormode_rgb": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RGB"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RGB"
+          }
+        }
+      }
+    },
+    "panel_dp_colormode_y0u0v0": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y0U0V0"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y0U0V0"
+          }
+        }
+      }
+    },
+    "panel_dp_force_all": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ALL"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ALL"
+          }
+        }
+      }
+    },
+    "panel_dp_force_tab": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Curve"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲线"
+          }
+        }
+      }
+    },
+    "panel_dp_force_y0u0v0": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y0 / U0V0"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y0 / U0V0"
+          }
+        }
+      }
+    },
+    "panel_dp_mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模式"
+          }
+        }
+      }
+    },
+    "panel_dp_mode_nlmeans": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NL-Means"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NL-Means"
+          }
+        }
+      }
+    },
+    "panel_dp_mode_nlmeans_auto": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NL-Means (auto)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NL-Means（自动）"
+          }
+        }
+      }
+    },
+    "panel_dp_mode_variance": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Variance (v1: unavailable)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Variance（v1 不可用）"
+          }
+        }
+      }
+    },
+    "panel_dp_mode_variance_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VARIANCE defers to a later milestone (scene-adaptive strength not ported in v1)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VARIANCE 推迟到后续里程碑（v1 未移植场景自适应强度）。"
+          }
+        }
+      }
+    },
+    "panel_dp_mode_wavelets": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wavelets"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小波"
+          }
+        }
+      }
+    },
+    "panel_dp_mode_wavelets_auto": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wavelets (auto)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小波（自动）"
+          }
+        }
+      }
+    },
+    "panel_dp_nbhood": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search radius"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索半径"
+          }
+        }
+      }
+    },
+    "panel_dp_profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profile source"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剖面来源"
+          }
+        }
+      }
+    },
+    "panel_dp_profile_auto": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto (EXIF)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动（EXIF）"
+          }
+        }
+      }
+    },
+    "panel_dp_profile_generic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generic"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通用"
+          }
+        }
+      }
+    },
+    "panel_dp_profile_iso": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO override"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO 覆盖"
+          }
+        }
+      }
+    },
+    "panel_dp_profile_manual": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual ISO"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动 ISO"
+          }
+        }
+      }
+    },
+    "panel_dp_profile_summary": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resolved profile"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生效剖面"
+          }
+        }
+      }
+    },
+    "panel_dp_radius": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patch radius"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "补丁半径"
+          }
+        }
+      }
+    },
+    "panel_dp_scattering": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scattering"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "散射扩展"
+          }
+        }
+      }
+    },
+    "panel_dp_section_denoise": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Engine"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引擎"
+          }
+        }
+      }
+    },
+    "panel_dp_section_force": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wavelets force"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小波力度曲线"
+          }
+        }
+      }
+    },
+    "panel_dp_section_mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denoise (profiled)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去噪（剖面）"
+          }
+        }
+      }
+    },
+    "panel_dp_section_profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noise profile"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "噪声剖面"
+          }
+        }
+      }
+    },
+    "panel_dp_shadows": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preserve shadows"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留阴影"
+          }
+        }
+      }
+    },
+    "panel_dp_strength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强度"
+          }
+        }
+      }
+    },
+    "panel_equalizer_bands_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bands"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "频段"
+          }
+        }
+      }
+    },
+    "panel_equalizer_g0": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finest detail"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最细细节"
+          }
+        }
+      }
+    },
+    "panel_equalizer_g1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fine detail"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "细细节"
+          }
+        }
+      }
+    },
+    "panel_equalizer_g2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upper mids"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中高频"
+          }
+        }
+      }
+    },
+    "panel_equalizer_g3": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lower mids"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中低频"
+          }
+        }
+      }
+    },
+    "panel_equalizer_g4": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coarse"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粗频段"
+          }
+        }
+      }
+    },
+    "panel_equalizer_g5": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基底"
           }
         }
       }
@@ -1667,6 +5628,584 @@
         }
       }
     },
+    "panel_flip_auto": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EXIF auto"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EXIF 自动"
+          }
+        }
+      }
+    },
+    "panel_flip_exif_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EXIF auto follows the camera orientation; the 8 states apply directly."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EXIF 自动跟随相机方向；8 个状态直接应用。"
+          }
+        }
+      }
+    },
+    "panel_flip_flipH": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flip horizontally"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "水平翻转"
+          }
+        }
+      }
+    },
+    "panel_flip_flipV": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flip vertically"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "垂直翻转"
+          }
+        }
+      }
+    },
+    "panel_flip_none": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无"
+          }
+        }
+      }
+    },
+    "panel_flip_orientation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orientation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方向"
+          }
+        }
+      }
+    },
+    "panel_flip_rot180": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate 180°"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转 180°"
+          }
+        }
+      }
+    },
+    "panel_flip_rotCCW90": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate 90°"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转 90°"
+          }
+        }
+      }
+    },
+    "panel_flip_rotCW90": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate −90°"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转 −90°"
+          }
+        }
+      }
+    },
+    "panel_flip_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orientation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方向"
+          }
+        }
+      }
+    },
+    "panel_flip_transpose": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transpose"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转置"
+          }
+        }
+      }
+    },
+    "panel_flip_transverse": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transverse"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "横转"
+          }
+        }
+      }
+    },
+    "panel_highpass_contrast": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contrast boost"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对比度增强"
+          }
+        }
+      }
+    },
+    "panel_highpass_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highpass"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高通"
+          }
+        }
+      }
+    },
+    "panel_highpass_sharpness": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sharpness"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "锐度"
+          }
+        }
+      }
+    },
+    "panel_lens_apply_match": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply matched lens"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用匹配镜头"
+          }
+        }
+      }
+    },
+    "panel_lens_clear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear to manual"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除回手动"
+          }
+        }
+      }
+    },
+    "panel_lens_distortion_k1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distortion k1"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "畸变 k1"
+          }
+        }
+      }
+    },
+    "panel_lens_distortion_k2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distortion k2"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "畸变 k2"
+          }
+        }
+      }
+    },
+    "panel_lens_download": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download lens database"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载镜头数据库"
+          }
+        }
+      }
+    },
+    "panel_lens_download_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download failed — manual correction still works."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载失败——手动校正仍可用。"
+          }
+        }
+      }
+    },
+    "panel_lens_downloading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载中…"
+          }
+        }
+      }
+    },
+    "panel_lens_embedded_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The decoded image already includes the lens correction embedded by the camera/RAW decoder for supported lenses. Manual correction below defaults to OFF — enable only for uncorrected lenses to avoid double correction."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解码后的图像已包含相机/RAW 解码器对支持镜头的内嵌校正。下方手动校正默认关闭——仅对未校正镜头启用，避免双重校正。"
+          }
+        }
+      }
+    },
+    "panel_lens_embedded_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Embedded correction"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内嵌校正"
+          }
+        }
+      }
+    },
+    "panel_lens_lensfun_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lensfun database"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lensfun 数据库"
+          }
+        }
+      }
+    },
+    "panel_lens_manual_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual correction"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动校正"
+          }
+        }
+      }
+    },
+    "panel_lens_no_data": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No lens database on disk. Download the Lensfun database (≈4MB) or point to a local copy."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "磁盘上无镜头数据库。请下载 Lensfun 数据库（约 4MB）或指向本地副本。"
+          }
+        }
+      }
+    },
+    "panel_lens_no_exif": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No lens info in this photo — manual sliders below still apply."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此照片无镜头信息——下方手动滑块仍可用。"
+          }
+        }
+      }
+    },
+    "panel_lens_reset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset manual correction"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置手动校正"
+          }
+        }
+      }
+    },
+    "panel_lens_tca_b": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TCA blue"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "横向色差（蓝）"
+          }
+        }
+      }
+    },
+    "panel_lens_tca_r": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TCA red"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "横向色差（红）"
+          }
+        }
+      }
+    },
+    "panel_lens_vignette_k1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vignette k1"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渐晕 k1"
+          }
+        }
+      }
+    },
+    "panel_lens_vignette_k2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vignette k2"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渐晕 k2"
+          }
+        }
+      }
+    },
+    "panel_lens_vignette_k3": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vignette k3"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渐晕 k3"
+          }
+        }
+      }
+    },
     "panel_levels_automatic_hint": {
       "extractionState": "manual",
       "localizations": {
@@ -1833,6 +6372,414 @@
           "stringUnit": {
             "state": "translated",
             "value": "白场"
+          }
+        }
+      }
+    },
+    "panel_localcontrast_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detail"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "细节"
+          }
+        }
+      }
+    },
+    "panel_localcontrast_radius_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Radius"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "半径"
+          }
+        }
+      }
+    },
+    "panel_localcontrast_sigma_r": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Range extent"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "值域范围"
+          }
+        }
+      }
+    },
+    "panel_localcontrast_sigma_s": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spatial extent"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空间范围"
+          }
+        }
+      }
+    },
+    "panel_localcontrast_strength_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强度"
+          }
+        }
+      }
+    },
+    "panel_monochrome_highlights": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highlights"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高光保留"
+          }
+        }
+      }
+    },
+    "panel_monochrome_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monochrome"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "黑白"
+          }
+        }
+      }
+    },
+    "panel_monochrome_size": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter size"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滤镜尺寸"
+          }
+        }
+      }
+    },
+    "panel_monochrome_wheel_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter color"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滤镜颜色"
+          }
+        }
+      }
+    },
+    "panel_nlmeans_chroma": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chroma"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色彩平滑"
+          }
+        }
+      }
+    },
+    "panel_nlmeans_luma": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "亮度平滑"
+          }
+        }
+      }
+    },
+    "panel_nlmeans_radius": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patch size"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "补丁尺寸"
+          }
+        }
+      }
+    },
+    "panel_nlmeans_section_channels": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Channel smoothing"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道平滑"
+          }
+        }
+      }
+    },
+    "panel_nlmeans_section_denoise": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Astrophoto denoise (non-local means)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天文去噪（非局部均值）"
+          }
+        }
+      }
+    },
+    "panel_nlmeans_strength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强度"
+          }
+        }
+      }
+    },
+    "panel_sharpen_amount": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Amount"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数量"
+          }
+        }
+      }
+    },
+    "panel_sharpen_radius": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Radius"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "半径"
+          }
+        }
+      }
+    },
+    "panel_sharpen_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sharpen"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "锐化"
+          }
+        }
+      }
+    },
+    "panel_sharpen_threshold": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Threshold"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阈值"
+          }
+        }
+      }
+    },
+    "panel_soften_amount": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mix"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "混合"
+          }
+        }
+      }
+    },
+    "panel_soften_brightness": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brightness"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "亮度"
+          }
+        }
+      }
+    },
+    "panel_soften_saturation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度"
+          }
+        }
+      }
+    },
+    "panel_soften_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soften (Orton)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "柔焦（Orton）"
+          }
+        }
+      }
+    },
+    "panel_soften_size": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Size"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尺寸"
           }
         }
       }
@@ -2789,6 +7736,91 @@
         }
       }
     },
+    "panel_velvia_bias": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mid-tones bias"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中间调偏移"
+          }
+        }
+      }
+    },
+    "panel_velvia_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Velvia"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Velvia"
+          }
+        }
+      }
+    },
+    "panel_velvia_strength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强度"
+          }
+        }
+      }
+    },
+    "panel_vibrance_amount": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibrance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自然饱和度"
+          }
+        }
+      }
+    },
+    "panel_vibrance_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibrance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自然饱和度"
+          }
+        }
+      }
+    },
     "panel_wb_blue": {
       "extractionState": "manual",
       "localizations": {
@@ -3163,6 +8195,74 @@
         }
       }
     },
+    "toast_ashift_reset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ashift reset to neutral."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转透视已重置。"
+          }
+        }
+      }
+    },
+    "toast_auto_detect_applied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto perspective applied."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动透视已应用。"
+          }
+        }
+      }
+    },
+    "toast_auto_level_applied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto level applied."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动水平已应用。"
+          }
+        }
+      }
+    },
+    "toast_auto_no_change": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto detect found no correction — params unchanged."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动检测无需校正——参数未改动。"
+          }
+        }
+      }
+    },
     "toast_cache_freed": {
       "extractionState": "manual",
       "localizations": {
@@ -3227,6 +8327,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "未知模块“%@”已停用（数据已保留）"
+          }
+        }
+      }
+    },
+    "toggle_off": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "off"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关"
+          }
+        }
+      }
+    },
+    "toggle_on": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "on"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开"
           }
         }
       }
@@ -3346,1859 +8480,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "100%"
-          }
-        }
-      }
-    },
-    "history_crop": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crop"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "裁切"
-          }
-        }
-      }
-    },
-    "module_crop": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crop"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "裁切"
-          }
-        }
-      }
-    },
-    "panel_crop_aspect": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aspect"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "长宽比"
-          }
-        }
-      }
-    },
-    "panel_crop_aspect_free": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Freehand"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自由"
-          }
-        }
-      }
-    },
-    "panel_crop_aspect_original": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Original image"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "原始图像"
-          }
-        }
-      }
-    },
-    "panel_crop_aspect_1x1": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Square 1:1"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正方形 1:1"
-          }
-        }
-      }
-    },
-    "panel_crop_aspect_4x3": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "4:3"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "4:3"
-          }
-        }
-      }
-    },
-    "panel_crop_aspect_3x2": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "3:2"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "3:2"
-          }
-        }
-      }
-    },
-    "panel_crop_aspect_16x9": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "16:9"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "16:9"
-          }
-        }
-      }
-    },
-    "panel_crop_aspect_16x10": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "16:10"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "16:10"
-          }
-        }
-      }
-    },
-    "panel_crop_aspect_hint": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Locks the overlay drag ratio; the bits ride for export."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "锁定 overlay 拖拽比例；该标记随附导出。"
-          }
-        }
-      }
-    },
-    "panel_crop_aspect_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aspect ratio"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "长宽比"
-          }
-        }
-      }
-    },
-    "panel_crop_left": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Left"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "左"
-          }
-        }
-      }
-    },
-    "panel_crop_top": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Top"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上"
-          }
-        }
-      }
-    },
-    "panel_crop_right": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Right"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "右"
-          }
-        }
-      }
-    },
-    "panel_crop_bottom": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bottom"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下"
-          }
-        }
-      }
-    },
-    "panel_crop_rect_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crop window"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "裁切窗口"
-          }
-        }
-      }
-    },
-    "panel_crop_reset": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reset to full frame"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重置为全幅"
-          }
-        }
-      }
-    },
-    "panel_crop_rotation_note": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rotation micro-adjust lives in the rotate panel (04-03)."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旋转微调在旋转面板（04-03）。"
-          }
-        }
-      }
-    },
-    "panel_crop_actions_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Actions"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "操作"
-          }
-        }
-      }
-    },
-    "history_ashift": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ashift"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旋转透视"
-          }
-        }
-      }
-    },
-    "panel_ashift_rotation": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rotation"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旋转"
-          }
-        }
-      }
-    },
-    "panel_ashift_rotation_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rotation"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旋转"
-          }
-        }
-      }
-    },
-    "panel_ashift_auto_level": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auto level"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自动水平"
-          }
-        }
-      }
-    },
-    "panel_ashift_perspective_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Perspective"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "透视"
-          }
-        }
-      }
-    },
-    "panel_ashift_lens_shift_v": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lens shift vertical"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "镜头位移（竖直）"
-          }
-        }
-      }
-    },
-    "panel_ashift_lens_shift_h": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lens shift horizontal"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "镜头位移（水平）"
-          }
-        }
-      }
-    },
-    "panel_ashift_shear": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shear"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "剪切"
-          }
-        }
-      }
-    },
-    "panel_ashift_auto_detect": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auto detect"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自动检测"
-          }
-        }
-      }
-    },
-    "panel_ashift_crop_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Inner crop"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "内嵌裁切"
-          }
-        }
-      }
-    },
-    "panel_ashift_crop_left": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crop left"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "裁切左"
-          }
-        }
-      }
-    },
-    "panel_ashift_crop_right": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crop right"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "裁切右"
-          }
-        }
-      }
-    },
-    "panel_ashift_crop_top": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crop top"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "裁切上"
-          }
-        }
-      }
-    },
-    "panel_ashift_crop_bottom": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crop bottom"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "裁切下"
-          }
-        }
-      }
-    },
-    "panel_ashift_reset": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reset to full frame"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重置为全幅"
-          }
-        }
-      }
-    },
-    "panel_ashift_no_image": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No image loaded."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未加载图像。"
-          }
-        }
-      }
-    },
-    "panel_ashift_no_horizon": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No horizon found — params unchanged."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未检测到地平线——参数未改动。"
-          }
-        }
-      }
-    },
-    "panel_ashift_no_rectangle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No rectangle found — params unchanged."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未检测到矩形——参数未改动。"
-          }
-        }
-      }
-    },
-    "history_lens": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lens correction"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "镜头校正"
-          }
-        }
-      }
-    },
-    "panel_lens_embedded_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Embedded correction"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "内嵌校正"
-          }
-        }
-      }
-    },
-    "panel_lens_embedded_note": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The decoded image already includes the lens correction embedded by the camera/RAW decoder for supported lenses. Manual correction below defaults to OFF — enable only for uncorrected lenses to avoid double correction."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "解码后的图像已包含相机/RAW 解码器对支持镜头的内嵌校正。下方手动校正默认关闭——仅对未校正镜头启用，避免双重校正。"
-          }
-        }
-      }
-    },
-    "panel_lens_manual_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manual correction"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手动校正"
-          }
-        }
-      }
-    },
-    "panel_lens_distortion_k1": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Distortion k1"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "畸变 k1"
-          }
-        }
-      }
-    },
-    "panel_lens_distortion_k2": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Distortion k2"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "畸变 k2"
-          }
-        }
-      }
-    },
-    "panel_lens_tca_r": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TCA red"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "横向色差（红）"
-          }
-        }
-      }
-    },
-    "panel_lens_tca_b": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TCA blue"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "横向色差（蓝）"
-          }
-        }
-      }
-    },
-    "panel_lens_vignette_k1": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vignette k1"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "渐晕 k1"
-          }
-        }
-      }
-    },
-    "panel_lens_vignette_k2": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vignette k2"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "渐晕 k2"
-          }
-        }
-      }
-    },
-    "panel_lens_vignette_k3": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vignette k3"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "渐晕 k3"
-          }
-        }
-      }
-    },
-    "panel_lens_reset": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reset manual correction"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重置手动校正"
-          }
-        }
-      }
-    },
-    "panel_lens_lensfun_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lensfun database"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lensfun 数据库"
-          }
-        }
-      }
-    },
-    "panel_lens_apply_match": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apply matched lens"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "应用匹配镜头"
-          }
-        }
-      }
-    },
-    "panel_lens_clear": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear to manual"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清除回手动"
-          }
-        }
-      }
-    },
-    "panel_lens_no_data": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No lens database on disk. Download the Lensfun database (≈4MB) or point to a local copy."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "磁盘上无镜头数据库。请下载 Lensfun 数据库（约 4MB）或指向本地副本。"
-          }
-        }
-      }
-    },
-    "panel_lens_download": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Download lens database"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下载镜头数据库"
-          }
-        }
-      }
-    },
-    "panel_lens_downloading": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Downloading…"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下载中…"
-          }
-        }
-      }
-    },
-    "panel_lens_no_exif": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No lens info in this photo — manual sliders below still apply."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此照片无镜头信息——下方手动滑块仍可用。"
-          }
-        }
-      }
-    },
-    "panel_lens_download_failed": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Download failed — manual correction still works."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下载失败——手动校正仍可用。"
-          }
-        }
-      }
-    },
-    "panel_sharpen_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sharpen"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "锐化"
-          }
-        }
-      }
-    },
-    "panel_sharpen_radius": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Radius"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "半径"
-          }
-        }
-      }
-    },
-    "panel_sharpen_amount": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Amount"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "数量"
-          }
-        }
-      }
-    },
-    "panel_sharpen_threshold": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Threshold"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "阈值"
-          }
-        }
-      }
-    },
-    "panel_localcontrast_strength_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Strength"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "强度"
-          }
-        }
-      }
-    },
-    "panel_localcontrast_radius_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Radius"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "半径"
-          }
-        }
-      }
-    },
-    "panel_localcontrast_detail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detail"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "细节"
-          }
-        }
-      }
-    },
-    "panel_localcontrast_sigma_s": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spatial extent"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "空间范围"
-          }
-        }
-      }
-    },
-    "panel_localcontrast_sigma_r": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Range extent"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "值域范围"
-          }
-        }
-      }
-    },
-    "panel_highpass_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Highpass"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "高通"
-          }
-        }
-      }
-    },
-    "panel_highpass_sharpness": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sharpness"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "锐度"
-          }
-        }
-      }
-    },
-    "panel_highpass_contrast": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Contrast boost"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "对比度增强"
-          }
-        }
-      }
-    },
-    "panel_soften_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Soften (Orton)"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "柔焦（Orton）"
-          }
-        }
-      }
-    },
-    "panel_soften_size": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Size"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尺寸"
-          }
-        }
-      }
-    },
-    "panel_soften_saturation": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Saturation"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "饱和度"
-          }
-        }
-      }
-    },
-    "panel_soften_brightness": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Brightness"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "亮度"
-          }
-        }
-      }
-    },
-    "panel_soften_amount": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mix"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "混合"
-          }
-        }
-      }
-    },
-    "panel_equalizer_bands_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bands"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "频段"
-          }
-        }
-      }
-    },
-    "panel_equalizer_g0": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Finest detail"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最细细节"
-          }
-        }
-      }
-    },
-    "panel_equalizer_g1": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fine detail"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "细细节"
-          }
-        }
-      }
-    },
-    "panel_equalizer_g2": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Upper mids"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "中高频"
-          }
-        }
-      }
-    },
-    "panel_equalizer_g3": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lower mids"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "中低频"
-          }
-        }
-      }
-    },
-    "panel_equalizer_g4": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Coarse"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "粗频段"
-          }
-        }
-      }
-    },
-    "panel_equalizer_g5": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Base"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "基底"
-          }
-        }
-      }
-    },
-    "history_sharpen": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sharpen"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "锐化"
-          }
-        }
-      }
-    },
-    "history_localcontrast": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Local contrast"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "局部对比度"
-          }
-        }
-      }
-    },
-    "history_highpass": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Highpass"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "高通"
-          }
-        }
-      }
-    },
-    "history_soften": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Soften"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "柔焦"
-          }
-        }
-      }
-    },
-    "history_equalizer": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Equalizer"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "均衡器"
-          }
-        }
-      }
-    },
-    "module_flip": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Flip"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "翻转"
-          }
-        }
-      }
-    },
-    "history_flip": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Flip"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "翻转"
-          }
-        }
-      }
-    },
-    "panel_flip_section": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Orientation"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "方向"
-          }
-        }
-      }
-    },
-    "panel_flip_orientation": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Orientation"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "方向"
-          }
-        }
-      }
-    },
-    "panel_flip_auto": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "EXIF auto"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "EXIF 自动"
-          }
-        }
-      }
-    },
-    "panel_flip_none": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "None"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无"
-          }
-        }
-      }
-    },
-    "panel_flip_flipH": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Flip horizontally"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "水平翻转"
-          }
-        }
-      }
-    },
-    "panel_flip_flipV": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Flip vertically"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "垂直翻转"
-          }
-        }
-      }
-    },
-    "panel_flip_rot180": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rotate 180°"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旋转 180°"
-          }
-        }
-      }
-    },
-    "panel_flip_transpose": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transpose"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "转置"
-          }
-        }
-      }
-    },
-    "panel_flip_rotCW90": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rotate −90°"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旋转 −90°"
-          }
-        }
-      }
-    },
-    "panel_flip_rotCCW90": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rotate 90°"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旋转 90°"
-          }
-        }
-      }
-    },
-    "panel_flip_transverse": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transverse"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "横转"
-          }
-        }
-      }
-    },
-    "panel_flip_exif_note": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "EXIF auto follows the camera orientation; the 8 states apply directly."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "EXIF 自动跟随相机方向；8 个状态直接应用。"
-          }
-        }
-      }
-    },
-    "toast_auto_level_applied": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auto level applied."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自动水平已应用。"
-          }
-        }
-      }
-    },
-    "toast_auto_detect_applied": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auto perspective applied."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自动透视已应用。"
-          }
-        }
-      }
-    },
-    "toast_auto_no_change": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auto detect found no correction — params unchanged."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自动检测无需校正——参数未改动。"
-          }
-        }
-      }
-    },
-    "toast_ashift_reset": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ashift reset to neutral."
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旋转透视已重置。"
-          }
-        }
-      }
-    },
-    "history_toggle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toggle module"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "切换模块"
-          }
-        }
-      }
-    },
-    "toggle_on": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "on"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "开"
-          }
-        }
-      }
-    },
-    "toggle_off": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "off"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "关"
-          }
-        }
-      }
-    },
-    "inspector_row_toggle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toggle module enabled"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "切换模块启用"
           }
         }
       }

@@ -117,6 +117,92 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: LocalContrastModule.opName) { id in
             ModuleBox(module: LocalContrastModule(), instanceID: id)
         }
+        // Plan 05-02-T2: colorbalancergb (scene-referred RGB grading,
+        // 4-way + saturation legs), v50 slot 41.5 — after colorbalance
+        // (41.0), before rgbcurve (42.0).
+        await registry.register(opName: ColorBalanceRGBModule.opName) { id in
+            ModuleBox(module: ColorBalanceRGBModule(), instanceID: id)
+        }
+        // Plan 05-03-T2: channelmixerrgb ("color calibration",
+        // scene-linear RGB WB + 3x3 mix), v50 slot 28.5 — immediately after
+        // colorin (28.0). Seed DISABLED (dt default_enabled FALSE,
+        // channelmixerrgb.c:3886; default D-illuminant adaptation is not
+        // pixel-identity — colorbalancergb D1 same disposition).
+        await registry.register(opName: ChannelMixerRGBModule.opName) { id in
+            ModuleBox(module: ChannelMixerRGBModule(), instanceID: id)
+        }
+        // Plan 05-03-T3: channelmixer legacy (3x3 gain + HSL modes), v50
+        // slot 39.0. Seed ENABLED-neutral (identity RGB + v2 ⇒
+        // OPERATION_MODE_RGB identity — exposure-0EV style). dt DEPRECATED
+        // (channelmixer.c:126) — delivered per IOP-COLOR-04, head note.
+        await registry.register(opName: ChannelMixerModule.opName) { id in
+            ModuleBox(module: ChannelMixerModule(), instanceID: id)
+        }
+        // Plan 05-03-T3: colorcontrast (Lab a/b slope + offset), v50 slot
+        // 56.0. Seed ENABLED-neutral (steepness 1/offset 0 ⇒ identity).
+        await registry.register(opName: ColorContrastModule.opName) { id in
+            ModuleBox(module: ColorContrastModule(), instanceID: id)
+        }
+        // Plan 05-04-T1: velvia (RGB linear saturation boost), v50 slot
+        // 57.0 — before vibrance (58.0). Seed ENABLED-neutral (strength 0
+        // ⇒ saturation 0 ⇒ in == out). The trailing clamp is dt's formula
+        // (head note).
+        await registry.register(opName: VelviaModule.opName) { id in
+            ModuleBox(module: VelviaModule(), instanceID: id)
+        }
+        // Plan 05-04-T1: vibrance (Lab single-parameter), v50 slot 58.0.
+        // Seed ENABLED-neutral (amount 0 ⇒ ls=ss=1). dt DEPRECATED in favor
+        // of colorbalancergb's Ych-family slider — delivered independently
+        // per D-05-CONTEXT-8 (different formula family, head note).
+        await registry.register(opName: VibranceModule.opName) { id in
+            ModuleBox(module: VibranceModule(), instanceID: id)
+        }
+        // Plan 05-04-T2: colorzones (Lab 3-curve L/C/h + 0x10000 LUTs),
+        // v50 slot 60.0. Seed ENABLED-neutral (default curves flat-0.5 ⇒
+        // Lm/hm = 0, Cm = 1 ⇒ in == out). SMOOTH/v3 path only (strong
+        // legacy out of scope — DECISIONS D-05-04-T2-2).
+        await registry.register(opName: ColorZonesModule.opName) { id in
+            ModuleBox(module: ColorZonesModule(), instanceID: id)
+        }
+        // Plan 05-05-T1: monochrome (B&W + color filter, Lab filter leg),
+        // v50 slot 64.0 — after lowlight (63.0), before grain (65.0).
+        // Seed DISABLED (default size=2 red filter is not pixel-identity —
+        // identity holds only via the disabled piece; colorbalancergb D1
+        // same disposition; DECISIONS D2).
+        await registry.register(opName: MonochromeModule.opName) { id in
+            ModuleBox(module: MonochromeModule(), instanceID: id)
+        }
+        // Plan 05-06-T2: nlmeans ("astrophoto denoise", Goossens sliding
+        // window NLMeans), v50 slot 29.0 — immediately after colorin (28.0;
+        // Lab needs calibrated color, iop_order.c note). Seed DISABLED
+        // (dt ships nlmeans without a default_enabled override; no zero-
+        // param identity exists — sharpness=3000 at strength 0 still
+        // smooths similar patches and the commit clamp floors
+        // luma/chroma at 0.0001 so the finish blend never reaches zero
+        // weight; colorbalancergb D1 disposition, DECISIONS D-05-06-T2-1).
+        await registry.register(opName: NLMeansModule.opName) { id in
+            ModuleBox(module: NLMeansModule(), instanceID: id)
+        }
+        // Plan 05-07-T2: denoiseprofile ("denoise (profiled)", VST + eaw
+        // wavelets + NLMeans leg + NoiseProfileStore consumption), v50 slot
+        // 9.0 — immediately after temperature (3.0-era WB semantics), the
+        // FIRST post-demosaic RGB slot. Seed DISABLED (D-05-07-T2-2: dt
+        // auto-profiles RAWs at defaults, but no zero-param identity
+        // exists — force 0.5 keeps thrs>0 so noisy pixels move, and the
+        // auto profile makes defaults image-dependent; identity holds only
+        // via the disabled piece, colorbalancergb D1 disposition).
+        await registry.register(opName: DenoiseProfileModule.opName) { id in
+            ModuleBox(module: DenoiseProfileModule(), instanceID: id)
+        }
+        // Plan 05-08-T1: bilateral ("surface blur", direct stamp ≤ rad 6 +
+        // 5D grid leg with the OQ7 budget), v50 slot 10.0 — immediately
+        // after denoiseprofile (9.0), before demosaic-adjacent colorin-era
+        // slots. Seed DISABLED (D-05-08-T1-3: no zero-param identity —
+        // radius $MIN 1.0 still smooths, so identity holds only via the
+        // disabled piece; colorbalancergb D1 disposition).
+        await registry.register(opName: BilateralModule.opName) { id in
+            ModuleBox(module: BilateralModule(), instanceID: id)
+        }
         // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
         // 66.0 (creative) — after grain (65.0), before splittoning (67.0).
         await registry.register(opName: SoftenModule.opName) { id in
@@ -170,15 +256,59 @@ public enum LightamerIOPRegistry {
             // Plan 04-05-T2: local-contrast prep + clarity apply (the EIGF
             // leg reuses toneequal's kernels — already warmed above).
             LocalContrastKernel.prepFunction,
-            LocalContrastKernel.applyFunction,
-            // Plan 04-05-T3: highpass prep + CL mix; soften overexposed + mix.
-            HighpassKernel.prepFunction,
-            HighpassKernel.mixFunction,
-            SoftenKernel.overFunction,
-            SoftenKernel.mixFunction,
             // Plan 04-05-T4: equalizer prep + pyramid recombine.
             EqualizerKernel.prepFunction,
             EqualizerKernel.recombineFunction,
+            // Plan 05-02-T2: colorbalancergb single-pass grading.
+            ColorBalanceRGBKernel.functionName,
+            // Plan 05-04-T2: colorzones LUT triple.
+            ColorZonesKernel.functionName,
+            // Plan 05-05-T1/T2: monochrome filter + apply + the 3D grid
+            // quadruple it consumes (splat/blur_line/blur_line_z/slice —
+            // BilateralGrid3D prewarms on first monochrome render otherwise).
+            MonochromeKernel.filterFunction,
+            MonochromeKernel.applyFunction,
+            BilateralGrid3D.splatFunction,
+            BilateralGrid3D.blurLineFunction,
+            BilateralGrid3D.blurLineZFunction,
+            BilateralGrid3D.sliceFunction,
+            ChannelMixerKernel.functionName,
+            ColorContrastKernel.functionName,
+            // Plan 05-06: nlmeans kernel group (the denoiseprofile NLMeans
+            // leg consumes the same five kernels — 05-07 rides this warm-up).
+            NLMeansKernel.labForwardFunction,
+            NLMeansKernel.distFunction,
+            NLMeansKernel.horizFunction,
+            NLMeansKernel.vertFunction,
+            NLMeansKernel.accuFunction,
+            NLMeansKernel.finishFunction,
+            // Plan 05-07-T2: denoiseprofile kernel group (the NLMeans leg
+            // additionally reuses the nlmeans dist/horiz/accu above).
+            DenoiseProfileKernel.precondition,
+            DenoiseProfileKernel.preconditionV2,
+            DenoiseProfileKernel.preconditionY0U0V0,
+            DenoiseProfileKernel.backtransform,
+            DenoiseProfileKernel.backtransformV2,
+            DenoiseProfileKernel.backtransformY0U0V0,
+            DenoiseProfileKernel.decompose,
+            DenoiseProfileKernel.synthesizeAccum,
+            DenoiseProfileKernel.reduceFirst,
+            DenoiseProfileKernel.reduceSecond,
+            DenoiseProfileKernel.addResidue,
+            DenoiseProfileKernel.vert,
+            DenoiseProfileKernel.finish,
+            DenoiseProfileKernel.finishV2,
+            // Plan 05-08-T1: bilateral kernel pair (direct stamp + the 5D
+            // grid trio — splat/blur/slice; the blur runs ×5 dims).
+            BilateralKernel.directFunction,
+            BilateralKernel.splatFunction,
+            BilateralKernel.blurLineFunction,
+            BilateralKernel.sliceFunction,
+            // Plan 05-04-T1: velvia + vibrance.
+            VelviaKernel.functionName,
+            VibranceKernel.functionName,
+            SoftenKernel.overFunction,
+            SoftenKernel.mixFunction,
         ]
     }
 
@@ -221,12 +351,54 @@ public enum LightamerIOPRegistry {
             // seed — blit identity ⇒ cache-neutral (exposure-0EV style), so
             // the equalizer panel has an instance to drive.
             ModuleInstance(module: EqualizerModule.self, params: EqualizerModule.Params()),
+            // Plan 05-02-T2: colorbalancergb joins the seed DISABLED
+            // (05-02-DECISIONS D1: default params are NOT pixel-identity —
+            // the gamut legs move wide-gamut colors even at neutral, so no
+            // zero-param identity exists; identity holds only via the
+            // disabled piece — highpass/soften D11 same disposition).
+            ModuleInstance(module: ColorBalanceRGBModule.self, params: ColorBalanceRGBModule.Params(), enabled: false),
             // Plan 04-05-T3: highpass + soften join the seed DISABLED
             // (creative modules — DECISIONS D11: no zero-param identity, so
             // identity holds only via the disabled piece).
             ModuleInstance(module: HighpassModule.self, params: HighpassModule.Params(), enabled: false),
             ModuleInstance(module: SoftenModule.self, params: SoftenModule.Params(), enabled: false),
+            // Plan 05-03-T2: channelmixerrgb joins the seed DISABLED
+            // (dt default_enabled FALSE, channelmixerrgb.c:3886; the default
+            // D-illuminant adaptation is not pixel-identity —
+            // colorbalancergb D1 same disposition).
+            ModuleInstance(module: ChannelMixerRGBModule.self, params: ChannelMixerRGBModule.Params(), enabled: false),
+            // Plan 05-03-T3: channelmixer legacy + colorcontrast join the
+            // seed ENABLED-neutral (identity matrices ⇒ cache-neutral,
+            // exposure-0EV style, so their panels have instances to drive).
+            ModuleInstance(module: ChannelMixerModule.self, params: ChannelMixerModule.Params()),
+            ModuleInstance(module: ColorContrastModule.self, params: ColorContrastModule.Params()),
+            // Plan 05-04-T1: velvia + vibrance join the seed ENABLED-neutral
+            // (strength/amount 0 ⇒ identity, cache-neutral, exposure-0EV
+            // style, so their panels have instances to drive).
+            ModuleInstance(module: VelviaModule.self, params: VelviaModule.Params()),
+            ModuleInstance(module: VibranceModule.self, params: VibranceModule.Params()),
+            // Plan 05-04-T2: colorzones joins the seed ENABLED-neutral
+            // (flat-0.5 default curves ⇒ identity, cache-neutral).
+            ModuleInstance(module: ColorZonesModule.self, params: ColorZonesModule.Params()),
+            // Plan 05-05-T1: monochrome joins the seed DISABLED (D2: default
+            // size=2 red filter is not pixel-identity — identity holds only
+            // via the disabled piece; colorbalancergb D1 same disposition).
+            ModuleInstance(module: MonochromeModule.self, params: MonochromeModule.Params(), enabled: false),
+            // Plan 05-06-T2: nlmeans joins the seed DISABLED (DECISIONS
+            // D-05-06-T2-1: dt ships it disabled — no default_enabled
+            // override — and no zero-param identity exists: strength 0
+            // keeps sharpness 3000 which still smooths similar patches,
+            // and the commit clamp floors luma/chroma at 0.0001 so the
+            // finish blend never reaches zero weight; identity holds only
+            // via the disabled piece, colorbalancergb D1 disposition).
+            ModuleInstance(module: NLMeansModule.self, params: NLMeansModule.Params(), enabled: false),
+            // Plan 05-07-T2: denoiseprofile joins the seed DISABLED
+            // (D-05-07-T2-2 — see the registration note above).
+            ModuleInstance(module: DenoiseProfileModule.self, params: DenoiseProfileModule.Params(), enabled: false),
+            // Plan 05-08-T1: bilateral joins the seed DISABLED (D-05-08-T1-3
+            // — see the registration note above).
+            ModuleInstance(module: BilateralModule.self, params: BilateralModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
-    }
+}
 }

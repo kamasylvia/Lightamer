@@ -205,7 +205,7 @@ final class LabRoundTripTests: XCTestCase {
         static var defaultColorspace: IOPColorspace { .Lab }
 
         func reloadDefaults(image: DecodedImage) async -> Params { Params() }
-        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+        func commitParams(_ params: Params, into piece: inout IOPiece) {
             piece.paramsHash = 0xC0FFEE
         }
         func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) { roi = input }
@@ -261,7 +261,7 @@ final class LabRoundTripTests: XCTestCase {
         let base = try await render(baseChain)
 
         var probeBox = ModuleBox(module: LabRoundTripProbeModule(), instanceID: UUID())
-        await probeBox.setParams(LabRoundTripProbeModule.Params())
+        probeBox.setParams(LabRoundTripProbeModule.Params())
         let probeChain = baseChain + [probeBox]
         let withProbe = try await render(probeChain)
 

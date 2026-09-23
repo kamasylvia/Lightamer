@@ -408,7 +408,7 @@ public final class SigmoidModule: IOPModule {
 
     // MARK: Commit (sigmoid.c:318-407 + :394-468)
 
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
 

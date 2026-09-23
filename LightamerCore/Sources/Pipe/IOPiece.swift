@@ -56,6 +56,14 @@ public struct IOPiece {
     /// `commitParams` never touches it (default 1.0 = full-res identity).
     public var iscale: Float
 
+    /// The pipe this run executes on (dt `piece->pipe->type` mirror —
+    /// Plan 05-06): the preview-downgrade lever for denoise iops (nlmeans
+    /// clamps its search radius and decimates offsets on PREVIEW/THUMBNAIL,
+    /// denoiseprofile.c:1626-1631 / nlmeans.c:367-368 同构). Stamped ONCE
+    /// by `PixelPipe.run` alongside iscale — a run-level constant the TILE
+    /// drivers must not rewrite. Default `.full` (tests / direct drives).
+    public var pipeType: PipeResolution
+
     /// 04-01 negotiation stamps (dt `processed_roi_in/out`,
     /// `pixelpipe_hb.c:2095-2096` mirror): the exact ROIs this piece's
     /// execution consumed. Stamped by `processRec` (post-negotiation) —
@@ -72,6 +80,7 @@ public struct IOPiece {
         dscIn: IOPBufferDesc = IOPBufferDesc(),
         dscOut: IOPBufferDesc = IOPBufferDesc(),
         iscale: Float = 1.0,
+        pipeType: PipeResolution = .full,
         processedROIIn: ROI = ROI(),
         processedROIOut: ROI = ROI(),
         data: (any MTLBuffer)? = nil
@@ -80,6 +89,7 @@ public struct IOPiece {
         self.dscIn = dscIn
         self.dscOut = dscOut
         self.iscale = iscale
+        self.pipeType = pipeType
         self.processedROIIn = processedROIIn
         self.processedROIOut = processedROIOut
         self.data = data

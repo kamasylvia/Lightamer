@@ -379,14 +379,17 @@ def gen_noisy_fixtures(outdir: str, canonical_dir: str = "") -> None:
 def gen_hue_sweep(outdir: str) -> None:
     """hue 全环 sweep 渐变（色相域覆盖，喂自研 parity —— 无 L017 风险）：
     360×64，H = x/360 全环（S=V=1 HSV→RGB），中性行锚定。
+    05-04 PEDELTA: S = 0.999（非 1.0）——纯 HSV 主色在 fixture 中含精确 0.0
+    通道，相对误差在该通道上退化（除 ~0），恒等/近恒等 parity 的 maxRel
+    被钉在 1e2 量级空转。0.999 饱和度保持全环 hue 覆盖（C ≈ 127.9/128），
+    同时最小通道 ≈ 0.001，相对度量全程良态。
     """
 
     def px(x, y):
         h = (x % 360) / 360.0
-        return _hsv_to_rgb(h, 1.0, 1.0)
+        return _hsv_to_rgb(h, 0.999, 1.0)
 
     write_exr(os.path.join(outdir, "hue_sweep.exr"), 360, 64, px)
-
 
 def _hsv_to_rgb(h, s, v):
     i = int(h * 6.0) % 6
@@ -1826,7 +1829,11 @@ def channelmixerrgb_params_blob(
 
 
 # dt_iop_colorbalancergb_params_t v5 = 132B：32 float + saturation_formula(int)。
-# 默认全 0（4-way 中性）+ mask_grey/grey_fulcrum 0.1845 + formula 1 = DTUCS。
+# 默认 = dt default_v5（05-02 钉死）：4-way 全 0 + falloff (1,0,1) + chroma/sat
+# 全 0 + hue 0 + brilliance 全 0（commit 折 shields/slopes powers）+
+# mask_grey 0.1845 + vibrance 0 + grey_fulcrum 0.1845 + contrast 0 +
+# formula 1 = DTUCS。注意 legacy default_v5 的 white_fulcrum EV 槽 = 0.0（线性
+# fulcrum = exp2(0) = 1.0），与 init_presets 的 preset 全零一致。
 COLORBALANCERGB_PARAMS_FORMAT = "<32fi"
 COLORBALANCERGB_MODVERSION = 5
 COLORBALANCERGB_IOP_ORDER = 41.5
@@ -1839,7 +1846,7 @@ def colorbalancergb_params_blob(
     mask_grey_fulcrum=0.1845, vibrance=0.0, grey_fulcrum=0.1845,
     contrast=0.0, saturation_formula=1,
 ) -> str:
-    """dt_iop_colorbalancergb_params_t v5 → hex。默认 = 全中性（恒等门）。"""
+    """dt_iop_colorbalancergb_params_t v5 → hex。默认 = dt default_v5 中性（非恒等：gamut 腿拉伸——恒等门 fixture 须 in-gamut，见 05-02 parity 注释）。"""
     floats = list(four_way) + list(falloff) + list(chroma) + list(saturation)
     floats += [hue_angle] + list(brilliance)
     floats += [mask_grey_fulcrum, vibrance, grey_fulcrum, contrast]
@@ -1881,26 +1888,27 @@ def bilateral_params_blob(
 
 
 # 其余 color 组小 blob（默认中性；05-02..05-04 各 plan 消费）。
-# - channelmixer v2 = 52B：red/green/blue[4] + algorithm(int)；默认对角恒等 + v1。
+# - channelmixer v2 = 88B：red/green/blue[7] + algorithm(int)；默认 RGB 恒等 + v2。
 # - colorzones v5 = 520B：channel(int) + curve[3][20](x,y float) + num[3](int) +
 #   type[3](int) + strength(f) + mode(int) + splines(int)；默认 hue 通道空曲线。
 # - monochrome v2 = 16B：a/b/size/highlights（4f）；默认 a=b=highlights=0, size 2。
 # - vibrance v2 = 4B：amount（f）；默认 25。
 # - velvia v2 = 8B：strength/bias（2f）；默认 25/1。
 # - colorcontrast v2 = 20B：a/b steepness+offset（4f）+ unbound(int)；默认 1/0/1/0/1。
-CHANNELMIXER_PARAMS_FORMAT = "<12fi"
+CHANNELMIXER_PARAMS_FORMAT = "<21fi"
 CHANNELMIXER_MODVERSION = 2
 CHANNELMIXER_IOP_ORDER = 39.0
 
 
 def channelmixer_params_blob(
-    red=(1.0, 0.0, 0.0, 0.0), green=(0.0, 1.0, 0.0, 0.0),
-    blue=(0.0, 0.0, 1.0, 0.0), algorithm_version=1,
+    red=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0),
+    green=(0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
+    blue=(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0), algorithm_version=1,
 ) -> str:
-    """dt_iop_channelmixer_params_t v2 → hex。默认恒等 + CHANNEL_MIXER_VERSION_2。"""
+    """dt_iop_channelmixer_params_t v2 → hex。默认 RGB 恒等 + CHANNEL_MIXER_VERSION_2。"""
     packed = struct.pack(
         CHANNELMIXER_PARAMS_FORMAT, *red, *green, *blue, algorithm_version)
-    assert len(packed) == 52, len(packed)
+    assert len(packed) == 88, len(packed)
     return binascii.hexlify(packed).decode("ascii")
 
 
@@ -1980,6 +1988,641 @@ def colorcontrast_params_blob(
     assert len(packed) == 20, len(packed)
     return binascii.hexlify(packed).decode("ascii")
 
+
+# ──────────────────────────────────────────────────────────────────────
+# ColorBalanceRGB (Plan 05-02-T3) — dt_iop_colorbalancergb_params_t v5,
+# 132B: 4-way 各 Y/C/H（12f）+ falloff（shadows_weight/white_fulcrum/
+# highlights_weight 3f）+ chroma（4f）+ saturation（4f）+ hue_angle（1f）+
+# brilliance（4f）+ mask_grey/vibrance/grey_fulcrum/contrast（4f）+
+# saturation_formula（i）。commit 折叠见 ColorBalanceRGBCommit.derive
+# pipeline RGB → LMS2006 D65（D65 原生：CB_XYZ65_LMS * LAB_R2X——C harness
+# 已验：CAT16/Bradford 往返在 D65-native 下恒等相消，沿用即引入 ~2x 伪影；
+# YrgGamut.matrixIn/Out 系 filmic V5 专用链（含 CAT16/Bradford；filmic 自洽），
+# 本模块必须用 D65 原生矩阵——头注见 05-02-DECISIONS D2。LAB_* 在 2608 行后定义，
+# 模块 import 时延迟构造，见 _cb_matrices）。
+_CB_MATRICES = None
+
+
+def _cb_matrices():
+    global _CB_MATRICES
+    if _CB_MATRICES is None:
+        # forward: pipeline RGB → CIE LMS D65 (dt :671-672 D65-native).
+        mat_in = mat_mul(CB_XYZ65_LMS, LAB_R2X)
+        # NOTE: no mat_out product — the final XYZ65 → RGB is LAB_X2R
+        # direct (dt :899-901 D50-detour WP_OUT*CAT collapses D65-natively;
+        # C-harness cb_verify proof: out == in to 1e-7).
+        _CB_MATRICES = (mat_in, LAB_X2R)
+    return _CB_MATRICES
+
+
+def _cb_in():
+    return _cb_matrices()[0]
+
+
+def _cb_out():
+    return _cb_matrices()[1]
+
+
+# Yrg 常量（YrgGamut.swift 同源：CAT16/LMS2006/Kirk Filmlight/Yrg 白点）。
+CB_XYZ50_65 = [[9.89466254e-01, -4.00304626e-02, 4.40530317e-02],
+                [-5.40518733e-03, 1.00666069e+00, -1.75551955e-03],
+                [-4.03920992e-04, 1.50768030e-02, 1.30210211e+00]]
+CB_XYZ65_LMS = [[0.257085, 0.859943, -0.031061],
+                 [-0.394427, 1.175800, 0.106423],
+                 [0.064856, -0.076250, 0.559067]]
+CB_LMS_XYZ65 = [[1.80794659, -1.29971660, 0.34785879],
+                 [0.61783960, 0.39595453, -0.04104687],
+                 [-0.12546960, 0.20478038, 1.74274183]]
+CB_XYZ65_50 = [[1.01085433e+00, 4.07086103e-02, -3.41445825e-02],
+                [5.42814201e-03, 9.93581926e-01, 1.15592039e-03],
+                [2.50722468e-04, -1.14918759e-02, 7.67964947e-01]]
+CB_YRG_WR = 0.21902143
+CB_YRG_WG = 0.54371398
+CB_LUT_ELEM = 512
+
+
+def cb_make_ych(y, c, h_rad):
+    return (y, c, math.cos(h_rad), math.sin(h_rad))
+
+
+
+
+def cb_derive(case):
+    """dt commit_params（colorbalancergb.c:1105-1168）float64。"""
+    fw = case["four_way"]
+    sh_y, sh_c, sh_h, mt_y, mt_c, mt_h = fw[0:6]
+    hl_y, hl_c, hl_h, gl_y, gl_c, gl_h = fw[6:12]
+    sw_p, wf_p, hw_p = case["falloff"]
+    norm = cb_ych_to_grading_rgb(cb_make_ych(1.0, 0.0, 0.0))
+
+    def grading(c, h_deg):
+        return cb_ych_to_grading_rgb(
+            cb_make_ych(1.0, c, math.radians(h_deg - 30.0)))
+
+    gg = grading(gl_c, gl_h)
+    global_v = tuple((gg[c] - norm[c]) + norm[c] * gl_y for c in range(3)) + (0.0,)
+    sg = grading(sh_c, sh_h)
+    shadows_v = tuple(1.0 + (sg[c] - norm[c]) + sh_y for c in range(3)) + (1.0,)
+    hg = grading(hl_c, hl_h)
+    highlights_v = tuple(1.0 + (hg[c] - norm[c]) + hl_y for c in range(3)) + (1.0,)
+    mg = grading(mt_c, mt_h)
+    midtones_v = tuple(1.0 / (1.0 + (mg[c] - norm[c])) for c in range(3)) + (1.0,)
+    sw = 2.0 + sw_p * 2.0
+    hw = 2.0 + hw_p * 2.0
+    mw = sw * sw * hw * hw / (sw * sw + hw * hw)
+    mask_ful = case["mask_grey_fulcrum"] ** 0.4101205819200422
+    white_ful = 2.0 ** wf_p
+    midtones_y = 1.0 / (1.0 + mt_y)
+    hue_rad = math.radians(case["hue_angle"])
+    l_white = 2.098883786377 * (white_ful ** 0.631651345306265) / (
+        white_ful ** 0.631651345306265 + 1.12426773749357)
+    # Lane mapping (dt struct order → kernel lanes (shadows, midtones,
+    # highlights) + global scalar; colorbalancergb.c:78-92):
+    # chroma struct = (shadows[0], highlights[1], global[2], midtones[3]);
+    # saturation/brilliance structs = (global[0], highlights[1],
+    # midtones[2], shadows[3]). Bisect 2026-09-21 (was scrambled).
+    return dict(
+        global_v=global_v, shadows_v=shadows_v, highlights_v=highlights_v,
+        midtones_v=midtones_v, chroma=tuple(case["chroma"]),
+        saturation=tuple(case["saturation"]), brilliance=tuple(case["brilliance"]),
+        chroma_global=case["chroma"][2],
+        saturation_global=case["saturation"][0],
+        brilliance_global=case["brilliance"][0],
+        chroma_v=(case["chroma"][0], case["chroma"][3], case["chroma"][1], 0.0),
+        saturation_v=(case["saturation"][3], case["saturation"][2], case["saturation"][1], 0.0),
+        brilliance_v=(case["brilliance"][3], case["brilliance"][2], case["brilliance"][1], 0.0),
+        vibrance=case["vibrance"], contrast=1.0 + case["contrast"],
+        grey_fulcrum=case["grey_fulcrum"],
+        hue_cos=math.cos(hue_rad), hue_sin=math.sin(hue_rad),
+        sw=sw, hw=hw, mw=mw, mask_ful=mask_ful, white_ful=white_ful,
+        midtones_y=midtones_y, l_white=l_white,
+        formula=case["saturation_formula"])
+
+
+def cb_rgb_to_ych(rgb):
+    lms = mat_vec(_cb_in(), rgb)
+    y = 0.68990272 * lms[0] + 0.34832189 * lms[1]
+    a = lms[0] + lms[1] + lms[2]
+    nl = (0.0, 0.0, 0.0) if a == 0 else (lms[0] / a, lms[1] / a, lms[2] / a)
+    gx = 1.0877193 * nl[0] - 0.66666667 * nl[1] + 0.02061856 * nl[2]
+    gy = -0.0877193 * nl[0] + 1.66666667 * nl[1] - 0.05154639 * nl[2]
+    r, g = gx - CB_YRG_WR, gy - CB_YRG_WG
+    c = math.hypot(g, r)
+    return (y, c, r / c if c != 0 else 1.0, g / c if c != 0 else 0.0)
+
+
+def cb_ych_to_grading_rgb(ych):
+    """dt :719-726 Ych → grading RGB（Yrg_to_LMS denorm + LMS_to_gradingRGB，
+    无 pipeline 矩阵——middle leg 活在 grading 帧；C-harness 钉死）。"""
+    y, c, cos_h, sin_h = ych
+    r, g = c * cos_h + CB_YRG_WR, c * sin_h + CB_YRG_WG
+    b = 1.0 - r - g
+    lms = (0.95 * r + 0.38 * g, 0.05 * r + 0.62 * g + 0.03 * b, 0.97 * b)
+    denom = 0.68990272 * lms[0] + 0.34832189 * lms[1]
+    s = 0.0 if denom == 0 else y / denom
+    lms2 = (lms[0] * s, lms[1] * s, lms[2] * s)
+    return (1.0877193 * lms2[0] - 0.66666667 * lms2[1] + 0.02061856 * lms2[2],
+            -0.0877193 * lms2[0] + 1.66666667 * lms2[1] - 0.05154639 * lms2[2],
+            1.03092784 * lms2[2])
+
+
+def cb_gamut_check_yrg(ych):
+    y, c, cos_h, sin_h = ych
+    r, g = c * cos_h + CB_YRG_WR, c * sin_h + CB_YRG_WG
+    max_c = c
+    if r < 0:
+        max_c = min(-CB_YRG_WR / cos_h, max_c)
+    if g < 0:
+        max_c = min(-CB_YRG_WG / sin_h, max_c)
+    if r + g > 1.0:
+        max_c = min((1.0 - CB_YRG_WR - CB_YRG_WG) / (cos_h + sin_h), max_c)
+    return (y, max_c, cos_h, sin_h)
+
+
+def cb_opacity_masks(x, sw, hw, mw, ful):
+    x_off = x - ful
+    x_norm = x_off / ful
+    alpha = 1.0 / (1.0 + math.exp(x_norm * sw))
+    beta = 1.0 / (1.0 + math.exp(-x_norm * hw))
+    gamma = math.exp(-x_off * x_off * mw / 4.0) * (1 - alpha) ** 2 * (1 - beta) ** 2 * 8.0
+    return (alpha, gamma, beta, 0.0)
+
+
+def cb_soft_clip(x, soft, hard):
+    norm = hard - soft
+    return soft + (1.0 - math.exp(-(x - soft) / norm)) * norm if x > soft else x
+
+
+def cb_lookup_gamut(lut, hue):
+    x_test = CB_LUT_ELEM * (hue + math.pi) / (2.0 * math.pi)
+    x_prev, x_next = math.floor(x_test), math.ceil(x_test)
+    xi, xii = int(x_prev) & (CB_LUT_ELEM - 1), int(x_next) & (CB_LUT_ELEM - 1)
+    y_prev = lut[xi]
+    return y_prev + ((x_test - x_prev) * (lut[xii] - y_prev) if xi != xii else 0.0)
+
+
+def cb_y_to_lstar(y):
+    yh = y ** 0.631651345306265
+    return 2.098883786377 * yh / (yh + 1.12426773749357)
+
+
+def cb_lstar_to_y(l):
+    return (1.12426773749357 * l / (2.098883786377 - l)) ** 1.5831518565279648
+
+
+def cb_xyz_to_xyy(xyz):
+    c = tuple(max(v, 0.0) for v in xyz)
+    s = c[0] + c[1] + c[2]
+    return (0.31271, 0.32902, c[1]) if s <= 0 else (c[0] / s, c[1] / s, c[1])
+
+
+def cb_xyy_to_xyz(xyy):
+    x, y, Y = xyy
+    return (0.0, 0.0, 0.0) if y == 0 else (Y * x / y, Y, Y * (1 - x - y) / y)
+
+
+def cb_xyy_to_jch(xyy, l_white):
+    x, y, Y = xyy
+    uvd = (-0.783941002840055 * x + 0.277512987809202 * y + 0.153836578598858,
+           0.745273540913283 * x - 0.205375866083878 * y - 0.165478376301988,
+           0.318707282433486 * x + 2.16743692732158 * y + 0.291320554395942)
+    div = uvd[2] if uvd[2] != 0 else 1e-30
+    uvd = (uvd[0] / div, uvd[1] / div, uvd[2])
+    us = (1.39656225667 * uvd[0] / (abs(uvd[0]) + 1.49217352929),
+          1.4513954287 * uvd[1] / (abs(uvd[1]) + 1.52488637914))
+    p = (-1.124983854323892 * us[0] - 0.980483721769325 * us[1],
+         1.86323315098672 * us[0] + 1.971853092390862 * us[1])
+    m2 = p[0] * p[0] + p[1] * p[1]
+    ls = cb_y_to_lstar(max(0.0, min(Y, 1e8)))
+    return (ls / l_white,
+            15.932993652962535 * (ls ** 0.6523997524738018) * (m2 ** 0.6007557017508491) / l_white,
+            math.atan2(p[1], p[0]))
+
+
+def cb_jch_to_xyy(jch, l_white):
+    J, C, h = jch
+    ls = max(0.0, min(J * l_white, 2.09885))
+    m = 0.0 if ls == 0 else (C * l_white / (
+        15.932993652962535 * (ls ** 0.6523997524738018))) ** 0.8322850678616855
+    up, vp = m * math.cos(h), m * math.sin(h)
+    us = (-5.037522385190711 * up - 2.504856328185843 * vp,
+          4.760029407436461 * up + 2.874012963239247 * vp)
+    uv = (-1.49217352929 * us[0] / (abs(us[0]) - 1.39656225667),
+          -1.52488637914 * us[1] / (abs(us[1]) - 1.4513954287))
+    xyD = (0.167171472114775 * uv[0] + 0.141299802443708 * uv[1] - 0.00801531300850582,
+           -0.150959086409163 * uv[0] - 0.155185060382272 * uv[1] - 0.00843312433578007,
+           0.940254742367256 * uv[0] + 1.0 * uv[1] - 0.0256325967652889)
+    div = xyD[2] if xyD[2] != 0 else 1e-30
+    return (xyD[0] / div, xyD[1] / div, cb_lstar_to_y(ls))
+
+
+def cb_jch_to_hsb(jch):
+    J, C, h = jch
+    b = J * (C ** 1.33654221029386 + 1.0)
+    return (h, C / b if b > 0 else 0.0, b)
+
+
+def cb_hsb_to_jch(hsb):
+    h, s, b = hsb
+    c = s * b
+    return (b / (c ** 1.33654221029386 + 1.0), c, h)
+
+
+def cb_jch_to_hcb(jch):
+    J, C, h = jch
+    return (h, C, J * (C ** 1.33654221029386 + 1.0))
+
+
+def cb_hcb_to_jch(hcb):
+    h, C, B = hcb
+    return (B / (C ** 1.33654221029386 + 1.0), C, h)
+
+
+CB_JZM = [[0.41478972, 0.579999, 0.0146480],
+           [-0.2015100, 1.1206490, 0.0531008],
+           [-0.0166008, 0.264800, 0.6684799]]
+CB_JZA = [[0.5, 0.5, 0.0],
+           [3.524000, -4.066708, 0.542708],
+           [0.199076, 1.096799, -1.295875]]
+CB_JZAI = [[1.0, 0.1386050432715393, 0.0580473161561189],
+            [1.0, -0.1386050432715393, -0.0580473161561189],
+            [1.0, -0.0960192420263190, -0.8118918960560390]]
+CB_JZMI = [[1.9242264357876067, -1.0047923125953657, 0.0376514040306180],
+            [0.3503167620949991, 0.7264811939316552, -0.0653844229480850],
+            [-0.0909828109828475, -0.3127282905230739, 1.5227665613052603]]
+
+
+def cb_xyz_to_jzazbz(xyz):
+    t = (1.15 * xyz[0] - 0.15 * xyz[2], 0.66 * xyz[1] + 0.34 * xyz[0], xyz[2])
+    lms = mat_vec(CB_JZM, t)
+    lp = tuple(((0.8359375 + 18.8515625 * (max(l / 10000.0, 0.0) ** 0.159301758))
+                / (1.0 + 18.6875 * (max(l / 10000.0, 0.0) ** 0.159301758))) ** 134.034375
+               for l in lms)
+    jab = mat_vec(CB_JZA, lp)
+    return (max(0.44 * jab[0] / (1.0 - 0.56 * jab[0]) - 1.6295499532821566e-11, 0.0),
+            jab[1], jab[2])
+
+
+def cb_jzazbz_to_xyz(jab):
+    d, d0 = -0.56, 1.6295499532821566e-11
+    iz = (max((jab[0] + d0) / (1.0 + d - d * (jab[0] + d0)), 0.0), jab[1], jab[2])
+    lms = mat_vec(CB_JZAI, iz)
+    out = []
+    for v in lms:
+        n = max(v, 0.0) ** (1.0 / 134.034375)
+        out.append(10000.0 * max((0.8359375 - n) / (18.6875 * n - 18.8515625), 0.0) ** (1.0 / 0.159301758))
+    xyz = mat_vec(CB_JZMI, tuple(out))
+    # dt X'Y'Z→XYZ: X = (X'+(b-1)Z')/b; Y = (Y'+(g-1)X)/g (g-1 = -0.34!).
+    x = (xyz[0] + 0.15 * xyz[2]) / 1.15
+    return (x, (xyz[1] - 0.34 * x) / 0.66, xyz[2])
+
+
+def cb_lms_to_xyz(lms):
+    return mat_vec(CB_LMS_XYZ65, lms)
+
+
+def cb_build_ucs_lut():
+    """dt_UCS_22_build_gamut_LUT（float64）：Rec2020 色域边界 M²（hue）。
+    input = pipeline RGB → XYZ D65（D65 原生 LAB_R2X；commit :1191 同位）。"""
+    inp = LAB_R2X
+    xyzR, xyzG, xyzB = mat_vec(inp, (1, 0, 0)), mat_vec(inp, (0, 1, 0)), mat_vec(inp, (0, 0, 1))
+    xyR, xyG, xyB = cb_xyz_to_xyy(xyzR), cb_xyz_to_xyy(xyzG), cb_xyz_to_xyy(xyzB)
+    dxy = (0.31271, 0.32902)
+    hR = math.atan2(xyR[1] - dxy[1], xyR[0] - dxy[0])
+    hG = math.atan2(xyG[1] - dxy[1], xyG[0] - dxy[0])
+    hB = math.atan2(xyB[1] - dxy[1], xyB[0] - dxy[0])
+
+    def delta(a, b):
+        d = a - b
+        if d < -math.pi:
+            d += 2 * math.pi
+        if d > math.pi:
+            d -= 2 * math.pi
+        return d
+
+    def clamp01(v):
+        return max(0.0, min(1.0, v))
+
+    gamut, sampler = [0.0] * CB_LUT_ELEM, [0.0] * CB_LUT_ELEM
+    for i in range(50 * CB_LUT_ELEM):
+        angle = -math.pi + i / (50 * CB_LUT_ELEM) * 2 * math.pi
+        tan_a = math.tan(angle)
+        t1 = delta(angle, hB) / delta(hR, hB)
+        t2 = delta(angle, hR) / delta(hG, hR)
+        t3 = delta(angle, hG) / delta(hB, hG)
+        if t1 == clamp01(t1):
+            t = (dxy[1] - xyB[1] + tan_a * (xyB[0] - dxy[0])) / (
+                xyR[1] - xyB[1] + tan_a * (xyB[0] - xyR[0]))
+            xt, yt = xyB[0] + t * (xyR[0] - xyB[0]), xyB[1] + t * (xyR[1] - xyB[1])
+        elif t2 == clamp01(t2):
+            t = (dxy[1] - xyR[1] + tan_a * (xyR[0] - dxy[0])) / (
+                xyG[1] - xyR[1] + tan_a * (xyR[0] - xyG[0]))
+            xt, yt = xyR[0] + t * (xyG[0] - xyR[0]), xyR[1] + t * (xyG[1] - xyR[1])
+        elif t3 == clamp01(t3):
+            t = (dxy[1] - xyG[1] + tan_a * (xyG[0] - dxy[0])) / (
+                xyB[1] - xyG[1] + tan_a * (xyG[0] - xyB[0]))
+            xt, yt = xyG[0] + t * (xyB[0] - xyG[0]), xyG[1] + t * (xyB[1] - xyG[1])
+        else:
+            xt, yt = 0.0, 0.0
+        x, y = xt, yt
+        uvd = (-0.783941002840055 * x + 0.277512987809202 * y + 0.153836578598858,
+               0.745273540913283 * x - 0.205375866083878 * y - 0.165478376301988,
+               0.318707282433486 * x + 2.16743692732158 * y + 0.291320554395942)
+        div = uvd[2] if uvd[2] != 0 else 1e-30
+        uvd = (uvd[0] / div, uvd[1] / div, uvd[2])
+        us = (1.39656225667 * uvd[0] / (abs(uvd[0]) + 1.49217352929),
+              1.4513954287 * uvd[1] / (abs(uvd[1]) + 1.52488637914))
+        p = (-1.124983854323892 * us[0] - 0.980483721769325 * us[1],
+             1.86323315098672 * us[0] + 1.971853092390862 * us[1])
+        hue = math.atan2(p[1], p[0])
+        index = int(round((CB_LUT_ELEM - 1) * (hue + math.pi) / (2 * math.pi)))
+        index = (index + CB_LUT_ELEM) % CB_LUT_ELEM
+        gamut[index] += p[0] * p[0] + p[1] * p[1]
+        sampler[index] += 1.0
+    return [gamut[k] / max(1.0, sampler[k]) for k in range(CB_LUT_ELEM)]
+
+
+def cb_build_jzazbz_lut():
+    """JzAzBz gamut LUT（commit :1194-1235）：92³ gym 最大 saturation。
+    input = pipeline RGB → XYZ D65（D65 原生 LAB_R2X；JzAzBz 系 D65 空间）。"""
+    inp = LAB_R2X
+    steps = 92
+    sampler = [0.0] * CB_LUT_ELEM
+    for r in range(steps):
+        for g in range(steps):
+            for b in range(steps):
+                rgb = (r / (steps - 1), g / (steps - 1), b / (steps - 1))
+                xyz = mat_vec(inp, rgb)
+                jab = cb_xyz_to_jzazbz(xyz)
+                c = math.hypot(jab[1], jab[2])
+                hue = math.atan2(jab[2], jab[1])
+                sat = c / jab[0] if jab[0] > 0 else 0.0
+                index = int(round((CB_LUT_ELEM - 1) * (hue + math.pi) / (2 * math.pi)))
+                index = (index + CB_LUT_ELEM) % CB_LUT_ELEM
+                sampler[index] = max(sampler[index], sat)
+    lut = [0.0] * CB_LUT_ELEM
+    for k in range(2, CB_LUT_ELEM - 2):
+        lut[k] = (sampler[k - 2] + sampler[k - 1] + sampler[k] + sampler[k + 1] + sampler[k + 2]) / 5.0
+    n = CB_LUT_ELEM
+    lut[0] = (sampler[n - 2] + sampler[n - 1] + sampler[0] + sampler[1] + sampler[2]) / 5.0
+    lut[1] = (sampler[n - 1] + sampler[0] + sampler[1] + sampler[2] + sampler[3]) / 5.0
+    lut[n - 1] = (sampler[n - 3] + sampler[n - 2] + sampler[n - 1] + sampler[0] + sampler[1]) / 5.0
+    lut[n - 2] = (sampler[n - 4] + sampler[n - 3] + sampler[n - 2] + sampler[n - 1] + sampler[0]) / 5.0
+    return lut
+
+
+_CB_LUTS = {}
+
+
+def cb_gamut_lut(formula):
+    if formula not in _CB_LUTS:
+        _CB_LUTS[formula] = cb_build_ucs_lut() if formula == 1 else cb_build_jzazbz_lut()
+    return _CB_LUTS[formula]
+
+
+def cb_grading_to_lms(rgb):
+    """dt gradingRGB_to_LMS（float64）：Filmlight grading RGB → CIE LMS（绝对值）。"""
+    return (0.95 * rgb[0] + 0.38 * rgb[1],
+            0.05 * rgb[0] + 0.62 * rgb[1] + 0.03 * rgb[2],
+            0.97 * rgb[2])
+
+
+
+
+def cb_grading_to_lms(rgb):
+    """dt gradingRGB_to_LMS（float64）：Filmlight grading RGB → CIE LMS（绝对值）。"""
+    return (0.95 * rgb[0] + 0.38 * rgb[1],
+            0.05 * rgb[0] + 0.62 * rgb[1] + 0.03 * rgb[2],
+            0.97 * rgb[2])
+
+
+def cb_lms_to_yrg(lms):
+    """dt LMS_to_Yrg（float64）：Y 绝对值 + 归一化 LMS 经 grading 矩阵的色度。"""
+    y = 0.68990272 * lms[0] + 0.34832189 * lms[1]
+    a = lms[0] + lms[1] + lms[2]
+    nl = (0.0, 0.0, 0.0) if a == 0 else (lms[0] / a, lms[1] / a, lms[2] / a)
+    gx = 1.0877193 * nl[0] - 0.66666667 * nl[1] + 0.02061856 * nl[2]
+    gy = -0.0877193 * nl[0] + 1.66666667 * nl[1] - 0.05154639 * nl[2]
+    return (y, gx, gy)
+
+
+def cb_yrg_to_lms(yrg):
+    """dt Yrg_to_LMS（float64）：归一化 grading 色度经 gradingRGB_to_LMS
+    （ROW-MAJOR 形）denorm 回 LMS（绝对值）。"""
+    y, rr, gg = yrg
+    bb = 1.0 - rr - gg
+    nl = (0.95 * rr + 0.38 * gg, 0.05 * rr + 0.62 * gg + 0.03 * bb, 0.97 * bb)
+    den = 0.68990272 * nl[0] + 0.34832189 * nl[1]
+    s = 0.0 if den == 0 else y / den
+    return (nl[0] * s, nl[1] * s, nl[2] * s)
+
+
+def cb_yrg_to_xyz(yrg):
+    """dt Yrg→XYZ D65（:763-765）：Yrg_to_LMS + LMS_to_XYZ（CB_LMS_XYZ65 行优先）。"""
+    return mat_vec(CB_LMS_XYZ65, cb_yrg_to_lms(yrg))
+
+
+def colorbalance_apply_pixel(rgb, case, d, lut):
+    """单像素全链（process :662-941 float64；mask_display 分支恒走 else）。"""
+    pix = tuple(max(v, 0.0) for v in rgb)
+    lms = mat_vec(_cb_in(), pix)
+    y = 0.68990272 * lms[0] + 0.34832189 * lms[1]
+    a = lms[0] + lms[1] + lms[2]
+    nl = (0.0, 0.0, 0.0) if a == 0 else (lms[0] / a, lms[1] / a, lms[2] / a)
+    gx = 1.0877193 * nl[0] - 0.66666667 * nl[1] + 0.02061856 * nl[2]
+    gy = -0.0877193 * nl[0] + 1.66666667 * nl[1] - 0.05154639 * nl[2]
+    r, g = gx - CB_YRG_WR, gy - CB_YRG_WG
+    c = math.hypot(g, r)
+    ych = (max(y, 0.0), c, r / c if c != 0 else 1.0, g / c if c != 0 else 0.0)
+    op = cb_opacity_masks(ych[0] ** 0.4101205819200422, d["sw"], d["hw"], d["mw"], d["mask_ful"])
+    opc = tuple(1.0 - v for v in op)
+    # hue 旋转。
+    cos_h, sin_h = ych[2], ych[3]
+    ych = (ych[0], ych[1], d["hue_cos"] * cos_h - d["hue_sin"] * sin_h,
+           d["hue_sin"] * cos_h + d["hue_cos"] * sin_h)
+    # chroma + vibrance（:711-714）。
+    boost = d["chroma_global"] + sum(o * v for o, v in zip(op, d["chroma_v"]))
+    vib = d["vibrance"] * (1.0 - ych[1] ** abs(d["vibrance"])) if d["vibrance"] != 0 else 0.0
+    ych = (ych[0], ych[1] * max(1.0 + boost + vib, 0.0), ych[2], ych[3])
+    ych = cb_gamut_check_yrg(ych)
+    # middle leg 活在 grading 帧（dt :719-726，无 pipeline 矩阵）。
+    rgb2 = cb_ych_to_grading_rgb(ych)
+    # global offset + shadows/highlights 双斜率。
+    rgb2 = tuple(rgb2[c] + d["global_v"][c] for c in range(3))
+    rgb2 = tuple(rgb2[c] * (opc[2] * (opc[0] + op[0] * d["shadows_v"][c])
+                             + op[2] * d["highlights_v"][c]) for c in range(3))
+    # midtones 幂（保号）。
+    rgb2 = tuple(math.copysign(1.0, v) * (abs(v) / d["white_ful"]) ** d["midtones_v"][c] * d["white_ful"]
+                 for c, v in enumerate(rgb2))
+    # 回 Yrg：gradingRGB_to_LMS + LMS_to_Yrg（:753-755），Y 幂（:757-758）+
+    # contrast（:760-761），Yrg_to_LMS + LMS_to_XYZ（:763-765）。
+    # 注意帧语义：rgb2 是 grading-domain 值（color balance 在 grading RGB 上运算），
+    # 故此处用 grading 矩阵（cb_grading_to_lms），不用 pipeline 矩阵——
+    # 与前腿（pipeline 矩阵，:671-672）不对称是 dt 原样（两腿各管各的帧）。
+    lms4 = cb_grading_to_lms(rgb2)
+    yrg4 = cb_lms_to_yrg(lms4)
+    yrg4 = (max(yrg4[0] / d["white_ful"], 0.0) ** d["midtones_y"] * d["white_ful"],
+            yrg4[1], yrg4[2])
+    yrg4 = (d["grey_fulcrum"] * (yrg4[0] / d["grey_fulcrum"]) ** d["contrast"],
+            yrg4[1], yrg4[2])
+    xyz = cb_yrg_to_xyz(yrg4)
+    if d["formula"] == 0:
+        jab = cb_xyz_to_jzazbz(xyz)
+        J, C = jab[0], math.hypot(jab[1], jab[2])
+        h = math.atan2(jab[2], jab[1])
+        T = math.atan2(C, J) if (J, C) != (0, 0) else 0.0
+        sT, cT = math.sin(T), math.cos(T)
+        b0 = 1.0 + d["brilliance_global"] + sum(o * v for o, v in zip(op, d["brilliance_v"]))
+        b1 = d["saturation_global"] + sum(o * v for o, v in zip(op, d["saturation_v"]))
+        S0 = J * cT + C * sT
+        S1 = S0 * max(-T, min(T * b1, math.pi / 2 - T))
+        S0 = max(S0 * b0, 0.0)
+        J2 = max(S0 * cT - S1 * sT, 0.0)
+        C2 = max(S0 * sT + S1 * cT, 0.0)
+        mx = cb_lookup_gamut(lut, h)
+        sat = cb_soft_clip(C2 / J2, 0.8 * mx, mx) if J2 > 0 else mx
+        maxC, maxJ = J2 * sat, C2 / sat if sat > 0 else J2
+        J2, C2 = (J2 + maxJ) / 2.0, (C2 + maxC) / 2.0
+        ch, sh = math.cos(h), math.sin(h)
+        d0 = 1.6295499532821566e-11
+        Iz = max((J2 + d0) / (1.0 - 0.56 - (-0.56) * (J2 + d0)), 0.0)
+        AI = ((1.0, 0.1386050432715393, 0.0580473161561189),
+              (1.0, -0.1386050432715393, -0.0580473161561189),
+              (1.0, -0.0960192420263190, -0.8118918960560390))
+        test = tuple(AI[r][0] * Iz + AI[r][1] * C2 * ch + AI[r][2] * C2 * sh for r in range(3))
+        maxC = C2
+        for r in range(3):
+            if test[r] < 0:
+                den = AI[r][1] * ch + AI[r][2] * sh
+                maxC = min(-Iz / den, maxC)
+        xyz = cb_jzazbz_to_xyz((J2, maxC * ch, maxC * sh))
+    else:
+        xyy = cb_xyz_to_xyy(xyz)
+        JCH = cb_xyy_to_jch(xyy, d["l_white"])
+        HCB = cb_jch_to_hcb(JCH)
+        rad = math.hypot(HCB[1], HCB[2])
+        sT = HCB[1] / rad if rad > 0 else 0.0
+        cT = HCB[2] / rad if rad > 0 else 0.0
+        P = max(1e-30, HCB[1])
+        W = sT * HCB[1] + cT * HCB[2]
+        a = max(1.0 + d["saturation_global"] + sum(o * v for o, v in zip(op, d["saturation_v"])), 0.0)
+        b = max(1.0 + d["brilliance_global"] + sum(o * v for o, v in zip(op, d["brilliance_v"])), 0.0)
+        max_a = math.hypot(P, W) / P
+        a = cb_soft_clip(a, 0.5 * max_a, max_a)
+        Pp = (a - 1.0) * P
+        Wp = math.sqrt(P * P * (1.0 - a * a) + W * W) * b
+        HCB = (HCB[0], max(cT * Pp + sT * Wp, 0.0), max(-sT * Pp + cT * Wp, 0.0))
+        JCH = cb_hcb_to_jch(HCB)
+        max_col = cb_lookup_gamut(lut, JCH[2])
+        max_ch = 15.932993652962535 * ((JCH[0] * d["l_white"]) ** 0.6523997524738018) * (
+            max_col ** 0.6007557017508491) / d["l_white"]
+        bound = cb_jch_to_hsb((JCH[0], max_ch, JCH[2]))
+        HSB = (HCB[0], HCB[1] / HCB[2] if HCB[2] > 0 else 0.0, HCB[2])
+        HSB = (HSB[0], cb_soft_clip(HSB[1], 0.8 * bound[1], bound[1]), HSB[2])
+        JCH = cb_hsb_to_jch(HSB)
+        xyz = cb_xyy_to_xyz(cb_jch_to_xyy(JCH, d["l_white"]))
+    out = mat_vec(_cb_out(), xyz)
+    return tuple(max(v, 0.0) for v in out)
+
+
+# The colorbalancergb 钉参组（plan T3：global hue/chroma、shadows、
+# highlights、vibrance、contrast；saturation 公式三版各抽一 = JzAzBz 一 +
+# DTUCS 两；默认中性 case 作恒等门 fixture 依据）。
+COLORBALANCERGB_CASES = [
+    {"name": "cb_default", "four_way": (0.0,) * 12, "falloff": (1.0, 0.0, 1.0),
+     "chroma": (0.0, 0.0, 0.0, 0.0), "saturation": (0.0,) * 4, "hue_angle": 0.0,
+     "brilliance": (0.0,) * 4, "mask_grey_fulcrum": 0.1845, "vibrance": 0.0,
+     "grey_fulcrum": 0.1845, "contrast": 0.0, "saturation_formula": 1},
+    {"name": "cb_global_hue", "four_way": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 45.0),
+     "falloff": (1.0, 0.0, 1.0), "chroma": (0.0, 0.0, 0.0, 0.0), "saturation": (0.0,) * 4,
+     "hue_angle": 0.0, "brilliance": (0.0,) * 4, "mask_grey_fulcrum": 0.1845,
+     "vibrance": 0.0, "grey_fulcrum": 0.1845, "contrast": 0.0, "saturation_formula": 1},
+    {"name": "cb_shadows_lift", "four_way": (0.15, 0.3, 200.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+     "falloff": (1.0, 0.0, 1.0), "chroma": (0.2, 0.0, 0.0, 0.0), "saturation": (0.0,) * 4,
+     "hue_angle": 0.0, "brilliance": (0.0,) * 4, "mask_grey_fulcrum": 0.1845,
+     "vibrance": 0.0, "grey_fulcrum": 0.1845, "contrast": 0.0, "saturation_formula": 1},
+    {"name": "cb_highlights_warm", "four_way": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.1, 0.25, 30.0, 0.0, 0.0, 0.0),
+     "falloff": (1.0, 0.0, 1.0), "chroma": (0.0, 0.0, 0.15, 0.0), "saturation": (0.0,) * 4,
+     "hue_angle": 10.0, "brilliance": (0.0,) * 4, "mask_grey_fulcrum": 0.1845,
+     "vibrance": 0.0, "grey_fulcrum": 0.1845, "contrast": 0.0, "saturation_formula": 1},
+    {"name": "cb_vibrance", "four_way": (0.0,) * 12, "falloff": (1.0, 0.0, 1.0),
+     "chroma": (0.0, 0.0, 0.0, 0.0), "saturation": (0.0,) * 4, "hue_angle": 0.0,
+     "brilliance": (0.0,) * 4, "mask_grey_fulcrum": 0.1845, "vibrance": 0.6,
+     "grey_fulcrum": 0.1845, "contrast": 0.0, "saturation_formula": 1},
+    {"name": "cb_contrast_sat_jz", "four_way": (0.0,) * 12, "falloff": (1.0, 0.0, 1.0),
+     "chroma": (0.0, 0.0, 0.0, 0.0), "saturation": (0.3, 0.1, -0.2, 0.0),
+     "hue_angle": 0.0, "brilliance": (0.1, 0.05, -0.05, 0.0),
+     "mask_grey_fulcrum": 0.1845, "vibrance": 0.0, "grey_fulcrum": 0.1845,
+     "contrast": 0.3, "saturation_formula": 0},
+]
+COLORBALANCERGB_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev", "gray_staircase",
+                                "saturated", "deep_shadow", "hue_sweep", "delta_impulse"]
+
+
+def colorbalancergb_case_params(case):
+    """case dict → ColorBalanceRGBModule.Params 构造 kwargs（Swift 侧同名）。"""
+    fw = case["four_way"]
+    return dict(
+        shadowsY=fw[0], shadowsC=fw[1], shadowsH=fw[2],
+        midtonesY=fw[3], midtonesC=fw[4], midtonesH=fw[5],
+        highlightsY=fw[6], highlightsC=fw[7], highlightsH=fw[8],
+        globalY=fw[9], globalC=fw[10], globalH=fw[11],
+        shadowsWeight=case["falloff"][0], whiteFulcrum=case["falloff"][1],
+        highlightsWeight=case["falloff"][2],
+        chromaShadows=case["chroma"][0], chromaMidtones=case["chroma"][1],
+        chromaHighlights=case["chroma"][2], chromaGlobal=case["chroma"][3],
+        saturationShadows=case["saturation"][0], saturationMidtones=case["saturation"][1],
+        saturationHighlights=case["saturation"][2], saturationGlobal=case["saturation"][3],
+        hueAngle=case["hue_angle"],
+        brillianceShadows=case["brilliance"][0], brillianceMidtones=case["brilliance"][1],
+        brillianceHighlights=case["brilliance"][2], brillianceGlobal=case["brilliance"][3],
+        maskGreyFulcrum=case["mask_grey_fulcrum"], vibrance=case["vibrance"],
+        greyFulcrum=case["grey_fulcrum"], contrast=case["contrast"],
+        saturationFormula=case["saturation_formula"])
+
+
+def colorbalancergb_params_blob_for_case(case) -> str:
+    floats = list(case["four_way"]) + list(case["falloff"]) + list(case["chroma"])
+    floats += list(case["saturation"]) + [case["hue_angle"]] + list(case["brilliance"])
+    floats += [case["mask_grey_fulcrum"], case["vibrance"], case["grey_fulcrum"], case["contrast"]]
+    assert len(floats) == 32, len(floats)
+    packed = struct.pack(COLORBALANCERGB_PARAMS_FORMAT, *floats, case["saturation_formula"])
+    assert len(packed) == 132, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_colorbalancergb_cases(outdir: str) -> None:
+    for case in COLORBALANCERGB_CASES:
+        params = colorbalancergb_params_blob_for_case(case)
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION,
+            iop_order_version=5,
+            operation="colorbalancergb",
+            modversion=COLORBALANCERGB_MODVERSION,
+            params=params,
+            iop_order=f"{COLORBALANCERGB_IOP_ORDER:.1f}",
+        )
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_colorbalancergb_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the colorbalancergb golden REFERENCES（L017 route；dt 侧 =
+    XMP adoption + 平场 PFM probe）。6 case × 8 fixture。"""
+    os.makedirs(out_dir, exist_ok=True)
+    for case in COLORBALANCERGB_CASES:
+        d = cb_derive(case)
+        lut = cb_gamut_lut(case["saturation_formula"])
+        for fixture in COLORBALANCERGB_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, case=case, d=d, lut=lut, w=w):
+                idx = y * w + x
+                return colorbalance_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), case, d, lut)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
 
 def gen_ashift_cases(outdir: str) -> None:
     for case in ASHIFT_CASES:
@@ -3594,8 +4237,6 @@ def gen_toneequal_refs(canonical_dir: str, out_dir: str) -> None:
             src = os.path.join(canonical_dir, fixture + ".exr")
             w, h, rgb = read_exr_rgb(src)
             n = w * h
-            # dt keys the smoothing radius on the PIECE's full-image max
-            # dimension (modify_roi_in :1352-1357) at scale 1 here.
             radius = int((blending / 100.0 * max(w, h) * 1.0 - 1.0) / 2.0)
             luma = te_luma_plane(rgb, w, h, exposure_boost, fulcrum, contrast)
             if details == 4:  # EIGF (the pinned golden leg)
@@ -3636,7 +4277,14 @@ def main() -> None:
         else:
             cases_dir = os.path.join(outdir, "cases")
         gen_cases(cases_dir)
-    if mode == "refs":
+        gen_colorbalancergb_cases(cases_dir)
+        gen_channelmixerrgb_cases(cases_dir)
+        gen_channelmixer_cases(cases_dir)
+        gen_colorcontrast_cases(cases_dir)
+        gen_vibrance_cases(cases_dir)
+        gen_velvia_cases(cases_dir)
+        gen_colorzones_cases(cases_dir)
+        gen_monochrome_cases(cases_dir)
         # Plan 03-02: temperature golden references — synthesizes
         # <outdir>/<temperature case>__<fixture>.exr from the canonical
         # fixtures in the fixtures dir (pass the fixtures dir as outdir).
@@ -3679,7 +4327,35 @@ def main() -> None:
         gen_highpass_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_soften_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
         gen_equalizer_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
-
+        # Plan 05-02-T3: colorbalancergb golden references (L017 route;
+        # dt-side = XMP adoption + 平场 PFM probe).
+        gen_colorbalancergb_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_channelmixerrgb_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_channelmixer_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_colorcontrast_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_vibrance_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_velvia_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        gen_colorzones_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 05-05: monochrome (L017 route; CPU sigma2 + grid leg).
+        gen_monochrome_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 05-06: nlmeans cases + Goossens float64 references.
+        gen_nlmeans_cases(cases_dir)
+        gen_nlmeans_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 05-07: denoiseprofile cases + wavelets/NLMeans-leg float64
+        # references (L017 route; dt-side = XMP adoption + flat probe).
+        gen_denoiseprofile_cases(cases_dir)
+        gen_denoiseprofile_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+        # Plan 05-08: bilateral cases + 网格/直连 float64 references.
+        gen_bilateral_cases(cases_dir)
+        gen_bilateral_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+    if mode in ("refs-bilateral", "all"):
+        # targeted: 05-08 golden references only (fixtures dir as outdir;
+        # references land in ../output per the established layout).
+        gen_bilateral_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
+    if mode in ("refs-denoiseprofile", "all"):
+        # targeted: 05-07 golden references only (fixtures dir as outdir;
+        # references land in ../output per the established layout).
+        gen_denoiseprofile_refs(outdir, os.path.join(os.path.dirname(outdir), "output"))
     print(f"gen_fixtures[{mode}] → {outdir}")
 
 
@@ -4553,5 +5229,2264 @@ def gen_agx_refs(canonical_dir: str, out_dir: str) -> None:
             write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
 
 
+
+
+# ──────────────────────────────────────────────────────────────────────
+# ChannelMixerRGB / ChannelMixer / ColorContrast (Plan 05-03-T4)
+# ──────────────────────────────────────────────────────────────────────
+# float64 参考链：与 Swift ChannelMixerMath / ChannelMixerRGBModule.derive /
+# ChannelMixerModule.reference / ColorContrastModule.reference 同公式
+# （dt 行号见各模块头注）。L017 route：数值参考合成；dt 侧 = XMP 采纳 +
+# DB hex + params ok（平场 probe：channelmixerrgb 默认 D-illuminant adaptation
+# 非恒等——probe 只记方向/稳定性，不作主轨）。
+
+CM_NORM_MIN = 1.52587890625e-05
+CM_INV_SQRT3 = 0.5773502691896258
+
+CM_XYZ_B = [[0.8951, 0.2664, -0.1614],
+            [-0.7502, 1.7135, 0.0367],
+            [0.0389, -0.0685, 1.0296]]
+CM_B_XYZ = [[0.9870, -0.1471, 0.1600],
+            [0.4323, 0.5184, 0.0493],
+            [-0.0085, 0.0400, 0.9685]]
+CM_XYZ_C = [[0.401288, 0.650173, -0.051461],
+            [-0.250268, 1.204414, 0.045854],
+            [-0.002079, 0.048952, 0.953127]]
+CM_C_XYZ = [[1.862068, -1.011255, 0.149187],
+            [0.38752, 0.621447, -0.008974],
+            [-0.015841, -0.034123, 1.049964]]
+CM_D50_XY = (0.34567, 0.35850)
+CM_D50_UV = (0.20915914598542354, 0.488075320769787)
+CM_FLUO = [(0.31310, 0.33727), (0.37208, 0.37529), (0.40910, 0.39430),
+           (0.44018, 0.40329), (0.31379, 0.34531), (0.37790, 0.38835),
+           (0.31292, 0.32933), (0.34588, 0.35875), (0.37417, 0.37281),
+           (0.34609, 0.35986), (0.38052, 0.37713), (0.43695, 0.40441)]
+CM_LED = [(0.4560, 0.4078), (0.4357, 0.4012), (0.3756, 0.3723),
+          (0.3422, 0.3502), (0.3118, 0.3236), (0.4474, 0.4066),
+          (0.4557, 0.4211), (0.4560, 0.4548), (0.3781, 0.3775)]
+
+
+def cm_cct_daylight(t):
+    x = 0.0
+    if 4000 <= t <= 7000:
+        x = ((-4.6070e9 / t + 2.9678e6) / t + 0.09911e3) / t + 0.244063
+    elif 7000 < t <= 25000:
+        x = ((-2.0064e9 / t + 1.9018e6) / t + 0.24748e3) / t + 0.237040
+    if x == 0:
+        return (0.0, 0.0)
+    return (x, (-3.0 * x + 2.87) * x - 0.275)
+
+
+def cm_cct_blackbody(t):
+    x = 0.0
+    if 1667 <= t <= 4000:
+        x = ((-0.2661239e9 / t - 0.2343589e6) / t + 0.8776956e3) / t + 0.179910
+    elif 4000 < t <= 25000:
+        x = ((-3.0258469e9 / t + 2.1070379e6) / t + 0.2226347e3) / t + 0.240390
+    if x == 0:
+        return (0.0, 0.0)
+    if 1667 <= t <= 2222:
+        y = ((-1.1063814 * x - 1.34811020) * x + 2.18555832) * x - 0.20219683
+    elif 2222 < t <= 4000:
+        y = ((-0.9549476 * x - 1.37418593) * x + 2.09137015) * x - 0.16748867
+    else:
+        y = ((3.0817580 * x - 5.87338670) * x + 3.75112997) * x - 0.37001483
+    return (x, y)
+
+
+def cm_illuminant_to_xy(illuminant, fluo, led, temperature, cx, cy):
+    if illuminant == 0:
+        return CM_D50_XY
+    if illuminant == 3:
+        return (1.0 / 3.0, 1.0 / 3.0)
+    if illuminant == 1:
+        return (0.44757, 0.40745)
+    if illuminant == 4:
+        return CM_FLUO[fluo]
+    if illuminant == 5:
+        return CM_LED[led]
+    if illuminant == 2:
+        x, y = cm_cct_daylight(temperature)
+        if x != 0 and y != 0:
+            return (x, y)
+    if illuminant in (2, 6):
+        x, y = cm_cct_blackbody(temperature)
+        if x != 0 and y != 0:
+            return (x, y)
+        return (cx, cy)
+    return (cx, cy)
+
+
+def cm_xy_to_xyz(x, y):
+    return (x / y, 1.0, (1.0 - x - y) / y)
+
+
+def cm_xyz_to_lms(xyz, adaptation):
+    if adaptation in (0, 2):
+        return mat_vec(CM_XYZ_B, xyz)
+    if adaptation == 1:
+        return mat_vec(CM_XYZ_C, xyz)
+    return xyz
+
+
+def cm_lms_to_xyz(lms, adaptation):
+    if adaptation in (0, 2):
+        return mat_vec(CM_B_XYZ, lms)
+    if adaptation == 1:
+        return mat_vec(CM_C_XYZ, lms)
+    return lms
+
+
+def cm_bradford_adapt(lms, illum, p, full):
+    t = (lms[0] / illum[0], lms[1] / illum[1], lms[2] / illum[2])
+    if full and t[2] > 0:
+        t = (t[0], t[1], t[2] ** p)
+    return (0.996078 * t[0], 1.020646 * t[1], 0.818155 * t[2])
+
+
+def cm_cat16_adapt(lms, illum):
+    return (lms[0] * 0.994535 / illum[0], lms[1] * 1.000997 / illum[1],
+            lms[2] * 0.833036 / illum[2])
+
+
+def cm_xyz_adapt(xyz, illum):
+    return (xyz[0] * 0.9642119944211994 / illum[0], xyz[1] * 1.0 / illum[1],
+            xyz[2] * 0.8251882845188288 / illum[2])
+
+
+def cm_downscale(v, s):
+    f = (s + CM_NORM_MIN) if s > CM_NORM_MIN else CM_NORM_MIN
+    return (v[0] / f, v[1] / f, v[2] / f)
+
+
+def cm_upscale(v, s):
+    f = (s + CM_NORM_MIN) if s > CM_NORM_MIN else CM_NORM_MIN
+    return (v[0] * f, v[1] * f, v[2] * f)
+
+
+def cm_gamut_map(inp, compression, clip):
+    s = inp[0] + inp[1] + inp[2]
+    xyY = (inp[0] / s if s > 0 else CM_D50_XY[0],
+           inp[1] / s if s > 0 else CM_D50_XY[1], inp[1])
+    den = -2.0 * xyY[0] + 12.0 * xyY[1] + 3.0
+    uv = (4.0 * xyY[0] / den, 9.0 * xyY[1] / den)
+    du = (CM_D50_UV[0] - uv[0], CM_D50_UV[1] - uv[1])
+    delta = inp[1] * (du[0] ** 2 + du[1] ** 2)
+    corr = 0.0 if compression == 0 else delta ** compression
+    out_uv = []
+    for c in range(2):
+        tmp = corr * du[c] + uv[c]
+        out_uv.append(max(tmp, CM_D50_UV[c]) if uv[c] > CM_D50_UV[c]
+                      else min(tmp, CM_D50_UV[c]))
+    den2 = 6.0 * out_uv[0] - 16.0 * out_uv[1] + 12.0
+    xyY = (9.0 * out_uv[0] / den2, 4.0 * out_uv[1] / den2, xyY[2])
+    if clip:
+        xyY = (max(xyY[0], 0.0), max(xyY[1], 0.0), xyY[2])
+    xyY = (xyY[0], max(xyY[1], CM_NORM_MIN), xyY[2])
+    sc = xyY[0] + xyY[1]
+    if sc >= 1.0:
+        xyY = (xyY[0] / sc, xyY[1] / sc, xyY[2])
+    return (xyY[2] * xyY[0] / xyY[1], xyY[2],
+            xyY[2] * (1.0 - xyY[0] - xyY[1]) / xyY[1])
+
+
+def cm_luma_chroma(inp, saturation, lightness, version):
+    norm = max(math.sqrt(inp[0] ** 2 + inp[1] ** 2 + inp[2] ** 2), CM_NORM_MIN)
+    avg = max((inp[0] + inp[1] + inp[2]) / 3.0, CM_NORM_MIN)
+    if not (norm > 0 and avg > 0):
+        return inp
+    mix = inp[0] * lightness[0] + inp[1] * lightness[1] + inp[2] * lightness[2]
+    if version == 2:
+        norm *= CM_INV_SQRT3
+    out = (inp[0] / norm, inp[1] / norm, inp[2] / norm)
+    if version == 0:
+        coeff = ((1 - out[0]) * saturation[0] + (1 - out[1]) * saturation[1]
+                 + (1 - out[2]) * saturation[2])
+    else:
+        coeff = (out[0] * saturation[0] + out[1] * saturation[1]
+                 + out[2] * saturation[2]) / 3.0
+    mins = tuple(o if o < 0 else 0.0 for o in out)
+    out = tuple(max((1 - out[c]) * coeff + out[c], mins[c]) for c in range(3))
+    if version == 2:
+        n2 = max(math.sqrt(sum(o * o for o in out)), CM_NORM_MIN)
+        norm /= n2 * CM_INV_SQRT3
+    norm *= max(1.0 + mix / avg, 0.0)
+    return (out[0] * norm, out[1] * norm, out[2] * norm)
+
+
+def cm_derive(case):
+    """dt commit_params（channelmixerrgb.c:3047-3150）float64。"""
+    red, green, blue = case["red"], case["green"], case["blue"]
+    sat, light = case["saturation"], case["lightness"]
+    grey = case["grey"]
+    norm = case["normalize"]
+    nR = (red[0] + red[1] + red[2]) if norm[0] else 1.0
+    nG = (green[0] + green[1] + green[2]) if norm[1] else 1.0
+    nB = (blue[0] + blue[1] + blue[2]) if norm[2] else 1.0
+    nS = ((sat[0] + sat[1] + sat[2]) / 3.0) if norm[3] else 0.0
+    nL = ((light[0] + light[1] + light[2]) / 3.0) if norm[4] else 0.0
+    nGr = grey[0] + grey[1] + grey[2]
+    apply_grey = grey[0] != 0 or grey[1] != 0 or grey[2] != 0
+    if not norm[5] or nGr == 0:
+        nGr = 1.0
+    mix = [[red[0] / nR, red[1] / nR, red[2] / nR],
+           [green[0] / nG, green[1] / nG, green[2] / nG],
+           [blue[0] / nB, blue[1] / nB, blue[2] / nB]]
+    saturation = (-sat[0] + nS, -sat[1] + nS, -sat[2] + nS)
+    if case["version"] == 0:
+        saturation = (-sat[2] + nS, saturation[1], -sat[0] + nS)
+    lightness = (light[0] - nL, light[1] - nL, light[2] - nL)
+    grey_v = (grey[0] / nGr, grey[1] / nGr, grey[2] / nGr)
+    if case["illuminant"] == 10:
+        x, y = cm_cct_daylight(case["temperature"])
+        if x == 0 and y == 0:
+            x, y = cm_cct_blackbody(case["temperature"])
+        if x == 0 and y == 0:
+            x, y = case["x"], case["y"]
+    else:
+        x, y = cm_illuminant_to_xy(case["illuminant"], case["illum_fluo"],
+                                   case["illum_led"], case["temperature"],
+                                   case["x"], case["y"])
+    illuminant = cm_xyz_to_lms(cm_xy_to_xyz(x, y), case["adaptation"])
+    p = (0.818155 / illuminant[2]) ** 0.0834
+    gamut = 0.0 if case["gamut"] == 0 else 1.0 / case["gamut"]
+    adapt = case["adaptation"]
+    if adapt in (0, 2):
+        rgb_to_lms = mat_mul(CM_XYZ_B, LAB_R2X)
+        mix_to_xyz = mat_mul(CM_B_XYZ, mix)
+        xyz_to_lms = CM_XYZ_B
+        lms_to_xyz = CM_B_XYZ
+    elif adapt == 1:
+        rgb_to_lms = mat_mul(CM_XYZ_C, LAB_R2X)
+        mix_to_xyz = mat_mul(CM_C_XYZ, mix)
+        xyz_to_lms = CM_XYZ_C
+        lms_to_xyz = CM_C_XYZ
+    elif adapt == 3:
+        rgb_to_lms = [row[:] for row in LAB_R2X]
+        mix_to_xyz = [row[:] for row in mix]
+        xyz_to_lms = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        lms_to_xyz = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    else:
+        rgb_to_lms = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        mix_to_xyz = mat_mul(LAB_R2X, mix)
+        xyz_to_lms = [row[:] for row in LAB_X2R]
+        lms_to_xyz = [row[:] for row in LAB_R2X]
+    return dict(rgb_to_lms=rgb_to_lms, mix_to_xyz=mix_to_xyz,
+                xyz_to_lms=xyz_to_lms, lms_to_xyz=lms_to_xyz,
+                illuminant=illuminant, p=p, gamut=gamut,
+                saturation=saturation, lightness=lightness, grey=grey_v,
+                apply_grey=apply_grey)
+
+
+def channelmixerrgb_apply_pixel(rgb, case, d):
+    """单像素全链（_loop_switch float64；alpha 直通）。"""
+    adapt, clip = case["adaptation"], case["clip"]
+    pix = tuple(max(v, 0.0) for v in rgb) if clip else rgb
+    if adapt == 2:
+        xyz = mat_vec(d["rgb_to_lms"], pix)
+        Y = xyz[1]
+        lms = cm_xyz_to_lms(xyz, adapt)
+        lms = cm_downscale(lms, Y)
+        lms = cm_bradford_adapt(lms, d["illuminant"], d["p"], True)
+        lms = cm_upscale(lms, Y)
+        lms = mat_vec(d["mix_to_xyz"], lms)
+        xyz = cm_lms_to_xyz(lms, adapt)
+    elif adapt == 0:
+        lms = mat_vec(d["rgb_to_lms"], pix)
+        lms = cm_bradford_adapt(lms, d["illuminant"], d["p"], False)
+        lms = mat_vec(d["mix_to_xyz"], lms)
+        xyz = cm_lms_to_xyz(lms, adapt)
+    elif adapt == 1:
+        xyz = mat_vec(d["rgb_to_lms"], pix)
+        Y = xyz[1]
+        lms = cm_xyz_to_lms(xyz, adapt)
+        lms = cm_downscale(lms, Y)
+        lms = cm_cat16_adapt(lms, d["illuminant"])
+        lms = cm_upscale(lms, Y)
+        lms = mat_vec(d["mix_to_xyz"], lms)
+        xyz = cm_lms_to_xyz(lms, adapt)
+    elif adapt == 3:
+        xyz = mat_vec(d["rgb_to_lms"], pix)
+        Y = xyz[1]
+        xyz = cm_downscale(xyz, Y)
+        xyz = cm_xyz_adapt(xyz, d["illuminant"])
+        xyz = cm_upscale(xyz, Y)
+        xyz = mat_vec(d["mix_to_xyz"], xyz)
+    else:
+        xyz = mat_vec(d["mix_to_xyz"], pix)
+    if clip:
+        xyz = tuple(max(v, 0.0) for v in xyz)
+    xyz = cm_gamut_map(xyz, d["gamut"], clip)
+    lms = cm_xyz_to_lms(xyz, adapt) if adapt != 4 else mat_vec(d["xyz_to_lms"], xyz)
+    if clip:
+        lms = tuple(max(v, 0.0) for v in lms)
+    lms = cm_luma_chroma(lms, d["saturation"], d["lightness"], case["version"])
+    if clip:
+        lms = tuple(max(v, 0.0) for v in lms)
+    if d["apply_grey"]:
+        g = max(lms[0] * d["grey"][0] + lms[1] * d["grey"][1]
+                + lms[2] * d["grey"][2], 0.0)
+        return (g, g, g)
+    back = cm_lms_to_xyz(lms, adapt) if adapt != 4 else mat_vec(d["lms_to_xyz"], lms)
+    if clip:
+        back = tuple(max(v, 0.0) for v in back)
+    out = mat_vec(LAB_X2R, back)
+    if clip:
+        out = tuple(max(v, 0.0) for v in out)
+    return out
+
+
+# 6 case：≥3 矩阵路径（CAT16 D / linear-Bradford A / full-Bradford BB /
+# XYZ E / RGB bypass）+ illuminant 变更 + saturation 三版（v3/v1/v2）。
+CHANNELMIXERRGB_CASES = [
+    {"name": "cmr_default", "red": (1.0, 0.0, 0.0, 0.0),
+     "green": (0.0, 1.0, 0.0, 0.0), "blue": (0.0, 0.0, 1.0, 0.0),
+     "saturation": (0.0,) * 4, "lightness": (0.0,) * 4, "grey": (0.0,) * 4,
+     "normalize": (0,) * 6, "illuminant": 2, "illum_fluo": 2, "illum_led": 4,
+     "adaptation": 1, "x": 0.333, "y": 0.333, "temperature": 5003.0,
+     "gamut": 1.0, "clip": 1, "version": 2},
+    {"name": "cmr_tungsten_linear", "red": (1.1, -0.05, -0.05, 0.0),
+     "green": (-0.1, 1.2, -0.1, 0.0), "blue": (0.0, -0.1, 1.1, 0.0),
+     "saturation": (0.2, -0.1, 0.1, 0.0), "lightness": (0.05, 0.0, -0.05, 0.0),
+     "grey": (0.0,) * 4, "normalize": (1, 1, 1, 0, 0, 0),
+     "illuminant": 1, "illum_fluo": 2, "illum_led": 4,
+     "adaptation": 0, "x": 0.333, "y": 0.333, "temperature": 5003.0,
+     "gamut": 1.0, "clip": 1, "version": 2},
+    {"name": "cmr_bb_full_satv1", "red": (1.0, 0.1, -0.1, 0.0),
+     "green": (0.0, 1.0, 0.0, 0.0), "blue": (-0.05, 0.05, 1.0, 0.0),
+     "saturation": (0.3, 0.0, -0.2, 0.1), "lightness": (0.0,) * 4,
+     "grey": (0.0,) * 4, "normalize": (0,) * 6,
+     "illuminant": 6, "illum_fluo": 2, "illum_led": 4,
+     "adaptation": 2, "x": 0.333, "y": 0.333, "temperature": 3200.0,
+     "gamut": 2.0, "clip": 1, "version": 0},
+    {"name": "cmr_fluor_xyz", "red": (0.9, 0.05, 0.05, 0.0),
+     "green": (0.05, 0.9, 0.05, 0.0), "blue": (0.0, 0.0, 1.0, 0.0),
+     "saturation": (0.0,) * 4, "lightness": (0.1, -0.05, 0.0, 0.05),
+     "grey": (0.0,) * 4, "normalize": (0,) * 6,
+     "illuminant": 4, "illum_fluo": 3, "illum_led": 4,
+     "adaptation": 3, "x": 0.333, "y": 0.333, "temperature": 5003.0,
+     "gamut": 1.0, "clip": 0, "version": 2},
+    {"name": "cmr_led_rgb_grey", "red": (1.0, 0.0, 0.0, 0.0),
+     "green": (0.0, 1.0, 0.0, 0.0), "blue": (0.0, 0.0, 1.0, 0.0),
+     "saturation": (0.0,) * 4, "lightness": (0.0,) * 4,
+     "grey": (0.3, 0.5, 0.2, 0.0), "normalize": (0, 0, 0, 0, 0, 1),
+     "illuminant": 5, "illum_fluo": 2, "illum_led": 4,
+     "adaptation": 4, "x": 0.333, "y": 0.333, "temperature": 5003.0,
+     "gamut": 1.0, "clip": 1, "version": 2},
+    {"name": "cmr_custom_satv2", "red": (1.2, -0.1, -0.1, 0.0),
+     "green": (-0.05, 1.1, -0.05, 0.0), "blue": (0.0, 0.0, 1.0, 0.0),
+     "saturation": (-0.2, 0.3, 0.1, -0.1), "lightness": (0.0,) * 4,
+     "grey": (0.0,) * 4, "normalize": (0, 0, 0, 1, 0, 0),
+     "illuminant": 7, "illum_fluo": 2, "illum_led": 4,
+     "adaptation": 1, "x": 0.42, "y": 0.38, "temperature": 5003.0,
+     "gamut": 1.0, "clip": 1, "version": 1},
+]
+CHANNELMIXERRGB_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev",
+                                "gray_staircase"]
+
+
+def channelmixerrgb_case_params(case):
+    return dict(
+        red=case["red"], green=case["green"], blue=case["blue"],
+        saturation=case["saturation"], lightness=case["lightness"],
+        grey=case["grey"], normalizeR=bool(case["normalize"][0]),
+        normalizeG=bool(case["normalize"][1]), normalizeB=bool(case["normalize"][2]),
+        normalizeSat=bool(case["normalize"][3]),
+        normalizeLight=bool(case["normalize"][4]),
+        normalizeGrey=bool(case["normalize"][5]),
+        illuminant=case["illuminant"], illumFluo=case["illum_fluo"],
+        illumLED=case["illum_led"], adaptation=case["adaptation"],
+        x=case["x"], y=case["y"], temperature=case["temperature"],
+        gamut=case["gamut"], clip=bool(case["clip"]), version=case["version"])
+
+
+def channelmixerrgb_params_blob_for_case(case) -> str:
+    packed = struct.pack(
+        CHANNELMIXERRGB_PARAMS_FORMAT,
+        *case["red"], *case["green"], *case["blue"],
+        *case["saturation"], *case["lightness"], *case["grey"],
+        *case["normalize"], case["illuminant"], case["illum_fluo"],
+        case["illum_led"], case["adaptation"],
+        case["x"], case["y"], case["temperature"], case["gamut"],
+        case["clip"], case["version"])
+    assert len(packed) == 160, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_channelmixerrgb_cases(outdir: str) -> None:
+    for case in CHANNELMIXERRGB_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="channelmixerrgb", modversion=CHANNELMIXERRGB_MODVERSION,
+            params=channelmixerrgb_params_blob_for_case(case),
+            iop_order=f"{CHANNELMIXERRGB_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_channelmixerrgb_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in CHANNELMIXERRGB_CASES:
+        d = cm_derive(case)
+        for fixture in CHANNELMIXERRGB_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, case=case, d=d, w=w):
+                idx = y * w + x
+                return channelmixerrgb_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), case, d)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# legacy channelmixer：4 mode 全覆盖（RGB / gray / HSL v1 / HSL v2）。
+def _cm_legacy_rgb2hsl(r, g, b):
+    pmax, pmin = max(r, g, b), min(r, g, b)
+    delta = pmax - pmin
+    h = s = 0.0
+    l = (pmin + pmax) / 2.0
+    if delta != 0:
+        s = delta / max(pmax + pmin, CM_NORM_MIN) if l < 0.5 else delta / max(2.0 - pmax - pmin, CM_NORM_MIN)
+        if pmax == r:
+            h = (g - b) / delta
+        elif pmax == g:
+            h = 2.0 + (b - r) / delta
+        else:
+            h = 4.0 + (r - g) / delta
+        h /= 6.0
+        if h < 0:
+            h += 1.0
+        elif h > 1:
+            h -= 1.0
+    return (h, s, l)
+
+
+def _cm_legacy_hue2rgb(m1, m2, hue):
+    if hue < 1.0:
+        return m1 + (m2 - m1) * hue
+    if hue < 3.0:
+        return m2
+    return m1 + (m2 - m1) * (4.0 - hue) if hue < 4.0 else m1
+
+
+def _cm_legacy_hsl2rgb(h, s, l):
+    if s == 0:
+        return (l, l, l)
+    m2 = l * (1.0 + s) if l < 0.5 else l + s - l * s
+    m1 = 2.0 * l - m2
+    hh = h * 6.0
+    return (_cm_legacy_hue2rgb(m1, m2, hh + 2.0 if hh < 4.0 else hh - 4.0),
+            _cm_legacy_hue2rgb(m1, m2, hh),
+            _cm_legacy_hue2rgb(m1, m2, hh - 2.0 if hh > 2.0 else hh + 4.0))
+
+
+def _cm_legacy_derive(case):
+    hsl = [0.0] * 9
+    for row in range(3):
+        hsl[row * 3] = case["red"][row]
+        hsl[row * 3 + 1] = case["green"][row]
+        hsl[row * 3 + 2] = case["blue"][row]
+    hsl_mix = any(case["red"][i] != 0 or case["green"][i] != 0 or case["blue"][i] != 0
+                  for i in range(3))
+    rgb = [0.0] * 9
+    for row in range(3):
+        rgb[row * 3] = case["red"][row + 3]
+        rgb[row * 3 + 1] = case["green"][row + 3]
+        rgb[row * 3 + 2] = case["blue"][row + 3]
+    gray = (case["red"][6], case["green"][6], case["blue"][6])
+    gray_mix = gray[0] != 0 or gray[1] != 0 or gray[2] != 0
+    if gray_mix:
+        mixed = [gray[0] * rgb[j] + gray[1] * rgb[3 + j] + gray[2] * rgb[6 + j]
+                 for j in range(3)]
+        for row in range(3):
+            rgb[row * 3:row * 3 + 3] = mixed
+    if case["algorithm"] == 0:
+        mode = 2
+    elif hsl_mix:
+        mode = 3
+    elif gray_mix:
+        mode = 1
+    else:
+        mode = 0
+    return (hsl, rgb, mode)
+
+
+def channelmixer_apply_pixel(rgb, case):
+    def clamp01(v):
+        return min(max(v, 0.0), 1.0)
+    hsl, mx, mode = _cm_legacy_derive(case)
+    if mode == 0:
+        return (max(mx[0] * rgb[0] + mx[1] * rgb[1] + mx[2] * rgb[2], 0.0),
+                max(mx[3] * rgb[0] + mx[4] * rgb[1] + mx[5] * rgb[2], 0.0),
+                max(mx[6] * rgb[0] + mx[7] * rgb[1] + mx[8] * rgb[2], 0.0))
+    if mode == 1:
+        g = max(mx[0] * rgb[0] + mx[1] * rgb[1] + mx[2] * rgb[2], 0.0)
+        return (g, g, g)
+    if mode == 2:
+        hmix = clamp01(rgb[0] * hsl[0]) + rgb[1] * hsl[1] + rgb[2] * hsl[2]
+        smix = clamp01(rgb[0] * hsl[3]) + rgb[1] * hsl[4] + rgb[2] * hsl[5]
+        lmix = clamp01(rgb[0] * hsl[6]) + rgb[1] * hsl[7] + rgb[2] * hsl[8]
+        r, g, b = rgb
+        if hmix != 0 or smix != 0 or lmix != 0:
+            h, s, l = _cm_legacy_rgb2hsl(*rgb)
+            h = hmix if hmix != 0 else h
+            s = smix if smix != 0 else s
+            l = lmix if lmix != 0 else l
+            r, g, b = _cm_legacy_hsl2rgb(h, s, l)
+        return (clamp01(mx[0] * r + mx[1] * g + mx[2] * b),
+                clamp01(mx[3] * r + mx[4] * g + mx[5] * b),
+                clamp01(mx[6] * r + mx[7] * g + mx[8] * b))
+    hmix = clamp01(hsl[0] * rgb[0] + hsl[1] * rgb[1] + hsl[2] * rgb[2])
+    smix = clamp01(hsl[3] * rgb[0] + hsl[4] * rgb[1] + hsl[5] * rgb[2])
+    lmix = clamp01(hsl[6] * rgb[0] + hsl[7] * rgb[1] + hsl[8] * rgb[2])
+    r, g, b = rgb
+    if hmix != 0 or smix != 0 or lmix != 0:
+        r, g, b = (clamp01(v) for v in rgb)
+        h, s, l = _cm_legacy_rgb2hsl(r, g, b)
+        h = hmix if hmix != 0 else h
+        s = smix if smix != 0 else s
+        l = lmix if lmix != 0 else l
+        r, g, b = _cm_legacy_hsl2rgb(h, s, l)
+    return (max(mx[0] * r + mx[1] * g + mx[2] * b, 0.0),
+            max(mx[3] * r + mx[4] * g + mx[5] * b, 0.0),
+            max(mx[6] * r + mx[7] * g + mx[8] * b, 0.0))
+
+
+CHANNELMIXER_CASES = [
+    {"name": "cm_rgb_swap", "red": (0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+     "green": (0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
+     "blue": (0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0), "algorithm": 1},
+    {"name": "cm_gray_luma",
+     "red": (0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.299),
+     "green": (0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.587),
+     "blue": (0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.114), "algorithm": 1},
+    {"name": "cm_hsl_v1_sat", "red": (0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0),
+     "green": (0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
+     "blue": (0.0,) * 7, "algorithm": 0},
+]
+CHANNELMIXER_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev",
+                             "gray_staircase", "saturated"]
+
+
+def channelmixer_params_blob_for_case(case) -> str:
+    packed = struct.pack(CHANNELMIXER_PARAMS_FORMAT,
+                         *case["red"], *case["green"], *case["blue"],
+                         case["algorithm"])
+    # v2 params = 3×7 floats + algorithm int = 88B（CHANNEL_SIZE=7）。
+    assert len(packed) == 88, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_channelmixer_cases(outdir: str) -> None:
+    for case in CHANNELMIXER_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="channelmixer", modversion=CHANNELMIXER_MODVERSION,
+            params=channelmixer_params_blob_for_case(case),
+            iop_order=f"{CHANNELMIXER_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_channelmixer_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in CHANNELMIXER_CASES:
+        for fixture in CHANNELMIXER_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, case=case, w=w):
+                idx = y * w + x
+                return channelmixer_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), case)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# colorcontrast：3 case（含 unbound 双档）。
+def colorcontrast_apply_pixel(lab, case):
+    a = lab[1] * case["a_steepness"] + case["a_offset"]
+    b = lab[2] * case["b_steepness"] + case["b_offset"]
+    if not case["unbound"]:
+        a = min(max(a, -128.0), 128.0)
+        b = min(max(b, -128.0), 128.0)
+    return (lab[0], a, b)
+
+
+COLORCONTRAST_CASES = [
+    {"name": "cc_default", "a_steepness": 1.0, "a_offset": 0.0,
+     "b_steepness": 1.0, "b_offset": 0.0, "unbound": 1},
+    {"name": "cc_steep", "a_steepness": 1.8, "a_offset": 5.0,
+     "b_steepness": 0.6, "b_offset": -8.0, "unbound": 1},
+    {"name": "cc_bound", "a_steepness": 3.0, "a_offset": 60.0,
+     "b_steepness": 3.0, "b_offset": -60.0, "unbound": 0},
+]
+COLORCONTRAST_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev", "saturated",
+                              "gray_staircase"]
+
+
+def colorcontrast_params_blob_for_case(case) -> str:
+    packed = struct.pack(COLORCONTRAST_PARAMS_FORMAT,
+                         case["a_steepness"], case["a_offset"],
+                         case["b_steepness"], case["b_offset"],
+                         case["unbound"])
+    assert len(packed) == 20, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_colorcontrast_cases(outdir: str) -> None:
+    for case in COLORCONTRAST_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="colorcontrast", modversion=COLORCONTRAST_MODVERSION,
+            params=colorcontrast_params_blob_for_case(case),
+            iop_order=f"{COLORCONTRAST_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_colorcontrast_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in COLORCONTRAST_CASES:
+        for fixture in COLORCONTRAST_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, case=case, w=w):
+                idx = y * w + x
+                lab = lab_from_rec2020((rgb[0][idx], rgb[1][idx], rgb[2][idx]))
+                return lab_to_rec2020(colorcontrast_apply_pixel(lab, case))
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Plan 05-04 (vibrance + velvia + colorzones) — float64 mirrors of the
+# committed Swift references (VibranceModule/VelviaModule.reference +
+# ColorZonesLUT/ColorZonesModule.reference with the CL-leg NEAREST
+# lookup). L017 route: dt-side = XMP adoption + flat PFM probes.
+# ──────────────────────────────────────────────────────────────────────
+
+def vibrance_apply_pixel(lab, amount01):
+    """vibrance.c:117-120 in float64 on Lab."""
+    sw = math.hypot(lab[1], lab[2]) / 256.0
+    ls = 1.0 - amount01 * sw * 0.25
+    ss = 1.0 + amount01 * sw
+    return (lab[0] * ls, lab[1] * ss, lab[2] * ss)
+
+
+def velvia_apply_pixel(rgb, strength01, bias):
+    """velvia.c:165-194 in float64 on linear RGB (clamp is the formula)."""
+    if strength01 <= 0:
+        # dt velvia.c:160 — strength <= 0 short-circuits to an unclamped copy
+        return tuple(rgb)
+    pmax = max(rgb)
+    pmin = min(rgb)
+    plum = (pmax + pmin) / 2.0
+    if plum <= 0.5:
+        psat = (pmax - pmin) / (1e-5 + pmax + pmin)
+    else:
+        psat = (pmax - pmin) / (1e-5 + max(0.0, 2.0 - pmax - pmin))
+    pweight = min(max(
+        ((1.0 - 1.5 * psat) + (1.0 + abs(plum - 0.5) * 2.0) * (1.0 - bias))
+        / (1.0 + (1.0 - bias)), 0.0), 1.0)
+    sat = strength01 * pweight
+    others = (rgb[1] + rgb[2], rgb[2] + rgb[0], rgb[0] + rgb[1])
+    return tuple(min(max(c + sat * (c - 0.5 * o), 0.0), 1.0)
+                 for c, o in zip(rgb, others))
+
+
+VIBRANCE_CASES = [
+    {"name": "vib_default", "amount": 0.0},
+    {"name": "vib_strong", "amount": 75.0},
+]
+VIBRANCE_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev", "saturated",
+                         "gray_staircase", "hue_sweep"]
+
+
+def vibrance_params_blob_for_case(case) -> str:
+    packed = struct.pack(VIBRANCE_PARAMS_FORMAT, case["amount"])
+    assert len(packed) == 4, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_vibrance_cases(outdir: str) -> None:
+    for case in VIBRANCE_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="vibrance", modversion=VIBRANCE_MODVERSION,
+            params=vibrance_params_blob_for_case(case),
+            iop_order=f"{VIBRANCE_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_vibrance_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in VIBRANCE_CASES:
+        amount01 = case["amount"] * 0.01
+        for fixture in VIBRANCE_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, amount01=amount01, w=w):
+                idx = y * w + x
+                lab = lab_from_rec2020((rgb[0][idx], rgb[1][idx], rgb[2][idx]))
+                return lab_to_rec2020(vibrance_apply_pixel(lab, amount01))
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+VELVIA_CASES = [
+    {"name": "vel_default", "strength": 0.0, "bias": 1.0},
+    {"name": "vel_strong", "strength": 75.0, "bias": 1.0},
+    {"name": "vel_clamp", "strength": 100.0, "bias": 0.0},
+]
+VELVIA_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev", "saturated",
+                       "gray_staircase", "hue_sweep"]
+
+
+def velvia_params_blob_for_case(case) -> str:
+    packed = struct.pack(VELVIA_PARAMS_FORMAT, case["strength"], case["bias"])
+    assert len(packed) == 8, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_velvia_cases(outdir: str) -> None:
+    for case in VELVIA_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="velvia", modversion=VELVIA_MODVERSION,
+            params=velvia_params_blob_for_case(case),
+            iop_order=f"{VELVIA_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_velvia_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in VELVIA_CASES:
+        s01 = case["strength"] / 100.0
+        bias = case["bias"]
+        for fixture in VELVIA_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, s01=s01, bias=bias, w=w):
+                idx = y * w + x
+                return velvia_apply_pixel(
+                    (rgb[0][idx], rgb[1][idx], rgb[2][idx]), s01, bias)
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# colorzones: V2-spline mirrors (ColorZonesLUT) + v3 process mirror with
+# the CL-leg NEAREST lookup (the GPU leg the kernel follows).
+
+def _cz_g_variant(s1, s2, h1, h2):
+    if s1 * s2 > 0:
+        alpha = (h1 + 2.0 * h2) / (3.0 * (h1 + h2))
+        return s1 * s2 / (alpha * s2 + (1.0 - alpha) * s1)
+    return 0.0
+
+
+def _cz_monotone_variant_tangents(xs, ys):
+    n = len(xs)
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)]
+    d = [(ys[i + 1] - ys[i]) / h[i] for i in range(n - 1)]
+    dy = [0.0] * n
+    dy[0] = d[0]
+    for i in range(1, n - 1):
+        dy[i] = _cz_g_variant(d[i - 1], d[i], h[i - 1], h[i])
+    dy[n - 1] = d[n - 2]
+    return dy
+
+
+def _cz_periodic_monotone_variant_tangents(xs, ys, period=1.0):
+    n = len(xs)
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)] + [xs[0] - xs[n - 1] + period]
+    d = [(ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]) for i in range(n - 1)]
+    d = d + [(ys[0] - ys[n - 1]) / (xs[0] - xs[n - 1] + period)]
+    return [_cz_g_variant(d[i - 1], d[i], h[i - 1], h[i]) for i in range(n)]
+
+
+def _cz_periodic_catmull_tangents(xs, ys, period=1.0):
+    n = len(xs)
+    if n == 1:
+        return [0.0]
+    dy = [0.0] * n
+    dy[0] = (ys[1] - ys[n - 1]) / (xs[1] - xs[n - 1] + period)
+    for i in range(1, n - 1):
+        dy[i] = (ys[i + 1] - ys[i - 1]) / (xs[i + 1] - xs[i - 1])
+    dy[n - 1] = (ys[0] - ys[n - 2]) / (xs[0] - xs[n - 2] + period)
+    return dy
+
+
+def _cz_periodic_cubic_tangents(xs, ys, period=1.0):
+    # Cyclic natural spline via dense Gauss solve (mirrors
+    # ColorZonesLUT.periodicCubicTangents).
+    n = len(xs)
+    if n == 1:
+        return [0.0]
+    dx = [xs[i + 1] - xs[i] for i in range(n - 1)] + [xs[0] - xs[n - 1] + period]
+    dyv = [ys[i + 1] - ys[i] for i in range(n - 1)] + [ys[0] - ys[n - 1]]
+    A = [[0.0] * n for _ in range(n)]
+    b = [0.0] * n
+    for i in range(1, n - 1):
+        A[i][i - 1] = dx[i - 1] / 6.0
+        A[i][i] = (dx[i - 1] + dx[i]) / 3.0
+        A[i][i + 1] = dx[i] / 6.0
+        b[i] = dyv[i] / dx[i] - dyv[i - 1] / dx[i - 1]
+    if n > 2:
+        A[0][0] = (dx[n - 1] + dx[0]) / 3.0
+        A[n - 1][n - 1] = (dx[n - 2] + dx[n - 1]) / 3.0
+        b[0] = dyv[0] / dx[0] - dyv[n - 1] / dx[n - 1]
+        b[n - 1] = dyv[n - 1] / dx[n - 1] - dyv[n - 2] / dx[n - 2]
+        A[0][1] = dx[0] / 6.0
+        A[n - 1][n - 2] = dx[n - 2] / 6.0
+        A[0][n - 1] = dx[n - 1] / 6.0
+        A[n - 1][0] = dx[n - 1] / 6.0
+    else:
+        A[0][0] = (dx[1] + dx[0]) / 3.0
+        A[1][1] = (dx[0] + dx[1]) / 3.0
+        A[0][1] = (dx[0] + dx[1]) / 6.0
+        A[1][0] = (dx[0] + dx[1]) / 6.0
+        b[0] = dyv[0] / dx[0] - dyv[1] / dx[1]
+        b[1] = dyv[1] / dx[1] - dyv[0] / dx[0]
+    # LU without pivoting (dense).
+    for i in range(n - 1):
+        t = A[i][i]
+        assert t != 0.0
+        for k in range(i + 1, n):
+            A[k][i] /= t
+            for j in range(i + 1, n):
+                A[k][j] -= A[k][i] * A[i][j]
+    for i in range(n):
+        for k in range(i):
+            b[i] -= A[i][k] * b[k]
+    for i in range(n - 1, -1, -1):
+        for k in range(i + 1, n):
+            b[i] -= A[i][k] * b[k]
+        b[i] /= A[i][i]
+    dy = [0.0] * n
+    c_last = 0.0
+    for i in range(n - 1):
+        c = dyv[i] / dx[i] - dx[i] / 6.0 * (b[i + 1] - b[i])
+        dy[i] = -dx[i] * b[i] / 2.0 + c
+        c_last = c
+    dy[n - 1] = dx[n - 2] * b[n - 1] / 2.0 + c_last
+    return dy
+
+
+def _cz_eval_periodic(xs, ys, m, xval, period=1.0):
+    n = len(xs)
+    if n == 1:
+        return ys[0]
+    xv = xval % period
+    if xv < xs[0]:
+        xv += period
+    n0 = n - 1
+    for i in range(n):
+        if xv < xs[i]:
+            n0 = n - 1 if i == 0 else i - 1
+            break
+    n1 = (n0 + 1) % n
+    h = (xs[n1] - xs[n0]) if n1 > n0 else (xs[n1] - (xs[n0] - period))
+    dx = (xv - xs[n0]) / h
+    dx2, dx3 = dx * dx, dx * dx * dx
+    return ((2.0 * dx3 - 3.0 * dx2 + 1.0) * ys[n0]
+            + (dx3 - 2.0 * dx2 + dx) * h * m[n0]
+            + (-2.0 * dx3 + 3.0 * dx2) * ys[n1]
+            + (dx3 - dx2) * h * m[n1])
+
+
+def colorzones_build_table(nodes, curve_type, strength, periodic):
+    """ColorZonesLUT.buildTable mirror (V2 verdict). nodes = [(x,y)]."""
+    res = 0x10000
+    table = [0.0] * res
+    if len(nodes) < 2:
+        return [k / (res - 1) for k in range(res)]
+    xs = [p[0] for p in nodes]
+    ys = [p[1] + (p[1] - 0.5) * (strength / 100.0) for p in nodes]
+    for i in range(len(xs) - 1):
+        if xs[i + 1] <= xs[i]:
+            return [k / (res - 1) for k in range(res)]
+    if periodic:
+        if curve_type == 0:
+            m = _cz_periodic_cubic_tangents(xs, ys)
+        elif curve_type == 1:
+            m = _cz_periodic_catmull_tangents(xs, ys)
+        else:
+            m = _cz_periodic_monotone_variant_tangents(xs, ys)
+        return [_cz_eval_periodic(xs, ys, m, k / (res - 1)) for k in range(res)]
+    else:
+        if curve_type == 0:
+            ypp = cubic_spline_second_derivatives(xs, ys)
+            if ypp is None:
+                return [k / (res - 1) for k in range(res)]
+            # ypp -> dy (same conversion as Swift cubicTangents).
+            n = len(xs)
+            m = [0.0] * n
+            c_last = 0.0
+            for i in range(n - 1):
+                dx = xs[i + 1] - xs[i]
+                c = (ys[i + 1] - ys[i]) / dx - dx / 6.0 * (ypp[i + 1] - ypp[i])
+                m[i] = -dx * ypp[i] / 2.0 + c
+                c_last = c
+            m[n - 1] = c_last
+        elif curve_type == 1:
+            m = catmull_rom_tangents(xs, ys)
+        else:
+            m = _cz_monotone_variant_tangents(xs, ys)
+        step = 1.0 / (res - 1)
+        out = [0.0] * res
+        for k in range(res):
+            xk = k * step
+            if xk < xs[0]:
+                v = ys[0]
+            elif xk > xs[-1]:
+                v = ys[-1]
+            else:
+                v = hermite_val(xs, ys, m, xk)
+            out[k] = max(0.0, min(1.0, v))
+        return out
+
+
+def _cz_lookup_nearest(lut, x):
+    """dt CL lookup (color_conversion.h:70-75): truncation."""
+    return lut[min(max(int(x * 0x10000), 0), 0xFFFF)]
+
+
+def colorzones_apply_pixel(lab, tables, channel):
+    """process_v3 (:526-570) in float64 with the NEAREST lookup."""
+    a, b = lab[1], lab[2]
+    h = math.fmod(math.atan2(b, a) + 2.0 * math.pi, 2.0 * math.pi) / (2.0 * math.pi)
+    c = math.hypot(b, a)
+    blend = 0.0
+    if channel == 0:
+        select = min(1.0, lab[0] / 100.0)
+    elif channel == 1:
+        select = min(1.0, c / 128.0)
+    else:
+        select = h
+        blend = (1.0 - c / 128.0) ** 2
+    lm = (blend * 0.5 + (1.0 - blend) * _cz_lookup_nearest(tables[0], select)) - 0.5
+    hm = (blend * 0.5 + (1.0 - blend) * _cz_lookup_nearest(tables[2], select)) - 0.5
+    blend *= blend
+    cm = 2.0 * _cz_lookup_nearest(tables[1], select)
+    l = lab[0] * (2.0 ** (4.0 * lm))
+    ang = 2.0 * math.pi * (h + hm)
+    return (l, math.cos(ang) * cm * c, math.sin(ang) * cm * c)
+
+
+# 4 colorzones cases (each select domain L/C/h + hue low-sat suppression).
+# Identity nodes mirror _reset_nodes (L/C touch_edges, h centered).
+COLORZONES_CASES = [
+    {"name": "cz_default", "channel": 2,
+     "nodesL": [(0.0, 0.5), (1.0, 0.5)], "typeL": 1,
+     "nodesC": [(0.0, 0.5), (1.0, 0.5)], "typeC": 1,
+     "nodesH": [(0.25, 0.5), (0.75, 0.5)], "typeH": 1,
+     "strength": 0.0, "mode": 0},
+    {"name": "cz_lightness", "channel": 0,
+     "nodesL": [(0.0, 0.3), (0.5, 0.65), (1.0, 0.45)], "typeL": 1,
+     "nodesC": [(0.0, 0.5), (1.0, 0.5)], "typeC": 1,
+     "nodesH": [(0.25, 0.5), (0.75, 0.5)], "typeH": 1,
+     "strength": 0.0, "mode": 0},
+    {"name": "cz_chroma", "channel": 1,
+     "nodesL": [(0.0, 0.5), (1.0, 0.5)], "typeL": 1,
+     "nodesC": [(0.0, 0.2), (0.5, 0.8), (1.0, 0.35)], "typeC": 2,
+     "nodesH": [(0.25, 0.5), (0.75, 0.5)], "typeH": 1,
+     "strength": 0.0, "mode": 0},
+    {"name": "cz_hue", "channel": 2,
+     "nodesL": [(0.0, 0.5), (1.0, 0.5)], "typeL": 1,
+     "nodesC": [(0.0, 0.5), (1.0, 0.5)], "typeC": 1,
+     "nodesH": [(0.0, 0.5), (0.25, 0.75), (0.5, 0.3), (0.75, 0.6)], "typeH": 2,
+     "strength": 50.0, "mode": 0},
+]
+COLORZONES_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev", "saturated",
+                           "gray_staircase", "hue_sweep"]
+
+
+def colorzones_params_blob_for_case(case) -> str:
+    """dt params v5 (520B) for the case. Nodes beyond len pad (0,0)."""
+    curves = []
+    for key in ("nodesL", "nodesC", "nodesH"):
+        nodes = case[key]
+        for i in range(20):
+            if i < len(nodes):
+                curves += [nodes[i][0], nodes[i][1]]
+            else:
+                curves += [0.0, 0.0]
+    packed = struct.pack(
+        COLORZONES_PARAMS_FORMAT,
+        case["channel"], *curves,
+        len(case["nodesL"]), len(case["nodesC"]), len(case["nodesH"]),
+        case["typeL"], case["typeC"], case["typeH"],
+        case["strength"], case["mode"], 1)
+    assert len(packed) == 520, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_colorzones_cases(outdir: str) -> None:
+    for case in COLORZONES_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="colorzones", modversion=COLORZONES_MODVERSION,
+            params=colorzones_params_blob_for_case(case),
+            iop_order=f"{COLORZONES_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_colorzones_refs(canonical_dir: str, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    for case in COLORZONES_CASES:
+        tables = (
+            colorzones_build_table(case["nodesL"], case["typeL"],
+                                   case["strength"], periodic=False),
+            colorzones_build_table(case["nodesC"], case["typeC"],
+                                   case["strength"], periodic=False),
+            colorzones_build_table(case["nodesH"], case["typeH"],
+                                   case["strength"],
+                                   periodic=(case["channel"] == 2)),
+        )
+        for fixture in COLORZONES_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+
+            def px(x, y, rgb=rgb, tables=tables, channel=case["channel"], w=w):
+                idx = y * w + x
+                lab = lab_from_rec2020((rgb[0][idx], rgb[1][idx], rgb[2][idx]))
+                return lab_to_rec2020(colorzones_apply_pixel(lab, tables, channel))
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# monochrome: filter + bilateral-grid full-chain mirror (MonochromeModule +
+# BilateralGridReference Swift mirrors; CPU sigma2 = 2*(size*128)^2,
+# monochrome.c:205; grid sigma_s=20/scale, sigma_r=250, detail=-1, :220-229).
+# Small fixtures (<=64px) run the true grid; larger fixtures reuse the
+# slice-through-grid path identically (grid dims grow sub-linearly).
+
+def monochrome_color_filter(ai, bi, a, b, sigma2):
+    """_color_filter (:168-175) in float64 (exact exp; dt_fast_expf
+    deviation recorded in 05-05-DECISIONS D3)."""
+    t = min(max(((ai - a) ** 2 + (bi - b) ** 2) / sigma2, 0.0), 1.0)
+    return math.exp(-t)
+
+
+def monochrome_envelope(L):
+    """_envelope (:177-195) in float64."""
+    x = min(max(L / 100.0, 0.0), 1.0)
+    beta = 0.6
+    if x < beta:
+        tmp = x / beta - 1.0
+        return 1.0 - tmp * tmp
+    tmp1 = (1.0 - x) / (1.0 - beta)
+    tmp2 = tmp1 * tmp1
+    tmp3 = tmp2 * tmp1
+    return 3.0 * tmp2 - 2.0 * tmp3
+
+
+def _mono_grid_point(g, i, j, l):
+    x = min(max(i / g["ss"], 0.0), g["sx"] - 1)
+    y = min(max(j / g["ss"], 0.0), g["sy"] - 1)
+    z = min(max(l / g["sr"], 0.0), g["sz"] - 1)
+    xi = min(int(x), g["sx"] - 2)
+    yi = min(int(y), g["sy"] - 2)
+    zi = min(int(z), g["sz"] - 2)
+    return ((xi + yi * g["sx"]) * g["sz"] + zi, x - xi, y - yi, z - zi)
+
+
+def _mono_make_grid(w, h, sigmaS, sigmaR, lRange=100.0):
+    """BilateralGridReference.makeGrid mirror (grid_size straight port)."""
+    ss = max(sigmaS, 0.5)
+    x0 = min(max(int(round(w / ss)), 4), 3000)
+    y0 = min(max(int(round(h / ss)), 4), 3000)
+    z0 = min(max(int(round(lRange / sigmaR)), 4), 50)
+    ss = max(h / y0, w / x0)
+    sr = lRange / z0
+    sx = int(math.ceil(w / ss)) + 1
+    sy = int(math.ceil(h / ss)) + 1
+    sz = int(math.ceil(lRange / sr)) + 1
+    return {"sx": sx, "sy": sy, "sz": sz, "ss": ss, "sr": sr,
+            "payload": [0.0] * (sx * sy * sz)}
+
+
+def _mono_splat(g, luma, w, h):
+    scale = 100.0 / (g["ss"] * g["ss"])
+    for j in range(h):
+        for i in range(w):
+            l = luma[j * w + i]
+            gi, fx, fy, fz = _mono_grid_point(g, i, j, l)
+            # dt CPU strides (bilateral.c:204-206).
+            ox, oy, oz = g["sz"], g["sx"] * g["sz"], 1
+            for off, wt in ((0, (1 - fx) * (1 - fy)),
+                            (ox, fx * (1 - fy)),
+                            (oy, (1 - fx) * fy),
+                            (oy + ox, fx * fy)):
+                g["payload"][gi + off] += wt * (1 - fz) * scale
+                g["payload"][gi + off + oz] += wt * fz * scale
+
+
+def _mono_blur_dim(g, axis):
+    nx, ny, nz = g["sx"], g["sy"], g["sz"]
+    w0, w1, w2 = 6.0 / 16.0, 4.0 / 16.0, 1.0 / 16.0
+    src = list(g["payload"])
+    dst = list(src)
+
+    def idx(x, y, z):
+        return (x + y * nx) * nz + z
+    if axis == 0:
+        for y in range(ny):
+            for z in range(nz):
+                t1 = src[idx(0, y, z)]
+                dst[idx(0, y, z)] = src[idx(0, y, z)] * w0 + w1 * src[idx(1, y, z)] + w2 * src[idx(2, y, z)]
+                t2 = src[idx(1, y, z)]
+                dst[idx(1, y, z)] = src[idx(1, y, z)] * w0 + w1 * (src[idx(2, y, z)] + t1) + w2 * src[idx(min(3, nx - 1), y, z)]
+                for x in range(2, nx - 2):
+                    t3 = src[idx(x, y, z)]
+                    dst[idx(x, y, z)] = src[idx(x, y, z)] * w0 + w1 * (src[idx(x + 1, y, z)] + t2) + w2 * (src[idx(x + 2, y, z)] + t1)
+                    t1, t2 = t2, t3
+                if nx > 3:
+                    t3 = src[idx(nx - 2, y, z)]
+                    dst[idx(nx - 2, y, z)] = src[idx(nx - 2, y, z)] * w0 + w1 * (src[idx(nx - 1, y, z)] + t2) + w2 * t1
+                    dst[idx(nx - 1, y, z)] = src[idx(nx - 1, y, z)] * w0 + w1 * t3 + w2 * t2
+    else:
+        for x in range(nx):
+            for z in range(nz):
+                t1 = src[idx(x, 0, z)]
+                dst[idx(x, 0, z)] = src[idx(x, 0, z)] * w0 + w1 * src[idx(x, 1, z)] + w2 * src[idx(x, 2, z)]
+                t2 = src[idx(x, 1, z)]
+                dst[idx(x, 1, z)] = src[idx(x, 1, z)] * w0 + w1 * (src[idx(x, 2, z)] + t1) + w2 * src[idx(x, min(3, ny - 1), z)]
+                for y in range(2, ny - 2):
+                    t3 = src[idx(x, y, z)]
+                    dst[idx(x, y, z)] = src[idx(x, y, z)] * w0 + w1 * (src[idx(x, y + 1, z)] + t2) + w2 * (src[idx(x, y + 2, z)] + t1)
+                    t1, t2 = t2, t3
+                if ny > 3:
+                    t3 = src[idx(x, ny - 2, z)]
+                    dst[idx(x, ny - 2, z)] = src[idx(x, ny - 2, z)] * w0 + w1 * (src[idx(x, ny - 1, z)] + t2) + w2 * t1
+                    dst[idx(x, ny - 1, z)] = src[idx(x, ny - 1, z)] * w0 + w1 * t3 + w2 * t2
+    g["payload"] = dst
+
+
+def _mono_blur_z(g):
+    nx, ny, nz = g["sx"], g["sy"], g["sz"]
+    w1, w2 = 4.0 / 16.0, 2.0 / 16.0
+    src = list(g["payload"])
+    dst = list(src)
+
+    def idx(x, y, z):
+        return (x + y * nx) * nz + z
+    for x in range(nx):
+        for y in range(ny):
+            t1 = src[idx(x, y, 0)]
+            dst[idx(x, y, 0)] = w1 * src[idx(x, y, 1)] + w2 * src[idx(x, y, min(2, nz - 1))]
+            t2 = src[idx(x, y, 1)]
+            dst[idx(x, y, 1)] = w1 * (src[idx(x, y, 2)] - t1) + w2 * src[idx(x, y, min(3, nz - 1))]
+            for z in range(2, nz - 2):
+                t3 = src[idx(x, y, z)]
+                dst[idx(x, y, z)] = w1 * (src[idx(x, y, z + 1)] - t2) + w2 * (src[idx(x, y, z + 2)] - t1)
+                t1, t2 = t2, t3
+            if nz > 3:
+                t3 = src[idx(x, y, nz - 2)]
+                dst[idx(x, y, nz - 2)] = w1 * (src[idx(x, y, nz - 1)] - t2) - w2 * t1
+                dst[idx(x, y, nz - 1)] = -w1 * t3 - w2 * t2
+    g["payload"] = dst
+
+
+def _mono_slice(g, luma, w, h, detail=-1.0):
+    norm = -detail * g["sr"] * 0.04
+    out = [0.0] * (w * h)
+    for j in range(h):
+        for i in range(w):
+            l = luma[j * w + i]
+            gi, fx, fy, fz = _mono_grid_point(g, i, j, l)
+            # dt CPU strides (bilateral.c:405-407).
+            ox, oy, oz = g["sz"], g["sx"] * g["sz"], 1
+            ldiff = (g["payload"][gi] * (1 - fx) * (1 - fy) * (1 - fz)
+                     + g["payload"][gi + ox] * fx * (1 - fy) * (1 - fz)
+                     + g["payload"][gi + oy] * (1 - fx) * fy * (1 - fz)
+                     + g["payload"][gi + ox + oy] * fx * fy * (1 - fz)
+                     + g["payload"][gi + oz] * (1 - fx) * (1 - fy) * fz
+                     + g["payload"][gi + ox + oz] * fx * (1 - fy) * fz
+                     + g["payload"][gi + oy + oz] * (1 - fx) * fy * fz
+                     + g["payload"][gi + ox + oy + oz] * fx * fy * fz)
+            out[j * w + i] = max(0.0, l + norm * ldiff)
+    return out
+
+
+def monochrome_apply_pixel(lin, f_smooth, highlights):
+    """process apply leg (:232-238) in float64."""
+    tt = monochrome_envelope(lin)
+    t = tt + (1.0 - tt) * (1.0 - highlights)
+    return (1.0 - t) * lin + t * f_smooth * lin / 100.0
+
+
+# 4 monochrome cases (neutral/size-sweep + warm/cool filters + highlights
+# extreme). size=100 ~ identity-adjacent (filter->1 within 1e-9 on the
+# fixture chroma range); highlights=1 extreme exercises the t-mix floor.
+MONOCHROME_CASES = [
+    {"name": "mono_neutral", "a": 0.0, "b": 0.0, "size": 100.0, "highlights": 0.0},
+    {"name": "mono_warm", "a": 32.0, "b": 64.0, "size": 2.3, "highlights": 0.0},
+    {"name": "mono_cool", "a": 0.0, "b": -64.0, "size": 2.3, "highlights": 0.0},
+    {"name": "mono_highlights", "a": 32.0, "b": 64.0, "size": 2.3, "highlights": 1.0},
+]
+MONOCHROME_REF_FIXTURES = ["ramp_8ev", "flat_0ev", "flat_-4ev",
+                           "gray_staircase"]
+
+
+def monochrome_params_blob_for_case(case) -> str:
+    packed = struct.pack(MONOCHROME_PARAMS_FORMAT, case["a"], case["b"],
+                         case["size"], case["highlights"])
+    assert len(packed) == 16, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_monochrome_cases(outdir: str) -> None:
+    for case in MONOCHROME_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="monochrome", modversion=MONOCHROME_MODVERSION,
+            params=monochrome_params_blob_for_case(case),
+            iop_order=f"{MONOCHROME_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_monochrome_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the monochrome golden REFERENCES (L017 route; dt-side =
+    XMP adoption + flat PFM probe). 4 case x 4 fixture (grid leg small-fixture
+    exact; dt CPU sigma2)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case in MONOCHROME_CASES:
+        sigma2 = 2.0 * (case["size"] * 128.0) ** 2
+        for fixture in MONOCHROME_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            labs = [lab_from_rec2020((rgb[0][k], rgb[1][k], rgb[2][k]))
+                    for k in range(w * h)]
+            filt = [100.0 * monochrome_color_filter(
+                lab[1], lab[2], case["a"], case["b"], sigma2) for lab in labs]
+            g = _mono_make_grid(w, h, 20.0, 250.0)
+            _mono_splat(g, filt, w, h)
+            _mono_blur_dim(g, 0)
+            _mono_blur_dim(g, 1)
+            _mono_blur_z(g)
+            smooth = _mono_slice(g, filt, w, h)
+            out_lab = [
+                (monochrome_apply_pixel(labs[k][0], smooth[k], case["highlights"]), 0.0, 0.0)
+                for k in range(w * h)]
+            out_rgb = [lab_to_rec2020(lab) for lab in out_lab]
+
+            def px(x, y, out_rgb=out_rgb, w=w):
+                idx = y * w + x
+                return out_rgb[idx]
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+# ──────────────────────────────────────────────────────────────────────
+# NLMeans (Plan 05-06-T2, IOP-DENOISE-02) — Goossens float64 reference
+# (L017 route; dt-side = XMP adoption + flat probe). 逐式直译 dt
+# nlmeans.cl:37-253 + nlmeans.c:170-173,362-368 + nlmeans_core.c:103-118：
+# 半平面偏移枚举 (j∈[−K,0], i∈[−K,K])、边界 clamp 的 separable box 和、
+# 对称累积、finish 混合；fast_mexp2f 位级复刻（float 值域构造指数位）。
+# 参考在 scale=1（roi.scale=1, iscale=1）跑：P=ceil(radius), K=7。
+# ──────────────────────────────────────────────────────────────────────
+
+NLMEANS_PARAMS_FORMAT = "<4f"
+NLMEANS_MODVERSION = 2
+NLMEANS_IOP_ORDER = 29.0
+
+
+def nlmeans_fast_mexp2f(x):
+    """dt common.h:181-191 bit-exact: build the float exponent field in
+    VALUE space (i1/i2 are the bit patterns of 1.0/0.5 as integers),
+    truncate to an integer whose bits ARE the result float."""
+    i1 = 1065353216.0  # (float)0x3f800000u
+    i2 = 1056964608.0  # (float)0x3f000000u
+    k0 = i1 + x * (i2 - i1)
+    if k0 >= 8388608.0:
+        return struct.unpack("<f", struct.pack("<I", int(k0)))[0]
+    return 0.0
+
+
+def nlmeans_offsets(k, decimate):
+    """dt GPU half-plane order (nlmeans.c:268-269) with the nlmeans_core
+    decimate skip parity (:103-118 — counter starts 1, pre-increment,
+    odd → skip)."""
+    out = []
+    counter = 1 if decimate else 0
+    for j in range(-k, 1):
+        for i in range(-k, k + 1):
+            if decimate:
+                counter += 1
+                if counter & 1:
+                    continue
+            out.append((i, j))
+    return out
+
+
+def nlmeans_reference(w, h, rgb, radius, strength, luma, chroma):
+    """Full Goossens chain in float64 at scale=1: Lab domain, half-plane
+    offsets, border-clamped box sums (dt wing fills clamp — :94-107),
+    gh weight in vert, symmetric accu (:183-230), finish blend (:233-253).
+    Returns list of linear-Rec2020 triples."""
+    nL2 = 1.0 / (120.0 * 120.0)
+    nC2 = 1.0 / (512.0 * 512.0)
+    sharpness = 3000.0 / (1.0 + strength)
+    P = int(math.ceil(radius))
+    K = 7
+    labs = [lab_from_rec2020((rgb[0][k], rgb[1][k], rgb[2][k])) for k in range(w * h)]
+
+    def cl(v, hi):
+        return min(max(v, 0), hi)
+
+    u2 = [[0.0, 0.0, 0.0, 0.0] for _ in range(w * h)]
+    for (qx, qy) in nlmeans_offsets(K, False):
+        # dist (nlmeans.cl:37-68): OOB offsets → exactly 0.
+        dist = [0.0] * (w * h)
+        for y in range(h):
+            for x in range(w):
+                if not (0 <= x + qx < w and 0 <= y + qy < h):
+                    continue
+                p1 = labs[y * w + x]
+                p2 = labs[(y + qy) * w + (x + qx)]
+                dist[y * w + x] = (
+                    (p1[0] - p2[0]) ** 2 * nL2
+                    + (p1[1] - p2[1]) ** 2 * nC2
+                    + (p1[2] - p2[2]) ** 2 * nC2
+                )
+        # horiz box (:70-123) — border-CLAMPED reads (dt wing fill clamps).
+        tmp = [0.0] * (w * h)
+        for y in range(h):
+            row = y * w
+            for x in range(w):
+                acc = 0.0
+                for pi in range(-P, P + 1):
+                    acc += dist[row + cl(x + pi, w - 1)]
+                tmp[row + x] = acc
+        # vert box + gh weight (:125-181).
+        wgt = [0.0] * (w * h)
+        for y in range(h):
+            for x in range(w):
+                acc = 0.0
+                for pj in range(-P, P + 1):
+                    acc += tmp[cl(y + pj, h - 1) * w + x]
+                wgt[y * w + x] = nlmeans_fast_mexp2f(acc * sharpness)
+        # accu (:183-230) — symmetric half-plane accumulation.
+        dd = 0.0 if (qx == 0 and qy == 0) else 1.0
+        for y in range(h):
+            for x in range(w):
+                wpq = 1 if (0 <= x + qx < w and 0 <= y + qy < h) else 0
+                wmq = 1 if (0 <= x - qx < w and 0 <= y - qy < h) else 0
+                u4 = wgt[y * w + x]
+                u4_mq = wgt[cl(y - qy, h - 1) * w + cl(x - qx, w - 1)] * dd
+                cell = u2[y * w + x]
+                if wpq:
+                    up = labs[(y + qy) * w + (x + qx)]
+                    cell[0] += u4 * up[0]
+                    cell[1] += u4 * up[1]
+                    cell[2] += u4 * up[2]
+                if wmq:
+                    um = labs[(y - qy) * w + (x - qx)]
+                    cell[0] += u4_mq * um[0]
+                    cell[1] += u4_mq * um[1]
+                    cell[2] += u4_mq * um[2]
+                cell[3] += wpq * u4 + wmq * u4_mq
+    # finish (:233-253) — weight = (luma, chroma, chroma), then Lab → RGB.
+    weight = (luma, chroma, chroma)
+    out = []
+    for k in range(w * h):
+        i = labs[k]
+        u = u2[k]
+        u3 = u[3]
+        lab = tuple(
+            i[c] * (1.0 - weight[c]) + (u[c] / u3) * weight[c] for c in range(3)
+        )
+        out.append(lab_to_rec2020(lab))
+    return out
+
+
+# 4 pinned cases (dt $DEFAULT + strength-dominant + chroma-dominant +
+# larger patch). luma 0.1 case doubles as the IOP-DENOISE-04 chroma
+# half-edge carrier (T4 direction assertions read it).
+NLMEANS_CASES = [
+    {"name": "nlmeans_default", "radius": 2.0, "strength": 50.0,
+     "luma": 0.5, "chroma": 1.0},
+    {"name": "nlmeans_strong", "radius": 3.0, "strength": 200.0,
+     "luma": 0.8, "chroma": 0.6},
+    {"name": "nlmeans_chroma", "radius": 2.0, "strength": 50.0,
+     "luma": 0.1, "chroma": 1.0},
+    {"name": "nlmeans_patch4", "radius": 4.0, "strength": 10.0,
+     "luma": 0.5, "chroma": 1.0},
+]
+
+# 3 fixtures: delta impulse (kernel response) + the 05-01 seeded noise set
+# (clean + Poisson-Gaussian ISO125/ISO1600 → both sides denoise the SAME
+# noisy input — the denoise golden strategy, RESEARCH §7).
+NLMEANS_REF_FIXTURES = [
+    "delta_impulse",
+    "ramp_8ev__noisy_iso125_s20260921",
+    "gray_staircase__noisy_iso1600_s20260921",
+]
+
+
+def nlmeans_params_blob_for_case(case) -> str:
+    packed = struct.pack(NLMEANS_PARAMS_FORMAT, case["radius"],
+                         case["strength"], case["luma"], case["chroma"])
+    assert len(packed) == 16, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def gen_nlmeans_cases(outdir: str) -> None:
+    for case in NLMEANS_CASES:
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="nlmeans", modversion=NLMEANS_MODVERSION,
+            params=nlmeans_params_blob_for_case(case),
+            iop_order=f"{NLMEANS_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_nlmeans_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the nlmeans golden REFERENCES (L017 route; dt-side =
+    XMP adoption + flat probe). 4 case x 3 fixture, float64 reference at
+    scale=1 (P=ceil(radius), K=7)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case in NLMEANS_CASES:
+        for fixture in NLMEANS_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            out_rgb = nlmeans_reference(
+                w, h, rgb, case["radius"], case["strength"],
+                case["luma"], case["chroma"])
+
+            def px(x, y, out_rgb=out_rgb, w=w):
+                idx = y * w + x
+                return out_rgb[idx]
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# denoiseprofile (Plan 05-07, IOP-DENOISE-01) — dt `denoiseprofile` v12
+# (416B blob recipe above), v50 slot 9.0, POST-DEMOSAIC RGB domain
+# (denoiseprofile.c:837 IOP_CS_RGB — RESEARCH §1.2 erratum, NOT raw).
+#
+# float64 reference (L017 route ①): wavelets leg = denoiseprofile.c
+# 1423-1658 (process_wavelets CPU form — the dt-cli authority path) +
+# eaw.c:271-363 (eaw_dn_decompose edge-aware 5×5 a-trous) + :1345-1421
+# (Bayesshrink) + denoiseprofile.cl:31-114/327-433 (VST trio + inverse
+# trio, v2/Y0U0V0 default); NLMeans leg = VST sandwich + Goossens with
+# the denoiseprofile vert variant (single-pixel distance + central
+# weight + `norm − 2` offset, denoiseprofile.cl:197-252) + finish_v2
+# (backtransform fused, :327-350).
+#
+# wb policy (D-05-07-T2-1): v1 neutral wb = (1,1,1) — dt reads
+# `dsc.temperature.coeffs`; CIRAW does not expose camera WB gains, so
+# the module runs compute_wb_factors' neutral branch (coeffs==0 → 1s).
+# All formulas stay exact; wb_adaptive_anscombe bit honored in the
+# derivation path.
+# ──────────────────────────────────────────────────────────────────────
+
+DN_BANDS = 7
+DN_P_FULCRUM = 0.05
+DENOISEPROFILE_IOP_ORDER = 9.0
+
+# eaw.c:122-129 / 276-283 — the 5×5 B3-spline outer-product a-trous base
+# filter (shared verbatim by decompose legs).
+FILTER25 = (
+    1.0 / 256.0,  4.0 / 256.0,  6.0 / 256.0,  4.0 / 256.0, 1.0 / 256.0,
+    4.0 / 256.0, 16.0 / 256.0, 24.0 / 256.0, 16.0 / 256.0, 4.0 / 256.0,
+    6.0 / 256.0, 24.0 / 256.0, 36.0 / 256.0, 24.0 / 256.0, 6.0 / 256.0,
+    4.0 / 256.0, 16.0 / 256.0, 24.0 / 256.0, 16.0 / 256.0, 4.0 / 256.0,
+    1.0 / 256.0,  4.0 / 256.0,  6.0 / 256.0,  4.0 / 256.0, 1.0 / 256.0,
+)
+DN_FAST_TEX = ("delta_impulse",
+               "ramp_8ev__noisy_iso125_s20260921",
+               "gray_staircase__noisy_iso1600_s20260921")
+
+# 5 wavelets cases: default (Y0U0V0 + flat force) / RGB mode / strength-
+# dominant + shadows + bias / shaped force curve (Y0+U0V0 rows, course:
+# strong high-freq damping) / AUTO (profile infer hand-check carrier).
+DENOISEPROFILE_WAVE_CASES = [
+    {"name": "dp_wave_default", "mode": 1, "radius": 1.0, "nbhood": 7.0,
+     "strength": 1.0, "shadows": 1.0, "bias": 0.0, "scattering": 0.0,
+     "central_pixel_weight": 0.1, "overshooting": 1.0,
+     "wavelet_color_mode": 1, "y_override": None,
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_wave_rgb", "mode": 1, "wavelet_color_mode": 0,
+     "radius": 1.0, "nbhood": 7.0, "strength": 1.0, "shadows": 1.0,
+     "bias": 0.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0, "y_override": None,
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_wave_strong", "mode": 1, "wavelet_color_mode": 1,
+     "radius": 1.0, "nbhood": 7.0, "strength": 3.0, "shadows": 1.2,
+     "bias": -2.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0, "y_override": None,
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_wave_force", "mode": 1, "wavelet_color_mode": 1,
+     "radius": 1.0, "nbhood": 7.0, "strength": 1.5, "shadows": 1.0,
+     "bias": 0.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0,
+     "y_override": {4: [1.0, 0.9, 0.7, 0.5, 0.3, 0.2, 0.1],
+                    5: [0.9, 0.8, 0.6, 0.4, 0.2, 0.1, 0.0]},
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_wave_auto", "mode": 4, "wavelet_color_mode": 1,
+     "radius": 1.0, "nbhood": 7.0, "strength": 1.0, "shadows": 1.0,
+     "bias": 0.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0, "y_override": None,
+     "a": (2.99037019802356e-05, 8.86355041404361e-06, 1.37779541937624e-05),
+     "b": (4.43124422276964e-08, 2.60617465248865e-08, 3.62731233591954e-08)},
+]
+
+# 3 NLMeans-leg cases: defaults / scattering + central weight / AUTO.
+DENOISEPROFILE_NLM_CASES = [
+    {"name": "dp_nlm_default", "mode": 0, "wavelet_color_mode": 1,
+     "radius": 1.0, "nbhood": 5.0, "strength": 1.0, "shadows": 1.0,
+     "bias": 0.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0, "y_override": None,
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_nlm_scatter", "mode": 0, "wavelet_color_mode": 1,
+     "radius": 2.0, "nbhood": 5.0, "strength": 2.0, "shadows": 1.0,
+     "bias": -1.0, "scattering": 0.5, "central_pixel_weight": 0.3,
+     "overshooting": 1.0, "y_override": None,
+     "a": (1e-4, 1e-4, 1e-4), "b": (0.0, 0.0, 0.0)},
+    {"name": "dp_nlm_auto", "mode": 3, "wavelet_color_mode": 1,
+     "radius": 1.0, "nbhood": 7.0, "strength": 1.0, "shadows": 1.0,
+     "bias": 0.0, "scattering": 0.0, "central_pixel_weight": 0.1,
+     "overshooting": 1.0, "y_override": None,
+     "a": (2.99037019802356e-05, 8.86355041404361e-06, 1.37779541937624e-05),
+     "b": (4.43124422276964e-08, 2.60617465248865e-08, 3.62731233591954e-08)},
+]
+
+
+def dn_max_scale(w, h, iscale=1.0, in_scale=1.0):
+    """process_wavelets :1436-1456 — the 20% support-domain rule.
+    `in_scale` = fmin(roi.scale/iscale, 1); buf_in dims = the FULL plane
+    (iscale-multiplied back), NOT the tile rect (L021: dscIn is a run
+    stamp — band count is tile-stable)."""
+    max_scale = 0
+    supp0 = min(2 * (2 << (DN_BANDS - 1)) + 1, max(h * iscale, w * iscale) * 0.2)
+    i0 = math.log2((supp0 - 1.0) * 0.5)
+    while max_scale < DN_BANDS:
+        supp = 2 * (2 << max_scale) + 1
+        supp_in = supp * (1.0 / in_scale)
+        i_in = math.log2((supp_in - 1) * 0.5) - 1.0
+        if 1.0 - (i_in + 0.5) / i0 < 0.0:
+            break
+        max_scale += 1
+    return max_scale
+
+
+def dn_force_curve(y_row):
+    """commit_params :2940-2952 → CurveDataSample with the dt quirks:
+    effective anchors = the 7 (k/6, y[k]) points ONLY (the two extra
+    set_point writes die — set_point never grows m_numAnchors, init added
+    exactly BANDS anchors); samples at i/(BANDS−1) stored to force[k]
+    which smaple_values relabels k/BANDS (dt draw.h quirk, force[k] =
+    curve(i/6)); uint16 quantization `val·65535+0.5` then /65536."""
+    xs = [k / 6.0 for k in range(DN_BANDS)]
+    ys = list(y_row)
+    m = [0.0] * DN_BANDS
+    m[0] = (ys[1] - ys[0]) / (xs[1] - xs[0])
+    for i in range(1, DN_BANDS - 1):
+        m[i] = (ys[i + 1] - ys[i - 1]) / (xs[i + 1] - xs[i - 1])
+    m[DN_BANDS - 1] = (ys[6] - ys[5]) / (xs[6] - xs[5])
+
+    def val(xval):
+        ival = DN_BANDS - 2
+        for i in range(DN_BANDS - 2):
+            if xval < xs[i + 1]:
+                ival = i
+                break
+        h = xs[ival + 1] - xs[ival]
+        dx = (xval - xs[ival]) / h
+        dx2 = dx * dx
+        dx3 = dx2 * dx
+        h00 = 2.0 * dx3 - 3.0 * dx2 + 1.0
+        h10 = dx3 - 2.0 * dx2 + dx
+        h01 = -2.0 * dx3 + 3.0 * dx2
+        h11 = dx3 - dx2
+        v = h00 * ys[ival] + h10 * h * m[ival] + h01 * ys[ival + 1] \
+            + h11 * h * m[ival + 1]
+        return min(max(int(v * 65535.0 + 0.5), 0), 65535)
+
+    return [val(i / 6.0) / 65536.0 for i in range(DN_BANDS)]
+
+
+def dn_infer(a):
+    """denoiseprofile.c:2618-2636 verbatim (AUTO parameter family)."""
+    radius = min(int(1.0 + a * 15000.0 + a * a * 300000.0), 8)
+    scattering = min(3000.0 * a, 1.0)
+    shadows = min(max(0.1 - 0.1 * math.log(a), 0.7), 1.8)
+    bias = -max(5.0 + 0.5 * math.log(a), 0.0)
+    return radius, scattering, shadows, bias
+
+
+def dn_setup_matrices(wb):
+    """set_up_conversion_matrices (:1288-1343) + invert_matrix (:1250-
+    1284) — wb-adaptive Y0U0V0 pair, float64."""
+    sum_invwb = 1.0 / wb[0] + 1.0 / wb[1] + 1.0 / wb[2]
+    sum_invwb *= math.sqrt(3.0)
+    m = [[1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0],
+         [0.5, 0.0, -0.5],
+         [0.25, -0.5, 0.25]]
+    m[0][0] = sum_invwb / wb[0]
+    m[0][1] = sum_invwb / wb[1]
+    m[0][2] = sum_invwb / wb[2]
+    stddev_u0 = math.sqrt(0.25 * wb[0] * wb[0] + 0.25 * wb[2] * wb[2])
+    stddev_v0 = math.sqrt(0.0625 * wb[0] * wb[0] + 0.25 * wb[1] * wb[1]
+                          + 0.0625 * wb[2] * wb[2])
+    for c in range(3):
+        m[1][c] /= stddev_u0
+        m[2][c] /= stddev_v0
+    biga = m[1][1] * m[2][2] - m[1][2] * m[2][1]
+    bigb = -m[1][0] * m[2][2] + m[1][2] * m[2][0]
+    bigc = m[1][0] * m[2][1] - m[1][1] * m[2][0]
+    bigd = -m[0][1] * m[2][2] + m[0][2] * m[2][1]
+    bige = m[0][0] * m[2][2] - m[0][2] * m[2][0]
+    bigf = -m[0][0] * m[2][1] + m[0][1] * m[2][0]
+    bigg = m[0][1] * m[1][2] - m[0][2] * m[1][1]
+    bigh = -m[0][0] * m[1][2] + m[0][2] * m[1][0]
+    bigi = m[0][0] * m[1][1] - m[0][1] * m[1][0]
+    det = m[0][0] * biga + m[0][1] * bigb + m[0][2] * bigc
+    if det == 0.0:
+        stddev_y0 = math.sqrt(1.0 / 9.0 * (wb[0] ** 2 + wb[1] ** 2 + wb[2] ** 2))
+        m[0] = [1.0 / (3.0 * stddev_y0)] * 3
+        det = 1.0  # dt reinverts the adjusted matrix; fallback line is near-singular
+        # exact dt fallback: invert the (adjusted) standard matrix
+        biga = m[1][1] * m[2][2] - m[1][2] * m[2][1]
+        bigb = -m[1][0] * m[2][2] + m[1][2] * m[2][0]
+        bigc = m[1][0] * m[2][1] - m[1][1] * m[2][0]
+        bigd = -m[0][1] * m[2][2] + m[0][2] * m[2][1]
+        bige = m[0][0] * m[2][2] - m[0][2] * m[2][0]
+        bigf = -m[0][0] * m[2][1] + m[0][1] * m[2][0]
+        bigg = m[0][1] * m[1][2] - m[0][2] * m[1][1]
+        bigh = -m[0][0] * m[1][2] + m[0][2] * m[1][0]
+        bigi = m[0][0] * m[1][1] - m[0][1] * m[1][0]
+        det = m[0][0] * biga + m[0][1] * bigb + m[0][2] * bigc
+    inv = [[1.0 / det * biga, 1.0 / det * bigd, 1.0 / det * bigg],
+           [1.0 / det * bigb, 1.0 / det * bige, 1.0 / det * bigh],
+           [1.0 / det * bigc, 1.0 / det * bigf, 1.0 / det * bigi]]
+    return m, inv
+
+
+def dn_precondition_v2_px(px, a, p, b, wb):
+    """precondition_v2 (denoiseprofile.cl:56-79; c 991-1023): the general
+    power VST. a = a[1]·compensate_p (scalar), p per channel, b scalar."""
+    out = []
+    for c in range(3):
+        scaled = max(px[c] / wb[c] + b, 0.0)
+        expon = 1.0 - p[c] / 2.0
+        denom = (2.0 - p[c]) * math.sqrt(a)
+        out.append(2.0 * (scaled ** expon) / denom if denom != 0.0 else 0.0)
+    return out
+
+
+def dn_precondition_y0u0v0_px(px, a, p, b, mat):
+    """precondition_Y0U0V0 (denoiseprofile.cl:81-114): VST WITHOUT the
+    wb division (the wb lives in the matrix normalization) then the
+    Y0U0V0 row-vector application (transposed-application = m·t)."""
+    t = []
+    for c in range(3):
+        scaled = max(px[c] + b, 0.0)
+        expon = 1.0 - p[c] / 2.0
+        denom = (2.0 - p[c]) * math.sqrt(a)
+        t.append(2.0 * (scaled ** expon) / denom if denom != 0.0 else 0.0)
+    return [sum(mat[k][c] * t[c] for c in range(3)) for k in range(3)]
+
+
+def dn_precondition_legacy_px(px, aa, sigma2):
+    """precondition (denoiseprofile.cl:31-54): generalized Anscombe."""
+    return [2.0 * math.sqrt(max(px[c] / aa[c] + sigma2[c], 0.0))
+            for c in range(3)]
+
+
+def dn_backtransform_v2_px(px_in, a, p, b, bias, wb):
+    """backtransform_v2 (denoiseprofile.cl:377-399) — the low-bias
+    inverse with the user bias in delta (Taylor 2nd-order derivation,
+    denoiseprofile.c:1025-1084)."""
+    out = []
+    for c in range(3):
+        x = max(px_in[c], 0.0)
+        delta = x * x + bias
+        denominator = 4.0 / (math.sqrt(a) * (2.0 - p[c]))
+        z1 = (x + math.sqrt(max(delta, 0.0))) / denominator
+        out.append(max(z1 ** (1.0 / (1.0 - p[c] / 2.0)) - b, 0.0) * wb[c])
+    return out
+
+
+def dn_backtransform_y0u0v0_px(t, a, p, b, bias, wb, inv):
+    """backtransform_Y0U0V0 (denoiseprofile.cl:401-433): toRGB first,
+    then the inverse VST with bias·wb in delta."""
+    px = [sum(inv[k][c] * t[c] for c in range(3)) for k in range(3)]
+    out = []
+    for c in range(3):
+        x = max(px[c], 0.0)
+        delta = x * x + bias * wb[c]
+        scale = math.sqrt(a) * (2.0 - p[c]) / 4.0
+        z1 = (x + math.sqrt(max(delta, 0.0))) * scale
+        out.append(max(z1 ** (1.0 / (1.0 - p[c] / 2.0)) - b, 0.0))
+    return out
+
+
+def dn_backtransform_legacy_px(px_in, aa, sigma2):
+    """backtransform (denoiseprofile.cl:354-374)."""
+    s32 = math.sqrt(1.5)
+    out = []
+    for c in range(3):
+        x = px_in[c]
+        if x < 0.5:
+            out.append(0.0)
+        else:
+            x2 = x * x
+            out.append(aa[c] * (0.25 * x2 + 0.25 * s32 / x - 1.375 / x2
+                                + 0.625 * s32 / (x * x2) - sigma2[c]))
+    return out
+
+
+def dn_decompose(buf, w, h, mult, inv_sigma2):
+    """eaw_dn_decompose (eaw.c:271-363) — 5×5 B3 a-trous (stride=mult)
+    + edge-aware weight `fast_mexp2f(max(0, |Δc|²·inv_sigma2·0.02 − 9))`;
+    border = nearest clamp (CPU 3-segment structure ≡ clamp-to-edge
+    sampler). Returns (coarse, detail, sum_y2[3]) — detail BEFORE any
+    threshold (the Bayesshrink input)."""
+    wgt_bias = 0.02
+    off2 = 9.0
+    coarse = [None] * (w * h)
+    detail = [None] * (w * h)
+    sum_y2 = [0.0, 0.0, 0.0]
+    cl = lambda v, hi: min(max(v, 0), hi)
+    for y in range(h):
+        for x in range(w):
+            px = buf[y * w + x]
+            s = [0.0, 0.0, 0.0]
+            wg = 0.0
+            for jj in range(5):
+                yy = cl(y + mult * (jj - 2), h - 1)
+                for ii in range(5):
+                    xx = cl(x + mult * (ii - 2), w - 1)
+                    p2 = buf[yy * w + xx]
+                    d = sum((px[c] - p2[c]) ** 2 for c in range(3))
+                    fw = FILTER25[jj * 5 + ii]
+                    wt = fw * nlmeans_fast_mexp2f(max(0.0, d * inv_sigma2 * wgt_bias - off2))
+                    for c in range(3):
+                        s[c] += wt * p2[c]
+                    wg += wt
+            cm = [s[c] / wg for c in range(3)]
+            det = [px[c] - cm[c] for c in range(3)]
+            for c in range(3):
+                sum_y2[c] += det[c] * det[c]
+            coarse[y * w + x] = cm
+            detail[y * w + x] = det
+    return coarse, detail, sum_y2
+
+
+def dn_bayesshrink(sum_y2, npixels, scale, max_scale, force, mode_rgb):
+    """variance_stabilizing_xform (denoiseprofile.c:1345-1421) —
+    thrs[c] = 8·force²·4·sb2/std_x per the mode's channel mapping."""
+    varf = math.sqrt(2.0 + 2.0 * 4.0 * 4.0 + 6.0 * 6.0) / 16.0
+    sb2 = (varf ** scale) * 1.0
+    sb2 *= sb2
+    var_y = [sum_y2[c] / (npixels - 1.0) for c in range(3)]
+    std_x = [math.sqrt(max(1e-6, var_y[c] - sb2)) for c in range(3)]
+    offset_scale = DN_BANDS - max_scale
+    bi = DN_BANDS - (scale + offset_scale + 1)
+    adjt = [8.0, 8.0, 8.0]
+    if mode_rgb:
+        f_all = force[0][bi] ** 2 * 4.0
+        adjt = [f * f_all for f in adjt]
+        adjt[0] *= force[1][bi] ** 2 * 4.0
+        adjt[1] *= force[2][bi] ** 2 * 4.0
+        adjt[2] *= force[3][bi] ** 2 * 4.0
+    else:
+        adjt[0] *= force[4][bi] ** 2 * 4.0
+        f_uv = force[5][bi] ** 2 * 4.0
+        adjt[1] *= f_uv
+        adjt[2] *= f_uv
+    return [adjt[c] * sb2 / std_x[c] for c in range(3)]
+
+
+def dn_wavelets_reference(w, h, rgb, case):
+    """process_wavelets CPU form (denoiseprofile.c:1423-1658) at
+    scale=1/iscale=1, neutral wb (D-05-07-T2-1). Accumulator form:
+    out = Σ softthresh(detail_s) + coarsest, then the inverse VST."""
+    mode = case["mode"]
+    mode_rgb = case["wavelet_color_mode"] == 0
+    strength = case["strength"]
+    shadows = case["shadows"]
+    bias_p = case["bias"]
+    a1 = case["a"][1]
+    b1 = case["b"][1]
+    in_scale = 1.0
+    wb = [1.0, 1.0, 1.0]
+    compensate_strength = 1.0 if mode_rgb else 2.5
+    p = [max(shadows + 0.1 * math.log(in_scale / wb[c]), 0.0) for c in range(3)]
+    compensate_p = DN_P_FULCRUM / (DN_P_FULCRUM ** shadows)
+
+    force = []
+    for ch in range(6):
+        row = case["y_override"].get(ch, [0.5] * DN_BANDS) \
+            if case["y_override"] else [0.5] * DN_BANDS
+        force.append(dn_force_curve(row))
+
+    max_scale = dn_max_scale(w, h)
+    npixels = w * h
+    mult_max = 1 << (max_scale - 1) if max_scale > 0 else 1
+    if w < 2 * mult_max or h < 2 * mult_max:
+        return [(rgb[0][k], rgb[1][k], rgb[2][k]) for k in range(npixels)]
+
+    mat = inv = None
+    if not mode_rgb:
+        mat, inv = dn_setup_matrices(wb)
+        for k in range(3):
+            for c in range(3):
+                mat[k][c] /= strength * compensate_strength * in_scale
+                inv[k][c] *= strength * compensate_strength * in_scale
+
+    def precondition(px):
+        if mode_rgb:
+            return dn_precondition_v2_px(px, a1 * compensate_p, p, b1, wb)
+        return dn_precondition_y0u0v0_px(px, a1 * compensate_p, p, b1, mat)
+
+    # dt :1526-1527 — the SAME strength·compensate_strength·in_scale fold
+    # that hits the matrices ALSO scales wb BEFORE it feeds the inverse
+    # kernels (delta = x² + bias·wb and the RGB ×wb exit).
+    wb_scaled = [wb[c] * strength * compensate_strength * in_scale for c in range(3)]
+
+    def backtransform(px):
+        bias = bias_p - 0.5 * math.log(in_scale)
+        if mode_rgb:
+            return dn_backtransform_v2_px(px, a1 * compensate_p, p, b1, bias, wb_scaled)
+        return dn_backtransform_y0u0v0_px(px, a1 * compensate_p, p, b1, bias, wb_scaled, inv)
+
+    buf1 = [precondition((rgb[0][k], rgb[1][k], rgb[2][k]))
+            for k in range(npixels)]
+    acc = [[0.0, 0.0, 0.0] for _ in range(npixels)]
+    varf = math.sqrt(70.0) / 16.0
+    for s in range(max_scale):
+        sigma_band = (varf ** s) * 1.0
+        coarse, detail, sum_y2 = dn_decompose(
+            buf1, w, h, 1 << s, 1.0 / (sigma_band * sigma_band))
+        thrs = dn_bayesshrink(sum_y2, npixels, s, max_scale, force, mode_rgb)
+        for k in range(npixels):
+            d = detail[k]
+            for c in range(3):
+                amt = max(0.0, abs(d[c]) - thrs[c])
+                acc[k][c] += math.copysign(amt, d[c])
+        buf1 = coarse
+    out = []
+    for k in range(npixels):
+        v = [acc[k][c] + buf1[k][c] for c in range(3)]
+        out.append(backtransform(v))
+    return out
+
+
+def dn_nlmeans_leg_reference(w, h, rgb, case):
+    """NLMeans leg (process_nlmeans :1772-1824 + denoiseprofile.cl
+    dist/horiz/vert/accu/finish_v2): VST sandwich + Goossens with the
+    denoiseprofile vert variant (single-pixel distance boost +
+    central_pixel_weight + `norm − 2` offset) and norm2 = (1,1,1)."""
+    strength = case["strength"]
+    shadows = case["shadows"]
+    a1 = case["a"][1]
+    b1 = case["b"][1]
+    scale = 1.0
+    wb = [1.0, 1.0, 1.0]
+    p = [max(shadows + 0.1 * math.log(scale / wb[c]), 0.0) for c in range(3)]
+    compensate_p = DN_P_FULCRUM / (DN_P_FULCRUM ** shadows)
+    a_vst = a1 * compensate_p
+    # dt nlmeans_precondition :1682-1688 — wb *= strength·scale BEFORE the
+    # precondition/backtransform consume it (raw wb only feeds p above).
+    wb = [wb[c] * strength * scale for c in range(3)]
+    P = int(math.ceil(case["radius"] * scale))
+    K = int(case["nbhood"])
+    # nlmeans_scattering (:1634-1657) — full/preview split; the golden
+    # path is FULL (no clamp), K stays nbhood.
+    maxk = (K ** 3 + 7.0 * K * math.sqrt(K)) * case["scattering"] / 6.0 + K
+    scattering = case["scattering"]
+    central = case["central_pixel_weight"] * scale
+    norm = 0.045 / ((2 * P + 1) ** 2)
+
+    npixels = w * h
+    buf = [dn_precondition_v2_px((rgb[0][k], rgb[1][k], rgb[2][k]),
+                                 a_vst, p, b1, wb) for k in range(npixels)]
+    cl = lambda v, hi: min(max(v, 0), hi)
+
+    def scatter(index1, index2):
+        a1i = abs(index1)
+        a2i = abs(index2)
+        sgn = (index1 > 0) - (index1 < 0)
+        # dt `const int` cast = truncation toward zero (NOT round)
+        return int(scale * ((a1i ** 3 + 7.0 * a1i * math.sqrt(a2i))
+                            * sgn * scattering / 6.0 + index1))
+
+    u2 = [[0.0, 0.0, 0.0, 0.0] for _ in range(npixels)]
+    for kj in range(-K, 1):
+        for ki in range(-K, K + 1):
+            qx = scatter(ki, kj)
+            qy = scatter(kj, ki)
+            dist = [0.0] * npixels
+            for y in range(h):
+                for x in range(w):
+                    if not (0 <= x + qx < w and 0 <= y + qy < h):
+                        continue
+                    p1 = buf[y * w + x]
+                    p2 = buf[(y + qy) * w + (x + qx)]
+                    dist[y * w + x] = sum((p1[c] - p2[c]) ** 2 for c in range(3))
+            tmp = [0.0] * npixels
+            for y in range(h):
+                row = y * w
+                for x in range(w):
+                    tmp[row + x] = sum(dist[row + cl(x + pi, w - 1)]
+                                       for pi in range(-P, P + 1))
+            wgt = [0.0] * npixels
+            for y in range(h):
+                for x in range(w):
+                    box = sum(tmp[cl(y + pj, h - 1) * w + x]
+                              for pj in range(-P, P + 1))
+                    single = dist[y * w + x]
+                    box += single * (2 * P + 1) ** 2 * central
+                    box /= (1.0 + central)
+                    wgt[y * w + x] = nlmeans_fast_mexp2f(max(0.0, box * norm - 2.0))
+            dd = 0.0 if (qx == 0 and qy == 0) else 1.0
+            for y in range(h):
+                for x in range(w):
+                    wpq = 1 if (0 <= x + qx < w and 0 <= y + qy < h) else 0
+                    wmq = 1 if (0 <= x - qx < w and 0 <= y - qy < h) else 0
+                    u4 = wgt[y * w + x]
+                    u4_mq = wgt[cl(y - qy, h - 1) * w + cl(x - qx, w - 1)] * dd
+                    cell = u2[y * w + x]
+                    if wpq:
+                        up = buf[(y + qy) * w + (x + qx)]
+                        cell[0] += u4 * up[0]
+                        cell[1] += u4 * up[1]
+                        cell[2] += u4 * up[2]
+                    if wmq:
+                        um = buf[(y - qy) * w + (x - qx)]
+                        cell[0] += u4_mq * um[0]
+                        cell[1] += u4_mq * um[1]
+                        cell[2] += u4_mq * um[2]
+                    cell[3] += wpq * u4 + wmq * u4_mq
+    bias = case["bias"] - 0.5 * math.log(scale)
+    out = []
+    for k in range(npixels):
+        u = u2[k]
+        px = [u[c] / u[3] if u[3] > 0.0 else 0.0 for c in range(3)]
+        out.append(dn_backtransform_v2_px(px, a_vst, p, b1, bias, wb))
+    return out
+
+
+def _dp_case_with_infer(case):
+    """AUTO modes resolve radius/scattering/shadows/bias from a[1] at
+    commit (commit_params :2924-2938) — bake the resolution in."""
+    if case["mode"] in (3, 4):
+        c = dict(case)
+        radius, scattering, shadows, bias = dn_infer(c["a"][1] * c["overshooting"])
+        c["radius"] = float(radius)
+        c["scattering"] = scattering
+        c["shadows"] = shadows
+        c["bias"] = bias
+        return c
+    return case
+
+
+def gen_denoiseprofile_cases(outdir: str) -> None:
+    os.makedirs(outdir, exist_ok=True)
+    for case in DENOISEPROFILE_WAVE_CASES + DENOISEPROFILE_NLM_CASES:
+        y = case["y_override"]
+        rows = {ch: (y.get(ch, [0.5] * DN_BANDS) if y else [0.5] * DN_BANDS)
+                for ch in range(6)}
+        xs = [b / 6.0 for b in range(6) for _ in range(7)]
+        flat_y = [rows[ch][k] for ch in range(6) for k in range(7)]
+        blob = denoiseprofile_params_blob(
+            radius=case["radius"], nbhood=case["nbhood"],
+            strength=case["strength"], shadows=case["shadows"],
+            bias=case["bias"], scattering=case["scattering"],
+            central_pixel_weight=case["central_pixel_weight"],
+            overshooting=case["overshooting"], a=case["a"], b=case["b"],
+            mode=case["mode"], x=xs, y=flat_y,
+            wavelet_color_mode=case["wavelet_color_mode"])
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="denoiseprofile", modversion=DENOISEPROFILE_MODVERSION,
+            params=blob, iop_order=f"{DENOISEPROFILE_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_denoiseprofile_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the denoiseprofile golden REFERENCES (L017 route;
+    dt-side = XMP adoption + flat probe — the flat probe asserts the
+    flat-preserving direction, NOT identity: force=0.5 default keeps
+    thrs>0 so noise-free flat detail≈0 survives soft-threshold as ≈flat).
+    5 wavelets + 3 NLMeans cases × 3 fixtures, float64 at scale 1."""
+    os.makedirs(out_dir, exist_ok=True)
+    for case in DENOISEPROFILE_WAVE_CASES + DENOISEPROFILE_NLM_CASES:
+        resolved = _dp_case_with_infer(case)
+        ref = dn_wavelets_reference if case["mode"] in (1, 4) \
+            else dn_nlmeans_leg_reference
+        for fixture in DN_FAST_TEX:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            out_rgb = ref(w, h, rgb, resolved)
+
+            def px(x, y, out_rgb=out_rgb, w=w):
+                idx = y * w + x
+                return out_rgb[idx]
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"),
+                      w, h, px)
+        print(f"  denoiseprofile ref {case['name']} done")
+
+
+# ──────────────────────────────────────────────────────────────────────
+# bilateral / surface blur (Plan 05-08, IOP-DENOISE-03) — dt `bilateral`
+# v1, 20 bytes: radius/reserved/red/green/blue (5f, bilateral.cc:52-58),
+# v50 slot 10.0.
+#
+# float64 reference (L017 route ①——同算法参考，与 nlmeans Goossens 参考
+# 同性质）：稠密 5D 网格（splat pentalinear 32 角 → blur 仅 spatial x/y
+#（bilateral.cl blur_line edge 形）→ slice 32 角 val/w 归一）——与 GPU
+# kernel 逐式对偶；直连档 case 用精确窗口公式参考（bilateral.cc:219-247
+# float64 形）。网格 dims 公式 = LightamerModule.gridDims（dt 3D grid
+# dim-clamp/re-derive 语义的 5 维推广，D-05-08-T2-1）。
+# ──────────────────────────────────────────────────────────────────────
+
+BILATERAL_PARAMS_FORMAT = "<5f"
+BILATERAL_MODVERSION = 1
+BILATERAL_IOP_ORDER = 10.0
+
+BILATERAL_CASES = [
+    {"name": "bilat_direct_small", "radius": 1.2, "sigma": 0.1},
+    {"name": "bilat_boundary", "radius": 2.0, "sigma": 0.1},
+    {"name": "bilat_grid_large", "radius": 6.0, "sigma": 0.1},
+]
+
+BILATERAL_REF_FIXTURES = [
+    "delta_impulse",
+    "ramp_8ev__noisy_iso125_s20260921",
+    "gray_staircase__noisy_iso1600_s20260921",
+]
+
+
+def bilateral_params_blob(radius=15.0, reserved=15.0, red=0.005, green=0.005, blue=0.005) -> str:
+    packed = struct.pack(BILATERAL_PARAMS_FORMAT, radius, reserved, red, green, blue)
+    assert len(packed) == 20, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+def _bilateral_grid_dims(w, h, ss, sr, sg, sb):
+    def spatial_cells(ext, s):
+        return min(max(int(math.ceil(ext / s)) + 1, 4), 3000)
+
+    def range_cells(s):
+        return max(int(math.ceil(1.0 / s)) + 1, 4)
+
+    cr, cg, cb = range_cells(sr), range_cells(sg), range_cells(sb)
+    ss_eff = max(w / spatial_cells(w, ss), h / spatial_cells(h, ss))
+    cx, cy = spatial_cells(w, ss_eff), spatial_cells(h, ss_eff)
+    return [cx, cy, cr, cg, cb], [ss_eff, 1.0 / (cr - 1), 1.0 / (cg - 1), 1.0 / (cb - 1)]
+
+
+def bilateral_grid_reference(w, h, rgb, ss, sr, sg, sb):
+    """稠密 5D 网格 float64 参考（GPU kernel 逐式对偶——splat → blur x/y →
+    slice val/w 归一；range 维不做 blur——稠密格 adaptation，D-05-08-T2-2）。"""
+    dims, sig = _bilateral_grid_dims(w, h, ss, sr, sg, sb)
+    total = 1
+    for d in dims:
+        total *= d
+    payload = [0.0] * (total * 4)
+    oy = dims[0]
+    orr = dims[0] * dims[1]
+    og = orr * dims[2]
+    ob = og * dims[3]
+
+    def coords(x, y, px):
+        g = [x / sig[0], y / sig[0],
+             min(max(px[0] / sig[1], 0), dims[2] - 1),
+             min(max(px[1] / sig[2], 0), dims[3] - 1),
+             min(max(px[2] / sig[3], 0), dims[4] - 1)]
+        xi = [min(max(int(g[0]), 0), dims[0] - 2), min(max(int(g[1]), 0), dims[1] - 2)]
+        ff = [g[0] - xi[0], g[1] - xi[1]]
+        for d in range(2, 5):
+            xi.append(min(int(g[d]), dims[d] - 2))
+            ff.append(g[d] - xi[d])
+        return xi, ff
+
+    def corners(xi, ff, px, splat_weight=True):
+        out = [0.0] * 4
+        for a in range(2):
+            for b in range(2):
+                for c in range(2):
+                    wr = (ff[2] if a else 1 - ff[2]) * (ff[3] if b else 1 - ff[3]) \
+                        * (ff[4] if c else 1 - ff[4])
+                    for q in range(4):
+                        xj = [xi[0] + (1 if q in (1, 3) else 0),
+                              xi[1] + (1 if q >= 2 else 0), xi[2], xi[3], xi[4]]
+                        base = xj[0] + oy * xj[1] + orr * (xj[2] + a) + og * (xj[3] + b) + ob * (xj[4] + c)
+                        wxy = (1 - ff[0]) * (1 - ff[1]) if q == 0 else \
+                            (ff[0] * (1 - ff[1]) if q == 1 else
+                             ((1 - ff[0]) * ff[1] if q == 2 else ff[0] * ff[1]))
+                        ww = wr * wxy
+                        if splat_weight:
+                            payload[4 * base + 0] += ww * px[0]
+                            payload[4 * base + 1] += ww * px[1]
+                            payload[4 * base + 2] += ww * px[2]
+                            payload[4 * base + 3] += ww
+                        else:
+                            for k in range(4):
+                                out[k] += ww * payload[4 * base + k]
+        return out
+
+    for y in range(h):
+        for x in range(w):
+            px = (rgb[0][y * w + x], rgb[1][y * w + x], rgb[2][y * w + x])
+            xi, ff = coords(x, y, px)
+            corners(xi, ff, px, splat_weight=True)
+
+    for axis in range(2):
+        n = dims[axis]
+        lines = 1
+        tstride = [1] * 5
+        axis_stride = 1
+        for d in range(5):
+            tstride[d] = 1
+            for e in range(d):
+                tstride[d] *= dims[e]
+            if d == axis:
+                axis_stride = tstride[d]
+                continue
+            lines *= dims[d]
+        src = payload[:]
+        w0, w1, w2 = 6.0 / 16, 4.0 / 16, 1.0 / 16
+
+        def cell_at(base, i):
+            return 4 * (base + i * axis_stride)
+
+        for line in range(lines):
+            base = 0
+            rem = line
+            for d in range(5):
+                if d == axis:
+                    continue
+                base += (rem % dims[d]) * tstride[d]
+                rem //= dims[d]
+            t1 = src[cell_at(base, 0):cell_at(base, 0) + 4]
+            t2 = src[cell_at(base, 1):cell_at(base, 1) + 4]
+            for c in range(4):
+                payload[cell_at(base, 0) + c] = src[cell_at(base, 0) + c] * w0 \
+                    + w1 * src[cell_at(base, 1) + c] + w2 * src[cell_at(base, 2) + c]
+            for c in range(4):
+                payload[cell_at(base, 1) + c] = src[cell_at(base, 1) + c] * w0 \
+                    + w1 * (src[cell_at(base, 2) + c] + t1[c]) + w2 * src[cell_at(base, 3) + c]
+            for i in range(2, n - 2):
+                t3 = src[cell_at(base, i):cell_at(base, i) + 4]
+                for c in range(4):
+                    payload[cell_at(base, i) + c] = src[cell_at(base, i) + c] * w0 \
+                        + w1 * (src[cell_at(base, i + 1) + c] + t2[c]) \
+                        + w2 * (src[cell_at(base, i + 2) + c] + t1[c])
+                t1, t2 = t2, t3
+            t3 = src[cell_at(base, n - 2):cell_at(base, n - 2) + 4]
+            for c in range(4):
+                payload[cell_at(base, n - 2) + c] = src[cell_at(base, n - 2) + c] * w0 \
+                    + w1 * (src[cell_at(base, n - 1) + c] + t2[c]) + w2 * t1[c]
+            for c in range(4):
+                payload[cell_at(base, n - 1) + c] = src[cell_at(base, n - 1) + c] * w0 \
+                    + w1 * t3[c] + w2 * t2[c]
+
+    out = []
+    for y in range(h):
+        for x in range(w):
+            px = (rgb[0][y * w + x], rgb[1][y * w + x], rgb[2][y * w + x])
+            xi, ff = coords(x, y, px)
+            val = corners(xi, ff, px, splat_weight=False)
+            out.append(tuple(val[c] / val[3] if val[3] > 0 else px[c] for c in range(3)))
+    return out
+
+
+def bilateral_direct_reference(w, h, rgb, ss, sr, sg, sb):
+    """精确 bilateral 窗口公式 float64（bilateral.cc:219-247 直译；直连档
+    参考——rad ≤ 6 档 GPU 输出与同式对偶 <1e-5）。"""
+    rad = int(3 * ss + 1)
+    out = []
+    isig2 = [1.0 / (2 * sr * sr), 1.0 / (2 * sg * sg), 1.0 / (2 * sb * sb)]
+    wd = 2 * rad + 1
+    m = [0.0] * (wd * wd)
+    wsum = 0.0
+    for l in range(-rad, rad + 1):
+        for k in range(-rad, rad + 1):
+            v = math.exp(-(l * l + k * k) / (2 * ss * ss))
+            m[(l + rad) * wd + (k + rad)] = v
+            wsum += v
+    for i in range(len(m)):
+        m[i] /= wsum
+    def pxv(x, y, c):
+        return rgb[c][y * w + x]
+
+    for y in range(h):
+        for x in range(w):
+            if y < rad or y >= h - rad or x < rad or x >= w - rad:
+                out.append((pxv(x, y, 0), pxv(x, y, 1), pxv(x, y, 2)))
+                continue
+            res = [0.0, 0.0, 0.0]
+            sumw = 0.0
+            for l in range(-rad, rad + 1):
+                for k in range(-rad, rad + 1):
+                    diff = 0.0
+                    for c in range(3):
+                        d = pxv(x, y, c) - pxv(x + k, y + l, c)
+                        diff += d * d * isig2[c]
+                    wgt = m[(l + rad) * wd + (k + rad)] * math.exp(-diff)
+                    for c in range(3):
+                        res[c] += pxv(x + k, y + l, c) * wgt
+                    sumw += wgt
+            out.append((res[0] / sumw, res[1] / sumw, res[2] / sumw))
+    return out
+
+
+def gen_bilateral_cases(outdir: str) -> None:
+    for case in BILATERAL_CASES:
+        params = bilateral_params_blob(
+            radius=case["radius"], red=case["sigma"],
+            green=case["sigma"], blue=case["sigma"])
+        xmp = XMP_TEMPLATE.format(
+            xmp_version=XMP_VERSION, iop_order_version=5,
+            operation="bilateral", modversion=BILATERAL_MODVERSION,
+            params=params, iop_order=f"{BILATERAL_IOP_ORDER:.1f}")
+        with open(os.path.join(outdir, case["name"] + ".xmp"), "w") as f:
+            f.write(xmp)
+
+
+def gen_bilateral_refs(canonical_dir: str, out_dir: str) -> None:
+    """Synthesize the bilateral golden REFERENCES (L017 route ①——同算法
+    float64；dt-side = XMP adoption + 平场 probe). 直连 case = 精确窗口
+    公式；grid case = 网格算法同构参考。3 case × 3 fixture。"""
+    os.makedirs(out_dir, exist_ok=True)
+    for case in BILATERAL_CASES:
+        ss, sr = case["radius"], case["sigma"]
+        prad = int(3 * ss + 1)
+        for fixture in BILATERAL_REF_FIXTURES:
+            src = os.path.join(canonical_dir, fixture + ".exr")
+            w, h, rgb = read_exr_rgb(src)
+            roi_w = min(w, h) - 2 * prad
+            leg_grid = prad > 6 and roi_w >= prad
+            if leg_grid:
+                out_rgb = bilateral_grid_reference(w, h, rgb, ss, sr, sr, sr)
+            else:
+                out_rgb = bilateral_direct_reference(w, h, rgb, ss, sr, sr, sr)
+
+            def px(x, y, out_rgb=out_rgb, w=w):
+                idx = y * w + x
+                return out_rgb[idx]
+
+            write_exr(os.path.join(out_dir, f"{case['name']}__{fixture}.exr"), w, h, px)
+
+
 if __name__ == "__main__":
     main()
+

@@ -5,7 +5,7 @@ import Foundation
 /// **`.sortedKeys` is MANDATORY.** Foundation's keyed-container JSON
 /// emission order is NOT deterministic — not just across processes, but
 /// ACROSS CALLS WITHIN ONE PROCESS (host-proven 2026-09-19,
-/// `.work/02-04/probe-json.swift`: a 2-field struct encoded 5× produced
+/// `.work/plans/02-04/probe-json.swift`: a 2-field struct encoded 5× produced
 /// BOTH key orders; the unsorted hashes split 3/2). Every `paramsHash`
 /// (the D-H4 atom: pipe-cache identity + 02-05 history identity + 02-06
 /// sidecar drift detection) hashes THESE bytes, so unsorted encoding

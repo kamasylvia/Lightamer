@@ -105,8 +105,25 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertTrue(ops.contains("equalizer"), "pristine seed must include equalizer")
         XCTAssertTrue(ops.contains("highpass"), "pristine seed must include highpass")
         XCTAssertTrue(ops.contains("soften"), "pristine seed must include soften")
+        // Plan 05-02-T4: colorbalancergb joins the seed DISABLED (D1).
+        XCTAssertTrue(ops.contains("colorbalancergb"), "pristine seed must include colorbalancergb")
+        // Plan 05-03-T5: the mixer trio joins the seed (channelmixerrgb
+        // DISABLED like colorbalancergb; legacy + contrast ENABLED-neutral).
+        XCTAssertTrue(ops.contains("channelmixerrgb"), "pristine seed must include channelmixerrgb")
+        XCTAssertTrue(ops.contains("channelmixer"), "pristine seed must include channelmixer")
+        XCTAssertTrue(ops.contains("colorcontrast"), "pristine seed must include colorcontrast")
+        // Plan 05-04-T1/T2: vibrance + velvia + colorzones join the seed
+        // ENABLED-neutral (amount/strength 0 + flat-0.5 curves ⇒ identity).
+        XCTAssertTrue(ops.contains("vibrance"), "pristine seed must include vibrance")
+        XCTAssertTrue(ops.contains("velvia"), "pristine seed must include velvia")
+        XCTAssertTrue(ops.contains("colorzones"), "pristine seed must include colorzones")
+        // Plan 05-05-T1: monochrome joins the seed DISABLED (D2: default
+        // size=2 red filter is not pixel-identity).
+        XCTAssertTrue(ops.contains("monochrome"), "pristine seed must include monochrome")
+        // Plan 05-06-T2: nlmeans joins the seed DISABLED (D-05-06-T2-1:
+        // dt ships it disabled; no zero-param identity exists).
+        XCTAssertTrue(ops.contains("nlmeans"), "pristine seed must include nlmeans")
     }
-
     private func instance(_ opName: String) throws -> ModuleInstance {
         try XCTUnwrap(editorState.instances.first { $0.opName == opName })
     }
@@ -274,10 +291,10 @@ final class PanelWiringTests: XCTestCase {
         let madeExposure = await registry.makeBox(
             opName: ExposureModule.opName, instanceID: record.id)
         let box = try XCTUnwrap(madeExposure as? ModuleBox<ExposureModule>)
-        try await box.apply(record)
+        try box.apply(record)
         let madeColorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorin = try XCTUnwrap(madeColorin as? ModuleBox<ColorInModule>)
-        await colorin.setParams(.init())
+        colorin.setParams(.init())
         let image = try makeSyntheticImage()
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: [colorin, box], imageID: UUID(),
@@ -860,6 +877,74 @@ final class PanelWiringTests: XCTestCase {
         XCTAssertEqual(historyCount(), 1, "toggle-off = exactly ONE item")
         XCTAssertFalse(try instance("exposure").enabled, "explicit toggle-off survives the commit")
     }
+
+    /// GUI-13 (05-06 立案，05-07 修复) + GUI-10 同根回归：启用 commit 与
+    /// 紧随的拖动 live tick 并发。旧实现 `ModuleBox.apply` 是 nonisolated
+    /// async —— rematerialize 在 await 处放开 MainActor，commit 链
+    /// （recordChange → fire Task → historyDidChange）与 live 链
+    /// （update → setLiveParams → historyDidChange）两条链的 box 突变在
+    /// cooperative 池上并发执行，同一 box 的 `paramsData`/`committedPiece`
+    /// 被并发写（Data over-release → SIGSEGV/SIGABRT；取证
+    /// `.work/gui-acceptance/gui10-forensics.md`）。修复 = apply/
+    /// setParams/commitParams 全同步 + 物化循环零挂起点（两段式）。
+    /// 本测试用 TaskGroup 把「启用 commit 链 + 变参 live tick 链」交错发射
+    /// 100 轮（与崩溃报告双栈同构：recordChange 腿 + setLiveParams 腿同发），
+    /// 防空转 + 断言：不崩、commit 计数精确、终态一致（修复前该序列在重复
+    /// 运行/TSan 下踩窗口崩）。
+    func testEnableCommitRacingLiveTicksHundredRounds() async throws {
+        try await loadSynthetic()
+        let seed = try instance("nlmeans")
+        XCTAssertFalse(seed.enabled, "seed DISABLED — GUI-13 的原始发射形态")
+        let baseCount = historyCount()
+
+        // 预备 100 对快照（group 外构造，group 内只发射）。
+        var enables: [ModuleInstance] = []
+        var ticks: [ModuleInstance] = []
+        enables.reserveCapacity(100)
+        ticks.reserveCapacity(100)
+        for tick in 0..<100 {
+            var enable = seed
+            enable.enabled = true
+            try enable.setParams(NLMeansModule.Params(strength: 1), as: NLMeansModule.self)
+            enables.append(enable)
+            var dragged = seed
+            dragged.enabled = true
+            try dragged.setParams(
+                NLMeansModule.Params(strength: 1 + Float(tick) * 0.01), as: NLMeansModule.self)
+            ticks.append(dragged)
+        }
+
+        // 交错发射：每轮 = commit 链（recordChange，sync upsert + 内部
+        // fire Task 渲染）+ 紧随的 live tick（setLiveParams，渲染 await 处
+        // 放开 MainActor）—— 正是崩溃窗口的交错面。
+        let coordinator = self.coordinator!
+        let editorState = self.editorState!
+        await withTaskGroup(of: Void.self) { group in
+            for i in 0..<100 {
+                let enable = enables[i]
+                let tick = ticks[i]
+                group.addTask { [coordinator, editorState] in
+                    await editorState.recordChange(enable, label: "enable")
+                    await coordinator.setLiveParams(tick)
+                }
+            }
+        }
+
+        XCTAssertEqual(historyCount() - baseCount, 100, "每轮恰 1 commit；live tick 零入史")
+
+        // 有序终态（group 已收干，本次提交严格最后执行）。
+        let final = try withParams(try instance("nlmeans"), { $0.strength = 2 }, as: NLMeansModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(final)
+        await coordinator.commitContinuousEdit(label: "final")
+
+        XCTAssertEqual(historyCount() - baseCount, 101, "终态提交恰 +1")
+        let record = try instance("nlmeans")
+        XCTAssertTrue(record.enabled, "终态启用保持")
+        XCTAssertEqual(
+            try record.params(of: NLMeansModule.self).strength, 2, accuracy: 1e-6,
+            "终态参数 = 最后一次有序 tick（box/record 一致性未撕裂）")
+    }
     /// 04-08-F3 (GUI-5 AX 通路)：AX Press 走的语义层 = toggle 纯函数 +
     /// discrete commit（autoEnable=false）。此测试钉住"按一次恰翻转一
     /// 次、恰 1 commit、render 跟随"——AX 层只负责把 Press 路由到同一
@@ -943,7 +1028,500 @@ final class PanelWiringTests: XCTestCase {
             state.panelView(for: ModuleInstance(module: EqualizerModule.self, params: .init()), edit: session),
             "equalizer must dispatch a panel")
     }
+    // MARK: - Plan 05-02-T4: colorbalancergb panel wiring
 
+    /// colorbalancergb seed is DISABLED (05-02-DECISIONS D1: default
+    /// params not pixel-identity); a Y-slider drag = exactly ONE item +
+    /// auto-enable at commit (GUI-7); reset restores paramsHash.
+    func testColorBalanceRGBPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cb = try instance("colorbalancergb")
+        XCTAssertFalse(cb.enabled, "colorbalancergb seed is disabled (D1)")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(cb, { $0.globalY = Float(tick) * 0.05 }, as: ColorBalanceRGBModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_colorbalancergb"))
+
+        XCTAssertEqual(historyCount(), 1, "colorbalancergb drag = exactly ONE item")
+        let committed = try instance("colorbalancergb")
+        XCTAssertEqual(try committed.params(of: ColorBalanceRGBModule.self).globalY, 0.3, accuracy: 1e-6)
+        XCTAssertTrue(committed.enabled, "editing a disabled module auto-enables at commit (GUI-7)")
+
+        // Reset to default restores the pristine paramsHash (cache all-hit).
+        let pristineHash = cb.paramsHash
+        let current = try instance("colorbalancergb")
+        let resetRecord = try withParams(current, { $0.globalY = 0 }, as: ColorBalanceRGBModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(resetRecord)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_colorbalancergb"))
+        XCTAssertEqual(try instance("colorbalancergb").paramsHash, pristineHash,
+                       "reset to default restores the pristine paramsHash")
+    }
+
+    /// Hue-disc drag (H+C discrete pair) = exactly ONE item; the committed
+    /// (H, C) equal the last tick (discretized params assertion).
+    func testColorBalanceRGBHueDiscCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cb = try instance("colorbalancergb")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(cb, {
+                $0.globalH = Float(tick) * 10
+                $0.globalC = Float(tick) * 0.1
+            }, as: ColorBalanceRGBModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_colorbalancergb"))
+
+        XCTAssertEqual(historyCount(), 1, "hue-disc drag = exactly ONE item")
+        let committed = try instance("colorbalancergb")
+        XCTAssertEqual(try committed.params(of: ColorBalanceRGBModule.self).globalH, 60.0, accuracy: 1e-6)
+        XCTAssertEqual(try committed.params(of: ColorBalanceRGBModule.self).globalC, 0.6, accuracy: 1e-6)
+    }
+
+    /// Panel dispatch: colorbalancergb resolves a panel.
+    func testColorBalanceRGBPanelDispatch() async throws {
+        try await loadSynthetic()
+        XCTAssertTrue(
+            editorState.instances.map(\.opName).contains("colorbalancergb"),
+            "pristine seed must include colorbalancergb (disabled)")
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        let session = InspectorEditSession(coordinator: coordinator)
+        XCTAssertTrue(state.panelOpNames.contains("colorbalancergb"), "colorbalancergb must dispatch a panel")
+        XCTAssertNotNil(
+            state.panelView(for: ModuleInstance(module: ColorBalanceRGBModule.self, params: .init()), edit: session),
+            "colorbalancergb must dispatch a panel")
+    }
+
+        // MARK: - 05-03 mixer trio panel wiring (T5)
+
+    /// ChannelMixerRGB red-gain drag = exactly ONE history item (D-H1 trio).
+    func testChannelMixerRGBPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cmr = try instance("channelmixerrgb")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(cmr, {
+                $0.red = SIMD4<Float>(1 + Float(tick) * 0.05, 0, 0, 0)
+            }, as: ChannelMixerRGBModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Color calibration")
+
+        XCTAssertEqual(historyCount(), 1, "channelmixerrgb drag = exactly ONE item")
+        let committed = try instance("channelmixerrgb")
+        XCTAssertEqual(
+            try committed.params(of: ChannelMixerRGBModule.self).red.x, 1.3, accuracy: 1e-6)
+    }
+
+    /// Legacy channelmixer green-gain drag = exactly ONE history item.
+    func testChannelMixerPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cm = try instance("channelmixer")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(cm, {
+                $0.green = [0, 0, 0, 0, 1 + Float(tick) * 0.05, 0, 0]
+            }, as: ChannelMixerModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Channel mixer")
+
+        XCTAssertEqual(historyCount(), 1, "channelmixer drag = exactly ONE item")
+        let committed = try instance("channelmixer")
+        XCTAssertEqual(
+            try committed.params(of: ChannelMixerModule.self).green[4], 1.3, accuracy: 1e-6)
+    }
+
+    /// ColorContrast steepness drag = exactly ONE history item.
+    func testColorContrastPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cc = try instance("colorcontrast")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(cc, {
+                $0.aSteepness = 1 + Float(tick) * 0.1
+            }, as: ColorContrastModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Color contrast")
+
+        XCTAssertEqual(historyCount(), 1, "colorcontrast drag = exactly ONE item")
+        let committed = try instance("colorcontrast")
+        XCTAssertEqual(
+            try committed.params(of: ColorContrastModule.self).aSteepness, 1.6, accuracy: 1e-6)
+    }
+
+    /// The three 05-03 panels dispatch by opName (D-T6 provider registry).
+    func testMixerPanelsDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("channelmixerrgb"))
+        XCTAssertTrue(state.panelOpNames.contains("channelmixer"))
+        XCTAssertTrue(state.panelOpNames.contains("colorcontrast"))
+
+        let session = InspectorEditSession(coordinator: coordinator)
+        let cmrRecord = ModuleInstance(module: ChannelMixerRGBModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: cmrRecord, edit: session),
+                        "channelmixerrgb must dispatch a panel")
+        let cmRecord = ModuleInstance(module: ChannelMixerModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: cmRecord, edit: session),
+                        "channelmixer must dispatch a panel")
+        let ccRecord = ModuleInstance(module: ColorContrastModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: ccRecord, edit: session),
+                        "colorcontrast must dispatch a panel")
+    }
+
+    // MARK: - 05-04 panels (vibrance + velvia + colorzones)
+
+    /// Vibrance amount drag = exactly ONE history item.
+    func testVibrancePanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let vib = try instance("vibrance")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(vib, {
+                $0.amount = Float(tick) * 10
+            }, as: VibranceModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Vibrance")
+
+        XCTAssertEqual(historyCount(), 1, "vibrance drag = exactly ONE item")
+        let committed = try instance("vibrance")
+        XCTAssertEqual(
+            try committed.params(of: VibranceModule.self).amount, 60, accuracy: 1e-6)
+    }
+
+    /// Velvia strength drag = exactly ONE history item.
+    func testVelviaPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let vel = try instance("velvia")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(vel, {
+                $0.strength = Float(tick) * 10
+            }, as: VelviaModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Velvia")
+
+        XCTAssertEqual(historyCount(), 1, "velvia drag = exactly ONE item")
+        let committed = try instance("velvia")
+        XCTAssertEqual(
+            try committed.params(of: VelviaModule.self).strength, 60, accuracy: 1e-6)
+    }
+
+    /// ColorZones hue-node drag = exactly ONE history item (curve
+    /// discretization into params — the node set change must flow through
+    /// the same D-H1 trio as sliders).
+    func testColorZonesPanelDragCommitsOnce() async throws {
+        try await loadSynthetic()
+        let cz = try instance("colorzones")
+        let baseHash = cz.paramsHash
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            var params = try cz.params(of: ColorZonesModule.self)
+            params.curveH = [
+                .init(x: 0.25, y: 0.5),
+                .init(x: 0.5, y: 0.5 + Float(tick) * 0.05),
+            ]
+            var record = cz
+            try record.setParams(params, as: ColorZonesModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: "Color zones")
+
+        XCTAssertEqual(historyCount(), 1, "colorzones drag = exactly ONE item")
+        let committed = try instance("colorzones")
+        XCTAssertNotEqual(committed.paramsHash, baseHash, "curve drag must change params")
+        XCTAssertEqual(
+            try committed.params(of: ColorZonesModule.self).curveH[1].y,
+            0.8, accuracy: 1e-6)
+    }
+
+    /// Vibrance reset-to-zero reproduces the seed paramsHash (cache all-hit).
+    func testVibranceResetRestoresSeedHash() async throws {
+        try await loadSynthetic()
+        let vib = try instance("vibrance")
+        let seedHash = vib.paramsHash
+
+        let up = try withParams(vib, { $0.amount = 60 }, as: VibranceModule.self)
+        await coordinator.setLiveParams(up)
+        await coordinator.commitContinuousEdit(label: "Vibrance up")
+        XCTAssertNotEqual(try instance("vibrance").paramsHash, seedHash)
+
+        let current = try instance("vibrance")
+        let reset = try withParams(current, { $0.amount = 0 }, as: VibranceModule.self)
+        await coordinator.setLiveParams(reset)
+        await coordinator.commitContinuousEdit(label: "Vibrance reset")
+        XCTAssertEqual(try instance("vibrance").paramsHash, seedHash,
+            "reset to zero must reproduce the SEED paramsHash (cache all-hit)")
+    }
+
+    /// The three 05-04 panels dispatch by opName (D-T6 provider registry).
+    func testColorZonesPanelsDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("vibrance"))
+        XCTAssertTrue(state.panelOpNames.contains("velvia"))
+        XCTAssertTrue(state.panelOpNames.contains("colorzones"))
+
+        let session = InspectorEditSession(coordinator: coordinator)
+        let vibRecord = ModuleInstance(module: VibranceModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: vibRecord, edit: session),
+                        "vibrance must dispatch a panel")
+        let velRecord = ModuleInstance(module: VelviaModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: velRecord, edit: session),
+                        "velvia must dispatch a panel")
+        let czRecord = ModuleInstance(module: ColorZonesModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: czRecord, edit: session),
+                        "colorzones must dispatch a panel")
+    }
+
+    /// Monochrome wheel click (a/b pair) = exactly ONE history item; the
+    /// committed (a, b) equal the last tick (discretized params assertion —
+    /// plan T4 色轮点击=恰 1 commit).
+    func testMonochromeWheelCommitsOnce() async throws {
+        try await loadSynthetic()
+        let mono = try instance("monochrome")
+        XCTAssertFalse(mono.enabled, "monochrome seed is disabled (D2)")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(mono, {
+                $0.a = Float(tick) * 10
+                $0.b = Float(tick) * -10
+            }, as: MonochromeModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_monochrome"))
+
+        XCTAssertEqual(historyCount(), 1, "wheel drag = exactly ONE item")
+        let committed = try instance("monochrome")
+        XCTAssertEqual(try committed.params(of: MonochromeModule.self).a, 60.0, accuracy: 1e-6)
+        XCTAssertEqual(try committed.params(of: MonochromeModule.self).b, -60.0, accuracy: 1e-6)
+        XCTAssertTrue(committed.enabled, "editing a disabled module auto-enables at commit (GUI-7)")
+
+        // Reset to default restores the pristine paramsHash (cache all-hit).
+        let pristineHash = mono.paramsHash
+        let current = try instance("monochrome")
+        let resetRecord = try withParams(current, {
+            $0.a = 0; $0.b = 0; $0.size = 2; $0.highlights = 0
+        }, as: MonochromeModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(resetRecord)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_monochrome"))
+        XCTAssertEqual(try instance("monochrome").paramsHash, pristineHash,
+                       "reset to default restores the pristine paramsHash")
+    }
+
+    /// Monochrome size-slider drag = exactly ONE history item.
+    func testMonochromeSizeSliderCommitsOnce() async throws {
+        try await loadSynthetic()
+        let mono = try instance("monochrome")
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(mono, {
+                $0.size = 0.5 + Float(tick) * 0.1
+            }, as: MonochromeModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_monochrome"))
+
+        XCTAssertEqual(historyCount(), 1, "size drag = exactly ONE item")
+        let committed = try instance("monochrome")
+        XCTAssertEqual(try committed.params(of: MonochromeModule.self).size, 1.1, accuracy: 1e-6)
+    }
+
+    /// Monochrome panel dispatches by opName (D-T6 provider registry).
+    func testMonochromePanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("monochrome"))
+        let session = InspectorEditSession(coordinator: coordinator)
+        let record = ModuleInstance(module: MonochromeModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: record, edit: session),
+                        "monochrome must dispatch a panel")
+    }
+
+    /// Plan 05-06-T5: nlmeans panel dispatches by opName (D-T6).
+    func testNLMeansPanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("nlmeans"))
+        let session = InspectorEditSession(coordinator: coordinator)
+        let record = ModuleInstance(module: NLMeansModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: record, edit: session),
+                        "nlmeans must dispatch a panel")
+    }
+
+    /// Plan 05-06-T5: nlmeans strength-slider drag = exactly ONE history
+    /// item; reset to default restores the pristine paramsHash (cache
+    /// all-hit); editing the disabled seed auto-enables at commit (GUI-7).
+    func testNLMeansStrengthSliderCommitsOnce() async throws {
+        try await loadSynthetic()
+        let nl = try instance("nlmeans")
+        XCTAssertFalse(nl.enabled, "nlmeans seed is disabled (D-05-06-T2-1)")
+        let pristineHash = nl.paramsHash
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(nl, {
+                $0.strength = Float(tick) * 10
+            }, as: NLMeansModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_nlmeans"))
+
+        XCTAssertEqual(historyCount(), 1, "strength drag = exactly ONE item")
+        let committed = try instance("nlmeans")
+        XCTAssertEqual(try committed.params(of: NLMeansModule.self).strength, 60.0, accuracy: 1e-6)
+        XCTAssertTrue(committed.enabled, "editing a disabled module auto-enables at commit (GUI-7)")
+
+        // Reset to default restores the pristine paramsHash (cache all-hit).
+        let current = try instance("nlmeans")
+        let resetRecord = try withParams(current, {
+            $0.radius = 2; $0.strength = 50; $0.luma = 0.5; $0.chroma = 1
+        }, as: NLMeansModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(resetRecord)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_nlmeans"))
+        XCTAssertEqual(try instance("nlmeans").paramsHash, pristineHash,
+                       "reset to default restores the pristine paramsHash")
+    }
+
+    // MARK: - 05-08 bilateral panel wiring (T4)
+
+    /// InspectorState dispatches the bilateral panel by opName.
+    func testBilateralPanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("bilateral"))
+        let session = InspectorEditSession(coordinator: coordinator)
+        let record = ModuleInstance(module: BilateralModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: record, edit: session),
+                        "bilateral must dispatch a panel")
+    }
+
+    /// Plan 05-08-T4: bilateral radius-slider drag = exactly ONE history
+    /// item; reset to default restores the pristine paramsHash (cache
+    /// all-hit); editing the disabled seed auto-enables at commit (GUI-7).
+    func testBilateralRadiusSliderCommitsOnce() async throws {
+        try await loadSynthetic()
+        let bl = try instance("bilateral")
+        XCTAssertFalse(bl.enabled, "bilateral seed is disabled (D-05-08-T1-3)")
+        let pristineHash = bl.paramsHash
+
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            let record = try withParams(bl, {
+                $0.radius = 1 + Float(tick) * 2
+            }, as: BilateralModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_bilateral"))
+
+        XCTAssertEqual(historyCount(), 1, "radius drag = exactly ONE item")
+        let committed = try instance("bilateral")
+        XCTAssertEqual(try committed.params(of: BilateralModule.self).radius, 13.0, accuracy: 1e-6)
+        XCTAssertTrue(committed.enabled, "editing a disabled module auto-enables at commit (GUI-7)")
+
+        // Reset to default restores the pristine paramsHash (cache all-hit).
+        let current = try instance("bilateral")
+        let resetRecord = try withParams(current, {
+            $0.radius = 15; $0.reserved = 15; $0.red = 0.005; $0.green = 0.005; $0.blue = 0.005
+        }, as: BilateralModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(resetRecord)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_bilateral"))
+        XCTAssertEqual(try instance("bilateral").paramsHash, pristineHash,
+                       "reset to default restores the pristine paramsHash")
+    }
+
+    // MARK: - 05-07 denoiseprofile panel wiring (T6)
+
+    /// DenoiseProfile: seeded DISABLED (D-05-07-T2-2); a slider drag = ONE
+    /// commit (auto-enable at commit per GUI-7); the mode Picker and the
+    /// profile-row source flip are DISCRETE single commits; reset restores
+    /// the pristine paramsHash (cache all-hit).
+    func testDenoiseProfilePanelDragAndDiscreteCommits() async throws {
+        try await loadSynthetic()
+        let dp = try instance("denoiseprofile")
+        XCTAssertFalse(dp.enabled, "denoiseprofile seed is disabled (D-05-07-T2-2)")
+        let pristineHash = dp.paramsHash
+
+        // Slider drag (strength): 4 ticks → exactly ONE commit.
+        coordinator.beginContinuousEdit()
+        for tick in 1...4 {
+            let record = try withParams(dp, {
+                $0.strength = 1 + Float(tick) * 0.25
+            }, as: DenoiseProfileModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_denoiseprofile"))
+        XCTAssertEqual(historyCount(), 1, "strength drag = exactly ONE item")
+        let dragged = try instance("denoiseprofile")
+        XCTAssertEqual(
+            try dragged.params(of: DenoiseProfileModule.self).strength,
+            2.0, accuracy: 1e-6)
+        XCTAssertTrue(dragged.enabled, "editing auto-enables at commit (GUI-7)")
+
+        // Mode Picker flip = ONE discrete commit.
+        let afterDrag = try instance("denoiseprofile")
+        let modeRecord = try withParams(afterDrag, {
+            $0.mode = .nlmeans
+        }, as: DenoiseProfileModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(modeRecord)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_denoiseprofile"))
+        XCTAssertEqual(historyCount(), 2, "mode flip = exactly ONE more item")
+        XCTAssertEqual(
+            try instance("denoiseprofile").params(of: DenoiseProfileModule.self).mode,
+            .nlmeans)
+
+        // Profile-row source flip (Auto → generic concrete) = ONE commit.
+        let afterMode = try instance("denoiseprofile")
+        let genericRecord = try withParams(afterMode, {
+            $0.a = SIMD3(repeating: 1e-4)
+            $0.b = SIMD3(repeating: 0)
+            $0.isoOverride = nil
+        }, as: DenoiseProfileModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(genericRecord)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_denoiseprofile"))
+        XCTAssertEqual(historyCount(), 3, "profile flip = exactly ONE more item")
+        XCTAssertEqual(
+            try instance("denoiseprofile").params(of: DenoiseProfileModule.self).a.x,
+            1e-4, accuracy: 1e-12)
+
+        // Reset to defaults restores the pristine paramsHash.
+        let current = try instance("denoiseprofile")
+        let resetRecord = try withParams(current, {
+            $0 = DenoiseProfileModule.Params()
+        }, as: DenoiseProfileModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(resetRecord)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_denoiseprofile"))
+        XCTAssertEqual(try instance("denoiseprofile").paramsHash, pristineHash,
+                       "reset restores the pristine paramsHash")
+    }
     // MARK: - Helpers
     private func historyCount() -> Int { editorState.history.items.count }
 }

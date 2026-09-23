@@ -128,7 +128,7 @@ final class TerminalTrioTests: XCTestCase {
         let metal = try makeMetal()
         let module = ColorInModule()
         var piece = IOPiece()
-        await module.commitParams(.init(), into: &piece)
+        module.commitParams(.init(), into: &piece)
 
         // Pattern with denormals-ish odd values — bit-exactness probe
         // (2 pixels × RGBA, one row).
@@ -154,8 +154,8 @@ final class TerminalTrioTests: XCTestCase {
         let b = ColorInModule()
         var pieceA = IOPiece()
         var pieceB = IOPiece()
-        await a.commitParams(.init(), into: &pieceA)
-        await b.commitParams(.init(), into: &pieceB)
+        a.commitParams(.init(), into: &pieceA)
+        b.commitParams(.init(), into: &pieceB)
         XCTAssertEqual(pieceA.paramsHash, pieceB.paramsHash)
         XCTAssertNotEqual(pieceA.paramsHash, 0, "committed hash must be real, not the zero default")
     }
@@ -169,7 +169,7 @@ final class TerminalTrioTests: XCTestCase {
     ) async throws -> [[Float]] {
         let module = ColorOutModule()
         var piece = IOPiece()
-        await module.commitParams(.init(outputProfile: profile), into: &piece)
+        module.commitParams(.init(outputProfile: profile), into: &piece)
         let input = floatTexture(
             [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]], width: 3, height: 1, metal: metal
         )
@@ -192,7 +192,7 @@ final class TerminalTrioTests: XCTestCase {
         let metal = try makeMetal()
         let rows = try await coloroutKnownPoints(profile: .displayP3, metal: metal)
         // Rec2020 → P3 linear, derived constants (see ColorOutModule.swift
-        // header; generator `.work/02-04/matrix-derive.swift`).
+        // header; generator `.work/plans/02-04/matrix-derive.swift`).
         let expected: [[Float]] = [
             [1.343930183, -0.066855841, 0.003750840],
             [-0.282585998, 1.077337009, -0.019626716],
@@ -224,7 +224,7 @@ final class TerminalTrioTests: XCTestCase {
         let metal = try makeMetal()
         let module = ColorOutModule()
         var piece = IOPiece()
-        await module.commitParams(.init(outputProfile: .displayP3), into: &piece)
+        module.commitParams(.init(outputProfile: .displayP3), into: &piece)
         let input = floatTexture([[0.5, 0.5, 0.5, 1]], width: 1, height: 1, metal: metal)
         let output = floatTexture([[0, 0, 0, 0]], width: 1, height: 1, metal: metal)
         try await module.process(
@@ -250,15 +250,15 @@ final class TerminalTrioTests: XCTestCase {
         let module = ColorOutModule()
         var piece = IOPiece()
         module.displayProfileOverride = .displayP3
-        await module.commitParams(.init(outputProfile: .display), into: &piece)
+        module.commitParams(.init(outputProfile: .display), into: &piece)
         let p3Hash = piece.paramsHash
         module.displayProfileOverride = .sRGB
-        await module.commitParams(.init(outputProfile: .display), into: &piece)
+        module.commitParams(.init(outputProfile: .display), into: &piece)
         let srgbHash = piece.paramsHash
         XCTAssertNotEqual(p3Hash, srgbHash, "display change ⇒ colorout paramsHash change")
         // Identical resolved display ⇒ identical hash (determinism).
         module.displayProfileOverride = .displayP3
-        await module.commitParams(.init(outputProfile: .display), into: &piece)
+        module.commitParams(.init(outputProfile: .display), into: &piece)
         XCTAssertEqual(piece.paramsHash, p3Hash)
     }
 
@@ -268,7 +268,7 @@ final class TerminalTrioTests: XCTestCase {
         let metal = try makeMetal()
         let module = GammaModule()
         var piece = IOPiece()
-        await module.commitParams(.init(), into: &piece)
+        module.commitParams(.init(), into: &piece)
 
         // The five plan values (+ one negative clamp probe).
         let linear: [Float] = [0.0, 0.04045, 0.5, 1.0, 2.0, -0.25]
@@ -331,16 +331,16 @@ final class TerminalTrioTests: XCTestCase {
         let chain = await registry.makeDefaultChain()
         if let colorout = chain.first(where: { $0.opName == ColorOutModule.opName })
             as? ModuleBox<ColorOutModule> {
-            await colorout.setParams(.init(outputProfile: outputProfile))
+            colorout.setParams(.init(outputProfile: outputProfile))
         }
         for box in chain where box.opName == ColorInModule.opName {
             if let colorin = box as? ModuleBox<ColorInModule> {
-                await colorin.setParams(.init())
+                colorin.setParams(.init())
             }
         }
         for box in chain where box.opName == GammaModule.opName {
             if let gamma = box as? ModuleBox<GammaModule> {
-                await gamma.setParams(.init())
+                gamma.setParams(.init())
             }
         }
         return chain

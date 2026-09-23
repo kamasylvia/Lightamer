@@ -132,10 +132,10 @@ final class GeometryGoldenTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let cropMade = await registry.makeBox(opName: CropModule.opName)
         let crop = try XCTUnwrap(cropMade as? ModuleBox<CropModule>)
-        await crop.setParams(params)
+        crop.setParams(params)
         let chain = [colorinBox as any ModuleBoxing, crop]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -226,10 +226,10 @@ final class GeometryGoldenTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let flipMade = await registry.makeBox(opName: FlipModule.opName)
         let box = try XCTUnwrap(flipMade as? ModuleBox<FlipModule>)
-        await box.setParams(FlipModule.Params(orientation: orientation))
+        box.setParams(FlipModule.Params(orientation: orientation))
         let chain = [colorinBox as any ModuleBoxing, box]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -369,6 +369,58 @@ final class GeometryGoldenTests: XCTestCase {
         )
     }
 
+    /// Plan 05-06-T5 track B: nlmeans inserted ENABLED (strength 0 — on
+    /// neutral flats dist=0 → w=1 → out = neighborhood mean = in; the
+    /// LabMath a=b=0 neutral anchoring survives the in-module Lab round
+    /// trip). Gray patches stay neutral AND at level (the Lab 往返中性度
+    /// criterion the plan names), with the module LIVE in the chain —
+    /// stronger than the disabled-piece pass-through the seed gives.
+    func testTrackBNeutralityWithNLMeansInserted() async throws {
+        let metal = try await makeMetal()
+        let url = try Fixtures.neutralTarget()
+        let decoder = RAWDecoder()
+        let image = try await decoder.decode(url)
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        var chain = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .displayP3
+        )
+        let made = await registry.makeBox(opName: NLMeansModule.opName)
+        let box = try XCTUnwrap(made as? ModuleBox<NLMeansModule>)
+        box.setParams(NLMeansModule.Params(strength: 0))
+        box.enabled = true
+        chain.append(box)
+        let (texture, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal,
+            longEdge: nil
+        )
+        drain(metal)
+        let rgb = readRGB8(texture)
+        let (w, h) = (texture.width, texture.height)
+
+        var failures: [String] = []
+        func srgbEncode(_ c: Double) -> Double {
+            c <= 0.04045 ? c / 12.92 : 1.055 * pow(c, 1.0 / 2.4) - 0.055
+        }
+        for patch in Fixtures.neutralPatches {
+            let s = sample3x3(rgb, width: w, height: h, x: patch.x, y: patch.y)
+            let rg = abs(s.r - s.g), gb = abs(s.g - s.b)
+            if rg >= 2 || gb >= 2 {
+                failures.append("\(patch.name): |R−G|=\(rg) |G−B|=\(gb)")
+            }
+            let want = srgbEncode(patch.expectedLinearRec2020.0) * 255.0
+            if abs((s.r + s.g + s.b) / 3 - want) > 2 {
+                failures.append("\(patch.name): level \((s.r + s.g + s.b) / 3) vs ≈\(want)")
+            }
+        }
+        XCTAssertTrue(
+            failures.isEmpty,
+            "track B (nlmeans inserted, strength 0) FAILED:\n"
+                + failures.joined(separator: "\n")
+        )
+    }
+
     // MARK: - Helpers (GoldenParityTests track-B shape)
 
     /// The default chain with crop (FULL-frame = identity window) + flip
@@ -387,40 +439,86 @@ final class GeometryGoldenTests: XCTestCase {
         )
         let flip = await registry.makeBox(opName: FlipModule.opName)
         let flipBox = try XCTUnwrap(flip as? ModuleBox<FlipModule>)
-        await flipBox.setParams(FlipModule.Params(orientation: .none))
+        flipBox.setParams(FlipModule.Params(orientation: .none))
         chain.append(flipBox)
         let lens = await registry.makeBox(opName: LensModule.opName)
         let lensBox = try XCTUnwrap(lens as? ModuleBox<LensModule>)
-        await lensBox.setParams(LensModule.Params())
+        lensBox.setParams(LensModule.Params())
         chain.append(lensBox)
         let crop = await registry.makeBox(opName: CropModule.opName)
         let cropBox = try XCTUnwrap(crop as? ModuleBox<CropModule>)
-        await cropBox.setParams(CropModule.Params())
+        cropBox.setParams(CropModule.Params())
         chain.append(cropBox)
         // Plan 04-05-T5 track B: the five detail neutrals (blit-identity
         // legs through the real chain — enabled-neutral ×3, disabled ×2).
         let sharpenMade = await registry.makeBox(opName: SharpenModule.opName)
         let sharpenBox = try XCTUnwrap(sharpenMade as? ModuleBox<SharpenModule>)
-        await sharpenBox.setParams(SharpenModule.Params())
+        sharpenBox.setParams(SharpenModule.Params())
         chain.append(sharpenBox)
         let bilatMade = await registry.makeBox(opName: LocalContrastModule.opName)
         let bilatBox = try XCTUnwrap(bilatMade as? ModuleBox<LocalContrastModule>)
-        await bilatBox.setParams(LocalContrastModule.Params())
+        bilatBox.setParams(LocalContrastModule.Params())
         chain.append(bilatBox)
         let eqMade = await registry.makeBox(opName: EqualizerModule.opName)
         let eqBox = try XCTUnwrap(eqMade as? ModuleBox<EqualizerModule>)
-        await eqBox.setParams(EqualizerModule.Params())
+        eqBox.setParams(EqualizerModule.Params())
         chain.append(eqBox)
         let highMade = await registry.makeBox(opName: HighpassModule.opName)
         let highBox = try XCTUnwrap(highMade as? ModuleBox<HighpassModule>)
-        await highBox.setParams(HighpassModule.Params())
+        highBox.setParams(HighpassModule.Params())
         highBox.enabled = false
         chain.append(highBox)
         let softMade = await registry.makeBox(opName: SoftenModule.opName)
         let softBox = try XCTUnwrap(softMade as? ModuleBox<SoftenModule>)
-        await softBox.setParams(SoftenModule.Params())
+        softBox.setParams(SoftenModule.Params())
         softBox.enabled = false
         chain.append(softBox)
+        // Plan 05-04-T5 track B: vibrance + velvia + colorzones neutrals
+        // (enabled-neutral ×3 — amount/strength 0 + flat-0.5 curves ⇒
+        // identity through the real chain).
+        let vibMade = await registry.makeBox(opName: VibranceModule.opName)
+        let vibBox = try XCTUnwrap(vibMade as? ModuleBox<VibranceModule>)
+        vibBox.setParams(VibranceModule.Params())
+        chain.append(vibBox)
+        let velMade = await registry.makeBox(opName: VelviaModule.opName)
+        let velBox = try XCTUnwrap(velMade as? ModuleBox<VelviaModule>)
+        velBox.setParams(VelviaModule.Params())
+        chain.append(velBox)
+        let czMade = await registry.makeBox(opName: ColorZonesModule.opName)
+        let czBox = try XCTUnwrap(czMade as? ModuleBox<ColorZonesModule>)
+        czBox.setParams(ColorZonesModule.Params())
+        chain.append(czBox)
+        // Plan 05-05-T4 track B: monochrome DISABLED seed (default size=2
+        // filter is not neutral — disabled ⇒ pipe skips ⇒ zero chain delta;
+        // 05-02 colorbalancergb T5 zero-increment precedent).
+        let monoMade = await registry.makeBox(opName: MonochromeModule.opName)
+        let monoBox = try XCTUnwrap(monoMade as? ModuleBox<MonochromeModule>)
+        monoBox.setParams(MonochromeModule.Params())
+        monoBox.enabled = false
+        chain.append(monoBox)
+        // Plan 05-07-T6 track B: denoiseprofile DISABLED (no zero-param
+        // identity — force 0.5 keeps thrs > 0 — disabled ⇒ pipe skips ⇒
+        // zero chain delta; the LIVE insertion coverage rides the parity
+        // suite; 05-06's nlmeans keeps its own enabled-neutral test).
+        let dpMade = await registry.makeBox(opName: DenoiseProfileModule.opName)
+        let dpBox = try XCTUnwrap(dpMade as? ModuleBox<DenoiseProfileModule>)
+        dpBox.setParams(DenoiseProfileModule.Params())
+        dpBox.enabled = false
+        chain.append(dpBox)
+        // Plan 05-08-T5 track B: nlmeans + bilateral DISABLED (no zero-param
+        // identity for either — D-05-06-T2-1 / D-05-08-T1-3; disabled ⇒ pipe
+        // skips ⇒ zero chain delta). With these two the track-B chain now
+        // carries EVERY Phase 3+4+5 module — the Phase 6 baseline.
+        let nlMade = await registry.makeBox(opName: NLMeansModule.opName)
+        let nlBox = try XCTUnwrap(nlMade as? ModuleBox<NLMeansModule>)
+        nlBox.setParams(NLMeansModule.Params())
+        nlBox.enabled = false
+        chain.append(nlBox)
+        let blMade = await registry.makeBox(opName: BilateralModule.opName)
+        let blBox = try XCTUnwrap(blMade as? ModuleBox<BilateralModule>)
+        blBox.setParams(BilateralModule.Params())
+        blBox.enabled = false
+        chain.append(blBox)
         return chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
 

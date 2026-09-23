@@ -173,7 +173,7 @@ echo "== ④ manifest =="
     echo "(\`whitebalance_4f\` ↔ \`temperature_apply\`). The Kelvin→gains MODEL diverges by"
     echo "design (dt: sensor-domain XYZ_to_CAM; Lightamer: Rec2020-native post-CIRAW"
     echo "correction layer, RESEARCH §5) — the Kelvin math is locked by"
-    echo "CPUDerivationTests against .work/03-02/wb_reference.c instead of golden."
+    echo "CPUDerivationTests against .work/plans/03-02/wb_reference.c instead of golden."
     echo
     echo "## Cases × params blob hash + golden output sha256"
     echo

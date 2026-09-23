@@ -15,7 +15,7 @@ import Metal
 //                                 R(0.680,0.320) G(0.265,0.690) B(0.150,0.060)
 //   sRGB primaries (BT.709):      R(0.640,0.330) G(0.300,0.600) B(0.150,0.060)
 //
-// Derived with the generator checked into `.work/02-04/matrix-derive.swift`
+// Derived with the generator checked into `.work/plans/02-04/matrix-derive.swift`
 // (2026-09-19; row-major, out_i = Σ_j M[i][j]·in_j):
 //
 //   Rec2020 → Display P3 (linear):
@@ -135,7 +135,7 @@ public final class ColorOutModule: IOPModule {
         }
     }
 
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         lastCommittedParams = params // `process` reads the committed params here
         let encoded = ParamsCoding.encode(params)
         var hash = StableHash.hash(encoded)

@@ -75,7 +75,7 @@ public final class PassthroughModule: IOPModule {
         Params()
     }
 
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         // The cache-identity hash (D-H4): StableHash FNV-1a 64 over the
         // JSON-encoded params bytes — the ONLY legal generator. The
         // reference shape every Phase 3+ module copies.

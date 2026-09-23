@@ -85,7 +85,7 @@ final class ROINegotiationTests: XCTestCase {
             self.recorder = recorder
         }
         func reloadDefaults(image: DecodedImage) async -> Params { current }
-        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+        func commitParams(_ params: Params, into piece: inout IOPiece) {
             current = params
             piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         }
@@ -148,7 +148,7 @@ final class ROINegotiationTests: XCTestCase {
             self.halo = halo
         }
         func reloadDefaults(image: DecodedImage) async -> Params { Params(halo: halo) }
-        func commitParams(_ params: Params, into piece: inout IOPiece) async {
+        func commitParams(_ params: Params, into piece: inout IOPiece) {
             halo = params.halo
             piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         }
@@ -204,8 +204,8 @@ final class ROINegotiationTests: XCTestCase {
         func reloadDefaults(image: DecodedImage) async -> Params {
             await inner.reloadDefaults(image: image)
         }
-        func commitParams(_ params: Params, into piece: inout IOPiece) async {
-            await inner.commitParams(params, into: &piece)
+        func commitParams(_ params: Params, into piece: inout IOPiece) {
+            inner.commitParams(params, into: &piece)
         }
         func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
             inner.modifyROIOut(&roi, input: input, piece: piece)
@@ -252,12 +252,12 @@ final class ROINegotiationTests: XCTestCase {
         let crop = ModuleBox(
             module: ROIRecording(tag: "crop", recorder: recorder, inner: CropModule()),
             multiPriority: 0, multiName: "crop")
-        await crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
         crop.enabled = enabled
         let gain = ModuleBox(
             module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
             multiPriority: 1, multiName: "gain")
-        await gain.setParams(TestGainModule.Params(gain: 1.0))
+        gain.setParams(TestGainModule.Params(gain: 1.0))
         return [crop, gain]
     }
 
@@ -320,10 +320,10 @@ final class ROINegotiationTests: XCTestCase {
         let gain = ModuleBox(
             module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
             multiPriority: 0, multiName: "gain")
-        await gain.setParams(TestGainModule.Params(gain: 1.0))
+        gain.setParams(TestGainModule.Params(gain: 1.0))
         let haloBox = ModuleBox(module: HaloStub(tag: "halo", recorder: recorder),
                                 multiPriority: 0, multiName: "halo")
-        await haloBox.setParams(HaloStub.Params(halo: halo))
+        haloBox.setParams(HaloStub.Params(halo: halo))
         let chain: [any ModuleBoxing] = [gain, haloBox]
         let hint = ROI(x: 40, y: 40, width: 24, height: 24, scale: 1.0)
         let expanded = ROI(x: 37, y: 37, width: 30, height: 30, scale: 1.0)
@@ -375,11 +375,11 @@ final class ROINegotiationTests: XCTestCase {
         let gain = ModuleBox(
             module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
             multiPriority: 0, multiName: "gain")
-        await gain.setParams(TestGainModule.Params(gain: 1.0))
+        gain.setParams(TestGainModule.Params(gain: 1.0))
         let sharpenBox = ModuleBox(
             module: ROIRecording(tag: "sharpen", recorder: recorder, inner: SharpenModule()),
             multiPriority: 0, multiName: "sharpen")
-        await sharpenBox.setParams(SharpenModule.Params(radius: 2.0, amount: 0.5, threshold: 0.5))
+        sharpenBox.setParams(SharpenModule.Params(radius: 2.0, amount: 0.5, threshold: 0.5))
         let chain: [any ModuleBoxing] = [gain, sharpenBox]
         let hint = ROI(x: 40, y: 40, width: 24, height: 24, scale: 1.0)
         let expanded = ROI(x: 34, y: 34, width: 36, height: 36, scale: 1.0)
@@ -424,7 +424,7 @@ final class ROINegotiationTests: XCTestCase {
     /// CropStub 自身 `modifyROIOut` 数学（CPU）：50% 中心窗口 + min-4px。
     func testCropStubShrinksOutputToWindow() async {
         let box = ModuleBox(module: CropStub(tag: "c", recorder: ROIRecorder()))
-        await box.setParams(CropStub.Params(cx: 0.25, cy: 0.25, cw: 0.75, ch: 0.75))
+        box.setParams(CropStub.Params(cx: 0.25, cy: 0.25, cw: 0.75, ch: 0.75))
         var out = ROI()
         box.modifyROIOutErased(
             &out, input: ROI(x: 0, y: 0, width: 64, height: 64, scale: 1.0),
@@ -447,11 +447,11 @@ final class ROINegotiationTests: XCTestCase {
         let ashift = ModuleBox(
             module: ROIRecording(tag: "ashift", recorder: recorder, inner: AshiftModule()),
             multiPriority: 0, multiName: "ashift")
-        await ashift.setParams(AshiftModule.Params(rotation: 30))
+        ashift.setParams(AshiftModule.Params(rotation: 30))
         let gain = ModuleBox(
             module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
             multiPriority: 1, multiName: "gain")
-        await gain.setParams(TestGainModule.Params(gain: 1.0))
+        gain.setParams(TestGainModule.Params(gain: 1.0))
         let chain: [any ModuleBoxing] = [ashift, gain]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -489,11 +489,11 @@ final class ROINegotiationTests: XCTestCase {
         let lens = ModuleBox(
             module: ROIRecording(tag: "lens", recorder: recorder, inner: LensModule()),
             multiPriority: 0, multiName: "lens")
-        await lens.setParams(LensModule.Params(distortionK1: -0.08, source: .manual))
+        lens.setParams(LensModule.Params(distortionK1: -0.08, source: .manual))
         let gain = ModuleBox(
             module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
             multiPriority: 1, multiName: "gain")
-        await gain.setParams(TestGainModule.Params(gain: 1.0))
+        gain.setParams(TestGainModule.Params(gain: 1.0))
         let chain: [any ModuleBoxing] = [lens, gain]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -573,25 +573,25 @@ final class ROINegotiationTests: XCTestCase {
         let gain = ModuleBox(
             module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
             multiPriority: 1, multiName: "gain")
-        await gain.setParams(TestGainModule.Params(gain: 1.0))
+        gain.setParams(TestGainModule.Params(gain: 1.0))
         let chain: [any ModuleBoxing] = [crop, gain]
         func run() async throws -> RenderPipeline.PipeRunStats {
             try await RenderPipeline.process(
                 image: image, instances: chain, imageID: imageID,
                 resolution: .preview, cache: cache, metal: metal, longEdge: nil).1
         }
-        await crop.setParams(CropModule.Params(left: 0, top: 0, right: 0.5, bottom: 0.5))
+        crop.setParams(CropModule.Params(left: 0, top: 0, right: 0.5, bottom: 0.5))
         let statsA = try await run()
         XCTAssertEqual(statsA.misses, 3)
         let bytesA = await cache.totalBytes
 
-        await crop.setParams(CropModule.Params(left: 0.5, top: 0.5, right: 1.0, bottom: 1.0))
+        crop.setParams(CropModule.Params(left: 0.5, top: 0.5, right: 1.0, bottom: 1.0))
         let statsB = try await run()
         XCTAssertGreaterThanOrEqual(statsB.misses, 2, "new window = new keys downstream")
         let bytesAfterB = await cache.totalBytes
         XCTAssertGreaterThan(bytesAfterB, bytesA, "both key groups retained")
 
-        await crop.setParams(CropModule.Params(left: 0, top: 0, right: 0.5, bottom: 0.5))
+        crop.setParams(CropModule.Params(left: 0, top: 0, right: 0.5, bottom: 0.5))
         let bytesBeforeRevert = await cache.totalBytes
         let statsBack = try await run()
         XCTAssertEqual(statsBack.hits, 1, "back-drag hits the retained line, zero work")

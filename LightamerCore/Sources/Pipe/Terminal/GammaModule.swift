@@ -51,7 +51,7 @@ public final class GammaModule: IOPModule {
         Params()
     }
 
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         // Constant (empty params) — the display change propagates through
         // the colorout `stableID` fold upstream of this module, so gamma's
         // own hash needs no display component.

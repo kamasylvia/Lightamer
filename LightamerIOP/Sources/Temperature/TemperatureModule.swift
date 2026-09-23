@@ -56,7 +56,7 @@ import simd
 ///
 /// Reference vectors for every stage are pinned in
 /// `CPUDerivationTests` (WB section) against the C harness
-/// `.work/03-02/wb_reference.c`, which computes the dt-side values from
+/// `.work/plans/03-02/wb_reference.c`, which computes the dt-side values from
 /// darktable's own table file + lcms2.
 public enum WhiteBalanceMath {
 
@@ -422,7 +422,7 @@ public final class TemperatureModule: IOPModule {
     ///
     /// `piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))`
     /// (L013: ParamsCoding.sortedKeys is the ONLY legal hash payload).
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
 

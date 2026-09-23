@@ -481,7 +481,7 @@ final class HistoryStackTests: XCTestCase {
                 }
                 box = fresh
             }
-            try await box.apply(record)
+            try box.apply(record)
             knownBoxes[record.id] = box
             boxes.append(box)
         }
@@ -575,18 +575,18 @@ final class HistoryStackTests: XCTestCase {
         guard let box = await registry.makeBox(opName: record.opName, instanceID: record.id) else {
             return XCTFail("testgain must be registered")
         }
-        try await box.apply(record)
+        try box.apply(record)
         let hashAfterFirst = box.paramsHash
         XCTAssertEqual(hashAfterFirst, record.paramsHash)
         XCTAssertEqual(box.enabled, true)
 
         // Identical bytes → no-op; enabled sync still flows through.
-        try await box.apply(record)
+        try box.apply(record)
         XCTAssertEqual(box.paramsHash, hashAfterFirst)
 
         var disabled = record
         disabled.enabled = false
-        try await box.apply(disabled)
+        try box.apply(disabled)
         XCTAssertEqual(box.enabled, false, "enabled syncs even on the fast path")
         XCTAssertEqual(box.paramsHash, hashAfterFirst, "params untouched")
     }

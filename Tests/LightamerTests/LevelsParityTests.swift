@@ -101,7 +101,7 @@ final class LevelsParityTests: XCTestCase {
         let metal = try await makeMetal()
         let module = LevelsModule()
         var piece = IOPiece()
-        await module.commitParams(
+        module.commitParams(
             LevelsModule.Params(mode: .manual, levels: [0.2, 0.5, 0.8]), into: &piece
         )
 
@@ -197,7 +197,7 @@ final class LevelsParityTests: XCTestCase {
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let levels = await registry.makeBox(opName: LevelsModule.opName)
         let levelsBox = try XCTUnwrap(levels as? ModuleBox<LevelsModule>)
-        await levelsBox.setParams(params)
+        levelsBox.setParams(params)
         let chain = [try XCTUnwrap(colorin), levelsBox]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -238,7 +238,7 @@ final class LevelsParityTests: XCTestCase {
         )
         let levels = await registry.makeBox(opName: LevelsModule.opName)
         let levelsBox = try XCTUnwrap(levels as? ModuleBox<LevelsModule>)
-        await levelsBox.setParams(.init()) // identity points
+        levelsBox.setParams(.init()) // identity points
         chain.append(levelsBox)
         chain.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 
@@ -367,7 +367,7 @@ final class LevelsParityTests: XCTestCase {
         let module = LevelsModule()
         var piece = IOPiece()
         let params = LevelsModule.Params(mode: .automatic, black: 2, gray: 50, white: 98)
-        await module.commitParams(params, into: &piece)
+        module.commitParams(params, into: &piece)
         let output = try makeStaircaseTexture(metal)
         try await module.process(
             input: texture, output: output, roiIn: ROI(), roiOut: ROI(),

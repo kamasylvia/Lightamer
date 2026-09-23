@@ -139,10 +139,10 @@ final class HighpassSoftenTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: HighpassModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<HighpassModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [box as any ModuleBoxing, colorinBox]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -226,10 +226,10 @@ final class HighpassSoftenTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: SoftenModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<SoftenModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [box as any ModuleBoxing, colorinBox]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -351,13 +351,13 @@ final class HighpassSoftenTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let hMade = await registry.makeBox(opName: HighpassModule.opName)
         let hBox = try XCTUnwrap(hMade as? ModuleBox<HighpassModule>)
-        await hBox.setParams(HighpassModule.Params())
+        hBox.setParams(HighpassModule.Params())
         XCTAssertEqual(HighpassModule.opName, "highpass")
         XCTAssertEqual(HighpassModule.iopOrder, 34.0)
         XCTAssertEqual(HighpassModule.defaultColorspace, .Lab)
         let sMade = await registry.makeBox(opName: SoftenModule.opName)
         let sBox = try XCTUnwrap(sMade as? ModuleBox<SoftenModule>)
-        await sBox.setParams(SoftenModule.Params())
+        sBox.setParams(SoftenModule.Params())
         XCTAssertEqual(SoftenModule.opName, "soften")
         XCTAssertEqual(SoftenModule.iopOrder, 66.0)
         XCTAssertEqual(SoftenModule.defaultColorspace, .RGB)

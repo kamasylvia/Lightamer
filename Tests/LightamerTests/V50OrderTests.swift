@@ -101,4 +101,54 @@ final class V50OrderTests: XCTestCase {
         XCTAssertLessThan(SharpenModule.iopOrder, LocalContrastModule.iopOrder)
         XCTAssertLessThan(LocalContrastModule.iopOrder, SoftenModule.iopOrder)
     }
+
+    /// 05-02: colorbalancergb 41.5 — after colorbalance (41.0), before
+    /// rgbcurve (42.0); module statics AND the table agree.
+    func testColorBalanceRGBSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "colorbalancergb"), 41.5)
+        XCTAssertEqual(ColorBalanceRGBModule.iopOrder, 41.5)
+        XCTAssertLessThan(V50Order.order(for: "colorbalance")!, V50Order.order(for: "colorbalancergb")!)
+        XCTAssertLessThan(V50Order.order(for: "colorbalancergb")!, V50Order.order(for: "rgbcurve")!)
+    }
+
+    /// 05-03: channelmixerrgb 28.5 — immediately after colorin (28.0),
+    /// before nlmeans (29.0); module statics AND the table agree. The 28.5
+    /// cluster tie-break is covered by SidecarTieBreakTests.
+    func testChannelMixerRGBSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "channelmixerrgb"), 28.5)
+        XCTAssertEqual(ChannelMixerRGBModule.iopOrder, 28.5)
+        XCTAssertLessThan(V50Order.order(for: "colorin")!, V50Order.order(for: "channelmixerrgb")!)
+        XCTAssertLessThan(V50Order.order(for: "channelmixerrgb")!, V50Order.order(for: "nlmeans")!)
+    }
+
+    /// 05-06: nlmeans 29.0 — immediately after colorin (28.0; Lab needs
+    /// calibrated color, iop_order.c note), before colorchecker (30.0);
+    /// module statics AND the table agree.
+    func testNLMeansSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "nlmeans"), 29.0)
+        XCTAssertEqual(NLMeansModule.iopOrder, 29.0)
+        XCTAssertLessThan(V50Order.order(for: "colorin")!, V50Order.order(for: "nlmeans")!)
+        XCTAssertLessThan(V50Order.order(for: "nlmeans")!, V50Order.order(for: "colorchecker")!)
+    }
+
+    /// 05-04: velvia 57.0 → vibrance 58.0 → colorzones 60.0; module statics
+    /// AND the table agree.
+    func testVelviaVibranceColorZonesSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "velvia"), 57.0)
+        XCTAssertEqual(VelviaModule.iopOrder, 57.0)
+        XCTAssertEqual(V50Order.order(for: "vibrance"), 58.0)
+        XCTAssertEqual(VibranceModule.iopOrder, 58.0)
+        XCTAssertLessThan(V50Order.order(for: "colorcontrast")!, V50Order.order(for: "velvia")!)
+        XCTAssertLessThan(V50Order.order(for: "velvia")!, V50Order.order(for: "vibrance")!)
+    }
+
+    /// 05-08: bilateral 10.0 — after denoiseprofile (9.0, the first
+    /// post-demosaic RGB slot), before exposure-era slots; module statics
+    /// AND the table agree.
+    func testBilateralSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "bilateral"), 10.0)
+        XCTAssertEqual(BilateralModule.iopOrder, 10.0)
+        XCTAssertLessThan(V50Order.order(for: "denoiseprofile")!, V50Order.order(for: "bilateral")!)
+        XCTAssertLessThan(V50Order.order(for: "bilateral")!, V50Order.order(for: "exposure")!)
+    }
 }

@@ -9,9 +9,10 @@ using namespace metal;
 //   idx = (x + sizeX * y) * sizeZ + z。
 // sigma 以 uniforms 传入（grid_size 已由 Swift 侧定）。
 //
-// splat 原子散射：HistogramReduce 同模式——device atomic_uint 累加
-// （MSL 无 float 原子；以 float32 位模式经 atomic_uint 加——整数加即位模式
-// 加，值域内精确；大网格累加量级 < 2^24 无舍入漂移，见 DECISIONS D-05-01-T7）。
+// splat 原子散射：device atomic_float 累加（05-05 monochrome 首个 GPU 消费
+// 者钉住：05-01 的位模式 atomic_uint 整数加 ≠ float 加，数值错误——改用
+// atomic_float 直接累加；xcrun metal 编译通过，M4 运行时验证见 05-05-DECISIONS
+// D4；HistogramReduce 的整型直方图仍走 atomic_uint，不受影响）。
 // 每像素散射 `contrib = 100/σ_s²` 缩放的 trilinear 权重（dt 对偶）。
 //
 // blur_line / blur_line_z：bilateral.cl 逐行直译（out-of-place 双缓冲——
@@ -29,13 +30,10 @@ struct BilateralGridUniforms {
     int height;
 };
 
-static inline uint f2u(float v) { return as_type<uint>(v); }
-static inline float u2f(uint v) { return as_type<float>(v); }
-
-// splat：每像素 (L, 1) trilinear 散射到 payload/weight（原子加）。
+// splat：每像素 trilinear 散射到 grid（atomic_float 加）。
 kernel void bilateral3d_splat(
     texture2d<float, access::read> in [[texture(0)]],
-    device atomic_uint*            grid [[buffer(0)]],
+    device atomic_float*           grid [[buffer(0)]],
     constant BilateralGridUniforms& u [[buffer(1)]],
     uint2 gid [[thread_position_in_grid]])
 {
@@ -52,16 +50,18 @@ kernel void bilateral3d_splat(
     const float fz = gz - (float)zi;
     const float contrib = 100.0f / (u.sigmaS * u.sigmaS);
     const int base = (xi + u.sizeX * yi) * u.sizeZ + zi;
-    const int ox = 1, oy = u.sizeX, oz = u.sizeX * u.sizeY;
+    // dt CPU strides（bilateral.c:204-206: ox=size_z, oy=size_x*size_z,
+    // oz=1；05-01 初版误用 CL x-minor 步长，05-05-T3 非立方网格暴露）。
+    const int ox = u.sizeZ, oy = u.sizeX * u.sizeZ, oz = 1;
     const float qw[4] = {
         (1-fx)*(1-fy), fx*(1-fy),
         (1-fx)*fy,     fx*fy,
     };
     const int qoffs[4] = { 0, ox, oy, oy+ox };
     for (int k = 0; k < 4; k++) {
-        // 加权计数 += w × (1−fz)/fz × contrib ——位模式原子加（值域内精确）。
-        atomic_fetch_add_explicit(grid + base + qoffs[k], f2u(qw[k] * (1-fz) * contrib), memory_order_relaxed);
-        atomic_fetch_add_explicit(grid + base + qoffs[k] + oz, f2u(qw[k] * fz * contrib), memory_order_relaxed);
+        // 加权计数 += w × (1−fz)/fz × contrib ——float 原子加（dt 对偶）。
+        atomic_fetch_add_explicit(grid + base + qoffs[k], qw[k] * (1-fz) * contrib, memory_order_relaxed);
+        atomic_fetch_add_explicit(grid + base + qoffs[k] + oz, qw[k] * fz * contrib, memory_order_relaxed);
     }
 }
 
@@ -173,7 +173,8 @@ kernel void bilateral3d_slice(
     const float fy = gy - (float)yi;
     const float fz = gz - (float)zi;
     const int base = (xi + u.sizeX * yi) * u.sizeZ + zi;
-    const int ox = 1, oy = u.sizeX, oz = u.sizeX * u.sizeY;
+    // dt CPU strides（同 splat 注释；dt slice_to_output :261-263 对偶）。
+    const int ox = u.sizeZ, oy = u.sizeX * u.sizeZ, oz = 1;
     const int offs[8] = { 0, ox, oy, oy+ox, oz, oz+ox, oz+oy, oz+oy+ox };
     const float ws[8] = {
         (1-fx)*(1-fy)*(1-fz), fx*(1-fy)*(1-fz),

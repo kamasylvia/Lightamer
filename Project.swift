@@ -142,7 +142,7 @@ let project = Project(
             deploymentTargets: .macOS("27.0"),
             infoPlist: .default,
             sources: ["Tests/LightamerTests/**"],
-            resources: ["Resources/TestFixtures/**"], // Plan 06: raster fixtures ride in the test bundle (Bundle(for:) access); the ~1.2 GB RAW camera samples stay untracked in .work/01-05/samples/ and are located by path (see Fixtures.swift)
+            resources: ["Resources/TestFixtures/**"], // Plan 06: raster fixtures ride in the test bundle (Bundle(for:) access); the ~1.2 GB RAW camera samples stay untracked in .work/plans/01-05/samples/ and are located by path (see Fixtures.swift)
             dependencies: [
                 .target(name: "LightamerCore"),
                 .target(name: "LightamerIOP"),

@@ -40,8 +40,8 @@ final class MultiResolutionTests: XCTestCase {
         // legs so per-resolution caching policy is actually observable.
         let gain = ModuleBox(module: TestGainModule(), multiPriority: 0, multiName: "g")
         let pass = ModuleBox(module: PassthroughModule(), multiPriority: 1, multiName: "p")
-        await gain.setParams(TestGainModule.Params(gain: 1.0))
-        await pass.setParams(PassthroughModule.Params())
+        gain.setParams(TestGainModule.Params(gain: 1.0))
+        pass.setParams(PassthroughModule.Params())
         return [gain, pass]
     }
 

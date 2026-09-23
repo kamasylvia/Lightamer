@@ -120,7 +120,7 @@ public final class CropModule: IOPModule {
 
     /// dt `commit_params` (`:635-654`): clamp fractions into range, park
     /// the working copy, hash the RAW params (divergence #1 — D-H4).
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         committed = Self.clamp(params)
         piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         piece.data = nil // window copy needs no uniforms

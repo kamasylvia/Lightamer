@@ -136,10 +136,10 @@ final class SharpenParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
-        await colorinBox.setParams(.init())
+        colorinBox.setParams(.init())
         let made = await registry.makeBox(opName: SharpenModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<SharpenModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [box as any ModuleBoxing, colorinBox]
         let (texture, _) = try await RenderPipeline.process(
             image: image, instances: chain, imageID: UUID(),
@@ -231,7 +231,7 @@ final class SharpenParityTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let made = await registry.makeBox(opName: SharpenModule.opName)
         let box = try XCTUnwrap(made as? ModuleBox<SharpenModule>)
-        await box.setParams(SharpenModule.Params())
+        box.setParams(SharpenModule.Params())
         XCTAssertEqual(SharpenModule.opName, "sharpen")
         XCTAssertEqual(SharpenModule.iopOrder, 35.0)
         XCTAssertEqual(SharpenModule.defaultColorspace, .Lab)

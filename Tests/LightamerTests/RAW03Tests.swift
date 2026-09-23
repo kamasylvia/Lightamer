@@ -144,11 +144,11 @@ final class RAW03Tests: XCTestCase {
         try await metal.registerDefaultLibrary(in: TestGainKernel.metalBundle)
 
         let colorin = ModuleBox(module: ColorInModule(), instanceID: UUID())
-        await colorin.setParams(.init())
+        colorin.setParams(.init())
         let gain = ModuleBox(module: TestGainModule(), instanceID: UUID())
-        await gain.setParams(.init(gain: 1.0)) // identity gain
+        gain.setParams(.init(gain: 1.0)) // identity gain
         let colorout = ModuleBox(module: ColorOutModule(), instanceID: UUID())
-        await colorout.setParams(.init(outputProfile: .displayP3)) // fast path: no CI race leg
+        colorout.setParams(.init(outputProfile: .displayP3)) // fast path: no CI race leg
 
         let (plane, _) = try await RenderPipeline.process(
             image: decoded, instances: [colorin, gain, colorout], imageID: UUID(),
@@ -177,7 +177,7 @@ final class RAW03Tests: XCTestCase {
         for box in chain {
             if let colorout = box as? ModuleBox<ColorOutModule> {
                 colorout.module.displayProfileOverride = .sRGB // deterministic fast path
-                await colorout.setParams(.init(outputProfile: .sRGB))
+                colorout.setParams(.init(outputProfile: .sRGB))
             }
         }
 

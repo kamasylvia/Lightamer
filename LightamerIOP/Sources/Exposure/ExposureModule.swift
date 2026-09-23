@@ -136,7 +136,7 @@ public final class ExposureModule: IOPModule {
     ///
     /// `piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))`
     /// (L013: ParamsCoding.sortedKeys is the ONLY legal hash payload).
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         let encoded = ParamsCoding.encode(params)
         piece.paramsHash = StableHash.hash(encoded)
 

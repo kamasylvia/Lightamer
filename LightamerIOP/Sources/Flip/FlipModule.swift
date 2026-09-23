@@ -193,7 +193,7 @@ public final class FlipModule: IOPModule {
     /// `.auto`); a persisted `.auto` falls back to identity — pipe-time
     /// EXIF resolution for hand-built records is future load-path wiring,
     /// not silent wrongness. Hashes the RAW params (D-H4).
-    public func commitParams(_ params: Params, into piece: inout IOPiece) async {
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
         committed = params.orientation == .auto ? .none : params.orientation
         piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         piece.data = nil // orientation rides a setBytes uniform, not a buffer

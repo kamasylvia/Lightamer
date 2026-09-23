@@ -156,7 +156,7 @@ final class ToneEqualParityTests: XCTestCase {
         let colorin = try XCTUnwrap(maybeColorin)
         let maybeBox = await registry.makeBox(opName: ToneEqualModule.opName)
         let box = try XCTUnwrap(maybeBox as? ModuleBox<ToneEqualModule>)
-        await box.setParams(params)
+        box.setParams(params)
         let chain = [colorin, box]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -197,7 +197,7 @@ final class ToneEqualParityTests: XCTestCase {
         )
         let maybeBox = await registry.makeBox(opName: ToneEqualModule.opName)
         let box = try XCTUnwrap(maybeBox as? ModuleBox<ToneEqualModule>)
-        await box.setParams(.init()) // dt defaults (EIGF, all bands 0)
+        box.setParams(.init()) // dt defaults (EIGF, all bands 0)
         chain.append(box)
         chain.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 

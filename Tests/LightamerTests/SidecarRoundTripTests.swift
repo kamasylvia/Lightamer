@@ -544,7 +544,7 @@ extension SidecarRoundTripTests {
                 continue
             }
             do {
-                try await box.apply(record)
+                try box.apply(record)
             } catch {
                 XCTFail("apply failed for \(record.opName): \(error)")
             }

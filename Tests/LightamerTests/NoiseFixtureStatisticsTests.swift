@@ -125,12 +125,13 @@ final class NoiseFixtureStatisticsTests: XCTestCase {
             try requireGolden("fixtures/hue_sweep.exr"))
         XCTAssertEqual(sweep.width, 360)
         XCTAssertEqual(sweep.height, 64)
-        // 首列 H=0 → 纯红；180 列 H=0.5 → 青。
+        // 首列 H=0 → 红（05-04 PEDELTA：S=0.999，非 1.0 — 最小通道 0.001，
+        // 相对度量良态；hue 环覆盖不变）；180 列 H=0.5 → 青。
         compared += 1
         XCTAssertEqual(Double(sweep.rgb[0]), 1.0, accuracy: 1e-6, "sweep 首列 R")
-        XCTAssertEqual(Double(sweep.rgb[1]), 0.0, accuracy: 1e-6, "sweep 首列 G")
+        XCTAssertEqual(Double(sweep.rgb[1]), 0.001, accuracy: 1e-6, "sweep 首列 G")
         let cyan = 180 * 3
-        XCTAssertEqual(Double(sweep.rgb[cyan]), 0.0, accuracy: 1e-6, "sweep 180 列 R")
+        XCTAssertEqual(Double(sweep.rgb[cyan]), 0.001, accuracy: 1e-6, "sweep 180 列 R")
         XCTAssertEqual(Double(sweep.rgb[cyan + 2]), 1.0, accuracy: 1e-6, "sweep 180 列 B")
 
         let delta = try GoldenParityTests.UncompressedEXR.load(

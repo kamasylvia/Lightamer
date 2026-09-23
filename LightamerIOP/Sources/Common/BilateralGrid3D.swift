@@ -139,7 +139,10 @@ public enum BilateralGridReference {
             for i in 0..<width {
                 let l = luma[j * width + i]
                 let (gi, fx, fy, fz) = gridPoint(grid, i: i, j: j, l: l)
-                let ox = 1, oy = grid.sizeX, oz = grid.sizeX * grid.sizeY
+                // dt CPU strides (bilateral.c:204-206: ox=size_z, oy=size_x*size_z,
+                // oz=1 — base idx=(xi+yi*sizeX)*sizeZ+zi 的 z-minor 布局；
+                // 05-01 初版误用 CL 腿 x-minor 步长，05-05-T3 非立方网格暴露。
+                let ox = grid.sizeZ, oy = grid.sizeX * grid.sizeZ, oz = 1
                 let quad = [
                     (0, (1 - fx) * (1 - fy)),
                     (ox, fx * (1 - fy)),
@@ -255,7 +258,8 @@ public enum BilateralGridReference {
         _ grid: Grid, luma: [Double], width: Int, height: Int, detail: Double = -1
     ) -> [Double] {
         let norm = -detail * grid.sigmaR * 0.04
-        let ox = 1, oy = grid.sizeX, oz = grid.sizeX * grid.sizeY
+        // dt CPU strides（同 splat 注释；dt slice :405-407）。
+        let ox = grid.sizeZ, oy = grid.sizeX * grid.sizeZ, oz = 1
         var out = [Double](repeating: 0, count: width * height)
         for j in 0..<height {
             for i in 0..<width {

@@ -436,7 +436,7 @@ final class GoldenParityTests: XCTestCase {
         let colorin = await registry.makeBox(opName: ColorInModule.opName)
         let exposure = await registry.makeBox(opName: ExposureModule.opName)
         let exposureBox = try XCTUnwrap(exposure as? ModuleBox<ExposureModule>, "exposure must be registered")
-        await exposureBox.setParams(params)
+        exposureBox.setParams(params)
         let chain = [try XCTUnwrap(colorin), exposureBox]
 
         let (texture, _) = try await RenderPipeline.process(
@@ -462,14 +462,14 @@ final class GoldenParityTests: XCTestCase {
         return UncompressedEXR(width: texture.width, height: texture.height, rgb: rgb)
     }
 
-    // MARK: - Failure dump (Plan T3: diff table + EXR dump to .work/03-01/)
+    // MARK: - Failure dump (Plan T3: diff table + EXR dump to .work/plans/03-01/)
 
     private func dumpFailure(tag: String, detail: String) {
         let dir = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent(".work/03-01", isDirectory: true)
+            .appendingPathComponent(".work/plans/03-01", isDirectory: true)
             .appendingPathComponent("parity-dump-\(Int(Date().timeIntervalSince1970))-\(tag)", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try? detail.write(to: dir.appendingPathComponent("diff-table.txt"), atomically: true, encoding: .utf8)
@@ -489,7 +489,7 @@ final class GoldenParityTests: XCTestCase {
         )
         let exposure = await registry.makeBox(opName: ExposureModule.opName)
         let exposureBox = try XCTUnwrap(exposure as? ModuleBox<ExposureModule>)
-        await exposureBox.setParams(.init()) // default = identity passthrough
+        exposureBox.setParams(.init()) // default = identity passthrough
         chain.append(exposureBox)
         return chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
@@ -659,7 +659,7 @@ final class GoldenParityTests: XCTestCase {
         let metal = try await makeMetal()
         let module = ExposureModule()
         var piece = IOPiece()
-        await module.commitParams(ExposureModule.Params(exposure: 1.0), into: &piece)
+        module.commitParams(ExposureModule.Params(exposure: 1.0), into: &piece)
 
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .rgba32Float, width: 4, height: 4, mipmapped: false

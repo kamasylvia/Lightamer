@@ -82,6 +82,24 @@ final class InspectorState {
         register(HighpassPanelProvider())
         register(SoftenPanelProvider())
         register(EqualizerPanelProvider())
+        // Plan 05-02-T4: colorbalancergb (4-way hue discs + lane groups).
+        register(ColorBalanceRGBPanelProvider())
+        // Plan 05-03-T5: channelmixerrgb + channelmixer legacy + colorcontrast.
+        register(ChannelMixerRGBPanelProvider())
+        register(ChannelMixerPanelProvider())
+        register(ColorContrastPanelProvider())
+        // Plan 05-04-T4: vibrance + velvia + colorzones (L/C/h tabs).
+        register(VibrancePanelProvider())
+        register(VelviaPanelProvider())
+        register(ColorZonesPanelProvider())
+        // Plan 05-05-T4: monochrome (Lab chroma wheel + size/highlights).
+        register(MonochromePanelProvider())
+        // Plan 05-06-T5: nlmeans (astrophoto denoise — 4 sliders).
+        register(NLMeansPanelProvider())
+        // Plan 05-07-T6: denoiseprofile (mode/profile/force-curve panel).
+        register(DenoiseProfilePanelProvider())
+        // Plan 05-08-T4: bilateral (surface blur — radius + 3 sigma sliders).
+        register(BilateralPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()
