@@ -28,104 +28,105 @@ Compile options:
 See https://www.darktable.org/resources/ for detailed documentation.
 See https://github.com/darktable-org/darktable/issues/new/choose to report bugs.
 
-     0.3887 [iop_load_module] failed to open `colorzones': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorzones.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
+     0.3616 [iop_load_module] failed to open `colorzones': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorzones.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
   Referenced from: <E17FDA64-B1E7-387A-AA7A-53B805E9AD7A> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorzones.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.4680 [iop_load_module] failed to open `filmic': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libfilmic.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
+     0.4421 [iop_load_module] failed to open `filmic': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libfilmic.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
   Referenced from: <E2C3F1F7-BE08-3847-9B89-0FE7940365FE> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libfilmic.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.4951 [iop_load_module] failed to open `colormapping': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolormapping.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
+     0.4690 [iop_load_module] failed to open `colormapping': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolormapping.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
   Referenced from: <D0E90B9D-B006-34F7-8BDE-A68EFE81AE00> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolormapping.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.5123 [iop_load_module] failed to open `rawoverexposed': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librawoverexposed.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
+     0.4866 [iop_load_module] failed to open `rawoverexposed': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librawoverexposed.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
   Referenced from: <EF49061D-7469-34B6-A70F-DDD29B7F6495> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librawoverexposed.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.5716 [iop_load_module] failed to open `hazeremoval': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libhazeremoval.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
+     0.5447 [iop_load_module] failed to open `hazeremoval': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libhazeremoval.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
   Referenced from: <DB74325A-B1F4-3BC1-91DF-999A66617853> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libhazeremoval.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.5721 [iop_load_module] failed to open `highlights': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libhighlights.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
+     0.5451 [iop_load_module] failed to open `highlights': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libhighlights.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
   Referenced from: <CD83ADB5-8884-3CD0-9A28-7528A63B6EDC> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libhighlights.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.5825 [iop_load_module] failed to open `lowlight': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/liblowlight.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
+     0.5554 [iop_load_module] failed to open `lowlight': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/liblowlight.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
   Referenced from: <CED414B4-BE1F-3D6D-9511-C482F0ADE09B> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/liblowlight.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.6100 [iop_load_module] failed to open `lowpass': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/liblowpass.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
+     0.5830 [iop_load_module] failed to open `lowpass': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/liblowpass.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
   Referenced from: <42A669BD-254B-3A71-8B4D-FBD164230ACA> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/liblowpass.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.6779 [iop_load_module] failed to open `rgbcurve': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librgbcurve.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
+     0.6513 [iop_load_module] failed to open `rgbcurve': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librgbcurve.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
   Referenced from: <AD03EF2D-7D48-3AB6-92F0-401B05B66246> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librgbcurve.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.7295 [iop_load_module] failed to open `colorharmonizer': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorharmonizer.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
+     0.7035 [iop_load_module] failed to open `colorharmonizer': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorharmonizer.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
   Referenced from: <CB8A5F3E-813F-34AE-80C0-E01346ED5DAC> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorharmonizer.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.7845 [iop_load_module] failed to open `colorin': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorin.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
+     0.7602 [iop_load_module] failed to open `colorin': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorin.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
   Referenced from: <954171D3-E01A-3AFC-8DFF-D8661274FF78> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorin.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.8237 [iop_load_module] failed to open `ashift': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libashift.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
+     0.8011 [iop_load_module] failed to open `ashift': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libashift.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
   Referenced from: <B0CA7D9A-9FB3-3A2C-BA66-BBD48CBA5C25> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libashift.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.8449 [iop_load_module] failed to open `profile_gamma': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libprofile_gamma.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
+     0.8231 [iop_load_module] failed to open `profile_gamma': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libprofile_gamma.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
   Referenced from: <988C26AB-B9F5-3565-81EE-4A8359E6F313> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libprofile_gamma.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.8453 [iop_load_module] failed to open `colorout': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorout.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
+     0.8236 [iop_load_module] failed to open `colorout': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorout.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
   Referenced from: <727E07D6-E214-3885-A084-63E5485AD243> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libcolorout.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.8845 [iop_load_module] failed to open `rawprepare': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librawprepare.so, 0x0005): Symbol not found: _dt_opencl_write_host_to_device
+     0.8642 [iop_load_module] failed to open `rawprepare': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librawprepare.so, 0x0005): Symbol not found: _dt_opencl_write_host_to_device
   Referenced from: <8C47E2C2-1C0A-3229-910E-35C0DEE390D3> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librawprepare.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.8849 [iop_load_module] failed to open `rgblevels': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librgblevels.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
+     0.8647 [iop_load_module] failed to open `rgblevels': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librgblevels.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
   Referenced from: <56563DFA-7754-3A52-AE8D-CE145F1EB34B> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/librgblevels.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.8853 [iop_load_module] failed to open `demosaic': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libdemosaic.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
+     0.8651 [iop_load_module] failed to open `demosaic': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libdemosaic.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
   Referenced from: <1FEA341D-D32A-3E07-BC7D-8D6ED6AD297B> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libdemosaic.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     0.8858 [iop_load_module] failed to open `basicadj': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libbasicadj.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
+     0.8656 [iop_load_module] failed to open `basicadj': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libbasicadj.so, 0x0005): Symbol not found: _dt_opencl_copy_device_to_host
   Referenced from: <E15D02D9-72EE-3681-8519-6510F058B3E6> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libbasicadj.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     1.1261 [iop_load_module] failed to open `basecurve': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libbasecurve.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
+     1.1064 [iop_load_module] failed to open `basecurve': dlopen(/Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libbasecurve.so, 0x0005): Symbol not found: _dt_opencl_copy_host_to_device
   Referenced from: <5A7B191C-C865-3425-965A-0DBCECB957D6> /Volumes/UNITEK/Documents/Development/darktable/build/lib/darktable/plugins/libbasecurve.so
   Expected in:     <AEB66A46-B14F-3409-8B16-72AC40887D93> /Volumes/UNITEK/Documents/Development/darktable/build/bin/libdarktable.dylib
-     1.1528 [dt_dev_read_history_ext] temporary history deleted
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for filmicrgb
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for agx
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for colorequal
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for channelmixerrgb
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for crop
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for exposure
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for retouch
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for clipping
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for overlay
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for flip
-     1.1528 [dt_iop_reload_defaults] defaults reloaded for cacorrectrgb
-     1.1529 [dt_iop_reload_defaults] defaults reloaded for lens
-     1.1529 [dt_iop_reload_defaults] defaults reloaded for rotatepixels
-     1.1529 [dt_iop_reload_defaults] defaults reloaded for denoiseprofile
-     1.1529 [dt_iop_reload_defaults] defaults reloaded for rawdenoise
-     1.1529 [dt_iop_reload_defaults] defaults reloaded for hotpixels
-     1.1529 [dt_iop_reload_defaults] defaults reloaded for cacorrect
-     1.1529 [dt_iop_reload_defaults] defaults reloaded for rasterfile
-     1.1529 [dt_iop_reload_defaults] scene=YES, modern=YES, CAT=NO. D65 1.000 1.000 1.000, AS-SHOT 1.000 1.000 1.000
-     1.1529 [dt_iop_reload_defaults] defaults reloaded for temperature
-     1.1529 [dt_iop_reload_defaults] defaults reloaded for invert
-     1.1533 [dev_insert_module] `gamma' inserted to history
-     1.1534 [dev_insert_module] `flip' inserted to history
-     1.1539 [dt_dev_read_history_ext] temporary history initialised with default params and presets
-     1.1540 [dt_dev_read_history_ext] temporary history merged with image history
-     1.1540 [history] successfully loaded module gamma from history
+     1.1280 [exiv2 dt_exif_read] /Volumes/UNITEK/Documents/Development/Lightamer/input/golden/fixtures/flat_0ev.exr: /Volumes/UNITEK/Documents/Development/Lightamer/input/golden/fixtures/flat_0ev.exr: The file contains data of an unknown image type
+     1.1341 [dt_dev_read_history_ext] temporary history deleted
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for filmicrgb
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for agx
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for colorequal
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for channelmixerrgb
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for crop
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for exposure
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for retouch
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for clipping
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for overlay
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for flip
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for cacorrectrgb
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for lens
+     1.1341 [dt_iop_reload_defaults] defaults reloaded for rotatepixels
+     1.1342 [dt_iop_reload_defaults] defaults reloaded for denoiseprofile
+     1.1342 [dt_iop_reload_defaults] defaults reloaded for rawdenoise
+     1.1342 [dt_iop_reload_defaults] defaults reloaded for hotpixels
+     1.1342 [dt_iop_reload_defaults] defaults reloaded for cacorrect
+     1.1342 [dt_iop_reload_defaults] defaults reloaded for rasterfile
+     1.1342 [dt_iop_reload_defaults] scene=YES, modern=YES, CAT=NO. D65 1.000 1.000 1.000, AS-SHOT 1.000 1.000 1.000
+     1.1342 [dt_iop_reload_defaults] defaults reloaded for temperature
+     1.1342 [dt_iop_reload_defaults] defaults reloaded for invert
+     1.1346 [dev_insert_module] `gamma' inserted to history
+     1.1347 [dev_insert_module] `flip' inserted to history
+     1.1351 [dt_dev_read_history_ext] temporary history initialised with default params and presets
+     1.1352 [dt_dev_read_history_ext] temporary history merged with image history
+     1.1353 [history] successfully loaded module gamma from history
 			blendop v. 0:	version WRONG	params WRONG
 			params v. 1:	version ok	params ok
-     1.1540 [history] successfully loaded module flip from history
+     1.1353 [history] successfully loaded module flip from history
 			blendop v. 0:	version WRONG	params WRONG
 			params v. 2:	version ok	params ok
-     1.1540 [history] successfully loaded module exposure from history
+     1.1353 [history] successfully loaded module exposure from history
 			blendop v. 14:	version ok	params ok
 			params v. 7:	version ok	params ok
-     1.1544 synch all module defaults     [export]                                      
-     1.1553 [crop] commit ratio_d=-1 ratio_n=-1
-     1.1553 [commit color calibration]  temp=5003  xy=0.3457 0.3586 - XYZ=0.9639 1.0000 0.8247 - LMS=0.9945 1.0010 0.8330  DT_ILLUMINANT_D
-     1.1574 synch all module history      [export]                                      
-     1.1574 committed                     [export]         gamma                  9300  enabled  piece hash=4368caea36401da7
-     1.1574 committed                     [export]         flip                   1900  disabled piece hash=0
-     1.1574 committed                     [export]         exposure               2600  enabled  piece hash=da843d4dc1bb54c2
-     1.1574 synch all modules done        [export]                                      defaults 0.0029s, history 0.0000s
-     1.1579 [export_job] exported to `la-blend-run/probe/blend_hardlight_op25.pfm'
+     1.1357 synch all module defaults     [export]                                      
+     1.1365 [crop] commit ratio_d=-1 ratio_n=-1
+     1.1365 [commit color calibration]  temp=5003  xy=0.3457 0.3586 - XYZ=0.9639 1.0000 0.8247 - LMS=0.9945 1.0010 0.8330  DT_ILLUMINANT_D
+     1.1385 synch all module history      [export]                                      
+     1.1385 committed                     [export]         gamma                  9300  enabled  piece hash=4368caea36401da7
+     1.1385 committed                     [export]         flip                   1900  disabled piece hash=0
+     1.1386 committed                     [export]         exposure               2600  enabled  piece hash=da843d4dc1bb54c2
+     1.1386 synch all modules done        [export]                                      defaults 0.0028s, history 0.0000s
+     1.1389 [export_job] exported to `/Volumes/UNITEK/Documents/Development/Lightamer/input/golden/output/pfm_blend/blend_hardlight_op25.pfm'
