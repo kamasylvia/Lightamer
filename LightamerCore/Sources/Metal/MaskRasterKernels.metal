@@ -288,12 +288,12 @@ kernel void mask_overlay_display(
     texture2d<float, access::read> display [[texture(0)]],
     texture2d<float, access::read> mask [[texture(1)]],
     texture2d<float, access::write> out [[texture(2)]],
-    constant float4 &params [[buffer(0)]],   // strength, 0, 0, 0
+    constant float4 &params [[buffer(0)]],   // strength, tint.r, tint.g, tint.b
     uint2 gid [[thread_position_in_grid]])
 {
     if (gid.x >= (uint)out.get_width() || gid.y >= (uint)out.get_height()) { return; }
     float4 c = display.read(gid);
     float m = clamp(mask.read(gid).r, 0.0, 1.0) * params.x;
-    c.rgb = mix(c.rgb, float3(1.0, 1.0, 0.0), m);
+    c.rgb = mix(c.rgb, params.yzw, m);
     out.write(c, gid);
 }

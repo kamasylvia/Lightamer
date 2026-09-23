@@ -506,6 +506,47 @@ public enum DrawnMaskRasterizer {
         }
     }
 
+    // MARK: - Display leg (T7; dt blendop_display_channel semantics)
+
+    /// Tint a display plane where the mask plane is set (the dt
+    /// `blendop_display_channel` leg, blendop.cl:1474+): a fresh COPY is
+    /// returned — the cached display plane is never mutated (write-once
+    /// contract). `tint` is in the DISPLAY TEXTURE's own channel order
+    /// (a .bgra8Unorm display plane takes (0, 1, 1) for yellow: B and G
+    /// channels up, R down). The UI toggle + selected-layer routing land
+    /// in 6-5; this is the render leg.
+    public static func overlay(
+        display: sending any MTLTexture,
+        mask: sending any MTLTexture,
+        strength: Float,
+        tint: SIMD3<Float>,
+        metal: MetalContext
+    ) async throws -> sending any MTLTexture {
+        precondition(
+            display.width == mask.width && display.height == mask.height,
+            "overlay: mask plane \\(mask.width)x\\(mask.height) != display \\(display.width)x\\(display.height)")
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: display.pixelFormat, width: display.width,
+            height: display.height, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        guard let output = metal.device.makeTexture(descriptor: d) else {
+            throw MetalError.bufferAllocationFailed(display.width * display.height * 4)
+        }
+        var params = SIMD4<Float>(strength, tint.x, tint.y, tint.z)
+        let session = try await metal.makeEncoder(functionName: "mask_overlay_display")
+        session.encoder.setTexture(display, index: 0)
+        session.encoder.setTexture(mask, index: 1)
+        session.encoder.setTexture(output, index: 2)
+        session.encoder.setBytes(&params, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: output.width, height: output.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+        return output
+    }
+
     // MARK: - Fold (saturate + premultiply)
 
     private static func fold(

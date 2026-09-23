@@ -1063,6 +1063,54 @@ final class PipeCoordinator {
 
     // ── The single PREVIEW render path (D-X1 producer) ───────────────────
 
+    #if DEBUG
+    /// Plan 06-03 T7 GUI probe (`-la_mask_overlay_probe`): tints the display
+    /// plane yellow where a seeded adjustment layer's drawn mask is set —
+    /// the 6-3 render leg of the「显示蒙版」state (the UI toggle + selected-
+    /// layer routing land in 6-5). Read-only with respect to user state:
+    /// the probe layer lives in a static (never in EditorState.layerStack).
+    nonisolated static let maskOverlayProbeArmed = ProcessInfo.processInfo
+        .arguments.contains("-la_mask_overlay_probe")
+
+    private static let maskOverlayProbeLayerID = UUID(
+        uuidString: "06030603-0603-0603-0603-060306030603")!
+    private static let maskOverlayProbeSpec = MaskSpec(drawn: DrawnMaskSpec(forms: [
+        MaskForm(kind: .brush(BrushStroke(
+            points: [
+                BrushPoint(
+                    corner: MaskPoint(x: 0.35, y: 0.45),
+                    ctrl1: MaskPoint(x: 0.42, y: 0.35),
+                    ctrl2: MaskPoint(x: 0.5, y: 0.45)),
+                BrushPoint(
+                    corner: MaskPoint(x: 0.65, y: 0.55),
+                    ctrl1: MaskPoint(x: 0.58, y: 0.65),
+                    ctrl2: MaskPoint(x: 0.5, y: 0.55)),
+            ],
+            radius: 0.09, hardness: 0.7, density: 1.0, opacity: 1.0))),
+    ]))
+
+    /// Tint the PREVIEW display plane with the probe mask (bgra8 display
+    /// order: (0,1,1) = yellow on screen).
+    nonisolated private func applyMaskOverlayProbe(
+        base: sending any MTLTexture, metal: MetalContext, cache: PipeCache
+    ) async throws -> sending any MTLTexture {
+        // The probe runs identity geometry (the default chain carries no
+        // geometric module) at the display plane's own frame — the mask
+        // coordinate system IS the display frame here.
+        let mapper = GeometryPointMapper.compose(
+            boxes: [], frameSize: SIMD2(Double(base.width), Double(base.height)))
+        let maskPlane = try await DrawnMaskRasterizer.plane(
+            spec: Self.maskOverlayProbeSpec, layerOpacity: 1.0,
+            window: ROI(x: 0, y: 0, width: base.width, height: base.height, scale: 1.0),
+            mapper: mapper, metal: metal, cache: cache,
+            imageID: currentImageID ?? UUID(), pipeType: .preview,
+            layerID: Self.maskOverlayProbeLayerID).plane
+        return try await DrawnMaskRasterizer.overlay(
+            display: base, mask: maskPlane, strength: 0.85,
+            tint: SIMD3<Float>(1, 1, 0), metal: metal) // shader RGB (bgra8 reads RGBA-ordered) = yellow
+    }
+    #endif
+
     private func renderPreview(bucket: Int, generation gen: Int) async {
         guard let decoded, let metal else { return }
         do {
@@ -1079,6 +1127,15 @@ final class PipeCoordinator {
                 Self.logger.debug("PREVIEW render superseded — dropping stale frame")
                 return
             }
+            #if DEBUG
+            if Self.maskOverlayProbeArmed {
+                let overlaid = try await applyMaskOverlayProbe(
+                    base: texture, metal: metal, cache: cache)
+                editorState?.displayTexture = overlaid
+                Self.logger.info("mask overlay probe applied (06-03 T7)")
+                return
+            }
+            #endif
             editorState?.displayTexture = texture
             Self.logger.info(
                 "pixelpipe output ready: PREVIEW bucket \(bucket, privacy: .public)px (\(stats.hits, privacy: .public) hits / \(stats.misses, privacy: .public) misses, \(stats.planesRendered, privacy: .public) planes)"
