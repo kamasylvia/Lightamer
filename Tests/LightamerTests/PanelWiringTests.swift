@@ -123,6 +123,9 @@ final class PanelWiringTests: XCTestCase {
         // Plan 05-06-T2: nlmeans joins the seed DISABLED (D-05-06-T2-1:
         // dt ships it disabled; no zero-param identity exists).
         XCTAssertTrue(ops.contains("nlmeans"), "pristine seed must include nlmeans")
+        // Plan 06-06-T2: liquify joins the seed ENABLED-neutral (empty
+        // paths = the blit identity).
+        XCTAssertTrue(ops.contains("liquify"), "pristine seed must include liquify")
     }
     private func instance(_ opName: String) throws -> ModuleInstance {
         try XCTUnwrap(editorState.instances.first { $0.opName == opName })
@@ -1268,6 +1271,58 @@ final class PanelWiringTests: XCTestCase {
         await coordinator.commitContinuousEdit(label: "Vibrance reset")
         XCTAssertEqual(try instance("vibrance").paramsHash, seedHash,
             "reset to zero must reproduce the SEED paramsHash (cache all-hit)")
+    }
+
+    // MARK: - 06-06-T4 liquify panel wiring
+
+    /// Liquify node edit (the overlay's params flow — the same D-H1 trio):
+    /// a warp-type switch + strength drag land as exactly ONE commit with
+    /// the last tick's values.
+    func testLiquifyPanelNodeEditCommitsOnce() async throws {
+        try await loadSynthetic()
+        let liquify = try instance("liquify")
+        XCTAssertTrue(liquify.enabled, "liquify seed is ENABLED-neutral")
+        XCTAssertEqual(try liquify.params(of: LiquifyModule.self).paths.count, 0,
+                       "empty paths = the cache-neutral seed")
+
+        // A node edit (the overlay/panel both produce this record shape):
+        // radial-grow stamp + a 6-tick strength drag → exactly ONE item.
+        coordinator.beginContinuousEdit()
+        for tick in 1...6 {
+            var params = try liquify.params(of: LiquifyModule.self)
+            params.paths = [LiquifyPathData(
+                type: .moveTo, warpType: .radialGrow,
+                point: SIMD2(0.5, 0.5),
+                strength: SIMD2(0.5 + Float(tick) * 0.01, 0.5),
+                radius: SIMD2(0.6, 0.5))]
+            var record = liquify
+            try record.setParams(params, as: LiquifyModule.self)
+            await coordinator.setLiveParams(record)
+        }
+        await coordinator.commitContinuousEdit(label: String(localized: "history_liquify"))
+
+        XCTAssertEqual(historyCount(), 1, "liquify drag = exactly ONE item")
+        let committed = try instance("liquify")
+        let committedParams = try committed.params(of: LiquifyModule.self)
+        XCTAssertEqual(committedParams.paths.count, 1)
+        XCTAssertEqual(committedParams.paths[0].strength.x, 0.56, accuracy: 1e-6,
+                       "newest tick wins")
+        XCTAssertTrue(committedParams.paths[0].strength != committedParams.paths[0].point,
+                      "the node is a real (non-neutral) warp")
+    }
+
+    /// Panel dispatch: liquify resolves a panel (the seed instance's empty
+    /// paths keep the pristine render cache-neutral).
+    func testLiquifyPanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("liquify"),
+                      "liquify must dispatch a panel")
+        let session = InspectorEditSession(coordinator: coordinator)
+        XCTAssertNotNil(
+            state.panelView(for: ModuleInstance(module: LiquifyModule.self, params: .init()),
+                            edit: session),
+            "liquify must dispatch a panel view")
     }
 
     /// The three 05-04 panels dispatch by opName (D-T6 provider registry).

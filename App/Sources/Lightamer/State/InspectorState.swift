@@ -92,6 +92,8 @@ final class InspectorState {
         register(VibrancePanelProvider())
         register(VelviaPanelProvider())
         register(ColorZonesPanelProvider())
+        // Plan 06-06-T4: liquify (node list + warp type + strength/radius).
+        register(LiquifyPanelProvider())
         // Plan 05-05-T4: monochrome (Lab chroma wheel + size/highlights).
         register(MonochromePanelProvider())
         // Plan 05-06-T5: nlmeans (astrophoto denoise — 4 sliders).

@@ -66,24 +66,46 @@ internal struct EditorAreaView: View {
                         // 04-02-T4: crop overlay above the viewport (D-G6).
                         .overlay {
                             GeometryReader { overlayGeo in
-                                CropOverlayHost(
-                                    viewportSize: overlayGeo.size,
-                                    displaySize: displayPixelSize,
-                                    cropRecord: cropRecord,
-                                    isDragging: isCropDragging,
-                                    onBegin: {
-                                        isCropDragging = true
-                                        pipeCoordinator.beginContinuousEdit()
-                                    },
-                                    onLive: { snapshot in
-                                        Task { await pipeCoordinator.setLiveParams(snapshot) }
-                                    },
-                                    onCommit: { snapshot, label in
-                                        isCropDragging = false
-                                        Task { await pipeCoordinator.setLiveParams(snapshot) }
-                                        Task { await pipeCoordinator.commitContinuousEdit(label: label) }
-                                    }
-                                )
+                                if liquifyActive {
+                                    // Plan 06-06-T4: mutual exclusion with the
+                                    // crop overlay — the liquify node editor
+                                    // owns the viewport while its panel is the
+                                    // selected Inspector surface.
+                                    LiquifyOverlayHost(
+                                        viewportSize: overlayGeo.size,
+                                        displaySize: displayPixelSize,
+                                        liquifyRecord: liquifyRecord,
+                                        onBegin: {
+                                            pipeCoordinator.beginContinuousEdit()
+                                        },
+                                        onLive: { snapshot in
+                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                        },
+                                        onCommit: { snapshot, label in
+                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                            Task { await pipeCoordinator.commitContinuousEdit(label: label) }
+                                        }
+                                    )
+                                } else {
+                                    CropOverlayHost(
+                                        viewportSize: overlayGeo.size,
+                                        displaySize: displayPixelSize,
+                                        cropRecord: cropRecord,
+                                        isDragging: isCropDragging,
+                                        onBegin: {
+                                            isCropDragging = true
+                                            pipeCoordinator.beginContinuousEdit()
+                                        },
+                                        onLive: { snapshot in
+                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                        },
+                                        onCommit: { snapshot, label in
+                                            isCropDragging = false
+                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                            Task { await pipeCoordinator.commitContinuousEdit(label: label) }
+                                        }
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -159,6 +181,21 @@ internal struct EditorAreaView: View {
     /// set — the panel (T5) and overlay share this record (single source).
     private var cropRecord: ModuleInstance? {
         editorState.instances.first { $0.opName == CropModule.opName }
+    }
+
+    // MARK: - 06-06-T4 liquify overlay (mutual exclusion with crop)
+
+    /// The liquify record (the seed always carries one — enabled-neutral).
+    private var liquifyRecord: ModuleInstance? {
+        editorState.instances.first { $0.opName == LiquifyModule.opName }
+    }
+
+    /// The liquify node editor owns the viewport while the liquify panel is
+    /// the SELECTED Inspector surface (the v1 gesture-exclusion state
+    /// machine, DECISIONS D-06-06-T4-3 — the crop overlay returns when any
+    /// other panel is selected).
+    private var liquifyActive: Bool {
+        inspectorState.selectedPanel == liquifyRecord?.id.uuidString
     }
 
     /// The display texture's pixel size (upstream geometry for the fitted
