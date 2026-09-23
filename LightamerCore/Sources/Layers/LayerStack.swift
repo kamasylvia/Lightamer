@@ -61,6 +61,16 @@ public extension LayerStack {
         adjustmentLayers[index] = layer
     }
 
+    /// 06-07 helper: swap ANY layer (either kind) in place by id — the
+    /// live-leg writer for retouch stroke edits (the adjustment twin is
+    /// `replace(_:)`). Bottom-to-top order kept.
+    mutating func replaceAny(_ layer: any Layer) {
+        guard let index = adjustmentLayers.firstIndex(where: { $0.id == layer.id }) else {
+            return
+        }
+        adjustmentLayers[index] = layer
+    }
+
     /// Outcome of a `mergeDown` (data-face only in 6-1; the composite
     /// semantics wire up in 6-5).
     enum MergeDownOutcome: Equatable, Sendable {

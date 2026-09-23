@@ -56,8 +56,9 @@ final class LayerEditingState {
 
     // MARK: selection
 
-    /// The currently selected adjustment layer (nil = base/global scope —
-    /// the Inspector shows the global chain and the mask tools disable).
+    /// The currently selected layer (nil = base/global scope — the
+    /// Inspector shows the global chain and the mask tools disable).
+    /// BOTH kinds anchor here since 06-07 (adjustment + retouch).
     private(set) var selectedLayerID: UUID?
 
     /// The layer object for the selection, if it still exists in the
@@ -70,6 +71,23 @@ final class LayerEditingState {
             return nil
         }
         return layer
+    }
+
+    /// 06-07: the selected RETOUCH layer, when one is (still) selected.
+    func selectedRetouchLayer(in stack: LayerStack?) -> RetouchLayer? {
+        guard let id = selectedLayerID else { return nil }
+        guard let stack else { return nil }
+        guard let layer = stack.adjustmentLayers.first(where: { $0.id == id }),
+              let retouch = layer as? RetouchLayer
+        else {
+            // A dangling OR re-typed selection heals only when the id is
+            // really gone; an adjustment selection simply reports nil.
+            if !stack.adjustmentLayers.contains(where: { $0.id == id }) {
+                selectedLayerID = nil
+            }
+            return nil
+        }
+        return retouch
     }
 
     /// Select a layer (nil = back to the global/base scope). Selecting a
@@ -96,6 +114,39 @@ final class LayerEditingState {
     var brushOpacity: Float = 1.0       // stroke ceiling multiplier
     var gradientState: GradientState = .linear
 
+    // MARK: retouch tools (Plan 06-07 T4)
+
+    /// The algorithm the NEXT stroke lands with (dt's module-level
+    /// `algorithm` default = heal — retouch.c:118 $DEFAULT comment).
+    var retouchAlgorithm: RetouchAlgorithm = .heal
+
+    /// The stroke radius in normalized WIDTH units (the circle/lasso size).
+    var retouchRadius: Float = 0.06
+
+    /// Stroke feather (the shape's `border` fraction, dt form feather).
+    var retouchFeather: Float = 0.15
+
+    /// Stroke opacity ceiling (the per-stroke alpha).
+    var retouchStrokeOpacity: Float = 1.0
+
+    /// Blur algorithm sigma (dt `blur_radius` default 10 — full-res px
+    /// semantics; the normalized stroke keeps it a plain scalar in v1).
+    var retouchBlurRadius: Float = 10.0
+
+    /// Fill color (linear Rec2020 0-1).
+    var retouchFillColor: SIMD3<Float> = SIMD3(0.5, 0.5, 0.5)
+
+    /// The clone/heal source-PICK mode: armed → the next viewport TAP
+    /// samples the source patch center instead of painting (dt's
+    /// ctrl-click source pick; the手感 is Manual-Only registered).
+    var retouchSourcePickArmed: Bool = false
+
+    /// The sampled source center (normalized) the NEXT clone/heal stroke
+    /// carries; nil = paint without a source (heal degrades to clone-from
+    /// -offset-zero semantics — the UI never creates one: strokes without
+    /// a source default to same-position sampling).
+    var pendingRetouchSource: SIMD2<Float>?
+
     /// The masked layer under edit (drives the overlay host's live legs).
     var maskEditingActive: Bool { selectedLayerID != nil && activeTool != nil }
 
@@ -111,12 +162,14 @@ final class LayerEditingState {
     enum ViewportRoute: Equatable, Sendable {
         case maskEditing
         case liquify
+        case retouch
         case crop
     }
 
-    func viewportRoute(liquifyPanelSelected: Bool) -> ViewportRoute {
+    func viewportRoute(liquifyPanelSelected: Bool, retouchPanelSelected: Bool) -> ViewportRoute {
         if maskEditingActive { return .maskEditing }
         if liquifyPanelSelected { return .liquify }
+        if retouchPanelSelected { return .retouch }
         return .crop
     }
 }

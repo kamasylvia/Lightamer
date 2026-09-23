@@ -366,7 +366,7 @@ final class EditorState {
     /// Remove the layer with `id` (the base layer is not removable).
     /// Exactly ONE structure commit.
     func removeLayer(id: UUID) {
-        guard let layerStack, layerStack.compositeLayers.contains(where: { $0.id == id }) else {
+        guard let layerStack, layerStack.adjustmentLayers.contains(where: { $0.id == id }) else {
             return
         }
         var stack = layerStack
@@ -378,10 +378,10 @@ final class EditorState {
     /// Duplicate the layer with `id` (fresh identities above the
     /// original). Exactly ONE structure commit.
     @discardableResult
-    func duplicateLayer(id: UUID) -> AdjustmentLayer? {
+    func duplicateLayer(id: UUID) -> (any Layer)? {
         guard let layerStack else { return nil }
         var stack = layerStack
-        guard let copy = stack.duplicate(id: id) as? AdjustmentLayer else { return nil }
+        guard let copy = stack.duplicate(id: id) else { return nil }
         self.layerStack = stack
         commitLayerStructure(
             layerID: copy.id, label: String(localized: "history_layer_duplicate"))
@@ -424,7 +424,7 @@ final class EditorState {
     /// lands once at drag/stroke end through `commitLayerStructure`).
     func applyLiveLayer(_ layer: AdjustmentLayer) {
         guard let layerStack,
-              layerStack.compositeLayers.contains(where: { $0.id == layer.id })
+              layerStack.adjustmentLayers.contains(where: { $0.id == layer.id })
         else { return }
         var stack = layerStack
         stack.replace(layer)
@@ -436,7 +436,7 @@ final class EditorState {
     /// structure item carrying the post-edit stack snapshot.
     func commitLayerEdit(_ layer: AdjustmentLayer, label: String) {
         guard let layerStack,
-              layerStack.compositeLayers.contains(where: { $0.id == layer.id })
+              layerStack.adjustmentLayers.contains(where: { $0.id == layer.id })
         else { return }
         var stack = layerStack
         stack.replace(layer)
@@ -514,6 +514,57 @@ final class EditorState {
     private func notifyLayerChange(persist: Bool) {
         guard let pipeCoordinator else { return }
         Task { await pipeCoordinator.layerStackDidChange(persist: persist) }
+    }
+
+    // ── 06-07 retouch kind (the stroke list = the layer's whole edit) ──
+
+    /// The retouch layer with `id`, when the live stack carries one.
+    func retouchLayer(id: UUID) -> RetouchLayer? {
+        layerStack?.adjustmentLayers.first { $0.id == id } as? RetouchLayer
+    }
+
+    /// Add a new retouch layer on top (the D-06-CONTEXT-4 C1 semantic:
+    /// healing is an independently toggleable edit step). Exactly ONE
+    /// structure commit.
+    @discardableResult
+    func addRetouchLayer() -> RetouchLayer? {
+        guard let layerStack else {
+            let stack = LayerStack(baseLayer: BackgroundLayer())
+            self.layerStack = stack
+            return addRetouchLayer()
+        }
+        let layer = RetouchLayer(name: Self.nextLayerName(in: layerStack))
+        var stack = layerStack
+        stack.addAdjustment(layer)
+        self.layerStack = stack
+        commitLayerStructure(layerID: layer.id, label: String(localized: "history_layer_add"))
+        return layer
+    }
+
+    /// D-H1 LIVE leg for retouch strokes: swap the layer in place,
+    /// ZERO history (stroke drags preview live; the commit lands once
+    /// at stroke end / discrete edit).
+    func applyLiveRetouch(_ layer: RetouchLayer) {
+        guard let layerStack,
+              layerStack.adjustmentLayers.contains(where: { $0.id == layer.id })
+        else { return }
+        var stack = layerStack
+        stack.replaceAny(layer)
+        self.layerStack = stack
+        notifyLayerChange(persist: false)
+    }
+
+    /// D-H1 COMMIT leg for retouch strokes/properties: exactly ONE
+    /// structure item (the stackSnapshot path — strokes ride the frozen
+    /// snapshot spelling).
+    func commitRetouchEdit(_ layer: RetouchLayer, label: String) {
+        guard let layerStack,
+              layerStack.adjustmentLayers.contains(where: { $0.id == layer.id })
+        else { return }
+        var stack = layerStack
+        stack.replaceAny(layer)
+        self.layerStack = stack
+        commitLayerStructure(layerID: layer.id, label: label)
     }
 
     /// History → layer state (the layer twin of `rebuildInstances`):

@@ -93,6 +93,27 @@ internal struct EditorAreaView: View {
                                             Task { await pipeCoordinator.commitContinuousEdit(label: label) }
                                         }
                                     )
+                                case .retouch:
+                                    // 06-07: the retouch stroke editor owns the
+                                    // viewport while the selected layer is a
+                                    // retouch kind (its edits route through
+                                    // EditorState's structure commits, not the
+                                    // coordinator's param paths).
+                                    if let retouch = retouchLayer {
+                                        RetouchOverlayHost(
+                                            viewportSize: overlayGeo.size,
+                                            displaySize: displayPixelSize,
+                                            layer: retouch)
+                                    } else {
+                                        CropOverlayHost(
+                                            viewportSize: overlayGeo.size,
+                                            displaySize: displayPixelSize,
+                                            cropRecord: cropRecord,
+                                            isDragging: isCropDragging,
+                                            onBegin: { isCropDragging = true },
+                                            onLive: { _ in },
+                                            onCommit: { _, _ in })
+                                    }
                                 case .crop:
                                     CropOverlayHost(
                                         viewportSize: overlayGeo.size,
@@ -193,10 +214,19 @@ internal struct EditorAreaView: View {
     // MARK: - 06-05 viewport route (the state machine's decision)
 
     /// Exactly ONE owner for the viewport overlay (the mutex invariant):
-    /// mask tools > liquify panel > crop. The liquify route keeps the 06-6
-    /// selected-panel rule but now routes THROUGH the machine.
+    /// mask tools > liquify panel > retouch panel > crop. The liquify/
+    /// retouch routes keep their selected-panel rules but route THROUGH
+    /// the machine.
     private var viewportRoute: LayerEditingState.ViewportRoute {
-        editingState.viewportRoute(liquifyPanelSelected: liquifyActive)
+        editingState.viewportRoute(
+            liquifyPanelSelected: liquifyActive,
+            retouchPanelSelected: retouchLayer != nil)
+    }
+
+    /// The selected RETOUCH layer (nil = the retouch route stays off).
+    private var retouchLayer: RetouchLayer? {
+        guard let id = editingState.selectedLayerID else { return nil }
+        return editorState.retouchLayer(id: id)
     }
 
     // MARK: - 04-02-T4 crop overlay inputs (D-G6)

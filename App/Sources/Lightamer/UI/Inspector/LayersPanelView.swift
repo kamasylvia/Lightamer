@@ -62,8 +62,10 @@ internal struct LayersPanelView: View {
         }
     }
 
-    private var layers: [AdjustmentLayer] {
-        editorState.layerStack?.compositeLayers ?? []
+    /// ALL non-base layers (both kinds since 06-07 — the retouch rows
+    /// render through `RetouchLayerRowView`).
+    private var layers: [any Layer] {
+        editorState.layerStack?.adjustmentLayers ?? []
     }
 
     var body: some View {
@@ -81,12 +83,18 @@ internal struct LayersPanelView: View {
             ScrollView(.vertical) {
                 VStack(spacing: 2) {
                     ForEach(layers.reversed(), id: \.id) { layer in
-                        LayerRowView(layer: layer)
-                            .background(
-                                // Drop target for the drag-reorder (1 commit
-                                // at the drop; identities untouched — NDE-1).
-                                DropReorderRegion(layerID: layer.id)
-                            )
+                        Group {
+                            if let retouch = layer as? RetouchLayer {
+                                RetouchLayerRowView(layer: retouch)
+                            } else if let adjustment = layer as? AdjustmentLayer {
+                                LayerRowView(layer: adjustment)
+                            }
+                        }
+                        .background(
+                            // Drop target for the drag-reorder (1 commit
+                            // at the drop; identities untouched — NDE-1).
+                            DropReorderRegion(layerID: layer.id)
+                        )
                     }
                     baseRow
                 }
@@ -114,6 +122,22 @@ internal struct LayersPanelView: View {
             .buttonStyle(.borderless)
             .accessibilityLabel(Text("layers_add"))
             .accessibilityIdentifier("layers.add")
+            .disabled(editorState.layerStack == nil)
+
+            // 06-07: the retouch layer (IOP-GEO-06) — its strokes are the
+            // layer's edit; the viewport becomes the stroke editor while
+            // the retouch surface is selected.
+            Button {
+                if let layer = editorState.addRetouchLayer() {
+                    editingState.select(layer.id)
+                    pipeCoordinator.setHotLayer(layer.id)
+                }
+            } label: {
+                Image(systemName: "bandage")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("layers_add_retouch"))
+            .accessibilityIdentifier("layers.addRetouch")
             .disabled(editorState.layerStack == nil)
 
             Button {
@@ -481,7 +505,7 @@ private struct DropReorderRegion: View {
                           let dragged = UUID(uuidString: string)
                     else { return }
                     Task { @MainActor in
-                        let layers = editorState.layerStack?.compositeLayers ?? []
+                        let layers = editorState.layerStack?.adjustmentLayers ?? []
                         guard let from = layers.firstIndex(where: { $0.id == dragged })
                         else { return }
                         let target = layerID.flatMap { id in
@@ -493,5 +517,157 @@ private struct DropReorderRegion: View {
                 }
                 return true
             }
+    }
+}
+
+// MARK: - The retouch layer row (06-07)
+
+/// The RetouchLayer row: the same eye / rename / blend / opacity surface
+/// (the container reuse IS the point), with a STROKE-COUNT chip where the
+/// adjustment row carries the mask chip (retouch is dt NO_MASKS — there is
+/// no mask to chip; the strokes ARE the edit). All commits ride
+/// `commitRetouchEdit` (exactly ONE structure item each).
+private struct RetouchLayerRowView: View {
+    let layer: RetouchLayer
+
+    @Environment(EditorState.self) private var editorState
+    @Environment(PipeCoordinator.self) private var pipeCoordinator
+    @Environment(LayerEditingState.self) private var editingState
+
+    @State private var nameDraft: String = ""
+
+    private var isSelected: Bool { editingState.selectedLayerID == layer.id }
+    private var rowID: String { "layer.row.\(layer.id.uuidString)" }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            // ── visibility eye (1 structure commit per toggle) ──
+            Button {
+                let copy = liveSnapshot()
+                copy.isVisible.toggle()
+                editorState.commitRetouchEdit(
+                    copy, label: String(localized: "history_layer_visibility"))
+            } label: {
+                Image(systemName: layer.isVisible ? "eye" : "eye.slash")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("layers_visibility"))
+            .accessibilityValue(layer.isVisible ? Text("toggle_on") : Text("toggle_off"))
+            .accessibilityIdentifier(rowID + ".eye")
+
+            // ── name + blend + opacity ──
+            VStack(alignment: .leading, spacing: 2) {
+                TextField(
+                    String(localized: "layers_name_placeholder"),
+                    text: Binding(
+                        get: { nameDraft.isEmpty ? layer.name : nameDraft },
+                        set: { nameDraft = $0 }))
+                    .textFieldStyle(.plain)
+                    .font(.caption)
+                    .onSubmit { commitRename() }
+                    .accessibilityIdentifier(rowID + ".name")
+
+                HStack(spacing: 4) {
+                    Menu {
+                        ForEach(LayersPanelView.blendOrder, id: \.rawValue) { mode in
+                            Button(LayersPanelView.blendLabel(mode)) {
+                                guard mode != layer.blendMode else { return }
+                                let copy = liveSnapshot()
+                                copy.blendMode = mode
+                                editorState.commitRetouchEdit(
+                                    copy, label: String(localized: "history_layer_blend"))
+                            }
+                        }
+                    } label: {
+                        Text(LayersPanelView.blendLabel(layer.blendMode))
+                            .font(.caption2)
+                            .lineLimit(1)
+                    }
+                    .accessibilityLabel(Text("layers_blend"))
+                    .accessibilityIdentifier(rowID + ".blend")
+
+                    Spacer()
+
+                    Slider(
+                        value: Binding(
+                            get: { Double(liveLayer()?.opacity ?? layer.opacity) },
+                            set: { newValue in
+                                // D-H1 live leg: render updates, ZERO history.
+                                var copy = liveSnapshot()
+                                copy.opacity = Float(newValue)
+                                editorState.applyLiveRetouch(copy)
+                            }),
+                        in: 0...1
+                    ) { dragging in
+                        if !dragging {
+                            guard let live = liveLayer() else { return }
+                            editorState.commitRetouchEdit(
+                                live, label: String(localized: "history_layer_opacity"))
+                        }
+                    }
+                    .controlSize(.mini)
+                    .accessibilityLabel(Text("layers_opacity"))
+                    .accessibilityIdentifier(rowID + ".opacity")
+                }
+            }
+
+            // ── stroke-count chip (NO_MASKS: the shapes ARE the mask) ──
+            Text("\(layer.strokes.count)")
+                .font(.caption2)
+                .monospacedDigit()
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(RoundedRectangle(cornerRadius: 3).fill(.quaternary.opacity(0.4)))
+                .accessibilityLabel(Text("layers_stroke_count"))
+                .accessibilityValue("\(layer.strokes.count)")
+                .accessibilityIdentifier(rowID + ".strokes")
+        }
+        .padding(.vertical, 3)
+        .padding(.horizontal, 6)
+        .background(
+            Group {
+                if isSelected {
+                    LightamerColors.accent.opacity(0.25)
+                } else {
+                    Color.clear
+                }
+            })
+        .contentShape(Rectangle())
+        .onTapGesture {
+            editingState.select(layer.id)
+            pipeCoordinator.setHotLayer(layer.id)
+        }
+        .onDrag {
+            NSItemProvider(object: layer.id.uuidString as NSString)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(layer.name))
+        .accessibilityIdentifier(rowID)
+    }
+
+    private func liveLayer() -> RetouchLayer? {
+        editorState.retouchLayer(id: layer.id)
+    }
+
+    private func liveSnapshot() -> RetouchLayer {
+        let source = liveLayer() ?? layer
+        return RetouchLayer(
+            id: source.id, name: source.name, isVisible: source.isVisible,
+            opacity: source.opacity, blendMode: source.blendMode,
+            blendOptions: source.blendOptions, enabled: source.enabled,
+            strokes: source.strokes)
+    }
+
+    private func commitRename() {
+        let trimmed = nameDraft.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed != layer.name else {
+            nameDraft = ""
+            return
+        }
+        let copy = liveSnapshot()
+        copy.name = trimmed
+        editorState.commitRetouchEdit(copy, label: String(localized: "history_layer_rename"))
+        nameDraft = ""
     }
 }

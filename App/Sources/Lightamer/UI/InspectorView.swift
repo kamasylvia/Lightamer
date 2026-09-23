@@ -70,8 +70,15 @@ internal struct InspectorView: View {
         // a dangling id routes back to the global scope.
         guard let id = editingState.selectedLayerID,
               editorState.adjustmentLayer(id: id) != nil
+                  || editorState.retouchLayer(id: id) != nil
         else { return nil }
         return id
+    }
+
+    /// 06-07: the selected RETOUCH layer (drives the retouch panel route).
+    private var selectedRetouchLayer: RetouchLayer? {
+        guard let id = editingState.selectedLayerID else { return nil }
+        return editorState.retouchLayer(id: id)
     }
 
     /// The chain records the module list shows: the selected LAYER's chain
@@ -109,10 +116,18 @@ internal struct InspectorView: View {
                         // fixed zone (bottom-to-top list + operations bar).
                         LayersPanelView()
                         Divider()
-                        moduleList
-                            .frame(height: moduleListHeight(in: geo.size.height))
-                        Divider()
-                        selectedPanel
+                        // 06-07: a SELECTED RETOUCH layer replaces the chain
+                        // list + panel with the retouch surface — the stroke
+                        // list IS the layer's edit (no iop chain to list).
+                        if let retouch = selectedRetouchLayer {
+                            RetouchPanelView(layer: retouch)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        } else {
+                            moduleList
+                                .frame(height: moduleListHeight(in: geo.size.height))
+                            Divider()
+                            selectedPanel
+                        }
                     }
                 }
             }

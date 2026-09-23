@@ -183,7 +183,7 @@ final class LayerUIWiringTests: XCTestCase {
         layer.chain = [try globalInstance("exposure")]
         let afterAdd = editorState.history.items.count
 
-        let copy = try XCTUnwrap(editorState.duplicateLayer(id: layer.id))
+        let copy = try XCTUnwrap(editorState.duplicateLayer(id: layer.id) as? AdjustmentLayer)
         XCTAssertEqual(editorState.history.items.count - afterAdd, 1, "duplicate = exactly ONE item")
         XCTAssertNotEqual(copy.id, layer.id, "NEW layer identity (NDE-1)")
         XCTAssertEqual(copy.chain.count, 1)
@@ -339,30 +339,122 @@ final class LayerUIWiringTests: XCTestCase {
         let layer = AdjustmentLayer(name: "L")
 
         // No selection, no tool → crop owns the viewport.
-        XCTAssertEqual(state.viewportRoute(liquifyPanelSelected: false), .crop)
-        XCTAssertEqual(state.viewportRoute(liquifyPanelSelected: true), .liquify)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: false, retouchPanelSelected: false),
+            .crop)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: true, retouchPanelSelected: false),
+            .liquify)
 
         // Tool WITHOUT selection → still not mask editing (disabled state).
         state.setTool(.brush)
-        XCTAssertEqual(state.viewportRoute(liquifyPanelSelected: true), .liquify,
-                       "no layer selected → the mask tools stay disarmed")
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: true, retouchPanelSelected: false),
+            .liquify,
+            "no layer selected → the mask tools stay disarmed")
 
         // Selection + tool → the mask host owns the viewport (and beats
         // the liquify route — the machine's if/else-if order).
         state.select(layer.id)
-        XCTAssertEqual(state.viewportRoute(liquifyPanelSelected: true), .maskEditing)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: true, retouchPanelSelected: false),
+            .maskEditing)
         XCTAssertTrue(state.maskEditingActive)
 
         // Disarm → back to the underlying route.
         state.setTool(nil)
         XCTAssertFalse(state.maskEditingActive)
-        XCTAssertEqual(state.viewportRoute(liquifyPanelSelected: true), .liquify)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: true, retouchPanelSelected: false),
+            .liquify)
 
         // Dangling selection self-heals once stack info is available.
         state.setTool(.gradient)
         state.select(UUID()) // not in any stack
         _ = state.selectedLayer(in: LayerStack(baseLayer: BackgroundLayer()))
         XCTAssertNil(state.selectedLayerID, "a dangling id clears")
+    }
+
+    // MARK: - 06-07 T4: the retouch surface wiring
+
+    /// The retouch route: a selected RETOUCH layer routes the viewport to
+    /// the stroke editor (below liquify in the machine order), and the
+    /// route clears when the retouch selection goes away.
+    func testRetouchRouteOwnershipAndMutex() {
+        let state = LayerEditingState()
+        let retouch = RetouchLayer(name: "Fix")
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        stack.addAdjustment(retouch)
+
+        // Selected adjustment → crop (retouch panel not selected).
+        state.select(UUID())
+        XCTAssertNil(state.selectedRetouchLayer(in: stack))
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: false, retouchPanelSelected: false),
+            .crop)
+
+        // Selected retouch → the retouch host owns the viewport.
+        state.select(retouch.id)
+        let selected = state.selectedRetouchLayer(in: stack)
+        XCTAssertEqual(selected?.id, retouch.id)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: false, retouchPanelSelected: true),
+            .retouch)
+        // Liquify still beats retouch (the machine order)…
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: true, retouchPanelSelected: true),
+            .liquify)
+        // …and an armed mask tool beats both.
+        state.setTool(.brush)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: true, retouchPanelSelected: true),
+            .maskEditing)
+        state.setTool(nil)
+
+        // The dangling retouch selection self-heals (a structural undo).
+        state.select(UUID())
+        _ = state.selectedRetouchLayer(in: stack)
+        XCTAssertNil(state.selectedLayerID, "a dangling retouch id clears")
+    }
+
+    /// The retouch stroke commit path: addRetouchLayer / commitRetouchEdit
+    /// each land EXACTLY ONE structure item, and undo restores the
+    /// previous stroke list byte-for-byte (the frozen snapshot spelling).
+    func testRetouchStrokeCommitsOnceAndUndoRestores() async throws {
+        try await loadSynthetic()
+        let undoCountBefore = editorState.history.items.count
+
+        let layer = try XCTUnwrap(editorState.addRetouchLayer())
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(
+            editorState.history.items.count - undoCountBefore, 1,
+            "addRetouchLayer = exactly ONE structure item")
+
+        let stroke = RetouchStroke(
+            algorithm: .heal,
+            form: MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.08, radiusY: 0.08,
+                rotationDegrees: 0, border: 0.2))),
+            source: MaskPoint(x: 0.3, y: 0.5))
+        var updated = layer
+        updated.append(stroke: stroke)
+        editorState.commitRetouchEdit(updated, label: "retouch stroke")
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(
+            editorState.history.items.count - undoCountBefore, 2,
+            "stroke commit = exactly ONE structure item")
+
+        // The live stack carries the stroke.
+        let live = try XCTUnwrap(editorState.retouchLayer(id: layer.id))
+        XCTAssertEqual(live.strokes.count, 1)
+        XCTAssertEqual(live.strokes[0], stroke)
+
+        // Undo restores the empty stroke list (identity preserved).
+        await coordinator.undo()
+        try await Task.sleep(for: .milliseconds(20))
+        let restored = try XCTUnwrap(editorState.retouchLayer(id: layer.id))
+        XCTAssertTrue(restored.strokes.isEmpty, "undo removes the stroke")
+        XCTAssertEqual(restored.id, layer.id, "NDE-1: the layer survives")
     }
 
     func testMaskToolIdentifiersAreStableAndComplete() {
