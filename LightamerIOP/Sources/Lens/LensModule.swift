@@ -310,6 +310,24 @@ public final class LensModule: IOPModule {
         return pts
     }
 
+    /// Plan 06-03 T2 point-mapping segment (D-06-CONTEXT-7): the manual
+    /// radial coefficients (k1/k2 in halfW units, G channel) — nil when
+    /// neutral (`.off` default maps masks 1:1). The segment's inverse IS
+    /// the warp kernel's sampling map (`forwardPoint` semantics); the
+    /// forward is its guarded Newton solve (GeometryPointMapper).
+    public func pointMapSegment(
+        inputSize: SIMD2<Double>
+    ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)? {
+        guard !isNeutral(committed) else { return nil }
+        return (
+            .radial(
+                k1: Double(committed.distortionK1),
+                k2: Double(committed.distortionK2),
+                size: inputSize),
+            inputSize
+        )
+    }
+
     /// Source-aware resolve (D6): manual/off → kernel coeffs straight from
     /// committed; lensfun → `LensfunMatch.resolve` against the shared store
     /// (nil DB / miss ⇒ nil ⇒ caller falls back to blit identity + log —

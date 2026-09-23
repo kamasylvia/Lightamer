@@ -249,6 +249,19 @@ public final class FlipModule: IOPModule {
             scale: roi.scale)
     }
 
+    /// Plan 06-03 T2 point-mapping segment (D-06-CONTEXT-7): the
+    /// orientation remap as an exact affine — nil for `.none` (the resolved
+    /// auto-identity maps masks 1:1).
+    public func pointMapSegment(
+        inputSize: SIMD2<Double>
+    ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)? {
+        let bits = committed.bits
+        guard bits != 0 else { return nil }
+        let out = committed.swapsXY ? SIMD2(inputSize.y, inputSize.x) : inputSize
+        let affine = Affine2D.flip(bits: bits, inputSize: inputSize)
+        return (.affine(affine, inSize: inputSize, outSize: out), out)
+    }
+
     /// dt `process_cl` (`:372-391`): dispatch over the INPUT plane
     /// (`width/height` = roi_in as the grid); each thread reads
     /// `in[gid]` and writes `out[remap(gid)]`. `dispatch2DTexture` is

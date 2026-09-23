@@ -98,6 +98,23 @@ public protocol IOPModule {
     /// it best-effort.
     func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece)
 
+    /// The module's mask point-mapping segment (Plan 06-03 T2,
+    /// D-06-CONTEXT-7 content-anchored masks): given the module's INPUT
+    /// frame (plane pixels), return the segment + the module's OUTPUT
+    /// frame — or nil for pointwise/neutral modules (identity passthrough;
+    /// the common base chain contributes nothing). The four geometric
+    /// modules (crop/ashift/flip/lens) override; liquify joins in 6-6
+    /// (`.liquifyIdentity` reserved — an empty liquify is the normal path).
+    ///
+    /// Declared IN the protocol (not just an extension default) — a
+    /// protocol-extension-only member dispatches STATICALLY in generic
+    /// contexts, and the ModuleBox erased hook calls it through `M` where
+    /// the concrete override would be silently skipped (the nil-hook bug
+    /// caught by GeometryPointMapperTests, 06-03-T2).
+    func pointMapSegment(
+        inputSize: SIMD2<Double>
+    ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)?
+
     /// Process `input` → `output` over the given ROIs on the GPU. Called by
     /// the pixelpipe in v50 order with float32 RGBA linear-Rec2020 TEXTURES
     /// (FOUND-02; 02-02 checkpoint lock #1 — the pipe's currency). `piece`
@@ -153,5 +170,14 @@ public extension IOPModule {
     /// Default identity: the module needs exactly the output ROI as input.
     func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
         input = roi
+    }
+
+    /// Default nil — pointwise/neutral modules contribute no mask segment.
+    /// (Requirement declared in the protocol above so the witness table is
+    /// populated; this extension default keeps every module conforming.)
+    func pointMapSegment(
+        inputSize: SIMD2<Double>
+    ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)? {
+        nil
     }
 }
