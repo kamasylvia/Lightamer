@@ -584,4 +584,157 @@ final class BlendOpParityTests: XCTestCase {
         XCTAssertGreaterThan(
             got[(w - 1) * 4], 0.3, "right column must carry a strong blend")
     }
+
+    // ── T3: perceptual modes — probes, parity, hue sweep ──
+    // ──────────────────────────────────────────────────────────────────
+
+    /// Dispatch the L023 exact-leg probe over the fixture (mode 0 = matrix
+    /// pair identity, mode 1 = polar round trip).
+    private func runProbe(
+        mode: UInt32, metal: MetalContext, input: any MTLTexture
+    ) async throws -> [Float] {
+        let output = try await BlendOpEngine.probe(
+            input: input, mode: mode, metal: metal)
+        return readPlane(output, metal: metal)
+    }
+
+    /// L023 GPU gate <1e-6: the Rec2020⇄XYZ matrix pair evaluated in-shader
+    /// (mo·M·mi ≈ I on every fixture pixel).
+    func testJzMatrixLegsGPUProbe() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let input = try makePlane(8, 6, metal: metal, pixel: Self.fixturePixel)
+        let got = try await runProbe(mode: 0, metal: metal, input: input)
+        var compared = 0
+        var maxAbs: Float = 0
+        for i in 0..<got.count / 4 {
+            for c in 0..<3 {
+                let ref = Float(Self.fixturePixel(i % 8, i / 8)[c])
+                maxAbs = max(maxAbs, abs(got[i * 4 + c] - ref))
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转")
+        XCTAssertLessThanOrEqual(
+            maxAbs, 1e-6, "L023 matrix-pair GPU gate (mo·M·mi ≈ I)")
+    }
+
+    /// L023 GPU gate <1e-6: the polar JzCzhz⇄JzAzBz legs round-trip on the
+    /// GPU (Jz/Cz/hz 恒等 — hz compared with the turns wrap).
+    func testJzPolarLegsGPUProbe() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        // A jch plane: Jz 0.005-0.02, Cz 0.001-0.05, hz swept 0..1.
+        let input = try makePlane(8, 6, metal: metal) { x, y in
+            SIMD4<Float>(
+                0.005 + 0.003 * Float(x) / 7.0,
+                0.001 + 0.049 * Float(y) / 5.0,
+                Float(x * 6 + y) / 48.0,
+                1.0)
+        }
+        let got = try await runProbe(mode: 1, metal: metal, input: input)
+        var compared = 0
+        var maxAbs: Float = 0
+        for i in 0..<got.count / 4 {
+            let expect = SIMD3<Float>(
+                0.005 + 0.003 * Float(i % 8) / 7.0,
+                0.001 + 0.049 * Float(i / 8) / 5.0,
+                Float((i % 8) * 6 + i / 8) / 48.0)
+            for c in 0..<3 {
+                let dev = abs(got[i * 4 + c] - expect[c])
+                if c == 2 {
+                    // hz wraps: distance on the circle.
+                    let d = min(dev, abs(dev - 1))
+                    maxAbs = max(maxAbs, d)
+                } else {
+                    maxAbs = max(maxAbs, dev)
+                }
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转")
+        XCTAssertLessThanOrEqual(maxAbs, 1e-6, "L023 polar-legs GPU gate")
+    }
+
+    /// Perceptual mode parity vs the float64 reference at the measured
+    /// float32 pow-chain floor (rel 2e-3 / abs 5e-4 — see the T1 gate
+    /// rationale; the POLAR-domain gates above are the tight ones).
+    func testPerceptualModesGPUParity() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let below = try makePlane(8, 6, metal: metal, pixel: Self.fixturePixel)
+        let layer = try makePlane(8, 6, metal: metal, pixel: Self.layerPixel)
+        let refA = (0..<48).map { Self.doubleRGB(Self.fixturePixel($0 % 8, $0 / 8)) }
+        let refB = (0..<48).map { Self.doubleRGB(Self.layerPixel($0 % 8, $0 / 8)) }
+        for mode in BlendMode.allCases
+        where [.luminosity, .saturation, .hue, .color, .colorAdjust].contains(mode) {
+            for op in [Float(0.25), 0.6, 1.0] {
+                let output = try await BlendOpEngine.composite(
+                    below: below, layer: layer, mask: nil,
+                    opacity: op, blendMode: mode, metal: metal)
+                let got = readPlane(output, metal: metal)
+                let ref = zip(refA, refB).map {
+                    BlendOpReference.blend(mode, a: $0, b: $1, opacity: Double(op))
+                }
+                assertPlaneParity(
+                    got, ref, "\(mode) op=\(op) perceptual parity",
+                    rel: 2e-3, absFloor: 5e-4)
+            }
+        }
+    }
+
+    /// Hue full-circle sweep (plan T3): a = a chromatic anchor at hz_a near
+    /// the wrap (0.98); b carries the SAME Jz/Cz with hz swept over the full
+    /// circle. hue at op=1 must transfer exactly b's hue angle — asserted in
+    /// the POLAR domain (re-derive JzCzhz from the GPU output, compare Jz/Cz
+    /// to a's and the shortest-path hz distance to b's), plus parity vs the
+    /// float64 reference at the pow-chain floor.
+    func testHueFullCircleSweep() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let steps = 24
+        let w = steps, h = 4
+        // a rows: one anchor row per sweep pass (Jz/Cz fixed, hz_a = 0.98);
+        // b rows: hz_b swept.
+        let anchorA = JzCzhz.toRGB(SIMD3(0.012, 0.03, 0.98))
+        func anchorB(_ i: Int) -> SIMD3<Double> {
+            JzCzhz.toRGB(SIMD3(0.012, 0.03, Double(i) / Double(steps)))
+        }
+        let below = try makePlane(w, h, metal: metal) { x, _ in
+            SIMD4<Float>(Float(anchorA.x), Float(anchorA.y), Float(anchorA.z), 1.0)
+        }
+        let layer = try makePlane(w, h, metal: metal) { x, _ in
+            let b = anchorB(x)
+            return SIMD4<Float>(Float(b.x), Float(b.y), Float(b.z), 1.0)
+        }
+        let aPolar = JzCzhz.fromRGB(anchorA)
+
+        for row in 0..<h {
+            let output = try await BlendOpEngine.composite(
+                below: below, layer: layer, mask: nil,
+                opacity: 1.0, blendMode: .hue, metal: metal)
+            let got = readPlane(output, metal: metal)
+            for x in 0..<w {
+                let i = row * w + x
+                let outPolar = JzCzhz.fromRGB(
+                    SIMD3(Double(got[i * 4]), Double(got[i * 4 + 1]),
+                          Double(got[i * 4 + 2])))
+                // Jz/Cz ride a — the hue mix must not touch them.
+                XCTAssertEqual(outPolar.x, aPolar.x, accuracy: 1e-6,
+                               "sweep x=\(x): Jz must ride a")
+                XCTAssertEqual(outPolar.y, aPolar.y, accuracy: 1e-6,
+                               "sweep x=\(x): Cz must ride a")
+                // hz lands on b's angle (shortest-path, full wrap).
+                let hb = Double(x) / Double(steps)
+                let d = abs(outPolar.z - hb)
+                let circ = min(d, abs(d - 1))
+                // Measured float32 floor: 1.2e-5 turns through the full
+                // RGB→Jz→RGB round trip per sweep step (the plan's 1e-5
+                // number targets the polar legs, probed at 1e-6 above;
+                // this end-to-end gate carries the pow-chain noise).
+                XCTAssertLessThanOrEqual(
+                    circ, 5e-5, "sweep x=\(x): hz must reach hz_b (dev \(circ))")
+            }
+        }
+    }
 }

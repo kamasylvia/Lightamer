@@ -18,6 +18,10 @@ public enum BlendOpEngine {
     /// MSL function name of the composite triple kernel.
     public static let compositeKernel = "compositeLayer"
 
+    /// MSL function name of the L023 exact-leg probe
+    /// (mode 0 = matrix legs, 1 = polar legs).
+    public static let probeKernel = "blendop_jz_probe"
+
     /// Dispatch one composite pass into a fresh plane.
     ///
     /// - `below`/`layer`: float32 RGBA planes, same size (working space).
@@ -121,6 +125,33 @@ public enum BlendOpEngine {
             threadsPerThreadgroup: threadsPerGroup)
         session.encoder.endEncoding()
         session.commandBuffer.commit()
+    }
+
+    /// Dispatch the L023 exact-leg probe (mode 0 = Rec2020⇄XYZ matrix pair
+    /// identity, mode 1 = polar round trip) over `input` into a fresh plane.
+    public static func probe(
+        input: any MTLTexture, mode: UInt32, metal: MetalContext
+    ) async throws -> any MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: WorkingSpace.pixelFormat,
+            width: input.width, height: input.height, mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        guard let output = metal.device.makeTexture(descriptor: descriptor) else {
+            throw MetalError.bufferAllocationFailed(
+                input.width * input.height * WorkingSpace.bytesPerPixel)
+        }
+        var modeValue = mode
+        let session = try await metal.makeEncoder(functionName: probeKernel)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(output, index: 1)
+        session.encoder.setBytes(&modeValue, length: 4, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: output.width, height: output.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+        return output
     }
 }
 

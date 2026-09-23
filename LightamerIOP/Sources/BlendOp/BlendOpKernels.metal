@@ -270,6 +270,35 @@ static float3 blendop_perceptual(uint mode, float3 a, float3 b, float op) {
 
 // ── The composite triple kernel ──
 
+// ── L023 probe kernels (plan 06-02 T3) — the EXACT legs of the JzCzhz
+// round trip, probed in-shader at float32:
+//   mode 0 (matrix legs): rgb → XYZ → rgb (the Rec2020⇄XYZ pair product
+//      identity — mo·M·mi ≈ I evaluated, gate <1e-6);
+//   mode 1 (polar legs): JzCzhz → JzAzBz → JzCzhz (the cartesian/polar
+//      round trip — Jz/Cz/hz 恒等, gate <1e-6 turns).
+// The pow-chain legs are pinned by the full-chain round-trip + hue sweep
+// against BlendOpReference (measured float32 floor, see the test batch).
+kernel void blendop_jz_probe(
+    texture2d<float, access::read>  in  [[texture(0)]],
+    texture2d<float, access::write> out [[texture(1)]],
+    constant uint& probeMode            [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    if (gid.x >= out.get_width() || gid.y >= out.get_height()) { return; }
+    float3 v = in.read(gid).rgb;
+    float3 r;
+    if (probeMode == 0u) {
+        r = jz_matvec(JZ_XYZ2RGB, jz_matvec(JZ_RGB2XYZ, v));
+    } else {
+        float ang = 2.0f * M_PI_F * v.z;
+        float3 jab = float3(v.x, cos(ang) * v.y, sin(ang) * v.y);
+        float h = atan2(jab.z, jab.y) / (2.0f * M_PI_F);
+        h = h >= 0.0f ? h : 1.0f + h;
+        r = float3(jab.x, sqrt(jab.y * jab.y + jab.z * jab.z), h);
+    }
+    out.write(float4(r, 1.0f), gid);
+}
+
 kernel void compositeLayer(
     texture2d<float, access::read>  below   [[texture(0)]],
     texture2d<float, access::read>  layerIn [[texture(1)]],
