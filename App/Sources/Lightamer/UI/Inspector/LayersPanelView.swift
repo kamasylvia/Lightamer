@@ -164,7 +164,7 @@ internal struct LayersPanelView: View {
                 editingState.showsMaskOverlay.toggle()
                 refreshMaskOverlayRequest()
             } label: {
-                Image(systemName: editingState.showsMaskOverlay ? "eye.dashed" : "eye.trianglebadge.exclamationmark")
+                Image(systemName: editingState.showsMaskOverlay ? "circle.dashed" : "eye.trianglebadge.exclamationmark")
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(Text("layers_show_mask"))

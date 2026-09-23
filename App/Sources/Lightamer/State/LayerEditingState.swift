@@ -43,8 +43,8 @@ enum MaskTool: String, CaseIterable, Sendable {
         switch self {
         case .brush: return "paintbrush.pointed"
         case .eraser: return "eraser"
-        case .gradient: return "gradient.3.crossing" // macOS 14+; falls back visually
-        case .ellipse: return "ellipse"
+        case .gradient: return "line.diagonal" // GUI-14 fix: "gradient.3.crossing" is MISSING on this OS → blank icon
+        case .ellipse: return "circle" // GUI-14 fix: "ellipse" is MISSING → blank icon
         case .path: return "scribble"
         }
     }

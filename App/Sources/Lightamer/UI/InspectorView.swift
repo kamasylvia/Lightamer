@@ -127,9 +127,14 @@ internal struct InspectorView: View {
     // MARK: - Module list
 
     private func moduleListHeight(in columnHeight: CGFloat) -> CGFloat {
+        // 06-05: the「添加模块」menu row joins the content when a layer is
+        // selected — an empty layer chain must still show it (the 0-row
+        // list used to collapse to the bare padding and CLIP the menu
+        // into invisibility — GUI-14).
+        let menuRow: CGFloat = activeLayerID != nil ? 30 : 0
         let content = CGFloat(editableInstances.count)
-            * Self.estimatedRowHeight + Self.listVerticalPadding
-        return min(content, columnHeight * Self.listMaxFraction)
+            * Self.estimatedRowHeight + Self.listVerticalPadding + menuRow
+        return max(min(content, columnHeight * Self.listMaxFraction), menuRow + 8)
     }
 
     private var moduleList: some View {

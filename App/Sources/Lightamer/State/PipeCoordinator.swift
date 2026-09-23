@@ -189,6 +189,14 @@ final class PipeCoordinator {
 
     func setMaskOverlayRequest(_ request: (layerID: UUID, strength: Float)?) {
         maskOverlayRequest = request
+        // The tint lives INSIDE renderPreview — a request change must
+        // re-render or the toggle/selection would not visibly update
+        // (GUI-15, found in the 06-05 GUI round).
+        Task { [weak self] in
+            guard let self, self.decoded != nil else { return }
+            await self.renderPreview(
+                bucket: self.currentBucket ?? PreviewBucket.cap, generation: self.generation)
+        }
     }
 
     /// Unwrap-or-throw for the overlay helper's precondition ladders
