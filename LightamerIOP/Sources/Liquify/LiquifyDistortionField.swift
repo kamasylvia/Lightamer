@@ -341,6 +341,14 @@ public enum LiquifyDistortionField {
     public static func stampExtent(
         of stamps: [Stamp], bounds: SIMD2<Int>
     ) -> (origin: SIMD2<Int>, size: SIMD2<Int>)? {
+        stampExtent(of: stamps, boundsOrigin: .zero, boundsSize: bounds)
+    }
+
+    /// Rect variant: `boundsOrigin`/`boundsSize` in frame pixels (the
+    /// module passes its output roi; the mapper passes the full frame).
+    public static func stampExtent(
+        of stamps: [Stamp], boundsOrigin: SIMD2<Int>, boundsSize: SIMD2<Int>
+    ) -> (origin: SIMD2<Int>, size: SIMD2<Int>)? {
         var union: (origin: SIMD2<Int>, size: SIMD2<Int>)?
         for stamp in stamps {
             let iradius = Int(stamp.radius.rounded())
@@ -348,7 +356,8 @@ public enum LiquifyDistortionField {
             let bx = Int(stamp.point.x.rounded()) - iradius
             let by = Int(stamp.point.y.rounded()) - iradius
             let side = 2 * iradius + 1
-            if bx >= bounds.x || by >= bounds.y || bx + side <= 0 || by + side <= 0 {
+            if bx >= boundsOrigin.x + boundsSize.x || by >= boundsOrigin.y + boundsSize.y
+                || bx + side <= boundsOrigin.x || by + side <= boundsOrigin.y {
                 continue
             }
             if var u = union {
@@ -363,11 +372,10 @@ public enum LiquifyDistortionField {
             }
         }
         guard var u = union else { return nil }
-        // Clamp into bounds (the grid never spans beyond the run's frame;
-        // `bounds` is the (width, height) pair with origin at (0, 0)).
-        let x0 = max(u.origin.x, 0), y0 = max(u.origin.y, 0)
-        let x1 = min(u.origin.x + u.size.x, bounds.x)
-        let y1 = min(u.origin.y + u.size.y, bounds.y)
+        // Clamp into bounds (the grid never spans beyond the run's region).
+        let x0 = max(u.origin.x, boundsOrigin.x), y0 = max(u.origin.y, boundsOrigin.y)
+        let x1 = min(u.origin.x + u.size.x, boundsOrigin.x + boundsSize.x)
+        let y1 = min(u.origin.y + u.size.y, boundsOrigin.y + boundsSize.y)
         u.origin = SIMD2(x0, y0)
         u.size = SIMD2(max(1, x1 - x0), max(1, y1 - y0))
         return u
@@ -436,8 +444,19 @@ public enum LiquifyDistortionField {
     public static func build(
         paths: [LiquifyPathData], frame: SIMD2<Double>, bounds: SIMD2<Int>
     ) -> DisplacementField? {
+        build(paths: paths, frame: frame, boundsOrigin: .zero, boundsSize: bounds)
+    }
+
+    /// Full pipeline over a rect region (the module's roi-out; the mapper's
+    /// full frame). nil = nothing to do (identity).
+    public static func build(
+        paths: [LiquifyPathData], frame: SIMD2<Double>,
+        boundsOrigin: SIMD2<Int>, boundsSize: SIMD2<Int>
+    ) -> DisplacementField? {
         let stamps = interpolateStamps(paths: paths, frame: frame)
-        guard let extent = stampExtent(of: stamps, bounds: bounds) else { return nil }
+        guard let extent = stampExtent(
+            of: stamps, boundsOrigin: boundsOrigin, boundsSize: boundsSize)
+        else { return nil }
         let vectors = deposit(
             stamps: stamps, origin: extent.origin,
             width: extent.size.x, height: extent.size.y)
