@@ -12,6 +12,20 @@ Phase **execute** 阶段的执行分工固定为两级：
 - omp 的提交即执行产出；subagent 验收发现的问题修复提交以 `fix(...)` 标注并可引用 omp 产物。
 - 人工只处理 GOAL-STATE「阻塞（需人工）」章节登记的事项。
 
+## 暂停机制（2026-09-24 用户指令，Phase 7 起强制）
+
+**`.work/PAUSE` 文件约定**——用户随时 `touch .work/PAUSE`（或 Finder 建空文件）即暂停信号：
+
+- **保活巡检**：见 PAUSE → 不推进任何队列项，汇报一行即结束。
+- **subagent worker（执行/验收）**：**每个任务边界检查 PAUSE**（任务收尾 commit 后、下一任务开工前）→ 在制品已 commit、工作区干净地停、报告进度与断点。运行中途不检查（单任务 10-30 分钟粒度）。
+- **omp（若使用）**：启动前检查；运行中无法优雅停（用户可杀，commit-per-task 保证已完成任务不丢，重拉从断点续）。
+- **恢复** = 用户删除 PAUSE 文件并示意继续。
+
+**C 档门控（关键节点停下等用户确认才继续；PAUSE 文件兜底随时可停）**：
+1. Phase research 定稿后停——用户过目裁决点（Open Questions）再 plan。
+2. 每个 plan 执行+验收闭环后停——汇报该 plan 战果 + 下一 plan 摘要，等用户确认。
+3. Phase 签核（VALIDATION）前停——verify-work 结论给用户过目。
+
 ## Project
 
 **Lightamer**
