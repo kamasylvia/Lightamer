@@ -159,7 +159,7 @@
 - [ ] ColorChecker ARW 实拍补采（02-04 遗留，采集路径 `.work/plans/02-04/colorchecker-acquisition.md`）
 - [ ] 跨屏 profile 跟随实测（02-04 遗留，单显示器环境 skip-with-reason）
 - [ ] 屏显色彩目检（SC#1 非 headless 部分，Phase 13 COLOR-03 前置可复验）
-- [ ] `GoldenColorTests.testCrossConsistencyLinearDomain` 间歇性失败排查（02-04 harness 遗留 flake，03-01 期间复现：全 suite/类内运行偶发 diverge 1.0，单测隔离必现通过；03-01 排除本类后仍复现 → 与 03-01 无关；疑似 CI baseline 腿跨渲染时序，L014 同族）
+- [ ] `GoldenColorTests.testCrossConsistencyLinearDomain` 间歇性失败排查（02-04 harness 遗留 flake，03-01 期间复现：全 suite/类内运行偶发 diverge 1.0，单测隔离必现通过；03-01 排除本类后仍复现 → 与 03-01 无关；疑似 CI baseline 腿跨渲染时序，L014 同族；02-04/05-08 期间扩员观察：testNeutralPatchesSyntheticTarget/testCrossConsistencySyntheticTarget 同族负载态偶发（05-08 验收与 W6 复验各实录一次，隔离必过））
 - [ ] 滑块拖动 60fps Instruments 交互目检（PERF-5/SC#3 手动项；数据面已由 `.work/plans/03/perf-record.md` 覆盖——晚链 2-6ms ✓，全链重渲 36ms 注记）
 
 ## Phase 3 遗留/分配（签核注记，非阻塞）

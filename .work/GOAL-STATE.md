@@ -13,7 +13,9 @@
 
 
 - **Phase 4：已闭环**（VERIFICATION.md GOAL ACHIEVED；04-01..04-08 全 PASS）
-- **Phase 5：Color & Denoise**——RESEARCH+CONTEXT+8 plans 定稿
+- **Phase 5：✅ 已闭环（2026-09-23）**——VERIFICATION GOAL ACHIEVED（12/12 需求交付、SC#1-3 绿、SC#4 denoise 60fps 已裁决 override 移交 Phase 6+/perf plan、7 项可接受挂账零阻塞）；VALIDATION validated + nyquist true；609 tests
+  - 05-01..05-08 全部执行+验收闭环（426→445→480→512→535→553→581→609）
+  - 移交 Phase 6：8 项 Open Questions（BlendMode 常量错位 = 6-1 前必拍板）+ 06-RESEARCH 已备
   - 05-01 ✅（426）→ 05-02 ✅（445）→ 05-03 ✅（修复轮 480）→ 05-04 ✅（修复轮+复验 512）
   - 05-05 ✅ 闭环（验收 PASS-with-notes：7/7 AC 独立证实、luma corr 0.9776、撤销逐位回退、4 notes 非阻塞；535 tests）
   - 05-06 ✅ 执行完成（2026-09-22 夜间 ZCode subagent；5 commits a61f746..061c4aa；全套 553/3skip/0fail）：nlmeans 29.0 Goossens 五 kernel 直译（parity 12/12 ≤5.7e-6）+ dt 三证据 4/4（DB hex byte-identical + 平场 max_dev=0.0）+ tiling 承重双门（分块==整幅、Δfootprint 352MB）+ 预览降载三件套（57 vs 481 趟，7.5×）+ 面板/轨 B/PERF；SUMMARY+DECISIONS 落盘；**seed DISABLED（plan「strength=0 恒等」证伪，D-05-06-T2-1）**；**新发现 GUI-13（高）**：启用 commit + 立即拖动 tick 并发 → ModuleBox.setParams SIGABRT（D-H1 通用竞态，非 nlmeans 特有，05-08 拖动门签核前必修，崩溃报告 .work/plans/05-06/adoption/）；待验收轮（05-07 执行前/后安排）
