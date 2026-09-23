@@ -2,15 +2,31 @@ import Foundation
 import Metal
 import os
 
-/// Swift mirror of the MSL `LayerCompositeUniforms` (16-byte stride).
-struct LayerCompositeUniforms {
-    var opacity: Float
-    var reverse: UInt32
-    private var _pad: (UInt32, UInt32) = (0, 0)
+/// Swift mirror of the MSL `BlendOpUniforms` (32-byte stride; BlendOp
+/// kernel ABI — the IOP side mirror is `BlendOpDispatchUniforms`, the MSL
+/// struct the single source of the ABI; the identity/parity gates pin all
+/// three together).
+struct BlendCompositeUniforms {
+    var opacity: Float      // CLIP'd gopacity — used when hasMask == 0
+    var blendMode: UInt32   // BlendMode rawValue (dt slot)
+    var reverse: UInt32     // DEVELOP_BLEND_REVERSE consumption
+    var hasMask: UInt32     // 1 = mask plane carries the effective opacity
+    var blendParam: Float   // exp2(blend_parameter) = 1 (no per-layer parameter in v1)
+    var rowBegin: UInt32    // write band — whole plane for the driver path
+    var rowEnd: UInt32
+    private var _pad: UInt32 = 0
 
-    init(opacity: Float, reverse: Bool) {
+    init(
+        opacity: Float, blendMode: BlendMode, reverse: Bool, hasMask: Bool,
+        blendParam: Float = 1.0
+    ) {
         self.opacity = opacity
+        self.blendMode = UInt32(blendMode.rawValue)
         self.reverse = reverse ? 1 : 0
+        self.hasMask = hasMask ? 1 : 0
+        self.blendParam = blendParam
+        self.rowBegin = 0
+        self.rowEnd = UInt32.max
     }
 }
 
@@ -91,8 +107,10 @@ enum LayerCompositeDriver {
         return Set(V50Order.entries.filter { forbiddenSlots.contains($0.order) }.map(\.opName))
     }()
 
-    /// The kernel function name (`LayerCompositeKernels.metal`).
-    internal static let compositeKernel = "layer_composite_normal"
+    /// The kernel function name (`BlendOpKernels.metal`, LightamerIOP's
+    /// metallib — resolved via the registered-library lookup; the 6-1
+    /// degenerate `layer_composite_normal` pass is RETIRED, plan 06-02 T2.3).
+    internal static let compositeKernel = "compositeLayer"
 
     /// The 6-1 mask-version placeholder (constant — masks render in 6-3;
     /// the real StableHash folding lands with the mask payload, L013).
@@ -322,18 +340,16 @@ enum LayerCompositeDriver {
             blendPasses: blendPasses)
     }
 
-    /// One degenerate-normal blend pass into a fresh plane (the ONLY GPU
-    /// work the driver owns; the 6-2 blendop engine replaces this with the
-    /// full mode table).
+    /// One blendop composite pass into a fresh plane — the FULL mode table
+    /// (mask × blend × opacity triple, plan 06-02 T2). The mask leg arrives
+    /// with 6-3's rasterized planes; until then the uniform path (the
+    /// `blendop_set_mask` equivalence) is used.
     private static func blend(
         below: any MTLTexture,
         top: any MTLTexture,
         layer: AdjustmentLayer,
         metal: MetalContext
     ) async throws -> any MTLTexture {
-        precondition(
-            layer.blendMode == .normal,
-            "6-1 degenerate composite supports normal only (mode \(layer.blendMode) arrives with the 6-2 blendop engine); the REVERSE flag rides the same kernel")
         precondition(
             below.width == top.width && below.height == top.height,
             "blend plane mismatch: \(below.width)x\(below.height) vs \(top.width)x\(top.height)")
@@ -345,14 +361,17 @@ enum LayerCompositeDriver {
         guard let output = metal.device.makeTexture(descriptor: descriptor) else {
             throw MetalError.bufferAllocationFailed(below.width * below.height * WorkingSpace.bytesPerPixel)
         }
-        var uniforms = LayerCompositeUniforms(
+        var uniforms = BlendCompositeUniforms(
             opacity: max(0, min(1, layer.opacity)),
-            reverse: layer.blendOptions.contains(.reverse))
+            blendMode: layer.blendMode,
+            reverse: layer.blendOptions.contains(.reverse),
+            hasMask: false)
         let session = try await metal.makeEncoder(functionName: compositeKernel)
         session.encoder.setTexture(below, index: 0)
         session.encoder.setTexture(top, index: 1)
-        session.encoder.setTexture(output, index: 2)
-        session.encoder.setBytes(&uniforms, length: MemoryLayout<LayerCompositeUniforms>.stride, index: 0)
+        session.encoder.setTexture(nil, index: 2)
+        session.encoder.setTexture(output, index: 3)
+        session.encoder.setBytes(&uniforms, length: MemoryLayout<BlendCompositeUniforms>.stride, index: 0)
         let threadsPerGroup = MTLSize(width: 8, height: 8, depth: 1)
         precondition(
             threadsPerGroup.width * threadsPerGroup.height

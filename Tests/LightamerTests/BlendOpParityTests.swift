@@ -1,5 +1,6 @@
 import LightamerCore
 import LightamerIOP
+import Metal
 import simd
 import XCTest
 
@@ -280,5 +281,307 @@ final class BlendOpParityTests: XCTestCase {
         let adjOut = JzCzhz.fromRGB(BlendOpReference.colorAdjust(a, b, 1))
         XCTAssertEqual(adjOut.x, jb.x, accuracy: 1e-9)
         XCTAssertEqual(adjOut.y, jb.y, accuracy: 1e-9)
+    }
+
+    // ── T2: GPU compositeLayer parity (arithmetic modes) ──
+    // ──────────────────────────────────────────────────────────────────
+
+    private func makeMetal() async throws -> MetalContext {
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        return metal
+    }
+
+    /// A non-flat fixture plane with HDR excursions (>1) — a flat field is
+    /// blind to per-pixel indexing and the identity gates are blind to mode
+    /// semantics, so the parity sweep runs on spatially varying + HDR data.
+    private static func fixturePixel(_ x: Int, _ y: Int) -> SIMD4<Float> {
+        let spike: Float = (x + y) % 3 == 0 ? 0.8 : 0.0
+        let r: Float = 0.08 + 0.30 * Float(x) / 7.0 + spike
+        let g: Float = 0.15 + 0.55 * Float(y) / 5.0
+        let b: Float = 0.5 + 0.4 * Float((x * 3 + y) % 5) / 4.0
+        return SIMD4<Float>(r, g, b, 1.0)
+    }
+
+    /// The layer fixture of the parity sweeps (a DIFFERENT non-flat
+    /// pattern — a kernel branch that returned a or b would show at once).
+    private static func layerPixel(_ x: Int, _ y: Int) -> SIMD4<Float> {
+        SIMD4<Float>(
+            0.9 - 0.1 * Float(x) / 7.0,
+            0.05 + 0.1 * Float(y) / 5.0,
+            0.3 + 0.5 * Float((x + 2 * y) % 4) / 3.0,
+            1.0)
+    }
+
+    private func makePlane(
+        _ w: Int, _ h: Int, metal: MetalContext,
+        pixel: (Int, Int) -> SIMD4<Float>
+    ) throws -> any MTLTexture {
+        var pixels = [Float](repeating: 0, count: w * h * 4)
+        for y in 0..<h {
+            for x in 0..<w {
+                let v = pixel(x, y)
+                for c in 0..<4 { pixels[(y * w + x) * 4 + c] = v[c] }
+            }
+        }
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: w, height: h, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        let texture = try XCTUnwrap(metal.device.makeTexture(descriptor: d))
+        pixels.withUnsafeBytes {
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0,
+                withBytes: $0.baseAddress!, bytesPerRow: w * 16)
+        }
+        return texture
+    }
+
+    /// L014 fence + raw float read-back.
+    private func readPlane(_ t: any MTLTexture, metal: MetalContext) -> [Float] {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+        var out = [Float](repeating: 0, count: t.width * t.height * 4)
+        out.withUnsafeMutableBytes {
+            t.getBytes(
+                $0.baseAddress!, bytesPerRow: t.width * 16,
+                from: MTLRegionMake2D(0, 0, t.width, t.height), mipmapLevel: 0)
+        }
+        return out
+    }
+
+    private static func doubleRGB(_ pixel: SIMD4<Float>) -> SIMD3<Double> {
+        SIMD3<Double>(Double(pixel.x), Double(pixel.y), Double(pixel.z))
+    }
+
+    private func assertPlaneParity(
+        _ got: [Float], _ ref: [SIMD3<Double>], _ label: String,
+        rel: Float = 1e-5, absFloor: Float = 2.5e-5,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        var compared = 0
+        var maxRel: Float = 0
+        var violations = 0
+        for i in 0..<ref.count {
+            for c in 0..<3 {
+                let g = got[i * 4 + c]
+                let r = Float(ref[i][c])
+                let diff = abs(g - r)
+                let ok = diff < absFloor || diff / max(abs(r), 1e-9) < rel
+                if !ok { violations += 1 }
+                maxRel = max(maxRel, diff / max(abs(r), 1e-9))
+                compared += 1
+            }
+            // The opaque-alpha invariant (see BlendOpKernels.metal header).
+            XCTAssertEqual(
+                got[i * 4 + 3], 1.0, accuracy: 1e-6, "\(label) alpha",
+                file: file, line: line)
+        }
+        XCTAssertGreaterThan(compared, 0, "\(label) 防空转: nothing compared")
+        XCTAssertEqual(
+            violations, 0,
+            "\(label): \(violations)/\(compared) samples violate the " +
+                "<\(rel) rel / \(absFloor) abs gate (maxRel \(maxRel))",
+            file: file, line: line)
+    }
+
+    /// Per-mode × opacity sweep: GPU `compositeLayer` vs the float64
+    /// reference <1e-5 rel (2.5e-5 abs floor for the linearBurn
+    /// cancellation region) on the non-flat HDR fixture.
+    func testArithmeticModesGPUParity() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 8, h = 6
+        let below = try makePlane(w, h, metal: metal, pixel: Self.fixturePixel)
+        let layer = try makePlane(w, h, metal: metal, pixel: Self.layerPixel)
+
+        let modes: [BlendMode] = [
+            .normal, .multiply, .linearBurn, .screen,
+            .overlay, .softLight, .hardLight, .difference,
+        ]
+        let opacities: [Float] = [0.25, 0.6, 1.0]
+
+        let refA = (0..<w * h).map {
+            Self.doubleRGB(Self.fixturePixel($0 % w, $0 / w))
+        }
+        let refB = (0..<w * h).map {
+            Self.doubleRGB(Self.layerPixel($0 % w, $0 / w))
+        }
+
+        for mode in modes {
+            for op in opacities {
+                let output = try await BlendOpEngine.composite(
+                    below: below, layer: layer, mask: nil,
+                    opacity: op, blendMode: mode, metal: metal)
+                let got = readPlane(output, metal: metal)
+                let ref = zip(refA, refB).map {
+                    BlendOpReference.blend(mode, a: $0, b: $1, opacity: Double(op))
+                }
+                assertPlaneParity(
+                    got, ref, "\(mode) op=\(op) GPU vs float64 reference")
+            }
+        }
+    }
+
+    /// 防空转 at the mode level: every mode at op=0.6 must CHANGE the below
+    /// plane (a kernel branch that collapsed to identity or copy-b would
+    /// still pass a per-pixel gate on a degenerate fixture — this gate is
+    /// the belt to that suspenders).
+    func testEveryModeChangesTheComposite() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let below = try makePlane(8, 6, metal: metal, pixel: Self.fixturePixel)
+        let layer = try makePlane(8, 6, metal: metal, pixel: Self.layerPixel)
+        let belowBytes = readPlane(below, metal: metal)
+        for mode in BlendMode.allCases {
+            let output = try await BlendOpEngine.composite(
+                below: below, layer: layer, mask: nil,
+                opacity: 0.6, blendMode: mode, metal: metal)
+            let got = readPlane(output, metal: metal)
+            let differing = zip(got, belowBytes).filter { $0.0 != $0.1 }.count
+            XCTAssertGreaterThan(
+                differing, 0, "\(mode): composite must differ from below —防空转")
+        }
+    }
+
+    /// The composite identity triple at the engine level, byte-exact:
+    /// normal op=1 → the layer plane; op=0 → the below plane (all modes
+    /// EXCEPT colorAdjust — dt's formula keeps b's lightness unmixED at any
+    /// opacity, blendop.cl:736; see testReferenceIdentityGates).
+    func testEngineIdentityTriplesByteExact() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let below = try makePlane(8, 6, metal: metal, pixel: Self.fixturePixel)
+        let layer = try makePlane(8, 6, metal: metal) { x, y in
+            SIMD4<Float>(Float(x) / 8.0 + 0.05, Float(y) / 6.0 + 0.02, 0.7, 1.0)
+        }
+        let belowBytes = readPlane(below, metal: metal)
+        let layerBytes = readPlane(layer, metal: metal)
+
+        let opOne = try await BlendOpEngine.composite(
+            below: below, layer: layer, mask: nil,
+            opacity: 1.0, blendMode: .normal, metal: metal)
+        XCTAssertEqual(
+            readPlane(opOne, metal: metal), layerBytes,
+            "normal op=1 == layer (byte-exact)")
+
+        // op=0 byte-exact for the ARITHMETIC modes (the mix weight is 0 —
+        // the below bytes pass through untouched). The PERCEPTUAL modes
+        // structurally round-trip every pixel through the float32 JzCzhz
+        // chain even at op=0 — their op=0 gate is the round-trip parity
+        // (rel <2e-4, the dt constant-set floor measured in T1), not bytes.
+        let arithmetic: [BlendMode] = [
+            .normal, .multiply, .linearBurn, .screen,
+            .overlay, .softLight, .hardLight, .difference,
+        ]
+        for mode in arithmetic {
+            let opZero = try await BlendOpEngine.composite(
+                below: below, layer: layer, mask: nil,
+                opacity: 0.0, blendMode: mode, metal: metal)
+            XCTAssertEqual(
+                readPlane(opZero, metal: metal), belowBytes,
+                "\(mode) op=0 == below (byte-exact)")
+        }
+        let belowDoubles = (0..<below.width * below.height).map {
+            Self.doubleRGB(Self.fixturePixel($0 % below.width, $0 / below.width))
+        }
+        let perceptual: [BlendMode] = [.luminosity, .saturation, .hue, .color]
+        for mode in perceptual {
+            let opZero = try await BlendOpEngine.composite(
+                below: below, layer: layer, mask: nil,
+                opacity: 0.0, blendMode: mode, metal: metal)
+            let got = readPlane(opZero, metal: metal)
+            var maxDev: Float = 0
+            for i in 0..<belowDoubles.count {
+                for c in 0..<3 {
+                    let r = Float(belowDoubles[i][c])
+                    let diff = abs(got[i * 4 + c] - r)
+                    maxDev = max(maxDev, diff / max(abs(r), 1e-9))
+                }
+            }
+            // 5e-4 rel = the float32 pow-chain floor on the darkest fixture
+            // pixels (abs deviations stay < 3e-5 — well inside the T1 gate).
+            XCTAssertLessThanOrEqual(
+                maxDev, 5e-4,
+                "\(mode) op=0 must round-trip to below (maxRel \(maxDev))")
+        }
+        // colorAdjust op=0 does NOT return below — dt's formula takes b's
+        // lightness UNMIXED at any opacity — so it is gated against the
+        // reference, not against below.
+        do {
+            let opZero = try await BlendOpEngine.composite(
+                below: below, layer: layer, mask: nil,
+                opacity: 0.0, blendMode: .colorAdjust, metal: metal)
+            let got = readPlane(opZero, metal: metal)
+            let ref = (0..<below.width * below.height).map { i -> SIMD3<Double> in
+                let x = i % below.width, y = i / below.width
+                // This test's layer plane is the INLINE pattern below —
+                // not the layerPixel fixture.
+                let layer = SIMD3<Double>(
+                    Double(x) / 8.0 + 0.05, Double(y) / 6.0 + 0.02, 0.7)
+                return BlendOpReference.colorAdjust(
+                    Self.doubleRGB(Self.fixturePixel(x, y)), layer, 0)
+            }
+            // Perceptual-family gate: the float32 pow-chain carries a
+            // ~3e-5 absolute noise floor on small channels (T1 measured) —
+            // rel 2e-3 / abs 5e-4; the POLAR-domain gates (hue sweep) are
+            // the tight ones, not these RGB-space gates.
+            assertPlaneParity(
+                got, ref, "colorAdjust op=0 vs reference",
+                rel: 2e-3, absFloor: 5e-4)
+        }
+    }
+
+    /// The mask leg of the triple: an analytic mask plane (pre-multiplied
+    /// with the layer opacity per the dt blend.c:530 fold — the red channel
+    /// IS the effective opacity) drives per-pixel opacity; the uniform path
+    /// must equal an all-ones mask plane byte-exactly, and the gradient
+    /// mask output must match the per-pixel float64 reference.
+    func testMaskPlaneTripleMatchesReference() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 8, h = 6
+        let below = try makePlane(w, h, metal: metal, pixel: Self.fixturePixel)
+        let layer = try makePlane(w, h, metal: metal, pixel: Self.layerPixel)
+        let layerBytes = readPlane(layer, metal: metal)
+        XCTAssertNotEqual(readPlane(below, metal: metal), layerBytes, "防空转 fixture")
+
+        // 1. Uniform equivalence: all-ones mask plane at mask=0.4 with
+        //    layer opacity 1.0 == the uniform path at opacity 0.4.
+        let ones = try makePlane(w, h, metal: metal) { _, _ in
+            SIMD4<Float>(0.4, 0, 0, 1.0)
+        }
+        let viaUniform = try await BlendOpEngine.composite(
+            below: below, layer: layer, mask: nil,
+            opacity: 0.4, blendMode: .multiply, metal: metal)
+        let viaPlane = try await BlendOpEngine.composite(
+            below: below, layer: layer, mask: ones,
+            opacity: 1.0, blendMode: .multiply, metal: metal)
+        XCTAssertEqual(
+            readPlane(viaUniform, metal: metal), readPlane(viaPlane, metal: metal),
+            "all-ones mask plane == uniform opacity path (byte-exact)")
+
+        // 2. Analytic gradient mask (effective = 0.5·x/7 folded at the
+        //    plane level) — per-pixel reference parity for multiply.
+        let grad = try makePlane(w, h, metal: metal) { x, _ in
+            SIMD4<Float>(0.5 * Float(x) / 7.0, 0, 0, 1.0)
+        }
+        let masked = try await BlendOpEngine.composite(
+            below: below, layer: layer, mask: grad,
+            opacity: 1.0, blendMode: .multiply, metal: metal)
+        let got = readPlane(masked, metal: metal)
+        let ref: [SIMD3<Double>] = (0..<w * h).map { i in
+            let x = i % w, y = i / w
+            let op = 0.5 * Double(x) / 7.0
+            return BlendOpReference.multiply(
+                Self.doubleRGB(Self.fixturePixel(x, y)),
+                Self.doubleRGB(Self.layerPixel(x, y)), op, 1)
+        }
+        assertPlaneParity(got, ref, "gradient-mask multiply triple")
+        // The mask really varies: right column (op 0.5) must sit well away
+        // from the below value.
+        XCTAssertGreaterThan(
+            got[(w - 1) * 4], 0.3, "right column must carry a strong blend")
     }
 }
