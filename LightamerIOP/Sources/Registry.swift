@@ -208,6 +208,14 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: SoftenModule.opName) { id in
             ModuleBox(module: SoftenModule(), instanceID: id)
         }
+        // Plan 06-06-T2: liquify (portrait liquify warp), v50 slot 18.0 —
+        // after clipping (17.0), before spots (19.0); the base chain's last
+        // DISTORT|GEOMETRY warp before the tone stages. Seed ENABLED-neutral
+        // (empty paths = blit identity, cache-neutral — the plan's
+        // 空路径恒等 seed; exposure-0EV style).
+        await registry.register(opName: LiquifyModule.opName) { id in
+            ModuleBox(module: LiquifyModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -309,6 +317,9 @@ public enum LightamerIOPRegistry {
             VibranceKernel.functionName,
             SoftenKernel.overFunction,
             SoftenKernel.mixFunction,
+            // Plan 06-06-T2: the liquify displacement warp (lanczos3/
+            // bicubic tables ride in a buffer — one PSO for all).
+            LiquifyKernel.functionName,
         ]
     }
 
@@ -398,6 +409,11 @@ public enum LightamerIOPRegistry {
             // Plan 05-08-T1: bilateral joins the seed DISABLED (D-05-08-T1-3
             // — see the registration note above).
             ModuleInstance(module: BilateralModule.self, params: BilateralModule.Params(), enabled: false),
+            // Plan 06-06-T2: liquify joins the seed ENABLED-neutral (empty
+            // paths = the blit identity — the NORMAL liquify state, cache-
+            // neutral, exposure-0EV style; the liquify panel + overlay have
+            // an instance to drive).
+            ModuleInstance(module: LiquifyModule.self, params: LiquifyModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }

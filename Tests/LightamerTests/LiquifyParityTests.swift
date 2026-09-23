@@ -318,6 +318,355 @@ final class LiquifyParityTests: XCTestCase {
         XCTAssertEqual(violations, 0, "default profile must be monotone-decreasing")
     }
 
+
+    // MARK: - T2: warp kernel + module (GPU vs float64 resampler)
+
+    private func makeMetal() async throws -> MetalContext {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        return metal
+    }
+
+    private func drain(_ metal: MetalContext) async {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        await fence?.completed()
+    }
+
+    /// A textured synthetic (gradient × sine × deterministic noise — strong
+    /// local structure so a sampling bug cannot hide).
+    private func makeSyntheticTexture(
+        _ metal: MetalContext, width: Int, height: Int
+    ) throws -> (input: any MTLTexture, rgb: [Double]) {
+        func pseudoNoise(_ x: Int, _ y: Int) -> Double {
+            var h = UInt64(x &* 374761393 &+ y &* 668265263)
+            h = (h ^ (h >> 13)) &* 1274126177
+            return Double(h % 1000) / 1000.0 - 0.5
+        }
+        var rgba = [Float](repeating: 0, count: width * height * 4)
+        var rgb = [Double](repeating: 0, count: width * height * 3)
+        for y in 0..<height {
+            for x in 0..<width {
+                let i = (y * width + x) * 4
+                let i3 = (y * width + x) * 3
+                let r = 0.1 + 0.8 * Double(x) / Double(width - 1) + 0.05 * pseudoNoise(x, y)
+                let g = 0.1 + 0.8 * Double(y) / Double(height - 1) + 0.05 * pseudoNoise(x + 7919, y)
+                let b = 0.3 + 0.3 * sin(Double(x) / 5.0) * cos(Double(y) / 7.0)
+                    + 0.05 * pseudoNoise(x, y + 104729)
+                rgb[i3] = r; rgb[i3 + 1] = g; rgb[i3 + 2] = b
+                rgba[i] = Float(r); rgba[i + 1] = Float(g); rgba[i + 2] = Float(b)
+                rgba[i + 3] = 1.0
+            }
+        }
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: width, height: height, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        let texture = try XCTUnwrap(metal.device.makeTexture(descriptor: d))
+        rgba.withUnsafeBytes {
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0,
+                withBytes: $0.baseAddress!, bytesPerRow: width * 16)
+        }
+        return (texture, rgb)
+    }
+
+    private func makeOutputTexture(
+        _ metal: MetalContext, width: Int, height: Int
+    ) throws -> any MTLTexture {
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: width, height: height, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        let texture = try XCTUnwrap(metal.device.makeTexture(descriptor: d))
+        let zeros = [Float](repeating: 0, count: width * height * 4)
+        zeros.withUnsafeBytes {
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0,
+                withBytes: $0.baseAddress!, bytesPerRow: width * 16)
+        }
+        return texture
+    }
+
+    private func readRGBA(_ tex: any MTLTexture) -> [Float] {
+        var floats = [Float](repeating: 0, count: tex.width * tex.height * 4)
+        floats.withUnsafeMutableBytes {
+            tex.getBytes(
+                $0.baseAddress!, bytesPerRow: tex.width * 16,
+                from: MTLRegionMake2D(0, 0, tex.width, tex.height), mipmapLevel: 0)
+        }
+        return floats
+    }
+
+    /// float64 reference resampler: per-pixel grid displacement (exact —
+    /// the grid is per-pixel) + float64 lanczos3 via the same kmix TABLE
+    /// semantics (the table IS dt's kernel definition; analytic evaluation
+    /// of the table in Double mirrors the GPU's float32 mix).
+    private func referenceWarp(
+        input: [Double], width: Int, height: Int, field: DisplacementField,
+        interpolation: LiquifyInterpolation
+    ) -> [Double] {
+        let size = interpolation.kernelSize
+        let resolution = interpolation == .bilinear ? 1 : LiquifyModule.kdescResolution
+        var k = [Double](repeating: 0, count: size * resolution + 1)
+        if interpolation == .bilinear {
+            k[0] = 1
+        } else {
+            for i in 0...size * resolution {
+                let x = Float(Float(i) / Float(resolution))
+                switch interpolation {
+                case .bilinear: k[i] = 0
+                case .bicubic: k[i] = Double(LiquifyModule.bicubic(0.5, x))
+                case .lanczos2: k[i] = Double(LiquifyModule.lanczos(2, x))
+                case .lanczos3: k[i] = Double(LiquifyModule.lanczos(3, x))
+                }
+            }
+        }
+        func kmix(_ t: Double) -> Double {
+            let v = abs(t * Double(resolution))
+            let flor = v.rounded(.down)
+            let i = min(Int(flor), size * resolution - 1)
+            let frac = v - flor
+            return k[i] * (1 - frac) + k[i + 1] * frac
+        }
+        let a = size
+        var out = [Double](repeating: 0, count: width * height * 3)
+        let g = field.forward
+        for py in 0..<height {
+            for px in 0..<width {
+                var warp = SIMD2<Double>.zero
+                let cx = px - g.origin.x, cy = py - g.origin.y
+                if cx >= 0, cy >= 0, cx < g.width, cy < g.height {
+                    let v = g.vectors[cy * g.width + cx]
+                    warp = SIMD2(Double(v.x), Double(v.y))
+                }
+                let inPos = SIMD2<Double>(Double(px), Double(py)) + warp
+                let base = SIMD2<Int>(Int(inPos.x.rounded(.down)), Int(inPos.y.rounded(.down)))
+                let fx = inPos.x - inPos.x.rounded(.down)
+                let fy = inPos.y - inPos.y.rounded(.down)
+                // dt warp_kernel taps: offsets 1−a … a (six for lanczos3).
+                var nx = 0.0, ny = 0.0
+                for i in (1 - a)...a {
+                    nx += kmix(fx - Double(i))
+                    ny += kmix(fy - Double(i))
+                }
+                var acc = SIMD3<Double>.zero
+                func tap(_ ox: Int, _ oy: Int) -> SIMD3<Double> {
+                    let x = min(max(base.x + ox, 0), width - 1)
+                    let y = min(max(base.y + oy, 0), height - 1)
+                    let idx = (y * width + x) * 4
+                    return SIMD3(Double(input[idx]), Double(input[idx + 1]), Double(input[idx + 2]))
+                }
+                for sy in (1 - a)...a {
+                    for sx in (1 - a)...a {
+                        let wgt = kmix(fx - Double(sx)) * kmix(fy - Double(sy))
+                        acc += tap(sx, sy) * wgt
+                    }
+                }
+                let idx = (py * width + px) * 3
+                out[idx] = acc.x / (nx * ny)
+                out[idx + 1] = acc.y / (nx * ny)
+                out[idx + 2] = acc.z / (nx * ny)
+            }
+        }
+        return out
+    }
+
+    /// Warp parity: a single radial-grow stamp over the synthetic — the GPU
+    /// `[liquify]` engine-direct run vs the float64 grid+lanczos3 reference,
+    /// rel <1e-5 with abs floor (warp class, ashift precedent); 防空转:
+    /// the warp must actually move pixels.
+    func testWarpKernelParityAgainstFloat64Resampler() async throws {
+        let metal = try await makeMetal()
+        let (w, h) = (96, 96)
+        let (inputTex, inputRGB) = try makeSyntheticTexture(metal, width: w, height: h)
+
+        let params = LiquifyModule.Params(paths: [
+            LiquifyPathData(
+                type: .moveTo, warpType: .radialGrow,
+                point: SIMD2(0.5, 0.5),
+                strength: SIMD2(0.525, 0.5),
+                radius: SIMD2(0.6, 0.5))
+        ])
+        let module = LiquifyModule()
+        var piece = IOPiece()
+        piece.dscIn = IOPBufferDesc(width: w, height: h)
+        module.commitParams(params, into: &piece)
+        let roi = ROI(width: w, height: h)
+        let outputTex = try makeOutputTexture(metal, width: w, height: h)
+        try await module.process(
+            input: inputTex, output: outputTex, roiIn: roi, roiOut: roi,
+            piece: &piece, metal: metal)
+        await drain(metal) // L014
+
+        let got = readRGBA(outputTex)
+        // 防空转: the warp really moved pixels.
+        var moved = 0
+        for i in 0..<(w * h) {
+            let d = abs(Double(got[i * 4]) - inputRGB[i * 3])
+            if d > 1e-4 { moved += 1 }
+        }
+        XCTAssertGreaterThan(moved, 100, "the stamp must displace interior pixels")
+
+        // The reference resamples from the SAME T1-verified grid (the object
+        // under test here is the RESAMPLER, not the field).
+        let field = try XCTUnwrap(LiquifyDistortionField.build(
+            paths: params.paths, frame: SIMD2(Double(w), Double(h)),
+            boundsOrigin: .zero, boundsSize: SIMD2(w, h)))
+        var refIn = [Double](repeating: 0, count: w * h * 4)
+        let inBytes = readRGBA(inputTex)
+        for i in 0..<(w * h * 4) { refIn[i] = Double(inBytes[i]) }
+        let reference = referenceWarp(
+            input: refIn, width: w, height: h, field: field,
+            interpolation: .lanczos3)
+
+        // The ashift two-key gate: rel <1e-5 AND abs >=1e-5 must BOTH hold
+        // to fail (dark pixels amplify float32 dust into large rel).
+        let gateRel = 1e-5, gateAbs = 1e-5
+        var maxRel = 0.0
+        var compared = 0
+        var worst = ""
+        for i in 0..<(w * h) {
+            for c in 0..<3 {
+                let g = Double(got[i * 4 + c])
+                let r = reference[i * 3 + c]
+                let diff = abs(g - r)
+                let rel = diff / max(abs(r), 1e-3)
+                if diff >= gateAbs { maxRel = max(maxRel, rel) }
+                if rel >= gateRel && diff >= gateAbs && worst.count < 200 {
+                    worst = "px(\(i % w),\(i / w)) ch\(c): got \(g) ref \(r) rel \(rel)"
+                }
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转 guard")
+        XCTAssertLessThan(maxRel, gateRel, "warp parity \(maxRel) (gate \(gateRel)) — \(worst)")
+        print("[06-06 T2] warp parity: maxRel \(maxRel) over \(compared) samples, \(moved) px moved")
+    }
+
+    /// Empty paths = BYTE identity through the full pipeline (the seed's
+    /// normal state — the plan's 逐字节恒等红线, permanent regression).
+    func testEmptyPathIdentityBytes() async throws {
+        let metal = try await makeMetal()
+        let (w, h) = (64, 64)
+        let (inputTex, _) = try makeSyntheticTexture(metal, width: w, height: h)
+        let module = LiquifyModule()
+        var piece = IOPiece()
+        piece.dscIn = IOPBufferDesc(width: w, height: h)
+        module.commitParams(LiquifyModule.Params(), into: &piece)
+        let roi = ROI(width: w, height: h)
+        let outputTex = try makeOutputTexture(metal, width: w, height: h)
+        try await module.process(
+            input: inputTex, output: outputTex, roiIn: roi, roiOut: roi,
+            piece: &piece, metal: metal)
+        await drain(metal)
+        let a = readRGBA(inputTex)
+        let b = readRGBA(outputTex)
+        XCTAssertEqual(a, b, "empty-path liquify must be byte-identical (RGBA)")
+        XCTAssertEqual(module.fieldBuildCount, 0, "identity path builds no field")
+    }
+
+    /// 仅参数变化重建: the same params + roi reuse the cached grid; a param
+    /// change rebuilds (the plan's cache assertion).
+    func testFieldCacheRebuildOnlyOnParamChange() async throws {
+        let metal = try await makeMetal()
+        let (w, h) = (64, 64)
+        let (inputTex, _) = try makeSyntheticTexture(metal, width: w, height: h)
+        let module = LiquifyModule()
+        var piece = IOPiece()
+        piece.dscIn = IOPBufferDesc(width: w, height: h)
+        var params = LiquifyModule.Params(paths: [
+            LiquifyPathData(
+                type: .moveTo, warpType: .radialGrow,
+                point: SIMD2(0.5, 0.5), strength: SIMD2(0.55, 0.5),
+                radius: SIMD2(0.6, 0.5))
+        ])
+        module.commitParams(params, into: &piece)
+        let roi = ROI(width: w, height: h)
+        let outputTex = try makeOutputTexture(metal, width: w, height: h)
+        try await module.process(
+            input: inputTex, output: outputTex, roiIn: roi, roiOut: roi,
+            piece: &piece, metal: metal)
+        XCTAssertEqual(module.fieldBuildCount, 1, "first run builds once")
+        await drain(metal)
+        // Same params, same roi: cache hit (repeat process = the ROI-walk's
+        // modifyROIIn + process sequence).
+        try await module.process(
+            input: inputTex, output: outputTex, roiIn: roi, roiOut: roi,
+            piece: &piece, metal: metal)
+        await drain(metal)
+        XCTAssertEqual(module.fieldBuildCount, 1, "cache hit on unchanged params+roi")
+        // A param change rebuilds.
+        params.paths[0].radius = SIMD2(0.7, 0.5)
+        module.commitParams(params, into: &piece)
+        try await module.process(
+            input: inputTex, output: outputTex, roiIn: roi, roiOut: roi,
+            piece: &piece, metal: metal)
+        await drain(metal)
+        XCTAssertEqual(module.fieldBuildCount, 2, "param change rebuilds")
+    }
+
+    /// modifyROIIn extends the input roi by the stamp extent + interpolation
+    /// margin, clamped to the plane (dt :1213-1285 under L020/L021).
+    func testModifyROIInExtendsByStampExtent() {
+        let module = LiquifyModule()
+        var piece = IOPiece()
+        piece.dscIn = IOPBufferDesc(width: 200, height: 200)
+        // Stamp at frame fraction (0.5, 0.5) radius 0.1 → 20 px on a 200 px
+        // plane (radius resolves against max(w, h)).
+        var params = LiquifyModule.Params(paths: [
+            LiquifyPathData(
+                type: .moveTo, warpType: .radialGrow, point: SIMD2(0.5, 0.5),
+                strength: SIMD2(0.55, 0.5), radius: SIMD2(0.6, 0.5))
+        ])
+        module.commitParams(params, into: &piece)
+        let roi = ROI(x: 0, y: 0, width: 200, height: 200)
+        var input = ROI()
+        module.modifyROIIn(output: roi, input: &input, piece: piece)
+        // extent = 41 px wide centered at 100 → 79..121 (2·20+1 = 41 →
+        // origin 100−20=80, 80..121... center round(100)=100, iradius 20 →
+        // 80..120); margin a=3 low, 4 high → 77..125.
+        XCTAssertLessThanOrEqual(input.x, 77, "input extends left of the stamp")
+        XCTAssertGreaterThanOrEqual(input.x + input.width, 124, "input extends right of the stamp")
+        XCTAssertEqual(input.x + input.width <= 200, true, "clamped to the plane")
+        // Neutral passes through.
+        params = LiquifyModule.Params()
+        module.commitParams(params, into: &piece)
+        var input2 = ROI()
+        module.modifyROIIn(output: roi, input: &input2, piece: piece)
+        XCTAssertEqual(input2, roi, "neutral roi passes verbatim")
+    }
+
+    /// Seed: liquify joins ENABLED-neutral (empty paths — cache-neutral,
+    /// exposure-0EV style), slot 18.0.
+    func testSeedEnabledNeutral() throws {
+        let seed = LightamerIOPRegistry.editingDefaultInstances()
+        let liquify = try XCTUnwrap(seed.first { $0.opName == LiquifyModule.opName })
+        XCTAssertTrue(liquify.enabled, "seed is ENABLED-neutral")
+        XCTAssertEqual(
+            try liquify.params(of: LiquifyModule.self).paths.count, 0,
+            "empty paths = identity")
+        XCTAssertEqual(liquify.iopOrder, 18.0)
+    }
+
+    /// The kernel tables match dt's producer (bicubic 0.5 / lanczos2 /
+    /// lanczos3 at resolution 100; bilinear [1, 0] at resolution 1).
+    func testKernelTables() {
+        let (bilinearK, bilinearRes) = LiquifyModule.kernelTable(.bilinear)
+        XCTAssertEqual(bilinearRes, 1)
+        XCTAssertEqual(bilinearK, [1, 0])
+        let (lanczos3, res) = LiquifyModule.kernelTable(.lanczos3)
+        XCTAssertEqual(res, 100)
+        XCTAssertEqual(lanczos3.count, 3 * 100 + 1)
+        XCTAssertEqual(lanczos3[0], 1.0, accuracy: 1e-6)
+        XCTAssertEqual(lanczos3[300], 0.0, accuracy: 1e-6, "lanczos3 vanishes at |x|=3")
+        XCTAssertGreaterThan(lanczos3[50], 0.5, "table midpoint sane")
+        let (bicubic, _) = LiquifyModule.kernelTable(.bicubic)
+        XCTAssertEqual(bicubic[0], 1.0, accuracy: 1e-6)
+        XCTAssertEqual(bicubic[200], 0.0, accuracy: 1e-6, "bicubic(0.5) vanishes at |x|=2")
+    }
+
     // MARK: - T1: empty/degenerate paths
 
     func testEmptyPathsBuildNothing() {

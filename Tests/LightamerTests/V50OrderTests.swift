@@ -58,6 +58,23 @@ final class V50OrderTests: XCTestCase {
         XCTAssertNil(V50Order.order(for: "passthrough_spike"), "spike module has no slot")
     }
 
+    /// Plan 06-06-T2: liquify's warp-slot neighborhood — clipping 17.0 <
+    /// liquify 18.0 < spots 19.0 < retouch 20.0 < exposure 21.0 (the module
+    /// statics AND the table agree).
+    func testLiquifySlotNeighborhood() {
+        XCTAssertEqual(V50Order.order(for: "liquify"), 18.0)
+        XCTAssertEqual(V50Order.order(for: "clipping"), 17.0)
+        XCTAssertEqual(V50Order.order(for: "spots"), 19.0)
+        XCTAssertEqual(V50Order.order(for: "retouch"), 20.0)
+        XCTAssertEqual(V50Order.order(for: "exposure"), 21.0)
+        XCTAssertLessThan(V50Order.order(for: "liquify")!, V50Order.order(for: "spots")!)
+        XCTAssertLessThan(V50Order.order(for: "spots")!, V50Order.order(for: "retouch")!)
+        XCTAssertLessThan(V50Order.order(for: "retouch")!, V50Order.order(for: "exposure")!)
+        XCTAssertEqual(LiquifyModule.iopOrder, 18.0)
+        XCTAssertGreaterThan(LiquifyModule.iopOrder, 17.0)
+        XCTAssertLessThan(LiquifyModule.iopOrder, 19.0)
+    }
+
     /// 04-02: the flip-before-crop hard constraint (`iop_order.c:810-812`
     /// "crop GUI broken if flip is done on top") — mechanism: the module
     /// statics AND the table agree, so the default chain sorts flip first.
