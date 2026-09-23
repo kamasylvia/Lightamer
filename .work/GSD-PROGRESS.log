@@ -76,3 +76,4 @@
 2026-09-23 [05-08] 验收 PASS-with-notes → 必修 2 项文档补账完成（DECISIONS D-05-08-T6-1 节补入 + manifest bilateral blob 列 2 处错位修正 + typo）+ minor 3 项（行号勘误入 DECISIONS/PROBE 残留清理/typo 同批）。609/3/0 复跑全绿。Phase 5 全部 8 plan + 签核闭环。
 2026-09-23 [06-01] subagent 验收 PASS：8/8 AC 独立证实（BlendMode 三方映射 13 值逐值对 blend.h、恒等三元组逐字节双档、缓存精确账本、sidecar v2 全套、PixelPipe walk 零语义改动）；648/3/0 独立实跑。3 notes 非阻塞（SUMMARY 时点数/test-direct null_glob 陷阱——已建议补空匹配报错/decode 注释精度）。→ 06-02 blendop。
 [2026-09-23 13:29] 06-02 blendop 合成引擎 执行完成 → 6 commits 430056c..e9f77f3，全套 670/3skip/0fail，SUMMARY+DECISIONS 落盘，勿 push
+[2026-09-23 14:40] 06-02 验收修复 → commit 95d2151：④ BLEND_PROBE_DIR 接线 + fence/refs-cases/backtick-escape 三处预存断裂修复 + 54 XMP 入库 + manifest 总账节 54 行（④ 端到端产出）+ SUMMARY 更正；全脚本 REGEN RC=0；全套 670/3skip/0fail
