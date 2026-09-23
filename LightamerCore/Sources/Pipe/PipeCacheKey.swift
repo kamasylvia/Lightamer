@@ -73,6 +73,11 @@ internal struct PipeCacheKey: Hashable {
     /// exists from day one per the plan).
     internal static let maskPosition = -2
 
+    /// Reserved position: the retouch stroke-leg output plane (Plan 06-07)
+    /// — keyed on (input prefix ⊕ stroke-list hash); the same layer-output
+    /// eviction tier as a chain plane.
+    internal static let retouchPosition = -3
+
     init(
         imageID: UUID,
         pipeType: PipeResolution,
@@ -116,8 +121,7 @@ internal struct PipeCacheKey: Hashable {
         if position == Self.maskPosition { return .maskPlane }
         if position == Self.compositePosition { return .compositePrefix }
         return .layerChainOutput
-    }
-}
+    }}
 
 /// The layer-dimension eviction tiers (Plan 06-01 T3; 06-RESEARCH §7) —
 /// ordered by REBUILD COST across a budget sweep: chain outputs (full sub-run

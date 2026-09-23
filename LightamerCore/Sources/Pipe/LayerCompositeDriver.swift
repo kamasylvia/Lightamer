@@ -198,10 +198,23 @@ enum LayerCompositeDriver {
         }
 
         // ── A. base sub-run → the composite input plane S.
+        // Plan 06-07 T2: the retouch SOURCE ∪ TARGET AABB extension — a
+        // clone/heal stroke may sample OUTSIDE the requested window (its
+        // source patch lives elsewhere in the frame); the base sub-run must
+        // render the covering region or the paste reads invented pixels
+        // (the 源区黑边 red line). The walk clamps the union into the frame.
         let basePipe = PixelPipe(resolution: resolution, cache: cache)
         basePipe.imageID = imageID
         basePipe.layerStack = layerStack
         if let roiHint {
+            basePipe.entryROIHInt = Self.expandedHint(
+                hint: roiHint, layerStack: layerStack, baseChain: baseChain,
+                image: image, longEdge: longEdge, resolution: resolution)
+            if basePipe.entryROIHInt != roiHint {
+                AppError.logger.info(
+                    "retouch ROI extension: window widened for stroke source patches")
+            }
+        } else {
             basePipe.entryROIHInt = roiHint
         }
         let (basePlane, baseStats) = try await basePipe.run(
@@ -218,20 +231,136 @@ enum LayerCompositeDriver {
         var layerStats: [LayerCompositeLayerStats] = []
         var blendPasses = 0
 
-        // ── B. per-layer composite (bottom-up).
-        for layer in layers {
+        // The content-anchored point mapper, built ONCE from the base walk's
+        // authoritative frame (the retouch strokes AND every mask leg share
+        // it — the per-layer construction below was redundant work).
+        let geometryMapper = GeometryPointMapper.compose(
+            boxes: baseChain,
+            frameSize: SIMD2(
+                Double(basePipe.frameROI.width), Double(basePipe.frameROI.height)))
+
+        // ── B. per-layer composite (bottom-up, BOTH kinds since 06-07).
+        for layer in layerStack.adjustmentLayers {
+            // ── ① the retouch kind (Plan 06-07): the stroke leg replaces
+            // the chain sub-run; the blend triple is unchanged (NO_MASKS —
+            // maskHash 0, the stroke shapes carried their own mask).
+            if let retouch = layer as? RetouchLayer {
+                guard retouch.enabled else { continue }
+                let strokeHash = RetouchEngine.strokeListHash(retouch.strokes)
+
+                // isVisible=false: nothing to keep warm (the stroke leg owns
+                // no chain planes) — skip at composite, no prefix fold.
+                guard retouch.isVisible else {
+                    layerStats.append(LayerCompositeLayerStats(
+                        layerID: retouch.id, run: RenderPipeline.PipeRunStats(
+                            hits: 0, misses: 0, planesRendered: 0),
+                        prefixHit: false))
+                    continue
+                }
+
+                // The stroke leg: cached at (input prefix ⊕ stroke hash) —
+                // editing a HIGHER layer leaves this leg's input untouched
+                // and the cached stroke output survives (the incremental
+                // model extends to the retouch dimension).
+                var strokeOutput = accumulator
+                var legHit = false
+                if !retouch.strokes.isEmpty {
+                    let legUpstream = fold(prefixHash, strokeHash)
+                    let legBytes = window.width * window.height * WorkingSpace.bytesPerPixel
+                    if policy.cachesAllLayerOutputs || retouch.id == hotLayerID {
+                        let key = PipeCacheKey(
+                            imageID: imageID, pipeType: resolution,
+                            position: PipeCacheKey.retouchPosition,
+                            upstreamHash: legUpstream, roi: window, layerID: retouch.id)
+                        let statsBefore = await cache.stats
+                        let inputBox = TextureBox(texture: accumulator)
+                        let cached = try await cache.plane(for: key, byteCount: legBytes) {
+                            [inputBox] in
+                            try await RetouchEngine.applyStrokes(
+                                retouch, input: inputBox.texture, window: window,
+                                mapper: geometryMapper, cache: cache, imageID: imageID,
+                                pipeType: resolution, metal: metal
+                            ).output
+                        }
+                        strokeOutput = cached.texture
+                        let delta = (await cache.stats) - statsBefore
+                        legHit = delta.hits > 0
+                    } else {
+                        let computed = try await RetouchEngine.applyStrokes(
+                            retouch, input: accumulator, window: window,
+                            mapper: geometryMapper, cache: cache, imageID: imageID,
+                            pipeType: resolution, metal: metal)
+                        strokeOutput = computed.output
+                    }
+                }
+
+                // The blend triple — same composite path as every layer.
+                let tripleHash = blendTripleHash(
+                    opacity: retouch.opacity, blendMode: retouch.blendMode,
+                    blendOptions: retouch.blendOptions, maskHash: 0)
+                prefixHash = fold(fold(prefixHash, strokeHash), tripleHash)
+                let prefixKey = PipeCacheKey(
+                    imageID: imageID, pipeType: resolution,
+                    position: PipeCacheKey.compositePosition,
+                    upstreamHash: prefixHash, roi: window, layerID: retouch.id)
+                let planeBytes = window.width * window.height * WorkingSpace.bytesPerPixel
+
+                var prefixHit = false
+                let statsBefore = await cache.stats
+                let blended: any MTLTexture
+                if policy.cachesAllPrefixes {
+                    let belowBox = TextureBox(texture: accumulator)
+                    let topBox = TextureBox(texture: strokeOutput)
+                    let triple = BlendTriple(
+                        opacity: retouch.opacity, mode: retouch.blendMode,
+                        reverse: retouch.blendOptions.contains(.reverse))
+                    let cachedBlend = try await cache.plane(
+                        for: prefixKey, byteCount: planeBytes) { [belowBox, topBox, triple] in
+                        try await Self.blend(
+                            below: belowBox.texture, top: topBox.texture, mask: nil,
+                            triple: triple, metal: metal)
+                    }
+                    blended = cachedBlend.texture
+                    let blendDelta = (await cache.stats) - statsBefore
+                    prefixHit = blendDelta.hits > 0
+                    blendPasses += blendDelta.misses > 0 ? 1 : 0
+                } else {
+                    blended = try await Self.blend(
+                        below: accumulator, top: strokeOutput, mask: nil,
+                        triple: BlendTriple(
+                            opacity: retouch.opacity, mode: retouch.blendMode,
+                            reverse: retouch.blendOptions.contains(.reverse)),
+                        metal: metal)
+                    blendPasses += 1
+                }
+                accumulator = blended
+
+                if !policy.cachesAllLayerOutputs && retouch.id != hotLayerID {
+                    await cache.invalidateLayer(imageID: imageID, layerID: retouch.id)
+                }
+                layerStats.append(LayerCompositeLayerStats(
+                    layerID: retouch.id,
+                    run: RenderPipeline.PipeRunStats(
+                        hits: legHit ? 1 : 0, misses: legHit ? 0 : 1,
+                        planesRendered: retouch.strokes.isEmpty ? 0 : 1),
+                    prefixHit: prefixHit))
+                continue
+            }
+
+            // ── ② the adjustment kind (the 06-01..06-05 path, unchanged).
+            guard let adjustment = layer as? AdjustmentLayer else { continue }
             // enabled=false: REMOVED from processing entirely (no sub-run,
             // no blend, no prefix fold — the semantic opposite of hidden).
-            guard layer.enabled else { continue }
+            guard adjustment.enabled else { continue }
 
             // The layer's own sub-run (independent params — LAYER-02).
-            let (boxes, _) = await registry.materializeBoxes(for: layer.chain)
+            let (boxes, _) = await registry.materializeBoxes(for: adjustment.chain)
             let layerPipe = PixelPipe(resolution: resolution, cache: cache)
             layerPipe.imageID = imageID
             let (layerPlane, runStats) = try await layerPipe.runSub(
                 input: accumulator, inputROI: window,
                 instances: boxes, decodeHash: basePipe.decodeParamsHash,
-                metal: metal, layerID: layer.id)
+                metal: metal, layerID: adjustment.id)
 
             // L021 layer-dimension assertions (resident): this layer's
             // entry geometry is ITS OWN sub-run's stamp — window-shaped,
@@ -242,10 +371,10 @@ enum LayerCompositeDriver {
                 precondition(
                     entryDscIn.width == entryBufIn?.width
                         && entryDscIn.height == entryBufIn?.height,
-                    "L021: layer '\(layer.name)' entry dscIn != its own bufInROI.first")
+                    "L021: layer '\(adjustment.name)' entry dscIn != its own bufInROI.first")
                 precondition(
                     entryBufIn?.width == window.width && entryBufIn?.height == window.height,
-                    "L021: layer '\(layer.name)' entry ROI deviates from the negotiated composite window (\(String(describing: entryBufIn)) vs \(window))")
+                    "L021: layer '\(adjustment.name)' entry ROI deviates from the negotiated composite window (\(String(describing: entryBufIn)) vs \(window))")
             }
             // Cross-layer ROI consistency (the negotiated-ROI precondition
             // pattern, applied across legs): identity-ROI layer chains end
@@ -254,18 +383,18 @@ enum LayerCompositeDriver {
                 precondition(
                     lastROI.width == window.width && lastROI.height == window.height
                         && lastROI.x == window.x && lastROI.y == window.y,
-                    "composite window violated by layer '\(layer.name)': \(lastROI) vs \(window)")
+                    "composite window violated by layer '\(adjustment.name)': \(lastROI) vs \(window)")
             }
             precondition(
                 layerPlane.width == window.width && layerPlane.height == window.height,
-                "layer '\(layer.name)' plane \(layerPlane.width)x\(layerPlane.height) != window \(window.width)x\(window.height)")
+                "layer '\(adjustment.name)' plane \(layerPlane.width)x\(layerPlane.height) != window \(window.width)x\(window.height)")
 
             // isVisible=false: still PROCESSED (sub-run above — its chain
             // planes stay warm) but SKIPPED at composite (no blend, no
             // prefix fold — C_k ≡ C_prev content and hash).
-            guard layer.isVisible else {
+            guard adjustment.isVisible else {
                 layerStats.append(LayerCompositeLayerStats(
-                    layerID: layer.id, run: runStats, prefixHit: false))
+                    layerID: adjustment.id, run: runStats, prefixHit: false))
                 continue
             }
 
@@ -273,16 +402,16 @@ enum LayerCompositeDriver {
             // key folds chain ⊕ blend-triple ⊕ (REAL) mask-version hash —
             // a mask edit flips ONLY the prefix + the mask plane while the
             // layer's chain planes stay cached (T6 incremental semantics).
-            let maskHash = layer.mask?.stableHash() ?? 0
+            let maskHash = adjustment.mask?.stableHash() ?? 0
             let tripleHash = blendTripleHash(
-                opacity: layer.opacity, blendMode: layer.blendMode,
-                blendOptions: layer.blendOptions, maskHash: maskHash)
+                opacity: adjustment.opacity, blendMode: adjustment.blendMode,
+                blendOptions: adjustment.blendOptions, maskHash: maskHash)
             let chainHash = layerPipe.levelHash.last ?? basePipe.decodeParamsHash
             prefixHash = fold(fold(prefixHash, chainHash), tripleHash)
             let prefixKey = PipeCacheKey(
                 imageID: imageID, pipeType: resolution,
                 position: PipeCacheKey.compositePosition,
-                upstreamHash: prefixHash, roi: window, layerID: layer.id)
+                upstreamHash: prefixHash, roi: window, layerID: adjustment.id)
             let planeBytes = window.width * window.height * WorkingSpace.bytesPerPixel
 
             // ── The MASK leg (plan 06-04 T5): the THREE payload classes
@@ -292,24 +421,19 @@ enum LayerCompositeDriver {
             // sidecar's masks directory (nil → the documented degrade).
             var maskPlane: (any MTLTexture)?
             var maskDegradeReason: String?
-            if let mask = layer.mask, mask.hasAnyPayload {
-                let mapper = GeometryPointMapper.compose(
-                    boxes: baseChain,
-                    frameSize: SIMD2(
-                        Double(basePipe.frameROI.width),
-                        Double(basePipe.frameROI.height)))
+            if let mask = adjustment.mask, mask.hasAnyPayload {
                 let (plane, _, reason) = try await MaskCombiner.effectivePlane(
-                    spec: mask, layerOpacity: max(0, min(1, layer.opacity)),
+                    spec: mask, layerOpacity: max(0, min(1, adjustment.opacity)),
                     window: window, below: accumulator, top: layerPlane,
-                    mapper: mapper, metal: metal, cache: cache,
-                    imageID: imageID, pipeType: resolution, layerID: layer.id,
+                    mapper: geometryMapper, metal: metal, cache: cache,
+                    imageID: imageID, pipeType: resolution, layerID: adjustment.id,
                     maskDirectory: maskDirectory)
                 maskPlane = plane
                 maskDegradeReason = reason
             }
             if let reason = maskDegradeReason {
                 AppError.logger.error(
-                    "raster mask degraded for layer '\(layer.name, privacy: .public)': \(reason, privacy: .public)")
+                    "raster mask degraded for layer '\(adjustment.name, privacy: .public)': \(reason, privacy: .public)")
             }
 
             var prefixHit = false
@@ -322,11 +446,14 @@ enum LayerCompositeDriver {
                 let topBox = TextureBox(texture: layerPlane)
                 let maskBox = maskPlane.map { TextureBox(texture: $0) }
                 let hasMask = maskPlane != nil
+                let triple = BlendTriple(
+                    opacity: adjustment.opacity, mode: adjustment.blendMode,
+                    reverse: adjustment.blendOptions.contains(.reverse))
                 let cached = try await cache.plane(for: prefixKey, byteCount: planeBytes) {
-                    [belowBox, topBox, maskBox, layer] in
+                    [belowBox, topBox, maskBox, triple] in
                     try await Self.blend(
                         below: belowBox.texture, top: topBox.texture,
-                        mask: maskBox?.texture, layer: layer, metal: metal)
+                        mask: maskBox?.texture, triple: triple, metal: metal)
                 }
                 blended = cached.texture
                 let delta = (await cache.stats) - statsBefore
@@ -339,7 +466,10 @@ enum LayerCompositeDriver {
                 // without caching.
                 blended = try await Self.blend(
                     below: accumulator, top: layerPlane, mask: maskPlane,
-                    layer: layer, metal: metal)
+                    triple: BlendTriple(
+                        opacity: adjustment.opacity, mode: adjustment.blendMode,
+                        reverse: adjustment.blendOptions.contains(.reverse)),
+                    metal: metal)
                 blendPasses += 1
             }
             accumulator = blended
@@ -347,12 +477,12 @@ enum LayerCompositeDriver {
             // D-06-CONTEXT-8 cold-layer leg: drop this layer's chain-output
             // lines after the blend (prefixes survive). The hot layer keeps
             // its chain planes.
-            if !policy.cachesAllLayerOutputs && layer.id != hotLayerID {
-                await cache.invalidateLayer(imageID: imageID, layerID: layer.id)
+            if !policy.cachesAllLayerOutputs && adjustment.id != hotLayerID {
+                await cache.invalidateLayer(imageID: imageID, layerID: adjustment.id)
             }
 
             layerStats.append(LayerCompositeLayerStats(
-                layerID: layer.id, run: runStats, prefixHit: prefixHit))
+                layerID: adjustment.id, run: runStats, prefixHit: prefixHit))
         }
 
         // ── C. terminal segment (the display tail, policy unchanged).
@@ -376,6 +506,15 @@ enum LayerCompositeDriver {
             blendPasses: blendPasses)
     }
 
+    /// The blend-triple VALUE face (06-07: both layer kinds blend through
+    /// one signature — the layer object no longer crosses into the kernel
+    /// dispatch or its cache closure).
+    struct BlendTriple: @unchecked Sendable {
+        let opacity: Float
+        let mode: BlendMode
+        let reverse: Bool
+    }
+
     /// One blendop composite pass into a fresh plane — the FULL mode table
     /// (mask × blend × opacity triple, plan 06-02 T2). `mask` = the
     /// pre-multiplied effective-opacity plane from the 06-03 rasterizer
@@ -385,7 +524,7 @@ enum LayerCompositeDriver {
         below: any MTLTexture,
         top: any MTLTexture,
         mask: (any MTLTexture)?,
-        layer: AdjustmentLayer,
+        triple: BlendTriple,
         metal: MetalContext
     ) async throws -> any MTLTexture {
         precondition(
@@ -400,9 +539,9 @@ enum LayerCompositeDriver {
             throw MetalError.bufferAllocationFailed(below.width * below.height * WorkingSpace.bytesPerPixel)
         }
         var uniforms = BlendCompositeUniforms(
-            opacity: max(0, min(1, layer.opacity)),
-            blendMode: layer.blendMode,
-            reverse: layer.blendOptions.contains(.reverse),
+            opacity: max(0, min(1, triple.opacity)),
+            blendMode: triple.mode,
+            reverse: triple.reverse,
             hasMask: mask != nil)
         let session = try await metal.makeEncoder(functionName: compositeKernel)
         session.encoder.setTexture(below, index: 0)
@@ -421,5 +560,57 @@ enum LayerCompositeDriver {
         session.encoder.endEncoding()
         session.commandBuffer.commit()
         return output
+    }
+
+    // MARK: - 06-07: the retouch ROI extension seam
+
+    /// The entry-frame size at the run's scale (the `PixelPipe.run`
+    /// scale-at-entry math, mirrored for the pre-run mapper construction).
+    private static func entryFrameSize(
+        image: DecodedImage, longEdge: Int?, resolution: PipeResolution
+    ) -> SIMD2<Double> {
+        let fullWidth = max(Int(image.ciImage.extent.width), 1)
+        let fullHeight = max(Int(image.ciImage.extent.height), 1)
+        let targetLongEdge = longEdge ?? resolution.defaultLongEdge
+        if let targetLongEdge, targetLongEdge >= 1 {
+            let scale = min(
+                CGFloat(targetLongEdge) / CGFloat(fullWidth),
+                CGFloat(targetLongEdge) / CGFloat(fullHeight),
+                1.0)
+            return SIMD2(
+                Double((CGFloat(fullWidth) * scale).rounded()),
+                Double((CGFloat(fullHeight) * scale).rounded()))
+        }
+        return SIMD2(Double(fullWidth), Double(fullHeight))
+    }
+
+    /// The hint widened by every enabled+visible retouch layer's stroke
+    /// SOURCE ∪ TARGET extent (composite px via the content-anchored
+    /// mapper). The pipe walk clamps the union into the frame; when no
+    /// stroke exits the hint this returns the hint verbatim (zero change
+    /// for retouch-free stacks — D-06-07-T2-2).
+    static func expandedHint(
+        hint: ROI, layerStack: LayerStack, baseChain: [any ModuleBoxing],
+        image: DecodedImage, longEdge: Int?, resolution: PipeResolution
+    ) -> ROI {
+        let retouchLayers = layerStack.adjustmentLayers.compactMap { $0 as? RetouchLayer }
+        guard retouchLayers.contains(where: { $0.enabled && $0.isVisible && !$0.strokes.isEmpty })
+        else { return hint }
+        let frame = entryFrameSize(image: image, longEdge: longEdge, resolution: resolution)
+        let mapper = GeometryPointMapper.compose(boxes: baseChain, frameSize: frame)
+        var extent: ROI?
+        for layer in retouchLayers where layer.enabled && layer.isVisible {
+            guard let e = RetouchEngine.strokeExtent(strokes: layer.strokes, mapper: mapper)
+            else { continue }
+            let x0 = Int(e.min.x.rounded(.down)), y0 = Int(e.min.y.rounded(.down))
+            let x1 = Int(e.max.x.rounded(.up)), y1 = Int(e.max.y.rounded(.up))
+            let r = ROI(
+                x: x0, y: y0,
+                width: max(1, x1 - x0), height: max(1, y1 - y0),
+                scale: hint.scale)
+            extent = extent?.union(r) ?? r
+        }
+        guard let extent else { return hint }
+        return hint.union(extent)
     }
 }
