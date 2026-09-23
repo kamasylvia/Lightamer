@@ -462,7 +462,7 @@ enum MaskCombiner {
         maskDirectory: URL?,
         rasterStore: RasterMaskStore.Type = RasterMaskStore.self
     ) async throws -> (plane: any MTLTexture, hit: Bool, degradedReason: String?) {
-        let hash = spec.stableHash()
+        let hash = DrawnMaskRasterizer.foldKeyHash(spec: spec, mapper: mapper)
         let key = PipeCacheKey.maskKey(
             imageID: imageID, pipeType: pipeType, layerID: layerID,
             maskHash: hash, roi: window)
@@ -554,16 +554,22 @@ enum MaskCombiner {
                     }
                 case let .degraded(ones, reason):
                     // D-06-04-T4-2: min(effective, 1) == effective — the
-                    // degrade is content-neutral here, but it is SURFACED.
+                    // degrade is content-neutral for the INTERSECT join
+                    // (plane != nil), but the RASTER-ONLY install must
+                    // still fold the layer opacity (06-05 leftover — the
+                    // 06-04 note-1 gap: an unscaled all-ones plane would
+                    // blend at full opacity regardless of the slider).
                     degradedReason = reason
-                    if plane == nil { plane = ones }
+                    if plane == nil { plane = try await scale(ones, opacity: opacity, metal: metal) }
                 }
             } else {
                 degradedReason =
                     "raster mask referenced but no masks directory provided: \(ref.fileName)"
                 if plane == nil {
-                    plane = try await MaskCombiner.fill(
-                        1, width: window.width, height: window.height, metal: metal)
+                    // Raster-only degrade: same opacity fold as above.
+                    plane = try await scale(
+                        try await MaskCombiner.fill(1, width: window.width, height: window.height, metal: metal),
+                        opacity: opacity, metal: metal)
                 }
             }
         }

@@ -158,6 +158,67 @@ public struct GeometryPointMapper: Sendable {
         self.outputSize = outputSize
     }
 
+    /// The geometry-state identity hash (Plan 06-05 — the 06-06 leftover ①
+    /// closeout): FOLDED into the mask-plane cache key so a geometry edit
+    /// (crop/flip/ashift/lens/liquify params) re-rasterizes the mask plane
+    /// through the NEW mapping instead of hitting a stale plane keyed on
+    /// the same (maskHash, roi). FNV-1a 64 via `StableHash` ONLY (L013).
+    ///
+    /// Per segment the FIXED field order is: tag ‖ numeric payload. The
+    /// `.liquify` grid vectors fold as a BOUNDED strided sample (≤256
+    /// cells) + `maxMagnitude` + dimensions — hashing every cell of a
+    /// multi-million-cell grid per composite would dominate the frame
+    /// budget; any liquify param edit shifts thousands of cells, so the
+    /// collision probability across distinct parameter states is
+    /// negligible (recorded: D-06-05-T1-2). Empty segments fold a fixed
+    /// constant (the identity mapper hashes identically run-to-run).
+    public func stableHash() -> UInt64 {
+        var h = StableHash.fnvOffsetBasis
+        func fold(_ value: UInt64) {
+            var v = value.littleEndian
+            h = withUnsafeBytes(of: &v) { StableHash.combine(h, $0) }
+        }
+        func foldD(_ d: Double) { fold(d.bitPattern) }
+        for segment in segments {
+            switch segment {
+            case let .affine(a, inSize, outSize):
+                fold(1)
+                for d in [a.a00, a.a01, a.a10, a.a11, a.tx, a.ty,
+                          inSize.x, inSize.y, outSize.x, outSize.y] { foldD(d) }
+            case let .homography(fwd, inv, clip, inSize, outSpan):
+                fold(2)
+                for m in [fwd, inv] {
+                    for row in 0..<3 { for col in 0..<3 { foldD(m[row, col]) } }
+                }
+                foldD(clip.x); foldD(clip.y)
+                foldD(inSize.x); foldD(inSize.y)
+                foldD(outSpan.x); foldD(outSpan.y)
+            case let .radial(k1, k2, size):
+                fold(3)
+                foldD(k1); foldD(k2); foldD(size.x); foldD(size.y)
+            case let .liquify(field):
+                fold(4)
+                let grid = field.forward
+                fold(UInt64(grid.origin.x)); fold(UInt64(grid.origin.y))
+                fold(UInt64(grid.width)); fold(UInt64(grid.height))
+                foldD(field.maxMagnitude)
+                // Bounded strided vector sample (≤256 cells, deterministic).
+                let count = grid.vectors.count
+                let stride = max(1, count / 256)
+                var index = 0
+                while index < count {
+                    let v = grid.vectors[index]
+                    fold(UInt64(bitPattern: Int64(v.x.bitPattern)))
+                    fold(UInt64(bitPattern: Int64(v.y.bitPattern)))
+                    index += stride
+                }
+            }
+        }
+        fold(UInt64(frameSize.x.bitPattern))
+        fold(UInt64(frameSize.y.bitPattern))
+        return h
+    }
+
     // ── pixel-space mapping ──
 
     /// Decode-frame pixel → composite-frame pixel (content direction).

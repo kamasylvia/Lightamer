@@ -117,6 +117,19 @@ public enum HistoryHash {
             combined = hash(
                 instances: HistoryStack.effectiveChain(layer.chain),
                 decodeParamsHash: combined)
+            // Mask — the DERIVED spec hash (StableHash over canonical
+            // JSON), folded so a mask edit/tamper is drift too (06-05
+            // hardening: the 06-01 anchor covered identity/props/chain
+            // only). Safe to introduce NOW — no production document has
+            // ever carried a layer stack (the coordinator wires layer
+            // persistence in 06-05), so the anchor formula has no
+            // deployed documents to stay byte-compatible with.
+            if let mask = layer.mask {
+                let maskHash = mask.stableHash()
+                combined = withUnsafeBytes(of: maskHash) {
+                    StableHash.combine(combined, $0)
+                }
+            }
         }
         return combined
     }

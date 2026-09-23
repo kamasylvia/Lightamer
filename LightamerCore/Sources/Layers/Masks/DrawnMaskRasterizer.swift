@@ -112,6 +112,21 @@ struct MaskRasterUniforms {
 
 public enum DrawnMaskRasterizer {
 
+    // MARK: - Key hash (06-05: maskVersion ⊕ mapper geometry state)
+
+    /// The mask-plane key hash: `MaskSpec.stableHash()` ⊕ the mapper's
+    /// geometry-state hash (FNV fold — StableHash only, L013). The 06-03
+    /// key was mask-version only; the 06-06 leftover ① audit showed an
+    /// ashift/liquify param change (same roi) could HIT a stale plane —
+    /// the geometry state is part of the rasterization INPUT (the inverse
+    /// point map), so it belongs in the key.
+    static func foldKeyHash(spec: MaskSpec, mapper: GeometryPointMapper) -> UInt64 {
+        var h = spec.stableHash()
+        var m = mapper.stableHash()
+        h = withUnsafeBytes(of: &m) { StableHash.combine(h, $0) }
+        return h
+    }
+
     // MARK: - Entry (cached)
 
     /// Fetch-or-rasterize the layer's drawn mask plane for `window`.
@@ -130,7 +145,11 @@ public enum DrawnMaskRasterizer {
     ) async throws -> (plane: any MTLTexture, hit: Bool) {
         precondition(spec.hasDrawnForms, "rasterize called without drawn forms")
         precondition(window.width > 0 && window.height > 0, "empty window")
-        let hash = spec.stableHash()
+        // The key folds the MAPPER geometry state (06-05 — the 06-06
+        // leftover ①): a crop/ashift/lens/liquify edit re-rasterizes the
+        // plane through the new mapping instead of hitting a stale plane
+        // keyed on the unchanged (maskHash, roi).
+        let hash = Self.foldKeyHash(spec: spec, mapper: mapper)
         let key = PipeCacheKey.maskKey(
             imageID: imageID, pipeType: pipeType, layerID: layerID,
             maskHash: hash, roi: window)
