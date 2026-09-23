@@ -89,6 +89,13 @@ internal final class PixelPipe: @unchecked Sendable {
     /// Cache namespace anchor (the sidecar-persisted image UUID).
     internal var imageID: UUID = UUID()
 
+    /// The LAYER namespace for this run's cache keys (Plan 06-01 T3):
+    /// base/terminal sub-runs stamp `baseLayer.id` (NDE-1 anchor); a layer
+    /// sub-run (the `runSub` seam) stamps the layer's own UUID. The default
+    /// is the fixed base sentinel — Phase 2-5 paths (no stack) keep today's
+    /// key space byte-identical.
+    internal private(set) var cacheLayerID: UUID = PipeCacheKey.baseLayerSentinelID
+
     /// Entry-ROI override (04-01-T4 `roiHint`): when set, `run()` intersects
     /// it with the scale-at-entry ROI and negotiates that sub-window
     /// instead of the full frame. Test/probe seam only — nil in production.
@@ -438,10 +445,20 @@ internal final class PixelPipe: @unchecked Sendable {
             throw AppError.notImplemented("Phase 11")
         }
 
-        // Base layer invariant (D-03a) — L005 field preserved.
+        // Base layer invariant (D03a) — L005 field preserved. The AUTO-
+        // INSTALLED default stack (no caller stack) is ephemeral: its fresh
+        // BackgroundLayer UUID must NOT enter the cache namespace (keys
+        // would differ every run) — those runs keep the base sentinel.
+        let hadCallerStack = layerStack != nil
         if layerStack == nil {
             layerStack = LayerStack(baseLayer: BackgroundLayer())
         }
+        // Layer namespace stamp (06-01 T3): real stacks key their base /
+        // terminal planes on baseLayer.id.
+        cacheLayerID =
+            hadCallerStack
+            ? (layerStack?.baseLayer.id ?? PipeCacheKey.baseLayerSentinelID)
+            : PipeCacheKey.baseLayerSentinelID
 
         // v50 order: (iopOrder, multiPriority) — Darktable's module order.
         pieces = instances
@@ -633,7 +650,8 @@ internal final class PixelPipe: @unchecked Sendable {
             return try await cache.plane(
                 for: PipeCacheKey(
                     imageID: imageID, pipeType: resolution, position: 0,
-                    upstreamHash: decodeParamsHash, roi: roiOut
+                    upstreamHash: decodeParamsHash, roi: roiOut,
+                    layerID: cacheLayerID
                 ),
                 byteCount: Self.planeBytes(roiOut)
             ) { [self] in
@@ -684,7 +702,8 @@ internal final class PixelPipe: @unchecked Sendable {
             pipeType: resolution,
             position: position + 1,
             upstreamHash: levelHash[position],
-            roi: roiOut
+            roi: roiOut,
+            layerID: cacheLayerID
         )
         let isFinalOutput = position == topEnabledPosition
         let box = pieces[position].box
