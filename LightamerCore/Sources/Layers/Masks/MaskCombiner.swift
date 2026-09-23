@@ -240,6 +240,167 @@ enum MaskCombiner {
         return output
     }
 
+    // MARK: - T3: the combine five ops (group.c:487-630)
+
+    /// Swift mirror of the MSL `MaskCombineUniforms` (32 bytes).
+    struct CombineUniforms {
+        var op: UInt32           // 0 union, 1 intersect, 2 difference, 3 sum, 4 exclusion
+        var inverted: UInt32     // the item's INVERSE state bit
+        var rowEnd: UInt32
+        private var _pad: UInt32 = 0
+        var opacity: Float
+        private var _p: (Float, Float, Float) = (0, 0, 0)
+    }
+
+    /// The reduce upper bound (plan 06-04 T3: N 通常 ≤4，>4 拒绝). dt has
+    /// no hard limit; the v1 pipeline rejects beyond 4 to bound the ping-
+    /// pong depth — documented in 06-04-DECISIONS.
+    static let maxCombineInputs = 4
+
+    /// A constant-value plane (the zero seed / the no-form fill).
+    static func fill(
+        _ value: Float, width: Int, height: Int, metal: MetalContext
+    ) async throws -> any MTLTexture {
+        let output = try maskLikeShape(width: width, height: height, metal: metal)
+        var v = value
+        let session = try await metal.makeEncoder(functionName: "mask_fill")
+        session.encoder.setTexture(output, index: 0)
+        session.encoder.setBytes(&v, length: MemoryLayout<Float>.stride, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: width, height: height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+        return output
+    }
+
+    /// The mask-level invert (dt raster_mask_invert, blend.c:567-572).
+    static func invert(
+        plane: any MTLTexture, metal: MetalContext
+    ) async throws -> any MTLTexture {
+        let output = try maskLike(plane, metal: metal)
+        let session = try await metal.makeEncoder(functionName: "mask_invert")
+        session.encoder.setTexture(plane, index: 0)
+        session.encoder.setTexture(output, index: 1)
+        session.encoder.dispatchThreads(
+            MTLSize(width: plane.width, height: plane.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+        return output
+    }
+
+    /// One combine step: reads `dest` and `src`, writes a FRESH plane
+    /// (ping-pong — never in-place, L018).
+    static func combinePair(
+        dest: any MTLTexture,
+        src: any MTLTexture,
+        op: MaskCombineOp,
+        inverted: Bool,
+        opacity: Float,
+        metal: MetalContext
+    ) async throws -> any MTLTexture {
+        precondition(
+            dest.width == src.width && dest.height == src.height,
+            "combine plane mismatch: \(dest.width)x\(dest.height) vs \(src.width)x\(src.height)")
+        let output = try maskLike(dest, metal: metal)
+        var uniforms = CombineUniforms(
+            op: UInt32(opCode(op)), inverted: inverted ? 1 : 0, rowEnd: UInt32.max,
+            opacity: max(0, min(1, opacity)))
+        let session = try await metal.makeEncoder(functionName: "mask_combine_pair")
+        session.encoder.setTexture(dest, index: 0)
+        session.encoder.setTexture(src, index: 1)
+        session.encoder.setTexture(output, index: 2)
+        session.encoder.setBytes(
+            &uniforms, length: MemoryLayout<CombineUniforms>.stride, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: dest.width, height: dest.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+        return output
+    }
+
+    /// The op → dt state-bit-order code (masks.h:55-64).
+    static func opCode(_ op: MaskCombineOp) -> Int {
+        switch op {
+        case .union: return 0
+        case .intersect: return 1
+        case .difference: return 2
+        case .sum: return 3
+        case .exclusion: return 4
+        }
+    }
+
+    /// The ordered reduce over N ≤ 4 inputs (dt `_group_get_mask_roi` —
+    /// the zeroed intermediate buffer + in-order combine).
+    ///
+    /// FIRST-ITEM SEMANTICS (v1 normalization, documented in
+    /// 06-04-DECISIONS): the first input INSTALLS its plane (union onto
+    /// the zero seed = `max(0, opacity·(±1 − s))` — identical to dt's
+    /// zero-seed union, which is the only reachable first-item state in
+    /// dt's GUI; a dt zero-seed first-item difference/intersect degenerates
+    /// to an empty mask). Subsequent inputs apply their own op.
+    static func reduce(
+        _ inputs: [MaskCombineInput], metal: MetalContext
+    ) async throws -> any MTLTexture {
+        if inputs.isEmpty { throw AppError.unsupportedFile("combine reduce needs at least one input") }
+        if inputs.count > maxCombineInputs {
+            throw AppError.unsupportedFile(
+                "mask group combines more than \(maxCombineInputs) items " +
+                    "(got \(inputs.count)) — nest groups instead")
+        }
+        let first = inputs[0].plane
+        var dest = try await fill(0, width: first.width, height: first.height, metal: metal)
+        for (index, input) in inputs.enumerated() {
+            dest = try await combinePair(
+                dest: dest, src: input.plane,
+                op: index == 0 ? .union : input.op,
+                inverted: input.inverted, opacity: input.opacity, metal: metal)
+        }
+        return dest
+    }
+
+    // MARK: - T3: the drawn group evaluation (per-item combine)
+
+    /// Evaluate a MaskGroup: per-item single-form planes (or nested child
+    /// groups, recursively) combined in order with per-item
+    /// op/inverted/opacity. Returns nil when no item resolves to a plane —
+    /// the caller falls back to dt's no-form fill semantics
+    /// (blend.c:612-616: fill 1.0 for the exclusive combine).
+    static func drawnGroupPlane(
+        group: MaskGroupSpec,
+        forms: [MaskForm],
+        window: ROI,
+        mapper: GeometryPointMapper,
+        metal: MetalContext,
+        depth: Int = 0
+    ) async throws -> any MTLTexture? {
+        precondition(depth < 8, "MaskGroup nesting deeper than 8 — reject")
+        var inputs: [MaskCombineInput] = []
+        for item in group.items {
+            let plane: any MTLTexture
+            if let child = item.child {
+                guard let childPlane = try await drawnGroupPlane(
+                    group: child, forms: forms, window: window,
+                    mapper: mapper, metal: metal, depth: depth + 1)
+                else { continue }
+                plane = childPlane
+            } else if let form = forms.first(where: { $0.id == item.formID }) {
+                plane = try await DrawnMaskRasterizer.singleFormPlane(
+                    form: form, window: window, mapper: mapper, metal: metal)
+            } else {
+                continue // missing form — dt skips the item (nb_ok accounting)
+            }
+            inputs.append(MaskCombineInput(
+                plane: plane, op: item.op, inverted: item.inverted,
+                opacity: max(0, min(1, item.opacity))))
+            if inputs.count == maxCombineInputs { break } // documented bound
+        }
+        guard !inputs.isEmpty else { return nil }
+        return try await reduce(inputs, metal: metal)
+    }
+
     // MARK: - T2: the mask post-processing chain
     // (order pinned: blur → feather → tone curve — dt `_get_post_operations`
     // blend.c:305-355, the after-blur feathering-guide default; see
@@ -278,13 +439,20 @@ enum MaskCombiner {
     static func maskLike(
         _ mask: any MTLTexture, metal: MetalContext
     ) throws -> any MTLTexture {
+        try maskLikeShape(width: mask.width, height: mask.height, metal: metal)
+    }
+
+    /// A fresh r32Float plane of the given shape.
+    static func maskLikeShape(
+        width: Int, height: Int, metal: MetalContext
+    ) throws -> any MTLTexture {
         let d = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .r32Float, width: mask.width, height: mask.height,
+            pixelFormat: .r32Float, width: width, height: height,
             mipmapped: false)
         d.usage = [.shaderRead, .shaderWrite]
         d.storageMode = .shared
         guard let t = metal.device.makeTexture(descriptor: d) else {
-            throw MetalError.bufferAllocationFailed(mask.width * mask.height * 4)
+            throw MetalError.bufferAllocationFailed(width * height * 4)
         }
         return t
     }

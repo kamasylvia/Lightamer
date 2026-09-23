@@ -190,17 +190,27 @@ public enum MaskCombineOp: String, Codable, Sendable, Equatable, Hashable {
 /// formid/parentid/state/opacity; the parent tree collapses to a flat list
 /// in v1). SHELL only: the combine SEMANTICS land in 06-04; 06-03
 /// rasterizes single forms and treats a nil/empty group as "first form".
+///
+/// 06-04 additive optional: `child` = a NESTED group (组内组, IOP-MASK-04)
+/// — when set, the item's plane is the recursive evaluation of the child
+/// and `formID` is ignored. decodeIfPresent: documents written before
+/// 06-04 decode with nil (ONE-WAY additive rule).
 public struct MaskGroupItem: Codable, Sendable, Equatable, Hashable {
     public var formID: UUID
     public var op: MaskCombineOp
     public var inverted: Bool
     public var opacity: Float
+    public var child: MaskGroupSpec?
 
-    public init(formID: UUID, op: MaskCombineOp, inverted: Bool, opacity: Float) {
+    public init(
+        formID: UUID, op: MaskCombineOp, inverted: Bool, opacity: Float,
+        child: MaskGroupSpec? = nil
+    ) {
         self.formID = formID
         self.op = op
         self.inverted = inverted
         self.opacity = opacity
+        self.child = child
     }
 }
 

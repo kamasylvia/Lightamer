@@ -509,6 +509,26 @@ public enum DrawnMaskRasterizer {
         }
     }
 
+    // MARK: - Single-form plane (the 06-04 group-combine input leg)
+
+    /// Rasterize ONE form into a plane with only its FORM-INTRINSIC
+    /// opacity folded (a brush stroke's own opacity; analytic forms = 1) —
+    /// the per-item plane `MaskCombiner.drawnGroupPlane` combines with the
+    /// ITEM opacity at combine time (dt `_group_get_mask_roi`: the form's
+    /// own mask build, then `opacity` inside the combine functions).
+    /// No layer opacity here — the assembled plane folds it once.
+    public static func singleFormPlane(
+        form: MaskForm,
+        window: ROI,
+        mapper: GeometryPointMapper,
+        metal: MetalContext
+    ) async throws -> any MTLTexture {
+        let spec = MaskSpec(drawn: DrawnMaskSpec(forms: [form]))
+        return try await render(
+            spec: spec, layerOpacity: 1, window: window,
+            mapper: mapper, metal: metal, rowBands: 1)
+    }
+
     // MARK: - Display leg (T7; dt blendop_display_channel semantics)
 
     /// Tint a display plane where the mask plane is set (the dt
