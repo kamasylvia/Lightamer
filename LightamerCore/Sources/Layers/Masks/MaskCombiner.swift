@@ -49,6 +49,137 @@ enum MaskCombiner {
 
     static let blendifKernel = "mask_blendif"
     static let toneCurveKernel = "mask_tone_curve"
+    static let blurColKernel = "mask_blur_col"
+    static let blurRowKernel = "mask_blur_row"
+    static let blurStoreKernel = "mask_blur_store"
+
+    // MARK: - T2: the single-channel Deriche coefficients (Core-side mirror)
+
+    /// Swift mirror of the MSL `MaskBlurUniforms` (48-byte constant layout).
+    struct BlurUniforms {
+        var a0: Float, a1: Float, a2: Float, a3: Float
+        var b1: Float, b2: Float, coefp: Float, coefn: Float
+        var width: UInt32
+        var height: UInt32
+        var rowEnd: UInt32
+        private var _pad: UInt32 = 0
+    }
+
+    /// dt `_compute_gauss_params` (gaussian.c:41-100), DT_IOP_GAUSSIAN_ZERO
+    /// order — the SAME-SOURCE derivation as LightamerIOP's
+    /// `GaussianBlur.coeffs` (Core cannot import IOP; the duplicate is
+    /// pinned equal by `testMaskBlurCoeffsMatchIOPGaussianBlur`, so they
+    /// cannot drift).
+    static func maskGaussCoeffs(sigma: Float) -> GaussianMaskCoeffs {
+        let alpha = Double(1.695) / Double(sigma)
+        let ema = Foundation.exp(-alpha)
+        let ema2 = Foundation.exp(-2.0 * alpha)
+        let b1 = -2.0 * ema
+        let b2 = ema2
+        let k = (1.0 - ema) * (1.0 - ema) / (1.0 + (2.0 * alpha * ema) - ema2)
+        let a0 = k
+        let a1 = k * (alpha - 1.0) * ema
+        let a2 = k * (alpha + 1.0) * ema
+        let a3 = -k * ema2
+        let coefp = (a0 + a1) / (1.0 + b1 + b2)
+        let coefn = (a2 + a3) / (1.0 + b1 + b2)
+        return GaussianMaskCoeffs(
+            a0: Float(a0), a1: Float(a1), a2: Float(a2), a3: Float(a3),
+            b1: Float(b1), b2: Float(b2), coefp: Float(coefp), coefn: Float(coefn))
+    }
+
+    /// The single-channel blur (dt blend.c:705-714: sigma = blur_radius,
+    /// mask bounds [0,1]). Two scratch float planes (width×height each) —
+    /// the L018 two-buffer discipline.
+    static func blur(
+        mask: any MTLTexture, sigma: Float, metal: MetalContext
+    ) async throws -> any MTLTexture {
+        if sigma <= 0 { return mask } // the IIR degenerates at sigma 0; identity
+        let w = mask.width, h = mask.height
+        let output = try maskLike(mask, metal: metal)
+        let planeBytes = w * h * MemoryLayout<Float>.stride
+        guard let planes = metal.device.makeBuffer(
+            length: planeBytes * 2, options: .storageModeShared)
+        else { throw MetalError.bufferAllocationFailed(planeBytes * 2) }
+        let c = maskGaussCoeffs(sigma: sigma)
+        var uniforms = BlurUniforms(
+            a0: c.a0, a1: c.a1, a2: c.a2, a3: c.a3,
+            b1: c.b1, b2: c.b2, coefp: c.coefp, coefn: c.coefn,
+            width: UInt32(w), height: UInt32(h), rowEnd: UInt32.max)
+
+        // Pass 1 — columns (texture → plane half 0).
+        let col = try await metal.makeEncoder(functionName: blurColKernel)
+        var colUniforms = uniforms
+        col.encoder.setTexture(mask, index: 0)
+        col.encoder.setBytes(&colUniforms, length: MemoryLayout<BlurUniforms>.stride, index: 0)
+        col.encoder.setBuffer(planes, offset: 0, index: 1)
+        col.encoder.dispatchThreads(
+            MTLSize(width: w, height: 1, depth: 1),
+            threadsPerThreadgroup: MTLSize(
+                width: min(256, col.pipelineState.maxTotalThreadsPerThreadgroup), height: 1, depth: 1))
+        col.encoder.endEncoding()
+        col.commandBuffer.commit()
+
+        // Pass 2 — rows (plane 0 → plane 1; two planes, no aliasing).
+        let row = try await metal.makeEncoder(functionName: blurRowKernel)
+        var rowUniforms = uniforms
+        row.encoder.setBuffer(planes, offset: 0, index: 0)
+        row.encoder.setBuffer(planes, offset: planeBytes, index: 1)
+        row.encoder.setBytes(&rowUniforms, length: MemoryLayout<BlurUniforms>.stride, index: 2)
+        row.encoder.dispatchThreads(
+            MTLSize(width: h, height: 1, depth: 1),
+            threadsPerThreadgroup: MTLSize(
+                width: min(256, row.pipelineState.maxTotalThreadsPerThreadgroup), height: 1, depth: 1))
+        row.encoder.endEncoding()
+        row.commandBuffer.commit()
+
+        // Pass 3 — store (plane 1 → texture).
+        let store = try await metal.makeEncoder(functionName: blurStoreKernel)
+        var storeUniforms = uniforms
+        store.encoder.setBuffer(planes, offset: planeBytes, index: 0)
+        store.encoder.setBytes(&storeUniforms, length: MemoryLayout<BlurUniforms>.stride, index: 1)
+        store.encoder.setTexture(output, index: 0)
+        store.encoder.dispatchThreads(
+            MTLSize(width: w, height: h, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        store.encoder.endEncoding()
+        store.commandBuffer.commit()
+        return output
+    }
+
+    /// The mask post-processing chain in the PINNED dt assembly order
+    /// (`_get_post_operations` blend.c:305-355, the after-blur
+    /// feathering-guide default): blur → feather → tone curve, each gated
+    /// by dt's thresholds (radius > 0.1; |contrast|/|brightness| ≥ 0.01
+    /// with opacity > 1e-4). `gopacity` = the mask plane's premultiplied
+    /// ceiling (the tone curve divides it back out — blendop.cl:1318).
+    static func postProcess(
+        mask: any MTLTexture,
+        blurRadius: Float,
+        featherRadius: Float,
+        contrast: Float,
+        brightness: Float,
+        gopacity: Float,
+        metal: MetalContext
+    ) async throws -> any MTLTexture {
+        var plane = mask
+        // blur (dt blend.c:307 gate: blur_radius > 0.1)
+        if blurRadius > 0.1 {
+            plane = try await blur(mask: plane, sigma: blurRadius, metal: metal)
+        }
+        // feather (blend.c:306 gate: feathering_radius > 0.1) — the v1
+        // single-channel Gaussian leg (see 06-04-DECISIONS D-06-04-T2-1).
+        if featherRadius > 0.1 {
+            plane = try await blur(mask: plane, sigma: featherRadius, metal: metal)
+        }
+        // tone curve LAST (blend.c:349-355).
+        if needsToneCurve(contrast: contrast, brightness: brightness, opacity: gopacity) {
+            plane = try await toneCurve(
+                mask: plane, contrast: contrast, brightness: brightness,
+                gopacity: gopacity, metal: metal)
+        }
+        return plane
+    }
 
     // MARK: - T1: the parametric (blendif) mask plane
 
@@ -165,4 +296,17 @@ struct MaskToneCurveUniforms {
     var brightness: Float   // −1..1
     var gopacity: Float     // the mask's premultiplied ceiling
     var rowEnd: UInt32
+}
+
+/// The eight Deriche IIR coefficients (the `GaussianCoeffs` shape, mirrored
+/// in Core for the mask post chain — see `MaskCombiner.maskGaussCoeffs`).
+struct GaussianMaskCoeffs: Sendable, Equatable {
+    var a0: Float
+    var a1: Float
+    var a2: Float
+    var a3: Float
+    var b1: Float
+    var b2: Float
+    var coefp: Float
+    var coefn: Float
 }

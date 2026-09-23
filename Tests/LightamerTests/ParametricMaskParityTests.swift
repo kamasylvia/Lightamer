@@ -290,7 +290,205 @@ final class ParametricMaskParityTests: XCTestCase {
         }
     }
 
-    // MARK: - The parameter-packing port pins (dt blend.c:167-216)
+    // MARK: - T2: the mask post-processing chain (blur / feather / curve)
+
+    /// The Core-side coefficient mirror must equal the IOP GaussianBlur
+    /// derivation (SAME-SOURCE duplicate — they cannot drift).
+    func testMaskBlurCoeffsMatchIOPGaussianBlur() {
+        var compared = 0
+        for sigma in [0.5, 1.0, 2.5, 4.0, 8.0, 16.0, 40.0] {
+            let core = MaskCombiner.maskGaussCoeffs(sigma: Float(sigma))
+            let iop = GaussianBlur.coeffs(sigma: Float(sigma))
+            for (a, b) in [
+                (core.a0, iop.a0), (core.a1, iop.a1), (core.a2, iop.a2), (core.a3, iop.a3),
+                (core.b1, iop.b1), (core.b2, iop.b2),
+                (core.coefp, iop.coefp), (core.coefn, iop.coefn),
+            ] {
+                XCTAssertEqual(a, b, accuracy: 1e-6, "sigma \(sigma) coeff drift")
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转: nothing compared")
+    }
+
+    /// The float64 Deriche recursion (the MSL float1 recursion in Double,
+    /// cols-then-rows, forward store + backward accumulate, [0,1] clamp).
+    private func referenceBlur(
+        _ mask: [Float], width: Int, height: Int, coeffs: GaussianMaskCoeffs
+    ) -> [Float] {
+        let a0 = Double(coeffs.a0), a1 = Double(coeffs.a1)
+        let a2 = Double(coeffs.a2), a3 = Double(coeffs.a3)
+        let b1 = Double(coeffs.b1), b2 = Double(coeffs.b2)
+        let coefp = Double(coeffs.coefp), coefn = Double(coeffs.coefn)
+        let clamp01 = { (v: Double) -> Double in min(max(v, 0.0), 1.0) }
+        var colPlane = [Double](repeating: 0, count: width * height)
+        // columns
+        for x in 0..<width {
+            var xp = clamp01(Double(mask[x])), yb = xp * coefp, yp = yb
+            for y in 0..<height {
+                let xc = clamp01(Double(mask[y * width + x]))
+                let yc = a0 * xc + a1 * xp - b1 * yp - b2 * yb
+                xp = xc; yb = yp; yp = yc
+                colPlane[y * width + x] = yc
+            }
+            var xn = clamp01(Double(mask[(height - 1) * width + x])), xa = xn
+            var yn = xn * coefn, ya = yn
+            for k in 0..<height {
+                let y = height - 1 - k
+                let xc = clamp01(Double(mask[y * width + x]))
+                let yc = a2 * xn + a3 * xa - b1 * yn - b2 * ya
+                xa = xn; xn = xc; ya = yn; yn = yc
+                colPlane[y * width + x] += yc
+            }
+        }
+        // rows
+        var out = [Double](repeating: 0, count: width * height)
+        for y in 0..<height {
+            let base = y * width
+            var xp = clamp01(colPlane[base]), yb = xp * coefp, yp = yb
+            for x in 0..<width {
+                let xc = clamp01(colPlane[base + x])
+                let yc = a0 * xc + a1 * xp - b1 * yp - b2 * yb
+                xp = xc; yb = yp; yp = yc
+                out[base + x] = yc
+            }
+            var xn = clamp01(colPlane[base + width - 1]), xa = xn
+            var yn = xn * coefn, ya = yn
+            for k in 0..<width {
+                let x = width - 1 - k
+                let xc = clamp01(colPlane[base + x])
+                let yc = a2 * xn + a3 * xa - b1 * yn - b2 * ya
+                xa = xn; xn = xc; ya = yn; yn = yc
+                out[base + x] += yc
+            }
+        }
+        return out.map(Float.init)
+    }
+
+    /// GPU mask blur vs the float64 recursion <1e-6 + sigma-0 identity.
+    func testMaskBlurParityFloat64Recursion() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 40, h = 28
+        let source = try makeR32(w, h, metal: metal) { x, y in
+            // a step edge + a soft blob + HDR clamp probes
+            let edge: Float = x < w / 2 ? 0.1 : 0.9
+            let blob = 0.7 * exp(-pow(Float(x - 28), 2) / 40 - pow(Float(y - 8), 2) / 18)
+            return min(edge + blob, 1.2) // >1 exercises the [0,1] clamp
+        }
+        for sigma: Float in [1.5, 4.0, 12.0] {
+            let blurred = try await MaskCombiner.blur(
+                mask: source, sigma: sigma, metal: metal)
+            let got = readMask(blurred, metal: metal)
+            let ref = referenceBlur(
+                readMask(source, metal: metal), width: w, height: h,
+                coeffs: MaskCombiner.maskGaussCoeffs(sigma: sigma))
+            var compared = 0
+            var maxAbs: Float = 0
+            var violations = 0
+            for i in 0..<ref.count {
+                let diff = abs(got[i] - ref[i])
+                if diff >= 1e-6 { violations += 1 }
+                maxAbs = max(maxAbs, diff)
+                compared += 1
+            }
+            XCTAssertGreaterThan(compared, 0, "防空转: nothing compared")
+            XCTAssertEqual(
+                violations, 0,
+                "sigma \(sigma): \(violations)/\(compared) violate <1e-6 (maxAbs \(maxAbs))")
+        }
+    }
+
+    /// The tone-curve post op vs the float64 reference <1e-6 (both
+    /// brightness branches + the epsilon gates).
+    func testMaskToneCurveParity() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 32, h = 16
+        let gopacity: Float = 0.8
+        for (contrast, brightness) in [(0.4 as Float, 0.0 as Float), (0.0, 0.3), (0.0, -0.3), (-0.6, 0.15)] {
+            let source = try makeR32(w, h, metal: metal) { x, y in
+                // sweep 0..1 (beyond gopacity included — dt divides it out)
+                Float(x * 7 + y) / Float(w * 7 + h) * 1.1
+            }
+            let curved = try await MaskCombiner.toneCurve(
+                mask: source, contrast: contrast, brightness: brightness,
+                gopacity: gopacity, metal: metal)
+            let got = readMask(curved, metal: metal)
+            let e = Foundation.exp(3.0 * Double(contrast))
+            var compared = 0
+            var maxAbs: Float = 0
+            var violations = 0
+            for y in 0..<h {
+                for x in 0..<w {
+                    let input = Double(readMask(source, metal: metal)[y * w + x])
+                    let ref = ParametricReference.toneCurve(
+                        input, e: e, brightness: Double(brightness),
+                        gopacity: Double(gopacity))
+                    let diff = abs(got[y * w + x] - Float(ref))
+                    if diff >= 1e-6 { violations += 1 }
+                    maxAbs = max(maxAbs, diff)
+                    compared += 1
+                }
+            }
+            XCTAssertGreaterThan(compared, 0, "防空转: nothing compared")
+            XCTAssertEqual(
+                violations, 0,
+                "contrast \(contrast) brightness \(brightness): " +
+                    "\(violations)/\(compared) violate <1e-6 (maxAbs \(maxAbs))")
+        }
+    }
+
+    /// The chain ORDER is pinned: postProcess output == the manual
+    /// [blur → feather → tone curve] application; and the reversed
+    /// [feather → blur] genuinely differs (the order-sensitivity probe —
+    /// if the two orders agreed, the pin would be vacuous).
+    func testPostChainOrderPinned() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 32, h = 24
+        let source = try makeR32(w, h, metal: metal) { x, y in
+            (x < w / 2) == (y < h / 2) ? 0.95 : 0.05
+        }
+        let blurR: Float = 3.0, featherR: Float = 2.0
+        let contrast: Float = 0.4, brightness: Float = 0.1, gopacity: Float = 0.9
+
+        // The pinned chain.
+        let chained = try await MaskCombiner.postProcess(
+            mask: source, blurRadius: blurR, featherRadius: featherR,
+            contrast: contrast, brightness: brightness, gopacity: gopacity,
+            metal: metal)
+
+        // Manual reference: blur → feather → tone curve.
+        let manual = try await MaskCombiner.blur(mask: source, sigma: blurR, metal: metal)
+        let manual2 = try await MaskCombiner.blur(mask: manual, sigma: featherR, metal: metal)
+        let manual3 = try await MaskCombiner.toneCurve(
+            mask: manual2, contrast: contrast, brightness: brightness,
+            gopacity: gopacity, metal: metal)
+
+        let gotChain = readMask(chained, metal: metal)
+        let gotManual = readMask(manual3, metal: metal)
+        var compared = 0
+        for i in 0..<gotChain.count {
+            XCTAssertEqual(
+                gotChain[i], gotManual[i], accuracy: 1e-6,
+                "chain order deviates from the pinned blur→feather→curve at \(i)")
+            compared += 1
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转: nothing compared")
+
+        // Order sensitivity: feather→blur (both blurs, reversed) must
+        // genuinely differ somewhere — the pin is not vacuous.
+        let reversed = try await MaskCombiner.blur(mask: source, sigma: featherR, metal: metal)
+        let reversed2 = try await MaskCombiner.blur(mask: reversed, sigma: blurR, metal: metal)
+        let gotReversed = readMask(reversed2, metal: metal)
+        let maxDiff = zip(gotChain, gotReversed).map { abs($0 - $1) }.max() ?? 0
+        XCTAssertGreaterThan(
+            maxDiff, 1e-4,
+            "blur/feather order produced identical output — the pin is vacuous")
+    }
+
+    // MARK: - T1 legacy tail (packing pins)
 
     /// Boost = exp2 scaling, slopes = 1/max(0.001, span), open ends at 0/1,
     /// inactive slots full-range.
