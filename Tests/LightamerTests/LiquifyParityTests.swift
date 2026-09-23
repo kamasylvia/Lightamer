@@ -667,6 +667,132 @@ final class LiquifyParityTests: XCTestCase {
         XCTAssertEqual(bicubic[200], 0.0, accuracy: 1e-6, "bicubic(0.5) vanishes at |x|=2")
     }
 
+
+    // MARK: - T5: forced tiling + track B zero increment
+
+    private func makeDecodedImage(rgb: [Double], width: Int, height: Int) throws -> DecodedImage {
+        var rgba = [Float](repeating: 0, count: width * height * 4)
+        for i in 0..<(width * height) {
+            rgba[i * 4] = Float(rgb[i * 3])
+            rgba[i * 4 + 1] = Float(rgb[i * 3 + 1])
+            rgba[i * 4 + 2] = Float(rgb[i * 3 + 2])
+            rgba[i * 4 + 3] = 1.0
+        }
+        var data = Data(capacity: rgba.count * 4)
+        for value in rgba {
+            var le = value.bitPattern.littleEndian
+            data.append(contentsOf: withUnsafeBytes(of: &le) { Data($0) })
+        }
+        let provider = try XCTUnwrap(CGDataProvider(data: data as CFData))
+        let cg = try XCTUnwrap(CGImage(
+            width: width, height: height, bitsPerComponent: 32, bitsPerPixel: 128,
+            bytesPerRow: width * 16, space: WorkingSpace.colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue:
+                CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.floatComponents.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent
+        ))
+        return DecodedImage(
+            ciImage: CIImage(cgImage: cg),
+            rawTech: RAWTechnicalParams(),
+            capture: CaptureMetadata(),
+            segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8
+        )
+    }
+
+    /// Forced tiling == whole plane <1e-6 (the halo = displacement bound +
+    /// kernel taps; the tile driver re-negotiates the read rect per tile).
+    func testForcedTilingMatchesWholePlane() async throws {
+        let metal = try await makeMetal()
+        let (w, h) = (96, 96)
+        let (inputTex, inputRGB) = try makeSyntheticTexture(metal, width: w, height: h)
+
+        let params = LiquifyModule.Params(paths: [
+            LiquifyPathData(
+                type: .moveTo, warpType: .radialGrow,
+                point: SIMD2(0.5, 0.5),
+                strength: SIMD2(0.55, 0.5),
+                radius: SIMD2(0.6, 0.5))
+        ])
+
+        func run(maxTileBytes: Int?) async throws -> [Float] {
+            let registry = ModuleRegistry.makeDefault()
+            await LightamerIOPRegistry.populate(registry)
+            let made = await registry.makeBox(opName: LiquifyModule.opName)
+            let box = try XCTUnwrap(made as? ModuleBox<LiquifyModule>)
+            box.setParams(params)
+            let image = try makeDecodedImage(rgb: inputRGB, width: w, height: h)
+            let (tex, _) = try await RenderPipeline.process(
+                image: image, instances: [box as any ModuleBoxing], imageID: UUID(),
+                resolution: .full, cache: PipeCache(), metal: metal,
+                longEdge: nil, maxTileWorkingBytes: maxTileBytes)
+            await drain(metal)
+            return readRGBA(tex)
+        }
+
+        let whole = try await run(maxTileBytes: nil)
+        let tiled = try await run(maxTileBytes: 4 << 10)  // 4KB — bpp≈1 → 强制分块
+        // 分块计数 > 1 经同参 TilingPlan 复算。
+        var piece = IOPiece()
+        piece.dscIn = IOPBufferDesc(width: w, height: h)
+        piece.iscale = 1.0
+        piece.pipeType = .full
+        let module = LiquifyModule()
+        module.commitParams(params, into: &piece)
+        let bpp = module.tileWorkingSetBytesPerPixel(piece: piece)
+        let halo = module.tileHalo(roi: ROI(width: w, height: h), piece: piece)
+        let tiles = TilingPlan.tiles(
+            forWidth: w, height: h, maxTileBytes: 4 << 10, bytesPerPixel: bpp, overlap: halo)
+        XCTAssertGreaterThan(tiles.count, 1, "budget must force tiles (bpp=\(bpp))")
+        var compared = 0
+        var maxDiff: Double = 0
+        for i in 0..<(w * h * 4) {
+            compared += 1
+            maxDiff = max(maxDiff, abs(Double(whole[i]) - Double(tiled[i])))
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转 guard")
+        XCTAssertLessThan(maxDiff, 1e-6, "tiled == whole (max \(maxDiff))")
+        print("[06-06 T5] forced tiling: tiles=\(tiles.count) halo=\(halo) bpp=\(bpp) maxDiff=\(maxDiff)")
+    }
+
+    /// Track B zero increment (轨 B 空路径插链零增量): the seed's empty
+    /// liquify in a FULL pipe chain renders byte-identical to the chain
+    /// without it.
+    func testTrackBZeroIncrementWithEmptyLiquify() async throws {
+        let metal = try await makeMetal()
+        let (w, h) = (64, 64)
+        let (inputTex, inputRGB) = try makeSyntheticTexture(metal, width: w, height: h)
+
+        func run(withLiquify: Bool) async throws -> [Float] {
+            let registry = ModuleRegistry.makeDefault()
+            await LightamerIOPRegistry.populate(registry)
+            var chain: [any ModuleBoxing] = []
+            if withLiquify {
+                let made = await registry.makeBox(opName: LiquifyModule.opName)
+                let box = try XCTUnwrap(made as? ModuleBox<LiquifyModule>)
+                box.setParams(LiquifyModule.Params())  // the SEED state
+                chain.append(box)
+            }
+            let madeColorin = await registry.makeBox(opName: ColorInModule.opName)
+            let colorin = try XCTUnwrap(madeColorin as? ModuleBox<ColorInModule>)
+            colorin.setParams(.init())
+            chain.append(colorin)
+            let image = try makeDecodedImage(rgb: inputRGB, width: w, height: h)
+            let (tex, _) = try await RenderPipeline.process(
+                image: image, instances: chain, imageID: UUID(),
+                resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+            await drain(metal)
+            return readRGBA(tex)
+        }
+
+        let base = try await run(withLiquify: false)
+        let withEmpty = try await run(withLiquify: true)
+        XCTAssertEqual(base, withEmpty,
+                       "empty-path liquify in the chain = byte-identical (zero increment)")
+    }
+
     // MARK: - T1: empty/degenerate paths
 
     func testEmptyPathsBuildNothing() {
