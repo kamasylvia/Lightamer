@@ -50,52 +50,52 @@ v1 = 完整工作流闭环 + 蒙版系统 + HDR/堆栈 + 印框/水印 + 全量 
 
 按 Darktable 全量对标，Fine 粒度 roadmap 分阶段交付。v1 起逐步覆盖以下模块：
 
-- [ ] **IOP-TONE-01**: exposure（曝光）
-- [ ] **IOP-TONE-02**: temperature / white balance（白平衡：色温/色调，含吸管取色）
-- [ ] **IOP-TONE-03**: tonecurve（色调曲线，可作用于 RGB/各通道）
-- [ ] **IOP-TONE-04**: shadow & highlight（阴影/高光恢复）
-- [ ] **IOP-TONE-05**: contrast（对比度）
-- [ ] **IOP-TONE-06**: levels（色阶）
-- [ ] **IOP-TONE-07**: tone equalizer（色调均衡器，Darktable 高价值模块）
+- [x] **IOP-TONE-01**: exposure（曝光）
+- [x] **IOP-TONE-02**: temperature / white balance（白平衡：色温/色调，含吸管取色）
+- [x] **IOP-TONE-03**: tonecurve（色调曲线，可作用于 RGB/各通道）
+- [x] **IOP-TONE-04**: shadow & highlight（阴影/高光恢复）
+- [x] **IOP-TONE-05**: contrast（对比度）
+- [x] **IOP-TONE-06**: levels（色阶）
+- [x] **IOP-TONE-07**: tone equalizer（色调均衡器，Darktable 高价值模块）
 
 ### Image Operation Modules (iop) — Filmic / Scene-Referred (IOP-FILM)
 
-- [ ] **IOP-FILM-01**: filmicrgb（Darktable 标志性 scene-referred tone mapping，最复杂的移植之一，需早期 spike）
-- [ ] **IOP-FILM-02**: sigmoid（替代 tone mapping）
-- [ ] **IOP-FILM-03**: hatchless / other filmic variants
+- [x] **IOP-FILM-01**: filmicrgb（Darktable 标志性 scene-referred tone mapping，最复杂的移植之一，需早期 spike）
+- [x] **IOP-FILM-02**: sigmoid（替代 tone mapping）
+- [x] **IOP-FILM-03**: hatchless / other filmic variants
 
 ### Image Operation Modules (iop) — Color (IOP-COLOR)
 
-- [ ] **IOP-COLOR-01**: colorbalancergb（色彩平衡 RGB，高级色彩调整）
-- [ ] **IOP-COLOR-02**: color calibration（色彩校准，channel mixer 升级版）
-- [ ] **IOP-COLOR-03**: vibrance / saturation（自然饱和度/饱和度）
-- [ ] **IOP-COLOR-04**: channel mixer（通道混合器）
-- [ ] **IOP-COLOR-05**: color zones（色相/饱和度/亮度的分区域调整）
-- [ ] **IOP-COLOR-06**: monochrome / black & white（黑白转换，含色彩滤镜模拟）
-- [ ] **IOP-COLOR-07**: velvia（鲜艳度）
+- [x] **IOP-COLOR-01**: colorbalancergb（色彩平衡 RGB，高级色彩调整）
+- [x] **IOP-COLOR-02**: color calibration（色彩校准，channel mixer 升级版）
+- [x] **IOP-COLOR-03**: vibrance / saturation（自然饱和度/饱和度）
+- [x] **IOP-COLOR-04**: channel mixer（通道混合器）
+- [x] **IOP-COLOR-05**: color zones（色相/饱和度/亮度的分区域调整）
+- [x] **IOP-COLOR-06**: monochrome / black & white（黑白转换，含色彩滤镜模拟）
+- [x] **IOP-COLOR-07**: velvia（鲜艳度）
 - [ ] **IOP-COLOR-08**: LUT (.cube) 作为 iop 模块——导入并应用 1D/3D .cube LUT（含 DOMAIN_MIN/MAX、tetrahedral 插值，参考 Darktable lut3d）
-- [ ] **IOP-COLOR-09**: color contrast / color correction curves
+- [x] **IOP-COLOR-09**: color contrast / color correction curves — **已交付=colorcontrast（56.0）**；rgbcurve/rgblevels 划出 Phase 5（D-05-CONTEXT-1），Phase 6+ stretch 补齐（CurveTools 全复用机械增量）
 
 ### Image Operation Modules (iop) — Detail & Sharpen (IOP-DETAIL)
 
-- [ ] **IOP-DETAIL-01**: sharpen（锐化，含 USM 与高斯/拉普拉斯变体）
-- [ ] **IOP-DETAIL-02**: local contrast（局部对比度，等效 clarity）
-- [ ] **IOP-DETAIL-03**: highpass / soften
-- [ ] **IOP-DETAIL-04**: equilizer / detail enhancement
+- [x] **IOP-DETAIL-01**: sharpen（锐化，含 USM 与高斯/拉普拉斯变体）
+- [x] **IOP-DETAIL-02**: local contrast（局部对比度，等效 clarity）
+- [x] **IOP-DETAIL-03**: highpass / soften
+- [x] **IOP-DETAIL-04**: equilizer / detail enhancement
 
 ### Image Operation Modules (iop) — Denoise (IOP-DENOISE)
 
-- [ ] **IOP-DENOISE-01**: raw denoise（profiled denoise，基于相机噪声 profile，Darktable denoise (profiled) 的 Metal 移植，最复杂移植之一）
-- [ ] **IOP-DENOISE-02**: non-local means denoise（非局部均值）
-- [ ] **IOP-DENOISE-03**: bilateral / surface blur
-- [ ] **IOP-DENOISE-04**: hot pixels / dark frame / chromatic noise
+- [x] **IOP-DENOISE-01**: raw denoise（profiled denoise，基于相机噪声 profile，Darktable denoise (profiled) 的 Metal 移植，最复杂移植之一）
+- [x] **IOP-DENOISE-02**: non-local means denoise（非局部均值）
+- [x] **IOP-DENOISE-03**: bilateral / surface blur — 已交付：直连档（rad≤6）+ 稠密 5D 网格档（dt lattice 同族近似，D-05-08-T2-2）
+- [x] **IOP-DENOISE-04**: hot pixels / dark frame / chromatic noise — chromatic noise 已交付（05-06 chroma 参数 + 05-07 Y0U0V0 模式）；**hotpixels/dark-frame 正式 defer**（hotpixels.c:94 IOP_CS_RAW Bayer 域 + CIRAW 无 despeckle 键——需求解释权裁决，非缺口；重启 = v2 自研 RAW 解码），cacorrect 复议维持 defer（D-05-08-T4-1，与 Phase 6 无关）
 
 ### Image Operation Modules (iop) — Geometry & Lens (IOP-GEO)
 
-- [ ] **IOP-GEO-01**: crop（裁剪，含比例锁定、旋转微调）
-- [ ] **IOP-GEO-02**: rotate / perspective（旋转/透视校正，含自动检测）
-- [ ] **IOP-GEO-03**: lens correction（镜头校正：几何畸变、横向色差、渐晕——CIRAW 不足部分用 Metal 补，含 lensfun-style 数据库或自有 profile）
-- [ ] **IOP-GEO-04**: flip / orientation（翻转/方向）
+- [x] **IOP-GEO-01**: crop（裁剪，含比例锁定、旋转微调）
+- [x] **IOP-GEO-02**: rotate / perspective（旋转/透视校正，含自动检测）
+- [x] **IOP-GEO-03**: lens correction（镜头校正：几何畸变、横向色差、渐晕——CIRAW 不足部分用 Metal 补，含 lensfun-style 数据库或自有 profile）
+- [x] **IOP-GEO-04**: flip / orientation（翻转/方向）
 - [ ] **IOP-GEO-05**: liquify（液化，肖像修饰，复杂模块）
 - [ ] **IOP-GEO-06**: retouch（修复画笔/克隆，依赖蒙版框架）
 
@@ -295,37 +295,37 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | HIST-04 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
 | HIST-05 | Phase 9 — Capture One Session Management | Pending |
 | HIST-06 | Phase 9 — Capture One Session Management | Pending |
-| IOP-TONE-01 | Phase 3 — Tone & Filmic iops | Pending |
-| IOP-TONE-02 | Phase 3 — Tone & Filmic iops | Pending |
-| IOP-TONE-03 | Phase 3 — Tone & Filmic iops | Pending |
-| IOP-TONE-04 | Phase 3 — Tone & Filmic iops | Pending |
-| IOP-TONE-05 | Phase 3 — Tone & Filmic iops | Pending |
-| IOP-TONE-06 | Phase 3 — Tone & Filmic iops | Pending |
-| IOP-TONE-07 | Phase 3 — Tone & Filmic iops | Pending |
-| IOP-FILM-01 | Phase 3 — Tone & Filmic iops | Pending |
-| IOP-FILM-02 | Phase 3 — Tone & Filmic iops | Pending |
-| IOP-FILM-03 | Phase 3 — Tone & Filmic iops | Pending |
-| IOP-COLOR-01 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-COLOR-02 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-COLOR-03 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-COLOR-04 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-COLOR-05 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-COLOR-06 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-COLOR-07 | Phase 5 — Color & Denoise iops | Pending |
+| IOP-TONE-01 | Phase 3 — Tone & Filmic iops | Delivered |
+| IOP-TONE-02 | Phase 3 — Tone & Filmic iops | Delivered |
+| IOP-TONE-03 | Phase 3 — Tone & Filmic iops | Delivered |
+| IOP-TONE-04 | Phase 3 — Tone & Filmic iops | Delivered |
+| IOP-TONE-05 | Phase 3 — Tone & Filmic iops | Delivered |
+| IOP-TONE-06 | Phase 3 — Tone & Filmic iops | Delivered |
+| IOP-TONE-07 | Phase 3 — Tone & Filmic iops | Delivered |
+| IOP-FILM-01 | Phase 3 — Tone & Filmic iops | Delivered |
+| IOP-FILM-02 | Phase 3 — Tone & Filmic iops | Delivered |
+| IOP-FILM-03 | Phase 3 — Tone & Filmic iops | Delivered |
+| IOP-COLOR-01 | Phase 5 — Color & Denoise iops | Delivered |
+| IOP-COLOR-02 | Phase 5 — Color & Denoise iops | Delivered |
+| IOP-COLOR-03 | Phase 5 — Color & Denoise iops | Delivered |
+| IOP-COLOR-04 | Phase 5 — Color & Denoise iops | Delivered |
+| IOP-COLOR-05 | Phase 5 — Color & Denoise iops | Delivered |
+| IOP-COLOR-06 | Phase 5 — Color & Denoise iops | Delivered |
+| IOP-COLOR-07 | Phase 5 — Color & Denoise iops | Delivered |
 | IOP-COLOR-08 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| IOP-COLOR-09 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-DETAIL-01 | Phase 4 — Geometry, Lens & Detail iops | Pending |
-| IOP-DETAIL-02 | Phase 4 — Geometry, Lens & Detail iops | Pending |
-| IOP-DETAIL-03 | Phase 4 — Geometry, Lens & Detail iops | Pending |
-| IOP-DETAIL-04 | Phase 4 — Geometry, Lens & Detail iops | Pending |
-| IOP-DENOISE-01 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-DENOISE-02 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-DENOISE-03 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-DENOISE-04 | Phase 5 — Color & Denoise iops | Pending |
-| IOP-GEO-01 | Phase 4 — Geometry, Lens & Detail iops | Pending |
-| IOP-GEO-02 | Phase 4 — Geometry, Lens & Detail iops | Pending |
-| IOP-GEO-03 | Phase 4 — Geometry, Lens & Detail iops | Pending |
-| IOP-GEO-04 | Phase 4 — Geometry, Lens & Detail iops | Pending |
+| IOP-COLOR-09 | Phase 5 — Color & Denoise iops | Delivered |
+| IOP-DETAIL-01 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
+| IOP-DETAIL-02 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
+| IOP-DETAIL-03 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
+| IOP-DETAIL-04 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
+| IOP-DENOISE-01 | Phase 5 — Color & Denoise iops | Delivered |
+| IOP-DENOISE-02 | Phase 5 — Color & Denoise iops | Delivered |
+| IOP-DENOISE-03 | Phase 5 — Color & Denoise iops | Delivered |
+| IOP-DENOISE-04 | Phase 5 — Color & Denoise iops | Resolved（chromatic 交付；hotpixels/dark-frame defer） |
+| IOP-GEO-01 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
+| IOP-GEO-02 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
+| IOP-GEO-03 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
+| IOP-GEO-04 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
 | IOP-GEO-05 | Phase 6 — Layers & Masking System | Pending |
 | IOP-GEO-06 | Phase 6 — Layers & Masking System | Pending |
 | LAYER-01 | Phase 6 — Layers & Masking System | Pending |

@@ -1005,3 +1005,25 @@ force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自�
 - 驱动：`run_adoption.py`（05-06/05-07 同款流：flat_0ev + XMP → export EXR，`-d params`，fresh library，conf = 05-07 同款 darktablerc 含 exr compression=0）。
 - 三证据 **3/3**：① loader line `successfully loaded module bilateral from history`；② `params v. 1: version ok params ok`（dt DT_MODULE_INTROSPECTION(1) 接受我们的 20B blob）；③ DB `hex(op_params)` == XMP blob 逐字节（`00000040…` 三 case 全同）。
 - 平场探针：direct case **maxdev = 0.0**（精确恒等）；boundary case 环内 16px 内区 **0.0**（12px 边环 1455 px-ch 偏差 = dt lattice 边缘行为）；grid_large 出现 dt lattice 未初始化格垃圾（interior 亦有，max 6.7e28）——**上游 lattice 行为**，非 Lightamer 缺陷；本实现稠密格平场恒等由 GPU 门钉死（2.9e-7）。
+
+## Phase 5 golden 完整性总账（Plan 05-08-T5.3/SC#1 核对，2026-09-23）
+
+> 11 模块逐个：轨 A 来源 + 容差 + probe 记录指针 + SC#2 行。sha256 抽验见各节；
+> 「dt 三证据」= blob XMP 采纳 + `--d params` ok + 平场探针（L017 双轨口径）。
+
+| # | 模块（op / slot） | 轨 A 来源 | 容差（门 → 实测） | probe/采纳记录 | SC |
+|---|---|---|---|---|---|
+| 1 | colorbalancerggb（colorbalancergb / 41.5） | gen_fixtures float64（矩阵直译） | <1e-5 → 轨 A 全绿 | 05-02：XMP 采纳 + PFM BROKEN 注记 | SC#1 |
+| 2 | channelmixerrgb / 28.5 | gen_fixtures float64（illuminants/CAT） | <1e-5 → 全绿 | 05-03：dt-cli 采纳 12/12（blob 88B F1 修复） | SC#1 |
+| 3 | channelmixer / 39.0 | gen_fixtures float64（7 系数 RGB/HSL） | <1e-5 → 全绿 | 05-03：采纳（同上轮） | SC#1 |
+| 4 | colorcontrast / 56.0 | gen_fixtures float64（a/b 斜率+偏移） | <1e-5 → 全绿 | 05-03：采纳 | SC#1；IOP-COLOR-09 交付本体 |
+| 5 | vibrance / 58.0 | gen_fixtures float64（Lab 旧式公式） | <1e-5 → 全绿 | 05-04：采纳复验 2026-09-22 + 饱和 fixture | SC#1 |
+| 6 | velvia / 57.0 | gen_fixtures float64（RGB 线性饱和 + clamp） | <1e-5 → 全绿 | 05-04：同上 | SC#1 |
+| 7 | colorzones / 60.0 | gen_fixtures float64（三曲线 LUT） | ParityGate 双闸 → 全绿 | 05-04：hue sweep 全环 | SC#1 |
+| 8 | monochrome / 64.0 | gen_fixtures float64（filter+envelope+grid 腿） | <1e-5 → 全绿 | 05-05：grid==窗口交叉 + CPU sigma² | SC#1 |
+| 9 | denoiseprofile / 9.0 | gen_fixtures float64（VST 三变体+eaw 波列+Bayesshrink+NLMeans 腿） | <1e-5（VST 门 1e-6 → 实测 2.4e-7） | 05-07：dt-cli 采纳 8/8 + 平场探针 | SC#2（加噪→去噪闭环 + 错配方向断言 + spike 收口行见下节） |
+| 10 | nlmeans / 29.0 | gen_fixtures float64（Goossens 同算法参考） | <1e-3 → **≤5.7e-6** | 05-06：采纳 4/4 + 平场 0.0 | SC#3 |
+| 11 | bilateral / 10.0 | gen_fixtures float64（直连=精确公式 / grid=同算法镜像，D-05-08-T2-2） | 直连 <1e-5 / grid <1e-3 → **全部 <1e-6** | 05-08：dt-cli 采纳 3/3 + 平场探针（direct 0.0；grid_large dt lattice 上游垃圾已记录） | SC#3 |
+
+- 抽验（sha256）：bilateral 9 文件见「bilateral 输出 sha256」表；其余 8 模块 sha256 见各自 manifest 节（04-07 模式）。
+- 总账判定：**11/11 有账 + 各 ParityTests 绿 + dt 证据齐** → SC#1 PASS；SC#2 行 = denoiseprofile 节 + 「SC#2 结论行」节；SC#3 行 = nlmeans/bilateral 节 + chromatic 半边断言（NLMeansParityTests luma/chroma 半边）。
