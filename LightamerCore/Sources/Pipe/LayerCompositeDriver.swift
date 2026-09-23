@@ -278,13 +278,16 @@ enum LayerCompositeDriver {
                 blended = cached.texture
                 let delta = (await cache.stats) - statsBefore
                 prefixHit = delta.hits > 0
+                // The dispatch counter counts KERNEL dispatches only — a
+                // prefix hit short-circuits the blend entirely (its purpose).
+                blendPasses += delta.misses > 0 ? 1 : 0
             } else {
                 // The no-prefix policy (a future FULL variant): compute
                 // without caching.
                 blended = try await Self.blend(
                     below: accumulator, top: layerPlane, layer: layer, metal: metal)
+                blendPasses += 1
             }
-            blendPasses += 1
             accumulator = blended
 
             // D-06-CONTEXT-8 cold-layer leg: drop this layer's chain-output

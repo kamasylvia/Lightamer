@@ -62,13 +62,15 @@ final class LayerCacheTests: XCTestCase {
         }
     }
 
-    /// Survival probe: the plane must be a HIT (make never runs).
+    /// Survival probe: the plane must be a HIT (make never runs). Probe
+    /// byteCount matches the insert size so rebuilds never trip the
+    /// insert-time LRU mid-assertion.
     private func assertSurvives(
         _ cache: PipeCache, _ key: PipeCacheKey, metal: MetalContext,
         builds: BuildCounter, _ label: String
     ) async throws {
         let before = builds.value
-        _ = try await cache.plane(for: key, byteCount: 1024 * 1024) {
+        _ = try await cache.plane(for: key, byteCount: 512 * 1024) {
             [metal, builds] in
             builds.value += 1
             return LayerCacheTests.tinyTexture(metal)
@@ -82,7 +84,7 @@ final class LayerCacheTests: XCTestCase {
         builds: BuildCounter, _ label: String
     ) async throws {
         let before = builds.value
-        _ = try await cache.plane(for: key, byteCount: 1024 * 1024) {
+        _ = try await cache.plane(for: key, byteCount: 512 * 1024) {
             [metal, builds] in
             builds.value += 1
             return LayerCacheTests.tinyTexture(metal)
@@ -141,56 +143,75 @@ final class LayerCacheTests: XCTestCase {
 
     // ── T3: enforceBudget layer-tier eviction order ──
 
-    /// Tier order (06-RESEARCH §7): layer chain outputs → composite
-    /// prefixes → mask planes; the base/terminal sentinel namespace is
-    /// never touched by the layer sweep (D-06-01-T3-1).
+    /// Tier order (06-RESEARCH §7) — ONE sweep crossing two tiers: with a
+    /// 12 MB budget (floor 8 MB) and 23 × 512 KB planes (11.5 MB total),
+    /// the sweep's eviction window (total − floor = 3.5 MB = 7 planes)
+    /// exhausts the 3 chain outputs FIRST, then peels the 4 OLDEST
+    /// prefixes — masks and the base sentinel survive. Probes rebuild the
+    /// 7 evicted planes (+3.5 MB ≤ budget), so no insert-time LRU ever
+    /// interferes (D-06-01-T3-1 for the sentinel exemption).
     func testEnforceBudgetEvictsLayerTiersInOrder() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let metal = try await makeMetal()
-        // 3 MB budget → hysteresis floor = min(2MB, 3MB×2/3) = 2 MB.
-        let cache = PipeCache(byteBudget: 3 * 1024 * 1024)
+        let cache = PipeCache(byteBudget: 12 * 1024 * 1024)
         let builds = BuildCounter()
+        let half = 512 * 1024
 
-        let chainA = key(layerA, position: 4, upstream: 10)
-        let chainB = key(layerB, position: 4, upstream: 20)
-        let prefixA = key(layerA, position: PipeCacheKey.compositePosition, upstream: 30)
-        let maskA = key(layerA, position: PipeCacheKey.maskPosition, upstream: 40)
+        var chainKeys: [PipeCacheKey] = []
+        for (index, layer) in [layerA, layerB, layerA].enumerated() {
+            chainKeys.append(key(layer, position: 4 + index, upstream: UInt64(10 + index)))
+        }
+        var prefixKeys: [PipeCacheKey] = []
+        for index in 0..<16 {
+            prefixKeys.append(key(
+                index.isMultiple(of: 2) ? layerA : layerB,
+                position: PipeCacheKey.compositePosition,
+                upstream: UInt64(100 + index)))
+        }
+        var maskKeys: [PipeCacheKey] = []
+        for index in 0..<3 {
+            maskKeys.append(key(layerA, position: PipeCacheKey.maskPosition, upstream: UInt64(200 + index)))
+        }
         let basePlane = PipeCacheKey(
             imageID: imageID, pipeType: .preview, position: 1,
-            upstreamHash: 50, roi: roi) // sentinel namespace
+            upstreamHash: 300, roi: roi) // sentinel namespace
 
-        // 4 MB across the layer tiers + 1 MB base plane = 5 MB.
-        for k in [chainA, chainB, prefixA, maskA, basePlane] {
-            try await insert(cache, k, metal: metal, builds: builds)
+        let all = chainKeys + prefixKeys + maskKeys + [basePlane]
+        XCTAssertEqual(all.count, 23)
+        for k in all {
+            _ = try await cache.plane(for: k, byteCount: half) { [metal, builds] in
+                builds.value += 1
+                return LayerCacheTests.tinyTexture(metal)
+            }
         }
-        XCTAssertEqual(builds.value, 5, "compared > 0 guard: five inserts were misses")
+        XCTAssertEqual(builds.value, 23, "compared > 0 guard: every insert was a miss")
+        var total = await cache.totalBytes
+        XCTAssertEqual(total, 23 * half, "no insert-time LRU fired")
 
-        // Sweep 1 (threshold 3 MB): evict to the 2 MB floor — the two
-        // chain outputs go first (lowest tier), prefix + mask + base stay.
-        _ = await cache.enforceBudget(now: 3 * 1024 * 1024, keeping: .init(
+        // THE sweep: threshold 6.5 MB → evict to the 8 MB floor.
+        _ = await cache.enforceBudget(now: 6500 * 1024, keeping: .init(
             currentImageID: imageID, previousImageID: nil))
-        try await assertEvicted(cache, chainA, metal: metal, builds: builds, "chain output A")
-        try await assertEvicted(cache, chainB, metal: metal, builds: builds, "chain output B")
-        try await assertSurvives(cache, prefixA, metal: metal, builds: builds, "prefix before mask")
-        try await assertSurvives(cache, maskA, metal: metal, builds: builds, "mask tier last resort")
-        try await assertSurvives(cache, basePlane, metal: metal, builds: builds, "base sentinel untouched by layer tiers")
+        total = await cache.totalBytes
+        XCTAssertEqual(total, 16 * half, "exactly 7 planes evicted (all chains + 4 oldest prefixes)")
 
-        // Sweep 2: refill chains + a second prefix (5 MB total again) —
-        // the sweep eats both chains AND both prefixes before the mask.
-        let chainC = key(layerA, position: 5, upstream: 60)
-        let chainD = key(layerB, position: 5, upstream: 70)
-        let prefixB = key(layerB, position: PipeCacheKey.compositePosition, upstream: 80)
-        for k in [chainC, chainD, prefixB] {
-            try await insert(cache, k, metal: metal, builds: builds)
+        // Tier 0: every chain output is gone.
+        for (index, k) in chainKeys.enumerated() {
+            try await assertEvicted(cache, k, metal: metal, builds: builds, "chain \(index)")
         }
-        _ = await cache.enforceBudget(now: 3 * 1024 * 1024, keeping: .init(
-            currentImageID: imageID, previousImageID: nil))
-        try await assertEvicted(cache, chainC, metal: metal, builds: builds, "refilled chain C")
-        try await assertEvicted(cache, chainD, metal: metal, builds: builds, "refilled chain D")
-        try await assertEvicted(cache, prefixA, metal: metal, builds: builds, "prefix A after chains")
-        try await assertEvicted(cache, prefixB, metal: metal, builds: builds, "prefix B after chains")
-        try await assertSurvives(cache, maskA, metal: metal, builds: builds, "mask plane outlives every layer tier")
-        try await assertSurvives(cache, basePlane, metal: metal, builds: builds, "base sentinel outlives the whole layer sweep")
+        // Tier 1: the four OLDEST prefixes went with them, newer survive.
+        for index in 0..<4 {
+            try await assertEvicted(cache, prefixKeys[index], metal: metal, builds: builds, "oldest prefix \(index)")
+        }
+        for index in 4..<16 {
+            try await assertSurvives(cache, prefixKeys[index], metal: metal, builds: builds, "newer prefix \(index)")
+        }
+        // Tier 2: every mask plane outlives the sweep.
+        for (index, k) in maskKeys.enumerated() {
+            try await assertSurvives(cache, k, metal: metal, builds: builds, "mask \(index)")
+        }
+        // The base sentinel namespace is not a layer plane at all.
+        try await assertSurvives(cache, basePlane, metal: metal, builds: builds,
+                                 "base sentinel outlives the layer sweep")
     }
 
     // ── T3: FULL cold-layer policy constants (D-06-CONTEXT-8) ──
@@ -228,5 +249,273 @@ final class LayerCacheTests: XCTestCase {
         try await insert(cache, other, metal: metal, builds: builds)
         await cache.invalidateLayer(imageID: imageID, layerID: layerA)
         try await assertSurvives(cache, other, metal: metal, builds: builds, "layer B untouched by layer A's sweep")
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Plan 06-01 T5 — composite incremental accounting (PipeCacheTests
+    // style). Every scenario asserts EXACT hit/miss deltas + blend-pass
+    // counts through the driver's stats channel. Chain shape: base =
+    // terminal trio (base leg = [colorin], terminal leg = [colorout,
+    // gamma]) + two layers A (bottom) / B (top), each one gain module.
+    //
+    // Cold run line-count reference (7 cache probes/misses):
+    //   base:1 + A-chain:1 + A-prefix:1 + B-chain:1 + B-prefix:1
+    //   + terminal:2 (colorout, gamma) = 7.
+    // ═══════════════════════════════════════════════════════════════════
+
+    private func compositeRun(
+        _ image: DecodedImage, base: [any ModuleBoxing], stack: LayerStack,
+        registry: ModuleRegistry, metal: MetalContext, cache: PipeCache
+    ) async throws -> LayerCompositeResult {
+        try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: base,
+            layerStack: stack, registry: registry, resolution: .preview,
+            cache: cache, metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview)
+    }
+
+    private func gainLayer(
+        _ gain: Float, name: String
+    ) -> AdjustmentLayer {
+        AdjustmentLayer(
+            name: name, opacity: 1.0,
+            chain: [ModuleInstance(
+                module: TestGainModule.self,
+                params: TestGainModule.Params(gain: gain))])
+    }
+
+    /// Scenario 1 — edit layer B's gain (top layer, N=2, K=2):
+    ///   run1 cold: 0 hits / 8 misses. Reference line count:
+    ///     base input + colorin (2: the BASE leg caches its input, unlike
+    ///     sub-run legs) + A-chain + A-prefix + B-chain + B-prefix
+    ///     + colorout + gamma = 8.
+    ///   run2:      4 hits (base colorin + A chain + A prefix + terminal
+    ///              gamma) / 2 misses (B chain from B onward + B prefix) /
+    ///              1 blend pass. A's prefixHit = true, B's = false.
+    func testEditTopLayerIncrementalAccounting() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = try makeGradientImage()
+        let cache = PipeCache()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let a = gainLayer(1.5, name: "A")
+        let b = gainLayer(2.0, name: "B")
+        stack.addAdjustment(a)
+        stack.addAdjustment(b)
+
+        let run1 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let stats1 = await cache.stats
+        XCTAssertEqual(stats1.hits, 0)
+        XCTAssertEqual(stats1.misses, 8, "cold composite = 8 cache lines (see reference)")
+        XCTAssertEqual(run1.blendPasses, 2)
+
+        // Edit B's params (records are the live surface; boxes re-materialize).
+        var edited = b.chain[0]
+        try edited.setParams(TestGainModule.Params(gain: 3.0), as: TestGainModule.self)
+        b.chain[0] = edited
+
+        let run2 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let delta = (await cache.stats) - stats1
+        XCTAssertEqual(delta.hits, 4, "<K chain + <K prefix + base + terminal all hit")
+        XCTAssertEqual(delta.misses, 2, "B chain self-B-miss + B prefix miss")
+        XCTAssertEqual(run2.blendPasses, 1, "exactly one blend pass (N−K = 1)")
+        XCTAssertEqual(run2.layerStats.first { $0.layerID == a.id }?.prefixHit, true)
+        XCTAssertEqual(run2.layerStats.first { $0.layerID == b.id }?.prefixHit, false)
+    }
+
+    /// Scenario 1b — edit the BOTTOM layer (K=1): the K..N prefixes chain-
+    /// invalidate (correct C1 semantics) while B's chain output survives.
+    ///   run deltas: 3 hits (base colorin + B chain + terminal) / 3 misses
+    ///   (A chain + A prefix + B prefix 连锁失配) / 2 blend passes.
+    func testEditBottomLayerChainsPrefixMisses() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = try makeGradientImage()
+        let cache = PipeCache()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let a = gainLayer(1.5, name: "A")
+        let b = gainLayer(2.0, name: "B")
+        stack.addAdjustment(a)
+        stack.addAdjustment(b)
+        _ = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let stats1 = await cache.stats
+
+        var edited = a.chain[0]
+        try edited.setParams(TestGainModule.Params(gain: 2.5), as: TestGainModule.self)
+        a.chain[0] = edited
+
+        let run2 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let delta = (await cache.stats) - stats1
+        XCTAssertEqual(delta.hits, 3, "base colorin + B chain + terminal survive")
+        XCTAssertEqual(delta.misses, 3, "A chain + A prefix + B prefix (chained-invalidate)")
+        XCTAssertEqual(run2.blendPasses, 2, "N−K = 2 blend passes")
+        XCTAssertEqual(run2.layerStats.first { $0.layerID == b.id }?.prefixHit, false,
+                       "B's prefix chain-invalidates through A's new prefix hash")
+    }
+
+    /// Scenario 2 — REORDER A/B after a warm run: every chain-output key is
+    /// order-free (layerID namespaces) so both chains + base + terminal hit
+    /// (4 hits / 0 chain misses); BOTH prefixes miss (the fold is
+    /// order-dependent — C1 recomposites) → exactly 2 blend passes.
+    func testReorderKeepsChainCachesAlive() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = try makeGradientImage()
+        let cache = PipeCache()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let a = gainLayer(1.5, name: "A")
+        let b = gainLayer(2.0, name: "B")
+        stack.addAdjustment(a)
+        stack.addAdjustment(b)
+        _ = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let stats1 = await cache.stats
+
+        stack.reorder(id: a.id, to: 1) // A was bottom (0) → now top
+
+        let run2 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let delta = (await cache.stats) - stats1
+        XCTAssertEqual(delta.hits, 4, "both chains + base + terminal fully survive the reorder")
+        XCTAssertEqual(delta.misses, 2, "only the two composite prefixes re-key")
+        XCTAssertEqual(run2.blendPasses, 2, "re-blend only — zero chain re-renders")
+        // Content-level corroboration (L020 ③): the reordered composite is
+        // byte-identical to a fresh composite of a stack built bottom-to-
+        // top as [B, A] (same composition order).
+        var reference = LayerStack(baseLayer: BackgroundLayer())
+        reference.addAdjustment(b)
+        reference.addAdjustment(a)
+        let fresh = try await compositeRun(image, base: base, stack: reference, registry: registry, metal: metal, cache: PipeCache())
+        let reordered = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let reorderedBytes = Self.planeBytes(reordered.output, metal: metal)
+        let freshBytes = Self.planeBytes(fresh.output, metal: metal)
+        XCTAssertEqual(reorderedBytes.count, freshBytes.count)
+        XCTAssertGreaterThan(reorderedBytes.count, 0, "防空转 guard")
+        XCTAssertTrue(reorderedBytes.elementsEqual(freshBytes), "reorder must recomposite to identical bytes")
+    }
+
+    /// L014 fence + full raw read of a float32 RGBA plane.
+    private static func planeBytes(
+        _ texture: any MTLTexture, metal: MetalContext
+    ) -> [UInt8] {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+        var bytes = [UInt8](repeating: 0, count: texture.width * texture.height * 4)
+        bytes.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: texture.width * 4,
+                from: MTLRegionMake2D(0, 0, texture.width, texture.height),
+                mipmapLevel: 0)
+        }
+        return bytes
+    }
+
+    /// Scenario 3 — visibility vs enable (semantics differ structurally):
+    /// hidden B → its sub-run still probes (chain hit — cache survives),
+    /// NO prefix probe, zero blends; disabled B → no sub-run AT ALL.
+    func testHiddenAndDisabledLayerAccounting() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = try makeGradientImage()
+        let cache = PipeCache()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let a = gainLayer(1.5, name: "A")
+        let b = gainLayer(2.0, name: "B")
+        stack.addAdjustment(a)
+        stack.addAdjustment(b)
+        _ = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let stats1 = await cache.stats
+
+        // Hidden B.
+        b.isVisible = false
+        let hidden = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        var delta = (await cache.stats) - stats1
+        XCTAssertEqual(delta.hits, 5, "base + A chain + A prefix + B chain (cache survives) + terminal")
+        XCTAssertEqual(delta.misses, 0, "hiding never invalidates anything")
+        XCTAssertEqual(hidden.blendPasses, 0, "hidden layer performs no blend")
+        XCTAssertEqual(hidden.layerStats.count, 2, "B still reports a (sub-run) leg")
+
+        // Disabled B: removed from processing entirely.
+        let statsHidden = await cache.stats
+        b.enabled = false
+        let disabled = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        delta = (await cache.stats) - statsHidden
+        XCTAssertEqual(delta.hits, 4, "base + A chain + A prefix + terminal (no B probes at all)")
+        XCTAssertEqual(delta.misses, 0)
+        XCTAssertEqual(disabled.blendPasses, 0)
+        XCTAssertEqual(disabled.layerStats.count, 1, "disabled layer produces no composite leg")
+    }
+
+    /// Scenario 4 — blend-attribute edit (opacity; the mask-version
+    /// placeholder rides the same triple): ONLY the layer's own prefix
+    /// misses; its chain, everything below, and the terminal all hit.
+    func testOpacityEditInvalidatesOnlyOwnPrefix() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = try makeGradientImage()
+        let cache = PipeCache()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let a = gainLayer(1.5, name: "A")
+        let b = gainLayer(2.0, name: "B")
+        stack.addAdjustment(a)
+        stack.addAdjustment(b)
+        _ = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let stats1 = await cache.stats
+
+        b.opacity = 0.5
+
+        let run2 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let delta = (await cache.stats) - stats1
+        XCTAssertEqual(delta.hits, 5, "base + A chain + A prefix + B chain + terminal")
+        XCTAssertEqual(delta.misses, 1, "only B's own prefix (blend triple folded)")
+        XCTAssertEqual(run2.blendPasses, 1)
+        XCTAssertEqual(run2.layerStats.first { $0.layerID == b.id }?.prefixHit, false)
+    }
+
+    // ── shared T5 fixture ──
+
+    private func makeRegistry() async -> ModuleRegistry {
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        return registry
+    }
+
+    private func makeGradientImage(width: Int = 48, height: Int = 32) throws -> DecodedImage {
+        var pixels = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let o = (y * width + x) * 4
+                pixels[o + 0] = 0.1 + 0.7 * Float(x) / Float(width - 1)
+                pixels[o + 1] = 0.2 + 0.5 * Float(y) / Float(height - 1)
+                pixels[o + 2] = 0.3
+                pixels[o + 3] = 1.0
+            }
+        }
+        let bitmap = pixels.withUnsafeBytes { Data($0) }
+        return DecodedImage(
+            ciImage: CIImage(
+                bitmapData: bitmap,
+                bytesPerRow: width * 4 * MemoryLayout<Float>.stride,
+                size: CGSize(width: width, height: height),
+                format: .RGBAf, colorSpace: WorkingSpace.colorSpace),
+            rawTech: RAWTechnicalParams(blackLevel: 0.0),
+            capture: CaptureMetadata(),
+            segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8)
     }
 }
