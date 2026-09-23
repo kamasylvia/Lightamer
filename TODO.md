@@ -144,6 +144,18 @@
 - [ ] **待用户知悉项**：noiseprofiles.json 数据文件许可证核对（dt GPL 项目内贡献数据再分发，D-05-CONTEXT-2）——核对完成前不对外分发 release（05-01 落 LICENSE-NOTES；**05-08 签核复核：仍未完成，限制继续有效**，VALIDATION Manual-Only 表登记）
 - [ ] **Manual-Only 挂账（L011 口径，VALIDATION 表同源）**：bilateral 面板真机视觉走查（AX 行枚举未贯通，自动化已钉 dispatch/拖动=1/复位）；denoise 三件 torture 真机目检（高 ISO 样本待补拍）；PERF-5 Release 复测（外推 ≈79ms 结论不变）
 
+## Phase 6（Layers & Masking System，规划定稿 2026-09-22，待执行）
+
+**状态**：RESEARCH + CONTEXT + 7 plans 全部落盘（`.planning/phases/06-layers-masking/`）；8 项 Open Questions 全部裁决（`06-CONTEXT.md` D-06-CONTEXT-1..8，全采纳 06-RESEARCH 推荐；**OQ2 BlendMode 值错位 = 值不重编 + dt MODERN 语义 + 头注映射表**）。架构裁决 = 混合模型 (c)：C1 层栈为模型、dt blendop 为引擎——`LayerCompositeDriver` 编排 N 个子 run + 合成，Phase 2-5 pipe walk 零改动；合成 seam = colorout 前工作空间平面。14 reqs（LAYER-01..07 + IOP-MASK-01..05 + IOP-GEO-05/06）；估 ~38-48 T 全项目最大阶段。依赖链：06-01（W1 层核）→ 06-02（W2 blend 引擎）→ 06-03（W3 drawn mask）→ 06-04 + 06-06（W4 并行：parametric/raster/combine ∥ liquify）→ 06-05（W5 UI + 前半签核）→ 06-07（W6 retouch + 终签核）。
+
+- [ ] **Plan 06-01**（W1 层核与 sidecar v2）：`AdjustmentLayer`（chain: [ModuleInstance] + mask 占位）+ `LayerCompositeDriver` 退化合成（normal+opacity+全 mask 直通）+ 终端段摘出 + `PipeCacheKey.layerID` + 前缀平面 key + enforceBudget 分档 + 跨层 ROI/dscIn 层维度断言（L021）+ sidecar v2（schemaVersion 2 / 层记录拼写冻结 / layerScope / stackSnapshot / historyHash 折叠）+ **BlendMode 定案执行**（头注三方映射表 + colorAdjust 更名 + REVERSE 位）；恒等三元组逐字节 + 层 K 编辑 hit/miss 记账 + 重排链缓存存活
+- [ ] **Plan 06-02**（W2 blendop 合成引擎）：线性 Rec2020 算术模式全表（0x01=NORMAL2 / 0x16=COLORADJUST 公式兑现）+ JzCzhz 往返感知模式四件（L023 往返先行）+ REVERSE 位 + 增补（lighten/darken 直译 + PS color dodge/burn 新 raw 值）+ mask×blend×opacity 单 kernel 三元组 + float64 参考 + dt-cli 平场 probe 三证据（blendop_params blob，L015 hex）
+- [ ] **Plan 06-03**（W3 drawn mask）：stamping spike 先行定稿（render-pipeline additive vs compute atomic——L018 红线）+ `GeometryPointMapper`（四几何模块点映射 + 逆序复合 + liquify 恒等预留；roundtrip <0.1px）+ drawn 四形态 GPU analytic 光栅化（brush/path/ellipse/gradient，解析 <1e-6）+ mask 平面缓存（maskVersion 独立折叠——蒙版编辑链零重算）+ mask 腿接线 + overlay 显示腿 GUI 复验
+- [ ] **Plan 06-04**（W4 parametric/raster/combine）：blendif（luma + JzCzhz 单 kernel——D-06-CONTEXT-3）+ 后处理链（blur/feather/contrast——blend.c 组装序钉死）+ combine 五式（group.c:487-630 逐式含 inverted + 解析面积 golden）+ raster 烘焙旁挂 PNG（decimal String hash + 失配降级语义）+ 三类 ⊕ 组合单一有效平面
+- [ ] **Plan 06-05**（W5 图层 UI + 前半签核）：LayersPanelView（眼/rename/mask chip/opacity/blend Picker/操作条/拖拽重排——面板四件套）+ 层选 Inspector 路由（24 面板零改动核验）+ MaskToolbar/MaskOverlayHost 五工具绘制（Manual-Only 手感）+ history 全粒度（逐类 1 commit）+ 10 层稳态拖动门 + FULL 政策 benchmark（D-06-CONTEXT-8 回退决策点）+ E2E round-trip 渲染逐字节 + **前半签核**（SC#1-3/5 前半）
+- [ ] **Plan 06-06**（W4∥ liquify，IOP-GEO-05）：CPU 扭曲场构建（三 warp 类型解析参考 <1e-6）+ warp kernel 直译（lanczos3/bicubic）+ LiquifyModule 18.0（空路径恒等 seed 中性）+ GeometryPointMapper liquify 项（roundtrip <0.5px + 蒙版内容锚定端到端）+ 路径 overlay 交互 + 面板
+- [ ] **Plan 06-07**（W6 retouch + 终签核，IOP-GEO-06）：retouch 独立层 kind（stroke 列表即 mask——dt NO_MASKS 同语义）+ clone/blur/fill GPU 腿 + 源区∪目标 AABB 扩窗（跨窗黑边断言）+ **heal 迭代核基准判定**（超交互预算拆 6.5b——D-06-CONTEXT-1）+ retouch 交互面板 + **Phase 6 终签核**（SC#1-5 + 06-VALIDATION + REQUIREMENTS 14 reqs 翻账 + manifest 总账 + PERF-2 + Phase 7 移交清单）
+
 ## Phase 4（Geometry, Lens & Detail iops，执行完成 2026-09-21）
 
 **状态**：7 plans（04-01/02/03/04/05/06/07）全部执行+验收闭环；全 suite 398 tests / 0 fail / 3 skip；VALIDATION 已签核（`status: validated` / `nyquist_compliant: true` / SC#1-4 全数有证据）；Manual-Only 6 行 pending-manual（L011 口径挂账，不阻塞）。
