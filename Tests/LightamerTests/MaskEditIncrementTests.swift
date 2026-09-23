@@ -136,6 +136,63 @@ final class MaskEditIncrementTests: XCTestCase {
         XCTAssertEqual(run3.layerStats.first { $0.layerID == b.id }?.prefixHit, false)
     }
 
+    /// Plan 06-04 T5 — the THREE-payload class extension of the
+    /// independence semantics: B's mask carries drawn ⊗ parametric ⊓
+    /// raster; editing the PARAMETRIC curve re-assembles ONLY the mask
+    /// plane + prefix while the chain (and every other layer) stays fully
+    /// cached; editing B's chain param leaves the mask plane HIT.
+    func testThreePayloadMaskEditAccounting() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = await makeRegistry()
+        let image = try makeGradientImage()
+        let cache = PipeCache()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let a = gainLayer(1.5, name: "A")
+        var spec = MaskSpec(drawn: DrawnMaskSpec(forms: [
+            MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.2, radiusY: 0.2,
+                rotationDegrees: 0, border: 0))),
+        ]))
+        spec.parametric = ParametricMask(
+            domain: .luma,
+            channels: [.init(channel: 0, curve: .init(points: [0.1, 0.2, 0.5, 0.6]))])
+        let b = gainLayer(2.0, name: "B", mask: spec)
+        stack.addAdjustment(a)
+        stack.addAdjustment(b)
+
+        let coldRun = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let cold = await cache.stats
+        XCTAssertEqual(cold.misses, 9, "cold composite = 9 lines (B's assembled mask plane included)")
+        XCTAssertEqual(coldRun.blendPasses, 2)
+
+        // ── THE PARAMETRIC EDIT: flip the curve. maskVersion hash flips
+        // → the mask plane re-assembles + B's prefix re-blends; B's CHAIN
+        // (and A entirely) stay cached — the METAL-8 independence now
+        // covering all three payload classes.
+        b.mask!.parametric!.channels[0].curve.points = [0.2, 0.3, 0.4, 0.5]
+        let run2 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let delta2 = (await cache.stats) - cold
+        XCTAssertEqual(delta2.hits, 5,
+                       "calibrated: A legs + colorin/gamma + B CHAIN all hit")
+        XCTAssertEqual(delta2.misses, 2, "only B's assembled mask plane + prefix re-key")
+        XCTAssertEqual(run2.blendPasses, 1)
+        XCTAssertEqual(run2.layerStats.first { $0.layerID == b.id }?.prefixHit, false)
+
+        // ── THE CHAIN EDIT: B's gain. The mask plane STAYS cached.
+        var edited = b.chain[0]
+        try edited.setParams(TestGainModule.Params(gain: 3.0), as: TestGainModule.self)
+        b.chain[0] = edited
+        _ = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        let delta3 = (await cache.stats) - (cold + delta2)
+        XCTAssertEqual(delta3.hits, 5,
+                       "calibrated: 4 base hits + B mask plane HIT (no re-assembly)")
+        XCTAssertEqual(delta3.misses, 2, "only B's chain + B's prefix re-render")
+    }
+
     /// Content-level masked blend (L020 ③): with a NORMAL layer over the
     /// base, pixels OUTSIDE the mask equal the mask-less composite
     /// byte-identically; pixels INSIDE differ (the layer shows through).

@@ -35,6 +35,11 @@ struct MaskBlendifFlags {
     }
 }
 
+/// The degrade-reason carrier across a @Sendable cache closure.
+private final class ReasonBox: @unchecked Sendable {
+    var value: String?
+}
+
 /// One entry of a combine reduce: (plane, op, inverted, opacity).
 struct MaskCombineInput {
     var plane: any MTLTexture
@@ -274,6 +279,25 @@ enum MaskCombiner {
         return output
     }
 
+    /// Nearest-neighbor resample to the consuming window (the raster
+    /// store's resolution-mismatch leg — see the mask_resample kernel).
+    static func resample(
+        _ plane: any MTLTexture, toWidth: Int, toHeight: Int, metal: MetalContext
+    ) async throws -> any MTLTexture {
+        let output = try maskLikeShape(width: toWidth, height: toHeight, metal: metal)
+        var outSize = SIMD2<UInt32>(UInt32(toWidth), UInt32(toHeight))
+        let session = try await metal.makeEncoder(functionName: "mask_resample")
+        session.encoder.setTexture(plane, index: 0)
+        session.encoder.setTexture(output, index: 1)
+        session.encoder.setBytes(&outSize, length: MemoryLayout<SIMD2<UInt32>>.stride, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: toWidth, height: toHeight, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+        return output
+    }
+
     /// The mask-level invert (dt raster_mask_invert, blend.c:567-572).
     static func invert(
         plane: any MTLTexture, metal: MetalContext
@@ -399,6 +423,187 @@ enum MaskCombiner {
         }
         guard !inputs.isEmpty else { return nil }
         return try await reduce(inputs, metal: metal)
+    }
+
+    // MARK: - T5: the three-way assembly (dt mask_mode ⊕ semantics)
+
+    /// Assemble the layer's SINGLE effective mask plane from up to three
+    /// payloads (D-06-04-T5-1, 06-RESEARCH §3.1 — dt's
+    /// MASK|CONDITIONAL|RASTER combination, generalized):
+    ///
+    ///   plane = drawn (group-combined, or the 06-3 single form)
+    ///         ⊗ parametric (the dt kernel semantics: form · conditional;
+    ///           no form plane → the constant-1 leg)
+    ///         ⊓ raster (the loaded PNG, inverted per ref — the five-op
+    ///           INTERSECT join, opacity 1; min ≈ the multiplicative
+    ///           chain's binary limit)
+    ///   then the post chain (blur → feather → tone curve) and the layer
+    ///   opacity folded EXACTLY ONCE (the D-06-02-T5-3 premultiply
+    ///   contract).
+    ///
+    /// The result caches at `maskKey(spec.stableHash())` — any payload
+    /// edit flips ONLY this line (the METAL-8 independence).
+    ///
+    /// Raster loading needs the sidecar's masks directory; `maskDirectory`
+    /// nil + a raster ref present degrades through the documented all-ones
+    /// leg (the reason is surfaced, never swallowed).
+    static func effectivePlane(
+        spec: MaskSpec,
+        layerOpacity: Float,
+        window: ROI,
+        below: any MTLTexture,
+        top: any MTLTexture,
+        mapper: GeometryPointMapper,
+        metal: MetalContext,
+        cache: PipeCache,
+        imageID: UUID,
+        pipeType: PipeResolution,
+        layerID: UUID,
+        maskDirectory: URL?,
+        rasterStore: RasterMaskStore.Type = RasterMaskStore.self
+    ) async throws -> (plane: any MTLTexture, hit: Bool, degradedReason: String?) {
+        let hash = spec.stableHash()
+        let key = PipeCacheKey.maskKey(
+            imageID: imageID, pipeType: pipeType, layerID: layerID,
+            maskHash: hash, roi: window)
+        let byteCount = window.width * window.height * 4
+        let statsBefore = await cache.stats
+        // The degrade reason must cross the @Sendable cache closure — a
+        // tiny box (the closure runs at most once: the miss path).
+        let reasonBox = ReasonBox()
+        // TextureBox: the @unchecked-Sendable ownership wrapper (the planes
+        // are read-only inside the closure) — the driver's pattern.
+        let belowBox = TextureBox(texture: below)
+        let topBox = TextureBox(texture: top)
+        let box = try await cache.plane(for: key, byteCount: byteCount) {
+            let (texture, reason) = try await Self.assembleUnmasked(
+                spec: spec, layerOpacity: layerOpacity, window: window,
+                below: belowBox.texture, top: topBox.texture, mapper: mapper,
+                metal: metal, maskDirectory: maskDirectory,
+                rasterStore: rasterStore)
+            reasonBox.value = reason
+            return texture
+        }
+        let delta = (await cache.stats) - statsBefore
+        return (box.texture, delta.hits > 0, reasonBox.value)
+    }
+
+    /// The uncached assembly (the cache-miss closure).
+    static func assembleUnmasked(
+        spec: MaskSpec,
+        layerOpacity: Float,
+        window: ROI,
+        below: any MTLTexture,
+        top: any MTLTexture,
+        mapper: GeometryPointMapper,
+        metal: MetalContext,
+        maskDirectory: URL?,
+        rasterStore: RasterMaskStore.Type
+    ) async throws -> (plane: any MTLTexture, degradedReason: String?) {
+        let opacity = max(0, min(1, layerOpacity))
+        var plane: any MTLTexture?
+        var degradedReason: String?
+
+        // ── The drawn leg.
+        if spec.hasDrawnGroup, let group = spec.drawn?.group {
+            // Per-item planes → the five-op reduce. The layer opacity is
+            // NOT yet folded (item opacities applied at combine time per
+            // dt) — folded below via the blendif leg or the scale pass.
+            if let groupPlane = try await drawnGroupPlane(
+                group: group, forms: spec.drawn?.forms ?? [], window: window,
+                mapper: mapper, metal: metal)
+            {
+                plane = try await scale(
+                    groupPlane, opacity: opacity, metal: metal)
+            }
+            // nil group plane (no resolvable item) → dt's no-form fill 1
+            // leg: leave nil — the blendif leg then sees form = 1, and
+            // without a parametric leg the layer opacity alone applies.
+        } else if spec.hasDrawnForms {
+            // The 06-3 single-form path (layer opacity folded inside).
+            plane = try await DrawnMaskRasterizer.render(
+                spec: spec, layerOpacity: opacity, window: window,
+                mapper: mapper, metal: metal, rowBands: 1)
+        }
+
+        // ── The parametric leg (the dt form ⊗ conditional kernel).
+        if let parametric = spec.parametric, parametric.hasActiveChannels {
+            plane = try await parametricPlane(
+                a: below, b: top, form: plane, spec: parametric,
+                layerOpacity: plane != nil ? 1 : opacity, metal: metal)
+        }
+
+        // ── The raster leg (load + verify; invert inside the store).
+        if let ref = spec.raster {
+            if let directory = maskDirectory {
+                switch try await rasterStore.load(
+                    ref: ref, directory: directory,
+                    windowWidth: window.width, windowHeight: window.height,
+                    metal: metal)
+                {
+                case let .plane(rasterPlane):
+                    if let current = plane {
+                        // The intersect join (opacity 1 — the plane is raw).
+                        plane = try await combinePair(
+                            dest: current, src: rasterPlane,
+                            op: .intersect, inverted: false, opacity: 1,
+                            metal: metal)
+                    } else {
+                        // Raster-only: install with the layer opacity.
+                        plane = try await scale(rasterPlane, opacity: opacity, metal: metal)
+                    }
+                case let .degraded(ones, reason):
+                    // D-06-04-T4-2: min(effective, 1) == effective — the
+                    // degrade is content-neutral here, but it is SURFACED.
+                    degradedReason = reason
+                    if plane == nil { plane = ones }
+                }
+            } else {
+                degradedReason =
+                    "raster mask referenced but no masks directory provided: \(ref.fileName)"
+                if plane == nil {
+                    plane = try await MaskCombiner.fill(
+                        1, width: window.width, height: window.height, metal: metal)
+                }
+            }
+        }
+
+        // ── The no-payload guard is the caller's (hasAnyPayload); a fully
+        // empty assembly degrades to the constant-1 plane × opacity.
+        let effective: any MTLTexture
+        if let plane {
+            effective = plane
+        } else {
+            effective = try await scale(
+                try await fill(1, width: window.width, height: window.height, metal: metal),
+                opacity: opacity, metal: metal)
+        }
+
+        // ── The post chain (the pinned dt order; the params live on the
+        // parametric payload — dt's blend params shape).
+        var output = effective
+        if let parametric = spec.parametric {
+            output = try await postProcess(
+                mask: effective,
+                blurRadius: parametric.blurRadius,
+                featherRadius: parametric.featherRadius,
+                contrast: parametric.contrast,
+                brightness: parametric.brightness,
+                gopacity: opacity,
+                metal: metal)
+        }
+        return (output, degradedReason)
+    }
+
+    /// Fold `opacity` into a raw plane once (the union-onto-zero identity:
+    /// max(0, v·op) = v·op for v ≥ 0) — no dedicated kernel needed.
+    static func scale(
+        _ plane: any MTLTexture, opacity: Float, metal: MetalContext
+    ) async throws -> any MTLTexture {
+        let zero = try await fill(0, width: plane.width, height: plane.height, metal: metal)
+        return try await combinePair(
+            dest: zero, src: plane, op: .union, inverted: false,
+            opacity: opacity, metal: metal)
     }
 
     // MARK: - T2: the mask post-processing chain

@@ -172,7 +172,8 @@ enum LayerCompositeDriver {
         longEdge: Int? = nil,
         roiHint: ROI? = nil,
         policy: LayerCachePolicy = .preview,
-        hotLayerID: UUID? = nil
+        hotLayerID: UUID? = nil,
+        maskDirectory: URL? = nil
     ) async throws -> LayerCompositeResult {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -284,20 +285,31 @@ enum LayerCompositeDriver {
                 upstreamHash: prefixHash, roi: window, layerID: layer.id)
             let planeBytes = window.width * window.height * WorkingSpace.bytesPerPixel
 
-            // ── The MASK leg (plan 06-03 T6; D-06-02-T5-3 pre-multiplied
-            // contract): drawn masks rasterize (or fetch) through the mask
-            // plane cache; nil = the constant-1 uniform path.
+            // ── The MASK leg (plan 06-04 T5): the THREE payload classes
+            // (drawn ⊗ parametric ⊓ raster) assemble into ONE effective
+            // plane through MaskCombiner, cached at the mask-version key.
+            // nil = the constant-1 uniform path. Raster loading needs the
+            // sidecar's masks directory (nil → the documented degrade).
             var maskPlane: (any MTLTexture)?
-            if let mask = layer.mask, mask.hasDrawnForms {
+            var maskDegradeReason: String?
+            if let mask = layer.mask, mask.hasAnyPayload {
                 let mapper = GeometryPointMapper.compose(
                     boxes: baseChain,
                     frameSize: SIMD2(
                         Double(basePipe.frameROI.width),
                         Double(basePipe.frameROI.height)))
-                maskPlane = try await DrawnMaskRasterizer.plane(
+                let (plane, _, reason) = try await MaskCombiner.effectivePlane(
                     spec: mask, layerOpacity: max(0, min(1, layer.opacity)),
-                    window: window, mapper: mapper, metal: metal, cache: cache,
-                    imageID: imageID, pipeType: resolution, layerID: layer.id).plane
+                    window: window, below: accumulator, top: layerPlane,
+                    mapper: mapper, metal: metal, cache: cache,
+                    imageID: imageID, pipeType: resolution, layerID: layer.id,
+                    maskDirectory: maskDirectory)
+                maskPlane = plane
+                maskDegradeReason = reason
+            }
+            if let reason = maskDegradeReason {
+                AppError.logger.error(
+                    "raster mask degraded for layer '\(layer.name, privacy: .public)': \(reason, privacy: .public)")
             }
 
             var prefixHit = false

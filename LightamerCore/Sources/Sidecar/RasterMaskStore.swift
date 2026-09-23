@@ -127,7 +127,13 @@ public enum RasterMaskStore {
         }
         do {
             let (pixels, width, height) = try decodeGray16PNG(data: bytes)
-            let plane = try textureFromPixels(pixels, width: width, height: height, metal: metal)
+            var plane = try textureFromPixels(pixels, width: width, height: height, metal: metal)
+            // Resolution mismatch → the per-scale resample (the
+            // dt_dev_get_raster_mask regeneration analog, nearest v1).
+            if width != windowWidth || height != windowHeight {
+                plane = try await MaskCombiner.resample(
+                    plane, toWidth: windowWidth, toHeight: windowHeight, metal: metal)
+            }
             if ref.invert {
                 return .plane(try await MaskCombiner.invert(plane: plane, metal: metal))
             }

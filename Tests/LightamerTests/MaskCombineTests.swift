@@ -263,6 +263,228 @@ final class MaskCombineTests: XCTestCase {
         XCTAssertGreaterThan(maxDiff, 0.1, "A−B == B−A — the reduce order is not exercised")
     }
 
+    // MARK: - T5: the three-way assembly (drawn ⊗ parametric ⊓ raster)
+
+    private func makeRGBA(
+        _ w: Int, _ h: Int, metal: MetalContext, pixel: (Int, Int) -> SIMD4<Float>
+    ) throws -> any MTLTexture {
+        var pixels = [Float](repeating: 0, count: w * h * 4)
+        for y in 0..<h {
+            for x in 0..<w {
+                let v = pixel(x, y)
+                for c in 0..<4 { pixels[(y * w + x) * 4 + c] = v[c] }
+            }
+        }
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: w, height: h, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        let texture = try XCTUnwrap(metal.device.makeTexture(descriptor: d))
+        pixels.withUnsafeBytes {
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0,
+                withBytes: $0.baseAddress!, bytesPerRow: w * 16)
+        }
+        return texture
+    }
+
+    /// drawn ⊗ parametric: assembled == (opacity·form)·conditional — the
+    /// float64 cond × the drawn-only baseline plane <1e-5.
+    func testAssemblyDrawnPlusParametric() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 40, h = 28
+        let mapper = GeometryPointMapper.compose(
+            boxes: [], frameSize: SIMD2(Double(w), Double(h)))
+        let window = ROI(x: 0, y: 0, width: w, height: h)
+        let belowPixels = { (x: Int, y: Int) -> SIMD4<Float> in
+            SIMD4<Float>(0.1 + 0.6 * Float(x) / Float(w - 1), 0.3, 0.2 + 0.3 * Float(y) / Float(h - 1), 1)
+        }
+        let below = try makeRGBA(w, h, metal: metal, pixel: belowPixels)
+        let top = try makeRGBA(w, h, metal: metal) { _, _ in SIMD4<Float>(0.45, 0.45, 0.45, 1) }
+        let layerOpacity: Float = 0.8
+
+        let drawnOnly = MaskSpec(drawn: DrawnMaskSpec(forms: [
+            MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.3, radiusY: 0.25,
+                rotationDegrees: 0, border: 0))),
+        ]))
+        var both = drawnOnly
+        both.parametric = ParametricMask(
+            domain: .luma,
+            channels: [.init(channel: 0, curve: .init(points: [0.3, 0.4, 0.6, 0.7]))])
+
+        let baseline = try await MaskCombiner.assembleUnmasked(
+            spec: drawnOnly, layerOpacity: layerOpacity, window: window,
+            below: below, top: top, mapper: mapper, metal: metal,
+            maskDirectory: nil, rasterStore: RasterMaskStore.self).plane
+        let assembled = try await MaskCombiner.assembleUnmasked(
+            spec: both, layerOpacity: layerOpacity, window: window,
+            below: below, top: top, mapper: mapper, metal: metal,
+            maskDirectory: nil, rasterStore: RasterMaskStore.self).plane
+
+        let gotBase = readMask(baseline, metal: metal)
+        let gotAssembled = readMask(assembled, metal: metal)
+        let params = both.parametric!.packedParameters().map(Double.init)
+        var compared = 0
+        var violations = 0
+        var maxAbs: Float = 0
+        for y in 0..<h {
+            for x in 0..<w {
+                let i = y * w + x
+                let pv = belowPixels(x, y)
+                let a = SIMD3<Double>(Double(pv.x), Double(pv.y), Double(pv.z))
+                let b = SIMD3<Double>(0.45, 0.45, 0.45)
+                let cond = ParametricReference.blendifFactor(
+                    a, b, blendif: both.parametric!.channelBitmask(), parameters: params)
+                let expected = gotBase[i] * Float(cond)
+                let diff = abs(gotAssembled[i] - expected)
+                if diff >= 1e-5 { violations += 1 }
+                maxAbs = max(maxAbs, diff)
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转: nothing compared")
+        XCTAssertEqual(
+            violations, 0,
+            "drawn⊕parametric: \(violations)/\(compared) violate <1e-5 (maxAbs \(maxAbs))")
+    }
+
+    /// The raster join: parametric ⊓ raster == min(parametric plane, raw
+    /// raster) <1e-6; raster-only == raster·opacity (the documented
+    /// quantization allowance); all three == min(opacity·form·cond, raster).
+    func testAssemblyRasterAndAllThree() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 32, h = 24
+        let mapper = GeometryPointMapper.compose(
+            boxes: [], frameSize: SIMD2(Double(w), Double(h)))
+        let window = ROI(x: 0, y: 0, width: w, height: h)
+        let layerOpacity: Float = 0.7
+
+        // Bake a known diagonal-gradient raster mask.
+        let rasterSource = try makeR32(w, h, metal: metal) { x, y in
+            min(1, (Float(x) + Float(y)) / Float(w + h - 2) * 1.2)
+        }
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lra-combine-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let ref = try await RasterMaskStore.bake(
+            plane: rasterSource, directory: dir, fileName: "m.png",
+            invert: false, metal: metal)
+        let rasterRaw = readMask(rasterSource, metal: metal)
+
+        // The parametric-only leg (constant-1 form; kernel owns the fold).
+        var paramOnly = MaskSpec()
+        paramOnly.parametric = ParametricMask(
+            domain: .luma,
+            channels: [.init(channel: 0, curve: .init(points: [0.3, 0.4, 0.6, 0.7]))])
+        // drawn+parametric+raster (all three).
+        var allThree = MaskSpec(drawn: DrawnMaskSpec(forms: [
+            MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.35, radiusY: 0.35,
+                rotationDegrees: 0, border: 0))),
+        ]))
+        allThree.parametric = paramOnly.parametric
+        allThree.raster = ref
+        // drawn+parametric (no raster) — the join's left operand baseline.
+        var drawnParam = allThree
+        drawnParam.raster = nil
+
+        // The raster-only leg (install with opacity).
+        var rasterOnly = MaskSpec()
+        rasterOnly.raster = ref
+
+        let below = try makeRGBA(w, h, metal: metal) { x, y in
+            SIMD4<Float>(0.1 + 0.6 * Float(x) / Float(w - 1), 0.3, 0.25, 1)
+        }
+        let top = try makeRGBA(w, h, metal: metal) { _, _ in SIMD4<Float>(0.45, 0.45, 0.45, 1) }
+
+        let paramPlane = try await MaskCombiner.assembleUnmasked(
+            spec: paramOnly, layerOpacity: layerOpacity, window: window,
+            below: below, top: top, mapper: mapper, metal: metal,
+            maskDirectory: dir, rasterStore: RasterMaskStore.self).plane
+        let combined = try await MaskCombiner.assembleUnmasked(
+            spec: allThree, layerOpacity: layerOpacity, window: window,
+            below: below, top: top, mapper: mapper, metal: metal,
+            maskDirectory: dir, rasterStore: RasterMaskStore.self).plane
+        let rasterPlane = try await MaskCombiner.assembleUnmasked(
+            spec: rasterOnly, layerOpacity: layerOpacity, window: window,
+            below: below, top: top, mapper: mapper, metal: metal,
+            maskDirectory: dir, rasterStore: RasterMaskStore.self).plane
+
+        let drawnParamPlane = try await MaskCombiner.assembleUnmasked(
+            spec: drawnParam, layerOpacity: layerOpacity, window: window,
+            below: below, top: top, mapper: mapper, metal: metal,
+            maskDirectory: dir, rasterStore: RasterMaskStore.self).plane
+
+        let gotParam = readMask(paramPlane, metal: metal)
+        let gotDrawnParam = readMask(drawnParamPlane, metal: metal)
+        let gotCombined = readMask(combined, metal: metal)
+        let gotRaster = readMask(rasterPlane, metal: metal)
+        var compared = 0
+        var violations = 0
+        var maxAbs: Float = 0
+        for i in 0..<gotCombined.count {
+            // all three == (drawn ⊗ parametric) ⊓ raster <1e-6.
+            let diffCombined = abs(gotCombined[i] - min(gotDrawnParam[i], rasterRaw[i]))
+            // Raster-only install: raster·opacity (quantization 1/65535).
+            let diffRaster = abs(gotRaster[i] - rasterRaw[i] * layerOpacity)
+            let okCombined = diffCombined < 1e-6
+            let okRaster = diffRaster < 1.0 / 65535.0 + 1e-6
+            if !okCombined || !okRaster { violations += 1 }
+            maxAbs = max(maxAbs, max(diffCombined, diffRaster))
+            compared += 2
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转: nothing compared")
+        XCTAssertEqual(
+            violations, 0,
+            "raster joins: \(violations)/\(compared) violate the gates (maxAbs \(maxAbs))")
+    }
+
+    /// A raster reference with NO masks directory degrades per
+    /// D-06-04-T4-2: the reason is SURFACED and the content is neutral.
+    func testAssemblyRasterWithoutDirectorySurfacesDegrade() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 8, h = 6
+        let mapper = GeometryPointMapper.compose(
+            boxes: [], frameSize: SIMD2(Double(w), Double(h)))
+        let window = ROI(x: 0, y: 0, width: w, height: h)
+        let below = try makeRGBA(w, h, metal: metal) { _, _ in SIMD4<Float>(0.3, 0.3, 0.3, 1) }
+        let top = try makeRGBA(w, h, metal: metal) { _, _ in SIMD4<Float>(0.3, 0.3, 0.3, 1) }
+        var spec = MaskSpec()
+        spec.parametric = ParametricMask(
+            domain: .luma,
+            channels: [.init(channel: 0, curve: .init(points: [0.1, 0.2, 0.4, 0.5]))])
+        spec.raster = RasterMaskRef(fileName: "gone.png", maskHash: 1)
+
+        let (plane, reason) = try await MaskCombiner.assembleUnmasked(
+            spec: spec, layerOpacity: 1, window: window, below: below,
+            top: top, mapper: mapper, metal: metal, maskDirectory: nil,
+            rasterStore: RasterMaskStore.self)
+        XCTAssertNotNil(reason, "the degrade must be surfaced, not swallowed")
+        XCTAssertTrue(reason?.contains("no masks directory") == true, reason ?? "")
+
+        // Content-neutral: min(cond, 1) == cond — compare against the
+        // raster-free assembly.
+        var withoutRaster = spec
+        withoutRaster.raster = nil
+        let clean = try await MaskCombiner.assembleUnmasked(
+            spec: withoutRaster, layerOpacity: 1, window: window, below: below,
+            top: top, mapper: mapper, metal: metal, maskDirectory: nil,
+            rasterStore: RasterMaskStore.self).plane
+        let gotPlane = readMask(plane, metal: metal)
+        let gotClean = readMask(clean, metal: metal)
+        var compared = 0
+        for i in 0..<gotPlane.count {
+            XCTAssertEqual(gotPlane[i], gotClean[i], accuracy: 1e-6,
+                           "degraded raster changed the content at \(i)")
+            compared += 1
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转: nothing compared")
+    }
+
     // MARK: - T3.4: the nested group (组内组)
 
     /// A child group inside an item: (circleA ∪ circleB) difference

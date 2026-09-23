@@ -95,3 +95,21 @@ kernel void mask_fill(
     if (gid.x >= out.get_width() || gid.y >= out.get_height()) return;
     out.write(float4(value), gid);
 }
+
+// The raster-mask resample (the dt_dev_get_raster_mask per-scale
+// regeneration analog, blend.c:552-571): a baked PNG at one resolution
+// consumed at a different window resolution — NEAREST gather (a mask is
+// a shape field; v1 pins nearest, bilinear is the later upgrade seam).
+kernel void mask_resample(
+    texture2d<float, access::read>  in  [[texture(0)]],
+    texture2d<float, access::write> out [[texture(1)]],
+    constant uint2 &outSize             [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    if (gid.x >= outSize.x || gid.y >= outSize.y) return;
+    const uint2 inSize = uint2(in.get_width(), in.get_height());
+    // Center-sample mapping: (2·dst+1)/(2·src) — the symmetric nearest.
+    const uint sx = min(uint((2.0f * float(gid.x) + 1.0f) * float(inSize.x) / (2.0f * float(outSize.x))), inSize.x - 1u);
+    const uint sy = min(uint((2.0f * float(gid.y) + 1.0f) * float(inSize.y) / (2.0f * float(outSize.y))), inSize.y - 1u);
+    out.write(float4(in.read(uint2(sx, sy)).r), gid);
+}

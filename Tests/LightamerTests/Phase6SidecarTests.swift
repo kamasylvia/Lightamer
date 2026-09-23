@@ -148,6 +148,102 @@ final class Phase6SidecarTests: XCTestCase {
                       "round-trip render must be byte-identical")
     }
 
+    // ── 1b. Plan 06-04 — the three-payload mask round trip ──
+
+    /// A 3-layer stack where one layer's mask carries ALL THREE payload
+    /// classes (drawn group ⊗ parametric ⊓ raster PNG): params byte-equal,
+    /// UUID identity, the raster REF survives verbatim, and the restored
+    /// stack's composite render is byte-identical (L014 fence; the raster
+    /// leg loads through the REAL store from a temp masks directory).
+    func testThreePayloadMaskRoundTripAndRenderIdentity() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = await makeRegistry()
+
+        // Bake a small raster mask PNG into a temp masks directory.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lra-sidecar-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let w, h: Int
+        (w, h) = (24, 16)
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .r32Float, width: w, height: h, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        let rasterSource = metal.device.makeTexture(descriptor: d)!
+        var floats = [Float](repeating: 0, count: w * h)
+        for y in 0..<h { for x in 0..<w { floats[y * w + x] = Float(x) / Float(w - 1) } }
+        floats.withUnsafeBytes {
+            rasterSource.replace(
+                region: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0,
+                withBytes: $0.baseAddress!, bytesPerRow: w * 4)
+        }
+        let ref = try await RasterMaskStore.bake(
+            plane: rasterSource, directory: dir, fileName: "group-mask.png",
+            invert: false, metal: metal)
+
+        let ellipseID = UUID()
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let a = AdjustmentLayer(name: "Lift", opacity: 1.0, chain: [gainRecord(1.5)])
+        let b = AdjustmentLayer(name: "Cut", opacity: 0.7, chain: [gainRecord(0.6)])
+        b.mask = MaskSpec(drawn: DrawnMaskSpec(
+            forms: [
+                MaskForm(id: ellipseID, kind: .ellipse(EllipseForm(
+                    center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.2, radiusY: 0.2,
+                    rotationDegrees: 0, border: 0))),
+            ],
+            group: MaskGroupSpec(items: [
+                MaskGroupItem(formID: ellipseID, op: .union, inverted: false, opacity: 1),
+            ])))
+        b.mask?.parametric = ParametricMask(
+            domain: .jzczhz,
+            channels: [.init(channel: 9, curve: .init(points: [0.05, 0.1, 0.5, 0.8]))])
+        b.mask?.raster = ref
+        let c = AdjustmentLayer(name: "Push", opacity: 1.0, chain: [gainRecord(2.0)])
+        stack.addAdjustment(a)
+        stack.addAdjustment(b)
+        stack.addAdjustment(c)
+
+        let sidecar = makeSidecar(stack: stack)
+        let data = try JSONEncoder().encode(sidecar)
+        let decoded = try JSONDecoder().decode(LightamerSidecar.self, from: data)
+        let originalLayers = stack.compositeLayers
+        let restored = try XCTUnwrap(decoded.layerStack).adjustmentLayers
+        XCTAssertEqual(restored.count, 3)
+        let restoredB = restored[1]
+        XCTAssertEqual(restoredB.mask?.drawn?.group?.items.first?.op, .union)
+        XCTAssertEqual(restoredB.mask?.parametric?.domain, .jzczhz)
+        XCTAssertEqual(restoredB.mask?.raster, ref, "the raster REF survives verbatim")
+        XCTAssertEqual(restoredB.mask, originalLayers[1].mask, "the full payload survives")
+
+        // Render fidelity with the raster leg live (both runs load the
+        // SAME PNG through the store).
+        let image = try makeGradientImage()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        var restoredStack = LayerStack(baseLayer: BackgroundLayer())
+        for layer in restored { restoredStack.addAdjustment(layer) }
+
+        let originalRender = try await LayerCompositeDriver.composite(
+            image: image, imageID: UUID(), baseInstances: base,
+            layerStack: stack, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview, maskDirectory: dir)
+        let restoredRender = try await LayerCompositeDriver.composite(
+            image: image, imageID: UUID(), baseInstances: base,
+            layerStack: restoredStack, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview, maskDirectory: dir)
+
+        let originalBytes = Self.planeBytes(originalRender.output, metal: metal)
+        let restoredBytes = Self.planeBytes(restoredRender.output, metal: metal)
+        XCTAssertEqual(originalBytes.count, restoredBytes.count)
+        XCTAssertGreaterThan(originalBytes.count, 0, "防空转 guard")
+        XCTAssertTrue(originalBytes.elementsEqual(restoredBytes),
+                      "three-payload round-trip render must be byte-identical")
+    }
+
     // ── 2. v1 document compatibility ──
 
     /// A v1 document (the String layerStack reservation, always null) and
