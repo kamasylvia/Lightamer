@@ -121,4 +121,50 @@ public actor ModuleRegistry {
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
     }
+
+    // MARK: - Layer chains (Plan 06-01 T2)
+
+    /// The effective instance set for an adjustment layer's chain (Plan
+    /// 06-01 T2): the same `(opName, multiPriority)` dedup + v50 sort the
+    /// global history projection applies — layer-internal semantics stay
+    /// identical to the global chain (mixed model (c): a layer chain IS a
+    /// pipe run's piece array).
+    public func effectiveInstances(layer: AdjustmentLayer) -> [ModuleInstance] {
+        HistoryStack.effectiveChain(layer.chain)
+    }
+
+    /// Materialize boxes for a record chain — the sub-run lifecycle seam
+    /// the `LayerCompositeDriver` consumes (records → boxes per run).
+    /// Unknown ops yield NOTHING (02-06 degrade shape: the record survives
+    /// in the layer, the box simply doesn't exist — the driver skips it);
+    /// a params decode failure likewise drops the box, never the record.
+    /// Boxes are applied from their records (`apply` preserves identity +
+    /// commits params) so the sub-run's hash chain keys on the record
+    /// bytes.
+    public func materializeBoxes(
+        for records: [ModuleInstance]
+    ) async -> (boxes: [any ModuleBoxing], skippedUnknownOps: [String]) {
+        var boxes: [any ModuleBoxing] = []
+        boxes.reserveCapacity(records.count)
+        var unknown: [String] = []
+        var seenUnknown = Set<String>()
+        for record in HistoryStack.effectiveChain(records) {
+            guard let box = makeBox(opName: record.opName, instanceID: record.id) else {
+                if seenUnknown.insert(record.opName).inserted {
+                    unknown.append(record.opName)
+                }
+                continue
+            }
+            do {
+                try box.apply(record)
+                boxes.append(box)
+            } catch {
+                // Params decode failure = same degrade as unknown op.
+                if seenUnknown.insert(record.opName).inserted {
+                    unknown.append(record.opName)
+                }
+            }
+        }
+        return (boxes, unknown)
+    }
 }

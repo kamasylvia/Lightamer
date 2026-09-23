@@ -150,14 +150,20 @@ public struct HistoryStack: Codable, Sendable, Equatable {
         position >= 0 ? items[position].snapshot : nil
     }
 
-    /// History → pipe state: the effective instance set at `position` —
-    /// the DIRECT translation of the Darktable hash query
+    /// History → pipe state: the effective GLOBAL instance set at
+    /// `position` — the DIRECT translation of the Darktable hash query
     /// (`history.c:1600-1607`):
     ///
     /// ```sql
     /// SELECT …, MAX(num) FROM history WHERE num <= history_end
     /// GROUP BY operation, multi_priority ORDER BY num
     /// ```
+    ///
+    /// **Scope (Plan 06-01 T2 — `layerScope` enabled):** only IMAGE-GLOBAL
+    /// entries (`layerScope == nil`) project here. Layer-scoped entries
+    /// (adjustment-layer edits) belong to their layer's chain, not the
+    /// global pipe — mixing them in would leak layer instances into the
+    /// base run. Use `effectiveInstances(layerScope:)` for a layer's set.
     ///
     /// Walk `items[0...position]` NEWEST-first and keep the FIRST
     /// occurrence per `(opName, multiPriority)` — the latest edit of each
@@ -172,19 +178,40 @@ public struct HistoryStack: Codable, Sendable, Equatable {
     /// that an instance EXISTS with those params (Darktable keeps the
     /// row; only the hash skips non-enabled entries).
     public func effectiveInstances() -> [ModuleInstance] {
+        effectiveInstances(layerScope: nil)
+    }
+
+    /// The effective instance set for ONE scope: `nil` = image-global (the
+    /// `effectiveInstances()` default), a layer UUID string = that layer's
+    /// chain. Same dedup tuple / newest-wins / v50-sort rule for both.
+    public func effectiveInstances(layerScope scope: String?) -> [ModuleInstance] {
         guard position >= 0 else { return [] }
+        return Self.effectiveChain(
+            items[0...position].filter { $0.layerScope == scope }.map(\.snapshot)
+        )
+    }
+
+    /// The shared dedup + sort rule (`GROUP BY (opName, multi_priority)`
+    /// latest-wins, v50 ascending with the opName tiebreak) applied to an
+    /// arbitrary record chain — `ModuleRegistry.effectiveInstances(layer:)`
+    /// consumes this for adjustment-layer chains (Plan 06-01 T2).
+    ///
+    /// Array order is chronological: the LAST occurrence of a tuple wins
+    /// (for history items that is the newest edit; for a layer chain the
+    /// most recently appended record).
+    public static func effectiveChain(_ records: [ModuleInstance]) -> [ModuleInstance] {
         var seen = Set<InstanceKey>()
-        seen.reserveCapacity(position + 1)
+        seen.reserveCapacity(records.count)
         var kept: [ModuleInstance] = []
-        kept.reserveCapacity(position + 1)
-        for item in items[0...position].reversed() {
+        kept.reserveCapacity(records.count)
+        for snapshot in records.reversed() {
             if seen.insert(
                 InstanceKey(
-                    opName: item.snapshot.opName,
-                    multiPriority: item.snapshot.multiPriority
+                    opName: snapshot.opName,
+                    multiPriority: snapshot.multiPriority
                 )
             ).inserted {
-                kept.append(item.snapshot)
+                kept.append(snapshot)
             }
         }
         return kept.sorted {
