@@ -391,7 +391,7 @@ public enum DrawnMaskRasterizer {
         uniforms.window = SIMD4(
             Float(accumulator.width), Float(accumulator.height),
             Float(mapper.outputSize.x), Float(mapper.outputSize.y))
-        // shared buffer, never setFragmentBytes (the ashift race, D2)
+        // shared buffer, bound via setFragmentBuffer (D-T4-2: never setFragmentBytes 176B — ashift race)
         guard let uniformBuffer = metal.device.makeBuffer(
             bytes: &uniforms, length: MemoryLayout<MaskRasterUniforms>.stride,
             options: .storageModeShared)
@@ -415,7 +415,10 @@ public enum DrawnMaskRasterizer {
         encoder.setVertexBuffer(winBuffer, offset: 0, index: 1)
         encoder.setVertexBuffer(profileBuffer, offset: 0, index: 2)
         encoder.setVertexBuffer(weightBuffer, offset: 0, index: 3)
-        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<MaskRasterUniforms>.stride, index: 0)
+        // D-T4-2 (ashift-race form): 176B uniforms ride the shared MTLBuffer
+        // above — setFragmentBytes would leave the encoder's pointee unowned
+        // while the commit below may still be in flight.
+        encoder.setFragmentBuffer(uniformBuffer, offset: 0, index: 0)
         encoder.drawPrimitives(
             type: .triangleStrip, vertexStart: 0, vertexCount: 4,
             instanceCount: stamps.count)

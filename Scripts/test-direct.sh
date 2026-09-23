@@ -15,14 +15,24 @@ set -euo pipefail
 
 ROOT="${0:A:h:h}"
 # 按 xctest 可执行文件 mtime 选容器——Debug 目录 mtime 不随增量构建更新（实测踩坑）
-# (N) = zsh null_glob：无匹配时展开为空而非报错
+# (N) = zsh null_glob：无匹配时展开为空而非报错。
+# 双重防呆：① glob 空时直接判空（ls -t 无参会列出 CWD——TODO.md 垃圾路径事故）；
+# ② xcodebuild build 会移除测试 bundle 产物 → 明确提示 build-for-testing。
 DD_DEFAULT=(~/Library/Developer/Xcode/DerivedData/Lightamer-*/Build/Products/Debug/Lightamer.app/Contents/PlugIns/LightamerTests.xctest/Contents/MacOS/LightamerTests(N))
-DD=( $(ls -t ${~DD_DEFAULT}) )
+DD=( ${~DD_DEFAULT} )
 if [ ${#DD[@]} -eq 0 ]; then
-  echo "error: Debug product not found — run: xcodebuild build -workspace Lightamer.xcworkspace -scheme Lightamer -destination 'platform=macOS'" >&2
+  echo "error: LightamerTests.xctest product missing — the last build pruned test products." >&2
+  echo "run: caffeinate -dis xcodebuild build-for-testing -workspace Lightamer.xcworkspace -scheme Lightamer -destination 'platform=macOS'" >&2
   exit 2
 fi
-DD="${DD[1]%Lightamer.app/*}"
+# mtime 降序（多容器取最新）
+DD="$(ls -t ${DD[@]} | head -1)"
+DD="${DD%Lightamer.app/*}"
+HOST_BIN="$DD/Lightamer.app/Contents/MacOS/Lightamer"
+if [ ! -f "$HOST_BIN" ]; then
+  echo "error: host binary missing at $HOST_BIN" >&2
+  exit 2
+fi
 
 CONFIG=$(mktemp /tmp/la-xctest-config.XXXXXX)
 CONFIG="${CONFIG}.plist"
@@ -46,7 +56,7 @@ env \
   DYLD_LIBRARY_PATH="$DD:$XCODE_DEV/Platforms/MacOSX.platform/Developer/usr/lib" \
   DYLD_FRAMEWORK_PATH="$DD:$XCODE_DEV/Contents/SharedFrameworks:$XCODE_DEV/Platforms/MacOSX.platform/Developer/Library/Frameworks" \
   XCTestConfigurationFilePath="$CONFIG" \
-  "$DD/Lightamer.app/Contents/MacOS/Lightamer" \
+  "$HOST_BIN" \
   "${ARGS[@]}" > /tmp/la-direct-tests.log 2>&1
 RC=$?
 rm -f "$CONFIG" /tmp/la-xctest-config.* 2>/dev/null || true

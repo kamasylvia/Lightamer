@@ -206,13 +206,6 @@ kernel void mask_raster_analytic(
 // historical interpolated-attribute variant drifted ~3e-5 (the fixed-
 // point rasterizer's sub-pixel snap amplified by the attribute gradient)
 // — the reconstruction is exact (06-03-DECISIONS).
-// The vertex output carries the per-instance profile/weight as FLAT
-// varyings (all 4 vertices identical — constant across the instance), and
-// the fragment RECONSTRUCTS the image-domain point from [[position]]
-// through the same inverse-content chain the analytic kernel uses. The
-// historical interpolated-attribute variant drifted ~3e-5 (the fixed-
-// point rasterizer's sub-pixel snap amplified by the attribute gradient)
-// — the reconstruction is exact (06-03-DECISIONS).
 struct StampVertex {
     float2 windowPos;   // px in the window
 };
