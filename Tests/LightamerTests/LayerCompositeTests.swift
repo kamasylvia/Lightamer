@@ -467,3 +467,142 @@ final class LayerCompositeTests: XCTestCase {
             "track-B full chain + identity layer == layerless baseline")
     }
 }
+
+// MARK: - 06-02 T5 extensions (blend engine in the driver path)
+
+extension LayerCompositeTests {
+
+    /// A flat-gray image (the perceptual neutral gate's fixture).
+    private func makeGrayImage(width: Int = 32, height: Int = 24) -> DecodedImage {
+        var pixels = [Float](repeating: 0, count: width * height * 4)
+        for i in 0..<width * height {
+            pixels[i * 4 + 0] = 0.42
+            pixels[i * 4 + 1] = 0.42
+            pixels[i * 4 + 2] = 0.42
+            pixels[i * 4 + 3] = 1.0
+        }
+        let bitmap = pixels.withUnsafeBytes { Data($0) }
+        let ci = CIImage(
+            bitmapData: bitmap,
+            bytesPerRow: width * 4 * MemoryLayout<Float>.stride,
+            size: CGSize(width: width, height: height),
+            format: .RGBAf, colorSpace: WorkingSpace.colorSpace)
+        return DecodedImage(
+            ciImage: ci,
+            rawTech: RAWTechnicalParams(blackLevel: 0.0),
+            capture: CaptureMetadata(),
+            segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8)
+    }
+
+    /// 灰轴不偏色 (plan 06-02-T5): a perceptual-mode layer over a NEUTRAL
+    /// image must not introduce chroma — every output channel stays equal
+    /// (the achromatic zero-radius invariant: hue rotations of neutrals are
+    /// no-ops, Jz/Cz mixes of equal chromas keep the axis).
+    func testPerceptualModesOnNeutralStayNeutral() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let gray = makeGrayImage()
+        let base = try await makeBaseInstances(registry: registry, baseGain: 1.1)
+
+        for mode in [BlendMode.luminosity, .saturation, .hue, .color, .colorAdjust] {
+            var stack = LayerStack(baseLayer: BackgroundLayer())
+            stack.addAdjustment(layerWithGain(2.0, opacity: 0.6))
+            stack.compositeLayers[0].blendMode = mode
+            let result = try await composite(
+                gray, base, stack, registry: registry, metal: metal,
+                resolution: .preview, cache: PipeCache())
+            let bytes = rawBytes(result.output, metal: metal)
+            var compared = 0
+            var maxChannelDev: Float = 0
+            for i in stride(from: 0, to: bytes.count, by: 4) {
+                // Display tail is 8-bit RGBA: the channel equality gate is
+                // one display step.
+                let r = Float(bytes[i]), g = Float(bytes[i + 1]), b = Float(bytes[i + 2])
+                maxChannelDev = max(maxChannelDev, abs(r - g), abs(r - b))
+                compared += 1
+            }
+            XCTAssertGreaterThan(compared, 0, "防空转 \(mode)")
+            XCTAssertLessThanOrEqual(
+                maxChannelDev, 1.0,
+                "\(mode): neutral input must stay neutral (max channel dev \(maxChannelDev))")
+        }
+    }
+
+    /// The driver end-to-end with a NON-normal mode, numerically closed
+    /// form: base = a single gain (NO terminal modules → the output plane
+    /// is the working space), layer = EMPTY chain (L ≡ S), multiply at
+    /// op=1 ⇒ composite = S². S = fixture × gain — fully determined, so
+    /// the whole path (driver → runSub → compositeLayer → prefix hash) is
+    /// pinned numerically outside the identity modes.
+    func testDriverMultiplyCompositeClosedForm() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage(width: 32, height: 24)
+        let cache = PipeCache()
+
+        // Base: colorin+trio replaced by a bare gain (no terminal).
+        let gainMade = await registry.makeBox(opName: TestGainModule.opName)
+        let gain = try XCTUnwrap(gainMade as? ModuleBox<TestGainModule>)
+        gain.setParams(TestGainModule.Params(gain: 1.2))
+
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        stack.addAdjustment(AdjustmentLayer(
+            name: "sq", opacity: 1.0, blendMode: .multiply))
+
+        let result = try await LayerCompositeDriver.composite(
+            image: image, imageID: Self.fixtureImageID, baseInstances: [gain],
+            layerStack: stack, registry: registry, resolution: .preview,
+            cache: cache, metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview)
+
+        // The closed form: out = (fixture·1.2)². The output plane here is
+        // the WORKING SPACE (no terminal) — read it as float32 (16 B/px),
+        // not with the display-format rawBytes helper.
+        let floats = rawFloats(result.output, metal: metal)
+        var compared = 0
+        var maxRel: Float = 0
+        for y in 0..<24 {
+            for x in 0..<32 {
+                let p = Self.fixturePixelForDriver(x, y)
+                for c in 0..<3 {
+                    let sv = Double(p[c]) * 1.2
+                    let expected = Float(sv * sv)
+                    let gotv = floats[(y * 32 + x) * 4 + c]
+                    maxRel = max(
+                        maxRel, abs(gotv - expected) / max(expected, 1e-6))
+                    compared += 1
+                }
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转")
+        XCTAssertLessThanOrEqual(maxRel, 1e-5, "driver multiply closed form (S²)")
+    }
+
+    /// L014 fence + float32 read for working-space planes (16 B/px — the
+    /// shared rawBytes helper assumes the 8-bit display format).
+    private func rawFloats(_ texture: any MTLTexture, metal: MetalContext) -> [Float] {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+        var out = [Float](repeating: 0, count: texture.width * texture.height * 4)
+        out.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: texture.width * 16,
+                from: MTLRegionMake2D(0, 0, texture.width, texture.height),
+                mipmapLevel: 0)
+        }
+        return out
+    }
+
+    /// The fixture pixel used by `makeImage` (kept in one place for the
+    /// closed-form assertion above).
+    private static func fixturePixelForDriver(_ x: Int, _ y: Int) -> SIMD3<Float> {
+        SIMD3<Float>(
+            0.1 + 0.7 * Float(x) / 31.0,
+            0.2 + 0.5 * Float(y) / 23.0,
+            0.3 + 0.3 * Float(x + y) / 54.0)
+    }
+}

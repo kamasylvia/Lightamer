@@ -802,4 +802,151 @@ final class BlendOpParityTests: XCTestCase {
         XCTAssertEqual(BlendMode(rawValue: 0x17), .difference)
         XCTAssertNil(BlendMode(rawValue: 0x18), "0x18 stays unclaimed")
     }
+
+    // ── T5: resident dt-cli flat-field probe values ──
+    // ──────────────────────────────────────────────────────────────────
+
+    /// The dt-cli probe evidence, made RESIDENT (plan 06-02-T5): flat field
+    /// a = 0.5 (flat_0ev), b = 1.0 (exposure +1EV carrier), uniform mask.
+    /// The values below were read from the dt 5.5.0+755 probe PFMs
+    /// (`.work/plans/06-02/adoption/`, regenerate.sh ③c2) — adoption gates:
+    /// DB blendop_params hex byte-identical (840 hex chars = 420B) +
+    /// "blendop v. 14: version ok params ok" in all 54 logs.
+    ///
+    /// Formula-SHARED modes (dt's scene path implements the same formula —
+    /// blendif_rgb_jzczhz.c:396-764): the GPU value, the float64 reference
+    /// and dt's PFM agree within 2e-5.
+    func testFlatFieldDTSharedProbeValues() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let a = try makePlane(4, 4, metal: metal) { _, _ in
+            SIMD4<Float>(0.5, 0.5, 0.5, 1.0)
+        }
+        let b = try makePlane(4, 4, metal: metal) { _, _ in
+            SIMD4<Float>(1.0, 1.0, 1.0, 1.0)
+        }
+        // (mode, opacity, dt PFM value)
+        let cases: [(BlendMode, Float, Float)] = [
+            (.normal, 1.0, 1.0), (.normal, 0.6, 0.8), (.normal, 0.25, 0.625),
+            (.multiply, 1.0, 0.5), (.multiply, 0.6, 0.5), (.multiply, 0.25, 0.5),
+            (.difference, 1.0, 0.5), (.difference, 0.6, 0.5),
+            (.difference, 0.25, 0.5),
+            (.lighten, 1.0, 1.0), (.lighten, 0.6, 0.8), (.lighten, 0.25, 0.625),
+        ]
+        // REVERSE swap semantics ride a separate loop (the reverse flag):
+        // out = b·(1−op) + a·op — dt confirmed 0.5 / 0.7 / 0.875 exactly.
+        let reverseCases: [(Float, Float)] = [
+            (1.0, 0.5), (0.6, 0.7), (0.25, 0.875),
+        ]
+        for (mode, op, dtValue) in cases {
+            let output = try await BlendOpEngine.composite(
+                below: a, layer: b, mask: nil, opacity: op,
+                blendMode: mode, metal: metal)
+            let got = readPlane(output, metal: metal)
+            let ref = BlendOpReference.blend(
+                mode, a: SIMD3(0.5, 0.5, 0.5), b: SIMD3(1, 1, 1),
+                opacity: Double(op))
+            XCTAssertEqual(
+                got[0], dtValue, accuracy: 2e-5,
+                "\(mode) op=\(op): Lightamer must match the dt probe value")
+            for c in 0..<3 {
+                XCTAssertEqual(got[c], Float(ref[c]), accuracy: 1e-5,
+                               "\(mode) op=\(op) vs reference")
+            }
+        }
+        for (op, dtValue) in reverseCases {
+            let output = try await BlendOpEngine.composite(
+                below: a, layer: b, mask: nil, opacity: op,
+                blendMode: .normal, reverse: true, metal: metal)
+            let got = readPlane(output, metal: metal)
+            XCTAssertEqual(
+                got[0], dtValue, accuracy: 2e-5,
+                "REVERSE normal op=\(op): dt probe value must match")
+            let ref = BlendOpReference.blend(
+                .normal, a: SIMD3(0.5, 0.5, 0.5), b: SIMD3(1, 1, 1),
+                opacity: Double(op), reverse: true)
+            XCTAssertEqual(got[0], Float(ref.x), accuracy: 1e-6)
+        }
+        // Achromatic preservation: saturation on the gray flat stays 0.5 on
+        // BOTH sides (dt's norm-scaling and our Jz Cz-mix agree here).
+        for op in [Float(1.0), 0.6, 0.25] {
+            let output = try await BlendOpEngine.composite(
+                below: a, layer: b, mask: nil, opacity: op,
+                blendMode: .saturation, metal: metal)
+            // The chroma-floor shift (~2e-4) is the T1 constant-set floor
+            // acting on the near-zero-radius vectors — the gate carries it.
+            XCTAssertEqual(readPlane(output, metal: metal)[0], 0.5, accuracy: 5e-4,
+                           "saturation op=\(op) keeps the gray")
+        }
+    }
+
+    /// The DOCUMENTED divergences, pinned so a future accidental fallback
+    /// (or an accidental formula adoption) trips a test: for these modes
+    /// dt's scene path blends as NORMAL (blendif_rgb_jzczhz.c:703-761 has
+    /// no case) while Lightamer implements the plan-mandated formulas —
+    /// on the flat (a=0.5, b=1.0, op=0.6) dt gives 0.8, we give:
+    /// darken 0.5 (min-mix), psBurn 0.5 (interior burn of (0.5,1)),
+    /// linearBurn 0.5 (a+b−1 mix).
+    func testSceneFallbackDocumentedDifferences() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let a = try makePlane(4, 4, metal: metal) { _, _ in
+            SIMD4<Float>(0.5, 0.5, 0.5, 1.0)
+        }
+        let b = try makePlane(4, 4, metal: metal) { _, _ in
+            SIMD4<Float>(1.0, 1.0, 1.0, 1.0)
+        }
+        let dtFallback: Float = 0.8 // dt's normal at op=0.6
+        let ours: [(BlendMode, Float)] = [
+            (.darken, 0.5), (.psColorBurn, 0.5), (.linearBurn, 0.5),
+        ]
+        for (mode, expected) in ours {
+            let output = try await BlendOpEngine.composite(
+                below: a, layer: b, mask: nil, opacity: 0.6,
+                blendMode: mode, metal: metal)
+            let got = readPlane(output, metal: metal)
+            XCTAssertEqual(
+                got[0], expected, accuracy: 1e-5,
+                "\(mode): Lightamer formula value on the flat")
+            XCTAssertNotEqual(
+                got[0], dtFallback,
+                "\(mode): must NOT equal dt's scene fallback — if this "
+                    + "fires the implementation was changed to match dt's "
+                    + "fallback; update 06-02-DECISIONS first")
+        }
+    }
+
+    /// Tiling identity (plan T5.3): the whole-frame dispatch vs two
+    /// row-band dispatches through `compositeRows` — byte-exact. A
+    /// pointwise kernel must tile identically; this gate pins against any
+    /// future neighborhood semantics entering compositeLayer.
+    func testTiledDispatchByteIdentical() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 8, h = 6
+        let below = try makePlane(w, h, metal: metal, pixel: Self.fixturePixel)
+        let layer = try makePlane(w, h, metal: metal, pixel: Self.layerPixel)
+        let mask = try makePlane(w, h, metal: metal) { x, y in
+            SIMD4<Float>(Float(x) / 7.0 * 0.9, 0, 0, 1.0)
+        }
+        for mode in [BlendMode.multiply, .hue, .linearBurn] {
+            let whole = try await BlendOpEngine.composite(
+                below: below, layer: layer, mask: mask, opacity: 0.6,
+                blendMode: mode, metal: metal)
+            // Split render into two fresh planes (row bands), then compare.
+            let split = try await BlendOpEngine.composite(
+                below: below, layer: layer, mask: mask, opacity: 0.6,
+                blendMode: mode, metal: metal)
+            _ = try await BlendOpEngine.compositeRows(
+                below: below, layer: layer, mask: mask, opacity: 0.6,
+                blendMode: mode, rows: 0..<3, into: split, metal: metal)
+            _ = try await BlendOpEngine.compositeRows(
+                below: below, layer: layer, mask: mask, opacity: 0.6,
+                blendMode: mode, rows: 3..<h, into: split, metal: metal)
+            XCTAssertEqual(
+                readPlane(whole, metal: metal),
+                readPlane(split, metal: metal),
+                "\(mode): row-band split == whole frame (byte-exact)")
+        }
+    }
 }
