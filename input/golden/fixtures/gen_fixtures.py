@@ -586,6 +586,209 @@ def flip_params_blob(orientation) -> str:
     return binascii.hexlify(packed).decode("ascii")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# blendop_params blob (Plan 06-02-T1) — dt_develop_blend_params_t v14
+# (blend.h:30-31 DEVELOP_BLEND_VERSION=14, struct :190-223), L015 hex.
+#
+# FIELD-BYTE LEDGER (little-endian, no padding — every member is 4-byte
+# sized/aligned so the C sizeof == 404 exactly; verified at runtime by
+# dt's own history loader: `blendop v. 14: version ok params ok`, where
+# the params check is `bl_length == sizeof(dt_develop_blend_params_t)`):
+#
+#   off   size  field
+#   0     4    mask_mode          uint32 (1 = DEVELOP_MASK_ENABLED uniform)
+#   4     4    blend_cst          int32  (4 = DEVELOP_BLEND_CS_RGB_SCENE)
+#   8     4    blend_mode         uint32 (dt slot | optional 0x80000000 REVERSE)
+#   12    4    blend_parameter    float  (0.0 → host folds p = exp2(0) = 1)
+#   16    4    opacity            float  (0..100 — dt CLIPs /100, blend.c:458)
+#   20    4    mask_combine       uint32 (0 = DEVELOP_COMBINE_NORM)
+#   24    4    mask_id            int32  (dt_mask_id_t = int32, darktable.h:189)
+#   28    4    blendif            uint32 (0 = no parametric channels)
+#   32    4    feathering_radius  float
+#   36    4    feathering_guide   uint32
+#   40    4    blur_radius        float
+#   44    4    contrast           float
+#   48    4    brightness         float
+#   52    4    details            float
+#   56    4    feather_version    uint32
+#   60    8    reserved[2]        uint32 × 2
+#   68    256  blendif_parameters float[4×16]  (DEVELOP_BLENDIF_SIZE=16)
+#   324   64   blendif_boost_factors float[16]
+#   388   4    raster_mask_source int32  (dt_dev_operation_t enum)
+#   392   4    raster_mask_instance int32
+#   396   4    raster_mask_id     int32
+#   400   4    raster_mask_invert int32  (gboolean)
+#   404   16   runtime tail       4×int32 (0,0,0,0) — the 5.5.0+755 runtime
+#              binary's sizeof(dt_develop_blend_params_t) = 420, sixteen
+#              bytes beyond the checked-out blend.h arithmetic (404). The
+#              default-blob decode (adoption probe, 2026-09-23) confirms the
+#              first 404 offsets byte-for-byte (mask_mode@0 …
+#              raster_mask_invert@400) and the loader check is pure LENGTH
+#              (`bl_length == sizeof(...)`, develop.c:2567) — the tail is
+#              zero-filled and semantics-neutral for the blend process path.
+#              ADOPTION GATE: `blendop v. 14: version ok params ok`.
+#   ─── 420 bytes total (as the runtime binary sees) ───
+# ──────────────────────────────────────────────────────────────────────
+
+DEVELOP_BLEND_VERSION = 14
+BLENDOP_PARAMS_FORMAT = "<IiI2fIiIfI4fI2I64f16f8i"
+BLENDOP_MASK_MODE_ENABLED = 1  # DEVELOP_MASK_ENABLED — uniform (blend.h:104)
+BLENDOP_CS_RGB_SCENE = 4       # DEVELOP_BLEND_CS_RGB_SCENE (blend.h:42)
+BLENDOP_REVERSE = 0x80000000   # DEVELOP_BLEND_REVERSE (blend.h:89)
+
+
+def blendop_params_blob(
+    blend_mode: int,
+    opacity: float,
+    blend_parameter: float = 0.0,
+    mask_mode: int = BLENDOP_MASK_MODE_ENABLED,
+    blend_cst: int = BLENDOP_CS_RGB_SCENE,
+    mask_combine: int = 0,
+    reverse: bool = False,
+) -> str:
+    """dt_develop_blend_params_t v14 → lowercase HEX ASCII (420 bytes,
+    see the field-byte ledger above for the 404+16 runtime-tail story).
+
+    Plan 06-02: the blend blob rides a CARRIER module's history item
+    (carrier = exposure +1EV — the simplest already-adopted RGB module; the
+    blend semantic under test lives entirely in the blendop blob). dt
+    applies: out = blend(a = pre-module, b = post-module) with effective
+    opacity = CLIP(opacity/100) × uniform mask (blend.c:458 + :530).
+    """
+    packed = struct.pack(
+        BLENDOP_PARAMS_FORMAT,
+        mask_mode,
+        blend_cst,
+        blend_mode | (BLENDOP_REVERSE if reverse else 0),
+        blend_parameter,
+        opacity,
+        mask_combine,
+        0,  # mask_id
+        0,  # blendif
+        0.0,  # feathering_radius
+        0,  # feathering_guide
+        0.0,  # blur_radius
+        0.0,  # contrast
+        0.0,  # brightness
+        0.0,  # details
+        0,  # feather_version
+        0, 0,  # reserved[2]
+        *([0.0] * 64),  # blendif_parameters[4*16]
+        *([0.0] * 16),  # blendif_boost_factors[16]
+        0, 0, 0, 0,  # raster_mask_source/instance/id/invert
+        0, 0, 0, 0,  # runtime tail (see ledger)
+    )
+    assert len(packed) == 420, len(packed)
+    return binascii.hexlify(packed).decode("ascii")
+
+
+# The blend 钉参组 (Plan 06-02-T5): every mode Lightamer implements × three
+# opacities, carrier module = exposure +1EV (b = 2·a on the achromatic
+# flats → non-degentate blend operands). The dt packed values are the BLEND
+# ENUM slots — the formula each slot maps to on the dt side is recorded in
+# manifest.md `blendop golden 总账` (the RGB_SCENE reality: screen/overlay/
+# soft/hard/lighten/darken/hue/color/coloradjust fall back to normal, and
+# subtract is max(a−p·b,0) — see blendif_rgb_jzczhz.c:703-761; the probe
+# evidence for those modes pins the ADOPTION + dt's actual fallback values,
+# NOT a formula match — the formula-match probes are normal/multiply/
+# difference only).
+BLENDOP_MODES = [
+    # (case name, dt blend_mode slot value)
+    ("normal", 0x01),
+    ("lighten", 0x02),
+    ("darken", 0x03),
+    ("multiply", 0x04),
+    ("linearburn", 0x07),
+    ("screen", 0x09),
+    ("overlay", 0x0A),
+    ("softlight", 0x0B),
+    ("hardlight", 0x0C),
+    ("luminosity", 0x10),
+    ("saturation", 0x11),
+    ("hue", 0x12),
+    ("color", 0x13),
+    ("coloradjust", 0x16),
+    ("difference", 0x17),
+    ("normal_reverse", 0x01 | 0x80000000),  # REVERSE bit consumption
+    ("psdodge", 0x2A),  # NEW raw value — outside dt's enum (→ normal there)
+    ("psburn", 0x2B),   # NEW raw value — outside dt's enum (→ normal there)
+]
+
+BLEND_OPACITIES = [100.0, 60.0, 25.0]
+
+# Blend XMP: XMP_TEMPLATE plus the per-item blendop fields (the modern
+# reader path keys `Xmp.darktable.history[N]/darktable:blendop_params`,
+# exif.cc:3796-3803 — child elements of the rdf:li Resource serialize to
+# exactly those keys, same as the existing params field).
+BLEND_XMP_TEMPLATE = """<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Lightamer golden fixture gen">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:darktable="http://darktable.sf.net/"
+    darktable:xmp_version="{xmp_version}"
+    darktable:raw_params="0"
+    darktable:auto_presets_applied="1"
+    darktable:history_end="1">
+   <darktable:iop_order_version>{iop_order_version}</darktable:iop_order_version>
+   <darktable:history>
+    <rdf:Seq>
+     <rdf:li rdf:parseType="Resource">
+      <darktable:num>0</darktable:num>
+      <darktable:module>3</darktable:module>
+      <darktable:operation>{operation}</darktable:operation>
+      <darktable:enabled>1</darktable:enabled>
+      <darktable:modversion>{modversion}</darktable:modversion>
+      <darktable:params>{params}</darktable:params>
+      <darktable:blendop_params>{blendop_params}</darktable:blendop_params>
+      <darktable:blendop_version>{blendop_version}</darktable:blendop_version>
+      <darktable:iop_order>{iop_order}</darktable:iop_order>
+      <darktable:multi_priority>0</darktable:multi_priority>
+      <darktable:multi_name></darktable:multi_name>
+     </rdf:li>
+    </rdf:Seq>
+   </darktable:history>
+   <darktable:history_enabled>
+    <rdf:Seq><rdf:li>1</rdf:li></rdf:Seq>
+   </darktable:history_enabled>
+   <darktable:history_modversion>
+    <rdf:Seq><rdf:li>{modversion}</rdf:li></rdf:Seq>
+   </darktable:history_modversion>
+   <darktable:history_operation>
+    <rdf:Seq><rdf:li>{operation}</rdf:li></rdf:Seq>
+   </darktable:history_operation>
+   <darktable:history_params>
+    <rdf:Seq><rdf:li>{params}</rdf:li></rdf:Seq>
+   </darktable:history_params>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>
+"""
+
+
+def gen_blendop_cases(outdir: str) -> None:
+    """Plan 06-02-T5: blend probe XMPs — carrier exposure +1EV × the mode
+    table × three opacities. One file per (mode, opacity)."""
+    os.makedirs(outdir, exist_ok=True)
+    carrier = exposure_params_blob(exposure=1.0, black=0.0, compensate_exposure_bias=0)
+    for mode_name, mode_value in BLENDOP_MODES:
+        for op in BLEND_OPACITIES:
+            blend = blendop_params_blob(blend_mode=mode_value, opacity=op)
+            xmp = BLEND_XMP_TEMPLATE.format(
+                xmp_version=XMP_VERSION,
+                iop_order_version=5,
+                operation="exposure",
+                modversion=EXPOSURE_MODVERSION,
+                params=carrier,
+                blendop_params=blend,
+                blendop_version=DEVELOP_BLEND_VERSION,
+                iop_order=f"{EXPOSURE_IOP_ORDER:.1f}",
+            )
+            name = f"blend_{mode_name}_op{int(op)}"
+            with open(os.path.join(outdir, name + ".xmp"), "w") as f:
+                f.write(xmp)
+
+
 # The crop 钉参组 (plan T3 action 2): full-frame / center 50% / 3:2-ratio
 # center window (ratio bits ride inert until the Phase-11 export aligner;
 # the overlay enforces the ratio at edit time).
@@ -4277,6 +4480,7 @@ def main() -> None:
         else:
             cases_dir = os.path.join(outdir, "cases")
         gen_cases(cases_dir)
+        gen_blendop_cases(cases_dir)
         gen_colorbalancergb_cases(cases_dir)
         gen_channelmixerrgb_cases(cases_dir)
         gen_channelmixer_cases(cases_dir)
