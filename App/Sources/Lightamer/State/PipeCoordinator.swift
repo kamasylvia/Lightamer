@@ -675,7 +675,7 @@ final class PipeCoordinator {
                 "sidecar \(url.lastPathComponent, privacy: .public): layer chain unknown op '\(op, privacy: .public)' — layer kept disabled, params preserved"
             )
         }
-        editorState?.installLayerStack(from: layerRecord?.adjustmentLayers ?? [])
+        editorState?.installLayerStack(from: layerRecord?.runtimeLayers ?? [])
         currentLayerStack = editorState?.layerStack
     }
 

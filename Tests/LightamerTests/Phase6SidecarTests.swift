@@ -463,3 +463,142 @@ final class Phase6SidecarTests: XCTestCase {
             decoderVersionUsed: .v8)
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Plan 06-07 T1 — the retouch kind's sidecar round trip (D-06-07-T1-2
+// spelling freeze): `kind: "retouch"` + the OPTIONAL additive `strokes`
+// payload (RetouchStroke verbatim; shape = the frozen 06-03 MaskForm
+// spellings). Pre-06-07 documents carry neither — decode stays compatible.
+// ─────────────────────────────────────────────────────────────────────────────
+final class RetouchSidecarTests: XCTestCase {
+
+    private func makeRetouchStack() -> LayerStack {
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let fix = RetouchLayer(name: "修复", opacity: 0.8)
+        fix.blendOptions = [.reverse]
+        fix.append(stroke: RetouchStroke(
+            algorithm: .clone,
+            form: MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.05, radiusY: 0.04,
+                rotationDegrees: 15, border: 0.2))),
+            source: MaskPoint(x: 0.4, y: 0.5), opacity: 0.9))
+        fix.append(stroke: RetouchStroke(
+            algorithm: .heal,
+            form: MaskForm(kind: .path(PathForm(
+                nodes: [PathNode(
+                    corner: MaskPoint(x: 0.2, y: 0.2),
+                    ctrl1: MaskPoint(x: 0.21, y: 0.22),
+                    ctrl2: MaskPoint(x: 0.19, y: 0.18))],
+                border: 0.05))),
+            source: MaskPoint(x: 0.3, y: 0.3)))
+        fix.append(stroke: RetouchStroke(
+            algorithm: .blur,
+            form: MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.7, y: 0.7), radiusX: 0.03, radiusY: 0.03,
+                rotationDegrees: 0, border: 0))),
+            blurRadius: 4.5))
+        fix.append(stroke: RetouchStroke(
+            algorithm: .fill,
+            form: MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.1, y: 0.9), radiusX: 0.02, radiusY: 0.02,
+                rotationDegrees: 0, border: 0))),
+            fillColor: SIMD3(0.25, 0.5, 0.75)))
+        let lift = AdjustmentLayer(name: "Lift", chain: [])
+        stack.addAdjustment(lift)
+        stack.addAdjustment(fix)
+        return stack
+    }
+
+    /// The FROZEN spelling table (D-06-07-T1-2): exact JSON keys and value
+    /// shapes, asserted against the encoded bytes.
+    func testRetouchRecordSpellingIsFrozen() throws {
+        let stack = makeRetouchStack()
+        let record = SidecarLayerStackRecord(stack)
+        let data = try JSONEncoder().encode(record)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let layers = try XCTUnwrap(json["layers"] as? [[String: Any]])
+        XCTAssertEqual(layers.count, 2)
+        let retouchRecord = try XCTUnwrap(layers[1])
+        XCTAssertEqual(retouchRecord["kind"] as? String, "retouch")
+        let strokes = try XCTUnwrap(retouchRecord["strokes"] as? [[String: Any]])
+        XCTAssertEqual(strokes.count, 4)
+        // dt slots verbatim (retouch.c:66-71): clone=1 heal=2 blur=3 fill=4.
+        XCTAssertEqual(strokes[0]["algorithm"] as? Int, 1)
+        XCTAssertEqual(strokes[1]["algorithm"] as? Int, 2)
+        XCTAssertEqual(strokes[2]["algorithm"] as? Int, 3)
+        XCTAssertEqual(strokes[3]["algorithm"] as? Int, 4)
+        // The shape rides the 06-03 frozen MaskForm spellings.
+        XCTAssertNotNil(strokes[0]["form"] as? [String: Any])
+        XCTAssertNotNil(strokes[0]["source"] as? [String: Any])
+        XCTAssertEqual(strokes[0]["opacity"] as? Double, 0.9)
+        XCTAssertEqual(strokes[2]["blurRadius"] as? Double, 4.5)
+        XCTAssertEqual(strokes[3]["fillColor"] as? [Double], [0.25, 0.5, 0.75])
+        // Retouch records carry NO chain/mask (NO_MASKS + no iop chain).
+        let chain = try XCTUnwrap(retouchRecord["chain"] as? [Any])
+        XCTAssertTrue(chain.isEmpty)
+        XCTAssertNil(retouchRecord["mask"])
+    }
+
+    /// Round trip: write → read → kind + identity + every stroke payload
+    /// verbatim (NDE-1 UUIDs; params byte-equal).
+    func testRetouchLayerRoundTrip() throws {
+        let stack = makeRetouchStack()
+        let original = try XCTUnwrap(stack.adjustmentLayers[1] as? RetouchLayer)
+        let sidecar = SidecarLayerStackRecord(stack)
+        let data = try JSONEncoder().encode(sidecar)
+        let decoded = try JSONDecoder().decode(SidecarLayerStackRecord.self, from: data)
+        let restored = try XCTUnwrap(decoded.runtimeLayers[1] as? RetouchLayer)
+
+        XCTAssertEqual(restored.id, original.id, "NDE-1: UUID identity survives")
+        XCTAssertEqual(restored.name, original.name)
+        XCTAssertEqual(restored.kind, .retouch)
+        XCTAssertEqual(restored.opacity, original.opacity)
+        XCTAssertEqual(restored.blendOptions, original.blendOptions)
+        XCTAssertEqual(restored.strokes, original.strokes, "stroke payloads verbatim")
+        XCTAssertEqual(restored.strokes.count, 4)
+    }
+
+    /// History snapshot projection: kind + strokes survive
+    /// snapshot → sidecar spelling → restore.
+    func testRetouchHistorySnapshotRoundTrip() throws {
+        let stack = makeRetouchStack()
+        let snapshot = LayerStackSnapshot(stack)
+        XCTAssertEqual(snapshot.layers[1].kind, "retouch")
+
+        let sidecarRecord = SidecarLayerStackRecord(snapshot)
+        let data = try JSONEncoder().encode(sidecarRecord)
+        let decoded = try JSONDecoder().decode(SidecarLayerStackRecord.self, from: data)
+        let rebuilt = decoded.snapshot
+        let restored = try XCTUnwrap(rebuilt.layers[1].makeAnyLayer() as? RetouchLayer)
+        let original = try XCTUnwrap(stack.adjustmentLayers[1] as? RetouchLayer)
+        XCTAssertEqual(restored.id, original.id)
+        XCTAssertEqual(restored.strokes, original.strokes)
+    }
+
+    /// Compatibility: a PRE-06-07 layer record (no `strokes` key, kind
+    /// "adjustment") decodes unchanged; a retouch record without the
+    /// strokes key degrades to an EMPTY stroke list (documented optional
+    /// decodeIfPresent semantics — user data never dropped, absent data
+    /// means absent strokes).
+    func testPre06_07DocumentsDecodeCompatibly() throws {
+        let json = """
+        {"layers":[{"id":"AAAAAAAA-BBBB-CCCC-DDDD-EEEEFFFF0000","kind":"adjustment",
+        "name":"Lift","isVisible":true,"enabled":true,"opacity":1.0,"blendMode":1,
+        "blendOptions":0,"chain":[]}]}
+        """
+        let decoded = try JSONDecoder().decode(SidecarLayerStackRecord.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.runtimeLayers.count, 1)
+        XCTAssertTrue(decoded.runtimeLayers[0] is AdjustmentLayer)
+
+        let retouchJSON = """
+        {"layers":[{"id":"AAAAAAAA-BBBB-CCCC-DDDD-EEEEFFFF0001","kind":"retouch",
+        "name":"Fix","isVisible":true,"enabled":true,"opacity":1.0,"blendMode":1,
+        "blendOptions":0,"chain":[]}]}
+        """
+        let decodedRetouch = try JSONDecoder().decode(
+            SidecarLayerStackRecord.self, from: Data(retouchJSON.utf8))
+        let restored = try XCTUnwrap(decodedRetouch.runtimeLayers[0] as? RetouchLayer)
+        XCTAssertTrue(restored.strokes.isEmpty)
+        XCTAssertEqual(restored.kind, .retouch)
+    }
+}

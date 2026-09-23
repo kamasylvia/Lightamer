@@ -13,12 +13,20 @@ import Foundation
 /// uses it directly — `SidecarHistoryItemRecord` /
 /// `SidecarLayerStackRecord` project it through the decimal-String hash
 /// spelling (the ONE-WAY format lock, checkpoint 02-06-01 lock #2).
+/// File-scope alias: the nested `Layer` struct shadows the module-scope
+/// `Layer` PROTOCOL inside the snapshot scope — this alias reaches it.
+public typealias LayerProtocol = Layer
+
 public struct LayerStackSnapshot: Codable, Sendable, Equatable {
 
     /// One layer's snapshot (bottom-to-top order preserved by `layers`).
     public struct Layer: Codable, Sendable, Equatable {
 
         public var id: UUID
+        /// 06-07 additive optional — the LayerKind spelling ("adjustment";
+        /// "retouch" since 06-07). nil decodes as adjustment (pre-06-07
+        /// snapshots carried no other kind).
+        public var kind: String?
         public var name: String
         public var isVisible: Bool
         public var enabled: Bool
@@ -31,13 +39,18 @@ public struct LayerStackSnapshot: Codable, Sendable, Equatable {
         public var chain: [ModuleInstance]
         /// Mask record shell (payload freezes 6-3/6-4 as optional fields).
         public var mask: MaskSpec?
+        /// 06-07 additive optional — the retouch stroke list (the retouch
+        /// kind's whole edit; chain/mask stay empty/nil for it).
+        public var strokes: [RetouchStroke]?
 
         public init(
             id: UUID, name: String, isVisible: Bool, opacity: Float,
             blendMode: Int, blendOptions: UInt32, enabled: Bool,
-            chain: [ModuleInstance], mask: MaskSpec?
+            chain: [ModuleInstance], mask: MaskSpec?,
+            kind: String? = nil, strokes: [RetouchStroke]? = nil
         ) {
             self.id = id
+            self.kind = kind
             self.name = name
             self.isVisible = isVisible
             self.enabled = enabled
@@ -46,6 +59,7 @@ public struct LayerStackSnapshot: Codable, Sendable, Equatable {
             self.blendOptions = blendOptions
             self.chain = chain
             self.mask = mask
+            self.strokes = strokes
         }
 
         /// Capture from a live layer.
@@ -56,7 +70,31 @@ public struct LayerStackSnapshot: Codable, Sendable, Equatable {
                 blendMode: layer.blendMode.rawValue,
                 blendOptions: layer.blendOptions.rawValue,
                 enabled: layer.enabled,
-                chain: layer.chain, mask: layer.mask)
+                chain: layer.chain, mask: layer.mask,
+                kind: "adjustment")
+        }
+
+        /// Capture the retouch kind (D-06-CONTEXT-4).
+        public init(_ layer: RetouchLayer) {
+            self.init(
+                id: layer.id, name: layer.name,
+                isVisible: layer.isVisible, opacity: layer.opacity,
+                blendMode: layer.blendMode.rawValue,
+                blendOptions: layer.blendOptions.rawValue,
+                enabled: layer.enabled,
+                chain: [], mask: nil,
+                kind: "retouch", strokes: layer.strokes)
+        }
+
+        /// Capture any non-base layer by kind.
+        public init(_ layer: LayerProtocol) {
+            switch layer {
+            case let retouch as RetouchLayer: self.init(retouch)
+            case let adjustment as AdjustmentLayer: self.init(adjustment)
+            default: self.init(AdjustmentLayer(
+                id: layer.id, name: layer.name, isVisible: layer.isVisible,
+                opacity: layer.opacity, enabled: layer.enabled))
+            }
         }
 
         /// Rebuild a live layer (identity + params verbatim).
@@ -68,9 +106,21 @@ public struct LayerStackSnapshot: Codable, Sendable, Equatable {
                 enabled: enabled,
                 chain: chain, mask: mask)
         }
+
+        /// Kind-dispatched rebuild (retouch snapshots restore as
+        /// `RetouchLayer`; pre-06-07 entries stay adjustment).
+        public func makeAnyLayer() -> any LayerProtocol {
+            guard kind == "retouch" else { return makeLayer() }
+            return RetouchLayer(
+                id: id, name: name, isVisible: isVisible,
+                opacity: opacity, blendMode: BlendMode(rawValue: blendMode) ?? .normal,
+                blendOptions: BlendOptions(rawValue: blendOptions),
+                enabled: enabled,
+                strokes: strokes ?? [])
+        }
     }
 
-    /// Adjustment layers, bottom-to-top composite order (the base layer is
+    /// Non-base layers, bottom-to-top composite order (the base layer is
     /// NOT part of a snapshot — it is always present by LAYER-01).
     public var layers: [Layer]
 
@@ -78,13 +128,13 @@ public struct LayerStackSnapshot: Codable, Sendable, Equatable {
         self.layers = layers
     }
 
-    /// Capture from a live stack.
+    /// Capture from a live stack (all non-base kinds since 06-07).
     public init(_ stack: LayerStack) {
-        self.layers = stack.compositeLayers.map(Layer.init)
+        self.layers = stack.adjustmentLayers.map(Layer.init)
     }
 
-    /// Rebuild the adjustment layers (bottom-to-top).
-    public func makeLayers() -> [AdjustmentLayer] {
-        layers.map { $0.makeLayer() }
+    /// Rebuild the layers (bottom-to-top, kind-dispatched).
+    public func makeLayers() -> [any LayerProtocol] {
+        layers.map { $0.makeAnyLayer() }
     }
 }

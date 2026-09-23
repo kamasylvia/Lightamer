@@ -239,3 +239,108 @@ final class LayerCoreTests: XCTestCase {
         XCTAssertEqual(decoded.effectiveInstances(layerScope: layerID).count, 1)
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Plan 06-07 T1 — the retouch layer kind (D-06-CONTEXT-4): kind slot +
+// stroke model + container reuse + stack mutation surface.
+// ─────────────────────────────────────────────────────────────────────────────
+final class RetouchLayerCoreTests: XCTestCase {
+
+    private func ellipseForm(center: MaskPoint = MaskPoint(x: 0.5, y: 0.5),
+                             radius: Float = 0.05) -> MaskForm {
+        MaskForm(kind: .ellipse(EllipseForm(
+            center: center, radiusX: radius, radiusY: radius,
+            rotationDegrees: 0, border: 0.1)))
+    }
+
+    /// D-06-07-T1-1: the kind slot is `.retouch`, the layer satisfies the
+    /// full `Layer` container (visibility/opacity/blend/enabled — free
+    /// reuse), and NO_MASKS holds (mask always nil).
+    func testRetouchLayerKindAndContainer() {
+        let stroke = RetouchStroke(algorithm: .clone, form: ellipseForm(),
+                                   source: MaskPoint(x: 0.4, y: 0.5))
+        let layer = RetouchLayer(name: "Fix", strokes: [stroke])
+        XCTAssertEqual(layer.kind, .retouch)
+        XCTAssertEqual(layer.name, "Fix")
+        XCTAssertEqual(layer.strokes.count, 1)
+        XCTAssertTrue(layer.isVisible)
+        XCTAssertTrue(layer.enabled)
+        XCTAssertEqual(layer.opacity, 1.0)
+        XCTAssertEqual(layer.blendMode, .normal)
+        XCTAssertNil(layer.mask, "retouch is dt NO_MASKS — stroke shapes ARE the mask")
+        // NO_MASKS setter contract: accepted and dropped.
+        layer.mask = MaskSpec()
+        XCTAssertNil(layer.mask)
+    }
+
+    /// The raw values are the dt slots verbatim (retouch.c:66-71) — the
+    /// same "raw = dt slot" discipline as BlendMode; frozen, never renumber.
+    func testRetouchAlgorithmRawValuesAreDtSlots() {
+        XCTAssertEqual(RetouchAlgorithm.clone.rawValue, 1)
+        XCTAssertEqual(RetouchAlgorithm.heal.rawValue, 2)
+        XCTAssertEqual(RetouchAlgorithm.blur.rawValue, 3)
+        XCTAssertEqual(RetouchAlgorithm.fill.rawValue, 4)
+    }
+
+    /// Shape gate: ellipse/path accepted, brush/gradient rejected.
+    func testStrokeShapeGate() {
+        let layer = RetouchLayer()
+        XCTAssertTrue(layer.append(stroke: RetouchStroke(algorithm: .heal, form: ellipseForm())))
+        XCTAssertTrue(layer.append(stroke: RetouchStroke(
+            algorithm: .clone, form: MaskForm(kind: .path(PathForm(nodes: [], border: 0))),
+            source: MaskPoint(x: 0.1, y: 0.1))))
+        XCTAssertFalse(layer.append(stroke: RetouchStroke(
+            algorithm: .fill,
+            form: MaskForm(kind: .gradient(GradientForm(
+                anchor: MaskPoint(x: Float(0), y: Float(0)), rotationDegrees: 0,
+                compression: 1, curvature: 0, state: .linear))),
+            fillColor: SIMD3(repeating: 0.5))))
+        XCTAssertEqual(layer.strokes.count, 2)
+    }
+
+    /// duplicate: fresh layer UUID AND fresh stroke UUIDs; payloads
+    /// byte-stable (the user's edit is the payload — identity, not
+    /// content, is what duplicates).
+    func testRetouchDuplicateMintsFreshIdentities() {
+        let stroke = RetouchStroke(algorithm: .heal, form: ellipseForm(),
+                                   source: MaskPoint(x: 0.3, y: 0.3))
+        let original = RetouchLayer(name: "Fix", strokes: [stroke])
+        let copy = original.duplicated()
+        XCTAssertNotEqual(copy.id, original.id)
+        XCTAssertNotEqual(copy.strokes[0].id, stroke.id)
+        XCTAssertEqual(copy.strokes[0].algorithm, stroke.algorithm)
+        XCTAssertEqual(copy.strokes[0].form, stroke.form)
+        XCTAssertEqual(copy.strokes[0].source, stroke.source)
+    }
+
+    /// Stack mutation surface: add/duplicate/reorder/remove keep the
+    /// retouch kind intact; mergeDown REFUSES a retouch layer (no chain to
+    /// fold — the layer survives intact).
+    func testStackMutationWithRetouchKind() {
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let fix = RetouchLayer(name: "Fix", strokes: [
+            RetouchStroke(algorithm: .clone, form: ellipseForm(),
+                          source: MaskPoint(x: 0.2, y: 0.2)),
+        ])
+        let lift = AdjustmentLayer(name: "Lift", chain: [])
+        stack.addAdjustment(lift)
+        stack.addAdjustment(fix)
+        XCTAssertEqual(stack.adjustmentLayers.count, 2)
+        XCTAssertEqual(stack.compositeLayers.map(\.id), [lift.id],
+                       "compositeLayers narrows to chain layers; retouch goes through its own leg")
+
+        let dup = stack.duplicate(id: fix.id)
+        XCTAssertNotNil(dup)
+        XCTAssertEqual(stack.adjustmentLayers.count, 3)
+        XCTAssertTrue(stack.adjustmentLayers[2] is RetouchLayer)
+
+        // mergeDown refusal: retouch cannot fold into the chain face.
+        stack.reorder(id: fix.id, to: 1) // Fix sits above Lift
+        XCTAssertNil(stack.mergeDown(id: fix.id), "retouch mergeDown is refused in v1")
+        XCTAssertTrue(stack.adjustmentLayers.contains { $0.id == fix.id },
+                      "refused merge keeps the layer intact")
+
+        XCTAssertNotNil(stack.remove(id: fix.id))
+        XCTAssertEqual(stack.adjustmentLayers.count, 2)
+    }
+}

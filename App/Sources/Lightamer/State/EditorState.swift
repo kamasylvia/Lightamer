@@ -482,8 +482,9 @@ final class EditorState {
     /// Sidecar RESTORE (layer dimension): install the decoded records as
     /// the live stack (identity + params verbatim). No history — the
     /// restored items ARE the history. Bootstraps the base layer when no
-    /// stack exists yet.
-    func installLayerStack(from layers: [AdjustmentLayer]) {
+    /// stack exists yet. Kind-dispatched since 06-07 (adjustment +
+    /// retouch records restore their concrete layers).
+    func installLayerStack(from layers: [any Layer]) {
         var stack = LayerStack(baseLayer: layerStack?.baseLayer ?? BackgroundLayer())
         for layer in layers { stack.addAdjustment(layer) }
         self.layerStack = stack

@@ -39,8 +39,9 @@ public struct LayerStack: Sendable, Identifiable {
     }
 
     /// The composite-ready narrowing: adjustment layers capable of carrying
-    /// an iop chain, bottom-to-top. Non-`AdjustmentLayer` entries (none
-    /// today; retouch kind in 6-7) are skipped by the composite driver.
+    /// an iop chain, bottom-to-top. Retouch layers (06-07) are skipped by
+    /// this narrowing — the composite driver consumes them through the
+    /// retouch stroke leg instead of a chain sub-run.
     public var compositeLayers: [AdjustmentLayer] {
         adjustmentLayers.compactMap { $0 as? AdjustmentLayer }
     }
@@ -106,15 +107,24 @@ public extension LayerStack {
     }
 
     /// Duplicate the layer with `id`: deep copy with fresh identities (new
-    /// layer UUID + new chain-record UUIDs — `AdjustmentLayer.duplicated`),
-    /// inserted directly ABOVE the original. nil = no such layer or the
-    /// entry carries no duplicable chain surface.
+    /// layer UUID + new chain-record/stroke UUIDs — `AdjustmentLayer` /
+    /// `RetouchLayer` duplicated()), inserted directly ABOVE the original.
+    /// nil = no such layer or the entry carries no duplicable surface.
     @discardableResult
     mutating func duplicate(id: UUID) -> (any Layer)? {
-        guard let index = adjustmentLayers.firstIndex(where: { $0.id == id }),
-              let adjustment = adjustmentLayers[index] as? AdjustmentLayer
-        else { return nil }
-        let copy = adjustment.duplicated()
+        guard let index = adjustmentLayers.firstIndex(where: { $0.id == id }) else {
+            return nil
+        }
+        let copy: (any Layer)?
+        switch adjustmentLayers[index] {
+        case let adjustment as AdjustmentLayer:
+            copy = adjustment.duplicated()
+        case let retouch as RetouchLayer:
+            copy = retouch.duplicated()
+        default:
+            copy = nil
+        }
+        guard let copy else { return nil }
         adjustmentLayers.insert(copy, at: index + 1)
         return copy
     }
@@ -134,7 +144,14 @@ public extension LayerStack {
             return nil
         }
         let merged = adjustmentLayers.remove(at: index)
-        let mergedChain = (merged as? AdjustmentLayer)?.chain ?? []
+        // 06-07: a retouch layer has no chain to fold (its edit IS the
+        // stroke list) — the merge is refused and the layer restored
+        // intact (the caller surfaces the no-op).
+        guard let mergedAdjustment = merged as? AdjustmentLayer else {
+            adjustmentLayers.insert(merged, at: index)
+            return nil
+        }
+        let mergedChain = mergedAdjustment.chain
         if index == 0 {
             // Bottommost adjustment — the layer below is the base.
             let combined = (mergedChain).sorted {

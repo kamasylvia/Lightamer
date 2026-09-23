@@ -72,12 +72,15 @@ public struct SidecarMaskSpec: Codable, Sendable, Equatable {
     }
 }
 
-/// One adjustment layer's on-disk record (the frozen 06-01 spelling).
+/// One adjustment layer's on-disk record (the frozen 06-01 spelling; the
+/// 06-07 retouch kind arrives as an OPTIONAL additive field + the `kind`
+/// spelling "retouch" — v1/v2 documents stay mutually readable).
 public struct SidecarLayerRecord: Codable, Sendable, Equatable {
 
     private enum Keys: String, CodingKey {
         case id, kind, name, isVisible, enabled, opacity, blendMode
         case blendOptions, chain, mask
+        case strokes // 06-07 additive optional (retouch kind payload)
     }
 
     var id: UUID
@@ -93,6 +96,10 @@ public struct SidecarLayerRecord: Codable, Sendable, Equatable {
     var blendOptions: UInt32
     var chain: [SidecarInstanceRecord]
     var mask: SidecarMaskSpec?
+    /// 06-07 additive optional — the retouch stroke list (D-06-CONTEXT-4;
+    /// frozen spelling: `RetouchStroke` verbatim, shape = the 06-03
+    /// `MaskForm` spellings). nil for adjustment records.
+    var strokes: [RetouchStroke]?
 
     public init(_ layer: AdjustmentLayer) {
         id = layer.id
@@ -105,10 +112,48 @@ public struct SidecarLayerRecord: Codable, Sendable, Equatable {
         blendOptions = layer.blendOptions.rawValue
         chain = layer.chain.map(SidecarInstanceRecord.init)
         mask = layer.mask.map(SidecarMaskSpec.init)
+        strokes = nil
+    }
+
+    /// The retouch record (D-06-07-T1-2 spelling freeze): `chain`/`mask`
+    /// stay empty/nil (retouch carries NO iop chain and is dt NO_MASKS);
+    /// the strokes ARE the edit.
+    public init(_ layer: RetouchLayer) {
+        id = layer.id
+        kind = "retouch"
+        name = layer.name
+        isVisible = layer.isVisible
+        enabled = layer.enabled
+        opacity = layer.opacity
+        blendMode = layer.blendMode.rawValue
+        blendOptions = layer.blendOptions.rawValue
+        chain = []
+        mask = nil
+        strokes = layer.strokes
+    }
+
+    /// Capture any non-base layer by kind (the single write face used by
+    /// `SidecarLayerStackRecord`).
+    public static func record(for layer: any Layer) -> SidecarLayerRecord {
+        switch layer {
+        case let retouch as RetouchLayer: return SidecarLayerRecord(retouch)
+        case let adjustment as AdjustmentLayer: return SidecarLayerRecord(adjustment)
+        default:
+            // Unknown future kind: keep identity + container state, drop
+            // nothing the reader can't decode (chain/mask/strokes empty).
+            var record = SidecarLayerRecord(AdjustmentLayer(
+                id: layer.id, name: layer.name, isVisible: layer.isVisible,
+                opacity: layer.opacity, enabled: layer.enabled))
+            record.kind = "adjustment"
+            record.enabled = false
+            return record
+        }
     }
 
     /// The runtime layer (identity + params verbatim — the record IS the
-    /// user's edit; nothing is re-encoded or re-hashed).
+    /// user's edit; nothing is re-encoded or re-hashed). Kind-dispatched:
+    /// "retouch" rebuilds a `RetouchLayer`, anything else an
+    /// `AdjustmentLayer` (the 06-01 documents' only kind).
     var layer: AdjustmentLayer {
         AdjustmentLayer(
             id: id, name: name, isVisible: isVisible,
@@ -118,6 +163,17 @@ public struct SidecarLayerRecord: Codable, Sendable, Equatable {
             enabled: enabled,
             chain: chain.map(\.instance),
             mask: mask.map(\.spec))
+    }
+
+    var anyLayer: any Layer {
+        guard kind == "retouch" else { return layer }
+        return RetouchLayer(
+            id: id, name: name, isVisible: isVisible,
+            opacity: opacity,
+            blendMode: BlendMode(rawValue: blendMode) ?? .normal,
+            blendOptions: BlendOptions(rawValue: blendOptions),
+            enabled: enabled,
+            strokes: strokes ?? [])
     }
 
     public init(from decoder: Decoder) throws {
@@ -132,6 +188,8 @@ public struct SidecarLayerRecord: Codable, Sendable, Equatable {
         blendOptions = try container.decodeIfPresent(UInt32.self, forKey: .blendOptions) ?? 0
         chain = try container.decode([SidecarInstanceRecord].self, forKey: .chain)
         mask = try container.decodeIfPresent(SidecarMaskSpec.self, forKey: .mask)
+        // 06-07 additive: absent on pre-06-07 documents.
+        strokes = try container.decodeIfPresent([RetouchStroke].self, forKey: .strokes)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -146,6 +204,7 @@ public struct SidecarLayerRecord: Codable, Sendable, Equatable {
         try container.encode(blendOptions, forKey: .blendOptions)
         try container.encode(chain, forKey: .chain)
         try container.encodeIfPresent(mask, forKey: .mask)
+        try container.encodeIfPresent(strokes, forKey: .strokes)
     }
 
     /// Degrade copy (02-06 unknown-op shape, layer dimension): the same
@@ -167,29 +226,38 @@ public struct SidecarLayerStackRecord: Codable, Sendable, Equatable {
         self.layers = layers
     }
 
-    /// Capture a live stack (adjustment layers bottom-to-top; the base
-    /// layer is never serialized — LAYER-01).
+    /// Capture a live stack (all non-base layers bottom-to-top —
+    /// adjustment AND retouch kinds since 06-07; the base layer is never
+    /// serialized — LAYER-01).
     public init(_ stack: LayerStack) {
-        self.layers = stack.compositeLayers.map(SidecarLayerRecord.init)
+        self.layers = stack.adjustmentLayers.map(SidecarLayerRecord.record(for:))
     }
 
     /// Capture a history snapshot (the same shape both places — one frozen
     /// spelling, D-06-01-T6-1).
     public init(_ snapshot: LayerStackSnapshot) {
         self.layers = snapshot.layers.map { snapshotLayer in
-            SidecarLayerRecord(snapshotLayer.makeLayer())
+            SidecarLayerRecord.record(for: snapshotLayer.makeAnyLayer())
         }
     }
 
-    /// The runtime adjustment layers (bottom-to-top; identity + params
-    /// verbatim).
+    /// The runtime layers (bottom-to-top; identity + params verbatim —
+    /// adjustment and retouch kinds alike since 06-07).
+    public var runtimeLayers: [any Layer] {
+        layers.map(\.anyLayer)
+    }
+
+    /// The adjustment layers only (06-01 spelling; retouch records decode
+    /// as empty-chain adjustment layers here — callers wanting the retouch
+    /// kind use `runtimeLayers`).
     public var adjustmentLayers: [AdjustmentLayer] {
         layers.map(\.layer)
     }
 
-    /// The history-snapshot projection.
+    /// The history-snapshot projection (kind-dispatched — retouch records
+    /// rebuild their RetouchLayer; 06-07).
     public var snapshot: LayerStackSnapshot {
-        LayerStackSnapshot(layers: layers.map(\.layer).map(LayerStackSnapshot.Layer.init))
+        LayerStackSnapshot(layers: layers.map(\.anyLayer).map(LayerStackSnapshot.Layer.init))
     }
 
     // Codable: synthesized is fine — both members are Codable and the key
