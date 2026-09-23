@@ -761,3 +761,24 @@ force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自�
 
 - 抽验（sha256）：bilateral 9 文件见「bilateral 输出 sha256」表；其余 8 模块 sha256 见各自 manifest 节（04-07 模式）。
 - 总账判定：**11/11 有账 + 各 ParityTests 绿 + dt 证据齐** → SC#1 PASS；SC#2 行 = denoiseprofile 节 + 「SC#2 结论行」节；SC#3 行 = nlmeans/bilateral 节 + chromatic 半边断言（NLMeansParityTests luma/chroma 半边）。
+
+## mask golden 总账（Plan 06-04，L017 解析参考轨；2026-09-24）
+
+> L017 口径注记：dt-cli **不可达对象**（mask/blendif 不落盘、无独立 iop blob）不适用轨 A dt 三证据，
+> 以 **float64 解析参考替代**（06-CONTEXT golden 红线节 + 06-RESEARCH §9 mask 行）。
+> 每行的参考 = 与 kernel 同源公式的 Double 直译，测试常驻回归（`ParametricMaskParityTests` /
+> `MaskCombineTests` / `RasterMaskRoundTripTests`），非一次性快照。
+
+| # | 对象 | 参考（float64 直译正本） | 容差（门 → 实测） | 测试锚 |
+|---|---|---|---|---|
+| 1 | blendif parametric（luma+JzCzhz 单 kernel，D-06-CONTEXT-3） | `ParametricReference.maskPixel`（blendop.cl:1096-1131 + blendif_factor_rgb_jzczhz :329-408 + blend.c:167-216 参数打包） | 平腿/全部 luma <1e-5；jzczhz ramp 腿 5e-4（float32 pow-chain 地板，06-02 先例，斜率放大已记录）→ 6 case × 6 fixture 全绿 | ParametricMaskParityTests.testBlendifParityChannelSweep |
+| 2 | blendif 平场二元门（dt 平场 probe 等价物） | 阈值内 → gopacity / 外 → 0 常数 | ±1e-6 → 精确 | testFlatFieldBinaryGate |
+| 3 | blendif 参数打包（boost/slope/open-end） | blend.c:167-216 `_blendif_process_parameters` 逐式 | exp2 缩放 + 0.001 斜率地板 + ±FLT_MAX 开端 | testProcessParametersPacking |
+| 4 | mask 后处理 blur/feather（单通道 Deriche） | 测试内 float64 递归（gaussian.c:41-100 + gaussian.cl float1） | <1e-6 → 全绿（σ 1.5/4/12，步沿+blob+>1 clamp 探针） | testMaskBlurParityFloat64Recursion + 系数漂移钉（testMaskBlurCoeffsMatchIOPGaussianBlur） |
+| 5 | mask tone curve（contrast/brightness） | `ParametricReference.toneCurve`（blendop.cl:1309-1449） | <1e-6 → 全绿（brightness 正/负两支 + epsilon 门） | testMaskToneCurveParity |
+| 6 | 后处理链组装序 | blend.c:305-355 `_get_post_operations`（after-blur guide 默认） | 链输出 == 手工 [blur→feather→curve] 逐值 <1e-6 + 顺序敏感性探针（反序真不同 >1e-4，防 pin 空转） | testPostChainOrderPinned |
+| 7 | combine 五式（union/intersect/difference/sum/exclusion × 正/反） | group.c:487-630 `_combine_masks_*` 逐式 Double 直译 | <1e-6 → 全绿（零+正混合 dest 压 both_positive 支路） | MaskCombineTests.testCombineFiveOpsFormulaParity |
+| 8 | combine 形状 golden（两圆） | 闭式圆交面积（lens 公式）+ 周长离散界 | |counted−analytic| < 2π(rA+rB) px → 5 式全过；反例位差 = 半圆面积（两个量级外） | testCombineAnalyticAreaGoldens |
+| 9 | MaskGroup 嵌套 | (A∪B)−C 解析面积 | 同上周界 → 过 | testNestedGroupEvaluation |
+| 10 | 三类 ⊕ 装配 | drawn·cond / min(·, raster) 闭式合成 | <1e-5 / <1e-6 → 全绿 + raster 无目录降级内容中性断言 | testAssemblyDrawnPlusParametric / testAssemblyRasterAndAllThree / testAssemblyRasterWithoutDirectorySurfacesDegrade |
+| 11 | raster 旁挂 PNG round-trip | uint16 恒等（bake→file→load）+ 量化界 1/65535 | 精确 + 界内 → 全绿；三失败腿（篡改 hash / 截断 PNG / 缺失）按 D-06-04-T4-2 降级 | RasterMaskRoundTripTests |
