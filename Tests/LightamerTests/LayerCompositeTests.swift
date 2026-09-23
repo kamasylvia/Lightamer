@@ -418,4 +418,52 @@ final class LayerCompositeTests: XCTestCase {
             rawBytes(baseOnly, metal: metal),
             "REVERSE at op=1 ⇒ the composite equals the below (base) plane")
     }
+
+    // ── 6. Track B zero-increment baseline (Plan 06-01 T7) ──
+
+    /// The FULL track-B chain (Phase 3+4+5 EVERY module — crop/flip/lens +
+    /// the detail/color/denoise neutrals, GeometryGoldenTests harness) with
+    /// a SINGLE degenerate layer (identity gain, op=1.0) composited on top
+    /// must be BYTE-IDENTICAL to the layerless baseline: the layer core is
+    /// a pure zero-increment for the Phase 2-5 pipeline (L020 ③ content
+    /// level — real RAW through the real chain).
+    func testTrackBFullChainWithIdentityLayerIsZeroIncrement() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let url = try Fixtures.neutralTarget()
+        let decoder = RAWDecoder()
+        let image = try await decoder.decode(url)
+
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        let chain = try await GeometryGoldenTests().makeChainWithCropFlip(
+            registry: registry, outputProfile: .displayP3)
+
+        // Baseline: the track-B chain alone.
+        let (baseline, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+
+        // Layered: ONE identity layer (gain 1.0 ⇒ L ≡ S; op 1.0 ⇒ out = L).
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let identity = ModuleInstance(
+            module: TestGainModule.self, multiPriority: 5,
+            params: TestGainModule.Params(gain: 1.0))
+        stack.addAdjustment(
+            AdjustmentLayer(name: "identity", opacity: 1.0, chain: [identity]))
+
+        let result = try await LayerCompositeDriver.composite(
+            image: image, imageID: UUID(), baseInstances: chain,
+            layerStack: stack, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview)
+
+        // Terminal-segment output is .bgra8Unorm on both legs — compare
+        // the raw RGBA bytes exactly (a REAL comparison loop with a
+        // compared > 0 guard via assertBytesEqual).
+        assertBytesEqual(
+            rawBytes(result.output, metal: metal),
+            rawBytes(baseline, metal: metal),
+            "track-B full chain + identity layer == layerless baseline")
+    }
 }

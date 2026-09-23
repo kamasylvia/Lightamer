@@ -430,7 +430,9 @@ final class GeometryGoldenTests: XCTestCase {
     /// Full-frame crop = whole-plane blit; neutral lens/detail = blit
     /// identity (cache-neutral shapes, exercise the blit legs through the
     /// real chain without moving patches into the letterbox).
-    private func makeChainWithCropFlip(
+    /// Internal (not private) since 06-01 T7 — the layer zero-increment
+    /// gate reuses the exact track-B chain as its baseline.
+    func makeChainWithCropFlip(
         registry: ModuleRegistry, outputProfile: ColorOutModule.OutputProfile
     ) async throws -> [any ModuleBoxing] {
         await LightamerIOPRegistry.populate(registry)

@@ -546,4 +546,128 @@ final class MemoryBudgetTests: XCTestCase {
         }
         return result == KERN_SUCCESS ? info.phys_footprint : 0
     }
+
+    // MARK: - Layer dimension (Plan 06-01 T7)
+
+    /// Spatially-varying synthetic image (L020 ③).
+    private func makeLayerImage(width: Int = 48, height: Int = 32) -> DecodedImage {
+        var pixels = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let o = (y * width + x) * 4
+                pixels[o + 0] = 0.1 + 0.7 * Float(x) / Float(width - 1)
+                pixels[o + 1] = 0.2 + 0.5 * Float(y) / Float(height - 1)
+                pixels[o + 2] = 0.3
+                pixels[o + 3] = 1.0
+            }
+        }
+        let bitmap = pixels.withUnsafeBytes { Data($0) }
+        return DecodedImage(
+            ciImage: CIImage(
+                bitmapData: bitmap,
+                bytesPerRow: width * 4 * MemoryLayout<Float>.stride,
+                size: CGSize(width: width, height: height),
+                format: .RGBAf, colorSpace: WorkingSpace.colorSpace),
+            rawTech: RAWTechnicalParams(blackLevel: 0.0),
+            capture: CaptureMetadata(), segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8)
+    }
+
+    private func makePopulatedRegistry() async -> ModuleRegistry {
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        return registry
+    }
+
+    private func gainLayerForBudget(_ gain: Float, name: String) -> AdjustmentLayer {
+        AdjustmentLayer(
+            name: name, opacity: 1.0,
+            chain: [ModuleInstance(
+                module: TestGainModule.self,
+                params: TestGainModule.Params(gain: gain))])
+    }
+
+    /// N=5 layer composite (PREVIEW): the cache footprint is BOUNDED and
+    /// LINEAR — exactly base(2) + per-layer(2) + terminal(2) planes; a warm
+    /// re-composite grows it by ZERO bytes (the incremental ladder's floor).
+    func testCompositeLayeredPreviewFootprintBounded() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let registry = await makePopulatedRegistry()
+        let image = makeLayerImage()
+        let cache = PipeCache()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        for index in 0..<5 {
+            stack.addAdjustment(gainLayerForBudget(1.0 + 0.1 * Float(index), name: "L\(index)"))
+        }
+
+        let imageID = UUID()
+        let composite = { (stack: LayerStack) async throws -> LayerCompositeResult in
+            try await LayerCompositeDriver.composite(
+                image: image, imageID: imageID, baseInstances: base,
+                layerStack: stack, registry: registry, resolution: .preview,
+                cache: cache, metal: metal, longEdge: nil, roiHint: nil,
+                policy: .preview)
+        }
+        _ = try await composite(stack)
+        let planeBytes = 48 * 32 * WorkingSpace.bytesPerPixel
+        // base input + colorin + 5×(chain + prefix) + colorout = 13 float32
+        // planes + the gamma display tail (bgra8, 4 B/px).
+        let total = await cache.totalBytes
+        XCTAssertEqual(total, 13 * planeBytes + 48 * 32 * 4,
+                       "5-layer PREVIEW footprint = 13 float32 planes + 1 display tail")
+
+        // Warm re-composite: ZERO additional bytes (everything hits).
+        _ = try await composite(stack)
+        let totalAfterWarm = await cache.totalBytes
+        XCTAssertEqual(totalAfterWarm, total, "warm composite adds no footprint")
+    }
+
+    /// FULL windowed composite (D-06-CONTEXT-8实证): with a 96×64 image and
+    /// a 64×40 `roiHint`, EVERY cached plane is window-sized — the whole
+    /// cache stays BELOW one full-frame float32 plane (98304 B). The cold
+    /// layer's chain output is dropped after the blend (policy), the hot
+    /// layer's is retained.
+    func testCompositeFullWindowedPlaneSizes() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let registry = await makePopulatedRegistry()
+        let image = makeLayerImage(width: 96, height: 64)
+        let cache = PipeCache()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let cold = gainLayerForBudget(1.4, name: "cold")
+        let hot = gainLayerForBudget(2.2, name: "hot")
+        stack.addAdjustment(cold)
+        stack.addAdjustment(hot)
+
+        let hint = ROI(x: 8, y: 6, width: 64, height: 40, scale: 1.0)
+        let result = try await LayerCompositeDriver.composite(
+            image: image, imageID: UUID(), baseInstances: base,
+            layerStack: stack, registry: registry, resolution: .full,
+            cache: cache, metal: metal, longEdge: nil, roiHint: hint,
+            policy: .fullColdLayer, hotLayerID: hot.id)
+
+        // The output plane is the WINDOW, not the full frame.
+        XCTAssertEqual(result.window.width, 64)
+        XCTAssertEqual(result.output.width, 64, "FULL output plane == window (O(视窗))")
+        XCTAssertEqual(result.output.height, 40)
+
+        // Footprint ledger (window planes, float32 64×40 = 40960 B):
+        // base input + colorin + cold prefix + hot prefix + HOT chain
+        // output (retained; the COLD one was dropped by the policy) =
+        // 5 float32 planes + the gamma display tail (bgra8, 4 B/px).
+        // The UNGATED alternative (full-frame planes) would be 98304 B per
+        // plane — the exact ledger proves O(视窗), not O(全图).
+        let total = await cache.totalBytes
+        let windowFloat = 64 * 40 * WorkingSpace.bytesPerPixel
+        XCTAssertGreaterThan(total, 0, "防空转 guard")
+        XCTAssertEqual(total, 5 * windowFloat + 64 * 40 * 4,
+                       "exact windowed ledger: no cold chain plane retained")
+    }
 }

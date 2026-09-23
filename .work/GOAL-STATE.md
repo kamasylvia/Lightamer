@@ -13,6 +13,8 @@
 
 
 - **Phase 4：已闭环**（VERIFICATION.md GOAL ACHIEVED；04-01..04-08 全 PASS）
+- **Phase 6：进行中（2026-09-23 夜间 subagent 开工）**
+  - **06-01 ✅ 执行完成（2026-09-23 夜间 ZCode subagent；6 commits `7e076b2`..`9ab15b2` + T7 收尾提交；全套 **648/3skip/0fail**）**：BlendMode 定案执行（三方映射表 + colorAdjust 更名 + BlendOptions.REVERSE，D-06-CONTEXT-2 兑现）→ AdjustmentLayer/LayerStack mutation API/layerScope 分区投影 → PipeCacheKey.layerID + compositePosition/maskPosition 保留位 + enforceBudget tier-5 层档（D-06-01-T3-1：base 平面免疫层档 sweep）→ LayerCompositeDriver 1+N+1 退化合成（runSub seam，walk 语义零改动；NORMAL2 kernel；L021 层维度 precondition 群；几何 fatalError 经纯检测器 layerGeometryViolation，D-06-01-T4-1）→ 层 K 记账精确账本（冷 8 行/顶层 4h2m1b/底层 3h3m2b 连锁/重排 4h2m2b 链全存活/隐藏禁用语义分离）→ sidecar v2（typed layerStack + blendOptions additive 字段 D-06-01-T6-1 + stackSnapshot + 层感知 driftDetected + 层维度未知 op 降级；MultiResolution 命中回归修复 = usesDefaultStack ephemeral 标记）→ MemoryBudget 层维度精确账本（5 层 PREVIEW 325632B 热轮 +0；FULL 窗口化 215040B 冷层逐出实证）+ 轨 B 全链+恒等层 == 基线逐字节（零增量证明）+ signpost composite 埋点（`.work/06/perf.md`）。SUMMARY+DECISIONS 落盘。⚠️ 既有 GoldenColor flake（L018 类 CI 腿黑帧，失败数 0-2 浮动、单跑绿、本轮终轮通过）——与 trackB flake 同源复估，非 06-01 引入
 - **Phase 5：✅ 已闭环（2026-09-23）**——VERIFICATION GOAL ACHIEVED（12/12 需求交付、SC#1-3 绿、SC#4 denoise 60fps 已裁决 override 移交 Phase 6+/perf plan、7 项可接受挂账零阻塞）；VALIDATION validated + nyquist true；609 tests
   - 05-01..05-08 全部执行+验收闭环（426→445→480→512→535→553→581→609）
   - 移交 Phase 6：8 项 Open Questions（BlendMode 常量错位 = 6-1 前必拍板）+ 06-RESEARCH 已备
