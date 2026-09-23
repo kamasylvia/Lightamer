@@ -74,3 +74,4 @@
 2026-09-23 [W6] 修复轮复验 PASS：GUI-10/13（同步化 91 文件 + 竞态回归 ×100）、GUI-11/12（列表 38% 帽 + 面板体 472pt）、压力复测 20 轮零崩溃零新 .ips、582/3/0。已知 flake（GoldenColor 负载态）再现并按 02-04 台账隔离判定，05-08 复估。→ W7 05-08（bilateral + PERF 复估 + Phase 5 签核）。
 [2026-09-23 08:06] 05-08 executor: T1-T6 done — bilateral delivered (direct 8e-7 / grid 8.6e-7 / tiling 4.5e-7), OQ7+defer decided, SC#4 gates measured (4.8ms color PASS / 85.7ms denoise FAIL→judgment recorded), Phase 5 VALIDATION signed (594/3/0)
 2026-09-23 [05-08] 验收 PASS-with-notes → 必修 2 项文档补账完成（DECISIONS D-05-08-T6-1 节补入 + manifest bilateral blob 列 2 处错位修正 + typo）+ minor 3 项（行号勘误入 DECISIONS/PROBE 残留清理/typo 同批）。609/3/0 复跑全绿。Phase 5 全部 8 plan + 签核闭环。
+2026-09-23 [06-01] subagent 验收 PASS：8/8 AC 独立证实（BlendMode 三方映射 13 值逐值对 blend.h、恒等三元组逐字节双档、缓存精确账本、sidecar v2 全套、PixelPipe walk 零语义改动）；648/3/0 独立实跑。3 notes 非阻塞（SUMMARY 时点数/test-direct null_glob 陷阱——已建议补空匹配报错/decode 注释精度）。→ 06-02 blendop。
