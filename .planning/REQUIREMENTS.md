@@ -96,30 +96,30 @@ v1 = 完整工作流闭环 + 蒙版系统 + HDR/堆栈 + 印框/水印 + 全量 
 - [x] **IOP-GEO-02**: rotate / perspective（旋转/透视校正，含自动检测）
 - [x] **IOP-GEO-03**: lens correction（镜头校正：几何畸变、横向色差、渐晕——CIRAW 不足部分用 Metal 补，含 lensfun-style 数据库或自有 profile）
 - [x] **IOP-GEO-04**: flip / orientation（翻转/方向）
-- [ ] **IOP-GEO-05**: liquify（液化，肖像修饰，复杂模块）
-- [ ] **IOP-GEO-06**: retouch（修复画笔/克隆，依赖蒙版框架）
+- [x] **IOP-GEO-05**: liquify（液化，肖像修饰，复杂模块）——**已交付（06-06）**：base 链 18.0 warp 模块（bezier 路径 + 扭曲场 + lanczos/bicubic kernel）；扭曲场解析 ≤2.4e-7、warp parity 0.0、蒙版内容锚定经 GeometryPointMapper liquify 段
+- [x] **IOP-GEO-06**: retouch（修复画笔/克隆，依赖蒙版框架）——**已交付（06-07，独立图层 kind，D-06-CONTEXT-4）**：四算法 clone/heal/blur/fill（heal 基准 median ~10ms 预算内，降级条款未触发）；stroke 形状即蒙版（NO_MASKS）；v1 圈定：视口圆形绘制（path 数据腿就绪）、blur gaussian、fill 纯色
 
 ### Layers System (LAYER) — Capture One 风格调整图层
 
 Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的核心组织机制。每个图层是一个独立的调整容器，携带自己的 iop 参数 + 蒙版 + 混合方式。这是与 Darktable（全局 pixelpipe + per-iop 蒙版）的根本架构差异，必须在 pixelpipe 设计时就纳入考虑（roadmapper 会规划具体架构）。
 
-- [ ] **LAYER-01**: 背景层（base layer）+ 多个可命名调整图层（adjustment layers）的图层栈模型
-- [ ] **LAYER-02**: 每层独立 iop 参数——每个调整图层可独立设置曝光/色彩/锐化等 iop（同一 iop 在不同层可有不同参数）
-- [ ] **LAYER-03**: 每层蒙版——每个调整图层携带一个蒙版（手绘 drawn / 参数 parametric / 栅格 raster，见 IOP-MASK），定义该层调整的作用范围
-- [ ] **LAYER-04**: 层管理——可见性开关、不透明度、重命名、重排序、复制、删除、合并、编组
-- [ ] **LAYER-05**: 混合模式——PS 风格 blend modes（normal / multiply / screen / overlay / soft light / hard light / color dodge / burn / difference / hue / saturation / color / luminosity 等）
-- [ ] **LAYER-06**: 图层与全局 iop 的协作——存在既可在背景层做全局调整、又可在调整图层做局部调整的能力（架构需明确二者如何共存于同一 pixelpipe）
-- [ ] **LAYER-07**: 图层状态持久化到 sidecar（层栈、每层 iop 参数、蒙版、混合模式、不透明度）
+- [x] **LAYER-01**: 背景层（base layer）+ 多个可命名调整图层（adjustment layers）的图层栈模型——**已交付（06-01 层核 + 06-07 retouch kind 扩展）**：`any Layer` 双 kind 栈（adjustment + retouch）
+- [x] **LAYER-02**: 每层独立 iop 参数——**已交付（06-01，层 K 增量账本 + 24 面板零改动路由 06-05）**
+- [x] **LAYER-03**: 每层蒙版——**已交付（06-03 drawn + 06-04 parametric/raster + 三类 ⊗ 装配单平面；内容锚定经 GeometryPointMapper，D-06-CONTEXT-7）**
+- [x] **LAYER-04**: 层管理——**已交付（06-05 UI + 06-01 data face）**；注记：合并 = mergeDown v1 交付；**编组（层文件夹）= v2**（D-06-CONTEXT-6——纯 UX 组织，蒙版组由 MaskGroup 内嵌套承载）
+- [x] **LAYER-05**: 混合模式——**已交付（06-01 定案 + 06-02 引擎）**：值不重编 + dt MODERN 公式（D-06-CONTEXT-2）+ REVERSE 位 + PS dodge/burn 新值增补；dt 三证据 54/54
+- [x] **LAYER-06**: 图层与全局 iop 的协作——**已交付（混合模型 (c)，06-RESEARCH §1）**：base 链全局 iop + 1+N+1 合成（层子链 + blend 三元组），walk/缓存/ROI 零改动；轨 B 恒等层逐字节实证
+- [x] **LAYER-07**: 图层状态持久化到 sidecar——**已交付（06-01 sidecar v2 + 06-03/04 mask payload + 06-07 retouch strokes）**：真 RAW E2E 渲染逐字节（06-05）；history 双轨全粒度；ONE-WAY 拼写锁
 
 ### Image Operation Modules (iop) — Masking / Local (IOP-MASK)
 
 蒙版系统服务于 LAYER（每层一个蒙版）。蒙版形态：
 
-- [ ] **IOP-MASK-01**: drawn mask（手绘蒙版：画笔、多边形、椭圆、路径、贝塞尔）
-- [ ] **IOP-MASK-02**: parametric mask（参数蒙版：按亮度/颜色范围选择，含羽化/反转/模糊）
-- [ ] **IOP-MASK-03**: raster mask（栅格蒙版：从其他蒙版烘焙而来）
-- [ ] **IOP-MASK-04**: mask combining operations（多蒙版并/差/交运算、蒙版组）
-- [ ] **IOP-MASK-05**: 蒙版可应用于任意调整图层（见 LAYER-03）
+- [x] **IOP-MASK-01**: drawn mask——**已交付（06-03）**：五形态 GPU 光栅化（解析 ≤1e-6）+ combine 组壳 + maskVersion 缓存键
+- [x] **IOP-MASK-02**: parametric mask——**已交付（06-04）**：luma+JzCzhz 单 kernel（D-06-CONTEXT-3）；注记：dt 双域 UI（Lab+RGB）defer——可逆扩展位
+- [x] **IOP-MASK-03**: raster mask——**已交付（06-04）**：旁挂 16-bit PNG + StableHash 校验 + 三失败腿降级；Phase 7 AI mask 经此通道消费
+- [x] **IOP-MASK-04**: mask combining operations——**已交付（06-04）**：五式逐行 + 嵌套组 + 解析面积 golden
+- [x] **IOP-MASK-05**: 蒙版可应用于任意调整图层——**已交付（06-04 T5 驱动器接线）**；retouch 层除外（NO_MASKS，D-06-CONTEXT-4）
 
 ### Image Operation Modules (iop) — HDR & Stacking (IOP-HDR)
 
@@ -326,20 +326,20 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | IOP-GEO-02 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
 | IOP-GEO-03 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
 | IOP-GEO-04 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
-| IOP-GEO-05 | Phase 6 — Layers & Masking System | Pending |
-| IOP-GEO-06 | Phase 6 — Layers & Masking System | Pending |
-| LAYER-01 | Phase 6 — Layers & Masking System | Pending |
-| LAYER-02 | Phase 6 — Layers & Masking System | Pending |
-| LAYER-03 | Phase 6 — Layers & Masking System | Pending |
-| LAYER-04 | Phase 6 — Layers & Masking System | Pending |
-| LAYER-05 | Phase 6 — Layers & Masking System | Pending |
-| LAYER-06 | Phase 6 — Layers & Masking System | Pending |
-| LAYER-07 | Phase 6 — Layers & Masking System | Pending |
-| IOP-MASK-01 | Phase 6 — Layers & Masking System | Pending |
-| IOP-MASK-02 | Phase 6 — Layers & Masking System | Pending |
-| IOP-MASK-03 | Phase 6 — Layers & Masking System | Pending |
-| IOP-MASK-04 | Phase 6 — Layers & Masking System | Pending |
-| IOP-MASK-05 | Phase 6 — Layers & Masking System | Pending |
+| IOP-GEO-05 | Phase 6 — Layers & Masking System | Delivered |
+| IOP-GEO-06 | Phase 6 — Layers & Masking System | Delivered |
+| LAYER-01 | Phase 6 — Layers & Masking System | Delivered |
+| LAYER-02 | Phase 6 — Layers & Masking System | Delivered |
+| LAYER-03 | Phase 6 — Layers & Masking System | Delivered |
+| LAYER-04 | Phase 6 — Layers & Masking System | Delivered |
+| LAYER-05 | Phase 6 — Layers & Masking System | Delivered |
+| LAYER-06 | Phase 6 — Layers & Masking System | Delivered |
+| LAYER-07 | Phase 6 — Layers & Masking System | Delivered |
+| IOP-MASK-01 | Phase 6 — Layers & Masking System | Delivered |
+| IOP-MASK-02 | Phase 6 — Layers & Masking System | Delivered |
+| IOP-MASK-03 | Phase 6 — Layers & Masking System | Delivered |
+| IOP-MASK-04 | Phase 6 — Layers & Masking System | Delivered |
+| IOP-MASK-05 | Phase 6 — Layers & Masking System | Delivered |
 | AI-01 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |
 | AI-05 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |
 | AI-06 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |

@@ -782,3 +782,24 @@ force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自�
 | 9 | MaskGroup 嵌套 | (A∪B)−C 解析面积 | 同上周界 → 过 | testNestedGroupEvaluation |
 | 10 | 三类 ⊕ 装配 | drawn·cond / min(·, raster) 闭式合成 | <1e-5 / <1e-6 → 全绿 + raster 无目录降级内容中性断言 | testAssemblyDrawnPlusParametric / testAssemblyRasterAndAllThree / testAssemblyRasterWithoutDirectorySurfacesDegrade |
 | 11 | raster 旁挂 PNG round-trip | uint16 恒等（bake→file→load）+ 量化界 1/65535 | 精确 + 界内 → 全绿；三失败腿（篡改 hash / 截断 PNG / 缺失）按 D-06-04-T4-2 降级 | RasterMaskRoundTripTests |
+
+## Phase 6 golden 完整性总账（Plan 06-07-T6.3 终签核，2026-09-24）
+
+> 四族对象 × 双轨口径：blend = dt 三证据主轨（54 blob）；mask/liquify/retouch =
+> **L017 解析参考轨**（dt-cli 不可达对象——mask/liquify/retouch 不落盘 blob、无独立
+> iop probe；参考 = 与 kernel 同源公式的 Double 直译，测试常驻回归，非一次性快照）。
+> 各族明细 = 上文 blendop 节 + mask 节（Plan 06-04）+ 下表 liquify/retouch 行。
+
+| 族 | 对象 | 参考/证据 | 门 → 实测 | 测试锚（常驻回归） |
+|---|---|---|---|---|
+| blend（06-02） | 13+4 模式 × 线性/JzCzhz 两域 + REVERSE | dt 三证据 54/54（blendop_params v14 blob 420B + `--d params` ok + 平场 PFM） | 点态 <1e-5；Jz pow-chain 地板档 2e-3 | BlendOpParityTests 全套 |
+| mask（06-03/04） | drawn 光栅化 + combine 五式 + blendif + raster round-trip | float64 解析直译（mask 节 11 行明细） | 解析 <1e-6；jzczhz ramp 5e-4 档 | ParametricMaskParityTests / MaskCombineTests / DrawnMaskRasterTests / RasterMaskRoundTripTests |
+| liquify（06-06） | 扭曲场解析（linear/radial grow/shrink）+ warp kernel + 点映射 roundtrip + 蒙版栅格双绑 | float64 独立场参考（interpolate_paths/mix_warps/lookup 直译；liquify.c:978-1013 逐项） | 场解析 ≤2.4e-7（门 1e-6）；warp parity 0.0（27,648 采样）；五段链 roundtrip 2.5e-10 px（门 0.5px）；强制分块 vs 整幅 0.0 | LiquifyParityTests |
+| retouch（06-07） | clone 解析平移拷贝 / fill 常数域 / blur 剖面 / 跨窗扩窗 / heal Laplacian | clone/fill = 闭式（mask 内 == 源平移 / == 常数）；heal = 独立 float64 红黑 SOR 参考（heal.c:96-422 逐式：pattern=sub、SOR w=heal.c:380、ε=0.1/255 exit、add） | clone/fill ≤1e-5；blur 线性场保持 ≤2e-3；跨窗内容 == 源平移 ≤1e-5（无源区黑边）；heal vs float64 <1e-3（ε 残差档，D-06-07-T3-2）+ Dirichlet 外区不动 | RetouchParityTests 9 case |
+
+- **sha256 抽验口径**：retouch/liquify/mask 无落盘 golden 产物（解析轨常驻测试即证据，
+  与 mask 节口径一致）；blend 节 54 blob sha256 总账见上文 blendop 节 + regenerate.sh
+  复跑 RC=0（06-02 验收轮核过）。
+- **空 retouch 层恒等**（轨 B 插链零增量）：`RetouchParityTests
+  .testEmptyStrokeRetouchLayerIsIdentity` 逐字节恒等——retouch 层进入不影响无 retouch
+  工作流的全部既有 golden。
