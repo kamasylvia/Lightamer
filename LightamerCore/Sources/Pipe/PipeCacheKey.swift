@@ -89,6 +89,24 @@ internal struct PipeCacheKey: Hashable {
         self.roi = roi
     }
 
+    /// The mask-plane key (Plan 06-03 T3 — the 06-01 placeholder tier now
+    /// active): (imageID, pipeType, layerID, maskVersionHash, roi) at the
+    /// reserved `maskPosition`. `maskHash` = `MaskSpec.stableHash()` — a
+    /// mask edit flips exactly this key while every chain-output key
+    /// (positions ≥ 0) stays untouched (the maskVersion ⊥ chainHash
+    /// independence, METAL-8 double insurance).
+    static func maskKey(
+        imageID: UUID,
+        pipeType: PipeResolution,
+        layerID: UUID,
+        maskHash: UInt64,
+        roi: ROI
+    ) -> PipeCacheKey {
+        PipeCacheKey(
+            imageID: imageID, pipeType: pipeType, position: PipeCacheKey.maskPosition,
+            upstreamHash: maskHash, roi: roi, layerID: layerID)
+    }
+
     /// The layer-dimension plane class (Plan 06-01 T3 enforceBudget tiers).
     /// The base/terminal namespace (sentinel) is NOT a layer plane — those
     /// planes stay governed by the Phase 2-6 image tiers (current-image

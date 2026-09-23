@@ -23,15 +23,33 @@ import Foundation
 // never serialized — LAYER-01 keeps it always-present by construction).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// The persisted mask record SHELL — version only for 06-01 (NDE-3 form
-/// version). Drawn forms (6-3) and parametric/raster/combine payloads (6-4)
-/// freeze as optional fields on this record, never as renames.
+/// The persisted mask record — the 06-01 shell + the 06-03 DRAWN payload
+/// (optional additive field, non-destructive decodeIfPresent: documents
+/// written before 06-03 carry no `drawn` and decode with nil). The 6-4
+/// parametric/raster payloads freeze the same way. The mask identity hash
+/// is DERIVED (`MaskSpec.stableHash()`), never persisted.
 public struct SidecarMaskSpec: Codable, Sendable, Equatable {
 
     public var version: Int
 
-    public init(version: Int = 1) {
+    /// 06-03 additive optional — the drawn forms + group shell
+    /// (frozen spelling: `MaskSpec`'s drawn payload verbatim).
+    public var drawn: DrawnMaskSpec?
+
+    public init(version: Int = 1, drawn: DrawnMaskSpec? = nil) {
         self.version = version
+        self.drawn = drawn
+    }
+
+    /// Capture from the runtime record (identity verbatim).
+    public init(_ spec: MaskSpec) {
+        version = spec.version
+        drawn = spec.drawn
+    }
+
+    /// Restore the runtime record.
+    var spec: MaskSpec {
+        MaskSpec(version: version, drawn: drawn)
     }
 }
 
@@ -67,7 +85,7 @@ public struct SidecarLayerRecord: Codable, Sendable, Equatable {
         blendMode = layer.blendMode.rawValue
         blendOptions = layer.blendOptions.rawValue
         chain = layer.chain.map(SidecarInstanceRecord.init)
-        mask = layer.mask.map { SidecarMaskSpec(version: $0.version) }
+        mask = layer.mask.map(SidecarMaskSpec.init)
     }
 
     /// The runtime layer (identity + params verbatim — the record IS the
@@ -80,7 +98,7 @@ public struct SidecarLayerRecord: Codable, Sendable, Equatable {
             blendOptions: BlendOptions(rawValue: blendOptions),
             enabled: enabled,
             chain: chain.map(\.instance),
-            mask: mask.map { MaskSpec(version: $0.version) })
+            mask: mask.map(\.spec))
     }
 
     public init(from decoder: Decoder) throws {
