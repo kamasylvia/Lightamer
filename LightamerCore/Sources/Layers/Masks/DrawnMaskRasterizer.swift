@@ -129,6 +129,28 @@ public enum DrawnMaskRasterizer {
 
     // MARK: - Entry (cached)
 
+    /// The DRAWN-only optional entry (06-05 display overlay): nil when the
+    /// spec carries no drawable drawn forms (parametric/raster-only specs
+    /// return nil — the display tint is a drawn-mask affordance in v1).
+    public static func planeIfDrawn(
+        spec: MaskSpec,
+        layerOpacity: Float,
+        window: ROI,
+        mapper: GeometryPointMapper,
+        metal: MetalContext,
+        cache: PipeCache,
+        imageID: UUID,
+        pipeType: PipeResolution,
+        layerID: UUID
+    ) async throws -> (any MTLTexture)? {
+        guard spec.hasDrawnForms else { return nil }
+        let (plane, _) = try await plane(
+            spec: spec, layerOpacity: layerOpacity, window: window,
+            mapper: mapper, metal: metal, cache: cache, imageID: imageID,
+            pipeType: pipeType, layerID: layerID)
+        return plane
+    }
+
     /// Fetch-or-rasterize the layer's drawn mask plane for `window`.
     /// Returns the plane + whether the cache HIT (the driver's accounting).
     public static func plane(

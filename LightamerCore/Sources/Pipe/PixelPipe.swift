@@ -979,4 +979,50 @@ public enum RenderPipeline {
             image: image, instances: instances, metal: metal, longEdge: longEdge
         )
     }
+
+    /// Run the LAYER COMPOSITE (Plan 06-05 — the coordinator's public
+    /// entry for stacks with adjustment layers): the 1 + N + 1
+    /// `LayerCompositeDriver` orchestration (base sub-run → per-layer
+    /// sub-run + blendop composite → terminal segment), summing the per-leg
+    /// stats into one `PipeRunStats` for the coordinator's logging.
+    ///
+    /// Empty adjustment layers → identical to `process` (the driver's base
+    /// + terminal legs degenerate to the flat chain; callers should keep
+    /// using `process` for that case to preserve the exact legacy key
+    /// space — the coordinator branches on the stack).
+    public static func processComposite(
+        image: DecodedImage,
+        instances: [any ModuleBoxing],
+        layerStack: LayerStack,
+        registry: ModuleRegistry,
+        imageID: UUID,
+        resolution: PipeResolution,
+        cache: PipeCache,
+        metal: MetalContext,
+        longEdge: Int? = nil,
+        roiHint: ROI? = nil,
+        policy: LayerCachePolicy,
+        hotLayerID: UUID? = nil,
+        maskDirectory: URL? = nil
+    ) async throws -> (any MTLTexture, PipeRunStats) {
+        let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
+        defer { signposter.endInterval("pixelpipe", interval) }
+        let result = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: instances,
+            layerStack: layerStack, registry: registry, resolution: resolution,
+            cache: cache, metal: metal, longEdge: longEdge, roiHint: roiHint,
+            policy: policy, hotLayerID: hotLayerID, maskDirectory: maskDirectory)
+        var stats = result.baseStats
+        for layer in result.layerStats {
+            stats.hits += layer.run.hits
+            stats.misses += layer.run.misses
+            stats.planesRendered += layer.run.planesRendered
+        }
+        if let terminal = result.terminalStats {
+            stats.hits += terminal.hits
+            stats.misses += terminal.misses
+            stats.planesRendered += terminal.planesRendered
+        }
+        return (result.output, stats)
+    }
 }

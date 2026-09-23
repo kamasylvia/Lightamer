@@ -119,6 +119,9 @@ internal struct LightamerApp: App {
     @State private var pipeCoordinator = PipeCoordinator()
     @State private var exportState = ExportState()
     @State private var inspectorState = InspectorState()
+    // Plan 06-05 T3: the layer-selection + editing-mode state machine
+    // (viewport gesture arbitration归口 — D-03b isolated state object).
+    @State private var layerEditingState = LayerEditingState()
 
     /// The decode actor (D-21) — one app-wide instance, injected into
     /// `ContentView` so every Open path feeds `EditorState.load`.
@@ -158,6 +161,7 @@ internal struct LightamerApp: App {
                 .environment(pipeCoordinator)
                 .environment(exportState)
                 .environment(inspectorState)
+                .environment(layerEditingState)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
                 // D-COL2 (Plan 02-04-05): capture the editor window the
                 // moment SwiftUI places it — the coordinator follows THE

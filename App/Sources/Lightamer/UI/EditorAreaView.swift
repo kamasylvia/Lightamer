@@ -40,6 +40,10 @@ internal struct EditorAreaView: View {
     /// state lives here, the sampling in the coordinator.
     @Environment(InspectorState.self) private var inspectorState
 
+    /// 06-05: the layer-editing state machine — the viewport gesture
+    /// arbitration归口 (mask tools / liquify / crop, exactly one owner).
+    @Environment(LayerEditingState.self) private var editingState
+
     var body: some View {
         @Bindable var editorState = editorState
         VStack(spacing: 0) {
@@ -63,14 +67,17 @@ internal struct EditorAreaView: View {
                         )
                         .transition(.opacity)
                         .accessibilityLabel(Text("editor_viewport"))
-                        // 04-02-T4: crop overlay above the viewport (D-G6).
+                        // 06-05: the overlay OWNER is the editing state
+                        // machine's single decision (exactly one of the
+                        // three routes is active — the mutex invariant).
                         .overlay {
                             GeometryReader { overlayGeo in
-                                if liquifyActive {
-                                    // Plan 06-06-T4: mutual exclusion with the
-                                    // crop overlay — the liquify node editor
-                                    // owns the viewport while its panel is the
-                                    // selected Inspector surface.
+                                switch viewportRoute {
+                                case .maskEditing:
+                                    MaskOverlayHost(
+                                        viewportSize: overlayGeo.size,
+                                        displaySize: displayPixelSize)
+                                case .liquify:
                                     LiquifyOverlayHost(
                                         viewportSize: overlayGeo.size,
                                         displaySize: displayPixelSize,
@@ -86,7 +93,7 @@ internal struct EditorAreaView: View {
                                             Task { await pipeCoordinator.commitContinuousEdit(label: label) }
                                         }
                                     )
-                                } else {
+                                case .crop:
                                     CropOverlayHost(
                                         viewportSize: overlayGeo.size,
                                         displaySize: displayPixelSize,
@@ -106,6 +113,14 @@ internal struct EditorAreaView: View {
                                         }
                                     )
                                 }
+                            }
+                        }
+                        // 06-05 T3.1: the mask toolbar — a floating strip at
+                        // the viewport's BOTTOM EDGE (never grows the
+                        // Inspector; the viewport keeps its ≥50% share).
+                        .overlay(alignment: .bottom) {
+                            if editorState.loadedImageURL != nil {
+                                MaskToolbarView()
                             }
                         }
                     } else {
@@ -173,6 +188,15 @@ internal struct EditorAreaView: View {
         let longEdge = Int(max(size.width, size.height).rounded())
         guard longEdge > 0 else { return }
         Task { await pipeCoordinator.drawableDidChange(drawableLongEdge: longEdge) }
+    }
+
+    // MARK: - 06-05 viewport route (the state machine's decision)
+
+    /// Exactly ONE owner for the viewport overlay (the mutex invariant):
+    /// mask tools > liquify panel > crop. The liquify route keeps the 06-6
+    /// selected-panel rule but now routes THROUGH the machine.
+    private var viewportRoute: LayerEditingState.ViewportRoute {
+        editingState.viewportRoute(liquifyPanelSelected: liquifyActive)
     }
 
     // MARK: - 04-02-T4 crop overlay inputs (D-G6)

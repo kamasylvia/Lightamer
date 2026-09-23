@@ -50,6 +50,16 @@ public struct LayerStack: Sendable, Identifiable {
 
 public extension LayerStack {
 
+    /// 06-05 helper: swap one adjustment layer in place (by id) — the
+    /// live-leg writer of property/mask edits (the LayersPanel's D-H1
+    /// live ticks + the commit reinstall). Bottom-to-top order kept.
+    mutating func replace(_ layer: AdjustmentLayer) {
+        guard let index = adjustmentLayers.firstIndex(where: { $0.id == layer.id }) else {
+            return
+        }
+        adjustmentLayers[index] = layer
+    }
+
     /// Outcome of a `mergeDown` (data-face only in 6-1; the composite
     /// semantics wire up in 6-5).
     enum MergeDownOutcome: Equatable, Sendable {

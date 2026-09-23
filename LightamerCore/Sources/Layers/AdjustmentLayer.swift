@@ -99,7 +99,10 @@ extension ModuleInstance {
     /// `paramsData`/`paramsHash` adopted VERBATIM via the persistence
     /// restore init (no re-encode, no re-hash — the D-H4 atom must stay
     /// byte-stable across a duplicate).
-    internal func clonedWithFreshIdentity() -> ModuleInstance {
+    /// 06-05: public — the App layer's「添加模块到层」menu clones global
+    /// records into a layer chain through this (Core owns the identity
+    /// mint; App never touches the internal identity-restoring init).
+    public func clonedWithFreshIdentity() -> ModuleInstance {
         ModuleInstance(
             id: UUID(),
             opName: opName,

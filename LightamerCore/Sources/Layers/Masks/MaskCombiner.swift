@@ -48,7 +48,7 @@ struct MaskCombineInput {
     var opacity: Float
 }
 
-enum MaskCombiner {
+public enum MaskCombiner {
 
     // MARK: - Kernel names (the metallib ABI)
 
@@ -447,7 +447,7 @@ enum MaskCombiner {
     /// Raster loading needs the sidecar's masks directory; `maskDirectory`
     /// nil + a raster ref present degrades through the documented all-ones
     /// leg (the reason is surfaced, never swallowed).
-    static func effectivePlane(
+    public static func effectivePlane(
         spec: MaskSpec,
         layerOpacity: Float,
         window: ROI,
