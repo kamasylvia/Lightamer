@@ -102,6 +102,14 @@ internal final class PixelPipe: @unchecked Sendable {
     /// caller owns its lifecycle. `run()` clears it.
     internal private(set) var subRunInput: (any MTLTexture)?
 
+    /// True once THIS pipe auto-installed its default stack (no caller
+    /// stack ever arrived). The auto-install is EPHEMERAL for cache naming:
+    /// its fresh BackgroundLayer UUID must never enter the keys — every
+    /// subsequent run on this pipe keeps the base sentinel (a repeat `run`
+    /// would otherwise see `layerStack != nil` and stamp a new namespace
+    /// per run, destroying the hit fast path).
+    private var usesDefaultStack = false
+
     /// Entry-ROI override (04-01-T4 `roiHint`): when set, `run()` intersects
     /// it with the scale-at-entry ROI and negotiates that sub-window
     /// instead of the full frame. Test/probe seam only — nil in production.
@@ -455,16 +463,16 @@ internal final class PixelPipe: @unchecked Sendable {
         // INSTALLED default stack (no caller stack) is ephemeral: its fresh
         // BackgroundLayer UUID must NOT enter the cache namespace (keys
         // would differ every run) — those runs keep the base sentinel.
-        let hadCallerStack = layerStack != nil
         if layerStack == nil {
             layerStack = LayerStack(baseLayer: BackgroundLayer())
+            usesDefaultStack = true
         }
-        // Layer namespace stamp (06-01 T3): real stacks key their base /
-        // terminal planes on baseLayer.id.
+        // Layer namespace stamp (06-01 T3): caller-provided real stacks key
+        // their base / terminal planes on baseLayer.id; default-stack pipes
+        // keep the sentinel forever.
         cacheLayerID =
-            hadCallerStack
-            ? (layerStack?.baseLayer.id ?? PipeCacheKey.baseLayerSentinelID)
-            : PipeCacheKey.baseLayerSentinelID
+            usesDefaultStack ? PipeCacheKey.baseLayerSentinelID
+            : (layerStack?.baseLayer.id ?? PipeCacheKey.baseLayerSentinelID)
         // A plain run renders the decode — clear any sub-run input.
         subRunInput = nil
 

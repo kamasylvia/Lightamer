@@ -1,0 +1,369 @@
+@testable import LightamerCore
+import LightamerIOP
+import Metal
+import XCTest
+
+/// Plan 06-01 T6 — sidecar v2: the typed layer stack (frozen spelling),
+/// v1 document compatibility, the layer-aware drift anchor, the history
+/// `stackSnapshot` payload, and the per-layer unknown-op degrade.
+///
+/// Round-trip contract: 3-layer stack → write → read → params byte-equal +
+/// UUID identity + RENDER byte-identity (L014 fence, L020 ③).
+final class Phase6SidecarTests: XCTestCase {
+
+    // ── Fixtures ──
+
+    private func makeMetal() async throws -> MetalContext {
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        return metal
+    }
+
+    private func makeRegistry() async -> ModuleRegistry {
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        return registry
+    }
+
+    private func gainRecord(_ gain: Float, priority: Int = 0) -> ModuleInstance {
+        ModuleInstance(
+            module: TestGainModule.self, multiPriority: priority,
+            params: TestGainModule.Params(gain: gain))
+    }
+
+    /// Three layers: non-default gain chains, distinct opacities, one with
+    /// a non-normal… no — normal blend only (the degenerate composite's
+    /// precondition); one carries the mask shell.
+    private func makeStack() -> LayerStack {
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let a = AdjustmentLayer(name: "Lift", opacity: 1.0, chain: [gainRecord(1.5)])
+        let b = AdjustmentLayer(name: "Cut", opacity: 0.7, chain: [gainRecord(0.6)])
+        b.mask = MaskSpec()
+        let c = AdjustmentLayer(name: "Push", opacity: 1.0, chain: [
+            gainRecord(2.0), gainRecord(0.9, priority: 1),
+        ])
+        c.blendOptions = [.reverse]
+        stack.addAdjustment(a)
+        stack.addAdjustment(b)
+        stack.addAdjustment(c)
+        return stack
+    }
+
+    private func makeSidecar(stack: LayerStack) -> LightamerSidecar {
+        let decodeHash: UInt64 = 0x1234_5678_9ABC_DEF0
+        let hash = HistoryHash.hash(
+            stack: HistoryStack(), decodeParamsHash: decodeHash,
+            layerSnapshot: LayerStackSnapshot(stack))
+        return LightamerSidecar(
+            imageID: Self.imageID, decoderVersionUsed: "v8",
+            decodeParamsHash: decodeHash, instances: [],
+            history: HistoryStack(), historyHash: hash, appVersion: "0.1.0",
+            layerStack: SidecarLayerStackRecord(stack))
+    }
+
+    private static let imageID = UUID()
+
+    /// L014 fence + raw plane read.
+    private static func planeBytes(
+        _ texture: any MTLTexture, metal: MetalContext
+    ) -> [UInt8] {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+        var bytes = [UInt8](repeating: 0, count: texture.width * texture.height * 4)
+        bytes.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: texture.width * 4,
+                from: MTLRegionMake2D(0, 0, texture.width, texture.height),
+                mipmapLevel: 0)
+        }
+        return bytes
+    }
+
+    // ── 1. The 3-layer round trip ──
+
+    /// write → read → (a) parameters byte-equal, UUID identity, blend/
+    /// opacity/mask survive; (b) the restored stack's composite render is
+    /// byte-identical to the original's.
+    func testThreeLayerStackRoundTripAndRenderIdentity() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = await makeRegistry()
+        let stack = makeStack()
+        let sidecar = makeSidecar(stack: stack)
+
+        XCTAssertEqual(sidecar.schemaVersion, 2, "writers emit the current version")
+        XCTAssertFalse(sidecar.driftDetected, "write-time hash must be self-consistent")
+
+        let data = try JSONEncoder().encode(sidecar)
+        let decoded = try JSONDecoder().decode(LightamerSidecar.self, from: data)
+
+        // (a) Parameter-level fidelity.
+        let originalLayers = stack.compositeLayers
+        let restored = try XCTUnwrap(decoded.layerStack).adjustmentLayers
+        XCTAssertEqual(restored.count, 3)
+        for (original, back) in zip(originalLayers, restored) {
+            XCTAssertEqual(back.id, original.id, "NDE-1: UUID identity survives")
+            XCTAssertEqual(back.name, original.name)
+            XCTAssertEqual(back.opacity, original.opacity)
+            XCTAssertEqual(back.blendMode, original.blendMode)
+            XCTAssertEqual(back.blendOptions, original.blendOptions)
+            XCTAssertEqual(back.isVisible, original.isVisible)
+            XCTAssertEqual(back.enabled, original.enabled)
+            XCTAssertEqual(back.mask, original.mask, "mask shell survives")
+            XCTAssertEqual(back.chain.count, original.chain.count)
+            for (recordOriginal, recordBack) in zip(original.chain, back.chain) {
+                XCTAssertEqual(recordBack.id, recordOriginal.id)
+                XCTAssertEqual(recordBack.paramsData, recordOriginal.paramsData,
+                               "params bytes byte-equal (ONE-WAY lock)")
+                XCTAssertEqual(recordBack.paramsHash, recordOriginal.paramsHash,
+                               "D-H4 atom verbatim")
+            }
+        }
+        XCTAssertTrue(decoded.driftDetected == false, "restored document is not drift")
+
+        // (b) Render-level fidelity: composite(original) == composite(restored).
+        let image = try makeGradientImage()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        var restoredStack = LayerStack(baseLayer: BackgroundLayer())
+        for layer in restored { restoredStack.addAdjustment(layer) }
+
+        let originalRender = try await LayerCompositeDriver.composite(
+            image: image, imageID: UUID(), baseInstances: base,
+            layerStack: stack, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview)
+        let restoredRender = try await LayerCompositeDriver.composite(
+            image: image, imageID: UUID(), baseInstances: base,
+            layerStack: restoredStack, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview)
+
+        let originalBytes = Self.planeBytes(originalRender.output, metal: metal)
+        let restoredBytes = Self.planeBytes(restoredRender.output, metal: metal)
+        XCTAssertEqual(originalBytes.count, restoredBytes.count)
+        XCTAssertGreaterThan(originalBytes.count, 0, "防空转 guard")
+        XCTAssertTrue(originalBytes.elementsEqual(restoredBytes),
+                      "round-trip render must be byte-identical")
+    }
+
+    // ── 2. v1 document compatibility ──
+
+    /// A v1 document (the String layerStack reservation, always null) and
+    /// a v1-shaped document with the key absent entirely both decode with
+    /// `layerStack == nil` — the 02-06 reader contract is a strict prefix
+    /// of the v2 shape.
+    func testV1DocumentsDecodeWithNilLayerStack() throws {
+        // The hash-consistent way to build a v1 sample: encode a REAL
+        // v2 document without layers, then downgrade its schemaVersion —
+        // byte-for-byte what a v1 writer produced (minus the null key).
+        let decodeHash: UInt64 = 1311768467463790320
+        let v2 = LightamerSidecar(
+            imageID: Self.imageID, decoderVersionUsed: "v8",
+            decodeParamsHash: decodeHash, instances: [],
+            history: HistoryStack(),
+            historyHash: HistoryHash.hash(stack: HistoryStack(), decodeParamsHash: decodeHash),
+            appVersion: "0.1.0")
+        let downgraded = String(
+            data: try JSONEncoder().encode(v2), encoding: .utf8)!
+            .replacingOccurrences(of: "\"schemaVersion\":2", with: "\"schemaVersion\":1")
+        let decoded = try JSONDecoder().decode(LightamerSidecar.self, from: Data(downgraded.utf8))
+        XCTAssertEqual(decoded.schemaVersion, 1)
+        XCTAssertNil(decoded.layerStack, "v1 String reservation decodes to nil")
+        XCTAssertFalse(decoded.driftDetected,
+                       "the downgraded v1 document stays drift-free")
+
+        // A HAND-WRITTEN v1 sample (the null layerStack + arbitrary hash):
+        // decode tolerance only — the drift verdict is meaningless for an
+        // arbitrary hash, so it is deliberately not asserted here.
+        let v1JSON = """
+        {
+          "schemaVersion" : 1,
+          "appVersion" : "0.1.0",
+          "decoderVersionUsed" : "v8",
+          "decodeParamsHash" : "1311768467463790320",
+          "imageID" : "\(Self.imageID.uuidString)",
+          "instances" : [ ],
+          "history" : { "items" : [ ], "position" : -1 },
+          "historyHash" : "42",
+          "layerStack" : null
+        }
+        """
+        let handWritten = try JSONDecoder().decode(LightamerSidecar.self, from: Data(v1JSON.utf8))
+        XCTAssertEqual(handWritten.schemaVersion, 1)
+        XCTAssertNil(handWritten.layerStack)
+
+        // The key absent entirely (hand-edited / minimized writers).
+        let minimalJSON = """
+        {
+          "schemaVersion" : 1,
+          "appVersion" : "0.1.0",
+          "decoderVersionUsed" : "v8",
+          "decodeParamsHash" : "1311768467463790320",
+          "imageID" : "\(Self.imageID.uuidString)",
+          "instances" : [ ],
+          "history" : { "items" : [ ], "position" : -1 },
+          "historyHash" : "42"
+        }
+        """
+        let minimal = try JSONDecoder().decode(LightamerSidecar.self, from: Data(minimalJSON.utf8))
+        XCTAssertNil(minimal.layerStack)
+    }
+
+    /// A v2 writer with NO layers omits the typed record — decode yields
+    /// nil and the shape stays mutually readable with v1 consumers.
+    func testV2DocumentWithoutLayersOmitsRecord() throws {
+        let decodeHash: UInt64 = 42
+        let sidecar = LightamerSidecar(
+            imageID: Self.imageID, decoderVersionUsed: "v8",
+            decodeParamsHash: decodeHash, instances: [],
+            history: HistoryStack(),
+            historyHash: HistoryHash.hash(stack: HistoryStack(), decodeParamsHash: decodeHash),
+            appVersion: "0.1.0")
+        let data = try JSONEncoder().encode(sidecar)
+        let json = String(data: data, encoding: .utf8) ?? ""
+        XCTAssertFalse(json.contains("layers"), "no layer payload emitted when nil")
+        let decoded = try JSONDecoder().decode(LightamerSidecar.self, from: data)
+        XCTAssertNil(decoded.layerStack)
+        XCTAssertFalse(decoded.driftDetected)
+    }
+
+    // ── 3. Layer-aware drift anchor ──
+
+    /// Tampering with a layer chain byte flips the drift verdict even
+    /// though the global instance set is untouched; and the tamper target
+    /// is compared against REAL recomputation (compared > 0 analog: the
+    /// verdicts differ between intact and tampered documents).
+    func testLayerAwareDriftDetection() throws {
+        let stack = makeStack()
+        let sidecar = makeSidecar(stack: stack)
+        XCTAssertFalse(sidecar.driftDetected)
+
+        // Tamper 1: a LAYER PROP (opacity) — the explicit prop fold flips.
+        var tampered = sidecar
+        var tamperedLayers = tampered.layerStack?.layers ?? []
+        XCTAssertGreaterThan(tamperedLayers.count, 0, "防空转 guard")
+        tamperedLayers[0].opacity = 0.42
+        tampered.layerStack = SidecarLayerStackRecord(layers: tamperedLayers)
+        XCTAssertTrue(tampered.driftDetected,
+                      "a layer-prop tamper IS drift under the layer-aware anchor")
+
+        // Tamper 2: a layer chain's PARAM BYTES (the D-H4 fold source).
+        var paramsTampered = sidecar
+        var layers2 = paramsTampered.layerStack?.layers ?? []
+        var mutatedRecord = layers2[0].chain[0].instance
+        mutatedRecord.paramsData = Data("{\"gain\":9.0}".utf8)
+        layers2[0].chain[0] = SidecarInstanceRecord(mutatedRecord)
+        paramsTampered.layerStack = SidecarLayerStackRecord(layers: layers2)
+        XCTAssertTrue(paramsTampered.driftDetected,
+                      "a layer-params tamper IS drift")
+
+        // Structural tamper: dropping a layer flips the verdict too.
+        var structurallyTampered = sidecar
+        structurallyTampered.layerStack = SidecarLayerStackRecord(
+            layers: Array(sidecar.layerStack?.layers.dropFirst() ?? []))
+        XCTAssertTrue(structurallyTampered.driftDetected,
+                      "dropping a layer IS drift")
+    }
+
+    /// The history item payload: a structure edit's stackSnapshot survives
+    /// the full sidecar round-trip through the SAME frozen layer spelling.
+    func testHistoryStackSnapshotRoundTrip() throws {
+        var stack = HistoryStack()
+        let snapshot = LayerStackSnapshot(makeStack())
+        stack.commit(
+            gainRecord(1.0), label: "add layer A",
+            layerScope: snapshot.layers.first?.id.uuidString,
+            stackSnapshot: snapshot)
+
+        let data = try JSONEncoder().encode(stack)
+        let decoded = try JSONDecoder().decode(HistoryStack.self, from: data)
+        XCTAssertEqual(decoded, stack, "the runtime Codable path round-trips")
+        XCTAssertEqual(decoded.items[0].stackSnapshot, snapshot)
+
+        // The SIDECAR path: decimal-String hashes end to end. NOTE the
+        // drift anchor folds the TOP-LEVEL layerStack (the live stack);
+        // this document carries layers only inside the history snapshot,
+        // so its write-time hash is the no-layer form — self-consistent.
+        let decodeHash: UInt64 = 7
+        let sidecar = LightamerSidecar(
+            imageID: Self.imageID, decoderVersionUsed: "v8",
+            decodeParamsHash: decodeHash, instances: [], history: stack,
+            historyHash: HistoryHash.hash(stack: stack, decodeParamsHash: decodeHash),
+            appVersion: "0.1.0")
+        let sidecarData = try JSONEncoder().encode(sidecar)
+        let sidecarJSON = String(data: sidecarData, encoding: .utf8) ?? ""
+        // Snapshot chain paramsHash values must serialize as decimal
+        // Strings in the sidecar (ONE-WAY lock) — regex-level check for a
+        // numeric (unquoted) hash anywhere in the document.
+        let numericHashRanges = sidecarJSON.ranges(of: /"paramsHash":\d/)
+        XCTAssertTrue(numericHashRanges.isEmpty,
+                      "snapshot hashes must serialize as decimal Strings in the sidecar")
+        XCTAssertFalse(sidecarJSON.isEmpty, "防空转 guard")
+        let sidecarBack = try JSONDecoder().decode(LightamerSidecar.self, from: sidecarData)
+        XCTAssertEqual(sidecarBack.history.items[0].stackSnapshot, snapshot,
+                       "snapshot survives the sidecar projection verbatim")
+        XCTAssertFalse(sidecarBack.driftDetected)
+    }
+
+    // ── 4. Unknown-op degrade, layer dimension ──
+
+    /// A layer chain carrying an op the current binary cannot build: the
+    /// LAYER flips enabled=false (drops out of the composite), its chain
+    /// bytes stay verbatim (a future binary restores it), and the unknown
+    /// op is reported for the toast.
+    func testUnknownOpInLayerChainDegradesLayer() async throws {
+        let registry = await makeRegistry()
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let good = AdjustmentLayer(name: "Good", opacity: 1.0, chain: [gainRecord(1.4)])
+        let future = AdjustmentLayer(name: "Future", opacity: 1.0, chain: [
+            gainRecord(2.0),
+            ModuleInstance(
+                id: UUID(), opName: "op_from_the_future", multiPriority: 0,
+                multiName: "", iopOrder: 50.6, version: 1, enabled: true,
+                paramsData: Data("{}".utf8), paramsHash: 42),
+        ])
+        stack.addAdjustment(good)
+        stack.addAdjustment(future)
+
+        let sidecar = makeSidecar(stack: stack)
+        let (degraded, unknownOps) = await sidecar.degradedLayerStack(registry: registry)
+        XCTAssertEqual(unknownOps, ["op_from_the_future"])
+        let records = degraded?.layers ?? []
+        XCTAssertEqual(records.count, 2)
+        XCTAssertTrue(records[0].enabled, "the healthy layer stays enabled")
+        XCTAssertFalse(records[1].enabled, "the unknown-op layer is disabled")
+        XCTAssertEqual(records[1].chain[1].instance.opName, "op_from_the_future")
+        XCTAssertEqual(records[1].chain[1].instance.paramsData, Data("{}".utf8),
+                       "unknown-op params kept verbatim (never dropped)")
+        XCTAssertEqual(records[1].chain[0].instance.enabled, true,
+                       "chain records keep their own enabled flags verbatim")
+    }
+
+    // ── fixture ──
+
+    private func makeGradientImage(width: Int = 48, height: Int = 32) throws -> DecodedImage {
+        var pixels = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let o = (y * width + x) * 4
+                pixels[o + 0] = 0.1 + 0.7 * Float(x) / Float(width - 1)
+                pixels[o + 1] = 0.2 + 0.5 * Float(y) / Float(height - 1)
+                pixels[o + 2] = 0.3
+                pixels[o + 3] = 1.0
+            }
+        }
+        let bitmap = pixels.withUnsafeBytes { Data($0) }
+        return DecodedImage(
+            ciImage: CIImage(
+                bitmapData: bitmap,
+                bytesPerRow: width * 4 * MemoryLayout<Float>.stride,
+                size: CGSize(width: width, height: height),
+                format: .RGBAf, colorSpace: WorkingSpace.colorSpace),
+            rawTech: RAWTechnicalParams(blackLevel: 0.0),
+            capture: CaptureMetadata(),
+            segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8)
+    }
+}

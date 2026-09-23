@@ -49,7 +49,15 @@ public struct HistoryStack: Codable, Sendable, Equatable {
     /// One committed edit step: the full instance snapshot + presentation
     /// metadata. `layerScope` is the Phase 6 forward-compatibility hook
     /// (D-H2 note: layer-scoped entries arrive with the adjustment-layer
-    /// system; nil = image-global edit, the only kind Phase 2 produces).
+    /// system; nil = image-global edit).
+    ///
+    /// Codable spelling (checkpoint 02-05-01 lock #6 — FROZEN PREFIX):
+    /// `{id, snapshot, label, timestamp, layerScope}`; Plan 06-01 T6 adds
+    /// `stackSnapshot` as an OPTIONAL decodeIfPresent field — v1 documents
+    /// decode unchanged, v2 writers omit it when nil. NOTE: this runtime
+    /// Codable path is the IN-MEMORY shape (paramsHash as a JSON number);
+    /// the sidecar projects through `SidecarHistoryItemRecord` (decimal
+    /// String hashes), so precision never crosses a process boundary.
     public struct HistoryItem: Codable, Sendable, Identifiable, Equatable {
 
         public let id: UUID
@@ -65,9 +73,17 @@ public struct HistoryStack: Codable, Sendable, Equatable {
         /// Phase 6 reservation: nil = image-global.
         public var layerScope: String?
 
-        /// Frozen CodingKeys — checkpoint 02-05-01 lock #6.
+        /// Plan 06-01 T6: the full layer-stack snapshot for STRUCTURE edits
+        /// (add/remove/reorder/duplicate/mergeDown/property changes) — a
+        /// lightweight value copy (chain = param bytes, mask = the record
+        /// shell; no textures), restorable wholesale. nil for param-scope
+        /// items.
+        public var stackSnapshot: LayerStackSnapshot?
+
+        /// Frozen CodingKeys — checkpoint 02-05-01 lock #6 (+ the 06-01
+        /// additive stackSnapshot field).
         private enum CodingKeys: String, CodingKey {
-            case id, snapshot, label, timestamp, layerScope
+            case id, snapshot, label, timestamp, layerScope, stackSnapshot
         }
 
         public init(
@@ -75,15 +91,39 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             snapshot: ModuleInstance,
             label: String,
             timestamp: Date = Date(),
-            layerScope: String? = nil
+            layerScope: String? = nil,
+            stackSnapshot: LayerStackSnapshot? = nil
         ) {
             self.id = id
             self.snapshot = snapshot
             self.label = label
             self.timestamp = timestamp
             self.layerScope = layerScope
+            self.stackSnapshot = stackSnapshot
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(UUID.self, forKey: .id)
+            snapshot = try container.decode(ModuleInstance.self, forKey: .snapshot)
+            label = try container.decode(String.self, forKey: .label)
+            timestamp = try container.decode(Date.self, forKey: .timestamp)
+            layerScope = try container.decodeIfPresent(String.self, forKey: .layerScope)
+            stackSnapshot = try container.decodeIfPresent(
+                LayerStackSnapshot.self, forKey: .stackSnapshot)
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(id, forKey: .id)
+            try container.encode(snapshot, forKey: .snapshot)
+            try container.encode(label, forKey: .label)
+            try container.encode(timestamp, forKey: .timestamp)
+            try container.encodeIfPresent(layerScope, forKey: .layerScope)
+            try container.encodeIfPresent(stackSnapshot, forKey: .stackSnapshot)
         }
     }
+
 
     public init() {}
 
@@ -102,18 +142,21 @@ public struct HistoryStack: Codable, Sendable, Equatable {
     // MARK: - Mutation (the only writers of items/position)
 
     /// Commit one edit step (D-H1 drag-end lands here): truncate the redo
-    /// tail after `position`, append, point at the new entry.
+    /// tail after `position`, append, point at the new entry. Structure
+    /// edits (6-5 wiring) additionally pass `stackSnapshot` (Plan 06-01 T6).
     public mutating func commit(
         _ snapshot: ModuleInstance,
         label: String,
-        layerScope: String? = nil
+        layerScope: String? = nil,
+        stackSnapshot: LayerStackSnapshot? = nil
     ) {
         if position + 1 < items.count {
             items.removeSubrange(items.index(items.startIndex, offsetBy: position + 1)...)
         }
         items.append(
             HistoryItem(
-                snapshot: snapshot, label: label, layerScope: layerScope
+                snapshot: snapshot, label: label, layerScope: layerScope,
+                stackSnapshot: stackSnapshot
             )
         )
         position = items.count - 1
