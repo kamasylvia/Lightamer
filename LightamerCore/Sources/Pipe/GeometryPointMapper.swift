@@ -29,9 +29,9 @@ import Foundation
 //                    kernel's sampling map `LensModule.forwardPoint`, the
 //                    forward solves it by guarded Newton — plan allows
 //                    iterative inversion with a precision gate)
-// - `.liquifyIdentity` — the 6-6 reservation (RESEARCH Risk 9: an EMPTY
-//                    liquify is the NORMAL path, so the placeholder must be
-//                    the identity, never a gap).
+// - `.liquify`      — the 6-6 displacement field (Plan 06-06 T3; an EMPTY
+//                    liquify contributes NO segment — RESEARCH Risk 9's
+//                    normal path stays the identity by omission).
 //
 // EMPTY/DISABLED modules contribute NOTHING (identity passthrough by
 // omission) — the neutral base chain maps masks 1:1 (the common path).
@@ -58,10 +58,17 @@ public enum GeometrySegment: Sendable, Equatable {
     /// it (decode p → composite q) by guarded Newton on u.
     case radial(k1: Double, k2: Double, size: SIMD2<Double>)
 
-    /// 6-6 reservation: an empty liquify path is the NORMAL path (RESEARCH
-    /// Risk 9) — the placeholder maps points 1:1 until the displacement
-    /// field lands.
-    case liquifyIdentity
+    /// 6-6 reservation REALIZED (Plan 06-06 T3): the liquify displacement
+    /// field, in the chain at slot 18.0 — an EMPTY liquify contributes NO
+    /// segment (the module's pointMapSegment returns nil), so the normal
+    /// path stays the identity it always was.
+    ///
+    /// Legs (DisplacementField semantics — the backward sampling map):
+    /// inverse (composite q → decode p) = q + F(q), EXACT (the kernel's
+    /// sampling map); forward (decode p → composite q) solves
+    /// q + F(q) = p by guarded fixed-point iteration (content moves by −F)
+    /// — the same exact/approximate split as the `.radial` lens pair.
+    case liquify(DisplacementField)
 }
 
 /// The exact affine (`p' = A·p + t`, row-major 2×2 + translation).
@@ -201,8 +208,17 @@ public struct GeometryPointMapper: Sendable {
         case let .radial(k1, k2, size):
             precondition(size == inSize, "lens segment frame drift")
             return (Self.lensForward(p, k1: k1, k2: k2, size: size), size)
-        case .liquifyIdentity:
-            return (p, inSize)
+        case let .liquify(field):
+            // Content direction: solve q + F(q) = p — guarded fixed-point
+            // (the lens `.radial` forward's analog; the roundtrip gate is
+            // the referee). Seed from the first-order form q ≈ p − F(p).
+            var q = p - field.sampleForward(p)
+            for _ in 0..<24 {
+                let residual = p - (q + field.sampleForward(q))
+                q += residual
+                if residual.x * residual.x + residual.y * residual.y < 1e-16 { break }
+            }
+            return (q, inSize)
         }
     }
 
@@ -219,8 +235,11 @@ public struct GeometryPointMapper: Sendable {
         case let .radial(k1, k2, size):
             precondition(size == outSize, "lens segment frame drift")
             return (Self.lensInverse(q, k1: k1, k2: k2, size: size), size)
-        case .liquifyIdentity:
-            return (q, outSize)
+        case let .liquify(field):
+            // The kernel's sampling map — p = q + F(q), EXACT (content at
+            // decode p + F(p) shows at composite q... the composite pixel q
+            // samples decode q + F(q)).
+            return (q + field.sampleForward(q), outSize)
         }
     }
 
@@ -341,8 +360,10 @@ public struct GeometryPointMapper: Sendable {
                     h[2, 0], h[2, 1], h[2, 2])
                 m = Mat3D.mul(hm, m)
                 outSize = outSpan
-            case .radial, .liquifyIdentity:
-                break // radial handled separately (non-projective); liquify identity
+            case .radial, .liquify:
+                break // radial handled separately (non-projective); liquify
+                      // rides the staged decomposition below (its inverse
+                      // sits BETWEEN the crop and flip/ashift inverses)
             }
         }
         // The GPU leg consumes the INVERSE direction (window pixel → decode
@@ -356,6 +377,79 @@ public struct GeometryPointMapper: Sendable {
         return Mat3D.mul(
             Mat3D.mul(diag(1 / frameSize.x, 1 / frameSize.y), mInv),
             diag(outSize.x, outSize.y))
+    }
+
+    /// The STAGED GPU decomposition (Plan 06-06 T3 — the mask raster
+    /// kernel's inverse chain when a liquify segment is present):
+    ///
+    ///   cn → post⁻¹ (projective) → liquify⁻¹ (grid) → pre⁻¹ (projective)
+    ///        → lens leg
+    ///
+    /// liquify (18.0) sits BETWEEN flip (16) and crop (24.5), so a single
+    /// folded matrix cannot carry its inverse — the crop part must invert
+    /// FIRST (stage `post`), the flip/ashift part AFTER the grid (stage
+    /// `pre`). `field` nil = no liquify segment: `post` is identity and
+    /// `pre` is the FULL fold — bit-compatible with the historical
+    /// `projectiveInverseComposite` single-matrix path.
+    public var stagedInverseComposite: (
+        post: Mat3D, pre: Mat3D, field: DisplacementField?, mid: SIMD2<Double>
+    ) {
+        var post = Mat3D.identity
+        var pre = Mat3D.identity
+        var field: DisplacementField?
+        var midFrame: SIMD2<Double>?
+        // Forward fold in chain order; segments AFTER the liquify slot fold
+        // into `post` (they invert first), those BEFORE into `pre`. The MID
+        // frame (the liquify stage's frame = the first post-segment's
+        // inSize) is the stage boundary both conjugations need.
+        var passedLiquify = false
+        for segment in segments {
+            var m = Mat3D.identity
+            var inSize: SIMD2<Double>?
+            switch segment {
+            case let .affine(a, segIn, _):
+                m = Mat3D(a.a00, a.a01, a.tx, a.a10, a.a11, a.ty, 0, 0, 1)
+                inSize = segIn
+            case let .homography(h, _, clip, segIn, _):
+                m = Mat3D(
+                    h[0, 0] - clip.x * h[2, 0], h[0, 1] - clip.x * h[2, 1], h[0, 2] - clip.x * h[2, 2],
+                    h[1, 0] - clip.y * h[2, 0], h[1, 1] - clip.y * h[2, 1], h[1, 2] - clip.y * h[2, 2],
+                    h[2, 0], h[2, 1], h[2, 2])
+                inSize = segIn
+            case let .radial(_, _, size):
+                inSize = size
+            case let .liquify(f):
+                field = f
+                passedLiquify = true
+                continue
+            }
+            // Segments AFTER the liquify slot invert FIRST (stage `post`);
+            // those BEFORE fold into `pre` (applied after the grid leg).
+            if passedLiquify {
+                if midFrame == nil { midFrame = inSize }
+                post = Mat3D.mul(m, post)
+            } else {
+                pre = Mat3D.mul(m, pre)
+            }
+        }
+        let mid = midFrame ?? outputSize
+        guard let postInv = post.inverted(), let preInv = pre.inverted() else {
+            return (Mat3D.identity, Mat3D.identity, field, mid)
+        }
+        // The GPU leg consumes the INVERSE direction; each stage conjugates
+        // by its OWN endpoint frames:
+        //   post: composite_n (over outputSize) → mid_n   (crop⁻¹ leg)
+        //   pre:  mid_n → decode_n (pre-lens)             (flip/ashift⁻¹ leg)
+        func diag(_ sx: Double, _ sy: Double) -> Mat3D {
+            Mat3D(sx, 0, 0, 0, sy, 0, 0, 0, 1)
+        }
+        let postConj = Mat3D.mul(
+            Mat3D.mul(diag(1 / mid.x, 1 / mid.y), postInv),
+            diag(outputSize.x, outputSize.y))
+        let preConj = Mat3D.mul(
+            Mat3D.mul(diag(1 / frameSize.x, 1 / frameSize.y), preInv),
+            diag(mid.x, mid.y))
+        return (postConj, preConj, field, mid)
     }
 
     /// The lens parameters for the GPU leg (nil = no radial segment).

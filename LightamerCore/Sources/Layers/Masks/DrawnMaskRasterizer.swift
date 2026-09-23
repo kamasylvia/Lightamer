@@ -31,7 +31,7 @@ import Metal
 /// Swift mirror of the MSL `MaskRasterUniforms` (10 float4 + 1 uint4 —
 /// every member a 16-byte chunk, the ashift packing-postmortem pattern).
 struct MaskRasterUniforms {
-    var rows0: SIMD4<Float>     // projective inverse row 0 (composite_n → pre-lens_n)
+    var rows0: SIMD4<Float>     // PRE stage row 0 (mid_n → pre-lens decode_n)
     var rows1: SIMD4<Float>     // row 1
     var rows2: SIMD4<Float>     // row 2
     var lens: SIMD4<Float>      // k1, k2, hasLens, aspect (frameH/frameW)
@@ -41,12 +41,37 @@ struct MaskRasterUniforms {
     var form1: SIMD4<Float>     // rotationDeg, border, compression, curvature
     var misc: SIMD4<Float>      // formType (0 ellipse, 1 path, 2 gradient), gradState, 0, 0
     var bands: SIMD4<UInt32>    // rowBegin, rowEnd, 0, 0
+    // Plan 06-06-T3 staged decomposition (liquify's inverse legs between
+    // the crop⁻¹ and flip/ashift⁻¹ projective stages — 16-byte chunks, the
+    // packing-postmortem pattern).
+    var post0: SIMD4<Float>     // POST stage row 0 (composite_n → mid_n)
+    var post1: SIMD4<Float>     // row 1
+    var post2: SIMD4<Float>     // row 2
+    var liq0: SIMD4<Float>      // grid originX, originY (mid px), gridW, gridH
+    var liq1: SIMD4<Float>      // hasLiquify, midW, midH, 0
 
     init(mapper: GeometryPointMapper, window: ROI, form: MaskForm) {
-        let m = mapper.projectiveInverseComposite
+        // Staged decomposition: `pre` carries the full fold when no liquify
+        // segment exists (bit-compatible with the historical single matrix);
+        // with one, the crop⁻¹ part splits into `post` and the liquify grid
+        // legs between the stages.
+        let staged = mapper.stagedInverseComposite
+        let m = staged.pre
         rows0 = SIMD4(Float(m[0, 0]), Float(m[0, 1]), Float(m[0, 2]), 0)
         rows1 = SIMD4(Float(m[1, 0]), Float(m[1, 1]), Float(m[1, 2]), 0)
         rows2 = SIMD4(Float(m[2, 0]), Float(m[2, 1]), Float(m[2, 2]), 0)
+        post0 = SIMD4(Float(staged.post[0, 0]), Float(staged.post[0, 1]), Float(staged.post[0, 2]), 0)
+        post1 = SIMD4(Float(staged.post[1, 0]), Float(staged.post[1, 1]), Float(staged.post[1, 2]), 0)
+        post2 = SIMD4(Float(staged.post[2, 0]), Float(staged.post[2, 1]), Float(staged.post[2, 2]), 0)
+        if let field = staged.field {
+            liq0 = SIMD4(
+                Float(field.forward.origin.x), Float(field.forward.origin.y),
+                Float(field.forward.width), Float(field.forward.height))
+            liq1 = SIMD4(1, Float(staged.mid.x), Float(staged.mid.y), 0)
+        } else {
+            liq0 = SIMD4(0, 0, 0, 0)
+            liq1 = SIMD4(0, Float(staged.mid.x), Float(staged.mid.y), 0)
+        }
         let lp = mapper.lensParams
         let aspect = Self.aspectOf(mapper)
         lens = SIMD4(
@@ -147,6 +172,10 @@ public enum DrawnMaskRasterizer {
         }
         let accumulator = try makePlane([.shaderRead, .shaderWrite, .renderTarget])
         let final = try makePlane([.shaderRead])
+        // Plan 06-06-T3: ONE liquify displacement-grid buffer per render
+        // (bound at the kernels' new slots; a dummy when the mapper has no
+        // liquify segment — MSL requires a valid binding either way).
+        let liqGrid = try Self.liquifyGridBuffer(mapper: mapper, metal: metal)
 
         // v1 plane composition (06-03): ALL brush strokes of the spec
         // accumulate IN ORDER into one additive pass each (the eraser =
@@ -167,11 +196,12 @@ public enum DrawnMaskRasterizer {
                 if rowBands > 1 {
                     try await dispatchAnalyticBanded(
                         uniforms: uniforms, accumulator: accumulator,
-                        bands: rowBands, metal: metal)
+                        bands: rowBands, metal: metal, liqGrid: liqGrid)
                 } else {
                     uniforms.bands = SIMD4(0, UInt32.max, 0, 0)
                     try await dispatchAnalytic(
-                        uniforms: uniforms, accumulator: accumulator, metal: metal)
+                        uniforms: uniforms, accumulator: accumulator, metal: metal,
+                        liqGrid: liqGrid)
                 }
             case let .path(path):
                 guard !analyticDispatched else { continue }
@@ -182,12 +212,13 @@ public enum DrawnMaskRasterizer {
                 if rowBands > 1 {
                     try await dispatchAnalyticBanded(
                         uniforms: uniforms, accumulator: accumulator,
-                        bands: rowBands, metal: metal, polyline: points)
+                        bands: rowBands, metal: metal, polyline: points,
+                        liqGrid: liqGrid)
                 } else {
                     uniforms.bands = SIMD4(0, UInt32.max, 0, 0)
                     try await dispatchAnalytic(
                         uniforms: uniforms, accumulator: accumulator, metal: metal,
-                        polyline: points)
+                        polyline: points, liqGrid: liqGrid)
                 }
             case let .brush(stroke):
                 // The FIRST brush form clears the accumulator; every later
@@ -196,7 +227,7 @@ public enum DrawnMaskRasterizer {
                 try await renderStamps(
                     stroke: stroke, window: window, mapper: mapper,
                     accumulator: accumulator, metal: metal,
-                    clear: !brushDispatched)
+                    clear: !brushDispatched, liqGrid: liqGrid)
                 brushDispatched = true
             }
         }
@@ -221,13 +252,43 @@ public enum DrawnMaskRasterizer {
         mapper.frameSize.x > 0 ? mapper.frameSize.y / mapper.frameSize.x : 1
     }
 
+    // MARK: - Liquify grid buffer (Plan 06-06-T3)
+
+    /// The displacement grid of the mapper's liquify segment as an MTLBuffer
+    /// (float2 per cell) — or a 16-byte dummy when absent (the kernels take
+    /// a valid binding either way; the hasLiquify flag gates the leg).
+    private static func liquifyGridBuffer(
+        mapper: GeometryPointMapper, metal: MetalContext
+    ) throws -> any MTLBuffer {
+        var field: DisplacementField?
+        for segment in mapper.segments {
+            if case let .liquify(f) = segment { field = f }
+        }
+        guard let field else {
+            var dummy = SIMD4<Float>(0, 0, 0, 0)
+            guard let buffer = metal.device.makeBuffer(
+                bytes: &dummy, length: MemoryLayout<SIMD4<Float>>.stride,
+                options: .storageModeShared)
+            else { throw MetalError.deviceUnavailable }
+            return buffer
+        }
+        var vectors = field.forward.vectors
+        guard let buffer = metal.device.makeBuffer(
+            bytes: &vectors,
+            length: max(1, vectors.count) * MemoryLayout<SIMD2<Float>>.stride,
+            options: .storageModeShared)
+        else { throw MetalError.deviceUnavailable }
+        return buffer
+    }
+
     // MARK: - Analytic dispatch (ellipse / path / gradient)
 
     private static func dispatchAnalytic(
         uniforms: MaskRasterUniforms,
         accumulator: any MTLTexture,
         metal: MetalContext,
-        polyline: [SIMD2<Float>]? = nil
+        polyline: [SIMD2<Float>]? = nil,
+        liqGrid: any MTLBuffer
     ) async throws {
         // The 176-byte uniform struct rides a SHARED MTLBuffer — never
         // setBytes: the stack-addressed large-struct setBytes upload raced
@@ -244,6 +305,7 @@ public enum DrawnMaskRasterizer {
         let session = try await metal.makeEncoder(functionName: "mask_raster_analytic")
         session.encoder.setTexture(accumulator, index: 0)
         session.encoder.setBuffer(uniformBuffer, offset: 0, index: 0)
+        session.encoder.setBuffer(liqGrid, offset: 0, index: 3)
         if !points.isEmpty {
             session.encoder.setBytes(&points, length: points.count * 8, index: 1)
             session.encoder.setBytes(&count, length: 4, index: 2)
@@ -266,7 +328,8 @@ public enum DrawnMaskRasterizer {
         accumulator: any MTLTexture,
         bands: Int,
         metal: MetalContext,
-        polyline: [SIMD2<Float>]? = nil
+        polyline: [SIMD2<Float>]? = nil,
+        liqGrid: any MTLBuffer
     ) async throws {
         let rows = accumulator.height
         let perBand = Int(ceil(Double(rows) / Double(max(1, bands))))
@@ -276,7 +339,7 @@ public enum DrawnMaskRasterizer {
             u.bands = SIMD4(UInt32(start), UInt32(min(rows, start + perBand)), 0, 0)
             try await dispatchAnalytic(
                 uniforms: u, accumulator: accumulator, metal: metal,
-                polyline: polyline)
+                polyline: polyline, liqGrid: liqGrid)
             start += perBand
         }
     }
@@ -326,7 +389,8 @@ public enum DrawnMaskRasterizer {
         mapper: GeometryPointMapper,
         accumulator: any MTLTexture,
         metal: MetalContext,
-        clear: Bool
+        clear: Bool,
+        liqGrid: any MTLBuffer
     ) async throws {
         let aspect = aspectOf(mapper)
         let stamps = stampsForStroke(stroke, aspect: aspect)
@@ -419,6 +483,7 @@ public enum DrawnMaskRasterizer {
         // above — setFragmentBytes would leave the encoder's pointee unowned
         // while the commit below may still be in flight.
         encoder.setFragmentBuffer(uniformBuffer, offset: 0, index: 0)
+        encoder.setFragmentBuffer(liqGrid, offset: 0, index: 1)
         encoder.drawPrimitives(
             type: .triangleStrip, vertexStart: 0, vertexCount: 4,
             instanceCount: stamps.count)

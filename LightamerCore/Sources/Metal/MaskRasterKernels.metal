@@ -52,7 +52,7 @@ using namespace metal;
 /// constant chunks (the ashift float3-packing postmortem pattern: every
 /// member is a 16-byte SIMD4 on both sides).
 struct MaskRasterUniforms {
-    float4 rows0;   // projective inverse row 0 (composite_n → pre-lens_n)
+    float4 rows0;   // projective inverse row 0 (mid_n → pre-lens decode_n)
     float4 rows1;   // row 1
     float4 rows2;   // row 2
     float4 lens;    // k1, k2, hasLens, aspect (frameH/frameW)
@@ -62,13 +62,51 @@ struct MaskRasterUniforms {
     float4 form1;   // rotationDeg, border, compression, curvature
     float4 misc;    // formType (0 ellipse, 1 path, 2 gradient), gradState, 0, 0
     uint4  bands;   // rowBegin, rowEnd, 0, 0
+    // Plan 06-06-T3 staged decomposition (liquify sits between flip and
+    // crop, so its inverse legs between two projective stages):
+    float4 post0;   // crop⁻¹ stage row 0 (composite_n → mid_n; identity when
+    float4 post1;   //   no liquify — the historical single-matrix fold lives
+    float4 post2;   //   in rows0..2 unchanged)
+    float4 liq0;    // liquify grid: originX, originY (mid px), gridW, gridH
+    float4 liq1;    // hasLiquify, midW, midH, 0
 };
 
 // cn = the pixel in COMPOSITE-FRAME normalized units ((winOrigin+px)/outSize)
-static float2 mask_inverse_content(float2 cn, constant MaskRasterUniforms &u) {
-    // composite normalized → pre-lens decode normalized (projective rows)
-    float3 v = float3(cn, 1.0);
-    float3 r = float3(dot(u.rows0.xyz, v), dot(u.rows1.xyz, v), dot(u.rows2.xyz, v));
+static float2 mask_inverse_content(float2 cn, constant MaskRasterUniforms &u,
+                                   const device float2 *liqGrid) {
+    // Stage POST (crop⁻¹): composite_n → mid_n (mid = the liquify stage's
+    // frame). Identity rows when no liquify segment exists.
+    float3 va = float3(cn, 1.0);
+    float3 ra = float3(dot(u.post0.xyz, va), dot(u.post1.xyz, va), dot(u.post2.xyz, va));
+    float2 midn = ra.xy / ra.z;
+    // Liquify leg (Plan 06-06): p = q + F(q) — the warp kernel's sampling
+    // map, bilinear over the displacement grid (zero outside its extent).
+    // Grid coords are MID pixels (the liquify stage's plane pixels — the
+    // L020 same-domain contract with LiquifyDistortionField).
+    if (u.liq1.x != 0.0) {
+        float2 ppx = midn * u.liq1.yz;
+        float2 g = ppx - u.liq0.xy;
+        float2 base = floor(g);
+        float2 frac = g - base;
+        float2 f = float2(0.0);
+        for (int j = 0; j <= 1; ++j) {
+            for (int i = 0; i <= 1; ++i) {
+                float2 cell = base + float2((float)i, (float)j);
+                bool inb = (cell.x >= 0.0 && cell.y >= 0.0
+                    && cell.x < u.liq0.z && cell.y < u.liq0.w);
+                float2 v = inb ? liqGrid[(int)cell.y * (int)u.liq0.z + (int)cell.x]
+                               : float2(0.0);
+                float w = (i == 0 ? (1.0 - frac.x) : frac.x)
+                        * (j == 0 ? (1.0 - frac.y) : frac.y);
+                f += v * w;
+            }
+        }
+        ppx += f;
+        midn = ppx / u.liq1.yz;
+    }
+    // Stage PRE (flip/ashift⁻¹): mid_n → pre-lens decode normalized.
+    float3 vb = float3(midn, 1.0);
+    float3 r = float3(dot(u.rows0.xyz, vb), dot(u.rows1.xyz, vb), dot(u.rows2.xyz, vb));
     float2 pre = r.xy / r.z;
     // radial lens leg (the warp kernel's sampling map): q → c + dir·Rd(u)
     if (u.lens.z != 0.0) {
@@ -185,6 +223,7 @@ kernel void mask_raster_analytic(
     constant MaskRasterUniforms &u [[buffer(0)]],
     constant float2 *polyline [[buffer(1)]],
     constant uint &polylineCount [[buffer(2)]],
+    const device float2 *liqGrid [[buffer(3)]],
     uint2 gid [[thread_position_in_grid]])
 {
     if (gid.x >= (uint)u.window.x || gid.y >= (uint)u.window.y) { return; }
@@ -192,7 +231,7 @@ kernel void mask_raster_analytic(
 
     float2 wn = (float2(gid) + 0.5) / u.window.xy;
     float2 cn = (wn * u.window.xy + u.frame.zw) / u.window.zw;
-    float2 p = mask_inverse_content(cn, u);
+    float2 p = mask_inverse_content(cn, u, liqGrid);
     float v = mask_eval_form(p, u, polyline, polylineCount);
     out.write(float4(v, 0.0, 0.0, 1.0), gid);
 }
@@ -238,12 +277,13 @@ vertex StampVertOut mask_stamp_vertex(
 // exactly like the analytic kernel.
 fragment float mask_stamp_fragment(
     StampVertOut in [[stage_in]],
-    constant MaskRasterUniforms &u [[buffer(0)]])
+    constant MaskRasterUniforms &u [[buffer(0)]],
+    const device float2 *liqGrid [[buffer(1)]])
 {
     // [[position]] = the pixel center in the render target (= window) px.
     float2 wn = in.position.xy / u.window.xy;
     float2 cn = (wn * u.window.xy + u.frame.zw) / u.window.zw;
-    float2 p = mask_inverse_content(cn, u);
+    float2 p = mask_inverse_content(cn, u, liqGrid);
 
     float dxu = p.x - in.profile.x;
     float dyu = (p.y - in.profile.y) * in.weight.y;

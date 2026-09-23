@@ -1,5 +1,6 @@
 @testable import LightamerCore
 import LightamerIOP
+import Metal
 import XCTest
 
 /// Plan 06-03 T2 — the mask point mapper (D-06-CONTEXT-7 content
@@ -241,6 +242,163 @@ final class GeometryPointMapperTests: XCTestCase {
         XCTAssertEqual(mapper.outputSize, frame)
     }
 
+
+    // ═══ Plan 06-06 T3: the liquify segment (the 6-3 reservation realized) ═══
+
+    /// A live (non-empty) liquify contributes ONE displacement segment; the
+    /// roundtrip gate is the plan's 0.5 px (the field inverse-sampling tier —
+    /// DECISIONS D-06-06-T3-1 records why it is wider than the 0.1 px of the
+    /// exact geometry modules).
+    func testLiquifySegmentRoundtrip() {
+        let liquify = ModuleBox(module: LiquifyModule())
+        liquify.setParams(LiquifyModule.Params(paths: [
+            LiquifyPathData(
+                type: .moveTo, warpType: .radialGrow,
+                point: SIMD2(0.5, 0.5),
+                strength: SIMD2(0.51, 0.5),
+                radius: SIMD2(0.6, 0.5))
+        ]))
+        let mapper = GeometryPointMapper.compose(boxes: [liquify], frameSize: frame)
+        XCTAssertEqual(mapper.segments.count, 1, "live liquify contributes one segment")
+        guard case .liquify = mapper.segments[0] else {
+            return XCTFail("segment must be .liquify")
+        }
+        XCTAssertEqual(mapper.outputSize, frame, "liquify preserves the frame")
+        // The stamp center is a fixed point (F = 0 there).
+        let center = mapper.forwardPixel(frame / 2)
+        XCTAssertEqual(center.x, frame.x / 2, accuracy: 1e-6)
+        XCTAssertEqual(center.y, frame.y / 2, accuracy: 1e-6)
+        // The 0.5 px roundtrip gate over a dense grid (compared > 0).
+        var maxErr = 0.0
+        var compared = 0
+        for j in 0..<21 {
+            for i in 0..<21 {
+                let p = SIMD2(
+                    Double(i) / 20.0 * frame.x, Double(j) / 20.0 * frame.y)
+                let back = mapper.inversePixel(mapper.forwardPixel(p))
+                let d = back - p
+                maxErr = max(maxErr, (d.x * d.x + d.y * d.y).squareRoot())
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转 guard")
+        XCTAssertLessThan(maxErr, 0.5, "liquify roundtrip \(maxErr) px (gate 0.5 px)")
+        print("[06-06 T3] liquify roundtrip: max \(maxErr) px over \(compared) pts (gate 0.5)")
+    }
+
+    /// The full geometry chain WITH liquify at its v50 slot: lens(13) →
+    /// ashift(15) → flip(16) → liquify(18) → crop(24.5) — five segments,
+    /// roundtrip < 0.5 px.
+    func testLiquifyChainRoundtrip() {
+        // k2 0.04 keeps Rd(u) = u(1 + k1u² + k2u⁴) solvable at the corner
+        // radii (k2 0 with k1 −0.15 has NO root beyond u ≈ 0.994 — the
+        // lens-forward Newton legitimately diverges there; not a liquify
+        // concern, learned live and pinned here).
+        let lens = ModuleBox(module: LensModule())
+        lens.setParams(LensModule.Params(
+            distortionK1: -0.15, distortionK2: 0.04, source: .manual))
+        let ashift = ModuleBox(module: AshiftModule())
+        ashift.setParams(AshiftModule.Params(rotation: 5.0))
+        let flip = ModuleBox(module: FlipModule())
+        flip.setParams(FlipModule.Params(orientation: .rotCCW90))
+        let liquify = ModuleBox(module: LiquifyModule())
+        liquify.setParams(LiquifyModule.Params(paths: [
+            LiquifyPathData(
+                type: .moveTo, warpType: .radialGrow,
+                point: SIMD2(0.5, 0.5),
+                strength: SIMD2(0.51, 0.5),
+                radius: SIMD2(0.6, 0.5))
+        ]))
+        let crop = ModuleBox(module: CropModule())
+        crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        let mapper = GeometryPointMapper.compose(
+            boxes: [crop, flip, liquify, ashift, lens], frameSize: frame)
+        XCTAssertEqual(mapper.segments.count, 5)
+        guard case .liquify = mapper.segments[3] else {
+            return XCTFail("segment[3] must be liquify (v50 18.0, between flip and crop)")
+        }
+        if case .affine = mapper.segments[4] {} else {
+            XCTFail("segment[4] must be crop")
+        }
+        var maxErr = 0.0
+        var compared = 0
+        for j in 0..<15 {
+            for i in 0..<15 {
+                let p = SIMD2(
+                    Double(i) / 14.0 * frame.x, Double(j) / 14.0 * frame.y)
+                let back = mapper.inversePixel(mapper.forwardPixel(p))
+                let d = back - p
+                maxErr = max(maxErr, (d.x * d.x + d.y * d.y).squareRoot())
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转 guard")
+        XCTAssertLessThan(maxErr, 0.5, "chain roundtrip \(maxErr) px (gate 0.5)")
+        print("[06-06 T3] chain roundtrip: max \(maxErr) px over \(compared) pts")
+    }
+
+    /// An EMPTY liquify contributes NO segment (the reservation's identity
+    /// semantics — the normal path).
+    func testEmptyLiquifyIsNoSegment() {
+        let liquify = ModuleBox(module: LiquifyModule())
+        liquify.setParams(LiquifyModule.Params())
+        let mapper = GeometryPointMapper.compose(boxes: [liquify], frameSize: frame)
+        XCTAssertTrue(mapper.segments.isEmpty, "empty paths = no segment")
+        XCTAssertEqual(mapper.outputSize, frame)
+    }
+
+    /// The staged GPU decomposition: with liquify + crop the `post` stage
+    /// carries crop⁻¹ and `pre` the flip/ashift part; the staged pair must
+    /// reproduce the exact per-segment inversePixel walk (the mask raster
+    /// kernel consumes exactly this form).
+    func testStagedDecompositionMatchesSegmentWalk() throws {
+        let ashift = ModuleBox(module: AshiftModule())
+        ashift.setParams(AshiftModule.Params(rotation: -7.5, lensShiftV: 0.3))
+        let flip = ModuleBox(module: FlipModule())
+        flip.setParams(FlipModule.Params(orientation: .rotCW90))
+        let liquify = ModuleBox(module: LiquifyModule())
+        liquify.setParams(LiquifyModule.Params(paths: [
+            LiquifyPathData(
+                type: .moveTo, warpType: .radialGrow,
+                point: SIMD2(0.5, 0.5),
+                strength: SIMD2(0.51, 0.5),
+                radius: SIMD2(0.6, 0.5))
+        ]))
+        let crop = ModuleBox(module: CropModule())
+        crop.setParams(CropModule.Params(left: 0.1, top: 0.2, right: 0.9, bottom: 0.85))
+        let mapper = GeometryPointMapper.compose(
+            boxes: [ashift, flip, liquify, crop], frameSize: frame)
+        let staged = mapper.stagedInverseComposite
+        guard case .liquify(let field)? = mapper.segments.first(where: {
+            if case .liquify = $0 { return true } else { return false }
+        }) else { return XCTFail("expected a liquify segment") }
+        XCTAssertNotNil(staged.field)
+
+
+        var compared = 0
+        for j in 0..<9 {
+            for i in 0..<9 {
+                // composite normalized → decode normalized through the
+                // STAGES (post → liquify grid → pre; no lens in this chain)
+                let qn = SIMD2(Double(i) / 8.0, Double(j) / 8.0)
+                let qa = staged.post.applied(qn.x, qn.y)
+                let midn = SIMD2(qa.x / qa.w, qa.y / qa.w)
+                let midPx = SIMD2(midn.x * staged.mid.x, midn.y * staged.mid.y)
+                let warped = midPx + field.sampleForward(midPx)
+                let warpedN = SIMD2(warped.x / staged.mid.x, warped.y / staged.mid.y)
+                let pb = staged.pre.applied(warpedN.x, warpedN.y)
+                let decoded = SIMD2(pb.x / pb.w * frame.x, pb.y / pb.w * frame.y)
+                let walked = mapper.inversePixel(SIMD2(
+                    qn.x * mapper.outputSize.x, qn.y * mapper.outputSize.y))
+                let dd = decoded - walked
+                let err = (dd.x * dd.x + dd.y * dd.y).squareRoot()
+                XCTAssertLessThan(err, 1e-9, "staged walk drift at (\(i),\(j))")
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转 guard")
+    }
+
     // ── GPU uniform composite agreement (the rasterizer's math source) ──
 
     /// `projectiveInverseComposite` (crop∘flip∘ashift as ONE normalized
@@ -276,5 +434,108 @@ final class GeometryPointMapperTests: XCTestCase {
             }
         }
         XCTAssertGreaterThan(compared, 0, "防空转 guard")
+    }
+
+    /// 蒙版内容锚定端到端 (D-06-CONTEXT-7, Plan 06-06-T3): a drawn ellipse
+    /// anchored to CONTENT — rasterized through the REAL GPU raster path —
+    /// must hold the same value at the same content point whether or not a
+    /// liquify warp displaces that content. The two planes must also differ
+    /// (防空转: the liquify leg really moves the mask pattern).
+    func testLiquifyMaskContentAnchorEndToEnd() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+
+        let frame = SIMD2<Double>(320, 240)
+        let crop = ModuleBox(module: CropModule())
+        crop.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        let liquify = ModuleBox(module: LiquifyModule())
+        // The stamp field must COVER the ellipse rim (the mask's only
+        // gradient band — rim at ~140 decode px from center; radius
+        // 0.5·320 = 160 px ✓; |F| at the rim ≈ 2.5 px) — a field smaller
+        // than the rim displaces a CONSTANT region and the content anchor
+        // degenerates (learned live, pinned by the maxPlaneDiff guard).
+        liquify.setParams(LiquifyModule.Params(paths: [
+            LiquifyPathData(
+                type: .moveTo, warpType: .radialGrow,
+                point: SIMD2(0.5, 0.5),
+                strength: SIMD2(0.6, 0.5),
+                radius: SIMD2(1.0, 0.5))
+        ]))
+        let mapperA = GeometryPointMapper.compose(boxes: [crop], frameSize: frame)
+        let mapperB = GeometryPointMapper.compose(boxes: [crop, liquify], frameSize: frame)
+        // CPU-leg probe: the two inverse walks must disagree at the same
+        // window pixel (the liquify inverse displaces the decode point).
+
+        // Ellipse centered on the stamp center, sized so the probe point
+        // sits on the mid-feather band (a small anchor error moves the value
+        // measurably).
+        let spec = MaskSpec(drawn: DrawnMaskSpec(forms: [
+            MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.5, y: 0.5),
+                radiusX: 0.2, radiusY: 0.2,
+                rotationDegrees: 0, border: 0.3))),
+        ]))
+        let outW = Int(mapperA.outputSize.x), outH = Int(mapperA.outputSize.y)
+        let window = ROI(x: 0, y: 0, width: outW, height: outH, scale: 1.0)
+
+        func rasterize(_ mapper: GeometryPointMapper) async throws -> [Float] {
+            let cache = PipeCache()
+            let (plane, _) = try await DrawnMaskRasterizer.plane(
+                spec: spec, layerOpacity: 1.0, window: window, mapper: mapper,
+                metal: metal, cache: cache, imageID: UUID(), pipeType: .preview,
+                layerID: UUID(), rowBands: 1)
+            let fence = metal.commandQueue.makeCommandBuffer()
+            fence?.commit()
+            await fence?.completed() // L014 — drain BEFORE the readback
+            var values = [Float](repeating: -1, count: plane.width * plane.height)
+            values.withUnsafeMutableBytes {
+                plane.getBytes(
+                    $0.baseAddress!, bytesPerRow: plane.width * 4,
+                    from: MTLRegionMake2D(0, 0, plane.width, plane.height),
+                    mipmapLevel: 0)
+            }
+            return values
+        }
+
+        let planeA = try await rasterize(mapperA)
+        let planeB = try await rasterize(mapperB)
+        XCTAssertEqual(planeA.count, planeB.count)
+
+        // Content preservation over a GRID of content points: each decode
+        // point sampled through its own mapper's forward leg must hold the
+        // same mask value with and without the liquify warp. Tolerance
+        // 0.05 = the 0.5 px roundtrip gate × the feather slope (~1/19 px).
+        var maxAnchor = 0.0
+        var informative = 0
+        for j in 0..<15 {
+            for i in 0..<15 {
+                let pNorm = SIMD2<Double>(Double(i) / 14.0, Double(j) / 14.0)
+                let p = SIMD2(pNorm.x * frame.x, pNorm.y * frame.y)
+                let wA = mapperA.forwardPixel(p)
+                let wB = mapperB.forwardPixel(p)
+                // Only points whose window positions land INSIDE the plane
+                // (frame-edge points clamp to edge pixels — meaningless).
+                func inside(_ w: SIMD2<Double>) -> Bool {
+                    w.x >= 0 && w.y >= 0 && w.x < Double(outW) && w.y < Double(outH)
+                }
+                guard inside(wA), inside(wB) else { continue }
+                let vA = Double(planeA[Int(wA.y) * outW + Int(wA.x)])
+                let vB = Double(planeB[Int(wB.y) * outW + Int(wB.x)])
+                guard max(vA, vB) > 0.001 else { continue }  // outside the mask
+                informative += 1
+                maxAnchor = max(maxAnchor, abs(vA - vB))
+            }
+        }
+        XCTAssertGreaterThan(informative, 20, "防空转: grid must cross the mask")
+        XCTAssertLessThan(
+            maxAnchor, 0.05,
+            "content anchor: max value drift \(maxAnchor) over \(informative) content pts")
+        // 防空转: the liquify warp really moved the mask pattern.
+        var maxDiff = 0.0
+        for (a, b) in zip(planeA, planeB) { maxDiff = max(maxDiff, abs(Double(a - b))) }
+        XCTAssertGreaterThan(maxDiff, 0.03, "the warp must displace the mask plane")
+        print("[06-06 T3] content anchor: maxDrift=\(maxAnchor) over \(informative) pts, "
+            + "maxPlaneDiff=\(maxDiff)")
     }
 }

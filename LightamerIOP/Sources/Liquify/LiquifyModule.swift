@@ -276,6 +276,26 @@ public final class LiquifyModule: IOPModule {
         return Int((bytes / area).rounded(.up))
     }
 
+    // MARK: mask point-mapping segment (Plan 06-06 T3 — the 6-3
+    // reservation realized; D-06-CONTEXT-7 content anchoring)
+
+    /// The displacement segment at FULL map coordinates (the mapper works
+    /// in frame pixels; the field is built over the whole stamp extent —
+    /// no roi clipping, mask points can sample anywhere). nil when neutral
+    /// (empty paths = NO segment — the normal path stays the identity by
+    /// omission, RESEARCH Risk 9).
+    public func pointMapSegment(
+        inputSize: SIMD2<Double>
+    ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)? {
+        guard !isNeutral(committed) else { return nil }
+        guard let field = LiquifyDistortionField.build(
+            paths: committed.paths, frame: inputSize,
+            boundsOrigin: .zero,
+            boundsSize: SIMD2(Int(inputSize.x.rounded(.up)), Int(inputSize.y.rounded(.up))))
+        else { return nil }
+        return (.liquify(field), inputSize)
+    }
+
     // MARK: process (dt process :1390-1415 + the CL leg :1452-1520)
 
     public func process(
