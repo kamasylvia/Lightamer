@@ -184,6 +184,22 @@ public final class CropModule: IOPModule {
         input.height = min(input.height, max(1, Int(ih.rounded(.down)) - input.y))
     }
 
+    /// Plan 06-03 T2 point-mapping segment (D-06-CONTEXT-7): the crop
+    /// window extraction as an exact translation — nil when neutral
+    /// (full-frame crop maps masks 1:1).
+    public func pointMapSegment(
+        inputSize: SIMD2<Double>
+    ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)? {
+        let c = committed
+        guard c.left > 0 || c.top > 0 || c.right < 1 || c.bottom < 1 else { return nil }
+        let out = SIMD2(
+            Double(c.right - c.left) * inputSize.x,
+            Double(c.bottom - c.top) * inputSize.y)
+        let affine = Affine2D.crop(
+            left: Double(c.left), top: Double(c.top), inputSize: inputSize)
+        return (.affine(affine, inSize: inputSize, outSize: out), out)
+    }
+
     /// dt `process` (`:594-602`) = the `copy_image_roi` WINDOW path
     /// (`imagebuf.c:188-223`). The pipe hands `input` ALREADY extracted to
     /// the negotiated window (roiIn-sized, origin-to-origin — the

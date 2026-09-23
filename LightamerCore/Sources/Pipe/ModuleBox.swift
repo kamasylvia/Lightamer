@@ -90,6 +90,13 @@ public protocol ModuleBoxing: AnyObject, Sendable {
     /// modules widen it; the pipe clamps to the upstream plane.
     func modifyROIInErased(output roi: ROI, input: inout ROI, piece: IOPiece)
 
+    /// Erased `pointMapSegment` (Plan 06-03 T2 mask point-mapping seam):
+    /// the mask rasterizer composes the base chain's geometry segments
+    /// through this. Default-identity modules return nil.
+    func pointMapSegmentErased(
+        inputSize: SIMD2<Double>
+    ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)?
+
 }
 
 /// The generic box: wraps one concrete `IOPModule` instance + its committed
@@ -247,5 +254,11 @@ public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
 
     public func modifyROIInErased(output roi: ROI, input: inout ROI, piece: IOPiece) {
         module.modifyROIIn(output: roi, input: &input, piece: piece)
+    }
+
+    public func pointMapSegmentErased(
+        inputSize: SIMD2<Double>
+    ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)? {
+        module.pointMapSegment(inputSize: inputSize)
     }
 }

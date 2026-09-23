@@ -89,6 +89,27 @@ internal final class PixelPipe: @unchecked Sendable {
     /// Cache namespace anchor (the sidecar-persisted image UUID).
     internal var imageID: UUID = UUID()
 
+    /// The LAYER namespace for this run's cache keys (Plan 06-01 T3):
+    /// base/terminal sub-runs stamp `baseLayer.id` (NDE-1 anchor); a layer
+    /// sub-run (the `runSub` seam) stamps the layer's own UUID. The default
+    /// is the fixed base sentinel — Phase 2-5 paths (no stack) keep today's
+    /// key space byte-identical.
+    internal private(set) var cacheLayerID: UUID = PipeCacheKey.baseLayerSentinelID
+
+    /// The sub-run seam (Plan 06-01 T4): when set (by `runSub`), the
+    /// recursion's BASE case returns this driver-managed plane instead of
+    /// rendering a decode — the composite accumulator. Never cached; the
+    /// caller owns its lifecycle. `run()` clears it.
+    internal private(set) var subRunInput: (any MTLTexture)?
+
+    /// True once THIS pipe auto-installed its default stack (no caller
+    /// stack ever arrived). The auto-install is EPHEMERAL for cache naming:
+    /// its fresh BackgroundLayer UUID must never enter the keys — every
+    /// subsequent run on this pipe keeps the base sentinel (a repeat `run`
+    /// would otherwise see `layerStack != nil` and stamp a new namespace
+    /// per run, destroying the hit fast path).
+    private var usesDefaultStack = false
+
     /// Entry-ROI override (04-01-T4 `roiHint`): when set, `run()` intersects
     /// it with the scale-at-entry ROI and negotiates that sub-window
     /// instead of the full frame. Test/probe seam only — nil in production.
@@ -438,33 +459,29 @@ internal final class PixelPipe: @unchecked Sendable {
             throw AppError.notImplemented("Phase 11")
         }
 
-        // Base layer invariant (D-03a) — L005 field preserved.
+        // Base layer invariant (D03a) — L005 field preserved. The AUTO-
+        // INSTALLED default stack (no caller stack) is ephemeral: its fresh
+        // BackgroundLayer UUID must NOT enter the cache namespace (keys
+        // would differ every run) — those runs keep the base sentinel.
         if layerStack == nil {
             layerStack = LayerStack(baseLayer: BackgroundLayer())
+            usesDefaultStack = true
         }
+        // Layer namespace stamp (06-01 T3): caller-provided real stacks key
+        // their base / terminal planes on baseLayer.id; default-stack pipes
+        // keep the sentinel forever.
+        cacheLayerID =
+            usesDefaultStack ? PipeCacheKey.baseLayerSentinelID
+            : (layerStack?.baseLayer.id ?? PipeCacheKey.baseLayerSentinelID)
+        // A plain run renders the decode — clear any sub-run input.
+        subRunInput = nil
 
         // v50 order: (iopOrder, multiPriority) — Darktable's module order.
-        pieces = instances
-            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
-            .map { Piece(box: $0, state: $0.makeRunPiece()) }
-        topEnabledPosition = pieces.lastIndex(where: { $0.box.enabled }) ?? -1
+        prepareChain(
+            instances: instances,
+            decodeHash: HistoryHash.decodeParamsHash(for: image)
+        )
         decodedImage = image
-        planesRendered = 0
-
-        // §1.3: decodeParamsHash — the shared D-H4 atom (extracted to
-        // HistoryHash.decodeParamsHash per this plan's TODO; the
-        // field-explicit chain lives there so the sidecar drift check and
-        // the cache seed can never diverge).
-        decodeParamsHash = HistoryHash.decodeParamsHash(for: image)
-
-        // Per-level chain: levelHash[i] = decode ⊕ (enabled hashes ≤ i).
-        var running = decodeParamsHash
-        levelHash = pieces.map { piece in
-            if piece.box.enabled {
-                running = Self.chain(running, piece.box.paramsHash)
-            }
-            return running
-        }
 
         let statsBefore = await cache.stats
         // Scale-at-entry ROI (Plan 02-03-03): the effective long edge is
@@ -499,12 +516,54 @@ internal final class PixelPipe: @unchecked Sendable {
             roi = hint.clamped(to: roi)
         }
         // Forward ROI pre-computation (04-01; dt get_dimensions,
-        // `pixelpipe_hb.c:3368-3405`): walk modifyROIOut per piece from the
-        // entry ROI. Disabled pieces pass through (dt `:3378-3384`).
-        // `bufInROI[i]` feeds `dscIn` per level (dt `piece->buf_in` →
-        // `iwidth/iheight`); `levelROI[i]` is the piece's output ROI
-        // (= dt `piece->buf_out`). The recursion still negotiates per
-        // level — this pass sizes planes and stamps geometry.
+        // `pixelpipe_hb.c:3368-3405`) — the walk body shared with `runSub`
+        // (only the entry-ROI derivation differs between the two shapes).
+        let walked = forwardWalk(entry: roi, frame: frameROI)
+        let final = try await processRec(
+            position: pieces.count - 1,
+            roiOut: walked,
+            metal: metal
+        )
+        let statsDelta = (await cache.stats) - statsBefore
+        return (
+            final.texture,
+            RenderPipeline.PipeRunStats(
+                hits: statsDelta.hits,
+                misses: statsDelta.misses,
+                planesRendered: planesRendered
+            )
+        )
+    }
+
+    /// Shared chain preparation (Plan 06-01 T4 extraction): the piece
+    /// array, the enabled-top mark, `decodeParamsHash` and the per-level
+    /// hash chain — the exact statements `run()` has carried since 02-02,
+    /// now shared with the `runSub` sub-run seam. Walk SEMANTICS untouched.
+    private func prepareChain(instances: [any ModuleBoxing], decodeHash: UInt64) {
+        // v50 order: (iopOrder, multiPriority) — Darktable's module order.
+        pieces = instances
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+            .map { Piece(box: $0, state: $0.makeRunPiece()) }
+        topEnabledPosition = pieces.lastIndex(where: { $0.box.enabled }) ?? -1
+        planesRendered = 0
+        // §1.3: decodeParamsHash — the shared D-H4 atom.
+        decodeParamsHash = decodeHash
+        // Per-level chain: levelHash[i] = decode ⊕ (enabled hashes ≤ i).
+        var running = decodeParamsHash
+        levelHash = pieces.map { piece in
+            if piece.box.enabled {
+                running = Self.chain(running, piece.box.paramsHash)
+            }
+            return running
+        }
+    }
+
+    /// The forward ROI walk (dt get_dimensions, `pixelpipe_hb.c:3368-3405`
+    /// mirror) — verbatim the `run()` body, parameterized on the entry and
+    /// clamp-frame ROIs so `runSub` reuses it unchanged.
+    private func forwardWalk(entry: ROI, frame: ROI) -> ROI {
+        roi = entry
+        frameROI = frame
         var roiWalk = roi
         bufInROI = []
         levelROI = []
@@ -541,9 +600,42 @@ internal final class PixelPipe: @unchecked Sendable {
             levelROI.append(out)
             roiWalk = out
         }
+        return roiWalk
+    }
+
+    // MARK: - Sub-run seam (Plan 06-01 T4 — the LayerCompositeDriver leg)
+
+    /// Run this pipe as a SUB-RUN over a caller-provided input plane (the
+    /// composite accumulator) instead of a decode. The forward walk, hash
+    /// chain, ROI negotiation, cache semantics and recursion are byte-
+    /// identical to `run()` — only the entry shape differs:
+    /// - `input`/`inputROI`: the driver-managed plane + its ROI (the
+    ///   composite window). The base case returns the plane as-is (never
+    ///   cached, never counted).
+    /// - `decodeHash`: the BASE run's decodeParamsHash — layer planes must
+    ///   invalidate when the decode changes (their input C derives from it).
+    /// - `layerID`: the cache namespace (the layer's UUID; base/terminal
+    ///   legs pass `baseLayer.id`).
+    internal func runSub(
+        input: any MTLTexture,
+        inputROI: ROI,
+        instances: [any ModuleBoxing],
+        decodeHash: UInt64,
+        metal: MetalContext,
+        layerID: UUID
+    ) async throws -> (output: any MTLTexture, stats: RenderPipeline.PipeRunStats) {
+        if resolution == .export {
+            throw AppError.notImplemented("Phase 11")
+        }
+        decodedImage = nil
+        subRunInput = input
+        cacheLayerID = layerID
+        prepareChain(instances: instances, decodeHash: decodeHash)
+        let statsBefore = await cache.stats
+        let walked = forwardWalk(entry: inputROI, frame: inputROI)
         let final = try await processRec(
             position: pieces.count - 1,
-            roiOut: roiWalk,
+            roiOut: walked,
             metal: metal
         )
         let statsDelta = (await cache.stats) - statsBefore
@@ -613,6 +705,12 @@ internal final class PixelPipe: @unchecked Sendable {
         // after a crop's backward pass) — T4's sub-domain render consumes
         // it; until then the legacy full-extent/scaled legs run.
         guard position >= 0 else {
+            // 06-01 T4 sub-run seam: the driver-managed accumulator plane.
+            // Returned as-is — never cached, never counted; the sub-run's
+            // cache lines start at position 1.
+            if let external = subRunInput {
+                return PipeCache.CachedPlane(texture: external, byteCount: 0, lastHit: .now)
+            }
             guard let image = decodedImage else {
                 throw MetalError.deviceUnavailable
             }
@@ -633,7 +731,8 @@ internal final class PixelPipe: @unchecked Sendable {
             return try await cache.plane(
                 for: PipeCacheKey(
                     imageID: imageID, pipeType: resolution, position: 0,
-                    upstreamHash: decodeParamsHash, roi: roiOut
+                    upstreamHash: decodeParamsHash, roi: roiOut,
+                    layerID: cacheLayerID
                 ),
                 byteCount: Self.planeBytes(roiOut)
             ) { [self] in
@@ -684,7 +783,8 @@ internal final class PixelPipe: @unchecked Sendable {
             pipeType: resolution,
             position: position + 1,
             upstreamHash: levelHash[position],
-            roi: roiOut
+            roi: roiOut,
+            layerID: cacheLayerID
         )
         let isFinalOutput = position == topEnabledPosition
         let box = pieces[position].box
@@ -878,5 +978,51 @@ public enum RenderPipeline {
         return try await pipe.run(
             image: image, instances: instances, metal: metal, longEdge: longEdge
         )
+    }
+
+    /// Run the LAYER COMPOSITE (Plan 06-05 — the coordinator's public
+    /// entry for stacks with adjustment layers): the 1 + N + 1
+    /// `LayerCompositeDriver` orchestration (base sub-run → per-layer
+    /// sub-run + blendop composite → terminal segment), summing the per-leg
+    /// stats into one `PipeRunStats` for the coordinator's logging.
+    ///
+    /// Empty adjustment layers → identical to `process` (the driver's base
+    /// + terminal legs degenerate to the flat chain; callers should keep
+    /// using `process` for that case to preserve the exact legacy key
+    /// space — the coordinator branches on the stack).
+    public static func processComposite(
+        image: DecodedImage,
+        instances: [any ModuleBoxing],
+        layerStack: LayerStack,
+        registry: ModuleRegistry,
+        imageID: UUID,
+        resolution: PipeResolution,
+        cache: PipeCache,
+        metal: MetalContext,
+        longEdge: Int? = nil,
+        roiHint: ROI? = nil,
+        policy: LayerCachePolicy,
+        hotLayerID: UUID? = nil,
+        maskDirectory: URL? = nil
+    ) async throws -> (any MTLTexture, PipeRunStats) {
+        let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
+        defer { signposter.endInterval("pixelpipe", interval) }
+        let result = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: instances,
+            layerStack: layerStack, registry: registry, resolution: resolution,
+            cache: cache, metal: metal, longEdge: longEdge, roiHint: roiHint,
+            policy: policy, hotLayerID: hotLayerID, maskDirectory: maskDirectory)
+        var stats = result.baseStats
+        for layer in result.layerStats {
+            stats.hits += layer.run.hits
+            stats.misses += layer.run.misses
+            stats.planesRendered += layer.run.planesRendered
+        }
+        if let terminal = result.terminalStats {
+            stats.hits += terminal.hits
+            stats.misses += terminal.misses
+            stats.planesRendered += terminal.planesRendered
+        }
+        return (result.output, stats)
     }
 }

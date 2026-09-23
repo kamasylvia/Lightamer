@@ -158,6 +158,100 @@ final class PipeCoordinator {
     /// then restores the incoming one or resets to pristine).
     private var historyLoadedURL: URL?
 
+    // ── 06-05 layer dimension (composite routing + persistence) ─────────
+
+    /// The live layer stack MIRROR (EditorState owns it; this copy feeds
+    /// the render branch). nil/empty = the flat legacy path (exact Phase
+    /// 2-5 key space); non-empty adjustment layers = the composite.
+    private var currentLayerStack: LayerStack?
+
+    /// The layer currently under edit (the D-06-CONTEXT-8 hot layer: its
+    /// chain output survives the FULL cold-layer sweep). Driven by the UI
+    /// layer selection; nil = no hot layer.
+    private(set) var currentHotLayerID: UUID?
+
+    /// The ORIGINAL image URL of the current session — the masks directory
+    /// anchor (`<original>.lra.masks/`) for raster-mask loading.
+    private var currentImageURL: URL?
+
+    /// The UI-facing hot-layer setter (the LayersPanel selection drives
+    /// this through the session; additive, idempotent).
+    func setHotLayer(_ layerID: UUID?) {
+        currentHotLayerID = layerID
+    }
+
+    /// 「显示蒙版」request (the LayersPanel eye-on-mask toggle): tint the
+    /// DISPLAY plane with the selected layer's mask after each composite
+    /// (the 06-3 `mask_overlay_display` leg on real user state — the
+    /// 06-03 `-la_mask_overlay_probe` DEBUG probe becomes the production
+    /// path here). nil = no overlay.
+    var maskOverlayRequest: (layerID: UUID, strength: Float)?
+
+    func setMaskOverlayRequest(_ request: (layerID: UUID, strength: Float)?) {
+        maskOverlayRequest = request
+        // The tint lives INSIDE renderPreview — a request change must
+        // re-render or the toggle/selection would not visibly update
+        // (GUI-15, found in the 06-05 GUI round).
+        Task { [weak self] in
+            guard let self, self.decoded != nil else { return }
+            await self.renderPreview(
+                bucket: self.currentBucket ?? PreviewBucket.cap, generation: self.generation)
+        }
+    }
+
+    /// Unwrap-or-throw for the overlay helper's precondition ladders
+    /// (every exit throws — `base` is never returned after a send).
+    private func unwrap<T>(_ value: T?, _ message: String) throws -> T {
+        guard let value else { throw AppError.decodeFailed(message) }
+        return value
+    }
+
+    /// Tint the freshly rendered display with the requested layer's mask
+    /// plane (best effort — a failure logs and leaves the plain display).
+    /// v1 geometry note (mirrors D-06-06-T4-2): the mapper is rebuilt from
+    /// the display frame, so upstream frame-changing geometry may misalign
+    /// the tint — the content-anchored integration is a single follow-up
+    /// (same seam the liquify overlay documents).
+    ///
+    /// MainActor + plain params: the display plane and the returned plane
+    /// live in the coordinator's isolation domain end-to-end (MTLTexture
+    /// is Sendable per `MetalSendability`), so no `sending` choreography.
+    private func applyMaskOverlayIfRequested(
+        base: sending any MTLTexture,
+        request: (layerID: UUID, strength: Float)?,
+        stack: LayerStack?,
+        boxes: [any ModuleBoxing],
+        imageID: UUID,
+        imageURL: URL?,
+        metal: MetalContext
+    ) async throws -> any MTLTexture {
+        // PRECONDITION (caller-checked): request.layerID is in the stack,
+        // its mask has DRAWN forms. `base` is NEVER used on any path after
+        // the caller hands it over (the 06-3 probe pattern — every exit is
+        // a throw or the overlay's own sending return).
+        let request = try unwrap(request, "mask overlay: no request")
+        let stack = try unwrap(stack, "mask overlay: no layer stack")
+        let layer = try unwrap(
+            stack.compositeLayers.first { $0.id == request.layerID },
+            "mask overlay: layer vanished")
+        let mask = try unwrap(layer.mask, "mask overlay: no mask")
+        let window = ROI(
+            x: 0, y: 0, width: base.width, height: base.height, scale: 1.0)
+        let mapper = GeometryPointMapper.compose(
+            boxes: boxes,
+            frameSize: SIMD2(Double(base.width), Double(base.height)))
+        guard let plane = try await DrawnMaskRasterizer.planeIfDrawn(
+            spec: mask, layerOpacity: layer.opacity, window: window,
+            mapper: mapper, metal: metal, cache: cache,
+            imageID: imageID, pipeType: .preview, layerID: layer.id)
+        else {
+            throw AppError.decodeFailed("mask overlay: no drawn forms")
+        }
+        return try await DrawnMaskRasterizer.overlay(
+            display: base, mask: plane, strength: request.strength,
+            tint: SIMD3<Float>(1, 1, 0), metal: metal)
+    }
+
     // ── 02-06 sidecar persistence (D-S2/D-S3) ────────────────────────────
 
     /// The per-image store for the CURRENT url (throttle + atomic write +
@@ -354,6 +448,7 @@ final class PipeCoordinator {
         let gen = generation
         self.decoded = decoded
         self.metal = metal
+        currentImageURL = url // the 06-05 masks-directory anchor
         if !instances.isEmpty {
             // Explicit chains (tests, restore previews) bypass the
             // history-owned instance set — adopt as-is (02-04 behavior).
@@ -392,6 +487,11 @@ final class PipeCoordinator {
                 historyLoadedURL = url
             }
             await rematerializeInstances()
+        }
+        currentLayerStack = editorState?.layerStack // fresh or restored stack
+        if currentHotLayerID != nil,
+           currentLayerStack?.compositeLayers.contains(where: { $0.id == currentHotLayerID }) != true {
+            currentHotLayerID = nil // the new image's stack has no such layer
         }
 
         previousImageID = currentImageID // D-C1 input for the keep policy
@@ -563,16 +663,38 @@ final class PipeCoordinator {
         Self.logger.info(
             "sidecar restored: \(url.lastPathComponent, privacy: .public) (history \(document.history.position + 1)/\(document.history.items.count), imageID \(document.imageID.uuidString, privacy: .public))"
         )
+
+        // 06-05 layer dimension: the unknown-op degrade pass over the
+        // LAYER chains (whole layer flips enabled=false — the 06-1 T6
+        // mechanism), then the decoded records install as the live stack.
+        // A v1 document (layerStack nil) installs the EMPTY stack.
+        let (layerRecord, layerUnknownOps) = await document
+            .degradedLayerStack(registry: registry)
+        for op in layerUnknownOps {
+            Self.logger.error(
+                "sidecar \(url.lastPathComponent, privacy: .public): layer chain unknown op '\(op, privacy: .public)' — layer kept disabled, params preserved"
+            )
+        }
+        editorState?.installLayerStack(from: layerRecord?.runtimeLayers ?? [])
+        currentLayerStack = editorState?.layerStack
     }
 
     /// The current session as a persistable document (history + live
-    /// records + decode stamps + the current imageID). nil = nothing to
-    /// persist yet (no decode / no imageID).
+    /// records + decode stamps + the current imageID + the 06-05 LAYER
+    /// STACK record). nil = nothing to persist yet (no decode / no
+    /// imageID). The layer record carries the LIVE effective chains (the
+    /// structure-snapshot state merged with the layerScope items — the
+    /// rebuild invariant holds: layer state = document record ⊕ history
+    /// items, and the live stack already IS that merged state). Empty
+    /// stacks persist `nil` (the v1 document shape, zero drift impact).
     private func makeSidecarDocument() -> LightamerSidecar? {
         guard let decoded, let editorState, let imageID = currentImageID else {
             return nil
         }
         let decodeHash = HistoryHash.decodeParamsHash(for: decoded)
+        let stackRecord: SidecarLayerStackRecord? =
+            editorState.layerStack.map { SidecarLayerStackRecord($0) }
+            .flatMap { $0.layers.isEmpty ? nil : $0 }
         return LightamerSidecar(
             imageID: imageID,
             decoderVersionUsed: decoded.decoderVersionUsed.rawValue,
@@ -580,9 +702,10 @@ final class PipeCoordinator {
             instances: editorState.instances,
             history: editorState.history,
             historyHash: HistoryHash.hash(
-                stack: editorState.history, decodeParamsHash: decodeHash
-            ),
-            appVersion: LightamerSidecar.currentAppVersion
+                stack: editorState.history, decodeParamsHash: decodeHash,
+                layerSnapshot: stackRecord?.snapshot),
+            appVersion: LightamerSidecar.currentAppVersion,
+            layerStack: stackRecord
         )
     }
 
@@ -666,6 +789,7 @@ final class PipeCoordinator {
     /// rebuild-from-history invariant).
     func historyDidChange() async {
         guard decoded != nil else { return }
+        currentLayerStack = editorState?.layerStack // undo/redo move the stack too
         await rematerializeInstances()
         generation += 1
         thumbnailNeedsRender = true
@@ -754,6 +878,21 @@ final class PipeCoordinator {
         recommitColoroutForDisplay()
     }
 
+    // ── 06-05 layer dimension (render branch + history/undo funnel) ─────
+
+    /// THE layer-event path: EditorState's layer mutators (structure
+    /// commits, live property/mask ticks, undo/redo of layer items) land
+    /// here — refresh the stack mirror, re-render (the composite branch
+    /// picks the driver when adjustment layers exist), and optionally
+    /// schedule the sidecar write (live ticks pass persist=false; the
+    /// D-S3 rule: uncommitted state never hits disk).
+    func layerStackDidChange(persist: Bool = true) async {
+        guard decoded != nil else { return }
+        currentLayerStack = editorState?.layerStack
+        await historyDidChange()
+        if persist { scheduleSidecarWrite() }
+    }
+
     /// D-H1 drag START: open a continuous-edit window. Live param updates
     /// (`setLiveParams`) drive preview re-renders with ZERO history items
     /// until `commitContinuousEdit` collapses the interaction into
@@ -769,10 +908,18 @@ final class PipeCoordinator {
     /// an edit window the snapshot is remembered for the commit; outside
     /// one it previews only (defensive — Phase 3 sliders always begin
     /// first; a stray call must not fabricate history state).
-    func setLiveParams(_ snapshot: ModuleInstance) async {
+    /// `layerID` non-nil (06-05): the tick targets a LAYER chain record
+    /// instead of the global set (the `layerScope`-型 live leg). The
+    /// snapshot still rides `liveEdited` so the commit leg finds it.
+    func setLiveParams(_ snapshot: ModuleInstance, layerID: UUID? = nil) async {
         guard let editorState else { return }
         if isEditingContinuous {
             liveEdited[snapshot.id] = snapshot
+        }
+        if let layerID {
+            editorState.applyLiveLayerInstance(snapshot, layerID: layerID)
+            await historyDidChange()
+            return
         }
         editorState.applyLiveInstance(snapshot)
         await historyDidChange()
@@ -783,7 +930,12 @@ final class PipeCoordinator {
     /// slider interaction). The pipes already rendered the live state, so
     /// the notification-driven `historyDidChange` pass is idempotent
     /// (cache hits end-to-end) — no second render is issued here.
-    func commitContinuousEdit(label: String, autoEnable: Bool = true) async {
+    /// `layerScope` non-nil (06-05): the commit lands as a LAYER-SCOPED
+    /// item (one per touched record) and the live leg's records upsert
+    /// into that layer's chain (`EditorState.recordLayerChange`).
+    func commitContinuousEdit(
+        label: String, autoEnable: Bool = true, layerScope: UUID? = nil
+    ) async {
         isEditingContinuous = false
         // 04-08-T3 (GUI-7, D-08-T3-1): editing a disabled module's params
         // auto-enables at COMMIT (dt "edit implies enable"; live ticks keep
@@ -801,7 +953,12 @@ final class PipeCoordinator {
         for snapshot in touched {
             var effective = snapshot
             if autoEnable, !effective.enabled { effective.enabled = true }
-            editorState?.recordChange(effective, label: label)
+            if let layerScope {
+                editorState?.recordLayerChange(
+                    effective, layerID: layerScope, label: label)
+            } else {
+                editorState?.recordChange(effective, label: label)
+            }
         }
         scheduleSidecarWrite() // D-S3: the committed move throttles a write
     }
@@ -1018,16 +1175,11 @@ final class PipeCoordinator {
             return lastThumbnail
         }
         do {
-            let (texture, stats) = try await RenderPipeline.process(
-                image: decoded,
-                instances: instances,
-                imageID: currentImageID ?? UUID(),
-                resolution: .thumbnail,
-                cache: cache,
-                metal: metal,
-                longEdge: nil // THUMBNAIL defaultLongEdge 360
-            )
+            let rendered = try await renderCurrentChain(
+                bucket: nil, resolution: .thumbnail)
             thumbnailNeedsRender = false
+            let texture = rendered.texture
+            let stats = rendered.stats
             lastThumbnail = texture
             Self.logger.info(
                 "thumbnail ready (360px, \(stats.planesRendered, privacy: .public) planes)"
@@ -1049,37 +1201,105 @@ final class PipeCoordinator {
         guard let decoded, let metal else {
             throw AppError.decodeFailed("requestFull: no image loaded")
         }
-        let (texture, _) = try await RenderPipeline.process(
-            image: decoded,
-            instances: instances,
-            imageID: currentImageID ?? UUID(),
-            resolution: .full,
-            cache: cache,
-            metal: metal,
-            longEdge: nil // FULL: scale 1.0, full extent
-        )
-        return texture
+        let rendered = try await renderCurrentChain(bucket: nil, resolution: .full)
+        return rendered.texture
     }
 
     // ── The single PREVIEW render path (D-X1 producer) ───────────────────
 
+    #if DEBUG
+    /// Plan 06-03 T7 GUI probe (`-la_mask_overlay_probe`): tints the display
+    /// plane yellow where a seeded adjustment layer's drawn mask is set —
+    /// the 6-3 render leg of the「显示蒙版」state (the UI toggle + selected-
+    /// layer routing land in 6-5). Read-only with respect to user state:
+    /// the probe layer lives in a static (never in EditorState.layerStack).
+    nonisolated static let maskOverlayProbeArmed = ProcessInfo.processInfo
+        .arguments.contains("-la_mask_overlay_probe")
+
+    private static let maskOverlayProbeLayerID = UUID(
+        uuidString: "06030603-0603-0603-0603-060306030603")!
+    private static let maskOverlayProbeSpec = MaskSpec(drawn: DrawnMaskSpec(forms: [
+        MaskForm(kind: .brush(BrushStroke(
+            points: [
+                BrushPoint(
+                    corner: MaskPoint(x: 0.35, y: 0.45),
+                    ctrl1: MaskPoint(x: 0.42, y: 0.35),
+                    ctrl2: MaskPoint(x: 0.5, y: 0.45)),
+                BrushPoint(
+                    corner: MaskPoint(x: 0.65, y: 0.55),
+                    ctrl1: MaskPoint(x: 0.58, y: 0.65),
+                    ctrl2: MaskPoint(x: 0.5, y: 0.55)),
+            ],
+            radius: 0.09, hardness: 0.7, density: 1.0, opacity: 1.0))),
+    ]))
+
+    /// Tint the PREVIEW display plane with the probe mask (bgra8 display
+    /// order: (0,1,1) = yellow on screen).
+    nonisolated private func applyMaskOverlayProbe(
+        base: sending any MTLTexture, metal: MetalContext, cache: PipeCache
+    ) async throws -> sending any MTLTexture {
+        // The probe runs identity geometry (the default chain carries no
+        // geometric module) at the display plane's own frame — the mask
+        // coordinate system IS the display frame here.
+        let mapper = GeometryPointMapper.compose(
+            boxes: [], frameSize: SIMD2(Double(base.width), Double(base.height)))
+        let maskPlane = try await DrawnMaskRasterizer.plane(
+            spec: Self.maskOverlayProbeSpec, layerOpacity: 1.0,
+            window: ROI(x: 0, y: 0, width: base.width, height: base.height, scale: 1.0),
+            mapper: mapper, metal: metal, cache: cache,
+            imageID: currentImageID ?? UUID(), pipeType: .preview,
+            layerID: Self.maskOverlayProbeLayerID).plane
+        return try await DrawnMaskRasterizer.overlay(
+            display: base, mask: maskPlane, strength: 0.85,
+            tint: SIMD3<Float>(1, 1, 0), metal: metal) // shader RGB (bgra8 reads RGBA-ordered) = yellow
+    }
+    #endif
+
     private func renderPreview(bucket: Int, generation gen: Int) async {
         guard let decoded, let metal else { return }
         do {
-            let (texture, stats) = try await RenderPipeline.process(
-                image: decoded,
-                instances: instances,
-                imageID: currentImageID ?? UUID(),
-                resolution: .preview,
-                cache: cache,
-                metal: metal,
-                longEdge: bucket
-            )
+            let rendered = try await renderCurrentChain(bucket: bucket)
+            let texture = rendered.texture
+            let stats = rendered.stats
             guard gen == generation else {
                 Self.logger.debug("PREVIEW render superseded — dropping stale frame")
                 return
             }
-            editorState?.displayTexture = texture
+            #if DEBUG
+            if Self.maskOverlayProbeArmed {
+                // Re-anchor the plane's region through an unchecked-Sendable
+                // box (same ownership contract as MetalSendability — the
+                // plane is render-current, read-only from here on).
+                let box = SendableTextureBox(texture: texture)
+                let overlaid = try await applyMaskOverlayProbe(
+                    base: box.texture, metal: metal, cache: cache)
+                editorState?.displayTexture = overlaid
+                Self.logger.info("mask overlay probe applied (06-03 T7)")
+                return
+            }
+            #endif
+            if let request = maskOverlayRequest,
+               let stack = currentLayerStack,
+               let layer = stack.compositeLayers.first(where: { $0.id == request.layerID }),
+               layer.mask?.hasDrawnForms == true {
+                // The「显示蒙版」tint rides the newest-wins gate above — a
+                // superseded frame never pays the overlay pass.
+                let overlaid: any MTLTexture
+                do {
+                    overlaid = try await applyMaskOverlayIfRequested(
+                        base: texture, request: request,
+                        stack: currentLayerStack, boxes: instances,
+                        imageID: currentImageID ?? UUID(),
+                        imageURL: currentImageURL, metal: metal)
+                } catch {
+                    Self.logger.error(
+                        "mask overlay failed: \(error.localizedDescription, privacy: .public)")
+                    overlaid = texture
+                }
+                editorState?.displayTexture = overlaid
+            } else {
+                editorState?.displayTexture = texture
+            }
             Self.logger.info(
                 "pixelpipe output ready: PREVIEW bucket \(bucket, privacy: .public)px (\(stats.hits, privacy: .public) hits / \(stats.misses, privacy: .public) misses, \(stats.planesRendered, privacy: .public) planes)"
             )
@@ -1091,4 +1311,69 @@ final class PipeCoordinator {
             )
         }
     }
+
+    /// The chain runner shared by PREVIEW/THUMBNAIL/FULL (06-05): stacks
+    /// WITH adjustment layers route through the `LayerCompositeDriver`
+    /// composite (`RenderPipeline.processComposite`); the flat legacy
+    /// path (`process`) is preserved BYTE-EXACTLY for stacks without
+    /// adjustment layers (the Phase 2-5 key space + behavior).
+    private func renderCurrentChain(
+        bucket: Int?, resolution: PipeResolution = .preview
+    ) async throws -> RenderChainOutput {
+        guard let decoded, let metal else {
+            throw AppError.decodeFailed("renderCurrentChain: no image loaded")
+        }
+        let longEdge: Int?
+        if resolution == .preview {
+            longEdge = bucket ?? currentBucket ?? PreviewBucket.cap
+        } else {
+            longEdge = bucket // THUMBNAIL: nil (360 default); FULL: nil
+        }
+        if let stack = currentLayerStack, !stack.compositeLayers.isEmpty,
+           let registry {
+            let (texture, stats) = try await RenderPipeline.processComposite(
+                image: decoded,
+                instances: instances,
+                layerStack: stack,
+                registry: registry,
+                imageID: currentImageID ?? UUID(),
+                resolution: resolution,
+                cache: cache,
+                metal: metal,
+                longEdge: longEdge,
+                roiHint: nil,
+                policy: resolution == .full
+                    ? .fullColdLayer : .preview,
+                hotLayerID: currentHotLayerID,
+                maskDirectory: currentImageURL.map {
+                    RasterMaskStore.masksDirectory(forImageURL: $0)
+                })
+            return RenderChainOutput(texture: texture, stats: stats)
+        }
+        let (texture, stats) = try await RenderPipeline.process(
+            image: decoded,
+            instances: instances,
+            imageID: currentImageID ?? UUID(),
+            resolution: resolution,
+            cache: cache,
+            metal: metal,
+            longEdge: longEdge
+        )
+        return RenderChainOutput(texture: texture, stats: stats)
+    }
+}
+
+/// The renderCurrentChain product (a nominal type so the plane's region
+/// transfers as a whole to the caller — the probe's `sending` param then
+/// accepts it).
+struct RenderChainOutput {
+    let texture: any MTLTexture
+    let stats: RenderPipeline.PipeRunStats
+}
+
+/// Region re-anchor for display planes handed to `sending`-param legs
+/// (the ownership contract: the plane is fully rendered and treated as
+/// immutable from hand-off on — MetalSendability's documented pattern).
+private struct SendableTextureBox: @unchecked Sendable {
+    let texture: any MTLTexture
 }

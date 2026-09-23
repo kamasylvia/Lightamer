@@ -39,7 +39,11 @@ mkdir -p "$CONF" "$RAW" "$OUT"
 printf 'plugins/imageio/format/exr/bpp=32\nplugins/imageio/format/exr/compression=0\nplugins/darkroom/workicc=LIN_REC2020\n' \
     > "$CONF/darktablerc"
 "$PYTHON" "$FIX/gen_fixtures.py" raw "$RAW"
-"$PYTHON" "$FIX/gen_fixtures.py" cases "$GOLDEN"
+# NO outdir argument: main()'s default branch derives cases → $GOLDEN/cases
+# and the refs generators read the canonical fixtures from the fixtures dir
+# ($FIX) while writing $GOLDEN/output — passing "$GOLDEN" here made every
+# refs step read $GOLDEN/*.exr (FileNotFoundError) and abort the full run.
+"$PYTHON" "$FIX/gen_fixtures.py" cases
 
 echo "== ② roundtrip → Rec2020 canonical fixtures =="
 FIXTURES="ramp_8ev flat_0ev flat_-4ev flat_-8ev saturated deep_shadow gray_staircase stair_1d"
@@ -101,7 +105,41 @@ for xmp in "$GOLDEN"/cases/temperature_*.xmp "$GOLDEN"/cases/colisa_*.xmp \
 done
 
 echo "== ③c reference synthesis (shared semantic; L017 route) =="
-"$PYTHON" "$FIX/gen_fixtures.py" refs "$FIX"
+# ③ wipes $OUT above, so the reference artifacts the tests consume must be
+# (re)written HERE. `refs` is not a gen_fixtures mode (silent no-op) — the
+# refs live in the `cases` branch, which is idempotent: it rewrites the
+# pinned XMPs AND synthesizes every *_refs set into $GOLDEN/output.
+"$PYTHON" "$FIX/gen_fixtures.py" cases
+
+echo "== ③c2 blendop probes (Plan 06-02-T5) =="
+# The blend probe: carrier = exposure +1EV, blendop_params v14 blob (L015
+# hex, 420B — see gen_fixtures blendop_params_blob ledger). THREE EVIDENCE
+# per case: (1) library DB blendop_params hex byte-identical to the XMP,
+# (2) `blendop v. 14: version ok params ok` in the -d params log, (3) the
+# flat-field PFM value (a = 0.5, b = 1.0 — exposure +1EV on flat_0ev).
+# The formula family per mode is recorded in the manifest section: dt's
+# RGB_SCENE path implements normal/multiply/difference(+subtract
+# max(a−p·b,0) + the lightness/chromaticity norm-scalings) — screen/
+# overlay/soft/hard/lighten(op<1 coincides)/darken/hue/color/coloradjust/
+# psdodge/psburn fall back to NORMAL there (blendif_rgb_jzczhz.c:703-761),
+# so those probes pin the ADOPTION + dt's actual fallback values, not a
+# formula match. The REVERSE case pins dt's swap semantics (b·(1−op)+a·op).
+BLEND_PROBE="$OUT/pfm_blend"
+export BLEND_PROBE_DIR="$BLEND_PROBE"   # ④ manifest python reads this — the
+                                        # PYEOF heredoc below is QUOTED, so the
+                                        # value must travel through the env
+rm -rf "$BLEND_PROBE"
+mkdir -p "$BLEND_PROBE"
+for xmp in "$GOLDEN"/cases/blend_*.xmp; do
+    case_name="$(basename "$xmp" .xmp)"
+    "$DT" "$FIX/flat_0ev.exr" "$xmp" "$BLEND_PROBE/$case_name" \
+        --out-ext pfm --icc-type LIN_REC2020 \
+        --apply-custom-presets 0 --library "$CONF/golden.db" \
+        --core --configdir "$CONF" -d params > "$BLEND_PROBE/$case_name.log" 2>&1 || true
+    grep -E "blendop v\. 14" "$BLEND_PROBE/$case_name.log" | head -1 \
+        | sed 's/^/  /' || echo "  $case_name: NO ADOPTION LINE"
+    rm -f "$CONF/golden.db"
+done
 
 echo "== ③d filmicrgb/agx XMP adoption probes =="
 # HOST FINDING (extends the 03-04 sigmoid per_channel SIGSEGV family,
@@ -504,6 +542,73 @@ echo "== ④ manifest =="
         echo "| $case_name | \`$blob\` | \`$blob_hash\` |$outs |"
     done
     echo
+    echo "## blendop golden 总账 (Plan 06-02-T5)"
+    echo '```'
+    if [ -d "$BLEND_PROBE" ]; then
+        "$PYTHON" - <<'PYEOF'
+import struct, glob, os, re
+probe_dir = os.environ.get("BLEND_PROBE_DIR", "")
+paths = sorted(glob.glob(os.path.join(probe_dir, "blend_*.pfm")))
+if not paths:
+    # 防空转: an empty table must be LOUD, not silently green.
+    print("EMPTY — no blend_*.pfm under BLEND_PROBE_DIR=" + repr(probe_dir)
+          + " (③c2 must run before ④)")
+    raise SystemExit(1)
+def read_pfm(p):
+    data = open(p,'rb').read()
+    parts = data.split(b'\n', 3)
+    n = int(parts[1].split()[0]) * int(parts[1].split()[1]) * 3
+    return struct.unpack(f"<{n}f", parts[3][:n*4])
+a, b = 0.5, 1.0
+def mix(x, y, op): return x*(1-op)+y*op
+ops = {"op100": 1.0, "op60": 0.6, "op25": 0.25}
+FALLBACK = {"darken","hue","color","coloradjust","psburn"}
+shared = {
+  "normal": lambda op: mix(a,b,op),
+  "multiply": lambda op: mix(a,a*b,op),
+  "difference": lambda op: mix(a,abs(a-b),op),
+  "lighten": lambda op: mix(a,max(a,b),op),
+  "normal_reverse": lambda op: mix(b,a,op),
+  "saturation": lambda op: a,   # achromatic flat: chroma-preserving on both sides
+}
+rows = 0
+print(f"{'case':36s} {'dt PFM':>10s} {'ref':>10s}  verdict")
+for p in paths:
+    name = os.path.basename(p)[:-4]
+    v = read_pfm(p)
+    val = round(v[0], 6)
+    m = re.match(r"blend_([a-z_]+)_op(\d+)", name)
+    if not m:
+        continue
+    mode, opk = m.group(1), "op" + m.group(2)
+    op = ops[opk]
+    if mode in shared:
+        r = round(shared[mode](op), 6)
+        verdict = "MATCH (formula-shared)" if abs(val - r) < 2e-5 else "DIFF"
+        print(f"{name:36s} {val:>10.6f} {r:>10.6f}  {verdict}")
+    elif mode in FALLBACK:
+        r = round(mix(a,b,op), 6)
+        verdict = "dt-scene-fallback==normal" if abs(val - r) < 2e-5 else "DIFF"
+        print(f"{name:36s} {val:>10.6f} {r:>10.6f}  {verdict}")
+    else:
+        # screen/overlay/soft/hard/linearburn/psdodge: op=1 coincides;
+        # op<1 pins the fallback (screen/overlay/soft/hard/psdodge) or the
+        # scene SUBTRACT (linearburn: max(a-p*b,0) — dt 0.0/0.2/0.375).
+        print(f"{name:36s} {val:>10.6f} {'—':>10s}  recorded (see SUMMARY)")
+    rows += 1
+print(f"-- {rows} probe rows (18 modes x 3 opacities) --")
+PYEOF
+    fi
+    echo '```'
+    echo ""
+    echo "Three evidence per case: DB blendop_params hex (840 hex chars = 420B) +"
+    echo '"blendop v. 14: version ok params ok" in the *.log files + the PFM'
+    echo "value above. Formula families: dt scene implements normal/multiply/"
+    echo "difference/subtract(=max(a−p·b,0))/REVERSE/lightness-chroma norm scalings;"
+    echo "darken/screen/overlay/softlight/hardlight/hue/color/coloradjust/psdodge/"
+    echo "psburn fall back to NORMAL in dt's scene path (blendif_rgb_jzczhz.c:703-761)"
+    echo "— Lightamer implements the plan-mandated formulas (06-02-DECISIONS)."
+    echo ""
     echo "### dt-cli PFM probes (temperature + colisa + sigmoid + shadhi + toneequal)"
     echo
     echo "Trust roles: temperature/colisa flats = per-pixel semantic evidence;"

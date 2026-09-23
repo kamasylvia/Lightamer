@@ -55,8 +55,16 @@ final class InspectorEditSession {
 
     private weak var coordinator: PipeCoordinator?
 
-    init(coordinator: PipeCoordinator) {
+    /// 06-05 layer routing: nil = image-global (the Phase 2-5 shape);
+    /// a layer UUID = every edit lands in that adjustment layer's chain
+    /// (the `layerScope`-型 history item). The D-H1 semantics are
+    /// IDENTICAL across scopes (live ticks without history; exactly one
+    /// commit per drag end) — the 24 panels stay untouched.
+    private let layerScope: UUID?
+
+    init(coordinator: PipeCoordinator, layerScope: UUID? = nil) {
         self.coordinator = coordinator
+        self.layerScope = layerScope
     }
 
     /// Drag START: open the continuous-edit window (zero history items
@@ -69,12 +77,17 @@ final class InspectorEditSession {
     /// render is the coordinator's business (generation newest-wins
     /// collapses storms).
     func update(_ snapshot: ModuleInstance) {
-        Task { await coordinator?.setLiveParams(snapshot) }
+        Task { [coordinator, layerScope] in
+            await coordinator?.setLiveParams(snapshot, layerID: layerScope)
+        }
     }
 
     /// Drag END: exactly ONE HistoryItem + the sidecar throttle write.
     func endEditing(label: String) {
-        Task { await coordinator?.commitContinuousEdit(label: label) }
+        Task { [coordinator, layerScope] in
+            await coordinator?.commitContinuousEdit(
+                label: label, layerScope: layerScope)
+        }
     }
 
     /// Discrete control semantics (double-click reset, preset pick,
@@ -94,9 +107,10 @@ final class InspectorEditSession {
     /// coupling to the session object.
     func applyDiscrete(_ snapshot: ModuleInstance, label: String, autoEnable: Bool = true) {
         coordinator?.beginContinuousEdit()
-        Task { [coordinator] in
-            await coordinator?.setLiveParams(snapshot)
-            await coordinator?.commitContinuousEdit(label: label, autoEnable: autoEnable)
+        Task { [coordinator, layerScope] in
+            await coordinator?.setLiveParams(snapshot, layerID: layerScope)
+            await coordinator?.commitContinuousEdit(
+                label: label, autoEnable: autoEnable, layerScope: layerScope)
         }
     }
 
@@ -108,8 +122,9 @@ final class InspectorEditSession {
         _ snapshot: ModuleInstance, label: String, autoEnable: Bool = true
     ) async {
         coordinator?.beginContinuousEdit()
-        await coordinator?.setLiveParams(snapshot)
-        await coordinator?.commitContinuousEdit(label: label, autoEnable: autoEnable)
+        await coordinator?.setLiveParams(snapshot, layerID: layerScope)
+        await coordinator?.commitContinuousEdit(
+            label: label, autoEnable: autoEnable, layerScope: layerScope)
     }
 
     /// Full-image per-channel min/max over the LINEAR chain (the filmic

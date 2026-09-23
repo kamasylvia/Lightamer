@@ -16,10 +16,25 @@ internal struct InspectorView: View {
     @Environment(InspectorState.self) private var inspectorState
     @Environment(EditorState.self) private var editorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
+    // 06-05: the layer-selection state machine (nil selection = global).
+    @Environment(LayerEditingState.self) private var editingState
 
     /// Terminal infrastructure ops — never listed as editable panels.
     private static let terminalOps: Set<String> = [
         ColorInModule.opName, ColorOutModule.opName, GammaModule.opName,
+    ]
+
+    /// D-06-CONTEXT-5 (06-05 UI face): geometry ops are BASE-ONLY — hidden
+    /// from a layer's module list and from the「添加模块」menu (the driver's
+    /// `layerGeometryViolation` fatal is the backstop). crop (24.5) and
+    /// enlargecanvas (16.5) ride the same list: their `modifyROIOut` would
+    /// break the cross-layer composite-window invariant exactly like the
+    /// rejected slots (the 06-01 D-06-01-T4-1 open question resolved here).
+    /// liquify (18.0) is DISTORT|GEOMETRY too — a layer-internal liquify
+    /// changes the layer's output ROI and violates the composite window.
+    private static let baseOnlyOps: Set<String> = [
+        LensModule.opName, AshiftModule.opName, FlipModule.opName,
+        CropModule.opName, "enlargecanvas", LiquifyModule.opName,
     ]
 
     // MARK: GUI-11/GUI-12 layout budget (2026-09-23 fix round)
@@ -32,6 +47,10 @@ internal struct InspectorView: View {
     // — short chains hug their content (no dead gap), long chains scroll,
     // and the panel body keeps ≥62% of the column (≥240pt across the
     // supported window range, 990×695 included).
+    //
+    // 06-05: the LAYERS PANEL joins the column's top zone (≤~210pt fixed)
+    // and the module list budget shrinks accordingly — the selected panel
+    // body still keeps the majority of the column.
 
     /// Row height estimate: `.callout` line (~16pt) + 2×6pt vertical padding
     /// (InspectorRowView label padding). Conservative — if real rows are
@@ -43,10 +62,43 @@ internal struct InspectorView: View {
 
     /// Maximum share of the column the module list may claim; the selected
     /// panel keeps the rest.
-    private static let listMaxFraction: CGFloat = 0.38
+    private static let listMaxFraction: CGFloat = 0.30
 
+    /// The active layer scope (nil = the global/base chain).
+    private var activeLayerID: UUID? {
+        // Self-healing: a structural undo can remove the selected layer —
+        // a dangling id routes back to the global scope.
+        guard let id = editingState.selectedLayerID,
+              editorState.adjustmentLayer(id: id) != nil
+                  || editorState.retouchLayer(id: id) != nil
+        else { return nil }
+        return id
+    }
+
+    /// 06-07: the selected RETOUCH layer (drives the retouch panel route).
+    private var selectedRetouchLayer: RetouchLayer? {
+        guard let id = editingState.selectedLayerID else { return nil }
+        return editorState.retouchLayer(id: id)
+    }
+
+    /// The chain records the module list shows: the selected LAYER's chain
+    /// (geometry ops hidden) or the global editable set.
     private var editableInstances: [ModuleInstance] {
-        editorState.instances.filter { !Self.terminalOps.contains($0.opName) }
+        if let layerID = activeLayerID,
+           let layer = editorState.adjustmentLayer(id: layerID) {
+            return layer.chain.filter {
+                !Self.terminalOps.contains($0.opName) && !Self.baseOnlyOps.contains($0.opName)
+            }
+        }
+        return editorState.instances.filter { !Self.terminalOps.contains($0.opName) }
+    }
+
+    /// The「添加模块」templates for the layer scope: every registered
+    /// editing op that is NOT base-only (the 24 panels + testgain minus
+    /// geometry). Read from the GLOBAL seed — the layer record is a fresh
+    /// identity clone (`addModuleToLayer`).
+    private var addableTemplates: [ModuleInstance] {
+        editorState.instances.filter { !Self.terminalOps.contains($0.opName) && !Self.baseOnlyOps.contains($0.opName) }
     }
 
     var body: some View {
@@ -57,19 +109,25 @@ internal struct InspectorView: View {
                 } description: {
                     Text("no_image_selected_body")
                 }
-            } else if editableInstances.isEmpty {
-                ContentUnavailableView {
-                    Label("inspector_no_modules", systemImage: "slider.horizontal.3")
-                } description: {
-                    Text("inspector_no_modules_body")
-                }
             } else {
                 GeometryReader { geo in
                     VStack(spacing: 0) {
-                        moduleList
-                            .frame(height: moduleListHeight(in: geo.size.height))
+                        // 06-05 T1: the layer stack panel — the column's top
+                        // fixed zone (bottom-to-top list + operations bar).
+                        LayersPanelView()
                         Divider()
-                        selectedPanel
+                        // 06-07: a SELECTED RETOUCH layer replaces the chain
+                        // list + panel with the retouch surface — the stroke
+                        // list IS the layer's edit (no iop chain to list).
+                        if let retouch = selectedRetouchLayer {
+                            RetouchPanelView(layer: retouch)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        } else {
+                            moduleList
+                                .frame(height: moduleListHeight(in: geo.size.height))
+                            Divider()
+                            selectedPanel
+                        }
                     }
                 }
             }
@@ -84,14 +142,40 @@ internal struct InspectorView: View {
     // MARK: - Module list
 
     private func moduleListHeight(in columnHeight: CGFloat) -> CGFloat {
+        // 06-05: the「添加模块」menu row joins the content when a layer is
+        // selected — an empty layer chain must still show it (the 0-row
+        // list used to collapse to the bare padding and CLIP the menu
+        // into invisibility — GUI-14).
+        let menuRow: CGFloat = activeLayerID != nil ? 30 : 0
         let content = CGFloat(editableInstances.count)
-            * Self.estimatedRowHeight + Self.listVerticalPadding
-        return min(content, columnHeight * Self.listMaxFraction)
+            * Self.estimatedRowHeight + Self.listVerticalPadding + menuRow
+        return max(min(content, columnHeight * Self.listMaxFraction), menuRow + 8)
     }
 
     private var moduleList: some View {
         ScrollView(.vertical) {
             VStack(spacing: 0) {
+                // 06-05: layer scope「添加模块」menu — a fresh identity
+                // clone of the chosen global template lands in the layer
+                // chain as ONE structure commit.
+                if activeLayerID != nil {
+                    Menu {
+                        ForEach(addableTemplates, id: \.id) { template in
+                            Button(localizedLabel(for: template.opName)) {
+                                if let layerID = activeLayerID {
+                                    _ = editorState.addModuleToLayer(
+                                        layerID: layerID, template: template)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("layers_add_module", systemImage: "plus.circle")
+                            .font(.caption)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 6)
+                    .accessibilityIdentifier("layers.addmodule")
+                }
                 ForEach(editableInstances, id: \.id) { instance in
                     row(for: instance)
                 }
@@ -110,7 +194,9 @@ internal struct InspectorView: View {
             onSelect: { inspectorState.selectPanel(instanceID: instance.id) },
             onToggle: {
                 let record = InspectorRowModel.toggled(instance: instance)
-                InspectorEditSession(coordinator: pipeCoordinator)
+                // 06-05: the session carries the ACTIVE scope — a layer
+                // row's toggle lands in that layer's chain (one item).
+                InspectorEditSession(coordinator: pipeCoordinator, layerScope: activeLayerID)
                     .applyDiscrete(record, label: String(localized: "history_toggle"), autoEnable: false)
             }
         )
@@ -125,6 +211,7 @@ internal struct InspectorView: View {
         case ColorBalanceRGBModule.opName: return String(localized: "history_colorbalancergb")
         case ChannelMixerRGBModule.opName: return String(localized: "history_channelmixerrgb")
         case ChannelMixerModule.opName: return String(localized: "history_channelmixer")
+        case LiquifyModule.opName: return String(localized: "module_liquify")
         case ColorContrastModule.opName: return String(localized: "history_colorcontrast")
         case VibranceModule.opName: return String(localized: "history_vibrance")
         case VelviaModule.opName: return String(localized: "history_velvia")
@@ -144,12 +231,18 @@ internal struct InspectorView: View {
 
     @ViewBuilder
     private var selectedPanel: some View {
-        let session = InspectorEditSession(coordinator: pipeCoordinator)
-        if let selected = editableInstances.first(where: {
+        // 06-05: the session carries the ACTIVE layer scope — the SAME
+        // panel views edit either the global chain or the layer chain
+        // (the 24-panel zero-modification contract; D-H1 semantics are
+        // scope-invariant).
+        let session = InspectorEditSession(coordinator: pipeCoordinator, layerScope: activeLayerID)
+        // Search the ACTIVE list only; a stale selection (e.g. a global
+        // instance id while a layer is selected) falls through to the
+        // first active row — never a cross-scope leak.
+        let selected = editableInstances.first(where: {
             $0.id.uuidString == inspectorState.selectedPanel
-        }) ?? editableInstances.first {
-            // Auto-select the first editable instance when nothing is set.
-            let effective = inspectorState.selectedPanel.isEmpty ? selected : selected
+        }) ?? editableInstances.first
+        if let effective = selected {
             Group {
                 if let panel = inspectorState.panelView(for: effective, edit: session) {
                     panel

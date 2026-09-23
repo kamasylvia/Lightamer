@@ -95,7 +95,11 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// tolerate `schemaVersion > schemaVersionCurrent` by degrading (the
     /// coordinator's drift/unknown-op paths); writers always emit the
     /// current version.
-    public static let schemaVersionCurrent = 1
+    ///
+    /// v2 (Plan 06-01 T6): `layerStack` upgrades from the String reservation
+    /// to the typed `SidecarLayerStackRecord` (frozen layer spelling). v1
+    /// documents (the key was always null) decode with `layerStack == nil`.
+    public static let schemaVersionCurrent = 2
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int
@@ -134,8 +138,9 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// mismatch = external edit → log + toast, memory wins, NO write-back.
     @UInt64String public var historyHash: UInt64
 
-    /// Phase 6 reservation (adjustment layers). Always `nil` in v1.
-    public var layerStack: String?
+    /// The typed adjustment-layer stack (v2 — the frozen 06-01 layer
+    /// spelling; always nil in v1 documents).
+    public var layerStack: SidecarLayerStackRecord?
 
     // MARK: - Paths (D-S2)
 
@@ -178,7 +183,8 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         instances: [ModuleInstance],
         history: HistoryStack,
         historyHash: UInt64,
-        appVersion: String = LightamerSidecar.currentAppVersion
+        appVersion: String = LightamerSidecar.currentAppVersion,
+        layerStack: SidecarLayerStackRecord? = nil
     ) {
         self.schemaVersion = Self.schemaVersionCurrent
         self.appVersion = appVersion
@@ -188,7 +194,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         self.instances = instances
         self.history = history
         self._historyHash = UInt64String(wrappedValue: historyHash)
-        self.layerStack = nil
+        self.layerStack = layerStack
     }
 
     // MARK: - Codable (projection through the String-hash records)
@@ -209,7 +215,17 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
             .map(\.instance)
         history = try container.decode(SidecarHistoryRecord.self, forKey: .history).stack
         _historyHash = try container.decode(UInt64String.self, forKey: .historyHash)
-        layerStack = try container.decodeIfPresent(String.self, forKey: .layerStack)
+        // Schema-dependent projection of the layerStack key (06-01 T6):
+        // v1 carried the String reservation (always null); v2 carries the
+        // typed record. Unknown FUTURE versions degrade the field to nil
+        // rather than failing the whole document (D-S1 tolerance).
+        if schemaVersion >= 2 {
+            layerStack = try container.decodeIfPresent(
+                SidecarLayerStackRecord.self, forKey: .layerStack)
+        } else {
+            _ = try container.decodeIfPresent(String.self, forKey: .layerStack)
+            layerStack = nil
+        }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -230,8 +246,10 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
 
 /// `ModuleInstance` → on-disk record: identical keys, `paramsHash` as a
 /// decimal String (checkpoint lock #2). Every other key reuses the frozen
-/// 02-05 spelling verbatim.
-private struct SidecarInstanceRecord: Codable, Sendable, Equatable {
+/// 02-05 spelling verbatim. Internal (not private) since Plan 06-01 T6 —
+/// the layer-record spelling (`SidecarLayerRecord`) embeds the same
+/// instance spelling, and duplicated keys would be two formats to migrate.
+internal struct SidecarInstanceRecord: Codable, Sendable, Equatable {
 
     /// The keys mirror `ModuleInstance.CodingKeys` (frozen checkpoint lock
     /// #6 of 02-05) — duplicated here because the projection must stay in
@@ -310,17 +328,20 @@ private struct SidecarInstanceRecord: Codable, Sendable, Equatable {
 
 /// `HistoryStack.HistoryItem` → on-disk record: `{id, snapshot, label,
 /// timestamp, layerScope}` with the inline snapshot's `paramsHash` as a
-/// String.
+/// String; 06-01 T6 adds `stackSnapshot` (the layer-stack snapshot through
+/// the same frozen layer spelling), optional + decodeIfPresent — v1
+/// documents decode with nil.
 private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
 
     private enum Keys: String, CodingKey {
-        case id, snapshot, label, timestamp, layerScope
+        case id, snapshot, label, timestamp, layerScope, stackSnapshot
     }
 
     var item: HistoryStack.HistoryItem {
         HistoryStack.HistoryItem(
             id: id, snapshot: snapshot.instance, label: label,
-            timestamp: timestamp, layerScope: layerScope
+            timestamp: timestamp, layerScope: layerScope,
+            stackSnapshot: stackSnapshot?.snapshot
         )
     }
 
@@ -329,6 +350,7 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
     private var label: String
     private var timestamp: Date
     private var layerScope: String?
+    private var stackSnapshot: SidecarLayerStackRecord?
 
     init(_ item: HistoryStack.HistoryItem) {
         id = item.id
@@ -336,6 +358,7 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         label = item.label
         timestamp = item.timestamp
         layerScope = item.layerScope
+        stackSnapshot = item.stackSnapshot.map(SidecarLayerStackRecord.init)
     }
 
     init(from decoder: Decoder) throws {
@@ -345,6 +368,8 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         label = try container.decode(String.self, forKey: .label)
         timestamp = try container.decode(Date.self, forKey: .timestamp)
         layerScope = try container.decodeIfPresent(String.self, forKey: .layerScope)
+        stackSnapshot = try container.decodeIfPresent(
+            SidecarLayerStackRecord.self, forKey: .stackSnapshot)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -354,6 +379,7 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         try container.encode(label, forKey: .label)
         try container.encode(timestamp, forKey: .timestamp)
         try container.encodeIfPresent(layerScope, forKey: .layerScope)
+        try container.encodeIfPresent(stackSnapshot, forKey: .stackSnapshot)
     }
 }
 
@@ -395,14 +421,19 @@ private struct SidecarHistoryRecord: Codable, Sendable, Equatable {
 public extension LightamerSidecar {
 
     /// The drift verdict (HIST-04/SC#5; checkpoint lock #5): recompute
-    /// `HistoryHash.hash(stack:decodeParamsHash:)` from the RESTORED stack
-    /// seeded with the FILE's OWN `decodeParamsHash` — a mismatch means the
-    /// document's params/history were edited out-of-band after the write.
-    /// Seeding with the file's own decode hash (not the live one) keeps a
-    /// decoder upgrade from false-positive as user drift; the live-vs-file
-    /// decode difference is informational (the coordinator logs it).
+    /// `HistoryHash.hash` from the RESTORED stack seeded with the FILE's
+    /// OWN `decodeParamsHash` — a mismatch means the document's
+    /// params/history were edited out-of-band after the write. Layer-aware
+    /// since 06-01 T6: the document's own layer records are folded in
+    /// explicitly (L013 — field folds, never JSON bytes), so a
+    /// layer-param/structure tamper is drift too; v1 documents (nil layer
+    /// stack) hash exactly as the 02-06 form did. Seeding with the file's
+    /// own decode hash (not the live one) keeps a decoder upgrade from
+    /// false-positive as user drift.
     var driftDetected: Bool {
-        HistoryHash.hash(stack: history, decodeParamsHash: decodeParamsHash)
+        HistoryHash.hash(
+            stack: history, decodeParamsHash: decodeParamsHash,
+            layerSnapshot: layerStack?.snapshot)
             != historyHash
     }
 
@@ -431,5 +462,39 @@ public extension LightamerSidecar {
             }
         }
         return (HistoryStack(items: degradedItems, position: history.position), unknown)
+    }
+
+    /// The unknown-op degrade pass over the LAYER chains (Plan 06-01 T6 —
+    /// the 02-06 mechanism applied per layer): a record whose op the
+    /// current binary cannot build is kept VERBATIM except the whole layer
+    /// flips `enabled = false` (the layer drops out of the composite; its
+    /// chain bytes survive for a future binary).
+    ///
+    /// Returns the degraded records + unknown op names (first occurrence).
+    func degradedLayerStack(registry: ModuleRegistry) async
+        -> (layerStack: SidecarLayerStackRecord?, unknownOps: [String])
+    {
+        guard let layerStack else { return (nil, []) }
+        var degradedLayers: [SidecarLayerRecord] = []
+        var unknown: [String] = []
+        var seen = Set<String>()
+        for layer in layerStack.layers {
+            var degradedLayer = layer
+            var layerHasUnknownOp = false
+            for record in layer.chain {
+                let instance = record.instance
+                if await registry.makeBox(opName: instance.opName, instanceID: instance.id) == nil {
+                    layerHasUnknownOp = true
+                    if seen.insert(instance.opName).inserted {
+                        unknown.append(instance.opName)
+                    }
+                }
+            }
+            if layerHasUnknownOp {
+                degradedLayer = layer.degraded()
+            }
+            degradedLayers.append(degradedLayer)
+        }
+        return (SidecarLayerStackRecord(layers: degradedLayers), unknown)
     }
 }

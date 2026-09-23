@@ -40,6 +40,10 @@ internal struct EditorAreaView: View {
     /// state lives here, the sampling in the coordinator.
     @Environment(InspectorState.self) private var inspectorState
 
+    /// 06-05: the layer-editing state machine — the viewport gesture
+    /// arbitration归口 (mask tools / liquify / crop, exactly one owner).
+    @Environment(LayerEditingState.self) private var editingState
+
     var body: some View {
         @Bindable var editorState = editorState
         VStack(spacing: 0) {
@@ -63,27 +67,81 @@ internal struct EditorAreaView: View {
                         )
                         .transition(.opacity)
                         .accessibilityLabel(Text("editor_viewport"))
-                        // 04-02-T4: crop overlay above the viewport (D-G6).
+                        // 06-05: the overlay OWNER is the editing state
+                        // machine's single decision (exactly one of the
+                        // three routes is active — the mutex invariant).
                         .overlay {
                             GeometryReader { overlayGeo in
-                                CropOverlayHost(
-                                    viewportSize: overlayGeo.size,
-                                    displaySize: displayPixelSize,
-                                    cropRecord: cropRecord,
-                                    isDragging: isCropDragging,
-                                    onBegin: {
-                                        isCropDragging = true
-                                        pipeCoordinator.beginContinuousEdit()
-                                    },
-                                    onLive: { snapshot in
-                                        Task { await pipeCoordinator.setLiveParams(snapshot) }
-                                    },
-                                    onCommit: { snapshot, label in
-                                        isCropDragging = false
-                                        Task { await pipeCoordinator.setLiveParams(snapshot) }
-                                        Task { await pipeCoordinator.commitContinuousEdit(label: label) }
+                                switch viewportRoute {
+                                case .maskEditing:
+                                    MaskOverlayHost(
+                                        viewportSize: overlayGeo.size,
+                                        displaySize: displayPixelSize)
+                                case .liquify:
+                                    LiquifyOverlayHost(
+                                        viewportSize: overlayGeo.size,
+                                        displaySize: displayPixelSize,
+                                        liquifyRecord: liquifyRecord,
+                                        onBegin: {
+                                            pipeCoordinator.beginContinuousEdit()
+                                        },
+                                        onLive: { snapshot in
+                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                        },
+                                        onCommit: { snapshot, label in
+                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                            Task { await pipeCoordinator.commitContinuousEdit(label: label) }
+                                        }
+                                    )
+                                case .retouch:
+                                    // 06-07: the retouch stroke editor owns the
+                                    // viewport while the selected layer is a
+                                    // retouch kind (its edits route through
+                                    // EditorState's structure commits, not the
+                                    // coordinator's param paths).
+                                    if let retouch = retouchLayer {
+                                        RetouchOverlayHost(
+                                            viewportSize: overlayGeo.size,
+                                            displaySize: displayPixelSize,
+                                            layer: retouch)
+                                    } else {
+                                        CropOverlayHost(
+                                            viewportSize: overlayGeo.size,
+                                            displaySize: displayPixelSize,
+                                            cropRecord: cropRecord,
+                                            isDragging: isCropDragging,
+                                            onBegin: { isCropDragging = true },
+                                            onLive: { _ in },
+                                            onCommit: { _, _ in })
                                     }
-                                )
+                                case .crop:
+                                    CropOverlayHost(
+                                        viewportSize: overlayGeo.size,
+                                        displaySize: displayPixelSize,
+                                        cropRecord: cropRecord,
+                                        isDragging: isCropDragging,
+                                        onBegin: {
+                                            isCropDragging = true
+                                            pipeCoordinator.beginContinuousEdit()
+                                        },
+                                        onLive: { snapshot in
+                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                        },
+                                        onCommit: { snapshot, label in
+                                            isCropDragging = false
+                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                            Task { await pipeCoordinator.commitContinuousEdit(label: label) }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        // 06-05 T3.1: the mask toolbar — a floating strip at
+                        // the viewport's BOTTOM EDGE (never grows the
+                        // Inspector; the viewport keeps its ≥50% share).
+                        .overlay(alignment: .bottom) {
+                            if editorState.loadedImageURL != nil {
+                                MaskToolbarView()
                             }
                         }
                     } else {
@@ -153,12 +211,45 @@ internal struct EditorAreaView: View {
         Task { await pipeCoordinator.drawableDidChange(drawableLongEdge: longEdge) }
     }
 
+    // MARK: - 06-05 viewport route (the state machine's decision)
+
+    /// Exactly ONE owner for the viewport overlay (the mutex invariant):
+    /// mask tools > liquify panel > retouch panel > crop. The liquify/
+    /// retouch routes keep their selected-panel rules but route THROUGH
+    /// the machine.
+    private var viewportRoute: LayerEditingState.ViewportRoute {
+        editingState.viewportRoute(
+            liquifyPanelSelected: liquifyActive,
+            retouchPanelSelected: retouchLayer != nil)
+    }
+
+    /// The selected RETOUCH layer (nil = the retouch route stays off).
+    private var retouchLayer: RetouchLayer? {
+        guard let id = editingState.selectedLayerID else { return nil }
+        return editorState.retouchLayer(id: id)
+    }
+
     // MARK: - 04-02-T4 crop overlay inputs (D-G6)
 
     /// The crop record (nil ⇒ no overlay). Read from the live instance
     /// set — the panel (T5) and overlay share this record (single source).
     private var cropRecord: ModuleInstance? {
         editorState.instances.first { $0.opName == CropModule.opName }
+    }
+
+    // MARK: - 06-06-T4 liquify overlay (mutual exclusion with crop)
+
+    /// The liquify record (the seed always carries one — enabled-neutral).
+    private var liquifyRecord: ModuleInstance? {
+        editorState.instances.first { $0.opName == LiquifyModule.opName }
+    }
+
+    /// The liquify node editor owns the viewport while the liquify panel is
+    /// the SELECTED Inspector surface (the v1 gesture-exclusion state
+    /// machine, DECISIONS D-06-06-T4-3 — the crop overlay returns when any
+    /// other panel is selected).
+    private var liquifyActive: Bool {
+        inspectorState.selectedPanel == liquifyRecord?.id.uuidString
     }
 
     /// The display texture's pixel size (upstream geometry for the fitted

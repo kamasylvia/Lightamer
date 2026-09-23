@@ -146,6 +146,18 @@ public actor PipeCache {
         trackedBytes = 0
     }
 
+    /// Surgical layer sweep (Plan 06-01 T3/T4): drop the CHAIN-OUTPUT lines
+    /// of one layer (position ≥ 0 — composite prefixes at the reserved
+    /// negative positions survive). The cold-layer leg of
+    /// `LayerCachePolicy.fullColdLayer` uses this after a cold blend.
+    public func invalidateLayer(imageID: UUID, layerID: UUID) {
+        for key in planes.keys
+        where key.imageID == imageID && key.layerID == layerID && key.position >= 0 {
+            trackedBytes -= planes[key]?.byteCount ?? 0
+            planes.removeValue(forKey: key)
+        }
+    }
+
     // MARK: - Session-level budget enforcement (Plan 02-06-05; D-C1/D-C2)
 
     /// The keep policy for `enforceBudget` (checkpoint 02-06-01 lock #6):
@@ -229,6 +241,27 @@ public actor PipeCache {
         ordered += candidates { res, id in
             !isOther(id) && res != .preview
         }
+        // Tier 5 (Plan 06-01 T3): the CURRENT image's LAYER-dimension
+        // planes, in `LayerPlaneTier` order (chain outputs → composite
+        // prefixes → mask planes). The base/terminal namespace (sentinel
+        // layerID) is deliberately NOT a layer plane — its current-image
+        // PREVIEW planes keep the historical exemption from every sweep.
+        // D-06-01-T3-1: the plan's "终端/输入" leg of the layer order is
+        // anchored by the existing image tiers (other-image FULL at tier 2,
+        // current-image non-PREVIEW at tier 4) — re-evicting the current
+        // image's base input/terminal planes here would thrash the D-C3
+        // preview ladder for zero headroom gain.
+        let layerTierCandidates: [(
+            key: PipeCacheKey, tier: LayerPlaneTier, lastHit: ContinuousClock.Instant
+        )] = planes.compactMap { element in
+            element.key.layerTier.map { (element.key, $0, element.value.lastHit) }
+        }
+        let currentImageLayerCandidates = layerTierCandidates.filter { !isOther($0.key.imageID) }
+        let tierOrdered = currentImageLayerCandidates.sorted(by: { lhs, rhs in
+            if lhs.tier != rhs.tier { return lhs.tier < rhs.tier }
+            return lhs.lastHit < rhs.lastHit
+        })
+        ordered += tierOrdered.map(\.key)
 
         var freedBytes = 0
         var evicted = 0

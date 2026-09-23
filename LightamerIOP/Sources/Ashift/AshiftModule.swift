@@ -304,6 +304,39 @@ public final class AshiftModule: IOPModule {
                     scale: roi.scale)
     }
 
+    /// Plan 06-03 T2 point-mapping segment (D-06-CONTEXT-7): the GENERIC
+    /// homography pair (04-03 `Homography.compose` + its explicit inverse)
+    /// — nil when neutral or singular (identity, the module's D5 fallback).
+    public func pointMapSegment(
+        inputSize: SIMD2<Double>
+    ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)? {
+        guard !isNeutral(committed) else { return nil }
+        let bufW = Int(inputSize.x), bufH = Int(inputSize.y)
+        let h = forwardMatrix(bufW: bufW, bufH: bufH)
+        guard let hInv = h.inverted() else { return nil }
+        // Pathological (<4px output) renders identity in the module — the
+        // mapper must agree (same <4px predicate, no IOPiece round-trip:
+        // the dscIn-driven modifyROIOut probe would read a zero-size piece).
+        var xm = Double.greatestFiniteMagnitude, ym = Double.greatestFiniteMagnitude
+        var xM = -Double.greatestFiniteMagnitude, yM = -Double.greatestFiniteMagnitude
+        for (x, y) in [
+            (0.0, 0.0), (inputSize.x, 0.0),
+            (0.0, inputSize.y), (inputSize.x, inputSize.y),
+        ] {
+            let q = h.project(x, y)
+            xm = min(xm, q.x); xM = max(xM, q.x)
+            ym = min(ym, q.y); yM = max(yM, q.y)
+        }
+        let spanW = (xM - xm) * Double(committed.cr - committed.cl)
+        let spanH = (yM - ym) * Double(committed.cb - committed.ct)
+        guard spanW >= 4, spanH >= 4 else { return nil }
+        let full = fullOutputSpan(bufW: bufW, bufH: bufH)
+        let clip = SIMD2(full.w * Double(committed.cl), full.h * Double(committed.ct))
+        let outSpan = SIMD2(full.w, full.h)
+        return (.homography(forward: h, inverse: hInv, clip: clip,
+                            inSize: inputSize, outSpan: outSpan), outSpan)
+    }
+
     /// dt CPU/CL legs (`:3522-3566` / `:3659-3703`): neutral or
     /// pathological → blit identity (D5; dt's `_isneutral` copy short-
     /// circuit `:3651-3657` + the disable-piece path). Else single-pass

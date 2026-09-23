@@ -168,12 +168,13 @@ final class SidecarRoundTripTests: XCTestCase {
 
         XCTAssertEqual(decoded, document)
         XCTAssertEqual(decoded.schemaVersion, LightamerSidecar.schemaVersionCurrent)
-        XCTAssertEqual(decoded.schemaVersion, 1)
+        XCTAssertGreaterThanOrEqual(decoded.schemaVersion, 1,
+                                    "writers emit the CURRENT version (v2 since 06-01)")
         XCTAssertEqual(decoded.instances, state.instances)
         XCTAssertEqual(decoded.history, state.history)
         XCTAssertEqual(decoded.history.position, 1, "the undo'd mid-state persists")
         XCTAssertEqual(decoded.history.items.count, 3, "D-H2: the redo tail persists too")
-        XCTAssertEqual(decoded.layerStack, nil, "Phase 6 reservation stays null in v1")
+        XCTAssertEqual(decoded.layerStack, nil, "no layer payload for a layerless document")
     }
 
     /// D-S2 naming: `<original FULL name>.lra` appended — `DSC09991.ARW` →
@@ -226,8 +227,9 @@ final class SidecarRoundTripTests: XCTestCase {
         XCTAssertTrue(json.contains("\"paramsData\" : \""))
 
         // And the sortedKeys pretty output shape (D-S1): first key sorts
-        // alphabetically; schemaVersion renders as a bare number.
-        XCTAssertTrue(json.contains("\"schemaVersion\" : 1"))
+        // alphabetically; schemaVersion renders as a bare number (v2 since
+        // 06-01).
+        XCTAssertTrue(json.contains("\"schemaVersion\" : \(LightamerSidecar.schemaVersionCurrent)"))
         XCTAssertTrue(json.hasPrefix("{\n  \"appVersion\""))
     }
 

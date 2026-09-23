@@ -80,6 +80,60 @@ public enum HistoryHash {
         )
     }
 
+    // MARK: - Layer dimension (Plan 06-01 T6)
+
+    /// The layer-aware drift anchor: the global chain above PLUS every
+    /// layer's identity + props + chain, EXPLICITLY folded (L013 — field
+    /// folds only; never JSON bytes, never `Hasher`). A layer-structure or
+    /// layer-param edit flips the hash even when the global set is
+    /// untouched; a v1 document (snapshot nil) hashes identically to the
+    /// 2-argument form.
+    public static func hash(
+        stack: HistoryStack,
+        decodeParamsHash: UInt64,
+        layerSnapshot: LayerStackSnapshot?
+    ) -> UInt64 {
+        var combined = hash(stack: stack, decodeParamsHash: decodeParamsHash)
+        guard let layerSnapshot else { return combined }
+        for layer in layerSnapshot.layers {
+            // Layer identity — the 16 raw UUID bytes.
+            combined = withUnsafeBytes(of: layer.id.uuid) {
+                StableHash.combine(combined, $0)
+            }
+            // Name — UTF-8 bytes (length-unambiguous; see the opName note).
+            combined = Data(layer.name.utf8).withUnsafeBytes {
+                StableHash.combine(combined, $0)
+            }
+            // Props — fixed order: visibility, enabled, opacity bits,
+            // blend-mode raw, option-flag bits.
+            combined = Self.chain(combined, layer.isVisible ? 1 : 0)
+            combined = Self.chain(combined, layer.enabled ? 1 : 0)
+            combined = Self.chain(combined, UInt64(layer.opacity.bitPattern))
+            combined = Self.chain(combined, UInt64(bitPattern: Int64(layer.blendMode)))
+            combined = Self.chain(combined, UInt64(layer.blendOptions))
+            // Chain — the SAME per-instance fold as the global projection,
+            // seeded with the running combined hash (enabled instances only,
+            // matching Darktable's `if (enabled)` guard).
+            combined = hash(
+                instances: HistoryStack.effectiveChain(layer.chain),
+                decodeParamsHash: combined)
+            // Mask — the DERIVED spec hash (StableHash over canonical
+            // JSON), folded so a mask edit/tamper is drift too (06-05
+            // hardening: the 06-01 anchor covered identity/props/chain
+            // only). Safe to introduce NOW — no production document has
+            // ever carried a layer stack (the coordinator wires layer
+            // persistence in 06-05), so the anchor formula has no
+            // deployed documents to stay byte-compatible with.
+            if let mask = layer.mask {
+                let maskHash = mask.stableHash()
+                combined = withUnsafeBytes(of: maskHash) {
+                    StableHash.combine(combined, $0)
+                }
+            }
+        }
+        return combined
+    }
+
     // MARK: - The shared D-H4 decode atom (PixelPipe TODO(02-05) extraction)
 
     /// `decodeParamsHash` — the position-0 seed shared by the pipe-cache
