@@ -81,3 +81,4 @@
 [2026-09-24 夜间] 06-04 执行完成：T1..T5 五任务 commit + T6 收尾（SUMMARY/DECISIONS/manifest/TODO/GOAL-STATE）；终轮全 suite 723/3skip/0fail（基线 698→723）；未 push。
 2026-09-23 [06-04] subagent 验收 PASS-with-notes：blendif 逐式对照 dt 正本（含 CL 死代码方向陷阱物证——双向同错 bug 教训成立）、后处理链组装序钉死、combine 五式 + 闭式面积、raster 三失败腿真实构造、723/3/0 独立实跑。minor：raster-only 降级腿未折层 opacity（6-5 前置小修）。→ 06-06 liquify。
 2026-09-23 [06-06] subagent 验收 PASS-with-notes：warp kernel 与 liquify.c:978-1013 逐项等价、parity 0.0/27648 采样、映射器 roundtrip 8.4e-11、内容锚定端到端 0.0386、GUI 真机复测全复现（拖拽实时跟随/⌘Z 恰 1 commit/互斥路由）、747/3/0 独立实跑。3 遗留登记（mask 键几何态/overlay v1/Manual-Only）。→ 06-05 LayersPanel UI。
+[2026-09-24 02:43] 06-05 执行完成：4 commits（8c9d464 C0 + T1-T4 + T5 + T6 closeout + docs）；终轮全 suite 768/3skip/0fail（基线 747→+21）；前半签核 SC#1/2/3/5✅ 落 DISCUSSION-LOG；未 push
