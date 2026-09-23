@@ -386,11 +386,6 @@ final class BilateralParityTests: XCTestCase {
 
         let whole = try await run(maxTileBytes: nil)
         let tiled = try await run(maxTileBytes: 4 << 20)
-        // TEMP probe
-        for (x, y) in [(50, 27), (56, 27), (70, 27), (94, 27), (56, 50), (56, 94)] {
-            let i = (y * w + x) * 3
-            print("PROBE(\(x),\(y)) whole=\(whole[i]) tiled=\(tiled[i])")
-        }
         // 分块计数 > 1（经同参 TilingPlan 复算——预算 4MB / 摊销 B/px；
         // side 75 > 4×halo 免退化 0 宽 tile）。
         var piece = IOPiece()

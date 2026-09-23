@@ -1013,7 +1013,7 @@ force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自�
 
 | # | 模块（op / slot） | 轨 A 来源 | 容差（门 → 实测） | probe/采纳记录 | SC |
 |---|---|---|---|---|---|
-| 1 | colorbalancerggb（colorbalancergb / 41.5） | gen_fixtures float64（矩阵直译） | <1e-5 → 轨 A 全绿 | 05-02：XMP 采纳 + PFM BROKEN 注记 | SC#1 |
+| 1 | colorbalancergb（colorbalancergb / 41.5） | gen_fixtures float64（矩阵直译） | <1e-5 → 轨 A 全绿 | 05-02：XMP 采纳 + PFM BROKEN 注记 | SC#1 |
 | 2 | channelmixerrgb / 28.5 | gen_fixtures float64（illuminants/CAT） | <1e-5 → 全绿 | 05-03：dt-cli 采纳 12/12（blob 88B F1 修复） | SC#1 |
 | 3 | channelmixer / 39.0 | gen_fixtures float64（7 系数 RGB/HSL） | <1e-5 → 全绿 | 05-03：采纳（同上轮） | SC#1 |
 | 4 | colorcontrast / 56.0 | gen_fixtures float64（a/b 斜率+偏移） | <1e-5 → 全绿 | 05-03：采纳 | SC#1；IOP-COLOR-09 交付本体 |

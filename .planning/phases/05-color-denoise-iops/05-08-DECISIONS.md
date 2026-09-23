@@ -97,3 +97,13 @@ IOP-DENOISE-04 拆解决议（需求文字「hot-pixel/dark-frame/chromatic-nois
 ## D-05-08-T4-2: 面板交互口径（继承既定框架，无新决策）
 
 BilateralPanelView = NLMeansPanelView 模式复用：LightamerSlider 三件套（拖动实时 → 松手恰 1 commit，D-H1）+ 离散复位 applyDiscrete；量程 = dt soft range（radius 1-30、σ 0.0001-0.1 @ 4 位小数——dt gui_init；硬上限 50/1.0 编程可达）；280pt 约束（滑块 only）；a11y id `inspector.slider.bilateral.{radius,red,green,blue}` + zh/en catalog 8 keys + InspectorView zh 显示名同轮落位（05-06 教训预防性）；`PanelWiringTests` +2（dispatch + 拖动恰 1 commit + 复位还原 pristine hash）。5D 网格预算不进 UI（D-05-08-T2-1）。
+
+## D-05-08-T6-1: SC#4 Open#9 应急判定（denoise 链 60fps 未达的收口）
+
+- **判定**：denoise 单件链（nlmeans 降载档）拖 strength 中位 85.7ms，未达 16.6ms 预算；预览降载三件套已兑现（57 趟 vs 满血 481 趟 = 7.5×）后仍不达 → Open#9 应急预案（管线级 Lab 往返共享）**判定启用条件成立**，但量化表明 Lab 往返共享对本缺口的贡献仅 ~5%（每模块省 2 趟，NLMeans 本征趟数为体）——**非正杠杆**。
+- **收口**：正杠杆（更深预览降载 + dispatch 批合并）移交 Phase 6+/独立 perf plan；TODO 公开挂账（PERF-01 未勾与 PERF-5 清账注记同源）。
+- **证据**：`.work/05/perf.md`（判定摘要）+ 05-08 验收独立复跑（color 4.8ms ✓ / denoise 85.7ms ✗）。
+
+## D-05-08-T1-1 补充：bilateral.cc 行号引用勘误（2026-09-23 复验）
+
+plan/文档所引 bilateral.cc 行号系统性漂移：_compute_sigmas 实际 :109（非 :320-327）、调用点 :158/:334（非 :258/:360）、commit_params :297（非 :352-353）、tiling_callback :326（非 :359-368）；:48/:52-58 正确。语义核对不受影响（以 pinned 树 dc58cf0ba1 实读为准）。
