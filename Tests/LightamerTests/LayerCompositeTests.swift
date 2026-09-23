@@ -1,0 +1,421 @@
+@testable import LightamerCore
+import LightamerIOP
+import Metal
+import XCTest
+
+/// Plan 06-01 T4 — the degenerate composite (`LayerCompositeDriver`):
+/// identity triples BYTE-EXACT in both PREVIEW and FULL (L014 fence, L020 ③
+/// content-level), cross-layer ROI consistency under `roiHint`, per-layer
+/// geometry rejection (D-06-CONTEXT-5), and the LAYER-02 independent-params
+/// proof (a layer's output == its chain spliced into the base chain).
+final class LayerCompositeTests: XCTestCase {
+
+    // ── Fixtures ──
+
+    private func makeMetal() async throws -> MetalContext {
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        return metal
+    }
+
+    /// A spatially-varying synthetic image (diagonal gradient — L020 ③:
+    /// coordinate/geometry errors are invisible on flat fields). Built as a
+    /// raw RGBA float32 bitmap — no CI filter parameter bridging quirks.
+    private func makeImage(width: Int = 48, height: Int = 32) -> DecodedImage {
+        var pixels = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let o = (y * width + x) * 4
+                pixels[o + 0] = 0.1 + 0.7 * Float(x) / Float(width - 1)
+                pixels[o + 1] = 0.2 + 0.5 * Float(y) / Float(height - 1)
+                pixels[o + 2] = 0.3 + 0.3 * Float(x + y) / Float(width + height - 2)
+                pixels[o + 3] = 1.0
+            }
+        }
+        let bitmap = pixels.withUnsafeBytes { Data($0) }
+        let ci = CIImage(
+            bitmapData: bitmap,
+            bytesPerRow: width * 4 * MemoryLayout<Float>.stride,
+            size: CGSize(width: width, height: height),
+            format: .RGBAf, colorSpace: WorkingSpace.colorSpace)
+        return DecodedImage(
+            ciImage: ci,
+            rawTech: RAWTechnicalParams(blackLevel: 0.0),
+            capture: CaptureMetadata(),
+            segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8
+        )
+    }
+
+    private func makeRegistry() async throws -> ModuleRegistry {
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        return registry
+    }
+
+    /// The base chain: trio + one base gain (committed params).
+    private func makeBaseInstances(
+        registry: ModuleRegistry, baseGain: Float
+    ) async throws -> [any ModuleBoxing] {
+        var chain = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        let gainMade = await registry.makeBox(opName: TestGainModule.opName)
+        let gain = try XCTUnwrap(gainMade as? ModuleBox<TestGainModule>)
+        gain.setParams(TestGainModule.Params(gain: baseGain))
+        chain.append(gain)
+        return chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+    }
+
+    private func layerWithGain(
+        _ gain: Float, priority: Int = 5, opacity: Float = 1.0,
+        name: String = "L"
+    ) -> AdjustmentLayer {
+        let record = ModuleInstance(
+            module: TestGainModule.self, multiPriority: priority,
+            params: TestGainModule.Params(gain: gain))
+        return AdjustmentLayer(name: name, opacity: opacity, chain: [record])
+    }
+
+    private func composite(
+        _ image: DecodedImage, _ base: [any ModuleBoxing], _ stack: LayerStack,
+        registry: ModuleRegistry, metal: MetalContext,
+        resolution: PipeResolution, cache: PipeCache,
+        roiHint: ROI? = nil
+    ) async throws -> LayerCompositeResult {
+        try await LayerCompositeDriver.composite(
+            image: image, imageID: Self.fixtureImageID, baseInstances: base,
+            layerStack: stack, registry: registry, resolution: resolution,
+            cache: cache, metal: metal, longEdge: nil, roiHint: roiHint,
+            policy: resolution == .full ? .fullColdLayer : .preview)
+    }
+
+    private static let fixtureImageID = UUID()
+
+    /// L014 fence + full raw read (float32 RGBA planes and the display
+    /// tail alike — the byte comparisons are format-aware via byteCount).
+    private func rawBytes(_ texture: any MTLTexture, metal: MetalContext) -> [UInt8] {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+        var bytes = [UInt8](
+            repeating: 0, count: texture.width * texture.height * 4)
+        bytes.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: texture.width * 4,
+                from: MTLRegionMake2D(0, 0, texture.width, texture.height),
+                mipmapLevel: 0)
+        }
+        return bytes
+    }
+
+    /// Byte-exact plane comparison with a compared > 0 guard (L020 ③).
+    private func assertBytesEqual(
+        _ a: [UInt8], _ b: [UInt8], _ label: String
+    ) {
+        XCTAssertEqual(a.count, b.count, "\(label): plane sizes differ")
+        guard a.count == b.count, !a.isEmpty else {
+            XCTFail("\(label): nothing compared (empty planes) —防空转")
+            return
+        }
+        var firstDiff = -1
+        for index in 0..<a.count where a[index] != b[index] {
+            firstDiff = index
+            break
+        }
+        if firstDiff >= 0 {
+            XCTFail(
+                "\(label): planes diverge at byte \(firstDiff) of \(a.count) " +
+                "(\(a[firstDiff]) vs \(b[firstDiff]))")
+        }
+    }
+
+    private func assertBytesDiffer(
+        _ a: [UInt8], _ b: [UInt8], _ label: String
+    ) {
+        guard a.count == b.count, !a.isEmpty else {
+            XCTFail("\(label): nothing compared —防空转")
+            return
+        }
+        let differing = zip(a, b).filter { $0.0 != $0.1 }.count
+        XCTAssertGreaterThan(
+            differing, 0, "\(label): planes must differ (independent params)")
+    }
+
+    // ── 1. Identity triples (byte-exact, PREVIEW + FULL) ──
+
+    /// op = 1.0 (normal, full passthrough mask) ⇒ composite == the layer's
+    /// chain spliced into the base chain as ONE flat pipe run. The LAYER-02
+    /// content proof and the op=1 identity triple in one gate.
+    func testOpacityOneEqualsFlatMergedChain() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage()
+        let cache = PipeCache()
+
+        for resolution in [PipeResolution.preview, .full] {
+            let base = try await makeBaseInstances(registry: registry, baseGain: 1.2)
+            var stack = LayerStack(baseLayer: BackgroundLayer())
+            let layer = layerWithGain(2.0, opacity: 1.0)
+            stack.addAdjustment(layer)
+
+            let result = try await composite(
+                image, base, stack, registry: registry, metal: metal,
+                resolution: resolution, cache: cache)
+
+            // The flat reference: the SAME chains as ONE pipe run (the
+            // layer's records materialized into the same flat array).
+            let flatBase = try await makeBaseInstances(registry: registry, baseGain: 1.2)
+            let layerRecord = ModuleInstance(
+                module: TestGainModule.self, multiPriority: 5,
+                params: TestGainModule.Params(gain: 2.0))
+            let layerBoxMade = await registry.makeBox(
+                opName: layerRecord.opName, instanceID: layerRecord.id)
+            let layerBox = try XCTUnwrap(layerBoxMade as? ModuleBox<TestGainModule>)
+            try layerBox.apply(layerRecord)
+            let flat = (flatBase + [layerBox]).sorted {
+                ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+            }
+            let (flatTexture, _) = try await RenderPipeline.process(
+                image: image, instances: flat, imageID: UUID(),
+                resolution: resolution, cache: PipeCache(), metal: metal,
+                longEdge: nil)
+
+            assertBytesEqual(
+                rawBytes(result.output, metal: metal),
+                rawBytes(flatTexture, metal: metal),
+                "op=1.0 composite vs flat merged chain (\(resolution))")
+        }
+    }
+
+    /// op = 0.0 ⇒ composite == the base-only run (both resolutions).
+    func testOpacityZeroEqualsBaseOnly() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage()
+        let cache = PipeCache()
+
+        for resolution in [PipeResolution.preview, .full] {
+            let base = try await makeBaseInstances(registry: registry, baseGain: 1.2)
+            var stack = LayerStack(baseLayer: BackgroundLayer())
+            stack.addAdjustment(layerWithGain(3.0, opacity: 0.0))
+
+            let result = try await composite(
+                image, base, stack, registry: registry, metal: metal,
+                resolution: resolution, cache: cache)
+            let (baseOnly, _) = try await RenderPipeline.process(
+                image: image, instances: base, imageID: UUID(),
+                resolution: resolution, cache: PipeCache(), metal: metal,
+                longEdge: nil)
+
+            assertBytesEqual(
+                rawBytes(result.output, metal: metal),
+                rawBytes(baseOnly, metal: metal),
+                "op=0.0 composite vs base-only (\(resolution))")
+        }
+    }
+
+    /// Empty-chain layer (op=1.0 ⇒ L ≡ S, exact) and disabled/hidden layers
+    /// are content no-ops; enabled vs visible semantics differ structurally
+    /// (disabled = no sub-run at all).
+    func testEmptyDisabledHiddenLayersAreNoOps() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage()
+        let cache = PipeCache()
+        let base = try await makeBaseInstances(registry: registry, baseGain: 1.2)
+        let (baseOnly, _) = try await RenderPipeline.process(
+            image: image, instances: base, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        let baseBytes = rawBytes(baseOnly, metal: metal)
+
+        // Empty chain, op 1.0 → L ≡ S ⇒ composite == base, byte-exact.
+        do {
+            var stack = LayerStack(baseLayer: BackgroundLayer())
+            stack.addAdjustment(AdjustmentLayer(name: "empty", opacity: 1.0))
+            let result = try await composite(
+                image, base, stack, registry: registry, metal: metal,
+                resolution: .preview, cache: PipeCache())
+            assertBytesEqual(
+                rawBytes(result.output, metal: metal), baseBytes,
+                "empty-chain layer (op=1) is a no-op")
+        }
+
+        // Disabled layer: blend skipped — exact no-op at ANY opacity.
+        do {
+            var stack = LayerStack(baseLayer: BackgroundLayer())
+            let layer = layerWithGain(3.0, opacity: 0.8)
+            layer.enabled = false
+            stack.addAdjustment(layer)
+            let result = try await composite(
+                image, base, stack, registry: registry, metal: metal,
+                resolution: .preview, cache: PipeCache())
+            XCTAssertEqual(result.layerStats.count, 0,
+                           "disabled layer produces NO composite leg")
+            assertBytesEqual(
+                rawBytes(result.output, metal: metal), baseBytes,
+                "disabled layer is a no-op")
+        }
+
+        // Hidden (visible=false) layer: PROCESSED but not blended.
+        do {
+            var stack = LayerStack(baseLayer: BackgroundLayer())
+            let layer = layerWithGain(3.0, opacity: 1.0)
+            layer.isVisible = false
+            stack.addAdjustment(layer)
+            let cache2 = PipeCache()
+            let result = try await composite(
+                image, base, stack, registry: registry, metal: metal,
+                resolution: .preview, cache: cache2)
+            XCTAssertEqual(result.layerStats.count, 1,
+                           "hidden layer still runs its sub-run")
+            XCTAssertGreaterThan(result.layerStats[0].run.misses, 0,
+                                 "hidden layer's chain planes were rendered")
+            XCTAssertFalse(result.layerStats[0].prefixHit,
+                           "hidden layer performs NO blend/prefix probe")
+            assertBytesEqual(
+                rawBytes(result.output, metal: metal), baseBytes,
+                "hidden layer is a composite no-op")
+        }
+    }
+
+    // ── 2. Independent params (LAYER-02) — content differs from base ──
+
+    /// A layer's gain ACTUALLY shows: composite(op=1, gain 2.5) differs
+    /// from base-only (compared > 0 divergent bytes) AND matches the flat
+    /// merged chain (covered by the op=1 gate above).
+    func testLayerParamsChangeTheComposite() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage()
+        let base = try await makeBaseInstances(registry: registry, baseGain: 1.0)
+
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        stack.addAdjustment(layerWithGain(2.5, opacity: 1.0))
+        let result = try await composite(
+            image, base, stack, registry: registry, metal: metal,
+            resolution: .preview, cache: PipeCache())
+        let (baseOnly, _) = try await RenderPipeline.process(
+            image: image, instances: base, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+
+        assertBytesDiffer(
+            rawBytes(result.output, metal: metal),
+            rawBytes(baseOnly, metal: metal),
+            "layer gain 2.5 must change the composite vs base-only")
+    }
+
+    // ── 3. Cross-layer ROI (L021 layer dimension) ──
+
+    /// The composite window follows the negotiated ROI: with `roiHint`,
+    /// every leg consumes exactly the hinted window and the windowed
+    /// composite (op=1) equals the flat merged chain AT THE SAME window —
+    /// per-layer dscIn/iscale stamps are the sub-runs' own (the resident
+    /// driver preconditions held; this is the content-level corroboration).
+    func testWindowedCompositeMatchesFlatRunAtSameWindow() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage(width: 96, height: 64)
+        let base = try await makeBaseInstances(registry: registry, baseGain: 1.2)
+
+        let hint = ROI(x: 8, y: 6, width: 64, height: 40, scale: 1.0)
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        stack.addAdjustment(layerWithGain(2.0, opacity: 1.0))
+
+        let result = try await composite(
+            image, base, stack, registry: registry, metal: metal,
+            resolution: .full, cache: PipeCache(), roiHint: hint)
+        XCTAssertEqual(result.window.x, hint.x)
+        XCTAssertEqual(result.window.y, hint.y)
+        XCTAssertEqual(result.window.width, hint.width)
+        XCTAssertEqual(result.window.height, hint.height)
+        XCTAssertEqual(result.output.width, hint.width, "FULL windowed plane == window (D-06-CONTEXT-8 shape)")
+        XCTAssertEqual(result.output.height, hint.height)
+
+        let layerRecord = ModuleInstance(
+            module: TestGainModule.self, multiPriority: 5,
+            params: TestGainModule.Params(gain: 2.0))
+        let layerBoxMade = await registry.makeBox(
+            opName: layerRecord.opName, instanceID: layerRecord.id)
+        let layerBox = try XCTUnwrap(layerBoxMade as? ModuleBox<TestGainModule>)
+        try layerBox.apply(layerRecord)
+        let flat = (base + [layerBox]).sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+        let (flatWindowed, _) = try await RenderPipeline.process(
+            image: image, instances: flat, imageID: UUID(),
+            resolution: .full, cache: PipeCache(), metal: metal,
+            longEdge: nil, roiHint: hint)
+        XCTAssertEqual(flatWindowed.width, hint.width)
+        assertBytesEqual(
+            rawBytes(result.output, metal: metal),
+            rawBytes(flatWindowed, metal: metal),
+            "windowed composite vs windowed flat merged chain")
+    }
+
+    // ── 4. Geometry rejection (D-06-CONTEXT-5) ──
+
+    /// The pure detector: every forbidden slot (lens 13 / ashift 15 /
+    /// flip 16 / clipping 17) is caught by op name; identity chains pass.
+    /// The driver enforces this with fatal semantics BEFORE any GPU work
+    /// (fatalError is untestable in-process — the detector is the testable
+    /// face; D-06-01-T4-1).
+    func testLayerGeometryDetectorCatchesAllForbiddenSlots() {
+        let forbiddenOps = V50Order.entries
+            .filter { [13.0, 15.0, 16.0, 17.0].contains($0.order) }
+            .map(\.opName)
+        XCTAssertGreaterThanOrEqual(forbiddenOps.count, 4,
+                                    "the four geometry slots must exist in the table")
+        XCTAssertGreaterThan(forbiddenOps.count, 0, "防空转 guard")
+
+        for op in forbiddenOps {
+            let record = ModuleInstance(
+                id: UUID(), opName: op, multiPriority: 0, multiName: "",
+                iopOrder: V50Order.order(for: op) ?? 0, version: 1,
+                enabled: true, paramsData: Data("{}".utf8), paramsHash: 1)
+            let violation = LayerCompositeDriver.layerGeometryViolation([record])
+            XCTAssertEqual(violation, op, "geometric op \(op) must be detected in a layer chain")
+        }
+
+        let identity = ModuleInstance(
+            module: TestGainModule.self, params: TestGainModule.Params())
+        XCTAssertNil(
+            LayerCompositeDriver.layerGeometryViolation([identity]),
+            "identity chains pass the detector")
+    }
+
+    // ── 5. Blend attribute support (6-1 scope) ──
+
+    /// REVERSE flag: swaps a/b — at op=1 with reverse the composite equals
+    /// the BELOW plane (a/b swapped ⇒ below·1 + layer·0). Non-normal MODES
+    /// are rejected by the driver's precondition (fatal semantics — the
+    /// untestable-in-process face is documented in D-06-01-T4-1; the
+    /// 6-2 engine owns the mode table).
+    func testReverseFlagSwapsAB() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage()
+        let base = try await makeBaseInstances(registry: registry, baseGain: 1.2)
+        let (baseOnly, _) = try await RenderPipeline.process(
+            image: image, instances: base, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let layer = layerWithGain(3.0, opacity: 1.0)
+        layer.blendOptions = [.reverse]
+        stack.addAdjustment(layer)
+        let result = try await composite(
+            image, base, stack, registry: registry, metal: metal,
+            resolution: .preview, cache: PipeCache())
+
+        assertBytesEqual(
+            rawBytes(result.output, metal: metal),
+            rawBytes(baseOnly, metal: metal),
+            "REVERSE at op=1 ⇒ the composite equals the below (base) plane")
+    }
+}
