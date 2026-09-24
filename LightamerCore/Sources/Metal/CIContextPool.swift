@@ -74,7 +74,11 @@ internal actor CIContextPool {
     /// strongly so an identity key can never alias a recycled instance.
     private enum MemoKey: Hashable {
         case identity(ObjectIdentifier)
-        case content(UInt64)
+        /// GUI-22 re-verify note: the size rides IN the key — the full-extent
+        /// leg (FULL) and the longEdge leg (PREVIEW/THUMBNAIL) previously
+        /// shared `.content`, alternating requests overwrote each other and
+        /// re-executed CIRAW (variant drift window).
+        case content(UInt64, width: Int, height: Int)
     }
     private var inputPlaneMemo: [MemoKey: InputPlaneMemoEntry] = [:]
 
@@ -178,8 +182,9 @@ internal actor CIContextPool {
         // leg keys on the dedupe key (content identity: imageID ⊕ decode
         // hash — unifies RE-DECODES of the same file) or the image identity.
         let w = Int(extent.width), h = Int(extent.height)
-        let key = dedupeKey.map(MemoKey.content) ?? .identity(ObjectIdentifier(image))
-        if let memo = inputPlaneMemo[key], memo.texture.width == w, memo.texture.height == h {
+        let key = dedupeKey.map { MemoKey.content($0, width: w, height: h) }
+            ?? .identity(ObjectIdentifier(image))
+        if let memo = inputPlaneMemo[key] {
             memoTouch(.plane(key))
             return RenderedTexture(texture: memo.texture)
         }
@@ -243,9 +248,9 @@ internal actor CIContextPool {
         // the target size. A hit hands back the FROZEN first-render plane:
         // the CIRAW re-execution speckle variance can never leak into a
         // re-rendered input plane again.
-        let key = dedupeKey.map(MemoKey.content) ?? .identity(ObjectIdentifier(image))
-        if let memo = inputPlaneMemo[key],
-           memo.texture.width == scaledWidth, memo.texture.height == scaledHeight {
+        let key = dedupeKey.map { MemoKey.content($0, width: scaledWidth, height: scaledHeight) }
+            ?? .identity(ObjectIdentifier(image))
+        if let memo = inputPlaneMemo[key] {
             memoTouch(.plane(key))
             return RenderedTexture(texture: memo.texture)
         }
@@ -287,7 +292,9 @@ internal actor CIContextPool {
         // re-execution speckle variance can never leak into a re-rendered
         // input plane.
         let regionKey = SubRegionKey(
-            dedupe: dedupeKey.map(MemoKey.content) ?? .identity(ObjectIdentifier(image)),
+            dedupe: dedupeKey.map {
+                MemoKey.content($0, width: Int(extent.width), height: Int(extent.height))
+            } ?? .identity(ObjectIdentifier(image)),
             x: region.origin.x, y: region.origin.y,
             width: region.width, height: region.height, scale: scale)
         if let memo = inputSubRegionMemo[regionKey] {

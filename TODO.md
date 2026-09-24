@@ -200,7 +200,7 @@
 - [ ] filmic/sigmoid/agx displayed-domain 默认值校准（CIRAW 显影域 vs 场景线性假设）——产品语义任务，随 Phase 8/实机校准
 
 - [x] **GUI-22** ✅ 2026-09-24 闭环：根因 = CIRAW 输入平面重执行非确定（speckle 级，shadhi 类局部算子放大 18×）× 缓存预算驱逐迫使变体重嵌 → 各路径各自冻结不同变体。修复 = CIContextPool 渲染一次冻结 memo（键 = 文件指纹⊕decodeHash⊕请求；穿 clearCaches 存续；512MB LRU）。常驻门 = GUI22UndoWarmColdTests（暖==冷==首帧逐字节）；全 suite 853/6/0。FINDINGS「GUI-22 修复轮闭环」+ D-GUI22-FIX。
-- [ ] **GUI-23**（残余，GUI-22 修复轮发现）：跨进程首渲染方差——warm/cold 进程各自的处女 CI 渲染互差（strong>60 0.39%/meanAbs 1.39；冷×3 互比恒 0 → 按进程启动史确定，Apple CI 内部行为）；暖会话 flat 首帧 vs composite 帧 0.22%/max56（状态级同转移 0.0，GUI 上下文特有变量待查：bucket reconcile/PSO prewarm 时序）。另 GoldenColorTests neutrality/cross 为本机既有 flake（pristine 2/3 挂，同一 CI 方差打容差）——修复时一并评估。
+- [ ] **GUI-23**（memo 键尺寸维度缺口已修——全幅↔longEdge 同键互踩消除，GUI-22 复验 note-1，随批 commit；残余 = 跨进程首渲染方差本体，Apple CI 内部行为，留观）（残余，GUI-22 修复轮发现）：跨进程首渲染方差——warm/cold 进程各自的处女 CI 渲染互差（strong>60 0.39%/meanAbs 1.39；冷×3 互比恒 0 → 按进程启动史确定，Apple CI 内部行为）；暖会话 flat 首帧 vs composite 帧 0.22%/max56（状态级同转移 0.0，GUI 上下文特有变量待查：bucket reconcile/PSO prewarm 时序）。另 GoldenColorTests neutrality/cross 为本机既有 flake（pristine 2/3 挂，同一 CI 方差打容差）——修复时一并评估。
 
 ## pending-manual（累计，解锁后重跑）
 
