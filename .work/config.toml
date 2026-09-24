@@ -58,15 +58,20 @@ stuck_poll = 180      # §11.14 长任务零增长判卡秒(poll 间隔 2-3min �
 # 以下 4 slot = 2026-09-22 自 vibe 阵容镜像(roster 原样;两档 roster 同构):
 [[matrix.review.slot]]
 roster = ["omp", "pi", "kilo", "reasonix", "subagent"]  # ← vibe slot1:全天 fallback(5 路)
-[[matrix.review.slot]]
-orchestrator = ["zcode"]
-roster = ["omp", "pi", "kilo", "reasonix"]  # ← vibe slot2:白天双窗(4 路,恰达 min_valid_lanes)
-active_windows = [["09:00", "14:00"], ["18:00", "23:00"]]
+# [[matrix.review.slot]]
+# orchestrator = ["zcode"]
+# roster = ["omp", "pi", "kilo", "reasonix"]  # ← vibe slot2:白天双窗(4 路,恰达 min_valid_lanes)
+# active_windows = [["09:00", "14:00"], ["18:00", "23:00"]]
 [[matrix.review.slot]]
 orchestrator = ["zcode"]
 roster = ["subagent"]  # ← 跨夜验收 = 串行单 subagent(和全天各 plan 验收同款;--review 多路模式不在本工作流使用)
-active_windows = [["23:00", "09:00"]]
-[[matrix.review.slot]]
-orchestrator = ["zcode"]
-roster = []  # ← vibe slot4:午休休眠,zcode review 静默跳过
-active_windows = [["14:00", "18:00"]]
+# active_windows = [["23:00", "09:00"]]
+# [[matrix.review.slot]]
+# orchestrator = ["zcode"]
+# roster = []  # ← vibe slot4:午休休眠,zcode review 静默跳过
+# active_windows = [["14:00", "18:00"]]
+
+[gsd]
+# 流水线开关（2026-09-24 用户指令；消费方 = 保活巡检/orchestrator/subagent worker，每任务边界与派发前必读）
+auto = true      # 自动流转：worker 完成后自动接下一波（false = 每波完成后停等用户「继续」）
+paused = false   # 手动暂停：true = 全链路停（等同旧 .work/PAUSE 文件，随时可切；恢复 = 改回 false）
