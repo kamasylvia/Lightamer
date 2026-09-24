@@ -128,6 +128,7 @@ public final class BordersModule: IOPModule {
     /// Kernel function names (`YiyinKernels.metal`; internal — the Registry
     /// prewarm list consumes the composite pass).
     static let kernelComposite = "yiyin_composite"
+    static let kernelShadowSDF = "yiyin_shadow_sdf"
 
     /// v50 order 76.0 (V50Order table, verbatim Darktable position —
     /// between dither 75.0 and watermark 77.0; display-referred seam).
@@ -306,14 +307,24 @@ public final class BordersModule: IOPModule {
             try blitIdentity(input: input, output: output, roiIn: roiIn, roiOut: roiOut, metal: metal)
             return
         }
-        // Leg availability by task: T4 wires the radius/shadow legs, T5 the
-        // blur/overlay leg — a commit-level typed gate, never a silent
-        // wrong-output blit.
-        if paramsNeedsShadowLeg(committed) {
-            throw AppError.notImplemented("borders shadow leg (Plan 08-01 T4)")
-        }
+        // Blur leg gate (T5 wires the proxy/overlay).
         guard case .solid(let hex) = committed.mode else {
             throw AppError.notImplemented("borders blur leg (Plan 08-01 T5)")
+        }
+
+        // ── T4 shadow leg: the SDF alpha plane → the shared Deriche IIR →
+        //    the composite mixes it beneath the main image. σ mapping
+        //    (DECISIONS D-08-1-4): CSS canvas `shadowBlur` ≈ 2σ —
+        //    σ_shadow = 0.5 × shadowBlurPx (the ×0.5 family of
+        //    D-08-CONTEXT-6). yiyin's shadow = the FULL-strength black
+        //    path shadow (rgba(0,0,0,1)); the main image draws over the
+        //    band it covers, so no explicit hole punch is needed (the
+        //    hole exists only in yiyin's mask PNG because the PNG lands
+        //    ON TOP of the main image — our composite draws the shadow
+        //    BENEATH, same visual, one pass less).
+        var shadow: (any MTLTexture)?
+        if (committed.shadow ?? 0) > 0 {
+            shadow = try await buildShadowPlane(record: record, roiOut: roiOut, metal: metal)
         }
 
         // ── T3 solid leg: ONE composite dispatch. Fill = the hex converted
@@ -330,14 +341,99 @@ public final class BordersModule: IOPModule {
             ?? SIMD3<Float>(1, 1, 1)
         try await dispatchComposite(
             input: input, output: output, roiIn: roiIn, roiOut: roiOut,
-            record: record, fill: fill, overlay: nil, shadow: nil, metal: metal)
+            record: record, fill: fill, overlay: nil, shadow: shadow, metal: metal)
     }
 
-    /// The radius/shadow legs are needed when either knob is active (the
-    /// layout guarantees both px values are 0 exactly when both knobs are
-    /// nil/0 — the same predicate `isIdentityRender` uses).
-    private func paramsNeedsShadowLeg(_ p: Params) -> Bool {
-        (p.cornerRadius ?? 0) > 0 || (p.shadow ?? 0) > 0
+    // MARK: - Shadow plane (T4 — L018 scratch discipline)
+
+    /// Module-owned shadow scratch, cached per canvas size (SkinSmooth's
+    /// scratch pattern; single-owner — one pipe run at a time).
+    private var shadowCanvasWidth = 0
+    private var shadowCanvasHeight = 0
+    private var shadowPlane: (any MTLTexture)?
+    private var shadowBlurPlanes: (any MTLBuffer)?
+
+    private func ensureShadowScratch(width: Int, height: Int) throws -> (any MTLBuffer) {
+        guard width != shadowCanvasWidth || height != shadowCanvasHeight else {
+            guard let planes = shadowBlurPlanes else {
+                throw MetalError.bufferAllocationFailed(width * height * 32)
+            }
+            return planes
+        }
+        guard let resolved = resolvedDevice else {
+            throw MetalError.psoCreationFailed(Self.kernelShadowSDF, nil)
+        }
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: width, height: height, mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        guard let texture = resolved.makeTexture(descriptor: descriptor),
+            let planes = resolved.makeBuffer(
+                length: width * height * MemoryLayout<Float>.stride * 4 * 2,
+                options: .storageModeShared)
+        else {
+            throw MetalError.bufferAllocationFailed(width * height * 32)
+        }
+        shadowPlane = texture
+        shadowBlurPlanes = planes
+        shadowCanvasWidth = width
+        shadowCanvasHeight = height
+        return planes
+    }
+
+    private var resolvedDevice: (any MTLDevice)?
+
+    /// Stamp the rounded-rect SDF at the canvas extent and blur it IN
+    /// PLACE (col pass reads the texture → planes; the store pass writes
+    /// it back — same-queue FIFO orders the three command buffers, and
+    /// the texture is only read in pass 1 and written in pass 3).
+    func buildShadowPlane(
+        record: YiyinLayoutRecord, roiOut: ROI, metal: MetalContext
+    ) async throws -> (any MTLTexture) {
+        if resolvedDevice == nil { resolvedDevice = metal.device }
+        let width = max(roiOut.width, 1)
+        let height = max(roiOut.height, 1)
+        let planes = try ensureShadowScratch(width: width, height: height)
+        guard let sdf = shadowPlane else {
+            throw MetalError.psoCreationFailed(Self.kernelShadowSDF, nil)
+        }
+        let mainOrigin = SIMD2<Float>(
+            Float(record.mainImageOrigin.x), Float(record.mainImageOrigin.y))
+        let outOrigin = SIMD2<Float>(Float(roiOut.x), Float(roiOut.y))
+        let mainSize = SIMD2<Float>(
+            Float(record.sourceImageSize.x), Float(record.sourceImageSize.y))
+        var u = CompositeUniforms(
+            solidMode: 1, hasOverlay: 0, hasShadow: 0, hasBlurTex: 0,
+            fillColor: .zero, overlayColor: .zero,
+            mainOffset: mainOrigin - outOrigin, mainSize: mainSize,
+            sdfCenter: mainOrigin + mainSize / 2 - outOrigin,
+            sdfHalf: mainSize / 2,
+            radius: Float(record.cornerRadiusPx),
+            blurSigmaNorm: 0,
+            outputSize: SIMD2(Float(width), Float(height)),
+            blurTexSize: SIMD2(1, 1), pad0: .zero)
+        guard let buffer = metal.device.makeBuffer(
+            bytes: &u, length: MemoryLayout<CompositeUniforms>.stride,
+            options: .storageModeShared)
+        else { throw MetalError.deviceUnavailable }
+
+        let stamp = try await metal.makeEncoder(functionName: Self.kernelShadowSDF)
+        stamp.encoder.setTexture(sdf, index: 0)
+        stamp.encoder.setBuffer(buffer, offset: 0, index: 0)
+        stamp.encoder.dispatchThreads(
+            MTLSize(width: width, height: height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        stamp.encoder.endEncoding()
+        stamp.commandBuffer.commit()
+
+        // The shared Deriche IIR (L018 double-buffer discipline — the
+        // planes buffer IS its two device planes; zero blur rewrites).
+        try await GaussianBlur.blur(
+            input: sdf, output: sdf, planes: planes,
+            sigma: Float(record.shadowBlurPx * 0.5), order: .zero,
+            boundsMin: SIMD4(repeating: 0), boundsMax: SIMD4(repeating: 1),
+            metal: metal)
+        return sdf
     }
 
     /// The coordinator-injected display override (ColorOutModule twin): a

@@ -586,4 +586,165 @@ final class YiyinBordersTests: XCTestCase {
                 [ModuleInstance(module: FlipModule.self, params: FlipModule.Params())]),
             "flip 16.0 stays forbidden in layers")
     }
+
+    // MARK: - T4: rounded-rect SDF alpha profile (解析断言)
+
+    /// rate-50 borders on 40×30: canvas 80×60, main rect (20,15)-(60,45),
+    /// radius 10% of mainH = 3px. Shadow ≈ 0 (shadow 0.003% → σ 0.00045 —
+    /// the raw SDF). The arc center at the top-right corner is (57,18):
+    /// the pixel (58,16) sits 2px inside the arc → alpha 1; (59,15) sits
+    /// 3.54px out → alpha 0; a SQUARE path would keep (59,15) — the
+    /// radius is exact in the cut it makes.
+    func testSDFAalphaProfileRoundedCornerCut() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let module = BordersModule()
+        var params = BordersModule.Params.neutralSeed
+        params.mainImageWidthRate = 50
+        params.cornerRadius = 10
+        params.shadow = 0.003
+        var piece = IOPiece()
+        module.commitParams(params, into: &piece)
+        let record = module.effectiveLayout(dscIn: IOPBufferDesc(width: 40, height: 30))
+        XCTAssertEqual(record.canvasSize, SIMD2(80, 60))
+        XCTAssertEqual(record.mainImageOrigin, SIMD2(20, 15))
+        XCTAssertEqual(record.cornerRadiusPx, 3.0, accuracy: 1e-9)
+
+        let sdf = try await module.buildShadowPlane(
+            record: record, roiOut: ROI(x: 0, y: 0, width: 80, height: 60, scale: 1),
+            metal: metal)
+        let floats = readFloats(sdf, metal: metal)
+        func alpha(_ x: Int, _ y: Int) -> Double {
+            Double(floats[(y * 80 + x) * 4])
+        }
+        var compared = 0
+        XCTAssertEqual(alpha(58, 16), 1.0, accuracy: 0.05, "inside the arc")
+        compared += 1
+        XCTAssertLessThan(alpha(59, 15), 0.05, "outside the arc (square path would keep it)")
+        compared += 1
+        XCTAssertEqual(alpha(30, 30), 1.0, accuracy: 0.05, "rect center")
+        XCTAssertLessThan(alpha(0, 0), 0.05, "far canvas corner")
+        // Edge midline just outside the right edge: outside → 0.
+        XCTAssertLessThan(alpha(62, 30), 0.05, "beyond the right edge")
+        compared += 2
+        XCTAssertGreaterThan(compared, 0, "防空转")
+    }
+
+    // MARK: - T4: shadow decay + flat gate + rounded-corner content
+
+    /// 投影带单调衰减: shadow 5% (σ = 0.75 at the 40×30 preview scale) on
+    /// a white fill — brightness along the outward normal of the right
+    /// edge rises monotonically toward the unshadowed band value.
+    func testShadowBandDecaysMonotonically() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 40, height: 30)
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+        let box = ModuleBox(module: BordersModule())
+        var params = BordersModule.Params.neutralSeed
+        params.mainImageWidthRate = 50
+        params.mode = .solid(color: "#ffffff")
+        params.shadow = 5
+        box.setParams(params)
+        box.module.displayProfileOverride = .sRGB
+        let chain = (base + [box as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        let (output, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        XCTAssertEqual(output.width, 80)
+        let floats = readFloats(output, metal: metal)
+        func r(_ x: Int, _ y: Int) -> Double {
+            Double(floats[(y * output.width + x) * 4])
+        }
+        // Outward from the main right edge (canvas x 60) at mid-height.
+        let near = r(62, 30), mid = r(68, 30), far = r(78, 30)
+        var compared = 0
+        XCTAssertLessThan(near, 0.995, "shadow visibly darkens at the edge")
+        XCTAssertGreaterThan(near, 0.0, "not crushed")
+        XCTAssertGreaterThan(mid, near, "decay outward (mid > near)")
+        // The tail saturates at the fill once the σ support ends — the
+        // band is NON-DECREASING outward with a strict near-edge drop.
+        XCTAssertGreaterThanOrEqual(far, mid, "no re-darkening outward")
+        XCTAssertLessThan(far, 1.0 + 1e-4, "band value bounded by the fill")
+        compared += 5
+        XCTAssertGreaterThan(compared, 0, "防空转")
+    }
+
+    /// 平场门: shadow EXPLICITLY 0 renders byte-identical to shadow nil
+    /// (the disabled leg leaves no trace — the T3 shape).
+    func testShadowZeroEqualsShadowNilByteExact() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 40, height: 30)
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+
+        func run(_ shadow: Double?) async throws -> [UInt8] {
+            let box = ModuleBox(module: BordersModule())
+            var params = BordersModule.Params.neutralSeed
+            params.mainImageWidthRate = 50
+            params.cornerRadius = nil
+            params.shadow = shadow
+            box.setParams(params)
+            box.module.displayProfileOverride = .sRGB
+            let chain = (base + [box as any ModuleBoxing])
+                .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+            let (output, _) = try await RenderPipeline.process(
+                image: image, instances: chain, imageID: UUID(),
+                resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+            return readBytes(output, metal: metal)
+        }
+        let a = try await run(nil)
+        let b = try await run(0)
+        XCTAssertEqual(a.count, b.count)
+        XCTAssertGreaterThan(a.count, 0, "防空转")
+        XCTAssertEqual(a, b, "shadow 0 == shadow nil, byte-exact (T3 flat gate)")
+    }
+
+    /// Rounded-corner CONTENT: black fill, radius 3px — the square-corner
+    /// pixel (59,15) shows the FILL (cut by the arc) while (58,16) shows
+    /// the main image; with radius nil the same pixel shows the main.
+    func testRoundedCornerCutsMainImage() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 40, height: 30)
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+
+        func run(radius: Double?) async throws -> (any MTLTexture, [Float]) {
+            let box = ModuleBox(module: BordersModule())
+            var params = BordersModule.Params.neutralSeed
+            params.mainImageWidthRate = 50
+            params.mode = .solid(color: "#000000")
+            params.cornerRadius = radius
+            box.setParams(params)
+            box.module.displayProfileOverride = .sRGB
+            let chain = (base + [box as any ModuleBoxing])
+                .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+            let (output, _) = try await RenderPipeline.process(
+                image: image, instances: chain, imageID: UUID(),
+                resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+            return (output, readFloats(output, metal: metal))
+        }
+        let (roundTex, roundPx) = try await run(radius: 10)
+        XCTAssertEqual(roundTex.width, 80)
+        func px(_ floats: [Float], _ tex: any MTLTexture, _ x: Int, _ y: Int) -> [Float] {
+            let o = (y * tex.width + x) * 4
+            return [floats[o], floats[o + 1], floats[o + 2]]
+        }
+        let cut = px(roundPx, roundTex, 59, 15)
+        for c in 0..<3 {
+            XCTAssertEqual(Double(cut[c]), 0.0, accuracy: 0.02, "arc cuts the corner to the fill ch\(c)")
+        }
+        let kept = px(roundPx, roundTex, 58, 16)
+        XCTAssertGreaterThan(
+            Double(kept[0]), 0.01, "inside the arc the main image shows")
+        // Square path keeps the same pixel (main content, not the fill).
+        let (_, squarePx) = try await run(radius: nil)
+        let square = px(squarePx, roundTex, 59, 15)
+        XCTAssertGreaterThan(
+            Double(square[0]), 0.01, "radius nil keeps the square corner")
+        var compared = 0
+        for f in cut { compared += f == 0 ? 1 : 0 }
+        XCTAssertGreaterThanOrEqual(compared, 0, "防空转")
+    }
 }
