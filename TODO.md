@@ -30,6 +30,16 @@
 
 ---
 
+## Phase 8（yiyin Border/Watermark Panel——执行序 08 = ROADMAP §Phase 10）—— 计划态（2026-09-25 RESEARCH + CONTEXT + 3 plans 落盘）
+
+**状态**：RESEARCH（573fb49）+ 08-CONTEXT（D-08-CONTEXT-1..8 用户已裁决）+ 3 plans 已落盘（`.planning/phases/08-yiyin-border-watermark/`）；8 reqs（YIYIN-01..08）Pending。两模块落位 V50 现表槽位（borders 76.0 / watermark 77.0，零插行）；唯一管线改动 = LayerCompositeDriver 终端段尾窗（iopOrder ≥ 70.0）。77.0 槽位归属已裁决 = yiyin 终局水印（HDR 文字水印届时另定槽位，D-08-CONTEXT-1）。执行序：8-1 → 8-2 → 8-3，每 plan 执行+验收闭环后 C 档第 2 停。
+
+- [ ] **Plan 08-1**（印框 borders 76.0 + 终端段尾窗扩展 + YiyinLayout float64 布局器 + 背景双腿/圆角/投影/蒙层 + yiyin node harness 布局参考 + σ 线性定标）——YIYIN-01；验收要点：布局逐值断言 ≥8 case、轨 B 零增量、窗口化 FULL 画布扩展内容级断言、tail 政策不回归
+- [ ] **Plan 08-2**（水印 watermark 77.0 + 模板引擎 + CoreText 行渲染/排版缓存/golden 自基线 + YiyinExifFormat 15 字段 + 品牌归一化 + Logo 双通道【内嵌 PDF 集 + 用户上传 + 授权调研落账】+ 字体管理 + 水印面板节四件套 + 联合布局 rows 态）——YIYIN-02..07；验收要点：EXIF/品牌表驱动全绿、空模板直通逐字节、golden 签核冻结、Logo 明暗矩阵/降级 typed、PanelWiring 扩展
+- [ ] **Plan 08-3**（集成印框节 + 双实例联动 + CaptureMetadata decoder walk + YIYIN-08 导出配置模型【物理应用留 Phase 11】+ 分辨率无关断言 + 预设接口面 + E2E round-trip 逐字节 + GUI 验收轮真机 + perf.md 落账 + Phase 8 签核材料 + Phase 9 移交）——YIYIN-08 + 集成收口；验收要点：双实例 ⌘Z 交错、E2E ×3 逐字节、FINDINGS ΔR 量化、SC#1-5 对照翻账
+
+---
+
 ## 项目初始化（已完成 ✓）
 
 - [x] GSD 项目初始化（PROJECT.md / config.json / 5 份研究 / REQUIREMENTS / ROADMAP 13 phases / STATE）
