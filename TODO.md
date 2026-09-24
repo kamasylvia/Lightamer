@@ -13,6 +13,16 @@
 
 ---
 
+## Phase 7（AI Modules——Native Vision）—— 计划态（3 plans 待执行，2026-09-24 planner 定稿）
+
+**状态**：RESEARCH + CONTEXT + 3 plans 全部落盘（`.planning/phases/07-ai-modules/`）；6 项 Open Questions 用户已裁决（`07-CONTEXT.md` D-07-CONTEXT-1..6——双层共存 / skinSmooth 66.5 / AI-06 raster 口径 / tap+box 范围 / 同 maskID 覆盖 / 两频磨皮）；ROADMAP SC#5 与 REQUIREMENTS AI-06 注记已同批修订。4 reqs（AI-01/05/06/07），估 ~15-16 T。依赖序纯串行：07-1 → 07-2 → 07-3。**执行纪律增量（AGENTS.md 2026-09-24）**：每任务边界查 `.work/PAUSE` + C 档门控三点停（每 plan 闭环停 / 签核前停）。验证范式切换：AI 输出无 dt parity 轨——确定性门（pin CPU 逐字节恒等）+ 合成语义门（IoU 方向断言）+ 自研 float64 parity（L017 分流 AI 变体）。
+
+- [ ] **Plan 07-1**（Vision 基建 + AI-01 主体隔离）：SDK 复核 + Vision benchmark 基线（首任务，`.work/07/perf.md`）+ AIMaskService（层 A `VNGenerateForegroundInstanceMaskRequest` 离线 + 层 B `GenerateIterativeSegmentationRequest` tap/box 精修；L014 fence + 后台 Task + ANE/CPU device 面）+ raster 烘焙接线（双线性上采样 + 羽化增件 + 同 maskID 覆盖重 bake）+ 下载三态/双后端回落 + 确定性/语义/round-trip 测试
+- [ ] **Plan 07-2**（skinSmooth 频率分离磨皮 iop，AI-05）：V50Order 66.5 新行（dt verbatim 表插非 dt 行首例 + 表头标记）+ 两频分解（GaussianBlur Deriche IIR 低频腿复用）+ 阈值式高频衰减 kernel（防塑料感）+ SkinRegionLocator（faceContour hull − 五官保护区 ⊗ personSeg，CPU 解析几何不跑模型可单测）+ float64 parity <1e-5 + 恒等三元组 + variant enum 位预留（面板在 07-3）
+- [ ] **Plan 07-3**（AI-06/07 集成精修 + Phase 7 终签核）：MaskToolbar AI 组 + instance 勾选浮层 + tap-to-segment 视口第 4 编辑模式（Y 翻转 + 13/11 点计数 + scribble 升级缝）+ skinSmooth 面板（定位皮肤按钮）+ AI 蒙版五条覆盖路径 E2E（drawn/parametric/invert/羽化重 bake/refine）+ GUI 验收轮（overlay ΔR 量化 + 磨皮 Manual-Only）+ **C 档第 3 停** + 07-VALIDATION 签核 + Phase 8 移交清单
+
+---
+
 ## 项目初始化（已完成 ✓）
 
 - [x] GSD 项目初始化（PROJECT.md / config.json / 5 份研究 / REQUIREMENTS / ROADMAP 13 phases / STATE）

@@ -141,11 +141,11 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 
 **划分原则**：v1 仅纳入 Apple 原生框架（Vision / Core Image / Core ML 系统提供）可直接实现、无需自定义训练模型的 AI 能力。需自定义 Core ML 模型的进 v2。研究阶段已确认能力边界（见 `.planning/research/SUMMARY.md` 与 STACK.md）。
 
-**v1 AI（全部基于公开 Vision/Core Image API，零自定义模型、Neural Engine 加速、本地运行无联网）：**
+**v1 AI（全部基于公开 Vision/Core Image API，零自定义模型、Neural Engine 加速、本地运行无联网；例外：tap-to-segment 层 B `GenerateIterativeSegmentationRequest` 首次使用需一次性模型下载——层 A 与磨皮定位请求全程离线，D-07-CONTEXT-1）：**
 
 - [ ] **AI-01**: 主体检测蒙版（subject isolation）——基于 `VNGenerateForegroundInstanceMaskRequest`（macOS 14+，WWDC26 增强 iterative tap/scribble/lasso），自动识别人/动物/食物/物体（class-agnostic），适用于任意 demosaic 后的 RAW 图像
 - [ ] **AI-05**: AI 磨皮——基于 `VNFaceLandmarks2D` + `VNGeneratePersonSegmentationRequest` 定位皮肤区域，Core Image 高斯模糊/高通滤波实现频率分离（frequency separation），保细节平滑、肤色自然不塑料感；无需自定义模型
-- [ ] **AI-06**: AI 蒙版作为图层/参数蒙版输入——AI 生成的 mask 可烘焙为 raster mask 或直接作为 parametric mask 应用到任意调整图层
+- [ ] **AI-06**: AI 蒙版作为图层/参数蒙版输入——AI 生成的 mask 可烘焙为 raster mask 或直接作为 parametric mask 应用到任意调整图层；注记：**像素 mask 走 raster 烘焙（v1 唯一忠实通道）**，parametric 语义曲线预设（肤色 hz 曲线）留 v2（D-07-CONTEXT-3）
 - [ ] **AI-07**: AI 蒙版可编辑/精修——AI 生成的蒙版不是黑盒，可手动调整边缘、羽化、反向、与其他蒙版组合
 
 **以下 AI 能力因 Apple 无公开原生 API（需自定义 Core ML 模型）→ 移至 v2（见 v2 章节 AIV2）：**
