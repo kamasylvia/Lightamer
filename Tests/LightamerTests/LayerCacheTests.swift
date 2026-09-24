@@ -320,17 +320,24 @@ final class LayerCacheTests: XCTestCase {
 
         let run2 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
         let delta = (await cache.stats) - stats1
-        XCTAssertEqual(delta.hits, 4, "<K chain + <K prefix + base + terminal all hit")
-        XCTAssertEqual(delta.misses, 2, "B chain self-B-miss + B prefix miss")
+        // GUI-21 semantics (2026-09-24): the terminal's hash seed folds the
+        // FINAL composite prefix — a top-layer self-edit flips it, so the
+        // terminal segment (colorout+gamma) correctly re-runs where the old
+        // decode-only seed left it a stale HIT.
+        XCTAssertEqual(delta.hits, 3, "base colorin + A chain + A prefix (<K survives)")
+        XCTAssertEqual(delta.misses, 4, "B chain self-miss + B prefix + colorout + gamma")
         XCTAssertEqual(run2.blendPasses, 1, "exactly one blend pass (N−K = 1)")
         XCTAssertEqual(run2.layerStats.first { $0.layerID == a.id }?.prefixHit, true)
         XCTAssertEqual(run2.layerStats.first { $0.layerID == b.id }?.prefixHit, false)
     }
 
     /// Scenario 1b — edit the BOTTOM layer (K=1): the K..N prefixes chain-
-    /// invalidate (correct C1 semantics) while B's chain output survives.
-    ///   run deltas: 3 hits (base colorin + B chain + terminal) / 3 misses
-    ///   (A chain + A prefix + B prefix 连锁失配) / 2 blend passes.
+    /// invalidate AND the downstream legs follow their inputs (GUI-21
+    /// semantics: a sub-run's seed = its input's composite identity — B's
+    /// chain re-runs because its input C_A changed; the terminal re-runs
+    /// because the final prefix flipped).
+    ///   run deltas: 1 hit (base colorin) / 6 misses (A chain + A prefix
+    ///   + B chain + B prefix + colorout + gamma) / 2 blend passes.
     func testEditBottomLayerChainsPrefixMisses() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let metal = try await makeMetal()
@@ -353,17 +360,20 @@ final class LayerCacheTests: XCTestCase {
 
         let run2 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
         let delta = (await cache.stats) - stats1
-        XCTAssertEqual(delta.hits, 3, "base colorin + B chain + terminal survive")
-        XCTAssertEqual(delta.misses, 3, "A chain + A prefix + B prefix (chained-invalidate)")
+        XCTAssertEqual(delta.hits, 1, "base colorin alone survives")
+        XCTAssertEqual(delta.misses, 6, "A chain + A prefix + B chain (input changed) + B prefix + colorout + gamma")
         XCTAssertEqual(run2.blendPasses, 2, "N−K = 2 blend passes")
         XCTAssertEqual(run2.layerStats.first { $0.layerID == b.id }?.prefixHit, false,
                        "B's prefix chain-invalidates through A's new prefix hash")
     }
 
-    /// Scenario 2 — REORDER A/B after a warm run: every chain-output key is
-    /// order-free (layerID namespaces) so both chains + base + terminal hit
-    /// (4 hits / 0 chain misses); BOTH prefixes miss (the fold is
-    /// order-dependent — C1 recomposites) → exactly 2 blend passes.
+    /// Scenario 2 — REORDER A/B after a warm run: both layers' INPUT
+    /// identity changed (B now sits on the base, A on B's output — GUI-21
+    /// semantics fold the input prefix into every sub-run seed), so both
+    /// chain lines re-key in addition to the order-dependent prefixes;
+    /// the terminal follows the flipped final prefix.
+    ///   run deltas: 1 hit (base colorin) / 6 misses (A chain + B chain +
+    ///   both prefixes + colorout + gamma) / 2 blend passes.
     func testReorderKeepsChainCachesAlive() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let metal = try await makeMetal()
@@ -384,9 +394,9 @@ final class LayerCacheTests: XCTestCase {
 
         let run2 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
         let delta = (await cache.stats) - stats1
-        XCTAssertEqual(delta.hits, 4, "both chains + base + terminal fully survive the reorder")
-        XCTAssertEqual(delta.misses, 2, "only the two composite prefixes re-key")
-        XCTAssertEqual(run2.blendPasses, 2, "re-blend only — zero chain re-renders")
+        XCTAssertEqual(delta.hits, 1, "base colorin survives the reorder")
+        XCTAssertEqual(delta.misses, 6, "both chains re-key (inputs swapped) + both prefixes + terminal")
+        XCTAssertEqual(run2.blendPasses, 2, "re-blend — chains re-run over swapped inputs")
         // Content-level corroboration (L020 ③): the reordered composite is
         // byte-identical to a fresh composite of a stack built bottom-to-
         // top as [B, A] (same composition order).
@@ -442,8 +452,11 @@ final class LayerCacheTests: XCTestCase {
         b.isVisible = false
         let hidden = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
         var delta = (await cache.stats) - stats1
-        XCTAssertEqual(delta.hits, 5, "base + A chain + A prefix + B chain (cache survives) + terminal")
-        XCTAssertEqual(delta.misses, 0, "hiding never invalidates anything")
+        // GUI-21 semantics: hiding B changes the composite (its prefix fold
+        // vanishes) → the terminal re-runs; every CHAIN cache survives
+        // (B's sub-run still probes — its input A's prefix is unchanged).
+        XCTAssertEqual(delta.hits, 4, "base + A chain + A prefix + B chain (chain caches survive)")
+        XCTAssertEqual(delta.misses, 2, "colorout + gamma (the composite changed)")
         XCTAssertEqual(hidden.blendPasses, 0, "hidden layer performs no blend")
         XCTAssertEqual(hidden.layerStats.count, 2, "B still reports a (sub-run) leg")
 
@@ -451,6 +464,9 @@ final class LayerCacheTests: XCTestCase {
         let statsHidden = await cache.stats
         b.enabled = false
         let disabled = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
+        // Disabled B: removed from processing entirely. Hidden→disabled
+        // does NOT change the composite (B folded nothing in either) — the
+        // terminal keys already sit at the no-B prefix from the hidden run.
         delta = (await cache.stats) - statsHidden
         XCTAssertEqual(delta.hits, 4, "base + A chain + A prefix + terminal (no B probes at all)")
         XCTAssertEqual(delta.misses, 0)
@@ -459,8 +475,9 @@ final class LayerCacheTests: XCTestCase {
     }
 
     /// Scenario 4 — blend-attribute edit (opacity; the mask-version
-    /// placeholder rides the same triple): ONLY the layer's own prefix
-    /// misses; its chain, everything below, and the terminal all hit.
+    /// placeholder rides the same triple): the layer's own prefix misses
+    /// and the terminal follows the flipped final prefix (GUI-21
+    /// semantics); its chain and everything below still hit.
     func testOpacityEditInvalidatesOnlyOwnPrefix() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let metal = try await makeMetal()
@@ -481,8 +498,8 @@ final class LayerCacheTests: XCTestCase {
 
         let run2 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
         let delta = (await cache.stats) - stats1
-        XCTAssertEqual(delta.hits, 5, "base + A chain + A prefix + B chain + terminal")
-        XCTAssertEqual(delta.misses, 1, "only B's own prefix (blend triple folded)")
+        XCTAssertEqual(delta.hits, 4, "base + A chain + A prefix + B chain")
+        XCTAssertEqual(delta.misses, 3, "B's own prefix (blend triple folded) + colorout + gamma")
         XCTAssertEqual(run2.blendPasses, 1)
         XCTAssertEqual(run2.layerStats.first { $0.layerID == b.id }?.prefixHit, false)
     }

@@ -1695,6 +1695,95 @@ final class PanelWiringTests: XCTestCase {
                              "enabled skinSmooth must change the render (content-level, 防空转)")
     }
 
+    /// GUI-21 (07-3 acceptance round): skinSmooth on the GLOBAL (base)
+    /// chain — the panel trio (live ticks + one commit) must CHANGE the
+    /// rendered display. The acceptance round observed viewport max|Δ|=0
+    /// with the commits present in history/sidecar (data in, pixels
+    /// frozen). Root cause (fixed in LayerCompositeDriver): the terminal
+    /// segment's cache lines seeded on the bare decode hash — blind to
+    /// the composite accumulator — so any upstream content edit stale-HIT
+    /// and the render returned the OLD display plane. This repro drives
+    /// the coordinator legs end-to-end (load → composite stack → trio →
+    /// display bytes).
+    func testSkinSmoothGlobalChainCommitChangesDisplay() async throws {
+        // The striped plate (low-amplitude high-frequency — the enabled
+        // leg's visible surface; a flat plate is identity #3's no-op).
+        let url = tempDirectory.appendingPathComponent("skin-global.exr")
+        try await coordinator.load(
+            url: url, decoded: makeStripedSyntheticImage(), instances: [], metal: metal
+        )
+
+        // Force the COMPOSITE branch (the acceptance stack carried
+        // adjustment layers): one layer, no mask.
+        _ = editorState.addAdjustmentLayer()
+        await coordinator.layerStackDidChange(persist: false)
+
+        let before = try XCTUnwrap(editorState.displayTexture, "display exists after load")
+        let beforeBytes = Self.readDisplayBytes(before, metal: metal)
+
+        // The panel trio on the GLOBAL record (layerScope nil — the base
+        // row selected, the skinSmooth panel sliders).
+        let skin = try instance("skinSmooth")
+        coordinator.beginContinuousEdit()
+        let edited = try withParams(skin, {
+            $0.strength = 0.8
+            $0.radius = 32
+        }, as: SkinSmoothModule.self)
+        await coordinator.setLiveParams(edited)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_skinsmooth"))
+        // recordChange's notify is a fire-and-forget Task; drive the same
+        // post-commit pass deterministically, then settle for the Task's
+        // own duplicate pass to land before the read.
+        await coordinator.historyDidChange()
+        try await Task.sleep(for: .milliseconds(300))
+        for _ in 0..<10 { await Task.yield() }
+
+        let committed = try instance("skinSmooth")
+        XCTAssertEqual(
+            try committed.params(of: SkinSmoothModule.self).strength, 0.8, accuracy: 1e-6,
+            "the commit landed in the live record")
+
+        let after = try XCTUnwrap(editorState.displayTexture, "display survives the commit")
+        let afterBytes = Self.readDisplayBytes(after, metal: metal)
+        XCTAssertEqual(beforeBytes.count, afterBytes.count, "same plane geometry")
+        let differing = zip(beforeBytes, afterBytes).filter { $0 != $1 }.count
+        XCTAssertGreaterThan(
+            differing, 0,
+            "GUI-21: the global-chain skinSmooth commit must change the display pixels")
+    }
+
+    /// GUI-21 control twin: a GLOBAL exposure commit under the same
+    /// layered stack — the same terminal-staleness seam (the acceptance
+    /// round only caught it via skinSmooth; ANY base-chain param edit
+    /// froze the viewport while adjustment layers existed).
+    func testGlobalExposureCommitUnderLayersChangesDisplay() async throws {
+        let url = tempDirectory.appendingPathComponent("exposure-global.exr")
+        try await coordinator.load(
+            url: url, decoded: makeStripedSyntheticImage(), instances: [], metal: metal
+        )
+        _ = editorState.addAdjustmentLayer()
+        await coordinator.layerStackDidChange(persist: false)
+
+        let before = try XCTUnwrap(editorState.displayTexture)
+        let beforeBytes = Self.readDisplayBytes(before, metal: metal)
+
+        let exposure = try instance("exposure")
+        coordinator.beginContinuousEdit()
+        let edited = try withParams(exposure, { $0.exposure = 1.0 }, as: ExposureModule.self)
+        await coordinator.setLiveParams(edited)
+        await coordinator.commitContinuousEdit(label: "Exposure")
+        await coordinator.historyDidChange()
+        try await Task.sleep(for: .milliseconds(300))
+        for _ in 0..<10 { await Task.yield() }
+
+        let after = try XCTUnwrap(editorState.displayTexture)
+        let afterBytes = Self.readDisplayBytes(after, metal: metal)
+        let differing = zip(beforeBytes, afterBytes).filter { $0 != $1 }.count
+        XCTAssertGreaterThan(
+            differing, 0,
+            "GUI-21 twin: a global exposure commit under layers must change the display")
+    }
+
     /// L014-fenced display read-back (SYNC helper — waitUntilCompleted is
     /// unavailable from async contexts; the RasterMaskStore pattern).
     nonisolated private static func readDisplayBytes(
