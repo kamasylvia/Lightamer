@@ -7,7 +7,13 @@
 ///
 /// Load-bearing properties (sidecar-stable from Phase 2 — the order value
 /// rides in every history entry, so renumbering breaks decoding):
-/// - 93 entries, positions 1.0 (`rawprepare`) → 78.0 (`gamma`).
+/// - 94 entries, positions 1.0 (`rawprepare`) → 78.0 (`gamma`).
+/// - **The table is dt verbatim EXCEPT one Lightamer-native row**: the
+///   `skinSmooth` 66.5 entry (Phase 7, Plan 07-2) — the FIRST non-dt row
+///   inserted into the verbatim table (D-07-CONTEXT-2). The dt verbatim
+///   discipline applies to it UNCHANGED: no reordering, no renumbering,
+///   add-only (a later removal would orphan sidecar order values). It is
+///   flagged with a `LIGHTAMER` comment at the row itself.
 /// - The deliberate 28.5 cluster: `channelmixerrgb` / `diffuse` /
 ///   `censorize` / `negadoctor` / `blurs` / `primaries` all share 28.5 —
 ///   the ONLY position collision in the table (they are mutually
@@ -144,6 +150,13 @@ public enum V50Order {
         ("monochrome", 64.0),    // creative module
         ("grain", 65.0),         // creative module
         ("soften", 66.0),        // creative module
+        // LIGHTAMER-NATIVE ROW (NOT a dt entry — Plan 07-2, D-07-CONTEXT-2,
+        // the first and only non-dt row in this verbatim table): skinSmooth
+        // (frequency-separation skin smoothing, AI-05) sits between soften
+        // (66.0) and splittoning (67.0) — the blur/creative neighborhood,
+        // RGB segment after colorin. The dt discipline (no reorder / unique
+        // / add-only) applies to this row exactly as to the verbatim rows.
+        ("skinSmooth", 66.5),
         ("splittoning", 67.0),   // creative module
         ("vignette", 68.0),      // creative module
         // try to salvage blown areas before ICC intents in LittleCMS2 do

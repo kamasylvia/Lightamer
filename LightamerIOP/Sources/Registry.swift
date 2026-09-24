@@ -208,6 +208,15 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: SoftenModule.opName) { id in
             ModuleBox(module: SoftenModule(), instanceID: id)
         }
+        // Plan 07-2: skinSmooth (frequency-separation skin smoothing),
+        // v50 slot 66.5 — the FIRST Lightamer-native row in the otherwise
+        // dt-verbatim V50Order table (D-07-CONTEXT-2): after soften (66.0),
+        // before splittoning (67.0) — the blur/creative neighborhood. Seed
+        // ENABLED-neutral (strength 0 ⇒ blit identity ⇒ cache-neutral —
+        // the liquify empty-path disposition; the 07-3 panel drives it).
+        await registry.register(opName: SkinSmoothModule.opName) { id in
+            ModuleBox(module: SkinSmoothModule(), instanceID: id)
+        }
         // Plan 06-06-T2: liquify (portrait liquify warp), v50 slot 18.0 —
         // after clipping (17.0), before spots (19.0); the base chain's last
         // DISTORT|GEOMETRY warp before the tone stages. Seed ENABLED-neutral
@@ -320,6 +329,9 @@ public enum LightamerIOPRegistry {
             // Plan 06-06-T2: the liquify displacement warp (lanczos3/
             // bicubic tables ride in a buffer — one PSO for all).
             LiquifyKernel.functionName,
+            // Plan 07-2: the skinSmooth threshold-attenuation mix (the low
+            // leg reuses the gaussian_pass_* kernels — warmed above).
+            SkinSmoothKernel.mixFunction,
         ]
     }
 
@@ -414,6 +426,10 @@ public enum LightamerIOPRegistry {
             // neutral, exposure-0EV style; the liquify panel + overlay have
             // an instance to drive).
             ModuleInstance(module: LiquifyModule.self, params: LiquifyModule.Params()),
+            // Plan 07-2: skinSmooth joins the seed ENABLED-neutral (strength
+            // 0 ⇒ the D9 blit identity — cache-neutral, exposure-0EV style;
+            // the 07-3 panel has an instance to drive).
+            ModuleInstance(module: SkinSmoothModule.self, params: SkinSmoothModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }
