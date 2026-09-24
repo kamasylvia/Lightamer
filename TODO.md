@@ -199,6 +199,8 @@
 - [ ] filmicrgb 高光重建子树（F5 à-trous wavelet + HQ 循环）：mask kernel + 参数位已就位，重建挂 Phase 8 HDR/v1 后期
 - [ ] filmic/sigmoid/agx displayed-domain 默认值校准（CIRAW 显影域 vs 场景线性假设）——产品语义任务，随 Phase 8/实机校准
 
+- [ ] **GUI-22**：层栈下 undo 暖路渲染 vs 冷加载渲染分叉（7.808% px / meanAbsDiff 1.7423，零均值集中 mid-tone 纹理区；冷↔冷与暖↔暖各自逐字节可复现——疑暖路缓存平面存取精度/tiling 形态 vs 冷算差异）。缺「层栈下 undo 渲染 == 冷加载渲染」状态级字节门。GUI-19/21 复验发现。
+
 ## pending-manual（累计，解锁后重跑）
 
 - [ ] XCUITest 三栏断言（L011 授权；Phase 1 起遗留）：`xcodebuild test -only-testing:LightamerUITests`

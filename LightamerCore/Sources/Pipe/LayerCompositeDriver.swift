@@ -93,8 +93,9 @@ public struct LayerCompositeResult {
 /// **Cache (T3):** layer chain planes key on the layer UUID; composite
 /// prefixes C_k key on the OWNING layer at `compositePosition` with
 /// `upstreamHash = ⊕(prefixHash_prev, chainHash_k, blendTripleHash_k)` —
-/// editing layer K flips exactly K..N prefixes while every >K chain output
-/// stays cached (the incremental-blend semantics `LayerCacheTests` pins).
+/// editing layer K flips exactly K..N prefixes; chain outputs above K MISS
+/// (the seed folds the input accumulator identity — GUI-21 fix;
+/// `LayerCacheTests` pins the corrected semantics).
 enum LayerCompositeDriver {
 
     private static let signposter = OSSignposter(
