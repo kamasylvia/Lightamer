@@ -56,3 +56,31 @@ benchmark 实证 layer B balanced/accurate 直接产解码帧分辨率 mask（10
 ## D-07-1-T2-3: benchmark 可重跑形态 = 独立 swiftc 脚本（`.work/07/bench.swift`）
 
 不入 test suite（百兆实拍 + 分钟级跑时会拖垮 CI 节奏）；perf.md 头部注释含编译/运行命令。
+
+## D-07-1-T2-4: `generateScaledMask` 双重损坏 → 层 A stage 2 统一走 `allInstancesMask` 标签合成（Apple 修复后升级缝）
+
+探针实证（macOS 27.0b 26A428，单盒/双盒合成图两组独立复现）：
+
+1. **subset 语义坏**：`generateScaledMask(for: [1])` 渲染全部 instance、`for: [2]` 渲染空——仅精确等于 `allInstances` 的集合正确。
+2. **几何偏移**：all 集合的 mask 相对主体**双轴 +3/16 偏移**（居中 0.25..0.75 盒落在 0.44..0.94；语义门首跑 IoU 0.328 + 右背景泄漏 0.498 即此）。
+3. `allInstancesMask` 标签图（'L008'）两案几何与分割均正确。
+
+**落定**：`subjectMask(from:selection:)` 的 `.all` 与 `.subset` 都走标签合成腿（label ∈ selection → 1，分辨率 = 标签图分辨率，bake 时双线性上采样——与层 B 同一 reshape 契约）。代价 = 放弃 scaled 的全分辨率软边（标签图为硬 0/1 + 上采样软化）；`scaledMask` 私有函数保留为升级缝（注释钉死切换条件）。**回注 planner**：07-3 的层 A 蒙版精度预期按标签图分辨率口径。
+
+另：scaled 输出格式为 half-float `'L00f'`（0x4C303066）——`maskPlane(from:)` 已加该格式读法（文档没写，探针定标）。
+
+## D-07-1-T2-5: 跨进程确定性探针 = app init 时机驱动 + LaunchServices/直exec 双可跑
+
+探针最初挂 Window `.task`（sidecarProbe 同款）——在本环境实测不触发（scene 生命周期敏感）；改为 **`LightamerApp.init()` 直接驱动**（pre-scene、环境无关，跑完 `exit(0)`）。测试内经 `/usr/bin/open -n -a` 拉起（直 exec 会撞 launch constraints：`sandbox_extension_issue_file_to_process`）。探针代码在 `#if DEBUG`。
+
+## D-07-1-T3-3: 测试宿主的层 B 资产下载被 entitlement 阻断 → 推理腿 skip-with-reason（07-3 GUI 轮真机复验）
+
+xcodebuild 测试构建给 app 注入 test entitlements（mach-lookup temporary-exception 等）；该上下文里 `downloadAssets()` "成功"但 `assetStatus` 恒 `notReady`（bench 的普通未签名二进制一切正常，3-11ms ready）→ 测试宿主内层 B **推理**腿（determinism 的层 B in-process + semantic 的 seed/excluded）以 `XCTSkipUnless` 带原因跳过。证据链：probe + bench 的普通进程行为在 `.work/07/perf.md`；层 B 服务逻辑（种子/预算/Y 翻转/门控）全部不依赖推理已测；**07-3 GUI 验收轮在真实 app 上下文复验层 B 端到端**（已登记为 07-3 前置项）。
+
+## D-07-1-T3-2 补充: 下载进度 v1 = 不定态 spinner
+
+macOS 27 无 `NSProgressFractionCompletedDidUpdate` 类通知（编译实证）；实测下载 3-11ms 无进度粒度可言。`Progress`（非 Sendable）不跨 actor hop——v1 UI 用不定态 spinner，`downloadAssets(progress: Subprogress)` 消费缝保留在 store 层。
+
+## D-07-1-T1-2 补充: layer B 点数上限的 SDK 自身 throw 语义未触发
+
+Vision 自身 13/11 上限在本机全部由服务层预检先行（`pointLimitExceeded`），SDK throw 分支未被观察到——保留 try/catch 折叠为兜底。
