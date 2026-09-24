@@ -251,5 +251,152 @@ final class SkinSmoothParityTests: XCTestCase {
         let module = SkinSmoothModule()
         XCTAssertTrue(module.isNeutral(SkinSmoothModule.Params(strength: 0)))
         XCTAssertFalse(module.isNeutral(SkinSmoothModule.Params(strength: 0.01)))
+        // The reference's σ chain mirrors the module's (module computes in
+        // Float, reference in Double — agreement at the float32 grid; the
+        // <1e-5 parity gate absorbs the σ ulp).
+        XCTAssertEqual(
+            SkinSmoothReference.sigma(radius: 8), Double(sig8), accuracy: 1e-5)
+    }
+
+
+    // MARK: - Track: float64 parity (T4 — 6 pinned σ×a×t cases × 6 fixtures)
+
+    private enum ParityTol {
+        static let relative: Double = 1e-5 // the plan's <1e-5 gate
+        static let absFloor: Double = 1e-5 // tiny absolute slips pass (flat regions)
+    }
+
+    /// The pinned case book (07-2-DECISIONS D-07-2-T4-1): typical / strong /
+    /// fine / boundary-transition / max-strength / near-hard threshold.
+    private static let parityCases: [(name: String, radius: Float, strength: Float, t: Float)] = [
+        ("skin_default", 8.0, 0.5, 0.02),
+        ("skin_strong", 12.0, 0.9, 0.05),
+        ("skin_fine", 4.0, 0.3, 0.01),
+        ("skin_edge_transition", 8.0, 0.7, 0.03),
+        ("skin_maxstrength", 6.0, 1.0, 0.02),
+        ("skin_smallthreshold", 6.0, 0.8, 0.005),
+    ]
+
+    private static let parityFixtures = [
+        "gradient_ramp", "flat_0ev", "flat_-4ev",
+        "checkerboard", "delta_impulse", "ramp_8ev__noisy_iso125_s20260921",
+    ]
+
+    private static let goldenDir: URL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("input/golden", isDirectory: true)
+
+    private func requireGolden(_ path: String) throws -> URL {
+        let url = Self.goldenDir.appendingPathComponent(path)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw XCTSkip(
+                "golden artifact missing: input/golden/\(path) — run "
+                    + "`python3 input/golden/fixtures/gen_fixtures.py refs input/golden/fixtures`")
+        }
+        return url
+    }
+
+    /// GPU vs SkinSmoothReference over the full pixel field, every case ×
+    /// fixture, both mask legs on one case (the parity must hold with the
+    /// direct-drive mask bound too — m·a inside the kernel).
+    func testFrequencySeparationFloat64Parity() async throws {
+        var compared = 0
+        var maxRelative: Double = 0
+        var failures: [String] = []
+
+        for fixture in Self.parityFixtures {
+            let fixtureURL = try requireGolden("fixtures/\(fixture).exr")
+            let exr = try GoldenParityTests.UncompressedEXR.load(fixtureURL)
+            let w = exr.width, h = exr.height
+            var rgba = [Float](repeating: 0, count: w * h * 4)
+            for i in 0..<(w * h) {
+                rgba[i * 4] = exr.rgb[i * 3]
+                rgba[i * 4 + 1] = exr.rgb[i * 3 + 1]
+                rgba[i * 4 + 2] = exr.rgb[i * 3 + 2]
+                rgba[i * 4 + 3] = 1.0
+            }
+            // One deterministic soft mask per fixture (a horizontal
+            // gradient — 0 at the top row, 1 at the bottom): exercises
+            // the m·a product on real content without a model.
+            var maskFloats = [Float](repeating: 0, count: w * h)
+            for y in 0..<h {
+                let v = Float(y) / Float(max(h - 1, 1))
+                for x in 0..<w { maskFloats[y * w + x] = v }
+            }
+            let gradedMask = makeGradedMask(width: w, height: h, floats: maskFloats)
+
+            for (caseName, radius, strength, t) in Self.parityCases {
+                let params = SkinSmoothModule.Params(
+                    radius: radius, strength: strength, detailPreserve: t)
+                // Leg 1 — no mask (m ≡ 1).
+                var gpu = try await runDirect(
+                    pixels: rgba, width: w, height: h, params: params, mask: nil)
+                var ref = SkinSmoothReference.process(
+                    pixels: rgba, width: w, height: h,
+                    radius: Double(radius), strength: Double(strength),
+                    detailPreserve: Double(t), mask: nil)
+                (compared, maxRelative) = compare(
+                    gpu, ref, w, h, "\(caseName)×\(fixture)·nomask",
+                    &failures, compared, maxRelative)
+                // Leg 2 — the graded mask (m·a product), on the first
+                // fixture's cases only (the seam is fixture-independent).
+                if fixture == Self.parityFixtures[0] {
+                    gpu = try await runDirect(
+                        pixels: rgba, width: w, height: h, params: params, mask: gradedMask)
+                    ref = SkinSmoothReference.process(
+                        pixels: rgba, width: w, height: h,
+                        radius: Double(radius), strength: Double(strength),
+                        detailPreserve: Double(t), mask: maskFloats)
+                    (compared, maxRelative) = compare(
+                        gpu, ref, w, h, "\(caseName)×\(fixture)·gradedmask",
+                        &failures, compared, maxRelative)
+                }
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "parity must compare real pixels (anti-vacuum)")
+        XCTAssertTrue(
+            failures.isEmpty,
+            "skinSmooth float64 parity exceeded rel \(ParityTol.relative) / abs "
+                + "\(ParityTol.absFloor) (max rel \(maxRelative), \(compared) samples):\n"
+                + failures.prefix(6).joined(separator: "\n"))
+    }
+
+    private func makeGradedMask(width: Int, height: Int, floats: [Float]) -> any MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .r32Float, width: width, height: height, mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        let texture = metal.device.makeTexture(descriptor: descriptor)!
+        floats.withUnsafeBytes {
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0,
+                withBytes: $0.baseAddress!, bytesPerRow: width * 4)
+        }
+        return texture
+    }
+
+    private func compare(
+        _ gpu: [Float], _ ref: [Float], _ w: Int, _ h: Int, _ label: String,
+        _ failures: inout [String], _ compared: Int, _ maxRel: Double
+    ) -> (Int, Double) {
+        var compared = compared
+        var maxRel = maxRel
+        for i in 0..<(w * h * 3) { // RGB; alpha rides the original on both sides
+            compared += 1
+            let r = Double(ref[i])
+            let g = Double(gpu[i])
+            let diff = abs(g - r)
+            let rel = diff / max(abs(r), 1e-3)
+            maxRel = max(maxRel, rel)
+            if rel >= ParityTol.relative && diff >= ParityTol.absFloor,
+               failures.count < 12 {
+                let (x, y) = (i % w, i / w)
+                failures.append(
+                    "\(label) (\(x),\(y)): gpu=\(g) ref=\(r) rel=\(rel)")
+            }
+        }
+        return (compared, maxRel)
     }
 }
