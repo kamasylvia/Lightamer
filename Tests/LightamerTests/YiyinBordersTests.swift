@@ -939,7 +939,6 @@ final class YiyinBordersTests: XCTestCase {
             _ = try await RenderPipeline.process(
                 image: image, instances: chain, imageID: id,
                 resolution: .preview, cache: cache, metal: metal, longEdge: nil)
-            print("PROBE-DIAG \(tag): proxy=\(box.module.proxyCacheHits) blur=\(box.module.blurCacheHits)")
         }
 
         // Run 1 (cold): proxy + blur both miss.
@@ -961,6 +960,97 @@ final class YiyinBordersTests: XCTestCase {
         XCTAssertGreaterThan(compared, 0, "防空转")
         compared = 0
         _ = compared
+    }
+
+    // MARK: - T6: orientation pin + PREVIEW drag initial timing
+
+    /// orientation=6 回归钉: the decode layer hands borders UPRIGHT pixels
+    /// (the yiyin `sharp().rotate()` equivalent — RESEARCH §8.5). A
+    /// 64×32 landscape sensor image, EXIF-rotated to portrait by the
+    /// CIImage orientation, laid out at rate 50 → the canvas follows the
+    /// UPRIGHT 32×64 portrait (64×128 canvas), not the sensor dims.
+    func testBordersSeesUprightPixelsOrientation6() async throws {
+        let metal = try await makeMetal()
+        let oriented = gradientImage(width: 64, height: 32).ciImage.oriented(.right)
+        let image = DecodedImage(
+            ciImage: oriented,
+            rawTech: RAWTechnicalParams(),
+            capture: CaptureMetadata(),
+            segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8)
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let baseChain = trio.filter { $0.opName != GammaModule.opName }
+        let box = ModuleBox(module: BordersModule())
+        var params = BordersModule.Params.neutralSeed
+        params.mainImageWidthRate = 50
+        box.setParams(params)
+        box.module.displayProfileOverride = .sRGB
+        let chain = (baseChain + [box as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        let (output, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        // Portrait canvas around the upright 32×64 (rate 50 → 64×128);
+        // an un-oriented layout would have produced 128×64.
+        XCTAssertEqual(output.width, 64, "canvas follows the UPRIGHT width")
+        XCTAssertEqual(output.height, 128, "canvas follows the UPRIGHT height")
+    }
+
+    /// PREVIEW drag initial timing (Plan 08-1 T6 — numbers RECORDED in
+    /// 08-1-SUMMARY; the formal benchmark lives in 8-3's perf.md). No
+    /// time gate — the SC gate is the real-app drag; this prints the
+    /// Debug-build baselines for solid / blur+overlay / radius+shadow.
+    func testPreviewDragInitialTimingRecorded() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 1706, height: 2560) // ~PREVIEW portrait
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+
+        func measure(_ params: BordersModule.Params) async throws -> Double {
+            let box = ModuleBox(module: BordersModule())
+            box.setParams(params)
+            box.module.displayProfileOverride = .sRGB
+            let chain = (base + [box as any ModuleBoxing])
+                .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+            let cache = PipeCache()
+            _ = try await RenderPipeline.process(
+                image: image, instances: chain, imageID: UUID(),
+                resolution: .preview, cache: cache, metal: metal, longEdge: 2560)
+            // Timed: the drag-hot path = the borders param edit only.
+            let clock = ContinuousClock()
+            var samples: [Double] = []
+            for _ in 0..<5 {
+                var edited = params
+                edited.cornerRadius = (params.cornerRadius ?? 0) + 0.5
+                box.setParams(edited)
+                let start = clock.now
+                _ = try await RenderPipeline.process(
+                    image: image, instances: chain, imageID: UUID(),
+                    resolution: .preview, cache: cache, metal: metal, longEdge: 2560)
+                let elapsed = clock.now - start
+                let ms = Double(elapsed.components.seconds)
+                    + Double(elapsed.components.attoseconds) / 1e12
+                samples.append(ms)
+            }
+            return samples.sorted()[samples.count / 2]
+        }
+
+        var solid = BordersModule.Params.neutralSeed
+        solid.mainImageWidthRate = 90
+        solid.mode = .solid(color: "#ffffff")
+        var blur = solid
+        blur.mode = .blur(amount: 100)
+        var shadow = solid
+        shadow.shadow = 6
+        shadow.cornerRadius = 2.1
+
+        let tSolid = try await measure(solid)
+        let tBlur = try await measure(blur)
+        let tShadow = try await measure(shadow)
+        print(
+            "BORDERS-PERF PREVIEW 2560 median ms — solid: \(String(format: "%.1f", tSolid)), " +
+                "blur+overlay: \(String(format: "%.1f", tBlur)), solid+radius+shadow: \(String(format: "%.1f", tShadow))")
+        XCTAssertGreaterThan(tSolid, 0, "防空转: timing recorded")
     }
 
     // MARK: - Flat fixture (T5)

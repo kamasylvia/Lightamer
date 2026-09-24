@@ -847,3 +847,29 @@ force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自�
   invert 三键封闭——`testSidecarSchemaZeroUpgradeAIParamsNeverPersist` 钉住无 AI 参数键）。
 - 真机 GUI 量化证据（非 golden、归档 FINDINGS）：`.work/gui-acceptance/07-3 节`
   （overlay ΔR 10.31%/8.97% + 7 截图）。
+
+## yiyin borders 布局参考节（Plan 08-1-T2，L017 分流落账，2026-09-25）
+
+> **yiyin 印框无 dt 对应 golden blob**（功能正本 = yiyin v1.7.1 Electron 应用，非
+> darktable 模块）：L017 分流 = **几何 float64 镜像逐值断言 + yiyin 正本 node harness
+> 量测对照**，不做位图 parity（文字/模糊/蒙层观感 = 8-3 GUI Manual-Only）。
+
+- **参考生成器**：`Scripts/yiyin-ref-harness.mjs`（本仓 Scripts/）——yiyin 布局算术逐表达式
+  VERBATIM 转录（`electron/src/modules/image-tool/index.ts` init :110-131 /
+  clacBgImgSize :472-506 / calcContentHeight :508-546 / genBgImg :209-210 / composite
+  :300-319 + :543-545 末行膨胀 quirk），node 无头执行；yiyin 仓严格只读。`--measure` 腿
+  以 sharp（yiyin 自带依赖，只读解析）合成单 case 并量测 PNG 非白 bbox 交叉验证摆放整数
+  （实测 [2000,1500,4000,3000] 精确命中）。
+- **参考数据**：`.work/plans/08-01/yiyin-layout-reference.json`（不入仓）；数字逐值内嵌
+  `Tests/LightamerTests/YiyinLayoutTests.swift`（13 case：横/竖/方 × aspect 1:1、3:2、3:4
+  × landscape × margin/shadow × rate 50/100 × ceil-quirk 58×7 × rows）。
+- **容差（门 → 实测）**：整数场（画布/主图原点/contentH/contentTop/行位置）**精确相等**
+  （双方 float64 同一 ceil/round 序列）；浮点场（cornerRadiusPx/shadowBlurPx/
+  textBottomOffsetPx）< 1e-6；compared > 0 防空转。genTextImg/genMainImgShadow 腿依赖
+  Electron 渲染进程队列不可无头执行——布局整数由纯算术函数产出，转录逐表达式等价
+  （08-1-DECISIONS D-08-1-2 引）。
+- **常驻回归锚**（非一次性快照）：`YiyinLayoutTests` 3 测试（harness 逐值 + ceil-quirk
+  纯函数钉 + rows 预留语义）；`YiyinBordersTests` 29 测试（种子恒等逐字节 / 轨 B /
+  色彩 COLOR-2 已知点 / SDF 剖面 / 投影单调 / DC 增益=1 / 四档边界 / 缓存语义 /
+  orientation=6 / 窗口化内容级）。像素级恒等门 = `testSeedIdentityIsByteExactThroughPipe`
+  （中性插链 == 无实例，逐字节）。

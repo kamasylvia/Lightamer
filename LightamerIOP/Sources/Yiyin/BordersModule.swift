@@ -723,23 +723,42 @@ public final class BordersModule: IOPModule {
 
         let sigma = Self.blurSigma(
             amount: amount, canvasHeight: canvasHeight, proxyHeight: dims.y)
-        let sigmaBits = sigma.bitPattern
+        // √N multi-pass decomposition (DECISIONS D-08-1-8): the Deriche IIR
+        // is validated in dt's envelope (consumers cap sigma ≈ 85); the
+        // D-08-CONTEXT-6 formula at amount 100 yields sigma ~ half the
+        // canvas height. N passes each with sigma/√N compose EXACTLY into
+        // the total sigma (variances add: N × (σ/√N)² = σ²) while keeping
+        // every pass inside the validated band.
+        let sigmaMax: Float = 50
+        let passes = max(1, Int((sigma / sigmaMax).rounded(.up)))
+        let sigmaBits = (sigma, Float(passes)).0.bitPattern &+ UInt32(passes)
         if blurCachedSigmaBits != sigmaBits || blurredTexture == nil {
-            guard let proxy = proxyTexture, let planes = proxyPlanes else {
+            guard let first = proxyTexture, let planes = proxyPlanes else {
                 throw MetalError.psoCreationFailed(Self.kernelBoxDownsample, nil)
             }
             if blurredTexture == nil || blurredTexture!.width != dims.x
                 || blurredTexture!.height != dims.y {
                 blurredTexture = try Self.makeTexture(metal: metal, width: dims.x, height: dims.y)
             }
-            guard let blurred = blurredTexture else {
+            guard let second = blurredTexture else {
                 throw MetalError.bufferAllocationFailed(dims.x * dims.y * 16)
             }
-            try await GaussianBlur.blur(
-                input: proxy, output: blurred, planes: planes,
-                sigma: sigma, order: .zero,
-                boundsMin: SIMD4(repeating: 0), boundsMax: SIMD4(repeating: 1),
-                metal: metal)
+            let sigmaPerPass = sigma / sqrt(Float(passes))
+            // Ping-pong proxy <-> blurred; the result lands in `blurred`
+            // for odd pass counts (passes ≥ 1) — track it explicitly.
+            var source = first
+            var destination = second
+            for index in 0..<passes {
+                if index > 0 { swap(&source, &destination) }
+                try await GaussianBlur.blur(
+                    input: source, output: destination, planes: planes,
+                    sigma: sigmaPerPass, order: .zero,
+                    boundsMin: SIMD4(repeating: 0), boundsMax: SIMD4(repeating: 1),
+                    metal: metal)
+            }
+            if destination !== blurredTexture! {
+                swap(&proxyTexture, &blurredTexture)
+            }
             blurCachedSigmaBits = sigmaBits
         } else {
             blurCacheHits += 1
