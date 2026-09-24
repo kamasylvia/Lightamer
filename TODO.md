@@ -23,8 +23,8 @@
 
 ## Phase 7 遗留/挂账（签核注记，非阻塞）
 
-- [ ] **GUI-19**（中）：添加模块到图层后模块行未在 Inspector 层链列表显示（sidecar 链证据确凿，渲染/刷新路径嫌疑；AX 对 tap-gesture 行不可驱动，复验需真鼠标）→ UI 打磨轮
-- [ ] **GUI-20**（低-中）：dev-signed Debug 构建层 B `downloadAssets()` 无错误返回但 assetStatus 恒 notReady（macOS 27 beta 资产供给对 development 签名不放行，与 07-1 测试宿主 entitlement 同根）→ **Developer ID / 正式分发签名复验**（v1 后观察项）；下载卡顿超时提示 = v1.1 候选
+- [x] **GUI-19** ✅ 闭环（2026-09-24 修复轮，commit `7562a9e`）：根因 = `addModuleToLayer` 原地 append 层链（class）未重赋 @Observable `layerStack` → Inspector 列表不重渲；修复 = copy-replace 重赋。真机 AX 复验：菜单添加 skinSmooth → 行立即出现（sidecar chain=[skinSmooth]）；回归 `testAddModuleToLayerTripsLayerStackObservation`（FINDINGS GUI-19/20/21 节）
+- [x] **GUI-20** ✅ 闭环（2026-09-24 修复轮，commit `58d456f`）：**原判定推翻**——探针矩阵（裸/entitlements/证书/bundle×open）全 ready，「dev-signed 不放行」不可复现；唯一可复现阻断族 = 07-1 测试宿主 entitlement。修复 = 无错误-notReady 路径经 alert 明示（`ai_download_not_ready_body`）+ 下载钮 tooltip；workaround = 资产机器级，任一普通二进制（`.work/07/bench`）先行供给一次；Developer ID 复验仍留 v1 后（DECISIONS D-GUI20-FIX）
 - [ ] **Manual-Only 5 行**（07-VALIDATION 表 L011 口径）：tap-to-segment 手感（数据腿全钉，ready 入口被 GUI-20 阻断）；磨皮 pore-level 目检 + 「定位皮肤」真人像走查（**需含人脸样张**——与 ColorChecker 补拍同批）；instance 勾选浮层真机（需多主体样张）；＋已闭环 2 行（层 A 真机 / 层 B 三态 UI）
 - [ ] Vision beta API 漂移面复验（07-1 遗留 2：generateScaledMask 双重损坏 / 层 B pin 崩 / CPU 不在 supported 集）——macOS 27 正式版后收回升级缝（v1 后观察项）
 
@@ -213,7 +213,7 @@
 
 ## 缺陷候选（待排查）
 
-- [ ] **GUI-21**：skinSmooth 全局链启用+强度 commit 后视口零刷新（history/sidecar 证据确凿、模块数学 parity 8/8 钉住——疑全局链 pipe 失效/刷新缝；恢复会话旧层重生成蒙版同现同族）。07-3 验收发现，待复现归因。
+- [x] **GUI-21** ✅ 闭环（2026-09-24 修复轮，commit `68ff807`）：根因 = `LayerCompositeDriver` 子运行（层链 sub-run + 终段 colorout→gamma）缓存键不含输入平面身份（种子=裸 decodeHash）→ 上游内容编辑（全局链参数/下层/blend/opacity/mask/stroke）全被 stale HIT 吞掉、合成输出冻结首次渲染——波及全部复合编辑非独 skinSmooth。修复 = 种子改折 prefixHash（层/终段）+ 蒙版键折 upstreamHash；LayerCacheTests 5 + MaskEditIncrement 2 场景按修正语义更正（旧钉的「下游存活」即 stale 行为）。真机：blend 正常→正片叠底视口 15.47% 变化、⌘Z 回退 0.03%；全局链签名 = 状态级双测试（skinSmooth+exposure，修前红/修后绿）（FINDINGS 修复轮节）
 
 ## Phase 2-13（已规划，未开始）
 
