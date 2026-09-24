@@ -225,6 +225,12 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: LiquifyModule.opName) { id in
             ModuleBox(module: LiquifyModule(), instanceID: id)
         }
+        // Plan 08-01-T1: borders (yiyin 印框 canvas module), v50 slot 76.0 —
+        // ALREADY in the V50Order table (zero rows inserted); the first
+        // resident of the widened iopOrder ≥ 70.0 terminal tail window.
+        await registry.register(opName: BordersModule.opName) { id in
+            ModuleBox(module: BordersModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -430,6 +436,14 @@ public enum LightamerIOPRegistry {
             // 0 ⇒ the D9 blit identity — cache-neutral, exposure-0EV style;
             // the 07-3 panel has an instance to drive).
             ModuleInstance(module: SkinSmoothModule.self, params: SkinSmoothModule.Params()),
+            // Plan 08-01-T1: borders joins the seed ENABLED-neutral
+            // (rate 100 / margin 0 / radius nil / shadow nil ⇒ canvas ==
+            // main image ⇒ byte-identical blit — the PARAM-based identity,
+            // never the yiyin formula whose ceil-quirk can grow the canvas;
+            // D-08-CONTEXT-4: 新图不自动挂默认印框 is about AUTO-ATTACH
+            // semantics, this seed instance is the neutral carrier the
+            // 08-2 panel drives, exposure-0EV style).
+            ModuleInstance(module: BordersModule.self, params: BordersModule.Params.neutralSeed),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }
