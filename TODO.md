@@ -199,6 +199,22 @@
 - [ ] filmicrgb 高光重建子树（F5 à-trous wavelet + HQ 循环）：mask kernel + 参数位已就位，重建挂 Phase 8 HDR/v1 后期
 - [ ] filmic/sigmoid/agx displayed-domain 默认值校准（CIRAW 显影域 vs 场景线性假设）——产品语义任务，随 Phase 8/实机校准
 
+## pending-manual（累计，解锁后重跑）
+
+- [ ] XCUITest 三栏断言（L011 授权；Phase 1 起遗留）：`xcodebuild test -only-testing:LightamerUITests`
+- [ ] ColorChecker ARW 实拍补采（02-04 遗留，采集路径 `.work/plans/02-04/colorchecker-acquisition.md`）
+- [ ] 跨屏 profile 跟随实测（02-04 遗留，单显示器环境 skip-with-reason）
+- [ ] 屏显色彩目检（SC#1 非 headless 部分，Phase 13 COLOR-03 前置可复验）
+- [ ] GoldenColorTests flake 族排查（02-04 harness 遗留 + 05-08/W6/07-2 期间扩员：testCrossConsistencyLinearDomain / testCrossConsistencySyntheticTarget / testNeutralPatchesSyntheticTarget 负载态偶发，隔离必过——L014 同族时序疑点，TODO 05-08 复估项关联）
+- [ ] 滑块拖动 60fps Instruments 交互目检（PERF-5/SC#3 手动项；数据面已由 `.work/plans/03/perf-record.md` 覆盖——晚链 2-6ms ✓，全链重渲 36ms 注记）
+- [ ] tap-to-segment 手感（07-3：数据腿全钉，ready 入口被 GUI-20 阻断）
+- [ ] 磨皮 pore-level 目检 + 「定位皮肤」真人像走查（需含人脸样张——与 ColorChecker 补拍同批）
+- [ ] instance 勾选浮层真机（需多主体样张）
+
+## 缺陷候选（待排查）
+
+- [ ] **GUI-21**：skinSmooth 全局链启用+强度 commit 后视口零刷新（history/sidecar 证据确凿、模块数学 parity 8/8 钉住——疑全局链 pipe 失效/刷新缝；恢复会话旧层重生成蒙版同现同族）。07-3 验收发现，待复现归因。
+
 ## Phase 2-13（已规划，未开始）
 
 | # | Phase | Reqs | 关键内容 |
