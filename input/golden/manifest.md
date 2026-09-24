@@ -827,3 +827,23 @@ force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自�
   ——无一次性落盘产物，解析轨口径同 mask 节）。
 - **真模型腿**（VisionFaceLandmarkProvider 合成人脸推理）= 方向断言（bbox 容差），测试宿主未检出时
   skip-with-reason（07-1 层 B entitlement 先例）；07-3 GUI 轮真实 app 复验。
+
+## Phase 7 golden 完整性总账（Plan 07-3-T5 终签核，2026-09-24）
+
+> **AI 阶段无落盘 golden blob**（与 blend 节 54 blob 形态不同）：AI 输出不可逐字节
+> golden（模型推理），L017 分流 AI 变体三轨全部为**常驻测试锚**（非一次性快照）——
+> 总账 = 测试锚清单 + skinSmooth float64 参考轨引用（上节）。
+
+| 判据轨 | 锚 | 覆盖 |
+|---|---|---|
+| 确定性门（同 device 两次推理逐字节恒等） | AIMaskDeterminismTests（层 A gpuPinned 进程内 + 跨进程 byteIdentity）+ perf.md pin 探针（层 B default 2/2 equal） | 层 A/B 推理输出 |
+| 合成语义门（方向断言） | AIMaskSemanticTests 语义门 10 测试（IoU ≥0.9 / 背景环 ≤0.1 / subset 双向 / noSubject typed） | 层 A/B/皮肤定位 |
+| 自研 float64 参考轨 | SkinSmoothReference（上节 skinSmooth golden：parity 6×6 <1e-5 + 恒等三元组逐字节） | skinSmooth 像素数学 |
+| 几何/bake 轨 | AIMaskGeometryTests 6/6（双线性权重/Y 翻转/羽化剖面）+ RasterMaskRoundTripTests 9/9（AI 平面 uint16 恒等 + 覆盖重 bake hash 记账） | bake 通道 |
+| 非黑箱 E2E 轨 | AIMaskEditPathsTests 6/6（五条覆盖路径内容级 + sidecar schema 零升级逐字节） | AI-07 |
+
+- **落盘产物仅 2 类**（均有独立校验）：`.lra.masks/<maskID>.png`（16-bit 灰度 +
+  StableHash 字节校验，Phase 6 raster 通道既有）+ sidecar mask ref（fileName/maskHash/
+  invert 三键封闭——`testSidecarSchemaZeroUpgradeAIParamsNeverPersist` 钉住无 AI 参数键）。
+- 真机 GUI 量化证据（非 golden、归档 FINDINGS）：`.work/gui-acceptance/07-3 节`
+  （overlay ΔR 10.31%/8.97% + 7 截图）。

@@ -143,10 +143,14 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 
 **v1 AI（全部基于公开 Vision/Core Image API，零自定义模型、Neural Engine 加速、本地运行无联网；例外：tap-to-segment 层 B `GenerateIterativeSegmentationRequest` 首次使用需一次性模型下载——层 A 与磨皮定位请求全程离线，D-07-CONTEXT-1）：**
 
-- [ ] **AI-01**: 主体检测蒙版（subject isolation）——基于 `VNGenerateForegroundInstanceMaskRequest`（macOS 14+，WWDC26 增强 iterative tap/scribble/lasso），自动识别人/动物/食物/物体（class-agnostic），适用于任意 demosaic 后的 RAW 图像
-- [ ] **AI-05**: AI 磨皮——基于 `VNFaceLandmarks2D` + `VNGeneratePersonSegmentationRequest` 定位皮肤区域，Core Image 高斯模糊/高通滤波实现频率分离（frequency separation），保细节平滑、肤色自然不塑料感；无需自定义模型
-- [ ] **AI-06**: AI 蒙版作为图层/参数蒙版输入——AI 生成的 mask 可烘焙为 raster mask 或直接作为 parametric mask 应用到任意调整图层；注记：**像素 mask 走 raster 烘焙（v1 唯一忠实通道）**，parametric 语义曲线预设（肤色 hz 曲线）留 v2（D-07-CONTEXT-3）
-- [ ] **AI-07**: AI 蒙版可编辑/精修——AI 生成的蒙版不是黑盒，可手动调整边缘、羽化、反向、与其他蒙版组合
+- [x] **AI-01**: 主体检测蒙版（subject isolation）——基于 `VNGenerateForegroundInstanceMaskRequest`（macOS 14+，WWDC26 增强 iterative tap/scribble/lasso），自动识别人/动物/食物/物体（class-agnostic），适用于任意 demosaic 后的 RAW 图像
+  **Delivered**（Phase 7）：层 A 一键离线 + 层 B tap/box 精修（D-07-CONTEXT-1 双层共存，assetStatus 三态门控）；scribble/lasso 手势 = v1 后（D-07-CONTEXT-4，种子枚举升级缝预留）；多主体 instance 勾选浮层。证据：07-1 确定性/语义门 + 07-3 MaskToolbar AI 组/SegmentEditingOverlayHost + FINDINGS 07-3 真机走查。
+- [x] **AI-05**: AI 磨皮——基于 `VNFaceLandmarks2D` + `VNGeneratePersonSegmentationRequest` 定位皮肤区域，Core Image 高斯模糊/高通滤波实现频率分离（frequency separation），保细节平滑、肤色自然不塑料感；无需自定义模型
+  **Delivered**（Phase 7）：skinSmooth iop @ V50Order 66.5（两频高斯 + raised-cosine 阈值衰减防塑料感，D-07-CONTEXT-6；多频/bilateral 变体 = v2 位预留）+ SkinRegionLocator（hull−保护区⊗personSeg，yaw 门）+ 面板第 25 席（「定位皮肤」接线）。证据：float64 parity 6×6 <1e-5 + 恒等三元组逐字节 + PanelWiringTests 60/60；pore-level 目检 = Manual-Only 挂账（待含人脸样张）。
+- [x] **AI-06**: AI 蒙版作为图层/参数蒙版输入——AI 生成的 mask 可烘焙为 raster mask 或直接作为 parametric mask 应用到任意调整图层；注记：**像素 mask 走 raster 烘焙（v1 唯一忠实通道）**，parametric 语义曲线预设（肤色 hz 曲线）留 v2（D-07-CONTEXT-3）
+  **Delivered**（Phase 7，raster 口径）：AIMaskResample 双线性 + RasterMaskStore.bake 羽化增件 → `MaskSpec.raster` 写选中层 mask 槽（恰 1 stackSnapshot，⌘Z 可退）；层 B 下载例外 = D-07-CONTEXT-1（本节头注）。证据：RasterMaskRoundTrip 9/9 + LayerUIWiringTests + GUI 真机（FINDINGS 07-3：bake 落盘 + ⌘Z 恰 1 + overlay ΔR 量化）。
+- [x] **AI-07**: AI 蒙版可编辑/精修——AI 生成的蒙版不是黑盒，可手动调整边缘、羽化、反向、与其他蒙版组合
+  **Delivered**（Phase 7）：五条覆盖路径内容级 E2E（drawn 修补/parametric ⊓ 收紧/invert/羽化重 bake/refine 同 maskID 重生成——AIMaskEditPathsTests 6/6）+ sidecar schema 零升级（AI 参数不落盘逐字节断言）+ refine 精修 = 同 maskID 覆盖重 bake（D-07-CONTEXT-5，缓存链自动失效）。
 
 **以下 AI 能力因 Apple 无公开原生 API（需自定义 Core ML 模型）→ 移至 v2（见 v2 章节 AIV2）：**
 - 天空分离（通用 RAW）——`CIRAWFilter.semanticSegmentationSkyMatteImage` 仅能读取 iPhone ProRAW 嵌入的 matte，不能从任意 DSLR RAW 计算
@@ -340,10 +344,10 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | IOP-MASK-03 | Phase 6 — Layers & Masking System | Delivered |
 | IOP-MASK-04 | Phase 6 — Layers & Masking System | Delivered |
 | IOP-MASK-05 | Phase 6 — Layers & Masking System | Delivered |
-| AI-01 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |
-| AI-05 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |
-| AI-06 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |
-| AI-07 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Pending |
+| AI-01 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Delivered |
+| AI-05 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Delivered |
+| AI-06 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Delivered |
+| AI-07 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Delivered |
 | IOP-HDR-01 | Phase 8 — HDR/Stacking & Effects iops | Pending |
 | IOP-HDR-02 | Phase 8 — HDR/Stacking & Effects iops | Pending |
 | IOP-HDR-03 | Phase 8 — HDR/Stacking & Effects iops | Pending |
@@ -427,7 +431,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 
 ---
 *Requirements defined: 2026-08-03*
-*Last updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs: AI-01, AI-05, AI-06, AI-07); AI-02/03/04 moved to v2 as AIV2-03/04/05*
+*Last updated: 2026-09-24 — Phase 7 sign-off: AI-01/05/06/07 → Delivered（AI-06 raster 口径 D-07-CONTEXT-3 / AI-01 scribble 后置 D-07-CONTEXT-4 / 层 B 下载例外 D-07-CONTEXT-1）*
 
 ### MCP Server (MCP)
 
