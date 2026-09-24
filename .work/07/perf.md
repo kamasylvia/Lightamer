@@ -52,7 +52,7 @@
 
 ## 关键读数
 
-1. **warm 单次生成全部 ≪ 1s**：layer A 14–16 ms、layer B accurate 85–126 ms、personSeg accurate 42–44 ms——SC#5 "interactive" 口径在 warm 路径大幅满足。
+1. **warm 单次生成全部 ≪ 1s**：layer A 15–16 ms、layer B accurate 85–126 ms、personSeg accurate 42–44 ms——SC#5 "interactive" 口径在 warm 路径大幅满足。
 2. **cold = 模型首编译**：layer A 冷 1.1–5.5 s（进程内一次）；layer B 冷 0.1–1.0 s。用户首次点击需 spinner 承接（后台 Task 已是既定架构）。
 3. **layer B balanced/accurate 直接产全分辨率 mask**（102MP 下 11648×8736）——**`AIMaskResample` 双线性上采样只对 fast 档（256×256）实际生效**，与 RESEARCH 预期（"qualityLevel 决定分辨率，仍低于解码帧则上采样"）一致但档位分布更新：accurate/balanced 无需上采样。
 4. **层 A 语义**：两张真实样张均无"可分离前景主体"（studio 空白测试场景）→ `noSubject` 腿真实可达；合成纹理主体（灰底 + 纹理亮盒 256/512/1024）`instances=1` 稳定检出（探针实证）。

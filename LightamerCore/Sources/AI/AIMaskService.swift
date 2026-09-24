@@ -471,8 +471,10 @@ public enum AIMaskService {
                     floats[y * width + x] = Float(p[y * bytesPerRow + x]) / 255.0
                 }
             }
-        case kCVPixelFormatType_OneComponent16:
-            // Host-endian 16-bit samples (Vision's high-precision masks).
+        case kCVPixelFormatType_OneComponent16, 0x4C303068: // 'L00h' — layer B
+            // (GenerateIterativeSegmentation) emits LE UInt16; probed 07-1
+            // acceptance: bpr=2·w, background 0x1376, subject 0xFEFE (half
+            // interpretation would be NaN — integer, not half).
             let p = base.assumingMemoryBound(to: UInt16.self)
             for y in 0..<height {
                 for x in 0..<width {
