@@ -360,6 +360,63 @@ public enum AIMaskService {
         return request
     }
 
+    // MARK: - Person segmentation (Plan 07-2 skinSmooth's matte leg)
+
+    /// The person matte (`GeneratePersonSegmentationRequest`, OS-built-in,
+    /// offline) — the skin chain's background exclusion (background
+    /// skin-toned wood/sandstone must not enter the skin mask,
+    /// 07-RESEARCH §2.2). Output at the model's resolution — the caller
+    /// resamples to the target plane (AIMaskResample.bilinear via
+    /// SkinRegionLocator).
+    public static func personSegmentationMask(
+        input: AIMaskInput,
+        quality: GeneratePersonSegmentationRequest.QualityLevel = .accurate,
+        device: AIDevicePolicy = .anePreferred
+    ) async throws -> AIMaskPlane {
+        let request = GeneratePersonSegmentationRequest()
+        request.qualityLevel = quality
+        try refusePin(device, legacy: "personSeg")
+        let handler = ImageRequestHandler(input.ciImage)
+        do {
+            let observation = try await handler.perform(request)
+            return try observation.pixelBuffer.withUnsafeBuffer { buffer in
+                try maskPlane(from: buffer)
+            }
+        } catch let error as AIMaskError {
+            throw error
+        } catch {
+            throw AIMaskError.inferenceFailed(String(describing: error))
+        }
+    }
+
+    /// Apply the policy to the face-landmarks request (Plan 07-2's
+    /// `VisionFaceLandmarkProvider` seam).
+    ///
+    /// PIN REALITY (07-2, D-07-2-T3-4): `GeneratePersonSegmentationRequest`
+    /// and `DetectFaceLandmarksRequest` predate the compute-device API —
+    /// neither exposes `supportedComputeStageDevices`/`setComputeDevice`.
+    /// A pin request is therefore REFUSED with a typed error (the layer
+    /// A/B guard semantics — an impossible pin must never trap); the
+    /// default `.anePreferred` (no pin) is the only supported policy and
+    /// Vision routes both OS-built-in models itself (deterministic
+    /// run-to-run, 07-1 D-07-1-T1-2's unpinned-layer-B precedent).
+    static func refusePin(_ policy: AIDevicePolicy, legacy name: String) throws {
+        guard case .anePreferred = policy else {
+            throw AIMaskError.deviceUnavailable(
+                "pin refused: \(name) exposes no compute-device API (legacy Vision request)")
+        }
+    }
+
+    /// The IOP-side provider seam (SkinRegionLocator's
+    /// VisionFaceLandmarkProvider) — the pin-refusal guard, public for the
+    /// cross-module call.
+    public static func apply(
+        _ policy: AIDevicePolicy, toFaceLandmarks request: inout DetectFaceLandmarksRequest
+    ) throws {
+        // No setComputeDevice surface — see refusePin's note.
+        try refusePin(policy, legacy: "faceLandmarks")
+    }
+
     // MARK: - Device policy
 
     /// Apply the policy to a layer-A (struct) request. Every pin is
