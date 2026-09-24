@@ -1784,6 +1784,37 @@ final class PanelWiringTests: XCTestCase {
             "GUI-21 twin: a global exposure commit under layers must change the display")
     }
 
+    /// GUI-19 (07-3 acceptance round): `addModuleToLayer` must INVALIDATE
+    /// `layerStack` observers. `AdjustmentLayer` is a class — the in-place
+    /// chain append updated the data (sidecar/history carried the module)
+    /// but never tripped @Observable, so the Inspector's layer-chain list
+    /// never re-rendered and the row was missing. Pinned with
+    /// `withObservationTracking` (the same mechanism SwiftUI reads through).
+    func testAddModuleToLayerTripsLayerStackObservation() async throws {
+        try await loadSynthetic()
+        let layer = try XCTUnwrap(editorState.addAdjustmentLayer())
+
+        // A class box — the onChange closure is @Sendable (Swift 6 rejects
+        // direct var capture mutation).
+        final class FlagBox: @unchecked Sendable { var value = false }
+        let flag = FlagBox()
+        withObservationTracking {
+            _ = editorState.adjustmentLayer(id: layer.id)?.chain.count
+        } onChange: {
+            flag.value = true
+        }
+
+        let template = try instance("skinSmooth")
+        let record = try XCTUnwrap(
+            editorState.addModuleToLayer(layerID: layer.id, template: template))
+        XCTAssertTrue(
+            flag.value,
+            "GUI-19: the chain append must reassign layerStack (the @Observable atom)")
+        XCTAssertEqual(
+            editorState.adjustmentLayer(id: layer.id)?.chain.first?.id, record.id,
+            "the record landed in the live chain")
+    }
+
     /// L014-fenced display read-back (SYNC helper — waitUntilCompleted is
     /// unavailable from async contexts; the RasterMaskStore pattern).
     nonisolated private static func readDisplayBytes(
