@@ -127,8 +127,60 @@ public struct YiyinLayoutRecord: Equatable, Sendable {
     }
 }
 
+/// The nine-grid anchor (D-08-CONTEXT-2 — `.bottomCenter` is the
+/// yiyin-exact default; the other eight are the Lightamer extension).
+public enum YiyinNineGridAnchor: String, Codable, Hashable, Sendable {
+    case topLeft
+    case topCenter
+    case topRight
+    case centerLeft
+    case center
+    case centerRight
+    case bottomLeft
+    case bottomCenter
+    case bottomRight
+}
+
 /// The pure float64 layout (yiyin pipeline steps 2/5/7's arithmetic).
 public enum YiyinLayout {
+
+    /// The PASS-1 canvas (the font-sizing basis, yiyin `clacBgImgSize()`
+    /// default `height = sizeInfo.h`) — row-height independent, which is
+    /// exactly why yiyin can size fonts before knowing the rows. The
+    /// 08-2 watermark measurement consumes `.y`. Mirrors `layout`'s
+    /// `bgSize(contentHeight: h)` VERBATIM (including the ceil-quirk —
+    /// this is a SIZING basis only; identity never rides it, D-08-1-2).
+    public static func firstPassCanvasSize(
+        imageSize: SIMD2<Int>, borders: BordersModule.Params
+    ) -> SIMD2<Int> {
+        let w = Double(max(imageSize.x, 1))
+        let h = Double(max(imageSize.y, 1))
+        // Step 1: the aspect/landscape reset (init :110-131).
+        var resetW = w
+        var resetH = h
+        if let aspect = borders.aspectRatio {
+            let rate = Double(aspect.w) / Double(aspect.h)
+            if imageSize.x >= imageSize.y {
+                resetH = (resetW / rate).rounded()
+            } else {
+                resetW = (resetH * rate).rounded()
+            }
+        } else if borders.landscapeOutput, resetW < resetH {
+            let t = resetW
+            resetW = resetH
+            resetH = t
+        }
+        let whRate = resetW / resetH
+        // Pass 1: contentHeight = the image height (yiyin's default arg).
+        var rh = h
+        var rw = (rh * whRate).rounded(.up)
+        let rate = borders.mainImageWidthRate / 100
+        if w / rw > rate {
+            rw = (w / rate).rounded(.up)
+            rh = (rw / whRate).rounded(.up)
+        }
+        return SIMD2(Int(rw), Int(rh))
+    }
 
     /// Compute the joint layout for one yiyin terminal-segment instance
     /// pair at the given (upright, dscIn-space) image size.
@@ -240,25 +292,10 @@ public enum YiyinLayout {
         //    round(prevTop − h). QUIRK (:543-545, kept verbatim): the
         //    list-LAST row's height grows by textBottomOffset BEFORE
         //    placement (the contentH sum at step 3 used the UNinflated
-        //    heights — the mutation happens after :532-535). 08-1: rows is
-        //    empty and this loop is a no-op.
-        var placed: [YiyinLayoutRecord.PlacedRow] = []
-        placed.reserveCapacity(rows.count)
-        var prevTop = 0
-        for (index, row) in rows.reversed().enumerated() {
-            let heightD = Double(row.height) + (index == 0 ? textButtomOffsetPx : 0)
-            let top: Int
-            if index == 0 {
-                top = Int((Double(bg2.y) - heightD).rounded())
-            } else {
-                top = Int((Double(prevTop) - heightD).rounded())
-            }
-            let left = Int(((Double(bg2.x) - Double(row.width)) / 2).rounded())
-            placed.append(
-                YiyinLayoutRecord.PlacedRow(
-                    left: left, top: top, width: row.width, height: row.height))
-            prevTop = top
-        }
+        //    heights — the mutation happens after :532-535).
+        let placed = stackRows(
+            rows: rows, canvasWidth: Int(bg2.x), canvasHeight: Int(bg2.y),
+            bottomOffsetPx: textButtomOffsetPx)
 
         return YiyinLayoutRecord(
             sourceImageSize: imageSize,
@@ -282,6 +319,76 @@ public enum YiyinLayout {
         public init(width: Int, height: Int) {
             self.width = width
             self.height = height
+        }
+    }
+
+    /// The yiyin composite row stacking (composite :300-319 + the :543-545
+    /// last-row inflation quirk), factored so the watermark-only face
+    /// stacks against the IMAGE itself with the same loop.
+    public static func stackRows(
+        rows: [TextRowMetrics], canvasWidth: Int, canvasHeight: Int,
+        bottomOffsetPx: Double
+    ) -> [YiyinLayoutRecord.PlacedRow] {
+        var placed: [YiyinLayoutRecord.PlacedRow] = []
+        placed.reserveCapacity(rows.count)
+        var prevTop = 0
+        for (index, row) in rows.reversed().enumerated() {
+            let heightD = Double(row.height) + (index == 0 ? bottomOffsetPx : 0)
+            let top: Int
+            if index == 0 {
+                top = Int((Double(canvasHeight) - heightD).rounded())
+            } else {
+                top = Int((Double(prevTop) - heightD).rounded())
+            }
+            let left = Int(((Double(canvasWidth) - Double(row.width)) / 2).rounded())
+            placed.append(
+                YiyinLayoutRecord.PlacedRow(
+                    left: left, top: top, width: row.width, height: row.height))
+            prevTop = top
+        }
+        return placed
+    }
+
+    /// Translate the placed rows so the text BLOCK anchors at the requested
+    /// grid position, `marginPx` from each anchored edge (the yiyin bottom
+    /// slot margin generalized — D-08-2-6). `.bottomCenter` is the IDENTITY
+    /// (the stacking above already produces it — yiyin parity never rides
+    /// this function's math).
+    public static func applyAnchor(
+        _ anchor: YiyinNineGridAnchor,
+        rows: [YiyinLayoutRecord.PlacedRow],
+        canvas: SIMD2<Int>,
+        marginPx: Double
+    ) -> [YiyinLayoutRecord.PlacedRow] {
+        guard anchor != .bottomCenter, !rows.isEmpty else { return rows }
+        let minX = rows.map(\.left).min() ?? 0
+        let maxX = rows.map { $0.left + $0.width }.max() ?? 0
+        let minY = rows.map(\.top).min() ?? 0
+        let maxY = rows.map { $0.top + $0.height }.max() ?? 0
+        let blockW = maxX - minX
+        let blockH = maxY - minY
+        let margin = Int(marginPx.rounded())
+
+        let targetX: Int
+        switch anchor {
+        case .topLeft, .centerLeft, .bottomLeft: targetX = margin
+        case .topCenter, .center, .bottomCenter:
+            targetX = Int((Double(canvas.x - blockW) / 2).rounded())
+        case .topRight, .centerRight, .bottomRight: targetX = canvas.x - margin - blockW
+        }
+        let targetY: Int
+        switch anchor {
+        case .topLeft, .topCenter, .topRight: targetY = margin
+        case .centerLeft, .center, .centerRight:
+            targetY = Int((Double(canvas.y - blockH) / 2).rounded())
+        case .bottomLeft, .bottomCenter, .bottomRight: targetY = canvas.y - margin - blockH
+        }
+        let dx = targetX - minX
+        let dy = targetY - minY
+        return rows.map { row in
+            YiyinLayoutRecord.PlacedRow(
+                left: row.left + dx, top: row.top + dy,
+                width: row.width, height: row.height)
         }
     }
 }

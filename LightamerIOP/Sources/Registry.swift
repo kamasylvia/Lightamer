@@ -231,6 +231,15 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: BordersModule.opName) { id in
             ModuleBox(module: BordersModule(), instanceID: id)
         }
+        // Plan 08-2-T3: watermark (yiyin 终局水印 module), v50 slot 77.0 —
+        // ALREADY in the V50Order table (zero rows inserted); the terminal
+        // tail window's second resident. Seed ENABLED-neutral (the system
+        // template catalog present but ALL rows OFF → rowless →
+        // byte-identical blit — D-08-CONTEXT-4's explicit-add semantics;
+        // the 08-2 panel drives this instance).
+        await registry.register(opName: WatermarkModule.opName) { id in
+            ModuleBox(module: WatermarkModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -449,6 +458,11 @@ public enum LightamerIOPRegistry {
             // semantics, this seed instance is the neutral carrier the
             // 08-2 panel drives, exposure-0EV style).
             ModuleInstance(module: BordersModule.self, params: BordersModule.Params.neutralSeed),
+            // Plan 08-2-T3: watermark joins the seed ENABLED-neutral (the
+            // rowless seed — all system templates OFF → no resolved rows →
+            // byte-identical blit, cache-neutral, exposure-0EV style; the
+            // 08-2 watermark panel has an instance to drive).
+            ModuleInstance(module: WatermarkModule.self, params: WatermarkModule.Params.neutralSeed),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }
