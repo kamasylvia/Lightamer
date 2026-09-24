@@ -33,6 +33,16 @@ public struct DecodedImage: Sendable {
     /// sidecar must record what happened. `.v8` for raster inputs (n/a).
     public let decoderVersionUsed: DecoderVersion
 
+    /// GUI-22 (2026-09-24): the SOURCE FILE fingerprint (path ⊕ size ⊕
+    /// mtime, StableHash) — the content identity the CI input-plane render
+    /// memo dedupes on (a re-decode of the same file must reuse the frozen
+    /// first render; CIRAW re-execution is speckle-nondeterministic).
+    /// nil for in-memory/synthetic images (tests) — those dedupe on the
+    /// CIImage identity instead, never on (decodeParams, imageID) — two
+    /// different synthetic images can share both (the RetouchParity
+    /// collision the first cut shipped).
+    public let contentDedupeID: UInt64?
+
     public enum DecoderVersion: String, Codable, Sendable {
         case v8
         case v9
@@ -43,12 +53,14 @@ public struct DecodedImage: Sendable {
         rawTech: RAWTechnicalParams,
         capture: CaptureMetadata,
         segmentationSkyMatte: CIImage?,
-        decoderVersionUsed: DecoderVersion
+        decoderVersionUsed: DecoderVersion,
+        contentDedupeID: UInt64? = nil
     ) {
         self.ciImage = ciImage
         self.rawTech = rawTech
         self.capture = capture
         self.segmentationSkyMatte = segmentationSkyMatte
         self.decoderVersionUsed = decoderVersionUsed
+        self.contentDedupeID = contentDedupeID
     }
 }

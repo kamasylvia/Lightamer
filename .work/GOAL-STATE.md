@@ -92,6 +92,7 @@
 
 ## 已完成里程碑
 
+- [x] 2026-09-24 深夜: GUI-22 修复轮闭环（executor subagent）——undo 暖/冷渲染分叉根因 = CIRAW 输入平面重执行非确定 × 缓存预算驱逐迫使变体重嵌；修复 = CIContextPool 渲染一次冻结 memo（contentDedupeID 键域 = pipe 缓存 §1.3 域）；常驻字节门 GUI22UndoWarmColdTests 三项全 0.0；全 suite 853/6skip/0fail；GUI 真机 undo==编辑前 0.0000%/冷×3 互比 0.0000%；残余跨进程首渲染方差登记 GUI-23（含 GoldenColor 既有 flake 归因）。证据：FINDINGS「GUI-22 修复轮闭环」+ D-GUI22-FIX（07-3-DECISIONS.md）
 - [x] 2026-09-16/18: Phase 1 六计划执行完毕（40+ commits）；unit 36 绿；XCUITest 1 pass+2 skip；Spike A/B 报告；L001-L011 经验沉淀
 - [x] 2026-09-18: UAT 5/6（issue #1 待修）
 - [x] 2026-09-18: issue #1 关闭（重定性：多窗口呈现竞争，非渲染缺陷；JPEG 干净复现完美显示）

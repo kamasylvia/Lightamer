@@ -199,7 +199,8 @@
 - [ ] filmicrgb 高光重建子树（F5 à-trous wavelet + HQ 循环）：mask kernel + 参数位已就位，重建挂 Phase 8 HDR/v1 后期
 - [ ] filmic/sigmoid/agx displayed-domain 默认值校准（CIRAW 显影域 vs 场景线性假设）——产品语义任务，随 Phase 8/实机校准
 
-- [ ] **GUI-22**：层栈下 undo 暖路渲染 vs 冷加载渲染分叉（7.808% px / meanAbsDiff 1.7423，零均值集中 mid-tone 纹理区；冷↔冷与暖↔暖各自逐字节可复现——疑暖路缓存平面存取精度/tiling 形态 vs 冷算差异）。缺「层栈下 undo 渲染 == 冷加载渲染」状态级字节门。GUI-19/21 复验发现。
+- [x] **GUI-22** ✅ 2026-09-24 闭环：根因 = CIRAW 输入平面重执行非确定（speckle 级，shadhi 类局部算子放大 18×）× 缓存预算驱逐迫使变体重嵌 → 各路径各自冻结不同变体。修复 = CIContextPool 渲染一次冻结 memo（键 = 文件指纹⊕decodeHash⊕请求；穿 clearCaches 存续；512MB LRU）。常驻门 = GUI22UndoWarmColdTests（暖==冷==首帧逐字节）；全 suite 853/6/0。FINDINGS「GUI-22 修复轮闭环」+ D-GUI22-FIX。
+- [ ] **GUI-23**（残余，GUI-22 修复轮发现）：跨进程首渲染方差——warm/cold 进程各自的处女 CI 渲染互差（strong>60 0.39%/meanAbs 1.39；冷×3 互比恒 0 → 按进程启动史确定，Apple CI 内部行为）；暖会话 flat 首帧 vs composite 帧 0.22%/max56（状态级同转移 0.0，GUI 上下文特有变量待查：bucket reconcile/PSO prewarm 时序）。另 GoldenColorTests neutrality/cross 为本机既有 flake（pristine 2/3 挂，同一 CI 方差打容差）——修复时一并评估。
 
 ## pending-manual（累计，解锁后重跑）
 
