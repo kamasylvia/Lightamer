@@ -1,0 +1,7 @@
+percentiles (per-channel abs diff /255):
+  p50 = 0
+  p90 = 255
+  p99 = 255
+  p99 = 255
+  p100 = 255
+  max 255 first at sample 932295 (0 channel)
