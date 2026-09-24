@@ -28,10 +28,10 @@ using namespace metal;
 
 /// Mirror of Swift `YiyinCompositeUniforms` (BordersModule).
 struct YiyinCompositeUniforms {
-    int32_t solidMode;    // 1 = fill from fillColor (blur proxy: T5)
-    int32_t hasOverlay;   // brightness overlay active (T5, blur mode only)
-    int32_t hasShadow;    // shadow plane bound (T4)
-    int32_t hasBlurTex;   // blur proxy bound (T5)
+    int32_t hasBlurTex;   // blur proxy bound (1) / solid fill (0)
+    int32_t hasOverlay;   // brightness overlay active (blur mode only)
+    int32_t hasShadow;    // shadow plane bound
+    int32_t pad;
     float4 fillColor;     // display-domain linear RGB, a = 1
     float4 overlayColor;  // linear RGB + alpha (0.2)
     float2 mainOffset;    // output px → input px: u = p − mainOffset
@@ -39,7 +39,7 @@ struct YiyinCompositeUniforms {
     float2 sdfCenter;     // main rect center in OUTPUT px
     float2 sdfHalf;       // main rect half extents
     float radius;         // corner radius px (0 = square)
-    float blurSigmaNorm;  // reserved (T5 normalized sampling scale)
+    float blurSigmaNorm;  // reserved
     float2 outputSize;    // canvas dims
     float2 blurTexSize;   // proxy dims (T5)
     float2 pad0;
@@ -64,17 +64,23 @@ static inline float rectCoverage(
 
 kernel void yiyin_composite(
     texture2d<float, access::read> mainTex [[texture(0)]],
-    texture2d<float, access::read> auxTex [[texture(1)]],   // blur proxy OR shadow, per flags
-    texture2d<float, access::write> output [[texture(2)]],
+    texture2d<float, access::sample> blurTex [[texture(1)]],  // proxy (T5) / dummy
+    texture2d<float, access::read> shadowTex [[texture(2)]],  // shadow (T4) / dummy
+    texture2d<float, access::write> output [[texture(3)]],
     constant YiyinCompositeUniforms &u [[buffer(0)]],
     uint2 gid [[thread_position_in_grid]]
 ) {
     if (gid.x >= (uint)u.outputSize.x || gid.y >= (uint)u.outputSize.y) { return; }
     float2 p = float2(gid) + 0.5;
 
-    // 1. Background band: solid fill (the blur proxy replaces this in T5:
-    //    normalized sampling of auxTex when hasBlurTex).
+    // 1. Background band: solid fill, or the blurred proxy sampled with
+    //    NORMALIZED coords (the proxy is aspect-preserving from the main
+    //    image — the canvas stretch is the yiyin genBlurImg resize shape).
     float4 out = u.fillColor;
+    if (u.hasBlurTex) {
+        constexpr sampler s(address::clamp_to_edge, filter::linear);
+        out = blurTex.sample(s, p / u.outputSize);
+    }
     if (u.hasOverlay) {
         // yiyin fillRect rgba(g,g,g,0.2) over the backdrop (linear-domain
         // composite — the encoded-domain algebra delta is a recorded
@@ -85,7 +91,7 @@ kernel void yiyin_composite(
     // 2. Shadow (T4): the pre-blurred SDF alpha darkens beneath the main
     //    image (yiyin shadowColor rgba(0,0,0,1) — full-strength black).
     if (u.hasShadow) {
-        float a = auxTex.read(gid).r;
+        float a = shadowTex.read(gid).r;
         out.rgb = mix(out.rgb, float3(0.0), clamp(a, 0.0, 1.0));
     }
 

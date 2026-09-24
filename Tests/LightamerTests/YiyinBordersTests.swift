@@ -747,4 +747,252 @@ final class YiyinBordersTests: XCTestCase {
         for f in cut { compared += f == 0 ? 1 : 0 }
         XCTAssertGreaterThanOrEqual(compared, 0, "防空转")
     }
+
+    // MARK: - T5: blur backdrop + adaptive overlay
+
+    /// 模糊 DC 增益=1 平场门: a flat 0.5 input, blur mode amount 100 →
+    /// the canvas band samples the blurred proxy — flat in == flat band
+    /// (no tint, DC gain exactly 1).
+    func testBlurFlatFieldDCGainOne() async throws {
+        let metal = try await makeMetal()
+        let image = flatImage(width: 40, height: 30, value: 0.5)
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+        let box = ModuleBox(module: BordersModule())
+        var params = BordersModule.Params.neutralSeed
+        params.mainImageWidthRate = 50
+        params.mode = .blur(amount: 100)
+        params.adaptiveBackdrop = false
+        box.setParams(params)
+        box.module.displayProfileOverride = .sRGB
+        let chain = (base + [box as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        let (output, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        XCTAssertEqual(output.width, 80)
+        let floats = readFloats(output, metal: metal)
+        var compared = 0
+        for (x, y) in [(0, 0), (79, 59), (40, 0), (5, 55)] {
+            let o = (y * output.width + x) * 4
+            for c in 0..<3 {
+                XCTAssertEqual(
+                    Double(floats[o + c]), 0.5, accuracy: 1e-3,
+                    "flat band at (\(x),\(y)) ch\(c)")
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转")
+    }
+
+    /// The blurred band carries CONTENT: the gradient's dark and light
+    /// corners land on opposite canvas corners (stretch + blur, no DC
+    /// shift) — the backdrop is the image, not a constant.
+    func testBlurBandCarriesContent() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 40, height: 30)
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+        let box = ModuleBox(module: BordersModule())
+        var params = BordersModule.Params.neutralSeed
+        params.mainImageWidthRate = 50
+        params.mode = .blur(amount: 100)
+        params.adaptiveBackdrop = false
+        box.setParams(params)
+        box.module.displayProfileOverride = .sRGB
+        let chain = (base + [box as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        let (output, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        let floats = readFloats(output, metal: metal)
+        func r(_ x: Int, _ y: Int) -> Double { Double(floats[(y * output.width + x) * 4]) }
+        // Top-left canvas corner (the gradient's dark corner stretched)
+        // vs bottom-right — well away from the main rect (20,15)-(60,45).
+        let dark = r(2, 2), light = r(77, 57)
+        XCTAssertLessThan(dark, 0.35, "dark corner content in the band")
+        XCTAssertGreaterThan(light, 0.45, "light corner content in the band")
+        XCTAssertGreaterThan(light - dark, 0.05, "the band differentiates content")
+    }
+
+    /// 蒙层四档阈值表驱动 (yiyin :31-42 verbatim boundaries).
+    func testOverlayTierBoundaries() {
+        var compared = 0
+        let cases: [(Double, Int)] = [
+            (0, 0), (14.999, 0), (15, 1), (19.999, 1), (20, 2), (39.999, 2),
+            (40, 3), (100, 3), (255, 3),
+        ]
+        for (brightness, tier) in cases {
+            XCTAssertEqual(YiyinColor.overlayTierIndex(brightness8: brightness), tier, "b=\(brightness)")
+            compared += 1
+        }
+        // The tier grays (yiyin rgba fills).
+        XCTAssertEqual(
+            YiyinColor.overlayGrayTiers.map(\.gray8), [UInt8(180), 158, 128, 0])
+        XCTAssertEqual(YiyinColor.overlayAlpha, 0.2, accuracy: 1e-12)
+        // Gray→linear round trip: encode(linear(g/255)) == g/255.
+        for g in [UInt8(180), 158, 128, 0] {
+            let lin = YiyinColor.linearizeSRGB(Double(g) / 255)
+            let back = YiyinColor.linearizeSRGBInverse(lin)
+            XCTAssertEqual(back, Double(g) / 255, accuracy: 1e-9)
+            compared += 1
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转")
+    }
+
+    /// 蒙层四档 through the pipe: a DARK input in blur mode with
+    /// adaptiveBackdrop ON lightens the band (the 180-gray overlay),
+    /// while OFF leaves it at the raw blurred content.
+    func testAdaptiveOverlayLightensDarkBackdrop() async throws {
+        let metal = try await makeMetal()
+        let image = flatImage(width: 40, height: 30, value: 0.02)
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+
+        func run(adaptive: Bool) async throws -> [Float] {
+            let box = ModuleBox(module: BordersModule())
+            var params = BordersModule.Params.neutralSeed
+            params.mainImageWidthRate = 50
+            params.mode = .blur(amount: 100)
+            params.adaptiveBackdrop = adaptive
+            box.setParams(params)
+            box.module.displayProfileOverride = .sRGB
+            let chain = (base + [box as any ModuleBoxing])
+                .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+            let (output, _) = try await RenderPipeline.process(
+                image: image, instances: chain, imageID: UUID(),
+                resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+            return readFloats(output, metal: metal)
+        }
+        let off = try await run(adaptive: false)
+        let on = try await run(adaptive: true)
+        func bandR(_ floats: [Float]) -> Double { Double(floats[4]) } // pixel (1,0)
+        let raw = bandR(off), lit = bandR(on)
+        // 0.02 linear dark backdrop + 0.2 × linear(180/255) overlay ⇒
+        // measurably lighter; both bounded.
+        // Expected exactly: linear(0.02) mean → encode ≈ 38.7 → tier 2 →
+        // gray 128 → band = 0.02×0.8 + linear(128/255)×0.2 ≈ 0.0592.
+        XCTAssertGreaterThan(lit, raw + 0.02, "the gray overlay lightens the dark band")
+        XCTAssertLessThan(lit, 1.0, "bounded by white")
+        var compared = 0
+        for f in off where f >= 0 { compared += 1 }
+        XCTAssertGreaterThan(compared, 0, "防空转")
+    }
+
+    /// proxy 尺寸记账 + σ 定标式 (D-08-CONTEXT-6) + tile 声明.
+    func testProxySizeAccountingAndSigma() {
+        var compared = 0
+        XCTAssertEqual(
+            BordersModule.proxyDims(for: SIMD2(8000, 4000)), SIMD2(2048, 1024))
+        // 2000 < the 2048 long edge → passthrough (no upscale).
+        XCTAssertEqual(
+            BordersModule.proxyDims(for: SIMD2(1000, 2000)), SIMD2(1000, 2000))
+        XCTAssertEqual(
+            BordersModule.proxyDims(for: SIMD2(4096, 2000)), SIMD2(2048, 1000))
+        XCTAssertEqual(
+            BordersModule.proxyDims(for: SIMD2(500, 300)), SIMD2(500, 300),
+            "smaller than the proxy — no downsample")
+        compared += 3
+        // σ = amount% × bgHeight / 100 × 0.5, × proxyH/canvasH.
+        let sigma = BordersModule.blurSigma(
+            amount: 100, canvasHeight: 4000, proxyHeight: 2048)
+        XCTAssertEqual(Double(sigma), 1024.0, accuracy: 1e-6)
+        let sigmaHalf = BordersModule.blurSigma(
+            amount: 50, canvasHeight: 3334, proxyHeight: 2048)
+        XCTAssertEqual(
+            Double(sigmaHalf), 0.5 * 3334 * 0.5 * (2048.0 / 3334.0), accuracy: 1e-6)
+        compared += 2
+        // NEVER tiled (DECISIONS D-08-1-3): the canvas-EXPANDING terminal
+        // module declares zero halo and zero tile working set.
+        let module = BordersModule()
+        XCTAssertEqual(module.tileHalo(roi: ROI(width: 64, height: 64), piece: IOPiece()), 0)
+        XCTAssertEqual(module.tileWorkingSetBytesPerPixel(piece: IOPiece()), 0)
+        compared += 2
+        XCTAssertGreaterThan(compared, 0, "防空转")
+    }
+
+    /// 内容哈希寻址: the same main image across PARAM edits keeps the
+    /// proxy alive (hit), a content change rebuilds it (no stale reuse).
+    func testContentAddressedProxyCache() async throws {
+        let metal = try await makeMetal()
+        let gradient = gradientImage(width: 40, height: 30)
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+        let box = ModuleBox(module: BordersModule())
+        box.module.displayProfileOverride = .sRGB
+
+        var params = BordersModule.Params.neutralSeed
+        params.mainImageWidthRate = 50
+        params.mode = .blur(amount: 100)
+        params.adaptiveBackdrop = false
+
+        // PRODUCTION cache shape: ONE PipeCache + ONE imageID namespace —
+        // the borders input plane is the SAME cached texture object for
+        // unchanged upstream, which is the identity contract the module's
+        // proxy key rides (DECISIONS D-08-1-7).
+        let cache = PipeCache()
+        let imageID = UUID()
+        func run(_ image: DecodedImage, forImageID id: UUID, tag: String) async throws {
+            box.setParams(params)
+            let chain = (base + [box as any ModuleBoxing])
+                .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+            _ = try await RenderPipeline.process(
+                image: image, instances: chain, imageID: id,
+                resolution: .preview, cache: cache, metal: metal, longEdge: nil)
+            print("PROBE-DIAG \(tag): proxy=\(box.module.proxyCacheHits) blur=\(box.module.blurCacheHits)")
+        }
+
+        // Run 1 (cold): proxy + blur both miss.
+        try await run(gradient, forImageID: imageID, tag: "run1-gradient")
+        XCTAssertEqual(box.module.proxyCacheHits, 0)
+        XCTAssertEqual(box.module.blurCacheHits, 0)
+        // Run 2: a radius edit — the SAME image (same plane identity) →
+        // proxy AND blurred-plane both survive.
+        params.cornerRadius = 5
+        try await run(gradient, forImageID: imageID, tag: "run2-radius5")
+        XCTAssertEqual(box.module.proxyCacheHits, 1, "proxy survived the param edit")
+        XCTAssertEqual(box.module.blurCacheHits, 1, "blurred plane survived (σ unchanged)")
+        // Run 3: a DIFFERENT image → new identity namespace → rebuild.
+        try await run(
+            flatImage(width: 40, height: 30, value: 0.5), forImageID: UUID(),
+            tag: "run3-flat-newimage")
+        XCTAssertEqual(box.module.proxyCacheHits, 1, "content change forces a proxy rebuild")
+        var compared = box.module.proxyCacheHits + box.module.blurCacheHits
+        XCTAssertGreaterThan(compared, 0, "防空转")
+        compared = 0
+        _ = compared
+    }
+
+    // MARK: - Flat fixture (T5)
+
+    private func flatImage(width: Int, height: Int, value: Float) -> DecodedImage {
+        var rgba = [Float](repeating: 1.0, count: width * height * 4)
+        for i in stride(from: 0, to: rgba.count, by: 4) {
+            rgba[i] = value
+            rgba[i + 1] = value
+            rgba[i + 2] = value
+        }
+        var data = Data(capacity: rgba.count * 4)
+        for value in rgba {
+            var le = value.bitPattern.littleEndian
+            data.append(contentsOf: withUnsafeBytes(of: &le) { Data($0) })
+        }
+        let provider = CGDataProvider(data: data as CFData)!
+        let cg = CGImage(
+            width: width, height: height, bitsPerComponent: 32, bitsPerPixel: 128,
+            bytesPerRow: width * 16, space: WorkingSpace.colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue:
+                CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.floatComponents.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent
+        )!
+        return DecodedImage(
+            ciImage: CIImage(cgImage: cg),
+            rawTech: RAWTechnicalParams(),
+            capture: CaptureMetadata(),
+            segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8
+        )
+    }
 }

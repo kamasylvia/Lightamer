@@ -129,6 +129,7 @@ public final class BordersModule: IOPModule {
     /// prewarm list consumes the composite pass).
     static let kernelComposite = "yiyin_composite"
     static let kernelShadowSDF = "yiyin_shadow_sdf"
+    static let kernelBoxDownsample = "yiyin_box_downsample"
 
     /// v50 order 76.0 (V50Order table, verbatim Darktable position —
     /// between dither 75.0 and watermark 77.0; display-referred seam).
@@ -307,11 +308,6 @@ public final class BordersModule: IOPModule {
             try blitIdentity(input: input, output: output, roiIn: roiIn, roiOut: roiOut, metal: metal)
             return
         }
-        // Blur leg gate (T5 wires the proxy/overlay).
-        guard case .solid(let hex) = committed.mode else {
-            throw AppError.notImplemented("borders blur leg (Plan 08-01 T5)")
-        }
-
         // ── T4 shadow leg: the SDF alpha plane → the shared Deriche IIR →
         //    the composite mixes it beneath the main image. σ mapping
         //    (DECISIONS D-08-1-4): CSS canvas `shadowBlur` ≈ 2σ —
@@ -327,21 +323,59 @@ public final class BordersModule: IOPModule {
             shadow = try await buildShadowPlane(record: record, roiOut: roiOut, metal: metal)
         }
 
-        // ── T3 solid leg: ONE composite dispatch. Fill = the hex converted
-        // through the ColorOutModule matrix family (COLOR-2); unresolved
-        // hex degrades to white (yiyin `|| '#fff'`).
+        // ── T5 blur leg: the canvas band samples the blurred proxy of the
+        //    main image (yiyin genBlurImg — its square-stretch quirk is
+        //    replaced by an aspect-preserving proxy + normalized sampling,
+        //    DECISIONS D-08-1-5; L017 容差带 — no bitmap parity for the
+        //    blur). σ per D-08-CONTEXT-6: σ = amount% × bgHeight × 0.5 at
+        //    the canvas scale.
+        var blur: (any MTLTexture)?
+        var overlay: SIMD4<Float>?
+        if case .blur(let amount) = committed.mode {
+            blur = try await blurredProxy(
+                input: input, amount: amount,
+                canvasHeight: record.canvasSize.y, metal: metal)
+            if committed.adaptiveBackdrop {
+                let probeMean = try await probeBackdropMean(input, metal: metal)
+                // yiyin calcAverageBrightness: the RGB mean on the 0-255
+                // ENCODED scale. Our plane is linear — encode the per-
+                // channel linear means, then average (DECISIONS D-08-1-6
+                // records the encoded-vs-linear algebra gap: L017 容差带).
+                let encoded = SIMD3(
+                    YiyinColor.linearizeSRGBInverse(Double(probeMean.x)),
+                    YiyinColor.linearizeSRGBInverse(Double(probeMean.y)),
+                    YiyinColor.linearizeSRGBInverse(Double(probeMean.z)))
+                let brightness8 = (encoded.x + encoded.y + encoded.z) / 3 * 255
+                let tier = YiyinColor.overlayTierIndex(brightness8: brightness8)
+                let gray8 = YiyinColor.overlayGrayTiers[tier].gray8
+                let grayLinear = Float(YiyinColor.linearizeSRGB(Double(gray8) / 255))
+                overlay = SIMD4(
+                    grayLinear, grayLinear, grayLinear, Float(YiyinColor.overlayAlpha))
+            }
+        }
+
+        // ── Fill (the solid face; inert when the blur texture is bound —
+        //    the kernel branches on hasBlurTex). Unresolved hex degrades
+        //    to white (yiyin `|| '#fff'`).
         let target: DisplayProfile
         if let override = displayProfileOverride {
             target = override
         } else {
             target = .current()
         }
+        let hex: String
+        if case .solid(let h) = committed.mode {
+            hex = h
+        } else {
+            hex = "#ffffff"
+        }
         let fill =
             YiyinColor.linearDisplay(fromSRGBHex: hex, target: target)
             ?? SIMD3<Float>(1, 1, 1)
         try await dispatchComposite(
             input: input, output: output, roiIn: roiIn, roiOut: roiOut,
-            record: record, fill: fill, overlay: nil, shadow: shadow, metal: metal)
+            record: record, fill: fill, blur: blur, overlay: overlay,
+            shadow: shadow, metal: metal)
     }
 
     // MARK: - Shadow plane (T4 — L018 scratch discipline)
@@ -403,7 +437,7 @@ public final class BordersModule: IOPModule {
         let mainSize = SIMD2<Float>(
             Float(record.sourceImageSize.x), Float(record.sourceImageSize.y))
         var u = CompositeUniforms(
-            solidMode: 1, hasOverlay: 0, hasShadow: 0, hasBlurTex: 0,
+            hasBlurTex: 0, hasOverlay: 0, hasShadow: 0, pad: 0,
             fillColor: .zero, overlayColor: .zero,
             mainOffset: mainOrigin - outOrigin, mainSize: mainSize,
             sdfCenter: mainOrigin + mainSize / 2 - outOrigin,
@@ -443,10 +477,10 @@ public final class BordersModule: IOPModule {
 
     /// The composite uniforms (MSL mirror of `YiyinCompositeUniforms`).
     struct CompositeUniforms {
-        var solidMode: Int32
+        var hasBlurTex: Int32
         var hasOverlay: Int32
         var hasShadow: Int32
-        var hasBlurTex: Int32
+        var pad: Int32
         var fillColor: SIMD4<Float>
         var overlayColor: SIMD4<Float>
         var mainOffset: SIMD2<Float>
@@ -460,13 +494,13 @@ public final class BordersModule: IOPModule {
         var pad0: SIMD2<Float>
     }
 
-    /// The single canvas-composition dispatch (T3 shape: solid fill +
-    /// 1:1 main-image blit + SDF clip; T4 adds the shadow plane, T5 the
-    /// blur proxy/overlay). Geometry is output-plane-relative:
-    /// mainOffset = mainOrigin − roiOut.origin — the kernel samples input
-    /// at p − mainOffset; the input plane already carries the frame
-    /// region origin-to-origin (the input-frame origin cancels between
-    /// the canvas mapping and the plane render).
+    /// The single canvas-composition dispatch (solid fill OR blurred
+    /// proxy band + optional brightness overlay + shadow plane + the 1:1
+    /// main-image blit under the SDF clip). Geometry is output-plane-
+    /// relative: mainOffset = mainOrigin − roiOut.origin — the kernel
+    /// samples input at p − mainOffset; the input plane already carries
+    /// the frame region origin-to-origin (the input-frame origin cancels
+    /// between the canvas mapping and the plane render).
     func dispatchComposite(
         input: any MTLTexture,
         output: any MTLTexture,
@@ -474,6 +508,7 @@ public final class BordersModule: IOPModule {
         roiOut: ROI,
         record: YiyinLayoutRecord,
         fill: SIMD3<Float>,
+        blur: (any MTLTexture)?,
         overlay: SIMD4<Float>?,
         shadow: (any MTLTexture)?,
         metal: MetalContext
@@ -482,10 +517,10 @@ public final class BordersModule: IOPModule {
             Float(record.mainImageOrigin.x), Float(record.mainImageOrigin.y))
         let outOrigin = SIMD2<Float>(Float(roiOut.x), Float(roiOut.y))
         var u = CompositeUniforms(
-            solidMode: 1,
+            hasBlurTex: blur != nil ? 1 : 0,
             hasOverlay: overlay != nil ? 1 : 0,
             hasShadow: shadow != nil ? 1 : 0,
-            hasBlurTex: 0,
+            pad: 0,
             fillColor: SIMD4(fill.x, fill.y, fill.z, 1),
             overlayColor: overlay ?? SIMD4(0, 0, 0, 0),
             mainOffset: mainOrigin - outOrigin,
@@ -498,25 +533,24 @@ public final class BordersModule: IOPModule {
             radius: Float(record.cornerRadiusPx),
             blurSigmaNorm: 0,
             outputSize: SIMD2(Float(output.width), Float(output.height)),
-            blurTexSize: SIMD2(1, 1),
+            blurTexSize: blur.map { SIMD2(Float($0.width), Float($0.height)) }
+                ?? SIMD2(1, 1),
             pad0: .zero)
         guard let buffer = metal.device.makeBuffer(
             bytes: &u, length: MemoryLayout<CompositeUniforms>.stride,
             options: .storageModeShared)
         else { throw MetalError.deviceUnavailable }
 
-        // auxTex: the shadow plane (T4) / blur proxy (T5); a 1×1 dummy
-        // keeps the binding table total when the legs are inert.
-        let aux: any MTLTexture
-        if let shadow {
-            aux = shadow
-        } else {
-            aux = try Self.dummyTexture(metal: metal)
-        }
+        // Dummies keep the binding table total when legs are inert.
+        let blurDummy: any MTLTexture = try Self.dummyTexture(metal: metal)
+        let shadowDummy: any MTLTexture = try Self.dummyTexture(metal: metal)
+        let blurTex: any MTLTexture = blur ?? blurDummy
+        let shadowTex: any MTLTexture = shadow ?? shadowDummy
         let session = try await metal.makeEncoder(functionName: Self.kernelComposite)
         session.encoder.setTexture(input, index: 0)
-        session.encoder.setTexture(aux, index: 1)
-        session.encoder.setTexture(output, index: 2)
+        session.encoder.setTexture(blurTex, index: 1)
+        session.encoder.setTexture(shadowTex, index: 2)
+        session.encoder.setTexture(output, index: 3)
         session.encoder.setBuffer(buffer, offset: 0, index: 0)
         precondition(
             8 * 8 <= session.pipelineState.maxTotalThreadsPerThreadgroup,
@@ -539,6 +573,218 @@ public final class BordersModule: IOPModule {
         }
         return texture
     }
+
+    // MARK: - Blur proxy + brightness probe (T5)
+
+    /// The blur proxy long edge (RESEARCH §5: 长边 ~2048).
+    static let proxyLongEdge = 2048
+
+    /// The content probe resolution (16×16 box average — the brightness
+    /// mean AND the content-addressed cache key live in one readback).
+    static let probeResolution = 16
+
+    /// Aspect-preserving proxy dims (`internal` for the size-accounting
+    /// test). Round-to-nearest, floored at 1.
+    static func proxyDims(for size: SIMD2<Int>, longEdge: Int = proxyLongEdge) -> SIMD2<Int> {
+        let longest = max(size.x, size.y, 1)
+        let scale = Double(longEdge) / Double(longest)
+        if scale >= 1 {
+            // Smaller than the proxy — no downsample.
+            return SIMD2(max(size.x, 1), max(size.y, 1))
+        }
+        return SIMD2(
+            max(1, Int((Double(size.x) * scale).rounded())),
+            max(1, Int((Double(size.y) * scale).rounded())))
+    }
+
+    /// The σ chain (D-08-CONTEXT-6 定标式, verbatim):
+    /// σ_canvas = amount% × bgHeight / 100 × 0.5, rescaled to the proxy by
+    /// the VERTICAL mapping proxyH / canvasH (the canvas stretch is
+    /// anisotropic under aspect reset; the vertical factor is the recorded
+    /// approximation, DECISIONS D-08-1-5). `internal` for the test.
+    static func blurSigma(amount: Double, canvasHeight: Int, proxyHeight: Int) -> Float {
+        let sigmaCanvas = (amount / 100) * Double(canvasHeight) * 0.5
+        let scale = Double(max(proxyHeight, 1)) / Double(max(canvasHeight, 1))
+        return Float(sigmaCanvas * scale)
+    }
+
+    // Backdrop scratch: identity-keyed (single-owner, one pipe run).
+    private var probeTexture: (any MTLTexture)?
+
+    /// Cache counters (the 内容哈希寻址 semantics test reads these).
+    private(set) var proxyCacheHits = 0
+    private(set) var blurCacheHits = 0
+    /// The input TEXTURE IDENTITY the proxy was built from — the content
+    /// key (DECISIONS D-08-1-7): the pipe's own cache guarantees the SAME
+    /// plane object for unchanged upstream (a param-only edit hits), so
+    /// texture identity is an EXACT content key with zero measurement —
+    /// no digest, no quantization, no CI-render ULP flakiness. A rebuilt
+    /// upstream plane (new content OR a cold cache) rebuilds the proxy —
+    /// the conservative direction.
+    private var proxyInputIdentity: ObjectIdentifier?
+    private var blurCachedSigmaBits: UInt32?
+    private var proxyTexture: (any MTLTexture)?
+    private var blurredTexture: (any MTLTexture)?
+    private var proxyPlanes: (any MTLBuffer)?
+    /// Diagnostics: the last adaptive-overlay probe mean (test observability).
+    private(set) var lastProbeMean: SIMD3<Float> = .zero
+
+    /// 16×16 box-average of the input plane → the RGB mean for the
+    /// brightness tier (the blur preserves the mean — DC gain 1 — so
+    /// probing the INPUT equals probing the blurred backdrop). Dispatch +
+    /// one fenced readback (L014) per adaptiveBackdrop process.
+    func probeBackdropMean(
+        _ input: any MTLTexture, metal: MetalContext
+    ) async throws -> SIMD3<Float> {
+        if resolvedDevice == nil { resolvedDevice = metal.device }
+        if probeTexture == nil {
+            probeTexture = try Self.makeTexture(
+                metal: metal, width: Self.probeResolution, height: Self.probeResolution)
+        }
+        guard let probeTex = probeTexture else {
+            throw MetalError.psoCreationFailed(Self.kernelBoxDownsample, nil)
+        }
+        var u = DownsampleUniforms(
+            srcSize: SIMD2(Float(input.width), Float(input.height)),
+            dstSize: SIMD2(Float(Self.probeResolution), Float(Self.probeResolution)))
+        guard let buffer = metal.device.makeBuffer(
+            bytes: &u, length: MemoryLayout<DownsampleUniforms>.stride,
+            options: .storageModeShared)
+        else { throw MetalError.deviceUnavailable }
+        let session = try await metal.makeEncoder(functionName: Self.kernelBoxDownsample)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(probeTex, index: 1)
+        session.encoder.setBuffer(buffer, offset: 0, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: Self.probeResolution, height: Self.probeResolution, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+
+        // L014: the SYNC drain (test-harness pattern — the async
+        // `completed()` bridge proved unreliable for a bounded readback).
+        Self.fenceAndWait(metal)
+        var floats = [Float](
+            repeating: 0, count: Self.probeResolution * Self.probeResolution * 4)
+        floats.withUnsafeMutableBytes {
+            probeTex.getBytes(
+                $0.baseAddress!, bytesPerRow: Self.probeResolution * 16,
+                from: MTLRegionMake2D(0, 0, Self.probeResolution, Self.probeResolution),
+                mipmapLevel: 0)
+        }
+        var sum = SIMD3<Float>(0, 0, 0)
+        for i in stride(from: 0, to: floats.count, by: 4) {
+            sum += SIMD3(floats[i], floats[i + 1], floats[i + 2])
+        }
+        let mean = sum / Float(Self.probeResolution * Self.probeResolution)
+        lastProbeMean = mean
+        return mean
+    }
+
+    /// The blurred backdrop plane — keyed on the INPUT TEXTURE IDENTITY
+    /// (the pipe cache's own content contract) ⊕ the blur σ. A param edit
+    /// with an unchanged main image hits BOTH stages.
+    func blurredProxy(
+        input: any MTLTexture, amount: Double,
+        canvasHeight: Int, metal: MetalContext
+    ) async throws -> (any MTLTexture) {
+        if resolvedDevice == nil { resolvedDevice = metal.device }
+        let dims = Self.proxyDims(for: SIMD2(input.width, input.height))
+        let identity = ObjectIdentifier(input)
+        if proxyInputIdentity != identity || proxyTexture == nil {
+            proxyTexture = try Self.makeTexture(metal: metal, width: dims.x, height: dims.y)
+            proxyPlanes = resolvedDevice?.makeBuffer(
+                length: dims.x * dims.y * MemoryLayout<Float>.stride * 4 * 2,
+                options: .storageModeShared)
+            guard let proxy = proxyTexture, let planes = proxyPlanes else {
+                throw MetalError.bufferAllocationFailed(dims.x * dims.y * 32)
+            }
+            var u = DownsampleUniforms(
+                srcSize: SIMD2(Float(input.width), Float(input.height)),
+                dstSize: SIMD2(Float(dims.x), Float(dims.y)))
+            guard let buffer = metal.device.makeBuffer(
+                bytes: &u, length: MemoryLayout<DownsampleUniforms>.stride,
+                options: .storageModeShared)
+            else { throw MetalError.deviceUnavailable }
+            let session = try await metal.makeEncoder(functionName: Self.kernelBoxDownsample)
+            session.encoder.setTexture(input, index: 0)
+            session.encoder.setTexture(proxy, index: 1)
+            session.encoder.setBuffer(buffer, offset: 0, index: 0)
+            session.encoder.dispatchThreads(
+                MTLSize(width: dims.x, height: dims.y, depth: 1),
+                threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+            session.encoder.endEncoding()
+            session.commandBuffer.commit()
+            proxyInputIdentity = identity
+            blurCachedSigmaBits = nil // the old blurred plane is stale now
+        } else {
+            proxyCacheHits += 1
+        }
+
+        let sigma = Self.blurSigma(
+            amount: amount, canvasHeight: canvasHeight, proxyHeight: dims.y)
+        let sigmaBits = sigma.bitPattern
+        if blurCachedSigmaBits != sigmaBits || blurredTexture == nil {
+            guard let proxy = proxyTexture, let planes = proxyPlanes else {
+                throw MetalError.psoCreationFailed(Self.kernelBoxDownsample, nil)
+            }
+            if blurredTexture == nil || blurredTexture!.width != dims.x
+                || blurredTexture!.height != dims.y {
+                blurredTexture = try Self.makeTexture(metal: metal, width: dims.x, height: dims.y)
+            }
+            guard let blurred = blurredTexture else {
+                throw MetalError.bufferAllocationFailed(dims.x * dims.y * 16)
+            }
+            try await GaussianBlur.blur(
+                input: proxy, output: blurred, planes: planes,
+                sigma: sigma, order: .zero,
+                boundsMin: SIMD4(repeating: 0), boundsMax: SIMD4(repeating: 1),
+                metal: metal)
+            blurCachedSigmaBits = sigmaBits
+        } else {
+            blurCacheHits += 1
+        }
+        return blurredTexture!
+    }
+
+    private static func makeTexture(
+        metal: MetalContext, width: Int, height: Int
+    ) throws -> any MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: max(width, 1), height: max(height, 1),
+            mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        guard let texture = metal.device.makeTexture(descriptor: descriptor) else {
+            throw MetalError.bufferAllocationFailed(width * height * 16)
+        }
+        return texture
+    }
+
+    struct DownsampleUniforms {
+        var srcSize: SIMD2<Float>
+        var dstSize: SIMD2<Float>
+    }
+
+    /// The synchronous queue drain (L014 — the test-harness drain pattern;
+    /// SYNC so `waitUntilCompleted` is legal — see the probe call site).
+    private nonisolated static func fenceAndWait(_ metal: MetalContext) {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+    }
+
+    // MARK: - Tile seam (Plan 03-05 D-C1 accounting; DECISIONS D-08-1-3)
+
+    /// Borders is NEVER tiled: a canvas-EXPANDING terminal module — the
+    /// tile driver's same-size read/write contract cannot express canvas
+    /// growth (each tile would re-run the whole-plane proxy + blur legs),
+    /// and the auxiliary working set is SELF-BOUNDED by the proxy long
+    /// edge (~2048^2 planes transient), not proportional to the output
+    /// extent. Declared explicitly (both stay 0 = the default) so the
+    /// accounting test pins the decision.
+    public func tileHalo(roi: ROI, piece: IOPiece) -> Int { 0 }
+    public func tileWorkingSetBytesPerPixel(piece: IOPiece) -> Int { 0 }
 
     /// Whole-window blit (dt `copy_image_roi` fast path — crop/skinSmooth
     /// twin). Sync (same-queue FIFO orders it; the caller's fence covers

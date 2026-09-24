@@ -341,6 +341,8 @@ public enum LightamerIOPRegistry {
             // Plan 08-01: the yiyin borders composite canvas pass (the SDF/
             // downsample kernels warm on first use — T4/T5 legs).
             BordersModule.kernelComposite,
+            BordersModule.kernelShadowSDF,
+            BordersModule.kernelBoxDownsample,
         ]
     }
 

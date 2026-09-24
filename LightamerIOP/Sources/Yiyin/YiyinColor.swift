@@ -64,6 +64,13 @@ public enum YiyinColor {
         c <= 0.04045 ? c / 12.92 : Foundation.pow((c + 0.055) / 1.055, 2.4)
     }
 
+    /// sRGB OETF encode — the inverse of `linearizeSRGB` (the GammaModule
+    /// TRC). Maps a linear value back to the 0-1 ENCODED scale (the T5
+    /// brightness tiers are calibrated on that scale, yiyin :31-42).
+    public static func linearizeSRGBInverse(_ c: Double) -> Double {
+        c <= 0.0031308 ? c * 12.92 : 1.055 * Foundation.pow(c, 1.0 / 2.4) - 0.055
+    }
+
     /// M(sRGB-linear → Rec2020-linear) — the inverse of ColorOutModule's
     /// quoted Rec2020→sRGB matrix (ColorOutModule.swift derivation header;
     /// shared D65 ⇒ grays invariant). 9-decimal constants from the
