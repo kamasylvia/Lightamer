@@ -399,4 +399,118 @@ final class SkinSmoothParityTests: XCTestCase {
         }
         return (compared, maxRel)
     }
+
+    // MARK: - Track B: neutral-seed insertion is a zero-delta (T5)
+
+    /// The ENABLED-neutral seed (strength 0 = the blit identity) inserted
+    /// into the default editing chain must be BYTE-IDENTICAL to the chain
+    /// without it — the retouch-empty-layer disposition (Plan T5 / the
+    /// R1-seed-regression discipline: seed changes demand the full-suite
+    /// pass; this test pins the zero-delta claim itself).
+    func testNeutralSeedInsertionTrackBZeroDelta() async throws {
+        let fixtureURL = try requireGolden("fixtures/gradient_ramp.exr")
+        let image = try GoldenParityTests.decodeFixtureEXR(fixtureURL)
+
+        func runChain(omitSkinSmooth: Bool) async throws -> ([Float], Int, Int) {
+            let registry = ModuleRegistry.makeDefault()
+            await LightamerIOPRegistry.populate(registry)
+            var boxes: [any ModuleBoxing] = []
+            for record in LightamerIOPRegistry.editingDefaultInstances() {
+                if omitSkinSmooth && record.opName == SkinSmoothModule.opName { continue }
+                let made = await registry.makeBox(opName: record.opName, instanceID: record.id)
+                let box = try XCTUnwrap(made as? any ModuleBoxing)
+                // Re-commit the seed record's params onto the fresh box
+                // (identity-restoring init — PreviewChainPerfTests pattern).
+                try box.apply(record)
+                boxes.append(box)
+            }
+            boxes.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+            let (texture, _) = try await RenderPipeline.process(
+                image: image, instances: boxes, imageID: UUID(),
+                resolution: .preview, cache: PipeCache(), metal: metal,
+                longEdge: nil)
+            drain() // L014
+            var floats = [Float](repeating: 0, count: texture.width * texture.height * 4)
+            floats.withUnsafeMutableBytes {
+                texture.getBytes(
+                    $0.baseAddress!, bytesPerRow: texture.width * 16,
+                    from: MTLRegionMake2D(0, 0, texture.width, texture.height),
+                    mipmapLevel: 0)
+            }
+            return (floats, texture.width, texture.height)
+        }
+
+        let (withSkin, wW, wH) = try await runChain(omitSkinSmooth: false)
+        let (withoutSkin, woW, woH) = try await runChain(omitSkinSmooth: true)
+        XCTAssertEqual(wW, woW)
+        XCTAssertEqual(wH, woH)
+        var compared = 0
+        for i in 0..<withSkin.count {
+            XCTAssertEqual(
+                withSkin[i].bitPattern, withoutSkin[i].bitPattern,
+                "seed insertion moved byte \(i)")
+            compared += 1
+        }
+        XCTAssertGreaterThan(compared, 0, "anti-vacuum")
+    }
+
+    // MARK: - Tiling spot-check (T5 — the low leg's halo amortization)
+
+    /// Forced-tile execution vs whole-plane: the GaussianBlur halo
+    /// convention (tileHalo = ceil(3σ), the soften/highpass twin) amortizes
+    /// the IIR's support across tile seams — the T5 100MP spot-check at
+    /// fixture scale (the seam residuals are the IIR tail beyond 3σ;
+    /// bounded here, recorded in 07-2-DECISIONS D-07-2-T5-1).
+    func testTiledExecutionMatchesWholePlane() async throws {
+        let fixtureURL = try requireGolden("fixtures/gradient_ramp.exr")
+        let image = try GoldenParityTests.decodeFixtureEXR(fixtureURL)
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        let colorin = await registry.makeBox(opName: ColorInModule.opName)
+        let colorinBox = try XCTUnwrap(colorin as? ModuleBox<ColorInModule>)
+        colorinBox.setParams(.init())
+        let made = await registry.makeBox(opName: SkinSmoothModule.opName)
+        let box = try XCTUnwrap(made as? ModuleBox<SkinSmoothModule>)
+        box.setParams(SkinSmoothModule.Params(radius: 8.0, strength: 0.6, detailPreserve: 0.02))
+        let chain = [box as any ModuleBoxing, colorinBox]
+
+        let (whole, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .full, cache: PipeCache(), metal: metal,
+            longEdge: nil)
+        drain() // L014
+        // Force small tiles: the working set (48 B/px aux + planes) at
+        // fixture scale ≈ N·(48+32+16) bytes — a 2 MB budget splits a
+        // 256² plane into several tiles.
+        let (tiled, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .full, cache: PipeCache(), metal: metal,
+            longEdge: nil, maxTileWorkingBytes: 2_000_000)
+        drain() // L014
+
+        XCTAssertEqual(whole.width, tiled.width)
+        XCTAssertEqual(whole.height, tiled.height)
+        var wholeF = [Float](repeating: 0, count: whole.width * whole.height * 4)
+        wholeF.withUnsafeMutableBytes {
+            whole.getBytes($0.baseAddress!, bytesPerRow: whole.width * 16,
+                from: MTLRegionMake2D(0, 0, whole.width, whole.height), mipmapLevel: 0)
+        }
+        var tiledF = [Float](repeating: 0, count: tiled.width * tiled.height * 4)
+        tiledF.withUnsafeMutableBytes {
+            tiled.getBytes($0.baseAddress!, bytesPerRow: tiled.width * 16,
+                from: MTLRegionMake2D(0, 0, tiled.width, tiled.height), mipmapLevel: 0)
+        }
+        var compared = 0
+        var maxDiff: Float = 0
+        for i in 0..<(whole.width * whole.height * 3) {
+            maxDiff = max(maxDiff, abs(wholeF[i] - tiledF[i]))
+            compared += 1
+        }
+        XCTAssertGreaterThan(compared, 0, "anti-vacuum")
+        // The IIR tail beyond the 3σ halo shows as a bounded seam residual
+        // (σ ≈ 13.9 at radius 8 ⇒ halo 42 px ≈ the whole 128-px fixture —
+        // tiling is effectively whole-plane at fixture scale; the bound
+        // below is the recorded envelope, D-07-2-T5-1).
+        XCTAssertLessThan(maxDiff, 1e-4, "tiled vs whole-plane seam residual bound")
+    }
 }
