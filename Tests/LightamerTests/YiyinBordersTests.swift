@@ -93,6 +93,18 @@ final class YiyinBordersTests: XCTestCase {
         return bytes
     }
 
+    /// float32 RGBA readback (drain first — L014).
+    private func readFloats(_ texture: any MTLTexture, metal: MetalContext) -> [Float] {
+        drain(metal)
+        var floats = [Float](repeating: 0, count: texture.width * texture.height * 4)
+        floats.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: texture.width * 16,
+                from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0)
+        }
+        return floats
+    }
+
     // ── T1: registration ──
 
     func testBordersRegisteredAtV50Slot() async throws {
@@ -294,5 +306,284 @@ final class YiyinBordersTests: XCTestCase {
         var radius = BordersModule.Params.neutralSeed
         radius.cornerRadius = 2.1
         XCTAssertFalse(BordersModule().isNeutral(radius))
+    }
+
+    // MARK: - T3: YiyinColor (COLOR-2 — ColorOutModule-source profile)
+
+    func testHexParsing() {
+        XCTAssertEqual(YiyinColor.parseSRGBHex("#ffffff"), SIMD3(1.0, 1.0, 1.0))
+        XCTAssertEqual(YiyinColor.parseSRGBHex("#fff"), SIMD3(1.0, 1.0, 1.0))
+        XCTAssertEqual(YiyinColor.parseSRGBHex("#000000"), SIMD3(0.0, 0.0, 0.0))
+        XCTAssertEqual(
+            YiyinColor.parseSRGBHex("#FF0000"), SIMD3(1.0, 0.0, 0.0),
+            "uppercase accepted")
+        XCTAssertNil(YiyinColor.parseSRGBHex("#12345"))
+        XCTAssertNil(YiyinColor.parseSRGBHex("zzzzzz"))
+    }
+
+    func testLinearizeSRGBKnownPoints() {
+        XCTAssertEqual(YiyinColor.linearizeSRGB(0.0), 0.0, accuracy: 1e-12)
+        XCTAssertEqual(
+            YiyinColor.linearizeSRGB(1.0), 1.0, accuracy: 1e-12)
+        XCTAssertEqual(
+            YiyinColor.linearizeSRGB(0.04045), 0.04045 / 12.92, accuracy: 1e-12)
+        // 0.5 → ≈0.21404114 (the sRGB mid-gray).
+        XCTAssertEqual(
+            YiyinColor.linearizeSRGB(0.5), 0.21404114048232325, accuracy: 1e-9)
+    }
+
+    /// COLOR-2 pin: display white / neutrals are EXACT under every target
+    /// (D-COL1 precondition — all three spaces share D65).
+    func testWhiteAndGrayHexExactUnderEveryTarget() {
+        for target in [DisplayProfile.displayP3, .sRGB] {
+            let white = YiyinColor.linearDisplay(fromSRGBHex: "#ffffff", target: target)
+            XCTAssertEqual(white, SIMD3<Float>(1, 1, 1), "\(target): white exact")
+            let gray = YiyinColor.linearDisplay(fromSRGBHex: "#808080", target: target)!
+            XCTAssertEqual(gray.x, gray.y, accuracy: 1e-6, "\(target): gray channels equal")
+            XCTAssertEqual(gray.y, gray.z, accuracy: 1e-6, "\(target): gray channels equal")
+        }
+    }
+
+    /// COLOR-2 pin: the saturated hex converts through the SAME matrix
+    /// family colorout applies — sRGB red → P3 linear
+    /// (0.822461969, 0.033194198, 0.017082631), the Rec2020→P3 quoted
+    /// matrix composed with the inverse of the quoted Rec2020→sRGB.
+    func testSaturatedHexP3KnownPoint() {
+        let red = YiyinColor.linearDisplay(
+            fromSRGBHex: "#ff0000", target: .displayP3)!
+        XCTAssertEqual(Double(red.x), 0.822461969, accuracy: 1e-6)
+        XCTAssertEqual(Double(red.y), 0.033194198, accuracy: 1e-6)
+        XCTAssertEqual(Double(red.z), 0.017082631, accuracy: 1e-6)
+        // sRGB target: identity primaries.
+        let redSRGB = YiyinColor.linearDisplay(
+            fromSRGBHex: "#ff0000", target: .sRGB)!
+        for (got, want) in zip([redSRGB.x, redSRGB.y, redSRGB.z], [Float(1), 0, 0]) {
+            XCTAssertEqual(Double(got), Double(want), accuracy: 1e-6)
+        }
+    }
+
+    // MARK: - T3: ROI negotiation vectors (L020 frame convention)
+
+    /// rate 50 on 40×30: canvas 80×60, main at (20,15) — the modifyROIOut
+    /// growth + the modifyROIIn canvas→upstream mapping, exact.
+    func testROICanvasGrowthAndBackMapping() {
+        let box = ModuleBox(module: BordersModule())
+        var params = BordersModule.Params.neutralSeed
+        params.mainImageWidthRate = 50
+        box.setParams(params)
+
+        var piece = box.makeRunPiece()
+        piece.dscIn = IOPBufferDesc(width: 40, height: 30)
+        var out = ROI()
+        box.modifyROIOutErased(
+            &out, input: ROI(x: 0, y: 0, width: 40, height: 30, scale: 1.0), piece: piece)
+        XCTAssertEqual(out, ROI(x: 0, y: 0, width: 80, height: 60, scale: 1.0))
+
+        // Full-canvas request → the whole main image.
+        var input = ROI()
+        box.modifyROIInErased(
+            output: ROI(x: 0, y: 0, width: 80, height: 60, scale: 1.0), input: &input, piece: piece)
+        XCTAssertEqual(input, ROI(x: 0, y: 0, width: 40, height: 30, scale: 1.0))
+
+        // Partial canvas request → the intersecting main-image sub-rect,
+        // shifted into upstream coords (canvasX = upstreamX + mainX).
+        var partial = ROI()
+        box.modifyROIInErased(
+            output: ROI(x: 10, y: 10, width: 40, height: 40, scale: 1.0),
+            input: &partial, piece: piece)
+        XCTAssertEqual(partial, ROI(x: 0, y: 0, width: 30, height: 30, scale: 1.0))
+    }
+
+    // MARK: - T3: solid background content-level (平场纯色取样值)
+
+    /// rate-50 white borders on a 40×30 gradient, NO gamma in the chain
+    /// (the output plane stays float32 linear): the canvas band == the
+    /// fill color exactly, and the main image == the BASELINE (no-borders)
+    /// chain output 1:1 at the laid-out offset — the content-level proof
+    /// that the main image rides through colorout untouched. Content, not
+    /// size accounting.
+    func testSolidWhiteFillContentThroughPipe() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 40, height: 30)
+        let trio = await committedTrio(outputProfile: .sRGB)
+        // Drop gamma → the borders output is the sampled terminal plane.
+        let base = trio.filter { $0.opName != GammaModule.opName }
+        let imageID = UUID()
+        let cache = PipeCache()
+        // Baseline: the chain WITHOUT borders — every main-image pixel of
+        // the bordered output must equal this plane 1:1.
+        let (baseline, _) = try await RenderPipeline.process(
+            image: image, instances: base, imageID: imageID,
+            resolution: .preview, cache: cache, metal: metal, longEdge: nil)
+        XCTAssertEqual(baseline.width, 40)
+        let baselineFloats = readFloats(baseline, metal: metal)
+
+        let box = ModuleBox(module: BordersModule())
+        var params = BordersModule.Params.neutralSeed
+        params.mainImageWidthRate = 50
+        params.mode = .solid(color: "#ffffff")
+        box.setParams(params)
+        box.module.displayProfileOverride = .sRGB
+        let chain = (base + [box as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+
+        let (output, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: imageID,
+            resolution: .preview, cache: cache, metal: metal, longEdge: nil)
+        // Canvas 80×60 (rate-50 growth), float32 (top ≠ gamma).
+        XCTAssertEqual(output.width, 80)
+        XCTAssertEqual(output.height, 60)
+        XCTAssertEqual(output.pixelFormat, WorkingSpace.pixelFormat)
+
+        let floats = readFloats(output, metal: metal)
+        func px(_ x: Int, _ y: Int) -> [Float] {
+            let o = (y * output.width + x) * 4
+            return [floats[o], floats[o + 1], floats[o + 2]]
+        }
+        func basePx(_ x: Int, _ y: Int) -> [Float] {
+            let o = (y * baseline.width + x) * 4
+            return [baselineFloats[o], baselineFloats[o + 1], baselineFloats[o + 2]]
+        }
+        var compared = 0
+        // Canvas band corners + edge midpoints: exact display white.
+        for (x, y) in [(0, 0), (79, 0), (0, 59), (79, 59), (40, 0), (0, 30)] {
+            let p = px(x, y)
+            for c in 0..<3 {
+                XCTAssertEqual(Double(p[c]), 1.0, accuracy: 1e-5, "fill at (\(x),\(y)) ch\(c)")
+                compared += 1
+            }
+        }
+        // Main image interior: 1:1 with the BASELINE plane at (20,15).
+        for (kx, ky) in [(0, 0), (5, 5), (39, 29), (20, 10)] {
+            let want = basePx(kx, ky)
+            let got = px(20 + kx, 15 + ky)
+            for c in 0..<3 {
+                XCTAssertEqual(Double(got[c]), Double(want[c]), accuracy: 1e-5, "main at (\(kx),\(ky)) ch\(c)")
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转: samples compared")
+    }
+
+    /// COLOR-2 through the REAL pipe: a P3 display target with a saturated
+    /// fill — the canvas band equals the YiyinColor P3 known point.
+    func testSolidColoredFillP3KnownPointThroughPipe() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 40, height: 30)
+        let trio = await committedTrio(outputProfile: .displayP3)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+        let box = ModuleBox(module: BordersModule())
+        var params = BordersModule.Params.neutralSeed
+        params.mainImageWidthRate = 50
+        params.mode = .solid(color: "#ff0000")
+        box.setParams(params)
+        box.module.displayProfileOverride = .displayP3
+        let chain = (base + [box as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        let (output, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        XCTAssertEqual(output.width, 80)
+        let floats = readFloats(output, metal: metal)
+        let o = 4 // pixel (1,0) — well inside the canvas band
+        let got: [Double] = [Double(floats[o]), Double(floats[o + 1]), Double(floats[o + 2])]
+        XCTAssertEqual(got[0], 0.822461969, accuracy: 1e-5, "P3 red fill R")
+        XCTAssertEqual(got[1], 0.033194198, accuracy: 1e-5, "P3 red fill G")
+        XCTAssertEqual(got[2], 0.017082631, accuracy: 1e-5, "P3 red fill B")
+    }
+
+    /// 窗口化 FULL 画布扩展内容级断言 (L020/L021): a 32×24 window at
+    /// origin (10,8) of a 64×48 gradient, rate-50 borders → canvas 64×48;
+    /// the main image lands at (16,12) in canvas coords and samples the
+    /// FRAME region — output(16+k, 12+k) == the BASELINE window plane
+    /// (k, k). Position correctness of the VALUES, not just the sizes.
+    func testWindowedFullCanvasExtensionContentLevel() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 64, height: 48)
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+        let imageID = UUID()
+        let cache = PipeCache()
+        let hint = ROI(x: 10, y: 8, width: 32, height: 24, scale: 1.0)
+        // Baseline window plane (no borders).
+        let (baseline, _) = try await RenderPipeline.process(
+            image: image, instances: base, imageID: imageID,
+            resolution: .full, cache: cache, metal: metal, longEdge: nil,
+            roiHint: hint)
+        XCTAssertEqual(baseline.width, 32)
+        let baselineFloats = readFloats(baseline, metal: metal)
+
+        let box = ModuleBox(module: BordersModule())
+        var params = BordersModule.Params.neutralSeed
+        params.mainImageWidthRate = 50
+        box.setParams(params)
+        box.module.displayProfileOverride = .sRGB
+        let chain = (base + [box as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+
+        let (output, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: imageID,
+            resolution: .full, cache: cache, metal: metal, longEdge: nil,
+            roiHint: hint)
+        XCTAssertEqual(output.width, 64, "canvas = window grown at rate 50")
+        XCTAssertEqual(output.height, 48)
+        let floats = readFloats(output, metal: metal)
+        func px(_ x: Int, _ y: Int) -> [Float] {
+            let o = (y * output.width + x) * 4
+            return [floats[o], floats[o + 1], floats[o + 2]]
+        }
+        func basePx(_ x: Int, _ y: Int) -> [Float] {
+            let o = (y * baseline.width + x) * 4
+            return [baselineFloats[o], baselineFloats[o + 1], baselineFloats[o + 2]]
+        }
+        var compared = 0
+        // The canvas band (outside the main rect) is the fill.
+        let band = px(0, 0)
+        for c in 0..<3 {
+            XCTAssertEqual(Double(band[c]), 1.0, accuracy: 1e-5, "windowed band ch\(c)")
+            compared += 1
+        }
+        // The main image maps the FRAME region: output(16+k,12+k) ==
+        // baseline window (k, k) — the window offset rides through.
+        for k in [0, 5, 15, 23] {
+            let want = basePx(k, k)
+            let got = px(16 + k, 12 + k)
+            for c in 0..<3 {
+                XCTAssertEqual(Double(got[c]), Double(want[c]), accuracy: 1e-5, "windowed main k=\(k) ch\(c)")
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转: samples compared")
+    }
+
+    // MARK: - T3: layer-internal discipline pin (LAYER-06)
+
+    /// Borders is BASE-CHAIN-LEGAL per the slot-set rejecter (the dt
+    /// geometry slots 13/15/16/17 are unchanged — no new mechanism, Plan
+    /// 08-1 纪律) and can never enter a layer leg: the terminal extraction
+    /// removes it from every layer-facing chain (the T1 routing test),
+    /// with the L021 window-consistency precondition as the in-layer
+    /// backstop.
+    func testLayerInternalDisciplinePin() {
+        // borders (and the terminal window) is not rejected as base.
+        let borders = ModuleInstance(
+            module: BordersModule.self, params: BordersModule.Params.neutralSeed)
+        XCTAssertNil(
+            LayerCompositeDriver.layerGeometryViolation([borders]),
+            "borders is base-chain legal (terminal/base-only discipline)")
+        // The rejecter's slot set is UNCHANGED by Plan 08-1 — the dt
+        // geometry modules stay layer-forbidden.
+        XCTAssertNotNil(
+            LayerCompositeDriver.layerGeometryViolation(
+                [ModuleInstance(module: LensModule.self, params: LensModule.Params())]),
+            "lens 13.0 stays forbidden in layers")
+        XCTAssertNotNil(
+            LayerCompositeDriver.layerGeometryViolation(
+                [ModuleInstance(module: AshiftModule.self, params: AshiftModule.Params())]),
+            "ashift 15.0 stays forbidden in layers")
+        XCTAssertNotNil(
+            LayerCompositeDriver.layerGeometryViolation(
+                [ModuleInstance(module: FlipModule.self, params: FlipModule.Params())]),
+            "flip 16.0 stays forbidden in layers")
     }
 }

@@ -125,6 +125,10 @@ public final class BordersModule: IOPModule {
 
     public static let opName = "borders"
 
+    /// Kernel function names (`YiyinKernels.metal`; internal — the Registry
+    /// prewarm list consumes the composite pass).
+    static let kernelComposite = "yiyin_composite"
+
     /// v50 order 76.0 (V50Order table, verbatim Darktable position —
     /// between dither 75.0 and watermark 77.0; display-referred seam).
     public static let iopOrder: Float = 76.0
@@ -139,6 +143,13 @@ public final class BordersModule: IOPModule {
     /// The commit-clamped working copy (dt `piece->data` analog — the ROI
     /// hooks and process read THIS; the hash digests the raw params).
     private var committed: Params = Params.neutralSeed
+
+    /// The INPUT frame origin recorded by the forward walk's
+    /// `modifyROIOut` call (windowed FULL runs enter at a sub-rect of the
+    /// frame — the canvas↔upstream mapping must keep that origin, L020).
+    /// Default (0,0) = the full-frame/plain-pipe face. Single-owner (the
+    /// box's module), mutated only by the walk, same pattern as `committed`.
+    private var inputFrameOrigin: SIMD2<Int> = .zero
 
     /// Joint-layout injection seam (08-CONTEXT 继承定案; DECISIONS D-08-1-1):
     /// the terminal-segment assembly (08-2) may inject the jointly computed
@@ -232,8 +243,10 @@ public final class BordersModule: IOPModule {
     /// consulted for the walk coordinate premise; the expansion itself is
     /// the yiyin canvas). The canvas rect is recorded at the frame origin
     /// (the main image sits at positive offsets inside it — same
-    /// upstream-relative convention as crop's window origin).
+    /// upstream-relative convention as crop's window origin). RECORDS the
+    /// input origin for the windowed backward mapping.
     public func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
+        inputFrameOrigin = SIMD2(input.x, input.y)
         if isNeutral(committed) {
             roi = input
             return
@@ -248,8 +261,9 @@ public final class BordersModule: IOPModule {
 
     /// Map a canvas-region request back onto the main-image rect (1:1 —
     /// yiyin never rescales the main image). The returned rect is in
-    /// UPSTREAM (frame) pixels, origin-to-origin renderable by the pipe;
-    /// the pipe clamps to the upstream plane (crop.c:576-592 convention).
+    /// UPSTREAM FRAME pixels — the input plane's frame origin (recorded at
+    /// `modifyROIOut`) is preserved so windowed FULL runs re-enter at the
+    /// right sub-rect; the pipe clamps to the upstream plane.
     public func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
         if isNeutral(committed) || piece.dscIn.width <= 0 || piece.dscIn.height <= 0 {
             input = roi
@@ -258,14 +272,14 @@ public final class BordersModule: IOPModule {
         let record = effectiveLayout(dscIn: piece.dscIn)
         let mx = record.mainImageOrigin.x
         let my = record.mainImageOrigin.y
-        let mw = record.sourceImageSize.x
-        let mh = record.sourceImageSize.y
+        let ox = inputFrameOrigin.x
+        let oy = inputFrameOrigin.y
         // Upstream rect covering the requested canvas region's intersection
-        // with the main image: canvasX = upstreamX + mx.
-        let x0 = max(roi.x - mx, 0)
-        let y0 = max(roi.y - my, 0)
-        let x1 = min(roi.x + roi.width - mx, mw)
-        let y1 = min(roi.y + roi.height - my, mh)
+        // with the main image: canvasX = frameX − mx + ox.
+        let x0 = max(roi.x - mx + ox, ox)
+        let y0 = max(roi.y - my + oy, oy)
+        let x1 = min(roi.x + roi.width - mx + ox, ox + piece.dscIn.width)
+        let y1 = min(roi.y + roi.height - my + oy, oy + piece.dscIn.height)
         input = roi
         input.x = x0
         input.y = y0
@@ -292,11 +306,142 @@ public final class BordersModule: IOPModule {
             try blitIdentity(input: input, output: output, roiIn: roiIn, roiOut: roiOut, metal: metal)
             return
         }
-        // T1 delivers the skeleton + identity; the render legs land with
-        // T3 (solid + composite + color), T4 (radius + shadow), T5 (blur +
-        // adaptive overlay). A non-neutral commit before those tasks is a
-        // programming error — typed, never a silent wrong-output blit.
-        throw AppError.notImplemented("borders render legs (Plan 08-01 T3/T4/T5)")
+        // Leg availability by task: T4 wires the radius/shadow legs, T5 the
+        // blur/overlay leg — a commit-level typed gate, never a silent
+        // wrong-output blit.
+        if paramsNeedsShadowLeg(committed) {
+            throw AppError.notImplemented("borders shadow leg (Plan 08-01 T4)")
+        }
+        guard case .solid(let hex) = committed.mode else {
+            throw AppError.notImplemented("borders blur leg (Plan 08-01 T5)")
+        }
+
+        // ── T3 solid leg: ONE composite dispatch. Fill = the hex converted
+        // through the ColorOutModule matrix family (COLOR-2); unresolved
+        // hex degrades to white (yiyin `|| '#fff'`).
+        let target: DisplayProfile
+        if let override = displayProfileOverride {
+            target = override
+        } else {
+            target = .current()
+        }
+        let fill =
+            YiyinColor.linearDisplay(fromSRGBHex: hex, target: target)
+            ?? SIMD3<Float>(1, 1, 1)
+        try await dispatchComposite(
+            input: input, output: output, roiIn: roiIn, roiOut: roiOut,
+            record: record, fill: fill, overlay: nil, shadow: nil, metal: metal)
+    }
+
+    /// The radius/shadow legs are needed when either knob is active (the
+    /// layout guarantees both px values are 0 exactly when both knobs are
+    /// nil/0 — the same predicate `isIdentityRender` uses).
+    private func paramsNeedsShadowLeg(_ p: Params) -> Bool {
+        (p.cornerRadius ?? 0) > 0 || (p.shadow ?? 0) > 0
+    }
+
+    /// The coordinator-injected display override (ColorOutModule twin): a
+    /// live display change must flip the fill conversion the same way it
+    /// flips colorout. nil = resolve the current screen.
+    public var displayProfileOverride: DisplayProfile?
+
+    /// The composite uniforms (MSL mirror of `YiyinCompositeUniforms`).
+    struct CompositeUniforms {
+        var solidMode: Int32
+        var hasOverlay: Int32
+        var hasShadow: Int32
+        var hasBlurTex: Int32
+        var fillColor: SIMD4<Float>
+        var overlayColor: SIMD4<Float>
+        var mainOffset: SIMD2<Float>
+        var mainSize: SIMD2<Float>
+        var sdfCenter: SIMD2<Float>
+        var sdfHalf: SIMD2<Float>
+        var radius: Float
+        var blurSigmaNorm: Float
+        var outputSize: SIMD2<Float>
+        var blurTexSize: SIMD2<Float>
+        var pad0: SIMD2<Float>
+    }
+
+    /// The single canvas-composition dispatch (T3 shape: solid fill +
+    /// 1:1 main-image blit + SDF clip; T4 adds the shadow plane, T5 the
+    /// blur proxy/overlay). Geometry is output-plane-relative:
+    /// mainOffset = mainOrigin − roiOut.origin — the kernel samples input
+    /// at p − mainOffset; the input plane already carries the frame
+    /// region origin-to-origin (the input-frame origin cancels between
+    /// the canvas mapping and the plane render).
+    func dispatchComposite(
+        input: any MTLTexture,
+        output: any MTLTexture,
+        roiIn: ROI,
+        roiOut: ROI,
+        record: YiyinLayoutRecord,
+        fill: SIMD3<Float>,
+        overlay: SIMD4<Float>?,
+        shadow: (any MTLTexture)?,
+        metal: MetalContext
+    ) async throws {
+        let mainOrigin = SIMD2<Float>(
+            Float(record.mainImageOrigin.x), Float(record.mainImageOrigin.y))
+        let outOrigin = SIMD2<Float>(Float(roiOut.x), Float(roiOut.y))
+        var u = CompositeUniforms(
+            solidMode: 1,
+            hasOverlay: overlay != nil ? 1 : 0,
+            hasShadow: shadow != nil ? 1 : 0,
+            hasBlurTex: 0,
+            fillColor: SIMD4(fill.x, fill.y, fill.z, 1),
+            overlayColor: overlay ?? SIMD4(0, 0, 0, 0),
+            mainOffset: mainOrigin - outOrigin,
+            mainSize: SIMD2(Float(input.width), Float(input.height)),
+            sdfCenter: mainOrigin + SIMD2(
+                Float(record.sourceImageSize.x), Float(record.sourceImageSize.y)) / 2
+                - outOrigin,
+            sdfHalf: SIMD2(
+                Float(record.sourceImageSize.x), Float(record.sourceImageSize.y)) / 2,
+            radius: Float(record.cornerRadiusPx),
+            blurSigmaNorm: 0,
+            outputSize: SIMD2(Float(output.width), Float(output.height)),
+            blurTexSize: SIMD2(1, 1),
+            pad0: .zero)
+        guard let buffer = metal.device.makeBuffer(
+            bytes: &u, length: MemoryLayout<CompositeUniforms>.stride,
+            options: .storageModeShared)
+        else { throw MetalError.deviceUnavailable }
+
+        // auxTex: the shadow plane (T4) / blur proxy (T5); a 1×1 dummy
+        // keeps the binding table total when the legs are inert.
+        let aux: any MTLTexture
+        if let shadow {
+            aux = shadow
+        } else {
+            aux = try Self.dummyTexture(metal: metal)
+        }
+        let session = try await metal.makeEncoder(functionName: Self.kernelComposite)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(aux, index: 1)
+        session.encoder.setTexture(output, index: 2)
+        session.encoder.setBuffer(buffer, offset: 0, index: 0)
+        precondition(
+            8 * 8 <= session.pipelineState.maxTotalThreadsPerThreadgroup,
+            "yiyin_composite threadgroup exceeds the PSO budget")
+        session.encoder.dispatchThreads(
+            MTLSize(width: output.width, height: output.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+    }
+
+    /// The 1×1 inert aux texture (binding-table filler).
+    private static func dummyTexture(metal: MetalContext) throws -> any MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: 1, height: 1, mipmapped: false)
+        descriptor.usage = [.shaderRead]
+        descriptor.storageMode = .shared
+        guard let texture = metal.device.makeTexture(descriptor: descriptor) else {
+            throw MetalError.bufferAllocationFailed(16)
+        }
+        return texture
     }
 
     /// Whole-window blit (dt `copy_image_roi` fast path — crop/skinSmooth

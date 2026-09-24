@@ -338,6 +338,9 @@ public enum LightamerIOPRegistry {
             // Plan 07-2: the skinSmooth threshold-attenuation mix (the low
             // leg reuses the gaussian_pass_* kernels — warmed above).
             SkinSmoothKernel.mixFunction,
+            // Plan 08-01: the yiyin borders composite canvas pass (the SDF/
+            // downsample kernels warm on first use — T4/T5 legs).
+            BordersModule.kernelComposite,
         ]
     }
 

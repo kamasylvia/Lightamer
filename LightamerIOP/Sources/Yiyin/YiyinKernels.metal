@@ -1,0 +1,148 @@
+#include <metal_stdlib>
+using namespace metal;
+
+// ─────────────────────────────────────────────────────────────────────────
+// YiyinKernels (Plan 08-01; yiyin 印框 render legs) — LightamerIOP's
+// metallib; function names resolved via the registered-library lookup.
+//
+// yiyin_composite — the ONE canvas-composition dispatch (T3): the borders
+//   output plane = background band (solid fill; blur proxy sampling wires
+//   in T5) + the optional brightness overlay (T5) + the shadow (T4, a
+//   pre-blurred SDF plane) + the main image clipped by the rounded-rect
+//   SDF. Replaces yiyin's mask-PNG two-process round trip (the mask PNG is
+//   yiyin's Electron renderer boundary artifact — RESEARCH §1.2; the Metal
+//   face composes in one pass, D-08-CONTEXT 继承定案 渲染分工).
+//
+// yiyin_shadow_sdf (T4) — stamps the rounded-rect SDF alpha for the
+//   shadow plane (GaussianBlur consumes it).
+//
+// yiyin_box_downsample (T5) — box-average downsample (blur proxy +
+//   brightness probe).
+//
+// Coordinate conventions (L020/L021): everything is in THIS RUN's plane
+// pixels — the module passes output-plane-relative geometry; `dscIn` is
+// never re-scaled. The main-image lookup is EXACT 1:1 (yiyin never
+// rescales the main image — it grows the canvas instead): output pixel p
+// samples input at p − mainOffset with a bounds check.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Mirror of Swift `YiyinCompositeUniforms` (BordersModule).
+struct YiyinCompositeUniforms {
+    int32_t solidMode;    // 1 = fill from fillColor (blur proxy: T5)
+    int32_t hasOverlay;   // brightness overlay active (T5, blur mode only)
+    int32_t hasShadow;    // shadow plane bound (T4)
+    int32_t hasBlurTex;   // blur proxy bound (T5)
+    float4 fillColor;     // display-domain linear RGB, a = 1
+    float4 overlayColor;  // linear RGB + alpha (0.2)
+    float2 mainOffset;    // output px → input px: u = p − mainOffset
+    float2 mainSize;      // input plane dims (bounds check)
+    float2 sdfCenter;     // main rect center in OUTPUT px
+    float2 sdfHalf;       // main rect half extents
+    float radius;         // corner radius px (0 = square)
+    float blurSigmaNorm;  // reserved (T5 normalized sampling scale)
+    float2 outputSize;    // canvas dims
+    float2 blurTexSize;   // proxy dims (T5)
+    float2 pad0;
+};
+
+// Signed distance to a rounded rect (yiyin arcTo path semantics, web
+// image-tool/index.ts:65-90 — the classic arcTo rounded rectangle IS this
+// SDF's boundary).
+static inline float sdRoundedRect(
+    float2 p, float2 center, float2 halfExt, float radius) {
+    float2 q = abs(p - center) - halfExt + float2(radius);
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
+}
+
+// Inside coverage with a 1px antialias band (tests sample ≥2px inside/out
+// — the T4 alpha profile pins inside=1 / outside=0 away from the band).
+static inline float rectCoverage(
+    float2 p, float2 center, float2 halfExt, float radius) {
+    float sd = sdRoundedRect(p, center, halfExt, radius);
+    return 1.0 - smoothstep(-0.5, 0.5, sd);
+}
+
+kernel void yiyin_composite(
+    texture2d<float, access::read> mainTex [[texture(0)]],
+    texture2d<float, access::read> auxTex [[texture(1)]],   // blur proxy OR shadow, per flags
+    texture2d<float, access::write> output [[texture(2)]],
+    constant YiyinCompositeUniforms &u [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= (uint)u.outputSize.x || gid.y >= (uint)u.outputSize.y) { return; }
+    float2 p = float2(gid) + 0.5;
+
+    // 1. Background band: solid fill (the blur proxy replaces this in T5:
+    //    normalized sampling of auxTex when hasBlurTex).
+    float4 out = u.fillColor;
+    if (u.hasOverlay) {
+        // yiyin fillRect rgba(g,g,g,0.2) over the backdrop (linear-domain
+        // composite — the encoded-domain algebra delta is a recorded
+        // L017 容差带 item, 08-1-DECISIONS).
+        out.rgb = mix(out.rgb, u.overlayColor.rgb, u.overlayColor.a);
+    }
+
+    // 2. Shadow (T4): the pre-blurred SDF alpha darkens beneath the main
+    //    image (yiyin shadowColor rgba(0,0,0,1) — full-strength black).
+    if (u.hasShadow) {
+        float a = auxTex.read(gid).r;
+        out.rgb = mix(out.rgb, float3(0.0), clamp(a, 0.0, 1.0));
+    }
+
+    // 3. Main image, 1:1, rounded-rect clipped (radius 0 = the square
+    //    path — coverage is the full rect minus a 1px AA edge).
+    float2 su = p - u.mainOffset;
+    if (su.x >= 0.0 && su.y >= 0.0 && su.x < u.mainSize.x && su.y < u.mainSize.y) {
+        float4 m = mainTex.read(uint2(su));
+        float cover = rectCoverage(p, u.sdfCenter, u.sdfHalf, u.radius);
+        out.rgb = mix(out.rgb, m.rgb, cover);
+    }
+
+    out.a = 1.0; // the canvas is opaque (premultiplied convention: a=1)
+    output.write(out, gid);
+}
+
+kernel void yiyin_shadow_sdf(
+    texture2d<float, access::write> output [[texture(0)]],
+    constant YiyinCompositeUniforms &u [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= (uint)u.outputSize.x || gid.y >= (uint)u.outputSize.y) { return; }
+    float2 p = float2(gid) + 0.5;
+    float a = rectCoverage(p, u.sdfCenter, u.sdfHalf, u.radius);
+    // Replicated across RGBA — GaussianBlur operates on float4 planes and
+    // the composite reads .r.
+    output.write(float4(a, a, a, 1.0), gid);
+}
+
+struct YiyinDownsampleUniforms {
+    float2 srcSize;  // source dims
+    float2 dstSize;  // output dims
+};
+
+kernel void yiyin_box_downsample(
+    texture2d<float, access::read> input [[texture(0)]],
+    texture2d<float, access::write> output [[texture(1)]],
+    constant YiyinDownsampleUniforms &u [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= (uint)u.dstSize.x || gid.y >= (uint)u.dstSize.y) { return; }
+    // Box-average the source rect mapped to this output pixel (clamped —
+    // the source may be any size; the rect edges are float-derived).
+    uint x0 = (uint)floor(float(gid.x) * u.srcSize.x / u.dstSize.x);
+    uint y0 = (uint)floor(float(gid.y) * u.srcSize.y / u.dstSize.y);
+    uint x1 = (uint)ceil(float(gid.x + 1) * u.srcSize.x / u.dstSize.x);
+    uint y1 = (uint)ceil(float(gid.y + 1) * u.srcSize.y / u.dstSize.y);
+    x1 = min(x1, (uint)u.srcSize.x);
+    y1 = min(y1, (uint)u.srcSize.y);
+    x0 = min(x0, x1 - 1);
+    y0 = min(y0, y1 - 1);
+    float4 acc = 0.0;
+    for (uint y = y0; y < y1; ++y) {
+        for (uint x = x0; x < x1; ++x) {
+            acc += input.read(uint2(x, y));
+        }
+    }
+    float count = float((x1 - x0) * (y1 - y0));
+    output.write(acc / count, gid);
+}
