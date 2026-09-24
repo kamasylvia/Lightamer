@@ -239,6 +239,40 @@
         }
       }
     },
+    "ai_download_not_ready_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The download call returned without an error, but the system still reports the model assets as not ready. On this macOS beta this happens when asset provisioning is unavailable to the current build context (test-entitlement or development-signed runs). The assets are machine-level: once any properly provisioned app (or a Developer ID build) completes the download, this entry turns ready. You can retry now."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载调用未报错，但系统仍报告模型资产未就绪。在此 macOS beta 上，资产供给对当前构建上下文（测试 entitlement 或开发签名运行）不可用时会这样。该资产为机器级：任一可正常供给的应用（或 Developer ID 构建）完成下载后，此入口即转为就绪。你可以现在重试。"
+          }
+        }
+      }
+    },
+    "ai_mask_download_help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download the system Vision model assets for tap-to-segment (machine-level, one-time)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载系统 Vision 模型资产以启用「点击选取」（机器级，一次性）"
+          }
+        }
+      }
+    },
     "ai_download_prompt_message": {
       "extractionState": "manual",
       "localizations": {

@@ -205,6 +205,10 @@ internal struct MaskToolbarView: View {
             }
             .buttonStyle(.borderless)
             .disabled(!hasSelection)
+            // GUI-20: the guided entry explains WHERE the model comes from
+            // (system Vision assets) — the failure mode (no error, still
+            // not ready) is surfaced by AIDownloadModel's alert.
+            .help(String(localized: "ai_mask_download_help"))
             .accessibilityLabel(Text("ai_mask_download"))
             .accessibilityIdentifier("ai.mask.download")
         case .failed:

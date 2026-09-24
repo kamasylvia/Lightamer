@@ -1815,6 +1815,31 @@ final class PanelWiringTests: XCTestCase {
             "the record landed in the live chain")
     }
 
+    /// GUI-20 (07-3 acceptance, 2026-09-24): a download that returns
+    /// WITHOUT an error but leaves the assets not-ready must surface the
+    /// explanatory notice (the acceptance round fell back to the silent
+    /// needsDownload guidance state — the user pressed「下载模型」and
+    /// nothing was said). Pinned at the App model layer with a scripted
+    /// no-error downloader + notReady probe (the exact 07-1 test-
+    /// entitlement signature).
+    @MainActor
+    func testNoErrorNotReadyDownloadSurfacesNotice() async throws {
+        let store = AIAssetStore(
+            statusProbe: { .notReady },
+            downloader: { _ in }) // "succeeds" without provisioning
+        let model = AIDownloadModel(store: store)
+        model.accept() // the guided download entry's action
+        // Let the poll task run to completion (the notReady loop exits
+        // immediately — no downloading phase to poll).
+        for _ in 0..<50 {
+            if model.downloadError != nil { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertNotNil(
+            model.downloadError,
+            "GUI-20: the no-error-not-provisioned download must NOT be silent")
+    }
+
     /// L014-fenced display read-back (SYNC helper — waitUntilCompleted is
     /// unavailable from async contexts; the RasterMaskStore pattern).
     nonisolated private static func readDisplayBytes(

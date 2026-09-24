@@ -106,3 +106,26 @@ frontmatter 为准，用户终验留 verify-work 轮。
 
 **Reversibility**：SC#5 cold 路径若正式版实测恶化（>1s 常态化），门重开 = perf plan
 项；GUI-20 若 Developer ID 下复现，升级为 v1 阻塞重开。
+
+## D-GUI20-FIX: GUI-20 修复轮裁定——「dev-signed 阻断」不复现；修复口径 = 无错误未就绪路径明示化（2026-09-24）
+
+**背景**：GUI-19/20/21 修复轮（2026-09-24）对 GUI-20 的诊断结论与 07-3 登记不同。
+
+**诊断矩阵**（探针二进制 = `GenerateIterativeSegmentationRequest.downloadAssets` +
+`assetStatus` 打印，本机 Mac16,10 / macOS 27.0 26A428）：
+
+| 上下文 | 结果 |
+|---|---|
+| 裸 swiftc 二进制（ad-hoc 签名，无 entitlements） | ready（3-11ms 级） |
+| + 测试 entitlements 组（get-task-allow + mach-lookup testmanagerd 三项 + 只读根路径例外） | ready |
+| + `Lightamer Dev` 证书（app 同款签名身份，TeamIdentifier 未设） | ready |
+| .app bundle（同证书 + 同测试 entitlements）经 `open` 启动 | ready |
+| **Lightamer Debug 产物本体**（AX 驱动「下载模型」按钮） | choice→accepted 落盘 + 工具条三态跃迁（非 spinner/非原下载钮形态） |
+
+**裁定**：
+1. **「macOS 27 beta 资产供给对 development 签名不放行」不成立**（本机今日不可复现）。07-3 验收时的 notReady 观测更可能属于当时机器/构建瞬时状态（OS 侧资产供给 beta 抖动）或 07-1 已知的**测试宿主 entitlement** 上下文（唯一可复现的阻断族）。
+2. **资产为机器级**：任一二进制完成一次 `downloadAssets` 后，所有上下文读 ready——「替代供给路径」workaround = 用普通二进制（如 `.work/07/bench` 或独立探针）先行供给一次即可，无需手动放置模型文件（无已知的合法手动放置位置；DownloadableAssets 由 OS 管理）。
+3. **修复落地（UI 明示化）**：`AIDownloadModel.startDownload` 在「下载无错误返回但资产仍 notReady」时经既有非静默 alert 弹出 `ai_download_not_ready_body`（解释 beta 供给/构建上下文 + 机器级资产语义 + 可重试）；下载按钮加 tooltip `ai_mask_download_help`。回归 = `testNoErrorNotReadyDownloadSurfacesNotice`。
+4. **Developer ID 签名复验仍保留为 v1 后观察项**（分发形态终验）；若正式分发下复现 notReady，按 D-07-3-T5-1 升级为 v1 阻塞重开。
+
+**Reversibility**：若后续真机再现「无错误恒 notReady」，alert 文案即取证入口（区分 OS 供给失败 vs app 上下文阻断）。

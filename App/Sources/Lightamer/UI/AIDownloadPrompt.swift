@@ -93,6 +93,19 @@ final class AIDownloadModel {
             self.phase = phase
             if case .failed(let reason) = phase {
                 self.downloadError = reason
+                return
+            }
+            // GUI-20 (07-3 acceptance, 2026-09-24): a download that returned
+            // WITHOUT an error but left the assets not-ready used to fall
+            // back to the silent needsDownload guidance state — the user
+            // pressed「下载模型」, nothing happened, nothing was said. The
+            // no-error-not-provisioned signature is exactly the 07-1
+            // test-entitlement / beta-provisioning family (the store probe
+            // matrix that round could not distinguish); surface it through
+            // the SAME non-silent alert with its own explanatory message.
+            if case .notReady = phase {
+                self.downloadError = String(
+                    localized: "ai_download_not_ready_body")
             }
         }
     }
