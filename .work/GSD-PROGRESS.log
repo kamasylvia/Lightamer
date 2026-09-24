@@ -96,3 +96,4 @@
 2026-09-24 [GUI-22] 修复轮复验 PASS-with-notes（暖路 undo == 同态首渲染 0.0000% 独立复现；根因 = CIRAW 逐次渲染非字节稳定 + 预算驱逐迫使重渲染捕获 speckle 变体）；note-1（memo 键缺尺寸维度——全幅↔THUMBNAIL 同键互踩）当场修复：MemoKey.content 加 (width,height) 三处构造点同步，854/6/0。GUI-23（跨进程首渲染方差）留观。GUI-19/20/21/22 全部闭环。
 2026-09-24 [开关确认] 用户确认 [gsd] auto=true + paused=false——全自动流转继续。下一波 = 07-3 复验（W2 验收）→ Phase 7 verify-work → Phase 8 discuss。
 2026-09-24 [07-3] 验收 PASS-with-notes（7/7 AC；真机层 A 正向腿 toast+bake+⌘Z 恰 1 commit GUI 级实证；854/6/0 独立实跑）。Phase 7 全部 3 plan 闭环（07-1/07-2/07-3 + verify-work GOAL ACHIEVED-WITH-GAPS→已补齐）。Phase 8 移交清单六面落 DISCUSSION-LOG。→ Phase 8 discuss。
+2026-09-24 [巡检] 开关 auto=true/paused=false；Phase 8 RESEARCH 已落盘（573fb49）——C 档第 1 停生效中：8 项 Open Questions 已提交用户裁决（77.0 槽位归属/YIYIN-03/04 深度/持久化形态/自动挂框/Logo 归属/模糊定标/物理应用/字体回退），plans 生成等用户回复。无可推进项（C 档门控），不改 GOAL-STATE。
