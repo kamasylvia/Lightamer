@@ -14,12 +14,14 @@ import Observation
 //   liquifyRequested   (the liquify panel is the selected Inspector
 //        surface — the 06-06 v1 rule, now routed THROUGH this machine)
 //        → LiquifyOverlayHost owns the viewport
+//   segmentActive      (the 07-3 tap-to-segment mode —「点击选取」)
+//        → SegmentEditingOverlayHost owns the viewport
 //   otherwise          → CropOverlayHost owns the viewport
 //
-// INVARIANT (the mutex contract): at most ONE of the three overlays can
+// INVARIANT (the mutex contract): at most ONE of the four overlays can
 // be active — the routes are an exhaustive if/else-if chain keyed on this
 // state, so two gestures can never route simultaneously. The unit tests
-// pin the state machine (`PanelWiringTests` layer group).
+// pin the state machine (`LayerUIWiringTests` layer group).
 //
 // NOT owned here: the layer STACK (EditorState), history (EditorState),
 // rendering (PipeCoordinator). This is pure UI arbitration state (D-03b).
@@ -150,9 +152,48 @@ final class LayerEditingState {
     /// The masked layer under edit (drives the overlay host's live legs).
     var maskEditingActive: Bool { selectedLayerID != nil && activeTool != nil }
 
-    /// Arm/disarm a tool. Arming one disarms the others (radio semantics).
+    /// Arm/disarm a tool. Arming one disarms the others (radio semantics)
+    /// AND disarms the tap-to-segment mode (the 4th route's mutex).
     func setTool(_ tool: MaskTool?) {
         activeTool = tool
+        if tool != nil { segmentActive = false }
+    }
+
+    // MARK: tap-to-segment (Plan 07-3 T2 — the 4th editing mode)
+
+    /// The 4th editing mode armed (MaskToolbar「点击选取」, layer B ready).
+    /// Mutually exclusive with the mask tools by construction (arming a
+    /// tool disarms segment and vice versa).
+    private(set) var segmentActive = false
+
+    /// The live tap-to-segment session (seeds + refine points + the
+    /// re-bake target). UI-STATE ONLY — AI generation parameters never
+    /// persist (07-CONTEXT 继承定案); the session dies with the mode.
+    private(set) var segmentSession = SegmentSession()
+
+    func setSegmentActive(_ active: Bool) {
+        segmentActive = active
+        if active {
+            activeTool = nil
+            // Re-entry on a layer that already carries a layer-B raster
+            // mask seeds a REFINE session pointing at the same mask file
+            // (D-07-CONTEXT-5 overwrite re-bake). Needs the stack — the
+            // caller (toolbar) guarantees a selection; the session seeds
+            // lazily through `armSegmentSession(for:)`.
+        } else {
+            segmentSession = SegmentSession()
+        }
+    }
+
+    /// Seed/refresh the session against the selected layer's mask state
+    /// (called on mode entry; the refine marker is the mask file's source
+    /// prefix — D-07-CONTEXT-5).
+    func armSegmentSession(for layer: AdjustmentLayer?) {
+        segmentSession = SegmentSession()
+        if let fileName = layer?.mask?.raster?.fileName,
+           AIMaskSource.source(ofFileName: fileName) == .segment {
+            segmentSession.rebakeFileName = fileName
+        }
     }
 
     // MARK: arbitration (the machine's single decision point)
@@ -163,6 +204,7 @@ final class LayerEditingState {
         case maskEditing
         case liquify
         case retouch
+        case segment
         case crop
     }
 
@@ -170,6 +212,114 @@ final class LayerEditingState {
         if maskEditingActive { return .maskEditing }
         if liquifyPanelSelected { return .liquify }
         if retouchPanelSelected { return .retouch }
+        if segmentActive { return .segment }
         return .crop
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SegmentSession (Plan 07-3 T2) — the tap-to-segment UI state: the seed
+// (point first tap / ⇧-box), the accumulated refine points (⌥·right-click
+// = excluded), and the point-budget counter (13 point-seeded / 11
+// box-seeded — AIPointBudget; full → the host refuses further points with
+// a visible state, the service's typed error is the backstop).
+//
+// Coordinates: every point is an `AIMaskPoint` in VIEW-normalized
+// (top-left) space; the Vision Y-flip happens ONLY in `visionPoint` (the
+// single seam, 07-1 AIMaskTypes — the wiring test pins the flipped vector).
+//
+// UPGRADE SEAM (D-07-CONTEXT-4): the seed type is `AISubjectSeed` whose
+// `.scribble` case exists but throws `scribbleNotSupported` in v1 — the
+// exhaustive switch here is written from day one so scribble/lasso lands
+// without a state-machine refactor.
+// ─────────────────────────────────────────────────────────────────────────
+
+@Observable
+@MainActor
+final class SegmentSession {
+
+    /// The seed (nil until the first tap / completed ⇧-box).
+    private(set) var seed: AISubjectSeed?
+
+    /// Included refine points (tap after the seed).
+    private(set) var included: [AIRefinePoint] = []
+    /// Excluded refine points (⌥-tap / right-click after the seed).
+    private(set) var excluded: [AIRefinePoint] = []
+
+    /// The re-bake target file (set on refine re-entry — same maskID
+    /// overwrite, D-07-CONTEXT-5); nil = first generation for this layer.
+    var rebakeFileName: String?
+
+    /// The in-flight generation flag (the host's spinner).
+    var isGenerating = false
+
+    /// The point budget for the CURRENT seed kind (before a seed exists
+    /// the point-seeded budget is the ceiling — the first tap decides).
+    var pointBudget: Int {
+        if case .box = seed { return AIPointBudget.boxSeeded }
+        return AIPointBudget.pointSeeded
+    }
+
+    /// Points recorded so far (a point seed counts itself, AIPointBudget
+    /// semantics).
+    var usedPoints: Int {
+        switch seed {
+        case .point: return 1 + included.count + excluded.count
+        case .box: return included.count + excluded.count
+        case nil: return included.count + excluded.count
+        case .scribble: return included.count + excluded.count
+        }
+    }
+
+    var budgetFull: Bool { usedPoints >= pointBudget }
+
+    /// Record the seed. A second seed REPLACES the first (fresh request)
+    /// and clears the accumulated refine points.
+    func recordSeed(_ newSeed: AISubjectSeed) {
+        guard newSeed != .scribble else { return } // the v1 typed seam
+        seed = newSeed
+        included = []
+        excluded = []
+    }
+
+    /// The budget-gated point adds (throwing keeps the UI honest — the
+    /// host presents the error, nothing crashes, nothing silently drops).
+    func addIncluded(_ point: AIMaskPoint) throws {
+        guard seed != nil else {
+            seed = .point(point)
+            return
+        }
+        guard !budgetFull else {
+            throw AIMaskError.pointLimitExceeded(limit: pointBudget)
+        }
+        included.append(AIRefinePoint(point, .included))
+    }
+
+    func addExcluded(_ point: AIMaskPoint) throws {
+        guard seed != nil else {
+            seed = .point(point)
+            return
+        }
+        guard !budgetFull else {
+            throw AIMaskError.pointLimitExceeded(limit: pointBudget)
+        }
+        excluded.append(AIRefinePoint(point, .excluded))
+    }
+
+    /// The refine vector for the request (view-normalized; the service
+    /// applies the single Y-flip seam).
+    var refinePoints: [AIRefinePoint] { included + excluded }
+
+    /// True once a generation could run (a seed exists).
+    var hasSeed: Bool { seed != nil }
+
+    func clear() {
+        seed = nil
+        included = []
+        excluded = []
+        isGenerating = false
+        // rebakeFileName survives — the mode exit resets the whole session
+        // through setSegmentActive(false); a cleared point set keeps the
+        // re-bake target for the next confirm.
     }
 }

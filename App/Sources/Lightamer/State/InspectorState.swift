@@ -102,6 +102,9 @@ final class InspectorState {
         register(DenoiseProfilePanelProvider())
         // Plan 05-08-T4: bilateral (surface blur — radius + 3 sigma sliders).
         register(BilateralPanelProvider())
+        // Plan 07-3 T3: skinSmooth (the 25TH panel — frequency-separation
+        // skin smoothing + the「定位皮肤」skin-mask generator action).
+        register(SkinSmoothPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

@@ -357,9 +357,18 @@ enum LayerCompositeDriver {
             let (boxes, _) = await registry.materializeBoxes(for: adjustment.chain)
             let layerPipe = PixelPipe(resolution: resolution, cache: cache)
             layerPipe.imageID = imageID
+            // GUI-21 (2026-09-24): the sub-run's hash seed is the INPUT
+            // accumulator's composite identity (`prefixHash` — it folds the
+            // base levelHash and every lower layer's chain/blend/mask
+            // hashes), NOT the bare decode hash. The old decode-only seed
+            // made the layer's cache lines BLIND to their input: an edit
+            // below (base param change or a lower layer) left the lines
+            // keyed unchanged → stale HIT → the freshly blended accumulator
+            // was discarded by an old L_k. Self-edits stay incremental
+            // (seed unchanged, the chain's own paramsHash flips).
             let (layerPlane, runStats) = try await layerPipe.runSub(
                 input: accumulator, inputROI: window,
-                instances: boxes, decodeHash: basePipe.decodeParamsHash,
+                instances: boxes, decodeHash: prefixHash,
                 metal: metal, layerID: adjustment.id)
 
             // L021 layer-dimension assertions (resident): this layer's
@@ -427,7 +436,10 @@ enum LayerCompositeDriver {
                     window: window, below: accumulator, top: layerPlane,
                     mapper: geometryMapper, metal: metal, cache: cache,
                     imageID: imageID, pipeType: resolution, layerID: adjustment.id,
-                    maskDirectory: maskDirectory)
+                    maskDirectory: maskDirectory,
+                    upstreamHash: prefixHash) // GUI-21: parametric masks SAMPLE
+                    // the accumulator — the key must fold its identity or a
+                    // below-edit reuses a stale parametric plane.
                 maskPlane = plane
                 maskDegradeReason = reason
             }
@@ -492,9 +504,17 @@ enum LayerCompositeDriver {
             let terminalPipe = PixelPipe(resolution: resolution, cache: cache)
             terminalPipe.imageID = imageID
             terminalPipe.layerStack = layerStack // baseLayer.id namespace
+            // GUI-21 (2026-09-24): the terminal's hash seed is the FINAL
+            // composite prefix identity — NOT the bare decode hash. The
+            // decode-only seed made the terminal's cache lines blind to
+            // the accumulator: ANY upstream content edit (base param,
+            // lower layer, mask, opacity, stroke) left the colorout/gamma
+            // keys unchanged → stale HIT → the composite returned the OLD
+            // display plane (the viewport-froze family: base-chain param
+            // commits rendered max|Δ|=0 with history/sidecar correct).
             let (terminalPlane, stats) = try await terminalPipe.runSub(
                 input: accumulator, inputROI: window,
-                instances: terminalChain, decodeHash: basePipe.decodeParamsHash,
+                instances: terminalChain, decodeHash: prefixHash,
                 metal: metal, layerID: layerStack.baseLayer.id)
             output = terminalPlane
             terminalStats = stats

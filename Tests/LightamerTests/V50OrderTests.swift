@@ -10,10 +10,12 @@ import XCTest
 /// the executor protocol), so the count test asserts the source count.
 final class V50OrderTests: XCTestCase {
 
-    /// The table matches Darktable's v50_order: 93 entries spanning
-    /// rawprepare 1.0 → gamma 78.0, first/last locked.
+    /// The table matches Darktable's v50_order + the ONE Lightamer-native
+    /// row: 94 entries spanning rawprepare 1.0 → gamma 78.0, first/last
+    /// locked (07-2: 93 → 94 with the skinSmooth 66.5 insertion — the first
+    /// non-dt row, flagged in the table header and at the row itself).
     func testEntriesCountApproximately76() {
-        XCTAssertEqual(V50Order.entries.count, 93, "verbatim iop_order.c port = 93 entries")
+        XCTAssertEqual(V50Order.entries.count, 94, "93 dt-verbatim + 1 Lightamer row (skinSmooth 66.5)")
         XCTAssertEqual(V50Order.entries.first?.opName, "rawprepare")
         XCTAssertEqual(V50Order.entries.first?.order, 1.0)
         XCTAssertEqual(V50Order.entries.last?.opName, "gamma")
@@ -167,5 +169,58 @@ final class V50OrderTests: XCTestCase {
         XCTAssertEqual(BilateralModule.iopOrder, 10.0)
         XCTAssertLessThan(V50Order.order(for: "denoiseprofile")!, V50Order.order(for: "bilateral")!)
         XCTAssertLessThan(V50Order.order(for: "bilateral")!, V50Order.order(for: "exposure")!)
+    }
+
+    /// 07-2: skinSmooth 66.5 — the FIRST (and only) Lightamer-native row
+    /// in the otherwise dt-verbatim table (D-07-CONTEXT-2). It sits in the
+    /// blur/creative neighborhood — after soften (66.0), before splittoning
+    /// (67.0); module statics AND the table agree; the position is unique
+    /// (the 28.5 cluster stays the ONLY shared position — asserted above).
+    func testSkinSmoothSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "skinSmooth"), 66.5)
+        XCTAssertEqual(SkinSmoothModule.iopOrder, 66.5)
+        XCTAssertLessThan(V50Order.order(for: "soften")!, V50Order.order(for: "skinSmooth")!)
+        XCTAssertLessThan(V50Order.order(for: "skinSmooth")!, V50Order.order(for: "splittoning")!)
+        XCTAssertEqual(SkinSmoothModule.opName, "skinSmooth")
+        // The dt-verbatim discipline holds for the native row too: no
+        // OTHER entry shares 66.5 (uniqueness — covered structurally by
+        // testNoDuplicateOpNameExceptDeliberateCollisions, pinned here at
+        // the value level for the audit trail).
+        XCTAssertEqual(
+            V50Order.entries.filter { $0.order == 66.5 }.count, 1,
+            "66.5 is a unique position")
+    }
+
+    /// 07-2 zero-move pin: the 66.5 insertion moved NO dt-verbatim row —
+    /// the 93 original entries appear in the same relative order with the
+    /// same values (an add-only insertion between soften and splittoning).
+    func testSkinSmoothInsertionMovesNoVerbatimRow() {
+        // The dt-verbatim neighborhood, value-pinned on both sides of the
+        // insertion point (iop_order.c:298-415 order).
+        let neighborhood: [(String, Float)] = [
+            ("grain", 65.0), ("soften", 66.0), ("skinSmooth", 66.5),
+            ("splittoning", 67.0), ("vignette", 68.0),
+        ]
+        let inTable = V50Order.entries.filter { entry in
+            neighborhood.contains { $0.0 == entry.opName }
+        }
+        XCTAssertEqual(inTable.map(\.opName), neighborhood.map(\.0))
+        XCTAssertEqual(inTable.map(\.order), neighborhood.map(\.1))
+
+        // Whole-table relative order: stripping skinSmooth must yield the
+        // pre-07-2 sequence back (spot anchors on both ends of the table).
+        let stripped = V50Order.entries.filter { $0.opName != "skinSmooth" }
+        XCTAssertEqual(stripped.count, 93)
+        XCTAssertEqual(stripped.first?.opName, "rawprepare")
+        XCTAssertEqual(stripped.last?.opName, "gamma")
+        // Listing-order anchor: lut3d stays out of numeric order at its
+        // source position (between filmicrgb and colisa) — verbatim port
+        // signature the insertion must not disturb.
+        let names = V50Order.entries.map(\.opName)
+        let filmic = names.firstIndex(of: "filmicrgb")!
+        let lut3d = names.firstIndex(of: "lut3d")!
+        let colisa = names.firstIndex(of: "colisa")!
+        XCTAssertLessThan(filmic, lut3d)
+        XCTAssertLessThan(lut3d, colisa)
     }
 }

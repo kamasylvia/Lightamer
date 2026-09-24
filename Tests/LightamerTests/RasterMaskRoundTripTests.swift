@@ -282,4 +282,116 @@ final class RasterMaskRoundTripTests: XCTestCase {
         XCTAssertEqual(MaskSpec(drawn: base.drawn, parametric: base.parametric, raster: base.raster).stableHash(),
                        withRaster)
     }
+
+    // MARK: - Plan 07-1 T4: the AI-mask bake legs
+
+    /// An AIMaskPlane (the AIMaskService product, CPU floats) rides the
+    /// SAME bake→load uint16-identity round trip as every hand-drawn
+    /// mask (the移交清单① raster-consumer contract).
+    func testAIMaskPlaneBakeLoadRoundTrip() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 37, h = 23
+        // A soft AI-shaped mask (soft ramp + a hard block + HDR/negative
+        // probes clamp at bake exactly like the drawn case).
+        var floats = [Float](repeating: 0, count: w * h)
+        for y in 0..<h {
+            for x in 0..<w {
+                floats[y * w + x] =
+                    0.8 * Float(x) / Float(w - 1) + ((x + y) % 7 == 0 ? 1.3 : 0)
+            }
+        }
+        let plane = try AIMaskResample.texture(
+            from: AIMaskPlane(width: w, height: h, floats: floats), metal: metal)
+        let dir = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let ref = try await RasterMaskStore.bake(
+            plane: plane, directory: dir, fileName: "ai-mask.png",
+            invert: false, metal: metal)
+        guard case let .plane(loaded) = try await RasterMaskStore.load(
+            ref: ref, directory: dir, windowWidth: w, windowHeight: h, metal: metal)
+        else { return XCTFail("AI mask bake round-trip degraded") }
+        let got = readMask(loaded, metal: metal)
+        var compared = 0
+        for i in 0..<floats.count {
+            let quantized = UInt16((Double(min(max(floats[i], 0), 1)) * 65535.0).rounded())
+            XCTAssertEqual(got[i], Float(quantized) / 65535.0, accuracy: 1e-9,
+                           "AI mask uint16 identity broken at \(i)")
+            compared += 1
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转: nothing compared")
+    }
+
+    /// The SAME-maskID overwrite re-bake (D-07-CONTEXT-5): a second bake
+    /// over `<maskID>.png` flips `maskHash` → `MaskSpec.stableHash()`
+    /// flips → the OLD reference no longer verifies (the cache-chain
+    /// invalidation is inherited, NOT a new mechanism), and the
+    /// effectivePlane mask-plane cache MISSES on the new spec after
+    /// HITTING on the old (the invalidation ledger).
+    func testRebakeSameMaskIDFlipsHashAndInvalidatesCache() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 16, h = 12
+        let first = try makeR32(w, h, metal: metal) { x, _ in Float(x) / Float(w - 1) }
+        let second = try makeR32(w, h, metal: metal) { x, _ in 1.0 - Float(x) / Float(w - 1) }
+        let dir = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        // Generation 1: bake + spec + a cache HIT on repeat.
+        let ref1 = try await RasterMaskStore.bake(
+            plane: first, directory: dir, fileName: "subject.png",
+            invert: false, metal: metal)
+        let spec1 = MaskSpec(raster: ref1)
+        let hash1 = spec1.stableHash()
+        let window = ROI(x: 0, y: 0, width: w, height: h, scale: 1.0)
+        let mapper = GeometryPointMapper.compose(boxes: [], frameSize: SIMD2(Double(w), Double(h)))
+        let below = try makeR32(w, h, metal: metal) { _, _ in 0.2 }
+        let top = try makeR32(w, h, metal: metal) { _, _ in 0.8 }
+        let cache = PipeCache()
+        let imageID = UUID(), layerID = UUID()
+        let (_, coldHit, _) = try await MaskCombiner.effectivePlane(
+            spec: spec1, layerOpacity: 1, window: window, below: below, top: top,
+            mapper: mapper, metal: metal, cache: cache, imageID: imageID,
+            pipeType: .preview, layerID: layerID, maskDirectory: dir)
+        XCTAssertFalse(coldHit, "first assembly = cache miss")
+        let (_, warmHit, _) = try await MaskCombiner.effectivePlane(
+            spec: spec1, layerOpacity: 1, window: window, below: below, top: top,
+            mapper: mapper, metal: metal, cache: cache, imageID: imageID,
+            pipeType: .preview, layerID: layerID, maskDirectory: dir)
+        XCTAssertTrue(warmHit, "unchanged spec = cache HIT (the pre-rebake state)")
+
+        // Generation 2: SAME fileName (the overwrite re-bake).
+        let ref2 = try await RasterMaskStore.bake(
+            plane: second, directory: dir, fileName: "subject.png",
+            invert: false, metal: metal)
+        XCTAssertNotEqual(ref2.maskHash, ref1.maskHash,
+                          "overwritten PNG bytes must flip maskHash")
+        let spec2 = MaskSpec(raster: ref2)
+        XCTAssertNotEqual(spec2.stableHash(), hash1,
+                          "MaskSpec.stableHash must flip with the re-bake")
+        // The OLD reference no longer verifies (its hash names bytes that
+        // no longer exist) — the load of ref1 DEGRADES (hash mismatch).
+        if case let .degraded(_, reason) = try await RasterMaskStore.load(
+            ref: ref1, directory: dir, windowWidth: w, windowHeight: h, metal: metal)
+        {
+            XCTAssertTrue(reason.contains("hash mismatch"),
+                          "stale ref must degrade on mismatch: \(reason)")
+        } else {
+            XCTFail("the stale reference must not load intact")
+        }
+        // The new spec MISSES the mask-plane cache (the hash-flipped key
+        // invalidation ledger — zero new mechanism).
+        let (_, rebakeHit, _) = try await MaskCombiner.effectivePlane(
+            spec: spec2, layerOpacity: 1, window: window, below: below, top: top,
+            mapper: mapper, metal: metal, cache: cache, imageID: imageID,
+            pipeType: .preview, layerID: layerID, maskDirectory: dir)
+        XCTAssertFalse(rebakeHit,
+                       "re-baked spec must MISS the cache (stableHash flipped)")
+        // ...and warms again (the new key's steady state).
+        let (_, rebakeWarm, _) = try await MaskCombiner.effectivePlane(
+            spec: spec2, layerOpacity: 1, window: window, below: below, top: top,
+            mapper: mapper, metal: metal, cache: cache, imageID: imageID,
+            pipeType: .preview, layerID: layerID, maskDirectory: dir)
+        XCTAssertTrue(rebakeWarm)
+    }
 }

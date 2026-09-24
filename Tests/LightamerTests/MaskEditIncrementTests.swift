@@ -111,10 +111,12 @@ final class MaskEditIncrementTests: XCTestCase {
         let delta2 = (await cache.stats) - cold
         // (LayerCacheTests scenario-1 calibration: a no-op B run hits 4
         // lines — colorin + A chain + A prefix + gamma. A MASK edit turns
-        // B's chain miss into a HIT (+1) and adds the mask-plane MISS.)
-        XCTAssertEqual(delta2.hits, 5,
-                       "calibrated 4 base hits + B CHAIN hit (zero chain recompute)")
-        XCTAssertEqual(delta2.misses, 2, "only B's mask plane + B's prefix re-rasterize/re-blend")
+        // B's chain miss into a HIT (+1) and adds the mask-plane MISS;
+        // GUI-21 semantics: the flipped final prefix also re-runs the
+        // terminal colorout+gamma — gamma leaves the hit set.)
+        XCTAssertEqual(delta2.hits, 4,
+                       "calibrated 3 base hits + B CHAIN hit (zero chain recompute)")
+        XCTAssertEqual(delta2.misses, 4, "B's mask plane + B's prefix + colorout + gamma re-key")
         XCTAssertEqual(run2.blendPasses, 1)
         XCTAssertEqual(run2.layerStats.first { $0.layerID == a.id }?.prefixHit, true)
         XCTAssertEqual(run2.layerStats.first { $0.layerID == b.id }?.prefixHit, false)
@@ -127,11 +129,14 @@ final class MaskEditIncrementTests: XCTestCase {
         b.chain[0] = edited
         let run3 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
         let delta = (await cache.stats) - (cold + delta2)
-        // (calibration: the param-edit run = LayerCache scenario-1's 4 hits
-        // + the MASK PLANE hit — the other independence direction.)
-        XCTAssertEqual(delta.hits, 5,
-                       "calibrated 4 base hits + B MASK PLANE hit (no re-rasterize)")
-        XCTAssertEqual(delta.misses, 2, "only B's chain + B's prefix re-render")
+        // (calibration: the param-edit run = LayerCache scenario-1's 3 hits.
+        // The MASK PLANE re-rasterizes here: its key folds the composite
+        // prefix (GUI-21 — the parametric leg SAMPLES the layer output),
+        // and B's chainHash is part of that prefix. Correctness-first; a
+        // drawn-only payload could later split its key out of the fold.)
+        XCTAssertEqual(delta.hits, 3,
+                       "calibrated 3 base hits (mask rides the prefix fold)")
+        XCTAssertEqual(delta.misses, 5, "B's chain + B's prefix + B's mask plane + colorout + gamma")
         XCTAssertEqual(run3.blendPasses, 1)
         XCTAssertEqual(run3.layerStats.first { $0.layerID == b.id }?.prefixHit, false)
     }
@@ -176,21 +181,25 @@ final class MaskEditIncrementTests: XCTestCase {
         b.mask!.parametric!.channels[0].curve.points = [0.2, 0.3, 0.4, 0.5]
         let run2 = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
         let delta2 = (await cache.stats) - cold
-        XCTAssertEqual(delta2.hits, 5,
-                       "calibrated: A legs + colorin/gamma + B CHAIN all hit")
-        XCTAssertEqual(delta2.misses, 2, "only B's assembled mask plane + prefix re-key")
+        // (GUI-21 semantics: the flipped final prefix also re-runs the
+        // terminal colorout+gamma — gamma leaves the hit set.)
+        XCTAssertEqual(delta2.hits, 4,
+                       "calibrated: A legs + colorin + B CHAIN all hit")
+        XCTAssertEqual(delta2.misses, 4, "B's assembled mask plane + prefix + colorout + gamma re-key")
         XCTAssertEqual(run2.blendPasses, 1)
         XCTAssertEqual(run2.layerStats.first { $0.layerID == b.id }?.prefixHit, false)
 
-        // ── THE CHAIN EDIT: B's gain. The mask plane STAYS cached.
+        // ── THE CHAIN EDIT: B's gain. The mask plane re-assembles too —
+        // its key folds the composite prefix (GUI-21: the parametric leg
+        // SAMPLES the layer output, and B's chainHash is in that prefix).
         var edited = b.chain[0]
         try edited.setParams(TestGainModule.Params(gain: 3.0), as: TestGainModule.self)
         b.chain[0] = edited
         _ = try await compositeRun(image, base: base, stack: stack, registry: registry, metal: metal, cache: cache)
         let delta3 = (await cache.stats) - (cold + delta2)
-        XCTAssertEqual(delta3.hits, 5,
-                       "calibrated: 4 base hits + B mask plane HIT (no re-assembly)")
-        XCTAssertEqual(delta3.misses, 2, "only B's chain + B's prefix re-render")
+        XCTAssertEqual(delta3.hits, 3,
+                       "calibrated: 3 base hits (mask rides the prefix fold)")
+        XCTAssertEqual(delta3.misses, 5, "B's chain + B's prefix + B's mask plane + colorout + gamma")
     }
 
     /// Content-level masked blend (L020 ③): with a NORMAL layer over the

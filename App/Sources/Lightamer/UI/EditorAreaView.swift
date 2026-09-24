@@ -114,6 +114,14 @@ internal struct EditorAreaView: View {
                                             onLive: { _ in },
                                             onCommit: { _, _ in })
                                     }
+                                case .segment:
+                                    // 07-3 T2: the tap-to-segment editor
+                                    // (the 4th route — layer B refine
+                                    // points + confirm re-bake).
+                                    SegmentEditingOverlayHost(
+                                        viewportSize: overlayGeo.size,
+                                        displaySize: displayPixelSize,
+                                        metalContext: metalContext)
                                 case .crop:
                                     CropOverlayHost(
                                         viewportSize: overlayGeo.size,
@@ -141,7 +149,7 @@ internal struct EditorAreaView: View {
                         // Inspector; the viewport keeps its ≥50% share).
                         .overlay(alignment: .bottom) {
                             if editorState.loadedImageURL != nil {
-                                MaskToolbarView()
+                                MaskToolbarView(metalContext: metalContext)
                             }
                         }
                     } else {

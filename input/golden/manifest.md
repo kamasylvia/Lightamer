@@ -803,3 +803,47 @@ force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自�
 - **空 retouch 层恒等**（轨 B 插链零增量）：`RetouchParityTests
   .testEmptyStrokeRetouchLayerIsIdentity` 逐字节恒等——retouch 层进入不影响无 retouch
   工作流的全部既有 golden。
+
+## skinSmooth golden（Plan 07-2，AI-05 频率分离磨皮；2026-09-24）
+
+> **L017 分流落账**：skinSmooth 无 dt 对照（dt 无 AI 磨皮模块，`grep -rn "skin" src/iop/` 仅 preset/hue
+> 权重命中；Apple 亦无内置皮肤平滑 CIFilter，07-RESEARCH §2 查证）——**自研 float64 参考轨**
+> （与 mask/liquify/retouch 同口径：参考 = 与 kernel 同源公式的 Double 直译，测试常驻回归，
+> 非一次性快照）。参考正本 = `LightamerIOP/Sources/SkinSmooth/SkinSmoothReference.swift`
+> （Deriche IIR 低频腿 float64 直译 + 阈值衰减 + mask 合成逐式）。
+
+| # | 对象 | 参考（float64 直译正本） | 容差（门 → 实测） | 测试锚 |
+|---|---|---|---|---|
+| 1 | 频率分离 parity（low/high 分解 + raised-cosine 阈值衰减 + m·a 合成） | `SkinSmoothReference.process`（σ 链援引 highpass.c:140 同式；系数走 GaussianBlur 同源 float32 grid） | 双闸 rel <1e-5 / abs <1e-5 → 6 case × 6 fixture 全绿（含 graded-mask 腿） | SkinSmoothParityTests.testFrequencySeparationFloat64Parity |
+| 2 | 恒等三元组（L017-proof） | ① a=0 ⇒ blit 逐字节；② mask nil == 全一 mask 逐字节；③ 平场 ⇒ DC-1 blur 恒等 <1e-5 | → 全绿（附 zero-mask kernel 路径恒等 <1e-5 反向锚） | testStrengthZeroIsByteExactIdentity / testMaskNilEqualsAllOnesMaskByteExact / testFlatFieldIdentityAtActiveStrength / testZeroMaskReturnsInputThroughKernelPath |
+| 3 | σ/halo 链 | r = max(1, ceil(radius·scale)); σ = √((r(r+1)·8+2)/3); halo = ceil(3σ) | 精确（公式钉） | testSigmaHaloChains |
+| 4 | skin hull 几何（landmarks → hull − 保护区 ⊗ personSeg） | 纯 Swift 解析（monotone-chain 凸包 + 像素中心 even-odd 光栅 + 凸包向质心收缩保护区）——**不跑模型即可单测** | 方向断言（hull 内=1/保护区=0/额头带=1/hull 外=0 + 质量界） | SkinRegionGeometryTests（8 测试，正脸/yaw 门/多脸 union/空 landmarks typed error/personMatte ⊗ + 坐标换算） |
+
+- **钉参表（6 case，07-2-DECISIONS D-07-2-T4-1）**：skin_default（σ₈/a0.5/t0.02）/
+  skin_strong（σ₁₂/a0.9/t0.05）/ skin_fine（σ₄/a0.3/t0.01）/ skin_edge_transition（σ₈/a0.7/t0.03）/
+  skin_maxstrength（σ₆/a1.0/t0.02）/ skin_smallthreshold（σ₆/a0.8/t0.005）。
+- **fixture 6**：gradient_ramp / flat_0ev / flat_-4ev / checkerboard / delta_impulse /
+  ramp_8ev__noisy_iso125_s20260921（既有管线 fixture，refs 生成 = SkinSmoothReference 常驻回归
+  ——无一次性落盘产物，解析轨口径同 mask 节）。
+- **真模型腿**（VisionFaceLandmarkProvider 合成人脸推理）= 方向断言（bbox 容差），测试宿主未检出时
+  skip-with-reason（07-1 层 B entitlement 先例）；07-3 GUI 轮真实 app 复验。
+
+## Phase 7 golden 完整性总账（Plan 07-3-T5 终签核，2026-09-24）
+
+> **AI 阶段无落盘 golden blob**（与 blend 节 54 blob 形态不同）：AI 输出不可逐字节
+> golden（模型推理），L017 分流 AI 变体三轨全部为**常驻测试锚**（非一次性快照）——
+> 总账 = 测试锚清单 + skinSmooth float64 参考轨引用（上节）。
+
+| 判据轨 | 锚 | 覆盖 |
+|---|---|---|
+| 确定性门（同 device 两次推理逐字节恒等） | AIMaskDeterminismTests（层 A gpuPinned 进程内 + 跨进程 byteIdentity）+ perf.md pin 探针（层 B default 2/2 equal） | 层 A/B 推理输出 |
+| 合成语义门（方向断言） | AIMaskSemanticTests 语义门 10 测试（IoU ≥0.9 / 背景环 ≤0.1 / subset 双向 / noSubject typed） | 层 A/B/皮肤定位 |
+| 自研 float64 参考轨 | SkinSmoothReference（上节 skinSmooth golden：parity 6×6 <1e-5 + 恒等三元组逐字节） | skinSmooth 像素数学 |
+| 几何/bake 轨 | AIMaskGeometryTests 6/6（双线性权重/Y 翻转/羽化剖面）+ RasterMaskRoundTripTests 9/9（AI 平面 uint16 恒等 + 覆盖重 bake hash 记账） | bake 通道 |
+| 非黑箱 E2E 轨 | AIMaskEditPathsTests 6/6（五条覆盖路径内容级 + sidecar schema 零升级逐字节） | AI-07 |
+
+- **落盘产物仅 2 类**（均有独立校验）：`.lra.masks/<maskID>.png`（16-bit 灰度 +
+  StableHash 字节校验，Phase 6 raster 通道既有）+ sidecar mask ref（fileName/maskHash/
+  invert 三键封闭——`testSidecarSchemaZeroUpgradeAIParamsNeverPersist` 钉住无 AI 参数键）。
+- 真机 GUI 量化证据（非 golden、归档 FINDINGS）：`.work/gui-acceptance/07-3 节`
+  （overlay ΔR 10.31%/8.97% + 7 截图）。

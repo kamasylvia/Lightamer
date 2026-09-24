@@ -71,15 +71,34 @@ public enum RasterMaskStore {
     /// Bake `plane` (r32Float, the premultiplied effective-opacity
     /// contract) into a 16-bit grayscale PNG. Returns the reference with
     /// the StableHash over the WRITTEN FILE BYTES.
+    ///
+    /// `featherRadius` (Plan 07-1 T4 additive, default 0 = the EXACT
+    /// pre-07-1 behavior — zero bytes differ, pinned by regression): a
+    /// single-channel Gaussian pre-pass over the mask plane before
+    /// quantization (the raster leg's only Phase 7 primitive —
+    /// `MaskPostProcessKernels`' Deriche IIR via `MaskCombiner.blur`;
+    /// the same L018 two-plane discipline). Reuses the SAME kernel +
+    /// coefficient source the parametric mask post chain runs — the v1
+    /// Gaussian feather recorded in 06-04-DECISIONS D-06-04-T2-1.
+    ///
+    /// SOFT DEPENDENCY (the MaskCombiner contract): the blur kernels
+    /// live in LightamerIOP's metallib — featherRadius > 0 requires the
+    /// IOP library registered (every app/test context does;
+    /// featherRadius == 0 never touches it).
     public static func bake(
         plane: any MTLTexture,
         directory: URL,
         fileName: String,
         invert: Bool,
+        featherRadius: Float = 0,
         metal: MetalContext
     ) async throws -> RasterMaskRef {
         precondition(plane.pixelFormat == .r32Float, "bake needs an r32Float mask plane")
-        let floats = readPlane(plane, metal: metal)
+        var source = plane
+        if featherRadius > 0.1 { // dt's post-chain gate (blend.c:306-307)
+            source = try await MaskCombiner.blur(mask: source, sigma: featherRadius, metal: metal)
+        }
+        let floats = readPlane(source, metal: metal)
         let w = plane.width, h = plane.height
         // Quantize: clamp 0..1 → uint16 (round-half-up on v·65535).
         var pixels = [UInt16](repeating: 0, count: w * h)

@@ -447,15 +447,28 @@ final class EditorState {
     /// Add a module record (fresh identity clone of `template`) to the
     /// layer's chain. Exactly ONE structure commit (the chain is part of
     /// the stack snapshot). The UI「添加模块」menu drives this.
+    ///
+    /// GUI-19 (2026-09-24): the chain append must REASSIGN the observed
+    /// `layerStack` property. `AdjustmentLayer` is a class — the in-place
+    /// append alone updated the data (sidecar/history correct) but never
+    /// tripped @Observable, so the Inspector's chain list (which reads
+    /// `layerStack` through `adjustmentLayer(id:)`) never re-rendered:
+    /// the row was missing until some unrelated observation re-ran the
+    /// body. The copy-replace dance matches every sibling mutator.
     @discardableResult
     func addModuleToLayer(layerID: UUID, template: ModuleInstance) -> ModuleInstance? {
-        guard let layer = adjustmentLayer(id: layerID) else { return nil }
+        guard let layerStack,
+              let layer = adjustmentLayer(id: layerID)
+        else { return nil }
         let record = template.clonedWithFreshIdentity()
         layer.chain.append(record)
         layer.chain.sort {
             ($0.iopOrder, $0.multiPriority, $0.opName)
                 < ($1.iopOrder, $1.multiPriority, $1.opName)
         }
+        var stack = layerStack
+        stack.replace(layer)
+        self.layerStack = stack // the @Observable invalidation atom
         commitLayerStructure(layerID: layerID, label: String(localized: "history_layer_module_add"))
         return record
     }

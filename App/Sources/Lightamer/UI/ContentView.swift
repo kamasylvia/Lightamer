@@ -100,6 +100,10 @@ internal struct ContentView: View {
         .onChange(of: inspectorVisible) { _, isVisible in
             columnVisibility = isVisible ? .all : .detailOnly
         }
+        // Plan 07-1 T3: the layer-B model first-launch prompt + progress +
+        // failure surfaces (app-level state; 07-3's MaskToolbar reuses the
+        // same AIAssetStore model).
+        .modifier(AIDownloadPrompt())
     }
 
     // MARK: - Toolbar (UI-SPEC Top Toolbar table)

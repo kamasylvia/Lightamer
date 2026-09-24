@@ -447,6 +447,13 @@ public enum MaskCombiner {
     /// Raster loading needs the sidecar's masks directory; `maskDirectory`
     /// nil + a raster ref present degrades through the documented all-ones
     /// leg (the reason is surfaced, never swallowed).
+    /// - `upstreamHash` (GUI-21, 2026-09-24): the identity of the sampled
+    ///   input planes (below ⊕ top ⊕ mask — the composite prefix hash at
+    ///   the caller). The parametric leg SAMPLES the live composite; a key
+    ///   blind to it reuses a stale parametric plane after any below-edit.
+    ///   Default 0 = the display-tint callers (input identity not tracked
+    ///   there — pre-existing behavior, different key domain from the
+    ///   composite's folded keys so no collision).
     public static func effectivePlane(
         spec: MaskSpec,
         layerOpacity: Float,
@@ -460,9 +467,12 @@ public enum MaskCombiner {
         pipeType: PipeResolution,
         layerID: UUID,
         maskDirectory: URL?,
+        upstreamHash: UInt64 = 0,
         rasterStore: RasterMaskStore.Type = RasterMaskStore.self
     ) async throws -> (plane: any MTLTexture, hit: Bool, degradedReason: String?) {
-        let hash = DrawnMaskRasterizer.foldKeyHash(spec: spec, mapper: mapper)
+        var hash = DrawnMaskRasterizer.foldKeyHash(spec: spec, mapper: mapper)
+        var upstream = upstreamHash
+        hash = withUnsafeBytes(of: &upstream) { StableHash.combine(hash, $0) }
         let key = PipeCacheKey.maskKey(
             imageID: imageID, pipeType: pipeType, layerID: layerID,
             maskHash: hash, roi: window)

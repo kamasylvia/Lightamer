@@ -1579,4 +1579,320 @@ final class PanelWiringTests: XCTestCase {
     }
     // MARK: - Helpers
     private func historyCount() -> Int { editorState.history.items.count }
+
+    // MARK: - 07-3 T3: the skinSmooth panel (the 25TH panel)
+
+    /// InspectorState dispatches the skinSmooth panel by opName.
+    func testSkinSmoothPanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("skinSmooth"), "the 25TH panel registered")
+        let session = InspectorEditSession(coordinator: coordinator)
+        let record = ModuleInstance(module: SkinSmoothModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: record, edit: session),
+                        "skinSmooth must dispatch a panel")
+    }
+
+    /// The layer-scope D-H1 drag: N live ticks + ONE `layerScope`-型
+    /// commit; undo restores the neutral seed strength (cache all-hit).
+    func testSkinSmoothLayerScopeDragCommitsOnceAndUndoRestores() async throws {
+        try await loadSynthetic()
+        let layer = try XCTUnwrap(editorState.addAdjustmentLayer())
+        let template = try instance("skinSmooth")
+        let record = try XCTUnwrap(
+            editorState.addModuleToLayer(layerID: layer.id, template: template))
+        let afterAdd = editorState.history.items.count
+
+        // The panel trio in the LAYER scope (the sliders' session shape).
+        coordinator.beginContinuousEdit()
+        for tick in 1...5 {
+            let edited = try withParams(record, {
+                $0.strength = Float(tick) * 0.2
+            }, as: SkinSmoothModule.self)
+            await coordinator.setLiveParams(edited, layerID: layer.id)
+        }
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_skinsmooth"), layerScope: layer.id)
+
+        XCTAssertEqual(editorState.history.items.count - afterAdd, 1,
+                       "the strength drag = exactly ONE layerScope item")
+        let chainRecord = try XCTUnwrap(editorState.adjustmentLayer(id: layer.id)?.chain.first)
+        XCTAssertEqual(
+            try chainRecord.params(of: SkinSmoothModule.self).strength, 1.0, accuracy: 1e-6)
+        XCTAssertTrue(chainRecord.enabled, "editing auto-enables at commit (GUI-7)")
+
+        // Undo restores the neutral seed (strength 0).
+        await coordinator.undo()
+        let reverted = try XCTUnwrap(editorState.adjustmentLayer(id: layer.id)?.chain.first)
+        XCTAssertEqual(
+            try reverted.params(of: SkinSmoothModule.self).strength, 0.0, accuracy: 1e-6,
+            "undo restores the neutral strength")
+    }
+
+    /// The「定位皮肤」commit channel: the skin mask bakes to the SELECTED
+    /// layer's mask slot as exactly ONE stackSnapshot item with the
+    /// ai-skin file identity (the inference itself is GUI-round Manual-
+    /// Only — this pins the state-level commit leg both paths share).
+    func testSkinLocateCommitWritesMaskSlotOneCommit() async throws {
+        try await loadSynthetic()
+        let layer = try XCTUnwrap(editorState.addAdjustmentLayer())
+        let editing = LayerEditingState()
+        editing.select(layer.id)
+        let afterAdd = editorState.history.items.count
+
+        let plane = AIMaskPlane(
+            width: 16, height: 16,
+            floats: (0..<256).map { $0 % 16 < 10 ? Float(1.0) : Float(0.0) })
+        let ref = try await AIMaskEditing.commitRasterMask(
+            plane: plane, source: .skin,
+            imageURL: tempDirectory,
+            label: String(localized: "history_ai_mask"),
+            coordinator: coordinator, editorState: editorState,
+            editingState: editing, metal: metal)
+
+        XCTAssertEqual(editorState.history.items.count - afterAdd, 1,
+                       "the locate bake = exactly ONE stackSnapshot item")
+        let mask = try XCTUnwrap(editorState.adjustmentLayer(id: layer.id)?.mask)
+        XCTAssertEqual(mask.raster?.fileName, ref.fileName)
+        XCTAssertTrue(ref.fileName.hasPrefix("ai-skin-"), "the ai-skin identity prefix")
+    }
+
+    /// The enablement-chain CONTENT direction (防空转): an ENABLED
+    /// skinSmooth (strength > 0) on a high-frequency plate must render
+    /// DIFFERENT bytes from the disabled chain — the 07-2 轨 B pinned the
+    /// identity leg (a=0 byte-identical); this pins the enabled leg > 0.
+    func testSkinSmoothEnabledCompositeDiffersFromDisabled() async throws {
+        // The skinSmooth KERNEL (not the blit) — register the IOP metallib.
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        let image = try makeStripedSyntheticImage()
+        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+
+        func run(_ enabled: Bool) async throws -> [UInt8] {
+            let record = ModuleInstance(
+                module: SkinSmoothModule.self,
+                params: SkinSmoothModule.Params(
+                    radius: 8, strength: 0.9, detailPreserve: 0.02))
+            var enabledRecord = record
+            enabledRecord.enabled = enabled
+            let layer = AdjustmentLayer(name: "skin", chain: [enabledRecord])
+            var stack = LayerStack(baseLayer: BackgroundLayer())
+            stack.addAdjustment(layer)
+            let run = try await LayerCompositeDriver.composite(
+                image: image, imageID: UUID(), baseInstances: base,
+                layerStack: stack, registry: registry,
+                resolution: .preview, cache: PipeCache(), metal: metal,
+                longEdge: nil, policy: .preview)
+            return Self.readDisplayBytes(run.output, metal: metal)
+        }
+
+        let disabled = try await run(false)
+        let enabled = try await run(true)
+        let differing = zip(disabled, enabled).filter { $0 != $1 }.count
+        XCTAssertGreaterThan(differing, 0,
+                             "enabled skinSmooth must change the render (content-level, 防空转)")
+    }
+
+    /// GUI-21 (07-3 acceptance round): skinSmooth on the GLOBAL (base)
+    /// chain — the panel trio (live ticks + one commit) must CHANGE the
+    /// rendered display. The acceptance round observed viewport max|Δ|=0
+    /// with the commits present in history/sidecar (data in, pixels
+    /// frozen). Root cause (fixed in LayerCompositeDriver): the terminal
+    /// segment's cache lines seeded on the bare decode hash — blind to
+    /// the composite accumulator — so any upstream content edit stale-HIT
+    /// and the render returned the OLD display plane. This repro drives
+    /// the coordinator legs end-to-end (load → composite stack → trio →
+    /// display bytes).
+    func testSkinSmoothGlobalChainCommitChangesDisplay() async throws {
+        // The striped plate (low-amplitude high-frequency — the enabled
+        // leg's visible surface; a flat plate is identity #3's no-op).
+        let url = tempDirectory.appendingPathComponent("skin-global.exr")
+        try await coordinator.load(
+            url: url, decoded: makeStripedSyntheticImage(), instances: [], metal: metal
+        )
+
+        // Force the COMPOSITE branch (the acceptance stack carried
+        // adjustment layers): one layer, no mask.
+        _ = editorState.addAdjustmentLayer()
+        await coordinator.layerStackDidChange(persist: false)
+
+        let before = try XCTUnwrap(editorState.displayTexture, "display exists after load")
+        let beforeBytes = Self.readDisplayBytes(before, metal: metal)
+
+        // The panel trio on the GLOBAL record (layerScope nil — the base
+        // row selected, the skinSmooth panel sliders).
+        let skin = try instance("skinSmooth")
+        coordinator.beginContinuousEdit()
+        let edited = try withParams(skin, {
+            $0.strength = 0.8
+            $0.radius = 32
+        }, as: SkinSmoothModule.self)
+        await coordinator.setLiveParams(edited)
+        await coordinator.commitContinuousEdit(label: String(localized: "history_skinsmooth"))
+        // recordChange's notify is a fire-and-forget Task; drive the same
+        // post-commit pass deterministically, then settle for the Task's
+        // own duplicate pass to land before the read.
+        await coordinator.historyDidChange()
+        try await Task.sleep(for: .milliseconds(300))
+        for _ in 0..<10 { await Task.yield() }
+
+        let committed = try instance("skinSmooth")
+        XCTAssertEqual(
+            try committed.params(of: SkinSmoothModule.self).strength, 0.8, accuracy: 1e-6,
+            "the commit landed in the live record")
+
+        let after = try XCTUnwrap(editorState.displayTexture, "display survives the commit")
+        let afterBytes = Self.readDisplayBytes(after, metal: metal)
+        XCTAssertEqual(beforeBytes.count, afterBytes.count, "same plane geometry")
+        let differing = zip(beforeBytes, afterBytes).filter { $0 != $1 }.count
+        XCTAssertGreaterThan(
+            differing, 0,
+            "GUI-21: the global-chain skinSmooth commit must change the display pixels")
+    }
+
+    /// GUI-21 control twin: a GLOBAL exposure commit under the same
+    /// layered stack — the same terminal-staleness seam (the acceptance
+    /// round only caught it via skinSmooth; ANY base-chain param edit
+    /// froze the viewport while adjustment layers existed).
+    func testGlobalExposureCommitUnderLayersChangesDisplay() async throws {
+        let url = tempDirectory.appendingPathComponent("exposure-global.exr")
+        try await coordinator.load(
+            url: url, decoded: makeStripedSyntheticImage(), instances: [], metal: metal
+        )
+        _ = editorState.addAdjustmentLayer()
+        await coordinator.layerStackDidChange(persist: false)
+
+        let before = try XCTUnwrap(editorState.displayTexture)
+        let beforeBytes = Self.readDisplayBytes(before, metal: metal)
+
+        let exposure = try instance("exposure")
+        coordinator.beginContinuousEdit()
+        let edited = try withParams(exposure, { $0.exposure = 1.0 }, as: ExposureModule.self)
+        await coordinator.setLiveParams(edited)
+        await coordinator.commitContinuousEdit(label: "Exposure")
+        await coordinator.historyDidChange()
+        try await Task.sleep(for: .milliseconds(300))
+        for _ in 0..<10 { await Task.yield() }
+
+        let after = try XCTUnwrap(editorState.displayTexture)
+        let afterBytes = Self.readDisplayBytes(after, metal: metal)
+        let differing = zip(beforeBytes, afterBytes).filter { $0 != $1 }.count
+        XCTAssertGreaterThan(
+            differing, 0,
+            "GUI-21 twin: a global exposure commit under layers must change the display")
+    }
+
+    /// GUI-19 (07-3 acceptance round): `addModuleToLayer` must INVALIDATE
+    /// `layerStack` observers. `AdjustmentLayer` is a class — the in-place
+    /// chain append updated the data (sidecar/history carried the module)
+    /// but never tripped @Observable, so the Inspector's layer-chain list
+    /// never re-rendered and the row was missing. Pinned with
+    /// `withObservationTracking` (the same mechanism SwiftUI reads through).
+    func testAddModuleToLayerTripsLayerStackObservation() async throws {
+        try await loadSynthetic()
+        let layer = try XCTUnwrap(editorState.addAdjustmentLayer())
+
+        // A class box — the onChange closure is @Sendable (Swift 6 rejects
+        // direct var capture mutation).
+        final class FlagBox: @unchecked Sendable { var value = false }
+        let flag = FlagBox()
+        withObservationTracking {
+            _ = editorState.adjustmentLayer(id: layer.id)?.chain.count
+        } onChange: {
+            flag.value = true
+        }
+
+        let template = try instance("skinSmooth")
+        let record = try XCTUnwrap(
+            editorState.addModuleToLayer(layerID: layer.id, template: template))
+        XCTAssertTrue(
+            flag.value,
+            "GUI-19: the chain append must reassign layerStack (the @Observable atom)")
+        XCTAssertEqual(
+            editorState.adjustmentLayer(id: layer.id)?.chain.first?.id, record.id,
+            "the record landed in the live chain")
+    }
+
+    /// GUI-20 (07-3 acceptance, 2026-09-24): a download that returns
+    /// WITHOUT an error but leaves the assets not-ready must surface the
+    /// explanatory notice (the acceptance round fell back to the silent
+    /// needsDownload guidance state — the user pressed「下载模型」and
+    /// nothing was said). Pinned at the App model layer with a scripted
+    /// no-error downloader + notReady probe (the exact 07-1 test-
+    /// entitlement signature).
+    @MainActor
+    func testNoErrorNotReadyDownloadSurfacesNotice() async throws {
+        let store = AIAssetStore(
+            statusProbe: { .notReady },
+            downloader: { _ in }) // "succeeds" without provisioning
+        let model = AIDownloadModel(store: store)
+        model.accept() // the guided download entry's action
+        // Let the poll task run to completion (the notReady loop exits
+        // immediately — no downloading phase to poll).
+        for _ in 0..<50 {
+            if model.downloadError != nil { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertNotNil(
+            model.downloadError,
+            "GUI-20: the no-error-not-provisioned download must NOT be silent")
+    }
+
+    /// L014-fenced display read-back (SYNC helper — waitUntilCompleted is
+    /// unavailable from async contexts; the RasterMaskStore pattern).
+    nonisolated private static func readDisplayBytes(
+        _ texture: any MTLTexture, metal: MetalContext
+    ) -> [UInt8] {
+        let fenceBuffer = metal.commandQueue.makeCommandBuffer()
+        fenceBuffer?.commit()
+        fenceBuffer?.waitUntilCompleted()
+        let w = texture.width, h = texture.height
+        var bytes = [UInt8](repeating: 0, count: w * h * 4)
+        bytes.withUnsafeMutableBytes {
+            texture.getBytes($0.baseAddress!, bytesPerRow: w * 4,
+                             from: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0)
+        }
+        return bytes
+    }
+
+    /// A LOW-amplitude high-frequency plate (blemish-scale: ±0.01 ripple
+    /// well below the t=0.02 preserve threshold — the attenuation leg the
+    /// enabled module must show; a large-amplitude plate would be ANOTHER
+    /// vacuous check, the preserve leg passes strong highs by design, and
+    /// a flat field is identity triple #3's no-op).
+    private func makeStripedSyntheticImage() throws -> DecodedImage {
+        let width = 64, height = 64
+        var rgba = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let i = y * width + x
+                let v: Float = 0.4 + ((x + y) % 4 < 2 ? 0.01 : -0.01)
+                rgba[i * 4 + 0] = v
+                rgba[i * 4 + 1] = v
+                rgba[i * 4 + 2] = v
+                rgba[i * 4 + 3] = 1.0
+            }
+        }
+        var data = Data(capacity: rgba.count * 4)
+        for value in rgba {
+            var le = value.bitPattern.littleEndian
+            data.append(contentsOf: withUnsafeBytes(of: &le) { Data($0) })
+        }
+        let provider = try XCTUnwrap(CGDataProvider(data: data as CFData))
+        let cg = try XCTUnwrap(CGImage(
+            width: width, height: height, bitsPerComponent: 32, bitsPerPixel: 128,
+            bytesPerRow: width * 16, space: WorkingSpace.colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue:
+                CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.floatComponents.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent
+        ))
+        return DecodedImage(
+            ciImage: CIImage(cgImage: cg),
+            rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+            segmentationSkyMatte: nil, decoderVersionUsed: .v8)
+    }
 }
