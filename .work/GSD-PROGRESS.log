@@ -87,3 +87,4 @@
 2026-09-23 [06-07] subagent 验收 PASS（零必修）：retouch clone/blur/fill parity + heal SOR <1e-3 + 跨窗扩窗黑边断言真实 + heal 基准 10.68ms（留 6-7 判定成立）+ L025 592 键统一核实 + 788/3/0 独立实跑。Phase 6 七 plan 全部闭环 → verify-work 终验。
 2026-09-23 [Phase 6 闭环] verify-work GOAL ACHIEVED（14/14 需求、SC#1-5 绿、零须补做 gap、漂移 4/4 回归钉住、6 项可接受挂账）。Phase 6 = 全项目最大架构阶段，一次过夜全部交付。下一程：Phase 7 discuss。
 [2026-09-24 10:4x] 07-1 执行完成（ZCode subagent worker）：T1 benchmark 基线（perf.md + 零漂移复核 + 设备面三项 beta 现实）→ T2/T3/T4/T5（4 commits + 收口）AIMaskService 双层蒙版 + AIAssetStatus 三态 + AIDownloadPrompt + bake 羽化/双线性/覆盖重 bake + 确定性（gpuPinned 进程内+跨进程逐字节）/语义/几何/round-trip 测试；全套 812/5skip/0fail（788→812）；2 条回注 planner 项 + 层 B 测试宿主 entitlement skip（07-3 前置复验）落 DECISIONS/SUMMARY；未 push
+2026-09-24 [07-1] 闭环：验收 PASS-with-notes + P1（层 B 'L00h' LE UInt16 未支持——验收员独立探针抓出，测试宿主不可达所致漏测面）当场修复 3602498；Vision beta 三坑独立复现证实；812/5/0。C 档第 2 停：用户确认继续 → 07-2。
