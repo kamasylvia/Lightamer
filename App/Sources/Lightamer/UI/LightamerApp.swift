@@ -1,3 +1,5 @@
+import CoreImage
+import ImageIO
 import LightamerCore
 import LightamerIOP
 import SwiftUI
@@ -137,6 +139,15 @@ internal struct LightamerApp: App {
     /// #2 — owned via `@State` and injected, never a singleton). nil = no
     /// Metal GPU → the fatal `.metalDeviceUnavailable` alert (UI-SPEC).
     @State private var metalContext: MetalContext? = (try? MetalContext())
+
+    init() {
+        #if DEBUG
+        // 07-1 T2: the headless cross-process determinism probe — runs at
+        // INIT (pre-scene, pre-window; environment-independent) and exits
+        // the process when its verdict lands.
+        Self.runAIDeterminismProbeIfRequested()
+        #endif
+    }
 
     /// Column visibility, as seen from the menu commands (View menu toggles).
     @FocusedBinding(\.lightamerColumnVisibility)
@@ -555,6 +566,49 @@ internal struct LightamerApp: App {
             )
         }
         return StableHash.hash(bytes)
+    }
+
+    // MARK: - 07-1 AI determinism cross-process probe (DEBUG only)
+
+    /// Headless driver for the layer-A determinism gate's CROSS-PROCESS
+    /// leg (Plan 07-1 T2): `Lightamer -la_ai_determinism_probe <image>
+    /// <output.txt>` — runs ONE gpuPinned layer-A inference over the
+    /// image, writes "width height byteIdentity" into `<output.txt>`, and
+    /// exits. The test compares this against its own in-process run
+    /// (same synthetic PNG fixture both sides). `#if DEBUG`: never ships.
+    /// App-INIT-time driver (deterministic: runs before any scene/window
+    /// lifecycle — the .task variant proved environment-sensitive).
+    static func runAIDeterminismProbeIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-la_ai_determinism_probe") else { return }
+        let args = Array(ProcessInfo.processInfo.arguments.dropFirst())
+        guard let imageIdx = args.firstIndex(of: "-la_ai_determinism_probe"),
+              args.count > imageIdx + 2
+        else { return }
+        let image = URL(fileURLWithPath: args[imageIdx + 1])
+        let output = URL(fileURLWithPath: args[imageIdx + 2])
+        Task<Void, Never> {
+            let probe = Logger(subsystem: "com.kamasylvia.lightamer", category: "probe")
+            do {
+                guard let data = FileManager.default.contents(atPath: image.path) as CFData?,
+                      let source = CGImageSourceCreateWithData(data, nil),
+                      let cg = CGImageSourceCreateImageAtIndex(source, 0, nil)
+                else {
+                    try? "ERROR unreadable-image".write(
+                        to: output, atomically: true, encoding: .utf8)
+                    exit(0)
+                }
+                let input = AIMaskInput(ciImage: CIImage(cgImage: cg))
+                let plane = try await AIMaskService.subjectMask(
+                    input: input, selection: .all, device: .gpuPinned)
+                let line = "\(plane.width) \(plane.height) \(plane.byteIdentity)"
+                try line.write(to: output, atomically: true, encoding: .utf8)
+                probe.info("ai determinism probe: \(line, privacy: .public)")
+            } catch {
+                try? "ERROR \(error)".write(to: output, atomically: true, encoding: .utf8)
+                probe.error("ai determinism probe FAILED: \(String(describing: error), privacy: .public)")
+            }
+            exit(0)
+        }
     }
     #endif
 }
