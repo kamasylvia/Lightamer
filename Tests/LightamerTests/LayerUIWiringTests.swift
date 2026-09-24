@@ -465,6 +465,218 @@ final class LayerUIWiringTests: XCTestCase {
         ])
     }
 
+    // MARK: - 07-3 T1: the AI-mask commit channel
+
+    /// The AI generation lands as EXACTLY ONE stackSnapshot item per
+    /// confirm, the PNG exists in the masks directory, the AI-06 landing
+    /// form arms the mask edit mode + tint, and the ⌘Z chain walks the
+    /// generations level by level back to the empty slot. A refine re-bake
+    /// overwrites the SAME maskID (D-07-CONTEXT-5) with a new hash.
+    func testAIMaskCommitOneSnapshotUndoAndRefineOverwrite() async throws {
+        try await loadSynthetic()
+        let layer = try XCTUnwrap(editorState.addAdjustmentLayer())
+        editingState.select(layer.id)
+        let afterAdd = editorState.history.items.count
+
+        func makePlane(_ pattern: UInt64) -> AIMaskPlane {
+            AIMaskPlane(
+                width: 16, height: 16,
+                floats: (0..<256).map { ($0 % 16 < 8) == (pattern & 1 == 0) ? Float(1.0) : Float(0.0) })
+        }
+
+        // ── Generation 1: exactly ONE stackSnapshot item ──
+        let ref1 = try await AIMaskEditing.commitRasterMask(
+            plane: makePlane(0), source: .segment,
+            imageURL: tempDirectory,
+            label: String(localized: "history_ai_mask"),
+            coordinator: coordinator, editorState: editorState,
+            editingState: editingState, metal: metal)
+        XCTAssertEqual(
+            editorState.history.items.count - afterAdd, 1,
+            "AI mask commit = exactly ONE stackSnapshot item")
+        let item = editorState.history.items.last
+        XCTAssertEqual(item?.layerScope, EditorState.layerStructureScope)
+        let mask = try XCTUnwrap(editorState.adjustmentLayer(id: layer.id)?.mask)
+        XCTAssertEqual(mask.raster?.fileName, ref1.fileName)
+        XCTAssertEqual(mask.raster?.maskHash, ref1.maskHash)
+        // The PNG is on disk beside the image.
+        let png = RasterMaskStore.masksDirectory(forImageURL: tempDirectory)
+            .appendingPathComponent(ref1.fileName)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: png.path))
+        // The AI-06 landing form: the mask edit mode armed + tint issued.
+        XCTAssertEqual(editingState.activeTool, .brush, "the mask edit mode auto-activates")
+        XCTAssertEqual(coordinator.maskOverlayRequest?.layerID, layer.id)
+
+        // ── Refine #1: SAME fileName, NEW hash, ONE more item ──
+        let ref2 = try await AIMaskEditing.commitRasterMask(
+            plane: makePlane(1), source: .segment,
+            imageURL: tempDirectory,
+            label: String(localized: "history_ai_mask"),
+            activateTool: nil,
+            coordinator: coordinator, editorState: editorState,
+            editingState: editingState, metal: metal)
+        XCTAssertEqual(editorState.history.items.count - (afterAdd + 1), 1, "refine = ONE item")
+        XCTAssertEqual(ref2.fileName, ref1.fileName, "same maskID overwrite")
+        XCTAssertNotEqual(ref2.maskHash, ref1.maskHash, "the hash flips → caches invalidate")
+
+        // ── Refine #2: the chain grows one level per confirm ──
+        let ref3 = try await AIMaskEditing.commitRasterMask(
+            plane: makePlane(2), source: .segment,
+            imageURL: tempDirectory,
+            label: String(localized: "history_ai_mask"),
+            activateTool: nil,
+            coordinator: coordinator, editorState: editorState,
+            editingState: editingState, metal: metal)
+        XCTAssertEqual(editorState.history.items.count - (afterAdd + 2), 1, "refine #2 = ONE item")
+        XCTAssertEqual(ref3.fileName, ref1.fileName)
+        XCTAssertNotEqual(ref3.maskHash, ref2.maskHash)
+
+        // ── The ⌘Z chain: level-by-level hash restoration ──
+        await coordinator.undo()
+        XCTAssertEqual(
+            editorState.adjustmentLayer(id: layer.id)?.mask?.raster?.maskHash, ref2.maskHash,
+            "undo #1 → refine #1's pixels-by-reference")
+        await coordinator.undo()
+        XCTAssertEqual(
+            editorState.adjustmentLayer(id: layer.id)?.mask?.raster?.maskHash, ref1.maskHash,
+            "undo #2 → the first generation")
+        await coordinator.undo()
+        XCTAssertNil(editorState.adjustmentLayer(id: layer.id)?.mask, "undo #3 → empty slot")
+    }
+
+    /// The mask-file identity: stable per (source, layer), and the source
+    /// prefix round-trips (the T2 refine re-entry marker).
+    func testAIMaskSourceFileIdentity() {
+        let id = UUID()
+        for source in [AIMaskSource.subject, .segment, .skin] {
+            let name = source.fileName(forLayerID: id)
+            XCTAssertEqual(name, source.fileName(forLayerID: id), "stable per layer")
+            XCTAssertEqual(AIMaskSource.source(ofFileName: name), source)
+            XCTAssertTrue(name.hasSuffix(".png"))
+        }
+        XCTAssertNil(AIMaskSource.source(ofFileName: "hand-drawn-\(id).png"))
+    }
+
+    /// The layer-B entry gate — the pure three-state + failure matrix
+    /// (D-07-CONTEXT-1: only `.ready` opens the entry; layer A is never
+    /// consulted).
+    func testLayerBEntryGateStates() {
+        XCTAssertEqual(AIMaskEntryGate.layerBEntry(for: .ready), .ready)
+        XCTAssertEqual(AIMaskEntryGate.layerBEntry(for: .downloading(progress: 0.5)), .downloading)
+        XCTAssertEqual(AIMaskEntryGate.layerBEntry(for: .downloading(progress: -1)), .downloading)
+        XCTAssertEqual(AIMaskEntryGate.layerBEntry(for: .notReady), .needsDownload)
+        XCTAssertEqual(AIMaskEntryGate.layerBEntry(for: .unknown), .needsDownload)
+        XCTAssertEqual(
+            AIMaskEntryGate.layerBEntry(for: .failed("network")),
+            .failed("network"))
+    }
+
+    // MARK: - 07-3 T2: the tap-to-segment mode (the 4th route)
+
+    /// The mutex truth table is EXHAUSTIVE: segment sits below liquify/
+    /// retouch and above crop; arming a mask tool disarms segment and vice
+    /// versa — exactly one route answers at all times.
+    func testSegmentRouteMutexExhaustive() {
+        let state = LayerEditingState()
+        let layer = AdjustmentLayer(name: "L")
+
+        // Bare: crop.
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: false, retouchPanelSelected: false),
+            .crop)
+
+        // Segment armed (with a selection) → segment owns; liquify/retouch
+        // still outrank it; the mask tool outranks everything.
+        state.select(layer.id)
+        state.setSegmentActive(true)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: false, retouchPanelSelected: false),
+            .segment)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: true, retouchPanelSelected: false),
+            .liquify)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: false, retouchPanelSelected: true),
+            .retouch)
+        state.setTool(.brush)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: false, retouchPanelSelected: false),
+            .maskEditing)
+        XCTAssertFalse(state.segmentActive, "arming a mask tool disarms the segment mode")
+
+        // Re-arming the segment mode disarms the mask tool.
+        state.setSegmentActive(true)
+        XCTAssertNil(state.activeTool)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: false, retouchPanelSelected: false),
+            .segment)
+
+        // Disarming returns to crop (no other surface selected).
+        state.setSegmentActive(false)
+        XCTAssertEqual(
+            state.viewportRoute(liquifyPanelSelected: false, retouchPanelSelected: false),
+            .crop)
+    }
+
+    /// The point-budget counter (13 point-seeded / 11 box-seeded) + the
+    /// Y-flip WIRING: the recorded view points leave the session through
+    /// `visionPoint` with the exact flip (the service-side seam is pinned
+    /// in 07-1; this pins the UI-state leg).
+    func testSegmentSessionBudgetAndYFlipWiring() throws {
+        let session = SegmentSession()
+
+        // No seed: the first tap BECOMES the seed (counts itself).
+        XCTAssertFalse(session.hasSeed)
+        try session.addIncluded(AIMaskPoint(x: 0.25, y: 0.75))
+        XCTAssertTrue(session.hasSeed)
+        XCTAssertEqual(session.usedPoints, 1)
+        XCTAssertEqual(session.pointBudget, AIPointBudget.pointSeeded)
+
+        // Fill to the point-seeded budget (the seed counted itself →
+        // 12 refine points of capacity).
+        for i in 0..<(AIPointBudget.pointSeeded - 1) {
+            try session.addIncluded(AIMaskPoint(x: Float(i) * 0.01, y: 0.5))
+        }
+        XCTAssertTrue(session.budgetFull)
+        XCTAssertThrowsError(try session.addIncluded(AIMaskPoint(x: 0.1, y: 0.1))) { error in
+            XCTAssertEqual(
+                error as? AIMaskError, .pointLimitExceeded(limit: AIPointBudget.pointSeeded))
+        }
+        XCTAssertThrowsError(try session.addExcluded(AIMaskPoint(x: 0.1, y: 0.1)))
+
+        // The Y-flip wiring: every stored view point maps to
+        // vision.y = 1 − view.y (vector check), and the SEED flips too.
+        let flips = session.refinePoints.map { point -> Float in
+            let visionY = Float(point.point.visionPoint.y)
+            return visionY - (1 - point.point.y)
+        }
+        XCTAssertEqual(Set(flips.map { $0 }), [0.0], "vision y == 1 − view y for EVERY point")
+        guard case let .point(seedPoint) = session.seed else {
+            return XCTFail("the seed must survive")
+        }
+        XCTAssertEqual(Float(seedPoint.visionPoint.x), 0.25, accuracy: 1e-6)
+        XCTAssertEqual(
+            Float(seedPoint.visionPoint.y), 1 - 0.75, accuracy: 1e-6,
+            "the seed point passed through the single Y-flip seam")
+
+        // Box seed: the budget drops to 11 and the seed does NOT count.
+        session.recordSeed(.box(AIMaskRect(x: 0.1, y: 0.1, width: 0.3, height: 0.3)))
+        XCTAssertEqual(session.pointBudget, AIPointBudget.boxSeeded)
+        XCTAssertEqual(session.usedPoints, 0, "box seeds carry no seed point")
+        for i in 0..<AIPointBudget.boxSeeded {
+            try session.addExcluded(AIMaskPoint(x: Float(i) * 0.01, y: 0.2))
+        }
+        XCTAssertTrue(session.budgetFull)
+        XCTAssertThrowsError(try session.addIncluded(AIMaskPoint(x: 0.9, y: 0.9)))
+
+        // The scribble seam: the case is constructed NOWHERE in v1 — a
+        // fresh session refuses it at the record leg (typed at the service
+        // leg; D-07-CONTEXT-4).
+        let fresh = SegmentSession()
+        fresh.recordSeed(.scribble)
+        XCTAssertNil(fresh.seed, "the v1 scribble seam stays unwired")
+    }
+
     // MARK: - content-level: a layer with a mask + params renders
 
     /// The full composite difference (LAYER-02 + LAYER-03 content check):

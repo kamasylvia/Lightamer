@@ -99,8 +99,11 @@ final class AIDownloadModel {
 }
 
 /// The prompt + progress + failure surfaces (attach to the app root).
+/// Plan 07-3: the model rides the ENVIRONMENT (the app root owns it) —
+/// MaskToolbar's layer-B entry gate observes the SAME instance (one state
+/// machine, never two; 07-1 D-07-1-T3-2 wiring point kept).
 internal struct AIDownloadPrompt: ViewModifier {
-    @State private var model = AIDownloadModel()
+    @Environment(AIDownloadModel.self) private var model
 
     func body(content: Content) -> some View {
         content

@@ -125,6 +125,11 @@ internal struct LightamerApp: App {
     // (viewport gesture arbitration归口 — D-03b isolated state object).
     @State private var layerEditingState = LayerEditingState()
 
+    /// Plan 07-3: the layer-B download model — app-root owned so the
+    /// AIDownloadPrompt surfaces AND the MaskToolbar's layer-B entry gate
+    /// observe ONE instance (the AIAssetStore actor stays the truth).
+    @State private var aiDownloadModel = AIDownloadModel()
+
     /// The decode actor (D-21) — one app-wide instance, injected into
     /// `ContentView` so every Open path feeds `EditorState.load`.
     @State private var decoder = RAWDecoder()
@@ -173,6 +178,7 @@ internal struct LightamerApp: App {
                 .environment(exportState)
                 .environment(inspectorState)
                 .environment(layerEditingState)
+                .environment(aiDownloadModel)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
                 // D-COL2 (Plan 02-04-05): capture the editor window the
                 // moment SwiftUI places it — the coordinator follows THE

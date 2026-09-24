@@ -213,6 +213,12 @@ final class PipeCoordinator {
     /// the tint — the content-anchored integration is a single follow-up
     /// (same seam the liquify overlay documents).
     ///
+    /// 07-3 T1: drawn specs ride the drawn rasterizer (unchanged);
+    /// parametric/raster payloads fall back to `MaskCombiner.effectivePlane`
+    /// (the SAME assembly the composite uses — the tint IS the effective
+    /// mask, not an approximation). `base` is passed as both blendif
+    /// sampling planes (the parametric leg samples the real image).
+    ///
     /// MainActor + plain params: the display plane and the returned plane
     /// live in the coordinator's isolation domain end-to-end (MTLTexture
     /// is Sendable per `MetalSendability`), so no `sending` choreography.
@@ -226,7 +232,7 @@ final class PipeCoordinator {
         metal: MetalContext
     ) async throws -> any MTLTexture {
         // PRECONDITION (caller-checked): request.layerID is in the stack,
-        // its mask has DRAWN forms. `base` is NEVER used on any path after
+        // its mask has SOME payload. `base` is NEVER used on any path after
         // the caller hands it over (the 06-3 probe pattern — every exit is
         // a throw or the overlay's own sending return).
         let request = try unwrap(request, "mask overlay: no request")
@@ -240,12 +246,25 @@ final class PipeCoordinator {
         let mapper = GeometryPointMapper.compose(
             boxes: boxes,
             frameSize: SIMD2(Double(base.width), Double(base.height)))
-        guard let plane = try await DrawnMaskRasterizer.planeIfDrawn(
+        let plane: any MTLTexture
+        if let drawn = try await DrawnMaskRasterizer.planeIfDrawn(
             spec: mask, layerOpacity: layer.opacity, window: window,
             mapper: mapper, metal: metal, cache: cache,
             imageID: imageID, pipeType: .preview, layerID: layer.id)
-        else {
-            throw AppError.decodeFailed("mask overlay: no drawn forms")
+        {
+            plane = drawn
+        } else {
+            // The raster/parametric fallback — the effective-plane
+            // assembly (mask-store load + invert + intersect joins).
+            let assembled = try await MaskCombiner.effectivePlane(
+                spec: mask, layerOpacity: layer.opacity, window: window,
+                below: base, top: base, mapper: mapper, metal: metal,
+                cache: cache, imageID: imageID, pipeType: .preview,
+                layerID: layer.id,
+                maskDirectory: imageURL.map {
+                    RasterMaskStore.masksDirectory(forImageURL: $0)
+                })
+            plane = assembled.plane
         }
         return try await DrawnMaskRasterizer.overlay(
             display: base, mask: plane, strength: request.strength,
@@ -1063,6 +1082,13 @@ final class PipeCoordinator {
         decoded
     }
 
+    /// The Metal context for the AI mask bake channel (07-3 T3 — the
+    /// SkinSmoothPanel「定位皮肤」bake rides the same context the pipes
+    /// use). Read-only additive seam (the detectionSourceImage twin).
+    func detectionMetal() -> MetalContext? {
+        metal
+    }
+
     /// Forward a non-blocking status-bar toast to EditorState (D-26).
     /// Additive seam for 04-08-T2 (GUI-8): auto-detect nil/failure paths
     /// must be user-visible; no existing caller touched.
@@ -1281,7 +1307,11 @@ final class PipeCoordinator {
             if let request = maskOverlayRequest,
                let stack = currentLayerStack,
                let layer = stack.compositeLayers.first(where: { $0.id == request.layerID }),
-               layer.mask?.hasDrawnForms == true {
+               // 07-3 T1: ANY payload tints (was drawn-only) — the AI
+               // masks are RASTER payloads and the「显示蒙版」affordance
+               // must work for them (the T4 GUI ΔR quantification rides
+               // this leg).
+               layer.mask?.hasAnyPayload == true {
                 // The「显示蒙版」tint rides the newest-wins gate above — a
                 // superseded frame never pays the overlay pass.
                 let overlaid: any MTLTexture
