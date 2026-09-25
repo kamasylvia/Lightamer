@@ -651,3 +651,107 @@ extension ExportEncoderGoldenTests {
                        "AVIF 12-bit request: R1 documented downgrade to 10 (refresh DECISIONS if the host gains 12-bit)")
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 3: registry dispatch + the UTI write-capability anchor (T5).
+// ─────────────────────────────────────────────────────────────────────────────
+
+extension ExportEncoderGoldenTests {
+
+    /// RESEARCH §1.1's probe,固化成常驻回归锚 (2026-09-26 host facts):
+    /// the five native write UTIs EXIST, WebP write does NOT (libwebp is
+    /// the single WebP path — D-11-CONTEXT-1). A macOS capability drift in
+    /// either direction fails HERE, not in a user export.
+    func testUTIWriteCapabilityAnchor() {
+        let writable = CGImageDestinationCopyTypeIdentifiers() as? [String] ?? []
+        for uti in ["public.jpeg", "public.png", "public.tiff", "public.heic", "public.avif"] {
+            XCTAssertTrue(writable.contains(uti), "host lost write capability for \(uti)")
+        }
+        XCTAssertFalse(
+            writable.contains("org.webmproject.webp"),
+            "host GAINED WebP write — revisit D-11-CONTEXT-1 (Swift-WebP could retire)")
+    }
+
+    /// All six specs dispatch to their correct conformer (typed checks, not
+    /// just non-throw) with a correctly-tiered plane.
+    func testRegistryDispatchesAllSixFormats() throws {
+        let srgb = ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB)
+        func plane(_ layout: ExportQuantizedPlane.Layout) -> ExportQuantizedPlane {
+            let bytesPerPixel = layout.bytesPerPixel
+            var data = Data(count: 4 * 4 * bytesPerPixel)
+            data.replaceSubrange(0..<data.count, with: Data(count: data.count))
+            return ExportQuantizedPlane(data: data, width: 4, height: 4, layout: layout)
+        }
+        let cases: [(ExportFormatSpec, ExportQuantizedPlane.Layout, any ExportEncoder)] = [
+            (.jpeg(quality: 0.9), .rgba8, JPEGEncoder()),
+            (.png(bitDepth: .eight), .rgba8, PNGEncoder()),
+            (.png(bitDepth: .sixteen), .rgba16, PNGEncoder()),
+            (.tiff(bitDepth: .eight, compression: .none), .rgba8, TIFFEncoder()),
+            (.tiff(bitDepth: .sixteen, compression: .lzw), .rgba16, TIFFEncoder()),
+            (.tiff(bitDepth: .float32, compression: .zip), .float32, TIFFEncoder()),
+            (.heic(quality: 0.9, bitDepth: .eight), .rgba8, HEICEncoder()),
+            (.heic(quality: 0.9, bitDepth: .ten), .rgba16, HEICEncoder()),
+            (.avif(quality: 0.9, bitDepth: .eight), .rgba8, AVIFEncoder()),
+            (.avif(quality: 0.9, bitDepth: .ten), .rgba16, AVIFEncoder()),
+            (.avif(quality: 0.9, bitDepth: .twelve), .rgba16, AVIFEncoder()),
+            (.webp(quality: 0.8, lossless: false), .rgba8, LightamerWebPEncoder()),
+            (.webp(quality: 0.8, lossless: true), .rgba8, LightamerWebPEncoder()),
+        ]
+        for (spec, layout, expected) in cases {
+            let encoder = try ExportEncoderRegistry.encoder(for: spec, plane: plane(layout))
+            XCTAssertEqual(
+                String(describing: type(of: encoder)),
+                String(describing: type(of: expected)),
+                "\(spec.formatName) dispatched the wrong conformer")
+        }
+        // expectedLayout agrees with the dispatch tiers.
+        for (spec, layout, _) in cases {
+            XCTAssertEqual(try ExportEncoderRegistry.expectedLayout(for: spec), layout, "\(spec.formatName) layout face")
+        }
+    }
+
+    /// Tier mismatches are caller bugs → typed invalidParameter at the
+    /// dispatch point (never a silent re-tier).
+    func testRegistryRejectsTierMismatches() throws {
+        func mismatched(_ spec: ExportFormatSpec, _ layout: ExportQuantizedPlane.Layout) -> ExportQuantizedPlane {
+            let data = Data(count: 4 * 4 * layout.bytesPerPixel)
+            return ExportQuantizedPlane(data: data, width: 4, height: 4, layout: layout)
+        }
+        let mismatches: [(ExportFormatSpec, ExportQuantizedPlane.Layout)] = [
+            (.jpeg(quality: 0.9), .rgba16),
+            (.png(bitDepth: .eight), .rgba16),
+            (.png(bitDepth: .sixteen), .rgba8),
+            (.tiff(bitDepth: .float32, compression: .none), .rgba8),
+            (.heic(quality: 0.9, bitDepth: .ten), .rgba8),
+            (.avif(quality: 0.9, bitDepth: .twelve), .rgba8),
+        ]
+        for (spec, layout) in mismatches {
+            XCTAssertThrowsError(
+                try ExportEncoderRegistry.encoder(for: spec, plane: mismatched(spec, layout)),
+                "\(spec.formatName) accepted a \(layout.rawValue) plane"
+            ) { error in
+                guard case AppError.invalidParameter = error else {
+                    return XCTFail("\(spec.formatName): expected invalidParameter, got \(error)")
+                }
+            }
+        }
+    }
+
+    /// The 32f LINEAR variant boundary: sRGB/P3/Rec2020 resolve; AdobeRGB
+    /// and ProPhoto throw a typed error (no system linear profile — a 32f
+    /// export must never silently encode through a display TRC).
+    func testLinearVariantBoundaries() throws {
+        for cs in [ExportColorSpace.sRGB, .displayP3, .rec2020] {
+            let linear = try ExportColorSpaceMapper.linearCGColorSpace(for: cs)
+            let name = linear.name as String?
+            XCTAssertTrue(name?.contains("Linear") ?? false, "\(cs): linear variant name (\(name ?? "nil"))")
+        }
+        for cs in [ExportColorSpace.adobeRGB, .proPhoto] {
+            XCTAssertThrowsError(try ExportColorSpaceMapper.linearCGColorSpace(for: cs), "\(cs)") { error in
+                guard case AppError.invalidParameter = error else {
+                    return XCTFail("\(cs): expected invalidParameter, got \(error)")
+                }
+            }
+        }
+    }
+}
