@@ -133,7 +133,7 @@ final class CullingPipelineTests: XCTestCase {
                 pathHash: ThumbnailPath.hash("IMG\(index).ARW"),
                 dir: ".", filename: "IMG\(index).ARW",
                 hasEdits: false, orphanSidecar: false,
-                thumbState: nil, thumbParamsHash: nil
+                thumbState: nil, thumbParamsHash: nil, dirty: false
             )
             _ = row
             return row
@@ -152,14 +152,14 @@ final class CullingPipelineTests: XCTestCase {
             relPath: "GONE.ARW.lra",
             pathHash: "x", dir: ".", filename: "GONE.ARW.lra",
             hasEdits: false, orphanSidecar: true,
-            thumbState: nil, thumbParamsHash: nil
+            thumbState: nil, thumbParamsHash: nil, dirty: false
         )
         _ = orphan
         let browsable: [SessionBrowserModel.Row] = ["A", "B"].map { rel in
             SessionBrowserModel.Row(
                 relPath: rel, pathHash: ThumbnailPath.hash(rel), dir: ".",
                 filename: rel, hasEdits: false, orphanSidecar: false,
-                thumbState: nil, thumbParamsHash: nil
+                thumbState: nil, thumbParamsHash: nil, dirty: false
             )
         }
         let rows = browsable + [orphan]

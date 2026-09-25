@@ -1,8 +1,10 @@
+import CoreGraphics
 import Foundation
 import LightamerCore
 import LightamerIOP
 import XCTest
 
+@testable import Lightamer
 @testable import LightamerCore
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -474,5 +476,92 @@ extension SessionBatchApplierTests {
             XCTAssertEqual(try XCTUnwrap(flushedRow).dirty, 0, "\(rel): clean after the teardown flush")
             XCTAssertNotNil(sidecarBytes(rel))
         }
+    }
+}
+
+// MARK: - T8: the thumbnail regeneration chain (apply → stale → regen →
+// thumb_params_hash flip) + the dirty badge data face
+
+extension SessionBatchApplierTests {
+
+    func testBatchApplyToStaleToRegenerationFullChain() async throws {
+        let seed = await seedInstances()
+        let rels = ["a.ARW", "b.ARW"]
+        for rel in rels { try writeImage(rel) }
+        try await openIndex(knownRels: rels)
+
+        // The full apply INCLUDING the segment-3 drain.
+        let writer = BatchSidecarWriter(root: sessionRoot, store: store)
+        _ = await SessionBatchApplier.apply(
+            root: sessionRoot, relPaths: rels, payload: payload(),
+            mode: .merge, seed: seed,
+            store: store, writer: writer, label: applyLabel())
+
+        // Both rows stale + clean (drained) with the claimed hash.
+        for rel in rels {
+            let claimedRow = try await store.fetchRow(relPath: rel)
+            let row = try XCTUnwrap(claimedRow)
+            XCTAssertEqual(row.thumbState, SessionIndexSchema.ThumbState.stale.rawValue,
+                           "\(rel): stale right after the apply claim")
+            XCTAssertEqual(row.dirty, 0, "\(rel): drained")
+            XCTAssertEqual(row.hasEdits, 1)
+        }
+
+        // The 9-3 pipeline regenerates a stale+edited row at tier B and
+        // binds the NEW params hash (the 09-03 memory-stale + queue
+        // re-read legs make this work with ZERO new wiring in the queue).
+        // The tier-B REAL-render regression lives in the 09-3 suite; this
+        // chain test uses a synthetic leg (the binding chain is the point).
+        let decodeLeg: ThumbnailDecodeLeg = { _ in
+            DecodedImage(
+                ciImage: CIImage(color: CIColor(red: 0.4, green: 0.5, blue: 0.6))
+                    .cropped(to: CGRect(x: 0, y: 0, width: 240, height: 160)),
+                rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+                segmentationSkyMatte: nil, decoderVersionUsed: .v8)
+        }
+        let renderLeg: ThumbnailRenderLeg = { _ in
+            let context = CGContext(
+                data: nil, width: 8, height: 8, bitsPerComponent: 8, bytesPerRow: 32,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            context.setFillColor(CGColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+            return context.makeImage()!
+        }
+        let disk = ThumbnailDiskStore(sessionRoot: sessionRoot)
+        let provider = SessionThumbnailProvider(
+            sessionRoot: sessionRoot, store: store, disk: disk,
+            memory: ThumbnailMemoryCache(), registry: ModuleRegistry.makeDefault(),
+            decodeLeg: decodeLeg, renderLeg: renderLeg)
+        let image = await provider.thumbnail(for: "a.ARW", visible: true)
+        XCTAssertNotNil(image, "the regen produced a thumb")
+        let regenRow = try await store.fetchRow(relPath: "a.ARW")
+        let row = try XCTUnwrap(regenRow)
+        XCTAssertEqual(row.thumbState, SessionIndexSchema.ThumbState.rendered.rawValue,
+                       "the row re-bound as rendered")
+        XCTAssertEqual(row.thumbParamsHash, row.paramsHash,
+                       "the regen binds the CLAIMED hash (the apply's 待生效 value is now effective)")
+        // The dirty badge data face: the grid row carries it (the model
+        // projection reads the dirty column).
+        let model = SessionBrowserModel()
+        await model.reload(store: store, includeOrphans: true)
+        let projected = try XCTUnwrap(model.rows.first { $0.relPath == "a.ARW" })
+        XCTAssertFalse(projected.dirty, "drained rows show no 进行中 badge")
+    }
+
+    func testGridRowProjectsTheDirtyBadgeDuringTheClaimWindow() async throws {
+        let rels = ["a.ARW"]
+        for rel in rels { try writeImage(rel) }
+        try await openIndex(knownRels: rels)
+        // Segment 2 ONLY (writer nil): the claim window stays open.
+        _ = await SessionBatchApplier.apply(
+            root: sessionRoot, relPaths: rels, payload: payload(),
+            mode: .merge, seed: await seedInstances(),
+            store: store, writer: nil, label: applyLabel())
+        let model = SessionBrowserModel()
+        await model.reload(store: store, includeOrphans: true)
+        let row = try XCTUnwrap(model.rows.first { $0.relPath == "a.ARW" })
+        XCTAssertTrue(row.dirty, "the 进行中 badge rides the claimed row (never silent)")
+        XCTAssertEqual(row.hasEdits, true)
     }
 }

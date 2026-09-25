@@ -130,6 +130,9 @@ private struct SessionBrowserCell: View {
                         if row.orphanSidecar {
                             badge("?", color: .orange, id: "orphan")
                         }
+                        if row.dirty {
+                            badge("…", color: .yellow, id: "dirty")
+                        }
                         Spacer()
                     }
                     Spacer()

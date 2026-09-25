@@ -314,14 +314,15 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             if let epoch = upTo.lastIndex(where: { $0.isOverwritePaste }) {
                 return Self.effectiveChain(upTo[epoch].pasteRecords)
             }
-            // ② Newest-wins walk; a merge-paste item contributes all its
-            // records (identical shape to N single-record items, but ONE
-            // undo step).
+            // ② Newest-wins walk over the GLOBAL entries ONLY (layer-scoped
+            // items never leak — the 06-01 partition rule); a merge-paste
+            // item contributes all its records (identical shape to N
+            // single-record items, but ONE undo step).
             var seen = Set<InstanceKey>()
             seen.reserveCapacity(upTo.count)
             var kept: [ModuleInstance] = []
             kept.reserveCapacity(upTo.count)
-            for item in upTo.reversed() {
+            for item in upTo.reversed() where item.layerScope == nil {
                 for snapshot in item.pasteRecords {
                     if seen.insert(
                         InstanceKey(

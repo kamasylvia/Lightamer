@@ -48,6 +48,10 @@ final class SessionBrowserModel {
         /// nil = placeholder).
         let thumbState: Int64?
         let thumbParamsHash: String?
+        /// 09-04: the batch-apply claim window (sidecar not yet written) —
+        /// the cell's「进行中」badge source (the window is NEVER silent,
+        /// D-09-CONTEXT-4).
+        let dirty: Bool
 
         var id: String { relPath }
     }
@@ -125,7 +129,8 @@ final class SessionBrowserModel {
                     hasEdits: false,
                     orphanSidecar: false,
                     thumbState: nil,
-                    thumbParamsHash: nil
+                    thumbParamsHash: nil,
+                    dirty: false
                 )
             )
             appended += 1
@@ -209,7 +214,8 @@ final class SessionBrowserModel {
             hasEdits: row.hasEdits == 1,
             orphanSidecar: row.orphanSidecar == 1,
             thumbState: row.thumbState,
-            thumbParamsHash: row.thumbParamsHash
+            thumbParamsHash: row.thumbParamsHash,
+            dirty: row.dirty == 1
         )
     }
 

@@ -215,7 +215,11 @@ final class BeforeAfterTests: XCTestCase {
         var edit = try XCTUnwrap(editorState.instances.first { $0.opName == ExposureModule.opName })
         try edit.setParams(ExposureModule.Params(exposure: 0.7), as: ExposureModule.self)
         editorState.recordChange(edit, label: "e0.7")
-        await coordinator.historyDidChange()
+        // recordChange fires its render as a fire-and-forget Task; settle
+        // until the push chain is quiescent (the GUI22 pattern) — reading
+        // displayTexture mid-flight would race the newest-wins renders.
+        try await Task.sleep(for: .milliseconds(300))
+        for _ in 0..<20 { await Task.yield() }
         Self.drain(metal)
         let display = try XCTUnwrap(editorState.displayTexture)
         let defaultBytes = Self.readBytes(display)
