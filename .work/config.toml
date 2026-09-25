@@ -29,19 +29,19 @@ roster = ["subagent", "omp", "pi", "kilo", "reasonix"]  # 全天 fallback(白天
 [[matrix.vibe.slot]]
 orchestrator = ["zcode"]
 roster = ["subagent:auto"]  # 跨夜全 subagents(2026-09-22 用户指令:23:00-9:00 全 subagents 工作;auto=按波宽推导,cap 5)
-active_windows = [["23:00", "09:00"]]
+# active_windows = [["23:00", "09:00"]]
 [[matrix.vibe.slot]]
 orchestrator = ["omp"]
 roster = ["subagent"]  # 初值保现行为:无 active_windows = 全天 fallback
 # 分窗示例(按需增 slot,各窗 roster 可同可异;fallback 留一个覆盖剩余时间):
-[[matrix.vibe.slot]]
-orchestrator = ["zcode"]
-roster = ["omp"]
-active_windows = [["09:00", "14:00"], ["18:00", "23:00"]]
-[[matrix.vibe.slot]]
-orchestrator = ["zcode"]
-roster = ["subagent"]
-active_windows = [["23:00", "09:00"]]
+# [[matrix.vibe.slot]]
+# orchestrator = ["zcode"]
+# roster = ["omp"]
+# active_windows = [["09:00", "14:00"], ["18:00", "23:00"]]
+# [[matrix.vibe.slot]]
+# orchestrator = ["zcode"]
+# roster = ["subagent"]
+# active_windows = [["23:00", "09:00"]]
 # 休眠示例(要「某时段静默不派发」:加 roster = [] 的休眠 slot 盖住该时段,或以休眠 slot 作 fallback;勿与现有 fallback 并存——fallback 至多一个):
 
 [matrix.review]

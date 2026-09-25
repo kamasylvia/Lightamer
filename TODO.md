@@ -40,6 +40,18 @@
 
 ---
 
+## Phase 9（Capture One Session Management——执行序 09 = ROADMAP §Phase 9）—— 计划态（2026-09-25 planner 定稿；09-RESEARCH + 09-CONTEXT（D-09-CONTEXT-1..7 用户「全按推荐」裁决）+ 5 plans 落盘）
+
+**状态**：计划态。5 plans 依赖序 9-1 → 9-2 → 9-3 → 9-4 → 9-5（串行，总量 ~28-33 T）；每 plan 执行+验收闭环后 C 档第 2 停，签核（VALIDATION）前 C 档第 3 停。基线 = 全 suite **973/6skip/0fail**（Phase 8 终轮）。裁决要点：libsqlite3 自包装零新依赖（D-09-CONTEXT-1）、`.lightamer/` 会话自包含（-2）、递归排除保留目录 + 三级字面目录（-3）、DB 先行 + dirty 自愈（-4）、skip 集 = decode 域 + 恒等默认（-5）、culling 2 图（-6）、评分/标签列现建 Phase 12 回填（-7）。门数字 fixture 禁放 UNITEK 卷（L009）。
+
+- [ ] **Plan 09-01**（会话模型 + 索引 DB 基建：SessionState 接线/打开切换 teardown 五步/L012 同窗 recent + 三级目录幂等 + SessionLayout 消费点 + SessionTreeScanner exclude 单一真源 + SessionIndexStore【libsqlite3 actor + schema 冻结含 Phase 12 预留列 + WAL + 开卷增量同步单事务】+ sidecar 摘要回填 + 删库重建 parity + 切换泄漏断言 + 开卷计量基线）—— 8T
+- [ ] **Plan 09-02**（FSEvents + reconcile：hint-only watcher 四缺陷对策 + ReconcileDiff 纯函数五桶 golden + 四时点调度 + 自反馈环双防【100 sidecar 零自触发断言】+ 孤儿 sidecar 处置两动作永不硬失败 + 合成事件/外部变更 E2E）—— 5T
+- [ ] **Plan 09-03**（浏览模式三态 grid/单图/culling 2 图 + 缩略图双档管线【档 A ImageIO 嵌入/档 B PixelPipe THUMBNAIL + PipeCache 隔离常驻断言】+ 磁盘缓存 + LRU + 后台队列并发 2 可见优先 + 双档观感抽检 + PERF-06 基线 + GUI 验收轮）—— 9T
+- [ ] **Plan 09-04**（批量 apply + 复制粘贴【HIST-05 三式 overwrite/merge/partial + skip 集 + 部分复制对话框 + live 保护 + 单图 ⌘Z】+ before/after 三形态【pristine 平面 + renderPreview override + 双平面 blit + hold】+ 三段式批量管线【索引单事务 + sidecar 串行写队列 + dirty 自愈 + 崩溃注入】+ PERF-07 万张 ≤5s 门 SSD 复核 + stale 再生接线）—— 8T
+- [ ] **Plan 09-05**（签核：09-VALIDATION SC#1-6 三列证据 + 回归终轮重编复跑 + 反模式扫描 + GUI 轮汇总 + perf 终账 + Phase 11 移交清单 + REQUIREMENTS 翻账 SESS/HIST ×9 + TODO/GOAL-STATE 收口；C 档第 3 停）—— 3T
+
+---
+
 ## 项目初始化（已完成 ✓）
 
 - [x] GSD 项目初始化（PROJECT.md / config.json / 5 份研究 / REQUIREMENTS / ROADMAP 13 phases / STATE）
