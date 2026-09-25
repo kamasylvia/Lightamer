@@ -1,5 +1,6 @@
 @testable import LightamerCore
 import CoreGraphics
+import ImageIO
 import Metal
 import XCTest
 
@@ -294,5 +295,359 @@ extension ExportEncoderGoldenTests {
         for (i, v) in got.enumerated() {
             XCTAssertEqual(Double(v), Double(pattern[i]), accuracy: 1e-4, "sample \(i)")
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 2: the five native encoders — golden round-trip matrix (T3).
+// ─────────────────────────────────────────────────────────────────────────────
+
+extension ExportEncoderGoldenTests {
+
+    /// Deterministic temp fixture root (L009: NEVER UNITEK).
+    private func goldenDir() -> URL {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("11-02-golden-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        return dir
+    }
+
+    /// SplitMix64 byte stream — a deterministic pseudo-random plane that
+    /// exercises losslessness far better than a gradient. Alpha bytes stay
+    /// opaque (premultiplication through decode contexts must be a no-op).
+    private func randomPlane(width: Int, height: Int, layout: ExportQuantizedPlane.Layout, seed: UInt64) -> ExportQuantizedPlane {
+        var state = seed
+        func next() -> UInt64 {
+            state &+= 0x9E3779B97F4A7C15
+            var z = state
+            z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+            z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+            return z ^ (z >> 31)
+        }
+        var data = Data(capacity: width * height * layout.bytesPerPixel)
+        for _ in 0..<(width * height) {
+            switch layout {
+            case .rgba8:
+                var bytes = [UInt8](repeating: 255, count: 4)
+                for c in 0..<3 { bytes[c] = UInt8(truncatingIfNeeded: next()) }
+                data.append(contentsOf: bytes)
+            case .rgba16:
+                var samples = [UInt16](repeating: 65535, count: 4)
+                for c in 0..<3 { samples[c] = UInt16(truncatingIfNeeded: next()) }
+                samples.withUnsafeBufferPointer { data.append(contentsOf: Data(buffer: $0)) }
+            case .float32:
+                var samples = [Float](repeating: 1.0, count: 4)
+                for c in 0..<3 { samples[c] = Float(next() % 10_000) / 10_000.0 }
+                samples.withUnsafeBufferPointer { data.append(contentsOf: Data(buffer: $0)) }
+            }
+        }
+        return ExportQuantizedPlane(data: data, width: width, height: height, layout: layout)
+    }
+
+    /// The known-point plane (odd 33×17 — doubles as the alignment probe):
+    /// four quadrants around a neutral-gray center band.
+    private func knownPointPlane() -> ExportQuantizedPlane {
+        let w = 33, h = 17
+        var bytes = [UInt8](repeating: 0, count: w * h * 4)
+        for y in 0..<h {
+            for x in 0..<w {
+                let i = (y * w + x) * 4
+                let quadrant = (x < w / 2 ? 0 : 1) + (y < h / 2 ? 0 : 2)
+                let rgb: [UInt8] = switch quadrant {
+                case 0: [255, 0, 0]      // red
+                case 1: [0, 255, 0]      // green
+                case 2: [0, 0, 255]      // blue
+                default: [128, 128, 128] // neutral mid-gray
+                }
+                bytes[i] = rgb[0]; bytes[i + 1] = rgb[1]; bytes[i + 2] = rgb[2]; bytes[i + 3] = 255
+            }
+        }
+        return ExportQuantizedPlane(
+            data: Data(bytes), width: w, height: h, layout: .rgba8)
+    }
+
+    /// A source JPEG carrying EXIF (probe-verified write path) for the
+    /// round-trip assertions.
+    private func exifFixture(in dir: URL) throws -> (url: URL, date: String, lens: String) {
+        let w = 4, h = 4
+        var bytes = [UInt8](repeating: 200, count: w * h * 4)
+        for i in stride(from: 3, to: bytes.count, by: 4) { bytes[i] = 255 }
+        var imgData = Data(capacity: bytes.count)
+        imgData.append(contentsOf: bytes)
+        let provider = CGDataProvider(data: imgData as CFData)!
+        let srgb = CGColorSpace(name: "kCGColorSpaceSRGB" as CFString)!
+        let img = CGImage(
+            width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4,
+            space: srgb, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+        let url = dir.appendingPathComponent("exif-source.jpg")
+        let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.jpeg" as CFString, 1, nil)!
+        let exif: [CFString: Any] = [
+            kCGImagePropertyExifDateTimeOriginal: "2026:09:26 03:00:00",
+            kCGImagePropertyExifLensModel: "GoldenFixture 50mm",
+        ]
+        CGImageDestinationAddImage(dest, img, [kCGImagePropertyExifDictionary: exif] as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else {
+            throw AppError.encodeFailed("exif fixture write failed")
+        }
+        return (url, "2026:09:26 03:00:00", "GoldenFixture 50mm")
+    }
+
+    private func readBack(_ url: URL) throws -> (props: [String: Any], image: CGImage) {
+        let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
+        guard let source else { throw AppError.decodeFailed("readback source nil: \(url.lastPathComponent)") }
+        guard let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            throw AppError.decodeFailed("readback image nil: \(url.lastPathComponent)")
+        }
+        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, [kCGImageSourceShouldCache: false] as CFDictionary) as? [String: Any] ?? [:]
+        return (props, image)
+    }
+
+    /// Draw the decoded CGImage into a normalizing bitmap context of the
+    /// given tier (same color space) and hand the packed bytes back.
+    private func normalizedBytes(_ image: CGImage, layout: ExportQuantizedPlane.Layout, colorSpace: CGColorSpace) throws -> [UInt8] {
+        let w = image.width, h = image.height
+        let bytesPerRow = w * layout.bytesPerPixel
+        var buffer = [UInt8](repeating: 0, count: bytesPerRow * h)
+        let alpha = CGImageAlphaInfo.premultipliedLast.rawValue
+        let info: CGBitmapInfo
+        switch layout {
+        case .rgba8: info = CGBitmapInfo(rawValue: alpha)
+        case .rgba16: info = CGBitmapInfo(rawValue: alpha | CGBitmapInfo.byteOrder16Little.rawValue)
+        case .float32: info = CGBitmapInfo(rawValue: alpha | CGBitmapInfo.floatComponents.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+        }
+        guard let ctx = CGContext(
+            data: &buffer, width: w, height: h,
+            bitsPerComponent: layout.bitsPerComponent, bytesPerRow: bytesPerRow,
+            space: colorSpace, bitmapInfo: info.rawValue)
+        else { throw AppError.decodeFailed("normalizing context failed") }
+        ctx.interpolationQuality = .none
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return buffer
+    }
+
+    private func exifDict(_ props: [String: Any]) -> [String: Any] {
+        props[kCGImagePropertyExifDictionary as String] as? [String: Any] ?? [:]
+    }
+
+    private func assertCommonMetadata(
+        _ props: [String: Any], profile: String, dpi: Double, format: String,
+        exif: (date: String, lens: String)?, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let profileName = props[kCGImagePropertyProfileName as String] as? String ?? ""
+        XCTAssertTrue(profileName.contains(profile), "\(format): ICC profile name \(profileName) lacks \(profile)", file: file, line: line)
+        let readDPI = props[kCGImagePropertyDPIWidth as String] as? Double
+            ?? (props[kCGImagePropertyDPIWidth as String] as? CGFloat).map { Double($0) }
+            ?? (props[kCGImagePropertyDPIWidth as String] as? Int).map { Double($0) }
+        XCTAssertEqual(readDPI ?? -1, dpi, accuracy: 0.5, "\(format): DPI", file: file, line: line)
+        // The R5 anchor (probed + byte-verified): XMP packets do NOT
+        // serialize through any ImageIO write path on this host. If a future
+        // macOS starts writing XMP, this fails and DECISIONS must be
+        // refreshed (the plan's "失败格式文档化注记" face).
+        XCTAssertNil(props["{XMP}"], "\(format): unexpected XMP — refresh the R5 documentation", file: file, line: line)
+        if let exif {
+            let dict = exifDict(props)
+            XCTAssertEqual(dict["DateTimeOriginal"] as? String, exif.date, "\(format): EXIF date round-trip", file: file, line: line)
+            XCTAssertEqual(dict["LensModel"] as? String, exif.lens, "\(format): EXIF lens round-trip", file: file, line: line)
+        }
+    }
+
+    /// Sample the normalized RGBA8 buffer at a normalized coordinate.
+    private func sample(_ bytes: [UInt8], width: Int, x: Int, y: Int) -> (r: UInt8, g: UInt8, b: UInt8) {
+        let i = (y * width + x) * 4
+        return (bytes[i], bytes[i + 1], bytes[i + 2])
+    }
+
+    // MARK: JPEG
+
+    func testJPEGGoldenRoundTrip() throws {
+        let dir = goldenDir()
+        let srgb = ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB)
+        let plane = knownPointPlane()
+        let exif = try exifFixture(in: dir)
+        let request = ExportEncodeRequest(
+            plane: plane, spec: .jpeg(quality: 0.92), colorSpace: srgb,
+            dpi: 144, sourceURL: exif.url, destination: dir.appendingPathComponent("out.jpg"))
+        try ExportEncoderRegistry.encoder(for: request.spec, plane: plane).encode(request)
+        let (props, image) = try readBack(request.destination)
+        XCTAssertEqual(image.width, 33, "odd width survives JPEG exactly")
+        XCTAssertEqual(image.height, 17, "odd height survives JPEG exactly")
+        assertCommonMetadata(props, profile: "sRGB", dpi: 144, format: "jpeg", exif: (exif.date, exif.lens))
+
+        let bytes = try normalizedBytes(image, layout: .rgba8, colorSpace: srgb)
+        // Lossy known-point bands (±3/255): the four quadrants + neutrality
+        // of the gray block.
+        func near(_ v: UInt8, _ want: Int, _ label: String) {
+            XCTAssertLessThan(abs(Int(v) - want), 4, "jpeg \(label): \(v) vs \(want)")
+        }
+        let red = sample(bytes, width: 33, x: 2, y: 2)
+        near(red.r, 255, "R quadrant r"); near(red.g, 0, "R quadrant g"); near(red.b, 0, "R quadrant b")
+        let green = sample(bytes, width: 33, x: 30, y: 2)
+        near(green.g, 255, "G quadrant g")
+        let blue = sample(bytes, width: 33, x: 2, y: 14)
+        near(blue.b, 255, "B quadrant b")
+        let gray = sample(bytes, width: 33, x: 30, y: 14)
+        near(gray.r, 128, "gray r"); near(gray.g, 128, "gray g"); near(gray.b, 128, "gray b")
+        XCTAssertLessThan(abs(Int(gray.r) - Int(gray.g)), 4, "jpeg gray neutrality")
+        XCTAssertLessThan(abs(Int(gray.g) - Int(gray.b)), 4, "jpeg gray neutrality")
+    }
+
+    // MARK: PNG (8/16 bitwise)
+
+    func testPNGBitwiseRoundTrip() throws {
+        let dir = goldenDir()
+        let srgb = ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB)
+        let exif = try exifFixture(in: dir)
+
+        for (bitDepth, layout) in [(ExportFormatSpec.PNGBitDepth.eight, ExportQuantizedPlane.Layout.rgba8),
+                                   (.sixteen, .rgba16)] {
+            let plane = randomPlane(width: 37, height: 19, layout: layout, seed: 0x504E47)
+            let request = ExportEncodeRequest(
+                plane: plane, spec: .png(bitDepth: bitDepth), colorSpace: srgb,
+                dpi: 144, sourceURL: exif.url, destination: dir.appendingPathComponent("out-\(bitDepth.rawValue).png"))
+            try ExportEncoderRegistry.encoder(for: request.spec, plane: plane).encode(request)
+            let (props, image) = try readBack(request.destination)
+            XCTAssertEqual(image.bitsPerComponent, layout.bitsPerComponent, "png \(bitDepth): depth")
+            assertCommonMetadata(props, profile: "sRGB", dpi: 144, format: "png\(bitDepth)", exif: (exif.date, exif.lens))
+            let bytes = try normalizedBytes(image, layout: layout, colorSpace: srgb)
+            XCTAssertEqual(bytes, [UInt8](plane.data), "png \(bitDepth): LOSSLESS bitwise round-trip")
+        }
+    }
+
+    // MARK: TIFF (8/16/32f × compressions, linear 32f, Software signature)
+
+    func testTIFFTiersAndCompressions() throws {
+        let dir = goldenDir()
+        let srgb = ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB)
+        let exif = try exifFixture(in: dir)
+
+        // 8/16-bit × all three compressions: bitwise (all three are lossless).
+        let compressions: [(ExportFormatSpec.TIFFCompression, String)] = [(.none, "none"), (.lzw, "lzw"), (.zip, "zip")]
+        for (bitDepth, layout) in [(ExportFormatSpec.TIFFBitDepth.eight, ExportQuantizedPlane.Layout.rgba8),
+                                   (.sixteen, .rgba16)] {
+            for (compression, label) in compressions {
+                let plane = randomPlane(width: 31, height: 13, layout: layout, seed: 0x54494646)
+                let request = ExportEncodeRequest(
+                    plane: plane, spec: .tiff(bitDepth: bitDepth, compression: compression), colorSpace: srgb,
+                    dpi: 144, sourceURL: exif.url,
+                    destination: dir.appendingPathComponent("tiff-\(bitDepth.rawValue)-\(label).tif"))
+                try ExportEncoderRegistry.encoder(for: request.spec, plane: plane).encode(request)
+                let (props, image) = try readBack(request.destination)
+                XCTAssertEqual(image.bitsPerComponent, layout.bitsPerComponent, "tiff \(label): depth")
+                assertCommonMetadata(props, profile: "sRGB", dpi: 144, format: "tiff-\(label)", exif: (exif.date, exif.lens))
+                let bytes = try normalizedBytes(image, layout: layout, colorSpace: srgb)
+                XCTAssertEqual(bytes, [UInt8](plane.data), "tiff \(bitDepth)/\(label): LOSSLESS bitwise")
+            }
+        }
+
+        // 32f linear: bit-exact floats, LINEAR profile (D-11-CONTEXT-7).
+        let linear = try ExportColorSpaceMapper.linearCGColorSpace(for: .rec2020)
+        let fplane = randomPlane(width: 16, height: 16, layout: .float32, seed: 0x7)
+        let frequest = ExportEncodeRequest(
+            plane: fplane, spec: .tiff(bitDepth: .float32, compression: .zip), colorSpace: linear,
+            dpi: nil, sourceURL: nil, editorSignature: "Lightamer golden",
+            destination: dir.appendingPathComponent("tiff-f32.tif"))
+        try ExportEncoderRegistry.encoder(for: frequest.spec, plane: fplane).encode(frequest)
+        let (fprops, fimage) = try readBack(frequest.destination)
+        XCTAssertTrue(fimage.bitmapInfo.contains(.floatComponents), "tiff 32f: floatComponents")
+        assertCommonMetadata(fprops, profile: "BT.2020", dpi: -1, format: "tiff-32f", exif: nil)
+        let fbytes = try normalizedBytes(fimage, layout: .float32, colorSpace: linear)
+        // HOST FINDING (probed): the 32f round trip differs from the input
+        // by AT MOST ONE float32 ULP (max 5.96e-8 near 1.0 — the writer or
+        // normalizing-context rounding step), i.e. numerically identical.
+        // Bitwise equality is not attainable through the ImageIO float
+        // path; the 1e-6 band is ~16x tighter than the observed worst case.
+        let fIn = fplane.data.withUnsafeBytes { buffer in
+            Array(buffer.bindMemory(to: Float.self))
+        }
+        let fOut = fbytes.withUnsafeBytes { buffer in
+            Array(buffer.bindMemory(to: Float.self))
+        }
+        var maxDiff: Float = 0
+        for (a, b) in zip(fIn, fOut) {
+            maxDiff = max(maxDiff, abs(a - b))
+        }
+        XCTAssertLessThan(maxDiff, 1e-6, "tiff 32f: numeric identity (1-ULP host rounding)")
+        // The editor signature rides the TIFF Software tag (the one working
+        // carrier on this host — XMP does not serialize, DECISIONS).
+        let tiffDict = fprops[kCGImagePropertyTIFFDictionary as String] as? [String: Any]
+        XCTAssertEqual(tiffDict?["Software"] as? String, "Lightamer golden", "tiff Software carrier")
+    }
+
+    // MARK: HEIC (8 + 10-bit depth probe)
+
+    func testHEICGoldens() throws {
+        let dir = goldenDir()
+        let srgb = ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB)
+        let exif = try exifFixture(in: dir)
+
+        // 8-bit: known points.
+        let plane8 = knownPointPlane()
+        let r8 = ExportEncodeRequest(
+            plane: plane8, spec: .heic(quality: 0.92, bitDepth: .eight), colorSpace: srgb,
+            dpi: 144, sourceURL: exif.url, destination: dir.appendingPathComponent("out8.heic"))
+        try ExportEncoderRegistry.encoder(for: r8.spec, plane: plane8).encode(r8)
+        let (props8, image8) = try readBack(r8.destination)
+        XCTAssertEqual(image8.width, 33); XCTAssertEqual(image8.height, 17)
+        assertCommonMetadata(props8, profile: "sRGB", dpi: 144, format: "heic8", exif: (exif.date, exif.lens))
+        let bytes8 = try normalizedBytes(image8, layout: .rgba8, colorSpace: srgb)
+        let gray = sample(bytes8, width: 33, x: 30, y: 14)
+        for (ch, v) in [("r", gray.r), ("g", gray.g), ("b", gray.b)] {
+            XCTAssertLessThan(abs(Int(v) - 128), 5, "heic8 gray.\(ch)")
+        }
+
+        // 10-bit probe (R1): the 16bpc plane encodes at depth 10 (HOST FACT
+        // — probed; the anchor fails if the host regresses).
+        let plane16 = randomPlane(width: 20, height: 20, layout: .rgba16, seed: 0xB1)
+        let r10 = ExportEncodeRequest(
+            plane: plane16, spec: .heic(quality: 0.9, bitDepth: .ten), colorSpace: srgb,
+            dpi: nil, sourceURL: nil, destination: dir.appendingPathComponent("out10.heic"))
+        try ExportEncoderRegistry.encoder(for: r10.spec, plane: plane16).encode(r10)
+        let (props10, _) = try readBack(r10.destination)
+        XCTAssertEqual(props10[kCGImagePropertyDepth as String] as? Int ?? 0, 10, "HEIC 10-bit probe (R1)")
+    }
+
+    // MARK: AVIF (8 + 10 + the R1 12-bit documented downgrade)
+
+    func testAVIFGoldens() throws {
+        let dir = goldenDir()
+        let srgb = ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB)
+        let exif = try exifFixture(in: dir)
+
+        let plane8 = knownPointPlane()
+        let r8 = ExportEncodeRequest(
+            plane: plane8, spec: .avif(quality: 0.9, bitDepth: .eight), colorSpace: srgb,
+            dpi: 144, sourceURL: exif.url, destination: dir.appendingPathComponent("out8.avif"))
+        try ExportEncoderRegistry.encoder(for: r8.spec, plane: plane8).encode(r8)
+        let (props8, image8) = try readBack(r8.destination)
+        XCTAssertEqual(image8.width, 33); XCTAssertEqual(image8.height, 17)
+        assertCommonMetadata(props8, profile: "sRGB", dpi: 144, format: "avif8", exif: (exif.date, exif.lens))
+        let bytes8 = try normalizedBytes(image8, layout: .rgba8, colorSpace: srgb)
+        let red = sample(bytes8, width: 33, x: 2, y: 2)
+        XCTAssertGreaterThan(Int(red.r), 200, "avif8 red dominance")
+        XCTAssertLessThan(Int(red.g), 60, "avif8 red dominance")
+        XCTAssertLessThan(Int(red.b), 60, "avif8 red dominance")
+
+        // 10-bit: depth 10 (probed host fact).
+        let plane16 = randomPlane(width: 20, height: 20, layout: .rgba16, seed: 0xA1)
+        let r10 = ExportEncodeRequest(
+            plane: plane16, spec: .avif(quality: 0.9, bitDepth: .ten), colorSpace: srgb,
+            dpi: nil, sourceURL: nil, destination: dir.appendingPathComponent("out10.avif"))
+        try ExportEncoderRegistry.encoder(for: r10.spec, plane: plane16).encode(r10)
+        let (props10, _) = try readBack(r10.destination)
+        XCTAssertEqual(props10[kCGImagePropertyDepth as String] as? Int ?? 0, 10, "AVIF 10-bit probe (R1)")
+
+        // 12-bit request → R1 DOCUMENTED DOWNGRADE: the host encoder lands
+        // it at 10-bit (probed; the libavif protocol seam behind AVIFEncoder
+        // is the future fix). Pinned here so a host capability change is
+        // visible, not silent.
+        let r12 = ExportEncodeRequest(
+            plane: plane16, spec: .avif(quality: 0.9, bitDepth: .twelve), colorSpace: srgb,
+            dpi: nil, sourceURL: nil, destination: dir.appendingPathComponent("out12.avif"))
+        try ExportEncoderRegistry.encoder(for: r12.spec, plane: plane16).encode(r12)
+        let (props12, _) = try readBack(r12.destination)
+        XCTAssertEqual(props12[kCGImagePropertyDepth as String] as? Int ?? 0, 10,
+                       "AVIF 12-bit request: R1 documented downgrade to 10 (refresh DECISIONS if the host gains 12-bit)")
     }
 }

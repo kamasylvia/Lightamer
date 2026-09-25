@@ -48,6 +48,11 @@ public enum AppError: Error, LocalizedError {
     /// `.decodeFailed` (blocking alert — the user must correct the input).
     case invalidParameter(String)
 
+    /// An export ENCODE failed (Plan 11-02: CGImageDestination finalize,
+    /// libwebp encode, or the atomic promote). The payload names the stage
+    /// and format; the export queue surfaces it per-job (EXP-06).
+    case encodeFailed(String)
+
     /// Bridge a foreign `Error` into the typed enum (D-18/D-25: layers throw
     /// typed errors; this is the catch-site bridge Plan 02/03 throw through).
     /// - `CancellationError` → `.cancelled`
@@ -95,6 +100,8 @@ public enum AppError: Error, LocalizedError {
             return "This capability isn't available yet (planned for \(phase))."
         case let .invalidParameter(detail):
             return "Invalid setting: \(detail)"
+        case let .encodeFailed(stage):
+            return "Couldn't export the image (\(stage)). Try a different format or location."
         }
     }
 
