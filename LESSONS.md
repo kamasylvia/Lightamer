@@ -249,3 +249,11 @@ locale 的 Bundle 解析停在该表（不再向 zh.lproj 回退）——**全 a
 - **对策**：① 一切「MTLTexture 进、CI bitmap 出」的腿在函数**内部**做 `.oriented(.downMirrored)` 复位，契约 = 「bitmap 行序 == 纹理行序」，配套行序 pattern 测试常驻（修复前 64/64 错位——不修则导出文件上下颠倒）；② 排障期探针用小图（4×4）+ 程序化候选映射，结论（vflip）得出后再固化成最小契约测试；③ **已知同病未修**：`CIContextPool.convertTexture`（colorout ColorSync **fallback** 腿）完全同型镜像——fast path 不经它所以预览从未暴露，修复 = 同款 `.downMirrored` + fast/fallback 双腿**内容级** parity（记账型测试对镜像免疫，参照 L020-④「纯记账测试对坐标错位免疫」同类教训）+ GUI 走查兜底。
 - **适用**：一切 CI 腿（纹理↔bitmap 往返：导出、软打样、Phase 14 MCP render_preview）；一切「读回定向未知」的排障（先枚举映射再定位）。
 - **来源**：11-02 T2 fence/行序双测试三轮排障（fence 首跑样本位移假象 → 探针 vflip 0-mismatch 定位 → `.downMirrored` 修复后恒等 0-mismatch 双向验证）。
+
+### L030: ping-pong scratch 复用必须尺寸感知——画布增长模块接 uncached 尾段时，无脑复用把输出静默截断成旧尺寸
+
+- **现象**（11-03 T4 导出 E2E）：`PixelPipe.processRec` uncached 腿（FULL 中间面 / 全 EXPORT 面）在 borders（76.0，画布扩展模块）接管后，返回给下游的平面仍是**主图尺寸**而非画布尺寸——negotiated-ROI 前置断言在 watermark 位触发；四态矩阵里「仅框画布应增长」也同步失真。FULL 分辨率 + 增画布模块的组合（08-1 起）理论上同样中招，只是全幅 uncached + borders 的测试从未同框（yiyin E2E 全走 PREVIEW 缓存管线），属**潜伏两波**的真缺陷。
+- **根因**：`nextScratchPlane` 的 ping-pong 池只有两个槽位，首次分配后**无条件交替复用**——前段全部 identity/同尺寸模块把两槽都定型在入口尺寸，尺寸变化的第一位模块拿到旧尺寸槽位即被截断（模块自身只写 roiOut 矩形，不检查 output 尺寸——契约由分配方单边保证）。
+- **对策**：① 复用前按 `roiOut` 尺寸校验，不匹配即重分配该槽位；`scratchFlip` 交替语义保留（输出永不别名上游刚返回的平面——同尺寸复用仍交替，别名即 kernel 读写同缓冲腐蚀）；② negotiated-ROI 前置断言补 opName + 三个 ROI + 平面尺寸的诊断信息（ trapping 信息从「哪一位违反」升级到「什么形状违反」，本轮定位时间主要花在补这个）；③ 排障方法：把「管线协商失败」从猜测模块语义改为先读 trap 诊断的形状三元组（roiOut/roiIn/upstream）——形状对了语义自然显形。
+- **适用**：一切自管 working-set 复用池（scratch/memo/buffer pool）：池项复用判据必须含**形状**（尺寸/格式），不只槽位；画布增长/裁剪类几何模块与 uncached 腿同框的管线（FULL zoom ROI、EXPORT、Phase 5 tile 腿）。
+- **来源**：11-03 T4 ExportRendererE2ETests 双尺寸用例 trap（四态矩阵同步失真 → 最初误归因测试夹具 → 前置断言加诊断后形状三元组一步定位）。
