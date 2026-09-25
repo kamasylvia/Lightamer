@@ -191,7 +191,8 @@ public final class WatermarkModule: IOPModule {
             fieldConfigs: Dictionary(uniqueKeysWithValues: committed.fields.map { ($0.key, $0) }),
             defaultFont: committed.font,
             backdropIsBlur: backdropIsBlur,
-            bgHeight: bgHeight)
+            bgHeight: bgHeight,
+            logoExists: logoExists)
     }
 
     /// The active template list (list order = stacking order).
@@ -272,6 +273,11 @@ public final class WatermarkModule: IOPModule {
     /// every logo slot renders as whitespace). MEASURE and RENDER see the
     /// same answers (the provider contract).
     public var logoProvider: YiyinLogoProvider?
+
+    /// The engine's logo-existence probe (the Make-slot dispatch gate —
+    /// wire from YiyinLogoStore.embeddedExists; nil = no asset store →
+    /// every Make degrades to text).
+    public var logoExists: YiyinTemplateEngine.LogoExists?
 
     /// The display override twin (BordersModule/ColorOutModule): the row
     /// color matrix follows the resolved display profile. nil = the

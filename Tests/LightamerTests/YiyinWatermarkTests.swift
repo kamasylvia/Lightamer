@@ -16,6 +16,19 @@ import XCTest
 /// the same file; T5 the Logo/FontStore sections.
 final class YiyinWatermarkTests: XCTestCase {
 
+    /// Injectable temp root for the store faces (T5).
+    private var tempDirectory: URL!
+
+    override func setUpWithError() throws {
+        tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("yiyin-watermark-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: tempDirectory)
+    }
+
     // ── Fixtures (YiyinBordersTests twins) ──
 
     private func makeMetal() async throws -> MetalContext {
@@ -977,5 +990,60 @@ final class YiyinWatermarkTests: XCTestCase {
         let buffer = data.bindMemory(to: UInt8.self, capacity: image.width * image.height * 4)
         let bytes = [UInt8](UnsafeBufferPointer(start: buffer, count: image.width * image.height * 4))
         return bytes
+    }
+
+    // ── T5: the Logo double channel end-to-end (real brand PDFs) ──
+
+    func testEmbeddedBrandLogoRendersThroughPipe() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 64, height: 48)
+        let trio = await committedTrio()
+        let base = trio.filter { $0.opName != GammaModule.opName }
+        let store = YiyinLogoStore(userDirectory: tempSubdirectory("logos"))
+
+        var params = WatermarkModule.Params.neutralSeed
+        params.templates = [YiyinTemplate(
+            key: "row", name: "n", pattern: "{Make}", use: true,
+            font: YiyinFont(sizePercent: 6, color: "#000000"))]
+        // Configure the Make field explicitly (unconfigured placeholders
+        // are treated as hidden — D-08-2-5).
+        params.fields = [YiyinField(key: "Make", show: true)]
+        let box = ModuleBox(module: WatermarkModule())
+        box.setParams(params)
+        box.module.captureExif = CaptureMetadata(
+            cameraMake: "SONY", cameraModel: "ILCE-7M4")
+        box.module.logoExists = { make, variant in
+            store.embeddedExists(make: make, variant: variant)
+        }
+        box.module.logoProvider = store.provider()
+        let chain = (base + [box as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+
+        let (baseline, _) = try await RenderPipeline.process(
+            image: image, instances: base, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        let (output, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        let baseFloats = readFloats(baseline, metal: metal)
+        let outFloats = readFloats(output, metal: metal)
+        // The black Sony wordmark darkens pixels in the bottom band.
+        var darkened = 0
+        var compared = 0
+        for y in output.height / 2..<output.height {
+            for x in 0..<output.width {
+                let o = (y * output.width + x) * 4
+                if outFloats[o] < baseFloats[o] - 0.02 { darkened += 1 }
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转")
+        XCTAssertGreaterThan(darkened, 20, "the black brand logo ink lands in the bottom band")
+    }
+
+    private func tempSubdirectory(_ name: String) -> URL {
+        let dir = tempDirectory.appendingPathComponent(name, isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
     }
 }
