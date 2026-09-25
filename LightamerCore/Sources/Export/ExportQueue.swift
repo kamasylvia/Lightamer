@@ -55,8 +55,8 @@ public actor ExportQueue {
         let instancesOverride: [ModuleInstance]?
         let editorSignature: String?
         /// FIFO arrival order (retried jobs get a FRESH seq — the re-queue
-        /// lands at the tail).
-        let seq: Int
+        /// lands at the tail; only `retry` mutates this).
+        var seq: Int
         /// The cancel epoch this job belongs to.
         var generation: Int
         var state: ExportJobState
@@ -109,8 +109,14 @@ public actor ExportQueue {
 
     /// Fired after every state/progress mutation. The ExportState bridge
     /// installs a closure that hops to the MainActor and re-reads the
-    /// snapshots; tests usually leave it nil.
-    public nonisolated var onProgressChange: (@Sendable () async -> Void)?
+    /// snapshots; tests usually leave it nil. (Actor-isolated storage —
+    /// set through `setProgressHook`; notifications detach a task so the
+    /// hook never blocks the pump.)
+    private var progressHook: (@Sendable () async -> Void)?
+
+    public func setProgressHook(_ hook: (@Sendable () async -> Void)?) {
+        progressHook = hook
+    }
 
     public init(
         metal: MetalContext?,
@@ -203,20 +209,22 @@ public actor ExportQueue {
     /// discarded before anything is written). A job already past the
     /// encode boundary completes `.done` honestly: its file is fully
     /// promoted and cannot be un-written (the state never lies about disk).
+    ///
+    /// The cancel flag is armed BEFORE the pending removal — the pump may
+    /// have just handed the job to a runner (dequeue race); execute's
+    /// gate ② then discards it and the settled tally is counted exactly
+    /// once (whichever path wins the race).
     public func cancel(jobID: UUID) {
         guard var job = jobs[jobID], !job.state.isTerminal else { return }
-        switch job.state {
-        case .pending:
+        cancelledInFlight.insert(jobID)
+        if pending.contains(where: { $0.id == jobID }) {
             pending.removeAll { $0.id == jobID }
             job.state = .cancelled
             jobs[jobID] = job
             progressDone += 1
             notify()
-        case .rendering, .encoding:
-            cancelledInFlight.insert(jobID)
-        case .done, .failed, .cancelled:
-            break // unreachable — the isTerminal guard covers it
         }
+        // The in-flight case settles through finishCancelled at the gate.
     }
 
     /// The explicit re-queue (NO automatic retry — dt posture). Only a
@@ -234,6 +242,7 @@ public actor ExportQueue {
         job.state = .pending
         job.generation = generation
         seqCounter += 1
+        job.seq = seqCounter
         let requeued = job
         jobs[jobID] = requeued
         // Re-append AT THE TAIL with a fresh seq; the failed job's settled
@@ -376,6 +385,7 @@ public actor ExportQueue {
         }
         job.state = state
         jobs[jobID] = job
+        cancelledInFlight.remove(jobID)
         // Settle the in-flight slot + the progress tally — ONLY for the
         // CURRENT generation (a stale straggler's exit must not pollute
         // the fresh epoch's window).
@@ -432,8 +442,7 @@ public actor ExportQueue {
 
     /// The change hook + the completion bookkeeping shared by every exit.
     private func notify() {
-        guard let onProgressChange else { return }
-        let hook = onProgressChange
+        guard let hook = progressHook else { return }
         Task.detached(priority: .utility) { await hook() }
     }
 
@@ -476,6 +485,7 @@ public actor ExportQueue {
                 height: stage.outputHeight,
                 stage: ExportRenderStage(
                     plane: stage.plane,
+                    formatSpec: stage.formatSpec,
                     targetColorSpace: stage.targetColorSpace,
                     dpi: stage.dpi,
                     destination: stage.destination,
@@ -487,7 +497,11 @@ public actor ExportQueue {
                 throw AppError.invalidParameter(
                     "export encode leg: synthetic artifact (no stage payload)")
             }
-            return try ExportRenderer.encodeStage(stage)
+            return try ExportRenderer.encodeStage(
+                plane: stage.plane, formatSpec: stage.formatSpec,
+                targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
+                sourceURL: stage.sourceURL, editorSignature: stage.editorSignature,
+                destination: stage.destination)
         }
         return (renderLeg, encodeLeg)
     }

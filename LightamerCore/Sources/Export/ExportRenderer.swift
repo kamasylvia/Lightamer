@@ -171,7 +171,11 @@ public enum ExportRenderer {
         let stage = try await renderStage(
             request: request, metal: metal, registry: registry,
             decodeLeg: decodeLeg, yiyinInjector: yiyinInjector)
-        let destination = try encodeStage(stage)
+        let destination = try encodeStage(
+            plane: stage.plane, formatSpec: stage.formatSpec,
+            targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
+            sourceURL: stage.sourceURL, editorSignature: stage.editorSignature,
+            destination: stage.destination)
         return Outcome(
             destination: destination,
             outputWidth: stage.outputWidth,
@@ -371,19 +375,29 @@ public enum ExportRenderer {
 
     /// The encode stage — step 9's write half: quantized plane → encoder →
     /// atomic promote (L009). A throw cleans any pre-rename residue; a
-    /// COMPLETED export never reaches the cleanup path.
-    public static func encodeStage(_ stage: StageOutput) throws -> URL {
+    /// COMPLETED export never reaches the cleanup path. (Explicit
+    /// parameters — both the internal `StageOutput` and the queue-facing
+    /// `ExportRenderStage` carry exactly this set.)
+    public static func encodeStage(
+        plane: ExportQuantizedPlane,
+        formatSpec: ExportFormatSpec,
+        targetColorSpace: CGColorSpace,
+        dpi: Double,
+        sourceURL: URL,
+        editorSignature: String?,
+        destination: URL
+    ) throws -> URL {
         let encodeRequest = ExportEncodeRequest(
-            plane: stage.plane,
-            spec: stage.formatSpec,
-            colorSpace: stage.targetColorSpace,
-            dpi: stage.dpi,
-            sourceURL: stage.sourceURL,
-            editorSignature: stage.editorSignature,
-            destination: stage.destination)
+            plane: plane,
+            spec: formatSpec,
+            colorSpace: targetColorSpace,
+            dpi: dpi,
+            sourceURL: sourceURL,
+            editorSignature: editorSignature,
+            destination: destination)
         do {
             let encoder = try ExportEncoderRegistry.encoder(
-                for: stage.formatSpec, plane: stage.plane)
+                for: formatSpec, plane: plane)
             _ = try encoder.encode(encodeRequest)
         } catch {
             // The encoder writes atomically (in-memory encode → .atomic
@@ -391,13 +405,13 @@ public enum ExportRenderer {
             // file, never a partial destination. The destination removal
             // here is the belt-and-suspenders cleanup for any pre-rename
             // residue; a COMPLETED export never reaches this path.
-            try? FileManager.default.removeItem(at: stage.destination)
+            try? FileManager.default.removeItem(at: destination)
             throw error
         }
 
         Self.logger.info(
-            "export: \(stage.destination.lastPathComponent, privacy: .public) \(stage.outputWidth, privacy: .public)×\(stage.outputHeight, privacy: .public)")
-        return stage.destination
+            "export: \(destination.lastPathComponent, privacy: .public) \(plane.width, privacy: .public)×\(plane.height, privacy: .public)")
+        return destination
     }
 
     // MARK: - Disk sidecar reading (the SessionBatchApplier method)

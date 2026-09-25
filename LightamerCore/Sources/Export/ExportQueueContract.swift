@@ -249,6 +249,10 @@ public struct ExportRenderStage: @unchecked Sendable {
     /// The quantized plane (D-11-CONTEXT-7 tiers) the render leg produced.
     public let plane: ExportQuantizedPlane
 
+    /// The format spec the encode stage encodes with (the variant's
+    /// format face rides the boundary with its plane).
+    public let formatSpec: ExportFormatSpec
+
     /// The color space the plane samples are ALREADY in (the export
     /// target — E3 identity-pass discipline).
     public let targetColorSpace: CGColorSpace
@@ -267,10 +271,12 @@ public struct ExportRenderStage: @unchecked Sendable {
     public let editorSignature: String?
 
     public init(
-        plane: ExportQuantizedPlane, targetColorSpace: CGColorSpace, dpi: Double,
+        plane: ExportQuantizedPlane, formatSpec: ExportFormatSpec,
+        targetColorSpace: CGColorSpace, dpi: Double,
         destination: URL, sourceURL: URL, editorSignature: String?
     ) {
         self.plane = plane
+        self.formatSpec = formatSpec
         self.targetColorSpace = targetColorSpace
         self.dpi = dpi
         self.destination = destination

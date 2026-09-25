@@ -144,7 +144,7 @@ final class ExportQueueContractTests: XCTestCase {
     /// the token they injected).
     func testRenderArtifactRoundTripsThroughLegs() async throws {
         let artifact = ExportRenderArtifact(token: 42, width: 1200, height: 800)
-        let renderLeg: ExportRenderLeg = { _ in artifact }
+        let renderLeg: ExportRenderLeg = { _, _ in artifact }
         let encodeLeg: ExportEncodeLeg = { received, _ in
             XCTAssertEqual(received, artifact)
             return URL(fileURLWithPath: "/o/synthetic.jpg")
@@ -152,7 +152,11 @@ final class ExportQueueContractTests: XCTestCase {
         let snapshot = ExportJobSnapshot(
             id: UUID(), imageURL: URL(fileURLWithPath: "/s/a.arw"), relPath: "a.arw",
             variants: [], seq: 0, generation: 0, state: .pending)
-        let rendered = try await renderLeg(snapshot)
+        let rendered = try await renderLeg(
+            snapshot,
+            ExportJobContext(
+                destinationDirectory: URL(fileURLWithPath: "/o"),
+                occupiedNames: []))
         let url = try await encodeLeg(rendered, ExportVariant(
             format: .jpeg(quality: 0.9), colorSpace: .sRGB))
         XCTAssertEqual(url.path, "/o/synthetic.jpg")
