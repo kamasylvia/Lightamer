@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,14 +164,50 @@ public struct ExportProgress: Sendable {
     }
 }
 
-/// The render→encode handoff payload. OPAQUE at this contract layer
-/// (execution decision, 11-01-DECISIONS D3): 11-04 fills it with the real
-/// quantized-plane identity; queue-semantics tests pass synthetic tokens so
-/// the leg seams stay millisecond-cheap (the 9-3 `ThumbnailDecodeLeg` trick).
+/// The per-job request context the queue hands its render leg at DEQUEUE
+/// time (11-04): the landing zone + the occupancy snapshot enumerated at
+/// that instant (the 11-03 E2E collision lesson — occupancy must be read at
+/// execution time, not enqueue time) + the optional live-records override.
+/// Not part of the UI snapshot — this is leg-internal plumbing.
+public struct ExportJobContext: Sendable {
+
+    /// The variant's landing directory (EXP-08 default = Session/Output/,
+    /// user-selectable — the App layer decides at enqueue).
+    public let destinationDirectory: URL
+
+    /// File names ALREADY occupied there, enumerated by the queue at
+    /// dequeue via its `occupiedNamesProvider`.
+    public let occupiedNames: Set<String>
+
+    /// `nil` = the renderer reads the DISK SIDECAR (the truth); non-nil =
+    /// explicit records (the live-edit export face).
+    public let instancesOverride: [ModuleInstance]?
+
+    /// Reserved provenance face (TIFF Software tag; nil = omit).
+    public let editorSignature: String?
+
+    public init(
+        destinationDirectory: URL,
+        occupiedNames: Set<String>,
+        instancesOverride: [ModuleInstance]? = nil,
+        editorSignature: String? = nil
+    ) {
+        self.destinationDirectory = destinationDirectory
+        self.occupiedNames = occupiedNames
+        self.instancesOverride = instancesOverride
+        self.editorSignature = editorSignature
+    }
+}
+
+/// The render→encode handoff payload. The synthetic face (11-01 D3) stays:
+/// queue-semantics tests pass tokens only. The 11-04 REAL fill is the
+/// `stage` payload — the quantized plane the render leg produced plus the
+/// encode-stage inputs (name/colorspace/dpi already resolved at the render
+/// boundary, so a cancelled job between the legs leaves NOTHING on disk).
 public struct ExportRenderArtifact: Sendable, Hashable {
 
-    /// Opaque identity token — synthetic in tests, real-plane identity in
-    /// the 11-04 wiring.
+    /// Opaque identity token — synthetic in tests, `job.seq` in the real
+    /// wiring.
     public let token: Int
 
     /// The plane dimensions the render leg produced (real wiring: the
@@ -178,19 +215,78 @@ public struct ExportRenderArtifact: Sendable, Hashable {
     public let width: Int
     public let height: Int
 
-    public init(token: Int, width: Int, height: Int) {
+    /// The real render-stage payload (nil = synthetic token mode, tests).
+    public let stage: ExportRenderStage?
+
+    public init(token: Int, width: Int, height: Int, stage: ExportRenderStage? = nil) {
         self.token = token
         self.width = width
         self.height = height
+        self.stage = stage
+    }
+
+    // Hashability stays on the CHEAP identity face — the stage payload can
+    // carry gigabytes of plane data (100MP float32); hashing it would be a
+    // multi-second stall on a pure identity comparison.
+    public static func == (lhs: ExportRenderArtifact, rhs: ExportRenderArtifact) -> Bool {
+        lhs.token == rhs.token && lhs.width == rhs.width && lhs.height == rhs.height
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(token)
+        hasher.combine(width)
+        hasher.combine(height)
     }
 }
 
-/// The injected render leg (test seam, the `ThumbnailRenderLeg` twin):
-/// snapshot → full-res rendered artifact. The App assembly implements it
-/// with the EXPORT pipe + exit conversion; queue tests inject an async
-/// no-op so CANCELLATION/GATE/ORDER tests run in milliseconds.
-public typealias ExportRenderLeg = @Sendable (ExportJobSnapshot) async throws
-    -> ExportRenderArtifact
+/// The real render→encode handoff (11-04 D3 fill). `CGColorSpace` is a
+/// thread-safe CF type without a compiler Sendable annotation — the
+/// `@unchecked` boundary cost is ≈0 (the RESEARCH §1 posture). Hashability
+/// is deliberately NOT synthesized: the plane data is huge and identity
+/// lives in the artifact's token face.
+public struct ExportRenderStage: @unchecked Sendable {
+
+    /// The quantized plane (D-11-CONTEXT-7 tiers) the render leg produced.
+    public let plane: ExportQuantizedPlane
+
+    /// The color space the plane samples are ALREADY in (the export
+    /// target — E3 identity-pass discipline).
+    public let targetColorSpace: CGColorSpace
+
+    /// The DPI the encoder writes into the file metadata.
+    public let dpi: Double
+
+    /// The collision-free destination the render stage NAMED (via
+    /// `ExportNamer`, against the context's occupancy snapshot).
+    public let destination: URL
+
+    /// The source image (the EXIF round-trip carrier).
+    public let sourceURL: URL
+
+    /// The provenance face (TIFF Software tag; nil = omit).
+    public let editorSignature: String?
+
+    public init(
+        plane: ExportQuantizedPlane, targetColorSpace: CGColorSpace, dpi: Double,
+        destination: URL, sourceURL: URL, editorSignature: String?
+    ) {
+        self.plane = plane
+        self.targetColorSpace = targetColorSpace
+        self.dpi = dpi
+        self.destination = destination
+        self.sourceURL = sourceURL
+        self.editorSignature = editorSignature
+    }
+}
+
+/// The injected render leg (the `ThumbnailRenderLeg` twin): snapshot +
+/// context → full-res rendered artifact. The DEFAULT implementation wraps
+/// the 11-03 `ExportRenderer.renderStage` (real EXPORT pipe + exit
+/// conversion + quantize); queue tests inject an async no-op so
+/// CANCELLATION/GATE/ORDER tests run in milliseconds.
+public typealias ExportRenderLeg = @Sendable (
+    _ snapshot: ExportJobSnapshot, _ context: ExportJobContext
+) async throws -> ExportRenderArtifact
 
 /// The injected encode leg (test seam): artifact + variant → the written
 /// file URL. The real leg quantizes, encodes (CGImageDestination or

@@ -127,6 +127,25 @@ public enum ExportRenderer {
         public let mainImageSize: SIMD2<Int>
     }
 
+    /// The render-STAGE product (11-04): everything through step 8
+    /// (decode → … → quantize) plus the encode inputs resolved at the
+    /// stage boundary (the ExportNamer destination against the request's
+    /// occupancy snapshot). Crossing the queue's render→encode handoff,
+    /// hence a Sendable value; `CGColorSpace` rides the thread-safe-CF
+    /// `@unchecked` posture (see `ExportRenderStage`).
+    public struct StageOutput: @unchecked Sendable {
+        public let plane: ExportQuantizedPlane
+        public let formatSpec: ExportFormatSpec
+        public let targetColorSpace: CGColorSpace
+        public let dpi: Double
+        public let destination: URL
+        public let sourceURL: URL
+        public let editorSignature: String?
+        public let outputWidth: Int
+        public let outputHeight: Int
+        public let mainImageSize: SIMD2<Int>
+    }
+
     // MARK: - The pipeline
 
     /// The D-34 conversion: a cancelled task becomes the TYPED
@@ -138,13 +157,10 @@ public enum ExportRenderer {
         }
     }
 
-    /// Render + encode ONE variant of ONE image. Throws typed `AppError`;
-    /// a cancelled task throws `.cancelled` and leaves NO file behind.
-    ///
-    /// - Parameters:
-    ///   - decodeLeg: test seam (synthetic images); nil = the real
-    ///     `RAWDecoder` (full-frame CIRAW once — never a preview-plane
-    ///     reuse, RESEARCH §4.3).
+    /// The full chain, one call: `renderStage` + `encodeStage` (the 11-03
+    /// shape — unchanged for its callers; the 11-04 ExportQueue splits the
+    /// two across its leg boundary so a cancelled in-flight job at the
+    /// boundary leaves NOTHING on disk).
     public static func render(
         request: Request,
         metal: MetalContext,
@@ -152,6 +168,28 @@ public enum ExportRenderer {
         decodeLeg: (@Sendable (URL) async throws -> DecodedImage)? = nil,
         yiyinInjector: ExportYiyinInjector? = nil
     ) async throws -> Outcome {
+        let stage = try await renderStage(
+            request: request, metal: metal, registry: registry,
+            decodeLeg: decodeLeg, yiyinInjector: yiyinInjector)
+        let destination = try encodeStage(stage)
+        return Outcome(
+            destination: destination,
+            outputWidth: stage.outputWidth,
+            outputHeight: stage.outputHeight,
+            mainImageSize: stage.mainImageSize)
+    }
+
+    /// The render stage — steps 1-8 (decode, sizing, document, export
+    /// chain, yiyin injection, routed render, exit leg, quantize) plus the
+    /// destination NAMING (the encoder has not touched disk yet — a throw
+    /// or a cancellation here leaves zero files).
+    public static func renderStage(
+        request: Request,
+        metal: MetalContext,
+        registry: ModuleRegistry,
+        decodeLeg: (@Sendable (URL) async throws -> DecodedImage)? = nil,
+        yiyinInjector: ExportYiyinInjector? = nil
+    ) async throws -> StageOutput {
         let variant = request.variant
         try variant.validate()
 
@@ -311,24 +349,41 @@ public enum ExportRenderer {
         let plane = ExportQuantizedPlane(
             data: packed, width: encoded.width, height: encoded.height, layout: layout)
 
-        // ── 9. name + encode + atomic promote (L009) ─────────────────────
+        // ── 9. name (the encode stage does encode + atomic promote) ─────
         let destination = ExportNamer.destinationURL(
             directory: request.destinationDirectory,
             stem: request.imageURL.deletingPathExtension().lastPathComponent,
             tag: request.outputTag,
             ext: variant.format.fileExtension,
             occupiedNames: request.occupiedNames)
-        let encodeRequest = ExportEncodeRequest(
+        return StageOutput(
             plane: plane,
-            spec: variant.format,
-            colorSpace: built.exportTargetOverride,
+            formatSpec: variant.format,
+            targetColorSpace: built.exportTargetOverride,
             dpi: Double(effectiveSizing.dpi),
+            destination: destination,
             sourceURL: request.imageURL,
             editorSignature: request.editorSignature,
-            destination: destination)
+            outputWidth: encoded.width,
+            outputHeight: encoded.height,
+            mainImageSize: SIMD2(planeWidth, planeHeight))
+    }
+
+    /// The encode stage — step 9's write half: quantized plane → encoder →
+    /// atomic promote (L009). A throw cleans any pre-rename residue; a
+    /// COMPLETED export never reaches the cleanup path.
+    public static func encodeStage(_ stage: StageOutput) throws -> URL {
+        let encodeRequest = ExportEncodeRequest(
+            plane: stage.plane,
+            spec: stage.formatSpec,
+            colorSpace: stage.targetColorSpace,
+            dpi: stage.dpi,
+            sourceURL: stage.sourceURL,
+            editorSignature: stage.editorSignature,
+            destination: stage.destination)
         do {
             let encoder = try ExportEncoderRegistry.encoder(
-                for: variant.format, plane: plane)
+                for: stage.formatSpec, plane: stage.plane)
             _ = try encoder.encode(encodeRequest)
         } catch {
             // The encoder writes atomically (in-memory encode → .atomic
@@ -336,17 +391,13 @@ public enum ExportRenderer {
             // file, never a partial destination. The destination removal
             // here is the belt-and-suspenders cleanup for any pre-rename
             // residue; a COMPLETED export never reaches this path.
-            try? FileManager.default.removeItem(at: destination)
+            try? FileManager.default.removeItem(at: stage.destination)
             throw error
         }
 
         Self.logger.info(
-            "export: \(destination.lastPathComponent, privacy: .public) \(encoded.width, privacy: .public)×\(encoded.height, privacy: .public)")
-        return Outcome(
-            destination: destination,
-            outputWidth: encoded.width,
-            outputHeight: encoded.height,
-            mainImageSize: SIMD2(planeWidth, planeHeight))
+            "export: \(stage.destination.lastPathComponent, privacy: .public) \(stage.outputWidth, privacy: .public)×\(stage.outputHeight, privacy: .public)")
+        return stage.destination
     }
 
     // MARK: - Disk sidecar reading (the SessionBatchApplier method)
