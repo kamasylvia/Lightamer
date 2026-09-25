@@ -99,3 +99,4 @@
 2026-09-24 [巡检] 开关 auto=true/paused=false；Phase 8 RESEARCH 已落盘（573fb49）——C 档第 1 停生效中：8 项 Open Questions 已提交用户裁决（77.0 槽位归属/YIYIN-03/04 深度/持久化形态/自动挂框/Logo 归属/模糊定标/物理应用/字体回退），plans 生成等用户回复。无可推进项（C 档门控），不改 GOAL-STATE。
 [2026-09-25 06:2x] Plan 08-1 执行完成（subagent T1-T6，6 commits；全套 888/6skip/0fail 基线 864→888）→ 待 8-2
 2026-09-24 [08-1] subagent 验收 PASS-with-notes：终端段尾窗 70.0 语义与 dt 同构、YiyinLayout 13 case 独立复跑逐字节一致 + 分辨率无关性倍增验证、COLOR-2 逆阵 4.4e-10、四腿渲染独立复跑、888/6/0。4 notes 文档级。→ 08-2。
+2026-09-24 [08-2] subagent 验收 PASS-with-notes：yiyin 逐 face 对照无漏译（quirks verbatim 钉住）、CoreText 公式交叉量测、golden 重冻结闭环实测、Logo 26/26 栅格化目检、授权调研核实（GPL-3.0 更正）、960/6/0。必修建议：yiyin_watermark_row alpha 因子（CG 编码域预乘语义探针实证——AA 边缘有效覆盖率被二次 EOTF 削瘦）随 8-3 首个 fix 修。→ 08-3。
