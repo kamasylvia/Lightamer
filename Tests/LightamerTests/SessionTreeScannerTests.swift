@@ -149,4 +149,180 @@ final class SessionTreeScannerTests: XCTestCase {
     func testDerivedCacheDirectoryNameIsHiddenDotDirectory() {
         XCTAssertEqual(SessionLayout.derivedCacheDirectoryName, ".lightamer")
     }
+
+    // MARK: - T3: exclusion predicates (one case per rule)
+
+    func testExcludedFilePredicatesPerRule() {
+        XCTAssertTrue(SessionTreeScanner.isExcludedFile(".DS_Store"), "dotfile rule")
+        XCTAssertTrue(
+            SessionTreeScanner.isExcludedFile(".DSC0002.ARW.lra.tmp-UUID"),
+            "SidecarStore promotion residue (dot + .tmp-)"
+        )
+        XCTAssertTrue(SessionTreeScanner.isExcludedFile("x.tmp-1234"), "*.tmp-* rule")
+        XCTAssertTrue(
+            SessionTreeScanner.isExcludedFile("cousin.cosessiondb"), "C1 artifact rule"
+        )
+        XCTAssertTrue(SessionTreeScanner.isExcludedFile("DSC.ARW.lra"), ".lra attachment rule")
+        XCTAssertFalse(SessionTreeScanner.isExcludedFile("DSC0001.ARW"))
+        XCTAssertFalse(SessionTreeScanner.isExcludedFile("vacation.jpg"))
+    }
+
+    func testExcludedDirectoryPredicatesRootGate() {
+        XCTAssertTrue(
+            SessionTreeScanner.isExcludedDirectory("Capture", isDirectlyUnderRoot: true)
+        )
+        XCTAssertTrue(
+            SessionTreeScanner.isExcludedDirectory("Output", isDirectlyUnderRoot: true)
+        )
+        XCTAssertTrue(
+            SessionTreeScanner.isExcludedDirectory("Crop", isDirectlyUnderRoot: true)
+        )
+        XCTAssertFalse(
+            SessionTreeScanner.isExcludedDirectory("Capture", isDirectlyUnderRoot: false),
+            "nested same-name user folders stay browsable (root gate only)"
+        )
+        XCTAssertTrue(
+            SessionTreeScanner.isExcludedDirectory(".lightamer", isDirectlyUnderRoot: false),
+            "own cache excluded ANYWHERE"
+        )
+        XCTAssertTrue(
+            SessionTreeScanner.isExcludedDirectory(".hidden", isDirectlyUnderRoot: true)
+        )
+        XCTAssertFalse(
+            SessionTreeScanner.isExcludedDirectory("2024-05", isDirectlyUnderRoot: false)
+        )
+    }
+
+    func testBrowsableExtensionVectors() {
+        for name in ["A.ARW", "b.Cr3", "c.JPG", "d.webp", "e.dng", "f.3FR", "g.iiq"] {
+            XCTAssertTrue(SessionTreeScanner.isBrowsableFile(name), name)
+        }
+        for name in ["h.mov", "noext", "i.txt", "j.lra"] {
+            XCTAssertFalse(SessionTreeScanner.isBrowsableFile(name), name)
+        }
+    }
+
+    // MARK: - T3: golden classification fixture
+
+    /// Build the golden fixture tree; returns nothing — assertions name the
+    /// exact expected paths.
+    private func buildGoldenFixture() throws -> URL {
+        let root = makeSessionRoot(named: "golden")
+        func write(_ rel: String) throws {
+            let url = root.appendingPathComponent(rel)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try Data("x".utf8).write(to: url)
+        }
+        // Browsable originals.
+        try write("DSC0001.ARW") // pristine
+        try write("DSC0002.ARW") // edited (sidecar below)
+        try write("DSC0002.ARW.lra")
+        try write("nested/IMG_0001.CR3") // nested subfolder
+        try write("scan.jpg") // raster fallback
+        try write("deeper/Capture/RAW1.ARW") // nested reserved-NAME folder stays browsable
+        // Orphan sidecar.
+        try write("DSC0003.ARW.lra")
+        // Excluded noise.
+        try write("Capture/DSC_A.ARW") // root-level reserved dir
+        try write("Output/export.jpg")
+        try write(".lightamer/session.lindex")
+        try write(".DS_Store")
+        try write(".DSC0002.ARW.lra.tmp-residue")
+        try write("cousin.cosessiondb")
+        try write("photo.tmp-backup.jpg")
+        return root
+    }
+
+    func testGoldenClassificationExactPaths() async throws {
+        let root = try buildGoldenFixture()
+        let (entries, orphans) = await SessionTreeScanner.collect(root: root)
+
+        let expectedEntries: Set<String> = [
+            "DSC0001.ARW", "DSC0002.ARW", "nested/IMG_0001.CR3", "scan.jpg",
+            "deeper/Capture/RAW1.ARW",
+        ]
+        XCTAssertEqual(
+            Set(entries.map(\.relPath)), expectedEntries,
+            "browse set must match the golden set EXACTLY"
+        )
+
+        // pristine vs edited by sidecar presence (the T5 has_edits leg).
+        var pristine: Set<String> = []
+        var edited: Set<String> = []
+        for entry in entries {
+            let sidecar = root.appendingPathComponent(entry.relPath + ".lra")
+            if FileManager.default.fileExists(atPath: sidecar.path) {
+                edited.insert(entry.relPath)
+            } else {
+                pristine.insert(entry.relPath)
+            }
+        }
+        XCTAssertEqual(pristine, ["DSC0001.ARW", "nested/IMG_0001.CR3", "scan.jpg",
+                                  "deeper/Capture/RAW1.ARW"])
+        XCTAssertEqual(pristine.count, 4)
+        XCTAssertEqual(edited, ["DSC0002.ARW"])
+        XCTAssertEqual(edited.count, 1)
+
+        // Orphan sidecars: exact path, count 1.
+        XCTAssertEqual(orphans, ["DSC0003.ARW.lra"])
+
+        // Stat triples must carry REAL values (non-vacuous).
+        for entry in entries {
+            XCTAssertGreaterThan(entry.size, 0, entry.relPath)
+            XCTAssertGreaterThan(entry.mtime, 0, entry.relPath)
+        }
+
+        // Excluded noise must appear NOWHERE.
+        let excludedNoise = [
+            "Capture/DSC_A.ARW", "Output/export.jpg", ".lightamer/session.lindex",
+            ".DS_Store", ".DSC0002.ARW.lra.tmp-residue", "cousin.cosessiondb",
+            "photo.tmp-backup.jpg",
+        ]
+        for noise in excludedNoise {
+            XCTAssertFalse(
+                Set(entries.map(\.relPath)).contains(noise),
+                "excluded noise leaked into the browse set: \(noise)"
+            )
+            XCTAssertFalse(orphans.contains(noise))
+        }
+    }
+
+    func testScanIsProgressiveMultiPage() async throws {
+        let root = makeSessionRoot(named: "progressive")
+        for i in 0..<600 { // > 2 pages of 256
+            let url = root.appendingPathComponent("img\(String(format: "%04d", i)).jpg")
+            try Data("x".utf8).write(to: url)
+        }
+
+        var iterator = SessionTreeScanner.scan(root: root).makeAsyncIterator()
+        let firstPage = await iterator.next()
+        XCTAssertNotNil(firstPage)
+        XCTAssertEqual(
+            firstPage?.entries.count, SessionTreeScanner.pageSize,
+            "the FIRST page is full-size — rows flow out BEFORE the walk ends "
+                + "(progressive-ingest structural proof)"
+        )
+        var pages = 1
+        var total = firstPage?.entries.count ?? 0
+        while let page = await iterator.next() {
+            pages += 1
+            total += page.entries.count
+        }
+        XCTAssertEqual(total, 600, "the stream is complete")
+        XCTAssertGreaterThanOrEqual(pages, 3, "multiple pages — not one final batch")
+    }
+
+    func testScanOrphansNeverHardFail() async throws {
+        // A sidecar WITHOUT its original plus an unreadable directory must
+        // not throw the walk away (SC#2 gracefully).
+        let root = makeSessionRoot(named: "orphans")
+        try Data("x".utf8).write(to: root.appendingPathComponent("GONE.ARW.lra"))
+        try Data("x".utf8).write(to: root.appendingPathComponent("KEEP.ARW"))
+
+        let (entries, orphans) = await SessionTreeScanner.collect(root: root)
+        XCTAssertEqual(entries.map(\.relPath), ["KEEP.ARW"])
+        XCTAssertEqual(orphans, ["GONE.ARW.lra"])
+    }
 }
