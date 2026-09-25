@@ -29,13 +29,14 @@ v1 = 完整工作流闭环 + 蒙版系统 + HDR/堆栈 + 印框/水印 + 全量 
 
 ### Capture One Session Management (SESS)
 
-- [ ] **SESS-01**: "文件夹即会话"模型——选择一个文件夹作为 Session 根，所有操作围绕该文件夹，不做中央库
-- [ ] **SESS-02**: Session 内自动维护 Capture（原片）/ Crop（调整副本）/ Output（导出）三级子目录结构（沿用 Capture One 习惯）
-- [ ] **SESS-03**: sidecar 调整文件随原片存放于 Capture 子目录，格式为 Lightamer 自有格式（不与 Darktable 二进制兼容，最大化参数调节能力）
-- [ ] **SESS-04**: 多 Session 切换 + 最近会话列表（最近打开、快速切换）
-- [ ] **SESS-05**: FSEvents 文件夹监视——外部新增/移动/删除文件时自动同步到 Session 视图（含 edge case：用户在 Finder 中移走文件后的孤儿 sidecar 处理）
-- [ ] **SESS-06**: Session 内浏览模式：网格视图（thumbnail grid）、单图大图、culling 对比视图（多图并排筛选）
-- [ ] **SESS-07**: 会话级索引 DB（可重建派生缓存，C1 `.cosessiondb` 同构）——sidecar 索引（params hash/评分/图层栈摘要）+ 缩略图索引；**真身恒为 sidecar**，DB 删除无损可重建；批量 apply = 索引单事务 + sidecar 批量写队列（懒渲染基座，PERF-07 万张 ≤5s）
+- [x] **SESS-01**: "文件夹即会话"模型——选择一个文件夹作为 Session 根，所有操作围绕该文件夹，不做中央库
+- [x] **SESS-02**: Session 内自动维护 Capture（原片）/ Crop（调整副本）/ Output（导出）三级子目录结构（沿用 Capture One 习惯）
+- [x] **SESS-03**: sidecar 调整文件随原片存放于 Capture 子目录，格式为 Lightamer 自有格式（不与 Darktable 二进制兼容，最大化参数调节能力）
+- [x] **SESS-04**: 多 Session 切换 + 最近会话列表（最近打开、快速切换）
+- [x] **SESS-05**: FSEvents 文件夹监视——外部新增/移动/删除文件时自动同步到 Session 视图（含 edge case：用户在 Finder 中移走文件后的孤儿 sidecar 处理）
+- [x] **SESS-06**: Session 内浏览模式：网格视图（thumbnail grid）、单图大图、culling 对比视图（多图并排筛选）
+- [x] **SESS-07**: 会话级索引 DB（可重建派生缓存，C1 `.cosessiondb` 同构）——sidecar 索引（params hash/评分/图层栈摘要）+ 缩略图索引；**真身恒为 sidecar**，DB 删除无损可重建；批量 apply = 索引单事务 + sidecar 批量写队列（懒渲染基座，PERF-07 万张 ≤5s）
+  **Delivered**（Phase 9，SESS-01..07）：五步编排 + 三级目录幂等（SESS-02 = REQUIREMENTS 字面三级，Trash/Selects 不建、Crop/ v1 空目录维护——D-09-CONTEXT-3）+ `.lra` 同目录自有格式（L003/L013）+ recent 去重/上限 + FSEvents hint-only 四缺陷对策与四时点 reconcile（SESS-05 孤儿处置 = 移除带确认/忽略持久化两动作，永不硬失败）+ 浏览三态（SESS-06 culling v1 = 2 图 cap，D-09-CONTEXT-6）+ 索引 DB schema v1 冻结 25 列（Phase 12 预留列在表）+ 删库重建逐列 parity。证据：09-VALIDATION SC#1-6 三列对照 + Session 族 100+ 测试 + FINDINGS 09-3/09-4 真机走查。
 
 ### History & Non-Destructive Editing (HIST)
 
@@ -43,8 +44,9 @@ v1 = 完整工作流闭环 + 蒙版系统 + HDR/堆栈 + 印框/水印 + 全量 
 - [ ] **HIST-02**: 完整 history stack——支持任意时刻的撤销/重做、跳转到任意历史点、压缩/展开历史步骤
 - [ ] **HIST-03**: history stack 持久化到 sidecar（含模块顺序、multi_priority、multi_name、blendop 参数）
 - [ ] **HIST-04**: history hash 用于漂移检测（参数变化时正确失效缓存，避免蒙版失效类损坏）
-- [ ] **HIST-05**: 调整同步/复制粘贴——复制一张图的全部或部分调整参数到其他图（多选批量应用）
-- [ ] **HIST-06**: before/after 对比预览（分屏对比、快照点对比、按住键临时查看原图）
+- [x] **HIST-05**: 调整同步/复制粘贴——复制一张图的全部或部分调整参数到其他图（多选批量应用）
+- [x] **HIST-06**: before/after 对比预览（分屏对比、快照点对比、按住键临时查看原图）
+  **Delivered**（Phase 9）：三式粘贴（overwrite/merge/partial）+ skip 集（decode 域 `< ashift 15.0`，D-09-04-D1——plan 公式修正，dt 正本 flag 制）+ 单提交 pasteSet additive 机制（⌘Z 恰 1 + 旧档兼容）+ 三段式批量管线（索引单事务 + 串行写队列 + 崩溃自愈；pristine 目标铸造自洽 doc）；before/after 三形态（split 双平面 / peek 逐字节==重放 / hold 零渲染）。注记：**跨图 undo 组（批级撤销）defer v2**（per-image commit 可退）。证据：PasteSemanticsTests 16 + SessionBatchApplierTests 12 + BeforeAfterTests 5 + FINDINGS 09-4 真会话全链。
 
 ### Image Operation Modules (iop) — Tone (IOP-TONE)
 
@@ -287,18 +289,18 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | RAW-04 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
 | RAW-05 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
 | RAW-06 | Phase 1 — Foundation, App Skeleton & Spikes | Pending |
-| SESS-01 | Phase 9 — Capture One Session Management | Pending |
-| SESS-02 | Phase 9 — Capture One Session Management | Pending |
-| SESS-03 | Phase 9 — Capture One Session Management | Pending |
-| SESS-04 | Phase 9 — Capture One Session Management | Pending |
-| SESS-05 | Phase 9 — Capture One Session Management | Pending |
-| SESS-06 | Phase 9 — Capture One Session Management | Pending |
+| SESS-01 | Phase 9 — Capture One Session Management | Delivered |
+| SESS-02 | Phase 9 — Capture One Session Management | Delivered |
+| SESS-03 | Phase 9 — Capture One Session Management | Delivered |
+| SESS-04 | Phase 9 — Capture One Session Management | Delivered |
+| SESS-05 | Phase 9 — Capture One Session Management | Delivered |
+| SESS-06 | Phase 9 — Capture One Session Management | Delivered |
 | HIST-01 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
 | HIST-02 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
 | HIST-03 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
 | HIST-04 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
-| HIST-05 | Phase 9 — Capture One Session Management | Pending |
-| HIST-06 | Phase 9 — Capture One Session Management | Pending |
+| HIST-05 | Phase 9 — Capture One Session Management | Delivered |
+| HIST-06 | Phase 9 — Capture One Session Management | Delivered |
 | IOP-TONE-01 | Phase 3 — Tone & Filmic iops | Delivered |
 | IOP-TONE-02 | Phase 3 — Tone & Filmic iops | Delivered |
 | IOP-TONE-03 | Phase 3 — Tone & Filmic iops | Delivered |
@@ -432,6 +434,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 ---
 *Requirements defined: 2026-08-03*
 *Last updated: 2026-09-24 — Phase 7 sign-off: AI-01/05/06/07 → Delivered（AI-06 raster 口径 D-07-CONTEXT-3 / AI-01 scribble 后置 D-07-CONTEXT-4 / 层 B 下载例外 D-07-CONTEXT-1）*
+*Last updated: 2026-09-26 — Phase 9 sign-off: SESS-01..07 + HIST-05/06 → Delivered（SESS-06 culling cap 2 = D-09-CONTEXT-6 / SESS-05 孤儿两动作 / HIST-05 跨图 undo defer + skip D1 / PERF-07 门 0.490s Release-SSD + PERF-06 留 Phase 15）；证据 = 09-VALIDATION + 09-DISCUSSION-LOG 终节*
 
 ### MCP Server (MCP)
 
@@ -451,8 +454,9 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 - [ ] **PERF-03**: Instruments 系统级 profile 报告落账（GPU 趟数/热点/内存），杠杆兑现记录在案
 - [ ] **PERF-04**: 交互零卡顿——滑块拖动/缩放/平移 hitch（>50ms 帧间隙）= 0，MainActor 长任务清零
 - [ ] **PERF-05**: RAW 解码——100MP 首渲可交互时间 ≤500ms（后台解码 + 渐进显示），CIRAW 9/8 双档计量
-- [ ] **PERF-06**: 懒加载——万张级 Session 滚动 60fps，缩略图按需解码 + LRU 内存预算
-- [ ] **PERF-07**: 批量修图（懒渲染）——apply = 纯元数据写入零像素操作，万张 ≤5s（dt sqlite 事务对标；sidecar 批量写策略）；缩略图 stale 后台再生；导出排除
+- [ ] **PERF-06**: 懒加载——万张级 Session 滚动 60fps，缩略图按需解码 + LRU 内存预算（Phase 9 工作基线已落账 `.work/09/perf.md`：双档缩略图管线 + LRU + 10k reload 26ms；**60fps 门本体 Phase 15 清算**）
+- [x] **PERF-07**: 批量修图（懒渲染）——apply = 纯元数据写入零像素操作，万张 ≤5s（dt sqlite 事务对标；sidecar 批量写策略）；缩略图 stale 后台再生；导出排除
+  **Delivered**（Phase 9）：段1+段2 万张 = **0.490s（Release/内置 SSD，09-05 签核轮 clean 构建终值）**，门 ≤5s 余量 ~10×；三轮对账 0.419→0.435→0.490 稳定；段3 sidecar drain 与 UNITEK 对照只记录不设门（L009 卷型标注）；零渲染零解码常驻断言（writer=nil 磁盘字节不变）。证据：`Perf07MassApplyTests` + `.work/09/perf.md` PERF-07 终账节。
 
 ## V2 Requirements
 
