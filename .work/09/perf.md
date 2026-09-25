@@ -1,5 +1,11 @@
 # Phase 9 计量基线（.work/09/perf.md）
 
+> **终账目录（09-05 T2 合并索引）**：①开卷计量（09-01 T7）②索引 DB（09-01 T6）
+> ③PERF-06/07 状态（挂账口径）④L009 执行环境注记 ⑤浏览模式与缩略图管线（09-03 T8
+> ——PERF-06 工作基线，60fps 门本体 Phase 15 清算）⑥滚动 hitch（结构面就位声明）
+> ⑦双档观感抽检结论（D10）⑧PERF-07 批量 apply 计量门（09-04 T5）⑨**PERF-07 门终值
+> 复核（09-05 T1，签核轮 clean 构建终值 0.490s，三轮对账 0.419/0.435/0.490）**。
+
 > 记录约定（RESEARCH §7 / CONTEXT 继承定案）：**一切门数字在内置 SSD 上测得**（fixture
 > 位于 `FileManager.temporaryDirectory`），UNITEK USB 卷只做记录性观测（L009——冷读
 > ~250ms/文件前科，fixture 禁放 USB 卷跑门）。执行环境：macOS 27.0 / M4（LaniakeadeMac-mini）、
