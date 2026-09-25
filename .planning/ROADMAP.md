@@ -218,11 +218,11 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 3. Trackpad/mouse gestures (two-finger zoom, pinch, rotate, two-finger pan), drag-drop import (Finder → session or editor), and system-language localization (zh/en via String Catalog, structure prepared for more) all functional.
 4. GitHub repository public (MIT or similar permissive license); Developer ID signed + notarized DMG/zip distribution (non-sandbox); CI (GitHub Actions) builds, tests, signs, notarizes, and publishes on tag.
 **Requirements:** SYS-01, SYS-02, SYS-03, SYS-04, SYS-05, DIST-01, DIST-02, DIST-03, DIST-04, COLOR-02, COLOR-03
-**Notes:** Spotlight importers and Quick Look extensions are separate processes with their own entitlements — keep them decoupled from the main (non-sandboxed) app so the non-sandbox decision holds (DIST-3). Deep-sign every embedded binary before notarizing; treat notarytool warnings as errors (Gatekeeper enforces what notarization only warns — DIST-1). Resolve all resource paths from `Bundle.main` (Gatekeeper translocation — DIST-2). COLOR-02 (soft proof) and COLOR-03 (multi-display ICC) complete the color-management pipeline started in Phase 2. Risks: CIRAW-2 (per-OS CI matrix), DIST-1..5, SOLO-4/5, UI-4, COLOR-3/4.
+**Notes:** Spotlight importers and Quick Look extensions are separate processes with their own entitlements — keep them decoupled from the main (non-sandboxed) app so the non-sandbox decision holds (DIST-3). Deep-sign every embedded binary before notarizing; treat notarytool warnings as errors (Gatekeeper enforces what notarization only warns — DIST-1). Resolve all resource paths from `Bundle.main` (Gatekeeper translocation — DIST-2). COLOR-02 (soft proof) and COLOR-03 (multi-display ICC) complete the color-management pipeline started in Phase 2. Risks: CIRAW-2 (per-OS CI matrix), DIST-1..5, SOLO-4/5, UI-4, COLOR-3/4. **（2026-09-26 登记）蒙版命令面 UI 打磨批入本 phase**：蒙版 Duplicate / Duplicate-and-Invert / Fill / Clear / Reset Edits 菜单命令 + overlay 三态切换（On-Black / Rubylith / 半透明）+ 蒙版列表 enable 勾选——内核语义 Phase 6 全在（combine inverted/装配/overlay 显示），缺 UI 装配；对标 Nitro Photo，UI 级非算法缺口。
 
 ## Coverage
-- Total v1 requirements: 123
-- Mapped: 123 (100%)
+- Total v1 requirements: 134
+- Mapped: 134 (100%)
 - Unmapped: 0 ✓
 
 ### Per-phase counts
@@ -236,12 +236,13 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 | 6 — Layers & Masking System | 14 |
 | 7 — AI Modules (Native Vision Masking & Retouching) | 4 |
 | 8 — HDR/Stacking & Effects iops | 10 |
-| 9 — Capture One Session Management | 8 |
+| 9 — Capture One Session Management | 9 |
 | 10 — yiyin Border/Watermark Panel | 8 |
 | 11 — Export Pipeline & Batch Queue | 8 |
 | 12 — Metadata, Rating, Presets & LUT | 11 |
 | 13 — System Integration & Distribution | 11 |
-| **Total** | **123** |
+| 14 — MCP Server (远程 AI 修图 + 自动筛选) | 10 |
+| **Total** | **134** |
 
 ### Spike summary (research-flagged)
 | Spike | Phase (preliminary) | Phase (full validation) |
@@ -261,8 +262,9 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 4. 安全面：默认仅绑定回环地址；非回环暴露必须带鉴权 token；文档明示风险。
 5. 筛选端到端（2026-09-26）：外部 MCP client 列出会话照片（索引查询含 EXIF/rating/flag）→ 批量取缩略图/联系表/原尺寸 ROI 细节裁剪 → 写回星级/旗标/色标（sidecar 为真 + GUI 缩略图与索引同步可见），全程不碰像素与文件删除。
 6. culling 方法论支撑（2026-09-26）：burst 分组查询（连拍聚类）+ 脸部区域定位（复用 Phase 7 Vision faceLandmarks）可供 AI 组合出「全图阵列 → 相似组联系表 → 脸部细节」筛片流。
-**Requirements:** MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06, MCP-07, MCP-08
-**Notes:** 依赖 Phase 2 无头 pipe（已具备）、Phase 9 Session（索引 DB + 双档缩略图 + 批量管线三段——筛选读写直接复用）、Phase 11 渲染导出、Phase 12 rating/flag 字段真身、Phase 5/8 iop 集、Phase 7 Vision 基建。Swift MCP SDK 选型入研究。筛选图像传输走联系表拼图与缓存缩略图（token 效率——100 张全尺寸原图不可行，文章方法论同款）。
+7. GUI launcher 端到端（2026-09-26 登记，MCP-10）：偏好配置 agent CLI 命令模板（如 pi/omp）→ 点「一键 AI 筛图/修图」→ app 拉起 agent 进程挂自身 MCP server → 写回经 server 落 sidecar，GUI 缩略图 stale 再生同步可见；输出日志面板显示 agent 文字流。外部任意 MCP client 直连与 launcher 双入口并存。
+**Requirements:** MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06, MCP-07, MCP-08, MCP-09, MCP-10
+**Notes:** 依赖 Phase 2 无头 pipe（已具备）、Phase 9 Session（索引 DB + 双档缩略图 + 批量管线三段——筛选读写直接复用）、Phase 11 渲染导出、Phase 12 rating/flag 字段真身、Phase 5/8 iop 集、Phase 7 Vision 基建。Swift MCP SDK 选型入研究。筛选图像传输走联系表拼图与缓存缩略图（token 效率——100 张全尺寸原图不可行，文章方法论同款）。**MCP-09 组**（2026-09-26 登记）：preset 三件套（上游 PRES-01..04）+ export_image（Phase 11 EXP 面复用）+ set_keywords（上游 META-04）+ 三研究项（A = GUI/无头同会话并发 sidecar 双写对策；B = 多版本参数组/历史快照 MCP 语义；C = `match_color` 工具位——agent 编排皮，签名预留依赖 V2 TRACK colormatch iop）。**MCP-10 launcher = V1**（2026-09-26 用户裁决）：agent provider 配置归 agent 自身体系，app 零 AI 代码；执行用户配置命令的 shell 注入面需文档明示；B 路（GUI 内嵌 AI 面）不做、v2 再议。
 
 ### Phase 15: Performance 专项（60fps 决战 + 全链路性能）【v1 扩展，2026-09-22 用户指令；同日扩充范围】
 **Goal:** 系统性性能专项，覆盖六大战场：①预览管线 ②交互流畅性 ③RAW 解码 ④懒加载 ⑤批量修图吞吐 ⑥内存足迹——把全链打进 60fps@100MP 预算并清算 PERF-5 全部挂账。
@@ -282,4 +284,5 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 
 ## V2 待办（v1 之后；2026-09-22 用户确认）
 
-- **追色（Color Transfer，TRACK-01..05）**：参考图（单/多张）色彩分布 → 色彩变换求解（Reinhard/CDF/最优传输族择一）→ `colormatch` 模块（内嵌 3D LUT + tetrahedral kernel）非破坏落位。需求定义见 `.planning/REQUIREMENTS.md` TRACK 节（V2）；CIRAW 9 无此能力（2026-09-22 查证），需自研经典色彩迁移数学。与 Phase 12 .cube LUT 格式协同。
+- **追色（Color Transfer，TRACK-01..05）**：参考图（单/多张）色彩分布 → 色彩变换求解（Reinhard/CDF/最优传输族择一）→ `colormatch` 模块（内嵌 3D LUT + tetrahedral kernel）非破坏落位。需求定义见 `.planning/REQUIREMENTS.md` TRACK 节（V2）；CIRAW 9 无此能力（2026-09-22 查证），需自研经典色彩迁移数学。与 Phase 12 .cube LUT 格式协同。**（2026-09-26 再确认）计算核 native 不可外包**——agent vision 迭代不满足 TRACK-05 确定性门与 TRACK-02 多参考统计；MCP+agent 作编排皮（MCP-09 研究项 C `match_color` 工具位）。
+- **蒙版扩展（2026-09-26 对标 Nitro Photo 登记）**：IOP-MASK-06 Follow Edges 边缘感知笔刷（Metal edge-aware/contour-following，Nitro 独门，算法级，可插队 v1 后期 UI 打磨轮）；IOP-MASK-07 Depth 深度蒙版（AVDepthData/ProRAW embedded matte，桌面 RAW 深度源稀缺，数据面依赖）。需求定义见 `.planning/REQUIREMENTS.md`「Masking Extensions (v2)」节。AI Background 类型入口 = subject+invert UI sugar（任意 UI 轮捎带，不立需求）；蒙版命令面 UI（Duplicate/Fill/Clear/overlay 三态/enable 勾选）挂 Phase 13。

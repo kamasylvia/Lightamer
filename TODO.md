@@ -251,19 +251,27 @@
 | 6 | Layers & Masking System | 14 | C1 调整图层 + drawn/parametric/raster mask + blend modes + liquify/retouch（最大架构阶段，Layer 骨架已就位） |
 | 7 | AI Modules（Native Vision） | 4 | 主体检测 + 频率分离磨皮（仅 Apple 原生 API） |
 | 8 | HDR/Stacking & Effects iops | 10 | HDR merge/focus stack + EDR + vignette/grain/bloom/dehaze |
-| 9 | Capture One Session Management | 8 | 文件夹即会话 + Capture/Crop/Output + FSEvents + 多会话 + 复制粘贴/前后对比 |
+| 9 | Capture One Session Management | 9 | 文件夹即会话 + Capture/Crop/Output + FSEvents + 多会话 + 复制粘贴/前后对比 + 索引 DB（SESS-07，2026-09-26 补登映射） |
 | 10 | yiyin Border/Watermark Panel | 8 | 印框/EXIF/日期/Logo/字体/品牌归一化，移植为原生 |
 | 11 | Export Pipeline & Batch Queue | 8 | 6 格式 + 配方 + 后台队列 + yiyin 应用 |
 | 12 | Metadata, Rating, Presets & LUT | 11 | 评级/标签/关键字/智能相册 + 原生预设 + .cube LUT |
 | 13 | System Integration & Distribution | 11 | Quick Look/Spotlight/软打样/多 ICC/手势/i18n + GitHub 开源/签名公证/CI |
-| 14 | MCP Server（远程 AI 修图 + 自动筛选） | 8 | load/apply/render/schema + **筛选读写面（缩略图/联系表/ROI 细裁 + rating/flag 写回 sidecar）**（2026-09-26 扩充） |
+| 14 | MCP Server（远程 AI 修图 + 自动筛选） | 10 | load/apply/render/schema + 筛选读写面（缩略图/联系表/ROI 细裁 + rating/flag 写回 sidecar）+ **MCP-09 扩充工具组（preset 三件套/export_image/set_keywords + 研究项 A/B/C）+ MCP-10 GUI launcher（agent CLI 模板一键筛图/修图，V1）**（2026-09-26 登记） |
 | 15 | Performance 专项（60fps 决战） | 6 | 六战场：预览/交互/解码/懒加载/批量吞吐/内存 |
 
 详细需求/成功标准见 `.planning/ROADMAP.md`，需求清单见 `.planning/REQUIREMENTS.md`。
 
+## 已裁决登记（2026-09-26，正文落 ROADMAP/REQUIREMENTS，待规划排期）
+
+- **MCP-09 组**（Phase 14）：preset 三件套 / export_image / set_keywords + 研究项 A（GUI/无头并发双写对策）/ B（多版本参数组 MCP 语义）/ C（match_color 工具位，依赖 V2 TRACK colormatch iop）
+- **MCP-10**（Phase 14，**V1**）：GUI launcher——agent CLI 命令模板 + prompt 模板 +「一键 AI 筛图/修图」+ 日志面板；agent provider 归 agent 自身配置，app 零 AI 代码
+- **蒙版对标 Nitro Photo**：IOP-MASK-06 Follow Edges（v2 可插队）/ IOP-MASK-07 Depth（v2）→ REQUIREMENTS「Masking Extensions (v2)」节；AI Background 入口（UI sugar，任意 UI 轮）；蒙版命令面 UI → Phase 13
+- **TRACK V2 定位再确认**：计算核 native 不可外包（agent 只作编排皮，详见 REQUIREMENTS TRACK 节定位注记）
+- **映射表补漏**：SESS-07 行 + MCP-01..10 行入 Traceability（覆盖口径 123 → 134，ROADMAP/REQUIREMENTS 两处同步）
+
 ## v2（已记录，不在当前 roadmap）
 
-AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分割（需自定义 Core ML 模型）/ 联机拍摄 / 地图视图 / 打印 / 跨 Session 搜索
+AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分割（需自定义 Core ML 模型）/ **蒙版扩展（IOP-MASK-06/07，2026-09-26 登记）** / 联机拍摄 / 地图视图 / 打印 / 跨 Session 搜索
 
 ---
 

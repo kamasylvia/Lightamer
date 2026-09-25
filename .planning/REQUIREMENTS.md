@@ -147,6 +147,7 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 
 - [x] **AI-01**: 主体检测蒙版（subject isolation）——基于 `VNGenerateForegroundInstanceMaskRequest`（macOS 14+，WWDC26 增强 iterative tap/scribble/lasso），自动识别人/动物/食物/物体（class-agnostic），适用于任意 demosaic 后的 RAW 图像
   **Delivered**（Phase 7）：层 A 一键离线 + 层 B tap/box 精修（D-07-CONTEXT-1 双层共存，assetStatus 三态门控）；scribble/lasso 手势 = v1 后（D-07-CONTEXT-4，种子枚举升级缝预留）；多主体 instance 勾选浮层。证据：07-1 确定性/语义门 + 07-3 MaskToolbar AI 组/SegmentEditingOverlayHost + FINDINGS 07-3 真机走查。
+  - 注记（2026-09-26 登记）：**AI Background 类型入口** = subject 蒙版 + invert 组合的 UI sugar（combine inverted 已交付），对标 Nitro Photo AI Background；任意 UI 轮捎带，不立新需求。
 - [x] **AI-05**: AI 磨皮——基于 `VNFaceLandmarks2D` + `VNGeneratePersonSegmentationRequest` 定位皮肤区域，Core Image 高斯模糊/高通滤波实现频率分离（frequency separation），保细节平滑、肤色自然不塑料感；无需自定义模型
   **Delivered**（Phase 7）：skinSmooth iop @ V50Order 66.5（两频高斯 + raised-cosine 阈值衰减防塑料感，D-07-CONTEXT-6；多频/bilateral 变体 = v2 位预留）+ SkinRegionLocator（hull−保护区⊗personSeg，yaw 门）+ 面板第 25 席（「定位皮肤」接线）。证据：float64 parity 6×6 <1e-5 + 恒等三元组逐字节 + PanelWiringTests 60/60；pore-level 目检 = Manual-Only 挂账（待含人脸样张）。
 - [x] **AI-06**: AI 蒙版作为图层/参数蒙版输入——AI 生成的 mask 可烘焙为 raster mask 或直接作为 parametric mask 应用到任意调整图层；注记：**像素 mask 走 raster 烘焙（v1 唯一忠实通道）**，parametric 语义曲线预设（肤色 hz 曲线）留 v2（D-07-CONTEXT-3）
@@ -249,6 +250,13 @@ Deferred to future release. Tracked but not in current roadmap.
 - **AIV2-04**: 人像部位分割蒙版——皮肤/头发/嘴唇/眼睛/眉毛/牙齿等独立 mask，用于任意 RAW（非仅 iPhone 捕获时数据）；需自定义 face-parsing Core ML 模型（如 BiSeNet 风格）
 - **AIV2-05**: 通用语义分割蒙版——植被/建筑/水体/雪地/地面等多类语义分割（Lightroom Adaptive Presets 风格）；需自定义 DeepLab/Mask2Former Core ML 模型
 
+### Masking Extensions (v2) — 对标 Nitro Photo 补齐（2026-09-26 登记）
+
+对标 Gentlemen Coders Nitro Photo（macOS）蒙版面的缺口项；蒙版主体已在 v1 Phase 6/7 交付（IOP-MASK-01..05 + AI-01/05/06/07）。
+
+- **IOP-MASK-06**: Follow Edges 边缘感知笔刷——brush 沿图像轮廓单侧跟随涂抹（edge-aware/contour-following），Metal 边缘导向实现；Nitro 独门能力，算法级新需求（可插队 v1 后期 UI 打磨轮）
+- **IOP-MASK-07**: Depth 深度蒙版——读取图像内嵌深度数据（AVDepthData / ProRAW embedded matte，iPhone 人像类源）作为蒙版源；桌面 RAW 深度源稀缺，依赖数据面非算法面
+
 ### Editor Workflow Extensions
 
 - **WORK-01**: 标签/收藏夹集合（虚拟文件夹跨 Session）
@@ -295,6 +303,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | SESS-04 | Phase 9 — Capture One Session Management | Delivered |
 | SESS-05 | Phase 9 — Capture One Session Management | Delivered |
 | SESS-06 | Phase 9 — Capture One Session Management | Delivered |
+| SESS-07 | Phase 9 — Capture One Session Management | Delivered |
 | HIST-01 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
 | HIST-02 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
 | HIST-03 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
@@ -399,10 +408,20 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | DIST-02 | Phase 13 — System Integration & Distribution | Pending |
 | DIST-03 | Phase 13 — System Integration & Distribution | Pending |
 | DIST-04 | Phase 13 — System Integration & Distribution | Pending |
+| MCP-01 | Phase 14 — MCP Server | Pending |
+| MCP-02 | Phase 14 — MCP Server | Pending |
+| MCP-03 | Phase 14 — MCP Server | Pending |
+| MCP-04 | Phase 14 — MCP Server | Pending |
+| MCP-05 | Phase 14 — MCP Server | Pending |
+| MCP-06 | Phase 14 — MCP Server | Pending |
+| MCP-07 | Phase 14 — MCP Server | Pending |
+| MCP-08 | Phase 14 — MCP Server | Pending |
+| MCP-09 | Phase 14 — MCP Server | Pending |
+| MCP-10 | Phase 14 — MCP Server | Pending |
 
 **Coverage:**
-- v1 requirements: 123 total (119 + 4 AI)
-- Mapped to phases: 123 (100%)
+- v1 requirements: 134 total (119 + 4 AI + 1 SESS-07 + 10 MCP)
+- Mapped to phases: 134 (100%)
 - Unmapped: 0 ✓
 
 ### Per-phase coverage counts
@@ -417,12 +436,13 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | 6 — Layers & Masking System | LAYER-01..07, IOP-MASK-01..05, IOP-GEO-05, IOP-GEO-06 | 14 |
 | 7 — AI Modules (Native Vision Masking & Retouching) | AI-01, AI-05..07 | 4 |
 | 8 — HDR/Stacking & Effects iops | IOP-HDR-01..05, IOP-FX-01..05 | 10 |
-| 9 — Capture One Session Management | SESS-01..06, HIST-05, HIST-06 | 8 |
+| 9 — Capture One Session Management | SESS-01..07, HIST-05, HIST-06 | 9 |
 | 10 — yiyin Border/Watermark Panel | YIYIN-01..08 | 8 |
 | 11 — Export Pipeline & Batch Queue | EXP-01..08 | 8 |
 | 12 — Metadata, Rating, Presets & LUT | META-01..06, PRES-01..04, IOP-COLOR-08 | 11 |
 | 13 — System Integration & Distribution | SYS-01..05, DIST-01..04, COLOR-02, COLOR-03 | 11 |
-| **Total** | | **123** |
+| 14 — MCP Server (远程 AI 修图 + 自动筛选) | MCP-01..10 | 10 |
+| **Total** | | **134** |
 
 ### Cross-phase placement rationale
 - **IOP-GEO-05 (liquify) / IOP-GEO-06 (retouch) → Phase 6 (Layers/Masking):** both architecturally depend on the mask/distortion framework; they cannot ship before masking exists.
@@ -446,6 +466,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 - [ ] **MCP-06**: 筛选写面（2026-09-26 扩充）：set_rating / set_flag / set_color_label / append_note——写回以 sidecar 为真，复用 Phase 9 批量管线（段1 内存变换 + 段2 索引单事务 + 段3 串行写队列）语义，GUI 缩略图 stale 再生联动可见
 - [ ] **MCP-07**: culling 辅助（2026-09-26 扩充）：burst/连拍分组查询（拍摄时间+机型聚类）+ 脸部区域定位（复用 Phase 7 Vision faceLandmarks 基建）支撑细节裁剪
 - [ ] **MCP-08**: 筛选写回安全边界（2026-09-26 扩充）：写回限元数据字段（rating/flag/color/note），禁止像素修改与文件删除/移动；传输安全同 MCP-04
+- [ ] **MCP-09**: 筛选/修图扩充工具组（2026-09-26 登记）：list_presets / apply_preset / diff_presets（预设三件套，上游依赖 PRES-01..04）+ export_image（尺寸/质量/格式落盘，render_preview 不落盘之补位）+ set_keywords（关键词写面，上游依赖 META-04）。**研究项**（Phase 14 research 定案）：A = GUI 与无头 MCP 同会话并发 sidecar 双写对策（WAL 仅覆盖索引层；单写者锁/后开者只读/移交）；B = 多版本参数组/历史快照 MCP 语义（多版本交付需保存/切换/对比参数组工具面）；C = match_color MCP 工具位（agent 编排层：选参考/批量触发 colormatch/强度/事后 apply_params 微调；签名预留，依赖 V2 TRACK colormatch iop，与 Phase 12 .cube LUT 协同）
+- [ ] **MCP-10**: GUI launcher（2026-09-26 用户裁决进 V1）：偏好存 agent CLI 启动命令模板（如 pi/omp）+ 可选任务 prompt 模板（筛图口径/修图审美方向）+「一键 AI 筛图/修图」动作——app 拉起 agent 进程挂自身 MCP server，写回由 server 完成（sidecar 真身），输出日志面板显示 agent 文字流；agent 的 provider 配置归 agent 自身体系，app 零 AI 代码；launcher 拉起路径 app 侧串行化（研究项 A）
 
 ### Performance (PERF)
 
@@ -461,6 +483,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 ## V2 Requirements
 
 ### Color Transfer / 追色 (TRACK)【V2；2026-09-22 用户指令维持 V2（当日曾短暂提级 Phase 7，已回撤）】
+
+> **定位再确认（2026-09-26）**：计算核 native 不可外包——追色是统计算法（Reinhard/CDF/OT → 3D LUT），TRACK-05 确定性门与 TRACK-02 多参考统计聚合排除 agent vision 迭代路线（LumaRescue 类方法论无色彩匹配算法）。MCP+agent 作**编排皮**：选参考/批量触发/强度/事后微调（MCP-09 研究项 C `match_color` 工具位，依赖本模块 colormatch iop）；与 AIV2-01「AI 追色」的语义由编排层承载。GUI 拖入交互（TRACK-04）与 agent 编排并存不冲突。
 
 - [ ] **TRACK-01**: 追色计算——参考图色彩分布特征提取 + 色彩变换求解（Reinhard Lab 对齐 / 直方图 CDF 匹配 / 最优传输族中选定算法），输出 3D LUT（或等效参数曲线组）
 - [ ] **TRACK-02**: 多参考图支持——N 张参考的统计聚合或逐参考混合，权重可调
