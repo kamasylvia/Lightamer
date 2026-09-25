@@ -106,3 +106,4 @@
 2026-09-25 [巡检] 状态与上轮一致：auto=true/paused=false；Phase 9 RESEARCH 落盘（f3c9451）——C 档第 1 停生效中（7 项 OQ 等用户裁决：SQLite 选型/索引落位/浏览集范围/一致性窗口/skip 集/culling 规模/schema 预留列）。无可自动推进项，不改 GOAL-STATE。
 2026-09-25 [巡检→W1] 开关 auto=true/paused=false；分派表已获用户确认（Phase 9 全按推荐）→ 派发 09-01（omp 无头执行，Phase 9 wave 1 层核与索引 DB 基建）。
 2026-09-25 [派发纪律] 用户指令：每次派发前必读 .work/config.toml 确认阵容，禁凭记忆或时间窗推算（matrix skill 本有此规则—— orchestrator 执行时用时间窗推算替代了实际读文件，被用户纠正）。后续所有派发动作严格按此执行。
+[2026-09-25 夜间] 09-01 执行完成（ZCode subagent worker）：T1-T7 七任务 commit `e461fff`/`ee3c39c`/`c077a06`/`0f26e0a`/`de8a34c`/`abf99a8`/`64c0532` + T8 收口（SUMMARY/DECISIONS 12 条/TODO 勾选/GOAL-STATE 增量/LESSONS L027/perf.md）；终轮全 suite 1017/6skip/0fail（touch 重编复跑绿，基线 975→1017 净增 42）；未 push。开关检查每任务边界 auto=true/paused=false 全程通过。→ 下一程 09-02（FSEvents + reconcile）。

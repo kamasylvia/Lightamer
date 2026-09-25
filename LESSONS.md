@@ -224,3 +224,12 @@ locale 的 Bundle 解析停在该表（不再向 zh.lproj 回退）——**全 a
 把原本可达的表变不可达（伤害面 = 全库而非增量）；③ 防线 = GUI 轮首屏截图必查
 中文渲染（裸键 = catalog 层问题先于逻辑层排查），`ls *.lproj` 应作为 catalog
 变更后的 smoke。
+
+
+### L027: Foundation 的路径"同形"是幻觉——enumerator 物理化 root 符号链接而 URL.path 不解析，跨源路径比对必须 realpath(3) 归一；fileSystemRepresentation 指针禁 deallocate
+
+- **现象**（09-01 T3 SessionTreeScanner）：以 `NSTemporaryDirectory()`（`/var/folders/...`）为根建 fixture，`FileManager.enumerator(at:)` 返回的子路径是**符号链接解析后的物理形态**（`/private/var/...`），而 `URL.path` / `URL.resolvingSymlinksInPath()` / `(NSString as NSString).resolvingSymlinksInPath` 全都保留 `/var` 前缀——三者都无法与 enumerator 的输出做前缀匹配。后果两级：先是无害级（relPath 退化为 leaf 名），后是**语义级**（根级保留目录判定 `Capture/` 因父路径串不匹配而失效 → deeper/Capture/ 被误当根级保留目录整体排除）。另一陷阱：用 `FileManager.fileSystemRepresentation(withPath:)` 返回的指针调 `deallocate()` → 堆损坏，测试宿主 SIGABRT（`POINTER_BEING_FREED_WAS_NOT_ALLOCATED`，崩在毫不相干的 NSConcreteData dealloc）。
+- **根因**：①"同一目录的路径字符串"在 Foundation 里有多种合法形态（原样 / standardized / 符号链接解析），每个 API 自选其一且无文档契约——`enumerator` 内部 realpath 了根，字符串 API 不解析前缀链接；②`fileSystemRepresentation(withPath:)` 的返回值不是独立分配的缓冲（与 `getFileSystemRepresentation(_:maxLength:)` 填充式 API 不同源），对其 free 即破坏堆。
+- **对策**：①一切"从子路径剥离根前缀"的逻辑，用 `realpath(3)`（`withCString` + 4096 缓冲）显式求物理根，**同时匹配多种拼写**（物理 + 原样）；目录树归属判定不要用"父路径字符串相等"，改用自身 relPath 是否含 `/`（`dropFirst` 式裁剪而非 `replacingOccurrences`——后者会在中段误替换制造 `/private` + 名字的缝合怪）；②`realpath` 的 C 交互一律 `withCString` 作用域缓冲，禁止对 `fileSystemRepresentation(withPath:)` 结果 deallocate/free。
+- **适用**：一切目录扫描/相对路径计算（Phase 9 全系：scanner/store/watcher reconcile）；一切 Foundation C 字符串桥接。
+- **来源**：09-01 T3 golden 测试三轮排障（首轮 `/privatescan.jpg` 缝合串、次轮 leaf 退化 + deeper/Capture 误排除、`fileSystemRepresentation` SIGABRT 崩溃报告 malloc 栈定位）。
