@@ -134,6 +134,17 @@ final class InspectorEditSession {
         await coordinator?.sampleLinearNormMinMax()
     }
 
+    /// 08-3 dual-instance coordination (D-08-CONTEXT-3): the CURRENT
+    /// global-chain record for `opName` — the yiyin panel's two sections
+    /// each drive THEIR OWN module instance (the watermark section edits
+    /// the borders record and vice versa) while sharing ONE session, so a
+    /// borders tick and a watermark tick land as separate commits
+    /// (`liveEdited` keys on instance UUID) and ⌘Z reverts them
+    /// independently. nil = the op is absent from the current chain.
+    func siblingInstance(opName: String) -> ModuleInstance? {
+        coordinator?.instanceRecord(opName: opName)
+    }
+
     /// The decoded source image for auto-detect (04-03 ashift horizon /
     /// rectangle): read-only, zero pipe involvement (the panel renders a
     /// small probe — no pipe-plane readback, L014-clean by construction).

@@ -817,6 +817,16 @@ final class PipeCoordinator {
         )
     }
 
+    /// 08-3 dual-instance face: the CURRENT global-chain record for
+    /// `opName` — the yiyin panel's sibling lookup (the watermark section
+    /// drives the borders record and vice versa; both sections commit
+    /// THEIR OWN instance through the shared session). nil = the op has no
+    /// record in the current chain (old sidecar restore without it — the
+    /// panel then offers the manual mint face).
+    func instanceRecord(opName: String) -> ModuleInstance? {
+        editorState?.instances.first { $0.opName == opName }
+    }
+
     /// History → pipes materialization: rebuild `instances` (the BOXES)
     /// from `editorState.instances` (the RECORDS). Existing boxes are
     /// reused IN PLACE by instance UUID (`apply(_:)` fast-paths

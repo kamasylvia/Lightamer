@@ -108,6 +108,11 @@ final class InspectorState {
         // Plan 08-2 T6: the 印框/水印 panel (the watermark section; the
         // borders section integrates in 08-3).
         register(YiyinPanelProvider())
+        // Plan 08-3 T1: the SAME dual-section panel dispatches for the
+        // borders row too (both yiyin sections ride one provider pair —
+        // the dispatched record routes through the view; the sibling
+        // rides the session lookup).
+        register(YiyinBordersPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()
