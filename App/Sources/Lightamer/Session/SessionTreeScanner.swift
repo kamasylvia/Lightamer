@@ -70,10 +70,25 @@ enum SessionTreeScanner {
 
     /// Files excluded from the browse set wherever they appear.
     static func isExcludedFile(_ name: String) -> Bool {
+        isExcludedMetadata(name) || name.hasSuffix(".lra")  // sidecars are attachments
+    }
+
+    /// The NOISE half of the file exclude table (dotfiles + SidecarStore
+    /// residue, `*.tmp-*` promotion residue, C1 `*.cosessiondb` artifacts).
+    ///
+    /// Plan 09-02: this is ALSO the watcher's file predicate — `.lra`
+    /// events must NOT be dropped there, because an EXTERNAL sidecar write
+    /// is a legitimate reconcile signal (sidecar drift re-read), while the
+    /// SELF-written sidecars are swallowed by the write journal instead
+    /// (the double defense; 09-02 T3).
+    static func isWatcherExcludedFile(_ name: String) -> Bool {
+        isExcludedMetadata(name)
+    }
+
+    private static func isExcludedMetadata(_ name: String) -> Bool {
         name.hasPrefix(".")                    // dotfiles + SidecarStore residue
             || name.contains(".tmp-")          // `*.tmp-*` promotion residue
             || name.hasSuffix(".cosessiondb")  // C1 artifacts — read-only
-            || name.hasSuffix(".lra")          // sidecars are attachments
     }
 
     /// Directories excluded from BOTH the browse set and DESCENT.
