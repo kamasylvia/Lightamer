@@ -7,10 +7,15 @@ import os
 ///
 /// Design locks:
 /// - **D-14** device = `MTLCreateSystemDefaultDevice()` (Apple Silicon UMA GPU).
-/// - **D-15** single `MTLCommandQueue`. Declared `nonisolated let` — immutable
-///   by construction, which is the `private(set)` seam shape: Phase 11 adds a
-///   second low-priority export queue as a NEW property, never by reassigning
-///   this one.
+/// - **D-15** single `MTLCommandQueue` for the EDITOR (`commandQueue`), plus
+///   the Phase 11 export queue as a NEW property (`exportCommandQueue`) —
+///   never by reassigning the editor one. The export queue is routed by
+///   `routesToExportQueue` (TaskLocal) inside `makeCommandBuffer` — the
+///   single queue-acquisition point of the whole dispatch face, so the iop
+///   call sites change ZERO lines (Plan 11-03 T1). SDK fact (11-RESEARCH
+///   §4.4): `MTLCommandQueue` has no priority API, so "low priority" lands
+///   as an INDEPENDENT queue (in-flight buffers never serialize against the
+///   editor's) + the queue's Utility-QoS consumers.
 /// - **D-16** lazy + memory PSO cache keyed on `PSOKey`, LRU-bounded at 256
 ///   entries (RESEARCH Open Question #3).
 /// - **D-17** function-constants via `makeFunction(name:constantValues:)`;
@@ -48,6 +53,29 @@ public actor MetalContext {
     // D-15: single queue; Phase 11 export queue is an additional property.
     public nonisolated let commandQueue: any MTLCommandQueue
 
+    /// D-15 (Plan 11-03 T1): the SECOND command queue — the export leg's
+    /// dedicated submissions. NEW property by construction (the lock's
+    /// letter): the editor's `commandQueue` is never reassigned. In-flight
+    /// export buffers never serialize against editor dispatches; the fence
+    /// of the export exit leg hangs on THIS queue (R8: a fence on the wrong
+    /// queue is a silent race — false-green/black-plane shape).
+    public nonisolated let exportCommandQueue: any MTLCommandQueue
+
+    /// Plan 11-03 T1 — the TaskLocal queue ROUTE. `false` (default): every
+    /// command buffer comes from the editor queue (today's behavior,
+    /// byte-identical). `true`: command buffers come from
+    /// `exportCommandQueue`. The export job runner wraps its whole render
+    /// task in `$routesToExportQueue.withValue(true) { ... }`, and because
+    /// a TaskLocal propagates down the task tree, EVERY iop dispatch of
+    /// that run lands on the export queue with zero iop call-site changes.
+    /// The editor's task tree is never wrapped → zero contamination.
+    ///
+    /// REJECTED alternative (11-RESEARCH §4.3): an actor-scope "active
+    /// queue" toggle — an `await` during PSO building would let a
+    /// concurrent EDITOR dispatch enter the export queue. TaskLocal is
+    /// task-scoped: no re-entry race exists.
+    @TaskLocal public static var routesToExportQueue = false
+
     /// Core's default library (first) + libraries registered by kernel-owning
     /// modules (LightamerIOP now, later targets). Empty list is valid: Core
     /// ships no kernels in Phase 1, so its metallib is absent by design.
@@ -83,6 +111,13 @@ public actor MetalContext {
             throw MetalError.deviceUnavailable
         }
         self.commandQueue = queue
+        // D-15 (11-03 T1): the second, export-dedicated queue. Allocation
+        // failure is the same device-unavailable class as the editor queue's.
+        guard let exportQueue = device.makeCommandQueue() else {
+            AppError.logger.error("MTLCommandQueue (export) allocation failed on \(device.name, privacy: .public)")
+            throw MetalError.deviceUnavailable
+        }
+        self.exportCommandQueue = exportQueue
 
         // CRITICAL (RESEARCH §1 #1): resolve the framework bundle, never
         // Bundle.main. Tolerant load: Core has no kernels in Phase 1, so its
@@ -423,12 +458,28 @@ public actor MetalContext {
         return pool
     }
 
+    /// THE single queue-acquisition point of the whole dispatch face —
+    /// `dispatch2D` / `dispatch2DTexture` / `makeEncoder` all obtain their
+    /// command buffers HERE (and only here), which is what makes the
+    /// TaskLocal route a zero-iop-call-site change (Plan 11-03 T1).
+    ///
+    /// Internal test seam: `makeRoutedCommandBuffer()` below exposes the
+    /// routed acquisition for the queue-identity assertions.
     private nonisolated func makeCommandBuffer() throws -> any MTLCommandBuffer {
-        guard let commandBuffer = commandQueue.makeCommandBuffer() else {
+        let queue = Self.routesToExportQueue ? exportCommandQueue : commandQueue
+        guard let commandBuffer = queue.makeCommandBuffer() else {
             AppError.logger.error("MTLCommandBuffer allocation failed")
             throw MetalError.deviceUnavailable
         }
         return commandBuffer
+    }
+
+    /// Internal seam for `ExportPipeTests` (Plan 11-03 T1): one routed
+    /// command-buffer acquisition — the identity assertion reads
+    /// `buffer.commandQueue` and compares it against `commandQueue` /
+    /// `exportCommandQueue` under both TaskLocal states.
+    internal nonisolated func makeRoutedCommandBuffer() throws -> any MTLCommandBuffer {
+        try makeCommandBuffer()
     }
 
     /// LRU move-to-end on cache hit.

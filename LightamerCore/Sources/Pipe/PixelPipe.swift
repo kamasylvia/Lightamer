@@ -431,7 +431,11 @@ internal final class PixelPipe: @unchecked Sendable {
 
     /// A same-format texture-to-texture blit on its own command buffer
     /// (same-queue FIFO keeps it ordered against the neighboring compute
-    /// dispatches; explicit endEncoding before commit — L008).
+    /// dispatches; explicit endEncoding before commit — L008). The buffer
+    /// comes from the SAME TaskLocal-routed acquisition as every dispatch
+    /// (11-03 T1: tiling is FULL-only today, but the route must stay true
+    /// at the type level — a blit inside a routed export run belongs on the
+    /// export queue).
     private func blit(
         from source: any MTLTexture,
         sourceOrigin: MTLOrigin,
@@ -440,7 +444,7 @@ internal final class PixelPipe: @unchecked Sendable {
         destinationOrigin: MTLOrigin = MTLOrigin(x: 0, y: 0, z: 0),
         metal: MetalContext
     ) async throws {
-        guard let commandBuffer = metal.commandQueue.makeCommandBuffer() else {
+        guard let commandBuffer = try? metal.makeRoutedCommandBuffer() else {
             throw MetalError.deviceUnavailable
         }
         guard let blit = commandBuffer.makeBlitCommandEncoder() else {
