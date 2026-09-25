@@ -1027,3 +1027,146 @@ extension SessionThumbnailProviderTests {
         return context.makeImage()!
     }
 }
+
+// MARK: - T8: PERF-06 baseline measurements (SSD fixtures — L009)
+
+@MainActor
+extension SessionThumbnailProviderTests {
+
+    /// The double-tier THROUGHPUT baseline (perf.md 09-3 table): tier A in
+    /// ms/image, tier B in s/image — Release-vs-Debug split lands in the
+    /// ledger; the Debug numbers here are the working baseline.
+    func testThumbnailThroughputBaselineTierAAndTierB() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            throw XCTSkip("no Metal GPU")
+        }
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let source = Fixtures.arw // 86 MP-class Sony lossless-c
+        try Fixtures.require(source)
+        let dest = sessionRoot.appendingPathComponent("PERF.ARW")
+        try FileManager.default.copyItem(at: source, to: dest)
+
+        // Tier A: the embedded preview (3-run min — the stable number).
+        var tierAMs = Double.greatestFiniteMagnitude
+        for _ in 0..<3 {
+            let clock = ContinuousClock()
+            let start = clock.now
+            _ = SessionThumbnailProvider.embeddedPreview(url: dest)
+            let ms = Self.ms(clock.now - start)
+            tierAMs = min(tierAMs, ms)
+        }
+        print("PERF-06 TIER-A ms/img: \(String(format: "%.1f", tierAMs))")
+
+        // Tier B: decode + REAL pipe render at 360 (the display chain).
+        let decoded = try await RAWDecoder().decode(dest)
+        let registry = ModuleRegistry.makeDefault()
+        let records = await registry.makeDefaultInstances()
+        var boxes: [any ModuleBoxing] = []
+        for record in records {
+            if let box = await registry.makeBox(opName: record.opName, instanceID: record.id) {
+                try box.apply(record)
+                boxes.append(box)
+            }
+        }
+        let clock = ContinuousClock()
+        let start = clock.now
+        let (texture, _) = try await RenderPipeline.process(
+            image: decoded, instances: boxes, imageID: UUID(),
+            resolution: .thumbnail, cache: PipeCache(),
+            metal: metal, longEdge: PipeResolution.thumbnail.defaultLongEdge
+        )
+        _ = try SessionThumbnailRenderer.cgImage(from: texture, metal: metal)
+        let tierBS = Self.ms(clock.now - start) / 1000
+        print("PERF-06 TIER-B s/img: \(String(format: "%.2f", tierBS)) (86MP source, Debug)")
+
+        // Budget-shape assertions (not gates — the gates clear in Phase 15):
+        // tier A is ~100× cheaper than tier B.
+        XCTAssertLessThan(tierAMs, 200, "tier A stays two-orders below a decode")
+        XCTAssertLessThan(tierBS, 10.0, "tier B (86MP, Debug) stays in the seconds band")
+    }
+
+    /// The 10k-row collection projection baseline (perf.md): the ORDER BY
+    /// path read + the row projection into the browser array — the grid's
+    /// data face must stay sub-second at the 10k scale.
+    func testTenThousandRowCollectionReloadBaseline() async throws {
+        let store = makeStore()
+        // 10k rows in ONE transaction (the 9-1 bulk shape — fast fixture).
+        let entries = (0..<10_000).map { index in
+            SessionScanEntry(
+                relPath: String(format: "day%02d/IMG%05d.ARW", index % 40, index),
+                mtime: Double(index), size: 1024
+            )
+        }
+        _ = try await store.openSession(
+            root: sessionRoot, scan: AsyncStream { continuation in
+                var page: [SessionScanEntry] = []
+                for entry in entries {
+                    page.append(entry)
+                    if page.count == 256 {
+                        continuation.yield(SessionScanPage(entries: page))
+                        page = []
+                    }
+                }
+                if !page.isEmpty { continuation.yield(SessionScanPage(entries: page)) }
+                continuation.finish()
+            }
+        )
+        let model = SessionBrowserModel()
+        let clock = ContinuousClock()
+        let start = clock.now
+        await model.reload(store: store, includeOrphans: true)
+        let ms = Self.ms(clock.now - start)
+        print("PERF-06 COLLECTION-10k reload ms: \(String(format: "%.0f", ms)) rows=\(model.rows.count)")
+        XCTAssertEqual(model.rows.count, 10_000, "the full collection projected (compared > 0)")
+        XCTAssertLessThan(ms, 2_000, "10k projection stays sub-2s (the open-session budget)")
+    }
+
+    nonisolated private static func ms(_ duration: ContinuousClock.Duration) -> Double {
+        Double(duration.components.seconds) * 1000
+            + Double(duration.components.attoseconds) / 1e15
+    }
+}
+
+// MARK: - T8: culling dual-100MP staggered open (真 fixture timing)
+
+@MainActor
+extension SessionThumbnailProviderTests {
+
+    func testCullingDualHundredMPStaggeredOpenBaseline() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            throw XCTSkip("no Metal GPU")
+        }
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        // The 100 MP GFX sample (Plan 05 download) — the PERF-04-class
+        // storm case: two full decodes back-to-back.
+        let source = Fixtures.raf100MP
+        try Fixtures.require(source)
+        let root = sessionRoot!
+        for rel in ["CULL-A.RAF", "CULL-B.RAF"] {
+            try FileManager.default.copyItem(
+                at: source, to: root.appendingPathComponent(rel)
+            )
+        }
+        let paneA = CullingPaneModel(
+            relPath: "CULL-A.RAF", decoder: RAWDecoder(), metal: metal, sessionRoot: root
+        )
+        let paneB = CullingPaneModel(
+            relPath: "CULL-B.RAF", decoder: RAWDecoder(), metal: metal, sessionRoot: root
+        )
+        let clock = ContinuousClock()
+        let start = clock.now
+        await paneA.load() // STAGGERED: A lands before B starts (the gate)
+        let afterA = clock.now
+        await paneB.load()
+        let total = Self.ms(clock.now - start)
+        let paneAMS = Self.ms(afterA - start)
+        print("PERF-06 CULLING dual-100MP open ms: total=\(String(format: "%.0f", total)) paneA=\(String(format: "%.0f", paneAMS)) (staggered; Debug)")
+        XCTAssertEqual(paneA.state, .ready)
+        XCTAssertEqual(paneB.state, .ready)
+        // The panes are INDEPENDENT planes (different ledger entries).
+        XCTAssertGreaterThan(paneA.planeBytes, 0)
+        XCTAssertGreaterThan(paneB.planeBytes, 0)
+    }
+}

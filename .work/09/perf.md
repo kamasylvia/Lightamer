@@ -45,3 +45,39 @@
 - 本仓库与常规工作卷 = `/Volumes/UNITEK`（USB HDD）。所有计时 fixture 建在
   `FileManager.temporaryDirectory`（内置 SSD）；跨机器复测口径：任何门数字必须在内置
   SSD 上复核后钉（本表即 SSD 复核值）。
+
+## 浏览模式与缩略图管线(09-03 T8)
+
+> 口径:SSD 临时目录 fixture、Debug 构建(test-direct.sh 直启宿主)、单测内
+> ContinuousClock 计量(测试名见各条)。PERF-06 的 60fps 门在 Phase 15 清算
+> (ROADMAP Phase 15 Notes);本表是工作基线。Release 分栏:Release 计量随
+> Phase 15 门清算一并进行(当前执行流 Debug 直启,test-direct.sh 硬编码
+> Debug 产物;Release 复核 = Phase 15 义务,届时跑 `-configuration Release`
+> 后同款直启)。
+
+| 项 | 口径 | 数字(Debug) | 判定 |
+|---|---|---|---|
+| 档 A 吞吐(嵌入预览) | 真 Sony 86MP ARW、`CGImageSourceCreateThumbnailAtIndex` @720、3 轮取最小 | **10.6 ms/张** | RESEARCH §5.2 预算 10-50ms/张 ✓(测试 `testThumbnailThroughputBaselineTierAAndTierB`) |
+| 档 B 吞吐(真渲染) | 同源图、`RAWDecoder.decode` + display trio @ THUMBNAIL 360 + sRGB 转换,单次 | **2.87 s/张**(86MP,Debug) | RESEARCH 预算 0.5-2s/张量级(Debug 构建偏慢,Release 复核挂 Phase 15);磁盘缓存后二次浏览 0 渲染 |
+| 10k 行 collection reload | `SessionIndexStore` ORDER BY path 全读 + 行投影 + 选择修复,单次 | **26 ms**(10,000 行) | 10k 内存数组零压力(RESEARCH §5.1)✓(测试 `testTenThousandRowCollectionReloadBaseline`) |
+| culling 双 100MP 开启 | 真 GFX100S 100MP uncompressed ×2、错峰 decode(A 落地后 B 起)、Debug | **total 2.9 s**(paneA 1.5 s) | 错峰生效:首格 1.5s 内出图,不双解码风暴(Risk #6)(测试 `testCullingDualHundredMPStaggeredOpenBaseline`) |
+| culling 常驻内存/平面 | gamma 尾 bgra8Unorm display plane @1480 长边 | **~5.8 MB/平面**(双格 ~12 MB 常驻) | D-09-CONTEXT-6 的 ~23MB/平面 = 瞬态 float32 工作平面(run 内 throwaway);常驻账本 12MB(测试 `MemoryBudgetTests.testCullingDualPaneLedgerStaysOnTheBudgetFace`) |
+| LRU 逐出精确性 | 注入小预算逐出序列逐字节断言 | 逐出序列 + 驻留 ≤ 预算全等 | 防空转 ✓(`ThumbnailMemoryCacheTests` 7 tests) |
+| 磁盘缓存规模估算 | 360px JPEG q85 | 实测单张 ~2-3KB(合成)/真图 30-60KB 量级;10k ≈ **0.3-0.6 GB 上限** | RESEARCH §5.3 预算内注记(删除行清理挂接已测) |
+
+### 滚动 hitch(PERF-06 主项)
+
+- **结构面已就位**:可见优先队列(跳队 + 跳空闲延迟)、LRU/磁盘两级命中、
+  LazyVGrid 复用、渐进 ingest 占位。10k 行 reload 26ms 意味着数据面不构成
+  hitch 源。
+- **真机 hitch 计量**(滚动中 >50ms 帧间隙,PERF-04 signpost 方法)= 09-3
+  T9 GUI 验收轮真机走查项,数字落 FINDINGS 09-3 节;60fps 门本体 Phase 15
+  清算(挂账不变)。
+
+### 双档观感抽检结论(09-03 T7 / DECISIONS D10)
+
+- 实测 mean diff 74/52/61(ARW/NEF/RAF,8-bit 通道均差)——**可辨**。
+- 根因证据:档 B = 编辑器同链同形渲染(Phase 8 GUI 截图同色调);差异 =
+  v1 基础 trio 管线的色彩形态 vs 相机嵌入预览域,Phase 3+ 色彩 iop 校准后
+  收敛。全走档 B 退路**否决**(10k × 秒级首扫与 PERF-06 吞吐冲突)。
+- 常驻复核:`testDoubleTierVisualSpotCheckThreeRealRAWs` 随管线演进出真值。
