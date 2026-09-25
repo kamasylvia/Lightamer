@@ -326,3 +326,53 @@ final class SessionTreeScannerTests: XCTestCase {
         XCTAssertEqual(orphans, ["GONE.ARW.lra"])
     }
 }
+
+// MARK: - T7: open-session timing baseline (10k, SSD temp fixture — L009)
+
+extension SessionTreeScannerTests {
+
+    /// COLD first open (full walk + 10k inserts + backfill passes) and WARM
+    /// second open (rescan + zero-diff) — the perf.md 「开卷」 baseline
+    /// numbers (printed; target: warm ≤ 2s, cold recorded no-gate).
+    func testOpenSessionTenThousandWarmAndColdBaseline() async throws {
+        let root = makeSessionRoot(named: "tenk")
+        let fileManager = FileManager.default
+        for i in 0..<10_000 {
+            let url = root
+                .appendingPathComponent("img\(String(format: "%05d", i)).jpg")
+            try Data("x".utf8).write(to: url)
+        }
+        _ = fileManager
+
+        let store = SessionIndexStore(sessionRoot: root)
+        let clock = ContinuousClock()
+
+        // COLD.
+        let coldStart = clock.now
+        let cold = try await store.openSession(
+            root: root, scan: SessionTreeScanner.scan(root: root)
+        )
+        let coldElapsed = Double((clock.now - coldStart).components.seconds)
+            + Double((clock.now - coldStart).components.attoseconds) / 1e18
+        XCTAssertEqual(cold.added, 10_000)
+        XCTAssertEqual(cold.counts.total, 10_000)
+        print("SESSION-OPEN-10k COLD seconds: \(coldElapsed)")
+
+        // WARM.
+        let warmStart = clock.now
+        let warm = try await store.openSession(
+            root: root, scan: SessionTreeScanner.scan(root: root)
+        )
+        let warmElapsed = Double((clock.now - warmStart).components.seconds)
+            + Double((clock.now - warmStart).components.attoseconds) / 1e18
+        XCTAssertEqual(warm.added, 0)
+        XCTAssertEqual(warm.changed, 0)
+        XCTAssertEqual(warm.removed, 0)
+        print("SESSION-OPEN-10k WARM seconds: \(warmElapsed)")
+
+        // The stated target: 暖 ≤ 2s (SSD fixture; USB-volume cold reads are
+        // L009's recorded risk, no gate — see .work/09/perf.md).
+        XCTAssertLessThan(warmElapsed, 2.0, "warm reopen must beat the 2s target")
+        await store.close()
+    }
+}

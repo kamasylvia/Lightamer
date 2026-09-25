@@ -1,4 +1,9 @@
+import AppKit
+import CoreImage
 import LightamerCore
+import LightamerIOP
+import Metal
+import MetalKit
 import XCTest
 
 @testable import Lightamer
@@ -305,5 +310,140 @@ final class SessionSwitchTests: XCTestCase {
         XCTAssertEqual(state.browseCounts, SessionBrowseCounts(total: 5, edited: 1, orphans: 2))
         state.setCurrentSession(nil)
         XCTAssertNil(state.browseCounts, "closing the session clears the counts snapshot")
+    }
+}
+
+// MARK: - T7: session-switch leak assertions (SESS-04) + L012 probe
+
+extension SessionSwitchTests {
+
+    /// A tiny float32 synthetic decode (the LayerUIWiringTests shape) —
+    /// real PREVIEW planes land in the coordinator's PipeCache through the
+    /// REAL render path.
+    private func makeTinySyntheticImage() throws -> DecodedImage {
+        let width = 32, height = 32
+        var rgba = [Float](repeating: 0.25, count: width * height * 4)
+        for i in 0..<(width * height) { rgba[i * 4 + 3] = 1.0 }
+        var data = Data(capacity: rgba.count * 4)
+        for value in rgba {
+            var le = value.bitPattern.littleEndian
+            data.append(contentsOf: withUnsafeBytes(of: &le) { Data($0) })
+        }
+        let provider = try XCTUnwrap(CGDataProvider(data: data as CFData))
+        let cg = try XCTUnwrap(CGImage(
+            width: width, height: height, bitsPerComponent: 32, bitsPerPixel: 128,
+            bytesPerRow: width * 16, space: WorkingSpace.colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue:
+                CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.floatComponents.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent
+        ))
+        return DecodedImage(
+            ciImage: CIImage(cgImage: cg),
+            rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+            segmentationSkyMatte: nil, decoderVersionUsed: .v8
+        )
+    }
+
+    /// ① cache fully purged ② renderer teardown seam fired ③ thumbnail
+    /// cancel seam counted ④ state points at B — against the REAL
+    /// PipeCoordinator with planes in the PipeCache.
+    func testSwitchPurgesPipeCacheFourStepLeakAssertion() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            throw XCTSkip("no Metal GPU")
+        }
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let state = SessionState(recentDefaults: makeDefaults())
+        let editorState = EditorState()
+        let pipe = PipeCoordinator()
+        editorState.attach(pipeCoordinator: pipe)
+        pipe.attach(editorState: editorState)
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        pipe.attach(registry: registry)
+
+        var cancelCount = 0
+        var invalidateCount = 0
+        let coordinator = SessionCoordinator(
+            flushCurrentImage: { await pipe.flushSidecar() },
+            teardownRenderer: {
+                invalidateCount += 1
+                await pipe.prepareForSessionSwitch()
+            },
+            cancelThumbnailTasks: { cancelCount += 1 }
+        )
+        coordinator.appState = state
+
+        // Session A: a REAL coordinator load (PREVIEW planes → PipeCache).
+        let sessionA = makeSessionDir(named: "alpha")
+        try await pipe.load(
+            url: sessionA.appendingPathComponent("img.exr"),
+            decoded: try makeTinySyntheticImage(),
+            instances: [],
+            metal: metal
+        )
+        try await Task.sleep(for: .milliseconds(100)) // let the render Task land
+
+        // ① NON-VACUOUS gate: the cache actually holds planes pre-switch.
+        let beforeBytes = await pipe.totalBytesForTesting
+        XCTAssertGreaterThan(beforeBytes, 0, "PREVIEW planes landed in the PipeCache")
+
+        // SWITCH A → B through the REAL renderer seam.
+        let sessionB = makeSessionDir(named: "beta")
+        await coordinator.openSession(url: sessionB)
+
+        // The four-step leak assertion.
+        let afterBytes = await pipe.totalBytesForTesting
+        XCTAssertEqual(afterBytes, 0, "① PipeCache fully purged (totalBytes == 0)")
+        XCTAssertGreaterThanOrEqual(invalidateCount, 1, "② renderer teardown seam fired")
+        XCTAssertGreaterThanOrEqual(cancelCount, 1, "③ thumbnail cancel seam counted")
+        XCTAssertEqual(state.currentSessionURL, sessionB.standardizedFileURL, "④ state → B")
+        XCTAssertEqual(
+            pipe.sessionSwitchPrepCount, 1, "exactly ONE prepareForSessionSwitch"
+        )
+    }
+
+    private func mtkViewCount() -> Int {
+        var count = 0
+        func walk(_ view: NSView) {
+            if view is MTKView { count += 1 }
+            for child in view.subviews { walk(child) }
+        }
+        for window in NSApp.windows { walk(window.contentView ?? NSView()) }
+        return count
+    }
+
+    /// L012 unit-form probe: three session opens through the coordinator
+    /// create ZERO new windows and ZERO new MTKViews (same-window routing;
+    /// the scene-level proof lives in AppLaunchTests/UITests).
+    func testThreeSessionOpensSpawnNoNewWindowsOrMTKViews() async throws {
+        let state = SessionState(recentDefaults: makeDefaults())
+        var routes = 0
+        let coordinator = SessionCoordinator(
+            syncIndexHandler: { url in
+                // Deterministic first-image routing (the non-vacuous route
+                // probe — the real sync supplies the scanned first image).
+                SessionCoordinator.SessionOpenSyncResult(firstImage: url)
+            },
+            routeImage: { _ in routes += 1 }
+        )
+        coordinator.appState = state
+
+        _ = NSApplication.shared // host app is up under test-direct.sh
+        let windowsBefore = NSApp.windows.count
+        let viewsBefore = mtkViewCount()
+
+        for name in ["s1", "s2", "s3"] {
+            await coordinator.openSession(url: makeSessionDir(named: name))
+        }
+
+        XCTAssertEqual(routes, 3, "three same-window routes (non-vacuous)")
+        XCTAssertEqual(
+            NSApp.windows.count, windowsBefore,
+            "session opens must NEVER spawn a window (L012)"
+        )
+        XCTAssertEqual(mtkViewCount(), viewsBefore, "no new MTKViews")
     }
 }
