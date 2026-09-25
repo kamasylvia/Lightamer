@@ -259,14 +259,33 @@ internal final class PixelPipe: @unchecked Sendable {
     }
 
     /// Next ping-pong scratch plane at the ROI (FULL/EXPORT intermediates).
+    ///
+    /// Plan 11-03 T4 bug fix (caught by the export E2E's negotiated-ROI
+    /// precondition): the old shape reused the two planes UNCONDITIONALLY
+    /// once two existed — a canvas-GROWING module (borders, 08-01) mid-run
+    /// handed the pipe a plane of the PREVIOUS (smaller) size, truncating
+    /// its output to the main-image rect. The reuse now honors the
+    /// requested size: an exact-size plane ping-pongs as before; a size
+    /// change reallocates the slot (the alternation guarantee — output
+    /// never aliases the plane the upstream recursion just returned — is
+    /// kept by the flip, so a same-size reuse never aliases input/output).
     private func nextScratchPlane(roiOut: ROI, metal: MetalContext) throws -> any MTLTexture {
+        scratchFlip.toggle()
+        let index = scratchFlip ? 1 : 0
+        let wantedWidth = max(roiOut.width, 1)
+        let wantedHeight = max(roiOut.height, 1)
         if scratchPlanes.count < 2 {
             let texture = try Self.allocatePlane(roiOut: roiOut, metal: metal)
             scratchPlanes.append(texture)
             return texture
         }
-        scratchFlip.toggle()
-        return scratchPlanes[scratchFlip ? 1 : 0]
+        let current = scratchPlanes[index]
+        if current.width != wantedWidth || current.height != wantedHeight {
+            let texture = try Self.allocatePlane(roiOut: roiOut, metal: metal)
+            scratchPlanes[index] = texture
+            return texture
+        }
+        return current
     }
 
     // MARK: - Tile driver (Plan 03-05-T6)
@@ -919,7 +938,7 @@ internal final class PixelPipe: @unchecked Sendable {
         precondition(
             upstream.texture.width == roiIn.width
                 && upstream.texture.height == roiIn.height,
-            "negotiated ROI violated (uncached) at pos \(position)"
+            "negotiated ROI violated (uncached) at pos \(position) (\(pieces[position].box.opName)): roiOut=\(roiOut.width)x\(roiOut.height)@\(roiOut.x),\(roiOut.y)s\(roiOut.scale) roiIn=\(roiIn.width)x\(roiIn.height)@\(roiIn.x),\(roiIn.y)s\(roiIn.scale) upstream=\(upstream.texture.width)x\(upstream.texture.height)"
         )
         pieces[position].state.processedROIIn = roiIn
         pieces[position].state.processedROIOut = roiOut

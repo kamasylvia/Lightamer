@@ -171,6 +171,13 @@ internal actor CIContextPool {
         AppError.logger.debug("CIContextPool.clearCaches: ciContext.clearCaches() done")
     }
 
+    /// Internal test seam (Plan 11-03 T4, R8): the queue THIS pool's fences
+    /// hang on — the export pool must report `exportCommandQueue` (a fence
+    /// on the wrong queue is a silent race, the R8 false-green shape).
+    internal func debugFenceQueue() -> any MTLCommandQueue {
+        commandQueue
+    }
+
     internal func renderToTexture(
         _ image: CIImage, dedupeKey: UInt64? = nil
     ) throws -> RenderedTexture {

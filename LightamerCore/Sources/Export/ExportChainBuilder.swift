@@ -50,6 +50,14 @@ public enum ExportChainBuilder {
 
         /// The gamut the override expresses (diagnostics/logs).
         public let target: ExportColorSpace
+
+        /// `true` = a colorout record was found and rewritten, so the
+        /// in-pipe conversion happened and the exit leg is an identity
+        /// (sourceColorSpace == target). `false` = the chain had NO colorout
+        /// (non-standard document) — the exit leg must do the WHOLE
+        /// conversion from the working space (the 11-02 default face,
+        /// `sourceColorSpace == WorkingSpace.colorSpace`).
+        public let coloroutOverridden: Bool
     }
 
     /// Assemble the export chain for one variant's color target.
@@ -84,10 +92,12 @@ public enum ExportChainBuilder {
 
         // colorout target rewrite: find the record (the terminal trio's
         // resident; absent colorout = a non-standard chain, exported as-is
-        // and the override socket simply has no carrier box — the exit leg
-        // then does the whole conversion from the working space, the 11-02
-        // default source face).
+        // and the EXIT LEG does the whole conversion from the working
+        // space — the 11-02 default face; the renderer reads
+        // `coloroutOverridden` for the sourceColorSpace choice).
+        var coloroutOverridden = false
         if let index = instances.firstIndex(where: { $0.opName == ColorOutModule.opName }) {
+            coloroutOverridden = true
             var record = instances[index]
             let profile: ColorOutModule.OutputProfile
             switch target {
@@ -108,7 +118,8 @@ public enum ExportChainBuilder {
         return Built(
             instances: instances,
             exportTargetOverride: override,
-            target: target)
+            target: target,
+            coloroutOverridden: coloroutOverridden)
     }
 
     /// The quantization tier's flavor question in one place: TIFF 32f is
