@@ -162,6 +162,10 @@ internal struct LightamerApp: App {
     @State private var batchSidecarWriter: BatchSidecarWriter?
     @State private var pastePartialRequested = false
 
+    /// 09-04 T7 (HIST-06): the before/after presentation state (split /
+    /// peek / hold) — reset on image and session switches.
+    @State private var beforeAfterState = BeforeAfterState()
+
     /// The yiyin logo-face source for the thumbnail run-context injector
     /// (a stateless file-probe instance — the coordinator keeps its own).
     @State private var browserLogoStore = YiyinLogoStore()
@@ -221,6 +225,7 @@ internal struct LightamerApp: App {
                 .environment(sessionCoordinator)
                 .environment(editorState)
                 .environment(pipeCoordinator)
+                .environment(beforeAfterState)
                 .environment(exportState)
                 .environment(inspectorState)
                 .environment(layerEditingState)

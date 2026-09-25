@@ -14,6 +14,11 @@ internal struct StatusBar: View {
     /// never fights the trailing Ready/Decoding readout.
     var toast: String?
 
+    /// 09-04 T7: the before/after compare point ("原图" / "第 k 步"),
+    /// nil = no compare form active. Centered-left so it reads next to
+    /// the toast without fighting the trailing Ready readout.
+    var comparePoint: String?
+
     var body: some View {
         HStack(spacing: 8) {
             if let toast {
@@ -24,6 +29,13 @@ internal struct StatusBar: View {
                     .truncationMode(.tail)
                     .transition(.opacity)
                     .accessibilityIdentifier("status_toast")
+            }
+            if let comparePoint {
+                Text(comparePoint)
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .foregroundStyle(LightamerColors.textSecondary)
+                    .padding(.horizontal, 8)
+                    .accessibilityIdentifier("status_compare_point")
             }
             Spacer()
             Text(isDecoding ? "status_decoding" : "status_ready")

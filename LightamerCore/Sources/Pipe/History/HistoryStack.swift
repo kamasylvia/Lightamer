@@ -375,4 +375,33 @@ public struct HistoryStack: Codable, Sendable, Equatable {
         let opName: String
         let multiPriority: Int
     }
+
+    // MARK: - Non-mutating time travel (Plan 09-04 T6; HIST-06 peek)
+
+    /// Project the state AT an arbitrary history point WITHOUT moving the
+    /// pointer (the before/after snapshot-peek input). The projection is
+    /// the same rule `effectiveInstances(layerScope:)` applies at
+    /// `position` — but at `index` (clamped −1...count−1):
+    /// - `instances` = the effective GLOBAL chain at that point (the
+    ///   paste-epoch/merge-paste rules included);
+    /// - `layerSnapshot` = the LAST structure/paste-epoch stack snapshot
+    ///   at-or-before that point (nil = no layer state).
+    ///
+    /// Pure: `items`/`position` are untouched — the peek NEVER becomes a
+    /// navigation (D-H1 orthogonality).
+    public func projectedState(
+        at index: Int
+    ) -> (instances: [ModuleInstance], layerSnapshot: LayerStackSnapshot?) {
+        let clamped = min(max(index, -1), items.count - 1)
+        guard clamped >= 0 else { return ([], nil) }
+        var copy = self
+        copy.jump(to: clamped)
+        let instances = copy.effectiveInstances()
+        let upTo = items[0...clamped]
+        let layerSnapshot = upTo.lastIndex(where: {
+            $0.layerScope == EditorStructureScope.marker
+                || $0.layerScope == HistoryStack.pasteEpochScope
+        }).flatMap { upTo[$0].stackSnapshot }
+        return (instances, layerSnapshot)
+    }
 }

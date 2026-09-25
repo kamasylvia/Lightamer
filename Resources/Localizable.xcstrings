@@ -375,6 +375,57 @@
         }
       }
     },
+    "beforeafter_compare_pristine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare: original"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对比：原图"
+          }
+        }
+      }
+    },
+    "beforeafter_compare_step %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare: step %lld"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对比：第 %lld 步"
+          }
+        }
+      }
+    },
+    "beforeafter_hold_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holding original"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住看原图"
+          }
+        }
+      }
+    },
     "blend_color": {
       "extractionState": "manual",
       "localizations": {

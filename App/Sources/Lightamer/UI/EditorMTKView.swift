@@ -32,6 +32,17 @@ internal struct EditorMTKView: NSViewRepresentable {
     /// The rendered decoded image, owned by `EditorState`.
     @Binding var sourceTexture: (any MTLTexture)?
 
+    /// 09-04 T7 (HIST-06) split blit variant: the BEFORE plane. nil = the
+    /// legacy single-plane blit (byte-identical draw path — the default).
+    var secondaryTexture: (any MTLTexture)?
+
+    /// The split line as a fraction of the DRAWABLE width: everything LEFT
+    /// of the line shows the secondary (before) plane, the rest shows the
+    /// source (after). nil = no split. 0 = the whole viewport is the
+    /// before plane (the hold-to-view-original form — a constant blit,
+    /// zero renders).
+    var splitFraction: Double?
+
     func makeNSView(context: Context) -> MTKView {
         let view = MTKView(frame: .zero, device: device)
         view.delegate = context.coordinator
@@ -62,9 +73,23 @@ internal struct EditorMTKView: NSViewRepresentable {
         // SwiftUI only pushes the SOURCE OF TRUTH, and only when it changes
         // (`===` identity — every pixelpipe pass produces a new texture).
         // Paused mode: arm exactly one redraw per texture change.
-        guard !context.coordinator.hasSameSourceTexture(as: sourceTexture) else { return }
-        context.coordinator.sourceTexture = sourceTexture
-        view.setNeedsDisplay(view.bounds)
+        var needsDisplay = false
+        if !context.coordinator.hasSameSourceTexture(as: sourceTexture) {
+            context.coordinator.sourceTexture = sourceTexture
+            needsDisplay = true
+        }
+        // 09-04 T7: the compare-plane inputs ride the same push-once shape.
+        if context.coordinator.secondaryTexture !== secondaryTexture {
+            context.coordinator.secondaryTexture = secondaryTexture
+            needsDisplay = true
+        }
+        if context.coordinator.splitFraction != splitFraction {
+            context.coordinator.splitFraction = splitFraction
+            needsDisplay = true
+        }
+        if needsDisplay {
+            view.setNeedsDisplay(view.bounds)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -91,6 +116,11 @@ internal struct EditorMTKView: NSViewRepresentable {
         /// source; gamut+TRC applied in the pipe, SC#1). Built lazily.
         private var blitDisplayReadyPipelineState: (any MTLRenderPipelineState)?
         var sourceTexture: (any MTLTexture)?
+
+        /// 09-04 T7: the before/after split inputs (nil texture = the
+        /// legacy single-plane draw; nil fraction = no split line).
+        var secondaryTexture: (any MTLTexture)?
+        var splitFraction: Double?
 
         /// The colorspace last attached to the CAMetalLayer (D-COL2 — set
         /// only on change; the compositor re-reads it per present).
@@ -216,8 +246,33 @@ internal struct EditorMTKView: NSViewRepresentable {
                         drawableSize: view.drawableSize
                     )
                     encoder.setVertexBytes(&quad, length: MemoryLayout<FitQuad>.stride, index: 0)
-                    encoder.setFragmentTexture(texture, index: 0)
-                    encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+
+                    // 09-04 T7 (HIST-06) split blit: the SAME PSO + quad
+                    // drawn twice under complementary SCISSOR rects — left
+                    // of the line = the before plane, right = the after
+                    // plane. Zero new GPU kernels (the split is raster
+                    // clipping; both planes are resident cache lines). A
+                    // fraction of 0 (the hold form) clips the after plane
+                    // away entirely — the whole viewport shows before.
+                    if let secondary = secondaryTexture, let fraction = splitFraction {
+                        let width = Int(view.drawableSize.width)
+                        let height = Int(view.drawableSize.height)
+                        let splitX = min(max(Int((Double(width) * fraction).rounded()), 0), width)
+                        encoder.setFragmentTexture(secondary, index: 0)
+                        if splitX > 0 {
+                            encoder.setScissorRect(MTLScissorRect(x: 0, y: 0, width: splitX, height: height))
+                            encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+                        }
+                        if splitX < width {
+                            encoder.setScissorRect(MTLScissorRect(x: splitX, y: 0, width: width - splitX, height: height))
+                            encoder.setFragmentTexture(texture, index: 0)
+                            encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+                        }
+                        encoder.setScissorRect(MTLScissorRect(x: 0, y: 0, width: width, height: height))
+                    } else {
+                        encoder.setFragmentTexture(texture, index: 0)
+                        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+                    }
                 }
             } // else: no image yet — solid canvas mat (UI-SPEC "no image" viewport state)
 

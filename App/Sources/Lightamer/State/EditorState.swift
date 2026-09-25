@@ -274,6 +274,11 @@ final class EditorState {
         }
     }
 
+    /// 09-04 T6 (HIST-06): the pristine seed RECORDS for the loaded image
+    /// — the before-plane's compose input (the render override mints its
+    /// own boxes from these). Empty when no image is loaded.
+    var pristineSeedRecords: [ModuleInstance] { baseInstances }
+
     /// Load an image/RAW file through `RAWDecoder` (D-21/D-24); on success
     /// the PipeCoordinator renders PREVIEW and pushes the display texture
     /// (Plan 02-03-04 — the D-X1 single render path). Cancels any in-flight

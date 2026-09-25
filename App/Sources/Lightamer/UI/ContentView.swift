@@ -56,6 +56,7 @@ internal struct ContentView: View {
 
     @Environment(SessionState.self) private var sessionState
     @Environment(EditorState.self) private var editorState
+    @Environment(BeforeAfterState.self) private var beforeAfterState
     @Environment(ExportState.self) private var exportState
     @Environment(InspectorState.self) private var inspectorState
 
@@ -112,7 +113,10 @@ internal struct ContentView: View {
         // column, where the acceptance round read it as viewport chrome
         // and never saw auto-detect toasts.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            StatusBar(isDecoding: editorState.isDecoding, toast: editorState.toast)
+            StatusBar(
+                isDecoding: editorState.isDecoding, toast: editorState.toast,
+                comparePoint: beforeAfterState.isCompareActive
+                    ? beforeAfterState.comparePointLabel : nil)
         }
         .focusedSceneValue(\.lightamerColumnVisibility, $columnVisibility)
         .toolbar { toolbarContent }
@@ -149,6 +153,11 @@ internal struct ContentView: View {
         // The browser modes HIDE the Inspector (v1 范围控制: 浏览模式整页
         // 替换 — the adjustment panels belong to the editor). Returning to
         // the single mode restores the remembered visibility.
+        // 09-04 T7: a new image invalidates the compare planes (the state
+        // resets — the compare forms re-arm per image).
+        .onChange(of: editorState.loadedImageURL) { _, _ in
+            beforeAfterState.reset()
+        }
         .onChange(of: browserModeRaw) { _, newValue in
             if ContentView.BrowserMode(rawValue: newValue) != .single {
                 columnVisibility = .doubleColumn
@@ -279,12 +288,18 @@ internal struct ContentView: View {
             }
             .disabled(true)
 
-            // Phase 9 (HIST-06) — disabled. D-13: no zoom in Phase 1 — disabled.
+            // 09-04 (HIST-06): the split before/after toggle (the peek
+            // stepper + hold ride the viewport HUD / keyboard).
             Button {
+                beforeAfterState.splitEnabled.toggle()
+                if !beforeAfterState.splitEnabled {
+                    beforeAfterState.peekIndex = nil
+                }
             } label: {
                 Label(String(localized: "toolbar_before_after"), systemImage: "rectangle.lefthalf.filled")
             }
-            .disabled(true)
+            .disabled(browserMode != .single || editorState.loadedImageURL == nil)
+            .accessibilityIdentifier("toolbar.before_after")
 
             Button {
             } label: {
