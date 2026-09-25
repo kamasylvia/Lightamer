@@ -108,3 +108,4 @@
 2026-09-25 [派发纪律] 用户指令：每次派发前必读 .work/config.toml 确认阵容，禁凭记忆或时间窗推算（matrix skill 本有此规则—— orchestrator 执行时用时间窗推算替代了实际读文件，被用户纠正）。后续所有派发动作严格按此执行。
 [2026-09-25 夜间] 09-01 执行完成（ZCode subagent worker）：T1-T7 七任务 commit `e461fff`/`ee3c39c`/`c077a06`/`0f26e0a`/`de8a34c`/`abf99a8`/`64c0532` + T8 收口（SUMMARY/DECISIONS 12 条/TODO 勾选/GOAL-STATE 增量/LESSONS L027/perf.md）；终轮全 suite 1017/6skip/0fail（touch 重编复跑绿，基线 975→1017 净增 42）；未 push。开关检查每任务边界 auto=true/paused=false 全程通过。→ 下一程 09-02（FSEvents + reconcile）。
 2026-09-25 [09-01] 验收 PASS-with-notes：SessionState 状态机/SessionCoordinator 五步编排/SessionIndexStore 25列冻结/删库重建 parity 50行×13列/切换泄漏四步断言/L027（realpath归一+fileSystemRepresentation 指针禁deallocate）。1017/6/0 独立实跑（GoldenColor flake 隔离判定归因成立）。→ 09-02 FSEvents+reconcile。
+2026-09-25 [09-02] 验收 PASS（零必修）：ReconcileDiff 纯函数五桶/rename 幸存 apply 单事务/watcher 四缺陷对策/四时点调度/100 sidecar 零自触发/孤儿两动作/外部变更 E2E 五态，1054/6/0 独立实跑。→ 09-03 浏览模式。
