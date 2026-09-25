@@ -125,10 +125,50 @@ internal struct LightamerApp: App {
     // (viewport gesture arbitration归口 — D-03b isolated state object).
     @State private var layerEditingState = LayerEditingState()
 
+    /// Plan 09-01 T1: the session open/switch/teardown orchestrator.
+    /// Closure seams are wired in the scene `.task` (D-03b: no state
+    /// references at construction).
+    @State private var sessionCoordinator = SessionCoordinator()
+
+    /// Plan 09-01 T4: the session-index owner (the real ④ sync and ②-d
+    /// close legs of the session coordinator).
+    @State private var sessionIndexController = SessionIndexController()
+
+    /// Plan 09-02 T3: the four-schedule reconcile owner (focus / event
+    /// batch / forced legs; the open leg is the coordinator's own sync).
+    /// Lifecycle is composed into the coordinator's closure seams below —
+    /// start after a successful open sync, stop at the teardown's index
+    /// close (no Step-enum change, the 09-01 stepLog order stays pinned).
+    @State private var sessionReconciler = SessionReconciler()
+
     /// Plan 07-3: the layer-B download model — app-root owned so the
     /// AIDownloadPrompt surfaces AND the MaskToolbar's layer-B entry gate
     /// observe ONE instance (the AIAssetStore actor stays the truth).
     @State private var aiDownloadModel = AIDownloadModel()
+
+    /// Plan 09-3: the browser collection model (rows + selection), the
+    /// thumbnail memory LRU (a session switch drains it — teardown ②) and
+    /// the thumbnail pipeline (REBUILT per session on the new store; nil
+    /// before the first open).
+    @State private var browserModel = SessionBrowserModel()
+    @State private var thumbnailMemoryCache = ThumbnailMemoryCache()
+    @State private var thumbnailProvider: SessionThumbnailProvider?
+
+    /// Plan 09-04 (HIST-05): the adjustments clipboard, the batch sidecar
+    /// write queue (rebuilt per session beside the thumbnail provider) and
+    /// the partial-paste dialog request flag (the menu sets it; ContentView
+    /// presents the sheet).
+    @State private var pasteboard = AdjustmentsPasteboard()
+    @State private var batchSidecarWriter: BatchSidecarWriter?
+    @State private var pastePartialRequested = false
+
+    /// 09-04 T7 (HIST-06): the before/after presentation state (split /
+    /// peek / hold) — reset on image and session switches.
+    @State private var beforeAfterState = BeforeAfterState()
+
+    /// The yiyin logo-face source for the thumbnail run-context injector
+    /// (a stateless file-probe instance — the coordinator keeps its own).
+    @State private var browserLogoStore = YiyinLogoStore()
 
     /// The decode actor (D-21) — one app-wide instance, injected into
     /// `ContentView` so every Open path feeds `EditorState.load`.
@@ -171,10 +211,21 @@ internal struct LightamerApp: App {
         // sequence (view-identity probes). One editor = one window until
         // Phase 9 revisits multi-window Session management.
         Window("Lightamer", id: "main") {
-            ContentView(decoder: decoder, metalContext: metalContext)
+            ContentView(
+                decoder: decoder, metalContext: metalContext,
+                browserModel: browserModel, thumbnailProvider: thumbnailProvider,
+                pasteboard: pasteboard,
+                onPartialPasteRequested: { pastePartialRequested = true },
+                onPartialPaste: { selection, mode in
+                    await pasteToSelection(selection: selection, mode: mode)
+                },
+                pastePartialRequested: $pastePartialRequested
+            )
                 .environment(sessionState)
+                .environment(sessionCoordinator)
                 .environment(editorState)
                 .environment(pipeCoordinator)
+                .environment(beforeAfterState)
                 .environment(exportState)
                 .environment(inspectorState)
                 .environment(layerEditingState)
@@ -193,6 +244,140 @@ internal struct LightamerApp: App {
                     // render path.
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
+
+                    // Plan 09-01 T1: wire the session orchestrator's
+                    // closure seams (flush/teardown/route/toast — all
+                    // closures, D-03b). ensureDirectories/closeIndex/sync
+                    // land with T2/T4; the defaults are inert no-ops.
+                    sessionCoordinator.configure(
+                        appState: sessionState,
+                        flushCurrentImage: {
+                            await pipeCoordinator.flushSidecar()
+                        },
+                        teardownRenderer: {
+                            await pipeCoordinator.prepareForSessionSwitch()
+                        },
+                        closeIndexHandler: {
+                            // 09-02 T3: disarm the watcher BEFORE the index
+                            // closes (no events into a closed store).
+                            sessionReconciler.stopSession()
+                            // 09-04 T4: flush the batch sidecar queue's
+                            // remainder BEFORE the index closes (the
+                            // teardown seam — pending writes must land or
+                            // stay honestly dirty before reopen heals).
+                            if let writer = batchSidecarWriter {
+                                await writer.flushForTeardown()
+                                batchSidecarWriter = nil
+                            }
+                            await sessionIndexController.close()
+                        },
+                        ensureDirectoriesHandler: { url in
+                            try SessionLayout.ensureDirectories(at: url)
+                        },
+                        syncIndexHandler: { url in
+                            let result = await sessionIndexController.openAndSync(root: url)
+                            // 09-02 T3 ①: arm the watcher AFTER the full
+                            // open sync (a failed sync leaves it disarmed).
+                            if !result.failed {
+                                sessionReconciler.startSession(root: url)
+                                // 09-02 T4: the open-time orphan snapshot.
+                                sessionState.setOrphanSidecarRelPaths(
+                                    await sessionIndexController.actionableOrphans()
+                                )
+                                // 09-3: REBUILD the thumbnail pipeline on
+                                // the NEW store (the old provider's queue
+                                // was cancelled by the teardown ② above)
+                                // and land the authoritative collection
+                                // (orphans included as placeholder cells).
+                                if let store = sessionIndexController.currentStore {
+                                    thumbnailProvider = SessionThumbnailProvider(
+                                        sessionRoot: url,
+                                        store: store,
+                                        disk: ThumbnailDiskStore(sessionRoot: url),
+                                        memory: thumbnailMemoryCache,
+                                        registry: moduleRegistry,
+                                        decoder: decoder,
+                                        renderLeg: metalContext.map {
+                                            SessionThumbnailRenderer.renderLeg(metal: $0)
+                                        },
+                                        runContextInjector:
+                                            SessionThumbnailRenderer.runContextInjector(
+                                                yiyinLogoStore: browserLogoStore
+                                            )
+                                    )
+                                    // 09-04 T4: the segment-3 serial write
+                                    // queue, rebuilt on the NEW store.
+                                    batchSidecarWriter = BatchSidecarWriter(
+                                        root: url, store: store)
+                                }
+                                if let store = sessionIndexController.currentStore {
+                                    await browserModel.finishProgressiveIngest(
+                                        store: store, includeOrphans: true
+                                    )
+                                }
+                            }
+                            return result
+                        },
+                        routeImage: { url in
+                            editorState.load(
+                                url: url,
+                                decoder: decoder,
+                                metal: metalContext,
+                                logger: EditorState.decodeLogger
+                            )
+                        },
+                        reportError: { editorState.presentToast($0) }
+                    )
+
+                    // Plan 09-3: the progressive-ingest seam — scanner
+                    // pages land as placeholder grid rows BEFORE the sync
+                    // transaction commits (边扫边出).
+                    sessionIndexController.scanPageObserver = { page in
+                        browserModel.ingestPlaceholderPage(entries: page.entries)
+                    }
+
+                    // Plan 09-02 T3: wire the reconciler's seams (state +
+                    // the real index legs; the same D-03b closure shape).
+                    sessionReconciler.appState = sessionState
+                    sessionReconciler.reconcileHandler = { url in
+                        let outcome = await sessionIndexController.reconcile(root: url)
+                        if let counts = outcome?.counts {
+                            sessionState.setBrowseCounts(counts)
+                        }
+                        if let orphans = outcome?.orphanRelPaths {
+                            sessionState.setOrphanSidecarRelPaths(orphans)
+                        }
+                        return outcome?.plan
+                    }
+                    sessionReconciler.staleMarkHandler = { paths in
+                        await sessionIndexController.markStale(relPaths: paths)
+                    }
+
+                    // Plan 09-02 T4: the orphan actions (never hard-fail —
+                    // a failed remove surfaces as a no-op) + the snapshot
+                    // refresh each action trails with.
+                    sessionCoordinator.removeOrphanSidecar = { rel in
+                        guard let root = sessionState.currentSessionURL else {
+                            return false
+                        }
+                        let removed = await sessionIndexController.removeOrphanSidecar(
+                            root: root, relPath: rel
+                        )
+                        if removed {
+                            sessionState.setOrphanSidecarRelPaths(
+                                await sessionIndexController.actionableOrphans()
+                            )
+                        }
+                        return removed
+                    }
+                    sessionCoordinator.ignoreOrphanSidecar = { rel in
+                        await sessionIndexController.setOrphanIgnored(
+                            relPath: rel, ignored: true
+                        )
+                        sessionState.setOrphanSidecarRelPaths(
+                            await sessionIndexController.actionableOrphans()
+                        )
+                    }
 
                     // 02-04: register LightamerIOP's modules into the
                     // registry (testgain in DEBUG; Phase 3+ joins here),
@@ -224,8 +409,15 @@ internal struct LightamerApp: App {
                     // Wire the open-document Apple Event (Finder / `open` /
                     // Dock drops) into the same load path as File → Open,
                     // then drain any opens that arrived during launch.
-                    appDelegate.openHandler = { urls in
-                        for url in urls {
+                    // Plan 09-01: a DIRECTORY open routes to the session
+                    // path (same-window L012 — never a new window).
+                    let routeOpen: @MainActor (URL) -> Void = { url in
+                        let isDirectory = (try? url.resourceValues(
+                            forKeys: [.isDirectoryKey]
+                        ))?.isDirectory ?? false
+                        if isDirectory {
+                            Task { await sessionCoordinator.openSession(url: url) }
+                        } else {
                             editorState.load(
                                 url: url,
                                 decoder: decoder,
@@ -234,13 +426,13 @@ internal struct LightamerApp: App {
                             )
                         }
                     }
+                    appDelegate.openHandler = { urls in
+                        for url in urls {
+                            routeOpen(url)
+                        }
+                    }
                     for url in appDelegate.flushBuffered() {
-                        editorState.load(
-                            url: url,
-                            decoder: decoder,
-                            metal: metalContext,
-                            logger: EditorState.decodeLogger
-                        )
+                        routeOpen(url)
                     }
                     // 02-06 (D-S3): quit/termination forces the pending
                     // sidecar write through the AppDelegate's synchronous
@@ -278,9 +470,25 @@ internal struct LightamerApp: App {
                     }
                 }
                 .keyboardShortcut("o", modifiers: .command)
-                // Phase 9 fills the recent-sessions list; empty in Phase 1.
-                Menu(String(localized: "menu_open_recent")) {}
-                    .disabled(true)
+                // Plan 09-01 (SESS-01): pick a folder → the session path
+                // (same-window routing; FileOpener.openFolder's panel
+                // wrapper reused).
+                Button(String(localized: "menu_open_session")) {
+                    FileOpener.openSessionFolder { url in
+                        Task { await sessionCoordinator.openSession(url: url) }
+                    }
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+                // Plan 09-01 fills the recent-sessions list (SESS-04); the
+                // rows route into the SAME openSession path (L012).
+                Menu(String(localized: "menu_open_recent")) {
+                    ForEach(sessionState.recentSessions, id: \.absoluteString) { url in
+                        Button(url.lastPathComponent) {
+                            Task { await sessionCoordinator.openSession(url: url) }
+                        }
+                    }
+                }
+                .disabled(sessionState.recentSessions.isEmpty)
                 Divider()
                 // Phase 9 — disabled. (No .closeItem placement in SwiftUI's
                 // CommandGroupPlacement, so it sits with the File items.)
@@ -319,13 +527,24 @@ internal struct LightamerApp: App {
                 .disabled(!editorState.canRedo)
                 .keyboardShortcut("z", modifiers: [.command, .shift])
                 Divider()
-                // Phase 9 (HIST-05) — disabled.
-                Button(String(localized: "menu_copy_adjustments")) {}
-                    .disabled(true)
-                    .keyboardShortcut("c", modifiers: [.command, .shift])
-                Button(String(localized: "menu_paste_adjustments")) {}
-                    .disabled(true)
-                    .keyboardShortcut("v", modifiers: [.command, .shift])
+                // 09-04 HIST-05 (was the Phase 9 disabled placeholder):
+                // copy freezes the CURRENT image's effective adjustments;
+                // paste routes the frozen payload onto the browser
+                // selection (batch) or the current image (live).
+                Button(String(localized: "menu_copy_adjustments")) {
+                    Task { await copyAdjustments() }
+                }
+                .disabled(editorState.loadedImageURL == nil)
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+                Button(String(localized: "menu_paste_adjustments")) {
+                    Task { await pasteToSelection(selection: nil, mode: .merge) }
+                }
+                .disabled(!pasteboard.hasPayload)
+                .keyboardShortcut("v", modifiers: [.command, .shift])
+                Button(String(localized: "menu_paste_partial")) {
+                    pastePartialRequested = true
+                }
+                .disabled(!pasteboard.hasPayload)
             }
 
             // ── View ────────────────────────────────────────────────
@@ -400,6 +619,115 @@ internal struct LightamerApp: App {
         }
     }
     #endif
+
+    // ── 09-04 HIST-05: copy + paste routing (the app-root owns the whole
+    // state graph — the menu commands orchestrate, the states never
+    // reference each other, D-03b) ─────────────────────────────────────────
+
+    /// ⌘⇧C: freeze the CURRENT image's effective adjustments into the
+    /// clipboard (the skip set applies inside `compose`).
+    private func copyAdjustments() async {
+        guard editorState.loadedImageURL != nil else { return }
+        let effective = editorState.history.effectiveInstances()
+        let layerRecord = editorState.layerStack
+            .map { SidecarLayerStackRecord($0) }
+            .flatMap { $0.layers.isEmpty ? nil : $0 }
+        let payload = PastePayload.compose(
+            sourceImageID: pipeCoordinator.currentImageID ?? UUID(),
+            sourceURL: editorState.loadedImageURL,
+            sourceInstances: editorState.instances,
+            sourceEffective: effective,
+            seed: await seedInstances(),
+            layerStack: layerRecord)
+        pasteboard.copy(payload)
+    }
+
+    /// ⌘⇧V / the partial dialog's paste: route the payload onto the
+    /// browser selection (batch, segments 1-3) with the CURRENT image's
+    /// relPath carved out as the LIVE target (dt
+    /// `_safe_history_job_on_imgid`: the edited image goes through the
+    /// interactive layer, never the batch loop). Without a session
+    /// selection, the current image alone is the live target.
+    private func pasteToSelection(
+        selection: Set<PastePayload.InstanceKey>?, mode: PasteMode
+    ) async {
+        guard let payload = pasteboard.peek(), !payload.instances.isEmpty else {
+            return
+        }
+        let seed = await seedInstances()
+        let targets = browserModel.selectedOrderedPaths
+        let sessionRoot = sessionState.currentSessionURL
+        let store = sessionIndexController.currentStore
+
+        if let sessionRoot, let store, !targets.isEmpty {
+            // The live relPath: the currently edited image, relative to the
+            // session root (nil when nothing is loaded / outside the root).
+            var liveRelPaths = Set<String>()
+            if let loaded = editorState.loadedImageURL {
+                let loadedPrefix = sessionRoot.path + "/"
+                if loaded.path.hasPrefix(loadedPrefix) {
+                    liveRelPaths.insert(String(loaded.path.dropFirst(loadedPrefix.count)))
+                }
+            }
+            _ = await SessionBatchApplier.apply(
+                root: sessionRoot,
+                relPaths: targets,
+                payload: payload,
+                mode: mode,
+                seed: seed,
+                selection: selection,
+                liveRelPaths: liveRelPaths,
+                store: store,
+                writer: batchSidecarWriter,
+                label: String(localized: "history_paste_adjustments"))
+            // The grid's hasEdits/dirty badges refresh from the claimed
+            // rows (the thumbnails regenerate through the 9-3 queue).
+            await browserModel.reload(store: store, includeOrphans: true)
+            // The LIVE target pastes through the interactive layer (the
+            // composed stack lands via EditorState; ONE ⌘Z undoes it).
+            if let liveRel = liveRelPaths.first, targets.contains(liveRel) {
+                await pasteLive(payload: payload, selection: selection, mode: mode, seed: seed)
+            }
+        } else if editorState.loadedImageURL != nil {
+            // No session selection — the current image is the target.
+            await pasteLive(payload: payload, selection: selection, mode: mode, seed: seed)
+        }
+    }
+
+    /// The LIVE paste leg (the currently edited image): compose against
+    /// EditorState's in-memory stack and install — ONE commit, ⌘Z-able.
+    private func pasteLive(
+        payload: PastePayload, selection: Set<PastePayload.InstanceKey>?,
+        mode: PasteMode, seed: [ModuleInstance]
+    ) async {
+        let composed = PasteSemantics.paste(
+            targetHistory: editorState.history,
+            targetInstances: editorState.instances,
+            payload: payload,
+            mode: mode,
+            seed: seed,
+            selection: selection,
+            label: String(localized: "history_paste_adjustments"))
+        guard let composed else { return }
+        switch mode {
+        case .merge:
+            editorState.installMergePaste(history: composed.history)
+        case .overwrite:
+            editorState.installOverwritePaste(
+                history: composed.history, seed: seed)
+        }
+    }
+
+    /// The identity-default seed (terminal trio + the editing defaults).
+    private func seedInstances() async -> [ModuleInstance] {
+        (
+            await moduleRegistry.makeDefaultInstances()
+                + LightamerIOPRegistry.editingDefaultInstances()
+        )
+        .sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+    }
 
     /// Toggle the sessions sidebar (`.all ↔ .doubleColumn` — content and
     /// detail stay visible).

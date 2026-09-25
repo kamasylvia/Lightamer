@@ -737,6 +737,34 @@ final class PipeCoordinator {
     /// merge). Live preview ticks (`setLiveParams`) deliberately do NOT
     /// schedule — the file must always satisfy the rebuild-from-history
     /// invariant, and uncommitted drag state is not history.
+    // ── Session switch (Plan 09-01 T1; the documented Phase 9 hook at the
+    // D-C2 sweep site, `load(...)`'s "session SWITCH also calls
+    // cache.invalidateAll() + this sweep" comment) ──
+
+    /// Test-visible invocation count (`SessionSwitchTests` leak assertion —
+    /// the invalidateAll spy; the thumbnail-LRU seam lands with the 9-3
+    /// provider and this counter pins the teardown CALL until then).
+    private(set) var sessionSwitchPrepCount = 0
+
+    /// Session-switch teardown leg: purge EVERY cached plane (no keep
+    /// policy — the whole session is going away) + the CI/RawCamera
+    /// internal caches. The D-C2 budget sweep is subsumed — invalidateAll
+    /// drains every plane, so a KeepingPolicy pass would early-return on
+    /// the empty cache. Idempotent.
+    func prepareForSessionSwitch() async {
+        sessionSwitchPrepCount += 1
+        await cache.invalidateAll()
+        if let metal {
+            await metal.clearCICaches()
+        }
+    }
+
+    /// Test seam: the PipeCache byte total (`SessionSwitchTests` asserts
+    /// == 0 after a switch).
+    var totalBytesForTesting: Int {
+        get async { await cache.totalBytes }
+    }
+
     private func scheduleSidecarWrite() {
         guard let sidecarStore, let document = makeSidecarDocument() else { return }
         Task { await sidecarStore.scheduleWrite(document) }
@@ -1011,6 +1039,14 @@ final class PipeCoordinator {
     /// HIST-02 redo: into an untruncated tail only.
     func redo() async {
         guard let editorState, editorState.performRedo() else { return }
+        await historyDidChange()
+        scheduleSidecarWrite()
+    }
+
+    /// 09-04 HIST-05: a PASTE landed on the current image (the live leg).
+    /// The same committed-move shape as undo/redo: re-render + persist.
+    func pasteDidChange() async {
+        guard decoded != nil else { return }
         await historyDidChange()
         scheduleSidecarWrite()
     }
@@ -1408,6 +1444,125 @@ final class PipeCoordinator {
             longEdge: longEdge
         )
         return RenderChainOutput(texture: texture, stats: stats)
+    }
+
+    // ── 09-04 T6 (HIST-06): render-with-instances override + the
+    // before/after planes ─────────────────────────────────────────────────
+
+    /// The OVERRIDE render variant: run the pipe against EXPLICIT records
+    /// WITHOUT touching the live state machine — no position move, no
+    /// history item, no box mutation, no `displayTexture` push (the
+    /// before/after planes are consumed by the split blit, never by the
+    /// live path). The default chain runners above are UNTOUCHED — their
+    /// byte semantics are the Phase 2-8 contract (the regression suite +
+    /// `BeforeAfterTests` pin the independence).
+    ///
+    /// Cache keys derive from the RECORDS' paramsHash chain, so the
+    /// pristine plane (seed records) and any peek(k) plane land on their
+    /// OWN `upstreamHash` lines — zero schema change, planes stay resident
+    /// under the current image's namespace (D-C1 keep policy applies).
+    ///
+    /// - Parameters:
+    ///   - instances: the records to render (the pristine seed, or a
+    ///     `projectedState(at:)` projection).
+    ///   - layerStack: the layer stack to composite (nil = the flat path,
+    ///     preserving the legacy key space for layer-less projections).
+    ///   - bucket: the PREVIEW bucket (nil = the current bucket).
+    func renderPreview(
+        instances overrideRecords: [ModuleInstance],
+        layerStack: LayerStack?,
+        bucket: Int? = nil
+    ) async throws -> RenderChainOutput {
+        overrideRenderCount += 1
+        guard let decoded, let metal else {
+            throw AppError.decodeFailed("renderPreview(override): no image loaded")
+        }
+        let imageID = currentImageID ?? UUID()
+        let longEdge = bucket ?? currentBucket ?? PreviewBucket.cap
+        guard let registry else {
+            throw AppError.decodeFailed("renderPreview(override): no registry")
+        }
+        let (boxes, _) = await registry.materializeBoxes(for: overrideRecords)
+        // The display fold rides the override's colorout too — WITHOUT
+        // capturing it as the live chain's box (the live follow state is
+        // never mutated by an override render).
+        if let colorout = boxes.first(where: { $0.opName == ColorOutModule.opName })
+            as? ModuleBox<ColorOutModule> {
+            colorout.module.displayProfileOverride = DisplayProfile.resolve(
+                window?.screen?.colorSpace ?? NSScreen.main?.colorSpace
+            )
+            let params = (try? JSONDecoder().decode(
+                ColorOutModule.Params.self, from: colorout.paramsData))
+                ?? ColorOutModule.Params()
+            colorout.setParams(params)
+        }
+        if let layerStack, !layerStack.compositeLayers.isEmpty {
+            let (texture, stats) = try await RenderPipeline.processComposite(
+                image: decoded,
+                instances: boxes,
+                layerStack: layerStack,
+                registry: registry,
+                imageID: imageID,
+                resolution: .preview,
+                cache: cache,
+                metal: metal,
+                longEdge: longEdge,
+                roiHint: nil,
+                policy: .preview,
+                hotLayerID: nil,
+                maskDirectory: currentImageURL.map {
+                    RasterMaskStore.masksDirectory(forImageURL: $0)
+                })
+            return RenderChainOutput(texture: texture, stats: stats)
+        }
+        let (texture, stats) = try await RenderPipeline.process(
+            image: decoded,
+            instances: boxes,
+            imageID: imageID,
+            resolution: .preview,
+            cache: cache,
+            metal: metal,
+            longEdge: longEdge
+        )
+        return RenderChainOutput(texture: texture, stats: stats)
+    }
+
+    /// The override-render counter (the T7 render-count assertion face:
+    /// the hold fast path must NOT move it).
+    private(set) var overrideRenderCount = 0
+
+    /// The BEFORE plane: the image's PRISTINE chain (the seed instance set,
+    /// flat) — rendered once on first entry into a before/after mode and
+    /// resident in the plane cache afterwards (the key's upstreamHash is
+    /// the seed chain's — a pristine image shares the live plane, which is
+    /// exactly right: before == current when nothing is edited).
+    func renderPristinePlane() async throws -> any MTLTexture {
+        guard let editorState else {
+            throw AppError.decodeFailed("pristine plane: no editor state")
+        }
+        let rendered = try await renderPreview(
+            instances: editorState.pristineSeedRecords, layerStack: nil)
+        return rendered.texture
+    }
+
+    /// The PEEK plane: a NON-mutating projection of history point `index`
+    /// (the snapshot-point comparison). Never moves the pointer, never
+    /// creates a history item (D-H1 orthogonality — asserted in tests).
+    func renderHistoryPeekPlane(at index: Int) async throws -> any MTLTexture {
+        guard let editorState else {
+            throw AppError.decodeFailed("peek plane: no editor state")
+        }
+        let (records, snapshot) = editorState.history.projectedState(at: index)
+        var stack: LayerStack?
+        if let snapshot {
+            var rebuilt = LayerStack(
+                baseLayer: editorState.layerStack?.baseLayer ?? BackgroundLayer())
+            for layer in snapshot.makeLayers() { rebuilt.addAdjustment(layer) }
+            stack = rebuilt.compositeLayers.isEmpty ? nil : rebuilt
+        }
+        let rendered = try await renderPreview(
+            instances: records, layerStack: stack)
+        return rendered.texture
     }
 
     // ── 08-3 T3: the yiyin per-run context injection (D-08-3-T3-2) ──────

@@ -46,6 +46,26 @@ internal enum FileOpener {
         }
     }
 
+    /// Plan 09-01: pick a FOLDER and hand the directory URL itself to the
+    /// session-open route (`SessionCoordinator.openSession` — File → Open
+    /// Session, the sidebar button, and recent rows all land here). Reuses
+    /// the shared `makePanel` wrapper; the directory check keeps parity
+    /// with `openFolder`'s behavior for stray file picks (routed to `load`
+    /// unchanged).
+    static func openSessionFolder(route: @MainActor @escaping (URL) -> Void) {
+        let panel = makePanel(
+            titleKey: "menu_open_session",
+            messageKey: "select_folder_to_create_session",
+            canChooseDirectories: true,
+            types: []
+        )
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+        if isDirectory {
+            route(url)
+        }
+    }
+
     // MARK: - Helpers
 
     private static func makePanel(

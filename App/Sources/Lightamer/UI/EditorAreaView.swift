@@ -44,6 +44,12 @@ internal struct EditorAreaView: View {
     /// arbitration归口 (mask tools / liquify / crop, exactly one owner).
     @Environment(LayerEditingState.self) private var editingState
 
+    /// 09-04 T7 (HIST-06): the before/after presentation state (split /
+    /// peek / hold) + the fetched compare plane (a resident cache line —
+    /// fetched ONCE per activation, never re-rendered by the hold edge).
+    @Environment(BeforeAfterState.self) private var beforeAfterState
+    @State private var comparePlane: (any MTLTexture)?
+
     var body: some View {
         @Bindable var editorState = editorState
         VStack(spacing: 0) {
@@ -63,7 +69,10 @@ internal struct EditorAreaView: View {
                         EditorMTKView(
                             device: metalContext.device,
                             commandQueue: metalContext.commandQueue,
-                            sourceTexture: $editorState.displayTexture
+                            sourceTexture: $editorState.displayTexture,
+                            secondaryTexture: beforeAfterState.isCompareActive ? comparePlane : nil,
+                            splitFraction: beforeAfterState.isCompareActive
+                                ? beforeAfterState.effectiveSplitFraction : nil
                         )
                         .transition(.opacity)
                         .accessibilityLabel(Text("editor_viewport"))
@@ -152,6 +161,34 @@ internal struct EditorAreaView: View {
                                 MaskToolbarView(metalContext: metalContext)
                             }
                         }
+                        // 09-04 T7 (HIST-06): the compare HUD — a floating
+                        // strip at the viewport's TOP EDGE while a
+                        // before/after form is active (compare point + peek
+                        // stepper + the split-line drag handle).
+                        .overlay(alignment: .top) {
+                            if beforeAfterState.splitEnabled {
+                                BeforeAfterHUD()
+                            }
+                        }
+                        // The compare plane lifecycle: fetched through the
+                        // coordinator's OVERRIDE render on activation /
+                        // peek change ONLY (the hold edges never re-fetch —
+                        // the plane is resident; zero-render fast path).
+                        .task(id: beforeAfterTaskKey) {
+                            guard beforeAfterState.isCompareActive else { return }
+                            if beforeAfterState.peekIndex == nil {
+                                comparePlane = try? await pipeCoordinator.renderPristinePlane()
+                            } else {
+                                comparePlane = try? await pipeCoordinator.renderHistoryPeekPlane(
+                                    at: beforeAfterState.peekIndex!)
+                            }
+                        }
+                        // The hold key (`\`, the C1 habit): key-down flips
+                        // the blit to the resident before plane, key-up
+                        // flips back — a CONSTANT blit switch (no render,
+                        // no history item).
+                        .onAppear { installHoldMonitor() }
+                        .onDisappear { removeHoldMonitor() }
                     } else {
                         Color.clear
                             .transition(.opacity)
@@ -265,5 +302,121 @@ internal struct EditorAreaView: View {
     private var displayPixelSize: CGSize {
         guard let tex = editorState.displayTexture else { return .zero }
         return CGSize(width: tex.width, height: tex.height)
+    }
+
+    // MARK: - 09-04 T7 before/after legs
+
+    /// The fetch-trigger key (the .task(id:) identity): re-fetches the
+    /// compare plane only on activation/peek/point/image changes.
+    private var beforeAfterTaskKey: String {
+        let split = beforeAfterState.splitEnabled
+        let peek = beforeAfterState.peekIndex ?? -1
+        let url = editorState.loadedImageURL?.absoluteString ?? "none"
+        return "\(split)|\(peek)|\(url)"
+    }
+
+    @State private var holdMonitor: Any?
+
+    private func installHoldMonitor() {
+        guard holdMonitor == nil else { return }
+        holdMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { event in
+            guard event.charactersIgnoringModifiers == "\\",
+                  event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty
+            else { return event }
+            switch event.type {
+            case .keyDown:
+                if !beforeAfterState.isHoldingOriginal {
+                    beforeAfterState.isHoldingOriginal = true
+                }
+                return nil // consumed — the hold is viewport-local
+            case .keyUp:
+                if beforeAfterState.isHoldingOriginal {
+                    beforeAfterState.isHoldingOriginal = false
+                }
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
+    private func removeHoldMonitor() {
+        if let monitor = holdMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        holdMonitor = nil
+        beforeAfterState.isHoldingOriginal = false
+    }
+}
+
+/// The compare HUD (split form): the compare-point label + the peek
+/// stepper + a draggable split handle. The drag lands in Manual-Only
+/// (feel/手感), the data face is the state's fraction.
+internal struct BeforeAfterHUD: View {
+
+    @Environment(BeforeAfterState.self) private var beforeAfterState
+    @Environment(EditorState.self) private var editorState
+
+    var body: some View {
+        @Bindable var state = beforeAfterState
+        HStack(spacing: 10) {
+            Button {
+                step(-1)
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .accessibilityIdentifier("beforeafter.peek.prev")
+
+            Text(state.comparePointLabel)
+                .monospacedDigit()
+                .accessibilityIdentifier("beforeafter.compare.label")
+
+            Button {
+                step(1)
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .disabled(beforeAfterState.peekIndex.map { $0 + 1 >= editorState.history.items.count } ?? false)
+            .accessibilityIdentifier("beforeafter.peek.next")
+
+            Divider().frame(height: 16)
+
+            Slider(
+                value: Binding(
+                    get: { beforeAfterState.splitFraction },
+                    set: { beforeAfterState.splitFraction = $0 }),
+                in: 0.05...0.95
+            )
+            .frame(width: 140)
+            .accessibilityIdentifier("beforeafter.split.handle")
+
+            Button {
+                beforeAfterState.splitEnabled = false
+                beforeAfterState.peekIndex = nil
+            } label: {
+                Image(systemName: "xmark.circle")
+            }
+            .accessibilityIdentifier("beforeafter.close")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("beforeafter.hud")
+    }
+
+    /// Peek stepping: nil (pristine) → 0 → 1 → … clamped to the stack;
+    /// backward steps end at nil. Pure state — the render rides the
+    /// view's .task(id:) (never inline).
+    private func step(_ delta: Int) {
+        let count = editorState.history.items.count
+        let current = beforeAfterState.peekIndex
+        let next: Int?
+        if delta > 0 {
+            next = (current ?? -1) + 1 < count ? (current ?? -1) + 1 : current
+        } else {
+            next = (current ?? 0) - 1 >= 0 ? (current ?? 0) - 1 : nil
+        }
+        beforeAfterState.peekIndex = next
     }
 }

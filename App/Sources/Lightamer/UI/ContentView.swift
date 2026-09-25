@@ -16,8 +16,47 @@ internal struct ContentView: View {
     /// `.metalDeviceUnavailable` alert below (UI-SPEC Error Messages).
     let metalContext: MetalContext?
 
+    /// Plan 09-3: the browser collection model + the thumbnail pipeline
+    /// (rebuilt per session by the app root; nil = not wired yet).
+    let browserModel: SessionBrowserModel
+    let thumbnailProvider: SessionThumbnailProvider?
+
+    /// Plan 09-04 (HIST-05): the adjustments clipboard + the app root's
+    /// partial-paste routing (the sheet raises the request; the app root's
+    /// closure performs the paste) + the presentation binding.
+    let pasteboard: AdjustmentsPasteboard
+    let onPartialPasteRequested: () -> Void
+    let onPartialPaste: (
+        (_ selection: Set<PastePayload.InstanceKey>, _ mode: PasteMode) async -> Void
+    )?
+    @Binding var pastePartialRequested: Bool
+
+    /// The THREE browser modes (RESEARCH §9 — 网格 | 单图 | 对比). The
+    /// persisted value survives relaunches; `single` (the pre-9-3 whole
+    /// app) stays the default.
+    enum BrowserMode: String, CaseIterable, Identifiable {
+        case grid
+        case single
+        case culling
+        var id: String { rawValue }
+        var identifier: String { "browser.mode.\(rawValue)" }
+        var titleKey: String {
+            switch self {
+            case .grid: "browser_mode_grid"
+            case .single: "browser_mode_single"
+            case .culling: "browser_mode_culling"
+            }
+        }
+    }
+
+    @AppStorage("browser.mode") private var browserModeRaw: String = BrowserMode.single.rawValue
+    private var browserMode: BrowserMode {
+        BrowserMode(rawValue: browserModeRaw) ?? .single
+    }
+
     @Environment(SessionState.self) private var sessionState
     @Environment(EditorState.self) private var editorState
+    @Environment(BeforeAfterState.self) private var beforeAfterState
     @Environment(ExportState.self) private var exportState
     @Environment(InspectorState.self) private var inspectorState
 
@@ -46,7 +85,7 @@ internal struct ContentView: View {
             // UI-SPEC dims, GUI-4 narrowed: min 150 / ideal 200 / max 240.
                 .navigationSplitViewColumnWidth(min: 150, ideal: clamped(sidebarWidth, 150, 240), max: 240)
         } content: {
-            EditorAreaView(decoder: decoder, metalContext: metalContext)
+            browserContent
                 // 04-08-F1 ②: 编辑列硬 min 495pt = 990pt 窗的 50% 红线 ——
                 // 旧 split frames 恢复压倒 ideal 时 (04-06 教训: 首启顶 max
                 // 460 → 视口 33.2%), 小窗下先压侧栏/inspector (mins 150/
@@ -55,11 +94,18 @@ internal struct ContentView: View {
                 // 富余分配仍由 balanced 定，不干预大窗比例.
                 .navigationSplitViewColumnWidth(min: 495, ideal: 700)
         } detail: {
-            InspectorView()
-            // UI-SPEC dims, GUI-4 真修复（F1 ①）: min 200 / ideal 240 / max 460.
-            // 曲线编辑器满宽 = 240 列 − padding ≈ 216pt 画布；max 460 只在
-            // 用户手动拉宽时到达.
-                .navigationSplitViewColumnWidth(min: 200, ideal: clamped(inspectorWidth, 200, 460), max: 460)
+            // 09-3 GUI-19 fix: the browser modes hide the Inspector by NOT
+            // RENDERING the detail column (the columnVisibility change alone
+            // did not collapse it on macOS 27 — the acceptance round caught
+            // the panel still standing). The single mode restores it with
+            // the remembered widths.
+            if browserMode == .single {
+                InspectorView()
+                // UI-SPEC dims, GUI-4 真修复（F1 ①）: min 200 / ideal 240 / max 460.
+                // 曲线编辑器满宽 = 240 列 − padding ≈ 216pt 画布；max 460 只在
+                // 用户手动拉宽时到达.
+                    .navigationSplitViewColumnWidth(min: 200, ideal: clamped(inspectorWidth, 200, 460), max: 460)
+            }
         }
         .navigationSplitViewStyle(.balanced)
         // 04-08-T2 (GUI-8 fix): the D-26 status bar lives at the WINDOW
@@ -67,7 +113,10 @@ internal struct ContentView: View {
         // column, where the acceptance round read it as viewport chrome
         // and never saw auto-detect toasts.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            StatusBar(isDecoding: editorState.isDecoding, toast: editorState.toast)
+            StatusBar(
+                isDecoding: editorState.isDecoding, toast: editorState.toast,
+                comparePoint: beforeAfterState.isCompareActive
+                    ? beforeAfterState.comparePointLabel : nil)
         }
         .focusedSceneValue(\.lightamerColumnVisibility, $columnVisibility)
         .toolbar { toolbarContent }
@@ -96,14 +145,103 @@ internal struct ContentView: View {
         .onAppear {
             // D-08: restore inspector visibility from layout memory.
             columnVisibility = inspectorVisible ? .all : .detailOnly
+            applyBrowserModeColumnRules()
         }
         .onChange(of: inspectorVisible) { _, isVisible in
             columnVisibility = isVisible ? .all : .detailOnly
+        }
+        // The browser modes HIDE the Inspector (v1 范围控制: 浏览模式整页
+        // 替换 — the adjustment panels belong to the editor). Returning to
+        // the single mode restores the remembered visibility.
+        // 09-04 T7: a new image invalidates the compare planes (the state
+        // resets — the compare forms re-arm per image).
+        .onChange(of: editorState.loadedImageURL) { _, _ in
+            beforeAfterState.reset()
+        }
+        .onChange(of: browserModeRaw) { _, newValue in
+            if ContentView.BrowserMode(rawValue: newValue) != .single {
+                columnVisibility = .doubleColumn
+            } else {
+                columnVisibility = inspectorVisible ? .all : .detailOnly
+            }
         }
         // Plan 07-1 T3: the layer-B model first-launch prompt + progress +
         // failure surfaces (app-level state; 07-3's MaskToolbar reuses the
         // same AIAssetStore model).
         .modifier(AIDownloadPrompt())
+        // 09-04 HIST-05: the partial-paste dialog (the menu command raises
+        // the request; the paste routes back through the app root).
+        .sheet(isPresented: $pastePartialRequested) {
+            if let payload = pasteboard.peek() {
+                PastePartialDialog(
+                    payload: payload,
+                    initialSelection: pasteboard.lastSelection,
+                    onPaste: { selection, mode in
+                        pastePartialRequested = false
+                        Task {
+                            await onPartialPaste?(selection, mode)
+                        }
+                    },
+                    onCancel: { pastePartialRequested = false }
+                )
+            }
+        }
+    }
+
+    // Plan 09-3 THREE-MODE switch — a WHOLE-PAGE replacement (the browser
+    // never squeezes the editor's layout; 视口主导红线). The editor-column
+    // width contract (hard min 495pt) rides the SAME modifier as before.
+    @ViewBuilder
+    private var browserContent: some View {
+        switch browserMode {
+        case .grid:
+            SessionBrowserView(
+                model: browserModel,
+                thumbnailProvider: thumbnailProvider,
+                onOpenInEditor: { url in
+                    editorState.load(
+                        url: url,
+                        decoder: decoder,
+                        metal: metalContext,
+                        logger: EditorState.decodeLogger
+                    )
+                    browserModeRaw = ContentView.BrowserMode.single.rawValue
+                },
+                sessionRoot: sessionState.currentSessionURL
+            )
+        case .single:
+            EditorAreaView(decoder: decoder, metalContext: metalContext)
+        case .culling:
+            CullingView(
+                model: browserModel,
+                decoder: decoder,
+                metalContext: metalContext,
+                sessionRoot: sessionState.currentSessionURL
+            )
+        }
+    }
+
+    /// The Inspector column rule per mode (see the onChange above).
+    private func applyBrowserModeColumnRules() {
+        guard columnVisibility != .detailOnly || browserMode == .single else { return }
+        if browserMode != .single {
+            columnVisibility = .doubleColumn // sidebar visible, inspector hidden
+        } else {
+            columnVisibility = inspectorVisible ? .all : .detailOnly
+        }
+    }
+
+    /// The mode segmented control (L010: stable per-mode identifiers).
+    private var modePicker: some View {
+        Picker(String(localized: "browser_mode_label"), selection: $browserModeRaw) {
+            ForEach(ContentView.BrowserMode.allCases) { mode in
+                Text(String(localized: String.LocalizationValue(mode.titleKey)))
+                    .tag(mode.rawValue)
+                    .accessibilityIdentifier(mode.identifier)
+            }
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 240)
     }
 
     // MARK: - Toolbar (UI-SPEC Top Toolbar table)
@@ -150,12 +288,18 @@ internal struct ContentView: View {
             }
             .disabled(true)
 
-            // Phase 9 (HIST-06) — disabled. D-13: no zoom in Phase 1 — disabled.
+            // 09-04 (HIST-06): the split before/after toggle (the peek
+            // stepper + hold ride the viewport HUD / keyboard).
             Button {
+                beforeAfterState.splitEnabled.toggle()
+                if !beforeAfterState.splitEnabled {
+                    beforeAfterState.peekIndex = nil
+                }
             } label: {
                 Label(String(localized: "toolbar_before_after"), systemImage: "rectangle.lefthalf.filled")
             }
-            .disabled(true)
+            .disabled(browserMode != .single || editorState.loadedImageURL == nil)
+            .accessibilityIdentifier("toolbar.before_after")
 
             Button {
             } label: {
@@ -170,6 +314,8 @@ internal struct ContentView: View {
             .disabled(true)
         }
         ToolbarItemGroup(placement: .primaryAction) {
+            modePicker
+
             Button {
                 inspectorVisible.toggle()
             } label: {

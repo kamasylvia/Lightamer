@@ -169,6 +169,49 @@ final class EditorState {
     /// (undo followed by NO new commit; any commit truncates it).
     var canRedo: Bool { history.position + 1 < history.items.count }
 
+    // ── 09-04 HIST-05 paste landing (the live-path surface) ──────────────
+
+    /// Install a MERGE paste (the currently edited image as the target —
+    /// dt `_safe_history_job_on_imgid`'s live leg): the composed stack
+    /// already carries the ONE paste item; the base set is untouched
+    /// (undo-safe). One ⌘Z steps back over the paste item.
+    func installMergePaste(history newHistory: HistoryStack) {
+        history = newHistory
+        rebuildInstances()
+        rebuildLayerStack()
+        notifyPasteChange()
+    }
+
+    /// Install an OVERWRITE paste: the composed stack is the epoch item;
+    /// the base becomes `seed ∪ oldBase` (the「默认种子 + 载荷实例」
+    /// acceptance — the seed records the OLD effective set shadowed come
+    /// back so a ⌘Z re-projects the pre-paste state byte-exactly).
+    func installOverwritePaste(
+        history newHistory: HistoryStack, seed: [ModuleInstance]
+    ) {
+        history = newHistory
+        var merged = seed
+        for record in baseInstances
+        where !merged.contains(where: {
+            $0.opName == record.opName && $0.multiPriority == record.multiPriority
+        }) {
+            merged.append(record)
+        }
+        baseInstances = merged.sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+        rebuildInstances()
+        rebuildLayerStack()
+        notifyPasteChange()
+    }
+
+    /// The paste → coordinator edge (mirror of recordChange's tail: the
+    /// committed move re-renders AND schedules the sidecar write).
+    private func notifyPasteChange() {
+        guard let pipeCoordinator else { return }
+        Task { await pipeCoordinator.pasteDidChange() }
+    }
+
     /// HIST-02 navigation (coordinator-driven): step back; false when
     /// already pristine. Rebuilds the live instance set from the stack.
     @discardableResult
@@ -230,6 +273,11 @@ final class EditorState {
             ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
         }
     }
+
+    /// 09-04 T6 (HIST-06): the pristine seed RECORDS for the loaded image
+    /// — the before-plane's compose input (the render override mints its
+    /// own boxes from these). Empty when no image is loaded.
+    var pristineSeedRecords: [ModuleInstance] { baseInstances }
 
     /// Load an image/RAW file through `RAWDecoder` (D-21/D-24); on success
     /// the PipeCoordinator renders PREVIEW and pushes the display texture
@@ -590,8 +638,11 @@ final class EditorState {
     private func rebuildLayerStack() {
         var stack = LayerStack(baseLayer: layerStack?.baseLayer ?? BackgroundLayer())
         let upTo = history.position >= 0 ? Array(history.items[0...history.position]) : []
+        // The structure slot: layer-structure items AND overwrite-paste
+        // epochs (09-04) both carry a stackSnapshot to rebuild from.
         if let lastStructure = upTo.lastIndex(where: {
             $0.layerScope == Self.layerStructureScope
+                || $0.layerScope == HistoryStack.pasteEpochScope
         }), let snapshot = upTo[lastStructure].stackSnapshot {
             for layer in snapshot.makeLayers() { stack.addAdjustment(layer) }
         }

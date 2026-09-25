@@ -44,6 +44,12 @@ public actor SidecarStore {
     /// The injected debounce clock.
     private let clock: any Clock<Duration>
 
+    /// The self-write journal (Plan 09-02 T3): every successful atomic
+    /// write records the destination here so the App reconciler can swallow
+    /// the FSEvents event our own write just caused (self-feedback loop
+    /// defense line ② — line ① is the exclude table).
+    private let journal: SidecarWriteJournal
+
     /// The newest scheduled-but-unwritten document (nil = nothing pending).
     private var pending: LightamerSidecar?
 
@@ -56,11 +62,13 @@ public actor SidecarStore {
     public init(
         destination: URL,
         debounce: Duration = .seconds(2),
-        clock: any Clock<Duration> = ContinuousClock()
+        clock: any Clock<Duration> = ContinuousClock(),
+        journal: SidecarWriteJournal = .shared
     ) {
         self.destination = destination
         self.debounce = debounce
         self.clock = clock
+        self.journal = journal
     }
 
     // MARK: - Scheduling (D-S3)
@@ -163,6 +171,9 @@ public actor SidecarStore {
             try? FileManager.default.removeItem(at: tmp) // never leave debris
             throw AppError.sidecarWriteFailed(destination.path)
         }
+        // The write SUCCEEDED — journal it so the reconciler swallows the
+        // FSEvents event this promotion just caused (09-02 T3, defense ②).
+        journal.record(path: destination.path)
         Self.logger.debug(
             "sidecar written: \(self.destination.lastPathComponent, privacy: .public) (\(data.count, privacy: .public) bytes)"
         )

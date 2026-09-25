@@ -1,3 +1,4 @@
+@testable import Lightamer
 @testable import LightamerCore
 import CoreImage
 import LightamerIOP
@@ -669,5 +670,72 @@ final class MemoryBudgetTests: XCTestCase {
         XCTAssertGreaterThan(total, 0, "防空转 guard")
         XCTAssertEqual(total, 5 * windowFloat + 64 * 40 * 4,
                        "exact windowed ledger: no cold chain plane retained")
+    }
+}
+
+
+// MARK: - Plan 09-03 T8: the culling pane ledger (2×PREVIEW budget face)
+
+@MainActor
+extension MemoryBudgetTests {
+
+    /// The culling panes' SELF-OWNED planes never enter PipeCache. The
+    /// RESIDENT footprint is the pane ledger = the gamma tail's bgra8Unorm
+    /// display plane (1480×987×4 B ≈ 5.8 MB/plane — TWO panes ≈ 12 MB).
+    /// The D-09-CONTEXT-6 "~23 MB/plane" figure describes the TRANSIENT
+    /// float32 working plane INSIDE the run (the throwaway per-run cache
+    /// holds it only while the pipeline executes; it dies with the run) —
+    /// so the honest steady-state budget is ~12 MB resident + ~46 MB
+    /// transient at cap 2, and the 4-pane extension re-check is
+    /// ~24 MB resident + ~92 MB transient.
+    func testCullingDualPaneLedgerStaysOnTheBudgetFace() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            throw XCTSkip("no Metal GPU")
+        }
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+
+        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("cullingbudget-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        func makeLoadedPane(_ rel: String) async throws -> CullingPaneModel {
+            try Data("fixture".utf8).write(to: root.appendingPathComponent(rel))
+            let pane = CullingPaneModel(
+                relPath: rel, decoder: RAWDecoder(), metal: metal,
+                decodeLeg: { _ in
+                    DecodedImage(
+                        ciImage: CIImage(color: CIColor(red: 0.4, green: 0.5, blue: 0.6))
+                            .cropped(to: CGRect(x: 0, y: 0, width: 3000, height: 2000)),
+                        rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+                        segmentationSkyMatte: nil, decoderVersionUsed: .v8
+                    )
+                },
+                sessionRoot: root
+            )
+            await pane.load()
+            return pane
+        }
+
+        let paneA = try await makeLoadedPane("A.ARW")
+        let paneB = try await makeLoadedPane("B.ARW")
+        XCTAssertEqual(paneA.state, .ready)
+        XCTAssertEqual(paneB.state, .ready)
+        // The RESIDENT 1480-rung display plane: 1480×987×4 B ≈ 5.8 MB
+        // (bgra8Unorm — the gamma tail's output). The float32 ~23 MB/plane
+        // from RESEARCH §5.4 is the TRANSIENT working plane inside the run
+        // (throwaway cache) — see the ledger doc above.
+        for pane in [paneA, paneB] {
+            XCTAssertGreaterThan(pane.planeBytes, 4_000_000, "≥ 4 MB/plane resident (bgra8 1480)")
+            XCTAssertLessThan(pane.planeBytes, 8_000_000, "≤ 8 MB/plane resident (bgra8 1480)")
+        }
+        let dual = paneA.planeBytes + paneB.planeBytes
+        XCTAssertLessThan(dual, 16_000_000, "the DUAL-pane resident ledger stays ~12 MB (cap 2)")
+
+        // The release leg zeroes BOTH ledgers (no PipeCache involvement —
+        // the panes own their planes).
+        paneA.release()
+        paneB.release()
+        XCTAssertEqual(paneA.planeBytes, 0)
+        XCTAssertEqual(paneB.planeBytes, 0)
     }
 }

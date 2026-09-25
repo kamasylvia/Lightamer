@@ -72,6 +72,9 @@ final class Fixtures {
     static var arw: URL { sample("7RM5-LosslessCompressedLarge.ARW") }
     /// Fujifilm RAF (~43 MB, X-Trans) — RAW-01; fast lossless decode.
     static var raf: URL { sample("DSCF0021.RAF") }
+    /// Fujifilm GFX100S 100 MP uncompressed 4:3 (~200 MB) — the PERF-04/
+    /// PERF-06 decode-storm fixture (09-03 T8's dual-pane culling baseline).
+    static var raf100MP: URL { sample("Fujifilm-GFX100S-14bits-uncompress-4_3.RAF") }
     /// Adobe DNG (~23 MB) — RAW-02.
     static var dng: URL { sample("5G4A9394-compressed-lossless.DNG") }
 
