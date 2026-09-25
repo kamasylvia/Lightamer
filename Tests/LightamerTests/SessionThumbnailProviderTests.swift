@@ -1,4 +1,5 @@
 import CoreGraphics
+import CoreImage
 import Foundation
 import LightamerCore
 import XCTest
@@ -44,6 +45,15 @@ final class SessionThumbnailProviderTests: XCTestCase {
     }
 
     // MARK: - Fixtures
+
+    /// A thread-safe render-call counter (Sendable seam for the tier-B
+    /// reverse assertions — never captures the test case itself).
+    final class RenderCallCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+        var count: Int { lock.lock(); defer { lock.unlock() }; return value }
+        func increment() { lock.lock(); value += 1; lock.unlock() }
+    }
 
     /// A deterministic synthetic CGImage (solid color, exact dimensions).
     private static func makeImage(width: Int, height: Int, red: CGFloat = 0.5) -> CGImage {
@@ -247,5 +257,178 @@ final class SessionThumbnailProviderTests: XCTestCase {
             FileManager.default.fileExists(atPath: urlB.path),
             "surviving rows keep their thumbs"
         )
+    }
+}
+
+// MARK: - T3: the double-tier ruling + tier A (ImageIO embedded preview)
+
+@MainActor
+extension SessionThumbnailProviderTests {
+
+    /// A memory cache with a generous budget (tier tests don't stress LRU).
+    private func makeMemory() -> ThumbnailMemoryCache {
+        ThumbnailMemoryCache(budgetBytes: 64 * 1024 * 1024) { image in
+            image.width * image.height * 4
+        }
+    }
+
+    private func makeRegistry() -> ModuleRegistry {
+        ModuleRegistry.makeDefault()
+    }
+
+    @MainActor
+    private func makeProvider(
+        renderLeg: ThumbnailRenderLeg? = nil,
+        decodeLeg: ThumbnailDecodeLeg? = nil,
+        store: SessionIndexStore? = nil,
+        memory: ThumbnailMemoryCache? = nil
+    ) async -> SessionThumbnailProvider {
+        SessionThumbnailProvider(
+            sessionRoot: sessionRoot,
+            store: store ?? makeStore(),
+            disk: makeDiskStore(),
+            memory: memory ?? makeMemory(),
+            registry: makeRegistry(),
+            decodeLeg: decodeLeg,
+            renderLeg: renderLeg
+        )
+    }
+
+    func testTierRulingFollowsHasEditsWithStaleRegenClause() {
+        func row(hasEdits: Int64?, sidecar: Int64, state: Int64?) -> SessionIndexRow {
+            var r = SessionIndexRow(path: "x.ARW")
+            r.hasEdits = hasEdits
+            r.sidecarPresent = sidecar
+            r.thumbState = state
+            return r
+        }
+        // pristine (no sidecar) → tier A — even when its row went stale (a
+        // stat drift on a sidecar-less file).
+        XCTAssertEqual(
+            SessionThumbnailProvider.tier(forRow: row(hasEdits: nil, sidecar: 0, state: 3)),
+            .embedded, "sidecar-less rows are tier A FOREVER (T7 reverse assertion)"
+        )
+        // pristine-with-sidecar (position −1) → tier A.
+        XCTAssertEqual(
+            SessionThumbnailProvider.tier(forRow: row(hasEdits: 0, sidecar: 1, state: 0)),
+            .embedded
+        )
+        // edited → tier B.
+        XCTAssertEqual(
+            SessionThumbnailProvider.tier(forRow: row(hasEdits: 1, sidecar: 1, state: 0)),
+            .rendered
+        )
+        // stale + sidecar → regen at tier B (RESEARCH §5.2 stale clause).
+        XCTAssertEqual(
+            SessionThumbnailProvider.tier(forRow: row(hasEdits: 0, sidecar: 1, state: 3)),
+            .rendered, "a sidecar-bearing stale row regenerates at tier B"
+        )
+        XCTAssertEqual(
+            SessionThumbnailProvider.tier(forRow: row(hasEdits: 1, sidecar: 1, state: 3)),
+            .rendered
+        )
+    }
+
+    func testTierAProducesNonEmptyImageWithinSizeBound() async throws {
+        // A real camera RAW (Plan 05 CC0 samples) — the embedded preview
+        // decodes in tens of ms WITHOUT a full RAW decode.
+        let source = Fixtures.arw
+        try Fixtures.require(source)
+        let dest = sessionRoot.appendingPathComponent("DSC00012.ARW")
+        try FileManager.default.copyItem(at: source, to: dest)
+
+        let image = try XCTUnwrap(
+            SessionThumbnailProvider.embeddedPreview(url: dest),
+            "the Sony ARW ships an embedded JPEG preview"
+        )
+        XCTAssertEqual(max(image.width, image.height), SessionThumbnailProvider.embeddedPreviewMaxPixel,
+                       "tier A downsamples to the 720px bound (D7 supersampling)")
+        // Content-level (L020): a real photo preview is NOT a flat image —
+        // its rasterized pixels must vary.
+        let raster = Self.rasterizedBytes(image)
+        let unique = Set(raster.prefix(40_000))
+        XCTAssertGreaterThan(unique.count, 16, "the preview carries real photo content")
+
+        // Throughput probe (the ~10-50 ms/张 budget; full numbers in T8).
+        let clock = ContinuousClock()
+        let start = clock.now
+        _ = SessionThumbnailProvider.embeddedPreview(url: dest)
+        let elapsed = clock.now - start
+        let ms = Double(elapsed.components.seconds) * 1000
+            + Double(elapsed.components.attoseconds) / 1e15
+        print("TIER-A-EMBEDDED ms: \(ms)")
+        XCTAssertLessThan(ms, 500, "the embedded preview path stays far below a RAW decode")
+    }
+
+    func testFetchPristineGoesTierAAndNeverCallsRenderLeg() async throws {
+        // REVERSE assertion (T7 leg): a pristine row NEVER reaches the
+        // render leg — the tier-B closure counts MUST stay zero.
+        let source = Fixtures.arw
+        try Fixtures.require(source)
+        try FileManager.default.copyItem(
+            at: source, to: sessionRoot.appendingPathComponent("PRISTINE.ARW")
+        )
+        let store = makeStore()
+        _ = try await store.openSession(root: sessionRoot, scan: makePage(["PRISTINE.ARW"]))
+
+        let memory = makeMemory()
+        // A Sendable counter — the render leg must NEVER fire (no capture
+        // of the non-Sendable test case; the assert reads the counter).
+        let tierBCalls = RenderCallCounter()
+        let actor = await makeProvider(
+            renderLeg: { _ in
+                tierBCalls.increment()
+                throw CocoaError(.featureUnsupported)
+            },
+            store: store,
+            memory: memory
+        )
+        defer { XCTAssertEqual(tierBCalls.count, 0, "tier B MUST NOT run for a pristine image") }
+        let image = await actor.thumbnail(for: "PRISTINE.ARW")
+        XCTAssertNotNil(image, "tier A produced the thumb")
+        // The row is bound embedded with the row's (nil) params hash.
+        let rows = try await store.fetchAllRows()
+        let row = try XCTUnwrap(rows.first { $0.path == "PRISTINE.ARW" })
+        XCTAssertEqual(row.thumbState, 1, "embedded state bound")
+        // Second fetch rides MEMORY (the LAZY once-only contract) — the
+        // disk/produce legs must not re-run. Assert via the memory hit
+        // counter.
+        let missesBefore = await memory.misses
+        let hitsBefore = await memory.hits
+        _ = await actor.thumbnail(for: "PRISTINE.ARW")
+        let missesAfter = await memory.misses
+        let hitsAfter = await memory.hits
+        XCTAssertEqual(hitsAfter, hitsBefore + 1, "the second fetch is a memory hit")
+        XCTAssertEqual(missesAfter, missesBefore, "no extra misses — once-only production")
+    }
+
+    func testMissingEmbeddedPreviewFallsBackToTierB() async throws {
+        // A GARBAGE .arw (no embedded preview — the camera-domain fact):
+        // tier A misses → the one-shot tier B fallback fires.
+        try Data(repeating: 0x00, count: 4096).write(
+            to: sessionRoot.appendingPathComponent("NOEMBED.ARW")
+        )
+        let store = makeStore()
+        _ = try await store.openSession(root: sessionRoot, scan: makePage(["NOEMBED.ARW"]))
+
+        let leg: ThumbnailRenderLeg = { _ in
+            Self.makeImage(width: 360, height: 240)
+        }
+        let decodeLeg: ThumbnailDecodeLeg = { _ in
+            DecodedImage(
+                ciImage: CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5))
+                    .cropped(to: CGRect(x: 0, y: 0, width: 64, height: 64)),
+                rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+                segmentationSkyMatte: nil, decoderVersionUsed: .v8
+            )
+        }
+        let actor = await makeProvider(
+            renderLeg: leg, decodeLeg: decodeLeg, store: store
+        )
+        let image = await actor.thumbnail(for: "NOEMBED.ARW")
+        XCTAssertNotNil(image, "the tier-B fallback produced the thumb")
+        let rows = try await store.fetchAllRows()
+        let row = try XCTUnwrap(rows.first { $0.path == "NOEMBED.ARW" })
+        XCTAssertEqual(row.thumbState, 2, "bound RENDERED (the fallback's tier)")
     }
 }

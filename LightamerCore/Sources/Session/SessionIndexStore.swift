@@ -81,6 +81,13 @@ public struct SessionIndexOpenResult: Sendable, Equatable {
 
 /// A full row projection (parity tests + 9-3 queries).
 public struct SessionIndexRow: Sendable, Equatable {
+
+    /// Convenience init (the memberwise 25-field form stays internal —
+    /// reads construct from SQL; everyone else starts at path).
+    public init(path: String) {
+        self.path = path
+    }
+
     public var path: String
     public var dir: String?
     public var filename: String?
@@ -549,6 +556,48 @@ public actor SessionIndexStore {
             rows.append(row)
         }
         return rows
+    }
+
+    /// Single-row read (Plan 09-03 T3 — the provider's fetch path).
+    public func fetchRow(relPath: String) throws -> SessionIndexRow? {
+        guard let handle else { return nil }
+        let statement = try handle.prepare("""
+            SELECT path, dir, filename, file_size, file_mtime, scan_epoch,
+                   imageID, sidecar_present, sidecar_mtime, has_edits,
+                   params_hash, layer_count, layer_summary, orientation,
+                   width, height, capture_date, thumb_state, thumb_path,
+                   thumb_params_hash, rating, color_label, keywords,
+                   orphan_sidecar, dirty
+            FROM images WHERE path = ?
+            """)
+        try statement.bindText(1, relPath)
+        guard try statement.step() else { return nil }
+        var row = SessionIndexRow(path: statement.columnText(0) ?? "")
+        row.dir = statement.columnText(1)
+        row.filename = statement.columnText(2)
+        row.fileSize = statement.columnInt(3)
+        row.fileMtime = statement.columnDouble(4)
+        row.scanEpoch = statement.columnInt(5)
+        row.imageID = statement.columnText(6)
+        row.sidecarPresent = statement.columnInt(7)
+        row.sidecarMtime = statement.columnDouble(8)
+        row.hasEdits = statement.columnInt(9)
+        row.paramsHash = statement.columnText(10)
+        row.layerCount = statement.columnInt(11)
+        row.layerSummary = statement.columnText(12)
+        row.orientation = statement.columnInt(13)
+        row.width = statement.columnInt(14)
+        row.height = statement.columnInt(15)
+        row.captureDate = statement.columnDouble(16)
+        row.thumbState = statement.columnInt(17)
+        row.thumbPath = statement.columnText(18)
+        row.thumbParamsHash = statement.columnText(19)
+        row.rating = statement.columnInt(20)
+        row.colorLabel = statement.columnInt(21)
+        row.keywords = statement.columnText(22)
+        row.orphanSidecar = statement.columnInt(23)
+        row.dirty = statement.columnInt(24)
+        return row
     }
 
     public func counts() throws -> SessionIndexCounts {
