@@ -168,7 +168,8 @@ internal struct ContentView: View {
             CullingView(
                 model: browserModel,
                 decoder: decoder,
-                metalContext: metalContext
+                metalContext: metalContext,
+                sessionRoot: sessionState.currentSessionURL
             )
         }
     }

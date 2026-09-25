@@ -12357,6 +12357,40 @@
           }
         }
       }
+    },
+    "browser_culling_decoding": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decoding…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解码中…"
+          }
+        }
+      }
+    },
+    "browser_culling_rendering": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rendering…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渲染中…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
