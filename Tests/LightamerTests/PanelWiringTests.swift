@@ -1895,4 +1895,117 @@ final class PanelWiringTests: XCTestCase {
             rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
             segmentationSkyMatte: nil, decoderVersionUsed: .v8)
     }
+
+    // ── Plan 08-2 T6: the watermark panel section ──
+
+    func testYiyinPanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("watermark"),
+                      "the 印框/水印 panel registered")
+        let session = InspectorEditSession(coordinator: coordinator)
+        let record = ModuleInstance(module: WatermarkModule.self, params: .neutralSeed)
+        XCTAssertNotNil(state.panelView(for: record, edit: session),
+                        "watermark must dispatch a panel")
+        // L010: the stable identifiers — the panel row ids address template
+        // KEYS, never indices (asserted at the params level: the seed
+        // carries the system catalog keys the panel rows address).
+        let seed = WatermarkModule.Params.neutralSeed
+        XCTAssertTrue(seed.templates.contains { $0.key == "make-model" })
+        XCTAssertTrue(seed.templates.allSatisfy { !$0.key.isEmpty })
+    }
+
+    func testYiyinWatermarkSliderCommitsOnceAndUndoRestores() async throws {
+        try await loadSynthetic()
+        let record = try instance("watermark")
+        let afterLoad = editorState.history.items.count
+        let seedOpacity = try record.params(of: WatermarkModule.self).logoOpacity
+
+        // The logoOpacity drag trio (the LightamerSlider mapping): N live
+        // ticks + exactly ONE commit at drag end (D-H1).
+        coordinator.beginContinuousEdit()
+        for tick in 1...5 {
+            let edited = try withParams(record, {
+                $0.logoOpacity = Double(tick) * 0.2
+            }, as: WatermarkModule.self)
+            await coordinator.setLiveParams(edited)
+        }
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_watermark"))
+
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 1,
+                       "the opacity drag = exactly ONE commit")
+        let committed = try instance("watermark")
+        XCTAssertEqual(
+            try committed.params(of: WatermarkModule.self).logoOpacity, 1.0, accuracy: 1e-6)
+
+        // Undo restores the seed face.
+        await coordinator.undo()
+        let reverted = try instance("watermark")
+        XCTAssertEqual(
+            try reverted.params(of: WatermarkModule.self).logoOpacity, seedOpacity,
+            accuracy: 1e-6, "undo restores the seed opacity")
+    }
+
+    func testYiyinTemplateToggleAndDeleteCommitDiscretely() async throws {
+        try await loadSynthetic()
+        var record = try instance("watermark")
+        let afterLoad = editorState.history.items.count
+
+        // A template use-toggle = ONE discrete commit (the compressed trio).
+        var params = try record.params(of: WatermarkModule.self)
+        params.templates[0].use = true
+        try record.setParams(params, as: WatermarkModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(record)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_watermark"))
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 1,
+                       "the toggle = exactly ONE commit")
+
+        // A template DELETE = another single commit (the stable key is
+        // gone from the params, the row identity never indexed).
+        record = try instance("watermark")
+        params = try record.params(of: WatermarkModule.self)
+        params.templates.removeFirst()
+        try record.setParams(params, as: WatermarkModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(record)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_template_delete"))
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 2)
+        let after = try instance("watermark")
+        XCTAssertEqual(
+            try after.params(of: WatermarkModule.self).templates.count,
+            WatermarkModule.Params.neutralSeed.templates.count - 1)
+    }
+
+    /// L025 catalog smoke (08-2 T6): every watermark-panel key carries BOTH
+    /// the en and the zh localization in the String Catalog (the zh labels
+    /// convention; a missing face degrades the whole runtime language).
+    func testYiyinCatalogSmoke() throws {
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // LightamerTests
+            .deletingLastPathComponent() // Tests
+            .deletingLastPathComponent() // repo root
+            .appendingPathComponent("Resources/Localizable.xcstrings")
+        let data = try Data(contentsOf: catalogURL)
+        let catalog = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
+        let yiyinKeys = strings.keys.filter {
+            $0.hasPrefix("panel_yiyin_") || $0.hasPrefix("history_yiyin_")
+        }
+        XCTAssertGreaterThanOrEqual(yiyinKeys.count, 37, "the 08-2 keys landed")
+        for key in yiyinKeys {
+            let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
+            let localizations = try XCTUnwrap(
+                entry["localizations"] as? [String: Any], key)
+            XCTAssertNotNil(localizations["en"], "\(key) missing en")
+            let zh = try XCTUnwrap(localizations["zh"] as? [String: Any], "\(key) missing zh")
+            let unit = try XCTUnwrap(zh["stringUnit"] as? [String: Any], key)
+            XCTAssertEqual(unit["state"] as? String, "translated", key)
+            XCTAssertFalse(
+                (unit["value"] as? String ?? "").isEmpty, "\(key) empty zh value")
+        }
+    }
 }
