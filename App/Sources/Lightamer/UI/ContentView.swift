@@ -63,6 +63,10 @@ internal struct ContentView: View {
     /// Split-view column visibility (sidebar/inspector toggles, D-08).
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
+    /// Plan 11-04: the export sheet presentation flag (the toolbar's
+    /// export button raises it).
+    @State private var exportPanelRequested = false
+
     // D-08 layout memory — keys survive relaunch (NSSplitView autosave;
     // the @AppStorage ideals below are the clean-launch defaults).
     //
@@ -119,6 +123,7 @@ internal struct ContentView: View {
                     ? beforeAfterState.comparePointLabel : nil)
         }
         .focusedSceneValue(\.lightamerColumnVisibility, $columnVisibility)
+        .focusedSceneValue(\.exportPanelRequest, $exportPanelRequested)
         .toolbar { toolbarContent }
         .alert(
             String(localized: "alert_decode_failed_title"),
@@ -185,6 +190,11 @@ internal struct ContentView: View {
                     onCancel: { pastePartialRequested = false }
                 )
             }
+        }
+        // Plan 11-04: the export panel (T4 — the toolbar's export button
+        // raises it; the session must be open).
+        .sheet(isPresented: $exportPanelRequested) {
+            ExportPanelView(browserModel: browserModel)
         }
     }
 
@@ -281,12 +291,17 @@ internal struct ContentView: View {
             }
             .disabled(true)
 
-            // Phase 11 — disabled.
+            // Plan 11-04 (EXP-03): the export sheet — the panel edits the
+            // in-memory recipe, fans the selection × recipe out as ONE
+            // queue action, and shows the live per-job status.
             Button {
+                exportPanelRequested = true
             } label: {
                 Label(String(localized: "menu_export"), systemImage: "square.and.arrow.up")
             }
-            .disabled(true)
+            .disabled(sessionState.currentSessionURL == nil)
+            .accessibilityIdentifier("toolbar.export")
+            .keyboardShortcut("e", modifiers: [.command, .shift])
 
             // 09-04 (HIST-06): the split before/after toggle (the peek
             // stepper + hold ride the viewport HUD / keyboard).

@@ -16,10 +16,21 @@ internal struct LightamerColumnVisibilityKey: FocusedValueKey {
     typealias Value = Binding<NavigationSplitViewVisibility>
 }
 
+/// Plan 11-04: the export-sheet request binding, seen from the App scene's
+/// File menu (⌘⇧E mirrors the toolbar's export button).
+internal struct ExportPanelRequestKey: FocusedValueKey {
+    typealias Value = Binding<Bool>
+}
+
 internal extension FocusedValues {
     var lightamerColumnVisibility: Binding<NavigationSplitViewVisibility>? {
         get { self[LightamerColumnVisibilityKey.self] }
         set { self[LightamerColumnVisibilityKey.self] = newValue }
+    }
+
+    var exportPanelRequest: Binding<Bool>? {
+        get { self[ExportPanelRequestKey.self] }
+        set { self[ExportPanelRequestKey.self] = newValue }
     }
 }
 
@@ -197,6 +208,10 @@ internal struct LightamerApp: App {
     /// Column visibility, as seen from the menu commands (View menu toggles).
     @FocusedBinding(\.lightamerColumnVisibility)
     private var focusedColumnVisibility: NavigationSplitViewVisibility?
+
+    /// Plan 11-04: the export sheet request, as seen from the File menu.
+    @FocusedBinding(\.exportPanelRequest)
+    private var exportPanelRequested: Bool?
 
     var body: some Scene {
         // SINGLE WINDOW (Plan 02-01, UAT issue #1 ROOT CAUSE): SwiftUI's
@@ -521,10 +536,14 @@ internal struct LightamerApp: App {
                     .keyboardShortcut("s", modifiers: .command)
             }
             CommandGroup(after: .saveItem) {
-                // Phase 11 — disabled.
-                Button(String(localized: "menu_export")) {}
-                    .disabled(true)
-                    .keyboardShortcut("e", modifiers: [.command, .shift])
+                // Plan 11-04 (EXP-03): the export sheet (the toolbar's
+                // export button raises the same binding; nil = the editor
+                // scene is not focused — keep the item disabled).
+                Button(String(localized: "menu_export")) {
+                    exportPanelRequested = true
+                }
+                .disabled(exportPanelRequested == nil)
+                .keyboardShortcut("e", modifiers: [.command, .shift])
             }
 
             // ── Edit ────────────────────────────────────────────────
