@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import os
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -179,6 +180,18 @@ public actor SessionIndexStore {
             scanEntries: scanEntries, scanOrphans: scanOrphans,
             rootPath: root.path, handle: opened
         )
+
+        // ⑤ sidecar summary backfill (T5): every row pending a sidecar
+        // read (added + drift-cleared + degraded-retry) gets its
+        // imageID/has_edits/params_hash/layer summary — the SIDECAR is the
+        // authority; the row is a cache. Then the EXIF light columns
+        // (ImageIO properties — metadata only, never a full decode).
+        // Execution decision: both legs run here (deterministic for the
+        // sidebar counts); 9-3 may decouple them to background for the
+        // grid's first paint.
+        try await backfillSidecarSummaries(rootPath: root.path)
+        try await backfillExifMetadata(rootPath: root.path)
+
         result.counts = try computeCounts(handle: opened)
         result.firstImageRelPath = try firstBrowsableRelPath(handle: opened)
         return result
@@ -439,6 +452,233 @@ public actor SessionIndexStore {
     public func counts() throws -> SessionIndexCounts {
         guard let handle else { return SessionIndexCounts() }
         return try computeCounts(handle: handle)
+    }
+
+    // MARK: - Sidecar summary backfill (T5)
+
+    /// Pending sidecar rows = sidecar_present = 1 AND a NULL summary column
+    /// (added pristine-with-sidecar rows, drift-cleared rows, and degraded
+    /// rows from earlier passes — the NULL class is ALSO the retry class).
+    /// Decodes each `.lra` (the AUTHORITY), then applies ALL updates in ONE
+    /// transaction. Decode failures are logged and left NULL (degraded,
+    /// retried next open) — never a hard failure.
+    ///
+    /// `has_edits` = `history.position >= 0` (the Phase 8 handoff-④
+    /// semantic: yiyin borders/watermark instances are history items, so
+    /// they flow through has_edits/params_hash with ZERO special-casing).
+    @discardableResult
+    public func backfillSidecarSummaries(rootPath: String) async throws -> Int {
+        guard let handle else { return 0 }
+        // TWO pending classes: ① NULL summary columns (added / drift-cleared
+        // / degraded-retry), ② sidecar MTIME DRIFT — the image's stat triple
+        // is unchanged but the `.lra` was (re)written underneath us; the
+        // sidecar is the AUTHORITY, so the row re-reads (真身恒 sidecar).
+        var work: [(path: String, sidecar: String)] = []
+        let nullPending = try handle.prepare("""
+            SELECT path FROM images
+            WHERE orphan_sidecar = 0 AND sidecar_present = 1
+              AND (params_hash IS NULL OR imageID IS NULL OR has_edits IS NULL)
+            """)
+        var seen = Set<String>()
+        while try nullPending.step() {
+            guard let rel = nullPending.columnText(0) else { continue }
+            work.append((rel, rootPath + "/" + rel + ".lra"))
+            seen.insert(rel)
+        }
+        let allWithSidecar = try handle.prepare(
+            "SELECT path, sidecar_mtime FROM images WHERE orphan_sidecar = 0 AND sidecar_present = 1"
+        )
+        while try allWithSidecar.step() {
+            guard let rel = allWithSidecar.columnText(0) else { continue }
+            guard !seen.contains(rel) else { continue }
+            let sidecar = rootPath + "/" + rel + ".lra"
+            let currentMtime = (try? FileManager.default.attributesOfItem(
+                atPath: sidecar
+            ))?[.modificationDate] as? Date
+            if currentMtime?.timeIntervalSince1970
+                != allWithSidecar.columnDouble(1) {
+                work.append((rel, sidecar))
+                seen.insert(rel)
+            }
+        }
+        guard !work.isEmpty else { return 0 }
+
+        // Decode OUTSIDE the transaction (file I/O must not hold the write
+        // lock); batch the updates into ONE transaction afterwards.
+        struct Summary {
+            var imageID: String
+            var hasEdits: Int64
+            var paramsHash: String
+            var layerCount: Int64?
+            var layerSummary: String?
+            var sidecarMtime: Double
+        }
+        var summaries: [String: Summary] = [:]
+        let decoder = JSONDecoder()
+        for item in work {
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: item.sidecar)) else {
+                Self.logger.warning(
+                    "sidecar unreadable mid-flight: \(item.sidecar, privacy: .public)"
+                )
+                continue
+            }
+            do {
+                let document = try decoder.decode(LightamerSidecar.self, from: data)
+                let mtime = (try? FileManager.default.attributesOfItem(
+                    atPath: item.sidecar
+                ))?[.modificationDate] as? Date
+                let layerSummary = document.layerStack.map(Self.layerSummaryJSON)
+                summaries[item.path] = Summary(
+                    imageID: document.imageID.uuidString,
+                    hasEdits: document.history.position >= 0 ? 1 : 0,
+                    paramsHash: String(document.historyHash), // L013 decimal TEXT
+                    layerCount: document.layerStack.map { Int64($0.layers.count) },
+                    layerSummary: layerSummary,
+                    sidecarMtime: mtime?.timeIntervalSince1970 ?? 0
+                )
+            } catch {
+                // DEGRADED: leave the row in the NULL class (retried next
+                // open); log only — SC#2 gracefully.
+                Self.logger.error(
+                    "sidecar decode failed (degraded): \(item.sidecar, privacy: .public) — \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+        guard !summaries.isEmpty else { return 0 }
+
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            let update = try handle.prepare("""
+                UPDATE images SET
+                  imageID = ?, has_edits = ?, params_hash = ?,
+                  layer_count = ?, layer_summary = ?, sidecar_mtime = ?
+                WHERE path = ?
+                """)
+            for (rel, summary) in summaries {
+                try update.bindText(1, summary.imageID)
+                try update.bindInt(2, summary.hasEdits)
+                try update.bindText(3, summary.paramsHash)
+                try update.bindInt(4, summary.layerCount)
+                try update.bindText(5, summary.layerSummary)
+                try update.bindDouble(6, summary.sidecarMtime)
+                try update.bindText(7, rel)
+                _ = try update.step()
+                try update.reset()
+            }
+            try handle.exec("COMMIT")
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
+        return summaries.count
+    }
+
+    /// The frozen layer-summary JSON spelling (execution decision, recorded
+    /// in 09-01-DECISIONS): `[{"blend":Int,"name":String,"visible":Bool}]`
+    /// — sortedKeys for stability.
+    static func layerSummaryJSON(_ stack: SidecarLayerStackRecord) -> String {
+        struct Entry: Codable, Sendable {
+            var name: String
+            var blend: Int
+            var visible: Bool
+        }
+        let entries = stack.layers.map {
+            Entry(name: $0.name, blend: $0.blendMode, visible: $0.isVisible)
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(entries) else { return "[]" }
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    // MARK: - EXIF light columns (T5)
+
+    /// Orientation/width/height/capture_date via ImageIO PROPERTIES only
+    /// (`CGImageSourceCopyPropertiesAtIndex` — metadata read, never a full
+    /// decode). One batched transaction for all filled rows.
+    @discardableResult
+    public func backfillExifMetadata(rootPath: String) async throws -> Int {
+        guard let handle else { return 0 }
+        let pending = try handle.prepare("""
+            SELECT path FROM images
+            WHERE orphan_sidecar = 0 AND orientation IS NULL
+            """)
+        var work: [(path: String, absolute: String)] = []
+        while try pending.step() {
+            guard let rel = pending.columnText(0) else { continue }
+            work.append((rel, rootPath + "/" + rel))
+        }
+        guard !work.isEmpty else { return 0 }
+
+        struct Exif {
+            var orientation: Int64
+            var width: Int64
+            var height: Int64
+            var captureDate: Double?
+        }
+        var filled: [String: Exif] = [:]
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        for item in work {
+            guard let source = CGImageSourceCreateWithURL(
+                URL(fileURLWithPath: item.absolute) as CFURL, sourceOptions
+            ) else { continue }
+            guard let properties = CGImageSourceCopyPropertiesAtIndex(
+                source, 0, sourceOptions
+            ) as? [CFString: Any] else { continue }
+            let width = (properties[kCGImagePropertyPixelWidth] as? Int) ?? 0
+            let height = (properties[kCGImagePropertyPixelHeight] as? Int) ?? 0
+            guard width > 0, height > 0 else { continue }
+            let orientation = (properties[kCGImagePropertyOrientation] as? Int) ?? 1
+
+            var captureDate: Double?
+            if let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],
+               let raw = exif[kCGImagePropertyExifDateTimeOriginal] as? String {
+                captureDate = Self.parseEXIFDate(raw)?.timeIntervalSince1970
+            }
+            if captureDate == nil,
+               let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any],
+               let raw = tiff[kCGImagePropertyTIFFDateTime] as? String {
+                captureDate = Self.parseEXIFDate(raw)?.timeIntervalSince1970
+            }
+
+            filled[item.path] = Exif(
+                orientation: Int64(orientation),
+                width: Int64(width), height: Int64(height),
+                captureDate: captureDate
+            )
+        }
+        guard !filled.isEmpty else { return 0 }
+
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            let update = try handle.prepare("""
+                UPDATE images SET orientation = ?, width = ?, height = ?, capture_date = ?
+                WHERE path = ?
+                """)
+            for (rel, exif) in filled {
+                try update.bindInt(1, exif.orientation)
+                try update.bindInt(2, exif.width)
+                try update.bindInt(3, exif.height)
+                try update.bindDouble(4, exif.captureDate)
+                try update.bindText(5, rel)
+                _ = try update.step()
+                try update.reset()
+            }
+            try handle.exec("COMMIT")
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
+        return filled.count
+    }
+
+    /// EXIF datetime format `yyyy:MM:dd HH:mm:ss` (strict) — nil otherwise.
+    static func parseEXIFDate(_ raw: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        formatter.timeZone = TimeZone(identifier: "UTC") // EXIF has no zone; pin UTC deterministically
+        return formatter.date(from: raw)
     }
 
     // MARK: - Lifecycle (teardown ②-d)

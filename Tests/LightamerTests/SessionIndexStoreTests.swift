@@ -1,4 +1,7 @@
+import CoreGraphics
+import ImageIO
 import LightamerCore
+import LightamerIOP
 import XCTest
 
 @testable import LightamerCore
@@ -334,5 +337,279 @@ final class SessionIndexStoreTests: XCTestCase {
             SessionIndexSchema.createImagesTableSQL.contains("params_hash INTEGER"),
             "L013: hash columns are NEVER INTEGER"
         )
+    }
+}
+
+// MARK: - T5: sidecar summary backfill + EXIF light columns
+
+extension SessionIndexStoreTests {
+
+    /// Encode a sidecar document to the fixture's `.lra` path.
+    private func writeSidecar(
+        _ rel: String, document: LightamerSidecar
+    ) throws -> LightamerSidecar {
+        let url = sessionRoot.appendingPathComponent(rel + ".lra")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(document).write(to: url)
+        return document
+    }
+
+    private func makeSidecar(
+        imageID: UUID,
+        instances: [ModuleInstance],
+        historyHash: UInt64,
+        layers: [SidecarLayerRecord]? = nil
+    ) -> LightamerSidecar {
+        var stack = HistoryStack()
+        for instance in instances {
+            stack.commit(instance, label: "test")
+        }
+        if instances.isEmpty {
+            stack = HistoryStack() // position stays −1 (pristine-with-sidecar)
+        }
+        return LightamerSidecar(
+            imageID: imageID,
+            decoderVersionUsed: "v8",
+            decodeParamsHash: 42,
+            instances: instances,
+            history: stack,
+            historyHash: historyHash,
+            layerStack: layers.map(SidecarLayerStackRecord.init(layers:))
+        )
+    }
+
+    func testSidecarSummaryRoundTripPerColumn() async throws {
+        try write("DSC001.ARW")
+        let imageID = UUID()
+        let gain = ModuleInstance(
+            module: TestGainModule.self, multiName: "t", params: .init(gain: 2.0)
+        )
+        let hash = HistoryHash.hash(instances: [gain], decodeParamsHash: 42)
+        let document = makeSidecar(
+            imageID: imageID,
+            instances: [gain],
+            historyHash: hash
+        )
+        try writeSidecar("DSC001.ARW", document: document)
+
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot, scan: stream(of: [page(try [statEntry("DSC001.ARW")])])
+        )
+        let rows = try await store.fetchAllRows()
+        XCTAssertEqual(rows.count, 1)
+        let row = try XCTUnwrap(rows.first)
+
+        // Per-column round-trip — the SIDECAR is the authority.
+        XCTAssertEqual(row.imageID, imageID.uuidString)
+        XCTAssertEqual(row.sidecarPresent, 1)
+        XCTAssertEqual(row.hasEdits, 1, "history.position ≥ 0 (one commit)")
+        XCTAssertEqual(
+            row.paramsHash, String(document.historyHash),
+            "params_hash == sidecar historyHash, DECIMAL TEXT, byte-for-byte (L013)"
+        )
+        XCTAssertNil(row.layerCount)
+        XCTAssertNil(row.layerSummary)
+        XCTAssertGreaterThan(row.sidecarMtime ?? 0, 0)
+        await store.close()
+    }
+
+    func testLayerSummaryJSONRoundTrip() async throws {
+        try write("DSC002.ARW")
+        let layerA = SidecarLayerRecord(AdjustmentLayer(
+            id: UUID(), name: "warm", isVisible: true, opacity: 0.8, enabled: true
+        ))
+        let layerB = SidecarLayerRecord(AdjustmentLayer(
+            id: UUID(), name: "soft", isVisible: false, opacity: 1.0, enabled: true
+        ))
+        let gain = ModuleInstance(
+            module: TestGainModule.self, multiName: "t", params: .init(gain: 1.5)
+        )
+        let document = makeSidecar(
+            imageID: UUID(),
+            instances: [gain],
+            historyHash: HistoryHash.hash(instances: [gain], decodeParamsHash: 42),
+            layers: [layerA, layerB]
+        )
+        try writeSidecar("DSC002.ARW", document: document)
+
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot, scan: stream(of: [page(try [statEntry("DSC002.ARW")])])
+        )
+        let rows = try await store.fetchAllRows()
+        let row = try XCTUnwrap(rows.first)
+        XCTAssertEqual(row.layerCount, 2)
+
+        // Decode the frozen summary JSON and verify the fields verbatim.
+        let summaryData = try XCTUnwrap(row.layerSummary?.data(using: .utf8))
+        struct Entry: Codable {
+            var name: String
+            var blend: Int
+            var visible: Bool
+        }
+        let entries = try JSONDecoder().decode([Entry].self, from: summaryData)
+        XCTAssertEqual(entries.count, 2)
+        XCTAssertEqual(entries[0].name, "warm")
+        XCTAssertEqual(entries[0].visible, true)
+        XCTAssertEqual(entries[0].blend, Int(layerA.blendMode))
+        XCTAssertEqual(entries[1].name, "soft")
+        XCTAssertEqual(entries[1].visible, false)
+        await store.close()
+    }
+
+    func testPristineRowStaysNullAndUneditedSidecarHasEditsZero() async throws {
+        try write("PRISTINE.ARW") // no sidecar at all
+        try write("UNEDITED.ARW")
+        let unedited = makeSidecar(
+            imageID: UUID(), instances: [], historyHash: 12345678901234567890
+        )
+        try writeSidecar("UNEDITED.ARW", document: unedited) // position stays −1
+
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot, scan: stream(of: [
+                page(try [statEntry("PRISTINE.ARW"), statEntry("UNEDITED.ARW")]),
+            ])
+        )
+        let rows = try await store.fetchAllRows()
+        let pristine = try XCTUnwrap(rows.first { $0.path == "PRISTINE.ARW" })
+        XCTAssertNil(pristine.imageID)
+        XCTAssertNil(pristine.hasEdits, "no sidecar → summary columns NULL")
+        XCTAssertNil(pristine.paramsHash)
+        XCTAssertEqual(pristine.sidecarPresent, 0)
+
+        let uneditedRow = try XCTUnwrap(rows.first { $0.path == "UNEDITED.ARW" })
+        XCTAssertEqual(uneditedRow.sidecarPresent, 1)
+        XCTAssertEqual(uneditedRow.hasEdits, 0, "position −1 = present but UNEDITED")
+        XCTAssertEqual(uneditedRow.paramsHash, "12345678901234567890")
+        await store.close()
+    }
+
+    func testYiyinInstanceFlipsHasEditsAndParamsHash() async throws {
+        // Phase 8 handoff-④ line assertion: borders (terminal-tail 76.0)
+        // instances are ORDINARY history items — has_edits flips to 1 and
+        // params_hash moves when the印框参数 changes. NO special-casing.
+        try write("FRAMED.ARW")
+        let bordersV1 = ModuleInstance(
+            module: BordersModule.self,
+            params: BordersModule.Params(
+                mode: .solid(color: "#101010"), mainImageWidthRate: 85
+            )
+        )
+        let bordersV2 = ModuleInstance(
+            module: BordersModule.self,
+            params: BordersModule.Params(
+                mode: .solid(color: "#101010"), mainImageWidthRate: 70
+            )
+        )
+        XCTAssertNotEqual(
+            HistoryHash.hash(instances: [bordersV1], decodeParamsHash: 42),
+            HistoryHash.hash(instances: [bordersV2], decodeParamsHash: 42),
+            "the watermark/border param change MUST move the hash"
+        )
+        let docV1 = makeSidecar(
+            imageID: UUID(), instances: [bordersV1],
+            historyHash: HistoryHash.hash(instances: [bordersV1], decodeParamsHash: 42)
+        )
+        try writeSidecar("FRAMED.ARW", document: docV1)
+
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot, scan: stream(of: [page(try [statEntry("FRAMED.ARW")])])
+        )
+        let rows = try await store.fetchAllRows()
+        var row = try XCTUnwrap(rows.first)
+        XCTAssertEqual(row.hasEdits, 1, "yiyin instance ⇒ edited (handoff-④)")
+        let hashV1 = row.paramsHash
+
+        // Flip the border param → the sidecar's hash moves → the row follows.
+        let docV2 = makeSidecar(
+            imageID: docV1.imageID, instances: [bordersV2],
+            historyHash: HistoryHash.hash(instances: [bordersV2], decodeParamsHash: 42)
+        )
+        try writeSidecar("FRAMED.ARW", document: docV2)
+        // Touch the row into the pending class (sidecar mtime drifted).
+        _ = try await store.openSession(
+            root: sessionRoot, scan: stream(of: [page(try [statEntry("FRAMED.ARW")])])
+        )
+        let rows2 = try await store.fetchAllRows()
+        row = try XCTUnwrap(rows2.first)
+        XCTAssertEqual(row.hasEdits, 1)
+        XCTAssertNotEqual(
+            row.paramsHash, hashV1, "params_hash must track the border param"
+        )
+        XCTAssertEqual(row.paramsHash, String(docV2.historyHash))
+        await store.close()
+    }
+
+    func testDegradedSidecarNeverHardFails() async throws {
+        try write("BROKEN.ARW")
+        try Data("not json at all {{{".utf8).write(
+            to: sessionRoot.appendingPathComponent("BROKEN.ARW.lra")
+        )
+        let store = makeStore()
+        // Must NOT throw.
+        _ = try await store.openSession(
+            root: sessionRoot, scan: stream(of: [page(try [statEntry("BROKEN.ARW")])])
+        )
+        let rows = try await store.fetchAllRows()
+        let row = try XCTUnwrap(rows.first)
+        XCTAssertEqual(row.sidecarPresent, 1, "the file exists")
+        XCTAssertNil(row.paramsHash, "degraded: summary stays in the NULL/retry class")
+        let counts = try await store.counts()
+        XCTAssertEqual(counts.total, 1)
+        await store.close()
+    }
+
+    func testExifLightColumnsFromImageIO() async throws {
+        // Real JPEG with EXIF orientation + DateTimeOriginal — written via
+        // CGImageDestination, read back through the store's ImageIO leg.
+        try write("EXIF.jpg")
+        let width = 64, height = 32
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        context.setFillColor(CGColor(red: 0.5, green: 0.6, blue: 0.7, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let cgImage = context.makeImage()!
+
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(
+            sessionRoot.appendingPathComponent("EXIF.jpg") as CFURL,
+            "public.jpeg" as CFString, 1, nil
+        ))
+        let stamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        let properties: [CFString: Any] = [
+            kCGImagePropertyOrientation: 6,
+            kCGImagePropertyExifDictionary: [
+                kCGImagePropertyExifDateTimeOriginal: formatter.string(from: stamp),
+            ],
+        ]
+        CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot, scan: stream(of: [page(try [statEntry("EXIF.jpg")])])
+        )
+        let rows = try await store.fetchAllRows()
+        let row = try XCTUnwrap(rows.first)
+        XCTAssertEqual(row.orientation, 6, "EXIF orientation survives the ImageIO leg")
+        XCTAssertEqual(row.width, 64)
+        XCTAssertEqual(row.height, 32)
+        let capture = try XCTUnwrap(row.captureDate, "DateTimeOriginal parsed")
+        XCTAssertEqual(
+            capture, stamp.timeIntervalSince1970, accuracy: 1.0,
+            "capture_date == EXIF DateTimeOriginal (UTC-pinned parse)"
+        )
+        await store.close()
     }
 }
