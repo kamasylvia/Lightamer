@@ -82,11 +82,14 @@ final class SessionBrowserModel {
     // MARK: - Collection load
 
     /// Authoritative reload from the index store (ORDER BY path — the
-    /// frozen sort column; filter UI is Phase 12).
-    func reload(store: SessionIndexStore) async {
+    /// frozen sort column; filter UI is Phase 12). `includeOrphans` (the
+    /// grid passes true): orphan rows ride the grid as placeholder cells
+    /// with the orphan badge (9-2's sidebar actions own the disposition;
+    /// SC#2 — the orphan is VISIBLE, never a hard failure).
+    func reload(store: SessionIndexStore, includeOrphans: Bool = false) async {
         let allRows = (try? await store.fetchAllRows()) ?? []
         rows = allRows
-            .filter { $0.orphanSidecar != 1 }
+            .filter { includeOrphans || $0.orphanSidecar != 1 }
             .map(Self.project)
         // Selection repair: drop selections whose row vanished (reconcile
         // removed the file; a stale selection must never drive a paste).
@@ -132,8 +135,10 @@ final class SessionBrowserModel {
 
     /// The authoritative reload AFTER a progressive sync — clears the
     /// placeholder flag (the trace persists for the T5 timing assertion).
-    func finishProgressiveIngest(store: SessionIndexStore) async {
-        await reload(store: store)
+    /// `includeOrphans` passes through (the grid shows orphan placeholder
+    /// cells; the sidebar owns their disposition actions).
+    func finishProgressiveIngest(store: SessionIndexStore, includeOrphans: Bool = false) async {
+        await reload(store: store, includeOrphans: includeOrphans)
         progressiveIngestActive = false
     }
 

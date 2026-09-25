@@ -119,9 +119,20 @@ internal struct SidebarView: View {
     private var orphanSection: some View {
         if !sessionState.orphanSidecarRelPaths.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Text("session_orphan_header")
-                    .font(.caption2)
-                    .foregroundStyle(LightamerColors.textSecondary)
+                // 09-3 visual seam: the count badge rides the header (the
+                // grid's orphan cells mirror the same count).
+                HStack(spacing: 4) {
+                    Text("session_orphan_header")
+                        .font(.caption2)
+                        .foregroundStyle(LightamerColors.textSecondary)
+                    Text("\(sessionState.orphanSidecarRelPaths.count)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(.orange))
+                        .accessibilityIdentifier("session.orphan.count")
+                }
                 ForEach(sessionState.orphanSidecarRelPaths, id: \.self) { rel in
                     HStack(spacing: 6) {
                         Text(rel)

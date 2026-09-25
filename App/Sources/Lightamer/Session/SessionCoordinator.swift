@@ -253,6 +253,15 @@ final class SessionIndexController {
 
     private var store: SessionIndexStore?
 
+    /// The CURRENT store (Plan 09-3 wiring: the thumbnail provider binds to
+    /// it after each open; nil before the first open / after a close).
+    var currentStore: SessionIndexStore? { store }
+
+    /// Plan 09-3 progressive-ingest seam: every scanner page lands here
+    /// BEFORE the sync transaction commits (the grid's placeholder cells
+    /// render while the walk runs). App-root wired to the browser model.
+    var scanPageObserver: ((SessionScanPage) -> Void)?
+
     /// ④ the real sync leg: open + scan + single-transaction diff.
     func openAndSync(root: URL) async -> SessionCoordinator.SessionOpenSyncResult {
         let store = SessionIndexStore(sessionRoot: root)

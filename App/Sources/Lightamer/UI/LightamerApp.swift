@@ -146,6 +146,18 @@ internal struct LightamerApp: App {
     /// observe ONE instance (the AIAssetStore actor stays the truth).
     @State private var aiDownloadModel = AIDownloadModel()
 
+    /// Plan 09-3: the browser collection model (rows + selection), the
+    /// thumbnail memory LRU (a session switch drains it — teardown ②) and
+    /// the thumbnail pipeline (REBUILT per session on the new store; nil
+    /// before the first open).
+    @State private var browserModel = SessionBrowserModel()
+    @State private var thumbnailMemoryCache = ThumbnailMemoryCache()
+    @State private var thumbnailProvider: SessionThumbnailProvider?
+
+    /// The yiyin logo-face source for the thumbnail run-context injector
+    /// (a stateless file-probe instance — the coordinator keeps its own).
+    @State private var browserLogoStore = YiyinLogoStore()
+
     /// The decode actor (D-21) — one app-wide instance, injected into
     /// `ContentView` so every Open path feeds `EditorState.load`.
     @State private var decoder = RAWDecoder()
@@ -187,7 +199,10 @@ internal struct LightamerApp: App {
         // sequence (view-identity probes). One editor = one window until
         // Phase 9 revisits multi-window Session management.
         Window("Lightamer", id: "main") {
-            ContentView(decoder: decoder, metalContext: metalContext)
+            ContentView(
+                decoder: decoder, metalContext: metalContext,
+                browserModel: browserModel, thumbnailProvider: thumbnailProvider
+            )
                 .environment(sessionState)
                 .environment(sessionCoordinator)
                 .environment(editorState)
@@ -242,6 +257,33 @@ internal struct LightamerApp: App {
                                 sessionState.setOrphanSidecarRelPaths(
                                     await sessionIndexController.actionableOrphans()
                                 )
+                                // 09-3: REBUILD the thumbnail pipeline on
+                                // the NEW store (the old provider's queue
+                                // was cancelled by the teardown ② above)
+                                // and land the authoritative collection
+                                // (orphans included as placeholder cells).
+                                if let store = sessionIndexController.currentStore {
+                                    thumbnailProvider = SessionThumbnailProvider(
+                                        sessionRoot: url,
+                                        store: store,
+                                        disk: ThumbnailDiskStore(sessionRoot: url),
+                                        memory: thumbnailMemoryCache,
+                                        registry: moduleRegistry,
+                                        decoder: decoder,
+                                        renderLeg: metalContext.map {
+                                            SessionThumbnailRenderer.renderLeg(metal: $0)
+                                        },
+                                        runContextInjector:
+                                            SessionThumbnailRenderer.runContextInjector(
+                                                yiyinLogoStore: browserLogoStore
+                                            )
+                                    )
+                                }
+                                if let store = sessionIndexController.currentStore {
+                                    await browserModel.finishProgressiveIngest(
+                                        store: store, includeOrphans: true
+                                    )
+                                }
                             }
                             return result
                         },
@@ -255,6 +297,13 @@ internal struct LightamerApp: App {
                         },
                         reportError: { editorState.presentToast($0) }
                     )
+
+                    // Plan 09-3: the progressive-ingest seam — scanner
+                    // pages land as placeholder grid rows BEFORE the sync
+                    // transaction commits (边扫边出).
+                    sessionIndexController.scanPageObserver = { page in
+                        browserModel.ingestPlaceholderPage(entries: page.entries)
+                    }
 
                     // Plan 09-02 T3: wire the reconciler's seams (state +
                     // the real index legs; the same D-03b closure shape).

@@ -275,3 +275,41 @@ final class SessionBrowserModelTests: XCTestCase {
         XCTAssertFalse(model.progressiveIngestActive)
     }
 }
+
+// MARK: - T5: progressive ingest timing (real scanner stream)
+
+@MainActor
+extension SessionBrowserModelTests {
+
+    /// The T5 timing assertion: the FIRST placeholder cells land BEFORE the
+    /// walk finishes (网格边扫边出 — 9-1's stream seam consumed through the
+    /// model). Builds a 600-file tree (3+ scanner pages).
+    func testProgressiveIngestFirstPageLandsBeforeScanFinishes() async throws {
+        let dirs = ["", "day1/", "day2/", "day3/"]
+        for index in 0..<600 {
+            let rel = dirs[index % dirs.count] + String(format: "IMG%04d.ARW", index)
+            try write(rel)
+        }
+        var firstPageAtRows = 0
+        var firstPageLanded = false
+        let model = makeModel()
+        var pages = 0
+        for await page in SessionTreeScanner.scan(root: sessionRoot) {
+            model.ingestPlaceholderPage(entries: page.entries)
+            pages += 1
+            if !firstPageLanded {
+                firstPageLanded = true
+                firstPageAtRows = model.rows.count
+            }
+        }
+        XCTAssertGreaterThanOrEqual(pages, 2, "the tree spans multiple scanner pages")
+        XCTAssertGreaterThan(firstPageAtRows, 0, "the FIRST page already populated cells")
+        XCTAssertLessThan(
+            firstPageAtRows, model.rows.count,
+            "later pages added more rows after the first landed (真 progress, not vacuous)"
+        )
+        // The trace records the same facts for the acceptance round.
+        XCTAssertEqual(model.lastIngestTrace.pagesConsumed, pages)
+        XCTAssertGreaterThan(model.lastIngestTrace.placeholderUpserts, 0)
+    }
+}
