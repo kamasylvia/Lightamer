@@ -115,3 +115,24 @@
   每次 Release 重建后须重做（重签覆盖）。工程默认未改。
 - 段3 SSD 吞吐 ~1600 docs/s ⇒ 万张 sidecar 落盘 ~6s（SSD）；USB 卷按 L009 预期
   分钟级——队列后台化 + 进度上报 + dirty 徽章即为该现实的 UI 对策（dt 同构）。
+
+## PERF-07 门终值复核（09-05 T1，2026-09-26 01:0x）
+
+> 9-4 验收必办项⑤「9-5 终账时以最终代码再复核门数字」。口径：**clean Release
+> 构建**（`xcodebuild build-for-testing -configuration Release -derivedDataPath
+> build`——增量 Release 构建曾产出 host/框架不一致产物，排障实录见
+> 09-05-DECISIONS D-09-05-T1-2，终账以 clean 构建为准）+ 直启注入 + 内置 SSD
+> fixture（L009）。测试名同门：`Perf07MassApplyTests.testTenThousandMassApplySegmentOneAndTwoGate`。
+
+| 项 | 9-4 执行轮 | 9-4 验收复跑 | **09-05 终账复跑（clean）** | 判定 |
+|---|---|---|---|---|
+| 段1+段2 万张（Release/SSD） | 0.419s | 0.435s | **0.490s**（compose 0.476s + claim 0.014s） | **≤5s 门达成，余量 ~10.2×** |
+| 段3 SSD drain 10k（只记） | 6.23s / 1606 docs/s | — | 8.683s / 1152 docs/s | 同量级（fixture 随机化噪声带内），不设门不变 |
+| 开卷 10k 回填旁证（只记） | 1.37s | — | 1.599s | 一致，非 gated |
+
+- 三轮同量级稳定（0.419 → 0.435 → 0.490），无漂移趋势，**门维持达成，不触发带病签核条款**。
+- 直启注入布局增量（本轮固化，后续 Release 复测直接复用）：干净构建已自动内嵌
+  `LightamerTests.xctest` 入 `PlugIns/`（Debug 同形）；需补三件 = `libXCTestBundleInject.dylib`
+  （取自 Debug app）+ XCTest 依赖闭包符号链（XCTest/XCTestCore/XCUIAutomation/
+  XCTAutomationSupport/libXCTestSwiftSupport → Xcode platform 目录）+ 本地证书重签
+  （D-09-04-D9 惯例延续）。
