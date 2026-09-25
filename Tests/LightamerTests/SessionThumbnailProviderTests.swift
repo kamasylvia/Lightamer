@@ -2,8 +2,11 @@ import CoreGraphics
 import CoreImage
 import Foundation
 import LightamerCore
+import LightamerIOP
+import Metal
 import XCTest
 
+@testable import Lightamer
 @testable import LightamerCore
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -430,5 +433,357 @@ extension SessionThumbnailProviderTests {
         let rows = try await store.fetchAllRows()
         let row = try XCTUnwrap(rows.first { $0.path == "NOEMBED.ARW" })
         XCTAssertEqual(row.thumbState, 2, "bound RENDERED (the fallback's tier)")
+    }
+}
+
+// MARK: - T4: tier B (real pipe render) + queue semantics + isolation
+
+@MainActor
+extension SessionThumbnailProviderTests {
+
+    /// A synthetic decoded image (a 64×64 gray block — the pipe renders
+    /// whatever CIImage it is handed; no 86 MB RAW decode in queue tests).
+    nonisolated private static func syntheticDecoded() -> DecodedImage {
+        // 720×480 — ABOVE the 360 thumbnail long edge (the entry scale is
+        // DOWNSCALE-ONLY: a 64px input would pass through at 64 and the
+        // 360-output assertion would be meaningless).
+        DecodedImage(
+            ciImage: CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5))
+                .cropped(to: CGRect(x: 0, y: 0, width: 720, height: 480)),
+            rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+            segmentationSkyMatte: nil, decoderVersionUsed: .v8
+        )
+    }
+
+    /// Mean absolute pixel difference over the rasterized 8-bit planes
+    /// (the lossy-domain comparison — JPEG q85 stays within a few LSBs).
+    nonisolated private static func meanAbsDiff(_ a: CGImage, _ b: CGImage) -> Double {
+        let pa = rasterizedBytes(a), pb = rasterizedBytes(b)
+        guard pa.count == pb.count, !pa.isEmpty else { return .infinity }
+        var sum = 0
+        for index in stride(from: 0, to: pa.count, by: 4) {
+            for channel in 0..<3 {
+                sum += abs(Int(pa[index + channel]) - Int(pb[index + channel]))
+            }
+        }
+        return Double(sum) / Double(pa.count / 4 * 3)
+    }
+
+    private func writeEditedSidecar(_ rel: String, gain: Float) throws -> UUID {
+        try Data(repeating: 0xAB, count: 16).write(
+            to: sessionRoot.appendingPathComponent(rel)
+        )
+        let imageID = UUID()
+        let gainInstance = ModuleInstance(
+            module: TestGainModule.self, multiName: "t", params: .init(gain: gain)
+        )
+        var stack = HistoryStack()
+        stack.commit(gainInstance, label: "edit")
+        let document = LightamerSidecar(
+            imageID: imageID,
+            decoderVersionUsed: "v8",
+            decodeParamsHash: 42,
+            instances: [],
+            history: stack,
+            historyHash: HistoryHash.hash(stack: stack, decodeParamsHash: 42, layerSnapshot: nil),
+            appVersion: LightamerSidecar.currentAppVersion,
+            layerStack: nil
+        )
+        try JSONEncoder().encode(document).write(
+            to: sessionRoot.appendingPathComponent(rel + ".lra")
+        )
+        return imageID
+    }
+
+    /// The REAL tier-B leg (the回归钉): a throwaway PipeCache per run +
+    /// PixelPipe.process @ .thumbnail + the App assembly's texture→CGImage
+    /// convert (L014 fence inside).
+    private func makeRealLeg(metal: MetalContext) -> ThumbnailRenderLeg {
+        { request in
+            let cache = PipeCache()
+            let (texture, _) = try await RenderPipeline.process(
+                image: request.decoded,
+                instances: request.instances,
+                imageID: request.imageID,
+                resolution: request.resolution,
+                cache: cache,
+                metal: metal,
+                longEdge: request.resolution.defaultLongEdge
+            )
+            return try SessionThumbnailRenderer.cgImage(from: texture, metal: metal)
+        }
+    }
+
+    func testTierBRendersRealPipeAndRoundTripsThroughDisk() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            throw XCTSkip("no Metal GPU")
+        }
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+
+        let imageID = try writeEditedSidecar("EDITED.ARW", gain: 2.0)
+        let store = makeStore()
+        _ = try await store.openSession(root: sessionRoot, scan: makePage(["EDITED.ARW"]))
+        let rowsBefore = try await store.fetchAllRows()
+        XCTAssertEqual(rowsBefore.first?.hasEdits, 1, "the sidecar commit marks the row edited")
+
+        let decodeLeg: ThumbnailDecodeLeg = { _ in Self.syntheticDecoded() }
+        let memory = makeMemory()
+        let provider = SessionThumbnailProvider(
+            sessionRoot: sessionRoot, store: store, disk: makeDiskStore(),
+            memory: memory, registry: ModuleRegistry.makeDefault(),
+            decodeLeg: decodeLeg, renderLeg: makeRealLeg(metal: metal)
+        )
+        let image = await provider.thumbnail(for: "EDITED.ARW")
+        let produced = try XCTUnwrap(image, "tier B produced the thumb")
+        XCTAssertEqual(
+            max(produced.width, produced.height), 360,
+            "the THUMBNAIL long edge (PipeResolution .thumbnail → 360)"
+        )
+
+        // The row is bound rendered + the disk file decodes to the SAME
+        // pixels (write-through round-trip).
+        let boundRows = try await store.fetchAllRows()
+        let row = try XCTUnwrap(boundRows.first { $0.path == "EDITED.ARW" })
+        XCTAssertEqual(row.thumbState, 2, "rendered bound")
+        XCTAssertNotNil(row.thumbParamsHash)
+        let diskImage = try XCTUnwrap(makeDiskStore().read(relPath: "EDITED.ARW"))
+        XCTAssertEqual(diskImage.width, produced.width)
+        XCTAssertEqual(diskImage.height, produced.height)
+        // Lossy-domain content check (D6): JPEG q85 keeps the mean abs
+        // channel diff within a few LSBs (L020 content-level, not记账级).
+        let lossyDiff = Self.meanAbsDiff(produced, diskImage)
+        XCTAssertLessThan(lossyDiff, 3.0, "the disk copy matches the produced thumb in the JPEG lossy domain (got \(lossyDiff))")
+
+        // A second provider (cold memory) rides the DISK hit — no re-render
+        // (produceCallCount stays on the FIRST provider's account; the new
+        // one must not produce).
+        let provider2 = SessionThumbnailProvider(
+            sessionRoot: sessionRoot, store: store, disk: makeDiskStore(),
+            memory: makeMemory(), registry: ModuleRegistry.makeDefault(),
+            decodeLeg: decodeLeg, renderLeg: makeRealLeg(metal: metal)
+        )
+        let again = await provider2.thumbnail(for: "EDITED.ARW")
+        let diskRide = try XCTUnwrap(again)
+        // The JPEG domain IS the disk cache's identity domain: two reads of
+        // the same file rasterize IDENTICALLY (decode determinism).
+        XCTAssertEqual(Self.rasterizedBytes(diskRide), Self.rasterizedBytes(diskImage))
+        let produced2 = await provider2.produceCallCountForTesting()
+        XCTAssertEqual(produced2, 0, "the disk hit never re-renders (LAZY once-only)")
+    }
+
+    func testStaleEditedRowRegeneratesWithFlippedHash() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            throw XCTSkip("no Metal GPU")
+        }
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        _ = try writeEditedSidecar("EDITED2.ARW", gain: 2.0)
+        let store = makeStore()
+        _ = try await store.openSession(root: sessionRoot, scan: makePage(["EDITED2.ARW"]))
+        let decodeLeg: ThumbnailDecodeLeg = { _ in Self.syntheticDecoded() }
+        let disk = makeDiskStore()
+        let provider = SessionThumbnailProvider(
+            sessionRoot: sessionRoot, store: store, disk: disk,
+            memory: makeMemory(), registry: ModuleRegistry.makeDefault(),
+            decodeLeg: decodeLeg, renderLeg: makeRealLeg(metal: metal)
+        )
+        _ = await provider.thumbnail(for: "EDITED2.ARW")
+        let hashProbeRows = try await store.fetchAllRows()
+        let hashBefore = hashProbeRows.first { $0.path == "EDITED2.ARW" }?.thumbParamsHash
+
+        // The user edits again (a new sidecar + a re-sync flips the row's
+        // params_hash) and the row goes stale (9-2's markRowsStale leg).
+        let imageID2 = try writeEditedSidecar("EDITED2.ARW", gain: 3.0)
+        _ = try await store.openSession(
+            root: sessionRoot, scan: makePage(["EDITED2.ARW"])
+        )
+        try await store.markRowsStale(relPaths: ["EDITED2.ARW"])
+        let staleRows = try await store.fetchAllRows()
+        var row = try XCTUnwrap(staleRows.first { $0.path == "EDITED2.ARW" })
+        XCTAssertEqual(row.thumbState, 3, "stale")
+
+        // The regeneration: the provider re-renders and the hash FLIPS
+        // (防空转 — a regen leaving the hash untouched is a vacuous rewrite).
+        _ = await provider.thumbnail(for: "EDITED2.ARW")
+        let regenRows = try await store.fetchAllRows()
+        row = try XCTUnwrap(regenRows.first { $0.path == "EDITED2.ARW" })
+        XCTAssertEqual(row.thumbState, 2, "rendered again")
+        XCTAssertNotEqual(
+            row.thumbParamsHash, hashBefore,
+            "the regen binds the NEW params hash"
+        )
+        _ = imageID2
+    }
+
+    func testPipeCacheIsolationTotalBytesUnchangedAcrossBrowserRenders() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            throw XCTSkip("no Metal GPU")
+        }
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        _ = try writeEditedSidecar("ISO.ARW", gain: 2.0)
+        let store = makeStore()
+        _ = try await store.openSession(root: sessionRoot, scan: makePage(["ISO.ARW"]))
+
+        // The OBSERVED cache — the posture of the editor's shared session
+        // cache, warmed with a REAL plane (the currently-edited image).
+        let observation = PipeCache()
+        let decoded = Self.syntheticDecoded()
+        _ = try await RenderPipeline.process(
+            image: decoded, instances: [], imageID: UUID(),
+            resolution: .preview, cache: observation, metal: metal, longEdge: 64
+        )
+        let before = await observation.totalBytes
+        XCTAssertGreaterThan(before, 0, "the observation cache holds the editor's plane")
+
+        let decodeLeg: ThumbnailDecodeLeg = { _ in Self.syntheticDecoded() }
+        let provider = SessionThumbnailProvider(
+            sessionRoot: sessionRoot, store: store, disk: makeDiskStore(),
+            memory: makeMemory(), registry: ModuleRegistry.makeDefault(),
+            decodeLeg: decodeLeg, renderLeg: makeRealLeg(metal: metal)
+        )
+        // MANY browser renders — a tier leaking into the shared cache would
+        // move its total (10k×0.35 MB would crush it — Risk #5).
+        for index in 0..<4 {
+            let rel = index == 0 ? "ISO.ARW" : "ISO.ARW" // one row; repeat fetches ride memory
+            await memoryPurgeForIsolationTest(provider)
+            _ = await provider.thumbnail(for: rel)
+        }
+        let after = await observation.totalBytes
+        XCTAssertEqual(
+            after, before,
+            "the shared cache total is BYTE-IDENTICAL across browser renders (the isolation red line)"
+        )
+    }
+
+    /// Reset the provider's memory LRU so the next fetch re-produces
+    /// (the isolation test wants repeated PRODUCTIONS, not memory hits).
+    private func memoryPurgeForIsolationTest(_ provider: SessionThumbnailProvider) async {
+        await provider.resetMemoryForTesting()
+    }
+
+    // MARK: - T4: queue semantics
+
+    /// A leg that records start/finish order with real sleeps.
+    private func makeRecorderLeg(
+        _ recorder: JobRecorder, sleepMs: UInt64
+    ) -> ThumbnailRenderLeg {
+        { request in
+            recorder.start(request.url.lastPathComponent)
+            try await Task.sleep(nanoseconds: sleepMs * 1_000_000)
+            recorder.finish(request.url.lastPathComponent)
+            return Self.makeImage(width: 32, height: 32)
+        }
+    }
+
+    final class JobRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var startedOrder: [String] = []
+        private var active = 0
+        private var peak = 0
+        func start(_ name: String) {
+            lock.lock(); defer { lock.unlock() }
+            startedOrder.append(name)
+            active += 1
+            peak = max(peak, active)
+        }
+        func finish(_ name: String) {
+            lock.lock(); defer { lock.unlock() }
+            active -= 1
+        }
+        var order: [String] { lock.lock(); defer { lock.unlock() }; return startedOrder }
+        var maxConcurrent: Int { lock.lock(); defer { lock.unlock() }; return peak }
+    }
+
+    func testQueueConcurrencyIsTwo() async throws {
+        _ = try writeEditedSidecar("Q1.ARW", gain: 1.0)
+        _ = try writeEditedSidecar("Q2.ARW", gain: 1.0)
+        _ = try writeEditedSidecar("Q3.ARW", gain: 1.0)
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot, scan: makePage(["Q1.ARW", "Q2.ARW", "Q3.ARW"])
+        )
+        let recorder = JobRecorder()
+        let decodeLeg: ThumbnailDecodeLeg = { _ in Self.syntheticDecoded() }
+        let provider = SessionThumbnailProvider(
+            sessionRoot: sessionRoot, store: store, disk: makeDiskStore(),
+            memory: makeMemory(), registry: ModuleRegistry.makeDefault(),
+            decodeLeg: decodeLeg,
+            renderLeg: makeRecorderLeg(recorder, sleepMs: 60),
+            concurrency: 2, idleDelayMs: 0
+        )
+        async let a = provider.thumbnail(for: "Q1.ARW")
+        async let b = provider.thumbnail(for: "Q2.ARW")
+        async let c = provider.thumbnail(for: "Q3.ARW")
+        _ = await [a, b, c]
+        let peak = recorder.maxConcurrent
+        let order = recorder.order
+        XCTAssertEqual(order.count, 3, "all three jobs ran")
+        XCTAssertEqual(peak, 2, "exactly TWO workers (the Phase 7 competition cap)")
+    }
+
+    func testVisibleJobJumpsThePendingQueue() async throws {
+        for rel in ["V0.ARW", "V1.ARW", "V2.ARW"] {
+            _ = try writeEditedSidecar(rel, gain: 1.0)
+        }
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot, scan: makePage(["V0.ARW", "V1.ARW", "V2.ARW"])
+        )
+        let recorder = JobRecorder()
+        let decodeLeg: ThumbnailDecodeLeg = { _ in Self.syntheticDecoded() }
+        // ONE worker + a long idle delay: the first background job holds
+        // the worker; the visible job must overtake the second background
+        // job in the pending queue.
+        let provider = SessionThumbnailProvider(
+            sessionRoot: sessionRoot, store: store, disk: makeDiskStore(),
+            memory: makeMemory(), registry: ModuleRegistry.makeDefault(),
+            decodeLeg: decodeLeg,
+            renderLeg: makeRecorderLeg(recorder, sleepMs: 20),
+            concurrency: 1, idleDelayMs: 250
+        )
+        async let first = provider.thumbnail(for: "V0.ARW") // background — sleeps 250ms in the worker
+        try await Task.sleep(nanoseconds: 30_000_000) // let V0 start
+        async let second = provider.thumbnail(for: "V1.ARW", visible: true) // visible — no sleep
+        async let third = provider.thumbnail(for: "V2.ARW") // background
+        _ = await [first, second, third]
+        let order = recorder.order
+        XCTAssertEqual(order.count, 3)
+        XCTAssertEqual(order.first, "V0.ARW", "the first job starts immediately (empty queue)")
+        XCTAssertEqual(
+            order[1], "V1.ARW",
+            "the VISIBLE job overtakes the pending background job (visible-first)"
+        )
+        XCTAssertEqual(order.last, "V2.ARW")
+    }
+
+    func testCancelAllDropsPendingAndInvalidatesInFlight() async throws {
+        for rel in ["C1.ARW", "C2.ARW", "C3.ARW"] {
+            _ = try writeEditedSidecar(rel, gain: 1.0)
+        }
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot, scan: makePage(["C1.ARW", "C2.ARW", "C3.ARW"])
+        )
+        let recorder = JobRecorder()
+        let decodeLeg: ThumbnailDecodeLeg = { _ in Self.syntheticDecoded() }
+        let provider = SessionThumbnailProvider(
+            sessionRoot: sessionRoot, store: store, disk: makeDiskStore(),
+            memory: makeMemory(), registry: ModuleRegistry.makeDefault(),
+            decodeLeg: decodeLeg,
+            renderLeg: makeRecorderLeg(recorder, sleepMs: 40),
+            concurrency: 1, idleDelayMs: 0
+        )
+        let first = Task { await provider.thumbnail(for: "C1.ARW") }
+        try await Task.sleep(nanoseconds: 10_000_000) // C1 in flight
+        await provider.cancelAll() // C2/C3 pending drop + C1's result voids
+        first.cancel()
+        let cancelledValue = await first.value
+        XCTAssertNil(cancelledValue, "the cancelled session's fetch returns nil (teardown ②)")
+        // The queue survives a cancel: a NEW fetch still works (fresh
+        // generation).
+        let after = await provider.thumbnail(for: "C2.ARW")
+        XCTAssertNotNil(after, "the provider keeps serving after a teardown")
     }
 }

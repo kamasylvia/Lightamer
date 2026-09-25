@@ -7,9 +7,9 @@ import Foundation
 // RESEARCH §5.3: a path→CGImage LRU with a BYTE budget (execution decision:
 // 384 MB — the 256–512 MB window's midpoint; at ~0.35 MB per 360px thumbnail
 // that is ~1100 resident images, comfortably covering a screenful-heavy
-// scroll session without competing with PipeCache's 3 GB session budget —
+// scroll session without competing with the session plane cache's 3 GB budget —
 // the two budgets are INDEPENDENT BY CONTRACT, the browser tier never
-// touches PipeCache).
+// touches the shared session plane cache).
 //
 // The cache counts bytes EXACTLY as measured by the injected `byteCounter`
 // (default: `width × height × 4` — every thumbnail this app produces is
@@ -93,7 +93,7 @@ public actor ThumbnailMemoryCache {
     /// entries until the resident total fits the budget. The freshly
     /// inserted entry sits at the TAIL: it is never its own eviction victim
     /// unless it alone exceeds the budget (in which case the cache would
-    /// thrash on every insert — tolerated, same posture as PipeCache's
+    /// thrash on every insert — tolerated, same posture as the session plane cache's
     /// oversized-plane note; a thumbnail is ~0.35 MB against a 384 MB
     /// budget, so the case is unreachable in practice).
     public func insert(_ image: CGImage, for path: String) {

@@ -11,7 +11,7 @@ import os
 // model: one assembled query, 10k rows in memory is zero pressure). The row
 // carries NO image data: the thumbnail tier (LRU/disk/render queue) lives in
 // the Core `SessionThumbnailProvider`; cells resolve their CGImage through
-// it. No MTLTexture is ever held here (the D-C1 contract — PipeCache only
+// it. No MTLTexture is ever held here (the D-C1 contract — the shared session cache only
 // ever serves the CURRENTLY EDITED image).
 //
 // Selection is the DATA face only (⌘ toggle / ⇧ range); the View layer
