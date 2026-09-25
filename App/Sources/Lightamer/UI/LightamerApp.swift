@@ -245,6 +245,12 @@ internal struct LightamerApp: App {
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
 
+                    // Plan 11-04 T3: hand the export state its Metal +
+                    // registry dependencies (D-03b closure-seam pattern —
+                    // never at construction). The queue itself rebuilds per
+                    // session open, inside syncIndexHandler below.
+                    exportState.configure(metal: metalContext, registry: moduleRegistry)
+
                     // Plan 09-01 T1: wire the session orchestrator's
                     // closure seams (flush/teardown/route/toast — all
                     // closures, D-03b). ensureDirectories/closeIndex/sync
@@ -315,6 +321,14 @@ internal struct LightamerApp: App {
                                         store: store, includeOrphans: true
                                     )
                                 }
+                                // Plan 11-04 T3 (checker E1): the export
+                                // queue is SESSION-SCOPED (OQ-11-3) —
+                                // rebuilt beside the thumbnail provider on
+                                // every successful open; the old instance's
+                                // pending work dies with it (no journal,
+                                // D-11-CONTEXT-8).
+                                exportState.sessionRoot = url
+                                await exportState.rebuildQueueForSession()
                             }
                             return result
                         },
@@ -436,9 +450,13 @@ internal struct LightamerApp: App {
                     }
                     // 02-06 (D-S3): quit/termination forces the pending
                     // sidecar write through the AppDelegate's synchronous
-                    // willTerminate callback.
+                    // willTerminate callback. Plan 11-04 T3: the export
+                    // queue's flush SLOT rides the same callback — exports
+                    // have no journal and no partial files, so the slot
+                    // records the abandonment (v1: re-runnable work).
                     appDelegate.terminateHandler = {
                         pipeCoordinator.flushForTermination()
+                        exportState.flushForTermination()
                     }
                     #if DEBUG
                     resizeProbeIfRequested()
