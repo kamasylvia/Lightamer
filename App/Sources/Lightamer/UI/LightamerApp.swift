@@ -212,6 +212,9 @@ internal struct LightamerApp: App {
                         teardownRenderer: {
                             await pipeCoordinator.prepareForSessionSwitch()
                         },
+                        ensureDirectoriesHandler: { url in
+                            try SessionLayout.ensureDirectories(at: url)
+                        },
                         routeImage: { url in
                             editorState.load(
                                 url: url,
