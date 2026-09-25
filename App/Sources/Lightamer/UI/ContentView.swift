@@ -83,11 +83,18 @@ internal struct ContentView: View {
                 // 富余分配仍由 balanced 定，不干预大窗比例.
                 .navigationSplitViewColumnWidth(min: 495, ideal: 700)
         } detail: {
-            InspectorView()
-            // UI-SPEC dims, GUI-4 真修复（F1 ①）: min 200 / ideal 240 / max 460.
-            // 曲线编辑器满宽 = 240 列 − padding ≈ 216pt 画布；max 460 只在
-            // 用户手动拉宽时到达.
-                .navigationSplitViewColumnWidth(min: 200, ideal: clamped(inspectorWidth, 200, 460), max: 460)
+            // 09-3 GUI-19 fix: the browser modes hide the Inspector by NOT
+            // RENDERING the detail column (the columnVisibility change alone
+            // did not collapse it on macOS 27 — the acceptance round caught
+            // the panel still standing). The single mode restores it with
+            // the remembered widths.
+            if browserMode == .single {
+                InspectorView()
+                // UI-SPEC dims, GUI-4 真修复（F1 ①）: min 200 / ideal 240 / max 460.
+                // 曲线编辑器满宽 = 240 列 − padding ≈ 216pt 画布；max 460 只在
+                // 用户手动拉宽时到达.
+                    .navigationSplitViewColumnWidth(min: 200, ideal: clamped(inspectorWidth, 200, 460), max: 460)
+            }
         }
         .navigationSplitViewStyle(.balanced)
         // 04-08-T2 (GUI-8 fix): the D-26 status bar lives at the WINDOW
@@ -132,8 +139,12 @@ internal struct ContentView: View {
         // The browser modes HIDE the Inspector (v1 范围控制: 浏览模式整页
         // 替换 — the adjustment panels belong to the editor). Returning to
         // the single mode restores the remembered visibility.
-        .onChange(of: browserModeRaw) { _, _ in
-            applyBrowserModeColumnRules()
+        .onChange(of: browserModeRaw) { _, newValue in
+            if ContentView.BrowserMode(rawValue: newValue) != .single {
+                columnVisibility = .doubleColumn
+            } else {
+                columnVisibility = inspectorVisible ? .all : .detailOnly
+            }
         }
         // Plan 07-1 T3: the layer-B model first-launch prompt + progress +
         // failure surfaces (app-level state; 07-3's MaskToolbar reuses the
