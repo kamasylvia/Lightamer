@@ -234,3 +234,10 @@ locale 的 Bundle 解析停在该表（不再向 zh.lproj 回退）——**全 a
 - **适用**：一切目录扫描/相对路径计算（Phase 9 全系：scanner/store/watcher reconcile）；一切 Foundation C 字符串桥接。
 - **增补（09-02 T2，FSEvents 场景活体复现）**：`FSEventStream`（UseCFTypes）上报的事件路径同样是**物理拼写**（`/private/var/...`），与 `URL.path` 的 `/var` 前缀不匹配——watcher 初版全部文件事件被前缀过滤静默丢弃，而 WatchRoot flag-only 事件正常到达（不看路径），极易误判为「流没起」。对策：watcher init 时 `realpath(3)` 求物理根**双前缀匹配**；下游 journal 查询 / rowKey 映射同用双拼写**变体对**（`pathVariants`）。测试侧注意：`kFSEventStreamEventIdSinceNow` 会把 arm 前瞬间的合并残留事件投递进来，时序断言用基线差值。来源：09-02 T2 SessionWatcherTests 三轮排障（create 事件 10s 超时 → WatchRoot 单测却绿 → 前缀比对定位）。
 - **来源**：09-01 T3 golden 测试三轮排障（首轮 `/privatescan.jpg` 缝合串、次轮 leaf 退化 + deeper/Capture 误排除、`fileSystemRepresentation` SIGABRT 崩溃报告 malloc 栈定位）。
+
+### L028: px --up 自锁——代理 env 常开而 daemon 未跑时，起 daemon 的工具链自身也被死端口坑；解法 = 清代理 env 跑 px --up
+
+- **现象**（11-01 T4 SPM fetch）：会话 shell profile 常开 `http_proxy/https_proxy/ALL_PROXY`（指向 `127.0.0.1:10809/10808`）但 xray daemon 未运行 → 一切走代理的进程（git clone SPM 包）报 `Connection refused`；而救场命令 `px --up` **自己也会失败**——其内部 `xray.py` 经 `uv run --with requests python3` 拉 requests，uv 同样读代理 env 走死端口，鸡生蛋死锁。
+- **根因**：代理 env 是「声明式意图」（有无 daemon 都在），消费方不探测 daemon 存活；px 自身的网络前置（uv/pypi）没有豁免自身代理 env 的逻辑。
+- **对策**：起代理前清 env：`env -u http_proxy -u HTTP_PROXY -u https_proxy -u HTTPS_PROXY -u ALL_PROXY px --up`；daemon 起来后再跑需要代理的命令（或 `px --proxy <cmd>` 注入）。收尾恒 `px --stop`。诊断入口：git 报错里的 `Failed to connect to 127.0.0.1 port 10809` 即「env 开而 daemon 死」指纹。
+- **适用**：一切 SPM/cargo/uv/go 等首次拉取场景（本机代理 env 常开布局下）；R3 型网络预案照抄本解法。

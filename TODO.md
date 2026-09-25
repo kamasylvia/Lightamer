@@ -52,6 +52,14 @@
 
 ---
 
+## Phase 11（Export Pipeline & Batch Queue——执行序 11 = ROADMAP §Phase 11）—— 执行中（2026-09-26 开账；11-RESEARCH + 11-CONTEXT（D-11-CONTEXT-1..8 全按推荐裁决〔晨审追认〕）+ 5 plans（W1..W5）落盘；R1 3E+3M 修订 + R2 PASSED + AC 补点）
+
+**状态**：W1 执行。上游裁决钉死：AVIF native-only（libavif 不进 v1）、队列并发 1（内存红线）、recipe v1 不落盘、输出 stem+tag+递增后缀恒 Output/、EXIF round-trip + XMP packet、EXP-08 脚本路径制、量化域按格式惯例、无 queue journal。Phase 9 移交四条（outputDirectory 常量/批量队列复用面/collection 缝/stale 缝）对位入 11-CONTEXT。
+
+- [x] **Plan 11-01**（导出模型 + 唯一 SPM 依赖：ExportRecipe/ExportVariant 值类型【sizing 复用 YiyinExportSettings + scalePercent 载体 + ExportColorSpace 五色域 + 六格式参数面】+ 输出命名/冲突递增纯函数 + ExportQueue 契约骨架【状态机/快照/进度两层/leg 缝/concurrency=1】+ Swift-WebP SPM 接线【px 代理预案】）—— ✅ 执行完成（2026-09-26 ZCode subagent worker；5 commits：T1 `c4bd371` / T2 `559065c` / T3 `84a91f4` / T4 `d12311b` / T5 本提交；未 push；每任务边界查 config 开关；全 suite 终轮 **1187/6skip/0fail**（295.9s），基线 1133 → 1187 净增 54【Recipe 22 + Namer 16 + Contract 12 + WebP 冒烟 4】）：① ExportVariant 六字段值类型（sizing=YiyinExportSettings 零平行模型 OQ-11-6 + scalePercent 换算纯函数进同一 longEdge 数学【checker E2/R2 补点】+ 五色域 + yiyin 开关 + tag 派生【单 nil/多尺寸格式/冲突消歧】+ 零哈希字段 L013）② ExportNamer 纯函数（`<stem>[_<tag>].<ext>` + `-1/-2` 首空位递增 + 大小写不敏感占用 + `/``:` 替换保守策略 + 不摸 FS 反证）③ ExportQueueContract（canTransition 无 default 穷尽 switch 编译期不可达 + ExportJobSnapshot/ExportProgress 两层 + ExportRenderLeg/EncodeLeg @Sendable 测试缝 + concurrency=1 内存推导头注 + yieldsToEditor 接口位 v1 不实现 OQ-11-8）④ Swift-WebP 0.6.1 resolve（全项目唯一 SPM；fetch 经 px 代理一次性【代理 env 常开而 daemon 未跑，env -u 清代理跑 px --up】，px --stop 零残留；Tuist 4.208 无 `tuist fetch`，SPM 解析在 generate + TargetDependency.package 无 package: 参数——D9）+ 冒烟 4 测试（lossy/lossless encode + lossless 逐字节 round-trip + libwebp ≥1.5）+ strict concurrency 零告警（R2 预案未触发）。决策 13 条入 11-01-DECISIONS；SUMMARY 含 9-3 契约面逐件对照表。**遗留**：actor 实现件 = 11-04；每格式 golden = 11-02；WebP mux 探针 = 11-02。
+
+---
+
 ## 项目初始化（已完成 ✓）
 
 - [x] GSD 项目初始化（PROJECT.md / config.json / 5 份研究 / REQUIREMENTS / ROADMAP 13 phases / STATE）
