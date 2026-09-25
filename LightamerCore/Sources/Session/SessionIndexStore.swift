@@ -965,6 +965,38 @@ public actor SessionIndexStore {
         }
     }
 
+    /// The thumbnail-record binding leg (Plan 09-03 T2): after the provider
+    /// produces/regenerates a thumb it binds `thumb_state` + `thumb_path`
+    /// (absolute — a session move just misses and regenerates) +
+    /// `thumb_params_hash` (L013 decimal TEXT — the params identity the
+    /// thumb was produced from; a mismatch later = stale). `thumbPath`/
+    /// `paramsHash` nil writes NULL (state reset).
+    public func updateThumbnailRecord(
+        relPath: String,
+        state: SessionIndexSchema.ThumbState,
+        thumbPath: String?,
+        paramsHash: String?
+    ) async throws {
+        guard let handle else { return }
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            let update = try handle.prepare("""
+                UPDATE images
+                SET thumb_state = ?, thumb_path = ?, thumb_params_hash = ?
+                WHERE path = ?
+                """)
+            try update.bindInt(1, state.rawValue)
+            try update.bindText(2, thumbPath)
+            try update.bindText(3, paramsHash)
+            try update.bindText(4, relPath)
+            _ = try update.step()
+            try handle.exec("COMMIT")
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
+    }
+
     // MARK: - Lifecycle (teardown ②-d)
 
     /// Close the DB handle deterministically. Idempotent.
