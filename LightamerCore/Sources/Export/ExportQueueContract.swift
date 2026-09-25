@@ -59,12 +59,16 @@ public enum ExportJobState: Sendable {
         case .rendering:
             switch next {
             case .encoding, .failed, .cancelled: return true
-            case .pending, .done: return false
+            // `.rendering` = the SELF case: not a legal transition (the old
+            // `default:` branch covered it; db8fa32's explicit-list fix
+            // dropped it and broke the build — exhaustiveness needs all six
+            // target cases listed, self included).
+            case .pending, .done, .rendering: return false
             }
         case .encoding:
             switch next {
             case .done, .failed, .cancelled: return true
-            case .pending, .rendering: return false
+            case .pending, .rendering, .encoding: return false
             }
         case .done, .failed, .cancelled:
             return false // terminal — nothing leaves a terminal state
