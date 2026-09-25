@@ -126,6 +126,60 @@ struct YiyinDownsampleUniforms {
     float2 dstSize;  // output dims
 };
 
+// ─────────────────────────────────────────────────────────────────────────
+// yiyin_watermark_row (Plan 08-2 T4) — one text-row composite: the 8-bit
+// sRGB-ENCODED premultiplied row bitmap blends OVER the linear display-
+// domain plane. Decode = the sRGB EOTF (the hardware sRGB-framebuffer
+// blend face); the primaries conversion rides the UNIFORM matrix
+// M(sRGB-linear → display-linear) — COLOR-2's ColorOutModule-source chain
+// (YiyinColor on the CPU side). Logo opacity is already baked into the
+// bitmap alpha (the renderer's global-alpha draw).
+// ─────────────────────────────────────────────────────────────────────────
+
+struct YiyinRowUniforms {
+    int32_t rowW;
+    int32_t rowH;
+    int32_t destX;    // row top-left on the output plane (plane px)
+    int32_t destY;
+    int32_t planeW;
+    int32_t planeH;
+    float pad0;
+    float pad1;
+    float cm[9];      // M(sRGB-linear → display-linear), ROW-major (COLOR-2)
+};
+
+static inline float srgbDecode(float c) {
+    // The YiyinColor.linearizeSRGB face (IEC 61966-2-1).
+    return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4);
+}
+
+kernel void yiyin_watermark_row(
+    texture2d<float, access::read> input [[texture(0)]],
+    texture2d<float, access::read> rowTex [[texture(1)]],
+    texture2d<float, access::write> output [[texture(2)]],
+    constant YiyinRowUniforms &u [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= (uint)u.rowW || gid.y >= (uint)u.rowH) { return; }
+    int2 dest = int2(u.destX, u.destY) + int2(gid);
+    if (dest.x < 0 || dest.y < 0 || dest.x >= u.planeW || dest.y >= u.planeH) { return; }
+    float4 plane = input.read(uint2(dest));
+    float4 row = rowTex.read(gid);  // UNORM read = the encoded byte / 255
+    float a = clamp(row.a, 0.0, 1.0);
+    if (a > 0.0) {
+        // decode(premultiplied-encoded) = the linear premultiplied
+        // contribution; out = M·rowLin + (1 − decode(a)) × plane
+        // (M folds sRGB→Rec2020→display — COLOR-2).
+        float3 enc = float3(srgbDecode(row.r), srgbDecode(row.g), srgbDecode(row.b));
+        float3 rowLin = float3(
+            dot(float3(u.cm[0], u.cm[1], u.cm[2]), enc),
+            dot(float3(u.cm[3], u.cm[4], u.cm[5]), enc),
+            dot(float3(u.cm[6], u.cm[7], u.cm[8]), enc));
+        plane.rgb = rowLin + (1.0 - srgbDecode(a)) * plane.rgb;
+    }
+    output.write(plane, uint2(dest));
+}
+
 kernel void yiyin_box_downsample(
     texture2d<float, access::read> input [[texture(0)]],
     texture2d<float, access::write> output [[texture(1)]],

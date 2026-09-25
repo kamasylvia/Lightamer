@@ -84,6 +84,18 @@ final class YiyinWatermarkTests: XCTestCase {
         return bytes
     }
 
+    /// float32 RGBA readback (drain first — L014).
+    private func readFloats(_ texture: any MTLTexture, metal: MetalContext) -> [Float] {
+        drain(metal)
+        var floats = [Float](repeating: 0, count: texture.width * texture.height * 4)
+        floats.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: texture.width * 16,
+                from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0)
+        }
+        return floats
+    }
+
     // ── T3: registration + seed ──
 
     func testWatermarkRegisteredAtV50Slot() async throws {
@@ -572,5 +584,398 @@ final class YiyinWatermarkTests: XCTestCase {
         XCTAssertEqual(
             bottomRight.map { $0.top + $0.height }.max()!, 453 - 12,
             "the block's bottom edge at (canvas − margin)")
+    }
+
+    // ── T4: the CoreText renderer (formula-same-shape + cache + composite) ──
+
+    /// A fixed template row for the renderer faces (no logo — deterministic).
+    private func literalRow(_ text: String, caseType: YiyinCaseType = .default)
+        -> YiyinTemplateEngine.ResolvedRow
+    {
+        YiyinTemplateEngine.ResolvedRow(
+            items: [.literal(text)],
+            font: YiyinFont(bold: true, sizePercent: 3, caseType: caseType),
+            fontPx: 60, color: "#ffffff", verticalAlign: .baseline)
+    }
+
+    private let renderer = YiyinTextRenderer()
+
+    func testRowLayoutFormulaSameShape() {
+        // The createTextImg faces against an INDEPENDENT CoreText measure
+        // in the test (the formula wiring, not the rasterizer).
+        let row = literalRow("NIKON ℤ 9")
+        let (_, layout) = renderer.layoutRow(
+            row: row, bgHeight: 2000, lineSpacingPercent: 0.4, logoProvider: nil)
+
+        // Independent measure at the row font.
+        let font = YiyinTextRenderer.ctFont(name: "", size: 60, bold: true, italic: false)
+        let m = Self.measureHelper("NIKON ℤ 9", font: font)
+        // baseline = ceil(ascent of the whole-text measure).
+        XCTAssertEqual(layout.baseline, m.ascent.rounded(.up))
+        // height = ceil(max(asc+desc+2×margin, maxFontPx)).
+        let margin = 2000 * (0.4 / 100)
+        let expectedH = Int(max(m.ascent + m.descent + margin * 2, 60).rounded(.up))
+        XCTAssertEqual(layout.height, expectedH)
+        // width = 30 + slot + 30.
+        XCTAssertEqual(layout.width, 30 + Int(m.width.rounded(.up)) + 30)
+        // The slot's baseline-face y = round2(baseline + (H − baseline)/2).
+        XCTAssertEqual(
+            layout.slots[0].y,
+            ((layout.baseline + (Double(layout.height) - layout.baseline) / 2) * 100)
+                .rounded() / 100)
+        XCTAssertEqual(layout.slots[0].w, Int(m.width.rounded(.up)))
+        var compared = 0
+        XCTAssertGreaterThan(layout.width, 60)
+        XCTAssertGreaterThanOrEqual(layout.height, 60)
+        compared += 1
+        XCTAssertGreaterThan(compared, 0, "防空转")
+    }
+
+    func testRowHeightDrivenByMaxSlotFont() {
+        // getMaxFontParam: a USED slot override with a LARGER px drives the
+        // canvas height (bold ORs too).
+        var row = literalRow("x")
+        row.items = [
+            .slot(.text("big"), font: YiyinFontOverride(use: true, bold: true, sizePercent: 5), sizePx: 100),
+        ]
+        let (_, layout) = renderer.layoutRow(
+            row: row, bgHeight: 1000, lineSpacingPercent: 0, logoProvider: nil)
+        // maxFontPx = 100 → height ≥ 100 even though the row font is 22px.
+        XCTAssertGreaterThanOrEqual(layout.height, 100)
+        // UNUSED overrides don't count (the yiyin `if (font.use)` gate).
+        var row2 = literalRow("x")
+        row2.items = [
+            .slot(.text("big"), font: YiyinFontOverride(use: false, sizePercent: 5), sizePx: 100),
+        ]
+        let (_, layout2) = renderer.layoutRow(
+            row: row2, bgHeight: 1000, lineSpacingPercent: 0, logoProvider: nil)
+        XCTAssertLessThan(layout2.height, 100)
+    }
+
+    private static func measureHelper(_ s: String, font: CTFont)
+        -> (ascent: Double, descent: Double, width: Double)
+    {
+        let attributed = NSMutableAttributedString(string: s)
+        attributed.addAttribute(
+            kCTFontAttributeName as NSAttributedString.Key, value: font,
+            range: NSRange(location: 0, length: attributed.length))
+        let line = CTLineCreateWithAttributedString(attributed)
+        var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
+        let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+        return (Double(ascent), Double(descent), Double(width))
+    }
+
+    func testRowBitmapInk() {
+        let row = literalRow("LIGHTAMER")
+        let bitmap = renderer.renderRow(
+            row: row, bgHeight: 2000, lineSpacingPercent: 0.4,
+            logoOpacity: 1, logoProvider: nil)
+        // Ink exists, stays inside the box, and is white (premultiplied
+        // white: r≈g≈b≈a).
+        var minX = bitmap.width, minY = bitmap.height, maxX = 0, maxY = 0
+        var inkPixels = 0
+        var compared = 0
+        for y in 0..<bitmap.height {
+            for x in 0..<bitmap.width {
+                let o = (y * bitmap.width + x) * 4
+                let a = bitmap.pixels[o + 3]
+                if a > 32 {
+                    inkPixels += 1
+                    minX = min(minX, x); minY = min(minY, y)
+                    maxX = max(maxX, x); maxY = max(maxY, y)
+                    let (r, g, b) = (bitmap.pixels[o], bitmap.pixels[o + 1], bitmap.pixels[o + 2])
+                    // GRAY ink face: r == g == b (no subpixel color
+                    // fringing). Note the sRGB-context premultiply face:
+                    // stored rgb = encode(coverage) while a = coverage —
+                    // r ≥ a away from 0/1 BY DESIGN (the kernel decodes
+                    // with the EOTF before blending).
+                    XCTAssertTrue(
+                        abs(Int(r) - Int(g)) <= 8 && abs(Int(g) - Int(b)) <= 8,
+                        "white text must stay gray (r=g=b) at (\(x),\(y))")
+                    XCTAssertGreaterThanOrEqual(Int(r), Int(a) - 8)
+                    compared += 1
+                }
+            }
+        }
+        XCTAssertGreaterThan(inkPixels, 50, "防空转: ink pixels")
+        XCTAssertGreaterThanOrEqual(minX, 30, "the 30px leading pad")
+        XCTAssertLessThanOrEqual(minX, 40, "glyph side bearing lands within the pad")
+        XCTAssertLessThanOrEqual(maxX, bitmap.width - 30 + 2, "the trailing pad bounds")
+        XCTAssertLessThanOrEqual(maxY, bitmap.height)
+    }
+
+    func testRenderCacheMissHitAccounting() {
+        let r = YiyinTextRenderer()
+        let a = literalRow("row-a")
+        let b = literalRow("row-b")
+        _ = r.renderRow(row: a, bgHeight: 1000, lineSpacingPercent: 0.4, logoOpacity: 1, logoProvider: nil)
+        XCTAssertEqual(r.cacheMisses, 1)
+        XCTAssertEqual(r.cacheHits, 0)
+        // The same determinants → HIT (a borders-blur param edit's face).
+        _ = r.renderRow(row: a, bgHeight: 1000, lineSpacingPercent: 0.4, logoOpacity: 1, logoProvider: nil)
+        XCTAssertEqual(r.cacheMisses, 1)
+        XCTAssertEqual(r.cacheHits, 1)
+        // A changed determinant (the row's slots) → MISS.
+        _ = r.renderRow(row: b, bgHeight: 1000, lineSpacingPercent: 0.4, logoOpacity: 1, logoProvider: nil)
+        XCTAssertEqual(r.cacheMisses, 2)
+        // A changed bgHeight (resolution switch) → MISS.
+        _ = r.renderRow(row: a, bgHeight: 4000, lineSpacingPercent: 0.4, logoOpacity: 1, logoProvider: nil)
+        XCTAssertEqual(r.cacheMisses, 3)
+        // clearCache wipes.
+        r.clearCache()
+        _ = r.renderRow(row: a, bgHeight: 1000, lineSpacingPercent: 0.4, logoOpacity: 1, logoProvider: nil)
+        XCTAssertEqual(r.cacheMisses, 4)
+        XCTAssertEqual(r.cacheHits, 1)
+    }
+
+    func testRenderCacheBudgetEviction() {
+        let r = YiyinTextRenderer()
+        for i in 0..<60 {
+            _ = r.renderRow(
+                row: literalRow("evict-\(i)"), bgHeight: 200, lineSpacingPercent: 0,
+                logoOpacity: 1, logoProvider: nil)
+        }
+        XCTAssertLessThanOrEqual(r.cacheKeysCount, YiyinTextRenderer.cacheBudget)
+    }
+
+    func testLogoOpacityBakesIntoAlpha() {
+        // A 2:1 red logo fixture; opacity halves the premultiplied alpha.
+        let fixture = Self.logoFixture(width: 8, height: 4)
+        let provider: YiyinLogoProvider = { _ in fixture }
+        var row = literalRow("x")
+        row.items = [.slot(.logo(make: "test", variant: .white), font: YiyinFontOverride(), sizePx: 0)]
+        let full = renderer.renderRow(
+            row: row, bgHeight: 1000, lineSpacingPercent: 0.4,
+            logoOpacity: 1, logoProvider: provider)
+        let half = renderer.renderRow(
+            row: row, bgHeight: 1000, lineSpacingPercent: 0.4,
+            logoOpacity: 0.5, logoProvider: provider)
+        func maxAlpha(_ bmp: YiyinRowBitmap) -> Int {
+            var m = 0
+            for i in stride(from: 3, to: bmp.pixels.count, by: 4) {
+                m = max(m, Int(bmp.pixels[i]))
+            }
+            return m
+        }
+        let aFull = maxAlpha(full)
+        let aHalf = maxAlpha(half)
+        XCTAssertGreaterThan(aFull, 200)
+        XCTAssertGreaterThan(aHalf, 60)
+        XCTAssertLessThanOrEqual(aHalf, aFull / 2 + 8)
+        // Text rows ignore the logo opacity (the row is text-only → identical).
+        let textFull = renderer.renderRow(
+            row: literalRow("txt"), bgHeight: 1000, lineSpacingPercent: 0.4,
+            logoOpacity: 1, logoProvider: nil)
+        let textHalf = renderer.renderRow(
+            row: literalRow("txt"), bgHeight: 1000, lineSpacingPercent: 0.4,
+            logoOpacity: 0.5, logoProvider: nil)
+        XCTAssertEqual(textFull.pixels, textHalf.pixels)
+    }
+
+    private static func logoFixture(width: Int, height: Int) -> YiyinLogoImage {
+        var rgba = [UInt8](repeating: 0, count: width * height * 4)
+        for i in 0..<(width * height) {
+            rgba[i * 4] = 255
+            rgba[i * 4 + 3] = 255
+        }
+        let ctx = CGContext(
+            data: &rgba, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        let image = ctx.makeImage()!
+        return YiyinLogoImage(image: image, aspect: Double(width) / Double(height))
+    }
+
+    func testResolutionIndependentNormalizedRowBox() {
+        // PREVIEW(2560-derived) vs FULL(全幅-derived): the normalized row
+        // box is constant within the integer-rounding band — the 8-3
+        // 全幅断言's 前置 (08-CONTEXT 版式分辨率无关). The rows come from
+        // the ENGINE at each scale (the row fontPx = bgHeight × size% —
+        // the resolution-independence lives exactly there).
+        let template = YiyinTemplate(
+            key: "row", name: "n", pattern: "NIKON ℤ 9 · 1/250s", use: true,
+            font: YiyinFont(sizePercent: 3))
+        let smallRow = YiyinTemplateEngine.resolve(
+            template: template, inputs: engineInputs(bgHeight: 1334))!
+        let largeRow = YiyinTemplateEngine.resolve(
+            template: template, inputs: engineInputs(bgHeight: 5336))!
+        let small = renderer.layoutRow(
+            row: smallRow, bgHeight: 1334, lineSpacingPercent: 0.4, logoProvider: nil).metrics
+        let large = renderer.layoutRow(
+            row: largeRow, bgHeight: 5336, lineSpacingPercent: 0.4, logoProvider: nil).metrics
+        let scale = Double(large.height) / Double(small.height)
+        XCTAssertEqual(scale, 4.0, accuracy: 0.1, "the row height scales with bgHeight")
+        // The yiyin 30px pads are ABSOLUTE pixels (their own quirk) — they
+        // dilute the width ratio below 4.0 (upper-bounded by it).
+        let widthRatio = Double(large.width) / Double(small.width)
+        XCTAssertGreaterThan(widthRatio, 3.4)
+        XCTAssertLessThanOrEqual(widthRatio, 4.0)
+        // The TEXT portion (pads removed) scales at the bgHeight rate.
+        let textSmall = Double(small.width - 60)
+        let textLarge = Double(large.width - 60)
+        XCTAssertEqual(textLarge / textSmall, 4.0, accuracy: 0.08)
+    }
+
+    // ── T4: the Metal composite leg through the real pipe ──
+
+    func testWatermarkCompositeChangesBottomBandThroughPipe() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 64, height: 48)
+        let trio = await committedTrio()
+        // Drop gamma → the sampled plane stays linear float32.
+        let base = trio.filter { $0.opName != GammaModule.opName }
+
+        var params = WatermarkModule.Params.neutralSeed
+        params.templates = [YiyinTemplate(
+            key: "row", name: "n", pattern: "LIGHTAMER TEST", use: true,
+            font: YiyinFont(sizePercent: 8, color: "#ffffff"))]
+        params.fields = [] // no fields — a pure literal row
+        let box = ModuleBox(module: WatermarkModule())
+        box.setParams(params)
+        let chain = (base + [box as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+
+        let (baseline, _) = try await RenderPipeline.process(
+            image: image, instances: base, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        let (output, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        // Watermark-only face: canvas == image.
+        XCTAssertEqual(output.width, baseline.width)
+        XCTAssertEqual(output.height, baseline.height)
+
+        let baseFloats = readFloats(baseline, metal: metal)
+        let outFloats = readFloats(output, metal: metal)
+        // The BOTTOM band carries ink (differences); the TOP band is
+        // untouched (identical) — the bottom-center placement contract.
+        var topDiffs = 0
+        var bottomDiffs = 0
+        var compared = 0
+        for y in 0..<output.height {
+            for x in 0..<output.width {
+                let o = (y * output.width + x) * 4
+                let d = abs(outFloats[o] - baseFloats[o]) + abs(outFloats[o + 1] - baseFloats[o + 1])
+                if d > 0.01 {
+                    if y < output.height / 2 { topDiffs += 1 } else { bottomDiffs += 1 }
+                }
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "防空转: pixels compared")
+        XCTAssertGreaterThan(bottomDiffs, 20, "the text band differs")
+        XCTAssertEqual(topDiffs, 0, "the top half is byte-stable (bottom-center anchor)")
+    }
+
+    // ── T4: the CoreText self-baseline golden (D-08-CONTEXT-8) ──
+
+    private static let goldenDir: URL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("input/golden/yiyin-watermark", isDirectory: true)
+
+    /// SYSTEM DEPENDENCY (D-08-CONTEXT-8): the bitmaps freeze the CURRENT
+    /// system font rasterization — OS/font updates legitimately drift and
+    /// RE-FREEZE (regenerate with `LA_REGEN_YIYIN_GOLDEN=1`).
+    private func golden(_ name: String, bitmap: YiyinRowBitmap) throws {
+        let url = Self.goldenDir.appendingPathComponent(name)
+        if ProcessInfo.processInfo.environment["LA_REGEN_YIYIN_GOLDEN"] == "1" {
+            try FileManager.default.createDirectory(
+                at: Self.goldenDir, withIntermediateDirectories: true)
+            let image = try XCTUnwrap(Self.makeCGImage(bitmap: bitmap))
+            Self.writePNG(image, url: url)
+            return // regeneration pass — no assertion
+        }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw XCTSkip(
+                "golden artifact missing: input/golden/yiyin-watermark/\(name) — run "
+                    + "`LA_REGEN_YIYIN_GOLDEN=1 Scripts/test-direct.sh 'YiyinWatermarkTests'`")
+        }
+        let data = try XCTUnwrap(Data(contentsOf: url))
+        let expected = try XCTUnwrap(Self.readPNG(data))
+        let got = try XCTUnwrap(Self.makeCGImage(bitmap: bitmap))
+        XCTAssertEqual(got.width, expected.width, "\(name): width")
+        XCTAssertEqual(got.height, expected.height, "\(name): height")
+        // Exact self-baseline compare (same-OS determinism; any drift is a
+        // RE-FREEZE event recorded in DECISIONS, not a failure to hide).
+        let gotBytes = try XCTUnwrap(Self.rgbaBytes(got))
+        let expectedBytes = try XCTUnwrap(Self.rgbaBytes(expected))
+        XCTAssertEqual(gotBytes.count, expectedBytes.count)
+        var diff = 0
+        for (a, b) in zip(gotBytes, expectedBytes) where a != b {
+            diff += 1
+        }
+        XCTAssertEqual(diff, 0, "\(name): \(diff) bytes drifted — re-freeze the golden (OS font update?)")
+    }
+
+    func testGoldenTextRowSelfBaseline() throws {
+        // The literal row (white text) — the CoreText self-basis.
+        let row = literalRow("LIGHTAMER · 1/250s")
+        let bitmap = renderer.renderRow(
+            row: row, bgHeight: 2000, lineSpacingPercent: 0.4,
+            logoOpacity: 1, logoProvider: nil)
+        try golden("text-row-baseline.png", bitmap: bitmap)
+    }
+
+    func testGoldenFieldedRowWithLogo() throws {
+        // The fielded row with a logo slot (the red 2:1 fixture stands in
+        // for the brand PDF — the LOGO BITMAP face, T5 PDFs render via the
+        // same draw path).
+        var row = YiyinTemplateEngine.ResolvedRow(
+            items: [],
+            font: YiyinFont(bold: true, sizePercent: 3),
+            fontPx: 60, color: "#000000", verticalAlign: .baseline)
+        row.items = [
+            YiyinTemplateEngine.ResolvedItem.slot(
+                .logo(make: "testbrand", variant: .black), font: YiyinFontOverride(), sizePx: 0),
+            .literal(" ℤ 9 · "),
+            .slot(.text("f/2.8"), font: YiyinFontOverride(), sizePx: 0),
+        ]
+        let provider: YiyinLogoProvider = { request in
+            guard case .logo(let make, _) = request, make == "testbrand" else { return nil }
+            return Self.logoFixture(width: 16, height: 8)
+        }
+        let bitmap = renderer.renderRow(
+            row: row, bgHeight: 2000, lineSpacingPercent: 0.4,
+            logoOpacity: 1, logoProvider: provider)
+        try golden("fielded-row-logo.png", bitmap: bitmap)
+    }
+
+    // PNG plumbing (ImageIO round trip — the committed artifacts).
+    private static func makeCGImage(bitmap: YiyinRowBitmap) throws -> CGImage {
+        let ctx = try XCTUnwrap(CGContext(
+            data: nil, width: bitmap.width, height: bitmap.height,
+            bitsPerComponent: 8, bytesPerRow: bitmap.width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        bitmap.pixels.withUnsafeBytes {
+            _ = ctx.data?.copyMemory(from: $0.baseAddress!, byteCount: bitmap.width * bitmap.height * 4)
+        }
+        return try XCTUnwrap(ctx.makeImage())
+    }
+
+    private static func writePNG(_ image: CGImage, url: URL) {
+        let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil)!
+        CGImageDestinationAddImage(dest, image, nil)
+        CGImageDestinationFinalize(dest)
+    }
+
+    private static func readPNG(_ data: Data) throws -> CGImage {
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
+        return try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+    }
+
+    private static func rgbaBytes(_ image: CGImage) throws -> [UInt8] {
+        let ctx = try XCTUnwrap(CGContext(
+            data: nil, width: image.width, height: image.height,
+            bitsPerComponent: 8, bytesPerRow: image.width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let data = ctx.data else { return [] }
+        let buffer = data.bindMemory(to: UInt8.self, capacity: image.width * image.height * 4)
+        let bytes = [UInt8](UnsafeBufferPointer(start: buffer, count: image.width * image.height * 4))
+        return bytes
     }
 }

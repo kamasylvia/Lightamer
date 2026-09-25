@@ -352,6 +352,9 @@ public enum LightamerIOPRegistry {
             BordersModule.kernelComposite,
             BordersModule.kernelShadowSDF,
             BordersModule.kernelBoxDownsample,
+            // Plan 08-2 T4: the watermark row composite (one PSO per
+            // functionName — the 16×16 threadgroup is static).
+            WatermarkModule.kernelRow,
         ]
     }
 

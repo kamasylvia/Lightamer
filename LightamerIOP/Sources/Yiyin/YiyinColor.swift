@@ -112,6 +112,31 @@ public enum YiyinColor {
         }
     }
 
+    /// The composed M(sRGB-linear → display-linear) ROWS for the watermark
+    /// row kernel (COLOR-2's ColorOutModule-source chain — the same family
+    /// `linearDisplay` composes for fills), flattened ROW-major as 9
+    /// floats (layout-safe against float3 alignment). Neutrals map to
+    /// themselves under every target (shared D65): row_i · (1,1,1) = 1.
+    public static func sRGBToDisplayMatrixRows(target: DisplayProfile) -> [Float] {
+        let display: simd_double3x3
+        switch target {
+        case .displayP3:
+            display = rec2020ToP3
+        case .sRGB, .colorSyncFallback:
+            display = simd_double3x3(diagonal: simd_double3(1, 1, 1))
+        }
+        let m = display * sRGBToRec2020 // m * sRGBLinear = displayLinear
+        // Row i of the math matrix = (columns.0[i], columns.1[i], columns.2[i]).
+        var rows = [Float]()
+        rows.reserveCapacity(9)
+        for i in 0..<3 {
+            rows.append(Float(m.columns.0[i]))
+            rows.append(Float(m.columns.1[i]))
+            rows.append(Float(m.columns.2[i]))
+        }
+        return rows
+    }
+
     /// The gray overlay ramp for the blur-mode adaptive backdrop (T5's
     /// consumer; declared here to keep ALL color constants in one file).
     /// yiyin web `image-tool/index.ts:28-46`: rgba(g, g, g, 0.2) per tier

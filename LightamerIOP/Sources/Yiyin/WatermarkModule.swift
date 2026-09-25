@@ -260,6 +260,38 @@ public final class WatermarkModule: IOPModule {
 
     // MARK: - Process
 
+    /// Kernel function name (`YiyinKernels.metal`; the Registry prewarm
+    /// list consumes it).
+    static let kernelRow = "yiyin_watermark_row"
+
+    /// The module-owned CoreText renderer (its row-bitmap cache lives
+    /// here — single-owner like every box-owned scratch).
+    public let renderer = YiyinTextRenderer()
+
+    /// The logo slot provider (the YiyinLogoStore wires this — T5; nil =
+    /// every logo slot renders as whitespace). MEASURE and RENDER see the
+    /// same answers (the provider contract).
+    public var logoProvider: YiyinLogoProvider?
+
+    /// The display override twin (BordersModule/ColorOutModule): the row
+    /// color matrix follows the resolved display profile. nil = the
+    /// current screen.
+    public var displayProfileOverride: DisplayProfile?
+
+    /// The row uniforms (the MSL `YiyinRowUniforms` mirror — all-4-byte
+    /// members keep the layouts identical, no float3 alignment hazards).
+    struct RowUniforms {
+        var rowW: Int32
+        var rowH: Int32
+        var destX: Int32
+        var destY: Int32
+        var planeW: Int32
+        var planeH: Int32
+        var pad0: Float
+        var pad1: Float
+        var cm: (Float, Float, Float, Float, Float, Float, Float, Float, Float)
+    }
+
     public func process(
         input: any MTLTexture,
         output: any MTLTexture,
@@ -268,21 +300,115 @@ public final class WatermarkModule: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        // The identity fast path: no resolved rows → byte-identical blit
-        // (空模板/全字段关 == 无实例). The full render leg (row bitmaps +
-        // compositing) lands with the T4 CoreText renderer.
         let mainImageSize = SIMD2(
             max(jointContext?.mainImageSize.x ?? input.width, 1),
             max(jointContext?.mainImageSize.y ?? input.height, 1))
-        let inputs = engineInputs(bgHeight: Double(pass1CanvasHeight(mainImageSize: mainImageSize)))
-        if resolvedRows(inputs: inputs).isEmpty {
+        let bgHeight = Double(pass1CanvasHeight(mainImageSize: mainImageSize))
+        let inputs = engineInputs(bgHeight: bgHeight)
+        let rows = resolvedRows(inputs: inputs)
+
+        // The identity fast path: no resolved rows → byte-identical blit
+        // (空模板/全字段关 == 无实例).
+        guard !rows.isEmpty else {
             try blitIdentity(input: input, output: output, roiIn: roiIn, roiOut: roiOut, metal: metal)
             return
         }
-        // T4: the renderer measures + draws the rows here. Until it lands
-        // a rowed render falls through to the blit (the layout/identity
-        // face ships first within Plan 08-2).
+
+        // The joint rows leg: FULL-WINDOW blit first (the pipe expects the
+        // whole output plane written — the rows only patch their rects),
+        // then measure → place → composite each row. Same-queue FIFO
+        // orders the blit before the row encoders.
         try blitIdentity(input: input, output: output, roiIn: roiIn, roiOut: roiOut, metal: metal)
+        let metrics = rows.map { row in
+            renderer.layoutRow(
+                row: row, bgHeight: bgHeight,
+                lineSpacingPercent: committed.lineSpacing,
+                logoProvider: logoProvider).metrics
+        }
+        let (placed, _) = placedRows(mainImageSize: mainImageSize, metrics: metrics)
+        precondition(
+            placed.count == rows.count,
+            "placedRows count (\(placed.count)) != resolved rows (\(rows.count))")
+
+        var target: DisplayProfile
+        if let override = displayProfileOverride {
+            target = override
+        } else {
+            target = .current()
+        }
+        let matrix = YiyinColor.sRGBToDisplayMatrixRows(target: target)
+
+        for (index, placedRow) in placed.enumerated() {
+            let bitmap = renderer.renderRow(
+                row: rows[index], bgHeight: bgHeight,
+                lineSpacingPercent: committed.lineSpacing,
+                logoOpacity: committed.logoOpacity,
+                logoProvider: logoProvider)
+            try await compositeRow(
+                bitmap: bitmap, placed: placedRow, input: input, output: output,
+                roiOut: roiOut, matrix: matrix, metal: metal)
+        }
+    }
+
+    /// Upload the row bitmap and dispatch the composite over the row's
+    /// extent (the kernel clips to the output plane — windowed rendering
+    /// only pays for the visible slice).
+    func compositeRow(
+        bitmap: YiyinRowBitmap,
+        placed: YiyinLayoutRecord.PlacedRow,
+        input: any MTLTexture,
+        output: any MTLTexture,
+        roiOut: ROI,
+        matrix: [Float],
+        metal: MetalContext
+    ) async throws {
+        precondition(matrix.count == 9)
+        let texture = try Self.makeRowTexture(bitmap: bitmap, metal: metal)
+        var u = RowUniforms(
+            rowW: Int32(bitmap.width), rowH: Int32(bitmap.height),
+            destX: Int32(placed.left - roiOut.x), destY: Int32(placed.top - roiOut.y),
+            planeW: Int32(output.width), planeH: Int32(output.height),
+            pad0: 0, pad1: 0,
+            cm: (matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5],
+                 matrix[6], matrix[7], matrix[8]))
+        guard let buffer = metal.device.makeBuffer(
+            bytes: &u, length: MemoryLayout<RowUniforms>.stride,
+            options: .storageModeShared)
+        else { throw MetalError.deviceUnavailable }
+
+        let session = try await metal.makeEncoder(functionName: Self.kernelRow)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(texture, index: 1)
+        session.encoder.setTexture(output, index: 2)
+        session.encoder.setBuffer(buffer, offset: 0, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: bitmap.width, height: bitmap.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+    }
+
+    /// The rgba8Unorm row texture (UNORM read = the encoded byte / 255 —
+    /// the kernel decodes manually). Fresh per row per run — the bitmaps
+    /// are the cached artifact (YiyinTextRenderer), the upload is cheap.
+    static func makeRowTexture(
+        bitmap: YiyinRowBitmap, metal: MetalContext
+    ) throws -> (any MTLTexture) {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba8Unorm, width: max(bitmap.width, 1),
+            height: max(bitmap.height, 1), mipmapped: false)
+        descriptor.usage = [.shaderRead]
+        descriptor.storageMode = .shared
+        guard let texture = metal.device.makeTexture(descriptor: descriptor) else {
+            throw MetalError.bufferAllocationFailed(bitmap.width * bitmap.height * 4)
+        }
+        bitmap.pixels.withUnsafeBytes {
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, texture.width, texture.height),
+                mipmapLevel: 0, withBytes: $0.baseAddress!,
+                bytesPerRow: texture.width * 4)
+        }
+        return texture
     }
 
     /// The whole-window blit (BordersModule twin — the sync identity path).
