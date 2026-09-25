@@ -34,3 +34,6 @@ input/golden/fixtures/lensfun/*
 !input/golden/yiyin-watermark/
 !input/golden/fixtures/lensfun/README.md
 !input/golden/cases/
+
+# 9-3 D10 抽检再生成物：复跑必 dirty，留工作区不入库（9-3 验收注记①，2026-09-26 兑现）
+.work/gui-acceptance/09-3-tiers-raf-A-vs-B.jpg
