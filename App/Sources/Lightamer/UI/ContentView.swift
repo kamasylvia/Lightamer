@@ -21,6 +21,16 @@ internal struct ContentView: View {
     let browserModel: SessionBrowserModel
     let thumbnailProvider: SessionThumbnailProvider?
 
+    /// Plan 09-04 (HIST-05): the adjustments clipboard + the app root's
+    /// partial-paste routing (the sheet raises the request; the app root's
+    /// closure performs the paste) + the presentation binding.
+    let pasteboard: AdjustmentsPasteboard
+    let onPartialPasteRequested: () -> Void
+    let onPartialPaste: (
+        (_ selection: Set<PastePayload.InstanceKey>, _ mode: PasteMode) async -> Void
+    )?
+    @Binding var pastePartialRequested: Bool
+
     /// The THREE browser modes (RESEARCH §9 — 网格 | 单图 | 对比). The
     /// persisted value survives relaunches; `single` (the pre-9-3 whole
     /// app) stays the default.
@@ -150,6 +160,23 @@ internal struct ContentView: View {
         // failure surfaces (app-level state; 07-3's MaskToolbar reuses the
         // same AIAssetStore model).
         .modifier(AIDownloadPrompt())
+        // 09-04 HIST-05: the partial-paste dialog (the menu command raises
+        // the request; the paste routes back through the app root).
+        .sheet(isPresented: $pastePartialRequested) {
+            if let payload = pasteboard.peek() {
+                PastePartialDialog(
+                    payload: payload,
+                    initialSelection: pasteboard.lastSelection,
+                    onPaste: { selection, mode in
+                        pastePartialRequested = false
+                        Task {
+                            await onPartialPaste?(selection, mode)
+                        }
+                    },
+                    onCancel: { pastePartialRequested = false }
+                )
+            }
+        }
     }
 
     // Plan 09-3 THREE-MODE switch — a WHOLE-PAGE replacement (the browser

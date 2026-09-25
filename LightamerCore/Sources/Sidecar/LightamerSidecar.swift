@@ -330,18 +330,20 @@ internal struct SidecarInstanceRecord: Codable, Sendable, Equatable {
 /// timestamp, layerScope}` with the inline snapshot's `paramsHash` as a
 /// String; 06-01 T6 adds `stackSnapshot` (the layer-stack snapshot through
 /// the same frozen layer spelling), optional + decodeIfPresent — v1
-/// documents decode with nil.
+/// documents decode with nil. 09-04 T2 adds `pasteSet` (the frozen HIST-05
+/// paste payload), optional + decodeIfPresent on the same additive pattern.
 private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
 
     private enum Keys: String, CodingKey {
-        case id, snapshot, label, timestamp, layerScope, stackSnapshot
+        case id, snapshot, label, timestamp, layerScope, stackSnapshot, pasteSet
     }
 
     var item: HistoryStack.HistoryItem {
         HistoryStack.HistoryItem(
             id: id, snapshot: snapshot.instance, label: label,
             timestamp: timestamp, layerScope: layerScope,
-            stackSnapshot: stackSnapshot?.snapshot
+            stackSnapshot: stackSnapshot?.snapshot,
+            pasteSet: pasteSet?.map(\.instance)
         )
     }
 
@@ -351,6 +353,7 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
     private var timestamp: Date
     private var layerScope: String?
     private var stackSnapshot: SidecarLayerStackRecord?
+    private var pasteSet: [SidecarInstanceRecord]?
 
     init(_ item: HistoryStack.HistoryItem) {
         id = item.id
@@ -359,6 +362,7 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         timestamp = item.timestamp
         layerScope = item.layerScope
         stackSnapshot = item.stackSnapshot.map(SidecarLayerStackRecord.init)
+        pasteSet = item.pasteSet?.map(SidecarInstanceRecord.init)
     }
 
     init(from decoder: Decoder) throws {
@@ -370,6 +374,8 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         layerScope = try container.decodeIfPresent(String.self, forKey: .layerScope)
         stackSnapshot = try container.decodeIfPresent(
             SidecarLayerStackRecord.self, forKey: .stackSnapshot)
+        pasteSet = try container.decodeIfPresent(
+            [SidecarInstanceRecord].self, forKey: .pasteSet)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -380,6 +386,7 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         try container.encode(timestamp, forKey: .timestamp)
         try container.encodeIfPresent(layerScope, forKey: .layerScope)
         try container.encodeIfPresent(stackSnapshot, forKey: .stackSnapshot)
+        try container.encodeIfPresent(pasteSet, forKey: .pasteSet)
     }
 }
 

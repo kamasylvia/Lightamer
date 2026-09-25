@@ -154,6 +154,13 @@ internal struct LightamerApp: App {
     @State private var thumbnailMemoryCache = ThumbnailMemoryCache()
     @State private var thumbnailProvider: SessionThumbnailProvider?
 
+    /// Plan 09-04 T2 (HIST-05): the adjustments clipboard + the
+    /// partial-paste dialog request flag (the menu sets it; ContentView
+    /// presents the sheet). The batch sidecar write queue lands with the
+    /// T3/T4 commits.
+    @State private var pasteboard = AdjustmentsPasteboard()
+    @State private var pastePartialRequested = false
+
     /// The yiyin logo-face source for the thumbnail run-context injector
     /// (a stateless file-probe instance — the coordinator keeps its own).
     @State private var browserLogoStore = YiyinLogoStore()
@@ -201,7 +208,13 @@ internal struct LightamerApp: App {
         Window("Lightamer", id: "main") {
             ContentView(
                 decoder: decoder, metalContext: metalContext,
-                browserModel: browserModel, thumbnailProvider: thumbnailProvider
+                browserModel: browserModel, thumbnailProvider: thumbnailProvider,
+                pasteboard: pasteboard,
+                onPartialPasteRequested: { pastePartialRequested = true },
+                onPartialPaste: { selection, mode in
+                    await pasteToSelection(selection: selection, mode: mode)
+                },
+                pastePartialRequested: $pastePartialRequested
             )
                 .environment(sessionState)
                 .environment(sessionCoordinator)
@@ -496,13 +509,24 @@ internal struct LightamerApp: App {
                 .disabled(!editorState.canRedo)
                 .keyboardShortcut("z", modifiers: [.command, .shift])
                 Divider()
-                // Phase 9 (HIST-05) — disabled.
-                Button(String(localized: "menu_copy_adjustments")) {}
-                    .disabled(true)
-                    .keyboardShortcut("c", modifiers: [.command, .shift])
-                Button(String(localized: "menu_paste_adjustments")) {}
-                    .disabled(true)
-                    .keyboardShortcut("v", modifiers: [.command, .shift])
+                // 09-04 HIST-05 (was the Phase 9 disabled placeholder):
+                // copy freezes the CURRENT image's effective adjustments;
+                // paste routes the frozen payload onto the browser
+                // selection (batch) or the current image (live).
+                Button(String(localized: "menu_copy_adjustments")) {
+                    Task { await copyAdjustments() }
+                }
+                .disabled(editorState.loadedImageURL == nil)
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+                Button(String(localized: "menu_paste_adjustments")) {
+                    Task { await pasteToSelection(selection: nil, mode: .merge) }
+                }
+                .disabled(!pasteboard.hasPayload)
+                .keyboardShortcut("v", modifiers: [.command, .shift])
+                Button(String(localized: "menu_paste_partial")) {
+                    pastePartialRequested = true
+                }
+                .disabled(!pasteboard.hasPayload)
             }
 
             // ── View ────────────────────────────────────────────────
@@ -577,6 +601,78 @@ internal struct LightamerApp: App {
         }
     }
     #endif
+
+    // ── 09-04 HIST-05: copy + paste routing (the app-root owns the whole
+    // state graph — the menu commands orchestrate, the states never
+    // reference each other, D-03b) ─────────────────────────────────────────
+
+    /// ⌘⇧C: freeze the CURRENT image's effective adjustments into the
+    /// clipboard (the skip set applies inside `compose`).
+    private func copyAdjustments() async {
+        guard editorState.loadedImageURL != nil else { return }
+        let effective = editorState.history.effectiveInstances()
+        let layerRecord = editorState.layerStack
+            .map { SidecarLayerStackRecord($0) }
+            .flatMap { $0.layers.isEmpty ? nil : $0 }
+        let payload = PastePayload.compose(
+            sourceImageID: pipeCoordinator.currentImageID ?? UUID(),
+            sourceURL: editorState.loadedImageURL,
+            sourceInstances: editorState.instances,
+            sourceEffective: effective,
+            seed: await seedInstances(),
+            layerStack: layerRecord)
+        pasteboard.copy(payload)
+    }
+
+    /// ⌘⇧V / the partial dialog's paste (T2 scope: the LIVE leg — the
+    /// currently edited image; the browser-selection batch routing lands
+    /// with the SessionBatchApplier in the T3 commit).
+    private func pasteToSelection(
+        selection: Set<PastePayload.InstanceKey>?, mode: PasteMode
+    ) async {
+        guard let payload = pasteboard.peek(), !payload.instances.isEmpty else {
+            return
+        }
+        if editorState.loadedImageURL != nil {
+            let seed = await seedInstances()
+            await pasteLive(payload: payload, selection: selection, mode: mode, seed: seed)
+        }
+    }
+
+    /// The LIVE paste leg (the currently edited image): compose against
+    /// EditorState's in-memory stack and install — ONE commit, ⌘Z-able.
+    private func pasteLive(
+        payload: PastePayload, selection: Set<PastePayload.InstanceKey>?,
+        mode: PasteMode, seed: [ModuleInstance]
+    ) async {
+        let composed = PasteSemantics.paste(
+            targetHistory: editorState.history,
+            targetInstances: editorState.instances,
+            payload: payload,
+            mode: mode,
+            seed: seed,
+            selection: selection,
+            label: String(localized: "history_paste_adjustments"))
+        guard let composed else { return }
+        switch mode {
+        case .merge:
+            editorState.installMergePaste(history: composed.history)
+        case .overwrite:
+            editorState.installOverwritePaste(
+                history: composed.history, seed: seed)
+        }
+    }
+
+    /// The identity-default seed (terminal trio + the editing defaults).
+    private func seedInstances() async -> [ModuleInstance] {
+        (
+            await moduleRegistry.makeDefaultInstances()
+                + LightamerIOPRegistry.editingDefaultInstances()
+        )
+        .sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+    }
 
     /// Toggle the sessions sidebar (`.all ↔ .doubleColumn` — content and
     /// detail stay visible).

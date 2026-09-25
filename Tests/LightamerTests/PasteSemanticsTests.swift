@@ -3,6 +3,7 @@ import LightamerCore
 import LightamerIOP
 import XCTest
 
+@testable import Lightamer
 @testable import LightamerCore
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -234,5 +235,222 @@ final class PasteSemanticsTests: XCTestCase {
             "the checked subset lands exactly (order + records preserved)")
         XCTAssertEqual(filtered.instances.count, 2, "unchecked instances are dropped")
         XCTAssertTrue(payload.filtered(by: []).instances.isEmpty, "an empty selection yields an empty payload")
+    }
+}
+
+// MARK: - T2: the paste modes (pure Core semantics)
+
+extension PasteSemanticsTests {
+
+    /// A target with a REAL edit history: exposure +1EV + testgain 2.0
+    /// (two commits) over the seed.
+    private func makeEditedTarget() async -> (history: HistoryStack, instances: [ModuleInstance], seed: [ModuleInstance], oldExposure: ModuleInstance, oldGain: ModuleInstance) {
+        let seed = await makeSeed()
+        var history = HistoryStack()
+        let exposure = ModuleInstance(
+            module: ExposureModule.self, params: ExposureModule.Params(exposure: 1.0))
+        let gain = ModuleInstance(
+            module: TestGainModule.self, params: TestGainModule.Params(gain: 2.0))
+        history.commit(exposure, label: "exposure +1")
+        history.commit(gain, label: "testgain 2x")
+        let live = PasteSemanticsTests.liveSet(seed: seed, history: history)
+        return (history, live, seed, exposure, gain)
+    }
+
+    /// base ∪ effective (the EditorState.rebuildInstances / sidecar doc rule).
+    private static func liveSet(seed: [ModuleInstance], history: HistoryStack) -> [ModuleInstance] {
+        let effective = history.effectiveInstances()
+        var merged = seed
+        for record in effective
+        where !merged.contains(where: {
+            $0.opName == record.opName && $0.multiPriority == record.multiPriority
+        }) {
+            merged.append(record)
+        }
+        return merged.sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+    }
+
+    /// A payload frozen from a "source" whose edits are exposure +2EV and
+    /// borders (the creative pair; the skip set cut the rest).
+    private func makePayload() -> PastePayload {
+        let exposure = ModuleInstance(
+            module: ExposureModule.self, params: ExposureModule.Params(exposure: 2.0))
+        let borders = ModuleInstance(
+            module: BordersModule.self, multiName: "frame", params: BordersModule.Params())
+        return PastePayload(
+            sourceImageID: sourceID(), sourceURL: nil,
+            instances: [exposure, borders], layerStack: nil)
+    }
+
+    func testOverwriteReplacesEffectiveSetExactlyWithPayload() async throws {
+        let target = await makeEditedTarget()
+        let payload = makePayload()
+        let composed = try XCTUnwrap(PasteSemantics.paste(
+            targetHistory: target.history, targetInstances: target.instances,
+            payload: payload, mode: .overwrite, seed: target.seed))
+        // REVERSE ASSERTION (防空转): the effective set == the payload
+        // EXACTLY — the target's old edits (testgain) are GONE (a non-
+        // superset is the whole point of overwrite, dt DELETE+INSERT).
+        let effective = composed.history.effectiveInstances()
+        func key(_ r: ModuleInstance) -> String {
+            "\(r.opName)|\(r.multiPriority)|\(r.paramsHash)"
+        }
+        XCTAssertEqual(
+            Set(effective.map(key)),
+            Set(payload.instances.map(key)),
+            "overwrite: the effective set is the payload EXACTLY, never a superset")
+        // ONE NEW commit (the undo contract) — an epoch item; the older
+        // items stay in the stack as dead state for the ⌘Z restore.
+        XCTAssertEqual(composed.history.items.count, target.history.items.count + 1)
+        XCTAssertEqual(composed.history.position, target.history.position + 1)
+        // instances = 默认种子 + 载荷实例: every seed record present
+        // (payload twins shadow), no target edits left in the live set.
+        let live = composed.instances
+        for seedRecord in target.seed {
+            XCTAssertTrue(
+                live.contains(where: {
+                    $0.opName == seedRecord.opName && $0.multiPriority == seedRecord.multiPriority
+                }),
+                "the seed record \(seedRecord.opName) survives overwrite in the base/live set")
+        }
+        XCTAssertFalse(
+            live.contains(where: { $0.opName == TestGainModule.opName }),
+            "the target's own edit is gone from the live set")
+    }
+
+    func testOverwriteSingleUndoRestoresByteExactly() async throws {
+        let target = await makeEditedTarget()
+        let payload = makePayload()
+        let composed = try XCTUnwrap(PasteSemantics.paste(
+            targetHistory: target.history, targetInstances: target.instances,
+            payload: payload, mode: .overwrite, seed: target.seed))
+
+        // ONE ⌘Z: position drops below the epoch item → the OLD projection.
+        var undoStack = composed.history
+        undoStack.undo()
+        let undone = undoStack.effectiveInstances()
+        let oldEffective = target.history.effectiveInstances()
+        XCTAssertEqual(
+            undone.map { "\($0.opName)|\($0.multiPriority)|\($0.paramsData.count)|\($0.paramsHash)" },
+            oldEffective.map { "\($0.opName)|\($0.multiPriority)|\($0.paramsData.count)|\($0.paramsHash)" },
+            "one ⌘Z restores the pre-paste effective set BYTE-EXACTLY")
+        // Redo forward: the payload projection returns.
+        undoStack.redo()
+        XCTAssertEqual(
+            undoStack.effectiveInstances().map(\.paramsHash),
+            payload.instances.map(\.paramsHash))
+    }
+
+    func testMergeKeepsTargetInstancesAndPayloadWinsSameTuple() async throws {
+        let target = await makeEditedTarget()
+        let payload = makePayload()
+        let composed = try XCTUnwrap(PasteSemantics.paste(
+            targetHistory: target.history, targetInstances: target.instances,
+            payload: payload, mode: .merge, seed: target.seed))
+
+        let effective = composed.history.effectiveInstances()
+        // Same-tuple (exposure, 0): the PAYLOAD's +2EV wins (latest-wins).
+        let exposure = effective.first { $0.opName == ExposureModule.opName }
+        XCTAssertEqual(
+            exposure?.paramsHash,
+            payload.instances.first { $0.opName == ExposureModule.opName }?.paramsHash,
+            "merge: the pasted (newest) record wins the shared tuple")
+        // 异名共存: the target's OWN testgain survives; borders lands too.
+        XCTAssertEqual(
+            effective.first { $0.opName == TestGainModule.opName }?.paramsHash,
+            target.oldGain.paramsHash,
+            "merge: the target's own edit coexists")
+        XCTAssertNotNil(effective.first { $0.opName == BordersModule.opName })
+        // ONE paste commit on top of the untouched stack.
+        XCTAssertEqual(
+            composed.history.items.count, target.history.items.count + 1)
+        XCTAssertEqual(composed.history.position, target.history.position + 1)
+        // ONE ⌘Z → byte-exact pre-paste projection.
+        var mergeUndo = composed.history
+        mergeUndo.undo()
+        XCTAssertEqual(
+            mergeUndo.effectiveInstances().map { "\($0.opName)|\($0.multiPriority)|\($0.paramsHash)" },
+            target.history.effectiveInstances().map { "\($0.opName)|\($0.multiPriority)|\($0.paramsHash)" },
+            "merge: one ⌘Z restores the pre-paste set byte-exactly")
+    }
+
+    func testPartialPasteLandsOnlyTheCheckedSubset() async throws {
+        let target = await makeEditedTarget()
+        let payload = makePayload()
+        let selection: Set<PastePayload.InstanceKey> = [
+            PastePayload.InstanceKey(payload.instances[0]) // exposure only
+        ]
+        let composed = try XCTUnwrap(PasteSemantics.paste(
+            targetHistory: target.history, targetInstances: target.instances,
+            payload: payload, mode: .merge, seed: target.seed, selection: selection))
+        let effective = composed.history.effectiveInstances()
+        XCTAssertNotNil(effective.first { $0.opName == ExposureModule.opName })
+        XCTAssertNil(
+            effective.first { $0.opName == BordersModule.opName },
+            "partial: the unchecked instance never lands")
+    }
+
+    func testPasteRecastsUUIDsButKeepsSemantics() async throws {
+        let target = await makeEditedTarget()
+        let payload = makePayload()
+        let first = try XCTUnwrap(PasteSemantics.paste(
+            targetHistory: target.history, targetInstances: target.instances,
+            payload: payload, mode: .overwrite, seed: target.seed))
+        let second = try XCTUnwrap(PasteSemantics.paste(
+            targetHistory: target.history, targetInstances: target.instances,
+            payload: payload, mode: .overwrite, seed: target.seed))
+        // Different UUIDs per paste (cross-image namespaces stay separate).
+        XCTAssertNotEqual(
+            Set(first.pastedRecords.map(\.id)),
+            Set(second.pastedRecords.map(\.id)),
+            "each paste RECASTS the payload UUIDs")
+        // Identical semantics (tuple + params bytes).
+        XCTAssertEqual(
+            first.pastedRecords.map { "\($0.opName)|\($0.multiPriority)|\($0.multiName)|\($0.paramsHash)" },
+            second.pastedRecords.map { "\($0.opName)|\($0.multiPriority)|\($0.multiName)|\($0.paramsHash)" })
+    }
+
+    func testPasteCommitRoundTripsThroughTheSidecarSpelling() async throws {
+        let target = await makeEditedTarget()
+        let payload = makePayload()
+        let composed = try XCTUnwrap(PasteSemantics.paste(
+            targetHistory: target.history, targetInstances: target.instances,
+            payload: payload, mode: .merge, seed: target.seed))
+
+        // The sidecar spelling (decimal-String hashes) round-trips the
+        // paste item — the additive pasteSet field survives both ways.
+        let decoderVersion = "v8"
+        let decodeHash = UInt64(12345678901234567)
+        let hash = HistoryHash.hash(
+            stack: composed.history, decodeParamsHash: decodeHash,
+            layerSnapshot: composed.layerStack?.snapshot)
+        let document = LightamerSidecar(
+            imageID: sourceID(), decoderVersionUsed: decoderVersion,
+            decodeParamsHash: decodeHash, instances: composed.instances,
+            history: composed.history, historyHash: hash)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let bytes = try encoder.encode(document)
+        let restored = try JSONDecoder().decode(LightamerSidecar.self, from: bytes)
+        XCTAssertFalse(restored.driftDetected, "the pasted doc is self-consistent (no drift)")
+        XCTAssertEqual(restored.history.items.count, composed.history.items.count)
+        XCTAssertEqual(
+            restored.history.effectiveInstances().map { "\($0.opName)|\($0.multiPriority)|\($0.paramsHash)" },
+            composed.history.effectiveInstances().map { "\($0.opName)|\($0.multiPriority)|\($0.paramsHash)" },
+            "the effective set survives the sidecar round-trip byte-exactly")
+        let pasteItem = restored.history.items.last
+        XCTAssertEqual(pasteItem?.pasteSet?.count, payload.instances.count,
+                       "the pasteSet rides the additive sidecar field")
+    }
+
+    @MainActor
+    func testEditorStructureMarkerMirrorMatches() {
+        // The Core-side mirror must equal EditorState's canonical marker
+        // (the layer restore path matches BOTH markers).
+        XCTAssertEqual(
+            EditorStructureScope.marker, EditorState.layerStructureScope,
+            "the Core mirror of the layer-structure marker drifted from the App canonical")
     }
 }

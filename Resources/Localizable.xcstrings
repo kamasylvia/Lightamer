@@ -1361,6 +1361,23 @@
         }
       }
     },
+    "history_paste_adjustments": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste Adjustments"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴调整"
+          }
+        }
+      }
+    },
     "history_retouch_stroke": {
       "localizations": {
         "en": {
@@ -1373,6 +1390,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "修复笔画"
+          }
+        }
+      }
+    },
+    "history_shadhi": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadows/Highlights"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阴影/高光"
           }
         }
       }
@@ -1390,6 +1424,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "锐化"
+          }
+        }
+      }
+    },
+    "history_sigmoid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sigmoid"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sigmoid"
           }
         }
       }
@@ -2293,6 +2344,23 @@
         }
       }
     },
+    "menu_paste_partial": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste Partial…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分粘贴…"
+          }
+        }
+      }
+    },
     "menu_redo": {
       "extractionState": "manual",
       "localizations": {
@@ -2412,6 +2480,23 @@
         }
       }
     },
+    "module_borders": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borders"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "印框"
+          }
+        }
+      }
+    },
     "module_crop": {
       "extractionState": "manual",
       "localizations": {
@@ -2493,6 +2578,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "白平衡"
+          }
+        }
+      }
+    },
+    "module_watermark": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watermark"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "水印"
           }
         }
       }
@@ -9838,6 +9940,125 @@
           "stringUnit": {
             "state": "translated",
             "value": "色调"
+          }
+        }
+      }
+    },
+    "paste_partial_check_all": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全选"
+          }
+        }
+      }
+    },
+    "paste_partial_check_none": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全不选"
+          }
+        }
+      }
+    },
+    "paste_partial_mode_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste Mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴方式"
+          }
+        }
+      }
+    },
+    "paste_partial_mode_merge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merge"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并"
+          }
+        }
+      }
+    },
+    "paste_partial_mode_overwrite": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overwrite"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "覆盖"
+          }
+        }
+      }
+    },
+    "paste_partial_paste_button": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴"
+          }
+        }
+      }
+    },
+    "paste_partial_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste Partial Adjustments"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分粘贴调整"
           }
         }
       }

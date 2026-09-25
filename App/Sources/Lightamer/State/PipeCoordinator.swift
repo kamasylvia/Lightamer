@@ -1043,6 +1043,14 @@ final class PipeCoordinator {
         scheduleSidecarWrite()
     }
 
+    /// 09-04 HIST-05: a PASTE landed on the current image (the live leg).
+    /// The same committed-move shape as undo/redo: re-render + persist.
+    func pasteDidChange() async {
+        guard decoded != nil else { return }
+        await historyDidChange()
+        scheduleSidecarWrite()
+    }
+
     /// HIST-02/D-H3 jump-to-any-point: the stack clamps out-of-range
     /// indices (−1 = pristine); a clamp-only no-op still re-renders
     /// cheaply (all cache hits).
