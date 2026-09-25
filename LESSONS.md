@@ -241,3 +241,11 @@ locale 的 Bundle 解析停在该表（不再向 zh.lproj 回退）——**全 a
 - **根因**：代理 env 是「声明式意图」（有无 daemon 都在），消费方不探测 daemon 存活；px 自身的网络前置（uv/pypi）没有豁免自身代理 env 的逻辑。
 - **对策**：起代理前清 env：`env -u http_proxy -u HTTP_PROXY -u https_proxy -u HTTPS_PROXY -u ALL_PROXY px --up`；daemon 起来后再跑需要代理的命令（或 `px --proxy <cmd>` 注入）。收尾恒 `px --stop`。诊断入口：git 报错里的 `Failed to connect to 127.0.0.1 port 10809` 即「env 开而 daemon 死」指纹。
 - **适用**：一切 SPM/cargo/uv/go 等首次拉取场景（本机代理 env 常开布局下）；R3 型网络预案照抄本解法。
+
+### L029: `CIImage(mtlTexture:)` 读纹理是底向上 origin——裸 CI render 把平面垂直镜像；定向断言必须程序化枚举映射而非逐点手算
+
+- **背景**（11-02 T2 出口腿 `renderToEncodedBitmap`）：管线 float32 纹理 → CI bitmap 直出 CPU buffer 的导出腿，首版 fence 测试失败，失败形态是「样本整体位移」假象——逐点手算三种映射（翻转/行交换）全部对不上，差点误判为 fence 竞态。
+- **根因**：① Core Image 以**底向上 origin** 约定解释 Metal 纹理（纹理行 0 = CI 图像底部），而 `render(toBitmap:)` 顶向下写 bitmap——一次「纹理进、bitmap 出」的 CI 腿净效果 = **纯垂直镜像**（列序不变；程序化枚举 identity/vflip/rot180/offset 后 vflip 0-mismatch / identity 64-mismatch 钉死）。② 排障方法论：对「读回定向」这类未知约定，先写**映射候选枚举探针**（每个候选一害 0-mismatch 判定）再下结论——逐点手算逆推在 i%17 这类自相似 pattern 上会产生系统性误读（shift-14 假象）。
+- **对策**：① 一切「MTLTexture 进、CI bitmap 出」的腿在函数**内部**做 `.oriented(.downMirrored)` 复位，契约 = 「bitmap 行序 == 纹理行序」，配套行序 pattern 测试常驻（修复前 64/64 错位——不修则导出文件上下颠倒）；② 排障期探针用小图（4×4）+ 程序化候选映射，结论（vflip）得出后再固化成最小契约测试；③ **已知同病未修**：`CIContextPool.convertTexture`（colorout ColorSync **fallback** 腿）完全同型镜像——fast path 不经它所以预览从未暴露，修复 = 同款 `.downMirrored` + fast/fallback 双腿**内容级** parity（记账型测试对镜像免疫，参照 L020-④「纯记账测试对坐标错位免疫」同类教训）+ GUI 走查兜底。
+- **适用**：一切 CI 腿（纹理↔bitmap 往返：导出、软打样、Phase 14 MCP render_preview）；一切「读回定向未知」的排障（先枚举映射再定位）。
+- **来源**：11-02 T2 fence/行序双测试三轮排障（fence 首跑样本位移假象 → 探针 vflip 0-mismatch 定位 → `.downMirrored` 修复后恒等 0-mismatch 双向验证）。
