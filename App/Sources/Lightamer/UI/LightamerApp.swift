@@ -125,6 +125,11 @@ internal struct LightamerApp: App {
     // (viewport gesture arbitration归口 — D-03b isolated state object).
     @State private var layerEditingState = LayerEditingState()
 
+    /// Plan 09-01 T1: the session open/switch/teardown orchestrator.
+    /// Closure seams are wired in the scene `.task` (D-03b: no state
+    /// references at construction).
+    @State private var sessionCoordinator = SessionCoordinator()
+
     /// Plan 07-3: the layer-B download model — app-root owned so the
     /// AIDownloadPrompt surfaces AND the MaskToolbar's layer-B entry gate
     /// observe ONE instance (the AIAssetStore actor stays the truth).
@@ -173,6 +178,7 @@ internal struct LightamerApp: App {
         Window("Lightamer", id: "main") {
             ContentView(decoder: decoder, metalContext: metalContext)
                 .environment(sessionState)
+                .environment(sessionCoordinator)
                 .environment(editorState)
                 .environment(pipeCoordinator)
                 .environment(exportState)
@@ -193,6 +199,29 @@ internal struct LightamerApp: App {
                     // render path.
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
+
+                    // Plan 09-01 T1: wire the session orchestrator's
+                    // closure seams (flush/teardown/route/toast — all
+                    // closures, D-03b). ensureDirectories/closeIndex/sync
+                    // land with T2/T4; the defaults are inert no-ops.
+                    sessionCoordinator.configure(
+                        appState: sessionState,
+                        flushCurrentImage: {
+                            await pipeCoordinator.flushSidecar()
+                        },
+                        teardownRenderer: {
+                            await pipeCoordinator.prepareForSessionSwitch()
+                        },
+                        routeImage: { url in
+                            editorState.load(
+                                url: url,
+                                decoder: decoder,
+                                metal: metalContext,
+                                logger: EditorState.decodeLogger
+                            )
+                        },
+                        reportError: { editorState.presentToast($0) }
+                    )
 
                     // 02-04: register LightamerIOP's modules into the
                     // registry (testgain in DEBUG; Phase 3+ joins here),
@@ -224,8 +253,15 @@ internal struct LightamerApp: App {
                     // Wire the open-document Apple Event (Finder / `open` /
                     // Dock drops) into the same load path as File → Open,
                     // then drain any opens that arrived during launch.
-                    appDelegate.openHandler = { urls in
-                        for url in urls {
+                    // Plan 09-01: a DIRECTORY open routes to the session
+                    // path (same-window L012 — never a new window).
+                    let routeOpen: @MainActor (URL) -> Void = { url in
+                        let isDirectory = (try? url.resourceValues(
+                            forKeys: [.isDirectoryKey]
+                        ))?.isDirectory ?? false
+                        if isDirectory {
+                            Task { await sessionCoordinator.openSession(url: url) }
+                        } else {
                             editorState.load(
                                 url: url,
                                 decoder: decoder,
@@ -234,13 +270,13 @@ internal struct LightamerApp: App {
                             )
                         }
                     }
+                    appDelegate.openHandler = { urls in
+                        for url in urls {
+                            routeOpen(url)
+                        }
+                    }
                     for url in appDelegate.flushBuffered() {
-                        editorState.load(
-                            url: url,
-                            decoder: decoder,
-                            metal: metalContext,
-                            logger: EditorState.decodeLogger
-                        )
+                        routeOpen(url)
                     }
                     // 02-06 (D-S3): quit/termination forces the pending
                     // sidecar write through the AppDelegate's synchronous
@@ -278,9 +314,25 @@ internal struct LightamerApp: App {
                     }
                 }
                 .keyboardShortcut("o", modifiers: .command)
-                // Phase 9 fills the recent-sessions list; empty in Phase 1.
-                Menu(String(localized: "menu_open_recent")) {}
-                    .disabled(true)
+                // Plan 09-01 (SESS-01): pick a folder → the session path
+                // (same-window routing; FileOpener.openFolder's panel
+                // wrapper reused).
+                Button(String(localized: "menu_open_session")) {
+                    FileOpener.openSessionFolder { url in
+                        Task { await sessionCoordinator.openSession(url: url) }
+                    }
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+                // Plan 09-01 fills the recent-sessions list (SESS-04); the
+                // rows route into the SAME openSession path (L012).
+                Menu(String(localized: "menu_open_recent")) {
+                    ForEach(sessionState.recentSessions, id: \.absoluteString) { url in
+                        Button(url.lastPathComponent) {
+                            Task { await sessionCoordinator.openSession(url: url) }
+                        }
+                    }
+                }
+                .disabled(sessionState.recentSessions.isEmpty)
                 Divider()
                 // Phase 9 — disabled. (No .closeItem placement in SwiftUI's
                 // CommandGroupPlacement, so it sits with the File items.)

@@ -737,6 +737,34 @@ final class PipeCoordinator {
     /// merge). Live preview ticks (`setLiveParams`) deliberately do NOT
     /// schedule — the file must always satisfy the rebuild-from-history
     /// invariant, and uncommitted drag state is not history.
+    // ── Session switch (Plan 09-01 T1; the documented Phase 9 hook at the
+    // D-C2 sweep site, `load(...)`'s "session SWITCH also calls
+    // cache.invalidateAll() + this sweep" comment) ──
+
+    /// Test-visible invocation count (`SessionSwitchTests` leak assertion —
+    /// the invalidateAll spy; the thumbnail-LRU seam lands with the 9-3
+    /// provider and this counter pins the teardown CALL until then).
+    private(set) var sessionSwitchPrepCount = 0
+
+    /// Session-switch teardown leg: purge EVERY cached plane (no keep
+    /// policy — the whole session is going away) + the CI/RawCamera
+    /// internal caches. The D-C2 budget sweep is subsumed — invalidateAll
+    /// drains every plane, so a KeepingPolicy pass would early-return on
+    /// the empty cache. Idempotent.
+    func prepareForSessionSwitch() async {
+        sessionSwitchPrepCount += 1
+        await cache.invalidateAll()
+        if let metal {
+            await metal.clearCICaches()
+        }
+    }
+
+    /// Test seam: the PipeCache byte total (`SessionSwitchTests` asserts
+    /// == 0 after a switch).
+    var totalBytesForTesting: Int {
+        get async { await cache.totalBytes }
+    }
+
     private func scheduleSidecarWrite() {
         guard let sidecarStore, let document = makeSidecarDocument() else { return }
         Task { await sidecarStore.scheduleWrite(document) }

@@ -2259,6 +2259,23 @@
         }
       }
     },
+    "menu_open_session": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Session…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开会话…"
+          }
+        }
+      }
+    },
     "menu_paste_adjustments": {
       "extractionState": "manual",
       "localizations": {
@@ -9825,6 +9842,159 @@
         }
       }
     },
+    "session_counts %lld %lld %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld images · %lld edited · %lld orphans"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共 %lld 张 · 已编辑 %lld · 孤儿 %lld"
+          }
+        }
+      }
+    },
+    "session_current": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current Session"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前会话"
+          }
+        }
+      }
+    },
+    "session_open_button": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Session Folder"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开会话文件夹"
+          }
+        }
+      }
+    },
+    "session_recent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent Sessions"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近会话"
+          }
+        }
+      }
+    },
+    "session_watch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder Watch"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件夹监视"
+          }
+        }
+      }
+    },
+    "session_watch_not_watching": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not watching"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未监视"
+          }
+        }
+      }
+    },
+    "session_watch_scanning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scanning…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扫描中…"
+          }
+        }
+      }
+    },
+    "session_watch_stale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs rescan"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待重扫"
+          }
+        }
+      }
+    },
+    "session_watch_synced": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synced"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已同步"
+          }
+        }
+      }
+    },
     "select_folder": {
       "extractionState": "manual",
       "localizations": {
@@ -10042,6 +10212,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法写入 .lra sidecar——本次会话中的编辑仍然有效"
+          }
+        }
+      }
+    },
+    "toast_session_index_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session index sync failed"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话索引同步失败"
+          }
+        }
+      }
+    },
+    "toast_session_open_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session folder setup failed"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话目录创建失败"
           }
         }
       }
