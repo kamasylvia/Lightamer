@@ -178,7 +178,7 @@ public actor SessionIndexStore {
 
         var result = try sync(
             scanEntries: scanEntries, scanOrphans: scanOrphans,
-            rootPath: root.path, handle: opened
+            renames: [], rootPath: root.path, handle: opened
         )
 
         // ⑤ sidecar summary backfill (T5): every row pending a sidecar
@@ -197,10 +197,68 @@ public actor SessionIndexStore {
         return result
     }
 
+    /// The reconcile apply leg (Plan 09-02 T1/T3): the SAME single-
+    /// transaction incremental sync as `openSession` (⑨-① discipline — one
+    /// bulk change = one transaction) plus the pure diff's rename-survival
+    /// rulings, WITHOUT the reopen side effects. Reopens the handle
+    /// idempotently when the session was closed (a reconcile after a
+    /// teardown must not crash — it reopens and re-syncs).
+    ///
+    /// The sidecar/EXIF backfills re-run afterwards (NULL-class targeted —
+    /// only pending rows pay I/O), so drift-cleared rows and rename
+    /// destinations re-read their sidecars (真身恒 sidecar).
+    @discardableResult
+    public func reconcile(
+        root: URL,
+        scan: AsyncStream<SessionScanPage>,
+        renames: [SessionReconcileRename] = []
+    ) async throws -> SessionIndexOpenResult {
+        if handle == nil {
+            try FileManager.default.createDirectory(
+                at: databaseURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            let reopened = try SQLiteHandle(path: databaseURL.path)
+            handle = reopened
+            try SessionIndexSchema.apply(to: reopened)
+        }
+        guard let opened = handle else {
+            throw SessionIndexError.execFailed(
+                sql: "reconcile", code: 0, message: "store handle unavailable"
+            )
+        }
+
+        var scanEntries: [String: SessionScanEntry] = [:]
+        var scanOrphans = Set<String>()
+        for await page in scan {
+            for entry in page.entries {
+                scanEntries[entry.relPath] = entry
+            }
+            for orphan in page.orphanSidecarRelPaths {
+                scanOrphans.insert(orphan)
+            }
+        }
+
+        var result = try sync(
+            scanEntries: scanEntries, scanOrphans: scanOrphans,
+            renames: renames, rootPath: root.path, handle: opened
+        )
+        try await backfillSidecarSummaries(rootPath: root.path)
+        try await backfillExifMetadata(rootPath: root.path)
+        result.counts = try computeCounts(handle: opened)
+        return result
+    }
+
     /// The diff + single transaction. Internal so tests can drive it.
+    /// `renames` (Plan 09-02) carries the pure diff's rename-survival
+    /// rulings: each pair UPDATES the row's path columns in place — the row
+    /// and every backfilled column SURVIVE the move (delete+insert would
+    /// discard them) — before the added/removed/changed legs run against the
+    /// adjusted map.
     func sync(
         scanEntries: [String: SessionScanEntry],
         scanOrphans: Set<String>,
+        renames: [SessionReconcileRename] = [],
         rootPath: String,
         handle: SQLiteHandle
     ) throws -> SessionIndexOpenResult {
@@ -224,6 +282,50 @@ public actor SessionIndexStore {
                     dbOrphans.insert(path)
                 } else {
                     dbImages[path] = (rows.columnDouble(1) ?? 0, rows.columnInt(2) ?? 0)
+                }
+            }
+
+            // ── Rename-survival pre-pass (Plan 09-02 T1): each ruled pair
+            // becomes a path UPDATE — the row's backfilled columns
+            // (imageID/has_edits/params_hash/layer summary/rating) SURVIVE
+            // the move. The in-memory map is adjusted so the legs below do
+            // NOT re-add the destination or re-delete the source. The pure
+            // diff guarantees `toPath` is not already indexed; the guard is
+            // defensive only. thumb_path intentionally stays the OLD
+            // pathhash (the thumb content is unchanged; the 9-3 cache
+            // regenerates on its own path-keyed miss — 09-02-DECISIONS).
+            if !renames.isEmpty {
+                let renameUpdate = try handle.prepare("""
+                    UPDATE images SET
+                      path = ?, dir = ?, filename = ?, file_size = ?,
+                      file_mtime = ?, scan_epoch = ?, sidecar_present = ?
+                    WHERE path = ?
+                    """)
+                for rename in renames {
+                    guard
+                        let stat = scanEntries[rename.toPath],
+                        dbImages[rename.fromPath] != nil,
+                        dbImages[rename.toPath] == nil
+                    else { continue }
+                    let sidecarPresent = FileManager.default.fileExists(
+                        atPath: rootPath + "/" + rename.toPath + ".lra"
+                    )
+                    let directory = (rename.toPath as NSString).deletingLastPathComponent
+                    try renameUpdate.bindText(1, rename.toPath)
+                    try renameUpdate.bindText(2, directory.isEmpty ? nil : directory)
+                    try renameUpdate.bindText(
+                        3, (rename.toPath as NSString).lastPathComponent
+                    )
+                    try renameUpdate.bindInt(4, stat.size)
+                    try renameUpdate.bindDouble(5, stat.mtime)
+                    try renameUpdate.bindInt(6, epoch)
+                    try renameUpdate.bindInt(7, sidecarPresent ? 1 : 0)
+                    try renameUpdate.bindText(8, rename.fromPath)
+                    _ = try renameUpdate.step()
+                    try renameUpdate.reset()
+                    // The destination row is exactly what a fresh scan says.
+                    dbImages[rename.toPath] = (stat.mtime, stat.size)
+                    dbImages[rename.fromPath] = nil
                 }
             }
 
