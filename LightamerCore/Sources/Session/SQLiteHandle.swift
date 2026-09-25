@@ -155,6 +155,10 @@ public final class SQLiteHandle {
             throw SessionIndexError.openFailed(path: path, code: code, message: message)
         }
         db = opened
+        // 5s busy timeout — WAL multi-handle waits (session-switch close →
+        // reopen races, the crash-recovery leg) instead of instant
+        // SQLITE_BUSY.
+        sqlite3_busy_timeout(opened, 5000)
     }
 
     deinit {

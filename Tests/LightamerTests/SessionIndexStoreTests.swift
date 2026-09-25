@@ -613,3 +613,290 @@ extension SessionIndexStoreTests {
         await store.close()
     }
 }
+
+// MARK: - T6: DB depth — parity / WAL crash / 10k single-transaction timing
+
+extension SessionIndexStoreTests {
+
+    /// Mixed-state 50-image fixture: pristine / unedited sidecar / edited
+    /// sidecar / edited+layers sidecar / orphan .lra / a few EXIF-able
+    /// JPEGs. Returns nothing — the assertions compare row sets.
+    private func buildMixedFixture50() throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        for i in 0..<40 {
+            let rel = String(format: "img%02d.ARW", i)
+            try write(rel, bytes: 16 + i)
+            switch i % 4 {
+            case 0:
+                break // pristine — no sidecar
+            case 1:
+                // unedited sidecar (position −1)
+                let document = makeSidecar(
+                    imageID: UUID(), instances: [],
+                    historyHash: UInt64(1_000_000_000_000 + i)
+                )
+                try encoder.encode(document).write(
+                    to: sessionRoot.appendingPathComponent(rel + ".lra")
+                )
+            case 2:
+                // edited sidecar (one TestGain commit)
+                let gain = ModuleInstance(
+                    module: TestGainModule.self, multiName: "t",
+                    params: .init(gain: Float(1.0 + Double(i) / 40))
+                )
+                let document = makeSidecar(
+                    imageID: UUID(), instances: [gain],
+                    historyHash: HistoryHash.hash(
+                        instances: [gain], decodeParamsHash: 42
+                    )
+                )
+                try encoder.encode(document).write(
+                    to: sessionRoot.appendingPathComponent(rel + ".lra")
+                )
+            default:
+                // edited + TWO layers
+                let gain = ModuleInstance(
+                    module: TestGainModule.self, multiName: "t", params: .init(gain: 1.3)
+                )
+                let layers = [
+                    SidecarLayerRecord(AdjustmentLayer(
+                        id: UUID(), name: "L\(i)a", isVisible: true,
+                        opacity: 0.5, enabled: true
+                    )),
+                    SidecarLayerRecord(AdjustmentLayer(
+                        id: UUID(), name: "L\(i)b", isVisible: false,
+                        opacity: 1.0, enabled: true
+                    )),
+                ]
+                let document = makeSidecar(
+                    imageID: UUID(), instances: [gain],
+                    historyHash: HistoryHash.hash(
+                        instances: [gain], decodeParamsHash: 42
+                    ),
+                    layers: layers
+                )
+                try encoder.encode(document).write(
+                    to: sessionRoot.appendingPathComponent(rel + ".lra")
+                )
+            }
+        }
+        // 5 real JPEGs (EXIF leg gets real values) + 5 orphans.
+        for j in 0..<5 {
+            let rel = String(format: "exif%02d.jpg", j)
+            try write(rel, bytes: 64 + j)
+            let context = CGContext(
+                data: nil, width: 32 + j, height: 16, bitsPerComponent: 8,
+                bytesPerRow: (32 + j) * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )!
+            context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: 32 + j, height: 16))
+            if let image = context.makeImage(),
+               let destination = CGImageDestinationCreateWithURL(
+                   sessionRoot.appendingPathComponent(rel) as CFURL,
+                   "public.jpeg" as CFString, 1, nil
+               ) {
+                CGImageDestinationAddImage(destination, image, nil)
+                CGImageDestinationFinalize(destination)
+            }
+            try write(String(format: "orphan%02d.ARW.lra", j), bytes: 32)
+        }
+    }
+
+    func testDeleteAndRebuildParityColumnByColumn() async throws {
+        try buildMixedFixture50()
+
+        // Build the entries/orphans the way the App scanner would (the
+        // scanner itself is App-layer; the store contract is stream-driven).
+        var entries: [SessionScanEntry] = []
+        var orphans: [String] = []
+        let enumerator = FileManager.default.enumerator(
+            at: sessionRoot, includingPropertiesForKeys:
+                [.contentModificationDateKey, .fileSizeKey]
+        )!
+        while let url = enumerator.nextObject() as? URL {
+            let name = url.lastPathComponent
+            if name.hasPrefix(".") || name.hasSuffix(".lra") {
+                if name.hasSuffix(".lra"),
+                   !FileManager.default.fileExists(
+                       atPath: String(url.path.dropLast(4))
+                   ) {
+                    orphans.append(name)
+                }
+                continue
+            }
+            let values = try url.resourceValues(
+                forKeys: [.contentModificationDateKey, .fileSizeKey]
+            )
+            entries.append(SessionScanEntry(
+                relPath: name,
+                mtime: values.contentModificationDate?.timeIntervalSince1970 ?? 0,
+                size: Int64(values.fileSize ?? 0)
+            ))
+        }
+
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot, scan: stream(of: [page(entries, orphans: orphans)])
+        )
+        let before = try await store.fetchAllRows()
+        XCTAssertEqual(
+            before.count, 50,
+            "40 ARW + 5 JPEG browsable + 5 orphan rows (orphan_sidecar=1) = 50"
+        )
+        let countsBefore = try await store.counts()
+        await store.close()
+
+        // DELETE the whole derived cache — the SESS-07 door-knock test.
+        try FileManager.default.removeItem(
+            at: SessionIndexSchema.databaseURL(forSessionRoot: sessionRoot)
+        )
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: SessionIndexSchema.databaseURL(forSessionRoot: sessionRoot).path
+        ))
+
+        // Reopen: fresh DB, same scan, same content.
+        let rebuilt = makeStore()
+        _ = try await rebuilt.openSession(
+            root: sessionRoot, scan: stream(of: [page(entries, orphans: orphans)])
+        )
+        let after = try await rebuilt.fetchAllRows()
+        let countsAfter = try await rebuilt.counts()
+
+        // Exact same row multiset (sorted by path in fetchAllRows).
+        XCTAssertEqual(after.map(\.path), before.map(\.path), "same rows, same order")
+        XCTAssertGreaterThan(after.count, 0, "防空转: compared > 0")
+
+        // COLUMN-BY-COLUMN equality (NOT row-count-equality).
+        var compared = 0
+        for (index, rowBefore) in before.enumerated() {
+            let rowAfter = after[index]
+            XCTAssertEqual(rowBefore.dir, rowAfter.dir); compared += 1
+            XCTAssertEqual(rowBefore.filename, rowAfter.filename); compared += 1
+            XCTAssertEqual(rowBefore.fileSize, rowAfter.fileSize); compared += 1
+            XCTAssertEqual(rowBefore.fileMtime, rowAfter.fileMtime); compared += 1
+            XCTAssertEqual(rowBefore.imageID, rowAfter.imageID); compared += 1
+            XCTAssertEqual(rowBefore.sidecarPresent, rowAfter.sidecarPresent); compared += 1
+            XCTAssertEqual(rowBefore.hasEdits, rowAfter.hasEdits); compared += 1
+            XCTAssertEqual(
+                rowBefore.paramsHash, rowAfter.paramsHash,
+                "params_hash must rebuild identically (decimal TEXT)"
+            ); compared += 1
+            XCTAssertEqual(rowBefore.layerCount, rowAfter.layerCount); compared += 1
+            XCTAssertEqual(
+                rowBefore.layerSummary, rowAfter.layerSummary,
+                "layer summary JSON must rebuild identically"
+            ); compared += 1
+            XCTAssertEqual(rowBefore.thumbState, rowAfter.thumbState); compared += 1
+            XCTAssertEqual(rowBefore.orphanSidecar, rowAfter.orphanSidecar); compared += 1
+            XCTAssertEqual(rowBefore.dirty, rowAfter.dirty); compared += 1
+        }
+        XCTAssertGreaterThan(compared, 400, "13 columns × 45 rows compared")
+
+        XCTAssertEqual(countsBefore, countsAfter, "counts rebuild identically")
+        XCTAssertEqual(countsAfter.orphans, 5)
+        await rebuilt.close()
+    }
+
+    func testWALCrashRecoveryCommittedSurvivesUncommittedRollsBack() async throws {
+        try write("keep1.arw")
+        try write("keep2.arw")
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot,
+            scan: stream(of: [page(try [statEntry("keep1.arw"), statEntry("keep2.arw")])])
+        )
+        await store.close()
+
+        let dbPath = SessionIndexSchema.databaseURL(forSessionRoot: sessionRoot).path
+
+        // The "crashed" leg, scoped: BEGIN + uncommitted INSERT + a witness
+        // reader — everything dies at the end of the do-block WITHOUT an
+        // explicit commit (the in-process equivalent of process death: the
+        // connection's destruction rolls the txn back, exactly what the OS
+        // does when a writer dies). A live uncommitted writer would hold
+        // the WAL write lock, so the scope MUST end before the reopen.
+        do {
+            let crashed = try SQLiteHandle(path: dbPath)
+            try crashed.exec("BEGIN IMMEDIATE")
+            let doomed = try crashed.prepare(
+                "INSERT INTO images (path, filename, scan_epoch, orphan_sidecar, dirty) "
+                    + "VALUES ('doomed.arw', 'doomed.arw', 99, 0, 1)"
+            )
+            _ = try doomed.step()
+
+            // A SECOND handle reads the same file while the uncommitted
+            // writer lives — WAL readers never block: committed state
+            // visible, the uncommitted INSERT is not.
+            let witness = try SQLiteHandle(path: dbPath)
+            let check = try witness.prepare("PRAGMA integrity_check")
+            XCTAssertTrue(try check.step())
+            XCTAssertEqual(check.columnText(0), "ok", "integrity_check passes")
+
+            let visible = try witness.prepare("SELECT COUNT(*) FROM images")
+            XCTAssertTrue(try visible.step())
+            XCTAssertEqual(
+                visible.columnInt(0), 2,
+                "committed rows survive; the uncommitted INSERT is invisible"
+            )
+            witness.close()
+            // `crashed`/`doomed` destroyed at scope end — NO commit. The
+            // destruction path finalizes + close_v2 → ROLLBACK (process
+            // death semantics for the in-process simulation).
+        }
+
+        // Fresh open: integrity still ok, exactly the committed rows.
+        let reopened = makeStore()
+        _ = try await reopened.openSession(
+            root: sessionRoot,
+            scan: stream(of: [page(try [statEntry("keep1.arw"), statEntry("keep2.arw")])])
+        )
+        let verification = try await reopened.schemaVerification()
+        let rows = try await reopened.fetchAllRows()
+        XCTAssertEqual(Set(rows.map(\.path)), ["keep1.arw", "keep2.arw"])
+        XCTAssertNotEqual(verification.journalMode, "delete", "still WAL")
+        await reopened.close()
+    }
+
+    func testTenThousandRowSingleTransactionUpdateTiming() async throws {
+        // 10k lightweight rows via the REAL sync path (page-streamed).
+        var pages: [SessionScanPage] = []
+        var entries: [SessionScanEntry] = []
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        for i in 0..<10_000 {
+            entries.append(SessionScanEntry(
+                relPath: String(format: "img%05d.arw", i),
+                mtime: base.timeIntervalSince1970 + Double(i % 1000),
+                size: 1024
+            ))
+            if entries.count == SessionScanPage().entries.capacity + 256 || entries.count == 256 {
+                pages.append(page(entries))
+                entries = []
+            }
+        }
+        if !entries.isEmpty { pages.append(page(entries)) }
+
+        let store = makeStore()
+        let opened = try await store.openSession(
+            root: sessionRoot, scan: stream(of: pages)
+        )
+        XCTAssertEqual(opened.added, 10_000)
+
+        // The 9-4 segment-2 rehearsal: ONE transaction, temp-table join,
+        // 10k rows marked stale+dirty.
+        let elapsed = try await store.bulkApplyStaleMarkForTesting()
+        print("BULK-UPDATE-10k single transaction seconds: \(elapsed)")
+
+        // Verify the bulk mark actually landed (防空转 — not a timed no-op).
+        let rows = try await store.fetchAllRows()
+        XCTAssertEqual(rows.count, 10_000)
+        let staleCount = rows.filter { $0.thumbState == 3 && $0.dirty == 1 }.count
+        XCTAssertEqual(staleCount, 10_000, "every row marked stale+dirty")
+
+        // Sanity ceiling (Debug-mode generous; the RECORDED number is the
+        // print above — the PERF-07 gate itself is 9-4's Release measurement).
+        XCTAssertLessThan(elapsed, 10.0, "10k single-txn UPDATE must stay sub-10s in Debug")
+        await store.close()
+    }
+}

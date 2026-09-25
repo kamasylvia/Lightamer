@@ -681,6 +681,47 @@ public actor SessionIndexStore {
         return formatter.date(from: raw)
     }
 
+    // MARK: - Bulk stale-mark (the 9-4 segment-2 shape; T6 timing)
+
+    /// PERF-07 segment-2 REHEARSAL: 10k-row single-transaction UPDATE via
+    /// a temp-table join (mark everything thumb-stale + dirty). Returns
+    /// the wall-clock seconds of the whole transaction — the number the
+    /// 万张 ≤5s gate premise rests on (recorded in .work/09/perf.md).
+    public func bulkApplyStaleMarkForTesting() async throws -> Double {
+        guard let handle else { return 0 }
+        let clock = ContinuousClock()
+        let start = clock.now
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            try handle.exec(
+                "CREATE TEMP TABLE IF NOT EXISTS bulk_paths (path TEXT PRIMARY KEY)"
+            )
+            try handle.exec("DELETE FROM bulk_paths")
+            let insert = try handle.prepare("INSERT INTO bulk_paths (path) VALUES (?)")
+            let rows = try handle.prepare("SELECT path FROM images WHERE orphan_sidecar = 0")
+            while try rows.step() {
+                if let path = rows.columnText(0) {
+                    try insert.bindText(1, path)
+                    _ = try insert.step()
+                    try insert.reset()
+                }
+            }
+            let update = try handle.prepare(
+                "UPDATE images SET thumb_state = ?, dirty = 1 "
+                    + "WHERE path IN (SELECT path FROM bulk_paths)"
+            )
+            try update.bindInt(1, SessionIndexSchema.ThumbState.stale.rawValue)
+            _ = try update.step()
+            try handle.exec("COMMIT")
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
+        let elapsed = clock.now - start
+        return Double(elapsed.components.seconds)
+            + Double(elapsed.components.attoseconds) / 1e18
+    }
+
     // MARK: - Lifecycle (teardown ②-d)
 
     /// Close the DB handle deterministically. Idempotent.
