@@ -130,6 +130,10 @@ internal struct LightamerApp: App {
     /// references at construction).
     @State private var sessionCoordinator = SessionCoordinator()
 
+    /// Plan 09-01 T4: the session-index owner (the real ④ sync and ②-d
+    /// close legs of the session coordinator).
+    @State private var sessionIndexController = SessionIndexController()
+
     /// Plan 07-3: the layer-B download model — app-root owned so the
     /// AIDownloadPrompt surfaces AND the MaskToolbar's layer-B entry gate
     /// observe ONE instance (the AIAssetStore actor stays the truth).
@@ -212,8 +216,14 @@ internal struct LightamerApp: App {
                         teardownRenderer: {
                             await pipeCoordinator.prepareForSessionSwitch()
                         },
+                        closeIndexHandler: {
+                            await sessionIndexController.close()
+                        },
                         ensureDirectoriesHandler: { url in
                             try SessionLayout.ensureDirectories(at: url)
+                        },
+                        syncIndexHandler: { url in
+                            await sessionIndexController.openAndSync(root: url)
                         },
                         routeImage: { url in
                             editorState.load(

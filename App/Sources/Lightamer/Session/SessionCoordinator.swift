@@ -228,3 +228,59 @@ final class SessionCoordinator {
         self.reportError = reportError
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SessionIndexController (Plan 09-01 T4) — the App-side owner of the
+// `SessionIndexStore` + the real ④/②-d closure bodies. The controller is the
+// ONLY App object that talks to the store; the coordinator sees closures.
+// The scan stream comes from `SessionTreeScanner` (App — the exclude table's
+// home), the store lives in Core.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@MainActor
+final class SessionIndexController {
+
+    private static let logger = Logger(
+        subsystem: "com.kamasylvia.lightamer", category: "session-index-ctl"
+    )
+
+    private var store: SessionIndexStore?
+
+    /// ④ the real sync leg: open + scan + single-transaction diff.
+    func openAndSync(root: URL) async -> SessionCoordinator.SessionOpenSyncResult {
+        let store = SessionIndexStore(sessionRoot: root)
+        self.store = store
+        do {
+            let result = try await store.openSession(
+                root: root, scan: SessionTreeScanner.scan(root: root)
+            )
+            Self.logger.info(
+                "index sync: +\(result.added) -\(result.removed) ~\(result.changed) orphans \(result.orphanAdded)/\(result.orphanRemoved)"
+            )
+            var syncResult = SessionCoordinator.SessionOpenSyncResult(
+                counts: SessionBrowseCounts(
+                    total: result.counts.total,
+                    edited: result.counts.edited,
+                    orphans: result.counts.orphans
+                )
+            )
+            if let first = result.firstImageRelPath {
+                syncResult.firstImage = root.appendingPathComponent(first)
+            }
+            return syncResult
+        } catch {
+            Self.logger.error(
+                "index sync failed: \(error.localizedDescription, privacy: .public)"
+            )
+            await store.close()
+            self.store = nil
+            return SessionCoordinator.SessionOpenSyncResult(failed: true)
+        }
+    }
+
+    /// ②-d close the index (before the next session's sync opens a new one).
+    func close() async {
+        await store?.close()
+        store = nil
+    }
+}

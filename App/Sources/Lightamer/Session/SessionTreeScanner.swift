@@ -34,22 +34,9 @@ import os
 // resolution per file: 10k stat-time files must not pay type resolution).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// One browsable image's stat triple.
-struct SessionScanEntry: Sendable, Equatable {
-    /// Path relative to the session root (POSIX separators — stable across
-    /// session-folder moves, the `images.path` PRIMARY KEY semantics).
-    var relPath: String
-    var mtime: TimeInterval
-    var size: Int64
-}
-
-/// One streamed chunk of the walk.
-struct SessionScanPage: Sendable, Equatable {
-    var entries: [SessionScanEntry] = []
-    var orphanSidecarRelPaths: [String] = []
-
-    var isEmpty: Bool { entries.isEmpty && orphanSidecarRelPaths.isEmpty }
-}
+// The stat-triple/page types (`SessionScanEntry`/`SessionScanPage`) live in
+// LightamerCore next to `SessionIndexStore` — the sync consumes them across
+// the module boundary (T4).
 
 enum SessionTreeScanner {
 
