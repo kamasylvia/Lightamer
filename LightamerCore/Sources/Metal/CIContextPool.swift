@@ -46,6 +46,94 @@ internal actor CIContextPool {
     private let commandQueue: any MTLCommandQueue
     private let ciContext: CIContext
 
+    /// GUI-22 (2026-09-24): the input-plane render memo. CIRAWFilter-backed
+    /// CIImages RE-EXECUTE on every `render(toBitmap:)` call
+    /// (`cacheIntermediates: false`), and the re-execution is NOT
+    /// byte-stable on this host — speckle-level variance (~0.06% of float
+    /// bytes, byte-max 255) that local-contrast iops amplify (measured 18%
+    /// plane divergence through `shadhi`). Combined with the session
+    /// cache's budget eviction (a 2560px PREVIEW family is ~1.9 GB —
+    /// families evict each other mid-session), any input-plane MISS
+    /// re-rendered a DIFFERENT speckle variant: warm-undo vs cold-load
+    /// renders of the same state diverged stably per path (GUI-22's three
+    /// iron facts). The memo freezes the input plane per
+    /// (CIImage identity, size): the CI chain executes AT MOST ONCE per
+    /// image instance and scale — every later miss reuses the identical
+    /// texture. The value keeps the CIImage alive so the ObjectIdentifier
+    /// key can never alias a new image at a recycled address. Bounded by
+    /// `clearCaches()` (the load-switch CI sweep).
+    private struct InputPlaneMemoEntry {
+        let image: CIImage
+        let texture: any MTLTexture
+        var byteCount: Int { texture.width * texture.height * WorkingSpace.bytesPerPixel }
+    }
+
+    /// The memo key: the caller's CONTENT dedupe key (imageID ⊕ decode
+    /// params hash — unifies re-decodes of the same file) or the CIImage
+    /// identity (callers without a content key). The entry holds the CIImage
+    /// strongly so an identity key can never alias a recycled instance.
+    private enum MemoKey: Hashable {
+        case identity(ObjectIdentifier)
+        /// GUI-22 re-verify note: the size rides IN the key — the full-extent
+        /// leg (FULL) and the longEdge leg (PREVIEW/THUMBNAIL) previously
+        /// shared `.content`, alternating requests overwrote each other and
+        /// re-executed CIRAW (variant drift window).
+        case content(UInt64, width: Int, height: Int)
+    }
+    private var inputPlaneMemo: [MemoKey: InputPlaneMemoEntry] = [:]
+
+    /// The sub-domain memo key (`renderRegion`'s GUI-22 freeze): the memo
+    /// key + the exact request.
+    private struct SubRegionKey: Hashable {
+        let dedupe: MemoKey
+        let x: CGFloat, y: CGFloat
+        let width: CGFloat, height: CGFloat
+        let scale: CGFloat
+    }
+    private var inputSubRegionMemo: [SubRegionKey: InputPlaneMemoEntry] = [:]
+
+    /// LRU handle for the memo trims. The memo DELIBERATELY SURVIVES
+    /// `clearCaches()` — that sweep exists for CI/RawCamera INTERNAL state
+    /// (the D-32 multi-GB accumulation), while these are OUR bounded planes;
+    /// wiping them on a same-image reload (the sidecar-restore cold path)
+    /// would re-execute CIRAW and reintroduce GUI-22's speckle variant.
+    /// Bounded instead by `memoCapacity` (≈3 × 70MB @2560 — well inside the
+    /// session budget).
+    private enum MemoHandle: Hashable {
+        case plane(MemoKey)
+        case subRegion(SubRegionKey)
+    }
+
+    private func memoEntry(_ handle: MemoHandle) -> InputPlaneMemoEntry? {
+        switch handle {
+        case let .plane(key): return inputPlaneMemo[key]
+        case let .subRegion(key): return inputSubRegionMemo[key]
+        }
+    }
+
+    private func memoEvict(_ handle: MemoHandle) {
+        switch handle {
+        case let .plane(key): inputPlaneMemo.removeValue(forKey: key)
+        case let .subRegion(key): inputSubRegionMemo.removeValue(forKey: key)
+        }
+    }
+    /// BYTE-bounded (a count cap would hold ~3 GB at the 60MP FULL scale —
+    /// 962 MB/plane). Evicts LRU-oldest down to the cap, tolerating a
+    /// single oversized plane (the evictUnderBudget pattern).
+    private static let memoByteCap = 512 * 1024 * 1024
+    private var memoLRU: [MemoHandle] = []
+
+    private func memoTouch(_ handle: MemoHandle) {
+        memoLRU.removeAll { $0 == handle }
+        memoLRU.append(handle)
+        var total = memoLRU.reduce(0) { $0 + (memoEntry($1)?.byteCount ?? 0) }
+        while total > Self.memoByteCap && memoLRU.count > 1 {
+            let evicted = memoLRU.removeFirst()
+            total -= memoEntry(evicted)?.byteCount ?? 0
+            memoEvict(evicted)
+        }
+    }
+
     /// D-31: the render leg of the vertebra is signposted ("decode" lives in
     /// RAWDecoder/EditorState; "render" here).
     private static let signposter = OSSignposter(subsystem: "com.kamasylvia.lightamer", category: "metal")
@@ -76,18 +164,36 @@ internal actor CIContextPool {
     /// are deliberately NOT touched — MB-scale, clearing them would stall
     /// the next dispatches on PSO rebuilds.
     internal func clearCaches() {
+        // GUI-22: the input-plane memos SURVIVE this sweep (bounded by
+        // `memoCapacity`, see `MemoHandle`) — same-image reloads (sidecar
+        // cold restore) must reuse the FROZEN plane, not re-execute CIRAW.
         ciContext.clearCaches()
         AppError.logger.debug("CIContextPool.clearCaches: ciContext.clearCaches() done")
     }
 
-    internal func renderToTexture(_ image: CIImage) throws -> RenderedTexture {
+    internal func renderToTexture(
+        _ image: CIImage, dedupeKey: UInt64? = nil
+    ) throws -> RenderedTexture {
         let extent = image.extent
         guard extent.width >= 1, extent.height >= 1 else {
             throw AppError.decodeFailed("CIImage has an empty extent")
         }
-        return try renderScaled(
-            image, width: Int(extent.width), height: Int(extent.height), signpost: "render"
+        // GUI-22: render-once memo (see `inputPlaneMemo`) — the full-extent
+        // leg keys on the dedupe key (content identity: imageID ⊕ decode
+        // hash — unifies RE-DECODES of the same file) or the image identity.
+        let w = Int(extent.width), h = Int(extent.height)
+        let key = dedupeKey.map { MemoKey.content($0, width: w, height: h) }
+            ?? .identity(ObjectIdentifier(image))
+        if let memo = inputPlaneMemo[key] {
+            memoTouch(.plane(key))
+            return RenderedTexture(texture: memo.texture)
+        }
+        let rendered = try renderScaled(
+            image, width: w, height: h, signpost: "render"
         )
+        inputPlaneMemo[key] = InputPlaneMemoEntry(image: image, texture: rendered.texture)
+        memoTouch(.plane(key))
+        return rendered
     }
 
     /// Scale-at-entry render (Plan 02-03-02; the mirror of Darktable's
@@ -112,7 +218,9 @@ internal actor CIContextPool {
     ///   - longEdge: target long edge in pixels. The result never exceeds
     ///     the source extent (`scale` clamps at 1.0 — small images render
     ///     at their native size; no upscale).
-    internal func renderToTexture(_ image: CIImage, longEdge: Int) throws -> RenderedTexture {
+    internal func renderToTexture(
+        _ image: CIImage, longEdge: Int, dedupeKey: UInt64? = nil
+    ) throws -> RenderedTexture {
         guard longEdge >= 1 else {
             throw AppError.decodeFailed("renderToTexture(longEdge:) needs a positive long edge, got \(longEdge)")
         }
@@ -134,12 +242,27 @@ internal actor CIContextPool {
         }
         let scaledWidth = max(1, Int((CGFloat(width) * scale).rounded()))
         let scaledHeight = max(1, Int((CGFloat(height) * scale).rounded()))
+        // GUI-22: render-once memo (see `inputPlaneMemo`) — the scaled leg
+        // keys on the ORIGINAL image identity (the `transformed(by:)` chain
+        // below mints a fresh CIImage per call, so it cannot be the key) +
+        // the target size. A hit hands back the FROZEN first-render plane:
+        // the CIRAW re-execution speckle variance can never leak into a
+        // re-rendered input plane again.
+        let key = dedupeKey.map { MemoKey.content($0, width: scaledWidth, height: scaledHeight) }
+            ?? .identity(ObjectIdentifier(image))
+        if let memo = inputPlaneMemo[key] {
+            memoTouch(.plane(key))
+            return RenderedTexture(texture: memo.texture)
+        }
         // CI is lazy: the transform folds into the ONE bitmap render below.
         let scaled = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        return try renderScaled(
+        let rendered = try renderScaled(
             scaled, width: scaledWidth, height: scaledHeight, signpost: "render-scaled",
             scale: scale
         )
+        inputPlaneMemo[key] = InputPlaneMemoEntry(image: image, texture: rendered.texture)
+        memoTouch(.plane(key))
+        return rendered
     }
 
     /// Sub-domain render (04-01-T4; dt base-buffer ROI mirror): render the
@@ -154,11 +277,29 @@ internal actor CIContextPool {
     /// THUMBNAIL legs): the output is `region.size × scale`, the bitmap
     /// bounds stay source-anchored.
     internal func renderRegion(
-        _ image: CIImage, region: CGRect, scale: CGFloat = 1.0
+        _ image: CIImage, region: CGRect, scale: CGFloat = 1.0, dedupeKey: UInt64? = nil
     ) throws -> RenderedTexture {
         let extent = image.extent
         guard extent.width >= 1, extent.height >= 1 else {
             throw AppError.decodeFailed("CIImage has an empty extent")
+        }
+        // GUI-22: render-once memo (see `inputPlaneMemo`) — the SUB-DOMAIN
+        // leg is the one the PREVIEW bucket actually takes for large
+        // images (the scaled entry ROI is "smaller than the full extent",
+        // so `processRec` routes here, NOT to the whole-frame legs). Keyed
+        // on the image identity + the exact (region, scale) request — a
+        // hit hands back the FROZEN first-render plane so the CIRAW
+        // re-execution speckle variance can never leak into a re-rendered
+        // input plane.
+        let regionKey = SubRegionKey(
+            dedupe: dedupeKey.map {
+                MemoKey.content($0, width: Int(extent.width), height: Int(extent.height))
+            } ?? .identity(ObjectIdentifier(image)),
+            x: region.origin.x, y: region.origin.y,
+            width: region.width, height: region.height, scale: scale)
+        if let memo = inputSubRegionMemo[regionKey] {
+            memoTouch(.subRegion(regionKey))
+            return RenderedTexture(texture: memo.texture)
         }
         // Clamp the requested window into the extent (negotiated far edges
         // may touch the frame edge exactly — dt CLAMP upper bound is
@@ -188,11 +329,14 @@ internal actor CIContextPool {
             let down = CGAffineTransform(scaleX: scale, y: scale)
             windowed = image.transformed(by: toOrigin.concatenating(down))
         }
-        return try renderWindowed(
+        let rendered = try renderWindowed(
             windowed, bounds: scale == 1.0 ? clipped : CGRect(
                 x: 0, y: 0, width: clipped.width * scale,
                 height: clipped.height * scale),
             width: outWidth, height: outHeight, signpost: "render-region")
+        inputSubRegionMemo[regionKey] = InputPlaneMemoEntry(image: image, texture: rendered.texture)
+        memoTouch(.subRegion(regionKey))
+        return rendered
     }
 
     /// Windowed bitmap leg: like `renderScaled` but the bitmap `bounds`

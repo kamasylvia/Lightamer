@@ -847,3 +847,72 @@ force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自�
   invert 三键封闭——`testSidecarSchemaZeroUpgradeAIParamsNeverPersist` 钉住无 AI 参数键）。
 - 真机 GUI 量化证据（非 golden、归档 FINDINGS）：`.work/gui-acceptance/07-3 节`
   （overlay ΔR 10.31%/8.97% + 7 截图）。
+
+## yiyin borders 布局参考节（Plan 08-1-T2，L017 分流落账，2026-09-25）
+
+> **yiyin 印框无 dt 对应 golden blob**（功能正本 = yiyin v1.7.1 Electron 应用，非
+> darktable 模块）：L017 分流 = **几何 float64 镜像逐值断言 + yiyin 正本 node harness
+> 量测对照**，不做位图 parity（文字/模糊/蒙层观感 = 8-3 GUI Manual-Only）。
+
+- **参考生成器**：`Scripts/yiyin-ref-harness.mjs`（本仓 Scripts/）——yiyin 布局算术逐表达式
+  VERBATIM 转录（`electron/src/modules/image-tool/index.ts` init :110-131 /
+  clacBgImgSize :472-506 / calcContentHeight :508-546 / genBgImg :209-210 / composite
+  :300-319 + :543-545 末行膨胀 quirk），node 无头执行；yiyin 仓严格只读。`--measure` 腿
+  以 sharp（yiyin 自带依赖，只读解析）合成单 case 并量测 PNG 非白 bbox 交叉验证摆放整数
+  （实测 [2000,1500,4000,3000] 精确命中）。
+- **参考数据**：`.work/plans/08-01/yiyin-layout-reference.json`（不入仓）；数字逐值内嵌
+  `Tests/LightamerTests/YiyinLayoutTests.swift`（13 case：横/竖/方 × aspect 1:1、3:2、3:4
+  × landscape × margin/shadow × rate 50/100 × ceil-quirk 58×7 × rows）。
+- **容差（门 → 实测）**：整数场（画布/主图原点/contentH/contentTop/行位置）**精确相等**
+  （双方 float64 同一 ceil/round 序列）；浮点场（cornerRadiusPx/shadowBlurPx/
+  textBottomOffsetPx）< 1e-6；compared > 0 防空转。genTextImg/genMainImgShadow 腿依赖
+  Electron 渲染进程队列不可无头执行——布局整数由纯算术函数产出，转录逐表达式等价
+  （08-1-DECISIONS D-08-1-2 引）。
+- **常驻回归锚**（非一次性快照）：`YiyinLayoutTests` 3 测试（harness 逐值 + ceil-quirk
+  纯函数钉 + rows 预留语义）；`YiyinBordersTests` 29 测试（种子恒等逐字节 / 轨 B /
+  色彩 COLOR-2 已知点 / SDF 剖面 / 投影单调 / DC 增益=1 / 四档边界 / 缓存语义 /
+  orientation=6 / 窗口化内容级）。像素级恒等门 = `testSeedIdentityIsByteExactThroughPipe`
+  （中性插链 == 无实例，逐字节）。
+
+## yiyin watermark text-row golden（Plan 08-2，CoreText 自基线 — L017 分流）
+
+**口径（D-08-CONTEXT-8）**：文字位图**不做 yiyin 位图 parity**（Chromium canvas 与
+CoreText 光栅管线不同源，L017 定性）——golden 为 **CoreText 自基线**：首次渲染人工目检
+（白字灰度 AA 清晰、30px pad 对位、logo fixture 2:1 位置正确）后冻结。
+
+**系统依赖头注**：位图冻结的是**当前系统的字体光栅化**（PingFang SC 级联 + 数学字母
+Unicode 的 CoreText 系统回退，`charToNumberChar` 0x1D63C 段保留产出）。OS/字体更新
+会导致合法漂移——**预期内的可重冻结节**：重生成 =
+`LA_REGEN_YIYIN_GOLDEN=1 Scripts/test-direct.sh 'YiyinWatermarkTests'`
+（像素精确比对；任何 diff = 重冻结事件，入 DECISIONS 账，不掩盖）。
+
+| golden | 内容 | 尺寸 | sha256 |
+|---|---|---|---|
+| `yiyin-watermark/text-row-baseline.png` | 白字行 "LIGHTAMER · 1/250s"（literal-only，row font 3% bold @ bgHeight 2000，lineSpacing 0.4%） | 445×60 | b24ac5b5c1474a433de2620117cb6682e95982ed8e426222c7983d13cc158bc5 |
+| `yiyin-watermark/fielded-row-logo.png` | logo slot（2:1 红 fixture，aspect 2.0）+ " ℤ 9 · " + "f/2.8" text slot | 453×63 | 38f14195e5a8fe032e7ecfc7abaec1810a609b7b359b1648144519d123db1e5d |
+
+**常驻回归锚**（非一次性快照）：`YiyinWatermarkTests` 两 golden 比对测试（存在即比对、
+缺失即 skip-with-regen 指令）+ 行宽/行高/ascent 公式同式断言（独立 CoreText 量测交叉）
++ 排版缓存 MISS/HIT 记账 + 分辨率无关归一化行盒（PREVIEW 2560 档 vs 全幅档 4×，
+绝对 30px pad 稀释宽度比——yiyin 自身 quirk，钉在测试注释）。
+
+## Phase 8 golden 完整性总账（Plan 08-3-T6 终签核，2026-09-25）
+
+**覆盖面**：yiyin 文字行 CoreText 自基线（08-2 T4 冻结，2 件 PNG——上节）+ yiyin 布局
+参考 JSON（`.work/plans/08-01/yiyin-layout-reference.json`，yiyin node harness 量测转录，
+非渲染产物）。Phase 8 无其余像素 golden——验证分流（D-08-CONTEXT 继承定案）：布局 =
+float64 镜像逐值断言；EXIF/品牌 = 表驱动；合成腿 = 内容级断言（平场门/恒等三元组/
+alpha 剖面），轨 B 恒等 + sidecar round-trip 常驻。
+
+**08-3 T0 kernel 修正注记**：`yiyin_watermark_row` 合成因子修正（编码域 un-premultiply
++ 线性 coverage，D-08-3-T0-1）**不触及已冻 golden**——golden 冻的是行位图（渲染器产物，
+未动）；合成腿测试内容级（上带恒等/下带差异/平场门），修正后全套 960/6/0 回归实证。
+
+**Phase 8 golden 清单（均已在库，无新增）**：
+- `yiyin-watermark/text-row-baseline.png`（sha256 见上节）
+- `yiyin-watermark/fielded-row-logo.png`（sha256 见上节）
+- `.work/plans/08-01/yiyin-layout-reference.json`（布局参考转录，YiyinLayoutTests 消费）
+
+**EXP-05 导出链注记（Phase 11 消费）**：导出链 = colorout（EXP-04 profile）→ borders
+76.0 → watermark 77.0 → 编码器，gamma 不在导出链；`YiyinExportSettings.targetSize` =
+EXP-03 resize 规格正本（永不放大；cap 100_000px；DPI 写入 kCGImagePropertyDPIWidth/Height）。

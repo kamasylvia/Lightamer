@@ -93,12 +93,34 @@ public struct LayerCompositeResult {
 /// **Cache (T3):** layer chain planes key on the layer UUID; composite
 /// prefixes C_k key on the OWNING layer at `compositePosition` with
 /// `upstreamHash = ⊕(prefixHash_prev, chainHash_k, blendTripleHash_k)` —
-/// editing layer K flips exactly K..N prefixes while every >K chain output
-/// stays cached (the incremental-blend semantics `LayerCacheTests` pins).
+/// editing layer K flips exactly K..N prefixes; chain outputs above K MISS
+/// (the seed folds the input accumulator identity — GUI-21 fix;
+/// `LayerCacheTests` pins the corrected semantics).
 enum LayerCompositeDriver {
 
     private static let signposter = OSSignposter(
         subsystem: "com.kamasylvia.lightamer", category: "pixelpipe")
+
+    /// Plan 08-01 T1: the terminal-segment floor — every base instance at
+    /// or above this v50 position belongs to the display tail (the
+    /// colorout..gamma window; yiyin `borders` 76.0 / `watermark` 77.0 are
+    /// its new residents, D-08-CONTEXT "终端段落位"). Zero for the legacy
+    /// chains: colorout 70.0 / gamma 78.0 keep their extraction, skinSmooth
+    /// 66.5 stays base.
+    static let terminalTailFloor: Float = 70.0
+
+    /// The testable face of the tail-window extraction: base chain (v50
+    /// order preserved as given) + the terminal tail (v50-sorted). The one
+    /// pipeline change Plan 08-1 is allowed to make.
+    static func splitTerminal(
+        _ instances: [any ModuleBoxing]
+    ) -> (base: [any ModuleBoxing], terminal: [any ModuleBoxing]) {
+        let base = instances.filter { $0.iopOrder < terminalTailFloor }
+        let terminal = instances
+            .filter { $0.iopOrder >= terminalTailFloor }
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        return (base, terminal)
+    }
 
     /// D-06-CONTEXT-5: geometric V50Order slots forbidden INSIDE a layer
     /// chain (base-only). Derived from the slot table, not string lists.
@@ -178,13 +200,13 @@ enum LayerCompositeDriver {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
 
-        // ── Terminal-segment extraction (the colorout→gamma display tail;
-        //    colorin stays in the base chain — 28.0 < 70.0 < 78.0).
-        let terminalOps: Set<String> = ["colorout", GammaModule.opName]
-        let baseChain = baseInstances.filter { !terminalOps.contains($0.opName) }
-        let terminalChain = baseInstances
-            .filter { terminalOps.contains($0.opName) }
-            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        // ── Terminal-segment extraction — Plan 08-01 T1: the display tail
+        //    window widened from the `{colorout, gamma}` op-name set to the
+        //    whole `iopOrder ≥ 70.0` tail (colorout 70.0 → … → borders 76.0
+        //    → watermark 77.0 → gamma 78.0 — the display-referred seam, dt
+        //    `iop_order.c` positions verbatim; colorin 28.0 stays base).
+        //    Segment-internal order stays v50 `(iopOrder, multiPriority)`.
+        let (baseChain, terminalChain) = Self.splitTerminal(baseInstances)
 
         // ── Layer records → effective chains up front; geometry rejection
         //    BEFORE any GPU work (D-06-CONTEXT-5, fatal semantics).

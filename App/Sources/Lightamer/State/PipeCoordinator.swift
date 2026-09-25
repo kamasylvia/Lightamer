@@ -306,6 +306,11 @@ final class PipeCoordinator {
     /// so a display change invalidates exactly the ≥colorout cache keys.
     private var coloroutBox: ModuleBox<ColorOutModule>?
 
+    /// The yiyin logo store (08-3 T3 wiring): the embedded 26-brand PDF
+    /// raster cache + user uploads, ONE per coordinator. Its init scans
+    /// the user directory once (a handful of files at most).
+    private let yiyinLogoStore = YiyinLogoStore()
+
     /// The display profile the current chain was committed for (nil = no
     /// chain yet). Idempotence gate for the screen-change notifications.
     private var displayStableID: UInt64?
@@ -815,6 +820,16 @@ final class PipeCoordinator {
         await renderPreview(
             bucket: currentBucket ?? PreviewBucket.cap, generation: generation
         )
+    }
+
+    /// 08-3 dual-instance face: the CURRENT global-chain record for
+    /// `opName` — the yiyin panel's sibling lookup (the watermark section
+    /// drives the borders record and vice versa; both sections commit
+    /// THEIR OWN instance through the shared session). nil = the op has no
+    /// record in the current chain (old sidecar restore without it — the
+    /// panel then offers the manual mint face).
+    func instanceRecord(opName: String) -> ModuleInstance? {
+        editorState?.instances.first { $0.opName == opName }
     }
 
     /// History → pipes materialization: rebuild `instances` (the BOXES)
@@ -1359,6 +1374,9 @@ final class PipeCoordinator {
         } else {
             longEdge = bucket // THUMBNAIL: nil (360 default); FULL: nil
         }
+        // 08-3 T3: the yiyin per-run context rides the run's entry scale
+        // (joint layout / EXIF / logo faces — per-run DATA, never params).
+        injectYiyinRunContext(longEdge: longEdge, resolution: resolution)
         if let stack = currentLayerStack, !stack.compositeLayers.isEmpty,
            let registry {
             let (texture, stats) = try await RenderPipeline.processComposite(
@@ -1390,6 +1408,66 @@ final class PipeCoordinator {
             longEdge: longEdge
         )
         return RenderChainOutput(texture: texture, stats: stats)
+    }
+
+    // ── 08-3 T3: the yiyin per-run context injection (D-08-3-T3-2) ──────
+
+    /// Inject the yiyin terminal-segment PER-RUN DATA into the materialized
+    /// boxes before the render: the watermark box receives captureExif /
+    /// logo faces / the joint context (mainImageSize ⊕ borders params),
+    /// computes the joint layout record (D-08-2-10's division of labor)
+    /// and the record rides `BordersModule.jointLayoutOverride` — ONE
+    /// computation, two consumers, so borders reserves the text band the
+    /// watermark rows actually occupy. Per-run DATA only: nothing here
+    /// touches `paramsData`/`paramsHash` (the D-H4 atoms stay record-owned;
+    /// L013 — injection is not configuration).
+    ///
+    /// `mainImageSize` mirrors `PixelPipe.run`'s entry scale exactly
+    /// (min(target/long, target/short, 1.0) — downscale-only): the borders
+    /// box's `dscIn` for full-frame runs, which is what the record's
+    /// `sourceImageSize` guard checks. A mismatched size (ROI-hinted
+    /// windowed runs — zoom) degrades gracefully: the borders override is
+    /// rejected by its own guard and borders local-computes the empty-rows
+    /// layout; the watermark falls back to its input plane.
+    private func injectYiyinRunContext(longEdge: Int?, resolution: PipeResolution) {
+        guard let decoded else { return }
+        guard let watermarkBox = instances.first(where: { $0.opName == WatermarkModule.opName })
+            as? ModuleBox<WatermarkModule>
+        else { return }
+        let bordersRecord = editorState?.instances.first {
+            $0.opName == BordersModule.opName
+        }
+        let bordersParams = try? bordersRecord?.params(of: BordersModule.self)
+
+        // The entry plane size (the borders box's input frame — the same
+        // math `PixelPipe.run` performs for the scale-at-entry).
+        let fullWidth = max(Int(decoded.ciImage.extent.width), 1)
+        let fullHeight = max(Int(decoded.ciImage.extent.height), 1)
+        let targetLongEdge = longEdge ?? resolution.defaultLongEdge
+        let scale = targetLongEdge.map {
+            min(
+                CGFloat($0) / CGFloat(fullWidth),
+                CGFloat($0) / CGFloat(fullHeight), 1.0)
+        }
+        let planeW = scale.map { max(1, Int((CGFloat(fullWidth) * $0).rounded())) } ?? fullWidth
+        let planeH = scale.map { max(1, Int((CGFloat(fullHeight) * $0).rounded())) } ?? fullHeight
+
+        let watermark = watermarkBox.module
+        watermark.captureExif = decoded.capture
+        watermark.logoExists = { [yiyinLogoStore] make, variant in
+            yiyinLogoStore.embeddedExists(make: make, variant: variant)
+        }
+        watermark.logoProvider = yiyinLogoStore.provider()
+        let context = WatermarkModule.JointContext(
+            mainImageSize: SIMD2(planeW, planeH), bordersParams: bordersParams)
+        watermark.jointContext = context
+        // The joint record → the borders box (nil = no reserve; the
+        // borders local layout takes over).
+        guard let bordersBox = instances.first(where: { $0.opName == BordersModule.opName })
+            as? ModuleBox<BordersModule>
+        else { return }
+        bordersBox.module.jointLayoutOverride = watermark.makeJointLayoutRecord(
+            mainImageSize: SIMD2(planeW, planeH), bordersParams: bordersParams)
     }
 }
 

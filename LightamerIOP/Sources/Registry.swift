@@ -225,6 +225,21 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: LiquifyModule.opName) { id in
             ModuleBox(module: LiquifyModule(), instanceID: id)
         }
+        // Plan 08-01-T1: borders (yiyin 印框 canvas module), v50 slot 76.0 —
+        // ALREADY in the V50Order table (zero rows inserted); the first
+        // resident of the widened iopOrder ≥ 70.0 terminal tail window.
+        await registry.register(opName: BordersModule.opName) { id in
+            ModuleBox(module: BordersModule(), instanceID: id)
+        }
+        // Plan 08-2-T3: watermark (yiyin 终局水印 module), v50 slot 77.0 —
+        // ALREADY in the V50Order table (zero rows inserted); the terminal
+        // tail window's second resident. Seed ENABLED-neutral (the system
+        // template catalog present but ALL rows OFF → rowless →
+        // byte-identical blit — D-08-CONTEXT-4's explicit-add semantics;
+        // the 08-2 panel drives this instance).
+        await registry.register(opName: WatermarkModule.opName) { id in
+            ModuleBox(module: WatermarkModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -332,6 +347,14 @@ public enum LightamerIOPRegistry {
             // Plan 07-2: the skinSmooth threshold-attenuation mix (the low
             // leg reuses the gaussian_pass_* kernels — warmed above).
             SkinSmoothKernel.mixFunction,
+            // Plan 08-01: the yiyin borders composite canvas pass (the SDF/
+            // downsample kernels warm on first use — T4/T5 legs).
+            BordersModule.kernelComposite,
+            BordersModule.kernelShadowSDF,
+            BordersModule.kernelBoxDownsample,
+            // Plan 08-2 T4: the watermark row composite (one PSO per
+            // functionName — the 16×16 threadgroup is static).
+            WatermarkModule.kernelRow,
         ]
     }
 
@@ -430,6 +453,19 @@ public enum LightamerIOPRegistry {
             // 0 ⇒ the D9 blit identity — cache-neutral, exposure-0EV style;
             // the 07-3 panel has an instance to drive).
             ModuleInstance(module: SkinSmoothModule.self, params: SkinSmoothModule.Params()),
+            // Plan 08-01-T1: borders joins the seed ENABLED-neutral
+            // (rate 100 / margin 0 / radius nil / shadow nil ⇒ canvas ==
+            // main image ⇒ byte-identical blit — the PARAM-based identity,
+            // never the yiyin formula whose ceil-quirk can grow the canvas;
+            // D-08-CONTEXT-4: 新图不自动挂默认印框 is about AUTO-ATTACH
+            // semantics, this seed instance is the neutral carrier the
+            // 08-2 panel drives, exposure-0EV style).
+            ModuleInstance(module: BordersModule.self, params: BordersModule.Params.neutralSeed),
+            // Plan 08-2-T3: watermark joins the seed ENABLED-neutral (the
+            // rowless seed — all system templates OFF → no resolved rows →
+            // byte-identical blit, cache-neutral, exposure-0EV style; the
+            // 08-2 watermark panel has an instance to drive).
+            ModuleInstance(module: WatermarkModule.self, params: WatermarkModule.Params.neutralSeed),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }

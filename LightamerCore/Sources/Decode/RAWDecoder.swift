@@ -107,7 +107,8 @@ public actor RAWDecoder {
                 rawTech: tech,
                 capture: capture,
                 segmentationSkyMatte: skyMatte,
-                decoderVersionUsed: used
+                decoderVersionUsed: used,
+                contentDedupeID: Self.contentDedupeID(for: url)
             )
         } onCancel: {
             // The ObjC CIRAW decode cannot be interrupted synchronously; the
@@ -183,7 +184,8 @@ public actor RAWDecoder {
             rawTech: RAWTechnicalParams(), // raster carries no RAW technical state
             capture: capture,
             segmentationSkyMatte: nil,
-            decoderVersionUsed: .v8 // n/a for raster; field is non-optional
+            decoderVersionUsed: .v8, // n/a for raster; field is non-optional
+            contentDedupeID: Self.contentDedupeID(for: url)
         )
     }
 
@@ -232,6 +234,26 @@ public actor RAWDecoder {
 
     /// Resolve the file's UTI via ImageIO (defaults to `public.data` when
     /// no type can be determined).
+    /// GUI-22: the source-file fingerprint for `DecodedImage.contentDedupeID`
+    /// — path ⊕ size ⊕ mtime (StableHash). The CI input-plane render memo
+    /// dedupes on it so a re-decode of the SAME file reuses the frozen
+    /// first render (CIRAW re-execution is speckle-nondeterministic); an
+    /// in-place re-save changes mtime → a fresh render. Key domain note:
+    /// same class as the pipe cache's §1.3 decode domain — no new staleness.
+    private static func contentDedupeID(for url: URL) -> UInt64? {
+        // NOTE: hash the path's UTF-8 CONTENT — `withUnsafeBytes(of: &path)`
+        // on a String hashes the STRUCT (a heap pointer for long paths:
+        // fresh per call, the first cut's drifting key).
+        let pathBytes = Array(url.path.utf8)
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        var size = attrs?[.size] as? Int ?? -1
+        var mtime = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? -1
+        var h = StableHash.hash(pathBytes)
+        h = withUnsafeBytes(of: &size) { StableHash.combine(h, $0) }
+        h = withUnsafeBytes(of: &mtime) { StableHash.combine(h, $0) }
+        return h
+    }
+
     private static func utiForFile(at url: URL) -> String {
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(url as CFURL, options),
@@ -335,11 +357,40 @@ public actor RAWDecoder {
             if let raw = exif[kCGImagePropertyExifDateTimeOriginal] as? String {
                 meta.captureTime = Self.parseEXIFDate(raw)
             }
+            // Plan 08-3 T2 (YIYIN-02): the six yiyin EXIF fields — the
+            // struct face landed in 08-2 (additive Optional, old-record
+            // compatible); this walk fills them. Types mirror the ImageIO
+            // property types (numbers may arrive as NSNumber/NSString —
+            // `doubleValue` normalizes).
+            meta.focalLength35mm = doubleValue(
+                exif[kCGImagePropertyExifFocalLenIn35mmFilm])
+            if let program = doubleValue(exif[kCGImagePropertyExifExposureProgram]) {
+                meta.exposureProgram = Int(program)
+            }
+            meta.exposureCompensation = doubleValue(
+                exif[kCGImagePropertyExifExposureBiasValue])
+            if let metering = doubleValue(exif[kCGImagePropertyExifMeteringMode]) {
+                meta.meteringMode = Int(metering)
+            }
+            if let whiteBalance = doubleValue(exif[kCGImagePropertyExifWhiteBalance]) {
+                meta.whiteBalance = Int(whiteBalance)
+            }
+            // The lens MAKE (08-3 T2 — YiyinExifFormat's lens-logo
+            // dispatch key). PLAN CORRECTION (D-08-3-T2-1): the plan's
+            // "ExifAuxDictionary LensMake" wording followed the LensModel
+            // twin, but the SDK exposes LensMake ONLY in the MAIN EXIF
+            // dictionary (`kCGImagePropertyExifLensMake`, 10.7+ — EXIF tag
+            // 0xA434; the Aux dictionary ships no LensMake constant). Read
+            // the main dict, keep the aux dict as a defensive fallback.
+            meta.lensMake = exif[kCGImagePropertyExifLensMake] as? String
         }
 
         // Lens model lives in the EXIF **auxiliary** dictionary (RESEARCH §6).
         if let exifAux = props[kCGImagePropertyExifAuxDictionary] as? [CFString: Any] {
             meta.lensModel = exifAux[kCGImagePropertyExifAuxLensModel] as? String
+            if meta.lensMake == nil {
+                meta.lensMake = exifAux[kCGImagePropertyExifLensMake] as? String
+            }
         }
         if meta.lensModel == nil,
            let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any],

@@ -1895,4 +1895,261 @@ final class PanelWiringTests: XCTestCase {
             rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
             segmentationSkyMatte: nil, decoderVersionUsed: .v8)
     }
+
+    // ── Plan 08-2 T6: the watermark panel section ──
+
+    func testYiyinPanelDispatch() throws {
+        let state = InspectorState()
+        state.registerDefaultProviders()
+        XCTAssertTrue(state.panelOpNames.contains("watermark"),
+                      "the 印框/水印 panel registered")
+        // Plan 08-3 T1: the SAME dual-section panel dispatches for the
+        // borders row too (one provider pair, one view).
+        XCTAssertTrue(state.panelOpNames.contains("borders"),
+                      "the borders row dispatches the dual-section panel")
+        let session = InspectorEditSession(coordinator: coordinator)
+        let record = ModuleInstance(module: WatermarkModule.self, params: .neutralSeed)
+        XCTAssertNotNil(state.panelView(for: record, edit: session),
+                        "watermark must dispatch a panel")
+        let bordersRecord = ModuleInstance(module: BordersModule.self, params: .neutralSeed)
+        XCTAssertNotNil(state.panelView(for: bordersRecord, edit: session),
+                        "borders must dispatch the same panel")
+        // L010: the stable identifiers — the panel row ids address template
+        // KEYS, never indices (asserted at the params level: the seed
+        // carries the system catalog keys the panel rows address).
+        let seed = WatermarkModule.Params.neutralSeed
+        XCTAssertTrue(seed.templates.contains { $0.key == "make-model" })
+        XCTAssertTrue(seed.templates.allSatisfy { !$0.key.isEmpty })
+    }
+
+    // ── Plan 08-3 T1: the borders section + dual-instance coordination ──
+
+    func testYiyinBordersSliderCommitsOnceAndUndoRestores() async throws {
+        try await loadSynthetic()
+        let record = try instance("borders")
+        let afterLoad = editorState.history.items.count
+        let seedRate = try record.params(of: BordersModule.self).mainImageWidthRate
+
+        // The mainImageWidthRate drag trio (the LightamerSlider mapping —
+        // the panel's yiyin.main_img_w_rate slider): N live ticks + exactly
+        // ONE commit at drag end (D-H1), landing on the BORDERS record.
+        coordinator.beginContinuousEdit()
+        for tick in 1...5 {
+            let edited = try withParams(record, {
+                $0.mainImageWidthRate = 90 + Double(tick)
+            }, as: BordersModule.self)
+            await coordinator.setLiveParams(edited)
+        }
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_borders"))
+
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 1,
+                       "the rate drag = exactly ONE commit")
+        let committed = try instance("borders")
+        XCTAssertEqual(
+            try committed.params(of: BordersModule.self).mainImageWidthRate, 95,
+            accuracy: 1e-6)
+
+        // Undo restores the neutral seed face.
+        await coordinator.undo()
+        let reverted = try instance("borders")
+        XCTAssertEqual(
+            try reverted.params(of: BordersModule.self).mainImageWidthRate, seedRate,
+            accuracy: 1e-6, "undo restores the seed rate")
+    }
+
+    func testYiyinBordersDiscreteAspectToggleCommitsOnce() async throws {
+        try await loadSynthetic()
+        let record = try instance("borders")
+        let afterLoad = editorState.history.items.count
+
+        // The landscape toggle (discrete face): ONE commit.
+        var params = try record.params(of: BordersModule.self)
+        params.landscapeOutput = true
+        var withLandscape = record
+        try withLandscape.setParams(params, as: BordersModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(withLandscape)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_borders"))
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 1)
+
+        // The aspect picker (discrete face): ONE commit — the PANEL mirrors
+        // the yiyin onBGRateChange mutual exclusion (aspect + landscape are
+        // never sent together; the render-side backstop is the module
+        // clamp, asserted below).
+        params = try instance("borders").params(of: BordersModule.self)
+        params.aspectRatio = BordersModule.AspectRatio(w: 3, h: 2)
+        params.landscapeOutput = false
+        var withAspect = try instance("borders")
+        try withAspect.setParams(params, as: BordersModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(withAspect)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_borders"))
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 2)
+
+        let after = try instance("borders")
+        let committed = try after.params(of: BordersModule.self)
+        XCTAssertNotNil(committed.aspectRatio)
+        XCTAssertFalse(committed.landscapeOutput)
+        // The module-level backstop: the commit clamp force-clears
+        // landscape whenever an aspect is set (render defense).
+        var inconsistent = committed
+        inconsistent.landscapeOutput = true
+        XCTAssertFalse(BordersModule.clamp(inconsistent).landscapeOutput,
+                       "the clamp force-clears landscape under an aspect")
+    }
+
+    /// The dual-instance interleaving contract (D-08-3-T1-1): a borders
+    /// edit and a watermark edit land as TWO separate commits (one per
+    /// touched instance), and ⌘Z reverts them one at a time — each
+    /// instance's params restore independently.
+    func testYiyinDualInstanceInterleavedCommitsAndUndo() async throws {
+        try await loadSynthetic()
+        let bordersRecord = try instance("borders")
+        let watermarkRecord = try instance("watermark")
+        let afterLoad = editorState.history.items.count
+        let seedRate = try bordersRecord.params(of: BordersModule.self).mainImageWidthRate
+        let seedSpacing = try watermarkRecord.params(of: WatermarkModule.self).lineSpacing
+
+        // A: edit borders (rate 95) — exactly ONE commit.
+        var edited = try withParams(bordersRecord, {
+            $0.mainImageWidthRate = 95
+        }, as: BordersModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(edited)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_borders"))
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 1,
+                       "the borders edit = its own commit")
+
+        // B: edit watermark (lineSpacing 1.2) — ANOTHER commit.
+        edited = try withParams(watermarkRecord, {
+            $0.lineSpacing = 1.2
+        }, as: WatermarkModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(edited)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_watermark"))
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 2,
+                       "the watermark edit = its own commit")
+
+        // Sanity: BOTH instances carry their edits simultaneously.
+        XCTAssertEqual(
+            try instance("borders").params(of: BordersModule.self).mainImageWidthRate,
+            95, accuracy: 1e-6)
+        XCTAssertEqual(
+            try instance("watermark").params(of: WatermarkModule.self).lineSpacing,
+            1.2, accuracy: 1e-6)
+
+        // ⌘Z #1 reverts the LAST edit (watermark); borders stays edited.
+        await coordinator.undo()
+        XCTAssertEqual(
+            try instance("watermark").params(of: WatermarkModule.self).lineSpacing,
+            seedSpacing, accuracy: 1e-6, "undo #1 reverts the watermark tick")
+        XCTAssertEqual(
+            try instance("borders").params(of: BordersModule.self).mainImageWidthRate,
+            95, accuracy: 1e-6, "undo #1 leaves the borders edit intact")
+
+        // ⌘Z #2 reverts the borders edit.
+        await coordinator.undo()
+        XCTAssertEqual(
+            try instance("borders").params(of: BordersModule.self).mainImageWidthRate,
+            seedRate, accuracy: 1e-6, "undo #2 reverts the borders tick")
+    }
+
+    func testYiyinWatermarkSliderCommitsOnceAndUndoRestores() async throws {
+        try await loadSynthetic()
+        let record = try instance("watermark")
+        let afterLoad = editorState.history.items.count
+        let seedOpacity = try record.params(of: WatermarkModule.self).logoOpacity
+
+        // The logoOpacity drag trio (the LightamerSlider mapping): N live
+        // ticks + exactly ONE commit at drag end (D-H1).
+        coordinator.beginContinuousEdit()
+        for tick in 1...5 {
+            let edited = try withParams(record, {
+                $0.logoOpacity = Double(tick) * 0.2
+            }, as: WatermarkModule.self)
+            await coordinator.setLiveParams(edited)
+        }
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_watermark"))
+
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 1,
+                       "the opacity drag = exactly ONE commit")
+        let committed = try instance("watermark")
+        XCTAssertEqual(
+            try committed.params(of: WatermarkModule.self).logoOpacity, 1.0, accuracy: 1e-6)
+
+        // Undo restores the seed face.
+        await coordinator.undo()
+        let reverted = try instance("watermark")
+        XCTAssertEqual(
+            try reverted.params(of: WatermarkModule.self).logoOpacity, seedOpacity,
+            accuracy: 1e-6, "undo restores the seed opacity")
+    }
+
+    func testYiyinTemplateToggleAndDeleteCommitDiscretely() async throws {
+        try await loadSynthetic()
+        var record = try instance("watermark")
+        let afterLoad = editorState.history.items.count
+
+        // A template use-toggle = ONE discrete commit (the compressed trio).
+        var params = try record.params(of: WatermarkModule.self)
+        params.templates[0].use = true
+        try record.setParams(params, as: WatermarkModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(record)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_watermark"))
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 1,
+                       "the toggle = exactly ONE commit")
+
+        // A template DELETE = another single commit (the stable key is
+        // gone from the params, the row identity never indexed).
+        record = try instance("watermark")
+        params = try record.params(of: WatermarkModule.self)
+        params.templates.removeFirst()
+        try record.setParams(params, as: WatermarkModule.self)
+        coordinator.beginContinuousEdit()
+        await coordinator.setLiveParams(record)
+        await coordinator.commitContinuousEdit(
+            label: String(localized: "history_yiyin_template_delete"))
+        XCTAssertEqual(editorState.history.items.count - afterLoad, 2)
+        let after = try instance("watermark")
+        XCTAssertEqual(
+            try after.params(of: WatermarkModule.self).templates.count,
+            WatermarkModule.Params.neutralSeed.templates.count - 1)
+    }
+
+    /// L025 catalog smoke (08-2 T6): every watermark-panel key carries BOTH
+    /// the en and the zh localization in the String Catalog (the zh labels
+    /// convention; a missing face degrades the whole runtime language).
+    func testYiyinCatalogSmoke() throws {
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // LightamerTests
+            .deletingLastPathComponent() // Tests
+            .deletingLastPathComponent() // repo root
+            .appendingPathComponent("Resources/Localizable.xcstrings")
+        let data = try Data(contentsOf: catalogURL)
+        let catalog = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
+        let yiyinKeys = strings.keys.filter {
+            $0.hasPrefix("panel_yiyin_") || $0.hasPrefix("history_yiyin_")
+        }
+        XCTAssertGreaterThanOrEqual(yiyinKeys.count, 37, "the 08-2 keys landed")
+        for key in yiyinKeys {
+            let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
+            let localizations = try XCTUnwrap(
+                entry["localizations"] as? [String: Any], key)
+            XCTAssertNotNil(localizations["en"], "\(key) missing en")
+            let zh = try XCTUnwrap(localizations["zh"] as? [String: Any], "\(key) missing zh")
+            let unit = try XCTUnwrap(zh["stringUnit"] as? [String: Any], key)
+            XCTAssertEqual(unit["state"] as? String, "translated", key)
+            XCTAssertFalse(
+                (unit["value"] as? String ?? "").isEmpty, "\(key) empty zh value")
+        }
+    }
 }

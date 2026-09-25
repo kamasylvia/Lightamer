@@ -175,6 +175,23 @@ internal final class PixelPipe: @unchecked Sendable {
         roi.width * roi.height * WorkingSpace.bytesPerPixel
     }
 
+    /// GUI-22 (2026-09-24): the input-plane CONTENT dedupe key handed to the
+    /// CI render legs — `contentDedupeID ⊕ decodeParamsHash` when the image
+    /// came from a FILE (re-decodes of the same file reuse the frozen first
+    /// render — CIRAW re-execution is speckle-nondeterministic and local-
+    /// contrast iops amplify it ~18×: GUI-22's warm-vs-cold divergence).
+    /// nil for in-memory/synthetic images: the pool then dedupes on the
+    /// CIImage IDENTITY — (decodeParams, imageID) is NOT content-unique
+    /// there (two different synthetic images can share both; the collision
+    /// the first cut shipped — RetouchParity/GoldenColor regressions).
+    internal var inputPlaneDedupeKey: UInt64? {
+        guard let content = decodedImage?.contentDedupeID else { return nil }
+        var running = content
+        var params = decodeParamsHash
+        withUnsafeBytes(of: &params) { running = StableHash.combine(running, $0) }
+        return running
+    }
+
     /// Plane byte cost at an explicit pixel format (the display-tail plane
     /// is 4 bytes/px — `GammaModule.outputPixelFormat` — everything else
     /// stays float32).
@@ -755,15 +772,18 @@ internal final class PixelPipe: @unchecked Sendable {
                             y: ex.maxY - ryTop - rh,
                             width: rw,
                             height: rh),
-                        scale: scale
+                        scale: scale,
+                        dedupeKey: self.inputPlaneDedupeKey
                     )
                 }
                 if roiOut.scale < 1.0 {
                     return try await metal.renderToTexture(
-                        image.ciImage, longEdge: max(roiOut.width, roiOut.height)
+                        image.ciImage, longEdge: max(roiOut.width, roiOut.height),
+                        dedupeKey: self.inputPlaneDedupeKey
                     )
                 }
-                return try await metal.renderToTexture(image.ciImage)
+                return try await metal.renderToTexture(
+                    image.ciImage, dedupeKey: self.inputPlaneDedupeKey)
             }
         }
         // 04-01: passes `roiOut` straight through (dt `:3378-3384`).

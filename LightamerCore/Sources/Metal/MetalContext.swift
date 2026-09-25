@@ -361,10 +361,12 @@ public actor MetalContext {
     /// `nonisolated` + `sending` result: the texture is transferred OUT of
     /// the pool actor into the caller's region (owner: the caller from here
     /// on); the pool retains nothing.
-    public nonisolated func renderToTexture(_ image: CIImage) async throws -> sending any MTLTexture {
+    public nonisolated func renderToTexture(
+        _ image: CIImage, dedupeKey: UInt64? = nil
+    ) async throws -> sending any MTLTexture {
         let pool = await getOrCreatePool()
         do {
-            let rendered = try await pool.renderToTexture(image)
+            let rendered = try await pool.renderToTexture(image, dedupeKey: dedupeKey)
             return rendered.texture
         } catch let error as MetalError {
             throw error.asAppError
@@ -380,11 +382,12 @@ public actor MetalContext {
     /// decode-at-scale numbers are cited at `CIContextPool.renderToTexture
     /// (_:longEdge:)` — the win is plane MEMORY, not decode time).
     public nonisolated func renderToTexture(
-        _ image: CIImage, longEdge: Int
+        _ image: CIImage, longEdge: Int, dedupeKey: UInt64? = nil
     ) async throws -> sending any MTLTexture {
         let pool = await getOrCreatePool()
         do {
-            let rendered = try await pool.renderToTexture(image, longEdge: longEdge)
+            let rendered = try await pool.renderToTexture(
+                image, longEdge: longEdge, dedupeKey: dedupeKey)
             return rendered.texture
         } catch let error as MetalError {
             throw error.asAppError
@@ -396,11 +399,12 @@ public actor MetalContext {
     /// handoff like the sibling facades; whether CI skips decode outside
     /// the window is CIRAW-internal (no promise — see `renderRegion`).
     public nonisolated func renderRegion(
-        _ image: CIImage, region: CGRect, scale: CGFloat = 1.0
+        _ image: CIImage, region: CGRect, scale: CGFloat = 1.0, dedupeKey: UInt64? = nil
     ) async throws -> sending any MTLTexture {
         let pool = await getOrCreatePool()
         do {
-            let rendered = try await pool.renderRegion(image, region: region, scale: scale)
+            let rendered = try await pool.renderRegion(
+                image, region: region, scale: scale, dedupeKey: dedupeKey)
             return rendered.texture
         } catch let error as MetalError {
             throw error.asAppError

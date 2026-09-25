@@ -28,5 +28,9 @@ input/golden/fixtures/*
 !input/golden/fixtures/lensfun/
 input/golden/fixtures/lensfun/*
 !input/golden/fixtures/lensfun/*.xml
+# Plan 08-2: the CoreText SELF-BASELINE watermark goldens are the frozen
+# reference (regenerate = LA_REGEN_YIYIN_GOLDEN=1 + re-freeze discipline,
+# D-08-CONTEXT-8 — system font dependency).
+!input/golden/yiyin-watermark/
 !input/golden/fixtures/lensfun/README.md
 !input/golden/cases/

@@ -42,6 +42,12 @@ public enum AppError: Error, LocalizedError {
     /// phase/plan that lands the capability (e.g. EXPORT pipe → "Phase 11").
     case notImplemented(String)
 
+    /// A caller-supplied parameter is outside its validated domain
+    /// (08-3: `YiyinExportSettings.validate()` — px/DPI bounds). The
+    /// payload names the offending value; UI tiering mirrors
+    /// `.decodeFailed` (blocking alert — the user must correct the input).
+    case invalidParameter(String)
+
     /// Bridge a foreign `Error` into the typed enum (D-18/D-25: layers throw
     /// typed errors; this is the catch-site bridge Plan 02/03 throw through).
     /// - `CancellationError` → `.cancelled`
@@ -87,6 +93,8 @@ public enum AppError: Error, LocalizedError {
             return "Couldn't save the edit history to \(path). Your edits are still active in this session."
         case let .notImplemented(phase):
             return "This capability isn't available yet (planned for \(phase))."
+        case let .invalidParameter(detail):
+            return "Invalid setting: \(detail)"
         }
     }
 
