@@ -208,6 +208,38 @@ public final class WatermarkModule: IOPModule {
 
     // MARK: - Layout (the joint rows leg)
 
+    /// The pipe-level coordinator's joint-record face (08-3 wiring,
+    /// D-08-2-10): compute the joint layout record for the given
+    /// main-image plane size and borders params from THIS module's
+    /// committed params + injected context (captureExif / logo faces /
+    /// jointContext — the coordinator injects them BEFORE calling this;
+    /// `jointContext.bordersParams` drives the blur→white logo dispatch
+    /// inside `engineInputs`). The record then rides
+    /// `BordersModule.jointLayoutOverride` so borders reserves the text
+    /// band from the SAME computation (one record, two consumers).
+    /// nil = no reserve needed (borders absent/neutral, or no resolved
+    /// rows) — borders keeps its local empty-rows layout.
+    public func makeJointLayoutRecord(
+        mainImageSize: SIMD2<Int>, bordersParams: BordersModule.Params?
+    ) -> YiyinLayoutRecord? {
+        let bordersP = bordersParams ?? BordersModule.Params.neutralSeed
+        let bordersActive = bordersParams.map { !isNeutralBorders($0) } ?? false
+        guard bordersActive else { return nil }
+        let bgHeight = Double(
+            YiyinLayout.firstPassCanvasSize(imageSize: mainImageSize, borders: bordersP).y)
+        let inputs = engineInputs(bgHeight: bgHeight)
+        let rows = resolvedRows(inputs: inputs)
+        guard !rows.isEmpty else { return nil }
+        let metrics = rows.map {
+            renderer.layoutRow(
+                row: $0, bgHeight: bgHeight,
+                lineSpacingPercent: committed.lineSpacing,
+                logoProvider: logoProvider).metrics
+        }
+        return YiyinLayout.layout(
+            imageSize: mainImageSize, borders: bordersP, rows: metrics)
+    }
+
     /// The pass-1 canvas (the font-sizing basis, yiyin `clacBgImgSize()`
     /// default). Borders-absent/neutral → the image itself.
     func pass1CanvasHeight(mainImageSize: SIMD2<Int>) -> Int {
