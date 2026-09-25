@@ -189,9 +189,7 @@ public enum ExportEncoderRegistry {
         case .tiff: return TIFFEncoder()
         case .heic: return HEICEncoder()
         case .avif: return AVIFEncoder()
-        // T4 lands the libwebp conformer (typed placeholder until then —
-        // D-25: never a fatalError).
-        case .webp: throw AppError.notImplemented("WebP encoder (Plan 11-02 T4)")
+        case .webp: return LightamerWebPEncoder()
         }
     }
 }
