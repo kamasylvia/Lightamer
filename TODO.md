@@ -256,6 +256,8 @@
 | 11 | Export Pipeline & Batch Queue | 8 | 6 格式 + 配方 + 后台队列 + yiyin 应用 |
 | 12 | Metadata, Rating, Presets & LUT | 11 | 评级/标签/关键字/智能相册 + 原生预设 + .cube LUT |
 | 13 | System Integration & Distribution | 11 | Quick Look/Spotlight/软打样/多 ICC/手势/i18n + GitHub 开源/签名公证/CI |
+| 14 | MCP Server（远程 AI 修图 + 自动筛选） | 8 | load/apply/render/schema + **筛选读写面（缩略图/联系表/ROI 细裁 + rating/flag 写回 sidecar）**（2026-09-26 扩充） |
+| 15 | Performance 专项（60fps 决战） | 6 | 六战场：预览/交互/解码/懒加载/批量吞吐/内存 |
 
 详细需求/成功标准见 `.planning/ROADMAP.md`，需求清单见 `.planning/REQUIREMENTS.md`。
 

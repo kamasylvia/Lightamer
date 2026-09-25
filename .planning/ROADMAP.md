@@ -252,15 +252,17 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 | Raw denoise profiling feasibility (per-camera noise profiles) | 1 | 5 |
 | Darktable XMP import round-trip (validate import-tolerant parser) | — | 2 (sidecar) |
 
-### Phase 14: MCP Server（远程 AI 修图接口）【v1 扩展，2026-09-22 用户指令】
-**Goal:** Lightamer 内嵌 MCP（Model Context Protocol）server，使远程 AI 能通过 MCP 协议对本机照片执行 RAW 修图并取回预览图。双入口：GUI 偏好开关（开启即启动 server）与 CLI 无头拉起（不开 GUI 直接启动同一 server）。
+### Phase 14: MCP Server（远程 AI 修图 + 自动筛选接口）【v1 扩展，2026-09-22 用户指令；2026-09-26 扩充筛选能力面】
+**Goal:** Lightamer 内嵌 MCP（Model Context Protocol）server，使远程 AI 能通过 MCP 协议对本机照片执行 RAW 修图并取回预览图；**并支持外部 AI 自动筛选（culling）——外部 AI 读会话照片（缩略图/联系表/原尺寸 ROI 细节）后把星级/旗标/色标写回，照片留在 Lightamer 工作流内**（2026-09-26 用户指令；对标 lightroom-mcp 实践：缩略图阵列 → 联系表对比 → 原尺寸脸部细节检查 → 星级写回，vault 文章《我让AI接入Lightroom，帮我做筛选100张RAW》）。双入口：GUI 偏好开关（开启即启动 server）与 CLI 无头拉起（不开 GUI 直接启动同一 server）。
 **Success Criteria**:
 1. MCP 工具集可用：load_image（打开 Session/RAW 路径）、apply_params（设置 iop 参数面/图层栈）、render_preview（渲染并返回预览图，分辨率/格式参数化）、iop 清单与参数 schema 元数据。
 2. 双入口：GUI 开关开启即启动（绑定地址/传输可配置，默认 localhost），关闭即停；CLI 无头启动同一 server（无 GUI 进程）。
 3. 端到端：远程 MCP client 载入 DSC00012.ARW → 施加 ≥3 个 iop 参数 → 取回预览图，内容与本地渲染量化一致。
 4. 安全面：默认仅绑定回环地址；非回环暴露必须带鉴权 token；文档明示风险。
-**Requirements:** MCP-01, MCP-02, MCP-03, MCP-04
-**Notes:** 依赖 Phase 2 无头 pipe（已具备）、Phase 9 Session、Phase 11 渲染导出、Phase 5/8 iop 集。Swift MCP SDK 选型入研究。
+5. 筛选端到端（2026-09-26）：外部 MCP client 列出会话照片（索引查询含 EXIF/rating/flag）→ 批量取缩略图/联系表/原尺寸 ROI 细节裁剪 → 写回星级/旗标/色标（sidecar 为真 + GUI 缩略图与索引同步可见），全程不碰像素与文件删除。
+6. culling 方法论支撑（2026-09-26）：burst 分组查询（连拍聚类）+ 脸部区域定位（复用 Phase 7 Vision faceLandmarks）可供 AI 组合出「全图阵列 → 相似组联系表 → 脸部细节」筛片流。
+**Requirements:** MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06, MCP-07, MCP-08
+**Notes:** 依赖 Phase 2 无头 pipe（已具备）、Phase 9 Session（索引 DB + 双档缩略图 + 批量管线三段——筛选读写直接复用）、Phase 11 渲染导出、Phase 12 rating/flag 字段真身、Phase 5/8 iop 集、Phase 7 Vision 基建。Swift MCP SDK 选型入研究。筛选图像传输走联系表拼图与缓存缩略图（token 效率——100 张全尺寸原图不可行，文章方法论同款）。
 
 ### Phase 15: Performance 专项（60fps 决战 + 全链路性能）【v1 扩展，2026-09-22 用户指令；同日扩充范围】
 **Goal:** 系统性性能专项，覆盖六大战场：①预览管线 ②交互流畅性 ③RAW 解码 ④懒加载 ⑤批量修图吞吐 ⑥内存足迹——把全链打进 60fps@100MP 预算并清算 PERF-5 全部挂账。

@@ -439,6 +439,10 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 - [ ] **MCP-02**: 双入口：GUI 偏好开关（开即启动/关即停）与 CLI 无头拉起同一 server（无 GUI 进程）
 - [ ] **MCP-03**: 渲染一致性：MCP 返回的预览图与本地 GUI 渲染量化一致（同参数同输出）
 - [ ] **MCP-04**: 安全面：默认仅回环绑定；非回环暴露必须带鉴权 token
+- [ ] **MCP-05**: 筛选读面（2026-09-26 扩充）：list_photos（会话索引查询：EXIF 轻量列/rating/flag/has_edits）+ get_thumbnails（批量缩略图取回，档 A/B 缓存直读）+ get_contact_sheet（服务端拼图返回单图）+ get_detail_crop（原尺寸 ROI 局部裁剪）
+- [ ] **MCP-06**: 筛选写面（2026-09-26 扩充）：set_rating / set_flag / set_color_label / append_note——写回以 sidecar 为真，复用 Phase 9 批量管线（段1 内存变换 + 段2 索引单事务 + 段3 串行写队列）语义，GUI 缩略图 stale 再生联动可见
+- [ ] **MCP-07**: culling 辅助（2026-09-26 扩充）：burst/连拍分组查询（拍摄时间+机型聚类）+ 脸部区域定位（复用 Phase 7 Vision faceLandmarks 基建）支撑细节裁剪
+- [ ] **MCP-08**: 筛选写回安全边界（2026-09-26 扩充）：写回限元数据字段（rating/flag/color/note），禁止像素修改与文件删除/移动；传输安全同 MCP-04
 
 ### Performance (PERF)
 
