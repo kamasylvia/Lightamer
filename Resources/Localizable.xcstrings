@@ -1735,6 +1735,142 @@
         }
       }
     },
+    "export_postactions_choose_script": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Script…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择脚本…"
+          }
+        }
+      }
+    },
+    "export_postactions_clear_script": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除"
+          }
+        }
+      }
+    },
+    "export_postactions_no_script": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No script selected"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择脚本"
+          }
+        }
+      }
+    },
+    "export_postactions_pick_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick an executable script. It runs with YOUR full user privileges, once per exported file, receiving the output file path as $1."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择一个可执行脚本。它将以你的完整用户权限运行，每个导出文件触发一次，输出文件路径经 $1 传入。"
+          }
+        }
+      }
+    },
+    "export_postactions_reveal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reveal in Finder"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 中显示"
+          }
+        }
+      }
+    },
+    "export_postactions_run_script": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run script per exported file ($1 = file path)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个导出文件运行一次脚本（$1 = 文件路径）"
+          }
+        }
+      }
+    },
+    "export_postactions_script_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The script runs with your full user privileges, once per exported file. $1 = the output file path. Spaces/metacharacters in paths are passed verbatim (no shell interpretation)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本以你的完整用户权限运行，每个导出文件触发一次。$1 = 输出文件路径。路径中的空格/元字符按原样传入（不经 shell 解释）。"
+          }
+        }
+      }
+    },
+    "export_postactions_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Post-Export Actions"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出后动作"
+          }
+        }
+      }
+    },
     "export_quality_label": {
       "extractionState": "manual",
       "localizations": {

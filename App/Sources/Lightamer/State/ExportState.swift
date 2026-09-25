@@ -90,6 +90,11 @@ final class ExportState {
         await queue.setProgressHook { [weak self] in
             await self?.refreshFromQueue()
         }
+        // The per-job post-action trigger (EXP-08, OQ-11-7): every
+        // promoted FILE fires once; failed/cancelled jobs never do.
+        await queue.setCompletionHook { [weak self] snapshot, url in
+            await self?.jobDidComplete(snapshot, url: url)
+        }
         self.queue = queue
         jobRows = []
         progress = ExportProgress(done: 0, total: 0)
@@ -175,6 +180,21 @@ final class ExportState {
     }
 
     // MARK: - Observation refresh (the hook's MainActor hop)
+
+    /// The per-job DONE trigger (EXP-08): the post-export actions fire per
+    /// promoted file (the dt `darktable|exported` per-image semantics) —
+    /// a failed/cancelled job never reaches here (the queue only fires the
+    /// hook for `.done`). The reveal hops to AppKit on the main thread;
+    /// the script process detaches (fire-and-forget — a slow script must
+    /// not block the bridge).
+    private func jobDidComplete(_ snapshot: ExportJobSnapshot, url: URL) {
+        guard case .done = snapshot.state else { return }
+        let script =
+            PostExportActions.wantsRunScript
+            ? PostExportActions.resolveScript() : nil
+        guard PostExportActions.wantsRevealInFinder || script != nil else { return }
+        PostExportActions.fire(for: url, script: script)
+    }
 
     /// The queue's progress hook hops HERE (await from the detached task —
     /// the MainActor boundary is the D-03b bridge; the hook body is

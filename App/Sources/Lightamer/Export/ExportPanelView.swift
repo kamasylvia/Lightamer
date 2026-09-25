@@ -55,6 +55,7 @@ internal struct ExportPanelView: View {
             Form {
                 recipeSection($exportState)
                 destinationSection
+                postActionsSection
                 queueActionSection
                 queueStatusSection
             }
@@ -143,6 +144,68 @@ internal struct ExportPanelView: View {
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
             exportState.customDestination = url
+        }
+    }
+
+    // MARK: - Post-export actions (EXP-08, D-11-CONTEXT-6)
+
+    private var postActionsSection: some View {
+        Section(String(localized: "export_postactions_section")) {
+            Toggle(
+                String(localized: "export_postactions_run_script"),
+                isOn: Binding(
+                    get: { PostExportActions.wantsRunScript },
+                    set: { PostExportActions.wantsRunScript = $0 }))
+                .accessibilityIdentifier("export.toggle.postaction_script")
+
+            HStack {
+                Text(scriptDisplayName)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(String(localized: "export_postactions_choose_script")) {
+                    chooseScript()
+                }
+                .accessibilityIdentifier("export.button.choose_script")
+                if PostExportActions.scriptBookmark != nil {
+                    Button(String(localized: "export_postactions_clear_script")) {
+                        PostExportActions.scriptBookmark = nil
+                    }
+                    .accessibilityIdentifier("export.button.clear_script")
+                }
+            }
+
+            Toggle(
+                String(localized: "export_postactions_reveal"),
+                isOn: Binding(
+                    get: { PostExportActions.wantsRevealInFinder },
+                    set: { PostExportActions.wantsRevealInFinder = $0 }))
+                .accessibilityIdentifier("export.toggle.postaction_reveal")
+
+            Text(String(localized: "export_postactions_script_note"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var scriptDisplayName: String {
+        guard let url = PostExportActions.resolveScript() else {
+            return String(localized: "export_postactions_no_script")
+        }
+        return url.path
+    }
+
+    /// The script pick — BY PATH (an executable FILE), never an inline
+    /// command string (D-11-CONTEXT-6). A plain bookmark persists it.
+    private func chooseScript() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = String(localized: "export_postactions_pick_message")
+        if panel.runModal() == .OK, let url = panel.url {
+            PostExportActions.storeScript(url)
         }
     }
 

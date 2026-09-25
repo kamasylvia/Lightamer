@@ -118,6 +118,20 @@ public actor ExportQueue {
         progressHook = hook
     }
 
+    /// The per-job COMPLETION hook (EXP-08's per-job post-action trigger,
+    /// OQ-11-7: every promoted FILE fires once — the dt `darktable|exported`
+    /// per-image semantics). Fired ONLY for `.done` jobs (a failed job
+    /// never triggers a post-action); NOT fired for stale-generation
+    /// stragglers (their files never landed). Fire-and-forget — the queue
+    /// never awaits the hook.
+    private var completionHook: (@Sendable (ExportJobSnapshot, URL) async -> Void)?
+
+    public func setCompletionHook(
+        _ hook: (@Sendable (ExportJobSnapshot, URL) async -> Void)?
+    ) {
+        completionHook = hook
+    }
+
     public init(
         metal: MetalContext?,
         registry: ModuleRegistry,
@@ -389,10 +403,20 @@ public actor ExportQueue {
         // Settle the in-flight slot + the progress tally — ONLY for the
         // CURRENT generation (a stale straggler's exit must not pollute
         // the fresh epoch's window).
-        if job.generation == generation {
+        let currentGeneration = job.generation == generation
+        if currentGeneration {
             progressDone += 1
         }
         await settleInFlight()
+        // The per-job post-action trigger (done ONLY, current generation
+        // only — OQ-11-7). Fired after the settle so the UI already sees
+        // the row as done when the action runs.
+        if case .done(let url) = state, currentGeneration {
+            let snapshot = job.snapshot()
+            if let completionHook {
+                Task.detached(priority: .utility) { await completionHook(snapshot, url) }
+            }
+        }
     }
 
     private func finish(jobID: UUID, generation jobGeneration: Int, error: Error) async {
