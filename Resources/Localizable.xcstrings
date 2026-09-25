@@ -9961,6 +9961,40 @@
         }
       }
     },
+    "session_watch_root_lost": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder moved"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件夹已移动"
+          }
+        }
+      }
+    },
+    "session_watch_root_lost_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session folder was renamed or moved elsewhere. Reopen it from Recent or the Open button."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话文件夹已被改名或移动。请从「最近」或「打开」按钮重新打开。"
+          }
+        }
+      }
+    },
     "session_watch_stale": {
       "extractionState": "manual",
       "localizations": {

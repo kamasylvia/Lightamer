@@ -35,6 +35,12 @@ final class SessionState {
     /// or the first sync has not landed yet. Full row model: Plan 9-3.
     private(set) var browseCounts: SessionBrowseCounts?
 
+    /// The current session's ROOT was reported renamed/moved (the WatchRoot
+    /// leg, 09-02 T4) — the sidebar surfaces a status hint and the
+    /// recent-path entries pointing at the old root are flagged stale for
+    /// re-confirmation. Cleared on the next successful session open.
+    private(set) var currentSessionRootLost = false
+
     /// The recent-list persistence defaults. Injectable (test suite);
     /// nil disables persistence entirely (pure in-memory, unit tests).
     private let recentDefaults: UserDefaults?
@@ -52,15 +58,25 @@ final class SessionState {
 
     // MARK: - Mutation entries (SessionCoordinator is the writer)
 
-    /// Bind the current session (nil = close).
+    /// Bind the current session (nil = close). Every binding clears the
+    /// root-lost hint (a fresh open/switch is the recovery path).
     func setCurrentSession(_ url: URL?) {
         currentSessionURL = url
         if url == nil { browseCounts = nil }
+        currentSessionRootLost = false
     }
 
     /// Flip the watch-status state machine.
     func setWatchStatus(_ status: FolderWatchStatus) {
         folderWatchStatus = status
+    }
+
+    /// The WatchRoot leg fired for the CURRENT session root (09-02 T4):
+    /// surface the hint; the recent list is NOT silently rewritten (L012 —
+    /// opening a session is always an explicit user action).
+    func markCurrentSessionRootLost() {
+        currentSessionRootLost = true
+        folderWatchStatus = .rootLost
     }
 
     /// Publish the sidebar counts snapshot.
@@ -121,15 +137,18 @@ final class SessionState {
     }
 }
 
-/// Folder-watch state machine (SESS-05 shell; Plan 9-2 feeds the real
-/// source). `scanning` = an open/reconcile walk is in flight; `synced` =
-/// the index matches the tree; `stale` = events landed that the index has
-/// not reconciled yet.
+/// Folder-watch state machine (SESS-05; Plan 9-2 feeds the real source).
+/// Five states (09-02 T4): `scanning` = an open/reconcile walk is in
+/// flight; `synced` = the index matches the tree; `stale` = events landed
+/// that the index has not reconciled yet; `rootLost` = the WatchRoot event
+/// reported the session root renamed/moved (full rescan + the recent-path
+/// invalidation hint — never a silent path rewrite).
 enum FolderWatchStatus: String, Sendable {
     case notWatching
     case scanning
     case synced
     case stale
+    case rootLost
 
     /// Sidebar-facing localized label (L010: leaf-level label, never on a
     /// container).
@@ -139,6 +158,7 @@ enum FolderWatchStatus: String, Sendable {
         case .scanning: "session_watch_scanning"
         case .synced: "session_watch_synced"
         case .stale: "session_watch_stale"
+        case .rootLost: "session_watch_root_lost"
         }
     }
 }

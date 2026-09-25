@@ -134,6 +134,13 @@ internal struct LightamerApp: App {
     /// close legs of the session coordinator).
     @State private var sessionIndexController = SessionIndexController()
 
+    /// Plan 09-02 T3: the four-schedule reconcile owner (focus / event
+    /// batch / forced legs; the open leg is the coordinator's own sync).
+    /// Lifecycle is composed into the coordinator's closure seams below —
+    /// start after a successful open sync, stop at the teardown's index
+    /// close (no Step-enum change, the 09-01 stepLog order stays pinned).
+    @State private var sessionReconciler = SessionReconciler()
+
     /// Plan 07-3: the layer-B download model — app-root owned so the
     /// AIDownloadPrompt surfaces AND the MaskToolbar's layer-B entry gate
     /// observe ONE instance (the AIAssetStore actor stays the truth).
@@ -217,13 +224,22 @@ internal struct LightamerApp: App {
                             await pipeCoordinator.prepareForSessionSwitch()
                         },
                         closeIndexHandler: {
+                            // 09-02 T3: disarm the watcher BEFORE the index
+                            // closes (no events into a closed store).
+                            sessionReconciler.stopSession()
                             await sessionIndexController.close()
                         },
                         ensureDirectoriesHandler: { url in
                             try SessionLayout.ensureDirectories(at: url)
                         },
                         syncIndexHandler: { url in
-                            await sessionIndexController.openAndSync(root: url)
+                            let result = await sessionIndexController.openAndSync(root: url)
+                            // 09-02 T3 ①: arm the watcher AFTER the full
+                            // open sync (a failed sync leaves it disarmed).
+                            if !result.failed {
+                                sessionReconciler.startSession(root: url)
+                            }
+                            return result
                         },
                         routeImage: { url in
                             editorState.load(
@@ -235,6 +251,20 @@ internal struct LightamerApp: App {
                         },
                         reportError: { editorState.presentToast($0) }
                     )
+
+                    // Plan 09-02 T3: wire the reconciler's seams (state +
+                    // the real index legs; the same D-03b closure shape).
+                    sessionReconciler.appState = sessionState
+                    sessionReconciler.reconcileHandler = { url in
+                        let outcome = await sessionIndexController.reconcile(root: url)
+                        if let counts = outcome?.counts {
+                            sessionState.setBrowseCounts(counts)
+                        }
+                        return outcome?.plan
+                    }
+                    sessionReconciler.staleMarkHandler = { paths in
+                        await sessionIndexController.markStale(relPaths: paths)
+                    }
 
                     // 02-04: register LightamerIOP's modules into the
                     // registry (testgain in DEBUG; Phase 3+ joins here),

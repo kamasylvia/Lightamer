@@ -44,20 +44,27 @@ import os
 /// One callback's worth of classified events — a HINT, never a row edit.
 struct WatchEventBatch: Sendable, Equatable {
     /// Relative directories under the session root that saw a surviving
-    /// event ("" = the root level itself).
+    /// event ("" = the root level itself). Summary seam for logs/diagnostics;
+    /// the reconciler derives its OWN filtered dirs from `affectedFilePaths`
+    /// (the journal swallow must be able to empty a directory's influence).
     var affectedDirectories: Set<String> = []
+    /// Absolute paths of surviving events (capped at `batchCap` entries —
+    /// beyond the cap the batch is `truncated` and escalates full anyway).
+    /// The reconciler checks these against the self-write journal (T3).
+    var affectedFilePaths: Set<String> = []
     /// The batch reached the 4096-path cap → likely truncated → escalate
     /// to a full reconcile.
     var truncated = false
     /// kFSEventStreamEventFlagRootChanged: the watched root itself was
     /// renamed/moved → full rescan + recent-path invalidation hint.
     var rootChanged = false
-    /// kFSEventStreamEventFlagMustRescanSubtree: kernel-level drop suspicion
+    /// kFSEventStreamEventFlagMustScanSubDirs: kernel-level drop suspicion
     /// → full rescan.
     var mustRescan = false
 
     var isEmpty: Bool {
-        affectedDirectories.isEmpty && !truncated && !rootChanged && !mustRescan
+        affectedDirectories.isEmpty && affectedFilePaths.isEmpty
+            && !truncated && !rootChanged && !mustRescan
     }
 
     /// True when the batch demands a FULL reconcile (vs a subtree hint).
@@ -94,7 +101,9 @@ final class SessionWatcher: @unchecked Sendable {
     /// reports REALIZED paths (/private/var/…) while `URL.path` keeps the
     /// /var spelling (Foundation's resolvingSymlinksInPath does NOT resolve
     /// the prefix link either) — realpath(3) once at init, match BOTH.
-    private let rootPrefixes: [String]
+    /// Internal-readable: the reconciler builds path-spelling VARIANTS off
+    /// these for the journal swallow + row-key math (T3).
+    private(set) var rootPrefixes: [String] = []
     private let continuation: AsyncStream<WatchEventBatch>.Continuation
 
     /// The reconciler consumes this (single consumer).
@@ -270,6 +279,10 @@ final class SessionWatcher: @unchecked Sendable {
         guard let fileName = components.last else { return }
         if SessionTreeScanner.isWatcherExcludedFile(fileName) { return }
 
+        // The cap is the truncation countermeasure: at/over it the batch
+        // already escalates full — stop paying per-path costs.
+        guard batch.affectedFilePaths.count < batchCap else { return }
+        batch.affectedFilePaths.insert(path)
         let directory = components.dropLast().joined(separator: "/")
         batch.affectedDirectories.insert(directory)
     }

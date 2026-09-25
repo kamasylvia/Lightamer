@@ -283,4 +283,106 @@ final class SessionIndexController {
         await store?.close()
         store = nil
     }
+
+    // MARK: - Reconcile (Plan 09-02 T3)
+
+    /// The reconcile outcome: the pure-diff PLAN (the App logs it, the
+    /// sidebar counts follow the apply) + the post-apply counts.
+    struct SessionReconcileOutcome: Sendable {
+        var plan: ReconcilePlan
+        var counts: SessionBrowseCounts?
+
+        init(plan: ReconcilePlan, counts: SessionBrowseCounts? = nil) {
+            self.plan = plan
+            self.counts = counts
+        }
+    }
+
+    /// The reconcile WORK (the injected handler's real body): scan → pure
+    /// diff → single-transaction apply (rename rulings included) → the
+    /// NULL-class backfills re-read drifted sidecars (真身恒 sidecar).
+    /// Errors are logged and returned as nil — a failed reconcile never
+    /// hard-fails into the UI (SC#2).
+    func reconcile(root: URL) async -> SessionReconcileOutcome? {
+        guard let store else { return nil }
+        do {
+            let (entries, orphans) = await SessionTreeScanner.collect(root: root)
+            let previousRows = try await store.fetchAllRows()
+
+            // The externalEdits ruling needs the CURRENT sidecar mtimes —
+            // stat only the DRIFT candidates (the changed set is small; a
+            // whole-tree sidecar stat would defeat the point on USB).
+            let currentByKey = Dictionary(
+                uniqueKeysWithValues: entries.map { ($0.relPath, $0) }
+            )
+            var sidecarMtimes: [String: Double] = [:]
+            for row in previousRows where row.orphanSidecar != 1 {
+                guard let entry = currentByKey[row.path] else { continue }
+                guard row.fileMtime != entry.mtime || row.fileSize != entry.size
+                else { continue }
+                let sidecarURL = LightamerSidecar.sidecarURL(
+                    for: root.appendingPathComponent(row.path)
+                )
+                if let attributes = try? FileManager.default.attributesOfItem(
+                    atPath: sidecarURL.path
+                ),
+                   let modified = attributes[.modificationDate] as? Date {
+                    sidecarMtimes[row.path] = modified.timeIntervalSince1970
+                }
+            }
+
+            let snapshot = ReconcileScanSnapshot(
+                entries: entries,
+                sidecarMtimes: sidecarMtimes,
+                orphanSidecars: orphans
+            )
+            let plan = ReconcileDiff.diff(
+                previousRows: previousRows, current: snapshot
+            )
+            let result = try await store.reconcile(
+                root: root,
+                scan: Self.stream(of: entries, orphans: orphans),
+                renames: plan.renamedSurvived
+            )
+            Self.logger.info(
+                "reconcile apply: +\(result.added) -\(result.removed) ~\(result.changed) ⇄\(plan.renamedSurvived.count) orphans \(result.orphanAdded)/\(result.orphanRemoved)"
+            )
+            return SessionReconcileOutcome(
+                plan: plan,
+                counts: SessionBrowseCounts(
+                    total: result.counts.total,
+                    edited: result.counts.edited,
+                    orphans: result.counts.orphans
+                )
+            )
+        } catch {
+            Self.logger.error(
+                "reconcile failed: \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    /// The row-level stale hint leg (thumbnail/pipe caches; rows are never
+    /// deleted here — the diff's stat ruling owns removals).
+    func markStale(relPaths: Set<String>) async {
+        guard let store, !relPaths.isEmpty else { return }
+        _ = try? await store.markRowsStale(relPaths: relPaths)
+    }
+
+    /// A plain finished stream over already-collected pages (the store's
+    /// reconcile consumes the same shape the scanner produces live).
+    private static func stream(
+        of entries: [SessionScanEntry], orphans: [String]
+    ) -> AsyncStream<SessionScanPage> {
+        AsyncStream { continuation in
+            if !entries.isEmpty {
+                continuation.yield(SessionScanPage(entries: entries))
+            }
+            if !orphans.isEmpty {
+                continuation.yield(SessionScanPage(orphanSidecarRelPaths: orphans))
+            }
+            continuation.finish()
+        }
+    }
 }

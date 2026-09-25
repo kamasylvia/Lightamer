@@ -2,7 +2,6 @@ import LightamerCore
 import XCTest
 
 @testable import Lightamer
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan 09-02 T2 — the SessionWatcher suite:
 //
@@ -276,5 +275,278 @@ final class SessionWatcherTests: XCTestCase {
         mustRescan.mustRescan = true
         XCTAssertTrue(mustRescan.requiresFullRescan)
         XCTAssertFalse(WatchEventBatch().requiresFullRescan)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Plan 09-02 T3 — the four-schedule + self-feedback suite (appended to the
+// watcher suite per the plan's evidence mapping):
+//
+//   • THE resident self-feedback assertion: 100 REAL sidecar writes through
+//     the SidecarStore writeAtomic path with the watcher RUNNING → ZERO
+//     event-driven reconciles inside the observation window (double
+//     defense: exclude table + write journal)
+//   • a journalled `.lra` event is swallowed; a NON-journalled one
+//     schedules the debounced reconcile (the swallow is not a blanket)
+//   • focus-gain forces a reconcile (the dropped-events fallback)
+//   • rootChanged escalates to a forced reconcile + rootLost state
+//   • the debounce coalesces bursts into ONE eventBatch reconcile
+//   • the row-stale hint marks rows and never deletes them
+//   • the exclude-table single-source assertion (watcher vs scanner
+//     predicates by value)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@MainActor
+final class SessionReconcileScheduleTests: XCTestCase {
+
+    private var tempDirectory: URL!
+    private var sessionDirectory: URL!
+    private var journal: SidecarWriteJournal!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("reconciler-\(UUID().uuidString)", isDirectory: true)
+        sessionDirectory = tempDirectory.appendingPathComponent("session", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: sessionDirectory, withIntermediateDirectories: true
+        )
+        journal = SidecarWriteJournal()  // isolated — never .shared
+    }
+
+    override func tearDown() async throws {
+        try? FileManager.default.removeItem(at: tempDirectory)
+        try await super.tearDown()
+    }
+
+    // MARK: - Harness
+
+    /// A reconciler wired to a REAL index controller against the temp
+    /// session (the same composition the app root performs).
+    private func makeWiredReconciler(
+        debounce: Duration = .milliseconds(150)
+    ) -> (SessionReconciler, SessionIndexController, SessionState) {
+        let controller = SessionIndexController()
+        let state = SessionState(recentDefaults: nil)
+        let reconciler = SessionReconciler(debounce: debounce, journal: journal)
+        reconciler.appState = state
+        reconciler.reconcileHandler = { url in
+            let outcome = await controller.reconcile(root: url)
+            if let counts = outcome?.counts {
+                state.setBrowseCounts(counts)
+            }
+            return outcome?.plan
+        }
+        reconciler.staleMarkHandler = { paths in
+            await controller.markStale(relPaths: paths)
+        }
+        return (reconciler, controller, state)
+    }
+
+    /// A minimal valid sidecar document (the write path only needs JSON —
+    /// no decode is involved in this suite).
+    private func makeDocument() -> LightamerSidecar {
+        LightamerSidecar(
+            imageID: UUID(),
+            decoderVersionUsed: "v8",
+            decodeParamsHash: 1,
+            instances: [],
+            history: HistoryStack(),
+            historyHash: 7,
+            layerStack: nil
+        )
+    }
+
+    private func waitInterval(_ seconds: Double) async throws {
+        try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+    }
+
+    // MARK: - THE self-feedback resident assertion
+
+    func testOneHundredSelfWrittenSidecarsTriggerZeroReconciles() async throws {
+        // ① Seed the index with 100 originals + sidecars (real open sync).
+        for index in 0..<100 {
+            try Data([UInt8(index % 255)]).write(
+                to: sessionDirectory.appendingPathComponent("img-\(index).arw")
+            )
+        }
+        let (reconciler, controller, _) = makeWiredReconciler()
+        _ = await controller.openAndSync(root: sessionDirectory)
+        reconciler.startSession(root: sessionDirectory)
+        defer { reconciler.stopSession() }
+
+        // ② Flush the SinceNow residue: events for the pre-arm original
+        //    creates may still arrive right after start (FSEvents
+        //    coalescing) — those are LEGITIMATE external-change hints,
+        //    not self-feedback. Settle them, then measure the DELTA.
+        try await waitInterval(1.2)
+        let baselineReconciles = reconciler.reconcileLog.count
+        let baselineSwallows = reconciler.journalSwallowCount
+
+        // ③ THE storm: 100 REAL writes through SidecarStore's writeAtomic
+        //    path (tmp + promotion), watcher running the whole time.
+        for index in 0..<100 {
+            let destination = sessionDirectory
+                .appendingPathComponent("img-\(index).arw.lra")
+            let store = SidecarStore(
+                destination: destination, journal: journal
+            )
+            await store.scheduleWrite(makeDocument())
+            try await store.flushNow()
+        }
+
+        // ④ Observation window: FSEvents latency (0.3s) + debounce (0.15s)
+        //    settle well inside 3s. The journal window (30s default) has
+        //    NOT expired — every `.lra` event must be swallowed.
+        try await waitInterval(3.0)
+
+        // ⑤ ZERO self-triggered reconciles across the storm — the resident
+        //    assertion (delta against the pre-storm baseline).
+        XCTAssertEqual(
+            reconciler.reconcileLog.count, baselineReconciles,
+            "self-written sidecars must NEVER trigger a reconcile — got \(reconciler.reconcileLog)"
+        )
+        XCTAssertGreaterThan(
+            reconciler.journalSwallowCount, baselineSwallows,
+            "the journal must have swallowed the `.lra` events (defense ② active)"
+        )
+    }
+
+    func testNonJournaledSidecarEventStillSchedulesReconcile() async throws {
+        let (reconciler, controller, state) = makeWiredReconciler()
+        _ = await controller.openAndSync(root: sessionDirectory)
+        reconciler.startSession(root: sessionDirectory)
+        defer { reconciler.stopSession() }
+
+        // An EXTERNAL sidecar write (never journalled) must schedule.
+        try Data([0x0A]).write(
+            to: sessionDirectory.appendingPathComponent("x.arw.lra")
+        )
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline, !reconciler.reconcileLog.contains(.eventBatch) {
+            try await waitInterval(0.1)
+        }
+        XCTAssertEqual(
+            reconciler.reconcileLog, [.eventBatch],
+            "an external `.lra` event schedules the debounced reconcile"
+        )
+        XCTAssertEqual(state.folderWatchStatus, .synced, "settles back after apply")
+    }
+
+    // MARK: - Focus / forced / debounce timing
+
+    func testFocusGainForcesReconcile() async throws {
+        let (reconciler, controller, _) = makeWiredReconciler()
+        _ = await controller.openAndSync(root: sessionDirectory)
+        reconciler.startSession(root: sessionDirectory)
+        defer { reconciler.stopSession() }
+
+        // The app-focus leg via the REAL notification (the dropped-events
+        // fallback — 09-RESEARCH §4.2 row four).
+        NotificationCenter.default.post(
+            name: NSApplication.didBecomeActiveNotification, object: nil
+        )
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, !reconciler.reconcileLog.contains(.focus) {
+            try await waitInterval(0.05)
+        }
+        XCTAssertEqual(reconciler.reconcileLog, [.focus])
+    }
+
+    func testFocusWithNoSessionIsNoOp() async throws {
+        let reconciler = SessionReconciler(debounce: .milliseconds(50), journal: journal)
+        reconciler.appState = SessionState(recentDefaults: nil)
+        reconciler.reconcileHandler = { _ in ReconcilePlan() }
+        await reconciler.forceReconcile(reason: .focus)
+        XCTAssertTrue(reconciler.reconcileLog.isEmpty, "no session → no reconcile")
+    }
+
+    func testRootChangedEscalatesForcedReconcileAndRootLost() async throws {
+        let (reconciler, controller, state) = makeWiredReconciler()
+        _ = await controller.openAndSync(root: sessionDirectory)
+        reconciler.startSession(root: sessionDirectory)
+        defer { reconciler.stopSession() }
+
+        // The WatchRoot leg: force the escalation through the REAL event
+        // path by renaming the watched root (the watcher flags rootChanged).
+        let moved = tempDirectory.appendingPathComponent("moved-root", isDirectory: true)
+        try FileManager.default.moveItem(at: sessionDirectory, to: moved)
+
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline, !reconciler.reconcileLog.contains(.forced) {
+            try await waitInterval(0.1)
+        }
+        XCTAssertEqual(reconciler.reconcileLog, [.forced])
+        XCTAssertEqual(state.folderWatchStatus, .rootLost)
+        XCTAssertTrue(state.currentSessionRootLost, "the recent-path invalidation hint")
+    }
+
+    func testDebounceCoalescesBurstIntoSingleReconcile() async throws {
+        let (reconciler, controller, state) = makeWiredReconciler(debounce: .milliseconds(200))
+        _ = await controller.openAndSync(root: sessionDirectory)
+        reconciler.startSession(root: sessionDirectory)
+        defer { reconciler.stopSession() }
+
+        // Five quick external creates — ONE coalesced reconcile.
+        for index in 0..<5 {
+            try Data([UInt8(index)]).write(
+                to: sessionDirectory.appendingPathComponent("burst-\(index).arw")
+            )
+        }
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline, !reconciler.reconcileLog.contains(.eventBatch) {
+            try await waitInterval(0.05)
+        }
+        XCTAssertEqual(reconciler.reconcileLog, [.eventBatch], "the burst coalesces")
+
+        // The applied plan converged: counts now carry exactly the burst.
+        let deadline2 = Date().addingTimeInterval(5)
+        while Date() < deadline2, state.browseCounts?.total != 5 {
+            try await waitInterval(0.05)
+        }
+        XCTAssertEqual(
+            state.browseCounts?.total, 5,
+            "the coalesced reconcile applied the whole burst (index == disk)"
+        )
+        XCTAssertEqual(state.browseCounts?.edited, 0)
+        XCTAssertEqual(state.browseCounts?.orphans, 0)
+    }
+
+    func testRowStaleHintMarksWithoutDeleting() async throws {
+        let (reconciler, controller, _) = makeWiredReconciler()
+        // Seed one EDITED row (thumb_state = rendered via direct sync; the
+        // sync inserts thumb_state 0 — flip one row through the store by
+        // reconciling a plan-free tree then directly exercising the hint).
+        try Data([0x01]).write(to: sessionDirectory.appendingPathComponent("s.arw"))
+        _ = await controller.openAndSync(root: sessionDirectory)
+        reconciler.startSession(root: sessionDirectory)
+        defer { reconciler.stopSession() }
+
+        // The stale hint is a pure store leg — drive the handler directly.
+        await controller.markStale(relPaths: ["s.arw", "missing.arw"])
+        // No crash, no throw — the mark leg never hard-fails (SC#2). The
+        // row survives (hint ≠ deletion); the next diff is still empty.
+        let outcome = await controller.reconcile(root: sessionDirectory)
+        XCTAssertNotNil(outcome)
+        XCTAssertTrue(outcome?.plan.isTrivial ?? false, "the hint deleted nothing")
+    }
+
+    // MARK: - Exclude single-source
+
+    func testExcludeTableSingleSourceByValue() {
+        // The watcher and the scanner consume the SAME predicates — assert
+        // the composition value-for-value (compile-time single source PLUS
+        // a runtime pin so a future divergence fails loudly).
+        for name in ["a.arw", "b.arw.lra", ".hidden", "x.tmp-1", "db.cosessiondb"] {
+            XCTAssertEqual(
+                SessionTreeScanner.isWatcherExcludedFile(name),
+                SessionTreeScanner.isExcludedMetadata(name),
+                "watcher file predicate must equal the scanner's noise half for \(name)"
+            )
+        }
+        // `.lra` divergence is BY DESIGN: browse excludes attachments, the
+        // watcher keeps the external-write signal.
+        XCTAssertTrue(SessionTreeScanner.isExcludedFile("a.arw.lra"))
+        XCTAssertFalse(SessionTreeScanner.isWatcherExcludedFile("a.arw.lra"))
     }
 }

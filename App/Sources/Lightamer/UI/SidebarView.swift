@@ -126,6 +126,13 @@ internal struct SidebarView: View {
                 .font(.caption)
             }
             .accessibilityIdentifier(SessionIdentifiers.watch)
+            if sessionState.currentSessionRootLost {
+                // WatchRoot fired: the session folder moved/renamed — the
+                // recent entry is stale; reopening is an explicit action.
+                Text("session_watch_root_lost_hint")
+                    .font(.caption2)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
         } header: {
             Text("session_watch")
         }
@@ -137,6 +144,7 @@ internal struct SidebarView: View {
         case .scanning: .yellow
         case .synced: .green
         case .stale: .orange
+        case .rootLost: .red
         }
     }
 

@@ -178,6 +178,13 @@ public final class SQLiteHandle {
         return sqlite3_errcode(db)
     }
 
+    /// Rows changed by the most recent statement on this connection
+    /// (sqlite3_changes — the per-row UPDATE loop's flip counter).
+    public func changes() -> Int {
+        guard let db else { return 0 }
+        return Int(sqlite3_changes(db))
+    }
+
     // MARK: Exec / prepare
 
     /// Run a zero-result statement (PRAGMA/BEGIN/COMMIT/ROLLBACK/DDL).

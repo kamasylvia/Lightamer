@@ -824,6 +824,39 @@ public actor SessionIndexStore {
             + Double(elapsed.components.attoseconds) / 1e18
     }
 
+    // MARK: - Row-level stale hint (Plan 09-02 T3)
+
+    /// Mark the named rows thumb-stale (the FSEvents hint leg). Rows are
+    /// NEVER deleted here — a rename's old-path event is untrustworthy;
+    /// the reconcile diff's stat ruling decides removals. `thumb_state = 0`
+    /// rows stay 0 (nothing rendered yet → nothing to stale). One
+    /// transaction; returns the number of rows actually flipped.
+    @discardableResult
+    public func markRowsStale(relPaths: Set<String>) async throws -> Int {
+        guard let handle, !relPaths.isEmpty else { return 0 }
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            let update = try handle.prepare("""
+                UPDATE images
+                SET thumb_state = CASE WHEN thumb_state = 0 THEN 0 ELSE ? END
+                WHERE path = ? AND orphan_sidecar = 0
+                """)
+            var flipped = 0
+            for rel in relPaths {
+                try update.bindInt(1, SessionIndexSchema.ThumbState.stale.rawValue)
+                try update.bindText(2, rel)
+                _ = try update.step()
+                flipped += handle.changes()
+                try update.reset()
+            }
+            try handle.exec("COMMIT")
+            return flipped
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
+    }
+
     // MARK: - Lifecycle (teardown ②-d)
 
     /// Close the DB handle deterministically. Idempotent.

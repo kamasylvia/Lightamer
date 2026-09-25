@@ -80,12 +80,13 @@ enum SessionTreeScanner {
     /// events must NOT be dropped there, because an EXTERNAL sidecar write
     /// is a legitimate reconcile signal (sidecar drift re-read), while the
     /// SELF-written sidecars are swallowed by the write journal instead
-    /// (the double defense; 09-02 T3).
+    /// (the double defense; 09-02 T3). Internal (not private): the T3
+    /// single-source assertion pins watcher == this predicate by value.
     static func isWatcherExcludedFile(_ name: String) -> Bool {
         isExcludedMetadata(name)
     }
 
-    private static func isExcludedMetadata(_ name: String) -> Bool {
+    static func isExcludedMetadata(_ name: String) -> Bool {
         name.hasPrefix(".")                    // dotfiles + SidecarStore residue
             || name.contains(".tmp-")          // `*.tmp-*` promotion residue
             || name.hasSuffix(".cosessiondb")  // C1 artifacts — read-only
