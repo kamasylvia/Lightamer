@@ -162,15 +162,21 @@ final class CullingPaneModel: Identifiable {
     /// the real RAWDecoder).
     private let decodeLeg: ThumbnailDecodeLeg?
     private let sessionRoot: URL?
+    /// The registry for the display chain (the pane renders the PRISTINE
+    /// DISPLAY chain — the gamma tail's bgra8Unorm output — not a raw
+    /// linear passthrough).
+    private let registry: ModuleRegistry
 
     init(
         relPath: String, decoder: RAWDecoder, metal: MetalContext,
+        registry: ModuleRegistry = ModuleRegistry.makeDefault(),
         decodeLeg: ThumbnailDecodeLeg? = nil, sessionRoot: URL? = nil
     ) {
         self.id = relPath
         self.relPath = relPath
         self.decoder = decoder
         self.metal = metal
+        self.registry = registry
         self.decodeLeg = decodeLeg
         self.sessionRoot = sessionRoot
     }
@@ -195,17 +201,21 @@ final class CullingPaneModel: Identifiable {
             }
             state = .rendering
             // The halved bucket: PREVIEW at the fixed culling rung; the
-            // PRISTINE chain (no instances — see the header note).
+            // PRISTINE DISPLAY chain (the default trio — the gamma tail's
+            // bgra8Unorm output, not a raw linear passthrough).
             let (texture, _) = try await RenderPipeline.process(
                 image: decoded,
-                instances: [],
+                instances: await registry.makeDefaultChain(),
                 imageID: UUID(),
                 resolution: .preview,
                 cache: PipeCache(), // SELF-OWNED throwaway — dies with the run
                 metal: metal,
                 longEdge: CullingView.cullingLongEdge
             )
-            planeBytes = texture.width * texture.height * 16 // float32 RGBA
+            // The ledger: float32 planes cost 16 B/px; the gamma tail's
+            // bgra8Unorm costs 4 B/px (the honest footprint either way).
+            planeBytes = texture.width * texture.height
+                * (texture.pixelFormat == .bgra8Unorm ? 4 : 16)
             image = try SessionThumbnailRenderer.cgImage(from: texture, metal: metal)
             state = .ready
         } catch {

@@ -127,9 +127,21 @@ enum SessionThumbnailRenderer {
         }
     }
 
-    /// The pipeline's float32 linear-Rec2020 output → 8-bit RGBA sRGB
-    /// CGImage. L014: the empty-command-buffer fence FIRST (getBytes/CI
-    /// reads must not race the in-flight encoders).
+    /// The pipeline output → 8-bit RGBA sRGB CGImage.
+    ///
+    /// TWO source regimes (09-3 T7 spot-check finding — the FIRST cut read
+    /// EVERYTHING as linear Rec2020 and swapped R/B on display-ready
+    /// planes; the archive at .work/gui-acceptance/09-3-* shows the green-
+    /// to-cyan corpse):
+    ///   • `.bgra8Unorm` — the gamma tail's DISPLAY-READY plane (gamut+TRC
+    ///     already in-pipe; the editor blit treats it the same way). The
+    ///     conversion is a passthrough: the CIImage reads as sRGB (no
+    ///     colorspace re-stamp) and the render is byte-faithful.
+    ///   • float32 linear Rec2020 — the LEGACY/intermediate plane (no gamma
+    ///     tail ran; e.g. an instances-free chain). The conversion is a REAL
+    ///     Rec2020-linear → sRGB match (the CI leg performs gamut + TRC).
+    /// L014: the empty-command-buffer fence FIRST (getBytes/CI reads must
+    /// not race the in-flight encoders).
     static func cgImage(from texture: any MTLTexture, metal: MetalContext) throws -> CGImage {
         let width = texture.width
         let height = texture.height
@@ -140,9 +152,11 @@ enum SessionThumbnailRenderer {
         fence?.commit()
         fence?.waitUntilCompleted()
 
-        guard let ciImage = CIImage(mtlTexture: texture, options: [
-            .colorSpace: WorkingSpace.colorSpace,
-        ]) else {
+        let displayReady = texture.pixelFormat == .bgra8Unorm
+        let ciOptions: [CIImageOption: Any] = displayReady
+            ? [:] // display-ready bytes — as-emitted (the editor-blit posture)
+            : [.colorSpace: WorkingSpace.colorSpace] // linear Rec2020 truth
+        guard let ciImage = CIImage(mtlTexture: texture, options: ciOptions) else {
             throw AppError.decodeFailed("thumb convert: CIImage(mtlTexture:) failed")
         }
         let context = CIContext()

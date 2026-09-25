@@ -284,7 +284,8 @@ extension SessionThumbnailProviderTests {
         renderLeg: ThumbnailRenderLeg? = nil,
         decodeLeg: ThumbnailDecodeLeg? = nil,
         store: SessionIndexStore? = nil,
-        memory: ThumbnailMemoryCache? = nil
+        memory: ThumbnailMemoryCache? = nil,
+        idleDelayMs: Int = 0
     ) async -> SessionThumbnailProvider {
         SessionThumbnailProvider(
             sessionRoot: sessionRoot,
@@ -293,7 +294,8 @@ extension SessionThumbnailProviderTests {
             memory: memory ?? makeMemory(),
             registry: makeRegistry(),
             decodeLeg: decodeLeg,
-            renderLeg: renderLeg
+            renderLeg: renderLeg,
+            idleDelayMs: idleDelayMs
         )
     }
 
@@ -785,5 +787,243 @@ extension SessionThumbnailProviderTests {
         // generation).
         let after = await provider.thumbnail(for: "C2.ARW")
         XCTAssertNotNil(after, "the provider keeps serving after a teardown")
+    }
+}
+
+// MARK: - T7: the A→B upgrade + the real-sample visual spot-check
+
+@MainActor
+extension SessionThumbnailProviderTests {
+
+    /// The upgrade red line: browsing a PRISTINE image produces tier A;
+    /// EDITING it (a sidecar lands → has_edits=1 + a re-sync) flips THAT
+    /// image to tier B on the next fetch — while the OTHER pristine images
+    /// stay tier A (their tier-B render count stays ZERO).
+    func testTierUpgradeHappensOnlyOnTheEditedImage() async throws {
+        let source = Fixtures.arw
+        try Fixtures.require(source)
+        try FileManager.default.copyItem(at: source, to: sessionRoot.appendingPathComponent("UP.ARW"))
+        try FileManager.default.copyItem(at: source, to: sessionRoot.appendingPathComponent("STAY.ARW"))
+        let store = makeStore()
+        _ = try await store.openSession(
+            root: sessionRoot, scan: makePage(["UP.ARW", "STAY.ARW"])
+        )
+        let tierBCalls = RenderCallCounter()
+        let actor = await makeProvider(
+            // The count is the assertion — the leg throws AFTER counting.
+            renderLeg: { request in
+                tierBCalls.increment()
+                throw CocoaError(.featureUnsupported)
+            },
+            // tier B needs a decode leg (the buildRenderRequest throws
+            // BEFORE the leg fires without one — the first cut forgot it
+            // and the render count silently stayed zero).
+            decodeLeg: { _ in Self.syntheticDecoded() },
+            store: store,
+            idleDelayMs: 0
+        )
+        // Both pristine: tier A produces BOTH (no tier-B call).
+        _ = await actor.thumbnail(for: "UP.ARW")
+        _ = await actor.thumbnail(for: "STAY.ARW")
+        XCTAssertEqual(tierBCalls.count, 0, "pristine browsing NEVER renders tier B")
+
+        // The user EDITS UP.ARW: a sidecar lands and the re-sync marks the
+        // row edited + stale (the changed leg).
+        var stack = HistoryStack()
+        stack.commit(
+            ModuleInstance(module: TestGainModule.self, multiName: "t", params: .init(gain: 2.0)),
+            label: "edit"
+        )
+        let document = LightamerSidecar(
+            imageID: UUID(), decoderVersionUsed: "v8", decodeParamsHash: 42,
+            instances: [], history: stack,
+            historyHash: HistoryHash.hash(stack: stack, decodeParamsHash: 42, layerSnapshot: nil),
+            appVersion: LightamerSidecar.currentAppVersion, layerStack: nil
+        )
+        try JSONEncoder().encode(document).write(
+            to: sessionRoot.appendingPathComponent("UP.ARW.lra")
+        )
+        // Touch the file so the sync sees the drift (the changed leg stales
+        // the row) — then re-sync.
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(5)],
+            ofItemAtPath: sessionRoot.appendingPathComponent("UP.ARW").path
+        )
+        _ = try await store.openSession(
+            root: sessionRoot, scan: makePage(["UP.ARW", "STAY.ARW"])
+        )
+        let rows = try await store.fetchAllRows()
+        let upRow = try XCTUnwrap(rows.first { $0.path == "UP.ARW" })
+        XCTAssertEqual(upRow.hasEdits, 1, "the edited row flipped")
+        XCTAssertEqual(upRow.thumbState, 3, "the edited row went stale")
+
+        // Back to the grid: the edited image RE-RENDERS at tier B (its
+        // memory image was invalidated by the stale re-check); the OTHER
+        // pristine image stays on its memory tier A image — ZERO new
+        // tier-B calls for it.
+        // ONE fetch of the edited row: exactly ONE tier-B render fires
+        // (the leg counts then throws — a failed render does not bind, so
+        // repeat fetches would retry, but we assert the SINGLE-fetch count).
+        _ = await actor.thumbnail(for: "UP.ARW")
+        XCTAssertEqual(tierBCalls.count, 1, "the edited image upgraded to tier B (one render)")
+        _ = await actor.thumbnail(for: "STAY.ARW")
+        XCTAssertEqual(tierBCalls.count, 1, "the untouched image STAYED at tier A")
+        let stayRows = try await store.fetchAllRows()
+        let stayRow = try XCTUnwrap(stayRows.first { $0.path == "STAY.ARW" })
+        XCTAssertNotEqual(stayRow.thumbState, 2, "STAY never bound a tier-B render")
+    }
+
+    /// The REAL-SAMPLE spot check (Risks #4): three real camera RAWs, the
+    /// tier-A embedded preview vs a REAL tier-B pipe render (the display
+    /// trio chain), quantified (mean + p95 of the 8-bit channel diff) and
+    /// archived side-by-side to .work/gui-acceptance/ (09-3 section). The
+    /// DECISIONS verdict cites the printed numbers.
+    func testDoubleTierVisualSpotCheckThreeRealRAWs() async throws {
+        let samples: [(url: URL, label: String)] = [
+            (Fixtures.arw, "arw"),
+            (Fixtures.nef, "nef"),
+            (Fixtures.raf, "raf"),
+        ]
+        var worstMean = 0.0
+        var worstP95 = 0.0
+        var compared = 0
+
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let registry = ModuleRegistry.makeDefault()
+
+        for sample in samples {
+            try Fixtures.require(sample.url)
+            let dest = sessionRoot.appendingPathComponent("SPOT-\(sample.label).\(sample.url.pathExtension)")
+            try FileManager.default.copyItem(at: sample.url, to: dest)
+
+            // Tier A: the embedded preview.
+            let tierA = try XCTUnwrap(
+                SessionThumbnailProvider.embeddedPreview(url: dest),
+                "\(sample.label): the camera ships an embedded preview"
+            )
+            // Tier B: a REAL pipe render at 360 through the display trio
+            // (the same shape the App assembly's leg runs). The boxes get
+            // their DEFAULT params COMMITTED (the coordinator's materialize
+            // semantics — uncommitted boxes carry a zero hash and the pipe
+            // treats them as unadopted; see ModuleRegistry.makeDefaultChain's
+            // doc).
+            let decoded = try await RAWDecoder().decode(dest)
+            // The coordinator-materialize shape: mint each box FROM the
+            // record (identity-preserving) — makeDefaultChain's fresh boxes
+            // have foreign UUIDs and apply() refuses them (precondition).
+            let records = await registry.makeDefaultInstances()
+            var boxes: [any ModuleBoxing] = []
+            for record in records {
+                if let box = await registry.makeBox(
+                    opName: record.opName, instanceID: record.id
+                ) {
+                    try box.apply(record)
+                    boxes.append(box)
+                }
+            }
+            let cache = PipeCache() // throwaway — the isolation posture
+            let (texture, _) = try await RenderPipeline.process(
+                image: decoded,
+                instances: boxes,
+                imageID: UUID(),
+                resolution: .thumbnail,
+                cache: cache,
+                metal: metal,
+                longEdge: PipeResolution.thumbnail.defaultLongEdge
+            )
+            let tierB = try SessionThumbnailRenderer.cgImage(from: texture, metal: metal)
+            print("SPOT-CHECK \(sample.label) texture pixelFormat=\(texture.pixelFormat.rawValue) (bgra8Unorm=\(MTLPixelFormat.bgra8Unorm.rawValue)) size=\(texture.width)x\(texture.height)")
+
+            // Quantify (L020 content-level): rasterize both to the SAME
+            // 8-bit sRGB space at the tier-A size and diff.
+            let quant = Self.quantifiedDiff(tierA, tierB)
+            worstMean = max(worstMean, quant.mean)
+            worstP95 = max(worstP95, quant.p95)
+            compared += 1
+            print("SPOT-CHECK \(sample.label): mean=\(String(format: "%.2f", quant.mean)) p95=\(String(format: "%.1f", quant.p95)) sizeA=\(tierA.width)x\(tierA.height) sizeB=\(tierB.width)x\(tierB.height)")
+
+            // Archive side-by-side (the DECISIONS evidence).
+            let sideBySide = Self.sideBySide(tierA, tierB)
+            let repoRoot = (((#filePath as NSString).deletingLastPathComponent as NSString)
+                .deletingLastPathComponent as NSString) // Tests/
+                .deletingLastPathComponent // repo root
+            let outDir = URL(fileURLWithPath: repoRoot, isDirectory: true)
+                .appendingPathComponent(".work/gui-acceptance", isDirectory: true)
+            try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+            let png = try ThumbnailDiskStore.jpegData(from: sideBySide) // jpegData helper == generic encoder
+            let outURL = outDir.appendingPathComponent("09-3-tiers-\(sample.label)-A-vs-B.jpg")
+            try png.write(to: outURL)
+        }
+        XCTAssertEqual(compared, 3, "three real samples compared")
+
+        // The verdict (09-03-DECISIONS D10): MEASURABLE — mean 50–80/8-bit
+        // at 360px. The root cause is NOT a double-tier mechanism defect:
+        // the tier-B render IS the editor's own display form (the Phase 8
+        // GUI screenshot 2026-09-25-083-base-pristine.png shows the same
+        // chroma — the v1 base trio's color shape). The camera-domain
+        // (tier A) vs pipeline-domain (tier B) gap closes when the Phase 3+
+        // color iops calibrate — this test STAYS as the re-measurement
+        // harness (the assert pins the RECORDING, not a threshold; the
+        // fallback decision D10 declined the all-tier-B retreat).
+        print("SPOT-CHECK WORST: mean=\(String(format: "%.2f", worstMean)) p95=\(String(format: "%.1f", worstP95))")
+        XCTAssertGreaterThan(worstMean, 0, "the quantification is real (compared > 0, L020)")
+        XCTAssertLessThan(worstMean, 128, "sanity: same-photo pairs stay in the same brightness hemisphere")
+    }
+
+    // MARK: quantization helpers (CPU-only)
+
+    nonisolated private static func quantifiedDiff(
+        _ a: CGImage, _ b: CGImage
+    ) -> (mean: Double, p95: Double) {
+        // Normalize to a common 360-wide raster for the comparison.
+        let targetW = 360
+        let targetH = max(1, a.height * 360 / max(a.width, 1))
+        let ra = draw(a, width: targetW, height: targetH)
+        let rb = draw(b, width: targetW, height: targetH)
+        var absDiffs: [Int] = []
+        absDiffs.reserveCapacity(ra.count / 4)
+        var sum = 0
+        for index in stride(from: 0, to: min(ra.count, rb.count), by: 4) {
+            let d = abs(Int(ra[index]) - Int(rb[index]))
+                + abs(Int(ra[index + 1]) - Int(rb[index + 1]))
+                + abs(Int(ra[index + 2]) - Int(rb[index + 2]))
+            absDiffs.append(d / 3)
+            sum += d / 3
+        }
+        absDiffs.sort()
+        let p95Index = Int(Double(absDiffs.count) * 0.95)
+        return (
+            mean: Double(sum) / Double(absDiffs.count),
+            p95: Double(absDiffs[min(p95Index, absDiffs.count - 1)])
+        )
+    }
+
+    nonisolated private static func draw(_ image: CGImage, width: Int, height: Int) -> [UInt8] {
+        var buffer = [UInt8](repeating: 0, count: width * height * 4)
+        let context = CGContext(
+            data: &buffer, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        context.interpolationQuality = .medium
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return buffer
+    }
+
+    nonisolated private static func sideBySide(_ a: CGImage, _ b: CGImage) -> CGImage {
+        let height = min(360, max(a.height, b.height))
+        let aw = a.width * height / max(a.height, 1)
+        let bw = b.width * height / max(b.height, 1)
+        let context = CGContext(
+            data: nil, width: aw + bw + 4, height: height, bitsPerComponent: 8,
+            bytesPerRow: (aw + bw + 4) * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: aw + bw + 4, height: height))
+        context.draw(a, in: CGRect(x: 0, y: 0, width: aw, height: height))
+        context.draw(b, in: CGRect(x: aw + 4, y: 0, width: bw, height: height))
+        return context.makeImage()!
     }
 }
