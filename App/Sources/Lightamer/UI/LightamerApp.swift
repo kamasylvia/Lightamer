@@ -154,11 +154,12 @@ internal struct LightamerApp: App {
     @State private var thumbnailMemoryCache = ThumbnailMemoryCache()
     @State private var thumbnailProvider: SessionThumbnailProvider?
 
-    /// Plan 09-04 T2 (HIST-05): the adjustments clipboard + the
-    /// partial-paste dialog request flag (the menu sets it; ContentView
-    /// presents the sheet). The batch sidecar write queue lands with the
-    /// T3/T4 commits.
+    /// Plan 09-04 (HIST-05): the adjustments clipboard, the batch sidecar
+    /// write queue (rebuilt per session beside the thumbnail provider) and
+    /// the partial-paste dialog request flag (the menu sets it; ContentView
+    /// presents the sheet).
     @State private var pasteboard = AdjustmentsPasteboard()
+    @State private var batchSidecarWriter: BatchSidecarWriter?
     @State private var pastePartialRequested = false
 
     /// The yiyin logo-face source for the thumbnail run-context injector
@@ -255,6 +256,14 @@ internal struct LightamerApp: App {
                             // 09-02 T3: disarm the watcher BEFORE the index
                             // closes (no events into a closed store).
                             sessionReconciler.stopSession()
+                            // 09-04 T4: flush the batch sidecar queue's
+                            // remainder BEFORE the index closes (the
+                            // teardown seam — pending writes must land or
+                            // stay honestly dirty before reopen heals).
+                            if let writer = batchSidecarWriter {
+                                await writer.flushForTeardown()
+                                batchSidecarWriter = nil
+                            }
                             await sessionIndexController.close()
                         },
                         ensureDirectoriesHandler: { url in
@@ -291,6 +300,10 @@ internal struct LightamerApp: App {
                                                 yiyinLogoStore: browserLogoStore
                                             )
                                     )
+                                    // 09-04 T4: the segment-3 serial write
+                                    // queue, rebuilt on the NEW store.
+                                    batchSidecarWriter = BatchSidecarWriter(
+                                        root: url, store: store)
                                 }
                                 if let store = sessionIndexController.currentStore {
                                     await browserModel.finishProgressiveIngest(
@@ -624,17 +637,54 @@ internal struct LightamerApp: App {
         pasteboard.copy(payload)
     }
 
-    /// ⌘⇧V / the partial dialog's paste (T2 scope: the LIVE leg — the
-    /// currently edited image; the browser-selection batch routing lands
-    /// with the SessionBatchApplier in the T3 commit).
+    /// ⌘⇧V / the partial dialog's paste: route the payload onto the
+    /// browser selection (batch, segments 1-3) with the CURRENT image's
+    /// relPath carved out as the LIVE target (dt
+    /// `_safe_history_job_on_imgid`: the edited image goes through the
+    /// interactive layer, never the batch loop). Without a session
+    /// selection, the current image alone is the live target.
     private func pasteToSelection(
         selection: Set<PastePayload.InstanceKey>?, mode: PasteMode
     ) async {
         guard let payload = pasteboard.peek(), !payload.instances.isEmpty else {
             return
         }
-        if editorState.loadedImageURL != nil {
-            let seed = await seedInstances()
+        let seed = await seedInstances()
+        let targets = browserModel.selectedOrderedPaths
+        let sessionRoot = sessionState.currentSessionURL
+        let store = sessionIndexController.currentStore
+
+        if let sessionRoot, let store, !targets.isEmpty {
+            // The live relPath: the currently edited image, relative to the
+            // session root (nil when nothing is loaded / outside the root).
+            var liveRelPaths = Set<String>()
+            if let loaded = editorState.loadedImageURL {
+                let loadedPrefix = sessionRoot.path + "/"
+                if loaded.path.hasPrefix(loadedPrefix) {
+                    liveRelPaths.insert(String(loaded.path.dropFirst(loadedPrefix.count)))
+                }
+            }
+            _ = await SessionBatchApplier.apply(
+                root: sessionRoot,
+                relPaths: targets,
+                payload: payload,
+                mode: mode,
+                seed: seed,
+                selection: selection,
+                liveRelPaths: liveRelPaths,
+                store: store,
+                writer: batchSidecarWriter,
+                label: String(localized: "history_paste_adjustments"))
+            // The grid's hasEdits/dirty badges refresh from the claimed
+            // rows (the thumbnails regenerate through the 9-3 queue).
+            await browserModel.reload(store: store, includeOrphans: true)
+            // The LIVE target pastes through the interactive layer (the
+            // composed stack lands via EditorState; ONE ⌘Z undoes it).
+            if let liveRel = liveRelPaths.first, targets.contains(liveRel) {
+                await pasteLive(payload: payload, selection: selection, mode: mode, seed: seed)
+            }
+        } else if editorState.loadedImageURL != nil {
+            // No session selection — the current image is the target.
             await pasteLive(payload: payload, selection: selection, mode: mode, seed: seed)
         }
     }

@@ -198,6 +198,10 @@ public actor SessionIndexStore {
         // grid's first paint.
         try await backfillSidecarSummaries(rootPath: root.path)
         try await backfillExifMetadata(rootPath: root.path)
+        // 09-04 T4 crash-self-heal leg: dirty rows re-read their DISK
+        // sidecars and the index is overwritten from them (真身恒 sidecar;
+        // the D-09-CONTEXT-4 contract's recovery half).
+        try await healDirtyRows(rootPath: root.path)
 
         result.counts = try computeCounts(handle: opened)
         result.firstImageRelPath = try firstBrowsableRelPath(handle: opened)
@@ -871,6 +875,166 @@ public actor SessionIndexStore {
         let elapsed = clock.now - start
         return Double(elapsed.components.seconds)
             + Double(elapsed.components.attoseconds) / 1e18
+    }
+
+    // MARK: - Batch apply (Plan 09-04 T3/T4; PERF-07 segment 2)
+
+    /// One segment-2 claim row (the composed document's index projection).
+    public struct BatchApplyClaim: Sendable {
+        public var relPath: String
+        /// The NEW history hash (L013 decimal TEXT) —「待生效」until the
+        /// writer clears the dirty flag (the row's parameters are claimed,
+        /// the disk sidecar lags behind).
+        public var paramsHash: String
+        public var hasEdits: Int64
+        public var layerCount: Int64?
+        public var layerSummary: String?
+
+        public init(
+            relPath: String, paramsHash: String, hasEdits: Int64,
+            layerCount: Int64?, layerSummary: String?
+        ) {
+            self.relPath = relPath
+            self.paramsHash = paramsHash
+            self.hasEdits = hasEdits
+            self.layerCount = layerCount
+            self.layerSummary = layerSummary
+        }
+    }
+
+    /// 段2 (the PERF-07 gate body): claim the new state for ALL targets in
+    /// ONE transaction — params_hash / has_edits / layer summary / dirty=1
+    /// + thumb stale (state 0 stays 0: nothing rendered yet, nothing to
+    /// stale — the markRowsStale guard). 10k rows = one txn (the 9-1
+    /// discipline). Any failure rolls the WHOLE claim back.
+    public func claimBatchApply(claims: [BatchApplyClaim]) async throws {
+        guard let handle, !claims.isEmpty else { return }
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            try handle.exec("CREATE TEMP TABLE IF NOT EXISTS bulk_claim (path TEXT PRIMARY KEY)")
+            try handle.exec("DELETE FROM bulk_claim")
+            let insertPath = try handle.prepare("INSERT INTO bulk_claim (path) VALUES (?)")
+            for claim in claims {
+                try insertPath.bindText(1, claim.relPath)
+                _ = try insertPath.step()
+                try insertPath.reset()
+            }
+            let update = try handle.prepare("""
+                UPDATE images SET
+                  params_hash = ?, has_edits = ?, layer_count = ?,
+                  layer_summary = ?,
+                  thumb_state = CASE WHEN thumb_state = 0 THEN 0 ELSE ? END,
+                  dirty = 1
+                WHERE path IN (SELECT path FROM bulk_claim) AND orphan_sidecar = 0
+                """)
+            for claim in claims {
+                try update.bindText(1, claim.paramsHash)
+                try update.bindInt(2, claim.hasEdits)
+                try update.bindInt(3, claim.layerCount)
+                try update.bindText(4, claim.layerSummary)
+                try update.bindInt(5, SessionIndexSchema.ThumbState.stale.rawValue)
+                _ = try update.step()
+                try update.reset()
+            }
+            try handle.exec("COMMIT")
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
+    }
+
+    /// 段3's write-back: clear ONE row's dirty flag after its sidecar
+    /// promotion (an independent small transaction — the badge lifts per
+    /// image as the drain proceeds).
+    public func clearBatchDirty(relPath: String) async throws {
+        guard let handle else { return }
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            let update = try handle.prepare(
+                "UPDATE images SET dirty = 0 WHERE path = ?")
+            try update.bindText(1, relPath)
+            _ = try update.step()
+            try handle.exec("COMMIT")
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
+    }
+
+    /// The crash-self-heal leg (D-09-CONTEXT-4; rides the 9-1 open sync):
+    /// every DIRTY row re-reads its DISK SIDECAR (the truth) and the index
+    /// columns are overwritten from it; readable → dirty=0 + the full
+    /// summary refresh; unreadable/absent → the row stays dirty (the badge
+    /// keeps telling the truth; the next reconcile rules). ALL updates in
+    /// ONE transaction. Returns the healed count.
+    @discardableResult
+    public func healDirtyRows(rootPath: String) async throws -> Int {
+        guard let handle else { return 0 }
+        var work: [(relPath: String, sidecar: String)] = []
+        let pending = try handle.prepare(
+            "SELECT path FROM images WHERE dirty = 1 AND orphan_sidecar = 0")
+        while try pending.step() {
+            guard let rel = pending.columnText(0) else { continue }
+            work.append((rel, rootPath + "/" + rel + ".lra"))
+        }
+        guard !work.isEmpty else { return 0 }
+
+        struct Healed {
+            var imageID: String
+            var hasEdits: Int64
+            var paramsHash: String
+            var layerCount: Int64?
+            var layerSummary: String?
+            var sidecarMtime: Double
+        }
+        var healed: [String: Healed] = [:]
+        let decoder = JSONDecoder()
+        for item in work {
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: item.sidecar)),
+                  let document = try? decoder.decode(LightamerSidecar.self, from: data)
+            else {
+                // Unreadable/absent sidecar: leave the row dirty (the badge
+                // stays honest); the reconcile sweep rules eventually.
+                continue
+            }
+            let mtime = (try? FileManager.default.attributesOfItem(
+                atPath: item.sidecar))?[.modificationDate] as? Date
+            healed[item.relPath] = Healed(
+                imageID: document.imageID.uuidString,
+                hasEdits: document.history.position >= 0 ? 1 : 0,
+                paramsHash: String(document.historyHash),
+                layerCount: document.layerStack.map { Int64($0.layers.count) },
+                layerSummary: document.layerStack.map(Self.layerSummaryJSON),
+                sidecarMtime: mtime?.timeIntervalSince1970 ?? 0)
+        }
+        guard !healed.isEmpty else { return 0 }
+
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            let update = try handle.prepare("""
+                UPDATE images SET
+                  imageID = ?, has_edits = ?, params_hash = ?,
+                  layer_count = ?, layer_summary = ?, sidecar_mtime = ?,
+                  dirty = 0
+                WHERE path = ?
+                """)
+            for (rel, summary) in healed {
+                try update.bindText(1, summary.imageID)
+                try update.bindInt(2, summary.hasEdits)
+                try update.bindText(3, summary.paramsHash)
+                try update.bindInt(4, summary.layerCount)
+                try update.bindText(5, summary.layerSummary)
+                try update.bindDouble(6, summary.sidecarMtime)
+                try update.bindText(7, rel)
+                _ = try update.step()
+                try update.reset()
+            }
+            try handle.exec("COMMIT")
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
+        return healed.count
     }
 
     // MARK: - Orphan sidecar actions (Plan 09-02 T4; SC#2 "gracefully")
