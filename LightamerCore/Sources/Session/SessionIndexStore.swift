@@ -824,6 +824,114 @@ public actor SessionIndexStore {
             + Double(elapsed.components.attoseconds) / 1e18
     }
 
+    // MARK: - Orphan sidecar actions (Plan 09-02 T4; SC#2 "gracefully")
+
+    /// The meta-table key prefix for IGNORED orphan rows. The v1 image
+    /// schema is FROZEN (09-01) — the ignore flag persists WITHOUT a
+    /// migration through the meta KV store (`orphanIgnore/<relPath>`).
+    public static let orphanIgnoreKeyPrefix = "orphanIgnore/"
+
+    /// REMOVE: delete the `.lra` file FIRST (the disk truth leads), then
+    /// clear the classification row in one transaction. If the file
+    /// removal fails, the row stays — the state never lies. Returns false
+    /// on any failure instead of throwing (orphan handling NEVER hard-fails
+    /// into the UI; SC#2).
+    @discardableResult
+    public func removeOrphanSidecar(root: URL, relPath: String) async -> Bool {
+        guard relPath.hasSuffix(".lra") else { return false }
+        let sidecarURL = root.appendingPathComponent(relPath)
+        guard (try? FileManager.default.removeItem(at: sidecarURL)) != nil,
+              !FileManager.default.fileExists(atPath: sidecarURL.path)
+        else { return false }
+
+        if let handle {
+            do {
+                try handle.exec("BEGIN IMMEDIATE")
+                let delete = try handle.prepare(
+                    "DELETE FROM images WHERE path = ? AND orphan_sidecar = 1"
+                )
+                try delete.bindText(1, relPath)
+                _ = try delete.step()
+                let forget = try handle.prepare("DELETE FROM meta WHERE key = ?")
+                try forget.bindText(1, Self.orphanIgnoreKeyPrefix + relPath)
+                _ = try forget.step()
+                try handle.exec("COMMIT")
+            } catch {
+                try? handle.exec("ROLLBACK")
+                // The file is gone; the row is swept by the next reconcile's
+                // orphan leg — never a hard failure.
+                return true
+            }
+        }
+        return true
+    }
+
+    /// IGNORE: persist the row-level ignore flag (meta KV — no schema
+    /// migration). The row itself STAYS (a stable classification record);
+    /// the UI filters it out of the actionable list.
+    public func setOrphanIgnored(relPath: String, ignored: Bool) async {
+        guard let handle else { return }
+        do {
+            try handle.exec("BEGIN IMMEDIATE")
+            if ignored {
+                let insert = try handle.prepare(
+                    "INSERT OR REPLACE INTO meta (key, value) VALUES (?, '1')"
+                )
+                try insert.bindText(1, Self.orphanIgnoreKeyPrefix + relPath)
+                _ = try insert.step()
+            } else {
+                let delete = try handle.prepare("DELETE FROM meta WHERE key = ?")
+                try delete.bindText(1, Self.orphanIgnoreKeyPrefix + relPath)
+                _ = try delete.step()
+            }
+            try handle.exec("COMMIT")
+        } catch {
+            try? handle.exec("ROLLBACK")
+        }
+    }
+
+    /// The ignored orphan relPaths (the UI filter input).
+    public func ignoredOrphanRelPaths() async -> Set<String> {
+        guard let handle else { return [] }
+        do {
+            let statement = try handle.prepare(
+                "SELECT key FROM meta WHERE key LIKE ?"
+            )
+            try statement.bindText(
+                1, Self.orphanIgnoreKeyPrefix + "%"
+            )
+            var ignored = Set<String>()
+            while try statement.step() {
+                guard let key = statement.columnText(0) else { continue }
+                ignored.insert(String(key.dropFirst(Self.orphanIgnoreKeyPrefix.count)))
+            }
+            return ignored
+        } catch {
+            return []
+        }
+    }
+
+    /// The current orphan relPaths MINUS the ignored ones (the App
+    /// snapshot's source; sorted for stable UI ids).
+    public func actionableOrphanRelPaths() async -> [String] {
+        guard let handle else { return [] }
+        let ignored = await ignoredOrphanRelPaths()
+        do {
+            let statement = try handle.prepare(
+                "SELECT path FROM images WHERE orphan_sidecar = 1 ORDER BY path"
+            )
+            var orphans: [String] = []
+            while try statement.step() {
+                guard let rel = statement.columnText(0), !ignored.contains(rel)
+                else { continue }
+                orphans.append(rel)
+            }
+            return orphans
+        } catch {
+            return []
+        }
+    }
+
     // MARK: - Row-level stale hint (Plan 09-02 T3)
 
     /// Mark the named rows thumb-stale (the FSEvents hint leg). Rows are

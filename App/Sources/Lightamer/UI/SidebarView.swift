@@ -25,10 +25,19 @@ internal struct SidebarView: View {
         static func row(_ url: URL) -> String {
             "session.row.\(StableHash.hash(url.path))"
         }
+        /// Stable per-orphan id (09-02 T4; L010 leaf-level).
+        static func orphan(_ relPath: String) -> String {
+            "session.orphan.\(StableHash.hash(relPath))"
+        }
     }
 
     @Environment(SessionState.self) private var sessionState
     @Environment(SessionCoordinator.self) private var sessionCoordinator
+
+    /// The orphan row pending REMOVE confirmation (nil = dialog closed).
+    /// REMOVE destroys a sidecar file — the dialog is the misfire guard;
+    /// IGNORE is non-destructive and needs no confirm.
+    @State private var orphanPendingRemoval: String?
 
     var body: some View {
         List {
@@ -40,6 +49,25 @@ internal struct SidebarView: View {
         .accessibilityLabel(Text("sessions"))
         .accessibilityIdentifier("Sessions")
         .accessibilityHint(Text("a11y_sidebar_hint"))
+        .confirmationDialog(
+            String(localized: "session_orphan_remove_confirm_title"),
+            isPresented: Binding(
+                get: { orphanPendingRemoval != nil },
+                set: { if !$0 { orphanPendingRemoval = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: orphanPendingRemoval
+        ) { rel in
+            Button(
+                String(localized: "session_orphan_remove_confirm_action"),
+                role: .destructive
+            ) {
+                Task { await sessionCoordinator.removeOrphanSidecar(rel) }
+            }
+            Button(String(localized: "alert_ok"), role: .cancel) {}
+        } message: { rel in
+            Text("session_orphan_remove_confirm_body \(rel)")
+        }
     }
 
     // MARK: - ① Current session / empty state
@@ -62,6 +90,7 @@ internal struct SidebarView: View {
                             .font(.caption)
                             .foregroundStyle(LightamerColors.textSecondary)
                     }
+                    orphanSection
                 }
                 .padding(.vertical, 4)
             } else {
@@ -80,6 +109,46 @@ internal struct SidebarView: View {
             }
         } header: {
             Text("session_current")
+        }
+    }
+
+    // MARK: - ①-b Orphan sidecars (09-02 T4 — remove / ignore, never a
+    // hard failure; the grid badge is 9-3)
+
+    @ViewBuilder
+    private var orphanSection: some View {
+        if !sessionState.orphanSidecarRelPaths.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("session_orphan_header")
+                    .font(.caption2)
+                    .foregroundStyle(LightamerColors.textSecondary)
+                ForEach(sessionState.orphanSidecarRelPaths, id: \.self) { rel in
+                    HStack(spacing: 6) {
+                        Text(rel)
+                            .font(.caption2)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            orphanPendingRemoval = rel
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel(Text("session_orphan_remove"))
+                        .accessibilityIdentifier(SessionIdentifiers.orphan(rel) + ".remove")
+                        Button {
+                            Task { await sessionCoordinator.ignoreOrphanSidecar(rel) }
+                        } label: {
+                            Image(systemName: "eye.slash")
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel(Text("session_orphan_ignore"))
+                        .accessibilityIdentifier(SessionIdentifiers.orphan(rel) + ".ignore")
+                    }
+                    .accessibilityIdentifier(SessionIdentifiers.orphan(rel))
+                }
+            }
         }
     }
 

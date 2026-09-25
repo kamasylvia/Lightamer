@@ -238,6 +238,10 @@ internal struct LightamerApp: App {
                             // open sync (a failed sync leaves it disarmed).
                             if !result.failed {
                                 sessionReconciler.startSession(root: url)
+                                // 09-02 T4: the open-time orphan snapshot.
+                                sessionState.setOrphanSidecarRelPaths(
+                                    await sessionIndexController.actionableOrphans()
+                                )
                             }
                             return result
                         },
@@ -260,10 +264,39 @@ internal struct LightamerApp: App {
                         if let counts = outcome?.counts {
                             sessionState.setBrowseCounts(counts)
                         }
+                        if let orphans = outcome?.orphanRelPaths {
+                            sessionState.setOrphanSidecarRelPaths(orphans)
+                        }
                         return outcome?.plan
                     }
                     sessionReconciler.staleMarkHandler = { paths in
                         await sessionIndexController.markStale(relPaths: paths)
+                    }
+
+                    // Plan 09-02 T4: the orphan actions (never hard-fail —
+                    // a failed remove surfaces as a no-op) + the snapshot
+                    // refresh each action trails with.
+                    sessionCoordinator.removeOrphanSidecar = { rel in
+                        guard let root = sessionState.currentSessionURL else {
+                            return false
+                        }
+                        let removed = await sessionIndexController.removeOrphanSidecar(
+                            root: root, relPath: rel
+                        )
+                        if removed {
+                            sessionState.setOrphanSidecarRelPaths(
+                                await sessionIndexController.actionableOrphans()
+                            )
+                        }
+                        return removed
+                    }
+                    sessionCoordinator.ignoreOrphanSidecar = { rel in
+                        await sessionIndexController.setOrphanIgnored(
+                            relPath: rel, ignored: true
+                        )
+                        sessionState.setOrphanSidecarRelPaths(
+                            await sessionIndexController.actionableOrphans()
+                        )
                     }
 
                     // 02-04: register LightamerIOP's modules into the

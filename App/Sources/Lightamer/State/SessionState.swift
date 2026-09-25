@@ -41,6 +41,11 @@ final class SessionState {
     /// re-confirmation. Cleared on the next successful session open.
     private(set) var currentSessionRootLost = false
 
+    /// The actionable orphan-sidecar snapshot (relPaths of `.lra` rows whose
+    /// original is gone, IGNORED entries filtered — 09-02 T4). The sidebar
+    /// renders the remove/ignore actions off this; 9-3 takes the grid badge.
+    private(set) var orphanSidecarRelPaths: [String] = []
+
     /// The recent-list persistence defaults. Injectable (test suite);
     /// nil disables persistence entirely (pure in-memory, unit tests).
     private let recentDefaults: UserDefaults?
@@ -62,8 +67,16 @@ final class SessionState {
     /// root-lost hint (a fresh open/switch is the recovery path).
     func setCurrentSession(_ url: URL?) {
         currentSessionURL = url
-        if url == nil { browseCounts = nil }
+        if url == nil {
+            browseCounts = nil
+            orphanSidecarRelPaths = []
+        }
         currentSessionRootLost = false
+    }
+
+    /// Publish the actionable orphan snapshot (sorted, ignored filtered).
+    func setOrphanSidecarRelPaths(_ relPaths: [String]) {
+        orphanSidecarRelPaths = relPaths
     }
 
     /// Flip the watch-status state machine.

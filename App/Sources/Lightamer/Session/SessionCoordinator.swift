@@ -92,6 +92,13 @@ final class SessionCoordinator {
     /// D-26 background error reporting (app root wires a toast).
     private var reportError: ((String) -> Void)?
 
+    /// Plan 09-02 T4: the orphan reconcile actions (the app root wires them
+    /// to the index controller; the defaults keep the 09-01 test wiring a
+    /// no-op). REMOVE returns false on failure — the UI surfaces a no-op,
+    /// never an error (SC#2).
+    var removeOrphanSidecar: (String) async -> Bool = { _ in false }
+    var ignoreOrphanSidecar: (String) async -> Void = { _ in }
+
     init(
         flushCurrentImage: @escaping () async -> Void = {},
         teardownRenderer: @escaping () async -> Void = {},
@@ -287,14 +294,20 @@ final class SessionIndexController {
     // MARK: - Reconcile (Plan 09-02 T3)
 
     /// The reconcile outcome: the pure-diff PLAN (the App logs it, the
-    /// sidebar counts follow the apply) + the post-apply counts.
+    /// sidebar counts follow the apply) + the post-apply counts + the
+    /// actionable orphan snapshot (ignored filtered).
     struct SessionReconcileOutcome: Sendable {
         var plan: ReconcilePlan
         var counts: SessionBrowseCounts?
+        var orphanRelPaths: [String] = []
 
-        init(plan: ReconcilePlan, counts: SessionBrowseCounts? = nil) {
+        init(
+            plan: ReconcilePlan, counts: SessionBrowseCounts? = nil,
+            orphanRelPaths: [String] = []
+        ) {
             self.plan = plan
             self.counts = counts
+            self.orphanRelPaths = orphanRelPaths
         }
     }
 
@@ -353,7 +366,8 @@ final class SessionIndexController {
                     total: result.counts.total,
                     edited: result.counts.edited,
                     orphans: result.counts.orphans
-                )
+                ),
+                orphanRelPaths: await store.actionableOrphanRelPaths()
             )
         } catch {
             Self.logger.error(
@@ -368,6 +382,26 @@ final class SessionIndexController {
     func markStale(relPaths: Set<String>) async {
         guard let store, !relPaths.isEmpty else { return }
         _ = try? await store.markRowsStale(relPaths: relPaths)
+    }
+
+    // MARK: - Orphan actions (Plan 09-02 T4 — NEVER hard-fail into the UI)
+
+    /// REMOVE: `.lra` file + classification row, then the actionable
+    /// snapshot refresh. False on failure — the caller surfaces a no-op.
+    func removeOrphanSidecar(root: URL, relPath: String) async -> Bool {
+        guard let store else { return false }
+        let removed = await store.removeOrphanSidecar(root: root, relPath: relPath)
+        return removed
+    }
+
+    /// IGNORE: persist the flag; the row stays (stable classification).
+    func setOrphanIgnored(relPath: String, ignored: Bool) async {
+        await store?.setOrphanIgnored(relPath: relPath, ignored: ignored)
+    }
+
+    /// The current actionable orphan snapshot (post-action refresh).
+    func actionableOrphans() async -> [String] {
+        await store?.actionableOrphanRelPaths() ?? []
     }
 
     /// A plain finished stream over already-collected pages (the store's
