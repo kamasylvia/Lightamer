@@ -357,11 +357,40 @@ public actor RAWDecoder {
             if let raw = exif[kCGImagePropertyExifDateTimeOriginal] as? String {
                 meta.captureTime = Self.parseEXIFDate(raw)
             }
+            // Plan 08-3 T2 (YIYIN-02): the six yiyin EXIF fields — the
+            // struct face landed in 08-2 (additive Optional, old-record
+            // compatible); this walk fills them. Types mirror the ImageIO
+            // property types (numbers may arrive as NSNumber/NSString —
+            // `doubleValue` normalizes).
+            meta.focalLength35mm = doubleValue(
+                exif[kCGImagePropertyExifFocalLenIn35mmFilm])
+            if let program = doubleValue(exif[kCGImagePropertyExifExposureProgram]) {
+                meta.exposureProgram = Int(program)
+            }
+            meta.exposureCompensation = doubleValue(
+                exif[kCGImagePropertyExifExposureBiasValue])
+            if let metering = doubleValue(exif[kCGImagePropertyExifMeteringMode]) {
+                meta.meteringMode = Int(metering)
+            }
+            if let whiteBalance = doubleValue(exif[kCGImagePropertyExifWhiteBalance]) {
+                meta.whiteBalance = Int(whiteBalance)
+            }
+            // The lens MAKE (08-3 T2 — YiyinExifFormat's lens-logo
+            // dispatch key). PLAN CORRECTION (D-08-3-T2-1): the plan's
+            // "ExifAuxDictionary LensMake" wording followed the LensModel
+            // twin, but the SDK exposes LensMake ONLY in the MAIN EXIF
+            // dictionary (`kCGImagePropertyExifLensMake`, 10.7+ — EXIF tag
+            // 0xA434; the Aux dictionary ships no LensMake constant). Read
+            // the main dict, keep the aux dict as a defensive fallback.
+            meta.lensMake = exif[kCGImagePropertyExifLensMake] as? String
         }
 
         // Lens model lives in the EXIF **auxiliary** dictionary (RESEARCH §6).
         if let exifAux = props[kCGImagePropertyExifAuxDictionary] as? [CFString: Any] {
             meta.lensModel = exifAux[kCGImagePropertyExifAuxLensModel] as? String
+            if meta.lensMake == nil {
+                meta.lensMake = exifAux[kCGImagePropertyExifLensMake] as? String
+            }
         }
         if meta.lensModel == nil,
            let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any],

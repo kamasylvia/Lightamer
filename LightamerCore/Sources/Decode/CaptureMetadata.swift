@@ -50,9 +50,9 @@ public struct CaptureMetadata: Codable, Sendable {
 
     // ── Plan 08-2 T1: the six yiyin watermark fields (additive Optional —
     // Codable decodes old sidecars/records that lack the keys; the
-    // RAWDecoder ImageIO walk that FILLS them lands in Plan 08-3 — the
+    // RAWDecoder ImageIO walk that FILLS them landed in Plan 08-3 T2 — the
     // 08-CONTEXT 继承定案 split: struct declaration first, reader later).
-    // Types mirror the ImageIO property types the 08-3 walk reads.
+    // Types mirror the ImageIO property types the walk reads.
 
     /// EXIF `FocalLengthIn35mmFilm` (等效焦距, mm).
     public var focalLength35mm: Double?
