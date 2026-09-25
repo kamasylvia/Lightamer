@@ -1046,4 +1046,63 @@ final class YiyinWatermarkTests: XCTestCase {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
+
+    // ── T7: the PREVIEW drag initial timing (只记不设门 — the formal
+    // benchmark lands in 08-3 perf.md) ──
+
+    func testWatermarkPreviewDragInitialTimingRecorded() async throws {
+        let metal = try await makeMetal()
+        let image = gradientImage(width: 1706, height: 2560) // ~PREVIEW portrait
+        let trio = await committedTrio(outputProfile: .sRGB)
+        let base = trio.filter { $0.opName != GammaModule.opName }
+
+        var params = WatermarkModule.Params.neutralSeed
+        params.templates = [
+            YiyinTemplate(
+                key: "row1", name: "n", pattern: "{Make} {Model}", use: true,
+                font: YiyinFont(bold: true, sizePercent: 3)),
+            YiyinTemplate(
+                key: "row2", name: "n",
+                pattern: "{FocalLengthIn35mmFormat}mm f/{FNumber} {ExposureTime}s ISO{ISO}",
+                use: true, font: YiyinFont(bold: true, sizePercent: 2.2)),
+        ]
+        let store = YiyinLogoStore(userDirectory: tempSubdirectory("logos"))
+        let box = ModuleBox(module: WatermarkModule())
+        box.setParams(params)
+        box.module.displayProfileOverride = .sRGB
+        box.module.captureExif = CaptureMetadata(
+            cameraMake: "SONY", cameraModel: "ILCE-7M4",
+            lensModel: "FE 24-70mm F2.8 GM", focalLength: 35, aperture: 2.8,
+            shutterSpeed: 1.0 / 250.0, iso: 400, focalLength35mm: 52,
+            exposureProgram: 3, meteringMode: 5, whiteBalance: 0)
+        box.module.logoExists = { make, variant in
+            store.embeddedExists(make: make, variant: variant)
+        }
+        box.module.logoProvider = store.provider()
+        let chain = (base + [box as any ModuleBoxing])
+            .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        let cache = PipeCache()
+        _ = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: cache, metal: metal, longEdge: 2560)
+
+        // The drag-hot path: a logoOpacity edit only (all rows cached).
+        let clock = ContinuousClock()
+        var samples: [Double] = []
+        for _ in 0..<5 {
+            var edited = params
+            edited.logoOpacity += 0.01
+            box.setParams(edited)
+            let start = clock.now
+            _ = try await RenderPipeline.process(
+                image: image, instances: chain, imageID: UUID(),
+                resolution: .preview, cache: cache, metal: metal, longEdge: 2560)
+            let elapsed = clock.now - start
+            samples.append(Double(elapsed.components.seconds)
+                + Double(elapsed.components.attoseconds) / 1e12)
+        }
+        let median = samples.sorted()[samples.count / 2]
+        print("WATERMARK-PREVIEW-DRAG: median \(String(format: "%.1f", median))ms of \(samples.map { String(format: "%.0f", $0) }) (Debug, PSO-cold caveats — 只记不设门)")
+        XCTAssertGreaterThan(median, 0)
+    }
 }

@@ -873,3 +873,25 @@ force=0.5 默认下 thrs>0，detail≈0 存活为 ≈0；强 case 偏差来自�
   色彩 COLOR-2 已知点 / SDF 剖面 / 投影单调 / DC 增益=1 / 四档边界 / 缓存语义 /
   orientation=6 / 窗口化内容级）。像素级恒等门 = `testSeedIdentityIsByteExactThroughPipe`
   （中性插链 == 无实例，逐字节）。
+
+## yiyin watermark text-row golden（Plan 08-2，CoreText 自基线 — L017 分流）
+
+**口径（D-08-CONTEXT-8）**：文字位图**不做 yiyin 位图 parity**（Chromium canvas 与
+CoreText 光栅管线不同源，L017 定性）——golden 为 **CoreText 自基线**：首次渲染人工目检
+（白字灰度 AA 清晰、30px pad 对位、logo fixture 2:1 位置正确）后冻结。
+
+**系统依赖头注**：位图冻结的是**当前系统的字体光栅化**（PingFang SC 级联 + 数学字母
+Unicode 的 CoreText 系统回退，`charToNumberChar` 0x1D63C 段保留产出）。OS/字体更新
+会导致合法漂移——**预期内的可重冻结节**：重生成 =
+`LA_REGEN_YIYIN_GOLDEN=1 Scripts/test-direct.sh 'YiyinWatermarkTests'`
+（像素精确比对；任何 diff = 重冻结事件，入 DECISIONS 账，不掩盖）。
+
+| golden | 内容 | 尺寸 | sha256 |
+|---|---|---|---|
+| `yiyin-watermark/text-row-baseline.png` | 白字行 "LIGHTAMER · 1/250s"（literal-only，row font 3% bold @ bgHeight 2000，lineSpacing 0.4%） | 445×60 | b24ac5b5c1474a433de2620117cb6682e95982ed8e426222c7983d13cc158bc5 |
+| `yiyin-watermark/fielded-row-logo.png` | logo slot（2:1 红 fixture，aspect 2.0）+ " ℤ 9 · " + "f/2.8" text slot | 453×63 | 38f14195e5a8fe032e7ecfc7abaec1810a609b7b359b1648144519d123db1e5d |
+
+**常驻回归锚**（非一次性快照）：`YiyinWatermarkTests` 两 golden 比对测试（存在即比对、
+缺失即 skip-with-regen 指令）+ 行宽/行高/ascent 公式同式断言（独立 CoreText 量测交叉）
++ 排版缓存 MISS/HIT 记账 + 分辨率无关归一化行盒（PREVIEW 2560 档 vs 全幅档 4×，
+绝对 30px pad 稀释宽度比——yiyin 自身 quirk，钉在测试注释）。
