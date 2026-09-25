@@ -520,10 +520,90 @@ internal actor CIContextPool {
         return RenderedTexture(texture: texture)
     }
 
+    /// The EXPORT colorout leg (Plan 11-03 T2): convert a float32 linear-
+    /// Rec2020 TEXTURE into a fresh float32 texture whose pixels are
+    /// converted to `target` — primaries + white + TRC in ONE ColorSync
+    /// render (the OQ-11-2 ruling: the in-pipe colorout performs the whole
+    /// conversion; the exit leg is then an identity). `target` is ANY
+    /// CGColorSpace: the display-TRC variant for the quantized tiers or the
+    /// LINEAR variant for TIFF 32f (the caller — ExportChainBuilder — picks
+    /// via `ExportColorSpaceMapper`).
+    ///
+    /// **The `convertTexture` sister WITH the row-order fix (L029):** the
+    /// 11-02 host finding proved `CIImage(mtlTexture:)` reads bottom-up —
+    /// the bare `convertTexture` lands its output vertically mirrored
+    /// (dormant on the display leg, which L029 pinned). This leg carries
+    /// the `.oriented(.downMirrored)` correction so the export chain NEVER
+    /// consumes the defective twin (forbidden by the L029 discipline).
+    ///
+    /// The fence rides THIS pool's commandQueue — the 11-03 export pool is
+    /// instantiated with `exportCommandQueue` (R8: a fence on the wrong
+    /// queue is a silent race).
+    internal func convertToEncodedTexture(
+        _ input: any MTLTexture,
+        target: CGColorSpace
+    ) throws -> RenderedTexture {
+        let width = input.width
+        let height = input.height
+        guard width >= 1, height >= 1 else {
+            throw AppError.decodeFailed("convertToEncodedTexture: degenerate texture \(width)×\(height)")
+        }
+        // Cross-queue ordering — same discipline as convertTexture /
+        // renderToEncodedBitmap (L014/GUI-22): CI reads on its own internal
+        // queue; the empty committed+waited buffer orders every prior write
+        // on OUR queue first.
+        let fence = commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+
+        // The plane IS linear Rec2020 (the pipe interior, FOUND-02); the
+        // `.downMirrored` tag undoes CI's bottom-up texture read (the 11-02
+        // row-order host finding — see the class header + L029).
+        guard let image = CIImage(mtlTexture: input, options: [
+            .colorSpace: WorkingSpace.colorSpace,
+        ])?.oriented(.downMirrored) else {
+            throw AppError.decodeFailed("CIImage(mtlTexture:) failed for the export colorout leg")
+        }
+        let signposter = Self.signposter
+        let interval = signposter.beginInterval("colorout-export", id: signposter.makeSignpostID())
+        defer { signposter.endInterval("colorout-export", interval) }
+
+        let rowBytes = width * WorkingSpace.bytesPerPixel
+        let byteCount = rowBytes * height
+        let buffer = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 64)
+        defer { buffer.deallocate() }
+        ciContext.render(
+            image,
+            toBitmap: buffer,
+            rowBytes: rowBytes,
+            bounds: CGRect(x: 0, y: 0, width: width, height: height),
+            format: CIFormat.RGBAf,
+            colorSpace: target
+        )
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: WorkingSpace.pixelFormat,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        guard let texture = device.makeTexture(descriptor: descriptor) else {
+            throw MetalError.bufferAllocationFailed(byteCount)
+        }
+        texture.replace(
+            region: MTLRegionMake2D(0, 0, width, height),
+            mipmapLevel: 0,
+            withBytes: buffer,
+            bytesPerRow: rowBytes
+        )
+        return RenderedTexture(texture: texture)
+    }
+
     // ───────────────────────────────────────────────────────────────────────
     // The EXPORT exit leg (Plan 11-02 T2) — the `convertTexture` sister.
     // ───────────────────────────────────────────────────────────────────────
-
     /// The exit leg's CPU handoff: float32 RGBA pixels ALREADY ENCODED in the
     /// target color space (primaries + white + TRC applied by the one
     /// ColorSync render below). Sendable value — the quantizer consumes it

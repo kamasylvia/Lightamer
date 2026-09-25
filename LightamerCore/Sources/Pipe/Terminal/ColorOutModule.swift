@@ -65,12 +65,29 @@ public final class ColorOutModule: IOPModule {
     /// D-COL3: the output profile parameter. `display` = resolve the
     /// window's screen at process time (D-COL2); the explicit cases pin
     /// the fast path (tests, export, Phase 11/13 profiles later).
+    ///
+    /// Plan 11-03 T2 additive cases — the EXPORT targets (D-COL3's
+    /// "Phase 11/13 profiles later" reservation materialized). They resolve
+    /// through the ColorSync precise path; the EDITING chain never sets
+    /// them (the coordinator injects `displayProfileOverride` or `.display`)
+    /// so the display fast path is untouched (zero-regression red line).
+    /// `OutputProfile` carries the gamut IDENTITY only — the TRC flavor
+    /// (display-encoded vs linear variant) rides the per-instance
+    /// `exportTargetOverride` socket the export chain builder sets
+    /// (a record is configuration, the variant's bit depth decides the
+    /// flavor; TIFF 32f = linear variant, everything else = display TRC).
     public enum OutputProfile: String, Codable, Sendable {
         /// Follow the display (D-COL2). Phase 13+ adds printer/soft-proof
         /// profiles here (D-COL3).
         case display
         case sRGB
         case displayP3
+        /// Export targets (11-03): Adobe RGB (1998) / ProPhoto (ROMM) /
+        /// Rec. 2020 — the ColorSync precise path (RESEARCH §3.2: no Metal
+        /// matrix families are added for export).
+        case adobeRGB
+        case proPhoto
+        case rec2020
     }
 
     /// D-COL3 reservation — relative colorimetric is the only intent
@@ -110,6 +127,21 @@ public final class ColorOutModule: IOPModule {
     /// change so the folded `stableID` matches the new display.
     public var displayProfileOverride: DisplayProfile?
 
+    /// Plan 11-03 T2 — the EXPORT target-override socket. When set, the
+    /// module converts the plane to THIS EXACT CGColorSpace (primaries +
+    /// white + TRC in ONE ColorSync render): the display-TRC variant for
+    /// the quantized tiers, the LINEAR variant for TIFF 32f (OQ-11-2:
+    /// colorout stays in the export chain and carries the whole target
+    /// conversion, so the exit leg is an identity). HIGHEST precedence —
+    /// above `displayProfileOverride` (an export render never follows a
+    /// screen). Like the display override, the builder sets it BEFORE
+    /// re-committing params so the folded hash carries it.
+    ///
+    /// NOT a param (schema untouched): per-run DATA like `captureExif` —
+    /// L013, injection is not configuration. Sendability: CGColorSpace is
+    /// an immutable thread-safe CF type.
+    public var exportTargetOverride: CGColorSpace?
+
     /// The cached function-constant set for the P3 specialization (D-16:
     /// one stable instance per module → stable PSOKey → cache hits).
     private var p3Constants: MTLFunctionConstantValues?
@@ -122,28 +154,73 @@ public final class ColorOutModule: IOPModule {
     }
 
     /// Resolve the effective target profile for the current process run.
-    /// Precedence: coordinator override (live display) → explicit param →
+    /// Precedence: the export target override (11-03, the variant's exact
+    /// space) → coordinator override (live display) → explicit param →
     /// `NSScreen.main` resolution (defensive; `.display` with no override).
     private func resolvedTarget(params: Params) -> DisplayProfile {
+        if let export = exportTargetOverride {
+            return .colorSyncFallback(export)
+        }
         if let override = displayProfileOverride {
             return override
         }
         switch params.outputProfile {
         case .displayP3: return .displayP3
         case .sRGB: return .sRGB
+        case .adobeRGB: return .colorSyncFallback(Self.displayTRCSpace(for: .adobeRGB))
+        case .proPhoto: return .colorSyncFallback(Self.displayTRCSpace(for: .proPhoto))
+        case .rec2020: return .colorSyncFallback(Self.displayTRCSpace(for: .rec2020))
         case .display: return DisplayProfile.current()
         }
+    }
+
+    /// The DISPLAY-TRC CGColorSpace of an explicit export profile — the
+    /// same five-space table `ExportColorSpaceMapper.displayCGColorSpace`
+    /// owns (single source of truth within Core; the module maps its own
+    /// enum onto it). The LINEAR variants are the EXPORT-side override
+    /// socket's business (the builder decides via the format bit depth),
+    /// never this table.
+    static func displayTRCSpace(for profile: OutputProfile) -> CGColorSpace {
+        switch profile {
+        case .sRGB: return ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB)
+        case .displayP3: return ExportColorSpaceMapper.displayCGColorSpace(for: .displayP3)
+        case .adobeRGB: return ExportColorSpaceMapper.displayCGColorSpace(for: .adobeRGB)
+        case .proPhoto: return ExportColorSpaceMapper.displayCGColorSpace(for: .proPhoto)
+        case .rec2020: return ExportColorSpaceMapper.displayCGColorSpace(for: .rec2020)
+        case .display:
+            // `.display` has no static space — the caller resolves the
+            // screen first. Defensive fall-back to sRGB (the resolver's
+            // own degenerate answer).
+            return ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB)
+        }
+    }
+
+    /// Stable identity of an arbitrary CGColorSpace (the export override's
+    /// invalidation atom — ICC bytes when present, else the registered
+    /// name). Same discipline as `DisplayProfile.stableID`.
+    private static func stableID(of space: CGColorSpace) -> UInt64 {
+        if let icc = space.copyICCData() as Data? {
+            return StableHash.hash(icc)
+        }
+        let name = space.name as String? ?? "unnamed-\(space)"
+        return StableHash.hash("lightamer.export.colorSync:\(name)")
     }
 
     public func commitParams(_ params: Params, into piece: inout IOPiece) {
         lastCommittedParams = params // `process` reads the committed params here
         let encoded = ParamsCoding.encode(params)
         var hash = StableHash.hash(encoded)
-        // Terminal-segment invalidation atom: fold the RESOLVED display
-        // identity so a screen change re-commits to a different hash even
+        // Terminal-segment invalidation atom: fold the RESOLVED display identity so a screen change re-commits to a different hash even
         // though the JSON params are unchanged (`.display` case).
         var displayID = resolvedTarget(params: params).stableID
         hash = withUnsafeBytes(of: &displayID) { StableHash.combine(hash, $0) }
+        // 11-03: the export override refines the identity further — the
+        // linear variant of the SAME profile must re-commit (different
+        // conversion than the display-TRC flavor).
+        if let export = exportTargetOverride {
+            var exportID = Self.stableID(of: export)
+            hash = withUnsafeBytes(of: &exportID) { StableHash.combine(hash, $0) }
+        }
         piece.paramsHash = hash
     }
 
@@ -166,6 +243,21 @@ public final class ColorOutModule: IOPModule {
         metal: MetalContext
     ) async throws {
         let params = lastCommittedParams ?? Params()
+        // 11-03 EXPORT OVERRIDE — highest precedence, BEFORE the display
+        // switch: convert to the variant's EXACT space (display-TRC or
+        // linear variant) in one ColorSync render through the row-order-
+        // fixed leg (L029's defective convertTexture twin is never
+        // consumed here). The arriving plane is linear Rec2020; the output
+        // carries the WHOLE target conversion so the export exit leg is an
+        // identity (checker E3's consumption face).
+        if let exportTarget = exportTargetOverride {
+            try await renderViaExportTarget(
+                input: TextureBox(texture: input),
+                output: output,
+                target: exportTarget,
+                metal: metal)
+            return
+        }
         let target = resolvedTarget(params: params)
         switch target {
         case .displayP3:
@@ -209,6 +301,28 @@ public final class ColorOutModule: IOPModule {
         metal: MetalContext
     ) async throws {
         let converted = try await metal.convertToLinearSpace(input.texture, target: linearSpace)
+        try await metal.dispatch2DTexture(
+            functionName: TerminalKernels.copy,
+            input: converted,
+            output: output
+        )
+    }
+
+    /// The EXPORT override leg (Plan 11-03 T2): one ColorSync render lands
+    /// the WHOLE target conversion (primaries + white + TRC — or the linear
+    /// variant, whatever `target` is) then a `terminal_copy` blit into the
+    /// pipe's output plane. The pipe stays float32 unclamped (D-COL4): the
+    /// [0,1] SDR-white clamp is the EXPORT QUANTIZER's (the gamma module's
+    /// clamp semantics relocated to the exit face, D-11-CONTEXT-7). The
+    /// conversion rides `convertToEncodedSpace` — the row-order-fixed,
+    /// export-pool (R8) leg.
+    private func renderViaExportTarget(
+        input: TextureBox,
+        output: any MTLTexture,
+        target: CGColorSpace,
+        metal: MetalContext
+    ) async throws {
+        let converted = try await metal.convertToEncodedSpace(input.texture, target: target)
         try await metal.dispatch2DTexture(
             functionName: TerminalKernels.copy,
             input: converted,

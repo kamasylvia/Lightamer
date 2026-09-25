@@ -96,6 +96,12 @@ public actor MetalContext {
     /// only sees the `renderToTexture` facade below).
     private var ciContextPool: CIContextPool?
 
+    /// The EXPORT-dedicated bridge (Plan 11-03 T2/T4): created against
+    /// `exportCommandQueue` so the in-pipe export colorout leg's ColorSync
+    /// round trip orders against export-queue writes (R8). Separate from
+    /// `ciContextPool` — the editor pool's queue is the editor's.
+    private var exportCIContextPool: CIContextPool?
+
     /// D-31: GPU-path signposts (visible in Instruments Metal System Trace).
     private static let signposter = OSSignposter(subsystem: "com.kamasylvia.lightamer", category: "metal")
 
@@ -388,6 +394,27 @@ public actor MetalContext {
         }
     }
 
+    /// The EXPORT colorout leg's facade (Plan 11-03 T2 — internal, the
+    /// module lives in Core): converts a float32 linear-Rec2020 texture to
+    /// an ARBITRARY `target` CGColorSpace (primaries + white + TRC in ONE
+    /// ColorSync render) via the row-order-FIXED pool leg
+    /// (`convertToEncodedTexture` — L029's defective `convertTexture` twin
+    /// is forbidden on the export chain). The export job runner instantiates
+    /// a dedicated `CIContextPool(device:exportCommandQueue)` so this leg's
+    /// fence hangs on the export queue (R8).
+    func convertToEncodedSpace(
+        _ input: sending any MTLTexture,
+        target: CGColorSpace
+    ) async throws -> sending any MTLTexture {
+        let pool = await exportPool()
+        do {
+            let rendered = try await pool.convertToEncodedTexture(input, target: target)
+            return rendered.texture
+        } catch let error as MetalError {
+            throw error.asAppError
+        }
+    }
+
     /// Render a `CIImage` into a freshly allocated float32 linear-Rec2020
     /// `MTLTexture` (FOUND-02 pixelpipe format). Public facade over the
     /// internal `CIContextPool` — the app hands this the decoded `ciImage`;
@@ -455,6 +482,18 @@ public actor MetalContext {
         }
         let pool = CIContextPool(device: device, commandQueue: commandQueue)
         ciContextPool = pool
+        return pool
+    }
+
+    /// The export-dedicated pool (R8): same lazy shape as `getOrCreatePool`
+    /// but against `exportCommandQueue` — the in-pipe export colorout leg's
+    /// internal fence rides the queue the routed pipe writes through.
+    private func exportPool() -> CIContextPool {
+        if let exportCIContextPool {
+            return exportCIContextPool
+        }
+        let pool = CIContextPool(device: device, commandQueue: exportCommandQueue)
+        exportCIContextPool = pool
         return pool
     }
 

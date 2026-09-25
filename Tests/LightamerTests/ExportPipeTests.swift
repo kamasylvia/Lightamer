@@ -92,4 +92,235 @@ final class ExportPipeTests: XCTestCase {
         }.value
         XCTAssertTrue(editorIsEditor, "the unwrapped path must stay on the editor queue")
     }
+
+    // MARK: - T2: export chain assembly (OQ-11-2 — gamma stripped + colorout target override)
+
+    private let registry = ModuleRegistry.makeDefault()
+
+    /// gamma 必剔（每条 gamma record，含禁用）+ colorout record 目标改写 +
+    /// 其余 record 一字不动 + override 空间的 display-TRC/linear 双态。
+    func testChainBuilderStripsGammaAndRewritesColorout() async throws {
+        var records = await registry.makeDefaultInstances() // colorin, colorout(.display), gamma
+        // A disabled gamma record must ALSO vanish.
+        var secondGamma = ModuleInstance(module: GammaModule.self, params: GammaModule.Params())
+        secondGamma.enabled = false
+        records.append(secondGamma)
+        records.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        let coloroutBefore = records.first { $0.opName == ColorOutModule.opName }!
+
+        let built = try ExportChainBuilder.exportChain(
+            from: records, target: .proPhoto, linearVariant: false)
+
+        XCTAssertFalse(
+            built.instances.contains { $0.opName == GammaModule.opName },
+            "gamma 必剔 — the export chain never carries the display handoff")
+        XCTAssertEqual(
+            built.instances.filter { $0.opName != ColorOutModule.opName }.map(\.opName),
+            records.filter { $0.opName != GammaModule.opName && $0.opName != ColorOutModule.opName }.map(\.opName),
+            "non-colorout records pass through verbatim")
+        let coloroutAfter = try XCTUnwrap(built.instances.first { $0.opName == ColorOutModule.opName })
+        XCTAssertEqual(coloroutAfter.id, coloroutBefore.id, "identity is preserved")
+        let params = try coloroutAfter.params(of: ColorOutModule.self)
+        XCTAssertEqual(params.outputProfile, .proPhoto, "the record target is rewritten")
+        XCTAssertEqual(params.intent, .relativeColorimetric, "the intent face stays verbatim")
+
+        // The override socket face: display TRC by default; the linear
+        // variant face is a typed ERROR for the gamuts the system ships no
+        // linear ICC for (D-11-02-2) — a 32f pairing bug surfaces, never
+        // silently bends.
+        XCTAssertEqual(
+            built.exportTargetOverride.name as String?, "kCGColorSpaceROMMRGB",
+            "ProPhoto display-TRC override = ROMM RGB")
+        XCTAssertThrowsError(
+            try ExportChainBuilder.exportChain(
+                from: records, target: .proPhoto, linearVariant: true),
+            "no linear ROMM exists — the 32f pairing is a typed error")
+    }
+
+    /// 五色域覆写已知点：in-pipe colorout 一次完成 primaries+TRC（sRGB 编码
+    /// 值直接落在管平面）+ 五色域中性恒中性 + 32f 线性变体不弯值。
+    func testColoroutOverrideKnownPointsAndNeutrality() async throws {
+        let imageID = UUID()
+
+        // (a) primaries + TRC known point: linear Rec2020 (0.4, 0.3, 0.2)
+        // → the documented Rec2020→sRGB matrix (ColorOutModule derivation
+        // header) → sRGB TRC, compared against test-side math.
+        let colorImage = constantImage(r: 0.4, g: 0.3, b: 0.2, width: 32, height: 24)
+        let srgbBuilt = try ExportChainBuilder.exportChain(
+            from: await registry.makeDefaultInstances(), target: .sRGB, linearVariant: false)
+        let srgbBoxes = try await materialize(srgbBuilt, registry: registry, override: srgbBuilt.exportTargetOverride)
+        let srgbPixels = try await runAndReadFloats(srgbBoxes, image: colorImage, imageID: imageID)
+        let expected = Self.rec2020ToSRGBEncoded(0.4, 0.3, 0.2)
+        let tolerance = 2.5 / 255.0 // ColorSync ICC matrices vs the doc matrix
+        for channel in 0..<3 {
+            let got = Double(srgbPixels[channel])
+            XCTAssertLessThan(
+                abs(got - expected[channel]), tolerance,
+                "sRGB encoded channel \(channel): got \(got), want \(expected[channel])")
+        }
+        // The encoded value pins the E3 consumption face: 0.5 linear would
+        // be 187-188 in 8-bit; the plane carries ENCODED floats (≥ 0.4),
+        // not working-space linear.
+        let encoded8 = Int((Double(srgbPixels[0]) * 255.0).rounded())
+        XCTAssertGreaterThanOrEqual(encoded8, 180, "the plane is target-ENCODED (no second conversion)")
+
+        // (b) neutrality across all five gamuts: linear gray stays gray.
+        let gray = constantImage(r: 0.5, g: 0.5, b: 0.5, width: 32, height: 24)
+        for target in ExportColorSpace.allCases {
+            let built = try ExportChainBuilder.exportChain(
+                from: await registry.makeDefaultInstances(), target: target, linearVariant: false)
+            let boxes = try await materialize(built, registry: registry, override: built.exportTargetOverride)
+            let pixels = try await runAndReadFloats(boxes, image: gray, imageID: imageID)
+            let r = Double(pixels[0]), g = Double(pixels[1]), b = Double(pixels[2])
+            XCTAssertLessThan(abs(r - g), 1.0 / 255.0, "\(target): gray neutrality r≈g")
+            XCTAssertLessThan(abs(g - b), 1.0 / 255.0, "\(target): gray neutrality g≈b")
+            for value in [r, g, b] {
+                XCTAssertGreaterThanOrEqual(value, 0.0, "\(target): in-domain floor")
+                XCTAssertLessThanOrEqual(value, 1.0, "\(target): in-domain ceiling")
+            }
+            XCTAssertGreaterThan(r, 0.5, "\(target): gray is TRC-encoded above its linear value")
+        }
+
+        // (c) the 32f LINEAR variant never bends values: Rec2020 target +
+        // linear variant = the working space itself — identity pass.
+        let linearBuilt = try ExportChainBuilder.exportChain(
+            from: await registry.makeDefaultInstances(), target: .rec2020, linearVariant: true)
+        XCTAssertEqual(
+            linearBuilt.exportTargetOverride.name as String?, "kCGColorSpaceLinearITUR_2020",
+            "the 32f override is the linear Rec2020 variant")
+        let linearBoxes = try await materialize(
+            linearBuilt, registry: registry, override: linearBuilt.exportTargetOverride)
+        let linearPixels = try await runAndReadFloats(linearBoxes, image: colorImage, imageID: imageID)
+        for channel in 0..<3 {
+            let input = [Float(0.4), Float(0.3), Float(0.2)][channel]
+            XCTAssertLessThan(
+                abs(linearPixels[channel] - input), 1e-5,
+                "linear variant keeps channel \(channel) unbent")
+        }
+    }
+
+    /// 管尾格式策略：export 链（gamma 已剔）尾平面保持 float32；编辑链
+    /// （gamma 在尾）尾平面仍 .bgra8Unorm——策略不被导出面触发，编辑面零回归。
+    func testExportChainTailStaysFloat32WhileEditingTailStaysBgra8() async throws {
+        let image = constantImage(r: 0.4, g: 0.3, b: 0.2, width: 32, height: 24)
+        let imageID = UUID()
+
+        // The export-built chain: float32 tail (the tail policy never fires
+        // — no gamma at the top enabled position).
+        let built = try ExportChainBuilder.exportChain(
+            from: await registry.makeDefaultInstances(), target: .sRGB, linearVariant: false)
+        let exportBoxes = try await materialize(built, registry: registry, override: built.exportTargetOverride)
+        let (exportTexture, _) = try await RenderPipeline.process(
+            image: image, instances: exportBoxes, imageID: imageID,
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        XCTAssertEqual(exportTexture.pixelFormat, WorkingSpace.pixelFormat)
+
+        // The editing chain (records verbatim — gamma in place): the tail
+        // is still the display handoff format.
+        let editingRecords = await registry.makeDefaultInstances()
+        var editingBoxes: [any ModuleBoxing] = []
+        for record in editingRecords {
+            guard let box = await registry.makeBox(opName: record.opName, instanceID: record.id) else { continue }
+            try box.apply(record)
+            editingBoxes.append(box)
+        }
+        let (editingTexture, _) = try await RenderPipeline.process(
+            image: image, instances: editingBoxes, imageID: imageID,
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        XCTAssertEqual(editingTexture.pixelFormat, GammaModule.outputPixelFormat)
+    }
+
+    // MARK: - T2 harness
+
+    private func materialize(
+        _ built: ExportChainBuilder.Built,
+        registry: ModuleRegistry,
+        override target: CGColorSpace
+    ) async throws -> [any ModuleBoxing] {
+        var boxes: [any ModuleBoxing] = []
+        for record in built.instances {
+            guard let box = await registry.makeBox(opName: record.opName, instanceID: record.id) else {
+                continue
+            }
+            try box.apply(record)
+            if let colorout = box as? ModuleBox<ColorOutModule> {
+                // The socket set BEFORE the apply would be folded at
+                // setParams; set it after apply and re-commit so the hash
+                // carries it (the renderer's shape).
+                colorout.module.exportTargetOverride = target
+                let params = try record.params(of: ColorOutModule.self)
+                colorout.setParams(params)
+            }
+            boxes.append(box)
+        }
+        return boxes.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+    }
+
+    private func runAndReadFloats(
+        _ boxes: [any ModuleBoxing], image: DecodedImage, imageID: UUID
+    ) async throws -> [Float] {
+        let (texture, _) = try await RenderPipeline.process(
+            image: image, instances: boxes, imageID: imageID,
+            resolution: .preview, cache: PipeCache(), metal: metal, longEdge: nil)
+        drain(metal)
+        var floats = [Float](repeating: 0, count: texture.width * texture.height * 4)
+        floats.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: texture.width * 16,
+                from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0)
+        }
+        // First pixel, first three channels.
+        return Array(floats.prefix(3))
+    }
+
+    /// L014 fence before readback (sync body — `waitUntilCompleted` is
+    /// unavailable from async contexts, the YiyinE2ETests drain shape).
+    private nonisolated func drain(_ metal: MetalContext) {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+    }
+
+    /// A constant-color float32 linear-Rec2020 synthetic (the
+    /// `gradientImage` CGImage construction, constant).
+    private func constantImage(r: Float, g: Float, b: Float, width: Int, height: Int) -> DecodedImage {
+        var rgba = [Float](repeating: 0, count: width * height * 4)
+        for index in stride(from: 0, to: rgba.count, by: 4) {
+            rgba[index] = r
+            rgba[index + 1] = g
+            rgba[index + 2] = b
+            rgba[index + 3] = 1.0
+        }
+        var data = Data(capacity: rgba.count * 4)
+        for value in rgba {
+            var le = value.bitPattern.littleEndian
+            data.append(contentsOf: withUnsafeBytes(of: &le) { Data($0) })
+        }
+        let provider = CGDataProvider(data: data as CFData)!
+        let cg = CGImage(
+            width: width, height: height, bitsPerComponent: 32, bitsPerPixel: 128,
+            bytesPerRow: width * 16, space: WorkingSpace.colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue:
+                CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.floatComponents.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+        return DecodedImage(
+            ciImage: CIImage(cgImage: cg),
+            rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+            segmentationSkyMatte: nil, decoderVersionUsed: .v8)
+    }
+
+    /// Test-side reference math: the documented Rec2020→sRGB LINEAR matrix
+    /// (ColorOutModule derivation header) + the exact sRGB segmented TRC.
+    private static func rec2020ToSRGBEncoded(_ r: Double, _ g: Double, _ b: Double) -> [Double] {
+        let linear = (
+            1.661272640 * r - 0.588487320 * g - 0.072785321 * b,
+            -0.126189204 * r + 1.134531230 * g - 0.008342025 * b,
+            -0.017014775 * r - 0.100723728 * g + 1.117738502 * b)
+        func encode(_ v: Double) -> Double {
+            v <= 0.04045 ? v / 12.92 : 1.055 * pow(v, 1 / 2.4) - 0.055
+        }
+        return [encode(linear.0), encode(linear.1), encode(linear.2)]
+    }
 }
