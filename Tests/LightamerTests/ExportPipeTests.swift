@@ -230,6 +230,124 @@ final class ExportPipeTests: XCTestCase {
         XCTAssertEqual(editingTexture.pixelFormat, GammaModule.outputPixelFormat)
     }
 
+    // MARK: - T3: .export activation (entry scale + total no-caching)
+
+    /// .export run 走既有 process/processComposite 路径：entry longEdge =
+    /// targetSize 长边（永不放大钳制），四尺寸向量 + 管缓存 totalBytes 恒 0
+    /// （输入面也不存——红线 TOTAL）+ FULL 输入面仍入缓存（零回归对照）。
+    func testExportRunSizeVectorsAndTotalNoCaching() async throws {
+        try await LightamerIOPRegistry.populate(registry)
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let image = constantImage(r: 0.4, g: 0.3, b: 0.2, width: 96, height: 64)
+        let imageID = UUID()
+        let records = await registry.makeDefaultInstances()
+        // The production export chain face: builder-assembled (gamma
+        // stripped) so the tail stays float32.
+        let built = try ExportChainBuilder.exportChain(
+            from: records, target: .sRGB, linearVariant: false)
+        var boxes: [any ModuleBoxing] = []
+        for record in built.instances {
+            guard let box = await registry.makeBox(opName: record.opName, instanceID: record.id) else { continue }
+            try box.apply(record)
+            boxes.append(box)
+        }
+
+        // The shared cache across EVERY export run proves the isolation.
+        let sharedCache = PipeCache()
+        func exportSize(_ longEdge: Int?) async throws -> (Int, Int) {
+            let (texture, _) = try await RenderPipeline.process(
+                image: image, instances: boxes, imageID: imageID,
+                resolution: .export, cache: sharedCache, metal: metal, longEdge: longEdge)
+            return (texture.width, texture.height)
+        }
+
+        // 长边 48 → 48×32（aspect preserved）。
+        let longEdge = try await exportSize(48)
+        XCTAssertEqual(longEdge.0, 48)
+        XCTAssertEqual(longEdge.1, 32)
+        // 短边模式的 targetSize 数学（复验 11-01 golden 的接线）：
+        // shortEdge 32 of 96×64 → (48, 32) → entry long edge 48。
+        let short = YiyinExportSettings(mode: .shortEdge(px: 32), dpi: 300)
+            .targetSize(canvasWidth: 96, canvasHeight: 64)
+        XCTAssertEqual(max(short.width, short.height), 48, "short-edge sizing folds to the same entry long edge")
+        // 原尺寸 → entry long edge = 96 → scale 1.0 → 96×64。
+        let original = try await exportSize(96)
+        XCTAssertEqual(original.0, 96)
+        XCTAssertEqual(original.1, 64)
+        // 永不放大：9999 的长边钳回源尺寸。
+        let neverUpscale = try await exportSize(9999)
+        XCTAssertEqual(neverUpscale.0, 96)
+        XCTAssertEqual(neverUpscale.1, 64)
+        // nil longEdge（原尺寸 mode 的 renderer 面）→ 96×64。
+        let nilEdge = try await exportSize(nil)
+        XCTAssertEqual(nilEdge.0, 96)
+        XCTAssertEqual(nilEdge.1, 64)
+
+        // 管缓存 totalBytes 恒 0 — 输入面（line 0）与所有中间面都不存。
+        let bytes = await sharedCache.totalBytes
+        XCTAssertEqual(bytes, 0, "an export run leaves the pipe cache EMPTY (input plane included)")
+        let stats = await sharedCache.stats
+        XCTAssertEqual(stats.misses, 0, "the export walk never even probes the cache")
+
+        // FULL 对照（同一 cache）：输入面 + final 仍入缓存（lock #4 未动）。
+        let (_, _) = try await RenderPipeline.process(
+            image: image, instances: boxes, imageID: imageID,
+            resolution: .full, cache: sharedCache, metal: metal, longEdge: nil)
+        let fullBytes = await sharedCache.totalBytes
+        XCTAssertGreaterThan(fullBytes, 0, "FULL keeps its input+final cache lines (zero regression)")
+
+        // Content sanity: the 48×32 plane carries the scaled gradient
+        // corners (scale-at-entry semantics unchanged).
+        let (texture, _) = try await RenderPipeline.process(
+            image: gradientImage(width: 96, height: 64), instances: boxes, imageID: UUID(),
+            resolution: .export, cache: PipeCache(), metal: metal, longEdge: 48)
+        drain(metal)
+        var floats = [Float](repeating: 0, count: 48 * 32 * 4)
+        floats.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: 48 * 16,
+                from: MTLRegionMake2D(0, 0, 48, 32), mipmapLevel: 0)
+        }
+        XCTAssertLessThan(Double(floats[0]), 0.05, "left edge of the x-gradient")
+        XCTAssertGreaterThan(Double(floats[(47) * 4]), 0.9, "right edge of the x-gradient")
+    }
+
+    /// 双 stub 之二：processComposite at .export（runSub 激活）——一个调整
+    /// 图层（exposure +1EV）经图层合成在导出分辨率生效，输出 = targetSize
+    /// 尺寸的 float32 平面，缓存仍恒 0。
+    func testExportCompositeActivatesRunSubStub() async throws {
+        try await LightamerIOPRegistry.populate(registry)
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let image = gradientImage(width: 96, height: 64)
+        let imageID = UUID()
+        let records = await registry.makeDefaultInstances()
+        let built = try ExportChainBuilder.exportChain(
+            from: records, target: .sRGB, linearVariant: false)
+        var boxes: [any ModuleBoxing] = []
+        for record in built.instances {
+            guard let box = await registry.makeBox(opName: record.opName, instanceID: record.id) else { continue }
+            try box.apply(record)
+            boxes.append(box)
+        }
+        var exposureParams = ExposureModule.Params()
+        exposureParams.exposure = 1.0 // +1EV
+        let layer = AdjustmentLayer(
+            name: "lift", chain: [ModuleInstance(module: ExposureModule.self, params: exposureParams)])
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        stack.addAdjustment(layer)
+
+        let cache = PipeCache()
+        let (texture, _) = try await RenderPipeline.processComposite(
+            image: image, instances: boxes, layerStack: stack, registry: registry,
+            imageID: imageID, resolution: .export, cache: cache, metal: metal,
+            longEdge: 48, roiHint: nil, policy: .export)
+        XCTAssertEqual(texture.width, 48)
+        XCTAssertEqual(texture.height, 32)
+        XCTAssertEqual(texture.pixelFormat, WorkingSpace.pixelFormat)
+        let bytes = await cache.totalBytes
+        XCTAssertEqual(bytes, 0, "composite export also leaves the pipe cache empty")
+    }
+
     // MARK: - T2 harness
 
     private func materialize(
@@ -290,6 +408,40 @@ final class ExportPipeTests: XCTestCase {
             rgba[index + 1] = g
             rgba[index + 2] = b
             rgba[index + 3] = 1.0
+        }
+        var data = Data(capacity: rgba.count * 4)
+        for value in rgba {
+            var le = value.bitPattern.littleEndian
+            data.append(contentsOf: withUnsafeBytes(of: &le) { Data($0) })
+        }
+        let provider = CGDataProvider(data: data as CFData)!
+        let cg = CGImage(
+            width: width, height: height, bitsPerComponent: 32, bitsPerPixel: 128,
+            bytesPerRow: width * 16, space: WorkingSpace.colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue:
+                CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.floatComponents.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+        return DecodedImage(
+            ciImage: CIImage(cgImage: cg),
+            rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+            segmentationSkyMatte: nil, decoderVersionUsed: .v8)
+    }
+
+
+    /// An x/y gradient float32 linear-Rec2020 synthetic (the YiyinE2ETests
+    /// fixture shape — corner-value assertions read it directly).
+    private func gradientImage(width: Int, height: Int) -> DecodedImage {
+        var rgba = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let i = (y * width + x) * 4
+                rgba[i + 0] = Float(x) / Float(max(width - 1, 1))
+                rgba[i + 1] = Float(y) / Float(max(height - 1, 1))
+                rgba[i + 2] = 0.25
+                rgba[i + 3] = 1.0
+            }
         }
         var data = Data(capacity: rgba.count * 4)
         for value in rgba {

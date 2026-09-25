@@ -203,42 +203,43 @@ final class MultiResolutionTests: XCTestCase {
         XCTAssertEqual(stats2.misses, 0, "identical FULL re-run = final-line hit, zero work")
     }
 
-    // ── 5. EXPORT: typed placeholder, never a crash ──────────────────────
+    // ── 5. EXPORT: ACTIVATED (Plan 11-03 T3 — the Phase 2 stub retired) ──
 
-    func testExportThrowsTyped() async throws {
+    /// The Phase 2 stub pin (`testExportThrowsTyped`) retired by Plan 11-03
+    /// T3: the export resolution now RUNS the real walk. The invariant this
+    /// test keeps from the stub era is the CACHE one: an export run — now a
+    /// full render — still leaves the pipe cache empty (input plane
+    /// included; the TOTAL no-caching red line).
+    func testExportRunsActivatedAndCachesNothing() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let metal = try await makeMetal()
         let cache = PipeCache()
         let instances = await makeChain()
         let image = makeImage(width: 32, height: 32)
 
-        // Through the public RenderPipeline entry (what Phase 11 replaces).
-        do {
-            _ = try await RenderPipeline.process(
-                image: image, instances: instances, imageID: UUID(),
-                resolution: .export, cache: cache, metal: metal, longEdge: nil
-            )
-            XCTFail("EXPORT must throw until Phase 11")
-        } catch let error as AppError {
-            guard case let .notImplemented(phase) = error, phase == "Phase 11" else {
-                return XCTFail("expected .notImplemented(\"Phase 11\"), got \(error)")
-            }
-        }
+        // Through the public RenderPipeline entry: a real render at the
+        // entry long edge (scale-at-entry, downscale-only).
+        let (texture, stats) = try await RenderPipeline.process(
+            image: image, instances: instances, imageID: UUID(),
+            resolution: .export, cache: cache, metal: metal, longEdge: 16
+        )
+        XCTAssertEqual(texture.width, 16)
+        XCTAssertEqual(texture.height, 16)
+        XCTAssertGreaterThan(stats.planesRendered, 0, "the export walk actually renders")
+        XCTAssertEqual(texture.pixelFormat, WorkingSpace.pixelFormat,
+                       "an export chain tail stays float32 (gamma stripped upstream)")
 
-        // And through the internal pipe walk directly (@testable surface).
+        // And through the internal pipe walk directly (@testable surface):
+        // entry long edge == source dims → scale 1.0 full extent.
         let pipe = PixelPipe(resolution: .export, cache: cache)
-        do {
-            _ = try await pipe.run(
-                image: image, instances: instances, metal: metal, longEdge: nil
-            )
-            XCTFail("EXPORT run must throw")
-        } catch let error as AppError {
-            guard case .notImplemented = error else {
-                return XCTFail("expected .notImplemented, got \(error)")
-            }
-        }
+        let (full, _) = try await pipe.run(
+            image: image, instances: instances, metal: metal, longEdge: nil
+        )
+        XCTAssertEqual(full.width, 32)
+        XCTAssertEqual(full.height, 32)
+
         let total = await cache.totalBytes
-        XCTAssertEqual(total, 0, "an EXPORT attempt caches nothing")
+        XCTAssertEqual(total, 0, "a full EXPORT render still caches nothing (input plane included)")
     }
 
     // ── 6. PREVIEW roi.scale is sub-unit at a ladder bucket ──────────────

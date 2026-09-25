@@ -196,4 +196,10 @@ public struct LayerCachePolicy: Sendable, Equatable {
     /// FULL fallback (post-benchmark): every layer cached, same as preview.
     public static let fullCacheAll = LayerCachePolicy(
         cachesAllPrefixes: true, cachesAllLayerOutputs: true)
+
+    /// EXPORT (Plan 11-03 T3): the no-caching red line across the composite
+    /// too — NO prefix planes, NO layer outputs. An export run (any layer
+    /// count) leaves the pipe cache empty, like the flat walk.
+    public static let export = LayerCachePolicy(
+        cachesAllPrefixes: false, cachesAllLayerOutputs: false)
 }
