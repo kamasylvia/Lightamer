@@ -191,19 +191,20 @@ final class CullingPipelineTests: XCTestCase {
         XCTAssertEqual(pane.state, .idle, "the pane re-arms for a reload")
     }
 
-    // MARK: - The plane budget face (T8's ~23 MB/plane ledger)
+    // MARK: - The plane budget face (T8's ledger — see MemoryBudgetTests
+    // for the full form; the RESIDENT plane is the gamma tail's bgra8Unorm
+    // display output, ~5.8 MB/plane at 1480; the RESEARCH ~23 MB figure is
+    // the TRANSIENT float32 working plane inside the run's throwaway cache).
 
-    func testPlaneLedgerMatchesTheTwentyThreeMBBudgetFace() async throws {
+    func testPlaneLedgerMatchesTheResidentDisplayPlaneBudget() async throws {
         let pane = try makePane(relPath: "BUDGET.ARW") { _ in
             // A 3000×2000 source (≈ full-frame) — the 1480 rung caps it.
             Self.decodedColor(0.5, 0.4, 0.3, size: 3000)
         }
         await pane.load()
         XCTAssertEqual(pane.state, .ready)
-        // float32 RGBA = 16 B/px at 1480×987 ≈ 23.4 MB (RESEARCH §5.4's
-        // number; the ladder caps the long edge at 1480).
         let plane = try XCTUnwrap(pane.planeBytes)
-        XCTAssertGreaterThan(plane, 20_000_000, "≥ 20 MB (the 1480 plane)")
-        XCTAssertLessThan(plane, 30_000_000, "≤ 30 MB (the 1480 plane) — two panes ≈ 46 MB, NOT 92+")
+        XCTAssertGreaterThan(plane, 4_000_000, "≥ 4 MB/plane resident (bgra8 1480)")
+        XCTAssertLessThan(plane, 8_000_000, "≤ 8 MB/plane resident (bgra8 1480) — dual panes ≈ 12 MB")
     }
 }
