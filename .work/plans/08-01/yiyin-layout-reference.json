@@ -1,0 +1,288 @@
+[
+  {
+    "id": "landscape_default",
+    "imageSize": [
+      4000,
+      3000
+    ],
+    "canvas": [
+      4445,
+      3334
+    ],
+    "main": [
+      223,
+      167
+    ],
+    "contentH": 3000,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 90.018,
+    "rows": []
+  },
+  {
+    "id": "portrait_default",
+    "imageSize": [
+      3000,
+      4000
+    ],
+    "canvas": [
+      3334,
+      4446
+    ],
+    "main": [
+      167,
+      223
+    ],
+    "contentH": 4000,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 120.042,
+    "rows": []
+  },
+  {
+    "id": "square_default",
+    "imageSize": [
+      3000,
+      3000
+    ],
+    "canvas": [
+      3334,
+      3334
+    ],
+    "main": [
+      167,
+      167
+    ],
+    "contentH": 3000,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 90.018,
+    "rows": []
+  },
+  {
+    "id": "landscape_aspect_1_1",
+    "imageSize": [
+      4000,
+      3000
+    ],
+    "canvas": [
+      4445,
+      4445
+    ],
+    "main": [
+      223,
+      723
+    ],
+    "contentH": 3000,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 120.015,
+    "rows": []
+  },
+  {
+    "id": "portrait_aspect_1_1",
+    "imageSize": [
+      3000,
+      4000
+    ],
+    "canvas": [
+      4000,
+      4000
+    ],
+    "main": [
+      500,
+      0
+    ],
+    "contentH": 4000,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 108,
+    "rows": []
+  },
+  {
+    "id": "landscape_aspect_3_2",
+    "imageSize": [
+      4000,
+      3000
+    ],
+    "canvas": [
+      4500,
+      3000
+    ],
+    "main": [
+      250,
+      0
+    ],
+    "contentH": 3000,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 81,
+    "rows": []
+  },
+  {
+    "id": "portrait_landscape_swap",
+    "imageSize": [
+      3000,
+      4000
+    ],
+    "canvas": [
+      5334,
+      4000
+    ],
+    "main": [
+      1167,
+      0
+    ],
+    "contentH": 4000,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 108,
+    "rows": []
+  },
+  {
+    "id": "landscape_margin5_shadow6",
+    "imageSize": [
+      4000,
+      3000
+    ],
+    "canvas": [
+      4480,
+      3360
+    ],
+    "main": [
+      240,
+      180
+    ],
+    "contentH": 3360,
+    "contentTop": 180,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 180,
+    "textBottomOffsetPx": 90.018,
+    "rows": []
+  },
+  {
+    "id": "landscape_rate50",
+    "imageSize": [
+      4000,
+      3000
+    ],
+    "canvas": [
+      8000,
+      6000
+    ],
+    "main": [
+      2000,
+      1500
+    ],
+    "contentH": 3000,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 162,
+    "rows": []
+  },
+  {
+    "id": "portrait_aspect_3_4_margin2_shadow3",
+    "imageSize": [
+      3000,
+      4000
+    ],
+    "canvas": [
+      3334,
+      4446
+    ],
+    "main": [
+      167,
+      223
+    ],
+    "contentH": 4240,
+    "contentTop": 120,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 120,
+    "textBottomOffsetPx": 120.042,
+    "rows": []
+  },
+  {
+    "id": "square_rate100_neutral",
+    "imageSize": [
+      3000,
+      3000
+    ],
+    "canvas": [
+      3000,
+      3000
+    ],
+    "main": [
+      0,
+      0
+    ],
+    "contentH": 3000,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 81,
+    "rows": []
+  },
+  {
+    "id": "tiny_ceil_quirk_58x7",
+    "imageSize": [
+      58,
+      7
+    ],
+    "canvas": [
+      59,
+      7
+    ],
+    "main": [
+      1,
+      0
+    ],
+    "contentH": 7,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 0.189,
+    "rows": []
+  },
+  {
+    "id": "landscape_with_rows",
+    "imageSize": [
+      4000,
+      3000
+    ],
+    "canvas": [
+      4445,
+      3334
+    ],
+    "main": [
+      223,
+      87
+    ],
+    "contentH": 3161,
+    "contentTop": 0,
+    "cornerRadiusPx": 0,
+    "shadowBlurPx": 0,
+    "textBottomOffsetPx": 90.018,
+    "rows": [
+      {
+        "left": 1923,
+        "top": 3214,
+        "w": 600,
+        "h": 120.018
+      },
+      {
+        "left": 1973,
+        "top": 3174,
+        "w": 500,
+        "h": 40
+      }
+    ]
+  }
+]

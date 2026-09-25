@@ -362,14 +362,14 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | COLOR-02 | Phase 13 — System Integration & Distribution | Pending |
 | COLOR-03 | Phase 13 — System Integration & Distribution | Pending |
 | COLOR-04 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
-| YIYIN-01 | Phase 10 — yiyin Border/Watermark Panel | Pending |
-| YIYIN-02 | Phase 10 — yiyin Border/Watermark Panel | Pending |
-| YIYIN-03 | Phase 10 — yiyin Border/Watermark Panel | Pending |
-| YIYIN-04 | Phase 10 — yiyin Border/Watermark Panel | Pending |
-| YIYIN-05 | Phase 10 — yiyin Border/Watermark Panel | Pending |
-| YIYIN-06 | Phase 10 — yiyin Border/Watermark Panel | Pending |
-| YIYIN-07 | Phase 10 — yiyin Border/Watermark Panel | Pending |
-| YIYIN-08 | Phase 10 — yiyin Border/Watermark Panel | Pending |
+| YIYIN-01 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
+| YIYIN-02 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
+| YIYIN-03 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
+| YIYIN-04 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
+| YIYIN-05 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
+| YIYIN-06 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
+| YIYIN-07 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
+| YIYIN-08 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
 | META-01 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
 | META-02 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
 | META-03 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
