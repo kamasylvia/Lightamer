@@ -64,7 +64,12 @@ Foundation 留给无 Decode 依赖的横切件。
 - **Logo opacity** 在位图烘焙（CGContext global alpha 画 logo slot）；Metal 合成面
   保持纯 premultiplied-over。
 - **位图编码** = 8-bit sRGB premultiplied；CG 的 premultiply 语义为
-  rgb=encode(coverage)、a=coverage（故 r≥a 远离 0/1 处恒成立，非 bug）。
+  rgb = a×encode(color)、a = 线性 coverage（**08-3 T0 探针更正**：白字
+  glyph 边缘 r == a 精确成立、alpha 0.5 白块 r=128/a=128——即编码域预乘；
+  本条初版记作「rgb=encode(coverage)（故 r≥a 远离 0/1 恒成立）」语义失实，
+  且 08-2 首版 kernel 据此把 coverage 再过一次 EOTF 作背景因子（AA 边缘
+  有效覆盖率 0.5→0.214）。修正 = kernel 内编码域 un-premultiply + 线性
+  alpha 因子，见 08-3-DECISIONS D-08-3-T0-1；golden 冻行位图不受影响）。
 
 ## D-08-2-8: Logo PDF 供给 = 512px 一次性栅格化（CGImage provider 面）
 

@@ -698,10 +698,12 @@ final class YiyinWatermarkTests: XCTestCase {
                     maxX = max(maxX, x); maxY = max(maxY, y)
                     let (r, g, b) = (bitmap.pixels[o], bitmap.pixels[o + 1], bitmap.pixels[o + 2])
                     // GRAY ink face: r == g == b (no subpixel color
-                    // fringing). Note the sRGB-context premultiply face:
-                    // stored rgb = encode(coverage) while a = coverage —
-                    // r ≥ a away from 0/1 BY DESIGN (the kernel decodes
-                    // with the EOTF before blending).
+                    // fringing). ENCODED-DOMAIN premultiply face (probe-
+                    // proven 08-3 T0): stored rgb = a × encode(color),
+                    // a = linear coverage — white ink has encode(1) = 1,
+                    // so r == a exactly (the −8 is byte rounding); the
+                    // composite kernel recovers encode(color) via r/a and
+                    // applies the EOTF ONCE (08-3 T0 fix).
                     XCTAssertTrue(
                         abs(Int(r) - Int(g)) <= 8 && abs(Int(g) - Int(b)) <= 8,
                         "white text must stay gray (r=g=b) at (\(x),\(y))")

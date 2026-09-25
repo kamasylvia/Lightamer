@@ -127,13 +127,18 @@ struct YiyinDownsampleUniforms {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// yiyin_watermark_row (Plan 08-2 T4) — one text-row composite: the 8-bit
-// sRGB-ENCODED premultiplied row bitmap blends OVER the linear display-
-// domain plane. Decode = the sRGB EOTF (the hardware sRGB-framebuffer
-// blend face); the primaries conversion rides the UNIFORM matrix
-// M(sRGB-linear → display-linear) — COLOR-2's ColorOutModule-source chain
-// (YiyinColor on the CPU side). Logo opacity is already baked into the
-// bitmap alpha (the renderer's global-alpha draw).
+// yiyin_watermark_row (Plan 08-2 T4; alpha factor fixed 08-3 T0) — one
+// text-row composite: the 8-bit sRGB-ENCODED premultiplied row bitmap
+// blends OVER the linear display-domain plane. The bitmap stores
+// rgb = a × encode(color) (CG 8-bit sRGB premultipliedLast — probe-proven:
+// white glyph edges r == a), so the kernel UN-premultiplies in the
+// ENCODED domain first, then applies the sRGB EOTF ONCE to the recovered
+// color, and scales by the LINEAR coverage. The primaries conversion
+// rides the UNIFORM matrix M(sRGB-linear → display-linear) — COLOR-2's
+// ColorOutModule-source chain (YiyinColor on the CPU side). Logo opacity
+// is already baked into the bitmap alpha (the renderer's global-alpha
+// draw). (08-2's first cut re-ran the EOTF over the premultiplied rgb
+// AND over the coverage factor — AA edges lost coverage 0.5 → 0.214.)
 // ─────────────────────────────────────────────────────────────────────────
 
 struct YiyinRowUniforms {
@@ -167,15 +172,19 @@ kernel void yiyin_watermark_row(
     float4 row = rowTex.read(gid);  // UNORM read = the encoded byte / 255
     float a = clamp(row.a, 0.0, 1.0);
     if (a > 0.0) {
-        // decode(premultiplied-encoded) = the linear premultiplied
-        // contribution; out = M·rowLin + (1 − decode(a)) × plane
-        // (M folds sRGB→Rec2020→display — COLOR-2).
-        float3 enc = float3(srgbDecode(row.r), srgbDecode(row.g), srgbDecode(row.b));
+        // Encoded-domain un-premultiply → ONE EOTF pass over the recovered
+        // color → linear-coverage alpha factor:
+        //   out = a · M·srgbDecode(row.rgb / a) + (1 − a) · plane
+        // (coverage `a` is a LINEAR-domain quantity — decoding it through
+        // the EOTF again shaved AA edges 0.5 → 0.214; 08-3 T0 fix).
+        float3 encColor = clamp(row.rgb / a, 0.0, 1.0);
+        float3 linColor = float3(
+            srgbDecode(encColor.r), srgbDecode(encColor.g), srgbDecode(encColor.b));
         float3 rowLin = float3(
-            dot(float3(u.cm[0], u.cm[1], u.cm[2]), enc),
-            dot(float3(u.cm[3], u.cm[4], u.cm[5]), enc),
-            dot(float3(u.cm[6], u.cm[7], u.cm[8]), enc));
-        plane.rgb = rowLin + (1.0 - srgbDecode(a)) * plane.rgb;
+            dot(float3(u.cm[0], u.cm[1], u.cm[2]), linColor),
+            dot(float3(u.cm[3], u.cm[4], u.cm[5]), linColor),
+            dot(float3(u.cm[6], u.cm[7], u.cm[8]), linColor));
+        plane.rgb = a * rowLin + (1.0 - a) * plane.rgb;
     }
     output.write(plane, uint2(dest));
 }
