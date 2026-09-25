@@ -81,3 +81,37 @@
   v1 基础 trio 管线的色彩形态 vs 相机嵌入预览域,Phase 3+ 色彩 iop 校准后
   收敛。全走档 B 退路**否决**(10k × 秒级首扫与 PERF-06 吞吐冲突)。
 - 常驻复核:`testDoubleTierVisualSpotCheckThreeRealRAWs` 随管线演进出真值。
+
+## PERF-07 批量 apply 计量门（09-04 T5）
+
+> 口径：10k sidecar fixture（8 字节原片占位 + 真 `.lra` JSON，apply 不解码原片）
+> 建在 `FileManager.temporaryDirectory`（内置 SSD，L009——UNITEK 卷禁跑门数字）；
+> Debug = test-direct.sh 直启宿主，Release = `xcodebuild build-for-testing
+> -configuration Release` + 同款直启（hardened runtime 需以本地证书重签 +
+> disable-library-validation entitlement 方可注入——一次性环境处置，未改工程）。
+> 测试名：`Perf07MassApplyTests.testTenThousandMassApplySegmentOneAndTwoGate`
+>（打印 `PERF07-GATE segments1+2 10k`）。
+
+| 项 | 口径 | 数字 | 判定 |
+|---|---|---|---|
+| **PERF-07 门：段1+段2 万张**（内存 compose + 索引单事务） | **Release、SSD** | **0.419s**（composeSegment 0.409s + claim 0.010s） | **≤5s 门达成，余量 ~12×** |
+| 同门 Debug 分栏（harness 锚定） | Debug、SSD | **0.518s**（compose 0.504s + claim 0.014s） | Debug/Release 几乎重合 → 瓶颈为 I/O+SQL 非 JSON 优化，门数字稳健 |
+| 段3 sidecar 串行写队列 drain（10k） | Release、SSD、逐图 tmp 晋升 + journal + dirty 回写 | **6.23s（~1606 docs/s）** | 只记录不设门（RESEARCH §7；dt 把 XMP 同步放循环外同语义） |
+| 段3 UNITEK（USB HDD）对照 | 100 张裸 JSON 写采样（顺序写，暖盘） | 0.44s（~0.2 ms/张；Debug 采样 0.87s） | 只记录标卷型（L009）；随机小文件冷态会更病态，渐进队列不阻塞 UI |
+| 开卷 10k（fixture 首扫 + 全量 sidecar 回填解码） | Release、SSD | 1.37s | 非 gated 旁证（回填含 10k 次 sidecar JSON 解码） |
+
+### 执行期发现（修复 + 决策）
+
+- **段2 首版 O(n²) 实测（已修复）**：`claimBatchApply` 初版按「temp table + `WHERE
+  path IN (SELECT …)`」形态写、且 per-row 重复执行该语句——SQLite 每次执行都全表扫
+  `images` 再探 temp 表，10k² 次探测 = **77.5s（Release）**，且 Debug/Release 数字
+  重合（77.0/77.5s）证明是算法问题而非优化问题。修复 = 单条 prepared
+  `WHERE path = ?`（PK seek）在**同一事务内**执行 10k 次 → **0.010s**（~7700×）。
+  「10k 行 = 一个事务」纪律不变；教训：批量 SQL 的 bulk-IN 形态只适用于**常量值集
+  单次执行**，per-row 值必须走 PK seek 循环。
+- **Release 直启注入的签名处置**：Release app 为 hardened runtime，注入
+  libXCTestBundleInject 需 `codesign --force --deep --sign "Lightamer Dev"` +
+  `disable-library-validation`/`allow-dyld-environment-variables` entitlements；
+  每次 Release 重建后须重做（重签覆盖）。工程默认未改。
+- 段3 SSD 吞吐 ~1600 docs/s ⇒ 万张 sidecar 落盘 ~6s（SSD）；USB 卷按 L009 预期
+  分钟级——队列后台化 + 进度上报 + dirty 徽章即为该现实的 UI 对策（dt 同构）。

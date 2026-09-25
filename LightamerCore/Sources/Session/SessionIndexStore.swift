@@ -907,25 +907,23 @@ public actor SessionIndexStore {
     /// + thumb stale (state 0 stays 0: nothing rendered yet, nothing to
     /// stale — the markRowsStale guard). 10k rows = one txn (the 9-1
     /// discipline). Any failure rolls the WHOLE claim back.
+    ///
+    /// PERF-07 probe finding (09-04 T5): the values are PER-ROW, so the
+    /// write is a prepared `WHERE path = ?` PK-seek executed 10k× inside
+    /// the one txn (~10ms) — NOT a `WHERE path IN (SELECT …)` bulk form
+    /// re-executed per row (that re-scans `images` per execution: O(n²),
+    /// measured 77s @10k).
     public func claimBatchApply(claims: [BatchApplyClaim]) async throws {
         guard let handle, !claims.isEmpty else { return }
         try handle.exec("BEGIN IMMEDIATE")
         do {
-            try handle.exec("CREATE TEMP TABLE IF NOT EXISTS bulk_claim (path TEXT PRIMARY KEY)")
-            try handle.exec("DELETE FROM bulk_claim")
-            let insertPath = try handle.prepare("INSERT INTO bulk_claim (path) VALUES (?)")
-            for claim in claims {
-                try insertPath.bindText(1, claim.relPath)
-                _ = try insertPath.step()
-                try insertPath.reset()
-            }
             let update = try handle.prepare("""
                 UPDATE images SET
                   params_hash = ?, has_edits = ?, layer_count = ?,
                   layer_summary = ?,
                   thumb_state = CASE WHEN thumb_state = 0 THEN 0 ELSE ? END,
                   dirty = 1
-                WHERE path IN (SELECT path FROM bulk_claim) AND orphan_sidecar = 0
+                WHERE path = ? AND orphan_sidecar = 0
                 """)
             for claim in claims {
                 try update.bindText(1, claim.paramsHash)
@@ -933,6 +931,7 @@ public actor SessionIndexStore {
                 try update.bindInt(3, claim.layerCount)
                 try update.bindText(4, claim.layerSummary)
                 try update.bindInt(5, SessionIndexSchema.ThumbState.stale.rawValue)
+                try update.bindText(6, claim.relPath)
                 _ = try update.step()
                 try update.reset()
             }
