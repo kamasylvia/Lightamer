@@ -895,3 +895,24 @@ Unicode 的 CoreText 系统回退，`charToNumberChar` 0x1D63C 段保留产出�
 缺失即 skip-with-regen 指令）+ 行宽/行高/ascent 公式同式断言（独立 CoreText 量测交叉）
 + 排版缓存 MISS/HIT 记账 + 分辨率无关归一化行盒（PREVIEW 2560 档 vs 全幅档 4×，
 绝对 30px pad 稀释宽度比——yiyin 自身 quirk，钉在测试注释）。
+
+## Phase 8 golden 完整性总账（Plan 08-3-T6 终签核，2026-09-25）
+
+**覆盖面**：yiyin 文字行 CoreText 自基线（08-2 T4 冻结，2 件 PNG——上节）+ yiyin 布局
+参考 JSON（`.work/plans/08-01/yiyin-layout-reference.json`，yiyin node harness 量测转录，
+非渲染产物）。Phase 8 无其余像素 golden——验证分流（D-08-CONTEXT 继承定案）：布局 =
+float64 镜像逐值断言；EXIF/品牌 = 表驱动；合成腿 = 内容级断言（平场门/恒等三元组/
+alpha 剖面），轨 B 恒等 + sidecar round-trip 常驻。
+
+**08-3 T0 kernel 修正注记**：`yiyin_watermark_row` 合成因子修正（编码域 un-premultiply
++ 线性 coverage，D-08-3-T0-1）**不触及已冻 golden**——golden 冻的是行位图（渲染器产物，
+未动）；合成腿测试内容级（上带恒等/下带差异/平场门），修正后全套 960/6/0 回归实证。
+
+**Phase 8 golden 清单（均已在库，无新增）**：
+- `yiyin-watermark/text-row-baseline.png`（sha256 见上节）
+- `yiyin-watermark/fielded-row-logo.png`（sha256 见上节）
+- `.work/plans/08-01/yiyin-layout-reference.json`（布局参考转录，YiyinLayoutTests 消费）
+
+**EXP-05 导出链注记（Phase 11 消费）**：导出链 = colorout（EXP-04 profile）→ borders
+76.0 → watermark 77.0 → 编码器，gamma 不在导出链；`YiyinExportSettings.targetSize` =
+EXP-03 resize 规格正本（永不放大；cap 100_000px；DPI 写入 kCGImagePropertyDPIWidth/Height）。

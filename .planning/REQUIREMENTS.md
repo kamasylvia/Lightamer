@@ -168,14 +168,14 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 
 将 yiyin（壹印）作为 Lightamer 内置一等公民面板，功能对齐 yiyin 现有能力：
 
-- [ ] **YIYIN-01**: 白边/印框生成（边距、比例、颜色、是否按原比例扩展、竖转横/横转竖布局）
-- [ ] **YIYIN-02**: EXIF 信息叠加（拍摄参数：相机/镜头/焦距/光圈/快门/ISO/拍摄时间，可配置字段与格式）
-- [ ] **YIYIN-03**: 日期文字（可配置字体/大小/颜色/位置/旋转）
-- [ ] **YIYIN-04**: Logo 水印（PNG/透明图，可配置位置/大小/透明度）
-- [ ] **YIYIN-05**: 自定义字体管理（用户可上传 .ttf/.otf，仅本地存储不联网）
-- [ ] **YIYIN-06**: Make/Model 品牌名归一化（如 Sony ILCE→α、Nikon Z→ℤ，移植 yiyin 的 model-map）
-- [ ] **YIYIN-07**: 文字模板系统（预设模板 + 用户自定义模板字符串）
-- [ ] **YIYIN-08**: 输出尺寸/分辨率配置（DPI、长边/短边像素、是否保留原尺寸）
+- [x] **YIYIN-01**: 白边/印框生成（边距、比例、颜色、是否按原比例扩展、竖转横/横转竖布局）—— **Delivered**（08-1：BordersModule 76.0 + YiyinLayout 逐值 parity + 全腿渲染；08-3 T1 面板整合）
+- [x] **YIYIN-02**: EXIF 信息叠加（拍摄参数：相机/镜头/焦距/光圈/快门/ISO/拍摄时间，可配置字段与格式）—— **Delivered**（08-2 格式化层 15 字段 + 08-3 T2 decoder walk 真实样张接通；品牌 Logo 明暗 auto 分派）
+- [x] **YIYIN-03**: 日期文字（可配置字体/大小/颜色/位置/旋转）—— **Delivered**（v1 口径 = 行内语义 + 九宫格锚点，D-08-CONTEXT-2；rotation 参数位预留，完整旋转 defer v2）
+- [x] **YIYIN-04**: Logo 水印（PNG/透明图，可配置位置/大小/透明度）—— **Delivered**（v1 口径 = 九宫格锚点 + 透明度滑杆，D-08-CONTEXT-2/5；内嵌 26 件品牌 PDF + 用户上传双通道）
+- [x] **YIYIN-05**: 自定义字体管理（用户可上传 .ttf/.otf，仅本地存储不联网）—— **Delivered**（08-2 T5 YiyinFontStore：会话注册 + 启动重扫自愈 + typed 四错；零联网）
+- [x] **YIYIN-06**: Make/Model 品牌名归一化（如 Sony ILCE→α、Nikon Z→ℤ，移植 yiyin 的 model-map）—— **Delivered**（08-2 T2 表驱动逐点；D-08-2-2 定性 model-map.ts 为死代码面——归一化走 exif-format 活跃路径，忠实 yiyin 实际行为）
+- [x] **YIYIN-07**: 文字模板系统（预设模板 + 用户自定义模板字符串）—— **Delivered**（08-2 T3 引擎三门/交错/forceUse + 面板 CRUD 稳定 key 行）
+- [x] **YIYIN-08**: 输出尺寸/分辨率配置（DPI、长边/短边像素、是否保留原尺寸）—— **Delivered**（08-3 T3 YiyinExportSettings 独立值类型 + 校验 + 纯 targetSize 数学 + 与水印参数正交；物理应用 resize/DPI 写入 = Phase 11 EXP-03、导出消费点 = EXP-05，D-08-CONTEXT-7 裁决）
 
 ### Metadata & Organization (META)
 
