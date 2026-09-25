@@ -54,17 +54,17 @@ public enum ExportJobState: Sendable {
         case .pending:
             switch next {
             case .rendering, .cancelled: return true
-            default: return false
+            case .pending, .encoding, .done, .failed: return false
             }
         case .rendering:
             switch next {
             case .encoding, .failed, .cancelled: return true
-            default: return false
+            case .pending, .done: return false
             }
         case .encoding:
             switch next {
             case .done, .failed, .cancelled: return true
-            default: return false
+            case .pending, .rendering: return false
             }
         case .done, .failed, .cancelled:
             return false // terminal — nothing leaves a terminal state

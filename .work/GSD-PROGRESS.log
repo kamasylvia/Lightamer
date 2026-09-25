@@ -127,3 +127,5 @@
 [2026-09-26 02:4x] [11-plans] checker R1：3E+3M（E1 接线文件未申报/E2 EXP-03 百分比三缺/E3 出口腿 tag 契约冲突 + 3 minor）。orchestrator 定点修订 8 处（全按 checker fix_hint：11-04 补两接线文件+catalog 字面路径+面板百分比输入；11-01 scalePercent 载体字段；11-02 sourceColorSpace 参数化+证据点名；11-03 百分比向量+恒等消费；11-05 SC#2 修正引用+注记行）。→ 复核 checker 派遣。
 [2026-09-26 03:0x] [11-plans] checker R2 PASSED（6 修复全闭环）；两处化妆级 AC 枚举顺手补点。plans 定稿（3eba0ba→a28039d→枚举补点）。→ 派 11-01 执行 worker（W1 模型+SPM）。
 [2026-09-26] [11-01] 导出模型+唯一SPM依赖 W1：T1 模型 c4bd371 / T2 命名 559065c / T3 契约 84a91f4 / T4 WebP接线 d12311b / T5 收尾本行前次提交；全 suite 1133→1187/6skip/0fail（+54）；Swift-WebP 0.6.1 fetch 走 px 代理一次（env 常开 daemon 死，L028），px --stop 零残留；SUMMARY+DECISIONS(13条) 落盘；未 push → 完成（验收轮待派）
+[2026-09-26 03:5x] [11-01] 执行完成（5 commits c4bd371..d3a0350，终轮 1187/6skip/0fail +54；Swift-WebP 0.6.1 接线走 px 代理一次性零残留，L028 px--up 自锁教训）；偏离仅 D9 Tuist API 字面 + D13 补测试文件，均登记。→ 验收 subagent 派遣。
+[2026-09-26 03:4x] [11-01 验收] subagent 独立验收：复跑全套 1187/6skip/0fail（282.4s）与申报一致；五提交边界干净无夹带；AC 六条逐核过；D4/D9/D13 实测核实；px 零残留（daemon 无进程）；修 2 处——canTransition 内层 default→穷尽 switch（声明字面成立，行为等价，契约类复跑 12/12 绿）+ .package.resolved 滞留入库（唯一 SPM 依赖版本钉）。→ PASS
