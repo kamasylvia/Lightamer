@@ -251,8 +251,6 @@ final class PresetApplierTests: XCTestCase {
         let docB = try JSONDecoder().decode(LightamerSidecar.self, from: bytesB)
         let canonA = try canonicalizedBytes(docA)
         let canonB = try canonicalizedBytes(docB)
-        try? canonA.write(to: URL(fileURLWithPath: "/tmp/canonA.json"))
-        try? canonB.write(to: URL(fileURLWithPath: "/tmp/canonB.json"))
         XCTAssertEqual(canonA, canonB,
                        "preset apply and clipboard paste land the SAME terminal document")
         XCTAssertFalse(docA.driftDetected)
