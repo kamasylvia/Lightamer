@@ -62,7 +62,7 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 - **语言/运行时**：Swift 6 + SwiftUI + Metal 3 + Core Image（CIRAW，macOS 27 起原生 RAW 9）+ ImageIO + ColorSync/EDR — 不引入跨平台框架（Electron/Qt/Flutter 等）
 - **渲染架构**：Metal 直渲（MTKView/MTLTexture）作为主编辑视图 — 从第一天就按此架构，避免后期重写
 - **色彩管线**：working space = linear Rec2020 scene-referred；pixelpipe 数据类型 = float32 RGBA（Lock-early，与 Darktable modern pipeline 对齐，便于移植 filmicrgb 等 iop）
-- **照片管理**：Capture One Session 模式 — 文件夹即会话，三级子目录（Capture/Crop/Output）+ sidecar 调整文件（Lightamer 自有格式），不做中央库
+- **照片管理**：Capture One Session 模式 — 文件夹即会话，三级子目录（Capture/Crop/Output）+ sidecar 调整文件（Lightamer 自有格式），不做中央库。**（2026-09-27 用户指令修订）**：增设可选第二组织模式 **Category Catalog**（对标 C1 Catalog，PostgreSQL 后端，设置中手动配置后启用）——Sessions 恒默认零依赖，目录库为可重建聚合视图、sidecar 恒真身原则不变；详见 REQUIREMENTS CATALOG 族 / ROADMAP Phase 16
 - **局部调整**：Capture One 风格 adjustment layers（每层独立 iop + 蒙版 + 混合模式）— 与 Darktable 全局 pixelpipe+per-iop-mask 架构不同，需在 pixelpipe 设计时纳入
 - **分发**：开源免费、独立分发（Developer ID 签名 + 公证，不做沙盒）— GitHub 开源
 - **功能对标**：对标 Darktable 全量（91 个 iop 模块）— 长期工程，Fine 粒度分阶段交付，v1 不设上限但分阶段逼近

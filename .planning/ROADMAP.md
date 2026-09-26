@@ -279,6 +279,17 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 **Requirements:** PERF-01..08（PERF-5 债务在此清账）
 **Notes:** 依赖全功能集完成后 profile 才有意义；05-08 的 PERF 复估数字是本 phase 的输入基线。解码/懒加载/批量的基线计量在对应功能阶段（9/11）建立。
 
+### Phase 16: Catalog / Category Mode【2026-09-27 用户指令新立】
+**Goal:** 对标 Capture One 双模式组织——在既有 Sessions 模式（恒默认）之外，提供可选的 Category Catalog 模式（Lightroom Collections/Categories 同类）：用户在设置中手动配置 PostgreSQL 连接并测试通过后启用，获得跨会话的 category 树、虚拟集合与全库浏览过滤；Sessions 模式零依赖完整可用，目录库可由会话面全量重建（sidecar 恒真身）。
+**Success Criteria**:
+1. 双模式共存：Sessions 恒默认零依赖；Category 模式仅在 pg 连接配置+测试通过后可选启用；脱库降级零功能损失。
+2. pg 连接配置面（host/port/db/user/password + 连接测试 + 安全存储）；驱动选型（PostgresNIO vs libpq）入研究。
+3. 目录库 = 跨会话元数据单向投影（会话→目录）+ category 树 + 虚拟集合；可全量重建（mutable and untrusted 延续）。
+4. category 树编辑（CRUD/拖拽）+ 图片归类含批量。
+5. Category 模式下跨会话浏览/过滤/智能相册（复用 Phase 12 谓词层，求值域扩全库）。
+**Requirements:** CATALOG-01..06
+**Notes:** 本 phase 推翻 2026-08-03 的「不做中央库」整族排除（用户 2026-09-27 指令；Out of Scope 表已修订留痕）——修订语义 = 中央库从「禁止」变为「可选第二模式、默认关闭」；Sessions 哲学与 sidecar 真身原则不变。pg 依赖为 v1 第二个外部服务依赖（首个 SPM 新增仍是 Swift-WebP）；自建 pg 实例由用户自管（Docker/系统服务均不打包）。时序 = Phase 12 收口后 discuss/research 独立成环（12-1..12-3 已交付的 session 面在双模式下均为复用底座，无返工）。
+
 ---
 *Last updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs); AI-02/03/04 moved to v2*
 

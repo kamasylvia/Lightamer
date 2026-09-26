@@ -222,6 +222,17 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 - [ ] **DIST-03**: DMG / zip 分发
 - [ ] **DIST-04**: CI（GitHub Actions：构建、测试、签名、公证、发布）
 
+### Catalog / Category Mode (CATALOG)【2026-09-27 用户指令新立，v1 扩展】
+
+对标 Capture One 的双模式组织：Sessions（默认、零依赖）与 Category Catalog（Lightroom Collections/Categories 同类；**手动配置 PostgreSQL 后方可启用**）。会话权威语义不变：sidecar 恒真身，目录库是可重建聚合视图层。
+
+- [ ] **CATALOG-01**: 双模式架构——Sessions 与 Category Catalog 共存互斥可切；Sessions 恒默认且零外部依赖；Category 模式仅在设置中完成 pg 连接配置并测试通过后可选启用
+- [ ] **CATALOG-02**: pg 连接配置面——host/port/db/user/password + 连接测试 + 安全存储；Swift 驱动选型（PostgresNIO vs libpq）入 research
+- [ ] **CATALOG-03**: 目录库 schema 与同步——跨会话影像元数据镜像 + category 树 + 虚拟集合；同步方向 = 会话→目录单向投影（sidecar 真身不变，目录库可全量重建——mutable and untrusted 原则延续）
+- [ ] **CATALOG-04**: category 树编辑与归类——树 CRUD/拖拽 + 图片归类（含批量，复用 Phase 12 批量面）
+- [ ] **CATALOG-05**: 跨会话浏览——Category 模式下浏览/过滤/智能相册求值（复用 12-2 谓词层，求值域扩全库）
+- [ ] **CATALOG-06**: 脱库降级——pg 不可达时 Sessions 模式完整可用零功能损失；目录库数据丢失可由会话面全量重建
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
@@ -268,7 +279,7 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Lightroom catalog 模式（中央库） | 与 Capture One Session 理念冲突；个人工作流偏好文件夹即会话 |
+| ~~Lightroom catalog 模式（中央库）~~ **→ 2026-09-27 用户指令修订：不再整族排除**——可选第二模式（Category Catalog，pg 后端）已立为正式需求（见 CATALOG 族）；仍是**默认关闭**，Sessions 恒默认 |
 | Mac App Store 分发 / 沙盒 | 沙盒限制文件访问与 Session 模式冲突；开源免费路线选独立签名公证 |
 | iOS / iPadOS 版本 | 项目定位 macOS 专属；依赖 Metal / Core Image / SwiftUI 桌面版 |
 | Windows / Linux 跨平台 | 依赖 Metal / Core Image / SwiftUI；跨平台会牺牲原生体验与性能 |

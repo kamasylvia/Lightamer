@@ -66,6 +66,8 @@
 
 - ~~**🔴 新阻塞（2026-09-26 18:5x UAT computer-use 自答抓出，major）**~~ **→ 已翻案撤销（2026-09-27 00:1x）**：「粘贴参数不传输」= 测试程序错误（复制系编辑器绑定设计，L033），干净态单变量测试全过（-0.5 字节级传输 + ⌘Z 回退 position 9→7）。**UAT 终态 = 12 pass / 3 skip（T6→P15、T11→P3+、T14 fixture 单步限制）/ 0 真缺陷**；谓词仍挡于三条 skip（工具只认 pass）→ **Phase 9 翻转待用户对 defer 的豁免或走查**。原条目：**G-09-T4 粘贴参数不传输**——编辑菜单 粘贴调整/部分粘贴 三式（覆盖/合并/部分）history 追加「粘贴调整」但目标 lra instances paramsData 零变化；复制侧已证 correct（T15 对话框载荷=源曝光编辑）；选择视觉验证 ×2；无编辑器干扰复现；等 debounce 4.5s。PasteSemanticsTests 16 条全绿（test host）→ **grid 菜单 paste 路径与 9-4 管线集成断层**。证据：uat09-T4-pasted/sel2/sel3/T15-dialog/after.png + UAT Gaps 节。**后果：Phase 9 翻转继续阻塞（正确行为——带病不签核）+ HIST-05 Delivered 注记需降级复审**。修复批：待派（orchestrator inline 或 9-29 配额重置后）。
 
+- **🏗️ 重大架构指令（2026-09-27 用户）**：**双模式组织新立 = Phase 16 Catalog/Category Mode**（CATALOG-01..06）——对标 C1：Sessions 恒默认 + Category Catalog 可选（**手动配置 PostgreSQL 后启用**，驱动选型入 research）。推翻 2026-08-03「不做中央库」整族排除（Out of Scope/PROJECT.md 约束均已修订留痕；语义 = 中央库从「禁止」变「可选第二模式默认关闭」，sidecar 真身原则不变）。**时序 = Phase 12 收口后独立 discuss/research 环**（12-1..12-3 session 面为双模式复用底座零返工）。四处已落盘：REQUIREMENTS CATALOG 族+Out of Scope 修订 / ROADMAP Phase 16 / PROJECT.md 约束 / TODO 登记。
+
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
 
 1. ~~**修复 issue #1**~~ ✅ 关闭（2026-09-18）：drawable 回读证实渲染/blit 全链正常（JPEG drawable 采样含图像内容）；黑屏为多窗口调试堆积的呈现竞争——真实单窗口使用正常（干净复现截图 4.2MB 完整显示）。转 backlog：多窗口呈现管理（Phase 2/9）。
