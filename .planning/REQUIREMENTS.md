@@ -198,14 +198,14 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 
 ### Export (EXP)
 
-- [ ] **EXP-01**: 导出格式：JPEG（含质量参数）、PNG（含 8/16-bit）、TIFF（含 8/16/32-bit float、压缩选项）
-- [ ] **EXP-02**: 导出格式：HEIF/HEIC（含质量、10-bit）、WebP（依赖 libwebp SPM，含质量/有损无损）、AVIF（macOS 27 起原生，否则依赖 libavif SPM，含 8/10/12-bit）
-- [ ] **EXP-03**: 导出尺寸/分辨率/DPI 配置、长边/短边/百分比/原尺寸
-- [ ] **EXP-04**: 输出色彩空间选择（sRGB / Display P3 / Adobe RGB / ProPhoto / Rec2020，含嵌入 ICC profile）
-- [ ] **EXP-05**: 导出时应用 yiyin 印框/水印（导出流水线的最后一步，与编辑器内 yiyin 面板共享配置）
-- [ ] **EXP-06**: 批量导出队列——后台执行多图导出，含进度、可取消、失败重试
-- [ ] **EXP-07**: 多规格同导（同一原片一次性输出多种尺寸/格式/水印组合的导出配方 export recipe）
-- [ ] **EXP-08**: 导出后执行动作（如运行 shell 脚本、打开文件夹）
+- [x] **EXP-01**: 导出格式：JPEG（含质量参数）、PNG（含 8/16-bit）、TIFF（含 8/16/32-bit float、压缩选项）—— **Delivered**（11-02 六格式编码面 + golden 矩阵：PNG/TIFF 8|16 全压缩变体逐位、TIFF 32f 1-ULP（float 域 bitwise 不可达，1e-6 带）、JPEG quality 已知点；JPEG-in-TIFF 刻意缺席【有损域上线性歧义】；E2E 探针终判 `ExportPhaseE2ETests`）
+- [x] **EXP-02**: 导出格式：HEIF/HEIC（含质量、10-bit）、WebP（依赖 libwebp SPM，含质量/有损无损）、AVIF（macOS 27 起原生，否则依赖 libavif SPM，含 8/10/12-bit）—— **Delivered**（macOS 27 地板下 AVIF = 原生 `public.avif` 单路径，libavif 不进 v1（D-11-CONTEXT-1，UTI 本机探针钉死）；libwebp = 全项目唯一新 SPM 依赖。**注记：AVIF 12-bit 请求落 10-bit**（宿主 `l12p` 封顶，文档化降级 R1 + golden depth==10 锚 + `AVIFEncoder` conformer 替换缝保留）；**WebP 元数据 v1 例外**（Swift-WebP 零 mux 面，OQ-11-5 + RIFF 结构锚，Phase 12/14 复审位））
+- [x] **EXP-03**: 导出尺寸/分辨率/DPI 配置、长边/短边/百分比/原尺寸 —— **Delivered**（sizing 复用 `YiyinExportSettings`（OQ-11-6 正主）四模式 + 永不放大钳 + `scalePercent` 折算向量 + DPI 1..2400 写入（72/300 落盘实测）；E2E 尺寸向量 512×342/384×256/256×171/奇数 257×171 精确）
+- [x] **EXP-04**: 输出色彩空间选择（sRGB / Display P3 / Adobe RGB / ProPhoto / Rec2020，含嵌入 ICC profile）—— **Delivered**（`ExportColorSpaceMapper` 五空间单表 + ColorSync 精确路径 + ICC 名逐格式 golden + display/linear 双 TRC 风味。**注记：32f 线性 ICC 变体宿主只供 sRGB/P3/Rec2020**——adobeRGB/proPhoto×32f typed throw（11-02 D2）；ProPhoto = 系统 ROMM 档案（D1））
+- [x] **EXP-05**: 导出时应用 yiyin 印框/水印（导出流水线的最后一步，与编辑器内 yiyin 面板共享配置）—— **Delivered**（联合上下文注入 = 08-3 T3 生产接线义务闭环；`ExportYiyinInjector` Core 缝 + App 生产注入器（coordinator 语义镜像）；共享 `YiyinExportSettings`/模板/logo faces；yiyin 开启但缺注入器 = typed error（静默丢印框禁止）；11-03 yiyin E2E + 11-05 真队列有印框 round-trip）
+- [x] **EXP-06**: 批量导出队列——后台执行多图导出，含进度、可取消、失败重试 —— **Delivered**（`ExportQueue` actor：generation cancel + cancel(jobID) 三 gate + pump FIFO + 并发 1（内存红线 D-11-CONTEXT-2）+ **低优先级 = Utility QoS 替代**（`MTLCommandQueue` 无公开 priority API，SDK 头实证 RESEARCH §4.4——checker M3）+ 两层进度快照 + retry 显式（仅 failed、队尾新 seq）+ `yieldsToEditor` 接口位（Phase 15）；v1 无 queue journal（D-11-CONTEXT-8，幂等重试 + tmp 原子晋升替代）；13 队列语义单测）
+- [x] **EXP-07**: 多规格同导（同一原片一次性输出多种尺寸/格式/水印组合的导出配方 export recipe）—— **Delivered**（`enqueue` N images × M variants 单动作 + tag 派生不互覆（`<stem>_<tag>` + `-1` 递增 + 大小写不敏感占用）+ E2E 1 源×8 变体一次落盘逐文件对照 + 同目录二导 `-1` 递增原文件不动。**注记：recipe v1 不持久化**（session 生命周期，D-11-CONTEXT-3）——类型已 Codable 零哈希字段，Phase 12 PRES 直挂即升级）
+- [x] **EXP-08**: 导出后执行动作（如运行 shell 脚本、打开文件夹）—— **Delivered**（脚本路径制（普通 bookmark + 可达性重验降级，D-11-CONTEXT-6 注入面收窄）+ `Process` 直 exec 不经 shell 解释（**注入面自查 PASS**：`$()`/反引号/分号路径逐字进 `$1`、哨兵未创建）+ Finder `activateFileViewerSelecting` + per-job completion hook（仅 `.done` 且当代触发，OQ-11-7））
 
 ### System Integration (SYS)
 
@@ -391,14 +391,14 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | PRES-02 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
 | PRES-03 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
 | PRES-04 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| EXP-01 | Phase 11 — Export Pipeline & Batch Queue | Pending |
-| EXP-02 | Phase 11 — Export Pipeline & Batch Queue | Pending |
-| EXP-03 | Phase 11 — Export Pipeline & Batch Queue | Pending |
-| EXP-04 | Phase 11 — Export Pipeline & Batch Queue | Pending |
-| EXP-05 | Phase 11 — Export Pipeline & Batch Queue | Pending |
-| EXP-06 | Phase 11 — Export Pipeline & Batch Queue | Pending |
-| EXP-07 | Phase 11 — Export Pipeline & Batch Queue | Pending |
-| EXP-08 | Phase 11 — Export Pipeline & Batch Queue | Pending |
+| EXP-01 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
+| EXP-02 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
+| EXP-03 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
+| EXP-04 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
+| EXP-05 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
+| EXP-06 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
+| EXP-07 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
+| EXP-08 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
 | SYS-01 | Phase 13 — System Integration & Distribution | Pending |
 | SYS-02 | Phase 13 — System Integration & Distribution | Pending |
 | SYS-03 | Phase 13 — System Integration & Distribution | Pending |
