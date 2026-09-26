@@ -98,28 +98,72 @@ public struct FilterSort: Codable, Equatable, Sendable {
     /// The full ORDER BY list (with the `path ASC` tiebreaker the query
     /// face appends — deterministic row sets over equal keys).
     public var orderBySQL: String {
-        "\(key.orderByTerm(ascending: ascending)), path ASC"
+        orderBySQL(domain: .session)
     }
+
+    /// The domain-dispatched form (Plan 16-1 T3, F6 alignment): the catalog
+    /// domain's tiebreaker is `rel_path ASC` and the whole list — NULL-flag
+    /// expression included — is spelled VERBATIM like the expression
+    /// indexes `(k IS NULL, k [DESC], rel_path)` from
+    /// CatalogIndexSchema.orderingIndexSQL, so the planner picks the
+    /// covering index with zero TEMP B-TREE (F6). The session domain is
+    /// byte-identical to the pre-16-1 spelling.
+    public func orderBySQL(domain: FilterDomain) -> String {
+        switch domain {
+        case .session:
+            "\(key.orderByTerm(ascending: ascending)), path ASC"
+        case .catalog:
+            "\(key.orderByTerm(ascending: ascending)), rel_path ASC"
+        }
+    }
+}
+
+/// The SQL evaluation domain (Plan 16-1 T3, D-16-CONTEXT-3②): ONE
+/// translation face, TWO shapes. `.session` = the frozen 12-2 shapes over
+/// the current `session.lindex`; `.catalog` = the same predicate model over
+/// `catalog_images` — keywords ride the materialized `image_tags` table
+/// (EXISTS equality, F11), every non-sorting filter term carries the `+`
+/// unary prefix (F10: keep the planner on the ordering index — a
+/// low-selectivity filter index + TEMP B-TREE materialization measured
+/// 201-525ms vs 1.46-4.93ms), and filename/dir `contains` downgrades to
+/// `startsWith` under `case_sensitive_like=ON` (RQ-16-16①: the BINARY
+/// index is otherwise unreachable by a case-insensitive LIKE).
+///
+/// The catalog templates reference the OUTER ALIAS `i` — the catalog query
+/// face (CatalogIndexStore) ALWAYS spells `FROM catalog_images i`; that
+/// convention is pinned HERE, in the template comments, not at call sites.
+public enum FilterDomain: Sendable {
+    case session
+    case catalog
 }
 
 public enum FilterSQL {
 
     /// The ONE translation function. Throws the predicate model's typed
     /// errors for any illegal field × op × value combination (it validates
-    /// defensively — the UI/store gate first, but never trust).
-    public static func translate(group: FilterPredicateGroup) throws -> FilterSQLQuery {
-        try translate(group: group, appendsBaseline: true)
+    /// defensively — the UI/store gate first, but never trust). The
+    /// `domain` selects the SQL shape (Plan 16-1 T3): `.session` (the
+    /// default — every pre-16-1 caller compiles and translates
+    /// byte-identically) or `.catalog` (EXISTS keywords / `+` prefixes /
+    /// startsWith downgrade).
+    public static func translate(
+        group: FilterPredicateGroup, domain: FilterDomain = .session
+    ) throws -> FilterSQLQuery {
+        try translate(group: group, appendsBaseline: true, domain: domain)
     }
 
     /// The baseline-free form for the MULTI-GROUP combinator (which
-    /// attaches `orphan_sidecar = 0` exactly ONCE for the whole join —
-    /// per-group baselines would AND-duplicate).
+    /// attaches the baseline exactly ONCE for the whole join — per-group
+    /// baselines would AND-duplicate).
     static func translate(
-        group: FilterPredicateGroup, appendsBaseline: Bool
+        group: FilterPredicateGroup, appendsBaseline: Bool,
+        domain: FilterDomain = .session
     ) throws -> FilterSQLQuery {
         try group.validating()
         var binds: [FilterSQLBind] = []
-        let parts = try group.rules.map { try condition(for: $0, binds: &binds) }
+        let parts = try group.rules.map {
+            try condition(for: $0, domain: domain, binds: &binds)
+        }
         // Every condition is already parenthesized (the four-clause, the
         // IN list, the simple shapes). A MULTI-rule group gets ONE extra
         // wrapper so an OR group cannot bind the baseline's AND at a lower
@@ -141,8 +185,17 @@ public enum FilterSQL {
         // collection); the combinator form defers it.
         return FilterSQLQuery(
             whereClause: appendsBaseline
-                ? "\(joined) AND (orphan_sidecar = 0)" : joined,
+                ? "\(joined) AND \(baselineClause(domain))" : joined,
             binds: binds)
+    }
+
+    /// The baseline in both domains (catalog carries the `+` prefix + the
+    /// `i` alias — the F10 discipline covers EVERY non-sorting term).
+    private static func baselineClause(_ domain: FilterDomain) -> String {
+        switch domain {
+        case .session: "(orphan_sidecar = 0)"
+        case .catalog: "(+i.orphan_sidecar = 0)"
+        }
     }
 
     // MARK: - LIKE escaping (bind-only complement)
@@ -159,24 +212,89 @@ public enum FilterSQL {
 
     // MARK: - Rule → condition
 
+    /// The column reference for a domain: the bare frozen name on the
+    /// session side; the `+`-prefixed `i`-aliased spelling on the catalog
+    /// side (F10 — `+` bans the term from driving an index, keeping the
+    /// ordering index in the lead; `i` is the catalog query face's pinned
+    /// `FROM catalog_images i` alias).
+    private static func columnRef(
+        _ column: String, _ domain: FilterDomain
+    ) -> String {
+        switch domain {
+        case .session: column
+        case .catalog: "+i.\(column)"
+        }
+    }
+
     private static func condition(
-        for rule: FilterPredicateGroup.Rule, binds: inout [FilterSQLBind]
+        for rule: FilterPredicateGroup.Rule, domain: FilterDomain,
+        binds: inout [FilterSQLBind]
     ) throws -> String {
-        let column = try Self.column(for: rule.field)
+        let column = columnRef(try Self.column(for: rule.field), domain)
         switch rule.field {
         case .keywords:
-            return try keywordsCondition(for: rule, column: column, binds: &binds)
+            return try keywordsCondition(
+                for: rule, column: column, domain: domain, binds: &binds)
         case .rating, .colorLabel, .flag, .iso, .hasEdits,
             .focalLength, .aperture, .exposure, .captureDate:
             return try numericCondition(for: rule, column: column, binds: &binds)
         case .note, .filename, .dir, .cameraMake, .cameraModel, .lensModel:
-            return try textCondition(for: rule, column: column, binds: &binds)
+            return try textCondition(
+                for: rule, column: column, field: rule.field,
+                domain: domain, binds: &binds)
         }
     }
 
-    /// The keywords face: `contains` = the FOUR-CLAUSE ancestor predicate
-    /// (F3); `in` = any-of four-clauses; `eq` = exact whole-column path.
+    /// The keywords face. SESSION domain: `contains` = the FOUR-CLAUSE
+    /// ancestor predicate (F3 正本); `in` = any-of four-clauses; `eq` =
+    /// exact whole-column path. CATALOG domain (Plan 16-1 T3): the tags are
+    /// MATERIALIZED (prefix-expanded at projection), so contains/in/eq all
+    /// collapse to the equality EXISTS over `image_tags` — one bind per
+    /// tag, NO LIKE and NO ESCAPE (the projection already expanded the
+    /// ancestors; the sub-query walks the WITHOUT ROWID PK, F11).
+    /// `empty`/`notEmpty` consume the mirrored keywords column (the
+    /// NULL/'' two-state distinction lives THERE in both domains).
     private static func keywordsCondition(
+        for rule: FilterPredicateGroup.Rule, column: String,
+        domain: FilterDomain, binds: inout [FilterSQLBind]
+    ) throws -> String {
+        switch domain {
+        case .session:
+            return try sessionKeywordsCondition(
+                for: rule, column: column, binds: &binds)
+        case .catalog:
+            switch rule.op {
+            case .contains, .eq, .in:
+                let tags: [String]
+                switch rule.value {
+                case .text(let tag): tags = [tag]
+                case .textList(let list): tags = list
+                default:
+                    throw FilterPredicateError.illegalValueKind(
+                        field: rule.field, op: rule.op, valueKind: rule.value.kind)
+                }
+                let parts = tags.map { tag -> String in
+                    binds.append(.text(tag))
+                    return """
+                        (EXISTS (SELECT 1 FROM image_tags t \
+                        WHERE t.tag = ? AND t.catalog_image_id = i.id))
+                        """
+                }
+                return "(" + parts.joined(separator: " OR ") + ")"
+            case .empty:
+                return "(\(column) IS NULL OR \(column) = '')"
+            case .notEmpty:
+                return "(\(column) IS NOT NULL AND \(column) != '')"
+            default:
+                throw FilterPredicateError.illegalFieldOperator(
+                    field: rule.field, op: rule.op)
+            }
+        }
+    }
+
+    /// The frozen 12-2 session keywords face (byte-identical to the
+    /// pre-16-1 output — the regression lock).
+    private static func sessionKeywordsCondition(
         for rule: FilterPredicateGroup.Rule, column: String,
         binds: inout [FilterSQLBind]
     ) throws -> String {
@@ -290,9 +408,16 @@ public enum FilterSQL {
     /// '' sentinel for "attempted, absent" (12-1), so `empty` matches BOTH
     /// NULL (never swept) and '' (swept-empty) — the honest "no value"
     /// class; `notEmpty` is its complement.
+    ///
+    /// Catalog domain (Plan 16-1 T3, RQ-16-16①): filename/dir `contains`
+    /// DOWNGRADES to `startsWith` (`LIKE ? || '%' ESCAPE '\'` under
+    /// `case_sensitive_like=ON`) so the predicate walks the idx_cat_fn /
+    /// rel-path BINARY index prefix instead of a full scan (F14). The
+    /// semantic loss — case-sensitivity — was pinned at plan time. Other
+    /// text fields keep the contains shape (slow-path, recorded).
     private static func textCondition(
-        for rule: FilterPredicateGroup.Rule, column: String,
-        binds: inout [FilterSQLBind]
+        for rule: FilterPredicateGroup.Rule, column: String, field: FilterField,
+        domain: FilterDomain, binds: inout [FilterSQLBind]
     ) throws -> String {
         switch rule.op {
         case .eq:
@@ -315,6 +440,10 @@ public enum FilterSQL {
                     field: rule.field, op: rule.op, valueKind: rule.value.kind)
             }
             binds.append(.text(Self.escapeLike(value)))
+            if domain == .catalog, field == .filename || field == .dir {
+                // The startsWith downgrade (RQ-16-16①).
+                return "(\(column) LIKE ? || '%' ESCAPE '\\')"
+            }
             return "(\(column) LIKE '%' || ? || '%' ESCAPE '\\')"
         case .startsWith:
             guard case .text(let value) = rule.value else {
@@ -369,6 +498,49 @@ public enum FilterSQL {
 
 extension FilterSQL {
 
+    /// The domain-constraint ANCHOR (Plan 16-1 T3 落点 d, RQ-16-11③):
+    /// what the catalog query face ANDs into every page query. A session
+    /// grouping click = `i.session_id = ?`; a category-tree click =
+    /// EXISTS over `image_categories`; a collection click = EXISTS over
+    /// `image_collections`. Multiple anchors AND-combine; ALL-nil
+    /// collapses to `(1=1)` (the All Photographs shape). v1 chips add NO
+    /// organization predicate fields — the click IS the anchor (the
+    /// additive slot stays open).
+    ///
+    /// The `i`/`t` alias spellings are the SAME contract as the keywords
+    /// EXISTS template (the catalog query face's `FROM catalog_images i`).
+    public static func scopeClause(
+        domain: FilterDomain = .catalog,
+        sessionID: String? = nil,
+        categoryID: Int64? = nil,
+        collectionID: Int64? = nil
+    ) -> (sql: String, binds: [FilterSQLBind]) {
+        var clauses: [String] = []
+        var binds: [FilterSQLBind] = []
+        if let sessionID {
+            clauses.append("(i.session_id = ?)")
+            binds.append(.text(sessionID))
+        }
+        if let categoryID {
+            clauses.append(
+                """
+                (EXISTS (SELECT 1 FROM image_categories ic \
+                WHERE ic.category_id = ? AND ic.catalog_image_id = i.id))
+                """)
+            binds.append(.int(categoryID))
+        }
+        if let collectionID {
+            clauses.append(
+                """
+                (EXISTS (SELECT 1 FROM image_collections co \
+                WHERE co.collection_id = ? AND co.catalog_image_id = i.id))
+                """)
+            binds.append(.int(collectionID))
+        }
+        guard !clauses.isEmpty else { return ("(1=1)", []) }
+        return ("(" + clauses.joined(separator: " AND ") + ")", binds)
+    }
+
     /// The MULTI-GROUP combinator (Plan 12-2 T4 execution decision,
     /// recorded in 12-2-DECISIONS): the v1 schema has NO nested groups, but
     /// the filter bar needs `chips AND (quickFilter's filename OR
@@ -378,17 +550,18 @@ extension FilterSQL {
     /// baseline EXACTLY ONCE (a per-group baseline would AND-duplicate).
     /// An empty array collapses to the baseline-only shape.
     public static func translateConjoining(
-        _ groups: [FilterPredicateGroup]
+        _ groups: [FilterPredicateGroup], domain: FilterDomain = .session
     ) throws -> FilterSQLQuery {
         var clauses: [String] = []
         var binds: [FilterSQLBind] = []
         for group in groups {
-            let product = try translate(group: group, appendsBaseline: false)
+            let product = try translate(
+                group: group, appendsBaseline: false, domain: domain)
             clauses.append("(" + product.whereClause + ")")
             binds.append(contentsOf: product.binds)
         }
         // The baseline rides the JOIN exactly once.
-        clauses.append("(orphan_sidecar = 0)")
+        clauses.append(baselineClause(domain))
         return FilterSQLQuery(
             whereClause: clauses.joined(separator: " AND "), binds: binds)
     }
