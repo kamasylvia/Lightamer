@@ -221,8 +221,8 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 **Notes:** Spotlight importers and Quick Look extensions are separate processes with their own entitlements — keep them decoupled from the main (non-sandboxed) app so the non-sandbox decision holds (DIST-3). Deep-sign every embedded binary before notarizing; treat notarytool warnings as errors (Gatekeeper enforces what notarization only warns — DIST-1). Resolve all resource paths from `Bundle.main` (Gatekeeper translocation — DIST-2). COLOR-02 (soft proof) and COLOR-03 (multi-display ICC) complete the color-management pipeline started in Phase 2. Risks: CIRAW-2 (per-OS CI matrix), DIST-1..5, SOLO-4/5, UI-4, COLOR-3/4. **（2026-09-26 登记）蒙版命令面 UI 打磨批入本 phase**：蒙版 Duplicate / Duplicate-and-Invert / Fill / Clear / Reset Edits 菜单命令 + overlay 三态切换（On-Black / Rubylith / 半透明）+ 蒙版列表 enable 勾选——内核语义 Phase 6 全在（combine inverted/装配/overlay 显示），缺 UI 装配；对标 Nitro Photo，UI 级非算法缺口。
 
 ## Coverage
-- Total v1 requirements: 134
-- Mapped: 134 (100%)
+- Total v1 requirements: 140
+- Mapped: 140 (100%)
 - Unmapped: 0 ✓
 
 ### Per-phase counts
@@ -242,7 +242,9 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 | 12 — Metadata, Rating, Presets & LUT | 11 |
 | 13 — System Integration & Distribution | 11 |
 | 14 — MCP Server (远程 AI 修图 + 自动筛选) | 10 |
-| **Total** | **134** |
+| 15 — Performance 专项（60fps 决战 + 全链路性能） | 7 |
+| 16 — Catalogs Mode | 6 |
+| **Total** | **140** |
 
 ### Spike summary (research-flagged)
 | Spike | Phase (preliminary) | Phase (full validation) |

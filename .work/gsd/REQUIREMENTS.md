@@ -429,10 +429,16 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | MCP-08 | Phase 14 — MCP Server | Pending |
 | MCP-09 | Phase 14 — MCP Server | Pending |
 | MCP-10 | Phase 14 — MCP Server | Pending |
+| CATALOG-01 | Phase 16 — Catalogs Mode | Pending |
+| CATALOG-02 | Phase 16 — Catalogs Mode | Pending |
+| CATALOG-03 | Phase 16 — Catalogs Mode | Pending |
+| CATALOG-04 | Phase 16 — Catalogs Mode | Pending |
+| CATALOG-05 | Phase 16 — Catalogs Mode | Pending |
+| CATALOG-06 | Phase 16 — Catalogs Mode | Pending |
 
 **Coverage:**
-- v1 requirements: 134 total (119 + 4 AI + 1 SESS-07 + 10 MCP)
-- Mapped to phases: 134 (100%)
+- v1 requirements: 140 total (119 + 4 AI + 1 SESS-07 + 10 MCP + 6 CATALOG)
+- Mapped to phases: 140 (100%)
 - Unmapped: 0 ✓
 
 ### Per-phase coverage counts
@@ -453,7 +459,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | 12 — Metadata, Rating, Presets & LUT | META-01..06, PRES-01..04, IOP-COLOR-08 | 11 |
 | 13 — System Integration & Distribution | SYS-01..05, DIST-01..04, COLOR-02, COLOR-03 | 11 |
 | 14 — MCP Server (远程 AI 修图 + 自动筛选) | MCP-01..10 | 10 |
-| **Total** | | **134** |
+| 16 — Catalogs Mode | CATALOG-01..06 | 6 |
+| **Total** | | **140** |
 
 ### Cross-phase placement rationale
 - **IOP-GEO-05 (liquify) / IOP-GEO-06 (retouch) → Phase 6 (Layers/Masking):** both architecturally depend on the mask/distortion framework; they cannot ship before masking exists.
