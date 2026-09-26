@@ -344,9 +344,11 @@ final class ExportRendererE2ETests: XCTestCase {
     }
 
     /// 4 态矩阵（仅框/仅水印/双开/双关）+ 有印框全链 round-trip：双关 ==
-    /// 基线（解码后像素容差 1/255——GPU 渲染非确定，11-04 法证；sanity
-    /// 断言钉住真回归可检性）；仅框 band（暗底）+ 双开水印行（亮字）经
-    /// 编码→解码存在。
+    /// 基线（**byte-exact**——11-04 的「GPU 渲染非确定」归因已被 L031 机制级
+    /// 证伪：真因 = identity blit 硬编 editor queue 与 export queue compute
+    /// 跨队列竞速，`9ea0d93` 全链走路由 seam 后同参连渲 diff 0 是机制事实；
+    /// sanity 断言钉住真回归可检性）；仅框 band（暗底）+ 双开水印行（亮字）
+    /// 经编码→解码存在。
     func testYiyinFourStateMatrixAndBorderedRoundTrip() async throws {
         try await LightamerIOPRegistry.populate(registry)
         try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
@@ -403,10 +405,11 @@ final class ExportRendererE2ETests: XCTestCase {
         let onlyWatermarkURL = try await render(withStates(bordersEnabled: false, watermarkEnabled: true), true)
         let bothURL = try await render(withStates(bordersEnabled: true, watermarkEnabled: true), true)
 
-        // 双关 == 基线 — PIXEL tolerance（禁用 == 无实例，导出面）。GPU
-        // 渲染非确定（1-LSB 级漂移，11-04 SUMMARY 法证：两侧字节都漂、
-        // 同代码 fail/pass 交替），PNG 容器字节比对过敏——解码后逐样本
-        // 容差 1/255 + 尺寸相等才是「禁用 == 无实例」的真不变量。
+        // 双关 == 基线 — BYTE-EXACT（禁用 == 无实例，导出面）。11-04 的
+        // 「GPU 非确定双侧漂移」归因已被 L031 机制级证伪——真因是跨队列
+        // 竞速（`9ea0d93` 统一路由后，同参连渲逐字节 0 差为机制事实：
+        // debugger 冷启动对/负载 ×10 + R2 复跑 ×2 全零差），`9439b59` 的
+        // 1/255 容差建立在该被证伪归因上，故恢复 byte-exact。
         let bothOffValues = try decodedPNGValues(bothOffURL)
         let baselineValues = try decodedPNGValues(baselineURL)
         XCTAssertEqual(bothOffValues.width, baselineValues.width,
@@ -414,9 +417,9 @@ final class ExportRendererE2ETests: XCTestCase {
         XCTAssertEqual(bothOffValues.height, baselineValues.height,
                        "both disabled == no-yiyin baseline: height")
         let bothOffDiff = maxChannelDiff(bothOffValues.bytes, baselineValues.bytes)
-        XCTAssertLessThanOrEqual(
-            bothOffDiff, 1,
-            "both disabled == no-yiyin baseline within 1/255 (max diff \(bothOffDiff))")
+        XCTAssertEqual(
+            bothOffDiff, 0,
+            "both disabled == no-yiyin baseline byte-exact (max diff \(bothOffDiff))")
         // Sanity: the relaxation must stay a REAL regression detector — a
         // synthetic 2-level misalignment IS red against this comparator.
         var misaligned = baselineValues.bytes
