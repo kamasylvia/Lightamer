@@ -296,6 +296,15 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 ③**运维边界**：pg 实例用户自管（已由「手动配置」门控接受）；备份 = pg_dump/basebackup 标准件（优于 C1 单文件 verify/restore）。
 **术语勘误**：模式名 = **Catalogs**（用户勘误 category→catalogs）；组织树沿用 C1 **Categories** 语义。
 **部署形态预研（2026-09-27，orchestrator）**：macOS 宿主上 Docker Desktop 存在 VM 边界双损耗（TCP 回环穿 NAT ~0.2-1ms/往返 vs unix socket ~50µs；数据卷 fsync 经虚拟化层，bind mount 最差）——查询侧无感（vs 50ms 预算），批量投影写入侧用 `synchronous_commit=off`（目录库可重建投影，合法免 durability）卸掉 fsync 成本。**建议 = 宿主机直装（brew postgresql@17）为推荐路径**；容器化允许但三条纪律（named volume 禁 bind mount / 仅绑 127.0.0.1 / 投影关同步提交）。research 基准任务 +1：宿主直装 vs Docker named-volume 同基准双跑落账。
+**引擎归因调研（2026-09-27，orchestrator 第二轮外部调研）——LR/C1 劣化与 SQLite 的关系已拆清**：
+①**双引擎实证**：LR `.lrcat` = SQLite（lightroomqueen 给出过连接串 `SQLite:dbname=...lrcat`；多个独立来源一致）；C1 `.cocatalogdb` = SQLite 3.x（C1 官方论坛原文）。即 LR/C1 都跑在 SQLite 上——故「劣化与 SQLite 无关」不能整句断言，**归因必须落到用法层**。
+②**归因三拆（可修、且 Lightamer 已规避）**：
+   a. 目录膨胀/碎片——LR history 逐步快照 → .lrcat 巨大化；官方修复 = File > Optimize Catalog（即 VACUUM+重建）＝**维护动作而非引擎更换**，说明引擎有余量、烂在上层。Lightamer history = append+position（无逐步快照膨胀）+ Catalogs 库可全量重建。
+   b. 预览管线——LR 主要等待源 = 预览生成/缓存（官方优化建议大头：RAW 缓存/预览尺寸/禁 face lookup）。管线问题，与引擎无关；Lightamer 有 Phase 9 双档缩略图。
+   c. 部署反模式——目录放网络共享/外置慢盘（C1 官方建议内置快盘；speich.net 2026 案例 = LR 目录跑网络共享被迫自建 VFS）。文件型库上网络文件系统 = 锁+延迟地狱。Lightamer：Sessions 本地、Catalogs 库本地文件、远程仅 v2 可选镜像。
+③**SQLite 本体规模证据**：10 亿行插入 <60s（avi.im/sqlite.org 论坛实测）；SO 经典案例 9000 万行索引下正常；HN 生产案例 1 亿行；sqlite.org whentouse 在册 = TB 级支持。1M-100M 行域引擎非瓶颈。
+④**残余风险如实**：SQLite 需要自做的事 = schema 纪律（防膨胀——已对）、查询模式（标签物化表——已立项）、checkpoint 调优（research 基准覆盖）。LR/C1 是「SQLite 被用出问题」的案例，不是「SQLite 到顶」的案例。
+⑤**结论维持**：本地 SQLite 判定可行；1M 行基准门（p95<50ms）作最终实证裁决。
 
 ---
 *Last updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs); AI-02/03/04 moved to v2*
