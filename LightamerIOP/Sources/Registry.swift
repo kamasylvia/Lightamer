@@ -240,6 +240,13 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: WatermarkModule.opName) { id in
             ModuleBox(module: WatermarkModule(), instanceID: id)
         }
+        // Plan 12-5 T2: lut3d (.cube application), v50 slot 36.0 — ALREADY
+        // in the V50Order table (zero rows inserted). Neutral (lutName nil)
+        // = blit identity ⇒ cache-neutral (exposure-0EV style); the T5
+        // LUT panel drives this instance.
+        await registry.register(opName: Lut3dModule.opName) { id in
+            ModuleBox(module: Lut3dModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -355,6 +362,10 @@ public enum LightamerIOPRegistry {
             // Plan 08-2 T4: the watermark row composite (one PSO per
             // functionName — the 16×16 threadgroup is static).
             WatermarkModule.kernelRow,
+            // Plan 12-5 T2: the lut3d interpolation pair (both states —
+            // the picker flips between them without a first-use stall).
+            Lut3dModule.Kernel.tetrahedral,
+            Lut3dModule.Kernel.trilinear,
         ]
     }
 
