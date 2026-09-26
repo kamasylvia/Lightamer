@@ -560,6 +560,31 @@ extension FilterSQLTests {
         AsyncStream { $0.finish() }
     }
 
+    func testConjoinedGroupsAndBaselineOnce() async throws {
+        // The combinator: chips group AND Quick Filter group, baseline
+        // EXACTLY once (no AND-duplication).
+        let chips = FilterPredicateGroup(match: .all, rules: [
+            .init(field: .rating, op: .gte, value: .int(2)),
+        ])
+        let quick = FilterPredicateGroup.quickFilter(text: "Nature")
+        let combined = try FilterSQL.translateConjoining([chips, quick])
+        XCTAssertTrue(combined.whereClause.hasSuffix("AND (orphan_sidecar = 0)"))
+        XCTAssertEqual(
+            combined.whereClause.components(separatedBy: "orphan_sidecar").count - 1, 1)
+        // Semantics on the fixture store: rating>=2 AND (filename OR
+        // keywords hits Nature) → nature-rose(3), nature-tree(2),
+        // natureholics(4); nature.arw has rating 1 (excluded).
+        let (store, root) = try await makeStoreFixture()
+        defer {
+            Task { await store.close() }
+            try? FileManager.default.removeItem(at: root)
+        }
+        let rows = try await store.query(groups: [chips, quick])
+        XCTAssertEqual(
+            rows.map(\.path).sorted(),
+            ["nature-rose.arw", "nature-tree.arw", "natureholics.arw"])
+    }
+
     func testQueryFaceExactRowSet() async throws {
         let (store, root) = try await makeStoreFixture()
         defer {
@@ -569,12 +594,12 @@ extension FilterSQLTests {
         // The query face must agree with the translation-layer row set on
         // the SAME fixture (SQL snapshot ↔ query cross-validation).
         let rows = try await store.query(
-            group: .init(rules: [.init(field: .keywords, op: .contains, value: .text("Nature"))]))
+            groups: [.init(rules: [.init(field: .keywords, op: .contains, value: .text("Nature"))])])
         XCTAssertEqual(
             rows.map(\.path),
             ["nature-rose.arw", "nature-tree.arw", "nature.arw"])
         // Orphan rows never surface (the baseline rides the query too).
-        let all = try await store.query(group: .init(rules: []))
+        let all = try await store.query(groups: [.init(rules: [])])
         XCTAssertTrue(all.allSatisfy { $0.orphanSidecar == 0 })
     }
 
@@ -587,7 +612,7 @@ extension FilterSQLTests {
         // Ratings: nature 1 / nature-tree 2 / nature-rose 3 / natureholics
         // 4; EVERYTHING else NULL (pct/quote/iso400/cleared/untagged).
         let asc = try await store.query(
-            group: .init(rules: []),
+            groups: [.init(rules: [])],
             sort: FilterSort(key: .rating, ascending: true))
         XCTAssertEqual(
             asc.prefix(4).map(\.path),
@@ -597,7 +622,7 @@ extension FilterSQLTests {
         XCTAssertNil(asc.suffix(5).allSatisfy { $0.rating == nil } ? nil : "nonnull-in-tail")
 
         let desc = try await store.query(
-            group: .init(rules: []),
+            groups: [.init(rules: [])],
             sort: FilterSort(key: .rating, ascending: false))
         XCTAssertEqual(
             desc.prefix(4).map(\.path),
@@ -607,7 +632,7 @@ extension FilterSQLTests {
 
         // capture_date: only iso400.arw carries one — it leads ascending.
         let dates = try await store.query(
-            group: .init(rules: []),
+            groups: [.init(rules: [])],
             sort: FilterSort(key: .captureDate, ascending: true))
         XCTAssertEqual(dates.first?.path, "iso400.arw")
         XCTAssertTrue(dates.suffix(8).allSatisfy { $0.captureDate == nil })
@@ -621,7 +646,8 @@ extension FilterSQLTests {
         }
         // LIMIT is bound; the path tiebreaker makes the page deterministic.
         let page = try await store.query(
-            group: .init(rules: []), sort: FilterSort(key: .filename, ascending: true), limit: 3)
+            groups: [.init(rules: [])],
+            sort: FilterSort(key: .filename, ascending: true), limit: 3)
         XCTAssertEqual(page.count, 3)
         XCTAssertEqual(
             page.map(\.path),
@@ -644,7 +670,7 @@ extension FilterSQLTests {
         try await withThrowingTaskGroup(of: Void.self) { tasks in
             tasks.addTask {
                 for _ in 0..<20 {
-                    _ = try await store.query(group: group)
+                    _ = try await store.query(groups: [group])
                 }
             }
             tasks.addTask {
@@ -663,7 +689,7 @@ extension FilterSQLTests {
             try await tasks.waitForAll()
         }
         // The query still answers after the interleaving.
-        let rows = try await store.query(group: group)
+        let rows = try await store.query(groups: [group])
         XCTAssertEqual(rows.count, 4)
     }
 }

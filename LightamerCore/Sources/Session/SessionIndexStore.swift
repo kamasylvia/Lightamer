@@ -550,17 +550,21 @@ public actor SessionIndexStore {
     /// transactions (WAL readers + the single writer coexist — zero new
     /// locking face; T3's concurrency smoke pins the coexistence).
     ///
-    /// Signature note (execution decision, 12-2-DECISIONS): the plan sketched
-    /// `query(rootPath:...)` — the face is a pure DB read (the row already
-    /// carries relative paths; path assembly stays in the App layer), so
-    /// the rootPath parameter is dropped.
+    /// Signature notes (execution decisions, 12-2-DECISIONS): the plan
+    /// sketched `query(rootPath:...)` — the face is a pure DB read (the row
+    /// already carries relative paths; path assembly stays in the App
+    /// layer), so rootPath is dropped. The face takes a GROUP ARRAY: the
+    /// filter bar AND-joins its chips group with the Quick Filter group
+    /// (flat v1 groups cannot nest) — `FilterSQL.translateConjoining`
+    /// re-consumes the one translation function and attaches the baseline
+    /// exactly once.
     public func query(
-        group: FilterPredicateGroup,
+        groups: [FilterPredicateGroup],
         sort: FilterSort? = nil,
         limit: Int? = nil
     ) throws -> [SessionIndexRow] {
         guard let handle else { return [] }
-        let translated = try FilterSQL.translate(group: group)
+        let translated = try FilterSQL.translateConjoining(groups)
         var sql =
             "SELECT \(Self.rowSelectColumns) FROM images WHERE \(translated.whereClause)"
         if let sort { sql += " ORDER BY \(sort.orderBySQL)" }

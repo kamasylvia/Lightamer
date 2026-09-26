@@ -108,6 +108,15 @@ public enum FilterSQL {
     /// errors for any illegal field × op × value combination (it validates
     /// defensively — the UI/store gate first, but never trust).
     public static func translate(group: FilterPredicateGroup) throws -> FilterSQLQuery {
+        try translate(group: group, appendsBaseline: true)
+    }
+
+    /// The baseline-free form for the MULTI-GROUP combinator (which
+    /// attaches `orphan_sidecar = 0` exactly ONCE for the whole join —
+    /// per-group baselines would AND-duplicate).
+    static func translate(
+        group: FilterPredicateGroup, appendsBaseline: Bool
+    ) throws -> FilterSQLQuery {
         try group.validating()
         var binds: [FilterSQLBind] = []
         let parts = try group.rules.map { try condition(for: $0, binds: &binds) }
@@ -127,10 +136,12 @@ public enum FilterSQL {
             joined = "(" + parts.joined(
                 separator: group.match == .all ? " AND " : " OR ") + ")"
         }
-        // The baseline predicate rides EVERY query (plan 纪律 — orphan
-        // classification rows never surface in a filtered collection).
+        // The baseline predicate rides EVERY single-group product (plan
+        // 纪律 — orphan classification rows never surface in a filtered
+        // collection); the combinator form defers it.
         return FilterSQLQuery(
-            whereClause: "\(joined) AND (orphan_sidecar = 0)",
+            whereClause: appendsBaseline
+                ? "\(joined) AND (orphan_sidecar = 0)" : joined,
             binds: binds)
     }
 
@@ -357,6 +368,30 @@ public enum FilterSQL {
 }
 
 extension FilterSQL {
+
+    /// The MULTI-GROUP combinator (Plan 12-2 T4 execution decision,
+    /// recorded in 12-2-DECISIONS): the v1 schema has NO nested groups, but
+    /// the filter bar needs `chips AND (quickFilter's filename OR
+    /// keywords)` — two flat groups AND-joined. This re-consumes the ONE
+    /// translation function per group (zero new SQL shapes), wraps each
+    /// product in one paren pair, and appends the `orphan_sidecar = 0`
+    /// baseline EXACTLY ONCE (a per-group baseline would AND-duplicate).
+    /// An empty array collapses to the baseline-only shape.
+    public static func translateConjoining(
+        _ groups: [FilterPredicateGroup]
+    ) throws -> FilterSQLQuery {
+        var clauses: [String] = []
+        var binds: [FilterSQLBind] = []
+        for group in groups {
+            let product = try translate(group: group, appendsBaseline: false)
+            clauses.append("(" + product.whereClause + ")")
+            binds.append(contentsOf: product.binds)
+        }
+        // The baseline rides the JOIN exactly once.
+        clauses.append("(orphan_sidecar = 0)")
+        return FilterSQLQuery(
+            whereClause: clauses.joined(separator: " AND "), binds: binds)
+    }
 
     /// Bind a translated array to a prepared statement (1-based, array
     /// order) — the shared tail of every consumer face (the store's query
