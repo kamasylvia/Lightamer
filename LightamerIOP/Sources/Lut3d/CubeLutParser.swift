@@ -209,12 +209,10 @@ public enum CubeLutParser {
             case "DOMAIN_MIN":
                 let v = try Self.floatTokens(tokens, count: nil, lineNumber: lineNumber)
                 domainMin = v.count == 1 ? SIMD3(repeating: v[0]) : SIMD3(v[0], v[1], v[2])
-                try Self.validateDomain(min: domainMin, max: domainMax)
 
             case "DOMAIN_MAX":
                 let v = try Self.floatTokens(tokens, count: nil, lineNumber: lineNumber)
                 domainMax = v.count == 1 ? SIMD3(repeating: v[0]) : SIMD3(v[0], v[1], v[2])
-                try Self.validateDomain(min: domainMin, max: domainMax)
 
             case "LUT_1D_INPUT_RANGE":
                 let v = try Self.floatTokens(tokens, count: 2, lineNumber: lineNumber)
@@ -267,6 +265,13 @@ public enum CubeLutParser {
         guard size3D != nil || size1D != nil else {
             throw sawAnyContent ? CubeLutError.missingSize : CubeLutError.emptyFile
         }
+        // Domain validity is judged AFTER all keys are collected: keys may
+        // arrive in either order, and an ordered pair like
+        // `DOMAIN_MIN 2.0 / DOMAIN_MAX 3.0` (a legal HDR domain) only becomes
+        // valid once MAX lands — validating per-key would reject the MIN
+        // line against the still-default 1.0 (acceptance-round fix; the
+        // invalid-pair vectors below still throw, just later).
+        try Self.validateDomain(min: domainMin, max: domainMax)
         let declaredSize = size3D ?? size1D!
         let expectedRows = size3D != nil ? declaredSize * declaredSize * declaredSize : declaredSize
         guard data.count == expectedRows else {

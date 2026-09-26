@@ -288,6 +288,24 @@ final class CubeLutParserTests: XCTestCase {
         }
     }
 
+    /// The ordered HDR pair above 1.0 is LEGAL — the validator fires after
+    /// all keys are collected, so `DOMAIN_MIN 2.0` must not be judged against
+    /// the still-default `DOMAIN_MAX 1.0` mid-stream (acceptance-round fix:
+    /// per-key validation rejected valid MIN>1 / MAX<0 files by key order).
+    func testDomainOrderedPairAboveOneParses() throws {
+        let lut = try CubeLutParser.parse(
+            "LUT_3D_SIZE 2\nDOMAIN_MIN 2.0\nDOMAIN_MAX 3.0\n0.0 0.0 0.0\n1.0 0.0 0.0\n0.0 1.0 0.0\n1.0 1.0 0.0\n0.0 0.0 1.0\n1.0 0.0 1.0\n0.0 1.0 1.0\n1.0 1.0 1.0\n")
+        XCTAssertEqual(lut.domainMin, SIMD3(2, 2, 2))
+        XCTAssertEqual(lut.domainMax, SIMD3(3, 3, 3))
+
+        // Symmetric negative-side shape: MAX below the default MIN must
+        // wait for the DOMAIN_MIN key that lowers it.
+        let neg = try CubeLutParser.parse(
+            "LUT_3D_SIZE 2\nDOMAIN_MAX 0.0\nDOMAIN_MIN -1.0\n0.0 0.0 0.0\n1.0 0.0 0.0\n0.0 1.0 0.0\n1.0 1.0 0.0\n0.0 0.0 1.0\n1.0 0.0 1.0\n0.0 1.0 1.0\n1.0 1.0 1.0\n")
+        XCTAssertEqual(neg.domainMin, SIMD3(repeating: -1))
+        XCTAssertEqual(neg.domainMax, SIMD3(repeating: 0))
+    }
+
     func testThrowEmptyFile() {
         XCTAssertThrowsError(try CubeLutParser.parse("")) {
             XCTAssertEqual($0 as? CubeLutError, .emptyFile)
