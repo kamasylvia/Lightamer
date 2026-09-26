@@ -364,4 +364,61 @@ final class PresetsStoreTests: XCTestCase {
             XCTAssertEqual(error as? PresetError, .notFound(id: "ghost"))
         }
     }
+
+    // MARK: - The T4 export-recipe load gate (validate 降级向量)
+
+    func testInvalidExportRecipeFileIsSkippedTypedAndNeighborsSurvive() throws {
+        // An export preset whose recipe fails `ExportVariant.validate()`
+        // (quality 1.5 — outside the 0...1 domain): a BAD PRESET, degraded
+        // at load exactly like a corrupt file.
+        _ = try writeFile("badrecipe.lightamer-preset", """
+        {
+          "appVersion" : "test",
+          "createdAt" : 1770000000,
+          "exportRecipe" : [
+            {"format": {"jpeg": {"quality": 1.5}}, "colorSpace": "sRGB", "sizing": {"mode": {"original": {}}, "dpi": 300}, "yiyin": false}
+          ],
+          "instances" : [],
+          "kind" : "export",
+          "name" : "Bad Recipe",
+          "schemaVersion" : 1
+        }
+        """)
+        _ = try writeFile("goodexp.lightamer-preset", """
+        {
+          "appVersion" : "test",
+          "createdAt" : 1770000000,
+          "exportRecipe" : [
+            {"format": {"jpeg": {"quality": 0.9}}, "colorSpace": "sRGB", "sizing": {"mode": {"original": {}}, "dpi": 300}, "yiyin": false}
+          ],
+          "instances" : [],
+          "kind" : "export",
+          "name" : "Good Recipe",
+          "schemaVersion" : 1
+        }
+        """)
+
+        let store = PresetsStore(directory: directory)
+        // 标坏不崩: the bad file is on the skipped list; the good export
+        // preset stays usable.
+        XCTAssertEqual(store.skippedFiles, ["badrecipe.lightamer-preset"])
+        XCTAssertEqual(store.presets().map(\.document.name), ["Good Recipe"])
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: "") , "sanity")
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: directory.appendingPathComponent("badrecipe.lightamer-preset").path),
+            "the bad file was never deleted")
+
+        // The load face throws the SAME typed error (never a silent
+        // fallback for the apply/fill faces).
+        XCTAssertThrowsError(try store.loadDocument(id: "badrecipe")) { error in
+            XCTAssertEqual(
+                error as? PresetError,
+                .invalidExportRecipe(name: "badrecipe.lightamer-preset"))
+        }
+        // The good one loads and its recipe validates.
+        let good = try store.loadDocument(id: "goodexp")
+        XCTAssertNoThrow(try good.exportRecipe?.first?.validate())
+    }
 }
