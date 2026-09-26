@@ -409,6 +409,19 @@ public enum ExportRenderer {
             throw error
         }
 
+        // ── the XMP mount (Plan 12-3 T4): the sidecar's five metadata
+        // fields ride the PRODUCT (the exported image has left the session
+        // truth-chain). Every non-attached outcome degrades — an export
+        // never hard-fails on metadata; the outcome value is the tally face.
+        let xmpOutcome = ExportChainBuilder.mountXMP(
+            destination: destination, format: formatSpec, sourceURL: sourceURL)
+        if case .failed(let reason) = xmpOutcome {
+            Self.logger.error(
+                "export: XMP injection degraded for \(destination.lastPathComponent, privacy: .public): \(reason, privacy: .public)")
+        } else {
+            Self.logger.info("export: XMP mount \(String(describing: xmpOutcome), privacy: .public)")
+        }
+
         Self.logger.info(
             "export: \(destination.lastPathComponent, privacy: .public) \(plane.width, privacy: .public)×\(plane.height, privacy: .public)")
         return destination
