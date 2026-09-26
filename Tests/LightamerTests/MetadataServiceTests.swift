@@ -156,6 +156,47 @@ final class MetadataServiceTests: XCTestCase {
         XCTAssertEqual(row?.dirty, 0)
     }
 
+    // MARK: - Prelude (T3 + 12-5 fix): the late-sidecar promotion
+
+    /// The 12-2 acceptance gap (GOAL-STATE blocker #4, fixed 12-5): a row
+    /// scanned BEFORE its `.lra` existed stayed sidecar_present = 0 forever
+    /// and never re-read. The backfill now stats the absent rows and
+    /// promotes + reads the late sidecar on the next open.
+    func testBackfillPromotesLateSidecarRows() async throws {
+        let rel = "late.arw"
+        let url = sessionRoot.appendingPathComponent(rel)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 0xCD, count: 16).write(to: url)
+        try await openIndex([rel])
+        var row = try await store.fetchRow(relPath: rel)
+        XCTAssertEqual(row?.sidecarPresent, 0, "no .lra at scan time")
+
+        // The sidecar appears afterwards (the MetadataService first-write).
+        var history = HistoryStack()
+        history.commit(
+            ModuleInstance(
+                module: ExposureModule.self, multiName: "e",
+                params: ExposureModule.Params(exposure: -0.25)),
+            label: "exposure")
+        let document = LightamerSidecar(
+            imageID: UUID(), decoderVersionUsed: "v8", decodeParamsHash: 42,
+            instances: history.effectiveInstances(), history: history,
+            historyHash: HistoryHash.hash(stack: history, decodeParamsHash: 42),
+            appVersion: "meta-test", layerStack: nil,
+            rating: 3, flag: nil, colorLabel: nil, keywords: nil, note: nil)
+        try JSONEncoder().encode(document).write(
+            to: LightamerSidecar.sidecarURL(for: url))
+
+        await store.close()
+        store = SessionIndexStore(sessionRoot: sessionRoot)
+        _ = try await store.openSession(root: sessionRoot, scan: scanOf([rel]))
+        row = try await store.fetchRow(relPath: rel)
+        XCTAssertEqual(row?.sidecarPresent, 1, "promoted by the backfill's absent-row stat")
+        XCTAssertEqual(row?.rating, 3, "the late sidecar actually re-read")
+        XCTAssertEqual(row?.hasEdits, 1)
+    }
+
     // MARK: - Prelude (T3): the drift re-read preserves metadata
 
     func testBackfillSidecarSummariesDriftReReadRefreshesMetadata() async throws {

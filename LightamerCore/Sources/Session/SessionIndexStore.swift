@@ -707,6 +707,26 @@ public actor SessionIndexStore {
                 seen.insert(rel)
             }
         }
+        // ③ THE "image first, sidecar later" PROMOTION (the 12-2 acceptance
+        // gap, GOAL-STATE blocker #4, fixed in 12-5): present was only ever
+        // stamped at INSERT/rename/changed, so a row whose `.lra` appeared
+        // AFTER the scan (the MetadataService first-write shape) stayed
+        // present=0 forever and NEVER re-read. Stat the absent rows — an
+        // existing `.lra` joins the work set; the update flips
+        // sidecar_present to 1 (a no-op for the already-present rows).
+        let absent = try handle.prepare("""
+            SELECT path FROM images
+            WHERE orphan_sidecar = 0 AND sidecar_present = 0
+            """)
+        while try absent.step() {
+            guard let rel = absent.columnText(0) else { continue }
+            guard !seen.contains(rel) else { continue }
+            let sidecar = rootPath + "/" + rel + ".lra"
+            if FileManager.default.fileExists(atPath: sidecar) {
+                work.append((rel, sidecar))
+                seen.insert(rel)
+            }
+        }
         guard !work.isEmpty else { return 0 }
 
         // Decode OUTSIDE the transaction (file I/O must not hold the write
@@ -770,7 +790,8 @@ public actor SessionIndexStore {
                 UPDATE images SET
                   imageID = ?, has_edits = ?, params_hash = ?,
                   layer_count = ?, layer_summary = ?, sidecar_mtime = ?,
-                  rating = ?, color_label = ?, keywords = ?, flag = ?, note = ?
+                  rating = ?, color_label = ?, keywords = ?, flag = ?, note = ?,
+                  sidecar_present = 1
                 WHERE path = ?
                 """)
             for (rel, summary) in summaries {

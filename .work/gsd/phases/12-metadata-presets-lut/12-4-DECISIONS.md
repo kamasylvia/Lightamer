@@ -44,6 +44,8 @@ PRES-04 批量复用 `PresetApplier` → `SessionBatchApplier.apply(progress:)` 
 
 LUT iop（Plan 12-5）params 按裁决存**库内名**引用（`Application Support/Lightamer/LUTs/` 相对名，非原始路径）。`.lightamer-preset` 跨机器可用前提 = LUT 库另行拷贝——预设格式不打包 LUT 字节（D-12-CONTEXT-5/D-6 locked）。缺失引用的行为 = iop 降级恒等 + toast（unknown-op 同款姿态，12-5 实现面）。本 plan 容器层无需任何 LUT 感知代码；Manual-Only F-12-4-3 挂账复核位在 12-5 收口。
 
+> **复核（2026-09-27，12-5 收口批）**：跨机器前提已落库兑现——`LutLibraryStore`（12-5 T5）按本裁决实现：库内文件名 = 引用键（导入即弃原始路径，引用不腐烂）；FNV-1a 内容查重；启动重扫自愈；**缺失引用 = 模块 routed blit 恒等（`Lut3dModule` process 的 data-nil 路径）+ 面板红字提示 + `toast_lut_missing`**（LutLibraryStoreTests 的 removal→degrade 链 + by-name preset params round-trip 双证）。F-12-4-3 复核位关闭。
+
 ## D11 — kind 互斥的严格度：仅钉 plan 向量，export+instances 宽容
 
 strict 集 = plan 钉死向量（develop + exportRecipe 非nil → typed 错）。export kind 携带 instances（理论不应有）**宽容解码不报错**（apply 面由 `kind == .develop` guard 拒绝，字段不消费）——前向兼容姿态：未来版本若给 export 预设加语义（如导出时叠加调整），旧 reader 不丢数据。export + 空 recipe 在 **create** 面 typed 拒绝（无意义预设不入库），但磁盘上出现时 load 宽容（validate 逐 variant 过空集 → 可载入但不进 apply 面）。
