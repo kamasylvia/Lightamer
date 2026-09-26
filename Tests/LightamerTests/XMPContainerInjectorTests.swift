@@ -352,20 +352,37 @@ final class XMPContainerInjectorTests: XCTestCase {
         return bytes.count
     }
 
-    func testPNGMisuseAndExistingXMP() throws {
+    func testPNGMisuseAndReplaceSemantics() throws {
         let jpeg = try makeJPEG()
         XCTAssertThrowsError(
             try XMPContainerInjector.inject(packet, into: jpeg, format: .png)
         ) { error in
             XCTAssertEqual(error as? XMPContainerInjector.InjectionError, .notAPNG)
         }
+        // PNG is the one format where the HOST generates its own XMP iTXt
+        // (the EXIF properties bridge) — the seam REPLACES it. Re-injection
+        // therefore converges: exactly ONE XMP iTXt carrying the LATEST
+        // packet, and the host reads the latest values.
         let original = try makePNG()
         let once = try XMPContainerInjector.inject(packet, into: original, format: .png)
-        XCTAssertThrowsError(
-            try XMPContainerInjector.inject(packet, into: once, format: .png)
-        ) { error in
-            XCTAssertEqual(error as? XMPContainerInjector.InjectionError, .existingXMPNotReplaced)
+        let second = XMPWriter.write(fields: XMPFields(
+            rating: 5, label: nil, hierarchicalSubject: [], subject: []))!
+        let twice = try XMPContainerInjector.inject(second, into: once, format: .png)
+        let bytes = [UInt8](twice)
+        var count = 0
+        var offset = 8
+        while offset + 8 <= bytes.count {
+            let length = (Int(bytes[offset]) << 24) | (Int(bytes[offset + 1]) << 16)
+                | (Int(bytes[offset + 2]) << 8) | Int(bytes[offset + 3])
+            let type = String(bytes: bytes[(offset + 4)..<(offset + 8)], encoding: .ascii) ?? ""
+            if type == "iTXt" { count += 1 }
+            if type == "IEND" { break }
+            offset += 12 + length
         }
+        XCTAssertEqual(count, 1, "replace semantics: exactly one XMP iTXt survives")
+        let xmp = try hostXMP(of: twice)
+        XCTAssertEqual(xmp.rating, "5", "the host reads the LATEST packet")
+        try assertPixelsUnchanged(original, twice, uti: "png")
     }
 
     // MARK: - TIFF tag 700 (T3 — the plan's cut-risk item; golden-all-green

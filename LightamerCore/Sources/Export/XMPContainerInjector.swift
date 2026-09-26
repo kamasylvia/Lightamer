@@ -49,9 +49,12 @@ public enum XMPContainerInjector {
         /// reader-compatibility minefield; documented v1 boundary).
         case jpegSegmentTooLarge(totalBytes: Int, limit: Int)
 
-        /// A pre-existing XMP payload was found in the container. Unreachable
-        /// from our chain (fresh encodes carry none — 11-02 D3), so v1
-        /// refuses to rewrite rather than splice silently.
+        /// A pre-existing XMP payload was found in a JPEG/TIFF container.
+        /// Unreachable from our chain (fresh encodes carry none — 11-02 D3
+        /// and the macOS 27 probes), so v1 refuses to splice over foreign
+        /// XMP. PNG is EXEMPT from this refusal: the host ITSELF generates
+        /// an exif:*-only XMP iTXt there (the EXIF properties bridge), so
+        /// the PNG seam uses replace semantics.
         case existingXMPNotReplaced
 
         /// Multi-IFD TIFFs (next-IFD pointer != 0) are out of the v1 weave —
@@ -178,15 +181,18 @@ public enum XMPContainerInjector {
             UInt8((crc >> 8) & 0xFF), UInt8(crc & 0xFF),
         ]
 
-        // Walk the chunk stream; the new iTXt lands immediately BEFORE THE
-        // FIRST IDAT (Adobe XMP Part 3 §1.1.3's position — and the
-        // HOST-PINNED readability face: a probe-proven host fact is that
-        // macOS 27's ImageIO PNG reader surfaces the XMP ONLY from a
-        // pre-IDAT iTXt; an IEND-adjacent one is ignored. The plan's
-        // "IEND 前" wording yields to both). An existing XMP iTXt refuses.
+        // Walk the chunk stream. PNG is the ONE format where the host
+        // generates its OWN XMP (a probe-pinned macOS 27 fact: the EXIF
+        // properties bridge writes an exif:*-only iTXt keyed
+        // XML:com.adobe.xmp) — so the seam uses REPLACE semantics: every
+        // existing XMP iTXt is dropped and OUR packet lands immediately
+        // BEFORE THE FIRST IDAT (Adobe XMP Part 3 §1.1.3's position, and
+        // the host-readability face — a post-IDAT iTXt is ignored by the
+        // host's PNG reader; the plan's "IEND 前" wording yields to both).
         var offset = signature.count
         var insertionOffset = bytes.count
         var sawIDAT = false
+        var removals: [Range<Int>] = []
         while offset + 8 <= bytes.count {
             let length =
                 (Int(bytes[offset]) << 24) | (Int(bytes[offset + 1]) << 16)
@@ -203,7 +209,9 @@ public enum XMPContainerInjector {
                 let keyword = keywordEnd.map {
                     String(bytes: bytes[(offset + 8)..<($0)], encoding: .ascii) ?? ""
                 }
-                if keyword == pngXMPKeyword { throw InjectionError.existingXMPNotReplaced }
+                if keyword == pngXMPKeyword {
+                    removals.append(offset..<chunkEnd)
+                }
             }
             if type == "IDAT" && !sawIDAT {
                 sawIDAT = true
@@ -216,11 +224,21 @@ public enum XMPContainerInjector {
             throw InjectionError.notAPNG
         }
 
+        // Apply the removals (adjust for earlier shifts), then splice in.
+        var stripped = bytes
+        for range in removals.reversed() {
+            let adjusted = stripped.index(stripped.startIndex, offsetBy: range.lowerBound)
+                ..< stripped.index(stripped.startIndex, offsetBy: range.upperBound)
+            stripped.removeSubrange(adjusted)
+            if range.lowerBound < insertionOffset {
+                insertionOffset -= range.count
+            }
+        }
         var out = Data()
-        out.reserveCapacity(container.count + chunk.count)
-        out.append(contentsOf: bytes[0..<insertionOffset])
+        out.reserveCapacity(stripped.count + chunk.count)
+        out.append(contentsOf: stripped[0..<insertionOffset])
         out.append(contentsOf: chunk)
-        out.append(contentsOf: bytes[insertionOffset...])
+        out.append(contentsOf: stripped[insertionOffset...])
         return out
     }
 

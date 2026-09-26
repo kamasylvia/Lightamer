@@ -98,6 +98,17 @@ final class MetadataController {
         await write { try await $0.setKeywords(keywords, relPaths: [relPath]) }
     }
 
+    /// The XMP-import face (Plan 12-3 T5): whole-group replacement over a
+    /// target SET with the hierarchical gate OPEN — third-party
+    /// `lr:hierarchicalSubject` paths legitimately carry `|`.
+    @discardableResult
+    func setImportedKeywords(_ keywords: [String], relPaths: [String]) async -> Bool {
+        await write {
+            try await $0.setKeywords(
+                keywords, relPaths: relPaths, allowHierarchical: true)
+        }
+    }
+
     @discardableResult
     func appendKeywords(_ keywords: [String], relPaths: [String]) async -> Bool {
         await write { try await $0.appendKeywords(keywords, relPaths: relPaths) }

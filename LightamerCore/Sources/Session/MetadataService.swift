@@ -108,10 +108,16 @@ public struct MetadataService: Sendable {
     /// Keywords — WHOLE-GROUP replacement (the MCP-09 set_keywords
     /// upstream semantics). Full path strings, `|`-separated. nil clears
     /// to never-tagged; `[]` records the cleared state.
-    public func setKeywords(_ keywords: [String]?, relPaths: [String]) async throws
-        -> MetadataEditOutcome
-    {
-        try Self.validate(keywords: keywords ?? [])
+    ///
+    /// `allowHierarchical` opens the separator gate for the XMP-IMPORT
+    /// face only (Plan 12-3 T5): third-party `lr:hierarchicalSubject`
+    /// paths legitimately carry `|` — the default-strict validation
+    /// exists to stop MANUAL ENTRY from typing the separator (RESEARCH
+    /// §3.1), not to reject well-formed hierarchical paths.
+    public func setKeywords(
+        _ keywords: [String]?, relPaths: [String], allowHierarchical: Bool = false
+    ) async throws -> MetadataEditOutcome {
+        try Self.validate(keywords: keywords ?? [], allowHierarchical: allowHierarchical)
         return try await apply(relPaths: relPaths) { document in
             document.keywords = keywords
         }
@@ -146,7 +152,10 @@ public struct MetadataService: Sendable {
 
     // MARK: - Validation
 
-    private static func validate(keywords: [String]) throws {
+    private static func validate(
+        keywords: [String], allowHierarchical: Bool = false
+    ) throws {
+        guard !allowHierarchical else { return }
         for keyword in keywords where keyword.contains("|") {
             throw MetadataError.keywordContainsSeparator(keyword)
         }
