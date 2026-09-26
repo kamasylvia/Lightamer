@@ -40,7 +40,7 @@ files_modified:
 2. `.planning/phases/12-metadata-presets-lut/12-CONTEXT.md` D-12-CONTEXT-7（过滤 UI 落位）、D-4（智能相册求值域）、验证红线节（L020 内容级断言）
 3. `LightamerCore/Sources/Session/SessionIndexSchema.swift`（v2 34 列——Field 枚举的列映射底表；`orphan_sidecar` 基线谓词）
 4. `LightamerCore/Sources/Session/SessionIndexStore.swift`（读事务模式——query 面落位；`SQLiteHandle` prepare/bind/step 面）
-5. `LightamerCore/Sources/Session/SessionTreeScanner.swift` + `SessionState.swift`（渐进 ingest 与重查询的编排关系——过滤态变更触发 query 重跑的落点）
+5. `App/Sources/Lightamer/Session/SessionTreeScanner.swift` + `SessionState.swift`（渐进 ingest 与重查询的编排关系——过滤态变更触发 query 重跑的落点；checker W-1 路径修正）
 6. `App/Sources/Lightamer/UI/ContentView.swift:37` 附近（BrowserMode 三态 segmented——过滤栏同行/相邻落位）
 7. `LightamerIOP/Sources/Yiyin/YiyinFontStore.swift`（app 级目录存储三拆模式：会话注册/typed 错误/启动重扫自愈——SmartAlbumStore 范本）
 8. `dt 对标正本`：`src/common/collection.h:74-136`（属性枚举对齐面）/ `collection.c:1355`（谓词→SQL 同构参考）

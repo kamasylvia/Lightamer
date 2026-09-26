@@ -120,7 +120,8 @@ files_modified:
   1. `SessionBrowserView.swift` rating overlay（:139-149 壳）接 `MetadataService` 数据面：实星填充 + colorLabel 色点 + flag badge（pick/reject 徽标）；identifier `.rating` 既有锚不动（AX 四件套）。
   2. 全域快捷键（D-8 三态：grid 焦点行 / culling 双格选中格 / 单图编辑器当前图）：`0-5` 星级、`X` flag-reject toggle、`P` flag-pick toggle、`⌘0-6` 色标（0=清除）——命令宿主按 `LightamerApp.swift`/`ContentView.swift` 既有 commands/keyboardShortcut 结构落位；与既有快捷键冲突表核对后入 DECISIONS。全部路由 `MetadataService`（多选批量走同一入口）。
   3. note 最小录入位：`InspectorView.swift` 既有信息面板新增 note 行（单图编辑）+ 多选「追加备注」菜单项（`appendNote`）。
-  4. zh catalog 同批（L025：新键语言标签跟全库 zh 约定）。
+  4. **关键词编辑位（checker B-1 补点，META-03「可编辑+批量编辑」的 GUI 兑现）**：`InspectorView.swift` 信息面板新增 keywords 编辑行（单图：`setKeywords` 整组替换，`|` 为层级分隔符输入禁则复用既有 typed error）+ 多选「追加关键词」菜单项（`appendKeywords`）——与 note 行同面板同模式。
+  5. zh catalog 同批（L025：新键语言标签跟全库 zh 约定）。
 - **证据**：GUI 走查记录（三态快捷键打分/flag/色标即时可见 + overlay 实星 + note 持久化重开保持）；无法自动化项登记 Manual-Only 台账行；zh 首屏 smoke。
 
 ### T7 全量回归 + SUMMARY + DECISIONS

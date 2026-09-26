@@ -80,7 +80,7 @@ files_modified:
 
 - **action**
   1. TIFF XMP = tag 700（BYTE 数组）注入：IFD 重组（新 tag 排序插入 + 后续数据区 offset 平移 + 下一 IFD 链保持）——**完成后判据 = T2 同款正锚字节 golden + CGImageSource/TIFF 反序列化重读值断言**。
-  2. **风险预案（编排纪律钉死）**： golden 断言无法全绿或工时超执行预算 → **文档化降级**：TIFF 加入 XMP 例外集（`inject` 对 tiff 返回 typed「不支持」→ 导出继续零 XMP），例外集 +1 入 DECISIONS + 12-VALIDATION 注记，**不阻塞 12-5 收口**（SC#1 底线已由 T2 JPEG/PNG 保住）。
+  2. **风险预案（编排纪律钉死）**： golden 断言无法全绿或工时超执行预算 → **文档化降级**：TIFF 加入 XMP 例外集（`inject` 对 tiff 返回 typed「不支持」→ 导出继续零 XMP），例外集 +1 入 DECISIONS + 12-VALIDATION 注记，**不阻塞 12-5 收口**（SC#1 底线已由 T2 JPEG/PNG 保住）。**降级触发 = C 档停点向用户明报项，非 worker 单方落账**（checker W-3）。
 - **证据**：`XMPContainerInjectorTests`（TIFF 段）——tag 700 存在 + 值匹配 + 既有 tag 值逐字节不变 + IFD 链完好；若走降级：DECISIONS 记录降级原因与证据。
 
 ### T4 ExportEncoder 后置挂载 + 六格式矩阵

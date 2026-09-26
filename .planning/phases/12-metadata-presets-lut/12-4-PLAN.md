@@ -41,7 +41,7 @@ files_modified:
 1. `.planning/phases/12-metadata-presets-lut/12-RESEARCH.md` §5（容器格式/apply 复用清单/存储管理面）、§7 T7、§8.2（12-4 验收草案）
 2. `.planning/phases/12-metadata-presets-lut/12-CONTEXT.md` D-12-CONTEXT-5（统一容器裁决）、继承定案节（D-09-CONTEXT-5 skip 集 / L013 / one-way 格式锁）
 3. `LightamerCore/Sources/Pipe/History/PastePayload.swift`（:52 结构 + :128 `filtered(by:)` partial + 头注「Codable 形态：运行时 spelling 仅进程内」——preset 是持久化字节，投影差异即 L013）
-4. `LightamerCore/Sources/Session/SessionBatchApplier.swift:65`（`composeSegment` 签名原样：root/relPaths/skipRelPaths/payload/mode/seed/selection/timestamp/label——live 保护/失败降级全继承）
+4. `LightamerCore/Sources/Session/SessionBatchApplier.swift:65`（`composeSegment` 签名原样：root/relPaths/skipRelPaths/payload/mode/seed/selection/timestamp/label——live 保护/失败降级全继承；**行号以 :65 为准**，RESEARCH :70 为漂移值，checker I-1）
 5. `LightamerCore/Sources/Session/SessionIndexStore.swift:916`（`claimBatchApply`——预设 apply 段2 **正主**：翻 params_hash + thumb stale，与 12-1 `claimMetadataApply` 语义对照）+ `BatchSidecarWriter.swift`（段3）
 6. `LightamerCore/Sources/Sidecar/LightamerSidecar.swift:252`（`SidecarInstanceRecord` internal——容器 instances 投影直接复用）
 7. `LightamerCore/Sources/Export/ExportRecipe.swift:105`（`ExportRecipe` typealias + `ExportVariant` Codable 零哈希 + `validate()` 位）

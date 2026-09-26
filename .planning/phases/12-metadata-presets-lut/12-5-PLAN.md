@@ -117,7 +117,7 @@ files_modified:
 
 - **action**
   1. 全 suite 终轮：基线 **1260/6skip/0fail** + Phase 12 全部新增，0 fail；测试计数演变入 SUMMARY。
-  2. `12-VALIDATION.md`：SC#1-4 逐条三列证据（一手代码锚/测试锚/GUI 实证锚，体例照 11-VALIDATION）；Manual-Only 汇总表（四 plan 登记合并）；`status` + `nyquist_compliant` frontmatter。
+  2. `12-VALIDATION.md`：SC#1-4 逐条三列证据（一手代码锚/测试锚/GUI 实证锚，体例照 11-VALIDATION）；**SC#2 三列证据须显式声明排序键口径 = D-12-CONTEXT-7 六键（filename/rating/capture_date/iso/focal_length/scan_epoch）——SC 字面「sort by label/keyword/camera/lens」以过滤面 16 字段全覆盖解释，排序窄面为 D-7 裁决内行为**（checker W-2 可追溯性）；Manual-Only 汇总表（四 plan 登记合并）；`status` + `nyquist_compliant` frontmatter。
   3. `12-DISCUSSION-LOG.md` 追加终节：**Phase 13 移交清单**（DB v2 34 列 = Spotlight 索引源；XMP 例外集复审位[HEIF/AVIF/WebP，Phase 14 同批]；Quick Filter/谓词翻译层 = Phase 14 MCP 筛选工具直接消费面；`.lightamer-preset` = MCP-09 preset 三件套上游；Manual-Only 承接）+ **遗留对表**（各 plan SUMMARY 遗留合并，零静默）。
   4. 翻账：`REQUIREMENTS.md` META-01..06 / PRES-01..04 / IOP-COLOR-08 → Delivered（+ 映射表 Pending→Delivered）；`TODO.md` Phase 12 收口；`.work/GOAL-STATE.md` Phase 12 闭环记录 + 续接点更新（Phase 12 verify-work 待办 + 下一 phase 指针）。
   5. **C 档第 3 停**：VALIDATION 产出后按夜间授权先例（D-07-3-T5-1 / D-09-05-T1-1 + 11-05 D1）执行翻账收口，晨审追认——用户晨间可推翻（推翻 = 回注修复批）。
