@@ -774,17 +774,30 @@ public actor SessionIndexStore {
         return String(data: data, encoding: .utf8) ?? "[]"
     }
 
-    // MARK: - EXIF light columns (T5)
+    // MARK: - EXIF light columns (T5; v2 since Plan 12-1 T5)
 
-    /// Orientation/width/height/capture_date via ImageIO PROPERTIES only
+    /// EXIF light columns via ImageIO PROPERTIES only
     /// (`CGImageSourceCopyPropertiesAtIndex` — metadata read, never a full
-    /// decode). One batched transaction for all filled rows.
+    /// decode). v2 (Plan 12-1): the four Phase 9 columns PLUS the seven
+    /// META-05 filter columns (`camera_make`/`camera_model`/`lens_model`/
+    /// `iso`/`focal_length`/`aperture`/`exposure`), all in the SAME batch
+    /// UPDATE.
+    ///
+    /// Pending predicate (PLAN-PINNED, RESEARCH §2.5 option ③): the single
+    /// anchor `camera_make IS NULL`. Every successfully-processed row
+    /// leaves camera_make non-NULL — a missing text value writes the ''
+    /// sentinel (the attempted marker), a missing numeric value stays NULL
+    /// (SQLite three-valued logic excludes it from the anchor naturally) —
+    /// so a no-EXIF image is swept EXACTLY ONCE and never re-scanned.
+    /// Files that fail to OPEN stay NULL and retry on the next open (the
+    /// Phase 9 degraded posture, unchanged). Pre-existing v1 rows
+    /// (orientation already filled) are collected by this one sweep too.
     @discardableResult
     public func backfillExifMetadata(rootPath: String) async throws -> Int {
         guard let handle else { return 0 }
         let pending = try handle.prepare("""
             SELECT path FROM images
-            WHERE orphan_sidecar = 0 AND orientation IS NULL
+            WHERE orphan_sidecar = 0 AND camera_make IS NULL
             """)
         var work: [(path: String, absolute: String)] = []
         while try pending.step() {
@@ -798,6 +811,14 @@ public actor SessionIndexStore {
             var width: Int64
             var height: Int64
             var captureDate: Double?
+            // v2 seven (the META-05 filter keys):
+            var cameraMake: String
+            var cameraModel: String
+            var lensModel: String
+            var iso: Int64?
+            var focalLength: Double?
+            var aperture: Double?
+            var exposure: Double?
         }
         var filled: [String: Exif] = [:]
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
@@ -814,20 +835,48 @@ public actor SessionIndexStore {
             let orientation = (properties[kCGImagePropertyOrientation] as? Int) ?? 1
 
             var captureDate: Double?
-            if let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],
-               let raw = exif[kCGImagePropertyExifDateTimeOriginal] as? String {
-                captureDate = Self.parseEXIFDate(raw)?.timeIntervalSince1970
+            var exifDict: [CFString: Any] = [:]
+            if let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any] {
+                exifDict = exif
+                if let raw = exif[kCGImagePropertyExifDateTimeOriginal] as? String {
+                    captureDate = Self.parseEXIFDate(raw)?.timeIntervalSince1970
+                }
             }
-            if captureDate == nil,
-               let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any],
-               let raw = tiff[kCGImagePropertyTIFFDateTime] as? String {
-                captureDate = Self.parseEXIFDate(raw)?.timeIntervalSince1970
+            var tiffDict: [CFString: Any] = [:]
+            if let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any] {
+                tiffDict = tiff
+                if captureDate == nil,
+                   let raw = tiff[kCGImagePropertyTIFFDateTime] as? String {
+                    captureDate = Self.parseEXIFDate(raw)?.timeIntervalSince1970
+                }
             }
+
+            // The seven filter columns. Text: missing → '' (the attempted
+            // sentinel — the row never re-enters the NULL anchor). Numeric:
+            // missing → NULL (honest absence; the anchor is text-anchored).
+            let cameraMake = (tiffDict[kCGImagePropertyTIFFMake] as? String) ?? ""
+            let cameraModel = (tiffDict[kCGImagePropertyTIFFModel] as? String) ?? ""
+            let lensModel = (exifDict[kCGImagePropertyExifLensModel] as? String) ?? ""
+            // ISOSpeedRatings arrives as an array (classic EXIF) or a bare
+            // number depending on the source — accept both.
+            var iso: Int64?
+            if let list = exifDict[kCGImagePropertyExifISOSpeedRatings] as? [Int],
+               let first = list.first {
+                iso = Int64(first)
+            } else if let single = exifDict[kCGImagePropertyExifISOSpeedRatings] as? Int {
+                iso = Int64(single)
+            }
+            let focalLength = exifDict[kCGImagePropertyExifFocalLength] as? Double
+            let aperture = exifDict[kCGImagePropertyExifFNumber] as? Double
+            let exposure = exifDict[kCGImagePropertyExifExposureTime] as? Double
 
             filled[item.path] = Exif(
                 orientation: Int64(orientation),
                 width: Int64(width), height: Int64(height),
-                captureDate: captureDate
+                captureDate: captureDate,
+                cameraMake: cameraMake, cameraModel: cameraModel,
+                lensModel: lensModel, iso: iso,
+                focalLength: focalLength, aperture: aperture, exposure: exposure
             )
         }
         guard !filled.isEmpty else { return 0 }
@@ -835,7 +884,10 @@ public actor SessionIndexStore {
         try handle.exec("BEGIN IMMEDIATE")
         do {
             let update = try handle.prepare("""
-                UPDATE images SET orientation = ?, width = ?, height = ?, capture_date = ?
+                UPDATE images SET orientation = ?, width = ?, height = ?,
+                    capture_date = ?,
+                    camera_make = ?, camera_model = ?, lens_model = ?,
+                    iso = ?, focal_length = ?, aperture = ?, exposure = ?
                 WHERE path = ?
                 """)
             for (rel, exif) in filled {
@@ -843,7 +895,14 @@ public actor SessionIndexStore {
                 try update.bindInt(2, exif.width)
                 try update.bindInt(3, exif.height)
                 try update.bindDouble(4, exif.captureDate)
-                try update.bindText(5, rel)
+                try update.bindText(5, exif.cameraMake)
+                try update.bindText(6, exif.cameraModel)
+                try update.bindText(7, exif.lensModel)
+                try update.bindInt(8, exif.iso)
+                try update.bindDouble(9, exif.focalLength)
+                try update.bindDouble(10, exif.aperture)
+                try update.bindDouble(11, exif.exposure)
+                try update.bindText(12, rel)
                 _ = try update.step()
                 try update.reset()
             }

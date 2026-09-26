@@ -480,4 +480,143 @@ final class SessionIndexMigrationTests: XCTestCase {
         }
         XCTAssertGreaterThan(compared, 3 * 30, "parity must cover the FULL v2 set")
     }
+
+    // MARK: - EXIF sweep (Plan 12-1 T5 — the v2 seven columns)
+
+    /// Write a real JPEG (4×3 solid) with the given TIFF/EXIF properties.
+    private func writeJPEG(
+        _ rel: String, tiff: [CFString: Any] = [:], exif: [CFString: Any] = [:]
+    ) throws {
+        let url = sessionRoot.appendingPathComponent(rel)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let width = 4, height = 3
+        let space = CGColorSpace(name: CGColorSpace.sRGB)!
+        let context = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: width * 4, space: space,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(CGColor(red: 0.5, green: 0.25, blue: 0.75, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let image = context.makeImage()!
+        let destination = CGImageDestinationCreateWithURL(
+            url as CFURL, "public.jpeg" as CFString, 1, nil)
+        XCTAssertNotNil(destination)
+        var properties: [CFString: Any] = [:]
+        if !tiff.isEmpty { properties[kCGImagePropertyTIFFDictionary] = tiff }
+        if !exif.isEmpty { properties[kCGImagePropertyExifDictionary] = exif }
+        CGImageDestinationAddImage(destination!, image, properties as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(destination!))
+    }
+
+    /// The seven columns fill with EXACT values from a real image (L020
+    /// content-level), and the sweep collects the row in ONE pass.
+    func testExifSevenColumnsFillExactFromRealImage() async throws {
+        try writeJPEG(
+            "one.jpg",
+            tiff: [
+                kCGImagePropertyTIFFMake: "Sony",
+                kCGImagePropertyTIFFModel: "ILCE-7RM5",
+            ],
+            exif: [
+                kCGImagePropertyExifLensModel: "FE 24-70mm F2.8 GM II",
+                kCGImagePropertyExifISOSpeedRatings: [1250],
+                kCGImagePropertyExifFocalLength: 46.0,
+                kCGImagePropertyExifFNumber: 2.8,
+                kCGImagePropertyExifExposureTime: 0.004,
+            ])
+
+        let store = SessionIndexStore(sessionRoot: sessionRoot)
+        _ = try await store.openSession(root: sessionRoot, scan: {
+            let values = try! sessionRoot.appendingPathComponent("one.jpg").resourceValues(
+                forKeys: [.contentModificationDateKey, .fileSizeKey])
+            let page = SessionScanPage(entries: [SessionScanEntry(
+                relPath: "one.jpg",
+                mtime: values.contentModificationDate?.timeIntervalSince1970 ?? 0,
+                size: Int64(values.fileSize ?? 0))])
+            return AsyncStream { $0.yield(page); $0.finish() }
+        }())
+
+        let row = try await store.fetchRow(relPath: "one.jpg")
+        XCTAssertEqual(row?.cameraMake, "Sony")
+        XCTAssertEqual(row?.cameraModel, "ILCE-7RM5")
+        XCTAssertEqual(row?.lensModel, "FE 24-70mm F2.8 GM II")
+        XCTAssertEqual(row?.iso, 1250)
+        XCTAssertEqual(row?.focalLength ?? 0, 46.0, accuracy: 0.001)
+        XCTAssertEqual(row?.aperture ?? 0, 2.8, accuracy: 0.001)
+        XCTAssertEqual(row?.exposure ?? 0, 0.004, accuracy: 0.0000001)
+
+        // The anchor is now satisfied — a DIRECT second sweep processes
+        // ZERO rows (no-EXIF columns cannot re-enter pending).
+        let second = try await store.backfillExifMetadata(rootPath: sessionRoot.path)
+        XCTAssertEqual(second, 0, "the sentinel/anchor must prevent re-scans")
+        await store.close()
+    }
+
+    /// A no-EXIF image: text columns take the '' sentinel in the SAME
+    /// sweep, numerics stay NULL (honest absence), and the row never
+    /// re-enters pending (swept exactly once).
+    func testNoExifImageSentinelSweepsExactlyOnce() async throws {
+        try writeJPEG("plain.jpg")
+
+        let store = SessionIndexStore(sessionRoot: sessionRoot)
+        _ = try await store.openSession(root: sessionRoot, scan: {
+            let values = try! sessionRoot.appendingPathComponent("plain.jpg").resourceValues(
+                forKeys: [.contentModificationDateKey, .fileSizeKey])
+            let page = SessionScanPage(entries: [SessionScanEntry(
+                relPath: "plain.jpg",
+                mtime: values.contentModificationDate?.timeIntervalSince1970 ?? 0,
+                size: Int64(values.fileSize ?? 0))])
+            return AsyncStream { $0.yield(page); $0.finish() }
+        }())
+
+        let row = try await store.fetchRow(relPath: "plain.jpg")
+        XCTAssertEqual(row?.cameraMake, "", "the attempted sentinel")
+        XCTAssertEqual(row?.cameraModel, "")
+        XCTAssertEqual(row?.lensModel, "")
+        XCTAssertNil(row?.iso, "numerics stay NULL (no EXIF)")
+        XCTAssertNil(row?.focalLength)
+        XCTAssertNil(row?.aperture)
+        XCTAssertNil(row?.exposure)
+
+        let second = try await store.backfillExifMetadata(rootPath: sessionRoot.path)
+        XCTAssertEqual(second, 0, "swept exactly once — never re-scanned")
+        await store.close()
+    }
+
+    /// A pre-existing v1-era row (orientation already filled, the new
+    /// columns NULL) is collected by the SAME single sweep.
+    func testV1RowsWithOrientationAreCollectedByOneSweep() async throws {
+        try writeJPEG(
+            "legacy.jpg",
+            tiff: [kCGImagePropertyTIFFMake: "Fujifilm"])
+        let dbURL = SessionIndexSchema.databaseURL(forSessionRoot: sessionRoot)
+        // Hand-open the FRESH v2 database and clear the EXIF four + seven
+        // to simulate the v1 population (orientation/capture filled by the
+        // 09 sweep, everything else NULL).
+        let store = SessionIndexStore(sessionRoot: sessionRoot)
+        _ = try await store.openSession(root: sessionRoot, scan: {
+            let values = try! sessionRoot.appendingPathComponent("legacy.jpg").resourceValues(
+                forKeys: [.contentModificationDateKey, .fileSizeKey])
+            let page = SessionScanPage(entries: [SessionScanEntry(
+                relPath: "legacy.jpg",
+                mtime: values.contentModificationDate?.timeIntervalSince1970 ?? 0,
+                size: Int64(values.fileSize ?? 0))])
+            return AsyncStream { $0.yield(page); $0.finish() }
+        }())
+        var row = try await store.fetchRow(relPath: "legacy.jpg")
+        XCTAssertEqual(row?.cameraMake, "Fujifilm")
+
+        // Simulate the v1 shape: orientation filled, camera_make NULL.
+        let handle = try SQLiteHandle(path: dbURL.path)
+        try handle.exec("UPDATE images SET camera_make = NULL WHERE path = 'legacy.jpg'")
+        handle.close()
+
+        let swept = try await store.backfillExifMetadata(rootPath: sessionRoot.path)
+        XCTAssertEqual(swept, 1, "the v1-shaped row is collected in this one sweep")
+        row = try await store.fetchRow(relPath: "legacy.jpg")
+        XCTAssertEqual(row?.cameraMake, "Fujifilm")
+        XCTAssertNotNil(row?.orientation, "the pre-existing v1 fill survives")
+        await store.close()
+    }
 }
