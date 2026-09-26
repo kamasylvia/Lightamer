@@ -295,6 +295,7 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 ②**直接先例**：digiKam 官方文档明确 MySQL/MariaDB 后端为大库推荐（「10 万张以上没理由用 SQLite」社区共识；官方对比列「Better performance」）；Immich（Postgres 后端）10 万级资产可用。反向证据亦在案：SQLite 本盘读可快于网络 MySQL（4.9x 读基准）→ **pg 必须走本机 unix socket / 本机部署，禁远程网络库作为主路径**（延迟预算入 research）；MariaDB 11.7.2 类版本兼容坑 → 版本钉死策略。
 ③**运维边界**：pg 实例用户自管（已由「手动配置」门控接受）；备份 = pg_dump/basebackup 标准件（优于 C1 单文件 verify/restore）。
 **术语勘误**：模式名 = **Catalogs**（用户勘误 category→catalogs）；组织树沿用 C1 **Categories** 语义。
+**部署形态预研（2026-09-27，orchestrator）**：macOS 宿主上 Docker Desktop 存在 VM 边界双损耗（TCP 回环穿 NAT ~0.2-1ms/往返 vs unix socket ~50µs；数据卷 fsync 经虚拟化层，bind mount 最差）——查询侧无感（vs 50ms 预算），批量投影写入侧用 `synchronous_commit=off`（目录库可重建投影，合法免 durability）卸掉 fsync 成本。**建议 = 宿主机直装（brew postgresql@17）为推荐路径**；容器化允许但三条纪律（named volume 禁 bind mount / 仅绑 127.0.0.1 / 投影关同步提交）。research 基准任务 +1：宿主直装 vs Docker named-volume 同基准双跑落账。
 
 ---
 *Last updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs); AI-02/03/04 moved to v2*
