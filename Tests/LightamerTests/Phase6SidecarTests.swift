@@ -92,7 +92,9 @@ final class Phase6SidecarTests: XCTestCase {
         let stack = makeStack()
         let sidecar = makeSidecar(stack: stack)
 
-        XCTAssertEqual(sidecar.schemaVersion, 2, "writers emit the current version")
+        XCTAssertEqual(
+            sidecar.schemaVersion, LightamerSidecar.schemaVersionCurrent,
+            "writers emit the current version")
         XCTAssertFalse(sidecar.driftDetected, "write-time hash must be self-consistent")
 
         let data = try JSONEncoder().encode(sidecar)
@@ -263,7 +265,9 @@ final class Phase6SidecarTests: XCTestCase {
             appVersion: "0.1.0")
         let downgraded = String(
             data: try JSONEncoder().encode(v2), encoding: .utf8)!
-            .replacingOccurrences(of: "\"schemaVersion\":2", with: "\"schemaVersion\":1")
+            .replacingOccurrences(
+                of: "\"schemaVersion\":\(LightamerSidecar.schemaVersionCurrent)",
+                with: "\"schemaVersion\":1")
         let decoded = try JSONDecoder().decode(LightamerSidecar.self, from: Data(downgraded.utf8))
         XCTAssertEqual(decoded.schemaVersion, 1)
         XCTAssertNil(decoded.layerStack, "v1 String reservation decodes to nil")

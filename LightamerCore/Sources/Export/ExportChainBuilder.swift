@@ -131,4 +131,73 @@ public enum ExportChainBuilder {
         }
         return false
     }
+
+    // MARK: - The XMP mount (Plan 12-3 T4, D-12-CONTEXT-2)
+
+    /// The post-encode XMP outcome. The export NEVER hard-fails on
+    /// metadata — every non-attached outcome is a documented degradation
+    /// (the failure case logs; the tally face is the outcome value itself).
+    public enum XMPMountOutcome: Equatable, Sendable {
+        /// The packet was injected and atomically promoted.
+        case attached
+        /// No sidecar (or all-empty metadata) — no fields, no packet.
+        case skippedNoFields
+        /// HEIC / AVIF / WebP — the D-12-CONTEXT-10 documented exceptions
+        /// (the export matrix's reverse anchors byte-scan their absence).
+        case skippedUnsupportedFormat
+        /// A typed injection error degraded the mount: the product exists,
+        /// carries no XMP, the export continues. Payload = the reason.
+        case failed(String)
+    }
+
+    /// The post-encode XMP mount: read the SOURCE's disk sidecar, project
+    /// its five metadata fields (D-12-CONTEXT-2: reject → Rating -1, pick
+    /// has no XMP seat), serialize, inject into the freshly encoded
+    /// product, and promote atomically (L009 — same-directory tmp rename).
+    ///
+    /// The exported image has LEFT the session truth-chain (the D-2
+    /// ruling's reason face): the XMP rides the product only — the
+    /// original and its `.lra` are never touched (the red line: this
+    /// mount's only write target is the export destination file).
+    ///
+    /// Called by the encode stage after the atomic promote; a throw from
+    /// the encoder itself never reaches here.
+    public static func mountXMP(
+        destination: URL, format: ExportFormatSpec, sourceURL: URL
+    ) -> XMPMountOutcome {
+        guard let containerFormat = XMPContainerFormat(exportSpec: format) else {
+            return .skippedUnsupportedFormat
+        }
+        guard let document = ExportRenderer.readDocument(imageURL: sourceURL) else {
+            return .skippedNoFields
+        }
+        let fields = XMPWriter.project(
+            rating: document.rating, flag: document.flag,
+            colorLabel: document.colorLabel, keywords: document.keywords)
+        guard let packet = XMPWriter.write(fields: fields) else {
+            return .skippedNoFields
+        }
+        do {
+            let container = try Data(contentsOf: destination)
+            let injected = try XMPContainerInjector.inject(
+                packet, into: container, format: containerFormat)
+            try injected.write(to: destination, options: .atomic)
+            return .attached
+        } catch {
+            return .failed("\(error)")
+        }
+    }
+}
+
+/// The export-spec → injection-format mapping (the mount's dispatch; the
+/// injector itself stays a pure Data plane).
+public extension XMPContainerFormat {
+    init?(exportSpec: ExportFormatSpec) {
+        switch exportSpec {
+        case .jpeg: self = .jpeg
+        case .png: self = .png
+        case .tiff: self = .tiff
+        case .heic, .avif, .webp: return nil
+        }
+    }
 }

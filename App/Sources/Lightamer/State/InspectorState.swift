@@ -113,6 +113,9 @@ final class InspectorState {
         // the dispatched record routes through the view; the sibling
         // rides the session lookup).
         register(YiyinBordersPanelProvider())
+        // Plan 12-5 T5: lut3d (library import/picker + colorspace +
+        // interpolation pickers + the 1D/missing hints).
+        register(LutPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

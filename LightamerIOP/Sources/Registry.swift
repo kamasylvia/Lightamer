@@ -240,6 +240,14 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: WatermarkModule.opName) { id in
             ModuleBox(module: WatermarkModule(), instanceID: id)
         }
+        // Plan 12-5 T2: lut3d (.cube application), v50 slot 36.0 — ALREADY
+        // in the V50Order table (zero rows inserted). Neutral (lutName nil)
+        // = blit identity ⇒ cache-neutral (exposure-0EV style); the T5
+        // LUT panel drives this instance. Resolution rides the shared
+        // library store (T5) — missing entries degrade to the blit.
+        await registry.register(opName: Lut3dModule.opName) { id in
+            ModuleBox(module: Lut3dModule(resolver: LutLibraryStore.shared), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -355,6 +363,12 @@ public enum LightamerIOPRegistry {
             // Plan 08-2 T4: the watermark row composite (one PSO per
             // functionName — the 16×16 threadgroup is static).
             WatermarkModule.kernelRow,
+            // Plan 12-5 T2: the lut3d interpolation pair (both states —
+            // the picker flips between them without a first-use stall) +
+            // the 1D ramp kernel (T3).
+            Lut3dModule.Kernel.tetrahedral,
+            Lut3dModule.Kernel.trilinear,
+            Lut3dModule.Kernel.ramp1D,
         ]
     }
 
@@ -466,6 +480,10 @@ public enum LightamerIOPRegistry {
             // byte-identical blit, cache-neutral, exposure-0EV style; the
             // 08-2 watermark panel has an instance to drive).
             ModuleInstance(module: WatermarkModule.self, params: WatermarkModule.Params.neutralSeed),
+            // Plan 12-5 T5: lut3d joins the seed ENABLED-neutral (lutName
+            // nil = the routed blit identity — cache-neutral, exposure-0EV
+            // style; the LUT panel has an instance to drive).
+            ModuleInstance(module: Lut3dModule.self, params: Lut3dModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }

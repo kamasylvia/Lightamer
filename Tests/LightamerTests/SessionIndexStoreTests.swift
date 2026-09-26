@@ -9,14 +9,14 @@ import XCTest
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan 09-01 T4 — the session index DB suite:
 //
-//   • schema v1 FROZEN spelling: every column (name/type/order) asserted
+//   • schema v2 FROZEN spelling: every column (name/type/order) asserted
 //     against PRAGMA table_info VERBATIM + meta + idx_images_dir + the
 //     L013 decimal-TEXT hash columns + WAL/synchronous pragmas
 //   • incremental sync three vectors (added / removed / mtime-drift
 //     changed) with EXACT diff counts + exact row set
 //   • single-transaction atomicity (mid-sync failure injections →
 //     ROLLBACK → row set unchanged)
-//   • future-schema refusal (v2 file against a v1 binary)
+//   • future-schema refusal (v99 file against a v2 binary)
 //
 // Fixtures live in `FileManager.temporaryDirectory` (internal SSD — L009).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ final class SessionIndexStoreTests: XCTestCase {
 
     // MARK: - Schema freeze
 
-    func testSchemaV1FrozenColumnSpelling() async throws {
+    func testSchemaV2FrozenColumnSpelling() async throws {
         let store = makeStore()
         _ = try await store.openSession(root: sessionRoot, scan: stream(of: []))
 
@@ -103,7 +103,7 @@ final class SessionIndexStoreTests: XCTestCase {
             SessionIndexSchema.imagesColumns.map(\.type),
             "column TYPES are part of the freeze contract"
         )
-        XCTAssertEqual(verification.columnNames.count, 25, "v1 = 25 columns exactly")
+        XCTAssertEqual(verification.columnNames.count, 34, "v2 = 34 columns exactly")
 
         // L013: the two hash columns are TEXT (decimal strings), never INTEGER.
         let hashPairs = zip(verification.columnNames, verification.columnTypes).filter {
@@ -116,7 +116,7 @@ final class SessionIndexStoreTests: XCTestCase {
 
         XCTAssertEqual(verification.primaryKeyColumns, ["path"], "path PRIMARY KEY")
         XCTAssertEqual(
-            verification.schemaVersionMeta, "1", "meta.schemaVersion stamped"
+            verification.schemaVersionMeta, "2", "meta.schemaVersion stamped"
         )
         XCTAssertTrue(verification.hasDirIndex, "idx_images_dir must exist")
         XCTAssertEqual(verification.journalMode, "wal", "WAL pinned (D-09-CONTEXT-1)")
@@ -143,7 +143,7 @@ final class SessionIndexStoreTests: XCTestCase {
         let store = makeStore()
         do {
             _ = try await store.openSession(root: sessionRoot, scan: stream(of: []))
-            XCTFail("a v99 database must be REFUSED by a v1 binary")
+            XCTFail("a v99 database must be REFUSED by a v2 binary")
         } catch let error as SessionIndexError {
             guard case .schemaFailed = error else {
                 XCTFail("expected schemaFailed, got \(error)")

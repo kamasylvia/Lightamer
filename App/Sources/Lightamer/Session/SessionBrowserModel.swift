@@ -52,6 +52,12 @@ final class SessionBrowserModel {
         /// the cell's「进行中」badge source (the window is NEVER silent,
         /// D-09-CONTEXT-4).
         let dirty: Bool
+        /// 12-1 T6 (META-01/05): the metadata overlay face — real star
+        /// fills, the color-label dot and the flag badge render from
+        /// these (nil = not set).
+        let rating: Int64?
+        let colorLabel: Int64?
+        let flag: Int64?
 
         var id: String { relPath }
     }
@@ -85,13 +91,29 @@ final class SessionBrowserModel {
 
     // MARK: - Collection load
 
-    /// Authoritative reload from the index store (ORDER BY path — the
-    /// frozen sort column; filter UI is Phase 12). `includeOrphans` (the
-    /// grid passes true): orphan rows ride the grid as placeholder cells
-    /// with the orphan badge (9-2's sidebar actions own the disposition;
-    /// SC#2 — the orphan is VISIBLE, never a hard failure).
+    /// The ACTIVE query state (Plan 12-2 T4): the filter bar sets these
+    /// through `applyFilter`; the LEGACY reload callers (progressive-ingest
+    /// finish, metadata-write refresh, batch paste) then automatically ride
+    /// the user's chosen filter/sort instead of resetting it — the
+    /// metadata-write refresh must not drop the user's sort.
+    private(set) var activeFilterGroups: [FilterPredicateGroup] = []
+    private(set) var activeSort: FilterSort?
+
+    /// Authoritative reload from the index store (filter-aware: the ACTIVE
+    /// query state rides the store's query face; empty groups + nil sort =
+    /// the legacy ORDER-BY-path read). `includeOrphans` (the grid passes
+    /// true): orphan rows ride the grid as placeholder cells with the
+    /// orphan badge (9-2's sidebar actions own the disposition; SC#2 — the
+    /// orphan is VISIBLE, never a hard failure). WITH an active filter the
+    /// query's `orphan_sidecar = 0` baseline excludes orphans by design.
     func reload(store: SessionIndexStore, includeOrphans: Bool = false) async {
-        let allRows = (try? await store.fetchAllRows()) ?? []
+        var allRows: [SessionIndexRow]
+        if activeFilterGroups.isEmpty && activeSort == nil {
+            allRows = (try? await store.fetchAllRows()) ?? []
+        } else {
+            allRows = (try? await store.query(
+                groups: activeFilterGroups, sort: activeSort)) ?? []
+        }
         rows = allRows
             .filter { includeOrphans || $0.orphanSidecar != 1 }
             .map(Self.project)
@@ -104,14 +126,41 @@ final class SessionBrowserModel {
         }
     }
 
+    /// The filter bar's re-query entry (Plan 12-2 T4): install the ACTIVE
+    /// query state, then reload. Empty groups + nil sort restores the
+    /// legacy read.
+    func applyFilter(
+        store: SessionIndexStore,
+        groups: [FilterPredicateGroup],
+        sort: FilterSort?,
+        includeOrphans: Bool = false
+    ) async {
+        activeFilterGroups = groups
+        activeSort = sort
+        await reload(store: store, includeOrphans: includeOrphans)
+    }
+
+    /// Install the ACTIVE query state WITHOUT reloading (the session-open
+    /// path: the app root installs the persisted sort/filter from
+    /// SessionState BEFORE the authoritative reload, so the first grid
+    /// paint of a (re)launched app already rides the user's sort — the
+    /// filter PICKER restores from UserDefaults, the model must match it).
+    func installQueryState(groups: [FilterPredicateGroup], sort: FilterSort?) {
+        activeFilterGroups = groups
+        activeSort = sort
+    }
+
     /// A progressive-ingest placeholder page (scanner stream, T5 wiring):
     /// upsert rows the authoritative collection does not have YET. The
     /// placeholder carries hasEdits=false + thumbState=nil — cells render
     /// the placeholder gradient and DO NOT enqueue thumbnail work until the
     /// authoritative reload lands (the double-tier ruling must never run on
-    /// a guess; execution decision D5).
+    /// a guess; execution decision D5). 12-2: SUPPRESSED while a filter is
+    /// active (placeholder rows cannot be matched against the query — the
+    /// authoritative reload lands when the sync commits anyway).
     func ingestPlaceholderPage(entries: [SessionScanEntry]) {
         guard !entries.isEmpty else { return }
+        guard activeFilterGroups.isEmpty else { return }
         progressiveIngestActive = true
         lastIngestTrace.pagesConsumed += 1
         if lastIngestTrace.firstPageRows == 0 {
@@ -130,7 +179,10 @@ final class SessionBrowserModel {
                     orphanSidecar: false,
                     thumbState: nil,
                     thumbParamsHash: nil,
-                    dirty: false
+                    dirty: false,
+                    rating: nil,
+                    colorLabel: nil,
+                    flag: nil
                 )
             )
             appended += 1
@@ -215,7 +267,10 @@ final class SessionBrowserModel {
             orphanSidecar: row.orphanSidecar == 1,
             thumbState: row.thumbState,
             thumbParamsHash: row.thumbParamsHash,
-            dirty: row.dirty == 1
+            dirty: row.dirty == 1,
+            rating: row.rating,
+            colorLabel: row.colorLabel,
+            flag: row.flag
         )
     }
 

@@ -538,7 +538,7 @@ public enum RetouchEngine {
         let dst = try makePlane(
             width: w, height: h, pixelFormat: pixelFormat,
             usage: [.shaderRead, .shaderWrite], metal: metal)
-        guard let cb = metal.commandQueue.makeCommandBuffer(),
+        guard let cb = try? metal.makeRoutedCommandBuffer(),
               let blit = cb.makeBlitCommandEncoder() else {
             throw MetalError.deviceUnavailable
         }
@@ -555,7 +555,7 @@ public enum RetouchEngine {
 
     /// Blit-fill a buffer with zero bytes (the error accumulator reset).
     static func fillZero(_ buffer: any MTLBuffer, metal: MetalContext) throws {
-        guard let cb = metal.commandQueue.makeCommandBuffer(),
+        guard let cb = try? metal.makeRoutedCommandBuffer(),
               let blit = cb.makeBlitCommandEncoder() else {
             throw MetalError.deviceUnavailable
         }
@@ -567,7 +567,7 @@ public enum RetouchEngine {
     /// Fence + read one Float from a shared-storage buffer (L014: the read
     /// happens only after `waitUntilCompleted`).
     static func readScalar(_ buffer: any MTLBuffer, metal: MetalContext) async throws -> Float {
-        guard let cb = metal.commandQueue.makeCommandBuffer() else {
+        guard let cb = try? metal.makeRoutedCommandBuffer() else {
             throw MetalError.deviceUnavailable
         }
         cb.commit()
@@ -600,7 +600,7 @@ public enum RetouchEngine {
     static func activeMaskCount(
         mask: any MTLTexture, metal: MetalContext
     ) async throws -> Int {
-        guard let cb = metal.commandQueue.makeCommandBuffer() else {
+        guard let cb = try? metal.makeRoutedCommandBuffer() else {
             throw MetalError.deviceUnavailable
         }
         cb.commit()

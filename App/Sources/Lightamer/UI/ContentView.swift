@@ -1,5 +1,6 @@
 import LightamerCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Three-column shell (D-07): sidebar / editor area / inspector.
 ///
@@ -59,6 +60,11 @@ internal struct ContentView: View {
     @Environment(BeforeAfterState.self) private var beforeAfterState
     @Environment(ExportState.self) private var exportState
     @Environment(InspectorState.self) private var inspectorState
+    @Environment(MetadataController.self) private var metadataController
+
+    /// Plan 12-4 T3: the preset-manager window opener (the toolbar's
+    /// import menu hosts the entry; the Edit menu mirrors it).
+    @Environment(\.openWindow) private var openWindow
 
     /// Split-view column visibility (sidebar/inspector toggles, D-08).
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -66,6 +72,11 @@ internal struct ContentView: View {
     /// Plan 11-04: the export sheet presentation flag (the toolbar's
     /// export button raises it).
     @State private var exportPanelRequested = false
+
+    /// Plan 12-3 T5: the third-party `.xmp` import dialog (the toolbar's
+    /// import menu raises it) + the user-visible failure message.
+    @State private var xmpImportPresented = false
+    @State private var xmpImportFailure: String?
 
     // D-08 layout memory — keys survive relaunch (NSSplitView autosave;
     // the @AppStorage ideals below are the clean-launch defaults).
@@ -196,6 +207,29 @@ internal struct ContentView: View {
         .sheet(isPresented: $exportPanelRequested) {
             ExportPanelView(browserModel: browserModel)
         }
+        // Plan 12-3 T5: the third-party `.xmp` READ-ONLY import — the
+        // parsed fields route through MetadataController (the single
+        // write implementation); the source file is never written.
+        .fileImporter(
+            isPresented: $xmpImportPresented,
+            allowedContentTypes: [UTType(filenameExtension: "xmp") ?? .xml],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            importXMP(from: url)
+        }
+        .alert(
+            String(localized: "alert_xmp_import_failed_title"),
+            isPresented: Binding(
+                get: { xmpImportFailure != nil },
+                set: { if !$0 { xmpImportFailure = nil } }
+            ),
+            presenting: xmpImportFailure
+        ) { _ in
+            Button(String(localized: "alert_ok"), role: .cancel) {}
+        } message: { failure in
+            Text(failure)
+        }
     }
 
     // Plan 09-3 THREE-MODE switch — a WHOLE-PAGE replacement (the browser
@@ -284,12 +318,32 @@ internal struct ContentView: View {
             .accessibilityHint(Text("a11y_open_hint"))
         }
         ToolbarItemGroup {
-            // Phase 9 — disabled.
-            Button {
+            // Plan 12-3 T5: the import slot now hosts the third-party
+            // `.xmp` READ-ONLY import (the Phase-9 "import photos into the
+            // session" placeholder keeps its seat, still deferred).
+            Menu {
+                Button(String(localized: "menu_import_xmp")) {
+                    xmpImportPresented = true
+                }
+                .disabled(xmpTargetRelPaths.isEmpty)
+                .accessibilityIdentifier("toolbar.import_xmp")
+
+                Button(String(localized: "toolbar_import")) {}
+                    .disabled(true)
+
+                Divider()
+                // Plan 12-4 T3: the preset manager entry (the CRUD/
+                // import/export window; the apply face lives in the
+                // Inspector's preset panel).
+                Button(String(localized: "menu_preset_manager")) {
+                    openWindow(id: "preset-manager")
+                }
+                .accessibilityIdentifier("toolbar.preset_manager")
             } label: {
                 Label(String(localized: "toolbar_import"), systemImage: "square.and.arrow.down")
             }
-            .disabled(true)
+            .disabled(sessionState.currentSessionURL == nil)
+            .accessibilityIdentifier("toolbar.import")
 
             // Plan 11-04 (EXP-03): the export sheet — the panel edits the
             // in-memory recipe, fans the selection × recipe out as ONE
@@ -345,5 +399,64 @@ internal struct ContentView: View {
 
     private func clamped(_ value: Double, _ lower: Double, _ upper: Double) -> CGFloat {
         CGFloat(min(max(value, lower), upper))
+    }
+
+    // MARK: - The XMP import (Plan 12-3 T5)
+
+    /// The import targets: the browser/culling SELECTION when non-empty,
+    /// else the editor's CURRENT image inside the open session (the same
+    /// routing shape as the 12-1 metadata commands).
+    private var xmpTargetRelPaths: [String] {
+        let selected = browserModel.selectedOrderedPaths
+        if !selected.isEmpty { return Array(selected) }
+        if let root = sessionState.currentSessionURL,
+            let loaded = editorState.loadedImageURL {
+            let prefix = root.path + "/"
+            if loaded.path.hasPrefix(prefix) {
+                return [String(loaded.path.dropFirst(prefix.count))]
+            }
+        }
+        return []
+    }
+
+    /// Parse (READ-ONLY — the source file is never written) and route the
+    /// fields through the MetadataController (the single write face).
+    private func importXMP(from url: URL) {
+        let targets = xmpTargetRelPaths
+        guard !targets.isEmpty else {
+            xmpImportFailure = String(localized: "alert_xmp_no_target")
+            return
+        }
+        do {
+            let fields = try XMPImport.read(fileURL: url)
+            Task { @MainActor in
+                // Reject first (the -1 convention downgrades the rating).
+                if fields.flag == 2 {
+                    await metadataController.setFlag(2, relPaths: targets)
+                }
+                if fields.rating != nil {
+                    await metadataController.setRating(fields.rating, relPaths: targets)
+                }
+                if let colorLabel = fields.colorLabel {
+                    await metadataController.setColorLabel(colorLabel, relPaths: targets)
+                }
+                if let keywords = fields.keywords {
+                    await metadataController.setImportedKeywords(keywords, relPaths: targets)
+                }
+            }
+        } catch {
+            // The typed degradation face: unparsable / empty / unreadable
+            // packets surface to the user; nothing is written.
+            switch error as? XMPImport.ImportError {
+            case .unparsableXMP:
+                xmpImportFailure = String(localized: "alert_xmp_unparsable")
+            case .noFields:
+                xmpImportFailure = String(localized: "alert_xmp_no_fields")
+            case .unreadableFile(let name):
+                xmpImportFailure = String(localized: "alert_xmp_unreadable") + " " + name
+            case nil:
+                xmpImportFailure = error.localizedDescription
+            }
+        }
     }
 }

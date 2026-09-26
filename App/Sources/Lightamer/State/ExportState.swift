@@ -57,6 +57,24 @@ final class ExportState {
             yiyin: false)
     }
 
+    // MARK: - The preset face (Plan 12-4 T4; the Phase 11 移交① mount)
+
+    /// Fill the inline-edited recipe from an export preset (D-11-CONTEXT-3
+    /// 升级路径字面兑现): the persisted recipe REPLACES the memory-only
+    /// editing state; the panel's inline editors keep working untouched —
+    /// a preset fill is just another recipe assignment. The load gate
+    /// already validated the file, and this re-checks every variant BEFORE
+    /// assigning (typed error, never a partial fill).
+    func applyPresetRecipe(_ recipe: ExportRecipe) throws {
+        for variant in recipe {
+            try variant.validate()
+        }
+        guard !recipe.isEmpty else {
+            throw AppError.invalidParameter("export preset recipe is empty")
+        }
+        self.recipe = recipe
+    }
+
     // MARK: - Targets derivation (the header count / run gate / enqueue face)
 
     /// The export targets' rel paths (EXP-07 N×M): the browser selection

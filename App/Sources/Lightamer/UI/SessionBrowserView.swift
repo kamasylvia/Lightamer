@@ -43,7 +43,23 @@ internal struct SessionBrowserView: View {
     /// The session root (cell URL assembly).
     let sessionRoot: URL?
 
+    /// 12-1 T6 (META-03): the multi-select append menu items raise these
+    /// one-field alerts (the value routes through MetadataController —
+    /// the MetadataService single write face).
+    enum AppendTarget: String, Identifiable {
+        case keywords
+        case note
+        var id: String { rawValue }
+    }
+    @State private var appendTarget: AppendTarget?
+    @State private var appendText = ""
+    @Environment(MetadataController.self) private var metadataController
+
     private static let columns = [GridItem(.adaptive(minimum: 168, maximum: 260), spacing: 10)]
+
+    /// Plan 12-2 T4: the filter bar state (chips / Quick Filter / sort —
+    /// the re-query orchestration lives in SessionState).
+    @Environment(SessionState.self) private var sessionState
 
     var body: some View {
         ScrollView {
@@ -63,9 +79,8 @@ internal struct SessionBrowserView: View {
                     )
                     .accessibilityIdentifier(BrowserIdentifiers.cell(row.pathHash))
                     .contextMenu {
-                        // HIST-05 (9-4) menu stubs — the ACTIONS land with
-                        // the copy/paste data face; v1 keeps the menu shape
-                        // with disabled items (the plan's placeholder rule).
+                        // HIST-05 (9-4) menu stubs — the copy face lands
+                        // with Phase 12-4; v1 keeps the shape.
                         Button(String(localized: "browser_menu_copy_adjustments")) {}
                             .disabled(true)
                         Button(String(localized: "browser_menu_paste")) {}
@@ -73,14 +88,104 @@ internal struct SessionBrowserView: View {
                         Button(String(localized: "browser_menu_paste_partial")) {}
                             .disabled(true)
                         Divider()
-                        Button(String(localized: "browser_menu_flag")) {}
-                            .disabled(true) // Phase 12 (META-05) placeholder
+                        // 12-1 T6 (META-01/03): the flag + batch-append
+                        // actions — targets = the selection (the right-
+                        // clicked cell joins it when outside).
+                        let targets = appendTargets(for: row.relPath)
+                        Button(String(localized: "browser_menu_flag_pick")) {
+                            Task { await metadataController.setFlag(1, relPaths: targets) }
+                        }
+                        Button(String(localized: "browser_menu_flag_reject")) {
+                            Task { await metadataController.setFlag(2, relPaths: targets) }
+                        }
+                        Button(String(localized: "browser_menu_flag_clear")) {
+                            Task { await metadataController.setFlag(nil, relPaths: targets) }
+                        }
+                        Divider()
+                        Button(String(localized: "browser_menu_append_keywords")) {
+                            pendingTargets = targets
+                            appendText = ""
+                            appendTarget = .keywords
+                        }
+                        Button(String(localized: "browser_menu_append_note")) {
+                            pendingTargets = targets
+                            appendText = ""
+                            appendTarget = .note
+                        }
                     }
                 }
             }
             .padding(12)
         }
         .accessibilityIdentifier(BrowserIdentifiers.grid)
+        // Plan 12-2 T4: the filter row rides the grid's top inset (visually
+        // adjacent to the window toolbar's BrowserMode segmented control).
+        .safeAreaInset(edge: .top, spacing: 0) {
+            FilterBarView()
+        }
+        // The empty-filter result face (a filtered collection legitimately
+        // returns zero rows — the grid must say WHY, not show a void).
+        .overlay {
+            if model.rows.isEmpty, sessionState.hasActiveFilter {
+                ContentUnavailableView {
+                    Label("filter_empty_results", systemImage: "line.3.horizontal.decrease.circle")
+                } description: {
+                    Text("filter_empty_results_body")
+                }
+            }
+        }
+        .alert(
+            appendTarget == .keywords
+                ? String(localized: "browser_menu_append_keywords")
+                : String(localized: "browser_menu_append_note"),
+            isPresented: Binding(
+                get: { appendTarget != nil },
+                set: { if !$0 { appendTarget = nil } })
+        ) {
+            TextField(
+                appendTarget == .keywords
+                    ? String(localized: "append_keywords_placeholder")
+                    : String(localized: "append_note_placeholder"),
+                text: $appendText)
+            Button(String(localized: "alert_ok")) {
+                guard let target = appendTarget else { return }
+                let targets = pendingTargets
+                let text = appendText
+                appendTarget = nil
+                Task { await performAppend(target, text: text, targets: targets) }
+            }
+            Button(String(localized: "alert_cancel"), role: .cancel) {
+                appendTarget = nil
+            }
+        }
+    }
+
+    // The right-clicked cell joins the selection when outside it — the
+    // append actions are batch actions (META-03).
+    private func appendTargets(for relPath: String) -> [String] {
+        model.selectedOrderedPaths.contains(relPath)
+            ? model.selectedOrderedPaths
+            : [relPath]
+    }
+
+    /// The targets captured when the alert's OK is pressed (the closure
+    /// re-derivation inside the alert would lose the right-click context).
+    @State private var pendingTargets: [String] = []
+
+    private func performAppend(_ target: AppendTarget, text: String, targets: [String]) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        switch target {
+        case .keywords:
+            // Entry convention: comma-separated levels (the `|` path
+            // separator is TYPED-BANNED — MetadataService's typed error).
+            let entries = trimmed.split(separator: ",").map {
+                $0.trimmingCharacters(in: .whitespaces)
+            }.filter { !$0.isEmpty }
+            _ = await metadataController.appendKeywords(entries, relPaths: targets)
+        case .note:
+            _ = await metadataController.appendNote(trimmed, relPaths: targets)
+        }
     }
 }
 
@@ -133,16 +238,33 @@ private struct SessionBrowserCell: View {
                         if row.dirty {
                             badge("…", color: .yellow, id: "dirty")
                         }
+                        // 12-1 T6 (META-01): the culling flag badge —
+                        // P(pick) / X(reject).
+                        if row.flag == 1 {
+                            badge("P", color: .green, id: "flag")
+                        } else if row.flag == 2 {
+                            badge("X", color: .red, id: "flag")
+                        }
                         Spacer()
                     }
                     Spacer()
-                    // Rating overlay — LAYOUT ONLY (Phase 12 fills the
-                    // data; META-05). Five star shells, dimmed, bottom-left.
+                    // The metadata overlay (12-1 T6 — the 09-3 layout shell
+                    // now carries DATA): real star fills + the color-label
+                    // dot, bottom-left. `.rating` identifier unchanged.
                     HStack(spacing: 2) {
-                        ForEach(0..<5, id: \.self) { _ in
-                            Image(systemName: "star")
+                        ForEach(0..<5, id: \.self) { star in
+                            Image(systemName: star < (row.rating.map(Int.init) ?? 0)
+                                ? "star.fill" : "star")
                                 .font(.system(size: 9))
-                                .foregroundStyle(.white.opacity(0.35))
+                                .foregroundStyle(
+                                    star < (row.rating.map(Int.init) ?? 0)
+                                        ? .white.opacity(0.95) : .white.opacity(0.35))
+                        }
+                        if let colorLabel = row.colorLabel {
+                            Circle()
+                                .fill(Self.colorLabelColor(colorLabel))
+                                .frame(width: 8, height: 8)
+                                .accessibilityIdentifier(cellIdentifier + ".colorlabel")
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -187,6 +309,21 @@ private struct SessionBrowserCell: View {
 
     private var cellIdentifier: String {
         "browser.cell." + row.pathHash
+    }
+
+    /// The C1 seven-color mapping (12-1 execution decision, recorded in
+    /// 12-1-DECISIONS): 0 red / 1 orange / 2 yellow / 3 green / 4 blue /
+    /// 5 purple / 6 gray — out-of-range values fall back to gray.
+    static func colorLabelColor(_ value: Int64) -> Color {
+        switch value {
+        case 0: .red
+        case 1: .orange
+        case 2: .yellow
+        case 3: .green
+        case 4: .blue
+        case 5: .purple
+        default: .gray
+        }
     }
 
     private func badge(_ text: String, color: Color, id: String) -> some View {

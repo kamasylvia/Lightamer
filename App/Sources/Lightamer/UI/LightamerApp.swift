@@ -32,9 +32,7 @@ internal extension FocusedValues {
         get { self[ExportPanelRequestKey.self] }
         set { self[ExportPanelRequestKey.self] = newValue }
     }
-}
-
-/// Handles the open-document Apple Event (Finder double-click, `open` CLI,
+}/// Handles the open-document Apple Event (Finder double-click, `open` CLI,
 /// drag onto the Dock icon) so declared CFBundleDocumentTypes actually route
 /// into `EditorState.load`. Opens that arrive before the scene is ready are
 /// buffered and flushed on first appearance. Also bridges
@@ -173,6 +171,12 @@ internal struct LightamerApp: App {
     @State private var batchSidecarWriter: BatchSidecarWriter?
     @State private var pastePartialRequested = false
 
+    /// Plan 12-1 T6: the metadata write face for the UI (commands +
+    /// inspector rows + grid menus route through it; it wraps the Core
+    /// MetadataService — the single implementation). Rebuilt per session
+    /// open beside the batch writer.
+    @State private var metadataController = MetadataController()
+
     /// 09-04 T7 (HIST-06): the before/after presentation state (split /
     /// peek / hold) — reset on image and session switches.
     @State private var beforeAfterState = BeforeAfterState()
@@ -180,6 +184,17 @@ internal struct LightamerApp: App {
     /// The yiyin logo-face source for the thumbnail run-context injector
     /// (a stateless file-probe instance — the coordinator keeps its own).
     @State private var browserLogoStore = YiyinLogoStore()
+
+    /// Plan 12-2 T5: the app-level smart-album directory (rules ride the
+    /// app; the session query face evaluates them — D-12-CONTEXT-4).
+    @State private var smartAlbumStore = SmartAlbumStore()
+
+    /// Plan 12-4 T3: the app-level preset library (one preset = one file
+    /// under Application Support; the init rescans = the self-heal) + the
+    /// apply face (the D-03b isolated state bridging the UI to the Core
+    /// PresetApplier).
+    @State private var presetsStore = PresetsStore()
+    @State private var presetController = PresetController()
 
     /// The decode actor (D-21) — one app-wide instance, injected into
     /// `ContentView` so every Open path feeds `EditorState.load`.
@@ -213,6 +228,18 @@ internal struct LightamerApp: App {
     @FocusedBinding(\.exportPanelRequest)
     private var exportPanelRequested: Bool?
 
+    /// 12-1 T6: a metadata text field is being typed in — the bare-key
+    /// metadata shortcuts disarm themselves while this is true (a bare
+    /// "3"/"x" must reach the TEXT FIELD, not the menu).
+    @FocusedBinding(\.metadataFieldFocused)
+    private var metadataFieldFocused: Bool?
+
+    /// Plan 12-4 T3: the preset-manager window opener (the Edit-menu and
+    /// toolbar entries route here).
+    @Environment(\.openWindow) private var openWindow
+
+    private var metadataTextEntryActive: Bool { metadataFieldFocused == true }
+
     var body: some Scene {
         // SINGLE WINDOW (Plan 02-01, UAT issue #1 ROOT CAUSE): SwiftUI's
         // WindowGroup opens a NEW WINDOW per incoming odoc Apple Event on
@@ -245,6 +272,10 @@ internal struct LightamerApp: App {
                 .environment(inspectorState)
                 .environment(layerEditingState)
                 .environment(aiDownloadModel)
+                .environment(metadataController)
+                .environment(smartAlbumStore)
+                .environment(presetsStore)
+                .environment(presetController)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
                 // D-COL2 (Plan 02-04-05): capture the editor window the
                 // moment SwiftUI places it — the coordinator follows THE
@@ -282,6 +313,11 @@ internal struct LightamerApp: App {
                             // 09-02 T3: disarm the watcher BEFORE the index
                             // closes (no events into a closed store).
                             sessionReconciler.stopSession()
+                            // 12-1 T6: disarm the metadata write face too
+                            // (no edits route into a closed store).
+                            metadataController.invalidate()
+                            // 12-4 T3: disarm the preset apply face too.
+                            presetController.invalidate()
                             // 09-04 T4: flush the batch sidecar queue's
                             // remainder BEFORE the index closes (the
                             // teardown seam — pending writes must land or
@@ -332,9 +368,42 @@ internal struct LightamerApp: App {
                                         root: url, store: store)
                                 }
                                 if let store = sessionIndexController.currentStore {
+                                    // 12-2 T4: install the persisted sort/
+                                    // filter BEFORE the authoritative reload —
+                                    // a relaunched app's first grid paint rides
+                                    // the user's sort (the picker restored it,
+                                    // the model must match).
+                                    browserModel.installQueryState(
+                                        groups: sessionState.queryGroups,
+                                        sort: sessionState.sort)
                                     await browserModel.finishProgressiveIngest(
                                         store: store, includeOrphans: true
                                     )
+                                }
+                                // 12-1 T6: the metadata write face rides the
+                                // SAME per-session (store, writer) pair; the
+                                // refresh seam reloads the browser model so
+                                // the grid/culling overlays re-render.
+                                if let store = sessionIndexController.currentStore {
+                                    metadataController.configure(
+                                        root: url, store: store,
+                                        writer: batchSidecarWriter,
+                                        seed: await seedInstances())
+                                    metadataController.onWrite = { [store] in
+                                        await browserModel.reload(
+                                            store: store, includeOrphans: true)
+                                    }
+                                    // 12-4 T3: the preset APPLY face rides the
+                                    // same pair + the app-level library.
+                                    presetController.configure(
+                                        root: url, store: store,
+                                        writer: batchSidecarWriter,
+                                        seed: await seedInstances(),
+                                        presetsStore: presetsStore)
+                                    presetController.onWrite = { [store] in
+                                        await browserModel.reload(
+                                            store: store, includeOrphans: true)
+                                    }
                                 }
                                 // Plan 11-04 T3 (checker E1): the export
                                 // queue is SESSION-SCOPED (OQ-11-3) —
@@ -363,6 +432,48 @@ internal struct LightamerApp: App {
                     // transaction commits (边扫边出).
                     sessionIndexController.scanPageObserver = { page in
                         browserModel.ingestPlaceholderPage(entries: page.entries)
+                    }
+
+                    // Plan 12-2 T4: the filter re-query seam (D-03b closure
+                    // — the app root owns the current-store reference; the
+                    // SessionState mutations schedule the debounced refresh
+                    // through this). The SessionState instance is app-
+                    // lifetime, so the state↔closure reference cycle is the
+                    // app's own lifetime (no leak window).
+                    sessionState.onFilterChanged = {
+                        guard let store = sessionIndexController.currentStore
+                        else { return }
+                        await browserModel.applyFilter(
+                            store: store,
+                            groups: sessionState.queryGroups,
+                            sort: sessionState.sort,
+                            includeOrphans: false)
+                    }
+
+                    // Plan 12-4 T3: the preset controller's D-03b closure
+                    // seams — targets = the 12-1 routing shape (the browser/
+                    // culling selection, else the editor's current image),
+                    // the live install = the interactive paste leg (ONE ⌘Z),
+                    // and the compose = the ⌘⇧C 产物 for create-from-current.
+                    presetController.targetsProvider = { metadataTargets() }
+                    presetController.liveRelPathsProvider = { currentImageRelPaths() }
+                    presetController.livePaste = { payload, selection, mode in
+                        await pasteLive(
+                            payload: payload, selection: selection, mode: mode,
+                            seed: await seedInstances())
+                    }
+                    presetController.composeCurrent = {
+                        guard editorState.loadedImageURL != nil else { return nil }
+                        let layerRecord = editorState.layerStack
+                            .map { SidecarLayerStackRecord($0) }
+                            .flatMap { $0.layers.isEmpty ? nil : $0 }
+                        return PastePayload.compose(
+                            sourceImageID: pipeCoordinator.currentImageID ?? UUID(),
+                            sourceURL: editorState.loadedImageURL,
+                            sourceInstances: editorState.instances,
+                            sourceEffective: editorState.history.effectiveInstances(),
+                            seed: await seedInstances(),
+                            layerStack: layerRecord)
                     }
 
                     // Plan 09-02 T3: wire the reconciler's seams (state +
@@ -582,6 +693,14 @@ internal struct LightamerApp: App {
                     pastePartialRequested = true
                 }
                 .disabled(!pasteboard.hasPayload)
+                Divider()
+                // Plan 12-4 T3: the preset MANAGER (the CRUD/import/export
+                // face; the apply face lives in the Inspector's preset
+                // panel). An independent app-level window.
+                Button(String(localized: "menu_preset_manager")) {
+                    openWindow(id: "preset-manager")
+                }
+                .accessibilityIdentifier("menu.preset_manager")
             }
 
             // ── View ────────────────────────────────────────────────
@@ -600,6 +719,57 @@ internal struct LightamerApp: App {
                     .keyboardShortcut("f", modifiers: [])
             }
 
+            // ── 标记 (12-1 T6, META-01/META-05) — the three-state metadata
+            // shortcuts: grid selection / culling selection / the editor's
+            // current image. ALL route through MetadataController →
+            // MetadataService (the single write face). Conflict table (D-8
+            // execution decision): bare 0-5/x/p and ⌘0-6 are UNUSED by any
+            // existing item; while a metadata TEXT FIELD is focused the
+            // bare-key items disable themselves so typing reaches the field.
+            CommandMenu(String(localized: "menu_metadata")) {
+                Button(String(localized: "metadata_rating_clear")) {
+                    applyRating(nil)
+                }
+                .keyboardShortcut("0", modifiers: [])
+                .disabled(metadataTextEntryActive)
+                ForEach(1...5, id: \.self) { stars in
+                    Button(String(localized: String.LocalizationValue("metadata_rating_\(stars)"))) {
+                        applyRating(stars)
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character(String(stars))), modifiers: [])
+                    .disabled(metadataTextEntryActive)
+                }
+                Divider()
+                Button(String(localized: "metadata_flag_pick")) {
+                    toggleFlag(1)
+                }
+                .keyboardShortcut("p", modifiers: [])
+                .disabled(metadataTextEntryActive)
+                Button(String(localized: "metadata_flag_reject")) {
+                    toggleFlag(2)
+                }
+                .keyboardShortcut("x", modifiers: [])
+                .disabled(metadataTextEntryActive)
+                Button(String(localized: "metadata_flag_clear")) {
+                    applyFlag(nil)
+                }
+                .disabled(metadataTextEntryActive)
+                Divider()
+                Button(String(localized: "metadata_color_clear")) {
+                    applyColor(nil)
+                }
+                .keyboardShortcut("0", modifiers: .command)
+                .disabled(metadataTextEntryActive)
+                ForEach(0..<6, id: \.self) { label in
+                    Button(String(localized: String.LocalizationValue("metadata_color_\(label)"))) {
+                        applyColor(label)
+                    }
+                    .keyboardShortcut(
+                        KeyEquivalent(Character(String(label + 1))), modifiers: .command)
+                    .disabled(metadataTextEntryActive)
+                }
+            }
+
             // ── Help ────────────────────────────────────────────────
             CommandGroup(replacing: .help) {
                 // Phase 13 fills; placeholder in Phase 1.
@@ -609,6 +779,19 @@ internal struct LightamerApp: App {
             }
         }
 
+        // Plan 12-4 T3: the preset MANAGER window (the CRUD/import/export
+        // face). An independent app-level Window — the D-03b states it
+        // reads are re-injected here (the app-level library + the apply
+        // controller; create-from-current rides the controller's closures,
+        // so no editor state objects are needed in this scene).
+        Window("window_preset_manager", id: "preset-manager") {
+            PresetManagerWindow()
+                .environment(presetsStore)
+                .environment(presetController)
+                .preferredColorScheme(.dark) // D-10: v1 forced dark
+        }
+        .defaultSize(width: 520, height: 480)
+
         // Settings… (Cmd+,) — empty placeholder window; Phase 13 fills.
         Settings {
             Text("settings_placeholder")
@@ -617,6 +800,73 @@ internal struct LightamerApp: App {
     }
 
     // MARK: - View menu actions (via focused binding into ContentView)
+
+    // ── 12-1 T6 metadata command routing ───────────────────────────────────
+    // Targets = the browser/culling SELECTION when non-empty, else the
+    // editor's CURRENT image (if inside the open session) — the three
+    // states (grid / culling / single) share one routing shape.
+
+    private func metadataTargets() -> [String] {
+        let selected = browserModel.selectedOrderedPaths
+        if !selected.isEmpty { return selected }
+        if let root = sessionState.currentSessionURL,
+           let loaded = editorState.loadedImageURL {
+            let prefix = root.path + "/"
+            if loaded.path.hasPrefix(prefix) {
+                return [String(loaded.path.dropFirst(prefix.count))]
+            }
+        }
+        return []
+    }
+
+    /// The LIVE target set (12-4): the currently edited image's relPath —
+    /// the batch loop skips it and the interactive layer installs it
+    /// (empty when nothing is loaded / outside the session root).
+    private func currentImageRelPaths() -> Set<String> {
+        guard let root = sessionState.currentSessionURL,
+              let loaded = editorState.loadedImageURL else { return [] }
+        let prefix = root.path + "/"
+        guard loaded.path.hasPrefix(prefix) else { return [] }
+        return [String(loaded.path.dropFirst(prefix.count))]
+    }
+
+    private func applyRating(_ value: Int?) {
+        let targets = metadataTargets()
+        guard !targets.isEmpty else { return }
+        Task { await metadataController.setRating(value, relPaths: targets) }
+    }
+
+    private func applyColor(_ value: Int?) {
+        let targets = metadataTargets()
+        guard !targets.isEmpty else { return }
+        Task { await metadataController.setColorLabel(value, relPaths: targets) }
+    }
+
+    private func applyFlag(_ value: Int?) {
+        let targets = metadataTargets()
+        guard !targets.isEmpty else { return }
+        Task { await metadataController.setFlag(value, relPaths: targets) }
+    }
+
+    /// The X/P toggle: read the targets' current flags — ALL carry the
+    /// value → clear it on all; otherwise set it on all (the uniform Lr
+    /// rule; single-target toggle is the natural case).
+    private func toggleFlag(_ value: Int) {
+        let targets = metadataTargets()
+        guard !targets.isEmpty else { return }
+        Task {
+            var allCarry = true
+            for rel in targets {
+                if await metadataController.snapshot(relPath: rel)?.flag
+                    != Int64(value) {
+                    allCarry = false
+                    break
+                }
+            }
+            await metadataController.setFlag(
+                allCarry ? nil : value, relPaths: targets)
+        }
+    }
 
     /// D-X2 probe (Plan 02-03 manual resize verification — RETIRE after
     /// verification per the D-X2 probe policy): osascript/AX window

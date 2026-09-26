@@ -128,6 +128,18 @@ internal struct InspectorView: View {
                             Divider()
                             selectedPanel
                         }
+                        Divider()
+                        // 12-4 T3 (PRES-01): the preset APPLY face — the
+                        // category-grouped develop-preset menu (single =
+                        // current image, multi = the browser selection
+                        // batch; partial reuses the paste dialog). Fixed
+                        // bottom zone beside the metadata rows.
+                        PresetPanelView()
+                        Divider()
+                        // 12-1 T6 (META-03): the keyword + note entry rows —
+                        // the current image's metadata face (fixed bottom
+                        // zone, bounded height so the panel budget holds).
+                        MetadataInfoSection()
                     }
                 }
             }
@@ -256,6 +268,133 @@ internal struct InspectorView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .accessibilityIdentifier("inspector.panel.container")
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MetadataInfoSection (Plan 12-1 T6, META-03) — the keyword + note entry
+// rows for the CURRENT image (the single-image edit face; the multi-select
+// append lives in the grid's context menu).
+//
+// Keywords: comma-separated entry (the `|` hierarchy separator is TYPED-
+// banned — MetadataService's typed error); submit = WHOLE-GROUP replace.
+// Note: an APPEND line (the MCP-06 append_note semantics) — the field
+// clears after submit, pre-filled values re-read per image.
+//
+// While a field here is focused, the bare-key metadata menu shortcuts
+// disable themselves (the `metadataFieldFocused` focused value) so typing
+// digits/letters reaches the text field.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The focused-value key the App scene reads to disarm the bare-key
+/// metadata shortcuts while the metadata fields are being typed in.
+/// `Value = Binding<Bool>` (the @FocusedBinding consumer; the 11-04
+/// export-panel key's shape).
+internal struct MetadataFieldFocusedKey: FocusedValueKey {
+    typealias Value = Binding<Bool>
+}
+
+internal extension FocusedValues {
+    var metadataFieldFocused: Binding<Bool>? {
+        get { self[MetadataFieldFocusedKey.self] }
+        set { self[MetadataFieldFocusedKey.self] = newValue }
+    }
+}
+
+internal struct MetadataInfoSection: View {
+
+    @Environment(EditorState.self) private var editorState
+    @Environment(SessionState.self) private var sessionState
+    @Environment(MetadataController.self) private var metadataController
+
+    @FocusState private var fieldFocused: Bool
+    @State private var keywordsText = ""
+    @State private var noteText = ""
+    @State private var loadedForRelPath: String?
+    private static let entryHeight: CGFloat = 66
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text("info_keywords_label")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("info_keywords_placeholder", text: $keywordsText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                    .focused($fieldFocused)
+                    .onSubmit { Task { await commitKeywords() } }
+                    .accessibilityIdentifier("info.keywords")
+            }
+            HStack(spacing: 6) {
+                Text("info_note_label")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("info_note_placeholder", text: $noteText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                    .focused($fieldFocused)
+                    .onSubmit { Task { await commitNote() } }
+                    .accessibilityIdentifier("info.note")
+            }
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .frame(height: Self.entryHeight, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .focusedSceneValue(
+            \.metadataFieldFocused,
+             Binding(get: { fieldFocused }, set: { fieldFocused = $0 }))
+        .task(id: editorState.loadedImageURL) {
+            await reloadSnapshot()
+        }
+    }
+
+    /// The current image's relPath vs the session root (nil = not in the
+    /// open session — the rows stay inert).
+    private var currentRelPath: String? {
+        guard let root = sessionState.currentSessionURL,
+              let loaded = editorState.loadedImageURL else { return nil }
+        let prefix = root.path + "/"
+        guard loaded.path.hasPrefix(prefix) else { return nil }
+        return String(loaded.path.dropFirst(prefix.count))
+    }
+
+    private func reloadSnapshot() async {
+        guard let relPath = currentRelPath else {
+            keywordsText = ""
+            noteText = ""
+            loadedForRelPath = nil
+            return
+        }
+        loadedForRelPath = relPath
+        // A stale snapshot (the image switched mid-read) never paints.
+        let snapshot = await metadataController.snapshot(relPath: relPath)
+        guard loadedForRelPath == relPath,
+              currentRelPath == relPath else { return }
+        keywordsText = snapshot?.keywords?.split(separator: "|").joined(separator: ", ") ?? ""
+        noteText = ""
+    }
+
+    private func commitKeywords() async {
+        guard let relPath = currentRelPath else { return }
+        let entries = keywordsText
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard await metadataController.setKeywords(entries, relPath: relPath) else {
+            return // typed rejection — the field keeps the user's text
+        }
+        await reloadSnapshot()
+    }
+
+    private func commitNote() async {
+        guard let relPath = currentRelPath else { return }
+        let addition = noteText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !addition.isEmpty else { return }
+        if await metadataController.appendNote(addition, relPaths: [relPath]) {
+            noteText = "" // the append field clears (append semantics)
         }
     }
 }

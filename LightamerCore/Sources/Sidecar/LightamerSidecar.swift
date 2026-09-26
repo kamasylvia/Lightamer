@@ -80,7 +80,9 @@ import Foundation
 ///   "imageID" : "UUID-string",
 ///   "instances" : [ …ModuleInstance spelling, paramsHash as String… ],
 ///   "layerStack" : null,                            // Phase 6 reservation
-///   "schemaVersion" : 1
+///   "rating" : null, "flag" : null, "colorLabel" : null,   // v3 metadata
+///   "keywords" : null, "note" : null,               // (always written)
+///   "schemaVersion" : 3
 /// }
 /// ```
 ///
@@ -99,7 +101,16 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// v2 (Plan 06-01 T6): `layerStack` upgrades from the String reservation
     /// to the typed `SidecarLayerStackRecord` (frozen layer spelling). v1
     /// documents (the key was always null) decode with `layerStack == nil`.
-    public static let schemaVersionCurrent = 2
+    ///
+    /// v3 (Plan 12-1 T1, D-12-CONTEXT-1): the five METADATA fields
+    /// `rating`/`flag`/`colorLabel`/`keywords`/`note` join additively
+    /// (decodeIfPresent — v2 documents read with all five nil; encode
+    /// ALWAYS writes the keys, `null` for nil — no absent-vs-null
+    /// ambiguity). HASH ISOLATION (D-8): the five fields are NOT pipeline
+    /// parameters — they never enter `HistoryHash.hash` /
+    /// `driftDetected`, so a rating change cannot stale a thumbnail or
+    /// false-positive as external-edit drift.
+    public static let schemaVersionCurrent = 3
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int
@@ -141,6 +152,27 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// The typed adjustment-layer stack (v2 — the frozen 06-01 layer
     /// spelling; always nil in v1 documents).
     public var layerStack: SidecarLayerStackRecord?
+
+    // MARK: - Metadata (v3, D-12-CONTEXT-1 — the META face; hash-isolated)
+
+    /// Star rating (0...5; nil = unrated). Metadata — never hashed.
+    public var rating: Int?
+
+    /// Culling flag (0 = none / 1 = pick / 2 = reject; nil = unflagged).
+    /// MCP-06 semantics; nil is distinct from 0 (「未标记」vs「显式 none」).
+    public var flag: Int?
+
+    /// Color label (0...6, the C1 seven-color set; nil = unlabeled).
+    public var colorLabel: Int?
+
+    /// Hierarchical keywords as FULL path strings, `|`-separated
+    /// (`"Nature|Flower|Rose"` — dt `tags.c` / Lr `lr:hierarchicalSubject`
+    /// convention). Children do NOT materialize ancestors (the query face
+    /// expands); nil = never tagged (distinct from `[]` = cleared).
+    public var keywords: [String]?
+
+    /// Free-form note (MCP-06 `append_note` upstream; nil = no note).
+    public var note: String?
 
     // MARK: - Paths (D-S2)
 
@@ -184,7 +216,12 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         history: HistoryStack,
         historyHash: UInt64,
         appVersion: String = LightamerSidecar.currentAppVersion,
-        layerStack: SidecarLayerStackRecord? = nil
+        layerStack: SidecarLayerStackRecord? = nil,
+        rating: Int? = nil,
+        flag: Int? = nil,
+        colorLabel: Int? = nil,
+        keywords: [String]? = nil,
+        note: String? = nil
     ) {
         self.schemaVersion = Self.schemaVersionCurrent
         self.appVersion = appVersion
@@ -195,6 +232,11 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         self.history = history
         self._historyHash = UInt64String(wrappedValue: historyHash)
         self.layerStack = layerStack
+        self.rating = rating
+        self.flag = flag
+        self.colorLabel = colorLabel
+        self.keywords = keywords
+        self.note = note
     }
 
     // MARK: - Codable (projection through the String-hash records)
@@ -202,6 +244,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, appVersion, imageID, decoderVersionUsed
         case decodeParamsHash, instances, history, historyHash, layerStack
+        case rating, flag, colorLabel, keywords, note
     }
 
     public init(from decoder: Decoder) throws {
@@ -226,6 +269,17 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
             _ = try container.decodeIfPresent(String.self, forKey: .layerStack)
             layerStack = nil
         }
+        // v3 metadata (12-1 T1): decodeIfPresent — v2 documents (and v3
+        // documents written before a given field was ever set) read with
+        // the field nil. The FUTURE-version branch (schemaVersion > 3)
+        // rides the SAME decode: the tolerance contract (:94-97) means an
+        // unknown newer doc still yields its five metadata fields rather
+        // than failing the whole document.
+        rating = try container.decodeIfPresent(Int.self, forKey: .rating)
+        flag = try container.decodeIfPresent(Int.self, forKey: .flag)
+        colorLabel = try container.decodeIfPresent(Int.self, forKey: .colorLabel)
+        keywords = try container.decodeIfPresent([String].self, forKey: .keywords)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -239,6 +293,34 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         try container.encode(SidecarHistoryRecord(stack: history), forKey: .history)
         try container.encode(_historyHash, forKey: .historyHash)
         try container.encodeIfPresent(layerStack, forKey: .layerStack)
+        // Metadata (v3): ALWAYS write the five keys — `null` for nil (the
+        // plan-pinned constant-write form: absent vs null is never
+        // ambiguous, and the byte golden locks this shape).
+        if let rating {
+            try container.encode(rating, forKey: .rating)
+        } else {
+            try container.encodeNil(forKey: .rating)
+        }
+        if let flag {
+            try container.encode(flag, forKey: .flag)
+        } else {
+            try container.encodeNil(forKey: .flag)
+        }
+        if let colorLabel {
+            try container.encode(colorLabel, forKey: .colorLabel)
+        } else {
+            try container.encodeNil(forKey: .colorLabel)
+        }
+        if let keywords {
+            try container.encode(keywords, forKey: .keywords)
+        } else {
+            try container.encodeNil(forKey: .keywords)
+        }
+        if let note {
+            try container.encode(note, forKey: .note)
+        } else {
+            try container.encodeNil(forKey: .note)
+        }
     }
 }
 

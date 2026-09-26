@@ -31,8 +31,14 @@ internal struct ExportPanelView: View {
     @Environment(SessionState.self) private var sessionState
     @Environment(EditorState.self) private var editorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
+    // Plan 12-4 T4: the app-level preset library (the export-preset face).
+    @Environment(PresetsStore.self) private var presetsStore
 
     @Environment(\.dismiss) private var dismiss
+
+    /// The「存为预设」name prompt (the recipe is captured at commit).
+    @State private var savePresetPresented = false
+    @State private var savePresetName = ""
 
     var body: some View {
         @Bindable var exportState = exportState
@@ -61,13 +67,110 @@ internal struct ExportPanelView: View {
             }
             .formStyle(.grouped)
         }
+        .sheet(isPresented: $savePresetPresented) {
+            savePresetSheet
+        }
         .frame(width: 560, height: 640)
+    }
+
+    // MARK: - The export-preset face (Plan 12-4 T4; 移交①兑现)
+
+    /// The preset row: apply an export preset over the inline recipe
+    /// (fill = `ExportState.applyPresetRecipe` — the panel editors keep
+    /// working untouched), or save the CURRENT recipe as a new preset.
+    private var exportPresetRow: some View {
+        HStack {
+            exportPresetMenu
+            Spacer()
+            Button(String(localized: "export_preset_save")) {
+                savePresetName = ""
+                savePresetPresented = true
+            }
+            .disabled(exportState.recipe.isEmpty)
+            .accessibilityIdentifier("export.button.save_preset")
+        }
+    }
+
+    @ViewBuilder
+    private var exportPresetMenu: some View {
+        let exportPresets = presetsStore.presets(kind: .export)
+        if exportPresets.isEmpty {
+            Text("export_preset_none")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .accessibilityIdentifier("export.preset.none")
+        } else {
+            Menu {
+                ForEach(exportPresets) { stored in
+                    Button(stored.document.name) {
+                        fillFromPreset(stored)
+                    }
+                }
+            } label: {
+                Label(String(localized: "export_preset_apply"), systemImage: "square.and.arrow.down.on.square")
+            }
+            .accessibilityIdentifier("export.preset.menu")
+        }
+    }
+
+    private func fillFromPreset(_ stored: StoredPreset) {
+        do {
+            try exportState.applyPresetRecipe(stored.document.exportRecipe ?? [])
+        } catch {
+            // The typed degrade face: a bad recipe never half-fills the
+            // panel (the store's load gate already degrades such files;
+            // this is the belt to its braces).
+            editorState.presentToast(
+                String(localized: "export_preset_invalid_toast"))
+        }
+    }
+
+    /// The「存为预设」sheet: names the CURRENT inline recipe (which starts
+    /// at `ExportState.defaultVariant` — the 移交① default-value form).
+    private var savePresetSheet: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("export_preset_save_title").font(.headline)
+            TextField(
+                String(localized: "preset_name_label"), text: $savePresetName)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("export.save_preset.name")
+            HStack {
+                Spacer()
+                Button(String(localized: "alert_cancel"), role: .cancel) {
+                    savePresetPresented = false
+                }
+                Button(String(localized: "preset_create_button")) {
+                    commitSavePreset()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(savePresetName.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityIdentifier("export.save_preset.commit")
+            }
+        }
+        .padding(16)
+        .frame(width: 320)
+    }
+
+    private func commitSavePreset() {
+        let name = savePresetName
+        savePresetPresented = false
+        do {
+            _ = try presetsStore.create(
+                name: name, kind: .export, exportRecipe: exportState.recipe)
+        } catch {
+            editorState.presentToast(
+                String(localized: "export_preset_invalid_toast"))
+        }
     }
 
     // MARK: - Recipe (variants inline editing)
 
     private func recipeSection(_ state: Bindable<ExportState>) -> some View {
         Section(String(localized: "export_recipe_section")) {
+            // Plan 12-4 T4: the export-preset row (apply / save-as) sits at
+            // the top of the recipe section — the recipe is the preset's
+            // payload, so the two faces belong on one surface.
+            exportPresetRow
             ForEach(state.recipe.indices, id: \.self) { index in
                 VariantEditor(
                     variant: state.recipe[index],
