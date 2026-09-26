@@ -369,4 +369,320 @@ final class CatalogFilterSQLTests: XCTestCase {
             details.joined().contains("image_tags"),
             "no tags join without a keywords predicate: \(details)")
     }
+
+    func testExplainDescExpandedSeekZeroTempBTree() throws {
+        // The DESC keyset seek expands over the ASC tiebreak — the plan
+        // must still walk idx_cat_rt_desc with ZERO TEMP B-TREE.
+        try seedCatalog(n: 10_000)
+        let handle = try SQLiteHandle(path: catalogURL.path)
+        defer { handle.close() }
+        let sql = """
+            SELECT id FROM catalog_images i
+            WHERE (+i.orphan_sidecar = 0)
+              AND (i.rating < ? OR (i.rating = ? AND i.rel_path > ?))
+            ORDER BY (rating IS NULL), rating DESC, rel_path ASC LIMIT 60
+            """
+        let statement = try handle.prepare("EXPLAIN QUERY PLAN \(sql)")
+        try statement.bindInt(1, 3)
+        try statement.bindInt(2, 3)
+        try statement.bindText(3, "dir0000/img000500.arw")
+        var details: [String] = []
+        while try statement.step() {
+            details.append(statement.columnText(3) ?? "")
+        }
+        for detail in details {
+            XCTAssertFalse(detail.contains("TEMP B-TREE"), "\(details)")
+        }
+        XCTAssertTrue(
+            details.contains { $0.contains("idx_cat_rt_desc") },
+            "the DESC ordering index must serve the expanded seek: \(details)")
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Plan 16-1 T4 segment — the CatalogIndexStore keyset face:
+//
+//   • keyset pages across ALL shapes (4 sort keys × directions × 3 depths,
+//     10k fixture) match a single big LIMIT query ROW FOR ROW — no gap, no
+//     overlap, no drift at the page boundaries
+//   • the NULL tail continues the main segment seamlessly (disjoint sets,
+//     together == the whole library)
+//   • COUNT: simple predicates recompute EVERY time (§1.4 on-request
+//     class), combo predicates memoize after the first computation, and
+//     invalidateCounts() kills the memo
+//   • tagCounts() = the one-sweep batch dictionary; fetchRow/imageIDs
+//   • unsupported sort keys are a typed error (never a silent slow plan)
+// ─────────────────────────────────────────────────────────────────────────────
+
+extension CatalogFilterSQLTests {
+
+    private func makeStore() -> CatalogIndexStore {
+        CatalogIndexStore(databaseURL: catalogURL)
+    }
+
+    private func anchorValue(
+        _ row: CatalogIndexRow, key: FilterSortKey
+    ) -> FilterSQLBind? {
+        switch key {
+        case .captureDate: row.captureDate.map { FilterSQLBind.double($0) }
+        case .rating: row.rating.map { .int($0) }
+        case .filename: row.filename.map { .text($0) }
+        default: nil
+        }
+    }
+
+    /// Walk `pages` keyset pages, returning the visited rel_paths IN ORDER
+    /// plus the anchor at the walk's end.
+    private func walkMain(
+        _ store: CatalogIndexStore, groups: [FilterPredicateGroup],
+        sort: FilterSort, pages: Int
+    ) async throws -> (visited: [String], lastAnchor: CatalogPageAnchor?) {
+        var visited: [String] = []
+        var anchor: CatalogPageAnchor?
+        for _ in 0..<max(pages, 1) {
+            let rows = try await store.queryPage(
+                groups: groups, sort: sort, anchor: anchor)
+            guard let last = rows.last else { break }
+            visited.append(contentsOf: rows.map(\.relPath))
+            guard let kv = anchorValue(last, key: sort.key) else { break }
+            anchor = CatalogPageAnchor(keyValue: kv, relPath: last.relPath)
+            if rows.count < CatalogIndexStore.defaultPageSize { break }
+        }
+        return (visited, anchor)
+    }
+
+    private func referenceOrder(
+        _ sort: FilterSort, limit: Int
+    ) async throws -> [String] {
+        let store = makeStore()
+        var paths: [String] = []
+        try await store.withHandleForTesting { handle in
+            let statement = try handle.prepare(
+                "SELECT rel_path FROM catalog_images i WHERE +i.orphan_sidecar = 0 "
+                    + "ORDER BY \(sort.orderBySQL(domain: .catalog)) LIMIT ?")
+            try statement.bindInt(1, Int64(limit))
+            while try statement.step() {
+                paths.append(statement.columnText(0) ?? "")
+            }
+        }
+        return paths
+    }
+
+    private func seedTagsForSuite() async throws {
+        let store = makeStore()
+        try await store.withHandleForTesting { handle in
+            try handle.execute(
+                "INSERT OR IGNORE INTO image_tags (tag, catalog_image_id) "
+                    + "SELECT 'Nature', id FROM catalog_images WHERE id % 10 = 0")
+            try handle.execute(
+                "INSERT OR IGNORE INTO image_tags (tag, catalog_image_id) "
+                    + "SELECT 'City', id FROM catalog_images WHERE id % 25 = 0")
+        }
+    }
+
+    // MARK: - Keyset ordering, all shapes × depths (row-for-row vs reference)
+
+    func testKeysetPagesMatchReferenceAcrossShapesAndDepths() async throws {
+        try seedCatalog(n: 10_000)
+        let store = makeStore()
+        let noGroups: [FilterPredicateGroup] = []
+
+        let shapes: [FilterSort] = [
+            FilterSort(key: .captureDate, ascending: false),
+            FilterSort(key: .captureDate, ascending: true),
+            FilterSort(key: .rating, ascending: false),
+            FilterSort(key: .rating, ascending: true),
+            FilterSort(key: .filename, ascending: true),
+        ]
+        // Depths 0 (head), 4000 (40%), 8000 (80%) of the 10k fixture.
+        for sort in shapes {
+            for depth in [0, 4000, 8000] {
+                let pages = max(1, depth / CatalogIndexStore.defaultPageSize)
+                let walk = try await walkMain(
+                    store, groups: noGroups, sort: sort, pages: pages)
+                XCTAssertGreaterThanOrEqual(
+                    walk.visited.count, min(10_000, pages * 60),
+                    "anti-vacuous: the walk must actually visit rows")
+                let expected = try await referenceOrder(
+                    sort, limit: min(walk.visited.count, 60 * pages + 60))
+                XCTAssertEqual(
+                    walk.visited, Array(expected.prefix(walk.visited.count)),
+                    "\(sort.key) \(sort.ascending ? "ASC" : "DESC") @d\(depth): "
+                        + "keyset pages must equal the single-query order")
+                // Strictly no duplicates across page boundaries.
+                XCTAssertEqual(
+                    Set(walk.visited).count, walk.visited.count,
+                    "duplicate rows across pages")
+            }
+        }
+    }
+
+    func testKeysetWithFilterAndTagPredicates() async throws {
+        try seedCatalog(n: 10_000)
+        try await seedTagsForSuite()
+        let store = makeStore()
+        let tagGroup = FilterPredicateGroup(rules: [
+            .init(field: .keywords, op: .contains, value: .text("Nature")),
+        ])
+        let sort = FilterSort(key: .captureDate, ascending: false)
+        // Walk 5 pages of the tag-filtered set — page boundaries hold.
+        let walk = try await walkMain(store, groups: [tagGroup], sort: sort, pages: 5)
+        XCTAssertFalse(walk.visited.isEmpty)
+        XCTAssertEqual(Set(walk.visited).count, walk.visited.count)
+        // The filtered reference must match row-for-row.
+        var expected: [String] = []
+        try await store.withHandleForTesting { handle in
+            let q = try FilterSQL.translateConjoining([tagGroup], domain: .catalog)
+            let scope = FilterSQL.scopeClause()
+            let statement = try handle.prepare(
+                "SELECT rel_path FROM catalog_images i WHERE \(q.whereClause) "
+                    + "AND \(scope.sql) ORDER BY \(sort.orderBySQL(domain: .catalog)) LIMIT 300")
+            try FilterSQL.apply(q.binds, to: statement)
+            while try statement.step() {
+                expected.append(statement.columnText(0) ?? "")
+            }
+        }
+        XCTAssertEqual(walk.visited, Array(expected.prefix(walk.visited.count)))
+    }
+
+    // MARK: - NULL tail seam
+
+    func testNullTailContinuesMainSeamlessly() async throws {
+        try seedCatalog(n: 10_000)  // 10% NULL capture_date, 20% NULL rating
+        let store = makeStore()
+        let sort = FilterSort(key: .rating, ascending: false)
+
+        // Exhaust the main segment.
+        var mainRows: [String] = []
+        var anchor: CatalogPageAnchor?
+        while true {
+            let rows = try await store.queryPage(
+                groups: [], sort: sort, anchor: anchor)
+            guard !rows.isEmpty else { break }
+            mainRows.append(contentsOf: rows.map(\.relPath))
+            guard let last = rows.last, let kv = anchorValue(last, key: sort.key) else {
+                break
+            }
+            anchor = CatalogPageAnchor(keyValue: kv, relPath: last.relPath)
+            if rows.count < CatalogIndexStore.defaultPageSize { break }
+        }
+
+        // Walk the NULL tail from its head.
+        var tailRows: [String] = []
+        var tailAnchor: CatalogPageAnchor?
+        while true {
+            let rows = try await store.queryNullTail(
+                groups: [], sort: sort, anchor: tailAnchor)
+            guard !rows.isEmpty else { break }
+            tailRows.append(contentsOf: rows.map(\.relPath))
+            guard let last = rows.last else { break }
+            tailAnchor = CatalogPageAnchor(keyValue: .int(nil), relPath: last.relPath)
+            if rows.count < CatalogIndexStore.defaultPageSize { break }
+        }
+
+        // Disjoint halves; together they are the whole library.
+        let overlap = Set(mainRows).intersection(tailRows)
+        XCTAssertTrue(overlap.isEmpty, "main and tail must not overlap")
+        var total = 0
+        try await store.withHandleForTesting { handle in
+            let statement = try handle.prepare("SELECT COUNT(*) FROM catalog_images")
+            if try statement.step() { total = Int(statement.columnInt(0) ?? 0) }
+        }
+        XCTAssertEqual(mainRows.count + tailRows.count, total)
+        // Every main-segment row HAS a rating; every tail row is NULL.
+        let firstTail = try await store.queryNullTail(groups: [], sort: sort)
+        XCTAssertTrue(firstTail.allSatisfy { $0.rating == nil })
+        let firstMain = try await store.queryPage(groups: [], sort: sort)
+        XCTAssertTrue(firstMain.allSatisfy { $0.rating != nil })
+    }
+
+    // MARK: - COUNT face (§1.4)
+
+    func testCountSimpleRecomputesAndComboMemoizes() async throws {
+        try seedCatalog(n: 10_000)
+        let store = makeStore()
+        let counter = CounterBox()
+        await store.setCountObserver { counter.increment() }
+
+        // Simple (single field, no tag): every call recomputes.
+        let simple = [FilterPredicateGroup(rules: [
+            .init(field: .rating, op: .gte, value: .int(4)),
+        ])]
+        _ = try await store.count(groups: simple)
+        _ = try await store.count(groups: simple)
+        XCTAssertEqual(counter.value, 2, "simple predicates recompute on request")
+
+        // Combo (two rules): first computes, second hits the memo.
+        let combo = [FilterPredicateGroup(rules: [
+            .init(field: .rating, op: .gte, value: .int(4)),
+            .init(field: .captureDate, op: .gte, value: .double(1_700_000_000)),
+        ])]
+        _ = try await store.count(groups: combo)
+        _ = try await store.count(groups: combo)
+        XCTAssertEqual(counter.value, 3, "combo predicate memoizes after one compute")
+
+        // invalidateCounts() kills the memo.
+        await store.invalidateCounts()
+        _ = try await store.count(groups: combo)
+        XCTAssertEqual(counter.value, 4, "invalidation forces a recompute")
+
+        // The empty group (all-library COUNT(*)) is the simple class.
+        _ = try await store.count(groups: [])
+        XCTAssertEqual(counter.value, 5)
+    }
+
+    func testTagCountsBatchAndRowReads() async throws {
+        try seedCatalog(n: 10_000)
+        try await seedTagsForSuite()
+        let store = makeStore()
+        let counts = try await store.tagCounts()
+        XCTAssertEqual(counts["Nature"], 1000)
+        XCTAssertEqual(counts["City"], 400)
+
+        // i = 1000: dir 1000 % 40 = 0, session 1000 % 10 = 0.
+        let row = try await store.fetchRow(
+            sessionID: "sess-0", relPath: "dir0000/img001000.arw")
+        XCTAssertNotNil(row)
+        XCTAssertEqual(row?.sessionID, "sess-0")
+        XCTAssertEqual(row?.relPath, "dir0000/img001000.arw")
+        let ids = try await store.imageIDs(
+            sessionID: "sess-0",
+            relPaths: ["dir0000/img001000.arw", "missing.arw"])
+        XCTAssertEqual(ids.count, 1)
+        XCTAssertGreaterThan(ids["dir0000/img001000.arw"] ?? 0, 0)
+    }
+
+    func testUnsupportedSortKeyThrowsTypedError() async throws {
+        try seedCatalog(n: 100)
+        let store = makeStore()
+        do {
+            _ = try await store.queryPage(
+                groups: [], sort: FilterSort(key: .iso, ascending: true))
+            XCTFail("expected the typed unsupported-sort error")
+        } catch let error as SessionIndexError {
+            guard case .execFailed(_, _, let message) = error else {
+                return XCTFail("expected execFailed, got \(error)")
+            }
+            XCTAssertTrue(message.contains("no catalog ordering index"), message)
+        }
+        // scan_epoch is not even mirrored.
+        do {
+            _ = try await store.queryPage(
+                groups: [], sort: FilterSort(key: .scanEpoch, ascending: true))
+            XCTFail("expected the typed unsupported-sort error")
+        } catch { /* expected */ }
+    }
+}
+
+/// A tiny Sendable counter for the count-observer assertions.
+private final class CounterBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int {
+        lock.lock(); defer { lock.unlock() }
+        return count
+    }
+    func increment() {
+        lock.lock(); count += 1; lock.unlock()
+    }
 }

@@ -217,6 +217,11 @@ public actor CatalogProjector {
 
         result = try projectTransaction(
             normalizedRoot: normalizedRoot, lindex: lindex, root: root)
+        // The COUNT memo dies with the new data (CatalogIndexStore's
+        // invalidateCounts — the consumer wires this hook).
+        if let invalidator = countsInvalidator {
+            await invalidator()
+        }
         return result
     }
 
