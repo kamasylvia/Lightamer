@@ -280,15 +280,21 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 **Notes:** 依赖全功能集完成后 profile 才有意义；05-08 的 PERF 复估数字是本 phase 的输入基线。解码/懒加载/批量的基线计量在对应功能阶段（9/11）建立。
 
 ### Phase 16: Catalog / Category Mode【2026-09-27 用户指令新立】
-**Goal:** 对标 Capture One 双模式组织——在既有 Sessions 模式（恒默认）之外，提供可选的 Category Catalog 模式（Lightroom Collections/Categories 同类）：用户在设置中手动配置 PostgreSQL 连接并测试通过后启用，获得跨会话的 category 树、虚拟集合与全库浏览过滤；Sessions 模式零依赖完整可用，目录库可由会话面全量重建（sidecar 恒真身）。
+**Goal:** 对标 Capture One 双模式组织——在既有 Sessions 模式（恒默认）之外，提供可选的 Catalogs 模式（C1 Catalogs 对标）（Lightroom Collections/Categories 同类）：用户在设置中手动配置 PostgreSQL 连接并测试通过后启用，获得跨会话的 catalogs 组织树、虚拟集合与全库浏览过滤；Sessions 模式零依赖完整可用，目录库可由会话面全量重建（sidecar 恒真身）。
 **Success Criteria**:
-1. 双模式共存：Sessions 恒默认零依赖；Category 模式仅在 pg 连接配置+测试通过后可选启用；脱库降级零功能损失。
+1. 双模式共存：Sessions 恒默认零依赖；Catalogs 模式仅在 pg 连接配置+测试通过后可选启用；脱库降级零功能损失。
 2. pg 连接配置面（host/port/db/user/password + 连接测试 + 安全存储）；驱动选型（PostgresNIO vs libpq）入研究。
-3. 目录库 = 跨会话元数据单向投影（会话→目录）+ category 树 + 虚拟集合；可全量重建（mutable and untrusted 延续）。
+3. 目录库 = 跨会话元数据单向投影（会话→目录）+ catalogs 组织树（C1 Categories 语义）+ 虚拟集合；可全量重建（mutable and untrusted 延续）。
 4. category 树编辑（CRUD/拖拽）+ 图片归类含批量。
-5. Category 模式下跨会话浏览/过滤/智能相册（复用 Phase 12 谓词层，求值域扩全库）。
+5. Catalogs 模式下跨会话浏览/过滤/智能相册（复用 Phase 12 谓词层，求值域扩全库）。
 **Requirements:** CATALOG-01..06
 **Notes:** 本 phase 推翻 2026-08-03 的「不做中央库」整族排除（用户 2026-09-27 指令；Out of Scope 表已修订留痕）——修订语义 = 中央库从「禁止」变为「可选第二模式、默认关闭」；Sessions 哲学与 sidecar 真身原则不变。pg 依赖为 v1 第二个外部服务依赖（首个 SPM 新增仍是 Swift-WebP）；自建 pg 实例由用户自管（Docker/系统服务均不打包）。时序 = Phase 12 收口后 discuss/research 独立成环（12-1..12-3 已交付的 session 面在双模式下均为复用底座，无返工）。
+
+**可行性预研结论（2026-09-27，orchestrator 外部调研）——pg 方案判定可行，附三个边界**：
+①**尺度分层**：C1/LR 的 Catalogs 性能痛点 = 元数据查询面（过滤/排序/集合聚合在 10k+ 后劣化，C1 社区实证「10,000 张以上 endless problems」）+ 目录文件损坏/膨胀/备份（C1 verify/restore 流程即为此设）。pg 对前者是降维打击（复合索引分页查询 1M 行 = 毫秒级；`ltree`+GiST 原生解层级关键字树查询——恰是 LR 关键字树痛点；`pg_trgm`/`tsvector` 解模糊与全文；分区表应对亿级）——**研究门：1M 行参考 schema + 真实查询集基准，网格分页 p95 < 50ms 方可通过**。对后者（预览生成吞吐）pg **无帮助**——那是管线问题，Lightamer 已有 Phase 9 双档缩略图+LRU+stale 再生方案，两不相干。
+②**直接先例**：digiKam 官方文档明确 MySQL/MariaDB 后端为大库推荐（「10 万张以上没理由用 SQLite」社区共识；官方对比列「Better performance」）；Immich（Postgres 后端）10 万级资产可用。反向证据亦在案：SQLite 本盘读可快于网络 MySQL（4.9x 读基准）→ **pg 必须走本机 unix socket / 本机部署，禁远程网络库作为主路径**（延迟预算入 research）；MariaDB 11.7.2 类版本兼容坑 → 版本钉死策略。
+③**运维边界**：pg 实例用户自管（已由「手动配置」门控接受）；备份 = pg_dump/basebackup 标准件（优于 C1 单文件 verify/restore）。
+**术语勘误**：模式名 = **Catalogs**（用户勘误 category→catalogs）；组织树沿用 C1 **Categories** 语义。
 
 ---
 *Last updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs); AI-02/03/04 moved to v2*

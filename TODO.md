@@ -287,7 +287,7 @@
 
 ## 已裁决登记（2026-09-26/27，正文落 ROADMAP/REQUIREMENTS，待规划排期）
 
-- **Phase 16 Catalog/Category Mode 新立（2026-09-27 用户指令）**：双模式组织（Sessions 默认 + Category Catalog 可选，pg 手动配置后启用）——推翻「不做中央库」整族排除（Out of Scope 表已修订留痕）；CATALOG-01..06 六需求；时序 = Phase 12 收口后独立 discuss/research 环
+- **Phase 16 Catalog/Category Mode 新立（2026-09-27 用户指令）**：双模式组织（Sessions 默认 + Catalogs 模式 可选，pg 手动配置后启用）——推翻「不做中央库」整族排除（Out of Scope 表已修订留痕）；CATALOG-01..06 六需求；时序 = Phase 12 收口后独立 discuss/research 环
 
 - **MCP-09 组**（Phase 14）：preset 三件套 / export_image / set_keywords + 研究项 A（GUI/无头并发双写对策）/ B（多版本参数组 MCP 语义）/ C（match_color 工具位，依赖 V2 TRACK colormatch iop）
 - **MCP-10**（Phase 14，**V1**）：GUI launcher——agent CLI 命令模板 + prompt 模板 +「一键 AI 筛图/修图」+ 日志面板；agent provider 归 agent 自身配置，app 零 AI 代码
