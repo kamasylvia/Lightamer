@@ -106,3 +106,7 @@ Manual-Only 4 行挂人工不阻塞（自动化腿均已钉数值与语义）。
   helper 队列身份三态断言（测试盲区补钉）；③ T0a 从容差 1/255 **恢复 byte-exact**
   （`9439b59` 的容差建立在被证伪的「GPU 非确定」归因上；修复后同参连渲 diff 0 为机制
   事实），sanity 错位红断言保留。
+
+## 2026-09-26 晨审追认（用户裁决）
+
+- **D-11-CONTEXT-1..8 全部追认** + **OQ-11-1..8 裁决追认** + 两处 API 事实修正追认（queue.priority 无公开 API → Utility QoS 替代；XMP 写端宿主全死 → properties dict EXIF + 反向锚 + WebP v1 例外）。Phase 11 裁决面全部闭环，无推翻项。

@@ -59,6 +59,8 @@
 - **待办**：~~GUI-10/13~~ ✅ 闭环（2026-09-23 W6 夜间 subagent：commitParams/setParams/apply 全同步 + rematerialize 两段式零挂起，`909b7bd`；并发回归测试 ×100 + 真机 20 轮背靠背压力零崩溃）——~~GUI-11/12~~ ✅ 同轮闭环（moduleList ScrollView 高度 = min(内容, 列 38%)，面板体 472pt ≥ 240 红线，`fffd51d`）；05-07 notes 收口 `bacfd01`（VST 门 1e-6 / varf 精确式 / DECISIONS T6-5）；FINDINGS W6 闭环节 + 复验数字落盘；trackB flake（05-08 复估）
 - **教训新增**：L022 强化——omp closeout 会把 GOAL-STATE 回卷至其启动快照（丢失全部中间进展），omp prompt 必须加「closeout 更新 GOAL-STATE 先读现文件增量改，禁整文件回写旧快照」
 
+- **晨审结果（2026-09-26 用户裁决）**：①Phase 11 D-11-CONTEXT-1..8 + OQ-11-1..8 + 两处 API 事实修正**全部追认**；②Phase 12 D-12-CONTEXT-1..10**全部追认**（含 D-1 迁移例外 + D-2 红线口径澄清）；③LayerE2ERoundTripTests flake = **处置 b 留观**（Phase 15 清算）；④Phase 9 翻转：用户询问「翻转」含义后待其选择（走 UAT 或授权代翻），暂未执行。
+
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
 
 1. ~~**修复 issue #1**~~ ✅ 关闭（2026-09-18）：drawable 回读证实渲染/blit 全链正常（JPEG drawable 采样含图像内容）；黑屏为多窗口调试堆积的呈现竞争——真实单窗口使用正常（干净复现截图 4.2MB 完整显示）。转 backlog：多窗口呈现管理（Phase 2/9）。
@@ -90,7 +92,7 @@
 ## 阻塞（需人工）
 
 1. ~~**11-03 遗留 flaky（2026-09-26 11-04 执行轮登记）**~~ **已闭环（2026-09-26 11-05 收口批 `9439b59`）**：断言放宽为解码像素容差 1/255 + 尺寸相等（GPU 非确定 = 11-04 法证确证），并保留 sanity 错位红断言（人为 2 级错位即红）——真回归可检性维持；稳定后三轮绿 + 终轮 1258/0fail。
-2. ~~**11-03 flaky 根因补正（2026-09-26 专项调试）**~~ **已真修复闭环（`9ea0d93` + LESSONS L031）**：11-04「GPU 非确定」归因推翻——真根因 = 10+ 模块 identity blit 硬编 editor queue 与导出链 export queue compute 跨队列竞速（两稳定形态交替、负载改时序偶发、隔离亦可高概率复现）；修复 = `makeRoutedCommandBuffer()` public 化 + 16 处调用点（12 blit + 4 fence）统一路由；验证 = 同参连渲逐字节 0 差 + 目标测试隔离 ×5 绿 + 负载循环 ×10 绿 + 全套 5 轮导出域 0 fail（其中 1 轮 3 fail 全部来自无关域 LayerE2ERoundTripTests undo 语义——**新登记相邻域负载型 flaky 待另立案**）；T0a 容差 `9439b59` + sanity 锚保留。
+2. ~~**11-03 flaky 根因补正（2026-09-26 专项调试）**~~ **已真修复闭环（`9ea0d93` + LESSONS L031）**：11-04「GPU 非确定」归因推翻——真根因 = 10+ 模块 identity blit 硬编 editor queue 与导出链 export queue compute 跨队列竞速（两稳定形态交替、负载改时序偶发、隔离亦可高概率复现）；修复 = `makeRoutedCommandBuffer()` public 化 + 16 处调用点（12 blit + 4 fence）统一路由；验证 = 同参连渲逐字节 0 差 + 目标测试隔离 ×5 绿 + 负载循环 ×10 绿 + 全套 5 轮导出域 0 fail（其中 1 轮 3 fail 全部来自无关域 LayerE2ERoundTripTests（处置 = 用户裁决选 b：留观登记，对照 GoldenColor 先例，Phase 15 一并清算；不开即席 fix 批） undo 语义——**新登记相邻域负载型 flaky 待另立案**）；T0a 容差 `9439b59` + sanity 锚保留。
 3. ~~**F-11-04-1（轻，11-04 执行轮发现）**~~ **已闭环（2026-09-26 11-05 收口批 `d9dfa9b`）**：`ExportState.targetRelPaths` realpath(3) 双拼写匹配（L027/SessionWatcher 先例，两侧拼写任意组合）+ `canExport` gate 改以实际 targets 判定（按钮不再可点空跑）；4 单测钉死。
 4. **sidecar_present 永不刷新缺陷（12-1 域，2026-09-26 12-2 执行轮发现并登记；验收轮 `1ccf09f` 后由验收 subagent 补入本正式章节）**：`sidecar_present` 只在行 INSERT/rename/changed 三处伴随 `fileExists(.lra)` stat（SessionIndexStore 唯一写点，12-2 验收全仓 grep 证实），「先有图、后有 sidecar」的行（典型：首开会话无 `.lra`，之后 MetadataService 首次打分才写盘）present 恒 0 → `backfillSidecarSummaries`（谓词 `sidecar_present = 1`，SessionIndexStore:685/695）永不回读该行 → imageID/has_edits/layer summary 派生列不更新（外部改 sidecar/漂移重读失效）。**缓解面**：GUI 写链路 claim 直写 DB 所见即所得；删库重建时 sidecar 已在 → present=1 → parity 正确。**严重度评估（12-2 验收）**：中——数据新鲜度缺陷非崩溃/丢失面，过滤 `has_edits`/`sidecar` 类谓词与元数据面板在「先图后 sidecar」行上失真。**建议处置时点 = 12-5 收口批**（12-3 XMP 与 sidecar 无关；修法候选：reconcile/open 的 backfill 谓词补 present=0 存在性 stat）。
 
