@@ -75,7 +75,7 @@ v1 = 完整工作流闭环 + 蒙版系统 + HDR/堆栈 + 印框/水印 + 全量 
 - [x] **IOP-COLOR-05**: color zones（色相/饱和度/亮度的分区域调整）
 - [x] **IOP-COLOR-06**: monochrome / black & white（黑白转换，含色彩滤镜模拟）
 - [x] **IOP-COLOR-07**: velvia（鲜艳度）
-- [ ] **IOP-COLOR-08**: LUT (.cube) 作为 iop 模块——导入并应用 1D/3D .cube LUT（含 DOMAIN_MIN/MAX、tetrahedral 插值，参考 Darktable lut3d）
+- [x] **IOP-COLOR-08**: LUT (.cube) 作为 iop 模块——导入并应用 1D/3D .cube LUT（含 DOMAIN_MIN/MAX、tetrahedral 插值，参考 Darktable lut3d） —— **Delivered（Phase 12）**
 - [x] **IOP-COLOR-09**: color contrast / color correction curves — **已交付=colorcontrast（56.0）**；rgbcurve/rgblevels 划出 Phase 5（D-05-CONTEXT-1），Phase 6+ stretch 补齐（CurveTools 全复用机械增量）
 
 ### Image Operation Modules (iop) — Detail & Sharpen (IOP-DETAIL)
@@ -182,19 +182,19 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 
 ### Metadata & Organization (META)
 
-- [ ] **META-01**: 星级评分（0-5 星）
-- [ ] **META-02**: 颜色标签（C1 风格彩色标签）
-- [ ] **META-03**: 关键字/标签（层级关键字、批量编辑）
-- [ ] **META-04**: 标准 EXIF/IPTC/XMP 读写（与其他工具兼容，评级/标签/关键字随 sidecar 同步）
-- [ ] **META-05**: 按评分/标签/关键字/相机/镜头/日期/ISO/焦距等过滤与排序
-- [ ] **META-06**: 智能相册/动态集合（基于规则的虚拟分组，不复制文件）
+- [x] **META-01**: 星级评分（0-5 星） —— **Delivered（Phase 12）**
+- [x] **META-02**: 颜色标签（C1 风格彩色标签） —— **Delivered（Phase 12）**
+- [x] **META-03**: 关键字/标签（层级关键字、批量编辑） —— **Delivered（Phase 12）**
+- [x] **META-04**: 标准 EXIF/IPTC/XMP 读写（与其他工具兼容，评级/标签/关键字随 sidecar 同步） —— **Delivered（Phase 12）**
+- [x] **META-05**: 按评分/标签/关键字/相机/镜头/日期/ISO/焦距等过滤与排序 —— **Delivered（Phase 12）**
+- [x] **META-06**: 智能相册/动态集合（基于规则的虚拟分组，不复制文件） —— **Delivered（Phase 12）**
 
 ### Presets & Styles (PRES)
 
-- [ ] **PRES-01**: 原生预设系统——保存完整调整堆栈为 Lightamer 预设（.lightamer-preset，JSON/Codable）
-- [ ] **PRES-02**: 预设管理器（创建/编辑/删除/导入/导出/分类）
-- [ ] **PRES-03**: .cube LUT 导入与应用（作为 IOP-COLOR-08 模块的能力，含 1D/3D、DOMAIN_MIN/MAX、tetrahedral 插值）
-- [ ] **PRES-04**: 预设可应用于单图或批量多图
+- [x] **PRES-01**: 原生预设系统——保存完整调整堆栈为 Lightamer 预设（.lightamer-preset，JSON/Codable） —— **Delivered（Phase 12）**
+- [x] **PRES-02**: 预设管理器（创建/编辑/删除/导入/导出/分类） —— **Delivered（Phase 12）**
+- [x] **PRES-03**: .cube LUT 导入与应用（作为 IOP-COLOR-08 模块的能力，含 1D/3D、DOMAIN_MIN/MAX、tetrahedral 插值） —— **Delivered（Phase 12）**
+- [x] **PRES-04**: 预设可应用于单图或批量多图 —— **Delivered（Phase 12）**
 
 ### Export (EXP)
 
@@ -338,7 +338,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | IOP-COLOR-05 | Phase 5 — Color & Denoise iops | Delivered |
 | IOP-COLOR-06 | Phase 5 — Color & Denoise iops | Delivered |
 | IOP-COLOR-07 | Phase 5 — Color & Denoise iops | Delivered |
-| IOP-COLOR-08 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| IOP-COLOR-08 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
 | IOP-COLOR-09 | Phase 5 — Color & Denoise iops | Delivered |
 | IOP-DETAIL-01 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
 | IOP-DETAIL-02 | Phase 4 — Geometry, Lens & Detail iops | Delivered |
@@ -392,16 +392,16 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | YIYIN-06 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
 | YIYIN-07 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
 | YIYIN-08 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
-| META-01 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| META-02 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| META-03 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| META-04 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| META-05 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| META-06 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| PRES-01 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| PRES-02 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| PRES-03 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
-| PRES-04 | Phase 12 — Metadata, Rating, Presets & LUT | Pending |
+| META-01 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
+| META-02 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
+| META-03 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
+| META-04 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
+| META-05 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
+| META-06 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
+| PRES-01 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
+| PRES-02 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
+| PRES-03 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
+| PRES-04 | Phase 12 — Metadata, Rating, Presets & LUT | **Delivered** |
 | EXP-01 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
 | EXP-02 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
 | EXP-03 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
