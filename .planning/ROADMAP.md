@@ -279,23 +279,25 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 **Requirements:** PERF-01..08（PERF-5 债务在此清账）
 **Notes:** 依赖全功能集完成后 profile 才有意义；05-08 的 PERF 复估数字是本 phase 的输入基线。解码/懒加载/批量的基线计量在对应功能阶段（9/11）建立。
 
-### Phase 16: Catalog / Category Mode【2026-09-27 用户指令新立】
-**Goal:** 对标 Capture One 双模式组织——在既有 Sessions 模式（恒默认）之外，提供可选的 Catalogs 模式（C1 Catalogs 对标）（Lightroom Collections/Categories 同类）：用户在设置中手动配置 PostgreSQL 连接并测试通过后启用，获得跨会话的 catalogs 组织树、虚拟集合与全库浏览过滤；Sessions 模式零依赖完整可用，目录库可由会话面全量重建（sidecar 恒真身）。
+### Phase 16: Catalogs Mode【2026-09-27 用户指令新立；同日终裁 v1 后端 = 本地 SQLite】
+**Goal:** 对标 Capture One 双模式组织——在既有 Sessions 模式（恒默认）之外，提供可选的 Catalogs 模式（Lightroom Collections/Categories 同类）：设置中启用后获得跨会话的 catalogs 组织树、虚拟集合与全库浏览过滤；Sessions 模式零依赖完整可用，目录库可由会话面全量重建（sidecar 恒真身）。**后端 = 本地 SQLite**（复用 Phase 9 libsqlite3 面 + 12-2 FilterSQL 谓词层——零新依赖、零部署；用户 2026-09-27 终裁，pg 可行性预研降为 v2 评估项）。
 **Success Criteria**:
-1. 双模式共存：Sessions 恒默认零依赖；Catalogs 模式仅在 pg 连接配置+测试通过后可选启用；脱库降级零功能损失。
-2. pg 连接配置面（host/port/db/user/password + 连接测试 + 安全存储）；驱动选型（PostgresNIO vs libpq）入研究。
-3. 目录库 = 跨会话元数据单向投影（会话→目录）+ catalogs 组织树（C1 Categories 语义）+ 虚拟集合；可全量重建（mutable and untrusted 延续）。
-4. category 树编辑（CRUD/拖拽）+ 图片归类含批量。
+1. 双模式共存：Sessions 恒默认零依赖；Catalogs 模式设置中启用；脱库降级零功能损失。
+2. 目录库 = 本地 SQLite 跨会话元数据单向投影（会话→目录）+ catalogs 组织树（C1 Categories 语义）+ 虚拟集合；可全量重建（mutable and untrusted 延续）；**标签物化表**（(image_id, tag) 拆行 + 层级展开）支撑百万级层级关键字查询。
+3. **基准门（最终实证裁决）**：1M 行参考库 + 真实查询集，网格分页 p95 < 50ms（SQLite 口径实测）。
+4. catalogs 组织树编辑（CRUD/拖拽）+ 图片归类含批量。
 5. Catalogs 模式下跨会话浏览/过滤/智能相册（复用 Phase 12 谓词层，求值域扩全库）。
 **Requirements:** CATALOG-01..06
-**Notes:** 本 phase 推翻 2026-08-03 的「不做中央库」整族排除（用户 2026-09-27 指令；Out of Scope 表已修订留痕）——修订语义 = 中央库从「禁止」变为「可选第二模式、默认关闭」；Sessions 哲学与 sidecar 真身原则不变。pg 依赖为 v1 第二个外部服务依赖（首个 SPM 新增仍是 Swift-WebP）；自建 pg 实例由用户自管（Docker/系统服务均不打包）。时序 = Phase 12 收口后 discuss/research 独立成环（12-1..12-3 已交付的 session 面在双模式下均为复用底座，无返工）。
+**Notes:** 本 phase 推翻 2026-08-03 的「不做中央库」整族排除（用户 2026-09-27 指令；Out of Scope 表已修订留痕）——修订语义 = 中央库从「禁止」变为「可选第二模式、默认关闭」；Sessions 哲学与 sidecar 真身原则不变。**v1 零新依赖零部署**（首个 SPM 新增仍只有 Swift-WebP）。时序 = Phase 12 收口后 discuss/research 独立成环（12-1..12-3 已交付的 session 面在双模式下均为复用底座，无返工）。
+**v2 评估项存档（2026-09-27 预研，届时重启裁决）**：①远程后端——用户现成 LAN pg 实例（~0.2-1ms/往返可接受 vs 50ms 预算；可用性绑 NAS 为代价）；pg 可行性预研三边界仍有效（元数据查询面 pg 强 / 预览吞吐是管线问题 / 禁远程网络库主路径）；部署形态 = macOS 宿主直装优先（Docker Desktop VM 边界税，`synchronous_commit=off` 可卸投影 fsync）。②驱动选型 PostgresNIO vs libpq。③基准任务：宿主直装 vs Docker named-volume 双跑。原预研全文保留于下，均为 v2 输入：
 
 **可行性预研结论（2026-09-27，orchestrator 外部调研）——pg 方案判定可行，附三个边界**：
-①**尺度分层**：C1/LR 的 Catalogs 性能痛点 = 元数据查询面（过滤/排序/集合聚合在 10k+ 后劣化，C1 社区实证「10,000 张以上 endless problems」）+ 目录文件损坏/膨胀/备份（C1 verify/restore 流程即为此设）。pg 对前者是降维打击（复合索引分页查询 1M 行 = 毫秒级；`ltree`+GiST 原生解层级关键字树查询——恰是 LR 关键字树痛点；`pg_trgm`/`tsvector` 解模糊与全文；分区表应对亿级）——**研究门：1M 行参考 schema + 真实查询集基准，网格分页 p95 < 50ms 方可通过**。对后者（预览生成吞吐）pg **无帮助**——那是管线问题，Lightamer 已有 Phase 9 双档缩略图+LRU+stale 再生方案，两不相干。
-②**直接先例**：digiKam 官方文档明确 MySQL/MariaDB 后端为大库推荐（「10 万张以上没理由用 SQLite」社区共识；官方对比列「Better performance」）；Immich（Postgres 后端）10 万级资产可用。反向证据亦在案：SQLite 本盘读可快于网络 MySQL（4.9x 读基准）→ **pg 必须走本机 unix socket / 本机部署，禁远程网络库作为主路径**（延迟预算入 research）；MariaDB 11.7.2 类版本兼容坑 → 版本钉死策略。
+①**尺度分层**：C1/LR 的 Catalogs 性能痛点 = 元数据查询面（过滤/排序/集合聚合在 10k+ 后劣化，C1 社区实证「10,000 张以上 endless problems」）+ 目录文件损坏/膨胀/备份（C1 verify/restore 流程即为此设）。pg 对前者是降维打击（复合索引分页查询 1M 行 = 毫秒级；`ltree`+GiST 原生解层级关键字树查询——恰是 LR 关键字树痛点；`pg_trgm`/`tsvector` 解模糊与全文；分区表应对亿级）。对后者（预览生成吞吐）pg **无帮助**——那是管线问题，Lightamer 已有 Phase 9 双档缩略图+LRU+stale 再生方案，两不相干。
+②**直接先例**：digiKam 官方文档明确 MySQL/MariaDB 后端为大库推荐（「10 万张以上没理由用 SQLite」社区共识；官方对比列「Better performance」）；Immich（Postgres 后端）10 万级资产可用。反向证据亦在案：SQLite 本盘读可快于网络 MySQL（4.9x 读基准）→ **远程网络库不作主路径**（延迟预算入 research）；MariaDB 11.7.2 类版本兼容坑 → 版本钉死策略。
 ③**运维边界**：pg 实例用户自管（已由「手动配置」门控接受）；备份 = pg_dump/basebackup 标准件（优于 C1 单文件 verify/restore）。
+**引擎归因调研（2026-09-27 第二轮）——LR/C1 劣化与 SQLite 的关系已拆清**：LR `.lrcat` = SQLite（lightroomqueen 连接串实证）；C1 `.cocatalogdb` = SQLite 3.x（C1 官方论坛原文）——两家都在 SQLite 上变慢，归因必须落到用法层。三拆（可修、Lightamer 已规避）：a. 目录膨胀/碎片（LR history 逐步快照 → 巨大化；官方修复 = Optimize Catalog 即 VACUUM+重建＝维护动作非引擎更换；Lightamer = append+position + 可重建）b. 预览管线（与引擎无关，Phase 9 方案已有）c. 部署反模式（网络共享/慢盘；Lightamer 本地文件）。SQLite 本体规模证据：10 亿行插入 <60s（avi.im/sqlite.org 论坛）、9000 万行 SO 案例、1 亿行 HN 生产案例、TB 级 whentouse 在册——1M-100M 行域引擎非瓶颈。残余风险如实：schema 纪律（已对）+ 标签物化表（已立项）+ checkpoint 调优（基准覆盖）由 Lightamer 自担。LR/C1 是「SQLite 被用出问题」案例，非「SQLite 到顶」案例。
 **术语勘误**：模式名 = **Catalogs**（用户勘误 category→catalogs）；组织树沿用 C1 **Categories** 语义。
-**部署形态预研（2026-09-27，orchestrator）**：macOS 宿主上 Docker Desktop 存在 VM 边界双损耗（TCP 回环穿 NAT ~0.2-1ms/往返 vs unix socket ~50µs；数据卷 fsync 经虚拟化层，bind mount 最差）——查询侧无感（vs 50ms 预算），批量投影写入侧用 `synchronous_commit=off`（目录库可重建投影，合法免 durability）卸掉 fsync 成本。**建议 = 宿主机直装（brew postgresql@17）为推荐路径**；容器化允许但三条纪律（named volume 禁 bind mount / 仅绑 127.0.0.1 / 投影关同步提交）。research 基准任务 +1：宿主直装 vs Docker named-volume 同基准双跑落账。
+**部署形态预研（2026-09-27）**：macOS Docker Desktop VM 边界双损耗（TCP 回环穿 NAT ~0.2-1ms/往返 vs unix socket ~50µs；数据卷 fsync 经虚拟化层，bind mount 最差）——v2 若远程/容器部署时适用；`synchronous_commit=off`（可重建投影合法免 durability）为容器化纪律之一。
 **引擎归因调研（2026-09-27，orchestrator 第二轮外部调研）——LR/C1 劣化与 SQLite 的关系已拆清**：
 ①**双引擎实证**：LR `.lrcat` = SQLite（lightroomqueen 给出过连接串 `SQLite:dbname=...lrcat`；多个独立来源一致）；C1 `.cocatalogdb` = SQLite 3.x（C1 官方论坛原文）。即 LR/C1 都跑在 SQLite 上——故「劣化与 SQLite 无关」不能整句断言，**归因必须落到用法层**。
 ②**归因三拆（可修、且 Lightamer 已规避）**：
