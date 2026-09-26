@@ -344,7 +344,9 @@ final class ExportRendererE2ETests: XCTestCase {
     }
 
     /// 4 态矩阵（仅框/仅水印/双开/双关）+ 有印框全链 round-trip：双关 ==
-    /// 基线逐字节；仅框 band（暗底）+ 双开水印行（亮字）经编码→解码存在。
+    /// 基线（解码后像素容差 1/255——GPU 渲染非确定，11-04 法证；sanity
+    /// 断言钉住真回归可检性）；仅框 band（暗底）+ 双开水印行（亮字）经
+    /// 编码→解码存在。
     func testYiyinFourStateMatrixAndBorderedRoundTrip() async throws {
         try await LightamerIOPRegistry.populate(registry)
         try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
@@ -401,10 +403,27 @@ final class ExportRendererE2ETests: XCTestCase {
         let onlyWatermarkURL = try await render(withStates(bordersEnabled: false, watermarkEnabled: true), true)
         let bothURL = try await render(withStates(bordersEnabled: true, watermarkEnabled: true), true)
 
-        // 双关 == 基线 逐字节（禁用 == 无实例，导出面）。
-        XCTAssertEqual(
-            try Data(contentsOf: bothOffURL), try Data(contentsOf: baselineURL),
-            "both disabled == no-yiyin baseline, byte-exact")
+        // 双关 == 基线 — PIXEL tolerance（禁用 == 无实例，导出面）。GPU
+        // 渲染非确定（1-LSB 级漂移，11-04 SUMMARY 法证：两侧字节都漂、
+        // 同代码 fail/pass 交替），PNG 容器字节比对过敏——解码后逐样本
+        // 容差 1/255 + 尺寸相等才是「禁用 == 无实例」的真不变量。
+        let bothOffValues = try decodedPNGValues(bothOffURL)
+        let baselineValues = try decodedPNGValues(baselineURL)
+        XCTAssertEqual(bothOffValues.width, baselineValues.width,
+                       "both disabled == no-yiyin baseline: width")
+        XCTAssertEqual(bothOffValues.height, baselineValues.height,
+                       "both disabled == no-yiyin baseline: height")
+        let bothOffDiff = maxChannelDiff(bothOffValues.bytes, baselineValues.bytes)
+        XCTAssertLessThanOrEqual(
+            bothOffDiff, 1,
+            "both disabled == no-yiyin baseline within 1/255 (max diff \(bothOffDiff))")
+        // Sanity: the relaxation must stay a REAL regression detector — a
+        // synthetic 2-level misalignment IS red against this comparator.
+        var misaligned = baselineValues.bytes
+        misaligned[0] &+= 2
+        XCTAssertGreaterThanOrEqual(
+            maxChannelDiff(misaligned, baselineValues.bytes), 2,
+            "comparator sanity: a 2/255 offset is detected")
 
         // 仅框：画布扩展（> 256 长边）+ band 暗底存在 + 无白字。
         let bordersValues = try decodedPNGValues(onlyBordersURL)
@@ -586,6 +605,17 @@ final class ExportRendererE2ETests: XCTestCase {
     private struct Analysis {
         var darkFraction: Double
         var brightCount: Int
+    }
+
+    /// Max absolute per-sample difference of two equally sized RGBA8 planes
+    /// (the pixel-tolerance comparator for the four-state matrix).
+    private func maxChannelDiff(_ a: [UInt8], _ b: [UInt8]) -> Int {
+        precondition(a.count == b.count, "pixel planes must be equally sized")
+        var maxDiff = 0
+        for index in 0..<a.count {
+            maxDiff = max(maxDiff, abs(Int(a[index]) - Int(b[index])))
+        }
+        return maxDiff
     }
 
     /// Band/row presence: the fraction of near-black pixels (the #101010
