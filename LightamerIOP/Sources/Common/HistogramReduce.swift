@@ -93,7 +93,7 @@ public enum HistogramReduce {
         // L014 fence: the CPU readback must wait for in-flight writes.
         // (async context → the awaitable completed() form, per the 03-02
         // summary's pickColor precedent)
-        let fence = metal.commandQueue.makeCommandBuffer()
+        let fence = try? metal.makeRoutedCommandBuffer()
         fence?.commit()
         _ = await fence?.completed()
 
@@ -191,7 +191,7 @@ public enum HistogramReduce {
         pass2.commandBuffer.commit()
 
         // L014 fence before the CPU readback.
-        let fence = metal.commandQueue.makeCommandBuffer()
+        let fence = try? metal.makeRoutedCommandBuffer()
         fence?.commit()
         _ = await fence?.completed()
 

@@ -7,10 +7,15 @@ import os
 ///
 /// Design locks:
 /// - **D-14** device = `MTLCreateSystemDefaultDevice()` (Apple Silicon UMA GPU).
-/// - **D-15** single `MTLCommandQueue`. Declared `nonisolated let` — immutable
-///   by construction, which is the `private(set)` seam shape: Phase 11 adds a
-///   second low-priority export queue as a NEW property, never by reassigning
-///   this one.
+/// - **D-15** single `MTLCommandQueue` for the EDITOR (`commandQueue`), plus
+///   the Phase 11 export queue as a NEW property (`exportCommandQueue`) —
+///   never by reassigning the editor one. The export queue is routed by
+///   `routesToExportQueue` (TaskLocal) inside `makeCommandBuffer` — the
+///   single queue-acquisition point of the whole dispatch face, so the iop
+///   call sites change ZERO lines (Plan 11-03 T1). SDK fact (11-RESEARCH
+///   §4.4): `MTLCommandQueue` has no priority API, so "low priority" lands
+///   as an INDEPENDENT queue (in-flight buffers never serialize against the
+///   editor's) + the queue's Utility-QoS consumers.
 /// - **D-16** lazy + memory PSO cache keyed on `PSOKey`, LRU-bounded at 256
 ///   entries (RESEARCH Open Question #3).
 /// - **D-17** function-constants via `makeFunction(name:constantValues:)`;
@@ -48,6 +53,29 @@ public actor MetalContext {
     // D-15: single queue; Phase 11 export queue is an additional property.
     public nonisolated let commandQueue: any MTLCommandQueue
 
+    /// D-15 (Plan 11-03 T1): the SECOND command queue — the export leg's
+    /// dedicated submissions. NEW property by construction (the lock's
+    /// letter): the editor's `commandQueue` is never reassigned. In-flight
+    /// export buffers never serialize against editor dispatches; the fence
+    /// of the export exit leg hangs on THIS queue (R8: a fence on the wrong
+    /// queue is a silent race — false-green/black-plane shape).
+    public nonisolated let exportCommandQueue: any MTLCommandQueue
+
+    /// Plan 11-03 T1 — the TaskLocal queue ROUTE. `false` (default): every
+    /// command buffer comes from the editor queue (today's behavior,
+    /// byte-identical). `true`: command buffers come from
+    /// `exportCommandQueue`. The export job runner wraps its whole render
+    /// task in `$routesToExportQueue.withValue(true) { ... }`, and because
+    /// a TaskLocal propagates down the task tree, EVERY iop dispatch of
+    /// that run lands on the export queue with zero iop call-site changes.
+    /// The editor's task tree is never wrapped → zero contamination.
+    ///
+    /// REJECTED alternative (11-RESEARCH §4.3): an actor-scope "active
+    /// queue" toggle — an `await` during PSO building would let a
+    /// concurrent EDITOR dispatch enter the export queue. TaskLocal is
+    /// task-scoped: no re-entry race exists.
+    @TaskLocal public static var routesToExportQueue = false
+
     /// Core's default library (first) + libraries registered by kernel-owning
     /// modules (LightamerIOP now, later targets). Empty list is valid: Core
     /// ships no kernels in Phase 1, so its metallib is absent by design.
@@ -68,6 +96,12 @@ public actor MetalContext {
     /// only sees the `renderToTexture` facade below).
     private var ciContextPool: CIContextPool?
 
+    /// The EXPORT-dedicated bridge (Plan 11-03 T2/T4): created against
+    /// `exportCommandQueue` so the in-pipe export colorout leg's ColorSync
+    /// round trip orders against export-queue writes (R8). Separate from
+    /// `ciContextPool` — the editor pool's queue is the editor's.
+    private var exportCIContextPool: CIContextPool?
+
     /// D-31: GPU-path signposts (visible in Instruments Metal System Trace).
     private static let signposter = OSSignposter(subsystem: "com.kamasylvia.lightamer", category: "metal")
 
@@ -83,6 +117,13 @@ public actor MetalContext {
             throw MetalError.deviceUnavailable
         }
         self.commandQueue = queue
+        // D-15 (11-03 T1): the second, export-dedicated queue. Allocation
+        // failure is the same device-unavailable class as the editor queue's.
+        guard let exportQueue = device.makeCommandQueue() else {
+            AppError.logger.error("MTLCommandQueue (export) allocation failed on \(device.name, privacy: .public)")
+            throw MetalError.deviceUnavailable
+        }
+        self.exportCommandQueue = exportQueue
 
         // CRITICAL (RESEARCH §1 #1): resolve the framework bundle, never
         // Bundle.main. Tolerant load: Core has no kernels in Phase 1, so its
@@ -353,6 +394,27 @@ public actor MetalContext {
         }
     }
 
+    /// The EXPORT colorout leg's facade (Plan 11-03 T2 — internal, the
+    /// module lives in Core): converts a float32 linear-Rec2020 texture to
+    /// an ARBITRARY `target` CGColorSpace (primaries + white + TRC in ONE
+    /// ColorSync render) via the row-order-FIXED pool leg
+    /// (`convertToEncodedTexture` — L029's defective `convertTexture` twin
+    /// is forbidden on the export chain). The export job runner instantiates
+    /// a dedicated `CIContextPool(device:exportCommandQueue)` so this leg's
+    /// fence hangs on the export queue (R8).
+    func convertToEncodedSpace(
+        _ input: sending any MTLTexture,
+        target: CGColorSpace
+    ) async throws -> sending any MTLTexture {
+        let pool = await exportPool()
+        do {
+            let rendered = try await pool.convertToEncodedTexture(input, target: target)
+            return rendered.texture
+        } catch let error as MetalError {
+            throw error.asAppError
+        }
+    }
+
     /// Render a `CIImage` into a freshly allocated float32 linear-Rec2020
     /// `MTLTexture` (FOUND-02 pixelpipe format). Public facade over the
     /// internal `CIContextPool` — the app hands this the decoded `ciImage`;
@@ -423,12 +485,44 @@ public actor MetalContext {
         return pool
     }
 
+    /// The export-dedicated pool (R8): same lazy shape as `getOrCreatePool`
+    /// but against `exportCommandQueue` — the in-pipe export colorout leg's
+    /// internal fence rides the queue the routed pipe writes through.
+    private func exportPool() -> CIContextPool {
+        if let exportCIContextPool {
+            return exportCIContextPool
+        }
+        let pool = CIContextPool(device: device, commandQueue: exportCommandQueue)
+        exportCIContextPool = pool
+        return pool
+    }
+
+    /// THE single queue-acquisition point of the whole dispatch face —
+    /// `dispatch2D` / `dispatch2DTexture` / `makeEncoder` all obtain their
+    /// command buffers HERE (and only here), which is what makes the
+    /// TaskLocal route a zero-iop-call-site change (Plan 11-03 T1).
+    ///
+    /// Internal test seam: `makeRoutedCommandBuffer()` below exposes the
+    /// routed acquisition for the queue-identity assertions.
     private nonisolated func makeCommandBuffer() throws -> any MTLCommandBuffer {
-        guard let commandBuffer = commandQueue.makeCommandBuffer() else {
+        let queue = Self.routesToExportQueue ? exportCommandQueue : commandQueue
+        guard let commandBuffer = queue.makeCommandBuffer() else {
             AppError.logger.error("MTLCommandBuffer allocation failed")
             throw MetalError.deviceUnavailable
         }
         return commandBuffer
+    }
+
+    /// Public seam (11-03 flaky fix): ONE routed command-buffer acquisition
+    /// for the WHOLE codebase — iop modules' internal identity blits and
+    /// readback fences included. The 11-03 export flake proved the failure
+    /// shape of bypassing this: a module blit hardwired to `commandQueue`
+    /// races the pipe's compute on `exportCommandQueue` (two queues, no
+    /// sync — the downstream compute reads a STALE plane under load while
+    /// isolation runs win the race by timing). Every `metal.commandQueue.
+    /// makeCommandBuffer()` outside this file is a latent cross-queue race.
+    public nonisolated func makeRoutedCommandBuffer() throws -> any MTLCommandBuffer {
+        try makeCommandBuffer()
     }
 
     /// LRU move-to-end on cache hit.

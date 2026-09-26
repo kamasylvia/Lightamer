@@ -16,10 +16,21 @@ internal struct LightamerColumnVisibilityKey: FocusedValueKey {
     typealias Value = Binding<NavigationSplitViewVisibility>
 }
 
+/// Plan 11-04: the export-sheet request binding, seen from the App scene's
+/// File menu (⌘⇧E mirrors the toolbar's export button).
+internal struct ExportPanelRequestKey: FocusedValueKey {
+    typealias Value = Binding<Bool>
+}
+
 internal extension FocusedValues {
     var lightamerColumnVisibility: Binding<NavigationSplitViewVisibility>? {
         get { self[LightamerColumnVisibilityKey.self] }
         set { self[LightamerColumnVisibilityKey.self] = newValue }
+    }
+
+    var exportPanelRequest: Binding<Bool>? {
+        get { self[ExportPanelRequestKey.self] }
+        set { self[ExportPanelRequestKey.self] = newValue }
     }
 }
 
@@ -198,6 +209,10 @@ internal struct LightamerApp: App {
     @FocusedBinding(\.lightamerColumnVisibility)
     private var focusedColumnVisibility: NavigationSplitViewVisibility?
 
+    /// Plan 11-04: the export sheet request, as seen from the File menu.
+    @FocusedBinding(\.exportPanelRequest)
+    private var exportPanelRequested: Bool?
+
     var body: some Scene {
         // SINGLE WINDOW (Plan 02-01, UAT issue #1 ROOT CAUSE): SwiftUI's
         // WindowGroup opens a NEW WINDOW per incoming odoc Apple Event on
@@ -244,6 +259,12 @@ internal struct LightamerApp: App {
                     // render path.
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
+
+                    // Plan 11-04 T3: hand the export state its Metal +
+                    // registry dependencies (D-03b closure-seam pattern —
+                    // never at construction). The queue itself rebuilds per
+                    // session open, inside syncIndexHandler below.
+                    exportState.configure(metal: metalContext, registry: moduleRegistry)
 
                     // Plan 09-01 T1: wire the session orchestrator's
                     // closure seams (flush/teardown/route/toast — all
@@ -315,6 +336,14 @@ internal struct LightamerApp: App {
                                         store: store, includeOrphans: true
                                     )
                                 }
+                                // Plan 11-04 T3 (checker E1): the export
+                                // queue is SESSION-SCOPED (OQ-11-3) —
+                                // rebuilt beside the thumbnail provider on
+                                // every successful open; the old instance's
+                                // pending work dies with it (no journal,
+                                // D-11-CONTEXT-8).
+                                exportState.sessionRoot = url
+                                await exportState.rebuildQueueForSession()
                             }
                             return result
                         },
@@ -436,9 +465,13 @@ internal struct LightamerApp: App {
                     }
                     // 02-06 (D-S3): quit/termination forces the pending
                     // sidecar write through the AppDelegate's synchronous
-                    // willTerminate callback.
+                    // willTerminate callback. Plan 11-04 T3: the export
+                    // queue's flush SLOT rides the same callback — exports
+                    // have no journal and no partial files, so the slot
+                    // records the abandonment (v1: re-runnable work).
                     appDelegate.terminateHandler = {
                         pipeCoordinator.flushForTermination()
+                        exportState.flushForTermination()
                     }
                     #if DEBUG
                     resizeProbeIfRequested()
@@ -503,10 +536,14 @@ internal struct LightamerApp: App {
                     .keyboardShortcut("s", modifiers: .command)
             }
             CommandGroup(after: .saveItem) {
-                // Phase 11 — disabled.
-                Button(String(localized: "menu_export")) {}
-                    .disabled(true)
-                    .keyboardShortcut("e", modifiers: [.command, .shift])
+                // Plan 11-04 (EXP-03): the export sheet (the toolbar's
+                // export button raises the same binding; nil = the editor
+                // scene is not focused — keep the item disabled).
+                Button(String(localized: "menu_export")) {
+                    exportPanelRequested = true
+                }
+                .disabled(exportPanelRequested == nil)
+                .keyboardShortcut("e", modifiers: [.command, .shift])
             }
 
             // ── Edit ────────────────────────────────────────────────

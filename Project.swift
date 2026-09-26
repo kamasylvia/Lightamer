@@ -4,7 +4,8 @@ import ProjectDescription
 // Lightamer — Tuist manifest (D-02/D-02a multi-target + Tuist)
 //
 // Five targets, compiler-enforced module DAG (D-03):
-//   LightamerCore (framework, no Lightamer deps)
+//   LightamerCore (framework, no Lightamer deps — EXTERNAL packages allowed:
+//     the D-03 line is "no other Lightamer target", Plan 11-01 wires WebP)
 //     ↑
 //   LightamerIOP (framework, deps Core)
 //     ↑
@@ -15,6 +16,8 @@ import ProjectDescription
 // Locks honored: D-05 bundle id `com.kamasylvia.lightamer` (one-way),
 // D-33 Swift 6 strict concurrency (complete), macOS 27.0 floor on ALL targets
 // (FOUND-01), ENABLE_HARDENED_RUNTIME (DIST-5).
+// SPM policy (D-11-CONTEXT-1): Swift-WebP is the ONLY package in this
+// project — libavif stays out (native public.avif on the macOS 27 floor).
 // ─────────────────────────────────────────────────────────────────────────────
 
 let baseSettings: SettingsDictionary = [
@@ -58,6 +61,15 @@ let project = Project(
         // single source (RESEARCH §1 gotcha satisfied on every target).
         textSettings: .textSettings(indentWidth: 4, tabWidth: 4)
     ),
+            // The project's ONLY SPM package (D-11-CONTEXT-1, Plan 11-01 T4):
+            // ainame/Swift-WebP — MIT, language mode 6, libwebp 1.5.0+ via
+            // the libwebp-Xcode C source package (no xcframework download
+            // step), macOS 11+ floor (no constraint under macOS 27).
+            // WebP WRITE is absent from CGImageDestination on every macOS;
+            // this is the single deliberate dependency (RESEARCH §2).
+            packages: [
+                .package(url: "https://github.com/ainame/Swift-WebP.git", from: "0.6.0"),
+            ],
             settings: .settings(
                 base: baseSettings,
                 configurations: [
@@ -76,7 +88,14 @@ let project = Project(
             infoPlist: .default,
             sources: ["LightamerCore/Sources/**"],
             resources: ["LightamerCore/Resources/**"],
-            dependencies: [] // D-03: Core depends on nothing
+            dependencies: [
+                // D-03: Core depends on no other LIGHTAMER target; external
+                // packages are allowed (Plan 11-01: WebP is the export
+                // encoder's one non-native format — RESEARCH §2.3 placement).
+                // Tuist 4.208 TargetDependency.package takes the PRODUCT
+                // name only (resolved against the project packages above).
+                .package(product: "WebP"),
+            ],
         ),
 
         // ═════════ LightamerIOP (framework, depends on Core) ═════════
@@ -147,6 +166,7 @@ let project = Project(
                 .target(name: "LightamerCore"),
                 .target(name: "LightamerIOP"),
                 .target(name: "Lightamer"), // Plan 03-02: D-T6 panel wiring tests drive the APP-side state (InspectorState/PipeCoordinator) via @testable
+                .package(product: "WebP"), // Plan 11-01: the WebPIntegrationSmokeTests import WebP directly (link smoke)
             ]
         ),
 

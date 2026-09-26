@@ -344,7 +344,7 @@ public final class SoftenModule: IOPModule {
         let width = min(roiOut.width, roiIn.width, output.width, max(0, input.width - dx))
         let height = min(roiOut.height, roiIn.height, output.height, max(0, input.height - dy))
         guard width > 0, height > 0 else { return }
-        guard let commandBuffer = metal.commandQueue.makeCommandBuffer(),
+        guard let commandBuffer = try? metal.makeRoutedCommandBuffer(),
               let blit = commandBuffer.makeBlitCommandEncoder()
         else {
             throw MetalError.deviceUnavailable

@@ -259,14 +259,33 @@ internal final class PixelPipe: @unchecked Sendable {
     }
 
     /// Next ping-pong scratch plane at the ROI (FULL/EXPORT intermediates).
+    ///
+    /// Plan 11-03 T4 bug fix (caught by the export E2E's negotiated-ROI
+    /// precondition): the old shape reused the two planes UNCONDITIONALLY
+    /// once two existed — a canvas-GROWING module (borders, 08-01) mid-run
+    /// handed the pipe a plane of the PREVIOUS (smaller) size, truncating
+    /// its output to the main-image rect. The reuse now honors the
+    /// requested size: an exact-size plane ping-pongs as before; a size
+    /// change reallocates the slot (the alternation guarantee — output
+    /// never aliases the plane the upstream recursion just returned — is
+    /// kept by the flip, so a same-size reuse never aliases input/output).
     private func nextScratchPlane(roiOut: ROI, metal: MetalContext) throws -> any MTLTexture {
+        scratchFlip.toggle()
+        let index = scratchFlip ? 1 : 0
+        let wantedWidth = max(roiOut.width, 1)
+        let wantedHeight = max(roiOut.height, 1)
         if scratchPlanes.count < 2 {
             let texture = try Self.allocatePlane(roiOut: roiOut, metal: metal)
             scratchPlanes.append(texture)
             return texture
         }
-        scratchFlip.toggle()
-        return scratchPlanes[scratchFlip ? 1 : 0]
+        let current = scratchPlanes[index]
+        if current.width != wantedWidth || current.height != wantedHeight {
+            let texture = try Self.allocatePlane(roiOut: roiOut, metal: metal)
+            scratchPlanes[index] = texture
+            return texture
+        }
+        return current
     }
 
     // MARK: - Tile driver (Plan 03-05-T6)
@@ -431,7 +450,11 @@ internal final class PixelPipe: @unchecked Sendable {
 
     /// A same-format texture-to-texture blit on its own command buffer
     /// (same-queue FIFO keeps it ordered against the neighboring compute
-    /// dispatches; explicit endEncoding before commit — L008).
+    /// dispatches; explicit endEncoding before commit — L008). The buffer
+    /// comes from the SAME TaskLocal-routed acquisition as every dispatch
+    /// (11-03 T1: tiling is FULL-only today, but the route must stay true
+    /// at the type level — a blit inside a routed export run belongs on the
+    /// export queue).
     private func blit(
         from source: any MTLTexture,
         sourceOrigin: MTLOrigin,
@@ -440,7 +463,7 @@ internal final class PixelPipe: @unchecked Sendable {
         destinationOrigin: MTLOrigin = MTLOrigin(x: 0, y: 0, z: 0),
         metal: MetalContext
     ) async throws {
-        guard let commandBuffer = metal.commandQueue.makeCommandBuffer() else {
+        guard let commandBuffer = try? metal.makeRoutedCommandBuffer() else {
             throw MetalError.deviceUnavailable
         }
         guard let blit = commandBuffer.makeBlitCommandEncoder() else {
@@ -455,6 +478,49 @@ internal final class PixelPipe: @unchecked Sendable {
         commandBuffer.commit()
     }
 
+    /// The input-plane render legs (Plan 11-03 T3 extraction of the base-
+    /// case miss body — byte-identical behavior, now shared by the cached
+    /// leg and the export no-cache bypass). Counts this run's plane render.
+    private func renderInputPlane(
+        image: DecodedImage,
+        roiOut: ROI,
+        scale: CGFloat,
+        needsSubdomain: Bool,
+        metal: MetalContext
+    ) async throws -> any MTLTexture {
+        planesRendered += 1
+        if needsSubdomain {
+            // ROI is top-left origin; CI extent is bottom-up
+            // (04-04-T4 lens-shrink postmortem: passing the ROI
+            // rect straight through renders file row H−M+r
+            // instead of region.y+r — a row shift invisible on
+            // y-invariant fixtures, fatal on checkerboard).
+            let ex = image.ciImage.extent
+            let rw = CGFloat(roiOut.width) / scale
+            let rh = CGFloat(roiOut.height) / scale
+            let rx = CGFloat(roiOut.x) / scale
+            let ryTop = CGFloat(roiOut.y) / scale
+            return try await metal.renderRegion(
+                image.ciImage,
+                region: CGRect(
+                    x: rx,
+                    y: ex.maxY - ryTop - rh,
+                    width: rw,
+                    height: rh),
+                scale: scale,
+                dedupeKey: inputPlaneDedupeKey
+            )
+        }
+        if roiOut.scale < 1.0 {
+            return try await metal.renderToTexture(
+                image.ciImage, longEdge: max(roiOut.width, roiOut.height),
+                dedupeKey: inputPlaneDedupeKey
+            )
+        }
+        return try await metal.renderToTexture(
+            image.ciImage, dedupeKey: inputPlaneDedupeKey)
+    }
+
     /// Run the pipe over a decoded image with the given (unsorted) module
     /// instances; returns the final plane + this run's stats delta.
     ///
@@ -462,7 +528,17 @@ internal final class PixelPipe: @unchecked Sendable {
     /// `defaultLongEdge` for THUMBNAIL) sizes the INPUT plane — `roi.scale
     /// = target/fullExtent` and the base case renders the decoded CIImage
     /// at the target long edge in ONE pass (`renderToTexture(_:longEdge:)`).
-    /// nil long edge + no resolution default (FULL) = full extent, scale 1.0.
+    /// nil long edge + no resolution default (FULL, and EXPORT with an
+    /// `.original` sizing) = full extent, scale 1.0.
+    ///
+    /// EXPORT (Plan 11-03 T3, activated): the caller (ExportRenderer) passes
+    /// the LONG EDGE of `variant.sizing.targetSize(canvasWidth:canvasHeight:)`
+    /// (the percent mode folded through `effectiveSizing` first) — the same
+    /// downscale-only math (never-upscale clamp lives in the sizing layer
+    /// AND here, belt-and-suspenders). The export chain's gamma is stripped
+    /// upstream (`ExportChainBuilder`), so the tail plane stays float32 and
+    /// the terminal-tail format policy cannot fire.
+    ///
     /// PREVIEW re-renders through plain `run` on every params change.
     internal func run(
         image: DecodedImage,
@@ -470,12 +546,6 @@ internal final class PixelPipe: @unchecked Sendable {
         metal: MetalContext,
         longEdge: Int?
     ) async throws -> (output: any MTLTexture, stats: RenderPipeline.PipeRunStats) {
-        // EXPORT is a Phase 11 seam — typed placeholder, never a fatalError
-        // (D-25 / Plan 02-03-03).
-        if resolution == .export {
-            throw AppError.notImplemented("Phase 11")
-        }
-
         // Base layer invariant (D03a) — L005 field preserved. The AUTO-
         // INSTALLED default stack (no caller stack) is ephemeral: its fresh
         // BackgroundLayer UUID must NOT enter the cache namespace (keys
@@ -641,9 +711,9 @@ internal final class PixelPipe: @unchecked Sendable {
         metal: MetalContext,
         layerID: UUID
     ) async throws -> (output: any MTLTexture, stats: RenderPipeline.PipeRunStats) {
-        if resolution == .export {
-            throw AppError.notImplemented("Phase 11")
-        }
+        // (11-03 T3: the EXPORT stub is gone — a layer composite at the
+        // export resolution runs the same sub-run walk; the base run at
+        // entry scale produces the driver-managed accumulator plane.)
         decodedImage = nil
         subRunInput = input
         cacheLayerID = layerID
@@ -745,6 +815,19 @@ internal final class PixelPipe: @unchecked Sendable {
             let needsSubdomain =
                 roiOut.width < fullW || roiOut.height < fullH
                 || roiOut.x != 0 || roiOut.y != 0
+            // (f) EXPORT no-caching (Plan 11-03 T3): the red line is TOTAL —
+            // even the INPUT plane (line 0) never stores. Darktable parity
+            // (`pixelpipe_hb.h:346-355`): an export run leaves
+            // `cache.totalBytes == 0`; the pool-level CONTENT dedupe
+            // (GUI-22) still freezes CIRAW re-execution, so no render
+            // correctness is traded away. FULL keeps its input+final lines
+            // (lock #4) — the resolution branch, not a policy change.
+            if resolution == .export {
+                let texture = try await renderInputPlane(
+                    image: image, roiOut: roiOut, scale: scale,
+                    needsSubdomain: needsSubdomain, metal: metal)
+                return PipeCache.CachedPlane(texture: texture, byteCount: 0, lastHit: .now)
+            }
             return try await cache.plane(
                 for: PipeCacheKey(
                     imageID: imageID, pipeType: resolution, position: 0,
@@ -753,37 +836,9 @@ internal final class PixelPipe: @unchecked Sendable {
                 ),
                 byteCount: Self.planeBytes(roiOut)
             ) { [self] in
-                planesRendered += 1
-                if needsSubdomain {
-                    // ROI is top-left origin; CI extent is bottom-up
-                    // (04-04-T4 lens-shrink postmortem: passing the ROI
-                    // rect straight through renders file row H−M+r
-                    // instead of region.y+r — a row shift invisible on
-                    // y-invariant fixtures, fatal on checkerboard).
-                    let ex = image.ciImage.extent
-                    let rw = CGFloat(roiOut.width) / scale
-                    let rh = CGFloat(roiOut.height) / scale
-                    let rx = CGFloat(roiOut.x) / scale
-                    let ryTop = CGFloat(roiOut.y) / scale
-                    return try await metal.renderRegion(
-                        image.ciImage,
-                        region: CGRect(
-                            x: rx,
-                            y: ex.maxY - ryTop - rh,
-                            width: rw,
-                            height: rh),
-                        scale: scale,
-                        dedupeKey: self.inputPlaneDedupeKey
-                    )
-                }
-                if roiOut.scale < 1.0 {
-                    return try await metal.renderToTexture(
-                        image.ciImage, longEdge: max(roiOut.width, roiOut.height),
-                        dedupeKey: self.inputPlaneDedupeKey
-                    )
-                }
-                return try await metal.renderToTexture(
-                    image.ciImage, dedupeKey: self.inputPlaneDedupeKey)
+                try await renderInputPlane(
+                    image: image, roiOut: roiOut, scale: scale,
+                    needsSubdomain: needsSubdomain, metal: metal)
             }
         }
         // 04-01: passes `roiOut` straight through (dt `:3378-3384`).
@@ -873,9 +928,8 @@ internal final class PixelPipe: @unchecked Sendable {
             }
         }
 
-        // Uncached leg (FULL intermediates — EXPORT never reaches the walk,
-        // `run` throws first): ping-pong through pipe-private scratch —
-        // never stored.
+        // Uncached leg (FULL intermediates + every EXPORT plane): ping-pong
+        // through pipe-private scratch — never stored.
         let upstream = try await processRec(
             position: position - 1,
             roiOut: roiIn,
@@ -884,15 +938,19 @@ internal final class PixelPipe: @unchecked Sendable {
         precondition(
             upstream.texture.width == roiIn.width
                 && upstream.texture.height == roiIn.height,
-            "negotiated ROI violated (uncached) at pos \(position)"
+            "negotiated ROI violated (uncached) at pos \(position) (\(pieces[position].box.opName)): roiOut=\(roiOut.width)x\(roiOut.height)@\(roiOut.x),\(roiOut.y)s\(roiOut.scale) roiIn=\(roiIn.width)x\(roiIn.height)@\(roiIn.x),\(roiIn.y)s\(roiIn.scale) upstream=\(upstream.texture.width)x\(upstream.texture.height)"
         )
         pieces[position].state.processedROIIn = roiIn
         pieces[position].state.processedROIOut = roiOut
-        // The FINAL output (FULL only — EXPORT finals are also uncached)
-        // must not alias scratch the next run overwrites: allocate fresh.
-        // The display tail format applies here too (FULL 100% viewing).
+        // The FINAL output must not alias scratch the next run overwrites:
+        // allocate fresh. FULL allocates for every final (100% viewing);
+        // EXPORT allocates only when the tail format DIFFERS from float32
+        // (a misassembled chain that still carries gamma — the builder
+        // strips it, but the pipe must not hand gamma a float32 scratch
+        // plane; 11-03 T3 test finding). Float-tailed export finals keep
+        // the scratch ping-pong.
         let output: any MTLTexture =
-            if isFinalOutput && resolution == .full {
+            if isFinalOutput && (resolution == .full || tailFormat != WorkingSpace.pixelFormat) {
                 try Self.allocatePlane(roiOut: roiOut, metal: metal, pixelFormat: tailFormat)
             } else {
                 try nextScratchPlane(roiOut: roiOut, metal: metal)

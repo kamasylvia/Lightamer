@@ -209,7 +209,7 @@ enum WaveletEngine {
 
             // L014 fence + CPU Bayesshrink (dt reads dev_r back per band,
             // :2433-2443).
-            let fence = metal.commandQueue.makeCommandBuffer()
+            let fence = try? metal.makeRoutedCommandBuffer()
             fence?.commit()
             _ = await fence?.completed()
             var sumY2 = SIMD4<Float>(repeating: 0)

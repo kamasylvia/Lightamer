@@ -171,6 +171,13 @@ internal actor CIContextPool {
         AppError.logger.debug("CIContextPool.clearCaches: ciContext.clearCaches() done")
     }
 
+    /// Internal test seam (Plan 11-03 T4, R8): the queue THIS pool's fences
+    /// hang on — the export pool must report `exportCommandQueue` (a fence
+    /// on the wrong queue is a silent race, the R8 false-green shape).
+    internal func debugFenceQueue() -> any MTLCommandQueue {
+        commandQueue
+    }
+
     internal func renderToTexture(
         _ image: CIImage, dedupeKey: UInt64? = nil
     ) throws -> RenderedTexture {
@@ -454,13 +461,20 @@ internal actor CIContextPool {
     /// Mechanism: `CIImage(mtlTexture:options:)` tags the texture with the
     /// working space, then the SAME bitmap+replace leg as `renderScaled`
     /// renders with the per-call `colorSpace:` override (the context-level
-    /// output space is a default; the per-render parameter wins). Cost
-    /// 10-30ms at 2560px (CPU round trip) — acceptable for the one-shot
-    /// screen-change path, never the drag hot path (fast path covers it).
+    /// output space is a default; the per-render parameter wins). The
+    /// `.downMirrored` orientation tag undoes CI's bottom-up texture read
+    /// (the L029 host finding — without it this leg's output was vertically
+    /// mirrored; it never slept through a production flow because the fast
+    /// path covers sRGB/P3, but the parity test below pins both legs to the
+    /// same rows). Cost 10-30ms at 2560px (CPU round trip) — acceptable for
+    /// the one-shot screen-change path, never the drag hot path (fast path
+    /// covers it).
     internal func convertTexture(
         _ input: any MTLTexture,
         toLinearSpace target: CGColorSpace
     ) throws -> RenderedTexture {
+        // L029 close-out (11-05): the caller renounces `input` across the
+        // actor hop — this leg consumes the plane read-only.
         let width = input.width
         let height = input.height
         guard width >= 1, height >= 1 else {
@@ -478,9 +492,13 @@ internal actor CIContextPool {
         fence?.commit()
         fence?.waitUntilCompleted()
 
+        // The plane IS linear Rec2020 (the pipe interior, FOUND-02); the
+        // `.downMirrored` tag undoes CI's bottom-up texture read (the L029
+        // row-order host finding — the export twin got the same fix in
+        // 11-02; this leg slept unfixed until the 11-05 close-out batch).
         guard let image = CIImage(mtlTexture: input, options: [
             .colorSpace: WorkingSpace.colorSpace, // the plane IS linear Rec2020 (FOUND-02)
-        ]) else {
+        ])?.oriented(.downMirrored) else {
             throw AppError.decodeFailed("CIImage(mtlTexture:) failed for the colorout ColorSync leg")
         }
         let signposter = Self.signposter
@@ -518,5 +536,189 @@ internal actor CIContextPool {
             bytesPerRow: rowBytes
         )
         return RenderedTexture(texture: texture)
+    }
+
+    /// The EXPORT colorout leg (Plan 11-03 T2): convert a float32 linear-
+    /// Rec2020 TEXTURE into a fresh float32 texture whose pixels are
+    /// converted to `target` — primaries + white + TRC in ONE ColorSync
+    /// render (the OQ-11-2 ruling: the in-pipe colorout performs the whole
+    /// conversion; the exit leg is then an identity). `target` is ANY
+    /// CGColorSpace: the display-TRC variant for the quantized tiers or the
+    /// LINEAR variant for TIFF 32f (the caller — ExportChainBuilder — picks
+    /// via `ExportColorSpaceMapper`).
+    ///
+    /// **The `convertTexture` sister WITH the row-order fix (L029):** the
+    /// 11-02 host finding proved `CIImage(mtlTexture:)` reads bottom-up —
+    /// the bare `convertTexture` lands its output vertically mirrored
+    /// (dormant on the display leg, which L029 pinned). This leg carries
+    /// the `.oriented(.downMirrored)` correction so the export chain NEVER
+    /// consumes the defective twin (forbidden by the L029 discipline).
+    ///
+    /// The fence rides THIS pool's commandQueue — the 11-03 export pool is
+    /// instantiated with `exportCommandQueue` (R8: a fence on the wrong
+    /// queue is a silent race).
+    internal func convertToEncodedTexture(
+        _ input: any MTLTexture,
+        target: CGColorSpace
+    ) throws -> RenderedTexture {
+        let width = input.width
+        let height = input.height
+        guard width >= 1, height >= 1 else {
+            throw AppError.decodeFailed("convertToEncodedTexture: degenerate texture \(width)×\(height)")
+        }
+        // Cross-queue ordering — same discipline as convertTexture /
+        // renderToEncodedBitmap (L014/GUI-22): CI reads on its own internal
+        // queue; the empty committed+waited buffer orders every prior write
+        // on OUR queue first.
+        let fence = commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+
+        // The plane IS linear Rec2020 (the pipe interior, FOUND-02); the
+        // `.downMirrored` tag undoes CI's bottom-up texture read (the 11-02
+        // row-order host finding — see the class header + L029).
+        guard let image = CIImage(mtlTexture: input, options: [
+            .colorSpace: WorkingSpace.colorSpace,
+        ])?.oriented(.downMirrored) else {
+            throw AppError.decodeFailed("CIImage(mtlTexture:) failed for the export colorout leg")
+        }
+        let signposter = Self.signposter
+        let interval = signposter.beginInterval("colorout-export", id: signposter.makeSignpostID())
+        defer { signposter.endInterval("colorout-export", interval) }
+
+        let rowBytes = width * WorkingSpace.bytesPerPixel
+        let byteCount = rowBytes * height
+        let buffer = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 64)
+        defer { buffer.deallocate() }
+        ciContext.render(
+            image,
+            toBitmap: buffer,
+            rowBytes: rowBytes,
+            bounds: CGRect(x: 0, y: 0, width: width, height: height),
+            format: CIFormat.RGBAf,
+            colorSpace: target
+        )
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: WorkingSpace.pixelFormat,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        guard let texture = device.makeTexture(descriptor: descriptor) else {
+            throw MetalError.bufferAllocationFailed(byteCount)
+        }
+        texture.replace(
+            region: MTLRegionMake2D(0, 0, width, height),
+            mipmapLevel: 0,
+            withBytes: buffer,
+            bytesPerRow: rowBytes
+        )
+        return RenderedTexture(texture: texture)
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // The EXPORT exit leg (Plan 11-02 T2) — the `convertTexture` sister.
+    // ───────────────────────────────────────────────────────────────────────
+    /// The exit leg's CPU handoff: float32 RGBA pixels ALREADY ENCODED in the
+    /// target color space (primaries + white + TRC applied by the one
+    /// ColorSync render below). Sendable value — the quantizer consumes it
+    /// (Plan 11-02 T1's packed faces) without any GPU object aboard.
+    internal struct EncodedBitmap: Sendable {
+        /// float32 RGBA, `rowBytes * height` bytes, host-endian.
+        public let data: Data
+        public let width: Int
+        public let height: Int
+        public let rowBytes: Int
+    }
+
+    /// Render a pixelpipe OUTPUT TEXTURE into a float32 CPU bitmap whose
+    /// pixels are ENCODED in `target` — the single exit conversion (COLOR-2
+    /// matrix family's CI leg reuse, RESEARCH §3.2): ColorSync performs
+    /// primaries + white + TRC in THIS one render; no texture is created
+    /// (the export leg never returns to the GPU — direct CPU handoff).
+    /// `input` rides the `TextureBox` renounce wrap (the ColorOutModule
+    /// precedent): the plane is consumed by this call — the fence orders
+    /// prior writes, then CI reads it; the caller must not touch it after.
+    ///
+    /// **sourceColorSpace contract (checker E3)**: what the incoming plane
+    /// already IS, tag-wise.
+    /// - Default `WorkingSpace.colorSpace`: the plane is linear Rec2020 (the
+    ///   raw pipe tail, gamma stripped) — the render converts it to `target`
+    ///   (the conversion happens here, exactly once).
+    /// - The 11-03 export chain passes the TARGET color space instead: its
+    ///   `colorout` stage already overrode its target to the export profile,
+    ///   so the arriving plane is ALREADY target-encoded and this render is
+    ///   an IDENTITY (byte-preserving pass through ColorSync). Pinning the
+    ///   parameter to WorkingSpace there would re-encode already-encoded
+    ///   values — a systematic color cast. The dual-state golden test pins
+    ///   both states and their DIFFERENCE (the reverse assertion).
+    ///
+    /// Disciplines carried over from `convertTexture`:
+    /// 1. CROSS-QUEUE FENCE (L014/GUI-22): CI renders on its own internal
+    ///    queue while `input` may have kernel writes still in flight on OUR
+    ///    serial queue — the empty committed+waited buffer below orders
+    ///    every prior write before CI touches the texture. The fence hangs
+    ///    on THIS POOL's commandQueue (R8: 11-03 instantiates the export
+    ///    pool with `exportCommandQueue` — a fence on the wrong queue is a
+    ///    silent race, the false-green/black-plane shape).
+    /// 2. `cacheIntermediates: false` (CIRAW-4) — set once at `init`.
+    /// 3. CPU bitmap leg semantics (host finding, header note): cost 10-30ms
+    ///    at 2560px — acceptable for the one-shot full-res export path,
+    ///    never a drag-hot-path candidate.
+    internal func renderToEncodedBitmap(
+        _ input: TextureBox,
+        sourceColorSpace: CGColorSpace = WorkingSpace.colorSpace,
+        toSpace target: CGColorSpace
+    ) throws -> EncodedBitmap {
+        let width = input.texture.width
+        let height = input.texture.height
+        guard width >= 1, height >= 1 else {
+            throw AppError.decodeFailed("renderToEncodedBitmap: degenerate texture \(width)×\(height)")
+        }
+        // Discipline 1 — the fence (see doc comment; convertTexture:477-479 twin).
+        let fence = commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+
+        // The plane is tagged with what it already is — NOT a constant
+        // WorkingSpace (the checker E3 contract above). HOST FINDING (11-02
+        // probe, pinned by the row-order golden): `CIImage(mtlTexture:)`
+        // reads the texture BOTTOM-UP in CI's origin convention, so the bare
+        // render lands the bitmap VERTICALLY MIRRORED vs the texture's row
+        // order. The leg's contract is "bitmap rows == texture rows" — the
+        // mirror is undone here with the matching orientation tag so no
+        // consumer (quantizer/encoder/11-03) ever sees the flip.
+        guard let image = CIImage(mtlTexture: input.texture, options: [
+            .colorSpace: sourceColorSpace,
+        ])?.oriented(.downMirrored) else {
+            throw AppError.decodeFailed("CIImage(mtlTexture:) failed for the export exit leg")
+        }
+        let signposter = Self.signposter
+        let interval = signposter.beginInterval("render-exit-encoded", id: signposter.makeSignpostID())
+        defer { signposter.endInterval("render-exit-encoded", interval) }
+
+        // Direct CPU handoff: no texture allocation, the quantizer consumes
+        // this Data (Discipline 3).
+        let rowBytes = width * WorkingSpace.bytesPerPixel
+        let byteCount = rowBytes * height
+        let buffer = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 64)
+        ciContext.render(
+            image,
+            toBitmap: buffer,
+            rowBytes: rowBytes,
+            bounds: CGRect(x: 0, y: 0, width: width, height: height),
+            format: CIFormat.RGBAf,
+            colorSpace: target
+        )
+        let data = Data(
+            bytesNoCopy: buffer,
+            count: byteCount,
+            deallocator: .custom { _, _ in
+                buffer.deallocate()
+            })
+        return EncodedBitmap(data: data, width: width, height: height, rowBytes: rowBytes)
     }
 }
