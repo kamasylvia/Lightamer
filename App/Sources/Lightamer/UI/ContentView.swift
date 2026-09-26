@@ -62,6 +62,10 @@ internal struct ContentView: View {
     @Environment(InspectorState.self) private var inspectorState
     @Environment(MetadataController.self) private var metadataController
 
+    /// Plan 12-4 T3: the preset-manager window opener (the toolbar's
+    /// import menu hosts the entry; the Edit menu mirrors it).
+    @Environment(\.openWindow) private var openWindow
+
     /// Split-view column visibility (sidebar/inspector toggles, D-08).
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -326,6 +330,15 @@ internal struct ContentView: View {
 
                 Button(String(localized: "toolbar_import")) {}
                     .disabled(true)
+
+                Divider()
+                // Plan 12-4 T3: the preset manager entry (the CRUD/
+                // import/export window; the apply face lives in the
+                // Inspector's preset panel).
+                Button(String(localized: "menu_preset_manager")) {
+                    openWindow(id: "preset-manager")
+                }
+                .accessibilityIdentifier("toolbar.preset_manager")
             } label: {
                 Label(String(localized: "toolbar_import"), systemImage: "square.and.arrow.down")
             }

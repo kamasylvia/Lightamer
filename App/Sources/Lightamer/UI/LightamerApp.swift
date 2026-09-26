@@ -189,6 +189,13 @@ internal struct LightamerApp: App {
     /// app; the session query face evaluates them — D-12-CONTEXT-4).
     @State private var smartAlbumStore = SmartAlbumStore()
 
+    /// Plan 12-4 T3: the app-level preset library (one preset = one file
+    /// under Application Support; the init rescans = the self-heal) + the
+    /// apply face (the D-03b isolated state bridging the UI to the Core
+    /// PresetApplier).
+    @State private var presetsStore = PresetsStore()
+    @State private var presetController = PresetController()
+
     /// The decode actor (D-21) — one app-wide instance, injected into
     /// `ContentView` so every Open path feeds `EditorState.load`.
     @State private var decoder = RAWDecoder()
@@ -227,6 +234,10 @@ internal struct LightamerApp: App {
     @FocusedBinding(\.metadataFieldFocused)
     private var metadataFieldFocused: Bool?
 
+    /// Plan 12-4 T3: the preset-manager window opener (the Edit-menu and
+    /// toolbar entries route here).
+    @Environment(\.openWindow) private var openWindow
+
     private var metadataTextEntryActive: Bool { metadataFieldFocused == true }
 
     var body: some Scene {
@@ -263,6 +274,8 @@ internal struct LightamerApp: App {
                 .environment(aiDownloadModel)
                 .environment(metadataController)
                 .environment(smartAlbumStore)
+                .environment(presetsStore)
+                .environment(presetController)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
                 // D-COL2 (Plan 02-04-05): capture the editor window the
                 // moment SwiftUI places it — the coordinator follows THE
@@ -303,6 +316,8 @@ internal struct LightamerApp: App {
                             // 12-1 T6: disarm the metadata write face too
                             // (no edits route into a closed store).
                             metadataController.invalidate()
+                            // 12-4 T3: disarm the preset apply face too.
+                            presetController.invalidate()
                             // 09-04 T4: flush the batch sidecar queue's
                             // remainder BEFORE the index closes (the
                             // teardown seam — pending writes must land or
@@ -378,6 +393,17 @@ internal struct LightamerApp: App {
                                         await browserModel.reload(
                                             store: store, includeOrphans: true)
                                     }
+                                    // 12-4 T3: the preset APPLY face rides the
+                                    // same pair + the app-level library.
+                                    presetController.configure(
+                                        root: url, store: store,
+                                        writer: batchSidecarWriter,
+                                        seed: await seedInstances(),
+                                        presetsStore: presetsStore)
+                                    presetController.onWrite = { [store] in
+                                        await browserModel.reload(
+                                            store: store, includeOrphans: true)
+                                    }
                                 }
                                 // Plan 11-04 T3 (checker E1): the export
                                 // queue is SESSION-SCOPED (OQ-11-3) —
@@ -422,6 +448,32 @@ internal struct LightamerApp: App {
                             groups: sessionState.queryGroups,
                             sort: sessionState.sort,
                             includeOrphans: false)
+                    }
+
+                    // Plan 12-4 T3: the preset controller's D-03b closure
+                    // seams — targets = the 12-1 routing shape (the browser/
+                    // culling selection, else the editor's current image),
+                    // the live install = the interactive paste leg (ONE ⌘Z),
+                    // and the compose = the ⌘⇧C 产物 for create-from-current.
+                    presetController.targetsProvider = { metadataTargets() }
+                    presetController.liveRelPathsProvider = { currentImageRelPaths() }
+                    presetController.livePaste = { payload, selection, mode in
+                        await pasteLive(
+                            payload: payload, selection: selection, mode: mode,
+                            seed: await seedInstances())
+                    }
+                    presetController.composeCurrent = {
+                        guard editorState.loadedImageURL != nil else { return nil }
+                        let layerRecord = editorState.layerStack
+                            .map { SidecarLayerStackRecord($0) }
+                            .flatMap { $0.layers.isEmpty ? nil : $0 }
+                        return PastePayload.compose(
+                            sourceImageID: pipeCoordinator.currentImageID ?? UUID(),
+                            sourceURL: editorState.loadedImageURL,
+                            sourceInstances: editorState.instances,
+                            sourceEffective: editorState.history.effectiveInstances(),
+                            seed: await seedInstances(),
+                            layerStack: layerRecord)
                     }
 
                     // Plan 09-02 T3: wire the reconciler's seams (state +
@@ -641,6 +693,14 @@ internal struct LightamerApp: App {
                     pastePartialRequested = true
                 }
                 .disabled(!pasteboard.hasPayload)
+                Divider()
+                // Plan 12-4 T3: the preset MANAGER (the CRUD/import/export
+                // face; the apply face lives in the Inspector's preset
+                // panel). An independent app-level window.
+                Button(String(localized: "menu_preset_manager")) {
+                    openWindow(id: "preset-manager")
+                }
+                .accessibilityIdentifier("menu.preset_manager")
             }
 
             // ── View ────────────────────────────────────────────────
@@ -719,6 +779,19 @@ internal struct LightamerApp: App {
             }
         }
 
+        // Plan 12-4 T3: the preset MANAGER window (the CRUD/import/export
+        // face). An independent app-level Window — the D-03b states it
+        // reads are re-injected here (the app-level library + the apply
+        // controller; create-from-current rides the controller's closures,
+        // so no editor state objects are needed in this scene).
+        Window("window_preset_manager", id: "preset-manager") {
+            PresetManagerWindow()
+                .environment(presetsStore)
+                .environment(presetController)
+                .preferredColorScheme(.dark) // D-10: v1 forced dark
+        }
+        .defaultSize(width: 520, height: 480)
+
         // Settings… (Cmd+,) — empty placeholder window; Phase 13 fills.
         Settings {
             Text("settings_placeholder")
@@ -744,6 +817,17 @@ internal struct LightamerApp: App {
             }
         }
         return []
+    }
+
+    /// The LIVE target set (12-4): the currently edited image's relPath —
+    /// the batch loop skips it and the interactive layer installs it
+    /// (empty when nothing is loaded / outside the session root).
+    private func currentImageRelPaths() -> Set<String> {
+        guard let root = sessionState.currentSessionURL,
+              let loaded = editorState.loadedImageURL else { return [] }
+        let prefix = root.path + "/"
+        guard loaded.path.hasPrefix(prefix) else { return [] }
+        return [String(loaded.path.dropFirst(prefix.count))]
     }
 
     private func applyRating(_ value: Int?) {

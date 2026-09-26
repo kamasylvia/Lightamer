@@ -129,6 +129,13 @@ internal struct InspectorView: View {
                             selectedPanel
                         }
                         Divider()
+                        // 12-4 T3 (PRES-01): the preset APPLY face — the
+                        // category-grouped develop-preset menu (single =
+                        // current image, multi = the browser selection
+                        // batch; partial reuses the paste dialog). Fixed
+                        // bottom zone beside the metadata rows.
+                        PresetPanelView()
+                        Divider()
                         // 12-1 T6 (META-03): the keyword + note entry rows —
                         // the current image's metadata face (fixed bottom
                         // zone, bounded height so the panel budget holds).

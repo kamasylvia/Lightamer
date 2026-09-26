@@ -43,6 +43,10 @@ public enum PresetError: Error, Equatable, Sendable {
     case unreadableFile(name: String)
     /// An export-kind preset was created with no recipe (meaningless).
     case emptyExportRecipe(name: String)
+    /// A 「从当前图创建预设」 composition produced NO instances (the copy
+    /// skip set filtered everything — the chain is all identity defaults;
+    /// an empty develop preset would apply nothing).
+    case emptyComposition
 }
 
 /// One registered preset (the registry row; `id` = the file stem — a stable
