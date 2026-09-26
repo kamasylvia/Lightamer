@@ -32,9 +32,7 @@ internal extension FocusedValues {
         get { self[ExportPanelRequestKey.self] }
         set { self[ExportPanelRequestKey.self] = newValue }
     }
-}
-
-/// Handles the open-document Apple Event (Finder double-click, `open` CLI,
+}/// Handles the open-document Apple Event (Finder double-click, `open` CLI,
 /// drag onto the Dock icon) so declared CFBundleDocumentTypes actually route
 /// into `EditorState.load`. Opens that arrive before the scene is ready are
 /// buffered and flushed on first appearance. Also bridges
@@ -173,6 +171,12 @@ internal struct LightamerApp: App {
     @State private var batchSidecarWriter: BatchSidecarWriter?
     @State private var pastePartialRequested = false
 
+    /// Plan 12-1 T6: the metadata write face for the UI (commands +
+    /// inspector rows + grid menus route through it; it wraps the Core
+    /// MetadataService — the single implementation). Rebuilt per session
+    /// open beside the batch writer.
+    @State private var metadataController = MetadataController()
+
     /// 09-04 T7 (HIST-06): the before/after presentation state (split /
     /// peek / hold) — reset on image and session switches.
     @State private var beforeAfterState = BeforeAfterState()
@@ -213,6 +217,14 @@ internal struct LightamerApp: App {
     @FocusedBinding(\.exportPanelRequest)
     private var exportPanelRequested: Bool?
 
+    /// 12-1 T6: a metadata text field is being typed in — the bare-key
+    /// metadata shortcuts disarm themselves while this is true (a bare
+    /// "3"/"x" must reach the TEXT FIELD, not the menu).
+    @FocusedBinding(\.metadataFieldFocused)
+    private var metadataFieldFocused: Bool?
+
+    private var metadataTextEntryActive: Bool { metadataFieldFocused == true }
+
     var body: some Scene {
         // SINGLE WINDOW (Plan 02-01, UAT issue #1 ROOT CAUSE): SwiftUI's
         // WindowGroup opens a NEW WINDOW per incoming odoc Apple Event on
@@ -245,6 +257,7 @@ internal struct LightamerApp: App {
                 .environment(inspectorState)
                 .environment(layerEditingState)
                 .environment(aiDownloadModel)
+                .environment(metadataController)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
                 // D-COL2 (Plan 02-04-05): capture the editor window the
                 // moment SwiftUI places it — the coordinator follows THE
@@ -282,6 +295,9 @@ internal struct LightamerApp: App {
                             // 09-02 T3: disarm the watcher BEFORE the index
                             // closes (no events into a closed store).
                             sessionReconciler.stopSession()
+                            // 12-1 T6: disarm the metadata write face too
+                            // (no edits route into a closed store).
+                            metadataController.invalidate()
                             // 09-04 T4: flush the batch sidecar queue's
                             // remainder BEFORE the index closes (the
                             // teardown seam — pending writes must land or
@@ -335,6 +351,20 @@ internal struct LightamerApp: App {
                                     await browserModel.finishProgressiveIngest(
                                         store: store, includeOrphans: true
                                     )
+                                }
+                                // 12-1 T6: the metadata write face rides the
+                                // SAME per-session (store, writer) pair; the
+                                // refresh seam reloads the browser model so
+                                // the grid/culling overlays re-render.
+                                if let store = sessionIndexController.currentStore {
+                                    metadataController.configure(
+                                        root: url, store: store,
+                                        writer: batchSidecarWriter,
+                                        seed: await seedInstances())
+                                    metadataController.onWrite = { [store] in
+                                        await browserModel.reload(
+                                            store: store, includeOrphans: true)
+                                    }
                                 }
                                 // Plan 11-04 T3 (checker E1): the export
                                 // queue is SESSION-SCOPED (OQ-11-3) —
@@ -600,6 +630,57 @@ internal struct LightamerApp: App {
                     .keyboardShortcut("f", modifiers: [])
             }
 
+            // ── 标记 (12-1 T6, META-01/META-05) — the three-state metadata
+            // shortcuts: grid selection / culling selection / the editor's
+            // current image. ALL route through MetadataController →
+            // MetadataService (the single write face). Conflict table (D-8
+            // execution decision): bare 0-5/x/p and ⌘0-6 are UNUSED by any
+            // existing item; while a metadata TEXT FIELD is focused the
+            // bare-key items disable themselves so typing reaches the field.
+            CommandMenu(String(localized: "menu_metadata")) {
+                Button(String(localized: "metadata_rating_clear")) {
+                    applyRating(nil)
+                }
+                .keyboardShortcut("0", modifiers: [])
+                .disabled(metadataTextEntryActive)
+                ForEach(1...5, id: \.self) { stars in
+                    Button(String(localized: String.LocalizationValue("metadata_rating_\(stars)"))) {
+                        applyRating(stars)
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character(String(stars))), modifiers: [])
+                    .disabled(metadataTextEntryActive)
+                }
+                Divider()
+                Button(String(localized: "metadata_flag_pick")) {
+                    toggleFlag(1)
+                }
+                .keyboardShortcut("p", modifiers: [])
+                .disabled(metadataTextEntryActive)
+                Button(String(localized: "metadata_flag_reject")) {
+                    toggleFlag(2)
+                }
+                .keyboardShortcut("x", modifiers: [])
+                .disabled(metadataTextEntryActive)
+                Button(String(localized: "metadata_flag_clear")) {
+                    applyFlag(nil)
+                }
+                .disabled(metadataTextEntryActive)
+                Divider()
+                Button(String(localized: "metadata_color_clear")) {
+                    applyColor(nil)
+                }
+                .keyboardShortcut("0", modifiers: .command)
+                .disabled(metadataTextEntryActive)
+                ForEach(0..<6, id: \.self) { label in
+                    Button(String(localized: String.LocalizationValue("metadata_color_\(label)"))) {
+                        applyColor(label)
+                    }
+                    .keyboardShortcut(
+                        KeyEquivalent(Character(String(label + 1))), modifiers: .command)
+                    .disabled(metadataTextEntryActive)
+                }
+            }
+
             // ── Help ────────────────────────────────────────────────
             CommandGroup(replacing: .help) {
                 // Phase 13 fills; placeholder in Phase 1.
@@ -617,6 +698,62 @@ internal struct LightamerApp: App {
     }
 
     // MARK: - View menu actions (via focused binding into ContentView)
+
+    // ── 12-1 T6 metadata command routing ───────────────────────────────────
+    // Targets = the browser/culling SELECTION when non-empty, else the
+    // editor's CURRENT image (if inside the open session) — the three
+    // states (grid / culling / single) share one routing shape.
+
+    private func metadataTargets() -> [String] {
+        let selected = browserModel.selectedOrderedPaths
+        if !selected.isEmpty { return selected }
+        if let root = sessionState.currentSessionURL,
+           let loaded = editorState.loadedImageURL {
+            let prefix = root.path + "/"
+            if loaded.path.hasPrefix(prefix) {
+                return [String(loaded.path.dropFirst(prefix.count))]
+            }
+        }
+        return []
+    }
+
+    private func applyRating(_ value: Int?) {
+        let targets = metadataTargets()
+        guard !targets.isEmpty else { return }
+        Task { await metadataController.setRating(value, relPaths: targets) }
+    }
+
+    private func applyColor(_ value: Int?) {
+        let targets = metadataTargets()
+        guard !targets.isEmpty else { return }
+        Task { await metadataController.setColorLabel(value, relPaths: targets) }
+    }
+
+    private func applyFlag(_ value: Int?) {
+        let targets = metadataTargets()
+        guard !targets.isEmpty else { return }
+        Task { await metadataController.setFlag(value, relPaths: targets) }
+    }
+
+    /// The X/P toggle: read the targets' current flags — ALL carry the
+    /// value → clear it on all; otherwise set it on all (the uniform Lr
+    /// rule; single-target toggle is the natural case).
+    private func toggleFlag(_ value: Int) {
+        let targets = metadataTargets()
+        guard !targets.isEmpty else { return }
+        Task {
+            var allCarry = true
+            for rel in targets {
+                if await metadataController.snapshot(relPath: rel)?.flag
+                    != Int64(value) {
+                    allCarry = false
+                    break
+                }
+            }
+            await metadataController.setFlag(
+                allCarry ? nil : value, relPaths: targets)
+        }
+    }
 
     /// D-X2 probe (Plan 02-03 manual resize verification — RETIRE after
     /// verification per the D-X2 probe policy): osascript/AX window

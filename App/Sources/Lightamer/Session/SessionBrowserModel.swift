@@ -52,6 +52,12 @@ final class SessionBrowserModel {
         /// the cell's「进行中」badge source (the window is NEVER silent,
         /// D-09-CONTEXT-4).
         let dirty: Bool
+        /// 12-1 T6 (META-01/05): the metadata overlay face — real star
+        /// fills, the color-label dot and the flag badge render from
+        /// these (nil = not set).
+        let rating: Int64?
+        let colorLabel: Int64?
+        let flag: Int64?
 
         var id: String { relPath }
     }
@@ -130,7 +136,10 @@ final class SessionBrowserModel {
                     orphanSidecar: false,
                     thumbState: nil,
                     thumbParamsHash: nil,
-                    dirty: false
+                    dirty: false,
+                    rating: nil,
+                    colorLabel: nil,
+                    flag: nil
                 )
             )
             appended += 1
@@ -215,7 +224,10 @@ final class SessionBrowserModel {
             orphanSidecar: row.orphanSidecar == 1,
             thumbState: row.thumbState,
             thumbParamsHash: row.thumbParamsHash,
-            dirty: row.dirty == 1
+            dirty: row.dirty == 1,
+            rating: row.rating,
+            colorLabel: row.colorLabel,
+            flag: row.flag
         )
     }
 
