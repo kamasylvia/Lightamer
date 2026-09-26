@@ -185,6 +185,12 @@ final class CatalogIndexSchemaTests: XCTestCase {
             XCTAssertEqual(
                 try self.tableColumns(handle, "image_collections").map(\.name),
                 ["collection_id", "catalog_image_id"])
+            // The per-image DELETE seam's index (Plan 16-1 T5 first-run
+            // finding: the projector's R6 re-materialization needs the
+            // reverse direction; the clustered PK only serves (tag, id)).
+            XCTAssertTrue(
+                try self.indexNames(handle, "image_tags").contains("idx_tags_image"),
+                "idx_tags_image must back the projector's per-image delete")
         }
     }
 

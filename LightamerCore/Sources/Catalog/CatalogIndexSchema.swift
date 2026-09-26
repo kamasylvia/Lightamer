@@ -228,6 +228,16 @@ public enum CatalogIndexSchema {
         ) WITHOUT ROWID
         """
 
+    /// The PER-IMAGE delete seam's index (Plan 16-1 T5 first-run finding):
+    /// the projector re-materializes a row's tags EVERY projection
+    /// (`DELETE … WHERE catalog_image_id = ?` — R6 idempotence), and the
+    /// clustered PK only serves the (tag, id) direction — without this
+    /// index every per-image delete is a FULL tags-table scan (measured:
+    /// 100k-row projection 148s → the index brings the delete to a seek;
+    /// the EXISTS query direction is unaffected — it still walks the PK).
+    static let createImageTagsDeleteIndexSQL =
+        "CREATE INDEX IF NOT EXISTS idx_tags_image ON image_tags(catalog_image_id)"
+
     static let createMetaTableSQL = """
         CREATE TABLE IF NOT EXISTS meta (
           key TEXT PRIMARY KEY,
@@ -280,7 +290,7 @@ public enum CatalogIndexSchema {
         // F13 baseline: 64MB page cache (−25% measured).
         try handle.execute("PRAGMA cache_size=-64000")
         // RQ-16-17: dual-instance write contention waits 5s instead of
-        // instant SQLITE_BUSY (mirrors SQLiteHandle's sqlite3_busy_timeout).
+        // instant SQLITE_BUSY (mirrors the handle's 5s busy timeout).
         try handle.execute("PRAGMA busy_timeout=5000")
         // RQ-16-16①: the filename/dir startsWith downgrade walks the BINARY
         // index only when LIKE is case-sensitive (connection-level pragma).
@@ -297,6 +307,7 @@ public enum CatalogIndexSchema {
         for sql in orderingIndexSQL {
             try handle.execute(sql)
         }
+        try handle.execute(createImageTagsDeleteIndexSQL)
 
         // Version dispatch.
         let statement = try handle.prepare("SELECT value FROM meta WHERE key = ?")
