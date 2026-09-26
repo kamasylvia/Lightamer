@@ -363,9 +363,11 @@ public enum LightamerIOPRegistry {
             // functionName — the 16×16 threadgroup is static).
             WatermarkModule.kernelRow,
             // Plan 12-5 T2: the lut3d interpolation pair (both states —
-            // the picker flips between them without a first-use stall).
+            // the picker flips between them without a first-use stall) +
+            // the 1D ramp kernel (T3).
             Lut3dModule.Kernel.tetrahedral,
             Lut3dModule.Kernel.trilinear,
+            Lut3dModule.Kernel.ramp1D,
         ]
     }
 

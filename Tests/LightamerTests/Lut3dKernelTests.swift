@@ -406,6 +406,159 @@ final class Lut3dKernelTests: XCTestCase {
         }
     }
 
+    // MARK: - 1D ramp kernel (T3 — the capability extension beyond dt's
+    // "1D cube LUT is not supported", lut3d.c:808-815)
+
+    /// CPU reference for the 1D ramp: per-channel piecewise-linear with the
+    /// INPUT_RANGE remap (RESEARCH §6.3 formula) — mirrors `lut3d_1d`.
+    static func cpu1d(
+        _ rgbIn: SIMD3<Double>, ramps: [SIMD3<Float>], fwd: simd_double3x3 = simd_double3x3(1),
+        inv: simd_double3x3 = simd_double3x3(1), inMin: Double = 0, inMax: Double = 1
+    ) -> SIMD3<Double> {
+        let size = ramps.count
+        let v0 = fwd * rgbIn
+        let v = (min(max(v0, SIMD3(repeating: inMin)), SIMD3(repeating: inMax)) - inMin)
+            / (inMax - inMin)
+        let scaled = v * Double(size - 1)
+        func sample(_ x: Double, _ ch: Int) -> Double {
+            // Segment base clamps to size-2, sample point to size-1 — the
+            // top vertex must reach the final ramp entry (kernel mirror).
+            let clipped = min(max(x, 0), Double(size - 1))
+            let base = min(clipped.rounded(.down), Double(size - 2))
+            let fr = clipped - base
+            let i0 = Int(base)
+            let a = Double(ramps[i0][ch]), b = Double(ramps[i0 + 1][ch])
+            return a + (b - a) * fr
+        }
+        return inv * SIMD3(
+            sample(scaled.x, 0), sample(scaled.y, 1), sample(scaled.z, 2))
+    }
+
+    private func makeRamp(
+        _ metal: MetalContext, ramps: [SIMD3<Float>]
+    ) throws -> any MTLTexture {
+        let descriptor = MTLTextureDescriptor()
+        descriptor.textureType = .type1D
+        descriptor.pixelFormat = .rgba32Float
+        descriptor.width = ramps.count
+        descriptor.mipmapLevelCount = 1
+        descriptor.usage = [.shaderRead]
+        descriptor.storageMode = .shared
+        let texture = try XCTUnwrap(metal.device.makeTexture(descriptor: descriptor))
+        var floats = [Float]()
+        floats.reserveCapacity(ramps.count * 4)
+        for v in ramps {
+            floats.append(v.x); floats.append(v.y); floats.append(v.z); floats.append(1)
+        }
+        floats.withUnsafeBytes { raw in
+            texture.replace(
+                region: MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
+                    size: MTLSize(width: ramps.count, height: 1, depth: 1)),
+                mipmapLevel: 0, slice: 0, withBytes: raw.baseAddress!,
+                bytesPerRow: ramps.count * 16, bytesPerImage: ramps.count * 16)
+        }
+        return texture
+    }
+
+    private func dispatch1D(
+        _ metal: MetalContext, input: any MTLTexture, output: any MTLTexture,
+        ramps: any MTLTexture, size: Int, inMin: Double, inMax: Double
+    ) async throws {
+        var u = Uniforms(width: UInt32(output.width), height: UInt32(output.height),
+            level: UInt32(size))
+        u.domainMinX = Float(inMin); u.domainMinY = Float(inMin); u.domainMinZ = Float(inMin)
+        u.domainMaxX = Float(inMax); u.domainMaxY = Float(inMax); u.domainMaxZ = Float(inMax)
+        let session = try await metal.makeEncoder(functionName: Lut3dModule.Kernel.ramp1D)
+        session.encoder.setTexture(input, index: 0)
+        session.encoder.setTexture(output, index: 1)
+        session.encoder.setTexture(ramps, index: 2)
+        let buffer = metal.device.makeBuffer(
+            bytes: &u, length: MemoryLayout<Uniforms>.stride, options: .storageModeShared)!
+        session.encoder.setBuffer(buffer, offset: 0, index: 0)
+        session.encoder.dispatchThreads(
+            MTLSize(width: output.width, height: output.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+    }
+
+    /// Identity 1D ramp = pixel identity through the FULL module path; then
+    /// known points, out-of-domain endpoint clamps, and the INPUT_RANGE
+    /// remap vs the CPU reference (the plan's two-case anchor resolved:
+    /// texture1d integer reads work — the wide-strip fallback stays unused,
+    /// DECISIONS D8).
+    func test1DRamp() async throws {
+        let metal = try await makeMetal()
+        let size = 16
+
+        // Identity ramp through the module (1D commit → ramp kernel).
+        let resolver = Resolver()
+        resolver.tables["id1d.cube"] = CubeLut(
+            kind: .lut1d(size: size),
+            data: (0..<size).map { i in
+                let v = Float(i) / Float(size - 1)
+                return SIMD3(v, v, v)
+            })
+        let module = Lut3dModule(device: metal.device, resolver: resolver)
+        var piece = IOPiece()
+        // rec2020 = identity matrices — the pure-ramp identity proof (the
+        // sRGB matrix round trip is T4's separate chromatic identity).
+        module.commitParams(
+            Lut3dModule.Params(lutName: "id1d.cube", colorspace: .rec2020), into: &piece)
+        XCTAssertNotNil(piece.data)
+
+        let grid = 4
+        let inputs = (0..<(grid * grid)).map { i -> SIMD4<Float> in
+            let t = Float(i) / Float(grid * grid - 1)
+            return SIMD4(t, 1 - t, t * t, 0.5)
+        }
+        let input = try makeTexture(metal, width: grid, height: grid, write: inputs)
+        let output = try makeTexture(metal, width: grid, height: grid)
+        try await module.process(
+            input: input, output: output,
+            roiIn: ROI(x: 0, y: 0, width: grid, height: grid, scale: 1),
+            roiOut: ROI(x: 0, y: 0, width: grid, height: grid, scale: 1),
+            piece: &piece, metal: metal)
+        let got = await readback(metal, output)
+        for (i, px) in inputs.enumerated() {
+            for ch in 0..<3 {
+                XCTAssertEqual(got[i][ch], px[ch], accuracy: Tol.abs, "identity 1D ch\(ch)")
+            }
+        }
+
+        // Known-point + clamp + INPUT_RANGE remap on the direct kernel path.
+        var ramps: [SIMD3<Float>] = []
+        for i in 0..<size {
+            let t = Float(i) / Float(size - 1)
+            ramps.append(SIMD3(t * t, 1 - t * t, sin(Float(i) * 0.4)))
+        }
+        let rampsTex = try makeRamp(metal, ramps: ramps)
+        let inMin = -0.25, inMax = 1.75
+        let probes: [SIMD4<Float>] = [
+            SIMD4(-0.25, 0.75, 1.75, 0.5),   // range endpoints + middle
+            SIMD4(-5.0, 5.0, 0.0, 0.5),      // outside both ends → endpoint clamp
+            SIMD4(0.333, 0.777, 1.111, 0.5), // interior fractions
+        ]
+        let pin = try makeTexture(metal, width: probes.count, height: 1, write: probes)
+        let pout = try makeTexture(metal, width: probes.count, height: 1)
+        try await dispatch1D(
+            metal, input: pin, output: pout, ramps: rampsTex, size: size,
+            inMin: inMin, inMax: inMax)
+        let pgot = await readback(metal, pout)
+        var compared = 0
+        for (i, px) in probes.enumerated() {
+            let ref = Self.cpu1d(
+                SIMD3(Double(px.x), Double(px.y), Double(px.z)), ramps: ramps,
+                inMin: inMin, inMax: inMax)
+            for ch in 0..<3 {
+                XCTAssertEqual(pgot[i][ch], Float(ref[ch]), accuracy: Tol.abs,
+                    "1d probe \(i) ch\(ch)")
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0, "vacuous 1d")
+    }
+
     // MARK: - Module-level neutral / degraded identity (L031 routed blit)
 
     private final class Resolver: Lut3dModule.LutResolving, @unchecked Sendable {

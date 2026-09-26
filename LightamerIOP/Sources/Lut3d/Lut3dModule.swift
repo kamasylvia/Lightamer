@@ -85,6 +85,7 @@ public final class Lut3dModule: IOPModule {
     public enum Kernel {
         public static let tetrahedral = "lut3d_tetrahedral"
         public static let trilinear = "lut3d_trilinear"
+        public static let ramp1D = "lut3d_1d"
     }
 
     /// The LUT resolution seam: T5's `LutLibraryStore` conforms; tests
@@ -116,7 +117,11 @@ public final class Lut3dModule: IOPModule {
     private var resolvedDevice: (any MTLDevice)?
     private var uniformBuffer: (any MTLBuffer)?
     private var clutTexture: (any MTLTexture)?
+    private var rampTexture: (any MTLTexture)?
     private var committed: Params?
+    /// The committed table shape — selects the 3D lattice vs the 1D ramp
+    /// kernel at process time.
+    private var committedIs1D = false
 
     public init(device: (any MTLDevice)? = nil, resolver: LutResolving? = nil) {
         self.device = device
@@ -136,12 +141,18 @@ public final class Lut3dModule: IOPModule {
         piece.paramsHash = StableHash.hash(encoded)
 
         guard let lutName = params.lutName, let resolver,
-            let lut = resolver.lut(named: lutName), case .lut3d(let size) = lut.kind
+            let lut = resolver.lut(named: lutName)
         else {
-            // Neutral (nil name) or degraded (missing/1D-referenced entry —
-            // a 1D table in a 3D slot also degrades; DECISIONS D6).
+            // Neutral (nil name) or degraded (missing entry — the D-6
+            // documented cross-machine exception): the blit identity.
             piece.data = nil
             return
+        }
+        let is1D: Bool
+        let size: Int
+        switch lut.kind {
+        case .lut3d(let s): is1D = false; size = s
+        case .lut1d(let s): is1D = true; size = s
         }
 
         guard let resolved = device ?? MTLCreateSystemDefaultDevice() else {
@@ -160,12 +171,26 @@ public final class Lut3dModule: IOPModule {
         }
 
         var uniforms = Uniforms()
-        uniforms.domainMinX = Float(lut.domainMin.x)
-        uniforms.domainMinY = Float(lut.domainMin.y)
-        uniforms.domainMinZ = Float(lut.domainMin.z)
-        uniforms.domainMaxX = Float(lut.domainMax.x)
-        uniforms.domainMaxY = Float(lut.domainMax.y)
-        uniforms.domainMaxZ = Float(lut.domainMax.z)
+        if is1D {
+            // The GLOBAL INPUT_RANGE governs the 1D remap (RESEARCH §6.3);
+            // fall back to DOMAIN.x when the file carries only DOMAIN keys.
+            // No keys at all = 0..1, the sRGB-encoded face (§6.6).
+            let range = lut.inputRange ?? SIMD2(
+                Double(lut.domainMin.x), Double(lut.domainMax.x))
+            uniforms.domainMinX = Float(range.x)
+            uniforms.domainMinY = Float(range.x)
+            uniforms.domainMinZ = Float(range.x)
+            uniforms.domainMaxX = Float(range.y)
+            uniforms.domainMaxY = Float(range.y)
+            uniforms.domainMaxZ = Float(range.y)
+        } else {
+            uniforms.domainMinX = Float(lut.domainMin.x)
+            uniforms.domainMinY = Float(lut.domainMin.y)
+            uniforms.domainMinZ = Float(lut.domainMin.z)
+            uniforms.domainMaxX = Float(lut.domainMax.x)
+            uniforms.domainMaxY = Float(lut.domainMax.y)
+            uniforms.domainMaxZ = Float(lut.domainMax.z)
+        }
         let (fwd, inv) = LutColorspaceMatrices.matrices(for: params.colorspace)
         withUnsafeBytes(of: fwd) { f in
             withUnsafeBytes(of: inv) { n in
@@ -174,7 +199,12 @@ public final class Lut3dModule: IOPModule {
             }
         }
 
-        ensureClutTexture(lut: lut, size: size, device: resolved)
+        if is1D {
+            ensureRampTexture(lut: lut, size: size, device: resolved)
+        } else {
+            ensureClutTexture(lut: lut, size: size, device: resolved)
+        }
+        committedIs1D = is1D
 
         if let buffer = uniformBuffer {
             withUnsafeBytes(of: &uniforms) {
@@ -229,6 +259,38 @@ public final class Lut3dModule: IOPModule {
         clutTexture = texture
     }
 
+    /// Upload/refresh the 1D ramp texture (rgba32Float texture1d — the r/g/b
+    /// channels ARE the three curves; the texture2d wide-strip fallback
+    /// stays unused, DECISIONS D8).
+    private func ensureRampTexture(lut: CubeLut, size: Int, device: any MTLDevice) {
+        if rampTexture == nil || rampTexture!.width != size {
+            let descriptor = MTLTextureDescriptor()
+            descriptor.textureType = .type1D
+            descriptor.pixelFormat = .rgba32Float
+            descriptor.width = size
+            descriptor.mipmapLevelCount = 1
+            descriptor.usage = [.shaderRead]
+            descriptor.storageMode = .shared
+            rampTexture = device.makeTexture(descriptor: descriptor)
+        }
+        guard let texture = rampTexture else { return }
+        var floats = [Float]()
+        floats.reserveCapacity(lut.data.count * 4)
+        for v in lut.data {
+            floats.append(v.x)
+            floats.append(v.y)
+            floats.append(v.z)
+            floats.append(1.0)
+        }
+        floats.withUnsafeBytes { raw in
+            texture.replace(
+                region: MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
+                    size: MTLSize(width: size, height: 1, depth: 1)),
+                mipmapLevel: 0, slice: 0, withBytes: raw.baseAddress!,
+                bytesPerRow: size * 16, bytesPerImage: size * 16)
+        }
+    }
+
     // MARK: ROI (pointwise — dt lut3d SUPPORTS_BLENDING | ALLOW_TILING with
     // zero halo; every pixel samples the table independently)
 
@@ -249,13 +311,17 @@ public final class Lut3dModule: IOPModule {
         // Neutral (lutName nil) / degraded (missing library entry): the
         // blit identity — routed, L031 (a hardwired queue blit races the
         // export chain's compute cross-queue).
-        guard piece.data != nil, let clut = clutTexture else {
+        guard piece.data != nil, let table = committedIs1D ? rampTexture : clutTexture else {
             try blitIdentity(input: input, output: output, roiIn: roiIn, roiOut: roiOut, metal: metal)
             return
         }
-        let functionName =
-            committed?.interpolation == .trilinear
-            ? Kernel.trilinear : Kernel.tetrahedral
+        let functionName: String
+        if committedIs1D {
+            functionName = Kernel.ramp1D
+        } else {
+            functionName = committed?.interpolation == .trilinear
+                ? Kernel.trilinear : Kernel.tetrahedral
+        }
         // Stamp the RUN geometry into the shared uniforms (commit-time
         // carries level/domain/matrices; width/height/level are per-run —
         // the kernel's gid guard reads them, so zeroes would silently
@@ -263,11 +329,11 @@ public final class Lut3dModule: IOPModule {
         let uniforms = piece.data!.contents().assumingMemoryBound(to: Uniforms.self)
         uniforms.pointee.width = UInt32(output.width)
         uniforms.pointee.height = UInt32(output.height)
-        uniforms.pointee.level = UInt32(clut.width)
+        uniforms.pointee.level = UInt32(table.width)
         let session = try await metal.makeEncoder(functionName: functionName)
         session.encoder.setTexture(input, index: 0)
         session.encoder.setTexture(output, index: 1)
-        session.encoder.setTexture(clut, index: 2)
+        session.encoder.setTexture(table, index: 2)
         session.encoder.setBuffer(piece.data!, offset: 0, index: 0)
         session.encoder.dispatchThreads(
             MTLSize(width: output.width, height: output.height, depth: 1),
