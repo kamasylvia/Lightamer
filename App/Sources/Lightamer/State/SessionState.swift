@@ -113,8 +113,11 @@ final class SessionState {
 
     /// The query groups (chips AND Quick Filter — the App root hands BOTH
     /// to the query face's group array; each translates through the ONE
-    /// layer and joins with the baseline attached once).
+    /// layer and joins with the baseline attached once). An ACTIVE smart
+    /// album replaces the chip face (the mutual-exclusion decision) — its
+    /// group is the sole constraint.
     var queryGroups: [FilterPredicateGroup] {
+        if let group = activeSmartAlbumGroup { return [group] }
         var groups: [FilterPredicateGroup] = []
         if !filterChips.isEmpty {
             groups.append(FilterPredicateGroup(match: .all, rules: filterChips))
@@ -126,9 +129,11 @@ final class SessionState {
         return groups
     }
 
-    /// True when either face is active (the model's placeholder-page guard
+    /// True when any face is active (the model's placeholder-page guard
     /// + the UI's clear affordance read this).
-    var hasActiveFilter: Bool { !filterChips.isEmpty || !quickFilterText.isEmpty }
+    var hasActiveFilter: Bool {
+        !filterChips.isEmpty || !quickFilterText.isEmpty || activeSmartAlbumID != nil
+    }
 
     /// Replace the whole chip set (the filter bar's chips row is a
     /// two-way projection of this list).
@@ -169,11 +174,34 @@ final class SessionState {
         scheduleFilterRefresh(debounced: false)
     }
 
-    /// Clear both filter faces (the ⓧ in the filter bar).
+    // MARK: - Smart album face (Plan 12-2 T5; D-12-CONTEXT-4)
+
+    /// The ACTIVE smart album (nil = the plain chip face). Activation
+    /// REPLACES the chip set (execution decision, 12-2-DECISIONS: the
+    /// album's group and the chip face are mutually exclusive — stacking
+    /// them would AND an uncontrolled double constraint; the chips the
+    /// album was created from are exactly its rules).
+    private(set) var activeSmartAlbumID: String?
+    private(set) var activeSmartAlbumGroup: FilterPredicateGroup?
+
+    /// Activate/deactivate. The group rides along so the re-query closure
+    /// needs no store access (规则随 app / 结果随会话 — the evaluation
+    /// happens against whatever session is open at refresh time).
+    func activateSmartAlbum(id: String?, group: FilterPredicateGroup?) {
+        activeSmartAlbumID = id
+        activeSmartAlbumGroup = group
+        if id != nil { filterChips = [] }
+        scheduleFilterRefresh(debounced: false)
+    }
+
+    /// Clear every filter face (chips + Quick Filter + the active smart
+    /// album — the ⓧ in the filter bar).
     func clearFilters() {
         guard hasActiveFilter else { return }
         filterChips = []
         quickFilterText = ""
+        activeSmartAlbumID = nil
+        activeSmartAlbumGroup = nil
         scheduleFilterRefresh(debounced: false)
     }
 

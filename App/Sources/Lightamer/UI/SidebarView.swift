@@ -39,9 +39,18 @@ internal struct SidebarView: View {
     /// IGNORE is non-destructive and needs no confirm.
     @State private var orphanPendingRemoval: String?
 
+    // Plan 12-2 T5: the smart-album section's local face.
+    @Environment(SmartAlbumStore.self) private var smartAlbumStore
+    @State private var renameTarget: SmartAlbum?
+    @State private var renameText = ""
+    @State private var deleteTarget: SmartAlbum?
+    @State private var createRequested = false
+    @State private var createName = ""
+
     var body: some View {
         List {
             currentSection
+            smartAlbumSection
             recentSection
             watchSection
         }
@@ -67,6 +76,73 @@ internal struct SidebarView: View {
             Button(String(localized: "alert_ok"), role: .cancel) {}
         } message: { rel in
             Text("session_orphan_remove_confirm_body \(rel)")
+        }
+        // The smart-album DELETE guard (an album rule file is destroyed).
+        .confirmationDialog(
+            String(localized: "smart_album_delete_confirm_title"),
+            isPresented: Binding(
+                get: { deleteTarget != nil },
+                set: { if !$0 { deleteTarget = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: deleteTarget
+        ) { album in
+            Button(String(localized: "smart_album_delete"), role: .destructive) {
+                try? smartAlbumStore.remove(id: album.id)
+                if sessionState.activeSmartAlbumID == album.id {
+                    sessionState.activateSmartAlbum(id: nil, group: nil)
+                }
+            }
+            Button(String(localized: "alert_ok"), role: .cancel) {}
+        } message: { album in
+            Text("smart_album_delete_confirm_body \(album.name)")
+        }
+        // The rename / create sheets (one alert face each — a single text
+        // field; the '|' separator is banned like every tag entry).
+        .alert(
+            String(localized: "smart_album_rename_title"),
+            isPresented: Binding(
+                get: { renameTarget != nil },
+                set: { if !$0 { renameTarget = nil } })
+        ) {
+            TextField(
+                String(localized: "smart_album_name_placeholder"),
+                text: $renameText)
+            Button(String(localized: "alert_ok")) {
+                guard let target = renameTarget else { return }
+                renameTarget = nil
+                try? smartAlbumStore.rename(id: target.id, to: renameText)
+            }
+            Button(String(localized: "alert_cancel"), role: .cancel) {
+                renameTarget = nil
+            }
+        }
+        .alert(
+            String(localized: "smart_album_new_title"),
+            isPresented: $createRequested
+        ) {
+            TextField(
+                String(localized: "smart_album_name_placeholder"),
+                text: $createName)
+            Button(String(localized: "smart_album_create")) {
+                let name = createName
+                createName = ""
+                createRequested = false
+                let chips = sessionState.filterChips
+                let group = FilterPredicateGroup(match: .all, rules: chips)
+                if let album = try? smartAlbumStore.create(name: name, group: group) {
+                    sessionState.activateSmartAlbum(id: album.id, group: album.group)
+                }
+            }
+            .disabled(
+                createName.trimmingCharacters(in: .whitespaces).isEmpty
+                    || createName.contains("|")
+                    || sessionState.filterChips.isEmpty)
+            Button(String(localized: "alert_cancel"), role: .cancel) {
+                createRequested = false
+            }
+        } message: {
+            Text("smart_album_new_body")
         }
     }
 
@@ -160,6 +236,67 @@ internal struct SidebarView: View {
                     .accessibilityIdentifier(SessionIdentifiers.orphan(rel))
                 }
             }
+        }
+    }
+
+    // MARK: - ② Smart albums (Plan 12-2 T5; D-12-CONTEXT-4 — rules ride
+    // the app, results follow the open session)
+
+    @ViewBuilder
+    private var smartAlbumSection: some View {
+        Section {
+            ForEach(smartAlbumStore.albums()) { album in
+                let active = sessionState.activeSmartAlbumID == album.id
+                Button {
+                    // Toggle: an active album deactivates back to the chip
+                    // face (activation replaces the chips — the mutual-
+                    // exclusion decision).
+                    if active {
+                        sessionState.activateSmartAlbum(id: nil, group: nil)
+                    } else {
+                        sessionState.activateSmartAlbum(id: album.id, group: album.group)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "photo.stack")
+                            .foregroundStyle(LightamerColors.textSecondary)
+                        Text(album.name)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if active {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("smartalbum.row." + album.id)
+                .contextMenu {
+                    Button(String(localized: "smart_album_rename")) {
+                        renameText = album.name
+                        renameTarget = album
+                    }
+                    Button(String(localized: "smart_album_delete"), role: .destructive) {
+                        deleteTarget = album
+                    }
+                }
+            }
+            Button {
+                createName = ""
+                createRequested = true
+            } label: {
+                Label(
+                    String(localized: "smart_album_add"),
+                    systemImage: "plus.circle")
+            }
+            .disabled(sessionState.filterChips.isEmpty)
+            .accessibilityIdentifier("smartalbum.add")
+            if smartAlbumStore.albums().isEmpty {
+                Text("smart_album_empty_hint")
+                    .font(.caption2)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
+        } header: {
+            Text("smart_albums_section")
         }
     }
 

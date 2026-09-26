@@ -185,6 +185,10 @@ internal struct LightamerApp: App {
     /// (a stateless file-probe instance — the coordinator keeps its own).
     @State private var browserLogoStore = YiyinLogoStore()
 
+    /// Plan 12-2 T5: the app-level smart-album directory (rules ride the
+    /// app; the session query face evaluates them — D-12-CONTEXT-4).
+    @State private var smartAlbumStore = SmartAlbumStore()
+
     /// The decode actor (D-21) — one app-wide instance, injected into
     /// `ContentView` so every Open path feeds `EditorState.load`.
     @State private var decoder = RAWDecoder()
@@ -258,6 +262,7 @@ internal struct LightamerApp: App {
                 .environment(layerEditingState)
                 .environment(aiDownloadModel)
                 .environment(metadataController)
+                .environment(smartAlbumStore)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
                 // D-COL2 (Plan 02-04-05): capture the editor window the
                 // moment SwiftUI places it — the coordinator follows THE
