@@ -1,7 +1,7 @@
 # TODO — Lightamer
 
-> 镜像 `.planning/ROADMAP.md`（13 phases, 123 v1 reqs）+ 当前执行状态。
-> 阶段进度以 `.planning/STATE.md` 为准。
+> 镜像 `.work/gsd/ROADMAP.md`（13 phases, 123 v1 reqs）+ 当前执行状态。
+> 阶段进度以 `.work/gsd/STATE.md` 为准。
 
 ---
 
@@ -15,7 +15,7 @@
 
 ## Phase 7（AI Modules——Native Vision）—— ✅ 已闭环（2026-09-24 终签核，07-VALIDATION `status: validated` + `nyquist_compliant: true`）
 
-**状态**：RESEARCH + CONTEXT + 3 plans 全部落盘并执行+签核完成（`.planning/phases/07-ai-modules/`）；4 reqs（AI-01/05/06/07）全 Delivered（REQUIREMENTS 翻账）；SC#1-5 全 PASS（07-DISCUSSION-LOG 终节证据指针）；终轮全 suite **845/6skip/0fail**（788→845 +57）；Manual-Only 5 行挂账（L011，07-VALIDATION 表）。验证范式 = AI 变体三轨（确定性门逐字节 + 语义门方向断言 + float64 参考轨 parity，L017 分流）。C 档门控三点停全程执行（研究定稿/每 plan 闭环/签核前）。
+**状态**：RESEARCH + CONTEXT + 3 plans 全部落盘并执行+签核完成（`.work/gsd/phases/07-ai-modules/`）；4 reqs（AI-01/05/06/07）全 Delivered（REQUIREMENTS 翻账）；SC#1-5 全 PASS（07-DISCUSSION-LOG 终节证据指针）；终轮全 suite **845/6skip/0fail**（788→845 +57）；Manual-Only 5 行挂账（L011，07-VALIDATION 表）。验证范式 = AI 变体三轨（确定性门逐字节 + 语义门方向断言 + float64 参考轨 parity，L017 分流）。C 档门控三点停全程执行（研究定稿/每 plan 闭环/签核前）。
 
 - [x] **Plan 07-1**（Vision 基建 + AI-01 主体隔离）—— 完成（2026-09-24，5 commits `fb2cf3e`..T5 收口；全 suite **812/5skip/0fail**（基线 788→812 +24））：SDK 复核零漂移 + benchmark 基线（`.work/07/perf.md`——warm 单次生成全 ≪1s，SC#5 建议 warm 裁定）+ `LightamerCore/Sources/AI/`（AIMaskService 层 A/B 双后端 + L014 fence 输入腿 + typed error 面；AIAssetStatus 三态状态机；AIMaskResample 双线性）+ bake 羽化增件（默认 0 零字节改动）+ 同 maskID 覆盖重 bake 验证（零新机制）+ AIDownloadPrompt（首启提示/失败非静默）+ 确定性（层 A gpuPinned 逐字节恒等，进程内+跨进程）/语义（IoU 方向断言）/几何/round-trip 测试。**执行期重大发现（07-1-DECISIONS.md，含回注 planner 项）**：①CPU 不在 supportedComputeStageDevices 且 pin 即 SIGTRAP、层 B pin 任何设备进程崩（beta bug）→ 测试确定性 = 层 A gpuPinned + 层 B default；②`generateScaledMask` subset 语义坏 + 几何双轴 +3/16 偏移 → 层 A 统一走 `allInstancesMask` 标签合成腿（升级缝保留）；③测试宿主 test entitlements 阻断层 B 资产下载 → 2 条层 B 推理测试 skip-with-reason，**07-3 GUI 轮真实 app 复验层 B 端到端（07-3 前置项）**
 - [x] **Plan 07-2**（skinSmooth 频率分离磨皮 iop，AI-05）—— 完成（2026-09-24，4 commits `fbc9045`..T5 收口；全 suite **830/6skip/0fail**（基线 812→830 +18；skip +1 = 真模型腿宿主 skip-with-reason））：V50Order **66.5 非 dt 行首例**（表头+行内双标记 + 零移动钉 + 唯一性）+ SkinSmoothModule（三滑块 + Variant enum 位预留 + ENABLED-neutral 种子 + direct-drive maskPlane seam——pipe 零新通道，层 mask 走 blendop）+ 低频腿 **GaussianBlur 复用零重写** + raised-cosine 阈值衰减 kernel（共享 RGB 幅值防色偏）+ **恒等三元组逐字节**（a=0 blit / mask nil==全一 / 平场 DC-1）+ SkinRegionLocator（hull+额头带 − 五官保护区 ⊗ personSeg + yaw 门 45° + 多脸 union，纯 Swift 可单测）+ VisionFaceLandmarkProvider/SkinRegionService（07-3「定位皮肤」后端）+ AIMaskService.personSegmentationMask + float64 参考 parity 6 case × 6 fixture 双闸 <1e-5（低频腿实测 7.2e-7）+ manifest L017 分流节 + 轨 B 中性插链零增量 + tiling 抽查 <1e-4。决策 9 条 + bring-up 4 条入 07-2-DECISIONS（含回注 planner：personSeg/faceLandmarks 无 compute-device API→pin typed 拒绝）。**07-3 前置追加：真模型腿真实 app 复验（与层 B 并案）**
@@ -100,7 +100,7 @@
 - [x] **Plan 04** — IOPModule 协议（Core/Pipe, public）+ V50Order（Core/Foundation, port iop_order.c:298-415）+ **Layer 骨架（Core/Layers, D-03a）** + PassthroughModule（IOP）+ PixelPipe 骨架（layer-aware）（2026-09-16 完成：iop 契约 + 93 条 V50Order + Layer 骨架 + PassthroughModule 全 conformance + 内部 PixelPipe（持 LayerStack）+ `RenderPipeline` public 桥接入 EditorState→EditorMTKView；无头冒烟 13 项 PASS（含 process 缓冲 bit-exact、decode→PixelPipe→texture）；absorb macOS 27 SDK blit/completed 签名；MTKView 屏显待人工目检（同 Plan 03 遗留类），见 `01-04-SUMMARY.md`）
 
 ### Wave 2（验证 + 包装）
-- [x] **Plan 05** — Spike A（CIRAW 9 能力边界）+ Spike B（100MP 性能）（2026-09-16 完成：真实相机样本 13 份 CC0（raw.pixls.us）实测；Spike A = RAW 9 GM 仅 69 机型（GFX100S/Z8/X100VI 不在列）、v9 no-op NR keys 双重证实、IQ4 150MP CIRAW 无法解码、ProRAW skyMatte 实测、demosaic 菜单建议不列为 v1 硬需求（用户 phase verification 定夺）；Spike B = 100MP 解码 Bayer 833ms/uncompressed RAF 848ms 达标、lossless-c GFX RAF 20.9s 超标 10×（RAF 无损解压器病态）、float32 1.55GB plane 峰值 2.0-2.8GB 达标、cached 帧 15.6ms≈64fps 达标、D-20 维持（Phase 2 tiling 硬需求证据落账）、render-to-texture 首写空复现+clearCaches 新要求；报告 `spike-a-ciraw9-boundary.md` / `spike-b-100mp-perf.md` + golden samples 入 `.planning/spikes/`；执行形式改为无头 harness（无独立 spike 分支，见 SUMMARY 记录），见 `01-05-SUMMARY.md`）
+- [x] **Plan 05** — Spike A（CIRAW 9 能力边界）+ Spike B（100MP 性能）（2026-09-16 完成：真实相机样本 13 份 CC0（raw.pixls.us）实测；Spike A = RAW 9 GM 仅 69 机型（GFX100S/Z8/X100VI 不在列）、v9 no-op NR keys 双重证实、IQ4 150MP CIRAW 无法解码、ProRAW skyMatte 实测、demosaic 菜单建议不列为 v1 硬需求（用户 phase verification 定夺）；Spike B = 100MP 解码 Bayer 833ms/uncompressed RAF 848ms 达标、lossless-c GFX RAF 20.9s 超标 10×（RAF 无损解压器病态）、float32 1.55GB plane 峰值 2.0-2.8GB 达标、cached 帧 15.6ms≈64fps 达标、D-20 维持（Phase 2 tiling 硬需求证据落账）、render-to-texture 首写空复现+clearCaches 新要求；报告 `spike-a-ciraw9-boundary.md` / `spike-b-100mp-perf.md` + golden samples 入 `.work/gsd/spikes/`；执行形式改为无头 harness（无独立 spike 分支，见 SUMMARY 记录），见 `01-05-SUMMARY.md`）
 - [x] **Plan 06** — 测试骨架（Tests+UITests）+ 模块 API.md（D-03c）+ os.signpost 性能基线（2026-09-16 完成：LightamerTests 全绿 36 执行/1 跳过（CR3 样本无 GPS）/0 失败——真实相机 RAW 样本跑通 RAW-01/02/04/05/06 + FOUND-06/03 + D-03a；顺带修出两个真 bug：CR3 ISO 需走 EXIF 2.3 ISOSpeed 键（93c4eb6）、PSO 探针未 endEncoding 触发 Metal fatal assertion；三份 API.md 落账；`01-PERF-BASELINE.md` 汇总 Spike B + 真实 app 管线双腿测量（cached 显示 4-6ms、100MP 首渲 1.7s 待 Phase 2 cache、lossless GFX RAF 20.9s 唯一 decode 超标项、会话内存需 clearCaches）；⚠ 环境遗留：本机执行期间屏幕锁定 → XCUITest（automation-mode 超时）+ Instruments signpost 目检 + 屏显目检三项目前 pending-manual，测试代码已就绪且 a11y label 与 String Catalog 逐字核对，解锁后重跑 `xcodebuild test -only-testing:LightamerUITests` 即可，见 `01-06-SUMMARY.md`）
 
 **Phase 1 执行完毕**（6/6 plans 完成，Wave 1+2 全绿；遗留 pending-manual 清单见 `01-VALIDATION.md` 与 `01-06-SUMMARY.md`）
@@ -192,7 +192,7 @@
 
 ## Phase 5（Color & Denoise iops，执行完成 + 签核 2026-09-23）
 
-**状态**：8 plans + W6 GUI 修复轮全部执行闭环；05-VALIDATION 已签核（`status: validated` / `nyquist_compliant: true`）；终轮全 suite 609 tests / 3 skip / 0 fail；PERF-5 denoise 链 60fps 未达标项公开挂账（见下）。12 需求（IOP-COLOR-01..07/09 + IOP-DENOISE-01..04）→ 11 dt 模块；关键勘误：denoiseprofile 为 post-demosaic RGB 域非 raw（RESEARCH §1.2），hotpixels/dark-frame/cacorrect Bayer 域正式 defer（05-08 决议）。依赖链：05-01（wave 1 基建）→ 05-02/03/04（wave 2 可并行）→ 05-05 → 05-06 → 05-07 → 05-08（签核）。裁决 8 项见 `.planning/phases/05-color-denoise-iops/05-CONTEXT.md` D-05-CONTEXT-1..8（全采纳 RESEARCH 推荐）。
+**状态**：8 plans + W6 GUI 修复轮全部执行闭环；05-VALIDATION 已签核（`status: validated` / `nyquist_compliant: true`）；终轮全 suite 609 tests / 3 skip / 0 fail；PERF-5 denoise 链 60fps 未达标项公开挂账（见下）。12 需求（IOP-COLOR-01..07/09 + IOP-DENOISE-01..04）→ 11 dt 模块；关键勘误：denoiseprofile 为 post-demosaic RGB 域非 raw（RESEARCH §1.2），hotpixels/dark-frame/cacorrect Bayer 域正式 defer（05-08 决议）。依赖链：05-01（wave 1 基建）→ 05-02/03/04（wave 2 可并行）→ 05-05 → 05-06 → 05-07 → 05-08（签核）。裁决 8 项见 `.work/gsd/phases/05-color-denoise-iops/05-CONTEXT.md` D-05-CONTEXT-1..8（全采纳 RESEARCH 推荐）。
 
 - [x] **Plan 05-01**（基建：NoiseProfileStore + IOPiece.iscale + L021 toneequal/flip 审计还账 + executeTiledNegotiated 回归加固 + TilingPlan 四消费者预演 + BilateralGrid3D + gen_fixtures 加噪器）完成（2026-09-21）：6 commits（T1 double-scale 修 + T2 iscale + T3/T4 剖面 + T5 加噪器/fixture/blob + T6 tile 回归 + T7 grid）；终轮全 suite **426 tests / 0 fail / 3 skip**（基线 398 → +28）；SUMMARY 见 `05-01-SUMMARY.md`，决策见 `05-01-DECISIONS.md`（D-05-01-T1..T7）；勘误：denoiseprofile v12 = 416B（RESEARCH 244B 误）；下一批 = 05-02/03/04（wave 2 可并行）
 - [x] **Plan 05-02**（colorbalancergb 41.5：D65-native 矩阵 + extended.cl 直译 + 4-way hue 圆盘面板）完成（2026-09-22）：4 commits（T1 CPU/kernel/注册 `a14ff2c` + T3 golden `e80fc17` + HOLD `eebb407` + T4/T5 面板/修复 `1725972`；SUMMARY/DECISIONS 本轮落盘同提交）；轨 A 双门 + dt 三证据 + 恒等门 + seed disabled（D1）+ 面板四件套（PanelWiring 3）+ GUI 走查（Y+0.3 视口块 73.387/撤销 0.0/FINDINGS 登记）；T5 附带修：invert 真往返 mo·L2X·mi≈I（L022 立账）+ 面板 API 误用 2 处；终轮全 suite **445 passed / 0 failed / 3 skipped**；SUMMARY 见 `05-02-SUMMARY.md`，决策见 `05-02-DECISIONS.md`（D1–D8）；下一批 = 05-03/05-04（wave 2 剩余并行项）
@@ -209,7 +209,7 @@
 
 ## Phase 6（Layers & Masking System）——✅ 全部 7 plans 完成 + 签核（2026-09-24）
 
-**状态**：RESEARCH + CONTEXT + 7 plans 全部落盘（`.planning/phases/06-layers-masking/`）；8 项 Open Questions 全部裁决（`06-CONTEXT.md` D-06-CONTEXT-1..8，全采纳 06-RESEARCH 推荐；**OQ2 BlendMode 值错位 = 值不重编 + dt MODERN 语义 + 头注映射表**）。架构裁决 = 混合模型 (c)：C1 层栈为模型、dt blendop 为引擎——`LayerCompositeDriver` 编排 N 个子 run + 合成，Phase 2-5 pipe walk 零改动；合成 seam = colorout 前工作空间平面。14 reqs（LAYER-01..07 + IOP-MASK-01..05 + IOP-GEO-05/06）；估 ~38-48 T 全项目最大阶段。依赖链：06-01（W1 层核）→ 06-02（W2 blend 引擎）→ 06-03（W3 drawn mask）→ 06-04 + 06-06（W4 并行：parametric/raster/combine ∥ liquify）→ 06-05（W5 UI + 前半签核）→ 06-07（W6 retouch + 终签核）。
+**状态**：RESEARCH + CONTEXT + 7 plans 全部落盘（`.work/gsd/phases/06-layers-masking/`）；8 项 Open Questions 全部裁决（`06-CONTEXT.md` D-06-CONTEXT-1..8，全采纳 06-RESEARCH 推荐；**OQ2 BlendMode 值错位 = 值不重编 + dt MODERN 语义 + 头注映射表**）。架构裁决 = 混合模型 (c)：C1 层栈为模型、dt blendop 为引擎——`LayerCompositeDriver` 编排 N 个子 run + 合成，Phase 2-5 pipe walk 零改动；合成 seam = colorout 前工作空间平面。14 reqs（LAYER-01..07 + IOP-MASK-01..05 + IOP-GEO-05/06）；估 ~38-48 T 全项目最大阶段。依赖链：06-01（W1 层核）→ 06-02（W2 blend 引擎）→ 06-03（W3 drawn mask）→ 06-04 + 06-06（W4 并行：parametric/raster/combine ∥ liquify）→ 06-05（W5 UI + 前半签核）→ 06-07（W6 retouch + 终签核）。
 
 - [x] **Plan 06-01**（W1 层核与 sidecar v2）：`AdjustmentLayer`（chain: [ModuleInstance] + mask 占位）+ `LayerCompositeDriver` 退化合成（normal+opacity+全 mask 直通）+ 终端段摘出 + `PipeCacheKey.layerID` + 前缀平面 key + enforceBudget 分档 + 跨层 ROI/dscIn 层维度断言（L021）+ sidecar v2（schemaVersion 2 / 层记录拼写冻结 / layerScope / stackSnapshot / historyHash 折叠）+ **BlendMode 定案执行**（头注三方映射表 + colorAdjust 更名 + REVERSE 位）；恒等三元组逐字节 + 层 K 编辑 hit/miss 记账 + 重排链缓存存活 —— 完成（2026-09-23 夜间 subagent）：6 commits 7e076b2..9ab15b2 + T7 收尾；终轮全 suite **648/3skip/0fail**；恒等三元组逐字节双档（op=1 == 平铺合并链 / op=0 == base-only）；层 K 记账精确（冷 8 行 / 顶层 4h2m1b / 底层 3h3m2b 连锁 / 重排 4h2m2b 链全存活 / 隐藏禁用语义分离）；sidecar v2 3 层 round-trip 渲染逐字节 + v1 兼容读 + 层感知漂移；轨 B 全链（Phase 3+4+5 全模块真 RAW）+ 恒等层 == 无层基线**逐字节**（零增量证明）；FULL 窗口化账本精确（D-06-CONTEXT-8 实证）；决策 D-06-01-T1-1..T6-1 落 `06-01-DECISIONS.md`；⚠️ 既有 GoldenColor flake（L018 类，失败数 0-2 浮动、单跑绿）并入 trackB flake 复估挂账
 - [x] **Plan 06-02**（W2 blendop 合成引擎）：线性 Rec2020 算术模式全表（0x01=NORMAL2 / 0x16=COLORADJUST 公式兑现）+ JzCzhz 往返感知模式四件（L023 往返先行）+ REVERSE 位 + 增补（lighten/darken 直译 + PS color dodge/burn 新 raw 值）+ mask×blend×opacity 单 kernel 三元组 + float64 参考 + dt-cli 平场 probe 三证据（blendop_params blob，L015 hex）—— 完成（2026-09-23 夜间 subagent）：5 commits + 收尾；终轮全 suite **670/3skip/0fail**（基线 648→670 +22）；parity 算术 <1e-5 / 感知实测 pow-chain 地板门、L023 GPU 探针矩阵对/极性 <1e-6 + hue 全环 sweep；**REVERSE 与 dt 探针逐值一致**（0.5/0.7/0.875）；dt 三证据 54/54（blob 420B 运行时实证 + params ok + 平场 PFM）；kernel 逆变换 sin·hz 真 bug 被 parity 门抓出修复；公式族分歧（dt scene 回退/JzCzhz 域定案）入 `06-02-DECISIONS.md` D-06-02-T5-1/T5-2；分块恒等逐字节 + driver 端到端 multiply 闭式 S² + 感知灰轴不偏色；证据 `.work/plans/06-02/adoption/`
@@ -283,7 +283,7 @@
 | 14 | MCP Server（远程 AI 修图 + 自动筛选） | 10 | load/apply/render/schema + 筛选读写面（缩略图/联系表/ROI 细裁 + rating/flag 写回 sidecar）+ **MCP-09 扩充工具组（preset 三件套/export_image/set_keywords + 研究项 A/B/C）+ MCP-10 GUI launcher（agent CLI 模板一键筛图/修图，V1）**（2026-09-26 登记） |
 | 15 | Performance 专项（60fps 决战） | 6 | 六战场：预览/交互/解码/懒加载/批量吞吐/内存 |
 
-详细需求/成功标准见 `.planning/ROADMAP.md`，需求清单见 `.planning/REQUIREMENTS.md`。
+详细需求/成功标准见 `.work/gsd/ROADMAP.md`，需求清单见 `.work/gsd/REQUIREMENTS.md`。
 
 ## 已裁决登记（2026-09-26/27，正文落 ROADMAP/REQUIREMENTS，待规划排期）
 
@@ -301,4 +301,4 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 ---
 
-*镜像自 `.planning/ROADMAP.md`。阶段进度以 `.planning/STATE.md` 为准。*
+*镜像自 `.work/gsd/ROADMAP.md`。阶段进度以 `.work/gsd/STATE.md` 为准。*

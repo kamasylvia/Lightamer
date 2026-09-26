@@ -5,7 +5,7 @@
 
 ## 总目标
 
-按 `.planning/ROADMAP.md`（13 阶段）逐阶段推进 Lightamer：每阶段 discuss → plan → execute → verify-work → 闭环。当前聚焦：**Phase 1 闭环（issue #1 修复）→ Phase 2 全周期**。
+按 `.work/gsd/ROADMAP.md`（13 阶段）逐阶段推进 Lightamer：每阶段 discuss → plan → execute → verify-work → 闭环。当前聚焦：**Phase 1 闭环（issue #1 修复）→ Phase 2 全周期**。
 
 ## 当前状态（2026-09-25 夜间，Phase 9 执行中）
 
@@ -95,7 +95,7 @@
 
 9. **Phase 5 execute** ← 完成（2026-09-23 夜间 subagent 签核）：05-01（基建）→ 05-02/03/04（color 三 plan）→ 05-05（monochrome）→ 05-06（nlmeans）→ 05-07（denoiseprofile，SC#2 正式验证）→ W6 GUI 修复轮（GUI-1..13 全闭）→ **05-08（bilateral + OQ7 定稿 + IOP-DENOISE-04 defer 决议 + Phase 5 签核）**：05-VALIDATION `status: validated` + `nyquist_compliant: true`；终轮 609/3skip/0fail；SC#4 两链判定 = color 链 4.8ms 达标 / denoise 链 85.7ms 未达标（Open#9 应急判定成立但非正杠杆，正杠杆=更深预览降载，移交 Phase 6+/perf plan）；公开挂账 = PERF-5 denoise 链 60fps + Manual-Only 4 行（VALIDATION 表）+ LICENSE 核对待知悉。**下一程 = Phase 6（Layers & Masking）**，轨 B 全链基线已备（GeometryGolden track B 全模块）。
 
-10. **Phase 7 execute** ← ✅ **闭环（2026-09-24 终签核）**：~~07-1~~ ✅ → ~~07-2~~ ✅ → ~~07-3~~ ✅（集成精修 + GUI 验收轮真机 + C 档第 3 停执行记录 + 终签核——07-VALIDATION `status: validated` + `nyquist_compliant: true`；SC#1-5 PASS；终轮 845/6skip/0fail；REQUIREMENTS 翻账 + manifest 收口 + **Phase 8 移交清单落 07-DISCUSSION-LOG 终节**）。discuss/research/3 plans 已落盘（`.planning/phases/07-ai-modules/`，D-07-CONTEXT-1..6 用户已裁决）。**下一程 = Phase 8（HDR/Stacking & Effects iops）—— discuss 未启动**。
+10. **Phase 7 execute** ← ✅ **闭环（2026-09-24 终签核）**：~~07-1~~ ✅ → ~~07-2~~ ✅ → ~~07-3~~ ✅（集成精修 + GUI 验收轮真机 + C 档第 3 停执行记录 + 终签核——07-VALIDATION `status: validated` + `nyquist_compliant: true`；SC#1-5 PASS；终轮 845/6skip/0fail；REQUIREMENTS 翻账 + manifest 收口 + **Phase 8 移交清单落 07-DISCUSSION-LOG 终节**）。discuss/research/3 plans 已落盘（`.work/gsd/phases/07-ai-modules/`，D-07-CONTEXT-1..6 用户已裁决）。**下一程 = Phase 8（HDR/Stacking & Effects iops）—— discuss 未启动**。
 
 ~~保活巡检暂停已于 2026-09-19 恢复~~（新 automation `automation-09a53a4e-ebf3-4ae8-b8eb-32c179466a6e`，每 30 分钟；旧 ID 已删）。
 

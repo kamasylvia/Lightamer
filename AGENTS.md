@@ -242,7 +242,7 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 
 ### Project context
 
-- `/Volumes/UNITEK/Documents/Development/Lightamer/.planning/PROJECT.md`
+- `/Volumes/UNITEK/Documents/Development/Lightamer/.work/gsd/PROJECT.md`
 
 <!-- GSD:stack-end -->
 
@@ -252,7 +252,7 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 
 ### 语言与沟通
 - 用户面向输出（问题、解释、状态总结）使用中文；代码、API 名称、文件路径、技术术语保持英文。
-- 每轮对话完成后，如有需要，更新 TODO.md 和 AGENTS.md（继承自全局指南）。
+- 每轮对话完成后，如有需要，更新 `.work/TODO.md` 和 AGENTS.md（继承自全局指南；TODO/LESSONS 均在 `.work/` 下，根符号链接为工具兼容垫片）。
 
 ### 提交与 Issue（继承全局规则）
 - 提交代码前确保有对应 GitHub issue。commit message 末尾用 `fixes #NN` / `closes #NN` / `refs #NN` 关联 issue；已推送的 commit 在 issue 描述里反向引用。

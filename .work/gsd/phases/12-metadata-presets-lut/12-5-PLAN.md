@@ -18,11 +18,11 @@ files_modified:
   - Tests/LightamerTests/Lut3dKernelTests.swift                    # 新建：tetrahedral vs CPU float64 + DOMAIN remap + 色彩空间回环
   - Tests/LightamerTests/Lut3dGoldenImageTests.swift               # 新建：dt 参考输出 golden-image 对照（CONVENTIONS 纪律）
   - Tests/LightamerTests/LutLibraryStoreTests.swift                # 新建：导入查重/缺失降级/重扫
-  - .planning/phases/12-metadata-presets-lut/12-5-SUMMARY.md
-  - .planning/phases/12-metadata-presets-lut/12-5-DECISIONS.md
-  - .planning/phases/12-metadata-presets-lut/12-VALIDATION.md      # Phase 12 签核（SC#1-4 三列证据）
-  - .planning/phases/12-metadata-presets-lut/12-DISCUSSION-LOG.md  # 追加终节（Phase 13 移交清单 + 遗留对表）
-  - .planning/REQUIREMENTS.md                                      # META-01..06/PRES-01..04/IOP-COLOR-08 翻账
+  - .work/gsd/phases/12-metadata-presets-lut/12-5-SUMMARY.md
+  - .work/gsd/phases/12-metadata-presets-lut/12-5-DECISIONS.md
+  - .work/gsd/phases/12-metadata-presets-lut/12-VALIDATION.md      # Phase 12 签核（SC#1-4 三列证据）
+  - .work/gsd/phases/12-metadata-presets-lut/12-DISCUSSION-LOG.md  # 追加终节（Phase 13 移交清单 + 遗留对表）
+  - .work/gsd/REQUIREMENTS.md                                      # META-01..06/PRES-01..04/IOP-COLOR-08 翻账
   - TODO.md                                                        # 12-5 勾选 + Phase 12 收口
   - .work/GOAL-STATE.md                                            # Phase 12 闭环翻账 + 续接点更新
   - LESSONS.md                                                     # 如踩坑
@@ -45,8 +45,8 @@ files_modified:
 
 ## read_first
 
-1. `.planning/phases/12-metadata-presets-lut/12-RESEARCH.md` §6（解析器/kernel/remap/精度/V50/色彩空间/导入库全套规格）、§7 T8、§8.2（12-5 验收草案）、§8.4（脏样本留缝）
-2. `.planning/phases/12-metadata-presets-lut/12-CONTEXT.md` D-12-CONTEXT-6（LUT 裁决全套）、验证红线节（LUT golden）
+1. `.work/gsd/phases/12-metadata-presets-lut/12-RESEARCH.md` §6（解析器/kernel/remap/精度/V50/色彩空间/导入库全套规格）、§7 T8、§8.2（12-5 验收草案）、§8.4（脏样本留缝）
+2. `.work/gsd/phases/12-metadata-presets-lut/12-CONTEXT.md` D-12-CONTEXT-6（LUT 裁决全套）、验证红线节（LUT golden）
 3. dt 移植正本（本地 `/Volumes/UNITEK/Documents/Development/darktable`）：`data/kernels/lut3d.cl:29-60`（tetrahedral verbatim 正本）、`src/iop/lut3d.c`（解析器 `:701-751` tokenizer 容错 / `:782-791` DOMAIN 0..1 边界 / `:1020` 插值枚举 / `:1029-1031` lut_profile↔work_profile）
 4. `LightamerCore/Sources/Foundation/V50Order.swift:126`（`("lut3d", 36.0)` 已预留；`terminalTailFloor` 70.0 层内合法性）
 5. iop 文件对惯例正本：`LightamerIOP/Sources/Sharpen/SharpenModule.swift`（头注结构/INTENTIONAL DIVERGENCES 写法/neutral=blit-identity 快路径）+ `LightamerIOP/Sources/Registry.swift`（`LightamerIOPRegistry.populate` 注册位）
@@ -54,7 +54,7 @@ files_modified:
 7. 色彩空间系数资产：`LightamerCore/Sources/Pipe/Terminal/ColorInModule.swift` + `ColorOutModule.swift`（矩阵同源单实现，不新增 ICC 面）
 8. `LightamerCore/Sources/Export/ExportRecipe.swift:105`（12-4 已挂 exportRecipe——LUT 预设引用例外对表）
 9. `LightamerIOP/Sources/Yiyin/YiyinFontStore.swift`（导入库三拆模式范本）
-10. 收口正本：`.planning/phases/11-export-pipeline/11-VALIDATION.md`（VALIDATION 体例）+ `11-DISCUSSION-LOG.md` 终节（移交清单/遗留对表格式）+ `.work/GOAL-STATE.md`（翻账格式）+ `11-05-PLAN.md` T5（收口批先例）
+10. 收口正本：`.work/gsd/phases/11-export-pipeline/11-VALIDATION.md`（VALIDATION 体例）+ `11-DISCUSSION-LOG.md` 终节（移交清单/遗留对表格式）+ `.work/GOAL-STATE.md`（翻账格式）+ `11-05-PLAN.md` T5（收口批先例）
 11. `LESSONS.md` L009/L013/L014（GPU 读回 fence）/L019b/L020/L025/L031
 12. `AGENTS.md`（Phase 执行模型 + 暂停机制 + C 档门控）
 
