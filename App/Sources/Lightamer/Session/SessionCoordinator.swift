@@ -253,6 +253,18 @@ final class SessionIndexController {
 
     private var store: SessionIndexStore?
 
+    /// Plan 16-1 T2 — the app-level catalog projector (ONE .lcat writer
+    /// per process; CatalogIndexStore opens its own read connection).
+    static let sharedCatalogProjector = CatalogProjector()
+
+    /// The projection-hook seam (tests inject a temp-directory factory;
+    /// the default wires the shared projector). The enable guard runs
+    /// BEFORE the factory, so a disabled Catalogs mode never constructs or
+    /// touches a projector — zero .lcat handles on the Sessions path.
+    var catalogProjectorProvider: () -> CatalogProjector? = {
+        SessionIndexController.sharedCatalogProjector
+    }
+
     /// The CURRENT store (Plan 09-3 wiring: the thumbnail provider binds to
     /// it after each open; nil before the first open / after a close).
     var currentStore: SessionIndexStore? { store }
@@ -282,6 +294,18 @@ final class SessionIndexController {
             )
             if let first = result.firstImageRelPath {
                 syncResult.firstImage = root.appendingPathComponent(first)
+            }
+            // Plan 16-1 T2 — the catalog projection hook (RQ-16-4 trigger
+            // face a): the five-step open+sync has RETURNED; the projection
+            // runs in a detached background task (never the open budget —
+            // pull-on-open, lag is harmless). The enable guard lives INSIDE
+            // CatalogProjector.project, BEFORE any handle exists — a
+            // disabled Catalogs mode runs this task only to return
+            // skippedByGuard: zero .lcat handles end-to-end.
+            if let projector = catalogProjectorProvider() {
+                Task.detached(priority: .utility) {
+                    _ = try? await projector.project(sessionRoot: root)
+                }
             }
             return syncResult
         } catch {

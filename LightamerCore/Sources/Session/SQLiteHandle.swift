@@ -137,6 +137,10 @@ public final class SQLiteStatement {
 /// `sqlite3_close_v2`.
 public final class SQLiteHandle {
 
+    /// The read-only open flags (projection-style readers: the catalog
+    /// projector NEVER writes the lindex — the read side declares it).
+    public static let readOnlyFlags = SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX
+
     private let db: OpaquePointer?
     private let path: String
     private var closed = false
