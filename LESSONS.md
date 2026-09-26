@@ -265,3 +265,13 @@ locale 的 Bundle 解析停在该表（不再向 zh.lproj 回退）——**全 a
 - **对策**：① `MetalContext.makeRoutedCommandBuffer()` 提为 public，16 处调用点（12 blit 写平面 + 4 读回 fence：wavelet/histogram/borders drain）统一改 `try? metal.makeRoutedCommandBuffer()`——模块级「自建 command buffer」从此同源路由；② 排障方法论：**「同参数渲染多稳定形态交替」≠ 数值非确定/竞态撕裂，优先排查双队列提交源**——用逐步探针（每模块 fresh plane + fence + 读回中心像素）找 alpha/值分叉首点；逐步探针自身读回必须同步 semaphore drain（async `completed()` 有读早竞态，本轮 E5 首版全 0 即此假象）；③ 「GPU 非确定」归因要留质疑：本轮把 11-04 的「GPU 非确定双侧漂移」结论推翻为跨队列竞速——先钉机制再下非确定结论。
 - **适用**：一切多队列 Metal 工程（editor/export/preview 分队列 + TaskLocal 路由模式）；一切「绕过统一 encoder/dispatch 门面自建 MTLCommandBuffer」的代码（blit/fence/并行 encoder 同罪）；新增 iop 模块的 identity 快速路径 review 项。
 - **来源**：11-03 flaky 专项调试（E1-E5 探针矩阵：E1 自比判别 → E2 冷启动复现+dump → E3 禁用二分 → E4 pipe 直观测 planes 恒定+alpha 异常 → E5 逐步分叉定位；修复后同参数连渲逐字节 0 差）。
+
+### L032: GUI 走查自动化三坑——截图坐标三套比例、IME 候选吃键、AsyncStream 单次消费假 0 行
+
+**现象**（12-1 T6 走查 + T2 迁移测试）：① System Events `click at` 用 pt，screencapture 原图是 2x px（3008 宽 = 1504pt），Read 工具展示又缩到 2000 宽——三套比例混用导致点空（对 2000px 图量出的坐标直接喂 click 全偏）；② `keystroke` 经中文 IME 会弹候选窗吃键（"abc" 变候选列表），粘贴绕开但点击未聚焦时 ⌘V 静默落空；③ 同一 `AsyncStream` 喂两次 `openSession`，第二次得 0 页 0 行——parity 测试首跑 added=0 假象。
+
+**根因**：① 每个环节各自缩放无契约，必须以「pt = 原图 px / scale（scale = 原图宽 / 1504）」单点换算；② TextField 未聚焦时键盘事件去往别处，paste 无声失败——先验证聚焦（截字段区）再输入；③ AsyncStream 消费即枯竭，复用 = 空流。
+
+**对策**：① 走查脚本一律 `sips -g pixelWidth` 或读原图尺寸，pt 换算写成函数不心算；② 文本输入优先「点击 → 截图确认聚焦环 → pbcopy + ⌘V → 回车」，IME 场景先 Esc 消候选；③ 需要 N 次 open 就构造 N 个流（工厂函数），并在断言里加 `added>0` 防空转；④ 合成 click 不携 shift/修饰键进 SwiftUI 手势（`NSEvent.modifierFlags` 读不到）——多选/拖选类交互 AX 驱动不可达，如实记 Manual-Only，不以假阳性截图充当走查证据。
+
+**适用**：一切 macOS GUI 自动化走查（Phase 12-2/12-4/12-5 面板轮、Phase 13）；一切「同 fixture 多次 open」的索引测试。

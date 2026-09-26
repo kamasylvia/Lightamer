@@ -68,6 +68,12 @@
 
 ---
 
+## Phase 12（Metadata, Rating, Presets & LUT——执行序 12 = ROADMAP §Phase 12）—— 执行中（2026-09-26 discuss+research+plans 定稿；5 plans / 4 waves，12-1 = W1 依赖根）
+
+**状态**：W1 执行中。裁决要点：sidecar v3 五字段真身 + DB v2 首迁移（flag/note + EXIF 七列，25→34 列冻结）+ MetadataService 三段写面单源（元数据写不产生 history 项/不翻 paramsHash/缩略图零 stale）+ `.xmp` 红线语义澄清（自建序列化/注入 + 第三方 .xmp 只读导入）+ 层级关键字 `|` path + 预设统一容器 kind:develop|export + LUT tetrahedral + V50 36.0 已预留。11 移交清单五条对位入 12-CONTEXT。
+
+- [x] **Plan 12-1**（元数据依赖根：sidecar v3 五字段（哈希隔离）+ DB v2 首次真迁移（25→34 列，幂等 ALTER + v99 拒开保留）+ MetadataService 三段写面（claimMetadataApply 新缝，thumb_state 不变）+ EXIF 轻量七列回填 + grid overlay/全域快捷键接线）—— ✅ 执行完成（2026-09-26 ZCode executor subagent worker；6 commits：T1 `8f1a96a` / T2 `db105ee` / T3 `4b906b6` / T4 `e0ce1ed` / T5 `0ad5c96` / T6 `a7f44b7` / T7 收尾本提交；未 push；边界查开关 ×6；终轮全 suite **1290/6skip/0fail**（426.4s），基线 1260 → 1290 净增 30【SidecarMetadataV3 9 + Migration 11 + MetadataService 10】）：① sidecar v3 五字段 additive（decodeIfPresent + encode 恒写 null golden 锁 + 哈希逐字节隔离 + v2 降级读 + >3 容忍）② DB v2 首迁移（表驱动逐列幂等 + 中迁失败 ROLLBACK 回 25 列 + 只读拒开字节不动 + v99 数据级保全 + unparsable stamp fail-closed + 删库重建 parity 34 列 + 冻结断言 25→34）③ claimMetadataApply 新缝（SQL verbatim，SET 列集文本+功能双断言无 thumb_state/params_hash）+ heal/summary/changed-leg 三处 additive 扩五列（F7 闭环）④ MetadataService 单源六 API（`|` typed 拒绝 + pristine mint + 不可读 skip 不覆盖）+ **万张门 0.457s**（Debug/SSD，≤5s Release 门余量 ~11×）→ `.work/12/perf.md` + thumb_state/params_hash 万行逐行不变 + crash 注入三态漂移零发生（written 保新值/unwritten heal 回旧值/index==磁盘真身）⑤ EXIF 七列单锚回填（`camera_make IS NULL` + 文本 '' 哨兵/数值 NULL 恰扫一次 + 真 JPEG 七列精确 L020 + v1 行单轮收编）⑥ GUI 走查（解锁控制台，6 证据 `.work/gui-acceptance/12-1-*.png`：overlay 实星/flag 徽章/色点即时点亮 + 三态快捷键 0-5/X/P/⌘0-6 + 单图当前图路由 + keywords/note 编辑行全链（sidecar 数组 + DB `|` 物化 + note 追加）+ 重开持久化四星保持 + zh 首屏 + lproj smoke 829/829；Manual-Only 3 行 = F-12-1-1/2/3（AX 合成限制：⇧多选批量/右键 alert 流/culling 态——服务面均已被单测/编辑行走查钉死））。决策 13 条入 12-1-DECISIONS；L032 落盘。**遗留**：验收轮待派；Manual-Only 3 行人工确认；12-2∥12-3 可并行。
+
 ## 项目初始化（已完成 ✓）
 
 - [x] GSD 项目初始化（PROJECT.md / config.json / 5 份研究 / REQUIREMENTS / ROADMAP 13 phases / STATE）
