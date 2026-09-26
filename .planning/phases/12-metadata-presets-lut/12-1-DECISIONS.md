@@ -68,4 +68,11 @@
 - commit `e0ce1ed` body 笔误 `.worl/12/perf.md`（实为 `.work/12/perf.md`）——cosmetic，不重写历史。
 - 万张门 `writer: nil` 门形态（段1+段2）复用 MetadataService 公共路径（writer 可空为 gate 语义，非生产形态）；生产路径 writer 恒有（MetadataController.configure 注入 batchSidecarWriter）。
 - GUI 走查 ⌘4→色标3（绿）实测与菜单标签「绿 (⌘4)」一致——「第 N 键 = 第 N-1 号色」是「⌘0=清除」并列的可读映射，非 off-by-one。
+
+## D13 ⌘色标键位映射：第 N 键 = 第 N-1 号色（⌘0 = 清除）
+
+- 映射形态即 D12 上述 ⌘4 实测条目的正名：「⌘1-6 → 色标 0-5、⌘0 = 清除」与菜单标签「绿 (⌘4)」一致，是「⌘0=清除」并列下的可读映射，非 off-by-one。
+- 代价：色标 6（灰）无键盘位（C1 七色只映射 ⌘1-6 六键），经后续菜单/过滤面可达（与 D7 文档化例外同源）。
+
+> 编号勘误（2026-09-26 验收轮）：原稿将本条寄居 D12 第三 bullet，致 SUMMARY/TODO/commit 所称「决策 13 条 / D12/D13」与节计数（12）不一致；验收时升格为独立 D13 节，内容实质未改。
 - zh-Hans.lproj 在 Debug 产物中为**空目录**（无表文件）——L025 破坏面是「partial 表改变 fallback 链」，空目录无表不构成风险；zh 首屏全量中文渲染实证（12-1-01-open 证据）。
