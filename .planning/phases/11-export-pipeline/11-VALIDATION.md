@@ -26,6 +26,7 @@ validated: 2026-09-26
 | **Full suite（终轮）** | touch Tests + `build-for-testing` 重编复跑 = **1258 tests / 6 skip / 0 fail**（449.8s，2026-09-26 10:0x） |
 | **基线演变** | Phase 10（=08 执行序）末 **1133** → 11-01 +54（1187）→ 11-02 +33（1220）→ 11-03 +15（1235）→ 11-04 +13（1248）→ 11-05 +10（**1258**；其中 ExportPhaseE2ETests 3 + ExportTargetsTests 4 + ExportPerfProbeTests 2 + ExportEncoderGoldenTests parity +1） |
 | **11-04 收尾轮 1 fail 处置** | `testYiyinFourStateMatrixAndBorderedRoundTrip` byte-exact 断言过敏（GPU 非确定，11-04 法证）→ 11-05 T0 稳定化为像素容差 1/255 + sanity 错位红断言（`9439b59`），稳定后三轮全绿 + 终轮 0 fail |
+| **11-04 法证根因补正（2026-09-26 专项调试追加）** | 「GPU 非确定」重定性：真根因 = 10+ 模块 identity blit 硬编 editor queue，与导出链 export queue compute 跨队列竞速（两稳定形态交替；负载改两队列拥塞形态→偶发）→ **真修复** `9ea0d93`（16 处调用点统一路由获取点，LESSONS L031）；验证门 = 目标测试隔离 ×5 绿 + 负载循环 ×10 绿（worst≤1）+ 全套 5 轮导出域 0 fail；容差 `9439b59` 与 sanity 锚保留 |
 
 ---
 

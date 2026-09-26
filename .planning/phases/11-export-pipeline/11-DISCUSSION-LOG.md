@@ -73,6 +73,7 @@
 | # | 遗留 | 来源 | 处置 |
 |---|---|---|---|
 | 1 | ~~11-03 yiyin 4 态 flaky（byte-exact 断言过敏）~~ | 11-04 | **11-05 已闭环**：像素容差 + sanity 错位红断言（`9439b59`），三轮绿 + 终轮 0 fail |
+| 1a | ~~11-03 flaky 真根因补正（2026-09-26 专项调试）~~ | 11-03 | **根因重定性并真修复**（`9ea0d93` + LESSONS L031）：非「GPU 渲染非确定」，而是 10+ 模块 identity blit 硬编 editor queue 与导出链 export queue compute 跨队列竞速（两稳定形态交替、负载改时序偶发）；16 处调用点统一走路由获取点 `makeRoutedCommandBuffer()`；修复后同参连渲逐字节 0 差 + 负载循环 ×10 绿 + 全套 5 轮导出域零失败。容差 `9439b59` 保留（容差内 speckle 与 sanity 锚仍有效） |
 | 2 | ~~F-11-04-1 /tmp symlink targets + canExport 不一致~~ | 11-04 | **11-05 已闭环**：realpath 双拼写匹配 + gate 一致化（`d9dfa9b`，4 tests） |
 | 3 | ~~convertTexture L029 镜像（休眠缺陷）~~ | 11-02/11-03 | **11-05 已闭环**：`.downMirrored` + 双腿 parity 测试（`8700b61`，17/17） |
 | 4 | AVIF 12-bit 宿主封顶 10-bit | 11-02 D4 | 文档化降级 + conformer 缝；需求出现时经 `AVIFEncoder` 替换位引 libavif |

@@ -22,6 +22,8 @@
 
 1133（Phase 10 末）→ **+54** 11-01（1187）→ **+33** 11-02（1220）→ **+15** 11-03（1235）→ **+13** 11-04（1248）→ **+10** 11-05（**1258**：ExportPhaseE2ETests 3 + ExportTargetsTests 4 + ExportPerfProbeTests 2 + parity 1）。终轮 449.8s / 6 skip / **0 fail**。11-04 收尾轮唯一 fail（11-03 既有 flaky）经 T0a 稳定化后：单独跑三轮绿 + 终轮 0 fail。
 
+> **T0a 后记（2026-09-26 专项调试补记，`9ea0d93`）**：T0a 的「GPU 渲染非确定」归因后被推翻——真根因 = 模块 identity blit 硬编 editor queue 与导出链 compute 跨队列竞速（两稳定形态交替，详见 11-04-SUMMARY 法证补正 + LESSONS L031）。T0a 容差 + sanity 锚保留有效（真回归可检性不变），但稳定性现由根因修复保证：同参连渲逐字节 0 差、目标测试隔离 ×5 绿、负载循环 ×10 绿、全套 5 轮导出域 0 fail。
+
 ## AC 自检（plan 验收标准逐条）
 
 - [x] E2E：一源多规格一次队列动作全落 Output/、命名不互覆（`-1` 递增）、有印框全链 round-trip（SC#3/SC#4/SC#5 测试锚 = `ExportPhaseE2ETests` 三测）

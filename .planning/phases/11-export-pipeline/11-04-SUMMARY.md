@@ -23,6 +23,7 @@
     2. `3ae5dbe`（11-03 收尾提交）的 worktree 基线构建上该测试**同样失败**（22649 vs 18801）；
     3. 基线重跑又 **PASS**（同代码同环境 fail→pass 交替）；
     4. 失败字节两侧都漂移（bothOff 22639→18162；baseline 18801→22638）——**baseline 自身非确定**，PNG 字节级断言对 GPU 输出的 1-LSB 漂移过敏；
+    5. **法证补正（2026-09-26 专项调试，`9ea0d93` + LESSONS L031）**：上述「GPU 渲染非确定」归因**不成立**——真根因 = 10+ 模块 identity blit 硬编 editor queue，与导出链 export queue compute 跨队列竞速（探针实测两稳定形态严格交替、B 形态逐字节可复现、逐步探针在首个 identity-blit 消费点见值分叉）；「1-LSB 漂移」实为竞速两形态的量化表现。修复 = 16 处调用点统一走路由获取点；修复后同参连渲逐字节 0 差。本节 1-3 条证据（非 11-04 回归的判定）维持有效。
     5. 失败轮统一日志出现 `AGX: Texture read/write assertion failed: bytes_per_row >= used_bytes_per_row`（驱动层迹象）。
   - 处置：不在本 plan 改 11-03 测试断言（域外）；已挂 GOAL-STATE「待人工」——候选处置：断言放宽为像素级容差（decodedPNGValues 比对）或排查 AGX 环境。基线收尾时全绿说明是环境敏感型退化。
 - ExportQueueTests 13/13 全绿（多次重跑稳定）。
