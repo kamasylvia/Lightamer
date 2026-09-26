@@ -93,3 +93,16 @@
 **Phase 11 签核：PASS（SC#1-5 ✅；status: validated + nyquist_compliant: true；
 终轮 1258/6skip/0fail；11-04 收尾唯一 fail 已稳定化闭环）。** 终验走 verify-work；
 Manual-Only 4 行挂人工不阻塞（自动化腿均已钉数值与语义）。
+
+## 2026-09-26 — R2 复核收尾批补正注记（追加式，不改写上方历史行）
+
+- **对象**：上方「遗留对表」行 1——「byte-exact 断言过敏」归因与「三轮绿」表述被
+  L031 机制级证伪：11-03 4 态 E2E 的真根因 = identity blit 硬编 editor queue 与导出链
+  export queue compute 跨队列竞速（1a 行已记），「三轮绿」是 editor queue 空闲时序下的
+  概率假绿而非机制修复。行 1 的历史文本按台账「只追加不改写」纪律原样保留。
+- **收尾批动作**（本批 commit）：① 图层子系统 5 处直取残留（RetouchEngine 4 +
+  DrawnMaskRasterizer 1）补走路由 seam（与 `9ea0d93` 同模式——L031「唯一获取点」
+  纪律的全仓收口）；② 补图层栈导出 E2E 回归锚（retouch heal + drawn mask 两条腿）+
+  helper 队列身份三态断言（测试盲区补钉）；③ T0a 从容差 1/255 **恢复 byte-exact**
+  （`9439b59` 的容差建立在被证伪的「GPU 非确定」归因上；修复后同参连渲 diff 0 为机制
+  事实），sanity 错位红断言保留。

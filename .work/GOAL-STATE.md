@@ -90,7 +90,7 @@
 
 1. ~~**11-03 遗留 flaky（2026-09-26 11-04 执行轮登记）**~~ **已闭环（2026-09-26 11-05 收口批 `9439b59`）**：断言放宽为解码像素容差 1/255 + 尺寸相等（GPU 非确定 = 11-04 法证确证），并保留 sanity 错位红断言（人为 2 级错位即红）——真回归可检性维持；稳定后三轮绿 + 终轮 1258/0fail。
 2. ~~**11-03 flaky 根因补正（2026-09-26 专项调试）**~~ **已真修复闭环（`9ea0d93` + LESSONS L031）**：11-04「GPU 非确定」归因推翻——真根因 = 10+ 模块 identity blit 硬编 editor queue 与导出链 export queue compute 跨队列竞速（两稳定形态交替、负载改时序偶发、隔离亦可高概率复现）；修复 = `makeRoutedCommandBuffer()` public 化 + 16 处调用点（12 blit + 4 fence）统一路由；验证 = 同参连渲逐字节 0 差 + 目标测试隔离 ×5 绿 + 负载循环 ×10 绿 + 全套 5 轮导出域 0 fail（其中 1 轮 3 fail 全部来自无关域 LayerE2ERoundTripTests undo 语义——**新登记相邻域负载型 flaky 待另立案**）；T0a 容差 `9439b59` + sanity 锚保留。
-2. ~~**F-11-04-1（轻，11-04 执行轮发现）**~~ **已闭环（2026-09-26 11-05 收口批 `d9dfa9b`）**：`ExportState.targetRelPaths` realpath(3) 双拼写匹配（L027/SessionWatcher 先例，两侧拼写任意组合）+ `canExport` gate 改以实际 targets 判定（按钮不再可点空跑）；4 单测钉死。
+3. ~~**F-11-04-1（轻，11-04 执行轮发现）**~~ **已闭环（2026-09-26 11-05 收口批 `d9dfa9b`）**：`ExportState.targetRelPaths` realpath(3) 双拼写匹配（L027/SessionWatcher 先例，两侧拼写任意组合）+ `canExport` gate 改以实际 targets 判定（按钮不再可点空跑）；4 单测钉死。
 
 ## 巡检运行规则（每次 Cron 触发时遵守）
 
