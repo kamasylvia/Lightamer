@@ -68,6 +68,9 @@
 
 - **🏗️ 重大架构指令（2026-09-27 用户）**：**双模式组织新立 = Phase 16 Catalog/Category Mode**（CATALOG-01..06）——对标 C1：Sessions 恒默认 + Category Catalog 可选（**手动配置 PostgreSQL 后启用**，驱动选型入 research）。推翻 2026-08-03「不做中央库」整族排除（Out of Scope/PROJECT.md 约束均已修订留痕；语义 = 中央库从「禁止」变「可选第二模式默认关闭」，sidecar 真身原则不变）。**时序 = Phase 12 收口后独立 discuss/research 环**（12-1..12-3 session 面为双模式复用底座零返工）。四处已落盘：REQUIREMENTS CATALOG 族+Out of Scope 修订 / ROADMAP Phase 16 / PROJECT.md 约束 / TODO 登记。
 
+- **12-3 ✅ 执行+验收 PASS 零修复（2026-09-27 01:0x）**：续班收尾 `7c06fa2`(T5 只读导入)+`c4b0894`(T6 收口)；终轮 1364/6skip/0fail 双绿；TIFF tag 700 注入正锚全绿（降级预案未触发）；GUI 导入全链 sidecar 断言全对；续班 reconstruct 前任 DECISIONS 14 条。→ **12-4（预设系统）已派遣**。
+- **Phase 16 可行性预研落盘（2026-09-27）**：pg 方案判定可行（ROADMAP Phase 16 Notes 三边界：元数据查询面 pg 降维打击+研究门 1M 行 p95<50ms / 预览吞吐是管线问题与 pg 无关 / pg 禁远程网络库主路径）；术语勘误 category→**catalogs**。
+
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
 
 1. ~~**修复 issue #1**~~ ✅ 关闭（2026-09-18）：drawable 回读证实渲染/blit 全链正常（JPEG drawable 采样含图像内容）；黑屏为多窗口调试堆积的呈现竞争——真实单窗口使用正常（干净复现截图 4.2MB 完整显示）。转 backlog：多窗口呈现管理（Phase 2/9）。
