@@ -73,7 +73,8 @@
 - **12-3 ✅ 执行+验收 PASS 零修复（2026-09-27 01:0x）**：续班收尾 `7c06fa2`(T5 只读导入)+`c4b0894`(T6 收口)；终轮 1364/6skip/0fail 双绿；TIFF tag 700 注入正锚全绿（降级预案未触发）；GUI 导入全链 sidecar 断言全对；续班 reconstruct 前任 DECISIONS 14 条。→ **12-4（预设系统）已派遣**。
 - **Phase 16 可行性预研落盘（2026-09-27）**：pg 方案判定可行（ROADMAP Phase 16 Notes 三边界：元数据查询面 pg 降维打击+研究门 1M 行 p95<50ms / 预览吞吐是管线问题与 pg 无关 / pg 禁远程网络库主路径）；术语勘误 category→**catalogs**。
 
-## 下一步动作队列（按序执行，完成一项划掉并更新）
+- **✅ Phase 12 闭环（2026-09-27 凌晨，5/5 plans 执行+验收全过）**：12-1（+30）→ 12-2（+44）→ 12-3（+30）→ 12-4（+26）→ 12-5（+46+1）→ 终轮 **1437/6skip/0fail**（1258 → +179）。12-VALIDATION `validated` + `nyquist_compliant: true`；REQUIREMENTS ×11 Delivered（META-01..06/PRES-01..04/IOP-COLOR-08）；12-5 验收抓修真解析器缺陷（DOMAIN 键序敏感误拒合法 HDR 域 `407efde`）。移交 Phase 13 五条。**翻转闸**：Phase 9/11/12 三期 verify-work/UAT 走查或豁免均待用户一句话（材料齐备：09-UAT.md + 11/12 VALIDATION）。**下一程 = Phase 16 Catalogs Mode discuss/research 环（已派遣起草）**。
+- **🏗️ 重大架构指令（2026-09-27 用户）**## 下一步动作队列（按序执行，完成一项划掉并更新）
 
 1. ~~**修复 issue #1**~~ ✅ 关闭（2026-09-18）：drawable 回读证实渲染/blit 全链正常（JPEG drawable 采样含图像内容）；黑屏为多窗口调试堆积的呈现竞争——真实单窗口使用正常（干净复现截图 4.2MB 完整显示）。转 backlog：多窗口呈现管理（Phase 2/9）。
 2. **
