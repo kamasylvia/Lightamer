@@ -355,3 +355,22 @@ public enum FilterSQL {
         }
     }
 }
+
+extension FilterSQL {
+
+    /// Bind a translated array to a prepared statement (1-based, array
+    /// order) — the shared tail of every consumer face (the store's query
+    /// and the translation-layer fixtures).
+    public static func apply(
+        _ binds: [FilterSQLBind], to statement: SQLiteStatement
+    ) throws {
+        for (index, bind) in binds.enumerated() {
+            let i = Int32(index + 1)
+            switch bind {
+            case .text(let value): try statement.bindText(i, value)
+            case .int(let value): try statement.bindInt(i, value)
+            case .double(let value): try statement.bindDouble(i, value)
+            }
+        }
+    }
+}

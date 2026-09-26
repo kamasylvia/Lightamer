@@ -542,6 +542,52 @@ public actor SessionIndexStore {
         return rows
     }
 
+    // MARK: - Filter query face (Plan 12-2 T3; META-05)
+
+    /// The filter/sort consumer face: `FilterSQL.translate` → one SELECT
+    /// over the SAME 34-column projection (`SessionIndexRow` — zero new row
+    /// types). Read-only; it shares the actor's handle with the write
+    /// transactions (WAL readers + the single writer coexist — zero new
+    /// locking face; T3's concurrency smoke pins the coexistence).
+    ///
+    /// Signature note (execution decision, 12-2-DECISIONS): the plan sketched
+    /// `query(rootPath:...)` — the face is a pure DB read (the row already
+    /// carries relative paths; path assembly stays in the App layer), so
+    /// the rootPath parameter is dropped.
+    public func query(
+        group: FilterPredicateGroup,
+        sort: FilterSort? = nil,
+        limit: Int? = nil
+    ) throws -> [SessionIndexRow] {
+        guard let handle else { return [] }
+        let translated = try FilterSQL.translate(group: group)
+        var sql =
+            "SELECT \(Self.rowSelectColumns) FROM images WHERE \(translated.whereClause)"
+        if let sort { sql += " ORDER BY \(sort.orderBySQL)" }
+        var binds = translated.binds
+        if let limit {
+            sql += " LIMIT ?"
+            binds.append(.int(Int64(limit)))
+        }
+        let statement = try handle.prepare(sql)
+        try FilterSQL.apply(binds, to: statement)
+        var rows: [SessionIndexRow] = []
+        while try statement.step() {
+            rows.append(Self.readRow(statement))
+        }
+        return rows
+    }
+
+    /// Test seam: run a synchronous body against the store's OWN handle —
+    /// the closure executes ON the actor (the non-Sendable handle never
+    /// leaves the isolation domain). Fixture seeding for the filter tests.
+    public func withHandleForTesting(
+        _ body: (SQLiteHandle) throws -> Void
+    ) rethrows {
+        guard let handle else { return }
+        try body(handle)
+    }
+
     /// Single-row read (Plan 09-03 T3 — the provider's fetch path).
     public func fetchRow(relPath: String) throws -> SessionIndexRow? {
         guard let handle else { return nil }

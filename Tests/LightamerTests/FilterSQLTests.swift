@@ -297,7 +297,7 @@ final class FilterSQLTests: XCTestCase {
             .appendingPathComponent("filtersql-\(UUID().uuidString).lindex")
         handle = try SQLiteHandle(path: url.path)
         try SessionIndexSchema.apply(to: handle)
-        try seedFixture()
+        try Self.seedFixture(on: handle)
     }
 
     override func tearDown() {
@@ -317,7 +317,7 @@ final class FilterSQLTests: XCTestCase {
     ///   pct.arw           filename `100%_shot.ARW`
     ///   quote.arw         filename `it's a photo.ARW`
     ///   iso400.arw        iso 400, focal 50, capture 1.7e9, make Canon
-    private func seedFixture() throws {
+    private static func seedFixture(on handle: SQLiteHandle) throws {
         let insert = try handle.prepare("""
             INSERT INTO images (
               path, dir, filename, rating, color_label, keywords, flag,
@@ -531,5 +531,139 @@ final class FilterSQLTests: XCTestCase {
                 "cleared.arw", "iso400.arw", "nature-rose.arw", "nature-tree.arw",
                 "nature.arw", "natureholics.arw", "untagged.arw",
             ].sorted())
+    }
+}
+
+// MARK: - Query face (Plan 12-2 T3)
+
+extension FilterSQLTests {
+
+    /// The store-backed fixture: a REAL SessionIndexStore opened over a
+    /// session root; the same rows are seeded through the store's own
+    /// handle (the test seam) — the query face then runs against them.
+    private func makeStoreFixture() async throws -> (SessionIndexStore, URL) {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("filtersql-store-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root, withIntermediateDirectories: true)
+        let store = SessionIndexStore(sessionRoot: root)
+        // Open with an EMPTY scan (opens the handle + applies the schema
+        // idempotently); rows are seeded directly below.
+        _ = try await store.reconcile(root: root, scan: Self.emptyStream())
+        try await store.withHandleForTesting { handle in
+            try Self.seedFixture(on: handle)
+        }
+        return (store, root)
+    }
+
+    private static func emptyStream() -> AsyncStream<SessionScanPage> {
+        AsyncStream { $0.finish() }
+    }
+
+    func testQueryFaceExactRowSet() async throws {
+        let (store, root) = try await makeStoreFixture()
+        defer {
+            Task { await store.close() }
+            try? FileManager.default.removeItem(at: root)
+        }
+        // The query face must agree with the translation-layer row set on
+        // the SAME fixture (SQL snapshot ↔ query cross-validation).
+        let rows = try await store.query(
+            group: .init(rules: [.init(field: .keywords, op: .contains, value: .text("Nature"))]))
+        XCTAssertEqual(
+            rows.map(\.path),
+            ["nature-rose.arw", "nature-tree.arw", "nature.arw"])
+        // Orphan rows never surface (the baseline rides the query too).
+        let all = try await store.query(group: .init(rules: []))
+        XCTAssertTrue(all.allSatisfy { $0.orphanSidecar == 0 })
+    }
+
+    func testQuerySortAscDescNullsLast() async throws {
+        let (store, root) = try await makeStoreFixture()
+        defer {
+            Task { await store.close() }
+            try? FileManager.default.removeItem(at: root)
+        }
+        // Ratings: nature 1 / nature-tree 2 / nature-rose 3 / natureholics
+        // 4; EVERYTHING else NULL (pct/quote/iso400/cleared/untagged).
+        let asc = try await store.query(
+            group: .init(rules: []),
+            sort: FilterSort(key: .rating, ascending: true))
+        XCTAssertEqual(
+            asc.prefix(4).map(\.path),
+            ["nature.arw", "nature-tree.arw", "nature-rose.arw", "natureholics.arw"])
+        XCTAssertEqual(asc.count, 9)
+        // NULLs ride LAST in ascending.
+        XCTAssertNil(asc.suffix(5).allSatisfy { $0.rating == nil } ? nil : "nonnull-in-tail")
+
+        let desc = try await store.query(
+            group: .init(rules: []),
+            sort: FilterSort(key: .rating, ascending: false))
+        XCTAssertEqual(
+            desc.prefix(4).map(\.path),
+            ["natureholics.arw", "nature-rose.arw", "nature-tree.arw", "nature.arw"])
+        // NULLs ride LAST in DESCENDING too.
+        XCTAssertTrue(desc.suffix(5).allSatisfy { $0.rating == nil })
+
+        // capture_date: only iso400.arw carries one — it leads ascending.
+        let dates = try await store.query(
+            group: .init(rules: []),
+            sort: FilterSort(key: .captureDate, ascending: true))
+        XCTAssertEqual(dates.first?.path, "iso400.arw")
+        XCTAssertTrue(dates.suffix(8).allSatisfy { $0.captureDate == nil })
+    }
+
+    func testQueryLimitPagination() async throws {
+        let (store, root) = try await makeStoreFixture()
+        defer {
+            Task { await store.close() }
+            try? FileManager.default.removeItem(at: root)
+        }
+        // LIMIT is bound; the path tiebreaker makes the page deterministic.
+        let page = try await store.query(
+            group: .init(rules: []), sort: FilterSort(key: .filename, ascending: true), limit: 3)
+        XCTAssertEqual(page.count, 3)
+        XCTAssertEqual(
+            page.map(\.path),
+            ["Capture/100%_shot.ARW", "cleared.arw", "iso400.arw"])
+    }
+
+    func testQueryCoexistsWithWriteTransactions() async throws {
+        let (store, root) = try await makeStoreFixture()
+        defer {
+            Task { await store.close() }
+            try? FileManager.default.removeItem(at: root)
+        }
+        // Concurrency smoke: the read face and the metadata/write faces
+        // share the actor's handle — the group runs them interleaved and
+        // every leg must succeed (WAL + actor serialization; zero new
+        // locking face).
+        let group = FilterPredicateGroup(rules: [
+            .init(field: .rating, op: .gte, value: .int(1)),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { tasks in
+            tasks.addTask {
+                for _ in 0..<20 {
+                    _ = try await store.query(group: group)
+                }
+            }
+            tasks.addTask {
+                let claim = SessionIndexStore.MetadataClaim(
+                    relPath: "nature.arw", rating: 5, colorLabel: nil,
+                    keywords: nil, flag: nil, note: nil, sidecarMtime: 1)
+                for _ in 0..<5 {
+                    try await store.claimMetadataApply(claims: [claim])
+                }
+            }
+            tasks.addTask {
+                for _ in 0..<5 {
+                    _ = try await store.markRowsStale(relPaths: ["nature-tree.arw"])
+                }
+            }
+            try await tasks.waitForAll()
+        }
+        // The query still answers after the interleaving.
+        let rows = try await store.query(group: group)
+        XCTAssertEqual(rows.count, 4)
     }
 }
