@@ -226,9 +226,11 @@ internal struct ExportPanelView: View {
     }
 
     private var canExport: Bool {
-        sessionState.currentSessionURL != nil
-            && (!browserModel.selectedOrderedPaths.isEmpty
-                || editorState.loadedImageURL != nil)
+        // F-11-04-1: gate on the ACTUAL targets (not merely "an image is
+        // loaded") — a loaded image outside the session (or a symlink-
+        // spelling mismatch) must NOT leave the run button enabled with an
+        // empty enqueue behind it.
+        sessionState.currentSessionURL != nil && !exportTargetRelPaths.isEmpty
     }
 
     private var exportTargetsSummary: String {
@@ -238,14 +240,13 @@ internal struct ExportPanelView: View {
 
     /// The export targets: the browser selection when one exists (the
     /// grid/culling multi-select), otherwise the currently edited image.
+    /// The spelling-tolerant prefix match lives on ExportState
+    /// (F-11-04-1, unit-tested there).
     private var exportTargetRelPaths: [String] {
-        let selection = browserModel.selectedOrderedPaths
-        if !selection.isEmpty { return selection }
-        guard let loaded = editorState.loadedImageURL,
-              let root = sessionState.currentSessionURL else { return [] }
-        let prefix = root.path + "/"
-        guard loaded.path.hasPrefix(prefix) else { return [] }
-        return [String(loaded.path.dropFirst(prefix.count))]
+        ExportState.targetRelPaths(
+            selection: browserModel.selectedOrderedPaths,
+            loadedImageURL: editorState.loadedImageURL,
+            sessionRoot: sessionState.currentSessionURL)
     }
 
     private func runExport() {

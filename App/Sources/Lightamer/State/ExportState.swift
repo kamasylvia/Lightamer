@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import LightamerCore
 import LightamerIOP
@@ -56,7 +57,50 @@ final class ExportState {
             yiyin: false)
     }
 
-    // MARK: - Queue observation (the panel's rows + the summary counters)
+    // MARK: - Targets derivation (the header count / run gate / enqueue face)
+
+    /// The export targets' rel paths (EXP-07 N×M): the browser selection
+    /// when one exists, otherwise the currently edited image.
+    ///
+    /// F-11-04-1: the loaded odoc URL may arrive in the SYMLINK-RESOLVED
+    /// spelling (the scanner enumerates with a realpath'd root: `/tmp` →
+    /// `/private/tmp`) while the session root keeps the link spelling (or
+    /// the reverse, if the session was opened through an already-resolved
+    /// path), and Foundation's `resolvingSymlinksInPath` does NOT resolve
+    /// the prefix link (L027/SessionWatcher precedent) — realpath(3) once
+    /// on BOTH sides and match any spelling pair; no match → empty (the
+    /// run gate then disables, the enqueue action never fires with a
+    /// silently empty batch).
+    static func targetRelPaths(
+        selection: [String], loadedImageURL: URL?, sessionRoot: URL?
+    ) -> [String] {
+        let selection = selection.filter { !$0.isEmpty }
+        if !selection.isEmpty { return selection }
+        guard let loaded = loadedImageURL, let root = sessionRoot else { return [] }
+        let rootSpellings = Set([root.path, physicalPath(of: root.path)])
+        let loadedSpellings = Set([loaded.path, physicalPath(of: loaded.path)])
+        for rootPath in rootSpellings {
+            let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+            for loadedPath in loadedSpellings where loadedPath.hasPrefix(prefix) {
+                return [String(loadedPath.dropFirst(prefix.count))]
+            }
+        }
+        return []
+    }
+
+    /// realpath(3) once (the L027 discipline: `withCString` caller-owned
+    /// buffer scope, never handed to free/deallocate).
+    private static func physicalPath(of path: String) -> String {
+        path.withCString { cpath -> String in
+            var buffer = [CChar](repeating: 0, count: 4096)
+            if realpath(cpath, &buffer) != nil {
+                return String(cString: buffer)
+            }
+            return path
+        }
+    }
+
+
 
     /// Job rows FIFO by seq — per-job state + the inline error face.
     private(set) var jobRows: [ExportJobSnapshot] = []
