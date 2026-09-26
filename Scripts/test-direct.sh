@@ -51,26 +51,34 @@ XCODE_DEV="$(xcode-select -p)"
 ARGS=()
 [ -n "${1:-}" ] && ARGS=(-XCTest "$1")
 
+# 判据 = 测试结果行（Executed 计数 + 失败行），NOT 宿主进程退出态——
+# 宿主 shell 的退出路径在**全绿轮也可能非零**（退出态污染，11-04 验收
+# 移交）；RC 只作诊断参考打印。RC=0 预置：宿主退出 0 时 `|| RC=$?` 不
+# 赋值，`set -u` 下不得引用未定义变量。
+RC=0
 env \
   DYLD_INSERT_LIBRARIES="$DD/Lightamer.app/Contents/Frameworks/libXCTestBundleInject.dylib" \
   DYLD_LIBRARY_PATH="$DD:$XCODE_DEV/Platforms/MacOSX.platform/Developer/usr/lib" \
   DYLD_FRAMEWORK_PATH="$DD:$XCODE_DEV/Contents/SharedFrameworks:$XCODE_DEV/Platforms/MacOSX.platform/Developer/Library/Frameworks" \
   XCTestConfigurationFilePath="$CONFIG" \
   "$HOST_BIN" \
-  "${ARGS[@]}" > /tmp/la-direct-tests.log 2>&1
-RC=$?
+  "${ARGS[@]}" > /tmp/la-direct-tests.log 2>&1 || RC=$?
 rm -f "$CONFIG" /tmp/la-xctest-config.* 2>/dev/null || true
 
+# 判据 = 测试结果行（Executed 计数 + 失败行），NOT 宿主进程退出态——
+# 宿主 shell 的退出路径在**全绿轮也可能非零**（退出态污染，11-04 验收
+# 移交）；RC 只作诊断参考打印。
 grep -E "Executed.*tests" /tmp/la-direct-tests.log | tail -1
-FAILED=$(grep -c "' failed" /tmp/la-direct-tests.log || true)
+FAILED=$(grep -cE "' failed \(|' failed \." /tmp/la-direct-tests.log || true)
+SUMMARY_FAIL=$(grep -E "^Executed [0-9]+ tests" /tmp/la-direct-tests.log | tail -1 | grep -oE "with [0-9]+ failures?" | grep -oE "[0-9]+" || echo 0)
 EXECUTED=$(grep -oE "Executed [0-9]+ tests" /tmp/la-direct-tests.log | tail -1 | grep -oE "[0-9]+" || echo 0)
 if [ "${EXECUTED:-0}" -eq 0 ]; then
-  echo "FAILED — Executed 0 tests（-XCTest 过滤名不匹配或旧容器），防空转假绿" >&2
+  echo "FAILED — Executed 0 tests（-XCTest 过滤名不匹配或旧容器），防空转假绿（host exit=$RC）" >&2
   exit 1
 fi
-if [ "$RC" -ne 0 ] || [ "${FAILED:-0}" -gt 0 ]; then
-  echo "FAILED — 完整输出: /tmp/la-direct-tests.log" >&2
+if [ "${FAILED:-0}" -gt 0 ] || [ "${SUMMARY_FAIL:-0}" -gt 0 ]; then
+  echo "FAILED — 完整输出: /tmp/la-direct-tests.log（host exit=$RC，仅参考）" >&2
   grep -B2 "' failed" /tmp/la-direct-tests.log | head -20 >&2
   exit 1
 fi
-echo "OK (direct launch, no testmanagerd)"
+echo "OK (direct launch, no testmanagerd; host exit=$RC informational)"
