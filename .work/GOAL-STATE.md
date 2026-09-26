@@ -63,7 +63,7 @@
 
 - **⚠️ 配额 1310 模式（2026-09-26 17:4x）**：账户周/月上限触顶（2026-09-29 23:45 重置）——subagent 派遣全废，orchestrator 转 **inline 亲推**。两阵亡现场状态：①**UAT**：app 活着（01:31 Debug 构建）+ `~/la-uat-session` fixture 就绪 + T1/T10 截图已存，orchestrator inline 续答 T2-T15 → 写回 09-UAT.md → 谓词 → 翻转；②**12-3**：3 commits 已落（`76dde86` XMPWriter / `e5e3a21` 三格式注入 / `12c6afa` 导出链挂载+六格式矩阵）+ 6 文件未提交 WIP（MetadataController/ContentView/XMPContainerInjector/MetadataService/xcstrings/XMPContainerInjectorTests），UAT 后 inline 续完（审 WIP → 跑套件 → 补 T5/T6 closeout）。**若 orchestrator 上下文/配额亦断：恢复源 = 本行 + git status WIP 清单 + 09-UAT.md 现状**。
 
-- **🔴 新阻塞（2026-09-26 18:5x UAT computer-use 自答抓出，major）**：**G-09-T4 粘贴参数不传输**——编辑菜单 粘贴调整/部分粘贴 三式（覆盖/合并/部分）history 追加「粘贴调整」但目标 lra instances paramsData 零变化；复制侧已证 correct（T15 对话框载荷=源曝光编辑）；选择视觉验证 ×2；无编辑器干扰复现；等 debounce 4.5s。PasteSemanticsTests 16 条全绿（test host）→ **grid 菜单 paste 路径与 9-4 管线集成断层**。证据：uat09-T4-pasted/sel2/sel3/T15-dialog/after.png + UAT Gaps 节。**后果：Phase 9 翻转继续阻塞（正确行为——带病不签核）+ HIST-05 Delivered 注记需降级复审**。修复批：待派（orchestrator inline 或 9-29 配额重置后）。
+- ~~**🔴 新阻塞（2026-09-26 18:5x UAT computer-use 自答抓出，major）**~~ **→ 已翻案撤销（2026-09-27 00:1x）**：「粘贴参数不传输」= 测试程序错误（复制系编辑器绑定设计，L033），干净态单变量测试全过（-0.5 字节级传输 + ⌘Z 回退 position 9→7）。**UAT 终态 = 12 pass / 3 skip（T6→P15、T11→P3+、T14 fixture 单步限制）/ 0 真缺陷**；谓词仍挡于三条 skip（工具只认 pass）→ **Phase 9 翻转待用户对 defer 的豁免或走查**。原条目：**G-09-T4 粘贴参数不传输**——编辑菜单 粘贴调整/部分粘贴 三式（覆盖/合并/部分）history 追加「粘贴调整」但目标 lra instances paramsData 零变化；复制侧已证 correct（T15 对话框载荷=源曝光编辑）；选择视觉验证 ×2；无编辑器干扰复现；等 debounce 4.5s。PasteSemanticsTests 16 条全绿（test host）→ **grid 菜单 paste 路径与 9-4 管线集成断层**。证据：uat09-T4-pasted/sel2/sel3/T15-dialog/after.png + UAT Gaps 节。**后果：Phase 9 翻转继续阻塞（正确行为——带病不签核）+ HIST-05 Delivered 注记需降级复审**。修复批：待派（orchestrator inline 或 9-29 配额重置后）。
 
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
 
