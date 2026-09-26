@@ -21,3 +21,18 @@
 - crash 注入一致性（F6）与 heal 回填为正确性测试（`testCrashBetweenClaimAndWriteHealsToOldValues`），
   不涉计量；段3 落盘吞吐不重复计量（复用 9-4 `BatchSidecarWriter`，PERF07-SEGMENT3 账在
   `.work/09/perf.md` ⑥）。
+
+## 12-4 预设批量 apply 万张计量门（T2）
+
+| 项 | 口径 | 数字 | 判定 |
+|---|---|---|---|
+| 预设 apply 万张 段1+段2（loadDocument → PastePayload 直构 → `SessionBatchApplier.apply` writer=nil 门形态） | SSD 临时目录 fixture（Perf07 同款 10k 真 `.lra`）、Debug、`testTenThousandPresetApplySegmentsOneAndTwoGate` | **0.679s** | **≤5s 门达成**（Debug 余量 ~7×；Release 只会更快） |
+
+- 打印锚：`PRESET12-GATE preset apply segments1+2 10k: <s>s (gate ≤ 5.000s)` +
+  `PRESET12-GATE-CONFIG: Debug|Release`（`Tests/LightamerTests/PresetApplierTests.swift`）。
+- 与 12-1 元数据门（0.457s）同量级：同一条 9-4 管线（composeSegment 10k sidecar
+  decode + `PasteSemantics.paste` 合成 + `claimBatchApply` 单事务），预设面只多
+  `loadDocument` 一次单文件读——万张门语义（PERF-07 延续）零新渲染路径达成。
+- 等价性测试（`testPresetApplyEqualsClipboardPasteTerminalState`）为正确性测试不涉
+  计量：索引行逐列相等（HistoryHash 不折 UUID）+ sidecar 字节经 recast-UUID 规范化后
+  全等（9-4 每次 paste 重铸 UUID 为 by-design 唯一自由度）。
