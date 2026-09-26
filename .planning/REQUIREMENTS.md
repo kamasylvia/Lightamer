@@ -222,16 +222,16 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 - [ ] **DIST-03**: DMG / zip 分发
 - [ ] **DIST-04**: CI（GitHub Actions：构建、测试、签名、公证、发布）
 
-### Catalog / Category Mode (CATALOG)【2026-09-27 用户指令新立，v1 扩展】
+### Catalogs Mode (CATALOG)【2026-09-27 用户指令新立；同日用户终裁 v1 后端 = 本地 SQLite，pg 降为 v2 评估项】
 
-对标 Capture One 的双模式组织：Sessions（默认、零依赖）与 Catalogs（Lightroom Collections/Categories 同类；**手动配置 PostgreSQL 后方可启用**）。会话权威语义不变：sidecar 恒真身，目录库是可重建聚合视图层。
+对标 Capture One 的双模式组织：Sessions（默认、零依赖）与 Catalogs（Lightroom Collections/Categories 同类）。会话权威语义不变：sidecar 恒真身，目录库是可重建聚合视图层。
 
-- [ ] **CATALOG-01**: 双模式架构——Sessions 与 Catalogs 模式 共存互斥可切；Sessions 恒默认且零外部依赖；Catalogs 模式仅在设置中完成 pg 连接配置并测试通过后可选启用
-- [ ] **CATALOG-02**: pg 连接配置面——host/port/db/user/password + 连接测试 + 安全存储；Swift 驱动选型（PostgresNIO vs libpq）入 research
-- [ ] **CATALOG-03**: 目录库 schema 与同步——跨会话影像元数据镜像 + catalogs 组织树（C1 Categories 语义）+ 虚拟集合；同步方向 = 会话→目录单向投影（sidecar 真身不变，目录库可全量重建——mutable and untrusted 原则延续）
-- [ ] **CATALOG-04**: catalogs 组织树编辑与归类（C1 Categories 语义）——树 CRUD/拖拽 + 图片归类（含批量，复用 Phase 12 批量面）
-- [ ] **CATALOG-05**: 跨会话浏览——Catalogs 模式下浏览/过滤/智能相册求值（复用 12-2 谓词层，求值域扩全库）
-- [ ] **CATALOG-06**: 脱库降级——pg 不可达时 Sessions 模式完整可用零功能损失；目录库数据丢失可由会话面全量重建
+- [ ] **CATALOG-01**: 双模式架构——Sessions 与 Catalogs 模式共存互斥可切；Sessions 恒默认且零外部依赖；Catalogs 模式在设置中启用
+- [ ] **CATALOG-02**: 目录库后端（v1 = **本地 SQLite**，复用 Phase 9 libsqlite3 面 + 12-2 FilterSQL 谓词层，零新依赖）——跨会话影像元数据镜像 + catalogs 组织树（C1 Categories 语义）+ 虚拟集合；同步方向 = 会话→目录单向投影（sidecar 真身不变，目录库可全量重建——mutable and untrusted 原则延续）；**标签物化表**（(image_id, tag) 拆行，层级展开可索引——百万级行数下的层级关键字查询面）
+- [ ] **CATALOG-03**: catalogs 组织树编辑与归类（C1 Categories 语义）——树 CRUD/拖拽 + 图片归类（含批量，复用 Phase 12 批量面）
+- [ ] **CATALOG-04**: 跨会话浏览——Catalogs 模式下浏览/过滤/智能相册求值（复用 12-2 谓词层，求值域扩全库）
+- [ ] **CATALOG-05**: 脱库降级——目录库数据丢失可由会话面全量重建；Sessions 模式零功能损失
+- [ ] **CATALOG-06**: 【v2 预留】远程后端评估——现成 pg 实例（LAN 延迟 ~0.2-1ms/往返可接受，可用性绑 NAS 为代价）或远程 SQLite 镜像；是否值得跨机/多客户端访问由 v2 届时裁决；FilterSQL 方言适配为该轮工作量
 
 ## v2 Requirements
 
@@ -279,7 +279,7 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| ~~Lightroom catalog 模式（中央库）~~ **→ 2026-09-27 用户指令修订：不再整族排除**——可选第二模式（Catalogs 模式，pg 后端）已立为正式需求（见 CATALOG 族）；仍是**默认关闭**，Sessions 恒默认 |
+| ~~Lightroom catalog 模式（中央库）~~ **→ 2026-09-27 用户指令修订：不再整族排除**——可选第二模式（Catalogs 模式，v1 后端 = 本地 SQLite；pg 降为 v2 评估项）已立为正式需求（见 CATALOG 族）；仍是**默认关闭**，Sessions 恒默认 |
 | Mac App Store 分发 / 沙盒 | 沙盒限制文件访问与 Session 模式冲突；开源免费路线选独立签名公证 |
 | iOS / iPadOS 版本 | 项目定位 macOS 专属；依赖 Metal / Core Image / SwiftUI 桌面版 |
 | Windows / Linux 跨平台 | 依赖 Metal / Core Image / SwiftUI；跨平台会牺牲原生体验与性能 |
