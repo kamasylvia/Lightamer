@@ -113,6 +113,16 @@ public struct SessionIndexRow: Sendable, Equatable {
     public var keywords: String?
     public var orphanSidecar: Int64?
     public var dirty: Int64?
+    // ── v2 tail (Plan 12-1 T2/T3) ──
+    public var flag: Int64?
+    public var note: String?
+    public var cameraMake: String?
+    public var cameraModel: String?
+    public var lensModel: String?
+    public var iso: Int64?
+    public var focalLength: Double?
+    public var aperture: Double?
+    public var exposure: Double?
 }
 
 /// Failure-injection points for the transaction-atomicity test.
@@ -392,6 +402,8 @@ public actor SessionIndexStore {
                   sidecar_present = ?, sidecar_mtime = NULL,
                   imageID = NULL, has_edits = NULL, params_hash = NULL,
                   layer_count = NULL, layer_summary = NULL,
+                  rating = NULL, color_label = NULL, keywords = NULL,
+                  flag = NULL, note = NULL,
                   thumb_state = CASE WHEN thumb_state = 0 THEN 0 ELSE ? END
                 WHERE path = ?
                 """)
@@ -521,43 +533,11 @@ public actor SessionIndexStore {
     /// Full row read (tests + parity).
     public func fetchAllRows() throws -> [SessionIndexRow] {
         guard let handle else { return [] }
-        let statement = try handle.prepare("""
-            SELECT path, dir, filename, file_size, file_mtime, scan_epoch,
-                   imageID, sidecar_present, sidecar_mtime, has_edits,
-                   params_hash, layer_count, layer_summary, orientation,
-                   width, height, capture_date, thumb_state, thumb_path,
-                   thumb_params_hash, rating, color_label, keywords,
-                   orphan_sidecar, dirty
-            FROM images ORDER BY path
-            """)
+        let statement = try handle.prepare(
+            "SELECT \(Self.rowSelectColumns) FROM images ORDER BY path")
         var rows: [SessionIndexRow] = []
         while try statement.step() {
-            var row = SessionIndexRow(path: statement.columnText(0) ?? "")
-            row.dir = statement.columnText(1)
-            row.filename = statement.columnText(2)
-            row.fileSize = statement.columnInt(3)
-            row.fileMtime = statement.columnDouble(4)
-            row.scanEpoch = statement.columnInt(5)
-            row.imageID = statement.columnText(6)
-            row.sidecarPresent = statement.columnInt(7)
-            row.sidecarMtime = statement.columnDouble(8)
-            row.hasEdits = statement.columnInt(9)
-            row.paramsHash = statement.columnText(10)
-            row.layerCount = statement.columnInt(11)
-            row.layerSummary = statement.columnText(12)
-            row.orientation = statement.columnInt(13)
-            row.width = statement.columnInt(14)
-            row.height = statement.columnInt(15)
-            row.captureDate = statement.columnDouble(16)
-            row.thumbState = statement.columnInt(17)
-            row.thumbPath = statement.columnText(18)
-            row.thumbParamsHash = statement.columnText(19)
-            row.rating = statement.columnInt(20)
-            row.colorLabel = statement.columnInt(21)
-            row.keywords = statement.columnText(22)
-            row.orphanSidecar = statement.columnInt(23)
-            row.dirty = statement.columnInt(24)
-            rows.append(row)
+            rows.append(Self.readRow(statement))
         }
         return rows
     }
@@ -565,17 +545,29 @@ public actor SessionIndexStore {
     /// Single-row read (Plan 09-03 T3 — the provider's fetch path).
     public func fetchRow(relPath: String) throws -> SessionIndexRow? {
         guard let handle else { return nil }
-        let statement = try handle.prepare("""
-            SELECT path, dir, filename, file_size, file_mtime, scan_epoch,
-                   imageID, sidecar_present, sidecar_mtime, has_edits,
-                   params_hash, layer_count, layer_summary, orientation,
-                   width, height, capture_date, thumb_state, thumb_path,
-                   thumb_params_hash, rating, color_label, keywords,
-                   orphan_sidecar, dirty
-            FROM images WHERE path = ?
-            """)
+        let statement = try handle.prepare(
+            "SELECT \(Self.rowSelectColumns) FROM images WHERE path = ?")
         try statement.bindText(1, relPath)
         guard try statement.step() else { return nil }
+        return Self.readRow(statement)
+    }
+
+    /// The full row projection's SELECT list (the v2 34-column order —
+    /// keep in sync with `SessionIndexSchema.imagesColumns`; ONE shared
+    /// spelling so the two fetch paths can never drift).
+    private static let rowSelectColumns = """
+        path, dir, filename, file_size, file_mtime, scan_epoch,
+        imageID, sidecar_present, sidecar_mtime, has_edits,
+        params_hash, layer_count, layer_summary, orientation,
+        width, height, capture_date, thumb_state, thumb_path,
+        thumb_params_hash, rating, color_label, keywords,
+        orphan_sidecar, dirty,
+        flag, note, camera_make, camera_model, lens_model,
+        iso, focal_length, aperture, exposure
+        """
+
+    /// The shared column→row projection (indices match rowSelectColumns).
+    private static func readRow(_ statement: SQLiteStatement) -> SessionIndexRow {
         var row = SessionIndexRow(path: statement.columnText(0) ?? "")
         row.dir = statement.columnText(1)
         row.filename = statement.columnText(2)
@@ -601,6 +593,15 @@ public actor SessionIndexStore {
         row.keywords = statement.columnText(22)
         row.orphanSidecar = statement.columnInt(23)
         row.dirty = statement.columnInt(24)
+        row.flag = statement.columnInt(25)
+        row.note = statement.columnText(26)
+        row.cameraMake = statement.columnText(27)
+        row.cameraModel = statement.columnText(28)
+        row.lensModel = statement.columnText(29)
+        row.iso = statement.columnInt(30)
+        row.focalLength = statement.columnDouble(31)
+        row.aperture = statement.columnDouble(32)
+        row.exposure = statement.columnDouble(33)
         return row
     }
 
@@ -667,6 +668,14 @@ public actor SessionIndexStore {
             var layerCount: Int64?
             var layerSummary: String?
             var sidecarMtime: Double
+            // v2 metadata columns (Plan 12-1 T3, F7 additive duty): the
+            // drift re-read must NOT drop the rating face — the five
+            // fields re-derive from the sidecar truth alongside.
+            var rating: Int64?
+            var colorLabel: Int64?
+            var keywords: String?
+            var flag: Int64?
+            var note: String?
         }
         var summaries: [String: Summary] = [:]
         let decoder = JSONDecoder()
@@ -689,8 +698,12 @@ public actor SessionIndexStore {
                     paramsHash: String(document.historyHash), // L013 decimal TEXT
                     layerCount: document.layerStack.map { Int64($0.layers.count) },
                     layerSummary: layerSummary,
-                    sidecarMtime: mtime?.timeIntervalSince1970 ?? 0
-                )
+                    sidecarMtime: mtime?.timeIntervalSince1970 ?? 0,
+                    rating: document.rating.map(Int64.init),
+                    colorLabel: document.colorLabel.map(Int64.init),
+                    keywords: Self.materializeKeywords(document.keywords),
+                    flag: document.flag.map(Int64.init),
+                    note: document.note)
             } catch {
                 // DEGRADED: leave the row in the NULL class (retried next
                 // open); log only — SC#2 gracefully.
@@ -706,7 +719,8 @@ public actor SessionIndexStore {
             let update = try handle.prepare("""
                 UPDATE images SET
                   imageID = ?, has_edits = ?, params_hash = ?,
-                  layer_count = ?, layer_summary = ?, sidecar_mtime = ?
+                  layer_count = ?, layer_summary = ?, sidecar_mtime = ?,
+                  rating = ?, color_label = ?, keywords = ?, flag = ?, note = ?
                 WHERE path = ?
                 """)
             for (rel, summary) in summaries {
@@ -716,7 +730,12 @@ public actor SessionIndexStore {
                 try update.bindInt(4, summary.layerCount)
                 try update.bindText(5, summary.layerSummary)
                 try update.bindDouble(6, summary.sidecarMtime)
-                try update.bindText(7, rel)
+                try update.bindInt(7, summary.rating)
+                try update.bindInt(8, summary.colorLabel)
+                try update.bindText(9, summary.keywords)
+                try update.bindInt(10, summary.flag)
+                try update.bindText(11, summary.note)
+                try update.bindText(12, rel)
                 _ = try update.step()
                 try update.reset()
             }
@@ -726,6 +745,15 @@ public actor SessionIndexStore {
             throw error
         }
         return summaries.count
+    }
+
+    /// The `keywords` DB materialization (Plan 12-1 T4; D-12-CONTEXT-3):
+    /// the full path array joins with `|` (the query face's four-clause
+    /// predicate works over the joined string). nil → NULL (never tagged,
+    /// distinct from cleared); `[]` → EMPTY STRING (cleared) — the two
+    /// states stay distinguishable in the cache column.
+    static func materializeKeywords(_ keywords: [String]?) -> String? {
+        keywords.map { $0.joined(separator: "|") }
     }
 
     /// The frozen layer-summary JSON spelling (execution decision, recorded
@@ -960,6 +988,85 @@ public actor SessionIndexStore {
         }
     }
 
+    // MARK: - Metadata claim (Plan 12-1 T3; the D-8 metadata write face)
+
+    /// One segment-2 metadata claim row — the FIVE metadata columns' new
+    /// state, projected from the composed document (真身恒 sidecar: the
+    /// claim mirrors what segment 3 is about to write).
+    public struct MetadataClaim: Sendable {
+        public var relPath: String
+        public var rating: Int64?
+        public var colorLabel: Int64?
+        /// The `|`-joined materialization (nil = NULL never-tagged;
+        /// "" = cleared).
+        public var keywords: String?
+        public var flag: Int64?
+        public var note: String?
+        /// The predicted post-write sidecar mtime (execution decision,
+        /// recorded in 12-1-DECISIONS: the segment-3 write's real mtime is
+        /// re-derived by the EXISTING mtime-drift sweep on the next open —
+        /// the same reconciliation path every 9-4 batch paste rides; this
+        /// claim's job is only to keep the crash window honest via
+        /// dirty=1).
+        public var sidecarMtime: Double
+
+        public init(
+            relPath: String, rating: Int64?, colorLabel: Int64?,
+            keywords: String?, flag: Int64?, note: String?,
+            sidecarMtime: Double
+        ) {
+            self.relPath = relPath
+            self.rating = rating
+            self.colorLabel = colorLabel
+            self.keywords = keywords
+            self.flag = flag
+            self.note = note
+            self.sidecarMtime = sidecarMtime
+        }
+    }
+
+    /// The claim SQL — VERBATIM per 12-RESEARCH §2.4 (F6). Deliberately
+    /// DIFFERENT from `claimBatchApply`: a metadata write must NOT touch
+    /// `thumb_state` / `params_hash` / `has_edits` / layer columns (a
+    /// rating is not a parameter change — 万张打分零缩略图再生, D-8 红线).
+    /// Exposed for the column-set assertion test (the SET list is the
+    /// contract).
+    public static let claimMetadataApplySQL = """
+        UPDATE images SET rating=?, color_label=?, keywords=?, flag=?, note=?,
+                          sidecar_mtime=?, dirty=1
+        WHERE path=? AND orphan_sidecar=0
+        """
+
+    /// The metadata segment-2 claim: set the five columns + a predicted
+    /// sidecar_mtime + dirty=1 for ALL targets in ONE transaction (PK-seek
+    /// per row — the PERF-07 10k shape). The dirty flag opens the F6
+    /// consistency window: a crash before segment 3's write heals the row
+    /// back to the DISK sidecar's values via `healDirtyRows` (旧值回填 —
+    /// state consistent, the score honestly did not land). Any failure
+    /// rolls the WHOLE claim back.
+    public func claimMetadataApply(claims: [MetadataClaim]) async throws {
+        guard let handle, !claims.isEmpty else { return }
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            let update = try handle.prepare(Self.claimMetadataApplySQL)
+            for claim in claims {
+                try update.bindInt(1, claim.rating)
+                try update.bindInt(2, claim.colorLabel)
+                try update.bindText(3, claim.keywords)
+                try update.bindInt(4, claim.flag)
+                try update.bindText(5, claim.note)
+                try update.bindDouble(6, claim.sidecarMtime)
+                try update.bindText(7, claim.relPath)
+                _ = try update.step()
+                try update.reset()
+            }
+            try handle.exec("COMMIT")
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
+    }
+
     /// The crash-self-heal leg (D-09-CONTEXT-4; rides the 9-1 open sync):
     /// every DIRTY row re-reads its DISK SIDECAR (the truth) and the index
     /// columns are overwritten from it; readable → dirty=0 + the full
@@ -985,6 +1092,15 @@ public actor SessionIndexStore {
             var layerCount: Int64?
             var layerSummary: String?
             var sidecarMtime: Double
+            // v2 metadata columns (Plan 12-1 T3, F7 additive duty): a
+            // crash-window heal re-derives the rating face from the disk
+            // truth too — a claimed-but-unwritten metadata edit heals back
+            // to the sidecar's OLD values (state consistent, 真身诚实).
+            var rating: Int64?
+            var colorLabel: Int64?
+            var keywords: String?
+            var flag: Int64?
+            var note: String?
         }
         var healed: [String: Healed] = [:]
         let decoder = JSONDecoder()
@@ -1004,7 +1120,12 @@ public actor SessionIndexStore {
                 paramsHash: String(document.historyHash),
                 layerCount: document.layerStack.map { Int64($0.layers.count) },
                 layerSummary: document.layerStack.map(Self.layerSummaryJSON),
-                sidecarMtime: mtime?.timeIntervalSince1970 ?? 0)
+                sidecarMtime: mtime?.timeIntervalSince1970 ?? 0,
+                rating: document.rating.map(Int64.init),
+                colorLabel: document.colorLabel.map(Int64.init),
+                keywords: Self.materializeKeywords(document.keywords),
+                flag: document.flag.map(Int64.init),
+                note: document.note)
         }
         guard !healed.isEmpty else { return 0 }
 
@@ -1014,6 +1135,7 @@ public actor SessionIndexStore {
                 UPDATE images SET
                   imageID = ?, has_edits = ?, params_hash = ?,
                   layer_count = ?, layer_summary = ?, sidecar_mtime = ?,
+                  rating = ?, color_label = ?, keywords = ?, flag = ?, note = ?,
                   dirty = 0
                 WHERE path = ?
                 """)
@@ -1024,7 +1146,12 @@ public actor SessionIndexStore {
                 try update.bindInt(4, summary.layerCount)
                 try update.bindText(5, summary.layerSummary)
                 try update.bindDouble(6, summary.sidecarMtime)
-                try update.bindText(7, rel)
+                try update.bindInt(7, summary.rating)
+                try update.bindInt(8, summary.colorLabel)
+                try update.bindText(9, summary.keywords)
+                try update.bindInt(10, summary.flag)
+                try update.bindText(11, summary.note)
+                try update.bindText(12, rel)
                 _ = try update.step()
                 try update.reset()
             }
