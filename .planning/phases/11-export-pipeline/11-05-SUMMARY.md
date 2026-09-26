@@ -49,3 +49,21 @@
 3. **VALIDATION 的 SC#5「测试锚」列**：post-actions 无独立单测类，以「注入面自查实录（11-04）+ 队列 settle 语义单测」组合作为锚——证据为执行期实录而非测试文件，已在表内注明出处。
 4. **模糊腿 Release 复测的数字解读**：blur+overlay Release ≈164s 与 Debug 首渲冷值同量级——代价主体是 21-pass 分解固有算力而非 PSO 冷启动；SC 门 = 观感（08-3 GUI 轮已过），本记录不设门，优化杠杆挂 Phase 15。
 5. 终轮数字 1258 早于 VALIDATION 落盘预测，终轮实测一致（1248+10）；VALIDATION 内时间为实测回填。
+
+## 后记：R2 复核收尾必修批（2026-09-26 12:4x，executor subagent worker）
+
+R2 聚焦复核（PROGRESS 12:0x 行）④⑤⑥ 三项裁定的执行批，3 commits（未 push）：
+
+- **`a99f95c` fix(11-03)**：图层子系统 5 处直取残留 → 路由 seam（`RetouchEngine.swift`
+  blitCrop/fillZero/readScalar/activeMaskCount + `DrawnMaskRasterizer.swift:515`，
+  `9ea0d93` 同模式机械替换——L031「唯一获取点」纪律的全仓收口）；同批回归锚 ×2
+  （T4/T5 先例原子性）：helper 队列身份三态断言 + sidecar 携 retouch heal +
+  brush-masked gain 图层栈的导出 round-trip（重复渲染字节稳定 + flat 对照内容差）。
+- **`c5e3ae7` fix(11-05)**：T0a「双关==基线」从容差 1/255 **恢复 byte-exact**
+  （`9439b59` 容差的「GPU 非确定」归因被 L031 机制级证伪；修复后同参连渲 diff 0
+  为机制事实）；sanity 错位红断言保留；两处被证伪归因注释改引 L031。
+- **`b6a8411` docs(11)**：GOAL-STATE 阻塞段重复「2.」编号顺次修正；
+  DISCUSSION-LOG 遗留对表行 1 追加式补正注记（历史行不改写）。
+
+**验证门**：目标类隔离 ×3 全绿（9/0fail）；全套 ×2 = **1260/6skip/0fail**
+（419.3s / 414.5s；基线 1258 + 新锚 ×2，计数不变规则符合）。
