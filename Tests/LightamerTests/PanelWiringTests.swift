@@ -374,6 +374,12 @@ final class PanelWiringTests: XCTestCase {
         let toneEqualRecord = ModuleInstance(module: ToneEqualModule.self, params: .init())
         XCTAssertNotNil(state.panelView(for: toneEqualRecord, edit: session),
                         "toneequal must dispatch a panel")
+        // Plan 12-5 T5: the lut3d panel (library picker + color space +
+        // interpolation + hints).
+        XCTAssertTrue(state.panelOpNames.contains("lut3d"), "lut3d panel registered")
+        let lutRecord = ModuleInstance(module: Lut3dModule.self, params: .init())
+        XCTAssertNotNil(state.panelView(for: lutRecord, edit: session),
+                        "lut3d must dispatch a panel")
 
         let colorinRecord = ModuleInstance(module: ColorInModule.self, params: .init())
         XCTAssertNil(state.panelView(for: colorinRecord, edit: session),
