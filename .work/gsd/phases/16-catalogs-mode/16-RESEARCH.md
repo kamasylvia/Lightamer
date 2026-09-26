@@ -43,7 +43,7 @@ CREATE TABLE catalog_images (
   id INTEGER PRIMARY KEY,            -- 稳定内部键（rowid alias；VACUUM 不改列值）
   session_id TEXT NOT NULL,          -- → catalog_sessions.session_id
   rel_path TEXT NOT NULL,            -- session 列 path 改名（语境化）
-  -- ……28 列镜像（终表见 §RQ-16-2），此处略——
+  -- ……29 列镜像（终表见 §RQ-16-2），此处略——
   UNIQUE(session_id, rel_path)       -- 复合身份（隐含唯一索引，同时服务会话域过滤）
 );
 -- 排序索引：统一形状 (k IS NULL, k [DESC], rel_path)，与 ORDER BY 逐字对齐
@@ -124,7 +124,7 @@ SQLite planner 对「低选择性过滤 + LIMIT 排序」常选过滤索引 + TE
 | + | — | `session_id TEXT NOT NULL` | 复合身份半边 |
 | + | — | `id INTEGER PRIMARY KEY` | 稳定内部键（tags/categories 引用它，非 rowid） |
 
-净镜像 **28 列 + session_id + id = 30 列**。migrate 策略 = `CatalogIndexSchema` 表驱动（照 SessionIndexSchema.swift:234-262 先例：列冻结表 + PRAGMA table_info 幂等 ALTER + v99 拒开 + `schemaVersion=1` 锚，LightamerPreset.swift:38 同款语义）。
+净镜像 **29 列 + session_id + id = 31 列**（R1 勘误：原 28/30 为算术 slip——34 − 5 不镜像 = 29）。migrate 策略 = `CatalogIndexSchema` 表驱动（照 SessionIndexSchema.swift:234-262 先例：列冻结表 + PRAGMA table_info 幂等 ALTER + v99 拒开 + `schemaVersion=1` 锚，LightamerPreset.swift:38 同款语义）。
 
 ### RQ-16-3 session 身份与生命周期
 

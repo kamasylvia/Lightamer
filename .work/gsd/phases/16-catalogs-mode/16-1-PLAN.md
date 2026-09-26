@@ -1,13 +1,13 @@
 ---
 phase: 16
 plan: "16-1"
-title: "Catalog 底座（全 Phase 依赖根）：CatalogIndexSchema 四表+关联表 DDL（30 列镜像终表 + 7 索引 + pragmas 基线）+ CatalogProjector 水位增量投影（键集对账 + 标签物化祖先展开 + sessions 入册）+ FilterSQL domain 分派（keywords EXISTS / orderBySQL / scopeClause 三落点）+ CatalogIndexStore keyset 查询面（NULL 尾段两段式 + `+` 前缀形状）+ 1M 行基准 harness 首跑落账"
+title: "Catalog 底座（全 Phase 依赖根）：CatalogIndexSchema 四表+关联表 DDL（31 列镜像终表 + 7 索引 + pragmas 基线）+ CatalogProjector 水位增量投影（键集对账 + 标签物化祖先展开 + sessions 入册）+ FilterSQL domain 分派（keywords EXISTS / orderBySQL / scopeClause 三落点）+ CatalogIndexStore keyset 查询面（NULL 尾段两段式 + `+` 前缀形状）+ 1M 行基准 harness 首跑落账"
 wave: 1
 depends_on: []
 autonomous: true
 requirements: [CATALOG-02]
 files_modified:
-  - LightamerCore/Sources/Catalog/CatalogIndexSchema.swift          # 新建：四表+关联表 DDL / 30 列冻结表 / 7 索引 / pragmas（WAL+NORMAL+cache_size+busy_timeout）/ schemaVersion=1 / v99 拒开 / 表驱动 migrate
+  - LightamerCore/Sources/Catalog/CatalogIndexSchema.swift          # 新建：四表+关联表 DDL / 31 列冻结表 / 7 索引 / pragmas（WAL+NORMAL+cache_size+busy_timeout）/ schemaVersion=1 / v99 拒开 / 表驱动 migrate
   - LightamerCore/Sources/Catalog/CatalogProjector.swift            # 新建：水位增量投影 + 键集对账 + 标签物化（祖先展开算法）+ sessions 入册/离线标记 + sweep
   - LightamerCore/Sources/Catalog/CatalogIndexStore.swift           # 新建：actor 查询面——keyset 两段式分页 / 锚点消费 / COUNT 现算+memo / tag 批量 GROUP BY
   - LightamerCore/Sources/Session/FilterSQL.swift                   # domain 分派三落点：translate/translateConjoining 加 domain 参数（默认 .session 零改）/ keywords catalog 域 EXISTS 模板 / `+` 前缀纪律 / orderBySQL domain 参数 / scopeClause 新函数 / filename-dir contains→startsWith 降级
@@ -27,7 +27,7 @@ files_modified:
 
 > 背景：把 Phase 9/12 已验证的 session 索引底座放大到跨会话域（D-16-CONTEXT-1/2/3）。
 > 四条主线（16-RESEARCH 正本）：① `CatalogIndexSchema` —— `.lcat` 单文件四表 + 三关联表 +
-> **30 列语境化镜像**（28 镜像列 + `session_id` + 稳定 `id`；`path`→`rel_path` 改名；thumb 三列
+> **31 列语境化镜像**（29 镜像列 + `session_id` + 稳定 `id`；`path`→`rel_path` 改名；thumb 三列
 > 与 `scan_epoch`/`dirty` 不镜像，§RQ-16-2 终表）+ **7 索引**（排序索引统一形状
 > `(k IS NULL, k [DESC], rel_path)`，F6）；② `CatalogProjector` —— 水位增量投影 +
 > **键集对账**（修正①：纯水位 diff 检测不到删除行）+ 标签物化表祖先展开（§6 串域前缀展开
@@ -46,7 +46,7 @@ files_modified:
    表 + session 身份）、§4（投影时序图 + 修正①键集对账）、§5（FilterSQL 落点）、§6（keywords
    `|` 歧义与 v1 裁决）、§7（RQ-16-13 harness 规格 / RQ-16-17 并发）、§9（三缝 grep 审计清
    单）、§10（本 plan 任务/AC 草案正本）
-2. `.work/gsd/phases/16-catalogs-mode/16-CONTEXT.md` D-16-CONTEXT-1（四表骨架/30 列/稳定 id）、
+2. `.work/gsd/phases/16-catalogs-mode/16-CONTEXT.md` D-16-CONTEXT-1（四表骨架/31 列/稳定 id）、
    D-16-CONTEXT-2（投影触发/水位/Sessions 零触碰语义）、D-16-CONTEXT-3（标签物化/形状分派）、
    D-16-CONTEXT-8（三道受控缝——纪律不是代码）、继承定案节（pragmas 基线/L013/one-way 格式锁/
    失败语义）、验证红线节（parity/隔离断言/标签 golden 口径）
@@ -68,7 +68,7 @@ files_modified:
    惯例——catalog 位置常量同款）
 7. `App/Sources/Lightamer/Session/SessionCoordinator.swift`：`openAndSync`（:266——投影钩子挂
    点；openSession 五步返回后后台 Task）
-8. `LightamerCore/Sources/Session/SessionCoordinator.swift` 内 `SessionState.promoteRecent`
+8. `App/Sources/Lightamer/State/SessionState.swift` 的 `SessionState.promoteRecent`（:265 起；checker M1 路径修正——原 research 误挂 Coordinator 名下）
    URL 精确去重语义（SESSION 面先例；catalog_sessions 复用判定同构）
 9. `LESSONS.md` L009（fixture 禁 UNITEK / 同目录 tmp 晋升）/ L013（哈希 decimal String）/ L020
    （内容级断言）/ L031（唯一路由纪律——本 plan 的 SQL/DDL/C-API 三缝落实正本）+ `AGENTS.md`
@@ -122,7 +122,7 @@ files_modified:
      不设（<2% 增益，可选项不入基线——DECISIONS 记录）。
   3. **七张表 DDL**（列名拼写 verbatim，16-RESEARCH §1.2/§RQ-16-2/§RQ-16-3）：
      - `catalog_images`：`id INTEGER PRIMARY KEY`（稳定内部键，rowid alias——VACUUM 不改列值，
-       RQ-16-7②）+ `session_id TEXT NOT NULL` + 28 镜像列（`path`→`rel_path` 改名；`scan_epoch`
+       RQ-16-7②）+ `session_id TEXT NOT NULL` + 29 镜像列（`path`→`rel_path` 改名；`scan_epoch`
        /`thumb_state`/`thumb_path`/`thumb_params_hash`/`dirty` 五列不镜像；其余逐列同名同型照
        SessionIndexSchema.swift:66-102；`params_hash` DECIMAL TEXT 照抄——L013）+
        `UNIQUE(session_id, rel_path)`（隐含唯一索引，复合身份 + 会话域过滤）。
@@ -148,7 +148,7 @@ files_modified:
   6. 表驱动 `migrate(from:to:on:)` 先例落位（:234-262 模板照搬，v1 首版为空实现位——为 v2 加列
      预留，幂等语义当场钉死）。
   7. `tuist generate` 后构建绿。
-- **证据**：`CatalogIndexSchemaTests`——七表 `PRAGMA table_info` VERBATIM 冻结断言（30 列序
+- **证据**：`CatalogIndexSchemaTests`——七表 `PRAGMA table_info` VERBATIM 冻结断言（31 列序
   钉死）/ 7 索引 `PRAGMA index_list` 断言 / pragmas VERBATIM（WAL/NORMAL/-64000/5000）/
   v99 与 unparsable 拒开 / 二次 open 幂等零害 / 失败 ROLLBACK 后原文件字节不变（L020 内容级）。
 
@@ -164,7 +164,7 @@ files_modified:
        `SELECT rel_path FROM catalog_images WHERE session_id=?`（复用 SessionIndexStore.sync
        :279-487 三腿纪律的跨库孪生）→ `removed` = catalog 有 lindex 无 → DELETE 行 +
        `DELETE FROM image_tags WHERE catalog_image_id IN (...)`。
-     - **③水位增量**：`SELECT <28 镜像列> FROM lindex.images WHERE scan_epoch > ?`（水位 =
+     - **③水位增量**：`SELECT <29 镜像列> FROM lindex.images WHERE scan_epoch > ?`（水位 =
        `catalog_sessions.last_projected_epoch`）→ `INSERT INTO catalog_images (...) VALUES (...)
        ON CONFLICT(session_id, rel_path) DO UPDATE SET <镜像列>`（F12 形状；conflict 路径**保留
        既有 id**——组织数据引用不悬空，R1）→ 每行 tags 删净重插（per-image 幂等，R6）。
@@ -194,9 +194,9 @@ files_modified:
      `catalog_sessions` 串行逐会话跑 ①-⑥（任务间 `Task.yield`），+ 罗列 recent 列表已打开未入
      册会话入册（16-2 接 UI 启动时机，本 plan 落 API + 测试直调）。
   3. **不做**：全量重建两档（16-4 T2）；库内 DELETE 型重建（F12 freelist ~470MB 实测禁止）。
-- **证据**：`CatalogProjectorTests`——**投影 parity**：catalog 行 vs 源 lindex 行 28 镜像列
+- **证据**：`CatalogProjectorTests`——**投影 parity**：catalog 行 vs 源 lindex 行 29 镜像列
   逐列断言 + session_id（L020 内容级）；**键集对账三腿计数**（added/removed/changed 对账，删
-  除行闭合——构造 lindex 删行场景断言 catalog 滞留行为零）；**标签 golden 五形态**（平铺多标
+  除行闭合——构造 lindex 删行场景断言 catalog 滞留行为零）；**标签 golden 五形态 + 跨域行集方向性对照**（catalog 行集 ⊆ session 域四联式行集——中段路径 `B|C` session 命中而 catalog 无行为 by-design，research §6「同源超集」裁决替代 CONTEXT 等值对照，checker M2 登记面；平铺多标
   签 / 层级标签 / 混合 / NULL / 空串——§6 四形态 + research 超集定义）；**水位不丢行**（两次
   投影幂等 + 中途加行只投增量）；**离线标记**（root 缺失 → offline=1 水位不动 → 恢复清 0）；
   **双模式隔离**：守卫 false 时 openAndSync 全流程 `.lcat` 零句柄（注入探针断言文件未创建）；
@@ -255,7 +255,7 @@ files_modified:
      `invalidateCounts()`，由投影完成方与 16-3 归类写入方调用）；**tag 批量计数** =
      `tagCounts()` → `SELECT tag, COUNT(*) FROM image_tags GROUP BY tag` 单次索引扫，调用方刷
      内存字典。memo 键拼写入 DECISIONS。
-  5. **行读出**：`rowSelectColumns` 单一拼写（30 列序 = T1 冻结表同源；`readRow` 投影函数同构
+  5. **行读出**：`rowSelectColumns` 单一拼写（31 列序 = T1 冻结表同源；`readRow` 投影函数同构
      SessionIndexStore :600 起）；单行读 `fetchRow(sessionID:relPath:)`；`imageID(for:)` 批量查
      id（tags/归类写面引用键）。
   6. **跨域禁止**：本文件零 lindex 触碰（投影单向上行）；零裸 SQL 翻译（一切 WHERE 片段来自
@@ -303,8 +303,8 @@ files_modified:
 
 | 验收面 | 判据 | 命令 |
 |---|---|---|
-| schema | 七表 30 列冻结 + 7 索引 + pragmas VERBATIM + v99 拒开 + 幂等 | `Scripts/test-direct.sh 'CatalogIndexSchemaTests'` |
-| 投影 | parity 28 列逐列 + 对账三腿 + 标签 golden 五形态 + UPSERT 保 id + 离线 + 隔离 | `Scripts/test-direct.sh 'CatalogProjectorTests'` |
+| schema | 七表 31 列冻结 + 7 索引 + pragmas VERBATIM + v99 拒开 + 幂等 | `Scripts/test-direct.sh 'CatalogIndexSchemaTests'` |
+| 投影 | parity 29 镜像列逐列 + 对账三腿 + 标签 golden 五形态 + 跨域方向性对照 + UPSERT 保 id + 离线 + 隔离 | `Scripts/test-direct.sh 'CatalogProjectorTests'` |
 | FilterSQL | session 域逐字节回归锁 + catalog EXISTS/`+`/orderBy/scope/startsWith | `Scripts/test-direct.sh 'CatalogFilterSQLTests'` |
 | 查询面 | keyset 全形状 + NULL 尾段衔接 + COUNT memo | `Scripts/test-direct.sh 'CatalogFilterSQLTests'`（Store 段） |
 | harness | 首跑全表落 perf.md + 软门判定 | `LA_CATALOG_BENCH=1 Scripts/test-direct.sh 'CatalogBenchmarkHarness'` |
@@ -314,7 +314,7 @@ files_modified:
 ## 验收标准（Acceptance）
 
 - [ ] `CatalogIndexSchema`：四表+三关联表（image_tags/categories/collections 关联全 WITHOUT
-      ROWID 按裁决）+ 30 列冻结（列序钉死、`rel_path` 改名、五列不镜像）+ 7 索引统一形状 +
+      ROWID 按裁决）+ 31 列冻结（列序钉死、`rel_path` 改名、五列不镜像）+ 7 索引统一形状 +
       pragmas 基线（WAL/NORMAL/cache 64MB/busy 5000）+ `schemaVersion=1` + v99/unparsable 拒开
       + migrate 先例落位 + 失败不破坏原文件
 - [ ] `CatalogProjector`：水位增量 UPSERT（conflict 保 id）+ **键集对账删除闭合**（修正①）+

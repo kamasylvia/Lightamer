@@ -11,7 +11,7 @@ files_modified:
   - App/Sources/Lightamer/Catalog/CatalogBrowserModel.swift          # 新建：@Observable 跨会话网格数据源——keyset 两段式消费 / 滚动加载 / 过滤排序状态 / 会话分组锚点
   - App/Sources/Lightamer/Catalog/CatalogThumbnailRouter.swift       # 新建：[session_id: SessionThumbnailProvider] 池 + 离线灰显
   - App/Sources/Lightamer/UI/SettingsView.swift                      # 启用开关 + catalog 文件位置选择器（按既有设置面结构落位）
-  - App/Sources/Lightamer/UI/SidebarView.swift                       # 顶部 segmented 切换器（:50 List 结构 currentSection 前插 mode section）+ Catalogs 五节
+  - App/Sources/Lightamer/UI/SidebarView.swift                       # 顶部 segmented 切换器（:51 List 结构 currentSection 前插 mode section）+ Catalogs 五节
   - App/Sources/Lightamer/UI/ContentView.swift                      # 模式状态接线（BrowserMode :38 之上加组织模式轴）+ Catalogs 网格挂载
   - App/Sources/Lightamer/Session/SessionCoordinator.swift          # sweep 启动时机 + 返回网格增量投影钩子（编辑回环）
   - LightamerCore/Sources/Session/SmartAlbumStore.swift             # 求值域参数化（连接库随模式；document/资产面零改）
@@ -48,13 +48,13 @@ files_modified:
    验证红线节（L025/防空转/隔离断言）
 3. `App/Sources/Lightamer/UI/ContentView.swift`：`BrowserMode` 三态（:38）+ `browserModeRaw`
    AppStorage（:53）——组织模式轴是**第二维度**（org-mode × browser-mode），不得混淆两轴
-4. `App/Sources/Lightamer/UI/SidebarView.swift`：`body` List 结构（:50 起 currentSection/
+4. `App/Sources/Lightamer/UI/SidebarView.swift`：`body` List 结构（:51 起 currentSection/
    smartAlbumSection/recentSection/watchSection——mode section 插入位 + Catalogs 侧栏节的组装
    素材）
 5. `App/Sources/Lightamer/Session/SessionCoordinator.swift`：`openAndSync`（:266）+ 16-1 已挂
    的投影钩子（返回网格钩子的会话判定位）
 6. `LightamerCore/Sources/Session/SmartAlbumStore.swift`：`SmartAlbumDocument`（:26-39）+ 三拆
-   自愈（:95 起 rescan）——求值域参数化的「连接库」注入位；`LightamerCore/Sources/Session/
+   自愈（:100 起 `func rescan()`）——求值域参数化的「连接库」注入位；`LightamerCore/Sources/Session/
    FilterSQL.swift`（:8-22 红线 + :380 translateConjoining——SmartAlbum 求值同源翻译）
 7. 16-1 产物：`LightamerCore/Sources/Catalog/CatalogIndexStore.swift`（queryPage/queryNullTail/
    scopeClause 锚点/count memo——本 plan 唯一数据通道）、`CatalogProjector.swift`（sweepAll/
@@ -103,14 +103,14 @@ files_modified:
   3. **空库引导**：首次启用 = 建空 `.lcat` + Catalogs 模式空态（All Photographs 空网格 + 「打
      开会话以入册」引导文案；RQ-16-1③）。
   4. zh/en 键同批（L025）。
-- **证据**：模型级测试（偏好键守卫联动：开关 off → `project` 直返——复用 16-1 探针断言）+
+- **证据**：模型级测试落 `CatalogModeIsolationTests` 扩段（checker M3 指认宿主；偏好键守卫联动：开关 off → `project` 直返——复用 16-1 探针断言）+
   GUI 走查记录（开关出现/消失联动切换器；位置改指向后新库创建；空态引导文案 zh）+ Manual-Only
   未尽项登记。
 
 ### T2 模式切换器 + Catalogs 侧栏五节（GUI）
 
 - **action**
-  1. `SidebarView.swift` List（:50）`currentSection` 前插 mode section：segmented（Sessions |
+  1. `SidebarView.swift` List（:51）`currentSection` 前插 mode section：segmented（Sessions |
      Catalogs），仅 `catalogsEnabled` 时出现；选中态持久化（AppStorage）但**冷启动首帧强制
      Sessions**（覆盖读值——实现位钉死）。
   2. **组织模式轴与 BrowserMode 解耦**：org-mode（sessions/catalogs）× browser-mode（grid/

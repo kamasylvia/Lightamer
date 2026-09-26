@@ -44,7 +44,7 @@ files_modified:
    （`scopeClause` categoryID/collectionID 锚点 + `imageID(for:)` 批量 id 查询）、
    `FilterSQL.swift`（scopeClause 定义——本 plan 消费不修改）
 4. `LightamerCore/Sources/Session/SessionIndexStore.swift`：`claimMetadataApply` 单事务循环
-   （:1177——批量写事务形态蓝本）+ 头部 one-bulk-one-transaction 纪律（:23-27 注释）
+   （:1177——批量写事务形态蓝本）+ 头部 one-bulk-one-transaction 纪律（:22-24 注释；checker M4 微漂校正）
 5. Phase 12 批量面语义正本：`.work/gsd/phases/12-metadata-presets-lut/12-CONTEXT.md` 三段语义
    （段1 内存变换 / 段2 索引单事务 / 段3 sidecar 队列）——归类 = **无段3**（组织数据真身 =
    catalog，段2 即终态；code_context 节已钉）
