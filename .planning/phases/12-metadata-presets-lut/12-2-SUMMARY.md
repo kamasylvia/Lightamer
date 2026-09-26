@@ -14,7 +14,8 @@
 | T3 | SessionIndexStore.query 消费面（groups 数组 + 排序 + bound LIMIT；34 列行模型复用；withHandleForTesting 缝） | `7336c3d` | query 段 4 测试（互证行集/排序 NULLs-last/limit 分页/写并发 smoke 20×5×5） |
 | T4 | 过滤栏 UI：chips + Quick Filter（/聚焦·Esc 清除·防抖 200ms）+ 排序菜单持久化 + 空结果态 + zh catalog 37 键 | `fc188a9` | GUI 走查 7 证据 `12-2-01..07` |
 | T5 | SmartAlbums：app 级存储（UUID 文件/sortedKeys/同目录 tmp 晋升/自愈跳过）+ 侧栏第四区 + 激活互斥 + 求值组合 | `baaa19a` | SmartAlbumStoreTests 7 + GUI 走查 3 证据 `12-2-08..10` |
-| T6 | 全量回归终轮 + SUMMARY/DECISIONS/TODO/PROGRESS 收尾 | 本提交 | 1334/6skip/0fail（449.0s） |
+| T6 | 全量回归终轮 + SUMMARY/DECISIONS/TODO/PROGRESS 收尾 | `183da56` | 1334/6skip/0fail（449.0s） |
+| fix | T4 Core 半边补入库：组合器 appendsBaseline/translateConjoining + query(groups:) 签名 + 组合器/limit 测试（fc188a9 漏 stage，HEAD 单独不可构建——工作区与 HEAD 自 T4 起同码，行为零变化） | `e4ab88b` | FilterSQLTests 27 全绿（同码） |
 
 ## 测试演变
 
@@ -58,4 +59,5 @@
 3. **T2 双提交**：四联式/快照/行集主体在 `128991d`；多组合并器（D6，T4 叠加语义的前置）随 T3 的 `7336c3d` 进库——组合器是消费面扩展非翻译层重写，commit 归属按 diff 实际。
 4. **走查数据辅助**（D14）：合成键盘 IME 限制下，排序/相册走查用 sqlite3 直改 fixture DB + sidecar 直写辅助——生产语义（GUI 写链路）已由 12-1 MetadataServiceTests 钉死，本 plan 验收面（过滤/排序/求值）不受影响。
 5. **域外缺陷登记**：`sidecar_present` 永不刷新（12-1 域）——「先图后 sidecar」的行增量打开永不回读（详 12-2-DECISIONS 域外节）；已登记 GOAL-STATE 待人工立案，本 plan 范围纪律未修。
-6. **执行环境注记**：`Scripts/test-direct.sh` 为 zsh 脚本，bash 直接调用会挂（`${0:A}` 语法）——以 `./Scripts/test-direct.sh`（shebang zsh）调用正常；脚本既有面未改。
+6. **T4 提交边界遗漏（已补）**：fc188a9 只 stage 了 UI 文件，其消费的组合器 Core 半边（FilterSQL translateConjoining/appendsBaseline + store query(groups:) 签名 + 测试更新）滞留工作区——`e4ab88b` 补入库（同码入库非行为修复；此后 HEAD 单独可构建）。流程注记：每 commit 后须复查 `git status` 而非只核 add 清单。
+7. **执行环境注记**：`Scripts/test-direct.sh` 为 zsh 脚本，bash 直接调用会挂（`${0:A}` 语法）——以 `./Scripts/test-direct.sh`（shebang zsh）调用正常；脚本既有面未改。
