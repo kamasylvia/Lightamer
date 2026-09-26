@@ -1,3 +1,4 @@
+# 注：.work/05..12 与 plans 已迁 .work/gsd/ 下（2026-09-27 目录整并），原位符号链接为兼容垫片；git pathspec 用 .work/gsd/ 真路径。
 # matrix 阵容(2026-09-21 原子切自 [review.*];2026-09-22 slot 列表制 + 两档统一 roster 单列表制;Review 细则见 AGENTS.md §11,调用见 skills/matrix/SKILL.md)
 # 选中规则(2026-09-22 显式优先 + 链式回落):候选集 = 名单显式包含当前 orchestrator 的 slot 子集 E;E 非空时缺省 slot 视若无,E 为空时候选集 = 缺省集 D;候选集内窗口首命中→候选集内 fallback(至多一个);E 非空但 E 内无 fallback → 链式回落 D 的 fallback(恰一个则用,无则停问,多则报错);E 内已有 fallback 不再回落;选中休眠 slot → 静默跳过(见技能正文)
 # 示例:orchestrator=omp + omp 显式 slot 无 windows → 全天只出该 slot;显式 slot 带 windows → 窗内命中显式、窗外链式回落 D 的 fallback;zcode 双窗 + 午休休眠 → 窗外回落?zcode 在 E 内(3 个显式 slot)但 E 无 fallback → 回落 D(slot1),即窗外走全天混合。
