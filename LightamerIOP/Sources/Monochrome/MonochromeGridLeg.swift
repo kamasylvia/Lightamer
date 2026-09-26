@@ -124,7 +124,7 @@ public enum MonochromeGridLeg {
             session.commandBuffer.commit()
         }
         // sliced → filter（blit 回写）。
-        guard let commandBuffer = metal.commandQueue.makeCommandBuffer(),
+        guard let commandBuffer = try? metal.makeRoutedCommandBuffer(),
               let blit = commandBuffer.makeBlitCommandEncoder()
         else {
             throw MetalError.deviceUnavailable

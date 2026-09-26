@@ -513,11 +513,15 @@ public actor MetalContext {
         return commandBuffer
     }
 
-    /// Internal seam for `ExportPipeTests` (Plan 11-03 T1): one routed
-    /// command-buffer acquisition — the identity assertion reads
-    /// `buffer.commandQueue` and compares it against `commandQueue` /
-    /// `exportCommandQueue` under both TaskLocal states.
-    internal nonisolated func makeRoutedCommandBuffer() throws -> any MTLCommandBuffer {
+    /// Public seam (11-03 flaky fix): ONE routed command-buffer acquisition
+    /// for the WHOLE codebase — iop modules' internal identity blits and
+    /// readback fences included. The 11-03 export flake proved the failure
+    /// shape of bypassing this: a module blit hardwired to `commandQueue`
+    /// races the pipe's compute on `exportCommandQueue` (two queues, no
+    /// sync — the downstream compute reads a STALE plane under load while
+    /// isolation runs win the race by timing). Every `metal.commandQueue.
+    /// makeCommandBuffer()` outside this file is a latent cross-queue race.
+    public nonisolated func makeRoutedCommandBuffer() throws -> any MTLCommandBuffer {
         try makeCommandBuffer()
     }
 

@@ -788,7 +788,7 @@ public final class BordersModule: IOPModule {
     /// The synchronous queue drain (L014 — the test-harness drain pattern;
     /// SYNC so `waitUntilCompleted` is legal — see the probe call site).
     private nonisolated static func fenceAndWait(_ metal: MetalContext) {
-        let fence = metal.commandQueue.makeCommandBuffer()
+        let fence = try? metal.makeRoutedCommandBuffer()
         fence?.commit()
         fence?.waitUntilCompleted()
     }
@@ -821,7 +821,7 @@ public final class BordersModule: IOPModule {
         let width = min(roiOut.width, roiIn.width, output.width, max(0, input.width - dx))
         let height = min(roiOut.height, roiIn.height, output.height, max(0, input.height - dy))
         guard width > 0, height > 0 else { return }
-        guard let commandBuffer = metal.commandQueue.makeCommandBuffer(),
+        guard let commandBuffer = try? metal.makeRoutedCommandBuffer(),
             let blit = commandBuffer.makeBlitCommandEncoder()
         else {
             throw MetalError.deviceUnavailable
