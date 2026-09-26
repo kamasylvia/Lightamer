@@ -275,3 +275,8 @@ locale 的 Bundle 解析停在该表（不再向 zh.lproj 回退）——**全 a
 **对策**：① 走查脚本一律 `sips -g pixelWidth` 或读原图尺寸，pt 换算写成函数不心算；② 文本输入优先「点击 → 截图确认聚焦环 → pbcopy + ⌘V → 回车」，IME 场景先 Esc 消候选；③ 需要 N 次 open 就构造 N 个流（工厂函数），并在断言里加 `added>0` 防空转；④ 合成 click 不携 shift/修饰键进 SwiftUI 手势（`NSEvent.modifierFlags` 读不到）——多选/拖选类交互 AX 驱动不可达，如实记 Manual-Only，不以假阳性截图充当走查证据。
 
 **适用**：一切 macOS GUI 自动化走查（Phase 12-2/12-4/12-5 面板轮、Phase 13）；一切「同 fixture 多次 open」的索引测试。
+
+## L033: 复制调整是编辑器绑定操作——GUI 测试必须匹配设计上下文（2026-09-26，UAT 自答轮）
+
+`编辑/复制调整` 按钮 `.disabled(editorState.loadedImageURL == nil)`：复制的是**编辑器打开文档**的参数（C1 式「复制你看的图」），与网格选中无关。UAT computer-use 自答时在网格态直点菜单=disabled 空点，剪贴板滞留自载荷，产出「粘贴不传输」假缺陷（误报 major，后由干净态单变量测试翻案）。
+**对策**：①GUI 验收脚本写步骤前先核对操作的**设计上下文**（哪个面板/文档/焦点），不能纯几何驱动；②粘贴类断言用 sidecar paramsData 字节对比（明文 JSON），勿用 instance 名单（全量中性栈名单恒同）；③误报翻案必须留痕（本条 + UAT G-09-T4 retracted 行），假缺陷记录与真缺陷同等有价值。

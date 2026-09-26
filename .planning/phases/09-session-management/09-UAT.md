@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 09-session-management
 source: [09-01-SUMMARY.md, 09-02-SUMMARY.md, 09-03-SUMMARY.md, 09-04-SUMMARY.md, 09-05-SUMMARY.md]
 started: 2026-09-26T01:30:00+08:00
@@ -45,18 +45,15 @@ result: pass
 
 ### 4. 复制粘贴调整（overwrite/merge）
 expected: 单图 ⌘C 后选中多张粘贴：覆盖与合并两式均生效，⌘Z 恰好一步回退整次粘贴
-result: issue
-reported: "粘贴调整/撤销均走菜单，但目标 lra 参数不变化"
-severity: major
-root_cause: |
-  **真缺陷（computer-use 抓出，四轮单元/验收轮未覆盖的集成面）**：
-  复制侧已证 correct（T15 对话框载荷=源图曝光编辑）；选中文档两次视觉验证；
-  无编辑器文档干扰下复现；等 debounce 4.5s 后读盘。覆盖/合并/部分三式同族：
-  history 追加「粘贴调整」条目（5→6→7 items）但 instances paramsData 零变化
-  （exposure 1.5 ≠ 源 -0.5；37 实例全量 diff = 0）。疑似 grid 菜单 paste 路径
-  与 9-4 PasteSemanticsTests 所测管线之间存在集成断层。附 evidence: uat09-T4-pasted/sel2/sel3/T15-*
-
-### 5. before/after 入口走查
+result: pass
+  evidence: |
+    正确流程（编辑器打开 jpg → 复制调整 → 网格选 ARW → 粘贴调整）后 ARW.lra
+    exposure paramsData 变为 -0.5（源值，字节级断言）✅；⌘Z 干净态单变量测试
+    回退 1.5（position 9→7）✅。
+    **教训注记**：首测误报 major 缺陷——`复制调整` 按 `.disabled(editorState.loadedImageURL == nil)`
+    门控（编辑器绑定设计，C1 式「复制你看的图」），网格态直点=disabled 空点，
+    剪贴板滞留自载荷 → 假「粘贴不传输」。已由干净态单变量测试翻案。
+    L033 入 LESSONS。### 5. before/after 入口走查
 expected: 编辑一张图后，split/peek(\)/hold 三形态入口均可用（HUD/菜单 identifier 齐）
 result: pass
   evidence: uat09-T5-split-active.png：split 分界线 + 「对比: 第 1 步」HUD + 位置滑杆全部激活
@@ -108,33 +105,22 @@ reason: "fixture 该图 history 单步无法演示步进；peek 入口 HUD（‹
 
 ### 15. 部分粘贴对话框真机走查（Manual-Only #10）
 expected: ⌘⇧V 打开部分粘贴对话框，勾选子集 + 覆盖/合并 picker 正常，应用结果正确
-result: issue
-
-## Deferred Follow-Ups
-
-- test: 1
-  idea: "开卷大目录扫描进度/可取消 + 超大目录选定确认提示（G-09-1 UX 改进，随任意 UI 轮）"
-  deferred_at: 2026-09-26
-- test: 6
-  idea: "10k 滚动 hitch signpost 走查（原 defer 目标 Phase 15 清算随行）"
-  deferred_at: 2026-09-26
-- test: 11
-  idea: "双档混排观感 D10 复核（原 defer 目标 P3+ 色彩校准后）"
-  deferred_at: 2026-09-26
-
+result: pass
+  evidence: 对话框 sheet ✅（合并/覆盖 picker + 曝光勾选 + 全选/全不选/好/粘贴，uat09-T15-dialog.png）；
+    应用后 ARW exposure = -0.5（源值）数据断言 ✅。首测 issue 同 T4 程序错误，一并翻案。
 ## Summary
 
 total: 15
-passed: 10
-issues: 2
+passed: 12
+issues: 1（G-09-1 minor，acknowledged）
 pending: 0
-skipped: 3
+skipped: 3（T6→Phase 15 / T11→P3+ / T14 fixture 单步限制，入口面已证）
 
 ## Gaps
 
 - gap_id: G-09-T4
   truth: "粘贴调整/部分粘贴应把源图编辑参数写入目标 sidecar"
-  status: failed
+  status: retracted（测试程序错误——复制系编辑器绑定设计；干净态单变量测试全过）
   reason: "computer-use UAT 实证：history 提交但 instances paramsData 零变化（覆盖/合并/部分三式同族，major）"
   severity: major
   test: 4, 15
