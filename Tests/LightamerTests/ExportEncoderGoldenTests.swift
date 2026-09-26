@@ -296,6 +296,58 @@ extension ExportEncoderGoldenTests {
             XCTAssertEqual(Double(v), Double(pattern[i]), accuracy: 1e-4, "sample \(i)")
         }
     }
+
+    /// L029 close-out (11-05) — the colorout ColorSync FALLBACK leg
+    /// (`convertTexture`) carries the same `.downMirrored` fix as its
+    /// export twin, proven by DUAL-LEG PARITY: the same per-pixel pattern
+    /// through (a) the fallback leg read back identity and (b) the fixed
+    /// export leg directly must agree row-for-row AND match the input
+    /// rows. Before the fix leg (a) came back vertically mirrored (64/64
+    /// mismatch) — the row-vs-input assertion is the regression anchor,
+    /// the (a)==(b) comparison is the parity contract between the two
+    /// bitmap+replace legs.
+    func testColorSyncFallbackLegParityWithExportLeg() async throws {
+        let metal = try makeMetal()
+        let pool = makePool(metal)
+        var pattern = [Float]()
+        pattern.reserveCapacity(64)
+        for i in 0..<64 { pattern.append(Float(i % 17) / 16.0) }
+
+        // (a) the colorout ColorSync fallback leg (linear Rec2020 → linear
+        // Rec2020 = numeric pass-through) through the PRODUCTION facade
+        // (MetalContext.convertToLinearSpace → pool.convertTexture), read
+        // back identity afterwards. The texture crosses the actor boundary
+        // the production way — inside a TextureBox (the codebase's renounce
+        // wrapper; Swift 6 region isolation rejects tracked locals here).
+        let fallbackInput = TextureBox(
+            texture: try texture(metal, width: 4, height: 4, pixels: pattern))
+        let converted = try await metal.convertToLinearSpace(
+            fallbackInput.texture, target: WorkingSpace.colorSpace)
+        let fallbackBitmap = try await pool.renderToEncodedBitmap(
+            TextureBox(texture: converted),
+            sourceColorSpace: WorkingSpace.colorSpace, toSpace: WorkingSpace.colorSpace)
+        let a = floats(fallbackBitmap)
+
+        // (b) the export leg on the same pattern.
+        let inputForExport = try texture(metal, width: 4, height: 4, pixels: pattern)
+        let exportBitmap = try await pool.renderToEncodedBitmap(
+            TextureBox(texture: inputForExport), toSpace: WorkingSpace.colorSpace)
+        let b = floats(exportBitmap)
+
+        // Parity: both legs agree.
+        XCTAssertEqual(a.count, b.count)
+        for (i, pair) in zip(a, b).enumerated() {
+            XCTAssertEqual(Double(pair.0), Double(pair.1), accuracy: 1e-5, "parity sample \(i)")
+        }
+        // Regression anchor: each leg matches the INPUT rows (a mirrored
+        // leg misaligns 64/64 samples — the pre-fix failure shape).
+        for (bitmap, label) in [(a, "fallback"), (b, "export")] {
+            for (i, v) in bitmap.enumerated() {
+                XCTAssertEqual(Double(v), Double(pattern[i]), accuracy: 1e-4,
+                               "\(label) leg sample \(i): rows must match the input")
+            }
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

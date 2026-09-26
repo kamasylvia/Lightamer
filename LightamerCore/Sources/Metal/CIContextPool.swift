@@ -461,13 +461,20 @@ internal actor CIContextPool {
     /// Mechanism: `CIImage(mtlTexture:options:)` tags the texture with the
     /// working space, then the SAME bitmap+replace leg as `renderScaled`
     /// renders with the per-call `colorSpace:` override (the context-level
-    /// output space is a default; the per-render parameter wins). Cost
-    /// 10-30ms at 2560px (CPU round trip) — acceptable for the one-shot
-    /// screen-change path, never the drag hot path (fast path covers it).
+    /// output space is a default; the per-render parameter wins). The
+    /// `.downMirrored` orientation tag undoes CI's bottom-up texture read
+    /// (the L029 host finding — without it this leg's output was vertically
+    /// mirrored; it never slept through a production flow because the fast
+    /// path covers sRGB/P3, but the parity test below pins both legs to the
+    /// same rows). Cost 10-30ms at 2560px (CPU round trip) — acceptable for
+    /// the one-shot screen-change path, never the drag hot path (fast path
+    /// covers it).
     internal func convertTexture(
         _ input: any MTLTexture,
         toLinearSpace target: CGColorSpace
     ) throws -> RenderedTexture {
+        // L029 close-out (11-05): the caller renounces `input` across the
+        // actor hop — this leg consumes the plane read-only.
         let width = input.width
         let height = input.height
         guard width >= 1, height >= 1 else {
@@ -485,9 +492,13 @@ internal actor CIContextPool {
         fence?.commit()
         fence?.waitUntilCompleted()
 
+        // The plane IS linear Rec2020 (the pipe interior, FOUND-02); the
+        // `.downMirrored` tag undoes CI's bottom-up texture read (the L029
+        // row-order host finding — the export twin got the same fix in
+        // 11-02; this leg slept unfixed until the 11-05 close-out batch).
         guard let image = CIImage(mtlTexture: input, options: [
             .colorSpace: WorkingSpace.colorSpace, // the plane IS linear Rec2020 (FOUND-02)
-        ]) else {
+        ])?.oriented(.downMirrored) else {
             throw AppError.decodeFailed("CIImage(mtlTexture:) failed for the colorout ColorSync leg")
         }
         let signposter = Self.signposter
