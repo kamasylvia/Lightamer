@@ -61,6 +61,8 @@
 
 - **晨审结果（2026-09-26 用户裁决）**：①Phase 11 D-11-CONTEXT-1..8 + OQ-11-1..8 + 两处 API 事实修正**全部追认**；②Phase 12 D-12-CONTEXT-1..10**全部追认**（含 D-1 迁移例外 + D-2 红线口径澄清）；③LayerE2ERoundTripTests flake = **处置 b 留观**（Phase 15 清算）；④Phase 9 翻转：用户询问「翻转」含义后待其选择（走 UAT 或授权代翻），暂未执行。
 
+- **⚠️ 配额 1310 模式（2026-09-26 17:4x）**：账户周/月上限触顶（2026-09-29 23:45 重置）——subagent 派遣全废，orchestrator 转 **inline 亲推**。两阵亡现场状态：①**UAT**：app 活着（01:31 Debug 构建）+ `~/la-uat-session` fixture 就绪 + T1/T10 截图已存，orchestrator inline 续答 T2-T15 → 写回 09-UAT.md → 谓词 → 翻转；②**12-3**：3 commits 已落（`76dde86` XMPWriter / `e5e3a21` 三格式注入 / `12c6afa` 导出链挂载+六格式矩阵）+ 6 文件未提交 WIP（MetadataController/ContentView/XMPContainerInjector/MetadataService/xcstrings/XMPContainerInjectorTests），UAT 后 inline 续完（审 WIP → 跑套件 → 补 T5/T6 closeout）。**若 orchestrator 上下文/配额亦断：恢复源 = 本行 + git status WIP 清单 + 09-UAT.md 现状**。
+
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
 
 1. ~~**修复 issue #1**~~ ✅ 关闭（2026-09-18）：drawable 回读证实渲染/blit 全链正常（JPEG drawable 采样含图像内容）；黑屏为多窗口调试堆积的呈现竞争——真实单窗口使用正常（干净复现截图 4.2MB 完整显示）。转 backlog：多窗口呈现管理（Phase 2/9）。
