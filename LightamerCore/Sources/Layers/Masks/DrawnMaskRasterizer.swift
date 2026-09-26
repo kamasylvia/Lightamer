@@ -512,7 +512,7 @@ public enum DrawnMaskRasterizer {
             rpd.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
         }
         rpd.colorAttachments[0].storeAction = .store
-        guard let commandBuffer = metal.commandQueue.makeCommandBuffer(),
+        guard let commandBuffer = try? metal.makeRoutedCommandBuffer(),
               let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: rpd)
         else { throw MetalError.deviceUnavailable }
         encoder.setRenderPipelineState(pso)

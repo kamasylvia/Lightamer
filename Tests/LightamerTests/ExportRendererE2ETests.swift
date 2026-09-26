@@ -449,6 +449,179 @@ final class ExportRendererE2ETests: XCTestCase {
         XCTAssertGreaterThan(bothAnalysis.darkFraction, 0.04, "the band is there under the row")
     }
 
+    // MARK: - R2 close-out: the layer-subsystem export leg (routing anchor)
+
+    /// The routing anchor for the layer subsystem's blit/fence helpers
+    /// (RetouchEngine.blitCrop/fillZero/readScalar/activeMaskCount,
+    /// DrawnMaskRasterizer.renderStamps): their command buffers now come
+    /// from the routed seam — buffer identity flips with the TaskLocal
+    /// (the ExportPipeTests three-state form), and the fenced readbacks
+    /// return the RIGHT values under export routing. The pre-fix failure
+    /// shape: a helper's fence parked on the editor queue while the write
+    /// landed on the export queue — readScalar could observe the pre-fill
+    /// value with no cross-queue sync.
+    func testLayerSubsystemHelperBuffersRouteWithTheTaskLocal() async throws {
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+
+        // ── Three-state buffer identity on the seam the helpers use.
+        let editorBuffer = try metal.makeRoutedCommandBuffer()
+        XCTAssertTrue(editorBuffer.commandQueue === metal.commandQueue,
+                      "editor TaskLocal state resolves the seam to the editor queue")
+        let exportBuffer = try MetalContext.$routesToExportQueue.withValue(true) {
+            try metal.makeRoutedCommandBuffer()
+        }
+        XCTAssertTrue(exportBuffer.commandQueue === metal.exportCommandQueue,
+                      "export TaskLocal state resolves the seam to the export queue")
+        XCTAssertFalse(exportBuffer.commandQueue === metal.commandQueue)
+        let afterBuffer = try metal.makeRoutedCommandBuffer()
+        XCTAssertTrue(afterBuffer.commandQueue === metal.commandQueue,
+                      "the TaskLocal restores the editor routing after the scope")
+
+        // ── Behavior under EXPORT routing: the helpers' fences must wait
+        // for the writes they follow (same-queue FIFO, no cross-queue gap).
+        try await MetalContext.$routesToExportQueue.withValue(true) {
+            // fillZero → readScalar: seed 7.0, GPU-fill 0, fenced read == 0
+            // (pre-fix the fence could complete before the export-queue
+            // fill and read back the 7.0 seed).
+            guard let buffer = metal.device.makeBuffer(
+                length: MemoryLayout<Float>.stride, options: .storageModeShared)
+            else { return XCTFail("no scalar buffer") }
+            buffer.contents().bindMemory(to: Float.self, capacity: 1).pointee = 7.0
+            try RetouchEngine.fillZero(buffer, metal: metal)
+            let value = try await RetouchEngine.readScalar(buffer, metal: metal)
+            XCTAssertEqual(value, 0, "the fenced read rides the SAME queue as the fill")
+
+            // blitCrop: a constant plane's crop keeps its content through
+            // the routed blit + a routed fence before the CPU readback.
+            let plane = try RetouchEngine.makePlane(
+                width: 8, height: 8, usage: [.shaderRead, .shaderWrite], metal: metal)
+            var rgba = [Float](repeating: 0, count: 8 * 8 * 4)
+            for index in stride(from: 0, to: rgba.count, by: 4) {
+                rgba[index] = 0.5; rgba[index + 1] = 0.5
+                rgba[index + 2] = 0.5; rgba[index + 3] = 1.0
+            }
+            plane.replace(
+                region: MTLRegionMake2D(0, 0, 8, 8), mipmapLevel: 0,
+                withBytes: rgba, bytesPerRow: 8 * WorkingSpace.bytesPerPixel)
+            let crop = try RetouchEngine.blitCrop(
+                from: plane, pixelFormat: WorkingSpace.pixelFormat,
+                rect: CGRect(x: 2, y: 2, width: 4, height: 4), metal: metal)
+            let fence = try metal.makeRoutedCommandBuffer()
+            fence.commit()
+            await fence.completed()
+            var cropped = [Float](repeating: 0, count: 4 * 4 * 4)
+            crop.getBytes(
+                &cropped, bytesPerRow: 4 * WorkingSpace.bytesPerPixel,
+                from: MTLRegionMake2D(0, 0, 4, 4), mipmapLevel: 0)
+            XCTAssertEqual(cropped[0], 0.5, accuracy: 1e-6,
+                           "the crop lands before the routed fence")
+            XCTAssertEqual(cropped[cropped.count - 1], 1.0, accuracy: 1e-6,
+                           "alpha survives the crop")
+
+            // activeMaskCount: an r32 mask with a known set half reads back
+            // its exact count through the routed fence.
+            let mask = try RetouchEngine.makePlane(
+                width: 4, height: 4, pixelFormat: .r32Float,
+                usage: [.shaderRead, .shaderWrite], metal: metal)
+            var maskBytes = [Float](repeating: 0, count: 16)
+            for index in 0..<8 { maskBytes[index] = 1 }
+            mask.replace(
+                region: MTLRegionMake2D(0, 0, 4, 4), mipmapLevel: 0,
+                withBytes: maskBytes, bytesPerRow: 4 * MemoryLayout<Float>.stride)
+            let count = try await RetouchEngine.activeMaskCount(mask: mask, metal: metal)
+            XCTAssertEqual(count, 8, "the fenced mask readback sees the CPU-written plane")
+        }
+    }
+
+    /// The layer-stack export round trip (the suite's blind-spot patch):
+    /// a retouch stroke leg (heal — exercises blitCrop ×3 + the SOR
+    /// fillZero/readScalar loop) + a drawn-mask adjustment layer (brush —
+    /// the renderStamps render-encoder path) ride the DISK SIDECAR into
+    /// the export render (ExportRenderer step 6's processComposite branch).
+    /// The seed carried only the flat trio + editing defaults, so the layer
+    /// subsystem's export path had no E2E anchor when the 11-03 cross-queue
+    /// race was latent. Content correctness both ways: the layered export
+    /// differs from the flat export, and the layered render is byte-stable
+    /// across repeats (the routing holds — the pre-fix A/B alternation
+    /// would break this).
+    func testLayerStackExportRoundTripRetouchStrokeAndDrawnMask() async throws {
+        try await LightamerIOPRegistry.populate(registry)
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let source = try writePNG(width: 96, height: 64, stem: "LYR_0001")
+        let flatSource = try writePNG(width: 96, height: 64, stem: "LYF_0001")
+
+        // The sidecar: flat seed + a retouch heal layer + a brush-masked
+        // adjustment layer with a layer-scoped gain.
+        let records = await seedRecords()
+        let retouch = RetouchLayer(name: "heal leg")
+        XCTAssertTrue(retouch.append(stroke: RetouchStroke(
+            algorithm: .heal,
+            form: MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.15, radiusY: 0.15,
+                rotationDegrees: 0, border: 0))),
+            source: MaskPoint(x: 0.3, y: 0.5))), "the heal stroke passes the shape gate")
+        let masked = AdjustmentLayer(
+            name: "brush-masked gain",
+            chain: [ModuleInstance(
+                module: TestGainModule.self, multiName: "layer gain",
+                params: .init(gain: 1.6))],
+            mask: MaskSpec(
+                version: 1,
+                drawn: DrawnMaskSpec(forms: [MaskForm(kind: .brush(BrushStroke(
+                    points: [BrushPoint(
+                        corner: MaskPoint(x: 0.5, y: 0.5), ctrl1: MaskPoint(x: 0.5, y: 0.5),
+                        ctrl2: MaskPoint(x: 0.5, y: 0.5))],
+                    radius: 0.2, hardness: 0.7, density: 1.0, opacity: 1.0)))]),
+                parametric: nil, raster: nil))
+        let layerStack = SidecarLayerStackRecord(layers: [
+            SidecarLayerRecord.record(for: retouch),
+            SidecarLayerRecord(masked),
+        ])
+        try await writeSidecar(imageURL: source, records: records, layerStack: layerStack)
+        try await writeSidecar(imageURL: flatSource, records: records)
+
+        let variant = ExportVariant(
+            sizing: YiyinExportSettings(mode: .longEdge(px: 48), dpi: 300),
+            format: .png(bitDepth: .eight), colorSpace: .sRGB)
+        func render(_ image: URL, landing: String) async throws -> URL {
+            let directory = tempDirectory.appendingPathComponent(
+                "landing-\(landing)-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            return try await ExportRenderer.render(
+                request: ExportRenderer.Request(
+                    imageURL: image,
+                    destinationDirectory: directory,
+                    occupiedNames: [image.lastPathComponent],
+                    variant: variant),
+                metal: metal, registry: registry).destination
+        }
+
+        let layered = try await render(source, landing: "layered")
+        // The repeat run (routing stability anchor — same params, byte-exact).
+        let layeredRepeat = try await render(source, landing: "layered")
+        let flat = try await render(flatSource, landing: "flat")
+
+        // The round trip landed.
+        let layeredValues = try decodedPNGValues(layered)
+        XCTAssertEqual(layeredValues.width, 48)
+        XCTAssertEqual(layeredValues.height, 32)
+        XCTAssertGreaterThan(layeredValues.bytes.count, 0)
+
+        // Routing stability: the same-param layered renders are byte-equal
+        // (the pre-fix cross-queue race produced two stable alternating
+        // variants — this assertion is red under that shape).
+        XCTAssertEqual(
+            try Data(contentsOf: layered), try Data(contentsOf: layeredRepeat),
+            "the layered export is byte-stable across repeats (no A/B alternation)")
+
+        // Content correctness: the layer leg CHANGED the pixels — the
+        // layered export differs from the flat sidecar export (the heal
+        // patch + the masked gain are real edits, not a passthrough).
+        XCTAssertNotEqual(
+            try Data(contentsOf: layered), try Data(contentsOf: flat),
+            "the retouch stroke + drawn-mask gain must reach the exported pixels")
+    }
+
     // MARK: - harness: records
 
     /// The full editing seed (trio + editing defaults — the coordinator's
@@ -562,7 +735,10 @@ final class ExportRendererE2ETests: XCTestCase {
     }
 
     /// Persist a sidecar beside the source (the flushNow semantics).
-    private func writeSidecar(imageURL: URL, records: [ModuleInstance]) async throws {
+    private func writeSidecar(
+        imageURL: URL, records: [ModuleInstance],
+        layerStack: SidecarLayerStackRecord? = nil
+    ) async throws {
         let history = HistoryStack()
         let document = LightamerSidecar(
             imageID: UUID(),
@@ -571,7 +747,8 @@ final class ExportRendererE2ETests: XCTestCase {
             instances: records,
             history: history,
             historyHash: HistoryHash.hash(stack: history, decodeParamsHash: 0),
-            appVersion: "0.3.0-e2e")
+            appVersion: "0.3.0-e2e",
+            layerStack: layerStack)
         let store = SidecarStore(destination: LightamerSidecar.sidecarURL(for: imageURL))
         await store.scheduleWrite(document)
         try await store.flushNow()
