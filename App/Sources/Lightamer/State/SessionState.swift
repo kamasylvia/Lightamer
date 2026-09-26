@@ -1,4 +1,5 @@
 import Foundation
+import LightamerCore
 import Observation
 
 /// Session-subsystem state (D-03b isolation contract).
@@ -56,9 +57,140 @@ final class SessionState {
     /// Recent-list upper bound (SESS-04: "~10").
     nonisolated static let recentLimit = 10
 
+    // MARK: - Filter / sort / Quick Filter face (Plan 12-2 T4)
+
+    /// `UserDefaults` keys for the persisted sort (execution decision,
+    /// 12-2-DECISIONS — two flat keys, key-rawValue + direction).
+    nonisolated static let sortKeyStorageKey = "browser.sort.key"
+    nonisolated static let sortAscendingStorageKey = "browser.sort.ascending"
+
+    /// The active FILTER CHIPS (each rule AND-joins with the others — the
+    /// chips are the transient predicate group's projection; D-12-CONTEXT-7).
+    /// The Quick Filter folds separately (see `queryGroups`).
+    private(set) var filterChips: [FilterPredicateGroup.Rule] = []
+
+    /// The Quick Filter text (raw, untrimmed; the group folds on read).
+    private(set) var quickFilterText: String = ""
+
+    /// The persisted sort (defaults key face).
+    private(set) var sort: FilterSort
+
+    /// Monotonic observation bump — the View layer's onChange anchor (the
+    /// group contents are value types; the revision is the single thing to
+    /// observe).
+    private(set) var filterRevision = 0
+
+    /// The re-query orchestration seam (D-03b: SessionState holds no state
+    /// references — the App root injects the closure that re-runs the
+    /// browser model reload through the current store; the same shape as
+    /// SessionCoordinator's injected handlers).
+    var onFilterChanged: (() async -> Void)?
+
+    /// Debounce task for the text-driven re-query (chips/sort changes fire
+    /// immediately).
+    private var filterRefreshTask: Task<Void, Never>?
+
+    /// The Quick Filter debounce interval (execution decision,
+    /// 12-2-DECISIONS: 200ms — fast enough to feel live, slow enough to
+    /// collapse a typed word into one query).
+    nonisolated static let quickFilterDebounce: Duration = .milliseconds(200)
+
     init(recentDefaults: UserDefaults? = .standard) {
         self.recentDefaults = recentDefaults
         recentSessions = Self.loadRecent(from: recentDefaults)
+        // Sort restore (defaults = filename ascending — the legacy path
+        // order's key).
+        if let raw = recentDefaults?.string(forKey: Self.sortKeyStorageKey),
+           let key = FilterSortKey(rawValue: raw) {
+            sort = FilterSort(
+                key: key,
+                ascending: recentDefaults?.object(forKey: Self.sortAscendingStorageKey) as? Bool
+                    ?? true)
+        } else {
+            sort = FilterSort(key: .filename, ascending: true)
+        }
+    }
+
+    /// The query groups (chips AND Quick Filter — the App root hands BOTH
+    /// to the query face's group array; each translates through the ONE
+    /// layer and joins with the baseline attached once).
+    var queryGroups: [FilterPredicateGroup] {
+        var groups: [FilterPredicateGroup] = []
+        if !filterChips.isEmpty {
+            groups.append(FilterPredicateGroup(match: .all, rules: filterChips))
+        }
+        let trimmed = quickFilterText.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            groups.append(.quickFilter(text: trimmed))
+        }
+        return groups
+    }
+
+    /// True when either face is active (the model's placeholder-page guard
+    /// + the UI's clear affordance read this).
+    var hasActiveFilter: Bool { !filterChips.isEmpty || !quickFilterText.isEmpty }
+
+    /// Replace the whole chip set (the filter bar's chips row is a
+    /// two-way projection of this list).
+    func setFilterChips(_ chips: [FilterPredicateGroup.Rule]) {
+        filterChips = chips
+        scheduleFilterRefresh(debounced: false)
+    }
+
+    /// Toggle one chip (single click: present → remove, absent → add).
+    func toggleChip(_ chip: FilterPredicateGroup.Rule) {
+        if let index = filterChips.firstIndex(of: chip) {
+            filterChips.remove(at: index)
+        } else {
+            filterChips.append(chip)
+        }
+        scheduleFilterRefresh(debounced: false)
+    }
+
+    /// Remove one chip (the custom chips' ⓧ / the long-press delete face).
+    func removeChip(_ chip: FilterPredicateGroup.Rule) {
+        filterChips.removeAll { $0 == chip }
+        scheduleFilterRefresh(debounced: false)
+    }
+
+    /// Set the Quick Filter text (debounced re-query).
+    func setQuickFilterText(_ text: String) {
+        quickFilterText = text
+        scheduleFilterRefresh(debounced: true)
+    }
+
+    /// Set the sort (persisted immediately; immediate re-query).
+    func setSort(_ newSort: FilterSort) {
+        sort = newSort
+        if let recentDefaults {
+            recentDefaults.set(newSort.key.rawValue, forKey: Self.sortKeyStorageKey)
+            recentDefaults.set(newSort.ascending, forKey: Self.sortAscendingStorageKey)
+        }
+        scheduleFilterRefresh(debounced: false)
+    }
+
+    /// Clear both filter faces (the ⓧ in the filter bar).
+    func clearFilters() {
+        guard hasActiveFilter else { return }
+        filterChips = []
+        quickFilterText = ""
+        scheduleFilterRefresh(debounced: false)
+    }
+
+    /// The refresh orchestration: chips/sort fire at once; the Quick
+    /// Filter text debounces. The injected closure does the actual re-query
+    /// (nil = unit-test wiring, no-op).
+    private func scheduleFilterRefresh(debounced: Bool) {
+        filterRevision += 1
+        filterRefreshTask?.cancel()
+        guard onFilterChanged != nil else { return }
+        filterRefreshTask = Task { [onFilterChanged] in
+            if debounced {
+                try? await Task.sleep(for: Self.quickFilterDebounce)
+            }
+            guard !Task.isCancelled else { return }
+            await onFilterChanged?()
+        }
     }
 
     // MARK: - Mutation entries (SessionCoordinator is the writer)

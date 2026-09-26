@@ -57,6 +57,10 @@ internal struct SessionBrowserView: View {
 
     private static let columns = [GridItem(.adaptive(minimum: 168, maximum: 260), spacing: 10)]
 
+    /// Plan 12-2 T4: the filter bar state (chips / Quick Filter / sort —
+    /// the re-query orchestration lives in SessionState).
+    @Environment(SessionState.self) private var sessionState
+
     var body: some View {
         ScrollView {
             LazyVGrid(columns: Self.columns, spacing: 10) {
@@ -114,6 +118,22 @@ internal struct SessionBrowserView: View {
             .padding(12)
         }
         .accessibilityIdentifier(BrowserIdentifiers.grid)
+        // Plan 12-2 T4: the filter row rides the grid's top inset (visually
+        // adjacent to the window toolbar's BrowserMode segmented control).
+        .safeAreaInset(edge: .top, spacing: 0) {
+            FilterBarView()
+        }
+        // The empty-filter result face (a filtered collection legitimately
+        // returns zero rows — the grid must say WHY, not show a void).
+        .overlay {
+            if model.rows.isEmpty, sessionState.hasActiveFilter {
+                ContentUnavailableView {
+                    Label("filter_empty_results", systemImage: "line.3.horizontal.decrease.circle")
+                } description: {
+                    Text("filter_empty_results_body")
+                }
+            }
+        }
         .alert(
             appendTarget == .keywords
                 ? String(localized: "browser_menu_append_keywords")

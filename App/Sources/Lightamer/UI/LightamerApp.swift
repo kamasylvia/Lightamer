@@ -348,6 +348,14 @@ internal struct LightamerApp: App {
                                         root: url, store: store)
                                 }
                                 if let store = sessionIndexController.currentStore {
+                                    // 12-2 T4: install the persisted sort/
+                                    // filter BEFORE the authoritative reload —
+                                    // a relaunched app's first grid paint rides
+                                    // the user's sort (the picker restored it,
+                                    // the model must match).
+                                    browserModel.installQueryState(
+                                        groups: sessionState.queryGroups,
+                                        sort: sessionState.sort)
                                     await browserModel.finishProgressiveIngest(
                                         store: store, includeOrphans: true
                                     )
@@ -393,6 +401,22 @@ internal struct LightamerApp: App {
                     // transaction commits (边扫边出).
                     sessionIndexController.scanPageObserver = { page in
                         browserModel.ingestPlaceholderPage(entries: page.entries)
+                    }
+
+                    // Plan 12-2 T4: the filter re-query seam (D-03b closure
+                    // — the app root owns the current-store reference; the
+                    // SessionState mutations schedule the debounced refresh
+                    // through this). The SessionState instance is app-
+                    // lifetime, so the state↔closure reference cycle is the
+                    // app's own lifetime (no leak window).
+                    sessionState.onFilterChanged = {
+                        guard let store = sessionIndexController.currentStore
+                        else { return }
+                        await browserModel.applyFilter(
+                            store: store,
+                            groups: sessionState.queryGroups,
+                            sort: sessionState.sort,
+                            includeOrphans: false)
                     }
 
                     // Plan 09-02 T3: wire the reconciler's seams (state +
