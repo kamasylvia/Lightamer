@@ -1,6 +1,0 @@
-## EXTRA: B0000079.3FR
-nativeSize: 11664x8750 (102.1 MP)  float32 plane ≈ 1557 MB  supported=[7,8]
-warm full decode (v8): 969 ms
-float32 RGBA native render: 1875 ms  footprintPeak=+2058 MB  end=4485 MB
-CACHED viewport 2560x1440 (decode-once + per-frame transform) n=60: med 17.51 ms/frame (min 15.65 / max 54.73)  est fps=57  frames>16.67ms: 41/60
-footprint at end: 2921 MB

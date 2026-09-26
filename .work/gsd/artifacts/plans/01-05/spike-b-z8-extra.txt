@@ -1,6 +1,0 @@
-## EXTRA: Nikon_Z8_raw_14_bit_lossless_compression.NEF
-nativeSize: 8256x5504 (45.4 MP)  float32 plane ≈ 693 MB  supported=[7,8]
-warm full decode (v8): 2769 ms
-float32 RGBA native render: 478 ms  footprintPeak=+1908 MB  end=3989 MB
-CACHED viewport 2560x1440 (decode-once + per-frame transform) n=60: med 6.73 ms/frame (min 6.59 / max 54.28)  est fps=149  frames>16.67ms: 1/60
-footprint at end: 2351 MB

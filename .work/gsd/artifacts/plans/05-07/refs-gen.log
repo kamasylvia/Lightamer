@@ -1,9 +1,0 @@
-  denoiseprofile ref dp_wave_default done
-  denoiseprofile ref dp_wave_rgb done
-  denoiseprofile ref dp_wave_strong done
-  denoiseprofile ref dp_wave_force done
-  denoiseprofile ref dp_wave_auto done
-  denoiseprofile ref dp_nlm_default done
-  denoiseprofile ref dp_nlm_scatter done
-  denoiseprofile ref dp_nlm_auto done
-gen_fixtures[refs-denoiseprofile] → input/golden/fixtures

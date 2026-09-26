@@ -1,5 +1,0 @@
-nlmeans_default 16B v2 blob byte-identical = True
-nlmeans_strong 16B v2 blob byte-identical = True
-nlmeans_chroma 16B v2 blob byte-identical = True
-nlmeans_patch4 16B v2 blob byte-identical = True
-ADOPTION 4/4

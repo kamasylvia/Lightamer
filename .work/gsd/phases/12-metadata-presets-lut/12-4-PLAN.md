@@ -77,7 +77,7 @@ files_modified:
   1. `PresetApplier.swift`（新建，Core/Presets）：RESEARCH §5.2 复用清单 verbatim——`PresetsStore.load` → `PastePayload(sourceImageID: UUID(), sourceURL: nil, instances:（记录→ModuleInstance 还原）, layerStack: nil, copiedAt: 文件时间)` → 段1 `SessionBatchApplier.composeSegment(payload:mode:)`（:70 签名原样）→ 段2 `claimBatchApply`（:916 原样——**翻 params，thumb 该 stale**）→ 段3 `BatchSidecarWriter` + `clearBatchDirty`。
   2. 部分应用（PRES-04 子集）：`payload.filtered(by:)`（:128）+ 既有 partial dialog 消费面复用。
   3. **等价性测试**（RESEARCH §7 T7）：同一 instances 集走 preset-apply 与剪贴板-paste，终态 sidecar 字节 + 索引行**全等 diff**；万张门：批量 apply 段1+段2 ≤5s（PERF-07 fixture 复用）；live 保护（skipRelPaths）/失败降级行为继承断言；坏预设（instances 含 unknown-op）= 既有 unknown-op degrade 面（不特殊处理）。
-- **证据**：`PresetApplierTests`——等价性全等 diff / partial 子集语义 / live 保护 / 万张门数字入 `.work/gsd/artifacts/12/perf.md` / thumb stale 正确翻转断言（与 12-1 元数据路径的 thumb 不变形成语义对照）。
+- **证据**：`PresetApplierTests`——等价性全等 diff / partial 子集语义 / live 保护 / 万张门数字入 `.work/gsd/phases/12-metadata-presets-lut/perf.md` / thumb stale 正确翻转断言（与 12-1 元数据路径的 thumb 不变形成语义对照）。
 
 ### T3 管理器 UI + Inspector 面板 + 批量 apply（GUI，需解锁控制台（Manual-Only 候补））
 

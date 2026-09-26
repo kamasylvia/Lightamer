@@ -1,6 +1,0 @@
-## EXTRA: Fujifilm-GFX100S-14bits-losslescompressed-4_3.RAF
-nativeSize: 11648x8736 (101.8 MP)  float32 plane ≈ 1553 MB  supported=[7,8]
-warm full decode (v8): 2290 ms
-float32 RGBA native render: 2038 ms  footprintPeak=+1044 MB  end=4676 MB
-CACHED viewport 2560x1440 (decode-once + per-frame transform) n=60: med 15.60 ms/frame (min 15.16 / max 56.10)  est fps=64  frames>16.67ms: 17/60
-footprint at end: 3791 MB

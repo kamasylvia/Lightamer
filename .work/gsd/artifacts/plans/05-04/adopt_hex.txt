@@ -1,9 +1,0 @@
-vib_default (vibrance): loader=1 version-ok=1 DB-vs-XMP=byte-identical
-vib_strong (vibrance): loader=1 version-ok=1 DB-vs-XMP=byte-identical
-vel_default (velvia): loader=1 version-ok=1 DB-vs-XMP=byte-identical
-vel_strong (velvia): loader=1 version-ok=1 DB-vs-XMP=byte-identical
-vel_clamp (velvia): loader=1 version-ok=1 DB-vs-XMP=byte-identical
-cz_default (colorzones): loader=0 version-ok=0 DB-vs-XMP=PLUGIN-NOT-LOADABLE (host dt build: OpenCL stub symbol missing — D-05-04-T3-4)
-cz_hue (colorzones): loader=0 version-ok=0 DB-vs-XMP=PLUGIN-NOT-LOADABLE (host dt build: OpenCL stub symbol missing — D-05-04-T3-4)
-cz_chroma (colorzones): loader=0 version-ok=0 DB-vs-XMP=PLUGIN-NOT-LOADABLE (host dt build: OpenCL stub symbol missing — D-05-04-T3-4)
-cz_lightness (colorzones): loader=0 version-ok=0 DB-vs-XMP=PLUGIN-NOT-LOADABLE (host dt build: OpenCL stub symbol missing — D-05-04-T3-4)
