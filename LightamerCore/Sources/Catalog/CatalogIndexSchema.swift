@@ -369,4 +369,12 @@ public enum CatalogIndexSchema {
             throw error
         }
     }
+
+    /// Plan 16-4: the deterministic TRUNCATE checkpoint (the destructive
+    /// rebuild's promotion precondition — every committed page must be IN
+    /// the main file before the rename). The PRAGMA spelling lives HERE
+    /// (seam b: all pragma faces centralized in the schema enum).
+    public static func checkpointTruncate(on handle: SQLiteHandle) throws {
+        try handle.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    }
 }

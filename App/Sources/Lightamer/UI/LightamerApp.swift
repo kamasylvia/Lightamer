@@ -376,6 +376,23 @@ internal struct LightamerApp: App {
                                 databaseURL: url)
                         }
                     }
+                    // Plan 16-4 T2: the rebuild seams — the destructive
+                    // promotion requires every shared handle closed first;
+                    // any rebuild ends with the trio re-pointed (fresh read
+                    // faces + the browser rebind hook). The recent list is
+                    // the rebuild's source of last resort (the old registry
+                    // is unreadable exactly when it matters).
+                    catalogPreferences.onBeforeDestructiveRebuild = {
+                        await SessionIndexController.closeSharedCatalogHandles()
+                    }
+                    catalogPreferences.onCatalogRuntimeReset = { [catalogPreferences] in
+                        await SessionIndexController.closeSharedCatalogHandles()
+                        await SessionIndexController.repointSharedCatalog(
+                            databaseURL: catalogPreferences.catalogURL)
+                    }
+                    catalogPreferences.recentRootsProvider = { [sessionState] in
+                        sessionState.recentSessions
+                    }
 
                     // Plan 11-04 T3: hand the export state its Metal +
                     // registry dependencies (D-03b closure-seam pattern —

@@ -1795,6 +1795,150 @@
         }
       }
     },
+    "catalog_rebuild_confirm_cancel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_confirm_destructive_accept": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild and Discard Organization Data"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建并丢弃组织数据"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_confirm_destructive_body": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All metadata is re-projected from the sessions; the categories and collections organization data in the catalog will be discarded (back up the .lcat file first if you need it)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将把全部元数据从会话重新投影；目录库中的分类与集合组织数据将被丢弃（如需保留请先备份 .lcat 文件）。"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_confirm_destructive_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild the catalog?"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建目录库？"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_done_destructive": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadata has been restored; categories and collections must be restored from a backup or re-organized."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "元数据已恢复；分类与集合需从备份恢复或重新整理。"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_done_reconcile %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The catalog has been reconciled with %lld sessions."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录已与 %lld 个会话对账。"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_done_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild Complete"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建完成"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_failed %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild failed: %@"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建失败：%@"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_failed_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild Failed"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建失败"
+          }
+        }
+      }
+    },
     "catalog_session_offline": {
       "localizations": {
         "en": {
@@ -15723,6 +15867,22 @@
         }
       }
     },
+    "settings_catalogs_backup_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit the app, then copy this file — a single-file library, that is the whole backup."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出 app 后拷贝此文件即完整备份（单文件库）。"
+          }
+        }
+      }
+    },
     "settings_catalogs_enable": {
       "localizations": {
         "en": {
@@ -15803,6 +15963,22 @@
         }
       }
     },
+    "settings_catalogs_rebuild_destructive": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild Catalog…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建目录库…"
+          }
+        }
+      }
+    },
     "settings_catalogs_rebuild_hint": {
       "localizations": {
         "en": {
@@ -15815,6 +15991,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "目录库可随时由会话重建；分类与集合等整理数据仅存于目录库单文件内（拷贝该文件即备份）。"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_preparing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing rebuild…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在准备重建…"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_progress %lld %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuilding %lld of %lld sessions"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建中 %lld/%lld 会话"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_reconcile": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconcile Catalog"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对账重建目录"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalog Rebuild"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库重建"
+          }
+        }
+      }
+    },
+    "settings_catalogs_schema_failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The catalog cannot be opened (unknown schema or a damaged file). Sessions mode is unaffected."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库无法打开（schema 不识别或文件损坏）。Sessions 模式不受影响。"
           }
         }
       }

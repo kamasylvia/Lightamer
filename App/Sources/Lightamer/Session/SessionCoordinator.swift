@@ -302,6 +302,18 @@ final class SessionIndexController {
     nonisolated(unsafe) static var sharedCatalogStoreRebuilt:
         ((CatalogIndexStore) -> Void)?
 
+    /// Plan 16-4 T2 — the destructive-rebuild support seam: close the shared
+    /// trio WITHOUT recreating (and clear `sharedCatalogURL` so a subsequent
+    /// `repointSharedCatalog` at the SAME url re-runs). The CatalogRebuilder's
+    /// rename promotion requires every writer of the outgoing `.lcat` closed
+    /// first — a live handle would keep writing into the orphaned inode.
+    static func closeSharedCatalogHandles() async {
+        await sharedCatalogProjector.close()
+        await sharedCatalogStore.close()
+        await sharedCatalogOrganization.close()
+        sharedCatalogURL = nil
+    }
+
     /// Plan 16-2 T1 — the location preference's runtime leg (RQ-16-1②:
     /// re-point, never migrate). Closes the outgoing handles FIRST, rebuilds
     /// the projector + store pair at `url`, and wires the COUNT-memo

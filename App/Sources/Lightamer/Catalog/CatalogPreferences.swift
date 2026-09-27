@@ -123,6 +123,124 @@ final class CatalogPreferencesModel {
         locationPath = ""
         defaults.removeObject(forKey: Self.locationStorageKey)
     }
+
+    // MARK: - Plan 16-4: the schema-failed disabled state + the two-mode
+    // rebuild (RQ-16-14)
+
+    /// Rebuild progress payload (the X/N 浮层).
+    struct RebuildProgressState: Equatable {
+        var completed: Int
+        var total: Int
+    }
+
+    /// The completion/failure notice (the TWO honest completion copies:
+    /// reconcile = the library reconciled; destructive = metadata restored
+    /// AND the organization-data loss spelled out — the discipline).
+    enum RebuildOutcome: Equatable {
+        case reconciled(sessions: Int)
+        case restoredDestructive(sessions: Int)
+        case failed(String)
+    }
+
+    /// The 损坏处置 state: the `.lcat` exists but refuses the frozen schema
+    /// (v99 / truncated / unparsable). Catalogs mode renders its disabled
+    /// face + the「重建目录库」button; Sessions mode is untouched (the
+    /// failure semantics inherited from 16-1).
+    private(set) var schemaFailed = false
+
+    /// Rebuild-in-flight state (the grid shows 空网格 + 进度 while true).
+    private(set) var isRebuilding = false
+    private(set) var rebuildProgress: RebuildProgressState?
+
+    /// The last rebuild's completion notice (the alert payload).
+    private(set) var lastOutcome: RebuildOutcome?
+
+    /// The alert's dismissal face (the Binding setter routes here — the
+    /// field itself stays externally read-only).
+    func clearOutcome() {
+        lastOutcome = nil
+    }
+
+    /// App-root seams (wired with the other D-03b closures):
+    /// `onBeforeDestructiveRebuild` closes every shared catalog handle (a
+    /// writer holding the old inode would strand its state after the
+    /// rename promotion); `onCatalogRuntimeReset` re-points the shared
+    /// trio after ANY rebuild (fresh handles + the browser rebind hook);
+    /// `recentRootsProvider` feeds the rebuild's session backfill (the
+    /// recent list — the source of last resort when the old registry is
+    /// unreadable).
+    var onBeforeDestructiveRebuild: (() async -> Void)?
+    var onCatalogRuntimeReset: (() async -> Void)?
+    var recentRootsProvider: (() -> [URL])?
+
+    /// Probe the schema state (idempotent; the file-missing case is the
+    /// healthy empty state — a fresh library is created on the next open,
+    /// never a failure).
+    nonisolated private static func probeSchemaFailed(url: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        guard let handle = try? SQLiteHandle(path: url.path) else { return true }
+        defer { handle.close() }
+        do {
+            try CatalogIndexSchema.apply(to: handle)
+            return false
+        } catch {
+            return true
+        }
+    }
+
+    func refreshSchemaState() {
+        schemaFailed = Self.probeSchemaFailed(url: catalogURL)
+    }
+
+    /// 对账式重建（默认档）: zero watermarks → re-project every registered
+    /// session; ids and organization data survive.
+    func runReconcileRebuild() async {
+        await runRebuild(destructive: false)
+    }
+
+    /// 破坏式重建（文件级恢复档）: fresh `catalog.lcat.tmp` → verify →
+    /// same-dir rename promotion (L009); organization data is LOST (the
+    /// completion copy says so, verbatim).
+    func runDestructiveRebuild() async {
+        await onBeforeDestructiveRebuild?()
+        await runRebuild(destructive: true)
+    }
+
+    private func runRebuild(destructive: Bool) async {
+        guard !isRebuilding else { return }
+        isRebuilding = true
+        rebuildProgress = nil
+        defer {
+            isRebuilding = false
+            rebuildProgress = nil
+        }
+        let rebuilder = CatalogRebuilder(databaseURL: catalogURL)
+        await rebuilder.setProgressHandler { [weak self] progress in
+            guard let self else { return }
+            let state = RebuildProgressState(
+                completed: progress.completedSessions,
+                total: progress.totalSessions)
+            await MainActor.run { self.rebuildProgress = state }
+        }
+        do {
+            let sessions: Int
+            if destructive {
+                sessions = try await rebuilder.destructiveRebuild(
+                    recentRoots: recentRootsProvider?() ?? [])
+            } else {
+                sessions = try await rebuilder.reconcileRebuild(
+                    recentRoots: recentRootsProvider?() ?? [])
+            }
+            lastOutcome = destructive
+                ? .restoredDestructive(sessions: sessions)
+                : .reconciled(sessions: sessions)
+            schemaFailed = Self.probeSchemaFailed(url: catalogURL)
+            await onCatalogRuntimeReset?()
+        } catch {
+            lastOutcome = .failed(error.localizedDescription)
+            schemaFailed = Self.probeSchemaFailed(url: catalogURL)
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

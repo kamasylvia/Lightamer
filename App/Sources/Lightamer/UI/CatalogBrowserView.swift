@@ -48,6 +48,11 @@ internal struct CatalogBrowserView: View {
     // tree/collections model — the SAME instance the sidebar consumes).
     @Environment(CatalogTreeModel.self) private var catalogTree
 
+    // Plan 16-4 T2: the rebuild-in-flight face — while a two-mode rebuild
+    // runs the grid clears (空网格 + 进度, RQ-16-14 推荐态; Smart Albums
+    // stay visible — only the photographs grid clears).
+    @Environment(CatalogPreferencesModel.self) private var catalogPreferences
+
     /// Scroll-load threshold (cells before the end that trigger the next
     /// keyset page).
     private static let loadAhead = 12
@@ -56,35 +61,52 @@ internal struct CatalogBrowserView: View {
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: Self.columns, spacing: 10) {
-                ForEach(Array(model.rows.enumerated()), id: \.element) { index, row in
-                    CatalogBrowserCell(
-                        row: row,
-                        sessionRoot: sessionRoots[row.sessionID],
-                        thumbnailRouter: thumbnailRouter,
-                        isSelected: model.selectedIdentities.contains(row.id),
-                        onClick: { command, shift in
-                            model.handleClick(row.id, commandPressed: command, shiftPressed: shift)
-                        },
-                        onDoubleClick: {
-                            if let root = sessionRoots[row.sessionID] {
-                                onOpenInEditor(root, row.relPath)
-                            }
-                        }
-                    )
-                    .accessibilityIdentifier(
-                        CatalogBrowserIdentifiers.cell(row.pathHash))
-                    .contextMenu {
-                        self.batchMenus(for: row.id)
+            if catalogPreferences.isRebuilding {
+                // The rebuild face: an EMPTY grid + the X/N-会话 progress
+                // (no stale rows read from a library being rebuilt).
+                VStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.regular)
+                    if let progress = catalogPreferences.rebuildProgress {
+                        Text("settings_catalogs_rebuild_progress \(progress.completed) \(progress.total)")
+                    } else {
+                        Text("settings_catalogs_rebuild_preparing")
                     }
-                    .onAppear {
-                        if index >= model.rows.count - Self.loadAhead {
-                            Task { await model.loadMore() }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 60)
+                .accessibilityIdentifier("catalog.rebuild_progress")
+            } else {
+                LazyVGrid(columns: Self.columns, spacing: 10) {
+                    ForEach(Array(model.rows.enumerated()), id: \.element) { index, row in
+                        CatalogBrowserCell(
+                            row: row,
+                            sessionRoot: sessionRoots[row.sessionID],
+                            thumbnailRouter: thumbnailRouter,
+                            isSelected: model.selectedIdentities.contains(row.id),
+                            onClick: { command, shift in
+                                model.handleClick(row.id, commandPressed: command, shiftPressed: shift)
+                            },
+                            onDoubleClick: {
+                                if let root = sessionRoots[row.sessionID] {
+                                    onOpenInEditor(root, row.relPath)
+                                }
+                            }
+                        )
+                        .accessibilityIdentifier(
+                            CatalogBrowserIdentifiers.cell(row.pathHash))
+                        .contextMenu {
+                            self.batchMenus(for: row.id)
+                        }
+                        .onAppear {
+                            if index >= model.rows.count - Self.loadAhead {
+                                Task { await model.loadMore() }
+                            }
                         }
                     }
                 }
+                .padding(12)
             }
-            .padding(12)
         }
         .accessibilityIdentifier(CatalogBrowserIdentifiers.grid)
         // Plan 16-2 T3: the filter bar rides the grid's top inset (the 12-2
@@ -95,7 +117,7 @@ internal struct CatalogBrowserView: View {
         // The empty faces: a fresh (empty) catalog guides the user into the
         // session flow (RQ-16-1③); a filtered empty result says WHY.
         .overlay {
-            if model.rows.isEmpty, model.endReached {
+            if !catalogPreferences.isRebuilding, model.rows.isEmpty, model.endReached {
                 if model.hasActiveFilter {
                     ContentUnavailableView {
                         Label("filter_empty_results", systemImage: "line.3.horizontal.decrease.circle")
@@ -120,6 +142,16 @@ internal struct CatalogBrowserView: View {
         }
         .onChange(of: model.queryRevision) { _, _ in
             Task { await model.reload() }
+        }
+        // Plan 16-4 T2: after a rebuild lands the grid reloads from the
+        // fresh state (the rebuild flips this revision counter).
+        .onChange(of: catalogPreferences.isRebuilding) { wasRebuilding, now in
+            if wasRebuilding, !now {
+                Task {
+                    await refreshSessionRoots()
+                    await model.reload()
+                }
+            }
         }
     }
 

@@ -979,8 +979,13 @@ final class CatalogOrganizationTests: XCTestCase {
         // are exactly the four live images' rows (content-level, L020).
         XCTAssertEqual(orphanMembers, 0)
         XCTAssertEqual(orphanCollectionMembers, 0)
-        XCTAssertEqual(try await store.memberCount(categoryID: a), 4)
-        XCTAssertEqual(try await store.memberCount(collectionID: c), 4)
+        // (awaits hoisted out of the XCTAssertEqual autoclosures — the actor
+        // calls stopped resolving through the async overload under a full
+        // rebuild; same assertion, plain locals)
+        let memberCountA = try await store.memberCount(categoryID: a)
+        let memberCountC = try await store.memberCount(collectionID: c)
+        XCTAssertEqual(memberCountA, 4)
+        XCTAssertEqual(memberCountC, 4)
     }
 
     // MARK: - T4: read/write concurrency smoke (WAL, R4 cross-domain)
