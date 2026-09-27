@@ -82,7 +82,7 @@
 
 - **⏸️ 流水线暂停（2026-09-27 用户指令「暂停流水线」）**：`config.toml paused = true` 已设。13-2（色彩完备）executor 在飞——下一任务边界干净停（在制品 commit 后停）。**恢复 = 用户改回 `paused = false`**。暂停原因待用户补充（可能关联内存事件——16GB 机器 swap thrashing）。
 
-- **🏗️ 执行序修订（2026-09-27 用户指令）**：Phase 8（HDR/Stacking & Effects，10 需求被跳过）**回补执行**；Phase 14（MCP）+ Phase 15（Performance）继续；Phase 13-4（分发）**移至最后——人工审核通过后才正式发布**。修订后执行序 = Phase 13-1..13-3（已完成）→ **Phase 8 回补** → Phase 14 → Phase 15 → Phase 13-4（分发，人工审核后首推）。13-4 凭据供件仍需用户。
+- **🏗️ 执行序修订（2026-09-27 用户指令）**：Phase 8（HDR/Stacking & Effects，10 需求被跳过）**回补执行**；Phase 14（MCP）+ Phase 15（Performance）继续；Phase 13-4（分发）**移至最后——人工审核通过后才正式发布**。修订后执行序 = Phase 13-1..13-3（已完成）→ **Phase 8 discuss/research 完成**（`a89b4a9` CONTEXT 12 OQ + `5854b60` RESEARCH 330 行 1M 实测表）→ **planner 已派遣**（5 plans/3 waves per research 建议）。13-4 凭据供件仍需用户。
 
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
 
