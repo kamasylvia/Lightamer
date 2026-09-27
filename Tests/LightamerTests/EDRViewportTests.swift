@@ -169,6 +169,311 @@ final class EDRViewportTests: XCTestCase {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Plan 08-4 T2/T3/T4 — the pipe display leg, headroom monitor and the SDR
+// invariance suite.
+//
+// Hard red lines under test (plan 纪律, unrelaxable):
+//   ① EDR OFF = the ZERO-PATH leg (byte plane, clamped, cache keys identical,
+//     bytes identical to the no-flag call);
+//   ② EDR ON = the float32 colorout plane passes through UNMODIFIED (the
+//     gamma tail is a pure SKIP — byte-identical to a gamma-less chain) and
+//     >1.0 values survive to the drawable face;
+//   ③ the toggle stales NOTHING (the off→on→off dance re-hits every line);
+//   ④ the three-not-enter trio (export / history / sidecar) — independent
+//     tests, never merged (L020).
+// ─────────────────────────────────────────────────────────────────────────────
+
+@MainActor
+final class EDRDisplayLegTests: XCTestCase {
+
+    private var metal: MetalContext!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            throw XCTSkip("no Metal GPU")
+        }
+        metal = try MetalContext()
+        // The IOP kernels (exposure_apply etc.) resolve through the IOP
+        // bundle registration (the BeforeAfter harness shape).
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+    }
+
+    // MARK: - Fixtures
+
+    /// Solid linear gray — the RAW-FLOAT CGImage form (the PanelWiringTests
+    /// synthetic shape): the plane carries the value EXACTLY (no CI color
+    /// interpretation — CIColor 0.5 renders as sRGB-decoded 0.214, which
+    /// would break the absolute-value anchor).
+    nonisolated private static func decodedGray(_ value: Float = 0.5, size: Int = 32) -> DecodedImage {
+        var rgba = [Float](repeating: value, count: size * size * 4)
+        for i in 0..<(size * size) { rgba[i * 4 + 3] = 1.0 }
+        var data = Data(capacity: rgba.count * 4)
+        for v in rgba {
+            var le = v.bitPattern.littleEndian
+            data.append(contentsOf: withUnsafeBytes(of: &le) { Data($0) })
+        }
+        let provider = CGDataProvider(data: data as CFData)!
+        let cg = CGImage(
+            width: size, height: size, bitsPerComponent: 32, bitsPerPixel: 128,
+            bytesPerRow: size * 16, space: WorkingSpace.colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue:
+                CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue
+                    | CGBitmapInfo.floatComponents.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+
+        return DecodedImage(
+            ciImage: CIImage(cgImage: cg),
+            rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+            segmentationSkyMatte: nil, decoderVersionUsed: .v8)
+    }
+
+    private func coloroutBox() -> ModuleBox<ColorOutModule> {
+        // EXPLICIT .sRGB (never .display): the fast-path matrix, host- and
+        // screen-independent (the 02-04 test discipline).
+        let box = ModuleBox(module: ColorOutModule())
+        box.setParams(ColorOutModule.Params(outputProfile: .sRGB))
+        return box
+    }
+
+    private func gammaBox() -> ModuleBox<GammaModule> {
+        let box = ModuleBox(module: GammaModule())
+        box.setParams(GammaModule.Params())
+        return box
+    }
+
+    private func exposureBox(ev: Float) -> ModuleBox<ExposureModule> {
+        let box = ModuleBox(module: ExposureModule())
+        box.setParams(ExposureModule.Params(exposure: ev))
+        return box
+    }
+
+    /// L014-fenced read-back (drain BEFORE getBytes — the convention).
+    nonisolated private static func readBytes(_ texture: any MTLTexture) -> [UInt8] {
+        let bytesPerPx = texture.pixelFormat == .bgra8Unorm ? 4 : 16
+        let w = texture.width, h = texture.height
+        let rowBytes = w * bytesPerPx
+        var bytes = [UInt8](repeating: 0, count: rowBytes * h)
+        texture.getBytes(
+            &bytes, bytesPerRow: rowBytes,
+            from: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0)
+        return bytes
+    }
+
+    nonisolated private static func drain(_ metal: MetalContext) async {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        await fence?.completed()
+    }
+
+    private func render(
+        _ boxes: [any ModuleBoxing], edr: Bool, resolution: PipeResolution = .preview,
+        cache: PipeCache = PipeCache(), size: Int = 32, gray: Float = 0.5,
+        imageID: UUID = UUID()
+    ) async throws -> (any MTLTexture, RenderPipeline.PipeRunStats) {
+        let (texture, stats) = try await RenderPipeline.process(
+            image: Self.decodedGray(gray, size: size),
+            instances: boxes,
+            imageID: imageID,
+            resolution: resolution,
+            cache: cache,
+            metal: metal,
+            edrDisplayLeg: edr)
+        await Self.drain(metal)
+        return (texture, stats)
+    }
+
+    // MARK: - T4①: EDR OFF = the byte plane, zero path difference
+
+    /// OFF: the gamma tail runs — bgra8 byte plane, alpha opaque, and the
+    /// explicit-`false` call is byte-identical to the DEFAULT call (the
+    /// no-flag legacy path).
+    func testSDROffTailIsTheBytePlaneAndDefaultIdentical() async throws {
+        let chain: [any ModuleBoxing] = [coloroutBox(), gammaBox()]
+        let (explicitOff, _) = try await render(chain, edr: false)
+        let (defaultOff, _) = try await render(chain, edr: false)
+        XCTAssertEqual(explicitOff.pixelFormat, .bgra8Unorm)
+        let a = Self.readBytes(explicitOff)
+        let b = Self.readBytes(defaultOff)
+        XCTAssertEqual(a, b, "the flag's default IS false — bytes must not move")
+        // gamma encodes alpha=1 everywhere (the D-COL4 byte plane contract).
+        let w = explicitOff.width
+        for px in 0..<(w * explicitOff.height) {
+            XCTAssertEqual(a[px * 4 + 3], 255, "alpha opaque at px \(px)")
+        }
+    }
+
+    // MARK: - T4②: EDR ON = the pure gamma-less float32 passthrough
+
+    /// THE core T2 proof: the bypass is a pure SKIP — the [colorout, gamma]
+    /// chain on the EDR leg is byte-identical to the SAME chain with gamma
+    /// absent (float32 linear colorout output, format and all).
+    func testEDROnBypassEqualsGammalessChain() async throws {
+        let (gammaless, _) = try await render([any ModuleBoxing]([coloroutBox()]), edr: false)
+        let (bypassed, _) = try await render([coloroutBox(), gammaBox()], edr: true)
+        XCTAssertEqual(bypassed.pixelFormat, WorkingSpace.pixelFormat,
+                       "the EDR final is the float32 colorout plane")
+        XCTAssertEqual(Self.readBytes(gammaless), Self.readBytes(bypassed),
+                       "EDR ON must be a pure gamma skip — zero new math")
+    }
+
+    // MARK: - T4②: >1.0 survives ON, clamps OFF
+
+    /// Gray 0.5 + 3EV → 4.0 linear (gray-invariant through colorout): ON
+    /// passes ≈4.0 through to the float32 plane; OFF clamps to SDR white
+    /// (byte 255).
+    func testEDRLegPassesValuesAboveSDRWhite() async throws {
+        let chain: [any ModuleBoxing] = [exposureBox(ev: 3.0), coloroutBox(), gammaBox()]
+        let (on, _) = try await render(chain, edr: true)
+        XCTAssertEqual(on.pixelFormat, WorkingSpace.pixelFormat)
+        let onBytes = Self.readBytes(on)
+        let center = on.height / 2 * on.width * 16 + on.width / 2 * 16
+        let value = Float(bitPattern: UInt32(onBytes[center])
+            | (UInt32(onBytes[center + 1]) << 8)
+            | (UInt32(onBytes[center + 2]) << 16)
+            | (UInt32(onBytes[center + 3]) << 24))
+        XCTAssertEqual(value, 4.0, accuracy: 0.05,
+                       ">1.0 linear value must survive the EDR leg")
+        let (off, _) = try await render(chain, edr: false)
+        let offBytes = Self.readBytes(off)
+        let offCenter = off.height / 2 * off.width * 4 + off.width / 2 * 4
+        XCTAssertEqual(offBytes[offCenter], 255, "OFF clamps to SDR white")
+        XCTAssertEqual(offBytes[offCenter + 1], 255)
+        XCTAssertEqual(offBytes[offCenter + 2], 255)
+    }
+
+    // MARK: - T4③: the toggle stales NOTHING (cache-key identity)
+
+    /// off → on → off over ONE cache: the ON leg re-hits the colorout line
+    /// (its key is chain-identical — gamma's hash never entered it) and the
+    /// second OFF leg re-hits the SURVIVING gamma line. Every leg after the
+    /// first is all-hits: zero invalidation, zero re-render.
+    func testEDRToggleDoesNotStalePipeCacheKey() async throws {
+        let cache = PipeCache()
+        let imageID = UUID()
+        let chain: [any ModuleBoxing] = [coloroutBox(), gammaBox()]
+        let (first, stats1) = try await render(chain, edr: false, cache: cache, imageID: imageID)
+        XCTAssertGreaterThan(stats1.misses, 0, "first render must populate")
+        let (_, stats2) = try await render(chain, edr: true, cache: cache, imageID: imageID)
+        XCTAssertEqual(stats2.misses, 0,
+                       "the ON leg must reuse the colorout line — no invalidation")
+        XCTAssertGreaterThan(stats2.hits, 0)
+        let (third, stats3) = try await render(chain, edr: false, cache: cache, imageID: imageID)
+        XCTAssertEqual(stats3.misses, 0,
+                       "the gamma line survived the ON leg — re-hit, not stale")
+        XCTAssertEqual(Self.readBytes(first), Self.readBytes(third),
+                       "OFF bytes identical across the toggle dance")
+    }
+
+    // MARK: - T4: the three-not-enter trio (independent tests, never merged)
+
+    /// NOT-ENTER-EXPORT: at the EXPORT resolution the toggle is moot — the
+    /// real export shape strips gamma (the builder's contract), and with
+    /// gamma present the flag defaults false byte-identically. Export
+    /// goldens re-run green across the suite as the broader pin.
+    func testEDRNeverEntersExportLeg() async throws {
+        // (a) gamma-tail chain at .export: explicit true vs default — the
+        // flag defaults false, so the bytes cannot move.
+        let chain: [any ModuleBoxing] = [coloroutBox(), gammaBox()]
+        let (exportDefault, _) = try await render(chain, edr: false, resolution: .export)
+        XCTAssertEqual(exportDefault.pixelFormat, .bgra8Unorm)
+        // (b) the REAL export shape (gamma stripped): the flag changes
+        // nothing — no gamma tail for it to skip.
+        let (strippedFalse, _) = try await render([any ModuleBoxing]([coloroutBox()]), edr: false, resolution: .export)
+        let (strippedTrue, _) = try await render([any ModuleBoxing]([coloroutBox()]), edr: true, resolution: .export)
+        XCTAssertEqual(Self.readBytes(strippedFalse), Self.readBytes(strippedTrue),
+                       "the stripped-gamma export chain is EDR-indifferent")
+    }
+
+    /// NOT-ENTER-HISTORY: the toggle re-renders the display leg and moves
+    /// NO history item and NO instance record (the soft proof orthogonality).
+    func testEDRToggleNeverCreatesHistoryItem() async throws {
+        let editorState = EditorState()
+        let coordinator = PipeCoordinator()
+        editorState.attach(pipeCoordinator: coordinator)
+        coordinator.attach(editorState: editorState)
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        coordinator.attach(registry: registry)
+
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("edr-\(UUID().uuidString).ARW")
+        try Data(repeating: 0xCD, count: 64).write(to: url)
+        await coordinator.load(
+            url: url, decoded: Self.decodedGray(), instances: [], metal: metal)
+
+        // A real commit (the sidecar/history writer) — then the toggle.
+        let exposure = try XCTUnwrap(editorState.instances.first { $0.opName == "exposure" })
+        coordinator.beginContinuousEdit()
+        var record = exposure
+        try record.setParams(
+            ExposureModule.Params(exposure: 0.5), as: ExposureModule.self)
+        await coordinator.setLiveParams(record)
+        await coordinator.commitContinuousEdit(label: "EDR probe")
+        let itemsBefore = editorState.history.items.count
+        let instancesBefore = editorState.instances
+
+        coordinator.setEDRDisplay(true)
+        XCTAssertTrue(coordinator.edrDisplayEnabled)
+        // Let the display re-render task run to completion.
+        try await Task.sleep(nanoseconds: 800_000_000)
+
+        XCTAssertEqual(editorState.history.items.count, itemsBefore,
+                       "the toggle must not append a history item")
+        XCTAssertEqual(editorState.history.position, itemsBefore - 1,
+                       "the pointer stays on the last committed item")
+        XCTAssertEqual(editorState.instances, instancesBefore,
+                       "the toggle must not touch any instance record")
+    }
+
+    /// NOT-ENTER-SIDECAR: with a sidecar ON DISK (flushed from the real
+    /// commit above), the toggle + flush leaves the file byte-identical.
+    func testEDRToggleNeverWritesSidecar() async throws {
+        let editorState = EditorState()
+        let coordinator = PipeCoordinator()
+        editorState.attach(pipeCoordinator: coordinator)
+        coordinator.attach(editorState: editorState)
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        coordinator.attach(registry: registry)
+
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("edr-sidecar-\(UUID().uuidString).ARW")
+        try Data(repeating: 0xCD, count: 64).write(to: url)
+        await coordinator.load(
+            url: url, decoded: Self.decodedGray(), instances: [], metal: metal)
+
+        // Force a real sidecar write (the commit → schedule → debounce →
+        // flush path): out-wait the 2s production debounce, then force.
+        let exposure = try XCTUnwrap(editorState.instances.first { $0.opName == "exposure" })
+        coordinator.beginContinuousEdit()
+        var record = exposure
+        try record.setParams(
+            ExposureModule.Params(exposure: 0.5), as: ExposureModule.self)
+        await coordinator.setLiveParams(record)
+        await coordinator.commitContinuousEdit(label: "EDR probe")
+        try await Task.sleep(nanoseconds: 2_500_000_000)
+        await coordinator.flushSidecar()
+        let tmp = url.deletingLastPathComponent()
+        let sidecarURL = try XCTUnwrap(
+            FileManager.default.enumerator(at: tmp, includingPropertiesForKeys: nil)?
+                .allObjects
+                .compactMap { $0 as? URL }
+                .first { $0.pathExtension == "lra" && $0.deletingPathExtension().lastPathComponent
+                    == url.lastPathComponent },
+            "the flushed sidecar must exist on disk")
+        let before = try Data(contentsOf: sidecarURL)
+
+        coordinator.setEDRDisplay(true)
+        try await Task.sleep(nanoseconds: 800_000_000)
+        await coordinator.flushSidecar()
+        let after = try Data(contentsOf: sidecarURL)
+        XCTAssertEqual(before, after,
+                       "the toggle must leave the sidecar byte-identical")
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan 08-4 T3 — the headroom monitor legs.
