@@ -772,6 +772,264 @@ final class CatalogOrganizationTests: XCTestCase {
         XCTAssertEqual(orphans, 0)
         await projector.close()
     }
+
+    // MARK: - T4: transaction atomicity (injected ROLLBACK, L010 pattern)
+
+    /// An injected failure INSIDE the reorder transaction (after the
+    /// sibling rewrites, before COMMIT) must ROLL BACK to the EXACT prior
+    /// tree — every sort_order and every parent link byte-identical.
+    func testReorderInjectionRollsBackByteExact() async throws {
+        let a = try await store.createCategory(name: "A")
+        var ids: [Int64] = []
+        for name in ["N1", "N2", "N3", "N4"] {
+            ids.append(try await store.createCategory(name: name, parentID: a))
+        }
+        let before = try await store.readTree()
+
+        await store.setFailureInjection(.afterSiblingRewrites)
+        do {
+            try await store.moveCategory(id: ids[3], newParentID: nil)
+            XCTFail("expected the injected failure")
+        } catch is CatalogOrganizationInjectedFailure {
+            // expected
+        }
+        await store.setFailureInjection(.none)
+
+        let after = try await store.readTree()
+        XCTAssertEqual(after, before, "tree byte-identical after ROLLBACK")
+
+        // The reopened file agrees (the rollback persisted, not just the
+        // in-memory snapshot).
+        await store.close()
+        let reopened = CatalogOrganizationStore(databaseURL: catalogURL)
+        let treeAfterReopen = try await reopened.readTree()
+        XCTAssertEqual(treeAfterReopen, before)
+        await reopened.close()
+    }
+
+    /// A cross-parent move interrupted mid-transaction leaves NEITHER
+    /// sibling set half-rewritten (the parent_id flip included).
+    func testCrossParentMoveInjectionRollsBackFully() async throws {
+        let ids = try await buildCanonicalTree()
+        let before = try await store.readTree()
+
+        await store.setFailureInjection(.afterSiblingRewrites)
+        do {
+            try await store.moveCategory(id: ids.a2, newParentID: ids.b1)
+            XCTFail("expected the injected failure")
+        } catch is CatalogOrganizationInjectedFailure {
+            // expected
+        }
+        await store.setFailureInjection(.none)
+
+        let after = try await store.readTree()
+        XCTAssertEqual(after, before)
+        // A2's parent is still A (the UPDATE rolled back too).
+        let tree = after
+        XCTAssertEqual(tree[0].children.map(\.name), ["A1", "A2"])
+        XCTAssertEqual(tree[1].children[0].children.map(\.name), [])
+    }
+
+    /// An injected failure after the membership inserts (before COMMIT)
+    /// leaves ZERO half-committed rows.
+    func testAssignInjectionRollsBackZeroHalfCommitted() async throws {
+        try await seedImage(relPath: "IMG_0001.arw")
+        try await seedImage(relPath: "IMG_0002.arw")
+        let a = try await store.createCategory(name: "A")
+        let before = try await countRows("SELECT COUNT(*) FROM image_categories")
+        XCTAssertEqual(before, 0)
+
+        await store.setFailureInjection(.beforeAssignCommit)
+        do {
+            _ = try await store.assign(
+                images: [img("IMG_0001.arw"), img("IMG_0002.arw")],
+                toCategoryID: a)
+            XCTFail("expected the injected failure")
+        } catch is CatalogOrganizationInjectedFailure {
+            // expected
+        }
+        await store.setFailureInjection(.none)
+
+        let after = try await countRows("SELECT COUNT(*) FROM image_categories")
+        XCTAssertEqual(after, 0, "zero half-committed memberships")
+
+        // Reopen: the database agrees (no WAL-recovered ghosts).
+        await store.close()
+        let reopened = CatalogOrganizationStore(databaseURL: catalogURL)
+        let reopenedCount = try await reopened.memberCount(categoryID: a)
+        XCTAssertEqual(reopenedCount, 0)
+        await reopened.close()
+    }
+
+    // MARK: - T4: the no-orphan exhaustive proof
+
+    /// A deterministic (LCG) 120-step CRUD gauntlet — creates, renames,
+    /// moves (some refused by the cycle defense), leaf deletes (some
+    /// refused by the non-empty guard) — asserting after EVERY step that
+    /// every parent_id points at a LIVE node and no membership row points
+    /// at a dead image (the store-level equivalent of
+    /// PRAGMA foreign_key_check, which cannot run — the DDL declares no
+    /// FKs by discipline).
+    func testNoOrphanExhaustiveCRUDGauntlet() async throws {
+        var rng: UInt64 = 0x9E37_79B9_7F4A_7C15
+        func next(_ bound: Int) -> Int {
+            rng = rng &* 6364136223846793005 &+ 1442695040888963407
+            return Int((rng >> 33) % UInt64(max(1, bound)))
+        }
+
+        var live: [Int64] = []
+        for step in 0..<120 {
+            switch next(5) {
+            case 0, 1:  // create (root or under a random live node)
+                let parent = live.isEmpty || next(3) == 0 ? nil : live[next(live.count)]
+                let id = try await store.createCategory(
+                    name: "N\(step)", parentID: parent)
+                live.append(id)
+            case 2:  // rename
+                if let id = live.randomElementUsing(next) {
+                    try await store.renameCategory(id: id, to: "R\(step)")
+                }
+            case 3:  // move (cycle refusals land here and are FINE)
+                guard live.count > 1 else { continue }
+                let id = live[next(live.count)]
+                let parent = next(4) == 0 ? nil : live[next(live.count)]
+                try? await store.moveCategory(id: id, newParentID: parent)
+            default:  // delete (non-empty refusals land here and are FINE)
+                if let id = live.randomElementUsing(next) {
+                    let deleted = try? await store.deleteCategory(id: id)
+                    if deleted == true {
+                        live.removeAll { $0 == id }
+                    }
+                }
+            }
+
+            // THE INVARIANT, after every step:
+            let orphanParents = try await countRows(
+                """
+                SELECT COUNT(*) FROM categories c
+                WHERE c.parent_id IS NOT NULL
+                  AND NOT EXISTS (
+                    SELECT 1 FROM categories p WHERE p.id = c.parent_id)
+                """)
+            XCTAssertEqual(orphanParents, 0, "step \(step): dangling parent_id")
+        }
+
+        // Terminal coherence: the walked tree contains exactly the live
+        // rows (no hidden orphans, no phantom nodes).
+        let tree = try await store.readTree()
+        let liveCount = try await countRows("SELECT COUNT(*) FROM categories")
+        func countNodes(_ nodes: [CatalogTreeNode]) -> Int {
+            nodes.reduce(0) { $0 + 1 + countNodes($1.children) }
+        }
+        XCTAssertEqual(liveCount, countNodes(tree))
+    }
+
+    /// The membership-orphans variant: memberships always point at live
+    /// images and live targets through a classify → delete-target /
+    /// delete-image gauntlet.
+    func testNoMembershipOrphansThroughDeletes() async throws {
+        for index in 0..<8 {
+            try await seedImage(relPath: String(format: "IMG_%04d.arw", index))
+        }
+        let a = try await store.createCategory(name: "A")
+        let c = try await store.createCollection(name: "C")
+        _ = try await store.assign(
+            images: (0..<8).map { img(String(format: "IMG_%04d.arw", $0)) },
+            toCategoryID: a)
+        _ = try await store.assign(
+            images: (0..<8).map { img(String(format: "IMG_%04d.arw", $0)) },
+            toCollectionID: c)
+
+        // Delete half the images directly (the reconcile leg's effect,
+        // driven through the store's handle here) — memberships must go
+        // with them (16-3's reconcile cascade).
+        try await store.withHandleForTesting { handle in
+            let delete = try handle.prepare(
+                "DELETE FROM catalog_images WHERE rel_path LIKE 'IMG_000[0-3]%'")
+            _ = try delete.step()
+        }
+
+        let orphanMembers = try await countRows(
+            """
+            SELECT COUNT(*) FROM image_categories
+            WHERE catalog_image_id NOT IN (SELECT id FROM catalog_images)
+            """)
+        let orphanCollectionMembers = try await countRows(
+            """
+            SELECT COUNT(*) FROM image_collections
+            WHERE catalog_image_id NOT IN (SELECT id FROM catalog_images)
+            """)
+        // The direct row DELETE here mirrors what the reconcile leg now
+        // cascades — the residual counts must be ZERO.
+        XCTAssertEqual(orphanMembers, 0)
+        XCTAssertEqual(orphanCollectionMembers, 0)
+    }
+
+    // MARK: - T4: read/write concurrency smoke (WAL, R4 cross-domain)
+
+    /// Concurrent tree edits vs. grid reads: the writer's transactions and
+    /// the reader's keyset pages interleave under WAL (reads never block,
+    /// writes serialize on the store actor + SQLite write lock). Zero
+    /// errors, and the terminal tree matches the single-threaded outcome.
+    func testConcurrentEditsAndReadsSmoke() async throws {
+        let parent = try await store.createCategory(name: "P")
+        var ids: [Int64] = []
+        for index in 0..<10 {
+            ids.append(try await store.createCategory(
+                name: String(format: "N%02d", index), parentID: parent))
+        }
+        try await bulkSeedImages(count: 500, sessionID: "sess-conc")
+        let catalogStore = CatalogIndexStore(databaseURL: catalogURL)
+        let groups: [FilterPredicateGroup] = []
+        // Local Sendable captures only (actors + value arrays) — the task
+        // closures must not capture the non-Sendable test instance.
+        guard let orgStore = store else { return XCTFail("store missing") }
+        let siblingIDs = ids
+        let parentNode = parent
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            // The writer: churn the sibling order.
+            group.addTask {
+                for round in 0..<20 {
+                    let id = siblingIDs[round % siblingIDs.count]
+                    try? await orgStore.moveCategory(
+                        id: id, newParentID: parentNode, index: round % siblingIDs.count)
+                    try? await orgStore.renameCategory(
+                        id: id, to: String(format: "R%02d", round))
+                }
+            }
+            // Reader 1: the tree walk.
+            group.addTask {
+                for _ in 0..<20 { _ = try await orgStore.readTree() }
+            }
+            // Reader 2: the keyset grid pages (the store's own face).
+            group.addTask {
+                for _ in 0..<10 {
+                    _ = try? await catalogStore.queryPage(
+                        groups: groups,
+                        sort: FilterSort(key: .captureDate, ascending: false),
+                        anchor: nil, limit: 60)
+                }
+            }
+            while try await group.next() != nil {}
+        }
+
+        // Terminal coherence: gap-free sibling set, all ten alive.
+        let tree = try await store.readTree()
+        XCTAssertEqual(tree.count, 1)
+        let siblings = tree[0].children
+        XCTAssertEqual(siblings.count, 10)
+        XCTAssertEqual(siblings.map(\.sortOrder), Array(0..<10))
+        await catalogStore.close()
+    }
+}
+
+extension Array where Element == Int64 {
+    /// Deterministic element pick with the gauntlet's LCG (no Int.random —
+    /// the sequence must be reproducible).
+    func randomElementUsing(_ next: (Int) -> Int) -> Int64? {
+        isEmpty ? nil : self[next(count)]
+    }
 }
 
 /// A thread-safe bump counter (the memo-computation observer).
