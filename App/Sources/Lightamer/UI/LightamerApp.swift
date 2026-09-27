@@ -840,13 +840,18 @@ internal struct LightamerApp: App {
                 ))
                 .disabled(!softProofState.isActive)
                 Divider()
-                // D-13: no zoom/pan in Phase 1 — disabled.
-                Button(String(localized: "menu_actual_size")) {}
-                    .disabled(true)
-                    .keyboardShortcut("z", modifiers: [])
-                Button(String(localized: "menu_fit_to_screen")) {}
-                    .disabled(true)
-                    .keyboardShortcut("f", modifiers: [])
+                // 13-3 T2 (SYS-03): the fit/100% switches — the Phase 1
+                // disabled placeholders flip ON, routed into the shared
+                // ViewportState (bare Z / bare F; unused by any other
+                // item per the D-8 conflict table).
+                Button(String(localized: "menu_actual_size")) {
+                    viewportState.actualSize()
+                }
+                .keyboardShortcut("z", modifiers: [])
+                Button(String(localized: "menu_fit_to_screen")) {
+                    viewportState.fit()
+                }
+                .keyboardShortcut("f", modifiers: [])
             }
 
             // ── 标记 (12-1 T6, META-01/META-05) — the three-state metadata

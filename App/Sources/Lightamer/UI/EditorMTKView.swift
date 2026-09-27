@@ -52,8 +52,15 @@ internal struct EditorMTKView: NSViewRepresentable {
     @Environment(ViewportState.self) private var viewportState
 
     func makeNSView(context: Context) -> MTKView {
-        let view = MTKView(frame: .zero, device: device)
+        // 13-3 T2 (D-13-CONTEXT-6①): the AppKit GESTURE face — the
+        // trackpad's native event stream is NSView's magnify/rotate/
+        // scrollWheel overrides (SwiftUI gestures cannot express the
+        // anchor/end-state/scroll-pan details on macOS). The subclass
+        // forwards into the Coordinator, which mutates the shared
+        // `ViewportState` (no second math) and arms one redraw.
+        let view = ViewportMTKView(frame: .zero, device: device)
         view.delegate = context.coordinator
+        view.gestureTarget = context.coordinator
         view.colorPixelFormat = .bgra8Unorm // UI-SPEC: Phase 1 display format
         view.isPaused = true // D-13: redraw on demand, not a 60fps loop
         view.enableSetNeedsDisplay = true
@@ -112,6 +119,7 @@ internal struct EditorMTKView: NSViewRepresentable {
                 viewportSize: view.bounds.size,
                 textureSize: CGSize(width: texture.width, height: texture.height))
         }
+        context.coordinator.viewportState = viewportState
         if needsDisplay {
             view.setNeedsDisplay(view.bounds)
         }
@@ -163,6 +171,78 @@ internal struct EditorMTKView: NSViewRepresentable {
             }
         }
         var zoomSignature = ZoomSignature(zoom: 1, pan: .zero, rotationDegrees: 0)
+
+        /// 13-3 T2: the shared zoom state (environment-injected through
+        /// `updateNSView`; app-lifetime, so `weak` is cycle-free).
+        weak var viewportState: ViewportState?
+
+        /// The live texture size for the gesture entries (zero when the
+        /// viewport is empty — the state machine ignores degenerate sizes).
+        private var liveTextureSize: CGSize {
+            sourceTexture.map { CGSize(width: $0.width, height: $0.height) } ?? .zero
+        }
+
+        // MARK: 13-3 T2 gesture surface (ViewportMTKView forwards here)
+
+        /// The shared mutation tail: run the state edit, mirror the
+        /// signature (the next `updateNSView` push sees it as a no-op)
+        /// and arm exactly one paused-mode redraw.
+        @MainActor private func editViewport(
+            in view: MTKView, _ edit: (ViewportState) -> Void
+        ) {
+            guard let viewportState else { return }
+            edit(viewportState)
+            zoomSignature = ZoomSignature(
+                zoom: viewportState.zoom,
+                pan: viewportState.pan,
+                rotationDegrees: viewportState.rotationDegrees)
+            view.setNeedsDisplay(view.bounds)
+        }
+
+        @MainActor func handleMagnify(
+            _ delta: Double, at point: CGPoint, in view: MTKView
+        ) {
+            editViewport(in: view) { state in
+                state.magnify(
+                    delta: delta, anchoredAt: point,
+                    viewportSize: view.bounds.size, textureSize: liveTextureSize)
+            }
+        }
+
+        @MainActor func handleRotate(
+            _ degrees: Double, at point: CGPoint, in view: MTKView
+        ) {
+            editViewport(in: view) { state in
+                state.rotate(
+                    deltaDegrees: degrees, anchoredAt: point,
+                    viewportSize: view.bounds.size, textureSize: liveTextureSize)
+            }
+        }
+
+        @MainActor func handleScrollPan(
+            deltaX: Double, deltaY: Double, in view: MTKView
+        ) {
+            editViewport(in: view) { state in
+                state.scrollPan(deltaX: deltaX, deltaY: deltaY)
+            }
+        }
+
+        @MainActor func handleScrollZoom(
+            ticks: Double, at point: CGPoint, in view: MTKView
+        ) {
+            editViewport(in: view) { state in
+                state.scrollZoom(
+                    ticks: ticks, anchoredAt: point,
+                    viewportSize: view.bounds.size, textureSize: liveTextureSize)
+            }
+        }
+
+        @MainActor func handleSmartMagnify(in view: MTKView) {
+            editViewport(in: view) { state in
+                state.smartMagnify(
+                    viewportSize: view.bounds.size, textureSize: liveTextureSize)
+            }
+        }
 
         /// The colorspace last attached to the CAMetalLayer (D-COL2 — set
         /// only on change; the compositor re-reads it per present).
@@ -416,4 +496,72 @@ struct FitQuad {
 private struct BlitUniforms {
     var scale: SIMD2<Float>
     var offset: SIMD2<Float>
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ViewportMTKView (Plan 13-3 T2, D-13-CONTEXT-6①) — the AppKit GESTURE
+// surface. macOS trackpad gestures arrive as NSView event overrides with
+// cursor anchors and continuous deltas; SwiftUI's gesture set cannot
+// express the anchor/end-state/scroll-pan details, so the bridge
+// subclasses the MTKView and forwards into the Coordinator (which owns
+// the single `ViewportState` mutation + one armed redraw).
+//
+//   magnify       — pinch zoom, cursor-anchored (event.magnification is
+//                   the cumulative factor per gesture; each callback
+//                   carries the delta since the LAST call, so the state
+//                   machine's multiplicative apply composes).
+//   rotate        — two-finger rotation, cursor-anchored (degrees).
+//   scrollWheel   — two-finger pan (continuous deltas, content follows
+//                   the fingers); ⌘-scroll = wheel zoom (the mouse
+//                   fallback leg).
+//   smartMagnify  — the two-finger double-tap: fit ↔ 100%.
+//
+// The 手感 (feel) is Manual-Only registered (L032: synthetic CGEvents do
+// not reach the SwiftUI/AppKit tooling in headless drivers); the SIGN and
+// anchoring MATH are pinned by ViewportTransformTests.
+// ─────────────────────────────────────────────────────────────────────────
+internal final class ViewportMTKView: MTKView {
+
+    weak var gestureTarget: EditorMTKView.Coordinator?
+
+    override func magnify(with event: NSEvent) {
+        super.magnify(with: event)
+        // event.magnification is a 1-centered per-event factor (~1.02 =
+        // +2%); the state machine takes a 0-centered delta — the seam is
+        // the −1 here (zoom · (1 + (mag − 1)) = zoom · mag).
+        gestureTarget?.handleMagnify(
+            Double(event.magnification) - 1,
+            at: convert(event.locationInWindow, from: nil),
+            in: self)
+    }
+
+    override func rotate(with event: NSEvent) {
+        super.rotate(with: event)
+        gestureTarget?.handleRotate(
+            Double(event.rotation),
+            at: convert(event.locationInWindow, from: nil),
+            in: self)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        super.scrollWheel(with: event)
+        if event.modifierFlags.contains(.command) {
+            // ⌘-scroll zoom (the keyboard-mouse fallback; delta flips so
+            // scroll-up zooms in — the universal viewer convention).
+            gestureTarget?.handleScrollZoom(
+                ticks: event.scrollingDeltaY,
+                at: convert(event.locationInWindow, from: nil),
+                in: self)
+        } else {
+            gestureTarget?.handleScrollPan(
+                deltaX: Double(event.scrollingDeltaX),
+                deltaY: Double(event.scrollingDeltaY),
+                in: self)
+        }
+    }
+
+    override func smartMagnify(with event: NSEvent) {
+        super.smartMagnify(with: event)
+        gestureTarget?.handleSmartMagnify(in: self)
+    }
 }

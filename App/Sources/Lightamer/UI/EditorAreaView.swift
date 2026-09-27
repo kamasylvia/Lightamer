@@ -170,6 +170,19 @@ internal struct EditorAreaView: View {
                                 BeforeAfterHUD()
                             }
                         }
+                        // 13-3 T2 (SYS-03): the zoom HUD — a floating
+                        // capsule at the viewport's TOP-LEADING corner
+                        // (the state's value + the fit/100% switches; the
+                        // percentage label's double-click resets rotation).
+                        .overlay(alignment: .topLeading) {
+                            if editorState.loadedImageURL != nil {
+                                ZoomHUD(
+                                    viewportSize: geo.size,
+                                    textureSize: displayPixelSize)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 12)
+                            }
+                        }
                         // 13-2 T4 (COLOR-02): the soft-proof capsule — a
                         // floating top-trailing control (toggle + printer
                         // picker + gamut check; the same SoftProofState the
@@ -355,6 +368,93 @@ internal struct EditorAreaView: View {
         }
         holdMonitor = nil
         beforeAfterState.isHoldingOriginal = false
+    }
+}
+
+/// The zoom HUD (13-3 T2): the current zoom state/value + the fit/100%
+/// switches. Form (execution decision, 13-3-DECISIONS): a compact capsule
+/// — [−] [label] [+] | [fit] [1:1]; the label reads "Fit" in the fit mode,
+/// "100%" pinned at the hundred-percent state, and the free percentage
+/// otherwise; double-clicking the label resets the rotation (anchored at
+/// the viewport center). Locked (a viewport-exclusive overlay) the whole
+/// HUD disables — the mutex is the state machine's decision.
+internal struct ZoomHUD: View {
+
+    let viewportSize: CGSize
+    let textureSize: CGSize
+
+    @Environment(ViewportState.self) private var viewportState
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button {
+                viewportState.stepZoom(
+                    factor: 1 / 1.25,
+                    viewportSize: viewportSize, textureSize: textureSize)
+            } label: {
+                Image(systemName: "minus.magnifyingglass")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("zoom_hud_zoom_out"))
+            .accessibilityIdentifier("zoom.hud.decrease")
+
+            Text(label)
+                .monospacedDigit()
+                .frame(minWidth: 44)
+                .onTapGesture(count: 2) {
+                    viewportState.resetRotation(
+                        viewportSize: viewportSize, textureSize: textureSize)
+                }
+                .accessibilityLabel(Text("zoom_hud_level"))
+                .accessibilityValue(label)
+                .accessibilityIdentifier("zoom.hud.label")
+
+            Button {
+                viewportState.stepZoom(
+                    factor: 1.25,
+                    viewportSize: viewportSize, textureSize: textureSize)
+            } label: {
+                Image(systemName: "plus.magnifyingglass")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("zoom_hud_zoom_in"))
+            .accessibilityIdentifier("zoom.hud.increase")
+
+            Divider().frame(height: 16)
+
+            Button {
+                viewportState.fit()
+            } label: {
+                Image(systemName: "arrow.down.right.and.arrow.up.left")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("zoom_hud_fit"))
+            .accessibilityIdentifier("zoom.hud.fit")
+
+            Button {
+                viewportState.actualSize(
+                    viewportSize: viewportSize, textureSize: textureSize)
+            } label: {
+                Text("zoom_hud_100")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("zoom_hud_actual_size"))
+            .accessibilityIdentifier("zoom.hud.actual")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+        .disabled(viewportState.zoomLocked)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("zoom.hud")
+    }
+
+    private var label: String {
+        if viewportState.mode == .fit {
+            return String(localized: "zoom_hud_fit_label")
+        }
+        return "\(viewportState.displayPercent)%"
     }
 }
 
