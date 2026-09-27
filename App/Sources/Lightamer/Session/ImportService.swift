@@ -44,7 +44,8 @@ enum ImportService {
     }
 
     struct Outcome: Sendable, Equatable {
-        /// The DESTINATION urls that landed in `Capture/`.
+        /// The DESTINATION urls that landed in the session (the caller's
+        /// directory — the app passes the session ROOT, 13-3-DECISIONS).
         var imported: [URL] = []
         /// The per-file failures (the batch continues past each one).
         var failures: [Failure] = []
