@@ -119,3 +119,15 @@
 
 ---
 *Plan 16-1 T5；harness = Tests/LightamerTests/CatalogBenchmarkHarness.swift（LA_CATALOG_BENCH=1 手动跑）；fixture /tmp 即弃不入仓。*
+
+## 7. Plan 16-3 附注：归类写面吞吐（PERF-07 语义跨域延续）
+
+| 场景 | 实测 | 预算 | 判定 |
+|---|---|---|---|
+| 10k 批量归类（段2 单事务 INSERT OR IGNORE ×10000） | **0.027s**（Debug 直启 /tmp 落盘） | ≤5s | ✓ 余量 ~185× |
+| 零像素渲染 | API 零图像数据进出 + fixture 目录零会话侧产物探针 + catalog 不镜像 thumb 列 | 万张级操作零像素 | ✓ |
+
+口径：CatalogOrganizationTests.testBulkTenThousandAssignUnderFiveSeconds 常驻断言（<5s 门 + printed 实测秒数）；归类路径仅触碰 catalog（单事务 prepared 循环，claimMetadataApply 形态），无 lindex/sidecar/解码/缩略图管线介入。
+
+---
+*Plan 16-3 T2 附注（2026-09-27 执行轮）；正式基准口径仍以 16-4 T1 harness 复跑为准。*
