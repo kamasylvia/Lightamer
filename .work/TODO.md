@@ -40,6 +40,16 @@
 
 ---
 
+## Phase 8（HDR/Stacking & Effects iops——ROADMAP §Phase 8，2026-09-27 起执行）—— 执行中（5 plans / 3 waves）
+
+- [x] **Plan 08-2**（创意效果簇 A：vignette 68.0 + grain 65.0 + bloom 61.0——FX-01/02/03）—— ✅ 执行完成（2026-09-28 ZCode subagent worker 原班 T1/T2/T4/T5 `c44a548`/`366cdf4`/`8842a1c`/T5 收口本提交 + 续班会话 T3 bloom `49db32c`（协调者改派独立车道，撞车裁决 PROGRESS.log 02:1x）；全套回归 **1694/11skip/0fail**（基线 1636 → 1694；终轮 1709 计含并行 08-1 增量，5 fail 全归 08-1 未提交 sidecar v4 在制品，08-2 五套件隔离全绿）：① vignette 68.0 = dt 参数面 verbatim（dither 不移植 D-08-CONTEXT-5③）+ extended.cl OpenCL 形单 kernel（cosine 恒用 §17.3）+ float64 参考 1e-6 全图 parity + brightness ± 双支路 + unbound 语义 + routed-blit 恒等 + 面板 + 14 键 ② grain 65.0 = 3-octave simplex verbatim（f/a 表 + ×32）+ StableHash(params⊕identity) 种子（L013）+ 确定性双断言逐字节 + 解析 paper_resp 包络（D-08-2-2）+ Rec2020 luma 注入 + 谱锚 + ISO 标注面板 ③ bloom 61.0 = threshold→级联 blur→screen 三段 + 线性域映射（/4 白锚 + (t/100)³）+ HDR>1.0 零特判（续班 B1-B5 决策收编）④ T4 = EffectsWiringTests 5 件（层蒙版局部化 ×3 内容级+蒙版外逐字节 / 中性与禁用种子恒等 / perf 探针）+ L031 grep 零自建 + V50OrderTests 14/14 零移动 ⑤ perf.md 08-2 节（26.0/25.8/27.8ms @2560px Debug 只记不设门）。决策 D-08-2-1..10 + 续班 B1-B5 入 08-2-DECISIONS。**Manual-Only**：bloom/grain 默认手感观感轮（R4）+ pristine 图 grain 跨启动重掷 wart（D-08-2-1）。执行序：T1→T2→T3→T4→T5。
+- [ ] **Plan 08-1**（堆栈簇底座 + HDR merge：StackMergeService + MTB + Robertson + ghost mask + provenance v4——IOP-HDR-01/04）—— 🔄 并行执行中（另一 executor；ghost mask 已落 `7f7e92b`；sidecar v4 迁移在制品未提交）
+- [ ] Plan 08-3（focus stacking + 堆栈降噪，依赖 08-1 骨架）—— 待 W2
+- [ ] Plan 08-4（EDR 显示腿）—— 待 W2
+- [ ] Plan 08-5（dehaze + text overlay + 收口签核）—— 待 W3
+
+---
+
 ## Phase 9（Capture One Session Management——执行序 09 = ROADMAP §Phase 9）—— 计划态（2026-09-25 planner 定稿；09-RESEARCH + 09-CONTEXT（D-09-CONTEXT-1..7 用户「全按推荐」裁决）+ 5 plans 落盘）
 
 **状态**：~~计划态~~ → **收口（2026-09-26 签核完成）**。5 plans 依赖序 9-1 → 9-2 → 9-3 → 9-4 → 9-5 全部执行+签核闭环（9-1..9-4 各带验收轮 PASS；9-5 终签核 C 档第 3 停经用户授权）。终轮全 suite **1133/6skip/0fail**（基线 973 → 1133，净增 160）。REQUIREMENTS 翻账 Delivered ×9（SESS-01..07 + HIST-05/06）+ PERF-07 达标（0.490s Release/SSD）；PERF-06 留 Phase 15。09-VALIDATION `status: validated` + nyquist_compliant: true；Phase 11 移交清单四条落 09-DISCUSSION-LOG 终节。原计划态记录（2026-09-25 planner 定稿）：裁决要点 libsqlite3 自包装零新依赖（D-09-CONTEXT-1）、`.lightamer/` 会话自包含（-2）、递归排除保留目录 + 三级字面目录（-3）、DB 先行 + dirty 自愈（-4）、skip 集 = decode 域 + 恒等默认（-5）、culling 2 图（-6）、评分/标签列现建 Phase 12 回填（-7）；门数字 fixture 禁放 UNITEK 卷（L009）。

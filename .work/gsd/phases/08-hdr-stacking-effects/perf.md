@@ -28,3 +28,22 @@
 - 归因注记：research §12 的 2–5s 估算为 Phase 2 量级外推，实测低 ≈2–5×——GFX 无压缩 RAF +
   Apple M4 CIRAW 快速路径；无压缩大文件是最有利形态，压缩 RAW（lossless）预期落在估算带内。
   全程预算结论不变（解码非瓶颈风险 R7 解除）。
+
+## 08-2（创意效果簇：vignette / grain / bloom）
+
+| 项 | research 参考基准 | 本 plan 实测（Debug，`test-direct.sh` 直启） | 对账 | 备注 |
+|---|---|---|---|---|
+| bloom blur 腿形态 | 级联 ÷8 box → 1/8 分辨率小 σ gaussian → 双线性上采 = **0.29 s @100MP r=64**（P5；vs 3-pass box 1.87s，6.5×） | 采级联实现；`EffectsWiringTests.testEffectsPreviewPerfProbe`：**preview 链整体 median 27.8 ms @2560px**（bloom dt 默认 size 20） | ✓ 形态一致 | preview 面积 ≈ 100MP/64，级联腿理论 ≈4.5ms——27.8ms 为**整链 composite 计时**（含 base 管线 + 终端段），非 blur 腿单独秒表；无回退（基线链 45.5ms 量级同域） |
+| vignette preview 链 | —（dt 单 kernel，无独立参考数） | **median 26.0 ms @2560px**（整链，同上口径） | 只记 | 单 kernel 逐像素直译，60fps 预算（16.7ms/帧）外的 Debug 计时含链路固定开销，Release 形态预期减半 |
+| grain preview 链 | —（3-octave simplex，dt CPU-only 无 GPU 参考数） | **median 25.8 ms @2560px**（整链，同上口径） | 只记 | 与 vignette 同量级——simplex 3 octave 无差量；21-tap lattice filter 腿仅在 zoom-out 激活 |
+
+### 首测记录（08-2 T4）
+
+- 测试：`EffectsWiringTests.testEffectsPreviewPerfProbe`（LayerCompositeDriver preview 链 + 各模块 dt
+  默认参数；warm 1 轮 + 10 采样取 median；**无时长断言，只记不设门**）。
+- 口径注记：`PERF8-EFFECTS preview-chain (2560px, Debug) — vignette: median 26.0 ms | grain:
+  median 25.8 ms | bloom: median 27.8 ms`。三 iop 挂链后均 **不回退**既有 preview 基线（与
+  `PERF5 PREVIEW full-chain` 45.5ms Debug 量级同域对照——本探针走 LayerCompositeDriver，链略短）。
+- bloom 级联 0.29s @100MP 对账：形状一致（÷8 box + 1/8 FIR + 双线性）；100MP 全幅级联秒表未在本
+  plan 单独复测（preview 探针 + P5 参考数在案即过；EXPORT 全幅秒表留 08-5 收口若需）。
+- 确定性纪律注记：三模块 preview 渲染逐字节确定（GrainTests 双断言 + EffectsWiring 恒等段在案）。
