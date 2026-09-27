@@ -4023,6 +4023,23 @@
         }
       }
     },
+    "history_layer_enable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Layer enabled"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "层启用切换"
+          }
+        }
+      }
+    },
     "history_layer_merge": {
       "extractionState": "manual",
       "localizations": {
@@ -4973,6 +4990,23 @@
         }
       }
     },
+    "layers_enable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable Layer"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用层"
+          }
+        }
+      }
+    },
     "layers_merge_down": {
       "extractionState": "manual",
       "localizations": {
@@ -5176,6 +5210,91 @@
         }
       }
     },
+    "mask_command_clear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Mask"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除蒙版"
+          }
+        }
+      }
+    },
+    "mask_command_duplicate": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplicate Mask"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制蒙版"
+          }
+        }
+      }
+    },
+    "mask_command_duplicateAndInvert": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplicate and Invert"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制并反转"
+          }
+        }
+      }
+    },
+    "mask_command_fill": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fill"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填充"
+          }
+        }
+      }
+    },
+    "mask_command_resetEdits": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset Edits"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置调整"
+          }
+        }
+      }
+    },
     "mask_gradient_linear": {
       "extractionState": "manual",
       "localizations": {
@@ -5223,6 +5342,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "S 形"
+          }
+        }
+      }
+    },
+    "mask_overlay_style": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mask Overlay Style"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蒙版显示样式"
+          }
+        }
+      }
+    },
+    "mask_overlay_style_onBlack": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On Black"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "黑底显示"
+          }
+        }
+      }
+    },
+    "mask_overlay_style_rubylith": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rubylith"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "红蒙片"
+          }
+        }
+      }
+    },
+    "mask_overlay_style_translucent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Translucent"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "半透明"
           }
         }
       }

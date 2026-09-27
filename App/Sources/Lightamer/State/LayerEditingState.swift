@@ -52,6 +52,42 @@ enum MaskTool: String, CaseIterable, Sendable {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Mask overlay display styles (Plan 13-3 T5, D-13-CONTEXT-9③) — the THREE
+// display states of the 「显示蒙版」 tint. A DISPLAY-STYLE enum: it never
+// enters the mask record, the history, or the sidecar — only the
+// coordinator's overlay request carries it.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// The mask overlay's display style (half-transparent yellow tint is the
+/// 06-3 legacy default; rubylith = the classic red scrim; on-black = the
+/// dt-style white-mask-on-black inspection view).
+enum MaskOverlayStyle: String, CaseIterable, Sendable {
+    case translucent
+    case rubylith
+    case onBlack
+
+    /// zh/en catalog key stem (`mask_overlay_style_<rawValue>`).
+    var labelKey: String { "mask_overlay_style_\(rawValue)" }
+}
+
+/// The mask COMMAND face (Plan 13-3 T5, D-13-CONTEXT-9② — the 2026-09-26
+/// registered UI batch). The five commands route through the LayerStack's
+/// EXISTING edit entries (`EditorState.commitLayerEdit` — every command
+/// lands EXACTLY ONE history item, ⌘Z-able). KERNEL ZERO-CHANGE: nothing
+/// here touches `AdjustmentLayer`/`MaskCombiner`/the combine assembly
+/// (the Phase 6 verified surface) — a command is a RECORD edit.
+enum MaskCommand: String, CaseIterable, Sendable {
+    case duplicate
+    case duplicateAndInvert
+    case fill
+    case clear
+    case resetEdits
+
+    /// zh/en catalog key stem (`mask_command_<rawValue>`).
+    var labelKey: String { "mask_command_\(rawValue)" }
+}
+
 @Observable
 @MainActor
 final class LayerEditingState {
@@ -107,6 +143,10 @@ final class LayerEditingState {
     /// 「显示蒙版」— the selected layer's mask overlay tint on the display
     /// plane (the 06-3 render leg; the UI toggle this plan wires).
     var showsMaskOverlay: Bool = true
+
+    /// 13-3 T5: the overlay display STYLE (On-Black / Rubylith / 半透明).
+    /// UI state only — rides the overlay REQUEST, never the record.
+    var maskOverlayStyle: MaskOverlayStyle = .translucent
 
     /// Brush parameters (stroke-level, v1 — D-06-03-T5-1 keeps density/
     /// hardness per STROKE; the toolbar edits the one brush at a time).
@@ -214,6 +254,114 @@ final class LayerEditingState {
         if retouchPanelSelected { return .retouch }
         if segmentActive { return .segment }
         return .crop
+    }
+
+    // MARK: mask commands (13-3 T5 — the five-command face)
+
+    /// Route a mask command onto the SELECTED layer through EditorState's
+    /// EXISTING edit entries. Every command lands EXACTLY ONE history
+    /// item (the compound `duplicateAndInvert` is the documented
+    /// exception: the structural clone + the inversion flip — TWO items,
+    /// two ⌘Z steps, both recorded). No selection → a silent no-op (the
+    /// menu disables before this can fire).
+    func performMaskCommand(_ command: MaskCommand, editorState: EditorState) {
+        guard let id = selectedLayerID,
+              let layer = editorState.adjustmentLayer(id: id)
+        else { return }
+        switch command {
+        case .duplicate:
+            // The EXISTING duplicate path (fresh identities above the
+            // original — the layer's mask value-copies along).
+            editorState.duplicateLayer(id: id)
+        case .duplicateAndInvert:
+            // TWO history items (the clone rides the existing structure
+            // entry; the inversion is ONE property commit on the copy).
+            guard let copy = editorState.duplicateLayer(id: id) as? AdjustmentLayer
+            else { return }
+            var invertedCopy = Self.snapshot(copy)
+            invertedCopy.mask = Self.inverted(invertedCopy.mask)
+            editorState.commitLayerEdit(
+                invertedCopy, label: String(localized: "mask_command_duplicateAndInvert"))
+        case .fill:
+            // Fill = the mask record becomes the EMPTY spec — the
+            // constant-1 passthrough of the degenerate triple (the Phase
+            // 6 contract). Composite-identical to a full plane with ZERO
+            // kernel/GPU involvement (the App layer never calls
+            // MaskCombiner.fill — that is a render-time helper).
+            var copy = Self.snapshot(layer)
+            copy.mask = MaskSpec()
+            editorState.commitLayerEdit(
+                copy, label: String(localized: "mask_command_fill"))
+        case .clear:
+            // Clear = NO mask record at all (the chip's empty state).
+            var copy = Self.snapshot(layer)
+            copy.mask = nil
+            editorState.commitLayerEdit(
+                copy, label: String(localized: "mask_command_clear"))
+        case .resetEdits:
+            // Reset Edits = the layer's iop CHAIN returns to the default
+            // (empty) — the mask itself is PRESERVED (this command lives
+            // on the mask context menu; "edits" = what the mask applies).
+            var copy = Self.snapshot(layer)
+            copy.chain = []
+            editorState.commitLayerEdit(
+                copy, label: String(localized: "mask_command_resetEdits"))
+        }
+    }
+
+    /// The VALUE copy with the SAME identity (the class fields are all
+    /// value types — the same snapshot shape `LayerRowView` commits).
+    private static func snapshot(_ layer: AdjustmentLayer) -> AdjustmentLayer {
+        AdjustmentLayer(
+            id: layer.id, name: layer.name, isVisible: layer.isVisible,
+            opacity: layer.opacity, blendMode: layer.blendMode,
+            blendOptions: layer.blendOptions, enabled: layer.enabled,
+            chain: layer.chain, mask: layer.mask)
+    }
+
+    /// The inversion flip across ALL mask payloads (the invert bits are
+    /// Phase 6 verified fields — this flips RECORDS, never kernels):
+    /// drawn group items (recursively), a group-less drawn spec gets a
+    /// group whose items carry the inverted bit, the parametric invert
+    /// flag, and the raster ref's invert flag.
+    static func inverted(_ mask: MaskSpec?) -> MaskSpec? {
+        guard var mask else { return nil }
+        if var drawn = mask.drawn {
+            if var group = drawn.group {
+                group.items = group.items.map { Self.invertedItem($0) }
+                drawn.group = group
+            } else if !drawn.forms.isEmpty {
+                // The 06-03 single-form path has NO group: inversion wraps
+                // every form into a group item with the bit set (per-item
+                // invert = the dt group semantics the combiner implements).
+                drawn.group = MaskGroupSpec(items: drawn.forms.map {
+                    MaskGroupItem(
+                        formID: $0.id, op: .union, inverted: true, opacity: 1)
+                })
+            }
+            mask.drawn = drawn
+        }
+        if var parametric = mask.parametric {
+            parametric.invert.toggle()
+            mask.parametric = parametric
+        }
+        if var raster = mask.raster {
+            raster.invert.toggle()
+            mask.raster = raster
+        }
+        return mask
+    }
+
+    /// Recursive (nested groups ride `MaskGroupItem.child`).
+    private static func invertedItem(_ item: MaskGroupItem) -> MaskGroupItem {
+        var copy = item
+        copy.inverted.toggle()
+        if let child = copy.child {
+            var flipped = child
+            flipped.items = flipped.items.map { Self.invertedItem($0) }
+            copy.child = flipped
+        }
+        return copy
     }
 }
 

@@ -184,10 +184,12 @@ final class PipeCoordinator {
     /// DISPLAY plane with the selected layer's mask after each composite
     /// (the 06-3 `mask_overlay_display` leg on real user state — the
     /// 06-03 `-la_mask_overlay_probe` DEBUG probe becomes the production
-    /// path here). nil = no overlay.
-    var maskOverlayRequest: (layerID: UUID, strength: Float)?
+    /// path here). nil = no overlay. 13-3 T5: the tuple carries the
+    /// display STYLE (translucent/rubylith/on-black) — a display-leg
+    /// parameter only, never a record.
+    var maskOverlayRequest: (layerID: UUID, strength: Float, style: MaskOverlayStyle)?
 
-    func setMaskOverlayRequest(_ request: (layerID: UUID, strength: Float)?) {
+    func setMaskOverlayRequest(_ request: (layerID: UUID, strength: Float, style: MaskOverlayStyle)?) {
         maskOverlayRequest = request
         // The tint lives INSIDE renderPreview — a request change must
         // re-render or the toggle/selection would not visibly update
@@ -224,7 +226,7 @@ final class PipeCoordinator {
     /// is Sendable per `MetalSendability`), so no `sending` choreography.
     private func applyMaskOverlayIfRequested(
         base: sending any MTLTexture,
-        request: (layerID: UUID, strength: Float)?,
+        request: (layerID: UUID, strength: Float, style: MaskOverlayStyle)?,
         stack: LayerStack?,
         boxes: [any ModuleBoxing],
         imageID: UUID,
@@ -266,9 +268,60 @@ final class PipeCoordinator {
                 })
             plane = assembled.plane
         }
-        return try await DrawnMaskRasterizer.overlay(
-            display: base, mask: plane, strength: request.strength,
-            tint: SIMD3<Float>(1, 1, 0), metal: metal)
+        // 13-3 T5: the three display states — SAME overlay kernel, three
+        // parameterizations (L031 holds: no new GPU face):
+        //   translucent — the 06-3 legacy yellow scrim at the request
+        //                 strength;
+        //   rubylith    — the classic red scrim, slightly lighter;
+        //   onBlack     — the dt inspection form: the mask WHITE on a
+        //                 BLACK full-frame plane (the black plane is a
+        //                 CPU-zeroed `.shared` texture — zero GPU submit).
+        switch request.style {
+        case .translucent:
+            return try await DrawnMaskRasterizer.overlay(
+                display: base, mask: plane, strength: request.strength,
+                tint: SIMD3<Float>(1, 1, 0), metal: metal)
+        case .rubylith:
+            return try await DrawnMaskRasterizer.overlay(
+                display: base, mask: plane, strength: 0.6,
+                tint: SIMD3<Float>(1, 0.05, 0.1), metal: metal)
+        case .onBlack:
+            // The unchecked-Sendable box is the established ownership
+            // seam here (the same pattern as the probe call site — the
+            // plane is render-current and read-only from here on).
+            let black = SendableTextureBox(
+                texture: try Self.makeZeroedPlane(
+                    matching: base, device: metal.device))
+            return try await DrawnMaskRasterizer.overlay(
+                display: black.texture, mask: plane, strength: 1.0,
+                tint: SIMD3<Float>(1, 1, 1), metal: metal)
+        }
+    }
+
+    /// A zero-filled plane with the display's size/format (the on-black
+    /// style's backdrop). `.shared` storage written through `replace` —
+    /// a CPU memset, NOT a GPU command (the L031 red line holds).
+    private static func makeZeroedPlane(
+        matching display: any MTLTexture, device: any MTLDevice
+    ) throws -> any MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: display.pixelFormat, width: display.width,
+            height: display.height, mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        guard let texture = device.makeTexture(descriptor: descriptor) else {
+            throw MetalError.bufferAllocationFailed(
+                display.width * display.height * 4)
+        }
+        let bytesPerRow = display.width * 4
+        let row = Data(repeating: 0, count: bytesPerRow)
+        try row.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, display.width, display.height),
+                mipmapLevel: 0, withBytes: raw.baseAddress!,
+                bytesPerRow: bytesPerRow)
+        }
+        return texture
     }
 
     // ── 02-06 sidecar persistence (D-S2/D-S3) ────────────────────────────
