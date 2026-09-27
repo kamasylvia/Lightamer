@@ -159,7 +159,7 @@ public struct SoftProofProfile: @unchecked Sendable, Equatable {
 /// UI layer's business, not a Core concern).
 public enum PrinterProfileCatalog {
 
-    public struct Entry: Sendable {
+    public struct Entry: Hashable, Sendable {
         public let name: String
         public let url: URL
 

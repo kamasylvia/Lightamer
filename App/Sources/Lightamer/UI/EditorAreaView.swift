@@ -170,6 +170,15 @@ internal struct EditorAreaView: View {
                                 BeforeAfterHUD()
                             }
                         }
+                        // 13-2 T4 (COLOR-02): the soft-proof capsule — a
+                        // floating top-trailing control (toggle + printer
+                        // picker + gamut check; the same SoftProofState the
+                        // View menu drives).
+                        .overlay(alignment: .topTrailing) {
+                            SoftProofControlView()
+                                .padding(.top, 8)
+                                .padding(.trailing, 12)
+                        }
                         // The compare plane lifecycle: fetched through the
                         // coordinator's OVERRIDE render on activation /
                         // peek change ONLY (the hold edges never re-fetch —

@@ -181,6 +181,11 @@ internal struct LightamerApp: App {
     /// peek / hold) — reset on image and session switches.
     @State private var beforeAfterState = BeforeAfterState()
 
+    /// 13-2 T4 (COLOR-02): the soft-proof UI state machine (the pipe
+    /// coupling is the coordinator's `setSoftProof` — a per-run display-leg
+    /// override, never history/export).
+    @State private var softProofState = SoftProofState()
+
     /// The yiyin logo-face source for the thumbnail run-context injector
     /// (a stateless file-probe instance — the coordinator keeps its own).
     @State private var browserLogoStore = YiyinLogoStore()
@@ -290,6 +295,7 @@ internal struct LightamerApp: App {
                 .environment(editorState)
                 .environment(pipeCoordinator)
                 .environment(beforeAfterState)
+                .environment(softProofState)
                 .environment(exportState)
                 .environment(inspectorState)
                 .environment(layerEditingState)
@@ -812,6 +818,21 @@ internal struct LightamerApp: App {
                     .keyboardShortcut("s", modifiers: [.command, .option])
                 Button(String(localized: "menu_show_inspector")) { toggleInspector() }
                     .keyboardShortcut("i", modifiers: [.command, .option])
+                Divider()
+                // 13-2 T4 (COLOR-02): the soft-proof toggle (⌥⌘P — bare P is
+                // the flag picker, ⌘P unused; the execution decision) and
+                // the gamut check. The SAME SoftProofState routes as the
+                // viewport capsule.
+                Toggle(String(localized: "softproof_toggle"), isOn: Binding(
+                    get: { softProofState.isActive },
+                    set: { _ in softProofState.toggle(coordinator: pipeCoordinator) }
+                ))
+                .keyboardShortcut("p", modifiers: [.command, .option])
+                Toggle(String(localized: "softproof_gamut_check"), isOn: Binding(
+                    get: { softProofState.gamutCheck },
+                    set: { softProofState.setGamutCheck($0, coordinator: pipeCoordinator) }
+                ))
+                .disabled(!softProofState.isActive)
                 Divider()
                 // D-13: no zoom/pan in Phase 1 — disabled.
                 Button(String(localized: "menu_actual_size")) {}
