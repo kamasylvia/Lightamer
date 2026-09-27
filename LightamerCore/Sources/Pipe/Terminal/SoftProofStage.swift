@@ -175,12 +175,42 @@ public final class SoftProofStage: IOPModule {
         let backward = try conversionInfo(profile: profile, backward: true)
         try convert(backward, width: width, height: height, from: midway, to: destination)
 
-        // T3 (gamutCheck) hooks here: pixels whose round trip diverged
-        // beyond `oogRoundTripThreshold` are shown BLACK.
+        // T3 (gamut check, dt softproof semantics): when armed, any pixel
+        // whose proof round trip diverged beyond `oogRoundTripThreshold` —
+        // i.e. the printer CANNOT reproduce it — is shown BLACK.
+        if profile.gamutCheck {
+            Self.blackClipOutOfGamut(source: source, result: destination, pixelCount: width * height)
+        }
 
         output.replace(
             region: MTLRegionMake2D(roiOut.x, roiOut.y, width, height),
             mipmapLevel: 0, withBytes: destination, bytesPerRow: rowBytes)
+    }
+
+    /// The gamut-check clip: compare the round-trip result against the
+    /// source; a pixel exceeding the threshold in ANY channel is out of the
+    /// printer's gamut (the round trip is irreversible there — T1 probe
+    /// §3.1) and is rendered BLACK (dt `softproof` gamut-check semantics).
+    /// In-gamut pixels keep their proof values (round trip ≤1e-4).
+    static func blackClipOutOfGamut(
+        source: UnsafeMutableRawPointer, result: UnsafeMutableRawPointer, pixelCount: Int
+    ) {
+        let src = source.bindMemory(to: Float.self, capacity: pixelCount * 4)
+        let dst = result.bindMemory(to: Float.self, capacity: pixelCount * 4)
+        for px in 0..<pixelCount {
+            let base = px * 4
+            var outOfGamut = false
+            for c in 0..<3 where abs(dst[base + c] - src[base + c]) > oogRoundTripThreshold {
+                outOfGamut = true
+                break
+            }
+            if outOfGamut {
+                dst[base] = 0
+                dst[base + 1] = 0
+                dst[base + 2] = 0
+                dst[base + 3] = 1
+            }
+        }
     }
 
     /// The `CGColorConversionInfo` for one leg. v1 = the default rendering

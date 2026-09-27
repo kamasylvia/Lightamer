@@ -182,6 +182,58 @@ final class SoftProofStageTests: XCTestCase {
                        "BPC must be a no-op on a zero-black-point printer profile")
     }
 
+    // MARK: - T3: OOG gamut check (black clipping)
+
+    /// Gamut check ON: the out-of-gamut primaries render BLACK; every
+    /// in-gamut pixel is BIT-IDENTICAL to its gamut-check-OFF proof value
+    /// (the clip may only touch OOG pixels — the golden sample set = the
+    /// T1 probe anchor set, DECISIONS D-13-2-OOG).
+    func testGamutCheckBlackClipsOutOfGamut() async throws {
+        let metal = try makeMetal()
+        let pixels = inGamutPixels + oogPixels
+        let width = pixels.count
+        let clipped = try await runStage(
+            pixels, width: width, height: 1,
+            profile: Fixtures.adobeProfile(gamutCheck: true), metal: metal)
+        let plain = try await runStage(
+            pixels, width: width, height: 1,
+            profile: Fixtures.adobeProfile(gamutCheck: false), metal: metal)
+        for i in 0..<width {
+            let isInGamut = i < inGamutPixels.count
+            if isInGamut {
+                for c in 0..<4 {
+                    XCTAssertEqual(
+                        clipped[i * 4 + c], plain[i * 4 + c], accuracy: 1e-9,
+                        "gamut check must not touch in-gamut sample \(i) ch \(c)")
+                }
+            } else {
+                let rgb = (0..<3).map { clipped[i * 4 + $0] }
+                XCTAssertEqual(rgb, [Float(0), 0, 0],
+                               "out-of-gamut sample \(i) must be black-clipped")
+                XCTAssertEqual(clipped[i * 4 + 3], 1.0, accuracy: 1e-6)
+                let plainRGB = (0..<3).map { plain[i * 4 + $0] }
+                XCTAssertFalse(plainRGB.allSatisfy { $0 == 0 },
+                               "contrast: without the check the clipped color must show")
+            }
+        }
+    }
+
+    /// Gamut check OFF (the pass-through contrast): the clipped colors show
+    /// their proof values — nonzero, non-black (the clip is the simulation,
+    /// black is the WARNING).
+    func testGamutCheckOffPassesProofValues() async throws {
+        let metal = try makeMetal()
+        let profile = try Fixtures.adobeProfile(gamutCheck: false)
+        let width = oogPixels.count
+        let output = try await runStage(oogPixels, width: width, height: 1,
+                                        profile: profile, metal: metal)
+        for i in 0..<width {
+            let rgb = (0..<3).map { output[i * 4 + $0] }
+            XCTAssertFalse(rgb.allSatisfy { $0 == 0 },
+                           "without gamut check the clipped color must show, not black (px \(i))")
+        }
+    }
+
     // MARK: - Profile validation (the T1 downgrade rulings)
 
     func testProfileRejectsCMYKPrinterICC() throws {
