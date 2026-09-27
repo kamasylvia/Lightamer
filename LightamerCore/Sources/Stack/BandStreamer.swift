@@ -75,6 +75,41 @@ public enum BandStreamer {
         return result
     }
 
+    /// The ALIGNED band extraction: output pixel (x, y) samples the source
+    /// plane at (x − dx, y − dy) — the MTB shift convention
+    /// (`cmp(x,y) == ref(x−dx, y−dy)`). Samples outside the source frame
+    /// become NaN (the accumulator skips them — the bracket's edge strips
+    /// outside the alignment overlap carry no contribution).
+    public static func shiftedBandPixels(
+        fromPlane plane: UnsafeRawBufferPointer, bytesPerRow: Int,
+        width: Int, height: Int, band: TilingPlan.Tile, dx: Int, dy: Int
+    ) -> [Float] {
+        let nan = Float.nan
+        var result = [Float](repeating: nan, count: width * band.height * 4)
+        result.withUnsafeMutableBytes { destination in
+            let destinationFloats = destination.bindMemory(to: Float.self)
+            for row in 0..<band.height {
+                let outputY = band.y + row
+                let sourceY = outputY - dy
+                guard sourceY >= 0, sourceY < height else { continue }
+                let sourceRow = plane.baseAddress!
+                    .advanced(by: sourceY * bytesPerRow)
+                    .bindMemory(to: Float.self, capacity: width * 4)
+                for x in 0..<width {
+                    let sourceX = x - dx
+                    guard sourceX >= 0, sourceX < width else { continue }
+                    let sourceBase = sourceX * 4
+                    let destinationBase = (row * width + x) * 4
+                    destinationFloats[destinationBase] = sourceRow[sourceBase]
+                    destinationFloats[destinationBase + 1] = sourceRow[sourceBase + 1]
+                    destinationFloats[destinationBase + 2] = sourceRow[sourceBase + 2]
+                    destinationFloats[destinationBase + 3] = 1
+                }
+            }
+        }
+        return result
+    }
+
     /// The resident-set accounting face (the memory-constant assertion):
     /// the accumulator planes are EXACTLY this many bytes, independent of
     /// the source count N.

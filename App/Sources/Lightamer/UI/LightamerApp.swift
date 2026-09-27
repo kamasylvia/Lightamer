@@ -697,11 +697,22 @@ internal struct LightamerApp: App {
                             }
                             await mergeService.setCompletionHook { snapshot, outcome in
                                 if case .done = snapshot.state {
-                                    let message = String(localized:
-                                        "toast_hdr_merge_done \(outcome.holeFraction * 100)")
-                                    await MainActor.run {
-                                        editorState.presentToast(message)
-                                    }
+                                    // T5: the product enters the grid — the
+                                    // EXPLICIT reconcile ingest + the reload
+                                    // (the import seam's posture). The whole
+                                    // body hops to the MainActor (the state
+                                    // objects are MainActor-isolated; this
+                                    // hook runs detached) through the helper
+                                    // below.
+                                    await self.refreshGridAfterMerge(
+                                        holeFraction: outcome.holeFraction)
+                                }
+                            }
+                            await mergeService.setFailureHook { snapshot, error in
+                                let message = String(localized:
+                                    "toast_hdr_merge_failed \(error.localizedDescription)")
+                                await MainActor.run {
+                                    editorState.presentToast(message)
                                 }
                             }
                         } catch {
@@ -1021,6 +1032,23 @@ internal struct LightamerApp: App {
     // Targets = the browser/culling SELECTION when non-empty, else the
     // editor's CURRENT image (if inside the open session) — the three
     // states (grid / culling / single) share one routing shape.
+
+    /// Plan 08-1 T5: the post-merge grid refresh + the completion toast —
+    /// MainActor-isolated (the completion hook hops here). The product
+    /// landed in the session ROOT, so the browse set picks it up through
+    /// the EXPLICIT reconcile ingest (the import seam's posture).
+    @MainActor
+    private func refreshGridAfterMerge(holeFraction: Float) async {
+        let message = String(localized:
+            "toast_hdr_merge_done \(holeFraction * 100)")
+        editorState.presentToast(message)
+        if let root = sessionState.currentSessionURL {
+            _ = await sessionReconciler.reconcileHandler?(root)
+            if let store = sessionIndexController.currentStore {
+                await browserModel.reload(store: store, includeOrphans: true)
+            }
+        }
+    }
 
     private func metadataTargets() -> [String] {
         let selected = browserModel.selectedOrderedPaths

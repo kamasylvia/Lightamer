@@ -248,26 +248,6 @@ final class StackMergeServiceTests: XCTestCase {
         }
     }
 
-    func testMergeLegNotImplementedIsTypedFailure() async throws {
-        let (dir, sources) = try makeSources()
-        // Production merge leg (T1: the typed placeholder) behind a stub
-        // decode — the placeholder is reached AFTER the align decode passes.
-        let service = try makeService(
-            decodeLeg: { _ in Self.stubDecodedImage() })
-        _ = try await service.enqueue(
-            kind: .hdrMerge, sources: sources, params: .init(deGhost: false),
-            sessionRoot: dir)
-        let terminal = await Self.awaitTerminal(service)
-        guard case .failed(let error)? = terminal?.state else {
-            XCTFail("expected .failed, got \(String(describing: terminal?.state))")
-            return
-        }
-        guard case .notImplemented = error else {
-            XCTFail("expected notImplemented, got \(error)")
-            return
-        }
-    }
-
     // MARK: - Cancel gates (the three-gate epoch shape)
 
     func testCancelAllCancelsWithoutMerging() async throws {

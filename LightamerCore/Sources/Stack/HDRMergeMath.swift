@@ -106,96 +106,90 @@ public enum HDRMergeMath {
         }
     }
 
-    /// The per-band aggregation kernel. Phase 1 (the base merge): accumulate
-    /// Σw and Σw·p/t per channel. Phase 2 (de-ghost): the same, but weights
-    /// whose residual (against `lHatBand`, the phase-1 consensus) exceeds
-    /// k·σ̂ are zeroed and the pixel is marked in `ghostUnion`.
+    /// The SINGLE-SOURCE per-band aggregation kernel — the streaming unit:
+    /// the service walks one source's band at a time (decode whole-frame
+    /// once, consume band by band), so the accumulator never needs two
+    /// sources' pixels simultaneously. Phase 1 (the base merge) passes
+    /// `lHatBand: nil`; phase 2 (de-ghost) passes the phase-1 consensus —
+    /// a pixel whose residual exceeds k·σ̂ is skipped and marked in
+    /// `ghostUnion`.
     ///
-    /// This is the GOLDEN source — the streaming driver (BandStreamer) is a
-    /// mechanical decomposition of exactly this math.
+    /// NaN pixels (a shifted sample outside the frame overlap) are SKIPPED
+    /// — they contribute neither weight nor ghost markings.
     ///
-    /// - Parameters:
-    ///   - sumW/sumWP: the accumulator band slices (RGB, 3 floats/px),
-    ///     mutated IN PLACE.
-    ///   - lHatBand: the phase-1 consensus for this band (nil = phase 1).
-    ///   - ghostUnion: a 0/1 byte per pixel (mutated in place when non-nil).
-    /// - Returns: the in-band HOLE count (pixels whose min-channel Σw
-    ///   stayed 0 after aggregation).
-    @discardableResult
-    public static func accumulateBand(
-        bands: [SourceBand],
+    /// This is the GOLDEN source — the streaming driver is a mechanical
+    /// decomposition of exactly this math.
+    public static func accumulateSourceBand(
+        _ source: SourceBand,
         params: StackMergeService.MergeParams,
         lHatBand: [Float]?,
         ghostUnion: inout [UInt8]?,
         sumW: inout [Float],
-        sumWP: inout [Float]
-    ) -> Int {
-        let pixelCount = bands[0].width * bands[0].height
-        var holes = 0
+        sumWP: inout [Float],
+        planeRowOffset: Int = 0
+    ) {
+        let pixelCount = source.width * source.height
+        let t = source.exposure
         for index in 0..<pixelCount {
-            var weightSum: (Float, Float, Float) = (0, 0, 0)
-            var weighted: (Float, Float, Float) = (0, 0, 0)
-            for band in bands {
-                let base = index * 4
-                let t = band.exposure
-                let r = band.pixels[base]
-                let g = band.pixels[base + 1]
-                let b = band.pixels[base + 2]
-                // Per-channel weights (clipping is per channel).
-                let wr = weight(r, sigma: params.sigma,
-                    clipGate: params.clipGate, floorGate: params.floorGate,
-                    weightNoiseFloor: params.weightNoiseFloor)
-                let wg = weight(g, sigma: params.sigma,
-                    clipGate: params.clipGate, floorGate: params.floorGate,
-                    weightNoiseFloor: params.weightNoiseFloor)
-                let wb = weight(b, sigma: params.sigma,
-                    clipGate: params.clipGate, floorGate: params.floorGate,
-                    weightNoiseFloor: params.weightNoiseFloor)
-                if wr == 0 && wg == 0 && wb == 0 { continue }
+            // The band-local index maps into the FULL-PLANE accumulator
+            // through the band's row offset (the streaming decomposition).
+            let planeIndex = planeRowOffset + index
+            let base = index * 4
+            let r = source.pixels[base]
+            let g = source.pixels[base + 1]
+            let b = source.pixels[base + 2]
+            // NaN = outside the alignment overlap (the shifted sampler's
+            // out-of-frame marker) — no contribution at all.
+            if r.isNaN || g.isNaN || b.isNaN { continue }
+            // Per-channel weights (clipping is per channel).
+            let wr = weight(r, sigma: params.sigma,
+                clipGate: params.clipGate, floorGate: params.floorGate,
+                weightNoiseFloor: params.weightNoiseFloor)
+            let wg = weight(g, sigma: params.sigma,
+                clipGate: params.clipGate, floorGate: params.floorGate,
+                weightNoiseFloor: params.weightNoiseFloor)
+            let wb = weight(b, sigma: params.sigma,
+                clipGate: params.clipGate, floorGate: params.floorGate,
+                weightNoiseFloor: params.weightNoiseFloor)
+            if wr == 0 && wg == 0 && wb == 0 { continue }
 
-                // The ghost rejection (phase 2 only): ANY channel's residual
-                // beyond k·σ̂ zeroes the WHOLE frame's weight at this pixel
-                // (a moved object is moved in all channels — the P2 shape).
-                if let lHatBand, ghostUnion != nil {
-                    let lHatR = lHatBand[index * 3]
-                    let lHatG = lHatBand[index * 3 + 1]
-                    let lHatB = lHatBand[index * 3 + 2]
-                    let sigmaR = sigmaHat(lHatR)
-                    let sigmaG = sigmaHat(lHatG)
-                    let sigmaB = sigmaHat(lHatB)
-                    let reject = residual(r, exposure: t, lHat: lHatR) > ghostK * sigmaR
-                        || residual(g, exposure: t, lHat: lHatG) > ghostK * sigmaG
-                        || residual(b, exposure: t, lHat: lHatB) > ghostK * sigmaB
-                    if reject {
-                        // In-place mutation through the optional (no COW
-                        // copy — the caller owns the only reference).
-                        ghostUnion?[index] = 1
-                        continue
-                    }
+            // The ghost rejection (phase 2 only): ANY channel's residual
+            // beyond k·σ̂ zeroes the WHOLE frame's weight at this pixel
+            // (a moved object is moved in all channels — the P2 shape).
+            if let lHatBand, ghostUnion != nil {
+                let lHatR = lHatBand[planeIndex * 3]
+                let lHatG = lHatBand[planeIndex * 3 + 1]
+                let lHatB = lHatBand[planeIndex * 3 + 2]
+                let sigmaR = sigmaHat(lHatR)
+                let sigmaG = sigmaHat(lHatG)
+                let sigmaB = sigmaHat(lHatB)
+                let reject = residual(r, exposure: t, lHat: lHatR) > ghostK * sigmaR
+                    || residual(g, exposure: t, lHat: lHatG) > ghostK * sigmaG
+                    || residual(b, exposure: t, lHat: lHatB) > ghostK * sigmaB
+                if reject {
+                    // In-place mutation through the optional (no COW
+                    // copy — the caller owns the only reference).
+                    ghostUnion?[planeIndex] = 1
+                    continue
                 }
-
-                let tr = r / t
-                let tg = g / t
-                let tb = b / t
-                weightSum.0 += wr
-                weightSum.1 += wg
-                weightSum.2 += wb
-                weighted.0 += wr * tr
-                weighted.1 += wg * tg
-                weighted.2 += wb * tb
             }
-            let minSum = min(weightSum.0, weightSum.1, weightSum.2)
-            if minSum == 0 {
+
+            sumW[planeIndex * 3] += wr
+            sumW[planeIndex * 3 + 1] += wg
+            sumW[planeIndex * 3 + 2] += wb
+            sumWP[planeIndex * 3] += wr * (r / t)
+            sumWP[planeIndex * 3 + 1] += wg * (g / t)
+            sumWP[planeIndex * 3 + 2] += wb * (b / t)
+        }
+    }
+
+    /// The HOLE count over an accumulator: pixels whose min-channel Σw is
+    /// zero (no source contributed a usable weight — the black output).
+    public static func countHoles(sumW: [Float]) -> Int {
+        var holes = 0
+        for index in stride(from: 0, to: sumW.count, by: 3) {
+            if sumW[index] == 0, sumW[index + 1] == 0, sumW[index + 2] == 0 {
                 holes += 1
-                // HOLE semantics: output 0.0 (the accumulator is already
-                // zero-initialized — nothing to write).
-            } else {
-                sumW[index * 3] += weightSum.0
-                sumW[index * 3 + 1] += weightSum.1
-                sumW[index * 3 + 2] += weightSum.2
-                sumWP[index * 3] += weighted.0
-                sumWP[index * 3 + 1] += weighted.1
-                sumWP[index * 3 + 2] += weighted.2
             }
         }
         return holes
@@ -238,35 +232,44 @@ public enum HDRMergeMath {
         var lHat: [Float]
         var weightMap: [Float]
 
-        // Phase 1: the base merge. The accumulator pair lives ONLY in this
-        // scope — with deGhost ON it is finalized into L̂0 and RELEASED
-        // before phase 2 mints its own pair (the 41 B/px peak contract,
-        // `BandStreamer.accumulatorBytes`).
+        // Phase 1: the base merge — ONE source band at a time (the
+        // streaming shape; `mergeFrames` is the resident-frame convenience).
+        // The accumulator pair lives ONLY in its scope — with deGhost ON it
+        // is finalized into L̂0 and RELEASED before phase 2 mints its own
+        // pair (the 41 B/px peak contract, `BandStreamer.accumulatorBytes`).
         if params.deGhost {
             var sumW = [Float](repeating: 0, count: pixelCount * 3)
             var sumWP = [Float](repeating: 0, count: pixelCount * 3)
-            _ = accumulateBand(
-                bands: frames, params: params, lHatBand: nil,
-                ghostUnion: &ghostUnion, sumW: &sumW, sumWP: &sumWP)
+            for frame in frames {
+                accumulateSourceBand(
+                    frame, params: params, lHatBand: nil,
+                    ghostUnion: &ghostUnion, sumW: &sumW, sumWP: &sumWP)
+            }
             lHat = finalizeBand(sumW: sumW, sumWP: sumWP)
             weightMap = [Float]()
         } else {
             var sumW = [Float](repeating: 0, count: pixelCount * 3)
             var sumWP = [Float](repeating: 0, count: pixelCount * 3)
-            holes = accumulateBand(
-                bands: frames, params: params, lHatBand: nil,
-                ghostUnion: &ghostUnion, sumW: &sumW, sumWP: &sumWP)
+            for frame in frames {
+                accumulateSourceBand(
+                    frame, params: params, lHatBand: nil,
+                    ghostUnion: &ghostUnion, sumW: &sumW, sumWP: &sumWP)
+            }
+            holes = countHoles(sumW: sumW)
             lHat = finalizeBand(sumW: sumW, sumWP: sumWP)
             weightMap = weightFromSum(sumW, width: width, height: height)
         }
 
-        // Phase 2: the de-ghost re-aggregation.
+        // Phase 2: the de-ghost re-aggregation (one source band at a time).
         if params.deGhost {
             var ghostSumW = [Float](repeating: 0, count: pixelCount * 3)
             var ghostSumWP = [Float](repeating: 0, count: pixelCount * 3)
-            holes = accumulateBand(
-                bands: frames, params: params, lHatBand: lHat,
-                ghostUnion: &ghostUnion, sumW: &ghostSumW, sumWP: &ghostSumWP)
+            for frame in frames {
+                accumulateSourceBand(
+                    frame, params: params, lHatBand: lHat,
+                    ghostUnion: &ghostUnion, sumW: &ghostSumW, sumWP: &ghostSumWP)
+            }
+            holes = countHoles(sumW: ghostSumW)
             lHat = finalizeBand(sumW: ghostSumW, sumWP: ghostSumWP)
             weightMap = weightFromSum(ghostSumW, width: width, height: height)
         }
