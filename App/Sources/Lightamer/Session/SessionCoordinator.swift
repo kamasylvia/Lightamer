@@ -120,6 +120,17 @@ final class SessionCoordinator {
     /// path) copies. nil (the default) = no drop targets wired.
     var importHandler: ((_ urls: [URL], _ move: Bool) async -> Void)?
 
+    /// Plan 08-1 T1: the HDR-merge orchestration seam (grid multi-select
+    /// menu → confirm dialog → StackMergeService enqueue → toast). The app
+    /// root wires the body (service enqueue + toast + reload). nil = the
+    /// entry renders disabled/unwired.
+    var hdrMergeHandler: ((_ relPaths: [String], _ deGhost: Bool) async -> Void)?
+
+    /// Plan 08-1 T1: the merge service instance the app root owns (the
+    /// dedicated low-priority queue lives inside it). The coordinator only
+    /// routes to it through `hdrMergeHandler` — no direct calls here.
+    var stackMergeService: StackMergeService?
+
     init(
         flushCurrentImage: @escaping () async -> Void = {},
         teardownRenderer: @escaping () async -> Void = {},

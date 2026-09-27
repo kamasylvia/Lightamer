@@ -335,6 +335,11 @@ internal struct ContentView: View {
                         // 13-3 T4: the grid drop routes through the
                         // coordinator's import seam (COPY default).
                         Task { await sessionCoordinator.importHandler?(urls, move) }
+                    },
+                    onHDRMerge: { relPaths, deGhost in
+                        // Plan 08-1 T1: the grid menu routes through the
+                        // coordinator's merge seam (enqueue + toasts).
+                        Task { await sessionCoordinator.hdrMergeHandler?(relPaths, deGhost) }
                     }
                 )
             case .single:

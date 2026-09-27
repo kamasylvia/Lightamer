@@ -666,6 +666,51 @@ internal struct LightamerApp: App {
                         }
                     }
 
+                    // Plan 08-1 T1: the HDR-merge service (its OWN dedicated
+                    // command queue inside) + the coordinator seam wiring —
+                    // grid menu → confirm dialog → enqueue → queued/done
+                    // toasts. T5 completes the product-into-grid reload.
+                    if let metalContext {
+                        do {
+                            let mergeService = try StackMergeService(
+                                device: metalContext.device)
+                            sessionCoordinator.stackMergeService = mergeService
+                            sessionCoordinator.hdrMergeHandler = { relPaths, deGhost in
+                                guard let root = sessionState.currentSessionURL else {
+                                    return
+                                }
+                                let urls = relPaths.map {
+                                    root.appendingPathComponent($0)
+                                }
+                                do {
+                                    _ = try await mergeService.enqueue(
+                                        kind: .hdrMerge, sources: urls,
+                                        params: StackMergeService.MergeParams(
+                                            deGhost: deGhost),
+                                        sessionRoot: root)
+                                    editorState.presentToast(
+                                        String(localized: "toast_hdr_merge_queued"))
+                                } catch {
+                                    editorState.presentToast(
+                                        error.localizedDescription)
+                                }
+                            }
+                            await mergeService.setCompletionHook { snapshot, outcome in
+                                if case .done = snapshot.state {
+                                    let message = String(localized:
+                                        "toast_hdr_merge_done \(outcome.holeFraction * 100)")
+                                    await MainActor.run {
+                                        editorState.presentToast(message)
+                                    }
+                                }
+                            }
+                        } catch {
+                            AppError.logger.error(
+                                "stack merge service unavailable: \(error.localizedDescription, privacy: .public)"
+                            )
+                        }
+                    }
+
                     // 02-04: register LightamerIOP's modules into the
                     // registry (testgain in DEBUG; Phase 3+ joins here),
                     // then hand the registry to the coordinator so loads

@@ -48,6 +48,12 @@ internal struct SessionBrowserView: View {
     /// coordinator's import seam.
     var onImportFiles: ((_ urls: [URL], _ move: Bool) -> Void)?
 
+    /// Plan 08-1 T1: the HDR-merge entry — the multi-select context menu
+    /// routes the selection + the dialog's de-ghost toggle here; ContentView
+    /// forwards to the coordinator's `hdrMergeHandler`. nil = the menu item
+    /// stays hidden (no service wired).
+    var onHDRMerge: ((_ relPaths: [String], _ deGhost: Bool) -> Void)?
+
     /// 12-1 T6 (META-03): the multi-select append menu items raise these
     /// one-field alerts (the value routes through MetadataController —
     /// the MetadataService single write face).
@@ -117,6 +123,18 @@ internal struct SessionBrowserView: View {
                             appendText = ""
                             appendTarget = .note
                         }
+                        // Plan 08-1 T1: the HDR-merge entry — multi-select
+                        // only (a merge needs a bracket; the right-clicked
+                        // cell joins the selection per the batch-action
+                        // convention).
+                        if targets.count >= 2, onHDRMerge != nil {
+                            Divider()
+                            Button(String(localized: "browser_menu_hdr_merge")) {
+                                pendingTargets = targets
+                                hdrMergeDeGhost = true
+                                showHDRMergeDialog = true
+                            }
+                        }
                     }
                 }
             }
@@ -183,6 +201,35 @@ internal struct SessionBrowserView: View {
                 appendTarget = nil
             }
         }
+        // Plan 08-1 T1: the HDR-merge confirm dialog (N-source summary +
+        // the de-ghost toggle → enqueue).
+        .sheet(isPresented: $showHDRMergeDialog) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(String(localized: "hdr_merge_dialog_title \(pendingTargets.count)"))
+                    .font(.headline)
+                Text(String(localized: "hdr_merge_dialog_body"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(
+                    String(localized: "hdr_merge_dialog_deghost"),
+                    isOn: $hdrMergeDeGhost)
+                HStack {
+                    Spacer()
+                    Button(String(localized: "alert_cancel"), role: .cancel) {
+                        showHDRMergeDialog = false
+                    }
+                    Button(String(localized: "hdr_merge_dialog_merge")) {
+                        let targets = pendingTargets
+                        let deGhost = hdrMergeDeGhost
+                        showHDRMergeDialog = false
+                        onHDRMerge?(targets, deGhost)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20)
+            .frame(width: 360)
+        }
     }
 
     // The right-clicked cell joins the selection when outside it — the
@@ -196,6 +243,9 @@ internal struct SessionBrowserView: View {
     /// The targets captured when the alert's OK is pressed (the closure
     /// re-derivation inside the alert would lose the right-click context).
     @State private var pendingTargets: [String] = []
+    /// Plan 08-1 T1: the HDR-merge confirm dialog state (de-ghost toggle).
+    @State private var showHDRMergeDialog = false
+    @State private var hdrMergeDeGhost = true
     /// The drop-affordance face (13-3 T4).
     @State private var isDropTargeted = false
 

@@ -68,17 +68,17 @@ rm -f "$CONFIG" /tmp/la-xctest-config.* 2>/dev/null || true
 # 判据 = 测试结果行（Executed 计数 + 失败行），NOT 宿主进程退出态——
 # 宿主 shell 的退出路径在**全绿轮也可能非零**（退出态污染，11-04 验收
 # 移交）；RC 只作诊断参考打印。
-grep -E "Executed.*tests" /tmp/la-direct-tests.log | tail -1
-FAILED=$(grep -cE "' failed \(|' failed \." /tmp/la-direct-tests.log || true)
-SUMMARY_FAIL=$(grep -E "^Executed [0-9]+ tests" /tmp/la-direct-tests.log | tail -1 | grep -oE "with [0-9]+ failures?" | grep -oE "[0-9]+" || echo 0)
-EXECUTED=$(grep -oE "Executed [0-9]+ tests" /tmp/la-direct-tests.log | tail -1 | grep -oE "[0-9]+" || echo 0)
+grep -a -E "Executed.*tests" /tmp/la-direct-tests.log | tail -1
+FAILED=$(grep -acE "' failed \(|' failed \." /tmp/la-direct-tests.log || true)
+SUMMARY_FAIL=$(grep -aE "^Executed [0-9]+ tests" /tmp/la-direct-tests.log | tail -1 | grep -aoE "with [0-9]+ failures?" | grep -aoE "[0-9]+" || echo 0)
+EXECUTED=$(grep -aoE "Executed [0-9]+ tests" /tmp/la-direct-tests.log | tail -1 | grep -aoE "[0-9]+" || echo 0)
 if [ "${EXECUTED:-0}" -eq 0 ]; then
   echo "FAILED — Executed 0 tests（-XCTest 过滤名不匹配或旧容器），防空转假绿（host exit=$RC）" >&2
   exit 1
 fi
 if [ "${FAILED:-0}" -gt 0 ] || [ "${SUMMARY_FAIL:-0}" -gt 0 ]; then
   echo "FAILED — 完整输出: /tmp/la-direct-tests.log（host exit=$RC，仅参考）" >&2
-  grep -B2 "' failed" /tmp/la-direct-tests.log | head -20 >&2
+  grep -aB2 "' failed" /tmp/la-direct-tests.log | head -20 >&2
   exit 1
 fi
 echo "OK (direct launch, no testmanagerd; host exit=$RC informational)"
