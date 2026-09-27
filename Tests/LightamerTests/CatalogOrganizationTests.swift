@@ -28,6 +28,8 @@ final class CatalogOrganizationTests: XCTestCase {
 
     private var tempDirectory: URL!
     private var catalogURL: URL!
+    private var sessionRoot: URL!
+    private var defaultsSuiteName: String!
     private var store: CatalogOrganizationStore!
 
     override func setUp() async throws {
@@ -35,11 +37,20 @@ final class CatalogOrganizationTests: XCTestCase {
         tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("catalog-org-\(UUID().uuidString)", isDirectory: true)
         catalogURL = tempDirectory.appendingPathComponent("catalog.lcat")
+        sessionRoot = tempDirectory.appendingPathComponent("session", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: sessionRoot, withIntermediateDirectories: true)
+        defaultsSuiteName = "catalog-org-tests-\(UUID().uuidString)"
+        // The projector's enable guard rides this suite (the projection-
+        // interaction legs use a REAL CatalogProjector).
+        CatalogPreferences.setCatalogsEnabled(true, defaultsSuiteName: defaultsSuiteName)
         store = CatalogOrganizationStore(databaseURL: catalogURL)
     }
 
     override func tearDown() async throws {
         await store.close()
+        UserDefaults(suiteName: defaultsSuiteName)?.removePersistentDomain(
+            forName: defaultsSuiteName)
         try? FileManager.default.removeItem(at: tempDirectory)
         store = nil
         try await super.tearDown()
@@ -81,6 +92,119 @@ final class CatalogOrganizationTests: XCTestCase {
             try insert.bindDouble(4, 1_700_000_000)
             try insert.bindInt(5, 3)
             _ = try insert.step()
+        }
+    }
+
+    /// Bulk seed in ONE transaction (the 10k shape needs a fast fixture).
+    private func bulkSeedImages(count: Int, sessionID: String) async throws {
+        try await store.withHandleForTesting { handle in
+            try handle.exec("BEGIN IMMEDIATE")
+            let insert = try handle.prepare("""
+                INSERT INTO catalog_images (
+                  id, session_id, rel_path, filename, capture_date, rating
+                ) VALUES (NULL, ?, ?, ?, ?, ?)
+                """)
+            for index in 0..<count {
+                let relPath = String(format: "IMG_%05d.arw", index)
+                try insert.bindText(1, sessionID)
+                try insert.bindText(2, relPath)
+                try insert.bindText(3, relPath)
+                try insert.bindDouble(4, 1_700_000_000)
+                try insert.bindInt(5, 3)
+                _ = try insert.step()
+                try insert.reset()
+            }
+            try handle.exec("COMMIT")
+        }
+    }
+
+    /// A stable catalog row id (the reference key the memberships point at).
+    private func imageID(sessionID: String, relPath: String) async throws -> Int64? {
+        try await store.withHandleForTesting { handle -> Int64? in
+            let statement = try handle.prepare(
+                "SELECT id FROM catalog_images WHERE session_id = ? AND rel_path = ?")
+            try statement.bindText(1, sessionID)
+            try statement.bindText(2, relPath)
+            guard try statement.step() else { return nil }
+            return statement.columnInt(0)
+        }
+    }
+
+    // MARK: - lindex fixtures (the projection-interaction legs)
+
+    private var lindexURL: URL {
+        SessionIndexSchema.databaseURL(forSessionRoot: sessionRoot)
+    }
+
+    /// A minimal lindex fixture (path/epoch essentials only — the projector
+    /// reads the full mirror set; NULLs are fine for this plan's view).
+    private func makeLindex(rows: [String], epoch: Int64) async throws {
+        try FileManager.default.createDirectory(
+            at: lindexURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let handle = try SQLiteHandle(path: lindexURL.path)
+        defer { handle.close() }
+        try SessionIndexSchema.apply(to: handle)
+        let stamp = try handle.prepare(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('scan_epoch', ?)")
+        try stamp.bindText(1, String(epoch))
+        _ = try stamp.step()
+        for relPath in rows {
+            let insert = try handle.prepare("""
+                INSERT INTO images (
+                  path, dir, filename, file_size, file_mtime, scan_epoch,
+                  sidecar_present, rating, orphan_sidecar
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """)
+            try insert.bindText(1, relPath)
+            try insert.bindText(2, "")
+            try insert.bindText(3, (relPath as NSString).lastPathComponent)
+            try insert.bindInt(4, 1000)
+            try insert.bindDouble(5, 1_700_000_000)
+            try insert.bindInt(6, epoch)
+            try insert.bindInt(7, 1)
+            try insert.bindInt(8, 3)
+            try insert.bindInt(9, 0)
+            _ = try insert.step()
+        }
+    }
+
+    private func updateLindexRow(_ relPath: String, rating: Int64, epoch: Int64) async throws {
+        let handle = try SQLiteHandle(path: lindexURL.path)
+        defer { handle.close() }
+        let update = try handle.prepare(
+            "UPDATE images SET rating = ?, scan_epoch = ? WHERE path = ?")
+        try update.bindInt(1, rating)
+        try update.bindInt(2, epoch)
+        try update.bindText(3, relPath)
+        _ = try update.step()
+        try stampLindexEpoch(handle, epoch)
+    }
+
+    private func deleteLindexRow(_ relPath: String, epoch: Int64) async throws {
+        let handle = try SQLiteHandle(path: lindexURL.path)
+        defer { handle.close() }
+        let delete = try handle.prepare("DELETE FROM images WHERE path = ?")
+        try delete.bindText(1, relPath)
+        _ = try delete.step()
+        try stampLindexEpoch(handle, epoch)
+    }
+
+    private func stampLindexEpoch(_ handle: SQLiteHandle, _ epoch: Int64) throws {
+        let stamp = try handle.prepare(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('scan_epoch', ?)")
+        try stamp.bindText(1, String(epoch))
+        _ = try stamp.step()
+    }
+
+    /// The session_id the projector minted for the fixture root.
+    private var projectedSessionID: String? {
+        get async throws {
+            try await store.withHandleForTesting { handle -> String? in
+                let statement = try handle.prepare(
+                    "SELECT session_id FROM catalog_sessions LIMIT 1")
+                guard try statement.step() else { return nil }
+                return statement.columnText(0)
+            }
         }
     }
 
@@ -441,5 +565,229 @@ final class CatalogOrganizationTests: XCTestCase {
         XCTAssertEqual(tree.map(\.name), ["A", "B"])
         XCTAssertEqual(tree[0].children.count, 2)
         await reopened.close()
+    }
+
+    // MARK: - T2: classification (single + bulk + multi-membership)
+
+    func testSingleAssignAndRevoke() async throws {
+        try await seedImage(relPath: "IMG_0001.arw")
+        let a = try await store.createCategory(name: "A")
+
+        let result = try await store.assign(
+            images: [img("IMG_0001.arw")], toCategoryID: a)
+        XCTAssertEqual(result.resolved, 1)
+        XCTAssertEqual(result.inserted, 1)
+        XCTAssertEqual(result.skipped, 0)
+        var count = try await store.memberCount(categoryID: a)
+        XCTAssertEqual(count, 1)
+
+        let revoked = try await store.revoke(
+            images: [img("IMG_0001.arw")], fromCategoryID: a)
+        XCTAssertEqual(revoked.inserted, 1)  // one row deleted
+        count = try await store.memberCount(categoryID: a)
+        XCTAssertEqual(count, 0)
+    }
+
+    func testMultiMembershipThreeCategoriesTwoCollectionsOneTransaction() async throws {
+        try await seedImage(relPath: "IMG_0001.arw")
+        var categoryIDs: [Int64] = []
+        var collectionIDs: [Int64] = []
+        for name in ["C1", "C2", "C3"] {
+            categoryIDs.append(try await store.createCategory(name: name))
+        }
+        for name in ["S1", "S2"] {
+            collectionIDs.append(try await store.createCollection(name: name))
+        }
+
+        // One image into THREE categories and TWO collections.
+        let image = [img("IMG_0001.arw")]
+        for id in categoryIDs {
+            let r = try await store.assign(images: image, toCategoryID: id)
+            XCTAssertEqual(r.inserted, 1)
+        }
+        for id in collectionIDs {
+            let r = try await store.assign(images: image, toCollectionID: id)
+            XCTAssertEqual(r.inserted, 1)
+        }
+        for id in categoryIDs {
+            let count612 = try await store.memberCount(categoryID: id)
+            XCTAssertEqual(count612, 1)
+        }
+        for id in collectionIDs {
+            let count615 = try await store.memberCount(collectionID: id)
+            XCTAssertEqual(count615, 1)
+        }
+    }
+
+    func testAssignIdempotentInsertOrIgnore() async throws {
+        try await seedImage(relPath: "IMG_0001.arw")
+        let a = try await store.createCategory(name: "A")
+        let image = [img("IMG_0001.arw")]
+
+        let first = try await store.assign(images: image, toCategoryID: a)
+        XCTAssertEqual(first.inserted, 1)
+        // The repeat is a NO-OP on the row set (INSERT OR IGNORE).
+        let second = try await store.assign(images: image, toCategoryID: a)
+        XCTAssertEqual(second.inserted, 0)
+        let count629 = try await store.memberCount(categoryID: a)
+        XCTAssertEqual(count629, 1)
+    }
+
+    func testAssignUnknownIdentityIsSkipped() async throws {
+        try await seedImage(relPath: "IMG_0001.arw")
+        let a = try await store.createCategory(name: "A")
+        let result = try await store.assign(
+            images: [img("IMG_0001.arw"), img("MISSING.arw")], toCategoryID: a)
+        XCTAssertEqual(result.resolved, 1)
+        XCTAssertEqual(result.skipped, 1)
+        let count639 = try await store.memberCount(categoryID: a)
+        XCTAssertEqual(count639, 1)
+    }
+
+    /// The 10k bulk shape: ONE transaction of prepared INSERT OR IGNORE.
+    /// Budget ≤5s (the PERF-07 semantic continuation); the real number is
+    /// ledgered in perf.md. ZERO pixels: the classification path holds ONLY
+    /// the catalog handle — the fixture directory gains no session-side
+    /// artifact and the API signature carries no image data at all.
+    func testBulkTenThousandAssignUnderFiveSeconds() async throws {
+        let total = 10_000
+        try await bulkSeedImages(count: total, sessionID: "sess-bulk")
+        let a = try await store.createCategory(name: "Bulk")
+
+        let images = (0..<total).map {
+            CatalogImageIdentity(sessionID: "sess-bulk", relPath: String(format: "IMG_%05d.arw", $0))
+        }
+        let started = Date()
+        let result = try await store.assign(images: images, toCategoryID: a)
+        let elapsed = Date().timeIntervalSince(started)
+
+        XCTAssertEqual(result.resolved, total)
+        XCTAssertEqual(result.inserted, total)
+        XCTAssertLessThan(elapsed, 5.0, "10k assign took \(elapsed)s")
+        let totalMembers = try await store.memberCount(categoryID: a)
+        XCTAssertEqual(totalMembers, total)
+
+        // Zero-pixel probe: no session-side artifacts appeared next to the
+        // catalog file (the write path touched ONLY the catalog).
+        let sidecars = try FileManager.default.contentsOfDirectory(
+            at: tempDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent != "catalog.lcat"
+                && !$0.lastPathComponent.hasPrefix("catalog.lcat-")
+                && $0.lastPathComponent != "session" }  // setUp's fixture root
+        XCTAssertTrue(sidecars.isEmpty, "unexpected artifacts: \(sidecars.map(\.lastPathComponent))")
+
+        print("PERF-16-3 10k assign seconds=\(String(format: "%.3f", elapsed))")
+    }
+
+    /// The COUNT-memo dies with a classify COMMIT: combo counts ride the
+    /// memo (compute once), the invalidator hook fires after the assign,
+    /// and the next count RE-computes.
+    func testCountMemoInvalidatedAfterClassifyCommit() async throws {
+        try await seedImage(relPath: "IMG_0001.arw")
+        let counter = LockedCounter()
+        let catalogStore = CatalogIndexStore(databaseURL: catalogURL)
+        await catalogStore.setCountObserver { counter.bump() }
+        await store.setCountsInvalidator { await catalogStore.invalidateCounts() }
+
+        let combo = FilterPredicateGroup(match: .all, rules: [
+            FilterPredicateGroup.Rule(field: .rating, op: .gte, value: .int(1)),
+            FilterPredicateGroup.Rule(field: .rating, op: .lte, value: .int(5)),
+        ])
+        _ = try await catalogStore.count(groups: [combo])
+        XCTAssertEqual(counter.value, 1, "first combo count computes")
+        _ = try await catalogStore.count(groups: [combo])
+        XCTAssertEqual(counter.value, 1, "second rides the memo")
+
+        // The classify write kills the memo through the hook.
+        let a = try await store.createCategory(name: "A")
+        _ = try await store.assign(images: [img("IMG_0001.arw")], toCategoryID: a)
+        _ = try await catalogStore.count(groups: [combo])
+        XCTAssertEqual(counter.value, 2, "memo re-computed after classify COMMIT")
+        await catalogStore.close()
+    }
+
+    // MARK: - T2: projection interaction (the organization-data view)
+
+    /// The projection UPSERT KEEPS the row id (16-1 R1) → memberships
+    /// keyed on that id SURVIVE a changed-row re-projection.
+    func testProjectionUpsertKeepsIdMembershipSurvives() async throws {
+        try await makeLindex(
+            rows: ["IMG_0001.arw", "IMG_0002.arw"], epoch: 1)
+        let projector = CatalogProjector(
+            databaseURL: catalogURL, defaultsSuiteName: defaultsSuiteName)
+        var result = try await projector.project(sessionRoot: sessionRoot)
+        XCTAssertEqual(result.added, 2)
+
+        let sessionID = try await projectedSessionID!
+        let a = try await store.createCategory(name: "A")
+        _ = try await store.assign(
+            images: [img("IMG_0001.arw", sessionID)], toCategoryID: a)
+
+        let idBefore = try await imageID(sessionID: sessionID, relPath: "IMG_0001.arw")
+
+        // The lindex row CHANGES (rating) + the watermark bumps → the
+        // changed-row UPSERT must keep the id.
+        try await updateLindexRow("IMG_0001.arw", rating: 5, epoch: 2)
+        result = try await projector.project(sessionRoot: sessionRoot)
+        XCTAssertEqual(result.changed, 1)
+
+        let idAfter = try await imageID(sessionID: projectedSessionID!, relPath: "IMG_0001.arw")
+        XCTAssertEqual(idAfter, idBefore, "UPSERT kept the id")
+        let count729 = try await store.memberCount(categoryID: a)
+        XCTAssertEqual(count729, 1,
+                       "membership survived the re-projection")
+        await projector.close()
+    }
+
+    /// The reconcile DELETE closes a removed lindex row AND its membership
+    /// rows (no dangling organization references to deleted images).
+    func testReconcileDeleteRemovesMemberships() async throws {
+        try await makeLindex(
+            rows: ["IMG_0001.arw", "IMG_0002.arw"], epoch: 1)
+        let projector = CatalogProjector(
+            databaseURL: catalogURL, defaultsSuiteName: defaultsSuiteName)
+        _ = try await projector.project(sessionRoot: sessionRoot)
+
+        let sessionID = try await projectedSessionID!
+        let a = try await store.createCategory(name: "A")
+        _ = try await store.assign(
+            images: [img("IMG_0001.arw", sessionID), img("IMG_0002.arw", sessionID)],
+            toCategoryID: a)
+        let assignedCount = try await store.memberCount(categoryID: a)
+        XCTAssertEqual(assignedCount, 2)
+
+        // The lindex side loses IMG_0002; the reconcile closes the catalog
+        // row and the membership rides along.
+        try await deleteLindexRow("IMG_0002.arw", epoch: 2)
+        let result = try await projector.project(sessionRoot: sessionRoot)
+        XCTAssertEqual(result.removed, 1)
+
+        let count754 = try await store.memberCount(categoryID: a)
+        XCTAssertEqual(count754, 1)
+        let orphans = try await countRows(
+            """
+            SELECT COUNT(*) FROM image_categories WHERE category_id = ?
+              AND catalog_image_id NOT IN (SELECT id FROM catalog_images)
+            """, bind: a)
+        XCTAssertEqual(orphans, 0)
+        await projector.close()
+    }
+}
+
+/// A thread-safe bump counter (the memo-computation observer).
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _value
+    }
+
+    func bump() {
+        lock.lock()
+        _value += 1
+        lock.unlock()
     }
 }

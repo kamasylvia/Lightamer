@@ -271,11 +271,27 @@ public actor CatalogProjector {
                 "DELETE FROM catalog_images WHERE session_id = ? AND rel_path = ?")
             let deleteTags = try handle.prepare(
                 "DELETE FROM image_tags WHERE catalog_image_id = ?")
+            // Plan 16-3 (the organization-data view): the membership rows
+            // cascade WITH the image row — a dangling category/collection
+            // reference to a deleted image is unreachable by construction
+            // (the removeSession leg already cascaded all three; the
+            // reconcile leg had only tags because 16-1 shipped before the
+            // organization write face existed).
+            let deleteCategoryMembership = try handle.prepare(
+                "DELETE FROM image_categories WHERE catalog_image_id = ?")
+            let deleteCollectionMembership = try handle.prepare(
+                "DELETE FROM image_collections WHERE catalog_image_id = ?")
             for rel in removedKeys {
                 if let id = keyToID[rel] {
                     try deleteTags.bindInt(1, id)
                     _ = try deleteTags.step()
                     try deleteTags.reset()
+                    try deleteCategoryMembership.bindInt(1, id)
+                    _ = try deleteCategoryMembership.step()
+                    try deleteCategoryMembership.reset()
+                    try deleteCollectionMembership.bindInt(1, id)
+                    _ = try deleteCollectionMembership.step()
+                    try deleteCollectionMembership.reset()
                 }
                 try deleteRow.bindText(1, sessionID)
                 try deleteRow.bindText(2, rel)
