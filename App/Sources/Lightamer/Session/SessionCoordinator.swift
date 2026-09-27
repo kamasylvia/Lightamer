@@ -99,6 +99,18 @@ final class SessionCoordinator {
     var removeOrphanSidecar: (String) async -> Bool = { _ in false }
     var ignoreOrphanSidecar: (String) async -> Void = { _ in }
 
+    /// Plan 16-2 T6 (RQ-16-10): the EDIT-LOOP projection hook — returning
+    /// from the editor to the Catalogs grid projects the edited session
+    /// (the 16-1 single-session entry; the guard lives inside the
+    /// projector, so a disabled Catalogs mode is a cheap no-op).
+    var projectToCatalog: (URL) async -> Void = { _ in }
+
+    /// Plan 16-2 T6 (RQ-16-4 trigger face c): the Catalogs-mode startup
+    /// sweep — entering Catalogs mode / enabling the mode sweeps every
+    /// registered + recent session in the BACKGROUND (never the first
+    /// frame budget; RQ-16-4: the grid shows the committed state).
+    var sweepCatalog: ([URL]) async -> Void = { _ in }
+
     init(
         flushCurrentImage: @escaping () async -> Void = {},
         teardownRenderer: @escaping () async -> Void = {},
@@ -253,6 +265,94 @@ final class SessionIndexController {
 
     private var store: SessionIndexStore?
 
+    /// Plan 16-1 T2 — the app-level catalog projector (ONE .lcat writer
+    /// per process; CatalogIndexStore opens its own read connection).
+    ///
+    /// Plan 16-2 T1: `var` — the location preference (RQ-16-1②) rebuilds
+    /// the shared pair on a re-point via `repointSharedCatalog`. All reads
+    /// and writes stay on the MainActor (the SessionIndexController is
+    /// @MainActor and so is every access site); `nonisolated(unsafe)` only
+    /// lifts the static-isolation flag for the provider closure below.
+    nonisolated(unsafe) static var sharedCatalogProjector = CatalogProjector()
+
+    /// Plan 16-2 T1 (the 16-1 handover): the shared READ store singleton —
+    /// ONE `CatalogIndexStore` per process, rebuilt by the same re-point,
+    /// its COUNT memo invalidated by the projector's `countsInvalidator`
+    /// hook (wired at build time below). The Catalogs UI (browser model,
+    /// smart-album evaluation, thumbnail router) consumes THIS instance.
+    nonisolated(unsafe) static var sharedCatalogStore = CatalogIndexStore()
+
+    /// Plan 16-3 T3: the organization write/read face singleton (categories
+    /// tree / collections / memberships — the catalog's OWN asset). Same
+    /// lifecycle as the pair above: rebuilt by the re-point, its
+    /// membership-affecting COMMITs killing the shared READ store's COUNT
+    /// memo via the invalidator wired at build time.
+    nonisolated(unsafe) static var sharedCatalogOrganization =
+        CatalogOrganizationStore()
+
+    /// The location the shared pair currently targets (re-point idempotence;
+    /// nil = not yet built this launch — the first repoint always builds so
+    /// the invalidator wiring is guaranteed).
+    nonisolated(unsafe) private static var sharedCatalogURL: URL?
+
+    /// Plan 16-2 T2: fired after every `repointSharedCatalog` rebuild — the
+    /// app root re-binds the Catalogs consumers (browser model / thumbnail
+    /// router) to the NEW store instance (the old instance's handles are
+    /// closed by then).
+    nonisolated(unsafe) static var sharedCatalogStoreRebuilt:
+        ((CatalogIndexStore) -> Void)?
+
+    /// Plan 16-4 T2 — the destructive-rebuild support seam: close the shared
+    /// trio WITHOUT recreating (and clear `sharedCatalogURL` so a subsequent
+    /// `repointSharedCatalog` at the SAME url re-runs). The CatalogRebuilder's
+    /// rename promotion requires every writer of the outgoing `.lcat` closed
+    /// first — a live handle would keep writing into the orphaned inode.
+    static func closeSharedCatalogHandles() async {
+        await sharedCatalogProjector.close()
+        await sharedCatalogStore.close()
+        await sharedCatalogOrganization.close()
+        sharedCatalogURL = nil
+    }
+
+    /// Plan 16-2 T1 — the location preference's runtime leg (RQ-16-1②:
+    /// re-point, never migrate). Closes the outgoing handles FIRST, rebuilds
+    /// the projector + store pair at `url`, and wires the COUNT-memo
+    /// invalidation. When Catalogs is enabled the tail-touch creates an
+    /// EMPTY `.lcat` on demand (RQ-16-1③ — the schema-apply read, never a
+    /// bare file write); a disabled Catalogs mode never creates the file.
+    /// Idempotent per URL.
+    static func repointSharedCatalog(databaseURL url: URL) async {
+        guard sharedCatalogURL != url else { return }
+        await sharedCatalogProjector.close()
+        await sharedCatalogStore.close()
+        await sharedCatalogOrganization.close()
+        let projector = CatalogProjector(databaseURL: url)
+        let store = CatalogIndexStore(databaseURL: url)
+        let organization = CatalogOrganizationStore(databaseURL: url)
+        await projector.setCountsInvalidator { [store] in
+            await store.invalidateCounts()
+        }
+        await organization.setCountsInvalidator { [store] in
+            await store.invalidateCounts()
+        }
+        sharedCatalogProjector = projector
+        sharedCatalogStore = store
+        sharedCatalogOrganization = organization
+        sharedCatalogURL = url
+        if CatalogPreferences.catalogsEnabled() {
+            _ = try? await store.fetchSessions()
+        }
+        sharedCatalogStoreRebuilt?(store)
+    }
+
+    /// The projection-hook seam (tests inject a temp-directory factory;
+    /// the default wires the shared projector). The enable guard runs
+    /// BEFORE the factory, so a disabled Catalogs mode never constructs or
+    /// touches a projector — zero .lcat handles on the Sessions path.
+    var catalogProjectorProvider: () -> CatalogProjector? = {
+        SessionIndexController.sharedCatalogProjector
+    }
+
     /// The CURRENT store (Plan 09-3 wiring: the thumbnail provider binds to
     /// it after each open; nil before the first open / after a close).
     var currentStore: SessionIndexStore? { store }
@@ -282,6 +382,18 @@ final class SessionIndexController {
             )
             if let first = result.firstImageRelPath {
                 syncResult.firstImage = root.appendingPathComponent(first)
+            }
+            // Plan 16-1 T2 — the catalog projection hook (RQ-16-4 trigger
+            // face a): the five-step open+sync has RETURNED; the projection
+            // runs in a detached background task (never the open budget —
+            // pull-on-open, lag is harmless). The enable guard lives INSIDE
+            // CatalogProjector.project, BEFORE any handle exists — a
+            // disabled Catalogs mode runs this task only to return
+            // skippedByGuard: zero .lcat handles end-to-end.
+            if let projector = catalogProjectorProvider() {
+                Task.detached(priority: .utility) {
+                    _ = try? await projector.project(sessionRoot: root)
+                }
             }
             return syncResult
         } catch {

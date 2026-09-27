@@ -137,6 +137,10 @@ public final class SQLiteStatement {
 /// `sqlite3_close_v2`.
 public final class SQLiteHandle {
 
+    /// The read-only open flags (projection-style readers: the catalog
+    /// projector NEVER writes the lindex — the read side declares it).
+    public static let readOnlyFlags = SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX
+
     private let db: OpaquePointer?
     private let path: String
     private var closed = false
@@ -183,6 +187,14 @@ public final class SQLiteHandle {
     public func changes() -> Int {
         guard let db else { return 0 }
         return Int(sqlite3_changes(db))
+    }
+
+    /// The rowid of the most recent successful INSERT on this connection
+    /// (Plan 16-3: the create faces' id return — the `id INTEGER PRIMARY
+    /// KEY` alias is stable across VACUUM, RQ-16-7②).
+    public func lastInsertRowID() -> Int64 {
+        guard let db else { return 0 }
+        return sqlite3_last_insert_rowid(db)
     }
 
     // MARK: Exec / prepare

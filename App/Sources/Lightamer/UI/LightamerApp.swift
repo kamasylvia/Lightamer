@@ -189,6 +189,26 @@ internal struct LightamerApp: App {
     /// app; the session query face evaluates them — D-12-CONTEXT-4).
     @State private var smartAlbumStore = SmartAlbumStore()
 
+    /// Plan 16-2 T1: the Catalogs preferences face (enable + location;
+    /// reads/writes the SAME key the projector guard reads) — the settings
+    /// window and the mode switcher observe this ONE instance.
+    @State private var catalogPreferences = CatalogPreferencesModel()
+
+    /// Plan 16-2 T2: the CROSS-SESSION browser model (the Catalogs grid's
+    /// data face). Its store binding is REBUILT on every shared-runtime
+    /// repoint via `sharedCatalogStoreRebuilt` below.
+    @State private var catalogBrowserModel = CatalogBrowserModel()
+
+    /// Plan 16-3 T3: the organization tree/collections in-memory model (the
+    /// sidebar's Categories/Collections sections + the grid's classify
+    /// menus). Its store binding rebuilds in the SAME rebuilt callback.
+    @State private var catalogTreeModel = CatalogTreeModel()
+
+    /// Plan 16-2 T5: the cross-session thumbnail router (the lazy
+    /// per-session provider pool over the app-level memory LRU). Created
+    /// in the scene `.task` once the Metal/registry/yiyin faces exist.
+    @State private var catalogThumbnailRouter: CatalogThumbnailRouter?
+
     /// Plan 12-4 T3: the app-level preset library (one preset = one file
     /// under Application Support; the init rescans = the self-heal) + the
     /// apply face (the D-03b isolated state bridging the UI to the Core
@@ -256,6 +276,8 @@ internal struct LightamerApp: App {
             ContentView(
                 decoder: decoder, metalContext: metalContext,
                 browserModel: browserModel, thumbnailProvider: thumbnailProvider,
+                catalogBrowserModel: catalogBrowserModel,
+                catalogThumbnailRouter: catalogThumbnailRouter,
                 pasteboard: pasteboard,
                 onPartialPasteRequested: { pastePartialRequested = true },
                 onPartialPaste: { selection, mode in
@@ -276,6 +298,9 @@ internal struct LightamerApp: App {
                 .environment(smartAlbumStore)
                 .environment(presetsStore)
                 .environment(presetController)
+                .environment(catalogPreferences)
+                .environment(catalogBrowserModel)
+                .environment(catalogTreeModel)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
                 // D-COL2 (Plan 02-04-05): capture the editor window the
                 // moment SwiftUI places it — the coordinator follows THE
@@ -290,6 +315,84 @@ internal struct LightamerApp: App {
                     // render path.
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
+
+                    // Plan 16-2 T1: build the shared catalog runtime at the
+                    // PERSISTED location (re-point, never migrate) and wire
+                    // the preference seams (enable → repoint + empty-library
+                    // touch; location change → repoint). Idempotent. The
+                    // rebuilt callback re-binds the browser model (and the
+                    // T5 thumbnail router) to the NEW store instance — set
+                    // BEFORE the initial repoint so the first build lands.
+                    SessionIndexController.sharedCatalogStoreRebuilt = { store in
+                        catalogBrowserModel.configure(store: store)
+                        catalogTreeModel.configure(
+                            store: SessionIndexController.sharedCatalogOrganization)
+                        Task { await catalogTreeModel.refresh() }
+                    }
+                    await SessionIndexController.repointSharedCatalog(
+                        databaseURL: catalogPreferences.catalogURL)
+
+                    // Plan 16-2 T5: the cross-session thumbnail router —
+                    // the SAME injected legs the per-session provider uses
+                    // (render leg + yiyin run-context injector), the SAME
+                    // app-level memory LRU, and the shared catalog store
+                    // read through the provider closure (repoint-safe).
+                    catalogThumbnailRouter = CatalogThumbnailRouter(
+                        memory: thumbnailMemoryCache,
+                        registry: moduleRegistry,
+                        decoder: decoder,
+                        renderLeg: metalContext.map {
+                            SessionThumbnailRenderer.renderLeg(metal: $0)
+                        },
+                        runContextInjector: SessionThumbnailRenderer
+                            .runContextInjector(yiyinLogoStore: browserLogoStore),
+                        catalogStoreProvider: {
+                            SessionIndexController.sharedCatalogStore
+                        })
+                    CatalogThumbnailRouter.shared = catalogThumbnailRouter
+
+                    // Plan 16-2 T6: the edit-loop projection hook + the
+                    // Catalogs-mode startup sweep (both ride the shared
+                    // projector; its enable guard makes them no-ops when
+                    // Catalogs is off).
+                    sessionCoordinator.projectToCatalog = { root in
+                        _ = try? await SessionIndexController
+                            .sharedCatalogProjector.project(sessionRoot: root)
+                    }
+                    sessionCoordinator.sweepCatalog = { recents in
+                        _ = await SessionIndexController
+                            .sharedCatalogProjector.sweepAll(recentRoots: recents)
+                    }
+                    catalogPreferences.onEnabledChanged = { enabled in
+                        guard enabled else { return }
+                        Task { [catalogPreferences] in
+                            await SessionIndexController.repointSharedCatalog(
+                                databaseURL: catalogPreferences.catalogURL)
+                        }
+                    }
+                    catalogPreferences.onLocationChanged = { url in
+                        Task {
+                            await SessionIndexController.repointSharedCatalog(
+                                databaseURL: url)
+                        }
+                    }
+                    // Plan 16-4 T2: the rebuild seams — the destructive
+                    // promotion requires every shared handle closed first;
+                    // any rebuild ends with the trio re-pointed (fresh read
+                    // faces + the browser rebind hook). The recent list is
+                    // the rebuild's source of last resort (the old registry
+                    // is unreadable exactly when it matters).
+                    catalogPreferences.onBeforeDestructiveRebuild = {
+                        await SessionIndexController.closeSharedCatalogHandles()
+                    }
+                    catalogPreferences.onCatalogRuntimeReset = { [catalogPreferences] in
+                        await SessionIndexController.closeSharedCatalogHandles()
+                        await SessionIndexController.repointSharedCatalog(
+                            databaseURL: catalogPreferences.catalogURL)
+                    }
+                    catalogPreferences.recentRootsProvider = { [sessionState] in
+                        sessionState.recentSessions
+                    }
 
                     // Plan 11-04 T3: hand the export state its Metal +
                     // registry dependencies (D-03b closure-seam pattern —
@@ -792,10 +895,14 @@ internal struct LightamerApp: App {
         }
         .defaultSize(width: 520, height: 480)
 
-        // Settings… (Cmd+,) — empty placeholder window; Phase 13 fills.
+        // Settings… (Cmd+,) — Plan 16-2 T1: the Catalogs section (enable
+        // toggle + location picker + rebuild hint) replaces the Phase 13
+        // placeholder. The preferences model is injected explicitly (the
+        // Settings scene has its own environment).
         Settings {
-            Text("settings_placeholder")
-                .frame(width: 360, height: 120)
+            SettingsView()
+                .environment(catalogPreferences)
+                .preferredColorScheme(.dark) // D-10: v1 forced dark
         }
     }
 

@@ -1395,6 +1395,662 @@
         }
       }
     },
+    "catalog_all_photographs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All Photographs"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部照片"
+          }
+        }
+      }
+    },
+    "catalog_batch_clear": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除"
+          }
+        }
+      }
+    },
+    "catalog_batch_color": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set Color Label"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置色标"
+          }
+        }
+      }
+    },
+    "catalog_batch_rating": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set Rating"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置评分"
+          }
+        }
+      }
+    },
+    "catalog_categories_empty": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No categories yet"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无分类"
+          }
+        }
+      }
+    },
+    "catalog_categories_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Categories"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分类"
+          }
+        }
+      }
+    },
+    "catalog_category_delete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Category"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除分类"
+          }
+        }
+      }
+    },
+    "catalog_category_delete_disabled_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete or move the subcategories first"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先删除或移出子分类"
+          }
+        }
+      }
+    },
+    "catalog_category_move": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移动到…"
+          }
+        }
+      }
+    },
+    "catalog_category_new": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Category"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建分类"
+          }
+        }
+      }
+    },
+    "catalog_category_new_child": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Subcategory"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建子分类"
+          }
+        }
+      }
+    },
+    "catalog_category_rename": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Category"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名分类"
+          }
+        }
+      }
+    },
+    "catalog_collection_delete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Collection"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除集合"
+          }
+        }
+      }
+    },
+    "catalog_collection_new": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Collection"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建集合"
+          }
+        }
+      }
+    },
+    "catalog_collection_rename": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Collection"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名集合"
+          }
+        }
+      }
+    },
+    "catalog_collections_empty": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No collections yet"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无集合"
+          }
+        }
+      }
+    },
+    "catalog_collections_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collections"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "集合"
+          }
+        }
+      }
+    },
+    "catalog_empty_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open a session to add its photographs to the catalog."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开会话即可将照片收入目录库。"
+          }
+        }
+      }
+    },
+    "catalog_empty_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No photographs in the catalog yet"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库中还没有照片"
+          }
+        }
+      }
+    },
+    "catalog_filter_quick_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalog domain: filename/folder matches the PREFIX, case-sensitive."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库域：文件名/目录按前缀匹配，区分大小写。"
+          }
+        }
+      }
+    },
+    "catalog_menu_add_to_category": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Category…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加到分类…"
+          }
+        }
+      }
+    },
+    "catalog_menu_add_to_collection": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Collection…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加到集合…"
+          }
+        }
+      }
+    },
+    "catalog_menu_remove_from_category": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from This Category"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从此分类移除"
+          }
+        }
+      }
+    },
+    "catalog_name_prompt_category": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Category name"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分类名称"
+          }
+        }
+      }
+    },
+    "catalog_name_prompt_collection": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collection name"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "集合名称"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_confirm_cancel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_confirm_destructive_accept": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild and Discard Organization Data"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建并丢弃组织数据"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_confirm_destructive_body": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All metadata is re-projected from the sessions; the categories and collections organization data in the catalog will be discarded (back up the .lcat file first if you need it)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将把全部元数据从会话重新投影；目录库中的分类与集合组织数据将被丢弃（如需保留请先备份 .lcat 文件）。"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_confirm_destructive_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild the catalog?"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建目录库？"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_done_destructive": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadata has been restored; categories and collections must be restored from a backup or re-organized."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "元数据已恢复；分类与集合需从备份恢复或重新整理。"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_done_reconcile %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The catalog has been reconciled with %lld sessions."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录已与 %lld 个会话对账。"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_done_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild Complete"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建完成"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_failed %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild failed: %@"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建失败：%@"
+          }
+        }
+      }
+    },
+    "catalog_rebuild_failed_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild Failed"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建失败"
+          }
+        }
+      }
+    },
+    "catalog_session_offline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offline"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "离线"
+          }
+        }
+      }
+    },
+    "catalog_session_relink": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-link Session Folder"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-link 会话文件夹"
+          }
+        }
+      }
+    },
+    "catalog_session_remove": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Session from Catalog"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从 Catalog 移除会话"
+          }
+        }
+      }
+    },
+    "catalog_session_remove_confirm_action": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除"
+          }
+        }
+      }
+    },
+    "catalog_session_remove_confirm_body": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session’s catalog rows AND their category/collection memberships will be deleted. Files on disk are not touched; the session re-enters the catalog on its next open."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该会话的目录库行及其分类/集合归属将被删除。磁盘文件不受影响；下次打开该会话会重新入册。"
+          }
+        }
+      }
+    },
+    "catalog_session_remove_confirm_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove this session from the catalog?"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要从 Catalog 移除该会话吗？"
+          }
+        }
+      }
+    },
+    "catalog_sessions_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话"
+          }
+        }
+      }
+    },
     "colorbalancergb hue disc": {
       "extractionState": "manual",
       "localizations": {
@@ -5519,6 +6175,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开图像"
+          }
+        }
+      }
+    },
+    "organization_mode_catalogs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalogs"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库"
+          }
+        }
+      }
+    },
+    "organization_mode_label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organization Mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "组织模式"
+          }
+        }
+      }
+    },
+    "organization_mode_sessions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话"
           }
         }
       }
@@ -15159,6 +15863,230 @@
           "stringUnit": {
             "state": "translated",
             "value": "会话"
+          }
+        }
+      }
+    },
+    "settings_catalogs_backup_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit the app, then copy this file — a single-file library, that is the whole backup."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出 app 后拷贝此文件即完整备份（单文件库）。"
+          }
+        }
+      }
+    },
+    "settings_catalogs_enable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable Catalogs Mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用 Catalogs 模式"
+          }
+        }
+      }
+    },
+    "settings_catalogs_file_exists": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalog file ready"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库文件已就绪"
+          }
+        }
+      }
+    },
+    "settings_catalogs_file_missing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not created yet (created on enable)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未创建（启用后自动创建）"
+          }
+        }
+      }
+    },
+    "settings_catalogs_location": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalog File Location"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库文件位置"
+          }
+        }
+      }
+    },
+    "settings_catalogs_location_change": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change Location…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改位置…"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_destructive": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuild Catalog…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建目录库…"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The catalog can be rebuilt from your sessions at any time. Organization data (categories and collections) lives only in the catalog file — back it up as a single file."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库可随时由会话重建；分类与集合等整理数据仅存于目录库单文件内（拷贝该文件即备份）。"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_preparing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing rebuild…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在准备重建…"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_progress %lld %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rebuilding %lld of %lld sessions"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重建中 %lld/%lld 会话"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_reconcile": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconcile Catalog"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对账重建目录"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalog Rebuild"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库重建"
+          }
+        }
+      }
+    },
+    "settings_catalogs_schema_failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The catalog cannot be opened (unknown schema or a damaged file). Sessions mode is unaffected."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库无法打开（schema 不识别或文件损坏）。Sessions 模式不受影响。"
+          }
+        }
+      }
+    },
+    "settings_catalogs_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalogs"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库"
           }
         }
       }
