@@ -1507,6 +1507,22 @@
         }
       }
     },
+    "catalog_filter_quick_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalog domain: filename/folder matches the PREFIX, case-sensitive."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库域：文件名/目录按前缀匹配，区分大小写。"
+          }
+        }
+      }
+    },
     "catalog_session_offline": {
       "localizations": {
         "en": {

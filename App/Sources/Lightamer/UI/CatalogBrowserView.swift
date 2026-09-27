@@ -74,6 +74,11 @@ internal struct CatalogBrowserView: View {
             .padding(12)
         }
         .accessibilityIdentifier(CatalogBrowserIdentifiers.grid)
+        // Plan 16-2 T3: the filter bar rides the grid's top inset (the 12-2
+        // shape, bound to the catalog model).
+        .safeAreaInset(edge: .top, spacing: 0) {
+            CatalogFilterBarView(model: model)
+        }
         // The empty faces: a fresh (empty) catalog guides the user into the
         // session flow (RQ-16-1③); a filtered empty result says WHY.
         .overlay {

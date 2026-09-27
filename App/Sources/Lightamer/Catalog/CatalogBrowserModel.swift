@@ -238,6 +238,16 @@ final class CatalogBrowserModel {
                 anchor: mainAnchor, limit: Self.pageSize)) ?? []
             if let last = page.last {
                 mainAnchor = anchor(of: last)
+                // NULL rows sort LAST within the main ORDER BY: a page that
+                // ENDS on a NULL-keyed row has already emitted the tier's
+                // head (the one-shot order and the seek pages diverge only
+                // here — the seek itself cannot re-enter the NULL tier).
+                // Seed the tail anchor so the tier CONTINUES, never
+                // re-emits (无重).
+                if tailAnchor == nil, Self.isNullKeyRow(last, key: activeSort.key) {
+                    tailAnchor = CatalogPageAnchor(
+                        keyValue: .text(last.relPath), relPath: last.relPath)
+                }
             }
             append(page)
             if page.count < Self.pageSize {
@@ -306,6 +316,19 @@ final class CatalogBrowserModel {
 
     nonisolated private static func isNullableKey(_ key: FilterSortKey) -> Bool {
         key == .captureDate || key == .rating
+    }
+
+    /// True when the row's sort-key value is NULL (the tier-boundary probe
+    /// for the tail-anchor seeding above).
+    nonisolated private static func isNullKeyRow(
+        _ row: CatalogIndexRow, key: FilterSortKey
+    ) -> Bool {
+        switch key {
+        case .captureDate: row.captureDate == nil
+        case .rating: row.rating == nil
+        case .filename: false
+        case .iso, .focalLength, .scanEpoch: false
+        }
     }
 
     private static func project(_ row: CatalogIndexRow) -> Row {
