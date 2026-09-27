@@ -189,6 +189,11 @@ internal struct LightamerApp: App {
     /// app; the session query face evaluates them — D-12-CONTEXT-4).
     @State private var smartAlbumStore = SmartAlbumStore()
 
+    /// Plan 16-2 T1: the Catalogs preferences face (enable + location;
+    /// reads/writes the SAME key the projector guard reads) — the settings
+    /// window and the mode switcher observe this ONE instance.
+    @State private var catalogPreferences = CatalogPreferencesModel()
+
     /// Plan 12-4 T3: the app-level preset library (one preset = one file
     /// under Application Support; the init rescans = the self-heal) + the
     /// apply face (the D-03b isolated state bridging the UI to the Core
@@ -290,6 +295,26 @@ internal struct LightamerApp: App {
                     // render path.
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
+
+                    // Plan 16-2 T1: build the shared catalog runtime at the
+                    // PERSISTED location (re-point, never migrate) and wire
+                    // the preference seams (enable → repoint + empty-library
+                    // touch; location change → repoint). Idempotent.
+                    await SessionIndexController.repointSharedCatalog(
+                        databaseURL: catalogPreferences.catalogURL)
+                    catalogPreferences.onEnabledChanged = { enabled in
+                        guard enabled else { return }
+                        Task { [catalogPreferences] in
+                            await SessionIndexController.repointSharedCatalog(
+                                databaseURL: catalogPreferences.catalogURL)
+                        }
+                    }
+                    catalogPreferences.onLocationChanged = { url in
+                        Task {
+                            await SessionIndexController.repointSharedCatalog(
+                                databaseURL: url)
+                        }
+                    }
 
                     // Plan 11-04 T3: hand the export state its Metal +
                     // registry dependencies (D-03b closure-seam pattern —
@@ -792,10 +817,14 @@ internal struct LightamerApp: App {
         }
         .defaultSize(width: 520, height: 480)
 
-        // Settings… (Cmd+,) — empty placeholder window; Phase 13 fills.
+        // Settings… (Cmd+,) — Plan 16-2 T1: the Catalogs section (enable
+        // toggle + location picker + rebuild hint) replaces the Phase 13
+        // placeholder. The preferences model is injected explicitly (the
+        // Settings scene has its own environment).
         Settings {
-            Text("settings_placeholder")
-                .frame(width: 360, height: 120)
+            SettingsView()
+                .environment(catalogPreferences)
+                .preferredColorScheme(.dark) // D-10: v1 forced dark
         }
     }
 

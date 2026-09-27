@@ -337,6 +337,47 @@ public actor CatalogIndexStore {
         return counts
     }
 
+    // MARK: - Sessions registry reads (Plan 16-2)
+
+    /// One `catalog_sessions` registry row + its image count (the sidebar
+    /// Sessions 从属节's row face: display name + 图计数角标 + offline
+    /// gray-out). ONE LEFT-JOIN sweep — never a per-session count query.
+    public struct CatalogSessionRow: Sendable, Equatable {
+        public var sessionID: String = ""
+        public var rootPath: String = ""
+        public var displayName: String?
+        public var offline: Int64 = 0
+        public var imageCount: Int = 0
+
+        public init() {}
+    }
+
+    /// The registry read (the 16-2 UI's sessions-grouping source; also the
+    /// shared-runtime's empty-library touch — ensureOpen creates the file).
+    public func fetchSessions() throws -> [CatalogSessionRow] {
+        try ensureOpen()
+        guard let handle else { return [] }
+        let statement = try handle.prepare("""
+            SELECT s.session_id, s.root_path, s.display_name, s.offline,
+                   COUNT(i.id)
+            FROM catalog_sessions s
+            LEFT JOIN catalog_images i ON i.session_id = s.session_id
+            GROUP BY s.session_id
+            ORDER BY s.session_id
+            """)
+        var rows: [CatalogSessionRow] = []
+        while try statement.step() {
+            var row = CatalogSessionRow()
+            row.sessionID = statement.columnText(0) ?? ""
+            row.rootPath = statement.columnText(1) ?? ""
+            row.displayName = statement.columnText(2)
+            row.offline = statement.columnInt(3) ?? 0
+            row.imageCount = Int(statement.columnInt(4) ?? 0)
+            rows.append(row)
+        }
+        return rows
+    }
+
     // MARK: - Row reads (ONE spelling)
 
     /// Single-row read by the composite identity.

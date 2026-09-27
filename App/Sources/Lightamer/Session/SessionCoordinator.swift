@@ -255,7 +255,49 @@ final class SessionIndexController {
 
     /// Plan 16-1 T2 — the app-level catalog projector (ONE .lcat writer
     /// per process; CatalogIndexStore opens its own read connection).
-    static let sharedCatalogProjector = CatalogProjector()
+    ///
+    /// Plan 16-2 T1: `var` — the location preference (RQ-16-1②) rebuilds
+    /// the shared pair on a re-point via `repointSharedCatalog`. All reads
+    /// and writes stay on the MainActor (the SessionIndexController is
+    /// @MainActor and so is every access site); `nonisolated(unsafe)` only
+    /// lifts the static-isolation flag for the provider closure below.
+    nonisolated(unsafe) static var sharedCatalogProjector = CatalogProjector()
+
+    /// Plan 16-2 T1 (the 16-1 handover): the shared READ store singleton —
+    /// ONE `CatalogIndexStore` per process, rebuilt by the same re-point,
+    /// its COUNT memo invalidated by the projector's `countsInvalidator`
+    /// hook (wired at build time below). The Catalogs UI (browser model,
+    /// smart-album evaluation, thumbnail router) consumes THIS instance.
+    nonisolated(unsafe) static var sharedCatalogStore = CatalogIndexStore()
+
+    /// The location the shared pair currently targets (re-point idempotence;
+    /// nil = not yet built this launch — the first repoint always builds so
+    /// the invalidator wiring is guaranteed).
+    nonisolated(unsafe) private static var sharedCatalogURL: URL?
+
+    /// Plan 16-2 T1 — the location preference's runtime leg (RQ-16-1②:
+    /// re-point, never migrate). Closes the outgoing handles FIRST, rebuilds
+    /// the projector + store pair at `url`, and wires the COUNT-memo
+    /// invalidation. When Catalogs is enabled the tail-touch creates an
+    /// EMPTY `.lcat` on demand (RQ-16-1③ — the schema-apply read, never a
+    /// bare file write); a disabled Catalogs mode never creates the file.
+    /// Idempotent per URL.
+    static func repointSharedCatalog(databaseURL url: URL) async {
+        guard sharedCatalogURL != url else { return }
+        await sharedCatalogProjector.close()
+        await sharedCatalogStore.close()
+        let projector = CatalogProjector(databaseURL: url)
+        let store = CatalogIndexStore(databaseURL: url)
+        await projector.setCountsInvalidator { [store] in
+            await store.invalidateCounts()
+        }
+        sharedCatalogProjector = projector
+        sharedCatalogStore = store
+        sharedCatalogURL = url
+        if CatalogPreferences.catalogsEnabled() {
+            _ = try? await store.fetchSessions()
+        }
+    }
 
     /// The projection-hook seam (tests inject a temp-directory factory;
     /// the default wires the shared projector). The enable guard runs

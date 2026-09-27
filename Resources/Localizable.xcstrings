@@ -15163,6 +15163,118 @@
         }
       }
     },
+    "settings_catalogs_enable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable Catalogs Mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用 Catalogs 模式"
+          }
+        }
+      }
+    },
+    "settings_catalogs_file_exists": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalog file ready"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库文件已就绪"
+          }
+        }
+      }
+    },
+    "settings_catalogs_file_missing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not created yet (created on enable)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未创建（启用后自动创建）"
+          }
+        }
+      }
+    },
+    "settings_catalogs_location": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalog File Location"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库文件位置"
+          }
+        }
+      }
+    },
+    "settings_catalogs_location_change": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change Location…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改位置…"
+          }
+        }
+      }
+    },
+    "settings_catalogs_rebuild_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The catalog can be rebuilt from your sessions at any time. Organization data (categories and collections) lives only in the catalog file — back it up as a single file."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库可随时由会话重建；分类与集合等整理数据仅存于目录库单文件内（拷贝该文件即备份）。"
+          }
+        }
+      }
+    },
+    "settings_catalogs_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catalogs"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录库"
+          }
+        }
+      }
+    },
     "settings_placeholder": {
       "extractionState": "manual",
       "localizations": {

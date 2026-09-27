@@ -129,6 +129,12 @@ public actor CatalogProjector {
     /// writes call the store face directly).
     public var countsInvalidator: (@Sendable () async -> Void)?
 
+    /// Isolated setter seam (16-2 T1: the shared-runtime wiring assigns
+    /// the hook from outside the actor — the `setCountObserver` pattern).
+    public func setCountsInvalidator(_ invalidator: (@Sendable () async -> Void)?) {
+        countsInvalidator = invalidator
+    }
+
     /// Default location (`CatalogIndexSchema.defaultDatabaseURL`).
     public init(defaultsSuiteName: String? = nil) {
         self.databaseURL = CatalogIndexSchema.defaultDatabaseURL()
