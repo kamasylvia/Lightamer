@@ -34,7 +34,7 @@ files_modified:
 
 ## read_first
 
-1. `.work/gsd/phases/13-system-integration-distribution/13-CONTEXT.md`——D-13-CONTEXT-6（AppKit 面/zoom 状态机/单点扩展/互斥四裁决）、D-13-CONTEXT-7（拖放五裁决：默认复制/双落点/路由复用/批量失败/源零改动）、D-13-CONTEXT-9（蒙版命令面六裁决：内核零改/enable=既有字段/GUI-19 同批）、继承定案（SYS-05 收口非新框架/L021/L025/L032）、验证红线（手势/overlay 安全 + 拖放专项——逐条为本 plan AC 正本）
+1. `.work/gsd/phases/13-system-integration-distribution/13-CONTEXT.md`——D-13-CONTEXT-6（AppKit 面/zoom 状态机/单点扩展/互斥四裁决）、D-13-CONTEXT-7（拖放五裁决：默认复制/双落点/路由复用/批量失败/源零改动）、D-13-CONTEXT-9（蒙版命令面六裁决：内核零改/enable=既有字段；GUI-19 已闭环 → 回归确认，checker E1）、继承定案（SYS-05 收口非新框架/L021/L025/L032）、验证红线（手势/overlay 安全 + 拖放专项——逐条为本 plan AC 正本）
 2. `App/Sources/Lightamer/UI/Overlay/ViewportFit.swift` 全文——:7-16 三消费者单点声明（**本 plan 纪律正本**）/ :28 `fittedRect`（`viewportTransform` 扩展基座；checker M2 锚点校正）
 3. `App/Sources/Lightamer/UI/EditorMTKView.swift`——:12 near-static blit (D-13: no zoom/pan) 注释（本 plan 翻转）/ :318 aspectFitUniforms + fit/100% 预留注释（blit 腿扩展位）/ SpatialTapGesture 既有手势锚（`EditorAreaView.swift:227`）
 4. `App/Sources/Lightamer/UI/EmptyStateView.swift:57`（onDrop fileURL 先例——拖放实现参照）+ `LayersPanelView` 层拖拽 NSItemProvider/onDrop 对（同）
