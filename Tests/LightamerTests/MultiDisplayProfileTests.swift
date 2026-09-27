@@ -277,9 +277,14 @@ final class MultiDisplayProfileTests: XCTestCase {
         XCTAssertNotEqual(
             linear, CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!,
             "the rebuilt linear space must NOT be the sRGB workalike")
-        // And DisplayProfile routes the fallback through it.
+        // D-13-2-7: the RENDER leg deliberately keeps the workalike (the
+        // shared-space CI-leg interaction is order-sensitive); the exact
+        // variant stays a pinned capability of the parser until the
+        // dedicated validation batch wires it.
         let profile = DisplayProfile.colorSyncFallback(adobe)
-        XCTAssertEqual(profile.linearCGColorSpace, linear)
+        XCTAssertEqual(
+            profile.linearCGColorSpace, CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!,
+            "the fallback property keeps the baseline workalike (deferred wiring)")
         // Same bytes ⇒ same variant (determinism).
         let again = try XCTUnwrap(CGColorSpace(iccProfileData: adobeICC as CFData))
             .linearVariantIfMatrixShaper

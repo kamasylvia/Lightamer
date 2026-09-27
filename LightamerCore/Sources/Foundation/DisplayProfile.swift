@@ -145,16 +145,19 @@ public enum DisplayProfile: @unchecked Sendable, Equatable {
     /// the TRC encode itself stays gamma's sRGB curve in both cases (the
     /// display leg's encode is shared; for the overwhelmingly common
     /// sRGB-TRC display class the curve is exact).
+    ///
+    /// 13-2 T6 status: the fallback branch routes to the sRGB workalike —
+    /// the exact-primaries variant exists (`CGColorSpace
+    /// .linearVariantIfMatrixShaper`, test-pinned) but is DELIBERATELY not
+    /// consumed by the render leg: a shared space instance interacting
+    /// with the CI leg proved order-sensitive (the CullingPipeline
+    /// collapse forensics, 13-2-DECISIONS D-13-2-7). The property keeps
+    /// the baseline mapping; the render integration is deferred.
     public var linearCGColorSpace: CGColorSpace {
         switch self {
         case .displayP3:
             return CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3)!
-        case .sRGB:
-            return CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!
-        case .colorSyncFallback(let space):
-            if let exact = space.linearVariantIfMatrixShaper {
-                return exact
-            }
+        case .sRGB, .colorSyncFallback:
             return CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!
         }
     }
@@ -175,6 +178,22 @@ public enum DisplayProfile: @unchecked Sendable, Equatable {
 
 // MARK: - The exact-TRC helper (Plan 13-2 T6)
 
+/// The rebuilt linear variants, keyed by the ICC byte hash. The colorout
+/// fallback leg consults `linearVariantIfMatrixShaper` on EVERY render —
+/// without this cache each call mints a FRESH `CGColorSpace` instance for
+/// identical bytes, and the CIContext render behind the ColorSync leg keys
+/// its internal state by space INSTANCE (the 13-2 regression forensics:
+/// the per-render instance churn flipped the byte-exact render suite into
+/// an intermittent all-black-plane flake; the baseline — the system
+/// extendedLinearSRGB SINGLETON — was stable). One instance per profile,
+/// forever: the CG type is immutable and thread-safe.
+private enum LinearVariantCache {
+    nonisolated(unsafe) static var storage: [UInt64: CGColorSpace] = [:]
+    nonisolated(unsafe) static let nilSentinel = UInt64(0) // an absent entry ≠ a failed parse
+    nonisolated(unsafe) static var failed: Set<UInt64> = []
+    static let lock = NSLock()
+}
+
 extension CGColorSpace {
 
     /// The profile's LINEAR variant for a matrix-shaper ICC: parse the
@@ -185,13 +204,43 @@ extension CGColorSpace {
     /// encode alone; see `DisplayProfile.linearCGColorSpace`). nil for any
     /// profile without the shaper tags (LUT-class), for non-RGB models
     /// (CMYK), and for malformed tables — the caller keeps the sRGB
-    /// workalike in every nil case.
+    /// workalike in every nil case. Results are CACHED per ICC-byte hash
+    /// (including the nil verdicts — one parse per profile, one space
+    /// instance per profile).
     ///
     /// ICC layout: 128-byte header, tag count at offset 128 (u32 BE), then
-    /// 12-byte tag entries (signature, offset, size — all u32 BE); the XYZ
-    /// payload is three s15Fixed16 numbers (u32 BE, value/65536).
+    /// 12-byte tag entries (signature, offset, size — all u32 BE); the
+    /// XYZType payload is a 4-byte type signature + 4 reserved bytes +
+    /// three s15Fixed16 numbers (u32 BE, value/65536).
     var linearVariantIfMatrixShaper: CGColorSpace? {
-        guard model == .rgb, let icc = copyICCData() as Data? else { return nil }
+        guard let icc = copyICCData() as Data? else { return nil }
+        let key = StableHash.hash(icc)
+        LinearVariantCache.lock.lock()
+        if let cached = LinearVariantCache.storage[key] {
+            LinearVariantCache.lock.unlock()
+            return cached
+        }
+        if LinearVariantCache.failed.contains(key) {
+            LinearVariantCache.lock.unlock()
+            return nil
+        }
+        LinearVariantCache.lock.unlock()
+
+        let parsed = Self.parseLinearVariant(icc: icc)
+
+        LinearVariantCache.lock.lock()
+        if let parsed {
+            LinearVariantCache.storage[key] = parsed
+        } else {
+            LinearVariantCache.failed.insert(key)
+        }
+        LinearVariantCache.lock.unlock()
+        return parsed
+    }
+
+    private static func parseLinearVariant(icc: Data) -> CGColorSpace? {
+        let space = CGColorSpace(iccProfileData: icc as CFData)
+        guard let space, space.model == .rgb else { return nil }
         let bytes = [UInt8](icc)
         guard bytes.count > 132 else { return nil }
         let tagCount = bytes.beUInt32(at: 128)

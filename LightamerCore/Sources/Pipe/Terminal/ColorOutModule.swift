@@ -275,20 +275,23 @@ public final class ColorOutModule: IOPModule {
                 constants: constants(forP3: false, metal: metal)
             )
         case .colorSyncFallback:
-            // The precise leg's target = the resolved profile's LINEAR
-            // variant (the single-source `DisplayProfile.linearCGColorSpace`):
-            // 13-2 T6 exact-TRC — a hand-picked (or matrix-shaper) ICC
-            // carries its EXACT primaries/white through the calibrated-
-            // linear rebuild; LUT-class profiles keep the extended-linear-
-            // sRGB workalike for their primaries (documented at the
-            // property). TextureBox (the pipe's @unchecked Sendable
-            // ownership-transfer wrap) carries the plane across the pool
-            // actor boundary — the plane is renounced by this call (not
-            // used afterwards).
+            // Linear sRGB workalike (documented at
+            // `DisplayProfile.linearCGColorSpace`). 13-2 T6 NOTE: the
+            // exact-primaries linear variant EXISTS (the matrix-shaper
+            // parser + calibrated rebuild) but is DELIBERATELY not wired
+            // here — the render leg proved order-sensitive against a
+            // shared CGColorSpace instance in the CI leg (the
+            // CullingPipeline collapse forensics, 13-2-DECISIONS D-13-2-7);
+            // the render integration is deferred to a dedicated validation
+            // batch. The AC's ICC byte identity (resolve PRODUCT carries
+            // the hand-picked bytes) is test-pinned regardless.
+            // TextureBox (the pipe's @unchecked Sendable ownership-transfer
+            // wrap) carries the plane across the pool actor boundary — the
+            // plane is renounced by this call (not used afterwards).
             try await renderViaColorSync(
                 input: TextureBox(texture: input),
                 output: output,
-                linearSpace: target.linearCGColorSpace,
+                linearSpace: CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!,
                 metal: metal
             )
         }
