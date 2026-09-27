@@ -19,7 +19,7 @@ import XCTest
 //     the T2 perf.md verdict and is never waited on in tests).
 //
 // Fixtures: a synthetic session under NSTemporaryDirectory (L009 — never
-// UNITEK); the real-RAW parity sample is the input/RAW pair DSC00012.ARW +
+// external volume); the real-RAW parity sample is the input/RAW pair DSC00012.ARW +
 // .lra (skipped when a checkout lacks it).
 // ─────────────────────────────────────────────────────────────────────────────
 

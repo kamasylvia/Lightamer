@@ -26,7 +26,7 @@ import XCTest
 //     the previous shape survive).
 //
 // Fixtures are RAW catalog databases (the CatalogFilterSQLTests direct-
-// handle style; L009: never UNITEK).
+// handle style; L009: never external volume).
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
