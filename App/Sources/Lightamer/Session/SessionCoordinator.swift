@@ -126,6 +126,11 @@ final class SessionCoordinator {
     /// entry renders disabled/unwired.
     var hdrMergeHandler: ((_ relPaths: [String], _ deGhost: Bool) async -> Void)?
 
+    /// Plan 08-3 T4: the stacking seams (the same menu → service shape;
+    /// the mode maps 1:1 onto the service's stack kinds). nil = unwired.
+    var focusStackHandler: ((_ relPaths: [String]) async -> Void)?
+    var stackDenoiseHandler: ((_ relPaths: [String], _ mode: SessionBrowserView.StackDenoiseMode) async -> Void)?
+
     /// Plan 08-1 T1: the merge service instance the app root owns (the
     /// dedicated low-priority queue lives inside it). The coordinator only
     /// routes to it through `hdrMergeHandler` — no direct calls here.

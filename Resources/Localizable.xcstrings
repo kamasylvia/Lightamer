@@ -1293,6 +1293,22 @@
         }
       }
     },
+    "browser_menu_focus_stack": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus Stack…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "焦点堆栈…"
+          }
+        }
+      }
+    },
     "browser_menu_hdr_merge": {
       "extractionState": "manual",
       "localizations": {
@@ -1340,6 +1356,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "粘贴部分…"
+          }
+        }
+      }
+    },
+    "browser_menu_stack_denoise": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack Denoise…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "堆栈降噪…"
           }
         }
       }
@@ -3730,6 +3762,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "文本（禁 |）"
+          }
+        }
+      }
+    },
+    "focus_stack_dialog_body": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aligns the focus rail (MTB), measures sharpness (SML) and blends a quality-weighted Laplacian pyramid. Sources are never modified."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对焦轨 MTB 对齐后以 SML 度量清晰度，加权拉普拉斯金字塔融合。源文件不会被修改。"
+          }
+        }
+      }
+    },
+    "focus_stack_dialog_start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus Stack"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始堆栈"
+          }
+        }
+      }
+    },
+    "focus_stack_dialog_title %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus-stack %lld sources"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "焦点堆栈 %lld 张源图"
           }
         }
       }
@@ -17536,6 +17616,118 @@
         }
       }
     },
+    "stack_denoise_dialog_body": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aligns the frames (MTB) and aggregates each pixel: average (best SNR), median (motion robust) or sigma-clipped (star trails). Sources are never modified."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MTB 对齐后逐像素聚合：平均（信噪比最优）、中值（运动鲁棒）或 Sigma 剔除（星野）。源文件不会被修改。"
+          }
+        }
+      }
+    },
+    "stack_denoise_dialog_mode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模式"
+          }
+        }
+      }
+    },
+    "stack_denoise_dialog_start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始堆叠"
+          }
+        }
+      }
+    },
+    "stack_denoise_dialog_title %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack denoise %lld sources"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "堆栈降噪 %lld 张源图"
+          }
+        }
+      }
+    },
+    "stack_denoise_mode_average": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Average"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均"
+          }
+        }
+      }
+    },
+    "stack_denoise_mode_median": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Median"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中值"
+          }
+        }
+      }
+    },
+    "stack_denoise_mode_sigma": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sigma-clipped"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sigma 剔除"
+          }
+        }
+      }
+    },
     "status_decoding": {
       "extractionState": "manual",
       "localizations": {
@@ -17821,6 +18013,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法写入 .lra sidecar——本次会话中的编辑仍然有效"
+          }
+        }
+      }
+    },
+    "toast_stack_merge_queued": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack merge queued"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "堆栈任务已入队"
           }
         }
       }

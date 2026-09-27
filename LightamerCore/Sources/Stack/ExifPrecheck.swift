@@ -180,6 +180,109 @@ public enum ExifPrecheck {
         }
     }
 
+    // MARK: - The STACK-variant precheck (Plan 08-3 T4; research §2.4
+    // adapted — the criteria-difference table is D-08-3-T4-4)
+
+    /// The focus-rail / stacking-denoise admissibility: the same STRICT
+    /// body/lens/focal/aperture gates (the depth-of-field consistency
+    /// premise needs the aperture equal), but the shutter and ISO are NOT
+    /// required to DIFFER — a rail/stack keeps constant settings, and an
+    /// auto-exposure drift is a WARNING, never a rejection. The exposureEV
+    /// is a flat 0 (stacks carry no exposure weighting — the ΔEV
+    /// composition only feeds the HDR merge weights).
+    public static func precheckStack(
+        reference: CaptureMetadata,
+        candidate: CaptureMetadata,
+        allowOverrides: Bool
+    ) -> Verdict {
+        var rejections: [String] = []
+        var warnings: [String] = []
+
+        if !metadataMatches(reference.cameraModel, candidate.cameraModel) {
+            rejections.append(
+                "camera mismatch: \(reference.cameraModel ?? "?") vs "
+                    + "\(candidate.cameraModel ?? "?")")
+        }
+        if reference.lensModel != nil || candidate.lensModel != nil {
+            if reference.lensModel != candidate.lensModel {
+                if reference.lensModel == nil || candidate.lensModel == nil {
+                    warnings.append(
+                        "lens metadata missing on one side: "
+                            + "\(reference.lensModel ?? "?") vs "
+                            + "\(candidate.lensModel ?? "?")")
+                } else {
+                    rejections.append(
+                        "lens mismatch: \(reference.lensModel ?? "?") vs "
+                            + "\(candidate.lensModel ?? "?")")
+                }
+            }
+        }
+        if let refFocal = reference.focalLength, let candFocal = candidate.focalLength {
+            if abs(refFocal - candFocal) > 0.5 {
+                rejections.append(
+                    "focal length mismatch: \(refFocal)mm vs \(candFocal)mm")
+            }
+        } else {
+            warnings.append("focal length metadata missing")
+        }
+        if let refAperture = reference.aperture, let candAperture = candidate.aperture {
+            if abs(refAperture - candAperture) > 0.05 {
+                if allowOverrides {
+                    warnings.append(
+                        String(
+                            format: "aperture override: f/%.1f vs f/%.1f",
+                            refAperture, candAperture))
+                } else {
+                    rejections.append(
+                        String(
+                            format: "aperture mismatch: f/%.1f vs f/%.1f",
+                            refAperture, candAperture))
+                }
+            }
+        } else {
+            warnings.append("aperture metadata missing")
+        }
+        // ISO / shutter: differing (when known) is a drift NOTE, never a
+        // rejection — the bracket's "must differ" rule does NOT apply to
+        // stacks (the constant-shutter premise is the norm here).
+        if let refISO = reference.iso, let candISO = candidate.iso, refISO != candISO {
+            warnings.append("ISO drift: \(refISO) vs \(candISO)")
+        } else if reference.iso == nil || candidate.iso == nil {
+            warnings.append("ISO metadata missing")
+        }
+        if let refShutter = reference.shutterSpeed,
+           let candShutter = candidate.shutterSpeed,
+           abs(refShutter - candShutter) >= 1e-9 {
+            warnings.append(
+                "shutter drift: \(refShutter)s vs \(candShutter)s")
+        } else if reference.shutterSpeed == nil || candidate.shutterSpeed == nil {
+            warnings.append("shutter metadata missing")
+        }
+
+        if !rejections.isEmpty {
+            return .rejected(reasons: rejections)
+        }
+        if warnings.isEmpty {
+            return .ok(exposureEV: 0)
+        }
+        return .admittedWithWarning(exposureEV: 0, reasons: warnings)
+    }
+
+    /// The run of the whole stack (reference first).
+    public static func precheckStack(
+        captures: [CaptureMetadata], allowOverrides: Bool
+    ) -> [Verdict] {
+        guard let reference = captures.first else { return [] }
+        var verdicts: [Verdict] = [.ok(exposureEV: 0)]
+        for index in captures.indices.dropFirst() {
+            verdicts.append(
+                precheckStack(
+                    reference: reference, candidate: captures[index],
+                    allowOverrides: allowOverrides))
+        }
+        return verdicts
+    }
+
     // MARK: - The runtime exposure-ratio self-check (§1.2)
 
     /// Compare the MEASURED median ratio of the two frames' unclipped luma

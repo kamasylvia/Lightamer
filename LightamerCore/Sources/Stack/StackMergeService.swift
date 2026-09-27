@@ -141,6 +141,11 @@ public struct StackMergeWork: Sendable {
     /// The render face (the dedicated-queue CIContext).
     public let render: StackRenderFace
 
+    /// The GPU domain the legs may submit to (Plan 08-3: the SML focus
+    /// measure rides THIS dedicated queue — never an editor/export queue).
+    public let device: any MTLDevice
+    public let mergeQueue: any MTLCommandQueue
+
     public init(
         kind: StackMergeService.MergeKind,
         sources: [URL],
@@ -148,7 +153,9 @@ public struct StackMergeWork: Sendable {
         params: StackMergeService.MergeParams,
         sessionRoot: URL?,
         progress: StackMergeProgress,
-        render: StackRenderFace
+        render: StackRenderFace,
+        device: any MTLDevice,
+        mergeQueue: any MTLCommandQueue
     ) {
         self.kind = kind
         self.sources = sources
@@ -157,6 +164,8 @@ public struct StackMergeWork: Sendable {
         self.sessionRoot = sessionRoot
         self.progress = progress
         self.render = render
+        self.device = device
+        self.mergeQueue = mergeQueue
     }
 }
 
@@ -204,13 +213,18 @@ public struct StackMergeOutcome: Sendable {
     /// weights' actual inputs — the provenance `sources[].exposureEV`).
     public let exposureEVs: [Double]
 
+    /// Non-fatal notices the App surfaces with the completion toast
+    /// (Plan 08-3: the NCC scale-drift and the N=3 σ-clip warnings).
+    public let warnings: [String]
+
     public init(
         productURL: URL,
         holeFraction: Float,
         alignment: [String],
         exposureRatioVerified: [Bool],
         ghostMask: GhostMaskWriter.LandedMask? = nil,
-        exposureEVs: [Double] = []
+        exposureEVs: [Double] = [],
+        warnings: [String] = []
     ) {
         self.productURL = productURL
         self.holeFraction = holeFraction
@@ -218,6 +232,7 @@ public struct StackMergeOutcome: Sendable {
         self.exposureRatioVerified = exposureRatioVerified
         self.ghostMask = ghostMask
         self.exposureEVs = exposureEVs
+        self.warnings = warnings
     }
 }
 
@@ -235,6 +250,17 @@ public actor StackMergeService {
         case stackAverage = "stack-average"
         case stackMedian = "stack-median"
         case stackSigma = "stack-sigma"
+
+        /// The provenance vocabulary mapping (identical raw values).
+        public var provenanceKind: SidecarProvenance.Kind {
+            switch self {
+            case .hdrMerge: return .hdrMerge
+            case .focusStack: return .focusStack
+            case .stackAverage: return .stackAverage
+            case .stackMedian: return .stackMedian
+            case .stackSigma: return .stackSigma
+            }
+        }
     }
 
     /// The user-facing merge parameters (the provenance `algorithm.params`
@@ -268,6 +294,22 @@ public actor StackMergeService {
         /// The ExportNamer tag (`"hdr"` default → `<base>_hdr.tif`).
         public var tag: String?
 
+        /// Focus-stack pyramid depth (Plan 08-3; nil = the default 5 / not
+        /// a focus merge). Additive optional — old sidecars decode fine and
+        /// re-encode byte-identical (the synthesized encodeIfPresent).
+        public var pyramidLevels: Int?
+
+        /// Sigma-clip rejection k (Plan 08-3; nil = the default 2.5 / not a
+        /// sigma merge).
+        public var sigmaClipK: Float?
+
+        /// The NCC scale-drift warn threshold + the measured per-merge
+        /// minimum (the params snapshot's mode-specific record — the
+        /// measurement is deterministic, so the provenance identity stays
+        /// stable across replays; D-08-3-T4-1).
+        public var nccThreshold: Double?
+        public var nccMeasuredMin: Double?
+
         public init(
             deGhost: Bool = true,
             sigma: Float = 0.2,
@@ -275,7 +317,11 @@ public actor StackMergeService {
             floorGate: Float = 0.001,
             weightNoiseFloor: Bool = false,
             allowApertureISOOverride: Bool = false,
-            tag: String? = "hdr"
+            tag: String? = "hdr",
+            pyramidLevels: Int? = nil,
+            sigmaClipK: Float? = nil,
+            nccThreshold: Double? = nil,
+            nccMeasuredMin: Double? = nil
         ) {
             self.deGhost = deGhost
             self.sigma = sigma
@@ -284,6 +330,10 @@ public actor StackMergeService {
             self.weightNoiseFloor = weightNoiseFloor
             self.allowApertureISOOverride = allowApertureISOOverride
             self.tag = tag
+            self.pyramidLevels = pyramidLevels
+            self.sigmaClipK = sigmaClipK
+            self.nccThreshold = nccThreshold
+            self.nccMeasuredMin = nccMeasuredMin
         }
     }
 
@@ -458,14 +508,14 @@ public actor StackMergeService {
                 "stack merge needs ≥ 2 sources, got \(sources.count)")
         }
         seqCounter += 1
-        progressTotal += Self.stepTotal(for: sources.count, params: params)
+        progressTotal += Self.stepTotal(for: sources.count, params: params, kind: kind)
         let job = MergeJob(
             id: UUID(),
             kind: kind,
             sources: sources,
             params: params,
             sessionRoot: sessionRoot,
-            totalSteps: Self.stepTotal(for: sources.count, params: params),
+            totalSteps: Self.stepTotal(for: sources.count, params: params, kind: kind),
             seq: seqCounter,
             generation: generation,
             state: .pending)
@@ -485,10 +535,37 @@ public actor StackMergeService {
 
     /// The declared progress window: (align N, the service's steps) +
     /// (base-merge N + write 1 + sidecar 1, the merge leg's bump duty) +
-    /// (deGhost ? N : 0) + 1 (the terminal settle step).
+    /// (deGhost ? N : 0) + 1 (the terminal settle step). The 08-3 kinds
+    /// declare align + stage + fuse/aggregate per source (+ the same tail).
     nonisolated static func stepTotal(for sources: Int, params: MergeParams) -> Int {
         let passes = 2 + (params.deGhost ? 1 : 0)
         return sources * passes + 3
+    }
+
+    /// The kind-aware total (Plan 08-3): HDR keeps its formula verbatim;
+    /// focus/stack kinds run THREE per-source passes (align, stage,
+    /// fuse/aggregate) + the same 3-step tail.
+    nonisolated static func stepTotal(
+        for sources: Int, params: MergeParams, kind: MergeKind
+    ) -> Int {
+        switch kind {
+        case .hdrMerge:
+            return Self.stepTotal(for: sources, params: params)
+        case .focusStack, .stackAverage, .stackMedian, .stackSigma:
+            return sources * 3 + 3
+        }
+    }
+
+    /// The ExportNamer tag vocabulary per kind (research §3.3; the compound
+    /// stack tags are D-08-3-T4-2). `params.tag` (when non-nil) wins.
+    nonisolated public static func defaultTag(for kind: MergeKind) -> String {
+        switch kind {
+        case .hdrMerge: return "hdr"
+        case .focusStack: return "fstack"
+        case .stackAverage: return "stack_avg"
+        case .stackMedian: return "stack_med"
+        case .stackSigma: return "stack_sig"
+        }
     }
 
     // MARK: - Cancellation (the generation-epoch face)
@@ -642,7 +719,8 @@ public actor StackMergeService {
         let work = StackMergeWork(
             kind: job.kind, sources: job.sources, decoded: decoded,
             params: job.params, sessionRoot: job.sessionRoot,
-            progress: stepper, render: renderFace)
+            progress: stepper, render: renderFace,
+            device: mergeQueue.device, mergeQueue: mergeQueue)
         let outcome: StackMergeOutcome
         do {
             outcome = try await mergeLeg(work)
@@ -749,9 +827,28 @@ public actor StackMergeService {
     nonisolated private static func runProductionMerge(
         _ work: StackMergeWork
     ) async throws -> StackMergeOutcome {
-        guard work.kind == .hdrMerge else {
-            throw AppError.notImplemented("\(work.kind.rawValue) merge (Plan 08-3)")
+        // The D-08-CONTEXT-3 dispatch: ONE service, the kinds swap the
+        // terminal segment (the alignment/precheck/landing posture is
+        // shared; the v1 HDR leg below is 08-1's accepted body verbatim).
+        switch work.kind {
+        case .hdrMerge:
+            return try await runHDRLeg(work)
+        case .focusStack:
+            return try await runFocusStackLeg(work)
+        case .stackAverage, .stackMedian, .stackSigma:
+            return try await runStackAggregateLeg(work)
         }
+    }
+
+    /// The 08-1 HDR production pipeline (T2-T6, accepted verbatim — only
+    /// moved behind the kind dispatch, zero semantic change): EXIF precheck
+    /// → MTB alignment + the runtime exposure-ratio self-check → the
+    /// band-streamed Robertson merge (phase 1 + the de-ghost phase 2) →
+    /// the ExportNamer-collision-free product landing (float TIFF) → the
+    /// ghost mask PNG → the outcome payload. Sources are only ever READ.
+    nonisolated private static func runHDRLeg(
+        _ work: StackMergeWork
+    ) async throws -> StackMergeOutcome {
         guard work.decoded.count == work.sources.count, work.decoded.count >= 2
         else {
             throw AppError.invalidParameter(
@@ -975,7 +1072,516 @@ public actor StackMergeService {
             holeFraction: holeFraction,
             alignment: alignmentLabels,
             exposureRatioVerified: ratioVerified,
-            ghostMask: landedMask,
+             ghostMask: landedMask,
             exposureEVs: exposureEVs)
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // Plan 08-3 legs (T4 dispatch): the focus-stack and the three-mode
+    // stacking-denoise pipelines. The alignment/precheck/landing posture
+    // is 08-1's (REUSED — zero re-implementation); only the TERMINAL
+    // SEGMENT differs (D-08-CONTEXT-3).
+    //
+    // The memory shape (research §6, the R3 hard constraint): each source
+    // is decoded ONCE into a transient full-frame plane and STAGED to a
+    // temporary file (the system temp dir — never the session; sources
+    // stay read-only), then the terminal segment streams BAND BY BAND
+    // from the staged files. The resident set = the N-independent output
+    // plane + ONE band's N-value strip — never N full frames and never an
+    // N×full quality map (research §5.4's band-streamed verdict). The
+    // staging IO is the honest price of the band-outer access pattern
+    // (D-08-3-T4-3, perf.md records it).
+    // ───────────────────────────────────────────────────────────────────
+
+    /// The focus-stack algorithm family name (the provenance identity).
+    nonisolated static let focusAlgorithmName = "sml-pyramid-fusion"
+    /// The stacking-denoise algorithm family name (mode rides the kind).
+    nonisolated static let stackAlgorithmName = "band-aggregate"
+
+    /// The shared STACK-variant front half: the precheck (shutter/ISO are
+    /// NOT required to differ — the rail/stack shutter is constant; the
+    /// aperture stays STRICT) + the MTB alignment pass (08-1 T2 reused
+    /// verbatim) + the optional NCC scale-drift self-check (research §5.3
+    /// — focus only; a WARNING, never a merge block).
+    nonisolated private static func runStackPrecheckAndAlignment(
+        _ work: StackMergeWork, width: Int, height: Int, withNCC: Bool
+    ) async throws -> (shifts: [(dx: Int, dy: Int)], labels: [String],
+                       warnings: [String], nccMin: Double) {
+        let verdicts = ExifPrecheck.precheckStack(
+            captures: work.decoded.map(\.capture),
+            allowOverrides: work.params.allowApertureISOOverride)
+        for (index, verdict) in verdicts.enumerated() {
+            switch verdict {
+            case .ok:
+                break
+            case .admittedWithWarning(_, let reasons):
+                AppError.logger.warning(
+                    "stack source \(index, privacy: .public): \(reasons.joined(separator: "; "), privacy: .public)")
+            case .rejected(let reasons):
+                throw AppError.invalidParameter(
+                    "stack source \(index) rejected: "
+                        + reasons.joined(separator: "; "))
+            }
+        }
+
+        var shifts: [(dx: Int, dy: Int)] = [(0, 0)]
+        var labels: [String] = ["full"]
+        var warnings: [String] = []
+        var nccMin = 1.0
+        let refPlane = try work.render.renderFullFloatRGBA(work.decoded[0].ciImage)
+        let refFrame = AlignmentFrame(
+            rgbaFloat: refPlane.buffer, width: width, height: height,
+            bytesPerRow: refPlane.bytesPerRow)
+        let refPyramid = MTBAlign.pyramid(refFrame.luma)
+        await work.progress.step() // align step: reference
+        for index in work.decoded.indices.dropFirst() {
+            let plane = try work.render.renderFullFloatRGBA(work.decoded[index].ciImage)
+            let frame = AlignmentFrame(
+                rgbaFloat: plane.buffer, width: width, height: height,
+                bytesPerRow: plane.bytesPerRow)
+            let shift = MTBAlign.findShift(
+                reference: refPyramid, compare: MTBAlign.pyramid(frame.luma))
+            shifts.append((dx: shift.dx, dy: shift.dy))
+            labels.append(shift.label)
+            if withNCC {
+                let ncc = FocusStackMerge.normalizedCrossCorrelation(
+                    reference: refFrame.ratioLuma, candidate: frame.ratioLuma,
+                    dx: shift.dx, dy: shift.dy)
+                nccMin = min(nccMin, ncc)
+                if ncc < work.params.nccThreshold
+                    ?? FocusStackMerge.nccWarnThreshold {
+                    warnings.append(
+                        "source \(index): NCC \(String(format: "%.3f", ncc)) "
+                            + "below \(FocusStackMerge.nccWarnThreshold) — "
+                            + "large magnification difference; edges may ghost")
+                }
+            }
+            await work.progress.step() // align step: comparison
+        }
+        return (shifts, labels, warnings, nccMin)
+    }
+
+    /// The FOCUS-STACK production leg (research §5): stack precheck → MTB
+    /// alignment + the NCC drift self-check → staged SML quality maps →
+    /// the band-streamed quality-weighted pyramid fusion → landing.
+    nonisolated private static func runFocusStackLeg(
+        _ work: StackMergeWork
+    ) async throws -> StackMergeOutcome {
+        guard work.decoded.count == work.sources.count, work.decoded.count >= 2
+        else {
+            throw AppError.invalidParameter(
+                "focus stack: \(work.decoded.count) decoded frames for "
+                    + "\(work.sources.count) sources")
+        }
+        let refExtent = work.decoded[0].ciImage.extent
+        for image in work.decoded.dropFirst()
+        where image.ciImage.extent != refExtent {
+            throw AppError.invalidParameter(
+                "focus-stack frames differ in extent: \(refExtent.size) vs "
+                    + "\(image.ciImage.extent.size)")
+        }
+        let width = Int(refExtent.width)
+        let height = Int(refExtent.height)
+        let levels = work.params.pyramidLevels
+            ?? FocusStackMerge.defaultPyramidLevels
+
+        let (shifts, labels, warnings, nccMin) = try await runStackPrecheckAndAlignment(
+            work, width: width, height: height, withNCC: true)
+
+        // ── the stage pass: pixels + GPU SML quality maps, ONE source
+        // resident at a time ─────────────────────────────────────────────
+        let staging = StagedSet(count: work.decoded.count, width: width, height: height)
+        defer { staging.cleanUp() }
+        for index in work.decoded.indices {
+            let plane = try work.render.renderFullFloatRGBA(work.decoded[index].ciImage)
+            try staging.writePixels(plane, index: index)
+            let map = try FocusMeasure.qualityMap(
+                plane: plane.buffer, width: width, height: height,
+                bytesPerRow: plane.bytesPerRow, device: work.device,
+                queue: work.mergeQueue)
+            try staging.writeQuality(map, index: index)
+            await work.progress.step() // stage step
+            // The transient plane + map die with the loop iteration.
+        }
+
+        // ── the fuse pass: band-outer, map 只留行带 ─────────────────────
+        let halo = FocusStackMerge.defaultHaloRows
+        var outputPlane = [Float](repeating: 0, count: width * height * 4)
+        var bumpBudget = work.decoded.count // the fuse segment declares N steps
+        for band in BandStreamer.bands(height: height) {
+                let stripFirst = max(0, band.y - halo)
+                let stripRows = min(height, band.y + band.height + halo) - stripFirst
+                var strips: [([Float], [Float])] = []
+                strips.reserveCapacity(work.decoded.count)
+                for index in work.decoded.indices {
+                    strips.append((
+                        try staging.readShiftedPixels(
+                            index: index, firstRow: stripFirst, rows: stripRows,
+                            dx: shifts[index].dx, dy: shifts[index].dy),
+                        try staging.readShiftedQuality(
+                            index: index, firstRow: stripFirst, rows: stripRows,
+                            dx: shifts[index].dx, dy: shifts[index].dy)))
+                }
+                let fused = FocusStackMerge.fuseStrip(
+                    width: width, height: stripRows, sources: work.decoded.count,
+                    levels: levels) { sourceIndex in strips[sourceIndex] }
+                // Copy the band's rows (strip-local offset) into the output.
+                let offsetInStrip = band.y - stripFirst
+                for row in 0..<band.height {
+                    let sourceRow = offsetInStrip + row
+                    let destinationRow = band.y + row
+                    for x in 0..<width {
+                        let s = (sourceRow * width + x) * 3
+                        let d = (destinationRow * width + x) * 4
+                        outputPlane[d] = fused[s]
+                        outputPlane[d + 1] = fused[s + 1]
+                        outputPlane[d + 2] = fused[s + 2]
+                        outputPlane[d + 3] = 1
+                    }
+                }
+                if bumpBudget > 0 {
+                    bumpBudget -= 1
+                    await work.progress.step() // fuse step (band-paced)
+                }
+        }
+        while bumpBudget > 0 {
+            bumpBudget -= 1
+            await work.progress.step() // pad to the declared total
+        }
+
+        // The params snapshot carries the mode-specific record (the NCC
+        // measurement is deterministic — identity-stable, D-08-3-T4-1).
+        var provenanceParams = work.params
+        provenanceParams.pyramidLevels = levels
+        provenanceParams.nccThreshold =
+            work.params.nccThreshold ?? FocusStackMerge.nccWarnThreshold
+        provenanceParams.nccMeasuredMin = nccMin
+
+        return try await landStackProduct(
+            work, width: width, height: height, rgba: outputPlane,
+            holeFraction: 0, alignmentLabels: labels, warnings: warnings,
+            provenanceParams: provenanceParams,
+            algorithmName: Self.focusAlgorithmName)
+    }
+
+    /// The stacking-denoise production leg (average/median/sigma; research
+    /// §6): stack precheck → MTB alignment → staged band-outer aggregation
+    /// (the N-value stack exists ONLY within one band) → landing.
+    nonisolated private static func runStackAggregateLeg(
+        _ work: StackMergeWork
+    ) async throws -> StackMergeOutcome {
+        guard work.decoded.count == work.sources.count, work.decoded.count >= 2
+        else {
+            throw AppError.invalidParameter(
+                "stack denoise: \(work.decoded.count) decoded frames for "
+                    + "\(work.sources.count) sources")
+        }
+        let mode: StackAggregate.Mode
+        switch work.kind {
+        case .stackAverage: mode = .average
+        case .stackMedian: mode = .median
+        case .stackSigma: mode = .sigmaClip
+        default:
+            throw AppError.invalidParameter(
+                "\(work.kind.rawValue) is not a stacking-denoise kind")
+        }
+        let refExtent = work.decoded[0].ciImage.extent
+        for image in work.decoded.dropFirst()
+        where image.ciImage.extent != refExtent {
+            throw AppError.invalidParameter(
+                "stack frames differ in extent: \(refExtent.size) vs "
+                    + "\(image.ciImage.extent.size)")
+        }
+        let width = Int(refExtent.width)
+        let height = Int(refExtent.height)
+        let sigmaK = work.params.sigmaClipK ?? StackAggregate.defaultSigmaK
+
+        // The N=3 σ-clip degenerate (research R6): the warning rides the
+        // outcome (the statistics are too weak to reject anything).
+        var warnings: [String] = []
+        if mode == .sigmaClip, work.decoded.count <= 3 {
+            warnings.append(
+                "sigma-clip with N=\(work.decoded.count) is statistically weak "
+                    + "(nothing can be rejected) — quality rises with more frames")
+        }
+
+        let (shifts, labels, _, _) = try await runStackPrecheckAndAlignment(
+            work, width: width, height: height, withNCC: false)
+
+        // ── the stage pass (pixels only — stacks need no quality map) ───
+        let staging = StagedSet(count: work.decoded.count, width: width, height: height)
+        defer { staging.cleanUp() }
+        for index in work.decoded.indices {
+            let plane = try work.render.renderFullFloatRGBA(work.decoded[index].ciImage)
+            try staging.writePixels(plane, index: index)
+            await work.progress.step() // stage step
+        }
+
+        // ── the aggregate pass: band-outer, the N-value stack in-band ───
+        var outputPlane = [Float](repeating: 0, count: width * height * 4)
+        var holes = 0
+        var bumpBudget = work.decoded.count
+        for band in BandStreamer.bands(height: height) {
+            var stack: [[Float]] = []
+            stack.reserveCapacity(work.decoded.count)
+            for index in work.decoded.indices {
+                stack.append(try staging.readShiftedPixels(
+                    index: index, firstRow: band.y, rows: band.height,
+                    dx: shifts[index].dx, dy: shifts[index].dy))
+            }
+            let rowFloats = band.height * width * 4
+            var aggregated = [Float](repeating: 0, count: rowFloats)
+            for index in 0..<rowFloats {
+                if index % 4 == 3 {
+                    aggregated[index] = 1
+                    continue
+                }
+                var valid: [Float] = []
+                valid.reserveCapacity(stack.count)
+                for plane in stack where plane[index].isFinite {
+                    valid.append(plane[index])
+                }
+                if valid.isEmpty {
+                    aggregated[index] = 0
+                    if index % 4 == 0 { holes += 1 }
+                    continue
+                }
+                aggregated[index] = StackAggregate.aggregate(
+                    valid, mode: mode, sigmaK: sigmaK)
+            }
+            outputPlane.replaceSubrange(
+                band.y * width * 4..<(band.y + band.height) * width * 4,
+                with: aggregated)
+            if bumpBudget > 0 {
+                bumpBudget -= 1
+                await work.progress.step() // aggregate step (band-paced)
+            }
+        }
+        while bumpBudget > 0 {
+            bumpBudget -= 1
+            await work.progress.step()
+        }
+        let holeFraction =
+            width * height > 0 ? Float(holes) / Float(width * height) : 0
+
+        var provenanceParams = work.params
+        if mode == .sigmaClip {
+            provenanceParams.sigmaClipK = sigmaK
+        }
+
+        return try await landStackProduct(
+            work, width: width, height: height, rgba: outputPlane,
+            holeFraction: holeFraction, alignmentLabels: labels,
+            warnings: warnings, provenanceParams: provenanceParams,
+            algorithmName: Self.stackAlgorithmName)
+    }
+
+    /// The shared 08-3 product landing (the 08-1 tail shape: the
+    /// ExportNamer-collision-free float TIFF + the v4 provenance sidecar;
+    /// stacks land NO ghost mask and a nil layer stack).
+    nonisolated private static func landStackProduct(
+        _ work: StackMergeWork, width: Int, height: Int, rgba: [Float],
+        holeFraction: Float, alignmentLabels: [String], warnings: [String],
+        provenanceParams: StackMergeService.MergeParams, algorithmName: String
+    ) async throws -> StackMergeOutcome {
+        let directory = work.sessionRoot
+            ?? work.sources[0].deletingLastPathComponent()
+        let occupied = StackMergeService.defaultOccupiedNames(in: directory)
+        let productURL = ExportNamer.destinationURL(
+            directory: directory,
+            stem: work.sources[0].deletingPathExtension().lastPathComponent,
+            tag: work.params.tag ?? Self.defaultTag(for: work.kind),
+            ext: "tif",
+            occupiedNames: occupied)
+        try BandStreamer.writeFloatTIFF(rgba, width: width, height: height, to: productURL)
+        await work.progress.step() // write step
+
+        let sessionRoot = work.sessionRoot
+            ?? work.sources[0].deletingLastPathComponent()
+        let provenanceSources: [SidecarProvenance.Source] = try work.sources
+            .map { url -> SidecarProvenance.Source in
+                let absolute = url.path
+                let rootPrefix = sessionRoot.path + "/"
+                let relPath = absolute.hasPrefix(rootPrefix)
+                    ? String(absolute.dropFirst(rootPrefix.count))
+                    : url.lastPathComponent
+                guard let hash = ProvenanceReplay.fileHash(url) else {
+                    throw AppError.fileUnreadable(url.path)
+                }
+                // Stacks carry no exposure weighting — the EV is a
+                // flat zero for every source.
+                return SidecarProvenance.Source(
+                    relPath: relPath, stableHash: hash, exposureEV: 0)
+            }
+        let provenance = SidecarProvenance(
+            kind: work.kind.provenanceKind,
+            algorithm: SidecarProvenance.Algorithm(
+                name: algorithmName,
+                implementationVersion: ProvenanceReplay.hdrImplementationVersion,
+                params: provenanceParams),
+            sources: provenanceSources,
+            alignment: alignmentLabels,
+            exposureRatioVerified: Array(repeating: true, count: work.sources.count),
+            holeFraction: holeFraction,
+            createdAt: Date(),
+            appVersion: LightamerSidecar.currentAppVersion)
+        let decodeHash = HistoryHash.decodeParamsHash(for: work.decoded[0])
+        let emptyStack = HistoryStack(items: [], position: 0)
+        let sidecar = LightamerSidecar(
+            imageID: UUID(),
+            decoderVersionUsed: work.decoded[0].decoderVersionUsed.rawValue,
+            decodeParamsHash: decodeHash,
+            instances: [],
+            history: emptyStack,
+            historyHash: HistoryHash.hash(stack: emptyStack, decodeParamsHash: decodeHash),
+            layerStack: nil,
+            provenance: provenance)
+        let sidecarEncoder = JSONEncoder()
+        sidecarEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let sidecarData = try sidecarEncoder.encode(sidecar)
+        try sidecarData.write(
+            to: LightamerSidecar.sidecarURL(for: productURL), options: .atomic)
+        await work.progress.step() // sidecar step
+
+        return StackMergeOutcome(
+            productURL: productURL,
+            holeFraction: holeFraction,
+            alignment: alignmentLabels,
+            exposureRatioVerified: Array(repeating: true, count: work.sources.count),
+            ghostMask: nil,
+            exposureEVs: [],
+            warnings: warnings)
+    }
+
+    /// The staged-files working set (the temp-dir cleanup discipline: the
+    /// whole directory dies with the leg — error paths included, via the
+    /// caller's `defer`).
+    private struct StagedSet {
+        let directory: URL
+        let width: Int
+        let height: Int
+
+        init(count: Int, width: Int, height: Int) {
+            self.width = width
+            self.height = height
+            directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("la-stack-\(UUID().uuidString)",
+                    isDirectory: true)
+            try? FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true)
+        }
+
+        func cleanUp() {
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        private func pixelsURL(_ index: Int) -> URL {
+            directory.appendingPathComponent("pixels_\(index).f32")
+        }
+        private func qualityURL(_ index: Int) -> URL {
+            directory.appendingPathComponent("quality_\(index).f16")
+        }
+
+        /// Stream one plane's rows to the staged file (no whole-file Data).
+        func writePixels(_ plane: StackRenderedPlane, index: Int) throws {
+            FileManager.default.createFile(atPath: pixelsURL(index).path, contents: nil)
+            let handle = try FileHandle(forWritingTo: pixelsURL(index))
+            defer { try? handle.close() }
+            let rowsPerChunk = 64
+            var y = 0
+            while y < plane.height {
+                let rows = min(rowsPerChunk, plane.height - y)
+                let chunk = Data(
+                    bytes: plane.pointer.advanced(by: y * plane.bytesPerRow),
+                    count: rows * plane.bytesPerRow)
+                try handle.write(contentsOf: chunk)
+                y += rows
+            }
+        }
+
+        func writeQuality(_ map: [UInt16], index: Int) throws {
+            let data = map.withUnsafeBufferPointer { Data(buffer: $0) }
+            try data.write(to: qualityURL(index), options: .atomic)
+        }
+
+        /// The ALIGNED read: output pixel (x, y) samples the staged source
+        /// at (x − dx, y − dy); out-of-frame → NaN (the alpha 1 fill marks
+        /// in-frame pixels).
+        func readShiftedPixels(
+            index: Int, firstRow: Int, rows: Int, dx: Int, dy: Int
+        ) throws -> [Float] {
+            var result = [Float](repeating: .nan, count: rows * width * 4)
+            let sourceFirst = max(0, firstRow - dy)
+            let sourceLast = min(height, firstRow + rows - dy) // exclusive
+            guard sourceLast > sourceFirst else { return result }
+            let handle = try FileHandle(forReadingFrom: pixelsURL(index))
+            defer { try? handle.close() }
+            try handle.seek(toOffset: UInt64(sourceFirst * width * 16))
+            let want = (sourceLast - sourceFirst) * width * 16
+            guard let data = try handle.read(upToCount: want), data.count == want
+            else {
+                throw AppError.fileUnreadable("staged pixels truncated")
+            }
+            result.withUnsafeMutableBytes { raw in
+                let out = raw.bindMemory(to: Float.self)
+                data.withUnsafeBytes { stagedRaw in
+                    let staged = stagedRaw.bindMemory(to: Float.self)
+                    for row in 0..<rows {
+                        let sy = firstRow + row - dy
+                        guard sy >= sourceFirst, sy < sourceLast else { continue }
+                        let stagedRowBase = ((sy - sourceFirst) * width)
+                        let outRowBase = (row * width)
+                        for x in 0..<width {
+                            let sx = x - dx
+                            guard sx >= 0, sx < width else { continue }
+                            let s = (stagedRowBase + sx) * 4
+                            let d = (outRowBase + x) * 4
+                            out[d] = staged[s]
+                            out[d + 1] = staged[s + 1]
+                            out[d + 2] = staged[s + 2]
+                            out[d + 3] = 1
+                        }
+                    }
+                }
+            }
+            return result
+        }
+
+        /// The quality read (half bits → float); out-of-frame → 0
+        /// (WEIGHTLESS — the shifted-out strip carries no vote).
+        func readShiftedQuality(
+            index: Int, firstRow: Int, rows: Int, dx: Int, dy: Int
+        ) throws -> [Float] {
+            var result = [Float](repeating: 0, count: rows * width)
+            let sourceFirst = max(0, firstRow - dy)
+            let sourceLast = min(height, firstRow + rows - dy)
+            guard sourceLast > sourceFirst else { return result }
+            let handle = try FileHandle(forReadingFrom: qualityURL(index))
+            defer { try? handle.close() }
+            try handle.seek(toOffset: UInt64(sourceFirst * width * 2))
+            let want = (sourceLast - sourceFirst) * width * 2
+            guard let data = try handle.read(upToCount: want), data.count == want
+            else {
+                throw AppError.fileUnreadable("staged quality truncated")
+            }
+            result.withUnsafeMutableBufferPointer { out in
+                data.withUnsafeBytes { stagedRaw in
+                    let staged = stagedRaw.bindMemory(to: UInt16.self)
+                    for row in 0..<rows {
+                        let sy = firstRow + row - dy
+                        guard sy >= sourceFirst, sy < sourceLast else { continue }
+                        let stagedRowBase = (sy - sourceFirst) * width
+                        let outRowBase = row * width
+                        for x in 0..<width {
+                            let sx = x - dx
+                            guard sx >= 0, sx < width else { continue }
+                            out[outRowBase + x] = Float(Float16(
+                                bitPattern: staged[stagedRowBase + sx]))
+                        }
+                    }
+                }
+            }
+            return result
+        }
     }
 }

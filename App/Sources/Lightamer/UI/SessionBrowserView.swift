@@ -54,6 +54,27 @@ internal struct SessionBrowserView: View {
     /// stays hidden (no service wired).
     var onHDRMerge: ((_ relPaths: [String], _ deGhost: Bool) -> Void)?
 
+    /// Plan 08-3 T4: the stacking entries — the focus stack and the three-
+    /// mode stack denoise (same multi-select + confirm-dialog shape as the
+    /// HDR entry). nil = the menu items stay hidden (no service wired).
+    enum StackDenoiseMode: String, CaseIterable, Identifiable {
+        case average
+        case median
+        case sigmaClip = "sigma"
+        var id: String { rawValue }
+
+        /// The picker row's catalog key (L010 stable keys).
+        var pickerKey: String {
+            switch self {
+            case .average: return "stack_denoise_mode_average"
+            case .median: return "stack_denoise_mode_median"
+            case .sigmaClip: return "stack_denoise_mode_sigma"
+            }
+        }
+    }
+    var onFocusStack: ((_ relPaths: [String]) -> Void)?
+    var onStackDenoise: ((_ relPaths: [String], _ mode: StackDenoiseMode) -> Void)?
+
     /// 12-1 T6 (META-03): the multi-select append menu items raise these
     /// one-field alerts (the value routes through MetadataController —
     /// the MetadataService single write face).
@@ -135,6 +156,21 @@ internal struct SessionBrowserView: View {
                                 showHDRMergeDialog = true
                             }
                         }
+                        // Plan 08-3 T4: the stacking entries (same
+                        // multi-select + dialog shape as the HDR merge).
+                        if targets.count >= 2, onFocusStack != nil {
+                            Button(String(localized: "browser_menu_focus_stack")) {
+                                pendingTargets = targets
+                                showFocusStackDialog = true
+                            }
+                        }
+                        if targets.count >= 2, onStackDenoise != nil {
+                            Button(String(localized: "browser_menu_stack_denoise")) {
+                                pendingTargets = targets
+                                stackDenoiseMode = .average
+                                showStackDenoiseDialog = true
+                            }
+                        }
                     }
                 }
             }
@@ -201,6 +237,66 @@ internal struct SessionBrowserView: View {
                 appendTarget = nil
             }
         }
+        // Plan 08-3 T4: the focus-stack confirm dialog (the HDR dialog's
+        // shape; SML + quality-weighted pyramid fusion behind it).
+        .sheet(isPresented: $showFocusStackDialog) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(String(localized: "focus_stack_dialog_title \(pendingTargets.count)"))
+                    .font(.headline)
+                Text(String(localized: "focus_stack_dialog_body"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Spacer()
+                    Button(String(localized: "alert_cancel"), role: .cancel) {
+                        showFocusStackDialog = false
+                    }
+                    Button(String(localized: "focus_stack_dialog_start")) {
+                        let targets = pendingTargets
+                        showFocusStackDialog = false
+                        onFocusStack?(targets)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20)
+            .frame(width: 360)
+        }
+        // Plan 08-3 T4: the stack-denoise confirm dialog (mode Picker:
+        // average / median / sigma-clipped).
+        .sheet(isPresented: $showStackDenoiseDialog) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(String(localized: "stack_denoise_dialog_title \(pendingTargets.count)"))
+                    .font(.headline)
+                Text(String(localized: "stack_denoise_dialog_body"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker(String(localized: "stack_denoise_dialog_mode"),
+                       selection: $stackDenoiseMode) {
+                    ForEach(SessionBrowserView.StackDenoiseMode.allCases) { mode in
+                        Text(String(localized:
+                            String.LocalizationValue(mode.pickerKey)))
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+                HStack {
+                    Spacer()
+                    Button(String(localized: "alert_cancel"), role: .cancel) {
+                        showStackDenoiseDialog = false
+                    }
+                    Button(String(localized: "stack_denoise_dialog_start")) {
+                        let targets = pendingTargets
+                        let mode = stackDenoiseMode
+                        showStackDenoiseDialog = false
+                        onStackDenoise?(targets, mode)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20)
+            .frame(width: 360)
+        }
         // Plan 08-1 T1: the HDR-merge confirm dialog (N-source summary +
         // the de-ghost toggle → enqueue).
         .sheet(isPresented: $showHDRMergeDialog) {
@@ -246,6 +342,10 @@ internal struct SessionBrowserView: View {
     /// Plan 08-1 T1: the HDR-merge confirm dialog state (de-ghost toggle).
     @State private var showHDRMergeDialog = false
     @State private var hdrMergeDeGhost = true
+    /// Plan 08-3 T4: the stacking dialog states.
+    @State private var showFocusStackDialog = false
+    @State private var showStackDenoiseDialog = false
+    @State private var stackDenoiseMode: StackDenoiseMode = .average
     /// The drop-affordance face (13-3 T4).
     @State private var isDropTargeted = false
 

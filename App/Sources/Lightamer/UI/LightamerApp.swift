@@ -706,8 +706,62 @@ internal struct LightamerApp: App {
                                         error.localizedDescription)
                                 }
                             }
+                            // Plan 08-3 T4: the stacking handlers — the
+                            // same enqueue + toast shape; the default tag
+                            // rides the kind (fstack / stack_avg / ...).
+                            sessionCoordinator.focusStackHandler = { relPaths in
+                                guard let root = sessionState.currentSessionURL else {
+                                    return
+                                }
+                                let urls = relPaths.map {
+                                    root.appendingPathComponent($0)
+                                }
+                                do {
+                                    _ = try await mergeService.enqueue(
+                                        kind: .focusStack, sources: urls,
+                                        params: StackMergeService.MergeParams(
+                                            deGhost: false, tag: nil),
+                                        sessionRoot: root)
+                                    editorState.presentToast(
+                                        String(localized: "toast_stack_merge_queued"))
+                                } catch {
+                                    editorState.presentToast(
+                                        error.localizedDescription)
+                                }
+                            }
+                            sessionCoordinator.stackDenoiseHandler = { relPaths, mode in
+                                guard let root = sessionState.currentSessionURL else {
+                                    return
+                                }
+                                let kind: StackMergeService.MergeKind
+                                switch mode {
+                                case .average: kind = .stackAverage
+                                case .median: kind = .stackMedian
+                                case .sigmaClip: kind = .stackSigma
+                                }
+                                let urls = relPaths.map {
+                                    root.appendingPathComponent($0)
+                                }
+                                do {
+                                    _ = try await mergeService.enqueue(
+                                        kind: kind, sources: urls,
+                                        params: StackMergeService.MergeParams(
+                                            deGhost: false, tag: nil),
+                                        sessionRoot: root)
+                                    editorState.presentToast(
+                                        String(localized: "toast_stack_merge_queued"))
+                                } catch {
+                                    editorState.presentToast(
+                                        error.localizedDescription)
+                                }
+                            }
                             await mergeService.setCompletionHook { snapshot, outcome in
                                 if case .done = snapshot.state {
+                                    for warning in outcome.warnings {
+                                        await MainActor.run {
+                                            editorState.presentToast(warning)
+                                        }
+                                    }
                                     // T5: the product enters the grid — the
                                     // EXPLICIT reconcile ingest + the reload
                                     // (the import seam's posture). The whole

@@ -195,4 +195,321 @@ final class StackAggregateTests: XCTestCase {
         XCTAssertLessThan(Double(bytes), Double(fullResidency) * 0.04,
             "the stack must be O(band), never O(height)")
     }
+
+    // MARK: - T4: the service dispatch (the four kinds through the REAL
+    // production leg)
+
+    /// Synthetic float-TIFF sources (the ProvenanceV4Tests fixture shape):
+    /// a 96×72 gray field with SOME TEXTURE (the MTB median needs spread
+    /// and the SML needs gradient) + optional per-source shift.
+    private func writeStackSource(
+        directory: URL, name: String, seed: UInt64, dx: Int = 0, dy: Int = 0
+    ) throws -> URL {
+        // Textured float TIFF sources on the RASTER decode path (.tif —
+        // stacking consumes any raster; the CIRAW legs are 08-1's face).
+        // The texture (histogram spread) is load-bearing: the MTB median
+        // and the SML measure need gradient content.
+        let width = 96, height = 72
+        var state = seed &* 6364136223846793005 &+ 1442695040888963407
+        var gray = [Float](repeating: 0, count: width * height)
+        for index in gray.indices {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            gray[index] = 0.05 + 0.85 * Float((state >> 33) & 0xFFFFF) / Float(0xFFFFF)
+        }
+        // Pin the MAX where the shift's clamp cannot drop it (the
+        // MTBAlignTests normalization lesson — a lost max speckles the
+        // median-threshold bitmaps).
+        gray[(height / 2) * width + width / 2] = 1.5
+        var rgba = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let sx = max(0, min(x - dx, width - 1))
+                let sy = max(0, min(y - dy, height - 1))
+                let value = gray[sy * width + sx]
+                let base = (y * width + x) * 4
+                rgba[base] = value; rgba[base + 1] = value
+                rgba[base + 2] = value; rgba[base + 3] = 1
+            }
+        }
+        let url = directory.appendingPathComponent(name)
+        try BandStreamer.writeFloatTIFF(rgba, width: width, height: height, to: url)
+        return url
+    }
+
+    private func makeStackSession() throws -> (root: URL, sources: [URL]) {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stack-session-\(UUID().uuidString)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root, withIntermediateDirectories: true)
+        let sources = [
+            try writeStackSource(directory: root, name: "STACK0001.tif", seed: 0x5A1),
+            try writeStackSource(directory: root, name: "STACK0002.tif", seed: 0x5A2),
+            try writeStackSource(directory: root, name: "STACK0003.tif", seed: 0x5A3),
+        ]
+        return (root, sources)
+    }
+
+    private func makeRealService() throws -> StackMergeService {
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            throw XCTSkip("no Metal device")
+        }
+        return try StackMergeService(device: device)
+    }
+
+    private static func awaitTerminal(
+        _ service: StackMergeService, timeout: TimeInterval = 60
+    ) async -> StackMergeService.JobSnapshot? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let snapshots = await service.snapshots()
+            if let latest = snapshots.max(by: { $0.seq < $1.seq }),
+               latest.state.isTerminal {
+                return latest
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return await service.snapshots().max(by: { $0.seq < $1.seq })
+    }
+
+    /// The four non-HDR kinds run the REAL production leg end to end: the
+    /// products land with the kind's tag vocabulary, the v4 provenance
+    /// carries the kind + the mode-specific params snapshot, the re-merge
+    /// increments (never overwrites), and the warnings ride the outcome.
+    func testStackAndFocusKindsEndToEnd() async throws {
+        let (root, sources) = try makeStackSession()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try makeRealService()
+
+        let cases: [(kind: StackMergeService.MergeKind,
+                     product: String,
+                     params: StackMergeService.MergeParams)] = [
+            (.focusStack, "STACK0001_fstack.tif", .init(deGhost: false, tag: nil)),
+            (.stackAverage, "STACK0001_stack_avg.tif", .init(deGhost: false, tag: nil)),
+            (.stackMedian, "STACK0001_stack_med.tif", .init(deGhost: false, tag: nil)),
+            (.stackSigma, "STACK0001_stack_sig.tif",
+             .init(deGhost: false, tag: nil, sigmaClipK: 2.5)),
+        ]
+        for entry in cases {
+            _ = try await service.enqueue(
+                kind: entry.kind, sources: sources, params: entry.params,
+                sessionRoot: root)
+            guard let terminal = await Self.awaitTerminal(service) else {
+                XCTFail("\(entry.kind.rawValue) never settled")
+                continue
+            }
+            guard case .done(let url) = terminal.state else {
+                XCTFail("\(entry.kind.rawValue) failed: \(terminal.state)")
+                continue
+            }
+            XCTAssertEqual(url.lastPathComponent, entry.product,
+                "the kind's tag vocabulary must name the product")
+            // The birth sidecar: provenance kind + params snapshot.
+            let sidecarURL = LightamerSidecar.sidecarURL(for: url)
+            let data = try Data(contentsOf: sidecarURL)
+            let sidecar = try JSONDecoder().decode(LightamerSidecar.self, from: data)
+            guard let provenance = sidecar.provenance else {
+                XCTFail("\(entry.kind.rawValue) product has no provenance")
+                continue
+            }
+            XCTAssertEqual(provenance.kind.rawValue, entry.kind.rawValue)
+            XCTAssertEqual(provenance.sources.count, sources.count)
+            XCTAssertEqual(provenance.alignment.first, "full")
+            XCTAssertTrue(provenance.exposureRatioVerified.allSatisfy { $0 })
+            if entry.kind == .focusStack {
+                XCTAssertEqual(provenance.algorithm.name, "sml-pyramid-fusion")
+                XCTAssertEqual(provenance.algorithm.params.pyramidLevels, 5)
+                XCTAssertNotNil(provenance.algorithm.params.nccMeasuredMin)
+            } else {
+                XCTAssertEqual(provenance.algorithm.name, "band-aggregate")
+            }
+            if entry.kind == .stackSigma {
+                XCTAssertEqual(provenance.algorithm.params.sigmaClipK, 2.5)
+            }
+        }
+
+        // A re-merge of the same sources INCREMENTS — never overwrites
+        // (the D-08-CONTEXT-11 posture through the stack kinds too).
+        _ = try await service.enqueue(
+            kind: .stackAverage, sources: sources,
+            params: .init(deGhost: false, tag: nil), sessionRoot: root)
+        guard let second = await Self.awaitTerminal(service) else {
+            XCTFail("second merge never settled")
+            return
+        }
+        guard case .done(let url) = second.state else {
+            XCTFail("expected .done, got \(second.state)")
+            return
+        }
+        XCTAssertEqual(url.lastPathComponent, "STACK0001_stack_avg-1.tif",
+            "the collision increment rides the stack tags too")
+    }
+
+    /// The displaced focus rail through the REAL leg: the MTB shift hits
+    /// exactly and the fusion lands a clean combined product (the SC#2
+    /// literal: correct alignment + clean combined output).
+    func testDisplacedFocusRailAlignsAndFuses() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("focus-rail-\(UUID().uuidString)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ref = try writeStackSource(directory: root, name: "RAIL0001.tif", seed: 0xD1)
+        // The comparison frame carries a KNOWN (3, -2) content shift —
+        // inside the 96×72 pyramid's ±4 px reach (bottom level 24×18).
+        let cmp = try writeStackSource(
+            directory: root, name: "RAIL0002.tif", seed: 0xD1, dx: 3, dy: -2)
+        let service = try makeRealService()
+        _ = try await service.enqueue(
+            kind: .focusStack, sources: [ref, cmp],
+            params: .init(deGhost: false, tag: nil), sessionRoot: root)
+        guard let terminal = await Self.awaitTerminal(service) else {
+            XCTFail("the focus merge never settled")
+            return
+        }
+        guard case .done(let url) = terminal.state else {
+            XCTFail("expected .done, got \(terminal.state)")
+            return
+        }
+        let sidecar = try JSONDecoder().decode(
+            LightamerSidecar.self,
+            from: Data(contentsOf: LightamerSidecar.sidecarURL(for: url)))
+        XCTAssertEqual(
+            sidecar.provenance?.alignment, ["full", "full"],
+            "the displaced rail must align without degradation")
+        // The product decodes (a clean combined float document).
+        let product = try await RAWDecoder().decode(url)
+        XCTAssertEqual(product.ciImage.extent.width, 96)
+    }
+
+    /// The EXIF precheck stack-variant matrix (T4): the aperture stays
+    /// STRICT (a rejection unless overridden) while the shutter/ISO drift
+    /// is only a warning — the HDR bracket's "must differ" rule does NOT
+    /// apply to stacks.
+    func testPrecheckStackVariantMatrix() {
+        var reference = CaptureMetadata()
+        reference.cameraModel = "Test Cam"
+        reference.lensModel = "Test Lens"
+        reference.focalLength = 50
+        reference.aperture = 8.0
+        reference.iso = 100
+        reference.shutterSpeed = 0.01
+
+        var same = reference
+        same.shutterSpeed = 0.01
+        guard case .ok = ExifPrecheck.precheckStack(
+            reference: reference, candidate: same, allowOverrides: false)
+        else {
+            XCTFail("an identical-settings stack frame must be admitted")
+            return
+        }
+
+        var driftedShutter = reference
+        driftedShutter.shutterSpeed = 0.02
+        guard case .admittedWithWarning(_, let reasons) = ExifPrecheck.precheckStack(
+            reference: reference, candidate: driftedShutter, allowOverrides: false)
+        else {
+            XCTFail("a shutter drift is a stack WARNING, not a rejection")
+            return
+        }
+        XCTAssertTrue(reasons.contains { $0.contains("shutter drift") })
+
+        // The contrast face: IDENTICAL shutters are the HDR bracket's
+        // rejection ("not a bracket") while the stack admits them.
+        guard case .rejected = ExifPrecheck.precheck(
+            reference: reference, candidate: reference, allowOverrides: false)
+        else {
+            XCTFail("the HDR precheck must reject identical exposures")
+            return
+        }
+        guard case .ok = ExifPrecheck.precheckStack(
+            reference: reference, candidate: reference, allowOverrides: false)
+        else {
+            XCTFail("the stack precheck must admit identical settings")
+            return
+        }
+
+        var driftedISO = reference
+        driftedISO.iso = 200
+        guard case .admittedWithWarning = ExifPrecheck.precheckStack(
+            reference: reference, candidate: driftedISO, allowOverrides: false)
+        else {
+            XCTFail("an ISO drift is a stack WARNING, not a rejection")
+            return
+        }
+
+        var stopped = reference
+        stopped.aperture = 11.0
+        guard case .rejected(let reasons) = ExifPrecheck.precheckStack(
+            reference: reference, candidate: stopped, allowOverrides: false)
+        else {
+            XCTFail("an aperture mismatch stays a stack REJECTION (DoF premise)")
+            return
+        }
+        XCTAssertTrue(reasons.contains { $0.contains("aperture mismatch") })
+        // ... and the override admits it with a warning.
+        guard case .admittedWithWarning = ExifPrecheck.precheckStack(
+            reference: reference, candidate: stopped, allowOverrides: true)
+        else {
+            XCTFail("the aperture override must admit the stack frame")
+            return
+        }
+    }
+
+    // MARK: - T4: the App-layer seam (menu → coordinator → service)
+
+    /// The same wiring shape LightamerApp installs for the stacking
+    /// entries (the handler IS the menu→service leg; the SwiftUI menu half
+    /// is declarative — the dialog + mode Picker ride the view).
+    @MainActor
+    func testCoordinatorStackSeamsReachService() async throws {
+        let (root, sources) = try makeStackSession()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try makeRealService()
+        let coordinator = SessionCoordinator()
+        coordinator.stackMergeService = service
+        coordinator.focusStackHandler = { relPaths in
+            let urls = relPaths.map { root.appendingPathComponent($0) }
+            _ = try? await service.enqueue(
+                kind: .focusStack, sources: urls,
+                params: StackMergeService.MergeParams(deGhost: false, tag: nil),
+                sessionRoot: root)
+        }
+        coordinator.stackDenoiseHandler = { relPaths, mode in
+            let kind: StackMergeService.MergeKind
+            switch mode {
+            case .average: kind = .stackAverage
+            case .median: kind = .stackMedian
+            case .sigmaClip: kind = .stackSigma
+            }
+            let urls = relPaths.map { root.appendingPathComponent($0) }
+            _ = try? await service.enqueue(
+                kind: kind, sources: urls,
+                params: StackMergeService.MergeParams(deGhost: false, tag: nil),
+                sessionRoot: root)
+        }
+        await coordinator.focusStackHandler?(sources.map(\.lastPathComponent))
+        guard let focus = await Self.awaitTerminal(service) else {
+            XCTFail("the focus seam job never settled")
+            return
+        }
+        guard case .done(let focusURL) = focus.state else {
+            XCTFail("expected .done, got \(focus.state)")
+            return
+        }
+        XCTAssertEqual(focusURL.lastPathComponent, "STACK0001_fstack.tif")
+
+        await coordinator.stackDenoiseHandler?(
+            sources.map(\.lastPathComponent), .sigmaClip)
+        guard let sigma = await Self.awaitTerminal(service) else {
+            XCTFail("the denoise seam job never settled")
+            return
+        }
+        guard case .done(let sigmaURL) = sigma.state else {
+            XCTFail("expected .done, got \(sigma.state)")
+            return
+        }
+        XCTAssertEqual(sigmaURL.lastPathComponent, "STACK0001_stack_sig.tif")
+    }
 }
