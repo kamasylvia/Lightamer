@@ -340,6 +340,20 @@ internal struct LightamerApp: App {
                         catalogStoreProvider: {
                             SessionIndexController.sharedCatalogStore
                         })
+                    CatalogThumbnailRouter.shared = catalogThumbnailRouter
+
+                    // Plan 16-2 T6: the edit-loop projection hook + the
+                    // Catalogs-mode startup sweep (both ride the shared
+                    // projector; its enable guard makes them no-ops when
+                    // Catalogs is off).
+                    sessionCoordinator.projectToCatalog = { root in
+                        _ = try? await SessionIndexController
+                            .sharedCatalogProjector.project(sessionRoot: root)
+                    }
+                    sessionCoordinator.sweepCatalog = { recents in
+                        _ = await SessionIndexController
+                            .sharedCatalogProjector.sweepAll(recentRoots: recents)
+                    }
                     catalogPreferences.onEnabledChanged = { enabled in
                         guard enabled else { return }
                         Task { [catalogPreferences] in

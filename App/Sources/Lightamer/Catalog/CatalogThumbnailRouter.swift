@@ -37,6 +37,11 @@ final class CatalogThumbnailRouter {
     private static let logger = Logger(
         subsystem: "com.kamasylvia.lightamer", category: "catalog-thumbs")
 
+    /// The app-root-assigned instance (the SidebarView's session-management
+    /// actions invalidate the cached root map through it after a remove /
+    /// re-link; MainActor-typed like every access site).
+    nonisolated(unsafe) static var shared: CatalogThumbnailRouter?
+
     /// Sessions that failed the offline probe (registry offline flag OR a
     /// root/lindex stat-open failure) — the cells' gray-placeholder face.
     private(set) var offlineSessionIDs: Set<String> = []

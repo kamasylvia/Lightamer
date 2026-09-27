@@ -34,15 +34,20 @@ final class CatalogBrowserModelTests: XCTestCase {
 
     private var tempDirectory: URL!
     private var catalogURL: URL!
+    private var defaultsSuiteName: String!
 
     override func setUp() async throws {
         try await super.setUp()
         tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("catalog-browser-\(UUID().uuidString)", isDirectory: true)
         catalogURL = tempDirectory.appendingPathComponent("catalog.lcat")
+        defaultsSuiteName = "catalog-browser-tests-\(UUID().uuidString)"
+        CatalogPreferences.setCatalogsEnabled(true, defaultsSuiteName: defaultsSuiteName)
     }
 
     override func tearDown() async throws {
+        UserDefaults(suiteName: defaultsSuiteName)?.removePersistentDomain(
+            forName: defaultsSuiteName)
         try? FileManager.default.removeItem(at: tempDirectory)
         try await super.tearDown()
     }
@@ -306,5 +311,72 @@ final class CatalogBrowserModelTests: XCTestCase {
         XCTAssertEqual(
             page1.map(\.id),
             Array(reference.map { "\($0.sessionID)/\($0.relPath)" }[0..<60]))
+    }
+
+    // MARK: - T6: the edit loop (lindex change → project → grid refresh)
+
+    /// The edit loop's DATA chain at model level: the session's lindex
+    /// changes (an edit wrote the sidecar + bumped the epoch — simulated
+    /// with a direct row update, the projector's input contract), the
+    /// projector catches the catalog up, and `refreshAfterProjection`
+    /// re-derives the loaded window from the committed state.
+    func testEditProjectionRefreshChainUpdatesRows() async throws {
+        // A one-session catalog with one rated row (raw lindex fixture).
+        let sessionRoot = tempDirectory.appendingPathComponent("session", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: sessionRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: tempDirectory, withIntermediateDirectories: true)
+        let lindexURL = SessionIndexSchema.databaseURL(forSessionRoot: sessionRoot)
+        try FileManager.default.createDirectory(
+            at: lindexURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let handle = try SQLiteHandle(path: lindexURL.path)
+        try SessionIndexSchema.apply(to: handle)
+        let stamp = try handle.prepare(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('scan_epoch', '1')")
+        _ = try stamp.step()
+        let insert = try handle.prepare("""
+            INSERT INTO images (
+              path, dir, filename, file_size, file_mtime, scan_epoch,
+              imageID, sidecar_present, sidecar_mtime, has_edits,
+              params_hash, layer_count, layer_summary, orientation,
+              width, height, capture_date, rating, color_label, keywords,
+              orphan_sidecar, dirty, flag, note,
+              camera_make, camera_model, lens_model, iso, focal_length,
+              aperture, exposure
+            ) VALUES ('IMG_0001.ARW', NULL, 'IMG_0001.ARW', ?, ?, 1,
+                      '11111111-2222-3333-4444-555555555555', 0, 0, 0,
+                      NULL, NULL, NULL, 1, 100, 100, 1700000100, 2, NULL,
+                      NULL, 0, 0, NULL, NULL, 'Sony', NULL, NULL, NULL,
+                      NULL, NULL, NULL)
+            """)
+        try insert.bindInt(1, 4096)
+        try insert.bindDouble(2, 1_700_000_000)
+        _ = try insert.step()
+        handle.close()
+
+        // Project (rating 2 lands in the catalog) and load the model.
+        let projector = CatalogProjector(
+            databaseURL: catalogURL,
+            defaultsSuiteName: defaultsSuiteName)
+        _ = try await projector.project(sessionRoot: sessionRoot)
+
+        let model = makeModel()
+        await model.reload()
+        XCTAssertEqual(model.rows.first?.rating, 2)
+
+        // THE EDIT: the rating changes + the epoch bumps (the MetadataService
+        // leg-2 output, simulated at the input contract).
+        let mutation = try SQLiteHandle(path: lindexURL.path)
+        _ = try mutation.exec(
+            "UPDATE images SET rating = 5, scan_epoch = 2 WHERE path = 'IMG_0001.ARW'")
+        _ = try mutation.exec(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('scan_epoch', '2')")
+        mutation.close()
+        _ = try await projector.project(sessionRoot: sessionRoot)
+
+        // The RETURN-TO-GRID face: the loaded window re-derives (水位追平).
+        await model.refreshAfterProjection()
+        XCTAssertEqual(model.rows.first?.rating, 5, "the grid caught up")
     }
 }

@@ -286,6 +286,82 @@ final class CatalogBrowserModel {
         }
     }
 
+    // MARK: - Batch metadata (Plan 16-2 T6; RQ-16-10)
+
+    /// The cross-session batch rating. NO new write path: the selection is
+    /// grouped by session and each session's slice rides the EXISTING
+    /// three-leg semantics (MetadataService → the leg-2 index transaction +
+    /// the leg-3 sidecar queue) over that session's OWN lindex; the
+    /// projector then catches the session up (the COUNT memo dies with
+    /// every commit) and the grid refreshes (watermark catch-up).
+    func batchSetRating(_ value: Int?, identities: [String]) async {
+        await batchApply(identities: identities) { service, relPaths in
+            try await service.setRating(value, relPaths: relPaths)
+        }
+    }
+
+    /// The cross-session batch flag (Pick/Reject/clear).
+    func batchSetFlag(_ value: Int?, identities: [String]) async {
+        await batchApply(identities: identities) { service, relPaths in
+            try await service.setFlag(value, relPaths: relPaths)
+        }
+    }
+
+    /// The cross-session batch color label.
+    func batchSetColorLabel(_ value: Int?, identities: [String]) async {
+        await batchApply(identities: identities) { service, relPaths in
+            try await service.setColorLabel(value, relPaths: relPaths)
+        }
+    }
+
+    /// The grouped batch leg (see the faces above). Per session: open the
+    /// lindex (the real open+sync), one MetadataService slice, flush the
+    /// sidecar queue BEFORE the index closes, then the immediate
+    /// projection. A failing session logs and continues (SC#2 — the other
+    /// sessions' slices still land).
+    private func batchApply(
+        identities: [String],
+        _ body: @escaping (MetadataService, [String]) async throws -> Void
+    ) async {
+        // Group the composite identities per session.
+        var bySession: [String: [String]] = [:]
+        for identity in identities {
+            guard let split = identity.firstIndex(of: "/") else { continue }
+            bySession[String(identity[..<split]), default: []]
+                .append(String(identity[identity.index(after: split)...]))
+        }
+        guard !bySession.isEmpty, let catalogStore = store else { return }
+
+        // The roots (the registry read; unknown sessions are skipped).
+        let registry = (try? await catalogStore.fetchSessions()) ?? []
+        let roots = Dictionary(
+            registry.map { ($0.sessionID, URL(fileURLWithPath: $0.rootPath, isDirectory: true)) },
+            uniquingKeysWith: { first, _ in first })
+
+        for (sessionID, relPaths) in bySession {
+            guard let root = roots[sessionID] else { continue }
+            let lindexStore = SessionIndexStore(sessionRoot: root)
+            let writer = BatchSidecarWriter(root: root, store: lindexStore)
+            do {
+                _ = try await lindexStore.openSession(
+                    root: root, scan: SessionTreeScanner.scan(root: root))
+                let service = MetadataService(
+                    root: root, store: lindexStore, writer: writer, seed: [])
+                try await body(service, relPaths)
+                // The leg-3 queue lands BEFORE the index closes.
+                await writer.flushForTeardown()
+            } catch {
+                Self.logger.error(
+                    "catalog batch slice failed for \(sessionID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+            await lindexStore.close()
+            // 投影追平 (the enable guard lives inside the projector).
+            _ = try? await SessionIndexController.sharedCatalogProjector
+                .project(sessionRoot: root)
+        }
+        await refreshAfterProjection()
+    }
+
     private func resetCursors() {
         rows = []
         mainAnchor = nil

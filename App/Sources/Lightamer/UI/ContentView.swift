@@ -84,6 +84,10 @@ internal struct ContentView: View {
         catalogPreferences.catalogsEnabled && organizationMode == .catalogs
     }
 
+    /// Plan 16-2 T6: the session opened FROM the Catalogs grid (the edit
+    /// loop's return hook; nil = the editor was entered elsewhere).
+    @State private var catalogEditReturnRoot: URL?
+
     @Environment(SessionState.self) private var sessionState
     @Environment(EditorState.self) private var editorState
     @Environment(BeforeAfterState.self) private var beforeAfterState
@@ -198,10 +202,32 @@ internal struct ContentView: View {
         }
         // Plan 16-2 T5: the pool lifecycle follows the grid — leaving the
         // Catalogs org-mode tears the provider pool down (the single-
-        // session teardown semantics generalized; RQ-16-9).
+        // session teardown semantics generalized; RQ-16-9). Plan 16-2 T6:
+        // ENTERING Catalogs mode schedules the background startup sweep
+        // (registered + recent sessions — never the first-frame budget).
         .onChange(of: organizationModeRaw) { _, newValue in
-            if newValue != CatalogPreferencesModel.OrganizationMode.catalogs.rawValue {
+            let enteringCatalogs = newValue == CatalogPreferencesModel
+                .OrganizationMode.catalogs.rawValue
+            if enteringCatalogs, catalogPreferences.catalogsEnabled {
+                let recents = sessionState.recentSessions
+                Task { await sessionCoordinator.sweepCatalog(recents) }
+            } else if !enteringCatalogs {
                 Task { await catalogThumbnailRouter?.teardown() }
+            }
+        }
+        // Plan 16-2 T6 (RQ-16-10): the EDIT LOOP — leaving the editor back
+        // to a browser in Catalogs mode projects the edited session (the
+        // 16-1 single-session entry; the enable guard lives inside) and
+        // refreshes the grid window (watermark catch-up).
+        .onChange(of: browserModeRaw) { _, newValue in
+            if catalogsModeActive,
+               ContentView.BrowserMode(rawValue: newValue) != .single,
+               let root = catalogEditReturnRoot {
+                catalogEditReturnRoot = nil
+                Task {
+                    await sessionCoordinator.projectToCatalog(root)
+                    await catalogBrowserModel.refreshAfterProjection()
+                }
             }
         }
         .onChange(of: inspectorVisible) { _, isVisible in
@@ -323,7 +349,9 @@ internal struct ContentView: View {
     /// the row's session through the SAME `openSession` flow (the full
     /// five-step teardown + sync + recent promote — the editor is mode-
     /// blind), then loads the CLICKED image through the EXISTING load path.
+    /// The root is remembered for the RETURN-to-grid projection hook (T6).
     private func openFromCatalog(sessionRoot: URL, relPath: String) {
+        catalogEditReturnRoot = sessionRoot
         Task {
             await sessionCoordinator.openSession(url: sessionRoot)
             editorState.load(

@@ -99,6 +99,18 @@ final class SessionCoordinator {
     var removeOrphanSidecar: (String) async -> Bool = { _ in false }
     var ignoreOrphanSidecar: (String) async -> Void = { _ in }
 
+    /// Plan 16-2 T6 (RQ-16-10): the EDIT-LOOP projection hook — returning
+    /// from the editor to the Catalogs grid projects the edited session
+    /// (the 16-1 single-session entry; the guard lives inside the
+    /// projector, so a disabled Catalogs mode is a cheap no-op).
+    var projectToCatalog: (URL) async -> Void = { _ in }
+
+    /// Plan 16-2 T6 (RQ-16-4 trigger face c): the Catalogs-mode startup
+    /// sweep — entering Catalogs mode / enabling the mode sweeps every
+    /// registered + recent session in the BACKGROUND (never the first
+    /// frame budget; RQ-16-4: the grid shows the committed state).
+    var sweepCatalog: ([URL]) async -> Void = { _ in }
+
     init(
         flushCurrentImage: @escaping () async -> Void = {},
         teardownRenderer: @escaping () async -> Void = {},

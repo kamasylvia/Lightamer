@@ -121,6 +121,8 @@ internal struct SidebarView: View {
                     if catalogBrowserModel.activeScope.sessionID == row.sessionID {
                         await catalogBrowserModel.setScope(FilterScope())
                     }
+                    // The router's cached root/offline map is stale.
+                    CatalogThumbnailRouter.shared?.invalidateRoots()
                     await refreshCatalogFaces()
                 }
             }
@@ -655,6 +657,8 @@ internal struct SidebarView: View {
         Task {
             _ = try? await SessionIndexController.sharedCatalogProjector
                 .relinkSession(sessionID: target.sessionID, newRoot: directory)
+            // The router re-probes roots/offline on the next grid visit.
+            CatalogThumbnailRouter.shared?.invalidateRoots()
             await refreshCatalogFaces()
             await catalogBrowserModel.refreshAfterProjection()
         }

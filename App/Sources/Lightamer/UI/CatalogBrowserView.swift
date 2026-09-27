@@ -70,6 +70,9 @@ internal struct CatalogBrowserView: View {
                     )
                     .accessibilityIdentifier(
                         CatalogBrowserIdentifiers.cell(row.pathHash))
+                    .contextMenu {
+                        self.batchMenus(for: row.id)
+                    }
                     .onAppear {
                         if index >= model.rows.count - Self.loadAhead {
                             Task { await model.loadMore() }
@@ -115,13 +118,64 @@ internal struct CatalogBrowserView: View {
         }
     }
 
-    /// The session-id → root map (the shared store's registry read; the
+    /// The registry map refresh (the shared store's registry read; the
     /// sidebar's session-management actions and sweeps change it).
     func refreshSessionRoots() async {
         let rows = (try? await SessionIndexController.sharedCatalogStore.fetchSessions()) ?? []
         sessionRoots = Dictionary(
             rows.map { ($0.sessionID, URL(fileURLWithPath: $0.rootPath, isDirectory: true)) },
             uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The right-clicked cell joins the selection when outside it — the
+    /// batch actions are batch actions (the 12-1 META-03 shape).
+    private func batchTargets(for identity: String) -> [String] {
+        model.selectedIdentities.contains(identity)
+            ? model.selectedOrderedIdentities
+            : [identity]
+    }
+
+    /// The batch menu (broken into sub-expressions for the type checker).
+    @ViewBuilder
+    private func batchMenus(for identity: String) -> some View {
+        let targets = batchTargets(for: identity)
+        ratingMenu(targets: targets)
+        colorMenu(targets: targets)
+        Button(String(localized: "browser_menu_flag_pick")) {
+            Task { await model.batchSetFlag(1, identities: targets) }
+        }
+        Button(String(localized: "browser_menu_flag_reject")) {
+            Task { await model.batchSetFlag(2, identities: targets) }
+        }
+        Button(String(localized: "browser_menu_flag_clear")) {
+            Task { await model.batchSetFlag(nil, identities: targets) }
+        }
+    }
+
+    private func ratingMenu(targets: [String]) -> some View {
+        Menu(String(localized: "catalog_batch_rating")) {
+            ForEach(1...5, id: \.self) { n in
+                Button("\(n)") {
+                    Task { await model.batchSetRating(n, identities: targets) }
+                }
+            }
+            Button(String(localized: "catalog_batch_clear")) {
+                Task { await model.batchSetRating(nil, identities: targets) }
+            }
+        }
+    }
+
+    private func colorMenu(targets: [String]) -> some View {
+        Menu(String(localized: "catalog_batch_color")) {
+            ForEach(0...6, id: \.self) { n in
+                Button("\(n)") {
+                    Task { await model.batchSetColorLabel(n, identities: targets) }
+                }
+            }
+            Button(String(localized: "catalog_batch_clear")) {
+                Task { await model.batchSetColorLabel(nil, identities: targets) }
+            }
+        }
     }
 }
 
