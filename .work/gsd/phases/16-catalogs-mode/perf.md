@@ -23,6 +23,13 @@
 |---|---|
 | N | 1,000,000 行 / 10 会话 |
 | 标签 | 40% 行带层级串（`Nature\|Flower\|Rose` 40%、`City\|Night` 20%）→ image_tags **1.6M 行**（膨胀系数 1.6；research 估算带 3-9M 对应「直打 1-3 × 深度 1-3 更宽分布」，本 fixture 用双标签串近似，行集形状同构） |
+
+> **验收修正（2026-09-27，fix(16-1)）**：首跑 fixture 的 set-based 物化 SQL 候选表只枚举了**前缀链**
+> （漏独立 token Flower/Rose/Night），故首跑实为系数 1.6（1.6M 行）； projector `tagRows` 真形 =
+> token + 前缀链全集 → 本分布系数 **2.6（2.6M 行）**。harness 已修（候选表 8 形态，小 N 实证
+> tags=78000/30000 行、distinct=8）；**§2/§3 首跑数字为 1.6M 行形状下的实测**，分页/投影场景
+> 不受影响（tags 表体量仅影响 tagSweep 一项，1.6M→2.6M 同量级），16-4 T1 终测以修正后
+> fixture 复跑落新账。
 | NULL 率 | capture_date 10% / rating 60% / color_label 70% |
 | camera_model 未扫率 | ~20% |
 | 生成耗时 | Debug 16.0s / Release 17.2s（批量 prepared + 每 1 万行分批 COMMIT，PERF-07 无 temp-table join） |
@@ -98,7 +105,7 @@
 | F8 OFFSET 判死 | 113-359ms | 不适用（OFFSET 已禁，键集唯一形状） | — | — |
 | F10 `+` 前缀两量级 | cam 201→1.46ms | cameraEq 全形状 0.15-0.33ms ✓ | 无 | `+` 纪律生效 |
 | F11 tags PK seek | tag 分页 20.6ms | tagAncestor 0.19-0.35ms；tag+rating ~1ms | 无 | 等值 EXISTS 形状健康 |
-| F12 投影 10 万行 0.81s | 12.3 万行/s | Debug 147.9s / **Release 0.86s** | Debug 口径 | 归因 ② |
+| F12 投影 10 万行 0.81s | 12.3 万行/s | 修复前 147.9s（Debug=Release 同值）→ 修复后 Debug 2.704s / **Release 1.926s** | 无（修复后与探针同量级） | 归因 ② |
 | F13 cache 64MB | −25% | 入基线（§0） | — | — |
 | F15 NULL 尾段 0.36ms | ✓ | tail 形状常驻（NULLTail suite + 矩阵内自动衔接） | — | — |
 | F16 库体积 450-500MB | — | ~310MB（tags 1.6M 行 vs 估算 3-9M） | 预期内 | fixture 标签分布窄于估算带 |
@@ -107,7 +114,7 @@
 
 - 分页软门（<50ms）：**全形状 PASS**（Debug 口径；最差 35.37ms）。
 - COUNT 面：简单谓词现算亚 100ms（Debug），组合/标签走 memo（命中 0.04ms）；分页门不适用于角标。
-- 投影：Release 口径双场景过预算（0.86s / 0.14s）；Debug 数字为口径偏差非引擎缺陷（归因 ②）。
+- 投影：修复后双口径双场景全过预算（full100k Debug 2.704s / **Release 1.926s**；增量 292.4ms；纯 diff 5.5ms）——首跑超预算为引擎缺陷（tags 删除方向 N²）已修复（归因 ②），**非**编译口径偏差（Debug/Release 首跑同值已排除口径）。
 - **SC#3 硬裁决保留给 16-4 T1 真机终测**（同 harness 复跑）。
 
 ---

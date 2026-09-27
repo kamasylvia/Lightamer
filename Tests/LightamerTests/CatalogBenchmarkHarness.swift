@@ -151,13 +151,22 @@ final class CatalogBenchmarkHarness: XCTestCase {
             }
         }
         // The tag materialization, expanded by the SAME prefix-chain rule
-        // the projector uses (one set-based pass over the mirror).
+        // the projector uses (`tagRows` = the split tokens PLUS every
+        // positional prefix). The candidate list enumerates BOTH halves and
+        // the four-clause join lands each candidate via its matching arm —
+        // head tokens ride `tag || '|%'`, leaf/middle tokens the
+        // `'%|' || tag` / `'%|' || tag || '|%'` arms, compounds equality.
+        // (16-1 acceptance fix: the first-cut candidate list enumerated the
+        // PREFIX CHAIN ONLY, so the standalone tokens Flower/Rose/Night
+        // never landed — 1.6 rows/image instead of the projector's true
+        // 2.6; 16-4 T1 re-runs the matrix on this corrected shape.)
         try handle.execute("""
             INSERT OR IGNORE INTO image_tags (tag, catalog_image_id)
             SELECT t.tag, i.id FROM catalog_images i
-            JOIN (SELECT 'Nature' AS tag UNION ALL SELECT 'Nature|Flower'
+            JOIN (SELECT 'Nature' AS tag UNION ALL SELECT 'Flower'
+                  UNION ALL SELECT 'Rose' UNION ALL SELECT 'Nature|Flower'
                   UNION ALL SELECT 'Nature|Flower|Rose' UNION ALL SELECT 'City'
-                  UNION ALL SELECT 'City|Night') t
+                  UNION ALL SELECT 'Night' UNION ALL SELECT 'City|Night') t
               ON (i.keywords = t.tag OR i.keywords LIKE t.tag || '|%'
                   OR i.keywords LIKE '%|' || t.tag
                   OR i.keywords LIKE '%|' || t.tag || '|%')
