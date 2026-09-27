@@ -319,4 +319,191 @@ final class FocusStackTests: XCTestCase {
         // The slot is registered (CaseIterable) without second-operator math.
         XCTAssertEqual(FocusMeasure.Operator.allCases.count, 2)
     }
+
+    // MARK: - T2: the quality-weighted pyramid fusion
+
+    /// The P5 PASS shape: a synthetic focus rail (A sharp on top, B sharp
+    /// on the bottom — the defocus proxy everywhere else) fuses to the
+    /// known sharp composite with a two-way MAE at the ≈0.004 order.
+    func testClearRegionAttributionMAE() throws {
+        let width = 256, height = 192
+        let sharp = Self.texture(width, height, seed: 0xABCD)
+        let blurred = Self.boxBlur(sharp, width: width, height: height, radius: 4)
+        let half = height / 2
+
+        func rail(sharpTop: Bool) -> (rgb: [Float], quality: [Float]) {
+            var rgb = [Float](repeating: 0, count: width * height * 4)
+            for y in 0..<height {
+                let rowSharp = (y < half) == sharpTop
+                for x in 0..<width {
+                    let value = rowSharp ? sharp[y * width + x] : blurred[y * width + x]
+                    let base = (y * width + x) * 4
+                    rgb[base] = value; rgb[base + 1] = value; rgb[base + 2] = value
+                    rgb[base + 3] = 1
+                }
+            }
+            // The quality strips are what the SML leg produces — emulate
+            // with the CPU mirror of the rail (sharp rows carry energy).
+            let map = FocusMeasure.qualityMapCPU(
+                UnsafeRawBufferPointer(rgb.withUnsafeBufferPointer { $0 }),
+                width: width, height: height, bytesPerRow: width * 16)
+            return (rgb, map)
+        }
+
+        let sourceA = rail(sharpTop: true)
+        let sourceB = rail(sharpTop: false)
+        let fused = FocusStackMerge.fuseStrip(
+            width: width, height: height, sources: 2) { index in
+            index == 0 ? sourceA : sourceB
+        }
+        // The ideal composite picks the sharp source per row.
+        var total = 0.0 as Double
+        var count = 0.0 as Double
+        for y in 0..<height {
+            let rowSharp = y < half ? sourceA.rgb : sourceB.rgb
+            for x in 0..<width {
+                let ideal = rowSharp[(y * width + x) * 4]
+                for channel in 0..<3 {
+                    let delta = fused[(y * width + x) * 3 + channel] - ideal
+                    total += Double(abs(delta))
+                    count += 1
+                }
+            }
+        }
+        let mae = total / count
+        XCTAssertLessThan(mae, 0.01,
+            "clear-region attribution MAE \(mae) above the P5 order (≈0.004)")
+    }
+
+    /// The Burt-Adelson pair's consistency: TWO IDENTICAL sources with
+    /// uniform quality must fuse back to the source (den = 2·w, num =
+    /// 2·w·L, reconstruction telescopes exactly).
+    func testFuseStripIdenticalSourcesReconstructExactly() {
+        let width = 130, height = 96 // odd width exercises the expand path
+        let values = Self.texture(width, height, seed: 0x1234)
+        var rgb = [Float](repeating: 0, count: width * height * 4)
+        for index in 0..<(width * height) {
+            rgb[index * 4] = values[index]
+            rgb[index * 4 + 1] = values[index] * 0.8
+            rgb[index * 4 + 2] = values[index] * 0.6
+            rgb[index * 4 + 3] = 1
+        }
+        let quality = [Float](repeating: 1, count: width * height)
+        let fused = FocusStackMerge.fuseStrip(
+            width: width, height: height, sources: 2) { _ in (rgb, quality) }
+        var worst: Float = 0
+        for index in 0..<(width * height) {
+            for (channel, scale) in [(0, Float(1)), (1, Float(0.8)), (2, Float(0.6))] {
+                worst = max(worst, abs(
+                    fused[index * 3 + channel] - values[index] * scale))
+            }
+        }
+        XCTAssertLessThan(worst, 1e-3,
+            "identical-source fusion must reconstruct the source, worst \(worst)")
+    }
+
+    /// Weightless regions (NaN-shifted-out pixels arrive at quality 0 with
+    /// every source) fuse to BLACK — the ε guard, not NaN.
+    func testFuseStripWeightlessRegionGoesBlack() {
+        let width = 64, height = 48
+        let values = Self.texture(width, height, seed: 0x999)
+        var rgb = [Float](repeating: 0, count: width * height * 4)
+        for index in 0..<(width * height) {
+            rgb[index * 4] = values[index]
+            rgb[index * 4 + 1] = values[index]
+            rgb[index * 4 + 2] = values[index]
+            rgb[index * 4 + 3] = 1
+        }
+        // Every source weightless EVERYWHERE → the ε guard blends black at
+        // EVERY level, so the reconstruction is exactly black (a local hole
+        // only dims — the coarse scales legitimately flood it, which is
+        // enfuse's own soft-fusion semantics, D-08-3-T2-3).
+        let zeroQuality = [Float](repeating: 0, count: width * height)
+        let fused = FocusStackMerge.fuseStrip(
+            width: width, height: height, sources: 2) { _ in (rgb, zeroQuality) }
+        let center = (24 * width + 32) * 3
+        for channel in 0..<3 {
+            XCTAssertLessThan(abs(fused[center + channel]), 1e-4,
+                "weightless fusion must be black")
+            XCTAssertFalse(fused[center + channel].isNaN)
+        }
+        // With REAL quality the fusion reconstructs the source.
+        let realQuality = [Float](repeating: 1, count: width * height)
+        let fusedReal = FocusStackMerge.fuseStrip(
+            width: width, height: height, sources: 2) { _ in (rgb, realQuality) }
+        let corner = (4 * width + 4) * 3
+        XCTAssertEqual(fusedReal[corner], values[4 * width + 4], accuracy: 1e-3)
+    }
+
+    /// The 5×5 box soften: a uniform field is a fixed point; a center
+    /// impulse spreads exactly over the ±2 window.
+    func testSoftenQualityBoxShape() {
+        let width = 32, height = 32
+        let uniform = FocusStackMerge.softenQuality(
+            [Float](repeating: 0.5, count: width * height), width: width, height: height)
+        XCTAssertEqual(uniform.max()!, 0.5, accuracy: 1e-6)
+        XCTAssertEqual(uniform.min()!, 0.5, accuracy: 1e-6)
+
+        var impulse = [Float](repeating: 0, count: width * height)
+        impulse[16 * width + 16] = 25 // box area 25 → softened peak = 1
+        let softened = FocusStackMerge.softenQuality(impulse, width: width, height: height)
+        XCTAssertEqual(softened[16 * width + 16], 1.0, accuracy: 1e-5)
+        // The separable box spreads the impulse UNIFORMLY over the 5×5
+        // window (mean of mean — the whole window reads 1.0); 3 away is 0.
+        XCTAssertEqual(softened[14 * width + 16], 1.0, accuracy: 1e-5)
+        XCTAssertEqual(softened[14 * width + 14], 1.0, accuracy: 1e-5)
+        XCTAssertEqual(softened[13 * width + 16], 0, accuracy: 1e-6)
+    }
+
+    /// The band-streamed footprint: the working-set formula is O(band) —
+    /// the N=8 focus working set at 100 MP scale is the band strip (NOT
+    /// N×full-frame residency, which would be ~80× larger).
+    func testFocusFusionBandWorkingSetIsConstant() {
+        let width = 11656, bandHeight = 256, halo = 32, sources = 8
+        let band = FocusStackMerge.bandWorkingSetBytes(
+            width: width, bandHeight: bandHeight, halo: halo, sources: sources)
+        let fullResidency = sources * width * 8742 * 4 * MemoryLayout<Float>.size
+        // The formula's strip term (the accumulator term is bounded by the
+        // strip rows too — the whole working set scales with band+2·halo,
+        // never with the frame height).
+        let stripTerm = sources * (bandHeight + 2 * halo) * width * 5
+            * MemoryLayout<Float>.size
+        XCTAssertGreaterThan(band, stripTerm)
+        XCTAssertLessThan(band, stripTerm * 3, "accumulator term must stay strip-bounded")
+        // O(band) vs O(height): the band working set must stay under ONE
+        // full frame's residency (a single decoded plane) — strictly
+        // sub-frame, and 10×+ under the forbidden N×full-frame residency.
+        XCTAssertLessThan(Double(band), Double(fullResidency / sources),
+            "band working set \(band) vs one frame \(fullResidency / sources)")
+    }
+
+    /// The NCC scale-drift self-check: an upscaled-cropped duplicate
+    /// decorrelates (NCC < 0.9) while the aligned pair correlates (≈1).
+    func testNCCDetectsScaleDrift() {
+        let width = 192, height = 144
+        let ref = Self.texture(width, height, seed: 0xC0DE)
+        func ratioLuma(_ gray: [Float], _ w: Int, _ h: Int) -> AlignmentFrame.RatioLuma {
+            AlignmentFrame.RatioLuma(width: w, height: h, pixels: gray)
+        }
+        // Scale 1.05×: crop the center of the 1.05× stretched copy.
+        let scale = 1.05
+        var drifted = [Float](repeating: 0, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width {
+                let sx = Int(Double(x) / scale)
+                let sy = Int(Double(y) / scale)
+                drifted[y * width + x] = ref[
+                    min(sy, height - 1) * width + min(sx, width - 1)]
+            }
+        }
+        let nccAligned = FocusStackMerge.normalizedCrossCorrelation(
+            reference: ratioLuma(ref, width, height),
+            candidate: ratioLuma(ref, width, height), dx: 0, dy: 0)
+        XCTAssertGreaterThan(nccAligned, 0.99)
+        let nccDrift = FocusStackMerge.normalizedCrossCorrelation(
+            reference: ratioLuma(ref, width, height),
+            candidate: ratioLuma(drifted, width, height), dx: 0, dy: 0)
+        XCTAssertLessThan(nccDrift, FocusStackMerge.nccWarnThreshold,
+            "a 5% scale drift must warn (NCC \(nccDrift))")
+    }
 }
