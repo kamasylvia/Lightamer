@@ -324,6 +324,100 @@ final class HDRMergeMathTests: XCTestCase {
         }
     }
 
+    // MARK: - Ghost mask (T4): dilation shape + RasterMaskRef landing
+
+    func testDilationShapeGolden() {
+        // A single set pixel at (2,2) after TWO 3x3 dilations = the 5x5
+        // block centered there (the research §4.2 shape).
+        let width = 9, height = 9
+        var bitmap = [UInt8](repeating: 0, count: width * height)
+        bitmap[2 * width + 2] = 1
+        let dilated = GhostMaskWriter.dilate(bitmap, width: width, height: height)
+        for y in 0..<height {
+            for x in 0..<width {
+                let expected: UInt8 = (x <= 4 && y <= 4) ? 1 : 0
+                XCTAssertEqual(dilated[y * width + x], expected,
+                    "dilation @ \(x),\(y)")
+            }
+        }
+        // Zero rounds = identity; the dilation never grows past the frame.
+        XCTAssertEqual(
+            GhostMaskWriter.dilate(bitmap, width: width, height: height, rounds: 0),
+            bitmap)
+        let corner = [UInt8](repeating: 0, count: 16) // 4x4
+        var cornerOne = corner
+        cornerOne[0] = 1
+        let cornerDilated = GhostMaskWriter.dilate(
+            cornerOne, width: 4, height: 4)
+        XCTAssertEqual(cornerDilated[0], 1)
+        XCTAssertEqual(cornerDilated[5], 1) // (1,1)
+        XCTAssertEqual(cornerDilated[15], 0) // (3,3) beyond two rounds
+    }
+
+    func testGhostMaskLandRoundTrip() throws {
+        let width = 8, height = 8
+        var bitmap = [UInt8](repeating: 0, count: width * height)
+        bitmap[0] = 1
+        bitmap[3 * width + 5] = 1
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ghost-mask-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let productURL = dir.appendingPathComponent("merged_hdr.tif")
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let maskID = UUID()
+        let landed = try GhostMaskWriter.land(
+            bitmap, width: width, height: height,
+            productURL: productURL, maskID: maskID)
+        // The file convention: <product full name>.lra.masks/<maskID>.png.
+        XCTAssertEqual(
+            landed.url.path,
+            productURL.path + ".lra.masks/\(maskID.uuidString).png")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: landed.url.path))
+        // maskHash = StableHash over the PNG FILE BYTES (round-trip).
+        let pngBytes = try Data(contentsOf: landed.url)
+        XCTAssertEqual(
+            UInt64(landed.ref.maskHash), StableHash.hash(pngBytes))
+        XCTAssertEqual(landed.ref.fileName, "\(maskID.uuidString).png")
+        XCTAssertEqual(landed.ref.invert, false)
+        // 16-bit grayscale PNG (the RasterMaskRef convention).
+        let source = CGImageSourceCreateWithURL(landed.url as CFURL, nil)!
+        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)!
+        XCTAssertEqual(image.bitsPerComponent, 16)
+        XCTAssertEqual(image.bitsPerPixel, 16)
+        XCTAssertEqual(Int(image.width), width)
+        XCTAssertEqual(Int(image.height), height)
+    }
+
+    func testGhostSuppressionLayerStackShape() throws {
+        let width = 4, height = 4
+        var bitmap = [UInt8](repeating: 0, count: width * height)
+        bitmap[0] = 1
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ghost-layer-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let productURL = dir.appendingPathComponent("merged_hdr.tif")
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let landed = try GhostMaskWriter.land(
+            bitmap, width: width, height: height,
+            productURL: productURL, maskID: UUID())
+        let stack = GhostMaskWriter.ghostSuppressionLayerStack(landed)
+        XCTAssertNotNil(stack)
+        XCTAssertEqual(stack?.layers.count, 1)
+        let layer = stack?.layers.first
+        XCTAssertEqual(layer?.name, "Ghost Suppression")
+        XCTAssertEqual(layer?.kind, "adjustment")
+        XCTAssertEqual(layer?.isVisible, true)
+        XCTAssertEqual(layer?.enabled, true)
+        XCTAssertTrue(layer?.chain.isEmpty ?? false, "empty iop chain")
+        XCTAssertEqual(layer?.mask?.raster?.fileName, landed.ref.fileName)
+        XCTAssertEqual(
+            UInt64(layer?.mask?.raster?.maskHash ?? 0), UInt64(landed.ref.maskHash))
+        // The de-ghost-OFF face: no mask -> NO Ghost Suppression layer.
+        XCTAssertNil(GhostMaskWriter.ghostSuppressionLayerStack(nil))
+    }
+
     func testFloatTIFFRefusesOverwrite() throws {
         // The D-08-CONTEXT-11 red line at the writer boundary: an existing
         // destination is never overwritten.
