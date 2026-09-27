@@ -248,6 +248,15 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: Lut3dModule.opName) { id in
             ModuleBox(module: Lut3dModule(resolver: LutLibraryStore.shared), instanceID: id)
         }
+        // Plan 08-2-T1: vignette (creative effect), v50 slot 68.0 — ALREADY
+        // in the V50Order table (zero rows inserted); < the 70.0 terminal
+        // floor → layer-mask eligible. Seed DISABLED (the dt-verbatim
+        // defaults brightness −0.5/saturation −0.5 are not pixel-identity —
+        // the highpass/soften creative disposition; the 08-2 panel drives
+        // this instance).
+        await registry.register(opName: VignetteModule.opName) { id in
+            ModuleBox(module: VignetteModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -369,6 +378,8 @@ public enum LightamerIOPRegistry {
             Lut3dModule.Kernel.tetrahedral,
             Lut3dModule.Kernel.trilinear,
             Lut3dModule.Kernel.ramp1D,
+            // Plan 08-2-T1: the vignette single-pass falloff.
+            VignetteKernel.functionName,
         ]
     }
 
@@ -484,6 +495,11 @@ public enum LightamerIOPRegistry {
             // nil = the routed blit identity — cache-neutral, exposure-0EV
             // style; the LUT panel has an instance to drive).
             ModuleInstance(module: Lut3dModule.self, params: Lut3dModule.Params()),
+            // Plan 08-2-T1: vignette joins the seed DISABLED (dt-verbatim
+            // defaults brightness −0.5/saturation −0.5 are not pixel-
+            // identity — the highpass/soften creative disposition; the
+            // 08-2 panel drives this instance).
+            ModuleInstance(module: VignetteModule.self, params: VignetteModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }

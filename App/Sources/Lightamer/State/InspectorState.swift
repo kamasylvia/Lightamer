@@ -116,6 +116,8 @@ final class InspectorState {
         // Plan 12-5 T5: lut3d (library import/picker + colorspace +
         // interpolation pickers + the 1D/missing hints).
         register(LutPanelProvider())
+        // Plan 08-2 T1: vignette (the dt-verbatim falloff/shape panel).
+        register(VignettePanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

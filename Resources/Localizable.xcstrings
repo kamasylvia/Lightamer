@@ -4549,6 +4549,23 @@
         }
       }
     },
+    "history_vignette": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vignette"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暗角"
+          }
+        }
+      }
+    },
     "history_wb": {
       "extractionState": "manual",
       "localizations": {
@@ -13755,6 +13772,227 @@
           "stringUnit": {
             "state": "translated",
             "value": "自然饱和度"
+          }
+        }
+      }
+    },
+    "panel_vignette_autoratio": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic Ratio"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动比例"
+          }
+        }
+      }
+    },
+    "panel_vignette_brightness": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brightness"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "亮度"
+          }
+        }
+      }
+    },
+    "panel_vignette_center_x": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontal Center"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "水平中心"
+          }
+        }
+      }
+    },
+    "panel_vignette_center_y": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertical Center"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "垂直中心"
+          }
+        }
+      }
+    },
+    "panel_vignette_clipping": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clipping"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁剪"
+          }
+        }
+      }
+    },
+    "panel_vignette_falloff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fall-off Radius"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "衰减半径"
+          }
+        }
+      }
+    },
+    "panel_vignette_geometry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geometry"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "几何"
+          }
+        }
+      }
+    },
+    "panel_vignette_saturation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度"
+          }
+        }
+      }
+    },
+    "panel_vignette_scale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fall-off Start"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "起始半径"
+          }
+        }
+      }
+    },
+    "panel_vignette_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vignette"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暗角"
+          }
+        }
+      }
+    },
+    "panel_vignette_shape": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shape"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形状"
+          }
+        }
+      }
+    },
+    "panel_vignette_unbound": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbound"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不裁剪"
+          }
+        }
+      }
+    },
+    "panel_vignette_whratio": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Width/Height Ratio"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宽高比"
           }
         }
       }
