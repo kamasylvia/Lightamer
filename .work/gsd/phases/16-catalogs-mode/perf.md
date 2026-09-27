@@ -1,133 +1,150 @@
 # Phase 16 — Catalog Benchmark Ledger（perf.md）
 
-> SC#3 基准账本。首跑 = Plan 16-1 T5（2026-09-27，executor worker，Debug + Release 双栏）。
+> SC#3 基准账本。**§A = Plan 16-4 T1 终测（2026-09-27，SC#3 正式裁决，真机落盘 Release 主判据）**；
+> §B = Plan 16-1 T5 首跑存档（2026-09-27 上午，历史参考，其 fixture 为 1.6M tags 修正前形状）。
 > 口径：每形状 30 页 × 60 行取 p95（nearest-rank）；暖机一轮后测第二轮（冷样本单列）；
 > 真机落盘库（`/tmp/catalog-bench-*/catalog.lcat`，即弃，L009 禁 UNITEK）；
 > 机器 = macOS 27 arm64（本机 Debug/Release 同机对跑）；SQLite 系统 3.54.0。
 > 环境门控：`LA_CATALOG_BENCH=1`（+ `LA_CATALOG_BENCH_N`，缺省 1M）。
+> Release 直启参数（ad-hoc 重签 + DYLD 顺序）见 `CatalogBenchmarkHarness.swift` 头注
+> （16-4 T1 注记）与 16-4-DECISIONS D2。
 
-## 0. PRAGMA 基线（F13 入档）
+## §A. Plan 16-4 T1 终测（SC#3 正式裁决，2026-09-27）
 
-| PRAGMA | 值 | 依据 |
-|---|---|---|
-| journal_mode | WAL | 读写不互斥（R4） |
-| synchronous | NORMAL | 可重建派生层 + 崩溃安全 |
-| cache_size | -64000（64MB） | F13 实测 −25% |
-| busy_timeout | 5000 | RQ-16-17 双实例 |
-| case_sensitive_like | ON | RQ-16-16① startsWith 走 BINARY 索引 |
-| mmap_size | 不设 | F13 <2% 增益，可选项不入基线（16-1-DECISIONS） |
+### A.0 PRAGMA 基线（同首跑，F13 入档）
 
-## 1. Fixture（RQ-16-13 参数）
+WAL + synchronous=NORMAL + cache_size=-64000（64MB）+ busy_timeout=5000 +
+case_sensitive_like=ON；mmap_size 不设（<2% 增益，可选项不入基线）。
+
+### A.1 Fixture（RQ-16-13 参数，16-1 验收修正后形状 ✓）
 
 | 参数 | 值 |
 |---|---|
 | N | 1,000,000 行 / 10 会话 |
-| 标签 | 40% 行带层级串（`Nature\|Flower\|Rose` 40%、`City\|Night` 20%）→ image_tags **1.6M 行**（膨胀系数 1.6；research 估算带 3-9M 对应「直打 1-3 × 深度 1-3 更宽分布」，本 fixture 用双标签串近似，行集形状同构） |
+| tags | **2,600,000 行（系数 2.6，`5cc4d8c` 修正后 fixture 实测逐轮恒 2,600,000 ✓）** |
+| NULL 率 | capture_date 10% / rating 60% / color_label 70%；camera_model 未扫 ~20% |
+| 生成耗时 | Debug 16.0-16.6s / Release 14.6-15.6s（批量 prepared + 每 1 万行分批 COMMIT） |
+| 三轮 | Debug ×3 + Release ×3（同机穿插，三轮对账 §A.5） |
 
-> **验收修正（2026-09-27，fix(16-1)）**：首跑 fixture 的 set-based 物化 SQL 候选表只枚举了**前缀链**
-> （漏独立 token Flower/Rose/Night），故首跑实为系数 1.6（1.6M 行）； projector `tagRows` 真形 =
-> token + 前缀链全集 → 本分布系数 **2.6（2.6M 行）**。harness 已修（候选表 8 形态，小 N 实证
-> tags=78000/30000 行、distinct=8）；**§2/§3 首跑数字为 1.6M 行形状下的实测**，分页/投影场景
-> 不受影响（tags 表体量仅影响 tagSweep 一项，1.6M→2.6M 同量级），16-4 T1 终测以修正后
-> fixture 复跑落新账。
-| NULL 率 | capture_date 10% / rating 60% / color_label 70% |
-| camera_model 未扫率 | ~20% |
-| 生成耗时 | Debug 16.0s / Release 17.2s（批量 prepared + 每 1 万行分批 COMMIT，PERF-07 无 temp-table join） |
-| 库体积 | ~310MB（1M 行表 + 7 索引 + 1.6M tags；F16 估算 450-500MB 含更宽 tags 分布——一致性可接受） |
+### A.2 查询集矩阵（§1.5 全矩阵，热 p95 ms，30 页 × 60 行；三列 = d0 / d400k / d800k）
 
-## 2. 查询集矩阵（§1.5）——热 p95（ms），30 页 × 60 行
-
-**Debug**（首跑 2026-09-27，全套数字 /tmp/la-direct-tests.log；下表为摘要全表）：
+**Debug（第 1 轮全套表；2/3 轮对账见 §A.5）**：
 
 | filter \ sort | dateDESC | dateASC | ratingDESC | filenameASC |
 |---|---|---|---|---|
-| all | 0.15 / 0.15 / 0.16 | 0.28 / 0.15 / 0.15 | 0.19 / 0.20 / 0.20 | 0.14 / 0.13 / 0.16 |
-| ratingGE4 | 0.31 / 0.30 / 0.34 | 0.29 / 0.28 / 0.29 | 0.20 / 0.17 / 0.17 | 0.29 / 0.29 / 0.30 |
-| colorEq | 0.65 / 0.63 / 0.63 | 0.62 / 0.64 / 0.69 | 5.66 / 8.04 / 7.10 | 0.87 / 0.67 / 0.76 |
-| cameraEq | 0.18 / 0.19 / 0.19 | 0.17 / 0.16 / 0.20 | 0.33 / 0.17 / 0.16 | 0.16 / 0.15 / 0.15 |
-| dateRange | 15.15 / 16.84 / 14.75 | 0.18 / 0.18 / 0.18 | 0.74 / 0.37 / 0.30 | 0.15 / 0.15 / 0.15 |
-| tagAncestor | 0.35 / 0.34 / 0.34 | 0.34 / 0.32 / 0.32 | 0.20 / 0.19 / 0.19 | 0.26 / 0.26 / 0.26 |
-| tag+rating | 1.06 / 1.01 / 1.01 | 1.04 / 1.01 / 0.98 | 0.22 / 0.20 / 0.20 | 1.01 / 0.96 / 0.97 |
-| combo | **35.37** / 13.60 / 11.60 | 0.36 / 0.38 / 0.61 | 0.45 / — / — | 0.— / — / — |
+| all | 0.15 / 0.14 / 0.14 | 0.14 / 0.14 / 0.14 | 0.16 / 0.15 / 0.15 | 0.13 / 0.13 / 0.13 |
+| ratingGE4 | 0.29 / 0.29 / 0.29 | 0.28 / 0.29 / 0.28 | 0.17 / 0.16 / 0.16 | 0.29 / 0.28 / 0.28 |
+| colorEq | 0.64 / 0.63 / 0.63 | 0.62 / 0.62 / 0.61 | 5.52 / 5.68 / 5.69 | 0.64 / 0.62 / 0.63 |
+| cameraEq | 0.17 / 0.16 / 0.16 | 0.16 / 0.16 / 0.16 | 0.20 / 0.17 / 0.16 | 0.17 / 0.14 / 0.14 |
+| dateRange | 12.21 / 10.78 / 10.79 | 0.17 / 0.16 / 0.16 | 0.72 / 0.36 / 0.30 | 0.14 / 0.14 / 0.14 |
+| tagAncestor | 0.34 / 0.33 / 0.32 | 0.33 / 0.31 / 0.31 | 0.26 / 0.20 / 0.20 | 0.25 / 0.24 / 0.24 |
+| tag+rating | 1.06 / 0.98 / 0.99 | 1.02 / 0.96 / 0.98 | 0.27 / 0.22 / 0.20 | 1.00 / 0.94 / 0.94 |
+| combo | 11.54 / 11.34 / 11.13 | 0.36 / 0.35 / 0.35 | 0.51 / 0.34 / 0.31 | 0.30 / 0.30 / 0.30 |
 
-（三列 = 深度 d0 / d400k / d800k。）
+**Release（第 2 轮全套表；主判据）**：
 
-冷样本（每形状 d0 首查询单列）：最大值 = `colorEq|ratingDESC` **215.13ms**（首页低选择性过滤 + DESC 索引跳候选，纯冷页缓存）、`combo|dateDESC` 12.18ms；其余 ≤16ms。
-
-**Release**：（见 §2.R）
-
-### 软门判定（<50ms，Debug 口径）
-
-- **PASS**：全部 96 形状热 p95 ≤ 35.37ms（最差 = combo|dateDESC|d0），无一处超门。
-- 超门归因注记：无（无形状 >50ms）。两个关注形状（均过门）：
-  - `combo|dateDESC|d0` 35.37ms：最坏组合（rating≥4 ∧ camera ∧ date 区间）+ 默认排序索引领先逐候选过滤；d400k/d800k 收敛到 ~12ms（越深处凑满 LIMIT 60 的候选越密）。
-  - `dateRange|dateDESC` 全深度 ~15-17ms：12h 窗口低匹配率，DESC 索引扫过的候选段长；ASC 同窗仅 0.18ms（区间上沿在索引头）。
-
-## 3. COUNT 面（§1.4）
-
-| 查询 | Debug 现算/热 | research 探针 | 备注 |
-|---|---|---|---|
-| COUNT(*) 全库 | 64.49ms | 5.0ms | 见归因 ① |
-| rating≥4 | 67.90ms | 18.2ms | 同上 |
-| camera_model= | 76.41ms | 4.7ms（走被移除的 idx_cam） | 探针自注「移除后全扫 ~18ms」；此处含 `+`-前缀 + baseline 双谓词 |
-| combo（冷） | ~219ms（探针级 218.8ms 对齐 ✓） | 218.8ms | 走 memo |
-| combo（memo 命中） | **0.04ms** | — | memo 生效实证 |
-| tag 全量（1.6M 行 GROUP BY） | 40.21ms | 253ms@13.3 万匹配 | 批量形态远优于 per-badge |
-
-归因 ①（COUNT 偏差 ~2-4×）：Debug build 的逐候选谓词求值 + `+`-前缀抑制 + baseline 双谓词（探针 COUNT 为裸谓词）。COUNT 是角标面不是分页门（50ms 门只约束网格分页查询）；简单谓词亚 100ms 在「请求时现算」预算内，Release 分栏复测见 §2.R/§3.R。
-
-## 4. 投影吞吐三场景（RQ-16-5）
-
-| 场景 | 预算 | 首跑（修复前） | 修复后 Debug | **修复后 Release** |
+| filter \ sort | dateDESC | dateASC | ratingDESC | filenameASC |
 |---|---|---|---|---|
-| 10 万行全量重建 | ≤30s 级 | 147.94s（Debug）/ 148.34s（Release） | **2.704s** ✓ | **1.926s** ✓（余量 ~15×；5.2 万行/s） |
-| 单会话 1 万行增量 | 秒级 | 31.62s（Debug）/ 32.92s（Release） | **420.2ms** ✓ | **292.4ms** ✓ |
-| 纯 diff SELECT | — | 5.6ms | 7.0ms | 5.5ms（探针 6ms 对齐 ✓） |
+| all | 0.14 / 0.13 / 0.14 | 0.13 / 0.13 / 0.13 | 0.15 / 0.14 / 0.14 | 0.12 / 0.12 / 0.12 |
+| ratingGE4 | 0.29 / 0.28 / 0.28 | 0.28 / 0.27 / 0.27 | 0.16 / 0.15 / 0.15 | 0.28 / 0.28 / 0.28 |
+| colorEq | 0.63 / 0.62 / 0.62 | 0.62 / 0.60 / 0.60 | 5.51 / 5.57 / 5.59 | 0.65 / 0.62 / 0.63 |
+| cameraEq | 0.15 / 0.15 / 0.15 | 0.15 / 0.15 / 0.14 | 0.19 / 0.15 / 0.15 | 0.13 / 0.13 / 0.13 |
+| dateRange | 11.71 / 11.91 / 10.83 | 0.15 / 0.15 / 0.15 | 0.69 / 0.37 / 0.30 | 0.13 / 0.13 / 0.13 |
+| tagAncestor | 0.32 / 0.31 / 0.31 | 0.32 / 0.30 / 0.30 | 0.25 / 0.19 / 0.18 | 0.23 / 0.23 / 0.23 |
+| tag+rating | 1.01 / 0.95 / 0.95 | 1.02 / 0.96 / 0.96 | 0.24 / 0.19 / 0.19 | 0.98 / 0.94 / 0.93 |
+| combo | 12.28 / 10.91 / 11.18 | 0.35 / 0.34 / 0.34 | 0.48 / 0.33 / 0.29 | 0.28 / 0.27 / 0.27 |
 
-### 归因 ②（首跑超预算 ~5×，已修复——真缺陷非口径）
+（96/96 形状全测：`combo|filenameASC|d400k` 的输出行与 XCTest passed 行交错粘行，
+数字已从粘行提取并入表。）
 
-首跑 Debug 147.9s 与 Release 148.3s **完全一致** → 排除编译口径，实为引擎缺陷：
-`DELETE FROM image_tags WHERE catalog_image_id = ?`（投影 R6 的 per-image 删净重插）
-在 `(tag, catalog_image_id)` 聚簇 PK 下**无反向索引** → 每次 DELETE 全扫 tags 表
-（随 tags 行数增长，N² 型劣化）。research F11 探针只测了 `(tag, id)` 等值查询方向，
-未测投影删除方向——**研究盲点，执行期发现并修复**。
+### A.3 硬门判定（<50ms，Release 主判据）
 
-修复 = `idx_tags_image ON image_tags(catalog_image_id)`（Schema DDL 变更 + 测试冻结断言
-同步；EXISTS 查询方向不受影响仍走 PK）。修复后 Debug/Release 双口径双场景全部过预算，
-与探针 F12（0.81s/10 万行）同量级对齐。结论：投影引擎无 N² 面、无意外 IO。
+- **PASS：96/96 形状 Release 热 p95 最差 12.28ms**（`combo|dateDESC|d0`），门余量 **>4×**。
+- 三轮对账（全矩阵最差形状逐轮）：
 
-## 5. 与 research F6-F16 探针对账
+| 轮次 | Debug 最差 | Release 最差 |
+|---|---|---|
+| R1 | 12.21（dateRange\|dateDESC\|d0） | 11.53（dateRange\|dateDESC\|d0） |
+| R2 | 13.20（combo\|dateDESC\|d800k） | 12.28（combo\|dateDESC\|d0） |
+| R3 | 12.92（combo\|dateDESC\|d0） | 11.87（dateRange\|dateDESC\|d800k） |
 
-| 项 | 探针 | 首跑（Debug/Release） | 偏差 | 归因 |
+- 两个关注形状（同首跑，均远过门）：`combo|dateDESC`（最坏组合 + 默认排序索引领先逐候选
+  过滤，全深度 10.8-13.2ms）；`dateRange|dateDESC`（12h 窗低匹配率，DESC 扫过候选段长，
+  10.8-12.2ms；ASC 同窗 0.15-0.17ms——区间上沿在索引头）。
+- **`+` 前缀形状对照列（F10 防回归）**：cameraEq 全形状 0.13-0.20ms、colorEq|ratingDESC
+  5.51-5.69ms、combo 深度页 0.27-0.48ms——无一形状出现 planner 过滤索引 + TEMP B-TREE
+  回归形态（若回归应为 100-400ms 量级）；EXPLAIN 零 TEMP B-TREE 断言常驻 T3/T4 suite。
+- 冷样本（d0 首查单列，参考非判据）：最差 `colorEq|ratingDESC` 164.2/165.6/166.2ms
+  （Debug/Release 三轮——首页低选择性过滤 + DESC 索引跳候选的纯冷页缓存一次性成本，
+  暖后 5.5ms；与首跑 215.13ms 同源同量级）。
+
+### A.4 COUNT 面 + 投影吞吐（RQ-16-5，三轮区间）
+
+| 项 | Debug（R1） | **Release（R1-R3 区间）** | 预算 | 判定 |
 |---|---|---|---|---|
-| F6 keyset 形状零 TEMP B-TREE | ✓ | ✓（T3/T4 EXPLAIN 断言常驻 + 1M 实测 p95 0.1-0.3ms） | 无 | — |
-| F7 keyset 全形状 <50ms | 0.01-27ms | 0.13-35.4ms（Debug 全绿） | 无超门 | dateRange/combo 低选择形状在 Debug 下贴近门；Release 更低 |
-| F8 OFFSET 判死 | 113-359ms | 不适用（OFFSET 已禁，键集唯一形状） | — | — |
-| F10 `+` 前缀两量级 | cam 201→1.46ms | cameraEq 全形状 0.15-0.33ms ✓ | 无 | `+` 纪律生效 |
-| F11 tags PK seek | tag 分页 20.6ms | tagAncestor 0.19-0.35ms；tag+rating ~1ms | 无 | 等值 EXISTS 形状健康 |
-| F12 投影 10 万行 0.81s | 12.3 万行/s | 修复前 147.9s（Debug=Release 同值）→ 修复后 Debug 2.704s / **Release 1.926s** | 无（修复后与探针同量级） | 归因 ② |
-| F13 cache 64MB | −25% | 入基线（§0） | — | — |
-| F15 NULL 尾段 0.36ms | ✓ | tail 形状常驻（NULLTail suite + 矩阵内自动衔接） | — | — |
-| F16 库体积 450-500MB | — | ~310MB（tags 1.6M 行 vs 估算 3-9M） | 预期内 | fixture 标签分布窄于估算带 |
+| COUNT(*) 全库 | 58.44 | 59.93-61.08 | 现算亚 100ms（角标非分页门） | ✓ |
+| COUNT rating≥4 | 64.61 | 65.66-65.91 | 同上 | ✓ |
+| COUNT cameraEq | 72.22 | 73.22-73.86 | 同上 | ✓ |
+| COUNT combo（memo 命中） | 0.02 | 0.01 | memo 生效 | ✓ |
+| tagSweep（**2.6M 行** GROUP BY） | 63.90 | 64.30-64.40 | 批量形态单次索引扫 | ✓ |
+| 投影 full100k | 2.041s | **1.461 / 1.472 / 1.467s** | ≤30s（余量 **~20×**） | ✓ |
+| 投影 increment10k | 312.3ms | 238.2-241.2ms | 秒级 | ✓ |
+| 纯 diff SELECT | 5.0ms | 5.0-5.2ms | — | ✓ |
 
-## 6. 首跑结论
+（combo 冷现算未单独呈现——harness 计时位为暖后第二次调用即 memo 命中；冷现算量级 =
+首跑 ~219ms 与探针 218.8ms 对齐，走 memo 策略裁决 §RQ-16-6④ 不变。）
 
-- 分页软门（<50ms）：**全形状 PASS**（Debug 口径；最差 35.37ms）。
-- COUNT 面：简单谓词现算亚 100ms（Debug），组合/标签走 memo（命中 0.04ms）；分页门不适用于角标。
-- 投影：修复后双口径双场景全过预算（full100k Debug 2.704s / **Release 1.926s**；增量 292.4ms；纯 diff 5.5ms）——首跑超预算为引擎缺陷（tags 删除方向 N²）已修复（归因 ②），**非**编译口径偏差（Debug/Release 首跑同值已排除口径）。
-- **SC#3 硬裁决保留给 16-4 T1 真机终测**（同 harness 复跑）。
+### A.5 与 16-1 首跑 / research 探针对账（偏差 >2× 归因）
+
+| 项 | 探针（F6-F16） | 首跑（1.6M tags，存档 §B） | **终测（2.6M tags）** | 归因 |
+|---|---|---|---|---|
+| F7 keyset 全形状 | 0.01-27ms | 最差 35.37（Debug） | **最差 12.21-13.20（Debug）/ 11.53-12.28（Release）** | 同量级偏优（首跑机器负载略高 + fixture 同形）；无超门 |
+| F10 `+` 前缀两量级 | cam 201→1.46ms | cameraEq 0.15-0.33 | cameraEq 0.13-0.20 ✓ | `+` 纪律稳定生效，无 F10 回归 |
+| F11 tags PK seek | tag 分页 20.6ms | tagAncestor 0.19-0.35 | tagAncestor 0.18-0.34 ✓ | 同量级（tags 1.6M→2.6M 无感知，等值 O(log n)） |
+| F12 投影吞吐 | 0.81s/10 万行 | Release 1.926s | **Release 1.461-1.472s** | 同量级且更优（修复后基线稳定）；预算余量 ~20× |
+| tagSweep | 0.1-0.2s 量级估 | 40.21 @1.6M | **63.9-64.4 @2.6M** | 随行数线性 1.6×→2.6M 增长符合预期（首跑表预告），量级不变 |
+| F16 库体积 | 450-500MB 估 | ~310MB | ~310-330MB（2.6M tags） | 估算带内 |
+| F6/F15 keyset/尾段形状 | 零 TEMP B-TREE | ✓ | ✓（EXPLAIN 常驻断言 + 1M 实测） | 无回归 |
+
+**超门处置记录：无**（无任一形状超门，无归因修复需求，无 BLOCKER）。
+
+### A.6 SC#3 裁决行（正式）
+
+> **SC#3 = PASS**（Plan 16-4 T1，2026-09-27，真机落盘 `.lcat`，Release 主判据，三轮对账）：
+> §1.5 全矩阵 8 过滤 × 4 排序 × 3 深度 = **96/96 形状热 p95 < 50ms**（Release 最差
+> **12.28ms**，余量 >4×；Debug 最差 13.20ms 同判）；COUNT 面现算亚 100ms + memo 命中
+> 0.01ms + tagSweep 64ms@2.6M；投影 full100k **1.467s**（预算 30s 余量 ~20×）/ 增量 10k
+> **240ms** / 纯 diff 5.0ms；`+` 前缀形状零 TEMP B-TREE 回归。**ROADMAP §Phase 16 SC#3
+> 「1M 行参考库 p95<50ms」达成，v1 SQLite 终裁成立，无 v2 评估项重启事由。**
 
 ---
-*Plan 16-1 T5；harness = Tests/LightamerTests/CatalogBenchmarkHarness.swift（LA_CATALOG_BENCH=1 手动跑）；fixture /tmp 即弃不入仓。*
 
-## 7. Plan 16-3 附注：归类写面吞吐（PERF-07 语义跨域延续）
+## §B. Plan 16-1 T5 首跑存档（2026-09-27 上午；历史参考——fixture 为修正前 1.6M tags 形状）
+
+### B.1 首跑 fixture 说明
+
+首跑 set-based 物化 SQL 候选表只枚举前缀链（漏独立 token Flower/Rose/Night），tags 实为
+1.6M 行；`5cc4d8c` 修正后 projector 真形 = token + 前缀链全集（系数 2.6）。终测（§A）以
+修正后 fixture 复跑落新账；首跑分页/投影结论不受影响（tags 体量仅影响 tagSweep 一项），
+此处存档其数字作对账基线：
+
+- 矩阵最差 `combo|dateDESC|d0` 35.37ms（Debug）；冷最差 `colorEq|ratingDESC` 215.13ms。
+- COUNT：all 64.49 / ratingGE4 67.90 / cameraEq 76.41 / combo memo 0.04 / tagSweep 40.21@1.6M。
+- 投影：full100k Debug 2.704s / Release 1.926s；increment 420.2/292.4ms；diff 5.5ms
+  （修复 `idx_tags_image` 后——修复前 147.9s 为 tags 删除方向 N² 引擎缺陷，归因 ②）。
+
+### B.2 Plan 16-3 附注：归类写面吞吐（PERF-07 语义跨域延续）
 
 | 场景 | 实测 | 预算 | 判定 |
 |---|---|---|---|
 | 10k 批量归类（段2 单事务 INSERT OR IGNORE ×10000） | **0.027s**（Debug 直启 /tmp 落盘） | ≤5s | ✓ 余量 ~185× |
 | 零像素渲染 | API 零图像数据进出 + fixture 目录零会话侧产物探针 + catalog 不镜像 thumb 列 | 万张级操作零像素 | ✓ |
 
-口径：CatalogOrganizationTests.testBulkTenThousandAssignUnderFiveSeconds 常驻断言（<5s 门 + printed 实测秒数）；归类路径仅触碰 catalog（单事务 prepared 循环，claimMetadataApply 形态），无 lindex/sidecar/解码/缩略图管线介入。
+口径：CatalogOrganizationTests.testBulkTenThousandAssignUnderFiveSeconds 常驻断言（<5s 门
++ printed 实测秒数）；归类路径仅触碰 catalog（单事务 prepared 循环，claimMetadataApply
+形态），无 lindex/sidecar/解码/缩略图管线介入。
 
 ---
-*Plan 16-3 T2 附注（2026-09-27 执行轮）；正式基准口径仍以 16-4 T1 harness 复跑为准。*
+*§A = Plan 16-4 T1 终测（harness = Tests/LightamerTests/CatalogBenchmarkHarness.swift，
+`LA_CATALOG_BENCH=1` 手动跑；Debug 轮日志 /tmp/la-bench-dbg-r{1,2,3}.log，Release 轮
+/tmp/la-bench-rel-r{1,2,3}.log）；fixture /tmp 即弃不入仓。*

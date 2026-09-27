@@ -14,6 +14,26 @@ import XCTest
 // 09/12 perf harnesses); every test SKIPS unless the env gate is set.
 // N defaults to 1M rows (override: LA_CATALOG_BENCH_N).
 //
+// Plan 16-4 T1 FINAL-RUN ADDENDUM (the Release column's direct-launch
+// parameters — the Debug column rides test-direct.sh verbatim):
+//   1. caffeinate -dis xcodebuild build-for-testing -configuration Release
+//      (the SAME DerivedData container; a full rebuild after deleting the
+//      Release products directory if the incremental state ever mixes
+//      module generations — a stale LightamerCore.dSYM-era binary fails
+//      dlopen with a mangled-symbol mismatch).
+//   2. codesign --force --deep --sign - <Release>/Lightamer.app
+//      (ad-hoc re-sign: the Team-ID validation blocks DYLD injection).
+//   3. The test-direct.sh direct-launch command with the Release container
+//      and the DYLD search order APP-EMBEDDED FRAMEWORKS FIRST:
+//        DYLD_LIBRARY_PATH="$DD/Lightamer.app/Contents/Frameworks:
+//            $DD/PackageFrameworks:$XCODE_DEV/.../usr/lib"
+//        DYLD_FRAMEWORK_PATH="$DD/Lightamer.app/Contents/Frameworks:
+//            $DD/PackageFrameworks:$XCODE_DEV/SharedFrameworks:..."
+//      ($DD/PackageFrameworks carries the SwiftPM WebP product frameworks
+//      — without it @rpath fails; $DD-root framework copies are stale-
+//      generation traps and must NOT precede the app's own copies).
+//   Main gate = the RELEASE column (Debug reference-only — 16-4-DECISIONS).
+//
 // Fixture (research §RQ-16-13 profile, straight into a real .lcat on the
 // LOCAL disk /tmp — L009: never UNITEK; the database is a throwaway
 // artifact, never committed):
