@@ -234,7 +234,7 @@ final class Perf07MassApplyTests: XCTestCase {
     /// gate fixture is forbidden there). Set LA_PERF07_VOLUME to the volume
     /// root on the machine that records the metric; unset or absent volume
     /// skips (other machines).
-    func testexternal volumeVolumeDrainComparisonRecordOnly() async throws {
+    func testExternalVolumeDrainComparisonRecordOnly() async throws {
         guard let volumeRoot = ProcessInfo.processInfo.environment["LA_PERF07_VOLUME"] else {
             throw XCTSkip("LA_PERF07_VOLUME unset — comparison recorded on the volume-bearing machine only")
         }
