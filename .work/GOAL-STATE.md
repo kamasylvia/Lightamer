@@ -77,7 +77,8 @@
 - **✅ Phase 12 闭环（2026-09-27 凌晨，5/5 plans 执行+验收全过）**：12-1（+30）→ 12-2（+44）→ 12-3（+30）→ 12-4（+26）→ 12-5（+46+1）→ 终轮 **1437/6skip/0fail**（1258 → +179）。12-VALIDATION `validated` + `nyquist_compliant: true`；REQUIREMENTS ×11 Delivered（META-01..06/PRES-01..04/IOP-COLOR-08）；12-5 验收抓修真解析器缺陷（DOMAIN 键序敏感误拒合法 HDR 域 `407efde`）。移交 Phase 13 五条。**翻转闸**：Phase 9/11/12 三期 verify-work/UAT 走查或豁免均待用户一句话（材料齐备：09-UAT.md + 11/12 VALIDATION）。**下一程 = Phase 16 Catalogs Mode discuss/research 环（已派遣起草）**。
 - **🏗️ 重大架构指令（2026-09-27 用户）**- **C 档① 清（2026-09-27 用户「按推荐 plan」）**：Phase 16 research 定稿（`02e885b`，1M 行实测表：keyset+覆盖索引+标签物化全过门/OFFSET 判死/`+` 前缀纪律）；D-16-CONTEXT-1..9 追认生效。→ planner 交付（`fcd7a45` 4 plans/22T）→ checker R1（1B+4M：31/29 列数字契约错位等）→ 修订 `b5b9e7d` → **16-1 执行已派遣**（W1 底座：四表 DDL/投影 parity/键集对账/标签物化/1M harness 首跑）→ 验收 → 16-2∥16-3 → 16-4 硬门终测+收口。
 
-## 下一步动作队列（按序执行，完成一项划掉并更新）
+- **✅ Phase 16 闭环（2026-09-27 凌晨，4/4 plans 执行+验收全过）**：16-1（+45）→ 16-2（+22）→ 16-3（+44）→ 16-4（+5+1）→ 终轮 **1553/9skip/0fail**（1437 → +116；Phase 16 全程含 discuss/research）。16-VALIDATION `validated` + `nyquist_compliant: true`；**SC#3 基准硬门 96/96 形状全过最差 12.28ms（>4× 余量，无调门）**；CATALOG-01..05 Delivered（06 留 v2）；16-5 验收抓修解析器 DOMAIN 键序真缺陷 `407efde`。**时序修正（2026-09-27 用户）**：`category`→`catalogs` 术语勘误 + v1 后端终裁 SQLite + 二次/三次目录整并（.work/gsd/artifacts/ 归位）。→ **下一程 = Phase 13（系统集成分发）discuss/research 开环（已派遣起草）**；Phase 14/15 后段排后。
+- **🏗️ 重大架构指令（2026-09-27 用户）**## 下一步动作队列（按序执行，完成一项划掉并更新）
 
 1. ~~**修复 issue #1**~~ ✅ 关闭（2026-09-18）：drawable 回读证实渲染/blit 全链正常（JPEG drawable 采样含图像内容）；黑屏为多窗口调试堆积的呈现竞争——真实单窗口使用正常（干净复现截图 4.2MB 完整显示）。转 backlog：多窗口呈现管理（Phase 2/9）。
 2. **
