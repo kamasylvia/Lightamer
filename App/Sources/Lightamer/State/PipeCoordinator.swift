@@ -306,6 +306,72 @@ final class PipeCoordinator {
     /// so a display change invalidates exactly the ≥colorout cache keys.
     private var coloroutBox: ModuleBox<ColorOutModule>?
 
+    // ── 13-2 T2: soft proof (COLOR-02) — the display-leg runtime override ──
+
+    /// The coordinator-minted proof box. NOT a registry module: it never
+    /// enters `EditorState.instances` (no history item, no sidecar record,
+    /// no export chain) — it is INJECTED into the rendered chain only while
+    /// proof is ON (the zero-regression red line: proof OFF renders a chain
+    /// byte-identical to the pre-13-2 pipeline).
+    private var softProofBox: ModuleBox<SoftProofStage>?
+
+    /// The live soft-proof state (nil = proof OFF). Coordinator-level
+    /// per-run override — never persisted, never part of history (the
+    /// `SoftProofProfile` doc comment is the contract).
+    private(set) var softProofProfile: SoftProofProfile?
+
+    /// Set/clear the soft proof and re-render the display leg. THUMBNAIL is
+    /// deliberately NOT dirtied (browser thumbnails do not simulate print —
+    /// 13-2-DECISIONS); the PREVIEW re-render rides the proof box's hash
+    /// fold, so upstream cache planes survive the toggle.
+    func setSoftProof(_ profile: SoftProofProfile?) {
+        softProofProfile = profile
+        guard decoded != nil else { return }
+        generation += 1
+        Task { [weak self] in
+            guard let self else { return }
+            await self.renderPreview(
+                bucket: self.currentBucket ?? PreviewBucket.cap, generation: self.generation)
+        }
+    }
+
+    /// Mint-or-reparameterize the proof box for `profile` (idempotent: the
+    /// SAME profile keeps the committed hash — cache-neutral).
+    private func mintSoftProofBox(_ profile: SoftProofProfile) -> ModuleBox<SoftProofStage> {
+        if let box = softProofBox {
+            if box.module.softProofOverride != profile {
+                box.module.softProofOverride = profile
+                box.setParams(SoftProofStage.Params())
+            }
+            return box
+        }
+        let box = ModuleBox(module: SoftProofStage())
+        box.module.softProofOverride = profile
+        box.setParams(SoftProofStage.Params())
+        softProofBox = box
+        return box
+    }
+
+    /// The proof-injected chain: the proof box rides UPSTREAM of colorout
+    /// (iop 69.5 < 70.0 — the v50 sort and the composite driver's
+    /// `splitTerminal` floor both place it in the base chain). Display legs
+    /// only (PREVIEW + FULL); THUMBNAIL never simulates print.
+    private func chainWithSoftProof(
+        _ base: [any ModuleBoxing], resolution: PipeResolution
+    ) -> [any ModuleBoxing] {
+        guard resolution != .thumbnail, let profile = softProofProfile, !base.isEmpty else {
+            return base
+        }
+        let box = mintSoftProofBox(profile)
+        var chain = base
+        if let coloroutIdx = base.firstIndex(where: { $0.opName == ColorOutModule.opName }) {
+            chain.insert(box, at: coloroutIdx)
+        } else {
+            chain.append(box)
+        }
+        return chain
+    }
+
     /// The yiyin logo store (08-3 T3 wiring): the embedded 26-brand PDF
     /// raster cache + user uploads, ONE per coordinator. Its init scans
     /// the user directory once (a handful of files at most).
@@ -1413,11 +1479,14 @@ final class PipeCoordinator {
         // 08-3 T3: the yiyin per-run context rides the run's entry scale
         // (joint layout / EXIF / logo faces — per-run DATA, never params).
         injectYiyinRunContext(longEdge: longEdge, resolution: resolution)
+        // 13-2 T2: the soft-proof box rides the DISPLAY legs only — proof
+        // OFF leaves `instances` untouched (byte-identical chain).
+        let chain = chainWithSoftProof(instances, resolution: resolution)
         if let stack = currentLayerStack, !stack.compositeLayers.isEmpty,
            let registry {
             let (texture, stats) = try await RenderPipeline.processComposite(
                 image: decoded,
-                instances: instances,
+                instances: chain,
                 layerStack: stack,
                 registry: registry,
                 imageID: currentImageID ?? UUID(),
@@ -1436,7 +1505,7 @@ final class PipeCoordinator {
         }
         let (texture, stats) = try await RenderPipeline.process(
             image: decoded,
-            instances: instances,
+            instances: chain,
             imageID: currentImageID ?? UUID(),
             resolution: resolution,
             cache: cache,
