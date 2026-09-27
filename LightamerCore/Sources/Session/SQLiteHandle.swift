@@ -189,6 +189,14 @@ public final class SQLiteHandle {
         return Int(sqlite3_changes(db))
     }
 
+    /// The rowid of the most recent successful INSERT on this connection
+    /// (Plan 16-3: the create faces' id return — the `id INTEGER PRIMARY
+    /// KEY` alias is stable across VACUUM, RQ-16-7②).
+    public func lastInsertRowID() -> Int64 {
+        guard let db else { return 0 }
+        return sqlite3_last_insert_rowid(db)
+    }
+
     // MARK: Exec / prepare
 
     /// Run a zero-result statement (PRAGMA/BEGIN/COMMIT/ROLLBACK/DDL).
