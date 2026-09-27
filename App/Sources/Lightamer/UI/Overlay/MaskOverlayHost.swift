@@ -42,6 +42,12 @@ internal struct MaskOverlayHost: View {
 
     @Environment(EditorState.self) private var editorState
     @Environment(LayerEditingState.self) private var editingState
+    /// 13-3 T3: the zoom/pan/rotation state — the brush inverse-maps the
+    /// cursor through `ViewportFit` (the single math source), so mask
+    /// drawing stays correct while the viewport is zoomed/rotated (the
+    /// 06-06 fit-layout assumption is retired FOR THE MASK ROUTE ONLY;
+    /// crop/liquify/retouch stay locked to fit by the mutex).
+    @Environment(ViewportState.self) private var viewportState
 
     /// What the current drag grabbed (always references a REAL form id in
     /// the layer's mask — press installs the form first).
@@ -69,16 +75,17 @@ internal struct MaskOverlayHost: View {
         if let layer,
            let tool = editingState.activeTool,
            displaySize.width >= 1, displaySize.height >= 1 {
-            let fitted = ViewportFit.fittedRect(
+            let xf = viewportState.transform(
                 viewportSize: viewportSize, textureSize: displaySize)
-            if fitted.width >= 1, fitted.height >= 1 {
+            if xf.rect.width >= 1, xf.rect.height >= 1 {
                 ZStack {
-                    maskCanvas(fitted: fitted)
+                    maskCanvas(transform: xf)
                     Color.clear
                         .contentShape(Rectangle())
-                        .gesture(dragGesture(layer: layer, tool: tool, fitted: fitted))
+                        .gesture(dragGesture(layer: layer, tool: tool, transform: xf))
                         .onTapGesture { location in
-                            handleTap(at: location, layer: layer, tool: tool, fitted: fitted)
+                            handleTap(
+                                at: location, layer: layer, tool: tool, transform: xf)
                         }
                 }
                 .accessibilityIdentifier("mask.overlay")
@@ -88,55 +95,66 @@ internal struct MaskOverlayHost: View {
 
     // MARK: canvas (existing forms + the active-form handles)
 
-    private func maskCanvas(fitted: CGRect) -> some View {
-        Canvas { context, size in
-            func point(_ n: MaskPoint) -> CGPoint {
+    /// The fit-space builders below are identical to the 06-05 shapes;
+    /// 13-3 T3 maps them to the screen ONCE through the transform's
+    /// affine (the path transforms, so line widths stay screen-constant).
+    private func maskCanvas(transform xf: ViewportTransform) -> some View {
+        Canvas { context, _ in
+            func fitPoint(_ n: MaskPoint) -> CGPoint {
                 CGPoint(
-                    x: fitted.minX + CGFloat(n.x) * fitted.width,
-                    y: fitted.minY + CGFloat(n.y) * fitted.height)
+                    x: xf.rect.minX + CGFloat(n.x) * xf.rect.width,
+                    y: xf.rect.minY + CGFloat(n.y) * xf.rect.height)
             }
+            func screen(_ n: MaskPoint) -> CGPoint { xf.point(atUV: n.asUV) }
             guard let layer, let drawn = layer.mask?.drawn else { return }
             for form in drawn.forms {
                 switch form.kind {
                 case let .brush(stroke):
                     var path = Path()
                     for (index, p) in stroke.points.enumerated() {
-                        let pt = point(p.corner)
+                        let pt = fitPoint(p.corner)
                         if index == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
                     }
                     context.stroke(
-                        path,
+                        path.applying(xf.affine),
                         with: .color(stroke.density < 0 ? .cyan : .yellow),
                         lineWidth: 2)
                 case let .gradient(g):
                     var path = Path()
-                    path.move(to: point(g.anchor))
-                    path.addLine(to: point(gradientTip(g)))
-                    context.stroke(path, with: .color(.yellow), lineWidth: 2)
+                    path.move(to: fitPoint(g.anchor))
+                    path.addLine(to: fitPoint(gradientTip(g)))
+                    context.stroke(
+                        path.applying(xf.affine),
+                        with: .color(.yellow), lineWidth: 2)
                     for p in [g.anchor, gradientTip(g)] {
-                        handleDot(at: point(p), &context, filled: true)
+                        handleDot(at: screen(p), &context, filled: true)
                     }
                 case let .ellipse(e):
-                    let center = point(e.center)
-                    let rx = CGFloat(e.radiusX) * fitted.width
-                    let ry = CGFloat(e.radiusY) * fitted.width
+                    // The rotated+zoomed ellipse is the fit-space ellipse
+                    // through the transform affine.
+                    let rx = CGFloat(e.radiusX) * xf.rect.width
+                    let ry = CGFloat(e.radiusY) * xf.rect.width
+                    let rect = CGRect(
+                        x: fitPoint(e.center).x - rx, y: fitPoint(e.center).y - ry,
+                        width: rx * 2, height: ry * 2)
                     context.stroke(
-                        Path(ellipseIn: CGRect(
-                            x: center.x - rx, y: center.y - ry, width: rx * 2, height: ry * 2)),
+                        Path(ellipseIn: rect).applying(xf.affine),
                         with: .color(.yellow), lineWidth: 2)
                     handleDot(
-                        at: point(MaskPoint(x: e.center.x + e.radiusX, y: e.center.y)),
+                        at: screen(MaskPoint(x: e.center.x + e.radiusX, y: e.center.y)),
                         &context, filled: false)
                 case let .path(p):
                     var path = Path()
                     for (index, node) in p.nodes.enumerated() {
-                        let pt = point(node.corner)
+                        let pt = fitPoint(node.corner)
                         if index == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
                     }
                     if p.nodes.count >= 3 { path.closeSubpath() }
-                    context.stroke(path, with: .color(.yellow.opacity(0.9)), lineWidth: 1.5)
+                    context.stroke(
+                        path.applying(xf.affine),
+                        with: .color(.yellow.opacity(0.9)), lineWidth: 1.5)
                     for node in p.nodes {
-                        handleDot(at: point(node.corner), &context, filled: true)
+                        handleDot(at: screen(node.corner), &context, filled: true)
                     }
                 }
             }
@@ -156,19 +174,27 @@ internal struct MaskOverlayHost: View {
     // MARK: gestures
 
     private func dragGesture(
-        layer: AdjustmentLayer, tool: MaskTool, fitted: CGRect
+        layer: AdjustmentLayer, tool: MaskTool, transform xf: ViewportTransform
     ) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                let p = normalized(value.location, fitted)
+                // 13-3 T3: the cursor inverse-maps through the transform
+                // (zoom/rotation-aware); a point outside the image
+                // content paints NOTHING (the 06-05 clamp-to-edge form
+                // is retired with the fit-layout assumption).
+                guard let p = xf.uv(at: value.location).map(\.asMaskPoint) else {
+                    return
+                }
                 pressedPoint = p
                 switch tool {
                 case .brush, .eraser:
                     dragStroke(layer: layer, tool: tool, at: p)
                 case .gradient:
-                    dragGradient(layer: layer, at: p)
+                    dragGradient(
+                        layer: layer, at: p, screen: value.location, transform: xf)
                 case .ellipse:
-                    dragEllipse(layer: layer, at: p)
+                    dragEllipse(
+                        layer: layer, at: p, screen: value.location, transform: xf)
                 case .path:
                     dragPathNode(layer: layer, at: p)
                 }
@@ -181,11 +207,12 @@ internal struct MaskOverlayHost: View {
     /// Path nodes are TAP-added (a tap near an existing node selects it
     /// for the NEXT drag; a tap in the open adds one).
     private func handleTap(
-        at location: CGPoint, layer: AdjustmentLayer, tool: MaskTool, fitted: CGRect
+        at location: CGPoint, layer: AdjustmentLayer, tool: MaskTool,
+        transform xf: ViewportTransform
     ) {
         guard tool == .path else { return }
-        let p = normalized(location, fitted)
-        if let hit = nearestPathNode(layer: layer, at: p, fitted: fitted) {
+        guard let p = xf.uv(at: location).map(\.asMaskPoint) else { return }
+        if let hit = nearestPathNode(layer: layer, screen: location, transform: xf) {
             grab = .pathNode(hit.formID, index: hit.nodeIndex)
             endInteraction() // a pure handle tap changes nothing — free
             return
@@ -223,10 +250,15 @@ internal struct MaskOverlayHost: View {
         }
     }
 
-    private func dragGradient(layer: AdjustmentLayer, at p: MaskPoint) {
+    private func dragGradient(
+        layer: AdjustmentLayer, at p: MaskPoint, screen location: CGPoint,
+        transform xf: ViewportTransform
+    ) {
         if grab == nil {
-            // Hit-test the existing handles BEFORE creating a new form.
-            if let hit = gradientHandle(layer: layer, at: p) {
+            // Hit-test the existing handles BEFORE creating a new form —
+            // 13-3 T3: SCREEN-space 16px (rotation/zoom-proof; the 06-05
+            // normalized-space distance is wrong once the view rotates).
+            if let hit = gradientHandle(layer: layer, screen: location, transform: xf) {
                 grab = hit
                 return
             }
@@ -252,9 +284,12 @@ internal struct MaskOverlayHost: View {
         }
     }
 
-    private func dragEllipse(layer: AdjustmentLayer, at p: MaskPoint) {
+    private func dragEllipse(
+        layer: AdjustmentLayer, at p: MaskPoint, screen location: CGPoint,
+        transform xf: ViewportTransform
+    ) {
         if grab == nil {
-            if let hit = ellipseHandle(layer: layer, at: p) {
+            if let hit = ellipseHandle(layer: layer, screen: location, transform: xf) {
                 grab = hit
                 return
             }
@@ -413,45 +448,55 @@ internal struct MaskOverlayHost: View {
         }
     }
 
-    // MARK: hit-testing
+    // MARK: hit-testing (13-3 T3: SCREEN-space 16px handles)
+
+    /// The handle hit radius in SCREEN points — constant under any
+    /// zoom/rotation (the handle DOTS are screen-constant too).
+    private static let handleRadius: CGFloat = 16
 
     private func gradientHandle(
-        layer: AdjustmentLayer, at p: MaskPoint
+        layer: AdjustmentLayer, screen location: CGPoint, transform xf: ViewportTransform
     ) -> Grab? {
-        let radius: Float = 16 / Float(displaySize.width)
         for form in layer.mask?.drawn?.forms ?? [] {
             if case let .gradient(g) = form.kind {
-                if distance(p, g.anchor) < radius { return .gradientAnchor(form.id) }
-                if distance(p, gradientTip(g)) < radius { return .gradientTip(form.id) }
+                if hypot(location.x - xf.point(atUV: g.anchor.asUV).x,
+                         location.y - xf.point(atUV: g.anchor.asUV).y)
+                    < Self.handleRadius { return .gradientAnchor(form.id) }
+                if hypot(location.x - xf.point(atUV: gradientTip(g).asUV).x,
+                         location.y - xf.point(atUV: gradientTip(g).asUV).y)
+                    < Self.handleRadius { return .gradientTip(form.id) }
             }
         }
         return nil
     }
 
     private func ellipseHandle(
-        layer: AdjustmentLayer, at p: MaskPoint
+        layer: AdjustmentLayer, screen location: CGPoint, transform xf: ViewportTransform
     ) -> Grab? {
-        let radius: Float = 16 / Float(displaySize.width)
         for form in layer.mask?.drawn?.forms ?? [] {
             if case let .ellipse(e) = form.kind {
-                if distance(p, MaskPoint(x: e.center.x + e.radiusX, y: e.center.y)) < radius {
-                    return .ellipseRim(form.id)
-                }
-                if distance(p, e.center) < radius { return .ellipseCenter(form.id) }
+                let rim = MaskPoint(x: e.center.x + e.radiusX, y: e.center.y)
+                if hypot(location.x - xf.point(atUV: rim.asUV).x,
+                         location.y - xf.point(atUV: rim.asUV).y)
+                    < Self.handleRadius { return .ellipseRim(form.id) }
+                if hypot(location.x - xf.point(atUV: e.center.asUV).x,
+                         location.y - xf.point(atUV: e.center.asUV).y)
+                    < Self.handleRadius { return .ellipseCenter(form.id) }
             }
         }
         return nil
     }
 
     private func nearestPathNode(
-        layer: AdjustmentLayer, at p: MaskPoint, fitted: CGRect
+        layer: AdjustmentLayer, screen location: CGPoint, transform xf: ViewportTransform
     ) -> (formID: UUID, nodeIndex: Int)? {
-        let radius = Float(16 / fitted.width)
         for form in layer.mask?.drawn?.forms ?? [] {
             if case let .path(path) = form.kind {
-                for (index, node) in path.nodes.enumerated()
-                where distance(p, node.corner) < radius {
-                    return (form.id, index)
+                for (index, node) in path.nodes.enumerated() {
+                    let p = xf.point(atUV: node.corner.asUV)
+                    if hypot(location.x - p.x, location.y - p.y) < Self.handleRadius {
+                        return (form.id, index)
+                    }
                 }
             }
         }
@@ -474,15 +519,18 @@ internal struct MaskOverlayHost: View {
         g.rotationDegrees = Float(atan2(Double(dy), Double(dx)) * 180 / .pi)
     }
 
-    private func normalized(_ location: CGPoint, _ fitted: CGRect) -> MaskPoint {
-        let nx = (location.x - fitted.minX) / fitted.width
-        let ny = (location.y - fitted.minY) / fitted.height
-        return MaskPoint(
-            x: Float(min(max(nx, 0), 1)), y: Float(min(max(ny, 0), 1)))
-    }
-
     private func distance(_ a: MaskPoint, _ b: MaskPoint) -> Float {
         let dx = a.x - b.x, dy = a.y - b.y
         return (dx * dx + dy * dy).squareRoot()
     }
+}
+
+private extension MaskPoint {
+    /// The transform seam (13-3 T3): the drawn payload's normalized pair
+    /// rides `ViewportFit`'s SIMD2 uv convention.
+    var asUV: SIMD2<Double> { SIMD2(Double(x), Double(y)) }
+}
+
+private extension SIMD2<Double> {
+    var asMaskPoint: MaskPoint { MaskPoint(x: Float(x), y: Float(y)) }
 }

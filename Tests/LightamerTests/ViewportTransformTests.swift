@@ -265,6 +265,16 @@ final class ViewportTransformTests: XCTestCase {
 
     // MARK: - 互斥矩阵 (T3: crop/liquify/retouch 激活锁 fit)
 
+    func testRouteLockMatrix() {
+        // The viewport-exclusive overlays lock; mask editing and the
+        // segment taps stay free (they inverse-map through the transform).
+        XCTAssertTrue(EditorAreaView.routeLocksZoom(.crop))
+        XCTAssertTrue(EditorAreaView.routeLocksZoom(.liquify))
+        XCTAssertTrue(EditorAreaView.routeLocksZoom(.retouch))
+        XCTAssertFalse(EditorAreaView.routeLocksZoom(.maskEditing))
+        XCTAssertFalse(EditorAreaView.routeLocksZoom(.segment))
+    }
+
     func testMutexLockForcesFitAndSwallowsGestures() {
         let state = ViewportState()
         state.magnify(

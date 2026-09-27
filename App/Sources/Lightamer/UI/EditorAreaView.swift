@@ -44,6 +44,10 @@ internal struct EditorAreaView: View {
     /// arbitration归口 (mask tools / liquify / crop, exactly one owner).
     @Environment(LayerEditingState.self) private var editingState
 
+    /// 13-3 T1/T3: the zoom/pan/rotation state — the eyedropper samples
+    /// through its inverse map and the overlay mutex rides its lock.
+    @Environment(ViewportState.self) private var viewportState
+
     /// 09-04 T7 (HIST-06): the before/after presentation state (split /
     /// peek / hold) + the fetched compare plane (a resident cache line —
     /// fetched ONCE per activation, never re-rendered by the hold edge).
@@ -251,15 +255,34 @@ internal struct EditorAreaView: View {
                         .onEnded { value in
                             guard inspectorState.isEyedropperActive else { return }
                             let point = value.location
+                            // 13-3 T3: the click inverse-maps through the
+                            // zoom/pan/rotation state (the same ViewportFit
+                            // math; nil transform = the untouched fit path).
+                            let xf = viewportState.transform(
+                                viewportSize: geo.size,
+                                textureSize: displayPixelSize)
                             Task {
                                 if let picked = await pipeCoordinator.pickColor(
-                                    at: point, viewportSize: geo.size
+                                    at: point, viewportSize: geo.size,
+                                    transform: xf
                                 ) {
                                     inspectorState.completeEyedropper(with: picked)
                                 }
                             }
                         }
                 )
+                // 13-3 T3 (D-13-CONTEXT-6③): the overlay MUTEX — when a
+                // viewport-exclusive overlay owns the route (crop /
+                // liquify / retouch), the zoom state LOCKS to the fit
+                // identity (entering the lock snaps back; gestures are
+                // swallowed while set). The mask/segment routes stay free
+                // — they inverse-map through the transform.
+                .onChange(of: viewportRoute) { _, route in
+                    viewportState.setZoomLocked(Self.routeLocksZoom(route))
+                }
+                .onAppear {
+                    viewportState.setZoomLocked(Self.routeLocksZoom(viewportRoute))
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -288,6 +311,17 @@ internal struct EditorAreaView: View {
         editingState.viewportRoute(
             liquifyPanelSelected: liquifyActive,
             retouchPanelSelected: retouchLayer != nil)
+    }
+
+    /// 13-3 T3: the routes whose overlay geometry assumes the FIT layout
+    /// lock the zoom state (D-13-CONTEXT-6③, v1 从简 — crop-while-zoomed
+    /// is the recorded v2順位). Mask editing and the segment taps are NOT
+    /// here: they inverse-map through `ViewportFit`.
+    static func routeLocksZoom(_ route: LayerEditingState.ViewportRoute) -> Bool {
+        switch route {
+        case .crop, .liquify, .retouch: return true
+        case .maskEditing, .segment: return false
+        }
     }
 
     /// The selected RETOUCH layer (nil = the retouch route stays off).
