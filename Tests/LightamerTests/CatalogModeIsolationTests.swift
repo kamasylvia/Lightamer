@@ -215,6 +215,89 @@ final class CatalogModeIsolationTests: XCTestCase {
             "the RQ-16-12 five-section order is frozen")
     }
 
+    // MARK: - T7: the sessions-mode full flow stays zero-handle
+
+    /// The T7 isolation red line: with the switch OFF (written through the
+    /// UI-facing model), the FULL open flow (real scanner + sync) runs and
+    /// the catalog file NEVER appears; switching on and reopening projects.
+    /// (The 16-1 probe re-driven through the preferences model.)
+    func testSessionsModeFullFlowCreatesNoCatalogFile() async throws {
+        try makeLindex()
+        try Data("x".utf8).write(to: sessionRoot.appendingPathComponent("a.arw"))
+        let catalogURL = tempDirectory.appendingPathComponent("catalog.lcat")
+
+        let model = CatalogPreferencesModel(defaultsSuiteName: defaultsSuiteName)
+        model.setCatalogsEnabled(false)
+
+        let controller = SessionIndexController()
+        let suiteName = defaultsSuiteName!
+        controller.catalogProjectorProvider = {
+            CatalogProjector(databaseURL: catalogURL, defaultsSuiteName: suiteName)
+        }
+        let first = await controller.openAndSync(root: sessionRoot)
+        XCTAssertFalse(first.failed, "the SESSIONS flow succeeds untouched")
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: catalogURL.path),
+            "disabled: zero .lcat handles across the full session flow")
+
+        // Enabled: the same flow now registers the session.
+        model.setCatalogsEnabled(true)
+        let second = await controller.openAndSync(root: sessionRoot)
+        XCTAssertFalse(second.failed)
+        var attempts = 0
+        while !FileManager.default.fileExists(atPath: catalogURL.path), attempts < 200 {
+            try await Task.sleep(nanoseconds: 50_000_000)
+            attempts += 1
+        }
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: catalogURL.path),
+            "enabled: the detached hook projects")
+    }
+
+    // MARK: - T7: L025 — every 16-2 catalog key carries en AND zh
+
+    func testCatalogKeysL025EnZhComplete() throws {
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // LightamerTests
+            .deletingLastPathComponent() // Tests
+            .deletingLastPathComponent() // repo root
+            .appendingPathComponent("Resources/Localizable.xcstrings")
+        let data = try Data(contentsOf: catalogURL)
+        let catalog = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
+
+        // The 16-2 key families (settings + organization + sessions +
+        // batch + quick-filter hint).
+        let prefixes = ["settings_catalogs_", "organization_mode_", "catalog_"]
+        let catalogKeys = strings.keys.filter { key in
+            prefixes.contains { key.hasPrefix($0) }
+        }
+        XCTAssertGreaterThanOrEqual(
+            catalogKeys.count, 28, "the 16-2 key families landed")
+
+        // EVERY 16-2 key carries BOTH faces, translated and non-empty.
+        // (The whole-file invariant does NOT hold for legacy keys — en is
+        // implicit in the key for the source language; the L025 smoke
+        // scopes to the new families, the yiyin test's shape.)
+        for key in catalogKeys {
+            let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
+            let localizations = try XCTUnwrap(
+                entry["localizations"] as? [String: Any], key)
+            for language in ["en", "zh"] {
+                let face = try XCTUnwrap(
+                    localizations[language] as? [String: Any],
+                    "\(key) missing \(language)")
+                let unit = try XCTUnwrap(
+                    face["stringUnit"] as? [String: Any],
+                    "\(key) \(language) missing stringUnit")
+                XCTAssertEqual(unit["state"] as? String, "translated", key)
+                XCTAssertFalse(
+                    (unit["value"] as? String ?? "").isEmpty,
+                    "\(key) empty \(language)")
+            }
+        }
+    }
+
     // MARK: - T2: the session-anchor scope (the Sessions 从属节's click face)
 
     /// The sidebar's session click = the `scopeClause(sessionID:)` anchor:
