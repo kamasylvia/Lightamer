@@ -11,12 +11,13 @@ files_modified:
   - LightamerCore/Sources/Stack/FocusStackMerge.swift           # 新建：quality map 5×5 box 软化 + 5 级拉普拉斯金字塔 quality-weighted 融合（层数参数化）+ 行带流式（map 只留行带）+ NCC<0.9 放大率漂移警告
   - LightamerCore/Sources/Stack/StackAggregate.swift            # 新建：average（默认）/median/sigma-clipped 行带聚合（行带内 N 值栈 N=8·256 行 RGB ≈286MB → 带内排序/σ 剔除单遍完成；136.6ns/px 参考）
   - LightamerCore/Sources/Stack/StackMergeService.swift         # 扩：kind 分派 focus-stack/stack-average/stack-median/stack-sigma 末段接入 + focus/stack EXIF 预检变体 + tag 派生（_fstack/_stack + _avg/_med/_sig）+ 等价产物 provenance hash 复用提示
-  - App/Sources/Lightamer/Session/SessionBrowserView.swift      # menu 扩展：「焦点堆栈…」/「堆栈降噪…」（模式 Picker：average/median/sigma）复用 08-1 dialog/进度面
+  - App/Sources/Lightamer/UI/SessionBrowserView.swift      # menu 扩展：「焦点堆栈…」/「堆栈降噪…」（模式 Picker：average/median/sigma）复用 08-1 dialog/进度面
   - Tests/LightamerTests/FocusStackTests.swift                  # 新建：SML 分离度（59× fixture）/清晰区归属 MAE≈0.004/NCC 警告/fence 读回
   - Tests/LightamerTests/StackAggregateTests.swift              # 新建：三模式数学 golden/sigma-clip 星野 fixture 离群拒绝/N=8 行带内存常量/tag 防撞
   - .work/gsd/phases/08-hdr-stacking-effects/perf.md            # focus/sigma 全程秒表 + 对账（research §12：sigma N=8 ≈ 解码主导 + 聚合 4s）
   - .work/gsd/phases/08-hdr-stacking-effects/08-3-SUMMARY.md
   - .work/gsd/phases/08-hdr-stacking-effects/08-3-DECISIONS.md
+  - Resources/Localizable.xcstrings  # L025 zh/en 同批
   - TODO.md                                                     # 08-3 勾选
   - LESSONS.md                                                  # 如踩坑
 ---
@@ -51,7 +52,7 @@ files_modified:
    本 plan 无 mask 需求，仅 API 风格对位）
 6. `LightamerCore/Sources/Metal/MetalContext.swift:524`——`makeRoutedCommandBuffer()` 唯一路由点
    （SML kernel 提交 + 读回走 L014 fence drain()——07 AI `AIMaskInput` 先例）
-7. `App/Sources/Lightamer/Session/SessionBrowserView.swift`——08-1 T5 落的 menu/dialog/进度面（本
+7. `App/Sources/Lightamer/UI/SessionBrowserView.swift`——08-1 T5 落的 menu/dialog/进度面（本
    plan 扩两个 mode 入口）
 8. `LESSONS.md` L009（fixture 禁 UNITEK）/ L013（decimal String）/ L014（fence 读回）/ L020（内容级
    断言）/ L031（唯一路由点）+ `AGENTS.md`（Phase 执行模型 + 暂停机制）
@@ -64,7 +65,7 @@ files_modified:
 - **每任务边界检查 `.work/config.toml [gsd]` 开关（`auto`/`paused`）**——commit 后、下一任务前。
 - **不 push**；**构建勿加 `-derivedDataPath`**；**每新建源/测试文件后跑 `tuist generate`**（11-03
   教训；本 plan 文件落 08-1 已建 `LightamerCore/Sources/Stack/` 目录内，新文件仍须 generate）。
-- **回归基线 = 1553/9skip/0fail（13-3 后基线）+ 08-1 新增**（以 08-1-SUMMARY 终值为准）；每任务
+- **回归基线 = 1636/10skip/0fail（13-3 后基线）+ 08-1 新增**（以 08-1-SUMMARY 终值为准）；每任务
   全套 suite 绿；本 plan 收尾轮 = 上基线 + 新增，0 fail。**在案 flake 归因条款**：
   `LayerE2ERoundTripTests` / `ToneEqualPerf` 负载型 flake 若现，隔离 ×3 归因单列入 SUMMARY，不计违约。
 - **L031 路由红线（本 plan Metal 面适用）**：SML/金字塔/软化一切 GPU 提交走
@@ -164,7 +165,8 @@ files_modified:
 ### T6 全量回归 + SUMMARY + DECISIONS
 
 - **action**：全 suite 终轮（基线 = 08-1 收尾轮 + 本 plan 新增，0 fail；flake 条款见纪律节）；
-  TODO.md 08-3 勾选；`08-3-SUMMARY.md`（任务表/commit 表/证据/08-1 交接面消费清单——有无 additive
+  Resources/Localizable.xcstrings  # L025 zh/en 同批
+  - TODO.md 08-3 勾选；`08-3-SUMMARY.md`（任务表/commit 表/证据/08-1 交接面消费清单——有无 additive
   扩展如实声明）；`08-3-DECISIONS.md`（σ 估计式、NCC 窗大小、tag 拼法、预检判据差异表、金字塔
   层数默认复核、v2 光流/homography 插拔位注记、其余执行期决策）；新教训候选评估入 LESSONS。
 - **证据**：测试计数（08-1 终值 → N，0 fail）；SUMMARY + DECISIONS 落盘。

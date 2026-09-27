@@ -3,7 +3,7 @@ phase: 8
 plan: "08-5"
 title: "dehaze + text overlay + Phase 收口签核（W3）：dehaze 14.0（四 kernel 直译 + A0/distance_max preview 算 full/export 复用 + guided filter 取 box 两遍近似裁决 + 合成雾反演 golden）+ text overlay 66.7（新非 dt 行只增不改 + CoreText→MTLTexture + YiyinFontStore 复用 + 层蒙版资格 <70.0；yiyin watermark 77.0 零改动）+ LUT HDR 域精度判定（12-5 移交消费，1e-3 断言写死）+ HDR-04 验证矩阵收口 + 全 Phase 验证 + VALIDATION 签核（C 档第 3 停）"
 wave: 3
-depends_on: ["08-3", "08-4"]
+depends_on: ["08-2", "08-3", "08-4"]
 autonomous: true
 requirements: [IOP-FX-04, IOP-FX-05, IOP-HDR-04]
 files_modified:
@@ -81,7 +81,7 @@ files_modified:
 - **每任务边界检查 `.work/config.toml [gsd]` 开关（`auto`/`paused`）**——commit 后、下一任务前。
 - **不 push**；**构建勿加 `-derivedDataPath`**；**每新建源/测试/面板文件后跑 `tuist generate`**（11-03
   教训）。
-- **回归基线 = 1553/9skip/0fail（13-3 后基线）+ 08-1/08-2/08-3/08-4 新增**（以各 SUMMARY 终值为
+- **回归基线 = 1636/10skip/0fail（13-3 后基线）+ 08-1/08-2/08-3/08-4 新增**（以各 SUMMARY 终值为
   准）；每任务全套 suite 绿；**全 Phase 终轮 = 1553 + 全 Phase 新增，0 fail**。**在案 flake 归因
   条款**：`LayerE2ERoundTripTests` / `ToneEqualPerf` 负载型 flake 若现，隔离 ×3 归因单列入 SUMMARY，
   不计违约。
@@ -171,7 +171,7 @@ files_modified:
 
 ### T4 全 Phase 终轮回归 + perf 汇总 + SUMMARY + DECISIONS
 
-- **action**：**全 Phase 终轮**（基线 **1553/9skip/0fail** + 08-1..08-4 全部新增 + 本 plan 新增，
+- **action**：**全 Phase 终轮**（基线 **1636/10skip/0fail** + 08-1..08-4 全部新增 + 本 plan 新增，
   0 fail；flake 条款见纪律节）；`perf.md` 全 Phase 汇总节（各 plan 秒表/参考数 vs research §0 表
   对账 + preview 预算结论 + 手感类 Manual-Only 汇总指针）；TODO.md 08-5 勾选 + Phase 8 收口检查；
   `08-5-SUMMARY.md`（任务表/commit 表/证据/全 Phase 战果汇总）；`08-5-DECISIONS.md`（LUT 判定

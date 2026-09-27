@@ -60,7 +60,7 @@ files_modified:
 - **每任务边界检查 `.work/config.toml [gsd]` 开关（`auto`/`paused`）**——commit 后、下一任务前。
 - **不 push**；**构建勿加 `-derivedDataPath`**；**每新建源/测试文件后跑 `tuist generate`**（11-03
   教训）。
-- **回归基线 = 1553/9skip/0fail**（13-3 后基线）；每任务全套 suite 绿；本 plan 收尾轮 = 1553 + 新增，
+- **回归基线 = 1636/10skip/0fail**（13-3 后基线）；每任务全套 suite 绿；本 plan 收尾轮 = 1553 + 新增，
   0 fail。**在案 flake 归因条款**：`LayerE2ERoundTripTests` / `ToneEqualPerf` 负载型 flake 若现，隔离
   ×3 归因单列入 SUMMARY，不计违约。
 - **SDR 不变 = 硬闸（执行期不得放宽）**：① EDR toggle **off** = 零代码路径差（16F PSO/旁路仅在
@@ -133,7 +133,7 @@ files_modified:
 
 ### T5 全量回归 + Manual-Only 登记 + SUMMARY + DECISIONS
 
-- **action**：全 suite 终轮（基线 **1553/9skip/0fail** + 新增，0 fail；flake 条款见纪律节）；
+- **action**：全 suite 终轮（基线 **1636/10skip/0fail** + 新增，0 fail；flake 条款见纪律节）；
   **Manual-Only 登记三行**（入 SUMMARY + 08-5 签核表汇总位）：①XDR 屏真机目检（高亮恢复细节 +
   >1.0 亮度差）②外接 HDR 屏双实测 ③headroom>1.0 屏上「not a different color space」观感确认；
   TODO.md 08-4 勾选；`08-4-SUMMARY.md`（任务表/commit 表/证据/Manual-Only 行）；`08-4-DECISIONS.md`

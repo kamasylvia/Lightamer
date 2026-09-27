@@ -15,7 +15,7 @@ files_modified:
   - LightamerCore/Sources/Stack/GhostMaskWriter.swift          # 新建：残差位图 3×3 膨胀 2 轮 → 16-bit PNG 落 <base>_hdr.tif.lra.masks/<maskID>.png（RasterMaskRef 形态 + StableHash over PNG 字节）
   - LightamerCore/Sources/Sidecar/LightamerSidecar.swift       # schemaVersionCurrent 3→4 additive：optional provenance 字段（kind/algorithm/sources/alignment/exposureRatioVerified/holeFraction/createdAt/appVersion；UInt64String 纪律）
   - LightamerCore/Sources/Stack/ProvenanceReplay.swift         # 新建：载入产物 sources[].stableHash 重算比对 → 标脏 + 重合并入口（provenance 重放）
-  - App/Sources/Lightamer/Session/SessionBrowserView.swift     # 多选 context menu「HDR 合并…」→ 参数确认（deGhost toggle）→ StackMergeService 入队 + 进度 toast + 完成产物入 grid（最小编排入口）
+  - App/Sources/Lightamer/UI/SessionBrowserView.swift     # 多选 context menu「HDR 合并…」→ 参数确认（deGhost toggle）→ StackMergeService 入队 + 进度 toast + 完成产物入 grid（最小编排入口）
   - Tests/LightamerTests/StackMergeServiceTests.swift          # 新建：服务骨架/cancel/progress/失败分型/互斥只读
   - Tests/LightamerTests/MTBAlignTests.swift                   # 新建：合成 bracket 位移精确命中/收缩窗越界/失败降级/EXIF 预检矩阵
   - Tests/LightamerTests/HDRMergeMathTests.swift               # 新建：§1.4 golden——L̂ <1% / HOLE wsum==0 / ghost k=3 拒绝 <0.02 / 权重双门边界
@@ -24,6 +24,7 @@ files_modified:
   - .work/gsd/phases/08-hdr-stacking-effects/perf.md           # 新建：CIRAW 100MP 解码首测 + 全程秒表（<60s 参考基准）+ 各段 vs research §0 表对账
   - .work/gsd/phases/08-hdr-stacking-effects/08-1-SUMMARY.md
   - .work/gsd/phases/08-hdr-stacking-effects/08-1-DECISIONS.md
+  - Resources/Localizable.xcstrings  # L025 zh/en 同批
   - TODO.md                                                    # Phase 8（HDR/Stacking & Effects）节开账 + 08-1 勾选
   - LESSONS.md                                                 # 如踩坑
 ---
@@ -80,7 +81,7 @@ files_modified:
 - **不 push**（本 Phase 全部 plan 同此）；**构建勿加 `-derivedDataPath`**（SPM submodule 坑）；
   **T1 新建 `LightamerCore/Sources/Stack/` 目录后、此后每新建源/测试文件后跑 `tuist generate`**（11-03
   教训）。
-- **回归基线 = 1553/9skip/0fail**（13-3 后基线）；每任务全套 suite 绿；本 plan 收尾轮 = 1553 + 新增，
+- **回归基线 = 1636/10skip/0fail**（13-3 后基线）；每任务全套 suite 绿；本 plan 收尾轮 = 1553 + 新增，
   0 fail。**在案 flake 归因条款**：`LayerE2ERoundTripTests` / `ToneEqualPerf` 两个负载型 flake 若现，
   隔离 ×3 归因单列入 SUMMARY，不计违约。
 - **L031 路由红线（本 plan Metal 面适用）**：一切模块内 GPU 提交（合并 kernel/读回 fence/identity
@@ -238,8 +239,9 @@ files_modified:
 
 ### T8 全量回归 + SUMMARY + DECISIONS
 
-- **action**：全 suite 终轮（基线 **1553/9skip/0fail** + 本 plan 新增，0 fail；flake 归因条款见纪律
-  节）；TODO.md 开 Phase 8（HDR/Stacking & Effects）节 + 08-1 勾选；`08-1-SUMMARY.md`（任务表/
+- **action**：全 suite 终轮（基线 **1636/10skip/0fail** + 本 plan 新增，0 fail；flake 归因条款见纪律
+  节）；Resources/Localizable.xcstrings  # L025 zh/en 同批
+  - TODO.md 开 Phase 8（HDR/Stacking & Effects）节 + 08-1 勾选；`08-1-SUMMARY.md`（任务表/
   commit 表/证据/perf.md 指针/灰卡两点 Manual-Only 登记位）；`08-1-DECISIONS.md`（σ̂ 拍噪声模型
   系数、dialog 字段集、toast 形态、Stacks/ 变体不采纳依据复核、行带参数微调、其余执行期决策）；
   新教训候选评估入 LESSONS。

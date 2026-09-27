@@ -75,7 +75,7 @@ files_modified:
 - **每任务边界检查 `.work/config.toml [gsd]` 开关（`auto`/`paused`）**——commit 后、下一任务前。
 - **不 push**；**构建勿加 `-derivedDataPath`**；**每新建源/测试/面板文件后跑 `tuist generate`**（11-03
   教训；T1 前先 generate 一次再构建）。
-- **回归基线 = 1553/9skip/0fail**（13-3 后基线）；每任务全套 suite 绿；本 plan 收尾轮 = 1553 + 新增，
+- **回归基线 = 1636/10skip/0fail**（13-3 后基线）；每任务全套 suite 绿；本 plan 收尾轮 = 1553 + 新增，
   0 fail。**在案 flake 归因条款**：`LayerE2ERoundTripTests` / `ToneEqualPerf` 负载型 flake 若现，隔离
   ×3 归因单列入 SUMMARY，不计违约。
 - **L031 路由红线（本 plan Metal 面适用）**：三模块一切 GPU 提交（主 kernel、bloom 级联多 pass、
@@ -172,7 +172,7 @@ files_modified:
 
 ### T5 全量回归 + SUMMARY + DECISIONS
 
-- **action**：全 suite 终轮（基线 **1553/9skip/0fail** + 新增，0 fail；flake 条款见纪律节）；
+- **action**：全 suite 终轮（基线 **1636/10skip/0fail** + 新增，0 fail；flake 条款见纪律节）；
   TODO.md 08-2 勾选；`08-2-SUMMARY.md`（任务表/commit 表/证据/perf 指针/**Manual-Only：bloom 默认
   手感观感轮预定项**登记）；`08-2-DECISIONS.md`（L010 identifier 全表、paper_resp 烘焙形态、autoratio
   行为、面板分组、其余执行期决策）；新教训候选评估入 LESSONS。
