@@ -238,7 +238,11 @@ internal struct SidebarView: View {
             }
             Button(String(localized: "alert_ok"), role: .cancel) {}
         } message: { album in
-            Text("smart_album_delete_confirm_body \(album.name)")
+            // String(format:) — a LocalizedStringKey interpolation would
+            // look up "smart_album_delete_confirm_body %@" which is NOT the
+            // catalog key (13-4 walkthrough finding: the raw key leaked
+            // into the alert body).
+            Text(String(format: String(localized: "smart_album_delete_confirm_body"), album.name))
         }
         // The rename / create sheets (one alert face each — a single text
         // field; the '|' separator is banned like every tag entry).
