@@ -28,7 +28,9 @@ files_modified:
 # Plan 13-4 — 分发收口（W3，收口 + 签核）
 
 > 背景：从 dev 自签证书到 Developer ID 的整机切换 + 项目首次公开（D-13-CONTEXT-8）。`Project.swift:27-35` 注释钉死本次切换；当前 remote = Azure DevOps 私有仓（无 LICENSE、无 `.github/`），GitHub 公开仓 = 新 remote，**敏感审计是前置闸**。
-> 四条主线：① **敏感审计闸**——git 全历史凭证/token/内部域名/绝对路径扫描报告落档，命中处置后才许任何公开仓操作；「全历史 vs squash 起点」二选一 = **用户裁决位**（晨审特别提请——plan 期不得自选，默认全历史但须显式问询并记录）。② **签名公证链**——Developer ID 切换 + 逐嵌套 binary 深签 + notarytool（warnings=errors）+ staple + quarantine 实测。**凭据 = 人工阻塞项**：Developer ID 证书与私钥 / AC API key / GitHub 仓创建与公开时机 / Secrets 配置——T2 开工前检查点，缺位即 GOAL-STATE 阻塞节登记并停（不得 ad-hoc 蒙混）。③ **载体与 CI**——DMG（hdiutil UDZO）+ zip 双产物 + GitHub Actions（PR/push 无签名构建测试，tag 完整发布链）。④ **收口走查与签核**——Manual-Only 13 行承接（F-12-5-2 已由 13-2 关闭）+ GUI-20 复验（TODO :27，dev-signed 层 B 资产供给 → Developer ID 复验；checker M3 锚点校正）+ 本 Phase 新面走查（QL 空格/Spotlight 检索/手势/proof 面板/蒙版命令/双屏）+ VALIDATION 签核（**签核前停 = C 档第 3 停**）。内部序刚性：T1 审计闸 → T2 签名 → T3 公证 → T4 载体 → T5 仓/CI → T6 走查 → T7 签核。
+> **用户 2026-09-27 裁决：砍苹果分发渠道**——Developer ID 签名/公证/notarytool/AC API key **整段移除**（不做 Apple notarization）；SC#4 修订 = GitHub 公开仓 + CI(build+test 无签名) + 可选 unsigned DMG/zip；T2/T3 缩减为：T2 = 敏感审计后仓创建+首推 / T3 = DMG/zip unsigned + CI。原签名公证面记 v2（如未来需要 Apple 渠道再启）。
+
+四条主线：① **敏感审计闸**——git 全历史凭证/token/内部域名/绝对路径扫描报告落档，命中处置后才许任何公开仓操作；「全历史 vs squash 起点」二选一 = **用户裁决位**（晨审特别提请——plan 期不得自选，默认全历史但须显式问询并记录）。② **签名公证链**——Developer ID 切换 + 逐嵌套 binary 深签 + notarytool（warnings=errors）+ staple + quarantine 实测。**凭据 = 人工阻塞项**：Developer ID 证书与私钥 / AC API key / GitHub 仓创建与公开时机 / Secrets 配置——T2 开工前检查点，缺位即 GOAL-STATE 阻塞节登记并停（不得 ad-hoc 蒙混）。③ **载体与 CI**——DMG（hdiutil UDZO）+ zip 双产物 + GitHub Actions（PR/push 无签名构建测试，tag 完整发布链）。④ **收口走查与签核**——Manual-Only 13 行承接（F-12-5-2 已由 13-2 关闭）+ GUI-20 复验（TODO :27，dev-signed 层 B 资产供给 → Developer ID 复验；checker M3 锚点校正）+ 本 Phase 新面走查（QL 空格/Spotlight 检索/手势/proof 面板/蒙版命令/双屏）+ VALIDATION 签核（**签核前停 = C 档第 3 停**）。内部序刚性：T1 审计闸 → T2 签名 → T3 公证 → T4 载体 → T5 仓/CI → T6 走查 → T7 签核。
 
 ## read_first
 
