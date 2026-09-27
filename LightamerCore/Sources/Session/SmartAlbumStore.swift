@@ -57,6 +57,8 @@ public enum SmartAlbumError: Error, Equatable {
     case emptyName
     /// No album with this id.
     case notFound(id: String)
+    /// Plan 16-2 T4: the requested evaluation domain has no connection.
+    case missingStore
 }
 
 /// `@Observable` (the App-side sidebar observes the registry through the
@@ -229,5 +231,92 @@ public final class SmartAlbumStore: @unchecked Sendable {
         let target = directory.appendingPathComponent(album.id + ".json")
         try? FileManager.default.removeItem(at: target)
         try FileManager.default.moveItem(at: tmp, to: target)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The evaluation domain (Plan 16-2 T4; D-16-CONTEXT-6) — the RULE ASSET is
+// domain-free (SmartAlbumDocument / the rule files / the rescan self-heal
+// above are UNTOUCHED); the evaluation is a runtime fact over whatever
+// connection the current MODE holds:
+//
+//   .session — the 12-2 lindex face VERBATIM (SessionIndexStore.query with
+//              the album's group; the regression lock: the 16-2 entry adds
+//              nothing to the session shape).
+//   .catalog — the CatalogIndexStore FULL-LIBRARY walk: keyset pages over
+//              the filename ordering index (filename is never NULL — one
+//              segment covers the set), the translation inside the store
+//              rides FilterDomain.catalog so keywords rules hit the
+//              materialized image_tags (EXISTS equality, F11). OFFLINE
+//              sessions are NOT filtered (execution decision: row-set
+//              integrity first; the offline gray-out is a grid-layer
+//              concern — 16-2-DECISIONS).
+//
+// The `scope` field stays an additive slot (D-16-CONTEXT-6③) — v1 has no
+// per-rule domain pinning; 域随模式 is the whole semantics.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One cross-session identity (the catalog row's composite key).
+public struct CatalogImageIdentity: Sendable, Equatable {
+    public var sessionID: String
+    public var relPath: String
+
+    public init(sessionID: String, relPath: String) {
+        self.sessionID = sessionID
+        self.relPath = relPath
+    }
+}
+
+/// The domain-parameterized evaluation result (the row faces differ —
+/// rel paths on the session side, composite identities on the catalog
+/// side — so the result is one enum, never a lossy merge).
+public enum SmartAlbumEvaluation: Sendable, Equatable {
+    case session(paths: [String])
+    case catalog(identities: [CatalogImageIdentity])
+}
+
+extension SmartAlbumStore {
+
+    /// The 16-2 evaluation entry (domain: FilterDomain). Throws the typed
+    /// registry error for a missing album and `missingStore` when the
+    /// caller has no connection for the requested domain.
+    public func evaluate(
+        id: String,
+        domain: FilterDomain,
+        sessionStore: SessionIndexStore?,
+        catalogStore: CatalogIndexStore?
+    ) async throws -> SmartAlbumEvaluation {
+        guard let album = album(id: id) else {
+            throw SmartAlbumError.notFound(id: id)
+        }
+        switch domain {
+        case .session:
+            guard let sessionStore else { throw SmartAlbumError.missingStore }
+            // The 12-2 face VERBATIM — the same query the session grid
+            // runs for an activated album (regression lock by identity).
+            let rows = try await sessionStore.query(
+                groups: [album.group], sort: nil)
+            return .session(paths: rows.map(\.path))
+        case .catalog:
+            guard let catalogStore else { throw SmartAlbumError.missingStore }
+            var identities: [CatalogImageIdentity] = []
+            var anchor: CatalogPageAnchor?
+            let sort = FilterSort(key: .filename, ascending: true)
+            let pageSize = CatalogIndexStore.defaultPageSize
+            while true {
+                let page = try await catalogStore.queryPage(
+                    groups: [album.group], sort: sort,
+                    anchor: anchor, limit: pageSize)
+                identities.append(contentsOf: page.map { row in
+                    CatalogImageIdentity(
+                        sessionID: row.sessionID, relPath: row.relPath)
+                })
+                if page.count < pageSize { break }
+                guard let last = page.last else { break }
+                anchor = CatalogPageAnchor(
+                    keyValue: .text(last.filename), relPath: last.relPath)
+            }
+            return .catalog(identities: identities)
+        }
     }
 }
