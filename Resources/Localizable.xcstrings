@@ -4103,6 +4103,23 @@
         }
       }
     },
+    "history_dehaze": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haze removal"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "除雾"
+          }
+        }
+      }
+    },
     "history_denoiseprofile": {
       "extractionState": "manual",
       "localizations": {
@@ -9856,6 +9873,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "混合"
+          }
+        }
+      }
+    },
+    "panel_dehaze_adaptive": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adaptive windows"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自适应窗口"
+          }
+        }
+      }
+    },
+    "panel_dehaze_distance": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "距离"
+          }
+        }
+      }
+    },
+    "panel_dehaze_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haze removal"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "除雾"
+          }
+        }
+      }
+    },
+    "panel_dehaze_strength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强度"
           }
         }
       }

@@ -122,6 +122,9 @@ final class InspectorState {
         register(GrainPanelProvider())
         // Plan 08-2 T3: bloom (the dt-verbatim size/threshold/strength panel).
         register(BloomPanelProvider())
+        // Plan 08-5 T1: hazeremoval (the dt-verbatim strength/distance/
+        // adaptive panel — the dark-channel-prior dehaze).
+        register(DehazePanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

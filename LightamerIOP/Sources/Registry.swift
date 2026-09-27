@@ -273,6 +273,15 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: BloomModule.opName) { id in
             ModuleBox(module: BloomModule(), instanceID: id)
         }
+        // Plan 08-5-T1: hazeremoval (dark-channel-prior dehaze), v50 slot
+        // 14.0 — ALREADY in the V50Order table (zero rows inserted); dt's
+        // flags() carries NO tiling flag (the whole-image ambient stats) —
+        // mirrored on the module. Seed DISABLED (the dt defaults strength
+        // 0.2 / distance 0.2 are not pixel-identity — the creative
+        // disposition; the 08-5 panel drives this instance).
+        await registry.register(opName: DehazeModule.opName) { id in
+            ModuleBox(module: DehazeModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -403,6 +412,17 @@ public enum LightamerIOPRegistry {
             BloomKernel.boxFunction,
             BloomKernel.gaussFunction,
             BloomKernel.screenFunction,
+            // Plan 08-5-T1: the hazeremoval chain (ambient grid + the four
+            // box min/max + transition + the box-mean pair + the restore).
+            DehazeKernel.ambientGridFunction,
+            DehazeKernel.boxMinXFunction,
+            DehazeKernel.boxMinYFunction,
+            DehazeKernel.boxMaxXFunction,
+            DehazeKernel.boxMaxYFunction,
+            DehazeKernel.transisionMapFunction,
+            DehazeKernel.boxMeanXFunction,
+            DehazeKernel.boxMeanYFunction,
+            DehazeKernel.applyFunction,
         ]
     }
 
@@ -532,6 +552,11 @@ public enum LightamerIOPRegistry {
             // threshold 90 / strength 25 are not pixel-identity — the
             // creative disposition; the 08-2 panel drives this instance).
             ModuleInstance(module: BloomModule.self, params: BloomModule.Params(), enabled: false),
+            // Plan 08-5-T1: hazeremoval joins the seed DISABLED (the dt
+            // defaults strength 0.2 / distance 0.2 are not pixel-identity —
+            // the creative disposition; the 08-5 panel drives this
+            // instance).
+            ModuleInstance(module: DehazeModule.self, params: DehazeModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }
