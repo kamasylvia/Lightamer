@@ -425,7 +425,17 @@ internal struct EditorMTKView: NSViewRepresentable {
             }
             renderPass.colorAttachments[0].loadAction = .clear
             renderPass.colorAttachments[0].storeAction = .store
-            renderPass.colorAttachments[0].clearColor = Self.canvasClearColor
+            // 08-4 acceptance fix: the clear color must follow the active
+            // regime — the 16F EDR drawable is tagged extendedLinearSRGB
+            // (linear interpretation), so clearing it with the SDR-ENCODED
+            // mat bytes read them as linear (a ~10x brighter mat). The
+            // OFF arm carries the exact Phase-1 literal (zero path
+            // difference); the ON arm is D-T1-3's linear decode — the same
+            // value `applyEDRDisplaySurface` parks in `view.clearColor`
+            // (this per-frame assignment is the authoritative one because
+            // the render pass descriptor is rebuilt by MTKView).
+            renderPass.colorAttachments[0].clearColor =
+                edrActive ? Self.canvasClearColorLinear : Self.canvasClearColor
 
             // D-COL2 (Plan 02-04-05): attach the resolved display colorspace
             // to the CAMetalLayer so the gamma-encoded bytes (fast path:
