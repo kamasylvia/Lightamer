@@ -634,6 +634,38 @@ internal struct LightamerApp: App {
                         )
                     }
 
+                    // 13-3 T4 (SYS-04, D-13-CONTEXT-7): the drop-import
+                    // orchestration — COPY into the session (move only
+                    // through the Option intent), then the EXPLICIT
+                    // reconcile ingest (never FSEvents timing), then the
+                    // grid reload. Per-file failures surface as one toast;
+                    // the batch never aborts (ImportService). Destination
+                    // = the session ROOT (the D-09-CONTEXT-3 browse set
+                    // excludes the Capture tier — 13-3-DECISIONS).
+                    sessionCoordinator.importHandler = { urls, move in
+                        guard let root = sessionState.currentSessionURL else {
+                            return
+                        }
+                        let outcome = ImportService.importFiles(
+                            at: urls, into: root, move: move)
+                        if !outcome.imported.isEmpty {
+                            _ = await sessionReconciler.reconcileHandler?(root)
+                            if let store = sessionIndexController.currentStore {
+                                await browserModel.reload(
+                                    store: store, includeOrphans: true)
+                            }
+                        }
+                        if outcome.failures.isEmpty {
+                            guard !outcome.imported.isEmpty else { return }
+                            editorState.presentToast(
+                                String(localized: "toast_import_done \(outcome.imported.count)"))
+                        } else {
+                            editorState.presentToast(
+                                String(localized:
+                                    "toast_import_partial \(outcome.imported.count) \(outcome.failures.count)"))
+                        }
+                    }
+
                     // 02-04: register LightamerIOP's modules into the
                     // registry (testgain in DEBUG; Phase 3+ joins here),
                     // then hand the registry to the coordinator so loads

@@ -10,6 +10,12 @@ internal struct EmptyStateView: View {
     /// `EditorState.load(url:)` (Plan 02 makes it decode for real).
     var onOpen: @MainActor (URL) -> Void
 
+    /// 13-3 T4 (D-13-CONTEXT-7): the file-level drop leg — the parent
+    /// routes a dropped FOLDER to the session-open flow and dropped FILES
+    /// to the single-image edit (the :57 onDrop 先例 extended from a
+    /// single URL to the batch). nil = the legacy single-URL drop.
+    var onDropURLs: (@MainActor ([URL]) -> Void)?
+
     @State private var isTargeted = false
 
     var body: some View {
@@ -55,6 +61,13 @@ internal struct EmptyStateView: View {
         )
         .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 8) // elevation-card
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
+            if let onDropURLs {
+                SessionBrowserView.loadDropURLs(providers: providers) { urls in
+                    guard !urls.isEmpty else { return }
+                    onDropURLs(urls)
+                }
+                return true
+            }
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
                 guard let url else { return }

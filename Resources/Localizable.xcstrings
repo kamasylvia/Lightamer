@@ -16941,6 +16941,40 @@
         }
       }
     },
+    "toast_import_done %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imported %lld files"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已导入 %lld 个文件"
+          }
+        }
+      }
+    },
+    "toast_import_partial %lld %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imported %lld files, %lld failed"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已导入 %lld 个文件，%lld 个失败"
+          }
+        }
+      }
+    },
     "toast_lut_missing": {
       "extractionState": "manual",
       "localizations": {

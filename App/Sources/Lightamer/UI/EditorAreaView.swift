@@ -48,6 +48,10 @@ internal struct EditorAreaView: View {
     /// through its inverse map and the overlay mutex rides its lock.
     @Environment(ViewportState.self) private var viewportState
 
+    /// 13-3 T4: the empty-state drop routes a FOLDER to the session-open
+    /// flow (the 「文件夹→会话」 path) and FILES to the single-image edit.
+    @Environment(SessionCoordinator.self) private var sessionCoordinator
+
     /// 09-04 T7 (HIST-06): the before/after presentation state (split /
     /// peek / hold) + the fetched compare plane (a resident cache line —
     /// fetched ONCE per activation, never re-rendered by the hold edge).
@@ -67,6 +71,8 @@ internal struct EditorAreaView: View {
                                 metal: metalContext,
                                 logger: EditorState.decodeLogger
                             )
+                        }, onDropURLs: { urls in
+                            routeDroppedURLs(urls)
                         })
                             .transition(.opacity)
                     } else if let metalContext {
@@ -209,6 +215,22 @@ internal struct EditorAreaView: View {
                                     at: beforeAfterState.peekIndex!)
                             }
                         }
+                        // 13-3 T4: the EDITOR-AREA drop = single-image
+                        // direct edit (the existing `EditorState.load`
+                        // path; the sidecar lands beside the ORIGINAL —
+                        // no import, no index row, D-13-CONTEXT-7①).
+                        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+                            SessionBrowserView.loadDropURLs(providers: providers) { urls in
+                                guard let first = urls.first else { return }
+                                editorState.load(
+                                    url: first,
+                                    decoder: decoder,
+                                    metal: metalContext,
+                                    logger: EditorState.decodeLogger
+                                )
+                            }
+                            return true
+                        }
                         // The hold key (`\`, the C1 habit): key-down flips
                         // the blit to the resident before plane, key-up
                         // flips back — a CONSTANT blit switch (no render,
@@ -299,6 +321,28 @@ internal struct EditorAreaView: View {
         let longEdge = Int(max(size.width, size.height).rounded())
         guard longEdge > 0 else { return }
         Task { await pipeCoordinator.drawableDidChange(drawableLongEdge: longEdge) }
+    }
+
+    // MARK: - 13-3 T4 drop routing (empty state)
+
+    /// The empty-state drop router: a FOLDER opens the 「文件夹→会话」
+    /// flow (the existing openSession orchestration); files edit the
+    /// FIRST directly (the single-image path — the rest are ignored,
+    /// execution decision 13-3-DECISIONS).
+    private func routeDroppedURLs(_ urls: [URL]) {
+        guard let first = urls.first else { return }
+        let isDirectory = (try? first.resourceValues(forKeys: [.isDirectoryKey]))?
+            .isDirectory ?? false
+        if isDirectory {
+            Task { await sessionCoordinator.openSession(url: first) }
+        } else {
+            editorState.load(
+                url: first,
+                decoder: decoder,
+                metal: metalContext,
+                logger: EditorState.decodeLogger
+            )
+        }
     }
 
     // MARK: - 06-05 viewport route (the state machine's decision)

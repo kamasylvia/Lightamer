@@ -111,6 +111,13 @@ final class SessionCoordinator {
     /// frame budget; RQ-16-4: the grid shows the committed state).
     var sweepCatalog: ([URL]) async -> Void = { _ in }
 
+    /// Plan 13-3 T4 (SYS-04, D-13-CONTEXT-7): the drop-import seam — the
+    /// app root wires the orchestration (ImportService copy/move into
+    /// `Capture/` + the EXPLICIT reconcile ingest + the grid reload).
+    /// `move` = the caller's Option-modifier intent; false (the default
+    /// path) copies. nil (the default) = no drop targets wired.
+    var importHandler: ((_ urls: [URL], _ move: Bool) async -> Void)?
+
     init(
         flushCurrentImage: @escaping () async -> Void = {},
         teardownRenderer: @escaping () async -> Void = {},

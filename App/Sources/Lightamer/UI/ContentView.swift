@@ -330,7 +330,12 @@ internal struct ContentView: View {
                         )
                         browserModeRaw = ContentView.BrowserMode.single.rawValue
                     },
-                    sessionRoot: sessionState.currentSessionURL
+                    sessionRoot: sessionState.currentSessionURL,
+                    onImportFiles: { urls, move in
+                        // 13-3 T4: the grid drop routes through the
+                        // coordinator's import seam (COPY default).
+                        Task { await sessionCoordinator.importHandler?(urls, move) }
+                    }
                 )
             case .single:
                 EditorAreaView(decoder: decoder, metalContext: metalContext)
