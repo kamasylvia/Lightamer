@@ -1293,6 +1293,23 @@
         }
       }
     },
+    "browser_menu_hdr_merge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR Merge…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并…"
+          }
+        }
+      }
+    },
     "browser_menu_paste": {
       "extractionState": "manual",
       "localizations": {
@@ -3713,6 +3730,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "文本（禁 |）"
+          }
+        }
+      }
+    },
+    "hdr_merge_dialog_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merges the selected bracket into a new 32-bit float HDR document in the session root. The sources stay untouched. Note: with only 3 frames the ghost detection is statistically weak."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将所选括号合并为会话根目录下的新 32-bit float HDR 文档，源文件不受影响。注意：仅 3 帧时鬼影检测的统计能力较弱。"
+          }
+        }
+      }
+    },
+    "hdr_merge_dialog_deghost": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detect and mask ghosts"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检测并蒙版鬼影"
+          }
+        }
+      }
+    },
+    "hdr_merge_dialog_merge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merge"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并"
+          }
+        }
+      }
+    },
+    "hdr_merge_dialog_title %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR Merge (%lld images)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并（%lld 张）"
           }
         }
       }
@@ -17583,6 +17668,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "sidecar 在外部被修改——保留当前会话状态（下次编辑时才回写文件）"
+          }
+        }
+      }
+    },
+    "toast_hdr_merge_done %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR merge done — %lld%% of the frame was outside the bracket's coverage"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并完成——%lld%% 区域超出括号覆盖"
+          }
+        }
+      }
+    },
+    "toast_hdr_merge_failed %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR merge failed: %@"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并失败：%@"
+          }
+        }
+      }
+    },
+    "toast_hdr_merge_queued": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR merge queued"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并已加入队列"
           }
         }
       }
