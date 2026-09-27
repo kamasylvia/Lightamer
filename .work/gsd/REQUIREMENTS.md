@@ -163,8 +163,8 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 ### Color Management (COLOR)
 
 - [ ] **COLOR-01**: 色彩管理 pipeline——camera RGB → linear Rec2020 working → display (Display P3 / ICC profile) → output (sRGB / Display P3 / Adobe RGB / ProPhoto / Rec2020)
-- [ ] **COLOR-02**: 软打样（soft proofing）——模拟打印机/输出设备的色彩空间，含 out-of-gamut 警告
-- [ ] **COLOR-03**: 多显示器 ICC profile 自动切换
+- [x] **COLOR-02**: 软打样（soft proofing）——模拟打印机/输出设备的色彩空间，含 out-of-gamut 警告 —— **Delivered**（13-2：显示腿 runtime override + colorout 上游 proof 段 + gamut check 黑裁剪；BPC 探针落档；wiring 单测 + GUI 菜单在案）
+- [x] **COLOR-03**: 多显示器 ICC profile 自动切换 —— **Delivered**（13-2：通知驱动 re-resolve + window↔screen 追踪 + Settings 手动覆盖；terminal-segment 翻键单测钉；真双屏 live 观感遗留 Manual-Only）
 - [ ] **COLOR-04**: camera profile 支持（CIRAW 内置 profile；未来扩展 DCP-style 自定义 profile）
 
 ### Border / Watermark (yiyin panel) (YIYIN)
@@ -209,18 +209,18 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 
 ### System Integration (SYS)
 
-- [ ] **SYS-01**: Quick Look 扩展——Finder 中按空格预览 RAW 文件（含调整后预览，不仅是原片缩略图）
-- [ ] **SYS-02**: Spotlight 索引——通过 RAW 调整后状态检索（评级/标签/关键字/EXIF 元数据可被 Spotlight 检索）
-- [ ] **SYS-03**: 触控板/鼠标手势（双指缩放、捏拉、旋转、双指拖动平移）
-- [ ] **SYS-04**: 拖放导入（从 Finder 拖入 Session 或直接拖入编辑）
-- [ ] **SYS-05**: 多语言跟随系统（String Catalog，至少 zh/en，结构预留扩展）
+- [x] **SYS-01**: Quick Look 扩展——Finder 中按空格预览 RAW 文件（含调整后预览，不仅是原片缩略图）—— **Delivered**（13-1 appex + QuickLookRenderer 三查回退链；13-4 实机 QL 预览=编辑态渲染证实）
+- [x] **SYS-02**: Spotlight 索引——通过 RAW 调整后状态检索（评级/标签/关键字/EXIF 元数据可被 Spotlight 检索）—— **Delivered**（13-1 importer + 34 列抽取源；lindex 行实测健康；mds 级绑定待 /Applications 安装复测——13-4 SUMMARY 遗留#2）
+- [x] **SYS-03**: 触控板/鼠标手势（双指缩放、捏拉、旋转、双指拖动平移）—— **Delivered**（13-3 AppKit recognizer 面 + viewportTransform 单源 + overlay 互斥矩阵；HUD/100%/Z/F 入口 AX 在案；触控板手感 Manual-Only）
+- [x] **SYS-04**: 拖放导入（从 Finder 拖入 Session 或直接拖入编辑）—— **Delivered**（13-3 ImportService 三落点 + 复制默认/Option=Move + 源零改动 golden；拖放观感 Manual-Only）
+- [x] **SYS-05**: 多语言跟随系统（String Catalog，至少 zh/en，结构预留扩展）—— **Delivered**（13-1..13-3 新 UI 全键 zh 同批 + 键审计；13-4 走查抓修 delete-confirm 裸键回退）
 
 ### Distribution & Project (DIST)
 
-- [ ] **DIST-01**: GitHub 开源仓库（MIT 或类似宽松许可证）
-- [ ] **DIST-02**: Developer ID 签名 + 公证（非 Mac App Store、非沙盒）
-- [ ] **DIST-03**: DMG / zip 分发
-- [ ] **DIST-04**: CI（GitHub Actions：构建、测试、签名、公证、发布）
+- [x] **DIST-01**: GitHub 开源仓库（MIT 或类似宽松许可证）—— **Delivered**（13-4：github.com/kamasylvia/Lightamer public + MIT LICENSE + 敏感审计闸前置）
+- ~~**DIST-02**: Developer ID 签名 + 公证~~ —— **Removed（2026-09-27 用户终裁：砍苹果分发渠道）**；非沙盒决策不变；如未来重启 Apple 渠道作 v2 候选（make-dmg.sh 的 ad-hoc 覆盖届时移除）
+- [x] **DIST-03**: DMG / zip 分发 —— **Delivered**（13-4 make-dmg.sh：UDZO 拖装 DMG + zip + SHA256SUMS，unsigned；产物实机启动验证）
+- [x] **DIST-04**: CI（GitHub Actions：构建、测试、发布）—— **Delivered（范围修订：签名/公证段随 Apple 渠道砍除）**（13-4 ci.yml：push/PR build+test 无签名；v* tag → artifacts + Draft Release 人工发布）
 
 ### Catalogs Mode (CATALOG)【2026-09-27 用户指令新立；同日用户终裁 v1 后端 = 本地 SQLite，pg 降为 v2 评估项】
 
@@ -381,8 +381,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | IOP-FX-04 | Phase 8 — HDR/Stacking & Effects iops | Pending |
 | IOP-FX-05 | Phase 8 — HDR/Stacking & Effects iops | Pending |
 | COLOR-01 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
-| COLOR-02 | Phase 13 — System Integration & Distribution | Pending |
-| COLOR-03 | Phase 13 — System Integration & Distribution | Pending |
+| COLOR-02 | Phase 13 — System Integration & Distribution | **Delivered** |
+| COLOR-03 | Phase 13 — System Integration & Distribution | **Delivered** |
 | COLOR-04 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
 | YIYIN-01 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
 | YIYIN-02 | Phase 8 — yiyin Border/Watermark Panel | Delivered |
@@ -410,15 +410,15 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | EXP-06 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
 | EXP-07 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
 | EXP-08 | Phase 11 — Export Pipeline & Batch Queue | **Delivered** |
-| SYS-01 | Phase 13 — System Integration & Distribution | Pending |
-| SYS-02 | Phase 13 — System Integration & Distribution | Pending |
-| SYS-03 | Phase 13 — System Integration & Distribution | Pending |
-| SYS-04 | Phase 13 — System Integration & Distribution | Pending |
-| SYS-05 | Phase 13 — System Integration & Distribution | Pending |
-| DIST-01 | Phase 13 — System Integration & Distribution | Pending |
-| DIST-02 | Phase 13 — System Integration & Distribution | Pending |
-| DIST-03 | Phase 13 — System Integration & Distribution | Pending |
-| DIST-04 | Phase 13 — System Integration & Distribution | Pending |
+| SYS-01 | Phase 13 — System Integration & Distribution | **Delivered** |
+| SYS-02 | Phase 13 — System Integration & Distribution | **Delivered** |
+| SYS-03 | Phase 13 — System Integration & Distribution | **Delivered** |
+| SYS-04 | Phase 13 — System Integration & Distribution | **Delivered** |
+| SYS-05 | Phase 13 — System Integration & Distribution | **Delivered** |
+| DIST-01 | Phase 13 — System Integration & Distribution | **Delivered** |
+| DIST-02 | Phase 13 — System Integration & Distribution | **Removed**（2026-09-27 用户终裁砍 Apple 渠道） |
+| DIST-03 | Phase 13 — System Integration & Distribution | **Delivered** |
+| DIST-04 | Phase 13 — System Integration & Distribution | **Delivered**（范围修订：无签名/公证） |
 | MCP-01 | Phase 14 — MCP Server | Pending |
 | MCP-02 | Phase 14 — MCP Server | Pending |
 | MCP-03 | Phase 14 — MCP Server | Pending |
