@@ -229,13 +229,18 @@ final class Perf07MassApplyTests: XCTestCase {
         XCTAssertEqual(pending, 0, "the drain completed")
     }
 
-    /// The UNITEK (USB HDD) per-write comparison — a 100-doc sample on the
-    /// repo volume, recorded and NEVER gated (L009: the gate fixture is
-    /// forbidden there). Skips when the volume is absent (other machines).
+    /// The external-volume (USB HDD) per-write comparison — a 100-doc
+    /// sample on the comparison volume, recorded and NEVER gated (L009: the
+    /// gate fixture is forbidden there). Set LA_PERF07_VOLUME to the volume
+    /// root on the machine that records the metric; unset or absent volume
+    /// skips (other machines).
     func testUNITEKVolumeDrainComparisonRecordOnly() async throws {
-        let unitekRoot = URL(fileURLWithPath: "/Volumes/UNITEK")
+        guard let volumeRoot = ProcessInfo.processInfo.environment["LA_PERF07_VOLUME"] else {
+            throw XCTSkip("LA_PERF07_VOLUME unset — comparison recorded on the volume-bearing machine only")
+        }
+        let unitekRoot = URL(fileURLWithPath: volumeRoot)
         guard FileManager.default.fileExists(atPath: unitekRoot.path) else {
-            throw XCTSkip("UNITEK volume absent — comparison recorded on the volume-bearing machine only")
+            throw XCTSkip("LA_PERF07_VOLUME target absent — comparison recorded on the volume-bearing machine only")
         }
         let sample = 100
         let temp = unitekRoot.appendingPathComponent("Documents/Development/Lightamer/.work/tmp-perf07-\(UUID().uuidString)", isDirectory: true)
