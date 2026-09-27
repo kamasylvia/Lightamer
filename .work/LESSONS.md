@@ -280,3 +280,9 @@ locale 的 Bundle 解析停在该表（不再向 zh.lproj 回退）——**全 a
 
 `编辑/复制调整` 按钮 `.disabled(editorState.loadedImageURL == nil)`：复制的是**编辑器打开文档**的参数（C1 式「复制你看的图」），与网格选中无关。UAT computer-use 自答时在网格态直点菜单=disabled 空点，剪贴板滞留自载荷，产出「粘贴不传输」假缺陷（误报 major，后由干净态单变量测试翻案）。
 **对策**：①GUI 验收脚本写步骤前先核对操作的**设计上下文**（哪个面板/文档/焦点），不能纯几何驱动；②粘贴类断言用 sidecar paramsData 字节对比（明文 JSON），勿用 instance 名单（全量中性栈名单恒同）；③误报翻案必须留痕（本条 + UAT G-09-T4 retracted 行），假缺陷记录与真缺陷同等有价值。
+
+## L034: xcodebuild 管道吞码 + 混合代际产物——测试束 dlopen 符号错配的定位与处置（2026-09-27，16-4 T1）
+
+**现象**：Release `build-for-testing` 直启测试束报 `dlopen ... Symbol not found: _$s13LightamerCore...`（mangled 签名 `A2_`/`A3_` 模块引用差异）；排查中两份 `LightamerCore.framework`（DerivedData 根 + app 内嵌）UUID 相同，排除「陈旧副本被优先加载」。真因 = 更早一次构建实际 **TEST BUILD FAILED**——`xcodebuild ... | tail -3; echo $?` 管道让 `$?` 取自 `tail`（恒 0），失败被吞；失败构建留下混合代际产物（旧 LightamerCore + 新测试束）。
+
+**对策**：① xcodebuild 退出码**不进管道**——先重定向落日志再 `echo $?`，或判据改读日志内 `** TEST BUILD SUCCEEDED **` 行（同 test-direct.sh「判据 = 结果行非退出态」的镜像教训：退出态与结果行**都要**看，各防一类假绿）；② 测试束 dlopen 符号错配（同 UUID 框架缺符号）= 混合代际产物症状，处置 = 删该配置 `Build/Products/<config>` 目录全量重编，不逐符号考古；③ 增量编译从未重编的既有测试文件在首次全量重编时才暴露编译错（本轮 CatalogOrganizationTests 的 await-in-autoclosure），切构建方式/重生成工程后预期一轮「编译修复批」；④ `tuist generate` 重生成 pbxproj 后等同全量重编译语义，调度上要预留修复窗口。

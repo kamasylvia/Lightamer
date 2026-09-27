@@ -226,11 +226,11 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 
 对标 Capture One 的双模式组织：Sessions（默认、零依赖）与 Catalogs（Lightroom Collections/Categories 同类）。会话权威语义不变：sidecar 恒真身，目录库是可重建聚合视图层。
 
-- [ ] **CATALOG-01**: 双模式架构——Sessions 与 Catalogs 模式共存互斥可切；Sessions 恒默认且零外部依赖；Catalogs 模式在设置中启用
-- [ ] **CATALOG-02**: 目录库后端（v1 = **本地 SQLite**，复用 Phase 9 libsqlite3 面 + 12-2 FilterSQL 谓词层，零新依赖）——跨会话影像元数据镜像 + catalogs 组织树（C1 Categories 语义）+ 虚拟集合；同步方向 = 会话→目录单向投影（sidecar 真身不变，目录库可全量重建——mutable and untrusted 原则延续）；**标签物化表**（(image_id, tag) 拆行，层级展开可索引——百万级行数下的层级关键字查询面）
-- [ ] **CATALOG-03**: catalogs 组织树编辑与归类（C1 Categories 语义）——树 CRUD/拖拽 + 图片归类（含批量，复用 Phase 12 批量面）
-- [ ] **CATALOG-04**: 跨会话浏览——Catalogs 模式下浏览/过滤/智能相册求值（复用 12-2 谓词层，求值域扩全库）
-- [ ] **CATALOG-05**: 脱库降级——目录库数据丢失可由会话面全量重建；Sessions 模式零功能损失
+- [x] **CATALOG-01**（✅ Delivered 2026-09-27 Phase 16 签核）: 双模式架构——Sessions 与 Catalogs 模式共存互斥可切；Sessions 恒默认且零外部依赖；Catalogs 模式在设置中启用
+- [x] **CATALOG-02**（✅ Delivered 2026-09-27 Phase 16 签核）: 目录库后端（v1 = **本地 SQLite**，复用 Phase 9 libsqlite3 面 + 12-2 FilterSQL 谓词层，零新依赖）——跨会话影像元数据镜像 + catalogs 组织树（C1 Categories 语义）+ 虚拟集合；同步方向 = 会话→目录单向投影（sidecar 真身不变，目录库可全量重建——mutable and untrusted 原则延续）；**标签物化表**（(image_id, tag) 拆行，层级展开可索引——百万级行数下的层级关键字查询面）
+- [x] **CATALOG-03**（✅ Delivered 2026-09-27 Phase 16 签核）: catalogs 组织树编辑与归类（C1 Categories 语义）——树 CRUD/拖拽 + 图片归类（含批量，复用 Phase 12 批量面）
+- [x] **CATALOG-04**（✅ Delivered 2026-09-27 Phase 16 签核）: 跨会话浏览——Catalogs 模式下浏览/过滤/智能相册求值（复用 12-2 谓词层，求值域扩全库）
+- [x] **CATALOG-05**（✅ Delivered 2026-09-27 Phase 16 签核；解释面增强 = 两档重建：对账式（文件在、行漂移——id 保持组织数据存活）/ 破坏式（文件丢失/schemaFailed——元数据恢复组织数据丢，.lcat 单文件备份兜底））: 脱库降级——目录库数据丢失可由会话面全量重建；Sessions 模式零功能损失
 - [ ] **CATALOG-06**: 【v2 预留】远程后端评估——现成 pg 实例（LAN 延迟 ~0.2-1ms/往返可接受，可用性绑 NAS 为代价）或远程 SQLite 镜像；是否值得跨机/多客户端访问由 v2 届时裁决；FilterSQL 方言适配为该轮工作量
 
 ## v2 Requirements
@@ -429,11 +429,11 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | MCP-08 | Phase 14 — MCP Server | Pending |
 | MCP-09 | Phase 14 — MCP Server | Pending |
 | MCP-10 | Phase 14 — MCP Server | Pending |
-| CATALOG-01 | Phase 16 — Catalogs Mode | Pending |
-| CATALOG-02 | Phase 16 — Catalogs Mode | Pending |
-| CATALOG-03 | Phase 16 — Catalogs Mode | Pending |
-| CATALOG-04 | Phase 16 — Catalogs Mode | Pending |
-| CATALOG-05 | Phase 16 — Catalogs Mode | Pending |
+| CATALOG-01 | Phase 16 — Catalogs Mode | Delivered（2026-09-27） |
+| CATALOG-02 | Phase 16 — Catalogs Mode | Delivered（2026-09-27） |
+| CATALOG-03 | Phase 16 — Catalogs Mode | Delivered（2026-09-27） |
+| CATALOG-04 | Phase 16 — Catalogs Mode | Delivered（2026-09-27） |
+| CATALOG-05 | Phase 16 — Catalogs Mode | Delivered（2026-09-27） |
 | CATALOG-06 | Phase 16 — Catalogs Mode | Pending |
 
 **Coverage:**
