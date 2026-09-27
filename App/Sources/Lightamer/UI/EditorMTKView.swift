@@ -9,10 +9,13 @@ import SwiftUI
 /// and the display texture `EditorState` produces via
 /// `MetalContext.renderToTexture`.
 ///
-/// Phase 2 = near-static blit (D-13: no zoom/pan): `isPaused` +
-/// `enableSetNeedsDisplay` redraw only on demand — texture change (pushed
-/// from `updateNSView`, UI-1 pitfall: ONLY on identity change, never
-/// per-frame) or drawable resize. The blit render pipeline state is built
+/// Plan 13-3 T1 (D-13-CONTEXT-6) — the Phase 2 near-static reservation is
+/// FLIPPED: the blit consumes the `ViewportState` zoom/pan/rotation through
+/// `ViewportFit` (the single math source) — `fitQuad` forward-maps the
+/// texture-corner uvs through the transform. Still `isPaused` +
+/// `enableSetNeedsDisplay` redraw only on demand — texture change, zoom
+/// state change, or drawable resize (UI-1 pitfall: ONLY on identity
+/// change, never per-frame). The blit render pipeline state is built
 /// ONCE in the Coordinator and reused every frame (RESEARCH §4).
 /// `pixelFormat = .bgra8Unorm` per UI-SPEC (`.rgba16Float` reserved for the
 /// Phase 8 EDR viewport).
@@ -42,6 +45,11 @@ internal struct EditorMTKView: NSViewRepresentable {
     /// before plane (the hold-to-view-original form — a constant blit,
     /// zero renders).
     var splitFraction: Double?
+
+    /// 13-3 T1: the zoom/pan/rotation state machine (environment-injected
+    /// from the app root). The blit and the gesture face (T2) read it; the
+    /// state itself lives in `ViewportState` (D-03b isolated).
+    @Environment(ViewportState.self) private var viewportState
 
     func makeNSView(context: Context) -> MTKView {
         let view = MTKView(frame: .zero, device: device)
@@ -87,6 +95,23 @@ internal struct EditorMTKView: NSViewRepresentable {
             context.coordinator.splitFraction = splitFraction
             needsDisplay = true
         }
+        // 13-3 T1: the zoom/pan/rotation state push (same push-once shape
+        // as the texture — a changed signature arms exactly one redraw).
+        // The view's live geometry also feeds the state's remembered
+        // sizes (the App-scene menu seam).
+        let signature = Coordinator.ZoomSignature(
+            zoom: viewportState.zoom,
+            pan: viewportState.pan,
+            rotationDegrees: viewportState.rotationDegrees)
+        if context.coordinator.zoomSignature != signature {
+            context.coordinator.zoomSignature = signature
+            needsDisplay = true
+        }
+        if let texture = sourceTexture {
+            viewportState.noteGeometry(
+                viewportSize: view.bounds.size,
+                textureSize: CGSize(width: texture.width, height: texture.height))
+        }
         if needsDisplay {
             view.setNeedsDisplay(view.bounds)
         }
@@ -121,6 +146,23 @@ internal struct EditorMTKView: NSViewRepresentable {
         /// legacy single-plane draw; nil fraction = no split line).
         var secondaryTexture: (any MTLTexture)?
         var splitFraction: Double?
+
+        /// 13-3 T1: the pushed zoom/pan/rotation signature (change = one
+        /// armed redraw — the same discipline as the texture push).
+        struct ZoomSignature: Equatable {
+            var zoom: Double
+            var panX: CGFloat
+            var panY: CGFloat
+            var rotationDegrees: Double
+
+            init(zoom: Double, pan: CGPoint, rotationDegrees: Double) {
+                self.zoom = zoom
+                self.panX = pan.x
+                self.panY = pan.y
+                self.rotationDegrees = rotationDegrees
+            }
+        }
+        var zoomSignature = ZoomSignature(zoom: 1, pan: .zero, rotationDegrees: 0)
 
         /// The colorspace last attached to the CAMetalLayer (D-COL2 — set
         /// only on change; the compositor re-reads it per present).
@@ -243,8 +285,11 @@ internal struct EditorMTKView: NSViewRepresentable {
                     encoder.setRenderPipelineState(state)
                     var quad = Self.fitQuad(
                         textureSize: SIMD2(Float(texture.width), Float(texture.height)),
-                        drawableSize: view.drawableSize
-                    )
+                        drawableSize: view.drawableSize,
+                        boundsSize: view.bounds.size,
+                        zoom: zoomSignature.zoom,
+                        pan: CGPoint(x: zoomSignature.panX, y: zoomSignature.panY),
+                        rotationDegrees: zoomSignature.rotationDegrees)
                     encoder.setVertexBytes(&quad, length: MemoryLayout<FitQuad>.stride, index: 0)
 
                     // 09-04 T7 (HIST-06) split blit: the SAME PSO + quad
@@ -282,40 +327,62 @@ internal struct EditorMTKView: NSViewRepresentable {
             commandBuffer.commit()
         }
 
-        /// The aspect-fit rect as NDC corners (04-06 GUI-2+3): the SINGLE
-        /// source of truth is `ViewportFit.fittedRect` (the crop overlay's
-        /// geometry) — viewport points → NDC via `2·p/size − 1` with the y
-        /// axis flipped (SwiftUI top-left origin vs Metal NDC bottom-left).
+        /// The viewport quad as NDC corners (04-06 GUI-2+3; 13-3 T1
+        /// zoom/pan/rotation): the SINGLE source of truth is `ViewportFit`
+        /// (the crop overlay's geometry) — the texture-corner uvs are
+        /// forward-mapped through the `ViewportFit.transform` composition
+        /// (zoom → rotation → pan about the fitted rect), then points →
+        /// NDC via `2·p/size − 1` with the y axis flipped (SwiftUI
+        /// top-left origin vs Metal NDC bottom-left).
+        ///
+        /// `boundsSize` (POINTS) drives both the transform and the NDC
+        /// mapping whenever it is provided — the drawable is the bounds ×
+        /// backing scale (a UNIFORM factor), so NDC is ratio-identical;
+        /// the pan offsets are point-space and must not be rescaled. The
+        /// identity state (defaults) reproduces the 04-02 fit quad
+        /// byte-for-byte (CropOverlayTests pin the corners).
         /// Degenerate input ⇒ fullscreen quad (the ViewportFit guard's
         /// `.zero` would otherwise collapse the draw to nothing).
         static func fitQuad(
-            textureSize: SIMD2<Float>, drawableSize: CGSize
+            textureSize: SIMD2<Float>, drawableSize: CGSize,
+            boundsSize: CGSize? = nil,
+            zoom: Double = 1, pan: CGPoint = .zero, rotationDegrees: Double = 0
         ) -> FitQuad {
-            let rect = ViewportFit.fittedRect(
-                viewportSize: drawableSize,
-                textureSize: CGSize(width: Double(textureSize.x), height: Double(textureSize.y)))
-            guard rect.width >= 1, rect.height >= 1,
-                  drawableSize.width >= 1, drawableSize.height >= 1
+            let texSize = CGSize(width: Double(textureSize.x), height: Double(textureSize.y))
+            let viewport = boundsSize ?? drawableSize
+            guard viewport.width >= 1, viewport.height >= 1,
+                  texSize.width >= 1, texSize.height >= 1
             else {
                 return FitQuad(
                     p0: SIMD2(-1, -1), p1: SIMD2(1, -1),
                     p2: SIMD2(-1, 1), p3: SIMD2(1, 1))
             }
+            let transform = ViewportFit.transform(
+                viewportSize: viewport, textureSize: texSize,
+                zoom: zoom, pan: pan, rotationDegrees: rotationDegrees)
             func ndc(_ p: CGPoint) -> SIMD2<Float> {
                 SIMD2(
-                    Float(2 * p.x / drawableSize.width - 1),
-                    Float(1 - 2 * p.y / drawableSize.height))
+                    Float(2 * p.x / viewport.width - 1),
+                    Float(1 - 2 * p.y / viewport.height))
             }
+            // Corner ↔ uv pairing is the SHADER's contract (the vertex
+            // function pairs p0↔uv(0,1), p1↔uv(1,1), p2↔uv(0,0),
+            // p3↔uv(1,0)) — identical slot-for-slot with the 04-02 code
+            // (p0 was ndc(minX, maxY)); only the mapping INTO the slots
+            // now routes through the transform.
             return FitQuad(
-                p0: ndc(CGPoint(x: rect.minX, y: rect.maxY)),
-                p1: ndc(CGPoint(x: rect.maxX, y: rect.maxY)),
-                p2: ndc(CGPoint(x: rect.minX, y: rect.minY)),
-                p3: ndc(CGPoint(x: rect.maxX, y: rect.minY)))
+                p0: ndc(transform.point(atUV: SIMD2(0, 1))),
+                p1: ndc(transform.point(atUV: SIMD2(1, 1))),
+                p2: ndc(transform.point(atUV: SIMD2(0, 0))),
+                p3: ndc(transform.point(atUV: SIMD2(1, 0))))
         }
 
-        /// Aspect-fit the texture inside the drawable (NDC scale; the
-        /// letterbox shows the canvas-mat clear color). Phase 1 keeps the
-        /// image centered — fit/100% controls arrive with zoom/pan (Phase 2+).
+        /// 13-3 T1: the Phase 2 "fit/100% controls arrive with zoom/pan"
+        /// reservation is honored by `fitQuad` + `ViewportFit.transform`
+        /// (the live blit leg since the 04-06 fitQuad retirement of the
+        /// uniform-scale path). This doc-chain stub remains only to keep
+        /// the eyedropper comment chain intact — the zoom/pan offsets are
+        /// the `ViewportTransform` pan, never a second formula here.
         private static func aspectFitUniforms(
             textureSize: SIMD2<Float>, drawableSize: SIMD2<Float>
         ) -> BlitUniforms {
@@ -323,6 +390,7 @@ internal struct EditorMTKView: NSViewRepresentable {
             // byte-identical (the guard + scale formula moved verbatim).
             // 04-06: RETIRED by fitQuad (kept for the eyedropper doc chain —
             // PipeCoordinator.viewportUV mirrors the fitted rect, not this).
+            // 13-3: zoom/pan ride fitQuad via ViewportFit.transform.
             let scale = ViewportFit.blitScale(
                 viewportSize: CGSize(width: Double(drawableSize.x), height: Double(drawableSize.y)),
                 textureSize: CGSize(width: Double(textureSize.x), height: Double(textureSize.y)))

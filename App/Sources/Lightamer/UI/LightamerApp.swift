@@ -186,6 +186,11 @@ internal struct LightamerApp: App {
     /// override, never history/export).
     @State private var softProofState = SoftProofState()
 
+    /// 13-3 T1 (D-13-CONTEXT-6): the viewport zoom/pan/rotation state
+    /// machine + the overlay mutex lock (D-03b isolated; the App-scene
+    /// menu commands drive it directly).
+    @State private var viewportState = ViewportState()
+
     /// The yiyin logo-face source for the thumbnail run-context injector
     /// (a stateless file-probe instance — the coordinator keeps its own).
     @State private var browserLogoStore = YiyinLogoStore()
@@ -296,6 +301,7 @@ internal struct LightamerApp: App {
                 .environment(pipeCoordinator)
                 .environment(beforeAfterState)
                 .environment(softProofState)
+                .environment(viewportState)
                 .environment(exportState)
                 .environment(inspectorState)
                 .environment(layerEditingState)

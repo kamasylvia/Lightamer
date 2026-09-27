@@ -1166,13 +1166,19 @@ final class PipeCoordinator {
     ///
     /// nil = nothing loaded, no GPU, click outside the fitted image rect,
     /// or the linear segment failed. Never mutates `displayTexture` (D-X1).
-    func pickColor(at point: CGPoint, viewportSize: CGSize) async -> simd_float3? {
+    /// 13-3 T1: `transform` non-nil = the click inverse-maps through the
+    /// zoom/pan/rotation state (the eyedropper stays correct while zoomed).
+    func pickColor(
+        at point: CGPoint, viewportSize: CGSize,
+        transform: ViewportTransform? = nil
+    ) async -> simd_float3? {
         guard let decoded, let metal, let display = editorState?.displayTexture else {
             return nil
         }
         let texSize = SIMD2<Int>(display.width, display.height)
         guard let uv = Self.viewportUV(
-            at: point, viewportSize: viewportSize, textureSize: texSize
+            at: point, viewportSize: viewportSize, textureSize: texSize,
+            transform: transform
         ) else {
             Self.logger.debug("eyedropper click outside the fitted image rect")
             return nil
@@ -1267,15 +1273,20 @@ final class PipeCoordinator {
     /// aspect-fit (`aspectFitUniforms` + the vertex uv chain):
     /// `uv.x = 0.5 + scale.x·(p.x/vw − 0.5)`,
     /// `uv.y = 0.5 − scale.y·(0.5 − p.y/vh)`. nil when the point falls in
-    /// the letterbox (outside the fitted image rect).
+    /// the letterbox (outside the fitted image rect). 13-3 T1: `transform`
+    /// non-nil inverse-maps through the zoom/pan/rotation state FIRST
+    /// (the same `ViewportFit` math — no second formula; nil = outside
+    /// the transformed image content).
     nonisolated static func viewportUV(
-        at point: CGPoint, viewportSize: CGSize, textureSize: SIMD2<Int>
+        at point: CGPoint, viewportSize: CGSize, textureSize: SIMD2<Int>,
+        transform: ViewportTransform? = nil
     ) -> SIMD2<Double>? {
         // 04-02-T4: single-source math (ViewportFit); the guard + letterbox
         // semantics are unchanged (EyedropperTests pin them).
         ViewportFit.uv(
             at: point, viewportSize: viewportSize,
-            textureSize: CGSize(width: textureSize.x, height: textureSize.y))
+            textureSize: CGSize(width: textureSize.x, height: textureSize.y),
+            transform: transform)
     }
 
     /// N×N area mean around the uv point (dt AREA picker; default radius 2
