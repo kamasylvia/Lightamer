@@ -157,6 +157,15 @@ public enum V50Order {
         // RGB segment after colorin. The dt discipline (no reorder / unique
         // / add-only) applies to this row exactly as to the verbatim rows.
         ("skinSmooth", 66.5),
+        // LIGHTAMER-NATIVE ROW (NOT a dt entry — Plan 08-5 T2, D-08-CONTEXT-9):
+        // textOverlay (the editing-time text layer, IOP-FX-05) sits in the
+        // 66.5–67.0 gap — after skinSmooth, before splittoning — well below
+        // the 70.0 terminal tail floor (LayerCompositeDriver), so the layer-
+        // mask eligibility holds; this is the ESSENTIAL division from the
+        // yiyin watermark (77.0, terminal segment — the final-output
+        // watermark, which stays untouched). The dt discipline (no reorder
+        // / unique / add-only) applies to this row exactly as to 66.5.
+        ("textOverlay", 66.7),
         ("splittoning", 67.0),   // creative module
         ("vignette", 68.0),      // creative module
         // try to salvage blown areas before ICC intents in LittleCMS2 do

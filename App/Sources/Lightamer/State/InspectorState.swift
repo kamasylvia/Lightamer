@@ -125,6 +125,8 @@ final class InspectorState {
         // Plan 08-5 T1: hazeremoval (the dt-verbatim strength/distance/
         // adaptive panel — the dark-channel-prior dehaze).
         register(DehazePanelProvider())
+        // Plan 08-5 T2: textOverlay (the editing-time text layer face).
+        register(TextOverlayPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

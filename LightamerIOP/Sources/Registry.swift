@@ -282,6 +282,17 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: DehazeModule.opName) { id in
             ModuleBox(module: DehazeModule(), instanceID: id)
         }
+        // Plan 08-5-T2: textOverlay (the editing-time text layer), the
+        // SECOND Lightamer-native V50Order row (66.7 — inserted between
+        // skinSmooth 66.5 and splittoning 67.0, add-only); < the 70.0
+        // terminal floor → layer-mask eligible (the essential division
+        // from yiyin watermark 77.0 — the watermark face is untouched).
+        // Seed ENABLED-neutral: the empty default content draws NOTHING —
+        // the routed-blit identity (cache-neutral, exposure-0EV style);
+        // the 08-5 panel drives this instance.
+        await registry.register(opName: TextOverlayModule.opName) { id in
+            ModuleBox(module: TextOverlayModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -423,6 +434,8 @@ public enum LightamerIOPRegistry {
             DehazeKernel.boxMeanXFunction,
             DehazeKernel.boxMeanYFunction,
             DehazeKernel.applyFunction,
+            // Plan 08-5-T2: the text overlay alpha composite.
+            TextOverlayKernel.compositeFunction,
         ]
     }
 
@@ -557,6 +570,11 @@ public enum LightamerIOPRegistry {
             // the creative disposition; the 08-5 panel drives this
             // instance).
             ModuleInstance(module: DehazeModule.self, params: DehazeModule.Params(), enabled: false),
+            // Plan 08-5-T2: textOverlay joins the seed ENABLED-neutral (the
+            // empty default content draws NOTHING — the routed-blit
+            // identity, cache-neutral; the 08-5 panel has an instance to
+            // drive).
+            ModuleInstance(module: TextOverlayModule.self, params: TextOverlayModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }
