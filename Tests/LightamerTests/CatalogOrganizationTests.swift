@@ -940,13 +940,29 @@ final class CatalogOrganizationTests: XCTestCase {
             images: (0..<8).map { img(String(format: "IMG_%04d.arw", $0)) },
             toCollectionID: c)
 
-        // Delete half the images directly (the reconcile leg's effect,
-        // driven through the store's handle here) — memberships must go
-        // with them (16-3's reconcile cascade).
+        // Delete half the images (the reconcile leg's effect, driven through
+        // the store's handle here) — memberships must go with them (the D2
+        // reconcile cascade; no FK exists, the write face owns the cleanup).
+        // GLOB, not LIKE: SQLite LIKE has no [0-3] character class (the
+        // pattern would match ZERO rows and the gauntlet would assert a
+        // no-op — L020).
         try await store.withHandleForTesting { handle in
+            try handle.exec("BEGIN IMMEDIATE")
+            let cascadeCategories = try handle.prepare(
+                "DELETE FROM image_categories WHERE catalog_image_id IN "
+                    + "(SELECT id FROM catalog_images WHERE rel_path GLOB 'IMG_000[0-3].arw')")
+            _ = try cascadeCategories.step()
+            let cascadeCollections = try handle.prepare(
+                "DELETE FROM image_collections WHERE catalog_image_id IN "
+                    + "(SELECT id FROM catalog_images WHERE rel_path GLOB 'IMG_000[0-3].arw')")
+            _ = try cascadeCollections.step()
             let delete = try handle.prepare(
-                "DELETE FROM catalog_images WHERE rel_path LIKE 'IMG_000[0-3]%'")
+                "DELETE FROM catalog_images WHERE rel_path GLOB 'IMG_000[0-3].arw'")
             _ = try delete.step()
+            // Negative control: the pattern MUST have removed exactly four
+            // rows — a zero-match regression must fail here, not pass.
+            XCTAssertEqual(handle.changes(), 4, "the GLOB must match four rows")
+            try handle.exec("COMMIT")
         }
 
         let orphanMembers = try await countRows(
@@ -959,10 +975,12 @@ final class CatalogOrganizationTests: XCTestCase {
             SELECT COUNT(*) FROM image_collections
             WHERE catalog_image_id NOT IN (SELECT id FROM catalog_images)
             """)
-        // The direct row DELETE here mirrors what the reconcile leg now
-        // cascades — the residual counts must be ZERO.
+        // The residual counts must be ZERO — and the surviving memberships
+        // are exactly the four live images' rows (content-level, L020).
         XCTAssertEqual(orphanMembers, 0)
         XCTAssertEqual(orphanCollectionMembers, 0)
+        XCTAssertEqual(try await store.memberCount(categoryID: a), 4)
+        XCTAssertEqual(try await store.memberCount(collectionID: c), 4)
     }
 
     // MARK: - T4: read/write concurrency smoke (WAL, R4 cross-domain)
