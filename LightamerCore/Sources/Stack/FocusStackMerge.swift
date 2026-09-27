@@ -165,11 +165,11 @@ public enum FocusStackMerge {
         return Plane(pixels: result, width: nextWidth, height: nextHeight)
     }
 
-    /// EXPAND: the reduce adjoint — zero-stuff ×2 then convolve 4·h, in the
-    /// closed per-phase form (see the header table), edges clamped. The
-    /// closed form extends to ANY target size (taps clamp at the source
-    /// edge), which keeps odd-size chains (reduce drops the odd column)
-    /// well-defined.
+    /// EXPAND: the LINEAR 2× partner (D-08-3-T2-2 — even output = the source
+    /// sample, odd = the neighbour mean; DC gain exactly 1), edges clamped.
+    /// The per-phase form extends to ANY target size (taps clamp at the
+    /// source edge), which keeps odd-size chains (reduce drops the odd
+    /// column) well-defined.
     static func expand(_ plane: Plane, toWidth: Int, toHeight: Int) -> Plane {
         // Horizontal phase: width w → the requested width.
         let midWidth = max(1, toWidth)

@@ -50,7 +50,7 @@
 
 ## 4. AC 自检（逐条）
 
-- [x] **SML 度量 kernel**：ML = |2f−f(x−1)−f(x+1)| + |2f−f(y−1)−f(y+1)|（Rec2020 luma），
+- [x] **SML 度量 kernel**：ML = |2f−f(x−1)−f(x+1)| + |2f−f(y−1)−f(y+1)|（MTB-align luma 0.2126/0.7152/0.0722），
       SML = 3×3 ΣML²（clamp-first 窗走位两侧一致）；L014 drain（waitUntilCompleted 于产出 CB，
       无 drain 负例 = 旧图残留确定性复现，D-08-3-T1-3）；half 存储（往返容差断言 1%）；
       tenengrad 枚举位存在且抛 notImplemented（无第二算子数学）。

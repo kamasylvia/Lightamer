@@ -144,7 +144,8 @@ final class StackAggregateTests: XCTestCase {
     // MARK: - The N=3 degenerate (R6)
 
     func testSigmaClipN3DegeneratesToAverage() {
-        // (N−1)/√N ≈ 1.155 < k=2.5 — no 3-sample set can ever reject; the
+        // √(N−1) ≈ 1.41 < k=2.5 (population σ, D-08-3-T3-1) — no 3-sample set can
+        // ever reject; the
         // mode honestly equals the average (the service warns, R6).
         XCTAssertLessThan(
             StackAggregate.maxZScore(sampleCount: 3),

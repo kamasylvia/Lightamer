@@ -24,7 +24,8 @@ import Foundation
 // regression lock's formula and the tests pin it.
 //
 // DEGENERATE N (research R6): with N = 3 the σ-clip can NEVER reject (the
-// maximal z-score of a 3-sample set is (N−1)/√N ≈ 1.155 < k) — the mode
+// maximal z-score of a 3-sample set is √(N−1) ≈ 1.41 < k under the
+// population σ; (N−1)/√N is the ddof=1 figure — D-08-3-T3-1) — the mode
 // honestly degrades to the average and the service warns (same posture as
 // the HDR de-ghost N=3 note).
 //

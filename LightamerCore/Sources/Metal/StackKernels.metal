@@ -8,7 +8,8 @@ using namespace metal;
 // `focus_sml` — the modified-Laplacian Sum-of-Modified-Laplacian focus
 // measure (Pech-Pacheco 2000; RESEARCH §5.1, the P5-probed operator):
 //
-//   f(x, y)      = Rec2020 luma of the linear float32 RGBA plane
+//   f(x, y)      = luma (0.2126/0.7152/0.0722 — the MTB-align luma
+//                  weights) of the linear float32 RGBA plane
 //   ML(x, y)     = |2f − f(x−1) − f(x+1)| + |2f − f(y−1) − f(y+1)|
 //   SML(x, y)    = Σ over the 3×3 window of ML²
 //
