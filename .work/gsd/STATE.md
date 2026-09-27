@@ -2,76 +2,46 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 1 — Foundation, App Skeleton & Capability Spikes
-status: complete
-stopped_at: Phase 4 context gathered (autonomous YOLO decisions)
-last_updated: "2026-09-19T23:30:54.637Z"
+current_phase: Phase 13 — System Integration & Distribution
+status: in_progress
+last_updated: "2026-09-27T01:30:00.000Z"
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 18
-  completed_plans: 18
+  total_phases: 16
+  completed_phases: 12
+  total_plans: 140
+  completed_plans: 128
 ---
 
 # Project State: Lightamer
 
-**Last updated:** 2026-09-16
-**Current phase:** Phase 1 — Foundation, App Skeleton & Capability Spikes
-**Status:** complete (UAT closed 2026-09-18: 5 pass + 1 partial; issue #1 reclassified as multi-window presentation contention → Phase 2 backlog)
+**Last updated:** 2026-09-27
+**Current phase:** Phase 13 — System Integration & Distribution (discuss/research done, plans being executed)
+**Status:** Phases 1-12 complete (execution + acceptance); Phase 13 in progress (4 plans/3 waves dispatched); Phases 14-16 scoped pending
 
-## Roadmap Snapshot
+## Completion Ledger
 
-- **Phases:** 13
-- **Granularity:** fine
-- **Mode:** standard (Horizontal Layers)
-- **Total v1 requirements:** 123
-- **Mapped:** 123 (100%)
-- **Completed phases:** 1 / 13 (Phase 1 UAT closed; next: Phase 2 Pixelpipe Core)
+| Phase | Name | Status | Terminal tests |
+|---|---|---|---|
+| 1 | Foundation, App Skeleton & Capability Spikes | complete (UAT closed 2026-09-18) | 36→282 (Phase 2 baseline) |
+| 2 | Pixelpipe Core, Color Management & History Stack | complete (2026-09-19/20; 6 plans accepted) | 282/3skip/0fail |
+| 3 | Tone & Filmic iops | complete (2026-09-23; 6 plans accepted) | 267/3skip/0fail |
+| 4 | Geometry, Lens & Detail iops | complete (2026-09-23; accepted) | 355/0skip/0fail |
+| 5 | Color & Denoise iops | complete (2026-09-23; 8 plans accepted) | 609/3skip/0fail |
+| 6 | Layers & Masking System | complete (2026-09-24; 7 plans accepted) | 788/3skip/0fail |
+| 7 | AI Modules (Native Vision) | complete (2026-09-24; 3 plans accepted) | 845/6skip/0fail |
+| 8 | yiyin Border/Watermark Panel | complete (2026-09-25; 3 plans accepted) | 973/6skip/0fail |
+| 9 | Capture One Session Management | complete (2026-09-27 UAT exemption; 5 plans accepted) | 1437/6skip/0fail |
+| 10 | yiyin Border/Watermark Panel (executed as Phase 8) | complete (merged into Phase 8 execution) | — |
+| 11 | Export Pipeline & Batch Queue | complete (2026-09-27 UAT exemption; 5 plans accepted) | 1437/6skip/0fail |
+| 12 | Metadata, Rating, Presets & LUT | complete (2026-09-27; 5 plans accepted, terminal verification pending UAT exemption) | 1437/6skip/0fail |
+| 13 | System Integration & Distribution | **in_progress** (4 plans/26T dispatched) | 1553→(executing) |
+| 14 | MCP Server | scoped (ROADMAP §Phase 14; CONTEXT+RESEARCH done) | — |
+| 15 | Performance | scoped (ROADMAP §Phase 15) | — |
+| 16 | Catalogs Mode | scoped (ROADMAP §Phase 16; CONTEXT+RQ drafted; backend = local SQLite per user ruling) | — |
 
-## Phase Progress
+## Notes
 
-| # | Phase | Status | Requirements |
-|---|-------|--------|--------------|
-| 1 | Foundation, App Skeleton & Capability Spikes | executed_pending_verify | 11 |
-| 2 | Pixelpipe Core, Color Management & History Stack | pending | 8 |
-| 3 | Tone & Filmic iops | pending | 10 |
-| 4 | Geometry, Lens & Detail iops | pending | 8 |
-| 5 | Color & Denoise iops | pending | 12 |
-| 6 | Layers & Masking System | pending | 14 |
-| 7 | AI Modules (Native Vision Masking & Retouching) | pending | 4 |
-| 8 | HDR/Stacking & Effects iops | pending | 10 |
-| 9 | Capture One Session Management | pending | 8 |
-| 10 | yiyin Border/Watermark Panel | pending | 8 |
-| 11 | Export Pipeline & Batch Queue | pending | 8 |
-| 12 | Metadata, Rating, Presets & LUT | pending | 11 |
-| 13 | System Integration & Distribution | pending | 11 |
-
-## Active Context
-
-### Current Phase (Phase 1)
-
-- **Goal:** Stand up the macOS 27 native app, Metal dispatch framework, CIRAW 9 RAW decode, the `IOPModule` protocol + `v50_order` table, and an MTKView viewport blitting a decoded RAW. Resolve the CIRAW 9 capability boundary and 100MP Metal performance vertebra — these determine v1 iop scope.
-- **Requirements:** FOUND-01, FOUND-02, FOUND-03, FOUND-05, FOUND-06, FOUND-07, RAW-01, RAW-02, RAW-04, RAW-05, RAW-06
-- **Spikes (run here):** CIRAW 9 vs RAW 8 capability boundary (done — `spike-a-ciraw9-boundary.md`); 100MP Metal performance (done — `spike-b-100mp-perf.md` + `01-PERF-BASELINE.md`); preliminary filmicrgb port feasibility; preliminary raw denoise profiling.
-- **Locked decisions (per research):** macOS 27 floor; linear Rec2020 scene-referred working space; float32 RGBA premultiplied-alpha pipe buffers; `v50_order` module ordering; Metal-first pipe with CIRAW strictly as decoder; Lightamer-own-format sidecar (NOT Darktable-binary-compatible).
-- **Execution state (2026-09-16):** Plans 01-06 all executed and committed. LightamerTests green (36 executed / 1 skip / 0 failed). Pending-manual (host screen locked during execution): XCUITest run, on-screen shell/viewport visual, Instruments signpost view — see `01-VALIDATION.md` and `01-06-SUMMARY.md`.
-
-### Phase Build Order (dependency-driven)
-
-Foundation (1) → Pixelpipe core + history (2) → Tone/Filmic (3) → Geometry/Detail (4) → Color/Denoise (5) → Layers/Masking (6) → Native AI Modules (7) → HDR/Effects (8) → Session (9) → yiyin (10) → Export (11) → Metadata/Presets/LUT (12) → System/Distribution (13).
-
-## Decisions Log
-
-- 2026-09-16 (Plan 05): D-20 evidence recorded — tiling deferred is correct for Phase 1; Phase 2 must treat tiling/multi-resolution caching as a hard requirement (see `spike-b-100mp-perf.md` §4).
-- 2026-09-16 (Plan 05): demosaic algorithm menu NOT a v1 hard requirement (CIRAW 8/9 boundary; user phase-verification call recorded in 01-05-SUMMARY).
-
----
-*Initialized: 2026-08-03 after roadmap creation*
-*Updated: 2026-08-03 — Phase 7 rescoped to native-only AI (4 reqs); AI-02/03/04 moved to v2*
-*Updated: 2026-09-18 — Phase 1 UAT closed (executed_pending_verify → complete); next Phase 2*
-
-## Session
-
-**Last session:** 2026-09-19T23:30:54.294Z
-**Stopped at:** Phase 4 context gathered (autonomous YOLO decisions)
-**Resume file:** .planning/phases/04-geometry-lens-detail-iops/04-CONTEXT.md
+- Phase 9/11/12 UAT: user exemption 2026-09-27（四期翻转一句话豁免；材料全齐：09-UAT.md 12 pass/3 skip/0 真缺陷 + 各 VALIDATION validated）。
+- Phase 10 (yiyin) was executed as Phase 8 (execution-order 08 = ROADMAP §Phase 10).
+- Phase 16 backend ruling: v1 = local SQLite (user 2026-09-27); pg = v2 evaluation item.
+- push: local-only per user instruction (~370+ commits ahead of Azure DevOps origin; GitHub repo not yet created — 13-4 DIST-01).
