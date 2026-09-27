@@ -2119,6 +2119,57 @@
         }
       }
     },
+    "edr_headroom_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EDR headroom %@×"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EDR 余量 %@×"
+          }
+        }
+      }
+    },
+    "edr_no_headroom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No EDR headroom on this display"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前显示器无 EDR 余量"
+          }
+        }
+      }
+    },
+    "edr_toggle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR Preview"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 预览"
+          }
+        }
+      }
+    },
     "empty_state_body": {
       "extractionState": "manual",
       "localizations": {

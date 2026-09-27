@@ -425,6 +425,32 @@ final class PipeCoordinator {
         return chain
     }
 
+    // ── 08-4 T1: EDR display (IOP-HDR-05) — the second display-leg runtime
+    //    override (the soft proof same-position contract, D-08-CONTEXT-12①) ──
+
+    /// The viewport-level HDR preview toggle. NOT a document parameter: it
+    /// never enters instances, history, the sidecar, or the export chain.
+    /// ON re-runs the DISPLAY legs (the terminal SDR-clamp bypass lands with
+    /// T2's `edrDisplayLeg` pipe leg) and flips the viewport to the 16F EDR
+    /// surface (T1's `EditorMTKView.edrActive`); OFF = today's bytes.
+    private(set) var edrDisplayEnabled = false
+
+    /// Set/clear the EDR display leg and re-render the display leg.
+    /// THUMBNAIL is deliberately not dirtied (browser thumbnails are not
+    /// EDR surfaces — mirrors `setSoftProof`). The re-render rides the
+    /// SAME cache with ZERO key invalidation (the T2/T4 zero-stale contract).
+    func setEDRDisplay(_ on: Bool) {
+        guard edrDisplayEnabled != on else { return }
+        edrDisplayEnabled = on
+        guard decoded != nil else { return }
+        generation += 1
+        Task { [weak self] in
+            guard let self else { return }
+            await self.renderPreview(
+                bucket: self.currentBucket ?? PreviewBucket.cap, generation: self.generation)
+        }
+    }
+
     /// The yiyin logo store (08-3 T3 wiring): the embedded 26-brand PDF
     /// raster cache + user uploads, ONE per coordinator. Its init scans
     /// the user directory once (a handful of files at most).
