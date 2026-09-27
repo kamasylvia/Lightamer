@@ -77,3 +77,51 @@
 - staging IO 注记（D-08-3-T4-3）：band-outer 消费形状要求带外随机访问 N 源行——解码每源一次后
   落临时文件（float RGBA 原样），聚合/融合遍按带读回。临时目录随腿 defer 清理，不进会话、
   不触源文件。这是 R3（无 N×全驻）的诚实代价，research §12 预算表未单列（偏差注记即此条）。
+
+## 08-5（收口：preview float32 预算复核 + 全 Phase 汇总对账）
+
+### preview float32 预算复核（正式结论，research §13.2 消费）
+
+- **预算上限钉死**：2560px long-edge float32 RGBA 平面 = 2560×1707×16B ≈ **70MB/平面**——
+  `HDRPipelineMatrixTests.testMergedProductPreviewMemoryProbe` 从「只打印」升格为 **1.05× 松弛
+  上限断言**（fixture 64×64 实测 65,536B = 同一 16B/px 口径，比例自洽）。
+- **结论：合并不进 preview 缓存面新类**——合并产物按普通文档走标准四管线生命周期；
+  `PipeResolution.cachesIntermediatePlanes`（preview/thumbnail = true，full/export = false）
+  结构断言钉死；**enforceBudget 五档零改，预算零增**。
+- **EDR viewport 注记（08-4 面）**：16F drawable @3008×1692×8B ≈ **62MB**——单 drawable 瞬态，
+  非缓存驻留，增量可忽略。
+- **遗留消费（D-08-1-13①② 关闭）**：CI input 腿 RGBAh 对 sub-1e-4 线性值下溢——矩阵收口以
+  「torture 峰值重归一至 4.0（真实 HDR 文档域）」绕开，torture 96×96 黑平面分歧随之消解
+  （矩阵 patch 行 + torture 诊断行双绿）；暗部 ≤6e-8 subnormal 面登记为 L006 的 HDR 附件
+  （真实合并产物值域 0.001–100 多在 half normal 域内），**非 Phase 8 阻塞**，归 L006 台账。
+
+### Release 口径注记（08-1 移交④ 关闭方式）
+
+- 24MP/100MP Release 全程秒表：Project.swift `@testable` 与 Release 测试互斥，本 Phase 不可直测
+  （08-1 已记录）。维持「Debug 73.5s + 线性外推 312s 上界」账面口径，**正式 Release 计量归
+  Phase 15**（perf 专项），与 09-05 D-09-05-T1-2「Release 计量只认 clean 构建」先例同批处理。
+
+### 全 Phase 汇总对账（08-1..08-5 vs research §0/§12/§13，只记不设门）
+
+| 项 | research 参考 | Phase 账面 | 结论 |
+|---|---|---|---|
+| MTB 对齐 3-bracket | ≈3.8s 单线程 CPU（P1） | fixture 级并入 E2E（08-1/08-3 位移轨命中）；100MP 单段未单钉 | ✓ 形态验证，精确秒表留 Phase 15 |
+| Robertson 内循环 | 11.2ns/px（Release 探针） | Debug 24MP E2E 73.5s（口径差归因在案） | Release 归 Phase 15 |
+| 解码（CIRAW 100MP） | 2–5s/张（R7） | 0.92–1.93s（08-1 首测） | ✓ R7 解除 |
+| 行带流式内存 | R3 红线（累积面常量） | 28/41 B/px 契约 + 显式 N 对照表（08-5 `cd0b5b9`） | ✓ 钉死 |
+| sigma-clip N=8 | 136.6ns/px → 4.0s 4P | E2E 0.157s fixture 级（08-3，外推 ≈80s 全幅） | 只记（N=8 全幅秒表 = Manual-Only 候补/Phase 15） |
+| SML 度量 | 1.5ns/px | 5.55ns/px 含上传腿（08-3 归因注记） | ✓ kernel 本体同量级 |
+| bloom blur | 级联 0.29s（P5） | 级联形态一致；preview 整链 27.8ms（08-2） | ✓ |
+| LUT HDR 域精度 | half ~5e-4 相对（§13.3 预期） | 正域 3.8e-4 ✓ / 混合符号 4.6e-1 ✗（08-5 判定写死，D7 保持） | ✓ 判定闭环 |
+| preview float32 预算 | ≈70MB/平面（§13.2） | 上限断言钉死 + 零新缓存类 | ✓ 本节 |
+| 效果 iop 60fps 预算 | preview 基线不回退 | 08-2 三 iop 挂链 25.8–27.8ms Debug 整链 + 08-5 dehaze/textOverlay 无独立秒表（dehaze 为 8-pass 链，与 bloom 同域只记；preview 探针挂 Phase 15 汇总） | 只记 |
+
+### Manual-Only 汇总指针
+
+- 08-1：真 RAW bracket 灰卡两点标定 / HDR menu-dialog-toast 真机观感（2 行）
+- 08-2：bloom/vignette/grain 手感观感轮（行数见 08-2 SUMMARY）
+- 08-3：100MP N=8 全幅秒表 / menu-真样张观感（2 行）
+- 08-4：XDR 目检 / 外接 HDR 屏 / headroom>1.0 观感（3 行）
+- 08-5：**dehaze box 近似 vs dt guided filter 的视觉差对比**（planner 裁决的 Manual-Only 对比项，
+  v1 接受；guided 全移植 = Reversibility 后补位）+ **text overlay 真机排版观感**（字体/字号手感）
+- → 全部汇总入 08-VALIDATION Manual-Only 表，verify-work 走查。
