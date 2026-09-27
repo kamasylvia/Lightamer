@@ -512,4 +512,41 @@ final class StackAggregateTests: XCTestCase {
         }
         XCTAssertEqual(sigmaURL.lastPathComponent, "STACK0001_stack_sig.tif")
     }
+
+    // MARK: - T5: the perf probes (只记不设门 — perf.md anchors, no gate)
+
+    /// The stacking E2E stopwatch at N=8 (512×384 raster sources): the
+    /// full align → stage → aggregate → landing pipeline vs the research
+    /// §12 budget shape (decode-dominated + ≈4 s aggregate @100MP; the
+    /// fixture scale records the per-segment cost shape only).
+    func testStackingE2ETimingProbe() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stack-perf-\(UUID().uuidString)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var sources: [URL] = []
+        for index in 0..<8 {
+            sources.append(try writeStackSource(
+                directory: root,
+                name: String(format: "PERF%04d.tif", index),
+                seed: 0x9E00 &+ UInt64(index)))
+        }
+        let service = try makeRealService()
+        let start = Date()
+        _ = try await service.enqueue(
+            kind: .stackSigma, sources: sources,
+            params: .init(deGhost: false, tag: nil), sessionRoot: root)
+        guard let terminal = await Self.awaitTerminal(service) else {
+            XCTFail("the sigma probe never settled")
+            return
+        }
+        guard case .done = terminal.state else {
+            XCTFail("expected .done, got \(terminal.state)")
+            return
+        }
+        print("LA-PERF sigma N=8 512x384 E2E: "
+            + String(format: "%.3f", Date().timeIntervalSince(start)) + "s")
+    }
 }

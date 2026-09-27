@@ -506,4 +506,34 @@ final class FocusStackTests: XCTestCase {
         XCTAssertLessThan(nccDrift, FocusStackMerge.nccWarnThreshold,
             "a 5% scale drift must warn (NCC \(nccDrift))")
     }
+
+    // MARK: - T5: the perf probes (只记不设门 — perf.md anchors, no gate)
+
+    /// The SML kernel cost at fixture scale (includes the upload + the
+    /// drained readback — the 0.15 s/source @100MP reference is the
+    /// kernel-only P5 figure; the overhead legs are recorded for the
+    /// perf.md accounting).
+    func testSMLTimingProbe() throws {
+        let gpu = try GPU.make()
+        let width = 512, height = 384
+        let values = Self.texture(width, height, seed: 0x7331)
+        let rgba = Self.rgbaPlane(gray: values, width: width, height: height)
+        // Warm the PSO.
+        _ = try withPlane(rgba) { plane in
+            try FocusMeasure.qualityMap(
+                plane: plane, width: width, height: height, bytesPerRow: width * 16,
+                device: gpu.device, queue: gpu.queue)
+        }
+        let start = Date()
+        _ = try withPlane(rgba) { plane in
+            try FocusMeasure.qualityMap(
+                plane: plane, width: width, height: height, bytesPerRow: width * 16,
+                device: gpu.device, queue: gpu.queue)
+        }
+        let elapsed = Date().timeIntervalSince(start)
+        let nsPerPx = elapsed * 1e9 / Double(width * height)
+        print("LA-PERF SML 512x384: \(String(format: "%.4f", elapsed))s, "
+            + "\(String(format: "%.2f", nsPerPx)) ns/px (upload + kernel + drain)")
+        // No gate (perf 口径 = 只记不设门).
+    }
 }

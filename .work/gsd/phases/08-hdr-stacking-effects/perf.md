@@ -59,3 +59,21 @@
 - bloom 级联 0.29s @100MP 对账：形状一致（÷8 box + 1/8 FIR + 双线性）；100MP 全幅级联秒表未在本
   plan 单独复测（preview 探针 + P5 参考数在案即过；EXPORT 全幅秒表留 08-5 收口若需）。
 - 确定性纪律注记：三模块 preview 渲染逐字节确定（GrainTests 双断言 + EffectsWiring 恒等段在案）。
+
+## 08-3（focus stacking + 三模式堆栈降噪）
+
+| 项 | research 参考基准 | 本 plan 实测（Debug，`test-direct.sh` 直启） | 对账 | 备注 |
+|---|---|---|---|---|
+| SML 焦点度量 | 1.5 ns/px → **0.15 s/源 @100MP**（P5，CPU kernel-only） | **5.55 ns/px**（512×384，含 1.6GB 级 upload + drain 读回全程；`FocusStackTests.testSMLTimingProbe`，warm 后单采） | 偏差 >2×，归因在案 | P5 参考是 CPU kernel-only；本数含 GPU 路径三大开销腿——①plane→MTLBuffer 上传（100MP ≈1.6GB，PCIe/带宽主导）②half 读回 ③waitUntilCompleted 排队。kernel 本体预期仍 ~1.5ns/px 量级；100MP 外推 ≈0.56 s/源（上传主导）。**优化缝（v2）：CIContext 直渲 MTLTexture 免上传**，v1 不做 |
+| sigma-clip 聚合 | 136.6 ns/px → **13.9 s 单线程 / ~4.0 s 4P @100MP N=8**（P3） | E2E N=8 512×384：**0.157 s 全程**（align→stage→aggregate→landing；`StackAggregateTests.testStackingE2ETimingProbe`） | ✓ 形状一致（fixture 级） | 线性外推 100MP ≈80 s——其中解码 8×CIRAW ≈8–16 s + staging IO（读写各 ≈9.7GB）为主，聚合本体按 136.6ns/px 占 ≈14 s；单遍带内完成定形未变（无两遍/滑窗）。全程为后台任务形态，<60s 门仅约束 100MP×3 HDR（research §12），N=8 面只记 |
+| focus 融合全程 | ≈ 解码主导 + 聚合 4s（research §12 注：N=8 同形） | 位移轨 E2E（N=2 96×72）1.2 s 内完成（含 MTB 对齐 + staging + 5 级融合 + 落位）；融合数学 MAE 0.0016（P5 形状） | ✓ | 100MP N=8 全幅秒表未在套件内跑（内存/时长超 CI 面）——工作集 740 MB（bandWorkingSetBytes 常量断言）+ staging IO ≈20 s + CPU 融合为外推构成，归 Manual-Only 候补/Phase 15 |
+
+### 首测记录（08-3 T5）
+
+- 测试：`FocusStackTests.testSMLTimingProbe` / `StackAggregateTests.testStackingE2ETimingProbe`
+  （真实生产腿；**无时长断言，只记不设门**）。
+- 口径注记：SML 探针为 warm-PSO 后单采（含上传 + 提交 + drain + 读回）；sigma E2E 为 8 源
+  512×384 float TIFF 经 align/stage/aggregate/landing 全程秒表（raster 解码路径）。
+- staging IO 注记（D-08-3-T4-3）：band-outer 消费形状要求带外随机访问 N 源行——解码每源一次后
+  落临时文件（float RGBA 原样），聚合/融合遍按带读回。临时目录随腿 defer 清理，不进会话、
+  不触源文件。这是 R3（无 N×全驻）的诚实代价，research §12 预算表未单列（偏差注记即此条）。
