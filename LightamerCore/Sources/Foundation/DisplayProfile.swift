@@ -136,16 +136,25 @@ public enum DisplayProfile: @unchecked Sendable, Equatable {
     /// The LINEAR variant of the resolved target gamut — the colorout
     /// ColorSync leg's output encoding (colorout ALWAYS emits linear
     /// target-gamut float32; the TRC encode is gamma's job — D-COL4).
-    /// Known families map to the system linear spaces; the fallback maps
-    /// to linear sRGB — a DOCUMENTED workalike: exact primaries of the
-    /// unknown profile land with Phase 13's full ICC support, and its TRC
-    /// is approximated by gamma's sRGB curve (exact for the overwhelmingly
-    /// common sRGB-TRC display class).
+    /// Known families map to the system linear spaces; the fallback tries
+    /// the profile's EXACT primaries first (Plan 13-2 T6 exact-TRC: a
+    /// matrix-shaper ICC yields its calibrated-linear workalike via
+    /// `CGColorSpaceCreateCalibratedRGB` at gamma 1.0 — primaries and white
+    /// point precise, black point included when the profile carries it).
+    /// LUT-class profiles (no XYZ shaper tags) keep the sRGB workalike, and
+    /// the TRC encode itself stays gamma's sRGB curve in both cases (the
+    /// display leg's encode is shared; for the overwhelmingly common
+    /// sRGB-TRC display class the curve is exact).
     public var linearCGColorSpace: CGColorSpace {
         switch self {
         case .displayP3:
             return CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3)!
-        case .sRGB, .colorSyncFallback:
+        case .sRGB:
+            return CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!
+        case .colorSyncFallback(let space):
+            if let exact = space.linearVariantIfMatrixShaper {
+                return exact
+            }
             return CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!
         }
     }
@@ -161,5 +170,75 @@ public enum DisplayProfile: @unchecked Sendable, Equatable {
         case .sRGB, .colorSyncFallback:
             return CGColorSpace(name: CGColorSpace.sRGB)!
         }
+    }
+}
+
+// MARK: - The exact-TRC helper (Plan 13-2 T6)
+
+extension CGColorSpace {
+
+    /// The profile's LINEAR variant for a matrix-shaper ICC: parse the
+    /// `rXYZ`/`gXYZ`/`bXYZ` (primaries), `wtpt` (media white) and `bkpt`
+    /// (optional black) XYZ tags and rebuild the gamut at gamma 1.0 via
+    /// `CGColorSpaceCreateCalibratedRGB` — the primaries/white are EXACT
+    /// (the fallback leg's workalike approximation shrinks to the TRC
+    /// encode alone; see `DisplayProfile.linearCGColorSpace`). nil for any
+    /// profile without the shaper tags (LUT-class), for non-RGB models
+    /// (CMYK), and for malformed tables — the caller keeps the sRGB
+    /// workalike in every nil case.
+    ///
+    /// ICC layout: 128-byte header, tag count at offset 128 (u32 BE), then
+    /// 12-byte tag entries (signature, offset, size — all u32 BE); the XYZ
+    /// payload is three s15Fixed16 numbers (u32 BE, value/65536).
+    var linearVariantIfMatrixShaper: CGColorSpace? {
+        guard model == .rgb, let icc = copyICCData() as Data? else { return nil }
+        let bytes = [UInt8](icc)
+        guard bytes.count > 132 else { return nil }
+        let tagCount = bytes.beUInt32(at: 128)
+        guard tagCount > 0, tagCount < 512 else { return nil }
+
+        func xyzTag(_ signature: String) -> [Double]? {
+            for i in 0..<Int(tagCount) {
+                let entry = 132 + i * 12
+                guard entry + 12 <= bytes.count else { return nil }
+                let sig = String(bytes: bytes[entry..<(entry + 4)], encoding: .ascii)
+                guard sig == signature else { continue }
+                let offset = Int(bytes.beUInt32(at: entry + 4))
+                // The XYZType element: 4-byte type signature ('XYZ ') +
+                // 4-byte reserved + three s15Fixed16 numbers (20 bytes).
+                guard offset + 20 <= bytes.count else { return nil }
+                return (0..<3).map { Double(bytes.beInt32(at: offset + 8 + $0 * 4)) / 65536.0 }
+            }
+            return nil
+        }
+        guard let rXYZ = xyzTag("rXYZ"), let gXYZ = xyzTag("gXYZ"),
+              let bXYZ = xyzTag("bXYZ"), let wXYZ = xyzTag("wtpt")
+        else { return nil }
+        guard rXYZ.count == 3, gXYZ.count == 3, bXYZ.count == 3, wXYZ.count == 3,
+              wXYZ[1] != 0
+        else { return nil }
+
+        // Primaries as [rx, ry, gx, gy, bx, by]; white/black as [x, y, Y=1]
+        // (CalibratedRGB expects the tristimulus with Y last).
+        let primaries: [CGFloat] = [rXYZ[0], rXYZ[1], gXYZ[0], gXYZ[1], bXYZ[0], bXYZ[1]]
+        let white: [CGFloat] = [
+            CGFloat(wXYZ[0] / wXYZ[1]), CGFloat(wXYZ[2] / wXYZ[1]), 1.0,
+        ]
+        let black: [CGFloat]? = xyzTag("bkpt").map { b in
+            [CGFloat(b[0] / max(b[1], 1e-6)), CGFloat(b[2] / max(b[1], 1e-6)), 1.0]
+        }
+        return CGColorSpace(
+            calibratedRGBWhitePoint: white, blackPoint: black,
+            gamma: [CGFloat](repeating: 1.0, count: 3), matrix: primaries)
+    }
+}
+
+private extension Array where Element == UInt8 {
+    func beUInt32(at offset: Int) -> UInt32 {
+        (UInt32(self[offset]) << 24) | (UInt32(self[offset + 1]) << 16)
+            | (UInt32(self[offset + 2]) << 8) | UInt32(self[offset + 3])
+    }
+    func beInt32(at offset: Int) -> Int32 {
+        Int32(bitPattern: beUInt32(at: offset))
     }
 }

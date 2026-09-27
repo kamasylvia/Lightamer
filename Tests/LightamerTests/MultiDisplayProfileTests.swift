@@ -155,7 +155,7 @@ final class MultiDisplayProfileTests: XCTestCase {
                     "window↔screen drag tracking must be wired")
         assertWired("NSApplication.didChangeScreenParametersNotification",
                     "display topology/profile change tracking must be wired")
-        assertWired("window?.screen?.colorSpace",
+        assertWired("window?.screen ?? NSScreen.main",
                     "the WINDOW's screen must win the resolution (D-COL2)")
     }
 
@@ -213,5 +213,76 @@ final class MultiDisplayProfileTests: XCTestCase {
             image: fixtureImage(), instances: chain, imageID: imageID,
             resolution: .preview, cache: cache, metal: metal, longEdge: 128)
         XCTAssertEqual(warm.planesRendered, 0, "the manual override's keys are stable")
+    }
+
+    // MARK: - 4b. T6: the override store (resolution precedence + persistence)
+
+    func testOverrideStorePrecedenceAndClear() throws {
+        let defaults = UserDefaults(suiteName: "test.display.override")!
+        defaults.removePersistentDomain(forName: "test.display.override")
+        let store = ManualDisplayOverrideStore(defaults: defaults)
+        let iccPath = "/System/Library/ColorSync/Profiles/AdobeRGB1998.icc"
+        let testID: UInt32 = 0xABCD1234
+
+        defer { defaults.removePersistentDomain(forName: "test.display.override") }
+
+        // No override → the auto matching table decides.
+        let screen = NSScreen.main
+        let auto = store.resolvedProfile(screen: screen)
+        XCTAssertEqual(auto, DisplayProfile.resolve(screen?.colorSpace))
+
+        // Setting the override → the ICC wins (byte identity).
+        store.setOverride(iccPath, displayID: testID)
+        XCTAssertEqual(store.overridePath(displayID: testID), iccPath)
+        // The store resolves the OVERRIDE for a screen carrying the test ID
+        // only through the NSScreen path — inject directly via the ICC
+        // resolution face:
+        let icc = try Data(contentsOf: URL(fileURLWithPath: iccPath))
+        let space = try XCTUnwrap(CGColorSpace(iccProfileData: icc as CFData))
+        let manual = DisplayProfile.colorSyncFallback(space)
+        XCTAssertEqual(manual.stableID, StableHash.hash(icc),
+                       "the override profile's identity is the ICC byte hash")
+
+        // Persistence across instances (the UserDefaults backing).
+        let secondStore = ManualDisplayOverrideStore(defaults: defaults)
+        XCTAssertEqual(secondStore.overridePath(displayID: testID), iccPath)
+
+        // Clear → back to auto.
+        secondStore.setOverride(nil, displayID: testID)
+        XCTAssertNil(secondStore.overridePath(displayID: testID))
+    }
+
+    func testOverrideGracefulDegradationOnMissingFile() throws {
+        let defaults = UserDefaults(suiteName: "test.display.override2")!
+        defaults.removePersistentDomain(forName: "test.display.override2")
+        defer { defaults.removePersistentDomain(forName: "test.display.override2") }
+        let store = ManualDisplayOverrideStore(defaults: defaults)
+        // A stale/missing ICC path resolves to the AUTO profile (no crash,
+        // no wrong simulation).
+        store.setOverride("/nonexistent/profile.icc", displayID: 42)
+        let resolved = store.resolvedProfile(screen: NSScreen.main)
+        XCTAssertEqual(resolved, DisplayProfile.resolve(NSScreen.main?.colorSpace),
+                       "a stale override degrades to the auto resolution")
+    }
+
+    func testExactTRCLinearVariantFromMatrixShaperICC() throws {
+        // The exact-TRC ruling: a matrix-shaper ICC's linear variant carries
+        // the profile's EXACT primaries (not the sRGB workalike).
+        let adobeICC = try XCTUnwrap(
+            CGColorSpace(name: CGColorSpace.adobeRGB1998)?.copyICCData() as Data?)
+        let adobe = try XCTUnwrap(CGColorSpace(iccProfileData: adobeICC as CFData))
+        let linear = try XCTUnwrap(
+            adobe.linearVariantIfMatrixShaper,
+            "AdobeRGB1998.icc is a classic matrix-shaper profile")
+        XCTAssertNotEqual(
+            linear, CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!,
+            "the rebuilt linear space must NOT be the sRGB workalike")
+        // And DisplayProfile routes the fallback through it.
+        let profile = DisplayProfile.colorSyncFallback(adobe)
+        XCTAssertEqual(profile.linearCGColorSpace, linear)
+        // Same bytes ⇒ same variant (determinism).
+        let again = try XCTUnwrap(CGColorSpace(iccProfileData: adobeICC as CFData))
+            .linearVariantIfMatrixShaper
+        XCTAssertEqual(again?.name, linear.name)
     }
 }

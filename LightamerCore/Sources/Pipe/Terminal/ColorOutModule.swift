@@ -275,16 +275,20 @@ public final class ColorOutModule: IOPModule {
                 constants: constants(forP3: false, metal: metal)
             )
         case .colorSyncFallback:
-            // Linear sRGB workalike (documented at
-            // `DisplayProfile.linearCGColorSpace`): exact primaries of an
-            // unknown profile land with Phase 13's full ICC support.
-            // TextureBox (the pipe's @unchecked Sendable ownership-transfer
-            // wrap) carries the plane across the pool actor boundary — the
-            // plane is renounced by this call (not used afterwards).
+            // The precise leg's target = the resolved profile's LINEAR
+            // variant (the single-source `DisplayProfile.linearCGColorSpace`):
+            // 13-2 T6 exact-TRC — a hand-picked (or matrix-shaper) ICC
+            // carries its EXACT primaries/white through the calibrated-
+            // linear rebuild; LUT-class profiles keep the extended-linear-
+            // sRGB workalike for their primaries (documented at the
+            // property). TextureBox (the pipe's @unchecked Sendable
+            // ownership-transfer wrap) carries the plane across the pool
+            // actor boundary — the plane is renounced by this call (not
+            // used afterwards).
             try await renderViaColorSync(
                 input: TextureBox(texture: input),
                 output: output,
-                linearSpace: CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!,
+                linearSpace: target.linearCGColorSpace,
                 metal: metal
             )
         }

@@ -452,10 +452,12 @@ final class PipeCoordinator {
     /// so the PREVIEW re-render hits everything upstream of colorout and
     /// re-runs ONLY the colorout+gamma terminal segment (SC#2 terminal
     /// variant; cached planes stop at colorout — research §3.3).
+    ///
+    /// 13-2 T6: the resolution honors the MANUAL per-display override
+    /// (`ManualDisplayOverrideStore`) — a hand-picked ICC wins over the
+    /// auto matching table for THIS display only.
     private func displayDidChange(initial: Bool = false) async {
-        let profile = DisplayProfile.resolve(
-            window?.screen?.colorSpace ?? NSScreen.main?.colorSpace
-        )
+        let profile = resolvedDisplayProfile()
         if initial {
             Self.colorLogger.info("display profile → \(profile.label, privacy: .public)")
         }
@@ -480,6 +482,23 @@ final class PipeCoordinator {
         await renderPreview(
             bucket: currentBucket ?? PreviewBucket.cap, generation: generation
         )
+    }
+
+    /// The effective display profile for the WINDOW's screen: the manual
+    /// override (Settings, 13-2 T6) wins; the standard matching table is
+    /// the default. The single resolution point the screen follow + the
+    /// re-commits + the override renders all share.
+    private func resolvedDisplayProfile() -> DisplayProfile {
+        let screen = window?.screen ?? NSScreen.main
+        return ManualDisplayOverrideStore.shared.resolvedProfile(screen: screen)
+    }
+
+    /// The Settings-side refresh (13-2 T6): an override was set/cleared —
+    /// forget the folded identity and re-run the resolution (idempotent
+    /// when nothing changed).
+    func refreshDisplayProfile() {
+        displayStableID = nil
+        Task { await displayDidChange() }
     }
 
     /// Adopt a chain for rendering: explicit instances win; empty → the
@@ -508,9 +527,7 @@ final class PipeCoordinator {
     /// never drops the live display follow.
     private func recommitColoroutForDisplay() {
         guard let box = coloroutBox else { return }
-        let profile = DisplayProfile.resolve(
-            window?.screen?.colorSpace ?? NSScreen.main?.colorSpace
-        )
+        let profile = resolvedDisplayProfile()
         box.module.displayProfileOverride = profile
         let params = (try? JSONDecoder().decode(
             ColorOutModule.Params.self, from: box.paramsData
@@ -1557,9 +1574,7 @@ final class PipeCoordinator {
         // never mutated by an override render).
         if let colorout = boxes.first(where: { $0.opName == ColorOutModule.opName })
             as? ModuleBox<ColorOutModule> {
-            colorout.module.displayProfileOverride = DisplayProfile.resolve(
-                window?.screen?.colorSpace ?? NSScreen.main?.colorSpace
-            )
+            colorout.module.displayProfileOverride = resolvedDisplayProfile()
             let params = (try? JSONDecoder().decode(
                 ColorOutModule.Params.self, from: colorout.paramsData))
                 ?? ColorOutModule.Params()
