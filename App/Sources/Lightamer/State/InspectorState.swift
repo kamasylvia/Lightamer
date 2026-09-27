@@ -118,6 +118,8 @@ final class InspectorState {
         register(LutPanelProvider())
         // Plan 08-2 T1: vignette (the dt-verbatim falloff/shape panel).
         register(VignettePanelProvider())
+        // Plan 08-2 T3: bloom (the dt-verbatim size/threshold/strength panel).
+        register(BloomPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

@@ -265,6 +265,14 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: GrainModule.opName) { id in
             ModuleBox(module: GrainModule(imageIdentity: id), instanceID: id)
         }
+        // Plan 08-2-T3: bloom (glow, cascade blur), v50 slot 61.0 — ALREADY
+        // in the V50Order table (zero rows inserted); < the 70.0 terminal
+        // floor → layer-mask eligible. Seed DISABLED (the dt defaults
+        // threshold 90 / strength 25 are not pixel-identity — the creative
+        // disposition; the 08-2 panel drives this instance).
+        await registry.register(opName: BloomModule.opName) { id in
+            ModuleBox(module: BloomModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -390,6 +398,11 @@ public enum LightamerIOPRegistry {
             VignetteKernel.functionName,
             // Plan 08-2-T2: the grain single-pass simplex injection.
             GrainKernel.functionName,
+            // Plan 08-2-T3: the bloom four-pass cascade chain.
+            BloomKernel.thresholdFunction,
+            BloomKernel.boxFunction,
+            BloomKernel.gaussFunction,
+            BloomKernel.screenFunction,
         ]
     }
 
@@ -515,6 +528,10 @@ public enum LightamerIOPRegistry {
             // disposition; the box UUID rides in as the pattern-identity
             // carrier, DECISIONS D-08-2-1).
             ModuleInstance(module: GrainModule.self, params: GrainModule.Params(), enabled: false),
+            // Plan 08-2-T3: bloom joins the seed DISABLED (the dt defaults
+            // threshold 90 / strength 25 are not pixel-identity — the
+            // creative disposition; the 08-2 panel drives this instance).
+            ModuleInstance(module: BloomModule.self, params: BloomModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }
