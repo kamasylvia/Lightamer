@@ -59,6 +59,6 @@
 
 ## 签核判定
 
-**Phase 13 签核：PASS（SC#1-4 ✅——SC#4 含用户终裁范围修订；status: validated + nyquist_compliant: true；终轮 1636/10skip/0fail；走查遗留 7 行 pending-manual 全部登记且自动化腿在案，不阻塞签核）。**
+**Phase 13 签核：PASS（SC#1-4 ✅——SC#4 含用户终裁范围修订；status: validated + nyquist_compliant: true；终轮 1636/11skip/0fail；走查遗留 7 行 pending-manual 全部登记且自动化腿在案，不阻塞签核）。**
 
 *Phase 13 — System Integration & Distribution 四 plan（13-1/13-2/13-3/13-4）全闭环。*
