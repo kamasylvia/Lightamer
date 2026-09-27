@@ -26,6 +26,9 @@ internal struct ContentView: View {
     /// data face; the shared runtime store is bound by the app root).
     let catalogBrowserModel: CatalogBrowserModel
 
+    /// Plan 16-2 T5: the cross-session thumbnail router (nil = not wired).
+    let catalogThumbnailRouter: CatalogThumbnailRouter?
+
     /// Plan 09-04 (HIST-05): the adjustments clipboard + the app root's
     /// partial-paste routing (the sheet raises the request; the app root's
     /// closure performs the paste) + the presentation binding.
@@ -193,6 +196,14 @@ internal struct ContentView: View {
             // 成常量; the segmented control remembers within a run only).
             organizationModeRaw = CatalogPreferencesModel.coldStartRawValue
         }
+        // Plan 16-2 T5: the pool lifecycle follows the grid — leaving the
+        // Catalogs org-mode tears the provider pool down (the single-
+        // session teardown semantics generalized; RQ-16-9).
+        .onChange(of: organizationModeRaw) { _, newValue in
+            if newValue != CatalogPreferencesModel.OrganizationMode.catalogs.rawValue {
+                Task { await catalogThumbnailRouter?.teardown() }
+            }
+        }
         .onChange(of: inspectorVisible) { _, isVisible in
             columnVisibility = isVisible ? .all : .detailOnly
         }
@@ -273,6 +284,7 @@ internal struct ContentView: View {
         if catalogsModeActive {
             CatalogBrowserView(
                 model: catalogBrowserModel,
+                thumbnailRouter: catalogThumbnailRouter,
                 onOpenInEditor: { sessionRoot, relPath in
                     openFromCatalog(sessionRoot: sessionRoot, relPath: relPath)
                 }

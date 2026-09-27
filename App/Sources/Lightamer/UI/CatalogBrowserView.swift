@@ -30,6 +30,11 @@ internal struct CatalogBrowserView: View {
 
     let model: CatalogBrowserModel
 
+    /// Plan 16-2 T5: the cross-session thumbnail router (nil = not wired —
+    /// cells stay placeholders; the pool teardown rides the org-mode
+    /// switch in ContentView).
+    let thumbnailRouter: CatalogThumbnailRouter?
+
     /// Double-click: open the row's session through the SAME `openSession`
     /// flow and load the clicked image into the editor (D-16-CONTEXT-5⑤ —
     /// the editor is mode-blind). The mode flip is the caller's.
@@ -52,6 +57,7 @@ internal struct CatalogBrowserView: View {
                     CatalogBrowserCell(
                         row: row,
                         sessionRoot: sessionRoots[row.sessionID],
+                        thumbnailRouter: thumbnailRouter,
                         isSelected: model.selectedIdentities.contains(row.id),
                         onClick: { command, shift in
                             model.handleClick(row.id, commandPressed: command, shiftPressed: shift)
@@ -129,15 +135,29 @@ private struct CatalogBrowserCell: View {
     let row: CatalogBrowserModel.Row
     /// The session root (nil = unknown registry row — no open affordance).
     let sessionRoot: URL?
+    let thumbnailRouter: CatalogThumbnailRouter?
     let isSelected: Bool
     let onClick: (_ command: Bool, _ shift: Bool) -> Void
     let onDoubleClick: () -> Void
+
+    /// The resolved thumb (nil = placeholder gradient).
+    @State private var thumbnail: CGImage?
+    /// The identity this @State resolved for (LazyVGrid recycles cells —
+    /// a stale answer must never paint the next row's tile).
+    @State private var resolvedFor: String?
 
     var body: some View {
         VStack(spacing: 4) {
             ZStack {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color.gray.opacity(0.18))
+                if let thumbnail {
+                    Image(decorative: thumbnail, scale: 1.0)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .transition(.opacity)
+                }
                 VStack {
                     HStack(spacing: 4) {
                         if row.hasEdits {
@@ -173,6 +193,19 @@ private struct CatalogBrowserCell: View {
                 .padding(6)
             }
             .aspectRatio(3.0 / 2.0, contentMode: .fit)
+            // The offline gray-out (D-16-CONTEXT-7②): an offline session's
+            // tiles dim and carry the marker — no thumbnail work was ever
+            // enqueued for them.
+            .opacity(thumbnailRouter?.isOffline(row.sessionID) == true ? 0.35 : 1.0)
+            .overlay(alignment: .topTrailing) {
+                if thumbnailRouter?.isOffline(row.sessionID) == true {
+                    Image(systemName: "wifi.slash")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .padding(4)
+                        .accessibilityIdentifier("catalog.cell.offline")
+                }
+            }
             Text(row.filename ?? row.relPath)
                 .font(.caption2)
                 .lineLimit(1)
@@ -188,6 +221,18 @@ private struct CatalogBrowserCell: View {
         .onTapGesture {
             let flags = NSEvent.modifierFlags
             onClick(flags.contains(.command), flags.contains(.shift))
+        }
+        .task(id: row.id) {
+            // The ROUTED fetch (visible: true — the visible cell jumps the
+            // provider queue). Offline sessions return nil WITHOUT any
+            // provider being created (零请求).
+            if resolvedFor == row.id, thumbnail != nil { return }
+            resolvedFor = row.id
+            let image = await thumbnailRouter?.thumbnail(
+                sessionID: row.sessionID, relPath: row.relPath, visible: true)
+            if resolvedFor == row.id {
+                withAnimation(.easeIn(duration: 0.15)) { thumbnail = image }
+            }
         }
     }
 

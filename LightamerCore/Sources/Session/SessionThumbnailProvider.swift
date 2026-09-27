@@ -125,6 +125,19 @@ public actor SessionThumbnailProvider {
     private let renderLeg: ThumbnailRenderLeg?
     private let runContextInjector: ThumbnailRunContextInjector?
 
+    /// Plan 16-2 T5 (execution decision): the memory-key namespace. The
+    /// shared 384MB LRU serves the WHOLE catalog provider pool — but the
+    /// same relPath in two sessions is two DIFFERENT files, so pool keys
+    /// are namespaced per session (`"<sessionID>/" + relPath`). The empty
+    /// default keeps every pre-16-2 caller (and the single-session
+    /// semantics) byte-identical.
+    private let memoryKeyPrefix: String
+
+    /// The namespaced memory key (the ONE spelling).
+    private func memoryKey(_ relPath: String) -> String {
+        memoryKeyPrefix + relPath
+    }
+
     /// Tier A downsampling target (execution decision D7): 720px — 2× the
     /// 360 display size, the same supersampling headroom the coordinator's
     /// D-C3 ladder uses for sub-360 cells.
@@ -178,7 +191,8 @@ public actor SessionThumbnailProvider {
         renderLeg: ThumbnailRenderLeg?,
         runContextInjector: ThumbnailRunContextInjector? = nil,
         concurrency: Int = SessionThumbnailProvider.defaultConcurrency,
-        idleDelayMs: Int = SessionThumbnailProvider.defaultIdleDelayMs
+        idleDelayMs: Int = SessionThumbnailProvider.defaultIdleDelayMs,
+        memoryKeyPrefix: String = ""
     ) {
         self.sessionRoot = sessionRoot
         self.store = store
@@ -191,6 +205,7 @@ public actor SessionThumbnailProvider {
         self.runContextInjector = runContextInjector
         self.concurrency = max(1, concurrency)
         self.idleDelayMs = max(0, idleDelayMs)
+        self.memoryKeyPrefix = memoryKeyPrefix
     }
 
     // MARK: - The fetch path (LAZY — render only when needed)
@@ -206,13 +221,13 @@ public actor SessionThumbnailProvider {
         // drifts its params_hash; a memory image of such a row is a LIE
         // about the render (L020). The re-check is one PK lookup (μs) —
         // correctness beats the micro-optimization.
-        if let image = await memory.image(for: relPath) {
+        if let image = await memory.image(for: memoryKey(relPath)) {
             if let row = await fetchRow(relPath),
                row.thumbState != SessionIndexSchema.ThumbState.stale.rawValue,
                row.thumbParamsHash == row.paramsHash {
                 return image
             }
-            await memory.remove(relPath)
+            await memory.remove(memoryKey(relPath))
         }
         guard let row = await fetchRow(relPath) else { return nil }
 
@@ -224,7 +239,7 @@ public actor SessionThumbnailProvider {
                || state == SessionIndexSchema.ThumbState.rendered.rawValue,
            row.thumbParamsHash == row.paramsHash,
            let image = disk.read(relPath: relPath) {
-            await memory.insert(image, for: relPath)
+            await memory.insert(image, for: memoryKey(relPath))
             return image
         }
 
@@ -374,7 +389,7 @@ public actor SessionThumbnailProvider {
     ) async {
         do {
             let url = try disk.write(image, relPath: relPath)
-            await memory.insert(image, for: relPath)
+            await memory.insert(image, for: memoryKey(relPath))
             try await store.updateThumbnailRecord(
                 relPath: relPath,
                 state: tier.producedState,

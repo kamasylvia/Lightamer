@@ -199,6 +199,11 @@ internal struct LightamerApp: App {
     /// repoint via `sharedCatalogStoreRebuilt` below.
     @State private var catalogBrowserModel = CatalogBrowserModel()
 
+    /// Plan 16-2 T5: the cross-session thumbnail router (the lazy
+    /// per-session provider pool over the app-level memory LRU). Created
+    /// in the scene `.task` once the Metal/registry/yiyin faces exist.
+    @State private var catalogThumbnailRouter: CatalogThumbnailRouter?
+
     /// Plan 12-4 T3: the app-level preset library (one preset = one file
     /// under Application Support; the init rescans = the self-heal) + the
     /// apply face (the D-03b isolated state bridging the UI to the Core
@@ -267,6 +272,7 @@ internal struct LightamerApp: App {
                 decoder: decoder, metalContext: metalContext,
                 browserModel: browserModel, thumbnailProvider: thumbnailProvider,
                 catalogBrowserModel: catalogBrowserModel,
+                catalogThumbnailRouter: catalogThumbnailRouter,
                 pasteboard: pasteboard,
                 onPartialPasteRequested: { pastePartialRequested = true },
                 onPartialPaste: { selection, mode in
@@ -316,6 +322,24 @@ internal struct LightamerApp: App {
                     }
                     await SessionIndexController.repointSharedCatalog(
                         databaseURL: catalogPreferences.catalogURL)
+
+                    // Plan 16-2 T5: the cross-session thumbnail router —
+                    // the SAME injected legs the per-session provider uses
+                    // (render leg + yiyin run-context injector), the SAME
+                    // app-level memory LRU, and the shared catalog store
+                    // read through the provider closure (repoint-safe).
+                    catalogThumbnailRouter = CatalogThumbnailRouter(
+                        memory: thumbnailMemoryCache,
+                        registry: moduleRegistry,
+                        decoder: decoder,
+                        renderLeg: metalContext.map {
+                            SessionThumbnailRenderer.renderLeg(metal: $0)
+                        },
+                        runContextInjector: SessionThumbnailRenderer
+                            .runContextInjector(yiyinLogoStore: browserLogoStore),
+                        catalogStoreProvider: {
+                            SessionIndexController.sharedCatalogStore
+                        })
                     catalogPreferences.onEnabledChanged = { enabled in
                         guard enabled else { return }
                         Task { [catalogPreferences] in
