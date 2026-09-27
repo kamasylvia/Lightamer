@@ -112,6 +112,20 @@
 
 ## 阻塞（需人工）
 
+### 🔴 凭据供件阻塞——13-4 分发收口（2026-09-27 用户裁决后登记）
+
+Phase 13-4 需要**以下四项全部由用户供件**方可执行 T2+（T1 敏感审计可先跑）：
+
+- [ ] **Developer ID Application 证书 + 私钥**（钥匙串安装；`security find-identity -v -p codesigning` 可查）
+- [ ] **App Store Connect API key**（.p8 文件 + Key ID + Issuer ID，notarytool 用）
+- [ ] **GitHub 仓创建 + 公开时机**（repo 名/描述/公开即创建或等审计后手动）
+- [ ] **GitHub Secrets 配置**（CODESIGN_IDENTITY / AC_API_KEY 等 CI 变量）
+
+**供件后 13-4 executor 跑 T1 敏感审计闸 + T2-T7 全链。缺件即停（不得 ad-hoc）。**
+**公开仓裁决位**：「全历史推送 vs squash 起点」= 用户显式裁决（默认全历史但须问询记录；命中敏感项先清洗再推）。
+
+## 阻塞（需人工）
+
 1. ~~**11-03 遗留 flaky（2026-09-26 11-04 执行轮登记）**~~ **已闭环（2026-09-26 11-05 收口批 `9439b59`）**：断言放宽为解码像素容差 1/255 + 尺寸相等（GPU 非确定 = 11-04 法证确证），并保留 sanity 错位红断言（人为 2 级错位即红）——真回归可检性维持；稳定后三轮绿 + 终轮 1258/0fail。
 2. ~~**11-03 flaky 根因补正（2026-09-26 专项调试）**~~ **已真修复闭环（`9ea0d93` + LESSONS L031）**：11-04「GPU 非确定」归因推翻——真根因 = 10+ 模块 identity blit 硬编 editor queue 与导出链 export queue compute 跨队列竞速（两稳定形态交替、负载改时序偶发、隔离亦可高概率复现）；修复 = `makeRoutedCommandBuffer()` public 化 + 16 处调用点（12 blit + 4 fence）统一路由；验证 = 同参连渲逐字节 0 差 + 目标测试隔离 ×5 绿 + 负载循环 ×10 绿 + 全套 5 轮导出域 0 fail（其中 1 轮 3 fail 全部来自无关域 LayerE2ERoundTripTests（处置 = 用户裁决选 b：留观登记，对照 GoldenColor 先例，Phase 15 一并清算；不开即席 fix 批） undo 语义——**新登记相邻域负载型 flaky 待另立案**）；T0a 容差 `9439b59` + sanity 锚保留。
 3. ~~**F-11-04-1（轻，11-04 执行轮发现）**~~ **已闭环（2026-09-26 11-05 收口批 `d9dfa9b`）**：`ExportState.targetRelPaths` realpath(3) 双拼写匹配（L027/SessionWatcher 先例，两侧拼写任意组合）+ `canExport` gate 改以实际 targets 判定（按钮不再可点空跑）；4 单测钉死。
