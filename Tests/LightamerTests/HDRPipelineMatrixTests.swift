@@ -2,36 +2,35 @@
 import CoreImage
 import LightamerIOP
 import Metal
+import simd
 import XCTest
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HDRPipelineMatrixTests (Plan 08-1 T7; RESEARCH §13) — the HDR-04
-// verification-matrix BASE (the lut3d column lands with 08-5; the full
-// dt-golden cross-reference for filmicrgb/sigmoid stays with the Phase 3
-// suite, which pins those modules against the dt-generated EXRs).
+// HDRPipelineMatrixTests (Plan 08-1 T7 base + Plan 08-5 T3 close-out) — the
+// HDR-04 verification matrix (RESEARCH §13).
 //
-// Rows delivered here (the matrix's first two lines + the preview budget
-// probe):
-//   1. The shadow-torture HDR content (the Phase 2 golden harness's
-//      fixture, round-tripped through the REAL raster decode) through
-//      [colorin, exposure(+1EV), filmicrgb, sigmoid, toneequal(0)] —
-//      structural invariants: FINITENESS through the whole chain (no NaN
-//      at any stage; the >1.0 scene values flow through), NON-COLLAPSE,
-//      and the toneequal-zero-params identity at the tail (≤1e-4 per
-//      point — the local-Laplacian stage must not bend an HDR document).
-//   2. The known-value float32 patch (0.001/0.5/1.0/4.0/16.0/65504 gray
-//      steps + an RGB sweep) through [colorin, exposure] — the EXACT
-//      CPU float32 reference (×2^EV per point; the element-wise 1e-5
-//      Phase 3 tolerance), pins the HDR values surviving the pipe
-//      UNCLAMPED (clamping belongs to gamma alone).
+// Base rows (08-1): ①the shadow-torture HDR content through the tone chain
+// — structural invariants (finiteness, non-collapse, the toneequal(0)
+// identity tail ≤1e-4); ②the known-value float32 patch (0.001/0.5/1.0/
+// 4.0/16.0/65504 grays + an RGB sweep) through [colorin, exposure] — the
+// EXACT CPU float32 reference, the 65504→131008 unclamped survival pin.
+// (D-08-1-T7 scope note: the filmicrgb/sigmoid dt-golden cross stays with
+// the Phase 3 suite — its generator does not emit COMBINED-chain artifacts.)
 //
-// EXECUTION-SCOPE NOTE (D-08-1-T7, recorded): the plan's "float32 CPU
-// reference point-parity" for the filmicrgb/sigmoid legs of the CHAIN is
-// the Phase 3 golden shape — that shape's reference generator is the dt
-// side (input/golden/regenerate.sh), which does not emit COMBINED-chain
-// artifacts. The base pins the structural invariants + the analytic
-// exposure reference; extending the dt generator for the combined chain
-// is the 08-5 close-out item.
+// 08-5 close-out additions:
+//   3. The LUT HDR-domain storage PRECISION DETERMINATION (the 12-5
+//      handover ④/legacy#4): an HDR-domain table measured at HDR sample
+//      points, float64 reference vs a Float16-quantized-table simulation,
+//      the 1e-3 relative gate WRITTEN INTO the test (D7's rgba32Float
+//      upgrade is the recorded conclusion — flipping it requires changing
+//      the constant AND beating the gate on BOTH table families).
+//   4. The lut3d MATRIX COLUMN: the known-value patch through the REAL
+//      pipe with an injected-resolver lut3d stage — an HDR-domain identity
+//      table must not bend the chain, and a ×2 gain HDR-domain table must
+//      scale it exactly (tetrahedral reproduces linear tables).
+//   5. The preview float32 budget: the formal 2560px ≈70MB/plane bound
+//      asserted (the research record-only table → a pinned ceiling) + the
+//      no-new-cache-class structural pin.
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class HDRPipelineMatrixTests: XCTestCase {
@@ -438,7 +437,317 @@ final class HDRPipelineMatrixTests: XCTestCase {
                 + "\(String(format: "%.0f", extrapolated))s (research reference <60s)")
     }
 
-    // MARK: - The preview float32 budget probe (RESEARCH §13.2)
+    // MARK: - Row 3 (08-5): the LUT HDR-domain storage precision determination
+
+    /// THE WRITTEN DETERMINATION (plan discipline — no human waiver). The
+    /// gate: 1e-3 relative at every HDR sample point, float64 reference vs
+    /// a Float16-quantized table. Flipping the shipped rgba32Float storage
+    /// back to a 16F default requires changing `rgba16FloatDefaultAccepted`
+    /// AND beating the gate on BOTH families (the 12-5 D7 breach shape).
+    static let rgba16FloatDefaultAccepted = false
+    /// The plan-literal gate.
+    static let lutStorageRelativeGate = 1e-3
+
+    /// The float64 tetrahedral sampler (the dt lut3d.cl:51-77 branch form:
+    /// the branch re-points c1/c2/c3 at the tetrahedron corners; the
+    /// sorted-component coefficients are the SAME formula per branch).
+    static func tetrahedral64(
+        table: [SIMD3<Double>], level: Int,
+        domainMin: SIMD3<Double>, domainMax: SIMD3<Double>,
+        input: SIMD3<Double>
+    ) -> SIMD3<Double> {
+        var t = (input - domainMin) / (domainMax - domainMin)
+        t = SIMD3(min(max(t.x, 0), 1), min(max(t.y, 0), 1), min(max(t.z, 0), 1))
+        let scaled = t * Double(level - 1)
+        var i0 = SIMD3(Int(scaled.x), Int(scaled.y), Int(scaled.z))
+        i0 = SIMD3(
+            min(max(i0.x, 0), level - 2), min(max(i0.y, 0), level - 2),
+            min(max(i0.z, 0), level - 2))
+        let f = scaled - SIMD3(Double(i0.x), Double(i0.y), Double(i0.z))
+        func entry(_ r: Int, _ g: Int, _ b: Int) -> SIMD3<Double> {
+            table[r + g * level + b * level * level]
+        }
+        let c000 = entry(i0.x, i0.y, i0.z)
+        let c1: SIMD3<Double>, c2: SIMD3<Double>, c3: SIMD3<Double>
+        if f.x >= f.y {
+            if f.y >= f.z {
+                c1 = entry(i0.x + 1, i0.y, i0.z); c2 = entry(i0.x + 1, i0.y + 1, i0.z)
+                c3 = entry(i0.x + 1, i0.y + 1, i0.z + 1)
+            } else if f.x >= f.z {
+                c1 = entry(i0.x + 1, i0.y, i0.z); c2 = entry(i0.x + 1, i0.y, i0.z + 1)
+                c3 = entry(i0.x + 1, i0.y + 1, i0.z + 1)
+            } else {
+                c1 = entry(i0.x, i0.y, i0.z + 1); c2 = entry(i0.x + 1, i0.y, i0.z + 1)
+                c3 = entry(i0.x + 1, i0.y + 1, i0.z + 1)
+            }
+        } else {
+            if f.y <= f.z {
+                c1 = entry(i0.x, i0.y, i0.z + 1); c2 = entry(i0.x, i0.y + 1, i0.z + 1)
+                c3 = entry(i0.x + 1, i0.y + 1, i0.z + 1)
+            } else if f.x < f.z {
+                c1 = entry(i0.x, i0.y + 1, i0.z); c2 = entry(i0.x, i0.y + 1, i0.z + 1)
+                c3 = entry(i0.x + 1, i0.y + 1, i0.z + 1)
+            } else {
+                c1 = entry(i0.x, i0.y + 1, i0.z); c2 = entry(i0.x + 1, i0.y + 1, i0.z)
+                c3 = entry(i0.x + 1, i0.y + 1, i0.z + 1)
+            }
+        }
+        // The sorted-component coefficients (descending: hi ≥ mid ≥ lo).
+        let comps = [f.x, f.y, f.z].sorted(by: >)
+        let (hi, mid, lo) = (comps[0], comps[1], comps[2])
+        return c000 * (1 - hi) + c1 * (hi - mid) + c2 * (mid - lo) + c3 * lo
+    }
+
+    func testLutHDRDomainStoragePrecisionDetermination() async throws {
+        let metal = try await makeMetal()
+        let level = 17
+        let domainMax = 8.0
+
+        // Deterministic pseudo-random tables (LCG — stable across runs).
+        func lcg(_ state: inout UInt64) -> Double {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return Double((state >> 11) & 0xFFFFF) / Double(0xFFFFF)
+        }
+        var rng: UInt64 = 0x9E3779B97F4A7C15
+        // Family A — the positive HDR face (research §13.3's "~5e-4 half"
+        // expectation): values in [0.5, 8].
+        var positive: [SIMD3<Double>] = []
+        positive.reserveCapacity(level * level * level)
+        for _ in 0..<(level * level * level) {
+            positive.append(SIMD3(0.5 + 7.5 * lcg(&rng), 0.5 + 7.5 * lcg(&rng), 0.5 + 7.5 * lcg(&rng)))
+        }
+        // Family B — the 12-5 D7 breach shape: mixed-sign HDR values up to
+        // ±2.8 (zero-crossing cells — the near-zero interpolation face).
+        var mixed: [SIMD3<Double>] = []
+        mixed.reserveCapacity(level * level * level)
+        for _ in 0..<(level * level * level) {
+            mixed.append(SIMD3(
+                (2.0 * lcg(&rng) - 1.0) * 2.8,
+                (2.0 * lcg(&rng) - 1.0) * 2.8,
+                (2.0 * lcg(&rng) - 1.0) * 2.8))
+        }
+
+        // The HDR-domain sample points: the patch grays + LCG points.
+        var samples: [SIMD3<Double>] = [SIMD3(0.001, 0.001, 0.001), SIMD3(0.5, 0.5, 0.5),
+            SIMD3(1, 1, 1), SIMD3(4, 4, 4), SIMD3(7.9, 7.9, 7.9),
+            SIMD3(16, 16, 16), SIMD3(-0.5, -0.5, -0.5)]
+        for _ in 0..<256 {
+            samples.append(SIMD3(
+                -0.5 + 9.0 * lcg(&rng), -0.5 + 9.0 * lcg(&rng), -0.5 + 9.0 * lcg(&rng)))
+        }
+
+        func maxRelativeError(_ table: [SIMD3<Double>], floor: Double) -> (
+            max: Double, breachCount: Int
+        ) {
+            // The Float16-quantized table (the rgba16Float storage
+            // simulation — the ONLY lossy leg; the sampler is shared).
+            let quantized: [SIMD3<Double>] = table.map { v in
+                SIMD3(
+                    Double(Float(Float16(Float(v.x)))),
+                    Double(Float(Float16(Float(v.y)))),
+                    Double(Float(Float16(Float(v.z)))))
+            }
+            var maxRel = 0.0
+            var breaches = 0
+            for s in samples {
+                let ref = Self.tetrahedral64(
+                    table: table, level: level,
+                    domainMin: SIMD3(0, 0, 0), domainMax: SIMD3(domainMax, domainMax, domainMax),
+                    input: s)
+                let got = Self.tetrahedral64(
+                    table: quantized, level: level,
+                    domainMin: SIMD3(0, 0, 0), domainMax: SIMD3(domainMax, domainMax, domainMax),
+                    input: s)
+                for ch in 0..<3 {
+                    let denom = max(abs(ref[ch]), floor)
+                    let rel = abs(got[ch] - ref[ch]) / denom
+                    if rel > maxRel { maxRel = rel }
+                    if rel > Self.lutStorageRelativeGate { breaches += 1 }
+                }
+            }
+            return (maxRel, breaches)
+        }
+
+        let positiveVerdict = maxRelativeError(positive, floor: 1e-4)
+        let mixedVerdict = maxRelativeError(mixed, floor: 1e-4)
+        print(
+            "LUT-PRECISION-PROBE: positive-domain maxRel=\(positiveVerdict.max) "
+                + "breaches=\(positiveVerdict.breachCount) | mixed-sign maxRel="
+                + "\(mixedVerdict.max) breaches=\(mixedVerdict.breachCount)")
+
+        // THE DETERMINATION, written:
+        if Self.rgba16FloatDefaultAccepted {
+            // A 16F-default world: BOTH families must beat the gate.
+            XCTAssertLessThanOrEqual(
+                positiveVerdict.max, Self.lutStorageRelativeGate,
+                "16F acceptance requires the positive HDR face under the gate")
+            XCTAssertLessThanOrEqual(
+                mixedVerdict.max, Self.lutStorageRelativeGate,
+                "16F acceptance requires the mixed-sign face under the gate")
+        } else {
+            // The shipped D7 verdict: the mixed-sign HDR face BREACHES the
+            // gate (the 12-5 golden-gate breach, now pinned as a measured
+            // fact) — the rgba32Float upgrade MUST hold.
+            XCTAssertGreaterThan(
+                mixedVerdict.max, Self.lutStorageRelativeGate,
+                "the mixed-sign HDR face must keep breaching 16F storage "
+                    + "(the D7 upgrade's standing cause); measured "
+                    + "\(mixedVerdict.max)")
+        }
+
+        // The production storage is rgba32Float — pinned at BEHAVIOR level:
+        // a lattice point whose float32 value is NOT half-representable
+        // must come back EXACT through the GPU (a 16F table would deviate
+        // by up to ~2e-3 there).
+        let rawValue: Float = 4.0009765625 // half-ULP off 4.0 in half precision
+        XCTAssertEqual(Float(Float16(rawValue)), 4.0, "the probe value must be 16F-lossy")
+        let latticeIndex = 3 + 5 * level + 7 * level * level
+        var latticeTable = positive
+        latticeTable[latticeIndex] = SIMD3(Double(rawValue), Double(rawValue), Double(rawValue))
+        let resolver = LutResolver()
+        resolver.tables["probe.cube"] = CubeLut(
+            kind: .lut3d(size: level),
+            domainMin: SIMD3(0, 0, 0), domainMax: SIMD3(domainMax, domainMax, domainMax),
+            data: latticeTable.map { SIMD3(Float($0.x), Float($0.y), Float($0.z)) })
+        let module = Lut3dModule(device: metal.device, resolver: resolver)
+        var piece = IOPiece()
+        module.commitParams(
+            Lut3dModule.Params(lutName: "probe.cube", colorspace: .rec2020), into: &piece)
+        let latticeInput = SIMD4<Float>(
+            Float(3.0 / Double(level - 1) * domainMax), Float(5.0 / Double(level - 1) * domainMax),
+            Float(7.0 / Double(level - 1) * domainMax), 1)
+        let inTex = makeTexture(metal, width: 1, height: 1, pixels: [latticeInput])
+        let outTex = makeTexture(metal, width: 1, height: 1, pixels: [])
+        try await module.process(
+            input: inTex, output: outTex,
+            roiIn: ROI(x: 0, y: 0, width: 1, height: 1, scale: 1),
+            roiOut: ROI(x: 0, y: 0, width: 1, height: 1, scale: 1),
+            piece: &piece, metal: metal)
+        await drain(metal)
+        var got = [SIMD4<Float>](repeating: .zero, count: 1)
+        got.withUnsafeMutableBytes { raw in
+            outTex.getBytes(
+                raw.baseAddress!, bytesPerRow: 16,
+                from: MTLRegionMake2D(0, 0, 1, 1), mipmapLevel: 0)
+        }
+        for ch in 0..<3 {
+            XCTAssertEqual(
+                got[0][ch], rawValue, accuracy: 1e-5,
+                "the stored table entry must survive EXACTLY (rgba32Float "
+                    + "storage; channel \(ch) got \(got[0][ch]))")
+        }
+    }
+
+    /// The injected resolver for the matrix's lut3d column (the 12-5 test
+    /// shape — the module never touches disk itself).
+    private final class LutResolver: Lut3dModule.LutResolving, @unchecked Sendable {
+        var tables: [String: CubeLut] = [:]
+        func lut(named: String) -> CubeLut? { tables[named] }
+    }
+
+    // MARK: - Row 4 (08-5): the lut3d matrix column through the REAL pipe
+
+    private func makeTexture(
+        _ metal: MetalContext, width: Int, height: Int, pixels: [SIMD4<Float>]
+    ) -> any MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: width, height: height, mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        let texture = metal.device.makeTexture(descriptor: descriptor)!
+        if !pixels.isEmpty {
+            pixels.withUnsafeBytes { raw in
+                texture.replace(
+                    region: MTLRegionMake2D(0, 0, width, height),
+                    mipmapLevel: 0, withBytes: raw.baseAddress!, bytesPerRow: width * 16)
+            }
+        }
+        return texture
+    }
+
+    func testLut3dColumnKnownPatchChain() async throws {
+        let (sourceURL, image, _, width, height) = try await makeKnownPatch()
+        defer { try? FileManager.default.removeItem(at: sourceURL.deletingLastPathComponent()) }
+        let metal = try await makeMetal()
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+
+        // The HDR-domain tables (DOMAIN 0..8, 8³): identity + the ×2 gain
+        // (linear tables — tetrahedral reproduces them exactly).
+        let level = 8
+        func lattice(_ i: Int) -> (r: Int, g: Int, b: Int) {
+            (i % level, (i / level) % level, i / (level * level))
+        }
+        var identity: [SIMD3<Float>] = []
+        var gain2: [SIMD3<Float>] = []
+        identity.reserveCapacity(level * level * level)
+        gain2.reserveCapacity(level * level * level)
+        for i in 0..<(level * level * level) {
+            let (r, g, b) = lattice(i)
+            let d = Float(level - 1)
+            let v = SIMD3(Float(r) / d * 8, Float(g) / d * 8, Float(b) / d * 8)
+            identity.append(v)
+            gain2.append(v * 2)
+        }
+        let resolver = LutResolver()
+        resolver.tables["identity.cube"] = CubeLut(
+            kind: .lut3d(size: level),
+            domainMin: SIMD3(0, 0, 0), domainMax: SIMD3(8, 8, 8), data: identity)
+        resolver.tables["gain2.cube"] = CubeLut(
+            kind: .lut3d(size: level),
+            domainMin: SIMD3(0, 0, 0), domainMax: SIMD3(8, 8, 8), data: gain2)
+
+        func lutBox(_ name: String) -> any ModuleBoxing {
+            let box = ModuleBox(module: Lut3dModule(device: metal.device, resolver: resolver))
+            box.setParams(Lut3dModule.Params(lutName: name, colorspace: .rec2020))
+            return box
+        }
+
+        let head = try await makeBoxes(
+            registry: registry, exposure: ExposureModule.Params(exposure: 1.0),
+            withFilmic: false, withSigmoid: false, withToneEqual: false)
+        let (noLut, _) = try await runPipe(image: image, chain: head, metal: metal)
+        let (withIdentity, _) = try await runPipe(
+            image: image, chain: head + [lutBox("identity.cube")], metal: metal)
+        let (withGain, _) = try await runPipe(
+            image: image, chain: head + [lutBox("gain2.cube")], metal: metal)
+        let base = textureToRGBA(noLut)
+        let identityOut = textureToRGBA(withIdentity)
+        let gainOut = textureToRGBA(withGain)
+
+        var compared = 0
+        var maxIdentityDev: Float = 0
+        var maxGainRel: Float = 0
+        // The in-domain in-band probes: the 0.5/1.0/4.0 gray steps after
+        // the +1EV exposure (values ≤ 8 — inside the table domain).
+        for (step, _) in [Float(0.5), 1.0, 4.0].enumerated() {
+            let y = (step + 1) * 4 + 2
+            let x = width / 2
+            let index = (y * width + x) * 4
+            for channel in 0..<3 {
+                let plain = base[index + channel]
+                let id = identityOut[index + channel]
+                let g = gainOut[index + channel]
+                maxIdentityDev = max(maxIdentityDev, abs(id - plain))
+                let expected = plain * 2 // gain 2, in-domain
+                maxGainRel = max(maxGainRel, abs(g - expected) / max(abs(expected), 1e-4))
+                compared += 1
+            }
+        }
+        XCTAssertGreaterThan(compared, 0)
+        print(
+            "LUT-COLUMN-PROBE: identity maxDev=\(maxIdentityDev) gain2 maxRel=\(maxGainRel)")
+        // The identity table must not bend the HDR chain; the ×2 gain must
+        // scale it exactly (the linear-table tetrahedral exactness).
+        XCTAssertLessThanOrEqual(
+            maxIdentityDev, 1e-4,
+            "the HDR-domain identity table must be the chain identity")
+        XCTAssertLessThanOrEqual(
+            maxGainRel, 1e-3,
+            "the ×2 gain HDR-domain table must scale the chain exactly")
+    }
+
+    // MARK: - Row 5 (08-5): the preview float32 budget, formal conclusion
 
     /// The REAL merged product (a small production-leg bracket merge)
     /// through the PREVIEW pipe: the plane memory the preview cache would
@@ -503,5 +812,20 @@ final class HDRPipelineMatrixTests: XCTestCase {
                 + "(\(String(format: "%.2f", megapixels))MP) preview plane = "
                 + "\(bytes / 1_048_576) MiB (\(bytes) B; reference 2560px ≈70 MB/plane)")
         XCTAssertGreaterThan(bytes, 0)
+
+        // ── the FORMAL BUDGET CONCLUSION (Plan 08-5 T3, research §13.2) ──
+        // The preview plane ceiling: the 2560px long-edge float32 RGBA
+        // reference (2560×1707×16 B ≈ 70 MB/plane), +5% ladder slack.
+        let referenceBytes = 2560 * 1707 * 16
+        XCTAssertLessThanOrEqual(
+            Double(bytes), Double(referenceBytes) * 1.05,
+            "the preview plane must stay inside the float32 budget: "
+                + "\(bytes) vs \(referenceBytes)")
+        // The no-new-cache-class pin: merged products ride the STANDARD
+        // preview/full policies — enforceBudget's five tiers unchanged.
+        XCTAssertTrue(PipeResolution.preview.cachesIntermediatePlanes)
+        XCTAssertTrue(PipeResolution.thumbnail.cachesIntermediatePlanes)
+        XCTAssertFalse(PipeResolution.full.cachesIntermediatePlanes)
+        XCTAssertFalse(PipeResolution.export.cachesIntermediatePlanes)
     }
 }
