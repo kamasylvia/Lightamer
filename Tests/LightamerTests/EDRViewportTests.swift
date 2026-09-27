@@ -169,3 +169,64 @@ final class EDRViewportTests: XCTestCase {
     }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Plan 08-4 T3 — the headroom monitor legs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@MainActor
+final class EDRHeadroomMonitorTests: XCTestCase {
+
+    /// The query's legal domain: the documented floor is 1.0 (SDR white —
+    /// the compositor's clamp); a nil screen reports exactly 1.0; the real
+    /// host screen (P4: SDR-only rig) reports >= 1.0. The badge state bit
+    /// follows the value: hasEDRHeadroom ⇔ value > 1.0.
+    func testHeadroomQueryLegalDomainAndBadgeBit() {
+        XCTAssertEqual(EDRHeadroomMonitor.headroom(of: nil), 1.0,
+                       "nil screen = the SDR-safe answer")
+        let real = EDRHeadroomMonitor.headroom(of: NSScreen.main)
+        XCTAssertGreaterThanOrEqual(real, 1.0, "headroom floor is 1.0")
+        let monitor = EDRHeadroomMonitor()
+        monitor.recompute()
+        XCTAssertEqual(monitor.headroom, real, accuracy: 1e-9)
+        XCTAssertEqual(monitor.hasEDRHeadroom, monitor.headroom > 1.0,
+                       "the badge state bit is the value comparison")
+        // The P4 rig's semantics: at exactly 1.0 the badge warning state is
+        // active (and the toggle stays legal — no fallback exists to test).
+        XCTAssertFalse((real == 1.0) && monitor.hasEDRHeadroom)
+    }
+
+    /// The two screen notifications drive re-queries — one bump per event
+    /// (the跨屏-drag invalidation face).
+    func testScreenNotificationsInvalidateMonitor() async throws {
+        let monitor = EDRHeadroomMonitor()
+        monitor.start()
+        let afterStart = monitor.invalidationCount
+        XCTAssertGreaterThanOrEqual(afterStart, 1, "start performs the initial query")
+
+        // Let the observer tasks reach their `for await` subscription before
+        // posting (a post racing the subscription is dropped — production
+        // events arrive long after launch).
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        let target1 = afterStart + 1
+        NotificationCenter.default.post(
+            name: NSWindow.didChangeScreenNotification, object: nil)
+        try await Self.waitForCount(target1, on: monitor)
+
+        let target2 = monitor.invalidationCount + 1
+        NotificationCenter.default.post(
+            name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        try await Self.waitForCount(target2, on: monitor)
+    }
+
+    private static func waitForCount(
+        _ target: Int, on monitor: EDRHeadroomMonitor
+    ) async throws {
+        for _ in 0..<150 {
+            if monitor.invalidationCount >= target { return }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("monitor invalidation did not land (wanted \(target), got \(monitor.invalidationCount))")
+    }
+}

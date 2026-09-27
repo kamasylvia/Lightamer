@@ -5,12 +5,20 @@ import SwiftUI
 // viewport capsule, the `SoftProofControlView` same-position sibling (the
 // second display-leg runtime override).
 //
+// Faces:
+//   • the HDR preview toggle (viewport-level, never a document parameter —
+//     D-08-CONTEXT-12: no history item, no sidecar record, no export leg);
+//   • the headroom badge slot (T3): the display's EDR headroom value, with
+//     the「当前显示器无 EDR 余量」warning line at headroom == 1.0 (the P4
+//     semantics: the toggle stays LEGAL on a headroom-1.0 display — the
+//     compositor clamps >1.0 values to SDR white, no auto-fallback).
+//
 // The copy discipline mirrors the soft proof face: display terms only — the
-// toggle never suggests it alters the stored edit. (The headroom badge row
-// lands with T3's `EDRHeadroomMonitor`.)
+// toggle never suggests it alters the stored edit.
 internal struct EDRControlView: View {
 
     @Environment(PipeCoordinator.self) private var pipeCoordinator
+    @Environment(EDRHeadroomMonitor.self) private var headroomMonitor
 
     var body: some View {
         Menu {
@@ -22,6 +30,23 @@ internal struct EDRControlView: View {
                 )
             )
             .accessibilityIdentifier("edr.toggle")
+
+            Divider()
+            // Headroom is a PASSIVE readout (T3): headroom > 1.0 renders as
+            // extra brightness — never as a second color space (SC#3); at
+            // exactly 1.0 (the P4 SDR-only rig) the toggle stays legal and
+            // the warning line spells out the missing headroom.
+            Group {
+                if headroomMonitor.hasEDRHeadroom {
+                    Text(String(localized: "edr_headroom_label \(String(format: "%.1f", headroomMonitor.headroom))"))
+                        .foregroundStyle(Color.secondary)
+                } else {
+                    Text("edr_no_headroom")
+                        .foregroundStyle(.orange)
+                }
+            }
+            .font(.system(size: 10))
+            .accessibilityIdentifier("edr.headroom")
         } label: {
             capsule
         }

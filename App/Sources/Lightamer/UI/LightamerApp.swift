@@ -186,6 +186,11 @@ internal struct LightamerApp: App {
     /// override, never history/export).
     @State private var softProofState = SoftProofState()
 
+    /// 08-4 T3 (IOP-HDR-05): the display EDR headroom monitor (the badge's
+    /// number source; the same two screen notifications the D-COL2 follow
+    /// rides, never crossing the toggle state).
+    @State private var edrHeadroomMonitor = EDRHeadroomMonitor()
+
     /// 13-3 T1 (D-13-CONTEXT-6): the viewport zoom/pan/rotation state
     /// machine + the overlay mutex lock (D-03b isolated; the App-scene
     /// menu commands drive it directly).
@@ -301,6 +306,7 @@ internal struct LightamerApp: App {
                 .environment(pipeCoordinator)
                 .environment(beforeAfterState)
                 .environment(softProofState)
+                .environment(edrHeadroomMonitor)
                 .environment(viewportState)
                 .environment(exportState)
                 .environment(inspectorState)
@@ -320,6 +326,11 @@ internal struct LightamerApp: App {
                 .background(WindowCapture { window in
                     pipeCoordinator.configure(window: window)
                 })
+                .task {
+                    // 08-4 T3: the headroom monitor's initial query + the
+                    // two screen-event observers (idempotent, app-lifetime).
+                    edrHeadroomMonitor.start()
+                }
                 .task {
                     // Wire the pipe owner ↔ editor state pair (both weakly
                     // linked, root-owned strongly). Runs before any open is
