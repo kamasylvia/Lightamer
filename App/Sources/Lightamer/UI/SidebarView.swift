@@ -55,6 +55,8 @@ internal struct SidebarView: View {
     // first frame (ContentView.onAppear — RQ-16-12 冷启动恒 Sessions).
     @Environment(CatalogPreferencesModel.self) private var catalogPreferences
     @Environment(CatalogBrowserModel.self) private var catalogBrowserModel
+    // Plan 16-3 T3: the organization tree/collections model.
+    @Environment(CatalogTreeModel.self) private var catalogTree
     @AppStorage(CatalogPreferencesModel.organizationModeStorageKey)
     private var organizationModeRaw: String = CatalogPreferencesModel.coldStartRawValue
 
@@ -69,6 +71,55 @@ internal struct SidebarView: View {
     /// says so) / the session row pending RE-LINK (the panel's anchor).
     @State private var removeSessionTarget: CatalogIndexStore.CatalogSessionRow?
     @State private var relinkSessionTarget: CatalogIndexStore.CatalogSessionRow?
+
+    // Plan 16-3 T3: the organization name sheet (one alert face for the
+    // four create/rename flows) + the tree drag-drop payload prefixes.
+    @State private var organizationNameSheet: OrganizationNameSheet?
+    @State private var organizationNameText = ""
+
+    /// The four name-entry flows (create/rename × category/collection).
+    private enum OrganizationNameSheet: Identifiable {
+        case newCategory(parentID: Int64?)
+        case renameCategory(id: Int64)
+        case newCollection
+        case renameCollection(id: Int64)
+
+        var id: String {
+            switch self {
+            case .newCategory(let parent): "newCategory-\(parent.map(String.init) ?? "root")"
+            case .renameCategory(let id): "renameCategory-\(id)"
+            case .newCollection: "newCollection"
+            case .renameCollection(let id): "renameCollection-\(id)"
+            }
+        }
+
+        var alertTitle: String {
+            String(localized: String.LocalizationValue(titleKey))
+        }
+
+        var placeholder: String {
+            String(localized: String.LocalizationValue(placeholderKey))
+        }
+
+        private var titleKey: String {
+            switch self {
+            case .newCategory: "catalog_category_new"
+            case .renameCategory: "catalog_category_rename"
+            case .newCollection: "catalog_collection_new"
+            case .renameCollection: "catalog_collection_rename"
+            }
+        }
+
+        private var placeholderKey: String {
+            switch self {
+            case .newCategory, .renameCategory: "catalog_name_prompt_category"
+            case .newCollection, .renameCollection: "catalog_name_prompt_collection"
+            }
+        }
+    }
+
+    private static let categoryDragPrefix = "lightamer.cat:"
+    private static let collectionDragPrefix = "lightamer.col:"
 
     private var organizationMode: CatalogPreferencesModel.OrganizationMode {
         CatalogPreferencesModel.OrganizationMode(rawValue: organizationModeRaw) ?? .sessions
@@ -99,6 +150,26 @@ internal struct SidebarView: View {
         .accessibilityHint(Text("a11y_sidebar_hint"))
         .task(id: organizationModeRaw) {
             await refreshCatalogFaces()
+        }
+        // Plan 16-3 T3: the four organization name flows (one alert face).
+        .alert(
+            organizationNameSheet?.alertTitle ?? "",
+            isPresented: Binding(
+                get: { organizationNameSheet != nil },
+                set: { if !$0 { organizationNameSheet = nil } })
+        ) {
+            TextField(
+                organizationNameSheet?.placeholder ?? "",
+                text: $organizationNameText)
+            Button(String(localized: "alert_ok")) {
+                commitOrganizationNameSheet()
+            }
+            .disabled(
+                organizationNameText.trimmingCharacters(in: .whitespaces).isEmpty
+                    || organizationNameText.contains("|"))
+            Button(String(localized: "alert_cancel"), role: .cancel) {
+                organizationNameSheet = nil
+            }
         }
         .confirmationDialog(
             String(localized: "catalog_session_remove_confirm_title"),
@@ -486,27 +557,202 @@ internal struct SidebarView: View {
         }
     }
 
-    /// Categories — the 16-3 tree wiring slot (this plan: the skeleton +
-    /// the empty face).
+    /// Categories — Plan 16-3 T3: the organization tree (flat always-
+    /// expanded rows with depth indentation — execution decision; collapse
+    /// is additive), one click = the scope anchor, context menu CRUD
+    /// (leaf-only delete, disabled on non-empty parents WITH the hint),
+    /// drag & drop = the model's before-target reorder/move.
     private var catalogCategoriesSection: some View {
         Section {
-            Text("catalog_categories_empty")
-                .font(.caption2)
-                .foregroundStyle(LightamerColors.textSecondary)
+            ForEach(catalogTree.flatRows(), id: \.node.id) { row in
+                categoryRow(row.node, depth: row.depth)
+            }
+            Button {
+                organizationNameText = ""
+                organizationNameSheet = .newCategory(parentID: nil)
+            } label: {
+                Label(
+                    String(localized: "catalog_category_new"),
+                    systemImage: "plus.circle")
+            }
+            .accessibilityIdentifier("catalog.category.add")
+            if catalogTree.tree.isEmpty {
+                Text("catalog_categories_empty")
+                    .font(.caption2)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
+            if let failure = catalogTree.lastErrorText {
+                Text(failure)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+            }
         } header: {
             Text("catalog_categories_section")
         }
     }
 
-    /// Collections — the 16-3 list wiring slot (same shape).
+    /// One tree row: click = the categoryID scope anchor (re-click clears);
+    /// draggable/dropDestination carry the before-target move. Indentation
+    /// expresses the depth (the flat always-expanded row face).
+    private func categoryRow(_ node: CatalogTreeNode, depth: Int) -> some View {
+        let active = catalogBrowserModel.activeScope.categoryID == node.id
+        return Button {
+            Task {
+                await catalogBrowserModel.setScope(
+                    FilterScope(categoryID: active ? nil : node.id))
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "folder")
+                    .foregroundStyle(LightamerColors.textSecondary)
+                Text(node.name)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if active {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.leading, CGFloat(depth) * 14)
+        }
+        .accessibilityIdentifier("catalog.category.row.\(node.id)")
+        .contextMenu {
+            Button(String(localized: "catalog_category_new_child")) {
+                organizationNameText = ""
+                organizationNameSheet = .newCategory(parentID: node.id)
+            }
+            Button(String(localized: "catalog_category_rename")) {
+                organizationNameText = node.name
+                organizationNameSheet = .renameCategory(id: node.id)
+            }
+            moveToMenu(dragged: node.id)
+            Button(
+                String(localized: "catalog_category_delete"),
+                role: .destructive
+            ) {
+                Task { await catalogTree.deleteCategory(id: node.id) }
+            }
+            .disabled(!node.children.isEmpty)
+            if !node.children.isEmpty {
+                Text("catalog_category_delete_disabled_hint")
+                    .font(.caption2)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
+        }
+        .draggable(Self.categoryDragPrefix + String(node.id))
+        .dropDestination(for: String.self) { payload, _ in
+            guard let raw = payload.first,
+                  let dragged = Self.draggedID(raw, prefix: Self.categoryDragPrefix)
+            else { return false }
+            Task { await catalogTree.moveCategory(dragged: dragged, before: node.id) }
+            return true
+        } isTargeted: { _ in }
+    }
+
+    /// The move-to menu: a flat depth-indented list (execution decision —
+    /// no recursive submenus in v1); the dragged node's own subtree is
+    /// excluded (moving into itself is refused by the store anyway).
+    private func moveToMenu(dragged: Int64) -> some View {
+        Menu(String(localized: "catalog_category_move")) {
+            ForEach(
+                catalogTree.flatCategories()
+                    .filter { !$0.contains(id: dragged) }
+            ) { node in
+                Button(depthPrefixedName(node)) {
+                    Task {
+                        await catalogTree.moveCategory(
+                            dragged: dragged, before: node.id)
+                    }
+                }
+            }
+        }
+    }
+
+    private func depthPrefixedName(_ node: CatalogTreeNode) -> String {
+        let byID = Dictionary(
+            uniqueKeysWithValues: catalogTree.flatCategories().map { ($0.id, $0) })
+        var depth = 0
+        var current: CatalogTreeNode? = node
+        while let parentID = current?.parentID, let parent = byID[parentID] {
+            depth += 1
+            current = parent
+        }
+        return String(repeating: "· ", count: depth) + node.name
+    }
+
+    /// Collections — Plan 16-3 T3: the flat list (click = the collectionID
+    /// anchor) with the same CRUD/drag face.
     private var catalogCollectionsSection: some View {
         Section {
-            Text("catalog_collections_empty")
-                .font(.caption2)
-                .foregroundStyle(LightamerColors.textSecondary)
+            ForEach(catalogTree.collections) { collection in
+                collectionRow(collection)
+            }
+            Button {
+                organizationNameText = ""
+                organizationNameSheet = .newCollection
+            } label: {
+                Label(
+                    String(localized: "catalog_collection_new"),
+                    systemImage: "plus.circle")
+            }
+            .accessibilityIdentifier("catalog.collection.add")
+            if catalogTree.collections.isEmpty {
+                Text("catalog_collections_empty")
+                    .font(.caption2)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
         } header: {
             Text("catalog_collections_section")
         }
+    }
+
+    private func collectionRow(_ collection: CatalogCollectionEntry) -> some View {
+        let active = catalogBrowserModel.activeScope.collectionID == collection.id
+        return Button {
+            Task {
+                await catalogBrowserModel.setScope(
+                    FilterScope(collectionID: active ? nil : collection.id))
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "square.stack.3d.up")
+                    .foregroundStyle(LightamerColors.textSecondary)
+                Text(collection.name)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if active {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+        }
+        .accessibilityIdentifier("catalog.collection.row.\(collection.id)")
+        .contextMenu {
+            Button(String(localized: "catalog_collection_rename")) {
+                organizationNameText = collection.name
+                organizationNameSheet = .renameCollection(id: collection.id)
+            }
+            Button(
+                String(localized: "catalog_collection_delete"),
+                role: .destructive
+            ) {
+                Task { await catalogTree.deleteCollection(id: collection.id) }
+            }
+        }
+        .draggable(Self.collectionDragPrefix + String(collection.id))
+        .dropDestination(for: String.self) { payload, _ in
+            guard let raw = payload.first,
+                  let dragged = Self.draggedID(raw, prefix: Self.collectionDragPrefix)
+            else { return false }
+            Task { await catalogTree.moveCollection(dragged: dragged, before: collection.id) }
+            return true
+        } isTargeted: { _ in }
+    }
+
+    private static func draggedID(_ raw: String, prefix: String) -> Int64? {
+        guard raw.hasPrefix(prefix) else { return nil }
+        return Int64(raw.dropFirst(prefix.count))
     }
 
     /// Smart Albums (catalog face) — the SAME app-level rule assets; the
@@ -626,7 +872,8 @@ internal struct SidebarView: View {
 
     /// The Catalogs-face data refresh (registry rows + smart-album badge
     /// counts — the badge queries ride the store's COUNT memo, so repeat
-    /// refreshes after projections are cheap).
+    /// refreshes after projections are cheap). Plan 16-3: the organization
+    /// tree/collections faces ride the SAME re-derivation path.
     private func refreshCatalogFaces() async {
         guard catalogPreferences.catalogsEnabled, organizationMode == .catalogs else { return }
         catalogSessionRows = (try? await SessionIndexController.sharedCatalogStore.fetchSessions())
@@ -637,6 +884,27 @@ internal struct SidebarView: View {
                 .count(groups: [album.group])) ?? 0
         }
         catalogAlbumCounts = counts
+        await catalogTree.refresh()
+    }
+
+    /// The name sheet's OK face (Plan 16-3 T3) — dispatch on the pending
+    /// flow, then drop the sheet.
+    private func commitOrganizationNameSheet() {
+        guard let sheet = organizationNameSheet else { return }
+        organizationNameSheet = nil
+        let name = organizationNameText
+        Task {
+            switch sheet {
+            case .newCategory(let parentID):
+                await catalogTree.createCategory(name: name, parentID: parentID)
+            case .renameCategory(let id):
+                await catalogTree.renameCategory(id: id, to: name)
+            case .newCollection:
+                await catalogTree.createCollection(name: name)
+            case .renameCollection(let id):
+                await catalogTree.renameCollection(id: id, to: name)
+            }
+        }
     }
 
     /// The re-link directory picker (D-16-CONTEXT-7②: the user picks the

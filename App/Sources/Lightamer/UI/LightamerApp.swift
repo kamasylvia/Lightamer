@@ -199,6 +199,11 @@ internal struct LightamerApp: App {
     /// repoint via `sharedCatalogStoreRebuilt` below.
     @State private var catalogBrowserModel = CatalogBrowserModel()
 
+    /// Plan 16-3 T3: the organization tree/collections in-memory model (the
+    /// sidebar's Categories/Collections sections + the grid's classify
+    /// menus). Its store binding rebuilds in the SAME rebuilt callback.
+    @State private var catalogTreeModel = CatalogTreeModel()
+
     /// Plan 16-2 T5: the cross-session thumbnail router (the lazy
     /// per-session provider pool over the app-level memory LRU). Created
     /// in the scene `.task` once the Metal/registry/yiyin faces exist.
@@ -295,6 +300,7 @@ internal struct LightamerApp: App {
                 .environment(presetController)
                 .environment(catalogPreferences)
                 .environment(catalogBrowserModel)
+                .environment(catalogTreeModel)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
                 // D-COL2 (Plan 02-04-05): capture the editor window the
                 // moment SwiftUI places it — the coordinator follows THE
@@ -319,6 +325,9 @@ internal struct LightamerApp: App {
                     // BEFORE the initial repoint so the first build lands.
                     SessionIndexController.sharedCatalogStoreRebuilt = { store in
                         catalogBrowserModel.configure(store: store)
+                        catalogTreeModel.configure(
+                            store: SessionIndexController.sharedCatalogOrganization)
+                        Task { await catalogTreeModel.refresh() }
                     }
                     await SessionIndexController.repointSharedCatalog(
                         databaseURL: catalogPreferences.catalogURL)

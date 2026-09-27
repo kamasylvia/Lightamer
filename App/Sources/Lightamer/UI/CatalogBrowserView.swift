@@ -40,9 +40,13 @@ internal struct CatalogBrowserView: View {
     /// the editor is mode-blind). The mode flip is the caller's.
     let onOpenInEditor: (_ sessionRoot: URL, _ relPath: String) -> Void
 
-    /// Session-id → root lookup (the cell URL assembly; refreshed on
-    /// appear from the shared store's registry read).
+    // Session-id → root lookup (the cell URL assembly; refreshed on
+    // appear from the shared store's registry read).
     @State private var sessionRoots: [String: URL] = [:]
+
+    // Plan 16-3 T3: the organization faces (the classify menus ride the
+    // tree/collections model — the SAME instance the sidebar consumes).
+    @Environment(CatalogTreeModel.self) private var catalogTree
 
     /// Scroll-load threshold (cells before the end that trigger the next
     /// keyset page).
@@ -111,6 +115,7 @@ internal struct CatalogBrowserView: View {
             Task {
                 await refreshSessionRoots()
                 await model.reload()
+                await catalogTree.refresh()
             }
         }
         .onChange(of: model.queryRevision) { _, _ in
@@ -149,6 +154,36 @@ internal struct CatalogBrowserView: View {
         }
         Button(String(localized: "browser_menu_flag_clear")) {
             Task { await model.batchSetFlag(nil, identities: targets) }
+        }
+        classifyMenu(targets: targets)
+        if let anchorCategory = model.activeScope.categoryID {
+            Button(String(localized: "catalog_menu_remove_from_category")) {
+                Task { await catalogTree.revoke(
+                    identities: targets, fromCategoryID: anchorCategory) }
+            }
+        }
+    }
+
+    // Plan 16-3 T3: the classify faces — one click writes the membership
+    // into the catalog (multi-membership; across sessions natively — the
+    // organization truth does not know about session boundaries).
+    @ViewBuilder
+    private func classifyMenu(targets: [String]) -> some View {
+        Menu(String(localized: "catalog_menu_add_to_category")) {
+            ForEach(catalogTree.flatCategories()) { node in
+                Button(node.name) {
+                    Task { await catalogTree.assign(
+                        identities: targets, toCategoryID: node.id) }
+                }
+            }
+        }
+        Menu(String(localized: "catalog_menu_add_to_collection")) {
+            ForEach(catalogTree.collections) { collection in
+                Button(collection.name) {
+                    Task { await catalogTree.assign(
+                        identities: targets, toCollectionID: collection.id) }
+                }
+            }
         }
     }
 

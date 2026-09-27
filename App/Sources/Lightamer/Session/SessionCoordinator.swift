@@ -282,6 +282,14 @@ final class SessionIndexController {
     /// smart-album evaluation, thumbnail router) consumes THIS instance.
     nonisolated(unsafe) static var sharedCatalogStore = CatalogIndexStore()
 
+    /// Plan 16-3 T3: the organization write/read face singleton (categories
+    /// tree / collections / memberships — the catalog's OWN asset). Same
+    /// lifecycle as the pair above: rebuilt by the re-point, its
+    /// membership-affecting COMMITs killing the shared READ store's COUNT
+    /// memo via the invalidator wired at build time.
+    nonisolated(unsafe) static var sharedCatalogOrganization =
+        CatalogOrganizationStore()
+
     /// The location the shared pair currently targets (re-point idempotence;
     /// nil = not yet built this launch — the first repoint always builds so
     /// the invalidator wiring is guaranteed).
@@ -305,13 +313,19 @@ final class SessionIndexController {
         guard sharedCatalogURL != url else { return }
         await sharedCatalogProjector.close()
         await sharedCatalogStore.close()
+        await sharedCatalogOrganization.close()
         let projector = CatalogProjector(databaseURL: url)
         let store = CatalogIndexStore(databaseURL: url)
+        let organization = CatalogOrganizationStore(databaseURL: url)
         await projector.setCountsInvalidator { [store] in
+            await store.invalidateCounts()
+        }
+        await organization.setCountsInvalidator { [store] in
             await store.invalidateCounts()
         }
         sharedCatalogProjector = projector
         sharedCatalogStore = store
+        sharedCatalogOrganization = organization
         sharedCatalogURL = url
         if CatalogPreferences.catalogsEnabled() {
             _ = try? await store.fetchSessions()
