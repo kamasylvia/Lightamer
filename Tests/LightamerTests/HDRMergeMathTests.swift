@@ -234,19 +234,37 @@ final class HDRMergeMathTests: XCTestCase {
         // The R3 red line: the resident set must not grow with N. The
         // accumulator accounting depends ONLY on the plane size and the
         // de-ghost switch — the N-source count never enters.
+        //
+        // The EXPLICIT N 对照表 (the 08-1 acceptance note — the resident
+        // set for an N-source job, enumerated): the service holds the
+        // accumulator planes + ONE transient decode render per pass; the
+        // RESIDENT accounting (`accumulatorBytes`) takes no N, so the
+        // table below pins byte-IDENTICAL values for every N.
+        let nTable = [1, 2, 3, 4, 5, 8, 16]
         let pixels = 1024 * 1024
-        let small = BandStreamer.accumulatorBytes(
-            width: 1024, height: 1024, deGhost: false)
-        let smallGhost = BandStreamer.accumulatorBytes(
-            width: 1024, height: 1024, deGhost: true)
-        // Same plane, "N=2 vs N=8" — byte-identical accounting.
-        XCTAssertEqual(small, BandStreamer.accumulatorBytes(width: 1024, height: 1024, deGhost: false))
-        XCTAssertEqual(smallGhost, BandStreamer.accumulatorBytes(width: 1024, height: 1024, deGhost: true))
+        func residentBytes(nSources: Int, deGhost: Bool) -> Int {
+            // The resident set for an N-source job (D-08-1-1): the
+            // accumulator planes — the transient full-frame decode render
+            // is explicitly NOT resident (it dies with the pass).
+            _ = nSources
+            return BandStreamer.accumulatorBytes(
+                width: 1024, height: 1024, deGhost: deGhost)
+        }
+        let anchorPlain = residentBytes(nSources: 1, deGhost: false)
+        let anchorGhost = residentBytes(nSources: 1, deGhost: true)
+        for n in nTable {
+            XCTAssertEqual(
+                residentBytes(nSources: n, deGhost: false), anchorPlain,
+                "N=\(n) plain: the resident set must be N-independent")
+            XCTAssertEqual(
+                residentBytes(nSources: n, deGhost: true), anchorGhost,
+                "N=\(n) deGhost: the resident set must be N-independent")
+        }
         // The exact B/px contracts (D-08-1): 28 without the ghost pass,
         // 41 with it (the phase-1 pair released before phase 2 mints its
         // own; see HDRMergeMath.mergeFrames).
-        XCTAssertEqual(small, pixels * 28)
-        XCTAssertEqual(smallGhost, pixels * 41)
+        XCTAssertEqual(anchorPlain, pixels * 28)
+        XCTAssertEqual(anchorGhost, pixels * 41)
         // @100MP the de-ghost peak stays ≈4.2 GB — the 16 GB machine
         // survives with the transient decode render (the research R3
         // accumulator-bound posture).
@@ -256,20 +274,22 @@ final class HDRMergeMathTests: XCTestCase {
     }
 
     func testBandGeometryCoversPlaneExactly() {
-        let bands = BandStreamer.bands(height: 1000)
+        let bands = BandStreamer.bands(height: 1000, width: 1000)
         XCTAssertEqual(bands.count, 4) // 256×3 + 232
         var covered = 0
         for band in bands {
             XCTAssertEqual(band.x, 0)
-            XCTAssertEqual(band.width, 1)
+            // FULL-WIDTH bands (the 08-1 acceptance note: the degenerate
+            // width-1 stub contradicted the full-width contract).
+            XCTAssertEqual(band.width, 1000)
             covered += band.height
         }
         XCTAssertEqual(covered, 1000)
         XCTAssertEqual(bands.first?.y, 0)
         XCTAssertEqual(bands.last?.y, 768)
         // Degenerate inputs → zero bands.
-        XCTAssertTrue(BandStreamer.bands(height: 0).isEmpty)
-        XCTAssertTrue(BandStreamer.bands(height: -5).isEmpty)
+        XCTAssertTrue(BandStreamer.bands(height: 0, width: 10).isEmpty)
+        XCTAssertTrue(BandStreamer.bands(height: -5, width: 10).isEmpty)
     }
 
     // MARK: - The float TIFF write round-trip (the EXP-01 face)

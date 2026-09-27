@@ -36,17 +36,21 @@ public enum BandStreamer {
     // MARK: - Band geometry (the TilingPlan degenerate case)
 
     /// Full-width row bands covering `0..<height` (edge band shrinks).
-    /// Zero bands for a degenerate height.
+    /// Zero bands for a degenerate height/width. The `width` rides the
+    /// Tile record for the FULL-WIDTH bands convention (the 08-1
+    /// acceptance note: the degenerate `width: 1` stub contradicted the
+    /// full-width contract — consumers only read y/height today, but the
+    /// geometry now says what it means).
     public static func bands(
-        height: Int, bandHeight: Int = BandStreamer.defaultBandHeight
+        height: Int, width: Int, bandHeight: Int = BandStreamer.defaultBandHeight
     ) -> [TilingPlan.Tile] {
-        guard height > 0, bandHeight > 0 else { return [] }
+        guard height > 0, width > 0, bandHeight > 0 else { return [] }
         var result: [TilingPlan.Tile] = []
         var y = 0
         while y < height {
             let band = min(bandHeight, height - y)
             result.append(
-                TilingPlan.Tile(x: 0, y: y, width: 1, height: band))
+                TilingPlan.Tile(x: 0, y: y, width: width, height: band))
             y += band
         }
         return result

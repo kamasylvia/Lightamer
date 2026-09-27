@@ -938,7 +938,7 @@ public actor StackMergeService {
         var sumWP = [Float](repeating: 0, count: pixelCount * 3)
         var ghostUnion: [UInt8]? = work.params.deGhost
             ? [UInt8](repeating: 0, count: pixelCount) : nil
-        let bands = BandStreamer.bands(height: height)
+        let bands = BandStreamer.bands(height: height, width: width)
 
         func mergePass(lHatBand: [Float]?, sumW: inout [Float], sumWP: inout [Float])
             async throws
@@ -1208,7 +1208,7 @@ public actor StackMergeService {
         let halo = FocusStackMerge.defaultHaloRows
         var outputPlane = [Float](repeating: 0, count: width * height * 4)
         var bumpBudget = work.decoded.count // the fuse segment declares N steps
-        for band in BandStreamer.bands(height: height) {
+        for band in BandStreamer.bands(height: height, width: width) {
                 let stripFirst = max(0, band.y - halo)
                 let stripRows = min(height, band.y + band.height + halo) - stripFirst
                 var strips: [([Float], [Float])] = []
@@ -1321,7 +1321,7 @@ public actor StackMergeService {
         var outputPlane = [Float](repeating: 0, count: width * height * 4)
         var holes = 0
         var bumpBudget = work.decoded.count
-        for band in BandStreamer.bands(height: height) {
+        for band in BandStreamer.bands(height: height, width: width) {
             var stack: [[Float]] = []
             stack.reserveCapacity(work.decoded.count)
             for index in work.decoded.indices {
