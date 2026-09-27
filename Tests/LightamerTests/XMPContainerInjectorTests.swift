@@ -13,7 +13,7 @@ final class XMPContainerInjectorTests: XCTestCase {
     private var tempDirectory: URL!
 
     override func setUpWithError() throws {
-        // L009: fixtures NEVER live on the external-volume volume — /tmp is local.
+        // L009: fixtures NEVER live on the external volume volume — /tmp is local.
         tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("xmp-inject-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)

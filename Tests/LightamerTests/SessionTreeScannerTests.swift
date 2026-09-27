@@ -6,7 +6,7 @@ import XCTest
 // ─────────────────────────────────────────────────────────────────────────────
 // Session tree tests (Plan 09-01 T2/T3) — fixtures are built IN TESTS inside
 // `FileManager.temporaryDirectory` (the internal SSD — L009: NEVER on the
-// external-volume USB volume for anything timing-adjacent).
+// external volume USB volume for anything timing-adjacent).
 //
 // T2 sections: the three-tier idempotent creation (run twice → zero diff in
 // mtimes AND directory set) + the `outputDirectory` pure-function vectors.

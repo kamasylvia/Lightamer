@@ -35,7 +35,7 @@ import XCTest
 //   Main gate = the RELEASE column (Debug reference-only — 16-4-DECISIONS).
 //
 // Fixture (research §RQ-16-13 profile, straight into a real .lcat on the
-// LOCAL disk /tmp — L009: never external-volume; the database is a throwaway
+// LOCAL disk /tmp — L009: never external volume; the database is a throwaway
 // artifact, never committed):
 //   • N rows across 10 sessions
 //   • capture_date 10% NULL, rating 60% NULL, color_label 70% NULL

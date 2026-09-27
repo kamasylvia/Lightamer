@@ -209,7 +209,8 @@ internal struct LayersPanelView: View {
             pipeCoordinator.setMaskOverlayRequest(nil)
             return
         }
-        pipeCoordinator.setMaskOverlayRequest((id, 0.85))
+        pipeCoordinator.setMaskOverlayRequest(
+            (id, 0.85, editingState.maskOverlayStyle))
     }
 
     /// The base layer row: selection = the global chain (nil layer scope).
@@ -278,6 +279,24 @@ private struct LayerRowView: View {
             .accessibilityLabel(Text("layers_visibility"))
             .accessibilityValue(layer.isVisible ? Text("toggle_on") : Text("toggle_off"))
             .accessibilityIdentifier(rowID + ".eye")
+
+            // ── enable checkbox (13-3 T5: the `enabled` field's UI face —
+            // the LayerCompositeDriver's per-layer render gate; 1 commit) ──
+            Button {
+                var copy = layerSnapshot()
+                copy.enabled.toggle()
+                editorState.commitLayerEdit(
+                    copy, label: String(localized: "history_layer_enable"))
+            } label: {
+                Image(systemName: liveLayer()?.enabled == true
+                    ? "checkmark.square" : "square")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("layers_enable"))
+            .accessibilityValue(liveLayer()?.enabled == true
+                ? Text("toggle_on") : Text("toggle_off"))
+            .accessibilityIdentifier(rowID + ".enable")
 
             // ── name (inline rename) + blend Picker + opacity ──
             VStack(alignment: .leading, spacing: 2) {
@@ -359,6 +378,20 @@ private struct LayerRowView: View {
             pipeCoordinator.setHotLayer(layer.id)
             refreshMaskOverlayRequest()
         }
+        // 13-3 T5: the mask COMMAND face (Duplicate / Duplicate-and-
+        // Invert / Fill / Clear / Reset Edits) on the row's context menu.
+        // The command targets the RIGHT-CLICKED row (it selects first);
+        // routing rides `LayerEditingState.performMaskCommand` → the
+        // existing commit entries (each step ONE history item).
+        .contextMenu {
+            ForEach(MaskCommand.allCases, id: \.rawValue) { command in
+                Button(String(localized: String.LocalizationValue(command.labelKey))) {
+                    editingState.select(layer.id)
+                    pipeCoordinator.setHotLayer(layer.id)
+                    editingState.performMaskCommand(command, editorState: editorState)
+                }
+            }
+        }
         // Drag source: a plain string UUID payload (the DropReorderRegion
         // decodes it into ONE `reorderLayer` commit at the drop).
         .onDrag {
@@ -403,7 +436,8 @@ private struct LayerRowView: View {
             pipeCoordinator.setMaskOverlayRequest(nil)
             return
         }
-        pipeCoordinator.setMaskOverlayRequest((layer.id, 0.85))
+        pipeCoordinator.setMaskOverlayRequest(
+            (layer.id, 0.85, editingState.maskOverlayStyle))
     }
 }
 

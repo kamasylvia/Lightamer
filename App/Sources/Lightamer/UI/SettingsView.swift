@@ -33,11 +33,26 @@ import SwiftUI
 internal struct SettingsView: View {
 
     @Environment(CatalogPreferencesModel.self) private var catalogPreferences
+    @Environment(PipeCoordinator.self) private var pipeCoordinator
 
     @State private var confirmDestructive = false
 
     var body: some View {
         Form {
+            Section(String(localized: "settings_displays_section")) {
+                // 13-2 T6 (COLOR-03): the manual per-display profile
+                // override — a hand-picked ICC replaces ONE display's auto
+                // resolution (the precise `.colorSyncFallback` leg). The
+                // override touches the RESOLUTION only; the copy states
+                // the display-simulation boundary.
+                ForEach(NSScreen.screens, id: \.localizedName) { screen in
+                    displayRow(screen)
+                }
+                Text("settings_displays_hint")
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
+
             Section(String(localized: "settings_catalogs_section")) {
                 Toggle(
                     String(localized: "settings_catalogs_enable"),
@@ -190,5 +205,66 @@ internal struct SettingsView: View {
         panel.directoryURL = catalogPreferences.catalogURL.deletingLastPathComponent()
         guard panel.runModal() == .OK, let directory = panel.url else { return }
         catalogPreferences.setLocation(directory: directory)
+    }
+
+    // MARK: - 13-2 T6: the per-display override row
+
+    /// One display: its name, the override state (hand-picked profile name
+    /// or auto), and the pick/clear faces. The pick = an ICC file panel;
+    /// both faces route through the store then refresh the coordinator's
+    /// resolution (idempotent when nothing changed).
+    @ViewBuilder
+    private func displayRow(_ screen: NSScreen) -> some View {
+        let displayID = ManualDisplayOverrideStore.displayID(of: screen)
+        let overridePath = displayID.flatMap {
+            ManualDisplayOverrideStore.shared.overridePath(displayID: $0)
+        }
+        LabeledContent {
+            HStack(spacing: 8) {
+                Button(String(localized: "settings_displays_choose")) {
+                    chooseICCProfile(displayID: displayID)
+                }
+                .disabled(displayID == nil)
+                .accessibilityIdentifier("settings.displays.choose")
+                if overridePath != nil {
+                    Button(String(localized: "settings_displays_clear")) {
+                        if let displayID {
+                            ManualDisplayOverrideStore.shared.setOverride(nil, displayID: displayID)
+                            pipeCoordinator.refreshDisplayProfile()
+                        }
+                    }
+                    .accessibilityIdentifier("settings.displays.clear")
+                }
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(screen.localizedName)
+                    .font(.callout)
+                Text(overridePath.map {
+                        String(localized: "settings_displays_overridden \($0)")
+                    } ?? String(localized: "settings_displays_auto"))
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+        }
+        .accessibilityIdentifier("settings.displays.row.\(screen.localizedName)")
+    }
+
+    /// The ICC picker (NSOpenPanel, .icc/.icm). A picked file wins for THIS
+    /// display on the next resolution; unreadable files are stored anyway
+    /// (the resolution degrades to auto — the store's graceful contract).
+    private func chooseICCProfile(displayID: UInt32?) {
+        guard let displayID else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.allowedFileTypes = ["icc", "icm"]
+        panel.directoryURL = URL(fileURLWithPath: "/Library/ColorSync/Profiles")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        ManualDisplayOverrideStore.shared.setOverride(url.path, displayID: displayID)
+        pipeCoordinator.refreshDisplayProfile()
     }
 }

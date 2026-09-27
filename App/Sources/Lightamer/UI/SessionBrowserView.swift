@@ -42,6 +42,11 @@ internal struct SessionBrowserView: View {
     let onOpenInEditor: (URL) -> Void
     /// The session root (cell URL assembly).
     let sessionRoot: URL?
+    /// 13-3 T4 (SYS-04): the GRID drop target — files dropped here import
+    /// (COPY by default) into the session's `Capture/`; `move` carries the
+    /// Option-modifier explicit intent. Wired by ContentView to the
+    /// coordinator's import seam.
+    var onImportFiles: ((_ urls: [URL], _ move: Bool) -> Void)?
 
     /// 12-1 T6 (META-03): the multi-select append menu items raise these
     /// one-field alerts (the value routes through MetadataController —
@@ -118,6 +123,26 @@ internal struct SessionBrowserView: View {
             .padding(12)
         }
         .accessibilityIdentifier(BrowserIdentifiers.grid)
+        // 13-3 T4: the drop affordance + the file-URL drop leg (COPY
+        // default; Option = move — the modifier is read at drop time).
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(
+                        LightamerColors.accent.opacity(0.7),
+                        lineWidth: 3)
+                    .padding(4)
+                    .accessibilityIdentifier("browser.drop.affordance")
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+            guard onImportFiles != nil else { return false }
+            Self.loadDropURLs(providers: providers) { urls in
+                guard !urls.isEmpty else { return }
+                onImportFiles?(urls, NSEvent.modifierFlags.contains(.option))
+            }
+            return true
+        }
         // Plan 12-2 T4: the filter row rides the grid's top inset (visually
         // adjacent to the window toolbar's BrowserMode segmented control).
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -171,6 +196,33 @@ internal struct SessionBrowserView: View {
     /// The targets captured when the alert's OK is pressed (the closure
     /// re-derivation inside the alert would lose the right-click context).
     @State private var pendingTargets: [String] = []
+    /// The drop-affordance face (13-3 T4).
+    @State private var isDropTargeted = false
+
+    /// Collect ALL dropped file-URLs (the loadObject completions arrive
+    /// out of order — index-sorted). The EmptyStateView single-provider
+    /// pattern extended to the batch (D-13-CONTEXT-7).
+    static func loadDropURLs(
+        providers: [NSItemProvider], completion: @escaping ([URL]) -> Void
+    ) {
+        let group = DispatchGroup()
+        var results = [(index: Int, url: URL)]()
+        let lock = NSLock()
+        for (index, provider) in providers.enumerated() {
+            group.enter()
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                if let url {
+                    lock.lock()
+                    results.append((index, url))
+                    lock.unlock()
+                }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) {
+            completion(results.sorted { $0.index < $1.index }.map(\.url))
+        }
+    }
 
     private func performAppend(_ target: AppendTarget, text: String, targets: [String]) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

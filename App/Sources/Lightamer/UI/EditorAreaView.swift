@@ -44,6 +44,14 @@ internal struct EditorAreaView: View {
     /// arbitration归口 (mask tools / liquify / crop, exactly one owner).
     @Environment(LayerEditingState.self) private var editingState
 
+    /// 13-3 T1/T3: the zoom/pan/rotation state — the eyedropper samples
+    /// through its inverse map and the overlay mutex rides its lock.
+    @Environment(ViewportState.self) private var viewportState
+
+    /// 13-3 T4: the empty-state drop routes a FOLDER to the session-open
+    /// flow (the 「文件夹→会话」 path) and FILES to the single-image edit.
+    @Environment(SessionCoordinator.self) private var sessionCoordinator
+
     /// 09-04 T7 (HIST-06): the before/after presentation state (split /
     /// peek / hold) + the fetched compare plane (a resident cache line —
     /// fetched ONCE per activation, never re-rendered by the hold edge).
@@ -63,6 +71,8 @@ internal struct EditorAreaView: View {
                                 metal: metalContext,
                                 logger: EditorState.decodeLogger
                             )
+                        }, onDropURLs: { urls in
+                            routeDroppedURLs(urls)
                         })
                             .transition(.opacity)
                     } else if let metalContext {
@@ -170,6 +180,28 @@ internal struct EditorAreaView: View {
                                 BeforeAfterHUD()
                             }
                         }
+                        // 13-3 T2 (SYS-03): the zoom HUD — a floating
+                        // capsule at the viewport's TOP-LEADING corner
+                        // (the state's value + the fit/100% switches; the
+                        // percentage label's double-click resets rotation).
+                        .overlay(alignment: .topLeading) {
+                            if editorState.loadedImageURL != nil {
+                                ZoomHUD(
+                                    viewportSize: geo.size,
+                                    textureSize: displayPixelSize)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 12)
+                            }
+                        }
+                        // 13-2 T4 (COLOR-02): the soft-proof capsule — a
+                        // floating top-trailing control (toggle + printer
+                        // picker + gamut check; the same SoftProofState the
+                        // View menu drives).
+                        .overlay(alignment: .topTrailing) {
+                            SoftProofControlView()
+                                .padding(.top, 8)
+                                .padding(.trailing, 12)
+                        }
                         // The compare plane lifecycle: fetched through the
                         // coordinator's OVERRIDE render on activation /
                         // peek change ONLY (the hold edges never re-fetch —
@@ -182,6 +214,22 @@ internal struct EditorAreaView: View {
                                 comparePlane = try? await pipeCoordinator.renderHistoryPeekPlane(
                                     at: beforeAfterState.peekIndex!)
                             }
+                        }
+                        // 13-3 T4: the EDITOR-AREA drop = single-image
+                        // direct edit (the existing `EditorState.load`
+                        // path; the sidecar lands beside the ORIGINAL —
+                        // no import, no index row, D-13-CONTEXT-7①).
+                        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+                            SessionBrowserView.loadDropURLs(providers: providers) { urls in
+                                guard let first = urls.first else { return }
+                                editorState.load(
+                                    url: first,
+                                    decoder: decoder,
+                                    metal: metalContext,
+                                    logger: EditorState.decodeLogger
+                                )
+                            }
+                            return true
                         }
                         // The hold key (`\`, the C1 habit): key-down flips
                         // the blit to the resident before plane, key-up
@@ -229,15 +277,34 @@ internal struct EditorAreaView: View {
                         .onEnded { value in
                             guard inspectorState.isEyedropperActive else { return }
                             let point = value.location
+                            // 13-3 T3: the click inverse-maps through the
+                            // zoom/pan/rotation state (the same ViewportFit
+                            // math; nil transform = the untouched fit path).
+                            let xf = viewportState.transform(
+                                viewportSize: geo.size,
+                                textureSize: displayPixelSize)
                             Task {
                                 if let picked = await pipeCoordinator.pickColor(
-                                    at: point, viewportSize: geo.size
+                                    at: point, viewportSize: geo.size,
+                                    transform: xf
                                 ) {
                                     inspectorState.completeEyedropper(with: picked)
                                 }
                             }
                         }
                 )
+                // 13-3 T3 (D-13-CONTEXT-6③): the overlay MUTEX — when a
+                // viewport-exclusive overlay owns the route (crop /
+                // liquify / retouch), the zoom state LOCKS to the fit
+                // identity (entering the lock snaps back; gestures are
+                // swallowed while set). The mask/segment routes stay free
+                // — they inverse-map through the transform.
+                .onChange(of: viewportRoute) { _, route in
+                    viewportState.setZoomLocked(Self.routeLocksZoom(route))
+                }
+                .onAppear {
+                    viewportState.setZoomLocked(Self.routeLocksZoom(viewportRoute))
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -256,6 +323,28 @@ internal struct EditorAreaView: View {
         Task { await pipeCoordinator.drawableDidChange(drawableLongEdge: longEdge) }
     }
 
+    // MARK: - 13-3 T4 drop routing (empty state)
+
+    /// The empty-state drop router: a FOLDER opens the 「文件夹→会话」
+    /// flow (the existing openSession orchestration); files edit the
+    /// FIRST directly (the single-image path — the rest are ignored,
+    /// execution decision 13-3-DECISIONS).
+    private func routeDroppedURLs(_ urls: [URL]) {
+        guard let first = urls.first else { return }
+        let isDirectory = (try? first.resourceValues(forKeys: [.isDirectoryKey]))?
+            .isDirectory ?? false
+        if isDirectory {
+            Task { await sessionCoordinator.openSession(url: first) }
+        } else {
+            editorState.load(
+                url: first,
+                decoder: decoder,
+                metal: metalContext,
+                logger: EditorState.decodeLogger
+            )
+        }
+    }
+
     // MARK: - 06-05 viewport route (the state machine's decision)
 
     /// Exactly ONE owner for the viewport overlay (the mutex invariant):
@@ -266,6 +355,17 @@ internal struct EditorAreaView: View {
         editingState.viewportRoute(
             liquifyPanelSelected: liquifyActive,
             retouchPanelSelected: retouchLayer != nil)
+    }
+
+    /// 13-3 T3: the routes whose overlay geometry assumes the FIT layout
+    /// lock the zoom state (D-13-CONTEXT-6③, v1 从简 — crop-while-zoomed
+    /// is the recorded v2順位). Mask editing and the segment taps are NOT
+    /// here: they inverse-map through `ViewportFit`.
+    static func routeLocksZoom(_ route: LayerEditingState.ViewportRoute) -> Bool {
+        switch route {
+        case .crop, .liquify, .retouch: return true
+        case .maskEditing, .segment: return false
+        }
     }
 
     /// The selected RETOUCH layer (nil = the retouch route stays off).
@@ -346,6 +446,93 @@ internal struct EditorAreaView: View {
         }
         holdMonitor = nil
         beforeAfterState.isHoldingOriginal = false
+    }
+}
+
+/// The zoom HUD (13-3 T2): the current zoom state/value + the fit/100%
+/// switches. Form (execution decision, 13-3-DECISIONS): a compact capsule
+/// — [−] [label] [+] | [fit] [1:1]; the label reads "Fit" in the fit mode,
+/// "100%" pinned at the hundred-percent state, and the free percentage
+/// otherwise; double-clicking the label resets the rotation (anchored at
+/// the viewport center). Locked (a viewport-exclusive overlay) the whole
+/// HUD disables — the mutex is the state machine's decision.
+internal struct ZoomHUD: View {
+
+    let viewportSize: CGSize
+    let textureSize: CGSize
+
+    @Environment(ViewportState.self) private var viewportState
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button {
+                viewportState.stepZoom(
+                    factor: 1 / 1.25,
+                    viewportSize: viewportSize, textureSize: textureSize)
+            } label: {
+                Image(systemName: "minus.magnifyingglass")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("zoom_hud_zoom_out"))
+            .accessibilityIdentifier("zoom.hud.decrease")
+
+            Text(label)
+                .monospacedDigit()
+                .frame(minWidth: 44)
+                .onTapGesture(count: 2) {
+                    viewportState.resetRotation(
+                        viewportSize: viewportSize, textureSize: textureSize)
+                }
+                .accessibilityLabel(Text("zoom_hud_level"))
+                .accessibilityValue(label)
+                .accessibilityIdentifier("zoom.hud.label")
+
+            Button {
+                viewportState.stepZoom(
+                    factor: 1.25,
+                    viewportSize: viewportSize, textureSize: textureSize)
+            } label: {
+                Image(systemName: "plus.magnifyingglass")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("zoom_hud_zoom_in"))
+            .accessibilityIdentifier("zoom.hud.increase")
+
+            Divider().frame(height: 16)
+
+            Button {
+                viewportState.fit()
+            } label: {
+                Image(systemName: "arrow.down.right.and.arrow.up.left")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("zoom_hud_fit"))
+            .accessibilityIdentifier("zoom.hud.fit")
+
+            Button {
+                viewportState.actualSize(
+                    viewportSize: viewportSize, textureSize: textureSize)
+            } label: {
+                Text("zoom_hud_100")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("zoom_hud_actual_size"))
+            .accessibilityIdentifier("zoom.hud.actual")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+        .disabled(viewportState.zoomLocked)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("zoom.hud")
+    }
+
+    private var label: String {
+        if viewportState.mode == .fit {
+            return String(localized: "zoom_hud_fit_label")
+        }
+        return "\(viewportState.displayPercent)%"
     }
 }
 

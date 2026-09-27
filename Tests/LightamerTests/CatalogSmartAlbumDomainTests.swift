@@ -26,7 +26,7 @@ import XCTest
 //     out is a grid-layer concern).
 //
 // Fixtures are RAW lindex databases (the CatalogProjectorTests direct-
-// handle style; L009: never external-volume).
+// handle style; L009: never external volume).
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor

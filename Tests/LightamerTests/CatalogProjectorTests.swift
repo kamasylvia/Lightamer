@@ -26,7 +26,7 @@ import XCTest
 //   • the App-side openAndSync hook: disabled → zero handles end-to-end
 //
 // Fixtures are RAW lindex databases (SessionIndexMigrationTests' direct-
-// handle style — the tests own every column value; L009: never external-volume).
+// handle style — the tests own every column value; L009: never external volume).
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class CatalogProjectorTests: XCTestCase {

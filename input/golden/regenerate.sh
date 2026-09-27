@@ -19,7 +19,8 @@
 set -euo pipefail
 
 GOLDEN="$(cd "$(dirname "$0")" && pwd)"
-DT="${DT:-/path/to/darktable/build/bin/darktable-cli}"
+DT="${DT:-$(command -v darktable-cli 2>/dev/null || true)}"
+[ -n "$DT" ] || { echo "error: darktable-cli not found on PATH; set DT=/path/to/darktable-cli" >&2; exit 1; }
 CONF="$GOLDEN/.conf"
 RAW="$GOLDEN/.conf/raw"
 OUT="$GOLDEN/output"

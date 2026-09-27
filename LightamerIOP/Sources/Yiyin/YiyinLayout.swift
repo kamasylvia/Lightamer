@@ -3,7 +3,7 @@ import Foundation
 // ─────────────────────────────────────────────────────────────────────────
 // YiyinLayout (Plan 08-01) — the float64 seven-step joint layout, a 1:1
 // mirror of the yiyin composition pipeline's pure-arithmetic steps (the
-// yiyin repo at /path/to/yiyin, v1.7.1, is the
+// yiyin repo (https://github.com/kamasylvia/yiyin, v1.7.1) is the
 // read-only spec source; L017 route: geometry is pinned per-value against
 // the node harness, NO bitmap parity):
 //

@@ -13,7 +13,7 @@ version 字段保留。规避运行时键序/浮点解析差异（L013 精神；
 
 Usage:
   gen_noise_profiles.py [DT_JSON] [OUT_JSON]
-  默认 DT_JSON = /path/to/darktable/data/noiseprofiles.json
+  DT_JSON 缺省读环境变量 DT_JSON（darktable 仓 data/noiseprofiles.json）；未设即退出并提示。
   默认 OUT_JSON = LightamerIOP/Resources/NoiseProfiles/noiseprofiles.json（相对仓库根）
 """
 
@@ -21,7 +21,7 @@ import json
 import os
 import sys
 
-DEFAULT_DT = "/path/to/darktable/data/noiseprofiles.json"
+DEFAULT_DT = os.environ.get("DT_JSON", "")
 
 def repo_root() -> str:
     # input/golden/fixtures/ → 仓库根上四级（input/golden/fixtures → 根）
@@ -109,6 +109,8 @@ def self_check(dt_path: str, out: dict) -> None:
 def main() -> None:
     root = repo_root()
     dt_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_DT
+    if not dt_path:
+        sys.exit("DT_JSON not set — pass darktable's data/noiseprofiles.json as argv[1] or the DT_JSON env var")
     out_path = sys.argv[2] if len(sys.argv) > 2 else os.path.join(
         root, "LightamerIOP", "Resources", "NoiseProfiles", "noiseprofiles.json")
     out = normalize(dt_path)

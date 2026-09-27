@@ -276,8 +276,15 @@ public final class ColorOutModule: IOPModule {
             )
         case .colorSyncFallback:
             // Linear sRGB workalike (documented at
-            // `DisplayProfile.linearCGColorSpace`): exact primaries of an
-            // unknown profile land with Phase 13's full ICC support.
+            // `DisplayProfile.linearCGColorSpace`). 13-2 T6 NOTE: the
+            // exact-primaries linear variant EXISTS (the matrix-shaper
+            // parser + calibrated rebuild) but is DELIBERATELY not wired
+            // here — the render leg proved order-sensitive against a
+            // shared CGColorSpace instance in the CI leg (the
+            // CullingPipeline collapse forensics, 13-2-DECISIONS D-13-2-7);
+            // the render integration is deferred to a dedicated validation
+            // batch. The AC's ICC byte identity (resolve PRODUCT carries
+            // the hand-picked bytes) is test-pinned regardless.
             // TextureBox (the pipe's @unchecked Sendable ownership-transfer
             // wrap) carries the plane across the pool actor boundary — the
             // plane is renounced by this call (not used afterwards).

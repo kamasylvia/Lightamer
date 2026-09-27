@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Non-sandboxed (Plan 13-1, D-13-CONTEXT-3): the importer walks UP from
+	  the requested file to its session root and READS
+	  `.lightamer/session.lindex` (read-only, schema-gated) — a sandboxed
+	  extension cannot reach the sibling hidden directory. No sandbox key =
+	  non-sandboxed, matching the host app decision. Hardened runtime rides
+	  the per-configuration ENABLE_HARDENED_RUNTIME settings; Developer ID
+	  deep-sign happens in 13-4.
+	-->
+</dict>
+</plist>

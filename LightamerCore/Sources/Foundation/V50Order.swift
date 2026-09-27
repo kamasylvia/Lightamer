@@ -1,6 +1,6 @@
 /// The v50 module-order table (FOUND-03) — a verbatim port of Darktable's
 /// `v50_order[]` from `src/common/iop_order.c:298-415` (checked out at
-/// `/path/to/darktable`). ARCHITECTURE.md
+/// https://github.com/darktable-org/darktable). ARCHITECTURE.md
 /// Decision 3: Lightamer adopts Darktable's module positions as-is — the
 /// table's placement comments (kept below) encode hard scene-referred
 /// ordering constraints discovered over a decade of Darktable development.

@@ -159,7 +159,8 @@ internal struct SkinSmoothPanelView: View {
 
     private func setMaskTint(_ shown: Bool) {
         guard let id = editingState.selectedLayerID else { return }
-        pipeCoordinator.setMaskOverlayRequest(shown ? (id, 0.85) : nil)
+        pipeCoordinator.setMaskOverlayRequest(
+            shown ? (id, 0.85, editingState.maskOverlayStyle) : nil)
     }
 
     // MARK:「定位皮肤」

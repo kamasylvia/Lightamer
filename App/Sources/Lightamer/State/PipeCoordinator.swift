@@ -184,10 +184,12 @@ final class PipeCoordinator {
     /// DISPLAY plane with the selected layer's mask after each composite
     /// (the 06-3 `mask_overlay_display` leg on real user state — the
     /// 06-03 `-la_mask_overlay_probe` DEBUG probe becomes the production
-    /// path here). nil = no overlay.
-    var maskOverlayRequest: (layerID: UUID, strength: Float)?
+    /// path here). nil = no overlay. 13-3 T5: the tuple carries the
+    /// display STYLE (translucent/rubylith/on-black) — a display-leg
+    /// parameter only, never a record.
+    var maskOverlayRequest: (layerID: UUID, strength: Float, style: MaskOverlayStyle)?
 
-    func setMaskOverlayRequest(_ request: (layerID: UUID, strength: Float)?) {
+    func setMaskOverlayRequest(_ request: (layerID: UUID, strength: Float, style: MaskOverlayStyle)?) {
         maskOverlayRequest = request
         // The tint lives INSIDE renderPreview — a request change must
         // re-render or the toggle/selection would not visibly update
@@ -224,7 +226,7 @@ final class PipeCoordinator {
     /// is Sendable per `MetalSendability`), so no `sending` choreography.
     private func applyMaskOverlayIfRequested(
         base: sending any MTLTexture,
-        request: (layerID: UUID, strength: Float)?,
+        request: (layerID: UUID, strength: Float, style: MaskOverlayStyle)?,
         stack: LayerStack?,
         boxes: [any ModuleBoxing],
         imageID: UUID,
@@ -266,9 +268,60 @@ final class PipeCoordinator {
                 })
             plane = assembled.plane
         }
-        return try await DrawnMaskRasterizer.overlay(
-            display: base, mask: plane, strength: request.strength,
-            tint: SIMD3<Float>(1, 1, 0), metal: metal)
+        // 13-3 T5: the three display states — SAME overlay kernel, three
+        // parameterizations (L031 holds: no new GPU face):
+        //   translucent — the 06-3 legacy yellow scrim at the request
+        //                 strength;
+        //   rubylith    — the classic red scrim, slightly lighter;
+        //   onBlack     — the dt inspection form: the mask WHITE on a
+        //                 BLACK full-frame plane (the black plane is a
+        //                 CPU-zeroed `.shared` texture — zero GPU submit).
+        switch request.style {
+        case .translucent:
+            return try await DrawnMaskRasterizer.overlay(
+                display: base, mask: plane, strength: request.strength,
+                tint: SIMD3<Float>(1, 1, 0), metal: metal)
+        case .rubylith:
+            return try await DrawnMaskRasterizer.overlay(
+                display: base, mask: plane, strength: 0.6,
+                tint: SIMD3<Float>(1, 0.05, 0.1), metal: metal)
+        case .onBlack:
+            // The unchecked-Sendable box is the established ownership
+            // seam here (the same pattern as the probe call site — the
+            // plane is render-current and read-only from here on).
+            let black = SendableTextureBox(
+                texture: try Self.makeZeroedPlane(
+                    matching: base, device: metal.device))
+            return try await DrawnMaskRasterizer.overlay(
+                display: black.texture, mask: plane, strength: 1.0,
+                tint: SIMD3<Float>(1, 1, 1), metal: metal)
+        }
+    }
+
+    /// A zero-filled plane with the display's size/format (the on-black
+    /// style's backdrop). `.shared` storage written through `replace` —
+    /// a CPU memset, NOT a GPU command (the L031 red line holds).
+    private static func makeZeroedPlane(
+        matching display: any MTLTexture, device: any MTLDevice
+    ) throws -> any MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: display.pixelFormat, width: display.width,
+            height: display.height, mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        guard let texture = device.makeTexture(descriptor: descriptor) else {
+            throw MetalError.bufferAllocationFailed(
+                display.width * display.height * 4)
+        }
+        let bytesPerRow = display.width * 4
+        let row = Data(repeating: 0, count: bytesPerRow)
+        try row.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, display.width, display.height),
+                mipmapLevel: 0, withBytes: raw.baseAddress!,
+                bytesPerRow: bytesPerRow)
+        }
+        return texture
     }
 
     // ── 02-06 sidecar persistence (D-S2/D-S3) ────────────────────────────
@@ -305,6 +358,72 @@ final class PipeCoordinator {
     /// follow re-commits its params (folding `DisplayProfile.stableID`)
     /// so a display change invalidates exactly the ≥colorout cache keys.
     private var coloroutBox: ModuleBox<ColorOutModule>?
+
+    // ── 13-2 T2: soft proof (COLOR-02) — the display-leg runtime override ──
+
+    /// The coordinator-minted proof box. NOT a registry module: it never
+    /// enters `EditorState.instances` (no history item, no sidecar record,
+    /// no export chain) — it is INJECTED into the rendered chain only while
+    /// proof is ON (the zero-regression red line: proof OFF renders a chain
+    /// byte-identical to the pre-13-2 pipeline).
+    private var softProofBox: ModuleBox<SoftProofStage>?
+
+    /// The live soft-proof state (nil = proof OFF). Coordinator-level
+    /// per-run override — never persisted, never part of history (the
+    /// `SoftProofProfile` doc comment is the contract).
+    private(set) var softProofProfile: SoftProofProfile?
+
+    /// Set/clear the soft proof and re-render the display leg. THUMBNAIL is
+    /// deliberately NOT dirtied (browser thumbnails do not simulate print —
+    /// 13-2-DECISIONS); the PREVIEW re-render rides the proof box's hash
+    /// fold, so upstream cache planes survive the toggle.
+    func setSoftProof(_ profile: SoftProofProfile?) {
+        softProofProfile = profile
+        guard decoded != nil else { return }
+        generation += 1
+        Task { [weak self] in
+            guard let self else { return }
+            await self.renderPreview(
+                bucket: self.currentBucket ?? PreviewBucket.cap, generation: self.generation)
+        }
+    }
+
+    /// Mint-or-reparameterize the proof box for `profile` (idempotent: the
+    /// SAME profile keeps the committed hash — cache-neutral).
+    private func mintSoftProofBox(_ profile: SoftProofProfile) -> ModuleBox<SoftProofStage> {
+        if let box = softProofBox {
+            if box.module.softProofOverride != profile {
+                box.module.softProofOverride = profile
+                box.setParams(SoftProofStage.Params())
+            }
+            return box
+        }
+        let box = ModuleBox(module: SoftProofStage())
+        box.module.softProofOverride = profile
+        box.setParams(SoftProofStage.Params())
+        softProofBox = box
+        return box
+    }
+
+    /// The proof-injected chain: the proof box rides UPSTREAM of colorout
+    /// (iop 69.5 < 70.0 — the v50 sort and the composite driver's
+    /// `splitTerminal` floor both place it in the base chain). Display legs
+    /// only (PREVIEW + FULL); THUMBNAIL never simulates print.
+    private func chainWithSoftProof(
+        _ base: [any ModuleBoxing], resolution: PipeResolution
+    ) -> [any ModuleBoxing] {
+        guard resolution != .thumbnail, let profile = softProofProfile, !base.isEmpty else {
+            return base
+        }
+        let box = mintSoftProofBox(profile)
+        var chain = base
+        if let coloroutIdx = base.firstIndex(where: { $0.opName == ColorOutModule.opName }) {
+            chain.insert(box, at: coloroutIdx)
+        } else {
+            chain.append(box)
+        }
+        return chain
+    }
 
     /// The yiyin logo store (08-3 T3 wiring): the embedded 26-brand PDF
     /// raster cache + user uploads, ONE per coordinator. Its init scans
@@ -386,10 +505,12 @@ final class PipeCoordinator {
     /// so the PREVIEW re-render hits everything upstream of colorout and
     /// re-runs ONLY the colorout+gamma terminal segment (SC#2 terminal
     /// variant; cached planes stop at colorout — research §3.3).
+    ///
+    /// 13-2 T6: the resolution honors the MANUAL per-display override
+    /// (`ManualDisplayOverrideStore`) — a hand-picked ICC wins over the
+    /// auto matching table for THIS display only.
     private func displayDidChange(initial: Bool = false) async {
-        let profile = DisplayProfile.resolve(
-            window?.screen?.colorSpace ?? NSScreen.main?.colorSpace
-        )
+        let profile = resolvedDisplayProfile()
         if initial {
             Self.colorLogger.info("display profile → \(profile.label, privacy: .public)")
         }
@@ -414,6 +535,23 @@ final class PipeCoordinator {
         await renderPreview(
             bucket: currentBucket ?? PreviewBucket.cap, generation: generation
         )
+    }
+
+    /// The effective display profile for the WINDOW's screen: the manual
+    /// override (Settings, 13-2 T6) wins; the standard matching table is
+    /// the default. The single resolution point the screen follow + the
+    /// re-commits + the override renders all share.
+    private func resolvedDisplayProfile() -> DisplayProfile {
+        let screen = window?.screen ?? NSScreen.main
+        return ManualDisplayOverrideStore.shared.resolvedProfile(screen: screen)
+    }
+
+    /// The Settings-side refresh (13-2 T6): an override was set/cleared —
+    /// forget the folded identity and re-run the resolution (idempotent
+    /// when nothing changed).
+    func refreshDisplayProfile() {
+        displayStableID = nil
+        Task { await displayDidChange() }
     }
 
     /// Adopt a chain for rendering: explicit instances win; empty → the
@@ -442,9 +580,7 @@ final class PipeCoordinator {
     /// never drops the live display follow.
     private func recommitColoroutForDisplay() {
         guard let box = coloroutBox else { return }
-        let profile = DisplayProfile.resolve(
-            window?.screen?.colorSpace ?? NSScreen.main?.colorSpace
-        )
+        let profile = resolvedDisplayProfile()
         box.module.displayProfileOverride = profile
         let params = (try? JSONDecoder().decode(
             ColorOutModule.Params.self, from: box.paramsData
@@ -1083,13 +1219,19 @@ final class PipeCoordinator {
     ///
     /// nil = nothing loaded, no GPU, click outside the fitted image rect,
     /// or the linear segment failed. Never mutates `displayTexture` (D-X1).
-    func pickColor(at point: CGPoint, viewportSize: CGSize) async -> simd_float3? {
+    /// 13-3 T1: `transform` non-nil = the click inverse-maps through the
+    /// zoom/pan/rotation state (the eyedropper stays correct while zoomed).
+    func pickColor(
+        at point: CGPoint, viewportSize: CGSize,
+        transform: ViewportTransform? = nil
+    ) async -> simd_float3? {
         guard let decoded, let metal, let display = editorState?.displayTexture else {
             return nil
         }
         let texSize = SIMD2<Int>(display.width, display.height)
         guard let uv = Self.viewportUV(
-            at: point, viewportSize: viewportSize, textureSize: texSize
+            at: point, viewportSize: viewportSize, textureSize: texSize,
+            transform: transform
         ) else {
             Self.logger.debug("eyedropper click outside the fitted image rect")
             return nil
@@ -1184,15 +1326,20 @@ final class PipeCoordinator {
     /// aspect-fit (`aspectFitUniforms` + the vertex uv chain):
     /// `uv.x = 0.5 + scale.x·(p.x/vw − 0.5)`,
     /// `uv.y = 0.5 − scale.y·(0.5 − p.y/vh)`. nil when the point falls in
-    /// the letterbox (outside the fitted image rect).
+    /// the letterbox (outside the fitted image rect). 13-3 T1: `transform`
+    /// non-nil inverse-maps through the zoom/pan/rotation state FIRST
+    /// (the same `ViewportFit` math — no second formula; nil = outside
+    /// the transformed image content).
     nonisolated static func viewportUV(
-        at point: CGPoint, viewportSize: CGSize, textureSize: SIMD2<Int>
+        at point: CGPoint, viewportSize: CGSize, textureSize: SIMD2<Int>,
+        transform: ViewportTransform? = nil
     ) -> SIMD2<Double>? {
         // 04-02-T4: single-source math (ViewportFit); the guard + letterbox
         // semantics are unchanged (EyedropperTests pin them).
         ViewportFit.uv(
             at: point, viewportSize: viewportSize,
-            textureSize: CGSize(width: textureSize.x, height: textureSize.y))
+            textureSize: CGSize(width: textureSize.x, height: textureSize.y),
+            transform: transform)
     }
 
     /// N×N area mean around the uv point (dt AREA picker; default radius 2
@@ -1413,11 +1560,14 @@ final class PipeCoordinator {
         // 08-3 T3: the yiyin per-run context rides the run's entry scale
         // (joint layout / EXIF / logo faces — per-run DATA, never params).
         injectYiyinRunContext(longEdge: longEdge, resolution: resolution)
+        // 13-2 T2: the soft-proof box rides the DISPLAY legs only — proof
+        // OFF leaves `instances` untouched (byte-identical chain).
+        let chain = chainWithSoftProof(instances, resolution: resolution)
         if let stack = currentLayerStack, !stack.compositeLayers.isEmpty,
            let registry {
             let (texture, stats) = try await RenderPipeline.processComposite(
                 image: decoded,
-                instances: instances,
+                instances: chain,
                 layerStack: stack,
                 registry: registry,
                 imageID: currentImageID ?? UUID(),
@@ -1436,7 +1586,7 @@ final class PipeCoordinator {
         }
         let (texture, stats) = try await RenderPipeline.process(
             image: decoded,
-            instances: instances,
+            instances: chain,
             imageID: currentImageID ?? UUID(),
             resolution: resolution,
             cache: cache,
@@ -1488,9 +1638,7 @@ final class PipeCoordinator {
         // never mutated by an override render).
         if let colorout = boxes.first(where: { $0.opName == ColorOutModule.opName })
             as? ModuleBox<ColorOutModule> {
-            colorout.module.displayProfileOverride = DisplayProfile.resolve(
-                window?.screen?.colorSpace ?? NSScreen.main?.colorSpace
-            )
+            colorout.module.displayProfileOverride = resolvedDisplayProfile()
             let params = (try? JSONDecoder().decode(
                 ColorOutModule.Params.self, from: colorout.paramsData))
                 ?? ColorOutModule.Params()

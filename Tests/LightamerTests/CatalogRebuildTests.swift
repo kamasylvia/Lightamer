@@ -25,7 +25,7 @@ import XCTest
 //                repair recovers the file, Sessions mode sees ZERO impact.
 //
 // Fixtures are RAW lindex databases (the CatalogProjectorTests direct-handle
-// style; L009: never external-volume; throwaway /tmp state only).
+// style; L009: never external volume; throwaway /tmp state only).
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor

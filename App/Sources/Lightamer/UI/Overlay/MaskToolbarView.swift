@@ -110,6 +110,27 @@ internal struct MaskToolbarView: View {
             .disabled(editingState.activeTool != .gradient)
             .accessibilityIdentifier("mask.toolbar.gradientprofile")
 
+            // 13-3 T5: the overlay display STYLE (On-Black / Rubylith /
+            // 半透明) — a display-only enum; flipping it re-issues the
+            // overlay request so the tint swaps without touching data.
+            Picker("mask_overlay_style", selection: Binding(
+                get: { editingState.maskOverlayStyle },
+                set: { newValue in
+                    editingState.maskOverlayStyle = newValue
+                    refreshOverlayRequest()
+                }
+            )) {
+                ForEach(MaskOverlayStyle.allCases, id: \.rawValue) { style in
+                    Text(String(localized: String.LocalizationValue(style.labelKey)))
+                        .tag(style)
+                }
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+            .frame(width: 150)
+            .disabled(!hasSelection)
+            .accessibilityIdentifier("mask.toolbar.overlaystyle")
+
             aiGroup
 
             Spacer(minLength: 0)
@@ -124,6 +145,22 @@ internal struct MaskToolbarView: View {
     }
 
     private var hasSelection: Bool { editingState.selectedLayerID != nil }
+
+    /// Re-issue the CURRENT layer's overlay request with the live style
+    /// (13-3 T5 — the style flip's re-render leg; the LayersPanel twin is
+    /// `refreshMaskOverlayRequest`).
+    private func refreshOverlayRequest() {
+        guard let id = editingState.selectedLayerID,
+              let layer = editorState.adjustmentLayer(id: id),
+              layer.mask?.hasAnyPayload == true,
+              editingState.showsMaskOverlay
+        else {
+            pipeCoordinator.setMaskOverlayRequest(nil)
+            return
+        }
+        pipeCoordinator.setMaskOverlayRequest(
+            (id, 0.85, editingState.maskOverlayStyle))
+    }
 
     // MARK: - AI group (Plan 07-3 T1)
 

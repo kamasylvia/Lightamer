@@ -37,6 +37,10 @@ internal struct SegmentEditingOverlayHost: View {
     @Environment(EditorState.self) private var editorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
     @Environment(LayerEditingState.self) private var editingState
+    /// 13-3 T3: the segment route is NOT in the zoom-lock set, so its taps
+    /// inverse-map through the transform (the same single math source the
+    /// mask brush uses).
+    @Environment(ViewportState.self) private var viewportState
 
     /// The pending ⇧-box drag (start → current, normalized).
     @State private var boxDraft: (start: SIMD2<Float>, current: SIMD2<Float>)?
@@ -46,7 +50,12 @@ internal struct SegmentEditingOverlayHost: View {
     private var session: SegmentSession { editingState.segmentSession }
 
     private var fitted: CGRect {
-        ViewportFit.fittedRect(viewportSize: viewportSize, textureSize: displaySize)
+        viewportState.transform(
+            viewportSize: viewportSize, textureSize: displaySize).rect
+    }
+
+    private var transform: ViewportTransform {
+        viewportState.transform(viewportSize: viewportSize, textureSize: displaySize)
     }
 
     var body: some View {
@@ -58,7 +67,7 @@ internal struct SegmentEditingOverlayHost: View {
                     included: session.included.map(\.point),
                     excluded: session.excluded.map(\.point),
                     boxDraft: boxDraft.map { ($0.start, $0.current) },
-                    fitted: fitted)
+                    transform: transform)
 
                 Color.clear
                     .contentShape(Rectangle())
@@ -79,14 +88,15 @@ internal struct SegmentEditingOverlayHost: View {
         return editorState.adjustmentLayer(id: id)
     }
 
-    // MARK: coordinate mapping (the RetouchOverlayHost convention)
+    // MARK: coordinate mapping (13-3 T3: the transform's inverse — nil
+    // outside the zoomed image content; the 07-3 clamp-to-edge form is
+    // retired with the fit-layout assumption)
 
-    private func normalized(_ location: CGPoint) -> AIMaskPoint {
-        let nx = (location.x - fitted.minX) / fitted.width
-        let ny = (location.y - fitted.minY) / fitted.height
+    private func normalized(_ location: CGPoint) -> AIMaskPoint? {
+        guard let uv = transform.uv(at: location) else { return nil }
         return AIMaskPoint(
-            x: Float(min(max(nx, 0), 1)),
-            y: Float(min(max(ny, 0), 1)))
+            x: Float(min(max(uv.x, 0), 1)),
+            y: Float(min(max(uv.y, 0), 1)))
     }
 
     // MARK: gestures
@@ -117,16 +127,22 @@ internal struct SegmentEditingOverlayHost: View {
         DragGesture(minimumDistance: 6)
             .onChanged { value in
                 guard NSEvent.modifierFlags.contains(.shift) else { return }
-                boxDraft = (normalized(value.startLocation).asSIMD,
-                            normalized(value.location).asSIMD)
+                guard let start = normalized(value.startLocation),
+                      let current = normalized(value.location)
+                else { return }
+                boxDraft = (start.asSIMD, current.asSIMD)
             }
             .onEnded { value in
                 guard NSEvent.modifierFlags.contains(.shift) else {
                     boxDraft = nil
                     return
                 }
-                let a = normalized(value.startLocation).asSIMD
-                let b = normalized(value.location).asSIMD
+                guard let a = normalized(value.startLocation),
+                      let b = normalized(value.location)
+                else {
+                    boxDraft = nil
+                    return
+                }
                 boxDraft = nil
                 let rect = AIMaskRect(
                     x: min(a.x, b.x), y: min(a.y, b.y),
@@ -142,7 +158,7 @@ internal struct SegmentEditingOverlayHost: View {
     /// the contextMenu leg records the exclusion at the click point.
     private func handleTap(at location: CGPoint, excluded: Bool) {
         guard !session.isGenerating else { return }
-        let point = normalized(location)
+        guard let point = normalized(location) else { return }
         do {
             if excluded {
                 try session.addExcluded(point)
@@ -257,14 +273,14 @@ private struct SegmentPointsCanvas: View {
     let included: [AIMaskPoint]
     let excluded: [AIMaskPoint]
     let boxDraft: (SIMD2<Float>, SIMD2<Float>)?
-    let fitted: CGRect
+    /// 13-3 T3: the forward map (dots stay screen-constant; only their
+    /// centers ride the transform).
+    let transform: ViewportTransform
 
     var body: some View {
         Canvas { context, _ in
-            func dot(_ p: AIMaskPoint, _ color: Color) {
-                let center = CGPoint(
-                    x: fitted.minX + CGFloat(p.x) * fitted.width,
-                    y: fitted.minY + CGFloat(p.y) * fitted.height)
+            func dot(_ p: SIMD2<Float>, _ color: Color) {
+                let center = transform.point(atUV: SIMD2(Double(p.x), Double(p.y)))
                 let rect = CGRect(
                     x: center.x - 4, y: center.y - 4, width: 8, height: 8)
                 context.fill(Path(ellipseIn: rect), with: .color(color))
@@ -273,18 +289,24 @@ private struct SegmentPointsCanvas: View {
                     with: .color(.white.opacity(0.9)), lineWidth: 1)
             }
             if case let .point(seedPoint) = seed {
-                dot(seedPoint, .accentColor)
+                dot(seedPoint.asSIMD, .accentColor)
             }
-            for p in included { dot(p, .accentColor) }
-            for p in excluded { dot(p, .orange) }
+            for p in included { dot(p.asSIMD, .accentColor) }
+            for p in excluded { dot(p.asSIMD, .orange) }
             if let (a, b) = boxDraft {
-                let rect = CGRect(
-                    x: fitted.minX + CGFloat(min(a.x, b.x)) * fitted.width,
-                    y: fitted.minY + CGFloat(min(a.y, b.y)) * fitted.height,
-                    width: CGFloat(abs(a.x - b.x)) * fitted.width,
-                    height: CGFloat(abs(a.y - b.y)) * fitted.height)
+                // The draft box: the two corners forward-mapped (with a
+                // rotation the axis-aligned screen rect is the corners'
+                // bounding box — the draft is provisional; the seed
+                // records the normalized rect, identical to 07-3).
+                let topLeft = transform.point(atUV: SIMD2(Double(min(a.x, b.x)), Double(min(a.y, b.y))))
+                let bottomRight = transform.point(atUV: SIMD2(Double(max(a.x, b.x)), Double(max(a.y, b.y))))
+                let screen = CGRect(
+                    x: min(topLeft.x, bottomRight.x), y: min(topLeft.y, bottomRight.y),
+                    width: abs(bottomRight.x - topLeft.x),
+                    height: abs(bottomRight.y - topLeft.y))
                 context.stroke(
-                    Path(rect), with: .color(.yellow), style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+                    Path(screen), with: .color(.yellow),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
             }
         }
         .allowsHitTesting(false)

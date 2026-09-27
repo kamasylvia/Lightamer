@@ -24,7 +24,7 @@ import XCTest
 //   • EXPLAIN QUERY PLAN on a 10k fixture: the keyset main segment walks
 //     the ordering index with ZERO TEMP B-TREE (F6/F10 shape lock)
 //
-// Fixtures in FileManager.temporaryDirectory (L009: never external-volume).
+// Fixtures in FileManager.temporaryDirectory (L009: never external volume).
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class CatalogFilterSQLTests: XCTestCase {

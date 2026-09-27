@@ -167,7 +167,8 @@ enum AIMaskEditing {
         // The AI-06 landing form: hot layer + display tint + the mask edit
         // mode armed (the user sees an ordinary raster mask).
         coordinator.setHotLayer(layerID)
-        coordinator.setMaskOverlayRequest((layerID, 0.85))
+        coordinator.setMaskOverlayRequest(
+            (layerID, 0.85, editingState.maskOverlayStyle))
         if let activateTool {
             editingState.setTool(activateTool)
         }

@@ -13,12 +13,12 @@ import XCTest
 //   RELEASE on an internal SSD; the Debug harness number is recorded
 //   alongside (test-direct.sh is Debug-anchored — the 09-3 ledger note).
 //   The fixture is built in FileManager.temporaryDirectory (internal SSD —
-//   L009: the external-volume USB volume is FORBIDDEN for gate numbers; its drain
+//   L009: the external volume USB volume is FORBIDDEN for gate numbers; its drain
 //   figure is recorded as a labeled comparison only).
 //
 //   RECORD-ONLY: segment-3 drain throughput (the serial sidecar write
 //   queue — minutes-level on USB is the documented expectation, dt puts
-//   its XMP sync outside the loop for the same reason) and the external-volume
+//   its XMP sync outside the loop for the same reason) and the external volume
 //   per-write comparison.
 //
 // The fixture's "originals" are 8-byte placeholders (apply NEVER decodes —
@@ -229,13 +229,18 @@ final class Perf07MassApplyTests: XCTestCase {
         XCTAssertEqual(pending, 0, "the drain completed")
     }
 
-    /// The external-volume (USB HDD) per-write comparison — a 100-doc sample on the
-    /// repo volume, recorded and NEVER gated (L009: the gate fixture is
-    /// forbidden there). Skips when the volume is absent (other machines).
-    func testexternal-volumeVolumeDrainComparisonRecordOnly() async throws {
-        let comparisonRoot = URL(fileURLWithPath: "/path/to/volume")
+    /// The external-volume (USB HDD) per-write comparison — a 100-doc
+    /// sample on the comparison volume, recorded and NEVER gated (L009: the
+    /// gate fixture is forbidden there). Set LA_PERF07_VOLUME to the volume
+    /// root on the machine that records the metric; unset or absent volume
+    /// skips (other machines).
+    func testexternal volumeVolumeDrainComparisonRecordOnly() async throws {
+        guard let volumeRoot = ProcessInfo.processInfo.environment["LA_PERF07_VOLUME"] else {
+            throw XCTSkip("LA_PERF07_VOLUME unset — comparison recorded on the volume-bearing machine only")
+        }
+        let comparisonRoot = URL(fileURLWithPath: volumeRoot)
         guard FileManager.default.fileExists(atPath: comparisonRoot.path) else {
-            throw XCTSkip("external-volume volume absent — comparison recorded on the volume-bearing machine only")
+            throw XCTSkip("LA_PERF07_VOLUME target absent — comparison recorded on the volume-bearing machine only")
         }
         let sample = 100
         let temp = comparisonRoot.appendingPathComponent("Documents/Development/Lightamer/.work/tmp-perf07-\(UUID().uuidString)", isDirectory: true)
@@ -265,7 +270,7 @@ final class Perf07MassApplyTests: XCTestCase {
         let seconds = Double(elapsed.components.seconds)
             + Double(elapsed.components.attoseconds) / 1e18
         print(
-            "PERF07-SEGMENT3-external-volume sample \(sample) raw JSON writes: \(String(format: "%.3f", seconds))s (\(String(format: "%.1f", Double(sample) / max(seconds, 0.001) / 1000)) ms/doc) — record only (L009 volume)")
+            "PERF07-SEGMENT3-external volume sample \(sample) raw JSON writes: \(String(format: "%.3f", seconds))s (\(String(format: "%.1f", Double(sample) / max(seconds, 0.001) / 1000)) ms/doc) — record only (L009 volume)")
         XCTAssertLessThan(seconds, 60.0, "a pathological stall guard, not a gate")
     }
 }

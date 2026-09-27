@@ -19,7 +19,7 @@ import XCTest
 //   • sortedKeys stable diff: a v2→v3 upgrade of the same logical document
 //     adds ONLY the five keys (diff = added lines, never changed lines)
 //
-// All fixtures in FileManager.temporaryDirectory (L009: never external-volume).
+// All fixtures in FileManager.temporaryDirectory (L009: never external volume).
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class SidecarMetadataV3Tests: XCTestCase {

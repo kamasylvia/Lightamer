@@ -20,7 +20,7 @@ import XCTest
 //   • second apply is idempotent (zero harm); the migrate slot is a no-op
 //     at v1
 //
-// Fixtures in FileManager.temporaryDirectory (L009: never external-volume).
+// Fixtures in FileManager.temporaryDirectory (L009: never external volume).
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class CatalogIndexSchemaTests: XCTestCase {

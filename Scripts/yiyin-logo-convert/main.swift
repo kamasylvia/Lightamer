@@ -1,6 +1,6 @@
 // yiyin-logo-convert — the ONE-TIME build tool that turns the yiyin brand
 // logos (13 brands × light/dark = 26 SVGs, read-only spec source
-// /path/to/yiyin/web/public/logo/) into PDF
+// https://github.com/kamasylvia/yiyin web/public/logo/) into PDF
 // vector assets bundled with LightamerIOP (Resources/Logos/). The runtime
 // has ZERO web/SVG dependencies (RESEARCH §8.9 — no librsvg/WebView; the
 // PDFs render through CG PDF).

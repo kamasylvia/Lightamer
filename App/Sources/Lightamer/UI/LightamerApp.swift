@@ -181,6 +181,16 @@ internal struct LightamerApp: App {
     /// peek / hold) — reset on image and session switches.
     @State private var beforeAfterState = BeforeAfterState()
 
+    /// 13-2 T4 (COLOR-02): the soft-proof UI state machine (the pipe
+    /// coupling is the coordinator's `setSoftProof` — a per-run display-leg
+    /// override, never history/export).
+    @State private var softProofState = SoftProofState()
+
+    /// 13-3 T1 (D-13-CONTEXT-6): the viewport zoom/pan/rotation state
+    /// machine + the overlay mutex lock (D-03b isolated; the App-scene
+    /// menu commands drive it directly).
+    @State private var viewportState = ViewportState()
+
     /// The yiyin logo-face source for the thumbnail run-context injector
     /// (a stateless file-probe instance — the coordinator keeps its own).
     @State private var browserLogoStore = YiyinLogoStore()
@@ -290,6 +300,8 @@ internal struct LightamerApp: App {
                 .environment(editorState)
                 .environment(pipeCoordinator)
                 .environment(beforeAfterState)
+                .environment(softProofState)
+                .environment(viewportState)
                 .environment(exportState)
                 .environment(inspectorState)
                 .environment(layerEditingState)
@@ -622,6 +634,38 @@ internal struct LightamerApp: App {
                         )
                     }
 
+                    // 13-3 T4 (SYS-04, D-13-CONTEXT-7): the drop-import
+                    // orchestration — COPY into the session (move only
+                    // through the Option intent), then the EXPLICIT
+                    // reconcile ingest (never FSEvents timing), then the
+                    // grid reload. Per-file failures surface as one toast;
+                    // the batch never aborts (ImportService). Destination
+                    // = the session ROOT (the D-09-CONTEXT-3 browse set
+                    // excludes the Capture tier — 13-3-DECISIONS).
+                    sessionCoordinator.importHandler = { urls, move in
+                        guard let root = sessionState.currentSessionURL else {
+                            return
+                        }
+                        let outcome = ImportService.importFiles(
+                            at: urls, into: root, move: move)
+                        if !outcome.imported.isEmpty {
+                            _ = await sessionReconciler.reconcileHandler?(root)
+                            if let store = sessionIndexController.currentStore {
+                                await browserModel.reload(
+                                    store: store, includeOrphans: true)
+                            }
+                        }
+                        if outcome.failures.isEmpty {
+                            guard !outcome.imported.isEmpty else { return }
+                            editorState.presentToast(
+                                String(localized: "toast_import_done \(outcome.imported.count)"))
+                        } else {
+                            editorState.presentToast(
+                                String(localized:
+                                    "toast_import_partial \(outcome.imported.count) \(outcome.failures.count)"))
+                        }
+                    }
+
                     // 02-04: register LightamerIOP's modules into the
                     // registry (testgain in DEBUG; Phase 3+ joins here),
                     // then hand the registry to the coordinator so loads
@@ -813,13 +857,33 @@ internal struct LightamerApp: App {
                 Button(String(localized: "menu_show_inspector")) { toggleInspector() }
                     .keyboardShortcut("i", modifiers: [.command, .option])
                 Divider()
-                // D-13: no zoom/pan in Phase 1 — disabled.
-                Button(String(localized: "menu_actual_size")) {}
-                    .disabled(true)
-                    .keyboardShortcut("z", modifiers: [])
-                Button(String(localized: "menu_fit_to_screen")) {}
-                    .disabled(true)
-                    .keyboardShortcut("f", modifiers: [])
+                // 13-2 T4 (COLOR-02): the soft-proof toggle (⌥⌘P — bare P is
+                // the flag picker, ⌘P unused; the execution decision) and
+                // the gamut check. The SAME SoftProofState routes as the
+                // viewport capsule.
+                Toggle(String(localized: "softproof_toggle"), isOn: Binding(
+                    get: { softProofState.isActive },
+                    set: { _ in softProofState.toggle(coordinator: pipeCoordinator) }
+                ))
+                .keyboardShortcut("p", modifiers: [.command, .option])
+                Toggle(String(localized: "softproof_gamut_check"), isOn: Binding(
+                    get: { softProofState.gamutCheck },
+                    set: { softProofState.setGamutCheck($0, coordinator: pipeCoordinator) }
+                ))
+                .disabled(!softProofState.isActive)
+                Divider()
+                // 13-3 T2 (SYS-03): the fit/100% switches — the Phase 1
+                // disabled placeholders flip ON, routed into the shared
+                // ViewportState (bare Z / bare F; unused by any other
+                // item per the D-8 conflict table).
+                Button(String(localized: "menu_actual_size")) {
+                    viewportState.actualSize()
+                }
+                .keyboardShortcut("z", modifiers: [])
+                Button(String(localized: "menu_fit_to_screen")) {
+                    viewportState.fit()
+                }
+                .keyboardShortcut("f", modifiers: [])
             }
 
             // ── 标记 (12-1 T6, META-01/META-05) — the three-state metadata

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Scripts/yiyin-ref-harness.mjs — Plan 08-01 T2: the yiyin layout reference
-// harness (YIYIN-01 印框; the yiyin repo at
-// /path/to/yiyin, v1.7.1, is the READ-ONLY
+// harness (YIYIN-01 印框; the yiyin repo
+// (https://github.com/kamasylvia/yiyin, v1.7.1) is the READ-ONLY
 // spec source — nothing is written into it).
+// Locate the local checkout via the YIYIN_ROOT environment variable.
 //
 // What runs here (VERBATIM transcription, expression-by-expression, of the
 // yiyin layout arithmetic — electron/src/modules/image-tool/index.ts):
@@ -183,7 +184,9 @@ const results = CASES.map(c => yiyinLayout(c.w, c.h, { ...c.opts, id: c.id }))
 async function measure() {
   let sharp
   try {
-    sharp = createRequire('/path/to/yiyin/package.json')('sharp')
+    const yiyinRoot = process.env.YIYIN_ROOT
+    if (!yiyinRoot) throw new Error('YIYIN_ROOT not set — point it at the yiyin checkout')
+    sharp = createRequire(yiyinRoot + '/package.json')('sharp')
   } catch {
     console.error('# sharp unavailable — measure leg skipped')
     return null

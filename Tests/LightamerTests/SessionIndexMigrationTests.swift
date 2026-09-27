@@ -23,7 +23,7 @@ import XCTest
 //   • delete-and-rebuild parity extended to the FULL v2 column set
 //     (SESS-07 gate, all 34 columns via an independent raw read)
 //
-// Fixtures in FileManager.temporaryDirectory (L009: never external-volume).
+// Fixtures in FileManager.temporaryDirectory (L009: never external volume).
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class SessionIndexMigrationTests: XCTestCase {

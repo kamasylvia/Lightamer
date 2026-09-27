@@ -356,7 +356,7 @@ extension ExportEncoderGoldenTests {
 
 extension ExportEncoderGoldenTests {
 
-    /// Deterministic temp fixture root (L009: NEVER external-volume).
+    /// Deterministic temp fixture root (L009: NEVER external volume).
     private func goldenDir() -> URL {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("11-02-golden-\(UUID().uuidString)", isDirectory: true)

@@ -109,7 +109,7 @@ public actor CatalogRebuilder {
 
     /// Injected-location init (the settings face passes the CURRENT
     /// `CatalogPreferencesModel.catalogURL`; tests pass a temp URL — L009:
-    /// never external-volume).
+    /// never the external archive volume).
     public init(databaseURL: URL, defaultsSuiteName: String? = nil) {
         self.databaseURL = databaseURL
         self.defaultsSuiteName = defaultsSuiteName

@@ -5,7 +5,7 @@ import Foundation
 // 15 watermark template fields formatted from `CaptureMetadata`, plus the
 // brand normalization (α / ℤ / roman numerals / the mathematical-letter
 // filter) — a 1:1 port of the yiyin v1.7.1 sources (read-only spec source
-// at /path/to/yiyin):
+// at https://github.com/kamasylvia/yiyin):
 //
 //   common/const/def-fields.ts:1-17      15 field keys + zh names
 //   common/modules/exif-format/index.ts  CORPORATION strip + brand dispatch

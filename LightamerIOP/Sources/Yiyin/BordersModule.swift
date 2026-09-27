@@ -8,8 +8,7 @@ import Metal
 // NO DARKTABLE-CODE COUNTERPART (the dt `borders.c` reference informed ROI
 // semantics only — L020: our backward walk carries upstream-relative xy,
 // the crop.c frame convention). The functional spec is the yiyin seven-
-// step composition pipeline (RESEARCH §1; `/path/to/volume/Documents/
-// Development/yiyin` v1.7.1, read-only): expand the canvas around the main
+// step composition pipeline (RESEARCH §1; https://github.com/kamasylvia/yiyin v1.7.1, read-only): expand the canvas around the main
 // image, fill the band with a solid color or a blurred backdrop, round the
 // main image corners, drop a shadow — every knob expressed as a PERCENT so
 // the layout is resolution-independent (float64 mirror in `YiyinLayout`).
