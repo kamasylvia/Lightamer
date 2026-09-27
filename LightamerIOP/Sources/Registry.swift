@@ -257,6 +257,14 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: VignetteModule.opName) { id in
             ModuleBox(module: VignetteModule(), instanceID: id)
         }
+        // Plan 08-2-T2: grain (film grain, 3-octave simplex), v50 slot
+        // 65.0 — ALREADY in the V50Order table (zero rows inserted); <
+        // the 70.0 terminal floor → layer-mask eligible. Seed DISABLED
+        // (dt default strength 25 is not pixel-identity — the creative
+        // disposition); the 08-2 panel drives this instance.
+        await registry.register(opName: GrainModule.opName) { id in
+            ModuleBox(module: GrainModule(imageIdentity: id), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -380,6 +388,8 @@ public enum LightamerIOPRegistry {
             Lut3dModule.Kernel.ramp1D,
             // Plan 08-2-T1: the vignette single-pass falloff.
             VignetteKernel.functionName,
+            // Plan 08-2-T2: the grain single-pass simplex injection.
+            GrainKernel.functionName,
         ]
     }
 
@@ -500,6 +510,11 @@ public enum LightamerIOPRegistry {
             // identity — the highpass/soften creative disposition; the
             // 08-2 panel drives this instance).
             ModuleInstance(module: VignetteModule.self, params: VignetteModule.Params(), enabled: false),
+            // Plan 08-2-T2: grain joins the seed DISABLED (dt default
+            // strength 25 is not pixel-identity — the creative
+            // disposition; the box UUID rides in as the pattern-identity
+            // carrier, DECISIONS D-08-2-1).
+            ModuleInstance(module: GrainModule.self, params: GrainModule.Params(), enabled: false),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }
