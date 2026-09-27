@@ -214,4 +214,40 @@ final class CatalogModeIsolationTests: XCTestCase {
             [.allPhotographs, .categories, .collections, .smartAlbums, .sessions],
             "the RQ-16-12 five-section order is frozen")
     }
+
+    // MARK: - T2: the session-anchor scope (the Sessions 从属节's click face)
+
+    /// The sidebar's session click = the `scopeClause(sessionID:)` anchor:
+    /// the anchor query returns ONLY that session's rows; the default scope
+    /// returns the whole library (All Photographs).
+    func testSessionAnchorScopeFiltersRows() async throws {
+        // Seed two sessions × two rows directly into the catalog.
+        let catalogURL = tempDirectory.appendingPathComponent("catalog.lcat")
+        try FileManager.default.createDirectory(
+            at: tempDirectory, withIntermediateDirectories: true)
+        let handle = try SQLiteHandle(path: catalogURL.path)
+        defer { handle.close() }
+        try CatalogIndexSchema.apply(to: handle)
+        for (session, rel) in [("s-aaa", "one.arw"), ("s-aaa", "two.arw"),
+                               ("s-bbb", "three.arw"), ("s-bbb", "four.arw")] {
+            let insert = try handle.prepare(
+                "INSERT INTO catalog_images (session_id, rel_path, filename, "
+                    + "orphan_sidecar) VALUES (?, ?, ?, 0)")
+            try insert.bindText(1, session)
+            try insert.bindText(2, rel)
+            try insert.bindText(3, rel)
+            _ = try insert.step()
+        }
+
+        let store = CatalogIndexStore(databaseURL: catalogURL)
+        let all = try await store.queryPage(groups: [], sort: .init(key: .filename, ascending: true))
+        XCTAssertEqual(Set(all.map(\.sessionID)), ["s-aaa", "s-bbb"])
+
+        let anchored = try await store.queryPage(
+            groups: [], sort: .init(key: .filename, ascending: true),
+            scope: FilterScope(sessionID: "s-aaa"))
+        XCTAssertEqual(anchored.map(\.relPath), ["one.arw", "two.arw"],
+                       "the anchor narrows the row set to the clicked session")
+        XCTAssertTrue(anchored.allSatisfy { $0.sessionID == "s-aaa" })
+    }
 }

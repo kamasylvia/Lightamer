@@ -1,3 +1,4 @@
+import AppKit
 import LightamerCore
 import SwiftUI
 
@@ -47,17 +48,86 @@ internal struct SidebarView: View {
     @State private var createRequested = false
     @State private var createName = ""
 
+    // Plan 16-2 T2: the organization-mode axis + the Catalogs five-section
+    // face. The switcher exists ONLY when Catalogs is enabled (D-16-
+    // CONTEXT-5① — the Sessions default is zero-awareness); the persisted
+    // selection is overwritten with the sessions constant on the app's
+    // first frame (ContentView.onAppear — RQ-16-12 冷启动恒 Sessions).
+    @Environment(CatalogPreferencesModel.self) private var catalogPreferences
+    @Environment(CatalogBrowserModel.self) private var catalogBrowserModel
+    @AppStorage(CatalogPreferencesModel.organizationModeStorageKey)
+    private var organizationModeRaw: String = CatalogPreferencesModel.coldStartRawValue
+
+    /// The catalog_sessions registry rows (the Sessions 从属节's data).
+    @State private var catalogSessionRows: [CatalogIndexStore.CatalogSessionRow] = []
+    /// The smart-album badge counts (catalog-domain `count` consumption;
+    /// refreshed on appear and after projections — the memo absorbs the
+    /// repeated queries).
+    @State private var catalogAlbumCounts: [String: Int] = [:]
+    /// The session row pending REMOVE (the dialog is the misfire guard —
+    /// the action also deletes the organization memberships, so the copy
+    /// says so) / the session row pending RE-LINK (the panel's anchor).
+    @State private var removeSessionTarget: CatalogIndexStore.CatalogSessionRow?
+    @State private var relinkSessionTarget: CatalogIndexStore.CatalogSessionRow?
+
+    private var organizationMode: CatalogPreferencesModel.OrganizationMode {
+        CatalogPreferencesModel.OrganizationMode(rawValue: organizationModeRaw) ?? .sessions
+    }
+
     var body: some View {
         List {
-            currentSection
-            smartAlbumSection
-            recentSection
-            watchSection
+            if catalogPreferences.catalogsEnabled {
+                modeSection
+            }
+            if catalogPreferences.catalogsEnabled,
+               organizationMode == .catalogs {
+                catalogAllPhotographsSection
+                catalogCategoriesSection
+                catalogCollectionsSection
+                catalogSmartAlbumSection
+                catalogSessionsSection
+            } else {
+                currentSection
+                smartAlbumSection
+                recentSection
+                watchSection
+            }
         }
         .listStyle(.sidebar)
         .accessibilityLabel(Text("sessions"))
         .accessibilityIdentifier("Sessions")
         .accessibilityHint(Text("a11y_sidebar_hint"))
+        .task(id: organizationModeRaw) {
+            await refreshCatalogFaces()
+        }
+        .confirmationDialog(
+            String(localized: "catalog_session_remove_confirm_title"),
+            isPresented: Binding(
+                get: { removeSessionTarget != nil },
+                set: { if !$0 { removeSessionTarget = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: removeSessionTarget
+        ) { row in
+            Button(
+                String(localized: "catalog_session_remove_confirm_action"),
+                role: .destructive
+            ) {
+                Task {
+                    try? await SessionIndexController.sharedCatalogProjector
+                        .removeSession(sessionID: row.sessionID)
+                    // The removed session's anchor scope is dead — the grid
+                    // falls back to All Photographs.
+                    if catalogBrowserModel.activeScope.sessionID == row.sessionID {
+                        await catalogBrowserModel.setScope(FilterScope())
+                    }
+                    await refreshCatalogFaces()
+                }
+            }
+            Button(String(localized: "alert_ok"), role: .cancel) {}
+        } message: { row in
+            Text("catalog_session_remove_confirm_body \(row.displayName ?? row.rootPath)")
+        }
         .confirmationDialog(
             String(localized: "session_orphan_remove_confirm_title"),
             isPresented: Binding(
@@ -371,5 +441,223 @@ internal struct SidebarView: View {
         FileOpener.openSessionFolder { url in
             Task { await sessionCoordinator.openSession(url: url) }
         }
+    }
+
+    // MARK: - 16-2 T2: the mode switcher + the Catalogs five sections
+
+    /// The segmented switcher — exists ONLY while Catalogs is enabled
+    /// (D-16-CONTEXT-5①); the L010 stable-id face rides the picker.
+    private var modeSection: some View {
+        Section {
+            Picker(
+                String(localized: "organization_mode_label"),
+                selection: $organizationModeRaw
+            ) {
+                Text(String(localized: "organization_mode_sessions"))
+                    .tag(CatalogPreferencesModel.OrganizationMode.sessions.rawValue)
+                Text(String(localized: "organization_mode_catalogs"))
+                    .tag(CatalogPreferencesModel.OrganizationMode.catalogs.rawValue)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("organization.mode")
+        }
+    }
+
+    /// All Photographs — the no-anchor full-library grid entry.
+    private var catalogAllPhotographsSection: some View {
+        Section {
+            Button {
+                Task { await catalogBrowserModel.setScope(FilterScope()) }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .foregroundStyle(LightamerColors.textSecondary)
+                    Text("catalog_all_photographs")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if catalogBrowserModel.activeScope.isDefault {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+            }
+            .accessibilityIdentifier("catalog.section.all")
+        }
+    }
+
+    /// Categories — the 16-3 tree wiring slot (this plan: the skeleton +
+    /// the empty face).
+    private var catalogCategoriesSection: some View {
+        Section {
+            Text("catalog_categories_empty")
+                .font(.caption2)
+                .foregroundStyle(LightamerColors.textSecondary)
+        } header: {
+            Text("catalog_categories_section")
+        }
+    }
+
+    /// Collections — the 16-3 list wiring slot (same shape).
+    private var catalogCollectionsSection: some View {
+        Section {
+            Text("catalog_collections_empty")
+                .font(.caption2)
+                .foregroundStyle(LightamerColors.textSecondary)
+        } header: {
+            Text("catalog_collections_section")
+        }
+    }
+
+    /// Smart Albums (catalog face) — the SAME app-level rule assets; the
+    /// activation drives the CATALOG grid's groups and the badge counts
+    /// evaluate on the catalog domain (D-16-CONTEXT-6 — the rules ride the
+    /// app, the results follow the MODE's connection).
+    private var catalogSmartAlbumSection: some View {
+        Section {
+            ForEach(smartAlbumStore.albums()) { album in
+                let active = catalogBrowserModel.activeSmartAlbumID == album.id
+                Button {
+                    if active {
+                        catalogBrowserModel.activateSmartAlbum(id: nil, group: nil)
+                    } else {
+                        catalogBrowserModel.activateSmartAlbum(id: album.id, group: album.group)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "photo.stack")
+                            .foregroundStyle(LightamerColors.textSecondary)
+                        Text(album.name)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if let count = catalogAlbumCounts[album.id] {
+                            Text("\(count)")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(LightamerColors.textSecondary)
+                                .accessibilityIdentifier("catalog.smartalbum.count.\(album.id)")
+                        }
+                        if active {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("catalog.smartalbum.row." + album.id)
+                .contextMenu {
+                    Button(String(localized: "smart_album_rename")) {
+                        renameText = album.name
+                        renameTarget = album
+                    }
+                    Button(String(localized: "smart_album_delete"), role: .destructive) {
+                        deleteTarget = album
+                    }
+                }
+            }
+            if smartAlbumStore.albums().isEmpty {
+                Text("smart_album_empty_hint")
+                    .font(.caption2)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
+        } header: {
+            Text("smart_albums_section")
+        }
+    }
+
+    /// The Sessions 从属节 (RQ-16-12 section five): one row per registered
+    /// catalog session — display name + 图计数角标, offline rows gray out;
+    /// the click = the sessionID scope anchor. The context menu carries the
+    /// two session-management actions (D-16-CONTEXT-7②④).
+    private var catalogSessionsSection: some View {
+        Section {
+            ForEach(catalogSessionRows, id: \.sessionID) { row in
+                let active = catalogBrowserModel.activeScope.sessionID == row.sessionID
+                Button {
+                    Task {
+                        await catalogBrowserModel.setScope(
+                            FilterScope(
+                                sessionID: active ? nil : row.sessionID))
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder")
+                            .foregroundStyle(LightamerColors.textSecondary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(row.displayName ?? URL(fileURLWithPath: row.rootPath).lastPathComponent)
+                                .lineLimit(1)
+                                .foregroundStyle(
+                                    row.offline == 1 ? LightamerColors.textSecondary : Color.primary)
+                            if row.offline == 1 {
+                                Text("catalog_session_offline")
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("\(row.imageCount)")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(LightamerColors.textSecondary)
+                            .accessibilityIdentifier("catalog.session.count.\(row.sessionID)")
+                        if active {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("catalog.session.row." + row.sessionID)
+                .contextMenu {
+                    Button(String(localized: "catalog_session_remove")) {
+                        removeSessionTarget = row
+                    }
+                    Button(String(localized: "catalog_session_relink")) {
+                        relinkSessionTarget = row
+                        chooseRelinkDirectory()
+                    }
+                }
+            }
+            if catalogSessionRows.isEmpty {
+                Text("catalog_empty_hint")
+                    .font(.caption2)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
+        } header: {
+            Text("catalog_sessions_section")
+        }
+    }
+
+    /// The Catalogs-face data refresh (registry rows + smart-album badge
+    /// counts — the badge queries ride the store's COUNT memo, so repeat
+    /// refreshes after projections are cheap).
+    private func refreshCatalogFaces() async {
+        guard catalogPreferences.catalogsEnabled, organizationMode == .catalogs else { return }
+        catalogSessionRows = (try? await SessionIndexController.sharedCatalogStore.fetchSessions())
+            ?? []
+        var counts: [String: Int] = [:]
+        for album in smartAlbumStore.albums() where !album.group.rules.isEmpty {
+            counts[album.id] = (try? await SessionIndexController.sharedCatalogStore
+                .count(groups: [album.group])) ?? 0
+        }
+        catalogAlbumCounts = counts
+    }
+
+    /// The re-link directory picker (D-16-CONTEXT-7②: the user picks the
+    /// moved folder — no automatic path search). The re-projection rides
+    /// the projector's relink face; the sidebar faces refresh after.
+    private func chooseRelinkDirectory() {
+        guard let target = relinkSessionTarget else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = String(localized: "catalog_session_relink")
+        guard panel.runModal() == .OK, let directory = panel.url else {
+            relinkSessionTarget = nil
+            return
+        }
+        Task {
+            _ = try? await SessionIndexController.sharedCatalogProjector
+                .relinkSession(sessionID: target.sessionID, newRoot: directory)
+            await refreshCatalogFaces()
+            await catalogBrowserModel.refreshAfterProjection()
+        }
+        relinkSessionTarget = nil
     }
 }

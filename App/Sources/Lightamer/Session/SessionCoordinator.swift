@@ -275,6 +275,13 @@ final class SessionIndexController {
     /// the invalidator wiring is guaranteed).
     nonisolated(unsafe) private static var sharedCatalogURL: URL?
 
+    /// Plan 16-2 T2: fired after every `repointSharedCatalog` rebuild — the
+    /// app root re-binds the Catalogs consumers (browser model / thumbnail
+    /// router) to the NEW store instance (the old instance's handles are
+    /// closed by then).
+    nonisolated(unsafe) static var sharedCatalogStoreRebuilt:
+        ((CatalogIndexStore) -> Void)?
+
     /// Plan 16-2 T1 — the location preference's runtime leg (RQ-16-1②:
     /// re-point, never migrate). Closes the outgoing handles FIRST, rebuilds
     /// the projector + store pair at `url`, and wires the COUNT-memo
@@ -297,6 +304,7 @@ final class SessionIndexController {
         if CatalogPreferences.catalogsEnabled() {
             _ = try? await store.fetchSessions()
         }
+        sharedCatalogStoreRebuilt?(store)
     }
 
     /// The projection-hook seam (tests inject a temp-directory factory;

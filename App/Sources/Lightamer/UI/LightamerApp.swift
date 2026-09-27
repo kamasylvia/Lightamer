@@ -194,6 +194,11 @@ internal struct LightamerApp: App {
     /// window and the mode switcher observe this ONE instance.
     @State private var catalogPreferences = CatalogPreferencesModel()
 
+    /// Plan 16-2 T2: the CROSS-SESSION browser model (the Catalogs grid's
+    /// data face). Its store binding is REBUILT on every shared-runtime
+    /// repoint via `sharedCatalogStoreRebuilt` below.
+    @State private var catalogBrowserModel = CatalogBrowserModel()
+
     /// Plan 12-4 T3: the app-level preset library (one preset = one file
     /// under Application Support; the init rescans = the self-heal) + the
     /// apply face (the D-03b isolated state bridging the UI to the Core
@@ -261,6 +266,7 @@ internal struct LightamerApp: App {
             ContentView(
                 decoder: decoder, metalContext: metalContext,
                 browserModel: browserModel, thumbnailProvider: thumbnailProvider,
+                catalogBrowserModel: catalogBrowserModel,
                 pasteboard: pasteboard,
                 onPartialPasteRequested: { pastePartialRequested = true },
                 onPartialPaste: { selection, mode in
@@ -281,6 +287,8 @@ internal struct LightamerApp: App {
                 .environment(smartAlbumStore)
                 .environment(presetsStore)
                 .environment(presetController)
+                .environment(catalogPreferences)
+                .environment(catalogBrowserModel)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
                 // D-COL2 (Plan 02-04-05): capture the editor window the
                 // moment SwiftUI places it — the coordinator follows THE
@@ -299,7 +307,13 @@ internal struct LightamerApp: App {
                     // Plan 16-2 T1: build the shared catalog runtime at the
                     // PERSISTED location (re-point, never migrate) and wire
                     // the preference seams (enable → repoint + empty-library
-                    // touch; location change → repoint). Idempotent.
+                    // touch; location change → repoint). Idempotent. The
+                    // rebuilt callback re-binds the browser model (and the
+                    // T5 thumbnail router) to the NEW store instance — set
+                    // BEFORE the initial repoint so the first build lands.
+                    SessionIndexController.sharedCatalogStoreRebuilt = { store in
+                        catalogBrowserModel.configure(store: store)
+                    }
                     await SessionIndexController.repointSharedCatalog(
                         databaseURL: catalogPreferences.catalogURL)
                     catalogPreferences.onEnabledChanged = { enabled in

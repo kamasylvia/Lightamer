@@ -74,10 +74,9 @@ public struct FilterScope: Sendable, Equatable {
         self.collectionID = collectionID
     }
 
-    var isDefault: Bool {
+    public var isDefault: Bool {
         sessionID == nil && categoryID == nil && collectionID == nil
-    }
-}
+    }}
 
 /// One catalog row (the 31-column projection: id + session_id + the 29
 /// mirrored columns — order matches `CatalogIndexStore.rowSelectColumns`).

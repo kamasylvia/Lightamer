@@ -22,6 +22,10 @@ internal struct ContentView: View {
     let browserModel: SessionBrowserModel
     let thumbnailProvider: SessionThumbnailProvider?
 
+    /// Plan 16-2 T2: the CROSS-SESSION browser model (the Catalogs grid's
+    /// data face; the shared runtime store is bound by the app root).
+    let catalogBrowserModel: CatalogBrowserModel
+
     /// Plan 09-04 (HIST-05): the adjustments clipboard + the app root's
     /// partial-paste routing (the sheet raises the request; the app root's
     /// closure performs the paste) + the presentation binding.
@@ -53,6 +57,28 @@ internal struct ContentView: View {
     @AppStorage("browser.mode") private var browserModeRaw: String = BrowserMode.single.rawValue
     private var browserMode: BrowserMode {
         BrowserMode(rawValue: browserModeRaw) ?? .single
+    }
+
+    // Plan 16-2 T2: the ORGANIZATION-mode axis — a SECOND dimension,
+    // orthogonal to the browser-mode axis above (org-mode × browser-mode;
+    // D-16-CONTEXT-5⑤: the editor never sees the mode, only the browser
+    // data source forks). 冷启动恒 Sessions (RQ-16-12): the persisted value
+    // is OVERWRITTEN with the constant on the first frame (onAppear below).
+    @AppStorage(CatalogPreferencesModel.organizationModeStorageKey)
+    private var organizationModeRaw: String = CatalogPreferencesModel.coldStartRawValue
+
+    @Environment(CatalogPreferencesModel.self) private var catalogPreferences
+    @Environment(SessionCoordinator.self) private var sessionCoordinator
+
+    private var organizationMode: CatalogPreferencesModel.OrganizationMode {
+        CatalogPreferencesModel.OrganizationMode(rawValue: organizationModeRaw) ?? .sessions
+    }
+
+    /// True while the Catalogs grid owns the content column (the org axis
+    /// AND the enable switch must both say so — disabling Catalogs while
+    /// browsing it lands the user back on the session face immediately).
+    private var catalogsModeActive: Bool {
+        catalogPreferences.catalogsEnabled && organizationMode == .catalogs
     }
 
     @Environment(SessionState.self) private var sessionState
@@ -162,6 +188,10 @@ internal struct ContentView: View {
             // D-08: restore inspector visibility from layout memory.
             columnVisibility = inspectorVisible ? .all : .detailOnly
             applyBrowserModeColumnRules()
+            // Plan 16-2 T2 (RQ-16-12): 冷启动恒 Sessions — the FIRST frame
+            // overwrites the persisted org-mode with the constant (恒默认做
+            // 成常量; the segmented control remembers within a run only).
+            organizationModeRaw = CatalogPreferencesModel.coldStartRawValue
         }
         .onChange(of: inspectorVisible) { _, isVisible in
             columnVisibility = isVisible ? .all : .detailOnly
@@ -235,33 +265,62 @@ internal struct ContentView: View {
     // Plan 09-3 THREE-MODE switch — a WHOLE-PAGE replacement (the browser
     // never squeezes the editor's layout; 视口主导红线). The editor-column
     // width contract (hard min 495pt) rides the SAME modifier as before.
+    // Plan 16-2 T2: the Catalogs org-mode owns the content column when the
+    // switch is on AND the axis says so — otherwise the Phase 12 session
+    // face renders EXACTLY as before (the byte-equivalence red line).
     @ViewBuilder
     private var browserContent: some View {
-        switch browserMode {
-        case .grid:
-            SessionBrowserView(
-                model: browserModel,
-                thumbnailProvider: thumbnailProvider,
-                onOpenInEditor: { url in
-                    editorState.load(
-                        url: url,
-                        decoder: decoder,
-                        metal: metalContext,
-                        logger: EditorState.decodeLogger
-                    )
-                    browserModeRaw = ContentView.BrowserMode.single.rawValue
-                },
-                sessionRoot: sessionState.currentSessionURL
+        if catalogsModeActive {
+            CatalogBrowserView(
+                model: catalogBrowserModel,
+                onOpenInEditor: { sessionRoot, relPath in
+                    openFromCatalog(sessionRoot: sessionRoot, relPath: relPath)
+                }
             )
-        case .single:
-            EditorAreaView(decoder: decoder, metalContext: metalContext)
-        case .culling:
-            CullingView(
-                model: browserModel,
+        } else {
+            switch browserMode {
+            case .grid:
+                SessionBrowserView(
+                    model: browserModel,
+                    thumbnailProvider: thumbnailProvider,
+                    onOpenInEditor: { url in
+                        editorState.load(
+                            url: url,
+                            decoder: decoder,
+                            metal: metalContext,
+                            logger: EditorState.decodeLogger
+                        )
+                        browserModeRaw = ContentView.BrowserMode.single.rawValue
+                    },
+                    sessionRoot: sessionState.currentSessionURL
+                )
+            case .single:
+                EditorAreaView(decoder: decoder, metalContext: metalContext)
+            case .culling:
+                CullingView(
+                    model: browserModel,
+                    decoder: decoder,
+                    metalContext: metalContext,
+                    sessionRoot: sessionState.currentSessionURL
+                )
+            }
+        }
+    }
+
+    /// Plan 16-2 T2 (D-16-CONTEXT-5⑤): a Catalogs-grid double-click opens
+    /// the row's session through the SAME `openSession` flow (the full
+    /// five-step teardown + sync + recent promote — the editor is mode-
+    /// blind), then loads the CLICKED image through the EXISTING load path.
+    private func openFromCatalog(sessionRoot: URL, relPath: String) {
+        Task {
+            await sessionCoordinator.openSession(url: sessionRoot)
+            editorState.load(
+                url: sessionRoot.appendingPathComponent(relPath),
                 decoder: decoder,
-                metalContext: metalContext,
-                sessionRoot: sessionState.currentSessionURL
+                metal: metalContext,
+                logger: EditorState.decodeLogger
             )
+            browserModeRaw = ContentView.BrowserMode.single.rawValue
         }
     }
 

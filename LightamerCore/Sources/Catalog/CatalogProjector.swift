@@ -409,6 +409,102 @@ public actor CatalogProjector {
         return results
     }
 
+    // MARK: - Session management (Plan 16-2 T2, D-16-CONTEXT-7②④)
+
+    /// The typed failure of the session-management faces.
+    public enum SessionManagementError: Error, Equatable {
+        /// No registered session with this id.
+        case notFound(sessionID: String)
+        /// The re-link target is already registered under ANOTHER session
+        /// (removing that one first is the user's explicit action).
+        case rootAlreadyRegistered(rootPath: String)
+    }
+
+    /// 「从 Catalog 移除会话」(D-16-CONTEXT-7④) — the EXPLICIT user action:
+    /// the session's row set, its tags, and its ORGANIZATION memberships
+    /// (categories/collections rows ride the image rows' deletion) are
+    /// cleared in ONE transaction, then the registry row itself goes.
+    /// The files on disk are NEVER touched (reference mode). After a
+    /// commit the COUNT memo dies via the same hook projection uses.
+    public func removeSession(sessionID: String) async throws {
+        guard CatalogPreferences.catalogsEnabled(defaultsSuiteName: defaultsSuiteName) else {
+            throw SessionManagementError.notFound(sessionID: sessionID)
+        }
+        try ensureOpen()
+        guard let handle else { return }
+
+        let exists = try handle.prepare(
+            "SELECT 1 FROM catalog_sessions WHERE session_id = ?")
+        try exists.bindText(1, sessionID)
+        guard try exists.step() else {
+            throw SessionManagementError.notFound(sessionID: sessionID)
+        }
+
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            let statements: [String] = [
+                "DELETE FROM image_tags WHERE catalog_image_id IN "
+                    + "(SELECT id FROM catalog_images WHERE session_id = ?)",
+                "DELETE FROM image_categories WHERE catalog_image_id IN "
+                    + "(SELECT id FROM catalog_images WHERE session_id = ?)",
+                "DELETE FROM image_collections WHERE catalog_image_id IN "
+                    + "(SELECT id FROM catalog_images WHERE session_id = ?)",
+                "DELETE FROM catalog_images WHERE session_id = ?",
+                "DELETE FROM catalog_sessions WHERE session_id = ?",
+            ]
+            for sql in statements {
+                let statement = try handle.prepare(sql)
+                try statement.bindText(1, sessionID)
+                _ = try statement.step()
+            }
+            try handle.exec("COMMIT")
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
+        if let invalidator = countsInvalidator {
+            await invalidator()
+        }
+    }
+
+    /// 「Re-link 会话文件夹」(D-16-CONTEXT-7②) — the folder moved: update
+    /// `root_path` to the new location (realpath-normalized, the registry
+    /// key), clear `offline`, then run an IMMEDIATE re-projection (the
+    /// watermark rides the moved lindex; no automatic path search — the
+    /// user picked the folder). The registry reuse semantics make the
+    /// projection land on the SAME session_id.
+    public func relinkSession(
+        sessionID: String, newRoot: URL
+    ) async throws -> CatalogProjectionResult {
+        guard CatalogPreferences.catalogsEnabled(defaultsSuiteName: defaultsSuiteName) else {
+            throw SessionManagementError.notFound(sessionID: sessionID)
+        }
+        try ensureOpen()
+        guard let handle else {
+            throw SessionManagementError.notFound(sessionID: sessionID)
+        }
+        let normalized = newRoot.resolvingSymlinksInPath().path
+
+        // The target must not be ANOTHER session's registered root.
+        let clash = try handle.prepare(
+            "SELECT session_id FROM catalog_sessions WHERE root_path = ?")
+        try clash.bindText(1, normalized)
+        if try clash.step(), let owner = clash.columnText(0), owner != sessionID {
+            throw SessionManagementError.rootAlreadyRegistered(rootPath: normalized)
+        }
+
+        let update = try handle.prepare(
+            "UPDATE catalog_sessions SET root_path = ?, offline = 0 "
+                + "WHERE session_id = ?")
+        try update.bindText(1, normalized)
+        try update.bindText(2, sessionID)
+        _ = try update.step()
+
+        // The immediate re-projection (the watermark follows the moved
+        // lindex; a still-missing lindex marks offline again honestly).
+        return try await project(sessionRoot: newRoot)
+    }
+
     // MARK: - Internals (handle-confined)
 
     /// Open (creating the directory + file on demand) and apply the frozen
