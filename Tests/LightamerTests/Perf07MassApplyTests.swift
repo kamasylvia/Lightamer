@@ -238,12 +238,12 @@ final class Perf07MassApplyTests: XCTestCase {
         guard let volumeRoot = ProcessInfo.processInfo.environment["LA_PERF07_VOLUME"] else {
             throw XCTSkip("LA_PERF07_VOLUME unset — comparison recorded on the volume-bearing machine only")
         }
-        let unitekRoot = URL(fileURLWithPath: volumeRoot)
-        guard FileManager.default.fileExists(atPath: unitekRoot.path) else {
+        let comparisonRoot = URL(fileURLWithPath: volumeRoot)
+        guard FileManager.default.fileExists(atPath: comparisonRoot.path) else {
             throw XCTSkip("LA_PERF07_VOLUME target absent — comparison recorded on the volume-bearing machine only")
         }
         let sample = 100
-        let temp = unitekRoot.appendingPathComponent("Documents/Development/Lightamer/.work/tmp-perf07-\(UUID().uuidString)", isDirectory: true)
+        let temp = comparisonRoot.appendingPathComponent("Documents/Development/Lightamer/.work/tmp-perf07-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: temp) }
 
