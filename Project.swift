@@ -13,6 +13,13 @@ import ProjectDescription
 //   LightamerTests  → { Core, IOP }   (@testable import of both)
 //   LightamerUITests → Lightamer app  (drives the running app)
 //
+// Plan 13-1: +2 app extensions (the project's first NEW target shape):
+//   LightamerQuickLook  → { Core, IOP }  (com.apple.quicklook.preview)
+//   LightamerSpotlight  → { Core, IOP }  (com.apple.spotlight.import)
+// Both embed into the host app (the app's dependencies below) and link the
+// SHARED frameworks via @rpath (the Frameworks copy phase stays on the APP
+// only — the appex processes resolve Core/IOP from the host bundle).
+//
 // Locks honored: D-05 bundle id `com.kamasylvia.lightamer` (one-way),
 // D-33 Swift 6 strict concurrency (complete), macOS 27.0 floor on ALL targets
 // (FOUND-01), ENABLE_HARDENED_RUNTIME (DIST-5).
@@ -50,6 +57,15 @@ let releaseConfigSettings: SettingsDictionary = [
     // test target against Release frameworks; @testable import requires
     // testability on those modules (Debug default YES, Release default NO).
     "ENABLE_TESTABILITY": "YES",
+]
+
+// Plan 13-1: the appex processes resolve the SHARED frameworks from the
+// host bundle — PlugIns/<appex>.appex/Contents/MacOS sits four directory
+// levels below Contents/, hence the 4× "../" walk to Frameworks (the
+// in-appex "../Frameworks" leg covers a future local copy).
+let appexRunpathSettings: SettingsDictionary = [
+    "LD_RUNPATH_SEARCH_PATHS":
+        .string("$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks"),
 ]
 
 let project = Project(
@@ -141,6 +157,13 @@ let project = Project(
             dependencies: [
                 .target(name: "LightamerCore"),
                 .target(name: "LightamerIOP"),
+                // Plan 13-1: the two app extensions EMBED into the host
+                // (Tuist routes .appExtension products into the app's embed
+                // copy phase); the shared Core/IOP frameworks stay in the
+                // app's Frameworks directory and are resolved by the appex
+                // processes through the runpath below.
+                .target(name: "LightamerQuickLook"),
+                .target(name: "LightamerSpotlight"),
             ],
             settings: .settings(
                 base: baseSettings.merging([
@@ -150,6 +173,44 @@ let project = Project(
                     "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
                 ]) { $1 }
             )
+        ),
+
+        // ═════════ LightamerQuickLook (QL appex, Plan 13-1 T1) ═════════
+        .target(
+            name: "LightamerQuickLook",
+            destinations: [.mac],
+            product: .appExtension,
+            bundleId: "com.kamasylvia.lightamer.quicklook", // D-05 naming extension
+            deploymentTargets: .macOS("27.0"),
+            infoPlist: .file(path: "App/Extensions/QuickLook/Info.plist"),
+            sources: ["App/Extensions/QuickLook/**"],
+            entitlements: .file(
+                path: "App/Extensions/QuickLook/LightamerQuickLook.entitlements"),
+            dependencies: [
+                // NOT embedded here — the HOST app carries the Frameworks
+                // copy phase; the appex resolves them through the runpath.
+                .target(name: "LightamerCore"),
+                .target(name: "LightamerIOP"),
+            ],
+            settings: .settings(base: baseSettings.merging(appexRunpathSettings))
+        ),
+
+        // ═════════ LightamerSpotlight (mdimporter appex, Plan 13-1 T1) ══
+        .target(
+            name: "LightamerSpotlight",
+            destinations: [.mac],
+            product: .appExtension,
+            bundleId: "com.kamasylvia.lightamer.spotlight", // D-05 naming extension
+            deploymentTargets: .macOS("27.0"),
+            infoPlist: .file(path: "App/Extensions/Spotlight/Info.plist"),
+            sources: ["App/Extensions/Spotlight/**"],
+            entitlements: .file(
+                path: "App/Extensions/Spotlight/LightamerSpotlight.entitlements"),
+            dependencies: [
+                .target(name: "LightamerCore"),
+                .target(name: "LightamerIOP"),
+            ],
+            settings: .settings(base: baseSettings.merging(appexRunpathSettings))
         ),
 
         // ═════════ LightamerTests (unit, depends on Core + IOP) ═════════

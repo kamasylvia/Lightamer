@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Non-sandboxed (Plan 13-1, D-13-CONTEXT-1): the QL extension must read
+	  the WHOLE session directory (the file body + the sibling .lightamer/
+	  hidden assets: sidecar, thumbs/, session.lindex) — a sandboxed
+	  extension only gets access to the requested file itself, not its
+	  sibling hidden directory. No sandbox key = non-sandboxed, matching the
+	  host app's ENABLE_USER_SELECTED_FILES read-write decision. Hardened
+	  runtime rides the per-configuration ENABLE_HARDENED_RUNTIME settings
+	  (Release hardened / Debug unhardened — Project.swift:43-53); the
+	  Developer ID deep-sign pass over every nested binary happens in 13-4.
+	-->
+</dict>
+</plist>
