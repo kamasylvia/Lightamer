@@ -8,3 +8,39 @@
 - **关键裁决摘要**：HDR merge = Robertson02 族线性域加权（真 float32 HDR）+ MTB 对齐 + 共识权 ghost mask 走 `RasterMaskRef`（Mertens 否决主路径——输出非线性融合图与 HDR-04 语义冲突）；focus stacking = SML 焦点度量 + enfuse 式金字塔融合（DL 深度图 v2）；堆栈降噪 = average/median/sigma-clipped 三模式同一服务骨架；**HDR-04 = 零新管线**（float32 Rec2020 全链是 Phase 2 现状，交付物 = 验证矩阵 + 缓存预算复核 + 12 移交 LUT 精度结论）；合并/堆栈 = **文档级服务**非 in-pipe iop（多源进管线身份/缓存/history 三崩），产物 = 32-bit float TIFF 新文档 + provenance `.lra` sidecar（源只读；落位可见性 = research P0）；EDR = 显示腿 opt-in toggle（rgba16Float 预留位兑现 + wantsExtendedDynamicRangeContent + extendedLinear，SDR 逐字节不变断言，HDR 导出 defer Phase 11）；效果簇参数面全部 dt verbatim（vignette 68.0/grain 65.0 scale≈ISO 语义/bloom 61.0 三段 screen blend/dehaze 14.0 暗通道先验；grain 确定性种子 = L013 StableHash——缓存键 + golden 双前提）；FX-05 = 独立轻量 text overlay 新槽 <70.0（层蒙版资格是与 yiyin 77.0 终端水印的本质分工）；波次 = 5 plans / 3 waves（08-1 堆栈簇根 ∥ 08-2 效果簇 → 08-3 焦点/降噪 ∥ 08-4 EDR → 08-5 dehaze+text overlay+收口签核）。
 - **识别到的新分叉/风险**：①**ROADMAP SC#4 order-77 冲突**（编写期 vs yiyin 定序）——晨审特别过目项，改判「yiyin 已交付」路径的代价与 SC#4 改写义务已入 D-08-CONTEXT-9；②**合并产物落位与浏览可见性**——`isExcludedDirectory` 排除语义下「产物进 grid」的落位目录二选一（会话根 vs 保留子目录 + 显式收录）是 research P0 头项（RQ-08-3），选错 = 产物不可见或导出图回流 bug 同类；③**N×100MP float32 内存压力**——5 张 bracket 全幅同时驻留 ~8GB 不可行，流式/分块合并形状（TilingPlan 复用）是 RQ-08-6 的 plan 划界前提（16-2 内存事件备忘同源警戒）；④**MTB 对齐在 100MP 的耗时未测**——对齐是合并/堆栈两簇共用的关键路径，探针数字直接决定交互预期（后台批处理 vs 可等待）；⑤**grain 确定性种子与缓存键交互**——seed 派生若含 image stable id，跨图参数同但输出异（正确行为），但 PipeCacheKey 是否需纳 seed 派生式是 RQ-08-8 的钉死项（漏钉 = 缓存假命中）；⑥**bloom 线性域阈值默认值**——dt 显示域 90 的线性换算无现成对照，默认值手感 = Manual-Only 观感轮预定项；⑦**EDR 外接显示器 headroom 长尾**——maximumExtendedDynamicRangeColorComponentValue 非 XDR 屏返回 1.0 的行为差异，双屏实测（XDR + 外接 HDR）是 SC#3 硬前提，Manual-Only 不可豁免。
 - **晨审注意**：12 项均为推荐项自动裁决，用户晨间任一推翻 → 回注 planner 重开受影响面（推翻代价列在 CONTEXT 追认清单表）。特别提请过目：**D-08-CONTEXT-9**（FX-05 与 yiyin 77.0 分工——含「判 yiyin 已交付」的零代码替代路径，但蒙版能力缺口 + SC#4 改写义务随之）与 **D-08-CONTEXT-1**（Mertens 否决——若用户预期「HDR 合并出片即好看」的融合语义而非线性 HDR 文档，主路径需翻转，HDR-04 语义联动重裁）。
+
+## 2026-09-28 — 终节（08-5 签核：SC 证据指针 + 移交/遗留对表）
+
+> 执行记录：08-1..08-5 全部执行完成（08-1/08-2/08-3/08-4 各带验收轮 PASS-with-notes；08-5
+> 消费四轮验收全部回注：P1 符号修复 `efccca9` + 注记 #2/#4 收口 `cd0b5b9`）。终轮全 suite
+> **1768/11skip/0fail（729.6s）**。`08-VALIDATION.md` `status: validated` + `nyquist_compliant:
+> true`（SC#1-4 三列证据 + Per-Task Map + 缺陷处置表 + Manual-Only 汇总 10 行）。
+
+### SC 证据指针（→ 08-VALIDATION 详表）
+
+- **SC#1**（HDR merge）→ 08-1 E2E/golden（`ProvenanceV4Tests`/`HDRMergeMathTests`/`MTBAlignTests`）+ 08-5 EXIF 符号修复 E2E 数值钉（`efccca9`）。
+- **SC#2**（focus/stacking）→ 08-3 T5（`FocusStackTests` 13 + `StackAggregateTests` 11——SML/融合/三模式聚合/四 kind E2E）。
+- **SC#3**（EDR 显示）→ 08-4 T4（`EDRViewportTests` + `EDRDisplayLegTests` + `EDRHeadroomMonitorTests` = 14——SDR 逐字节三件套 + 三不进）；XDR/外接双屏 = Manual-Only（本环境无 XDR 屏，P4 API 面已实测）。
+- **SC#4**（效果簇 + order-77 区分）→ 08-2（Vignette/Grain/Bloom 三套件）+ 08-5 T1/T2（`DehazeTests` 6 + `TextOverlayTests` 6）；order 77 归 yiyin、text overlay 66.7 新槽（`testYiyinCoexistenceAndZeroChangeBoundary`）。
+
+### Phase 11 移交清单（HDR 导出深度——ROADMAP Notes「full HDR export can lean on Phase 11」）
+
+1. **HDR 导出深度载体**：HEIC gain map（kCGImageDestinationHeicAuthenticatedContentLevel 族）/ AVIF PQ-HLG 10/12-bit——EDR 预览的 16F extendedLinear 值域已就绪（08-4 `applyEDRDisplaySurface`），导出端按 EXP 面扩展 encoder 矩阵。
+2. **合并产物色彩原语**：产物 = linear Rec2020 tagged float32 TIFF（`BandStreamer.writeFloatTIFF`，FOUND-02 域随文件走）——导出色彩空间换算直接消费 WorkingSpace 面零新翻译。
+3. **EXIF 沿写缝**：合并产物 birth sidecar 已带 provenance；产物文件本身未回写源 EXIF（08-5 EXIF E2E 证明源 EXIF 驱动合并正确）——导出侧若需 EXIF 沿写，消费 `CaptureMetadata` walk 面（08-3 T2 交付）。
+4. **EDR toggle 不进 export**（08-4 三不进断言钉死）：HDR 导出是**内容位**（值域直通），与显示腿 toggle 正交——Phase 11 扩展时不得把 `edrDisplayLeg` 误接导出链。
+
+### 遗留对表（零静默）
+
+| # | 项 | 归属 |
+|---|---|---|
+| 1 | Manual-Only 10 行（VALIDATION 表：灰卡标定/XDR 双屏/手感轮/100MP N=8 秒表/dehaze 视觉差对比等） | verify-work 走查 + Phase 15（秒表） |
+| 2 | EDR toggle 瞬态：blitRegime on 强制 16F 臂，重渲染落地前旧 SDR 平面 blit 进 16F surface 单帧编码错配（generation++ 后即消） | 08-4 验收注记登记，additive 不动——08-5 文件集外；verify-work 酌情/后续 plan 打磨 |
+| 3 | grain 坐标 leg 用 roiIn（dt 用 roi_out）：等几何 ROI 逐字节等价，tiling 异偏移理论偏差（效果 iop 平移不变实际无感） | 08-2 验收注记登记；后续 plan 顺手对齐 |
+| 4 | CI input 腿 RGBAh 对 ≤6e-8 subnormal 面下溢（L006 的 HDR 附件）——真实合并产物值域 0.001–100 多在 half normal 域 | L006 台账（D-08-1-13① 收口记录，08-5 重归一消解主面） |
+| 5 | Release 口径全程秒表（24MP/100MP）——`@testable` 与 Release 测试互斥 | Phase 15（perf 专项，D-09-05-T1-2 同批） |
+| 6 | 24MP Debug 全程 73.5s vs research <60s 参考门：口径差归因在案（Debug 内循环 ≥10×；100MP 外推 312s Debug 上界） | 同上（账面口径，perf.md 08-1 节） |
+| 7 | HDR merge 的 de-ghost N=3 统计弱（√(N−1) 退化警告 + UI 文案诚实声明） | 文档/UI 已声明（research §4.4），无行动项 |
+| 8 | zoom ROI 联合布局降级 / v2 旋转（yiyin 面遗留，Phase 8-yiyin 原账） | Phase 8-yiyin 遗留对表（原账不变） |
+| 9 | ROADMAP SC#4「watermark iop (order 77)」编写期冲突已按需求原文裁决（77.0 = yiyin 终局水印；text overlay = 66.7） | 晨审注意项已过目（D-08-CONTEXT-9）；如用户改判需改写 SC#4 |
+| 10 | Phase 8-yiyin 遗留对账：两「08」编号重合（执行序 08 = yiyin / ROADMAP Phase 8 = HDR），目录/账面零冲突（08-yiyin-border-watermark vs 08-hdr-stacking-effects） | 输入偏差注记②（discuss 节），维持 |

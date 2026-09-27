@@ -125,19 +125,19 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 
 ### Image Operation Modules (iop) — HDR & Stacking (IOP-HDR)
 
-- [ ] **IOP-HDR-01**: HDR merge（多张不同曝光的 HDR 合并，含对齐、鬼影去除）
-- [ ] **IOP-HDR-02**: focus stacking（焦点堆栈合并）
-- [ ] **IOP-HDR-03**: average/median stacking（平均值/中位数堆栈降噪）
-- [ ] **IOP-HDR-04**: 32-bit float HDR pipeline 支持（合并后可继续在 linear Rec2020 中调整）
-- [ ] **IOP-HDR-05**: HDR/EDR 显示输出（在支持 EDR 的显示器上呈现真实高动态范围）
+- [x] **IOP-HDR-01**: HDR merge（多张不同曝光的 HDR 合并，含对齐、鬼影去除）
+- [x] **IOP-HDR-02**: focus stacking（焦点堆栈合并）
+- [x] **IOP-HDR-03**: average/median stacking（平均值/中位数堆栈降噪）
+- [x] **IOP-HDR-04**: 32-bit float HDR pipeline 支持（合并后可继续在 linear Rec2020 中调整）
+- [x] **IOP-HDR-05**: HDR/EDR 显示输出（在支持 EDR 的显示器上呈现真实高动态范围）
 
 ### Image Operation Modules (iop) — Effects (IOP-FX)
 
-- [ ] **IOP-FX-01**: vignette（渐晕）
-- [ ] **IOP-FX-02**: grain（胶片颗粒）
-- [ ] **IOP-FX-03**: bloom / glow（光晕）
-- [ ] **IOP-FX-04**: dehaze（除雾）
-- [ ] **IOP-FX-05**: watermark/text overlay（作为 iop 层，独立于 yiyin 面板的最终出图水印）
+- [x] **IOP-FX-01**: vignette（渐晕）
+- [x] **IOP-FX-02**: grain（胶片颗粒）
+- [x] **IOP-FX-03**: bloom / glow（光晕）
+- [x] **IOP-FX-04**: dehaze（除雾）
+- [x] **IOP-FX-05**: watermark/text overlay（作为 iop 层，独立于 yiyin 面板的最终出图水印）
 
 ### AI Modules (AI) — 基于 Apple Vision / Core Image 原生框架（v1 仅含原生可实现项）
 
@@ -370,16 +370,16 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | AI-05 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Delivered |
 | AI-06 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Delivered |
 | AI-07 | Phase 7 — AI Modules (Native Vision Masking & Retouching) | Delivered |
-| IOP-HDR-01 | Phase 8 — HDR/Stacking & Effects iops | Pending |
-| IOP-HDR-02 | Phase 8 — HDR/Stacking & Effects iops | Pending |
-| IOP-HDR-03 | Phase 8 — HDR/Stacking & Effects iops | Pending |
-| IOP-HDR-04 | Phase 8 — HDR/Stacking & Effects iops | Pending |
-| IOP-HDR-05 | Phase 8 — HDR/Stacking & Effects iops | Pending |
-| IOP-FX-01 | Phase 8 — HDR/Stacking & Effects iops | Pending |
-| IOP-FX-02 | Phase 8 — HDR/Stacking & Effects iops | Pending |
-| IOP-FX-03 | Phase 8 — HDR/Stacking & Effects iops | Pending |
-| IOP-FX-04 | Phase 8 — HDR/Stacking & Effects iops | Pending |
-| IOP-FX-05 | Phase 8 — HDR/Stacking & Effects iops | Pending |
+| IOP-HDR-01 | Phase 8 — HDR/Stacking & Effects iops | **Delivered** |
+| IOP-HDR-02 | Phase 8 — HDR/Stacking & Effects iops | **Delivered** |
+| IOP-HDR-03 | Phase 8 — HDR/Stacking & Effects iops | **Delivered** |
+| IOP-HDR-04 | Phase 8 — HDR/Stacking & Effects iops | **Delivered** |
+| IOP-HDR-05 | Phase 8 — HDR/Stacking & Effects iops | **Delivered** |
+| IOP-FX-01 | Phase 8 — HDR/Stacking & Effects iops | **Delivered** |
+| IOP-FX-02 | Phase 8 — HDR/Stacking & Effects iops | **Delivered** |
+| IOP-FX-03 | Phase 8 — HDR/Stacking & Effects iops | **Delivered** |
+| IOP-FX-04 | Phase 8 — HDR/Stacking & Effects iops | **Delivered** |
+| IOP-FX-05 | Phase 8 — HDR/Stacking & Effects iops | **Delivered** |
 | COLOR-01 | Phase 2 — Pixelpipe Core, Color Mgmt & History | Pending |
 | COLOR-02 | Phase 13 — System Integration & Distribution | **Delivered** |
 | COLOR-03 | Phase 13 — System Integration & Distribution | **Delivered** |
