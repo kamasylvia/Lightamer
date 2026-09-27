@@ -28,7 +28,7 @@ files_modified:
 # Plan 13-4 — 分发收口（W3，收口 + 签核）
 
 > 背景：从 dev 自签证书到 Developer ID 的整机切换 + 项目首次公开（D-13-CONTEXT-8）。`Project.swift:27-35` 注释钉死本次切换；当前 remote = Azure DevOps 私有仓（无 LICENSE、无 `.github/`），GitHub 公开仓 = 新 remote，**敏感审计是前置闸**。
-> 四条主线：① **敏感审计闸**——git 全历史凭证/token/内部域名/绝对路径扫描报告落档，命中处置后才许任何公开仓操作；「全历史 vs squash 起点」二选一 = **用户裁决位**（晨审特别提请——plan 期不得自选，默认全历史但须显式问询并记录）。② **签名公证链**——Developer ID 切换 + 逐嵌套 binary 深签 + notarytool（warnings=errors）+ staple + quarantine 实测。**凭据 = 人工阻塞项**：Developer ID 证书与私钥 / AC API key / GitHub 仓创建与公开时机 / Secrets 配置——T2 开工前检查点，缺位即 GOAL-STATE 阻塞节登记并停（不得 ad-hoc 蒙混）。③ **载体与 CI**——DMG（hdiutil UDZO）+ zip 双产物 + GitHub Actions（PR/push 无签名构建测试，tag 完整发布链）。④ **收口走查与签核**——Manual-Only 13 行承接（F-12-5-2 已由 13-2 关闭）+ GUI-20 复验（TODO :296，dev-signed 层 B 资产供给 → Developer ID 复验）+ 本 Phase 新面走查（QL 空格/Spotlight 检索/手势/proof 面板/蒙版命令/双屏）+ VALIDATION 签核（**签核前停 = C 档第 3 停**）。内部序刚性：T1 审计闸 → T2 签名 → T3 公证 → T4 载体 → T5 仓/CI → T6 走查 → T7 签核。
+> 四条主线：① **敏感审计闸**——git 全历史凭证/token/内部域名/绝对路径扫描报告落档，命中处置后才许任何公开仓操作；「全历史 vs squash 起点」二选一 = **用户裁决位**（晨审特别提请——plan 期不得自选，默认全历史但须显式问询并记录）。② **签名公证链**——Developer ID 切换 + 逐嵌套 binary 深签 + notarytool（warnings=errors）+ staple + quarantine 实测。**凭据 = 人工阻塞项**：Developer ID 证书与私钥 / AC API key / GitHub 仓创建与公开时机 / Secrets 配置——T2 开工前检查点，缺位即 GOAL-STATE 阻塞节登记并停（不得 ad-hoc 蒙混）。③ **载体与 CI**——DMG（hdiutil UDZO）+ zip 双产物 + GitHub Actions（PR/push 无签名构建测试，tag 完整发布链）。④ **收口走查与签核**——Manual-Only 13 行承接（F-12-5-2 已由 13-2 关闭）+ GUI-20 复验（TODO :27，dev-signed 层 B 资产供给 → Developer ID 复验；checker M3 锚点校正）+ 本 Phase 新面走查（QL 空格/Spotlight 检索/手势/proof 面板/蒙版命令/双屏）+ VALIDATION 签核（**签核前停 = C 档第 3 停**）。内部序刚性：T1 审计闸 → T2 签名 → T3 公证 → T4 载体 → T5 仓/CI → T6 走查 → T7 签核。
 
 ## read_first
 
@@ -44,6 +44,7 @@ files_modified:
 - **每任务独立提交**（Conventional Commits，只 add 本任务申报文件）；`caffeinate -dis` 包裹一切构建。**公开仓敏感面例外**：T1 审计报告、LICENSE、CI workflow 等入库面正常提交；**推送 GitHub = 仅 T5 在审计闸过 + 裁决位记录后执行，推新 GitHub remote，不动 ADO origin**；其余任务不 push。
 - **单测命令** = `Scripts/test-direct.sh '<Class>'`；**判据 = Executed 计数行 + failures 行**，Executed 0 = 判据失败。
 - **每任务边界检查 `.work/config.toml [gsd]` 开关（`auto`/`paused`）**；本 plan 另有**人工在场点三处**（T1 裁决位问询 / T2 凭据检查点 / T7 签核停）——任一未获用户答复即停，不得代答。
+- **构建纪律**：勿加 `-derivedDataPath`（SPM submodule 坑）；T2 修改 Project.swift 及新建 `Scripts/release/` 后跑 `tuist generate` 一次（checker M1 补点）。
 - **回归基线 = 1553/9skip/0fail + 13-1/13-2/13-3 新增**；发布前全 suite 终轮 0 fail。**flake 归因条款**：`LayerE2ERoundTripTests` / `ToneEqualPerf` 负载型 flake 隔离 ×3 归因单列，不计违约。
 - **凭据纪律（最高优先）**：Developer ID 证书/私钥/AC API key 只经临时环境变量与 GitHub Secrets 传递，**永不入仓/入日志/入产物/入 SUMMARY 截图**；T2 开工前检查点缺件 → GOAL-STATE 阻塞节登记并停；CI 零凭据泄漏扫描（secrets 不入日志/产物）是发布链 AC。
 - **审计闸硬序**：T1 报告落档 + 命中处置完成 + 裁决位记录之前，**禁止任何公开仓操作**（建仓/推送/公开切换）。

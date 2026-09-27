@@ -1,7 +1,7 @@
 ---
 phase: 13
 plan: "13-3"
-title: "交互与 UI 批（SYS-03/04/05）：ViewportFit 单点扩展 viewportTransform（fit/100%/自由 zoom + 光标锚定 + blit uniforms 扩展，禁第二份 fit 数学）+ AppKit 手势面（magnify/rotate/scrollWheel 双指平移挂 MTKView bridge + zoom HUD）+ overlay 互斥（crop/liquify/retouch 锁 fit；mask brush 逆映射 <1px；eyedropper uv 同 transform）+ 拖放导入（默认复制 Capture/ Option=Move、网格+编辑器双落点、openSession reconcile 路由）+ 蒙版命令面 UI 装配（五命令 + overlay 三态 + enable 勾选，内核零改 + GUI-19）+ SYS-05 本地化收口审计"
+title: "交互与 UI 批（SYS-03/04/05）：ViewportFit 单点扩展 viewportTransform（fit/100%/自由 zoom + 光标锚定 + blit uniforms 扩展，禁第二份 fit 数学）+ AppKit 手势面（magnify/rotate/scrollWheel 双指平移挂 MTKView bridge + zoom HUD）+ overlay 互斥（crop/liquify/retouch 锁 fit；mask brush 逆映射 <1px；eyedropper uv 同 transform）+ 拖放导入（默认复制 Capture/ Option=Move、网格+编辑器双落点、openSession reconcile 路由）+ 蒙版命令面 UI 装配（五命令 + overlay 三态 + enable 勾选，内核零改 + GUI-19 回归确认）+ SYS-05 本地化收口审计"
 wave: 2
 depends_on: ["13-1"]
 autonomous: true
@@ -14,7 +14,7 @@ files_modified:
   - App/Sources/Lightamer/UI/EmptyStateView.swift                     # :57 onDrop fileURL 先例扩文件级（空态落点）
   - App/Sources/Lightamer/Session/（网格落点 onDrop + 导入编排调用面）  # 会话网格 onDrop → 导入编排（复制入 Capture/ + reconcile 触发；文件级归位执行期核名）
   - App/Sources/Lightamer/Session/ImportService.swift                 # 新建（如悬）：FileManager.copyItem 批量导入 + 逐文件失败不中断 + 进度/取消 + Option=Move 显式意图（Core 级可测则落 Core；执行期核名归位）
-  - App/Sources/Lightamer/UI/Inspector/LayersPanelView.swift          # 蒙版列表五命令上下文菜单 + enable 勾选行 + GUI-19 层链行显示修复
+  - App/Sources/Lightamer/UI/Inspector/LayersPanelView.swift          # 蒙版列表五命令上下文菜单 + enable 勾选行（GUI-19 已闭环，本批回归确认）
   - App/Sources/Lightamer/UI/Overlay/MaskToolbarView.swift            # overlay 三态切换（On-Black / Rubylith / 半透明——显示样式枚举扩展）
   - App/Sources/Lightamer/State/LayerEditingState.swift               # 命令路由（Duplicate/Duplicate-and-Invert/Fill/Clear/Reset Edits → LayerStack 既有编辑入口，每步 history commit）
   - App/Sources/Lightamer/Resources/Localizable.xcstrings             # 新 UI 全键 zh/en 同批（L025）
@@ -23,19 +23,19 @@ files_modified:
   - Tests/LightamerTests/MaskCommandTests.swift                       # 新建：五命令语义/内核零改对照/每步 history 可退
   - .work/gsd/phases/13-system-integration-distribution/13-3-SUMMARY.md
   - .work/gsd/phases/13-system-integration-distribution/13-3-DECISIONS.md
-  - TODO.md                                                           # 13-3 勾选 + GUI-19 关闭
+  - TODO.md                                                           # 13-3 勾选 + GUI-19 回归确认
   - LESSONS.md                                                        # 如踩坑
 ---
 
 # Plan 13-3 — 交互与 UI 批（W2，与 13-2 并行波）
 
 > 背景：视口从 near-static 升级 zoom/pan/rotate 是 Phase 2 D-13 决策的首次翻转（`EditorMTKView.swift:12/:318` 明示预留位）；最大回归面 = overlay 体系全部假设 fit 布局（`ViewportFit.swift:7-16` 三消费者共享 `fittedRect`）——按 D-13-CONTEXT-6 互斥策略错峰（D-13-CONTEXT-6/7/9）。
-> 四条主线：① **手势（SYS-03）**——AppKit NSGestureRecognizer/NSView 覆写面（macOS 触控板原生事件流），zoom 状态机 fit/100%/自由（光标中心锚定），`ViewportFit` 单点扩为 `viewportTransform` 供全部消费者取用，**禁止第二份 fit/zoom 数学**；overlay 互斥 = crop/liquify/retouch 激活时 zoom 锁 fit（v1 从简，crop-while-zoomed deferred）。② **拖放导入（SYS-04）**——默认复制入 `Capture/`（Move = Option 显式意图）、网格 + 编辑器双落点、复用 openSession reconcile 收编。③ **蒙版命令面（2026-09-26 登记批）**——Duplicate / Duplicate-and-Invert / Fill / Clear / Reset Edits 五命令 + overlay 三态 + enable 勾选，内核零改纯 UI 装配（`duplicated()`/`inverted` 位/`fill` 全已验）+ GUI-19 同批。④ **SYS-05 收口审计**——本 Phase 新 UI 每键 zh 同批 + 全 UI 面 zh/en 审计收口。内部序：T1 数学先行（T2/T3 消费）→ T2 手势 → T3 互斥/逆映射 → T4 拖放 → T5 蒙版命令 → T6 本地化收口。
+> 四条主线：① **手势（SYS-03）**——AppKit NSGestureRecognizer/NSView 覆写面（macOS 触控板原生事件流），zoom 状态机 fit/100%/自由（光标中心锚定），`ViewportFit` 单点扩为 `viewportTransform` 供全部消费者取用，**禁止第二份 fit/zoom 数学**；overlay 互斥 = crop/liquify/retouch 激活时 zoom 锁 fit（v1 从简，crop-while-zoomed deferred）。② **拖放导入（SYS-04）**——默认复制入 `Capture/`（Move = Option 显式意图）、网格 + 编辑器双落点、复用 openSession reconcile 收编。③ **蒙版命令面（2026-09-26 登记批）**——Duplicate / Duplicate-and-Invert / Fill / Clear / Reset Edits 五命令 + overlay 三态 + enable 勾选，内核零改纯 UI 装配（`duplicated()`/`inverted` 位/`fill` 全已验）+ GUI-19 回归确认。④ **SYS-05 收口审计**——本 Phase 新 UI 每键 zh 同批 + 全 UI 面 zh/en 审计收口。内部序：T1 数学先行（T2/T3 消费）→ T2 手势 → T3 互斥/逆映射 → T4 拖放 → T5 蒙版命令 → T6 本地化收口。
 
 ## read_first
 
 1. `.work/gsd/phases/13-system-integration-distribution/13-CONTEXT.md`——D-13-CONTEXT-6（AppKit 面/zoom 状态机/单点扩展/互斥四裁决）、D-13-CONTEXT-7（拖放五裁决：默认复制/双落点/路由复用/批量失败/源零改动）、D-13-CONTEXT-9（蒙版命令面六裁决：内核零改/enable=既有字段/GUI-19 同批）、继承定案（SYS-05 收口非新框架/L021/L025/L032）、验证红线（手势/overlay 安全 + 拖放专项——逐条为本 plan AC 正本）
-2. `App/Sources/Lightamer/UI/Overlay/ViewportFit.swift` 全文——:7-16 三消费者单点声明（**本 plan 纪律正本**）/ :33 `fittedRect`（`viewportTransform` 扩展基座）
+2. `App/Sources/Lightamer/UI/Overlay/ViewportFit.swift` 全文——:7-16 三消费者单点声明（**本 plan 纪律正本**）/ :28 `fittedRect`（`viewportTransform` 扩展基座；checker M2 锚点校正）
 3. `App/Sources/Lightamer/UI/EditorMTKView.swift`——:12 near-static blit (D-13: no zoom/pan) 注释（本 plan 翻转）/ :318 aspectFitUniforms + fit/100% 预留注释（blit 腿扩展位）/ SpatialTapGesture 既有手势锚（`EditorAreaView.swift:227`）
 4. `App/Sources/Lightamer/UI/EmptyStateView.swift:57`（onDrop fileURL 先例——拖放实现参照）+ `LayersPanelView` 层拖拽 NSItemProvider/onDrop 对（同）
 5. `LightamerCore/Sources/Layers/AdjustmentLayer.swift`——:43 `enabled`（enable 勾选 = 既有字段 UI 暴露）/ :76-81 `duplicated()` 新 UUID 克隆语义；`LightamerCore/Sources/Layers/Masks/MaskCombiner.swift`——:47 `inverted` 位 / :266 `fill` 常数平面
@@ -100,8 +100,8 @@ files_modified:
   1. 五命令挂蒙版列表上下文菜单 + 快捷键表（执行期决策）：`Duplicate`（= `AdjustmentLayer.duplicated()` 新 UUID 克隆）/ `Duplicate-and-Invert`（= duplicated + `MaskCombiner.inverted` 位翻转 `:47`）/ `Fill`（= `MaskCombiner.fill` 常数平面 `:266`）/ `Clear`（归零 mask 记录）/ `Reset Edits`（该蒙版实例参数回默认）。路由走 `LayerEditingState` → LayerStack 既有编辑入口，**每步过 history**（⌘Z 可退）。
   2. overlay 三态切换（`MaskToolbarView.swift` 显示选项扩展）：On-Black / Rubylith / 半透明——显示样式枚举，不改蒙版数据。
   3. 蒙版列表 **enable 勾选** = `AdjustmentLayer.enabled`（`:43`）既有字段的 UI 暴露（列表行 checkbox），勾选切换走既有 history commit 语义。
-  4. **GUI-19 同批修复**（TODO :296 登记正主）：层链行不显示问题修复。
-- **证据**：`MaskCommandTests`——五命令语义逐一（内核零改对照：Phase 6 既有语义测试全绿不动 + 命令后内核状态 = 直调内核等价）；每步 history 可退断言；enable 勾选 = 既有字段往返；GUI-19 修复面走查**需解锁控制台（Manual-Only 候补）**。
+  4. **GUI-19 回归确认**（checker E1 勘误：GUI-19 已于 2026-09-24 闭环 commit `7562a9e`，回归测试 `testAddModuleToLayerTripsLayerStackObservation` 在册——无修复对象）：本批蒙版命令面装配完成后复跑该回归测试确认不复发。
+- **证据**：`MaskCommandTests`——五命令语义逐一（内核零改对照：Phase 6 既有语义测试全绿不动 + 命令后内核状态 = 直调内核等价）；每步 history 可退断言；enable 勾选 = 既有字段往返；GUI-19 回归确认复跑**需解锁控制台（Manual-Only 候补）**。
 
 ### T6 SYS-05 本地化收口审计 + 全量回归收口
 
