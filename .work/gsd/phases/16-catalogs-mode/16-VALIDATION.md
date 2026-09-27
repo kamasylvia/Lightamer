@@ -70,8 +70,9 @@ validated: 2026-09-27
     （16-1 期既有只读验证面，前序验收已注记）+ SQLiteHandle 两处注释文本。
     16-4 新增 checkpointTruncate 已收进 CatalogIndexSchema（16-4-DECISIONS D4）。
 缝 c（C API）：grep -rln "sqlite3_[a-z_]*(" LightamerCore/Sources App/Sources
-  → 仅 SQLiteHandle.swift。`import SQLite3` 于 Tests 6 文件 = fixture 直连句柄（16-1 申报
-    先例，harness/隔离套同款）；Sources/App 无第二 import。
+  → 仅 SQLiteHandle.swift。`import SQLite3` 于 Tests 7 文件 = fixture 直连句柄（16-1 申报
+    先例 6 文件 + 16-4 新增 CatalogRebuildTests 同款；验收轮勘误：原文误计 6）；
+    Sources/App 无第二 import。
 ```
 
 **结论：三缝全过，命中越界 = 零，签核无阻。**

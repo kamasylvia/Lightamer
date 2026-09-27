@@ -148,3 +148,7 @@ case_sensitive_like=ON；mmap_size 不设（<2% 增益，可选项不入基线�
 *§A = Plan 16-4 T1 终测（harness = Tests/LightamerTests/CatalogBenchmarkHarness.swift，
 `LA_CATALOG_BENCH=1` 手动跑；Debug 轮日志 /tmp/la-bench-dbg-r{1,2,3}.log，Release 轮
 /tmp/la-bench-rel-r{1,2,3}.log）；fixture /tmp 即弃不入仓。*
+*验收轮盘点（2026-09-27）：六份日志现仅五份在盘（dbg-r2/r3 + rel-r1/r2/r3）——dbg-r1.log
+不在（疑为后续轮覆盖/清理），§A.2 Debug 主表（R1 轮）数字无原始日志背书；其 R2/R3 轮数字
+经验收抽核与现存日志逐项吻合（combo\|dateDESC 13.20/12.92 ✓），且 Debug 仅参考判据、
+Release 主判据三份日志全在（rel-r2 combo\|dateDESC\|d0 = 12.28 ✓ 逐字复核）。*
