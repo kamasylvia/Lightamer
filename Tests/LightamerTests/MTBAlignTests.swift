@@ -186,9 +186,11 @@ final class MTBAlignTests: XCTestCase {
             XCTFail("expected .ok, got \(verdict)")
             return
         }
-        // 1/250 → 1/1000 = +2 EV (candidate SLOWER shutter = BRIGHTER —
-        // EV here is log2(t_ref/t): t_ref/t = 4 → +2).
-        XCTAssertEqual(ev, 2.0, accuracy: 1e-9)
+        // 1/250 → 1/1000 = −2 EV in BRIGHTNESS-multiple semantics: the
+        // candidate's FASTER shutter collects 1/4 the light —
+        // log2(t_c/t_ref) = log2(0.25) = −2 (the 08-1 acceptance sign
+        // fix; the merge divides the candidate's pixels by 2^ΔEV = 0.25).
+        XCTAssertEqual(ev, -2.0, accuracy: 1e-9)
     }
 
     func testPrecheckRejectsApertureMismatchWithoutOverride() {
@@ -238,10 +240,11 @@ final class MTBAlignTests: XCTestCase {
             XCTFail("override must admit, got \(verdict)")
             return
         }
-        // ΔEV = log2(t_ref/t_c) + log2(ISO_c/ISO_ref) = 2 + 1 = 3 — the
-        // expected brightness ratio p_c/p_ref = 2^3 = 8× (4× shutter × 2×
-        // ISO sensitivity).
-        XCTAssertEqual(ev, 3.0, accuracy: 1e-9)
+        // ΔEV = log2(t_c/t_ref) + log2(ISO_c/ISO_ref) = −2 + 1 = −1 — the
+        // brightness multiple 2^−1 = 0.5× (1/4 the shutter light × 2×
+        // ISO amplification), the factor the merge divides by
+        // (the 08-1 acceptance sign fix).
+        XCTAssertEqual(ev, -1.0, accuracy: 1e-9)
     }
 
     func testPrecheckRejectsCameraMismatch() {

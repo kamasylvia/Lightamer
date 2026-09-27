@@ -1,8 +1,9 @@
 @testable import Lightamer
 @testable import LightamerCore
-import LightamerIOP
 import CoreGraphics
 import ImageIO
+import LightamerIOP
+import UniformTypeIdentifiers
 import XCTest
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -56,6 +57,128 @@ final class ProvenanceV4Tests: XCTestCase {
                 luminance: 0.5, exposure: 2.0),
         ]
         return (root, sources)
+    }
+
+    /// Write one synthetic float-TIFF source WITH real shutter EXIF (the
+    /// same plane shape as `writeSource`, plus the TIFF/EXIF dictionaries
+    /// the ImageIO walk reads) — the EXIF-precheck leg's E2E fixture.
+    private func writeSourceWithEXIF(
+        directory: URL, name: String, luminance: Float, exposure: Float,
+        shutterSeconds: Double
+    ) throws -> URL {
+        let width = 64, height = 64
+        var plane = [Float](repeating: 0, count: width * height * 4)
+        for index in stride(from: 0, to: plane.count, by: 4) {
+            let value = luminance * exposure
+            plane[index] = value
+            plane[index + 1] = value
+            plane[index + 2] = value
+            plane[index + 3] = 1
+        }
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+            | CGBitmapInfo.floatComponents.rawValue
+            | CGBitmapInfo.byteOrder32Little.rawValue
+        let provider = try XCTUnwrap(CGDataProvider(
+            data: plane.withUnsafeBufferPointer { Data(buffer: $0) } as CFData))
+        let image = try XCTUnwrap(CGImage(
+            width: width, height: height, bitsPerComponent: 32,
+            bitsPerPixel: 128, bytesPerRow: width * 16,
+            space: WorkingSpace.colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
+            provider: provider, decode: nil, shouldInterpolate: false,
+            intent: .defaultIntent))
+        let url = directory.appendingPathComponent(name)
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(
+            url as CFURL, UTType.tiff.identifier as CFString, 1, nil))
+        let properties: [CFString: Any] = [
+            kCGImagePropertyTIFFDictionary: [
+                kCGImagePropertyTIFFCompression: 1,
+                kCGImagePropertyTIFFMake: "Sony",
+                kCGImagePropertyTIFFModel: "Sony ILCE-7RM5",
+            ] as [CFString: Any],
+            kCGImagePropertyExifDictionary: [
+                kCGImagePropertyExifLensModel: "FE 24-70mm F2.8 GM II",
+                kCGImagePropertyExifFocalLength: 70.0,
+                kCGImagePropertyExifFNumber: 2.8,
+                kCGImagePropertyExifExposureTime: shutterSeconds,
+                kCGImagePropertyExifISOSpeedRatings: [100],
+            ] as [CFString: Any],
+        ]
+        CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        return url
+    }
+
+    /// The 08-1 acceptance P1 sign erratum's E2E regression pin (Plan 08-5):
+    /// a KNOWN-L scene (0.5) with REAL shutter EXIF must merge back to ≈L —
+    /// the exposure ratios (2^ΔEV in BRIGHTNESS-multiple semantics,
+    /// log2(t_cand/t_ref)) divide each frame's pixels into scene luminance,
+    /// and the §1.2 self-check must VERIFY (the old inverted sign produced
+    /// systematically wrong merge values and `exposureRatioVerified=false`).
+    func testE2EEXIFBracketMergesToKnownLuminance() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("hdr-exif-session-\(UUID().uuidString)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        // Reference at 1s; candidates at 0.25s (−2 EV) and 2s (+1 EV) —
+        // the physical pixel values ride the same factors (p = L·t). L is
+        // kept at 0.25 so EVERY frame's pixels stay inside the §1.2 joint
+        // band gates (0.001 < p < 0.995: the +1 EV frame tops at 0.5 —
+        // an L of 0.5 would clip that frame's band and void the check).
+        let sources = [
+            try writeSourceWithEXIF(directory: root, name: "DSC00001.NEF",
+                luminance: 0.25, exposure: 1.0, shutterSeconds: 1.0),
+            try writeSourceWithEXIF(directory: root, name: "DSC00002.NEF",
+                luminance: 0.25, exposure: 0.25, shutterSeconds: 0.25),
+            try writeSourceWithEXIF(directory: root, name: "DSC00003.NEF",
+                luminance: 0.25, exposure: 2.0, shutterSeconds: 2.0),
+        ]
+        let service = try makeService()
+        _ = try await service.enqueue(
+            kind: .hdrMerge, sources: sources,
+            params: .init(deGhost: false, tag: "hdr"), sessionRoot: root)
+        guard let terminal = await Self.awaitTerminal(service) else {
+            XCTFail("merge never settled")
+            return
+        }
+        guard case .done(let productURL) = terminal.state else {
+            XCTFail("expected .done, got \(terminal.state)")
+            return
+        }
+
+        // ① The provenance EV numerics: brightness-multiple semantics —
+        // [0, −2, +1] for [1s, 0.25s, 2s] against the 1s reference.
+        let sidecar = try JSONDecoder().decode(
+            LightamerSidecar.self,
+            from: Data(contentsOf: LightamerSidecar.sidecarURL(for: productURL)))
+        let provenance = try XCTUnwrap(sidecar.provenance)
+        let evs = provenance.sources.map(\.exposureEV)
+        XCTAssertEqual(evs[0], 0.0, accuracy: 1e-9)
+        XCTAssertEqual(evs[1], -2.0, accuracy: 1e-9)
+        XCTAssertEqual(evs[2], 1.0, accuracy: 1e-9)
+
+        // ② The §1.2 self-check VERIFIES on every frame (the constant-L
+        // fixture's measured median ratios are exactly the EXIF factors).
+        XCTAssertEqual(
+            provenance.exposureRatioVerified, [true, true, true],
+            "the EXIF expectation must match the measured ratios: "
+                + "\(provenance.exposureRatioVerified)")
+
+        // ③ The merged product ≈ L (0.25): every frame's p/2^ΔEV = 0.25,
+        // so the Robertson weighted mean reconstructs the scene luminance
+        // (the research §1.4 golden tolerance, 1%).
+        let decoded = try await RAWDecoder().decode(productURL)
+        var bitmap = [Float](repeating: -1, count: 64 * 64 * 4)
+        CIContext().render(
+            decoded.ciImage, toBitmap: &bitmap, rowBytes: 64 * 16,
+            bounds: CGRect(x: 0, y: 0, width: 64, height: 64),
+            format: CIFormat.RGBAf, colorSpace: WorkingSpace.colorSpace)
+        let center = bitmap[(32 * 64 + 32) * 4]
+        XCTAssertEqual(
+            center, 0.25, accuracy: 0.0025,
+            "the EXIF bracket must merge back to the known scene luminance")
     }
 
     private func makeService() throws -> StackMergeService {

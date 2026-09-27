@@ -94,7 +94,7 @@ P2 实测：全源裁剪（L=8.0 @ ±2EV 括号，覆盖上限 ≈ 3.98·full-we
 | 焦距 | 必须相同 | 严格（EXIF 焦距整 mm 量化） |
 | 光圈 f-number | 必须相同 | 严格（1/3 档量化；光圈漂移 bracket = 超出线性合并前提，**默认拒绝 + 用户 override 放行 + 警告**——override 后 ΔEV 换算只算快门/ISO，光圈差进比例自检 §1.2 兜底） |
 | ISO | 必须相同 | 严格（不同 ISO = 噪声权重失真；override 同上） |
-| 快门 | **必须不同**（bracket 本体） | ΔEV 由 `log2(t_ref/t_i) + log2(ISO_i/ISO_ref)` 合成 |
+| 快门 | **必须不同**（bracket 本体） | ΔEV 由 `log2(t_i/t_ref) + log2(ISO_i/ISO_ref)` 合成（**勘误 2026-09-28，08-1 验收回注 P1**：原文 `log2(t_ref/t_i)` 符号与亮度倍数语义反向——ΔEV 必须是 candidate 相对 reference 的亮度倍数，merge 权重以 `p_i/2^ΔEV ≈ L` 归一；长快门/高 ISO ⇒ 更亮 ⇒ ΔEV 为正） |
 
 ---
 

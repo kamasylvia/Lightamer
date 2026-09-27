@@ -20,9 +20,14 @@ import Foundation
 //   • shutter                   — MUST DIFFER (the bracket itself); equal
 //     exposures = not a bracket → reject
 //
-// ΔEV composition (the merge weight's exposure ratio): log2(t_ref / t_i) +
-// log2(ISO_i / ISO_ref) — the aperture is assumed equal (override admits it
-// as unknown error the self-check bounds).
+// ΔEV composition (the merge weight's exposure ratio) — the BRIGHTNESS
+// MULTIPLE of the candidate over the reference, log2(t_i / t_ref) +
+// log2(ISO_i / ISO_ref): a LONGER candidate shutter (or a higher ISO)
+// makes the candidate frame BRIGHTER, and 2^ΔEV is the factor the merge
+// divides the candidate's pixels by (p_i / 2^ΔEV ≈ L). The aperture is
+// assumed equal (override admits it as unknown error the self-check
+// bounds). (Sign erratum: research §2.4 originally wrote log2(t_ref/t_i) —
+// the inverted brightness semantics the 08-1 acceptance caught, Plan 08-5.)
 //
 // Runtime self-check (§1.2, R2 消解): the EXIF-expected ratio 2^ΔEV is
 // compared against the MEASURED median ratio on the unclipped overlapping
@@ -135,13 +140,15 @@ public enum ExifPrecheck {
             warnings.append("shutter metadata missing")
         }
 
-        // ΔEV composition (§2.4): shutter ratio + ISO ratio; the aperture
-        // (overridden or missing) stays OUT — the runtime self-check bounds
-        // whatever it contributes.
+        // ΔEV composition (§2.4, BRIGHTNESS-multiple semantics): shutter
+        // ratio + ISO ratio — a longer candidate shutter raises the
+        // candidate's brightness multiple, exactly the factor the merge
+        // divides its pixels by. The aperture (overridden or missing)
+        // stays OUT — the runtime self-check bounds whatever it contributes.
         var exposureEV = 0.0
         if let refShutter = reference.shutterSpeed, let candShutter = candidate.shutterSpeed,
            candShutter > 0 {
-            exposureEV += log2(refShutter / candShutter)
+            exposureEV += log2(candShutter / refShutter)
         }
         exposureEV += log2(isoRatio)
 
