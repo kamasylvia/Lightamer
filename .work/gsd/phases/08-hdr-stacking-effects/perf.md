@@ -11,11 +11,23 @@
 |---|---|---|---|---|
 | CIRAW 100MP 单张解码（对齐遍形态：decode + 1024px 全帧渲染） | 2–5 s/张（§12 估） | **0.96–1.93 s**（GFX100S 11648×8736 = 101.8MP，两次采样） | ✓ 优于参考 | R7 消解：解码主导段实测低于估算下界；冷启动首测取 1.93s 稳态上限口径 |
 | CIRAW 100MP 单张解码（合并遍形态：decode + 全幅 float32 RGBA 渲染） | 同上（含全幅写出） | **0.92–0.99 s** | ✓ 优于参考 | 全幅 1.63GB bitmap 短暂驻留（BandStreamer 流式带消费） |
-| MTB 对齐（3-bracket） | ≈3.8 s 单线程 CPU（P1） | 待 T2 首账 | — | |
-| Robertson 合并内循环 | ≈1.1 s 单线程（P2 11.2ns/px） | 待 T3 首账 | — | |
-| ghost/weight-map 面 | 0.3–4 s（P3/P5） | 待 T4 首账 | — | |
-| float TIFF 写 | 2–4 s（EXP-01 量级） | 待 T3 首账 | — | |
-| 全程秒表（100MP×3，<60s 参考基准） | ≈15–40 s | 待 T7 首账 | — | |
+| MTB 对齐（3-bracket） | ≈3.8 s 单线程 CPU（P1） | 512px fixture 搜索 <0.05s（Debug）；100MP 带级未单钉 | 见注 | 对齐面并入 E2E 秒表；100MP 单段钉留 08-5 收口 |
+| Robertson 合并内循环 | ≈1.1 s 单线程（P2 11.2ns/px，Release -O） | 24MP E2E 秒表 73.5s（Debug 宿主，见下） | **口径差归因** | Debug 内循环 ≥10× 慢于 Release；数字不可与 Release 探针直比 |
+| ghost/weight-map 面 | 0.3–4 s（P3/P5） | deGhost-off 探针未含；deGhost 段随 08-3/08-5 | — | |
+| float TIFF 写 | 2–4 s（EXP-01 量级） | 含于 73.5s E2E 内（384MB×3 合成源写盘） | — | |
+| 全程秒表（100MP×3，<60s 参考基准） | ≈15–40 s | **24MP 实测 73.5s（Debug）；线性外推 100MP ≈312s（Debug 上界）** | **归因注记** | ①宿主 = test-direct Debug 配置（Project.swift @testable 与 Release 测试互斥，Release 直测不可行）②research 11.2ns/px 为 Release -O 探针，Debug 逐像素 Swift 循环典型慢 ≥10×③16GB 宿主内存策略（13-2 swap 纪律）禁止 100MP 直测入全套④Release 口径复测归 08-5 收口/独立验证批 |
+
+### T7 补账（HDRPipelineMatrixTests，2026-09-28）
+
+- `testMergeStopwatchProbe24MP`：6000×4000（24MP）3-bracket 合成 float TIFF，真生产 leg
+  （raster decode → MTB → Robertson → float TIFF 落位），deGhost off，全程 **73.5s**（Debug）。
+- `testMergedProductPreviewMemoryProbe`：64×64 真合并产物 → preview 管线，plane = 64KB
+  （= 64×64×16B ✓ 与 2560px≈70MB/平面同一 16B/px 口径，比例自洽）。
+- **发现（D-08-1-T7，回注 08-5）**：①CI input 腿 workingFormat RGBAh 对 sub-1e-4 HDR 值
+  **下溢丢失**（shadow_torture.exr 场景线性值 96×96 经 pipeline 输出全黑，同链 64×32 合成
+  patch 正常——L006 half-banding 的 HDR 面）②torture 96×96 与 patch 64×32 的 pipeline 行为
+  分歧未定位。两项归 08-5 preview float32 预算复核收口；矩阵基座以 patch 域钉住核心主张：
+  65504×2 = 131008 无钳制存活 + toneequal(0) 全链尾恒等（maxDev = 0.0）。
 
 ### 首测记录（08-1 T1）
 
