@@ -1,5 +1,6 @@
 import Foundation
 import LightamerCore
+import LightamerIOP
 import MCP
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,6 +45,17 @@ enum McpServerController {
     /// a store by itself.
     typealias StoreProvider = @Sendable () async -> SessionIndexStore?
 
+    /// The open-session seam for the EDITING face (Plan 14-2): the index
+    /// store AND its root URL (the tools build absolute image URLs and the
+    /// Output landing zone from the pair). Same nil-for-nil honesty.
+    typealias SessionProvider =
+        @Sendable () async -> (store: SessionIndexStore, root: URL)?
+
+    /// The ONE render gate per server kernel (Plan 14-2): every render-class
+    /// tool across the editing (14-2) and culling (14-3) faces serializes on
+    /// THIS instance — concurrency 1, FIFO.
+    static let sharedRenderGate = McpRenderGate()
+
     /// The LightamerEntryPoint fork probe: scans argv for a headless MCP
     /// flag. Returns false for a normal GUI launch.
     static func headlessModeIfRequested() -> LaunchMode? {
@@ -85,7 +97,9 @@ enum McpServerController {
                                 .data(using: .utf8)!)
                         exit(1)
                     }
-                    let registry = await makeRegistry(storeProvider: { nil })
+                    let registry = await makeRegistry(
+                        storeProvider: { nil },
+                        editing: await makeEditingSeams(session: { nil }))
                     await registry.setWriterCheck { @Sendable in lock != nil }
                     let server = await McpAdapters.makeServer(registry: registry)
                     try await server.start(transport: StdioTransport())
@@ -98,7 +112,8 @@ enum McpServerController {
                     do {
                         let handle = try await startHTTPHost(
                             paths: McpEndpointPaths.makeDefault(),
-                            storeProvider: { nil })
+                            storeProvider: { nil },
+                            editing: await makeEditingSeams(session: { nil }))
                         await log(
                             "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
                                 + " — endpoint file \(handle.paths.jsonURL.path)")
@@ -132,8 +147,14 @@ enum McpServerController {
     /// index row count through the read-only `SessionIndexStore.query` face
     /// (SessionIndexStore.swift:561-584, the same consumption point 14-3's
     /// list_photos formalizes). Both read-only.
+    ///
+    /// Plan 14-2: `editing` non-nil registers the five editing tools on the
+    /// SAME kernel (the closed tool face is identical across hosts — the
+    /// dual-host red line: even a read-only host lists every tool and fails
+    /// writes at CALL time). nil = probe-only (the 14-1 tests' shape).
     static func makeRegistry(
-        storeProvider: @escaping StoreProvider
+        storeProvider: @escaping StoreProvider,
+        editing: EditingToolset.Seams? = nil
     ) async -> McpToolRegistry {
         let registry = McpToolRegistry()
 
@@ -170,7 +191,56 @@ enum McpServerController {
                 return .text("rows=\(rows.count)")
             })
 
+        // Plan 14-2: the editing face rides the same kernel.
+        if let editing {
+            await EditingToolset.register(into: registry, seams: editing)
+        }
+
         return registry
+    }
+
+    // MARK: - The editing seams assembly (Plan 14-2)
+
+    /// Lazy `MetalContext` box (an actor: first render-class call pays the
+    /// one-time context build; a failed build retries NOTHING — the typed
+    /// `renderFailed` face answers instead).
+    private actor LazyMetalContext {
+        private var cached: MetalContext?
+        func get() -> MetalContext? {
+            if let cached { return cached }
+            guard let context = try? MetalContext() else { return nil }
+            cached = context
+            return context
+        }
+    }
+
+    /// Builds the production editing seams: a POPULATED module registry
+    /// (terminal trio + LightamerIOP), a lazy GPU context, the shared render
+    /// gate, the host's session pair and the GUI-live judge.
+    ///
+    /// - Parameters:
+    ///   - session: the (store, root) pair provider (headless: `{ nil }` —
+    ///     the tools answer `notSessionMember`).
+    ///   - liveImageURL: the GUI-live judge (headless: `{ nil }` — nothing
+    ///     is open in an editor, everything is writable).
+    ///   - yiyinInjector: the export_image production injector (the GUI host
+    ///     passes `ExportState.makeYiyinInjector(logoStore:)`; headless nil).
+    static func makeEditingSeams(
+        session: @escaping SessionProvider,
+        liveImageURL: @escaping @Sendable () async -> URL? = { nil },
+        yiyinInjector: (@Sendable () async -> ExportYiyinInjector?)? = nil
+    ) async -> EditingToolset.Seams {
+        let modules = ModuleRegistry()
+        await LightamerIOPRegistry.populate(modules)
+        let metal = LazyMetalContext()
+        var seams = EditingToolset.Seams(
+            session: session,
+            metal: { await metal.get() },
+            modules: { modules },
+            gate: sharedRenderGate,
+            liveImageURL: liveImageURL)
+        seams.yiyinInjector = yiyinInjector
+        return seams
     }
 
     // MARK: - The HTTP host assembly (headless daemon + GUI-embedded share it)
@@ -232,7 +302,8 @@ enum McpServerController {
         paths: McpEndpointPaths,
         storeProvider: @escaping StoreProvider,
         port: Int = 0,
-        exposure: McpExposure = .loopback
+        exposure: McpExposure = .loopback,
+        editing: EditingToolset.Seams? = nil
     ) async throws -> HttpHostHandle {
         // The Bearer valve exists ONLY on the non-loopback branch (the
         // loopback default is zero-token by design — the smallest surface).
@@ -265,7 +336,7 @@ enum McpServerController {
             throw McpHostError.underlying("writer-lock acquire failed: \(reason)")
         }
         do {
-            let registry = await makeRegistry(storeProvider: storeProvider)
+            let registry = await makeRegistry(storeProvider: storeProvider, editing: editing)
             // The host holds the writer right by construction.
             await registry.setWriterCheck { true }
             let pipeline = bearerToken.map { validationPipelineWithBearer(token: $0) }
@@ -308,10 +379,17 @@ enum McpServerController {
 
     /// Launch-time hook (the app root's .task): records the session store
     /// seam and starts the embedded host when the preference is on.
+    /// Plan 14-2: `editing` non-nil registers the editing tools on the
+    /// embedded kernel (the GUI host builds the seams via
+    /// `makeEditingSeams` with its live session + GUI-live judge).
     static func startEmbeddedIfPreferenceEnabled(
-        storeProvider: @escaping StoreProvider
+        storeProvider: @escaping StoreProvider,
+        editing: EditingToolset.Seams? = nil
     ) async {
-        withEmbeddedState { $0.provider = storeProvider }
+        withEmbeddedState {
+            $0.provider = storeProvider
+            $0.editing = editing
+        }
         guard UserDefaults.standard.bool(forKey: embeddedServerEnabledKey) else { return }
         await startEmbeddedServer()
     }
@@ -322,9 +400,13 @@ enum McpServerController {
     static func startEmbeddedServer() async {
         if withEmbeddedState({ $0.handle != nil }) { return }
         do {
-            let provider = withEmbeddedState { $0.provider } ?? { nil }
+            let (provider, editing) = withEmbeddedState { state in
+                (state.provider ?? { nil }, state.editing)
+            }
             let handle = try await startHTTPHost(
-                paths: McpEndpointPaths.makeDefault(), storeProvider: provider)
+                paths: McpEndpointPaths.makeDefault(),
+                storeProvider: provider,
+                editing: editing)
             let wonRace = withEmbeddedState { state -> Bool in
                 if state.handle == nil {
                     state.handle = handle
@@ -375,6 +457,7 @@ enum McpServerController {
     private struct EmbeddedState {
         var handle: HttpHostHandle?
         var provider: StoreProvider?
+        var editing: EditingToolset.Seams?
     }
     nonisolated(unsafe) private static var embeddedState = EmbeddedState()
 

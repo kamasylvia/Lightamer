@@ -174,6 +174,14 @@ final class PipeCoordinator {
     /// anchor (`<original>.lra.masks/`) for raster-mask loading.
     private var currentImageURL: URL?
 
+    /// The GUI-live judge for the MCP editing face (Plan 14-2 T2; §RQ-14-3①
+    /// 精确来源): the image currently loaded in the editor, or nil. The MCP
+    /// toolset reads this through an injected closure with a MainActor hop
+    /// (the `LightamerApp` terminateHandler `assumeIsolated` posture) — the
+    /// coordinator reference itself never leaves the App state layer.
+    /// Read-only: the write path stays the load flow (:638).
+    var liveImageURL: URL? { currentImageURL }
+
     /// The UI-facing hot-layer setter (the LayersPanel selection drives
     /// this through the session; additive, idempotent).
     func setHotLayer(_ layerID: UUID?) {

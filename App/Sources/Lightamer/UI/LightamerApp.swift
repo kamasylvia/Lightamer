@@ -896,12 +896,29 @@ internal struct LightamerApp: App {
                     // in 14-4 — this is the read face it will drive). The
                     // probe tools see the live session store through the
                     // same seam every other closure here uses.
+                    // Plan 14-2: the editing tools ride the same kernel —
+                    // the GUI host supplies the live (store, root) pair,
+                    // the editor's current image (the GUI-live judge,
+                    // MainActor hop) and the production yiyin injector.
+                    let editingSeams = await McpServerController.makeEditingSeams(
+                        session: { [sessionIndexController] in
+                            await MainActor.run { sessionIndexController.currentSession }
+                        },
+                        liveImageURL: { [pipeCoordinator] in
+                            await MainActor.run { pipeCoordinator.liveImageURL }
+                        },
+                        yiyinInjector: { [browserLogoStore] in
+                            await MainActor.run {
+                                ExportState.makeYiyinInjector(logoStore: browserLogoStore)
+                            }
+                        })
                     await McpServerController.startEmbeddedIfPreferenceEnabled(
                         storeProvider: { [sessionIndexController] in
                             await MainActor.run {
                                 sessionIndexController.currentStore
                             }
-                        })
+                        },
+                        editing: editingSeams)
                 }
         }
         .defaultSize(width: 1440, height: 900)

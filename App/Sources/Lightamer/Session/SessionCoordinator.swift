@@ -382,6 +382,15 @@ final class SessionIndexController {
     /// it after each open; nil before the first open / after a close).
     var currentStore: SessionIndexStore? { store }
 
+    /// The CURRENT session pair (Plan 14-2: the MCP editing face's session
+    /// seam — the tools build absolute image URLs and the Output landing
+    /// zone from store + root). Recorded at `openAndSync`, cleared at
+    /// `close`; nil-for-nil honest like `currentStore`.
+    var currentSession: (store: SessionIndexStore, root: URL)? {
+        guard let store, let root = sessionRootURL else { return nil }
+        return (store, root)
+    }
+
     /// Plan 09-3 progressive-ingest seam: every scanner page lands here
     /// BEFORE the sync transaction commits (the grid's placeholder cells
     /// render while the walk runs). App-root wired to the browser model.
@@ -391,6 +400,7 @@ final class SessionIndexController {
     func openAndSync(root: URL) async -> SessionCoordinator.SessionOpenSyncResult {
         let store = SessionIndexStore(sessionRoot: root)
         self.store = store
+        sessionRootURL = root
         do {
             let result = try await store.openSession(
                 root: root, scan: SessionTreeScanner.scan(root: root)
@@ -435,7 +445,11 @@ final class SessionIndexController {
     func close() async {
         await store?.close()
         store = nil
+        sessionRootURL = nil
     }
+
+    /// The open session's root (Plan 14-2 — see `currentSession`).
+    private var sessionRootURL: URL?
 
     // MARK: - Reconcile (Plan 09-02 T3)
 

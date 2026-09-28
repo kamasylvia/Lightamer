@@ -199,16 +199,25 @@ public enum QuickLookRenderer {
     /// quantized packedRGBA8 + the color space the pixels are encoded in.
     /// `@unchecked` — `CGColorSpace` is an immutable CF type (the
     /// `ExportRenderStage` posture).
-    struct RenderedPlane: @unchecked Sendable {
-        let plane: ExportQuantizedPlane
-        let colorSpace: CGColorSpace
+    ///
+    /// Public since Plan 14-2 T1 (execution decision D-14-2-T1-1): the MCP
+    /// render_preview tool is the THIRD headless consumer of this shape
+    /// (QL pane → 14-2 parity tests → the MCP inline leg) and must consume
+    /// the SAME verified body — visibility only, zero body changes.
+    public struct RenderedPlane: @unchecked Sendable {
+        public let plane: ExportQuantizedPlane
+        public let colorSpace: CGColorSpace
     }
 
     /// Decode → sRGB display-terminal chain → routed pipe run → export-queue
     /// exit leg → packedRGBA8. The ExportRenderer.renderStage shape with the
     /// three subtractions (no yiyin injection, no variant sizing — the
     /// caller's long edge IS the render target, no encode naming/writing).
-    static func renderedPlane(
+    ///
+    /// Public since Plan 14-2 T1 (see `RenderedPlane`) — the MCP render
+    /// preview leg consumes this verbatim (§RQ-14-4: the direct
+    /// `renderedPlane` face, NEVER the `preview()` fallback chain).
+    public static func renderedPlane(
         imageURL: URL,
         targetLongEdge: Int,
         metal: MetalContext,
@@ -308,7 +317,8 @@ public enum QuickLookRenderer {
 
     /// The CGImage face of a rendered plane (the `ImageIOEncodeCore`
     /// premultiplied-last RGBA8 posture; the target space rides the bitmap).
-    static func image(from rendered: RenderedPlane) throws -> CGImage {
+    /// Public since Plan 14-2 T1 — same consumption face as `renderedPlane`.
+    public static func image(from rendered: RenderedPlane) throws -> CGImage {
         try ImageIOEncodeCore.makeCGImage(
             from: rendered.plane, colorSpace: rendered.colorSpace)
     }
@@ -435,7 +445,11 @@ public enum QuickLookRenderer {
     /// The winner answers; the loser's task is cancelled — a render that
     /// already reached the GPU finishes into the void (no mid-flight GPU
     /// cancellation; the generation-gate posture).
-    static func boundedWait<T: Sendable>(
+    ///
+    /// Public since Plan 14-2 T1: the MCP render-class tools race their
+    /// renders against the SAME wait primitive (`McpTimeouts` constants —
+    /// one timeout family, §RQ-14-14).
+    public static func boundedWait<T: Sendable>(
         seconds: Double, _ operation: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         try await withThrowingTaskGroup(of: T.self) { group in
