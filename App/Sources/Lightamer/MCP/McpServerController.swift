@@ -19,6 +19,12 @@ import MCP
 /// Host orchestration for the Lightamer MCP server.
 enum McpServerController {
 
+    /// Host-assembly failures (distinct from tool-face typed errors).
+    enum McpHostError: Error {
+        case writerLockHeld
+        case underlying(String)
+    }
+
     /// The launch modes, spelled exactly as the CLI flags that select them.
     enum LaunchMode: String, CaseIterable {
         case stdio = "--mcp-stdio"
@@ -85,13 +91,28 @@ enum McpServerController {
                     try await server.start(transport: StdioTransport())
                     await log("headless MCP server up (stdio)")
                 case .http:
-                    // T4 delivers the NIO adapter leg; until then the flag is
-                    // an explicit, non-silent rejection (L020: no silent
-                    // degradation).
-                    stderr.write(
-                        "--mcp-http: the NIO Streamable HTTP leg lands in Plan 14-1 T4\n"
-                            .data(using: .utf8)!)
-                    exit(2)
+                    // The headless HTTP daemon: same binding discipline as
+                    // the GUI host (writer lock → bind 127.0.0.1 → write the
+                    // discovery json → serve), a random port, the discovery
+                    // file is THE consumer contract (launchers read it).
+                    do {
+                        let handle = try await startHTTPHost(
+                            paths: McpEndpointPaths.makeDefault(),
+                            storeProvider: { nil })
+                        await log(
+                            "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
+                                + " — endpoint file \(handle.paths.jsonURL.path)")
+                    } catch McpHostError.writerLockHeld {
+                        let message =
+                            "--mcp-http: another Lightamer instance holds the writer "
+                            + "lock; HTTP daemon not started\n"
+                        stderr.write(Data(message.utf8))
+                        exit(4)
+                    } catch {
+                        stderr.write(
+                            "headless MCP server failed: \(error)\n".data(using: .utf8)!)
+                        exit(1)
+                    }
                 }
             } catch {
                 stderr.write(
@@ -150,6 +171,173 @@ enum McpServerController {
             })
 
         return registry
+    }
+
+    // MARK: - The HTTP host assembly (headless daemon + GUI-embedded share it)
+
+    /// A running Streamable HTTP host: the listener, its REAL port and the
+    /// writer lock it holds. `stop` drains in-flight work, deletes the
+    /// discovery json, then releases the lock (§RQ-14-14 ordering).
+    struct HttpHostHandle: Sendable {
+        let host: McpHTTPHost
+        let port: Int
+        let lock: McpEndpointLock
+        let paths: McpEndpointPaths
+
+        func stop(drainTimeout: Duration = McpTimeouts.shutdownDrain) async {
+            await host.stop(drainTimeout: drainTimeout)
+            McpEndpointFile.remove(in: paths)
+            lock.unlock()
+        }
+    }
+
+    /// Assembles and starts one HTTP host: writer lock → bind (127.0.0.1
+    /// hardcoded, random port by default — the ACTUAL port rides the handle
+    /// and the discovery file) → write discovery json → serve. Throws
+    /// `McpHostError.writerLockHeld` when another instance is the writer —
+    /// an HTTP host without the writer right is NOT started read-only
+    /// (read-only makes sense for a stdio agent session; a daemon whose
+    /// entire purpose is being discovered must not fake-liven the network).
+    static func startHTTPHost(
+        paths: McpEndpointPaths,
+        storeProvider: @escaping StoreProvider,
+        port: Int = 0,
+        validationPipeline: (any HTTPRequestValidationPipeline)? = nil
+    ) async throws -> HttpHostHandle {
+        let lock: McpEndpointLock
+        switch McpEndpointLock.acquire(in: paths) {
+        case .success(let acquired):
+            lock = acquired
+        case .failure(.heldByOther):
+            throw McpHostError.writerLockHeld
+        case .failure(.ioError(let reason)):
+            throw McpHostError.underlying("writer-lock acquire failed: \(reason)")
+        }
+        do {
+            let registry = await makeRegistry(storeProvider: storeProvider)
+            // The host holds the writer right by construction.
+            await registry.setWriterCheck { true }
+            let host = McpHTTPHost(
+                configuration: .init(port: port),
+                validationPipeline: validationPipeline
+            ) { transport in
+                // One Server actor per SESSION, the SAME kernel.
+                await McpAdapters.makeServer(registry: registry)
+            }
+            try await host.start()
+            guard let bound = await host.boundPort else {
+                try await host.stop()
+                throw McpHostError.underlying("bound port unreadable after bind")
+            }
+            let info = McpEndpointInfo(
+                schemaVersion: McpEndpointInfo.schemaVersionV1,
+                transport: McpEndpointInfo.transportStreamableHTTP,
+                host: McpHTTPHost.loopbackHost,
+                port: bound,
+                pid: getpid(),
+                startedAt: McpEndpointInfo.nowISO8601(),
+                serverName: serverName,
+                serverVersion: serverVersion,
+                auth: McpEndpointInfo.authNone)
+            try McpEndpointFile.write(info, in: paths)
+            return HttpHostHandle(host: host, port: bound, lock: lock, paths: paths)
+        } catch {
+            lock.unlock()
+            throw error
+        }
+    }
+
+    // MARK: - GUI-embedded host (the preference read face; the UI switch is
+    // Plan 14-4 — this is the machinery the switch will drive)
+
+    /// The UserDefaults key the 14-4 Settings toggle binds; read at launch
+    /// and on toggle.
+    static let embeddedServerEnabledKey = "mcp_server_enabled"
+
+    /// Launch-time hook (the app root's .task): records the session store
+    /// seam and starts the embedded host when the preference is on.
+    static func startEmbeddedIfPreferenceEnabled(
+        storeProvider: @escaping StoreProvider
+    ) async {
+        withEmbeddedState { $0.provider = storeProvider }
+        guard UserDefaults.standard.bool(forKey: embeddedServerEnabledKey) else { return }
+        await startEmbeddedServer()
+    }
+
+    /// Starts the embedded host now (the preference toggle's on-leg).
+    /// No-op when already running; a held writer lock is logged and ignored
+    /// (another instance is the writer — the GUI shows no fake endpoint).
+    static func startEmbeddedServer() async {
+        if withEmbeddedState({ $0.handle != nil }) { return }
+        do {
+            let provider = withEmbeddedState { $0.provider } ?? { nil }
+            let handle = try await startHTTPHost(
+                paths: McpEndpointPaths.makeDefault(), storeProvider: provider)
+            let wonRace = withEmbeddedState { state -> Bool in
+                if state.handle == nil {
+                    state.handle = handle
+                    return true
+                }
+                return false
+            }
+            if !wonRace {
+                await handle.stop()  // a concurrent start got in first
+                return
+            }
+            await log("embedded MCP host up on 127.0.0.1:\(handle.port)")
+        } catch McpHostError.writerLockHeld {
+            await log(
+                "embedded MCP host not started: another instance holds the writer lock")
+        } catch {
+            await log("embedded MCP host failed: \(error)")
+        }
+    }
+
+    /// Stops the embedded host (the preference off-leg).
+    static func stopEmbeddedServer() async {
+        let handle = takeEmbeddedHandleLocked()
+        guard let handle else { return }
+        await handle.stop()
+        await log("embedded MCP host stopped")
+    }
+
+    /// The applicationWillTerminate leg: a SYNCHRONOUS bounded wait (5s —
+    /// the same shape as the 02-06 sidecar flush), because the AppKit
+    /// termination callback cannot await. After the bound, the process exit
+    /// is the cleanup: the kernel releases the lock, and any json residue is
+    /// healed by the discovery probe on next start.
+    static func stopEmbeddedForTermination() {
+        guard let handle = takeEmbeddedHandleLocked() else { return }
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached {
+            await handle.stop()
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 5)
+    }
+
+    // The embedded-runtime box (NSLock-guarded; all mutations scoped through
+    // the sync helpers below so no async context ever touches the lock
+    // primitives directly).
+    private static let embeddedStateLock = NSLock()
+    private struct EmbeddedState {
+        var handle: HttpHostHandle?
+        var provider: StoreProvider?
+    }
+    nonisolated(unsafe) private static var embeddedState = EmbeddedState()
+
+    private static func withEmbeddedState<T>(_ body: (inout EmbeddedState) -> T) -> T {
+        embeddedStateLock.lock()
+        defer { embeddedStateLock.unlock() }
+        return body(&embeddedState)
+    }
+
+    private static func takeEmbeddedHandleLocked() -> HttpHostHandle? {
+        withEmbeddedState { state in
+            let handle = state.handle
+            state.handle = nil
+            return handle
+        }
     }
 
     /// Unified os_log face for the host legs (the GUI side watches the

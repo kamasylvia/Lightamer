@@ -181,6 +181,13 @@ let project = Project(
                 // App/Sources/Lightamer/MCP/ is the sole import site; Core
                 // and IOP stay SDK-free (layering iron rule).
                 .package(product: "MCP"),
+                // Plan 14-1 T4 (research D1): swift-nio is a REAL app
+                // dependency, not an SDK implementation detail — the SDK's
+                // HTTP server transport has NO listener; the NIO adapter leg
+                // (McpHTTPTransport.swift) imports the three faces below.
+                .package(product: "NIOCore"),
+                .package(product: "NIOPosix"),
+                .package(product: "NIOHTTP1"),
             ],
             settings: .settings(
                 base: baseSettings.merging([

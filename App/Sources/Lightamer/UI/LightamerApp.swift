@@ -878,11 +878,30 @@ internal struct LightamerApp: App {
                     appDelegate.terminateHandler = {
                         pipeCoordinator.flushForTermination()
                         exportState.flushForTermination()
+                        // Plan 14-1 T4: the embedded MCP host's graceful
+                        // stop rides the SAME synchronous termination
+                        // callback — bounded drain (5s), discovery json
+                        // deleted, writer lock released (or the process exit
+                        // cleans up through the kernel + the discovery
+                        // probe).
+                        McpServerController.stopEmbeddedForTermination()
                     }
                     #if DEBUG
                     resizeProbeIfRequested()
                     sidecarProbeIfRequested()
                     #endif
+                    // Plan 14-1 T4: the EMBEDDED MCP host (D-14-CONTEXT-2①:
+                    // preference on → writer lock → bind 127.0.0.1 → write
+                    // the discovery json → serve; the Settings toggle lands
+                    // in 14-4 — this is the read face it will drive). The
+                    // probe tools see the live session store through the
+                    // same seam every other closure here uses.
+                    await McpServerController.startEmbeddedIfPreferenceEnabled(
+                        storeProvider: { [sessionIndexController] in
+                            await MainActor.run {
+                                sessionIndexController.currentStore
+                            }
+                        })
                 }
         }
         .defaultSize(width: 1440, height: 900)

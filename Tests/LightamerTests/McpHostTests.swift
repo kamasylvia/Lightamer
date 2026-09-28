@@ -209,6 +209,171 @@ final class McpHostTests: XCTestCase {
         XCTAssertEqual(write, .text("wrote"))
     }
 
+    // MARK: - T4: the Streamable HTTP leg
+
+    /// The full SDK-client round trip against the NIO leg: connect (auto
+    /// initialize, 2025-11-25 echo) → tools/list → tools/call → disconnect.
+    /// This is ALSO the runtime 127.0.0.1 binding proof — the socket only
+    /// exists on the loopback constant.
+    func testHTTPEndToEndSDKClientRoundTrip() async throws {
+        let handle = try await McpServerController.startHTTPHost(
+            paths: paths, storeProvider: { nil })
+
+        let endpoint = URL(string: "http://127.0.0.1:\(handle.port)/mcp")!
+        let client = HTTPClientTransport(endpoint: endpoint)
+        let clientActor = MCP.Client(name: "host-tests", version: "0.0.1")
+        let initResult = try await clientActor.connect(transport: client)
+        XCTAssertEqual(
+            initResult.protocolVersion, "2025-11-25",
+            "the initialize echo pins the protocol revision")
+
+        let (tools, _) = try await clientActor.listTools()
+        XCTAssertEqual(Set(tools.map(\.name)), ["ping", "count_images"])
+
+        let (content, isError) = try await clientActor.callTool(
+            name: "ping", arguments: ["echo": .string("http-hello")])
+        XCTAssertNil(isError)
+        XCTAssertEqual(McpAdapters.outputContent(from: content[0]), .text("http-hello"))
+
+        await clientActor.disconnect()
+
+        // Stop: the discovery file is deleted and the writer lock returns.
+        await handle.stop()
+        XCTAssertEqual(
+            McpEndpointDiscovery.discover(in: paths), .noEndpointFile,
+            "after stop there is neither json nor a live lock")
+        XCTAssertTrue(
+            McpEndpointLock.probeLockAvailable(in: paths),
+            "stop must release the writer lock")
+    }
+
+    /// The discovery-file write/delete timing against a live host: alive
+    /// while serving, gone after stop (no residue on a graceful shutdown).
+    func testHTTPEndpointFileWriteDeleteTiming() async throws {
+        let handle = try await McpServerController.startHTTPHost(
+            paths: paths, storeProvider: { nil })
+
+        guard case .alive(let info) = McpEndpointDiscovery.discover(in: paths) else {
+            return XCTFail("a live host must be discoverable")
+        }
+        XCTAssertEqual(info.host, "127.0.0.1", "the loopback constant rides the file")
+        XCTAssertEqual(info.port, handle.port, "the REAL bound port rides the file")
+        XCTAssertEqual(info.transport, "streamable-http")
+        XCTAssertEqual(info.auth, McpEndpointInfo.authNone)
+
+        await handle.stop()
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: paths.jsonURL.path),
+            "graceful stop deletes the discovery json")
+    }
+
+    /// The SDK's built-in validation pipeline (probe behavior, now pinned):
+    /// evil Origin → 403, no-port localhost Origin → 403 (the pattern
+    /// `http://localhost:*` requires a port, D6), Host mismatch → 421, and
+    /// no Origin (the agent-CLI shape) → passes.
+    func testOriginAndHostValidationPipeline() async throws {
+        let handle = try await McpServerController.startHTTPHost(
+            paths: paths, storeProvider: { nil })
+        defer { Task { await handle.stop() } }
+
+        let initializeBody =
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}"#
+
+        func post(headers: [String: String]) async -> HTTPResponse {
+            var merged: [String: String] = [
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
+            ]
+            for (key, value) in headers { merged[key] = value }
+            let request = HTTPRequest(
+                method: "POST", headers: merged,
+                body: Data(initializeBody.utf8), path: "/mcp")
+            return await handle.host.handleHTTPRequest(request)
+        }
+
+        let evil = await post(headers: ["Origin": "http://evil.example.com"])
+        XCTAssertEqual(evil.statusCode, 403, "invalid Origin must be rejected")
+
+        let noPort = await post(headers: ["Origin": "http://localhost"])
+        XCTAssertEqual(
+            noPort.statusCode, 403,
+            "a portless localhost Origin is rejected (D6: * requires a port)")
+
+        let hostMismatch = await post(
+            headers: [
+                "Host": "evil.example.com:1",
+                "Origin": "http://localhost:\(handle.port)",
+            ])
+        XCTAssertEqual(hostMismatch.statusCode, 421, "Host mismatch = DNS rebinding guard")
+
+        let clean = await post(headers: [:])
+        XCTAssertEqual(
+            clean.statusCode, 200,
+            "no Origin (agent CLI clients) passes the pipeline")
+    }
+
+    /// Per-session transports with a HARD CAP of 4 (§RQ-14-14): four
+    /// initialize requests create four sessions; the fifth gets 503.
+    func testSessionCapacityCap503() async throws {
+        let handle = try await McpServerController.startHTTPHost(
+            paths: paths, storeProvider: { nil })
+        defer { Task { await handle.stop() } }
+
+        let initializeBody =
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}"#
+        let request = HTTPRequest(
+            method: "POST",
+            headers: [
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
+            ],
+            body: Data(initializeBody.utf8), path: "/mcp")
+
+        for index in 0..<4 {
+            let response = await handle.host.handleHTTPRequest(request)
+            XCTAssertEqual(
+                response.statusCode, 200, "session \(index) must be admitted")
+        }
+        let overflow = await handle.host.handleHTTPRequest(request)
+        XCTAssertEqual(overflow.statusCode, 503, "the fifth session is over the cap")
+    }
+
+    /// Single transport = single session (probe finding): a second
+    /// initialize riding the SAME session id is a 400.
+    func testSecondInitializeOnSameSessionIs400() async throws {
+        let handle = try await McpServerController.startHTTPHost(
+            paths: paths, storeProvider: { nil })
+        defer { Task { await handle.stop() } }
+
+        let initializeBody =
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}"#
+        let request = HTTPRequest(
+            method: "POST",
+            headers: [
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
+            ],
+            body: Data(initializeBody.utf8), path: "/mcp")
+
+        let first = await handle.host.handleHTTPRequest(request)
+        XCTAssertEqual(first.statusCode, 200)
+        let sessionID = try XCTUnwrap(
+            first.headers["MCP-Session-Id"], "initialize must mint a session id")
+
+        // HTTPRequest.headers is immutable — the second initialize rides a
+        // NEW request carrying the minted session id.
+        var sessionHeaders: [String: String] = request.headers
+        sessionHeaders["Mcp-Session-Id"] = sessionID
+        let second = await handle.host.handleHTTPRequest(
+            HTTPRequest(
+                method: "POST",
+                headers: sessionHeaders,
+                body: Data(initializeBody.utf8), path: "/mcp"))
+        XCTAssertEqual(
+            second.statusCode, 400,
+            "re-initializing an established session is a protocol error")
+    }
+
     // MARK: - Discovery protocol (state 5)
 
     func testDiscoveryProtocolThreeOutcomes() async throws {
