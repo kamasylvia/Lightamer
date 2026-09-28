@@ -2,11 +2,11 @@
 
 ## What This Is
 
-Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Image RAW）的 RAW 编辑器与图片管理器，目标是对标 Darktable 的全量图像处理（iop）能力，同时采用 Capture One 的 Session 工作流（文件夹即会话）+ Capture One 风格的调整图层（adjustment layers）来组织照片与局部调整。它面向摄影作者，把"调整 → 评分 → 批量导出 → 印框/水印出图"压缩成一个原生丝滑的工作流，并内置壹印（yiyin）的印框/水印能力作为一等公民面板。
+Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Image RAW）的 RAW 编辑器与图片管理器，功能深度对标 **Alcedo Studio**（开源 RAW 编辑器；**2026-09-27 用户指令翻转**：原基准为 Darktable 全量 91 iop 模块，因 dt 功能面过大且 raw 域功能在 CIRAW 路线下不可达，改为以 Alcedo 功能面为准），同时采用 Capture One 的 Session 工作流（文件夹即会话）+ Capture One 风格的调整图层（adjustment layers）来组织照片与局部调整。它面向摄影作者，把"调整 → 评分 → 批量导出 → 印框/水印出图"压缩成一个原生丝滑的工作流，并内置壹印（yiyin）的印框/水印能力作为一等公民面板。
 
 ## Core Value
 
-在 macOS 上用 Metal 加速提供 100MP+ 大图下零延迟的 RAW 调整体验，并让 Capture One Session 工作流与 Darktable 级调整深度在同一原生 app 中共存——这是目前市面没有的组合。
+在 macOS 上用 Metal 加速提供 100MP+ 大图下零延迟的 RAW 调整体验，并让 Capture One Session 工作流与 Alcedo Studio 级调整深度（节点式调色：影调/色彩、色调曲线、LGG 色轮、可选颜色、细节、局部色调映射、胶片 LUT/颗粒/光晕）在同一原生 app 中共存——这是目前市面没有的组合。
 
 ## Requirements
 
@@ -18,7 +18,7 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 
 - [ ] 读取主流相机 RAW（CR3/NEF/ARW/RAF/RW2/ORF 等）、DNG、HDR/堆栈源文件，以及 JPEG/HEIC/PNG/WebP/TIFF 等非 RAW 格式
 - [ ] Capture One Session 模式：文件夹即会话，自动维护 Capture/Crop/Output 三级子目录，sidecar 调整文件（Lightamer 自有格式，不与 Darktable 二进制兼容）随原片存放，多 Session 切换 + 最近会话列表
-- [ ] Darktable 级 iop（图像操作模块）能力，按 Darktable 全量对标（91 个模块，Fine 粒度分阶段交付）；Core Image RAW（macOS 27 起原生 RAW 9 Neural Engine demosaic+denoise）覆盖的直接用，缺口用 Metal compute shader 自实现
+- [ ] Alcedo Studio 级 iop（图像操作模块）能力【**2026-09-27 用户指令翻转**：基准由 Darktable 全量 91 模块改为 Alcedo 功能面；已交付的 dt 派生 iop（filmicrgb/sigmoid/toneequal/denoiseprofile 等 39 模块）全部保留为管线资产；与 Alcedo 的真实缺口登记为 REQUIREMENTS ALCE 族（V2）】；Core Image RAW（macOS 27 起原生 RAW 9 Neural Engine demosaic+denoise）覆盖的直接用，缺口用 Metal compute shader 自实现
 - [ ] Capture One 风格 adjustment layers（每层独立 iop + 每层蒙版 + 层管理 + 混合模式）作为局部调整的核心组织机制
 - [ ] AI 能力：v1 仅含 Apple 原生框架（Vision/Core Image）可直接实现的——主体检测蒙版（`VNGenerateForegroundInstanceMaskRequest`）+ 频率分离 AI 磨皮；需自定义 Core ML 模型的（天空分离/人像部位/通用语义分割/追色/评分）留 v2
 - [ ] Metal 直渲（MTKView/MTLTexture）主编辑视图，100MP+ 高分辨率下交互 60fps
@@ -43,7 +43,8 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 ## Context
 
 **参考源码：**
-- **Darktable**（`/Volumes/UNITEK/Documents/Development/darktable`）：唯一可源码参考的同类项目。C/C++ 实现，OpenCL 加速。Lightamer 的 iop 算法、模块顺序、色彩管理流程应大量参考其实现（移植到 Metal compute shader）。Darktable 的 sidecar（.xmp）格式、预设（.dtstyle）、LUT 模块是互通目标。
+- **Alcedo Studio**（`/Volumes/UNITEK/Documents/Development/AlcedoStudio`，2026-09-27 引入）：**功能对标基准**（GPL-3.0 C++20，Windows CUDA/OpenCL + macOS Metal）。节点式调色图（Develop → Color Grade×N → Display Transform，每节点独立调整+蒙版）与本项目 adjustment layers 同构；其 GPU demosaic 算子（RCD/DemosaicNet 蒸馏 NN）、inpaint-opposed 高光重建、ACES 2.0/OpenDRT DRT、图库（DuckDB + CLIP 自然语言搜索 + AI 评片）、导出（OpenEXR/Ultra HDR JPEG）为增量功能参考。同 GPL-3.0——只读参考算法思路，代码不复制入库（本项目 MIT）。
+- **Darktable**（`/Volumes/UNITEK/Documents/Development/darktable`）：**历史算法资产**（2026-09-27 起不再是功能对标基准）。Phase 3/4/5 已按其模块簇交付 39 个 iop（filmicrgb/sigmoid/agx/toneequal/denoiseprofile/colorzones 等），OpenCL kernel（`data/kernels/*.cl`）仍是缺口算法的参考源。sidecar（.xmp）与预设（.dtstyle）**不互通**（Lock-early 决策，见 Constraints）。
 - **yiyin / 壹印**（`/Volumes/UNITEK/Documents/Development/yiyin`）：Electron + Svelte + sharp + fluent-ffmpeg + exif-parser/exifreader 的照片印框/水印工具。其印框布局算法、EXIF 提取、字体管理、输出参数需移植为 Swift/Core Image/Core Text 实现。yiyin 项目继续独立维护，Lightamer 内置面板为重写但功能对齐。
 - **Lightroom / Capture One**：仅作为 UX 与功能对标参考，无源码。
 
@@ -52,7 +53,7 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 - Metal：主编辑区直渲（MTKView）+ compute shader 实现 CIRAW 不覆盖的算法。
 - SwiftUI：UI 层（侧边栏/面板/对话框），与 Metal 视图通过 NSViewRepresentable 桥接。
 
-**目标用户：**摄影作者（项目作者本人优先），重视工作流效率与原生体验，已习惯 Capture One Session + Darktable 调整，希望在一个原生 app 内完成全部流程。
+**目标用户：**摄影作者（项目作者本人优先），重视工作流效率与原生体验，已习惯 Capture One Session 工作流与深度 RAW 调整，希望在一个原生 app 内完成全部流程。
 
 **性能目标：**100MP+ 中画幅 RAW（Fuji GFX100S、Sony A7R V、Phase One 等）下交互流畅。
 

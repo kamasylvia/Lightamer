@@ -509,3 +509,15 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 - [ ] **TRACK-03**: 非破坏落位——追色结果以 `colormatch` iop 模块实例落位（内嵌 LUT + tetrahedral 插值 kernel），sidecar 持久化、可继续手调、cache 语义正确
 - [ ] **TRACK-04**: 交互——拖入/选择参考图 → 自动计算并预览；强度/透明度可调；before/after 对比
 - [ ] **TRACK-05**: 质量门——LUT apply 的 golden parity（kernel vs float64 参考）、HDR/广色域裁剪策略明确、确定性（同输入同 LUT）
+
+### Alcedo Parity / Alcedo 对标缺口 (ALCE)【V2；2026-09-27 用户指令——功能对标基准由 Darktable 全量翻转为 Alcedo Studio 后，对已交付 39 iop + Phase 6-16 交付面盘点出的真实缺口】
+
+> **基准**：Alcedo Studio（GPL-3.0，`/Volumes/UNITEK/Documents/Development/AlcedoStudio`）。已覆盖面不重复立需求（色调/曲线/可选颜色/细节/局部色调映射 = Phase 3/4/5 已交付；LUT/颗粒/光晕 ≈ Phase 12 + bloom/grain；图库/分组/EXIF 搜索 = Phase 9/16；蒙版 = Phase 6；HDR/EDR = Phase 8；导出命名模板 = Phase 11）。**CIRAW 边界排除项不入本族**：demosaic 算法菜单、raw 域 inpaint-opposed 高光重建——架构上不可达（STACK.md Decoder 策略对比节 2026-09-27），v2+ 若做须走 libraw 兜底解码路线。Lensfun 镜头数据库维持 STACK.md 原评估（数据只读 + Metal warp），不因翻转加码。
+
+- [ ] **ALCE-01**: LGG 三向色轮（Lift/Gamma/Gain，grading 标准 3-way）——每 adjustment layer 一个色轮实例，蒙版可绑；与现有 colorbalancergb/colisa 并存。UI 色轮 + Metal kernel + golden-image 门
+- [ ] **ALCE-02**: OpenEXR 导出（32-bit float，half/float 可选）——现导出矩阵 JPG/PNG/TIFF/HEIF/WebP/AVIF 无 EXR；HDR/堆栈工作流回传 3D 软件需要
+- [ ] **ALCE-03**: Ultra HDR JPEG 导出（gain map，SDR base + HDR 增益层）——嵌入现有 JPEG 编码腿，EDR 渲染值映射 gain map
+- [ ] **ALCE-04**: DRT 扩容——ACES 2.0 输出变换 + OpenDRT（现有 filmicrgb/sigmoid/agx 三个 DRT 之外）；目标色彩空间/传递函数/峰值亮度可选，与 EDR 输出联动（参考 Alcedo display-transform 面板与 jedypod/open-display-transform、aces-aswf/aces-core 算法）
+- [ ] **ALCE-05**: 每片命名版本（named versions）——同一原片多个命名编辑版本并存，可从 history stack 任意步分叉；sidecar schema 扩展 + 浏览器版本切换 UI
+- [ ] **ALCE-06**: in-app 自然语言搜索 + 自动打标签——本地 CLIP 多语言模型（导入后后台索引），按自然语言查询图库；对标 Alcedo 图库搜索；与 Phase 14 MCP 外接 AI 通道互补（不依赖外部 MCP 客户端）
+- [ ] **ALCE-07**: in-app AI 评片与描述——OpenAI/Anthropic 兼容 API（钥匙串存 key，后台批跑），输出 1-5 星 + 理由 + 描述文本；评分写入 rating 管线，与 culling/MCP-10 通道共享落地字段

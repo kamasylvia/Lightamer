@@ -30,9 +30,9 @@ Phase **execute** 阶段的执行分工固定为两级：
 
 **Lightamer**
 
-Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Image RAW）的 RAW 编辑器与图片管理器，目标是对标 Darktable 的全量图像处理（iop）能力，同时采用 Capture One 的 Session 工作流（文件夹即会话）+ Capture One 风格的调整图层（adjustment layers）来组织照片与局部调整。它面向摄影作者，把"调整 → 评分 → 批量导出 → 印框/水印出图"压缩成一个原生丝滑的工作流，并内置壹印（yiyin）的印框/水印能力作为一等公民面板。
+Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Image RAW）的 RAW 编辑器与图片管理器，功能深度对标 **Alcedo Studio**（开源 RAW 编辑器；**2026-09-27 用户指令翻转**：原基准为 Darktable 全量 91 iop 模块，因 dt 功能面过大且 raw 域功能在 CIRAW 路线下不可达，改为以 Alcedo 功能面为准），同时采用 Capture One 的 Session 工作流（文件夹即会话）+ Capture One 风格的调整图层（adjustment layers）来组织照片与局部调整。它面向摄影作者，把"调整 → 评分 → 批量导出 → 印框/水印出图"压缩成一个原生丝滑的工作流，并内置壹印（yiyin）的印框/水印能力作为一等公民面板。
 
-**Core Value:** 在 macOS 上用 Metal 加速提供 100MP+ 大图下零延迟的 RAW 调整体验，并让 Capture One Session 工作流与 Darktable 级调整深度在同一原生 app 中共存——这是目前市面没有的组合。
+**Core Value:** 在 macOS 上用 Metal 加速提供 100MP+ 大图下零延迟的 RAW 调整体验，并让 Capture One Session 工作流与 Alcedo Studio 级调整深度（节点式调色：影调/色彩、色调曲线、LGG 色轮、可选颜色、细节、局部色调映射、胶片 LUT/颗粒/光晕）在同一原生 app 中共存——这是目前市面没有的组合。
 
 ### Constraints
 
@@ -43,7 +43,7 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 - **照片管理**：Capture One Session 模式 — 文件夹即会话，三级子目录（Capture/Crop/Output）+ sidecar 调整文件（Lightamer 自有格式），不做中央库
 - **局部调整**：Capture One 风格 adjustment layers（每层独立 iop + 蒙版 + 混合模式）— 与 Darktable 全局 pixelpipe+per-iop-mask 架构不同，需在 pixelpipe 设计时纳入
 - **分发**：开源免费、独立分发（Developer ID 签名 + 公证，不做沙盒）— GitHub 开源
-- **功能对标**：对标 Darktable 全量（91 个 iop 模块）— 长期工程，Fine 粒度分阶段交付，v1 不设上限但分阶段逼近
+- **功能对标**：对标 **Alcedo Studio 功能面**（2026-09-27 用户指令翻转；原为 Darktable 全量 91 iop 模块）——已交付 dt 派生 iop（filmicrgb/sigmoid/toneequal/denoiseprofile 等 39 模块）保留为管线资产，真实缺口 = REQUIREMENTS ALCE-01..07（V2）；raw 域 Alcedo 能力（demosaic 算法菜单/高光重建）在 CIRAW 路线下不可达，不入对标范围（STACK.md Decoder 策略对比节）。Core Image RAW（macOS 27 起原生 RAW 9 Neural Engine demosaic+denoise）覆盖的直接用，缺口用 Metal compute shader 自实现
 - **互通性（决策）**：sidecar 与 Darktable **不互通、不兼容**（研究确认二进制兼容做不到）；预设与 Darktable/Lightroom **不互通**；标准 EXIF/IPTC/XMP 元数据仍读写（与其他工具兼容）
 - **依赖最小化**：能用 Apple 原生框架（Core Image / Metal / Core Text / ImageIO / AVFoundation / ColorSync）实现的不引入第三方库；v1 预期仅 libwebp、libavif 两个 SPM 依赖（WebP 写入 macOS 仍无原生；AVIF macOS 27 起原生但保留 libavif 作为兜底）
 

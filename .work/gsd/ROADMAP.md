@@ -6,8 +6,14 @@
 **Mode:** standard (Horizontal Layers)
 
 A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) non-destructive RAW
-editor combining Darktable-grade iop depth with a Capture One Session workflow and
-Capture One-style adjustment layers. Phases are ordered by dependency: foundation →
+editor combining Alcedo Studio-grade editing depth with a Capture One Session workflow and
+Capture One-style adjustment layers. **Feature-parity baseline flipped from Darktable
+full-iop (91 modules) to Alcedo Studio on 2026-09-27 (user directive)**: the dt-derived
+iops already delivered in Phases 3/4/5 (39 modules incl. filmicrgb/sigmoid/toneequal/
+denoiseprofile/colorzones) remain pipeline assets; genuine Alcedo gaps are registered as
+the ALCE requirement family (REQUIREMENTS.md, V2). Raw-domain Alcedo capabilities
+(demosaic algorithm menu, raw highlight reconstruction) are architecturally unreachable
+under CIRAW — see STACK.md "Decoder 策略对比" (2026-09-27). Phases are ordered by dependency: foundation →
 pixelpipe core → iop clusters → layers/masking → native AI masking/retouching →
 session/export → yiyin/metadata → system/distribution. Every v1 requirement maps to
 exactly one phase.
@@ -315,5 +321,6 @@ completeness (soft proofing, multi-display ICC auto-switch) and the release pipe
 
 ## V2 待办（v1 之后；2026-09-22 用户确认）
 
+- **Alcedo 对标缺口（ALCE-01..07；2026-09-27 功能基准翻转 Alcedo Studio 后登记）**：LGG 三向色轮 / OpenEXR 32-bit float 导出 / Ultra HDR JPEG 导出 / DRT 扩容（ACES 2.0 输出变换 + OpenDRT，现有 filmic/sigmoid/agx 之外）/ 每片命名版本（从历史任意步分叉）/ in-app 自然语言搜索（本地 CLIP）+ 自动打标签 / in-app AI 评片与描述（OpenAI/Anthropic 兼容 API）。需求定义见 REQUIREMENTS.md「Alcedo Parity (ALCE)」节。CIRAW 边界排除项（demosaic 算法菜单、raw 域高光重建）不入 ALCE——架构上不可达，见 STACK.md Decoder 策略对比节。
 - **追色（Color Transfer，TRACK-01..05）**：参考图（单/多张）色彩分布 → 色彩变换求解（Reinhard/CDF/最优传输族择一）→ `colormatch` 模块（内嵌 3D LUT + tetrahedral kernel）非破坏落位。需求定义见 `.planning/REQUIREMENTS.md` TRACK 节（V2）；CIRAW 9 无此能力（2026-09-22 查证），需自研经典色彩迁移数学。与 Phase 12 .cube LUT 格式协同。**（2026-09-26 再确认）计算核 native 不可外包**——agent vision 迭代不满足 TRACK-05 确定性门与 TRACK-02 多参考统计；MCP+agent 作编排皮（MCP-09 研究项 C `match_color` 工具位）。
 - **蒙版扩展（2026-09-26 对标 Nitro Photo 登记）**：IOP-MASK-06 Follow Edges 边缘感知笔刷（Metal edge-aware/contour-following，Nitro 独门，算法级，可插队 v1 后期 UI 打磨轮）；IOP-MASK-07 Depth 深度蒙版（AVDepthData/ProRAW embedded matte，桌面 RAW 深度源稀缺，数据面依赖）。需求定义见 `.planning/REQUIREMENTS.md`「Masking Extensions (v2)」节。AI Background 类型入口 = subject+invert UI sugar（任意 UI 轮捎带，不立需求）；蒙版命令面 UI（Duplicate/Fill/Clear/overlay 三态/enable 勾选）挂 Phase 13。
