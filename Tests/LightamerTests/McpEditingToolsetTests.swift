@@ -404,4 +404,57 @@ final class McpEditingToolsetTests: XCTestCase {
     }
 
 
+    // MARK: - T3: the IopCatalog reflection guard (keys + version pin)
+
+    /// Per cataloged op: the handwritten key set must equal the module's
+    /// canonical default-ENCODED key set (the wire truth — stronger than the
+    /// CodingKeys declaration), and the version/iopOrder pins must hold. A
+    /// params-shape migration flips the version pin red and forces a
+    /// conscious catalog refresh (the agent cache-invalidation contract).
+    func testIopCatalogKeySetsMatchEncodedDefaultsAndVersionPins() async throws {
+        let populated = await populatedModules()
+        let defaults = await populated.makeDefaultInstances()
+            + LightamerIOPRegistry.editingDefaultInstances()
+        var checked = 0
+        for op in IopCatalog.ops {
+            let registered = await populated.makeBox(opName: op.opName) != nil
+            XCTAssertTrue(registered, "\(op.opName) must be a registered module")
+            let record = try XCTUnwrap(
+                defaults.first { $0.opName == op.opName && $0.multiPriority == 0 },
+                "\(op.opName): no default seed record to guard against")
+            let object = try? JSONSerialization.jsonObject(
+                with: record.paramsData, options: []) as? [String: Any]
+            let encodedKeys = Set((object ?? [:]).keys)
+            let catalogKeys = Set(op.params.map(\.name))
+            XCTAssertEqual(
+                catalogKeys, encodedKeys,
+                "\(op.opName): handwritten keys must equal the encoded default keys")
+            XCTAssertEqual(op.version, record.version,
+                           "\(op.opName): version pin drifted — refresh the catalog")
+            XCTAssertEqual(op.iopOrder, record.iopOrder,
+                           "\(op.opName): iopOrder drifted from the module record")
+            checked += 1
+        }
+        XCTAssertEqual(checked, 18, "the catalog coverage is pinned at 18 ops")
+    }
+
+    func testListIopsReturnsTheCatalogShape() async throws {
+        let (root, _, store) = try await makeSession()
+        let registry = await makeRegistry(seams: await makeSeams(session: (store, root)))
+        let output = try await registry.call(name: "list_iops", arguments: [:])
+        guard case .text(let text) = output.content.first else {
+            return XCTFail("expected text")
+        }
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(text.utf8), options: [])
+                as? [String: Any])
+        let ops = try XCTUnwrap(object["ops"] as? [[String: Any]])
+        XCTAssertEqual(ops.count, 18)
+        let exposure = try XCTUnwrap(
+            ops.first { ($0["opName"] as? String) == "exposure" })
+        XCTAssertEqual(exposure["version"] as? Int, 1)
+        XCTAssertEqual(exposure["domain"] as? String, "both")
+        let params = try XCTUnwrap(exposure["params"] as? [String: Any])
+        XCTAssertTrue(params.keys.contains("exposure"), "the params key reference rides")
+    }
 }

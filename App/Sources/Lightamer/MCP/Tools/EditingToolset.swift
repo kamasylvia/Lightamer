@@ -123,6 +123,11 @@ enum EditingToolset {
                 try await applyParamsBody(arguments: arguments, seams: seams)
             })
         await registerRenderPreview(into: registry, seams: seams)
+        await registry.register(
+            listIopsDescriptor, requiresWriter: false,
+            handler: { _ in
+                .text(try IopCatalog.catalogJSON())
+            })
     }
 
     // MARK: - Shared argument faces
@@ -211,6 +216,21 @@ enum EditingToolset {
             withJSONObject: view, options: [.sortedKeys, .prettyPrinted])
         return .text(String(decoding: data, as: UTF8.self))
     }
+
+    // MARK: - list_iops (T3 — the agent's params-key reference channel)
+
+    private static let listIopsDescriptor = McpToolDescriptor(
+        name: "list_iops",
+        description:
+            "List the cataloged iop modules with their parameter key schema: per op "
+                + "the opName, display name, v50 iopOrder, a VERSION (refresh your "
+                + "cache when it changes), the applicable domain and the params keys "
+                + "with types. apply_params validates its params JSON against the "
+                + "module's real Codable schema at call time — this catalog is the "
+                + "runtime key REFERENCE that keeps that validation predictable. "
+                + "Read-only, stateless, no errors beyond internalError.",
+        inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
+        readOnlyHint: true)
 
     // MARK: - apply_params (T2 — module-level upsert, three segments)
 

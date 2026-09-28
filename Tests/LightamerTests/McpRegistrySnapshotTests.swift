@@ -138,6 +138,11 @@ final class McpRegistrySnapshotTests: XCTestCase {
                         #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"ops":{"type":"array","minItems":1,"description":"Module-level upserts","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer","default":0},"params":{"type":"object","description":"Partial params JSON overlaid on the instance (keys per list_iops)"},"enabled":{"type":"boolean"},"remove":{"type":"boolean","default":false}},"required":["opName"]}}},"required":["relPath","ops"]}"#,
                     destructiveHint: true),
                 McpToolDescriptor(
+                    name: "list_iops",
+                    description: "list",
+                    inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
+                    readOnlyHint: true),
+                McpToolDescriptor(
                     name: "load_image",
                     description: "load",
                     inputSchemaJSON:
