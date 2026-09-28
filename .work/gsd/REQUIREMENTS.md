@@ -19,10 +19,11 @@
 ### 图库与项目模型 (LIB)
 - [ ] **M2LIB-01**: 单项目文件包（SQLite：`<stem>` 库 + manifest；相册结构与全部编辑历史在一个文件内，可整体移动/备份；schema 版本化）
 - [ ] **M2LIB-02**: 相册骨架——文件夹/相册/智能相册（Filter JSON 谓词）+ Element 引用计数模型（Feature-map §6.2 Sleeve/FolderContent/Filter 语义）
-- [ ] **M2LIB-03**: 导入——文件夹批量导入引用式（记录原路径）+ RAW-only 扩展名过滤可配 + 进度反馈。**过滤加固 AC（2026-09-27 用户实测 Alcedo 0.3.0 上游缺陷反向教训：其 changelog 宣称 RAW-only 但导入链零过滤——`CollectFolderFiles` 递归全收、`is_supported_file` 孤儿无调用、loader 处调用被注释 → `.ARW.xmp` 当图片导入数量翻倍）**：①按最后一个后缀精确匹配白名单（case-insensitive）；②显式排除附属/sidecar 文件（`.xmp`/`.lra`/`.lightamer-preset`/`.pp3`/`.opc` 等）与点开隐藏文件；③验收 fixture 必须用真实 C1 Session 目录（含 `.ARW` + `.ARW.xmp` 对，如 `/Volumes/UNITEK/.../Capture/RAW`），断言导入数 = RAW 数而非文件数
+- [ ] **M2LIB-03**: 导入——文件夹批量导入（入库方式三选见 M2LIB-07）+ RAW-only 扩展名过滤可配 + 进度反馈。**过滤加固 AC（2026-09-27 用户实测 Alcedo 0.3.0 上游缺陷反向教训：其 changelog 宣称 RAW-only 但导入链零过滤——`CollectFolderFiles` 递归全收、`is_supported_file` 孤儿无调用、loader 处调用被注释 → `.ARW.xmp` 当图片导入数量翻倍）**：①按最后一个后缀精确匹配白名单（case-insensitive）；②显式排除附属/sidecar 文件（`.xmp`/`.lra`/`.lightamer-preset`/`.pp3`/`.opc` 等）与点开隐藏文件；③验收 fixture 必须用真实 C1 Session 目录（含 `.ARW` + `.ARW.xmp` 对，如 `/Volumes/UNITEK/.../Capture/RAW`），断言导入数 = RAW 数而非文件数
 - [ ] **M2LIB-04**: Image 物化搜索列（file_stem/capture_at/camera/lens/iso/focal/aperture/rating + 词边界折叠检索文本）+ EXIF 词法搜索（`iso800`/`f/2.8`/`35mm`/日期多格式 AND 组合；性能对标 ~20ms@2 万张）
 - [ ] **M2LIB-05**: Album Inspector——总数卡 + 四分组（日期/相机/标签/镜头）+ Activity view（按日数量图点击过滤）+ 搜索过滤态显示
 - [ ] **M2LIB-06**: Sessions/Catalogs 剥离——UI 不暴露、入口禁用（代码保留可回切）
+- [ ] **M2LIB-07**: 导入方式询问【2026-09-27 用户指令】——选择导入文件夹时弹询对话框：「**移动 / 复制 / 软链接（快捷方式）**」三选，决定 RAW 从源文件夹入库的方式。实现约束：①移动 = 同卷 rename 优先、跨卷自动回退 copy+校验+删源（**校验通过前永不删源**）；②复制 = 进度反馈 + 逐文件校验（字节/哈希）+ 重复检测跳过；③软链接 = 相对/绝对链接策略随卷型定（USB/网络卷路径可变性，对照 L009 卷型标注教训），stale link 检测与修复入口；④对话框默认值与「记住我的选择」留 M2-2 规划裁决；⑤三模式下 `.lra`/附属 sidecar 的随迁语义一致（移动/复制随行、软链接指向原位 sidecar）
 
 ### UI 壳 (UIW)
 - [ ] **M2UIW-01**: 双工作区路由（Library/Editor）+ 顶栏 + 暗色玻璃主题 tokens（Feature-map §1.1/1.2/1.3 布局语义；SwiftUI 实现非 QML 复刻像素级）
