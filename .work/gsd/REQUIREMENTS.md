@@ -45,6 +45,8 @@
 - [ ] **M2GRADE-02**: LGG 三向色轮（每轮 disc Vec2+strength+color_offset+luma_offset；gamma/gain identity=(1,1,1)；trackball UI+Reset wheels）
 - [ ] **M2GRADE-03**: 产品默认 look（+1.5 EV/contrast +15/saturation 1.3）仅作用于新导入；用户新建 grade 与 reset 恒 identity
 - [ ] **M2GRADE-04**: ACEScc 调色域（D4：Grade 内部 AP1/ACEScc 色适应往返，CAT02 创意白平衡语义；相机 WB 留在 RAW Decode/CIRAW 层）
+- [ ] **M2GRADE-05**: LUT 库递归扫描 + 子目录分组显示【2026-09-27 用户指令，改进超 Alcedo——其 LutCatalog 只平铺单层目录（`ListCubeLutsInDir` 无递归）】：根目录下任意深度子目录的 `.cube` 全部收录，LUT 面板按子目录树分组/折叠显示；文件增删/目录变更后的刷新与缓存失效语义明确（现状锚点 = `LutLibraryStore` 单层 `contentsOfDirectory`，`Lut3d/LutLibraryStore.swift:105`）
+- [ ] **M2GRADE-06**: LUT 根目录用户可配置【同上用户指令】——设置页选择根目录并持久化，不锁死默认位置（默认仍 `~/Library/Application Support/Lightamer/LUTs/`）；切换根目录后重建索引；跨子目录同名冲突的消歧规则与既有查重/自愈（12-5 D-6 能力）整合；被引用 LUT 缺失时 degrade 语义（节点保留、渲染 typed 降级）
 
 ### 显示渲染变换 (DRT)
 - [ ] **M2DRT-01**: DRT 节点+面板——Method 分段卡（ACES 2.0/OpenDRT）恒展开；默认 OpenDRT
