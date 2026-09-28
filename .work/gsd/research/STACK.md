@@ -93,6 +93,30 @@ This is the critical unknown called out in `PROJECT.md`. The table below is expl
 7. **Spot/heal/liquify/retouch** geometry tools.
 8. **LUT3D** as a Darktable-style iop (Core Image has `CIColorCubicMixed` — usable, but Darktable `.cube` interop is custom).
 
+### Decoder 策略对比：Alcedo Studio vs CIRAW RAW 9（2026-09-27 登记）
+
+背景：参考项目 Alcedo Studio（GPL-3.0，`/Volumes/UNITEK/Documents/Development/AlcedoStudio`）自维护 LibRaw 分支 + 自研 GPU 解码管线，是「自己养解码器」路线的活样本；与本项目「让 Apple 养解码器」（CIRAW RAW 9）路线逐维对比结论如下。
+
+| 维度 | Lightamer（CIRAW RAW 9） | Alcedo（LibRaw fork + 自研 GPU 管线） |
+|---|---|---|
+| 解码广度 | Apple 维护 ~600+ 机型，DNG 万能兜底 | 自维护 LibRaw 分支，自行实现 Nikon HE/HE* per-precinct 解码（Z8/Z9/Z6III/Z50II） |
+| 新机型时效 | 靠系统更新，滞后数月（固有风险） | 自己补 LibRaw，可当周支持 |
+| 去马赛克 | 黑盒不可选；RAW 9 ANE CoreML 融合 demosaic+denoise，质量第一梯队，X-Trans 明确受益 | RCD（Bayer 默认，改编 LuisSR/RCD-Demosaicing）+ DemosaicNet 蒸馏 NN（跑 GPU，非 ANE；X-Trans 默认、Bayer 可选） |
+| 降噪 | 融合在解码里，best-in-class | **源码无任何降噪实现**（2026-09-27 grep 核实）——高 ISO 实短板 |
+| 高光重建 | 无用户可控项；CIRAW 出图时高光已裁剪 | inpaint-opposed（darktable/RawTherapee 方法改进），作用于 demosaic 前原始通道数据 |
+| 镜头/色彩配置 | 只应用内嵌 opcode，无镜头库、不收 DCP | Lensfun 配置文件 + DNG 内嵌 profile |
+| 功耗/集成 | Apple ANE 推理，ColorSync/EDR/CIContext 零成本集成 | NN 跑 Metal GPU（其 "Neural Engine" 为自起名）；CUDA/OpenCL/Metal 三后端全自养 |
+| 维护成本 | ≈0（系统更新即得） | 养 C++ 解码器工程 + 三套 GPU 后端 + 上游跟进 |
+
+**选 RAW 9 永久让渡的三样（架构性不可逆）**：
+1. **去马赛克算法选择权**——Apple 不暴露 demosaic 前原始 Bayer/X-Trans 数据，算法菜单是**架构上做不了**（非"未移植"），除非整条解码链换掉。
+2. **raw 域高光重建**——inpaint-opposed 必须在 demosaic 前操作原始通道数据；CIRAW 交付的已是开发完图像，过曝已裁死。本项目最多做后处理近似（修复笔刷/邻域填充级），做不了数学重建。
+3. **新机身空窗期**——只能等 Apple 名单更新；缓解 = v2 预留 libraw 兜底解码（仅限特定不支持机型，本文 What NOT to Use 节已登记）。
+
+**RAW 9 反赢的三样**：融合降噪（Alcedo 目前为零）、ANE 功耗、解码器零维护。解码速度对交互影响有限（每图解一次，视口走缓存，ANE 快慢只体现在开图首屏延迟）。
+
+**结论（LESSONS 级）**：**CIRAW 边界即产品边界**——凡需要 raw 域数据的功能（demosaic 算法菜单、真 inpaint-opposed 高光重建）在 CIRAW 路线下应尽早从路线图明确降级或标记 v2+（libraw 兜底路径），后续 phase 规划不再重复撞这堵墙。另注：本文与 AGENTS.md 中 darktable `.cl` kernel「line-by-line port」表述受 GPL-3.0（darktable/Alcedo）vs MIT（本项目）许可约束，实际应为「算法参考、独立实现」——表述修订留晨审裁决。
+
 ### Darktable iop coverage reference
 Darktable ships **96 iop source files** in `src/iop/` (counted). Of these, ~10–15 are covered by Core Image natively (exposure, baseline, WB, basic NR, basic sharpen, flip, crop, lens-embedded). The remaining ~80 are Metal-port work, phased over v1→vN. The OpenCL kernels in `data/kernels/*.cl` are **direct line-by-line port sources** for the Metal shaders — this is the project's single biggest algorithmic asset.
 
