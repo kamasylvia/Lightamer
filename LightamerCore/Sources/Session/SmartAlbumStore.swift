@@ -297,6 +297,14 @@ extension SmartAlbumStore {
             let rows = try await sessionStore.query(
                 groups: [album.group], sort: nil)
             return .session(paths: rows.map(\.path))
+        case .library:
+            // Plan M2-2-1 T4 (KD-7): the typed PLACEHOLDER arm — the
+            // exhaustive switch demands one; the real library evaluation
+            // (translate .library over the `FROM images i` keyset face)
+            // lands in M2-2-3's LibraryQueries. Until then the domain is
+            // honestly unavailable: the typed refusal, never a silent
+            // empty result.
+            throw SmartAlbumError.missingStore
         case .catalog:
             guard let catalogStore else { throw SmartAlbumError.missingStore }
             var identities: [CatalogImageIdentity] = []
