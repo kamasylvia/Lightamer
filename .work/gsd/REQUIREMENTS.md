@@ -19,7 +19,7 @@
 ### 图库与项目模型 (LIB)
 - [ ] **M2LIB-01**: 单项目文件包（SQLite：`<stem>` 库 + manifest；相册结构与全部编辑历史在一个文件内，可整体移动/备份；schema 版本化）
 - [ ] **M2LIB-02**: 相册骨架——文件夹/相册/智能相册（Filter JSON 谓词）+ Element 引用计数模型（Feature-map §6.2 Sleeve/FolderContent/Filter 语义）
-- [ ] **M2LIB-03**: 导入——文件夹批量导入引用式（记录原路径）+ RAW-only 扩展名过滤可配 + 进度反馈
+- [ ] **M2LIB-03**: 导入——文件夹批量导入引用式（记录原路径）+ RAW-only 扩展名过滤可配 + 进度反馈。**过滤加固 AC（2026-09-27 用户实测 Alcedo 0.3.0 上游缺陷反向教训：其 changelog 宣称 RAW-only 但导入链零过滤——`CollectFolderFiles` 递归全收、`is_supported_file` 孤儿无调用、loader 处调用被注释 → `.ARW.xmp` 当图片导入数量翻倍）**：①按最后一个后缀精确匹配白名单（case-insensitive）；②显式排除附属/sidecar 文件（`.xmp`/`.lra`/`.lightamer-preset`/`.pp3`/`.opc` 等）与点开隐藏文件；③验收 fixture 必须用真实 C1 Session 目录（含 `.ARW` + `.ARW.xmp` 对，如 `/Volumes/UNITEK/.../Capture/RAW`），断言导入数 = RAW 数而非文件数
 - [ ] **M2LIB-04**: Image 物化搜索列（file_stem/capture_at/camera/lens/iso/focal/aperture/rating + 词边界折叠检索文本）+ EXIF 词法搜索（`iso800`/`f/2.8`/`35mm`/日期多格式 AND 组合；性能对标 ~20ms@2 万张）
 - [ ] **M2LIB-05**: Album Inspector——总数卡 + 四分组（日期/相机/标签/镜头）+ Activity view（按日数量图点击过滤）+ 搜索过滤态显示
 - [ ] **M2LIB-06**: Sessions/Catalogs 剥离——UI 不暴露、入口禁用（代码保留可回切）

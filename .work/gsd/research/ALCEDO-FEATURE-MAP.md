@@ -299,3 +299,9 @@ Lightamer 现状基线：39 个 iop（exposure/temperature/tonecurve/levels/gamm
 | 导出 | `src/include/io/image/export_recipe.hpp`、`src/include/type/supported_file_type.hpp:15-56`、`ultra_hdr_writer.hpp`、`ExportInspectorPanel.qml` |
 | AI | `src/ai/ai_rating.cpp`、`src/include/ai/ai_description.hpp`、`rust/puerh_mind/`（`src/service/model_assets.rs`、`credential_vault.rs`、`configs/providers/`）、`AiProviderSettingsPanel.qml`、`SettingDialog.qml` |
 | 已知问题 | `KNOWN_ISSUES.md`（v0.2.3：ACES2.0 HDR 峰值损坏、无法 relink 已删文件等） |
+
+---
+
+## 附：已知缺陷观察（实机/源码核实，供上游 issue 与反向教训）
+
+- **文件夹导入不过滤附属文件（0.3.0 实机复现，2026-09-27 用户报告 + 源码定位）**：导入含 `.ARW` + `.ARW.xmp` 对的 C1 Session 目录时 `.xmp` 被当图片导入、数量翻倍。源码链：`CollectFolderFiles`（`import_export.cpp:131`）递归枚举**零扩展名过滤** → `StartImportPaths` 仅全路径去重 → `is_supported_file`（`supported_file_type.hpp:57`）仅 test host 调用、`image_loader.cpp:66` 处调用被注释；与 0.3.0 changelog「Import accepts camera RAW files only」不符。修复位 = `CollectFolderFiles`/`StartImportResolvedPaths` 套 `is_supported_file`。Lightamer 反向教训已钉入 REQUIREMENTS M2LIB-03 过滤加固 AC。
