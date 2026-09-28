@@ -239,6 +239,7 @@ enum McpServerController {
             modules: { modules },
             gate: sharedRenderGate,
             liveImageURL: liveImageURL)
+        seams.writeGate = McpRenderGate()
         seams.yiyinInjector = yiyinInjector
         return seams
     }
