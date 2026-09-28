@@ -305,3 +305,4 @@ Lightamer 现状基线：39 个 iop（exposure/temperature/tonecurve/levels/gamm
 ## 附：已知缺陷观察（实机/源码核实，供上游 issue 与反向教训）
 
 - **文件夹导入不过滤附属文件（0.3.0 实机复现，2026-09-27 用户报告 + 源码定位）**：导入含 `.ARW` + `.ARW.xmp` 对的 C1 Session 目录时 `.xmp` 被当图片导入、数量翻倍。源码链：`CollectFolderFiles`（`import_export.cpp:131`）递归枚举**零扩展名过滤** → `StartImportPaths` 仅全路径去重 → `is_supported_file`（`supported_file_type.hpp:57`）仅 test host 调用、`image_loader.cpp:66` 处调用被注释；与 0.3.0 changelog「Import accepts camera RAW files only」不符。修复位 = `CollectFolderFiles`/`StartImportResolvedPaths` 套 `is_supported_file`。Lightamer 反向教训已钉入 REQUIREMENTS M2LIB-03 过滤加固 AC。
+- **AI 离线包应用内下载全报错（0.3.0 实机，2026-09-27 用户报告）**：默认端点已设 `https://hf-mirror.com`（`ai_sidecar_runtime_service.hpp:65`）但仍失败；疑点 = `rust/puerh_mind/src/service/model_assets.rs:496` 的 `_hf_endpoint` 参数带下划线前缀（未使用惯例）——端点可能未接线到实际下载路径。未深查（非我方 scope）。Lightamer 对策 = M2AI-01 混合策略：默认模型内置包 + 大档走本仓 Release 资产。

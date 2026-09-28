@@ -83,7 +83,7 @@
 - [ ] **M2EXP-05**: 导出队列 UI（检查器内+Queued/Exporting/Done/Failed 四态+质量跨会话记忆）；yiyin 印框/水印终步保留适配
 
 ### AI 图库 (AI2)
-- [ ] **M2AI-01**: 本地 CLIP 嵌入——CoreML 档模型可选（MobileCLIP2-512/SigLIP2/Jina-768 级），模型下载 manifest+revision pin，本地运行不上云
+- [ ] **M2AI-01**: 本地 CLIP 嵌入——CoreML 档模型可选（MobileCLIP2-512/SigLIP2/Jina-768 级），本地运行不上云。**模型获取 = 混合策略（2026-09-27 用户提议内置，推荐方案登记、M2-10 规划终审）**：①默认语义模型**内置 app 包**（MobileCLIP2-S2 int8 CoreML ≈40-80MB）——零下载零网络依赖，反向消除 Alcedo 实测的「应用内下载 AI 离线包全报错」痛点（其默认端点已是 hf-mirror.com 但仍失败，疑 `model_assets.rs:496` `_hf_endpoint` 参数未接线）；②SigLIP2/Jina 大档走**本仓 GitHub Release 资产**可选下载（版本锁死），HF/hf-mirror 兜底；③权重许可（MobileCLIP MIT/CoreNet Apache-2.0 待核）与 int8 量化管线入 M2-10 research
 - [ ] **M2AI-02**: 嵌入存储+ANN 检索（SQLite 向量方案执行时定，对标 HNSW 近邻）+ 自然语言搜索入全局搜索三合一
 - [ ] **M2AI-03**: 自动打标——出厂中英 label query 原型嵌入余弦（score/second_label/margin/confident）+ 导入后询问 Remember-my-choice
 - [ ] **M2AI-04**: AI 评片——OpenAI/Anthropic 兼容 endpoint、1-5 星+理由（clamp；rating=0 reasons-only 哨兵）、星级写库、严格度+输出语言设置
