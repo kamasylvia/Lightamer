@@ -171,7 +171,7 @@ server 起法：`try await server.start(transport: StdioTransport())` 后挂常�
 | 分类 | orphan_sidecar, dirty | **不暴露**（基线谓词已滤 orphan；dirty 是崩溃窗口内部态） |
 | EXIF | camera_make, camera_model, lens_model, iso, focal_length, aperture, exposure | **全暴露**（筛选键 + 筛片语义） |
 
-   **终数：暴露 22 列 / 不暴露 12 列**（内部账目/哈希/路径类剔除，其余全给）。返回行按此投影（`SessionIndexRow` → MCP dict 的显式映射表，一处拼装）。
+   **终数：暴露 25 列 / 不暴露 9 列**（内部账目/哈希/路径类剔除，其余全给）。返回行按此投影（`SessionIndexRow` → MCP dict 的显式映射表，一处拼装）。
 4. **谓词往返测试**：同一 FilterPredicateGroup GUI chips 与 MCP 入参同 SQL 同结果（12-2 翻译层 fixture 复用）入 14-3 测试单。
 
 ---

@@ -151,7 +151,7 @@ files_modified:
      请求实测 403 仍绿）；工具白名单负例（T3-1）；**公开仓专项**：token 生成不落日志/
      端点文件无 token 真身/keychain 拼写无敏感串硬编（gitleaks 面自查）。
   4. **PROJECT.md 依赖漂移修正**（收口批，同 16 期先例）：依赖最小化约束文本修订——
-     swift-sdk（+传递 swift-nio/swift-log/swift-system/eventsource）登记为第三个 SPM 依赖
+     swift-sdk（+传递 swift-nio/swift-log/swift-system/eventsource）登记为全项目第三个 SPM 依赖（显式枚举：Swift-WebP 第一 → swift-sdk/NIO 第二 → swift-nio/system 直引第三）
      事实；libavif 已砍除的现状对齐。
   5. 工具文档收口：Origin 匹配带端口示例（D6——`http://localhost:<port>` 形态）、
      render_preview「编辑态预览，无印框」诚实条款、MCP-03 口径（sRGB 编码域，GUI EDR 域

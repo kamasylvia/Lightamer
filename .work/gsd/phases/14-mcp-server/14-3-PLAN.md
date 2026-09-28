@@ -61,10 +61,10 @@ files_modified:
    :141——set_keywords :117-124 整组替换语义 + `|` 分隔符校验）；`SessionBatchApplier.swift`
    + `BatchSidecarWriter.swift`（三段管线）；`LightamerCore/Sources/Presets/PresetApplier.swift`
    （:10-32 + **live targets skip（:92）**——apply_preset 软跳[D8]）/ `PresetsStore.swift`
-   （:73/:200 清单面）
+   （:178 `presets()` / :184 `presets(kind:)` 清单面；checker M-4 锚点校正）
 6. `LightamerCore/Sources/Session/SessionThumbnailProvider.swift`：tier appointment + 
    has_edits 裁决红线（:43-50）；`ThumbnailDiskStore.swift:75`（read 直读）+
-   `SessionIndexSchema.swift`：`thumb_state`（:76）/`has_edits`（:84）/34 列 frozen spelling
+   `SessionIndexSchema.swift`：`has_edits`（:76）/`thumb_state`（:84）/34 列 frozen spelling
    （:66-102——22 列投影的源；13 期 frozen-spelling 契约跨进程延伸，列改动须过 frozen 断言）
 7. `LightamerIOP/Sources/SkinSmooth/SkinRegionLocator.swift:12`（Vision 基建对照——**不硬套**
    ，get_face_regions 直发 `VNDetectFaceLandmarksRequest`）；`LightamerCore/Sources/Decode/`
@@ -172,7 +172,7 @@ files_modified:
      /上限 1536；ROI 越界 = `roiOutOfBounds`；v1 单 ROI 单请求（多 ROI 数组 = additive 位
      不开）；RAWDecoder 解码腿 + `McpRenderGate` 串行。
   4. **base64 上限表落码断言**（`McpCullingImageBudgetTests`）：四工具（含 14-2
-     render_preview 的常量交叉引用）默认/上限值 = research §RQ-14-8 预算表 verbatim
+     render_preview 的常量交叉引用——checker M-3 常量上移至 14-1 `McpImageBudget` 共享缝）默认/上限值 = research §RQ-14-8 预算表 verbatim
      （常量一处——越界即测试红）；stale 语义三态（fresh/stale+默认/stale+regenerate）。
   5. culling 域快照改：+3 工具注册（原子同 commit）。
 - **证据**：`McpCullingImageBudgetTests`——上限表逐项 + 联系表中文渲染（像素采样断言

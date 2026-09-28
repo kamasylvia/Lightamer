@@ -9,7 +9,8 @@ requirements: [MCP-01, MCP-03, MCP-09]
 files_modified:
   - App/Sources/Lightamer/MCP/Tools/EditingToolset.swift             # 新建：修图面 5 工具 handler 装配（load_image/apply_params/render_preview/list_iops/export_image）——纯 Swift，消费 Core 既有面 + registry 缝
   - App/Sources/Lightamer/MCP/Tools/IopCatalog.swift                 # 新建：per-op 手写 params 键集/类型/范围表（18 iop 面）+ 反射守卫测试支撑
-  - Tests/LightamerTests/McpEditingToolsetTests.swift                # 新建：editing 域快照（5 工具）+ apply_params upsert/错误码全表/GUI-live 硬拒 + list_iops 反射守卫 + export 落盘边界
+  - Tests/LightamerTests/McpEditingToolsetTests.swift
+  - Tests/LightamerTests/McpRegistrySnapshotTests.swift               # editing 域快照段逐任务原子演进（checker E-1 补申报——四任务均要求同 commit 改快照）                # 新建：editing 域快照（5 工具）+ apply_params upsert/错误码全表/GUI-live 硬拒 + list_iops 反射守卫 + export 落盘边界
   - Tests/LightamerTests/McpRenderParityTests.swift                  # 新建：MCP-03 parity 初测（renderedPlane vs Export golden 同尺寸同参域逐像素/容差）+ render_preview 超时/上限断言
   - .work/gsd/phases/14-mcp-server/14-2-SUMMARY.md
   - .work/gsd/phases/14-mcp-server/14-2-DECISIONS.md
@@ -65,7 +66,7 @@ files_modified:
 6. `App/Sources/Lightamer/State/PipeCoordinator.swift`：`currentImageURL`（:175）/`
    currentImageID`（:107）——GUI-live 判据精确来源（MainActor-hop 读，`LightamerApp.swift:49-52`
    assumeIsolated 先例）
-7. `LightamerCore/Sources/Pipe/ModuleInstance.swift`：`(opName, multiPriority)` 寻址（:51-58）/
+7. `LightamerCore/Sources/Pipe/History/ModuleInstance.swift`：`(opName, multiPriority)` 寻址（:51-58）/
    `version` 字段（:66）+ Params Codable（`ParamsCoding` 既有编码域——反射守卫的 CodingKeys
    源）；11 期 Export golden 测试族（parity 基建；fixture 装配代码同源）
 8. `LESSONS.md` L009/L014/L031 + `AGENTS.md` + `.work/GOAL-STATE.md`（Phase 14 续接点）+

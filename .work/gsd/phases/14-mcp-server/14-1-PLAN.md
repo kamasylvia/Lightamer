@@ -8,7 +8,7 @@ autonomous: true
 requirements: [MCP-02, MCP-04]
 files_modified:
   - Project.swift                                                   # packages 加 swift-sdk 0.12.1 exact pin（第二个 SPM 依赖，D-14-CONTEXT-1③）；App target 依赖 MCP 产品；注释更新 SPM policy
-  - App/Sources/Lightamer/MCP/McpToolRegistry.swift                 # 新建：纯 Swift 值类型缝——ToolDescriptor（name/description/inputSchema/annotations）+ @Sendable handler + typed McpToolError 错误码 + McpTimeouts 常量表 + 渲染串行信号量 McpRenderGate
+  - App/Sources/Lightamer/MCP/McpToolRegistry.swift                 # 新建：纯 Swift 值类型缝——ToolDescriptor（name/description/inputSchema/annotations）+ @Sendable handler + typed McpToolError 错误码 + McpTimeouts 常量表 + McpImageBudget 预算常量表（render_preview 上限 2048 等三 plan 消费共享——checker M-3 上移）+ 渲染串行信号量 McpRenderGate
   - App/Sources/Lightamer/MCP/McpAdapters.swift                     # 新建：SDK 类型适配层（唯一 import MCP 处）——withMethodHandler(ListTools/CallTool) ↔ registry 映射 / Tool.Content / InMemoryTransport 测试腿
   - App/Sources/Lightamer/MCP/McpEndpointFile.swift                 # 新建：mcp-endpoint.json 读写（L009 同目录 tmp 原子晋升）+ McpEndpointLock（flock EX|NB 写者权 + 崩溃内核自释语义）
   - App/Sources/Lightamer/MCP/McpHTTPTransport.swift                # 新建：NIO 适配腿 ~250 行（conformance HTTPApp.swift 正本移植）——ServerBootstrap + configureHTTPServerPipeline + SSE 泵 + per-session transport 字典（上限 4，超出 503）
@@ -66,7 +66,7 @@ files_modified:
    停机钩子挂点，与既有 flush 同批）
 5. `LightamerCore/Sources/Session/SessionIndexStore.swift`：query 消费面（:561-584——探针
    `count_images` 的正式替代消费点；本 plan 只读腿）
-6. `Project.swift`：packages 节（:86-87 Swift-WebP 先例——exact pin 写法 + SPM policy 注释
+6. `Project.swift`：packages 节（:86-87 Swift-WebP 先例——from: range 写法（exact: 为本 phase 精确钉要求） + SPM policy 注释
    更新位）+ App target dependencies（:107-113 .package(product:) 消费形态）
 7. `LESSONS.md` L009（fixture 禁 UNITEK/同目录 tmp 晋升）/ L013（跨进程身份 StableHash
    decimal String）/ L025（String Catalog 语言标签 zh）+ `AGENTS.md`（Phase 执行模型 + 暂停
@@ -151,7 +151,7 @@ files_modified:
      封闭集 19 工具不含它）——退役时点 = 14-4 T1（DECISIONS 登记）。
   7. 快照框架（`McpRegistrySnapshotTests.swift`）：工具名集 + inputSchema 键集逐字断言，
      **分域分组**——`probe` 域（本 plan 探针面）/ `editing` 域（14-2 填）/ `culling` 域
-     （14-3 填）三个测试段各自断言本域（并行 plan 零文件冲突）；跨域并集终快照（19 封闭集
+     （culling 域快照在 14-3 自有测试文件 McpCullingToolsetTests；editing 域由 14-2 填共享 McpRegistrySnapshotTests；并集终快照 14-4 冻结——checker M-1 分域落点更正）；跨域并集终快照（19 封闭集
      冻结）在 14-4 T3。
 - **证据**：`McpRegistrySnapshotTests` 绿（探针面快照 + InMemoryTransport 上 tools/list 回显
   name/description/inputSchema/annotations 完整）；Core 零 import grep 自证（
