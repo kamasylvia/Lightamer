@@ -155,3 +155,42 @@ boundedWait 的「finishes into the void」姿态在 handler 层不复制；卡�
 对象（D-14-CONTEXT-5① 的单源汇合语义即是「写 sidecar+index」，不含 GUI 通知）。
 属预期行为而非缺陷；R7 处置（通知缝或刷新钩子小改）登记 14-4 收口批评估，本 plan
 不扩面。
+
+---
+
+# 验收期决策（2026-09-28 独立验收 subagent 追加）
+
+## D-14-3-ACC-1 list_photos 游标两处逻辑缺陷（验收修正，test-first）
+
+独立验收发现并以 `fix(14-3)` 修复（test-first：修复前 27 tests / 2 failures——恰
+两新测试红、executor 25 全绿；修复后 27/0）：
+
+1. **值类游标谓词缺 NULL 桥**：`((k op ?) OR (k = ? AND path > ?))` 不含
+   `OR (k IS NULL)`。NULL 双向排尾（`FilterSortKey.orderByTerm` 的旗标项无方向、
+   恒 ASC）——当页边界恰落在最后一个非 NULL 行时，NULL 尾部行不可达，短页伪造
+   「耗尽」信号（rating DESC + limit 恰切分非 NULL 段 → 未评分照片永久翻不到）。
+   executor 的 `testCursorDescendingAndNullClassContinuation` 页尾恰落在 NULL 行
+   内（limit 6 切进 NULL 类），未覆盖该转接缝。修复 = 值类三形（text/int/double）
+   尾加 `OR (k IS NULL)`；新增 `testCursorValueToNullTailTransitionReachable`。
+2. **`cursorValue(.scanEpoch)` 恒 `.null`**：scanEpoch 是六键白名单合法排序键，
+   且生产行恒带非 NULL scan_epoch——`.null` 载荷使第二页只匹配 NULL-epoch 行
+   （空页），第一页后静默截断。修复 = 携真实值 `.int`（cursor 为 base64 不透明
+   token，无泄漏面）；新增 `testCursorPagingByScanEpochFullCoverage`。
+
+测试作者附注：扫描 fixture 的裸 INSERT 必须显式带 `orphan_sidecar = 0`——
+`baselineClause(.session)` 恒 AND 进每次 query（FilterSQL.swift:194），NULL 行被
+静默过滤——「裸 COUNT 可见、query 不可见」的行消失假象即此，非产品缺陷。
+
+## D-14-3-ACC-2 T6-1 worktree 隔离配方勘误（验收实测）
+
+D-14-3-T6-1 记载「共享装配两文件回退 37add39」——实测该配方不可编译：
+①McpToolRegistry 在 37add39..HEAD 零改动（回退为无操作）；②回退
+McpServerController 使 HEAD 的 `LightamerApp.makeEditingSeams` 调用断链
+（makeEditingSeams 系 0062575 新增，LightamerApp:903 消费）。可行配方 = 两共享
+文件保持 HEAD 态 + worktree 私有给 `EditingToolset.Seams` 补 `yiyinInjector`
+成员 shim（该成员在 14-2 未提交 WIP 内）——隔离目的不变，绕开方式由「删引用」
+修正为「补成员」。时效注记：14-2 随后已落盘该成员（`6b87fd2` EditingToolset:79），
+现 HEAD 起隔离构建不再需要 shim。另 SUMMARY「boolValue 改为消费共享版」措辞
+过头：HEAD 的共享
+McpToolRegistry 无该访问器（在 14-2 WIP 内），本 plan 提交面亦无消费方
+（regenerate 走 pattern match）——已随验收批校正。

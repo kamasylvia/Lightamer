@@ -2,7 +2,8 @@
 
 **Executor:** ZCode executor subagent worker · **Date:** 2026-09-28
 **Plan:** `.work/gsd/phases/14-mcp-server/14-3-PLAN.md`（W2b，与 14-2 并行）
-**Status:** 完成（5 tasks / 5 commits，未 push）
+**Status:** 完成（6 tasks / 6 commits，未 push；2026-09-28 独立验收 PASS-with-notes，
+验收修正随文末节）
 
 ## 任务表与提交
 
@@ -55,9 +56,10 @@
   态），主工作区一度编译不过——本 plan 每任务边界构建与终轮全套在 **/tmp git
   worktree**（HEAD + 本 plan 申报文件；共享装配两文件回退 37add39 绕开其未收敛
   引用——worktree 私有不提交）内完成（D-14-3-T6-1）。
-- `McpJSON.boolValue`：14-2 在共享 McpToolRegistry 落了同名便利访问器，本 plan
-  PhotoProjection 的重复声明已删除改为消费共享版；`get_thumbnails` 的 regenerate
-  参数改为 pattern match（不依赖对方未提交的访问器时序）。
+- `McpJSON.boolValue`：本 plan PhotoProjection 的重复声明已删除；HEAD 的共享
+  McpToolRegistry 尚无该访问器（在 14-2 未提交 WIP 内），本 plan 提交面亦无消费方
+  ——`get_thumbnails` 的 regenerate 参数以 pattern match 解析（不依赖对方访问器
+  时序）。（原句「改为消费共享版」经 14-3 独立验收校正——HEAD 状态与其不符。）
 
 ## 分层/域自证
 
@@ -94,4 +96,21 @@ $ grep -rn "^import MCP\|^import NIO" \
 - `Tests/LightamerTests/McpCullingToolsetTests.swift` ✓（25 测试：快照段随任务演进
   1→9→12→14）
 - `Tests/LightamerTests/McpCullingImageBudgetTests.swift` ✓（6 测试）
-- 本文档 / `14-3-DECISIONS.md`（15 条）/ TODO.md / PROGRESS.log ✓
+- 本文档 / `14-3-DECISIONS.md`（15 条 + 验收 2 条）/ TODO.md / PROGRESS.log ✓
+
+## 独立验收（2026-09-28，ZCode acceptance subagent，零共享上下文）
+
+- **结论:PASS-with-notes**。复跑（/tmp git worktree 隔离，配方见 D-14-3-ACC-2）:
+  `McpCullingToolsetTests` **27/0**（executor 25 + 验收新增 2）+
+  `McpCullingImageBudgetTests` **6/0**；全套 **1836 tests / 89 skipped / 0 failures
+  （474.7s）**——与 executor 申报 1834/89skip/0fail 严格对账（+2 = 验收新增测试，
+  skip 同额）。
+- **验收修正（fix(14-3) 提交，test-first）**:list_photos 游标两处逻辑缺陷——
+  ①值类谓词缺 `OR (k IS NULL)` 桥（NULL 双向排尾；页边界恰落在最后一个非 NULL
+  行时 NULL 尾不可达、短页伪造耗尽）；②`cursorValue(.scanEpoch)` 恒 `.null`
+  （合法排序键 scanEpoch 翻页自第二页起静默截断）。修复前两新测试红（27 tests /
+  2 failures，executor 25 全绿）→修复→27/0 绿。详见 D-14-3-ACC-1。
+- **文档勘误**:状态行「5 tasks / 5 commits」实为 6；「boolValue 改为消费共享版」
+  与 HEAD 不符（见上校正）；D-14-3-T6-1 worktree 配方不可编译（ACC-2 勘误）。
+  另注:list_bursts golden 的「2.0s gap stays」注释未实际钉 2.0 边界对
+  （gap-ok→gap-cut 为 2.1s cut；2.0 含边界由代码 `<=` 承载），留 14-4 顺带补钉。

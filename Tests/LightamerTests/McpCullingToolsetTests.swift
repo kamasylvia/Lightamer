@@ -485,6 +485,99 @@ final class McpCullingToolsetTests: XCTestCase {
         XCTAssertEqual((page2["rows"] as? [[String: Any]])?.count, 3)
     }
 
+    // MARK: - Acceptance 14-3: the two cursor seams the task tests did not pin
+
+    /// The value→NULL-tail TRANSITION: when a page's last row is the LAST
+    /// non-NULL row, the next page must still reach the NULL-class tail
+    /// (NULLs sort last in BOTH directions, so the value-class cursor
+    /// predicate must carry the `(k IS NULL)` bridge — otherwise the NULL
+    /// rows are silently unreachable and a short page fakes the end).
+    func testCursorValueToNullTailTransitionReachable() async throws {
+        let fixture = try await Self.makeFixture { store in
+            for index in 1...5 {
+                try await Self.seedRow(
+                    store, path: String(format: "rated-%02d.arw", index),
+                    rating: Int64(index), captureDate: Double(index))
+            }
+            try await Self.seedRow(store, path: "null-a.arw", captureDate: 100)
+            try await Self.seedRow(store, path: "null-b.arw", captureDate: 101)
+            try await Self.seedRow(store, path: "null-c.arw", captureDate: 102)
+        }
+        defer { fixture.cleanup() }
+        let registry = await Self.makeRegistry(fixture)
+        let sort: McpJSON = .object([
+            "key": .string("rating"), "ascending": .bool(false),
+        ])
+        // DESC page 1 = exactly the five non-NULL rows (the boundary lands
+        // ON the last non-NULL row); page 2 must surface the NULL tail.
+        let page1 = try await Self.callJSON(
+            registry, name: "list_photos",
+            arguments: ["sort": sort, "limit": .int(5)])
+        let rows1 = try XCTUnwrap(page1["rows"] as? [[String: Any]])
+        XCTAssertEqual(
+            rows1.map { $0["path"] as? String },
+            [
+                "rated-05.arw", "rated-04.arw", "rated-03.arw",
+                "rated-02.arw", "rated-01.arw",
+            ])
+        let cursor = try XCTUnwrap(page1["nextCursor"] as? String)
+        let page2 = try await Self.callJSON(
+            registry, name: "list_photos",
+            arguments: ["sort": sort, "limit": .int(5), "cursor": .string(cursor)])
+        let rows2 = try XCTUnwrap(page2["rows"] as? [[String: Any]])
+        XCTAssertEqual(
+            rows2.map { $0["path"] as? String },
+            ["null-a.arw", "null-b.arw", "null-c.arw"],
+            "the NULL tail is reachable across the value→NULL transition")
+    }
+
+    /// scanEpoch is a LEGAL sort key (the six-key whitelist) and production
+    /// rows always carry a NON-NULL scan_epoch — the cursor must carry the
+    /// real key value. A `.null` payload makes page 2 match only NULL-epoch
+    /// rows: silent truncation after page 1.
+    func testCursorPagingByScanEpochFullCoverage() async throws {
+        // Stamp scan_epoch explicitly (seedRow leaves the column NULL; a
+        // production scan sets it on every row). One epoch, all-equal —
+        // paging rides the path tiebreak, the sharpest shape for the
+        // `k = ? AND path > ?` leg. The INSERT must carry
+        // `orphan_sidecar = 0` — the session baseline clause
+        // `(orphan_sidecar = 0)` rides EVERY query and silently filters
+        // NULL rows out (the fixture pitfall this test documents).
+        let fixture = try await Self.makeFixture { store in
+            try await store.withHandleForTesting { handle in
+                for index in 0..<6 {
+                    let name = String(format: "img-%02d.arw", index)
+                    let insert = try handle.prepare(
+                        "INSERT INTO images (path, dir, filename, scan_epoch, "
+                            + "orphan_sidecar) VALUES (?, 'Capture', ?, 77, 0)")
+                    try insert.bindText(1, name)
+                    try insert.bindText(2, name)
+                    _ = try insert.step()
+                }
+            }
+        }
+        defer { fixture.cleanup() }
+        let registry = await Self.makeRegistry(fixture)
+        let sort: McpJSON = .object([
+            "key": .string("scanEpoch"), "ascending": .bool(true),
+        ])
+        var seen: [String] = []
+        var cursor: String?
+        for _ in 0..<5 {
+            var arguments: [String: McpJSON] = ["sort": sort, "limit": .int(3)]
+            if let cursor { arguments["cursor"] = .string(cursor) }
+            let page = try await Self.callJSON(
+                registry, name: "list_photos", arguments: arguments)
+            let rows = try XCTUnwrap(page["rows"] as? [[String: Any]])
+            seen += rows.compactMap { $0["path"] as? String }
+            guard let next = page["nextCursor"] as? String else { break }
+            cursor = next
+        }
+        XCTAssertEqual(
+            seen, (0..<6).map { String(format: "img-%02d.arw", $0) },
+            "scanEpoch paging covers every row with no truncation")
+    }
+
     // MARK: - T1: invalidFilter matrix + limit/sort guards
 
     func testInvalidFilterMatrixNegatives() async throws {

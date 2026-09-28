@@ -266,7 +266,12 @@ enum McpPhotoProjection {
     /// The tuple predicate for a cursor — spelled at THIS call site (the
     /// `path` tiebreaker is ASC in both directions per
     /// `FilterSort.orderBySQL`, so the second tuple leg is always `path > ?`).
-    /// The NULL-key continuation is the separate NULL-class shape.
+    /// The NULL-key continuation is the separate NULL-class shape; the
+    /// value-class shape carries the `(k IS NULL)` bridge because NULLs
+    /// sort LAST in both directions (`orderByTerm`'s flag term is
+    /// direction-less ASC) — without it, a page ending on the LAST non-NULL
+    /// row would fake the end of the collection and the NULL tail would be
+    /// unreachable (the acceptance 14-3 fix).
     static func cursorPredicate(_ cursor: Cursor) -> SessionIndexStore.ExtraPredicate {
         let column = cursor.sortKey.column
         switch cursor.value {
@@ -277,17 +282,20 @@ enum McpPhotoProjection {
         case .text(let value):
             let op = cursor.ascending ? ">" : "<"
             return SessionIndexStore.ExtraPredicate(
-                sql: "((\(column) \(op) ?) OR (\(column) = ? AND path > ?))",
+                sql: "((\(column) \(op) ?) OR (\(column) = ? AND path > ?)"
+                    + " OR (\(column) IS NULL))",
                 binds: [.text(value), .text(value), .text(cursor.path)])
         case .int(let value):
             let op = cursor.ascending ? ">" : "<"
             return SessionIndexStore.ExtraPredicate(
-                sql: "((\(column) \(op) ?) OR (\(column) = ? AND path > ?))",
+                sql: "((\(column) \(op) ?) OR (\(column) = ? AND path > ?)"
+                    + " OR (\(column) IS NULL))",
                 binds: [.int(Int64(value)), .int(Int64(value)), .text(cursor.path)])
         case .double(let value):
             let op = cursor.ascending ? ">" : "<"
             return SessionIndexStore.ExtraPredicate(
-                sql: "((\(column) \(op) ?) OR (\(column) = ? AND path > ?))",
+                sql: "((\(column) \(op) ?) OR (\(column) = ? AND path > ?)"
+                    + " OR (\(column) IS NULL))",
                 binds: [.double(value), .double(value), .text(cursor.path)])
         }
     }
@@ -318,7 +326,12 @@ enum McpPhotoProjection {
         case .captureDate: return row.captureDate.map { .double($0) } ?? .null
         case .iso: return row.iso.map { .int(Int($0)) } ?? .null
         case .focalLength: return row.focalLength.map { .double($0) } ?? .null
-        case .scanEpoch: return .null  // internal epoch — never a cursor face
+        // The epoch rides the opaque token (base64 — no client-visible
+        // leak) with its REAL value: a .null payload would make page 2
+        // match only NULL-epoch rows and silently truncate (production
+        // rows always carry a non-NULL scan_epoch — the acceptance 14-3
+        // fix).
+        case .scanEpoch: return row.scanEpoch.map { .int(Int($0)) } ?? .null
         }
     }
 
