@@ -2,7 +2,10 @@ import CoreGraphics
 import CoreImage
 import XCTest
 import LightamerCore
+import LightamerIOP
 import MCP
+
+typealias MCPValue = MCP.Value
 
 @testable import Lightamer
 
@@ -414,4 +417,160 @@ final class McpRenderParityTests: XCTestCase {
             overlap.maxSeen, 1, "render gate: render_preview bodies never overlap")
     }
 
+
+    // MARK: - T5: the SC#3 end-to-end chain (the字面 SC)
+
+    /// A live-image provider the test drives AT runtime (the registered
+    /// handlers read the box on every call — a struct seam copies by value,
+    /// so the插步 needs an indirection the closure consults live).
+    private final class LiveImageBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var url: URL?
+        func set(_ newValue: URL?) { lock.lock(); url = newValue; lock.unlock() }
+        func get() -> URL? { lock.lock(); defer { lock.unlock() }; return url }
+    }
+
+    /// SC#3: load (membership) → apply ≥3 iops (with a GUI-live hard-
+    /// rejection insert in the middle) → render_preview → the remote view
+    /// is BYTE-IDENTICAL to the local render of the same saved state —
+    /// across BOTH hosts (InMemory + Streamable HTTP over the SAME seams:
+    /// one shared decode memo makes the two legs' pixels directly
+    /// comparable).
+    func testSC3EndToEndAcrossBothHosts() async throws {
+        let sample = try repoSample()
+        guard FileManager.default.fileExists(atPath: sample.sidecar.path) else {
+            throw XCTSkip("SC#3 sidecar missing: \(sample.sidecar.path)")
+        }
+        let (root, imageURL, store) = try await makeSession(
+            imageName: "DSC00012.ARW", rasterData: try Data(contentsOf: sample.url))
+        try FileManager.default.copyItem(
+            at: sample.sidecar, to: imageURL.appendingPathExtension("lra"))
+
+        // The kernel: populated modules + the IOP metallib (the app's
+        // launch discipline) + ONE shared decode for both legs.
+        let populated = ModuleRegistry()
+        await LightamerIOPRegistry.populate(populated)
+        let metal: MetalContext = self.metal
+        try await metal.registerDefaultLibrary(in: ExposureKernel.metalBundle)
+        let memo = ParityDecodeMemo()
+        let decodeLeg: QuickLookRenderer.DecodeLeg = { try await memo.decoded(for: $0) }
+        let liveBox = LiveImageBox()
+        let seams = makeSeams(
+            session: (store, root), metal: metal, modules: populated,
+            decodeLeg: decodeLeg, liveImageURL: { liveBox.get() })
+        let relPathArg: MCPValue = .string("Capture/DSC00012.ARW")
+
+        // ── Host 1: InMemoryTransport (the in-process leg). ─────────────
+        let registry = McpToolRegistry()
+        await EditingToolset.register(into: registry, seams: seams)
+        let server = await McpAdapters.makeServer(registry: registry)
+        let pair = await InMemoryTransport.createConnectedPair()
+        try await server.start(transport: pair.server)
+        let client = MCP.Client(name: "sc3-inmemory", version: "0.0.1")
+        try await client.connect(transport: pair.client)
+
+        // ① load_image: the membership gate + the saved-state view.
+        let (load, loadError) = try await client.callTool(
+            name: "load_image", arguments: ["relPath": relPathArg])
+        XCTAssertNil(loadError)
+        guard case .text(let loadView, _, _) = load.first else {
+            return XCTFail("load_image must answer text")
+        }
+        XCTAssertTrue(loadView.contains("\"stateless\""), "the stateless declaration rides")
+
+        // ② THE GUI-LIVE INSERT: the editor opens the image → apply_params
+        //    is HARD-REJECTED (typed, bilingual) → close → retry succeeds.
+        let threeOps: MCPValue = .array([
+            .object(["opName": .string("exposure"),
+                     "params": .object(["exposure": .double(0.3)])]),
+            .object(["opName": .string("colisa"),
+                     "params": .object(["contrast": .double(0.25)])]),
+            .object(["opName": .string("velvia"),
+                     "params": .object(["strength": .double(0.5)])]),
+        ])
+        let applyArguments = ["relPath": relPathArg, "ops": threeOps]
+        liveBox.set(imageURL)
+        do {
+            _ = try await client.callTool(
+                name: "apply_params", arguments: applyArguments)
+            XCTFail("a GUI-live image must be hard-rejected mid-chain")
+        } catch let error as MCPError {
+            let text = String(describing: error)
+            XCTAssertTrue(text.contains("[imageLiveInEditor]"), "got: \(text)")
+            XCTAssertTrue(text.contains("图像在 Lightamer 编辑器中打开"))
+        }
+        liveBox.set(nil)
+        let (applied, applyError) = try await client.callTool(
+            name: "apply_params", arguments: applyArguments)
+        XCTAssertNil(applyError)
+        guard case .text(let appliedText, _, _) = applied.first else {
+            return XCTFail("apply_params must answer text")
+        }
+        XCTAssertTrue(appliedText.contains("applied=Capture/DSC00012.ARW"))
+
+        // ③ render_preview through the SAME transport.
+        let (preview, previewError) = try await client.callTool(
+            name: "render_preview",
+            arguments: ["relPath": relPathArg, "longEdge": .int(1024)])
+        XCTAssertNil(previewError)
+        guard let previewContent = preview.first,
+            case .imageBase64(let inMemoryBase64, _) =
+                McpAdapters.outputContent(from: previewContent)
+        else {
+            return XCTFail("render_preview must answer an image")
+        }
+        guard let inMemoryJPEG = Data(base64Encoded: inMemoryBase64) else {
+            return XCTFail("the inline payload must decode")
+        }
+        await client.disconnect()
+        await server.stop()
+
+        // ── The LOCAL reference: the same renderedPlane + JPEG encode over
+        // the SHARED decode — the saved state the agent just wrote. ──────
+        let rendered = try await QuickLookRenderer.renderedPlane(
+            imageURL: imageURL, targetLongEdge: 1024,
+            metal: metal, registry: populated, decodeLeg: decodeLeg)
+        let localJPEG = try XCTUnwrap(
+            EditingToolset.encodeJPEG(
+                try QuickLookRenderer.image(from: rendered), quality: 0.85))
+        XCTAssertEqual(
+            inMemoryJPEG, localJPEG,
+            "SC#3: the remote preview is byte-identical to the local render")
+
+        // ── Host 2: Streamable HTTP over the SAME seams. ────────────────
+        let paths = McpEndpointPaths(
+            directory: tempDirectory.appendingPathComponent("endpoint"))
+        let handle = try await McpServerController.startHTTPHost(
+            paths: paths, storeProvider: { nil }, editing: seams)
+        let endpoint = URL(string: "http://127.0.0.1:\(handle.port)/mcp")!
+        let httpTransport = HTTPClientTransport(endpoint: endpoint)
+        let httpClient = MCP.Client(name: "sc3-http", version: "0.0.1")
+        try await httpClient.connect(transport: httpTransport)
+        let tools = try await httpClient.listTools()
+        // The five editing tools ALL ride the second host (the probe tools
+        // additionally ride until their 14-4 retirement — a superset here).
+        let httpNames = Set(tools.0.map(\.name))
+        XCTAssertTrue(
+            ["load_image", "apply_params", "render_preview", "list_iops", "export_image"]
+                .allSatisfy(httpNames.contains),
+            "the same closed editing face rides both hosts")
+        let (httpPreview, httpError) = try await httpClient.callTool(
+            name: "render_preview",
+            arguments: ["relPath": relPathArg, "longEdge": .int(1024)])
+        XCTAssertNil(httpError)
+        guard let httpContent = httpPreview.first,
+            case .imageBase64(let httpBase64, _) =
+                McpAdapters.outputContent(from: httpContent)
+        else {
+            return XCTFail("the HTTP leg must answer an image")
+        }
+        guard let httpJPEG = Data(base64Encoded: httpBase64) else {
+            return XCTFail("the HTTP inline payload must decode")
+        }
+        XCTAssertEqual(
+            httpJPEG, inMemoryJPEG,
+            "dual-host consistency: both hosts answer byte-identically")
+        await httpClient.disconnect()
+        await handle.stop()
+    }
 }
