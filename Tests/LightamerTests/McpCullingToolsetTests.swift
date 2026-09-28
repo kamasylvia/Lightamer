@@ -192,10 +192,22 @@ final class McpCullingToolsetTests: XCTestCase {
                         #"{"type":"object","required":["presetID","relPaths"],"properties":{"presetID":{"type":"string"},"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"mode":{"enum":["overwrite","merge"],"description":"Paste mode (default merge)"},"selection":{"type":"array","description":"Partial-apply subset of instances","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer"},"multiName":{"type":"string"}},"required":["opName","multiPriority","multiName"]}}}}"#,
                     destructiveHint: true),
                 McpToolDescriptor(
+                    name: "get_face_regions",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","required":["relPaths"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":20},"includeLandmarks":{"type":"boolean","description":"Also return per-face landmark point sets (default false)"}}}"#,
+                    readOnlyHint: true),
+                McpToolDescriptor(
                     name: "get_contact_sheet",
                     description: "snapshot",
                     inputSchemaJSON:
                         #"{"type":"object","properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":30},"filter":{"type":"object","description":"FilterPredicateGroup JSON (same shape as list_photos.filter)"},"sort":{"type":"object","description":"Row order when filter is used (same shape as list_photos.sort)"},"cols":{"type":"integer","minimum":1,"maximum":6},"rows":{"type":"integer","minimum":1,"maximum":5}},"oneOf":[{"required":["relPaths"]},{"required":["filter"]}]}"#,
+                    readOnlyHint: true),
+                McpToolDescriptor(
+                    name: "list_bursts",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","properties":{"gapSeconds":{"type":"number","exclusiveMinimum":0,"description":"Max gap between consecutive shots of one burst (default 2.0)"}}}"#,
                     readOnlyHint: true),
                 McpToolDescriptor(
                     name: "get_detail_crop",
@@ -882,6 +894,110 @@ final class McpCullingToolsetTests: XCTestCase {
             XCTFail("expected unknownPreset")
         } catch let error as McpToolError {
             XCTAssertEqual(error.code, "unknownPreset")
+        }
+    }
+
+
+    // MARK: - T4: list_bursts
+
+    func testBurstClusteringGolden() async throws {
+        // Burst A (Canon, 1s gaps): b1..b3. Burst B (Sony, camera switch):
+        // s1..s2. Boundary: a 2.0s gap stays, a 2.1s gap splits. Singles:
+        // one isolated photo + one NULL capture_date row.
+        let fixture = try await Self.makeFixture { store in
+            try await Self.seedRow(store, path: "b1.arw", cameraModel: "Canon", captureDate: 1_700_000_000)
+            try await Self.seedRow(store, path: "b2.arw", cameraModel: "Canon", captureDate: 1_700_000_001)
+            try await Self.seedRow(store, path: "b3.arw", cameraModel: "Canon", captureDate: 1_700_000_002)
+            try await Self.seedRow(store, path: "s1.arw", cameraModel: "Sony", captureDate: 1_700_000_003)
+            try await Self.seedRow(store, path: "s2.arw", cameraModel: "Sony", captureDate: 1_700_000_004)
+            try await Self.seedRow(store, path: "gap-ok.arw", cameraModel: "Canon", captureDate: 1_700_000_006)
+            try await Self.seedRow(store, path: "gap-cut.arw", cameraModel: "Canon", captureDate: 1_700_000_008.1)
+            try await Self.seedRow(store, path: "lonely.arw", cameraModel: "Canon", captureDate: 1_700_100_000)
+            try await Self.seedRow(store, path: "nodate.arw", cameraModel: "Canon", captureDate: nil)
+        }
+        defer { fixture.cleanup() }
+        let registry = await Self.makeRegistry(fixture)
+        let payload = try await Self.callJSON(registry, name: "list_bursts")
+        let bursts = try XCTUnwrap(payload["bursts"] as? [[String: Any]])
+        let singles = try XCTUnwrap(payload["singles"] as? [String])
+
+        // Expect: [b1..b3 Canon] [s1..s2 Sony] — the camera switch splits,
+        // 1s gaps stay; every 1-photo group falls to singles (a burst needs
+        // ≥2 members).
+        XCTAssertEqual(bursts.count, 2)
+        let members0 = try XCTUnwrap(bursts[0]["members"] as? [[String: Any]])
+        XCTAssertEqual(
+            members0.map { $0["relPath"] as? String },
+            ["b1.arw", "b2.arw", "b3.arw"])
+        XCTAssertEqual(bursts[0]["count"] as? Int, 3)
+        let members1 = try XCTUnwrap(bursts[1]["members"] as? [[String: Any]])
+        XCTAssertEqual(members1.map { $0["relPath"] as? String }, ["s1.arw", "s2.arw"])
+        // Singles: the three 1-photo groups + the never-dated row
+        // (sorted spelling).
+        XCTAssertEqual(
+            singles, ["gap-cut.arw", "gap-ok.arw", "lonely.arw", "nodate.arw"])
+
+        // The L013 id: "burst-" + StableHash FULL decimal of the first
+        // member's path — stable across processes.
+        let id = try XCTUnwrap(bursts[0]["id"] as? String)
+        XCTAssertEqual(
+            id, "burst-\(StableHash.hash("b1.arw"))",
+            "burst id = StableHash(path) decimal string (L013)")
+        // id stability: recomputing changes nothing.
+        XCTAssertEqual(id, "burst-\(StableHash.hash("b1.arw"))")
+    }
+
+    // MARK: - T4: get_face_regions
+
+    func testFacePixelRectConversionPerValue() {
+        // Vision normalized bottom-left → pixel top-left, rounded.
+        let rect = McpCullingToolset.facePixelRect(
+            boundingBox: CGRect(x: 0.25, y: 0.5, width: 0.2, height: 0.25),
+            imageWidth: 800, imageHeight: 600)
+        XCTAssertEqual(rect.x, 200)
+        // y = (1 - 0.5 - 0.25) * 600 = 150.
+        XCTAssertEqual(rect.y, 150)
+        XCTAssertEqual(rect.w, 160)
+        XCTAssertEqual(rect.h, 150)
+
+        // The landmark point: face-box-relative, Y flipped.
+        let point = McpCullingToolset.landmarkPixelPoint(
+            point: CGPoint(x: 0.5, y: 0.5),
+            faceBox: CGRect(x: 0.25, y: 0.5, width: 0.2, height: 0.25),
+            imageWidth: 800, imageHeight: 600)
+        // x = (0.25 + 0.5*0.2) * 800 = 280; y = (1 - (0.5 + 0.5*0.25)) * 600 = 225.
+        XCTAssertEqual(point.x, 280)
+        XCTAssertEqual(point.y, 225)
+    }
+
+    func testFaceRegionsEmptyFacesOnNonFaceImage() async throws {
+        // The semantic钉板: a real Vision run on a synthetic gradient (no
+        // faces) returns an EMPTY faces array — NOT an error.
+        let fixture = try await Self.makeFixture { store in
+            try await Self.seedRow(store, path: "noface.arw")
+        }
+        defer { fixture.cleanup() }
+        try Data(repeating: 0xAB, count: 16).write(
+            to: fixture.sessionRoot.appendingPathComponent("noface.arw"))
+        let registry = await Self.makeRegistry(
+            fixture,
+            decodeImage: { _ in McpCullingImageBudgetTests.makeGradientCGImage(width: 640, height: 480) })
+        let payload = try await Self.callJSON(
+            registry, name: "get_face_regions",
+            arguments: ["relPaths": .array([.string("noface.arw")])])
+        let results = try XCTUnwrap(payload["results"] as? [[String: Any]])
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0]["relPath"] as? String, "noface.arw")
+        XCTAssertEqual((results[0]["faces"] as? [Any])?.count, 0)
+
+        // relPaths > 20 → invalidParams (the batch cap).
+        do {
+            let paths: [McpJSON] = (0..<21).map { .string("p\($0).arw") }
+            _ = try await registry.call(
+                name: "get_face_regions", arguments: ["relPaths": .array(paths)])
+            XCTFail("expected invalidParams for 21 relPaths")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "invalidParams")
         }
     }
 

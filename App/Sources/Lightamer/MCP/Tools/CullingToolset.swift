@@ -3,6 +3,7 @@ import CoreImage
 import CoreText
 import Foundation
 import LightamerCore
+import Vision
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan 14-3: the culling-domain toolset (14 tools, research §A #5-10 + 11-15
@@ -222,6 +223,7 @@ enum McpCullingToolset {
         await registerWriteFive(on: registry, context: context)
         await registerPresetTrio(on: registry, context: context)
         await registerImageTrio(on: registry, context: context)
+        await registerBurstAndFaces(on: registry, context: context)
     }
 
     // MARK: - list_photos (§A #5)
@@ -1112,5 +1114,233 @@ enum McpCullingToolset {
             .text(McpJSONSerialization.text(from: manifest)),
             .imageBase64(base64, mimeType: "image/jpeg"),
         ])
+    }
+
+    // MARK: - Burst + faces (§A #9-10)
+
+    /// Vision normalized bottom-left → decoded pixel top-left (the ONE
+    /// conversion face; unit-tested per value).
+    static func facePixelRect(
+        boundingBox: CGRect, imageWidth: Int, imageHeight: Int
+    ) -> (x: Int, y: Int, w: Int, h: Int) {
+        let x = Int((boundingBox.origin.x * CGFloat(imageWidth)).rounded())
+        let y = Int(
+            ((1 - boundingBox.origin.y - boundingBox.height)
+                * CGFloat(imageHeight)).rounded())
+        let w = Int((boundingBox.width * CGFloat(imageWidth)).rounded())
+        let h = Int((boundingBox.height * CGFloat(imageHeight)).rounded())
+        return (x, y, w, h)
+    }
+
+    /// A landmark's face-box-relative normalized point → pixel top-left
+    /// (the FaceLandmarkSet.init conversion shape, pixel output).
+    static func landmarkPixelPoint(
+        point: CGPoint, faceBox: CGRect, imageWidth: Int, imageHeight: Int
+    ) -> (x: Int, y: Int) {
+        let nx = faceBox.origin.x + point.x * faceBox.width
+        let ny = 1 - (faceBox.origin.y + point.y * faceBox.height)
+        return (
+            Int((nx * CGFloat(imageWidth)).rounded()),
+            Int((ny * CGFloat(imageHeight)).rounded())
+        )
+    }
+
+    private static func registerBurstAndFaces(
+        on registry: McpToolRegistry, context: McpCullingContext
+    ) async {
+        // §A #9 list_bursts — pure query-layer clustering (万张级 <1ms,
+        // ZERO pixel rendering).
+        await registry.register(
+            McpToolDescriptor(
+                name: "list_bursts",
+                description:
+                    "Group the CURRENTLY OPEN Lightamer session's photos into "
+                        + "burst sequences: consecutive shots within gapSeconds "
+                        + "(default 2.0) taken with the same camera_model form one "
+                        + "burst; single photos land in singles. Cross-day gaps "
+                        + "naturally split. Rows carry capture_date/filename/relPath "
+                        + "— filter the members with list_photos afterwards (the "
+                        + "relPaths are session keys). Pure index query: no pixels "
+                        + "are decoded or rendered.",
+                inputSchemaJSON:
+                    #"{"type":"object","properties":{"gapSeconds":{"type":"number","exclusiveMinimum":0,"description":"Max gap between consecutive shots of one burst (default 2.0)"}}}"#,
+                readOnlyHint: true),
+            handler: { arguments in
+                try await withTimeout(
+                    McpTimeouts.list,
+                    McpToolError.internalError("list_bursts timed out")
+                ) {
+                    var gapSeconds = 2.0
+                    if let gap = arguments["gapSeconds"]?.doubleValue {
+                        guard gap > 0 else {
+                            throw McpToolError.invalidParams(
+                                "gapSeconds must be > 0")
+                        }
+                        gapSeconds = gap
+                    }
+                    let (store, _) = try await requireSession(context)
+                    // One ordered scan over the SAME query face (the same
+                    // actor handle — zero new locking; no FilterSQL
+                    // predicates: burst grouping is a dedicated read).
+                    let rows = try await store.query(
+                        groups: [],
+                        sort: FilterSort(key: .captureDate, ascending: true),
+                        limit: nil)
+                    // In-memory O(n) clustering. Rows with a NULL
+                    // capture_date cannot cluster — honest singles.
+                    struct Burst {
+                        var id: String
+                        var camera: String?
+                        var lastDate: Double
+                        var members: [McpJSON]
+                    }
+                    var bursts: [Burst] = []
+                    var singles: [String] = []
+                    for row in rows {
+                        guard let date = row.captureDate else {
+                            singles.append(row.path)
+                            continue
+                        }
+                        let camera = row.cameraModel
+                        // Same burst = same camera class AND within the gap.
+                        if let last = bursts.last,
+                            last.camera == camera,
+                            date - last.lastDate <= gapSeconds
+                        {
+                            bursts[bursts.count - 1].lastDate = date
+                            bursts[bursts.count - 1].members.append(.object([
+                                "relPath": .string(row.path),
+                                "filename": row.filename.map { .string($0) } ?? .null,
+                                "captureDate": .double(date),
+                            ]))
+                        } else {
+                            // L013: the burst id is the FIRST member's path
+                            // hashed with the cross-process StableHash,
+                            // spelled as the full DECIMAL string.
+                            let id = "burst-\(StableHash.hash(row.path))"
+                            bursts.append(Burst(
+                                id: id, camera: camera, lastDate: date,
+                                members: [.object([
+                                    "relPath": .string(row.path),
+                                    "filename": row.filename.map { .string($0) } ?? .null,
+                                    "captureDate": .double(date),
+                                ])]))
+                        }
+                    }
+                    var burstRows: [McpJSON] = []
+                    for var burst in bursts {
+                        if burst.members.count < 2 {
+                            guard case .object(let only) = burst.members[0],
+                                case .string(let path) = only["relPath"]
+                            else { continue }
+                            singles.append(path)
+                            continue
+                        }
+                        // Drop the id from the per-burst payload face? No —
+                        // id stays; members keep their objects.
+                        burstRows.append(.object([
+                            "id": .string(burst.id),
+                            "count": .int(burst.members.count),
+                            "members": .array(burst.members),
+                        ]))
+                    }
+                    let payload = McpJSON.object([
+                        "bursts": .array(burstRows),
+                        "singles": .array(singles.sorted().map { .string($0) }),
+                    ])
+                    return .text(McpJSONSerialization.text(from: payload))
+                }
+            })
+
+        // §A #10 get_face_regions — VNDetectFaceLandmarksRequest direct
+        // (the SkinSmooth hull orchestration is NOT consumed); per-request
+        // no cache (~4ms/image measured), request-internal serial.
+        await registry.register(
+            McpToolDescriptor(
+                name: "get_face_regions",
+                description:
+                    "Detect faces in up to 20 photos of the CURRENTLY OPEN "
+                        + "Lightamer session. Returns each photo's face bounding "
+                        + "boxes in DECODED PIXEL coordinates (the same face the "
+                        + "get_detail_crop ROI consumes; origin top-left) — an EMPTY "
+                        + "array means no face was found, not an error. Optional "
+                        + "landmark point sets (same pixel space). Vision runs "
+                        + "per-request with no caching (~4ms per image); requests "
+                        + "are serialized internally.",
+                inputSchemaJSON:
+                    #"{"type":"object","required":["relPaths"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":20},"includeLandmarks":{"type":"boolean","description":"Also return per-face landmark point sets (default false)"}}}"#,
+                readOnlyHint: true),
+            handler: { arguments in
+                try await withTimeout(
+                    McpTimeouts.list,
+                    McpToolError.internalError("get_face_regions timed out")
+                ) {
+                    let relPaths = try requireRelPaths(arguments, max: 20)
+                    var includeLandmarks = false
+                    if case .bool(let flag) = arguments["includeLandmarks"] ?? .null {
+                        includeLandmarks = flag
+                    }
+                    let (store, root) = try await requireSession(context)
+                    try await requireMembers(relPaths, store: store)
+                    var results: [McpJSON] = []
+                    for relPath in relPaths {
+                        let image = try await context.decodeImage(
+                            root.appendingPathComponent(relPath))
+                        let request = VNDetectFaceLandmarksRequest()
+                        let handler = VNImageRequestHandler(
+                            cgImage: image, options: [:])
+                        do {
+                            try handler.perform([request])
+                        } catch {
+                            throw McpToolError.internalError(
+                                "face detection failed for '\(relPath)': \(error)")
+                        }
+                        var faces: [McpJSON] = []
+                        for observation in request.results ?? [] {
+                            let box = observation.boundingBox
+                            let pixel = Self.facePixelRect(
+                                boundingBox: box, imageWidth: image.width,
+                                imageHeight: image.height)
+                            var face: [String: McpJSON] = [
+                                "x": .int(pixel.x), "y": .int(pixel.y),
+                                "w": .int(pixel.w), "h": .int(pixel.h),
+                            ]
+                            if includeLandmarks, let set = observation.landmarks {
+                                var points: [McpJSON] = []
+                                let bb = box
+                                func add(_ region: VNFaceLandmarkRegion2D?) {
+                                    guard let region else { return }
+                                    for index in 0..<region.pointCount {
+                                        let p = region.normalizedPoints[index]
+                                        let pt = Self.landmarkPixelPoint(
+                                            point: p, faceBox: bb,
+                                            imageWidth: image.width,
+                                            imageHeight: image.height)
+                                        points.append(.object([
+                                            "x": .int(pt.x), "y": .int(pt.y),
+                                        ]))
+                                    }
+                                }
+                                add(set.faceContour)
+                                add(set.leftEye)
+                                add(set.rightEye)
+                                add(set.leftEyebrow)
+                                add(set.rightEyebrow)
+                                add(set.outerLips)
+                                add(set.nose)
+                                face["landmarks"] = .array(points)
+                            }
+                            faces.append(.object(face))
+                        }
+                        results.append(.object([
+                            "relPath": .string(relPath),
+                            "faces": .array(faces),
+                        ]))
+                    }
+                    return .text(McpJSONSerialization.text(from: .object([
+                        "results": .array(results),
+                    ])))
+                }
+            })
     }
 }
