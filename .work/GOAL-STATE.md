@@ -86,7 +86,7 @@
 
 - **🏗️ 执行序修订（2026-09-27 用户指令）**：Phase 8（HDR/Stacking & Effects，10 需求被跳过）**回补执行**；Phase 14（MCP）+ Phase 15（Performance）继续；Phase 13-4（分发）**移至最后——人工审核通过后才正式发布**。修订后执行序 = Phase 13-1..13-3（已完成）→ **Phase 8 discuss/research 完成**（`a89b4a9` CONTEXT 12 OQ + `5854b60` RESEARCH 330 行 1M 实测表）→ **planner 已派遣**（5 plans/3 waves per research 建议）。13-4 凭据供件仍需用户。
 
-- **✅ Phase 8 回补完成（2026-09-28 凌晨，5/5 plans 执行+验收全过）**：08-1（HDR merge + MTB + 行带流式 + ghost mask + provenance v4 + HDR-04 矩阵基座，+52）→ 08-2（vignette/grain 3-octave simplex/bloom 级联，+25）→ 08-3（focus stacking SML + 三模式堆栈降噪 + 行带常量锁，+24）→ 08-4（EDR 显示 .rgba16Float 兑现 + headroom + 三不进，+14）→ 08-5（dehaze 四 kernel + text overlay 66.7 新槽 + LUT 判定 + EXIF ΔEV P1 修复 + 收口签核，+15）→ 终轮 **1768/11skip/0fail**（1636 → +132）。08-VALIDATION `validated` + `nyquist_compliant: true`；IOP-HDR-01..05 + IOP-FX-01..05 **×10 翻账 Delivered**；C 档第 3 停生效。**⏸️ 流水线暂停中（用户指令跑完暂停）——恢复 = paused=false，下一程 Phase 14（MCP）discuss/research 开环。**
+- **✅ Phase 8 回补完成（2026-09-28 凌晨，5/5 plans 执行+验收全过）**：08-1（HDR merge + MTB + 行带流式 + ghost mask + provenance v4 + HDR-04 矩阵基座，+52）→ 08-2（vignette/grain 3-octave simplex/bloom 级联，+25）→ 08-3（focus stacking SML + 三模式堆栈降噪 + 行带常量锁，+24）→ 08-4（EDR 显示 .rgba16Float 兑现 + headroom + 三不进，+14）→ 08-5（dehaze 四 kernel + text overlay 66.7 新槽 + LUT 判定 + EXIF ΔEV P1 修复 + 收口签核，+15）→ 终轮 **1768/11skip/0fail**（1636 → +132）。08-VALIDATION `validated` + `nyquist_compliant: true`；IOP-HDR-01..05 + IOP-FX-01..05 **×10 翻账 Delivered**；C 档第 3 停生效。**▶️ 流水线恢复（2026-09-28 用户指令；paused=false 已设）——Phase 14（MCP）discuss/research 开环。**
 
 ## 下一步动作队列（按序执行，完成一项划掉并更新）
 
