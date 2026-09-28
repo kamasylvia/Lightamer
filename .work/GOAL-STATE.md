@@ -142,7 +142,7 @@
 
 ## 环境备忘
 
-- **Alcedo Studio 已安装（2026-09-27 用户授权，UI 仿写视觉验收资源）**：`/Applications/AlcedoStudio.app`——M2-3 UI 克隆与后续 GUI 验收轮可用 computer-use（AX+cliclick+screencapture，UAT 自答先例同款）开真机对照截图。实测内置 44 个 LUT 于 `Contents/MacOS/LUTs/`，**主体 65³**（Agfa/Fuji/Kodak 全系；仅 Hasselblad 两张 33³）——M2-5 LUT 语义按 65³ 为一等档位（33³ 兼收）；目录内存在「色彩逆向」子目录，实证递归扫描需求（M2GRADE-05）。
+- **Alcedo Studio 已安装（2026-09-27 用户授权，UI 仿写视觉验收资源）**：`/Applications/AlcedoStudio.app`——M2-3 UI 克隆与后续 GUI 验收轮可用 computer-use（AX+cliclick+screencapture，UAT 自答先例同款）开真机对照截图。~~实测 44 个 LUT~~（2026-09-29 勘误：其中 Hasselblad 两张 33³ 与「色彩逆向」子目录为**用户自放**，非内置）——**Alcedo 真内置集 = CMake glob `Agfa_*/Fuji_*/Kodak_*.cube`（主体 65³）**；M2-5 LUT 语义按 65³ 为一等档位（33³ 兼收）；递归扫描需求（M2GRADE-05）动机不变。
 
 ## 巡检运行规则（每次 Cron 触发时遵守）
 
