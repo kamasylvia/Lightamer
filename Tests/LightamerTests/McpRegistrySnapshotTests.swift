@@ -96,6 +96,62 @@ final class McpRegistrySnapshotTests: XCTestCase {
         await McpServerController.makeRegistry(storeProvider: { nil })
     }
 
+    // MARK: - Editing domain snapshot (Plan 14-2; atomic per-task evolution)
+
+    /// The editing face as the hosts assemble it (probe registry + editing
+    /// tools). T1 pinned render_preview; T2 adds load_image + apply_params;
+    /// T3/T4 extend — each task edits THIS snapshot in its own commit.
+    func testEditingDomainSnapshot() async throws {
+        let temp = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("mcp-snap-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let capture = temp.appendingPathComponent("Capture", isDirectory: true)
+        try FileManager.default.createDirectory(at: capture, withIntermediateDirectories: true)
+        let image = capture.appendingPathComponent("snap.ARW")
+        try Data(repeating: 0xCD, count: 8).write(to: image)
+        let store = SessionIndexStore(sessionRoot: temp)
+        _ = try await store.openSession(
+            root: temp,
+            scan: AsyncStream { continuation in
+                continuation.yield(SessionScanPage(entries: [
+                    SessionScanEntry(relPath: "Capture/snap.ARW", mtime: 0, size: 8),
+                ]))
+                continuation.finish()
+            })
+
+        let seams = EditingToolset.Seams(
+            session: { (store, temp) },
+            metal: { nil },
+            modules: { ModuleRegistry() },
+            gate: McpRenderGate(),
+            liveImageURL: { nil })
+        let registry = McpToolRegistry()
+        await EditingToolset.register(into: registry, seams: seams)
+        try await Self.assertSnapshot(
+            registry: registry,
+            expected: [
+                McpToolDescriptor(
+                    name: "apply_params",
+                    description: "apply",
+                    inputSchemaJSON:
+                        #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"ops":{"type":"array","minItems":1,"description":"Module-level upserts","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer","default":0},"params":{"type":"object","description":"Partial params JSON overlaid on the instance (keys per list_iops)"},"enabled":{"type":"boolean"},"remove":{"type":"boolean","default":false}},"required":["opName"]}}},"required":["relPath","ops"]}"#,
+                    destructiveHint: true),
+                McpToolDescriptor(
+                    name: "load_image",
+                    description: "load",
+                    inputSchemaJSON:
+                        #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"}},"required":["relPath"]}"#,
+                    readOnlyHint: true),
+                McpToolDescriptor(
+                    name: "render_preview",
+                    description: "rendered",
+                    inputSchemaJSON:
+                        #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"}},"required":["relPath"]}"#,
+                    readOnlyHint: true),
+            ])
+    }
+
     // MARK: - Probe domain snapshot
 
     func testProbeDomainSnapshot() async throws {

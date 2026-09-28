@@ -414,22 +414,4 @@ final class McpRenderParityTests: XCTestCase {
             overlap.maxSeen, 1, "render gate: render_preview bodies never overlap")
     }
 
-    // MARK: - The editing-domain snapshot (atomic evolution: T1 = 1 tool)
-
-    func testEditingDomainSnapshotRenderPreview() async throws {
-        let (root, _, store) = try await makeSession(
-            imageName: "snap.ARW", rasterData: Data(repeating: 0xCD, count: 64))
-        let seams = makeSeams(session: (store, root), metal: metal, modules: modules)
-        let registry = await makeEditingRegistry(seams: seams)
-        try await McpRegistrySnapshotTests.assertSnapshot(
-            registry: registry,
-            expected: [
-                McpToolDescriptor(
-                    name: "render_preview",
-                    description: "rendered",
-                    inputSchemaJSON:
-                        #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"}},"required":["relPath"]}"#,
-                    readOnlyHint: true),
-            ])
-    }
 }

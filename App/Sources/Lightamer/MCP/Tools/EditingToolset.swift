@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import ImageIO
 import LightamerCore
+import LightamerIOP
 import UniformTypeIdentifiers
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,6 +73,11 @@ enum EditingToolset {
         /// HARD-REJECTS a matching target (`imageLiveInEditor`).
         let liveImageURL: @Sendable () async -> URL?
 
+        /// The production yiyin injector seam (export_image `yiyin: true`).
+        /// nil (headless/tests) + yiyin:true → `exportFailed` (the honest
+        /// typed face — no silent degradation).
+        var yiyinInjector: (@Sendable () async -> ExportYiyinInjector?)?
+
         /// Test seam: the shared decode leg (parity legs share ONE CIRAW
         /// decode — the speckle discipline). nil = `RAWDecoder`.
         var decodeLeg: QuickLookRenderer.DecodeLeg?
@@ -79,6 +85,11 @@ enum EditingToolset {
         /// Test seam: render-class timeout override (seconds). nil = the
         /// `McpTimeouts` production constants.
         var renderTimeoutOverride: Double?
+
+        /// The WRITE serial gate: apply_params runs under a FIFO mutex so
+        /// two concurrent MCP writes never interleave their three segments
+        /// (§RQ-14-14: write-face requests queue, they do not reject).
+        var writeGate: McpRenderGate?
 
         init(
             session: @escaping @Sendable () async -> (store: SessionIndexStore, root: URL)?,
@@ -101,6 +112,16 @@ enum EditingToolset {
     /// this body; the snapshot tests pin every addition (the tool face IS a
     /// security face).
     static func register(into registry: McpToolRegistry, seams: Seams) async {
+        await registry.register(
+            loadImageDescriptor, requiresWriter: false,
+            handler: { arguments in
+                try await loadImageBody(arguments: arguments, seams: seams)
+            })
+        await registry.register(
+            applyParamsDescriptor, requiresWriter: true,
+            handler: { arguments in
+                try await applyParamsBody(arguments: arguments, seams: seams)
+            })
         await registerRenderPreview(into: registry, seams: seams)
     }
 
@@ -138,7 +159,331 @@ enum EditingToolset {
         return (session.root.appendingPathComponent(relPath), session.root, session.store)
     }
 
-    // MARK: - render_preview (T1)
+    // MARK: - load_image (T2 — the stateless read view, planner ruling D5)
+
+    private static let loadImageDescriptor = McpToolDescriptor(
+        name: "load_image",
+        description:
+            "Read an open-session image's SAVED edit state as a JSON view: the module "
+                + "instance summary (opName/multiPriority/enabled per instance), layer "
+                + "count, dimensions and orientation. STATELESS by design: no server-side "
+                + "session handle is created — every tool names its image with relPath, "
+                + "so multiple clients can interleave safely. The view reflects the last "
+                + "SAVED sidecar state; and render_preview equally reflects the SAVED "
+                + "edit state (GUI edits carry a ~2s debounce). Membership: relPath must "
+                + "be an indexed member of the open session. Errors: notSessionMember.",
+        inputSchemaJSON:
+            #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"}},"required":["relPath"]}"#,
+        readOnlyHint: true)
+
+    private static func loadImageBody(
+        arguments: [String: McpJSON], seams: Seams
+    ) async throws -> McpToolOutput {
+        let relPath = try requiredRelPath(arguments)
+        let member = try await resolveMember(relPath: relPath, seams: seams)
+        let row = try await member.store.fetchRow(relPath: relPath)
+        let document = ExportRenderer.readDocument(imageURL: member.imageURL)
+
+        // The read view (§RQ-14-5②): the sidecar's instance summary — ids
+        // and raw paramsData stay internal (cross-process meaningless).
+        let instances: [[String: Any]] = (document?.instances ?? []).map { record in
+            [
+                "opName": record.opName,
+                "multiPriority": record.multiPriority,
+                "enabled": record.enabled,
+            ]
+        }
+        var view: [String: Any] = [
+            "relPath": relPath,
+            "filename": member.imageURL.lastPathComponent,
+            "instances": instances,
+            "stateless": true,
+            "note": "render_preview reflects the SAVED edit state (last sidecar write)",
+        ]
+        if let row {
+            if let width = row.width { view["width"] = Int(width) }
+            if let height = row.height { view["height"] = Int(height) }
+            if let orientation = row.orientation { view["orientation"] = Int(orientation) }
+            if let hasEdits = row.hasEdits { view["hasEdits"] = hasEdits != 0 }
+            if let layerCount = row.layerCount { view["layerCount"] = Int(layerCount) }
+        }
+        let data = try JSONSerialization.data(
+            withJSONObject: view, options: [.sortedKeys, .prettyPrinted])
+        return .text(String(decoding: data, as: UTF8.self))
+    }
+
+    // MARK: - apply_params (T2 — module-level upsert, three segments)
+
+    private static let applyParamsDescriptor = McpToolDescriptor(
+        name: "apply_params",
+        description:
+            "Apply module parameter edits to ONE open-session image (module-level "
+                + "upsert, non-destructive: one undoable history commit on top). Each "
+                + "op addresses an instance by (opName, multiPriority — default 0) and "
+                + "may set `params` (partial JSON overlaid on the module's params), "
+                + "flip `enabled`, or delete the instance with `\"remove\": true`. "
+                + "Unknown op → unknownOp; unknown/mistyped key → invalidParams; "
+                + "reset one module = apply its default params. The write lands BEFORE "
+                + "this tool returns. HARD REJECTION: an image open in the Lightamer "
+                + "editor answers imageLiveInEditor — ask the user to close it and "
+                + "retry, or edit in the GUI (图像在编辑器中打开；请让用户关闭后重试，"
+                + "或改用 GUI 操作). Params key reference: list_iops.",
+        inputSchemaJSON:
+            #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"ops":{"type":"array","minItems":1,"description":"Module-level upserts","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer","default":0},"params":{"type":"object","description":"Partial params JSON overlaid on the instance (keys per list_iops)"},"enabled":{"type":"boolean"},"remove":{"type":"boolean","default":false}},"required":["opName"]}}},"required":["relPath","ops"]}"#,
+        destructiveHint: true)
+
+    /// One parsed `ops[]` entry.
+    struct ParamOp: Sendable {
+        var opName: String
+        var multiPriority: Int
+        var params: [String: McpJSON]?
+        var enabled: Bool?
+        var remove: Bool
+    }
+
+    private static func parseParamOps(_ arguments: [String: McpJSON]) throws -> [ParamOp] {
+        guard case .array(let items)? = arguments["ops"], !items.isEmpty else {
+            throw McpToolError.invalidParams(
+                "ops (non-empty array of {opName, ...}) is required")
+        }
+        return try items.map { item in
+            guard case .object(let object) = item else {
+                throw McpToolError.invalidParams("each op must be an object")
+            }
+            guard let opName = object["opName"]?.stringValue, !opName.isEmpty else {
+                throw McpToolError.invalidParams("each op requires a non-empty opName")
+            }
+            if object["remove"]?.boolValue == true, object["params"] != nil {
+                throw McpToolError.invalidParams(
+                    "op '\(opName)': remove and params are mutually exclusive")
+            }
+            let enabled: Bool?
+            if case .bool(let value)? = object["enabled"] {
+                enabled = value
+            } else if object["enabled"] == nil || object["enabled"] == .null {
+                enabled = nil
+            } else {
+                throw McpToolError.invalidParams(
+                    "op '\(opName)': enabled must be a boolean")
+            }
+            let params: [String: McpJSON]?
+            if let value = object["params"], value != .null {
+                guard case .object(let members) = value else {
+                    throw McpToolError.invalidParams(
+                        "op '\(opName)': params must be an object")
+                }
+                params = members
+            } else {
+                params = nil
+            }
+            return ParamOp(
+                opName: opName,
+                multiPriority: object["multiPriority"]?.intValue ?? 0,
+                params: params,
+                enabled: enabled,
+                remove: object["remove"]?.boolValue == true)
+        }
+    }
+
+    private static func applyParamsBody(
+        arguments: [String: McpJSON], seams: Seams
+    ) async throws -> McpToolOutput {
+        let relPath = try requiredRelPath(arguments)
+        let ops = try parseParamOps(arguments)
+        let member = try await resolveMember(relPath: relPath, seams: seams)
+
+        // The WRITE gate: apply_params calls serialize against each other.
+        let gate = seams.writeGate ?? McpRenderGate()
+        return try await gate.withRenderGate {
+            // GUI-live HARD rejection (single-image semantics — the 14-3
+            // apply_preset batch face is the SOFT skip; D8 keeps them apart).
+            if let live = await seams.liveImageURL(),
+                live.standardizedFileURL.path
+                    == member.imageURL.standardizedFileURL.path
+            {
+                throw McpToolError.imageLiveInEditor(
+                    "图像在 Lightamer 编辑器中打开；请让用户关闭后重试，或改用 GUI 操作"
+                        + " / The image is open in the Lightamer editor; ask the "
+                        + "user to close it and retry, or edit in the GUI instead")
+            }
+
+            // The upsert projection off the DISK truth (pristine = the
+            // editing seed — the editor's own fresh-load convention).
+            let modules = await seams.modules()
+            let document = ExportRenderer.readDocument(imageURL: member.imageURL)
+            let current: [ModuleInstance]
+            if let document {
+                current = document.instances
+            } else {
+                current = await Self.editingSeed(modules: modules)
+            }
+            let desired = try await Self.projectInstances(
+                current: current, ops: ops, modules: modules)
+
+            // Idempotence: an apply whose projection equals the current
+            // document writes NOTHING (byte-identical retries are safe,
+            // §RQ-14-5②).
+            if desired == current {
+                return .text(
+                    "applied=nothing (already in the requested state) relPath=\(relPath)")
+            }
+
+            let payload = PastePayload(
+                sourceImageID: UUID(), sourceURL: nil, instances: desired,
+                layerStack: document?.layerStack, copiedAt: Date())
+            let writer = BatchSidecarWriter(root: member.root, store: member.store)
+            let outcome = await SessionBatchApplier.apply(
+                root: member.root, relPaths: [relPath], payload: payload,
+                mode: .overwrite, seed: [], liveRelPaths: [],
+                store: member.store, writer: writer,
+                timestamp: Date(), label: "MCP apply_params")
+            guard outcome.appliedRelPaths.contains(relPath) else {
+                throw McpToolError.internalError(
+                    "apply_params compose/claim did not land for '\(relPath)'")
+            }
+            // The write lands BEFORE the tool returns (the agent's next
+            // render_preview reads the new state, not a drain race).
+            await writer.flushForTeardown()
+            return .text(
+                "applied=\(relPath) ops=\(ops.count) "
+                    + "(one undoable commit; render_preview now reflects it)")
+        }
+    }
+
+    /// The pristine-load seed (the editor's own fresh-load convention —
+    /// `LightamerApp.seedInstances`), v50-sorted.
+    static func editingSeed(modules: ModuleRegistry) async -> [ModuleInstance] {
+        let defaults = await modules.makeDefaultInstances()
+            + LightamerIOPRegistry.editingDefaultInstances()
+        return defaults.sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+    }
+
+    // MARK: - The upsert projection
+
+    /// Projects `ops` onto `current`: same-key params replacement (merged
+    /// over the CURRENT/default params), optional enable flip, optional
+    /// removal, append for missing keys. The result is the DESIRED full
+    /// instance set, v50-sorted.
+    static func projectInstances(
+        current: [ModuleInstance], ops: [ParamOp], modules: ModuleRegistry
+    ) async throws -> [ModuleInstance] {
+        var instances = current
+        for op in ops {
+            // Addressability FIRST (a remove of an unknown op is still an
+            // unknown op to the agent's mental model).
+            let registered = await modules.makeBox(opName: op.opName) != nil
+            guard registered || op.remove else {
+                throw McpToolError.unknownOp(
+                    "'\(op.opName)' is not a registered module — see list_iops")
+            }
+            let index = instances.firstIndex {
+                $0.opName == op.opName && $0.multiPriority == op.multiPriority
+            }
+            if op.remove {
+                if let index {
+                    instances.remove(at: index)
+                }
+                continue
+            }
+            guard let index else {
+                // CREATE: the module's default record is the merge base.
+                guard var record = await Self.defaultRecord(
+                    opName: op.opName, multiPriority: op.multiPriority,
+                    modules: modules)
+                else {
+                    throw McpToolError.invalidParams(
+                        "op '\(op.opName)' has no derivable default params — only an "
+                            + "existing instance can be re-parameterized")
+                }
+                if let params = op.params {
+                    try await Self.overlayParams(
+                        onto: &record, overlay: params, modules: modules)
+                }
+                if let enabled = op.enabled { record.enabled = enabled }
+                instances.append(record)
+                continue
+            }
+            var record = instances[index]
+            if let params = op.params {
+                try await Self.overlayParams(
+                    onto: &record, overlay: params, modules: modules)
+            }
+            if let enabled = op.enabled { record.enabled = enabled }
+            instances[index] = record
+        }
+        return instances.sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+    }
+
+    /// The default instance record for `opName` (terminal trio + editing
+    /// seed), or nil when the op ships no derivable defaults.
+    static func defaultRecord(
+        opName: String, multiPriority: Int, modules: ModuleRegistry
+    ) async -> ModuleInstance? {
+        let defaults = await modules.makeDefaultInstances()
+            + LightamerIOPRegistry.editingDefaultInstances()
+        guard let base = defaults.first(where: {
+            $0.opName == opName && $0.multiPriority == 0
+        }) else { return nil }
+        var record = base
+        record.id = UUID()
+        record.multiPriority = multiPriority
+        return record
+    }
+
+    /// Merges `overlay` onto the record's CURRENT params JSON and commits
+    /// the result through the module's own Codable decode (the box is the
+    /// typed decode authority — a decode failure is the typed
+    /// `invalidParams` face with the op named).
+    static func overlayParams(
+        onto record: inout ModuleInstance, overlay: [String: McpJSON],
+        modules: ModuleRegistry
+    ) async throws {
+        // Unknown-key rejection rides the catalog when the op is cataloged
+        // (T3); the decode itself rejects mistyped values.
+        let baseObject = (try? JSONSerialization.jsonObject(
+            with: record.paramsData,
+            options: [.fragmentsAllowed]) as? [String: Any]) ?? [:]
+        var merged = baseObject
+        for (key, value) in overlay {
+            merged[key] = Self.jsonSerializationValue(value)
+        }
+        let data = try JSONSerialization.data(withJSONObject: merged, options: [])
+        var candidate = record
+        candidate.paramsData = data
+        guard let box = await modules.makeBox(opName: record.opName, instanceID: record.id)
+        else {
+            throw McpToolError.unknownOp(
+                "'\(record.opName)' is not a registered module — see list_iops")
+        }
+        do {
+            try box.apply(candidate)
+        } catch {
+            throw McpToolError.invalidParams(
+                "op '\(record.opName)': params decode failed (\(overlay.keys.joined(separator: ", "))) — "
+                    + String(describing: error))
+        }
+        record.paramsData = box.paramsData
+        record.paramsHash = box.paramsHash
+    }
+
+    /// `McpJSON` → a JSONSerialization-compatible value.
+    static func jsonSerializationValue(_ value: McpJSON) -> Any {
+        switch value {
+        case .null: NSNull()
+        case .bool(let b): NSNumber(value: b)
+        case .int(let i): NSNumber(value: i)
+        case .double(let d): NSNumber(value: d)
+        case .string(let s): s
+        case .array(let items): items.map(jsonSerializationValue)
+        case .object(let members):
+            members.mapValues(jsonSerializationValue)
+        }
+    }
+
 
     private static func registerRenderPreview(
         into registry: McpToolRegistry, seams: Seams

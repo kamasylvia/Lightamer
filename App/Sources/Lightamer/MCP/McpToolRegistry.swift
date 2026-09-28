@@ -40,6 +40,12 @@ public enum McpJSON: Sendable, Equatable {
         return nil
     }
 
+    /// Convenience accessor for boolean values (Plan 14-2 tool arguments).
+    public var boolValue: Bool? {
+        if case .bool(let b) = self { return b }
+        return nil
+    }
+
     /// Convenience accessor for object members.
     public subscript(key: String) -> McpJSON? {
         if case .object(let o) = self { return o[key] }
