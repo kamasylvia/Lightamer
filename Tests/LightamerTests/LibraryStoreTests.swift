@@ -258,6 +258,48 @@ final class LibraryStoreTests: XCTestCase {
         }
     }
 
+    /// KD-4 atomicity (acceptance regression): a membership move whose
+    /// REFCOUNT leg is aborted mid-batch must roll the MEMBERSHIP leg back
+    /// too — the two statements ride the withWriteBatch transaction, not
+    /// autocommit. Injection = an AFTER trigger that RAISE(ABORT)s exactly
+    /// the 1→0 decrement leg.
+    func testRefcountMoveIsAtomicUnderMidStatementFailure() async throws {
+        let imageID = try await store.insertImage(
+            record: LibraryImageRecord(
+                imagePath: "Media/atomic.arw", pathKind: .projectRelative))
+        let album = try await store.createAlbum(kind: .album, name: "Atomic")
+        try await store.addImage(imageID, to: album.id)
+
+        try await fileStore.withHandle { handle -> Bool in
+            try handle.execute("""
+                CREATE TRIGGER atomicity_inject AFTER UPDATE OF ref_count ON images
+                WHEN OLD.ref_count = 1
+                BEGIN SELECT RAISE(ABORT, 'injected atomicity failure'); END
+                """)
+            return true
+        }
+
+        do {
+            try await store.removeImage(imageID, from: album.id)
+            XCTFail("expected the injected abort")
+        } catch {
+            // Any error shape — the STATE after the failure is the contract.
+        }
+
+        // WITHOUT the batch transaction the DELETE would already be
+        // committed here (membership gone, ref_count stuck at 1).
+        let image = try await store.image(id: imageID)
+        XCTAssertEqual(image.refCount, 1, "the refcount leg rolled back")
+        let members = try await store.members(of: album.id)
+        XCTAssertEqual(members, [imageID], "the membership leg rolled back")
+
+        // Drop the injection so tearDown's close checkpoint stays clean.
+        try await fileStore.withHandle { handle -> Bool in
+            try handle.execute("DROP TRIGGER atomicity_inject")
+            return true
+        }
+    }
+
     // MARK: - Unknown ids + projection
 
     func testUnknownIDsRejectTyped() async throws {

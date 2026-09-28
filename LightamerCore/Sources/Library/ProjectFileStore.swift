@@ -292,14 +292,29 @@ public actor ProjectFileStore {
         return try body(handle)
     }
 
-    /// Batch wrapper: run a write batch, then honor the checkpoint
-    /// discipline at the exit (the store faces call this around their
-    /// BEGIN/COMMIT transactions).
+    /// Batch wrapper: run a write batch inside ONE `BEGIN IMMEDIATE`
+    /// transaction, then honor the checkpoint discipline at the exit. The
+    /// transaction IS the point: multi-statement invariants (KD-4 — the
+    /// album_content write and the ref_count movement; the removeAlbum
+    /// decrement-then-delete sequence) are atomic per batch, and any body
+    /// error ROLLBACKs the whole batch. (M2-2-1 acceptance fix: the batch
+    /// ran the body in autocommit — the KD-4 same-transaction contract was
+    /// structural, not enforced.) The checkpoint runs AFTER the COMMIT so
+    /// TRUNCATE never races an active transaction; a checkpoint failure
+    /// still surfaces typed (the write is committed, close re-forces).
     func withWriteBatch<T: Sendable>(
         _ body: sending (SQLiteHandle) throws -> T
     ) throws -> T {
-        let result = try withHandle(body)
-        try checkpointIfNeeded()
-        return result
+        guard let handle else { throw LibraryError.notOpen }
+        try handle.exec("BEGIN IMMEDIATE")
+        do {
+            let result = try body(handle)
+            try handle.exec("COMMIT")
+            try checkpointIfNeeded()
+            return result
+        } catch {
+            try? handle.exec("ROLLBACK")
+            throw error
+        }
     }
 }
