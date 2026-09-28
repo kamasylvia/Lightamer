@@ -93,7 +93,7 @@ final class McpRegistrySnapshotTests: XCTestCase {
     }
 
     private func makeProbeRegistry() async -> McpToolRegistry {
-        await McpServerController.makeRegistry(storeProvider: { nil })
+        await McpServerController.makeRegistry()
     }
 
     // MARK: - Editing domain snapshot (Plan 14-2; atomic per-task evolution)
@@ -163,48 +163,44 @@ final class McpRegistrySnapshotTests: XCTestCase {
             ])
     }
 
-    // MARK: - Probe domain snapshot
+    // MARK: - Probe face RETIREMENT (Plan 14-4 T1)
 
-    func testProbeDomainSnapshot() async throws {
-        let registry = await makeProbeRegistry()
-        // The expected side mirrors the registration source verbatim (a
-        // schema edit must change BOTH — that's the snapshot's point). Only
-        // the name/schema/hints face is pinned here; descriptions assert
-        // non-empty in the framework.
-        try await Self.assertSnapshot(
-            registry: registry,
-            expected: [
-                McpToolDescriptor(
-                    name: "ping",
-                    description: "probe",
-                    inputSchemaJSON:
-                        #"{"type":"object","properties":{"echo":{"type":"string","description":"Text to echo back"}}}"#,
-                    readOnlyHint: true),
-                McpToolDescriptor(
-                    name: "count_images",
-                    description: "probe",
-                    inputSchemaJSON: #"{"type":"object","properties":{}}"#,
-                    readOnlyHint: true),
-            ])
-    }
-
-    func testProbeSchemaKeyShape() async throws {
+    /// The 14-1 probe pair (ping/count_images) is retired: a bare kernel
+    /// (no editing/culling seams) must expose NO tools at all — the tool
+    /// face is exactly the closed 19-tool set, never a probe residue.
+    func testProbeFaceRetiredFromBareRegistry() async throws {
         let registry = await makeProbeRegistry()
         let descriptors = await registry.descriptors()
-        let ping = try XCTUnwrap(descriptors.first { $0.name == "ping" })
-        let pingSchema = try Self.schemaKeys(ping.inputSchemaJSON)
-        XCTAssertEqual(
-            Set(pingSchema.keys), ["type", "properties"],
-            "ping schema top-level keys pinned")
-        let pingProperties = try XCTUnwrap(pingSchema["properties"] as? [String: Any])
-        XCTAssertEqual(Set(pingProperties.keys), ["echo"])
-        XCTAssertEqual(pingSchema["type"] as? String, "object")
+        XCTAssertTrue(
+            descriptors.isEmpty,
+            "a bare registry must be empty after the probe retirement, got: "
+                + "\(descriptors.map(\.name))")
+        let registryWithFaces = await McpServerController.makeRegistry(
+            editing: EditingToolset.Seams(
+                session: { nil }, metal: { nil }, modules: { ModuleRegistry() },
+                gate: McpRenderGate(), liveImageURL: { nil }),
+            culling: McpServerController.makeCullingContext(session: { nil }))
+        let names = await registryWithFaces.descriptors().map(\.name)
+        XCTAssertFalse(names.contains("ping"), "ping is retired")
+        XCTAssertFalse(names.contains("count_images"), "count_images is retired")
+        XCTAssertEqual(names.count, 19, "the closed face is exactly 19 tools")
+    }
 
-        let count = try XCTUnwrap(descriptors.first { $0.name == "count_images" })
-        let countSchema = try Self.schemaKeys(count.inputSchemaJSON)
-        XCTAssertEqual(
-            (countSchema["properties"] as? [String: Any])?.keys.count, 0,
-            "count_images takes no parameters")
+    /// A minimal LOCAL double for the transport-echo tests (the registry
+    /// seam registers any descriptor; no probe tools involved).
+    private func makeSyntheticRegistry() async -> McpToolRegistry {
+        let registry = McpToolRegistry()
+        await registry.register(
+            McpToolDescriptor(
+                name: "synthetic_echo",
+                description: "test double: echoes its `echo` argument",
+                inputSchemaJSON:
+                    #"{"type":"object","properties":{"echo":{"type":"string","description":"Text to echo back"}}}"#,
+                readOnlyHint: true),
+            handler: { arguments in
+                .text(arguments["echo"]?.stringValue ?? "pong")
+            })
+        return registry
     }
 
     // MARK: - InMemoryTransport: the third host form, end-to-end in-process
@@ -213,92 +209,43 @@ final class McpRegistrySnapshotTests: XCTestCase {
     /// initialize) → tools/list echoes descriptors COMPLETE
     /// (name/description/inputSchema/annotations).
     func testInMemoryToolsListEchoesRegistry() async throws {
-        let registry = await makeProbeRegistry()
+        let registry = await makeSyntheticRegistry()
         let descriptors = await registry.descriptors()
         try await withServer(registry: registry) { client in
             let (tools, nextCursor) = try await client.listTools()
-            XCTAssertNil(nextCursor, "closed probe set fits one page")
-            XCTAssertEqual(Set(tools.map(\.name)), ["ping", "count_images"])
+            XCTAssertNil(nextCursor, "the closed face fits one page")
+            XCTAssertEqual(Set(tools.map(\.name)), ["synthetic_echo"])
 
-            let ping = try XCTUnwrap(tools.first { $0.name == "ping" })
+            let echo = try XCTUnwrap(tools.first { $0.name == "synthetic_echo" })
             XCTAssertEqual(
-                ping.description,
-                descriptors.first { $0.name == "ping" }?.description,
+                echo.description,
+                descriptors.first { $0.name == "synthetic_echo" }?.description,
                 "tools/list echoes the description verbatim")
-            XCTAssertTrue(ping.annotations.readOnlyHint == true)
-            XCTAssertNil(ping.annotations.destructiveHint)
+            XCTAssertTrue(echo.annotations.readOnlyHint == true)
+            XCTAssertNil(echo.annotations.destructiveHint)
 
             // inputSchema: the echoed Value must equal the snapshot's schema
             // VALUE (semantic equality — the SDK's Value encoder does not
             // preserve key order, so text equality lives at the registry
             // layer, pinned by assertSnapshot above).
-            let wantSchema = descriptors.first { $0.name == "ping" }?
+            let wantSchema = descriptors.first { $0.name == "synthetic_echo" }?
                 .inputSchemaJSON ?? ""
             let wantValue = try JSONDecoder().decode(
                 Value.self, from: Data(wantSchema.utf8))
             XCTAssertEqual(
-                ping.inputSchema, wantValue,
+                echo.inputSchema, wantValue,
                 "tools/list echoes inputSchema semantically (Value equality)")
         }
     }
 
-    func testInMemoryCallToolPingEcho() async throws {
-        let registry = await makeProbeRegistry()
+    func testInMemoryCallToolEcho() async throws {
+        let registry = await makeSyntheticRegistry()
         try await withServer(registry: registry) { client in
             let (content, isError) = try await client.callTool(
-                name: "ping", arguments: ["echo": .string("hello")])
+                name: "synthetic_echo", arguments: ["echo": .string("hello")])
             XCTAssertNil(isError)
             XCTAssertEqual(content.count, 1)
             XCTAssertEqual(McpAdapters.outputContent(from: content[0]), .text("hello"))
-        }
-    }
-
-    func testInMemoryCountImagesWithFixtureStore() async throws {
-        // The count_images read leg against a REAL SessionIndexStore
-        // (2-row fixture) and the no-session path — the honest shapes.
-        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("mcp-probe-\(UUID().uuidString)", isDirectory: true)
-        let sessionRoot = root.appendingPathComponent("session", isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: sessionRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        func write(_ rel: String) throws {
-            try Data(repeating: 0xAB, count: 8).write(
-                to: sessionRoot.appendingPathComponent(rel))
-        }
-        func entry(_ rel: String) throws -> SessionScanEntry {
-            let values = try sessionRoot.appendingPathComponent(rel).resourceValues(
-                forKeys: [.contentModificationDateKey, .fileSizeKey])
-            return SessionScanEntry(
-                relPath: rel,
-                mtime: values.contentModificationDate?.timeIntervalSince1970 ?? 0,
-                size: Int64(values.fileSize ?? 0))
-        }
-
-        let store = SessionIndexStore(sessionRoot: sessionRoot)
-        try write("a.arw")
-        try write("b.arw")
-        let entries = try [entry("a.arw"), entry("b.arw")]
-        _ = try await store.openSession(
-            root: sessionRoot,
-            scan: AsyncStream { continuation in
-                continuation.yield(SessionScanPage(entries: entries))
-                continuation.finish()
-            })
-        defer { Task { await store.close() } }
-
-        let registry = await McpServerController.makeRegistry(storeProvider: { store })
-        try await withServer(registry: registry) { client in
-            let (content, _) = try await client.callTool(name: "count_images")
-            XCTAssertEqual(McpAdapters.outputContent(from: content[0]), .text("rows=2"))
-        }
-
-        // The no-session shape (the headless host default).
-        let empty = await McpServerController.makeRegistry(storeProvider: { nil })
-        try await withServer(registry: empty) { client in
-            let (content, _) = try await client.callTool(name: "count_images")
-            XCTAssertEqual(McpAdapters.outputContent(from: content[0]), .text("no-session"))
         }
     }
 

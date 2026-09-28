@@ -37,6 +37,18 @@ internal struct SettingsView: View {
 
     @State private var confirmDestructive = false
 
+    // MARK: Plan 14-4 T1: the MCP preference keys (the same spellings
+    // McpServerController reads; the toggles write through @AppStorage so
+    // the launch-time hook and this section share ONE storage face).
+    @AppStorage(McpServerController.embeddedServerEnabledKey)
+    private var mcpServerEnabled = false
+    @AppStorage(McpServerController.lanExposureEnabledKey)
+    private var mcpLanExposure = false
+    @AppStorage("mcp_agent_command_template")
+    private var mcpAgentTemplate = ""
+    @AppStorage("mcp_agent_prompt_template")
+    private var mcpAgentPrompt = ""
+
     var body: some View {
         Form {
             Section(String(localized: "settings_displays_section")) {
@@ -139,6 +151,92 @@ internal struct SettingsView: View {
                     .font(.callout)
                     .accessibilityIdentifier("settings.catalogs.rebuild_progress")
                 }
+            }
+
+            // ── Plan 14-4 T1: the MCP section (MCP-02 GUI switch + MCP-10
+            // templates; D-14-CONTEXT-6① exposure gate) ──────────────────
+            Section(String(localized: "settings_mcp_section")) {
+                Toggle(
+                    String(localized: "settings_mcp_enable"),
+                    isOn: Binding(
+                        get: { mcpServerEnabled },
+                        set: { enabled in
+                            mcpServerEnabled = enabled
+                            Task {
+                                if enabled {
+                                    await McpServerController.startEmbeddedServer()
+                                } else {
+                                    await McpServerController.stopEmbeddedServer()
+                                }
+                            }
+                        }
+                    )
+                )
+                .accessibilityIdentifier("settings.mcp.enable")
+
+                Text("settings_mcp_enable_hint")
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+
+                // The non-loopback gate: explicit ON binds 0.0.0.0 AND the
+                // Bearer valve becomes mandatory (the start path enforces
+                // it; toggling while serving restarts the host so the new
+                // binding actually applies — never a silent half-state).
+                Toggle(
+                    String(localized: "settings_mcp_lan"),
+                    isOn: Binding(
+                        get: { mcpLanExposure },
+                        set: { enabled in
+                            mcpLanExposure = enabled
+                            if mcpServerEnabled {
+                                Task {
+                                    await McpServerController.stopEmbeddedServer()
+                                    await McpServerController.startEmbeddedServer()
+                                }
+                            }
+                        }
+                    )
+                )
+                .accessibilityIdentifier("settings.mcp.lan")
+
+                Text("settings_mcp_lan_risk")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+
+                LabeledContent(String(localized: "settings_mcp_agent_template")) {
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $mcpAgentTemplate)
+                            .frame(height: 64)
+                            .font(.system(size: 11, design: .monospaced))
+                            .accessibilityIdentifier("settings.mcp.template")
+                        if mcpAgentTemplate.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("settings_mcp_template_placeholder_omp")
+                                Text("settings_mcp_template_placeholder_pi")
+                            }
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(LightamerColors.textSecondary)
+                            .padding(.top, 4)
+                            .padding(.leading, 4)
+                            .allowsHitTesting(false)
+                        }
+                    }
+                }
+
+                LabeledContent(String(localized: "settings_mcp_agent_prompt")) {
+                    TextField(
+                        String(localized: "settings_mcp_agent_prompt_placeholder"),
+                        text: $mcpAgentPrompt, axis: .vertical)
+                    .font(.system(size: 11))
+                    .accessibilityIdentifier("settings.mcp.prompt")
+                }
+
+                Text("settings_mcp_placeholders_hint")
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+                Text("settings_mcp_agent_consumption_hint")
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
             }
         }
         .formStyle(.grouped)

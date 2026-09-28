@@ -32,6 +32,34 @@ internal extension FocusedValues {
         get { self[ExportPanelRequestKey.self] }
         set { self[ExportPanelRequestKey.self] = newValue }
     }
+}
+
+/// Plan 14-4: the lock-guarded latest (writer, provider) pair the MCP
+/// culling face reads. The GUI publishes the SHARED segment-3 writer and
+/// thumbnail provider here at the per-session rebuild, and clears them at
+/// the teardown — the MCP write face is the SAME single source the GUI
+/// rides (D-14-CONTEXT-5①), never a private queue.
+final class McpWriteFaceBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _writer: BatchSidecarWriter?
+    private var _provider: SessionThumbnailProvider?
+
+    var writer: BatchSidecarWriter? {
+        lock.lock(); defer { lock.unlock() }
+        return _writer
+    }
+
+    var provider: SessionThumbnailProvider? {
+        lock.lock(); defer { lock.unlock() }
+        return _provider
+    }
+
+    func set(writer: BatchSidecarWriter?, provider: SessionThumbnailProvider?) {
+        lock.lock()
+        _writer = writer
+        _provider = provider
+        lock.unlock()
+    }
 }/// Plan 14-1 T1 (D-14-CONTEXT-2⑤): the process entry fork. A headless MCP
 /// launch (`--mcp-stdio` / `--mcp-http`) NEVER constructs the SwiftUI App
 /// struct below — `@NSApplicationDelegateAdaptor` and the whole `@State`
@@ -262,6 +290,12 @@ internal struct LightamerApp: App {
     /// `ContentView` so every Open path feeds `EditorState.load`.
     @State private var decoder = RAWDecoder()
 
+    /// Plan 14-4: the MCP culling face's view of the per-session segment-3
+    /// writer + thumbnail provider (published at the rebuild site, cleared
+    /// at the teardown — a box so the MCP closures always read the CURRENT
+    /// pair without re-wiring the host seams per session switch).
+    @State private var mcpWriteFace = McpWriteFaceBox()
+
     /// The module registry (Plan 02-04-05): terminal trio self-registered
     /// in `ModuleRegistry.init()`; LightamerIOP's modules join via
     /// `LightamerIOPRegistry.populate` in the scene `.task`. One registry
@@ -479,6 +513,11 @@ internal struct LightamerApp: App {
                                 await writer.flushForTeardown()
                                 batchSidecarWriter = nil
                             }
+                            // Plan 14-4: the MCP culling face reads the
+                            // live segment-3 writer + thumbnail provider
+                            // through this box — cleared WITH the teardown
+                            // so a closed session never serves a stale leg.
+                            mcpWriteFace.set(writer: nil, provider: nil)
                             await sessionIndexController.close()
                         },
                         ensureDirectoriesHandler: { url in
@@ -519,6 +558,13 @@ internal struct LightamerApp: App {
                                     // queue, rebuilt on the NEW store.
                                     batchSidecarWriter = BatchSidecarWriter(
                                         root: url, store: store)
+                                    // Plan 14-4: publish the pair to the MCP
+                                    // culling face (the SAME shared writer
+                                    // instance — D-14-CONTEXT-5① single
+                                    // source; never a private queue).
+                                    mcpWriteFace.set(
+                                        writer: batchSidecarWriter,
+                                        provider: thumbnailProvider)
                                 }
                                 if let store = sessionIndexController.currentStore {
                                     // 12-2 T4: install the persisted sort/
@@ -900,6 +946,49 @@ internal struct LightamerApp: App {
                     // the GUI host supplies the live (store, root) pair,
                     // the editor's current image (the GUI-live judge,
                     // MainActor hop) and the production yiyin injector.
+                    // Plan 14-4 T1: the probes RETIRED; the culling face
+                    // (14 tools) rides the same kernel against the live
+                    // session pair + the SHARED segment-3 writer and
+                    // thumbnail provider (the mcpWriteFace box published at
+                    // the per-session rebuild above — D-14-CONTEXT-5①).
+                    // The metadata seed is the app-wide default chain
+                    // (the same face MetadataController.configure rides).
+                    let mcpSeed = await seedInstances()
+                    let cullingContext = McpCullingContext(
+                        store: { [sessionIndexController] in
+                            await MainActor.run { sessionIndexController.currentStore }
+                        },
+                        sessionRoot: { [sessionIndexController] in
+                            await MainActor.run { sessionIndexController.currentSession?.root }
+                        },
+                        metadata: { [sessionIndexController, mcpWriteFace, mcpSeed] in
+                            let pair = await MainActor.run {
+                                sessionIndexController.currentSession
+                            }
+                            guard let (store, root) = pair else { return nil }
+                            return MetadataService(
+                                root: root, store: store,
+                                writer: mcpWriteFace.writer,
+                                seed: mcpSeed)
+                        },
+                        sidecarWriter: { [mcpWriteFace] in mcpWriteFace.writer },
+                        presets: { [presetsStore] in presetsStore },
+                        liveRelPaths: { [pipeCoordinator, sessionIndexController] in
+                            await MainActor.run {
+                                guard let url = pipeCoordinator.liveImageURL,
+                                    let (_, root) = sessionIndexController.currentSession
+                                else { return Set<String>() }
+                                let base = root.path
+                                let imagePath = url.path
+                                guard imagePath.hasPrefix(base + "/") else {
+                                    return Set<String>()
+                                }
+                                return [String(imagePath.dropFirst(base.count + 1))]
+                            }
+                        },
+                        thumbnailProvider: { [mcpWriteFace] in mcpWriteFace.provider },
+                        decodeImage: McpCullingContext.defaultDecodeImage(),
+                        renderGate: McpServerController.sharedRenderGate)
                     let editingSeams = await McpServerController.makeEditingSeams(
                         session: { [sessionIndexController] in
                             await MainActor.run { sessionIndexController.currentSession }
@@ -913,12 +1002,8 @@ internal struct LightamerApp: App {
                             }
                         })
                     await McpServerController.startEmbeddedIfPreferenceEnabled(
-                        storeProvider: { [sessionIndexController] in
-                            await MainActor.run {
-                                sessionIndexController.currentStore
-                            }
-                        },
-                        editing: editingSeams)
+                        editing: editingSeams,
+                        culling: cullingContext)
                 }
         }
         .defaultSize(width: 1440, height: 900)

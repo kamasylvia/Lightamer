@@ -10,11 +10,10 @@ import MCP
 // constructs the SwiftUI App struct nor enters NSApplication.run — the host
 // difference is assembly-only, the registry kernel is single-implementation.
 //
-// T1 delivered the stdio leg + the --mcp-http stub. T2 swaps the placeholder
-// for the registry kernel (McpAdapters.makeServer over McpToolRegistry) and
-// lands the PROBE toolset (ping/count_images — a non-final face, retired at
-// 14-4 T1 per plan; the closed 19-tool set excludes it). The flock writer
-// lock, the endpoint discovery file and the GUI-embedded host land in T3/T4.
+// Plan 14-4 T1: the 14-1 PROBE toolset (ping/count_images) is RETIRED — the
+// tool face is now the closed 19-tool set exactly (5 editing + 14 culling;
+// D-14-CONTEXT-3, research §A). The old StoreProvider seam retired with the
+// probe (count_images was its only consumer).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Host orchestration for the Lightamer MCP server.
@@ -37,13 +36,6 @@ enum McpServerController {
     static let serverVersion =
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
             as? String) ?? "0.1.0"
-
-    /// The open-session index seam for the read-only probe tool: the headless
-    /// host has NO open session (returns nil → `no-session`); the GUI host
-    /// (14-4) injects its live SessionIndexController store. Tests inject a
-    /// fixture store. This stays nil-for-nil honest: the probe never opens
-    /// a store by itself.
-    typealias StoreProvider = @Sendable () async -> SessionIndexStore?
 
     /// The open-session seam for the EDITING face (Plan 14-2): the index
     /// store AND its root URL (the tools build absolute image URLs and the
@@ -98,8 +90,8 @@ enum McpServerController {
                         exit(1)
                     }
                     let registry = await makeRegistry(
-                        storeProvider: { nil },
-                        editing: await makeEditingSeams(session: { nil }))
+                        editing: await makeEditingSeams(session: { nil }),
+                        culling: makeCullingContext(session: { nil }))
                     await registry.setWriterCheck { @Sendable in lock != nil }
                     let server = await McpAdapters.makeServer(registry: registry)
                     try await server.start(transport: StdioTransport())
@@ -112,8 +104,8 @@ enum McpServerController {
                     do {
                         let handle = try await startHTTPHost(
                             paths: McpEndpointPaths.makeDefault(),
-                            storeProvider: { nil },
-                            editing: await makeEditingSeams(session: { nil }))
+                            editing: await makeEditingSeams(session: { nil }),
+                            culling: makeCullingContext(session: { nil }))
                         await log(
                             "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
                                 + " — endpoint file \(handle.paths.jsonURL.path)")
@@ -142,61 +134,60 @@ enum McpServerController {
 
     // MARK: - The single kernel (registry assembly)
 
-    /// The probe toolset (non-final face — retired at 14-4 T1, plan
-    /// registered). `ping` echoes; `count_images` reads the open session's
-    /// index row count through the read-only `SessionIndexStore.query` face
-    /// (SessionIndexStore.swift:561-584, the same consumption point 14-3's
-    /// list_photos formalizes). Both read-only.
-    ///
-    /// Plan 14-2: `editing` non-nil registers the five editing tools on the
-    /// SAME kernel (the closed tool face is identical across hosts — the
-    /// dual-host red line: even a read-only host lists every tool and fails
-    /// writes at CALL time). nil = probe-only (the 14-1 tests' shape).
+    /// The CLOSED tool face: 5 editing tools (Plan 14-2) + 14 culling tools
+    /// (Plan 14-3) = the frozen 19-tool set (research §A; D-14-CONTEXT-3).
+    /// The 14-1 probe pair (ping/count_images) retired at 14-4 T1 — a host
+    /// with NEITHER face assembled yields an EMPTY registry (tests assert
+    /// the retirement; the whitelist negative rides the snapshot tests).
+    /// The closed face is identical across hosts — the dual-host red line:
+    /// even a read-only host lists every tool and fails writes at CALL time.
     static func makeRegistry(
-        storeProvider: @escaping StoreProvider,
-        editing: EditingToolset.Seams? = nil
+        editing: EditingToolset.Seams? = nil,
+        culling: McpCullingContext? = nil
     ) async -> McpToolRegistry {
         let registry = McpToolRegistry()
-
-        await registry.register(
-            McpToolDescriptor(
-                name: "ping",
-                description: "Probe tool: echoes its `echo` argument back as text "
-                    + "(defaults to \"pong\"). Non-final probe face; retires when the "
-                    + "Phase 14 tool set freezes.",
-                inputSchemaJSON:
-                    #"{"type":"object","properties":{"echo":{"type":"string","description":"Text to echo back"}}}"#,
-                readOnlyHint: true
-            ),
-            handler: { arguments in
-                let echo = arguments["echo"]?.stringValue ?? "pong"
-                return .text(echo)
-            })
-
-        await registry.register(
-            McpToolDescriptor(
-                name: "count_images",
-                description: "Probe tool: number of indexed rows in the CURRENTLY OPEN "
-                    + "Lightamer session (\"no-session\" when the host has no open "
-                    + "session). Read-only. Non-final probe face; retires when the "
-                    + "Phase 14 tool set freezes.",
-                inputSchemaJSON: #"{"type":"object","properties":{}}"#,
-                readOnlyHint: true
-            ),
-            handler: { _ in
-                guard let store = await storeProvider() else {
-                    return .text("no-session")
-                }
-                let rows = try await store.query(groups: [], sort: nil, limit: nil)
-                return .text("rows=\(rows.count)")
-            })
-
-        // Plan 14-2: the editing face rides the same kernel.
         if let editing {
             await EditingToolset.register(into: registry, seams: editing)
         }
-
+        if let culling {
+            await McpCullingToolset.registerAll(on: registry, context: culling)
+        }
         return registry
+    }
+
+    /// The host-side culling context assembly (the 14-4 union). `session`
+    /// is the same nil-for-nil seam the editing face takes (the shipped
+    /// headless hosts pass `{ nil }` — every culling tool answers the typed
+    /// `notSessionMember`). The metadata/leg writers build per call against
+    /// the session pair (the shipped v1 hosts have no session, so the leg
+    /// is dormant there; the GUI host builds its OWN context against the
+    /// LIVE shared writer — see LightamerApp's embedded assembly).
+    /// `presets` defaults to a fresh self-healing store per call (the
+    /// PresetsStore init rescans — an honest fresh view per agent call).
+    static func makeCullingContext(
+        session: @escaping SessionProvider,
+        presets: @escaping @Sendable () async -> PresetsStore? = { PresetsStore() },
+        liveRelPaths: @escaping @Sendable () async -> Set<String> = { [] },
+        thumbnailProvider: (@Sendable () async -> SessionThumbnailProvider?)? = nil
+    ) -> McpCullingContext {
+        McpCullingContext(
+            store: { await session()?.store },
+            sessionRoot: { await session()?.root },
+            metadata: {
+                guard let pair = await session() else { return nil }
+                return MetadataService(
+                    root: pair.root, store: pair.store,
+                    writer: BatchSidecarWriter(root: pair.root, store: pair.store),
+                    seed: [])
+            },
+            sidecarWriter: {
+                guard let pair = await session() else { return nil }
+                return BatchSidecarWriter(root: pair.root, store: pair.store)
+            },
+            presets: presets,
+            liveRelPaths: liveRelPaths,
+            thumbnailProvider: thumbnailProvider ?? { nil },
+            decodeImage: McpCullingContext.defaultDecodeImage())
     }
 
     // MARK: - The editing seams assembly (Plan 14-2)
@@ -301,10 +292,10 @@ enum McpServerController {
 
     static func startHTTPHost(
         paths: McpEndpointPaths,
-        storeProvider: @escaping StoreProvider,
         port: Int = 0,
         exposure: McpExposure = .loopback,
-        editing: EditingToolset.Seams? = nil
+        editing: EditingToolset.Seams? = nil,
+        culling: McpCullingContext? = nil
     ) async throws -> HttpHostHandle {
         // The Bearer valve exists ONLY on the non-loopback branch (the
         // loopback default is zero-token by design — the smallest surface).
@@ -337,7 +328,7 @@ enum McpServerController {
             throw McpHostError.underlying("writer-lock acquire failed: \(reason)")
         }
         do {
-            let registry = await makeRegistry(storeProvider: storeProvider, editing: editing)
+            let registry = await makeRegistry(editing: editing, culling: culling)
             // The host holds the writer right by construction.
             await registry.setWriterCheck { true }
             let pipeline = bearerToken.map { validationPipelineWithBearer(token: $0) }
@@ -374,22 +365,28 @@ enum McpServerController {
     // MARK: - GUI-embedded host (the preference read face; the UI switch is
     // Plan 14-4 — this is the machinery the switch will drive)
 
-    /// The UserDefaults key the 14-4 Settings toggle binds; read at launch
-    /// and on toggle.
+    /// The UserDefaults keys the 14-4 Settings section binds; read at
+    /// launch and on toggle.
     static let embeddedServerEnabledKey = "mcp_server_enabled"
+    /// The explicit non-loopback exposure gate (D-14-CONTEXT-6①: ON binds
+    /// 0.0.0.0 AND mandates the Bearer valve — startHTTPHost's `.lan`
+    /// branch; the risk text rides the Settings row).
+    static let lanExposureEnabledKey = "mcp_lan_exposure_enabled"
 
     /// Launch-time hook (the app root's .task): records the session store
     /// seam and starts the embedded host when the preference is on.
     /// Plan 14-2: `editing` non-nil registers the editing tools on the
     /// embedded kernel (the GUI host builds the seams via
     /// `makeEditingSeams` with its live session + GUI-live judge).
+    /// Plan 14-4: the culling face rides the same kernel (`culling`), and
+    /// the old probe-only StoreProvider seam is retired.
     static func startEmbeddedIfPreferenceEnabled(
-        storeProvider: @escaping StoreProvider,
-        editing: EditingToolset.Seams? = nil
+        editing: EditingToolset.Seams?,
+        culling: McpCullingContext?
     ) async {
-        withEmbeddedState {
-            $0.provider = storeProvider
-            $0.editing = editing
+        withEmbeddedState { state in
+            state.editing = editing
+            state.culling = culling
         }
         guard UserDefaults.standard.bool(forKey: embeddedServerEnabledKey) else { return }
         await startEmbeddedServer()
@@ -398,16 +395,23 @@ enum McpServerController {
     /// Starts the embedded host now (the preference toggle's on-leg).
     /// No-op when already running; a held writer lock is logged and ignored
     /// (another instance is the writer — the GUI shows no fake endpoint).
+    /// The exposure branch rides the Settings gate: loopback by default,
+    /// `.lan` (0.0.0.0 + mandated Bearer) only when the explicit toggle is
+    /// on — the D-14-CONTEXT-6① face.
     static func startEmbeddedServer() async {
         if withEmbeddedState({ $0.handle != nil }) { return }
         do {
-            let (provider, editing) = withEmbeddedState { state in
-                (state.provider ?? { nil }, state.editing)
+            let (editing, culling) = withEmbeddedState { state in
+                (state.editing, state.culling)
             }
+            let exposure: McpExposure =
+                UserDefaults.standard.bool(forKey: lanExposureEnabledKey)
+                ? .lan : .loopback
             let handle = try await startHTTPHost(
                 paths: McpEndpointPaths.makeDefault(),
-                storeProvider: provider,
-                editing: editing)
+                exposure: exposure,
+                editing: editing,
+                culling: culling)
             let wonRace = withEmbeddedState { state -> Bool in
                 if state.handle == nil {
                     state.handle = handle
@@ -457,8 +461,8 @@ enum McpServerController {
     private static let embeddedStateLock = NSLock()
     private struct EmbeddedState {
         var handle: HttpHostHandle?
-        var provider: StoreProvider?
         var editing: EditingToolset.Seams?
+        var culling: McpCullingContext?
     }
     nonisolated(unsafe) private static var embeddedState = EmbeddedState()
 

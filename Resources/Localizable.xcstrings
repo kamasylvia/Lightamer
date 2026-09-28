@@ -17293,6 +17293,198 @@
         }
       }
     },
+    "settings_mcp_agent_consumption_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent reads host/port/auth from mcp-endpoint.json and connects to http://<host>:<port>/mcp (Streamable HTTP; the Origin header must carry the port, e.g. http://localhost:51234)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "agent 从 mcp-endpoint.json 读取 host/port/auth，连接 http://<host>:<port>/mcp（Streamable HTTP；Origin 头必须带端口，如 http://localhost:51234）。"
+          }
+        }
+      }
+    },
+    "settings_mcp_agent_prompt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task prompt (optional)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务提示词（可选）"
+          }
+        }
+      }
+    },
+    "settings_mcp_agent_prompt_placeholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. Filter unrated photos, then report the picks"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如：筛出未评分照片并汇报入选结果"
+          }
+        }
+      }
+    },
+    "settings_mcp_agent_template": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent command template"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 命令模板"
+          }
+        }
+      }
+    },
+    "settings_mcp_enable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable MCP Server"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用 MCP 服务器"
+          }
+        }
+      }
+    },
+    "settings_mcp_enable_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When enabled, Lightamer serves its MCP endpoint on 127.0.0.1 and writes the discovery file (mcp-endpoint.json). Tools evaluate against the currently open session."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用后 Lightamer 在 127.0.0.1 上提供 MCP 端点并写入发现文件（mcp-endpoint.json）。工具针对当前打开的会话求值。"
+          }
+        }
+      }
+    },
+    "settings_mcp_lan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expose beyond loopback (LAN)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非回环暴露（局域网）"
+          }
+        }
+      }
+    },
+    "settings_mcp_lan_risk": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The listening interface will be exposed to the LAN; the Bearer token becomes mandatory."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "监听接口将暴露至局域网，鉴权 token 将强制启用。"
+          }
+        }
+      }
+    },
+    "settings_mcp_placeholders_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Placeholders: {{LIGHTAMER_MCP}} = endpoint discovery file path; {{PROMPT}} = task prompt (inlined single-quote escaped). The template runs via /bin/zsh -c as YOUR OWN command — the app never calls a model."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "占位符：{{LIGHTAMER_MCP}} = 端点发现文件路径；{{PROMPT}} = 任务提示词（单引号转义后内联）。模板经 /bin/zsh -c 执行，命令作者是你自己——app 不含任何模型调用。"
+          }
+        }
+      }
+    },
+    "settings_mcp_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP Server"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP 服务器"
+          }
+        }
+      }
+    },
+    "settings_mcp_template_placeholder_omp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "omp -p --auto-approve \"Use the Lightamer MCP tools to screen photos with rating IS NULL in the session at {{LIGHTAMER_MCP}}; {{PROMPT}}\""
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "omp -p --auto-approve \"请用 lightamer MCP 工具筛选 {{LIGHTAMER_MCP}} 所在会话中 rating IS NULL 的照片，{{PROMPT}}\""
+          }
+        }
+      }
+    },
+    "settings_mcp_template_placeholder_pi": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pi -p \"Run a screening task on the current Lightamer session (MCP endpoint config: {{LIGHTAMER_MCP}}): {{PROMPT}}\""
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pi -p \"对当前 Lightamer 会话（MCP 端点配置见 {{LIGHTAMER_MCP}}）执行筛图任务：{{PROMPT}}\""
+          }
+        }
+      }
+    },
     "settings_placeholder": {
       "extractionState": "manual",
       "localizations": {

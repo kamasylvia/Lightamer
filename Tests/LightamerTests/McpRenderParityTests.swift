@@ -541,14 +541,14 @@ final class McpRenderParityTests: XCTestCase {
         let paths = McpEndpointPaths(
             directory: tempDirectory.appendingPathComponent("endpoint"))
         let handle = try await McpServerController.startHTTPHost(
-            paths: paths, storeProvider: { nil }, editing: seams)
+            paths: paths, editing: seams)
         let endpoint = URL(string: "http://127.0.0.1:\(handle.port)/mcp")!
         let httpTransport = HTTPClientTransport(endpoint: endpoint)
         let httpClient = MCP.Client(name: "sc3-http", version: "0.0.1")
         try await httpClient.connect(transport: httpTransport)
         let tools = try await httpClient.listTools()
-        // The five editing tools ALL ride the second host (the probe tools
-        // additionally ride until their 14-4 retirement — a superset here).
+        // The five editing tools ALL ride the second host (the closed
+        // 19-tool face — Plan 14-4 retired the probe pair).
         let httpNames = Set(tools.0.map(\.name))
         XCTAssertTrue(
             ["load_image", "apply_params", "render_preview", "list_iops", "export_image"]

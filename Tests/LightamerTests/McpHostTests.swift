@@ -211,13 +211,23 @@ final class McpHostTests: XCTestCase {
 
     // MARK: - T4: the Streamable HTTP leg
 
+    /// A no-session editing/culling assembly — the shipped headless shape
+    /// (Plan 14-4: every host assembles the closed 19-tool face).
+    private var headlessEditing: EditingToolset.Seams {
+        get async {
+            await McpServerController.makeEditingSeams(session: { nil })
+        }
+    }
+
     /// The full SDK-client round trip against the NIO leg: connect (auto
     /// initialize, 2025-11-25 echo) → tools/list → tools/call → disconnect.
     /// This is ALSO the runtime 127.0.0.1 binding proof — the socket only
-    /// exists on the loopback constant.
+    /// exists on the loopback constant. Plan 14-4: the probe pair is
+    /// retired; the tool call face is the final `list_iops` tool.
     func testHTTPEndToEndSDKClientRoundTrip() async throws {
         let handle = try await McpServerController.startHTTPHost(
-            paths: paths, storeProvider: { nil })
+            paths: paths, editing: await headlessEditing,
+            culling: McpServerController.makeCullingContext(session: { nil }))
 
         let endpoint = URL(string: "http://127.0.0.1:\(handle.port)/mcp")!
         let client = HTTPClientTransport(endpoint: endpoint)
@@ -228,12 +238,17 @@ final class McpHostTests: XCTestCase {
             "the initialize echo pins the protocol revision")
 
         let (tools, _) = try await clientActor.listTools()
-        XCTAssertEqual(Set(tools.map(\.name)), ["ping", "count_images"])
+        XCTAssertEqual(tools.count, 19, "the closed 19-tool face rides every host")
+        XCTAssertFalse(
+            tools.contains { $0.name == "ping" || $0.name == "count_images" },
+            "the 14-1 probe face is retired")
 
-        let (content, isError) = try await clientActor.callTool(
-            name: "ping", arguments: ["echo": .string("http-hello")])
+        let (content, isError) = try await clientActor.callTool(name: "list_iops")
         XCTAssertNil(isError)
-        XCTAssertEqual(McpAdapters.outputContent(from: content[0]), .text("http-hello"))
+        guard case .text(let text) = McpAdapters.outputContent(from: content[0]) else {
+            return XCTFail("list_iops must answer text")
+        }
+        XCTAssertTrue(text.contains("exposure"), "the iop catalog rides: \(text.prefix(120))")
 
         await clientActor.disconnect()
 
@@ -250,8 +265,7 @@ final class McpHostTests: XCTestCase {
     /// The discovery-file write/delete timing against a live host: alive
     /// while serving, gone after stop (no residue on a graceful shutdown).
     func testHTTPEndpointFileWriteDeleteTiming() async throws {
-        let handle = try await McpServerController.startHTTPHost(
-            paths: paths, storeProvider: { nil })
+        let handle = try await McpServerController.startHTTPHost(paths: paths)
 
         guard case .alive(let info) = McpEndpointDiscovery.discover(in: paths) else {
             return XCTFail("a live host must be discoverable")
@@ -272,8 +286,7 @@ final class McpHostTests: XCTestCase {
     /// `http://localhost:*` requires a port, D6), Host mismatch → 421, and
     /// no Origin (the agent-CLI shape) → passes.
     func testOriginAndHostValidationPipeline() async throws {
-        let handle = try await McpServerController.startHTTPHost(
-            paths: paths, storeProvider: { nil })
+        let handle = try await McpServerController.startHTTPHost(paths: paths)
         defer { Task { await handle.stop() } }
 
         let initializeBody =
@@ -315,8 +328,7 @@ final class McpHostTests: XCTestCase {
     /// Per-session transports with a HARD CAP of 4 (§RQ-14-14): four
     /// initialize requests create four sessions; the fifth gets 503.
     func testSessionCapacityCap503() async throws {
-        let handle = try await McpServerController.startHTTPHost(
-            paths: paths, storeProvider: { nil })
+        let handle = try await McpServerController.startHTTPHost(paths: paths)
         defer { Task { await handle.stop() } }
 
         let initializeBody =
@@ -341,8 +353,7 @@ final class McpHostTests: XCTestCase {
     /// Single transport = single session (probe finding): a second
     /// initialize riding the SAME session id is a 400.
     func testSecondInitializeOnSameSessionIs400() async throws {
-        let handle = try await McpServerController.startHTTPHost(
-            paths: paths, storeProvider: { nil })
+        let handle = try await McpServerController.startHTTPHost(paths: paths)
         defer { Task { await handle.stop() } }
 
         let initializeBody =
@@ -449,8 +460,8 @@ final class McpHostTests: XCTestCase {
     /// The stdio host spawns against the DEFAULT paths (this is the real
     /// host shape): it must hold the writer lock yet NEVER write the
     /// endpoint json, and the piped three-step handshake (initialize →
-    /// notifications/initialized → tools/list) answers with the probe
-    /// toolset.
+    /// notifications/initialized → tools/list) answers with the CLOSED
+    /// 19-tool face (Plan 14-4: the probe pair is retired).
     func testStdioHostHelloRoundTripHoldsLockWritesNoJSON() async throws {
         let process = Process()
         process.executableURL = try XCTUnwrap(Bundle.main.executableURL)
@@ -472,17 +483,15 @@ final class McpHostTests: XCTestCase {
             #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"host-tests","version":"0.0.1"}}}"#
         let initialized = #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#
         let listTools = #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#
-        let pingCall =
-            #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ping","arguments":{"echo":"consistency-probe"}}}"#
-        let countCall =
-            #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"count_images"}}"#
+        let iopsCall =
+            #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_iops"}}"#
         let payload = Data(
-            "\(initialize)\n\(initialized)\n\(listTools)\n\(pingCall)\n\(countCall)\n".utf8)
+            "\(initialize)\n\(initialized)\n\(listTools)\n\(iopsCall)\n".utf8)
         try stdin.fileHandleForWriting.write(contentsOf: payload)
 
         // Deadline-bounded response pump (id-paired — order not guaranteed).
         let responses = try await Self.pumpLines(
-            stdout.fileHandleForReading, expectedLines: 4, timeout: 60)
+            stdout.fileHandleForReading, expectedLines: 3, timeout: 60)
         let initResponse = try XCTUnwrap(
             responses.first(where: { $0.contains(#""id":1"#) }), "initialize response")
         XCTAssertTrue(
@@ -491,20 +500,17 @@ final class McpHostTests: XCTestCase {
         let listResponse = try XCTUnwrap(
             responses.first(where: { $0.contains(#""id":2"#) }), "tools/list response")
         XCTAssertTrue(
-            listResponse.contains("count_images") && listResponse.contains("ping"),
-            "tools/list must carry the probe toolset: \(listResponse)")
+            listResponse.contains("list_iops") && !listResponse.contains("ping"),
+            "tools/list must carry the CLOSED face (no probe): \(listResponse)")
 
         // The hello round trip — the SAME expected tuple the HTTP and
         // InMemory forms assert in testHelloConformanceAcrossThreeHostForms
         // (three forms, one kernel, identical results).
-        let pingLine = try XCTUnwrap(
-            responses.first(where: { $0.contains(#""id":3"#) }), "ping response")
+        let iopsLine = try XCTUnwrap(
+            responses.first(where: { $0.contains(#""id":3"#) }), "list_iops response")
         XCTAssertTrue(
-            pingLine.contains("consistency-probe"), "stdio ping echo: \(pingLine)")
-        let countLine = try XCTUnwrap(
-            responses.first(where: { $0.contains(#""id":4"#) }), "count_images response")
-        XCTAssertTrue(
-            countLine.contains("no-session"), "stdio count_images: \(countLine)")
+            iopsLine.contains("exposure"),
+            "stdio list_iops answers the iop catalog: \(iopsLine.prefix(160))")
 
         // D2: the stdio host holds the lock but writes NO discovery json —
         // even while it is up and serving.
@@ -616,8 +622,7 @@ final class McpHostTests: XCTestCase {
         defer { McpBearerToken.deleteAll() }
         McpBearerToken.deleteAll()
 
-        let handle = try await McpServerController.startHTTPHost(
-            paths: paths, storeProvider: { nil }, exposure: .lan)
+        let handle = try await McpServerController.startHTTPHost(paths: paths, exposure: .lan)
 
         // The discovery file marks the face (the token itself NEVER rides it).
         guard case .alive(let info) = McpEndpointDiscovery.discover(in: paths) else {
@@ -656,6 +661,8 @@ final class McpHostTests: XCTestCase {
     /// The plan's SC-level red line: ONE registry kernel, THREE transports —
     /// stdio (a real subprocess), Streamable HTTP (SDK client over the NIO
     /// leg) and InMemory (in-process) — all produce IDENTICAL tool results.
+    /// Plan 14-4: the canonical call is the final `list_iops` tool over the
+    /// closed 19-tool face (the probe pair retired).
     func testHelloConformanceAcrossThreeHostForms() async throws {
         // THREE FORMS, ONE KERNEL, IDENTICAL RESULTS:
         //   HTTP      → this test (SDK client ↔ the NIO leg, live host)
@@ -663,55 +670,66 @@ final class McpHostTests: XCTestCase {
         //   stdio     → testStdioHostHelloRoundTripHoldsLockWritesNoJSON
         //               (a REAL subprocess of this binary over the SAME
         //               kernel; its pump asserts the identical result tuple:
-        //               tools/list = {ping, count_images}, ping echo,
-        //               count_images = "no-session")
+        //               tools/list carries list_iops and no probe tool;
+        //               list_iops answers the iop catalog)
         // The shared expected tuple every form must produce.
-        let expectedPing = McpToolOutput.Content.text("consistency-probe")
-        let expectedCount = McpToolOutput.Content.text("no-session")
+        let expectedIops = try await McpToolOutput.Content.text(
+            Self.expectedListIopsText())
 
         // ── HTTP form ──
         let httpHandle = try await McpServerController.startHTTPHost(
-            paths: paths, storeProvider: { nil })
+            paths: paths, editing: await headlessEditing,
+            culling: McpServerController.makeCullingContext(session: { nil }))
         let endpoint = URL(string: "http://127.0.0.1:\(httpHandle.port)/mcp")!
         let httpTransport = HTTPClientTransport(endpoint: endpoint)
         let httpClient = MCP.Client(name: "conformance", version: "0.0.1")
         try await httpClient.connect(transport: httpTransport)
         let httpTools = try await httpClient.listTools().tools.map(\.name)
-        let httpPing = McpAdapters.outputContent(
-            from: try await httpClient.callTool(
-                name: "ping", arguments: ["echo": .string("consistency-probe")]
-            ).content[0])
-        let httpCount = McpAdapters.outputContent(
-            from: try await httpClient.callTool(name: "count_images").content[0])
+        let httpIops = McpAdapters.outputContent(
+            from: try await httpClient.callTool(name: "list_iops").content[0])
         await httpClient.disconnect()
         await httpHandle.stop()
 
-        XCTAssertEqual(
-            Set(httpTools), ["ping", "count_images"], "HTTP tools/list")
-        XCTAssertEqual(httpPing, expectedPing, "HTTP ping echo")
-        XCTAssertEqual(httpCount, expectedCount, "HTTP count_images no-session")
+        XCTAssertEqual(httpTools.count, 19, "HTTP tools/list — the closed face")
+        XCTAssertFalse(
+            httpTools.contains { $0 == "ping" || $0 == "count_images" },
+            "no probe tool rides any host")
+        XCTAssertEqual(httpIops, expectedIops, "HTTP list_iops")
 
         // ── InMemory form ──
-        let registry = await McpServerController.makeRegistry(storeProvider: { nil })
+        let registry = await McpServerController.makeRegistry(
+            editing: await headlessEditing,
+            culling: McpServerController.makeCullingContext(session: { nil }))
         let pair = await InMemoryTransport.createConnectedPair()
         let memoryServer = await McpAdapters.makeServer(registry: registry)
         try await memoryServer.start(transport: pair.server)
         let memoryClient = MCP.Client(name: "conformance", version: "0.0.1")
         try await memoryClient.connect(transport: pair.client)
         let memoryTools = try await memoryClient.listTools().tools.map(\.name)
-        let memoryPing = McpAdapters.outputContent(
-            from: try await memoryClient.callTool(
-                name: "ping", arguments: ["echo": .string("consistency-probe")]
-            ).content[0])
-        let memoryCount = McpAdapters.outputContent(
-            from: try await memoryClient.callTool(name: "count_images").content[0])
+        let memoryIops = McpAdapters.outputContent(
+            from: try await memoryClient.callTool(name: "list_iops").content[0])
         await memoryClient.disconnect()
         await memoryServer.stop()
 
         XCTAssertEqual(memoryTools, httpTools, "InMemory tools/list ≡ HTTP")
-        XCTAssertEqual(memoryPing, expectedPing, "InMemory ping ≡ HTTP ≡ stdio")
-        XCTAssertEqual(
-            memoryCount, expectedCount, "InMemory count_images ≡ HTTP ≡ stdio")
+        XCTAssertEqual(memoryIops, expectedIops, "InMemory list_iops ≡ HTTP ≡ stdio")
+    }
+
+    /// The canonical list_iops text every host form must produce (the
+    /// catalog is session-independent — 18 tone/color iops).
+    private static func expectedListIopsText() async throws -> String {
+        let registry = McpToolRegistry()
+        await EditingToolset.register(
+            into: registry,
+            seams: EditingToolset.Seams(
+                session: { nil }, metal: { nil }, modules: { ModuleRegistry() },
+                gate: McpRenderGate(), liveImageURL: { nil }))
+        let output = try await registry.call(name: "list_iops", arguments: [:])
+        guard case .text(let text) = output.content.first else {
+            XCTFail("list_iops must answer a text payload")
+            return ""
+        }
+        return text
     }
 }
 
