@@ -319,3 +319,17 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 
 **适用**：一切「默认行为切换」类 feature-flag（M2 后续 phases 的 Alcedo 化开关、M2-3 设置
 页后端缝）；一切 conformance/一致性测试的期望元组构造。
+
+## L037: SQLiteStatement 复用循环必须 reset-before-bind——DONE 后 rebind/step 即 SQLITE_MISUSE（2026-09-29，M2-2-1 T4）
+- **背景**：LibraryStore.removeAlbum 子树级联递减 ref_count，decrement UPDATE 在 imageID 循环内复用同一 prepared statement。
+- **现象**：一图入两相册的级联用例抛 `execFailed code 21 "bad parameter or other API misuse"`；单成员路径全绿——复用 ≥2 次才暴露。
+- **根因**：`sqlite3_step` 返回 DONE 后语句处于完成态，未 `reset` 就 bind/step 是 API misuse；单次使用（含 fixture 常见的一插一断言）天然免疫。
+- **对策**：循环内复用语句一律 `try statement.reset()` 置于每次 bind 之前（与 `SessionIndexSchema.seedProjectMeta` 既有写法对齐）；或每轮 fresh prepare（子树小，开销可忽略）。
+- **适用**：一切批量写循环（refcount 批量调整、批量 UPDATE/INSERT faces）；code 21 排查先查复用语句的 reset 缺失。
+
+## L038: XCTest 断言自闭包不持 await/actor 调用——先落局部变量再断言；typed 错误用 do/catch 辅助函数（2026-09-29，M2-2-1 T2/T4）
+- **背景**：Swift 6 strict concurrency + actor store API 测试面（`XCTAssertTrue(await store.isOpen)` 型）。
+- **现象**：`'await' in an autoclosure that does not support concurrency` / `actor-isolated property can not be referenced from a nonisolated autoclosure`；闭包捕获 XCTestCase self 传 `sending` 参数再触发 region-isolation 错。
+- **根因**：XCTAssert* 的表达式参数是 non-async autoclosure；测试类实例非 Sendable，闭包只要引用 `self.xxx` helper 即被编译器拒收。
+- **对策**：①actor 调用先 `let x = await store.face()` 再断言；②typed 错误断言写 `assertLibraryError(_:from:)` async 辅助（do/catch + Equatable 精确比，XCTAssertThrowsError 非 async 不可用）；③传给 actor `sending` 闭包零实例捕获——测试 helper 提 static、调用处类名限定（`LibraryStoreTests.insertImage`）。
+- **适用**：一切 actor-based store 的单测（M2-2-2/2-3 的 ImportService/LibraryQueries 测试同型）。
