@@ -7,24 +7,35 @@
 
 A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) **Alcedo Studio clone, macOS-exclusive, RAW 9 decoding** (**2026-09-27 project redefinition, user directive** — supersedes both the Darktable full-iop baseline and the C1 Session workflow). UI and feature surface fully mimic Alcedo Studio; dt-exclusive delivered features stay in code but are disabled by default (feature flags). Phases below (Milestone 2 draft) are ordered by dependency; Milestone 1 (Phases 1-16) is retained below as historical record of delivered assets.
 
-## Milestone 2 (Draft): Alcedo V1 — 2026-09-27 重定义【草案：待 ALCEDO-FEATURE-MAP.md 测绘 + 用户签核后细化】
+## Milestone 2: Alcedo V1 — 2026-09-27 重定义【M2-0 细化完成 2026-09-27，待用户签核开工】
 
-> 执行序草案（fine 粒度，届时再拆 plans）。已交付资产延续使用：pixelpipe/39 iop/Layers/sidecar/Presets/LUT/Export 队列/MCP server/测试基线（1881/11skip/0fail）。Sessions/Catalogs 相关交付面剥离不启用。
+> 规格正本 = `.work/gsd/research/ALCEDO-FEATURE-MAP.md`（301 行，HEAD `34241d0b`：UI 逐屏/18 项调整封闭目录含 JSON key 与默认值/节点图命令级语义/蒙版参数/DRT 45 参数/项目文件全 DDL/导出 recipe/AI 侧车）。已交付资产延续：pixelpipe/39 iop/Layers/sidecar/Presets/LUT/Export 队列/MCP server/测试基线（1881/11skip/0fail）。
 
-| # | Phase | 内容 | 依赖 |
+### M2 签核决定点（C 档第 1 停，用户裁决后开工）
+
+- **D1 tone mapping 归属**：Alcedo 把 filmic/sigmoid 的职能整体移到终端 DRT 节点（用户不可编辑 tone spline，只露预设）。Lightamer 的 filmicrgb/sigmoid/agx 三个 iop **v1 禁用**（进 M2-1 矩阵），parity 后评估以「DRT method 扩展」身份回归。**推荐 = 是**。
+- **D2 降噪归属**：Alcedo 零降噪（封闭目录 18 项无 NR）。dt 降噪三件（denoiseprofile/nlmeans/bilateral）**v1 禁用**，降噪由 **RAW 9 解码层承担**（CIRAW 融合降噪 = kCIInputNoiseReductionAmount 族参数，best-in-class）；bilateral/highpass 收进 Detail 分组作 Lightamer 增强。**推荐 = 是**。
+- **D3 图库存储**：**SQLite 单项目文件**复用（`.lalb` 类单文件包 = db + manifest，语义照抄 Alcedo：Sleeve/Folder/Filter 相册骨架 + Image 物化搜索列 + mini-git EditCommit/VersionRef + 材质化缓存），不引入 DuckDB（新依赖违约束；SC#3 已实证 SQLite 1M 行 p95 12ms）。**推荐 = 是**。
+- **D4 调色域**：Alcedo Grade 在 **ACEScc** 域调色（LGG/curve 语义锚定）。Lightamer 管线 = linear Rec2020 float32；Grade 节点内部做 AP1/ACEScc 色适应往返（Develop 输出→ACEScc 调色→DRT 输入），含 CAT02 创意白平衡（默认 ≈6000K = identity）。**推荐 = 跟随 Alcedo**（保证语义与默认值一致）。
+- **D5 蒙版面**：Alcedo 出货只有 Radial + LinearGradient（Brush 已实现未出货）；Nitro 集 = Brush/Linear/Radial/Luminance/Color Range/AI Subject + Follow Edges。**v1 蒙版集 = Alcedo 出货面 + Brush + Nitro 的 Luminance/Color Range/AI Subject/Follow Edges**（内核复用 Phase 6 既有 kernel，UI 按 Alcedo Mask Groups 呈现）；dt 式 JzCzhz 参数化 UI 不单独暴露（内核可作 color-range 实现）。**推荐 = 是**。
+- **D6 独有增强收纳**：Lightamer 独有项（降噪增强/channelmixer 系/velvia/monochrome/liquify/retouch/ashift/hazeremoval/yiyin/MCP）全部保留，UI 归入七页签的对应分组（Detail/高级），不破坏 Alcedo IA。**推荐 = 是**。
+
+### M2 Phase 表
+
+| # | Phase | 内容（测绘锚点） | 依赖 |
 |---|---|---|---|
-| M2-0 | Alcedo 测绘与规格 | ALCEDO-FEATURE-MAP.md（研究代理进行中）→ 新 REQUIREMENTS V1 家族 + 本 ROADMAP 细化，**用户签核后开工** | — |
-| M2-1 | dt 面 feature-flag 禁用 | 39 dt 派生 iop + dt 体系功能逐一审计 → 启用/禁用矩阵；ModuleRegistry/UI/预设/MCP 默认面收窄；代码+测试全绿 | M2-0 |
-| M2-2 | 图库与项目模型（Alcedo 方式） | 图库 + 相册 + 项目文件（相册结构与编辑历史承载）；导入流程；存储后端选型；Sessions/Catalogs UI 剥离 | M2-0 |
-| M2-3 | UI 壳重设计（Alcedo 克隆） | 图库网格 + 相册检查器 + 编辑器布局（右面板/胶片条/面板族） | M2-2 |
-| M2-4 | 节点编辑模型 | Develop → Color Grade×N → Display Transform；节点图核心 + 与 pixelpipe/adjustment layers 底座的映射 | M2-1, M2-3 |
-| M2-5 | Color Grade 控件集 | 每节点：影调/色彩、色调曲线、**LGG 色轮（新）**、可选颜色、细节、局部色调映射；LUT/颗粒/光晕对齐 | M2-4 |
-| M2-6 | DRT：ACES 2.0 + OpenDRT | 新 DRT 双实现 + 显示变换面板（目标 CS/传递函数/峰值亮度/HDR 预览）；filmic/sigmoid/agx 禁用 | M2-4 |
-| M2-7 | 蒙版体系（Alcedo + Nitro） | Alcedo 蒙版类型与编辑器 + Nitro Follow Edges（IOP-MASK-06）；Depth（IOP-MASK-07）视数据面 | M2-4 |
-| M2-8 | 版本与历史 | 每片多命名版本、历史任意步分叉、Look 复制；项目文件/sidecar schema 扩展 | M2-2, M2-4 |
-| M2-9 | 导出选项 Alcedo 化 | 长边/像素/打印尺寸、ICC、文件名模板、导出预设、元数据剥离；格式矩阵保留原 6 格式 + yiyin | M2-3 |
-| M2-10 | AI 图库功能 | 本地 CLIP 自然语言搜索 + 自动打标签；AI 评片/描述（OpenAI/Anthropic 兼容）；MCP server 保留互补 | M2-2 |
-| M2-11 | Performance 专项 + closeout | 原 Phase 15 范围按新架构重校（60fps@100MP 决战 + 全链路） | M2-1..M2-10 |
+| M2-0 | 测绘与规格 | ✅ ALCEDO-FEATURE-MAP.md + 本表 + REQUIREMENTS M2 族登记；**用户签核 D1-D6 后开工** | — |
+| M2-1 | dt 面 feature-flag 禁用 | 39 iop 审计→启用/禁用矩阵（D1/D2/D6 裁决落地）；ModuleRegistry flag 默认面收窄；预设/MCP 默认面收窄；回归全绿 | M2-0 |
+| M2-2 | 图库与项目模型（Alcedo 方式） | SQLite 单项目文件包（D3）；相册骨架 Sleeve/Folder/Filter（智能相册）；文件夹导入引用式 + RAW-only 过滤；Image 物化搜索列 + EXIF 词法检索（`iso800`/`f2.8`/`35mm` AND 组合，~20ms@2万张 对标）；Sessions/Catalogs UI 剥离 | M2-0 |
+| M2-3 | UI 壳重设计（Alcedo 克隆） | 双工作区（Library/Editor）；图库 = 网格 + Album Inspector（四分组 + Activity view + Overview 卡）+ 全局搜索三合一（EXIF/CLIP/全文）；编辑器 = 左工具轨（History/Versions/Nodes）+ 中视口（FIT/缩放读出/双级 busy）+ 胶片条 + 右示波器（直方图/波形）+ 七页签调整栈（Tone/Look/LUT/Display Transform/Geometry/RAW Decode/Mask）；设置页族 | M2-2 |
+| M2-4 | 节点编辑模型 | PipelineDocument 线性链（Develop→Grade×N→DRT）；命令集 AddClean/Remove+Bridge/Reconnect/Rename/SetEnabled/SetMix/InsertFromJson（undo 可复原）；每节点有序调整列表+enabled+mix+删除锁（grade.primary 锁）；蒙版 Grade-owned 绑定；sidecar/项目 schema 扩展；节点面板 UI（SwiftUI/Metal 自绘替代 QuickQanava） | M2-1, M2-3 |
+| M2-5 | Color Grade 控件集 | 18 项封闭目录参数对齐（CAT02 WB identity 5999.99K / exposure ±16 / contrast 中灰邻域语义新图默认 +15 / White/Black/Shadows/Highlights ±100 / curve 单位方形 / HLS 8-bin+range 45° / saturation 0-4 / vibrance ±100 / LGG 三轮 disc-strength-color_offset-luma_offset / LMT CUBE / tint ±100）；LGG trackball UI（新）；产品默认 look（+1.5EV/+15/1.3）与 identity 语义；D4 ACEScc 调色域落地 | M2-4 |
+| M2-6 | DRT：ACES 2.0 + OpenDRT | DRT 节点（scene 终点，Post 四件套 Clarity/Sharpen/Halation/FilmGrain 在 DRT 后全图一次）；OpenDRT 预设三件套（Look 7 + Tonescale 15 + Creative White 6；45 detailed 参数 editor-owned 序列化）；ACES 2.0（Limiting Space 七选 + reference gamut compression）；Encoding Space/EOTF 联动（Rec709→BT.1886/G2.2、P3-D65→G2.2/PQ、Rec2020→PQ/HLG…）+ Peak 100-1000 nits；HDR 判定（EOTF∈{ST2084,HLG}）驱动 EDR 预览与导出；filmic/sigmoid/agx 按 D1 禁用 | M2-4 |
+| M2-7 | 蒙版体系（Alcedo + Nitro） | Radial（center/radii/rotation/feather）+ LinearGradient（origin/normal/transition 0.2/start 1→end 0）+ Brush；mask 级 invert/opacity/enabled/锁删 + 应用序 feather→invert→opacity→clamp；图上绘制 + 手柄 overlay + Mask Groups 面板（组序=grade 序、蒙版缩略图 GPU 管线、Default Behavior 三选）；Nitro：Follow Edges（IOP-MASK-06）+ Luminance/Color Range/AI Subject（D5）；蒙版修订单调 revision + 乐观并发 | M2-4 |
+| M2-8 | 版本与历史（mini-git） | EditCommit 不可变 commit 图（双亲=分支/合并）；VersionRef 命名版本（从原始态新建 + branch from current + fork from root + rename/remove）；ImageEditState 材质化缓存；永久 undo/redo + 历史事务行（操作名+参数 delta+时间）+ 崩溃恢复条 + 自动保存；Copy Adjustments 三层面板（Node/Item/Version 勾选 → Paste 新 Version；排除 RAW decode/lens/crop） | M2-2, M2-4 |
+| M2-9 | 导出选项 Alcedo 化 | 格式保留原 6 格式矩阵（用户终裁；EXR/UltraHDR 维持 V2=ALCE-02/03）；尺寸四模式（Original/Long Edge/Bounds/Print+in-cm-mm+DPI+upscale cap+maximum_edge_pixels）；元数据剥离策略（location/serials/editing history 默认剥离 + 档位）；文件名模板（字段 12 种+补零序号+冲突 FAIL/REPLACE+子文件夹）；输出 ICC = 本图 DRT 编码强制联动；导出队列 UI（检查器内、四态、质量跨会话记忆）；yiyin 印框/水印终步保留适配 | M2-3 |
+| M2-10 | AI 图库功能 | 本地语义：CLIP 嵌入（CoreML 档；MobileCLIP2-512/SigLIP2/Jina-768 级可选）+ ANN 检索（SQLite 向量方案执行时定）+ 自动打标（中英 label query 原型余弦 + score/margin/confident + 导入询问 Remember-choice）；远程评片：OpenAI/Anthropic 兼容（1-5 星+理由、rating=0 reasons-only、严格度/语言、prompt profile 护栏）+ AI 描述（caption+tags+scene+confidence+全文检索文档）；Keychain 存 key（zeroize）+ 强制 HTTPS；后台任务系统（对话框+栏+取消注册表）；MCP server 保留互补 | M2-2 |
+| M2-11 | Performance 专项 + closeout | 原 Phase 15 PERF-01..07 按新架构重校（60fps@100MP 决战/零卡顿/RAW9 解码 500ms/懒加载/批量 apply/内存 3GB/Instruments profile）+ 全 M2 SC 终验 | M2-1..M2-10 |
 
 **里程碑 1（Phases 1-16）= 历史记录**：交付资产延续，其 ROADMAP 文本保留在下作考古。Phase 14（MCP）已全执行完毕待 14-4 验收——验收照常派（交付面不受重定义影响），Phase 15 并入 M2-11。
 

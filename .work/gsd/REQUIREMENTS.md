@@ -5,7 +5,93 @@
 
 > ⚠️ **2026-09-27 项目重定义（用户指令）**：产品目标改为 **macOS 独占、RAW 9 解码、UI 完全模仿 Alcedo Studio 的 Alcedo 克隆**；dt 独有已交付代码保留但默认不启用；图片管理改 Alcedo 方式（Sessions/Catalogs 剥离）；导出格式保留原矩阵、可选项按 Alcedo；水印相框保留 yiyin；蒙版 = Alcedo + Nitro Photo（不用 dt 方案）；以上全部属 **V1**。**下方既存 v1 Requirements 为里程碑 1 历史账（已交付面照旧有效，交付面被剥离者标 disabled）**；新 V1 需求家族待 `ALCEDO-FEATURE-MAP.md` 测绘落盘后统一登记（ROADMAP M2-0），本文件暂不重写历史节。V2 节 ALCE-01/04/05/06/07 随重定义**提级 V1**；ALCE-02（OpenEXR）/ALCE-03（Ultra HDR JPEG）维持 V2（用户：导出格式保留原方案）。
 
-## v1 Requirements
+## V1 Requirements — Milestone 2: Alcedo V1（2026-09-27 重定义；M2-0 细化，待用户签核 D1-D6）
+
+> 规格锚点 = `research/ALCEDO-FEATURE-MAP.md`（章节号见各条）。粒度 = family 级，phase discuss 时再拆 task。M1 历史需求族（下方既存各节）作为已交付资产账本继续有效；本节为唯一活跃 V1 面。
+
+### dt 禁用矩阵 (DIS)
+- [ ] **M2DIS-01**: 39 个 dt 派生 iop 逐一审计 → 启用/禁用矩阵落盘（D1 filmic/sigmoid/agx、D2 降噪三件、Alcedo 无对应项默认禁用；独有增强项按 D6 收纳保留）
+- [ ] **M2DIS-02**: ModuleRegistry feature-flag 门控（默认面收窄；禁用模块代码+测试保持全绿，可显式开启）
+- [ ] **M2DIS-03**: UI 七页签收敛——禁用项不出现在任何面板/预设浏览器/批量 apply 面
+- [ ] **M2DIS-04**: 降噪由 RAW 9 解码层承担（CIRAW NR 参数族在 RAW Decode 页签暴露，D2）
+- [ ] **M2DIS-05**: 预设/MCP 默认工具面同步收窄（禁用模块不入默认 schema）
+
+### 图库与项目模型 (LIB)
+- [ ] **M2LIB-01**: 单项目文件包（SQLite：`<stem>` 库 + manifest；相册结构与全部编辑历史在一个文件内，可整体移动/备份；schema 版本化）
+- [ ] **M2LIB-02**: 相册骨架——文件夹/相册/智能相册（Filter JSON 谓词）+ Element 引用计数模型（Feature-map §6.2 Sleeve/FolderContent/Filter 语义）
+- [ ] **M2LIB-03**: 导入——文件夹批量导入引用式（记录原路径）+ RAW-only 扩展名过滤可配 + 进度反馈
+- [ ] **M2LIB-04**: Image 物化搜索列（file_stem/capture_at/camera/lens/iso/focal/aperture/rating + 词边界折叠检索文本）+ EXIF 词法搜索（`iso800`/`f/2.8`/`35mm`/日期多格式 AND 组合；性能对标 ~20ms@2 万张）
+- [ ] **M2LIB-05**: Album Inspector——总数卡 + 四分组（日期/相机/标签/镜头）+ Activity view（按日数量图点击过滤）+ 搜索过滤态显示
+- [ ] **M2LIB-06**: Sessions/Catalogs 剥离——UI 不暴露、入口禁用（代码保留可回切）
+
+### UI 壳 (UIW)
+- [ ] **M2UIW-01**: 双工作区路由（Library/Editor）+ 顶栏 + 暗色玻璃主题 tokens（Feature-map §1.1/1.2/1.3 布局语义；SwiftUI 实现非 QML 复刻像素级）
+- [ ] **M2UIW-02**: 编辑器三段布局——左工具轨（History/Versions/Nodes 图标列+展开推挤）、中视口（FIT/百分比读出/裁剪角度徽标/双级 busy/手势缩放平移）+ 底部胶片条（与图库同集合过滤）、右示波器 + 调整栈
+- [ ] **M2UIW-03**: 七页签调整栈（Tone/Look/LUT/Display Transform/Geometry/RAW Decode/Mask）+ 节点头（名称+焦距/光圈/快门/ISO）
+- [ ] **M2UIW-04**: 示波器（直方图/波形二选一，GPU 渲染）
+- [ ] **M2UIW-05**: 设置页族——语言/主题、Default Behavior（蒙版绘制三选）、缓存、Local Content Recognition、Advanced Content Analysis、键盘自定义（冲突显示+恢复默认）、关于
+- [ ] **M2UIW-06**: 后台任务系统 UI（对话框+底部栏+取消，AI/导入/导出共用）
+
+### 节点模型 (NODE)
+- [ ] **M2NODE-01**: PipelineDocument 线性链语义（Develop→Color Grade×N→DRT；Develop=RAW→scene-referred；DRT=显示终点非 scene 端口）
+- [ ] **M2NODE-02**: 图命令集——AddClean(插 identity grade)/Remove+Bridge/Reconnect/Rename/SetEnabled/SetMix(0-1)/InsertFromJson（undo/redo 可复原保 NodeId）
+- [ ] **M2NODE-03**: 节点内有序调整列表（顺序=用户数据编译器不得重排）+ 18 项目录所有权校验（Clarity/Sharpen/Halation/FilmGrain 属 DRT/Post，Grade 内插入 = typed error）
+- [ ] **M2NODE-04**: 蒙版 Grade-owned 绑定（每 Grade 多蒙版独立 enabled/opacity/invert；首 Grade 删除锁）
+- [ ] **M2NODE-05**: 持久化——sidecar/项目文件 schema 扩展承载节点图（沿 one-way 格式锁惯例升版本）
+- [ ] **M2NODE-06**: 节点面板 UI——图视图（Develop/DRT 端点节点+Grade 节点+连线+增删改名重连+Fit）SwiftUI/Metal 自绘
+
+### Color Grade 控件 (GRADE)
+- [ ] **M2GRADE-01**: 18 项封闭目录参数对齐（CAT02 WB 默认 5999.99K identity 2000-15000K+Tint；exposure ±16；contrast 中灰邻域保色相语义新图 +15；White/Black/Shadows/Highlights ±100；curve 单位方形点列；HLS 8-bin+h/l/s_range 45/0.1/0.1+target_hls；saturation 0-4；vibrance ±100；LMT CUBE path；tint ±100——Feature-map §2.1 全表）
+- [ ] **M2GRADE-02**: LGG 三向色轮（每轮 disc Vec2+strength+color_offset+luma_offset；gamma/gain identity=(1,1,1)；trackball UI+Reset wheels）
+- [ ] **M2GRADE-03**: 产品默认 look（+1.5 EV/contrast +15/saturation 1.3）仅作用于新导入；用户新建 grade 与 reset 恒 identity
+- [ ] **M2GRADE-04**: ACEScc 调色域（D4：Grade 内部 AP1/ACEScc 色适应往返，CAT02 创意白平衡语义；相机 WB 留在 RAW Decode/CIRAW 层）
+
+### 显示渲染变换 (DRT)
+- [ ] **M2DRT-01**: DRT 节点+面板——Method 分段卡（ACES 2.0/OpenDRT）恒展开；默认 OpenDRT
+- [ ] **M2DRT-02**: OpenDRT 预设三件套——Look 7（standard/arriba/sylvan/colorful/aery/dystopic/umbra+custom）+ Tonescale 15 + Creative White 6；45 个 detailed 参数 editor-owned 整体序列化（预设=具名快照）
+- [ ] **M2DRT-03**: ACES 2.0——Limiting Space 七选 + ACES reference gamut compression 前置
+- [ ] **M2DRT-04**: Color & Encoding——Encoding Space 六选（Rec.709/P3-D65/P3-D60/P3-DCI/XYZ/Rec.2020）+ EOTF 随空间联动 + Peak Luminance 100-1000 nits；HDR 判定 = EOTF∈{ST2084,HLG}，驱动 EDR 预览与导出链
+- [ ] **M2DRT-05**: DRT/Post 四件套（Clarity ±100/Sharpen amount-radius-threshold/Halation 0-1/FilmGrain 0-1）在 display transform 后对全图应用一次（预览=成品）
+- [ ] **M2DRT-06**: 独有 DRT 扩展位（filmic/sigmoid/agx 按 D1 v1 禁用；架构预留 DRT method 注册口）
+
+### 蒙版 (MASK2)
+- [ ] **M2MASK-01**: Radial（center 0.5/0.5、major/minor 0.5、rotation、inner/outer feather，归一化参考空间）
+- [ ] **M2MASK-02**: LinearGradient（origin/normal/transition 0.2/start 1→end 0）
+- [ ] **M2MASK-03**: Brush（复用 Phase 6 资产对齐 Alcedo 笔划/revision/乐观并发模型）
+- [ ] **M2MASK-04**: mask 级属性与语义——display_name/enabled/opacity/invert/feather/deletion_protected；应用序 = feather→invert→opacity→clamp
+- [ ] **M2MASK-05**: Nitro 扩展——Follow Edges 边缘感知笔刷（IOP-MASK-06 提级 V1）+ Luminance/Color Range（内核复用 Phase 6，UI 按 Nitro 呈现，D5）+ AI Subject 入口（subject+invert sugar）
+- [ ] **M2MASK-06**: 蒙版编辑 UI——图上绘制+手柄 overlay、Mask Groups 面板（组序=grade 序拖动、蒙版缩略图 GPU 管线、锁删提示、Locate unfinished node 提示）、Default Behavior 三选
+- [ ] **M2MASK-07**: 蒙版内容单调 revision（MaskContentRevision）+ 笔划追加乐观并发校验
+
+### 版本与历史 (VER)
+- [ ] **M2VER-01**: EditCommit 不可变 commit 图（hash 主键、双亲=分支/合并、created_at_ns、kind、edit_payload JSON）
+- [ ] **M2VER-02**: VersionRef 命名版本——从导入原始态新建 + branch from current commit + fork from root + rename/remove；版本切换即时、自动保存
+- [ ] **M2VER-03**: ImageEditState 材质化缓存（active_version/materialized_head/transaction_chain；仅加速恢复非用户概念）
+- [ ] **M2VER-04**: 历史=版本内线性事务流——每行操作名+参数 delta+时间；永久 undo/redo（跳回后 redo 尾巴保留、再编辑丢弃尾巴）；崩溃恢复条
+- [ ] **M2VER-05**: Copy Adjustments——三层面板（Version→Node→Item 勾选）Paste 生成新 Version；不复制 RAW decode/lens/crop-rotation
+
+### 导出选项 (EXP2)
+- [ ] **M2EXP-01**: 尺寸四模式——Original/Long Edge/Bounds W×H/Print（in-cm-mm+DPI）+ allow_upscale + maximum_edge_pixels
+- [ ] **M2EXP-02**: 元数据策略档位——默认剥离 location/设备序列号/编辑历史；EXIF 写入本 app 版本号
+- [ ] **M2EXP-03**: 文件名模板——12 字段（stem/capture_date/camera/lens/iso/aperture/shutter/focal/rating/sequence 补零+literal）+ 冲突 FAIL/REPLACE + 子文件夹
+- [ ] **M2EXP-04**: 输出 ICC 与本图 DRT 编码强制联动（space/EOTF/peak nits 入队前已解析）；格式矩阵保留原 6 格式（EXR/UltraHDR = V2 ALCE-02/03）
+- [ ] **M2EXP-05**: 导出队列 UI（检查器内+Queued/Exporting/Done/Failed 四态+质量跨会话记忆）；yiyin 印框/水印终步保留适配
+
+### AI 图库 (AI2)
+- [ ] **M2AI-01**: 本地 CLIP 嵌入——CoreML 档模型可选（MobileCLIP2-512/SigLIP2/Jina-768 级），模型下载 manifest+revision pin，本地运行不上云
+- [ ] **M2AI-02**: 嵌入存储+ANN 检索（SQLite 向量方案执行时定，对标 HNSW 近邻）+ 自然语言搜索入全局搜索三合一
+- [ ] **M2AI-03**: 自动打标——出厂中英 label query 原型嵌入余弦（score/second_label/margin/confident）+ 导入后询问 Remember-my-choice
+- [ ] **M2AI-04**: AI 评片——OpenAI/Anthropic 兼容 endpoint、1-5 星+理由（clamp；rating=0 reasons-only 哨兵）、星级写库、严格度+输出语言设置
+- [ ] **M2AI-05**: AI 描述——caption+tags+scene+confidence + 全文检索文档（描述/标签进全局搜索）
+- [ ] **M2AI-06**: 凭据与安全——Keychain 存 key（zeroize）+ 强制 HTTPS（localhost dev 例外）+ prompt profile 护栏（rubric 变更可检）
+- [ ] **M2AI-07**: 后台执行——任务注册表+取消，分析期间可继续工作
+- [ ] **M2AI-08**: MCP server 保留互补（Phase 14 资产；launcher 与外部 client 双入口照旧）
+
+### 性能与收口 (M2PERF)
+- [ ] **M2PERF-01**: 原 PERF-01..07 按新架构重校——60fps@100MP 决战/零卡顿 hitch=0/RAW9 解码 500ms 可交互/懒加载万张 60fps/批量 apply 万张≤5s/内存 3GB/Instruments profile 落账
+- [ ] **M2PERF-02**: M2 全族 SC 终验 + VALIDATION + verify-work 签核
+
+## v1 Requirements（里程碑 1 历史账，2026-08-03 定义）
 
 Requirements for initial release. Each maps to roadmap phases.
 v1 = 完整工作流闭环 + 蒙版系统 + HDR/堆栈 + 印框/水印 + 全量 iop（按 Fine 粒度分阶段交付，不设上限）。
