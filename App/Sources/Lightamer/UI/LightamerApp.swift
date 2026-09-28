@@ -864,12 +864,22 @@ internal struct LightamerApp: App {
                     // registry (testgain in DEBUG; Phase 3+ joins here),
                     // then hand the registry to the coordinator so loads
                     // resolve the terminal-trio default chain.
-                    await LightamerIOPRegistry.populate(moduleRegistry)
-                    pipeCoordinator.attach(registry: moduleRegistry)
+                    // M2-1 (D1/D2 + KD-1/KD-3): the DEFAULT face skips the
+                    // disable set unless LIGHTAMER_FULL_IOP_FACE=1 opts
+                    // back into the full face — one read here seeds the
+                    // registry, the panels, the coordinator's pristine
+                    // seed and (below) the MCP host.
+                    let defaultFace = !LightamerIOPRegistry.isFullFaceRequested
+                    await LightamerIOPRegistry.populate(
+                        moduleRegistry, defaultFace: defaultFace)
+                    pipeCoordinator.attach(
+                        registry: moduleRegistry, defaultFace: defaultFace)
 
                     // Plan 03-02-T3 (D-T6): register the Inspector panel
                     // providers (exposure + temperature are the first two).
-                    inspectorState.registerDefaultProviders()
+                    // M2-1: the same face gates the 6 disabled panels —
+                    // one face for registry + panels + seed (KD-1).
+                    inspectorState.registerDefaultProviders(defaultFace: defaultFace)
 
                     // Plan 04-04-T3: resolve the Lensfun database (custom
                     // path > downloaded copy > absent-downgrade; sync,
@@ -1477,10 +1487,14 @@ internal struct LightamerApp: App {
     }
 
     /// The identity-default seed (terminal trio + the editing defaults).
+    /// M2-1: the face rides `isFullFaceRequested` (KD-3) so every seed
+    /// consumer — pristine loads, preset/batch apply compose bases, the
+    /// MCP metadata seed — narrows with the same one switch.
     private func seedInstances() async -> [ModuleInstance] {
         (
             await moduleRegistry.makeDefaultInstances()
-                + LightamerIOPRegistry.editingDefaultInstances()
+                + LightamerIOPRegistry.editingDefaultInstances(
+                    defaultFace: !LightamerIOPRegistry.isFullFaceRequested)
         )
         .sorted {
             ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)

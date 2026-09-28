@@ -319,4 +319,37 @@ final class DefaultFaceTests: XCTestCase {
             projected.contains { $0.opName == FilmicRGBModule.opName },
             "remove: true must stay addressable for legacy instances")
     }
+
+    // MARK: - T2: the UI panel face
+
+    /// AC6: `registerDefaultProviders(defaultFace: true)` leaves the 6
+    /// disabled panels UNREGISTERED (panel rows + the layer add-module
+    /// menu enumerate this registry) while exposure/colisa stay; the
+    /// default parameter keeps all of them — the exact assertions
+    /// PanelWiringTests makes on the full face stay untouched (KD-2).
+    @MainActor
+    func testDefaultFacePanelsExcludeDisabledKeepsEnabled() {
+        let narrow = InspectorState()
+        narrow.registerDefaultProviders(defaultFace: true)
+        let narrowNames = narrow.panelOpNames
+        for opName in Self.matrixDisabledNames {
+            XCTAssertFalse(
+                narrowNames.contains(opName),
+                "\(opName) panel must be absent from the default face")
+        }
+        XCTAssertTrue(narrowNames.contains(ExposureModule.opName))
+        XCTAssertTrue(narrowNames.contains(ColisaModule.opName))
+
+        // The KD-2 reverse pin: the bare call keeps every disabled panel.
+        let full = InspectorState()
+        full.registerDefaultProviders()
+        let fullNames = full.panelOpNames
+        for opName in Self.matrixDisabledNames {
+            XCTAssertTrue(
+                fullNames.contains(opName),
+                "\(opName) panel must stay registered under the default parameter")
+        }
+        // The narrowed registry is exactly the full registry minus 6.
+        XCTAssertEqual(fullNames.count - narrowNames.count, 6)
+    }
 }

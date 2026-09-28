@@ -362,6 +362,11 @@ final class PipeCoordinator {
     /// supplies the default chain when a load passes no explicit instances.
     private var registry: ModuleRegistry?
 
+    /// M2-1 (KD-1/KD-3): the editing face injected at the composition
+    /// root — `true` = the pristine seed (and everything derived from it)
+    /// drops the D1/D2 disable set. Default `false` = full face (KD-2).
+    private var defaultFace = false
+
     /// The colorout box of the CURRENT chain, typed — the D-COL2 screen
     /// follow re-commits its params (folding `DisplayProfile.stableID`)
     /// so a display change invalidates exactly the ≥colorout cache keys.
@@ -495,8 +500,17 @@ final class PipeCoordinator {
     /// `ModuleRegistry.makeDefault()`, populates LightamerIOP's modules,
     /// then attaches it here. Loads with empty instance sets resolve to
     /// the registry's default chain (terminal trio).
-    func attach(registry: ModuleRegistry) {
+    ///
+    /// M2-1: `defaultFace` rides the SAME composition-root read that
+    /// populated the registry (`!LightamerIOPRegistry.isFullFaceRequested`,
+    /// KD-3) — the pristine seed narrows with the registry so one switch
+    /// governs all three faces (KD-1). Default `false` = full face: every
+    /// existing caller (the test harness included) keeps the pre-M2-1
+    /// seed byte-for-byte (KD-2) — the face is injected at the root, not
+    /// env-read at depth, so a bare attach stays full.
+    func attach(registry: ModuleRegistry, defaultFace: Bool = false) {
         self.registry = registry
+        self.defaultFace = defaultFace
     }
 
     /// Capture the editor window (D-COL2: follow the WINDOW's screen) and
@@ -671,8 +685,14 @@ final class PipeCoordinator {
                     // IDENTITY params — their Inspector panels need
                     // instances to drive. Identity keeps the chain
                     // cache-neutral (same hashes as the bare trio).
+                    // M2-1 (D1/D2 + KD-1/KD-3): the pristine seed rides the
+                    // face injected at attach() — the composition root's
+                    // isFullFaceRequested read, the SAME switch that
+                    // populated the registry (default false = full face,
+                    // KD-2).
                     let defaults = (await registry?.makeDefaultInstances() ?? [])
-                        + LightamerIOPRegistry.editingDefaultInstances()
+                        + LightamerIOPRegistry.editingDefaultInstances(
+                            defaultFace: defaultFace)
                     editorState?.resetHistoryForNewImage(
                         defaultInstances: defaults.sorted {
                             ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
