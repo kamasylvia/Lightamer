@@ -252,7 +252,7 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 
 ### 语言与沟通
 - 用户面向输出（问题、解释、状态总结）使用中文；代码、API 名称、文件路径、技术术语保持英文。
-- 每轮对话完成后，如有需要，更新 `.work/TODO.md` 和 AGENTS.md（继承自全局指南；TODO/LESSONS 均在 `.work/` 下，根符号链接为工具兼容垫片）。
+- 每轮对话完成后，如有需要，更新 `.work/TODO.md` 和 AGENTS.md（继承自全局指南；TODO/LESSONS 真身在 `.work/` 下，**根目录不留垫片**——2026-09-28 用户裁决，引用一律写 `.work/` 真路径）。
 
 ### 提交与 Issue（继承全局规则）
 - 提交代码前确保有对应 GitHub issue。commit message 末尾用 `fixes #NN` / `closes #NN` / `refs #NN` 关联 issue；已推送的 commit 在 issue 描述里反向引用。
