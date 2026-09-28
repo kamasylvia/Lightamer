@@ -245,6 +245,7 @@ let project = Project(
                 .target(name: "LightamerIOP"),
                 .target(name: "Lightamer"), // Plan 03-02: D-T6 panel wiring tests drive the APP-side state (InspectorState/PipeCoordinator) via @testable
                 .package(product: "WebP"), // Plan 11-01: the WebPIntegrationSmokeTests import WebP directly (link smoke)
+                .package(product: "MCP"), // Plan 14-1: the MCP snapshot/host tests drive the InMemoryTransport leg directly (same WebP precedent)
             ]
         ),
 
