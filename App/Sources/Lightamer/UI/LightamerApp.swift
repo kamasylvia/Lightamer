@@ -32,7 +32,26 @@ internal extension FocusedValues {
         get { self[ExportPanelRequestKey.self] }
         set { self[ExportPanelRequestKey.self] = newValue }
     }
-}/// Handles the open-document Apple Event (Finder double-click, `open` CLI,
+}/// Plan 14-1 T1 (D-14-CONTEXT-2⑤): the process entry fork. A headless MCP
+/// launch (`--mcp-stdio` / `--mcp-http`) NEVER constructs the SwiftUI App
+/// struct below — `@NSApplicationDelegateAdaptor` and the whole `@State`
+/// graph are instance properties that only initialize inside
+/// `App.main()`'s instance creation — and never enters `NSApplication.run`
+/// (the research §RQ-14-1④ shape; the fork itself is the R3 risk probe).
+/// Every other launch runs the normal GUI flow unchanged.
+@main
+enum LightamerEntryPoint {
+    @MainActor
+    static func main() {
+        if let mode = McpServerController.headlessModeIfRequested() {
+            McpServerController.runHeadless(mode: mode) // parks forever
+            return
+        }
+        LightamerApp.main()
+    }
+}
+
+/// Handles the open-document Apple Event (Finder double-click, `open` CLI,
 /// drag onto the Dock icon) so declared CFBundleDocumentTypes actually route
 /// into `EditorState.load`. Opens that arrive before the scene is ready are
 /// buffered and flushed on first appearance. Also bridges
@@ -116,7 +135,8 @@ private struct WindowCapture: NSViewRepresentable {
 /// Owns the four D-03b state objects at the root via `@State` (D-35:
 /// `@Observable` objects are owned with `@State`, never `@StateObject`) and
 /// injects them into the environment. Forces dark mode (D-10).
-@main
+/// 14-1 T1: the `@main` attribute moved up to `LightamerEntryPoint` (the
+/// headless MCP fork); the GUI flow starts through `LightamerApp.main()`.
 internal struct LightamerApp: App {
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
