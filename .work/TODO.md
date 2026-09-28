@@ -345,4 +345,16 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 ---
 
+## Milestone 2（项目重定义：Alcedo 对标——ROADMAP §Milestone 2）—— 执行中（M2-0 ✅ 测绘；M2-1 ✅ 执行收口）
+
+- [x] **M2-0**（测绘落盘 + 细化）—— ✅（2026-09-27；`research/ALCEDO-FEATURE-MAP.md` 301 行 + ROADMAP M2 表细化 + REQUIREMENTS 新 V1 族）
+- [x] **M2-1**（dt 面 feature-flag 禁用——39 iop 审计矩阵落地 D1/D2/D6 签核裁决）—— ✅ 执行完成（2026-09-28 ZCode executor subagent worker；4 commits：T1 `f5bcfa2` 禁用缝正本+round-trip 红线钉 / T2 `561ca59` 组装点接线+panel 门控 / T3 `f2a3618` MCP 面+catalog 过滤 / T4 收口本提交；未 push）。**战果**：`defaultFaceDisabledOpNames` 恰 6 项（D1 filmic/sigmoid/agx + D2 denoiseprofile/nlmeans/bilateral，opName 常量构建）+ `isFullFaceRequested`（`LIGHTAMER_FULL_IOP_FACE=1` opt-in，KD-3）+ populate/seed/panels/MCP 四消费面同缝收窄（KD-1 不注册语义）；旧 sidecar round-trip 红线字节级钉死（degradedForUnknownOps/degradedLayerStack 既有机制：params verbatim + enabled=false + toast，数据零丢失）；工具注册面 19 不变（M2DIS-05 不删工具）、`list_iops` 默认面 18→15。**回归**：基线 1881/11skip/0fail → 终轮 **1889/11skip/0fail**（+8 = DefaultFaceTests；695.7s）。**偏差 2 处**（face 注入式接线 / McpHostTests 期望元组同源 face——均实测归因，KD-2 红线驱动，详见 `phases/m2-1-dt-disable/M2-1-DECISIONS.md`）。矩阵 T4 复核签注在案（逐行一致，无 verdict 改动）。
+- [x] **M2DIS-01** ✅（M2-1：39 iop 审计矩阵落盘 `phases/m2-1-dt-disable/M2-1-MATRIX.md`——禁用 6 / 启用 33 / 灰区保留 14，T4 复核签注逐行一致）
+- [x] **M2DIS-02** ✅（M2-1：registry feature-flag 默认面收窄；禁用模块代码+测试保持全绿；`LIGHTAMER_FULL_IOP_FACE=1` 显式开启口）
+- [x] **M2DIS-03** ✅ 禁用项隐除半边（M2-1：面板行/层 add-module 菜单/预设 apply 种子/批量 apply 种子/MCP schema 五面收窄钉死；**七页签 IA 收纳留 M2-3**）
+- [ ] **M2DIS-04**（M2-3/M2-5：CIRAW NR 参数族 RAW Decode 页签暴露——M2-1 仅保证禁用与 decode 管线零耦合）
+- [x] **M2DIS-05** ✅（M2-1：MCP 默认面收窄——禁用模块 apply_params = typed unknownOp、list_iops 不列；预设面随种子收窄；工具不删）
+
+---
+
 *镜像自 `.work/gsd/ROADMAP.md`。阶段进度以 `.work/gsd/STATE.md` 为准。*

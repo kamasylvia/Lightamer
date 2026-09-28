@@ -301,3 +301,21 @@ throw }` 二分定位真实抛点；③解析器宽容化（空载荷跳过、�
 
 **教训**：异步测试看到 CancellationError 时**不要相信它**——它是包装纸不是病灶；先分段
 catch 打点找真实首错，再修根因。等待原语在测试里一律用不抛的 bounded 轮询。
+
+## L036: 生产路径深处直读进程级开关（env/defaults）= 测试环境继承开关态——开关在组装根读一次、显式注入（2026-09-28，M2-1 T2）
+
+**现象**：M2-1 按 plan T2.1 处方在 `PipeCoordinator` pristine seed 处 env 直读
+`!isFullFaceRequested`，全套回归 55 个 PanelWiringTests case 全红（`pristine seed must
+include nlmeans` 族）——测试进程无该 env → 生产代码路径在测试中也走 default face →
+经 `coordinator.load` 驱动生产路径的既有种子断言全量撞面。同样的撞面在 MCP 侧二连：
+`McpHostTests` 期望元组手工构造 full-face seams，对照的生产三形态走 default face（18 vs 15）。
+
+**对策**：①face/flag 类进程级开关**只在组装根（App 启动 task / makeEditingSeams）读一次**，
+经参数/字段显式注入下游（`attach(registry:defaultFace:)` / `Seams.defaultFace`），下游默认值
+= 旧行为（KD-2 式「默认参数 = full face」）——生产收窄语义与测试隔离同时成立；②「测试自建
+构造 vs 生产构造」的期望值对比（conformance 类测试）必须与被测对象**同源同 face**，否则测的
+不是传输一致性而是开关态差；③收窄 API 一律带默认参数且默认 = 既有行为，生产组装点显式传新
+值——这是零破坏演化的通用形（本次四面验证：populate/seed/panels/catalog）。
+
+**适用**：一切「默认行为切换」类 feature-flag（M2 后续 phases 的 Alcedo 化开关、M2-3 设置
+页后端缝）；一切 conformance/一致性测试的期望元组构造。

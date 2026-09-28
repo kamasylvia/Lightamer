@@ -80,3 +80,18 @@
 - **预置 LUT 库**：LUT 库服务 `lut3d`（启用模块），与禁用集零交集。
 - **内置预设**：仓内无任何 `.lightamer-preset` 资产（实测 `find` 零命中）——「Phase 12 内置预设
   含 filmic 参数」风险**不存在**；用户自建预设含禁用 op 的处置见 plan §round-trip（degrade 保数据）。
+
+## T4 复核签注（executor，逐行对号结果）
+
+- **T4 复核：2026-09-28，代码态 `f2a3618`，逐行一致（无 verdict 改动）**。对号明细：
+  - `LightamerIOPRegistry.populate` 40 注册点逐个核对：6 gated（filmicrgb/sigmoid/agx/denoiseprofile/nlmeans/bilateral，
+    与本表禁用集逐字相等——`defaultFaceDisabledOpNames` 由模块 opName 常量构建，DefaultFaceTests 钉）+
+    34 enabled 全在册；`gamma`/`colorin`/`colorout` 在 Core `ModuleRegistry.init` 终端三件套（永不禁用）。
+  - UI 面：`InspectorState.registerDefaultProviders(defaultFace:)` 同 6 项 gated（Sigmoid/FilmicRGB/AgX/
+    NLMeans/DenoiseProfile/Bilateral panel provider）。
+  - MCP 面：`IopCatalog` 18 条目数据不动；default face 15（恰滤 D1 三条目）；工具注册面 19 不变
+    （McpRegistrySnapshotTests 零改动保持绿）。
+  - KD-5 未动实证：`prewarmFunctionNames` 全表原样（禁用 6 模块 kernel 仍预热）；模块源文件/golden
+    测试/parity harness 照常；testgain DEBUG-only 原样。
+  - 执行偏差 2 处（face 注入式接线 / McpHostTests 期望元组同源 face）不影响任何矩阵 verdict，
+    详见同目录 `M2-1-DECISIONS.md` D-EXEC-1/D-EXEC-3。
