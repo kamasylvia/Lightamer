@@ -111,6 +111,35 @@ struct McpCullingContext: Sendable {
     }
 }
 
+/// The inline-image budget table (research §RQ-14-8, probe-verified) —
+    /// ONE constants site for the Phase 14 image tools (the plan's shared
+    /// seam: 14-2's render_preview consumes the renderPreview row; the
+    /// budget tests assert every number verbatim, so drifting a value here
+    /// turns the suite red by construction).
+enum McpImageBudget {
+        // render_preview (14-2 half — constants live HERE).
+        static let renderPreviewLongEdge = 1024
+        static let renderPreviewQuality = 85
+        static let renderPreviewMaxLongEdge = 2048
+        static let renderPreviewMaxQuality = 90
+        // get_thumbnails.
+        static let thumbnailsMaxPerRequest = 20
+        // get_contact_sheet.
+        static let contactSheetCellSize = 256
+        static let contactSheetQuality = 80
+        static let contactSheetMaxCols = 6
+        static let contactSheetMaxRows = 5
+        /// cells × rows ≤ 30 (6×5).
+        static let contactSheetMaxCells = contactSheetMaxCols * contactSheetMaxRows
+        static let contactSheetCaptionHeight = 24
+        /// The single-composite base64 ceiling.
+        static let contactSheetMaxBase64Bytes = 2_000_000
+        // get_detail_crop.
+        static let detailCropLongEdge = 1024
+        static let detailCropQuality = 85
+        static let detailCropMaxLongEdge = 1536
+    }
+
 enum McpCullingToolset {
 
     // MARK: - Shared argument helpers
@@ -192,6 +221,7 @@ enum McpCullingToolset {
         await registerListPhotos(on: registry, context: context)
         await registerWriteFive(on: registry, context: context)
         await registerPresetTrio(on: registry, context: context)
+        await registerImageTrio(on: registry, context: context)
     }
 
     // MARK: - list_photos (§A #5)
@@ -648,5 +678,439 @@ enum McpCullingToolset {
             })
     }
 
+    // MARK: - Image trio (§A #6-8) + the base64 budget constants
 
+        private static func registerImageTrio(
+        on registry: McpToolRegistry, context: McpCullingContext
+    ) async {
+        // §A #6 get_thumbnails
+        await registry.register(
+            McpToolDescriptor(
+                name: "get_thumbnails",
+                description:
+                    "Fetch INLINE thumbnails for up to 20 photos of the CURRENTLY "
+                        + "OPEN Lightamer session. The tier follows the browser "
+                        + "pipeline: unedited photos serve the RAW's embedded preview, "
+                        + "edited photos serve the rendered cache. A stale row returns "
+                        + "its cached image with stale:true; pass regenerate:true to "
+                        + "re-render that one image first (blocking). The payload is a "
+                        + "JSON manifest (relPath, stale, missing, byteLength, index) "
+                        + "followed by one JPEG image block per non-missing photo, in "
+                        + "order.",
+                inputSchemaJSON:
+                    #"{"type":"object","required":["relPaths"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":20},"regenerate":{"type":"boolean","description":"Re-render stale thumbnails before returning (default false — stale rows are only marked)"}}}"#,
+                readOnlyHint: true),
+            handler: { arguments in
+                try await withTimeout(
+                    McpTimeouts.thumbnailsAndContact,
+                    McpToolError.internalError("get_thumbnails timed out")
+                ) {
+                    let relPaths = try requireRelPaths(
+                        arguments, max: McpImageBudget.thumbnailsMaxPerRequest)
+                    var regenerate = false
+                    if case .bool(let flag) = arguments["regenerate"] ?? .null {
+                        regenerate = flag
+                    }
+                    let (store, root) = try await requireSession(context)
+                    try await requireMembers(relPaths, store: store)
+                    let disk = ThumbnailDiskStore(sessionRoot: root)
+                    var manifest: [McpJSON] = []
+                    var images: [McpToolOutput.Content] = []
+                    for (index, relPath) in relPaths.enumerated() {
+                        var row = try await store.fetchRow(relPath: relPath)
+                        var stale = row?.thumbState
+                            == SessionIndexSchema.ThumbState.stale.rawValue
+                        // The regenerate leg rides the provider's OWN queue
+                        // route (the L031 red line: no new command queue, no
+                        // private render path — the browser pipeline rerun).
+                        if regenerate, stale, row != nil {
+                            if let provider = await context.thumbnailProvider() {
+                                _ = await provider.thumbnail(for: relPath, visible: true)
+                                row = try await store.fetchRow(relPath: relPath)
+                                stale = row?.thumbState
+                                    == SessionIndexSchema.ThumbState.stale.rawValue
+                            } else {
+                                throw McpToolError.internalError(
+                                    "regenerate requested but this host has no "
+                                        + "thumbnail provider wired")
+                            }
+                        }
+                        guard let currentRow = row else {
+                            manifest.append(.object([
+                                "relPath": .string(relPath), "missing": .bool(true),
+                                "index": .int(index),
+                            ]))
+                            continue
+                        }
+                        if let read = readThumbnail(
+                            row: currentRow, root: root, disk: disk)
+                        {
+                            manifest.append(.object([
+                                "relPath": .string(relPath),
+                                "stale": .bool(stale),
+                                "missing": .bool(false),
+                                "byteLength": .int(read.bytes.count),
+                                "index": .int(index),
+                            ]))
+                            images.append(
+                                .imageBase64(
+                                    read.bytes.base64EncodedString(),
+                                    mimeType: "image/jpeg"))
+                        } else {
+                            manifest.append(.object([
+                                "relPath": .string(relPath),
+                                "missing": .bool(true),
+                                "index": .int(index),
+                            ]))
+                        }
+                    }
+                    return McpToolOutput(
+                        [.text(McpJSONSerialization.text(from: .object([
+                            "results": .array(manifest),
+                        ])))] + images)
+                }
+            })
+
+        // §A #7 get_contact_sheet — the pure-CG composite (no Metal touch).
+        await registry.register(
+            McpToolDescriptor(
+                name: "get_contact_sheet",
+                description:
+                    "Render ONE composite contact-sheet JPEG for photos of the "
+                        + "CURRENTLY OPEN Lightamer session: a cols×rows grid (max "
+                        + "6×5=30 cells, 256px cells) with a 24px caption bar per cell "
+                        + "(filename + rating stars + a pick/reject color bar). "
+                        + "Provide exactly ONE of relPaths (explicit list) or filter "
+                        + "(a FilterPredicateGroup; rows in sort order). Missing "
+                        + "thumbnails render as placeholder cells.",
+                inputSchemaJSON:
+                    #"{"type":"object","properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":30},"filter":{"type":"object","description":"FilterPredicateGroup JSON (same shape as list_photos.filter)"},"sort":{"type":"object","description":"Row order when filter is used (same shape as list_photos.sort)"},"cols":{"type":"integer","minimum":1,"maximum":6},"rows":{"type":"integer","minimum":1,"maximum":5}},"oneOf":[{"required":["relPaths"]},{"required":["filter"]}]}"#,
+                readOnlyHint: true),
+            handler: { arguments in
+                try await withTimeout(
+                    McpTimeouts.thumbnailsAndContact,
+                    McpToolError.internalError("get_contact_sheet timed out")
+                ) {
+                    try await context.renderGate.withRenderGate {
+                        try await contactSheet(arguments, context: context)
+                    }
+                }
+            })
+
+        // §A #8 get_detail_crop
+        await registry.register(
+            McpToolDescriptor(
+                name: "get_detail_crop",
+                description:
+                    "Crop ONE photo of the CURRENTLY OPEN Lightamer session and "
+                        + "return an inline JPEG. `roi` is {x, y, w, h} in the photo's "
+                        + "DECODED pixel coordinates (the same coordinate face "
+                        + "list_photos' orientation/width/height columns report; "
+                        + "origin top-left). Output is downscaled to longEdge "
+                        + "(default 1024, max 1536, q85). Reads the photo's pixels "
+                        + "(RAW decode) — it does NOT reflect saved edits; use "
+                        + "render_preview for the edited look. Face ROIs come from "
+                        + "get_face_regions.",
+                inputSchemaJSON:
+                    #"{"type":"object","required":["relPath","roi"],"properties":{"relPath":{"type":"string"},"roi":{"type":"object","properties":{"x":{"type":"integer","minimum":0},"y":{"type":"integer","minimum":0},"w":{"type":"integer","exclusiveMinimum":0},"h":{"type":"integer","exclusiveMinimum":0}},"required":["x","y","w","h"]},"longEdge":{"type":"integer","minimum":64,"maximum":1536,"description":"Output long edge (default 1024)"}}}"#,
+                readOnlyHint: true),
+            handler: { arguments in
+                try await withTimeout(
+                    McpTimeouts.renderAndCrop,
+                    McpToolError.renderTimeout("get_detail_crop timed out")
+                ) {
+                    try await context.renderGate.withRenderGate {
+                        try await detailCrop(arguments, context: context)
+                    }
+                }
+            })
+    }
+
+    /// The dual-tier READ (no production): tier-B rows read the rendered
+    /// disk cache (raw JPEG bytes passthrough); tier-A rows read the RAW's
+    /// embedded preview (re-encoded q85). The tier follows the 09-03
+    /// appointment ruling (has_edits ONLY + the stale-regen clause).
+    private static func readThumbnail(
+        row: SessionIndexRow, root: URL, disk: ThumbnailDiskStore
+    ) -> (bytes: Data, width: Int, height: Int)? {
+        let tier = SessionThumbnailProvider.tier(forRow: row)
+        if tier == .rendered {
+            guard let image = disk.read(relPath: row.path) else { return nil }
+            guard let bytes = try? Data(
+                contentsOf: disk.fileURL(forRelPath: row.path))
+            else { return nil }
+            return (bytes, image.width, image.height)
+        }
+        let url = root.appendingPathComponent(row.path)
+        guard let image = SessionThumbnailProvider.embeddedPreview(url: url),
+            let bytes = try? ThumbnailDiskStore.jpegData(from: image)
+        else { return nil }
+        return (bytes, image.width, image.height)
+    }
+
+    static func contactSheet(
+        _ arguments: [String: McpJSON], context: McpCullingContext
+    ) async throws -> McpToolOutput {
+        let (store, root) = try await requireSession(context)
+        let cols = arguments["cols"]?.intValue ?? McpImageBudget.contactSheetMaxCols
+        let rowsArg = arguments["rows"]?.intValue ?? McpImageBudget.contactSheetMaxRows
+        guard (1...McpImageBudget.contactSheetMaxCols).contains(cols),
+            (1...McpImageBudget.contactSheetMaxRows).contains(rowsArg)
+        else {
+            throw McpToolError.invalidParams(
+                "cols must be 1...\(McpImageBudget.contactSheetMaxCols), rows "
+                    + "1...\(McpImageBudget.contactSheetMaxRows)")
+        }
+        let cell = McpImageBudget.contactSheetCellSize
+        let maxCells = cols * rowsArg
+        guard maxCells <= McpImageBudget.contactSheetMaxCells else {
+            throw McpToolError.invalidParams(
+                "the grid is capped at \(McpImageBudget.contactSheetMaxCells) cells")
+        }
+        let hasPaths = !(arguments["relPaths"]?.isNull ?? true)
+            && arguments["relPaths"] != nil
+        let hasFilter = !(arguments["filter"]?.isNull ?? true)
+            && arguments["filter"] != nil
+        guard hasPaths != hasFilter else {
+            throw McpToolError.invalidParams(
+                "provide exactly ONE of relPaths or filter")
+        }
+        var rows: [SessionIndexRow]
+        if hasPaths {
+            let relPaths = try requireRelPaths(arguments, max: maxCells)
+            try await requireMembers(relPaths, store: store)
+            rows = []
+            for relPath in relPaths {
+                if let row = try await store.fetchRow(relPath: relPath) {
+                    rows.append(row)
+                }
+            }
+        } else {
+            let filter = try McpPhotoProjection.decodeFilter(arguments)
+            let sort = try McpPhotoProjection.decodeSort(arguments)
+            rows = try await store.query(
+                groups: filter.map { [$0] } ?? [], sort: sort, limit: maxCells)
+        }
+        let disk = ThumbnailDiskStore(sessionRoot: root)
+        var images: [CGImage?] = []
+        for row in rows {
+            images.append(readThumbnailImage(row: row, root: root, disk: disk))
+        }
+        let sheet = try Self.drawContactSheet(
+            cells: images, rows: rows,
+            cols: cols, rowsCount: rowsArg, cell: cell,
+            captionHeight: McpImageBudget.contactSheetCaptionHeight)
+        let jpeg = try Self.jpegData(from: sheet, quality: Double(McpImageBudget.contactSheetQuality) / 100)
+        let base64 = jpeg.base64EncodedString()
+        guard base64.utf8.count <= McpImageBudget.contactSheetMaxBase64Bytes else {
+            throw McpToolError.renderFailed(
+                "contact sheet exceeds the \(McpImageBudget.contactSheetMaxBase64Bytes) "
+                    + "byte base64 budget — shrink the grid")
+        }
+        let manifest = McpJSON.object([
+            "cols": .int(cols),
+            "rows": .int(rowsArg),
+            "cells": .int(rows.count),
+            "width": .int(sheet.width),
+            "height": .int(sheet.height),
+            "byteLength": .int(base64.utf8.count),
+        ])
+        return McpToolOutput([
+            .text(McpJSONSerialization.text(from: manifest)),
+            .imageBase64(base64, mimeType: "image/jpeg"),
+        ])
+    }
+
+    private static func readThumbnailImage(
+        row: SessionIndexRow, root: URL, disk: ThumbnailDiskStore
+    ) -> CGImage? {
+        let tier = SessionThumbnailProvider.tier(forRow: row)
+        if tier == .rendered {
+            return disk.read(relPath: row.path)
+        }
+        return SessionThumbnailProvider.embeddedPreview(
+            url: root.appendingPathComponent(row.path))
+    }
+
+    /// The pure CoreGraphics/CoreText composite: cells scaled aspect-fit on
+    /// a dark ground + a 24px caption (filename, rating stars, pick/reject
+    /// color bar). NO Metal anywhere.
+    static func drawContactSheet(
+        cells: [CGImage?], rows: [SessionIndexRow],
+        cols: Int, rowsCount: Int, cell: Int, captionHeight: Int
+    ) throws -> CGImage {
+        let width = cols * cell
+        let height = rowsCount * (cell + captionHeight)
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: 0, space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else {
+            throw McpToolError.renderFailed("contact sheet CGContext failed")
+        }
+        context.setFillColor(CGColor(gray: 0.12, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+
+        let starFont = CTFontCreateUIFontForLanguage(.system, 12, nil)
+            ?? CTFontCreateWithName("Helvetica" as CFString, 12, nil)
+        for (index, image) in cells.enumerated() {
+            let gridCol = index % cols
+            let gridRow = index / cols
+            // CG origin is bottom-left; row 0 renders at the TOP.
+            let bandHeight = cell + captionHeight
+            let cellOrigin = CGPoint(
+                x: CGFloat(gridCol * cell),
+                y: CGFloat(height - (gridRow + 1) * bandHeight + captionHeight))
+            let cellRect = CGRect(origin: cellOrigin, size: CGSize(width: cell, height: cell))
+            if let image {
+                // Aspect-fit inside the cell.
+                let scale = min(
+                    cellRect.width / CGFloat(image.width),
+                    cellRect.height / CGFloat(image.height))
+                let drawW = CGFloat(image.width) * scale
+                let drawH = CGFloat(image.height) * scale
+                let drawRect = CGRect(
+                    x: cellRect.midX - drawW / 2, y: cellRect.midY - drawH / 2,
+                    width: drawW, height: drawH)
+                context.draw(image, in: drawRect)
+            } else {
+                context.setFillColor(CGColor(gray: 0.2, alpha: 1))
+                context.fill(cellRect)
+            }
+            // ── The caption bar ──
+            let captionRect = CGRect(
+                x: cellOrigin.x, y: cellOrigin.y - CGFloat(captionHeight),
+                width: CGFloat(cell), height: CGFloat(captionHeight))
+            context.setFillColor(CGColor(gray: 0.08, alpha: 1))
+            context.fill(captionRect)
+
+            let row = index < rows.count ? rows[index] : nil
+            // The flag color bar (1 pick = green, 2 reject = red).
+            if let flag = row?.flag, flag == 1 || flag == 2 {
+                context.setFillColor(
+                    flag == 1 ? CGColor(red: 0.2, green: 0.8, blue: 0.3, alpha: 1)
+                        : CGColor(red: 0.9, green: 0.2, blue: 0.2, alpha: 1))
+                context.fill(CGRect(
+                    x: captionRect.minX + 2, y: captionRect.minY + 4,
+                    width: 8, height: CGFloat(captionHeight - 8)))
+            }
+            // Filename + rating stars via CoreText (CJK-safe cascade).
+            let filename = row?.filename ?? "?"
+            let stars = row?.rating.map { rating in String(repeating: "★", count: Int(rating)) }
+            let text = stars.map { "\(filename)  \($0)" } ?? filename
+            guard let attributed = CFAttributedStringCreate(
+                kCFAllocatorDefault, text as CFString,
+                [
+                    kCTFontAttributeName: starFont,
+                    kCTForegroundColorAttributeName: CGColor(gray: 0.95, alpha: 1),
+                ] as CFDictionary)
+            else {
+                throw McpToolError.renderFailed("caption attributed string failed")
+            }
+            let line = CTLineCreateWithAttributedString(attributed)
+            context.textPosition = CGPoint(
+                x: captionRect.minX + 14, y: captionRect.minY + 5)
+            CTLineDraw(line, context)
+        }
+        guard let output = context.makeImage() else {
+            throw McpToolError.renderFailed("contact sheet makeImage failed")
+        }
+        return output
+    }
+
+    /// JPEG encode with an explicit quality (the ImageIO face; the disk
+    /// store's fixed q85 does not fit the contact-sheet q80 row).
+    static func jpegData(from image: CGImage, quality: Double) throws -> Data {
+        let mutable = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            mutable, "public.jpeg" as CFString, 1, nil)
+        else {
+            throw McpToolError.renderFailed("CGImageDestination(jpeg) failed")
+        }
+        let options: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: quality,
+        ]
+        CGImageDestinationAddImage(destination, image, options as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw McpToolError.renderFailed("CGImageDestinationFinalize failed")
+        }
+        return mutable as Data
+    }
+
+    static func detailCrop(
+        _ arguments: [String: McpJSON], context: McpCullingContext
+    ) async throws -> McpToolOutput {
+        guard let relPath = arguments["relPath"]?.stringValue else {
+            throw McpToolError.invalidParams("relPath is required")
+        }
+        guard let roiArg = arguments["roi"]?.objectValue else {
+            throw McpToolError.invalidParams("roi must be an object {x, y, w, h}")
+        }
+        guard let x = roiArg["x"]?.intValue, let y = roiArg["y"]?.intValue,
+            let w = roiArg["w"]?.intValue, let h = roiArg["h"]?.intValue,
+            x >= 0, y >= 0, w > 0, h > 0
+        else {
+            throw McpToolError.invalidParams(
+                "roi needs non-negative x/y and positive w/h integers")
+        }
+        var longEdge = McpImageBudget.detailCropLongEdge
+        if let requested = arguments["longEdge"]?.intValue {
+            guard (64...McpImageBudget.detailCropMaxLongEdge).contains(requested) else {
+                throw McpToolError.invalidParams(
+                    "longEdge must be 64...\(McpImageBudget.detailCropMaxLongEdge)")
+            }
+            longEdge = requested
+        }
+        let (store, root) = try await requireSession(context)
+        try await requireMembers([relPath], store: store)
+        let image = try await context.decodeImage(root.appendingPathComponent(relPath))
+        // The bounds check consumes the DECODED extent (the same pixel face
+        // list_photos' geometry columns report).
+        let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        let roi = CGRect(x: x, y: y, width: w, height: h)
+        guard bounds.contains(roi) else {
+            throw McpToolError.roiOutOfBounds(
+                "roi \(roi) is outside the \(image.width)×\(image.height) "
+                    + "decoded frame of '\(relPath)'")
+        }
+        guard let cropped = image.cropping(to: roi) else {
+            throw McpToolError.renderFailed("cropping failed for '\(relPath)'")
+        }
+        // Downsample to the long edge (no upscale).
+        let scale = min(
+            Double(longEdge) / Double(max(cropped.width, cropped.height)), 1.0)
+        let targetW = max(Int((Double(cropped.width) * scale).rounded()), 1)
+        let targetH = max(Int((Double(cropped.height) * scale).rounded()), 1)
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+        guard let context2d = CGContext(
+            data: nil, width: targetW, height: targetH, bitsPerComponent: 8,
+            bytesPerRow: 0, space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else {
+            throw McpToolError.renderFailed("crop CGContext failed")
+        }
+        context2d.interpolationQuality = .high
+        context2d.draw(
+            cropped, in: CGRect(x: 0, y: 0, width: targetW, height: targetH))
+        guard let scaled = context2d.makeImage() else {
+            throw McpToolError.renderFailed("crop makeImage failed")
+        }
+        let jpeg = try jpegData(
+            from: scaled, quality: Double(McpImageBudget.detailCropQuality) / 100)
+        let base64 = jpeg.base64EncodedString()
+        let manifest = McpJSON.object([
+            "relPath": .string(relPath),
+            "roi": .object([
+                "x": .int(x), "y": .int(y), "w": .int(w), "h": .int(h),
+            ]),
+            "outputWidth": .int(scaled.width),
+            "outputHeight": .int(scaled.height),
+            "byteLength": .int(base64.utf8.count),
+        ])
+        return McpToolOutput([
+            .text(McpJSONSerialization.text(from: manifest)),
+            .imageBase64(base64, mimeType: "image/jpeg"),
+        ])
+    }
 }

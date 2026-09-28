@@ -172,7 +172,7 @@ final class McpCullingToolsetTests: XCTestCase {
 
     // MARK: - T1: culling-domain snapshot (grows per task)
 
-    func testCullingSnapshotThroughWriteFive() async throws {
+    func testCullingSnapshotThroughImageTrio() async throws {
         let fixture = try await Self.makeFixture { _ in }
         defer { fixture.cleanup() }
         let registry = await Self.makeRegistry(fixture)
@@ -191,6 +191,24 @@ final class McpCullingToolsetTests: XCTestCase {
                     inputSchemaJSON:
                         #"{"type":"object","required":["presetID","relPaths"],"properties":{"presetID":{"type":"string"},"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"mode":{"enum":["overwrite","merge"],"description":"Paste mode (default merge)"},"selection":{"type":"array","description":"Partial-apply subset of instances","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer"},"multiName":{"type":"string"}},"required":["opName","multiPriority","multiName"]}}}}"#,
                     destructiveHint: true),
+                McpToolDescriptor(
+                    name: "get_contact_sheet",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":30},"filter":{"type":"object","description":"FilterPredicateGroup JSON (same shape as list_photos.filter)"},"sort":{"type":"object","description":"Row order when filter is used (same shape as list_photos.sort)"},"cols":{"type":"integer","minimum":1,"maximum":6},"rows":{"type":"integer","minimum":1,"maximum":5}},"oneOf":[{"required":["relPaths"]},{"required":["filter"]}]}"#,
+                    readOnlyHint: true),
+                McpToolDescriptor(
+                    name: "get_detail_crop",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","required":["relPath","roi"],"properties":{"relPath":{"type":"string"},"roi":{"type":"object","properties":{"x":{"type":"integer","minimum":0},"y":{"type":"integer","minimum":0},"w":{"type":"integer","exclusiveMinimum":0},"h":{"type":"integer","exclusiveMinimum":0}},"required":["x","y","w","h"]},"longEdge":{"type":"integer","minimum":64,"maximum":1536,"description":"Output long edge (default 1024)"}}}"#,
+                    readOnlyHint: true),
+                McpToolDescriptor(
+                    name: "get_thumbnails",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","required":["relPaths"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":20},"regenerate":{"type":"boolean","description":"Re-render stale thumbnails before returning (default false — stale rows are only marked)"}}}"#,
+                    readOnlyHint: true),
                 McpToolDescriptor(
                     name: "diff_presets",
                     description: "snapshot",
