@@ -2,11 +2,11 @@
 
 ## What This Is
 
-Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Image RAW）的 RAW 编辑器与图片管理器，功能深度对标 **Alcedo Studio**（开源 RAW 编辑器；**2026-09-27 用户指令翻转**：原基准为 Darktable 全量 91 iop 模块，因 dt 功能面过大且 raw 域功能在 CIRAW 路线下不可达，改为以 Alcedo 功能面为准），同时采用 Capture One 的 Session 工作流（文件夹即会话）+ Capture One 风格的调整图层（adjustment layers）来组织照片与局部调整。它面向摄影作者，把"调整 → 评分 → 批量导出 → 印框/水印出图"压缩成一个原生丝滑的工作流，并内置壹印（yiyin）的印框/水印能力作为一等公民面板。
+Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用户项目重定义**，覆盖此前「对标 Darktable 全量」与「C1 Session 工作流」两条旧定位）：Swift 6 + SwiftUI + Metal 3 直渲 + **Core Image RAW 9 解码**（Apple Neural Engine demosaic+denoise，不写 RAW 解码器），**UI 与功能面完全模仿 Alcedo Studio**（节点式调色：Develop → Color Grade×N → Display Transform；图库/相册/项目文件；蒙版；DRT；导出选项）。darktable 独有的已交付功能**代码暂时保留但默认不启用**（feature flag 门控）。壹印（yiyin）印框/水印面板保留为一等公民。
 
 ## Core Value
 
-在 macOS 上用 Metal 加速提供 100MP+ 大图下零延迟的 RAW 调整体验，并让 Capture One Session 工作流与 Alcedo Studio 级调整深度（节点式调色：影调/色彩、色调曲线、LGG 色轮、可选颜色、细节、局部色调映射、胶片 LUT/颗粒/光晕）在同一原生 app 中共存——这是目前市面没有的组合。
+在 macOS 上把 Alcedo 的编辑体验（节点式调色 + 图库 + DRT + AI 图库功能）用 Swift/Metal/RAW 9 原生重做一遍：100MP+ 大图零延迟、RAW 9 Neural Engine 解码、原生 EDR——比 Alcedo（C++/Qt，自养 LibRaw 解码器，无降噪）更快的解码与降噪、更全的导出格式（保留原 6 格式矩阵），外加 yiyin 印框/水印。
 
 ## Requirements
 
@@ -14,30 +14,30 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 
 (None yet — ship to validate)
 
-### Active
+### Active（Alcedo V1 重定义，2026-09-27；细节以 .work/gsd/research/ALCEDO-FEATURE-MAP.md 测绘 + 用户签核后的新 ROADMAP 为准）
 
-- [ ] 读取主流相机 RAW（CR3/NEF/ARW/RAF/RW2/ORF 等）、DNG、HDR/堆栈源文件，以及 JPEG/HEIC/PNG/WebP/TIFF 等非 RAW 格式
-- [ ] Capture One Session 模式：文件夹即会话，自动维护 Capture/Crop/Output 三级子目录，sidecar 调整文件（Lightamer 自有格式，不与 Darktable 二进制兼容）随原片存放，多 Session 切换 + 最近会话列表
-- [ ] Alcedo Studio 级 iop（图像操作模块）能力【**2026-09-27 用户指令翻转**：基准由 Darktable 全量 91 模块改为 Alcedo 功能面；已交付的 dt 派生 iop（filmicrgb/sigmoid/toneequal/denoiseprofile 等 39 模块）全部保留为管线资产；与 Alcedo 的真实缺口登记为 REQUIREMENTS ALCE 族（V2）】；Core Image RAW（macOS 27 起原生 RAW 9 Neural Engine demosaic+denoise）覆盖的直接用，缺口用 Metal compute shader 自实现
-- [ ] Capture One 风格 adjustment layers（每层独立 iop + 每层蒙版 + 层管理 + 混合模式）作为局部调整的核心组织机制
-- [ ] AI 能力：v1 仅含 Apple 原生框架（Vision/Core Image）可直接实现的——主体检测蒙版（`VNGenerateForegroundInstanceMaskRequest`）+ 频率分离 AI 磨皮；需自定义 Core ML 模型的（天空分离/人像部位/通用语义分割/追色/评分）留 v2
+- [ ] **UI 完全模仿 Alcedo**：图库网格 + 相册检查器、编辑器布局（调整面板/胶片条/节点编辑器/蒙版编辑器/显示变换面板/导出面板）
+- [ ] **图片管理 Alcedo 方式**：图库 + 相册 + 项目文件承载相册结构与编辑历史；**原 Sessions/Catalogs 方案剥离**（代码保留、UI 不暴露、默认不启用）
+- [ ] **节点式编辑模型**：Develop → Color Grade×N → Display Transform，每节点独立调整 + 独立蒙版；既有 adjustment layers 基础设施作为底座复用
+- [ ] **Color Grade 控件集**（Alcedo 对齐）：影调/色彩控制、色调曲线、LGG 三向色轮、可选颜色、细节工具、阴影/高光局部色调映射；胶片 CUBE LUT、胶片颗粒、光晕
+- [ ] **DRT**：ACES 2.0 输出变换 + OpenDRT，目标色彩空间/传递函数/峰值亮度可选，SDR/广色域/HDR 输出与 EDR 预览（现有 filmic/sigmoid/agx 属 dt 体系，禁用）
+- [ ] **蒙版**：Alcedo 蒙版体系 + Nitro Photo 方案（Follow Edges 边缘感知笔刷等）；**不采用 dt 蒙版方案**
+- [ ] **版本与历史**：每片多命名版本、从历史任意步分叉（git-like）、Look 复制到其他照片
+- [ ] **导出**：格式保留原矩阵（JPG/PNG/TIFF/HEIF/WebP/AVIF，比 Alcedo 全）；可选项按 Alcedo——长边/像素/打印尺寸、ICC 嵌入、文件名模板、导出预设、剥离定位/序列号/编辑历史
+- [ ] **AI 图库功能（Alcedo 方案）**：本地 CLIP 自然语言搜索 + 自动打标签；AI 评片（1-5 星 + 理由）与图片描述（OpenAI/Anthropic 兼容接口，钥匙串存 key，后台跑）
+- [ ] **dt 独有已交付功能禁用**：39 个 dt 派生 iop 逐一审计，Alcedo 无对应者 feature-flag 门控默认关闭（代码+测试保留全绿）；启用/禁用矩阵落盘
+- [ ] **RAW 9 解码**：CIRAW decoder version 9 opt-in，无自写解码器；新机型空窗期接受（v2+ 评估 libraw 兜底）
+- [ ] 内置 yiyin（壹印）印框/水印面板：白边/日期/EXIF 叠加/Logo 水印/自定义字体（保留，适配新 UI 壳）
 - [ ] Metal 直渲（MTKView/MTLTexture）主编辑视图，100MP+ 高分辨率下交互 60fps
-- [ ] 批量导出队列 + 多规格同导（同一原片一次性输出多种尺寸/格式/水印组合）
-- [ ] 导出格式：JPG、PNG、TIFF、HEIF/HEIC、WebP、AVIF
-- [ ] 内置 yiyin（壹印）印框/水印面板：白边/日期/EXIF 叠加/Logo 水印/自定义字体；与 yiyin 项目双轨维护
-- [ ] 调整同步/复制粘贴（一张图的调整参数复制到其他图）
-- [ ] 前后对比预览（before/after 分屏、快照点对比）
-- [ ] 预设系统：原生预设系统（保存完整调整堆栈为 Lightamer 预设）+ .cube LUT 作为 iop 模块（不与 Darktable/Lightroom 预设互通）
-- [ ] 元数据/评分/颜色标签/关键字，与 sidecar 同步
-- [ ] Spotlight / Quick Look 集成（Quick Look 扩展、Spotlight 索引）
 - [ ] 多语言跟随系统（String Catalog，zh/en/…）
+- [ ] MCP server（Phase 14 已交付资产）：非 dt 独有，保留；与 in-app AI 功能互补
 
 ### Out of Scope
 
-- Lightroom catalog 模式（中央库）— 与 Session 理念冲突
-- iOS / iPadOS 版本 — 项目定位为 macOS 专属
-- Windows / Linux 跨平台 — 依赖 Metal / Core Image / SwiftUI
-- Mac App Store 沙盒分发 — 开源免费 + 独立签名公证路线，沙盒限制文件访问与 Session 模式冲突
+- iOS / iPadOS / Windows / Linux — macOS 独占
+- Lightroom catalog 模式 — 已被 Alcedo 项目文件方式取代
+- dt 独有功能**启用**（filmic/sigmoid/agx/toneequal/denoiseprofile/velvia/monochrome/equalizer/bilat/hazeremoval/liquify/retouch 等 dt 体系模块）— 代码保留、默认禁用，v1 不暴露
+- dt/Alcedo 互通（sidecar/预设/项目文件均不互通）
 - 商业化 / 账号体系 / 订阅 — 开源免费
 
 ## Context
@@ -63,10 +63,10 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 - **语言/运行时**：Swift 6 + SwiftUI + Metal 3 + Core Image（CIRAW，macOS 27 起原生 RAW 9）+ ImageIO + ColorSync/EDR — 不引入跨平台框架（Electron/Qt/Flutter 等）
 - **渲染架构**：Metal 直渲（MTKView/MTLTexture）作为主编辑视图 — 从第一天就按此架构，避免后期重写
 - **色彩管线**：working space = linear Rec2020 scene-referred；pixelpipe 数据类型 = float32 RGBA（Lock-early，与 Darktable modern pipeline 对齐，便于移植 filmicrgb 等 iop）
-- **照片管理**：Capture One Session 模式 — 文件夹即会话，三级子目录（Capture/Crop/Output）+ sidecar 调整文件（Lightamer 自有格式），不做中央库。**（2026-09-27 用户指令修订）**：增设可选第二组织模式 **Catalogs 模式**（对标 C1 Catalogs；2026-09-27 终裁 v1 后端 = 本地 SQLite，零新依赖；远程 pg 降为 v2 评估项）——Sessions 恒默认零依赖，目录库为可重建聚合视图、sidecar 恒真身原则不变；详见 REQUIREMENTS CATALOG 族 / ROADMAP Phase 16
-- **局部调整**：Capture One 风格 adjustment layers（每层独立 iop + 蒙版 + 混合模式）— 与 Darktable 全局 pixelpipe+per-iop-mask 架构不同，需在 pixelpipe 设计时纳入
-- **分发**：开源免费、独立分发（Developer ID 签名 + 公证，不做沙盒）— GitHub 开源
-- **功能对标**：对标 Darktable 全量（91 个 iop 模块）— 长期工程，Fine 粒度分阶段交付，v1 不设上限但分阶段逼近
+- **照片管理**：**（2026-09-27 项目重定义）Alcedo 方式**——图库 + 相册 + 项目文件承载相册结构与编辑历史；原 Capture One Session / Catalogs 两方案**剥离**（代码保留、UI 不暴露、默认不启用），存储后端（SQLite/单文件等）由 Alcedo 测绘研究定
+- **局部调整**：**（2026-09-27 项目重定义）Alcedo 节点模型**——Develop → Color Grade×N → Display Transform，每节点独立调整 + 独立蒙版；Nitro Photo 蒙版方案（Follow Edges 等）并入；dt per-iop-mask 方案不采用。既有 adjustment layers 基础设施作为节点模型底座复用
+- **分发**：开源免费 — GitHub 独立分发（2026-09-27 终裁：砍苹果渠道/签名公证，unsigned DMG/zip）
+- **功能对标**：**UI 与功能面完全模仿 Alcedo Studio**（2026-09-27 项目重定义）；dt 独有已交付功能代码保留但默认禁用（feature flag）；启用/禁用矩阵以 Alcedo 测绘（`ALCEDO-FEATURE-MAP.md`）为准
 - **互通性（决策）**：sidecar 与 Darktable **不互通、不兼容**（研究确认二进制兼容做不到）；预设与 Darktable/Lightroom **不互通**；标准 EXIF/IPTC/XMP 元数据仍读写（与其他工具兼容）
 - **依赖最小化**：能用 Apple 原生框架（Core Image / Metal / Core Text / ImageIO / AVFoundation / ColorSync）实现的不引入第三方库。**（2026-09-28 Phase 14 收口修订，16 期漂移修正先例同款）**：SPM 依赖现状 = 显式枚举三项——① **Swift-WebP**（WebP 写入 macOS 仍无原生，EXP-02 引入）；② **官方 swift-sdk 0.12.1**（MCP server，Phase 14 引入；传递依赖 swift-nio / swift-log / swift-system / eventsource）；③ **swift-nio / swift-system 产品级直引**（App target 的 HTTP 适配腿真实编译依赖，D-14-1-T4-1）。libavif 已砍除（原生 AVIF 写入随 macOS 27 兑现，无需兜底库）。
 

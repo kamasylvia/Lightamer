@@ -5,15 +5,30 @@
 **Granularity:** fine
 **Mode:** standard (Horizontal Layers)
 
-A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) non-destructive RAW
-editor combining Alcedo Studio-grade editing depth with a Capture One Session workflow and
-Capture One-style adjustment layers. **Feature-parity baseline flipped from Darktable
-full-iop (91 modules) to Alcedo Studio on 2026-09-27 (user directive)**: the dt-derived
-iops already delivered in Phases 3/4/5 (39 modules incl. filmicrgb/sigmoid/toneequal/
-denoiseprofile/colorzones) remain pipeline assets; genuine Alcedo gaps are registered as
-the ALCE requirement family (REQUIREMENTS.md, V2). Raw-domain Alcedo capabilities
-(demosaic algorithm menu, raw highlight reconstruction) are architecturally unreachable
-under CIRAW — see STACK.md "Decoder 策略对比" (2026-09-27). Phases are ordered by dependency: foundation →
+A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) **Alcedo Studio clone, macOS-exclusive, RAW 9 decoding** (**2026-09-27 project redefinition, user directive** — supersedes both the Darktable full-iop baseline and the C1 Session workflow). UI and feature surface fully mimic Alcedo Studio; dt-exclusive delivered features stay in code but are disabled by default (feature flags). Phases below (Milestone 2 draft) are ordered by dependency; Milestone 1 (Phases 1-16) is retained below as historical record of delivered assets.
+
+## Milestone 2 (Draft): Alcedo V1 — 2026-09-27 重定义【草案：待 ALCEDO-FEATURE-MAP.md 测绘 + 用户签核后细化】
+
+> 执行序草案（fine 粒度，届时再拆 plans）。已交付资产延续使用：pixelpipe/39 iop/Layers/sidecar/Presets/LUT/Export 队列/MCP server/测试基线（1881/11skip/0fail）。Sessions/Catalogs 相关交付面剥离不启用。
+
+| # | Phase | 内容 | 依赖 |
+|---|---|---|---|
+| M2-0 | Alcedo 测绘与规格 | ALCEDO-FEATURE-MAP.md（研究代理进行中）→ 新 REQUIREMENTS V1 家族 + 本 ROADMAP 细化，**用户签核后开工** | — |
+| M2-1 | dt 面 feature-flag 禁用 | 39 dt 派生 iop + dt 体系功能逐一审计 → 启用/禁用矩阵；ModuleRegistry/UI/预设/MCP 默认面收窄；代码+测试全绿 | M2-0 |
+| M2-2 | 图库与项目模型（Alcedo 方式） | 图库 + 相册 + 项目文件（相册结构与编辑历史承载）；导入流程；存储后端选型；Sessions/Catalogs UI 剥离 | M2-0 |
+| M2-3 | UI 壳重设计（Alcedo 克隆） | 图库网格 + 相册检查器 + 编辑器布局（右面板/胶片条/面板族） | M2-2 |
+| M2-4 | 节点编辑模型 | Develop → Color Grade×N → Display Transform；节点图核心 + 与 pixelpipe/adjustment layers 底座的映射 | M2-1, M2-3 |
+| M2-5 | Color Grade 控件集 | 每节点：影调/色彩、色调曲线、**LGG 色轮（新）**、可选颜色、细节、局部色调映射；LUT/颗粒/光晕对齐 | M2-4 |
+| M2-6 | DRT：ACES 2.0 + OpenDRT | 新 DRT 双实现 + 显示变换面板（目标 CS/传递函数/峰值亮度/HDR 预览）；filmic/sigmoid/agx 禁用 | M2-4 |
+| M2-7 | 蒙版体系（Alcedo + Nitro） | Alcedo 蒙版类型与编辑器 + Nitro Follow Edges（IOP-MASK-06）；Depth（IOP-MASK-07）视数据面 | M2-4 |
+| M2-8 | 版本与历史 | 每片多命名版本、历史任意步分叉、Look 复制；项目文件/sidecar schema 扩展 | M2-2, M2-4 |
+| M2-9 | 导出选项 Alcedo 化 | 长边/像素/打印尺寸、ICC、文件名模板、导出预设、元数据剥离；格式矩阵保留原 6 格式 + yiyin | M2-3 |
+| M2-10 | AI 图库功能 | 本地 CLIP 自然语言搜索 + 自动打标签；AI 评片/描述（OpenAI/Anthropic 兼容）；MCP server 保留互补 | M2-2 |
+| M2-11 | Performance 专项 + closeout | 原 Phase 15 范围按新架构重校（60fps@100MP 决战 + 全链路） | M2-1..M2-10 |
+
+**里程碑 1（Phases 1-16）= 历史记录**：交付资产延续，其 ROADMAP 文本保留在下作考古。Phase 14（MCP）已全执行完毕待 14-4 验收——验收照常派（交付面不受重定义影响），Phase 15 并入 M2-11。
+
+Phases are ordered by dependency: foundation →
 pixelpipe core → iop clusters → layers/masking → native AI masking/retouching →
 session/export → yiyin/metadata → system/distribution. Every v1 requirement maps to
 exactly one phase.

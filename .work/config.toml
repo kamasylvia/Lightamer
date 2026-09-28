@@ -75,4 +75,4 @@ roster = ["subagent"]  # ← 跨夜验收 = 串行单 subagent(和全天各 plan
 [gsd]
 # 流水线开关（2026-09-24 用户指令；消费方 = 保活巡检/orchestrator/subagent worker，每任务边界与派发前必读）
 auto = true      # 自动流转：worker 完成后自动接下一波（false = 每波完成后停等用户「继续」）
-paused = false # 手动暂停：true = 全链路停（等同旧 .work/PAUSE 文件，随时可切；恢复 = 改回 false）——末次状态变更：2026-09-26 23:4x 用户解除暂停（「继续全自动推进，下一项：09-05 签核」）
+paused = true  # 手动暂停：true = 全链路停（等同旧 .work/PAUSE 文件，随时可切；恢复 = 改回 false）——末次状态变更：2026-09-27 用户项目重定义（Alcedo V1），重规划期间全链路停，恢复待新 ROADMAP 签核
