@@ -43,6 +43,13 @@ internal extension FocusedValues {
 enum LightamerEntryPoint {
     @MainActor
     static func main() {
+        #if DEBUG
+        // The two-process flock fixture (McpHostTests): must short-circuit
+        // BEFORE the GUI decision — it never constructs any App state.
+        if McpServerController.holdLockFixtureIfRequested() {
+            return // parks inside; never returns
+        }
+        #endif
         if let mode = McpServerController.headlessModeIfRequested() {
             McpServerController.runHeadless(mode: mode) // parks forever
             return

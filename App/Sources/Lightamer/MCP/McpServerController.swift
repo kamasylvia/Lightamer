@@ -80,7 +80,7 @@ enum McpServerController {
                         exit(1)
                     }
                     let registry = await makeRegistry(storeProvider: { nil })
-                    await registry.setWriterCheck { [lock] _ in lock != nil }
+                    await registry.setWriterCheck { @Sendable in lock != nil }
                     let server = await McpAdapters.makeServer(registry: registry)
                     try await server.start(transport: StdioTransport())
                     await log("headless MCP server up (stdio)")
