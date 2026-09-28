@@ -143,3 +143,9 @@ M2-2 行含「Album Inspector」，M2-3 行也含「图库 = 网格 + Album Insp
 - 项目文件只读锁/多进程协作（第二实例打开同一 `.lalb` 的提示面）——V1 最小提示即可，plan 决定。
 - CLIP/全文检索腿、AI 表激活（M2-10）；mini-git 历史面板（M2-8）。
 - 导出（M2-9）。
+
+---
+
+## Ruling（2026-09-27 用户：「采纳全部推荐」）
+
+D-M2-2-CONTEXT-1..12 = OQ-1..12 **全部按起草推荐生效**（本节上方各条即裁决文本）。要点回执：OQ-2 纯单 SQLite 文件 + `project_meta` + WAL/checkpoint 纪律；OQ-3 `.lra` 恒真身、库=投影；OQ-4 导入默认复制 + 记住选择；OQ-7 双层检索（物化列 + FTS5 unicode61 不定制）；OQ-8 运行时布尔门 + `LIGHTAMER_LEGACY_LIBRARY=1`；OQ-9 硬门 p95 < 20ms @ 2 万张。探针结论 P1-P3 一并生效。
