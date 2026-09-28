@@ -544,6 +544,21 @@ public actor SessionIndexStore {
 
     // MARK: - Filter query face (Plan 12-2 T3; META-05)
 
+    /// A caller-supplied WHERE conjunction (Plan 14-3 T1 — the keyset-cursor
+    /// append point). `sql` is ANDed after the translated predicate; `binds`
+    /// ride immediately after the translated binds (bind ORDER matches the
+    /// `?` order: translated first, extra second, LIMIT last).
+    public struct ExtraPredicate: Sendable {
+        public let sql: String
+        public let binds: [FilterSQLBind]
+
+        public init(sql: String, binds: [FilterSQLBind]) {
+            self.sql = sql
+            self.binds = binds
+        }
+    }
+
+
     /// The filter/sort consumer face: `FilterSQL.translate` → one SELECT
     /// over the SAME 34-column projection (`SessionIndexRow` — zero new row
     /// types). Read-only; it shares the actor's handle with the write
@@ -561,14 +576,24 @@ public actor SessionIndexStore {
     public func query(
         groups: [FilterPredicateGroup],
         sort: FilterSort? = nil,
-        limit: Int? = nil
+        limit: Int? = nil,
+        extraPredicate: ExtraPredicate? = nil
     ) throws -> [SessionIndexRow] {
         guard let handle else { return [] }
         let translated = try FilterSQL.translateConjoining(groups)
         var sql =
             "SELECT \(Self.rowSelectColumns) FROM images WHERE \(translated.whereClause)"
-        if let sort { sql += " ORDER BY \(sort.orderBySQL)" }
         var binds = translated.binds
+        // The caller-side append point (Plan 14-3 T1): the keyset-cursor
+        // predicate is NOT a FilterPredicateGroup (it is a `(k, path) > (?, ?)`
+        // tuple comparison over a sort key), so it never enters the ONE
+        // translation layer — it rides HERE, appended after the translated
+        // WHERE. FilterSQL stays byte-identical (the 12-2 regression lock).
+        if let extraPredicate {
+            sql += " AND \(extraPredicate.sql)"
+            binds.append(contentsOf: extraPredicate.binds)
+        }
+        if let sort { sql += " ORDER BY \(sort.orderBySQL)" }
         if let limit {
             sql += " LIMIT ?"
             binds.append(.int(Int64(limit)))
