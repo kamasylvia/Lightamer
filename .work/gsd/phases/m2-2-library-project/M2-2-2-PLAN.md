@@ -10,18 +10,18 @@ files_modified:
   - LightamerCore/Sources/Library/ImportFilter.swift            # 新建：白名单最后一后缀精确匹配（case-insensitive；默认面 = LibrarySchema 14 项；UserDefaults 可配宿主）+ 硬编码排除表 + 点开隐藏文件
   - LightamerCore/Sources/Library/ImageLinker.swift             # 新建：path_kind resolve（项目相对/卷相对+UUID/绝对）+ stale 检测（路径不存在或 UUID 不符）+ relink 数据面
   - LightamerCore/Sources/Library/ImportService.swift           # 新建：actor——递归扫描→计划→逐文件执行（move rename-first 跨卷 copy+校验+删源 / copy 校验+重复跳过 / link 经 ImageLinker）+ `.lra` 随迁语义⑤ + 进度快照 + 取消
-  - App/Sources/Lightamer/Library/LibraryProjectController.swift # 新建：create/open/recent（UserDefaults `library.recentProjects`）/backup/move-to 命令面（backup 走 ProjectFileStore.backup）
+  - App/Sources/Lightamer/Library/LibraryProjectController.swift # 新建：create/open/recent（UserDefaults `library.recentProjects`）/backupProject/moveProject 命令面（backupProject 走 ProjectFileStore.backup；moveProject = 整项目目录搬移，不经 backup API——KD-5）
   - App/Sources/Lightamer/Library/ImportModeDialog.swift        # 新建：三选对话框（默认复制 + 「记住我的选择」UserDefaults `library.import.mode`/`library.import.rememberMode`）
   - App/Sources/Lightamer/Library/ImportProgressView.swift      # 新建：最小进度覆盖层（计数/失败/跳过 + 取消）
   - App/Sources/Lightamer/UI/LightamerApp.swift                 # 修改：无项目时新建/打开入口（OQ-1 A Welcome 语义最小面）+ 导入流程接线（选文件夹→对话框→ImportService→Store/Indexer）
   - Tests/LightamerTests/ImportFilterTests.swift                # 新建（→ tuist generate）：AC①白名单精确后缀（`.ARW.xmp` 拒）+ AC②排除表/隐藏文件 + 可配宿主读写
   - Tests/LightamerTests/ImageLinkerTests.swift                 # 新建：三类 path_kind resolve / stale 两形态 / relink 重建
   - Tests/LightamerTests/ImportServiceTests.swift               # 新建：AC③合成 C1 Session fixture（导入数==RAW 数）+ 三方式逐条（校验前永不删源红钉/逐文件校验/重复跳过）+ sidecar 随迁⑤ + 进度/取消
-  - Tests/LightamerTests/LibraryProjectControllerTests.swift    # 新建：recent 去重/上限 + backup 调用透传 + 默认复制/记住选择读写
+  - Tests/LightamerTests/LibraryProjectControllerTests.swift    # 新建：recent 去重/上限 + backup 调用透传 + moveProject 整目录搬移后 kind0 resolve 命中 + 默认复制/记住选择读写
   - .work/gsd/phases/m2-2-library-project/M2-2-2-SUMMARY.md     # 新建（收口任务）
   - .work/gsd/phases/m2-2-library-project/M2-2-2-DECISIONS.md   # 新建（收口任务）
   - .work/GOAL-STATE.md                                         # 续接点追加（收口任务）
-  - LESSONS.md                                                  # 如踩坑
+  - .work/LESSONS.md                                                  # 如踩坑
 ---
 
 # Plan M2-2-2 — 导入管线（三方式 + 过滤加固 + 最小功能 UI + 项目开关面）
@@ -113,8 +113,13 @@ processed/failed/skippedDuplicates/bytes + phase 枚举 + cancelled），由
 `LibraryProjectController`（`@Observable`）持有当前 `ProjectFileStore` 句柄 +
 `recentProjects`（UserDefaults 数组，去重 + 上限 10 + 失效路径启动清扫——Phase 9
 recent 去重/上限先例同型）。命令面：`createProject(savePanel:)`/`openProject(
-openPanel:)`/`openRecent(url:)`/`backupProject(to:)`/`moveProject(to:)`（move =
-close → backup API 拷 → 打开新位；原位保留提示文案，M2-3 完整化）。`LightamerApp`
+openPanel:)`/`openRecent(url:)`/`backupProject(to:)`/`moveProject(to:)`。**move =
+整项目目录搬移**（KD-1 包目录口径：先 `ProjectFileStore.close()` → 目录级
+`renameItem`；跨卷 = copy+verify+删源——**M2LIB-07① 同纪律复用，verify 通过前
+永不删源**；`.<stem>.lathumbs/` 为派生物可丢弃不搬，新位首访重建）→ 打开新位。
+**backup API（`sqlite3_backup`）只留 `backupProject` 一个消费者**，move 不经它
+（单文件拷贝搬不走 `Media/` 物理照片，旧「close → backup API 拷 → 打开新位」措辞
+作废）。`LightamerApp`
 接线：无项目态显示「新建项目 / 打开项目 / 最近」最小入口（对齐 OQ-1 Welcome 语义；
 完整壳 M2-3）。**本 plan 不动 Sidebar/ContentView 的 Session 面**（剥离归 P4）——
 当前默认仍是 M1 Session 面，项目入口为并列新增路径，二者并存的整理在 M2-2-4
@@ -144,7 +149,7 @@ close → backup API 拷 → 打开新位；原位保留提示文案，M2-3 完�
    先例）。
 8. `App/Sources/Lightamer/UI/LightamerApp.swift`——窗口/场景结构（接线落点；
    M2-1 populate/seed 组装点 :867/:1481 附近为既有参考锚）。
-9. `LESSONS.md` L009（USB 卷/原子写）、`.work/09/` recent 先例（去重/上限）。
+9. `.work/LESSONS.md` L009（USB 卷/原子写）、`.work/09/` recent 先例（去重/上限）。
 
 ## 纪律（强制）
 
@@ -243,13 +248,18 @@ close → backup API 拷 → 打开新位；原位保留提示文案，M2-3 完�
      Sidebar/ContentView**（P4 剥离另批）。
   3. 新建 `Tests/LightamerTests/LibraryProjectControllerTests.swift`：recent 去重/
      上限 10/失效清扫；默认复制 + remember 写读 + 单次覆盖不落盘（remember=false
-     时下次仍默认复制）；backup 命令透传 ProjectFileStore（temp 项目实测）。
-     ImportModeDialog/ProgressView 无状态薄壳不设 UI 测试（逻辑全在 Core 可测类型，
-     SUMMARY 声明）。
+     时下次仍默认复制）；backup 命令透传 ProjectFileStore（temp 项目实测）；
+     **moveProject 整目录搬移**——temp 项目 + 若干 kind0 行 → 同卷 rename move 后
+     新位 open 成功且 **kind0（项目相对路径）resolve 命中**（KD-3 ImageLinker 链，
+     挂载点免疫语义实链复钉）；verify 失败注入腿（复用 T3 `verifyStrategy` 缝）断言
+     源项目目录原样在（M2LIB-07① 红钉同款）。ImportModeDialog/ProgressView 无状态
+     薄壳不设 UI 测试（逻辑全在 Core 可测类型，SUMMARY 声明）。
   4. 全套回归 0 fail。
 - **验收标准**
   - [ ] recent 去重/上限/清扫 + 默认值语义（记住=false 不持久化单次选择）+ backup
         透传全绿。
+  - [ ] moveProject 整目录搬移后 kind0 resolve 命中 + verify 失败源项目目录原样在，
+        全绿。
   - [ ] App 接线编译面零 Sidebar 改动（diff 自检）；全套回归 `0 fail`。
 
 ### T5 收口
@@ -273,7 +283,7 @@ close → backup API 拷 → 打开新位；原位保留提示文案，M2-3 完�
 | 6 | link：源不动、kind/uuid 正确、`.lra` 留原位；stale 两形态 + relink 重建 | ImportServiceTests + ImageLinkerTests |
 | 7 | sidecar 随迁⑤：move/copy 随行 `.lra`（失败回滚）；link 指向原位 | ImportServiceTests |
 | 8 | 进度快照单调 + per-file 取消无幽灵行；EXIF 物化列填充 | ImportServiceTests |
-| 9 | recent 去重/上限/清扫；默认复制 + remember 语义；backup 透传 | LibraryProjectControllerTests |
+| 9 | recent 去重/上限/清扫；默认复制 + remember 语义；backup 透传；moveProject 整目录搬移后 kind0 resolve 命中（verify 失败源目录原样在） | LibraryProjectControllerTests |
 | 10 | 全套回归 0 fail（基线 + M2-2-1 新增 + 本 plan ≈ +25..35） | test-direct.sh 双读 |
 | 11 | diff 边界 == 申报文件集；`Session/` 域零改动 | `git diff --stat` |
 

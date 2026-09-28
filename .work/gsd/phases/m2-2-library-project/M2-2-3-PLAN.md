@@ -9,6 +9,7 @@ requirements: [M2LIB-04, M2LIB-05]
 files_modified:
   - LightamerCore/Sources/Library/ExifSearchParser.swift         # 新建：自由词 → ExifSearchPlan（结构化谓词 ∪ FTS MATCH 词 AND 组合；iso800/iso 800/f/2.8/f2.8/35mm/35 mm/日期多格式识别）
   - LightamerCore/Sources/Library/LibraryQueries.swift           # 新建：集合查询（keyset 分页 row-value seek + NULL tail 两段式）/ Overview 总数 / 四分组聚合（日期/相机/标签/镜头）/ Activity 按日计数序列 / 过滤态投影（FilterPredicateGroup + 词法 plan 混查 AND）
+  - LightamerCore/Sources/Session/SmartAlbumStore.swift          # 修改：evaluate 域 switch `.library` 臂 missingStore 占位（M2-2-1 T4 落）→ 真实现（消费 LibraryQueries 库域求值；.session/.catalog 分支字节不变）
   - Tests/LightamerTests/ExifSearchParserTests.swift             # 新建（→ tuist generate）：识别矩阵 + AND 组合语义 + 非法词降级
   - Tests/LightamerTests/LibraryQueriesTests.swift               # 新建：分页边界/四分组/Activity/混查命中/词法精确（iso800 不含 iso8000）
   - Tests/LightamerTests/LibraryBenchmarkHarness.swift           # 新建：MANUAL-ONLY（LA_LIBRARY_BENCH=1 门）——≥12 检索形状 × 3 排序 × 2 深度，20k 合成语料，p95 nearest-rank，Release 硬门 < 20ms；观察项（10 万张外推/导入吞吐）
@@ -16,7 +17,7 @@ files_modified:
   - .work/gsd/phases/m2-2-library-project/M2-2-3-SUMMARY.md      # 新建（收口任务）
   - .work/gsd/phases/m2-2-library-project/M2-2-3-DECISIONS.md    # 新建（收口任务）
   - .work/GOAL-STATE.md                                          # 续接点追加（收口任务）
-  - LESSONS.md                                                   # 如踩坑
+  - .work/LESSONS.md                                                   # 如踩坑
 ---
 
 # Plan M2-2-3 — 查询面（Inspector 数据 API + 词法检索 + 性能硬门）
@@ -79,9 +80,13 @@ SELECT i.* FROM images i
 ### KD-3 keyset 分页 = CatalogIndexStore 先例移植，禁 OFFSET
 
 `(capture_date, id)` row-value seek + NULL tail 两段式（`CatalogIndexStore.queryPage:175`
-/ `queryNullTail:236` 同型；`CatalogPageAnchor` 结构对齐）；排序白名单 =
-`FilterSortKey` 既有集合（captureDate/rating/filename...`orderBySQL(domain:)` 扩
-`.library` 臂）。**禁 OFFSET/LIMIT 跳页**（16-x keyset-only 纪律延续）。
+/ `queryNullTail:236` 同型；`CatalogPageAnchor` 结构对齐）；排序白名单 = `FilterSortKey`
+的**库域合法子集**——`filename/rating/captureDate/iso/focalLength` 五键，**显式排除
+`scanEpoch`**（扫描批次是 Session 域概念，library `images` 无 `scan_epoch` 列——列入
+白名单 = 全 NULL 排序键 + ORDER BY 注入面误引不存列）；守卫落 `LibraryQueries` 入口
+（子集外 `FilterSort.key` → typed 拒绝）。`orderBySQL(.library)` 臂已由 M2-2-1 T4
+落地（tiebreaker `image_path ASC`），本 plan 纯消费。**禁 OFFSET/LIMIT 跳页**
+（16-x keyset-only 纪律延续）。
 
 ### KD-4 四分组/Activity = 预聚合 SQL 单查询面
 
@@ -133,8 +138,9 @@ CatalogBenchmarkHarness 头注同款声明）：
    结构/NULL tail 两段式/count 面正本。
 5. `Tests/LightamerTests/CatalogBenchmarkHarness.swift`——SC#3 harness 全文（env 门/
    fixture 分布/矩阵/p95 打印/Release 附录）。
-6. `LightamerCore/Sources/Session/FilterSQL.swift`——`.library` 域 + `FilterSortKey.
-   orderBySQL(domain:)` 扩展落点。
+6. `LightamerCore/Sources/Session/FilterSQL.swift`——`.library` 域消费点（域臂与排序
+   tiebreaker 均已由 M2-2-1 T4 落地）；`LightamerCore/Sources/Session/SmartAlbumStore.
+   swift` `evaluate` 域 switch——`.library` 臂真实现落点（`:292`）。
 7. `LightamerCore/Sources/Library/{ExifFold,LibraryStore,ProjectFileStore}.swift`——
    消费缝（withHandle / insertImage 语料灌入）。
 8. `research/ALCEDO-FEATURE-MAP.md` §1.2 Album Inspector 段——四分组/Activity/搜索
@@ -150,9 +156,11 @@ CatalogBenchmarkHarness 头注同款声明）：
    续接点最新值（1889 + M2-2-1/2 新增）；全套 0 fail；harness 无 env 门时 skip 不计
    违约（SC#3 同语义）。
 4. **边界纪律**：每任务边界查 `.work/config.toml [gsd]`。
-5. **架构红线**：禁触 `Session/` 域与本 phase 既有 Library 文件的已冻结 API（只增
-   不改——`LibraryQueries` 为新文件，`ExifSearchParser` 为新文件）；基准 fixture 落
-   `/tmp` throwaway 禁入仓禁外置卷；Release 直启命令照抄附录不自创。
+5. **架构红线**：禁触 `Session/` 域（**唯一例外**：`SmartAlbumStore.swift` evaluate
+   单方法 `.library` 臂真实现——M2-2-1 T4 占位臂补齐，`.session`/`.catalog` 分支
+   字节不变）与本 phase 既有 Library 文件的已冻结 API（只增不改——`LibraryQueries`
+   为新文件，`ExifSearchParser` 为新文件）；基准 fixture 落 `/tmp` throwaway 禁入仓
+   禁外置卷；Release 直启命令照抄附录不自创。
 
 ## Tasks
 
@@ -177,9 +185,11 @@ CatalogBenchmarkHarness 头注同款声明）：
 
 - **read_first**：上列 4/6/7/8。
 - **action**
-  1. 新建 `LightamerCore/Sources/Library/LibraryQueries.swift`（KD-2/KD-3/KD-4）；
-     `FilterSQL.FilterSortKey.orderBySQL(domain:)` 增 `.library` 臂（唯一既有文件
-     触点，模板白名单内）。
+  1. 新建 `LightamerCore/Sources/Library/LibraryQueries.swift`（KD-2/KD-3/KD-4）。
+     `FilterSQL` 的 `.library` 域与排序臂已由 M2-2-1 T4 落地——本 plan 既有文件触点
+     仅 `SmartAlbumStore.evaluate` `.library` 臂真实现补齐（M2-2-1 落的
+     `missingStore` 占位 → 经 `LibraryQueries` 库域求值智能相册成员集；
+     `.session`/`.catalog` 分支字节不变）。
   2. 新建 `Tests/LightamerTests/LibraryQueriesTests.swift`：
      - 分页：锚推进逐页不重不漏至尽 + NULL tail 段 + 逆序重走（CatalogIndexStore
        测试形状同款）；OFFSET 禁令无断言面（代码评审项）。
@@ -187,11 +197,14 @@ CatalogBenchmarkHarness 头注同款声明）：
      - Activity：日序列精确 + `dayFilter(day:)` 投影后查询命中该日子集。
      - 混查：智能相册 Group ∩ `ftsTerms` ∩ structured 三腿 AND；**词法精确负例**：
        `iso800` 不命中 iso==8000 行（KD-6）。
+     - `SmartAlbumStore.evaluate(id:, domain: .library, ...)` 命中与 `LibraryQueries`
+       直查同集合（占位臂替换后不再 `missingStore`——M2-2-1 T4 缝闭环）。
      - 过滤态描述 struct 断言（字段级，非字符串）。
   3. 全套回归 0 fail。
 - **验收标准**
   - [ ] keyset 逐页不重不漏 + NULL tail 全绿；四分组/Activity/混查/负例全绿。
-  - [ ] `FilterSQL` 改动仅 `.library` 臂（diff 自检）；全套回归 `0 fail`。
+  - [ ] 既有文件改动仅 `SmartAlbumStore.evaluate` 单方法（diff 自检，纪律 5 例外）；
+        全套回归 `0 fail`。
 
 ### T3 性能硬门——harness + perf.md 落账
 

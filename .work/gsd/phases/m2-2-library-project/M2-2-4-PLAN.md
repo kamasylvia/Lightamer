@@ -18,7 +18,7 @@ files_modified:
   - .work/GOAL-STATE.md                                         # M2-2 翻账 + 续接点更新（T3）
   - .work/gsd/phases/m2-2-library-project/M2-2-4-SUMMARY.md     # 新建（T3）
   - .work/gsd/phases/m2-2-library-project/M2-2-4-DECISIONS.md   # 新建（T3）
-  - LESSONS.md                                                  # 如踩坑
+  - .work/LESSONS.md                                                  # 如踩坑
 ---
 
 # Plan M2-2-4 — 收口（Sessions/Catalogs 剥离门 + 默认面翻转 + 台账）
@@ -70,7 +70,9 @@ gate false 时 `ContentView` 渲染 P2 的项目入口 + （项目打开后）�
 1. **门求值层**：字面字典三分（KD-1）。
 2. **节集合层**：构造 SidebarView 依赖的最小 model 集（gate 注入），断言可见节
    identifier 集合——false = 项目面节且不含 `Sessions`/catalog 族；true = 含全部
-   既有节（与 M2-2 前快照一致）。
+   既有节。**快照载体 = 硬编码期望节 identifier 集合字面量**（测试内 `Set<String>`
+   字面量，从 M2-2 前 Sidebar/ContentView 既有 identifier 逐个誊入冻结——非运行时
+   录制件，防快照漂移）。
 3. **既有面零回归层**：CatalogBrowserModelTests/CatalogModeIsolationTests/
    Session 族既有测试零改动全绿（模型层未触碰的机器证明）。
 

@@ -13,7 +13,8 @@ files_modified:
   - LightamerCore/Sources/Library/LibraryStore.swift           # 新建：actor 单写者——相册 CRUD（album/folder/filter 三类）+ album_content 成员资格 + images.ref_count 事务内联动 + Filter.data = FilterPredicateGroup JSON
   - LightamerCore/Sources/Library/ExifFold.swift               # 新建：折叠词表正本（f/2.8→f2.8+f 2 8；ISO 800→iso800+iso 800；35mm→35 mm）+ exif_search_text/words 物化合成
   - LightamerCore/Sources/Library/ExifSearchIndexer.swift      # 新建：物化列填充（ImageIO 键位 = SessionIndexSchema v2 同集）+ FTS external-content 同步 + rebuild 命令
-  - LightamerCore/Sources/Session/FilterSQL.swift              # 修改：FilterDomain 增 .library case（columnRef = +i. 别名，baseline = (1=1)，钉 FROM images i）——唯一 SQL 面延续
+  - LightamerCore/Sources/Session/FilterSQL.swift              # 修改：FilterDomain 增 .library case——4 处 domain 穷举 switch 各加一臂（orderBySQL tiebreaker = image_path ASC / baseline = (1=1) / columnRef = +i. 别名 / keywordsCondition 打物化 keywords 列；钉 FROM images i），禁 default 臂
+  - LightamerCore/Sources/Session/SmartAlbumStore.swift        # 修改：evaluate 域 switch 增 .library 单臂（typed missingStore 占位，真实现 M2-2-3 补；.session/.catalog 分支字节不变由既有测试钉）
   - Tests/LightamerTests/LibrarySchemaTests.swift              # 新建（→ tuist generate）：冻结契约 PRAGMA table_info 逐列 / user_version 三分 dispatch / FTS5 虚表在册 / 预留占位非实体表
   - Tests/LightamerTests/LibraryDocumentTests.swift            # 新建：checkpoint TRUNCATE 后 -wal=0 / close 强制 checkpoint / backup API 在线一致性拷贝 / >v1 REFUSE
   - Tests/LightamerTests/ExifFoldTests.swift                   # 新建：词表双向（原文→折叠变体集 / 查询词→命中）+ iso800 前缀串不误伤
@@ -22,7 +23,7 @@ files_modified:
   - .work/gsd/phases/m2-2-library-project/M2-2-1-SUMMARY.md    # 新建（收口任务）
   - .work/gsd/phases/m2-2-library-project/M2-2-1-DECISIONS.md  # 新建（收口任务）
   - .work/GOAL-STATE.md                                        # 续接点追加（收口任务）
-  - LESSONS.md                                                 # 如踩坑
+  - .work/LESSONS.md                                                 # 如踩坑
 ---
 
 # Plan M2-2-1 — Library 数据层（.lalb 项目包 + 相册骨架 + 物化列/FTS5）
@@ -88,14 +89,30 @@ OQ-2 裁了 DB 是单文件，但 copy/move 导入的物理照片、OQ-10 的缩
 走同缝。`project_meta` 存 `project_name`/`created_at`/`display_state`（JSON，M2-3 消费），
 schema 版本真源 = user_version（OQ-2 字面）。
 
-### KD-3 L013 哈希纪律延续 + 列语义不重发明
+### KD-3 L013 哈希纪律延续 + images 冻结列清单（完整枚举）
 
 `params_hash` 一律 **DECIMAL TEXT**（UInt64String 语义，禁 INTEGER）；EXIF 轻列名与
 `SessionIndexSchema.imagesColumns` v2 完全同名同型（`camera_make/camera_model/lens_model/
 iso/focal_length/aperture/exposure/capture_date`），`FilterSQL` 的 `FilterField→column`
-映射零改动即可服务项目库。`flag`/`note` 预置 NULL 列（D-09-CONTEXT-7 先例：现在建、
-后填，免 ALTER 迁移）。`file_stem/file_ext/exif_search_text/exif_search_words` 为
-M2LIB-04 新增四列（Alcedo `image_search_columns.hpp` 同名语义）。
+映射零改动即可服务项目库。`images` 冻结列清单（T1 `imagesColumns` 冻结序表逐列，
+序即 DDL 序）：
+
+- **`id INTEGER PRIMARY KEY` 置首**——FTS `content_rowid='id'`、album_content 外键、
+  keyset seek 第二列全靠它，缺它三处消费面同时断。
+- `image_path` + `path_kind` + `volume_uuid`——KD-1 三类路径形态载体（path_kind 的
+  实体列是 `image_path`）。
+- EXIF 轻列八列 + `file_stem/file_ext/exif_search_text/exif_search_words`（M2LIB-04
+  新增四列，Alcedo `image_search_columns.hpp` 同名语义）。
+- `rating/color_label/keywords/filename/dir` + `flag/note`——**D-09-CONTEXT-7 预留
+  NULL 列模式**（现在建、后填，免 ALTER 迁移）；session 四子句谓词形态（filename/
+  dir/rating/keywords）借此直接服务项目库（KD-7 `keywordsCondition` `.library` 臂
+  打的就是物化 `keywords` 列）。
+- `has_edits/params_hash` 投影列（session.lindex 同型，L013 TEXT）+ `ref_count`
+  （KD-4）+ `added_time/modified_time`。
+
+T1 落表后与消费点交叉核对一遍：FTS `content_rowid` / album_content 外键 / M2-2-3
+keyset `(capture_date, id)` seek / M2-2-3 四分组列（`camera_make||camera_model`、
+rating 星档）/ 库域排序子集列（M2-2-3 KD-3 白名单）——每处都能在清单中点到实名列。
 
 ### KD-4 引用计数 = `images.ref_count` 物化列 + `album_content` 成员资格同事务联动
 
@@ -109,11 +126,14 @@ CASCADE）并递减 ref_count；ref_count 归零**不删** images 行（图片�
 
 ```sql
 CREATE VIRTUAL TABLE images_fts USING fts5(
-  search_words, content='images', content_rowid='id', tokenize='unicode61');
+  exif_search_words, content='images', content_rowid='id', tokenize='unicode61');
 ```
 
-images 三触发器（INSERT / DELETE / UPDATE OF exif_search_words）保持虚表同步；`INSERT
-INTO images_fts(images_fts) VALUES('rebuild')` 供全量重建（P2 导入批尾与未来迁移消费）。
+**FTS 列名与 images 物化列同名（`exif_search_words`）**——external-content 的
+rebuild 按 content 表同名列取数，异名 = `VALUES('rebuild')` 直接报 no such column。
+images 三触发器（INSERT / DELETE / UPDATE OF exif_search_words）保持虚表同步，映射
+一律 `new.exif_search_words`；`INSERT INTO images_fts(images_fts) VALUES('rebuild')`
+供全量重建（P2 导入批尾与未来迁移消费）。
 导入路径写放大可忽略（探针 P2：20k 导入 + rebuild 共 125ms）。**tokenizer 零定制**
 （OQ-7 裁决；P2 探针 tokenchars 风险注钉进 DDL 注释）。
 
@@ -127,10 +147,21 @@ P3 探针实证）。
 
 ### KD-7 `FilterDomain.library` = catalog 域的别名变体，模板零新机制
 
-`FilterSQL.translate` 增 `.library` case：`columnRef` = `+i.<col>`（F10 排序领先纪律
-同 catalog），baseline = `(1=1)`（项目库无 orphan 扫描语义），查询面钉 `FROM images i`
-（模板注释承载，与 catalog `FROM catalog_images i` 同惯例）。`.session` 域字节不变
-（默认参数 = 现行为，M2-1 KD-2 同款红线）——既有 1889 基线测试零改动。
+`FilterDomain` 增 `.library` case，**5 处 domain 穷举 switch 各加一臂（禁 default，
+穷举编译器强制）**：
+
+| 触点 | `.library` 臂语义 |
+|---|---|
+| `FilterSQL.baselineClause` | `(1=1)`（项目库无 orphan 扫描语义） |
+| `FilterSQL.columnRef` | `+i.<col>`（F10 排序领先纪律同 catalog） |
+| `FilterSQL.keywordsCondition` | 物化 `keywords` 列直打（KD-3 预留列；session 谓词形状 + `+i.` 引用，empty/notEmpty = NULL/'' 双态） |
+| `FilterSort.orderBySQL(domain:)` | tiebreaker = `image_path ASC`（库内实存列、每行恒非 NULL——session `path ASC` / catalog `rel_path ASC` 同族；file_stem 为备选，落 DECISIONS） |
+| `SmartAlbumStore.evaluate` | typed `missingStore` 占位臂（真实现 M2-2-3 补；`.session`/`.catalog` 分支字节不变） |
+
+查询面钉 `FROM images i`（模板注释承载，与 catalog `FROM catalog_images i` 同惯例）。
+`scanEpoch` 排序的库域守卫不在本 plan（该列不在 images 冻结清单——白名单排除落
+M2-2-3 KD-3 `LibraryQueries` 入口）。`.session` 域字节不变（默认参数 = 现行为，
+M2-1 KD-2 同款红线）——既有 1889 基线测试零改动。
 
 ## read_first
 
@@ -163,8 +194,10 @@ P3 探针实证）。
    0 fail；在案 flake（GoldenColor CI 腿等）单跑 ×3 归因入 SUMMARY 不计违约。
 4. **边界纪律**：每任务边界检查 `.work/config.toml [gsd]`（`auto`/`paused`）。
 5. **架构红线**：禁触 `LightamerCore/Sources/{Pipe,Sidecar,Metal,Decode}/` 生产文件与
-   12-5 `Lut3d/LutLibraryStore`；`Session/` 域只许动 `FilterSQL.swift`（`.library` case
-   增补，`.session` 分支字节不变）；T5 收口 `git diff --stat` 核对申报一致。
+   12-5 `Lut3d/LutLibraryStore`；`Session/` 域只许动两处——`FilterSQL.swift`（`.library`
+   case 增补，`.session`/`.catalog` 分支字节不变）与 `SmartAlbumStore.swift`
+   （**显式例外：evaluate 域 switch 单臂 only**——`.library` missingStore 占位臂，
+   禁动该文件其它任何代码）；T5 收口 `git diff --stat` 核对申报一致。
 
 ## Tasks
 
@@ -177,8 +210,12 @@ P3 探针实证）。
      - DDL 冻结面（`project_meta` / `images` / `albums` / `album_content` +
        `images_fts` 虚表 + 三触发器 + 索引 `idx_images_capture(capture_date, id)` 与
        `idx_album_content_image(image_id)`）：`imagesColumns: [(name, type)]` 冻结序表
-       （KD-3 列集 + `path_kind/volume_uuid/flag/note/has_edits/params_hash/ref_count/
-       added_time/modified_time`），`albumsColumns`/`albumContentColumns` 同型。
+       == KD-3 完整清单（`id INTEGER PRIMARY KEY` 置首 + `image_path/path_kind/
+       volume_uuid` + EXIF 八列 + `file_stem/file_ext/exif_search_text/exif_search_words`
+       + `rating/color_label/keywords/filename/dir` + `flag/note` +
+       `has_edits/params_hash/ref_count/added_time/modified_time`），
+       `albumsColumns`/`albumContentColumns` 同型（`album_content.image_id REFERENCES
+       images(id)` 外键钉在冻结序表内）。
      - 包目录常量（KD-1）：`mediaDirectoryName = "Media"`、
        `thumbsDirectoryName(stem:) = ".<stem>.lathumbs"`、`fileExtension = "lalb"`。
      - RAW 白名单/排除表常量（OQ-12；`defaultRawExtensions: Set<String>` 14 项 +
@@ -193,9 +230,10 @@ P3 探针实证）。
      - 冻结契约：`PRAGMA table_info` 逐列 == `imagesColumns`/`albumsColumns`/
        `albumContentColumns` verbatim（SessionIndexSchema 测试同款）。
      - fresh create 后 `user_version == 1` + `project_meta` 含 name/created_at。
-     - `sqlite_master` 查询：`images_fts` 存在且 `sql` 含 `tokenize='unicode61'`；
-       三触发器在册；**EditCommit/VersionRef/ImageEditState/PipelineRoot 均不存在**
-       （负例钉 OQ-3 注释占位裁决）。
+     - `sqlite_master` 查询：`images_fts` 存在且 `sql` 含 `tokenize='unicode61'` 且
+       FTS 列名 == `exif_search_words`（与 images 列同名钉——KD-5 rebuild 依赖）；
+       三触发器在册（映射列 == `new.exif_search_words`）；**EditCommit/VersionRef/
+       ImageEditState/PipelineRoot 均不存在**（负例钉 OQ-3 注释占位裁决）。
      - 白名单常量 == 14 项精确断言；排除表含 `.xmp/.lra/.lightamer-preset/.pp3/.opc`。
   4. `Scripts/test-direct.sh 'LibrarySchemaTests'` 绿 + 全套回归 0 fail。
 - **验收标准**
@@ -263,8 +301,9 @@ P3 探针实证）。
 ### T4 LibraryStore 单写者 + FilterDomain.library
 
 - **read_first**：上列 6 + `LightamerCore/Sources/Session/SmartAlbumStore.swift`
-  （SmartAlbumDocument envelope 同构参照）+ `CatalogSmartAlbumDomainTests.swift`
-  （catalog 域 translate 测试形状先例）。
+  （SmartAlbumDocument envelope 同构参照 + `evaluate` 域 switch `.library` 臂落点，
+  `:292` 起）+ `CatalogSmartAlbumDomainTests.swift`（catalog 域 translate 测试形状
+  先例）。
 - **action**
   1. 新建 `LibraryStore.swift`（actor，持 ProjectFileStore）：
      - 相册 CRUD：create（type: album/folder/filter + parent 树）/rename/moveParent/
@@ -275,8 +314,13 @@ P3 探针实证）。
      - images 行面：`insertImage(record:)`（含 path_kind/volume_uuid 结构）/
        `removeImage`（连带全部 membership 清理）/`updateProjection`（has_edits/
        params_hash 投影，L013 TEXT）。
-  2. `FilterSQL.swift`：`FilterDomain` 增 `.library`（KD-7；columnRef/baseline 两处
-     switch 各加一 arm；模板注释钉 `FROM images i`）。`.session` 分支字节不动。
+  2. `FilterSQL.swift`（4 处）+ `SmartAlbumStore.swift`（1 处）：`FilterDomain` 增
+     `.library`，**5 处 domain 穷举 switch 各加一臂、禁 default**（KD-7 全表）——
+     `FilterSort.orderBySQL(domain:)`（`:112`，tiebreaker = `image_path ASC`）/
+     `baselineClause`（`:195`，`(1=1)`）/ `columnRef`（`:223`，`+i.<col>`）/
+     `keywordsCondition`（`:261`，物化 `keywords` 列）/ `SmartAlbumStore.evaluate`
+     （`:292`，单臂 = typed `missingStore` 占位，真实现 M2-2-3 补）。模板注释钉
+     `FROM images i`。`.session`/`.catalog` 分支字节不动（既有测试钉）。
   3. 新建 `Tests/LightamerTests/LibraryStoreTests.swift`：三类相册 CRUD/树/级联；
      一图入多相册 ref_count==N；删相册递减；filter_data JSON round-trip；removeImage
      清 membership。
@@ -288,6 +332,9 @@ P3 探针实证）。
 - **验收标准**
   - [ ] 引用计数事务性断言全绿（加/减/级联/归零不删行）。
   - [ ] `.library` 域 translate + 智能相册全链全绿；`.session` 域既有测试零改动全绿。
+  - [ ] 5 处穷举 switch 全带 `.library` 臂、零 default 臂（编译器穷举证明 +
+        `git grep "case .library"` 五触点齐全）；`.session`/`.catalog` 输出字节
+        回归快照一致。
   - [ ] 全套回归 `0 fail`。
 
 ### T5 收口——SUMMARY/DECISIONS + 续接点
@@ -314,9 +361,9 @@ P3 探针实证）。
 | 6 | backup API 打开态拷贝 = 一致性单文件（独立 open 行数一致）；目标存在拒绝 | LibraryDocumentTests |
 | 7 | 折叠词表双向（`f2.8`/`iso800`/`35 mm` 变体集）+ `iso800` 不命中 `iso8000` 前缀串 | ExifFoldTests + FTS 实库断言 |
 | 8 | 引用计数：多相册 ref_count==N、删相册递减、级联清理、归零不删行 | LibraryStoreTests 事务断言 |
-| 9 | `FilterDomain.library`：`+i.` 别名 + `(1=1)` baseline；智能相册 JSON 全链命中；`.session` 域零回归 | LibraryFilterDomainTests + 既有域测试零改动全绿 |
+| 9 | `FilterDomain.library`：5 处穷举 switch 臂全落（`+i.` 别名 + `(1=1)` baseline + `image_path` tiebreaker + 物化 `keywords` 列 + evaluate `missingStore` 占位），禁 default；智能相册 JSON 全链命中；`.session`/`.catalog` 域零回归 | LibraryFilterDomainTests + 既有域测试零改动全绿 |
 | 10 | 全套回归 0 fail，计数 ≈ 1889 + 25..35 | test-direct.sh Executed/failures 双读 |
-| 11 | diff 边界 == 申报文件集；`Session/` 域仅 FilterSQL.swift 一处改动 | `git diff --stat` 逐任务核对 |
+| 11 | diff 边界 == 申报文件集；`Session/` 域仅 FilterSQL.swift + SmartAlbumStore.swift（evaluate 单臂）两处改动 | `git diff --stat` 逐任务核对 |
 
 ## 风险与边界
 
@@ -326,7 +373,9 @@ P3 探针实证）。
 - **FTS5 触发器写放大**：探针 P2 实测 20k 导入 + rebuild 共 125ms，非风险；P3 基准
   harness 复测导入吞吐作观察项。
 - **`FilterSQL.swift` 是 M1 冻结面**：`.library` arm 增补属裁决内（CONTEXT Reusable
-  Assets 表「新域模板扩充」）；任何 `.session` 字节漂移 = 红线违约，测试 #9 钉。
+  Assets 表「新域模板扩充」）；`SmartAlbumStore.evaluate` 单臂属同族（穷举 switch
+  编译器强制——无 default 时新 case 不加臂即编译失败）；任何 `.session`/`.catalog`
+  字节漂移 = 红线违约，测试 #9 钉。
 - **USB 卷（L009）**：本 plan 全部测试落 `/tmp` 或 temp 目录（throwaway），禁外置卷
   落库；volume_relative 形态只测逻辑（P2 ImageLinker 落地实测）。
 - **新建文件批量**：T1 一次建齐 5 个 Core 文件 + 测试，`tuist generate` 一次；后续任务

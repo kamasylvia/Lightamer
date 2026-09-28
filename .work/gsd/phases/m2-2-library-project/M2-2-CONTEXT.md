@@ -149,3 +149,28 @@ M2-2 行含「Album Inspector」，M2-3 行也含「图库 = 网格 + Album Insp
 ## Ruling（2026-09-27 用户：「采纳全部推荐」）
 
 D-M2-2-CONTEXT-1..12 = OQ-1..12 **全部按起草推荐生效**（本节上方各条即裁决文本）。要点回执：OQ-2 纯单 SQLite 文件 + `project_meta` + WAL/checkpoint 纪律；OQ-3 `.lra` 恒真身、库=投影；OQ-4 导入默认复制 + 记住选择；OQ-7 双层检索（物化列 + FTS5 unicode61 不定制）；OQ-8 运行时布尔门 + `LIGHTAMER_LEGACY_LIBRARY=1`；OQ-9 硬门 p95 < 20ms @ 2 万张。探针结论 P1-P3 一并生效。
+
+---
+
+## Checker 回注记录（2026-09-27）
+
+Checker 判 FAIL（5 error + 4 minor），修复全部回注到四个 plan 原文（只改 plan，不碰代码），单 commit 收口。
+
+### Errors
+
+- **E1（M2-2-1 T4）**：`.library` 穷举臂从 2 处补全为 5 处——`FilterSQL.swift` 4 处（`orderBySQL:112` / `baselineClause:195` / `columnRef:223` / `keywordsCondition:261`）+ `SmartAlbumStore.evaluate:292`（实态已 grep 验证）。T4 action 改五触点全表（禁 default 臂，穷举编译器强制）：`orderBySQL(.library)` tiebreaker 钉 `image_path ASC`（库内实存列、session `path`/catalog `rel_path` 同族）；`keywordsCondition(.library)` 打物化 `keywords` 列；`SmartAlbumStore.evaluate(.library)` = typed `missingStore` 占位（真实现 M2-2-3 补）；`.session`/`.catalog` 分支字节不变由既有测试钉。纪律 5 加显式例外（SmartAlbumStore 单臂 only）；files_modified 补 SmartAlbumStore.swift；KD-7 改五触点表；AC #9/#11 同步。
+- **E2（M2-2-1 T1/KD-3）**：images 冻结列清单补全——`id INTEGER PRIMARY KEY` 置首（FTS content_rowid / album_content 外键 / keyset seek 三处消费面）+ `image_path`（path_kind 载体）+ `rating/color_label/keywords/filename/dir`（D-09-CONTEXT-7 预留 NULL 列模式，session 四子句形态服务项目库）；KD-3 改完整枚举，T1 imagesColumns 同步，并加落表后消费点交叉核对步。
+- **E3（M2-2-1 KD-5）**：FTS5 external-content 列名 `search_words` → `exif_search_words`（与 images 列同名——异名会使 rebuild 报 no such column）；三触发器映射钉 `new.exif_search_words`；T1 测试断言加列名钉。
+- **E4（M2-2-3 T2）**：删「`FilterSQL.orderBySQL` 增 `.library` 臂」sub-action 与「唯一既有文件触点」措辞（该臂已前移 M2-2-1 T4 落地）；T2 既有文件触点改记 `SmartAlbumStore.evaluate` `.library` 臂真实现（files_modified / 纪律 5 例外 / read_first 6 / 测试断言 / 验收标准同步）。
+- **E5（M2-2-2 KD-5）**：`moveProject` 改整项目目录搬移（close DB → 目录级 rename；跨卷 copy+verify+删源复用 M2LIB-07① 纪律；`.lathumbs` 派生物可丢弃不搬）；backup API 只留 `backupProject` 一个消费者；T4 补 AC「move 后 kind0（项目相对路径）resolve 命中 + verify 失败源目录原样在」；front-matter 与 AC 表同步。
+
+### Minors
+
+1. M2-2-3 KD-3 排序白名单改库域合法子集五键（filename/rating/captureDate/iso/focalLength），显式排除 `scanEpoch`，守卫落 `LibraryQueries` 入口。
+2. files_modified 裸 `LESSONS.md` → `.work/LESSONS.md` 真路径（checker 报三个 plan；四个 plan 同款病灶一并修，根目录实无 LESSONS.md 已核实）。
+3. M2-2-4 KD-4 第 2 层明示快照载体 = 硬编码期望节 identifier 集合字面量（非运行时录制件）。
+4. ImportDefaults 落 P2 维持不变（checker 判可接受，未动）。
+
+### 复核结论
+
+一致性自查通过：E1 五触点在 M2-2-1 T4 action 与 KD-7 表一一对应、行号与代码实态相符；E2 列清单 ↔ E3 FTS 列名（`exif_search_words`）↔ KD-2 album_content 外键 ↔ M2-2-3 keyset `(capture_date, id)` ↔ 四分组列（`camera_make||camera_model`、rating）↔ 库域排序子集全部互指实名列；E5 与 M2LIB-07① 字面（「校验通过前永不删源」）一致；SmartAlbumStore 缝两侧（M2-2-1 占位 → M2-2-3 真实现）登记闭合，两 plan 纪律例外互认；全目录无裸 `search_words` / 裸 `LESSONS.md` 残留。
