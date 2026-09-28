@@ -1,3 +1,4 @@
+import CoreImage
 import XCTest
 import LightamerCore
 import LightamerIOP
@@ -82,12 +83,13 @@ final class McpEditingToolsetTests: XCTestCase {
 
     private func makeSeams(
         session: (store: SessionIndexStore, root: URL),
+        metal metalContext: MetalContext? = nil,
         liveImageURL: @escaping @Sendable () async -> URL? = { nil }
     ) async -> EditingToolset.Seams {
         let populated = await populatedModules()
         var seams = EditingToolset.Seams(
             session: { session },
-            metal: { nil },
+            metal: { metalContext },
             modules: { populated },
             gate: McpRenderGate(),
             liveImageURL: liveImageURL)
@@ -456,5 +458,189 @@ final class McpEditingToolsetTests: XCTestCase {
         XCTAssertEqual(exposure["domain"] as? String, "both")
         let params = try XCTUnwrap(exposure["params"] as? [String: Any])
         XCTAssertTrue(params.keys.contains("exposure"), "the params key reference rides")
+    }
+
+    // MARK: - T4: export_image (Output pinned, naming, yiyin seam)
+
+    /// A synthetic gradient decode (the export tests render the REAL chain
+    /// over millisecond-cheap pixels).
+    private static func syntheticDecoded(width: Int, height: Int) -> DecodedImage {
+        let gradient = CIImage(color: CIColor(red: 0.55, green: 0.45, blue: 0.35))
+            .cropped(to: CGRect(x: 0, y: 0, width: width, height: height))
+        return DecodedImage(
+            ciImage: gradient, rawTech: RAWTechnicalParams(),
+            capture: CaptureMetadata(), segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8)
+    }
+
+    /// A fixture session whose image carries a WRITTEN sidecar (terminal
+    /// trio + exposure + rating) so the export renders the saved state and
+    /// the XMP mount has content. The decode leg is synthetic — the render
+    /// chain is REAL (the pixel-free fixtures keep the export legs fast).
+    private func makeExportFixture(
+        metal metalContext: MetalContext? = nil
+    ) async throws
+        -> (root: URL, imageURL: URL, store: SessionIndexStore, seams: EditingToolset.Seams)
+    {
+        let (root, imageURL, store) = try await makeSession()
+        let populated = await populatedModules()
+        // The pipe dispatches the IOP kernels through the framework's
+        // default.metallib — the app registers it at launch; tests mirror
+        // that here (the exposure box would otherwise functionNotFound).
+        if let metalContext = metalContext {
+            try await metalContext.registerDefaultLibrary(
+                in: ExposureKernel.metalBundle)
+        }
+        let trio = await populated.makeDefaultInstances()
+        var exposureParams = ExposureModule.Params()
+        exposureParams.exposure = 0.25
+        let exposureRecord = ModuleInstance(
+            module: ExposureModule.self, params: exposureParams)
+        let document = LightamerSidecar(
+            imageID: UUID(), decoderVersionUsed: "v8", decodeParamsHash: 0,
+            instances: trio + [exposureRecord],
+            history: HistoryStack(), historyHash: 0, rating: 4)
+        let data = try JSONEncoder().encode(document)
+        try data.write(to: imageURL.appendingPathExtension("lra"))
+        let decoded = Self.syntheticDecoded(width: 800, height: 600)
+        var seams = await makeSeams(session: (store, root), metal: metalContext)
+        seams.decodeLeg = { _ in decoded }
+        return (root, imageURL, store, seams)
+    }
+
+    private static func exportCall(
+        _ registry: McpToolRegistry, relPath: String,
+        extra arguments: [String: McpJSON] = [:]
+    ) async throws -> String {
+        var arguments = arguments
+        arguments["relPath"] = .string(relPath)
+        let output = try await registry.call(
+            name: "export_image", arguments: arguments)
+        guard case .text(let text) = output.content.first else {
+            throw McpToolError.internalError("test harness: expected text content")
+        }
+        return text
+    }
+
+    func testExportImageLandsInOutputWithXMPAndPathNote() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("no Metal GPU") }
+        let (root, imageURL, store, seams) = try await makeExportFixture(
+            metal: try MetalContext())
+        let registry = await makeRegistry(seams: seams)
+
+        let text = try await Self.exportCall(
+            registry, relPath: "Capture/DSC00012.ARW",
+            extra: ["format": .string("jpeg"), "quality": .int(90)])
+
+        // The landing zone is the session's Output/ — SERVER-PINNED.
+        let outputDirectory = root.appendingPathComponent("Output", isDirectory: true)
+        let files = try XCTUnwrap(
+            try? FileManager.default.contentsOfDirectory(atPath: outputDirectory.path))
+        XCTAssertEqual(files.count, 1, "exactly one export artifact")
+        let destination = outputDirectory.appendingPathComponent(files[0])
+        let bytes = try Data(contentsOf: destination)
+        XCTAssertEqual(bytes.prefix(2), Data([0xFF, 0xD8]), "JPEG magic")
+        // The XMP mount rides encodeStage automatically (rating 4 = content).
+        XCTAssertTrue(
+            bytes.range(of: Data("ns.adobe.com/xap/1.0/".utf8)) != nil,
+            "the exported product carries the sidecar's XMP")
+        // The path + note return face.
+        XCTAssertTrue(text.contains("exported=\(outputDirectory.path)"))
+        XCTAssertTrue(text.contains("800x600"))
+        XCTAssertTrue(text.contains("render_preview"))
+        _ = imageURL
+    }
+
+    func testExportImageCollisionIncrements() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("no Metal GPU") }
+        let (root, _, store, seams) = try await makeExportFixture(
+            metal: try MetalContext())
+        let registry = await makeRegistry(seams: seams)
+
+        _ = try await Self.exportCall(registry, relPath: "Capture/DSC00012.ARW")
+        _ = try await Self.exportCall(registry, relPath: "Capture/DSC00012.ARW")
+        let outputDirectory = root.appendingPathComponent("Output", isDirectory: true)
+        var files = try FileManager.default.contentsOfDirectory(atPath: outputDirectory.path)
+        files.sort()
+        XCTAssertEqual(files.count, 2, "the collision must NOT overwrite")
+        XCTAssertTrue(files.contains { $0.hasSuffix("-1.jpg") },
+                      "the second export increments -1 (ExportNamer), got \(files)")
+    }
+
+    func testExportImageYiyinToggleGatesTheProductionSeam() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("no Metal GPU") }
+        var (root, _, store, seams) = try await makeExportFixture(
+            metal: try MetalContext())
+        // The injection counter: the seam fires ONLY on yiyin=true.
+        final class Counter: @unchecked Sendable {
+            private let lock = NSLock()
+            private(set) var value = 0
+            func bump() { lock.lock(); value += 1; lock.unlock() }
+        }
+        let counter = Counter()
+        seams.yiyinInjector = {
+            ExportYiyinInjector { _, _, _, _ in counter.bump() }
+        }
+        let registry = await makeRegistry(seams: seams)
+
+        // Default FALSE: the plain render, injector untouched.
+        _ = try await Self.exportCall(registry, relPath: "Capture/DSC00012.ARW")
+        XCTAssertEqual(counter.value, 0, "yiyin=false must not run the injector")
+
+        // TRUE: the production seam runs (the ONE semantic it transmits).
+        _ = try await Self.exportCall(
+            registry, relPath: "Capture/DSC00012.ARW", extra: ["yiyin": .bool(true)])
+        XCTAssertEqual(counter.value, 1, "yiyin=true runs the injector exactly once")
+    }
+
+    func testExportImageYiyinWithoutSeamIsTypedExportFailed() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("no Metal GPU") }
+        // NO yiyinInjector — the headless shape.
+        let (root, _, store, seams) = try await makeExportFixture(
+            metal: try MetalContext())
+        let registry = await makeRegistry(seams: seams)
+        do {
+            _ = try await Self.exportCall(
+                registry, relPath: "Capture/DSC00012.ARW", extra: ["yiyin": .bool(true)])
+            XCTFail("yiyin=true without the production seam must be exportFailed")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "exportFailed")
+        }
+    }
+
+    func testExportImagePinnedOutputIsSelfProvenAndBadArgsAreTyped() async throws {
+        let (root, _, store, seams) = try await makeExportFixture()
+        let registry = await makeRegistry(seams: seams)
+        let descriptors = await registry.descriptors()
+        let export = try XCTUnwrap(descriptors.first { $0.name == "export_image" })
+        // The schema self-proof: NO path/destination property exists.
+        let schema = try JSONSerialization.jsonObject(
+            with: Data(export.inputSchemaJSON.utf8), options: []) as? [String: Any]
+        let properties = try XCTUnwrap(schema?["properties"] as? [String: Any])
+        XCTAssertNil(properties["path"])
+        XCTAssertNil(properties["destination"])
+        XCTAssertNil(properties["directory"])
+
+        // A smuggled "destination" argument changes nothing (Output stays
+        // the server decision); a bad format is typed.
+        do {
+            _ = try await Self.exportCall(
+                registry, relPath: "Capture/DSC00012.ARW",
+                extra: [
+                    "format": .string("bmp"),
+                    "destination": .string("/tmp/evil"),
+                ])
+            XCTFail("bmp must be invalidParams")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "invalidParams")
+        }
+        do {
+            _ = try await Self.exportCall(
+                registry, relPath: "Capture/DSC00012.ARW",
+                extra: ["colorSpace": .string("wizard")])
+            XCTFail("an unknown colorSpace must be invalidParams")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "invalidParams")
+        }
     }
 }

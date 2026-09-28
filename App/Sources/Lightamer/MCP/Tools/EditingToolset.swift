@@ -128,6 +128,11 @@ enum EditingToolset {
             handler: { _ in
                 .text(try IopCatalog.catalogJSON())
             })
+        await registry.register(
+            exportImageDescriptor, requiresWriter: true,
+            handler: { arguments in
+                try await exportImageBody(arguments: arguments, seams: seams)
+            })
     }
 
     // MARK: - Shared argument faces
@@ -231,6 +236,167 @@ enum EditingToolset {
                 + "Read-only, stateless, no errors beyond internalError.",
         inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
         readOnlyHint: true)
+
+    // MARK: - export_image (T4 — direct render, Output pinned, §RQ-14-11)
+
+    private static let exportImageDescriptor = McpToolDescriptor(
+        name: "export_image",
+        description:
+            "Export ONE open-session image to a FILE (the only tool that writes an "
+                + "image to disk). The destination is SERVER-PINNED to the session's "
+                + "Output/ directory — there is intentionally NO path argument; naming "
+                + "derives from the source stem with -1/-2 collision increments (the "
+                + "file lands atomically). Returns the ABSOLUTE path as text plus a "
+                + "note: a remote client cannot read this machine's paths — use "
+                + "render_preview for an inline view or reach the file via GUI/file "
+                + "sharing. format: jpeg|png|tiff|heic|avif|webp (default jpeg; "
+                + "quality applies to the lossy formats, 1...100 default 90). sizing: "
+                + "{\"mode\":\"original\"} or {\"mode\":\"longEdge\"|\"shortEdge\","
+                + "\"px\":N} (never upscaled). colorSpace: sRGB|displayP3|adobeRGB|"
+                + "proPhoto|rec2020 (default sRGB). yiyin (default false) renders "
+                + "through the image's existing yiyin panel configuration. Renders "
+                + "the SAVED sidecar state. Errors: exportFailed, invalidParams, "
+                + "notSessionMember, serverReadOnly.",
+        inputSchemaJSON:
+            #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"format":{"type":"string","enum":["jpeg","png","tiff","heic","avif","webp"],"default":"jpeg"},"quality":{"type":"integer","minimum":1,"maximum":100,"default":90,"description":"Lossy formats only"},"sizing":{"type":"object","properties":{"mode":{"type":"string","enum":["original","longEdge","shortEdge"],"default":"original"},"px":{"type":"integer","minimum":1,"description":"Required for longEdge/shortEdge"}}},"colorSpace":{"type":"string","enum":["sRGB","displayP3","adobeRGB","proPhoto","rec2020"],"default":"sRGB"},"yiyin":{"type":"boolean","default":false,"description":"Render through the image's existing yiyin frame/watermark configuration"}},"required":["relPath"]}"#,
+        destructiveHint: true)
+
+    private static func exportImageBody(
+        arguments: [String: McpJSON], seams: Seams
+    ) async throws -> McpToolOutput {
+        let relPath = try requiredRelPath(arguments)
+        let member = try await resolveMember(relPath: relPath, seams: seams)
+
+        // Format + quality (v1: one knob per format — the six-format
+        // registry's per-format parameter face, bit depths at their defaults).
+        let formatName = arguments["format"]?.stringValue ?? "jpeg"
+        let quality = try intArgument(
+            arguments["quality"], name: "quality", default: 90, range: 1...100,
+            overMessage: "quality is a percentage for the lossy formats")
+        let format: ExportFormatSpec
+        switch formatName {
+        case "jpeg": format = .jpeg(quality: Double(quality) / 100.0)
+        case "png": format = .png(bitDepth: .eight)
+        case "tiff": format = .tiff(bitDepth: .eight, compression: .zip)
+        case "heic": format = .heic(quality: Double(quality) / 100.0, bitDepth: .eight)
+        case "avif": format = .avif(quality: Double(quality) / 100.0, bitDepth: .eight)
+        case "webp": format = .webp(quality: Double(quality) / 100.0, lossless: false)
+        default:
+            throw McpToolError.invalidParams(
+                "format '\(formatName)' is not one of jpeg|png|tiff|heic|avif|webp")
+        }
+
+        // Color space.
+        let colorSpaceName = arguments["colorSpace"]?.stringValue ?? "sRGB"
+        guard let colorSpace = ExportColorSpace(rawValue: colorSpaceName) else {
+            throw McpToolError.invalidParams(
+                "colorSpace '\(colorSpaceName)' is not one of "
+                    + ExportColorSpace.allCases.map(\.rawValue).joined(separator: "|"))
+        }
+
+        // Sizing: original (default) or a never-upscaled long/short edge.
+        var sizing = YiyinExportSettings()
+        if let sizingArg = arguments["sizing"], sizingArg != .null {
+            guard case .object(let sizingObject) = sizingArg else {
+                throw McpToolError.invalidParams("sizing must be an object")
+            }
+            let mode = sizingObject["mode"]?.stringValue ?? "original"
+            let px = sizingObject["px"]?.intValue
+            switch mode {
+            case "original": sizing = YiyinExportSettings()
+            case "longEdge", "shortEdge":
+                guard let px, px >= 1 else {
+                    throw McpToolError.invalidParams(
+                        "sizing mode '\(mode)' requires a positive px value")
+                }
+                sizing = YiyinExportSettings(
+                    mode: mode == "longEdge"
+                        ? .longEdge(px: px) : .shortEdge(px: px))
+            default:
+                throw McpToolError.invalidParams(
+                    "sizing mode '\(mode)' is not one of original|longEdge|shortEdge")
+            }
+        }
+
+        // The yiyin switch (EXP-05 shared configuration — ONE semantic: use
+        // the image's existing panel configuration, no border detail params).
+        let wantsYiyin = arguments["yiyin"]?.boolValue == true
+        let variant = ExportVariant(
+            sizing: sizing, format: format, colorSpace: colorSpace, yiyin: wantsYiyin)
+        do {
+            try variant.validate()
+        } catch {
+            throw McpToolError.invalidParams(String(describing: error))
+        }
+
+        // The landing zone is SERVER-PINNED: Session/Output/ — the input
+        // schema carries no path argument by construction (the negative test
+        // self-proves the closed face).
+        let outputDirectory = SessionLayout.outputDirectory(for: member.root)
+        try FileManager.default.createDirectory(
+            at: outputDirectory, withIntermediateDirectories: true)
+        let occupied = Set(
+            (try? FileManager.default.contentsOfDirectory(
+                atPath: outputDirectory.path)) ?? [])
+
+        // The production injector seam (yiyin:true only). nil without the
+        // seam = the typed exportFailed face — no silent degradation.
+        let resolvedInjector: ExportYiyinInjector?
+        if wantsYiyin {
+            guard let provider = seams.yiyinInjector else {
+                throw McpToolError.exportFailed(
+                    "yiyin export is unavailable on this host (no injector seam)")
+            }
+            guard let injector = await provider() else {
+                throw McpToolError.exportFailed(
+                    "yiyin export is unavailable on this host (injector build failed)")
+            }
+            resolvedInjector = injector
+        } else {
+            resolvedInjector = nil
+        }
+
+        // DIRECT render (§RQ-14-11①): the ExportQueue's progress/cancel
+        // semantics are too heavy for a single MCP export — concurrency
+        // rides the render gate, atomic promotion rides encodeStage (L009),
+        // and the XMP mount rides encodeStage with it.
+        let modules = await seams.modules()
+        return try await seams.gate.withRenderGate {
+            let seconds = durationSeconds(McpTimeouts.export)
+            do {
+                let outcome = try await QuickLookRenderer.boundedWait(seconds: seconds) {
+                    guard let metal = await seams.metal() else {
+                        throw McpToolError.exportFailed(
+                            "renderer unavailable on this host")
+                    }
+                    let request = ExportRenderer.Request(
+                        imageURL: member.imageURL, destinationDirectory: outputDirectory,
+                        occupiedNames: occupied, variant: variant)
+                    return try await ExportRenderer.render(
+                        request: request, metal: metal, registry: modules,
+                        decodeLeg: seams.decodeLeg, yiyinInjector: resolvedInjector)
+                }
+                let note =
+                    "note: a remote client cannot read this machine's paths — use "
+                    + "render_preview for an inline view, or reach the file via "
+                    + "GUI/文件共享 (file sharing)"
+                return .text(
+                    "exported=\(outcome.destination.path) "
+                        + "\(outcome.outputWidth)x\(outcome.outputHeight)\n\(note)")
+            } catch let timeout as QuickLookRenderer.RenderTimeout {
+                throw McpToolError.renderTimeout(
+                    "export exceeded the \(timeout.seconds)s bounded wait — the GPU "
+                        + "work is not cancelled mid-flight; the file lands only via "
+                        + "the atomic promote, so a timed-out export leaves nothing")
+            } catch let error as McpToolError {
+                throw error
+            } catch {
+                throw McpToolError.exportFailed(
+                    "export failed for '\(relPath)': \(error)")
+            }
+        }
+    }
+
 
     // MARK: - apply_params (T2 — module-level upsert, three segments)
 
