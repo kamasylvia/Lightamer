@@ -10,11 +10,13 @@
 > 规格锚点 = `research/ALCEDO-FEATURE-MAP.md`（章节号见各条）。粒度 = family 级，phase discuss 时再拆 task。M1 历史需求族（下方既存各节）作为已交付资产账本继续有效；本节为唯一活跃 V1 面。
 
 ### dt 禁用矩阵 (DIS)
-- [ ] **M2DIS-01**: 39 个 dt 派生 iop 逐一审计 → 启用/禁用矩阵落盘（D1 filmic/sigmoid/agx、D2 降噪三件、Alcedo 无对应项默认禁用；独有增强项按 D6 收纳保留）
-- [ ] **M2DIS-02**: ModuleRegistry feature-flag 门控（默认面收窄；禁用模块代码+测试保持全绿，可显式开启）
-- [ ] **M2DIS-03**: UI 七页签收敛——禁用项不出现在任何面板/预设浏览器/批量 apply 面
+- [x] **M2DIS-01**: 39 个 dt 派生 iop 逐一审计 → 启用/禁用矩阵落盘（D1 filmic/sigmoid/agx、D2 降噪三件、Alcedo 无对应项默认禁用；独有增强项按 D6 收纳保留）**Delivered**（M2-1：`phases/m2-1-dt-disable/M2-1-MATRIX.md` 禁用 6/启用 33/灰区保留 14，T4 复核签注逐行一致 + 验收全集比对一致；`c663709`/`902d942`）
+- [x] **M2DIS-02**: ModuleRegistry feature-flag 门控（默认面收窄；禁用模块代码+测试保持全绿，可显式开启）**Delivered**（M2-1：`defaultFaceDisabledOpNames` 6 项 + `populate/seed(defaultFace:)` 收窄缝 + `LIGHTAMER_FULL_IOP_FACE=1` opt-in 口（KD-3）；既有测试零改动全绿（KD-2）；`f5bcfa2`/`561ca59`）
+- [x] **M2DIS-03**: UI 七页签收敛——禁用项不出现在任何面板/预设浏览器/批量 apply 面（**Delivered 半边 = M2-1**：面板行/层 add-module/预设 apply 种子/批量 apply 种子/MCP schema 五面收窄钉死，`561ca59`；**七页签 IA 收纳留 M2-3**）
 - [ ] **M2DIS-04**: 降噪由 RAW 9 解码层承担（CIRAW NR 参数族在 RAW Decode 页签暴露，D2）
-- [ ] **M2DIS-05**: 预设/MCP 默认工具面同步收窄（禁用模块不入默认 schema）
+- [x] **M2DIS-05**: 预设/MCP 默认工具面同步收窄（禁用模块不入默认 schema）**Delivered**（M2-1：apply_params 禁用 op = typed unknownOp、list_iops 默认面 18→15、工具注册面 19 不变（不删工具）；`f2a3618`）
+
+> M2-1 验收：`phases/m2-1-dt-disable/M2-1-ACCEPTANCE.md`（独立复跑 1889/11skip/0fail）。
 
 ### 图库与项目模型 (LIB)
 - [ ] **M2LIB-01**: 单项目文件包（SQLite：`<stem>` 库 + manifest；相册结构与全部编辑历史在一个文件内，可整体移动/备份；schema 版本化）
