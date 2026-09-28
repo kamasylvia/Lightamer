@@ -2,11 +2,13 @@ import Foundation
 import MCP
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Plan 14-1 T2 (D-14-CONTEXT-1③④): the SDK adapter layer — THE ONLY FILE IN
-// LIGHTAMER THAT IMPORTS MCP. Everything SDK-flavored (Server actor, Tool,
-// Content, Value, transports) converts here into the pure-Swift registry
-// seam (McpToolRegistry.swift) and back. An SDK upgrade (0.x churn, R1)
-// rewrites this file and nothing else.
+// Plan 14-1 T2 (D-14-CONTEXT-1③④): the SDK adapter layer — the ONLY
+// SDK-type conversion site (Server actor, Tool, Content, Value convert here
+// into the pure-Swift registry seam (McpToolRegistry.swift) and back; an SDK
+// upgrade (0.x churn, R1) rewrites this file and nothing else). The other
+// MCP/ files import MCP only to WIRE this seam to hosts: the NIO leg
+// (McpHTTPTransport), the Bearer valve (McpBearerValidator) and the host
+// orchestration (McpServerController) — LightamerCore keeps ZERO import.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The Server assembly + the bidirectional SDK ↔ registry conversions.

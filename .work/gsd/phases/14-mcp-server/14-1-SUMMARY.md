@@ -28,10 +28,17 @@
 $ grep -rn "^import MCP\|^import NIO" LightamerCore/ LightamerIOP/
 （零命中 — exit 1）
 $ grep -n "^import" App/Sources/Lightamer/MCP/*.swift
-McpAdapters.swift:       import Foundation / import MCP          ← 唯一 SDK 类型收口
+McpAdapters.swift:        import Foundation / import MCP          ← SDK 类型转换收口（Value↔McpJSON 等）
 McpServerController.swift: import Foundation / import LightamerCore / import MCP
-McpToolRegistry.swift:   import Foundation                       ← 纯 Swift 缝，grep 可证
+McpHTTPTransport.swift:   import Foundation / import LightamerCore / import MCP
+                          / @preconcurrency import NIOCore / NIOPosix / NIOHTTP1
+McpBearerValidator.swift: import Foundation / import MCP / import Security
+McpToolRegistry.swift:    import Foundation                       ← 纯 Swift 缝，grep 可证
 ```
+
+> 验收更正（2026-09-28）：初版此表漏列 McpHTTPTransport / McpBearerValidator 两个
+> import MCP 文件；架构红线本身不受影响——红线 = Core/IOP 零 import + App 侧全部
+> 收口 `App/Sources/Lightamer/MCP/` 目录，实测两者均满足。
 
 ## 探针对账（本 plan 实测 vs research §0）
 
@@ -48,7 +55,8 @@ McpToolRegistry.swift:   import Foundation                       ← 纯 Swift �
 ## 测试基础设施注记
 
 - `test-direct.sh` 私有日志：共享 `/tmp/la-direct-tests.log` 有并行覆写风险，关键判定用 `/tmp/t6-full.log` 等私有重跑确认。
-- stdio 子进程测试的 stdin 交付：conformance 测试内 Foundation-Pipe 写入在本环境出现「write(2) 成功但子进程非阻塞读循环始终 EAGAIN」的异常（`/bin/cat` 对照正常，文件-stdin 对照正常，根因未完全隔离）→ 该测试 stdin 改走临时文件交付（D-14-1-T5-2），子进程代码路径与管道完全一致（同为 fd0 + newline-delimited JSON-RPC）。
+- stdio 子进程测试的 stdin 交付：执行中曾观察到 Foundation-Pipe 写入异常（`write(2)` 成功但子进程非阻塞读循环 EAGAIN，`/bin/cat` 对照正常、文件-stdin 对照正常，根因未完全隔离）；**落盘终态 = Pipe 单次全量写入**（先写全 5 条 payload 再起 pump 读回，D-14-1-T5-2 更正版），终轮全套与隔离复跑均绿。执行中试过的临时文件交付方案未进最终代码。
+- **stdio 宿主生命周期注记（验收实测）**：stdin EOF 后宿主进程不退出（`dispatchMain` 永久 park；executor 执行期一个 shell 管道探针即因此挂成孤儿进程、持默认路径写者锁至验收清理）。launcher/agent 侧需以进程管理收尾（kill 或超时托管）；产品级 EOF 退出语义（`server.start` 返回后 `exit(0)`）留 14-4 launcher plan 评估。
 
 ## 交付物清单（files_modified 对照）
 

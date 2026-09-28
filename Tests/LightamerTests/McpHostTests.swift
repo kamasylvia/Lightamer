@@ -660,7 +660,7 @@ final class McpHostTests: XCTestCase {
         // THREE FORMS, ONE KERNEL, IDENTICAL RESULTS:
         //   HTTP      → this test (SDK client ↔ the NIO leg, live host)
         //   InMemory  → this test (SDK client ↔ the same kernel in-process)
-        //   stdio     → testStdioHostHoldsLockWritesNoJSONAndHandshakes
+        //   stdio     → testStdioHostHelloRoundTripHoldsLockWritesNoJSON
         //               (a REAL subprocess of this binary over the SAME
         //               kernel; its pump asserts the identical result tuple:
         //               tools/list = {ping, count_images}, ping echo,

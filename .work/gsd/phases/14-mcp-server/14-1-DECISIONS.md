@@ -79,14 +79,18 @@ shutdownDrain`）→ 关全部 session transport；发现文件删除与 flock �
 （exit 4 / GUI 静默跳过 + 日志）：以「被发现」为全部目的的网络宿主若只读启动，会让 launcher
 与外部 agent 连到一个拒绝全部写面的端点——错误信号必须前移到启动时。
 
-## D-14-1-T5-2 conformance 测试 stdio 腿的 stdin 走临时文件交付
+## D-14-1-T5-2 conformance 测试 stdio 腿的 stdin 交付（验收更正版）
 
-测试内 Foundation-Pipe 写入在本机稳定复现异常：`write(2)` 返回成功、lsof 证实父子管道端点
+执行中曾观察到测试内 Foundation-Pipe 写入异常：`write(2)` 返回成功、lsof 证实父子管道端点
 匹配、但子进程非阻塞 read 循环持续 EAGAIN（`/bin/cat` 对照正常、**文件-stdin 对照正常**、
-shell 管道正常；根因未完全隔离，样本与复现脚本见执行记录）。conformance 的 stdio 腿改用
-临时文件作子进程 stdin（fd0 + newline-delimited JSON-RPC 的子进程代码路径与管道完全一致），
-结果断言不变。**产品代码不受影响**（真实 agent 场景 stdin 即管道，由 client 侧写入时序决定，
-SDK readLoop 的 EAGAIN-10ms 轮询语义不变）；此疑难点留痕待后续环境复验。
+shell 管道正常；根因未完全隔离）。执行中试过临时文件作子进程 stdin 的绕行方案；**落盘终态
+为 Pipe 单次全量写入**（`testStdioHostHelloRoundTripHoldsLockWritesNoJSON`：先一次性写入全部
+5 条 payload，再起 deadline-bounded pump 读回按 id 配对断言）——单次写入 < 管道缓冲区的形态
+下该异常不复现，终轮全套与隔离复跑均绿。**产品代码不受影响**（真实 agent 场景 stdin 即管道，
+由 client 侧写入时序决定，SDK readLoop 的 EAGAIN-10ms 轮询语义不变）；疑难点留痕待后续环境
+复验。附带实测事实：stdio 宿主 stdin EOF 后**进程不退出**（`dispatchMain` 永久 park）——
+执行期一个 shell 管道探针即因此挂成孤儿进程（持默认路径写者锁，验收轮清理）；EOF 退出语义
+（`server.start` 返回后 `exit(0)`）归 14-4 launcher plan 评估。
 
 ## D-14-1-T5-3 stdio 响应按 id 配对（非位置）
 
