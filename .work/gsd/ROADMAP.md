@@ -11,7 +11,7 @@ A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) **Alcedo Studio cl
 
 > 规格正本 = `.work/gsd/research/ALCEDO-FEATURE-MAP.md`（301 行，HEAD `34241d0b`：UI 逐屏/18 项调整封闭目录含 JSON key 与默认值/节点图命令级语义/蒙版参数/DRT 45 参数/项目文件全 DDL/导出 recipe/AI 侧车）。已交付资产延续：pixelpipe/39 iop/Layers/sidecar/Presets/LUT/Export 队列/MCP server/测试基线（1881/11skip/0fail）。
 
-### M2 签核决定点（C 档第 1 停，用户裁决后开工）
+### M2 签核决定点（✅ 已签核：2026-09-27 用户「M2 全按推荐走」——D1-D6 全按推荐生效）
 
 - **D1 tone mapping 归属**：Alcedo 把 filmic/sigmoid 的职能整体移到终端 DRT 节点（用户不可编辑 tone spline，只露预设）。Lightamer 的 filmicrgb/sigmoid/agx 三个 iop **v1 禁用**（进 M2-1 矩阵），parity 后评估以「DRT method 扩展」身份回归。**推荐 = 是**。
 - **D2 降噪归属**：Alcedo 零降噪（封闭目录 18 项无 NR）。dt 降噪三件（denoiseprofile/nlmeans/bilateral）**v1 禁用**，降噪由 **RAW 9 解码层承担**（CIRAW 融合降噪 = kCIInputNoiseReductionAmount 族参数，best-in-class）；bilateral/highpass 收进 Detail 分组作 Lightamer 增强。**推荐 = 是**。
@@ -24,7 +24,7 @@ A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) **Alcedo Studio cl
 
 | # | Phase | 内容（测绘锚点） | 依赖 |
 |---|---|---|---|
-| M2-0 | 测绘与规格 | ✅ ALCEDO-FEATURE-MAP.md + 本表 + REQUIREMENTS M2 族登记；**用户签核 D1-D6 后开工** | — |
+| M2-0 | 测绘与规格 | ✅ 闭环（ALCEDO-FEATURE-MAP.md + 本表 + REQUIREMENTS M2 族登记 + D1-D6 用户签核全按推荐） | — |
 | M2-1 | dt 面 feature-flag 禁用 | 39 iop 审计→启用/禁用矩阵（D1/D2/D6 裁决落地）；ModuleRegistry flag 默认面收窄；预设/MCP 默认面收窄；回归全绿 | M2-0 |
 | M2-2 | 图库与项目模型（Alcedo 方式） | SQLite 单项目文件包（D3）；相册骨架 Sleeve/Folder/Filter（智能相册）；文件夹导入引用式 + RAW-only 过滤；Image 物化搜索列 + EXIF 词法检索（`iso800`/`f2.8`/`35mm` AND 组合，~20ms@2万张 对标）；Sessions/Catalogs UI 剥离 | M2-0 |
 | M2-3 | UI 壳重设计（Alcedo 克隆） | 双工作区（Library/Editor）；图库 = 网格 + Album Inspector（四分组 + Activity view + Overview 卡）+ 全局搜索三合一（EXIF/CLIP/全文）；编辑器 = 左工具轨（History/Versions/Nodes）+ 中视口（FIT/缩放读出/双级 busy）+ 胶片条 + 右示波器（直方图/波形）+ 七页签调整栈（Tone/Look/LUT/Display Transform/Geometry/RAW Decode/Mask）；设置页族 | M2-2 |

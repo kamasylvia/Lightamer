@@ -5,7 +5,7 @@
 
 > ⚠️ **2026-09-27 项目重定义（用户指令）**：产品目标改为 **macOS 独占、RAW 9 解码、UI 完全模仿 Alcedo Studio 的 Alcedo 克隆**；dt 独有已交付代码保留但默认不启用；图片管理改 Alcedo 方式（Sessions/Catalogs 剥离）；导出格式保留原矩阵、可选项按 Alcedo；水印相框保留 yiyin；蒙版 = Alcedo + Nitro Photo（不用 dt 方案）；以上全部属 **V1**。**下方既存 v1 Requirements 为里程碑 1 历史账（已交付面照旧有效，交付面被剥离者标 disabled）**；新 V1 需求家族待 `ALCEDO-FEATURE-MAP.md` 测绘落盘后统一登记（ROADMAP M2-0），本文件暂不重写历史节。V2 节 ALCE-01/04/05/06/07 随重定义**提级 V1**；ALCE-02（OpenEXR）/ALCE-03（Ultra HDR JPEG）维持 V2（用户：导出格式保留原方案）。
 
-## V1 Requirements — Milestone 2: Alcedo V1（2026-09-27 重定义；M2-0 细化，待用户签核 D1-D6）
+## V1 Requirements — Milestone 2: Alcedo V1（2026-09-27 重定义；✅ D1-D6 已签核全按推荐，M2-1 起可执行）
 
 > 规格锚点 = `research/ALCEDO-FEATURE-MAP.md`（章节号见各条）。粒度 = family 级，phase discuss 时再拆 task。M1 历史需求族（下方既存各节）作为已交付资产账本继续有效；本节为唯一活跃 V1 面。
 
