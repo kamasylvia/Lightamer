@@ -451,7 +451,7 @@ final class McpHostTests: XCTestCase {
     /// endpoint json, and the piped three-step handshake (initialize →
     /// notifications/initialized → tools/list) answers with the probe
     /// toolset.
-    func testStdioHostHoldsLockWritesNoJSONAndHandshakes() async throws {
+    func testStdioHostHelloRoundTripHoldsLockWritesNoJSON() async throws {
         let process = Process()
         process.executableURL = try XCTUnwrap(Bundle.main.executableURL)
         process.arguments = ["--mcp-stdio"]
@@ -472,19 +472,39 @@ final class McpHostTests: XCTestCase {
             #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"host-tests","version":"0.0.1"}}}"#
         let initialized = #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#
         let listTools = #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#
-        let payload = Data("\(initialize)\n\(initialized)\n\(listTools)\n".utf8)
+        let pingCall =
+            #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ping","arguments":{"echo":"consistency-probe"}}}"#
+        let countCall =
+            #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"count_images"}}"#
+        let payload = Data(
+            "\(initialize)\n\(initialized)\n\(listTools)\n\(pingCall)\n\(countCall)\n".utf8)
         try stdin.fileHandleForWriting.write(contentsOf: payload)
 
-        // Deadline-bounded response pump.
+        // Deadline-bounded response pump (id-paired — order not guaranteed).
         let responses = try await Self.pumpLines(
-            stdout.fileHandleForReading, expectedLines: 2, timeout: 60)
+            stdout.fileHandleForReading, expectedLines: 4, timeout: 60)
+        let initResponse = try XCTUnwrap(
+            responses.first(where: { $0.contains(#""id":1"#) }), "initialize response")
         XCTAssertTrue(
-            responses[0].contains(#""protocolVersion":"2025-11-25""#)
-                || responses[0].contains(#""protocolVersion": "2025-11-25""#),
-            "initialize must negotiate the pinned protocol version: \(responses[0])")
+            initResponse.contains(#""protocolVersion":"2025-11-25""#),
+            "initialize must negotiate the pinned protocol version: \(initResponse)")
+        let listResponse = try XCTUnwrap(
+            responses.first(where: { $0.contains(#""id":2"#) }), "tools/list response")
         XCTAssertTrue(
-            responses[1].contains("count_images") && responses[1].contains("ping"),
-            "tools/list must carry the probe toolset: \(responses[1])")
+            listResponse.contains("count_images") && listResponse.contains("ping"),
+            "tools/list must carry the probe toolset: \(listResponse)")
+
+        // The hello round trip — the SAME expected tuple the HTTP and
+        // InMemory forms assert in testHelloConformanceAcrossThreeHostForms
+        // (three forms, one kernel, identical results).
+        let pingLine = try XCTUnwrap(
+            responses.first(where: { $0.contains(#""id":3"#) }), "ping response")
+        XCTAssertTrue(
+            pingLine.contains("consistency-probe"), "stdio ping echo: \(pingLine)")
+        let countLine = try XCTUnwrap(
+            responses.first(where: { $0.contains(#""id":4"#) }), "count_images response")
+        XCTAssertTrue(
+            countLine.contains("no-session"), "stdio count_images: \(countLine)")
 
         // D2: the stdio host holds the lock but writes NO discovery json —
         // even while it is up and serving.
@@ -495,7 +515,8 @@ final class McpHostTests: XCTestCase {
     }
 
     /// Reads until `expectedLines` newline-terminated JSON lines arrived
-    /// (deadline-bounded; non-blocking-ish via a reader queue).
+    /// (deadline-bounded; tolerant of the final line lacking its newline —
+    /// split() counts complete segments, components() would not).
     private static func pumpLines(
         _ handle: FileHandle, expectedLines: Int, timeout: TimeInterval
     ) async throws -> [String] {
@@ -509,7 +530,7 @@ final class McpHostTests: XCTestCase {
                 if chunk.isEmpty { break }
                 data.append(chunk)
                 let text = String(data: data, encoding: .utf8) ?? ""
-                if text.components(separatedBy: "\n").count > expectedLines {
+                if text.split(separator: "\n").count >= expectedLines {
                     break
                 }
             }
@@ -518,7 +539,179 @@ final class McpHostTests: XCTestCase {
         }
         XCTAssertTrue(mcpBlockingWait(semaphore, timeout: timeout), "response pump timed out")
         let text = try XCTUnwrap(box.line)
-        return text.components(separatedBy: "\n").filter { !$0.isEmpty }
+        return text.split(separator: "\n").map(String.init)
+    }
+
+    // MARK: - T5: the Bearer valve (static shared token, R4)
+
+    /// Generation shape + the constant-time comparison truth table.
+    func testBearerTokenGenerateAndConstantTimeCompare() throws {
+        let token = try XCTUnwrap(McpBearerToken.generate())
+        XCTAssertEqual(token.count, 43, "32 bytes base64url unpadded = 43 chars")
+        XCTAssertFalse(token.contains("="), "no padding")
+        XCTAssertFalse(token.contains("+"))
+        XCTAssertFalse(token.contains("/"))
+        XCTAssertTrue(McpBearerValidator.constantTimeCompare(token, token))
+        XCTAssertTrue(McpBearerValidator.constantTimeCompare("", ""))
+        XCTAssertFalse(McpBearerValidator.constantTimeCompare(token, token + "x"))
+        XCTAssertFalse(McpBearerValidator.constantTimeCompare(token, String(token.reversed())))
+        XCTAssertFalse(McpBearerValidator.constantTimeCompare("short", "longer-token"))
+    }
+
+    /// Keychain truth + 0600 fallback: store → load round-trips, delete
+    /// removes both faces.
+    func testBearerTokenStoreLoadDelete() throws {
+        defer { McpBearerToken.deleteAll() }
+        McpBearerToken.deleteAll()  // clean slate
+        XCTAssertNil(McpBearerToken.load())
+
+        let token = try XCTUnwrap(McpBearerToken.generate())
+        try McpBearerToken.store(token)
+        XCTAssertEqual(
+            McpBearerToken.load(), token, "the token round-trips through storage")
+
+        McpBearerToken.deleteAll()
+        XCTAssertNil(McpBearerToken.load(), "delete removes the token everywhere")
+
+        // The fallback file (when present) is 0600 — never world-readable.
+        let fallback = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".lightamer/mcp-token")
+        try FileManager.default.createDirectory(
+            at: fallback.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("fallback-token".utf8).write(to: fallback)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o600], ofItemAtPath: fallback.path)
+        defer { try? FileManager.default.removeItem(at: fallback) }
+        let permissions = try FileManager.default.attributesOfItem(
+            atPath: fallback.path)[.posixPermissions] as? NSNumber
+        XCTAssertEqual(
+            permissions?.uint16Value, 0o600,
+            "the fallback file must be owner-only")
+    }
+
+    /// The valve, directly: missing header / malformed scheme / wrong token
+    /// all 401; the exact token passes (nil error).
+    func testBearerValidatorUnit() throws {
+        let token = try XCTUnwrap(McpBearerToken.generate())
+        let validator = McpBearerValidator(token: token)
+        let context = HTTPValidationContext(httpMethod: "POST")
+
+        func validated(_ authorization: String?) -> Int? {
+            var headers: [String: String] = [:]
+            if let authorization { headers["Authorization"] = authorization }
+            let request = HTTPRequest(method: "POST", headers: headers, body: nil, path: "/mcp")
+            return validator.validate(request, context: context)?.statusCode
+        }
+
+        XCTAssertNil(validated("Bearer \(token)"), "the exact token passes")
+        XCTAssertEqual(validated(nil), 401, "no header = 401")
+        XCTAssertEqual(validated("Basic dXNlcjpwYXNz"), 401, "wrong scheme = 401")
+        XCTAssertEqual(validated("Bearer "), 401, "empty bearer = 401")
+        XCTAssertEqual(validated("Bearer wrong-token"), 401, "wrong token = 401")
+    }
+
+    /// The .lan exposure branch end-to-end: binds, mandates the token via
+    /// the appended validator, and marks the discovery file auth=bearer.
+    func testLANExposureRequiresBearerToken() async throws {
+        defer { McpBearerToken.deleteAll() }
+        McpBearerToken.deleteAll()
+
+        let handle = try await McpServerController.startHTTPHost(
+            paths: paths, storeProvider: { nil }, exposure: .lan)
+
+        // The discovery file marks the face (the token itself NEVER rides it).
+        guard case .alive(let info) = McpEndpointDiscovery.discover(in: paths) else {
+            return XCTFail("the lan host must be discoverable")
+        }
+        XCTAssertEqual(info.auth, McpEndpointInfo.authBearer)
+        XCTAssertEqual(info.host, McpServerController.lanHost)
+
+        let initializeBody =
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}"#
+        func post(authorization: String?) async -> Int {
+            var headers = [
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
+            ]
+            if let authorization { headers["Authorization"] = authorization }
+            let request = HTTPRequest(
+                method: "POST", headers: headers,
+                body: Data(initializeBody.utf8), path: "/mcp")
+            return await handle.host.handleHTTPRequest(request).statusCode
+        }
+
+        let token = try XCTUnwrap(McpBearerToken.load(), "the host stored a token")
+        let noToken = await post(authorization: nil)
+        let wrongToken = await post(authorization: "Bearer wrong")
+        let realToken = await post(authorization: "Bearer \(token)")
+        XCTAssertEqual(noToken, 401, "no token = 401")
+        XCTAssertEqual(wrongToken, 401, "wrong token = 401")
+        XCTAssertEqual(realToken, 200, "the real token passes")
+
+        await handle.stop()
+    }
+
+    // MARK: - T5: hello conformance across the THREE host forms
+
+    /// The plan's SC-level red line: ONE registry kernel, THREE transports —
+    /// stdio (a real subprocess), Streamable HTTP (SDK client over the NIO
+    /// leg) and InMemory (in-process) — all produce IDENTICAL tool results.
+    func testHelloConformanceAcrossThreeHostForms() async throws {
+        // THREE FORMS, ONE KERNEL, IDENTICAL RESULTS:
+        //   HTTP      → this test (SDK client ↔ the NIO leg, live host)
+        //   InMemory  → this test (SDK client ↔ the same kernel in-process)
+        //   stdio     → testStdioHostHoldsLockWritesNoJSONAndHandshakes
+        //               (a REAL subprocess of this binary over the SAME
+        //               kernel; its pump asserts the identical result tuple:
+        //               tools/list = {ping, count_images}, ping echo,
+        //               count_images = "no-session")
+        // The shared expected tuple every form must produce.
+        let expectedPing = McpToolOutput.Content.text("consistency-probe")
+        let expectedCount = McpToolOutput.Content.text("no-session")
+
+        // ── HTTP form ──
+        let httpHandle = try await McpServerController.startHTTPHost(
+            paths: paths, storeProvider: { nil })
+        let endpoint = URL(string: "http://127.0.0.1:\(httpHandle.port)/mcp")!
+        let httpTransport = HTTPClientTransport(endpoint: endpoint)
+        let httpClient = MCP.Client(name: "conformance", version: "0.0.1")
+        try await httpClient.connect(transport: httpTransport)
+        let httpTools = try await httpClient.listTools().tools.map(\.name)
+        let httpPing = McpAdapters.outputContent(
+            from: try await httpClient.callTool(
+                name: "ping", arguments: ["echo": .string("consistency-probe")]
+            ).content[0])
+        let httpCount = McpAdapters.outputContent(
+            from: try await httpClient.callTool(name: "count_images").content[0])
+        await httpClient.disconnect()
+        await httpHandle.stop()
+
+        XCTAssertEqual(
+            Set(httpTools), ["ping", "count_images"], "HTTP tools/list")
+        XCTAssertEqual(httpPing, expectedPing, "HTTP ping echo")
+        XCTAssertEqual(httpCount, expectedCount, "HTTP count_images no-session")
+
+        // ── InMemory form ──
+        let registry = await McpServerController.makeRegistry(storeProvider: { nil })
+        let pair = await InMemoryTransport.createConnectedPair()
+        let memoryServer = await McpAdapters.makeServer(registry: registry)
+        try await memoryServer.start(transport: pair.server)
+        let memoryClient = MCP.Client(name: "conformance", version: "0.0.1")
+        try await memoryClient.connect(transport: pair.client)
+        let memoryTools = try await memoryClient.listTools().tools.map(\.name)
+        let memoryPing = McpAdapters.outputContent(
+            from: try await memoryClient.callTool(
+                name: "ping", arguments: ["echo": .string("consistency-probe")]
+            ).content[0])
+        let memoryCount = McpAdapters.outputContent(
+            from: try await memoryClient.callTool(name: "count_images").content[0])
+        await memoryClient.disconnect()
+        await memoryServer.stop()
+
+        XCTAssertEqual(memoryTools, httpTools, "InMemory tools/list ≡ HTTP")
+        XCTAssertEqual(memoryPing, expectedPing, "InMemory ping ≡ HTTP ≡ stdio")
+        XCTAssertEqual(
+            memoryCount, expectedCount, "InMemory count_images ≡ HTTP ≡ stdio")
     }
 }
 

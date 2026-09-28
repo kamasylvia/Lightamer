@@ -191,19 +191,70 @@ enum McpServerController {
         }
     }
 
-    /// Assembles and starts one HTTP host: writer lock → bind (127.0.0.1
-    /// hardcoded, random port by default — the ACTUAL port rides the handle
-    /// and the discovery file) → write discovery json → serve. Throws
+    /// Assembles and starts one HTTP host: writer lock → bind (loopback
+    /// hardcoded, ephemeral port by default — the ACTUAL port rides the
+    /// handle and the discovery file) → write discovery json → serve. Throws
     /// `McpHostError.writerLockHeld` when another instance is the writer —
     /// an HTTP host without the writer right is NOT started read-only
     /// (read-only makes sense for a stdio agent session; a daemon whose
     /// entire purpose is being discovered must not fake-liven the network).
+    ///
+    /// Exposure (D-14-CONTEXT-6①): the loopback default carries NO token
+    /// (auth "none"). The `.lan` branch binds 0.0.0.0 and MANDATES the
+    /// Bearer valve (generate+keychain-store on first start); the 14-4
+    /// Settings UI will be the only user-facing way to reach it.
+    enum McpExposure {
+        case loopback
+        case lan
+    }
+
+    /// The LAN binding constant (the non-loopback branch; 14-4 UI gate).
+    static let lanHost = "0.0.0.0"
+
+    /// The SDK default pipeline (Origin → Accept → Content-Type →
+    /// Protocol-Version → Session) + the Bearer valve APPENDED — the plan's
+    /// assertion order, spelled out so the Bearer valve can never preempt a
+    /// transport-level validation.
+    static func validationPipelineWithBearer(
+        token: String
+    ) -> any HTTPRequestValidationPipeline {
+        StandardValidationPipeline(validators: [
+            OriginValidator.localhost(),
+            AcceptHeaderValidator(mode: .sseRequired),
+            ContentTypeValidator(),
+            ProtocolVersionValidator(),
+            SessionValidator(),
+            McpBearerValidator(token: token),
+        ])
+    }
+
     static func startHTTPHost(
         paths: McpEndpointPaths,
         storeProvider: @escaping StoreProvider,
         port: Int = 0,
-        validationPipeline: (any HTTPRequestValidationPipeline)? = nil
+        exposure: McpExposure = .loopback
     ) async throws -> HttpHostHandle {
+        // The Bearer valve exists ONLY on the non-loopback branch (the
+        // loopback default is zero-token by design — the smallest surface).
+        let bearerToken: String?
+        let bindHost: String
+        switch exposure {
+        case .loopback:
+            bearerToken = nil
+            bindHost = McpHTTPHost.loopbackHost
+        case .lan:
+            bindHost = lanHost
+            if let existing = McpBearerToken.load() {
+                bearerToken = existing
+            } else {
+                guard let fresh = McpBearerToken.generate() else {
+                    throw McpHostError.underlying("bearer token generation failed")
+                }
+                try McpBearerToken.store(fresh)
+                bearerToken = fresh
+            }
+        }
+
         let lock: McpEndpointLock
         switch McpEndpointLock.acquire(in: paths) {
         case .success(let acquired):
@@ -217,9 +268,10 @@ enum McpServerController {
             let registry = await makeRegistry(storeProvider: storeProvider)
             // The host holds the writer right by construction.
             await registry.setWriterCheck { true }
+            let pipeline = bearerToken.map { validationPipelineWithBearer(token: $0) }
             let host = McpHTTPHost(
-                configuration: .init(port: port),
-                validationPipeline: validationPipeline
+                configuration: .init(host: bindHost, port: port),
+                validationPipeline: pipeline
             ) { transport in
                 // One Server actor per SESSION, the SAME kernel.
                 await McpAdapters.makeServer(registry: registry)
@@ -232,13 +284,13 @@ enum McpServerController {
             let info = McpEndpointInfo(
                 schemaVersion: McpEndpointInfo.schemaVersionV1,
                 transport: McpEndpointInfo.transportStreamableHTTP,
-                host: McpHTTPHost.loopbackHost,
+                host: bindHost,
                 port: bound,
                 pid: getpid(),
                 startedAt: McpEndpointInfo.nowISO8601(),
                 serverName: serverName,
                 serverVersion: serverVersion,
-                auth: McpEndpointInfo.authNone)
+                auth: bearerToken == nil ? McpEndpointInfo.authNone : McpEndpointInfo.authBearer)
             try McpEndpointFile.write(info, in: paths)
             return HttpHostHandle(host: host, port: bound, lock: lock, paths: paths)
         } catch {
