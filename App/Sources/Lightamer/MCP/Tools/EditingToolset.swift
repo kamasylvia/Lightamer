@@ -86,6 +86,10 @@ enum EditingToolset {
         /// `McpTimeouts` production constants.
         var renderTimeoutOverride: Double?
 
+        /// Test seam: apply_params timeout override (seconds). nil = the
+        /// `McpTimeouts.apply` production constant (D-14-2-T6-1).
+        var applyTimeoutOverride: Double?
+
         /// The WRITE serial gate: apply_params runs under a FIFO mutex so
         /// two concurrent MCP writes never interleave their three segments
         /// (§RQ-14-14: write-face requests queue, they do not reject).
@@ -483,6 +487,8 @@ enum EditingToolset {
         return try await gate.withRenderGate {
             // GUI-live HARD rejection (single-image semantics — the 14-3
             // apply_preset batch face is the SOFT skip; D8 keeps them apart).
+            // Deliberately OUTSIDE the apply budget: the judge is a fast
+            // MainActor read, and the rejection must not race a timer.
             if let live = await seams.liveImageURL(),
                 live.standardizedFileURL.path
                     == member.imageURL.standardizedFileURL.path
@@ -493,46 +499,65 @@ enum EditingToolset {
                         + "user to close it and retry, or edit in the GUI instead")
             }
 
-            // The upsert projection off the DISK truth (pristine = the
-            // editing seed — the editor's own fresh-load convention).
-            let modules = await seams.modules()
-            let document = ExportRenderer.readDocument(imageURL: member.imageURL)
-            let current: [ModuleInstance]
-            if let document {
-                current = document.instances
-            } else {
-                current = await Self.editingSeed(modules: modules)
-            }
-            let desired = try await Self.projectInstances(
-                current: current, ops: ops, modules: modules)
+            // The apply body races the §RQ-14-14 timeout (`McpTimeouts.apply`
+            // = 10s; D-14-2-T6-1): compose + claim + write + flush is all
+            // local-disk work with a large margin — a timeout is the
+            // internal-exception face (the 14-1 frozen error table is not
+            // extended for it).
+            let seconds = seams.applyTimeoutOverride
+                ?? durationSeconds(McpTimeouts.apply)
+            do {
+                return try await QuickLookRenderer.boundedWait(seconds: seconds) {
+                    // The upsert projection off the DISK truth (pristine =
+                    // the editing seed — the editor's own fresh-load
+                    // convention).
+                    let modules = await seams.modules()
+                    let document = ExportRenderer.readDocument(imageURL: member.imageURL)
+                    let current: [ModuleInstance]
+                    if let document {
+                        current = document.instances
+                    } else {
+                        current = await Self.editingSeed(modules: modules)
+                    }
+                    let desired = try await Self.projectInstances(
+                        current: current, ops: ops, modules: modules)
 
-            // Idempotence: an apply whose projection equals the current
-            // document writes NOTHING (byte-identical retries are safe,
-            // §RQ-14-5②).
-            if desired == current {
-                return .text(
-                    "applied=nothing (already in the requested state) relPath=\(relPath)")
-            }
+                    // Idempotence: an apply whose projection equals the
+                    // current document writes NOTHING (byte-identical retries
+                    // are safe, §RQ-14-5②).
+                    if desired == current {
+                        return McpToolOutput([.text(
+                            "applied=nothing (already in the requested state) "
+                                + "relPath=\(relPath)")])
+                    }
 
-            let payload = PastePayload(
-                sourceImageID: UUID(), sourceURL: nil, instances: desired,
-                layerStack: document?.layerStack, copiedAt: Date())
-            let writer = BatchSidecarWriter(root: member.root, store: member.store)
-            let outcome = await SessionBatchApplier.apply(
-                root: member.root, relPaths: [relPath], payload: payload,
-                mode: .overwrite, seed: [], liveRelPaths: [],
-                store: member.store, writer: writer,
-                timestamp: Date(), label: "MCP apply_params")
-            guard outcome.appliedRelPaths.contains(relPath) else {
+                    let payload = PastePayload(
+                        sourceImageID: UUID(), sourceURL: nil, instances: desired,
+                        layerStack: document?.layerStack, copiedAt: Date())
+                    let writer = BatchSidecarWriter(root: member.root, store: member.store)
+                    let outcome = await SessionBatchApplier.apply(
+                        root: member.root, relPaths: [relPath], payload: payload,
+                        mode: .overwrite, seed: [], liveRelPaths: [],
+                        store: member.store, writer: writer,
+                        timestamp: Date(), label: "MCP apply_params")
+                    guard outcome.appliedRelPaths.contains(relPath) else {
+                        throw McpToolError.internalError(
+                            "apply_params compose/claim did not land for '\(relPath)'")
+                    }
+                    // The write lands BEFORE the tool returns (the agent's
+                    // next render_preview reads the new state, not a drain
+                    // race).
+                    await writer.flushForTeardown()
+                    return McpToolOutput([.text(
+                        "applied=\(relPath) ops=\(ops.count) "
+                            + "(one undoable commit; render_preview now reflects it)")])
+                }
+            } catch let timeout as QuickLookRenderer.RenderTimeout {
                 throw McpToolError.internalError(
-                    "apply_params compose/claim did not land for '\(relPath)'")
+                    "apply_params timed out after \(timeout.seconds)s for '\(relPath)' "
+                        + "— the compose/claim/write pipeline did not answer; applies "
+                        + "are idempotent, check load_image and retry once")
             }
-            // The write lands BEFORE the tool returns (the agent's next
-            // render_preview reads the new state, not a drain race).
-            await writer.flushForTeardown()
-            return .text(
-                "applied=\(relPath) ops=\(ops.count) "
-                    + "(one undoable commit; render_preview now reflects it)")
         }
     }
 

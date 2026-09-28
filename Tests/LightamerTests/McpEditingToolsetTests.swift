@@ -344,6 +344,42 @@ final class McpEditingToolsetTests: XCTestCase {
         }
     }
 
+    /// The apply body races `McpTimeouts.apply` (D-14-2-T6-1): a compose leg
+    /// stalled past the budget surfaces the typed internalError face within
+    /// a bounded time. The loser-finishes posture applies (the cancelled leg
+    /// may still complete into the disk) — the idempotent retry is the
+    /// recovery contract, §RQ-14-5②.
+    func testApplyParamsTimeoutIsTypedInternalError() async throws {
+        let (root, _, store) = try await makeSession()
+        let populated = await populatedModules()
+        var seams = EditingToolset.Seams(
+            session: { (store, root) },
+            metal: { nil },
+            modules: {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                return populated
+            },
+            gate: McpRenderGate(),
+            liveImageURL: { nil })
+        seams.writeGate = McpRenderGate()
+        seams.applyTimeoutOverride = 0.15
+        let registry = await makeRegistry(seams: seams)
+
+        let start = DispatchTime.now()
+        do {
+            _ = try await Self.applyOp(
+                registry, relPath: "Capture/DSC00012.ARW", opName: "exposure",
+                params: ["exposure": .double(0.3)])
+            XCTFail("a stalled apply must surface internalError")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "internalError")
+            XCTAssertTrue(error.message.contains("timed out"))
+        }
+        let elapsed = Double(
+            DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
+        XCTAssertLessThan(elapsed, 5.0, "the timeout must be bounded")
+    }
+
     // MARK: - T2: load_image (the stateless read view)
 
     func testLoadImageViewReflectsTheSavedState() async throws {

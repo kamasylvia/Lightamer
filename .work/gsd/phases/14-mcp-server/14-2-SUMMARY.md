@@ -87,7 +87,11 @@ creative 三域）→ render_preview 1024/q85 → **与本地渲染字节级一�
 
 ## 新增测试账（理论 +29）
 
-- McpRenderParityTests：8（T1）→ 10（T5 +SC#3，快照测试并入 Snapshot 文件）
+- McpRenderParityTests：9（T1，含当时并入的 editing 快照测试）→ 8（T2 快照测试移入
+  Snapshot 文件）→ 9（T5 +SC#3 端到端）【验收轮勘误：原记 "8(T1)→10(T5)"，git show
+  0062575 实测 T1=9、终态=9；总数 +29 不变 = 9+19+1】
 - McpEditingToolsetTests：13（T2）→ 14（T3 +guard/list 形状）→ 19（T4 +5 export）
 - McpRegistrySnapshotTests：8 → 9（editing 域快照）
 - （临时 dump 测试用后即删，未入库）
+- （验收轮 +1：`testApplyParamsTimeoutIsTypedInternalError`——apply boundedWait 补缝的
+  回归测试，随 fix(14-2) 提交，不计入本 plan 申报账）
