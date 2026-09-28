@@ -352,4 +352,67 @@ final class DefaultFaceTests: XCTestCase {
         // The narrowed registry is exactly the full registry minus 6.
         XCTAssertEqual(fullNames.count - narrowNames.count, 6)
     }
+
+    // MARK: - T3: the MCP catalog + tool face
+
+    /// AC7: the default-face MCP seams narrow the list_iops output to the
+    /// 15 cataloged enabled ops (the D1 trio drops) while the tool
+    /// registration face stays intact (M2DIS-05: no tool is deleted — the
+    /// 19-tool closed set is pinned by McpRegistrySnapshotTests, zero
+    /// changes) and IopCatalog.ops keeps all 18 entries (the reflection
+    /// guard's data source, untouched — KD-2).
+    func testMCPDefaultFaceCatalogAndToolFace() async throws {
+        XCTAssertEqual(IopCatalog.ops.count, 18, "the catalog table is untouched")
+        XCTAssertEqual(IopCatalog.defaultFaceOps().count, 15)
+
+        let narrowRegistry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(narrowRegistry, defaultFace: true)
+        let narrowSeams = EditingToolset.Seams(
+            session: { nil }, metal: { nil }, modules: { narrowRegistry },
+            defaultFace: true)
+        let narrowTools = McpToolRegistry()
+        await EditingToolset.register(into: narrowTools, seams: narrowSeams)
+        let output = try await narrowTools.call(name: "list_iops", arguments: [:])
+        guard case .text(let text) = output.content.first else {
+            return XCTFail("expected text output")
+        }
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(text.utf8), options: [])
+                as? [String: Any])
+        let ops = try XCTUnwrap(object["ops"] as? [[String: Any]])
+        let names = ops.compactMap { $0["opName"] as? String }
+        XCTAssertEqual(names.count, 15)
+        for name in ["sigmoid", "agx", "filmicrgb"] {
+            XCTAssertFalse(
+                names.contains(name),
+                "\(name) must be absent from the default-face catalog")
+        }
+        XCTAssertTrue(names.contains("temperature"))
+
+        // The KD-2 reverse pin at the tool face: full-face seams keep all
+        // 18 entries (the default-face parameter on catalogJSON).
+        let fullRegistry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(fullRegistry)
+        let fullSeams = EditingToolset.Seams(
+            session: { nil }, metal: { nil }, modules: { fullRegistry })
+        XCTAssertFalse(fullSeams.defaultFace, "test seams default to full face")
+        let fullTools = McpToolRegistry()
+        await EditingToolset.register(into: fullTools, seams: fullSeams)
+        let fullOutput = try await fullTools.call(name: "list_iops", arguments: [:])
+        guard case .text(let fullText) = fullOutput.content.first else {
+            return XCTFail("expected text output")
+        }
+        let fullObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(fullText.utf8), options: [])
+                as? [String: Any])
+        let fullOps = try XCTUnwrap(fullObject["ops"] as? [[String: Any]])
+        let fullNames = fullOps.compactMap { $0["opName"] as? String }
+        XCTAssertEqual(fullNames.count, 18)
+        XCTAssertTrue(fullNames.contains("filmicrgb"))
+
+        // M2DIS-05: the editing tool face still REGISTERS list_iops (no
+        // tool deleted — the registration face, not just the output).
+        let descriptors = await narrowTools.descriptors()
+        XCTAssertTrue(descriptors.contains { $0.name == "list_iops" })
+    }
 }

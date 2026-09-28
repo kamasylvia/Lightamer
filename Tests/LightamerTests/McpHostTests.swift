@@ -1,4 +1,5 @@
 import LightamerCore
+import LightamerIOP
 import MCP
 import XCTest
 
@@ -716,14 +717,19 @@ final class McpHostTests: XCTestCase {
     }
 
     /// The canonical list_iops text every host form must produce (the
-    /// catalog is session-independent — 18 tone/color iops).
+    /// catalog is session-independent — 18 tone/color iops). M2-1: the
+    /// expected tuple rides the SAME face switch the production hosts
+    /// assemble with (`!isFullFaceRequested` — makeEditingSeams), so the
+    /// three-form conformance compares identical faces: 18 ops under
+    /// LIGHTAMER_FULL_IOP_FACE=1, the narrowed 15 in the default face.
     private static func expectedListIopsText() async throws -> String {
         let registry = McpToolRegistry()
         await EditingToolset.register(
             into: registry,
             seams: EditingToolset.Seams(
                 session: { nil }, metal: { nil }, modules: { ModuleRegistry() },
-                gate: McpRenderGate(), liveImageURL: { nil }))
+                gate: McpRenderGate(), liveImageURL: { nil },
+                defaultFace: !LightamerIOPRegistry.isFullFaceRequested))
         let output = try await registry.call(name: "list_iops", arguments: [:])
         guard case .text(let text) = output.content.first else {
             XCTFail("list_iops must answer a text payload")

@@ -1,5 +1,6 @@
 import Foundation
 import LightamerCore
+import LightamerIOP
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IopCatalog (Plan 14-2 T3; §RQ-14-6) — the handwritten per-op params schema
@@ -279,10 +280,29 @@ enum IopCatalog {
             ]),
     ]
 
-    /// The catalog face for `list_iops`: a JSON document of the full table.
-    static func catalogJSON() throws -> String {
+    /// M2-1 (KD-1): the DEFAULT-face catalog source — `ops` filtered
+    /// against the registry's disable-set constant (the matrix machine
+    /// twin). Of the 18 cataloged ops exactly the D1 trio
+    /// sigmoid/agx/filmicrgb is disabled, so the default face lists 15;
+    /// the D2 trio was never cataloged (the denoise family is
+    /// deliberately outside the table — the COVERAGE note above).
+    /// `ops` itself is untouched: the reflection guard
+    /// (McpEditingToolsetTests) pins the 18-entry table against the
+    /// modules' encoded defaults (KD-2 zero-change).
+    static func defaultFaceOps() -> [Op] {
+        ops.filter {
+            !LightamerIOPRegistry.defaultFaceDisabledOpNames.contains($0.opName)
+        }
+    }
+
+    /// The catalog face for `list_iops`: a JSON document of the table.
+    /// M2-1: `defaultFace: true` selects `defaultFaceOps()` (15 — no keys
+    /// for ops the write face would reject); default `false` keeps the
+    /// full 18 (KD-2).
+    static func catalogJSON(defaultFace: Bool = false) throws -> String {
+        let faceOps = defaultFace ? defaultFaceOps() : ops
         let object: [String: Any] = [
-            "ops": ops.map { op -> [String: Any] in
+            "ops": faceOps.map { op -> [String: Any] in
                 [
                     "opName": op.opName,
                     "display": op.display,
