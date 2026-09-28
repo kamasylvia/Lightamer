@@ -286,3 +286,18 @@ locale 的 Bundle 解析停在该表（不再向 zh.lproj 回退）——**全 a
 **现象**：Release `build-for-testing` 直启测试束报 `dlopen ... Symbol not found: _$s13LightamerCore...`（mangled 签名 `A2_`/`A3_` 模块引用差异）；排查中两份 `LightamerCore.framework`（DerivedData 根 + app 内嵌）UUID 相同，排除「陈旧副本被优先加载」。真因 = 更早一次构建实际 **TEST BUILD FAILED**——`xcodebuild ... | tail -3; echo $?` 管道让 `$?` 取自 `tail`（恒 0），失败被吞；失败构建留下混合代际产物（旧 LightamerCore + 新测试束）。
 
 **对策**：① xcodebuild 退出码**不进管道**——先重定向落日志再 `echo $?`，或判据改读日志内 `** TEST BUILD SUCCEEDED **` 行（同 test-direct.sh「判据 = 结果行非退出态」的镜像教训：退出态与结果行**都要**看，各防一类假绿）；② 测试束 dlopen 符号错配（同 UUID 框架缺符号）= 混合代际产物症状，处置 = 删该配置 `Build/Products/<config>` 目录全量重编，不逐符号考古；③ 增量编译从未重编的既有测试文件在首次全量重编时才暴露编译错（本轮 CatalogOrganizationTests 的 await-in-autoclosure），切构建方式/重生成工程后预期一轮「编译修复批」；④ `tuist generate` 重生成 pbxproj 后等同全量重编译语义，调度上要预留修复窗口。
+
+## L035: 异步测试的抛错会被任务取消语义吞成 `CancellationError()`——分段 do/catch 打点定位是唯一可靠手段（2026-09-28，14-4 T3 SC#7 链测试）
+
+**现象**：SC#7 链测试报 `caught error: "CancellationError()"`，但分段打点后真实抛点是
+`JSONSerialization` 的 "Unable to parse empty data"（SSE `data:` 空载荷行）与
+invalidFilter——与取消毫无关系。XCTest async 测试的默认 per-test 任务在被取消（或
+foundation/transport 层在错误传播路径上触发取消）时，顶层报错呈现为 CancellationError，
+**真实首错被吞**；`Task.sleep` 轮询等待还会把取消放大成必现红。
+
+**处置**：①轮询等待改裸循环 + `usleep`（不 sleep 不 throw，对取消免疫——McpHostTests
+`mcpBlockingWait` 同款纪律的推广）；②嫌疑 await 逐个包 `do { } catch { print(位置);
+throw }` 二分定位真实抛点；③解析器宽容化（空载荷跳过、失败回退原文），断言放测试层说话。
+
+**教训**：异步测试看到 CancellationError 时**不要相信它**——它是包装纸不是病灶；先分段
+catch 打点找真实首错，再修根因。等待原语在测试里一律用不抛的 bounded 轮询。

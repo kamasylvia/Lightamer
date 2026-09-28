@@ -419,16 +419,16 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 | DIST-02 | Phase 13 — System Integration & Distribution | **Removed**（2026-09-27 用户终裁砍 Apple 渠道） |
 | DIST-03 | Phase 13 — System Integration & Distribution | **Delivered** |
 | DIST-04 | Phase 13 — System Integration & Distribution | **Delivered**（范围修订：无签名/公证） |
-| MCP-01 | Phase 14 — MCP Server | Pending |
-| MCP-02 | Phase 14 — MCP Server | Pending |
-| MCP-03 | Phase 14 — MCP Server | Pending |
-| MCP-04 | Phase 14 — MCP Server | Pending |
-| MCP-05 | Phase 14 — MCP Server | Pending |
-| MCP-06 | Phase 14 — MCP Server | Pending |
-| MCP-07 | Phase 14 — MCP Server | Pending |
-| MCP-08 | Phase 14 — MCP Server | Pending |
-| MCP-09 | Phase 14 — MCP Server | Pending |
-| MCP-10 | Phase 14 — MCP Server | Pending |
+| MCP-01 | Phase 14 — MCP Server | **Delivered**（2026-09-28） |
+| MCP-02 | Phase 14 — MCP Server | **Delivered**（2026-09-28） |
+| MCP-03 | Phase 14 — MCP Server | **Delivered**（2026-09-28） |
+| MCP-04 | Phase 14 — MCP Server | **Delivered**（2026-09-28） |
+| MCP-05 | Phase 14 — MCP Server | **Delivered**（2026-09-28） |
+| MCP-06 | Phase 14 — MCP Server | **Delivered**（2026-09-28） |
+| MCP-07 | Phase 14 — MCP Server | **Delivered**（2026-09-28） |
+| MCP-08 | Phase 14 — MCP Server | **Delivered**（2026-09-28） |
+| MCP-09 | Phase 14 — MCP Server | **Delivered**（2026-09-28） |
+| MCP-10 | Phase 14 — MCP Server | **Delivered**（2026-09-28） |
 | CATALOG-01 | Phase 16 — Catalogs Mode | Delivered（2026-09-27） |
 | CATALOG-02 | Phase 16 — Catalogs Mode | Delivered（2026-09-27） |
 | CATALOG-03 | Phase 16 — Catalogs Mode | Delivered（2026-09-27） |
@@ -476,16 +476,18 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 
 ### MCP Server (MCP)
 
-- [ ] **MCP-01**: MCP 工具集：load_image / apply_params / render_preview / iop 参数 schema 元数据，远程 client 可完成「载入 → 修图 → 取回预览图」闭环
-- [ ] **MCP-02**: 双入口：GUI 偏好开关（开即启动/关即停）与 CLI 无头拉起同一 server（无 GUI 进程）
-- [ ] **MCP-03**: 渲染一致性：MCP 返回的预览图与本地 GUI 渲染量化一致（同参数同输出）
-- [ ] **MCP-04**: 安全面：默认仅回环绑定；非回环暴露必须带鉴权 token
-- [ ] **MCP-05**: 筛选读面（2026-09-26 扩充）：list_photos（会话索引查询：EXIF 轻量列/rating/flag/has_edits）+ get_thumbnails（批量缩略图取回，档 A/B 缓存直读）+ get_contact_sheet（服务端拼图返回单图）+ get_detail_crop（原尺寸 ROI 局部裁剪）
-- [ ] **MCP-06**: 筛选写面（2026-09-26 扩充）：set_rating / set_flag / set_color_label / append_note——写回以 sidecar 为真，复用 Phase 9 批量管线（段1 内存变换 + 段2 索引单事务 + 段3 串行写队列）语义，GUI 缩略图 stale 再生联动可见
-- [ ] **MCP-07**: culling 辅助（2026-09-26 扩充）：burst/连拍分组查询（拍摄时间+机型聚类）+ 脸部区域定位（复用 Phase 7 Vision faceLandmarks 基建）支撑细节裁剪
-- [ ] **MCP-08**: 筛选写回安全边界（2026-09-26 扩充）：写回限元数据字段（rating/flag/color/note），禁止像素修改与文件删除/移动；传输安全同 MCP-04
-- [ ] **MCP-09**: 筛选/修图扩充工具组（2026-09-26 登记）：list_presets / apply_preset / diff_presets（预设三件套，上游依赖 PRES-01..04）+ export_image（尺寸/质量/格式落盘，render_preview 不落盘之补位）+ set_keywords（关键词写面，上游依赖 META-04）。**研究项**（Phase 14 research 定案）：A = GUI 与无头 MCP 同会话并发 sidecar 双写对策（WAL 仅覆盖索引层；单写者锁/后开者只读/移交）；B = 多版本参数组/历史快照 MCP 语义（多版本交付需保存/切换/对比参数组工具面）；C = match_color MCP 工具位（agent 编排层：选参考/批量触发 colormatch/强度/事后 apply_params 微调；签名预留，依赖 V2 TRACK colormatch iop，与 Phase 12 .cube LUT 协同）
-- [ ] **MCP-10**: GUI launcher（2026-09-26 用户裁决进 V1）：偏好存 agent CLI 启动命令模板（如 pi/omp）+ 可选任务 prompt 模板（筛图口径/修图审美方向）+「一键 AI 筛图/修图」动作——app 拉起 agent 进程挂自身 MCP server，写回由 server 完成（sidecar 真身），输出日志面板显示 agent 文字流；agent 的 provider 配置归 agent 自身体系，app 零 AI 代码；launcher 拉起路径 app 侧串行化（研究项 A）
+- [x] **MCP-01**: MCP 工具集：load_image / apply_params / render_preview / iop 参数 schema 元数据，远程 client 可完成「载入 → 修图 → 取回预览图」闭环
+- [x] **MCP-02**: 双入口：GUI 偏好开关（开即启动/关即停）与 CLI 无头拉起同一 server（无 GUI 进程）
+- [x] **MCP-03**: 渲染一致性：MCP 返回的预览图与本地 GUI 渲染量化一致（同参数同输出）
+- [x] **MCP-04**: 安全面：默认仅回环绑定；非回环暴露必须带鉴权 token
+- [x] **MCP-05**: 筛选读面（2026-09-26 扩充）：list_photos（会话索引查询：EXIF 轻量列/rating/flag/has_edits）+ get_thumbnails（批量缩略图取回，档 A/B 缓存直读）+ get_contact_sheet（服务端拼图返回单图）+ get_detail_crop（原尺寸 ROI 局部裁剪）
+- [x] **MCP-06**: 筛选写面（2026-09-26 扩充）：set_rating / set_flag / set_color_label / append_note——写回以 sidecar 为真，复用 Phase 9 批量管线（段1 内存变换 + 段2 索引单事务 + 段3 串行写队列）语义，GUI 缩略图 stale 再生联动可见
+- [x] **MCP-07**: culling 辅助（2026-09-26 扩充）：burst/连拍分组查询（拍摄时间+机型聚类）+ 脸部区域定位（复用 Phase 7 Vision faceLandmarks 基建）支撑细节裁剪
+- [x] **MCP-08**: 筛选写回安全边界（2026-09-26 扩充）：写回限元数据字段（rating/flag/color/note），禁止像素修改与文件删除/移动；传输安全同 MCP-04
+- [x] **MCP-09**: 筛选/修图扩充工具组（2026-09-26 登记）：list_presets / apply_preset / diff_presets（预设三件套，上游依赖 PRES-01..04）+ export_image（尺寸/质量/格式落盘，render_preview 不落盘之补位）+ set_keywords（关键词写面，上游依赖 META-04）。**研究项**（Phase 14 research 定案）：A = GUI 与无头 MCP 同会话并发 sidecar 双写对策（WAL 仅覆盖索引层；单写者锁/后开者只读/移交）；B = 多版本参数组/历史快照 MCP 语义（多版本交付需保存/切换/对比参数组工具面）；C = match_color MCP 工具位（agent 编排层：选参考/批量触发 colormatch/强度/事后 apply_params 微调；签名预留，依赖 V2 TRACK colormatch iop，与 Phase 12 .cube LUT 协同）
+- [x] **MCP-10**: GUI launcher（2026-09-26 用户裁决进 V1）：偏好存 agent CLI 启动命令模板（如 pi/omp）+ 可选任务 prompt 模板（筛图口径/修图审美方向）+「一键 AI 筛图/修图」动作——app 拉起 agent 进程挂自身 MCP server，写回由 server 完成（sidecar 真身），输出日志面板显示 agent 文字流；agent 的 provider 配置归 agent 自身体系，app 零 AI 代码；launcher 拉起路径 app 侧串行化（研究项 A）
+
+> **Phase 14 交付（2026-09-28 签核）**：MCP-01..10 全 Delivered——19 工具封闭集冻结（终快照逐字 + 第 20 工具白名单负例）；研究项 A 关闭（flock 单写者五态 + 只读降级 + GUI-live 判据）、B 维持 v1 history append（版本面 defer v2）、C 零占用（负例钉死）。证据： `14-VALIDATION.md` SC#1-7 三列 + `14-4-SUMMARY.md` 安全走查五条；终轮 1881/11skip/0fail。
 
 ### Performance (PERF)
 
