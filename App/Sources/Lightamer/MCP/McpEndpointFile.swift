@@ -62,6 +62,13 @@ struct McpEndpointInfo: Codable, Equatable, Sendable {
     static let authNone = "none"
     static let authBearer = "bearer"
     static let transportStreamableHTTP = "streamable-http"
+
+    /// The `startedAt` rendering (RFC 3339 / ISO 8601 UTC).
+    static func nowISO8601() -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: Date())
+    }
 }
 
 // MARK: - The writer lock
