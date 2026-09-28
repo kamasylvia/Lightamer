@@ -67,7 +67,7 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 - **分发**：开源免费、独立分发（Developer ID 签名 + 公证，不做沙盒）— GitHub 开源
 - **功能对标**：对标 Darktable 全量（91 个 iop 模块）— 长期工程，Fine 粒度分阶段交付，v1 不设上限但分阶段逼近
 - **互通性（决策）**：sidecar 与 Darktable **不互通、不兼容**（研究确认二进制兼容做不到）；预设与 Darktable/Lightroom **不互通**；标准 EXIF/IPTC/XMP 元数据仍读写（与其他工具兼容）
-- **依赖最小化**：能用 Apple 原生框架（Core Image / Metal / Core Text / ImageIO / AVFoundation / ColorSync）实现的不引入第三方库；v1 预期仅 libwebp、libavif 两个 SPM 依赖（WebP 写入 macOS 仍无原生；AVIF macOS 27 起原生但保留 libavif 作为兜底）
+- **依赖最小化**：能用 Apple 原生框架（Core Image / Metal / Core Text / ImageIO / AVFoundation / ColorSync）实现的不引入第三方库。**（2026-09-28 Phase 14 收口修订，16 期漂移修正先例同款）**：SPM 依赖现状 = 显式枚举三项——① **Swift-WebP**（WebP 写入 macOS 仍无原生，EXP-02 引入）；② **官方 swift-sdk 0.12.1**（MCP server，Phase 14 引入；传递依赖 swift-nio / swift-log / swift-system / eventsource）；③ **swift-nio / swift-system 产品级直引**（App target 的 HTTP 适配腿真实编译依赖，D-14-1-T4-1）。libavif 已砍除（原生 AVIF 写入随 macOS 27 兑现，无需兜底库）。
 
 ## Key Decisions
 

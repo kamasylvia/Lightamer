@@ -55,10 +55,48 @@ xcodebuild build -workspace Lightamer.xcworkspace -scheme Lightamer \
   -destination 'platform=macOS'
 ```
 
-The only Swift Package dependency is
-[Swift-WebP](https://github.com/ainame/Swift-WebP) (WebP encode; macOS
-has no native WebP writer). Everything else is Apple frameworks:
+Swift Package dependencies (kept minimal, explicitly enumerated):
+[Swift-WebP](https://github.com/ainame/Swift-WebP) (WebP encode; macOS has
+no native WebP writer) and the official
+[MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) (the
+Phase 14 MCP server; its HTTP transport layer is built on
+[swift-nio](https://github.com/apple/swift-nio), which Lightamer's HTTP
+host adapter links directly). Everything else is Apple frameworks:
 Core Image (CIRAW decode), Metal, ImageIO, ColorSync, Vision, CoreText.
+
+## MCP server
+
+Lightamer embeds an MCP (Model Context Protocol) server so a local AI
+agent can screen and edit the photos of the currently open session.
+
+- **Enable it** in Settings → MCP Server. The server binds `127.0.0.1` on
+  a random port and writes a discovery file
+  (`<AppSupport>/Lightamer/mcp/mcp-endpoint.json`) with `host`, `port`
+  and `auth`. Exposing the server beyond the loopback interface is a
+  separate, explicit toggle — it binds `0.0.0.0` and REQUIRES the Bearer
+  token (auto-generated, stored in the keychain).
+- **Connect an agent** by reading `host`/`port` from the discovery file
+  and configuring `http://<host>:<port>/mcp` as a Streamable HTTP server.
+  The Origin check requires a PORT in the origin (e.g.
+  `http://localhost:51234`; a portless origin is rejected).
+- **Tool face** (19 tools, closed set): 5 editing tools (load_image,
+  apply_params, render_preview, list_iops, export_image), 14 culling
+  tools (list_photos, get_thumbnails, get_contact_sheet, get_detail_crop,
+  list_bursts, get_face_regions, set_rating, set_flag, set_color_label,
+  append_note, set_keywords, list_presets, apply_preset, diff_presets).
+  Writes go through the same single-source services the GUI uses and
+  land in the sidecar truth + the session index.
+- **Honesty clauses**: `render_preview` returns the SAVED edit state as
+  an sRGB-encoded JPEG — no yiyin frame/watermark (that is export-time)
+  and it is NOT aligned with the GUI's EDR display domain. Same
+  sidecar + same parameters → the same pixels as a local export render.
+- **Launcher** (Edit menu → MCP Agent Launcher…): runs YOUR OWN agent
+  command template via `/bin/zsh -c` with the `{{LIGHTAMER_MCP}}`
+  (discovery file path) and `{{PROMPT}}` placeholders, shows the agent's
+  output, and can stop the agent. Lightamer itself contains no AI code.
+- **Headless**: the same binary serves MCP over stdio
+  (`Lightamer.app/Contents/MacOS/Lightamer --mcp-stdio`) or HTTP
+  (`--mcp-http`).
 
 ## Testing
 

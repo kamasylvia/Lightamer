@@ -234,8 +234,8 @@ enum McpCullingToolset {
         await registry.register(
             McpToolDescriptor(
                 name: "list_photos",
-                description:
-                    "List photos of the CURRENTLY OPEN Lightamer session. `filter` "
+                description: String(localized: "mcp_tool_desc_list_photos", defaultValue: String.LocalizationValue(
+                                    "List photos of the CURRENTLY OPEN Lightamer session. `filter` "
                     + "is a FilterPredicateGroup JSON object "
                     + "({\"schemaVersion\":1,\"match\":\"all\"|\"any\",\"rules\":"
                     + "[{\"field\":…,\"op\":…,\"value\":{\"kind\":…}}]}); fields: "
@@ -253,7 +253,7 @@ enum McpCullingToolset {
                     + "width/height, capture_date, thumb_state, rating/color_label/"
                     + "keywords/flag/note, camera_make/camera_model/lens_model, iso/"
                     + "focal_length/aperture/exposure); width/height are the pixel "
-                    + "coordinate system get_detail_crop ROIs are validated against.",
+                    + "coordinate system get_detail_crop ROIs are validated against.")),
                 inputSchemaJSON:
                     #"{"type":"object","properties":{"cursor":{"type":"string","description":"Opaque nextCursor token from the previous page"},"filter":{"type":"object","description":"FilterPredicateGroup JSON: {schemaVersion:1, match:"all"|"any", rules:[{field, op, value:{kind, ...}}]}"},"limit":{"type":"integer","minimum":1,"maximum":1000,"description":"Rows per page (default 200)"},"sort":{"type":"object","description":"{key: filename|rating|captureDate|iso|focalLength|scanEpoch, ascending: bool}"}}}"#,
                 readOnlyHint: true),
@@ -318,13 +318,13 @@ enum McpCullingToolset {
             await registry.register(
                 McpToolDescriptor(
                     name: name,
-                    description:
-                        "Write metadata on photos of the CURRENTLY OPEN Lightamer "
+                    description: String(localized: "mcp_tool_desc_write_metadata", defaultValue: String.LocalizationValue(
+                                            "Write metadata on photos of the CURRENTLY OPEN Lightamer "
                             + "session (batch relPaths). One bulk change = one "
                             + "transaction; the write lands in the sidecar truth AND "
                             + "the session index (the GUI grid/filter face reads the "
                             + "same index). MODIFIES session metadata only — never "
-                            + "pixels, never file delete/move.",
+                            + "pixels, never file delete/move.")),
                     inputSchemaJSON: schema,
                     destructiveHint: true),
                 requiresWriter: true,
@@ -457,10 +457,10 @@ enum McpCullingToolset {
         await registry.register(
             McpToolDescriptor(
                 name: "list_presets",
-                description:
-                    "List the app-level Lightamer presets (develop = adjustment "
+                description: String(localized: "mcp_tool_desc_list_presets", defaultValue: String.LocalizationValue(
+                                    "List the app-level Lightamer presets (develop = adjustment "
                         + "recipes; export = output recipes). Filter by `kind` or "
-                        + "omit it for all.",
+                        + "omit it for all.")),
                 inputSchemaJSON:
                     #"{"type":"object","properties":{"kind":{"enum":["develop","export"],"description":"Filter by preset kind"}}}"#,
                 readOnlyHint: true),
@@ -503,13 +503,13 @@ enum McpCullingToolset {
         await registry.register(
             McpToolDescriptor(
                 name: "apply_preset",
-                description:
-                    "Apply a develop preset to photos of the CURRENTLY OPEN Lightamer "
+                description: String(localized: "mcp_tool_desc_apply_preset", defaultValue: String.LocalizationValue(
+                                    "Apply a develop preset to photos of the CURRENTLY OPEN Lightamer "
                         + "session (apply = paste semantics; mode 'merge' appends onto "
                         + "each target's history, 'overwrite' resets to the preset). "
                         + "Photos open in the GUI editor are SKIPPED and reported in "
                         + "skippedRelPaths (ask the user to close them there or pick "
-                        + "other photos). Export-kind presets cannot be applied here.",
+                        + "other photos). Export-kind presets cannot be applied here.")),
                 inputSchemaJSON:
                     #"{"type":"object","required":["presetID","relPaths"],"properties":{"presetID":{"type":"string"},"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"mode":{"enum":["overwrite","merge"],"description":"Paste mode (default merge)"},"selection":{"type":"array","description":"Partial-apply subset of instances","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer"},"multiName":{"type":"string"}},"required":["opName","multiPriority","multiName"]}}}}"#,
                 destructiveHint: true),
@@ -614,10 +614,10 @@ enum McpCullingToolset {
         await registry.register(
             McpToolDescriptor(
                 name: "diff_presets",
-                description:
-                    "Diff two presets by instance key (opName + multiPriority): "
+                description: String(localized: "mcp_tool_desc_diff_presets", defaultValue: String.LocalizationValue(
+                                    "Diff two presets by instance key (opName + multiPriority): "
                         + "which instances exist only in A, only in B, or in both "
-                        + "with different parameters.",
+                        + "with different parameters.")),
                 inputSchemaJSON:
                     #"{"type":"object","required":["presetIDA","presetIDB"],"properties":{"presetIDA":{"type":"string"},"presetIDB":{"type":"string"}}}"#,
                 readOnlyHint: true),
@@ -689,8 +689,8 @@ enum McpCullingToolset {
         await registry.register(
             McpToolDescriptor(
                 name: "get_thumbnails",
-                description:
-                    "Fetch INLINE thumbnails for up to 20 photos of the CURRENTLY "
+                description: String(localized: "mcp_tool_desc_get_thumbnails", defaultValue: String.LocalizationValue(
+                                    "Fetch INLINE thumbnails for up to 20 photos of the CURRENTLY "
                         + "OPEN Lightamer session. The tier follows the browser "
                         + "pipeline: unedited photos serve the RAW's embedded preview, "
                         + "edited photos serve the rendered cache. A stale row returns "
@@ -698,7 +698,7 @@ enum McpCullingToolset {
                         + "re-render that one image first (blocking). The payload is a "
                         + "JSON manifest (relPath, stale, missing, byteLength, index) "
                         + "followed by one JPEG image block per non-missing photo, in "
-                        + "order.",
+                        + "order.")),
                 inputSchemaJSON:
                     #"{"type":"object","required":["relPaths"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":20},"regenerate":{"type":"boolean","description":"Re-render stale thumbnails before returning (default false — stale rows are only marked)"}}}"#,
                 readOnlyHint: true),
@@ -777,14 +777,14 @@ enum McpCullingToolset {
         await registry.register(
             McpToolDescriptor(
                 name: "get_contact_sheet",
-                description:
-                    "Render ONE composite contact-sheet JPEG for photos of the "
+                description: String(localized: "mcp_tool_desc_get_contact_sheet", defaultValue: String.LocalizationValue(
+                                    "Render ONE composite contact-sheet JPEG for photos of the "
                         + "CURRENTLY OPEN Lightamer session: a cols×rows grid (max "
                         + "6×5=30 cells, 256px cells) with a 24px caption bar per cell "
                         + "(filename + rating stars + a pick/reject color bar). "
                         + "Provide exactly ONE of relPaths (explicit list) or filter "
                         + "(a FilterPredicateGroup; rows in sort order). Missing "
-                        + "thumbnails render as placeholder cells.",
+                        + "thumbnails render as placeholder cells.")),
                 inputSchemaJSON:
                     #"{"type":"object","properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":30},"filter":{"type":"object","description":"FilterPredicateGroup JSON (same shape as list_photos.filter)"},"sort":{"type":"object","description":"Row order when filter is used (same shape as list_photos.sort)"},"cols":{"type":"integer","minimum":1,"maximum":6},"rows":{"type":"integer","minimum":1,"maximum":5}},"oneOf":[{"required":["relPaths"]},{"required":["filter"]}]}"#,
                 readOnlyHint: true),
@@ -803,8 +803,8 @@ enum McpCullingToolset {
         await registry.register(
             McpToolDescriptor(
                 name: "get_detail_crop",
-                description:
-                    "Crop ONE photo of the CURRENTLY OPEN Lightamer session and "
+                description: String(localized: "mcp_tool_desc_get_detail_crop", defaultValue: String.LocalizationValue(
+                                    "Crop ONE photo of the CURRENTLY OPEN Lightamer session and "
                         + "return an inline JPEG. `roi` is {x, y, w, h} in the photo's "
                         + "DECODED pixel coordinates (the same coordinate face "
                         + "list_photos' orientation/width/height columns report; "
@@ -812,7 +812,7 @@ enum McpCullingToolset {
                         + "(default 1024, max 1536, q85). Reads the photo's pixels "
                         + "(RAW decode) — it does NOT reflect saved edits; use "
                         + "render_preview for the edited look. Face ROIs come from "
-                        + "get_face_regions.",
+                        + "get_face_regions.")),
                 inputSchemaJSON:
                     #"{"type":"object","required":["relPath","roi"],"properties":{"relPath":{"type":"string"},"roi":{"type":"object","properties":{"x":{"type":"integer","minimum":0},"y":{"type":"integer","minimum":0},"w":{"type":"integer","exclusiveMinimum":0},"h":{"type":"integer","exclusiveMinimum":0}},"required":["x","y","w","h"]},"longEdge":{"type":"integer","minimum":64,"maximum":1536,"description":"Output long edge (default 1024)"}}}"#,
                 readOnlyHint: true),
@@ -1153,15 +1153,15 @@ enum McpCullingToolset {
         await registry.register(
             McpToolDescriptor(
                 name: "list_bursts",
-                description:
-                    "Group the CURRENTLY OPEN Lightamer session's photos into "
+                description: String(localized: "mcp_tool_desc_list_bursts", defaultValue: String.LocalizationValue(
+                                    "Group the CURRENTLY OPEN Lightamer session's photos into "
                         + "burst sequences: consecutive shots within gapSeconds "
                         + "(default 2.0) taken with the same camera_model form one "
                         + "burst; single photos land in singles. Cross-day gaps "
                         + "naturally split. Rows carry capture_date/filename/relPath "
                         + "— filter the members with list_photos afterwards (the "
                         + "relPaths are session keys). Pure index query: no pixels "
-                        + "are decoded or rendered.",
+                        + "are decoded or rendered.")),
                 inputSchemaJSON:
                     #"{"type":"object","properties":{"gapSeconds":{"type":"number","exclusiveMinimum":0,"description":"Max gap between consecutive shots of one burst (default 2.0)"}}}"#,
                 readOnlyHint: true),
@@ -1258,21 +1258,24 @@ enum McpCullingToolset {
         await registry.register(
             McpToolDescriptor(
                 name: "get_face_regions",
-                description:
-                    "Detect faces in up to 20 photos of the CURRENTLY OPEN "
+                description: String(localized: "mcp_tool_desc_get_face_regions", defaultValue: String.LocalizationValue(
+                                    "Detect faces in up to 20 photos of the CURRENTLY OPEN "
                         + "Lightamer session. Returns each photo's face bounding "
                         + "boxes in DECODED PIXEL coordinates (the same face the "
                         + "get_detail_crop ROI consumes; origin top-left) — an EMPTY "
                         + "array means no face was found, not an error. Optional "
                         + "landmark point sets (same pixel space). Vision runs "
                         + "per-request with no caching (~4ms per image); requests "
-                        + "are serialized internally.",
+                        + "are serialized internally.")),
                 inputSchemaJSON:
                     #"{"type":"object","required":["relPaths"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":20},"includeLandmarks":{"type":"boolean","description":"Also return per-face landmark point sets (default false)"}}}"#,
                 readOnlyHint: true),
             handler: { arguments in
                 try await withTimeout(
-                    McpTimeouts.list,
+                    // Plan 14-4: the 20s image slot, not the 10s list slot —
+                    // the decode leg (RAW) rides this handler (the 14-3
+                    // acceptance note: 10s is tight for large RAWs).
+                    McpTimeouts.thumbnailsAndContact,
                     McpToolError.internalError("get_face_regions timed out")
                 ) {
                     let relPaths = try requireRelPaths(arguments, max: 20)

@@ -177,15 +177,15 @@ enum EditingToolset {
 
     private static let loadImageDescriptor = McpToolDescriptor(
         name: "load_image",
-        description:
-            "Read an open-session image's SAVED edit state as a JSON view: the module "
+        description: String(localized: "mcp_tool_desc_load_image", defaultValue: String.LocalizationValue(
+                    "Read an open-session image's SAVED edit state as a JSON view: the module "
                 + "instance summary (opName/multiPriority/enabled per instance), layer "
                 + "count, dimensions and orientation. STATELESS by design: no server-side "
                 + "session handle is created — every tool names its image with relPath, "
                 + "so multiple clients can interleave safely. The view reflects the last "
                 + "SAVED sidecar state; and render_preview equally reflects the SAVED "
                 + "edit state (GUI edits carry a ~2s debounce). Membership: relPath must "
-                + "be an indexed member of the open session. Errors: notSessionMember.",
+                + "be an indexed member of the open session. Errors: notSessionMember.")),
         inputSchemaJSON:
             #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"}},"required":["relPath"]}"#,
         readOnlyHint: true)
@@ -230,14 +230,14 @@ enum EditingToolset {
 
     private static let listIopsDescriptor = McpToolDescriptor(
         name: "list_iops",
-        description:
-            "List the cataloged iop modules with their parameter key schema: per op "
+        description: String(localized: "mcp_tool_desc_list_iops", defaultValue: String.LocalizationValue(
+                    "List the cataloged iop modules with their parameter key schema: per op "
                 + "the opName, display name, v50 iopOrder, a VERSION (refresh your "
                 + "cache when it changes), the applicable domain and the params keys "
                 + "with types. apply_params validates its params JSON against the "
                 + "module's real Codable schema at call time — this catalog is the "
                 + "runtime key REFERENCE that keeps that validation predictable. "
-                + "Read-only, stateless, no errors beyond internalError.",
+                + "Read-only, stateless, no errors beyond internalError.")),
         inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
         readOnlyHint: true)
 
@@ -245,8 +245,8 @@ enum EditingToolset {
 
     private static let exportImageDescriptor = McpToolDescriptor(
         name: "export_image",
-        description:
-            "Export ONE open-session image to a FILE (the only tool that writes an "
+        description: String(localized: "mcp_tool_desc_export_image", defaultValue: String.LocalizationValue(
+                    "Export ONE open-session image to a FILE (the only tool that writes an "
                 + "image to disk). The destination is SERVER-PINNED to the session's "
                 + "Output/ directory — there is intentionally NO path argument; naming "
                 + "derives from the source stem with -1/-2 collision increments (the "
@@ -260,7 +260,7 @@ enum EditingToolset {
                 + "proPhoto|rec2020 (default sRGB). yiyin (default false) renders "
                 + "through the image's existing yiyin panel configuration. Renders "
                 + "the SAVED sidecar state. Errors: exportFailed, invalidParams, "
-                + "notSessionMember, serverReadOnly.",
+                + "notSessionMember, serverReadOnly.")),
         inputSchemaJSON:
             #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"format":{"type":"string","enum":["jpeg","png","tiff","heic","avif","webp"],"default":"jpeg"},"quality":{"type":"integer","minimum":1,"maximum":100,"default":90,"description":"Lossy formats only"},"sizing":{"type":"object","properties":{"mode":{"type":"string","enum":["original","longEdge","shortEdge"],"default":"original"},"px":{"type":"integer","minimum":1,"description":"Required for longEdge/shortEdge"}}},"colorSpace":{"type":"string","enum":["sRGB","displayP3","adobeRGB","proPhoto","rec2020"],"default":"sRGB"},"yiyin":{"type":"boolean","default":false,"description":"Render through the image's existing yiyin frame/watermark configuration"}},"required":["relPath"]}"#,
         destructiveHint: true)
@@ -406,8 +406,8 @@ enum EditingToolset {
 
     private static let applyParamsDescriptor = McpToolDescriptor(
         name: "apply_params",
-        description:
-            "Apply module parameter edits to ONE open-session image (module-level "
+        description: String(localized: "mcp_tool_desc_apply_params", defaultValue: String.LocalizationValue(
+                    "Apply module parameter edits to ONE open-session image (module-level "
                 + "upsert, non-destructive: one undoable history commit on top). Each "
                 + "op addresses an instance by (opName, multiPriority — default 0) and "
                 + "may set `params` (partial JSON overlaid on the module's params), "
@@ -417,7 +417,7 @@ enum EditingToolset {
                 + "this tool returns. HARD REJECTION: an image open in the Lightamer "
                 + "editor answers imageLiveInEditor — ask the user to close it and "
                 + "retry, or edit in the GUI (图像在编辑器中打开；请让用户关闭后重试，"
-                + "或改用 GUI 操作). Params key reference: list_iops.",
+                + "或改用 GUI 操作). Params key reference: list_iops.")),
         inputSchemaJSON:
             #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"ops":{"type":"array","minItems":1,"description":"Module-level upserts","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer","default":0},"params":{"type":"object","description":"Partial params JSON overlaid on the instance (keys per list_iops)"},"enabled":{"type":"boolean"},"remove":{"type":"boolean","default":false}},"required":["opName"]}}},"required":["relPath","ops"]}"#,
         destructiveHint: true)
@@ -702,8 +702,8 @@ enum EditingToolset {
         await registry.register(
             McpToolDescriptor(
                 name: "render_preview",
-                description:
-                    "Render an open-session image's SAVED edit state (the disk sidecar) "
+                description: String(localized: "mcp_tool_desc_render_preview", defaultValue: String.LocalizationValue(
+                                    "Render an open-session image's SAVED edit state (the disk sidecar) "
                         + "and return it as an inline JPEG image (base64). The preview is "
                         + "the sRGB-encoded EDIT state — no yiyin frame/watermark, and NOT "
                         + "the GUI's EDR display domain. It reflects the last SAVED edit: "
@@ -711,7 +711,7 @@ enum EditingToolset {
                         + "1...2048 (default 1024), quality 1...90 (default 85); for "
                         + "anything larger or for files on disk use export_image. Fails "
                         + "typed: renderFailed, renderTimeout (30s), notSessionMember, "
-                        + "invalidParams. Errors for read-only hosts: serverReadOnly.",
+                        + "invalidParams. Errors for read-only hosts: serverReadOnly.")),
                 inputSchemaJSON:
                     #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"}},"required":["relPath"]}"#,
                 readOnlyHint: true

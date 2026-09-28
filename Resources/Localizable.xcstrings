@@ -6056,6 +6056,156 @@
         }
       }
     },
+    "mcp_tool_desc_apply_params": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对一个会话内图像应用模块参数编辑（模块级 upsert，非破坏：在其上追加一条可撤销的历史提交）。每个 op 按 (opName, multiPriority——默认 0) 寻址实例，可设置 params（叠加在模块参数上的部分 JSON）、翻转 enabled，或用 \"remove\": true 删除实例。未知 op → unknownOp；未知/错型键 → invalidParams；重置单模块 = 应用其默认参数。写入在本工具返回前落盘。硬拒绝：在 Lightamer 编辑器中打开的图像返回 imageLiveInEditor——请让用户关闭后重试，或改用 GUI 操作。参数键参考：list_iops。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_apply_preset": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对当前打开 Lightamer 会话的照片应用 develop 预设（apply = 粘贴语义；mode merge 在各目标历史上追加，overwrite 重置为预设）。在 GUI 编辑器中打开的照片会被跳过并报告在 skippedRelPaths（请用户在 GUI 关闭后重试，或改选其他照片）。export 类预设不能在此应用。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_diff_presets": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按实例键（opName + multiPriority）对比两个预设：哪些实例只在 A、只在 B，或两者都在但参数不同。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_export_image": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将一个会话内图像导出为文件（唯一向磁盘写图像的工具）。目的地服务端钉死在会话 Output/ 目录——刻意不设路径参数；命名取源文件 stem 并以 -1/-2 递增防撞（原子落盘）。返回绝对路径文本及 note：远程 client 无法读取本机路径——如需内联视图请用 render_preview，或经 GUI/文件共享取文件。format：jpeg|png|tiff|heic|avif|webp（默认 jpeg；quality 仅作用于有损格式，1...100 默认 90）。sizing：{\"mode\":\"original\"} 或 {\"mode\":\"longEdge\"|\"shortEdge\",\"px\":N}（永不放大）。colorSpace：sRGB|displayP3|adobeRGB|proPhoto|rec2020（默认 sRGB）。yiyin（默认 false）按该图既有的 yiyin 面板配置渲染。渲染的是已保存 sidecar 态。错误：exportFailed、invalidParams、notSessionMember、serverReadOnly。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_contact_sheet": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为当前打开 Lightamer 会话的照片渲染一张拼合联系表 JPEG：cols×rows 网格（最大 6×5=30 格，256px 格），每格 24px 标注条（文件名 + 评分星 + 挑/拒色条）。relPaths（显式列表）与 filter（FilterPredicateGroup，按排序行序）二选一。缺失缩略图渲染为占位格。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_detail_crop": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁剪一张当前打开 Lightamer 会话的照片并返回内联 JPEG。roi 为照片「解码像素坐标」（与 list_photos 的 orientation/width/height 列同坐标系；原点左上）的 {x, y, w, h}。输出按 longEdge 下采样（默认 1024，最大 1536，q85）。读取照片像素（RAW 解码）——不反映已保存编辑；要编辑态请用 render_preview。脸部 ROI 来自 get_face_regions。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_face_regions": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检测当前打开 Lightamer 会话最多 20 张照片中的人脸。返回每张照片的（解码像素坐标的）人脸边界框——与 get_detail_crop ROI 同一坐标面，原点左上；空数组 = 未检出人脸，不是错误。可选返回逐脸 landmark 点集（同一像素空间）。Vision 每请求直跑、不缓存（实测约 4ms/图）；请求内部串行。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_thumbnails": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内联获取当前打开 Lightamer 会话最多 20 张照片的缩略图。档位跟随浏览器管线：未编辑照片取 RAW 内嵌预览，已编辑照片取渲染缓存。stale 行返回缓存图并带 stale:true；传 regenerate:true 可先重渲该图（阻塞）。载荷是 JSON 清单（relPath、stale、missing、byteLength、index）加按序每张非缺失照片一个 JPEG 图像块。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_list_bursts": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把当前打开 Lightamer 会话的照片分组为连拍序列：同一 camera_model 且相邻拍摄间隔在 gapSeconds（默认 2.0）内的照片为一组；单张归入 singles。跨日间隔自然切组。行带 capture_date/filename/relPath——之后用 list_photos 过滤成员（relPath 即会话键）。纯索引查询：不解码、不渲染任何像素。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_list_iops": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列出已登记的 iop 模块及其参数键 schema：每个 op 给出 opName、显示名、v50 iopOrder、VERSION（变化时请刷新缓存）、适用域与带类型的参数键。apply_params 在调用时按模块真实 Codable schema 校验 params JSON——本目录是保证校验可预期的运行时键参考。只读、无状态，除 internalError 外无其他错误。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_list_photos": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列出当前打开的 Lightamer 会话的照片。filter 为 FilterPredicateGroup JSON 对象（{\"schemaVersion\":1,\"match\":\"all\"|\"any\",\"rules\":[{\"field\":…,\"op\":…,\"value\":{\"kind\":…}}]}）；字段：rating、colorLabel、keywords、flag、note、cameraMake、cameraModel、lensModel、iso、focalLength、aperture、exposure、captureDate、hasEdits、filename、dir；操作符：eq、neq、gt、gte、lt、lte、between、in、contains、startsWith、empty、notEmpty；值为带标签的 {\"kind\":\"text|int|double|textList|intRange|doubleRange|intList|doubleList\", …}。sort 为 {key: filename|rating|captureDate|iso|focalLength|scanEpoch, ascending}。分页：回传 nextCursor 作 cursor；短页即末页（不返回总数）。行暴露 25 列（path/dir/filename、file_size/file_mtime、has_edits、layer_count/layer_summary、orientation/width/height、capture_date、thumb_state、rating/color_label/keywords/flag/note、camera_make/camera_model/lens_model、iso/focal_length/aperture/exposure）；width/height 是 get_detail_crop ROI 校验所用的像素坐标系。错误：invalidFilter、serverReadOnly。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_list_presets": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列出 app 级 Lightamer 预设（develop = 调整配方；export = 输出配方）。按 kind 过滤或省略以取全部。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_load_image": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取会话内图像的「已保存」编辑态 JSON 视图：模块实例摘要（每实例 opName/multiPriority/enabled）、图层计数、尺寸与方向。设计为无状态：不建服务端会话句柄——所有工具都用 relPath 指名图像，多客户端可安全交错。视图反映最近一次已保存的 sidecar 态；render_preview 同样反映已保存编辑态（GUI 编辑约 2s debounce）。成员限定：relPath 必须是当前打开会话的已索引成员。错误：notSessionMember。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_render_preview": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渲染一个会话内图像的「已保存」编辑态（盘上 sidecar）并以内联 JPEG（base64）返回。预览是 sRGB 编码的「编辑态」——无 yiyin 印框/水印，也不是 GUI 的 EDR 显示域。它反映最近一次已保存的编辑：GUI 保存的编辑约有 2s debounce。界限：longEdge 1...2048（默认 1024），quality 1...90（默认 85）；更大尺寸或需要落盘文件请用 export_image。typed 失败：renderFailed、renderTimeout（30s）、notSessionMember、invalidParams。只读宿主错误：serverReadOnly。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_write_metadata": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对当前打开 Lightamer 会话的照片批量写元数据（relPaths）。一次批量变更 = 一个事务；写入落入 sidecar 真身与会话索引（GUI 网格/过滤面读同一索引）。只修改会话元数据——绝不改像素、绝不删除/移动文件。"
+          }
+        }
+      }
+    },
     "menu_actual_size": {
       "extractionState": "manual",
       "localizations": {
