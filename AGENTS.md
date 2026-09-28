@@ -269,8 +269,9 @@ Lightamer 是一个 macOS 原生（Swift 6 + SwiftUI + Metal 3 直渲 + Core Ima
 - **测试**：iop 算法移植必须有 golden-image 测试（对照 Darktable 参考输出）；性能有 60fps@100MP 预算。
 
 ### 参考项目
-- **Darktable**（`/Volumes/external volume/Documents/Development/darktable`）：iop 算法、OpenCL kernel（`data/kernels/*.cl` → Metal 移植）、pixelpipe 架构、色彩管理的源码参考。
-- **yiyin / 壹印**（`/Volumes/external volume/Documents/Development/yiyin`）：边框/水印面板的功能对齐参考（重写为 Swift，yiyin 项目独立维护）。
+- **Darktable**（`/Volumes/UNITEK/Documents/Development/darktable`）：iop 算法、OpenCL kernel（`data/kernels/*.cl` → Metal 移植）、pixelpipe 架构、色彩管理的源码参考。**GPL-3.0——只读参考算法思路，代码不复制入库（本项目 MIT）。**
+- **yiyin / 壹印**（`/Volumes/UNITEK/Documents/Development/yiyin`）：边框/水印面板的功能对齐参考（重写为 Swift，yiyin 项目独立维护）。
+- **Alcedo Studio**（`/Volumes/UNITEK/Documents/Development/AlcedoStudio`，2026-09-27 引入）：开源（GPL-3.0）C++20 RAW 编辑器 + 图库，Windows（CUDA/OpenCL）+ macOS（Metal）双平台，150MP 流畅编辑。参考点：GPU demosaic 算子（`alcedo_studio/src/decoders/processor/operators/gpu/metal_shader/` 下 `debayer_rcd.metal` / `xtrans_interpolate.metal` / `demosaicnet_io.metal`——DemosaicNet 蒸馏神经去马赛克，X-Trans 默认走它）、inpaint-opposed 高光重建、ACES 2.0 / OpenDRT 显示渲染变换（目标色彩空间/传递函数/峰值亮度可选，HDR 直出）、节点式调色图（Develop → 多个 Color Grade 节点 → Display Transform，每节点独立调整+蒙版，与本项目 adjustment layers 模型同构）、大图瓦片式按需渲染 + 多级缓存设计。同 GPL-3.0——只读参考，代码不复制入库。
 
 ### Phase 2 架构增量（2026-09-19，Plan 02-06 签核批）
 - **Sidecar（`.lra`）**：JSON schemaVersion 1，`<原文件完整名>.lra` 与原片同目录，`.xmp` 永不读写删。**所有入盘 UInt64 哈希一律 decimal String**（`UInt64String` wrapper；FNV-1a 64 超 2^53，JSON number 会被非 Swift 工具降精度）——ONE-WAY 格式锁，后续持久化文档（Phase 6 layer、Phase 11 export manifest）沿用同规则。`paramsData` 保持 Data→base64（字节精确 > 可读性）。
