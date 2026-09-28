@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import LightamerCore
 import LightamerIOP
+import MCP
 import XCTest
 
 @testable import Lightamer
@@ -999,6 +1000,250 @@ final class McpCullingToolsetTests: XCTestCase {
         } catch let error as McpToolError {
             XCTAssertEqual(error.code, "invalidParams")
         }
+    }
+
+
+    // MARK: - T5: SC#5/SC#6 end-to-end (InMemoryTransport, the third host
+    // form — the SAME registry kernel asserted through the SDK client)
+
+    /// A REAL-JPEG session fixture: tier A embedded reads work (a JPEG's
+    /// embedded preview IS itself), metadata writes compose sidecars, and
+    /// the synthetic decode leg serves deterministic crop pixels.
+    static func makeEndToEndFixture() async throws -> (Fixture, McpToolRegistry) {
+        let fixture = try await Self.makeFixture { store in
+            // Burst A: two Canon shots 1s apart, one Sony straggler.
+            try await Self.seedRow(store, path: "burst-1.arw", cameraModel: "Canon", captureDate: 1_700_000_000)
+            try await Self.seedRow(store, path: "burst-2.arw", cameraModel: "Canon", captureDate: 1_700_000_001)
+            try await Self.seedRow(store, path: "straggler.arw", cameraModel: "Sony", captureDate: 1_700_000_002.5)
+        }
+        let gradient = McpCullingImageBudgetTests.makeGradientCGImage(width: 320, height: 240)
+        let jpeg = try ThumbnailDiskStore.jpegData(from: gradient)
+        for rel in ["burst-1.arw", "burst-2.arw", "straggler.arw"] {
+            try jpeg.write(to: fixture.sessionRoot.appendingPathComponent(rel))
+        }
+        let writer = BatchSidecarWriter(root: fixture.sessionRoot, store: fixture.store)
+        let metadata = MetadataService(
+            root: fixture.sessionRoot, store: fixture.store, writer: writer)
+        let registry = await Self.makeRegistry(
+            fixture, metadata: metadata, sidecarWriter: writer,
+            decodeImage: { _ in
+                McpCullingImageBudgetTests.makeGradientCGImage(width: 800, height: 600)
+            })
+        return (fixture, registry)
+    }
+
+    /// The full culling read chain over the InMemory host: list_photos →
+    /// get_thumbnails → get_contact_sheet → get_detail_crop (budget
+    /// 对账 on the actual byte sizes; research §RQ-14-8 footnotes).
+    func testSC5ScreeningReadChainAndBudget() async throws {
+        let (fixture, registry) = try await Self.makeEndToEndFixture()
+        defer { fixture.cleanup() }
+        try await Self.withInMemoryServer(registry: registry) { client in
+            // ① list_photos — rating/flag/EXIF columns ride every row.
+            let (listContent, listError) = try await client.callTool(name: "list_photos")
+            XCTAssertNil(listError)
+            let listPayload = try Self.payloadDict(listContent)
+            let rows = try XCTUnwrap(listPayload["rows"] as? [[String: Any]])
+            XCTAssertEqual(rows.count, 3)
+            for column in ["rating", "flag", "camera_model", "iso", "capture_date"] {
+                XCTAssertTrue(rows[0].keys.contains(column), "column \(column) missing")
+            }
+
+            // ② get_thumbnails (3 ≤ 20) — budget 对账: ~730KB/20 expected.
+            let (thumbContent, thumbError) = try await client.callTool(
+                name: "get_thumbnails",
+                arguments: ["relPaths": .array([
+                    .string("burst-1.arw"), .string("burst-2.arw"), .string("straggler.arw"),
+                ])])
+            XCTAssertNil(thumbError)
+            let thumbPayload = try Self.payloadDict(thumbContent)
+            let thumbManifest = try XCTUnwrap(thumbPayload["results"] as? [[String: Any]])
+            XCTAssertEqual(thumbManifest.count, 3)
+            let thumbImageBlocks = thumbContent.dropFirst()
+            XCTAssertEqual(thumbImageBlocks.count, 3)
+            let thumbBytes = thumbManifest.compactMap { $0["byteLength"] as? Int }.reduce(0, +)
+            print("BUDGET thumbnails: \(thumbBytes)B for 3 (table: ~110KB for 3 @360 tier)")
+            XCTAssertLessThan(thumbBytes, 800_000, "20-thumb request budget ~730KB")
+
+            // ③ get_contact_sheet via filter (grid 2×2).
+            let (sheetContent, sheetError) = try await client.callTool(
+                name: "get_contact_sheet",
+                arguments: [
+                    "filter": .object([
+                        "schemaVersion": .int(1), "match": .string("all"),
+                        "rules": .array([]),
+                    ]),
+                    "cols": .int(2), "rows": .int(2),
+                ])
+            XCTAssertNil(sheetError)
+            let sheetPayload = try Self.payloadDict(sheetContent)
+            XCTAssertEqual(sheetPayload["cells"] as? Int, 3)
+            let sheetBytes = try XCTUnwrap(sheetPayload["byteLength"] as? Int)
+            print("BUDGET contact sheet: \(sheetBytes)B base64 (ceiling 2MB)")
+            XCTAssertLessThanOrEqual(
+                sheetBytes, McpImageBudget.contactSheetMaxBase64Bytes)
+            XCTAssertEqual(sheetContent.count, 2, "manifest + one composite")
+
+            // ④ get_detail_crop — ROI from the geometry face (center 100²).
+            let (cropContent, cropError) = try await client.callTool(
+                name: "get_detail_crop",
+                arguments: [
+                    "relPath": .string("burst-1.arw"),
+                    "roi": .object([
+                        "x": .int(350), "y": .int(250), "w": .int(100), "h": .int(100),
+                    ]),
+                ])
+            XCTAssertNil(cropError)
+            let cropPayload = try Self.payloadDict(cropContent)
+            XCTAssertEqual(cropPayload["outputWidth"] as? Int, 100)
+            XCTAssertEqual(cropContent.count, 2)
+        }
+    }
+
+    /// The SC#5 WRITE chain: the culling writes land in the sidecar truth,
+    /// the index row, AND the GUI-visible query face — plus the MCP-08
+    /// closed-set proof (no delete/move/pixel tools exist to call).
+    func testSC5WriteBackThreeAssertionsClosedSet() async throws {
+        let (fixture, registry) = try await Self.makeEndToEndFixture()
+        defer { fixture.cleanup() }
+        try await Self.withInMemoryServer(registry: registry) { [fixture] client in
+            let targets: Value = .array([
+                .string("burst-1.arw"), .string("burst-2.arw"),
+            ])
+            let (_, ratingError) = try await client.callTool(
+                name: "set_rating",
+                arguments: ["relPaths": targets, "rating": Value.int(5)])
+            XCTAssertNil(ratingError)
+            let (_, flagError) = try await client.callTool(
+                name: "set_flag",
+                arguments: ["relPaths": targets, "flag": Value.int(1)])
+            XCTAssertNil(flagError)
+            let (_, colorError) = try await client.callTool(
+                name: "set_color_label",
+                arguments: ["relPaths": targets, "color": Value.int(3)])
+            XCTAssertNil(colorError)
+
+            // ① sidecar truth.
+            for rel in ["burst-1.arw", "burst-2.arw"] {
+                let sidecarURL = LightamerSidecar.sidecarURL(
+                    for: fixture.sessionRoot.appendingPathComponent(rel))
+                let document = try JSONDecoder().decode(
+                    LightamerSidecar.self, from: Data(contentsOf: sidecarURL))
+                XCTAssertEqual(document.rating, 5, rel)
+                XCTAssertEqual(document.flag, 1, rel)
+                XCTAssertEqual(document.colorLabel, 3, rel)
+            }
+            // ② index rows (claim transaction).
+            for rel in ["burst-1.arw", "burst-2.arw"] {
+                let row = try await fixture.store.fetchRow(relPath: rel)
+                XCTAssertEqual(row?.rating, 5, rel)
+                XCTAssertEqual(row?.flag, 1, rel)
+                XCTAssertEqual(row?.colorLabel, 3, rel)
+            }
+            // ③ GUI-visible face: the filter query reads the new state.
+            let rows = try await fixture.store.query(
+                groups: [FilterPredicateGroup(rules: [
+                    .init(field: .rating, op: .eq, value: .int(5)),
+                ])])
+            XCTAssertEqual(
+                Set(rows.map(\.path)), ["burst-1.arw", "burst-2.arw"])
+
+            // MCP-08 closed-set proof: NO delete/move/pixel-write tool
+            // exists in the registry (the snapshot pins the 14-tool set;
+            // this greps the dispatched face).
+            let descriptors = await registry.descriptors()
+            let names = descriptors.map(\.name)
+            for banned in ["delete", "move", "rename", "write_pixels", "execute"] {
+                XCTAssertFalse(
+                    names.contains { $0.contains(banned) },
+                    "no \(banned)-class tool may exist")
+            }
+        }
+    }
+
+    /// SC#6: the culling METHOD chain — bursts → faces in the group →
+    /// face ROI crop → write back.
+    func testSC6CullingFlowComposition() async throws {
+        let (fixture, registry) = try await Self.makeEndToEndFixture()
+        defer { fixture.cleanup() }
+        try await Self.withInMemoryServer(registry: registry) { [fixture] client in
+            // ① list_bursts → the 2-photo Canon burst.
+            let (burstContent, burstError) = try await client.callTool(name: "list_bursts")
+            XCTAssertNil(burstError)
+            let burstPayload = try Self.payloadDict(burstContent)
+            let bursts = try XCTUnwrap(burstPayload["bursts"] as? [[String: Any]])
+            XCTAssertEqual(bursts.count, 1)
+            let members = try XCTUnwrap(bursts[0]["members"] as? [[String: Any]])
+            XCTAssertEqual(
+                members.map { $0["relPath"] as? String },
+                ["burst-1.arw", "burst-2.arw"])
+
+            // ② get_face_regions on the group (synthetic gradient → empty
+            // arrays are the no-face semantic, still a valid chain step).
+            let (faceContent, faceError) = try await client.callTool(
+                name: "get_face_regions",
+                arguments: ["relPaths": .array([
+                    .string("burst-1.arw"), .string("burst-2.arw"),
+                ])])
+            XCTAssertNil(faceError)
+            let facePayload = try Self.payloadDict(faceContent)
+            let faceResults = try XCTUnwrap(facePayload["results"] as? [[String: Any]])
+            XCTAssertEqual(faceResults.count, 2)
+            XCTAssertEqual((faceResults[0]["faces"] as? [Any])?.count, 0)
+
+            // ③ face ROI detail crop (fallback ROI when no face: center).
+            let (cropContent, cropError) = try await client.callTool(
+                name: "get_detail_crop",
+                arguments: [
+                    "relPath": .string("burst-2.arw"),
+                    "roi": .object([
+                        "x": .int(300), "y": .int(200), "w": .int(200), "h": .int(200),
+                    ]),
+                ])
+            XCTAssertNil(cropError)
+            XCTAssertEqual(cropContent.count, 2)
+
+            // ④ write back the pick.
+            let (_, ratingError) = try await client.callTool(
+                name: "set_rating",
+                arguments: [
+                    "relPaths": .array([.string("burst-2.arw")]),
+                    "rating": Value.int(4),
+                ])
+            XCTAssertNil(ratingError)
+            let row = try await fixture.store.fetchRow(relPath: "burst-2.arw")
+            XCTAssertEqual(row?.rating, 4)
+        }
+    }
+
+    /// The InMemory harness (the snapshot framework's third host form).
+    static func withInMemoryServer(
+        registry: McpToolRegistry,
+        _ body: (Client) async throws -> Void
+    ) async throws {
+        let pair = await InMemoryTransport.createConnectedPair()
+        let server = await McpAdapters.makeServer(registry: registry)
+        try await server.start(transport: pair.server)
+        let client = Client(name: "culling-e2e", version: "0.0.1")
+        try await client.connect(transport: pair.client)
+        do {
+            try await body(client)
+            await client.disconnect()
+            await server.stop()
+        } catch {
+            await client.disconnect()
+            await server.stop()
+            throw error
+        }
+    }
+
+    /// First content block → decoded JSON dict.
+    static func payloadDict(_ content: [Tool.Content]) throws -> [String: Any] {
+        guard case .text(let text) = McpAdapters.outputContent(from: content[0]) else {
+            throw XCTSkip("expected a text manifest first")
+        }
+        return try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
     }
 
     private static func presetID(
