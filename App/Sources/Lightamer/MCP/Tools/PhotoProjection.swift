@@ -388,11 +388,6 @@ extension McpJSON {
         }
     }
 
-    var boolValue: Bool? {
-        if case .bool(let b) = self { return b }
-        return nil
-    }
-
     var arrayValue: [McpJSON]? {
         if case .array(let items) = self { return items }
         return nil

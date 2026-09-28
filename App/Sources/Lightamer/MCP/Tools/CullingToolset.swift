@@ -1,5 +1,6 @@
 import CoreGraphics
 import CoreImage
+import CoreText
 import Foundation
 import LightamerCore
 
@@ -189,6 +190,8 @@ enum McpCullingToolset {
         on registry: McpToolRegistry, context: McpCullingContext
     ) async {
         await registerListPhotos(on: registry, context: context)
+        await registerWriteFive(on: registry, context: context)
+        await registerPresetTrio(on: registry, context: context)
     }
 
     // MARK: - list_photos (§A #5)
@@ -259,4 +262,391 @@ enum McpCullingToolset {
         ])
         return .text(McpJSONSerialization.text(from: payload))
     }
+
+    // MARK: - Write five (§A #11-15 — MetadataService, the GUI/MCP ONE source)
+
+    /// The shared write-five registration frame: every tool is
+    /// `destructiveHint` + `requiresWriter` (the registry pre-hook fails
+    /// closed with `serverReadOnly` on a read-only instance). The write
+    /// path IS MetadataService — the same three segments the GUI rides
+    /// (D-14-CONTEXT-5①); MCP never touches sidecar bytes. NOTE the
+    /// deliberate asymmetry with the params face: metadata writes do NOT
+    /// reject GUI-live targets — the claim face has no live protection and
+    /// a rating is not a parameter change (D-8: no history, no stale).
+    private static func registerWriteFive(
+        on registry: McpToolRegistry, context: McpCullingContext
+    ) async {
+        /// The common frame: timeout → metadata service → membership →
+        /// per-tool body → outcome JSON.
+        func registerOne(
+            _ name: String, _ schema: String,
+            _ body: @escaping @Sendable (MetadataService, [String], [String: McpJSON])
+                async throws -> MetadataEditOutcome
+        ) async {
+            await registry.register(
+                McpToolDescriptor(
+                    name: name,
+                    description:
+                        "Write metadata on photos of the CURRENTLY OPEN Lightamer "
+                            + "session (batch relPaths). One bulk change = one "
+                            + "transaction; the write lands in the sidecar truth AND "
+                            + "the session index (the GUI grid/filter face reads the "
+                            + "same index). MODIFIES session metadata only — never "
+                            + "pixels, never file delete/move.",
+                    inputSchemaJSON: schema,
+                    destructiveHint: true),
+                requiresWriter: true,
+                handler: { arguments in
+                    try await withTimeout(
+                        McpTimeouts.metadataWrite,
+                        McpToolError.internalError("\(name) timed out")
+                    ) {
+                        guard let metadata = await context.metadata() else {
+                            throw McpToolError.internalError(
+                                "metadata service unavailable in this host")
+                        }
+                        let relPaths = try requireRelPaths(arguments, max: 1000)
+                        let (store, _) = try await requireSession(context)
+                        try await requireMembers(relPaths, store: store)
+                        let outcome = try await body(metadata, relPaths, arguments)
+                        return .text(
+                            McpJSONSerialization.text(from: .object([
+                                "appliedRelPaths": .array(
+                                    outcome.appliedRelPaths.map { .string($0) }),
+                                "skippedRelPaths": .array(
+                                    outcome.skippedRelPaths.map { .string($0) }),
+                            ])))
+                    }
+                })
+        }
+
+        // §A #11 set_rating
+        await registerOne(
+            "set_rating",
+            #"{"type":"object","required":["relPaths","rating"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"rating":{"type":["integer","null"],"minimum":0,"maximum":5,"description":"0-5, or null to clear"}}}"#
+        ) { metadata, relPaths, arguments in
+            guard let ratingArg = arguments["rating"] else {
+                throw McpToolError.invalidParams("rating is required (0-5 or null)")
+            }
+            let rating: Int?
+            switch ratingArg {
+            case .null: rating = nil
+            case .int(let value) where (0...5).contains(value): rating = value
+            default:
+                throw McpToolError.invalidParams("rating must be an integer 0-5 or null")
+            }
+            return try await metadata.setRating(rating, relPaths: relPaths)
+        }
+
+        // §A #12 set_flag
+        await registerOne(
+            "set_flag",
+            #"{"type":"object","required":["relPaths","flag"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"flag":{"type":["integer","null"],"minimum":0,"maximum":2,"description":"0 none / 1 pick / 2 reject, or null to clear"}}}"#
+        ) { metadata, relPaths, arguments in
+            guard let flagArg = arguments["flag"] else {
+                throw McpToolError.invalidParams("flag is required (0/1/2 or null)")
+            }
+            let flag: Int?
+            switch flagArg {
+            case .null: flag = nil
+            case .int(let value) where (0...2).contains(value): flag = value
+            default:
+                throw McpToolError.invalidParams("flag must be 0, 1, 2 or null")
+            }
+            return try await metadata.setFlag(flag, relPaths: relPaths)
+        }
+
+        // §A #13 set_color_label
+        await registerOne(
+            "set_color_label",
+            #"{"type":"object","required":["relPaths","color"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"color":{"type":["integer","null"],"minimum":0,"maximum":6,"description":"0-6, or null to clear"}}}"#
+        ) { metadata, relPaths, arguments in
+            guard let colorArg = arguments["color"] else {
+                throw McpToolError.invalidParams("color is required (0-6 or null)")
+            }
+            let color: Int?
+            switch colorArg {
+            case .null: color = nil
+            case .int(let value) where (0...6).contains(value): color = value
+            default:
+                throw McpToolError.invalidParams("color must be an integer 0-6 or null")
+            }
+            return try await metadata.setColorLabel(color, relPaths: relPaths)
+        }
+
+        // §A #14 append_note
+        await registerOne(
+            "append_note",
+            #"{"type":"object","required":["relPaths","note"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"note":{"type":"string","minLength":1,"description":"Appended as one line (a newline is inserted after an existing note)"}}}"#
+        ) { metadata, relPaths, arguments in
+            guard let note = arguments["note"]?.stringValue, !note.isEmpty else {
+                throw McpToolError.invalidParams("note must be a non-empty string")
+            }
+            return try await metadata.appendNote(note, relPaths: relPaths)
+        }
+
+        // §A #15 set_keywords — WHOLE-GROUP replacement (MetadataService
+        // setKeywords semantics); the `|` separator rides the typed
+        // keywordContainsSeparator code.
+        await registerOne(
+            "set_keywords",
+            #"{"type":"object","required":["relPaths","keywords"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"keywords":{"type":["array","null"],"items":{"type":"string"},"description":"Whole-group replacement; empty array = cleared state, null = never-tagged; entries must not contain '|'"}}}"#
+        ) { metadata, relPaths, arguments in
+            guard let keywordsArg = arguments["keywords"] else {
+                throw McpToolError.invalidParams("keywords is required (array or null)")
+            }
+            let keywords: [String]?
+            switch keywordsArg {
+            case .null: keywords = nil
+            case .array(let items):
+                let values = items.map(\.stringValue)
+                guard values.allSatisfy({ $0 != nil }) else {
+                    throw McpToolError.invalidParams("keywords entries must be strings")
+                }
+                keywords = values.map { $0! }
+            default:
+                throw McpToolError.invalidParams("keywords must be an array of strings or null")
+            }
+            do {
+                return try await metadata.setKeywords(keywords, relPaths: relPaths)
+            } catch MetadataService.MetadataError.keywordContainsSeparator(let keyword) {
+                throw McpToolError.keywordContainsSeparator(
+                    "'\(keyword)' contains the hierarchical path separator '|'")
+            }
+        }
+    }
+
+    // MARK: - Preset trio (§A #16-18)
+
+    private static func registerPresetTrio(
+        on registry: McpToolRegistry, context: McpCullingContext
+    ) async {
+        // §A #16 list_presets
+        await registry.register(
+            McpToolDescriptor(
+                name: "list_presets",
+                description:
+                    "List the app-level Lightamer presets (develop = adjustment "
+                        + "recipes; export = output recipes). Filter by `kind` or "
+                        + "omit it for all.",
+                inputSchemaJSON:
+                    #"{"type":"object","properties":{"kind":{"enum":["develop","export"],"description":"Filter by preset kind"}}}"#,
+                readOnlyHint: true),
+            handler: { arguments in
+                try await withTimeout(
+                    McpTimeouts.list,
+                    McpToolError.internalError("list_presets timed out")
+                ) {
+                    guard let presets = await context.presets() else {
+                        throw McpToolError.internalError(
+                            "preset library unavailable in this host")
+                    }
+                    var kind: LightamerPreset.Kind?
+                    if let kindRaw = arguments["kind"]?.stringValue {
+                        guard let parsed = LightamerPreset.Kind(rawValue: kindRaw) else {
+                            throw McpToolError.invalidParams(
+                                "kind must be 'develop' or 'export'")
+                        }
+                        kind = parsed
+                    }
+                    let stored = kind.map { presets.presets(kind: $0) } ?? presets.presets()
+                    let rows = stored.map { preset -> McpJSON in
+                        .object([
+                            "id": .string(preset.id),
+                            "name": .string(preset.document.name),
+                            "kind": .string(preset.document.kind.rawValue),
+                            "category": preset.document.category.map { .string($0) } ?? .null,
+                            "instanceCount": .int(preset.document.instances.count),
+                        ])
+                    }
+                    return .text(McpJSONSerialization.text(from: .object([
+                        "presets": .array(rows),
+                    ])))
+                }
+            })
+
+        // §A #17 apply_preset — the D8 half: GUI-live targets ride
+        // PresetApplier's liveRelPaths skip and surface in
+        // skippedRelPaths (soft skip — no error, no batch blockage).
+        await registry.register(
+            McpToolDescriptor(
+                name: "apply_preset",
+                description:
+                    "Apply a develop preset to photos of the CURRENTLY OPEN Lightamer "
+                        + "session (apply = paste semantics; mode 'merge' appends onto "
+                        + "each target's history, 'overwrite' resets to the preset). "
+                        + "Photos open in the GUI editor are SKIPPED and reported in "
+                        + "skippedRelPaths (ask the user to close them there or pick "
+                        + "other photos). Export-kind presets cannot be applied here.",
+                inputSchemaJSON:
+                    #"{"type":"object","required":["presetID","relPaths"],"properties":{"presetID":{"type":"string"},"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"mode":{"enum":["overwrite","merge"],"description":"Paste mode (default merge)"},"selection":{"type":"array","description":"Partial-apply subset of instances","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer"},"multiName":{"type":"string"}},"required":["opName","multiPriority","multiName"]}}}}"#,
+                destructiveHint: true),
+            requiresWriter: true,
+            handler: { arguments in
+                try await withTimeout(
+                    McpTimeouts.apply,
+                    McpToolError.internalError("apply_preset timed out")
+                ) {
+                    guard let presetID = arguments["presetID"]?.stringValue else {
+                        throw McpToolError.invalidParams("presetID is required")
+                    }
+                    let relPaths = try requireRelPaths(arguments, max: 1000)
+                    var mode = PasteMode.merge
+                    if let modeRaw = arguments["mode"]?.stringValue {
+                        switch modeRaw {
+                        case "overwrite": mode = .overwrite
+                        case "merge": mode = .merge
+                        default:
+                            throw McpToolError.invalidParams(
+                                "mode must be 'overwrite' or 'merge'")
+                        }
+                    }
+                    var selection: Set<PastePayload.InstanceKey>?
+                    if let selectionArg = arguments["selection"]?.arrayValue {
+                        var keys: Set<PastePayload.InstanceKey> = []
+                        for item in selectionArg {
+                            guard let opName = item["opName"]?.stringValue,
+                                let multiPriority = item["multiPriority"]?.intValue,
+                                let multiName = item["multiName"]?.stringValue
+                            else {
+                                throw McpToolError.invalidParams(
+                                    "selection entries need opName/multiPriority/multiName")
+                            }
+                            keys.insert(
+                                PastePayload.InstanceKey(
+                                    opName: opName, multiPriority: multiPriority,
+                                    multiName: multiName))
+                        }
+                        selection = keys
+                    }
+                    guard let presetsStore = await context.presets() else {
+                        throw McpToolError.internalError(
+                            "preset library unavailable in this host")
+                    }
+                    let (store, root) = try await requireSession(context)
+                    try await requireMembers(relPaths, store: store)
+                    guard let writer = await context.sidecarWriter() else {
+                        throw McpToolError.internalError(
+                            "sidecar writer unavailable in this host")
+                    }
+                    // The D8 soft-skip: the GUI-live subset rides the
+                    // applier's existing skip (the report face), NOT a
+                    // typed error (the apply_params hard-reject is the
+                    // 14-2 half of the钉板).
+                    let live = await context.liveRelPaths()
+                    let liveTargets = Set(relPaths).intersection(live)
+                    let outcome: BatchApplyOutcome
+                    do {
+                        outcome = try await PresetApplier.apply(
+                            presetID: presetID, presetsStore: presetsStore,
+                            root: root, relPaths: relPaths, mode: mode,
+                            seed: [], selection: selection,
+                            liveRelPaths: liveTargets,
+                            indexStore: store, writer: writer,
+                            label: "mcp-apply-preset")
+                    } catch let error as PresetError {
+                        // An id-addressed load whose FILE is missing is an
+                        // unknown preset too (loadDocument surfaces the
+                        // missing file as unreadableFile).
+                        if case .notFound(let id) = error {
+                            throw McpToolError.unknownPreset(
+                                "no preset with id '\(id)'")
+                        }
+                        if case .unreadableFile(let name) = error {
+                            throw McpToolError.unknownPreset(
+                                "no preset file '\(name)' (unknown id)")
+                        }
+                        throw McpToolError.internalError("\(error)")
+                    } catch let error as PresetApplier.ApplyError {
+                        if case .exportPresetNotApplicable(let name) = error {
+                            throw McpToolError.exportPresetNotApplicable(
+                                "'\(name)' is an export preset — it cannot be "
+                                    + "applied to photos (export presets fill the "
+                                    + "export panel)")
+                        }
+                        throw McpToolError.internalError("\(error)")
+                    }
+                    return .text(
+                        McpJSONSerialization.text(from: .object([
+                            "appliedRelPaths": .array(
+                                outcome.appliedRelPaths.map { .string($0) }),
+                            "skippedRelPaths": .array(
+                                outcome.skippedLiveRelPaths.map { .string($0) }),
+                            "failedRelPaths": .array(
+                                outcome.failedRelPaths.map { .string($0) }),
+                        ])))
+                }
+            })
+
+        // §A #18 diff_presets
+        await registry.register(
+            McpToolDescriptor(
+                name: "diff_presets",
+                description:
+                    "Diff two presets by instance key (opName + multiPriority): "
+                        + "which instances exist only in A, only in B, or in both "
+                        + "with different parameters.",
+                inputSchemaJSON:
+                    #"{"type":"object","required":["presetIDA","presetIDB"],"properties":{"presetIDA":{"type":"string"},"presetIDB":{"type":"string"}}}"#,
+                readOnlyHint: true),
+            handler: { arguments in
+                try await withTimeout(
+                    McpTimeouts.list,
+                    McpToolError.internalError("diff_presets timed out")
+                ) {
+                    guard let idA = arguments["presetIDA"]?.stringValue,
+                        let idB = arguments["presetIDB"]?.stringValue
+                    else {
+                        throw McpToolError.invalidParams(
+                            "presetIDA and presetIDB are required")
+                    }
+                    guard let presets = await context.presets() else {
+                        throw McpToolError.internalError(
+                            "preset library unavailable in this host")
+                    }
+                    func load(_ id: String) throws -> LightamerPreset {
+                        do {
+                            return try presets.loadDocument(id: id)
+                        } catch PresetError.notFound {
+                            throw McpToolError.unknownPreset("no preset with id '\(id)'")
+                        } catch PresetError.unreadableFile {
+                            // A missing FILE at the id-addressed path IS the
+                            // unknown-preset face (the store only throws
+                            // unreadableFile for absent/locked files here).
+                            throw McpToolError.unknownPreset("no preset with id '\(id)'")
+                        } catch {
+                            throw McpToolError.internalError("\(error)")
+                        }
+                    }
+                    let docA = try load(idA)
+                    let docB = try load(idB)
+                    func keys(_ doc: LightamerPreset) -> [String: Data] {
+                        var map: [String: Data] = [:]
+                        for instance in doc.instances {
+                            map["\(instance.opName)#\(instance.multiPriority)"] =
+                                instance.paramsData
+                        }
+                        return map
+                    }
+                    let a = keys(docA), b = keys(docB)
+                    let onlyInA = a.keys.filter { b[$0] == nil }.sorted()
+                    let onlyInB = b.keys.filter { a[$0] == nil }.sorted()
+                    let differing = a.keys.filter { key in
+                        guard let other = b[key] else { return false }
+                        return a[key] != other
+                    }.sorted()
+                    func strings(_ values: [String]) -> McpJSON {
+                        .array(values.map { .string($0) })
+                    }
+                    return .text(
+                        McpJSONSerialization.text(from: .object([
+                            "onlyInA": strings(onlyInA),
+                            "onlyInB": strings(onlyInB),
+                            "differing": strings(differing),
+                        ])))
+                }
+            })
+    }
+
+
 }

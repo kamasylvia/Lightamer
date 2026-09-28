@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import LightamerCore
+import LightamerIOP
 import XCTest
 
 @testable import Lightamer
@@ -39,7 +40,7 @@ final class McpCullingToolsetTests: XCTestCase {
     }
 
     /// Seed one row with the full v2 column face the tests touch.
-    func seedRow(
+    static func seedRow(
         _ store: SessionIndexStore,
         path: String,
         dir: String? = "Capture",
@@ -95,21 +96,21 @@ final class McpCullingToolsetTests: XCTestCase {
     /// The 12-2 translation-layer row set (FilterSQLTests.seedFixture's
     /// paths) — the predicate round-trip reuses the SAME content so the
     /// GUI-side and MCP-side hits cross-validate on known ground truth.
-    func seedFilterFixture(_ store: SessionIndexStore) async throws {
-        try await seedRow(store, path: "nature-rose.arw", rating: 3, keywords: "Nature|Flower|Rose")
-        try await seedRow(store, path: "nature-tree.arw", rating: 2, keywords: "Nature|Tree")
-        try await seedRow(store, path: "natureholics.arw", rating: 4, keywords: "NatureHolics")
-        try await seedRow(store, path: "nature.arw", rating: 1, keywords: "Nature")
-        try await seedRow(store, path: "cleared.arw", keywords: "", flag: 1)
-        try await seedRow(store, path: "untagged.arw")
-        try await seedRow(store, path: "Capture/100%_shot.ARW")
-        try await seedRow(store, path: "Capture/it's a photo.ARW")
-        try await seedRow(
+    static func seedFilterFixture(_ store: SessionIndexStore) async throws {
+        try await Self.seedRow(store, path: "nature-rose.arw", rating: 3, keywords: "Nature|Flower|Rose")
+        try await Self.seedRow(store, path: "nature-tree.arw", rating: 2, keywords: "Nature|Tree")
+        try await Self.seedRow(store, path: "natureholics.arw", rating: 4, keywords: "NatureHolics")
+        try await Self.seedRow(store, path: "nature.arw", rating: 1, keywords: "Nature")
+        try await Self.seedRow(store, path: "cleared.arw", keywords: "", flag: 1)
+        try await Self.seedRow(store, path: "untagged.arw")
+        try await Self.seedRow(store, path: "Capture/100%_shot.ARW")
+        try await Self.seedRow(store, path: "Capture/it's a photo.ARW")
+        try await Self.seedRow(
             store, path: "iso400.arw", cameraMake: "Canon", iso: 400,
             focalLength: 50, captureDate: 1_700_000_000)
     }
 
-    func makeFixture(
+    static func makeFixture(
         seed: (SessionIndexStore) async throws -> Void
     ) async throws -> Fixture {
         let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
@@ -126,7 +127,7 @@ final class McpCullingToolsetTests: XCTestCase {
 
     /// The context + registry over a fixture (the tests' own assembly — the
     /// same registerAll the 14-4 union will call).
-    func makeRegistry(
+    static func makeRegistry(
         _ fixture: Fixture,
         metadata: MetadataService? = nil,
         sidecarWriter: BatchSidecarWriter? = nil,
@@ -155,7 +156,7 @@ final class McpCullingToolsetTests: XCTestCase {
     }
 
     /// Call a tool and decode its text output as JSON.
-    func callJSON(
+    static func callJSON(
         _ registry: McpToolRegistry, name: String,
         arguments: [String: McpJSON] = [:], file: StaticString = #filePath,
         line: UInt = #line
@@ -171,19 +172,67 @@ final class McpCullingToolsetTests: XCTestCase {
 
     // MARK: - T1: culling-domain snapshot (grows per task)
 
-    func testCullingSnapshotListPhotos() async throws {
-        let fixture = try await makeFixture { _ in }
+    func testCullingSnapshotThroughWriteFive() async throws {
+        let fixture = try await Self.makeFixture { _ in }
         defer { fixture.cleanup() }
-        let registry = await makeRegistry(fixture)
+        let registry = await Self.makeRegistry(fixture)
         try await McpRegistrySnapshotTests.assertSnapshot(
             registry: registry,
             expected: [
+                McpToolDescriptor(
+                    name: "append_note",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","required":["relPaths","note"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"note":{"type":"string","minLength":1,"description":"Appended as one line (a newline is inserted after an existing note)"}}}"#,
+                    destructiveHint: true),
+                McpToolDescriptor(
+                    name: "apply_preset",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","required":["presetID","relPaths"],"properties":{"presetID":{"type":"string"},"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"mode":{"enum":["overwrite","merge"],"description":"Paste mode (default merge)"},"selection":{"type":"array","description":"Partial-apply subset of instances","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer"},"multiName":{"type":"string"}},"required":["opName","multiPriority","multiName"]}}}}"#,
+                    destructiveHint: true),
+                McpToolDescriptor(
+                    name: "diff_presets",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","required":["presetIDA","presetIDB"],"properties":{"presetIDA":{"type":"string"},"presetIDB":{"type":"string"}}}"#,
+                    readOnlyHint: true),
                 McpToolDescriptor(
                     name: "list_photos",
                     description: "snapshot",
                     inputSchemaJSON:
                         #"{"type":"object","properties":{"cursor":{"type":"string","description":"Opaque nextCursor token from the previous page"},"filter":{"type":"object","description":"FilterPredicateGroup JSON: {schemaVersion:1, match:"all"|"any", rules:[{field, op, value:{kind, ...}}]}"},"limit":{"type":"integer","minimum":1,"maximum":1000,"description":"Rows per page (default 200)"},"sort":{"type":"object","description":"{key: filename|rating|captureDate|iso|focalLength|scanEpoch, ascending: bool}"}}}"#,
                     readOnlyHint: true),
+                McpToolDescriptor(
+                    name: "list_presets",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","properties":{"kind":{"enum":["develop","export"],"description":"Filter by preset kind"}}}"#,
+                    readOnlyHint: true),
+                McpToolDescriptor(
+                    name: "set_color_label",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","required":["relPaths","color"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"color":{"type":["integer","null"],"minimum":0,"maximum":6,"description":"0-6, or null to clear"}}}"#,
+                    destructiveHint: true),
+                McpToolDescriptor(
+                    name: "set_flag",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","required":["relPaths","flag"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"flag":{"type":["integer","null"],"minimum":0,"maximum":2,"description":"0 none / 1 pick / 2 reject, or null to clear"}}}"#,
+                    destructiveHint: true),
+                McpToolDescriptor(
+                    name: "set_keywords",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","required":["relPaths","keywords"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"keywords":{"type":["array","null"],"items":{"type":"string"},"description":"Whole-group replacement; empty array = cleared state, null = never-tagged; entries must not contain '|'"}}}"#,
+                    destructiveHint: true),
+                McpToolDescriptor(
+                    name: "set_rating",
+                    description: "snapshot",
+                    inputSchemaJSON:
+                        #"{"type":"object","required":["relPaths","rating"],"properties":{"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"rating":{"type":["integer","null"],"minimum":0,"maximum":5,"description":"0-5, or null to clear"}}}"#,
+                    destructiveHint: true),
             ])
     }
 
@@ -199,8 +248,8 @@ final class McpCullingToolsetTests: XCTestCase {
             McpPhotoProjection.exposedColumns.count
                 + McpPhotoProjection.hiddenColumns.count, 34)
 
-        let fixture = try await makeFixture { store in
-            try await seedRow(
+        let fixture = try await Self.makeFixture { store in
+            try await Self.seedRow(
                 store, path: "full.arw", rating: 3, colorLabel: 2,
                 keywords: "Nature", flag: 1, note: "hello",
                 cameraMake: "Canon", cameraModel: "EOS R5", iso: 400,
@@ -208,8 +257,8 @@ final class McpCullingToolsetTests: XCTestCase {
                 captureDate: 1_700_000_000, hasEdits: 1)
         }
         defer { fixture.cleanup() }
-        let registry = await makeRegistry(fixture)
-        let payload = try await callJSON(registry, name: "list_photos")
+        let registry = await Self.makeRegistry(fixture)
+        let payload = try await Self.callJSON(registry, name: "list_photos")
         let rows = try XCTUnwrap(payload["rows"] as? [[String: Any]])
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(
@@ -228,11 +277,11 @@ final class McpCullingToolsetTests: XCTestCase {
     }
 
     func testProjectionNeverLeaksHiddenColumns() async throws {
-        let fixture = try await makeFixture { store in
-            try await seedFilterFixture(store)
+        let fixture = try await Self.makeFixture { store in
+            try await Self.seedFilterFixture(store)
         }
         defer { fixture.cleanup() }
-        let registry = await makeRegistry(fixture)
+        let registry = await Self.makeRegistry(fixture)
         let output = try await registry.call(name: "list_photos", arguments: [:])
         guard case .text(let text) = output.content.first else {
             return XCTFail("expected text")
@@ -251,8 +300,8 @@ final class McpCullingToolsetTests: XCTestCase {
     /// hit the identical path set — the FilterSQL single-translation-layer
     /// proof on the MCP entry.
     func testPredicateRoundTripGuiVsMcp() async throws {
-        let fixture = try await makeFixture { store in
-            try await seedFilterFixture(store)
+        let fixture = try await Self.makeFixture { store in
+            try await Self.seedFilterFixture(store)
         }
         defer { fixture.cleanup() }
         let group = FilterPredicateGroup(
@@ -269,8 +318,8 @@ final class McpCullingToolsetTests: XCTestCase {
         let data = try JSONEncoder().encode(group)
         let json = try JSONSerialization.jsonObject(with: data)
         let filterJSON = try XCTUnwrap(McpJSONSerialization.anyJSON(from: json))
-        let registry = await makeRegistry(fixture)
-        let payload = try await callJSON(
+        let registry = await Self.makeRegistry(fixture)
+        let payload = try await Self.callJSON(
             registry, name: "list_photos", arguments: ["filter": filterJSON])
         let rows = try XCTUnwrap(payload["rows"] as? [[String: Any]])
         let mcpPaths = Set(rows.compactMap { $0["path"] as? String })
@@ -285,21 +334,21 @@ final class McpCullingToolsetTests: XCTestCase {
     // MARK: - T1: keyset cursor paging
 
     func testCursorPagingFirstNextExhaust() async throws {
-        let fixture = try await makeFixture { store in
+        let fixture = try await Self.makeFixture { store in
             for index in 0..<12 {
-                try await seedRow(
+                try await Self.seedRow(
                     store, path: String(format: "img-%02d.arw", index),
                     captureDate: Double(index) * 10)
             }
         }
         defer { fixture.cleanup() }
-        let registry = await makeRegistry(fixture)
+        let registry = await Self.makeRegistry(fixture)
         let sort: McpJSON = .object([
             "key": .string("captureDate"), "ascending": .bool(true),
         ])
 
         // First page.
-        let page1 = try await callJSON(
+        let page1 = try await Self.callJSON(
             registry, name: "list_photos",
             arguments: ["sort": sort, "limit": .int(5)])
         let rows1 = try XCTUnwrap(page1["rows"] as? [[String: Any]])
@@ -307,7 +356,7 @@ final class McpCullingToolsetTests: XCTestCase {
         let cursor1 = try XCTUnwrap(page1["nextCursor"] as? String)
 
         // Next page.
-        let page2 = try await callJSON(
+        let page2 = try await Self.callJSON(
             registry, name: "list_photos",
             arguments: ["sort": sort, "limit": .int(5), "cursor": .string(cursor1)])
         let rows2 = try XCTUnwrap(page2["rows"] as? [[String: Any]])
@@ -317,7 +366,7 @@ final class McpCullingToolsetTests: XCTestCase {
         let cursor2 = try XCTUnwrap(page2["nextCursor"] as? String)
 
         // Exhaustion: a short page carries NO nextCursor.
-        let page3 = try await callJSON(
+        let page3 = try await Self.callJSON(
             registry, name: "list_photos",
             arguments: ["sort": sort, "limit": .int(5), "cursor": .string(cursor2)])
         let rows3 = try XCTUnwrap(page3["rows"] as? [[String: Any]])
@@ -333,20 +382,20 @@ final class McpCullingToolsetTests: XCTestCase {
     }
 
     func testCursorDescendingAndNullClassContinuation() async throws {
-        let fixture = try await makeFixture { store in
+        let fixture = try await Self.makeFixture { store in
             // rating 1...5 + three NULL-rating rows (the NULL class sorts
             // last in both directions).
             for index in 1...5 {
-                try await seedRow(
+                try await Self.seedRow(
                     store, path: String(format: "rated-%02d.arw", index),
                     rating: Int64(index), captureDate: Double(index))
             }
-            try await seedRow(store, path: "null-a.arw", captureDate: 100)
-            try await seedRow(store, path: "null-b.arw", captureDate: 101)
-            try await seedRow(store, path: "null-c.arw", captureDate: 102)
+            try await Self.seedRow(store, path: "null-a.arw", captureDate: 100)
+            try await Self.seedRow(store, path: "null-b.arw", captureDate: 101)
+            try await Self.seedRow(store, path: "null-c.arw", captureDate: 102)
         }
         defer { fixture.cleanup() }
-        let registry = await makeRegistry(fixture)
+        let registry = await Self.makeRegistry(fixture)
         let sort: McpJSON = .object([
             "key": .string("rating"), "ascending": .bool(false),
         ])
@@ -354,14 +403,14 @@ final class McpCullingToolsetTests: XCTestCase {
         // DESC page 1: ratings 5,4,3,2,1 + the first NULL row (NULLs sort
         // last, LIMIT 6 cuts into the NULL class); the NULL-class
         // continuation cursor pages the rest by path.
-        let page1 = try await callJSON(
+        let page1 = try await Self.callJSON(
             registry, name: "list_photos",
             arguments: ["sort": sort, "limit": .int(6)])
         let rows1 = try XCTUnwrap(page1["rows"] as? [[String: Any]])
         XCTAssertEqual(rows1.first?["path"] as? String, "rated-05.arw")
         XCTAssertEqual(rows1.last?["path"] as? String, "null-a.arw")
         let cursor = try XCTUnwrap(page1["nextCursor"] as? String)
-        let page2 = try await callJSON(
+        let page2 = try await Self.callJSON(
             registry, name: "list_photos",
             arguments: ["sort": sort, "limit": .int(6), "cursor": .string(cursor)])
         let rows2 = try XCTUnwrap(page2["rows"] as? [[String: Any]])
@@ -369,19 +418,19 @@ final class McpCullingToolsetTests: XCTestCase {
     }
 
     func testCursorInvalidatedBySortKeyChange() async throws {
-        let fixture = try await makeFixture { store in
+        let fixture = try await Self.makeFixture { store in
             for index in 0..<6 {
-                try await seedRow(
+                try await Self.seedRow(
                     store, path: String(format: "img-%02d.arw", index),
                     rating: Int64(index % 3 + 1), captureDate: Double(index))
             }
         }
         defer { fixture.cleanup() }
-        let registry = await makeRegistry(fixture)
+        let registry = await Self.makeRegistry(fixture)
         let captureSort: McpJSON = .object([
             "key": .string("captureDate"), "ascending": .bool(true),
         ])
-        let page1 = try await callJSON(
+        let page1 = try await Self.callJSON(
             registry, name: "list_photos",
             arguments: ["sort": captureSort, "limit": .int(3)])
         let cursor = try XCTUnwrap(page1["nextCursor"] as? String)
@@ -399,7 +448,7 @@ final class McpCullingToolsetTests: XCTestCase {
             XCTAssertEqual(error.code, "invalidParams")
         }
         // Same sort + cursor still works.
-        let page2 = try await callJSON(
+        let page2 = try await Self.callJSON(
             registry, name: "list_photos",
             arguments: ["sort": captureSort, "limit": .int(3), "cursor": .string(cursor)])
         XCTAssertEqual((page2["rows"] as? [[String: Any]])?.count, 3)
@@ -408,11 +457,11 @@ final class McpCullingToolsetTests: XCTestCase {
     // MARK: - T1: invalidFilter matrix + limit/sort guards
 
     func testInvalidFilterMatrixNegatives() async throws {
-        let fixture = try await makeFixture { store in
-            try await seedFilterFixture(store)
+        let fixture = try await Self.makeFixture { store in
+            try await Self.seedFilterFixture(store)
         }
         defer { fixture.cleanup() }
-        let registry = await makeRegistry(fixture)
+        let registry = await Self.makeRegistry(fixture)
 
         func expectInvalidFilter(_ filter: McpJSON) async {
             do {
@@ -455,11 +504,11 @@ final class McpCullingToolsetTests: XCTestCase {
     }
 
     func testListPhotosLimitAndSortGuards() async throws {
-        let fixture = try await makeFixture { store in
-            try await seedFilterFixture(store)
+        let fixture = try await Self.makeFixture { store in
+            try await Self.seedFilterFixture(store)
         }
         defer { fixture.cleanup() }
-        let registry = await makeRegistry(fixture)
+        let registry = await Self.makeRegistry(fixture)
 
         // limit > 1000 → invalidParams.
         do {
@@ -479,7 +528,7 @@ final class McpCullingToolsetTests: XCTestCase {
             XCTAssertEqual(error.code, "invalidParams")
         }
         // Default limit 200 without arguments → whole fixture, no cursor.
-        let payload = try await callJSON(registry, name: "list_photos")
+        let payload = try await Self.callJSON(registry, name: "list_photos")
         XCTAssertEqual((payload["rows"] as? [[String: Any]])?.count, 9)
         XCTAssertNil(payload["nextCursor"] as? String)
     }
@@ -501,6 +550,330 @@ final class McpCullingToolsetTests: XCTestCase {
             XCTAssertEqual(error.code, "notSessionMember")
             XCTAssertTrue(error.message.contains("no open session"))
         }
+    }
+    // MARK: - T2: write five (MetadataService single source)
+
+    /// Fixture with REAL image files on disk (metadata writes compose the
+    /// sidecar next to each file — the MetadataServiceTests pattern).
+    func makeFileFixture() async throws -> Fixture {
+        let fixture = try await Self.makeFixture { store in
+            try await Self.seedFilterFixture(store)
+        }
+        for rel in ["nature-rose.arw", "nature-tree.arw", "natureholics.arw"] {
+            try Data(repeating: 0xAB, count: 16).write(
+                to: fixture.sessionRoot.appendingPathComponent(rel))
+        }
+        return fixture
+    }
+
+    /// The write-five registry wiring: a REAL MetadataService over the
+    /// REAL BatchSidecarWriter (all three segments — the parity red line).
+    func makeWriteRegistry(_ fixture: Fixture) async -> McpToolRegistry {
+        let writer = BatchSidecarWriter(root: fixture.sessionRoot, store: fixture.store)
+        let metadata = MetadataService(root: fixture.sessionRoot, store: fixture.store, writer: writer)
+        return await Self.makeRegistry(fixture, metadata: metadata, sidecarWriter: writer)
+    }
+
+    /// The write-back联动 parity: MCP set_rating → ① sidecar真身 bytes,
+    /// ② the lindex row (claim transaction), ③ the GUI-visible face (the
+    /// query rows the grid/filter reads). One path, three assertions.
+    func testSetRatingWriteBackThreeAssertions() async throws {
+        let fixture = try await makeFileFixture()
+        defer { fixture.cleanup() }
+        let registry = await makeWriteRegistry(fixture)
+        let output = try await registry.call(
+            name: "set_rating",
+            arguments: [
+                "relPaths": .array([.string("nature-rose.arw")]),
+                "rating": .int(4),
+            ])
+        guard case .text(let text) = output.content.first else {
+            return XCTFail("expected text")
+        }
+        XCTAssertTrue(text.contains("nature-rose.arw"))
+
+        // ① sidecar truth.
+        let sidecarURL = LightamerSidecar.sidecarURL(
+            for: fixture.sessionRoot.appendingPathComponent("nature-rose.arw"))
+        let document = try JSONDecoder().decode(
+            LightamerSidecar.self, from: Data(contentsOf: sidecarURL))
+        XCTAssertEqual(document.rating, 4)
+        // ② the index row (segment 3's enqueue awaits its own drain).
+        let row = try await fixture.store.fetchRow(relPath: "nature-rose.arw")
+        XCTAssertEqual(row?.rating, 4)
+        // ③ the GUI-visible face: the filter query sees the new rating.
+        let rows = try await fixture.store.query(
+            groups: [FilterPredicateGroup(
+                rules: [.init(field: .rating, op: .eq, value: .int(4))])])
+        // natureholics.arw rides the fixture at rating 4 already; the
+        // written row JOINS the set (the filter face sees the write).
+        XCTAssertTrue(rows.map(\.path).contains("nature-rose.arw"))
+    }
+
+    func testBatchMetadataOneOutcomeTwoRows() async throws {
+        let fixture = try await makeFileFixture()
+        defer { fixture.cleanup() }
+        let registry = await makeWriteRegistry(fixture)
+        let payload = try await Self.callJSON(
+            registry, name: "set_flag",
+            arguments: [
+                "relPaths": .array([.string("nature-rose.arw"), .string("nature-tree.arw")]),
+                "flag": .int(1),
+            ])
+        XCTAssertEqual(
+            Set((payload["appliedRelPaths"] as? [String]) ?? []),
+            ["nature-rose.arw", "nature-tree.arw"])
+        XCTAssertEqual((payload["skippedRelPaths"] as? [String])?.count, 0)
+        // Both rows flipped together (one bulk change).
+        for rel in ["nature-rose.arw", "nature-tree.arw"] {
+            let row = try await fixture.store.fetchRow(relPath: rel)
+            XCTAssertEqual(row?.flag, 1)
+        }
+    }
+
+    func testKeywordSeparatorTypedNegative() async throws {
+        let fixture = try await makeFileFixture()
+        defer { fixture.cleanup() }
+        let registry = await makeWriteRegistry(fixture)
+        do {
+            _ = try await registry.call(
+                name: "set_keywords",
+                arguments: [
+                    "relPaths": .array([.string("nature-rose.arw")]),
+                    "keywords": .array([.string("Nature|Flower")]),
+                ])
+            XCTFail("expected keywordContainsSeparator")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "keywordContainsSeparator")
+            XCTAssertTrue(error.message.contains("|"))
+        }
+        // Whole-group replacement + null clear both round-trip.
+        _ = try await registry.call(
+            name: "set_keywords",
+            arguments: [
+                "relPaths": .array([.string("nature-rose.arw")]),
+                "keywords": .array([.string("Landscape"), .string("Sunset")]),
+            ])
+        var row = try await fixture.store.fetchRow(relPath: "nature-rose.arw")
+        XCTAssertEqual(row?.keywords, "Landscape|Sunset")
+        _ = try await registry.call(
+            name: "set_keywords",
+            arguments: [
+                "relPaths": .array([.string("nature-rose.arw")]),
+                "keywords": .null,
+            ])
+        row = try await fixture.store.fetchRow(relPath: "nature-rose.arw")
+        XCTAssertNil(row?.keywords)
+    }
+
+    func testWriteFiveServerReadOnlyAndNotSessionMember() async throws {
+        let fixture = try await makeFileFixture()
+        defer { fixture.cleanup() }
+        let registry = await makeWriteRegistry(fixture)
+        // The只读降级 hook (14-1's seam consumed by REAL write tools now).
+        await registry.setWriterCheck { false }
+        do {
+            _ = try await registry.call(
+                name: "set_rating",
+                arguments: [
+                    "relPaths": .array([.string("nature-rose.arw")]),
+                    "rating": .int(3),
+                ])
+            XCTFail("expected serverReadOnly")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "serverReadOnly")
+        }
+        // Membership pre-check.
+        await registry.setWriterCheck { true }
+        do {
+            _ = try await registry.call(
+                name: "set_rating",
+                arguments: [
+                    "relPaths": .array([.string("outside.arw")]),
+                    "rating": .int(3),
+                ])
+            XCTFail("expected notSessionMember")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "notSessionMember")
+        }
+    }
+
+    /// The claim-不动 negative (CONTEXT 验证红线字面): a GUI-live target's
+    /// METADATA write behaves exactly like a non-live one — no rejection,
+    /// no skip (the asymmetry vs apply_params' hard reject).
+    func testMetadataWriteOnLiveTargetClaimFaceUnchanged() async throws {
+        let fixture = try await makeFileFixture()
+        defer { fixture.cleanup() }
+        let registry = await Self.makeRegistry(
+            fixture,
+            metadata: MetadataService(
+                root: fixture.sessionRoot, store: fixture.store,
+                writer: BatchSidecarWriter(
+                    root: fixture.sessionRoot, store: fixture.store)),
+            sidecarWriter: BatchSidecarWriter(
+                root: fixture.sessionRoot, store: fixture.store),
+            liveRelPaths: ["nature-rose.arw"])
+        let payload = try await Self.callJSON(
+            registry, name: "set_rating",
+            arguments: [
+                "relPaths": .array([.string("nature-rose.arw")]),
+                "rating": .int(5),
+            ])
+        XCTAssertEqual(
+            (payload["appliedRelPaths"] as? [String]) ?? [], ["nature-rose.arw"])
+        XCTAssertEqual((payload["skippedRelPaths"] as? [String])?.count, 0)
+        let row = try await fixture.store.fetchRow(relPath: "nature-rose.arw")
+        XCTAssertEqual(row?.rating, 5)
+    }
+
+    // MARK: - T2: preset trio (D8 soft-skip half)
+
+    func makePresetFixture(live: Set<String>) async throws -> (Fixture, McpToolRegistry) {
+        let fixture = try await makeFileFixture()
+        let presets = PresetsStore(
+            directory: fixture.root.appendingPathComponent("presets", isDirectory: true))
+        _ = try presets.create(
+            name: "Warm", kind: .develop,
+            instances: [
+                ModuleInstance(
+                    module: ExposureModule.self, multiName: "warm",
+                    params: ExposureModule.Params(exposure: 0.4)),
+            ])
+        _ = try presets.create(
+            name: "Print-150", kind: .export,
+            exportRecipe: [
+                ExportVariant(format: .jpeg(quality: 0.9), colorSpace: .sRGB),
+            ])
+        _ = try presets.create(
+            name: "Cold", kind: .develop,
+            instances: [
+                ModuleInstance(
+                    module: ExposureModule.self, multiName: "cold",
+                    params: ExposureModule.Params(exposure: -0.4)),
+                ModuleInstance(
+                    module: ExposureModule.self, multiPriority: 1,
+                    multiName: "colder",
+                    params: ExposureModule.Params(exposure: -0.8)),
+            ])
+        let writer = BatchSidecarWriter(root: fixture.sessionRoot, store: fixture.store)
+        let metadata = MetadataService(
+            root: fixture.sessionRoot, store: fixture.store, writer: writer)
+        let registry = await Self.makeRegistry(
+            fixture, metadata: metadata, sidecarWriter: writer,
+            presets: presets, liveRelPaths: live)
+        return (fixture, registry)
+    }
+
+    func testApplyPresetLiveSoftSkipVersusApplied() async throws {
+        let (fixture, registry) = try await makePresetFixture(live: ["nature-rose.arw"])
+        defer { fixture.cleanup() }
+        let warm = try await Self.presetID(registry, named: "Warm")
+        let payload = try await Self.callJSON(
+            registry, name: "apply_preset",
+            arguments: [
+                "presetID": .string(warm),
+                "relPaths": .array([
+                    .string("nature-rose.arw"), .string("nature-tree.arw"),
+                ]),
+            ])
+        // D8: the live photo soft-skips into the report face; the other
+        // photo applies. No error, no batch blockage.
+        XCTAssertEqual(
+            (payload["skippedRelPaths"] as? [String]) ?? [], ["nature-rose.arw"])
+        XCTAssertEqual(
+            (payload["appliedRelPaths"] as? [String]) ?? [], ["nature-tree.arw"])
+        // The applied photo's sidecar carries the preset instance.
+        let sidecarURL = LightamerSidecar.sidecarURL(
+            for: fixture.sessionRoot.appendingPathComponent("nature-tree.arw"))
+        let document = try JSONDecoder().decode(
+            LightamerSidecar.self, from: Data(contentsOf: sidecarURL))
+        XCTAssertEqual(document.instances.first?.opName, ExposureModule.opName)
+        // The skipped live photo has NO sidecar bytes written.
+        let liveSidecar = LightamerSidecar.sidecarURL(
+            for: fixture.sessionRoot.appendingPathComponent("nature-rose.arw"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: liveSidecar.path))
+    }
+
+    func testApplyPresetExportNotApplicableAndUnknown() async throws {
+        let (fixture, registry) = try await makePresetFixture(live: [])
+        defer { fixture.cleanup() }
+        let export = try await Self.presetID(registry, named: "Print-150")
+        do {
+            _ = try await registry.call(
+                name: "apply_preset",
+                arguments: [
+                    "presetID": .string(export),
+                    "relPaths": .array([.string("nature-rose.arw")]),
+                ])
+            XCTFail("expected exportPresetNotApplicable")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "exportPresetNotApplicable")
+        }
+        do {
+            _ = try await registry.call(
+                name: "apply_preset",
+                arguments: [
+                    "presetID": .string("no-such-id"),
+                    "relPaths": .array([.string("nature-rose.arw")]),
+                ])
+            XCTFail("expected unknownPreset")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "unknownPreset")
+        }
+    }
+
+    func testListPresetsKindFilter() async throws {
+        let (fixture, registry) = try await makePresetFixture(live: [])
+        defer { fixture.cleanup() }
+        let all = try await Self.callJSON(registry, name: "list_presets")
+        XCTAssertEqual((all["presets"] as? [[String: Any]])?.count, 3)
+        let develop = try await Self.callJSON(
+            registry, name: "list_presets", arguments: ["kind": .string("develop")])
+        let rows = try XCTUnwrap(develop["presets"] as? [[String: Any]])
+        XCTAssertEqual(rows.count, 2)
+        for row in rows {
+            XCTAssertEqual(row["kind"] as? String, "develop")
+        }
+        do {
+            _ = try await registry.call(
+                name: "list_presets", arguments: ["kind": .string("bogus")])
+            XCTFail("expected invalidParams")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "invalidParams")
+        }
+    }
+
+    func testDiffPresetsKeySets() async throws {
+        let (fixture, registry) = try await makePresetFixture(live: [])
+        defer { fixture.cleanup() }
+        let warm = try await Self.presetID(registry, named: "Warm")
+        let cold = try await Self.presetID(registry, named: "Cold")
+        let payload = try await Self.callJSON(
+            registry, name: "diff_presets",
+            arguments: ["presetIDA": .string(warm), "presetIDB": .string(cold)])
+        // Warm: exposure#0 (0.4). Cold: exposure#0 (-0.4, DIFFERS) +
+        // exposure#1 (only in B).
+        XCTAssertEqual((payload["onlyInA"] as? [String]) ?? [], [])
+        XCTAssertEqual((payload["onlyInB"] as? [String]) ?? [], ["exposure#1"])
+        XCTAssertEqual((payload["differing"] as? [String]) ?? [], ["exposure#0"])
+        // Unknown id → unknownPreset.
+        do {
+            _ = try await registry.call(
+                name: "diff_presets",
+                arguments: ["presetIDA": .string(warm), "presetIDB": .string("nope")])
+            XCTFail("expected unknownPreset")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "unknownPreset")
+        }
+    }
+
+    private static func presetID(
+        _ registry: McpToolRegistry, named name: String
+    ) async throws -> String {
+        let payload = try await Self.callJSON(registry, name: "list_presets")
+        let rows = try XCTUnwrap(payload["presets"] as? [[String: Any]])
+        return try XCTUnwrap(
+            rows.first { ($0["name"] as? String) == name }?["id"] as? String)
     }
 }
 
