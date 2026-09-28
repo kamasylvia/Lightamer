@@ -337,3 +337,19 @@ public final class McpLauncher: @unchecked Sendable {
         }
     }
 }
+
+extension McpLauncher {
+
+    /// The process-wide launcher core (the panel renders THIS instance; one
+    /// agent session at a time app-wide, and the log ring outlives the
+    /// panel window being closed).
+    static let shared = McpLauncher()
+
+    /// The live discovery face for the panel's pre-flight: `.alive` carries
+    /// the endpoint the agent will be pointed at; any other outcome means
+    /// the embedded server is not serving (the honest refuse-with-hint).
+    /// Internal (the Outcome type is App-internal).
+    static func endpointDiscoveryState() -> McpEndpointDiscovery.Outcome {
+        McpEndpointDiscovery.discover(in: McpEndpointPaths.makeDefault())
+    }
+}

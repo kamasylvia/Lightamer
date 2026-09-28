@@ -239,18 +239,33 @@ enum McpServerController {
 
     /// A running Streamable HTTP host: the listener, its REAL port and the
     /// writer lock it holds. `stop` drains in-flight work, deletes the
-    /// discovery json, then releases the lock (§RQ-14-14 ordering).
+    /// discovery json, then releases the lock (§RQ-14-14 ordering). The
+    /// registry rides along so the GUI can read the write-call counter
+    /// (Plan 14-4 T2: the launcher panel's no-write-back face).
     struct HttpHostHandle: Sendable {
         let host: McpHTTPHost
         let port: Int
         let lock: McpEndpointLock
         let paths: McpEndpointPaths
+        let registry: McpToolRegistry
+
+        func writeCallCount() async -> Int {
+            await registry.writeCallCount
+        }
 
         func stop(drainTimeout: Duration = McpTimeouts.shutdownDrain) async {
             await host.stop(drainTimeout: drainTimeout)
             McpEndpointFile.remove(in: paths)
             lock.unlock()
         }
+    }
+
+    /// The embedded host's write-call counter (nil = no host running). The
+    /// launcher panel reads the delta across one agent session (the honest
+    /// 「本次会话无写回」clause — what the SERVER saw, Plan 14-4 T2).
+    static func embeddedWriteCallCount() async -> Int? {
+        guard let handle = withEmbeddedState({ $0.handle }) else { return nil }
+        return await handle.writeCallCount()
     }
 
     /// Assembles and starts one HTTP host: writer lock → bind (loopback
@@ -355,7 +370,9 @@ enum McpServerController {
                 serverVersion: serverVersion,
                 auth: bearerToken == nil ? McpEndpointInfo.authNone : McpEndpointInfo.authBearer)
             try McpEndpointFile.write(info, in: paths)
-            return HttpHostHandle(host: host, port: bound, lock: lock, paths: paths)
+            return HttpHostHandle(
+                host: host, port: bound, lock: lock, paths: paths,
+                registry: registry)
         } catch {
             lock.unlock()
             throw error

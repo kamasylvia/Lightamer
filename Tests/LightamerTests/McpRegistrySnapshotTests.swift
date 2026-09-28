@@ -249,6 +249,48 @@ final class McpRegistrySnapshotTests: XCTestCase {
         }
     }
 
+    // MARK: - Write-call counter (Plan 14-4 T2: the launcher panel's
+    // no-write-back face counts requiresWriter CALLS)
+
+    func testWriteCallCounterCountsOnlyTheWriteFace() async throws {
+        let registry = McpToolRegistry()
+        await registry.register(
+            McpToolDescriptor(
+                name: "counter_read",
+                description: "read-face double",
+                inputSchemaJSON: #"{"type":"object","properties":{}}"#,
+                readOnlyHint: true),
+            handler: { _ in .text("r") })
+        await registry.register(
+            McpToolDescriptor(
+                name: "counter_write",
+                description: "write-face double",
+                inputSchemaJSON: #"{"type":"object","properties":{}}"#,
+                destructiveHint: true),
+            requiresWriter: true,
+            handler: { _ in .text("w") })
+
+        let before = await registry.writeCallCount
+        _ = try await registry.call(name: "counter_read", arguments: [:])
+        _ = try await registry.call(name: "counter_read", arguments: [:])
+        let afterReads = await registry.writeCallCount
+        _ = try await registry.call(name: "counter_write", arguments: [:])
+        let afterWrite = await registry.writeCallCount
+        // A writer-gated REJECTION (read-only mode) must NOT count — the
+        // counter tracks completed write-face calls.
+        await registry.setWriterCheck { false }
+        do { _ = try await registry.call(name: "counter_write", arguments: [:]) }
+        catch let error as McpToolError {
+            XCTAssertEqual(error.code, "serverReadOnly")
+        }
+        let afterRejection = await registry.writeCallCount
+
+        XCTAssertEqual(before, 0)
+        XCTAssertEqual(afterReads, 0, "read-face calls never count")
+        XCTAssertEqual(afterWrite, 1, "one write-face call counted")
+        XCTAssertEqual(afterRejection, 1, "a gated-out write is not a write-back")
+    }
+
     // MARK: - Typed error mapping + unknown tool
 
     func testUnknownToolIsTypedInternalError() async throws {

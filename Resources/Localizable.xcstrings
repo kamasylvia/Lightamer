@@ -5800,6 +5800,262 @@
         }
       }
     },
+    "mcp_launcher_already_running": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An agent session is already in progress."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已有一个 agent 会话进行中。"
+          }
+        }
+      }
+    },
+    "mcp_launcher_copy_log": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Log"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制日志"
+          }
+        }
+      }
+    },
+    "mcp_launcher_done_writes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session completed — %lld write-back(s)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务完成——本次会话写回 %lld 次"
+          }
+        }
+      }
+    },
+    "mcp_launcher_exit_code": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent exited with code %lld"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 非零退出（退出码 %lld）"
+          }
+        }
+      }
+    },
+    "mcp_launcher_follow_scroll": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow output"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随输出"
+          }
+        }
+      }
+    },
+    "mcp_launcher_launch_failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Launch failed: %@"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动失败：%@"
+          }
+        }
+      }
+    },
+    "mcp_launcher_log_empty": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(no output yet)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（暂无输出）"
+          }
+        }
+      }
+    },
+    "mcp_launcher_no_writeback": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session completed — no write-backs this session"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务完成——本次会话无写回"
+          }
+        }
+      }
+    },
+    "mcp_launcher_prompt_empty_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The task prompt is empty; {{PROMPT}} was expanded to an empty word."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务提示词为空；{{PROMPT}} 已替换为空串。"
+          }
+        }
+      }
+    },
+    "mcp_launcher_server_off_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The MCP server is not running — enable it in Settings first (the agent would have nothing to connect to)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP 服务器未运行——请先在设置中启用（agent 将无从连接）。"
+          }
+        }
+      }
+    },
+    "mcp_launcher_start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Launch Agent"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动 Agent"
+          }
+        }
+      }
+    },
+    "mcp_launcher_status_idle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idle — no agent session"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空闲——无 agent 会话"
+          }
+        }
+      }
+    },
+    "mcp_launcher_status_running": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent running (pid %lld)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 运行中（pid %lld）"
+          }
+        }
+      }
+    },
+    "mcp_launcher_status_running_generic": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent running"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 运行中"
+          }
+        }
+      }
+    },
+    "mcp_launcher_stop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
+          }
+        }
+      }
+    },
+    "mcp_launcher_template_missing_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No agent command template configured — set one in Settings."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未配置 agent 命令模板——请先在设置中填写。"
+          }
+        }
+      }
+    },
     "menu_actual_size": {
       "extractionState": "manual",
       "localizations": {
@@ -5915,6 +6171,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "导入 XMP…"
+          }
+        }
+      }
+    },
+    "menu_mcp_launcher": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP Agent Launcher…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP Agent 启动器…"
           }
         }
       }
@@ -18680,6 +18952,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "100%"
+          }
+        }
+      }
+    },
+    "window_mcp_launcher": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP Agent Launcher"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP Agent 启动器"
           }
         }
       }

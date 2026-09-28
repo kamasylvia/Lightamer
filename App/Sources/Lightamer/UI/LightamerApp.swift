@@ -1117,6 +1117,11 @@ internal struct LightamerApp: App {
                     openWindow(id: "preset-manager")
                 }
                 .accessibilityIdentifier("menu.preset_manager")
+                // Plan 14-4 T2: the MCP agent launcher panel (MCP-10).
+                Button(String(localized: "menu_mcp_launcher")) {
+                    openWindow(id: "mcp-launcher")
+                }
+                .accessibilityIdentifier("menu.mcp_launcher")
             }
 
             // ── View ────────────────────────────────────────────────
@@ -1227,6 +1232,15 @@ internal struct LightamerApp: App {
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
         }
         .defaultSize(width: 520, height: 480)
+
+        // Plan 14-4 T2: the MCP launcher panel (MCP-10 — one-click agent
+        // launch + the log faces). An independent app-level Window like the
+        // preset manager; the launcher CORE is the process-wide
+        // McpLauncher.shared, so closing the window loses nothing.
+        Window("window_mcp_launcher", id: "mcp-launcher") {
+            McpLauncherPanelView()
+        }
+        .defaultSize(width: 720, height: 480)
 
         // Settings… (Cmd+,) — Plan 16-2 T1: the Catalogs section (enable
         // toggle + location picker + rebuild hint) replaces the Phase 13

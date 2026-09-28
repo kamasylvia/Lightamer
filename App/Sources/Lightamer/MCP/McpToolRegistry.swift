@@ -258,6 +258,13 @@ public actor McpToolRegistry {
     /// single-writer default).
     private var writerCheck: (@Sendable () async -> Bool)?
 
+    /// The process-wide write-face call counter (Plan 14-4 T2): every
+    /// `requiresWriter` CALL that passed the gate increments this — the
+    /// launcher panel's honest「本次会话无写回」face reads the delta across
+    /// one agent session. Every write-face tool in the closed set registers
+    /// with `requiresWriter: true`, so the counter needs no per-tool glue.
+    public private(set) var writeCallCount = 0
+
     public init() {}
 
     /// Registers (or replaces) a tool. Replacement keeps the closed-set
@@ -287,7 +294,8 @@ public actor McpToolRegistry {
 
     /// Dispatches one tool call. Unknown names are `internalError`
     /// (protocol-level; §A's implicit error). Write-face tools pass through
-    /// the writer gate first (the T3 只读降级 hook).
+    /// the writer gate first (the T3 只读降级 hook) and count on the
+    /// process-wide write-call counter (Plan 14-4 T2).
     public func call(
         name: String,
         arguments: [String: McpJSON]
@@ -295,13 +303,14 @@ public actor McpToolRegistry {
         guard let entry = entries[name] else {
             throw McpToolError.internalError("unknownTool: no tool named '\(name)'")
         }
-        if entry.requiresWriter, let writerCheck {
-            if !(await writerCheck()) {
+        if entry.requiresWriter {
+            if let writerCheck, !(await writerCheck()) {
                 throw McpToolError.serverReadOnly(
                     "this MCP server instance is read-only (another Lightamer "
                         + "instance holds the writer lock); connect to the GUI "
                         + "HTTP endpoint listed in mcp-endpoint.json instead")
             }
+            writeCallCount += 1
         }
         return try await entry.handler(arguments)
     }
