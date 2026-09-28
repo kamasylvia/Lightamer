@@ -137,6 +137,10 @@
 4. ~~**sidecar_present 永不刷新缺陷（12-1 域，2026-09-26 12-2 执行轮发现并登记）**~~ **已闭环（2026-09-27 12-5 收口批 `9e70338`）**：backfillSidecarSummaries 增第三 pending 类——present=0 且 orphan_sidecar=0 的行 stat `.lra` 存在 → 入 work 集，批量 UPDATE 翻 `sidecar_present = 1`（已 present 行 no-op；decode 失败行留在 NULL 重试类语义不变）；「先图后 sidecar」行增量打开即回读。测试锚 `MetadataServiceTests.testBackfillPromotesLateSidecarRows`（scan-miss → sidecar 出现 → reopen 升格 + rating/has_edits 回读）；终轮 1436/0fail。
    <原始登记（只追加不改写）> **sidecar_present 永不刷新缺陷（12-1 域，2026-09-26 12-2 执行轮发现并登记；验收轮 `1ccf09f` 后由验收 subagent 补入本正式章节）**：`sidecar_present` 只在行 INSERT/rename/changed 三处伴随 `fileExists(.lra)` stat（SessionIndexStore 唯一写点，12-2 验收全仓 grep 证实），「先有图、后有 sidecar」的行（典型：首开会话无 `.lra`，之后 MetadataService 首次打分才写盘）present 恒 0 → `backfillSidecarSummaries`（谓词 `sidecar_present = 1`，SessionIndexStore:685/695）永不回读该行 → imageID/has_edits/layer summary 派生列不更新（外部改 sidecar/漂移重读失效）。**缓解面**：GUI 写链路 claim 直写 DB 所见即所得；删库重建时 sidecar 已在 → present=1 → parity 正确。**严重度评估（12-2 验收）**：中——数据新鲜度缺陷非崩溃/丢失面，过滤 `has_edits`/`sidecar` 类谓词与元数据面板在「先图后 sidecar」行上失真。**建议处置时点 = 12-5 收口批**（12-3 XMP 与 sidecar 无关；修法候选：reconcile/open 的 backfill 谓词补 present=0 存在性 stat）。
 
+## 环境备忘
+
+- **Alcedo Studio 已安装（2026-09-27 用户授权，UI 仿写视觉验收资源）**：`/Applications/AlcedoStudio.app`——M2-3 UI 克隆与后续 GUI 验收轮可用 computer-use（AX+cliclick+screencapture，UAT 自答先例同款）开真机对照截图。实测内置 44 个 LUT 于 `Contents/MacOS/LUTs/`，**主体 65³**（Agfa/Fuji/Kodak 全系；仅 Hasselblad 两张 33³）——M2-5 LUT 语义按 65³ 为一等档位（33³ 兼收）；目录内存在「色彩逆向」子目录，实证递归扫描需求（M2GRADE-05）。
+
 ## 巡检运行规则（每次 Cron 触发时遵守）
 
 - **顺序推进**：只做队列第一项；完成后立即提交（`node $HOME/.codex/gsd-core/bin/gsd-tools.cjs query commit "..." --files <files>`，或直接 git commit——遵循 Conventional Commits、只 add 相关文件）并 `git push origin main`，然后更新本文件队列与"当前状态"。
