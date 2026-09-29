@@ -376,8 +376,9 @@ enum LibraryPanels {
 // ─────────────────────────────────────────────────────────────────────────────
 // LibraryWelcomeView — the OQ-1 A minimal Welcome face (no project open AND
 // no recent projects at launch). Pure presentation: the app root supplies
-// the actions; the complete two-workspace shell + zh copy = M2-3 (verbatim
-// strings here keep the String Catalog diff-clean in this plan).
+// the actions. zh copy landed with M2-3-4 T1 (the P4 backfill batch): the
+// static verbatim strings moved onto String(localized:) keys; project names
+// stay verbatim (data, not copy).
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct LibraryWelcomeView: View {
@@ -389,27 +390,32 @@ struct LibraryWelcomeView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Text(verbatim: "Lightamer")
+            Text(String(localized: "welcome_app_name",
+                        defaultValue: "Lightamer"))
                 .font(.largeTitle.bold())
-            Text(verbatim: "Create a project to organize your photo library.")
+            Text(String(localized: "welcome_subtitle",
+                        defaultValue: "Create a project to organize your photo library."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 Button {
                     onCreate()
                 } label: {
-                    Text(verbatim: "New Project…")
+                    Text(String(localized: "welcome_new_project",
+                                defaultValue: "New Project…"))
                 }
                 .keyboardShortcut(.defaultAction)
                 Button {
                     onOpen()
                 } label: {
-                    Text(verbatim: "Open Project…")
+                    Text(String(localized: "welcome_open_project",
+                                defaultValue: "Open Project…"))
                 }
             }
             if !recentProjects.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(verbatim: "Recent Projects")
+                    Text(String(localized: "welcome_recent_projects",
+                                defaultValue: "Recent Projects"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     ForEach(recentProjects, id: \.absoluteString) { url in
@@ -425,7 +431,8 @@ struct LibraryWelcomeView: View {
             Button {
                 onDismiss()
             } label: {
-                Text(verbatim: "Continue without a project")
+                Text(String(localized: "welcome_continue_without",
+                            defaultValue: "Continue without a project"))
             }
             .buttonStyle(.link)
         }
