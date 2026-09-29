@@ -1,0 +1,15 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+2026-09-30 06:22:46.233 Lightamer[40589:1113563] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+Test Suite 'Selected tests' started at 2026-09-30 06:22:46.360.
+Test Suite 'LightamerTestsIOP.xctest' started at 2026-09-30 06:22:46.361.
+Test Suite 'TilingOverlapTests' started at 2026-09-30 06:22:46.361.
+Test Case '-[LightamerTestsIOP.TilingOverlapTests testForcedTilingMatchesWholePlane]' started.
+Test Case '-[LightamerTestsIOP.TilingOverlapTests testForcedTilingMatchesWholePlane]' passed (0.339 seconds).
+Test Case '-[LightamerTestsIOP.TilingOverlapTests testFULLToneEqual100MPMemoryUnder3GB]' started.
+Test Case '-[LightamerTestsIOP.TilingOverlapTests testFULLToneEqual100MPMemoryUnder3GB]' passed (95.225 seconds).
+Test Suite 'TilingOverlapTests' passed at 2026-09-30 06:24:21.925.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 95.564 (95.564) seconds
+Test Suite 'LightamerTestsIOP.xctest' passed at 2026-09-30 06:24:21.925.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 95.564 (95.564) seconds
+Test Suite 'Selected tests' passed at 2026-09-30 06:24:21.925.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 95.564 (95.565) seconds

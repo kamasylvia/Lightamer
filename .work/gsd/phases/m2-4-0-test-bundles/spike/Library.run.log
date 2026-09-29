@@ -1,0 +1,1011 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+2026-09-30 06:28:14.213 Lightamer[42941:1124945] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+Test Suite 'All tests' started at 2026-09-30 06:28:14.488.
+Test Suite 'LightamerTestsLibrary.xctest' started at 2026-09-30 06:28:14.488.
+Test Suite 'BackgroundTaskRegistryTests' started at 2026-09-30 06:28:14.488.
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testBarAndDialogRenderTheSameProjection]' started.
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testBarAndDialogRenderTheSameProjection]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testCancelRoutesToTheHandleAndRemoves]' started.
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testCancelRoutesToTheHandleAndRemoves]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testDuplicateRegistrationIsIgnored]' started.
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testDuplicateRegistrationIsIgnored]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testImportAdapterCancelTransitsToTheControllerRoute]' started.
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testImportAdapterCancelTransitsToTheControllerRoute]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testImportAdapterDefaultRouteRidesTheControllerWithoutSideEffects]' started.
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testImportAdapterDefaultRouteRidesTheControllerWithoutSideEffects]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testImportAdapterNeverMovesBackwardsAcrossPhases]' started.
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testImportAdapterNeverMovesBackwardsAcrossPhases]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testImportAdapterSnapshotsAreMonotonicOverTheFixtureStream]' started.
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testImportAdapterSnapshotsAreMonotonicOverTheFixtureStream]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testMultipleTasksPreserveInsertionOrderThroughCompletion]' started.
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testMultipleTasksPreserveInsertionOrderThroughCompletion]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testRegisterUpdateFinishLifecycle]' started.
+Test Case '-[LightamerTestsLibrary.BackgroundTaskRegistryTests testRegisterUpdateFinishLifecycle]' passed (0.000 seconds).
+Test Suite 'BackgroundTaskRegistryTests' passed at 2026-09-30 06:28:14.492.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
+Test Suite 'ExifFoldTests' started at 2026-09-30 06:28:14.492.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testApertureFamilyVariants]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testApertureFamilyVariants]' passed (0.014 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testDateFamilyVariants]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testDateFamilyVariants]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testExposureReciprocalFamily]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testExposureReciprocalFamily]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testFillMetadataReturnsFalseForUnreadableFile]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testFillMetadataReturnsFalseForUnreadableFile]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testFocalFamilyVariants]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testFocalFamilyVariants]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testIndexerRoundTripFillsColumnsAndFTS]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testIndexerRoundTripFillsColumnsAndFTS]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testISO800QueryDoesNotHitISO8000Row]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testISO800QueryDoesNotHitISO8000Row]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testISOFamilyVariants]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testISOFamilyVariants]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testMatchQueryTokenAperture]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testMatchQueryTokenAperture]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testMatchQueryTokenDatePartials]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testMatchQueryTokenDatePartials]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testMatchQueryTokenFocal]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testMatchQueryTokenFocal]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testMatchQueryTokenISO]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testMatchQueryTokenISO]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testMatchQueryTokenPlainWord]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testMatchQueryTokenPlainWord]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testNameFoldsAndDeduplication]' started.
+Test Case '-[LightamerTestsLibrary.ExifFoldTests testNameFoldsAndDeduplication]' passed (0.002 seconds).
+Test Suite 'ExifFoldTests' passed at 2026-09-30 06:28:14.551.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.058 (0.059) seconds
+Test Suite 'ExifSearchParserTests' started at 2026-09-30 06:28:14.551.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testApertureF14Band]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testApertureF14Band]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testApertureSpellingVariantsAllMeanToleranceRange]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testApertureSpellingVariantsAllMeanToleranceRange]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testBrokenApertureTokenIsATypedError]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testBrokenApertureTokenIsATypedError]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testDateBoundaryInclusivity]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testDateBoundaryInclusivity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testDaySpellingsAllAgree]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testDaySpellingsAllAgree]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testDisjointDatePairIsATypedError]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testDisjointDatePairIsATypedError]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testEmptyInputIsTheAlwaysTruePlan]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testEmptyInputIsTheAlwaysTruePlan]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testFocalSpellingVariantsAllMeanEquals]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testFocalSpellingVariantsAllMeanEquals]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testInvalidCalendarDatesAreTypedErrors]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testInvalidCalendarDatesAreTypedErrors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testISORangeGrammar]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testISORangeGrammar]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testISOSpellingVariantsAllMeanEquals]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testISOSpellingVariantsAllMeanEquals]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testMixedQueryComposesAllThreeSegments]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testMixedQueryComposesAllThreeSegments]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testMonthSpellingCoversTheWholeMonth]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testMonthSpellingCoversTheWholeMonth]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testOverlappingDatesIntersect]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testOverlappingDatesIntersect]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testPlainWordsFoldLowercaseIntoFTSTerms]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testPlainWordsFoldLowercaseIntoFTSTerms]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testSixDigitSpellingIsYearMonth]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testSixDigitSpellingIsYearMonth]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testThreeDigitNumberIsNotADate]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testThreeDigitNumberIsNotADate]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testTrailingStarPassesThroughForPrefixMatching]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testTrailingStarPassesThroughForPrefixMatching]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testTwoStructuredISOsCoexistAsANDTerms]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testTwoStructuredISOsCoexistAsANDTerms]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testUnrecognizedISOTokenIsATypedError]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testUnrecognizedISOTokenIsATypedError]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testYearSpellingCoversTheWholeYear]' started.
+Test Case '-[LightamerTestsLibrary.ExifSearchParserTests testYearSpellingCoversTheWholeYear]' passed (0.000 seconds).
+Test Suite 'ExifSearchParserTests' passed at 2026-09-30 06:28:14.553.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'FilmstripModelTests' started at 2026-09-30 06:28:14.553.
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testEmptyCollectionProducesZeroRequests]' started.
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testEmptyCollectionProducesZeroRequests]' passed (0.052 seconds).
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testExternalAnchorUpdatesWithoutTouchingSelection]' started.
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testExternalAnchorUpdatesWithoutTouchingSelection]' passed (0.047 seconds).
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testScrollAnchorFollowsTheSelectedRow]' started.
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testScrollAnchorFollowsTheSelectedRow]' passed (0.048 seconds).
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testTenThousandRowMountIssuesOnlyWindowPlusPrefetchRequests]' started.
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testTenThousandRowMountIssuesOnlyWindowPlusPrefetchRequests]' passed (0.102 seconds).
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testWarmIDsAreNeverReRequested]' started.
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testWarmIDsAreNeverReRequested]' passed (0.138 seconds).
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testWarmWindowClampsAtCollectionEdges]' started.
+Test Case '-[LightamerTestsLibrary.FilmstripModelTests testWarmWindowClampsAtCollectionEdges]' passed (0.050 seconds).
+Test Suite 'FilmstripModelTests' passed at 2026-09-30 06:28:14.991.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.437 (0.438) seconds
+Test Suite 'FilterPredicateTests' started at 2026-09-30 06:28:14.991.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testEmptyGroupIsValid]' started.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testEmptyGroupIsValid]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testFieldOperatorMatrix]' started.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testFieldOperatorMatrix]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testIllegalValueKinds]' started.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testIllegalValueKinds]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testInvalidIntervals]' started.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testInvalidIntervals]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testQuickFilterGroupShape]' started.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testQuickFilterGroupShape]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testRoundTripEveryValueKind]' started.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testRoundTripEveryValueKind]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testSortedKeysGoldenBytes]' started.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testSortedKeysGoldenBytes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testUnknownFieldDecodesToTypedError]' started.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testUnknownFieldDecodesToTypedError]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testUnknownOpDecodesToTypedError]' started.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testUnknownOpDecodesToTypedError]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testUnknownValueKindDecodesToTypedError]' started.
+Test Case '-[LightamerTestsLibrary.FilterPredicateTests testUnknownValueKindDecodesToTypedError]' passed (0.000 seconds).
+Test Suite 'FilterPredicateTests' passed at 2026-09-30 06:28:14.993.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'FilterSQLTests' started at 2026-09-30 06:28:14.993.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testAndCombinationRows]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testAndCombinationRows]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testAnyCombinationRows]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testAnyCombinationRows]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testBareLikeControlGroupMisHit]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testBareLikeControlGroupMisHit]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testConjoinedGroupsAndBaselineOnce]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testConjoinedGroupsAndBaselineOnce]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testEmptyGroupReturnsAllNonOrphanRows]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testEmptyGroupReturnsAllNonOrphanRows]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testExifNumericRows]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testExifNumericRows]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testFourClauseExactHitSet]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testFourClauseExactHitSet]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testFourClauseSubTagHit]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testFourClauseSubTagHit]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testGroupJoinsAndBaseline]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testGroupJoinsAndBaseline]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testKeywordsEmptyClassRows]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testKeywordsEmptyClassRows]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testKeywordsEmptyClassSnapshots]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testKeywordsEmptyClassSnapshots]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testKeywordsExactPath]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testKeywordsExactPath]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testKeywordsFourClauseSnapshot]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testKeywordsFourClauseSnapshot]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testKeywordsInSnapshot]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testKeywordsInSnapshot]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testLikeWildcardsAreEscaped]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testLikeWildcardsAreEscaped]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testNullNumericRowsExcluded]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testNullNumericRowsExcluded]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testNumericSnapshots]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testNumericSnapshots]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQueryCoexistsWithWriteTransactions]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQueryCoexistsWithWriteTransactions]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQueryFaceExactRowSet]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQueryFaceExactRowSet]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQueryLimitPagination]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQueryLimitPagination]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQuerySortAscDescNullsLast]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQuerySortAscDescNullsLast]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQuoteIsBindLiteral]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQuoteIsBindLiteral]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQuoteLiteralFilenameRows]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testQuoteLiteralFilenameRows]' passed (0.434 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testSortWhitelistColumns]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testSortWhitelistColumns]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testTextSnapshots]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testTextSnapshots]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testTranslateRejectsIllegalCombos]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testTranslateRejectsIllegalCombos]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testWildcardLiteralFilenameRows]' started.
+Test Case '-[LightamerTestsLibrary.FilterSQLTests testWildcardLiteralFilenameRows]' passed (0.003 seconds).
+Test Suite 'FilterSQLTests' passed at 2026-09-30 06:28:15.526.
+	 Executed 27 tests, with 0 failures (0 unexpected) in 0.531 (0.533) seconds
+Test Suite 'ImageLinkerTests' started at 2026-09-30 06:28:15.526.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testFirmlinkPathsStoreRootSpellingAndResolve]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testFirmlinkPathsStoreRootSpellingAndResolve]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind0MissingFileIsPathMissing]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind0MissingFileIsPathMissing]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind0ResolvesUnderProjectDirectory]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind0ResolvesUnderProjectDirectory]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind0SurvivesWholeDirectoryRename]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind0SurvivesWholeDirectoryRename]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind1NilUUIDIsVolumeAbsent]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind1NilUUIDIsVolumeAbsent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind1RecordIsRelativeToVolumeRootNotProject]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind1RecordIsRelativeToVolumeRootNotProject]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind1SameVolumeResolvesThroughUUIDFastPath]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind1SameVolumeResolvesThroughUUIDFastPath]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind1UnknownUUIDIsVolumeAbsent]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind1UnknownUUIDIsVolumeAbsent]' passed (0.020 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind1UUIDMatchButFileGoneIsPathMissing]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind1UUIDMatchButFileGoneIsPathMissing]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind2DeletedFileIsPathMissing]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind2DeletedFileIsPathMissing]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind2ResolvesAbsolutePath]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testKind2ResolvesAbsolutePath]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testRecordDegradesTypedToAbsoluteWhenUUIDUnavailable]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testRecordDegradesTypedToAbsoluteWhenUUIDUnavailable]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testRecordForcedCrossVolumeLegIsAbsolute]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testRecordForcedCrossVolumeLegIsAbsolute]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testRelinkRebuildsCarrierForNewLocation]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testRelinkRebuildsCarrierForNewLocation]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testVolumeRootPlusStoredRelativeReconstructsTheFile]' started.
+Test Case '-[LightamerTestsLibrary.ImageLinkerTests testVolumeRootPlusStoredRelativeReconstructsTheFile]' passed (0.001 seconds).
+Test Suite 'ImageLinkerTests' passed at 2026-09-30 06:28:15.554.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.028 (0.029) seconds
+Test Suite 'ImportCompletionRegressionTests' started at 2026-09-30 06:28:15.554.
+Test Case '-[LightamerTestsLibrary.ImportCompletionRegressionTests testFireAndForgetHandlerPreservesSnapshotOrder]' started.
+Test Case '-[LightamerTestsLibrary.ImportCompletionRegressionTests testFireAndForgetHandlerPreservesSnapshotOrder]' passed (0.207 seconds).
+Test Case '-[LightamerTestsLibrary.ImportCompletionRegressionTests testRunImportPublishesCompletion]' started.
+Test Case '-[LightamerTestsLibrary.ImportCompletionRegressionTests testRunImportPublishesCompletion]' passed (0.226 seconds).
+Test Suite 'ImportCompletionRegressionTests' passed at 2026-09-30 06:28:15.988.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.433 (0.434) seconds
+Test Suite 'ImportDropTests' started at 2026-09-30 06:28:15.988.
+Test Case '-[LightamerTestsLibrary.ImportDropTests testBatchFailureIsolatesAndContinues]' started.
+Test Case '-[LightamerTestsLibrary.ImportDropTests testBatchFailureIsolatesAndContinues]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLibrary.ImportDropTests testCollisionSkipsWithoutOverwriting]' started.
+Test Case '-[LightamerTestsLibrary.ImportDropTests testCollisionSkipsWithoutOverwriting]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.ImportDropTests testCopyImportLeavesSourceByteAndMtimeIdentical]' started.
+Test Case '-[LightamerTestsLibrary.ImportDropTests testCopyImportLeavesSourceByteAndMtimeIdentical]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.ImportDropTests testDefaultPathNeverMovesSources]' started.
+Test Case '-[LightamerTestsLibrary.ImportDropTests testDefaultPathNeverMovesSources]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.ImportDropTests testExplicitMoveRelocatesAndImports]' started.
+Test Case '-[LightamerTestsLibrary.ImportDropTests testExplicitMoveRelocatesAndImports]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportDropTests testImportLandsLindexRowThroughExplicitReconcile]' started.
+Test Case '-[LightamerTestsLibrary.ImportDropTests testImportLandsLindexRowThroughExplicitReconcile]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.ImportDropTests testInSessionSourceSkips]' started.
+Test Case '-[LightamerTestsLibrary.ImportDropTests testInSessionSourceSkips]' passed (0.001 seconds).
+Test Suite 'ImportDropTests' passed at 2026-09-30 06:28:16.014.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.025 (0.026) seconds
+Test Suite 'ImportFilterTests' started at 2026-09-30 06:28:16.014.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testAllFiveSidecarExtensionsRejected]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testAllFiveSidecarExtensionsRejected]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testConfigurationCannotRe_admitSidecar]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testConfigurationCannotRe_admitSidecar]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testConfiguredWhitelistNormalizationTrimsDotsAndCase]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testConfiguredWhitelistNormalizationTrimsDotsAndCase]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testConfiguredWhitelistReplacesDefaultFace]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testConfiguredWhitelistReplacesDefaultFace]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testDefaultModeIsCopyWithoutRemember]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testDefaultModeIsCopyWithoutRemember]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testDotPrefixHiddenRejected]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testDotPrefixHiddenRejected]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testDoubleExtensionSidecarRejectedByLastExtension]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testDoubleExtensionSidecarRejectedByLastExtension]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testFinderHiddenFlagRejected]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testFinderHiddenFlagRejected]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testLastExtensionSemanticsDocumented]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testLastExtensionSemanticsDocumented]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testNoExtensionAndNonWhitelistedFormatsRejected]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testNoExtensionAndNonWhitelistedFormatsRejected]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testRememberedModePersistsAndResets]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testRememberedModePersistsAndResets]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testSingleShotOverrideWithoutRememberNeverPersists]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testSingleShotOverrideWithoutRememberNeverPersists]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testWhitelistAcceptsRawAcrossCaseMatrix]' started.
+Test Case '-[LightamerTestsLibrary.ImportFilterTests testWhitelistAcceptsRawAcrossCaseMatrix]' passed (0.001 seconds).
+Test Suite 'ImportFilterTests' passed at 2026-09-30 06:28:16.027.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.012 (0.012) seconds
+Test Suite 'ImportServiceTests' started at 2026-09-30 06:28:16.027.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testC1SessionFixtureImportsExactlyTheRawCount]' started.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testC1SessionFixtureImportsExactlyTheRawCount]' passed (0.017 seconds).
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testCancelAtPerFileCheckpointLeavesNoGhostRows]' started.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testCancelAtPerFileCheckpointLeavesNoGhostRows]' passed (0.013 seconds).
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testCopyDuplicatesSkipAndNameClashAvoids]' started.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testCopyDuplicatesSkipAndNameClashAvoids]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testCopyProgressIsMonotonicAndCompletes]' started.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testCopyProgressIsMonotonicAndCompletes]' passed (0.015 seconds).
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testCopySidecarFailureRollsBackPlacedBytes]' started.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testCopySidecarFailureRollsBackPlacedBytes]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testImportFillsExifMaterializedColumns]' started.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testImportFillsExifMaterializedColumns]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testLinkLeavesSourceAndSidecarInPlaceWithKindRow]' started.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testLinkLeavesSourceAndSidecarInPlaceWithKindRow]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testMoveCrossVolumeSuccessRemovesSourceOnlyAfterVerify]' started.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testMoveCrossVolumeSuccessRemovesSourceOnlyAfterVerify]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testMoveCrossVolumeVerifyFailureNeverRemovesSource]' started.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testMoveCrossVolumeVerifyFailureNeverRemovesSource]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testMoveSameVolumeRenamesAndSidecarsRideAlong]' started.
+Test Case '-[LightamerTestsLibrary.ImportServiceTests testMoveSameVolumeRenamesAndSidecarsRideAlong]' passed (0.005 seconds).
+Test Suite 'ImportServiceTests' passed at 2026-09-30 06:28:16.112.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.085 (0.086) seconds
+Test Suite 'LibraryBenchmarkHarness' started at 2026-09-30 06:28:16.112.
+Test Case '-[LightamerTestsLibrary.LibraryBenchmarkHarness testBenchmarkImportThroughput]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LibraryBenchmarkHarness.swift:85: -[LightamerTestsLibrary.LibraryBenchmarkHarness testBenchmarkImportThroughput] : Test skipped - manual-only benchmark (LA_LIBRARY_BENCH=1)
+Test Case '-[LightamerTestsLibrary.LibraryBenchmarkHarness testBenchmarkImportThroughput]' skipped (0.057 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryBenchmarkHarness testBenchmarkQueryMatrix]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LibraryBenchmarkHarness.swift:85: -[LightamerTestsLibrary.LibraryBenchmarkHarness testBenchmarkQueryMatrix] : Test skipped - manual-only benchmark (LA_LIBRARY_BENCH=1)
+Test Case '-[LightamerTestsLibrary.LibraryBenchmarkHarness testBenchmarkQueryMatrix]' skipped (0.000 seconds).
+Test Suite 'LibraryBenchmarkHarness' passed at 2026-09-30 06:28:16.170.
+	 Executed 2 tests, with 2 tests skipped and 0 failures (0 unexpected) in 0.057 (0.057) seconds
+Test Suite 'LibraryDocumentTests' started at 2026-09-30 06:28:16.170.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testBackupOnlineCopyIsIndependentlyOpenableAndIdentical]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testBackupOnlineCopyIsIndependentlyOpenableAndIdentical]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testBackupRefusesExistingDestination]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testBackupRefusesExistingDestination]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testCloseIsIdempotentAndPostCloseWorkIsNotOpen]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testCloseIsIdempotentAndPostCloseWorkIsNotOpen]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testCreateRefusesNonLalbSuffixAndExistingFile]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testCreateRefusesNonLalbSuffixAndExistingFile]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testCreateSeedsFreshPackage]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testCreateSeedsFreshPackage]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testOpenFutureVersionRefused]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testOpenFutureVersionRefused]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testOpenMissingFileRefused]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testOpenMissingFileRefused]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testOpenVersionOneOK]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testOpenVersionOneOK]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testOpenZeroByteFileHealsThroughFreshLeg]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testOpenZeroByteFileHealsThroughFreshLeg]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testThrottledCheckpointTruncatesWALAtBatchBoundary]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testThrottledCheckpointTruncatesWALAtBatchBoundary]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testWithHandleAfterCloseThrowsNotOpen]' started.
+Test Case '-[LightamerTestsLibrary.LibraryDocumentTests testWithHandleAfterCloseThrowsNotOpen]' passed (0.003 seconds).
+Test Suite 'LibraryDocumentTests' passed at 2026-09-30 06:28:16.207.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.037 (0.038) seconds
+Test Suite 'LibraryFilterDomainTests' started at 2026-09-30 06:28:16.207.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testCatalogDomainSnapshotUnchanged]' started.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testCatalogDomainSnapshotUnchanged]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testEvaluateLibraryIsTheTypedPlaceholder]' started.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testEvaluateLibraryIsTheTypedPlaceholder]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testKeywordsAncestorChainViaMaterializedColumn]' started.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testKeywordsAncestorChainViaMaterializedColumn]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testLibraryBaselineIsAlwaysTrue]' started.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testLibraryBaselineIsAlwaysTrue]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testLibraryColumnRefCarriesPlusAliasAndBindOrder]' started.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testLibraryColumnRefCarriesPlusAliasAndBindOrder]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testLibraryEmptyNotEmptyKeywordsTwoState]' started.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testLibraryEmptyNotEmptyKeywordsTwoState]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testLibraryKeywordsHitMaterializedColumnWithFourClauses]' started.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testLibraryKeywordsHitMaterializedColumnWithFourClauses]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testLibraryOrderTiebreakerIsImagePath]' started.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testLibraryOrderTiebreakerIsImagePath]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testSessionDomainSnapshotUnchanged]' started.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testSessionDomainSnapshotUnchanged]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testSmartAlbumGroupFullChainHitsRealRows]' started.
+Test Case '-[LightamerTestsLibrary.LibraryFilterDomainTests testSmartAlbumGroupFullChainHitsRealRows]' passed (0.004 seconds).
+Test Suite 'LibraryFilterDomainTests' passed at 2026-09-30 06:28:16.247.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.039 (0.039) seconds
+Test Suite 'LibraryGridModelTests' started at 2026-09-30 06:28:16.247.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testClearSelection]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testClearSelection]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testDoubleClickWiresEditorPhaseState]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testDoubleClickWiresEditorPhaseState]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testExhaustedPagerIgnoresEverySignal]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testExhaustedPagerIgnoresEverySignal]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testFilterChangeResetsCursorAndRefetches]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testFilterChangeResetsCursorAndRefetches]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testKeysetWalkCoversEveryRowExactlyOnce]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testKeysetWalkCoversEveryRowExactlyOnce]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testNullTailSegmentWalksLastAndExactlyOnce]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testNullTailSegmentWalksLastAndExactlyOnce]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testOpenCurrentSetsAndSelectsThenClears]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testOpenCurrentSetsAndSelectsThenClears]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testScanEpochSortSurfacesTheQueryFaceViolation]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testScanEpochSortSurfacesTheQueryFaceViolation]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testScrollSignalIssuesBoundedLoadNextPageCalls]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testScrollSignalIssuesBoundedLoadNextPageCalls]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testSelectionIgnoresUnloadedRowIDs]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testSelectionIgnoresUnloadedRowIDs]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testSelectionSurvivesRefetch]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testSelectionSurvivesRefetch]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testSelectSingleReplacesTheSelection]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testSelectSingleReplacesTheSelection]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testSignalAwayFromTailIssuesNoCall]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testSignalAwayFromTailIssuesNoCall]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testSortChangeResetsCursorAndRefetchesInNewOrder]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testSortChangeResetsCursorAndRefetchesInNewOrder]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testThumbnailFirstScreenProductionObservation]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LibraryGridModelTests.swift:368: -[LightamerTestsLibrary.LibraryGridModelTests testThumbnailFirstScreenProductionObservation] : Test skipped - manual-only benchmark (LA_THUMB_BENCH=1)
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testThumbnailFirstScreenProductionObservation]' skipped (0.144 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testToggleSelectionAddsAndRemoves]' started.
+Test Case '-[LightamerTestsLibrary.LibraryGridModelTests testToggleSelectionAddsAndRemoves]' passed (0.004 seconds).
+Test Suite 'LibraryGridModelTests' passed at 2026-09-30 06:28:16.447.
+	 Executed 16 tests, with 1 test skipped and 0 failures (0 unexpected) in 0.199 (0.200) seconds
+Test Suite 'LibraryInspectorModelTests' started at 2026-09-30 06:28:16.447.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testActivityBarClickFoldsTheDateLeg]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testActivityBarClickFoldsTheDateLeg]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testBreadcrumbRetreatsArmByArm]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testBreadcrumbRetreatsArmByArm]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testCameraClickFoldsTypedEqRulesAndUnknownFoldsEmpty]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testCameraClickFoldsTypedEqRulesAndUnknownFoldsEmpty]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testClearFilterDropsArmsAndPlan]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testClearFilterDropsArmsAndPlan]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testDayClickFoldsDayFilterArm]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testDayClickFoldsDayFilterArm]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testFilterDescriptionRendersTheFoldedState]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testFilterDescriptionRendersTheFoldedState]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testLensClickFoldsLensArm]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testLensClickFoldsLensArm]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testNilQueryFaceSurfacesTypedMissingStoreEmptyState]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testNilQueryFaceSurfacesTypedMissingStoreEmptyState]' passed (0.107 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testRatingClickFoldsRatingArmAndUnratedIsRefused]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testRatingClickFoldsRatingArmAndUnratedIsRefused]' passed (0.107 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testReClickRemovesTheArm]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testReClickRemovesTheArm]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testSmartAlbumClickFoldsAlbumPredicateWithMemberCount]' started.
+Test Case '-[LightamerTestsLibrary.LibraryInspectorModelTests testSmartAlbumClickFoldsAlbumPredicateWithMemberCount]' passed (0.006 seconds).
+Test Suite 'LibraryInspectorModelTests' passed at 2026-09-30 06:28:16.707.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.260 (0.260) seconds
+Test Suite 'LibraryLegacyGateTests' started at 2026-09-30 06:28:16.707.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testContentViewMarkersAreDisjointAcrossTheGate]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testContentViewMarkersAreDisjointAcrossTheGate]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testDefaultContentFaceIsTheProjectWorkspaceOnly]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testDefaultContentFaceIsTheProjectWorkspaceOnly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testDefaultSettingsFaceHidesTheCatalogSections]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testDefaultSettingsFaceHidesTheCatalogSections]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testDefaultSidebarFaceHidesEveryLegacySectionMarker]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testDefaultSidebarFaceHidesEveryLegacySectionMarker]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateEvaluationThreeWayOverLiteralDictionaries]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateEvaluationThreeWayOverLiteralDictionaries]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateOnContentFaceMatchesFrozenSnapshot]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateOnContentFaceMatchesFrozenSnapshot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateOnSettingsFaceMatchesFrozenSnapshot]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateOnSettingsFaceMatchesFrozenSnapshot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateOnSidebarCatalogsFaceMatchesFrozenSnapshot]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateOnSidebarCatalogsFaceMatchesFrozenSnapshot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateOnSidebarSessionsFaceMatchesFrozenSnapshot]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateOnSidebarSessionsFaceMatchesFrozenSnapshot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateOnSidebarSessionsModeWithCatalogsEnabledAddsSwitcher]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateOnSidebarSessionsModeWithCatalogsEnabledAddsSwitcher]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateRejectsEveryNonOneSpelling]' started.
+Test Case '-[LightamerTestsLibrary.LibraryLegacyGateTests testGateRejectsEveryNonOneSpelling]' passed (0.000 seconds).
+Test Suite 'LibraryLegacyGateTests' passed at 2026-09-30 06:28:16.708.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'LibraryProjectControllerTests' started at 2026-09-30 06:28:16.708.
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testBackupProjectPassthroughProducesOpenableCopy]' started.
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testBackupProjectPassthroughProducesOpenableCopy]' passed (0.464 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testDialogDefaultFaceDefaultCopyRememberGateAndSingleShot]' started.
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testDialogDefaultFaceDefaultCopyRememberGateAndSingleShot]' passed (0.205 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testMoveProjectSameVolumeRenamesAndKind0Resolves]' started.
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testMoveProjectSameVolumeRenamesAndKind0Resolves]' passed (0.125 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testMoveProjectVerifyFailureLeavesSourceProjectIntact]' started.
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testMoveProjectVerifyFailureLeavesSourceProjectIntact]' passed (0.224 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testPruneMissingRecentsDropsDeadPaths]' started.
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testPruneMissingRecentsDropsDeadPaths]' passed (0.315 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testRecentDeduplicatesMovesFrontAndCapsAtTen]' started.
+Test Case '-[LightamerTestsLibrary.LibraryProjectControllerTests testRecentDeduplicatesMovesFrontAndCapsAtTen]' passed (0.317 seconds).
+Test Suite 'LibraryProjectControllerTests' passed at 2026-09-30 06:28:18.360.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 1.651 (1.652) seconds
+Test Suite 'LibraryQueriesTests' started at 2026-09-30 06:28:18.360.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testActivitySeriesIsThePerDayCountSource]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testActivitySeriesIsThePerDayCountSource]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testActivitySeriesRespectsTheCalendarWindow]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testActivitySeriesRespectsTheCalendarWindow]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testDayFilterProjectionHitsExactlyThatDay]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testDayFilterProjectionHitsExactlyThatDay]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testEmptyFilterDescriptionIsEmpty]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testEmptyFilterDescriptionIsEmpty]' passed (0.473 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testEmptyFilterListsTheWholeLibraryAndEmptyLegsOmit]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testEmptyFilterListsTheWholeLibraryAndEmptyLegsOmit]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testEvaluateLibraryHitsTheSameSetAsTheDirectWalk]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testEvaluateLibraryHitsTheSameSetAsTheDirectWalk]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testFilterDescriptionIsTypedAndFlattened]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testFilterDescriptionIsTypedAndFlattened]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testGroupCountsCameraKeyNormalizesUnknown]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testGroupCountsCameraKeyNormalizesUnknown]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testGroupCountsCaptureDateKey]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testGroupCountsCaptureDateKey]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testGroupCountsLabelsKeyTiers]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testGroupCountsLabelsKeyTiers]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testGroupCountsLensKey]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testGroupCountsLensKey]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testISO800DoesNotHitISO8000RowViaFTSLeg]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testISO800DoesNotHitISO8000RowViaFTSLeg]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testISO800DoesNotHitISO8000RowViaStructuredLeg]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testISO800DoesNotHitISO8000RowViaStructuredLeg]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testKeysetAscendingWalkCoversEveryRowExactlyOnce]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testKeysetAscendingWalkCoversEveryRowExactlyOnce]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testKeysetDescendingWalkCoversEveryRowExactlyOnce]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testKeysetDescendingWalkCoversEveryRowExactlyOnce]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testMixedQueryThreeLegsAND]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testMixedQueryThreeLegsAND]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testNullTailSegmentReturnsExactlyTheNullRows]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testNullTailSegmentReturnsExactlyTheNullRows]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testOverviewCountRespectsTheFilter]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testOverviewCountRespectsTheFilter]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testRatingSortWalkUsesBothSegments]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testRatingSortWalkUsesBothSegments]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testScanEpochSortIsATypedRejection]' started.
+Test Case '-[LightamerTestsLibrary.LibraryQueriesTests testScanEpochSortIsATypedRejection]' passed (0.003 seconds).
+Test Suite 'LibraryQueriesTests' passed at 2026-09-30 06:28:18.907.
+	 Executed 20 tests, with 0 failures (0 unexpected) in 0.546 (0.547) seconds
+Test Suite 'LibraryRelinkModelTests' started at 2026-09-30 06:28:18.907.
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testBatchProgressThroughTheHandleIsMonotonicToFull]' started.
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testBatchProgressThroughTheHandleIsMonotonicToFull]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testBatchRelivesPersistedRowsAndCountsStillStale]' started.
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testBatchRelivesPersistedRowsAndCountsStillStale]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testCancelAtARowBoundaryCountsTheRemainderCancelled]' started.
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testCancelAtARowBoundaryCountsTheRemainderCancelled]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testClassifySplitsTheTwoStaleFormsAndSkipsHealthyRows]' started.
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testClassifySplitsTheTwoStaleFormsAndSkipsHealthyRows]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testFailingRowDoesNotBlockTheRest]' started.
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testFailingRowDoesNotBlockTheRest]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testHandleMirrorsMonotonicProgressAndCancel]' started.
+Test Case '-[LightamerTestsLibrary.LibraryRelinkModelTests testHandleMirrorsMonotonicProgressAndCancel]' passed (0.105 seconds).
+Test Suite 'LibraryRelinkModelTests' passed at 2026-09-30 06:28:19.032.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.125 (0.125) seconds
+Test Suite 'LibrarySchemaTests' started at 2026-09-30 06:28:19.032.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testAlbumContentTwoColumnsVerbatim]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testAlbumContentTwoColumnsVerbatim]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testAlbumsSevenColumnsVerbatim]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testAlbumsSevenColumnsVerbatim]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testDefaultRawWhitelistExactFourteen]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testDefaultRawWhitelistExactFourteen]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testForeignKeysEnabledAfterApply]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testForeignKeysEnabledAfterApply]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testFreshCreateStampsUserVersionOneAndSeedsProjectMeta]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testFreshCreateStampsUserVersionOneAndSeedsProjectMeta]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testFrozenIndexesRegistered]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testFrozenIndexesRegistered]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testFTSVirtualTableExternalContentUnicode61]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testFTSVirtualTableExternalContentUnicode61]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testFutureVersionRefused]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testFutureVersionRefused]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testHardcodedSidecarExclusions]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testHardcodedSidecarExclusions]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testImagesTwentyEightColumnsVerbatim]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testImagesTwentyEightColumnsVerbatim]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testPackageLayoutConstants]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testPackageLayoutConstants]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testPackageTablesCreated]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testPackageTablesCreated]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testReservedMiniGitTablesDoNotExist]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testReservedMiniGitTablesDoNotExist]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testSecondApplyIsIdempotent]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testSecondApplyIsIdempotent]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testThreeSyncTriggersRegisteredWithMapping]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testThreeSyncTriggersRegisteredWithMapping]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testVersionOneReopensOK]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySchemaTests testVersionOneReopensOK]' passed (0.003 seconds).
+Test Suite 'LibrarySchemaTests' passed at 2026-09-30 06:28:19.075.
+	 Executed 16 tests, with 0 failures (0 unexpected) in 0.043 (0.043) seconds
+Test Suite 'LibrarySearchModelTests' started at 2026-09-30 06:28:19.075.
+Test Case '-[LightamerTestsLibrary.LibrarySearchModelTests testEmptySubmitInstallsTheAlwaysTruePlan]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySearchModelTests testEmptySubmitInstallsTheAlwaysTruePlan]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySearchModelTests testLegalQueryFoldsThePlanIntoTheSharedFilter]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySearchModelTests testLegalQueryFoldsThePlanIntoTheSharedFilter]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySearchModelTests testPlaceholderModesRefuseWithoutFakeResults]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySearchModelTests testPlaceholderModesRefuseWithoutFakeResults]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySearchModelTests testSubmitSurfacesEachFamilyInlineWithoutTouchingTheGrid]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySearchModelTests testSubmitSurfacesEachFamilyInlineWithoutTouchingTheGrid]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibrarySearchModelTests testTypedErrorFamiliesMapForTheDialog]' started.
+Test Case '-[LightamerTestsLibrary.LibrarySearchModelTests testTypedErrorFamiliesMapForTheDialog]' passed (0.004 seconds).
+Test Suite 'LibrarySearchModelTests' passed at 2026-09-30 06:28:19.096.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.020 (0.020) seconds
+Test Suite 'LibraryStoreTests' started at 2026-09-30 06:28:19.096.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testCreateThreeAlbumKinds]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testCreateThreeAlbumKinds]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testFilterAlbumRequiresValidatedGroupAndOthersRejectOne]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testFilterAlbumRequiresValidatedGroupAndOthersRejectOne]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testFilterDataJSONRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testFilterDataJSONRoundTrip]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testOneImageInMultipleAlbumsCountsN]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testOneImageInMultipleAlbumsCountsN]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testRefcountMoveIsAtomicUnderMidStatementFailure]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testRefcountMoveIsAtomicUnderMidStatementFailure]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testRemoveAlbumCascadesSubtreePerMembership]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testRemoveAlbumCascadesSubtreePerMembership]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testRemoveAlbumDecrementsAndZeroKeepsRow]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testRemoveAlbumDecrementsAndZeroKeepsRow]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testRemoveImageCleansAllMembership]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testRemoveImageCleansAllMembership]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testTreeRenameMoveAndCycleRejection]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testTreeRenameMoveAndCycleRejection]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testUnknownIDsRejectTyped]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testUnknownIDsRejectTyped]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testUpdateProjectionL013Text]' started.
+Test Case '-[LightamerTestsLibrary.LibraryStoreTests testUpdateProjectionL013Text]' passed (0.003 seconds).
+Test Suite 'LibraryStoreTests' passed at 2026-09-30 06:28:19.133.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.037 (0.038) seconds
+Test Suite 'LibraryThumbnailBridgeTests' started at 2026-09-30 06:28:19.133.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testCancelAllDropsTheRegistryAndRequestsReproduce]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testCancelAllDropsTheRegistryAndRequestsReproduce]' passed (0.154 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testDiskCacheHitNeverReproduces]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testDiskCacheHitNeverReproduces]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testGlobalConcurrencyCapHoldsUnderFanOut]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testGlobalConcurrencyCapHoldsUnderFanOut]' passed (0.270 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testInFlightRequestsMergeOntoOneProduction]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testInFlightRequestsMergeOntoOneProduction]' passed (0.133 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testMemoryLRUEvictsLeastRecentlyUsed]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testMemoryLRUEvictsLeastRecentlyUsed]' passed (0.008 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testPrioritizeReordersQueuedProductions]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testPrioritizeReordersQueuedProductions]' passed (1.093 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testStaleDiskThumbRegenerates]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testStaleDiskThumbRegenerates]' passed (0.008 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testTierAUsesTheEmbeddedPreviewAndNeverTheRenderLeg]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testTierAUsesTheEmbeddedPreviewAndNeverTheRenderLeg]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testTierBRoutesThroughTheRenderLegSeam]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testTierBRoutesThroughTheRenderLegSeam]' passed (0.036 seconds).
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testTierBWithoutAWiredRenderLegMisses]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testTierBWithoutAWiredRenderLegMisses]' passed (0.004 seconds).
+Test Suite 'LibraryThumbnailBridgeTests' passed at 2026-09-30 06:28:20.848.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 1.713 (1.715) seconds
+Test Suite 'LightamerPresetTests' started at 2026-09-30 06:28:20.848.
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testDevelopCarryingExportRecipeIsTypedInvalid]' started.
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testDevelopCarryingExportRecipeIsTypedInvalid]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testExportRecipeMountsVerbatimWithZeroHashKeys]' started.
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testExportRecipeMountsVerbatimWithZeroHashKeys]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testNilOptionalsAreOmittedFromBytes]' started.
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testNilOptionalsAreOmittedFromBytes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testReaderToleratesFutureSchemaVersion]' started.
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testReaderToleratesFutureSchemaVersion]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testSortedKeysGoldenLinesInOrder]' started.
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testSortedKeysGoldenLinesInOrder]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testV1FileWithMissingOptionalFieldsDegradesRead]' started.
+Test Case '-[LightamerTestsLibrary.LightamerPresetTests testV1FileWithMissingOptionalFieldsDegradesRead]' passed (0.000 seconds).
+Test Suite 'LightamerPresetTests' passed at 2026-09-30 06:28:20.852.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
+Test Suite 'LutLibraryStoreTests' started at 2026-09-30 06:28:20.852.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testContentDedupSameHashDifferentName]' started.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testContentDedupSameHashDifferentName]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testImport1D]' started.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testImport1D]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testImport3D]' started.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testImport3D]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testImportRejectsCorruptCube]' started.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testImportRejectsCorruptCube]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testImportRejectsNonCube]' started.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testImportRejectsNonCube]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testPresetContainerCarriesLutInstanceByName]' started.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testPresetContainerCarriesLutInstanceByName]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testRemovalDegradesModuleToIdentity]' started.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testRemovalDegradesModuleToIdentity]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testRescanAdoptsUnregisteredFiles]' started.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testRescanAdoptsUnregisteredFiles]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testRescanDropsVanishedFiles]' started.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testRescanDropsVanishedFiles]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testSameNameNewContentUpdates]' started.
+Test Case '-[LightamerTestsLibrary.LutLibraryStoreTests testSameNameNewContentUpdates]' passed (0.001 seconds).
+Test Suite 'LutLibraryStoreTests' passed at 2026-09-30 06:28:20.870.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.018 (0.019) seconds
+Test Suite 'MetadataServiceTests' started at 2026-09-30 06:28:20.870.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testAppendKeywordsDeduplicatesAndAppendNoteJoinsLines]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testAppendKeywordsDeduplicatesAndAppendNoteJoinsLines]' passed (0.013 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testBackfillPromotesLateSidecarRows]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testBackfillPromotesLateSidecarRows]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testBackfillSidecarSummariesDriftReReadRefreshesMetadata]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testBackfillSidecarSummariesDriftReReadRefreshesMetadata]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testClaimMetadataApplySQLColumnSetAndThumbInvariance]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testClaimMetadataApplySQLColumnSetAndThumbInvariance]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testCrashBetweenClaimAndWriteHealsToOldValues]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testCrashBetweenClaimAndWriteHealsToOldValues]' passed (0.008 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testHealDirtyRowsBackfillsFiveMetadataColumnsFromDiskTruth]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testHealDirtyRowsBackfillsFiveMetadataColumnsFromDiskTruth]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testKeywordSeparatorRejectionWritesNothing]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testKeywordSeparatorRejectionWritesNothing]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testKeywordsNilVsEmptyAreDistinct]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testKeywordsNilVsEmptyAreDistinct]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testSetRatingWritesSidecarTruthAndClearsDirty]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testSetRatingWritesSidecarTruthAndClearsDirty]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testTenThousandSetRatingSegmentsOneAndTwoGate]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testTenThousandSetRatingSegmentsOneAndTwoGate]' passed (5.816 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testUnreadableSidecarIsSkippedNeverClobbered]' started.
+Test Case '-[LightamerTestsLibrary.MetadataServiceTests testUnreadableSidecarIsSkippedNeverClobbered]' passed (0.028 seconds).
+Test Suite 'MetadataServiceTests' passed at 2026-09-30 06:28:26.773.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 5.902 (5.902) seconds
+Test Suite 'MetadataTests' started at 2026-09-30 06:28:26.773.
+Test Case '-[LightamerTestsLibrary.MetadataTests testCaptureTimeParsesFromEXIF]' started.
+Test Case '-[LightamerTestsLibrary.MetadataTests testCaptureTimeParsesFromEXIF]' passed (0.605 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataTests testGPSParsedWhenPresent]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MetadataTests.swift:100: -[LightamerTestsLibrary.MetadataTests testGPSParsedWhenPresent] : Test skipped - CR3 fixture carries no GPS dictionary — nothing to assert
+Test Case '-[LightamerTestsLibrary.MetadataTests testGPSParsedWhenPresent]' skipped (0.007 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataTests testIPTCAndXPMPresenceDoesNotDisturbExtraction]' started.
+Test Case '-[LightamerTestsLibrary.MetadataTests testIPTCAndXPMPresenceDoesNotDisturbExtraction]' passed (0.116 seconds).
+Test Case '-[LightamerTestsLibrary.MetadataTests testOrientationDimensionsAndExposureAgreeWithImageIO]' started.
+Test Case '-[LightamerTestsLibrary.MetadataTests testOrientationDimensionsAndExposureAgreeWithImageIO]' passed (0.189 seconds).
+Test Suite 'MetadataTests' passed at 2026-09-30 06:28:27.690.
+	 Executed 4 tests, with 1 test skipped and 0 failures (0 unexpected) in 0.917 (0.917) seconds
+Test Suite 'Phase4SidecarTests' started at 2026-09-30 06:28:27.690.
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testAshiftSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testAshiftSidecarRoundTrip]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testCropSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testCropSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testEqualizerSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testEqualizerSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testFlipSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testFlipSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testHighpassSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testHighpassSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testLensSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testLensSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testLocalContrastSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testLocalContrastSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testSharpenSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testSharpenSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testSoftenSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase4SidecarTests testSoftenSidecarRoundTrip]' passed (0.000 seconds).
+Test Suite 'Phase4SidecarTests' passed at 2026-09-30 06:28:27.693.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.003 (0.003) seconds
+Test Suite 'Phase5SidecarTests' started at 2026-09-30 06:28:27.693.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testBilateralSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testBilateralSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testChannelMixerLegacySidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testChannelMixerLegacySidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testChannelMixerRGBSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testChannelMixerRGBSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testColorBalanceRGBSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testColorBalanceRGBSidecarRoundTrip]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testColorContrastSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testColorContrastSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testColorZonesSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testColorZonesSidecarRoundTrip]' passed (0.040 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testDenoiseProfileSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testDenoiseProfileSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testMonochromeSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testMonochromeSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testNLMeansSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testNLMeansSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testUnknownOpDegradeRegressionStillGreen]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testUnknownOpDegradeRegressionStillGreen]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testVelviaSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testVelviaSidecarRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testVibranceSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase5SidecarTests testVibranceSidecarRoundTrip]' passed (0.000 seconds).
+Test Suite 'Phase5SidecarTests' passed at 2026-09-30 06:28:27.740.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.047 (0.047) seconds
+Test Suite 'Phase6SidecarTests' started at 2026-09-30 06:28:27.740.
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testHistoryStackSnapshotRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testHistoryStackSnapshotRoundTrip]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testLayerAwareDriftDetection]' started.
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testLayerAwareDriftDetection]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testThreeLayerStackRoundTripAndRenderIdentity]' started.
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testThreeLayerStackRoundTripAndRenderIdentity]' passed (0.011 seconds).
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testThreePayloadMaskRoundTripAndRenderIdentity]' started.
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testThreePayloadMaskRoundTripAndRenderIdentity]' passed (0.011 seconds).
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testUnknownOpInLayerChainDegradesLayer]' started.
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testUnknownOpInLayerChainDegradesLayer]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testV1DocumentsDecodeWithNilLayerStack]' started.
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testV1DocumentsDecodeWithNilLayerStack]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testV2DocumentWithoutLayersOmitsRecord]' started.
+Test Case '-[LightamerTestsLibrary.Phase6SidecarTests testV2DocumentWithoutLayersOmitsRecord]' passed (0.000 seconds).
+Test Suite 'Phase6SidecarTests' passed at 2026-09-30 06:28:27.764.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.023 (0.024) seconds
+Test Suite 'PresetApplierTests' started at 2026-09-30 06:28:27.764.
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testEmptyPresetNoOpsEveryTarget]' started.
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testEmptyPresetNoOpsEveryTarget]' passed (0.113 seconds).
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testExportPresetIsTypedNotApplicable]' started.
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testExportPresetIsTypedNotApplicable]' passed (0.116 seconds).
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testLiveTargetIsSkippedAndUntouched]' started.
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testLiveTargetIsSkippedAndUntouched]' passed (0.120 seconds).
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testPartialApplyAppliesOnlyTheCheckedSubset]' started.
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testPartialApplyAppliesOnlyTheCheckedSubset]' passed (0.117 seconds).
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testPresetApplyEqualsClipboardPasteTerminalState]' started.
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testPresetApplyEqualsClipboardPasteTerminalState]' passed (0.111 seconds).
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testPresetApplyFlipsThumbAndParamsWhileMetadataPathDoesNot]' started.
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testPresetApplyFlipsThumbAndParamsWhileMetadataPathDoesNot]' passed (0.108 seconds).
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testTenThousandPresetApplySegmentsOneAndTwoGate]' started.
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testTenThousandPresetApplySegmentsOneAndTwoGate]' passed (6.399 seconds).
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testUnknownOpCarriesVerbatimThroughBatchAndDegradesAtLoadFace]' started.
+Test Case '-[LightamerTestsLibrary.PresetApplierTests testUnknownOpCarriesVerbatimThroughBatchAndDegradesAtLoadFace]' passed (0.126 seconds).
+Test Suite 'PresetApplierTests' passed at 2026-09-30 06:28:34.975.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 7.210 (7.211) seconds
+Test Suite 'PresetsStoreTests' started at 2026-09-30 06:28:34.975.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testCorruptFileIsSkippedNeverDeletedAndNeighborsSurvive]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testCorruptFileIsSkippedNeverDeletedAndNeighborsSurvive]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testCreateRoundTripAndSecondStoreRescan]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testCreateRoundTripAndSecondStoreRescan]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testCreateTypedRejections]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testCreateTypedRejections]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testDevelopCarryingRecipeSkipsWhileNeighborsStayUsable]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testDevelopCarryingRecipeSkipsWhileNeighborsStayUsable]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testExportFileOfUnknownIdIsTyped]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testExportFileOfUnknownIdIsTyped]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testExportImportRoundTripIsByteIdenticalWithFreshStem]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testExportImportRoundTripIsByteIdenticalWithFreshStem]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testExportKindRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testExportKindRoundTrip]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testFutureSchemaFileIsToleratedNotSkipped]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testFutureSchemaFileIsToleratedNotSkipped]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testImportTypedErrors]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testImportTypedErrors]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testInvalidExportRecipeFileIsSkippedTypedAndNeighborsSurvive]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testInvalidExportRecipeFileIsSkippedTypedAndNeighborsSurvive]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testRemoveGoesFileFirstThenRegistry]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testRemoveGoesFileFirstThenRegistry]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testRenameAndCategoryPersistThroughTheFile]' started.
+Test Case '-[LightamerTestsLibrary.PresetsStoreTests testRenameAndCategoryPersistThroughTheFile]' passed (0.002 seconds).
+Test Suite 'PresetsStoreTests' passed at 2026-09-30 06:28:34.986.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.010 (0.011) seconds
+Test Suite 'ProvenanceV4Tests' started at 2026-09-30 06:28:34.986.
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testE2EEXIFBracketMergesToKnownLuminance]' started.
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testE2EEXIFBracketMergesToKnownLuminance]' passed (0.068 seconds).
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testE2EProductGridDecodeEditSidecar]' started.
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testE2EProductGridDecodeEditSidecar]' passed (0.067 seconds).
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testGridVisibilityThreeRows]' started.
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testGridVisibilityThreeRows]' passed (0.061 seconds).
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testPrecheckRejectsIdenticalExposureBracket]' started.
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testPrecheckRejectsIdenticalExposureBracket]' passed (0.481 seconds).
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testProductLandsInSessionRootWithCollisionIncrement]' started.
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testProductLandsInSessionRootWithCollisionIncrement]' passed (0.111 seconds).
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testReplaySameParamsEquivalentProvenance]' started.
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testReplaySameParamsEquivalentProvenance]' passed (0.110 seconds).
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testSourceDriftMarksDirty]' started.
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testSourceDriftMarksDirty]' passed (0.064 seconds).
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testV3DocumentReadsCleanWithNilProvenance]' started.
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testV3DocumentReadsCleanWithNilProvenance]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testV4RoundTripByteCompatibility]' started.
+Test Case '-[LightamerTestsLibrary.ProvenanceV4Tests testV4RoundTripByteCompatibility]' passed (0.000 seconds).
+Test Suite 'ProvenanceV4Tests' passed at 2026-09-30 06:28:35.948.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.961 (0.962) seconds
+Test Suite 'RetouchSidecarTests' started at 2026-09-30 06:28:35.948.
+Test Case '-[LightamerTestsLibrary.RetouchSidecarTests testPre06_07DocumentsDecodeCompatibly]' started.
+Test Case '-[LightamerTestsLibrary.RetouchSidecarTests testPre06_07DocumentsDecodeCompatibly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.RetouchSidecarTests testRetouchHistorySnapshotRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.RetouchSidecarTests testRetouchHistorySnapshotRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.RetouchSidecarTests testRetouchLayerRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.RetouchSidecarTests testRetouchLayerRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.RetouchSidecarTests testRetouchRecordSpellingIsFrozen]' started.
+Test Case '-[LightamerTestsLibrary.RetouchSidecarTests testRetouchRecordSpellingIsFrozen]' passed (0.000 seconds).
+Test Suite 'RetouchSidecarTests' passed at 2026-09-30 06:28:35.949.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'SidecarMetadataV3Tests' started at 2026-09-30 06:28:35.949.
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testAllNilV3ByteGolden]' started.
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testAllNilV3ByteGolden]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testEncodeAlwaysWritesFiveKeysWithNulls]' started.
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testEncodeAlwaysWritesFiveKeysWithNulls]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testFutureVersionDocumentStillDecodes]' started.
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testFutureVersionDocumentStillDecodes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testHistoryHashProjectionIgnoresMetadata]' started.
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testHistoryHashProjectionIgnoresMetadata]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testMetadataValuesRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testMetadataValuesRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testMetadataWriteKeepsHashesByteIdentical]' started.
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testMetadataWriteKeepsHashesByteIdentical]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testV2DocumentDegradeReadsFiveFieldsNil]' started.
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testV2DocumentDegradeReadsFiveFieldsNil]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testV2DocumentWithExplicitNullsDegradeReads]' started.
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testV2DocumentWithExplicitNullsDegradeReads]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testV2ToV3UpgradeDiffIsAdditiveKeysOnly]' started.
+Test Case '-[LightamerTestsLibrary.SidecarMetadataV3Tests testV2ToV3UpgradeDiffIsAdditiveKeysOnly]' passed (0.000 seconds).
+Test Suite 'SidecarMetadataV3Tests' passed at 2026-09-30 06:28:35.954.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'SidecarRoundTripTests' started at 2026-09-30 06:28:35.954.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testAbsentFileLoadsAsNil]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testAbsentFileLoadsAsNil]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testAtomicWriteLeavesNoTmpFiles]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testAtomicWriteLeavesNoTmpFiles]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testCorruptFileLoadsAsNil]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testCorruptFileLoadsAsNil]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testDebounceMergesWritesAndLastDocumentWins]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testDebounceMergesWritesAndLastDocumentWins]' passed (0.013 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testDecoderAcceptsBareNumberHashes]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testDecoderAcceptsBareNumberHashes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testDocumentRoundTripsWithRealHistoryStack]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testDocumentRoundTripsWithRealHistoryStack]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testDriftInjectionDetectedAndDoesNotRewrite]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testDriftInjectionDetectedAndDoesNotRewrite]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testDriftPrimitiveSelfConsistent]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testDriftPrimitiveSelfConsistent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testFlushNowWritesPendingAndIsIdempotent]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testFlushNowWritesPendingAndIsIdempotent]' passed (0.051 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testRoundTripRestoresIdenticalRenderedOutput]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testRoundTripRestoresIdenticalRenderedOutput]' passed (0.020 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testSidecarURLNamingRule]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testSidecarURLNamingRule]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testUInt64FieldsSerializeAsDecimalStrings]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testUInt64FieldsSerializeAsDecimalStrings]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testUnknownOpDegradesDisabledWithParamsPreserved]' started.
+Test Case '-[LightamerTestsLibrary.SidecarRoundTripTests testUnknownOpDegradesDisabledWithParamsPreserved]' passed (0.000 seconds).
+Test Suite 'SidecarRoundTripTests' passed at 2026-09-30 06:28:36.044.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.090 (0.091) seconds
+Test Suite 'SidecarTieBreakTests' started at 2026-09-30 06:28:36.044.
+Test Case '-[LightamerTestsLibrary.SidecarTieBreakTests testCoSlotTieBreakIsDeterministic]' started.
+Test Case '-[LightamerTestsLibrary.SidecarTieBreakTests testCoSlotTieBreakIsDeterministic]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarTieBreakTests testSameOpMultiPriorityKeepsBoth]' started.
+Test Case '-[LightamerTestsLibrary.SidecarTieBreakTests testSameOpMultiPriorityKeepsBoth]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SidecarTieBreakTests testSlotOrderColorinBeforeChannelMixerRGB]' started.
+Test Case '-[LightamerTestsLibrary.SidecarTieBreakTests testSlotOrderColorinBeforeChannelMixerRGB]' passed (0.000 seconds).
+Test Suite 'SidecarTieBreakTests' passed at 2026-09-30 06:28:36.045.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'SmartAlbumStoreTests' started at 2026-09-30 06:28:36.045.
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testCorruptFileSkippedNeverDeleted]' started.
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testCorruptFileSkippedNeverDeleted]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testCreateAndRescanRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testCreateAndRescanRoundTrip]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testFutureSchemaFileSkipsThroughTypedPath]' started.
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testFutureSchemaFileSkipsThroughTypedPath]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testPersistedAlbumEvaluatesAgainstSessionFixture]' started.
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testPersistedAlbumEvaluatesAgainstSessionFixture]' passed (0.004 seconds).
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testRenameKeepsFileIdentity]' started.
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testRenameKeepsFileIdentity]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testSortedKeysByteStabilityAndNoTmpLeftovers]' started.
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testSortedKeysByteStabilityAndNoTmpLeftovers]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testTypedErrors]' started.
+Test Case '-[LightamerTestsLibrary.SmartAlbumStoreTests testTypedErrors]' passed (0.000 seconds).
+Test Suite 'SmartAlbumStoreTests' passed at 2026-09-30 06:28:36.053.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.008 (0.008) seconds
+Test Suite 'StableHashTests' started at 2026-09-30 06:28:36.053.
+Test Case '-[LightamerTestsLibrary.StableHashTests testByteOrderSensitivity]' started.
+Test Case '-[LightamerTestsLibrary.StableHashTests testByteOrderSensitivity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.StableHashTests testDeterministicAcrossCalls]' started.
+Test Case '-[LightamerTestsLibrary.StableHashTests testDeterministicAcrossCalls]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.StableHashTests testDistinctInputsDiffer]' started.
+Test Case '-[LightamerTestsLibrary.StableHashTests testDistinctInputsDiffer]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.StableHashTests testEmptyStringHashesToOffsetBasis]' started.
+Test Case '-[LightamerTestsLibrary.StableHashTests testEmptyStringHashesToOffsetBasis]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.StableHashTests testFoobarKnownVector]' started.
+Test Case '-[LightamerTestsLibrary.StableHashTests testFoobarKnownVector]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.StableHashTests testIncrementalCombineMatchesOneShot]' started.
+Test Case '-[LightamerTestsLibrary.StableHashTests testIncrementalCombineMatchesOneShot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.StableHashTests testStringAndDataPathsAgree]' started.
+Test Case '-[LightamerTestsLibrary.StableHashTests testStringAndDataPathsAgree]' passed (0.000 seconds).
+Test Suite 'StableHashTests' passed at 2026-09-30 06:28:36.054.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'XMPContainerInjectorTests' started at 2026-09-30 06:28:36.054.
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testCRC32KnownValues]' started.
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testCRC32KnownValues]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testJPEGMisuseAndExistingXMP]' started.
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testJPEGMisuseAndExistingXMP]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testJPEGPlacementAfterAPP0AndExif]' started.
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testJPEGPlacementAfterAPP0AndExif]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testJPEGPositiveAnchorAndHostRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testJPEGPositiveAnchorAndHostRoundTrip]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testJPEGSegmentLimitTypedError]' started.
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testJPEGSegmentLimitTypedError]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testPNGMisuseAndReplaceSemantics]' started.
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testPNGMisuseAndReplaceSemantics]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testPNGPositiveAnchorAndHostRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testPNGPositiveAnchorAndHostRoundTrip]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testTIFFDoubleInjectionRefusesAndMisuse]' started.
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testTIFFDoubleInjectionRefusesAndMisuse]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testTIFFPositiveAnchorValueMatchAndHostRoundTrip]' started.
+Test Case '-[LightamerTestsLibrary.XMPContainerInjectorTests testTIFFPositiveAnchorValueMatchAndHostRoundTrip]' passed (0.002 seconds).
+Test Suite 'XMPContainerInjectorTests' passed at 2026-09-30 06:28:36.065.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.010 (0.011) seconds
+Test Suite 'XMPExportMatrixTests' started at 2026-09-30 06:28:36.065.
+Test Case '-[LightamerTestsLibrary.XMPExportMatrixTests testEmptySidecarSkipsAndNoFieldProductHasNoPacket]' started.
+Test Case '-[LightamerTestsLibrary.XMPExportMatrixTests testEmptySidecarSkipsAndNoFieldProductHasNoPacket]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLibrary.XMPExportMatrixTests testFullRenderChainLandsXMP]' started.
+Test Case '-[LightamerTestsLibrary.XMPExportMatrixTests testFullRenderChainLandsXMP]' passed (0.015 seconds).
+Test Case '-[LightamerTestsLibrary.XMPExportMatrixTests testInjectionFailureDegradesWithoutBlocking]' started.
+Test Case '-[LightamerTestsLibrary.XMPExportMatrixTests testInjectionFailureDegradesWithoutBlocking]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.XMPExportMatrixTests testRejectFlagMapsToRatingMinusOne]' started.
+Test Case '-[LightamerTestsLibrary.XMPExportMatrixTests testRejectFlagMapsToRatingMinusOne]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLibrary.XMPExportMatrixTests testSixFormatMatrixPositiveAndReverseAnchors]' started.
+<unknown>:0: warning: -[LightamerTestsLibrary.XMPExportMatrixTests testSixFormatMatrixPositiveAndReverseAnchors] : This method should not be called on the main thread as it may lead to UI unresponsiveness.
+Test Case '-[LightamerTestsLibrary.XMPExportMatrixTests testSixFormatMatrixPositiveAndReverseAnchors]' passed (0.154 seconds).
+Test Suite 'XMPExportMatrixTests' passed at 2026-09-30 06:28:36.239.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.174 (0.175) seconds
+Test Suite 'XMPImportTests' started at 2026-09-30 06:28:36.239.
+Test Case '-[LightamerTestsLibrary.XMPImportTests testDCSubjectOnlyDegradesToSingleLevelPaths]' started.
+Test Case '-[LightamerTestsLibrary.XMPImportTests testDCSubjectOnlyDegradesToSingleLevelPaths]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPImportTests testFileReadLeavesSourceUnchanged]' started.
+Test Case '-[LightamerTestsLibrary.XMPImportTests testFileReadLeavesSourceUnchanged]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.XMPImportTests testHierarchicalSubjectReadsVerbatim]' started.
+Test Case '-[LightamerTestsLibrary.XMPImportTests testHierarchicalSubjectReadsVerbatim]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPImportTests testHierarchicalWinsOverDCSubject]' started.
+Test Case '-[LightamerTestsLibrary.XMPImportTests testHierarchicalWinsOverDCSubject]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPImportTests testLabelReverseMapping]' started.
+Test Case '-[LightamerTestsLibrary.XMPImportTests testLabelReverseMapping]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.XMPImportTests testRatingAndRejectMapping]' started.
+Test Case '-[LightamerTestsLibrary.XMPImportTests testRatingAndRejectMapping]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.XMPImportTests testRoundTripAgainstWriter]' started.
+Test Case '-[LightamerTestsLibrary.XMPImportTests testRoundTripAgainstWriter]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.XMPImportTests testTypedErrors]' started.
+Test Case '-[LightamerTestsLibrary.XMPImportTests testTypedErrors]' passed (0.000 seconds).
+Test Suite 'XMPImportTests' passed at 2026-09-30 06:28:36.244.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.004 (0.004) seconds
+Test Suite 'XMPWriterTests' started at 2026-09-30 06:28:36.244.
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testEmptyFieldsYieldNilPacket]' started.
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testEmptyFieldsYieldNilPacket]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testGoldenPacketStructureAndFieldOrder]' started.
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testGoldenPacketStructureAndFieldOrder]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testLabelReverseLookup]' started.
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testLabelReverseLookup]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testProjectLeafExtractionDeduplicates]' started.
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testProjectLeafExtractionDeduplicates]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testProjectMapsSidecarFace]' started.
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testProjectMapsSidecarFace]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testRawCFArraySerializesSeqNotBag]' started.
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testRawCFArraySerializesSeqNotBag]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testRejectRatingMinusOneRoundTrips]' started.
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testRejectRatingMinusOneRoundTrips]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testRoundTripAllFields]' started.
+Test Case '-[LightamerTestsLibrary.XMPWriterTests testRoundTripAllFields]' passed (0.000 seconds).
+Test Suite 'XMPWriterTests' passed at 2026-09-30 06:28:36.245.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'LightamerTestsLibrary.xctest' passed at 2026-09-30 06:28:36.245.
+	 Executed 430 tests, with 4 tests skipped and 0 failures (0 unexpected) in 21.732 (21.757) seconds
+Test Suite 'All tests' passed at 2026-09-30 06:28:36.246.
+	 Executed 430 tests, with 4 tests skipped and 0 failures (0 unexpected) in 21.732 (21.758) seconds
+BENCH| filmstrip 10k-row mount: 36 requests for two windows (12 visible + 4 prefetch each), model-level simulation 2.3ms — non-gate, lands in SUMMARY
+META12-GATE setRating segments1+2 10k: 0.866s (gate ≤ 5.000s)
+META12-GATE-CONFIG: Debug (the ≤5s gate = Release; this run is the harness record)
+PRESET12-GATE preset apply segments1+2 10k: 0.564s (gate ≤ 5.000s)
+PRESET12-GATE-CONFIG: Debug (the ≤5s gate = Release; this run is the harness record)
+[debug] session-1 final plane: 12288 bytes, 12288 nonzero, first 16: [131, 94, 62, 255, 136, 104, 82, 255, 140, 113, 98, 255, 145, 122, 111, 255]

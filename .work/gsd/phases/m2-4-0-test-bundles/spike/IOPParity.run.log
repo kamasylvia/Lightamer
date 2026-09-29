@@ -1,0 +1,1045 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+2026-09-30 06:04:13.558 Lightamer[34960:1078503] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+Test Suite 'All tests' started at 2026-09-30 06:04:13.995.
+Test Suite 'LightamerTestsIOPParity.xctest' started at 2026-09-30 06:04:13.995.
+Test Suite 'AgXTests' started at 2026-09-30 06:04:13.995.
+Test Case '-[LightamerTestsIOPParity.AgXTests testAgXGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.AgXTests testAgXGoldenParity]' passed (2.185 seconds).
+Test Case '-[LightamerTestsIOPParity.AgXTests testCurvePivotAndSlopeInvariants]' started.
+Test Case '-[LightamerTestsIOPParity.AgXTests testCurvePivotAndSlopeInvariants]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.AgXTests testGraysStayNeutralThroughLook]' started.
+Test Case '-[LightamerTestsIOPParity.AgXTests testGraysStayNeutralThroughLook]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOPParity.AgXTests testParamsRoundTripAndRegistration]' started.
+Test Case '-[LightamerTestsIOPParity.AgXTests testParamsRoundTripAndRegistration]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.AgXTests testPrimariesCaseKernelVsCPUMirror]' started.
+Test Case '-[LightamerTestsIOPParity.AgXTests testPrimariesCaseKernelVsCPUMirror]' passed (0.024 seconds).
+Test Suite 'AgXTests' passed at 2026-09-30 06:04:16.213.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 2.217 (2.218) seconds
+Test Suite 'AshiftParityTests' started at 2026-09-30 06:04:16.213.
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testAshiftGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testAshiftGoldenParity]' passed (1.196 seconds).
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testAshiftRegisteredAtV50Slot]' started.
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testAshiftRegisteredAtV50Slot]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testFlatRotationIsFlatWithOpaqueAlpha]' started.
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testFlatRotationIsFlatWithOpaqueAlpha]' passed (0.011 seconds).
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testModifyROIInStaysBounded]' started.
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testModifyROIInStaysBounded]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testModifyROIOutGrowsAABBOnRotation]' started.
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testModifyROIOutGrowsAABBOnRotation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testNeutralAshiftIsByteIdentical]' started.
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testNeutralAshiftIsByteIdentical]' passed (0.014 seconds).
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testRotatedBlackCornersSurviveGammaTail]' started.
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testRotatedBlackCornersSurviveGammaTail]' passed (0.011 seconds).
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testRotatedCornersCarryTransparentAlpha]' started.
+Test Case '-[LightamerTestsIOPParity.AshiftParityTests testRotatedCornersCarryTransparentAlpha]' passed (0.011 seconds).
+Test Suite 'AshiftParityTests' passed at 2026-09-30 06:04:17.457.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 1.244 (1.244) seconds
+Test Suite 'BilateralParityTests' started at 2026-09-30 06:04:17.457.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testBilateralGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testBilateralGoldenParity]' passed (0.530 seconds).
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testComputeSigmasLineByLine]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testComputeSigmasLineByLine]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testDeltaImpulseResponseProfile]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testDeltaImpulseResponseProfile]' passed (0.012 seconds).
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testDirectLegParity]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testDirectLegParity]' passed (0.208 seconds).
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testFlatFieldIdentityBothLegs]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testFlatFieldIdentityBothLegs]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testForcedTilingMatchesWholePlaneGridLeg]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testForcedTilingMatchesWholePlaneGridLeg]' passed (0.026 seconds).
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testGridAtomicDeterminism]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testGridAtomicDeterminism]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testLegPathSwitching]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testLegPathSwitching]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testMidRadiusCrossingBothLegs]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testMidRadiusCrossingBothLegs]' passed (9.340 seconds).
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testOQ7BudgetFormulaAndBounds]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testOQ7BudgetFormulaAndBounds]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testSigmaToZeroIdentityByteExact]' started.
+Test Case '-[LightamerTestsIOPParity.BilateralParityTests testSigmaToZeroIdentityByteExact]' passed (0.004 seconds).
+Test Suite 'BilateralParityTests' passed at 2026-09-30 06:04:27.594.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 10.136 (10.137) seconds
+Test Suite 'BlendOpParityTests' started at 2026-09-30 06:04:27.594.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testArithmeticModesGPUParity]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testArithmeticModesGPUParity]' passed (0.023 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testBlendModeOrthogonality]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testBlendModeOrthogonality]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testEngineIdentityTriplesByteExact]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testEngineIdentityTriplesByteExact]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testEveryModeChangesTheComposite]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testEveryModeChangesTheComposite]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testFlatFieldDTSharedProbeValues]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testFlatFieldDTSharedProbeValues]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testHueFullCircleSweep]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testHueFullCircleSweep]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testJzCzhzAchromaticChromaIsZero]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testJzCzhzAchromaticChromaIsZero]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testJzCzhzExactLegs]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testJzCzhzExactLegs]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testJzCzhzRoundTripFloat64]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testJzCzhzRoundTripFloat64]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testJzMatrixLegsGPUProbe]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testJzMatrixLegsGPUProbe]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testJzPolarLegsGPUProbe]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testJzPolarLegsGPUProbe]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testMaskPlaneTripleMatchesReference]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testMaskPlaneTripleMatchesReference]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testMixedHueShortestPath]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testMixedHueShortestPath]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testPerceptualModesGPUParity]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testPerceptualModesGPUParity]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testReferenceIdentityGates]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testReferenceIdentityGates]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testReferenceModeSpotValues]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testReferenceModeSpotValues]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testReferencePerceptualStructure]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testReferencePerceptualStructure]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testReverseEqualsPlaneSwap]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testReverseEqualsPlaneSwap]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testSceneFallbackDocumentedDifferences]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testSceneFallbackDocumentedDifferences]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testTiledDispatchByteIdentical]' started.
+Test Case '-[LightamerTestsIOPParity.BlendOpParityTests testTiledDispatchByteIdentical]' passed (0.002 seconds).
+Test Suite 'BlendOpParityTests' passed at 2026-09-30 06:04:27.664.
+	 Executed 20 tests, with 0 failures (0 unexpected) in 0.069 (0.069) seconds
+Test Suite 'ChannelMixerColorContrastParityTests' started at 2026-09-30 06:04:27.664.
+Test Case '-[LightamerTestsIOPParity.ChannelMixerColorContrastParityTests testChannelMixerGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.ChannelMixerColorContrastParityTests testChannelMixerGoldenParity]' passed (0.693 seconds).
+Test Case '-[LightamerTestsIOPParity.ChannelMixerColorContrastParityTests testColorContrastGoldenParity]' started.
+BILATERAL golden bilat_direct_small×delta_impulse: maxRel=4.4073358518613325e-07
+BILATERAL golden bilat_boundary×delta_impulse: maxRel=2.483526766954789e-07
+BILATERAL golden bilat_grid_large×delta_impulse: maxRel=3.311369022606385e-07
+BILATERAL golden bilat_direct_small×ramp_8ev__noisy_iso125_s20260921: maxRel=7.992543755930093e-07
+BILATERAL golden bilat_boundary×ramp_8ev__noisy_iso125_s20260921: maxRel=8.392754031879037e-07
+BILATERAL golden bilat_grid_large×ramp_8ev__noisy_iso125_s20260921: maxRel=8.58882872043248e-07
+BILATERAL golden bilat_direct_small×gray_staircase__noisy_iso1600_s20260921: maxRel=8.559435823618445e-07
+BILATERAL golden bilat_boundary×gray_staircase__noisy_iso1600_s20260921: maxRel=8.142613717481342e-07
+BILATERAL golden bilat_grid_large×gray_staircase__noisy_iso1600_s20260921: maxRel=7.555436884826885e-07
+BILATERAL delta profile σs=2.0: center=1.0 far+20px=0.18000002205371857
+BILATERAL direct σs=1.2 σr=0.1: maxRel=7.164210935713377e-07
+BILATERAL direct σs=1.5 σr=0.2: maxRel=8.522787356789717e-07
+BILATERAL direct σs=0.5 σr=0.15: maxRel=4.3809287543822115e-07
+BILATERAL flat radius=2.0: maxRel=2.8808911645139545e-07 at(45,13) ch0 got=0.18000005
+BILATERAL flat radius=7.0: maxRel=3.973642988726785e-08 at(0,0) ch0 got=0.18
+BILATERAL tiling grid leg: tiles=4 bpp=780 maxRel=4.827650853025791e-07 at(58,34) ch2 whole=0.09259883 tiled=0.09259879
+BILATERAL cross radius=1.35 noise=0.05 prad=5: maxRel=1.033337097638162e-06 maxAbs=7.670783827018468e-07 at(29,67) got=0.6747414 ref=0.6747420846032759
+BILATERAL cross radius=1.35 noise=0.0 prad=5: maxRel=1.0014177702283844e-06 maxAbs=6.620716167526908e-07 at(53,28) got=0.54909414 ref=0.5490935906575534
+BILATERAL cross radius=1.67 noise=0.05 prad=6: maxRel=1.3331461413722324e-06 maxAbs=1.0959783572905835e-06 at(21,84) got=0.8221003 ref=0.8220991857370358
+BILATERAL cross radius=1.67 noise=0.0 prad=6: maxRel=1.2601796192799917e-06 maxAbs=7.860966345640819e-07 at(89,8) got=0.32663664 ref=0.3266362305973154
+BILATERAL cross radius=2.0 noise=0.05 prad=7: maxRel=0.4247290530084324 maxAbs=0.020316501667821674 at(14,28) got=0.019047668 ref=0.03311077728385736
+BILATERAL cross radius=2.0 noise=0.0 prad=7: maxRel=0.24041576586012994 maxAbs=0.013371068991545054 at(79,57) got=0.020141976 ref=0.026517106397005663
+BILATERAL cross radius=2.35 noise=0.05 prad=8: maxRel=0.44693978379501637 maxAbs=0.02061304534630709 at(14,28) got=0.019151557 ref=0.034628340053683454
+BILATERAL cross radius=2.35 noise=0.0 prad=8: maxRel=0.2625948741275837 maxAbs=0.015415510994243431 at(75,57) got=0.021713747 ref=0.02944615646103957
+BILATERAL OQ7 100MP defaults: cells=(87, 87, 23, 23, 23) bytes=1473472368 coarsening=9.227934793353098
+CM parity cm_rgb_swap×ramp_8ev: maxRel=0.0
+CM parity cm_gray_luma×ramp_8ev: maxRel=7.0882265e-08
+CM parity cm_hsl_v1_sat×ramp_8ev: maxRel=1.1317213e-07
+CM parity cm_rgb_swap×flat_0ev: maxRel=0.0
+CM parity cm_gray_luma×flat_0ev: maxRel=0.0
+CM parity cm_hsl_v1_sat×flat_0ev: maxRel=0.0
+CM parity cm_rgb_swap×flat_-4ev: maxRel=0.0
+CM parity cm_gray_luma×flat_-4ev: maxRel=0.0
+CM parity cm_hsl_v1_sat×flat_-4ev: maxRel=0.0
+CM parity cm_rgb_swap×gray_staircase: maxRel=0.0
+CM parity cm_gray_luma×gray_staircase: maxRel=0.0
+CM parity cm_hsl_v1_sat×gray_staircase: maxRel=1.03211505e-07
+CM parity cm_rgb_swap×saturated: maxRel=0.0
+CM parity cm_gray_luma×saturated: maxRel=4.769785e-07
+CM parity cm_hsl_v1_sat×saturated: maxRel=1.5863317e-07
+CC parity cc_default×ramp_8ev: maxRel=8.019413e-07
+CC parity cc_steep×ramp_8ev: maxRel=1.47888e-06
+CC parity cc_bound×ramp_8ev: maxRel=3.1945652e-05
+CC parity cc_default×flat_0ev: maxRel=1.7881393e-07
+CC parity cc_steep×flat_0ev: maxRel=2.4415795e-07
+CC parity cc_bound×flat_0ev: maxRel=3.552095e-07
+CC parity cc_default×flat_-4ev: maxRel=2.3841858e-07
+CC parity cc_steep×flat_-4ev: maxRel=1.2683512e-07
+CC parity cc_bound×flat_-4ev: maxRel=7.886139e-06
+CC parity cc_default×gray_staircase: maxRel=3.193106e-07
+CC parity cc_steep×gray_staircase: maxRel=3.3459676e-07
+CC parity cc_bound×gray_staircase: maxRel=2.996412e-06
+CC Test Case '-[LightamerTestsIOPParity.ChannelMixerColorContrastParityTests testColorContrastGoldenParity]' passed (1.132 seconds).
+Test Suite 'ChannelMixerColorContrastParityTests' passed at 2026-09-30 06:04:29.489.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 1.825 (1.825) seconds
+Test Suite 'ChannelMixerRGBParityTests' started at 2026-09-30 06:04:29.489.
+Test Case '-[LightamerTestsIOPParity.ChannelMixerRGBParityTests testChannelMixerRGBGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.ChannelMixerRGBParityTests testChannelMixerRGBGoldenParity]' passed (1.109 seconds).
+Test Case '-[LightamerTestsIOPParity.ChannelMixerRGBParityTests testDerivedMatricesMatchPythonReference]' started.
+Test Case '-[LightamerTestsIOPParity.ChannelMixerRGBParityTests testDerivedMatricesMatchPythonReference]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.ChannelMixerRGBParityTests testIlluminantChangeInvalidatesCache]' started.
+Test Case '-[LightamerTestsIOPParity.ChannelMixerRGBParityTests testIlluminantChangeInvalidatesCache]' passed (0.000 seconds).
+Test Suite 'ChannelMixerRGBParityTests' passed at 2026-09-30 06:04:30.599.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 1.110 (1.110) seconds
+Test Suite 'ColisaParityTests' started at 2026-09-30 06:04:30.599.
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testColisaGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testColisaGoldenParity]' passed (1.805 seconds).
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testColisaRegisteredAtV50Slot47]' started.
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testColisaRegisteredAtV50Slot47]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testExtrapolationContinuity]' started.
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testExtrapolationContinuity]' passed (0.051 seconds).
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testIdentityParamsGiveIdentityLUTs]' started.
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testIdentityParamsGiveIdentityLUTs]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testKernelGraysStayNeutralUnderSaturation]' started.
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testKernelGraysStayNeutralUnderSaturation]' passed (0.013 seconds).
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testKnownTableVectors]' started.
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testKnownTableVectors]' passed (0.020 seconds).
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testTrackBNeutralityWithColisaInserted]' started.
+Test Case '-[LightamerTestsIOPParity.ColisaParityTests testTrackBNeutralityWithColisaInserted]' passed (0.046 seconds).
+Test Suite 'ColisaParityTests' passed at 2026-09-30 06:04:32.545.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 1.946 (1.946) seconds
+Test Suite 'ColorBalanceRGBParityTests' started at 2026-09-30 06:04:32.545.
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testColorBalanceGoldenParityJzAzBz]' started.
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testColorBalanceGoldenParityJzAzBz]' passed (6.661 seconds).
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testColorBalanceGoldenParity]' started.
+parity cc_default×saturated: maxRel=2.0827035e-06
+CC parity cc_steep×saturated: maxRel=1.5540949e-05
+CC parity cc_bound×saturated: maxRel=1.514324e-06
+CMR parity cmr_default×ramp_8ev: maxRel=2.8659247e-06
+CMR parity cmr_tungsten_linear×ramp_8ev: maxRel=9.644742e-07
+CMR parity cmr_bb_full_satv1×ramp_8ev: maxRel=7.607328e-07
+CMR parity cmr_fluor_xyz×ramp_8ev: maxRel=8.6075926e-07
+CMR parity cmr_led_rgb_grey×ramp_8ev: maxRel=2.318944e-07
+CMR parity cmr_custom_satv2×ramp_8ev: maxRel=6.9091298e-06
+CMR parity cmr_default×flat_0ev: maxRel=9.536317e-07
+CMR parity cmr_tungsten_linear×flat_0ev: maxRel=2.0172381e-07
+CMR parity cmr_bb_full_satv1×flat_0ev: maxRel=2.1522567e-07
+CMR parity cmr_fluor_xyz×flat_0ev: maxRel=3.2478727e-07
+CMR parity cmr_led_rgb_grey×flat_0ev: maxRel=1.1921023e-07
+CMR parity cmr_custom_satv2×flat_0ev: maxRel=4.263657e-06
+CMR parity cmr_default×flat_-4ev: maxRel=1.0728602e-06
+CMR parity cmr_tungsten_linear×flat_-4ev: maxRel=3.8309096e-07
+CMR parity cmr_bb_full_satv1×flat_-4ev: maxRel=1.8011605e-07
+CMR parity cmr_fluor_xyz×flat_-4ev: maxRel=1.0784227e-07
+CMR parity cmr_led_rgb_grey×flat_-4ev: maxRel=5.960467e-08
+CMR parity cmr_custom_satv2×flat_-4ev: maxRel=2.241967e-06
+CMR parity cmr_default×gray_staircase: maxRel=9.579092e-07
+CMR parity cmr_tungsten_linear×gray_staircase: maxRel=7.9813844e-07
+CMR parity cmr_bb_full_satv1×gray_staircase: maxRel=6.732424e-07
+CMR parity cmr_fluor_xyz×gray_staircase: maxRel=4.6674288e-07
+CMR parity cmr_led_rgb_grey×gray_staircase: maxRel=1.7029993e-07
+CMR parity cmr_custom_satv2×gray_staircase: maxRel=4.263657e-06
+CB parity cb_contrast_sat_jz×ramp_8ev: maxRel=0.00013273559 at px32 ch0 la=0.052040342 ref=0.052033436 abs=6.906688e-06
+CB parity cb_contrast_sat_jz×flat_0ev: maxRel=7.004678e-05 at px0 ch1 la=0.85341924 ref=0.853479 abs=5.978346e-05
+CB parity cb_contrast_sat_jz×flat_-4ev: maxRel=9.747876e-06 at px0 ch1 la=0.021019243 ref=0.021019038 abs=2.0489097e-07
+CB parity cb_contrast_sat_jz×gray_staircase: maxRel=8.130993e-05 at px90 ch0 la=1.6067257 ref=1.6068563 abs=0.00013065338
+CB parity cb_contrast_sat_jz×saturated: maxRel=0.00051024853 at px0 ch1 la=0.06358787 ref=0.06362033 abs=3.246218e-05
+CB parity cb_contrast_sat_jz×deep_shadow: maxRel=0.00012396835 at px4019 ch0 la=0.008270329 ref=0.008271354 abs=1.0253862e-06
+CB parity cb_contrast_sat_jz×hue_sweep: maxRel=0.020707525 at px356 ch2 la=0.00078718003 ref=0.0007712102 abs=1.5969854e-05
+CB parity cb_contrast_sat_jz×delta_impulse: maxRel=4.4237884e-05 at px2080 ch2 la=2.1664696 ref=2.1665654 abs=9.584427e-05
+CB parity cb_default×ramp_8ev: maxRel=2.9802322e-06 at px0 ch2 la=0.0039062616 ref=0.00390625 abs=1.1641532e-08
+CB parity cb_global_hue×ramp_8ev: maxRel=0.00059501035 at px0 ch2 la=8.185592e-05 ref=8.1807244e-05 abs=4.8676156e-08
+CB parity cb_shadows_lift×ramp_8ev: maxRel=0.00020669012 at px4 ch0 la=6.0359383e-05 ref=6.037186e-05 abs=1.2478267e-08
+CB parity cb_highlights_warm×ramp_8ev: maxRel=1.374079e-05 at px55 ch2 la=0.16375378 ref=0.16375153 abs=2.2500753e-06
+CB parity cb_vibrance×ramp_8ev: maxRel=3.608563e-06 at px2 ch2 la=0.0046455795 ref=0.0046455627 abs=1.6763806e-08
+CB parity cb_default×flat_0ev: maxRel=2.503395e-06 at px0 ch2 la=0.50000125 ref=0.5 abs=1.2516975e-06
+CB parity cb_global_hue×flat_0ev: maxRel=4.209315e-06 at px0 ch2 la=0.03540029 ref=0.03540044 abs=1.4901161e-07
+CB parity cb_shadows_lift×flat_0ev: maxRel=1.1708973e-06 at px0 ch2 la=0.50905156 ref=0.50905097 abs=5.9604645e-07
+CB parity cb_highlights_warm×flat_0ev: maxRel=8.646986e-06 at px0 ch2 la=0.17060599 ref=0.17060451 abs=1.475215e-06
+CB parity cb_vibrance×flat_0ev: maxRel=2.9800894e-06 at px0 ch2 la=0.50002545 ref=0.50002396 abs=1.4901161e-06
+CB parity cb_default×flat_-4ev: maxRel=2.503395e-06 at px0 ch2 la=0.03125008 ref=0.03125 abs=7.8231096e-08
+CB parity cb_global_hue×flat_-4ev: maxRel=7.3925694e-06 at px0 ch2 la=0.007936856 ref=0.007936797 abs=5.8673322e-08
+CB parity cb_shadows_lift×flat_-4ev: maxRel=5.932919e-05 at px0 ch0 la=0.00077305816 ref=0.000773104 abs=4.5867637e-08
+CB parity cb_highlTest Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testColorBalanceGoldenParity]' passed (2.586 seconds).
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testColorBalanceRegisteredAtV50Slot]' started.
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testColorBalanceRegisteredAtV50Slot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testCommitNeutralVectors]' started.
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testCommitNeutralVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testDefaultParamsIdentityOnInGamut]' started.
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testDefaultParamsIdentityOnInGamut]' passed (0.100 seconds).
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testGlobalHueRotatesChromaAngle]' started.
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testGlobalHueRotatesChromaAngle]' passed (0.046 seconds).
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testKernelNeutralGrayStaysGray]' started.
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testKernelNeutralGrayStaysGray]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testMatricesInvert]' started.
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testMatricesInvert]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testVibranceBoostsLowSatMoreThanHighSat]' started.
+Test Case '-[LightamerTestsIOPParity.ColorBalanceRGBParityTests testVibranceBoostsLowSatMoreThanHighSat]' passed (0.012 seconds).
+Test Suite 'ColorBalanceRGBParityTests' passed at 2026-09-30 06:04:41.960.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 9.414 (9.414) seconds
+Test Suite 'ColorZonesParityTests' started at 2026-09-30 06:04:41.960.
+Test Case '-[LightamerTestsIOPParity.ColorZonesParityTests testColorZonesGoldenParity]' started.
+ights_warm×flat_-4ev: maxRel=3.9770807e-06 at px0 ch2 la=0.028569147 ref=0.028569033 abs=1.13621354e-07
+CB parity cb_vibrance×flat_-4ev: maxRel=2.8608858e-06 at px0 ch2 la=0.031251587 ref=0.031251498 abs=8.940697e-08
+CB parity cb_default×gray_staircase: maxRel=2.503395e-06 at px70 ch2 la=0.50000125 ref=0.5 abs=1.2516975e-06
+CB parity cb_global_hue×gray_staircase: maxRel=3.541668e-05 at px40 ch2 la=0.017302258 ref=0.01730287 abs=6.1281025e-07
+CB parity cb_shadows_lift×gray_staircase: maxRel=8.57921e-05 at px0 ch0 la=0.0003422605 ref=0.00034228986 abs=2.9365765e-08
+CB parity cb_highlights_warm×gray_staircase: maxRel=1.0820761e-05 at px90 ch2 la=0.2299765 ref=0.22997402 abs=2.488494e-06
+CB parity cb_vibrance×gray_staircase: maxRel=2.9800894e-06 at px70 ch2 la=0.50002545 ref=0.50002396 abs=1.4901161e-06
+CB parity cb_default×saturated: maxRel=3.086893e-05 at px0 ch2 la=0.063958906 ref=0.06396088 abs=1.9744039e-06
+CB parity cb_global_hue×saturated: maxRel=0.00010147803 at px40 ch2 la=0.061753016 ref=0.06174675 abs=6.2659383e-06
+CB parity cb_shadows_lift×saturated: maxRel=2.2540708e-05 at px60 ch0 la=0.057843003 ref=0.057844307 abs=1.3038516e-06
+CB parity cb_highlights_warm×saturated: maxRel=5.718561e-05 at px90 ch2 la=0.13055572 ref=0.13054825 abs=7.4654818e-06
+CB parity cb_vibrance×saturated: maxRel=3.8997838e-05 at px0 ch2 la=0.049384788 ref=0.049386714 abs=1.925975e-06
+CB parity cb_default×deep_shadow: maxRel=4.520019e-06 at px27 ch2 la=0.000103022445 ref=0.00010302198 abs=4.656613e-10
+CB parity cb_global_hue×deep_shadow: maxRel=0.59396315 at px258 ch1 la=1.7090468e-07 ref=4.209093e-07 abs=2.500046e-07
+CB parity cb_shadows_lift×deep_shadow: maxRel=0.00033571312 at px1448 ch0 la=6.03611e-05 ref=6.038137e-05 abs=2.0270818e-08
+CB parity cb_highlights_warm×deep_shadow: maxRel=4.993056e-06 at px2659 ch2 la=0.009699274 ref=0.009699225 abs=4.8428774e-08
+CB parity cb_vibrance×deep_shadow: maxRel=5.084777e-06 at px9 ch2 la=3.4342484e-05 ref=3.434231e-05 abs=1.7462298e-10
+CB parity cb_default×hue_sweep: maxRel=5.9290403e-05 at px2 ch2 la=0.022274999 ref=0.022273678 abs=1.3206154e-06
+CB parity cb_global_hue×hue_sweep: maxRel=0.0012234616 at px232 ch1 la=0.00044702555 ref=0.00044757314 abs=5.4758857e-07
+CB parity cb_shadows_lift×hue_sweep: maxRel=0.0012587637 at px246 ch1 la=0.00023920859 ref=0.00023951007 abs=3.0148658e-07
+CB parity cb_highlights_warm×hue_sweep: maxRel=0.0036471358 at px245 ch1 la=3.1828087e-05 ref=3.1944594e-05 abs=1.1650627e-07
+CB parity cb_vibrance×hue_sweep: maxRel=0.003964336 at px283 ch1 la=0.00015062626 ref=0.00015122577 abs=5.995098e-07
+CB parity cb_default×delta_impulse: maxRel=2.503395e-06 at px2080 ch2 la=1.0000025 ref=1.0 abs=2.503395e-06
+CB parity cb_global_hue×delta_impulse: maxRel=3.541668e-05 at px0 ch2 la=0.017302258 ref=0.01730287 abs=6.1281025e-07
+CB parity cb_shadows_lift×delta_impulse: maxRel=1.7711749e-06 at px0 ch2 la=0.25239497 ref=0.25239453 abs=4.4703484e-07
+CB parity cb_highlights_warm×delta_impulse: maxRel=9.060087e-06 at px2080 ch2 la=0.27631277 ref=0.27631027 abs=2.503395e-06
+CB parity cb_vibrance×delta_impulse: maxRel=2.3178472e-06 at px0 ch2 la=0.18000905 ref=0.18000863 abs=4.172325e-07
+CZ parity cz_default×ramp_8ev: maxRel=1.202912e-06
+CZ parity cz_lightness×ramp_8ev: maxRel=1.3192689e-06
+CZ parity cz_chroma×ramp_8ev: maxRel=1.202912e-06
+CZ parity cz_hue×ramp_8ev: maxRel=1.202912e-06
+CZ parity cz_default×flat_0ev: maxRel=1.7881393e-07
+CZ parity cz_lightness×flat_0ev: maxRel=2.0639935e-07
+CZ parity cz_chroma×flat_0ev: maxRel=1.7881393e-07
+CZ parity cz_hue×flat_0ev: maxRel=1.7881393e-07
+CZ parity cz_default×flat_-4ev: maxRel=2.3841858e-07
+CZ parity cz_lightness×flat_-4ev: maxRel=2.7226494e-07
+CZ parity cz_chroma×flat_-4ev: maxRel=2.3841858e-07
+CZ parity cz_hue×flat_-4ev: maxRel=2.3841858e-07
+CZ parity cz_default×saturated: maxRel=0.00047972583
+CZ parity cz_lightness×saturated: maxRel=2.0385467e-05
+CZ parity cz_chroma×saturated: maxRel=2.074724e-05
+CZ parity cz_hue×saturated: maxRel=0.005340849
+CZ parity cz_default×gray_staircase: maxRel=4.47034Test Case '-[LightamerTestsIOPParity.ColorZonesParityTests testColorZonesGoldenParity]' passed (2.764 seconds).
+Test Case '-[LightamerTestsIOPParity.ColorZonesParityTests testColorZonesLUTDualGate]' started.
+Test Case '-[LightamerTestsIOPParity.ColorZonesParityTests testColorZonesLUTDualGate]' passed (0.176 seconds).
+Test Case '-[LightamerTestsIOPParity.ColorZonesParityTests testHueSweepFullRingLive]' started.
+Test Case '-[LightamerTestsIOPParity.ColorZonesParityTests testHueSweepFullRingLive]' passed (0.091 seconds).
+Test Suite 'ColorZonesParityTests' passed at 2026-09-30 06:04:44.990.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 3.030 (3.031) seconds
+Test Suite 'CropParityTests' started at 2026-09-30 06:04:44.990.
+Test Case '-[LightamerTestsIOPParity.CropParityTests testCommitClampsFractionsToRange]' started.
+Test Case '-[LightamerTestsIOPParity.CropParityTests testCommitClampsFractionsToRange]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.CropParityTests testCropEndToEndMatchesWindowOfFullFrame]' started.
+Test Case '-[LightamerTestsIOPParity.CropParityTests testCropEndToEndMatchesWindowOfFullFrame]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOPParity.CropParityTests testCropRegisteredAtV50Slot]' started.
+Test Case '-[LightamerTestsIOPParity.CropParityTests testCropRegisteredAtV50Slot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.CropParityTests testDefaultsAreFullFrameNeutral]' started.
+Test Case '-[LightamerTestsIOPParity.CropParityTests testDefaultsAreFullFrameNeutral]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.CropParityTests testDisabledCropIsIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.CropParityTests testDisabledCropIsIdentity]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOPParity.CropParityTests testModifyROIInKeepsUpstreamRelativeWindow]' started.
+Test Case '-[LightamerTestsIOPParity.CropParityTests testModifyROIInKeepsUpstreamRelativeWindow]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.CropParityTests testModifyROIOutFloorsAt4Pixels]' started.
+Test Case '-[LightamerTestsIOPParity.CropParityTests testModifyROIOutFloorsAt4Pixels]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.CropParityTests testModifyROIOutShrinksToWindow]' started.
+Test Case '-[LightamerTestsIOPParity.CropParityTests testModifyROIOutShrinksToWindow]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.CropParityTests testScaledFullFrameCropMatchesTrioOnly]' started.
+Test Case '-[LightamerTestsIOPParity.CropParityTests testScaledFullFrameCropMatchesTrioOnly]' passed (0.013 seconds).
+Test Suite 'CropParityTests' passed at 2026-09-30 06:04:45.022.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.031 (0.032) seconds
+Test Suite 'DenoiseProfileDerivationTests' started at 2026-09-30 06:04:45.022.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testAdjustScatteringPreviewClamp]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testAdjustScatteringPreviewClamp]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testAutoModeEffectiveParams]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testAutoModeEffectiveParams]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testForceCurveFlatIsExact]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testForceCurveFlatIsExact]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testForceCurvesDefaultsAllHalf]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testForceCurvesDefaultsAllHalf]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testForceCurveShapedMonotone]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testForceCurveShapedMonotone]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testHighlightPreservationShift]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testHighlightPreservationShift]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testInferFromProfileHandChecks]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testInferFromProfileHandChecks]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testLegacyRoundTripAsymptotic]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testLegacyRoundTripAsymptotic]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testManualISOOverride]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testManualISOOverride]' passed (0.477 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testMaxScaleDerivationAndTileStability]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testMaxScaleDerivationAndTileStability]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testNLMeansNormHandChecks]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testNLMeansNormHandChecks]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testProfileWiringEXIFAndGeneric]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testProfileWiringEXIFAndGeneric]' passed (0.026 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testScatteredOffsetsIdentityAtZero]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testScatteredOffsetsIdentityAtZero]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testTileSeamConstantsAndTileInvariance]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testTileSeamConstantsAndTileInvariance]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testVSTRoundTripNoiseFree]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testVSTRoundTripNoiseFree]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testVSTStabilizesPoissonVariance]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testVSTStabilizesPoissonVariance]' passed (0.075 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testWaveletsHaloSmallPlane]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testWaveletsHaloSmallPlane]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testY0U0V0MatricesNeutral]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileDerivationTests testY0U0V0MatricesNeutral]' passed (0.000 seconds).
+Test Suite 'DenoiseProfileDerivationTests' passed at 2026-09-30 06:04:45.609.
+	 Executed 18 tests, with 0 failures (0 unexpected) in 0.586 (0.587) seconds
+Test Suite 'DenoiseProfileParityTests' started at 2026-09-30 06:04:45.609.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testDpHelperAppliesOverrides]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testDpHelperAppliesOverrides]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testFullFootprintBudget]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testFullFootprintBudget]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testGenericFallbackAndManualISOOverride]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testGenericFallbackAndManualISOOverride]' passed (0.025 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testNLMeansLegGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testNLMeansLegGoldenParity]' passed (0.477 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testNLMeansLegTilingMatchesWholePlane]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testNLMeansLegTilingMatchesWholePlane]' passed (0.050 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testSC2ProfileDirections]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testSC2ProfileDirections]' passed (0.024 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testWaveletsGoldenParity]' started.
+84e-07
+CZ parity cz_lightness×gray_staircase: maxRel=5.5669113e-07
+CZ parity cz_chroma×gray_staircase: maxRel=4.4703484e-07
+CZ parity cz_hue×gray_staircase: maxRel=4.4703484e-07
+CZ parity cz_default×hue_sweep: maxRel=0.0003490131
+CZ parity cz_lightness×hue_sweep: maxRel=0.0001541875
+CZ parity cz_chroma×hue_sweep: maxRel=0.00018678982
+CZ parity cz_hue×hue_sweep: maxRel=0.003200883
+CZ dual gate MAIN: strictFrac=1.0 strictViol=0 envViol=0 maxRel=0.003200883 compared=596736
+CZ SPECTRAL tier: strictFrac=0.8583333333333333 envViol(1e-2)=0 maxAbs=0.43139648 compared=76800
+CZ LUT direct bias: maxAbs=8.511543e-05 (fast-pow characteristic)
+CZ LUT direct gate: strictFrac=0.5923074359230743 strictViol=24464 envViol=0 maxRel=2.4437954 compared=60006
+DENOISE legacy round-trip maxRel=0.052872695
+DENOISE VST roundtrip level=0.01 out0=0.010000002 a=SIMD4<Float>(0.0001, 0.0001, 0.0001, 0.0001) p=SIMD4<Float>(1.0, 1.0, 1.0, 0.0) wb=SIMD4<Float>(2.5, 2.5, 2.5, 0.0)
+DENOISE VST roundtrip level=0.05 out0=0.05000001 a=SIMD4<Float>(0.0001, 0.0001, 0.0001, 0.0001) p=SIMD4<Float>(1.0, 1.0, 1.0, 0.0) wb=SIMD4<Float>(2.5, 2.5, 2.5, 0.0)
+DENOISE VST roundtrip level=0.2 out0=0.20000003 a=SIMD4<Float>(0.0001, 0.0001, 0.0001, 0.0001) p=SIMD4<Float>(1.0, 1.0, 1.0, 0.0) wb=SIMD4<Float>(2.5, 2.5, 2.5, 0.0)
+DENOISE VST roundtrip level=0.5 out0=0.5000001 a=SIMD4<Float>(0.0001, 0.0001, 0.0001, 0.0001) p=SIMD4<Float>(1.0, 1.0, 1.0, 0.0) wb=SIMD4<Float>(2.5, 2.5, 2.5, 0.0)
+DENOISE VST roundtrip level=0.9 out0=0.9000002 a=SIMD4<Float>(0.0001, 0.0001, 0.0001, 0.0001) p=SIMD4<Float>(1.0, 1.0, 1.0, 0.0) wb=SIMD4<Float>(2.5, 2.5, 2.5, 0.0)
+DENOISE 100MP tiles=35 worst-read-plane=0.0586756GB
+DENOISE nlm pipe sum dp_nlm_default×delta_impulse: 2213.761279731989
+DENOISE nlm dp_nlm_default×delta_impulse: maxRel=2.4007425e-06
+DENOISE nlm pipe sum dp_nlm_scatter×delta_impulse: 2213.45320469141
+DENOISE nlm dp_nlm_scatter×delta_impulse: maxRel=7.4516156e-06
+DENOISE nlm pipe sum dp_nlm_auto×delta_impulse: 2213.753029435873
+DENOISE nlm dp_nlm_auto×delta_impulse: maxRel=4.387564e-06
+DENOISE nlm pipe sum dp_nlm_default×ramp_8ev__noisy_iso125_s20260921: 2108.2725131860934
+DENOISE nlm dp_nlm_default×ramp_8ev__noisy_iso125_s20260921: maxRel=2.147832e-06
+DENOISE nlm pipe sum dp_nlm_scatter×ramp_8ev__noisy_iso125_s20260921: 2106.0340082608163
+DENOISE nlm dp_nlm_scatter×ramp_8ev__noisy_iso125_s20260921: maxRel=1.8922569e-06
+DENOISE nlm pipe sum dp_nlm_auto×ramp_8ev__noisy_iso125_s20260921: 2112.8870407422073
+DENOISE nlm dp_nlm_auto×ramp_8ev__noisy_iso125_s20260921: maxRel=2.948996e-06
+DENOISE nlm pipe sum dp_nlm_default×gray_staircase__noisy_iso1600_s20260921: 17495.659726744518
+DENOISE nlm dp_nlm_default×gray_staircase__noisy_iso1600_s20260921: maxRel=2.2441923e-06
+DENOISE nlm pipe sum dp_nlm_scatter×gray_staircase__noisy_iso1600_s20260921: 17493.107101894915
+DENOISE nlm dp_nlm_scatter×gray_staircase__noisy_iso1600_s20260921: maxRel=2.1432395e-06
+DENOISE nlm pipe sum dp_nlm_auto×gray_staircase__noisy_iso1600_s20260921: 17495.974808230996
+DENOISE nlm dp_nlm_auto×gray_staircase__noisy_iso1600_s20260921: maxRel=2.7146366e-06
+DENOISE nlm tiling: maxRel=0.0
+SC#2 directions: noisy=0.00175 correct=0.00071 generic=0.00075 mismatch=0.00111
+DENOISE wave pipe sum dp_wave_default×delta_impulse: 2213.7613795101643
+DENOISE wavelets dp_wave_default×delta_impulse: maxRel=9.1062645e-07
+DENOISE wave pipe sum dp_wave_rgb×delta_impulse: 2213.7621136307716
+DENOISE wavelets dp_wave_rgb×delta_impulse: maxRel=1.2417634e-06
+DENOISE wave pipe sum dp_wave_strong×delta_impulse: 2211.380794763565
+DENOISE wavelets dp_wave_strong×delta_impulse: maxRel=1.2431019e-06
+DENOISE wave pipe sum dp_wave_force×delta_impulse: 2213.7610063254833
+DENOISE wavelets dp_wave_force×delta_impulse: maxRel=5.7948955e-07
+DENOISE wave pipe sum dp_wave_auto×delta_impulse: 2213.7632352411747
+DENOISE wavelets dp_wave_auto×delta_impulse: maxRel=1.9040372e-06
+DENOISE wave pipe sum dp_wave_default×ramp_8ev__noisy_iso125_s20260921: 2111.9059276147746
+DENOISE wavelets dp_wave_default×ramp_8ev__noisy_iso125_Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testWaveletsGoldenParity]' passed (1.365 seconds).
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testWaveletsTilingMatchesWholePlane]' started.
+Test Case '-[LightamerTestsIOPParity.DenoiseProfileParityTests testWaveletsTilingMatchesWholePlane]' passed (0.016 seconds).
+Test Suite 'DenoiseProfileParityTests' passed at 2026-09-30 06:04:47.567.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 1.957 (1.957) seconds
+Test Suite 'EqualizerParityTests' started at 2026-09-30 06:04:47.567.
+Test Case '-[LightamerTestsIOPParity.EqualizerParityTests testAllZeroIdentityExact]' started.
+Test Case '-[LightamerTestsIOPParity.EqualizerParityTests testAllZeroIdentityExact]' passed (0.023 seconds).
+Test Case '-[LightamerTestsIOPParity.EqualizerParityTests testEqualizerGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.EqualizerParityTests testEqualizerGoldenParity]' passed (4.527 seconds).
+Test Case '-[LightamerTestsIOPParity.EqualizerParityTests testEqualizerRegisteredAtV50Slot27]' started.
+Test Case '-[LightamerTestsIOPParity.EqualizerParityTests testEqualizerRegisteredAtV50Slot27]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.EqualizerParityTests testSingleBandGainMovesBandEnergy]' started.
+Test Case '-[LightamerTestsIOPParity.EqualizerParityTests testSingleBandGainMovesBandEnergy]' passed (0.019 seconds).
+Test Suite 'EqualizerParityTests' passed at 2026-09-30 06:04:52.135.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 4.568 (4.569) seconds
+Test Suite 'FilmicRGBTests' started at 2026-09-30 06:04:52.135.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testAutoBlackWhiteFromImageStats]' started.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testAutoBlackWhiteFromImageStats]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testAutoGreyDerivation]' started.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testAutoGreyDerivation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testF1CurveMetalVsCPU]' started.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testF1CurveMetalVsCPU]' passed (0.236 seconds).
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testF3GamutFixtureStaysInGamut]' started.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testF3GamutFixtureStaysInGamut]' passed (0.015 seconds).
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testF3NeutralAxisUntouched]' started.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testF3NeutralAxisUntouched]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testFilmicGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testFilmicGoldenParity]' passed (9.147 seconds).
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testFilmicRegisteredAtV50Slot46AndParamsRoundTrip]' started.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testFilmicRegisteredAtV50Slot46AndParamsRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testMaskKernelWeights]' started.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testMaskKernelWeights]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testNormFamilyAnalyticVectors]' started.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testNormFamilyAnalyticVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testTrackBNeutralityWithFilmicInserted]' started.
+Test Case '-[LightamerTestsIOPParity.FilmicRGBTests testTrackBNeutralityWithFilmicInserted]' passed (0.021 seconds).
+Test Suite 'FilmicRGBTests' passed at 2026-09-30 06:05:01.570.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 9.434 (9.434) seconds
+Test Suite 'FlipParityTests' started at 2026-09-30 06:05:01.570.
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testAllEightStatesRemapIndexesExactly]' started.
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testAllEightStatesRemapIndexesExactly]' passed (0.013 seconds).
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testAutoCommitFallsBackToIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testAutoCommitFallsBackToIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testFlipRegisteredAtV50Slot]' started.
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testFlipRegisteredAtV50Slot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testFlipThenCropComposesInV50Order]' started.
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testFlipThenCropComposesInV50Order]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testForwardBackwardMapsAreInverse]' started.
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testForwardBackwardMapsAreInverse]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testModifyROIInRoundTripsCorners]' started.
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testModifyROIInRoundTripsCorners]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testModifyROIOutSwapsWHOnlyOnSwapXY]' started.
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testModifyROIOutSwapsWHOnlyOnSwapXY]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testReloadDefaultsMapsEXIFOrientations]' started.
+Test Case '-[LightamerTestsIOPParity.FlipParityTests testReloadDefaultsMapsEXIFOrientations]' passed (0.000 seconds).
+Test Suite 'FlipParityTests' passed at 2026-09-30 06:05:01.584.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.014 (0.014) seconds
+Test Suite 'GeometryGoldenTests' started at 2026-09-30 06:05:01.584.
+Test Case '-[LightamerTestsIOPParity.GeometryGoldenTests testCropGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.GeometryGoldenTests testCropGoldenParity]' passed (1.703 seconds).
+Test Case '-[LightamerTestsIOPParity.GeometryGoldenTests testFlipGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.GeometryGoldenTests testFlipGoldenParity]' passed (3.963 seconds).
+Test Case '-[LightamerTestsIOPParity.GeometryGoldenTests testTrackBCrossConsistencyLinearWithCropFlipInserted]' started.
+Test Case '-[LightamerTestsIOPParity.GeometryGoldenTests testTrackBCrossConsistencyLinearWithCropFlipInserted]' passed (0.443 seconds).
+Test Case '-[LightamerTestsIOPParity.GeometryGoldenTests testTrackBNeutralityWithCropFlipInserted]' started.
+Test Case '-[LightamerTestsIOPParity.GeometryGoldenTests testTrackBNeutralityWithCropFlipInserted]' passed (0.119 seconds).
+Test Case '-[LightamerTestsIOPParity.GeometryGoldenTests testTrackBNeutralityWithNLMeansInserted]' started.
+Test Case '-[LightamerTestsIOPParity.GeometryGoldenTests testTrackBNeutralityWithNLMeansInserted]' passed (0.087 seconds).
+Test Suite 'GeometryGoldenTests' passed at 2026-09-30 06:05:07.899.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 6.314 (6.315) seconds
+Test Suite 'GoldenColorTests' started at 2026-09-30 06:05:07.899.
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testCrossConsistencyColorCheckerARW]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/GoldenColorTests.swift:461: -[LightamerTestsIOPParity.GoldenColorTests testCrossConsistencyColorCheckerARW] : Test skipped - ColorChecker ARW not present (input/RAW/ColorChecker.ARW + calibrated patches); synthetic target carries the gate.
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testCrossConsistencyColorCheckerARW]' skipped (0.032 seconds).
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testCrossConsistencyLinearDomain]' started.
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testCrossConsistencyLinearDomain]' passed (0.415 seconds).
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testCrossConsistencySyntheticTarget]' started.
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testCrossConsistencySyntheticTarget]' passed (1.203 seconds).
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testFullChainCacheAssertions]' started.
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testFullChainCacheAssertions]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testNeutralPatchesColorCheckerARW]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/GoldenColorTests.swift:248: -[LightamerTestsIOPParity.GoldenColorTests testNeutralPatchesColorCheckerARW] : Test skipped - ColorChecker ARW not present (input/RAW/ColorChecker.ARW + calibrated patches); synthetic target carries the gate. See Fixtures.swift.
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testNeutralPatchesColorCheckerARW]' skipped (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testNeutralPatchesSyntheticTarget]' started.
+Test Case '-[LightamerTestsIOPParity.GoldenColorTests testNeutralPatchesSyntheticTarget]' passed (0.061 seconds).
+Test Suite 'GoldenColorTests' passed at 2026-09-30 06:05:09.619.
+	 Executed 6 tests, with 2 tests skipped and 0 failures (0 unexpected) in 1.719 (1.720) seconds
+Test Suite 'GoldenParityTests' started at 2026-09-30 06:05:09.619.
+Test Case '-[LightamerTestsIOPParity.GoldenParityTests testExposureGoldenParityAgainstDarktableCLI]' started.
+Test Case '-[LightamerTestsIOPParity.GoldenParityTests testExposureGoldenParityAgainstDarktableCLI]' passed (5.311 seconds).
+Test Case '-[LightamerTestsIOPParity.GoldenParityTests testExposureKernelHalfStop]' started.
+Test Case '-[LightamerTestsIOPParity.GoldenParityTests testExposureKernelHalfStop]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.GoldenParityTests testExposureRegisteredAtV50Slot21]' started.
+Test Case '-[LightamerTestsIOPParity.GoldenParityTests testExposureRegisteredAtV50Slot21]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.GoldenParityTests testTrackBCrossConsistencyLinearWithExposureInserted]' started.
+Test Case '-[LightamerTestsIOPParity.GoldenParityTests testTrackBCrossConsistencyLinearWithExposureInserted]' passed (0.384 seconds).
+Test Case '-[LightamerTestsIOPParity.GoldenParityTests testTrackBNeutralityWithExposureInserted]' started.
+Test Case '-[LightamerTestsIOPParity.GoldenParityTests testTrackBNeutralityWithExposureInserted]' passed (0.067 seconds).
+Test Suite 'GoldenParityTests' passed at 2026-09-30 06:05:15.383.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 5.764 (5.764) seconds
+Test Suite 'HDRPipelineMatrixTests' started at 2026-09-30 06:05:15.383.
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testKnownValuesThroughExposureUnclamped]' started.
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testKnownValuesThroughExposureUnclamped]' passed (0.011 seconds).
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testLut3dColumnKnownPatchChain]' started.
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testLut3dColumnKnownPatchChain]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testLutHDRDomainStoragePrecisionDetermination]' started.
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testLutHDRDomainStoragePrecisionDetermination]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testMergedProductPreviewMemoryProbe]' started.
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testMergedProductPreviewMemoryProbe]' passed (0.068 seconds).
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testMergeStopwatchProbe24MP]' started.
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testMergeStopwatchProbe24MP]' passed (100.245 seconds).
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testTorturePipelineFiniteDiagnostic]' started.
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testTorturePipelineFiniteDiagnostic]' passed (0.443 seconds).
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testTortureThroughFullChainStructuralInvariants]' started.
+Test Case '-[LightamerTestsIOPParity.HDRPipelineMatrixTests testTortureThroughFullChainStructuralInvariants]' passed (0.074 seconds).
+Test Suite 'HDRPipelineMatrixTests' passed at 2026-09-30 06:06:56.241.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 100.857 (100.858) seconds
+Test Suite 'HighpassSoftenTests' started at 2026-09-30 06:06:56.241.
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testHighpassGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testHighpassGoldenParity]' passed (4.647 seconds).
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testHighpassMixFormulaSpotCheck]' started.
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testHighpassMixFormulaSpotCheck]' passed (0.014 seconds).
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testHighpassSoftenRegisteredAtV50Slots]' started.
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testHighpassSoftenRegisteredAtV50Slots]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testRadiusSigmaChains]' started.
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testRadiusSigmaChains]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testSoftenFlatProbeIdentityAtActiveAmount]' started.
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testSoftenFlatProbeIdentityAtActiveAmount]' passed (0.014 seconds).
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testSoftenGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testSoftenGoldenParity]' passed (3.761 seconds).
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testSoftenNeutralAmountZeroIdentityExact]' started.
+Test Case '-[LightamerTestsIOPParity.HighpassSoftenTests testSoftenNeutralAmountZeroIdentityExact]' passed (0.014 seconds).
+Test Suite 'HighpassSoftenTests' passed at 2026-09-30 06:07:04.691.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 8.450 (8.450) seconds
+Test Suite 'LensParityTests' started at 2026-09-30 06:07:04.691.
+Test Case '-[LightamerTestsIOPParity.LensParityTests testCAChannelDirection]' started.
+Test Case '-[LightamerTestsIOPParity.LensParityTests testCAChannelDirection]' passed (0.040 seconds).
+Test Case '-[LightamerTestsIOPParity.LensParityTests testLensGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.LensParityTests testLensGoldenParity]' passed (7.213 seconds).
+Test Case '-[LightamerTestsIOPParity.LensParityTests testNeutralIdentityExact]' started.
+Test Case '-[LightamerTestsIOPParity.LensParityTests testNeutralIdentityExact]' passed (0.014 seconds).
+Test Case '-[LightamerTestsIOPParity.LensParityTests testNeutralROIIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.LensParityTests testNeutralROIIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.LensParityTests testNonzeroROIGrows]' started.
+Test Case '-[LightamerTestsIOPParity.LensParityTests testNonzeroROIGrows]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOPParity.LensParityTests testUnifiedExitMatchesManual]' started.
+Test Case '-[LightamerTestsIOPParity.LensParityTests testUnifiedExitMatchesManual]' passed (0.365 seconds).
+Test Case '-[LightamerTestsIOPParity.LensParityTests testVignetteFlatFieldAnalytic]' started.
+Test Case '-[LightamerTestsIOPParity.LensParityTests testVignetteFlatFieldAnalytic]' passed (0.010 seconds).
+Test Suite 'LensParityTests' passed at 2026-09-30 06:07:12.342.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 7.651 (7.651) seconds
+Test Suite 'LevelsParityTests' started at 2026-09-30 06:07:12.342.
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testAutomaticHistogramMatchesAnalytic]' started.
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testAutomaticHistogramMatchesAnalytic]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testBlackWhiteVector]' started.
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testBlackWhiteVector]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testGammaVector]' started.
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testGammaVector]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testIdentityLevelsGiveIdentityLUT]' started.
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testIdentityLevelsGiveIdentityLUT]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testKernelChromaHuePreservation]' started.
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testKernelChromaHuePreservation]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testLevelsAutomaticSelfConsistentParity]' started.
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testLevelsAutomaticSelfConsistentParity]' passed (0.034 seconds).
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testLevelsGoldenParityManual]' started.
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testLevelsGoldenParityManual]' passed (3.771 seconds).
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testLevelsRegisteredAtV50Slot49]' started.
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testLevelsRegisteredAtV50Slot49]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testTrackBNeutralityWithLevelsInserted]' started.
+Test Case '-[LightamerTestsIOPParity.LevelsParityTests testTrackBNeutralityWithLevelsInserted]' passed (0.025 seconds).
+Test Suite 'LevelsParityTests' passed at 2026-09-30 06:07:16.199.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 3.856 (3.857) seconds
+Test Suite 'LiquifyParityTests' started at 2026-09-30 06:07:16.199.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testCurvePathInterpolation]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testCurvePathInterpolation]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testEmptyPathIdentityBytes]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testEmptyPathIdentityBytes]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testEmptyPathsBuildNothing]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testEmptyPathsBuildNothing]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testFieldCacheRebuildOnlyOnParamChange]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testFieldCacheRebuildOnlyOnParamChange]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testForcedTilingMatchesWholePlane]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testForcedTilingMatchesWholePlane]' passed (0.021 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testKernelTables]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testKernelTables]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testLinearFieldAnalyticReference]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testLinearFieldAnalyticReference]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testLinePathInterpolationAndRelocation]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testLinePathInterpolationAndRelocation]' passed (0.046 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testLookupTableBoundaryConditions]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testLookupTableBoundaryConditions]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testModifyROIInExtendsByStampExtent]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testModifyROIInExtendsByStampExtent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testRadialGrowFieldAnalyticReference]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testRadialGrowFieldAnalyticReference]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testRadialShrinkFieldAnalyticReference]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testRadialShrinkFieldAnalyticReference]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testSeedEnabledNeutral]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testSeedEnabledNeutral]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testTrackBZeroIncrementWithEmptyLiquify]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testTrackBZeroIncrementWithEmptyLiquify]' passed (0.013 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testWarpDirectionStructure]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testWarpDirectionStructure]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testWarpKernelParityAgainstFloat64Resampler]' started.
+Test Case '-[LightamerTestsIOPParity.LiquifyParityTests testWarpKernelParityAgainstFloat64Resampler]' passed (0.119 seconds).
+Test Suite 'LiquifyParityTests' passed at 2026-09-30 06:07:16.426.
+	 Executed 16 tests, with 0 failures (0 unexpected) in 0.226 (0.227) seconds
+Test Suite 'LocalContrastTests' started at 2026-09-30 06:07:16.426.
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testBilatRegisteredAtV50Slot54]' started.
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testBilatRegisteredAtV50Slot54]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testDetailSignDirectionOnStep]' started.
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testDetailSignDirectionOnStep]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testDetailZeroIdentityExact]' started.
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testDetailZeroIdentityExact]' passed (0.014 seconds).
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testForcedTilingMatchesWholePlane]' started.
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testForcedTilingMatchesWholePlane]' passed (0.013 seconds).
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testLocalContrastGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testLocalContrastGoldenParity]' passed (3.655 seconds).
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testRadiusAndFeatheringMappings]' started.
+Test Case '-[LightamerTestsIOPParity.LocalContrastTests testRadiusAndFeatheringMappings]' passed (0.000 seconds).
+Test Suite 'LocalContrastTests' passed at 2026-09-30 06:07:20.119.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 3.693 (3.693) seconds
+Test Suite 'Lut3dGoldenImageTests' started at 2026-09-30 06:07:20.119.
+Test Case '-[LightamerTestsIOPParity.Lut3dGoldenImageTests testIdentityCubeFullChainAllColorspaces]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dGoldenImageTests testIdentityCubeFullChainAllColorspaces]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dGoldenImageTests testMatrixGrayNeutralityRowSums]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dGoldenImageTests testMatrixGrayNeutralityRowSums]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dGoldenImageTests testMatrixRoundTripIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dGoldenImageTests testMatrixRoundTripIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dGoldenImageTests testNonIdentityTableWithRealMatrices]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dGoldenImageTests testNonIdentityTableWithRealMatrices]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dGoldenImageTests testSRGBAndP3MatchColorOutAsset]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dGoldenImageTests testSRGBAndP3MatchColorOutAsset]' passed (0.000 seconds).
+Test Suite 'Lut3dGoldenImageTests' passed at 2026-09-30 06:07:20.127.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.008 (0.008) seconds
+Test Suite 'Lut3dKernelTests' started at 2026-09-30 06:07:20.127.
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests test1DRamp]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests test1DRamp]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testIdentityCubeFullIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testIdentityCubeFullIdentity]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testLatticePointsExactBothStates]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testLatticePointsExactBothStates]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testMissingLibraryEntryDegradesToIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testMissingLibraryEntryDegradesToIdentity]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testNeutralIsBlitIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testNeutralIsBlitIdentity]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testResolvedTableRunsKernelPath]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testResolvedTableRunsKernelPath]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testTetrahedralVsCPUFloat64]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testTetrahedralVsCPUFloat64]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testTrilinearVsCPUFloat64]' started.
+Test Case '-[LightamerTestsIOPParity.Lut3dKernelTests testTrilinearVsCPUFloat64]' passed (0.004 seconds).
+Test Suite 'Lut3dKernelTests' passed at 2026-09-30 06:07:20.147.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.020 (0.020) seconds
+Test Suite 'McpRenderParityTests' started at 2026-09-30 06:07:20.148.
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testConcurrentRenderPreviewsSerializeOnTheGate]' started.
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testConcurrentRenderPreviewsSerializeOnTheGate]' passed (1.056 seconds).
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testFailingRenderSurfacesTypedRenderFailed]' started.
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testFailingRenderSurfacesTypedRenderFailed]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testLongEdgeAbove2048IsInvalidParams]' started.
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testLongEdgeAbove2048IsInvalidParams]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testNotSessionMemberAndNoSessionAreTyped]' started.
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testNotSessionMemberAndNoSessionAreTyped]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testParityInlineJPEGMatchesLocalEncodeOfGoldenPlane]' started.
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testParityInlineJPEGMatchesLocalEncodeOfGoldenPlane]' passed (5.825 seconds).
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testParityPlaneByteIdenticalToExportRenderStage]' started.
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testParityPlaneByteIdenticalToExportRenderStage]' passed (102.732 seconds).
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testQualityAbove90IsInvalidParams]' started.
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testQualityAbove90IsInvalidParams]' passed (0.023 seconds).
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testSC3EndToEndAcrossBothHosts]' started.
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testSC3EndToEndAcrossBothHosts]' passed (7.310 seconds).
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testStalledRenderSurfacesTypedRenderTimeout]' started.
+Test Case '-[LightamerTestsIOPParity.McpRenderParityTests testStalledRenderSurfacesTypedRenderTimeout]' passed (0.639 seconds).
+Test Suite 'McpRenderParityTests' passed at 2026-09-30 06:09:17.746.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 117.598 (117.598) seconds
+Test Suite 'MonochromeParityTests' started at 2026-09-30 06:09:17.746.
+Test Case '-[LightamerTestsIOPParity.MonochromeParityTests testMonochromeGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.MonochromeParityTests testMonochromeGoldenParity]' passed (5.441 seconds).
+Test Case '-[LightamerTestsIOPParity.MonochromeParityTests testOutputIsMonochrome]' started.
+Test Case '-[LightamerTestsIOPParity.MonochromeParityTests testOutputIsMonochrome]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOPParity.MonochromeParityTests testSizeInfinityIdentityThroughPipe]' started.
+Test Case '-[LightamerTestsIOPParity.MonochromeParityTests testSizeInfinityIdentityThroughPipe]' passed (0.025 seconds).
+Test Suite 'MonochromeParityTests' passed at 2026-09-30 06:09:23.223.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 5.476 (5.477) seconds
+Test Suite 'NLMeansParityTests' started at 2026-09-30 06:09:23.223.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testChromaZeroLumaOnlySmoothing]' started.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testChromaZeroLumaOnlySmoothing]' passed (0.037 seconds).
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testFlatFieldIdentitySmoke]' started.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testFlatFieldIdentitySmoke]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testForcedTilingMatchesWholePlane]' started.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testForcedTilingMatchesWholePlane]' passed (0.261 seconds).
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testFullResolutionTileGridEngages]' started.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testFullResolutionTileGridEngages]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testLumaZeroChromaOnlySmoothing]' started.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testLumaZeroChromaOnlySmoothing]' passed (0.035 seconds).
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testNLMeansGoldenParity]' started.
+s20260921: maxRel=2.0433329e-06
+DENOISE wave pipe sum dp_wave_rgb×ramp_8ev__noisy_iso125_s20260921: 2113.2637383542024
+DENOISE wavelets dp_wave_rgb×ramp_8ev__noisy_iso125_s20260921: maxRel=2.0000928e-06
+DENOISE wave pipe sum dp_wave_strong×ramp_8ev__noisy_iso125_s20260921: 2110.3371068672277
+DENOISE wavelets dp_wave_strong×ramp_8ev__noisy_iso125_s20260921: maxRel=2.127685e-06
+DENOISE wave pipe sum dp_wave_force×ramp_8ev__noisy_iso125_s20260921: 2110.2818632139824
+DENOISE wavelets dp_wave_force×ramp_8ev__noisy_iso125_s20260921: maxRel=2.0625714e-06
+DENOISE wave pipe sum dp_wave_auto×ramp_8ev__noisy_iso125_s20260921: 2113.063428139314
+DENOISE wavelets dp_wave_auto×ramp_8ev__noisy_iso125_s20260921: maxRel=3.2316511e-06
+DENOISE wave pipe sum dp_wave_default×gray_staircase__noisy_iso1600_s20260921: 17495.992675179616
+DENOISE wavelets dp_wave_default×gray_staircase__noisy_iso1600_s20260921: maxRel=1.3987121e-06
+DENOISE wave pipe sum dp_wave_rgb×gray_staircase__noisy_iso1600_s20260921: 17494.570668166503
+DENOISE wavelets dp_wave_rgb×gray_staircase__noisy_iso1600_s20260921: maxRel=2.8339803e-06
+DENOISE wave pipe sum dp_wave_strong×gray_staircase__noisy_iso1600_s20260921: 17487.76713527739
+DENOISE wavelets dp_wave_strong×gray_staircase__noisy_iso1600_s20260921: maxRel=1.9419733e-06
+DENOISE wave pipe sum dp_wave_force×gray_staircase__noisy_iso1600_s20260921: 17495.99299110286
+DENOISE wavelets dp_wave_force×gray_staircase__noisy_iso1600_s20260921: maxRel=1.4909424e-06
+DENOISE wave pipe sum dp_wave_auto×gray_staircase__noisy_iso1600_s20260921: 17495.82362851128
+DENOISE wavelets dp_wave_auto×gray_staircase__noisy_iso1600_s20260921: maxRel=2.366005e-06
+DENOISE wavelets tiling: maxRel=0.0
+LUT-COLUMN-PROBE: identity maxDev=1.1920929e-07 gain2 maxRel=1.1920929e-07
+LUT-PRECISION-PROBE: positive-domain maxRel=0.0003824157433155757 breaches=0 | mixed-sign maxRel=0.4581638699115931 breaches=78
+PREVIEW-FLOAT32-PROBE: 64x64 (0.00MP) preview plane = 0 MiB (65536 B; reference 2560px ≈70 MB/plane)
+MERGE-STOPWATCH-PROBE: 6000x4000 (24MP) 3-bracket deGhost-off merged in 91.2s — 100MP linear extrapolation ≈ 387s (research reference <60s)
+TORTURE-SOURCE-PROBE: peak=0.03249263 scale=123.104836 decodedMax=4.0
+TORTURE-CHAIN-PROBE: pixels=2048 headNonZero=2048 maxDev=0.0 head=[0.0..524032.0]
+[06-06 T5] forced tiling: tiles=4 halo=7 bpp=1 maxDiff=0.0
+[06-06 T1] moveTo stamp: maxErr 2.3798789872131465e-07 over 14641 cells (gate 1e-06)
+[06-06 T1] moveTo stamp: maxErr 1.1880648997930621e-07 over 14641 cells (gate 1e-06)
+[06-06 T1] moveTo stamp: maxErr 1.186913833883807e-07 over 14641 cells (gate 1e-06)
+[06-06 T2] warp parity: maxRel 0.0 over 27648 samples, 280 px moved
+MONO parity mono_neutral×ramp_8ev: maxRel=1.0111522e-06
+MONO parity mono_warm×ramp_8ev: maxRel=1.0436544e-06
+MONO parity mono_cool×ramp_8ev: maxRel=7.93388e-07
+MONO parity mono_highlights×ramp_8ev: maxRel=1.0166568e-06
+MONO parity mono_neutral×flat_0ev: maxRel=2.3841858e-07
+MONO parity mono_warm×flat_0ev: maxRel=5.1295984e-07
+MONO parity mono_cool×flat_0ev: maxRel=2.5276907e-07
+MONO parity mono_highlights×flat_0ev: maxRel=4.3728107e-07
+MONO parity mono_neutral×flat_-4ev: maxRel=1.1920929e-07
+MONO parity mono_warm×flat_-4ev: maxRel=5.010271e-07
+MONO parity mono_cool×flat_-4ev: maxRel=1.2402963e-07
+MONO parity mono_highlights×flat_-4ev: maxRel=4.903669e-07
+MONO parity mono_neutral×gray_staircase: maxRel=5.9604645e-07
+MONO parity mono_warm×gray_staircase: maxRel=5.0009317e-07
+MONO parity mono_cool×gray_staircase: maxRel=5.2395876e-07
+MONO parity mono_highlights×gray_staircase: maxRel=5.2589456e-07
+NLMEANS chroma=0 gate: maxDab=0.0027008057 rmsDL=1.3395079
+NLMEANS luma=0 gate: maxDL=0.00064849854 rmsDab=6.399551
+NLMEANS parity nlmeans_default×delta_impulse: maxRel=1.8212374e-06
+NLMEANS parity nlmeans_strong×delta_impulse: maxRel=5.7461666e-06
+NLMEANS parity nlmeans_chroma×delta_impulse: maxRel=2.9103828e-06
+NLMEANS parity nlmeans_patch4×delta_impulse: maxRel=2.443842e-06
+NLMEANS parity nlmeans_default×ramp_8ev__noisy_iso125_s20260921: maxRel=1.5158013e-Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testNLMeansGoldenParity]' passed (4.853 seconds).
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testNoiseIsSmoothedTowardTruth]' started.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testNoiseIsSmoothedTowardTruth]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testPreviewDowngradeDerivations]' started.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testPreviewDowngradeDerivations]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testStrengthLimitGates]' started.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testStrengthLimitGates]' passed (0.064 seconds).
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testTileSeamConstantsAndTileInvariance]' started.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testTileSeamConstantsAndTileInvariance]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testWorkgroupSizeScanAllByteIdentical]' started.
+Test Case '-[LightamerTestsIOPParity.NLMeansParityTests testWorkgroupSizeScanAllByteIdentical]' passed (0.021 seconds).
+Test Suite 'NLMeansParityTests' passed at 2026-09-30 06:09:28.507.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 5.283 (5.284) seconds
+Test Suite 'NoiseFixtureStatisticsTests' started at 2026-09-30 06:09:28.507.
+Test Case '-[LightamerTestsIOPParity.NoiseFixtureStatisticsTests testAllNoisyFixturesExistWithCleanDims]' started.
+Test Case '-[LightamerTestsIOPParity.NoiseFixtureStatisticsTests testAllNoisyFixturesExistWithCleanDims]' passed (2.865 seconds).
+Test Case '-[LightamerTestsIOPParity.NoiseFixtureStatisticsTests testNewFixtureSetExistsWithContentPins]' started.
+Test Case '-[LightamerTestsIOPParity.NoiseFixtureStatisticsTests testNewFixtureSetExistsWithContentPins]' passed (0.631 seconds).
+Test Case '-[LightamerTestsIOPParity.NoiseFixtureStatisticsTests testNoisyGrayStaircaseVarianceMatchesProfile]' started.
+Test Case '-[LightamerTestsIOPParity.NoiseFixtureStatisticsTests testNoisyGrayStaircaseVarianceMatchesProfile]' passed (0.031 seconds).
+Test Suite 'NoiseFixtureStatisticsTests' passed at 2026-09-30 06:09:32.034.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 3.527 (3.527) seconds
+Test Suite 'ParametricMaskParityTests' started at 2026-09-30 06:09:32.034.
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testBlendifChannelInversionAndBoost]' started.
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testBlendifChannelInversionAndBoost]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testBlendifParityChannelSweep]' started.
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testBlendifParityChannelSweep]' passed (0.109 seconds).
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testFlatFieldBinaryGate]' started.
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testFlatFieldBinaryGate]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testMaskBlurCoeffsMatchIOPGaussianBlur]' started.
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testMaskBlurCoeffsMatchIOPGaussianBlur]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testMaskBlurParityFloat64Recursion]' started.
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testMaskBlurParityFloat64Recursion]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testMaskToneCurveParity]' started.
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testMaskToneCurveParity]' passed (0.031 seconds).
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testPostChainOrderPinned]' started.
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testPostChainOrderPinned]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testProcessParametersPacking]' started.
+Test Case '-[LightamerTestsIOPParity.ParametricMaskParityTests testProcessParametersPacking]' passed (0.000 seconds).
+Test Suite 'ParametricMaskParityTests' passed at 2026-09-30 06:09:32.186.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.152 (0.152) seconds
+Test Suite 'RetouchParityTests' started at 2026-09-30 06:09:32.187.
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testBlurStrokeProfile]' started.
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testBlurStrokeProfile]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testCloneCrossWindowSourceExpansion]' started.
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testCloneCrossWindowSourceExpansion]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testCloneStrokeTransfersSourceContent]' started.
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testCloneStrokeTransfersSourceContent]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testEmptyStrokeRetouchLayerIsIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testEmptyStrokeRetouchLayerIsIdentity]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testFillStrokeConstantDomain]' started.
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testFillStrokeConstantDomain]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testHealInteractionLatencyBenchmark]' started.
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testHealInteractionLatencyBenchmark]' passed (0.043 seconds).
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testHealPatchConvergesToFloat64Reference]' started.
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testHealPatchConvergesToFloat64Reference]' passed (0.150 seconds).
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testHealStrokeThroughComposite]' started.
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testHealStrokeThroughComposite]' passed (0.019 seconds).
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testStrokeLegCacheAccounting]' started.
+Test Case '-[LightamerTestsIOPParity.RetouchParityTests testStrokeLegCacheAccounting]' passed (0.007 seconds).
+Test Suite 'RetouchParityTests' passed at 2026-09-30 06:09:32.443.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.256 (0.257) seconds
+Test Suite 'ShadhiParityTests' started at 2026-09-30 06:09:32.443.
+Test Case '-[LightamerTestsIOPParity.ShadhiParityTests testIdentityParamsLeaveImageUnchanged]' started.
+Test Case '-[LightamerTestsIOPParity.ShadhiParityTests testIdentityParamsLeaveImageUnchanged]' passed (0.044 seconds).
+Test Case '-[LightamerTestsIOPParity.ShadhiParityTests testShadhiGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.ShadhiParityTests testShadhiGoldenParity]' passed (8.945 seconds).
+Test Case '-[LightamerTestsIOPParity.ShadhiParityTests testShadhiRegisteredAtV50Slot50]' started.
+Test Case '-[LightamerTestsIOPParity.ShadhiParityTests testShadhiRegisteredAtV50Slot50]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.ShadhiParityTests testTrackBNeutralityWithShadhiInserted]' started.
+Test Case '-[LightamerTestsIOPParity.ShadhiParityTests testTrackBNeutralityWithShadhiInserted]' passed (0.034 seconds).
+Test Suite 'ShadhiParityTests' passed at 2026-09-30 06:09:41.467.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 9.024 (9.024) seconds
+Test Suite 'SharpenParityTests' started at 2026-09-30 06:09:41.467.
+Test Case '-[LightamerTestsIOPParity.SharpenParityTests testFlatFieldActiveAmountIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.SharpenParityTests testFlatFieldActiveAmountIdentity]' passed (0.022 seconds).
+Test Case '-[LightamerTestsIOPParity.SharpenParityTests testNeutralAmountZeroIdentityExact]' started.
+Test Case '-[LightamerTestsIOPParity.SharpenParityTests testNeutralAmountZeroIdentityExact]' passed (0.263 seconds).
+Test Case '-[LightamerTestsIOPParity.SharpenParityTests testSharpenGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.SharpenParityTests testSharpenGoldenParity]' passed (4.380 seconds).
+Test Case '-[LightamerTestsIOPParity.SharpenParityTests testSharpenRegisteredAtV50Slot35]' started.
+Test Case '-[LightamerTestsIOPParity.SharpenParityTests testSharpenRegisteredAtV50Slot35]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.SharpenParityTests testSigmaChainKnownVectors]' started.
+Test Case '-[LightamerTestsIOPParity.SharpenParityTests testSigmaChainKnownVectors]' passed (0.000 seconds).
+Test Suite 'SharpenParityTests' passed at 2026-09-30 06:09:46.132.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 4.665 (4.665) seconds
+Test Suite 'SigmoidTests' started at 2026-09-30 06:09:46.132.
+Test Case '-[LightamerTestsIOPParity.SigmoidTests testGPUCurveConstraints]' started.
+Test Case '-[LightamerTestsIOPParity.SigmoidTests testGPUCurveConstraints]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOPParity.SigmoidTests testGraysStayNeutralOnBothPaths]' started.
+Test Case '-[LightamerTestsIOPParity.SigmoidTests testGraysStayNeutralOnBothPaths]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOPParity.SigmoidTests testSigmoidGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.SigmoidTests testSigmoidGoldenParity]' passed (7.438 seconds).
+Test Case '-[LightamerTestsIOPParity.SigmoidTests testSigmoidRegisteredAtV50Slot45_3]' started.
+Test Case '-[LightamerTestsIOPParity.SigmoidTests testSigmoidRegisteredAtV50Slot45_3]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.SigmoidTests testTrackBNeutralityWithSigmoidInserted]' started.
+Test Case '-[LightamerTestsIOPParity.SigmoidTests testTrackBNeutralityWithSigmoidInserted]' passed (0.021 seconds).
+Test Suite 'SigmoidTests' passed at 2026-09-30 06:09:53.608.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 7.475 (7.476) seconds
+Test Suite 'SkinSmoothParityTests' started at 2026-09-30 06:09:53.608.
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testFlatFieldIdentityAtActiveStrength]' started.
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testFlatFieldIdentityAtActiveStrength]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testFrequencySeparationFloat64Parity]' started.
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testFrequencySeparationFloat64Parity]' passed (0.411 seconds).
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testMaskNilEqualsAllOnesMaskByteExact]' started.
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testMaskNilEqualsAllOnesMaskByteExact]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testNeutralSeedInsertionTrackBZeroDelta]' started.
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testNeutralSeedInsertionTrackBZeroDelta]' passed (0.482 seconds).
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testSigmaHaloChains]' started.
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testSigmaHaloChains]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testStrengthZeroIsByteExactIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testStrengthZeroIsByteExactIdentity]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testTiledExecutionMatchesWholePlane]' started.
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testTiledExecutionMatchesWholePlane]' passed (0.011 seconds).
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testZeroMaskReturnsInputThroughKernelPath]' started.
+Test Case '-[LightamerTestsIOPParity.SkinSmoothParityTests testZeroMaskReturnsInputThroughKernelPath]' passed (0.002 seconds).
+Test Suite 'SkinSmoothParityTests' passed at 2026-09-30 06:09:54.527.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.919 (0.919) seconds
+Test Suite 'TemperatureParityTests' started at 2026-09-30 06:09:54.527.
+Test Case '-[LightamerTestsIOPParity.TemperatureParityTests testTemperatureGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.TemperatureParityTests testTemperatureGoldenParity]' passed (5.338 seconds).
+Test Case '-[LightamerTestsIOPParity.TemperatureParityTests testTemperatureKernelGainApply]' started.
+Test Case '-[LightamerTestsIOPParity.TemperatureParityTests testTemperatureKernelGainApply]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOPParity.TemperatureParityTests testTemperatureProbeMatchesReference]' started.
+Test Case '-[LightamerTestsIOPParity.TemperatureParityTests testTemperatureProbeMatchesReference]' passed (2.649 seconds).
+Test Case '-[LightamerTestsIOPParity.TemperatureParityTests testTemperatureRegisteredAtV50Slot3]' started.
+Test Case '-[LightamerTestsIOPParity.TemperatureParityTests testTemperatureRegisteredAtV50Slot3]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.TemperatureParityTests testTrackBNeutralityWithTemperatureInserted]' started.
+Test Case '-[LightamerTestsIOPParity.TemperatureParityTests testTrackBNeutralityWithTemperatureInserted]' passed (0.021 seconds).
+Test Suite 'TemperatureParityTests' passed at 2026-09-30 06:10:02.536.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 8.009 (8.009) seconds
+Test Suite 'ToneCurveParityTests' started at 2026-09-30 06:10:02.536.
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testCollinearNodesAcrossAllTypes]' started.
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testCollinearNodesAcrossAllTypes]' passed (0.046 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testExtrapolationContinuity]' started.
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testExtrapolationContinuity]' passed (0.056 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testIdentityNodesGiveIdentityLUT]' started.
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testIdentityNodesGiveIdentityLUT]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testMonotoneHermiteNoOvershoot]' started.
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testMonotoneHermiteNoOvershoot]' passed (7.960 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testRGBLinkedDerivationIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testRGBLinkedDerivationIdentity]' passed (0.087 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testToneCurveGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testToneCurveGoldenParity]' passed (10.381 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testToneCurveRegisteredAtV50Slot48]' started.
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testToneCurveRegisteredAtV50Slot48]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testTrackBNeutralityWithToneCurveInserted]' started.
+Test Case '-[LightamerTestsIOPParity.ToneCurveParityTests testTrackBNeutralityWithToneCurveInserted]' passed (0.114 seconds).
+Test Suite 'ToneCurveParityTests' passed at 2026-09-30 06:10:21.191.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 18.654 (18.654) seconds
+Test Suite 'ToneEqualKernelTests' started at 2026-09-30 06:10:21.191.
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testBilinearDownsampleUniform]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testBilinearDownsampleUniform]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testBoxMeanDeltaResponse]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testBoxMeanDeltaResponse]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testBoxMeanUniformInUniformOut]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testBoxMeanUniformInUniformOut]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testEIGFBlendDegradesToGaussianMean]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testEIGFBlendDegradesToGaussianMean]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testLumaEstimatorsAnalytic]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testLumaEstimatorsAnalytic]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testLumaLinearContrastFulcrum]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testLumaLinearContrastFulcrum]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testQuantizeSteps]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualKernelTests testQuantizeSteps]' passed (0.001 seconds).
+Test Suite 'ToneEqualKernelTests' passed at 2026-09-30 06:10:21.206.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.014 (0.016) seconds
+Test Suite 'ToneEqualLUTTests' started at 2026-09-30 06:10:21.206.
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testAllZeroBandsNearIdentity]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testAllZeroBandsNearIdentity]' passed (0.065 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testDerivedScalars]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testDerivedScalars]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testLowerClampAtFullMinus2]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testLowerClampAtFullMinus2]' passed (0.067 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testLutIndexSemantics]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testLutIndexSemantics]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testSingleBandPeakAtBandCenter]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testSingleBandPeakAtBandCenter]' passed (0.069 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testUICurveMatchesLUT]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testUICurveMatchesLUT]' passed (0.061 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testUpperClampAtFullPlus2]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualLUTTests testUpperClampAtFullPlus2]' passed (0.093 seconds).
+Test Suite 'ToneEqualLUTTests' passed at 2026-09-30 06:10:21.561.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.355 (0.355) seconds
+Test Suite 'ToneEqualModuleTests' started at 2026-09-30 06:10:21.561.
+Test Case '-[LightamerTestsIOPParity.ToneEqualModuleTests testApplyIdentityWithUnitLUT]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualModuleTests testApplyIdentityWithUnitLUT]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualModuleTests testNoneChainMatchesCPUReference]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualModuleTests testNoneChainMatchesCPUReference]' passed (0.131 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualModuleTests testShadowBandLiftsMidTones]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualModuleTests testShadowBandLiftsMidTones]' passed (0.068 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualModuleTests testToneEqualRegisteredAtV50Slot24]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualModuleTests testToneEqualRegisteredAtV50Slot24]' passed (0.000 seconds).
+Test Suite 'ToneEqualModuleTests' passed at 2026-09-30 06:10:21.763.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.201 (0.202) seconds
+Test Suite 'ToneEqualParityTests' started at 2026-09-30 06:10:21.763.
+Test Case '-[LightamerTestsIOPParity.ToneEqualParityTests testToneEqualGoldenParityTwoTiers]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualParityTests testToneEqualGoldenParityTwoTiers]' passed (12.156 seconds).
+Test Case '-[LightamerTestsIOPParity.ToneEqualParityTests testTrackBNeutralityWithToneEqualInserted]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualParityTests testTrackBNeutralityWithToneEqualInserted]' passed (0.083 seconds).
+Test Suite 'ToneEqualParityTests' passed at 2026-09-30 06:10:34.002.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 12.239 (12.239) seconds
+Test Suite 'ToneEqualPerfTests' started at 2026-09-30 06:10:34.002.
+Test Case '-[LightamerTestsIOPParity.ToneEqualPerfTests testPreviewFullChainFrameTime]' started.
+Test Case '-[LightamerTestsIOPParity.ToneEqualPerfTests testPreviewFullChainFrameTime]' passed (2.727 seconds).
+Test Suite 'ToneEqualPerfTests' passed at 2026-09-30 06:10:36.729.
+	 Executed 1 test, with 0 failures (0 unexpected) in 2.727 (2.727) seconds
+Test Suite 'VibranceVelviaParityTests' started at 2026-09-30 06:10:36.730.
+Test Case '-[LightamerTestsIOPParity.VibranceVelviaParityTests testNeutralIdentityThroughPipe]' started.
+Test Case '-[LightamerTestsIOPParity.VibranceVelviaParityTests testNeutralIdentityThroughPipe]' passed (0.042 seconds).
+Test Case '-[LightamerTestsIOPParity.VibranceVelviaParityTests testVelviaGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.VibranceVelviaParityTests testVelviaGoldenParity]' passed (5.464 seconds).
+Test Case '-[LightamerTestsIOPParity.VibranceVelviaParityTests testVibranceGoldenParity]' started.
+Test Case '-[LightamerTestsIOPParity.VibranceVelviaParityTests testVibranceGoldenParity]' passed (2.227 seconds).
+Test Suite 'VibranceVelviaParityTests' passed at 2026-09-30 06:10:44.463.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 7.733 (7.734) seconds
+Test Suite 'LightamerTestsIOPParity.xctest' passed at 2026-09-30 06:10:44.463.
+	 Executed 308 tests, with 2 tests skipped and 0 failures (0 unexpected) in 390.446 (390.468) seconds
+Test Suite 'All tests' passed at 2026-09-30 06:10:44.463.
+	 Executed 308 tests, with 2 tests skipped and 0 failures (0 unexpected) in 390.446 (390.468) seconds
+06
+NLMEANS parity nlmeans_strong×ramp_8ev__noisy_iso125_s20260921: maxRel=2.6104178e-06
+NLMEANS parity nlmeans_chroma×ramp_8ev__noisy_iso125_s20260921: maxRel=1.615638e-06
+NLMEANS parity nlmeans_patch4×ramp_8ev__noisy_iso125_s20260921: maxRel=1.7981232e-06
+NLMEANS parity nlmeans_default×gray_staircase__noisy_iso1600_s20260921: maxRel=1.8266542e-06
+NLMEANS parity nlmeans_strong×gray_staircase__noisy_iso1600_s20260921: maxRel=2.9488626e-06
+NLMEANS parity nlmeans_chroma×gray_staircase__noisy_iso1600_s20260921: maxRel=9.696964e-07
+NLMEANS parity nlmeans_patch4×gray_staircase__noisy_iso1600_s20260921: maxRel=1.8649699e-06
+NLMEANS strength gates: in=0.033752624 s0=0.033545986 s50=0.0140850935 s1e5=0.0136384545
+[06-07 heal benchmark] patch 160x120, median 8.64ms, runs [8.57, 8.64, 9.72]ms
+PREVIEW full-chain frame ms: 75.0, 51.9, 58.9, 53.9, 54.2, 56.2, 53.8, 53.7 — median 54.18, warm median 56.18
+VEL parity vel_default×ramp_8ev: maxRel=0.0
+VEL parity vel_strong×ramp_8ev: maxRel=0.0
+VEL parity vel_clamp×ramp_8ev: maxRel=0.0
+VEL parity vel_default×flat_0ev: maxRel=0.0
+VEL parity vel_strong×flat_0ev: maxRel=0.0
+VEL parity vel_clamp×flat_0ev: maxRel=0.0
+VEL parity vel_default×flat_-4ev: maxRel=0.0
+VEL parity vel_strong×flat_-4ev: maxRel=0.0
+VEL parity vel_clamp×flat_-4ev: maxRel=0.0
+VEL parity vel_default×saturated: maxRel=0.0
+VEL parity vel_strong×saturated: maxRel=0.0
+VEL parity vel_clamp×saturated: maxRel=0.0
+VEL parity vel_default×gray_staircase: maxRel=0.0
+VEL parity vel_strong×gray_staircase: maxRel=0.0
+VEL parity vel_clamp×gray_staircase: maxRel=0.0
+VEL parity vel_default×hue_sweep: maxRel=0.0
+VEL parity vel_strong×hue_sweep: maxRel=0.0
+VEL parity vel_clamp×hue_sweep: maxRel=2.2780654e-05
+VIB parity vib_default×ramp_8ev: maxRel=1.202912e-06
+VIB parity vib_strong×ramp_8ev: maxRel=1.202912e-06
+VIB parity vib_default×flat_0ev: maxRel=1.7881393e-07
+VIB parity vib_strong×flat_0ev: maxRel=1.7881393e-07
+VIB parity vib_default×flat_-4ev: maxRel=2.3841858e-07
+VIB parity vib_strong×flat_-4ev: maxRel=2.3841858e-07
+VIB parity vib_default×saturated: maxRel=2.0827035e-06
+VIB parity vib_strong×saturated: maxRel=4.8927254e-06
+VIB parity vib_default×gray_staircase: maxRel=4.4703484e-07
+VIB parity vib_strong×gray_staircase: maxRel=4.4703484e-07
+VIB parity vib_default×hue_sweep: maxRel=0.0002386514
+VIB parity vib_strong×hue_sweep: maxRel=5.4907443e-05
