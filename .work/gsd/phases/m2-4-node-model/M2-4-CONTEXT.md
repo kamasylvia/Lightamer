@@ -147,3 +147,9 @@
 ## 夜间授权预案（2026-09-29 起草时点）
 
 本 CONTEXT 提交夜间授权裁决：若无人干预，D-M2-4-CONTEXT-1..11 = **OQ-1..11 全部按推荐 A 生效**。晨审可推翻：推翻任一条 = 修订对应 plan（CONTEXT OQ 原文不改、以 Ruling/勘误注记为准，沿 M2-3-CONTEXT E1 勘误先例）。plan 期需回填的悬决点（非 OQ 级）：v5 是否触发与字段清单（OQ-4）、33 op → 18 目录归属对照表终值（OQ-8）、重连手势的具体交互样式（OQ-5）。
+
+---
+
+## Ruling（2026-09-30 夜间授权，晨审可推翻）
+
+D-M2-4-CONTEXT-1..11 = OQ-1..11 **全部按推荐 A 生效**。三条盘点发现采信为事实基线：①LayerCompositeDriver 串行级联与 grade 链数学等价，投影视图零复合语义改动；②sidecar 升版起点 = v4→v5（additive/hash-isolation 惯例）；③蒙版 shell 06-03 已冻结，缺口仅 item 级 enabled/display_name/删除锁字段。
