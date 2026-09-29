@@ -496,6 +496,21 @@ final class PipeCoordinator {
         self.editorState = editorState
     }
 
+    /// Inject the app-owned Metal dispatch context (the composition root's
+    /// `metalContext` — ONE context, ONE command queue, D-L031).
+    ///
+    /// Defect B (M2-3 walkthrough 真缺陷 B): the editor GUI chain feeds
+    /// `detectionMetal()` into `EditorState.load`'s metal parameter, but
+    /// `metal` used to be assigned ONLY inside `load()` — so the FIRST
+    /// editor load always read nil and the whole render leg was skipped
+    /// behind `if let metal` (decode succeeded, viewport stayed empty
+    /// forever: a chicken-and-egg deadlock — the context arrives only via
+    /// the call that never happens). Attaching the context at the
+    /// composition root makes the face non-nil before any load.
+    func attach(metal: MetalContext?) {
+        self.metal = metal
+    }
+
     /// Inject the module registry (Plan 02-04-05) — the app builds
     /// `ModuleRegistry.makeDefault()`, populates LightamerIOP's modules,
     /// then attaches it here. Loads with empty instance sets resolve to
@@ -653,6 +668,7 @@ final class PipeCoordinator {
         instances: [any ModuleBoxing],
         metal: MetalContext
     ) async {
+        Self.logger.info("pipe load entered: \(url.lastPathComponent, privacy: .public) gen=\(self.generation + 1, privacy: .public)")
         generation += 1
         let gen = generation
         self.decoded = decoded
@@ -671,14 +687,17 @@ final class PipeCoordinator {
             // session's in-memory history.
             if historyLoadedURL != url {
                 await flushSidecar()
+                Self.logger.info("pipe load: flush done, probing sidecar for \(url.lastPathComponent, privacy: .public)")
                 let destination = LightamerSidecar.sidecarURL(for: url)
                 let store = SidecarStore(destination: destination)
                 sidecarStore = store
                 sidecarDestination = destination
                 if let document = await store.load() {
+                    Self.logger.info("pipe load: sidecar document loaded, restoring")
                     await restoreFromSidecar(
                         document: document, url: url, decoded: decoded
                     )
+                    Self.logger.info("pipe load: sidecar restore done")
                 } else {
                     // Pristine seed (Plan 03-02-T4): terminal trio + the
                     // LightamerIOP tone iops with permanent panels at
@@ -749,9 +768,11 @@ final class PipeCoordinator {
 
         thumbnailNeedsRender = true
         lastThumbnail = nil
+        Self.logger.info("pipe load: rendering preview bucket=\(self.currentBucket ?? PreviewBucket.cap, privacy: .public)")
         await renderPreview(
             bucket: currentBucket ?? PreviewBucket.cap, generation: gen
         )
+        Self.logger.info("pipe load: renderPreview returned")
 
         // PERF-5 PSO startup pre-warm (Plan 03-06-T7, Open#7 decision):
         // background task pre-compiles the current chain's compute PSOs so
