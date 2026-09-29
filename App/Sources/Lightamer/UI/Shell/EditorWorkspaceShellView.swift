@@ -159,20 +159,10 @@ struct EditorWorkspaceShellView: View {
         .accessibilityIdentifier("shell.editor.scopes.slot")
     }
 
-    /// The T2 adjustment-stack slot (the honest placeholder until T2 lands
-    /// the seven-tab routing).
+    /// The T2 adjustment stack (the seven-tab routing over the existing
+    /// panel registry — the M1 panels instantiate untouched).
     private var stackSlot: some View {
-        VStack(spacing: 6) {
-            Text(String(
-                localized: "shell_editor_stack_arrives",
-                defaultValue: "Adjustment stack arrives in M2-3/T2"))
-                .font(.caption2)
-                .foregroundStyle(ThemeTokens.textSecondary)
-                .padding(6)
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .accessibilityIdentifier("shell.editor.stack.slot")
+        EditorAdjustmentStackView(workspace: workspace)
     }
 
     // MARK: - The current-image load leg
