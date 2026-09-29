@@ -361,3 +361,10 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：plan 期的「数据缝」核对只查了「签名存在且 public」，没查「缝的下游依赖是否也 public 可达」——`relinkRecord` 返回值需要写面消费，写面缺席 = 缝悬空。
 - **对策**：①编排型任务 read_first 增加「缝 → 下游消费 → 全链 access level」三步核对（grep `public func` 到最终 IO 为止）；②缺口处置 = 注入式 leg + 测试 @testable 真写验证 + 生产诚实 gate（本 plan D2 形态），缺口本体登记 Core-face 小 plan（`LibraryStore.relinkImage` 族）；③禁临时绕路：@testable import 进产品码、第二写连接、remove+insert 换 rowid 全是坑不是路。
 - **适用**：一切「App 层编排 + Core 数据面」plan（M2-4+ 节点模型、导出队列、AI 腿同理）；orchestrator 审 plan 时对「壳零 SQL」类约束同时核对写面存在性。
+
+## L043: macOS 27 SDK 废弃 CoreImage legacy C-string option 键——新代码一律 CIRAWFilterOption 现代拼写（2026-09-29，M2-3-3 T4）
+- **背景**：M2-3-3 T4 aggregate NR 腿按 pre-27 文档写 `options[kCIInputNoiseReductionAmountKey] = amount`（前任 worker 草稿）。
+- **现象**：macOS 27.0 SDK 编译报 `'kCIInputNoiseReductionAmountKey' has been renamed to 'CIRAWFilterOption.noiseReductionAmount'`（CIRAWFilter_Deprecated.h apinotes obsoleted）——错误信息即正确答案，但按旧拼写 grep 全网/头文件样例代码会得出「key 存在」的误判。
+- **根因**：`CIRAWFilterOption` 的 legacy C 宏键在新 SDK 经 apinotes 批量改名 Swift 成员拼写；字符串键与 `[CIRAWFilterOption: Any]` 字典键类型不匹配是编译期拦截（好过运行期），但 Apple 文档/社区样例大量仍是旧拼写。
+- **对策**：①CIRAWFilter options 新代码一律 `CIRAWFilterOption.<member>` 现代拼写（`.noiseReductionAmount` / `.enableSharpening` / `.imageOrientation` 族，CoreImage.apinotes 为准）；②遇到 `has been renamed to` 错误直接采纳改名，不查旧样例；③MacOSX27.0.sdk 的 `CoreImage.apinotes` 是改名映射的正本（`SwiftName:` 行）。
+- **适用**：一切 macOS 27 目标的 CoreImage（含 CIRAWFilter RAW 9）新代码；RAW 9 参数面（M2-5+ 校准）同理。
