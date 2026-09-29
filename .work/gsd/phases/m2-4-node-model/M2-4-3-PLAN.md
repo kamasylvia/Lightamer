@@ -12,8 +12,9 @@ files_modified:
   - App/Sources/Lightamer/UI/Shell/Nodes/EditorNodesPanelView.swift # 新建：面板本体——Canvas 连线层（只画线，无命中）+ 卡片层（真视图，原生命中）+ 拖卡重连手势（locked 不可拖）+ 上下文菜单（Rename/Toggle/Delete/Insert Before）+ mix 滑杆（D-H1 live/commit 腿）+ Fit 按钮 + 锁定三件套 modifier（可复用，M2-7 首组锁消费）
   - App/Sources/Lightamer/UI/Shell/EditorToolRailView.swift        # 修改：panel(.nodes) 空态 → EditorNodesPanelView（EditorRailPlaceholder struct 保留——versions 仍消费；history case 零 diff）
   - Resources/Localizable.xcstrings                                # 修改（T4）：nodes_* / node_lock_* / history_graph_*（P1 键族）/ editor_node_develop 等 zh 值对账补齐
-  - Tests/LightamerTests/NodeCanvasGeometryTests.swift             # 新建：layout 单调/居中/常量 + edge 端点连接 + insertionIndex 阈值矩阵 + fitScale 边界（0/1 节点、超高内容）
-  - Tests/LightamerTests/NodesPanelModelTests.swift                # 新建：投影发布 + 选中 → selectedLayerID 写入 + 命令路由正例 + 锁定判定（develop/drt 恒锁）+ 拖拽序 → reconnect 命令参数
+  - Project.swift                                          # 修改：新建测试文件登记进对应 bundle sources 显式清单（bundle 无 glob，漏登 = 文件不进构建；checker E2 测试登记纪律；T1 新文件同 commit tuist generate）
+  - Tests/LightamerTests/NodeCanvasGeometryTests.swift             # 新建（**LightamerTestsApp**，App target 类型——NodeCanvasGeometry 为 App 层纯函数，checker E2 归属）：layout 单调/居中/常量 + edge 端点连接 + insertionIndex 阈值矩阵 + fitScale 边界（0/1 节点、超高内容）
+  - Tests/LightamerTests/NodesPanelModelTests.swift                # 新建（**LightamerTestsApp**，App 级——EditorState/LayerEditingState 实例，checker E2 归属）：投影发布 + 选中 → selectedLayerID 写入 + 命令路由正例 + 锁定判定（develop/drt 恒锁）+ 拖拽序 → reconnect 命令参数
   - .work/gsd/REQUIREMENTS.md                                      # 修改（T4）：M2NODE-01..06 → Delivered 翻账（逐条交付注记；签核 VALIDATION 归 verify-work 后置——C 档门控第 3 条）
   - .work/gsd/phases/m2-4-node-model/M2-4-3-SUMMARY.md             # 新建（收口任务）
   - .work/gsd/phases/m2-4-node-model/M2-4-3-DECISIONS.md           # 新建（收口任务）
@@ -25,7 +26,7 @@ files_modified:
 # Plan M2-4-3 — 节点面板 UI（Canvas 自绘线性链）+ phase 收口
 
 > **性质**：纯 App 层 UI plan（Core 零改动——消费 P1 投影/命令 + P2 投影扩展）。把
-> D-OQ-5-A 落成 `EditorNodesPanelView`：SwiftUI `Canvas` 画连线 + 真 SwiftUI 视图做
+> D-M2-4-CONTEXT-5 落成 `EditorNodesPanelView`：SwiftUI `Canvas` 画连线 + 真 SwiftUI 视图做
 > 节点卡（命中测试免费）、纵向单列自动布局、Fit 恒定、拖卡重连；并做 phase 收口三件
 > （zh 对账 / 全套终跑 / REQUIREMENTS 翻账）。规格锚点 = D-M2-4-CONTEXT-5/9/10/11 +
 > REQUIREMENTS M2NODE-06 + FEATURE-MAP §1.3（EditorNodesPanel 操作面：Add/Rename/
@@ -37,16 +38,16 @@ files_modified:
 
 ## 已定裁决（不得重开）
 
-- **D-OQ-5（OQ-5 A）**：SwiftUI `Canvas` 自绘线性链图（Metal 无必要）；纵向单列
+- **D-M2-4-CONTEXT-5（OQ-5 A）**：SwiftUI `Canvas` 自绘线性链图（Metal 无必要）；纵向单列
   Develop → grade×N → DRT；Fit 恒定；重连 = 拖节点卡到目标边（插入手势）。
-- **D-OQ-7（OQ-7 A）**：Develop = base 投影（不可删/不可重连/恒图首/锁形标记）；
+- **D-M2-4-CONTEXT-7（OQ-7 A）**：Develop = base 投影（不可删/不可重连/恒图首/锁形标记）；
   DRT = 灰态占位端点 + 「DRT arrives with M2-6」文案；retouch 不上图。
-- **D-OQ-6（OQ-6 A）**：mix = opacity 投影；面板**不露 blend mode**。
-- **D-OQ-9（OQ-9 A）**：选中 grade → 七页签编辑该层（写入端 = `editingState
+- **D-M2-4-CONTEXT-6（OQ-6 A）**：mix = opacity 投影；面板**不露 blend mode**。
+- **D-M2-4-CONTEXT-9（OQ-9 A）**：选中 grade → 七页签编辑该层（写入端 = `editingState
   .selectedLayerID`，P2 已验缝）；未选中/Develop = 全局链现行为。
-- **D-OQ-10（OQ-10 A）**：失效传播零新机制（prefix 键既有）；多层链拖动流畅度 =
+- **D-M2-4-CONTEXT-10（OQ-10 A）**：失效传播零新机制（prefix 键既有）；多层链拖动流畅度 =
   观察项走查（非门）。
-- **D-OQ-11（OQ-11 A）**：键随手 `String(localized:)`；本 plan T4 收口对账补齐。
+- **D-M2-4-CONTEXT-11（OQ-11 A）**：键随手 `String(localized:)`；本 plan T4 收口对账补齐。
 
 ## 关键设计决策（planner 裁决，执行中不重开）
 
@@ -98,11 +99,15 @@ enum NodeCanvasGeometry {
 - **一致性维持答案（KD 必答）**：模型不缓存投影语义——`document` 是 `LayerStack` 的
   重建快照（每次 stack 变更重算，节点数十级成本可忽略）；选中态是模型唯一自有状态，
   写入端 = 既有 `selectedLayerID`（仲裁点单源，不立第二选中真相）。
-- **mix 滑杆 = D-H1 live/commit 腿而非命令**（防 history 刷屏）：drag 变更走
+- **mix 滑杆 = 既有 live/commit 腿而非命令**（防 history 刷屏；机制 = Phase 6 交付的
+  `applyLiveLayer` 零 history + `commitLayerEdit` 恰一条，非本 phase 新裁决）：
+  drag 变更走
   `applyLiveLayer`（零 history）+ drag end `commitLayerEdit(label: history_graph_mix)`
   （恰一条）——与 06-05 属性编辑同款；**SetMix 命令仍经 `NodeGraphCommand` 保留**
-  （菜单/快捷路径/未来批量消费），滑杆只是其 live/commit 化身（数学等价已由 P1
-  AC「SetMix(0) ≡ bypass」钉死，opacity 即 mix）。
+  （菜单/快捷路径/未来批量消费），滑杆只是其 live/commit 化身（数学等价已由
+  **M2-4-1 AC2**「`setGradeMix(0)` 后 composite 输出与该层 `enabled=false` bypass
+  输出像素级相等（容差 0，`-0/+0` 视相等）」钉死，opacity 即 mix——checker E4
+  编号闭环）。
 
 ### KD-3 节点卡信息面 + 交互表（Alcedo 操作面对齐）
 
@@ -114,7 +119,7 @@ enum NodeCanvasGeometry {
 
 - **删除拦截**：菜单 Delete 仅对 grade 出现；locked 卡无 Delete 项 + 锁形点击 →
   toast（`node_lock_develop`/`node_lock_drt`，沿 Alcedo `LockedNodeMaskPromptDialog`
-  语义文案自写，D-OQ-7）。
+  语义文案自写，D-M2-4-CONTEXT-7）。
 - **锁定三件套 = `NodeLockedBadge` + `.nodeLocked(intercept:)` modifier**（标记渲染 +
   手势禁用 + 提示回调三合一），泛化签名不带节点语义（M2-7 首组锁零改动复用）。
 - **Rename** = alert + TextField → `.renameGrade(id:to:)`；**Insert Grade Before** =
@@ -165,7 +170,16 @@ enum NodeCanvasGeometry {
    `.nodes` case（history/versions 面零 diff）；裸 hex 禁令（ThemeTokens 单源，
    M2-3-1 AC 复跑口径：Shell/ 新目录 grep 仅 ThemeTokens 命中）；`REQUIREMENTS.md`
    只翻 M2NODE 族行（他族零 touch）；GPL 参考只读。
-6. **收口核对**：T4 `git diff --stat` 与 front-matter 逐文件核对（checker 教训②）。
+6. **测试登记纪律（checker E2，2026-09-30）**：新建测试文件**同 commit** 登记两处——
+   ① `Project.swift` 对应 bundle 的 sources 显式清单（bundle 无 glob，漏登 = 文件不进
+   构建）；② `.work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt` 增行
+   （格式 `<bundle>\t<test-method-count>\t<file>`）。归属判定：**App 级（实例化
+   EditorState/LayerEditingState 等 App target 类型）→ LightamerTestsApp；Core 级 →
+   LightamerTestsLayers**（front-matter 逐文件标注为准）。新文件落盘后同 commit
+   `tuist generate`。本 plan 归属：NodeCanvasGeometryTests 与 NodesPanelModelTests
+   均 = App（前者测 App target 类型 NodeCanvasGeometry，后者实例化 EditorState/
+   LayerEditingState）。
+7. **收口核对**：T4 `git diff --stat` 与 front-matter 逐文件核对（checker 教训②）。
 
 ## Tasks
 
@@ -191,6 +205,8 @@ enum NodeCanvasGeometry {
 - **验收标准**
   - [ ] 几何/模型断言全绿；`editor.nodes.panel` marker 在册。
   - [ ] EditorToolRailView history/versions 面 diff 零（逐 hunk 评审 m7）。
+  - [ ] 测试登记：Project.swift（LightamerTestsApp sources 两文件）+ BUNDLE-MAP 行
+        同 commit 在册（纪律 6）。
   - [ ] 全套回归 `0 fail`（基线 = M2-4-2 收口值）。
 
 ### T2 Canvas 连线 + 自动布局渲染 + Fit
@@ -239,7 +255,7 @@ enum NodeCanvasGeometry {
   4. 落盘 `M2-4-3-SUMMARY.md`/`M2-4-3-DECISIONS.md`/`M2-4-ACCEPTANCE.md` +
      `.work/GOAL-STATE.md` 续接点（M2-4 完成，下一步 = M2-5 / verify-work 签核由
      orchestrator 裁）。
-  5. `git diff --stat` 核对边界（纪律 6）。
+  5. `git diff --stat` 核对边界（纪律 7）。
 - **验收标准**
   - [ ] zh-audit exit 0；全套 0 fail；翻账六条逐条在册；ACCEPTANCE 汇总表齐。
   - [ ] diff 边界 == 申报文件集。
@@ -258,11 +274,12 @@ enum NodeCanvasGeometry {
 | 8 | 全套回归 0 fail，计数 ≈ P2 收口值 + 12..18 | test-direct.sh --all BUNDLE 行双读 |
 | 9 | REQUIREMENTS M2NODE-01..06 翻账在册；他族零 diff | `git diff .work/gsd/REQUIREMENTS.md` 逐行 |
 | 10 | diff 边界 == 申报文件集；ACCEPTANCE/SUMMARY/DECISIONS/GOAL-STATE 同批落盘 | `git diff --stat` 逐文件核对 |
+| 11 | 新测试文件登记闭环（checker E2）：两测试文件逐个在 Project.swift 对应 bundle sources + BUNDLE-MAP 行在册 | `git grep -n "NodeCanvasGeometryTests.swift\|NodesPanelModelTests.swift" Project.swift` + BUNDLE-MAP grep 同命中 |
 
 ## 风险与边界
 
-- **Canvas 性能**：节点数十级（线性链典型 <10）帧成本可忽略（D-OQ-5）；30 节点
-  layout BENCH| 观察行量化兜底；真机拖动流畅度 = 走查观察项（D-OQ-10，非门），
+- **Canvas 性能**：节点数十级（线性链典型 <10）帧成本可忽略（D-M2-4-CONTEXT-5）；30 节点
+  layout BENCH| 观察行量化兜底；真机拖动流畅度 = 走查观察项（D-M2-4-CONTEXT-10，非门），
   不达标后备 = 布局缓存（`Layout` 按 stack hash memo）——零语义风险。
 - **拖拽手势与 ScrollView 滚动冲突**：`minimumDistance` 阈值 + 拖动中锁滚动双保险；
   手感 = Manual-Only 走查项（触控板/鼠标双输入），不达标调阈值常数（几何纯函数
@@ -283,3 +300,23 @@ enum NodeCanvasGeometry {
 - T3 `feat(ui): node card interactions with drag reconnect and lock modifier`
 - T4 `docs(m2-4): close out node editing model phase with zh audit`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-09-30）
+
+checker 判 FAIL（4E+4M）后的本 plan 修订落点：
+
+- **E4 编号闭环（KD-2）**：mix 滑杆数学等价的引用由模糊的「P1 AC『SetMix(0) ≡
+  bypass』」改为实际 AC 编号 = **M2-4-1 AC2**（全称：「`setGradeMix(0)` 后 composite
+  输出与该层 `enabled=false` bypass 输出像素级相等（容差 0，`-0/+0` 视相等）」）；
+  「D-H1 live/commit 腿」改述为 Phase 6 交付的既有机制（applyLiveLayer/commitLayerEdit），
+  消除外来裁决号歧义。
+- **E2 测试登记纪律（系统性）**：files_modified 增 `Project.swift`；纪律节新增第 6 条
+  （同 commit 登记 Project.swift bundle sources + BUNDLE-MAP 行；App 级 →
+  LightamerTestsApp，Core 级 → LightamerTestsLayers）；两个测试文件逐一标注归属
+  （NodeCanvasGeometryTests = App——App target 类型；NodesPanelModelTests = App——
+  EditorState/LayerEditingState 实例）；T1 验收增登记 checkbox；AC11 新增。
+- **M1 编号统一**：已定裁决 D-OQ-5/6/7/9/10/11 → D-M2-4-CONTEXT-5/6/7/9/10/11；
+  正文内引（性质节 D-OQ-5-A → CONTEXT-5、KD-3 D-OQ-7 → CONTEXT-7、风险节
+  D-OQ-5/D-OQ-10 → CONTEXT-5/CONTEXT-10）全部换算。
+- M3（`Scripts/test-direct.sh` 头注「六 bundle」陈旧 + bundle glob 漏 IOPParity）属
+  M2-4-0 遗留，本 plan 期不动——由修复 commit body 提醒 orchestrator（执行批顺手修）。
