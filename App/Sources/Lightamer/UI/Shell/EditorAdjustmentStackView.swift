@@ -35,6 +35,10 @@ struct EditorAdjustmentStackView: View {
     @Environment(PipeCoordinator.self) private var pipeCoordinator
     @Environment(LayerEditingState.self) private var editingState
 
+    /// The T4 RAW Decode panel's decode legs (the shell-owned actor + the
+    /// coordinator's read-only Metal seam).
+    private var rawDecodeMetal: MetalContext? { pipeCoordinator.detectionMetal() }
+
     /// The selected tab (the Alcedo default = the first page).
     @State private var selectedTab: EditorTabRoute = .tone
     /// The Geometry page's Advanced folded group (D6-only items; folded by
@@ -117,7 +121,12 @@ struct EditorAdjustmentStackView: View {
                     LayersPanelView()
                     maskToolbarLink
                 case .rawDecodePanel:
-                    rawDecodeSlot
+                    // The T4 CIRAW panel (the slot's honest placeholder is
+                    // gone — the panel is live).
+                    RawDecodePanelView(
+                        workspace: workspace,
+                        decoder: workspace.editorDecoder,
+                        metalContext: rawDecodeMetal)
                 case .displayTransformPlaceholder:
                     drtPlaceholder
                 case .none:
@@ -227,21 +236,6 @@ struct EditorAdjustmentStackView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(ThemeTokens.cardBorder.opacity(0.15))
         .accessibilityIdentifier("editor.stack.drt.placeholder")
-    }
-
-    /// The RAW Decode page slot (T4 fills it with the CIRAW panel).
-    private var rawDecodeSlot: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(String(
-                localized: "editor_stack_rawdecode_placeholder",
-                defaultValue: "RAW Decode panel arrives in M2-3/T4"))
-                .font(.caption)
-                .foregroundStyle(ThemeTokens.textSecondary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("editor.stack.rawdecode.slot")
     }
 
     /// The Mask page's toolbar linkage (mask drawing happens on the

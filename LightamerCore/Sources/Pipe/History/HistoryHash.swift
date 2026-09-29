@@ -159,6 +159,15 @@ public enum HistoryHash {
         if let value = image.rawTech.colorNoiseReduction {
             seed = Self.chain(seed, value.bitPattern)
         }
+        // M2-3-3 T4 (KD-4 膨胀字段规则): the decode-override legs. Optional
+        // fields fold ONLY when set — pre-M2-3-3 documents (nil) hash
+        // byte-identically to before.
+        if let value = image.rawTech.sharpnessAmount {
+            seed = Self.chain(seed, value.bitPattern)
+        }
+        if let value = image.rawTech.boost {
+            seed = Self.chain(seed, value.bitPattern)
+        }
         return seed
     }
 

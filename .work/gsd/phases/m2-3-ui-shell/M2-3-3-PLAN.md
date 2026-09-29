@@ -22,7 +22,9 @@ files_modified:
   - App/Sources/Lightamer/State/PipeCoordinator.swift              # 修改（仅增量缝）：PREVIEW 输出纹理示波器采样 tap（节流 + L031 唯一队列路由点）
   - App/Sources/Lightamer/UI/SettingsView.swift                    # 修改：Settings scene 重组为 Alcedo 式左列表右内容导航（visibleCatalogSectionMarkers 门控逻辑零改动）
   - App/Sources/Lightamer/Settings/AppPreferences.swift            # 新建：Default Behavior（蒙版三选）/Cache/Keyboard 偏好键宿主（UserDefaults 惯例，ImportDefaults 先例同型）
-  - LightamerCore/Sources/Decode/RAWDecoder.swift                  # 修改（**显式红线例外，唯一 Core 文件，仅增量**）：decode 增量 technicalOverrides 参数（默认值 = 零行为变化）——overrides 先于 rawTech readback 写入 filter
+  - LightamerCore/Sources/Decode/RAWDecoder.swift                  # 修改（**显式红线例外，唯一 Core 生产触点，仅增量**）：decode 增量 technicalOverrides 参数（默认值 = 零行为变化）——overrides 先于 rawTech readback 写入 filter
+  - LightamerCore/Sources/Decode/RAWTechnicalParams.swift          # 修改（**膨胀字段规则已触发，2026-09-29 T4 执行批申报**）：sharpness/boost 两腿 readback 无承载字段 → 增 Optional `sharpnessAmount`/`boost`（encodeIfPresent，nil = JSON 字节形不变）
+  - LightamerCore/Sources/Pipe/History/HistoryHash.swift           # 修改（**膨胀字段规则连带**）：decodeParamsHash 增两腿 Optional fold（nil 不折，既有文档 hash 逐字节不变）
   - LightamerIOP/Sources/Common/ScopeReduce.swift                  # 新建：示波器归约宿主（HistogramReduce 同族扩展——bin/波形两 pass + 节流策略）
   - LightamerIOP/Sources/Common/ScopeReduceKernels.metal           # 新建：直方图 bin kernel（256-bin × RGB + luma）+ 波形 kernel（逐列下采样散点写小纹理）
   - .work/gsd/phases/m2-3-ui-shell/M2-3-TAB-MATRIX.md              # 新建：OQ-4 七页签归页映射表落盘（与 EditorTabRoutingTable 同批互校，M2-1 MATRIX 同格式；Display Transform 行按 checker E1 勘误 = Vignette + DRT 占位节，AgX 失挂）
@@ -225,8 +227,11 @@ enum EditorTabRoutingTable {
    M2-3-1/M2-3-2 终值**；全套 0 fail；在案 flake 归因惯例。
 4. 边界纪律：每任务检查 `.work/config.toml [gsd]`。
 5. 架构红线（本 plan 申报例外全表）：`LightamerCore/` 仅 `RAWDecoder.swift` 一个文件
-   且仅增量（默认参数零行为变化）；若 KD-4 膨胀字段规则触发，`RAWTechnicalParams.swift`
-   + HistoryHash 侧同批追加并**当场更新本 front-matter 与纪律 5**（DECISIONS 记录）；
+   且仅增量（默认参数零行为变化）；**KD-4 膨胀字段规则已触发（2026-09-29 T4 执行批）**：
+   boost/sharpness readback 无承载字段 → `RAWTechnicalParams.swift`（Optional
+   `sharpnessAmount`/`boost`，encodeIfPresent nil 零漂移）+ `HistoryHash.swift`
+   （decodeParamsHash 两腿 Optional fold）已同批追加并当场更新本 front-matter
+   （DECISIONS 记录全案）；
    `Inspector/` 33 面板文件 + `InspectorView.swift` + `InspectorRowView.swift` +
    `LightamerIOP` 既有文件（HistogramReduce 例外为**只读参照**，禁改）零 diff；新增
    Metal 文件仅 `ScopeReduceKernels.metal`；legacyBody 树资产零 diff；新 UI 全量

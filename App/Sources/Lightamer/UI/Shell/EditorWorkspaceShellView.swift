@@ -169,6 +169,7 @@ struct EditorWorkspaceShellView: View {
             url: url,
             decoder: workspace.editorDecoder,
             metal: pipeCoordinator.detectionMetal(),
-            logger: EditorState.decodeLogger)
+            logger: EditorState.decodeLogger,
+            overrides: workspace.rawDecodeOverrides(for: url))
     }
 }

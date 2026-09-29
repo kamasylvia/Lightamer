@@ -18,6 +18,84 @@ import UniformTypeIdentifiers
 /// Errors are always typed `AppError` cases (D-25) — raw `CIFilter` failures
 /// never escape. The decode is wrapped in `os.signpost` intervals (D-31) and
 /// honours `Task.cancel()` (D-34) at every await/checkpoint boundary.
+// M2-3-3 T4 (KD-4) — the RAW decode technical overrides (the RAW Decode
+// panel's session-level face). Every leg is Optional-nil = identity: the
+// DEFAULT value reproduces the pre-M2-3-3 decode behavior exactly (the
+// compile-level guarantee: every existing `decode(url:)` call site keeps
+// compiling and behaving identically).
+//
+// Write path (KD-4: overrides 先于 rawTech readback 写入 filter):
+//   • luminance/chroma/sharpness/boost → the modern CIRAWFilter properties
+//     (`luminanceNoiseReductionAmount` / `colorNoiseReductionAmount` /
+//     `sharpnessAmount` / `boostAmount`), values clamped to 0...1.
+//   • the AGGREGATE noise-reduction leg has no modern property — it rides
+//     the legacy options key (`kCIInputNoiseReductionAmountKey`) at filter
+//     INIT (the only carrier CIRAW exposes for it; DECISIONS D9 records the
+//     deprecated-key caveat).
+// Readback/cache-drift path: a SET leg lands in `RAWTechnicalParams` (the
+// L013 field-explicit HistoryHash folds) — the pipe cache key drifts; a nil
+// leg never backfills (per-image CIRAW defaults would flip every existing
+// decodeParamsHash — the identity zero-drift contract).
+public struct RAWTechnicalOverrides: Equatable, Sendable {
+
+    /// The decoder-version request (the Alcedo「demosaic」entry's CIRAW
+    /// reality: the RAW 8/9 decoder-version choice).
+    public enum DecoderRequest: String, Equatable, Sendable {
+        case automatic
+        case forceV8
+        case forceV9
+    }
+
+    /// The aggregate NR amount (legacy CIRAW options key, 0...1).
+    public var noiseReductionAmount: Double?
+    /// Luminance NR (0...1).
+    public var luminanceNoiseReduction: Double?
+    /// Chroma NR (0...1).
+    public var colorNoiseReduction: Double?
+    /// Decode sharpness (0...1).
+    public var sharpness: Double?
+    /// Decode boost (0...1).
+    public var boost: Double?
+    /// The decoder-version request.
+    public var decoderVersion: DecoderRequest
+
+    public init(
+        noiseReductionAmount: Double? = nil,
+        luminanceNoiseReduction: Double? = nil,
+        colorNoiseReduction: Double? = nil,
+        sharpness: Double? = nil,
+        boost: Double? = nil,
+        decoderVersion: DecoderRequest = .automatic
+    ) {
+        self.noiseReductionAmount = noiseReductionAmount
+        self.luminanceNoiseReduction = luminanceNoiseReduction
+        self.colorNoiseReduction = colorNoiseReduction
+        self.sharpness = sharpness
+        self.boost = boost
+        self.decoderVersion = decoderVersion
+    }
+
+    /// The no-op request (every leg nil / automatic).
+    public static let identity = RAWTechnicalOverrides()
+
+    public var isIdentity: Bool { self == .identity }
+
+    /// The clamped slider face (0...1 — the panel's bounds; the decoder
+    /// clamps again at the write so programmatic callers cannot escape).
+    public func clamped() -> RAWTechnicalOverrides {
+        func clamp(_ value: Double?) -> Double? {
+            value.map { min(max($0, 0), 1) }
+        }
+        return RAWTechnicalOverrides(
+            noiseReductionAmount: clamp(noiseReductionAmount),
+            luminanceNoiseReduction: clamp(luminanceNoiseReduction),
+            colorNoiseReduction: clamp(colorNoiseReduction),
+            sharpness: clamp(sharpness),
+            boost: clamp(boost),
+            decoderVersion: decoderVersion)
+    }
+}
+
 public actor RAWDecoder {
 
     /// Signpost subsystem shared with the app-side decode interval (D-31).
@@ -33,8 +111,13 @@ public actor RAWDecoder {
     /// Decode any supported image: RAW UTIs route through `CIRAWFilter`,
     /// raster UTIs (JPEG/HEIC/PNG/WebP/TIFF/PSD-flat, RAW-04) through
     /// `CGImageSource`. Callers see one entry point; the branching is
-    /// internal.
-    public func decode(_ url: URL) async throws -> DecodedImage {
+    /// internal. The M2-3-3 T4 second parameter carries the RAW Decode
+    /// panel's technical overrides — DEFAULT = identity, i.e. ZERO behavior
+    /// change for every pre-existing call site (the declared KD-4
+    /// incremental seam, the ONE Core touch of plan M2-3-3).
+    public func decode(
+        _ url: URL, technicalOverrides: RAWTechnicalOverrides = .identity
+    ) async throws -> DecodedImage {
         let interval = Self.signposter.beginInterval(
             "decode", id: Self.signposter.makeSignpostID()
         )
@@ -51,7 +134,7 @@ public actor RAWDecoder {
 
         let uti = Self.utiForFile(at: url)
         if Self.isRAWUTI(uti) {
-            return try await decodeRAW(url)
+            return try await decodeRAW(url, overrides: technicalOverrides)
         } else {
             return try decodeRaster(url, uti: uti)
         }
@@ -65,7 +148,9 @@ public actor RAWDecoder {
     /// 2. under `#available(macOS 27, *)` request `.version9` when the file
     ///    reports it, else silently fall back to `.version8`,
     /// 3. read the three D-23 metadata classes off the real filter.
-    internal func decodeRAW(_ url: URL) async throws -> DecodedImage {
+    internal func decodeRAW(
+        _ url: URL, overrides: RAWTechnicalOverrides
+    ) async throws -> DecodedImage {
         try Task.checkCancellation()
 
         return try await withTaskCancellationHandler {
@@ -73,18 +158,50 @@ public actor RAWDecoder {
             let supported = try await supportedDecoderVersions(for: url)
             guard !Task.isCancelled else { throw AppError.cancelled }
 
-            var requested = CIRAWDecoderVersion.version8
+            // M2-3-3 T4 (KD-4): the version request resolves against the
+            // probe — a user-forced v9 on a camera without v9 support
+            // degrades TYPED (the readback records the actually-used
+            // version; the panel surfaces the downgrade hint from it).
+            let requested = Self.resolveDecoderVersion(
+                request: overrides.decoderVersion,
+                supported: supported,
+                isRAW9Available: Self.isRAW9Available)
             var used = DecodedImage.DecoderVersion.v8
-            if #available(macOS 27, *), supported.contains(CIRAWDecoderVersion.version9) {
-                requested = CIRAWDecoderVersion.version9
+            if requested == CIRAWDecoderVersion.version9 {
                 used = .v9
             }
 
             // ── the real filter ──
-            guard let filter = CIRAWFilter(imageURL: url) else {
+            // The aggregate NR leg rides the legacy options key at INIT
+            // (no modern property exists for it — DECISIONS D9); the empty
+            // dictionary is byte-equivalent to the pre-M2-3-3 no-options
+            // init. (The key's modern Swift spelling is
+            // `CIRAWFilterOption.noiseReductionAmount` — the raw C-string
+            // constant was obsoleted in the macOS 27 SDK apinotes.)
+            let clamped = overrides.clamped()
+            var options: [CIRAWFilterOption: Any] = [:]
+            if let amount = clamped.noiseReductionAmount {
+                options[.noiseReductionAmount] = amount
+            }
+            guard let filter = CIRAWFilter(imageURL: url, options: options) else {
                 throw AppError.decodeFailed("CIRAWFilter could not initialize for \(url.lastPathComponent)")
             }
             filter.decoderVersion = requested
+            // M2-3-3 T4 (KD-4): the remaining override legs write the
+            // modern filter properties BEFORE the readback (the先写后读
+            // contract; unsupported combos are CIRAW-ignored).
+            if let value = clamped.luminanceNoiseReduction {
+                filter.luminanceNoiseReductionAmount = Float(value)
+            }
+            if let value = clamped.colorNoiseReduction {
+                filter.colorNoiseReductionAmount = Float(value)
+            }
+            if let value = clamped.sharpness {
+                filter.sharpnessAmount = Float(value)
+            }
+            if let value = clamped.boost {
+                filter.boostAmount = Float(value)
+            }
             // kCIInputEnableVendorLensCorrectionKey equivalent stays at its
             // default `true` (embedded DNG OpcodeList / vendor opcodes) —
             // manual lens iop is Phase 4.
@@ -97,7 +214,8 @@ public actor RAWDecoder {
             guard !Task.isCancelled else { throw AppError.cancelled }
 
             // ── the three metadata classes (D-23) ──
-            let tech = Self.rawTechnicalParams(from: filter, url: url)
+            var tech = Self.rawTechnicalParams(from: filter, url: url)
+            tech.applyOverrides(clamped)
             let capture = try Self.readCaptureMetadata(url: url)
             let skyMatte = filter.semanticSegmentationSkyMatte // nil unless iPhone ProRAW (L004)
 
@@ -114,6 +232,32 @@ public actor RAWDecoder {
             // The ObjC CIRAW decode cannot be interrupted synchronously; the
             // `Task.isCancelled` checkpoints above convert the cancelled
             // state into `AppError.cancelled` at the next boundary (D-34).
+        }
+    }
+
+    /// RAW 9 opt-in availability (D-22): macOS 27+ carries the v9 decoder.
+    private static var isRAW9Available: Bool {
+        if #available(macOS 27, *) { return true }
+        return false
+    }
+
+    /// The M2-3-3 T4 version resolution (the pure face the tests pin):
+    /// automatic = v9 when the OS offers it AND the file supports it, v8
+    /// otherwise; forceV8 = v8 always; forceV9 = v9 only when BOTH the OS
+    /// and the file support it (else the typed v8 downgrade).
+    public static func resolveDecoderVersion(
+        request: RAWTechnicalOverrides.DecoderRequest,
+        supported: [CIRAWDecoderVersion],
+        isRAW9Available: Bool
+    ) -> CIRAWDecoderVersion {
+        let fileHasV9 = supported.contains(CIRAWDecoderVersion.version9)
+        switch request {
+        case .forceV8:
+            return .version8
+        case .forceV9:
+            return (isRAW9Available && fileHasV9) ? .version9 : .version8
+        case .automatic:
+            return (isRAW9Available && fileHasV9) ? .version9 : .version8
         }
     }
 

@@ -175,6 +175,33 @@ final class WorkspaceModel {
         return editorGrid?.rows.first { $0.id == id }
     }
 
+    // MARK: - RAW decode overrides carrier (Plan M2-3-3 T4, KD-4)
+
+    /// The session-level RAW decode overrides, keyed by the source file
+    /// path. Session-scoped by contract: a switched-away image keeps its
+    /// values for the session; closing the editor drops them (sidecar
+    /// persistence = M2-4's node-model schema, the D3 boundary).
+    private(set) var rawDecodeOverrides: [String: RAWTechnicalOverrides] = [:]
+
+    /// The read face (identity when the image has no session overrides).
+    func rawDecodeOverrides(for url: URL) -> RAWTechnicalOverrides {
+        rawDecodeOverrides[url.path] ?? .identity
+    }
+
+    /// The write face (the RawDecodePanelView routes through here; the
+    /// caller then re-issues the `EditorState.load` request chain).
+    func setRawDecodeOverrides(_ overrides: RAWTechnicalOverrides, for url: URL) {
+        rawDecodeOverrides[url.path] = overrides.isIdentity ? nil : overrides
+        if rawDecodeOverrides[url.path] == nil {
+            rawDecodeOverrides.removeValue(forKey: url.path)
+        }
+    }
+
+    /// The editor-close drop face (KD-4: 关图丢弃).
+    func dropSessionOverrides() {
+        rawDecodeOverrides.removeAll()
+    }
+
 
     // MARK: - Phase transitions (the D2 semantics)
 
@@ -196,9 +223,11 @@ final class WorkspaceModel {
     }
 
     /// Close the editor back to the library, restoring the snapshotted face
-    /// field-for-field (the D2 red line).
+    /// field-for-field (the D2 red line). The session RAW-decode overrides
+    /// drop with the editor (KD-4: 关图丢弃).
     func closeEditor() {
         libraryState = preservedLibraryState
+        dropSessionOverrides()
         phase = .library
     }
 

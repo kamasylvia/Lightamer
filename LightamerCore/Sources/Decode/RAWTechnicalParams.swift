@@ -7,7 +7,7 @@ import CoreImage
 /// `public` + `Codable` + `Sendable`: the InspectorState display contract and
 /// the Phase 2 sidecar schema. `neutralChromaticity` is a `CIVector` (xy white
 /// point, 0...1); `CIVector` is not `Codable`, so it round-trips as `[x, y]`.
-public struct RAWTechnicalParams: Codable, Sendable {
+public struct RAWTechnicalParams: Codable, Equatable, Sendable {
 
     /// Sensor black level, normalized to the decoded 0...1 domain.
     /// Sourced from the ImageIO DNG dictionary when present; `0.0` fallback
@@ -36,6 +36,21 @@ public struct RAWTechnicalParams: Codable, Sendable {
     /// Chroma noise reduction (RAW 8 fallback value; no-op under RAW 9).
     public var colorNoiseReduction: Double?
 
+    // MARK: M2-3-3 T4 (KD-4 膨胀字段规则, plan-scoped exception) — the readback
+    // carriers for the USER override legs that have no default readback
+    // today. Optional + encodeIfPresent: a nil field keeps the encoded JSON
+    // byte-shape AND the HistoryHash folds identical to the pre-M2-3-3
+    // documents (the identity-override zero-drift contract). Populated ONLY
+    // when the corresponding RAWTechnicalOverrides leg is set — per-image
+    // CIRAW defaults never backfill (they would flip every existing
+    // decodeParamsHash).
+
+    /// The user's decode sharpness override (`sharpnessAmount`, 0...1).
+    public var sharpnessAmount: Double?
+
+    /// The user's decode boost override (`boostAmount`, 0...1).
+    public var boost: Double?
+
     public init(
         blackLevel: Double = 0.0,
         whiteLevel: Double = 1.0,
@@ -43,7 +58,9 @@ public struct RAWTechnicalParams: Codable, Sendable {
         neutralChromaticity: CIVector = CIVector(x: 0.0, y: 0.0),
         noiseReductionAmount: Double = 0.0,
         luminanceNoiseReduction: Double? = nil,
-        colorNoiseReduction: Double? = nil
+        colorNoiseReduction: Double? = nil,
+        sharpnessAmount: Double? = nil,
+        boost: Double? = nil
     ) {
         self.blackLevel = blackLevel
         self.whiteLevel = whiteLevel
@@ -52,6 +69,8 @@ public struct RAWTechnicalParams: Codable, Sendable {
         self.noiseReductionAmount = noiseReductionAmount
         self.luminanceNoiseReduction = luminanceNoiseReduction
         self.colorNoiseReduction = colorNoiseReduction
+        self.sharpnessAmount = sharpnessAmount
+        self.boost = boost
     }
 
     // MARK: Codable — CIVector is not Codable; encode as [x, y].
@@ -60,6 +79,7 @@ public struct RAWTechnicalParams: Codable, Sendable {
         case blackLevel, whiteLevel, baselineExposure
         case neutralChromaticity
         case noiseReductionAmount, luminanceNoiseReduction, colorNoiseReduction
+        case sharpnessAmount, boost
     }
 
     public init(from decoder: any Decoder) throws {
@@ -72,6 +92,8 @@ public struct RAWTechnicalParams: Codable, Sendable {
         noiseReductionAmount = try c.decode(Double.self, forKey: .noiseReductionAmount)
         luminanceNoiseReduction = try c.decodeIfPresent(Double.self, forKey: .luminanceNoiseReduction)
         colorNoiseReduction = try c.decodeIfPresent(Double.self, forKey: .colorNoiseReduction)
+        sharpnessAmount = try c.decodeIfPresent(Double.self, forKey: .sharpnessAmount)
+        boost = try c.decodeIfPresent(Double.self, forKey: .boost)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -83,5 +105,32 @@ public struct RAWTechnicalParams: Codable, Sendable {
         try c.encode(noiseReductionAmount, forKey: .noiseReductionAmount)
         try c.encodeIfPresent(luminanceNoiseReduction, forKey: .luminanceNoiseReduction)
         try c.encodeIfPresent(colorNoiseReduction, forKey: .colorNoiseReduction)
+        try c.encodeIfPresent(sharpnessAmount, forKey: .sharpnessAmount)
+        try c.encodeIfPresent(boost, forKey: .boost)
+    }
+
+    // MARK: M2-3-3 T4 (KD-4) — the override readback
+
+    /// Land the USER-SET override legs into the technical record (the cache
+    /// key drift carrier). NIL legs never write — per-image CIRAW defaults
+    /// must not backfill (the identity zero-drift contract: an identity
+    /// request leaves this record, its JSON and its HistoryHash folds
+    /// byte-identical to the pre-M2-3-3 decode).
+    public mutating func applyOverrides(_ overrides: RAWTechnicalOverrides) {
+        if let value = overrides.noiseReductionAmount {
+            noiseReductionAmount = value
+        }
+        if let value = overrides.luminanceNoiseReduction {
+            luminanceNoiseReduction = value
+        }
+        if let value = overrides.colorNoiseReduction {
+            colorNoiseReduction = value
+        }
+        if let value = overrides.sharpness {
+            sharpnessAmount = value
+        }
+        if let value = overrides.boost {
+            boost = value
+        }
     }
 }
