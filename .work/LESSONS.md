@@ -333,3 +333,10 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：XCTAssert* 的表达式参数是 non-async autoclosure；测试类实例非 Sendable，闭包只要引用 `self.xxx` helper 即被编译器拒收。
 - **对策**：①actor 调用先 `let x = await store.face()` 再断言；②typed 错误断言写 `assertLibraryError(_:from:)` async 辅助（do/catch + Equatable 精确比，XCTAssertThrowsError 非 async 不可用）；③传给 actor `sending` 闭包零实例捕获——测试 helper 提 static、调用处类名限定（`LibraryStoreTests.insertImage`）。
 - **适用**：一切 actor-based store 的单测（M2-2-2/2-3 的 ImportService/LibraryQueries 测试同型）。
+
+## L039: macOS firmlink 下路径拼写三分——列目录一律解析拼写而 URL 保留原拼写，相对路径禁 prefix-cut（2026-09-29，M2-2-2 T3）
+- **背景**：ImportService 扫描 temp 目录（`/var/folders/...`）做「源子树相对路径」裁剪；同语义第三处是 ImageLinker kind1 的卷根相对拼写（statfs 挂载点 `/System/Volumes/Data`）。
+- **现象**：T3 首轮 6/9 测试失败——mediaRelativePath 错位成 `Card/n1/Card/DSC00001.ARW` 形态（裁剪量与真实前缀差 8 字符 = len("/private")）。
+- **根因（三重实测）**：①`FileManager.enumerator`/`contentsOfDirectory` 产出的子路径**一律**解析到 `/private/var/...`，与调用方 URL 的 `/var/...` 拼写不一致；②`URL.resolvingSymlinksInPath()` **不解析 firmlink**（/var 原样返回——firmlink 非 symlink）；③挂载点内拼写 `/System/Volumes/Data/var/...` 不可达（探针 stat 失败）。三者叠加 = 任何基于绝对路径字符串前缀裁剪的相对化都构造性不可靠。
+- **对策**：①相对路径**逐层 `lastPathComponent` 积累**（递归下降时拼相对分量，拼写无关）——ImportService 扫描器与测试的 mediaFiles 同款；②「同一文件」断言用 `URLResourceKey.fileIdentifierKey`（同卷 inode 稳定）而非 URL 相等；③涉及卷根相对存储时记录双拼写候选（挂载点前缀优先、`/` 根拼写回退——resolve 双试）。
+- **适用**：一切「目录扫描 + 相对路径落库」面（导入、导出、watcher、M2-3 项目包 Media 树列举）；以及任何拿 `/var|/tmp|/Users` 下路径做卷根相对化的代码（根卷 firmlink 三拼写陷阱）。
