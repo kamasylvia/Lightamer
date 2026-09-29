@@ -340,3 +340,10 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因（三重实测）**：①`FileManager.enumerator`/`contentsOfDirectory` 产出的子路径**一律**解析到 `/private/var/...`，与调用方 URL 的 `/var/...` 拼写不一致；②`URL.resolvingSymlinksInPath()` **不解析 firmlink**（/var 原样返回——firmlink 非 symlink）；③挂载点内拼写 `/System/Volumes/Data/var/...` 不可达（探针 stat 失败）。三者叠加 = 任何基于绝对路径字符串前缀裁剪的相对化都构造性不可靠。
 - **对策**：①相对路径**逐层 `lastPathComponent` 积累**（递归下降时拼相对分量，拼写无关）——ImportService 扫描器与测试的 mediaFiles 同款；②「同一文件」断言用 `URLResourceKey.fileIdentifierKey`（同卷 inode 稳定）而非 URL 相等；③涉及卷根相对存储时记录双拼写候选（挂载点前缀优先、`/` 根拼写回退——resolve 双试）。
 - **适用**：一切「目录扫描 + 相对路径落库」面（导入、导出、watcher、M2-3 项目包 Media 树列举）；以及任何拿 `/var|/tmp|/Users` 下路径做卷根相对化的代码（根卷 firmlink 三拼写陷阱）。
+
+## L040: git commit -m 双引号串内反引号 = 命令替换——多段 commit message 一律 -F 文件（2026-09-29，M2-2-4 T1）
+- **背景**：M2-2-4 T1 首次提交用 `git commit -m "...\`isLegacyLibraryRequested(environment:)\`..."`（body 内含 Swift 签名反引号）。
+- **现象**：zsh 报 `parse error near 'legacyLibraryEnabled...'`，提交静默未落（文件仍 staged，无半成品提交）。
+- **根因**：双引号串内反引号触发命令替换（command substitution），zsh 先求值再传参——与引号内 `$var` 同族；commit message 习惯性用 markdown 反引号包代码标识符，撞 shell 元字符。
+- **对策**：①多段/含代码标识符的 commit message **一律写临时文件 + `git commit -F <file>`**（本会话 T1 起执行）；②失败后先 `git log --oneline -1` 核对未落再重提交（staged 态无害，防重复 add）；③或 heredoc 单引号定界（`<< 'EOF'`）写文件，同样免疫元字符。
+- **适用**：一切 shell 内联多行文本（commit/tag/release note）；agent 执行器的 -m 长串场景尤甚。

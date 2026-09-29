@@ -345,7 +345,7 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 ---
 
-## Milestone 2（项目重定义：Alcedo 对标——ROADMAP §Milestone 2）—— 执行中（M2-0 ✅ 测绘；M2-1 ✅ 执行收口）
+## Milestone 2（项目重定义：Alcedo 对标——ROADMAP §Milestone 2）—— 执行中（M2-0 ✅ 测绘；M2-1 ✅ 执行收口；M2-2 ✅ 执行收口待验收）
 
 - [x] **M2-0**（测绘落盘 + 细化）—— ✅（2026-09-27；`research/ALCEDO-FEATURE-MAP.md` 301 行 + ROADMAP M2 表细化 + REQUIREMENTS 新 V1 族）
 - [x] **M2-1**（dt 面 feature-flag 禁用——39 iop 审计矩阵落地 D1/D2/D6 签核裁决）—— ✅ 执行完成（2026-09-28 ZCode executor subagent worker；4 commits：T1 `f5bcfa2` 禁用缝正本+round-trip 红线钉 / T2 `561ca59` 组装点接线+panel 门控 / T3 `f2a3618` MCP 面+catalog 过滤 / T4 收口本提交；未 push）。**战果**：`defaultFaceDisabledOpNames` 恰 6 项（D1 filmic/sigmoid/agx + D2 denoiseprofile/nlmeans/bilateral，opName 常量构建）+ `isFullFaceRequested`（`LIGHTAMER_FULL_IOP_FACE=1` opt-in，KD-3）+ populate/seed/panels/MCP 四消费面同缝收窄（KD-1 不注册语义）；旧 sidecar round-trip 红线字节级钉死（degradedForUnknownOps/degradedLayerStack 既有机制：params verbatim + enabled=false + toast，数据零丢失）；工具注册面 19 不变（M2DIS-05 不删工具）、`list_iops` 默认面 18→15。**回归**：基线 1881/11skip/0fail → 终轮 **1889/11skip/0fail**（+8 = DefaultFaceTests；695.7s）。**偏差 2 处**（face 注入式接线 / McpHostTests 期望元组同源 face——均实测归因，KD-2 红线驱动，详见 `phases/m2-1-dt-disable/M2-1-DECISIONS.md`）。矩阵 T4 复核签注在案（逐行一致，无 verdict 改动）。
@@ -354,6 +354,13 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 - [x] **M2DIS-03** ✅ 禁用项隐除半边（M2-1：面板行/层 add-module 菜单/预设 apply 种子/批量 apply 种子/MCP schema 五面收窄钉死；**七页签 IA 收纳留 M2-3**）
 - [ ] **M2DIS-04**（M2-3/M2-5：CIRAW NR 参数族 RAW Decode 页签暴露——M2-1 仅保证禁用与 decode 管线零耦合）
 - [x] **M2DIS-05** ✅（M2-1：MCP 默认面收窄——禁用模块 apply_params = typed unknownOp、list_iops 不列；预设面随种子收窄；工具不删）
+- [x] **M2LIB-01** ✅（M2-2-1：`.lalb` 单 SQLite 项目文件包 + `project_meta` manifest + user_version 三分 dispatch + WAL/checkpoint 纪律 + `sqlite3_backup` 唯一钦定备份路径 + 包目录常量；锚 `4491c7b`/`a50f67f`；REQUIREMENTS 已 Delivered 翻账 `c0a9e84`）
+- [x] **M2LIB-02** ✅（M2-2-1：albums 单表三型相册骨架（album/folder/filter，引用计数 ref_count 同事务联动）+ `FilterPredicateGroup` Codable JSON 谓词；锚 `5bf0eeb`；REQUIREMENTS 已 Delivered 翻账）
+- [x] **M2LIB-03** ✅（M2-2-2：`ImportFilter.select` 单一纯函数门——最后后缀精确白名单 + 五类 sidecar 硬编码排除（配置无法放行，机检）+ 隐藏文件拒绝 + 合成 C1 Session fixture 导入数=RAW 数；可配宿主 `ImportDefaults`；锚 `b77c677`/`c6eee61`；真实 C1 目录复跑 = Manual-Only 挂 M2-3）
+- [x] **M2LIB-04** ✅（M2-2-1 索引层 + M2-2-3 查询面：28 列物化 + `ExifFold` 双向折叠词表 + FTS5 external-content / `ExifSearchParser` typed 三段计划 + `LibraryQueries` 混查三腿 AND；**OQ-9 硬门 PASS：Release 热 p95 最差 15.66ms @ 2 万张**；锚 `c1e8a90`/`dfb4746`/`b9792ea`/`811122f`）
+- [x] **M2LIB-05** ✅（M2-2-3 数据面（OQ-11 切分线）：overviewCount/四分组/Activity/dayFilter/typed 过滤态描述/keyset 分页 + SmartAlbumStore.evaluate `.library` 缝闭环；壳半边挂 M2-3；锚 `b9792ea`）
+- [x] **M2LIB-06** ✅ 执行完成（M2-2-4，2026-09-29 ZCode executor subagent worker；2 代码提交 `207bd25`/`c09d258` + 收口本提交；未 push）。**战果**：`LibraryLegacyGate`（`LIGHTAMER_LEGACY_LIBRARY=1` env 回切口，Settings 无开关）+ Sidebar modeSection/Sessions 族/Catalogs 族单条件收窄 + Settings Catalogs 双节同隐 + ContentView 默认启动面翻转（`ProjectWorkspaceFace` 项目工作区最小容器；既有树 verbatim 迁 `legacyBody`，env=1 字节同构）。**代码零删除**（KD-4 三层钉：字面字典三分 + 硬编码 `Set<String>` 冻结快照对偶 + 既有模型测试零 diff 全绿）；`LightamerCore/` 零改动。**回归**：基线 2038/13skip/0fail → 终轮 **2049/13skip/0fail**（+11 = LibraryLegacyGateTests；717.0s）。**偏差 6 条**（纯函数镜像载体 / var 默认参数 / 菜单未门控登记 M2-3 / Sidebar 空 List / marker 粒度声明 / verbatim 迁移——`phases/m2-2-library-project/M2-2-4-DECISIONS.md`）。REQUIREMENTS 翻账留验收批。
+- [x] **M2LIB-07** ✅（M2-2-2：三方式导入（move rename-first/cross-volume verify-then-remove 红线；copy verify+skip+避让；link 卷相对+UUID）+ 询问对话框（默认复制+记住选择）+ sidecar 随迁⑤一致；锚 `b2da780`/`c6eee61`/`b30d8e5`）
 
 ---
 

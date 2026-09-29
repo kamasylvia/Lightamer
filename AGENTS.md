@@ -280,6 +280,13 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **clearCaches 分层**：`PipeCache.enforceBudget(keeping:)` 纯策略执行器（阈值可注入）+ `MetalContext.clearCICaches()`（CI/RawCamera 内部态）+ PSO 缓存永不清；触发 = load 入口 + 60s Task sweep（Timer 只做调用者）。>500MB 释放才 toast（D-26）。
 - **GPU 读回纪律（L014）**：`getBytes` 不等 in-flight encoder——测试/探针读回前必须 fence（`drain()` 模式）；CI 腿（convertTexture）读纹理前已有 fence 固化在源。
 - **目录惯例**：`LightamerCore/Sources/{Pipe,Sidecar,Metal,Decode,Foundation,Layers}`；sidecar 读写器放 Core（App 不可 import 进单测——02-05/02-06 连续以"Core 级孪生 + 构建走查 + 进程内探针"验证 App 层）。
+
+### M2-2 架构增量（2026-09-29，M2-2-1..4 执行批）
+- **Library 目录惯例**：`LightamerCore/Sources/Library/`（LibrarySchema / ProjectFileStore / LibraryStore / ImportFilter / ImageLinker / ImportService / ExifFold / ExifSearchIndexer / ExifSearchParser / LibraryQueries），Core 级可单测（sidecar 读写器放 Core 原则推广）；App 侧 `App/Sources/Lightamer/Library/`（LibraryProjectController / LibraryPanels / LibraryWelcomeView / ImportModeDialog / ImportProgressView / LibraryPreferences）。
+- **`.lalb` 包形态**：单个 SQLite 文件（`<stem>.lalb`）+ `project_meta` 表 manifest + `PRAGMA user_version` 双写；journal = WAL + synchronous=NORMAL + 写批节流 checkpoint（≥2s 或 ≥64 批 OR 语义）+ close 强制 TRUNCATE（close 后 `-wal`==0）；**备份唯一钦定路径 = `ProjectFileStore.backup(to:)`（sqlite3_backup 在线一致性拷）**，裸拷主文件在 WAL 未 checkpoint 时丢尾部事务；移动 = 整项目目录搬移（`Media/` 随行、`.<stem>.lathumbs/` 派生物可弃）；mini-git 四表 / 语义 AI 表 = 注释占位（M2-8/M2-10 激活）。
+- **真身边界（OQ-3）**：`.lra` 恒编辑态真相；项目库 = 相册组织 + 检索投影 + 引用（`Image.image_path` 引用式 PathKind 0 项目相对 / 1 卷相对+UUID / 2 绝对+UUID）；`exif_search_*` / 缩略图缓存（`.<stem>.lathumbs/`）全部可重建派生物；一切入包 UInt64 哈希 = DECIMAL TEXT（L013 延续）。
+- **剥离门（M2LIB-06/OQ-8）**：`LibraryLegacyGate.isLegacyLibraryRequested(environment:)` = 唯一 env 读点（纯函数可注入）；**`LIGHTAMER_LEGACY_LIBRARY=1`** = QA/回归回切通道（回切后 Sidebar/Settings/ContentView 与 M2-2 前逐字节同构）；默认 false = Sessions/Catalogs 双区 + 模式切换器 + Settings Catalogs 双节全隐，启动面 = 项目工作区最小容器（`ProjectWorkspaceFace`；无项目 → P2 Welcome sheet）；**Settings 页无开关**（防双库并存心智）；求值只在 LightamerApp 组装点一次，视图 body 零 ProcessInfo（M2-1 D-EXEC-1 注入式同款）。File 菜单 Session 项暂未门控（inert 死路由；菜单 IA 收纳归 M2-3）。
+- **UserDefaults 键登记**：`library.import.mode` / `library.import.rememberMode` / `library.import.rawExtensions`（ImportDefaults，全量替换语义 + reset）+ `library.recentProjects`（LibraryProjectController，dedupe-move-front 上限 10 + 死路径清扫）。
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
