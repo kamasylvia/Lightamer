@@ -29,7 +29,7 @@
 
 ### UI 壳 (UIW)
 - [ ] **M2UIW-01**: 双工作区路由（Library/Editor）+ 顶栏 + 暗色玻璃主题 tokens（Feature-map §1.1/1.2/1.3 布局语义；SwiftUI 实现非 QML 复刻像素级）
-- [ ] **M2UIW-02**: 编辑器三段布局——左工具轨（History/Versions/Nodes 图标列+展开推挤）、中视口（FIT/百分比读出/裁剪角度徽标/双级 busy/手势缩放平移）+ 底部胶片条（与图库同集合过滤）、右示波器 + 调整栈
+- [ ] **M2UIW-02**: 编辑器三段布局——左工具轨（History/Versions/Nodes 图标列+展开推挤）、中视口（FIT/百分比读出/裁剪角度徽标/双级 busy/手势缩放平移）+ **左侧竖向滚动胶片条【2026-09-29 用户裁定，偏离 Alcedo 底部布局】**（与图库同集合过滤）、右示波器 + 调整栈
 - [ ] **M2UIW-03**: 七页签调整栈（Tone/Look/LUT/Display Transform/Geometry/RAW Decode/Mask）+ 节点头（名称+焦距/光圈/快门/ISO）
 - [ ] **M2UIW-04**: 示波器（直方图/波形二选一，GPU 渲染）
 - [ ] **M2UIW-05**: 设置页族——语言/主题、Default Behavior（蒙版绘制三选）、缓存、Local Content Recognition、Advanced Content Analysis、键盘自定义（冲突显示+恢复默认）、关于

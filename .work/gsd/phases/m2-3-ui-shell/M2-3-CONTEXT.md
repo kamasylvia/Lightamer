@@ -167,3 +167,10 @@ Alcedo 九页 = Language/Theme、Default Behavior、Cache、Local Content Recogn
 - 多项目切换器（v1 单窗口单项目，M2-2 OQ-1 已裁）。
 - 触控栏/Stage Manager 适配。
 - Keyboard 设置页的「录制式快捷键捕获」——v1 用固定候选 + 冲突提示即可，录制交互 M2 后期。
+
+
+---
+
+## Ruling（2026-09-29 用户）
+
+D-M2-3-CONTEXT-1..12 = OQ-1..12 **全部按推荐 A 生效**，唯一修订：**胶片条不放底部，放编辑器左侧竖向滚动**（用户偏好，偏离 Alcedo 底部布局——M2UIW-02 同步修订）。OQ-10 的 computer-use 对照以修订后的布局为准（左侧胶片条为本项目标识性差异）。
