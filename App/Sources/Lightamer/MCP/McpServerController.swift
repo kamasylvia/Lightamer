@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import LightamerCore
 import LightamerIOP
@@ -512,6 +513,17 @@ enum McpServerController {
         }
     }
 
+    /// Best-effort stdout flush for the lock fixture. `fsync(2)` is only
+    /// meaningful on regular files — on a pipe (the McpHostTests spawn shape)
+    /// it returns EINVAL and Foundation raises an uncatchable ObjC exception
+    /// (SIGABRT at app startup, observed 2026-09-29). `print` has already
+    /// delivered the bytes; a failed flush must never take the host down.
+    private static func syncStdoutBestEffort() {
+        var st = stat()
+        guard fstat(STDOUT_FILENO, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG else { return }
+        FileHandle.standardOutput.synchronizeFile()
+    }
+
     // MARK: - DEBUG: the two-process lock fixture (T3 tests)
 
     #if DEBUG
@@ -533,10 +545,10 @@ enum McpServerController {
         switch McpEndpointLock.acquire(in: paths) {
         case .success:
             print("LOCKED \(paths.lockURL.path)")
-            FileHandle.standardOutput.synchronizeFile()
+            syncStdoutBestEffort()
         case .failure(let error):
             print("LOCK-FAIL \(error)")
-            FileHandle.standardOutput.synchronizeFile()
+            syncStdoutBestEffort()
             exit(3)
         }
         // Park until stdin EOF (the test harness closes the pipe), then
