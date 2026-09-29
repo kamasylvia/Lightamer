@@ -1,6 +1,12 @@
 # M2-4-0 BUNDLE-MAP — 测试文件 → test bundle 归属正本（规划期生成，T3 复核）
 # 格式: <bundle>	<test-method-count>	<file>；SHARED = 零测试 helper，进所有需要它的 target
 # 总和校验: 6 bundle + SHARED，测试方法总数必须 = 2165（T3 与运行期 Executed 对账）
+# SHARED 注记（checker 回注 2026-09-30, E1）: SHARED 共 3 文件——Fixtures / ParityGate
+#   （规划期既有）+ ChainBuilderHelpers.swift（E1 豁免新增零测试 helper，TerminalTrioTests
+#   makeCommittedDefaultChain + GeometryGoldenTests makeChainWithCropFlip 原样搬移）。
+#   编列: Fixtures → 6 target 全列; ParityGate → 仅 IOP; ChainBuilderHelpers → IOP/LAYERS/
+#   LIB/EXPORT/APP 最小列（SESS 无调用者）。测试方法对账口径不变: 231 域文件合计 = 2165,
+#   SHARED 3 文件各 0 测试（豁免只搬非测试方法行, 测试方法零增量）。上方 233 行归属不动。
 APP	10	McpLauncherTests.swift
 APP	11	WorkspaceRoutingTests.swift
 APP	16	ViewportTransformTests.swift
@@ -234,3 +240,4 @@ SESS	8	CatalogBrowserModelTests.swift
 SESS	8	CatalogTreeModelTests.swift
 SHARED	0	Fixtures.swift
 SHARED	0	ParityGate.swift
+SHARED	0	ChainBuilderHelpers.swift
