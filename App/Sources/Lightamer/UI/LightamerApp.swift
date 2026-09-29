@@ -1463,10 +1463,14 @@ internal struct LightamerApp: App {
         // Settings… (Cmd+,) — Plan 16-2 T1: the Catalogs section (enable
         // toggle + location picker + rebuild hint) replaces the Phase 13
         // placeholder. The preferences model is injected explicitly (the
-        // Settings scene has its own environment).
+        // Settings scene has its own environment). M2-3-3 T5: the coordinator
+        // rides along too — the 13-2 display-override rows read it
+        // (refreshDisplayProfile) but the scene never received it (the
+        // latent missing-injection the T5 page migration surfaced).
         Settings {
             SettingsView(legacyLibraryEnabled: legacyLibraryEnabled)
                 .environment(catalogPreferences)
+                .environment(pipeCoordinator)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
         }
     }
