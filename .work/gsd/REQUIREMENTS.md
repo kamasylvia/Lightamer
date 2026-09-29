@@ -33,7 +33,7 @@
 - [ ] **M2UIW-03**: 七页签调整栈（Tone/Look/LUT/Display Transform/Geometry/RAW Decode/Mask）+ 节点头（名称+焦距/光圈/快门/ISO）
 - [ ] **M2UIW-04**: 示波器（直方图/波形二选一，GPU 渲染）
 - [ ] **M2UIW-05**: 设置页族——语言/主题、Default Behavior（蒙版绘制三选）、缓存、Local Content Recognition、Advanced Content Analysis、键盘自定义（冲突显示+恢复默认）、关于
-- [ ] **M2UIW-06**: 后台任务系统 UI（对话框+底部栏+取消，AI/导入/导出共用）
+- [x] **M2UIW-06**: 后台任务系统 UI（对话框+底部栏+取消，AI/导入/导出共用）**Delivered 协议+导入腿**（M2-3-1：`BackgroundTaskHosting` 三腿协议一次成型（`@MainActor` handle + `BackgroundTaskSnapshot` 0…1/indeterminate/阶段文案 + cancel；零 leg 专属字段——导出腿 M2-9 / AI 腿 M2-10 届时消费，禁提前设计）+ `BackgroundTaskRegistry` register/update/finish/cancel/cancelAll（插入序稳定 + 重复注册拒绝）+ 底部栏/对话框**双呈现同源**（`BackgroundTaskProjection.descriptors` 单函数，`tasks.bar`/`tasks.dialog` marker）；导入腿 = `ImportTaskAdapter` **只读订阅** `LibraryProjectController.importProgress` + `cancelImport()` 透传（checker E3：controller/ImportModeDialog/ImportProgressView 零 diff）+ 单调钳制快照；9 测试（四态生命周期/插入序穿中间完成/单调跨相不回退/cancel spy/双呈现同行集）。锚 `56e582e`，验收 `phases/m2-3-ui-shell/M2-3-1-ACCEPTANCE.md`）
 
 ### 节点模型 (NODE)
 - [ ] **M2NODE-01**: PipelineDocument 线性链语义（Develop→Color Grade×N→DRT；Develop=RAW→scene-referred；DRT=显示终点非 scene 端口）
