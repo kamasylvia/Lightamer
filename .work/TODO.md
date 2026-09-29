@@ -373,7 +373,7 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
   - T3 本提交：五项审计全绿 + REQUIREMENTS/GOAL-STATE 翻账 + SUMMARY/DECISIONS
   - **终跑口径（orchestrator 2026-09-30 强杀指令）**：全套回归 deferred（test bundle 拆分提级 M2-4 首个 plan——16GB 机全 suite 宿主 7.5G+swap 已被用户叫停一次）；引用最后全绿基线 = **M2-3-3 验收 R2 2160/14skip/0fail @ `d7f87fe`**；w4 变更面域内验证 = zh-audit self-test/--check + 定向 6 类（9+6+9+9+11+5 全 0 fail）
   - **验收 PASS / 0 error + 2 minor**（2026-09-30 独立验收 subagent：10/10 AC 独立复验【zh-audit 双模式亲跑 exit 0 + 语义级对比 added=223/removed=0/modified=0 + KD-3 五项亲跑全绿 + 判定分布 LC_ALL=C 机检】；定向 6 族独立复跑 49/0fail【「55」为枚举笔误已修正】；D10 独立抽查 3/3 一致【library-welcome/settings-about/settings-language-theme】；缺陷 A/B 证据链评语=扎实、a3bf5bf 修刷新缝非 A 根因分工诚实；F1 = ProjectWorkspaceFace 4 处 verbatim zh 缺口挂 M2-4；F2 = 计数笔误已修——`phases/m2-3-ui-shell/M2-3-4-ACCEPTANCE.md`）
-- [ ] **M2-4 起航挂账**（待用户 C 档确认）：首个 plan = test bundle 拆分；另两项**真缺陷专项**（①导入完成态不发布——runImport 续延悬挂 2/2 复现；②编辑器加载失败——视口空白+节点头 EXIF 错位 3/3 复现；证据链 `.work/gui-acceptance/m2-3/MANIFEST.md` 真缺陷节）+ 菜单双「显示」IA 瑕疵 + 万行胶片条真机目测 + relink Core 写面小 plan + **F1 zh verbatim 缺口**（ProjectWorkspaceFace 4 文案，验收批发现——`M2-3-4-ACCEPTANCE.md` F1）
+- [ ] **M2-4 起航挂账**（待用户 C 档确认）：首个 plan = test bundle 拆分；~~另两项真缺陷专项~~（**已由缺陷 A/B 修复专项提前闭环（2026-09-30）**：①导入完成态不发布 → fix `cba3456`；②编辑器加载失败 → fix `5b3c62e`；全套 2165/14skip/0fail（756.7s）+ 定向 69/69 + 双 GUI 探针——`phases/m2-3-ui-shell/M2-3-FIXES-SUMMARY.md`）+ 菜单双「显示」IA 瑕疵 + 万行胶片条真机目测 + relink Core 写面小 plan + **F1 zh verbatim 缺口**（ProjectWorkspaceFace 4 文案，验收批发现——`M2-3-4-ACCEPTANCE.md` F1）
 
 ---
 
