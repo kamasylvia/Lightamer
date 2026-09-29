@@ -84,7 +84,9 @@ struct WorkspaceHostView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity.combined(with: .offset(y: 8)))
                 case .editor:
-                    EditorWorkspaceShellView(workspace: workspace)
+                    EditorWorkspaceShellView(
+                        workspace: workspace,
+                        bridge: thumbnailBridge)
                         .transition(.opacity.combined(with: .offset(y: -8)))
                 }
             }
@@ -237,6 +239,10 @@ struct WorkspaceHostView: View {
             thumbnailBridge = nil
             inspectorModel = nil
             searchModel = nil
+            // The P3 editor seam drops with the surface (the shell's
+            // rows/EXIF/readback face rides the open project).
+            workspace.editorGrid = nil
+            workspace.editorURLResolver = nil
             return
         }
         let directory = packageURL.deletingLastPathComponent()
@@ -270,6 +276,11 @@ struct WorkspaceHostView: View {
         gridModel = grid
         inspectorModel = inspector
         searchModel = search
+        // The P3 editor seam (M2-3-3 T1): the shell reads rows + resolves
+        // source URLs through the SAME surface the grid renders (zero
+        // collection-state copying, KD-3).
+        workspace.editorGrid = grid
+        workspace.editorURLResolver = resolve
         Task {
             try? await grid.reloadFirstPage()
             await inspector.refresh()
