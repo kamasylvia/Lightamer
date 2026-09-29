@@ -458,6 +458,12 @@ internal struct LightamerApp: App {
                     // render path.
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
+                    // Defect B fix: the app-owned Metal context rides the
+                    // coordinator from launch — `detectionMetal()` (the
+                    // editor GUI chain's render-leg key) is non-nil BEFORE
+                    // the first load, never behind the load-only assignment
+                    // that deadlocked the first load into a decode-only leg.
+                    pipeCoordinator.attach(metal: metalContext)
 
                     // Plan 16-2 T1: build the shared catalog runtime at the
                     // PERSISTED location (re-point, never migrate) and wire

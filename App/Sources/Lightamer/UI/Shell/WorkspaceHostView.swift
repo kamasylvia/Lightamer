@@ -177,6 +177,9 @@ struct WorkspaceHostView: View {
         .onAppear {
             rebuildLibrarySurface()
         }
+        .modifier(EditorProbeIfRequested(
+            projectController: projectController, workspace: workspace,
+            gridModel: $gridModel))
     }
 
     // MARK: - Library face (Plan M2-3-2 T1, KD-1: 左网格 + 右 Inspector 槽位;
@@ -437,3 +440,134 @@ struct YiyinTopBarSheet: View {
         editorState.instances.first { $0.opName == opName } ?? fallback
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Defect-B editor probe (the fix special, DEBUG-only) — the GUI-chain drive
+// of the editor load leg at the code level the walkthrough's double-click
+// reaches: createProject → runImport(link) → wait for the library surface →
+// `openCurrent` + `workspace.openEditor(imageID:)` (the onOpen closure body,
+// verbatim) → await the decode + the display texture. Prints the row the
+// EXIF header reads (currentRow) beside the URL the load leg resolved, then
+// PASS/FAILs the render. `-la_editor_probe <sourceFolder>`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+#if DEBUG
+private nonisolated(unsafe) var editorProbeArmed = false
+
+struct EditorProbeIfRequested: ViewModifier {
+    let projectController: LibraryProjectController?
+    let workspace: WorkspaceModel
+    @Binding var gridModel: LibraryGridModel?
+    @Environment(EditorState.self) private var editorState
+    @Environment(PipeCoordinator.self) private var pipeCoordinator
+
+    func body(content: Content) -> some View {
+        content.task {
+            guard !editorProbeArmed,
+                ProcessInfo.processInfo.arguments.contains("-la_editor_probe")
+            else { return }
+            editorProbeArmed = true
+            let note: @MainActor (String) -> Void = { line in
+                FileHandle.standardError.write(Data("[editor-probe] \(line)\n".utf8))
+            }
+            let args = ProcessInfo.processInfo.arguments.dropFirst()
+            guard let folder = args.first(where: {
+                !$0.hasPrefix("-") && FileManager.default.fileExists(atPath: $0)
+            }).map({ URL(fileURLWithPath: $0, isDirectory: true) }),
+                let controller = projectController
+            else {
+                note("FAIL: no source folder argument or no controller")
+                NSApp.terminate(nil)
+                return
+            }
+            do {
+                let package = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("editor-probe-\(UUID().uuidString).lalb")
+                try await controller.createProject(at: package, name: "EditorProbe")
+                note("project created — importing \(folder.lastPathComponent)")
+                await controller.runImport(
+                    folder: folder,
+                    choice: ImportModeChoice(mode: .link, remember: false))
+                // The library surface rebuilds on the projectURL change; the
+                // first page loads asynchronously — wait for rows.
+                for _ in 0..<100 where gridModel?.rows.isEmpty != false {
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                guard let rows = gridModel?.rows, !rows.isEmpty else {
+                    note("FAIL: grid rows never arrived")
+                    NSApp.terminate(nil)
+                    return
+                }
+                for row in rows {
+                    note(String(
+                        format: "row id=%lld file=%@ sidecar=%@ focal=%@ aperture=%@ exposure=%@ iso=%@",
+                        row.id, row.filename ?? "nil",
+                        FileManager.default.fileExists(
+                            atPath: row.imagePath + ".lra") ? "yes" : "no",
+                        row.focalLength.map { "\($0)" } ?? "nil",
+                        row.aperture.map { "\($0)" } ?? "nil",
+                        row.exposure.map { "\($0)" } ?? "nil",
+                        row.iso.map { "\($0)" } ?? "nil"))
+                }
+                // Every row: the onOpen closure body (the double-click route,
+                // verbatim) + a bounded render wait — separates the .lra-restore
+                // rows from the pristine-seed rows in ONE run.
+                for row in rows {
+                    gridModel?.openCurrent(row.id)
+                    workspace.openEditor(imageID: row.id)
+                    var loaded = false
+                    for _ in 0..<100 where editorState.loadedImageURL == nil {
+                        try? await Task.sleep(for: .milliseconds(100))
+                    }
+                    loaded = editorState.loadedImageURL != nil
+                    var rendered = false
+                    for _ in 0..<300 where editorState.displayTexture == nil {
+                        try? await Task.sleep(for: .milliseconds(100))
+                    }
+                    rendered = editorState.displayTexture != nil
+                    note(String(
+                        format: "load file=%@ loaded=%@ rendered=%@ texture=%@",
+                        row.filename ?? "nil",
+                        loaded ? "yes" : "NO",
+                        rendered ? "yes" : "NO",
+                        editorState.loadedImageURL?.lastPathComponent ?? "nil"))
+                    if !rendered {
+                        note(String(
+                            format: "state decodeError=%@ image=%@ isDecoding=%@ layerStack=%@",
+                            String(describing: editorState.decodeError),
+                            editorState.image != nil ? "present" : "nil",
+                            editorState.isDecoding ? "true" : "false",
+                            editorState.layerStack != nil ? "present" : "nil"))
+                        // The decisive bifurcation: drive pipeCoordinator.load
+                        // DIRECTLY (this probe task IS the MainActor — no hop
+                        // involved). Success here pins the hang on the
+                        // decodeTask→MainActor hop; failure pins it inside
+                        // the pipe load body.
+                        if let decoded = editorState.image,
+                            let url = editorState.loadedImageURL,
+                            let metal = pipeCoordinator.detectionMetal() {
+                            note("direct pipeCoordinator.load call…")
+                            await pipeCoordinator.load(
+                                url: url, decoded: decoded,
+                                instances: [], metal: metal)
+                            note(String(
+                                format: "direct call returned; texture=%@",
+                                editorState.displayTexture != nil ? "present" : "nil"))
+                        } else {
+                            note("direct call skipped: missing decoded/url/metal")
+                        }
+                    }
+                    // Force the next row's reload (the same-url guard would
+                    // otherwise skip a distinct row? no — but reset texture so
+                    // the wait loop observes a FRESH push).
+                    editorState.displayTexture = nil
+                    try? await Task.sleep(for: .milliseconds(300))
+                }
+            } catch {
+                note("FAIL: \(error)")
+            }
+            NSApp.terminate(nil)
+        }
+    }
+}
+#endif
