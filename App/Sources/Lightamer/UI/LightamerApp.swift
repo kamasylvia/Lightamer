@@ -1004,6 +1004,7 @@ internal struct LightamerApp: App {
                     #if DEBUG
                     resizeProbeIfRequested()
                     sidecarProbeIfRequested()
+                    importProbeIfRequested()
                     #endif
                     // Plan 14-1 T4: the EMBEDDED MCP host (D-14-CONTEXT-2①:
                     // preference on → writer lock → bind 127.0.0.1 → write
@@ -1658,6 +1659,76 @@ internal struct LightamerApp: App {
                     logger.info("resize probe: window → \(Int(width))×\(Int(height))")
                 }
             }
+        }
+    }
+    #endif
+
+    // ── Defect-A import probe (the fix special, DEBUG-only): the GUI-shaped
+    // drive of the PRODUCTION import chain — `createProject` + `runImport`
+    // run on the MainActor exactly as the sheet's onConfirm Task does (the
+    // panels are the only layer removed). The first existing directory
+    // argument is the import source; the project is a throwaway /tmp
+    // package. PASS = runImport's completion publication face
+    // (`importProgress == nil`); a hang leaves the probe silent after
+    // "armed" (sample the process then). Terminate-on-done keeps the run
+    // scriptable.
+    #if DEBUG
+    private nonisolated(unsafe) static var importProbeArmed = false
+    private func importProbeIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-la_import_probe") else { return }
+        guard !Self.importProbeArmed else { return } // .task can re-run on re-activation
+        Self.importProbeArmed = true
+        let probe = Logger(subsystem: "com.kamasylvia.lightamer", category: "probe")
+        // stderr twin: the probe runner tails stdout (oslog needs `log show`).
+        func note(_ line: String, os only: Bool = false) {
+            if !only { FileHandle.standardError.write(Data("[import-probe] \(line)\n".utf8)) }
+            probe.info("\(line, privacy: .public)")
+        }
+        let args = ProcessInfo.processInfo.arguments.dropFirst()
+        guard let folder = args.first(where: {
+            !$0.hasPrefix("-") && FileManager.default.fileExists(atPath: $0)
+        }).map({ URL(fileURLWithPath: $0, isDirectory: true) }) else {
+            note("FAIL: no source folder argument")
+            NSApp.terminate(nil)
+            return
+        }
+        Task {
+            let package = FileManager.default.temporaryDirectory
+                .appendingPathComponent("import-probe-\(UUID().uuidString).lalb")
+            do {
+                try await libraryProjects.createProject(at: package, name: "ImportProbe")
+            } catch {
+                note("FAIL: createProject threw: \(error)")
+                NSApp.terminate(nil)
+                return
+            }
+            guard libraryProjects.projectStore != nil else {
+                note("FAIL: createProject did not open the store")
+                NSApp.terminate(nil)
+                return
+            }
+            note("armed — quiescing 12s (walkthrough hang hit the idle run loop)")
+            try? await Task.sleep(for: .seconds(12))
+            await libraryProjects.runImport(
+                folder: folder,
+                choice: ImportModeChoice(mode: .link, remember: false))
+            if libraryProjects.importProgress == nil {
+                note("PASS: run 1 completion published (importProgress == nil)")
+            } else {
+                note("FAIL: run 1 returned with importProgress non-nil")
+            }
+            // The walkthrough shape: a SECOND import into the now-NON-EMPTY
+            // project (the 2/2 reproductions were both second-run legs —
+            // 34/40 = 6 pre-existing rows + 34 fresh).
+            await libraryProjects.runImport(
+                folder: folder,
+                choice: ImportModeChoice(mode: .link, remember: false))
+            if libraryProjects.importProgress == nil {
+                note("PASS: run 2 completion published (importProgress == nil)")
+            } else {
+                note("FAIL: run 2 returned with importProgress non-nil")
+            }
+            NSApp.terminate(nil)
         }
     }
     #endif

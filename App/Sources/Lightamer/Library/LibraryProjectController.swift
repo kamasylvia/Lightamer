@@ -238,13 +238,29 @@ final class LibraryProjectController {
     /// Run the confirmed import (the dialog's onConfirm route): scan →
     /// per-file execute with progress pushed onto `importProgress`, the
     /// EXIF/FTS batch faces riding the M2-2-1 seams.
+    ///
+    /// Defect A (M2-3 walkthrough 真缺陷 A): the completion publication
+    /// hangs. The previous handler body `await MainActor.run { ... }` made
+    /// EVERY progress emission BLOCK the ImportService actor until the main
+    /// thread drained that hop — a structural actor↔main-thread mutual
+    /// dependency. When one of those jobs lost its wake-up on the idle
+    /// run loop (the walkthrough's 2/2 repro: zero import stack frames,
+    /// 0% CPU, tail statements never reached; a cancel click — main-thread
+    /// event traffic — kicked the hop alive), the actor suspended on the
+    /// emission forever: `importFolder` never returned, so the tail
+    /// (`importProgress = nil`) never ran and the task bar hung. The fix
+    /// CUTS the dependency: the handler hands the snapshot to a detached
+    /// MainActor task and returns immediately — the actor loop and the
+    /// completion publication never wait on a main-executor drain again.
+    /// Main-queue FIFO preserves snapshot order (the adapter's monotonic
+    /// clamp stays as belt-and-braces).
     func runImport(folder: URL, choice: ImportModeChoice) async {
         guard let store = projectStore, let packageURL = projectURL,
               importProgress == nil else { return }
         let service = LightamerCore.ImportService(store: store)
         activeImportService = service
         await service.setProgressHandler { [weak self] snapshot in
-            await MainActor.run { self?.importProgress = snapshot }
+            Task { @MainActor in self?.importProgress = snapshot }
         }
         do {
             let defaults = ImportDefaults(defaultsSuiteName: defaultsSuiteName)
