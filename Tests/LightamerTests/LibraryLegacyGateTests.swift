@@ -190,8 +190,54 @@ final class LibraryLegacyGateTests: XCTestCase {
             "env=1 must reproduce the M2-2 Settings catalog rows exactly")
     }
 
-    // The ContentView content-face dual-state snapshot (KD-4 layer 2) lands
-    // with the T2 project-first startup face — see
-    // testContentViewMarkersAreDisjointAcrossTheGate appended below in that
-    // task's commit.
+    // MARK: - KD-4 layer 2: the ContentView content-face snapshot (T2)
+
+    /// The frozen M2-2-era content-face markers (transcribed from the
+    /// pre-M2-2-4 ContentView: the browser-mode picker options, the two
+    /// primary toolbar faces, the session grid, the catalogs grid and the
+    /// inspector column — all reachable through the legacy face's own
+    /// axes; per-row/cell ids are data-dependent and outside the snapshot).
+    private static let frozenContentFaceMarkers: Set<String> = [
+        "browser.mode.grid",
+        "browser.mode.single",
+        "browser.mode.culling",
+        "toolbar.import",
+        "toolbar.export",
+        "browser.grid",
+        "catalog.grid",
+        "Inspector",
+    ]
+
+    private static let frozenProjectFaceMarkers: Set<String> = [
+        "library.project.workspace",
+    ]
+
+    func testDefaultContentFaceIsTheProjectWorkspaceOnly() {
+        XCTAssertEqual(
+            ContentView.visibleContentFaceMarkers(legacyLibraryEnabled: false),
+            Self.frozenProjectFaceMarkers,
+            "gate false = the project workspace marker ONLY (OQ-1: the "
+                + "default startup face is the project workspace)")
+    }
+
+    func testGateOnContentFaceMatchesFrozenSnapshot() {
+        XCTAssertEqual(
+            ContentView.visibleContentFaceMarkers(legacyLibraryEnabled: true),
+            Self.frozenContentFaceMarkers,
+            "env=1 must reproduce the M2-2 three-column content face exactly")
+    }
+
+    func testContentViewMarkersAreDisjointAcrossTheGate() {
+        let legacy = ContentView.visibleContentFaceMarkers(
+            legacyLibraryEnabled: true)
+        let project = ContentView.visibleContentFaceMarkers(
+            legacyLibraryEnabled: false)
+        XCTAssertTrue(
+            project.isDisjoint(with: legacy),
+            "the two faces share no marker — the Session/Catalog faces are "
+                + "unreachable from the project face (OQ-1 无入口 semantics)")
+        XCTAssertFalse(
+            legacy.isEmpty,
+            "the opt-back face keeps the full M2-2 marker set")
+    }
 }

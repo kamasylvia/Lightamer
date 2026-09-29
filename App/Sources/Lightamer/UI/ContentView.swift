@@ -39,6 +39,46 @@ internal struct ContentView: View {
     )?
     @Binding var pastePartialRequested: Bool
 
+    /// Plan M2-2-4 (M2LIB-06 / OQ-8, KD-3): the legacy-library gate + the
+    /// project-workspace face wiring. Default `false` — the gate-off body
+    /// is the minimal project workspace (KD-3: the P2 welcome/entry sheet
+    /// the app root presents + the import command face; NO branch consumes
+    /// the Session/Catalog model environment objects — they stay injected
+    /// for the legacy face, merely unread here). `true` = the pre-M2-2-4
+    /// three-column shell byte-identical (the env opt-back channel). The
+    /// assembly point passes both (KD-1 injection — this body never touches
+    /// ProcessInfo).
+    var legacyLibraryEnabled: Bool = false
+    var projectController: LibraryProjectController?
+    var onImportFolder: () -> Void = { }
+
+    /// Plan M2-2-4 (KD-4 layer 2): the content-face markers as a pure
+    /// function of the gate — a 1:1 mirror of the body's single branch
+    /// below. gate=false = the project-workspace marker ONLY (the session/
+    /// catalog faces have no rendered entry — OQ-1's 无入口 semantics);
+    /// gate=true = the frozen M2-2-era marker set (browser mode picker +
+    /// toolbar faces + the session grid + the catalogs grid + the inspector
+    /// — all reachable through the legacy face's own axes).
+    /// `LibraryLegacyGateTests` pins this against hardcoded `Set<String>`
+    /// literals (the snapshot carrier — never runtime-recorded).
+    nonisolated static func visibleContentFaceMarkers(
+        legacyLibraryEnabled: Bool
+    ) -> Set<String> {
+        guard legacyLibraryEnabled else {
+            return ["library.project.workspace"]
+        }
+        return [
+            "browser.mode.grid",
+            "browser.mode.single",
+            "browser.mode.culling",
+            "toolbar.import",
+            "toolbar.export",
+            "browser.grid",
+            "catalog.grid",
+            "Inspector",
+        ]
+    }
+
     /// The THREE browser modes (RESEARCH §9 — 网格 | 单图 | 对比). The
     /// persisted value survives relaunches; `single` (the pre-9-3 whole
     /// app) stays the default.
@@ -128,6 +168,24 @@ internal struct ContentView: View {
     @AppStorage("layout.inspectorVisible") private var inspectorVisible: Bool = true
 
     var body: some View {
+        // Plan M2-2-4 (M2LIB-06 / OQ-1 / KD-3): the startup-face fork. The
+        // gate-false default renders the project workspace ONLY; the whole
+        // pre-M2-2-4 tree below moved VERBATIM into `legacyBody` (T2: zero
+        // logic edits inside — the env=1 regression channel).
+        if legacyLibraryEnabled {
+            legacyBody
+        } else {
+            ProjectWorkspaceFace(
+                controller: projectController,
+                onImportFolder: onImportFolder)
+        }
+    }
+
+    /// The pre-M2-2-4 three-column session shell (former single body,
+    /// moved byte-for-byte). Every identifier, modifier and conditional is
+    /// untouched — gate-on reproduces the M2-2 UI exactly.
+    @ViewBuilder
+    private var legacyBody: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView()
             // UI-SPEC dims, GUI-4 narrowed: min 150 / ideal 200 / max 240.
@@ -577,5 +635,65 @@ internal struct ContentView: View {
                 xmpImportFailure = error.localizedDescription
             }
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ProjectWorkspaceFace (Plan M2-2-4 T2, KD-3 / OQ-1) — the gate-false
+// default startup face: the minimal project-workspace container.
+//
+// Division of labor (the P2 seams, nothing new invented here): the project
+// ENTRY is the P2 `LibraryWelcomeView` sheet the app root auto-presents at
+// launch when no project is open and no recents exist (OQ-1 A semantics);
+// the import COMMAND face is the File menu's P2 command set (New/Open/
+// Recent/Import Folder/Backup/Move) plus the inline import button below
+// routed through the app root's panel seam. The complete two-workspace
+// shell + zh copy = M2-3. Verbatim strings keep the String Catalog
+// diff-clean (the M2-2-2 discipline).
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct ProjectWorkspaceFace: View {
+
+    /// The project lifecycle face (nil = no project open — the welcome
+    /// entry state).
+    let controller: LibraryProjectController?
+    let onImportFolder: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Text(verbatim: "Lightamer")
+                .font(.largeTitle.bold())
+            if let name = controller?.projectURL?
+                .deletingPathExtension().lastPathComponent {
+                Text(verbatim: name)
+                    .font(.title2)
+                Text(verbatim:
+                    "Project open. Import a folder to fill this project.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                // A String-typed local (not a literal) so Label picks the
+                // StringProtocol overload — no LocalizedStringKey lookup,
+                // zero String Catalog churn (the M2-2-2 discipline).
+                let importTitle = String("Import Folder…")
+                Button {
+                    onImportFolder()
+                } label: {
+                    Label(
+                        importTitle,
+                        systemImage: "square.and.arrow.down")
+                }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+                .accessibilityIdentifier("library.project.import")
+            } else {
+                Text(verbatim: "No project open.")
+                    .font(.title2)
+                Text(verbatim:
+                    "Create or open a project to organize your library.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("library.project.workspace")
     }
 }

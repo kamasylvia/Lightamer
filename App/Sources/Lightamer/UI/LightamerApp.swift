@@ -378,7 +378,10 @@ internal struct LightamerApp: App {
                 onPartialPaste: { selection, mode in
                     await pasteToSelection(selection: selection, mode: mode)
                 },
-                pastePartialRequested: $pastePartialRequested
+                pastePartialRequested: $pastePartialRequested,
+                legacyLibraryEnabled: legacyLibraryEnabled,
+                projectController: libraryProjects,
+                onImportFolder: { importFolderFromPanel() }
             )
                 .environment(sessionState)
                 .environment(sessionCoordinator)
