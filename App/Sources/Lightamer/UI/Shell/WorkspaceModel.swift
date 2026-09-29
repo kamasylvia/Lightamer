@@ -115,10 +115,24 @@ final class WorkspaceModel {
     /// snapshot; restored by `closeEditor`).
     private var preservedLibraryState = LibraryPhaseState()
 
-    /// The ⌘F global-search dialog presentation (P1 预埋, m6 — the P2
-    /// GlobalSearchDialog reads this through WorkspaceHostView and never
-    /// self-owns the state).
+    /// The ⌘F global-search dialog presentation (P1 预埋, m6). The P2
+    /// GlobalSearchDialog is presented by WorkspaceHostView reading THIS
+    /// boolean — the dialog never self-owns its presentation state, so the
+    /// menu command, the grid and the dialog itself stay consistent through
+    /// one source. P2 consumes it ONLY through the two faces below.
     var isSearchDialogPresented = false
+
+    /// The ⌘F presentation route (the menu command + the dialog's own
+    /// re-open faces go through here — m6: ONE presentation owner).
+    func presentSearchDialog() {
+        isSearchDialogPresented = true
+    }
+
+    /// The dismissal route (the host's sheet binding writes back through
+    /// here; the dialog never pokes the boolean directly).
+    func dismissSearchDialog() {
+        isSearchDialogPresented = false
+    }
 
     // MARK: - Editor-shell visibility toggles (the View-menu placeholder
     // faces, T5/KD-6 — P3 hangs the real panels on these)
@@ -134,7 +148,9 @@ final class WorkspaceModel {
 
     /// Enter the editor on `imageID` (nil = reopen the last image — the
     /// Alcedo re-entry semantics). The library face is snapshotted for the
-    /// lossless return.
+    /// lossless return. THIS IS THE T1-POINTLIGHT FACE (KD-1/D2 真缝): the
+    /// grid's double-click routes through here — `EditorPhaseState` carries
+    /// the current image id + the filmstrip anchor from this call.
     func openEditor(imageID: Int64?) {
         if phase == .library {
             preservedLibraryState = libraryState

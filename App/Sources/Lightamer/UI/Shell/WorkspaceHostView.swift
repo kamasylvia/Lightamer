@@ -45,6 +45,14 @@ struct WorkspaceHostView: View {
     @State private var isTaskDialogPresented = false
     @State private var importAdapter: ImportTaskAdapter?
 
+    // Plan M2-3-2 T1 (KD-1): the library surface the grid renders from —
+    // rebuilt on project open/close/move (the queries ride the OPEN store;
+    // the bridge rides the package's `.<stem>.lathumbs/` directory). The
+    // grid model is the P1 collection single-source; the host only builds
+    // and wires it.
+    @State private var gridModel: LibraryGridModel?
+    @State private var thumbnailBridge: LibraryThumbnailBridge?
+
     /// The content-face markers this host renders (the test surface, the
     /// ContentView.visibleContentFaceMarkers precedent). The gate=true face
     /// is ContentView's business — the host only ever renders gate=false.
@@ -61,9 +69,7 @@ struct WorkspaceHostView: View {
             ZStack {
                 switch workspace.phase {
                 case .library:
-                    ProjectWorkspaceFace(
-                        controller: projectController,
-                        onImportFolder: onImportFolder)
+                    libraryFace
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity.combined(with: .offset(y: 8)))
                 case .editor:
@@ -104,6 +110,97 @@ struct WorkspaceHostView: View {
                 importAdapter = nil
             }
         }
+        .onChange(of: projectController?.projectURL) { _, _ in
+            rebuildLibrarySurface()
+        }
+        .onAppear {
+            rebuildLibrarySurface()
+        }
+    }
+
+    // MARK: - Library face (Plan M2-3-2 T1, KD-1: 左网格 + 右 Inspector 槽位;
+    // T2 fills the right pane — the fixed-width slot below is its mount)
+
+    @ViewBuilder
+    private var libraryFace: some View {
+        if let gridModel {
+            HStack(spacing: 0) {
+                LibraryGridView(
+                    grid: gridModel,
+                    bridge: thumbnailBridge,
+                    onOpen: { id in
+                        // The D2 真缝: the grid's current-image bookkeeping
+                        // plus the routing transition (current image →
+                        // EditorPhaseState + the lossless library snapshot).
+                        gridModel.openCurrent(id)
+                        workspace.openEditor(imageID: id)
+                    })
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // The T2 Album Inspector mount (fixed-width tier).
+                VStack(spacing: 6) {
+                    Text(String(
+                        localized: "shell_library_inspector_arrives",
+                        defaultValue: "Album Inspector arrives with M2-3/P2"))
+                        .font(.caption2)
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(6)
+                }
+                .frame(width: 280)
+                .frame(maxHeight: .infinity)
+                .background(ThemeTokens.cardSurface)
+                .overlay(
+                    Rectangle()
+                        .fill(ThemeTokens.cardBorder)
+                        .frame(width: 1),
+                    alignment: .leading)
+                .accessibilityIdentifier("shell.library.inspector.slot")
+            }
+        } else {
+            // The no-project state keeps the M2-2-4 container verbatim
+            // (welcome / import entry).
+            ProjectWorkspaceFace(
+                controller: projectController,
+                onImportFolder: onImportFolder)
+        }
+    }
+
+    /// Build (or drop) the grid + bridge for the OPEN project. Called on
+    /// appear and on every projectURL change (open / create / move — the
+    /// controller's own publication face; no controller code touched).
+    private func rebuildLibrarySurface() {
+        guard let controller = projectController,
+            let store = controller.projectStore,
+            let packageURL = controller.projectURL else {
+            gridModel = nil
+            thumbnailBridge = nil
+            return
+        }
+        let directory = packageURL.deletingLastPathComponent()
+        let stem = packageURL.deletingPathExtension().lastPathComponent
+        let thumbsDirectory = directory.appendingPathComponent(
+            LibrarySchema.thumbsDirectoryName(stem: stem))
+        // The source-URL resolver: the row's three-form path carrier through
+        // the Core ImageLinker (zero path guessing in the shell).
+        let resolve: LibraryThumbnailBridge.URLResolver = { row in
+            guard let kind = LibrarySchema.PathKind(rawValue: row.pathKind) else {
+                return nil
+            }
+            if case .resolved(let url) = ImageLinker.resolve(
+                imagePath: row.imagePath,
+                pathKind: kind,
+                volumeUUID: row.volumeUUID,
+                projectDirectory: directory) {
+                return url
+            }
+            return nil
+        }
+        let bridge = LibraryThumbnailBridge(
+            thumbsDirectory: thumbsDirectory, renderLeg: nil, resolveURL: resolve)
+        let grid = LibraryGridModel(queries: LibraryQueries(store: store))
+        thumbnailBridge = bridge
+        gridModel = grid
+        Task { try? await grid.reloadFirstPage() }
     }
 
     // MARK: - Top bar (the T5 seam: project name + phase command buttons;

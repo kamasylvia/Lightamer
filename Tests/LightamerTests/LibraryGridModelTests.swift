@@ -258,4 +258,95 @@ final class LibraryGridModelTests: XCTestCase {
         model.clearSelection()
         XCTAssertTrue(model.selectedIDs.isEmpty)
     }
+
+    // MARK: - Plan M2-3-2 T1 (KD-1): the scroll-signal → pagination glue
+
+    /// The LibraryGridPager the WorkspaceHostView mounts behind the grid.
+    private func makePager(arming: Int = 12) -> LibraryGridPager {
+        LibraryGridPager(grid: model, tailArmingDistance: arming)
+    }
+
+    func testScrollSignalIssuesBoundedLoadNextPageCalls() async throws {
+        try await model.apply(sort: FilterSort(key: .filename, ascending: true))
+        XCTAssertEqual(model.rows.count, 5, "the first page is preloaded")
+        let pager = makePager(arming: 12)
+
+        // Every cell of a 12-row collection sits inside a 12-row arming
+        // window; each signal issues exactly ONE page attempt (the keyset
+        // walk), and the isExhausted floor ends the sequence.
+        await pager.cellAppeared(at: 4)
+        XCTAssertEqual(pager.loadCallCount, 1, "the tail signal issued ONE call")
+        XCTAssertEqual(model.rows.count, 10, "the next keyset page landed")
+
+        await pager.cellAppeared(at: 9)
+        XCTAssertEqual(pager.loadCallCount, 2)
+        XCTAssertEqual(model.rows.count, 12, "the walk completed")
+        XCTAssertTrue(model.isExhausted)
+
+        // Further signals (any index) are floored by isExhausted — zero
+        // further loadNextPage invocations.
+        await pager.cellAppeared(at: 0)
+        await pager.cellAppeared(at: 11)
+        XCTAssertEqual(
+            pager.loadCallCount, 2,
+            "isExhausted floors the pager: no further calls after the walk")
+    }
+
+    func testSignalAwayFromTailIssuesNoCall() async throws {
+        try await model.apply(sort: FilterSort(key: .filename, ascending: true))
+        let pager = makePager(arming: 2)
+
+        // With 5 loaded rows and a 2-row arming window, indices 0..2 are
+        // away from the tail — the signal issues nothing.
+        await pager.cellAppeared(at: 0)
+        await pager.cellAppeared(at: 2)
+        XCTAssertEqual(pager.loadCallCount, 0)
+        XCTAssertEqual(model.rows.count, 5, "no page was fetched")
+
+        // A signal INSIDE the window (index 3 = the second-to-last row)
+        // issues exactly one call.
+        await pager.cellAppeared(at: 3)
+        XCTAssertEqual(pager.loadCallCount, 1)
+        XCTAssertEqual(model.rows.count, 10, "the next keyset page landed")
+    }
+
+    func testExhaustedPagerIgnoresEverySignal() async throws {
+        try await loadAll()
+        XCTAssertTrue(model.isExhausted)
+        let pager = makePager(arming: 12)
+        for index in 0..<12 {
+            await pager.cellAppeared(at: index)
+        }
+        XCTAssertEqual(
+            pager.loadCallCount, 0,
+            "a fully-walked collection issues zero pagination calls")
+    }
+
+    // MARK: - Plan M2-3-2 T1 (KD-1/D2): the double-click → EditorPhaseState
+    // wiring (the composition WorkspaceHostView performs on a double-click)
+
+    func testDoubleClickWiresEditorPhaseState() async throws {
+        try await loadAll()
+        let workspace = WorkspaceModel()
+        XCTAssertEqual(workspace.phase, .library)
+
+        let id = model.rows[3].id
+        // The host's onOpen composition: the grid's current-image state
+        // machine + the WorkspaceModel routing transition.
+        model.openCurrent(id)
+        workspace.openEditor(imageID: id)
+
+        XCTAssertEqual(workspace.phase, .editor)
+        XCTAssertEqual(workspace.editorPhase.currentImageID, id)
+        XCTAssertEqual(workspace.editorPhase.filmstripScrollAnchor, id)
+        XCTAssertEqual(model.currentImageID, id)
+        XCTAssertEqual(model.selectedIDs, [id], "opening focuses the row")
+
+        // The lossless round trip (D2): back to the library, the editor
+        // face survives; the grid's collection state was never touched.
+        workspace.closeEditor()
+        XCTAssertEqual(workspace.phase, .library)
+        XCTAssertEqual(workspace.editorPhase.currentImageID, id)
+        XCTAssertEqual(model.rows.count, 12)
+    }
 }
