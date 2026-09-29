@@ -484,7 +484,7 @@ final class GoldenParityTests: XCTestCase {
         registry: ModuleRegistry, outputProfile: ColorOutModule.OutputProfile
     ) async throws -> [any ModuleBoxing] {
         await LightamerIOPRegistry.populate(registry)
-        var chain = await TerminalTrioTests.makeCommittedDefaultChain(
+        var chain = await makeCommittedDefaultChain(
             registry: registry, outputProfile: outputProfile
         )
         let exposure = await registry.makeBox(opName: ExposureModule.opName)

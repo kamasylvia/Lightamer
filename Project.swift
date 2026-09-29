@@ -10,7 +10,11 @@ import ProjectDescription
 //   LightamerIOP (framework, deps Core)
 //     ↑
 //   Lightamer (app, deps Core + IOP)
-//   LightamerTests  → { Core, IOP }   (@testable import of both)
+//   LightamerTestsIOP/Layers/Library/Sessions/Export/App
+//     → { Core, IOP, Lightamer, WebP, MCP }   (M2-4-0 D3: identical dep face
+//       on all six — 62 files @testable-import the app state across domains;
+//       membership = explicit file lists, BUNDLE-MAP.txt is the source of
+//       truth, single <3G-per-host memory gate replaces the old monolith)
 //   LightamerUITests → Lightamer app  (drives the running app)
 //
 // Plan 13-1: +2 app extensions (the project's first NEW target shape):
@@ -237,22 +241,402 @@ let project = Project(
             settings: .settings(base: baseSettings.merging(appexRunpathSettings))
         ),
 
-        // ═════════ LightamerTests (unit, depends on Core + IOP) ═════════
+        // ═════════ LightamerTestsIOP (unit test bundle — IOP domain, M2-4-0 D1) ═════════
+        // Membership is the explicit file list below — the single source of
+        // truth is .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt
+        // (T3 audits array-union == 231 domain files, no orphans/dupes).
+        // No directory glob: the 231 test files stay flat in
+        // Tests/LightamerTests/ and belong to exactly ONE domain target
+        // each; only the three zero-test SHARED helpers may repeat.
         .target(
-            name: "LightamerTests",
+            name: "LightamerTestsIOP",
             destinations: [.mac],
             product: .unitTests,
-            bundleId: "com.kamasylvia.lightamer.tests",
+            bundleId: "com.kamasylvia.lightamer.tests.iop",
             deploymentTargets: .macOS("27.0"),
             infoPlist: .default,
-            sources: ["Tests/LightamerTests/**"],
-            resources: ["Resources/TestFixtures/**"], // Plan 06: raster fixtures ride in the test bundle (Bundle(for:) access); the ~1.2 GB RAW camera samples stay untracked in .work/plans/01-05/samples/ and are located by path (see Fixtures.swift)
+            sources: [
+                "Tests/LightamerTests/Fixtures.swift",
+                "Tests/LightamerTests/ParityGate.swift",
+                "Tests/LightamerTests/ChainBuilderHelpers.swift",
+                "Tests/LightamerTests/AgXTests.swift",
+                "Tests/LightamerTests/AshiftParityTests.swift",
+                "Tests/LightamerTests/BilateralGrid3DTests.swift",
+                "Tests/LightamerTests/BilateralParityTests.swift",
+                "Tests/LightamerTests/BlendOpParityTests.swift",
+                "Tests/LightamerTests/BloomTests.swift",
+                "Tests/LightamerTests/ChannelMixerColorContrastParityTests.swift",
+                "Tests/LightamerTests/ChannelMixerColorContrastTests.swift",
+                "Tests/LightamerTests/ChannelMixerCommonTests.swift",
+                "Tests/LightamerTests/ChannelMixerRGBCommitTests.swift",
+                "Tests/LightamerTests/ChannelMixerRGBParityTests.swift",
+                "Tests/LightamerTests/CIContextPoolMemoKeyTests.swift",
+                "Tests/LightamerTests/ColisaParityTests.swift",
+                "Tests/LightamerTests/ColorBalanceRGBParityTests.swift",
+                "Tests/LightamerTests/ColorZonesCommitTests.swift",
+                "Tests/LightamerTests/ColorZonesParityTests.swift",
+                "Tests/LightamerTests/CPUDerivationTests.swift",
+                "Tests/LightamerTests/CropParityTests.swift",
+                "Tests/LightamerTests/CubeLutParserTests.swift",
+                "Tests/LightamerTests/DefaultFaceTests.swift",
+                "Tests/LightamerTests/DehazeTests.swift",
+                "Tests/LightamerTests/DenoiseProfileDerivationTests.swift",
+                "Tests/LightamerTests/DenoiseProfileParityTests.swift",
+                "Tests/LightamerTests/EDRViewportTests.swift",
+                "Tests/LightamerTests/EqualizerParityTests.swift",
+                "Tests/LightamerTests/FilmicRGBTests.swift",
+                "Tests/LightamerTests/FlipParityTests.swift",
+                "Tests/LightamerTests/FocusStackTests.swift",
+                "Tests/LightamerTests/GaussianBlurTests.swift",
+                "Tests/LightamerTests/GeometryGoldenTests.swift",
+                "Tests/LightamerTests/GeometryPointMapperTests.swift",
+                "Tests/LightamerTests/GoldenColorTests.swift",
+                "Tests/LightamerTests/GoldenParityTests.swift",
+                "Tests/LightamerTests/GrainTests.swift",
+                "Tests/LightamerTests/HDRMergeMathTests.swift",
+                "Tests/LightamerTests/HDRPipelineMatrixTests.swift",
+                "Tests/LightamerTests/HighpassSoftenTests.swift",
+                "Tests/LightamerTests/HomographyTests.swift",
+                "Tests/LightamerTests/IOPieceIscaleTests.swift",
+                "Tests/LightamerTests/IOPModuleTests.swift",
+                "Tests/LightamerTests/L021DoubleScaleAuditTests.swift",
+                "Tests/LightamerTests/LabRoundTripTests.swift",
+                "Tests/LightamerTests/LensfunDBTests.swift",
+                "Tests/LightamerTests/LensParityTests.swift",
+                "Tests/LightamerTests/LevelsParityTests.swift",
+                "Tests/LightamerTests/LiquifyParityTests.swift",
+                "Tests/LightamerTests/LocalContrastTests.swift",
+                "Tests/LightamerTests/Lut3dGoldenImageTests.swift",
+                "Tests/LightamerTests/Lut3dKernelTests.swift",
+                "Tests/LightamerTests/McpRenderParityTests.swift",
+                "Tests/LightamerTests/MemoryBudgetTests.swift",
+                "Tests/LightamerTests/MetalContextTests.swift",
+                "Tests/LightamerTests/ModuleBoundaryTests.swift",
+                "Tests/LightamerTests/MonochromeCommitTests.swift",
+                "Tests/LightamerTests/MonochromeGridTests.swift",
+                "Tests/LightamerTests/MonochromeParityTests.swift",
+                "Tests/LightamerTests/MTBAlignTests.swift",
+                "Tests/LightamerTests/MultiDisplayProfileTests.swift",
+                "Tests/LightamerTests/MultiResolutionTests.swift",
+                "Tests/LightamerTests/NLMeansParityTests.swift",
+                "Tests/LightamerTests/NoiseFixtureStatisticsTests.swift",
+                "Tests/LightamerTests/NoiseProfileStoreTests.swift",
+                "Tests/LightamerTests/ParametricMaskParityTests.swift",
+                "Tests/LightamerTests/PipeCacheTests.swift",
+                "Tests/LightamerTests/PreviewBucketTests.swift",
+                "Tests/LightamerTests/PreviewChainPerfTests.swift",
+                "Tests/LightamerTests/RAW03Tests.swift",
+                "Tests/LightamerTests/RawDecodeOverridesTests.swift",
+                "Tests/LightamerTests/RAWDecoderTests.swift",
+                "Tests/LightamerTests/RetouchParityTests.swift",
+                "Tests/LightamerTests/ROINegotiationTests.swift",
+                "Tests/LightamerTests/ScopeReduceTests.swift",
+                "Tests/LightamerTests/ShadhiParityTests.swift",
+                "Tests/LightamerTests/SharpenParityTests.swift",
+                "Tests/LightamerTests/SigmoidTests.swift",
+                "Tests/LightamerTests/SkinRegionGeometryTests.swift",
+                "Tests/LightamerTests/SkinSmoothParityTests.swift",
+                "Tests/LightamerTests/SoftProofStageTests.swift",
+                "Tests/LightamerTests/StackAggregateTests.swift",
+                "Tests/LightamerTests/StackMergeServiceTests.swift",
+                "Tests/LightamerTests/TemperatureParityTests.swift",
+                "Tests/LightamerTests/TerminalTrioTests.swift",
+                "Tests/LightamerTests/TextOverlayTests.swift",
+                "Tests/LightamerTests/TileNegotiationRegressionTests.swift",
+                "Tests/LightamerTests/TilingOverlapTests.swift",
+                "Tests/LightamerTests/TilingPlanTests.swift",
+                "Tests/LightamerTests/ToneCurveParityTests.swift",
+                "Tests/LightamerTests/ToneEqualKernelTests.swift",
+                "Tests/LightamerTests/ToneEqualLUTTests.swift",
+                "Tests/LightamerTests/ToneEqualModuleTests.swift",
+                "Tests/LightamerTests/ToneEqualParityTests.swift",
+                "Tests/LightamerTests/ToneEqualPerfTests.swift",
+                "Tests/LightamerTests/V50OrderTests.swift",
+                "Tests/LightamerTests/VibranceVelviaCommitTests.swift",
+                "Tests/LightamerTests/VibranceVelviaParityTests.swift",
+                "Tests/LightamerTests/VignetteTests.swift",
+                "Tests/LightamerTests/VisionDetectTests.swift",
+            ],
+            resources: ["Resources/TestFixtures/**"], // same fixtures ride in every bundle (D3; ~6.2 MB each)
             dependencies: [
                 .target(name: "LightamerCore"),
                 .target(name: "LightamerIOP"),
-                .target(name: "Lightamer"), // Plan 03-02: D-T6 panel wiring tests drive the APP-side state (InspectorState/PipeCoordinator) via @testable
-                .package(product: "WebP"), // Plan 11-01: the WebPIntegrationSmokeTests import WebP directly (link smoke)
-                .package(product: "MCP"), // Plan 14-1: the MCP snapshot/host tests drive the InMemoryTransport leg directly (same WebP precedent)
+                .target(name: "Lightamer"),
+                .package(product: "WebP"),
+                .package(product: "MCP"),
+            ]
+        ),
+
+        // ═════════ LightamerTestsLayers (unit test bundle — LAYERS domain, M2-4-0 D1) ═════════
+        // Membership is the explicit file list below — the single source of
+        // truth is .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt
+        // (T3 audits array-union == 231 domain files, no orphans/dupes).
+        // No directory glob: the 231 test files stay flat in
+        // Tests/LightamerTests/ and belong to exactly ONE domain target
+        // each; only the three zero-test SHARED helpers may repeat.
+        .target(
+            name: "LightamerTestsLayers",
+            destinations: [.mac],
+            product: .unitTests,
+            bundleId: "com.kamasylvia.lightamer.tests.layers",
+            deploymentTargets: .macOS("27.0"),
+            infoPlist: .default,
+            sources: [
+                "Tests/LightamerTests/Fixtures.swift",
+                "Tests/LightamerTests/ChainBuilderHelpers.swift",
+                "Tests/LightamerTests/AIMaskDeterminismTests.swift",
+                "Tests/LightamerTests/AIMaskEditPathsTests.swift",
+                "Tests/LightamerTests/AIMaskGeometryTests.swift",
+                "Tests/LightamerTests/AIMaskPlaneFormatTests.swift",
+                "Tests/LightamerTests/AIMaskSemanticTests.swift",
+                "Tests/LightamerTests/DrawnMaskRasterTests.swift",
+                "Tests/LightamerTests/DrawnMaskSpecTests.swift",
+                "Tests/LightamerTests/HistoryStackTests.swift",
+                "Tests/LightamerTests/LayerCacheTests.swift",
+                "Tests/LightamerTests/LayerCompositeTests.swift",
+                "Tests/LightamerTests/LayerCoreTests.swift",
+                "Tests/LightamerTests/LayerDragPerfTests.swift",
+                "Tests/LightamerTests/LayerE2ERoundTripTests.swift",
+                "Tests/LightamerTests/LayerSkeletonTests.swift",
+                "Tests/LightamerTests/LayerUIWiringTests.swift",
+                "Tests/LightamerTests/MaskCombineTests.swift",
+                "Tests/LightamerTests/MaskCommandTests.swift",
+                "Tests/LightamerTests/MaskEditIncrementTests.swift",
+                "Tests/LightamerTests/Plan0605LeftoverTests.swift",
+                "Tests/LightamerTests/RasterMaskRoundTripTests.swift",
+            ],
+            resources: ["Resources/TestFixtures/**"], // same fixtures ride in every bundle (D3; ~6.2 MB each)
+            dependencies: [
+                .target(name: "LightamerCore"),
+                .target(name: "LightamerIOP"),
+                .target(name: "Lightamer"),
+                .package(product: "WebP"),
+                .package(product: "MCP"),
+            ]
+        ),
+
+        // ═════════ LightamerTestsLibrary (unit test bundle — LIB domain, M2-4-0 D1) ═════════
+        // Membership is the explicit file list below — the single source of
+        // truth is .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt
+        // (T3 audits array-union == 231 domain files, no orphans/dupes).
+        // No directory glob: the 231 test files stay flat in
+        // Tests/LightamerTests/ and belong to exactly ONE domain target
+        // each; only the three zero-test SHARED helpers may repeat.
+        .target(
+            name: "LightamerTestsLibrary",
+            destinations: [.mac],
+            product: .unitTests,
+            bundleId: "com.kamasylvia.lightamer.tests.library",
+            deploymentTargets: .macOS("27.0"),
+            infoPlist: .default,
+            sources: [
+                "Tests/LightamerTests/Fixtures.swift",
+                "Tests/LightamerTests/ChainBuilderHelpers.swift",
+                "Tests/LightamerTests/BackgroundTaskRegistryTests.swift",
+                "Tests/LightamerTests/ExifFoldTests.swift",
+                "Tests/LightamerTests/ExifSearchParserTests.swift",
+                "Tests/LightamerTests/FilmstripModelTests.swift",
+                "Tests/LightamerTests/FilterPredicateTests.swift",
+                "Tests/LightamerTests/FilterSQLTests.swift",
+                "Tests/LightamerTests/ImageLinkerTests.swift",
+                "Tests/LightamerTests/ImportCompletionRegressionTests.swift",
+                "Tests/LightamerTests/ImportDropTests.swift",
+                "Tests/LightamerTests/ImportFilterTests.swift",
+                "Tests/LightamerTests/ImportServiceTests.swift",
+                "Tests/LightamerTests/LibraryBenchmarkHarness.swift",
+                "Tests/LightamerTests/LibraryDocumentTests.swift",
+                "Tests/LightamerTests/LibraryFilterDomainTests.swift",
+                "Tests/LightamerTests/LibraryGridModelTests.swift",
+                "Tests/LightamerTests/LibraryInspectorModelTests.swift",
+                "Tests/LightamerTests/LibraryLegacyGateTests.swift",
+                "Tests/LightamerTests/LibraryProjectControllerTests.swift",
+                "Tests/LightamerTests/LibraryQueriesTests.swift",
+                "Tests/LightamerTests/LibraryRelinkModelTests.swift",
+                "Tests/LightamerTests/LibrarySchemaTests.swift",
+                "Tests/LightamerTests/LibrarySearchModelTests.swift",
+                "Tests/LightamerTests/LibraryStoreTests.swift",
+                "Tests/LightamerTests/LibraryThumbnailBridgeTests.swift",
+                "Tests/LightamerTests/LightamerPresetTests.swift",
+                "Tests/LightamerTests/LutLibraryStoreTests.swift",
+                "Tests/LightamerTests/MetadataServiceTests.swift",
+                "Tests/LightamerTests/MetadataTests.swift",
+                "Tests/LightamerTests/Phase4SidecarTests.swift",
+                "Tests/LightamerTests/Phase5SidecarTests.swift",
+                "Tests/LightamerTests/Phase6SidecarTests.swift",
+                "Tests/LightamerTests/PresetApplierTests.swift",
+                "Tests/LightamerTests/PresetsStoreTests.swift",
+                "Tests/LightamerTests/ProvenanceV4Tests.swift",
+                "Tests/LightamerTests/SidecarMetadataV3Tests.swift",
+                "Tests/LightamerTests/SidecarRoundTripTests.swift",
+                "Tests/LightamerTests/SidecarTieBreakTests.swift",
+                "Tests/LightamerTests/SmartAlbumStoreTests.swift",
+                "Tests/LightamerTests/StableHashTests.swift",
+                "Tests/LightamerTests/XMPContainerInjectorTests.swift",
+                "Tests/LightamerTests/XMPExportMatrixTests.swift",
+                "Tests/LightamerTests/XMPImportTests.swift",
+                "Tests/LightamerTests/XMPWriterTests.swift",
+            ],
+            resources: ["Resources/TestFixtures/**"], // same fixtures ride in every bundle (D3; ~6.2 MB each)
+            dependencies: [
+                .target(name: "LightamerCore"),
+                .target(name: "LightamerIOP"),
+                .target(name: "Lightamer"),
+                .package(product: "WebP"),
+                .package(product: "MCP"),
+            ]
+        ),
+
+        // ═════════ LightamerTestsSessions (unit test bundle — SESS domain, M2-4-0 D1) ═════════
+        // Membership is the explicit file list below — the single source of
+        // truth is .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt
+        // (T3 audits array-union == 231 domain files, no orphans/dupes).
+        // No directory glob: the 231 test files stay flat in
+        // Tests/LightamerTests/ and belong to exactly ONE domain target
+        // each; only the three zero-test SHARED helpers may repeat.
+        .target(
+            name: "LightamerTestsSessions",
+            destinations: [.mac],
+            product: .unitTests,
+            bundleId: "com.kamasylvia.lightamer.tests.sessions",
+            deploymentTargets: .macOS("27.0"),
+            infoPlist: .default,
+            sources: [
+                "Tests/LightamerTests/Fixtures.swift",
+                "Tests/LightamerTests/CatalogBenchmarkHarness.swift",
+                "Tests/LightamerTests/CatalogBrowserModelTests.swift",
+                "Tests/LightamerTests/CatalogFilterSQLTests.swift",
+                "Tests/LightamerTests/CatalogIndexSchemaTests.swift",
+                "Tests/LightamerTests/CatalogModeIsolationTests.swift",
+                "Tests/LightamerTests/CatalogOrganizationTests.swift",
+                "Tests/LightamerTests/CatalogProjectorTests.swift",
+                "Tests/LightamerTests/CatalogRebuildTests.swift",
+                "Tests/LightamerTests/CatalogSmartAlbumDomainTests.swift",
+                "Tests/LightamerTests/CatalogThumbnailRouterTests.swift",
+                "Tests/LightamerTests/CatalogTreeModelTests.swift",
+                "Tests/LightamerTests/CullingPipelineTests.swift",
+                "Tests/LightamerTests/PasteSemanticsTests.swift",
+                "Tests/LightamerTests/Perf07MassApplyTests.swift",
+                "Tests/LightamerTests/ReconcileDiffTests.swift",
+                "Tests/LightamerTests/SessionBatchApplierTests.swift",
+                "Tests/LightamerTests/SessionBrowserModelTests.swift",
+                "Tests/LightamerTests/SessionIndexMigrationTests.swift",
+                "Tests/LightamerTests/SessionIndexStoreTests.swift",
+                "Tests/LightamerTests/SessionReconcileE2ETests.swift",
+                "Tests/LightamerTests/SessionSwitchTests.swift",
+                "Tests/LightamerTests/SessionThumbnailProviderTests.swift",
+                "Tests/LightamerTests/SessionTreeScannerTests.swift",
+                "Tests/LightamerTests/SessionWatcherTests.swift",
+                "Tests/LightamerTests/ThumbnailMemoryCacheTests.swift",
+            ],
+            resources: ["Resources/TestFixtures/**"], // same fixtures ride in every bundle (D3; ~6.2 MB each)
+            dependencies: [
+                .target(name: "LightamerCore"),
+                .target(name: "LightamerIOP"),
+                .target(name: "Lightamer"),
+                .package(product: "WebP"),
+                .package(product: "MCP"),
+            ]
+        ),
+
+        // ═════════ LightamerTestsExport (unit test bundle — EXPORT domain, M2-4-0 D1) ═════════
+        // Membership is the explicit file list below — the single source of
+        // truth is .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt
+        // (T3 audits array-union == 231 domain files, no orphans/dupes).
+        // No directory glob: the 231 test files stay flat in
+        // Tests/LightamerTests/ and belong to exactly ONE domain target
+        // each; only the three zero-test SHARED helpers may repeat.
+        .target(
+            name: "LightamerTestsExport",
+            destinations: [.mac],
+            product: .unitTests,
+            bundleId: "com.kamasylvia.lightamer.tests.export",
+            deploymentTargets: .macOS("27.0"),
+            infoPlist: .default,
+            sources: [
+                "Tests/LightamerTests/Fixtures.swift",
+                "Tests/LightamerTests/ChainBuilderHelpers.swift",
+                "Tests/LightamerTests/ExportEncoderGoldenTests.swift",
+                "Tests/LightamerTests/ExportNamerTests.swift",
+                "Tests/LightamerTests/ExportPerfProbeTests.swift",
+                "Tests/LightamerTests/ExportPhaseE2ETests.swift",
+                "Tests/LightamerTests/ExportPipeTests.swift",
+                "Tests/LightamerTests/ExportQuantizerTests.swift",
+                "Tests/LightamerTests/ExportQueueContractTests.swift",
+                "Tests/LightamerTests/ExportQueueTests.swift",
+                "Tests/LightamerTests/ExportRecipeTests.swift",
+                "Tests/LightamerTests/ExportRendererE2ETests.swift",
+                "Tests/LightamerTests/ExportTargetsTests.swift",
+                "Tests/LightamerTests/QuickLookPerfProbeTests.swift",
+                "Tests/LightamerTests/QuickLookRendererTests.swift",
+                "Tests/LightamerTests/SpotlightAttributeMapperTests.swift",
+                "Tests/LightamerTests/WebPEncoderTests.swift",
+                "Tests/LightamerTests/WebPIntegrationSmokeTests.swift",
+                "Tests/LightamerTests/YiyinBordersTests.swift",
+                "Tests/LightamerTests/YiyinE2ETests.swift",
+                "Tests/LightamerTests/YiyinExifFormatTests.swift",
+                "Tests/LightamerTests/YiyinExportSettingsTests.swift",
+                "Tests/LightamerTests/YiyinFontStoreTests.swift",
+                "Tests/LightamerTests/YiyinLayoutTests.swift",
+                "Tests/LightamerTests/YiyinMetadataWalkTests.swift",
+                "Tests/LightamerTests/YiyinWatermarkTests.swift",
+            ],
+            resources: ["Resources/TestFixtures/**"], // same fixtures ride in every bundle (D3; ~6.2 MB each)
+            dependencies: [
+                .target(name: "LightamerCore"),
+                .target(name: "LightamerIOP"),
+                .target(name: "Lightamer"),
+                .package(product: "WebP"),
+                .package(product: "MCP"),
+            ]
+        ),
+
+        // ═════════ LightamerTestsApp (unit test bundle — APP domain, M2-4-0 D1) ═════════
+        // Membership is the explicit file list below — the single source of
+        // truth is .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt
+        // (T3 audits array-union == 231 domain files, no orphans/dupes).
+        // No directory glob: the 231 test files stay flat in
+        // Tests/LightamerTests/ and belong to exactly ONE domain target
+        // each; only the three zero-test SHARED helpers may repeat.
+        .target(
+            name: "LightamerTestsApp",
+            destinations: [.mac],
+            product: .unitTests,
+            bundleId: "com.kamasylvia.lightamer.tests.app",
+            deploymentTargets: .macOS("27.0"),
+            infoPlist: .default,
+            sources: [
+                "Tests/LightamerTests/Fixtures.swift",
+                "Tests/LightamerTests/ChainBuilderHelpers.swift",
+                "Tests/LightamerTests/AppErrorTests.swift",
+                "Tests/LightamerTests/BeforeAfterTests.swift",
+                "Tests/LightamerTests/CropOverlayTests.swift",
+                "Tests/LightamerTests/EditorMetalLegRegressionTests.swift",
+                "Tests/LightamerTests/EditorStackRoutingTests.swift",
+                "Tests/LightamerTests/EffectsWiringTests.swift",
+                "Tests/LightamerTests/EyedropperTests.swift",
+                "Tests/LightamerTests/GUI22UndoWarmColdTests.swift",
+                "Tests/LightamerTests/McpCullingImageBudgetTests.swift",
+                "Tests/LightamerTests/McpCullingToolsetTests.swift",
+                "Tests/LightamerTests/McpEditingToolsetTests.swift",
+                "Tests/LightamerTests/McpFinalSnapshotTests.swift",
+                "Tests/LightamerTests/McpHostTests.swift",
+                "Tests/LightamerTests/McpLauncherSentinelTests.swift",
+                "Tests/LightamerTests/McpLauncherTests.swift",
+                "Tests/LightamerTests/McpRegistrySnapshotTests.swift",
+                "Tests/LightamerTests/PanelWiringTests.swift",
+                "Tests/LightamerTests/SettingsPagesTests.swift",
+                "Tests/LightamerTests/SoftProofUIWiringTests.swift",
+                "Tests/LightamerTests/ThemeTokensTests.swift",
+                "Tests/LightamerTests/ViewportTransformTests.swift",
+                "Tests/LightamerTests/WorkspaceRoutingTests.swift",
+            ],
+            resources: ["Resources/TestFixtures/**"], // same fixtures ride in every bundle (D3; ~6.2 MB each)
+            dependencies: [
+                .target(name: "LightamerCore"),
+                .target(name: "LightamerIOP"),
+                .target(name: "Lightamer"),
+                .package(product: "WebP"),
+                .package(product: "MCP"),
             ]
         ),
 
@@ -283,8 +667,19 @@ let project = Project(
         .scheme(
             name: "Lightamer",
             buildAction: .buildAction(targets: [.target("Lightamer")]),
+            // M2-4-0 D6: all six unit-test bundles + UITests LAST (order
+            // invariant — UI tests always run after the unit bundles).
+            // Note: `xcodebuild test` through this scheme hits the
+            // testmanagerd enrollment prompt (L019b) — unit tests run via
+            // Scripts/test-direct.sh direct launch; the testAction exists so
+            // `build-for-testing` produces every .xctest in one pass.
             testAction: .targets(
-                ["LightamerTests", "LightamerUITests"],
+                [
+                    "LightamerTestsIOP", "LightamerTestsLayers",
+                    "LightamerTestsLibrary", "LightamerTestsSessions",
+                    "LightamerTestsExport", "LightamerTestsApp",
+                    "LightamerUITests",
+                ],
                 configuration: .debug
             ),
             runAction: .runAction(configuration: .debug),

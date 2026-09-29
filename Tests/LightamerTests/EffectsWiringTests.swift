@@ -144,7 +144,7 @@ final class EffectsWiringTests: XCTestCase {
         let metal = try await makeMetal()
         let registry = try await makeRegistry()
         let image = makeImage()
-        let base = try await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = try await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         // The effect layer: one record of the effect instance + the mask.
@@ -246,7 +246,7 @@ final class EffectsWiringTests: XCTestCase {
         let metal = try await makeMetal()
         let registry = try await makeRegistry()
         let image = makeImage()
-        let base = try await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = try await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         let basePlane = try await composite(
             image, base: base, stack: nil, registry: registry, metal: metal)
@@ -298,7 +298,7 @@ final class EffectsWiringTests: XCTestCase {
         let metal = try await makeMetal()
         let registry = try await makeRegistry()
         let image = makeImage(width: 2560, height: 1707)
-        let base = try await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = try await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         let probes: [(String, (any ModuleBoxing) -> Void)] = [

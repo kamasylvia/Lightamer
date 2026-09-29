@@ -57,7 +57,7 @@ final class LayerCompositeTests: XCTestCase {
     private func makeBaseInstances(
         registry: ModuleRegistry, baseGain: Float
     ) async throws -> [any ModuleBoxing] {
-        var chain = await TerminalTrioTests.makeCommittedDefaultChain(
+        var chain = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         let gainMade = await registry.makeBox(opName: TestGainModule.opName)
         let gain = try XCTUnwrap(gainMade as? ModuleBox<TestGainModule>)
@@ -436,7 +436,7 @@ final class LayerCompositeTests: XCTestCase {
 
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
-        let chain = try await GeometryGoldenTests().makeChainWithCropFlip(
+        let chain = try await makeChainWithCropFlip(
             registry: registry, outputProfile: .displayP3)
 
         // Baseline: the track-B chain alone.

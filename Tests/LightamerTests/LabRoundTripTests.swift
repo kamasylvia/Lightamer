@@ -236,7 +236,7 @@ final class LabRoundTripTests: XCTestCase {
 
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
-        let baseChain = try await TerminalTrioTests.makeCommittedDefaultChain(
+        let baseChain = try await makeCommittedDefaultChain(
             registry: registry, outputProfile: .displayP3
         )
 

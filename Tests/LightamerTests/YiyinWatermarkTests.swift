@@ -81,7 +81,7 @@ final class YiyinWatermarkTests: XCTestCase {
     private func committedTrio(
         outputProfile: ColorOutModule.OutputProfile = .sRGB
     ) async -> [any ModuleBoxing] {
-        await TerminalTrioTests.makeCommittedDefaultChain(
+        await makeCommittedDefaultChain(
             registry: ModuleRegistry.makeDefault(), outputProfile: outputProfile)
     }
 

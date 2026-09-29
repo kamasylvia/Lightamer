@@ -182,7 +182,7 @@ final class L021DoubleScaleAuditTests: XCTestCase {
         let metal = try await makeMetal()
         let image = constantImage(width: 128, height: 96, value: 0.5)
         let registry = ModuleRegistry.makeDefault()
-        let trio = await TerminalTrioTests.makeCommittedDefaultChain(
+        let trio = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .displayP3)
         let flip = ModuleBox(module: FlipModule())
         flip.setParams(FlipModule.Params(orientation: .none))

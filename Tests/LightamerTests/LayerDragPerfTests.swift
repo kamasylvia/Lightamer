@@ -96,7 +96,7 @@ final class LayerDragPerfTests: XCTestCase {
         let image = try makeSynthetic()
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
-        let base = try await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = try await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         let stack = makeTenLayerStack()
         let editedID = try XCTUnwrap(stack.compositeLayers[4].id)
@@ -178,7 +178,7 @@ final class LayerDragPerfTests: XCTestCase {
         let image = try makeSynthetic()
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
-        let base = try await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = try await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         let stack = makeTenLayerStack()
         let editedID = try XCTUnwrap(stack.compositeLayers[4].id)
@@ -243,7 +243,7 @@ final class LayerDragPerfTests: XCTestCase {
         let image = try makeSynthetic()
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
-        let base = try await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = try await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         let stack = makeTenLayerStack()
         let editedID = try XCTUnwrap(stack.compositeLayers[4].id)
