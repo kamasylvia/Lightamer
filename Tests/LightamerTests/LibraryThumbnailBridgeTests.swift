@@ -357,7 +357,17 @@ final class LibraryThumbnailBridgeTests: XCTestCase {
         async let resultA = bridge.thumbnail(for: rowA)
         async let resultB = bridge.thumbnail(for: rowB)
         async let resultC = bridge.thumbnail(for: rowC)
-        try? await Task.sleep(nanoseconds: 60_000_000)  // B, C now queued
+        // Deterministic readiness: poll until BOTH B and C sit in the gate
+        // queue (a wall-clock sleep races under full-suite load — the
+        // 15:42 run proved it), then promote C.
+        let deadline = Date().addingTimeInterval(10)
+        while await bridge.queuedCountForTesting() < 2 {
+            if Date() > deadline {
+                XCTFail("B and C never queued behind A")
+                break
+            }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
         await bridge.prioritize([3])
 
         _ = await (resultA, resultB, resultC)

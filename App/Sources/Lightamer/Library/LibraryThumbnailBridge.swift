@@ -73,6 +73,10 @@ private actor ThumbnailProductionGate {
             running -= 1
         }
     }
+
+    /// The queued (slot-waiting) production count — the test observability
+    /// face backing the deterministic prioritize test.
+    var pendingCount: Int { queue.count }
 }
 
 actor LibraryThumbnailBridge {
@@ -176,6 +180,12 @@ actor LibraryThumbnailBridge {
     /// observability face.
     func memoryOrderForTesting() -> [Int64] {
         memory.orderForTesting
+    }
+
+    /// The queued (slot-waiting) production count — the test observability
+    /// face backing the deterministic prioritize test.
+    func queuedCountForTesting() async -> Int {
+        await gate.pendingCount
     }
 
     /// Teardown face: drop the in-flight registry (running productions
