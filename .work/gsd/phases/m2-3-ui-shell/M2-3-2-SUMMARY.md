@@ -60,7 +60,7 @@ P2 host 同款接线（`LibraryThumbnailBridge` tier A，`productionCount=24` �
 | 6 | relink：stale 两形态分类 + 批量进度单调 + 取消三分类计数精确 + 失败不阻塞 | LibraryRelinkModelTests 6：分类（pathMissing [GoneD,MissingA] / volumeAbsent [RemoteB] / 健康行排除）；批量 relive + 持久化行经查询面复核（image_path 落盘 + ImageLinker.resolve resolved）；失败行注入 throw 不阻塞后行（relived 1 + stillStale 1）；行界取消（0,1,2 精确）；handle 单调 + 重放整快照丢弃 + cancel 保底 + finished 旗 | ✅ |
 | 7 | 壳零 SQL：新文件 `SELECT|FROM images` grep 零命中；九签名调用与 M2-2-3 清单逐个一致 | `git grep -E 'SELECT|FROM images' -- <7 新文件>` = 0 命中（三次任务边界各查一次）；九签名逐个对齐：searchPage/searchNullTail（GridModel 既有消费）、overviewCount/groupCounts/activitySeries/dayFilter/currentFilterDescription（InspectorModel）、SmartAlbumStore.evaluate(id:,domain:.library,sessionStore:nil,catalogStore:nil,libraryQueries:)（KD-5）、ExifSearchParser.parse（SearchModel）；ImageLinker.relinkRecord/resolve = M2-2-2 面（KD-4 指定消费） | ✅ |
 | 8 | 缩略图首屏量测 BENCH\| 行落账；perf.md §A.4 挂账销账注记同批 | 上节 BENCH 表（Debug×3 + Release×3，热轮主判据）；perf.md §A.4 行尾追加「→ M2-3-2 已量测」注记（本提交同批 diff） | ✅ |
-| 9 | 新 UI 全量 `String(localized:)` 键；`LightamerCore/` 零 diff；legacyBody 树资产零 diff | 新键 64 个（LibraryGridView 5 / InspectorView 25 / GlobalSearchDialog 10 / RelinkSheetView 16 / SearchModel 4 / RelinkModel 4——plan 预估 60..80 区间内；zh 值 P4 对账批补录）；`git diff --name-only 8637dc8..HEAD -- LightamerCore/` = 空；SidebarView/SessionBrowserView/CullingView/FilterBarView/CatalogBrowser*/SettingsView/LibraryProjectController/ImportModeDialog/ImportProgressView/LibraryLegacyGateTests 全部零 diff | ✅ |
+| 9 | 新 UI 全量 `String(localized:)` 键；`LightamerCore/` 零 diff；legacyBody 树资产零 diff | 新键 61 个（LibraryGridView 4 / InspectorView 23 / GlobalSearchDialog 10 / RelinkSheetView 16 / SearchModel 4 / RelinkModel 4——plan 预估 60..80 区间内；zh 值 P4 对账批补录；64→61 = 验收修正 2026-09-29，逐文件键名提取实测）；`git diff --name-only 8637dc8..HEAD -- LightamerCore/` = 空；SidebarView/SessionBrowserView/CullingView/FilterBarView/CatalogBrowser*/SettingsView/LibraryProjectController/ImportModeDialog/ImportProgressView/LibraryLegacyGateTests 全部零 diff | ✅ |
 | 10 | 全套回归 0 fail，计数 ≈ 基线 + 20..30 | 终轮 **2130/14/0**、0 fail；+27 > 预估 +20..30（粒度声明，同 M2-3-1 D6 先例：按 AC 逐条细分；skip +1 见 D7） | ✅ |
 | 11 | diff 边界 == 申报文件集 | `git diff --name-only 8637dc8..HEAD` = 13 代码文件（9 App + 4 Tests，全部在 front-matter 申报集内）+ 本收口批 4 docs（SUMMARY/DECISIONS/perf.md/GOAL-STATE）+ LESSONS = 申报集全量，零越界 | ✅ |
 
@@ -124,6 +124,6 @@ P2 host 同款接线（`LibraryThumbnailBridge` tier A，`productionCount=24` �
   走查（M2-3-1 观察项 #1/#3 并案）。
 - relink 生产持久化 = Core 写面 plan（D2；UI/分类/编排/计数已全量在位）。
 - computer-use Alcedo 对照 = P4 统一执行（OQ-10）。
-- zh 文案补录（本 plan 新增 64 键族：`library_grid_*` / `library_inspector_*` /
+- zh 文案补录（本 plan 新增 61 键族：`library_grid_*` / `library_inspector_*` /
   `search_*` / `relink_*` / `tasks_relink_*` / `shell_library_inspector_arrives`）
   = P4 对账批（OQ-9 A）。
