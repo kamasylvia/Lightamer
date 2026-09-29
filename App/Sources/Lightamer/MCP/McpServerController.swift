@@ -517,8 +517,15 @@ enum McpServerController {
     /// meaningful on regular files — on a pipe (the McpHostTests spawn shape)
     /// it returns EINVAL and Foundation raises an uncatchable ObjC exception
     /// (SIGABRT at app startup, observed 2026-09-29). `print` has already
-    /// delivered the bytes; a failed flush must never take the host down.
+    /// delivered the bytes ON A REGULAR FILE — on a pipe the C stdio stream
+    /// is FULL-buffered and the bytes sit in the buffer until exit, which
+    /// the park-until-EOF fixture never reaches; the McpHostTests handshake
+    /// deadline is on the PIPE, so flush the stream explicitly first (the
+    /// M2-3-3 acceptance rerun: the three flock tests hung deterministically
+    /// without this line — the sampled child was parked in read() with the
+    /// LOCKED line still buffered).
     private static func syncStdoutBestEffort() {
+        fflush(stdout)
         var st = stat()
         guard fstat(STDOUT_FILENO, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG else { return }
         FileHandle.standardOutput.synchronizeFile()
