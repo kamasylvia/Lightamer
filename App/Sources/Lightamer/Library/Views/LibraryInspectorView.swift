@@ -37,6 +37,7 @@ struct LibraryInspectorView: View {
                 groupSection(.lens)
                 activitySection
                 filterSection
+                actionsSection
                 smartAlbumsSection
             }
             .padding(12)
@@ -266,6 +267,38 @@ struct LibraryInspectorView: View {
                 .lineLimit(1)
             Spacer()
         }
+    }
+
+    // MARK: - The images action area (Plan M2-3-2 T4, M2LIB-07③ entry)
+
+    private var actionsSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            sectionHeader(String(
+                localized: "library_inspector_actions",
+                defaultValue: "ACTIONS"))
+            Button {
+                onRelinkRequested()
+            } label: {
+                Label(
+                    String(
+                        localized: "library_inspector_relink",
+                        defaultValue: "Relink Missing…"),
+                    systemImage: "arrow.triangle.2.circlepath")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(ThemeTokens.accent)
+            .disabled(model.selectedCount == 0)
+            .accessibilityIdentifier("library.inspector.relink")
+            if model.selectedCount > 0 {
+                Text(String(
+                    localized: "library_inspector_relink_hint",
+                    defaultValue: "\(model.selectedCount) selected"))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
+        }
+        .accessibilityIdentifier("library.inspector.actions")
     }
 
     // MARK: - SMART ALBUMS

@@ -88,6 +88,17 @@ final class LibraryInspectorModel {
         self.smartAlbums = smartAlbums
     }
 
+    // MARK: - The relink entry (Plan M2-3-2 T4, KD-4)
+
+    /// The selected rows (the batch-relink acts on the grid's live
+    /// selection; the sheet classifies them into the two stale forms).
+    var selectedRows: [LibraryImageRow] {
+        grid.rows.filter { grid.selectedIDs.contains($0.id) }
+    }
+
+    /// The selection size (the entry button's enabled face).
+    var selectedCount: Int { grid.selectedIDs.count }
+
     // MARK: - Load (every render source, in one sweep)
 
     /// Reload every render source from the CURRENT grid filter. Called at
