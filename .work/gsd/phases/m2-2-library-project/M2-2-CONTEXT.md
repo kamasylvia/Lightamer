@@ -103,6 +103,7 @@ SC#3 先例：16-4 设 96 形状 Release 热 p95 < 50ms 硬门（1M 行，Catalo
 - **A（推荐）**：设硬门——**EXIF 词法组合检索 p95 < 20ms @ 2 万张**（Release，fixture = 合成 EXIF 语料 + 真实 RAW 抽样交叉）；形状矩阵 ≥ 12 检索形状 × 3 排序 × 2 深度（词法 AND / 结构化范围 / 混查）；另设**观察项（非门）**：10 万张外推、首屏缩略图时间、导入吞吐（≥ 100 张/min 软指标）。
 - B：不设本 phase 门，留 M2-11 统一 perf。
 - **理由**：M2LIB-04「性能对标 ~20ms@2 万张」不落门就退化为愿望；SC#3 证明该做法便宜且终裁有效（「v1 SQLite 终裁成立」正来自实测门）；B 把风险推到收官 phase 才暴露，返工面大。
+- **✅ 硬门达成（2026-09-29 M2-2-3 交付 + 独立验收复跑）**：72/72 形状（12 检索形状 × 3 排序 × 2 深度）× 3 轮 Debug+Release 对账全 PASS——Release 热 p95 最差 **15.66ms @ 2 万张**（`isoRange|dateDESC|deep`，门 20ms 余量 ~1.28×）；**验收独立复跑一轮同格复现 15.15ms**（总 p95 9.72ms，fixture 20k 行 gen 0.61s，realraw 3 件，吞吐 115k 张/min——`phases/m2-2-library-project/M2-2-3-ACCEPTANCE.md`）。EXPLAIN 归因 = `image_path` tiebreaker 与 `idx_images_capture(capture_date,id)` 不匹配 → TEMP B-TREE（大结果集 dateDESC 深页族 9.5-15.7ms）——不降门、不加投机索引，修法挂账 schema v2（perf.md §A.3/A.4 + M2-2-3-DECISIONS D4）。观察项：100k 词法腿 5-6ms / 结构化排序腿 138ms、导入吞吐 ~12 万张/min（合成件口径）、缩略图首屏挂 M2-3。
 
 ### OQ-10 图库网格缩略图数据源与落位
 - **A（推荐）**：**复用双档管线**（档 A 嵌入预览 10.6ms/张 @86MP 实测；档 B 真管线；tier 由 `has_edits`+stale 裁决的红线不变），缓存落**项目伴生隐藏目录 `<项目目录>/.<stem>.lathumbs/`**（`.lightamer/thumbs` 同型：FNV pathhash 文件名、JPEG q85、原子写）。
