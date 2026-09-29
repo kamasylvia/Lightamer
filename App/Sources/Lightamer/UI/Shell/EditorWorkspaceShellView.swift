@@ -143,20 +143,10 @@ struct EditorWorkspaceShellView: View {
         }
     }
 
-    /// The T3 scope panel slot (the honest placeholder until T3 lands the
-    /// GPU-backed panel).
+    /// The T3 scope panel (the GPU-backed histogram/waveform; the
+    /// mount/unmount IS the tap visibility gate).
     private var scopeSlot: some View {
-        VStack(spacing: 6) {
-            Text(String(
-                localized: "shell_editor_scopes_arrives",
-                defaultValue: "Scopes arrive in M2-3/T3"))
-                .font(.caption2)
-                .foregroundStyle(ThemeTokens.textSecondary)
-                .padding(6)
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, alignment: .top)
-        .accessibilityIdentifier("shell.editor.scopes.slot")
+        ScopePanelView()
     }
 
     /// The T2 adjustment stack (the seven-tab routing over the existing

@@ -1377,6 +1377,78 @@ final class PipeCoordinator {
         }
     }
 
+    // MARK: - M2-3-3 T3: the scope tap (M2UIW-04, additive seam)
+
+    /// The scope tap state. The ScopePanelView's visibility gates it
+    /// (invisible = zero tap); renders stream through the ScopeThrottle
+    /// (≤15 Hz while dragging, the newest deferred frame settles once the
+    /// render goes idle ≥250 ms). Results publish MainActor-side for the
+    /// panel. All GPU work rides ScopeReduce → the MetalContext routed
+    /// acquisition (L031 — never a second command queue); the histogram
+    /// buffer readback fences first (L014).
+    private(set) var scopeTapEnabled = false
+    private(set) var scopeHistogram: ScopeReduce.Histogram?
+    private(set) var scopeWaveform: (any MTLTexture)?
+    /// The completed-sample counter (the panel's re-read trigger).
+    private(set) var scopeSampleGeneration = 0
+
+    /// The throttle + the newest deferred texture (the settle face).
+    var scopeThrottle = ScopeThrottle()
+    private var pendingScopeTexture: SendableTextureBox?
+    private var scopeSettleTask: Task<Void, Never>?
+
+    /// The visibility gate (the panel mounts/unmounts → on/off; off clears
+    /// the published results so a remount never shows a stale scope).
+    func setScopeTapEnabled(_ enabled: Bool) {
+        scopeTapEnabled = enabled
+        if !enabled {
+            scopeHistogram = nil
+            scopeWaveform = nil
+            pendingScopeTexture = nil
+            scopeSettleTask?.cancel()
+            scopeSettleTask = nil
+        }
+    }
+
+    /// A PREVIEW completion → the throttle decision (the render thread is
+    /// never blocked by the sample: the run is fire-and-forget). The plane
+    /// rides the unchecked-Sendable box (the same ownership contract as the
+    /// mask-overlay probe: render-current, read-only from here on).
+    private func scheduleScopeSample(_ plane: SendableTextureBox) {
+        switch scopeThrottle.request(
+            isEnabled: scopeTapEnabled, now: CFAbsoluteTimeGetCurrent()) {
+        case .run:
+            Task { await runScopeSample(plane) }
+        case .deferForSettle:
+            pendingScopeTexture = plane
+            if scopeSettleTask == nil {
+                scopeSettleTask = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: 250_000_000)
+                    guard let self, !Task.isCancelled else { return }
+                    self.scopeSettleTask = nil
+                    guard case .run = self.scopeThrottle.settleTick(
+                        now: CFAbsoluteTimeGetCurrent()),
+                        let plane = self.pendingScopeTexture else { return }
+                    self.pendingScopeTexture = nil
+                    await self.runScopeSample(plane)
+                }
+            }
+        case .skip:
+            break
+        }
+    }
+
+    /// The sample itself: histogram + waveform over the pushed plane, then
+    /// the MainActor publish (the generation bump re-arms the panel).
+    private func runScopeSample(_ plane: SendableTextureBox) async {
+        guard let metal = detectionMetal(), scopeTapEnabled else { return }
+        let histogram = try? await ScopeReduce.histogram(of: plane.texture, metal: metal)
+        let waveform = try? await ScopeReduce.waveform(of: plane.texture, metal: metal)
+        scopeHistogram = histogram
+        scopeWaveform = waveform
+        scopeSampleGeneration += 1
+    }
+
     /// Viewport POINT → normalized texture uv, mirroring the blit's
     /// aspect-fit (`aspectFitUniforms` + the vertex uv chain):
     /// `uv.x = 0.5 + scale.x·(p.x/vw − 0.5)`,
@@ -1582,6 +1654,15 @@ final class PipeCoordinator {
                 editorState?.displayTexture = overlaid
             } else {
                 editorState?.displayTexture = texture
+            }
+            // M2-3-3 T3 (M2UIW-04): the scope tap — an ADDITIVE follow-up on
+            // the just-pushed display plane (never a render producer; the
+            // D-X1 single-producer invariant is untouched). The tap rides
+            // the visibility gate + the ≤15 Hz / idle-settle throttle, and
+            // ScopeReduce's GPU work routes through the SAME MetalContext
+            // acquisition (L031 — no second command queue).
+            if let pushed = editorState?.displayTexture {
+                scheduleScopeSample(SendableTextureBox(texture: pushed))
             }
             Self.logger.info(
                 "pixelpipe output ready: PREVIEW bucket \(bucket, privacy: .public)px (\(stats.hits, privacy: .public) hits / \(stats.misses, privacy: .public) misses, \(stats.planesRendered, privacy: .public) planes)"
