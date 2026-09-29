@@ -175,8 +175,13 @@ internal struct ContentView: View {
         if legacyLibraryEnabled {
             legacyBody
         } else {
-            ProjectWorkspaceFace(
-                controller: projectController,
+            // Plan M2-3-1 T2 (KD-2 / D2): the two-workspace shell root now
+            // OWNS the gate-false face — the M2-2-4 ProjectWorkspaceFace
+            // demoted to the library face inside WorkspaceHostView (its
+            // `library.project.workspace` marker survives; the editor face
+            // routes beside it).
+            WorkspaceHostView(
+                projectController: projectController,
                 onImportFolder: onImportFolder)
         }
     }
