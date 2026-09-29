@@ -14,10 +14,10 @@ Phase **execute** 阶段的执行分工固定为两级：
 
 ## 资源监控（2026-09-29 用户指令，强制）
 
-开发过程中**持续监控 Lightamer 相关进程**（GUI app 与测试宿主同规——test-direct.sh 直启宿主在活动监视器里也叫 Lightamer）：
+开发过程中**持续监控 Lightamer 相关进程**（GUI app 与 test-direct.sh 直启测试宿主在活动监视器里同名，都叫 Lightamer——按命令行/父进程区分，处置线不同，见下）：
 
-- **触发线**：内存占用 >3G，或 CPU 占用持续异常偏高（非构建态 >50% 持续分钟级）→ **立刻介入**：`sample <pid> 3` 采栈定位 + 向 orchestrator/用户上报处置，不得放任。
-- **测试宿主口径（M2-4-0 落地，2026-09-30 更新）**：全套回归经 `Scripts/test-direct.sh --all` 分 7 个域 bundle 跑（一条命令，逐 bundle 独立宿主进程），峰值 RSS 由脚本按 `/usr/bin/time -l` ru_maxrss（内核精确口径）机检 MEMFAIL。**<3G 硬门尚未达成**（OQ 挂账：渲染密集 3 bundle 实测 5.8-7.7G，积累 ≈17-26MB/test 线性——见 `.work/gsd/phases/m2-4-0-test-bundles/M2-4-0-SUMMARY.md`）：**全套 `--all` 轮仍须 orchestrator 批准、运行中保持监视、>8G 或内存压力转红立即 kill**；定向单 bundle 轮（`--bundle <name>`）多数过门可常跑（IOP/IOPParity/Export 三域定向轮同受监视约束）。旧单宿主 2165 连跑已废（历史事件：10.4G 未响应 / 7.5G 用户强杀）。
+- **GUI app 触发线（不变）**：内存占用 >3G，或 CPU 占用持续异常偏高（非构建态 >50% 持续分钟级）→ **立刻介入**：`sample <pid> 3` 采栈定位 + 向 orchestrator/用户上报处置，不得放任。
+- **测试宿主口径（M2-4-0 落地 + SPIKE 门修订，2026-09-30）**：全套回归经 `Scripts/test-direct.sh --all` 分 7 个域 bundle 跑（一条命令，逐 bundle 独立宿主进程），峰值 RSS 由脚本按 `/usr/bin/time -l` ru_maxrss（内核精确口径）机检 MEMFAIL，**运行门 = 8G**（`RSS_LIMIT_MB=8192`）。原 <3G 门经 SPIKE（commit `70e09e5`）**证伪为错定门槛**：by-design GB 级重测（100MP golden/parity 族，验证对象 = 100MP float32 平面）单类自峰 TilingOverlap 7865 / HDR 5913 / QuickLook 4589MB + ~1.4G 框架分页一次性地板，<3G 数学不可达、与 bundle 划分无关，真实跨测残留仅 0.18-2.4MB/test（证据正本 = `.work/gsd/phases/m2-4-0-test-bundles/M2-4-0-SPIKE.md`）。**全套 `--all` 轮仍须 orchestrator 批准 + 运行中保持监视**（现另有 MEMFAIL 机检兜底，>8G 或内存压力转红仍立即 kill）；定向单 bundle 轮（`--bundle <name>`）可常跑，机检兜底；贴线 bundle（IOP 7654 / IOPParity 5788）连续 MEMFAIL 先查重测顺序漂移（±3% 方差，SPIKE 注记）。旧单宿主 2165 连跑已废（历史事件：10.4G 未响应 / 7.5G 用户强杀）。
 - 巡检 cron 每次运行附带查一眼 Lightamer 进程资源（`ps aux | grep -i lightamer`）。
 
 ## 暂停机制（2026-09-24 用户指令，Phase 7 起强制）
