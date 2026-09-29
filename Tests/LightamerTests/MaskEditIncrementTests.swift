@@ -85,7 +85,7 @@ final class MaskEditIncrementTests: XCTestCase {
         let registry = await makeRegistry()
         let image = try makeGradientImage()
         let cache = PipeCache()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         var stack = LayerStack(baseLayer: BackgroundLayer())
@@ -152,7 +152,7 @@ final class MaskEditIncrementTests: XCTestCase {
         let registry = await makeRegistry()
         let image = try makeGradientImage()
         let cache = PipeCache()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         var stack = LayerStack(baseLayer: BackgroundLayer())
@@ -210,7 +210,7 @@ final class MaskEditIncrementTests: XCTestCase {
         let metal = try await makeMetal()
         let registry = await makeRegistry()
         let image = try makeGradientImage(width: 64, height: 64)
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         // Reference = the BASE-ONLY composite (no adjustment layers):
@@ -266,7 +266,7 @@ final class MaskEditIncrementTests: XCTestCase {
         let metal = try await makeMetal()
         let registry = await makeRegistry()
         let image = try makeGradientImage(width: 64, height: 64)
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         // Reference = base-only (outside the mask the multiply layer is

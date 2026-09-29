@@ -322,34 +322,10 @@ final class TerminalTrioTests: XCTestCase {
 
     // ── Display tail through the real pipe ───────────────────────────────
 
-    /// The default chain committed for an EXPLICIT displayP3 target
-    /// (deterministic across hosts — the screen-dependent `.display`
-    /// resolution is the coordinator's business, not the harness's).
-    static func makeCommittedDefaultChain(
-        registry: ModuleRegistry, outputProfile: ColorOutModule.OutputProfile
-    ) async -> [any ModuleBoxing] {
-        let chain = await registry.makeDefaultChain()
-        if let colorout = chain.first(where: { $0.opName == ColorOutModule.opName })
-            as? ModuleBox<ColorOutModule> {
-            colorout.setParams(.init(outputProfile: outputProfile))
-        }
-        for box in chain where box.opName == ColorInModule.opName {
-            if let colorin = box as? ModuleBox<ColorInModule> {
-                colorin.setParams(.init())
-            }
-        }
-        for box in chain where box.opName == GammaModule.opName {
-            if let gamma = box as? ModuleBox<GammaModule> {
-                gamma.setParams(.init())
-            }
-        }
-        return chain
-    }
-
     func testPipeTailProducesBgra8Unorm() async throws {
         let metal = try makeMetal()
         let cache = PipeCache()
-        let chain = await TerminalTrioTests.makeCommittedDefaultChain(
+        let chain = await makeCommittedDefaultChain(
             registry: ModuleRegistry.makeDefault(), outputProfile: .displayP3
         )
         let ci = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5))

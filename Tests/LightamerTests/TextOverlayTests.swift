@@ -270,7 +270,7 @@ final class TextOverlayTests: XCTestCase {
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
         let image = EffectsFixture.image()
-        let base = try await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = try await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         let recordID = UUID()
@@ -337,7 +337,7 @@ final class TextOverlayTests: XCTestCase {
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
         let image = EffectsFixture.image()
-        let base = try await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = try await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         func textOverlayBox() async throws -> (any ModuleBoxing) {

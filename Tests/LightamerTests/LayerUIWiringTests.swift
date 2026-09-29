@@ -689,7 +689,7 @@ final class LayerUIWiringTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let image = try makeSyntheticImage()
         let cache = PipeCache()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         // The layer's chain: one testgain record (drives the pixels; the

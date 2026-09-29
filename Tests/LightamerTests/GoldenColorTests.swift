@@ -80,7 +80,7 @@ final class GoldenColorTests: XCTestCase {
         // neutrality is gated separately
         // (SigmoidTests.testGraysStayNeutralOnBothPaths, ShadhiParityTests
         // track B) — this gate pins the terminal trio.
-        var chain = await TerminalTrioTests.makeCommittedDefaultChain(
+        var chain = await makeCommittedDefaultChain(
             registry: ModuleRegistry.makeDefault(), outputProfile: outputProfile
         )
         chain.removeAll {
@@ -416,7 +416,7 @@ final class GoldenColorTests: XCTestCase {
         let image = try await decoder.decode(url)
         // Chain WITHOUT gamma: [colorin, colorout(.displayP3)] — tail is
         // colorout → float32 linear-P3 output (no display format).
-        var chain = await TerminalTrioTests.makeCommittedDefaultChain(
+        var chain = await makeCommittedDefaultChain(
             registry: ModuleRegistry.makeDefault(), outputProfile: .displayP3
         )
         chain = chain.filter { $0.opName != GammaModule.opName }
@@ -510,7 +510,7 @@ final class GoldenColorTests: XCTestCase {
             ciImage: ci, rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
             segmentationSkyMatte: nil, decoderVersionUsed: .v8
         )
-        let chain = await TerminalTrioTests.makeCommittedDefaultChain(
+        let chain = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .display
         )
         let colorout = try XCTUnwrap(

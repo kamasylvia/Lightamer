@@ -71,7 +71,7 @@ final class YiyinBordersTests: XCTestCase {
     private func committedTrio(
         outputProfile: ColorOutModule.OutputProfile = .sRGB
     ) async -> [any ModuleBoxing] {
-        await TerminalTrioTests.makeCommittedDefaultChain(
+        await makeCommittedDefaultChain(
             registry: ModuleRegistry.makeDefault(), outputProfile: outputProfile)
     }
 
@@ -213,7 +213,7 @@ final class YiyinBordersTests: XCTestCase {
         let image = gradientImage(width: 48, height: 32)
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
-        var chain = await TerminalTrioTests.makeCommittedDefaultChain(
+        var chain = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         chain.append(neutralBordersBox())
         // An identity adjustment layer: the layer legs composite BEFORE the

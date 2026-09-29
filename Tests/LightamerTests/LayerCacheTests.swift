@@ -298,7 +298,7 @@ final class LayerCacheTests: XCTestCase {
         let registry = try await makeRegistry()
         let image = try makeGradientImage()
         let cache = PipeCache()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         var stack = LayerStack(baseLayer: BackgroundLayer())
@@ -344,7 +344,7 @@ final class LayerCacheTests: XCTestCase {
         let registry = try await makeRegistry()
         let image = try makeGradientImage()
         let cache = PipeCache()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         var stack = LayerStack(baseLayer: BackgroundLayer())
         let a = gainLayer(1.5, name: "A")
@@ -380,7 +380,7 @@ final class LayerCacheTests: XCTestCase {
         let registry = try await makeRegistry()
         let image = try makeGradientImage()
         let cache = PipeCache()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         var stack = LayerStack(baseLayer: BackgroundLayer())
         let a = gainLayer(1.5, name: "A")
@@ -438,7 +438,7 @@ final class LayerCacheTests: XCTestCase {
         let registry = try await makeRegistry()
         let image = try makeGradientImage()
         let cache = PipeCache()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         var stack = LayerStack(baseLayer: BackgroundLayer())
         let a = gainLayer(1.5, name: "A")
@@ -484,7 +484,7 @@ final class LayerCacheTests: XCTestCase {
         let registry = try await makeRegistry()
         let image = try makeGradientImage()
         let cache = PipeCache()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         var stack = LayerStack(baseLayer: BackgroundLayer())
         let a = gainLayer(1.5, name: "A")

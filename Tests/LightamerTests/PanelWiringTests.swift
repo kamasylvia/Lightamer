@@ -1673,7 +1673,7 @@ final class PanelWiringTests: XCTestCase {
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
         let image = try makeStripedSyntheticImage()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
 
         func run(_ enabled: Bool) async throws -> [UInt8] {

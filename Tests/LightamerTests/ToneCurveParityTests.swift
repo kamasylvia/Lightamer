@@ -245,7 +245,7 @@ final class ToneCurveParityTests: XCTestCase {
 
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
-        var chain = try await TerminalTrioTests.makeCommittedDefaultChain(
+        var chain = try await makeCommittedDefaultChain(
             registry: registry, outputProfile: .displayP3
         )
         let tonecurve = await registry.makeBox(opName: ToneCurveModule.opName)

@@ -138,7 +138,7 @@ final class RetouchParityTests: XCTestCase {
         registry: ModuleRegistry, cache: PipeCache = PipeCache(),
         roiHint: ROI? = nil
     ) async throws -> LayerCompositeResult {
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         return try await LayerCompositeDriver.composite(
             image: image, imageID: accountingImageID, baseInstances: base,
@@ -151,7 +151,7 @@ final class RetouchParityTests: XCTestCase {
     /// composite output IS the working-space plane, so the stroke math's
     /// closed forms hold exactly (strokes act pre-terminal).
     private func workingChain(registry: ModuleRegistry) async -> [any ModuleBoxing] {
-        let chain = await TerminalTrioTests.makeCommittedDefaultChain(
+        let chain = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         return chain.filter { !["colorout", GammaModule.opName].contains($0.opName) }
     }
