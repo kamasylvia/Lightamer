@@ -8,7 +8,7 @@ autonomous: true
 requirements: [M2UIW-01, M2UIW-02, M2UIW-06, M2LIB-06]
 files_modified:
   - App/Sources/Lightamer/UI/Theme/ThemeTokens.swift            # 新建（→ tuist generate）：暗色玻璃家族 tokens 单一来源（colCardSurface/colCardBorder 视觉意图、数值自写自测——GPL DESIGN.md 数值禁逐值拷）；新壳文件裸 hex 唯一豁免地
-  - App/Sources/Lightamer/UI/Shell/WorkspaceModel.swift         # 新建：@MainActor @Observable——AppPhase 枚举（library/editor）+ 双态保留结构（选中图/ExifSearchFilter/排序/滚动锚/滚动位）+ 无损往返切换
+  - App/Sources/Lightamer/UI/Shell/WorkspaceModel.swift         # 新建：@MainActor @Observable——AppPhase 枚举（library/editor）+ 双态保留结构（选中图/ExifSearchFilter/排序/滚动锚/滚动位）+ 无损往返切换 + isSearchDialogPresented 呈现布尔（⌘F，P2 消费——m6）
   - App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift      # 新建：gate=false 壳根——library face ↔ editor face 两态路由 + 切换动画（Alcedo 折叠语义）
   - App/Sources/Lightamer/UI/Shell/EditorWorkspaceShellView.swift # 新建（P1 骨架态）：编辑器 workspace 占位容器（空态 slot：视口区/左轨/右栏/胶片条位），P3 填充三段布局
   - App/Sources/Lightamer/UI/ContentView.swift                  # 修改：gate=false 分支内层 = ProjectWorkspaceFace → WorkspaceHostView（legacyBody 分支零 diff，OQ-12/D12）
@@ -85,7 +85,9 @@ struct LibraryPhaseState { /* ExifSearchFilter, FilterSort, selectedIDs, pageAnc
 struct EditorPhaseState { /* currentImageID, filmstripScrollAnchor */ }
 ```
 
-`WorkspaceModel`（@MainActor @Observable）持 `phase` + 两态各一份保留结构；
+`WorkspaceModel`（@MainActor @Observable）持 `phase` + 两态各一份保留结构 +
+`isSearchDialogPresented: Bool`（⌘F 全局搜索对话框呈现态——**P1 预埋申报（m6）**，
+P2 GlobalSearchDialog 仅在 WorkspaceHostView 消费此 bool，不自持状态）；
 `openEditor(imageID:)` / `closeEditor()` 读写保留结构——图库 → 编辑器 → 图库往返后
 filter/选中/滚动位逐字段相等（单测断言）。切换动画 = Alcedo 折叠语义（opacity+offset
 过渡，200ms 级，不做逐帧仿真）。gate=true 时 WorkspaceHostView 不参与（`legacyBody`
@@ -123,8 +125,9 @@ keyset 分页游标（消费 `LibraryQueries.searchPage/searchNullTail` +
 Alcedo 底部横条**。行高固定常量；`onAppear/onDisappear` 窗口信号 → 桥 `prioritize/
 cancel`；选中行玻璃环 + 当前图 accent 边。数据源 = `LibraryGridModel` 同一游标（KD-3，
 不复制集合态）。机检 = 模型级：1 万行 id 挂载、仅可见窗口 ± prefetch 常数行发起缩略图
-请求（计数断言）、滚动锚随选中行更新；性能观察项（BENCH| 行，非门）：1 万行 mount +
-滚动 60fps 目测走查留 P4 computer-use 轮。
+请求（计数断言）、滚动锚随选中行更新；性能观察项（BENCH| 行，非门）：1 万行 mount
+数据本 plan 落 SUMMARY；滚动 60fps 目测 + List 窗口信号 → 桥 prioritize/cancel
+**真接线兜底核验**（m9 并入）= P4 T2「交互/性能观察清单」①（E4 接账）。
 
 ### KD-6 菜单 IA = MenuCommandSet 纯函数，Session 死路由门控收口（M2LIB-06 尾巴）
 
@@ -135,7 +138,7 @@ cancel`；选中行玻璃环 + 当前图 accent 边。数据源 = `LibraryGridMo
 | `session.new/open/close/import` 四死路由 | **原样可见**（M1 行为基线，字节语义不变） | **移除**（M2LIB-06 登记 inert 死路由清理） |
 | `project.new/open/recent/importFolder/backup/move` | 不可见 | 可见（⌘N/⌘O/⌘⇧O/⌘⇧I 族，macOS 惯例保守对齐，D11） |
 | `workspace.enterEditor` / `workspace.backToLibrary` | 不可见 | 可见（⌘E 进编辑器占位——P2 网格双击为主入口；⌘W 关图回图库） |
-| `library.search` | 不可见 | 可见（⌘F 打开全局搜索对话框——命令 id 本 plan 在册，呈现目标 P2 T3 接线） |
+| `library.search` | 不可见 | 可见（⌘F 打开全局搜索对话框——命令 id 本 plan 在册，呈现态 = `WorkspaceModel.isSearchDialogPresented` P1 预埋（m6），呈现目标 P2 T3 接线） |
 | `view.toolRail/scopes/adjustmentStack` 可见性 | 不可见 | 可见（toggle 命令，P3 面板挂接前为占位布尔） |
 
 `LightamerApp.swift` 的 CommandMenu/CommandGroup 改为消费该函数（Session 四项包进
@@ -155,7 +158,9 @@ protocol BackgroundTaskHandle: Sendable { var id: UUID; var title: String;
 
 - 三腿协议面一次成型（CONTEXT Specific Ideas：防三腿三实现）；**导入腿首实现** =
   `ImportTaskAdapter` 桥 M2-2-2 `ImportProgress` 快照 + `cancelImport()`（既有
-  Controller API，零改动消费）；`ImportModeDialog`/`ImportProgressView` 本体零 diff，
+  Controller API，**controller 零改动**——adapter 只读订阅 `importProgress` 发布面 +
+  `cancelImport()` 透传，编排点 `LibraryProjectController.swift:241` 不入修改面，
+  checker E3）；`ImportModeDialog`/`ImportProgressView` 本体零 diff，
   呈现迁入新壳底部栏 + 任务对话框双面（同一 registry）。
 - 导出腿 M2-9 消费、AI 腿 M2-10 消费——协议不预留这两腿专属字段（progress/cancel 已
   足；需要时届时协议演进化，禁提前设计）。
@@ -211,7 +216,8 @@ protocol BackgroundTaskHandle: Sendable { var id: UUID; var title: String;
      数值自写（D1 禁拷 GPL 数值）」）。
   2. 新建 `Tests/LightamerTests/ThemeTokensTests.swift`：token 全非 nil + 家族完备性
      （七族逐一在册）+ 暗/亮判别断言（相对亮度序：windowBackground < cardSurface <
-     textPrimary）+ `accessibilityIdentifier` 稳定面。
+     textPrimary）+ `accessibilityIdentifier` 稳定面（**marker 断言 T2 补验（m8）**——
+     T1 只落 token 稳定面基座，视图级 marker 断言随 T2 WorkspaceRoutingTests 落地）。
   3. 机检：`git grep -En '#[0-9A-Fa-f]{6}' App/Sources/Lightamer/UI/Shell
      App/Sources/Lightamer/Library/Views` —— T1 时点仅 ThemeTokens.swift 命中（AC 表 #1
      逐 plan 收口复跑）。
@@ -225,7 +231,8 @@ protocol BackgroundTaskHandle: Sendable { var id: UUID; var title: String;
 - **read_first**：上列 1/3/4。
 - **action**
   1. 新建 `UI/Shell/WorkspaceModel.swift`（KD-2：AppPhase 穷举、双态保留结构、
-     `openEditor/closeEditor/switchPhase` 保留读写；`@Observable`）。
+     `openEditor/closeEditor/switchPhase` 保留读写、`isSearchDialogPresented` 呈现布尔
+     （⌘F，P2 消费——m6）；`@Observable`）。
   2. 新建 `UI/Shell/WorkspaceHostView.swift`：gate=false 壳根——phase switch 渲染
      library face / editor face + 切换过渡；顶部 TopBar slot（项目名 + 相面命令按钮，
      P2/P3 填充）；`accessibilityIdentifier("shell.workspace.host")` marker。
@@ -295,7 +302,9 @@ protocol BackgroundTaskHandle: Sendable { var id: UUID; var title: String;
      `git grep` 断言：gate=false 路径 Session 命令构造零直接出现。
 - **验收标准**
   - [ ] MenuCommandSet 矩阵全绿；Session 四死路由 gate=false 移除 + gate=true 原样
-        （字节不变断言）。
+        （**逐 hunk 评审（m7）**：`git diff <T5 起点 SHA>..HEAD --
+        App/Sources/Lightamer/UI/LightamerApp.swift` 逐 hunk + grep 核 gate=true 分支
+        语句零改动；无逐字节机检，评审结论入 SUMMARY）。
   - [ ] 全套回归 `0 fail`；LibraryLegacyGateTests 零改动全绿。
 
 ### T6 BackgroundTaskHosting 协议 + 导入腿接入
@@ -310,14 +319,18 @@ protocol BackgroundTaskHandle: Sendable { var id: UUID; var title: String;
      per-file 阶段文案 + cancel 透传 `cancelImport()`）。
   3. 新建 `UI/Shell/BackgroundTaskBarView.swift`：底部栏（进行中任务行 + 进度 + 取消）
      + 任务对话框宿主（同 registry 双呈现；`tasks.bar`/`tasks.dialog` marker）。
-  4. WorkspaceHostView 挂底部栏；导入命令路径接入 adapter（runImport 编排点消费，
-     ImportModeDialog 弹出流程不变）。
+  4. WorkspaceHostView 挂底部栏；导入腿编排归属钉死（**checker E3**）：adapter **只读
+     订阅** `LibraryProjectController.importProgress`（`:47` 发布面）+ `cancelImport()`
+     透传（`:267`）——**controller 零改动**（`LibraryProjectController.swift:241`
+     runImport 编排点不入修改面），ImportModeDialog 弹出流程不变。
   5. 新建 `Tests/LightamerTests/BackgroundTaskRegistryTests.swift`：注册/更新/完成/
      取消/多任务并发注册表语义 + 导入腿单调快照（复用 M2-2-2 快照序列 fixture 模式）
      + 双呈现一致性（bar 与 dialog 同源断言）。
 - **验收标准**
   - [ ] registry 语义 + 导入腿单调/取消断言全绿；双呈现同源断言全绿。
-  - [ ] ImportModeDialog/ImportProgressView 零 diff（`git diff --stat` 核）。
+  - [ ] ImportModeDialog/ImportProgressView/**LibraryProjectController.swift** 零 diff
+        （`git diff --stat` 核——adapter 只读订阅 + cancel 透传，controller 不入修改面，
+        checker E3）。
   - [ ] 全套回归 `0 fail`。
 
 ### T7 收口——SUMMARY/DECISIONS + 续接点
@@ -342,8 +355,8 @@ protocol BackgroundTaskHandle: Sendable { var id: UUID; var title: String;
 | 4 | LibraryGridModel keyset 分页不重不漏 + NULL 封底 + filter 变更重置 + 五键白名单 | LibraryGridModelTests（真 .lalb fixture） |
 | 5 | 缩略图桥双档裁决（has_edits）+ 盘缓存 `.lathumbs` 命中零重产 + LRU + 并发 ≤4 + in-flight 合并 | LibraryThumbnailBridgeTests |
 | 6 | 胶片条 = 竖向 List 虚拟化；1 万行挂载窗口外零请求（prefetch 常数上界）；选中滚动锚 | FilmstripModelTests 计数断言 |
-| 7 | MenuCommandSet 矩阵（gate × phase 全组合）：Session 四死路由 gate=false 移除/gate=true 原样字节不变；项目/工作区命令回路在册 | MenuCommandSet 单测 + LightamerApp gate=true 分支 diff 空 |
-| 8 | BackgroundTaskHosting 协议 + registry 四态 + 导入腿单调快照 + 取消 + 双呈现同源；ImportModeDialog/ImportProgressView 零 diff | BackgroundTaskRegistryTests + `git diff --stat` |
+| 7 | MenuCommandSet 矩阵（gate × phase 全组合）：Session 四死路由 gate=false 移除/gate=true 原样字节不变；项目/工作区命令回路在册 | MenuCommandSet 单测 + **逐 hunk 评审（m7）**：`git diff <P1 起点 SHA>..HEAD -- App/Sources/Lightamer/UI/LightamerApp.swift` 逐 hunk + grep 核 gate=true 分支零语句改动（结论入 SUMMARY） |
+| 8 | BackgroundTaskHosting 协议 + registry 四态 + 导入腿单调快照 + 取消 + 双呈现同源；ImportModeDialog/ImportProgressView/LibraryProjectController.swift 零 diff | BackgroundTaskRegistryTests + `git diff --stat`（E3：controller 只读订阅面，不入修改面） |
 | 9 | 新 UI 全量 `String(localized:)` 键、零裸字面 `Text("…")` LocalizedStringKey 漂移（verbatim 仅限沿用 M2-2 惯例处） | `git grep -n 'Text("' App/Sources/Lightamer/UI/Shell App/Sources/Lightamer/Library` 白名单核对 |
 | 10 | 全套回归 0 fail，计数 ≈ 2049 + 25..35 | test-direct.sh Executed/failures 双读 |
 | 11 | diff 边界 == 申报文件集；`LightamerCore/` 零 diff；legacyBody 树资产零 diff | `git diff --stat` + `git diff --name-only` 逐文件核对 |
@@ -352,13 +365,14 @@ protocol BackgroundTaskHandle: Sendable { var id: UUID; var title: String;
 
 - **List 万行虚拟化性能**：SwiftUI List 在万行 + 异步缩略图场景的滚动帧率不可静态保证
   ——第一约束设计（固定行高/窗口化请求/合并去重）+ 万行计数单测；**真机滚动帧率 =
-  P4 computer-use 走查观察项（非门）**；若走查不达标，后备 = 行高降档 + 预取窗收窄，
-  不推倒 List 选型。
+  P4 T2「交互/性能观察清单」①（E4 接账，非门）**；若走查不达标，后备 = 行高降档 +
+  预取窗收窄，不推倒 List 选型。
 - **缩略图档 B 首渲成本**：has_edits 大图管线渲一档非嵌入预览路径，首屏可能忙——桥
   层并发上限 + prioritize 已缓解；档 B 产能观察项挂 SUMMARY，M2-2-3 挂账「缩略图首屏」
   的量测销账在 P2（网格接线后）。
 - **菜单 IA 撞键**：⌘N/⌘O 等在 M1 是 Session 命令、新壳改绑项目命令——gate=true 通道
-  键位不变（字节级），gate=false 键位按 KD-6 表；真实按键走查留 P4 computer-use 轮。
+  键位不变（字节级），gate=false 键位按 KD-6 表；真实按键走查 = P4 T2「交互/性能观察
+  清单」②（E4 接账）。
 - **@Observable + @MainActor 测试面**：WorkspaceModel 单测在 test host MainActor 域内
   跑（既有 MainActor 模型测试先例）；禁为了可测把状态拆出 actor（路由状态就是主线程态）。
 - **新建文件批量**：T1/T2 一次建齐 Shell/ 基础件 + 测试，`tuist generate` 一次；后续

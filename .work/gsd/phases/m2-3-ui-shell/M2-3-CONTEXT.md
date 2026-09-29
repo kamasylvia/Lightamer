@@ -174,3 +174,25 @@ Alcedo 九页 = Language/Theme、Default Behavior、Cache、Local Content Recogn
 ## Ruling（2026-09-29 用户）
 
 D-M2-3-CONTEXT-1..12 = OQ-1..12 **全部按推荐 A 生效**，唯一修订：**胶片条不放底部，放编辑器左侧竖向滚动**（用户偏好，偏离 Alcedo 底部布局——M2UIW-02 同步修订）。OQ-10 的 computer-use 对照以修订后的布局为准（左侧胶片条为本项目标识性差异）。
+
+> **勘误注记（2026-09-29 checker E1，OQ 原文不改、以本注记为准）**：OQ-3（活体壳）与 OQ-4（映射表 Display Transform 行「AgX 现面板 + Vignette」）中「暂驻 AgX 现面板」的表述与实态冲突——`LightamerIOP/Sources/Registry.swift:43` `defaultFaceDisabledOpNames` 已含 `AgXModule.opName`（M2-1 注册面收窄），AgX 面板保持**失挂**；Display Transform 页签内容 = **Vignette + 「DRT arrives with M2-6」占位节**。`LIGHTAMER_FULL_IOP_FACE=1` 全量回切走 legacy 平铺路径，不受影响。
+
+---
+
+## Checker 回注记录（2026-09-29）
+
+M2-3 plans checker 判 FAIL（4 error + 9 minor），修复回注 4 个 PLAN（M2-3-1/2/3/4）+ 本文件；逐条落地状态：
+
+- **E1（M2-3-3，涉本文件 OQ-3/OQ-4）AgX 自相矛盾**：`defaultFaceDisabledOpNames` 实含 AgXModule（`LightamerIOP/Sources/Registry.swift:43`），DT 页挂 AgX 违 M2-1 收窄 + 违 M2-3-3 AC#3 禁用名 grep 零命中。修复 = DT 页内容改 **Vignette + 「DRT arrives with M2-6」占位节**，AgX 保持失挂（env 全量回切走 legacy 平铺不受影响）；同步修订 M2-3-3 已定裁决 D3/D4、KD-2、T2 action 4、TAB-MATRIX 模板（files_modified 注 + T2 action 6）、M2-3-4 屏清单判定预期；本文件勘误注记见上方 Ruling 节（OQ 原文不改）。
+- **E2（M2-3-3 front-matter）**：files_modified 补 `App/Sources/Lightamer/UI/Shell/WorkspaceModel.swift` + `App/Sources/Lightamer/State/EditorState.swift`（T4 overrides 链必触；`EditorState.load :295` 为唯一请求链）；KD-4 写明链路路径。
+- **E3（M2-3-1 T6）**：编排点归属钉死 = adapter 只读订阅 `controller.importProgress` + `cancelImport()` 透传，controller 零改动（`LibraryProjectController.swift:241` 不入修改面）——T6 action 与 AC（T6 验收标准 + AC 表 #8）改写。
+- **E4（跨 plan 挂账黑洞）**：M2-3-4 T2 走查协议增「交互/性能观察清单」节（KD-2 接收节 + T2 action 5 + 验收标准 + MANIFEST 观察清单节），接账四项：①万行胶片条滚动 60fps 目测 + List→桥真接线兜底核验（P1 挂）②菜单撞键真实按键走查（P1 挂）③示波器拖累 PREVIEW 帧率目测（P3 挂）④左轨工具轨 + 胶片条宽度观感裁决（P3 挂）——逐项记 MANIFEST/SUMMARY；P1/P3 风险节挂账行改指向 P4 T2 新节。
+- **m1**：M2-3-4 屏清单基数 13 → **15 屏**（如实计数；KD-2 头 + T2 action 3 + AC#3 同步）。
+- **m2**：M2-3-4 AC#4 判定列提取命令写实（`awk -F'|'` 第 4 内容列 + 输出 case 匹配封闭集）。
+- **m3**：M2-3-3 KD-2 特例集合纠正——Yiyin/Preset 非 ModuleRegistry IOP 移出减集、Lut 归入恰一次集；断言改「动态 populated-registry 全集 − {TextOverlay}」，实测基数 Registry 注册 **37**/默认面 **31**（T2 执行时以动态集为准登记 DECISIONS；T2 action 7 + AC#3 同步）。
+- **m4**：M2-3-2 read_first ImageLinker 路径改 `LightamerCore/Sources/Library/ImageLinker.swift`（实态核实）。
+- **m5**：M2-3-4 read_first xcstrings 路径改仓库根 `Resources/Localizable.xcstrings`（实态核实）。
+- **m6**：⌘F 呈现态钉「P1 预埋 `WorkspaceModel.isSearchDialogPresented`、P2 仅 WorkspaceHostView 消费」——M2-3-1 补申报（front-matter 注 + KD-2 + KD-6 表 + T2 action 1）、M2-3-2 补消费措辞（KD-3）。
+- **m7**：M2-3-1 分支级断言标注「逐 hunk 评审」并给区间比对命令（`git diff <base>..HEAD -- App/Sources/Lightamer/UI/LightamerApp.swift` + grep gate=true 分支零语句改动；T5 验收标准 + AC#7）。
+- **m8**：M2-3-1 T1 marker 断言标注「T2 补验」（token 稳定面基座 T1 落、视图级 marker 断言随 T2 WorkspaceRoutingTests 落地）。
+- **m9**：Filmstrip List→桥真接线兜底并入 E4 清单①（M2-3-4 KD-2/T2 action 5；M2-3-1 KD-5 同步措辞）。

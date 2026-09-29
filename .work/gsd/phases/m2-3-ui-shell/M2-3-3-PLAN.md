@@ -16,6 +16,8 @@ files_modified:
   - App/Sources/Lightamer/UI/Settings/SettingsPages.swift          # 新建：设置页内容件（Language/Theme、Default Behavior、Cache、LCR/ACA 诚实空态、Keyboard、About、Import Defaults、Displays/MCP 迁移宿主）
   - App/Sources/Lightamer/UI/Shell/EditorWorkspaceShellView.swift  # 修改：P1 骨架 slot 填充三段布局（工具轨/视口/左胶片条/右栏）
   - App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift         # 修改：TopBar yiyin 独立入口按钮（YiyinPanelView + TextOverlayPanelView sheet，D4 独有面板入口）
+  - App/Sources/Lightamer/UI/Shell/WorkspaceModel.swift            # 修改：T4 overrides 会话级载体（RawDecodePanelView 写 overrides → 解码请求链；checker E2 补申报）
+  - App/Sources/Lightamer/State/EditorState.swift                  # 修改：T4 overrides 透传——load(:295) 唯一解码请求链增量传参（checker E2 补申报）
   - App/Sources/Lightamer/UI/EditorAreaView.swift                  # 修改（仅增量缝）：外壳适配——视口/手势/overlay 底座零行为改动；legacy gate 快照核对前置
   - App/Sources/Lightamer/State/PipeCoordinator.swift              # 修改（仅增量缝）：PREVIEW 输出纹理示波器采样 tap（节流 + L031 唯一队列路由点）
   - App/Sources/Lightamer/UI/SettingsView.swift                    # 修改：Settings scene 重组为 Alcedo 式左列表右内容导航（visibleCatalogSectionMarkers 门控逻辑零改动）
@@ -23,9 +25,9 @@ files_modified:
   - LightamerCore/Sources/Decode/RAWDecoder.swift                  # 修改（**显式红线例外，唯一 Core 文件，仅增量**）：decode 增量 technicalOverrides 参数（默认值 = 零行为变化）——overrides 先于 rawTech readback 写入 filter
   - LightamerIOP/Sources/Common/ScopeReduce.swift                  # 新建：示波器归约宿主（HistogramReduce 同族扩展——bin/波形两 pass + 节流策略）
   - LightamerIOP/Sources/Common/ScopeReduceKernels.metal           # 新建：直方图 bin kernel（256-bin × RGB + luma）+ 波形 kernel（逐列下采样散点写小纹理）
-  - .work/gsd/phases/m2-3-ui-shell/M2-3-TAB-MATRIX.md              # 新建：OQ-4 七页签归页映射表落盘（与 EditorTabRoutingTable 同批互校，M2-1 MATRIX 同格式）
+  - .work/gsd/phases/m2-3-ui-shell/M2-3-TAB-MATRIX.md              # 新建：OQ-4 七页签归页映射表落盘（与 EditorTabRoutingTable 同批互校，M2-1 MATRIX 同格式；Display Transform 行按 checker E1 勘误 = Vignette + DRT 占位节，AgX 失挂）
   - Tests/LightamerTests/ScopeReduceTests.swift                    # 新建（→ tuist generate）：合成纹理 bin 计数 vs CPU 参考逐 bin parity + 波形列统计 parity + 确定性
-  - Tests/LightamerTests/EditorStackRoutingTests.swift             # 新建：路由表完备性（启用面板恰一次归页/页序 == Alcedo/禁用 6 名零命中）+ 空态页 + 工具轨三态
+  - Tests/LightamerTests/EditorStackRoutingTests.swift             # 新建：路由表完备性（动态 populated-registry 全集 − {TextOverlay} 恰一次归页/页序 == Alcedo/禁用 6 名零命中）+ 空态页 + 工具轨三态
   - Tests/LightamerTests/RawDecodeOverridesTests.swift             # 新建：overrides 应用断言（filter 键位读回）+ 默认参数逐字节不变 + cache key 漂移断言 + 越界钳制
   - Tests/LightamerTests/SettingsPagesTests.swift                  # 新建：页 id 集精确断言 + Default Behavior 三选 round-trip + Keyboard 冲突检测 + Catalogs 门控页 gate 两态
   - .work/gsd/phases/m2-3-ui-shell/M2-3-3-SUMMARY.md               # 新建（收口任务）
@@ -51,14 +53,19 @@ files_modified:
 - **D2（OQ-2 A）**：编辑器顶栏回退按钮/⌘W 关图回图库（⌘W 命令 P1 已挂，本 plan 接线
   确认）。
 - **D3（OQ-3 A）活体壳**：Tone/Look/LUT/Geometry/Mask 五页签挂现行平铺管线既有面板
-  （参数直调现行 history stack，行为与 M1 一致）；Display Transform 页签 = 暂驻 AgX 现
-  面板 + 「DRT arrives with M2-6」占位节；RAW Decode 页签 = 新建 CIRAW 参数面板
+  （参数直调现行 history stack，行为与 M1 一致）；Display Transform 页签 = **Vignette +
+  「DRT arrives with M2-6」占位节**（**checker E1 勘误 2026-09-29**：AgX 在
+  `LightamerIOP/Sources/Registry.swift:43` `defaultFaceDisabledOpNames` 禁用面内，保持
+  失挂——挂 AgX 违 M2-1 收窄且违本 plan AC#3 禁用名 grep 零命中；CONTEXT OQ-3 原文
+  「暂驻 AgX」按 Ruling 节勘误注记读）；RAW Decode 页签 = 新建 CIRAW 参数面板
   （NR amount/luminance/chroma/sharpness + decoder version + boost；Neural Engine 细节
   M2-5+ 校准）；左工具轨 History = 挂现行 history stack，Versions = 占位空态（M2-8），
   Nodes = 占位空态（M2-4）；示波器/胶片条/FIT 读出/双级 busy = 真数据真交互；空态文案
   统一「<Feature> arrives in M2-x」家族。
 - **D4（OQ-4 A）**：七页签归页映射表照 CONTEXT OQ-4 表生效（details = 表 verbatim；plan
-  期微调仅限「明确偏差 + DECISIONS 归因」）；独有面板入口：YiyinPanelView + TextOverlay
+  期微调仅限「明确偏差 + DECISIONS 归因」；**checker E1 勘误：OQ-4 表 Display Transform
+  行「AgX 现面板 + Vignette」按勘误读 = Vignette + DRT 占位节——AgX 失挂，其余行照表
+  verbatim**）；独有面板入口：YiyinPanelView + TextOverlay
   = 顶栏独立按钮（sheet）；McpLauncherPanelView = 现状保持（菜单/窗口入口）；PresetPanelView
   = 七页签头部全局入口（沿 M1 Inspector 底部 + 管理器窗口现状）。
 - **D5（OQ-5 A）**：禁用 6 面板（FilmicRGB/Sigmoid/AgX/DenoiseProfile/NLMeans/Bilateral）
@@ -107,15 +114,19 @@ enum EditorTabRoutingTable {
 - 路由表 = CONTEXT OQ-4 表逐行代码化（页签 → 挂接面板清单 + 组语义）；`PanelDescriptor`
   承载面板构造闭包引用（复用 `IOPPanelProvider` 注册面实例化既有 PanelView，**面板文件
   零改动**）+ Advanced 折叠组标记（Geometry 页 D6 独有项组）。
-- 归页总数断言：启用面板全集（`ModuleRegistry` 默认面 33 − Lut/Yiyin/TextOverlay/Preset
-  四个特例入口）**恰一次**出现在路由表；禁用 6 名（filmicrgb/sigmoid/agx/
+- 归页总数断言（**checker m3 纠正**）：**动态 populated-registry 全集 − {TextOverlay}**
+  **恰一次**出现在路由表——Yiyin/Preset 非 `ModuleRegistry` IOP（App 层面板），移出
+  减集；Lut 为 LUT 页注册 IOP，归恰一次集；TextOverlay = yiyin 顶栏 sheet 载体，不入
+  表。实测基数：Registry 注册 **37** 模块、默认面 **31**（37 − 禁用 6），T2 执行时以
+  populated-registry 动态集为准并登记 DECISIONS；禁用 6 名（filmicrgb/sigmoid/agx/
   denoiseprofile/nlmeans/bilateral op 名小写比对）**零命中**；页序 == `allCases` 序。
 - 同批落盘 `.work/gsd/phases/m2-3-ui-shell/M2-3-TAB-MATRIX.md`（M2-1 MATRIX 同格式：
   页签 × 面板 × 组语义 × Alcedo 对应物列）；**表与 md 同批互校**（md 由表人工誊写，
   T2 验收含逐行对账步）。
-- Display Transform 页签 = AgX 面板 + 占位节（「OpenDRT / ACES 2.0 arrive with M2-6」）；
-  RAW Decode 页签 = RawDecodePanelView（T4）；Mask 页签 = LayersPanelView + MaskToolbar
-  联动入口（M2-7 替换前的归位）。
+- Display Transform 页签 = **Vignette** + 占位节（「OpenDRT / ACES 2.0 arrive with M2-6」；
+  **AgX 保持失挂——checker E1 勘误**，`Registry.swift:43` `defaultFaceDisabledOpNames`
+  禁用面）；RAW Decode 页签 = RawDecodePanelView（T4）；Mask 页签 = LayersPanelView +
+  MaskToolbar 联动入口（M2-7 替换前的归位）。
 
 ### KD-3 ScopeReduce = HistogramReduce 同族 GPU 归约，L031 队列纪律直承
 
@@ -137,6 +148,11 @@ enum EditorTabRoutingTable {
 
 ### KD-4 RAW Decode overrides = filter 先写后读，cache key 自然漂移（Core 唯一例外）
 
+- **overrides 请求链与文件面（checker E2）**：`RawDecodePanelView` 写 →
+  `App/Sources/Lightamer/UI/Shell/WorkspaceModel.swift`（会话级 overrides 载体，P1
+  新建、本 plan 修改）→ `App/Sources/Lightamer/State/EditorState.swift`
+  `load(url:decoder:metal:logger:)`（`:295`，唯一解码请求链）增量透传 →
+  `RAWDecoder.decode` 第二参数；两文件已入本 plan files_modified 申报。
 - `RAWDecoder.decode(_ url:)` 增量第二参数
   `technicalOverrides: RAWTechnicalParams = .init()`（默认值 = 零行为变化——既有调用
   点零改动，编译级保证）；override 值**先写入 CIRAWFilter 对应键
@@ -255,15 +271,18 @@ enum EditorTabRoutingTable {
      Preset 入口 + `editor.stack.tab.<name>` marker。
   3. 新建 `EditorNodeHeaderView.swift`：节点名（v1 = 「Color Grade」常量，M2-4 真节点）
      + 焦距/光圈/快门/ISO（LibraryImageRow EXIF 列读出，Empty 态「—」）。
-  4. Display Transform 页 = AgX 面板 + DRT 占位节；RAW Decode 页槽位（T4 填充前先挂
+  4. Display Transform 页 = Vignette + DRT 占位节（**AgX 失挂——checker E1 勘误**）；
+     RAW Decode 页槽位（T4 填充前先挂
      空态）；Mask 页 = LayersPanelView 实例 + MaskToolbar 联动入口。
   5. 独有入口：TopBar 加 yiyin 按钮（YiyinPanelView + TextOverlayPanelView sheet）；
      MCP/Preset 现状入口确认不变。
   6. 新建 `.work/gsd/phases/m2-3-ui-shell/M2-3-TAB-MATRIX.md`（与 RoutingTable 逐行
-     对账：页签 × 面板 × 组语义 × Alcedo 对应物 × Alcedo 无对应标注）。
+     对账：页签 × 面板 × 组语义 × Alcedo 对应物 × Alcedo 无对应标注；Display Transform
+     行按 **checker E1 勘误**记 Vignette + DRT 占位节，AgX 不入表）。
   7. 新建 `Tests/LightamerTests/EditorStackRoutingTests.swift`：路由表完备性四断言
-     （启用面板恰一次/页序/禁用 6 零命中/特例四件不在表内）+ md 与表行数一致断言
-     （读 md 文件逐行对账）。
+     （恰一次 = **动态 populated-registry 全集 − {TextOverlay}**——m3 纠正：Yiyin/
+     Preset 非 registry IOP 不入断言域、Lut 归恰一次集/页序/禁用 6 零命中/
+     TextOverlay 不在表内）+ md 与表行数一致断言（读 md 文件逐行对账）。
 - **验收标准**
   - [ ] 路由表四断言全绿；TAB-MATRIX md 逐行与表一致。
   - [ ] 33 面板文件 + InspectorView/InspectorRowView 零 diff（`git diff --stat` 核）；
@@ -305,8 +324,10 @@ enum EditorTabRoutingTable {
   2. 新建 `RawDecodePanelView.swift`：NR 四滑杆（amount/luminance/chroma/sharpness）
      + decoder version 三选（default/v8/v9——`demosaic` 语义对齐 Alcedo 入口命名，
      CIRAW 实际 = decoder version 档）+ boost 滑杆 + 相机不支持 v9 的行内降级提示 +
-     「Reset」identity 按钮 + `editor.rawdecode` marker；写 `WorkspaceModel` 会话级
-     overrides → 解码请求链 → 缓存失效即时重渲。
+     「Reset」identity 按钮 + `editor.rawdecode` marker；写 `WorkspaceModel`
+     （`UI/Shell/WorkspaceModel.swift` 会话级 overrides 载体）→ `EditorState.load`
+     （`:295` 唯一请求链）透传 `RAWDecoder.decode` → 缓存失效即时重渲（checker E2
+     链路，两载体文件见 front-matter 申报）。
   3. Display Transform 页空态槽位换挂本面板（T2 槽位点亮）。
   4. 新建 `Tests/LightamerTests/RawDecodeOverridesTests.swift`：overrides 应用断言
      （decode 后 rawTech 字段 == overrides 值）+ 默认参数 decode 输出与既有路径逐字节
@@ -361,7 +382,7 @@ enum EditorTabRoutingTable {
 |---|---|---|
 | 1 | 三段方位语义（rail left/viewport center/scopes+stack right）+ 左竖胶片条挂载同集合态；工具轨 History 真挂/Versions+Nodes 空态 marker | EditorStackRoutingTests + marker 断言 |
 | 2 | EditorAreaView 行为零迁移：既有视口/手势/overlay 测试零改动全绿；legacy gate 快照零改动全绿；EditorAreaView diff 仅增量（前置核对结论在 DECISIONS） | 既有测试零 diff 全绿 + 逐 hunk 评审项 |
-| 3 | 路由表完备性：启用面板全集恰一次归页；页序 == Alcedo 七页序；禁用 6 op 名 grep 零命中；TAB-MATRIX md 与表逐行一致 | EditorStackRoutingTests + `git grep -i` 禁用名 |
+| 3 | 路由表完备性：启用面板全集（动态 populated-registry − {TextOverlay}，实测基数注册 37/默认面 31——m3）恰一次归页；页序 == Alcedo 七页序；禁用 6 op 名 grep 零命中；TAB-MATRIX md 与表逐行一致 | EditorStackRoutingTests + `git grep -i` 禁用名 |
 | 4 | 33 面板文件 + InspectorView/InspectorRowView/IOPPanelProvider 零 diff；PanelWiring 族零改动全绿 | `git diff --name-only` |
 | 5 | ScopeReduce：三 case bin 逐 bin parity + 波形 parity + 确定性；零第二 command queue（grep）；直方图读回 fence 在册 | ScopeReduceTests + grep 断言 |
 | 6 | 示波器节流：拖动 ≤15Hz + idle 补算 + 不可见零 tap（状态机单测） | ScopePanelView 宿主状态断言 |
@@ -376,8 +397,9 @@ enum EditorTabRoutingTable {
 
 - **GPU 示波器与 PREVIEW 管线并发（L031 域）**：示波器 compute 与 PREVIEW 渲染共用
   command buffer 串行语义 + 唯一队列路由点，杜绝跨队列竞速；残余风险 = 节流宿主状态
-  竞争——节流纯 MainActor 状态机（单测覆盖）；若实测示波器拖累 PREVIEW 帧率（P4
-  computer-use 走查），后备 = 采样半分辨率 ROI（方案记 DECISIONS，不砍波形）。
+  竞争——节流纯 MainActor 状态机（单测覆盖）；若实测示波器拖累 PREVIEW 帧率（P4 T2
+  「交互/性能观察清单」③——E4 接账），后备 = 采样半分辨率 ROI（方案记 DECISIONS，
+  不砍波形）。
 - **atomic bin kernel 正确性**：Metal atomic_float 不可用——bin 用 `atomic_uint` 计数
   （整型直方图），像素非负浮点 → bin index 取整后计数，语义 = 计数直方图（与 CPU 参考
   逐 bin 精确可比）；归一化在绘制层。测试三 case 钉语义。
@@ -390,8 +412,8 @@ enum EditorTabRoutingTable {
   覆盖行——重组保持节容器原语（Section/Picker 语句零语义改动），两族既有测试零改动
   全绿为硬判据。
 - **胶片条与工具轨并存的左轨宽度**：竖向胶片条（用户修订）+ Alcedo 左工具轨同侧并存
-  ——布局 = 工具轨窄列（40pt 级）+ 胶片条列（160pt 级）串联，互推挤视口；P4 computer-use
-  走查为观感裁决点（偏差-接受/偏差-修判定）。
+  ——布局 = 工具轨窄列（40pt 级）+ 胶片条列（160pt 级）串联，互推挤视口；P4 T2
+  「交互/性能观察清单」④为观感裁决点（E4 接账；偏差-接受/偏差-修判定）。
 - **空态文案与 zh**：空态家族键（`editor.versions.placeholder` 等 6 键）随手写 en，
   zh 随 P4 补录。
 

@@ -86,7 +86,9 @@ files_modified:
 ### KD-3 搜索三合一 = 三段对话框一次成型，EXIF 腿真接、两腿诚实空态
 
 - 结构对齐 Alcedo 三段：模式段（EXIF / CLIP / AI 描述与标签全文三分段卡）+ 输入段 +
-  结果应用段。⌘F 打开（Library phase 命令，P1 MenuCommandSet 挂点接线）。
+  结果应用段。⌘F 打开（Library phase 命令，P1 MenuCommandSet 挂点接线；**呈现态 =
+  P1 预埋 `WorkspaceModel.isSearchDialogPresented`，P2 仅在 WorkspaceHostView 消费
+  该 bool 挂对话框——m6，不自持状态**）。
 - EXIF 腿：输入串 → `ExifSearchParser.parse`；typed error 四族（iso 非法/光圈非法/
   日期 disjoint/unrecognized 词）→ 对话框行内呈现（不弹 alert）；parse 成功 →
   `ExifSearchFilter.plan = plan` → `LibraryGridModel.applyFilter`（网格 + Inspector
@@ -129,7 +131,8 @@ libraryQueries:)` 成员集 → `ExifSearchFilter` 以 id 集合腿折叠（成�
 5. `LightamerCore/Sources/Library/LibraryQueries.swift`——九签名 + typed 载荷定义
    （`LibraryGroupCount` payload 字段名逐一核对）。
 6. `LightamerCore/Sources/Library/ExifSearchParser.swift`——typed error 四族定义。
-7. `LightamerCore/Sources/Session/ImageLinker.swift`——relinkRecord/stale 两形态签名。
+7. `LightamerCore/Sources/Library/ImageLinker.swift`——relinkRecord/stale 两形态签名
+   （m4 路径勘误：Library 域，非 Session）。
 8. `research/ALCEDO-FEATURE-MAP.md` §1.2——面板分组名/搜索对话框三段 IA。
 9. `.work/gsd/phases/m2-2-library-project/perf.md` §A.4——挂账行原文（销账措辞对齐）。
 

@@ -9,7 +9,7 @@ requirements: [M2UIW-01, M2UIW-02, M2UIW-03, M2UIW-04, M2UIW-05, M2UIW-06, M2LIB
 files_modified:
   - Scripts/zh-audit.py                                    # 新建：键集对账脚本（scan String(localized: + Text("key") 蛇形键 vs Localizable.xcstrings 双向 diff + zh 值完备 + 语言 code=zh 断言 + --check/--report/--self-test 三模式）
   - Resources/Localizable.xcstrings                        # 修改：zh 补录批（M2-2 增量 ~20 + M2-3 增量 150..250 键一次补齐；语言 code 恒 `zh`）
-  - .work/gui-acceptance/m2-3/MANIFEST.md                  # 新建：差异清单索引（屏清单 × 判定汇总 × 证据路径 × 锁屏降级记录）
+  - .work/gui-acceptance/m2-3/MANIFEST.md                  # 新建：差异清单索引（屏清单 × 判定汇总 × 证据路径 × 锁屏降级记录 × 交互/性能观察清单——E4 接账）
   - .work/gui-acceptance/m2-3/<screen>/alcedo.png          # 新建（逐屏三件套之一）：Alcedo 真机 computer-use 截图
   - .work/gui-acceptance/m2-3/<screen>/lightamer.png       # 新建（逐屏三件套之二）：Lightamer 同屏位截图
   - .work/gui-acceptance/m2-3/<screen>/<screen>.md         # 新建（逐屏三件套之三）：差异清单表（元件/方位/交互语义/判定[一致|偏差-接受|偏差-修]/备注）
@@ -69,7 +69,7 @@ python3——TOOLCHAIN 红线）：
 
 ### KD-2 差异清单 = 逐屏三件套文件形态 + 判定词表封闭 + MANIFEST 汇总
 
-- **屏清单（13 屏基线，executor 可增不可减）**：
+- **屏清单（15 屏基线，executor 可增不可减；m1 如实计数）**：
   `library-welcome`（空项目态）/ `library-grid-inspector`（有图网格 + Inspector 展开）/
   `library-search-dialog` / `import-dialog` / `background-task-bar` /
   `editor-toolrail-history`（History 展开）/ `editor-viewport`（FIT/ZoomHUD）/
@@ -77,14 +77,22 @@ python3——TOOLCHAIN 红线）：
   同 md 两表段）/ `editor-adjustment-stack-tone` / `editor-adjustment-stack-geometry`
   （Advanced 折叠组）/ `editor-rawdecode` / `settings-default-behavior` +
   `settings-keyboard` + `settings-about`（设置三屏代表性抽样；语言页并入 about 截图
-  同段可选）。
+  同段可选）。**E1 判定预期钉子**：Display Transform 页签如抽样截图，预期内容 =
+  Vignette + 「DRT arrives with M2-6」占位节——AgX 属 M2-1 禁用面失挂（checker E1
+  勘误），差异清单不得把 AgX 记为缺失缺陷。
 - **三件套形态**：`.work/gui-acceptance/m2-3/<screen>/alcedo.png` +
   `lightamer.png` + `<screen>.md`；md 必含判定表，表头封闭：
   `| 元件/交互 | Alcedo | Lightamer | 判定 | 备注 |`；**判定词封闭集** =
   `一致` / `偏差-接受` / `偏差-修` / `偏差-接受（设计差异）`（左胶片条等用户裁定项
   专用）——其余词 = 形态违约。
 - **MANIFEST.md**：屏 × 判定汇总矩阵 + 偏差-修条目清单（每条 → 修复 commit SHA）+
-  锁屏降级记录位 + 抽查记录位（验收 subagent 2-3 屏填写）。
+  锁屏降级记录位 + 抽查记录位（验收 subagent 2-3 屏填写）+ 「交互/性能观察清单」节。
+- **交互/性能观察清单（checker E4 跨 plan 挂账接收节）**：走查协议在逐屏差异清单外
+  增四项接账——①万行胶片条滚动 60fps 目测 + List 窗口信号 → 桥 prioritize/cancel
+  **真接线兜底核验**（P1 KD-5/T4 挂，m9 并入本项）；②菜单撞键真实按键走查（P1 KD-6
+  挂）；③示波器拖累 PREVIEW 帧率目测（P3 风险节挂）；④左轨工具轨 + 胶片条宽度观感
+  裁决（P3 风险节挂）。逐项结论（达标/偏差-接受/挂账转人工）记 MANIFEST 观察清单节 +
+  SUMMARY；观察项非门，不计入 AC 计数。
 - **机检**：`bash` 形态检查（AC #5 给出逐屏 `[ -f ]` 三件套存在性 + `grep -E`
   判定词封闭集命中断言）——两条命令原样入 AC，验收方照跑。
 - **偏差-修处置**：T2 内即时修复（`fix(ui): …` 独立小 commit，只 add 相关文件）→
@@ -109,8 +117,8 @@ decode 层承担降噪）；M2LIB-05 注记补「壳半边 M2-3 交付」；M2LI
 1. `.work/gsd/phases/m2-3-ui-shell/M2-3-CONTEXT.md`——D1/D9/D10/D5/D12 + Ruling 修订尾注。
 2. `M2-3-1-SUMMARY.md` / `M2-3-2-SUMMARY.md` / `M2-3-3-SUMMARY.md`——三 plan 交付面 +
    m2-3-base SHA 登记 + 键族清单。
-3. `App/Sources/Lightamer/Resources/Localizable.xcstrings`——1146 键基数 + `zh` code
-   结构实态。
+3. `Resources/Localizable.xcstrings`（仓库根）——1146 键基数 + `zh` code
+   结构实态（m5 路径勘误：仓库根，非 App/Sources 内）。
 4. `.work/GOAL-STATE.md` 环境备忘节——Alcedo 实机 + computer-use 授权 + GUI 走查惯例
    （`.work/gui-acceptance/` 路径与 FINDINGS 先例）。
 5. `Scripts/` 目录既有脚本形态（`test-direct.sh` 风格参照；uv 惯例）。
@@ -156,21 +164,28 @@ decode 层承担降噪）；M2LIB-05 注记补「壳半边 M2-3 交付」；M2LI
 - **read_first**：上列 1/2/4/6 + `.work/gui-acceptance/` 既有 FINDINGS 形态先例。
 - **action**
   1. 前置检查：computer-use 可用 + Alcedo 实机在位 + **屏幕未锁**确认（锁屏 → 走
-     降级路径第 5 步）。
+     降级路径第 6 步）。
   2. 构建并启动 Lightamer（`caffeinate -dis` + tuist build；测试项目 fixture 用
      M2-2-2 合成 C1 Session 形态导入，图数 ≥ 30 张保证网格/Inspector/Activity 有形态）。
-  3. 逐屏走查（KD-2 屏清单 13+ 屏）：每屏 Alcedo 截图 + Lightamer 同屏位截图 + 差异
+  3. 逐屏走查（KD-2 屏清单 15+ 屏）：每屏 Alcedo 截图 + Lightamer 同屏位截图 + 差异
      清单 md（判定词封闭集；左胶片条等用户裁定项记「偏差-接受（设计差异）」）。
   4. 「偏差-修」条目逐条修复（`fix(ui): …` 独立 commit）→ 复跑该屏 → 判定翻「一致」；
      「偏差-接受」逐条备注归因（性能/成本/设计差异）。
-  5. **锁屏降级路径**：computer-use 不可用或锁屏 → 已得截图留档 + MANIFEST 降级记录 +
+  5. **交互/性能观察清单四项走查**（KD-2 接收节，checker E4）：①万行胶片条滚动 60fps
+     目测 + List→桥真接线兜底核验（m9 并入）；②菜单撞键真实按键走查；③示波器拖累
+     PREVIEW 帧率目测；④左轨工具轨 + 胶片条宽度观感裁决——逐项结论记 MANIFEST 观察
+     清单节 + SUMMARY（观察项非门）。
+  6. **锁屏降级路径**：computer-use 不可用或锁屏 → 已得截图留档 + MANIFEST 降级记录 +
      SUMMARY Manual-Only 登记（转人工走查，不阻塞 T3 翻账——验收项标注「视觉证据
      部分/全缺，转人工」）。
-  6. 落盘 MANIFEST.md（汇总矩阵 + 偏差-修 → commit SHA 映射 + 抽查记录位空置）。
+  7. 落盘 MANIFEST.md（汇总矩阵 + 偏差-修 → commit SHA 映射 + 交互/性能观察清单 +
+     抽查记录位空置）。
 - **验收标准**
   - [ ] 三件套形态机检过（AC #5 两条命令原样执行零 fail）。
   - [ ] 判定词封闭集：无表外判定词（grep 断言）。
   - [ ] 偏差-修条目全部闭环（MANIFEST 无未修「偏差-修」残留）或降级记录在案。
+  - [ ] 交互/性能观察清单四项逐项有结论（MANIFEST 观察清单节 + SUMMARY 记录在案；
+        观察项非门——checker E4）。
 
 ### T3 收尾审计 + 全套终跑 + 翻账
 
@@ -198,8 +213,8 @@ decode 层承担降噪）；M2LIB-05 注记补「壳半边 M2-3 交付」；M2LI
 |---|---|---|
 | 1 | zh 对账三断言 + 语言 code 断言全过：源键⊆catalog ⊆ 源键∪白名单；zh 值零缺；code 恒 zh 无 zh-Hans | `uv run python3 Scripts/zh-audit.py --check` exit 0 |
 | 2 | 脚本自检绿（扫描器 golden：漏登记/孤儿键/zh 缺失/code 违规四 case 均被检出） | `--self-test` exit 0 |
-| 3 | 差异清单屏覆盖：屏清单 13+ 基线屏逐一在 MANIFEST；`editor-filmstrip` 判定 = 「偏差-接受（设计差异）」专用词 | MANIFEST 矩阵断言 + md grep |
-| 4 | 逐屏三件套存在且判定表头/词封闭：`for d in .work/gui-acceptance/m2-3/*/; do test -f "$d/alcedo.png" -a -f "$d/lightamer.png" -a -f "$d/$(basename "$d").md" \|\| echo "MISSING $d"; done` 零输出；`grep -rhE '^\| ' .work/gui-acceptance/m2-3/*/*.md` 判定列值 ∈ 封闭集 | shell 两命令原样零 fail |
+| 3 | 差异清单屏覆盖：屏清单 15+ 基线屏逐一在 MANIFEST；`editor-filmstrip` 判定 = 「偏差-接受（设计差异）」专用词 | MANIFEST 矩阵断言 + md grep |
+| 4 | 逐屏三件套存在且判定表头/词封闭：`for d in .work/gui-acceptance/m2-3/*/; do test -f "$d/alcedo.png" -a -f "$d/lightamer.png" -a -f "$d/$(basename "$d").md" \|\| echo "MISSING $d"; done` 零输出；判定列提取（m2 写实）= `grep -rhE '^\| ' .work/gui-acceptance/m2-3/*/*.md \| awk -F'\|' '{print $5}' \| sed 's/^ *//; s/ *$//' \| sort -u`（awk -F'\|' 第 5 字段 = 表第 4 内容列「判定」），输出剔除表头行值 `判定` 后逐值 case 匹配封闭集 {一致, 偏差-接受, 偏差-修, 偏差-接受（设计差异）}，表外词 = fail | shell 两命令原样零 fail |
 | 5 | 偏差-修闭环：MANIFEST 无未修「偏差-修」残留；修复批独立 `fix(ui)` commit 可追溯 | MANIFEST 逐条 SHA 反查 `git show --stat` |
 | 6 | 锁屏/不可用降级：MANIFEST 降级记录位 + SUMMARY Manual-Only 登记在案（或「未触发」显式记录） | 文件形态断言 |
 | 7 | 收尾审计五项：legacyBody 零 diff / 禁用 op 零命中 / Core diff 恰 RAWDecoder.swift（+声明连带）/ Inspector 族零 diff / zh-check exit 0 | KD-3 五命令原样执行，结果入 SUMMARY |
