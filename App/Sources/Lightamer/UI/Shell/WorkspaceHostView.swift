@@ -55,6 +55,14 @@ struct WorkspaceHostView: View {
     /// The Album Inspector's logic face (Plan M2-3-2 T2, KD-2/KD-5) — built
     /// beside the grid, over the same cursor + query face.
     @State private var inspectorModel: LibraryInspectorModel?
+    /// The global search's logic face (Plan M2-3-2 T3, KD-3) — the EXIF
+    /// lexical leg folds into the SAME cursor.
+    @State private var searchModel: LibrarySearchModel?
+    /// The batch-relink sheet (Plan M2-3-2 T4, KD-4): built on demand from
+    /// the inspector's stale selection.
+    @State private var isRelinkSheetPresented = false
+    @State private var relinkModel: LibraryRelinkModel?
+    @State private var relinkRows: [LibraryImageRow] = []
 
     /// The content-face markers this host renders (the test surface, the
     /// ContentView.visibleContentFaceMarkers precedent). The gate=true face
@@ -94,6 +102,39 @@ struct WorkspaceHostView: View {
             BackgroundTaskDialogHost(
                 registry: taskRegistry,
                 isPresented: $isTaskDialogPresented)
+        }
+        // The ⌘F global search (Plan M2-3-2 T3, m6): the presentation
+        // boolean is the WorkspaceModel's — the host CONSUMES it here and
+        // writes dismissal back through the model's faces; the dialog never
+        // self-owns the state.
+        .sheet(isPresented: Binding(
+            get: { workspace.isSearchDialogPresented },
+            set: { presented in
+                if presented {
+                    workspace.presentSearchDialog()
+                } else {
+                    workspace.dismissSearchDialog()
+                }
+            })) {
+            if let searchModel {
+                GlobalSearchDialog(
+                    model: searchModel,
+                    onDismiss: { workspace.dismissSearchDialog() })
+            }
+        }
+        // The batch-relink sheet (Plan M2-3-2 T4, KD-4): the rows were
+        // snapshotted at entry; the store/package ride the OPEN project.
+        .sheet(isPresented: $isRelinkSheetPresented) {
+            if let projectController, let store = projectController.projectStore,
+                let packageURL = projectController.projectURL,
+                let relinkModel {
+                RelinkSheetView(
+                    model: relinkModel,
+                    rows: relinkRows,
+                    projectDirectory: packageURL.deletingLastPathComponent(),
+                    store: store,
+                    onDismiss: { isRelinkSheetPresented = false })
+            }
         }
         // The import-leg subscription (checker E3): a READ-ONLY observation
         // of the controller's importProgress publication. The adapter
@@ -143,7 +184,16 @@ struct WorkspaceHostView: View {
                 // Alcedo panel IA over the SAME cursor the grid renders.
                 Group {
                     if let inspectorModel {
-                        LibraryInspectorView(model: inspectorModel)
+                        LibraryInspectorView(
+                            model: inspectorModel,
+                            onRelinkRequested: {
+                                // The batch acts on the CURRENT selection;
+                                // the sheet classifies it into the two
+                                // stale forms on appear.
+                                relinkRows = inspectorModel.selectedRows
+                                relinkModel = LibraryRelinkModel()
+                                isRelinkSheetPresented = true
+                            })
                     } else {
                         VStack(spacing: 6) {
                             Text(String(
@@ -186,6 +236,7 @@ struct WorkspaceHostView: View {
             gridModel = nil
             thumbnailBridge = nil
             inspectorModel = nil
+            searchModel = nil
             return
         }
         let directory = packageURL.deletingLastPathComponent()
@@ -214,9 +265,11 @@ struct WorkspaceHostView: View {
             grid: grid,
             queries: LibraryQueries(store: store),
             smartAlbums: SmartAlbumStore())
+        let search = LibrarySearchModel(grid: grid)
         thumbnailBridge = bridge
         gridModel = grid
         inspectorModel = inspector
+        searchModel = search
         Task {
             try? await grid.reloadFirstPage()
             await inspector.refresh()
