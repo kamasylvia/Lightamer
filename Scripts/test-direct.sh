@@ -9,7 +9,7 @@
 # M2-4-0 起（2026-09-30）：单 LightamerTests 拆为六个域 bundle（Project.swift
 # 显式清单，归属正本 = .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt）。
 # 六 bundle 共享同一宿主二进制（D2），串行各起独立进程——进程退出即 Metal/CI/actor
-# 状态清零，任一单宿主峰值 RSS <3G 硬门由本脚本机检（MEMFAIL）。
+# 状态清零，任一单宿主峰值 RSS <8G 运行门由本脚本机检（MEMFAIL；门修订依据见下）。
 #
 # 用法：
 #   Scripts/test-direct.sh                            # 全套 = --all（六 bundle 串行）
@@ -23,7 +23,7 @@
 #
 # 输出：每 bundle 一行 BUNDLE|<name>|<executed>/<skipped>/<failed>|peakRSS=<MB>|<seconds>|sampling=<time|ps-poll>
 #       （MEMFAIL 时行尾追加 " MEMFAIL"）末行 TOTAL|<sum>/<sum>/<sum>|<total seconds>
-# 退出码：任一 bundle fail>0 / executed=0（无过滤时，L028 防空转）/ 峰值 RSS≥3072MB
+# 退出码：任一 bundle fail>0 / executed=0（无过滤时，L028 防空转）/ 峰值 RSS≥8192MB
 #         （MEMFAIL）→ 非零。判据 = 测试结果行，NOT 宿主退出态（退出态污染，11-04）。
 #
 # RSS 采样（M2-4-0 D4/M1）：主判据 = /usr/bin/time -l 包宿主进程，解析 ru_maxrss
@@ -49,7 +49,14 @@ typeset -a BUNDLES=(IOP IOPParity Layers Library Sessions Export App)
 typeset -A TARGET_NAME   # bundle 名 → .xctest target 名（= productModuleName）
 for b in "${BUNDLES[@]}"; do TARGET_NAME[$b]="LightamerTests$b"; done
 
-RSS_LIMIT_MB=3072  # M2-4-0 硬门：任一 bundle 单宿主峰值 <3G
+# 门修订（2026-09-30，SPIKE 70e09e5 证伪原 <3G 门槛）：by-design GB 级重测单类自身
+# 峰值即 TilingOverlapTests 7865 / HDRPipelineMatrixTests 5913 / QuickLookRendererTests
+# 4589 MB（隔离单类 ru_maxrss，独立进程），叠加 ~1.4G 框架分页一次性地板
+# （RawCamera/CI/CoreML/Metal __TEXT，与 bundle 划分无关）——<3G 数学不可达，真实
+# 跨测残留仅 0.18-2.4MB/test（二阶）。8G 为运行门槛（夜间授权，晨审可推翻；证据正本
+# = .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-SPIKE.md）。±3% 运行方差注记：IOP
+# 峰值 7865 贴线余量 ~4%，连续 MEMFAIL 时先查是否重测顺序漂移（方差注记见 SPIKE）。
+RSS_LIMIT_MB=8192
 
 # ── 参数解析 ─────────────────────────────────────────────────────────
 MODE=all; SELECTED=""; CLASS_FILTER=""
@@ -169,7 +176,7 @@ run_bundle() {
   fi
   local peak_mb=$(( peak / 1048576 ))
 
-  # 失败判定：fail>0 / executed=0（无过滤时，L028）/ RSS≥硬门（MEMFAIL，硬门机检）
+  # 失败判定：fail>0 / executed=0（无过滤时，L028）/ RSS≥运行门（MEMFAIL，8G 机检）
   local verdict=ok
   if (( failed > 0 )); then verdict=fail; fi
   if [ -z "$filter" ] && (( executed == 0 )); then
@@ -183,7 +190,7 @@ run_bundle() {
   [[ "$verdict" == "MEMFAIL" ]] && line="$line MEMFAIL"
   print -r -- "$line"
   if [[ "$verdict" == "MEMFAIL" ]]; then
-    print -r -- "  ↳ $bundle MEMFAIL — peakRSS=${peak_mb}MB >= ${RSS_LIMIT_MB}MB 硬门破线（IOP 破线 = plan D5 拆分预案触发点）；日志 $log" >&2
+    print -r -- "  ↳ $bundle MEMFAIL — peakRSS=${peak_mb}MB >= ${RSS_LIMIT_MB}MB 门破线（8G 口径；贴线 bundle 连续破线先查重测顺序漂移，±3% 方差见 SPIKE 70e09e5）；日志 $log" >&2
     ANY_FAIL=1
   elif [[ "$verdict" != "ok" ]]; then
     print -r -- "  ↳ $bundle FAILED（$verdict；host exit=$rc 仅参考）— 完整输出: $log" >&2
