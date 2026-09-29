@@ -1,0 +1,418 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+2026-09-30 05:54:37.104 Lightamer[30861:1057643] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+Test Suite 'All tests' started at 2026-09-30 05:54:37.233.
+Test Suite 'LightamerTestsLayers.xctest' started at 2026-09-30 05:54:37.233.
+Test Suite 'AIMaskDeterminismTests' started at 2026-09-30 05:54:37.233.
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testLayerAGPUPinCrossProcessByteIdentity]' started.
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testLayerAGPUPinCrossProcessByteIdentity]' passed (0.692 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testLayerAGPUPinInProcessByteIdentity]' started.
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testLayerAGPUPinInProcessByteIdentity]' passed (0.176 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testLayerBDefaultInProcessByteIdentity]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/AIMaskDeterminismTests.swift:175: -[LightamerTestsLayers.AIMaskDeterminismTests testLayerBDefaultInProcessByteIdentity] : Test skipped - layer B assets unavailable in the test-built app (entitlement-blocked download)
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testLayerBDefaultInProcessByteIdentity]' skipped (0.006 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testLayerBPinRefusedTyped]' started.
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testLayerBPinRefusedTyped]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testSupportedComputeStageDevicesContainGPU]' started.
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testSupportedComputeStageDevicesContainGPU]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testUnsupportedCPUPinThrowsTypedError]' started.
+Test Case '-[LightamerTestsLayers.AIMaskDeterminismTests testUnsupportedCPUPinThrowsTypedError]' passed (0.035 seconds).
+Test Suite 'AIMaskDeterminismTests' passed at 2026-09-30 05:54:38.143.
+	 Executed 6 tests, with 1 test skipped and 0 failures (0 unexpected) in 0.909 (0.910) seconds
+Test Suite 'AIMaskEditPathsTests' started at 2026-09-30 05:54:38.143.
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testDrawnPatchDifferenceRepairDirection]' started.
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testDrawnPatchDifferenceRepairDirection]' passed (0.542 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testFeatherRebakeSoftensEdgesAndFlipsIdentity]' started.
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testFeatherRebakeSoftensEdgesAndFlipsIdentity]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testInvertFlipsEffectivePlane]' started.
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testInvertFlipsEffectivePlane]' passed (0.105 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testParametricIntersectTightensRaster]' started.
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testParametricIntersectTightensRaster]' passed (0.104 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testRefineRegenerateOverwritesSameMaskIDWithCacheBookkeeping]' started.
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testRefineRegenerateOverwritesSameMaskIDWithCacheBookkeeping]' passed (0.214 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testSidecarSchemaZeroUpgradeAIParamsNeverPersist]' started.
+Test Case '-[LightamerTestsLayers.AIMaskEditPathsTests testSidecarSchemaZeroUpgradeAIParamsNeverPersist]' passed (0.105 seconds).
+Test Suite 'AIMaskEditPathsTests' passed at 2026-09-30 05:54:39.218.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 1.074 (1.075) seconds
+Test Suite 'AIMaskGeometryTests' started at 2026-09-30 05:54:39.218.
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testBakeDefaultFeatherZeroIsByteIdentical]' started.
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testBakeDefaultFeatherZeroIsByteIdentical]' passed (0.008 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testBakeFeatherProfileOnStepEdge]' started.
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testBakeFeatherProfileOnStepEdge]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testBilinearUpsampleWeights]' started.
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testBilinearUpsampleWeights]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testUpsampleAlignmentTopRowIsImageTop]' started.
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testUpsampleAlignmentTopRowIsImageTop]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testUpsampleOnlyWhenSmaller]' started.
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testUpsampleOnlyWhenSmaller]' passed (0.035 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testViewToVisionYFlipVectors]' started.
+Test Case '-[LightamerTestsLayers.AIMaskGeometryTests testViewToVisionYFlipVectors]' passed (0.000 seconds).
+Test Suite 'AIMaskGeometryTests' passed at 2026-09-30 05:54:39.272.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.052 (0.053) seconds
+Test Suite 'AIMaskPlaneFormatTests' started at 2026-09-30 05:54:39.272.
+Test Case '-[LightamerTestsLayers.AIMaskPlaneFormatTests testL00hRespectsBytesPerRow]' started.
+Test Case '-[LightamerTestsLayers.AIMaskPlaneFormatTests testL00hRespectsBytesPerRow]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskPlaneFormatTests testL00hUInt16Normalization]' started.
+Test Case '-[LightamerTestsLayers.AIMaskPlaneFormatTests testL00hUInt16Normalization]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskPlaneFormatTests testL00hZeroBackground]' started.
+Test Case '-[LightamerTestsLayers.AIMaskPlaneFormatTests testL00hZeroBackground]' passed (0.000 seconds).
+Test Suite 'AIMaskPlaneFormatTests' passed at 2026-09-30 05:54:39.272.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'AIMaskSemanticTests' started at 2026-09-30 05:54:39.272.
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testAssetStoreStateMachineTransitions]' started.
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testAssetStoreStateMachineTransitions]' passed (0.012 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testFirstLaunchPromptPolicy]' started.
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testFirstLaunchPromptPolicy]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerAMultiInstanceSubsetSelection]' started.
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerAMultiInstanceSubsetSelection]' passed (0.256 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerANoSubjectThrowsTypedError]' started.
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerANoSubjectThrowsTypedError]' passed (0.021 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerASingleSubjectIoUAndBackground]' started.
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerASingleSubjectIoUAndBackground]' passed (0.119 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerAUnknownSubsetIndexThrows]' started.
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerAUnknownSubsetIndexThrows]' passed (0.060 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerBGatedWhenModelNotReady]' started.
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerBGatedWhenModelNotReady]' passed (0.090 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerBPointLimitsThrowTyped]' started.
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerBPointLimitsThrowTyped]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerBSeedNonEmptyAndExcludedPointDrops]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/AIMaskSemanticTests.swift:222: -[LightamerTestsLayers.AIMaskSemanticTests testLayerBSeedNonEmptyAndExcludedPointDrops] : Test skipped - layer B assets unavailable in the test-built app (entitlement-blocked download)
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testLayerBSeedNonEmptyAndExcludedPointDrops]' skipped (0.002 seconds).
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testScribbleSeamThrowsTyped]' started.
+Test Case '-[LightamerTestsLayers.AIMaskSemanticTests testScribbleSeamThrowsTyped]' passed (0.000 seconds).
+Test Suite 'AIMaskSemanticTests' passed at 2026-09-30 05:54:39.835.
+	 Executed 10 tests, with 1 test skipped and 0 failures (0 unexpected) in 0.563 (0.563) seconds
+Test Suite 'DrawnMaskRasterTests' started at 2026-09-30 05:54:39.835.
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testBrushHardnessProfilesGolden]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testBrushHardnessProfilesGolden]' passed (0.011 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testBrushStrokeAccumulationAnalyticSum]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testBrushStrokeAccumulationAnalyticSum]' passed (0.014 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testContentAnchoredThroughCropMapper]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testContentAnchoredThroughCropMapper]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testEllipseAnalyticGolden]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testEllipseAnalyticGolden]' passed (0.017 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testEraserNegativeStrokeSubtracts]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testEraserNegativeStrokeSubtracts]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testGradientAnalyticGolden]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testGradientAnalyticGolden]' passed (0.016 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testPathFillAndBorderGolden]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testPathFillAndBorderGolden]' passed (1.397 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testTileSeamBandedEqualsWhole]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskRasterTests testTileSeamBandedEqualsWhole]' passed (0.003 seconds).
+Test Suite 'DrawnMaskRasterTests' passed at 2026-09-30 05:54:41.296.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 1.460 (1.461) seconds
+Test Suite 'DrawnMaskSpecTests' started at 2026-09-30 05:54:41.296.
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testDrawnPayloadSidecarRoundTrip]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testDrawnPayloadSidecarRoundTrip]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testLayerRecordKeepsMaskThroughDegrade]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testLayerRecordKeepsMaskThroughDegrade]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testMaskKeyIsolationFromChainKeys]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testMaskKeyIsolationFromChainKeys]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testPreDrawnDocumentDecodesCompatibly]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testPreDrawnDocumentDecodesCompatibly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testStableHashEqualSpecsEqualHashes]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testStableHashEqualSpecsEqualHashes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testStableHashFlipsOnEveryPayloadEdit]' started.
+Test Case '-[LightamerTestsLayers.DrawnMaskSpecTests testStableHashFlipsOnEveryPayloadEdit]' passed (0.000 seconds).
+Test Suite 'DrawnMaskSpecTests' passed at 2026-09-30 05:54:41.299.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'HistoryStackTests' started at 2026-09-30 05:54:41.299.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testApplyWithIdenticalBytesIsAStableNoOp]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testApplyWithIdenticalBytesIsAStableNoOp]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testCommitAfterUndoTruncatesRedoTail]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testCommitAfterUndoTruncatesRedoTail]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testCommitAppendsAndMovesPosition]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testCommitAppendsAndMovesPosition]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testContinuousEditEmitsZeroItemsThenExactlyOneCommit]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testContinuousEditEmitsZeroItemsThenExactlyOneCommit]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testDedupKeepsLatestPerIdentity]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testDedupKeepsLatestPerIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testDisabledInstanceIncludedInEffectiveSkippedByHash]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testDisabledInstanceIncludedInEffectiveSkippedByHash]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testGoldenThreeInstanceStackVector]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testGoldenThreeInstanceStackVector]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testGoldenVectorStableAcrossFreshComputation]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testGoldenVectorStableAcrossFreshComputation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testHistoryStackCodableRoundTrip]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testHistoryStackCodableRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testHundredItemStackIsUncapped]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testHundredItemStackIsUncapped]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testJumpClampsAndMidStackCommitTruncates]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testJumpClampsAndMidStackCommitTruncates]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testModuleInstanceCodableRoundTrip]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testModuleInstanceCodableRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testMultiInstanceSameOpBothKeptAndSorted]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testMultiInstanceSameOpBothKeptAndSorted]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testParamsHashTracksParamsData]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testParamsHashTracksParamsData]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testPristineStackHashIsTheDecodeSeed]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testPristineStackHashIsTheDecodeSeed]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testReorderSensitivityAndCollisionDeterminism]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testReorderSensitivityAndCollisionDeterminism]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testUndoRedoPointerTransitions]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testUndoRedoPointerTransitions]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.HistoryStackTests testUndoReRenderHitsUpstreamAndRevertedPlanes]' started.
+Test Case '-[LightamerTestsLayers.HistoryStackTests testUndoReRenderHitsUpstreamAndRevertedPlanes]' passed (0.008 seconds).
+Test Suite 'HistoryStackTests' passed at 2026-09-30 05:54:41.310.
+	 Executed 18 tests, with 0 failures (0 unexpected) in 0.011 (0.011) seconds
+Test Suite 'LayerCacheTests' started at 2026-09-30 05:54:41.310.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testEditBottomLayerChainsPrefixMisses]' started.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testEditBottomLayerChainsPrefixMisses]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLayers.LayerCacheTests testEditTopLayerIncrementalAccounting]' started.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testEditTopLayerIncrementalAccounting]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLayers.LayerCacheTests testEnforceBudgetEvictsLayerTiersInOrder]' started.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testEnforceBudgetEvictsLayerTiersInOrder]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.LayerCacheTests testHiddenAndDisabledLayerAccounting]' started.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testHiddenAndDisabledLayerAccounting]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLayers.LayerCacheTests testInvalidateLayerKeepsPrefixes]' started.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testInvalidateLayerKeepsPrefixes]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.LayerCacheTests testLayerCachePolicyConstants]' started.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testLayerCachePolicyConstants]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCacheTests testLayerIDIsolatesCacheLines]' started.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testLayerIDIsolatesCacheLines]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCacheTests testLayerTierClassification]' started.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testLayerTierClassification]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCacheTests testOpacityEditInvalidatesOnlyOwnPrefix]' started.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testOpacityEditInvalidatesOnlyOwnPrefix]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLayers.LayerCacheTests testReorderKeepsChainCachesAlive]' started.
+Test Case '-[LightamerTestsLayers.LayerCacheTests testReorderKeepsChainCachesAlive]' passed (0.006 seconds).
+Test Suite 'LayerCacheTests' passed at 2026-09-30 05:54:41.344.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.033 (0.034) seconds
+Test Suite 'LayerCompositeTests' started at 2026-09-30 05:54:41.344.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testDriverMultiplyCompositeClosedForm]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testDriverMultiplyCompositeClosedForm]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testEmptyDisabledHiddenLayersAreNoOps]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testEmptyDisabledHiddenLayersAreNoOps]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testLayerGeometryDetectorCatchesAllForbiddenSlots]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testLayerGeometryDetectorCatchesAllForbiddenSlots]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testLayerParamsChangeTheComposite]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testLayerParamsChangeTheComposite]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testOpacityOneEqualsFlatMergedChain]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testOpacityOneEqualsFlatMergedChain]' passed (0.008 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testOpacityZeroEqualsBaseOnly]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testOpacityZeroEqualsBaseOnly]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testPerceptualModesOnNeutralStayNeutral]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testPerceptualModesOnNeutralStayNeutral]' passed (0.008 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testReverseFlagSwapsAB]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testReverseFlagSwapsAB]' passed (0.006 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testTrackBFullChainWithIdentityLayerIsZeroIncrement]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testTrackBFullChainWithIdentityLayerIsZeroIncrement]' passed (0.866 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testWindowedCompositeMatchesFlatRunAtSameWindow]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testWindowedCompositeMatchesFlatRunAtSameWindow]' passed (0.009 seconds).
+Test Suite 'LayerCompositeTests' passed at 2026-09-30 05:54:42.268.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.924 (0.925) seconds
+Test Suite 'LayerCoreTests' started at 2026-09-30 05:54:42.268.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testAddRemoveReorderPreserveIdentity]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testAddRemoveReorderPreserveIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCoreTests testAdjustmentLayerDefaultsAndKind]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testAdjustmentLayerDefaultsAndKind]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCoreTests testDuplicateInsertsDirectlyAbove]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testDuplicateInsertsDirectlyAbove]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCoreTests testDuplicateMintsFreshIdentitiesWithVerbatimParams]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testDuplicateMintsFreshIdentitiesWithVerbatimParams]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCoreTests testEffectiveChainDedupAndSort]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testEffectiveChainDedupAndSort]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCoreTests testLayerScopePartitionsEffectiveInstances]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testLayerScopePartitionsEffectiveInstances]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCoreTests testLayerScopeSurvivesCodableRoundTrip]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testLayerScopeSurvivesCodableRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCoreTests testMaterializeBoxesAppliesRecordsAndSkipsUnknown]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testMaterializeBoxesAppliesRecordsAndSkipsUnknown]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCoreTests testMergeDownBottomLayerReturnsBaseChain]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testMergeDownBottomLayerReturnsBaseChain]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCoreTests testMergeDownIntoAdjustmentLayerSortsV50]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testMergeDownIntoAdjustmentLayerSortsV50]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCoreTests testRegistryEffectiveInstancesForLayer]' started.
+Test Case '-[LightamerTestsLayers.LayerCoreTests testRegistryEffectiveInstancesForLayer]' passed (0.000 seconds).
+Test Suite 'LayerCoreTests' passed at 2026-09-30 05:54:42.270.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'LayerDragPerfTests' started at 2026-09-30 05:54:42.270.
+Test Case '-[LightamerTestsLayers.LayerDragPerfTests testFullLayerPolicyBenchmark]' started.
+Test Case '-[LightamerTestsLayers.LayerDragPerfTests testFullLayerPolicyBenchmark]' passed (2.115 seconds).
+Test Case '-[LightamerTestsLayers.LayerDragPerfTests testTenLayerSteadyStateDrag]' started.
+Test Case '-[LightamerTestsLayers.LayerDragPerfTests testTenLayerSteadyStateDrag]' passed (3.240 seconds).
+Test Case '-[LightamerTestsLayers.LayerDragPerfTests testTenLayerWindowedFullMemoryLedger]' started.
+Test Case '-[LightamerTestsLayers.LayerDragPerfTests testTenLayerWindowedFullMemoryLedger]' passed (1.979 seconds).
+Test Suite 'LayerDragPerfTests' passed at 2026-09-30 05:54:49.605.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 7.334 (7.335) seconds
+Test Suite 'LayerE2ERoundTripTests' started at 2026-09-30 05:54:49.606.
+Test Case '-[LightamerTestsLayers.LayerE2ERoundTripTests testRealRAWRoundTripThroughHistoryAndSidecar]' started.
+Test Case '-[LightamerTestsLayers.LayerE2ERoundTripTests testRealRAWRoundTripThroughHistoryAndSidecar]' passed (3.590 seconds).
+Test Suite 'LayerE2ERoundTripTests' passed at 2026-09-30 05:54:53.196.
+	 Executed 1 test, with 0 failures (0 unexpected) in 3.590 (3.590) seconds
+Test Suite 'LayerSkeletonTests' started at 2026-09-30 05:54:53.196.
+Test Case '-[LightamerTestsLayers.LayerSkeletonTests testBackgroundLayerConformsToLayer]' started.
+Test Case '-[LightamerTestsLayers.LayerSkeletonTests testBackgroundLayerConformsToLayer]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerSkeletonTests testBlendModeNormalRawValueIs1]' started.
+Test Case '-[LightamerTestsLayers.LayerSkeletonTests testBlendModeNormalRawValueIs1]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerSkeletonTests testBlendOptionsReverseFlagValue]' started.
+Test Case '-[LightamerTestsLayers.LayerSkeletonTests testBlendOptionsReverseFlagValue]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerSkeletonTests testColorAdjustRenameKeepsRawValueEncoding]' started.
+Test Case '-[LightamerTestsLayers.LayerSkeletonTests testColorAdjustRenameKeepsRawValueEncoding]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerSkeletonTests testLayerStackConstructsWithBaseLayer]' started.
+Test Case '-[LightamerTestsLayers.LayerSkeletonTests testLayerStackConstructsWithBaseLayer]' passed (0.000 seconds).
+Test Suite 'LayerSkeletonTests' passed at 2026-09-30 05:54:53.197.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'LayerUIWiringTests' started at 2026-09-30 05:54:53.197.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testAddLayerCommitsExactlyOneStructureItem]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testAddLayerCommitsExactlyOneStructureItem]' passed (0.275 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testAIMaskCommitOneSnapshotUndoAndRefineOverwrite]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testAIMaskCommitOneSnapshotUndoAndRefineOverwrite]' passed (0.266 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testAIMaskSourceFileIdentity]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testAIMaskSourceFileIdentity]' passed (0.493 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testAllProvidersResolveUnderLayerScope]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testAllProvidersResolveUnderLayerScope]' passed (0.271 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testDuplicateMintsFreshIdentityOneCommit]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testDuplicateMintsFreshIdentityOneCommit]' passed (0.258 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testEditingStateMutexRoutes]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testEditingStateMutexRoutes]' passed (0.205 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testLayerBEntryGateStates]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testLayerBEntryGateStates]' passed (0.030 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testLayerParamEditIsolatedFromBase]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testLayerParamEditIsolatedFromBase]' passed (0.269 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testLayerPropertyDragCommitsOnceAndUndoRestores]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testLayerPropertyDragCommitsOnceAndUndoRestores]' passed (0.758 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testMaskedLayerRenderChangesInsideMaskOnly]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testMaskedLayerRenderChangesInsideMaskOnly]' passed (0.357 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testMaskStrokeCommitsOnceAndUndoRestores]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testMaskStrokeCommitsOnceAndUndoRestores]' passed (0.271 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testMaskToolIdentifiersAreStableAndComplete]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testMaskToolIdentifiersAreStableAndComplete]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testMergeDownIntoLayerOneCommitChainCombined]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testMergeDownIntoLayerOneCommitChainCombined]' passed (0.259 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testRemoveLayerUndoRestoresIdentityAndParams]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testRemoveLayerUndoRestoresIdentityAndParams]' passed (0.262 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testReorderOneCommitAndUndoRestoresOrder]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testReorderOneCommitAndUndoRestoresOrder]' passed (0.747 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testRetouchRouteOwnershipAndMutex]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testRetouchRouteOwnershipAndMutex]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testRetouchStrokeCommitsOnceAndUndoRestores]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testRetouchStrokeCommitsOnceAndUndoRestores]' passed (0.422 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testSegmentRouteMutexExhaustive]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testSegmentRouteMutexExhaustive]' passed (0.074 seconds).
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testSegmentSessionBudgetAndYFlipWiring]' started.
+Test Case '-[LightamerTestsLayers.LayerUIWiringTests testSegmentSessionBudgetAndYFlipWiring]' passed (0.104 seconds).
+Test Suite 'LayerUIWiringTests' passed at 2026-09-30 05:54:58.523.
+	 Executed 19 tests, with 0 failures (0 unexpected) in 5.323 (5.326) seconds
+Test Suite 'MaskCombineTests' started at 2026-09-30 05:54:58.523.
+Test Case '-[LightamerTestsLayers.MaskCombineTests testAssemblyDrawnPlusParametric]' started.
+Test Case '-[LightamerTestsLayers.MaskCombineTests testAssemblyDrawnPlusParametric]' passed (0.014 seconds).
+Test Case '-[LightamerTestsLayers.MaskCombineTests testAssemblyRasterAndAllThree]' started.
+Test Case '-[LightamerTestsLayers.MaskCombineTests testAssemblyRasterAndAllThree]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLayers.MaskCombineTests testAssemblyRasterWithoutDirectorySurfacesDegrade]' started.
+Test Case '-[LightamerTestsLayers.MaskCombineTests testAssemblyRasterWithoutDirectorySurfacesDegrade]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.MaskCombineTests testCombineAnalyticAreaGoldens]' started.
+Test Case '-[LightamerTestsLayers.MaskCombineTests testCombineAnalyticAreaGoldens]' passed (0.005 seconds).
+Test Case '-[LightamerTestsLayers.MaskCombineTests testCombineFiveOpsFormulaParity]' started.
+Test Case '-[LightamerTestsLayers.MaskCombineTests testCombineFiveOpsFormulaParity]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLayers.MaskCombineTests testNestedGroupEvaluation]' started.
+Test Case '-[LightamerTestsLayers.MaskCombineTests testNestedGroupEvaluation]' passed (0.003 seconds).
+Test Case '-[LightamerTestsLayers.MaskCombineTests testReduceOrderSensitivity]' started.
+Test Case '-[LightamerTestsLayers.MaskCombineTests testReduceOrderSensitivity]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLayers.MaskCombineTests testReduceUpperBoundRejected]' started.
+Test Case '-[LightamerTestsLayers.MaskCombineTests testReduceUpperBoundRejected]' passed (0.001 seconds).
+Test Suite 'MaskCombineTests' passed at 2026-09-30 05:54:58.564.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.040 (0.041) seconds
+Test Suite 'MaskCommandTests' started at 2026-09-30 05:54:58.564.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testClearRemovesTheMaskRecord]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testClearRemovesTheMaskRecord]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.MaskCommandTests testCommandWithoutSelectionIsANoOp]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testCommandWithoutSelectionIsANoOp]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.MaskCommandTests testDuplicateAndInvertEndToEnd]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testDuplicateAndInvertEndToEnd]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.MaskCommandTests testDuplicateClonesLayerWithFreshIdentityAndMask]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testDuplicateClonesLayerWithFreshIdentityAndMask]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.MaskCommandTests testEnabledToggleCommitRoundTrip]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testEnabledToggleCommitRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.MaskCommandTests testEveryCommandIsUndoableStepByStep]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testEveryCommandIsUndoableStepByStep]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.MaskCommandTests testFillProducesEmptySpecConstantOneContract]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testFillProducesEmptySpecConstantOneContract]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.MaskCommandTests testInvertFlipsGroupItemBits]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testInvertFlipsGroupItemBits]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.MaskCommandTests testInvertFlipsParametricAndRasterBits]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testInvertFlipsParametricAndRasterBits]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.MaskCommandTests testInvertWrapsGrouplessDrawnInInvertedGroup]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testInvertWrapsGrouplessDrawnInInvertedGroup]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.MaskCommandTests testResetEditsClearsChainKeepsMask]' started.
+Test Case '-[LightamerTestsLayers.MaskCommandTests testResetEditsClearsChainKeepsMask]' passed (0.001 seconds).
+Test Suite 'MaskCommandTests' passed at 2026-09-30 05:54:58.568.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
+Test Suite 'MaskEditIncrementTests' started at 2026-09-30 05:54:58.568.
+Test Case '-[LightamerTestsLayers.MaskEditIncrementTests testMaskedCompositeContentMatchesOutsideMask]' started.
+Test Case '-[LightamerTestsLayers.MaskEditIncrementTests testMaskedCompositeContentMatchesOutsideMask]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.MaskEditIncrementTests testMaskEditDoesNotRecomputeChain]' started.
+Test Case '-[LightamerTestsLayers.MaskEditIncrementTests testMaskEditDoesNotRecomputeChain]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.MaskEditIncrementTests testMaskZeroRegionKeepsBaseAcrossModes]' started.
+Test Case '-[LightamerTestsLayers.MaskEditIncrementTests testMaskZeroRegionKeepsBaseAcrossModes]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.MaskEditIncrementTests testThreePayloadMaskEditAccounting]' started.
+Test Case '-[LightamerTestsLayers.MaskEditIncrementTests testThreePayloadMaskEditAccounting]' passed (0.007 seconds).
+Test Suite 'MaskEditIncrementTests' passed at 2026-09-30 05:54:58.602.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.033 (0.033) seconds
+Test Suite 'Plan0605LeftoverTests' started at 2026-09-30 05:54:58.602.
+Test Case '-[LightamerTestsLayers.Plan0605LeftoverTests testBayesshrinkVarfStaysSingleSourceExact]' started.
+Test Case '-[LightamerTestsLayers.Plan0605LeftoverTests testBayesshrinkVarfStaysSingleSourceExact]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.Plan0605LeftoverTests testIdentityMapperHashIsStable]' started.
+Test Case '-[LightamerTestsLayers.Plan0605LeftoverTests testIdentityMapperHashIsStable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.Plan0605LeftoverTests testLayerDriftAnchorFoldsMaskContent]' started.
+Test Case '-[LightamerTestsLayers.Plan0605LeftoverTests testLayerDriftAnchorFoldsMaskContent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.Plan0605LeftoverTests testMaskPlaneCacheKeyFollowsGeometryState]' started.
+Test Case '-[LightamerTestsLayers.Plan0605LeftoverTests testMaskPlaneCacheKeyFollowsGeometryState]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLayers.Plan0605LeftoverTests testRasterOnlyDegradeFoldsLayerOpacity]' started.
+Test Case '-[LightamerTestsLayers.Plan0605LeftoverTests testRasterOnlyDegradeFoldsLayerOpacity]' passed (0.002 seconds).
+Test Suite 'Plan0605LeftoverTests' passed at 2026-09-30 05:54:58.607.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'RasterMaskRoundTripTests' started at 2026-09-30 05:54:58.607.
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testAIMaskPlaneBakeLoadRoundTrip]' started.
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testAIMaskPlaneBakeLoadRoundTrip]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testBakeLoadRoundTripIdentity]' started.
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testBakeLoadRoundTripIdentity]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testCorruptPNGBakesDegrade]' started.
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testCorruptPNGBakesDegrade]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testInvertLegOnLoad]' started.
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testInvertLegOnLoad]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testMaskHashCoversAllThreePayloads]' started.
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testMaskHashCoversAllThreePayloads]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testMissingFileDegrades]' started.
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testMissingFileDegrades]' passed (0.001 seconds).
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testRebakeSameMaskIDFlipsHashAndInvalidatesCache]' started.
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testRebakeSameMaskIDFlipsHashAndInvalidatesCache]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testSidecarPayloadFreezeForwardCompatibility]' started.
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testSidecarPayloadFreezeForwardCompatibility]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testTamperedHashDegrades]' started.
+Test Case '-[LightamerTestsLayers.RasterMaskRoundTripTests testTamperedHashDegrades]' passed (0.001 seconds).
+Test Suite 'RasterMaskRoundTripTests' passed at 2026-09-30 05:54:58.617.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.011 (0.011) seconds
+Test Suite 'RetouchLayerCoreTests' started at 2026-09-30 05:54:58.617.
+Test Case '-[LightamerTestsLayers.RetouchLayerCoreTests testRetouchAlgorithmRawValuesAreDtSlots]' started.
+Test Case '-[LightamerTestsLayers.RetouchLayerCoreTests testRetouchAlgorithmRawValuesAreDtSlots]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.RetouchLayerCoreTests testRetouchDuplicateMintsFreshIdentities]' started.
+Test Case '-[LightamerTestsLayers.RetouchLayerCoreTests testRetouchDuplicateMintsFreshIdentities]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.RetouchLayerCoreTests testRetouchLayerKindAndContainer]' started.
+Test Case '-[LightamerTestsLayers.RetouchLayerCoreTests testRetouchLayerKindAndContainer]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.RetouchLayerCoreTests testStackMutationWithRetouchKind]' started.
+Test Case '-[LightamerTestsLayers.RetouchLayerCoreTests testStackMutationWithRetouchKind]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.RetouchLayerCoreTests testStrokeShapeGate]' started.
+Test Case '-[LightamerTestsLayers.RetouchLayerCoreTests testStrokeShapeGate]' passed (0.000 seconds).
+Test Suite 'RetouchLayerCoreTests' passed at 2026-09-30 05:54:58.618.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'LightamerTestsLayers.xctest' passed at 2026-09-30 05:54:58.618.
+	 Executed 164 tests, with 2 tests skipped and 0 failures (0 unexpected) in 21.371 (21.385) seconds
+Test Suite 'All tests' passed at 2026-09-30 05:54:58.618.
+	 Executed 164 tests, with 2 tests skipped and 0 failures (0 unexpected) in 21.371 (21.386) seconds
+[06-03 T4/T5] brush [hardness 0 (cone)]: compared=9216 maxErr=2.094094487155307e-07 gate=1e-06
+[06-03 T4/T5] brush [hardness 0.5]: compared=9216 maxErr=4.188188974310614e-07 gate=1e-06
+[06-03 T4/T5] brush [hardness 1 (disc)]: compared=9216 maxErr=1.1920928910669204e-08 gate=1e-06
+[06-03 T4/T5] brush accumulation (13 stamps): compared=8192 maxErr=1.7904395756274116e-07 gate=1e-05
+[06-03 T4/T5] ellipse [axis-aligned no border]: compared=19200 maxErr=0.0 gate=1e-06
+[06-03 T4/T5] ellipse [rotated 30°]: compared=19200 maxErr=0.0 gate=1e-06
+[06-03 T4/T5] ellipse [rotated −15° + border 0.3]: compared=19200 maxErr=1.344257715363284e-06 gate=5e-06
+[06-03 T4/T5] gradient [linear 0°]: compared=12288 maxErr=6.556510934174753e-08 gate=1e-06
+[06-03 T4/T5] gradient [linear 37°]: compared=12288 maxErr=1.3486538469331677e-07 gate=1e-06
+[06-03 T4/T5] gradient [sigmoidal 20°]: compared=12288 maxErr=2.902886961364537e-07 gate=1e-06
+[06-03 T4/T5] gradient [sigmoidal −65° steep]: compared=12288 maxErr=3.493792700703935e-07 gate=1e-06
+[06-03 T4] path [hard edge]: compared=16384 maxErr=0.0 gate=1e-6
+[06-03 T4] path [border 0.1]: compared=16384 maxErr=4.156252817466566e-07 gate=1e-6
+[06-03 T8] tile seam bands=4: compared=12800 maxDiff=0.0 gate=1e-6
+PERF6 FULL policy benchmark ms (Debug ×~3-5 vs Release): fit cold=14 fit cacheAll=0 window cold=5 window cacheAll=0
+PERF6 10-layer steady drag frame ms (Debug): 25.6, 25.6, 25.0, 25.5, 25.2, 25.7, 25.8, 23.5, 25.8, 23.8, 29.2, 24.3 — median 25.61, warm median 25.64
+PERF6 windowed FULL ledger: coldLayer 166723584 B vs cacheAll 279969792 B

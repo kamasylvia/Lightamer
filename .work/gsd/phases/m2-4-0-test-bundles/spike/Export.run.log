@@ -1,0 +1,616 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+2026-09-30 05:59:35.400 Lightamer[32757:1068481] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+Test Suite 'All tests' started at 2026-09-30 05:59:35.770.
+Test Suite 'LightamerTestsExport.xctest' started at 2026-09-30 05:59:35.770.
+Test Suite 'ExportEncoderGoldenTests' started at 2026-09-30 05:59:35.770.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testAVIFGoldens]' started.
+<unknown>:0: warning: -[LightamerTestsExport.ExportEncoderGoldenTests testAVIFGoldens] : This method should not be called on the main thread as it may lead to UI unresponsiveness.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testAVIFGoldens]' passed (0.095 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testColorSyncFallbackLegParityWithExportLeg]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testColorSyncFallbackLegParityWithExportLeg]' passed (0.018 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegBitmapRowsMatchTextureRows]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegBitmapRowsMatchTextureRows]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegFenceObservesUnwaitedDispatch]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegFenceObservesUnwaitedDispatch]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegNeutralGrayAcrossFiveTargets]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegNeutralGrayAcrossFiveTargets]' passed (0.011 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegRec2020PrimariesIntoP3]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegRec2020PrimariesIntoP3]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegSourceColorSpaceDualState]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegSourceColorSpaceDualState]' passed (0.008 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegSRGBHalfLinearKnownPoint]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegSRGBHalfLinearKnownPoint]' passed (0.006 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegWhiteBlackCornersAllTargets]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testExitLegWhiteBlackCornersAllTargets]' passed (0.014 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testHEICGoldens]' started.
+<unknown>:0: warning: -[LightamerTestsExport.ExportEncoderGoldenTests testHEICGoldens] : This method should not be called on the main thread as it may lead to UI unresponsiveness.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testHEICGoldens]' passed (0.063 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testJPEGGoldenRoundTrip]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testJPEGGoldenRoundTrip]' passed (0.002 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testLinearVariantBoundaries]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testLinearVariantBoundaries]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testPNGBitwiseRoundTrip]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testPNGBitwiseRoundTrip]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testRegistryDispatchesAllSixFormats]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testRegistryDispatchesAllSixFormats]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testRegistryRejectsTierMismatches]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testRegistryRejectsTierMismatches]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testTIFFTiersAndCompressions]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testTIFFTiersAndCompressions]' passed (0.009 seconds).
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testUTIWriteCapabilityAnchor]' started.
+Test Case '-[LightamerTestsExport.ExportEncoderGoldenTests testUTIWriteCapabilityAnchor]' passed (0.000 seconds).
+Test Suite 'ExportEncoderGoldenTests' passed at 2026-09-30 05:59:36.026.
+	 Executed 17 tests, with 0 failures (0 unexpected) in 0.254 (0.256) seconds
+Test Suite 'ExportNamerTests' started at 2026-09-30 05:59:36.026.
+Test Case '-[LightamerTestsExport.ExportNamerTests testBareNameWithoutTag]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testBareNameWithoutTag]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testEmptyStemFallsBackToUntitled]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testEmptyStemFallsBackToUntitled]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testEmptyTagTreatedAsAbsent]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testEmptyTagTreatedAsAbsent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testGappedRunTakesFirstFree]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testGappedRunTakesFirstFree]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testIllegalCharactersReplacedWithDash]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testIllegalCharactersReplacedWithDash]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testIllegalTagSanitizedSameWay]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testIllegalTagSanitizedSameWay]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testMultiCollisionIncrementsThroughTheRun]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testMultiCollisionIncrementsThroughTheRun]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testNoCollisionKeepsBaseName]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testNoCollisionKeepsBaseName]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testOccupancyIsCaseInsensitive]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testOccupancyIsCaseInsensitive]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testPurityNoDirectoryRequirement]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testPurityNoDirectoryRequirement]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testSingleCollisionIncrementsTo1]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testSingleCollisionIncrementsTo1]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testTagConcatenation]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testTagConcatenation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testTaggedCollisionIncrementsAfterTag]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testTaggedCollisionIncrementsAfterTag]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testUnicodeStemPassesThrough]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testUnicodeStemPassesThrough]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testURLPointsIntoDirectory]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testURLPointsIntoDirectory]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportNamerTests testWhitespaceTrimmed]' started.
+Test Case '-[LightamerTestsExport.ExportNamerTests testWhitespaceTrimmed]' passed (0.000 seconds).
+Test Suite 'ExportNamerTests' passed at 2026-09-30 05:59:36.027.
+	 Executed 16 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'ExportPerfProbeTests' started at 2026-09-30 05:59:36.027.
+Test Case '-[LightamerTestsExport.ExportPerfProbeTests testMemoryFootprintProjectionAtScale]' started.
+Test Case '-[LightamerTestsExport.ExportPerfProbeTests testMemoryFootprintProjectionAtScale]' passed (48.671 seconds).
+Test Case '-[LightamerTestsExport.ExportPerfProbeTests testSegmentedExportTimingPerFormat]' started.
+Test Case '-[LightamerTestsExport.ExportPerfProbeTests testSegmentedExportTimingPerFormat]' passed (68.959 seconds).
+Test Suite 'ExportPerfProbeTests' passed at 2026-09-30 06:01:33.658.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 117.630 (117.630) seconds
+Test Suite 'ExportPhaseE2ETests' started at 2026-09-30 06:01:33.658.
+Test Case '-[LightamerTestsExport.ExportPhaseE2ETests testBorderedVariantsFullChainRoundTripThroughQueue]' started.
+Test Case '-[LightamerTestsExport.ExportPhaseE2ETests testBorderedVariantsFullChainRoundTripThroughQueue]' passed (0.640 seconds).
+Test Case '-[LightamerTestsExport.ExportPhaseE2ETests testOneQueueActionLandsEveryVariantWithoutCollision]' started.
+Test Case '-[LightamerTestsExport.ExportPhaseE2ETests testOneQueueActionLandsEveryVariantWithoutCollision]' passed (2.697 seconds).
+Test Case '-[LightamerTestsExport.ExportPhaseE2ETests testReExportIntoTheSameOutputIncrementsWithoutOverwrite]' started.
+Test Case '-[LightamerTestsExport.ExportPhaseE2ETests testReExportIntoTheSameOutputIncrementsWithoutOverwrite]' passed (0.861 seconds).
+Test Suite 'ExportPhaseE2ETests' passed at 2026-09-30 06:01:37.856.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 4.198 (4.198) seconds
+Test Suite 'ExportPipeTests' started at 2026-09-30 06:01:37.857.
+Test Case '-[LightamerTestsExport.ExportPipeTests testChainBuilderStripsGammaAndRewritesColorout]' started.
+Test Case '-[LightamerTestsExport.ExportPipeTests testChainBuilderStripsGammaAndRewritesColorout]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.ExportPipeTests testColoroutOverrideKnownPointsAndNeutrality]' started.
+Test Case '-[LightamerTestsExport.ExportPipeTests testColoroutOverrideKnownPointsAndNeutrality]' passed (0.025 seconds).
+Test Case '-[LightamerTestsExport.ExportPipeTests testExportChainTailStaysFloat32WhileEditingTailStaysBgra8]' started.
+Test Case '-[LightamerTestsExport.ExportPipeTests testExportChainTailStaysFloat32WhileEditingTailStaysBgra8]' passed (0.011 seconds).
+Test Case '-[LightamerTestsExport.ExportPipeTests testExportCompositeActivatesRunSubStub]' started.
+Test Case '-[LightamerTestsExport.ExportPipeTests testExportCompositeActivatesRunSubStub]' passed (0.008 seconds).
+Test Case '-[LightamerTestsExport.ExportPipeTests testExportRunSizeVectorsAndTotalNoCaching]' started.
+Test Case '-[LightamerTestsExport.ExportPipeTests testExportRunSizeVectorsAndTotalNoCaching]' passed (0.012 seconds).
+Test Case '-[LightamerTestsExport.ExportPipeTests testQueueInfrastructureExportQueueIsNewProperty]' started.
+Test Case '-[LightamerTestsExport.ExportPipeTests testQueueInfrastructureExportQueueIsNewProperty]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportPipeTests testQueueInfrastructureRoutePropagatesIntoChildTasks]' started.
+Test Case '-[LightamerTestsExport.ExportPipeTests testQueueInfrastructureRoutePropagatesIntoChildTasks]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportPipeTests testQueueInfrastructureTaskLocalRoutesToExportQueue]' started.
+Test Case '-[LightamerTestsExport.ExportPipeTests testQueueInfrastructureTaskLocalRoutesToExportQueue]' passed (0.000 seconds).
+Test Suite 'ExportPipeTests' passed at 2026-09-30 06:01:37.914.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.057 (0.057) seconds
+Test Suite 'ExportQuantizerTests' started at 2026-09-30 06:01:37.914.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests test10BitIn16Container]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests test10BitIn16Container]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests test12BitIn16Container]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests test12BitIn16Container]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests test16BitExactVectors]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests test16BitExactVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testClampBoundaries16]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testClampBoundaries16]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testClampBoundaries8]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testClampBoundaries8]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testFloat32ClampsSDRWhiteAndNegatives]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testFloat32ClampsSDRWhiteAndNegatives]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testFloat32IdentityNeverBends]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testFloat32IdentityNeverBends]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testNeutralGrayStaysNeutral]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testNeutralGrayStaysNeutral]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testPackedLayoutsByteCountsAndEndianness]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testPackedLayoutsByteCountsAndEndianness]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testPackedRejectsMismatchedCounts]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testPackedRejectsMismatchedCounts]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testRoundHalfAwayFromZero16]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testRoundHalfAwayFromZero16]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testRoundHalfAwayFromZero8]' started.
+Test Case '-[LightamerTestsExport.ExportQuantizerTests testRoundHalfAwayFromZero8]' passed (0.000 seconds).
+Test Suite 'ExportQuantizerTests' passed at 2026-09-30 06:01:37.915.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'ExportQueueContractTests' started at 2026-09-30 06:01:37.915.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testConcurrencyIsPinnedToOne]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testConcurrencyIsPinnedToOne]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testContractTypesAreSendable]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testContractTypesAreSendable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testEarlyExitTransitions]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testEarlyExitTransitions]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testForwardPathTransitions]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testForwardPathTransitions]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testNoTransitionsLeaveTerminalStates]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testNoTransitionsLeaveTerminalStates]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testProgressTwoLayers]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testProgressTwoLayers]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testRenderArtifactRoundTripsThroughLegs]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testRenderArtifactRoundTripsThroughLegs]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testSelfTransitionsAreIllegal]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testSelfTransitionsAreIllegal]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testSkipAndJumpTransitionsAreIllegal]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testSkipAndJumpTransitionsAreIllegal]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testSnapshotCarriesContractFields]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testSnapshotCarriesContractFields]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testTerminalityFlag]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testTerminalityFlag]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testYieldsToEditorSlotIsOffInV1]' started.
+Test Case '-[LightamerTestsExport.ExportQueueContractTests testYieldsToEditorSlotIsOffInV1]' passed (0.000 seconds).
+Test Suite 'ExportQueueContractTests' passed at 2026-09-30 06:01:37.917.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'ExportQueueTests' started at 2026-09-30 06:01:37.917.
+Test Case '-[LightamerTestsExport.ExportQueueTests testCancelAllGatesStaleGenerationResults]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testCancelAllGatesStaleGenerationResults]' passed (0.681 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testCancelInFlightDiscardsArtifactBeforeEncode]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testCancelInFlightDiscardsArtifactBeforeEncode]' passed (0.010 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testCancelPendingJobRemovesItBeforeStart]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testCancelPendingJobRemovesItBeforeStart]' passed (0.010 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testConcurrencyIsExactlyOne]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testConcurrencyIsExactlyOne]' passed (0.045 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testContextCarriesDestinationAndDequeueTimeOccupancy]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testContextCarriesDestinationAndDequeueTimeOccupancy]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testDefaultOccupiedNamesProviderListsDirectory]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testDefaultOccupiedNamesProviderListsDirectory]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testEnqueueRunsFIFOAndSettlesInOrder]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testEnqueueRunsFIFOAndSettlesInOrder]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testFailedJobExplicitRetryRunsAtTail]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testFailedJobExplicitRetryRunsAtTail]' passed (0.013 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testFailureDoesNotPoisonFollowingJobs]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testFailureDoesNotPoisonFollowingJobs]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testNewGenerationAcceptsJobsAfterCancelAll]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testNewGenerationAcceptsJobsAfterCancelAll]' passed (0.013 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testProgressCountsEveryVariantAsAJob]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testProgressCountsEveryVariantAsAJob]' passed (0.006 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testRetryRejectsNonFailedJobs]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testRetryRejectsNonFailedJobs]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.ExportQueueTests testUnevenEncodeDurationsKeepProgressCorrect]' started.
+Test Case '-[LightamerTestsExport.ExportQueueTests testUnevenEncodeDurationsKeepProgressCorrect]' passed (0.089 seconds).
+Test Suite 'ExportQueueTests' passed at 2026-09-30 06:01:38.814.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.897 (0.898) seconds
+Test Suite 'ExportRecipeTests' started at 2026-09-30 06:01:38.815.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testBitDepthMenusArePerFormat]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testBitDepthMenusArePerFormat]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testCollisionDisambiguation]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testCollisionDisambiguation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testExplicitTagWins]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testExplicitTagWins]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testFileExtensionsAndUTITypes]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testFileExtensionsAndUTITypes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testFoldIsIdentityWithoutPercent]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testFoldIsIdentityWithoutPercent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testFormatSpecCodableRoundTripAllCases]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testFormatSpecCodableRoundTripAllCases]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testMultiVariantDerivationVectors]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testMultiVariantDerivationVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testNoHashFields]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testNoHashFields]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testPercentFoldKeepsDPI]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testPercentFoldKeepsDPI]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testPercentFoldVectors]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testPercentFoldVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testPercentVariantDerivesSizeTag]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testPercentVariantDerivesSizeTag]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testQualityBoundaryValuesValidate]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testQualityBoundaryValuesValidate]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testQualityValidationVectors]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testQualityValidationVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testRecipeCodableRoundTrip]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testRecipeCodableRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testRecipeStructuralEquality]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testRecipeStructuralEquality]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testScalePercentValidationVectors]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testScalePercentValidationVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testSingleVariantGetsNoTag]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testSingleVariantGetsNoTag]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testVariantCodableRoundTripAtBoundaries]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testVariantCodableRoundTripAtBoundaries]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testVariantCodableRoundTripNilFields]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testVariantCodableRoundTripNilFields]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testVariantOrthogonality]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testVariantOrthogonality]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testVariantValidateComposesAllDimensions]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testVariantValidateComposesAllDimensions]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportRecipeTests testWhitespaceTagIsAbsent]' started.
+Test Case '-[LightamerTestsExport.ExportRecipeTests testWhitespaceTagIsAbsent]' passed (0.000 seconds).
+Test Suite 'ExportRecipeTests' passed at 2026-09-30 06:01:38.823.
+	 Executed 22 tests, with 0 failures (0 unexpected) in 0.006 (0.008) seconds
+Test Suite 'ExportRendererE2ETests' started at 2026-09-30 06:01:38.823.
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testCancellationLeavesNoFile]' started.
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testCancellationLeavesNoFile]' passed (0.003 seconds).
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testExitLegIdentityDualState]' started.
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testExitLegIdentityDualState]' passed (0.010 seconds).
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testFullChainRoundTripDecodeRenderExitEncode]' started.
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testFullChainRoundTripDecodeRenderExitEncode]' passed (0.254 seconds).
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testLayerStackExportRoundTripRetouchStrokeAndDrawnMask]' started.
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testLayerStackExportRoundTripRetouchStrokeAndDrawnMask]' passed (0.925 seconds).
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testLayerSubsystemHelperBuffersRouteWithTheTaskLocal]' started.
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testLayerSubsystemHelperBuffersRouteWithTheTaskLocal]' passed (0.002 seconds).
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testR8FenceQueueIdentity]' started.
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testR8FenceQueueIdentity]' passed (0.004 seconds).
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testResizeVectorsFourModes]' started.
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testResizeVectorsFourModes]' passed (0.043 seconds).
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testYiyinDualSizeNormalizedLayoutEquality]' started.
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testYiyinDualSizeNormalizedLayoutEquality]' passed (25.818 seconds).
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testYiyinFourStateMatrixAndBorderedRoundTrip]' started.
+Test Case '-[LightamerTestsExport.ExportRendererE2ETests testYiyinFourStateMatrixAndBorderedRoundTrip]' passed (2.044 seconds).
+Test Suite 'ExportRendererE2ETests' passed at 2026-09-30 06:02:07.927.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 29.104 (29.105) seconds
+Test Suite 'ExportTargetsTests' started at 2026-09-30 06:02:07.928.
+Test Case '-[LightamerTestsExport.ExportTargetsTests testLoadedImageOutsideTheSessionYieldsNoTargets]' started.
+Test Case '-[LightamerTestsExport.ExportTargetsTests testLoadedImageOutsideTheSessionYieldsNoTargets]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportTargetsTests testMatchesBothSymlinkSpellingsOfTheSessionRoot]' started.
+Test Case '-[LightamerTestsExport.ExportTargetsTests testMatchesBothSymlinkSpellingsOfTheSessionRoot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportTargetsTests testNilInputsYieldNoTargets]' started.
+Test Case '-[LightamerTestsExport.ExportTargetsTests testNilInputsYieldNoTargets]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.ExportTargetsTests testSelectionWinsAndEmptyComponentsAreDropped]' started.
+Test Case '-[LightamerTestsExport.ExportTargetsTests testSelectionWinsAndEmptyComponentsAreDropped]' passed (0.000 seconds).
+Test Suite 'ExportTargetsTests' passed at 2026-09-30 06:02:07.928.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'QuickLookPerfProbeTests' started at 2026-09-30 06:02:07.928.
+Test Case '-[LightamerTestsExport.QuickLookPerfProbeTests testQLRenderLatencyGrid]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/QuickLookPerfProbeTests.swift:35: -[LightamerTestsExport.QuickLookPerfProbeTests testQLRenderLatencyGrid] : Test skipped - QL perf probe gated — set LA_QL_PERF=1 to run
+Test Case '-[LightamerTestsExport.QuickLookPerfProbeTests testQLRenderLatencyGrid]' skipped (0.000 seconds).
+Test Suite 'QuickLookPerfProbeTests' passed at 2026-09-30 06:02:07.929.
+	 Executed 1 test, with 1 test skipped and 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'QuickLookRendererTests' started at 2026-09-30 06:02:07.929.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testBoundedWaitSurfacesTypedTimeout]' started.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testBoundedWaitSurfacesTypedTimeout]' passed (0.206 seconds).
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testPreviewPlaneParityByteIdenticalSharedDecode]' started.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testPreviewPlaneParityByteIdenticalSharedDecode]' passed (79.096 seconds).
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testPreviewRenderFailureDegradesToEmbeddedPreview]' started.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testPreviewRenderFailureDegradesToEmbeddedPreview]' passed (0.005 seconds).
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testProductionTimeoutConstantMatchesPerfVerdict]' started.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testProductionTimeoutConstantMatchesPerfVerdict]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testRenderedPlaneHonorsRequestedLongEdge]' started.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testRenderedPlaneHonorsRequestedLongEdge]' passed (0.064 seconds).
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testThumbnailCorruptSidecarDegradesToEmbeddedPreview]' started.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testThumbnailCorruptSidecarDegradesToEmbeddedPreview]' passed (0.015 seconds).
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testThumbnailFreshThumbsDirectReadZeroRender]' started.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testThumbnailFreshThumbsDirectReadZeroRender]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testThumbnailPristineFallsToEmbeddedPreview]' started.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testThumbnailPristineFallsToEmbeddedPreview]' passed (0.005 seconds).
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testThumbnailRenderTimeoutDegradesBounded]' started.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testThumbnailRenderTimeoutDegradesBounded]' passed (0.399 seconds).
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testThumbnailStaleThumbFallsToRenderLeg]' started.
+Test Case '-[LightamerTestsExport.QuickLookRendererTests testThumbnailStaleThumbFallsToRenderLeg]' passed (0.008 seconds).
+Test Suite 'QuickLookRendererTests' passed at 2026-09-30 06:03:27.737.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 79.807 (79.808) seconds
+Test Suite 'SpotlightAttributeMapperTests' started at 2026-09-30 06:03:27.737.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testFlagNoteLayerSummaryAreNeverMapped]' started.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testFlagNoteLayerSummaryAreNeverMapped]' passed (0.720 seconds).
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testFutureSchemaRefusesAndRegistersNothing]' started.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testFutureSchemaRefusesAndRegistersNothing]' passed (0.017 seconds).
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testImportLeavesLindexByteAndMtimeIdentical]' started.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testImportLeavesLindexByteAndMtimeIdentical]' passed (0.004 seconds).
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testKeywordFlattening]' started.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testKeywordFlattening]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testMappingProjectsEveryStandardAttribute]' started.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testMappingProjectsEveryStandardAttribute]' passed (0.004 seconds).
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testMappingProjectsExifColumnsFromProjection]' started.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testMappingProjectsExifColumnsFromProjection]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testNoSessionRootProjectsNothing]' started.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testNoSessionRootProjectsNothing]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testProjectedColumnsAreFrozenContractMembers]' started.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testProjectedColumnsAreFrozenContractMembers]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testRatingBandAndColorLabelBounds]' started.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testRatingBandAndColorLabelBounds]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testRowAbsentRegistersNothing]' started.
+Test Case '-[LightamerTestsExport.SpotlightAttributeMapperTests testRowAbsentRegistersNothing]' passed (0.004 seconds).
+Test Suite 'SpotlightAttributeMapperTests' passed at 2026-09-30 06:03:28.488.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.751 (0.751) seconds
+Test Suite 'WebPEncoderTests' started at 2026-09-30 06:03:28.488.
+Test Case '-[LightamerTestsExport.WebPEncoderTests testLosslessEffortFoldVectors]' started.
+Test Case '-[LightamerTestsExport.WebPEncoderTests testLosslessEffortFoldVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.WebPEncoderTests testRegistryRejectsNon8BitPlaneForWebP]' started.
+Test Case '-[LightamerTestsExport.WebPEncoderTests testRegistryRejectsNon8BitPlaneForWebP]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.WebPEncoderTests testWebPContainerCarriesNoMetadataChunks]' started.
+Test Case '-[LightamerTestsExport.WebPEncoderTests testWebPContainerCarriesNoMetadataChunks]' passed (0.004 seconds).
+Test Case '-[LightamerTestsExport.WebPEncoderTests testWebPLosslessBitwiseRoundTrip]' started.
+Test Case '-[LightamerTestsExport.WebPEncoderTests testWebPLosslessBitwiseRoundTrip]' passed (0.003 seconds).
+Test Case '-[LightamerTestsExport.WebPEncoderTests testWebPLossyKnownPoints]' started.
+Test Case '-[LightamerTestsExport.WebPEncoderTests testWebPLossyKnownPoints]' passed (0.002 seconds).
+Test Suite 'WebPEncoderTests' passed at 2026-09-30 06:03:28.496.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.008 (0.008) seconds
+Test Suite 'WebPIntegrationSmokeTests' started at 2026-09-30 06:03:28.496.
+Test Case '-[LightamerTestsExport.WebPIntegrationSmokeTests testLibwebpVersionAvailable]' started.
+Test Case '-[LightamerTestsExport.WebPIntegrationSmokeTests testLibwebpVersionAvailable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.WebPIntegrationSmokeTests testLosslessDecodeRoundTrip]' started.
+Test Case '-[LightamerTestsExport.WebPIntegrationSmokeTests testLosslessDecodeRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.WebPIntegrationSmokeTests testLosslessEncode1x1RGBA]' started.
+Test Case '-[LightamerTestsExport.WebPIntegrationSmokeTests testLosslessEncode1x1RGBA]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.WebPIntegrationSmokeTests testLossyEncode1x1RGBA]' started.
+Test Case '-[LightamerTestsExport.WebPIntegrationSmokeTests testLossyEncode1x1RGBA]' passed (0.000 seconds).
+Test Suite 'WebPIntegrationSmokeTests' passed at 2026-09-30 06:03:28.497.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'YiyinBordersTests' started at 2026-09-30 06:03:28.497.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testAdaptiveOverlayLightensDarkBackdrop]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testAdaptiveOverlayLightensDarkBackdrop]' passed (0.015 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testBlurBandCarriesContent]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testBlurBandCarriesContent]' passed (0.008 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testBlurFlatFieldDCGainOne]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testBlurFlatFieldDCGainOne]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testBordersJoinsEditingSeedAsNeutral]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testBordersJoinsEditingSeedAsNeutral]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testBordersRegisteredAtV50Slot]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testBordersRegisteredAtV50Slot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testBordersSeesUprightPixelsOrientation6]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testBordersSeesUprightPixelsOrientation6]' passed (0.006 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testCommitClamps]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testCommitClamps]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testCommitHashesRawParamsViaParamsCoding]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testCommitHashesRawParamsViaParamsCoding]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testContentAddressedProxyCache]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testContentAddressedProxyCache]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testDisabledBordersEqualsNoInstance]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testDisabledBordersEqualsNoInstance]' passed (0.008 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testHexParsing]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testHexParsing]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testLayerInternalDisciplinePin]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testLayerInternalDisciplinePin]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testLinearizeSRGBKnownPoints]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testLinearizeSRGBKnownPoints]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testNeutralPredicate]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testNeutralPredicate]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testOverlayTierBoundaries]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testOverlayTierBoundaries]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testPreviewDragInitialTimingRecorded]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testPreviewDragInitialTimingRecorded]' passed (3.441 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testProxySizeAccountingAndSigma]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testProxySizeAccountingAndSigma]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testROICanvasGrowthAndBackMapping]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testROICanvasGrowthAndBackMapping]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testRoundedCornerCutsMainImage]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testRoundedCornerCutsMainImage]' passed (0.008 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testSaturatedHexP3KnownPoint]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testSaturatedHexP3KnownPoint]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testSDFAalphaProfileRoundedCornerCut]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testSDFAalphaProfileRoundedCornerCut]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testSeedIdentityIsByteExactThroughPipe]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testSeedIdentityIsByteExactThroughPipe]' passed (0.014 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testShadowBandDecaysMonotonically]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testShadowBandDecaysMonotonically]' passed (0.022 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testShadowZeroEqualsShadowNilByteExact]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testShadowZeroEqualsShadowNilByteExact]' passed (0.012 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testSolidColoredFillP3KnownPointThroughPipe]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testSolidColoredFillP3KnownPointThroughPipe]' passed (0.008 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testSolidWhiteFillContentThroughPipe]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testSolidWhiteFillContentThroughPipe]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testTailPolicyGammaTopUnchanged]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testTailPolicyGammaTopUnchanged]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testTailWindowExtraction]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testTailWindowExtraction]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testTailWindowRoutesBordersToTerminalSegmentWithLayers]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testTailWindowRoutesBordersToTerminalSegmentWithLayers]' passed (0.009 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testWhiteAndGrayHexExactUnderEveryTarget]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testWhiteAndGrayHexExactUnderEveryTarget]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinBordersTests testWindowedFullCanvasExtensionContentLevel]' started.
+Test Case '-[LightamerTestsExport.YiyinBordersTests testWindowedFullCanvasExtensionContentLevel]' passed (0.008 seconds).
+Test Suite 'YiyinBordersTests' passed at 2026-09-30 06:03:32.092.
+	 Executed 31 tests, with 0 failures (0 unexpected) in 3.591 (3.595) seconds
+Test Suite 'YiyinE2ETests' started at 2026-09-30 06:03:32.092.
+Test Case '-[LightamerTestsExport.YiyinE2ETests testFourStateCombinationMatrix]' started.
+Test Case '-[LightamerTestsExport.YiyinE2ETests testFourStateCombinationMatrix]' passed (1.161 seconds).
+Test Case '-[LightamerTestsExport.YiyinE2ETests testOpenConfigureUndoSidecarRoundTripByteExact]' started.
+Test Case '-[LightamerTestsExport.YiyinE2ETests testOpenConfigureUndoSidecarRoundTripByteExact]' passed (2.528 seconds).
+Test Suite 'YiyinE2ETests' passed at 2026-09-30 06:03:35.781.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 3.689 (3.689) seconds
+Test Suite 'YiyinExifFormatTests' started at 2026-09-30 06:03:35.781.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testBaseModelLowercaseForOtherBrands]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testBaseModelLowercaseForOtherBrands]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testCharToNumberCharPerCodePoint]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testCharToNumberCharPerCodePoint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testExposureCompensation]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testExposureCompensation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testExposureProgramLetters]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testExposureProgramLetters]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testExposureTimeFractionAndSeconds]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testExposureTimeFractionAndSeconds]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFieldKeyTableMatchesYiyinDefFields]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFieldKeyTableMatchesYiyinDefFields]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFieldsFillAllFifteenKeys]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFieldsFillAllFifteenKeys]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFieldsFromNilMetaAreAllEmpty]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFieldsFromNilMetaAreAllEmpty]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFNumberJSNumberFace]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFNumberJSNumberFace]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFocalLengthAnd35mmRounds]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFocalLengthAnd35mmRounds]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFormatDateRules]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testFormatDateRules]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testISO]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testISO]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testJsNumberFace]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testJsNumberFace]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testMakeStripsCorporationAndCapitalizes]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testMakeStripsCorporationAndCapitalizes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testMeteringModeNumericContract]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testMeteringModeNumericContract]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testMeteringModeStringTableVerbatim]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testMeteringModeStringTableVerbatim]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testModelMapFilterSurfaceParity]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testModelMapFilterSurfaceParity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testNikonZAndRomanNumerals]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testNikonZAndRomanNumerals]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testSixFieldsDecodableFromLegacyArchive]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testSixFieldsDecodableFromLegacyArchive]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testSixFieldsRoundTrip]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testSixFieldsRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testSonyAlphaSubstitution]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testSonyAlphaSubstitution]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testToRomanTable]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testToRomanTable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testWhiteBalance]' started.
+Test Case '-[LightamerTestsExport.YiyinExifFormatTests testWhiteBalance]' passed (0.000 seconds).
+Test Suite 'YiyinExifFormatTests' passed at 2026-09-30 06:03:35.784.
+	 Executed 23 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'YiyinExportSettingsTests' started at 2026-09-30 06:03:35.784.
+Test Case '-[LightamerTestsExport.YiyinExportSettingsTests testCodableRoundTripAndOrthogonality]' started.
+Test Case '-[LightamerTestsExport.YiyinExportSettingsTests testCodableRoundTripAndOrthogonality]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExportSettingsTests testJointLayoutRecordResolutionIndependent]' started.
+Test Case '-[LightamerTestsExport.YiyinExportSettingsTests testJointLayoutRecordResolutionIndependent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExportSettingsTests testPresetCaptureApplyRendersByteEquivalent]' started.
+Test Case '-[LightamerTestsExport.YiyinExportSettingsTests testPresetCaptureApplyRendersByteEquivalent]' passed (0.016 seconds).
+Test Case '-[LightamerTestsExport.YiyinExportSettingsTests testTargetSizePureMath]' started.
+Test Case '-[LightamerTestsExport.YiyinExportSettingsTests testTargetSizePureMath]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinExportSettingsTests testValidationBoundaries]' started.
+Test Case '-[LightamerTestsExport.YiyinExportSettingsTests testValidationBoundaries]' passed (0.000 seconds).
+Test Suite 'YiyinExportSettingsTests' passed at 2026-09-30 06:03:35.801.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.017 (0.017) seconds
+Test Suite 'YiyinFontStoreTests' started at 2026-09-30 06:03:35.801.
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testCorruptRegistryEntrySelfHeals]' started.
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testCorruptRegistryEntrySelfHeals]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testEmbeddedBrandSetResolvesAllThirteen]' started.
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testEmbeddedBrandSetResolvesAllThirteen]' passed (0.006 seconds).
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testEmbeddedRasterizationServesAspect]' started.
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testEmbeddedRasterizationServesAspect]' passed (0.004 seconds).
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testFontImportRegisterRemoveRoundTrip]' started.
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testFontImportRegisterRemoveRoundTrip]' passed (0.009 seconds).
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testFontRegistryPersistsAcrossInstances]' started.
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testFontRegistryPersistsAcrossInstances]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testProviderWiringServesMakeAndCustomSlots]' started.
+CoreGraphics PDF has logged an error. Set environment variable "CG_PDF_VERBOSE" to learn more.
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testProviderWiringServesMakeAndCustomSlots]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testSystemFamilyEnumerationNonEmpty]' started.
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testSystemFamilyEnumerationNonEmpty]' passed (0.017 seconds).
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testUserLogoImportRoundTripAndTypedFailures]' started.
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testUserLogoImportRoundTripAndTypedFailures]' passed (0.002 seconds).
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testUserLogoRegistryPersistsAcrossStoreInstances]' started.
+Test Case '-[LightamerTestsExport.YiyinFontStoreTests testUserLogoRegistryPersistsAcrossStoreInstances]' passed (0.001 seconds).
+Test Suite 'YiyinFontStoreTests' passed at 2026-09-30 06:03:35.856.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.055 (0.055) seconds
+Test Suite 'YiyinLayoutTests' started at 2026-09-30 06:03:35.856.
+Test Case '-[LightamerTestsExport.YiyinLayoutTests testLayoutMatchesYiyinHarnessPerValue]' started.
+Test Case '-[LightamerTestsExport.YiyinLayoutTests testLayoutMatchesYiyinHarnessPerValue]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinLayoutTests testRowsLegReservesTextBlock]' started.
+Test Case '-[LightamerTestsExport.YiyinLayoutTests testRowsLegReservesTextBlock]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinLayoutTests testYiyinCeilQuirkIsPreserved]' started.
+Test Case '-[LightamerTestsExport.YiyinLayoutTests testYiyinCeilQuirkIsPreserved]' passed (0.000 seconds).
+Test Suite 'YiyinLayoutTests' passed at 2026-09-30 06:03:35.857.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'YiyinMetadataWalkTests' started at 2026-09-30 06:03:35.857.
+Test Case '-[LightamerTestsExport.YiyinMetadataWalkTests testLegacyRecordJSONWithoutSixKeysDecodesCleanly]' started.
+Test Case '-[LightamerTestsExport.YiyinMetadataWalkTests testLegacyRecordJSONWithoutSixKeysDecodesCleanly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinMetadataWalkTests testOrientation6RendersByteExactAgainstPreUprightSource]' started.
+Test Case '-[LightamerTestsExport.YiyinMetadataWalkTests testOrientation6RendersByteExactAgainstPreUprightSource]' passed (0.017 seconds).
+Test Case '-[LightamerTestsExport.YiyinMetadataWalkTests testRealRAWWalkFillsSixFieldsAgreeingWithImageIO]' started.
+Test Case '-[LightamerTestsExport.YiyinMetadataWalkTests testRealRAWWalkFillsSixFieldsAgreeingWithImageIO]' passed (0.347 seconds).
+Test Suite 'YiyinMetadataWalkTests' passed at 2026-09-30 06:03:36.221.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.364 (0.364) seconds
+Test Suite 'YiyinWatermarkTests' started at 2026-09-30 06:03:36.221.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testAllFieldConfigsHiddenIsByteIdentity]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testAllFieldConfigsHiddenIsByteIdentity]' passed (0.008 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testCommitHashesRawParamsViaParamsCoding]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testCommitHashesRawParamsViaParamsCoding]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testDisabledInstanceEqualsNoInstance]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testDisabledInstanceEqualsNoInstance]' passed (0.007 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testEmbeddedBrandLogoRendersThroughPipe]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testEmbeddedBrandLogoRendersThroughPipe]' passed (0.014 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testFieldedRowWithAllSlotsDroppedSkips]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testFieldedRowWithAllSlotsDroppedSkips]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testFieldFontOverrideScalesRounded]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testFieldFontOverrideScalesRounded]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testFirstPassCanvasMatchesNoRowsCanvas]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testFirstPassCanvasMatchesNoRowsCanvas]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testForceUseOverrideAndEmptyValueFallback]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testForceUseOverrideAndEmptyValueFallback]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testGoldenFieldedRowWithLogo]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testGoldenFieldedRowWithLogo]' passed (0.131 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testGoldenTextRowSelfBaseline]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testGoldenTextRowSelfBaseline]' passed (0.059 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testHiddenFieldPlaceholderRemovedAndRowSkips]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testHiddenFieldPlaceholderRemovedAndRowSkips]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testJointBordersActiveGrowsCanvas]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testJointBordersActiveGrowsCanvas]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testLogoOpacityBakesIntoAlpha]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testLogoOpacityBakesIntoAlpha]' passed (0.003 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testMakeLogoDispatchMatrix]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testMakeLogoDispatchMatrix]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testMatchFieldsOrderDedupAndCase]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testMatchFieldsOrderDedupAndCase]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testNeutralBordersParamsAlsoUseWatermarkOnlyFace]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testNeutralBordersParamsAlsoUseWatermarkOnlyFace]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testNineGridAnchorTranslatesBlock]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testNineGridAnchorTranslatesBlock]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRenderCacheBudgetEviction]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRenderCacheBudgetEviction]' passed (0.011 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRenderCacheMissHitAccounting]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRenderCacheMissHitAccounting]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testResolutionIndependentNormalizedRowBox]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testResolutionIndependentNormalizedRowBox]' passed (0.004 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testResolveEmptyPatternSkipsRow]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testResolveEmptyPatternSkipsRow]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testResolveInterleaveAndSlotTrim]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testResolveInterleaveAndSlotTrim]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testResolveLiteralOnlyRowAppliesRowCase]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testResolveLiteralOnlyRowAppliesRowCase]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testResolveRowColorFallsBackToBackdrop]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testResolveRowColorFallsBackToBackdrop]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRowBitmapInk]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRowBitmapInk]' passed (0.006 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRowHeightDrivenByMaxSlotFont]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRowHeightDrivenByMaxSlotFont]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRowLayoutFormulaSameShape]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRowLayoutFormulaSameShape]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRowsLegCanvasReserveLandscape]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRowsLegCanvasReserveLandscape]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRowsLegCanvasReservePortrait]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testRowsLegCanvasReservePortrait]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testSeedIdentityIsByteExactThroughPipe]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testSeedIdentityIsByteExactThroughPipe]' passed (0.009 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testStackingOrderLastRowNearestBottom]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testStackingOrderLastRowNearestBottom]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testWatermarkCompositeChangesBottomBandThroughPipe]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testWatermarkCompositeChangesBottomBandThroughPipe]' passed (0.009 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testWatermarkJoinsEditingSeedAsNeutral]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testWatermarkJoinsEditingSeedAsNeutral]' passed (0.001 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testWatermarkOnlyPlacementStacksOnImage]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testWatermarkOnlyPlacementStacksOnImage]' passed (0.000 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testWatermarkPreviewDragInitialTimingRecorded]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testWatermarkPreviewDragInitialTimingRecorded]' passed (2.480 seconds).
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testWatermarkRegisteredAtV50Slot]' started.
+Test Case '-[LightamerTestsExport.YiyinWatermarkTests testWatermarkRegisteredAtV50Slot]' passed (0.001 seconds).
+Test Suite 'YiyinWatermarkTests' passed at 2026-09-30 06:03:38.974.
+	 Executed 36 tests, with 0 failures (0 unexpected) in 2.751 (2.753) seconds
+Test Suite 'LightamerTestsExport.xctest' passed at 2026-09-30 06:03:38.974.
+	 Executed 260 tests, with 1 test skipped and 0 failures (0 unexpected) in 243.186 (243.204) seconds
+Test Suite 'All tests' passed at 2026-09-30 06:03:38.975.
+	 Executed 260 tests, with 1 test skipped and 0 failures (0 unexpected) in 243.186 (243.206) seconds
+EXPORT-PERF FOOTPRINT-44.7MP peakDeltaMB=3605 projected100MPMB=8058
+EXPORT-PERF DECODE-ONLY 2348.3ms
+EXPORT-PERF SEGMENT jpeg renderStage=4746ms encodeStage=8ms
+EXPORT-PERF SEGMENT png16 renderStage=4229ms encodeStage=778ms
+EXPORT-PERF SEGMENT tiff32f renderStage=3053ms encodeStage=46ms
+EXPORT-PERF SEGMENT heic10 renderStage=4187ms encodeStage=42ms
+EXPORT-PERF SEGMENT avif10 renderStage=4768ms encodeStage=144ms
+EXPORT-PERF SEGMENT webp renderStage=4211ms encodeStage=7091ms
+EXPORT-PERF TIFF32F-SIZE 69924114
+BORDERS-PERF PREVIEW 2560 median ms — solid: 799.3, blur+overlay: 145440.7, solid+radius+shadow: 180.9
+ORIENT6 cross-graph maxDiff = 0.0 (CI graph rounding, informational)
+WATERMARK-PREVIEW-DRAG: median 803.9ms of ["813", "605", "855", "804", "627"] (Debug, PSO-cold caveats — 只记不设门)

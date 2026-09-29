@@ -1,0 +1,48 @@
+Process:         Lightamer [34960]
+Path:            /Users/USER/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/Lightamer.app/Contents/MacOS/Lightamer
+Load Address:    0x104a10000
+Identifier:      Lightamer
+Version:         ???
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  zsh [34954]
+Target Type:     live task
+
+Date/Time:       2026-09-30 06:04:10.506 +0800
+Launch Time:     2026-09-30 06:04:10.470 +0800
+OS Version:      macOS 27.0.1 (26A434)
+Report Version:  7
+Analysis Tool:   /usr/bin/vmmap
+
+Physical footprint:         256K
+Physical footprint (peak):  304K
+Idle exit:                  untracked
+----
+
+ReadOnly portion of Libraries: Total=1.6G resident=34.8M(2%) swapped_out_or_unallocated=1.6G(98%)
+Writable regions: Total=8704K written=176K(2%) resident=176K(2%) swapped_out=0K(0%) unallocated=8528K(98%)
+
+                                VIRTUAL RESIDENT    DIRTY  SWAPPED VOLATILE   NONVOL    EMPTY   REGION 
+REGION TYPE                        SIZE     SIZE     SIZE     SIZE     SIZE     SIZE     SIZE    COUNT (non-coalesced) 
+===========                     ======= ========    =====  ======= ========   ======    =====  ======= 
+Dyld Private Memory                 16K      16K      16K       0K       0K       0K       0K        1 
+Guard                            385.0G       0K       0K       0K       0K       0K       0K        1 
+Stack                             8176K      32K      32K       0K       0K       0K       0K        1 
+Stack Guard                       56.0M       0K       0K       0K       0K       0K       0K        1 
+__AUTH_CONST                        25K      25K       0K       0K       0K       0K       0K        1 
+__DATA                             596K       4K       4K       0K       0K       0K       0K        3 
+__DATA_CONST                       379K      11K       0K       0K       0K       0K       0K        2 
+__DATA_DIRTY                        14K      14K      14K       0K       0K       0K       0K        1 
+__LINKEDIT                         1.6G    34.0M       0K       0K       0K       0K       0K        2 
+__TEXT                            18.7M     784K       0K       0K       0K       0K       0K        2 
+__TPRO_CONST                       128K      48K      32K       0K       0K       0K       0K        1 
+page table in kernel               128K     128K     128K       0K       0K       0K       0K        1 
+unused but dirty shlib __DATA       46K      46K      46K       0K       0K       0K       0K       22 
+===========                     ======= ========    =====  ======= ========   ======    =====  ======= 
+TOTAL                            386.7G    35.1M     272K       0K       0K       0K       0K       39 
+
+               VIRTUAL   RESIDENT      DIRTY    SWAPPED ALLOCATION      BYTES DIRTY+SWAP          REGION
+MALLOC ZONE       SIZE       SIZE       SIZE       SIZE      COUNT  ALLOCATED  FRAG SIZE  % FRAG   COUNT
+===========    =======  =========  =========  =========  =========  =========  =========  ======  ======
+No malloc zones in target process
+Process exists but has not fully started -- dyld has initialized but libSystem has not
