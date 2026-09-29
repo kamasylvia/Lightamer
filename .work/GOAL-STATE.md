@@ -158,6 +158,8 @@
 - **Alcedo Studio 已安装（2026-09-27 用户授权，UI 仿写视觉验收资源）**：`/Applications/AlcedoStudio.app`——M2-3 UI 克隆与后续 GUI 验收轮可用 computer-use（AX+cliclick+screencapture，UAT 自答先例同款）开真机对照截图。~~实测 44 个 LUT~~（2026-09-29 勘误：其中 Hasselblad 两张 33³ 与「色彩逆向」子目录为**用户自放**，非内置）——**Alcedo 真内置集 = CMake glob `Agfa_*/Fuji_*/Kodak_*.cube`（主体 65³）**；M2-5 LUT 语义按 65³ 为一等档位（33³ 兼收）；递归扫描需求（M2GRADE-05）动机不变。
 
 ## 巡检运行规则（每次 Cron 触发时遵守）
+- **资源监控（2026-09-29 用户指令）**：每次巡检附带 `ps aux | grep -i lightamer` 查资源；内存 >3G 或 CPU 持续异常 → `sample <pid> 3` 采栈调查 + 按仓 AGENTS.md「资源监控」节处置（全套回归宿主过渡条款：>8G 或压力红立即 kill）。
+
 
 - **顺序推进**：只做队列第一项；完成后立即提交（`node $HOME/.codex/gsd-core/bin/gsd-tools.cjs query commit "..." --files <files>`，或直接 git commit——遵循 Conventional Commits、只 add 相关文件）并 `git push origin main`，然后更新本文件队列与"当前状态"。
 - **构建保护**：构建/测试前 `caffeinate -dis <cmd>` 防休眠。USB 卷慢时（`time xcodebuild -version` >2s）只记录慢态，**不例行 SIGSTOP Resilio**（L009 归因已修正 2026-09-20：仅当确认 Resilio 正在活跃传输时才暂停作诊断性 A/B，构建完 `kill -CONT` 恢复）。

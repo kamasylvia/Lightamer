@@ -12,6 +12,14 @@ Phase **execute** 阶段的执行分工固定为两级：
 - omp 的提交即执行产出；subagent 验收发现的问题修复提交以 `fix(...)` 标注并可引用 omp 产物。
 - 人工只处理 GOAL-STATE「阻塞（需人工）」章节登记的事项。
 
+## 资源监控（2026-09-29 用户指令，强制）
+
+开发过程中**持续监控 Lightamer 相关进程**（GUI app 与测试宿主同规——test-direct.sh 直启宿主在活动监视器里也叫 Lightamer）：
+
+- **触发线**：内存占用 >3G，或 CPU 占用持续异常偏高（非构建态 >50% 持续分钟级）→ **立刻介入**：`sample <pid> 3` 采栈定位 + 向 orchestrator/用户上报处置，不得放任。
+- **过渡条款（M2-4-0 拆 test bundle 落地前）**：全套回归宿主可预期超 3G——此类 run 须 orchestrator 批准、运行中保持监视、**>8G 或内存压力转红立即 kill**（2026-09-29 两次事件：10.4G 未响应 / 7.5G 用户强杀）。
+- 巡检 cron 每次运行附带查一眼 Lightamer 进程资源（`ps aux | grep -i lightamer`）。
+
 ## 暂停机制（2026-09-24 用户指令，Phase 7 起强制）
 
 **`.work/config.toml [gsd]` 开关**（2026-09-24 起替代旧 PAUSE 文件）——两个字段，消费方每任务边界与派发前必读：
