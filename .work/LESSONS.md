@@ -354,3 +354,10 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：Tuist sources glob 在 generate 时展开；generate 后新建的文件不进 .xcodeproj，build「成功」只是没编它。多 DerivedData 容器（mtime 选择）又添一层迷惑。
 - **对策**：①批量建文件的批次内，**tuist generate 永远是该批最后一个动作**（或新文件落盘后无条件重跑 generate——幂等秒级）；②test-direct 的 `Executed 0 tests` 防空转闸门（L028 双读）正是此类缺席的唯一可靠信号，见到先查「文件是否进 project」再查过滤名；③`nm -gU <.xctest>/MacOS/LightamerTests | grep <ClassName>` 三秒定位缺席面。
 - **适用**：一切 Tuist 工程「建文件 + generate + build + test」循环（每 plan 批量建文件场景必踩面）。
+
+## L042: Core 写面缺口先查 access level——编排型 plan 的数据缝要落到「可编译的调用」才算缝（2026-09-29，M2-3-2 T4）
+- **背景**：M2-3-2 KD-4 数据缝 = `ImageLinker.relinkRecord`（Core public，零改动消费），编排循环在 App 层——plan 期默认「记录重建 = 落库」。
+- **现象**：T4 实装发现 `ProjectFileStore.withWriteBatch` 是 internal（M2-2-1 交付面测试经 @testable 使用，App 层不可见）；App 层能算出 relink 记录却没有任何公共写面能落库（`updateProjection` 只写 has_edits/params_hash；remove+insert 破 rowid/FK 级联；第二路 SQLite 连接破 WAL 单写者纪律）。Core 零 diff 红线又禁当场补面。
+- **根因**：plan 期的「数据缝」核对只查了「签名存在且 public」，没查「缝的下游依赖是否也 public 可达」——`relinkRecord` 返回值需要写面消费，写面缺席 = 缝悬空。
+- **对策**：①编排型任务 read_first 增加「缝 → 下游消费 → 全链 access level」三步核对（grep `public func` 到最终 IO 为止）；②缺口处置 = 注入式 leg + 测试 @testable 真写验证 + 生产诚实 gate（本 plan D2 形态），缺口本体登记 Core-face 小 plan（`LibraryStore.relinkImage` 族）；③禁临时绕路：@testable import 进产品码、第二写连接、remove+insert 换 rowid 全是坑不是路。
+- **适用**：一切「App 层编排 + Core 数据面」plan（M2-4+ 节点模型、导出队列、AI 腿同理）；orchestrator 审 plan 时对「壳零 SQL」类约束同时核对写面存在性。

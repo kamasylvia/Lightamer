@@ -349,4 +349,134 @@ final class LibraryGridModelTests: XCTestCase {
         XCTAssertEqual(workspace.editorPhase.currentImageID, id)
         XCTAssertEqual(model.rows.count, 12)
     }
+
+    // MARK: - Plan M2-3-2 T5: the thumbnail first-screen observation
+    // (BENCH|, MANUAL-ONLY — the LibraryBenchmarkHarness seam discipline)
+
+    /// The M2-2-3 perf.md §A.4 挂账 measurement: a REAL `.lalb` whose rows
+    /// point at REAL camera files (the repo's input/RAW corpus hardlinked
+    /// N ways — zero copy cost), the P2 bridge producing the first screen
+    /// COLD (empty thumbs dir, empty LRU). Prints `BENCH|` lines:
+    /// total + per-image production cost, tier A (embedded preview).
+    ///
+    ///   LA_THUMB_BENCH=1 Scripts/test-direct.sh 'LibraryGridModelTests'
+    ///   (override the screen size: LA_THUMB_BENCH_N, default 24; the
+    ///   Release column rides the CatalogBenchmarkHarness direct-launch
+    ///   recipe)
+    @MainActor
+    func testThumbnailFirstScreenProductionObservation() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["LA_THUMB_BENCH"] == "1",
+            "manual-only benchmark (LA_THUMB_BENCH=1)")
+
+        // The corpus: the repo's input/RAW real files.
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let rawDir = repoRoot.appendingPathComponent("input/RAW", isDirectory: true)
+        let corpusFiles = ["DSC00012.ARW", "DSC09991.ARW", "DSC00012.jpg"]
+            .map { rawDir.appendingPathComponent($0) }
+        for file in corpusFiles {
+            try XCTSkipUnless(
+                FileManager.default.fileExists(atPath: file.path),
+                "the input/RAW corpus is absent on this machine")
+        }
+
+        let screen = Int(ProcessInfo.processInfo.environment["LA_THUMB_BENCH_N"] ?? "24")
+            ?? 24
+
+        // A FRESH package + Media/ of symlinks (cross-volume: the repo
+        // sits on an external volume — hardlinks are impossible; symlinks
+        // cost nothing and ImageIO follows them).
+        let benchRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("la-thumb-bench-\(UUID().uuidString)", isDirectory: true)
+        let mediaDir = benchRoot.appendingPathComponent("Media", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: mediaDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: benchRoot) }
+
+        let packageURL = benchRoot.appendingPathComponent("Bench.lalb")
+        let store = ProjectFileStore(at: packageURL)
+        _ = try await store.create(name: "Bench")
+        let benchQueries = LibraryQueries(store: store)
+        try await store.withWriteBatch { handle -> Bool in
+            let insert = try handle.prepare("""
+                INSERT INTO images (image_path, path_kind, has_edits,
+                    file_stem, filename)
+                VALUES (?, 0, 0, ?, ?)
+                """)
+            for index in 0..<screen {
+                let source = corpusFiles[index % corpusFiles.count]
+                let name = "Bench\(String(format: "%03d", index))_"
+                    + source.lastPathComponent
+                let destination = mediaDir.appendingPathComponent(name)
+                try? FileManager.default.removeItem(at: destination)
+                try FileManager.default.createSymbolicLink(
+                    at: destination, withDestinationURL: source)
+                try insert.reset()
+                try insert.bindText(1, "Media/" + name)
+                try insert.bindText(2, String(format: "BENCH%03d", index))
+                try insert.bindText(3, name)
+                _ = try insert.step()
+            }
+            return true
+        }
+
+        // The P2 composition exactly as the host wires it (tier A —
+        // has_edits = 0 everywhere; the thumbs dir starts EMPTY = cold).
+        let thumbs = benchRoot.appendingPathComponent(
+            LibrarySchema.thumbsDirectoryName(stem: "Bench"))
+        let directory = packageURL.deletingLastPathComponent()
+        let resolve: LibraryThumbnailBridge.URLResolver = { row in
+            guard let kind = LibrarySchema.PathKind(rawValue: row.pathKind) else {
+                return nil
+            }
+            if case .resolved(let url) = ImageLinker.resolve(
+                imagePath: row.imagePath,
+                pathKind: kind,
+                volumeUUID: row.volumeUUID,
+                projectDirectory: directory) {
+                return url
+            }
+            return nil
+        }
+        let bridge = LibraryThumbnailBridge(
+            thumbsDirectory: thumbs, renderLeg: nil, resolveURL: resolve)
+
+        let benchModel = LibraryGridModel(queries: benchQueries, pageSize: screen)
+        try await benchModel.apply(
+            filter: ExifSearchFilter(),
+            sort: FilterSort(key: .filename, ascending: true))
+        let rows = Array(benchModel.rows.prefix(screen))
+        XCTAssertEqual(rows.count, screen)
+
+        // The first screen COLD: one production per row (the gate merges —
+        // a sequential walk keeps the per-image attribution honest).
+        func ms(_ duration: Duration) -> Double {
+            Double(duration.components.seconds) * 1_000
+                + Double(duration.components.attoseconds) / 1e15
+        }
+        let clock = ContinuousClock()
+        var perImage: [Double] = []
+        let start = clock.now
+        for row in rows {
+            let imageStart = clock.now
+            let image = await bridge.thumbnail(for: row)
+            perImage.append(ms(clock.now - imageStart))
+            XCTAssertNotNil(image, "tier A must produce for \(row.filename ?? "?")")
+        }
+        let totalMs = ms(clock.now - start)
+        let sorted = perImage.sorted()
+        let median = sorted[sorted.count / 2]
+        let p95 = sorted[min(sorted.count - 1, (sorted.count * 95 + 99) / 100)]
+
+        let productions = await bridge.productionCount
+        print("BENCH| thumbnail first-screen tier-A (cold): N=\(screen) "
+            + String(format: "total=%.1fms", totalMs)
+            + String(format: " median=%.1fms", median)
+            + String(format: " p95=%.1fms", p95)
+            + String(format: " max=%.1fms", sorted[sorted.count - 1])
+            + " corpus=2x86MP-ARW+1x12MP-JPG hardlinked, productions=\(productions)")
+        try await store.close()
+    }
 }

@@ -74,7 +74,7 @@ dateWindow = capture_date between（30 天窗，~540 行）；camera/lens/rating
 |---|---|---|
 | **10 万张外推**（`LA_LIBRARY_BENCH_N=100000`，Release 单轮） | 最差 **138.44ms**（isoRange\|dateDESC\|deep）；lexical4 全形状 **5.1-6.0ms**；mix1 11.4-23.1ms | 词法/FTS 腿 10 万张仍充裕（P2 预告复现）；**结构化排序腿超线性触顶**（15.66 → 138ms，TEMP B-TREE n log n + 缓存压力）——与 catalog 域当初引 expression index 的同构问题。挂账：若 10 万张级成常态需求，schema v2 可裁 `images(k IS NULL, k DESC, image_path)` 表达式索引或 id-tiebreaker 变体（属后续 phase 权限） |
 | **导入吞吐**（T1 fixture 口径：100 × 4KB 合成 `.ARW`，ImportService copy 全链） | 0.05s / 100 张 ≈ **122,500-124,000 张/min**（Debug/Release 三轮） | ≥100 张/min 软指标大幅通过；口径注：4KB 合成件，verify 哈希为全量内存读——真实 RAW（数十 MB/张）吞吐受 IO 主导，量级另测（M2-2-2 SUMMARY Manual-Only #2 同挂账） |
-| **缩略图首屏** | — | M2-3 前无网格壳，**挂账 M2-3 测**（plan 风险节预告的占位行） |
+| **缩略图首屏** | — | M2-3 前无网格壳，**挂账 M2-3 测**（plan 风险节预告的占位行）→ **M2-3-2 已量测**（2026-09-29）：真 `.lalb` + 档 A 语料首屏 24 张冷产 = **Release 热 837-839ms（median 15.6-15.7ms/张，p95 107-108ms）**，Debug 热 824-833ms；产能在 10.6ms/张 @86MP 基线复现（差值 = symlink IO + /tmp 目标卷 + 外置 USB 卷读）。详见 `phases/m2-3-ui-shell/M2-3-2-SUMMARY.md` |
 
 ### A.5 结论行
 
