@@ -347,3 +347,10 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：双引号串内反引号触发命令替换（command substitution），zsh 先求值再传参——与引号内 `$var` 同族；commit message 习惯性用 markdown 反引号包代码标识符，撞 shell 元字符。
 - **对策**：①多段/含代码标识符的 commit message **一律写临时文件 + `git commit -F <file>`**（本会话 T1 起执行）；②失败后先 `git log --oneline -1` 核对未落再重提交（staged 态无害，防重复 add）；③或 heredoc 单引号定界（`<< 'EOF'`）写文件，同样免疫元字符。
 - **适用**：一切 shell 内联多行文本（commit/tag/release note）；agent 执行器的 -m 长串场景尤甚。
+
+## L041: tuist generate 必须落在「全部新文件落盘之后」——后建文件缺席旧 project，test-direct 报 Executed 0 防假绿（2026-09-29，M2-3-1 T3）
+- **背景**：M2-3-1 批量建文件（T1/T2 generate 一次），T3 的 LibraryThumbnailBridgeTests.swift 在 generate 之后才写盘。
+- **现象**：`Scripts/test-direct.sh 'LibraryThumbnailBridgeTests'` 报 `FAILED — Executed 0 tests（过滤名不匹配或旧容器）`；`xcodebuild build` 却 BUILD SUCCEEDED（旧 project 里根本没有该文件——不是编译失败，是缺席）；nm 查 .xctest 二进制零该类符号。
+- **根因**：Tuist sources glob 在 generate 时展开；generate 后新建的文件不进 .xcodeproj，build「成功」只是没编它。多 DerivedData 容器（mtime 选择）又添一层迷惑。
+- **对策**：①批量建文件的批次内，**tuist generate 永远是该批最后一个动作**（或新文件落盘后无条件重跑 generate——幂等秒级）；②test-direct 的 `Executed 0 tests` 防空转闸门（L028 双读）正是此类缺席的唯一可靠信号，见到先查「文件是否进 project」再查过滤名；③`nm -gU <.xctest>/MacOS/LightamerTests | grep <ClassName>` 三秒定位缺席面。
+- **适用**：一切 Tuist 工程「建文件 + generate + build + test」循环（每 plan 批量建文件场景必踩面）。
