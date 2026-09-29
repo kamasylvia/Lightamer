@@ -525,10 +525,15 @@ enum McpServerController {
     /// without this line — the sampled child was parked in read() with the
     /// LOCKED line still buffered).
     private static func syncStdoutBestEffort() {
+        // fflush moves the C-stdio user-space buffer into the fd (pipe-safe);
+        // the raw fsync(2) then flushes the fd with the errno merely ignored.
+        // Foundation's FileHandle.synchronizeFile is banned here — it raises
+        // an uncatchable ObjC exception on ANY error (EINVAL on pipes
+        // 21:16, still raised on the fstat-guarded regular-file path
+        // 21:38 — likely a read-only/special fd) and took the host down
+        // twice on 2026-09-29. print's bytes live in the fd either way.
         fflush(stdout)
-        var st = stat()
-        guard fstat(STDOUT_FILENO, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG else { return }
-        FileHandle.standardOutput.synchronizeFile()
+        fsync(STDOUT_FILENO)
     }
 
     // MARK: - DEBUG: the two-process lock fixture (T3 tests)
