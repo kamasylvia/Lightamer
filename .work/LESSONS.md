@@ -368,3 +368,19 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：`CIRAWFilterOption` 的 legacy C 宏键在新 SDK 经 apinotes 批量改名 Swift 成员拼写；字符串键与 `[CIRAWFilterOption: Any]` 字典键类型不匹配是编译期拦截（好过运行期），但 Apple 文档/社区样例大量仍是旧拼写。
 - **对策**：①CIRAWFilter options 新代码一律 `CIRAWFilterOption.<member>` 现代拼写（`.noiseReductionAmount` / `.enableSharpening` / `.imageOrientation` 族，CoreImage.apinotes 为准）；②遇到 `has been renamed to` 错误直接采纳改名，不查旧样例；③MacOSX27.0.sdk 的 `CoreImage.apinotes` 是改名映射的正本（`SwiftName:` 行）。
 - **适用**：一切 macOS 27 目标的 CoreImage（含 CIRAWFilter RAW 9）新代码；RAW 9 参数面（M2-5+ 校准）同理。
+
+## L044: 直启选 bundle 唯一旋钮 = XCTestBundlePath env——旧 config plist 的 TestBundlePath 被无视（2026-09-30，M2-4-0 T2）
+- **背景**：M2-4-0 拆七 bundle 后 `Scripts/test-direct.sh` 需按域选 .xctest。旧 L019b 配方 = `XCTestConfigurationFilePath` 指向最小 plist（TestBundlePath + productModuleName）。
+- **现象**：config 指向 Library.xctest，宿主却加载 App.xctest（字母序首个）；无任何 env 时同样加载 App——**宿主实际行为 = 扫宿主 app 的 PlugIns 取首个 .xctest**，config 的 TestBundlePath 从未被读。
+- **根因**：本栈（Xcode 26 直启 + libXCTestBundleInject 注入）bundle 选择唯一被尊重的旋钮 = **`XCTestBundlePath` env**。旧单 bundle 时代「scan 取唯一」与「config 指定唯一」巧合等价，L019b 的 480/3skip 等价性验证无法区分两者；多 bundle 拆分才暴露。
+- **对策**：①多 bundle 直启一律 `XCTestBundlePath=<.xctest 绝对路径>`，config plist 整体弃用（test-direct.sh 现正本）；②凡「环境旋钮是否被尊重」的机制断言，必须做**反证实验**（指向 A 加载 B）——单值场景的等价性验证对「根本没读」不设防；③`-XCTest <类>` 过滤不改变 bundle 选择（E3 实验：全限定名也不重定向）。
+- **适用**：一切 macOS app-host 直启多测试 bundle 场景；一切「配置文件被无视、行为靠缺省路径」的怀疑场景。
+- **来源**：M2-4-0 T2 冒烟 Executed 0 排障（A/E1/E2/E3 四实验矩阵，2026-09-30）。
+
+## L045: 测试宿主内存口径——ps 轮询低估约 2×，ru_maxrss 才是真峰值；积累 ≈17-26MB/test 线性，bundle 拆分不能线性救人（2026-09-30，M2-4-0 T3）
+- **背景**：GOAL-STATE 基线「全套峰值 3.73G」来自 ps/活动监视器口径；M2-4-0 按 checker M1 改用 `/usr/bin/time -l` ru_maxrss（内核记账精确峰值，macOS 单位 bytes）。
+- **现象**：同一工作负载，精确口径 = 旧口径约 2×（IOP 拆前 6.9-8.1G vs 历史「全套 3.73G」）；七 bundle 实测 IOP 7654MB / Export 6659MB / IOPParity 5788MB，其余 4 域 292-1593MB。按测试数归一：渲染/kernel 密集域 ≈17-26MB/test，轻域 0.7-6MB/test，**跨域同型线性积累**。
+- **根因**：①ps 1s 轮询漏瞬态峰（GPU/Metal 池分配尖峰短于采样间隔）；②积累主体 = 跨测试不释放的进程级驻留（CI/Metal 池/缓存，具体根因未查——产品侧 spike 未做）；③bundle 边界只清「进程级」，不清「每测试级」——<3G 硬门 ÷ ~20MB/test ≈ 150 test/bundle，4-7 bundle 粒度数学上不可达。
+- **对策**：①设内存门前先用**精确口径**测基线（`/usr/bin/time -l` 包宿主，parse ru_maxrss；ps 轮询只配后备）；②阈值推导 = 目标门 ÷ 实测每测试积累，先算可达性再定 bundle 数；③真解在「每测试/每 bundle 边界释放」（clearCaches/池复位）或接受现实档门 + 运行监视——M2-4-0 OQ 三选一待裁决（SUMMARY「内存事实」节）。
+- **适用**：一切长跑测试宿主的内存预算；一切「多进程拆分 vs 单进程清理」的取舍判断。
+- **来源**：M2-4-0 七 bundle 矩阵（对账 2165/14/0 精确 + MEMFAIL×3，2026-09-30）。
