@@ -15,7 +15,11 @@
 - **KD-2（路由表代码化）**：`EditorTabRoute` Alcedo 七页序 + `EditorTabRoutingTable`
   静态映射 + `EditorPanelDescriptor`（registry op 常量引用，非字符串字面量）落成；
   完备性断言域 = 动态 populated-registry − {TextOverlay}（checker m3），TAB-MATRIX md
-  与表同批互校（T2 验收步）。Display Transform 页 = Vignette + DRT 占位节（**checker
+  与表同批互校（T2 验收步）。实测基数 = **provider face 34 populated − 1 = 33**
+  （plan 文本「Registry 注册 37/默认面 31」= ModuleRegistry **模块**口径，差异 =
+  terminal trio + DEBUG testgain 无面板不入域——TAB-MATRIX 头注为该口径差异的
+  数据源；`EditorStackRoutingTests` 内注释所引「DECISIONS D3」即指本条基数裁决，
+  验收批注记落位）。Display Transform 页 = Vignette + DRT 占位节（**checker
   E1 勘误执行**：AgX 保持失挂；`git grep -i agx` 在三文件仅命中的是 E1 勘误注释与
   TAB-MATRIX 勘误注记行——路由表 `panels(for:)` 实际条目零命中，其余 5 名
   （filmicrgb/sigmoid/denoiseprofile/nlmeans/bilateral）三文件零命中）。
