@@ -57,7 +57,7 @@
 
 - **全套回归 deferred**：全 suite 宿主内存 7.5G + 系统 swap 6.5G（16GB 机结构性上限），用户直接叫停一次（host exit=137）；test bundle 拆分提级 **M2-4 首个 plan**。本轮被杀全套残留 3 fail 全部归因 = 测试断言英文字面 copy 被本波 zh 本地化影响（非产品缺陷），已随 T1 改 locale 无关断言。
 - **引用最后全绿基线 = M2-3-3 验收 R2：2160 / 14skip / 0 fail（790.8s @ `d7f87fe`）**。
-- **w4 变更面域内验证**：zh-audit `--self-test` PASS + `--check` exit 0；build-for-testing 绿 ×3（T1/fix/走查前）；定向测试 6 类 **55 测试全 0 fail**（BackgroundTaskRegistryTests 9 / LibraryRelinkModelTests 6 / SettingsPagesTests 9 / EditorStackRoutingTests 9 / WorkspaceRoutingTests 11 / RawDecodeOverridesTests 5——覆盖 w4 触碰的全部测试域）。
+- **w4 变更面域内验证**：zh-audit `--self-test` PASS + `--check` exit 0；build-for-testing 绿 ×3（T1/fix/走查前）；定向测试 6 类 **49 测试全 0 fail**（BackgroundTaskRegistryTests 9 / LibraryRelinkModelTests 6 / SettingsPagesTests 9 / EditorStackRoutingTests 9 / WorkspaceRoutingTests 11 / RawDecodeOverridesTests 5——覆盖 w4 触碰的全部测试域；验收独立复跑同值 49/0fail——初稿「55」为计数笔误，验收批修正）。
 - skip 基线 14 不变（本波零新增 skip）。
 
 ## 边界终审（`897bcb2..HEAD` 代码侧逐文件）
