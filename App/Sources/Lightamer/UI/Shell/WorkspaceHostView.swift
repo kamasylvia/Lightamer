@@ -148,7 +148,10 @@ struct WorkspaceHostView: View {
         // The import-leg subscription (checker E3): a READ-ONLY observation
         // of the controller's importProgress publication. The adapter
         // mirrors it into the registry; the run's end (nil) finishes the
-        // task. The controller itself is never touched.
+        // task. The controller itself is never touched. The M2-3-4 T2
+        // walkthrough fix: the run's end also refreshes the library surface
+        // (grid first page + inspector aggregates) — a fresh import must
+        // land in the visible collection without a project reopen.
         .onChange(of: projectController?.importProgress) { _, progress in
             guard let controller = projectController else { return }
             if progress != nil {
@@ -161,6 +164,11 @@ struct WorkspaceHostView: View {
             } else if let adapter = importAdapter {
                 taskRegistry.finish(id: adapter.id)
                 importAdapter = nil
+                guard gridModel != nil else { return }
+                Task {
+                    try? await gridModel?.reloadFirstPage()
+                    await inspectorModel?.refresh()
+                }
             }
         }
         .onChange(of: projectController?.projectURL) { _, _ in
