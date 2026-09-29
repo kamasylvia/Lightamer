@@ -349,6 +349,33 @@ internal struct LightamerApp: App {
     @FocusedBinding(\.metadataFieldFocused)
     private var metadataFieldFocused: Bool?
 
+    /// Plan M2-3-1 T5 (KD-6): the focused window's shell routing state — the
+    /// workspace circuit commands (⌘E/⌘W/⌘F) and the View-menu visibility
+    /// toggles read it through the WorkspaceHostView-published key. nil when
+    /// no shell window is focused (or the gate=true face owns it).
+    @FocusedValue(\.lightamerWorkspaceModel)
+    private var focusedWorkspace: WorkspaceModel?
+
+    /// Plan M2-3-1 T5 (KD-6): the menu IA's visible command set — the pure
+    /// function consumed ONCE per menu render; every gate wrap below queries
+    /// THIS value (the single source), and the gate=true inner statements
+    /// stay byte-identical to the M2-2 baseline.
+    private var visibleMenuCommands: Set<MenuCommandID> {
+        MenuCommandSet.visibleCommandIDs(
+            gate: legacyLibraryEnabled,
+            phase: focusedWorkspace?.phase ?? .library)
+    }
+
+    /// A two-way binding into the focused workspace's visibility toggles
+    /// (the View-menu placeholder faces; false = no shell window focused).
+    private func workspaceToggleBinding(
+        _ keyPath: ReferenceWritableKeyPath<WorkspaceModel, Bool>
+    ) -> Binding<Bool> {
+        Binding(
+            get: { self.focusedWorkspace?[keyPath: keyPath] ?? false },
+            set: { self.focusedWorkspace?[keyPath: keyPath] = $0 })
+    }
+
     /// Plan 12-4 T3: the preset-manager window opener (the Edit-menu and
     /// toolbar entries route here).
     @Environment(\.openWindow) private var openWindow
@@ -1080,7 +1107,11 @@ internal struct LightamerApp: App {
                         onDismiss: { libraryWelcomePresented = false })
                 }
                 .overlay {
-                    if let progress = libraryProjects.importProgress {
+                    // Plan M2-3-1 T6: the progress overlay is now the LEGACY
+                    // channel's face — the new shell renders the background-
+                    // task bar + dialog (BackgroundTaskBarView) instead; the
+                    // M2-2 view file itself stays untouched.
+                    if legacyLibraryEnabled, let progress = libraryProjects.importProgress {
                         ImportProgressView(progress: progress) {
                             libraryProjects.cancelImport()
                         }
@@ -1106,10 +1137,12 @@ internal struct LightamerApp: App {
         .commands {
             // ── File ────────────────────────────────────────────────
             CommandGroup(replacing: .newItem) {
-                // Phase 9 — disabled in Phase 1 (UI-SPEC Menu Bar table).
-                Button(String(localized: "menu_new_session")) {}
-                    .disabled(true)
-                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                if visibleMenuCommands.contains(.sessionNew) {
+                    // Phase 9 — disabled in Phase 1 (UI-SPEC Menu Bar table).
+                    Button(String(localized: "menu_new_session")) {}
+                        .disabled(true)
+                        .keyboardShortcut("n", modifiers: [.command, .shift])
+                }
             }
             CommandGroup(after: .newItem) {
                 // Phase 1 active: file picker → EditorState.load (real
@@ -1125,31 +1158,35 @@ internal struct LightamerApp: App {
                     }
                 }
                 .keyboardShortcut("o", modifiers: .command)
-                // Plan 09-01 (SESS-01): pick a folder → the session path
-                // (same-window routing; FileOpener.openFolder's panel
-                // wrapper reused).
-                Button(String(localized: "menu_open_session")) {
-                    FileOpener.openSessionFolder { url in
-                        Task { await sessionCoordinator.openSession(url: url) }
-                    }
-                }
-                .keyboardShortcut("o", modifiers: [.command, .shift])
-                // Plan 09-01 fills the recent-sessions list (SESS-04); the
-                // rows route into the SAME openSession path (L012).
-                Menu(String(localized: "menu_open_recent")) {
-                    ForEach(sessionState.recentSessions, id: \.absoluteString) { url in
-                        Button(url.lastPathComponent) {
+                if visibleMenuCommands.contains(.sessionOpen) {
+                    // Plan 09-01 (SESS-01): pick a folder → the session path
+                    // (same-window routing; FileOpener.openFolder's panel
+                    // wrapper reused).
+                    Button(String(localized: "menu_open_session")) {
+                        FileOpener.openSessionFolder { url in
                             Task { await sessionCoordinator.openSession(url: url) }
                         }
                     }
+                    .keyboardShortcut("o", modifiers: [.command, .shift])
+                    // Plan 09-01 fills the recent-sessions list (SESS-04); the
+                    // rows route into the SAME openSession path (L012).
+                    Menu(String(localized: "menu_open_recent")) {
+                        ForEach(sessionState.recentSessions, id: \.absoluteString) { url in
+                            Button(url.lastPathComponent) {
+                                Task { await sessionCoordinator.openSession(url: url) }
+                            }
+                        }
+                    }
+                    .disabled(sessionState.recentSessions.isEmpty)
                 }
-                .disabled(sessionState.recentSessions.isEmpty)
-                Divider()
-                // Phase 9 — disabled. (No .closeItem placement in SwiftUI's
-                // CommandGroupPlacement, so it sits with the File items.)
-                Button(String(localized: "menu_close_session")) {}
-                    .disabled(true)
-                    .keyboardShortcut("w", modifiers: [.command, .shift])
+                if visibleMenuCommands.contains(.sessionClose) {
+                    Divider()
+                    // Phase 9 — disabled. (No .closeItem placement in SwiftUI's
+                    // CommandGroupPlacement, so it sits with the File items.)
+                    Button(String(localized: "menu_close_session")) {}
+                        .disabled(true)
+                        .keyboardShortcut("w", modifiers: [.command, .shift])
+                }
                 Divider()
                 // Plan M2-2-2 (OQ-1 A/KD-5): the project command face —
                 // additive beside the Session face (coexistence until the
@@ -1188,6 +1225,39 @@ internal struct LightamerApp: App {
                     Task { await moveProjectFromPanel() }
                 } label: { Text(verbatim: "Move Project…") }
                 .disabled(libraryProjects.projectStore == nil)
+                if visibleMenuCommands.contains(.workspaceEnterEditor) {
+                    Divider()
+                    // Plan M2-3-1 (KD-6 / D11): the two-workspace circuit.
+                    // ⌘E enters the editor (the P2 grid double-click stays
+                    // the primary entry); ⌘W closes the image back to the
+                    // library (the Alcedo close-image semantic — the window
+                    // close yields while the editor holds the workspace).
+                    Button(String(localized: "menu_enter_editor",
+                                  defaultValue: "Enter Editor")) {
+                        focusedWorkspace?.openEditor(imageID: nil)
+                    }
+                    .disabled(focusedWorkspace?.phase != .library)
+                    .keyboardShortcut("e", modifiers: [.command])
+                    .accessibilityIdentifier("menu.workspace.enterEditor")
+                    Button(String(localized: "menu_back_to_library",
+                                  defaultValue: "Back to Library")) {
+                        focusedWorkspace?.closeEditor()
+                    }
+                    .disabled(focusedWorkspace?.phase != .editor)
+                    .keyboardShortcut("w", modifiers: [.command])
+                    .accessibilityIdentifier("menu.workspace.backToLibrary")
+                    Divider()
+                    // The global search dialog (⌘F) — the presentation state
+                    // rides WorkspaceModel.isSearchDialogPresented (the P1
+                    // seam); the dialog itself renders in P2.
+                    Button(String(localized: "menu_library_search",
+                                  defaultValue: "Search Library…")) {
+                        focusedWorkspace?.isSearchDialogPresented = true
+                    }
+                    .disabled(focusedWorkspace == nil)
+                    .keyboardShortcut("f", modifiers: [.command])
+                    .accessibilityIdentifier("menu.library.search")
+                }
             }
             CommandGroup(replacing: .saveItem) {
                 // Phase 2 (sidecar) — disabled.
@@ -1291,6 +1361,21 @@ internal struct LightamerApp: App {
                     viewportState.fit()
                 }
                 .keyboardShortcut("f", modifiers: [])
+                if visibleMenuCommands.contains(.viewToolRail) {
+                    Divider()
+                    // Plan M2-3-1 (KD-6): the editor-shell visibility toggles
+                    // — placeholder booleans on the shell state; P3 hangs the
+                    // real panels on them.
+                    Toggle(String(localized: "menu_view_tool_rail",
+                                  defaultValue: "Tool Rail"),
+                           isOn: workspaceToggleBinding(\.toolRailVisible))
+                    Toggle(String(localized: "menu_view_scopes",
+                                  defaultValue: "Scopes"),
+                           isOn: workspaceToggleBinding(\.scopesVisible))
+                    Toggle(String(localized: "menu_view_adjustment_stack",
+                                  defaultValue: "Adjustment Stack"),
+                           isOn: workspaceToggleBinding(\.adjustmentStackVisible))
+                }
             }
 
             // ── 标记 (12-1 T6, META-01/META-05) — the three-state metadata
