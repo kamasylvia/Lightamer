@@ -52,6 +52,9 @@ struct WorkspaceHostView: View {
     // and wires it.
     @State private var gridModel: LibraryGridModel?
     @State private var thumbnailBridge: LibraryThumbnailBridge?
+    /// The Album Inspector's logic face (Plan M2-3-2 T2, KD-2/KD-5) — built
+    /// beside the grid, over the same cursor + query face.
+    @State private var inspectorModel: LibraryInspectorModel?
 
     /// The content-face markers this host renders (the test surface, the
     /// ContentView.visibleContentFaceMarkers precedent). The gate=true face
@@ -136,25 +139,32 @@ struct WorkspaceHostView: View {
                         workspace.openEditor(imageID: id)
                     })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // The T2 Album Inspector mount (fixed-width tier).
-                VStack(spacing: 6) {
-                    Text(String(
-                        localized: "shell_library_inspector_arrives",
-                        defaultValue: "Album Inspector arrives with M2-3/P2"))
-                        .font(.caption2)
-                        .foregroundStyle(ThemeTokens.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(6)
+                // The T2 Album Inspector (fixed-width tier, KD-2): the
+                // Alcedo panel IA over the SAME cursor the grid renders.
+                Group {
+                    if let inspectorModel {
+                        LibraryInspectorView(model: inspectorModel)
+                    } else {
+                        VStack(spacing: 6) {
+                            Text(String(
+                                localized: "shell_library_inspector_arrives",
+                                defaultValue: "Album Inspector arrives with M2-3/P2"))
+                                .font(.caption2)
+                                .foregroundStyle(ThemeTokens.textSecondary)
+                                .multilineTextAlignment(.center)
+                                .padding(6)
+                        }
+                        .frame(width: 280)
+                        .frame(maxHeight: .infinity)
+                        .accessibilityIdentifier("shell.library.inspector.slot")
+                    }
                 }
-                .frame(width: 280)
-                .frame(maxHeight: .infinity)
                 .background(ThemeTokens.cardSurface)
                 .overlay(
                     Rectangle()
                         .fill(ThemeTokens.cardBorder)
                         .frame(width: 1),
                     alignment: .leading)
-                .accessibilityIdentifier("shell.library.inspector.slot")
             }
         } else {
             // The no-project state keeps the M2-2-4 container verbatim
@@ -165,15 +175,17 @@ struct WorkspaceHostView: View {
         }
     }
 
-    /// Build (or drop) the grid + bridge for the OPEN project. Called on
-    /// appear and on every projectURL change (open / create / move — the
-    /// controller's own publication face; no controller code touched).
+    /// Build (or drop) the grid + bridge + inspector for the OPEN project.
+    /// Called on appear and on every projectURL change (open / create /
+    /// move — the controller's own publication face; no controller code
+    /// touched).
     private func rebuildLibrarySurface() {
         guard let controller = projectController,
             let store = controller.projectStore,
             let packageURL = controller.projectURL else {
             gridModel = nil
             thumbnailBridge = nil
+            inspectorModel = nil
             return
         }
         let directory = packageURL.deletingLastPathComponent()
@@ -198,9 +210,17 @@ struct WorkspaceHostView: View {
         let bridge = LibraryThumbnailBridge(
             thumbsDirectory: thumbsDirectory, renderLeg: nil, resolveURL: resolve)
         let grid = LibraryGridModel(queries: LibraryQueries(store: store))
+        let inspector = LibraryInspectorModel(
+            grid: grid,
+            queries: LibraryQueries(store: store),
+            smartAlbums: SmartAlbumStore())
         thumbnailBridge = bridge
         gridModel = grid
-        Task { try? await grid.reloadFirstPage() }
+        inspectorModel = inspector
+        Task {
+            try? await grid.reloadFirstPage()
+            await inspector.refresh()
+        }
     }
 
     // MARK: - Top bar (the T5 seam: project name + phase command buttons;
