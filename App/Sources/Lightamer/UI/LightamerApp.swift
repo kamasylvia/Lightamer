@@ -317,6 +317,15 @@ internal struct LightamerApp: App {
         mode: .copy, remember: false)
     @State private var libraryWelcomePresented = false
 
+    /// Plan M2-2-4 (M2LIB-06 / OQ-8, KD-1): the legacy-library gate,
+    /// evaluated ONCE here at the assembly point and distributed to the
+    /// gated faces as plain values (the M2-1 D-EXEC-1 injection discipline —
+    /// view bodies never read the environment). `LIGHTAMER_LEGACY_LIBRARY=1`
+    /// opts back into the pre-M2-2-4 Sessions/Catalogs face (the QA/
+    /// regression channel); the default (false) starts into the project
+    /// workspace (OQ-1).
+    private let legacyLibraryEnabled = LibraryLegacyGate.isLegacyLibraryRequested()
+
     init() {
         #if DEBUG
         // 07-1 T2: the headless cross-process determinism probe — runs at
@@ -1368,7 +1377,7 @@ internal struct LightamerApp: App {
         // placeholder. The preferences model is injected explicitly (the
         // Settings scene has its own environment).
         Settings {
-            SettingsView()
+            SettingsView(legacyLibraryEnabled: legacyLibraryEnabled)
                 .environment(catalogPreferences)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
         }

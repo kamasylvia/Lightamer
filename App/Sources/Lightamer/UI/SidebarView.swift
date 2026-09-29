@@ -16,6 +16,60 @@ import SwiftUI
 /// there since Phase 1 UAT).
 internal struct SidebarView: View {
 
+    /// Plan M2-2-4 (M2LIB-06 / OQ-8): the legacy-library gate. Default
+    /// `false` — the M2-era library face (mode switcher + Sessions/Catalogs
+    /// sections) is hidden and the List renders empty; the production
+    /// assembly (LightamerApp) evaluates `LibraryLegacyGate` ONCE and passes
+    /// the value in (KD-1 injection — this body never touches ProcessInfo).
+    /// `true` = the M2-2 face byte-identical (the env opt-back regression
+    /// channel; every identifier and conditional below is untouched).
+    /// (`var` + default: the memberwise init parameter defaults to the
+    /// narrowed face — the assembly chain passes the evaluated gate.)
+    var legacyLibraryEnabled: Bool = false
+
+    /// Plan M2-2-4 (KD-4 layer 2): the visible sidebar face as a pure
+    /// function of the gate state — a 1:1 mirror of the body's conditionals
+    /// below (the single `if legacyLibraryEnabled` wrap + the two pre-existing
+    /// catalog conditions, unmodified). One canonical STABLE identifier per
+    /// section family; data-dependent row ids (`session.row.*`,
+    /// `catalog.*.row.*`) are outside the snapshot by construction.
+    /// `LibraryLegacyGateTests` pins this mapping against hardcoded
+    /// `Set<String>` literals transcribed from the M2-2-era source — the
+    /// frozen snapshot carrier (never runtime-recorded).
+    nonisolated static func visibleSidebarSectionMarkers(
+        legacyLibraryEnabled: Bool,
+        catalogsEnabled: Bool,
+        organizationMode: CatalogPreferencesModel.OrganizationMode
+    ) -> Set<String> {
+        // 门 false = 全隐 (OQ-8): no legacy section renders.
+        guard legacyLibraryEnabled else { return [] }
+        var markers: Set<String> = []
+        if catalogsEnabled {
+            markers.insert("organization.mode") // the mode switcher
+        }
+        if catalogsEnabled, organizationMode == .catalogs {
+            // The Catalogs five-section face (all photographs / categories /
+            // collections always carry a stable add/all control; the smart-
+            // album + sessions 从属 rows ride the same branch).
+            markers.formUnion([
+                "catalog.section.all",
+                "catalog.category.add",
+                "catalog.collection.add",
+            ])
+        } else {
+            // The Sessions three-section face (current section presents
+            // `session.current` populated / `session.open` empty; recent
+            // rows ride the same branch).
+            markers.formUnion([
+                "session.current",
+                "session.open",
+                "session.watch",
+                "smartalbum.add",
+            ])
+        }
+        return markers
+    }
+
     /// Stable identifiers for the session area (unit-test + UITest anchors).
     internal enum SessionIdentifiers {
         static let current = "session.current"
@@ -127,21 +181,27 @@ internal struct SidebarView: View {
 
     var body: some View {
         List {
-            if catalogPreferences.catalogsEnabled {
-                modeSection
-            }
-            if catalogPreferences.catalogsEnabled,
-               organizationMode == .catalogs {
-                catalogAllPhotographsSection
-                catalogCategoriesSection
-                catalogCollectionsSection
-                catalogSmartAlbumSection
-                catalogSessionsSection
-            } else {
-                currentSection
-                smartAlbumSection
-                recentSection
-                watchSection
+            // Plan M2-2-4 (M2LIB-06 / OQ-8): the ENTIRE pre-M2-2-4 library
+            // face renders ONLY behind the legacy gate. Section content is
+            // byte-identical (the env=1 regression channel); gate false
+            // hides the switcher and both section families completely.
+            if legacyLibraryEnabled {
+                if catalogPreferences.catalogsEnabled {
+                    modeSection
+                }
+                if catalogPreferences.catalogsEnabled,
+                   organizationMode == .catalogs {
+                    catalogAllPhotographsSection
+                    catalogCategoriesSection
+                    catalogCollectionsSection
+                    catalogSmartAlbumSection
+                    catalogSessionsSection
+                } else {
+                    currentSection
+                    smartAlbumSection
+                    recentSection
+                    watchSection
+                }
             }
         }
         .listStyle(.sidebar)
