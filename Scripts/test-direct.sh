@@ -8,16 +8,16 @@
 #
 # M2-4-0 起（2026-09-30）：单 LightamerTests 拆为六个域 bundle（Project.swift
 # 显式清单，归属正本 = .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt）。
-# 六 bundle 共享同一宿主二进制（D2），串行各起独立进程——进程退出即 Metal/CI/actor
+# 七 bundle 共享同一宿主二进制（D2），串行各起独立进程——进程退出即 Metal/CI/actor
 # 状态清零，任一单宿主峰值 RSS <8G 运行门由本脚本机检（MEMFAIL；门修订依据见下）。
 #
 # 用法：
-#   Scripts/test-direct.sh                            # 全套 = --all（六 bundle 串行）
+#   Scripts/test-direct.sh                            # 全套 = --all（七 bundle 串行）
 #   Scripts/test-direct.sh --all                      # 同上
 #   Scripts/test-direct.sh --bundle IOP               # 单 bundle 全量
 #   Scripts/test-direct.sh --bundle Library 'StableHashTests'   # 单 bundle + 类过滤
 #   Scripts/test-direct.sh 'StableHashTests'          # 旧式类过滤（向后兼容）：扫描
-#                                                     # 全部六 bundle 执行过滤后合计——
+#                                                     # 全部七 bundle 执行过滤后合计——
 #                                                     # 类只活在一个 bundle，其余 bundle
 #                                                     # executed=0 属正常（头注释备案，T2）
 #
@@ -85,8 +85,8 @@ if [ "$MODE" = "bundle" ]; then
 fi
 
 # ── DerivedData 定位（按 xctest 可执行 mtime 取最新容器，L041 双重防呆保留）──
-# 六 bundle 同批构建 mtime 同源；任取其一即可定位容器。
-DD_DEFAULT=(~/Library/Developer/Xcode/DerivedData/Lightamer-*/Build/Products/Debug/Lightamer.app/Contents/PlugIns/LightamerTests(IOP|Layers|Library|Sessions|Export|App).xctest/Contents/MacOS/*(N))
+# 七 bundle 同批构建 mtime 同源；任取其一即可定位容器。
+DD_DEFAULT=(~/Library/Developer/Xcode/DerivedData/Lightamer-*/Build/Products/Debug/Lightamer.app/Contents/PlugIns/LightamerTests(IOP|IOPParity|Layers|Library|Sessions|Export|App).xctest/Contents/MacOS/*(N))
 DD=( ${~DD_DEFAULT} )
 if [ ${#DD[@]} -eq 0 ]; then
   echo "error: LightamerTests*.xctest products missing — the last build pruned test products." >&2
