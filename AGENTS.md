@@ -17,7 +17,7 @@ Phase **execute** 阶段的执行分工固定为两级：
 开发过程中**持续监控 Lightamer 相关进程**（GUI app 与测试宿主同规——test-direct.sh 直启宿主在活动监视器里也叫 Lightamer）：
 
 - **触发线**：内存占用 >3G，或 CPU 占用持续异常偏高（非构建态 >50% 持续分钟级）→ **立刻介入**：`sample <pid> 3` 采栈定位 + 向 orchestrator/用户上报处置，不得放任。
-- **过渡条款（M2-4-0 拆 test bundle 落地前）**：全套回归宿主可预期超 3G——此类 run 须 orchestrator 批准、运行中保持监视、**>8G 或内存压力转红立即 kill**（2026-09-29 两次事件：10.4G 未响应 / 7.5G 用户强杀）。
+- **测试宿主口径（M2-4-0 落地，2026-09-30 更新）**：全套回归经 `Scripts/test-direct.sh --all` 分 7 个域 bundle 跑（一条命令，逐 bundle 独立宿主进程），峰值 RSS 由脚本按 `/usr/bin/time -l` ru_maxrss（内核精确口径）机检 MEMFAIL。**<3G 硬门尚未达成**（OQ 挂账：渲染密集 3 bundle 实测 5.8-7.7G，积累 ≈17-26MB/test 线性——见 `.work/gsd/phases/m2-4-0-test-bundles/M2-4-0-SUMMARY.md`）：**全套 `--all` 轮仍须 orchestrator 批准、运行中保持监视、>8G 或内存压力转红立即 kill**；定向单 bundle 轮（`--bundle <name>`）多数过门可常跑（IOP/IOPParity/Export 三域定向轮同受监视约束）。旧单宿主 2165 连跑已废（历史事件：10.4G 未响应 / 7.5G 用户强杀）。
 - 巡检 cron 每次运行附带查一眼 Lightamer 进程资源（`ps aux | grep -i lightamer`）。
 
 ## 暂停机制（2026-09-24 用户指令，Phase 7 起强制）
@@ -274,7 +274,7 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **RAW 解码**：一律走 `CIRAWFilter`（macOS 27 起 opt-in RAW 9）。不引入 libraw/dcraw 作为主解码路径。
 - **依赖最小化**：能用 Apple 原生框架（Core Image / Metal / Core Text / ImageIO / AVFoundation / ColorSync / Vision）实现的不引入第三方库。预期仅 libwebp、libavif 两个 SPM 依赖。
 - **非破坏性**：所有调整存为参数序列（history stack）+ Lightamer 自有 sidecar 格式；原文件永不被修改。sidecar 不与 Darktable 二进制兼容。
-- **测试**：iop 算法移植必须有 golden-image 测试（对照 Darktable 参考输出）；性能有 60fps@100MP 预算。
+- **测试**：iop 算法移植必须有 golden-image 测试（对照 Darktable 参考输出）；性能有 60fps@100MP 预算。**新测试文件落域规则（M2-4-0 E2）**：按 `.work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt` 的域模式归入唯一 target，同批更新 `Project.swift` 对应数组（显式清单无 glob）+ `tuist generate` 恒为该批最后一个动作（L041）；跑法走 `Scripts/test-direct.sh --bundle <域>`。
 
 ### 参考项目
 - **Darktable**（`/Volumes/UNITEK/Documents/Development/darktable`）：iop 算法、OpenCL kernel（`data/kernels/*.cl` → Metal 移植）、pixelpipe 架构、色彩管理的源码参考。**GPL-3.0——只读参考算法思路，代码不复制入库（本项目 MIT）。**
