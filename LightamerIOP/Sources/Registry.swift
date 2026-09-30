@@ -87,6 +87,14 @@ public enum LightamerIOPRegistry {
             }
             await registry.register(opName: opName, factory: factory)
         }
+        // M2-5-1 T3: cat02WhiteBalance (creative CAT02 WB in the ACEScc
+        // grade domain, KD-4), v50 slot 41.4. Seed stays ABSENT — the grade
+        // catalog ops join the editing seed with their P2 panels (the
+        // pristine seed keeps its terminal-trio + tone face; a CAT02
+        // instance is add-face material, not a fresh-image default).
+        await registry.register(opName: Cat02WBModule.opName) { id in
+            ModuleBox(module: Cat02WBModule(), instanceID: id)
+        }
         // Phase 3's first real iop (Plan 03-01-T5): exposure, v50 slot 21.0.
         await registry.register(opName: ExposureModule.opName) { id in
             ModuleBox(module: ExposureModule(), instanceID: id)
@@ -400,6 +408,10 @@ public enum LightamerIOPRegistry {
             // in Metal validation; the display-profile PSO warms on the
             // first render instead.
             TerminalKernels.gammaEncode,
+            // M2-5-1: the grade-domain envelope pair + the catalog kernels.
+            ACESccKernel.inFunctionName,
+            ACESccKernel.outFunctionName,
+            Cat02WBKernel.functionName,
             TemperatureKernel.functionName,
             ExposureKernel.functionName,
             ColisaKernel.functionName,

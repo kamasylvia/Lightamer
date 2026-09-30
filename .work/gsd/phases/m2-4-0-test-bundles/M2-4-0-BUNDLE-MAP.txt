@@ -158,6 +158,8 @@ APP	9	NodeCanvasGeometryTests.swift
 APP	14	NodesPanelModelTests.swift
 APP	14	GradeCatalogTests.swift
 LAYERS	5	ACESccEnvelopeTests.swift
+IOPP	4	GradeKernelGoldenTests.swift
+IOP	3	GradeParamsCodingTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
 EXPORT	10	SpotlightAttributeMapperTests.swift
