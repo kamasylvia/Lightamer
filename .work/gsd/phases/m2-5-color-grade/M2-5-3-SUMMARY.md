@@ -82,7 +82,7 @@ TOTAL|2327/16/0|878s        （EXIT=0）
 | 5 | 可配根（键缺省=默认根、切根独立重建、坏根 typed 降级、键登记） | ✅ testSwitchingRootBuildsAnIndependentRegistry + testBadRootDegradesWithoutCrashing + testValidateRootAccepts… + testLutLibraryRootDefaultsResetsAndRegistersTheSpelling；默认根零变化 = LutLibraryStoreTests 10 法零改动全绿 |
 | 6 | 面板树（分组/折叠/手动刷新/打开 rescan、BuiltIn 组首） | ✅ store 级场景测试钉死（放置/删除/rescan）+ LutPanelView diff 范围核对；目测走查 Manual-Only 移交（观察项①同批） |
 | 7 | 内置集：恰清单张数 + LICENSE/NOTICE 在包 + 首启拷贝 + 二次幂等 | ✅ BuiltInLutSetTests 四法（40 张逐名对照 + 42 项夹内容 + LICENSE/NOTICE 内容断言 + seeder 42→0→漂移重拷 1）；「恰 44」按 evidence 实态修正为 40（DECISIONS §二） |
-| 8 | 渲染/LUT kernel 红线四文件零 diff | ✅ `git diff --name-only 87c039d..HEAD` grep 零命中（LayerCompositeDriver/PixelPipe/PipeCacheKey/Lut3dModule） |
+| 8 | 渲染/LUT kernel 红线四文件零 diff | ✅ `git diff --name-only a31ac15^..HEAD` grep 零命中（LayerCompositeDriver/PixelPipe/PipeCacheKey/Lut3dModule）。**〔验收勘误 2026-10-01〕**原记区间 `87c039d..HEAD` 有误——该 phase 级区间含 M2-5-1 envelope 提交 `1853026` 对 LayerCompositeDriver 的合法改动，grep 并非零命中；红线断言只在 M2-5-3 自身 commit 区间成立（验收复核证实） |
 | 9 | zh 对账 --check 全绿 | ✅ 首查 PASS（1244 source keys / 1458 catalog keys，zh complete，locale={en,zh}）——新键随手随 commit 入账生效 |
 | 10 | 观察项三查数据在账，超带有立项建议 | ✅ 本 SUMMARY「观察项」节；② 立项建议在案（纯 envelope 归因需专项），①③ 不立项 |
 | 11 | GOAL-STATE M2-5 翻账 + 续接点 + AGENTS.md 键登记补行 | ✅ 收口批同批落盘（GOAL-STATE M2-5 行 + 续接点；AGENTS.md M2-2 键表补 `lut.library.root` + M2-5 架构增量段） |
@@ -110,7 +110,12 @@ TOTAL|2327/16/0|878s        （EXIT=0）
   「同款」主张 = 同工具同版本同 stock 集（39/41）同尺寸。
 - **域盲五件**（M2-5-1 移交）维持：lut3d kernel/params 面零 diff 本批复核维持。
 - **seeder 的默认根 init 分支**无自动测试（会写真机用户目录）——static face 测试 +
-  code review 承载（DECISIONS §四）。
+  code review 承载（DECISIONS §四）。**〔验收勘误 2026-10-01〕**该分支实际已被测试套
+  副作用执行过：`LutLibraryRecursionTests.testSwitchingRootBuildsAnIndependentRegistry`
+  触 `LutLibraryStore.shared` → 静态 `sharedInstance` 初始化 → 默认根 init 全跑
+  （真实根 `BuiltIn/` 42 项 mtime = 执行批测试窗口，实证在 ACCEPTANCE F2）——行为
+  = 生产首启语义本身（幂等），无害，但「未执行」声明不实；测试隔离（注入式根）
+  留后续 phase 改善。
 
 ## flake 记录
 
