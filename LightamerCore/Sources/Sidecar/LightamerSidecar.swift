@@ -138,7 +138,20 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     ///     mask-domain parameters: they fold into the derived
     ///     `MaskSpec.stableHash()` naturally (the 06-05 hardening
     ///     semantics — no new hashing code).
-    public static let schemaVersionCurrent = 5
+    /// v6 (Plan M2-6-1 T6, KD-5; D-M2-6-CONTEXT-2): the document-level
+    /// Display Transform record joins additively —
+    ///   • `displayTransform: DrtRecord?` at the DOCUMENT level (nil =
+    ///     pristine — the user never touched DRT). decodeIfPresent +
+    ///     encodeIfPresent (absent key — the rawOverrides v5 precedent).
+    ///     HASH = SET-FIELDS-MOVE (OQ-2-A): the record IS a pipeline
+    ///     parameter — its `stableHash()` folds into the DRT tail plane's
+    ///     cache identity (PixelPipe TerminalTailPolicy, KD-6). The
+    ///     historyHash fold's CARRIER is the P3 history item (the plan does
+    ///     not touch HistoryStack — zero-diff red line); the tail-plane
+    ///     cache fold is live from M2-6-1 T7.
+    ///   • v5 documents (and the FUTURE-version branch) read with nil; the
+    ///     v5 byte shape is pinned zero-drift by DrtSidecarTests.
+    public static let schemaVersionCurrent = 6
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int
@@ -218,6 +231,14 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// enters `driftDetected` (the v5 judgment above).
     public var rawOverrides: RAWTechnicalOverrides?
 
+    // MARK: - Display Transform (v6, Plan M2-6-1 — the DRT document record)
+
+    /// The document-level DRT parameter record (KD-1; nil = pristine — the
+    /// DRT tail renders nothing and the terminal segment keeps the
+    /// colorout/gamma pair). NOT hash-isolated: set-fields-move — the
+    /// record's stableHash rides the tail plane's cache key (KD-6).
+    public var displayTransform: DrtRecord?
+
     // MARK: - Paths (D-S2)
 
     /// `…/DSC09991.ARW` → `…/DSC09991.ARW.lra` — the FULL original name
@@ -267,7 +288,8 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         keywords: [String]? = nil,
         note: String? = nil,
         provenance: SidecarProvenance? = nil,
-        rawOverrides: RAWTechnicalOverrides? = nil
+        rawOverrides: RAWTechnicalOverrides? = nil,
+        displayTransform: DrtRecord? = nil
     ) {
         self.schemaVersion = Self.schemaVersionCurrent
         self.appVersion = appVersion
@@ -285,6 +307,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         self.note = note
         self.provenance = provenance
         self.rawOverrides = rawOverrides
+        self.displayTransform = displayTransform
     }
 
     // MARK: - Codable (projection through the String-hash records)
@@ -294,6 +317,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         case decodeParamsHash, instances, history, historyHash, layerStack
         case rating, flag, colorLabel, keywords, note, provenance
         case rawOverrides
+        case displayTransform
     }
 
     public init(from decoder: Decoder) throws {
@@ -341,6 +365,12 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // contract :94-97).
         rawOverrides = try container.decodeIfPresent(
             RAWTechnicalOverrides.self, forKey: .rawOverrides)
+        // v6 displayTransform (M2-6-1 T6): decodeIfPresent — v5 documents
+        // (and the FUTURE-version branch) read with nil; a document written
+        // by a NEWER schema still yields everything else (the tolerance
+        // contract :94-97).
+        displayTransform = try container.decodeIfPresent(
+            DrtRecord.self, forKey: .displayTransform)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -389,6 +419,10 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // keeps the key ABSENT so v5 documents without RAW edits stay
         // byte-compatible with the v4 shape.
         try container.encodeIfPresent(rawOverrides, forKey: .rawOverrides)
+        // Display Transform (v6): write ONLY when present — nil (pristine)
+        // keeps the key ABSENT so v6 documents without DRT edits stay
+        // byte-compatible with the v5 shape (the zero-drift AC).
+        try container.encodeIfPresent(displayTransform, forKey: .displayTransform)
     }
 }
 
