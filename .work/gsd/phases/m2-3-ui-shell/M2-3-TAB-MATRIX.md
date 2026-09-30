@@ -28,13 +28,13 @@
 | 页签 | 面板（opName 字面） | 组语义 | Alcedo 对应物 | Alcedo 无对应标注 |
 |---|---|---|---|---|
 | Tone | `exposure` | main | Tone: Exposure | — |
-| Tone | `temperature` | main | Tone: CAT02 White Balance（M2-5 前温度面板 = 现 M1 语义） | — |
 | Tone | `tonecurve` | main | Tone: Curve | — |
-| Tone | `levels` | main | Tone: White/Black（levels 自动模式） | — |
-| Tone | `colisa` | main | Tone: Contrast（+brightness/saturation 合一面） | Alcedo 拆分三滑杆，M1 为单面板 |
-| Tone | `shadhi` | main | Tone: Shadows / Highlights | — |
-| Tone | `colorcontrast` | main | Tone: Contrast（辅助） | Alcedo 无独立对应物 |
-| Tone | `toneequal` | main | —（OQ-4 草案漏列，动态集完备性补入本页） | **Alcedo 无对应**（dt tone equalizer） |
+| Tone | `shadhi` | main | Tone: Shadows / Highlights（**单行双滑杆**——M2-5-2 checker m2 钉死：同 opName 双 descriptor 在 `ForEach(id: \.opName)` 静态 id 冲突，两行分支删除；面板内两滑杆 = 两目录项最小忠实映射） | — |
+| Tone | `levels` | **compat** | —（D6 独有件） | **Alcedo 无对应**（M2-5-2 D10：compat 折叠组，可编辑不删除） |
+| Tone | `colisa` | **compat** | —（D6 独有件；Alcedo Contrast 语义由新 `contrast` 件承载） | **Alcedo 无对应**（同上） |
+| Tone | `colorcontrast` | **compat** | —（D6 独有件） | **Alcedo 无对应**（同上） |
+| Tone | `toneequal` | **compat** | —（dt tone equalizer） | **Alcedo 无对应**（同上） |
+| Tone | `temperature` | **compat** | —（相机 WB = RAW Decode / CIRAW 域，M2GRADE-04；CAT02 创意 WB = Look/Color 组新件） | **Alcedo 无对应**（M2-5-2 D5：主面摘除 =「Tone −1 行」） |
 | Look | `vibrance` | main | Look: Saturation/Vibrance | — |
 | Look | `velvia` | main | Look: Vibrance 增强 | **Alcedo 无对应**（D6 独有增强） |
 | Look | `monochrome` | main | Look: Selective Color/Mono | **Alcedo 无对应**（D6 独有增强） |
@@ -81,3 +81,18 @@
 ## 页序（Alcedo `EditorAdjustmentStack.qml:10-16`，== `EditorTabRoute.allCases`）
 
 Tone → Look → LUT → Display Transform → Geometry → RAW Decode → Mask
+
+## M2-5-2 增批注记（2026-09-30，随实态同批）
+
+- **Tone 主面终态 = 六行**（Alcedo Tone 目录）：Exposure / Contrast（新 `contrast` 件）/
+  White（新 `white` 件）/ Black（新 `black` 件）/ **Shadows / Highlights（`shadhi` 单行
+  双滑杆）** / Curve。T1 批先落 provider 已填充的三行（exposure/tonecurve/shadhi）；
+  **contrast/white/black 三行随 T3 provider 批同 commit 挂入**（m3 恰一次断言域 =
+  populated provider 面，行与 provider 必须同批到位）。
+- **Look 页四组 IA**（M2-5-2 KD-1）：Master / Look（D9 占位组，四 DRT 件带 pre-DRT
+  注记）/ Color / Detail/Texture——分组 = 纯呈现投影（`PanelGroup`），行账随 T2 批
+  同批更新；新件行（cat02WhiteBalance/hls/colorWheels/tint/saturation）随 T3-T5
+  provider 批逐批挂入。
+- 组头键族：`panel_group_master` / `panel_group_look` / `panel_group_color` /
+  `panel_group_detail_texture` / `editor_stack_compat`（Tone compat 组头，复用
+  `isAdvancedGroup` 折叠槽）。

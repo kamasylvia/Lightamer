@@ -118,6 +118,43 @@ final class EditorStackRoutingTests: XCTestCase {
         }
     }
 
+    // MARK: - M2-5-2: the Tone convergence (KD-1 / checker m2)
+
+    /// T1: the Tone main face collapses to the Alcedo catalog rows whose
+    /// providers populate (three at T1; contrast/white/black complete the
+    /// six-row face with the T3 provider batch — the m3 exactly-once domain
+    /// keys on the populated provider face, so rows and providers join in
+    /// the SAME commit then). temperature leaves the main face (D5).
+    func testTonePageConvergedWithCompatGroup() {
+        let tone = EditorTabRoutingTable.panels(for: .tone)
+        let main = tone.filter { !$0.isAdvancedGroup }
+        let compat = tone.filter { $0.isAdvancedGroup }
+        XCTAssertEqual(
+            main.map(\.opName),
+            [
+                ExposureModule.opName, ToneCurveModule.opName,
+                ShadhiModule.opName,
+            ],
+            "the T1 main face = the populated Alcedo rows; T3 adds contrast/white/black")
+        // D5: temperature's main-face removal IS the "Tone −1 row".
+        XCTAssertFalse(main.contains { $0.opName == TemperatureModule.opName })
+        // D10: the D6-era five stay EDITABLE — the compat fold, not a delete.
+        XCTAssertEqual(
+            Set(compat.map(\.opName)),
+            [
+                LevelsModule.opName, ColisaModule.opName,
+                ColorContrastModule.opName, ToneEqualModule.opName,
+                TemperatureModule.opName,
+            ])
+        XCTAssertTrue(
+            compat.allSatisfy { $0.group == .compat },
+            "every compat row carries the compat group (the fold header source)")
+        // checker m2: the shadhi op rides EXACTLY ONE row (the two-slider
+        // panel is the pair's minimal faithful mapping; the two-row branch
+        // is deleted for the `ForEach(id: \.opName)` static-id conflict).
+        XCTAssertEqual(tone.filter { $0.opName == ShadhiModule.opName }.count, 1)
+    }
+
     func testGeometryAdvancedGroupComposition() {
         let advanced = EditorTabRoutingTable.panels(for: .geometry)
             .filter(\.isAdvancedGroup)
