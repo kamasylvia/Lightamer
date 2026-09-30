@@ -8,8 +8,9 @@ autonomous: true
 requirements: [M2GRADE-01, M2GRADE-02, M2GRADE-04]
 files_modified:
   - LightamerIOP/Sources/NodeOwnershipCatalog.swift         # 修改：GradeCatalog 18 目录注册表（目录 id ↔ op ↔ owner ↔ identity 语义 ↔ 面板暴露清单五元组；owner(of:) 签名零改）+ GradeCatalog.defaultLook 三常量（OQ-8 单源，App 双消费点之 EditorState 侧引用）
-  - LightamerCore/Sources/Foundation/V50Order.swift         # 修改：LIGHTAMER-native 行 add-only 追加（acesccIn 28.2 / acesccOut 69.9 / colorWheels 41.0 / cat02WhiteBalance 41.4 / contrast 41.6 / white 41.8 / black 42.0 / saturation 42.2 / tint 42.4 / hls 42.6——KD-3 终值以唯一性测试为门，DECISIONS 签注）
-  - LightamerCore/Sources/Pipe/LayerCompositeDriver.swift   # 修改（本 phase 唯一允许触碰的 Pipe 文件）：adjustment-layer leg（②leg）boxes 装配处 ACEScc 包夹——materializeBoxes 结果非空时头尾插入 envelope box；半径 = 该 leg 装配 3-6 行 + 头注；blend 公式/retouch leg/base sub-run/terminal 段/结果 struct 零改动
+  - LightamerIOP/Sources/Registry.swift                     # 修改：新七件 register（default face 注册调用，照既有 `registry.register` 形态追加——checker E3 补申报）+ default face seed 注释同步（testgain DEBUG-only 豁免先例注记随行——E7 依据锚点）；ACEScc envelope 两件不入此文件（KD-2）
+  - LightamerCore/Sources/Foundation/V50Order.swift         # 修改：LIGHTAMER-native 行 add-only 追加（acesccIn 20.5 / acesccOut 69.9 / colorWheels 41.0 / cat02WhiteBalance 41.4 / contrast 41.6 / white 41.8 / black 42.0 / saturation 42.2 / tint 42.4 / hls 42.6——KD-3 终值以唯一性测试为门，DECISIONS 签注）
+  - LightamerCore/Sources/Pipe/LayerCompositeDriver.swift   # 修改（本 phase 唯一允许触碰的 Pipe 文件）：adjustment-layer leg（②leg）boxes 装配处 ACEScc 包夹——effective chain 含 ≥1 个 18 目录 op（GradeCatalog 查询面）时头尾插入 envelope box；半径 = 该 leg 装配 3-6 行 + 头注；blend 公式/retouch leg/base sub-run/terminal 段/结果 struct 零改动
   - LightamerIOP/Sources/ACEScc/ACESccMath.metal            # 新建：公共函数库——linear Rec2020→AP1 色适应矩阵 + ACEScc encode/decode 常数与函数（域转换 op 与各域内 kernel 共用同一份常数，golden 单点钉）
   - LightamerIOP/Sources/ACEScc/ACESccInModule.swift        # 新建：envelope 入口 op（无面板内部件，driver 直构不经 registry 注册——KD-2）
   - LightamerIOP/Sources/ACEScc/ACESccOutModule.swift       # 新建：envelope 出口 op（逆变换回 linear Rec2020）
@@ -100,12 +101,20 @@ public struct DefaultLookEntry: Sendable { public let opName: String; public let
   并存但单文件）；**函数签名与语义零变**（default 臂仍 .grade），M2-4-1 交付的校验缝、
   `NodeOwnershipCatalogTests` 全量断言零 diff 通过 = 活体回归证明。18 目录项的 owner
   不再由 default 臂"碰巧对"，而是表内显式——M2GRADE-01「严格面激活」的信息基座。
-- **完备性 AC**：`GradeCatalog.items` 恰 18 项；`gradeItems()` 恰 14（13 Grade 件 +
-  Tint）；`ModuleRegistry` default face ∖（owner 表 ∪ GradeCatalog op 集）= ∅
-  （新七件入表 = 自动闭合）。
+- **完备性 AC（checker E7 补测试豁免集）**：`GradeCatalog.items` 恰 18 项；
+  `gradeItems()` 恰 14（13 Grade 件 + Tint）；`ModuleRegistry` default face ∖
+  （18 目录 op 集 ∪ **{testgain}**）= ∅（新七件入表 = 自动闭合；{testgain} =
+  DEBUG-only 注册豁免——`Registry.swift` `#if DEBUG` 先例，Release face 不含它；
+  GradeCatalogTests 断言旁**注明该豁免依据**，防后来者把 testgain 当漏登）。
 - **defaultLook 消费方向**：常量落 IOP（引用 `<Module>.opName` + `<Module>.Params`
   编码），**唯一运行时消费者 = App EditorState mint 分支**（P2 T7 接线；Core
   ImportService 只写 flag=1 不读值——Core 不 import IOP 的方向约束由此不破）。
+- **对齐五件 identity 单源核验（checker m5）**：exposure/shadhi/vibrance/tonecurve/
+  lut3d 五既有件的 `identityJSON` 逐一以各件 **kernel no-op 参数点**核验入表（与
+  GradeKernelGoldenTests 的 identity 断言同源同值，禁手抄面板默认值）；**shadhi
+  例外声明**：其面板默认（shadows 50 / highlights -50）是工作点**非恒等点**——
+  identity 快照（GradeCatalog 单源，Reset 消费）与面板默认值（P2 provider 从
+  Params 默认值引用）**分立两套**，两套值与依据入 DECISIONS。
 
 ### KD-2 ACEScc 包夹 = driver 直构 envelope box，零 registry 注册、零用户可见面
 
@@ -113,14 +122,19 @@ public struct DefaultLookEntry: Sendable { public let opName: String; public let
   conformer，但**不经 `registry.register`**——`LayerCompositeDriver` adjustment-leg
   在 `materializeBoxes` 返回后直接构造：
   ```swift
-  // LayerCompositeDriver composite ②leg（现 :380 毗邻），非空才包夹：
-  if !boxes.isEmpty {
+  // LayerCompositeDriver composite ②leg（现 :380 毗邻），
+  // effective chain 含 ≥1 个 18 目录 op 才包夹（checker E2 收窄）：
+  if boxes.contains(where: { GradeCatalog.item(opName: $0.opName) != nil }) {
       boxes = [ACESccInBox()] + boxes + [ACESccOutBox()]
   }
   ```
-  （构造细节 = 每次装配铸新实例 UUID——box 瞬态不持久，plane 键用 `adjustment.id`
-  不受影响；hash 链经 runSub 的 instances 数组**天然折叠** envelope 的 opName+常数
-  params。）
+  **包夹条件（checker E2 收窄）**：`!boxes.isEmpty` 只表达「链非空」，不表达
+  「grade 域」——收窄为 **effective chain 含 ≥1 个 18 目录 op**（经
+  `GradeCatalog.item(opName:)` 查询面判定，禁白名单散抄）；纯非目录链（仅
+  develop/DRT/其余既有件）零包夹零代价，「无 grade 栈逐字节不变」的证明面随之
+  扩大。（构造细节 = 每次装配铸新实例 UUID——box 瞬态不持久，plane 键用
+  `adjustment.id` 不受影响；hash 链经 runSub 的 instances 数组**天然折叠**
+  envelope 的 opName+常数 params。）
 - **缓存键影响（KD 必答）**：`PipeCacheKey.swift` **零 diff**。envelope 进入 runSub
   的 instances → levelHash 链自动含其常数 hash；`upstreamHash`/`compositePosition`
   语义零变。envelope 的存在是**代码版本事实**（全会话均匀），非 per-key 变量——同一
@@ -129,8 +143,9 @@ public struct DefaultLookEntry: Sendable { public let opName: String; public let
 - **半径红线**：不包夹 retouch stroke leg（stroke 走 RetouchEngine 独立路径，结构性
   不经过 boxes 装配）；不包夹 base sub-run（D4 字面"Grade 节点内部"）与 terminal 段
   （display-referred 域，包进 = 语义错位）；空 chain（enabled 且 effective 后仍空）
-  **跳过包夹**（省 2 个全屏 pass，identity 层零代价）。`LayerCompositeResult` stats
-  struct 零改动（envelope pass 计入 layerStats 的既有 run 计数，观测面 P3 走查消费）。
+  与**纯非目录链**（不含 18 目录 op）**跳过包夹**（省 2 个全屏 pass，非 grade 层
+  零代价）。`LayerCompositeResult` stats struct 零改动（envelope pass 计入
+  layerStats 的既有 run 计数，观测面 P3 走查消费）。
 - **数学**：`ACESccMath.metal` 公共库单点钉——linear Rec2020→AP1 色适应 3×3（常数
   矩阵，Float64 Swift 参考推导后降 float32 常数）+ ACEScc log 编解码
   （ACES 文档分段式：`log2(x·)/cut` 两段线性 + 对数段，斜率/截断常数照 ACEScc
@@ -146,7 +161,7 @@ public struct DefaultLookEntry: Sendable { public let opName: String; public let
 
 | op | order | 依据 |
 |---|---|---|
-| acesccIn | 28.2 | colorin 28.0 与 28.5 簇之间（envelope 入口恒最低） |
+| acesccIn | 20.5 | **exposure 21.0 之前**（retouch 20.0 之后）——envelope 入口须先于域内全部 op；checker E1：28.2 落 exposure 之后 = 域内最低位 op 先于包夹执行，排序断言不可满足 |
 | acesccOut | 69.9 | terminal floor 70.0 之下、splittoning 67.0 之上（envelope 出口恒最高且不出层域） |
 | colorWheels | 41.0 | CONTEXT OQ-2 A 钦定；与未注册 dt 行 `colorbalance` 同位 = 28.5 簇先例的声明例外 |
 | cat02WhiteBalance | 41.4 | colorequal 41.2 之后 |
@@ -158,8 +173,9 @@ public struct DefaultLookEntry: Sendable { public let opName: String; public let
 
 - **不变量（测试机检，终值如遇未注册 dt 行撞位 ±0.05 内挪、DECISIONS 签注终值）**：
   ①新 LIGHTAMER 行彼此 order 唯一；②与**已注册 op**（ModuleRegistry 可实例化全集）
-  零同位；③同位未注册 dt 行仅 `colorWheels↔colorbalance` 一处声明例外；④既有 94 行
-  零改动（`git diff` 逐行核 + 既有 V50Order 测试全绿）。
+  零同位；③同位未注册 dt 行仅 `colorWheels↔colorbalance` 一处声明例外；④既有行
+  零改动——**形态判据（checker m3）**：`git diff` 仅新增 hunk（零删除行/零修改行，
+  **不锚 94/95 具体行数**）+ 既有 V50Order 测试全绿。
 
 ### KD-4 CAT02 WB：temperature/tint → 照明体 xy → CAT02 适应矩阵（ACEScc 域施加）
 
@@ -291,7 +307,9 @@ public struct ColorWheelsParams: Codable, Hashable, Sendable {
    （blend 公式/retouch leg/base sub-run/terminal 段/结果 struct 零改动——diff 越界
    = 违约）；`LightamerSidecar.swift`/`LayerStack.swift`/`MaskSpec.swift`/
    `LibrarySchema.swift` 零触（sidecar 格式零变更——envelope 不入 sidecar 是 D3 字
-   面）；GPL 参考只读（Alcedo 代码与数据不入库）。
+   面）；新件注册面 = `Registry.swift`（front-matter 已申报——七处 register +
+   default face seed 注释同步，T3-T7 随件追加；ACEScc envelope 两件**不**入
+   Registry，KD-2）；GPL 参考只读（Alcedo 代码与数据不入库）。
 6. **测试登记纪律（checker E2）**：新建测试文件**同 commit** 登记两处——①
    `Project.swift` 对应 bundle sources 显式清单；②
    `.work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt` 增行（`<bundle>\t
@@ -317,14 +335,18 @@ public struct ColorWheelsParams: Codable, Hashable, Sendable {
      DefaultLookEntry + 18 项表 + owner(of:) 改消费表 owner 列 + defaultLook 三
      entry）。既有 drtPost/develop 例外常量表保留原样。
   3. 新建 `Tests/LightamerTests/GradeCatalogTests.swift`：恰 18 项 / gradeItems 恰
-     14 / 完备性（default face ∖ 表 = ∅）/ owner 矩阵（18 项逐项 + 例外四件 + develop
+     14 / 完备性（default face ∖（18 目录 ∪ {testgain}）= ∅——**断言旁注明 testgain
+     DEBUG-only 豁免依据**，checker E7）/ owner 矩阵（18 项逐项 + 例外四件 + develop
      族回归）/ KD-3 唯一性三不变量 / defaultLook 三 entry 的 op 与值断言（+1.5/+15/
-     1.3）/ 既有 `NodeOwnershipCatalogTests` 零改动全绿。
+     1.3）/ 对齐五件 identityJSON no-op 参数点断言（shadhi 断言「面板默认 50/-50 ≠
+     identity 快照」分立两值——checker m5）/ 既有 `NodeOwnershipCatalogTests` 零
+     改动全绿。
   4. `tuist generate`（新目录批量后统一跑，见 T7 注）+ 测试登记两处（纪律 6）。
 - **验收标准**
-  - [ ] 18 项完备 + owner 矩阵 + 唯一性 + defaultLook 断言全绿；既有所有权测试零
-        改动全绿。
-  - [ ] V50Order 既有 94 行零 diff；新十行 add-only。
+  - [ ] 18 项完备 + owner 矩阵 + 唯一性 + defaultLook 断言 + 对齐五件 identity
+        no-op 断言（m5）全绿；既有所有权测试零改动全绿。
+  - [ ] V50Order diff 仅新增 hunk（add-only 形态判据：零删除/零修改行，m3）；
+        新十行 add-only。
   - [ ] 测试登记：Project.swift（LightamerTestsApp）+ BUNDLE-MAP 行同 commit 在册。
   - [ ] 全套回归 `0 fail`（基线 2240 + 新增）。
 
@@ -336,18 +358,30 @@ public struct ColorWheelsParams: Codable, Hashable, Sendable {
      色适应矩阵 + ACEScc encode/decode；头注「域唯一常数源」红线）。
   2. 新建 `ACESccInModule.swift` / `ACESccOutModule.swift` / `ACESccConvert.metal`
      （两枚 kernel 各调公共库；Params = 空结构——常数件；**不进 registry**）。
-  3. `LayerCompositeDriver.swift` adjustment-leg：KD-2 包夹（`!boxes.isEmpty` 才包）
-     + 头注三行（D3 落点 / 零 sidecar / 红线半径）。
+  3. `LayerCompositeDriver.swift` adjustment-leg：KD-2 包夹（**effective chain 含
+     ≥1 个 18 目录 op 判定才包**——checker E2 收窄，GradeCatalog 查询面）+ 头注
+     三行（D3 落点 / 零 sidecar / 红线半径）。
   4. 新建 `Tests/LightamerTests/ACESccEnvelopeTests.swift`：往返 identity 像素断言
      （KD-2 容差 1e-5，p99.9 口径）；空 chain 跳过（链空 → levelHash 不含 envelope
-     名）；retouch-only 层零包夹；base/terminal 链零包夹（composite 结果像素与改造前
-     fixture 一致——用既有 LayerCompositeTests fixture 形栈，**无 grade 件的栈输出
-     逐字节不变** = 零回归证明）；含 grade 件的层 sub-run levelHash 折叠 envelope
-     （同层同参两次 composite 缓存 HIT 断言 = 键稳定）。
-  5. 测试登记两处（LAYERS bundle）。
+     名）；**纯非目录链零包夹**（仅 develop/DRT 等非 18 目录件的链无 envelope pass）；
+     **排序断言（checker E1）**：含 exposure 的层链 effective pieces.first.opName ==
+     acesccIn && pieces.last.opName == acesccOut（20.5 < 21.0 机检——envelope 先于
+     域内最低位 op、后于全部域内 op）；retouch-only 层零包夹；base/terminal 链零
+     包夹（composite 结果像素与改造前 fixture 一致——用既有 LayerCompositeTests
+     fixture 形栈，**无 18 目录 op 的栈输出逐字节不变** = 零回归证明）；含 grade
+     件的层 sub-run levelHash 折叠 envelope（同层同参两次 composite 缓存 HIT 断言
+     = 键稳定）。
+  5. **既有层链像素断言盘点（checker E2 任务）**：18 目录含 exposure/shadhi/
+     vibrance/tonecurve/lut3d 五既有件——含这五件之一的既有测试栈现落入包夹面，
+     其像素断言如需放宽容差（ACEScc 往返漂移 ≤1e-5 量级），**逐条在 DECISIONS
+     记因**（断言名 + 原容差 → 新容差 + 漂移来源 = envelope 往返），禁静默改；
+     无需放宽者逐条保持原断言并在盘点表中列「保持」结论。
+  6. 测试登记两处（LAYERS bundle）。
 - **验收标准**
-  - [ ] 往返 identity / 空 chain 跳过 / retouch·base·terminal 零包夹 / 无 grade 栈
+  - [ ] 往返 identity / 空 chain·纯非目录链跳过 / 排序断言（first==acesccIn &&
+        last==acesccOut，E1）/ retouch·base·terminal 零包夹 / 无 18 目录 op 栈
         逐字节不变 / 键稳定断言全绿。
+  - [ ] 既有层链像素断言盘点完成：放宽者逐条 DECISIONS 记因，零静默改（E2）。
   - [ ] `PixelPipe.swift`/`PipeCacheKey.swift` 零 diff；driver diff 仅包夹半径
         （`git diff` 逐 hunk 核）。
   - [ ] 测试登记在册；全套回归 `0 fail`。
@@ -427,7 +461,9 @@ public struct ColorWheelsParams: Codable, Hashable, Sendable {
      秒数/bundle 峰值入 SUMMARY）。
   2. 落盘 `M2-5-1-SUMMARY.md`（测试数变化/容差实配值/七件 v50 终位表/envelope 半径
      diff 自核）+ `M2-5-1-DECISIONS.md`（四个执行期精读悬决点终式签注：LGG kernel
-     数学 / Contrast 公式 / White·Black 端点式 / HLS 映射 + v50 终值若挪位）。
+     数学 / Contrast 公式 / White·Black 端点式 / HLS 映射 + v50 终值若挪位 + 对齐
+     五件 no-op 参数点核验表——shadhi 面板默认 50/-50 与 identity 快照分立两套值
+     （m5）+ 既有层链像素断言盘点表（E2：放宽项逐条记因，保持项列结论））。
   3. `.work/GOAL-STATE.md` 续接点追加（M2-5-1 完成 + 下一步 = M2-5-2）；LESSONS 如
      踩坑。
   4. `git diff --stat` 核对文件边界与 front-matter 一致（纪律 7）。
@@ -438,9 +474,9 @@ public struct ColorWheelsParams: Codable, Hashable, Sendable {
 
 | # | AC | 机检方式 |
 |---|---|---|
-| 1 | GradeCatalog 恰 18 项 / gradeItems 14 / 完备性（registry face ∖ 表 = ∅）/ owner 矩阵 / 既有所有权测试零改动全绿 | GradeCatalogTests + 既有 NodeOwnershipCatalogTests |
-| 2 | V50Order 既有 94 行零 diff；新十行 add-only 且唯一性三不变量成立 | `git diff LightamerCore/Sources/Foundation/V50Order.swift` 逐 hunk + GradeCatalogTests 唯一性断言 |
-| 3 | ACEScc 往返 identity（GPU vs 输入绝对 ≤1e-5，p99.9；-0/+0 视相等）；空 chain 跳过；retouch/base/terminal 零包夹；无 grade 栈输出逐字节不变；层 sub-run 键稳定（同参二次 composite HIT） | ACESccEnvelopeTests |
+| 1 | GradeCatalog 恰 18 项 / gradeItems 14 / 完备性（registry face ∖（18 目录 ∪ {testgain}）= ∅，DEBUG 豁免依据注明——E7）/ owner 矩阵 / 对齐五件 identityJSON no-op 断言（shadhi 分立两值——m5）/ 既有所有权测试零改动全绿 | GradeCatalogTests + 既有 NodeOwnershipCatalogTests |
+| 2 | V50Order diff 仅新增 hunk（add-only 形态判据：零删除/零修改行，不锚行数——m3）；新十行 add-only 且唯一性三不变量成立 | `git diff LightamerCore/Sources/Foundation/V50Order.swift` 逐 hunk + GradeCatalogTests 唯一性断言 |
+| 3 | ACEScc 往返 identity（GPU vs 输入绝对 ≤1e-5，p99.9；-0/+0 视相等）；空 chain 与纯非目录链跳过；retouch/base/terminal 零包夹；无 18 目录 op 的栈输出逐字节不变；**含 exposure 层链 pieces.first.opName==acesccIn && last==acesccOut（E1 排序断言）**；既有层链像素断言盘点零静默改（E2）；层 sub-run 键稳定（同参二次 composite HIT） | ACESccEnvelopeTests + 盘点表核对 |
 | 4 | envelope 零用户可见面：不进 registry、不入 sidecar、add 面不可见（P2 前 = 无枚举源）；`PixelPipe.swift`/`PipeCacheKey.swift` 零 diff | `git diff --name-only` + `git grep -n "ACESccIn" LightamerIOP/Sources/Registry.swift` 零命中 |
 | 5 | CAT02 WB：默认 (5999.9934, 9.7112783) → xy≈AP1(0.32168,0.33767)@1e-4 → 矩阵≈I@1e-5；四角点+参数点 golden（纯函数 ≤1e-6 / GPU ≤1e-5） | GradeKernelGoldenTests |
 | 6 | Contrast：identity@0 容差 0 + luma 单调 + 色相漂移 ≤2° + golden（0/+15/±100）；White/Black：identity@0 + 端点有界 | GradeKernelGoldenTests |
@@ -456,6 +492,11 @@ public struct ColorWheelsParams: Codable, Hashable, Sendable {
 - **ACEScc 往返 GPU 代价（OQ-11 观察项，非本 plan 门）**：每层 +2 全屏轻 ALU pass；
   本 plan 只保证正确性（identity/键稳定），性能走查归 P3 收口三查。PREVIEW 拖滑杆
   如实测可感卡顿——记 E3 数据，不预优化。
+- **既有含目录 op 测试栈的像素断言漂移（checker E2）**：包夹条件收窄后
+  exposure/shadhi/vibrance/tonecurve/lut3d 所在链进入包夹面——其漂移上界 =
+  ACEScc 往返 ≤1e-5（identity 数学），既有硬断言（容差 0/逐字节）如触发 = 按
+  T2 action 5 盘点任务**逐条 DECISIONS 放宽并记因**，禁全局面放宽、禁静默调参；
+  纯非目录链保持逐字节断言不动。
 - **golden 参考无 Alcedo 资产可依**：Float64 参考实现自建（KD-8）；风险 = 参考与
   kernel 同源推导「自我印证」——缓解 = 公式来源钉 Alcedo 源码语义并在测试注释列
   源文件:行号，DECISIONS 存终式；发现 Alcedo 实现与本推导冲突时**以 Alcedo 为准**
@@ -483,3 +524,28 @@ public struct ColorWheelsParams: Codable, Hashable, Sendable {
 - T7 `feat(iop): hls 8-bin selective color op`
 - T8 `docs(m2-5): close out plan 1 grade kernel core`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-09-30）
+
+checker 判 FAIL（8E+6M）后本 plan 落地项：
+
+- **E1（acesccIn 落位）**：order 28.2 → **20.5**（< exposure 21.0；front-matter
+  V50Order 行 + KD-3 表同步 add-only 语义）；T2 action 4 增**排序断言**「含 exposure
+  的层链 pieces.first.opName == acesccIn && pieces.last.opName == acesccOut」；
+  AC#3 吸收。
+- **E2（包夹条件收窄）**：KD-2 `!boxes.isEmpty` → **effective chain 含 ≥1 个 18
+  目录 op**（`GradeCatalog.item(opName:)` 查询面）；T2 action 5 增**既有层链像素
+  断言盘点任务**——需放宽容差者逐条 DECISIONS 记因，禁静默改；AC#3 + 风险节同步
+  （含五既有件的链进包夹面，漂移上界 ≤1e-5）。
+- **E3（front-matter 补申报）**：增 `LightamerIOP/Sources/Registry.swift`（七处
+  register + default face seed 注释同步）；纪律 5 补注册面归属（T3-T7 随件追加，
+  ACEScc envelope 两件不入 Registry）。
+- **E7（完备性豁免集）**：KD-1/AC#1 完备性公式改「default face ∖（18 catalog ∪
+  {testgain}）= ∅」（testgain = DEBUG-only 注册先例），GradeCatalogTests 断言旁
+  注明依据。
+- **m3（V50Order 判据形态化）**：KD-3 不变量④/T1 AC/AC#2 改「git diff 仅新增
+  hunk（零删除/零修改行）」，不锚 94/95 具体行数。
+- **m5（对齐五件 no-op 核验）**：KD-1 增 identity 单源核验 bullet——五件
+  identityJSON 逐一以 kernel no-op 参数点核验；**shadhi 面板默认（shadows 50 /
+  highlights -50）非恒等点**，identity 快照与面板默认分立两套，DECISIONS 记；
+  T1 action 3 断言 + T8 DECISIONS 签注 + AC#1 同步。

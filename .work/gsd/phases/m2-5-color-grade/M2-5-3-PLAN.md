@@ -11,6 +11,8 @@ files_modified:
   - App/Sources/Lightamer/UI/Inspector/LutPanelView.swift       # 修改：库 Picker 升子目录树分组/折叠 + 手动刷新按钮 + 面板打开触发 rescan；缺引用 blit identity + toast 既有语义零改动消费
   - App/Sources/Lightamer/Settings/SettingsPages.swift          # 修改：Settings 新节「LUT Library」——根目录选择器（NSOpenPanel 目录选择 + 当前根显示 + 重置默认）+ 切根重扫进度/结果反馈
   - App/Sources/Lightamer/Library/AppPreferences.swift          # 修改：UserDefaults 键宿主（lut.library.root，ImportDefaults 同款登记惯例 + reset 面）
+  - Resources/Localizable.xcstrings                             # 修改：LUT 树分组/Settings「LUT Library」节/导入指南新键随手键入账（zh 值 T6 收口批补——D12；checker E8 补申报）
+  - AGENTS.md                                                   # 修改：UserDefaults 键登记补 `lut.library.root` 行 + M2-5 架构增量段（T6 action 5 翻账的申报落点——checker E8 补申报）
   - Project.swift                                               # 修改：Resources 登记（44 张 .cube + LICENSE/NOTICE，T1 许可门通过才入）+ 新测试文件登记（bundle 无 glob——checker E2 纪律）
   - Resources/LUTs/                                             # 新建（T1 许可门通过才 vendor）：Agfa_*/Fuji_*/Kodak_*.cube 44 张 + LICENSE + NOTICE（CMake glob 清单对照，Hasselblad/「色彩逆向」不入——M2GRADE-07 字面）
   - Tests/LightamerTests/LutLibraryRecursionTests.swift         # 新建（LightamerTestsIOPParity——Lut3d* glob 惯例，IOP 级）：fixture 树 3 层深递归收录 / 同名冲突消歧 / 旧 registry.json 宽容 decode / 键迁移幂等 / 切根重建 / 坏根降级 / 引用缺名 degrade / seeder 幂等
@@ -84,9 +86,14 @@ files_modified:
 - UserDefaults `lut.library.root`（String path，空/缺 = 默认根
   `~/Library/Application Support/Lightamer/LUTs/`）；`LutLibraryStore` 消费点 =
   `init(directory:)` 既有注入缝——Settings 切根后**重造 store 实例**
-  （`LutLibraryStore.shared` 的既有单例消费面替换为新实例，`AppPreferences` 提供
-  `lutLibraryRoot() -> URL`）；registry.json 跟根走（每根自洽，KD-1 迁移按根独立
-  发生）。
+  （`AppPreferences` 提供 `lutLibraryRoot() -> URL`）；registry.json 跟根走（每根
+  自洽，KD-1 迁移按根独立发生）。
+- **shared holder 机制（checker m6）**：`LutLibraryStore.shared` 既有 `static let`
+  升级为可替换 holder——`private static var _shared` + `NSLock`（`shared` getter
+  锁内读、`replaceShared(_:)` 锁内原子换；切根 = Settings 主线程调 `replaceShared`
+  后既有消费点经 getter 恒取新实例）；机制**内联于 `LutLibraryStore.swift`**（不新
+  建 holder 文件——front-matter 零新增；`ModuleRegistry` 等 registry 面零触碰、
+  **不入 front-matter**）。
 - **外置卷/可达性（L009 教训）**：仅做存在性重验（`isDirectory` + 可写探测）；失败 =
   typed 降级回默认根 + Settings 节错误文案（**不新建 bookmark**——12-4 D10 例外不扩
   展，路径存 String 的脆弱性以降级兜底，v2 再议 security-scoped bookmark）。
@@ -221,7 +228,8 @@ files_modified:
      内置 `BuiltIn/` 组首）+ display 撞车前缀 + 手动刷新按钮 + 面板打开触发 rescan
      （既有 `libraryRevision` 触发面扩展）。
   2. missing toast / blit identity 消费面零改动确认（既有 toast 文案键复用）。
-  3. 走查：导入到子目录 / 删除子目录后刷新 / 缺引用 toast 三场景。
+  3. 走查（checker m4）：**手动放置子目录**（Finder 拷 `.cube` 入库根下子目录）→
+     rescan 收录 / 删除子目录后刷新 / 缺引用 toast 三场景。
 - **验收标准**
   - [ ] 树分组/折叠/刷新走查绿；缺引用降级走查绿（typed degrade 非 crash）。
   - [ ] 全套回归 `0 fail`。
@@ -233,9 +241,11 @@ files_modified:
   1. `AppPreferences.swift`：`lut.library.root` 键（登记 + reset 默认面）。
   2. `SettingsPages.swift`：新节「LUT Library」（当前根显示 + NSOpenPanel 选择 +
      重置默认 + 切根重扫反馈 + 坏根错误文案）。
-  3. `LutLibraryStore` 消费侧：切根重造实例（KD-3）；`LutPanelView` 等
-     `LutLibraryStore.shared` 消费点改经统一获取面（若既有直引单例，收拢 accessor
-     ——改动半径限 Lut3d 相关消费点，逐点 grep 申报）。
+  3. `LutLibraryStore` 消费侧：切根经 shared holder 原子替换（KD-3——
+     `replaceShared(_:)`，static var + lock，checker m6）；`LutPanelView` 等
+     `LutLibraryStore.shared` 消费点经统一获取面读取（getter 恒取当前实例；若既有
+     直引捕获存储实例，收拢 accessor——改动半径限 Lut3d 相关消费点，逐点 grep
+     申报）。
   4. `LutLibraryRecursionTests` 追加：切根重建（新根独立 registry）/ 坏根降级回默认
      + 错误态 / 新根下旧引用缺名 degrade。
 - **验收标准**
@@ -305,9 +315,10 @@ files_modified:
   （KD-1）测试钉死；残余风险 = 用户手工编辑过的 registry（在野概率≈0，decode 宽容
   兜底）。
 - **`LutLibraryStore.shared` 单例重造的引用面**：消费点若散落直引（`LutPanelView`/
-  `Lut3dModule` resolution 链），切根后旧实例悬挂——KD-3 收拢 accessor 是既定改法，
-  改动半径 = grep `LutLibraryStore.shared` 全消费点（执行期逐点申报入 files_modified
-  附录，越界先申报后动）。
+  `Lut3dModule` resolution 链），切根后旧实例悬挂——KD-3 shared holder（static var
+  + lock，checker m6）原子替换 + 收拢 accessor 是既定改法，改动半径 = grep
+  `LutLibraryStore.shared` 全消费点（执行期逐点申报入 files_modified 附录，越界先
+  申报后动）。
 - **seeder 与可配根的组合**：内置集只落默认根（KD-4）——用户切根后 BuiltIn 消失属
   预期（每根自洽库语义）；Settings 文案明示，避免「内置集丢了」误会。
 - **观察项三查的导出对比方法学**：含/不含 grade 层两栈计时归因（非 A/B 开关）——
@@ -326,3 +337,18 @@ files_modified:
   `feat(app): built-in lut import guide fallback`）
 - T6 `docs(m2-5): close out phase color grade controls`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-09-30）
+
+checker 判 FAIL（8E+6M）后本 plan 落地项：
+
+- **E8（front-matter 补申报）**：增 `Resources/Localizable.xcstrings`（LUT 树/
+  Settings 节/导入指南新键随手键入账）+ `AGENTS.md`（UserDefaults 键登记补
+  `lut.library.root` 行 + M2-5 架构增量段——T6 action 5 翻账的申报落点）。
+- **m4（走查场景修正）**：T3 action 3 走查场景改「**手动放置子目录**（Finder 拷
+  `.cube` 入库根下子目录）→ rescan 收录」——原「导入到子目录」与导入能力面不符。
+- **m6（shared holder 机制）**：KD-3 增补 `LutLibraryStore.shared` 可替换 holder
+  机制——`private static var _shared` + `NSLock`（getter 锁内读 + `replaceShared`
+  锁内原子换），机制**内联于 `LutLibraryStore.swift`**（不新建文件、front-matter
+  零新增；`ModuleRegistry` 等 registry 面零触碰、不入 front-matter）；T4 action 3
+  与风险节同步。

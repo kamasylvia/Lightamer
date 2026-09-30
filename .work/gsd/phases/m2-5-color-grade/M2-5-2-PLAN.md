@@ -14,7 +14,9 @@ files_modified:
   - App/Sources/Lightamer/UI/Inspector/ColorWheelsPanelView.swift  # 新建：LGG 三 trackball（Canvas 自绘圆盘 + DragGesture 写 disc + strength/luminanceOffset 数值滑杆 + Reset wheels 三轮归 identity）
   - App/Sources/Lightamer/UI/Inspector/HlsPanelView.swift          # 新建：Selective Color 面（Target Hue bin 选择 + Hue Shift/Lightness/Chroma/Hue Smoothness 滑杆 ↔ applyTargetEdit 映射消费）
   - App/Sources/Lightamer/UI/Inspector/GradeScalarPanels.swift     # 新建：六件薄滑杆面（CAT02 WB 双滑杆 / Contrast / White / Black / Tint / Saturation——复用既有滑杆组件与 range/step 约定）
-  - LightamerCore/Sources/Library/LibrarySchema.swift              # 修改：images 表 additive 列 `default_look_pending INTEGER DEFAULT 0` + schema user_version additive 升版（v2→v3 惯例：旧库 ALTER TABLE ADD COLUMN 幂等迁移）
+  - App/Sources/Lightamer/UI/InspectorView.swift                  # 修改：Develop/未选中态 Add Adjustment 面落点（无层选中分支——新增 UI，KD-4/T6；checker E4 补申报）
+  - Resources/Localizable.xcstrings                               # 修改：本批新 UI 键随手键入账（组头/注记/菜单/面板文案——D12；zh 值 P3 收口批补；checker E4 补申报）
+  - LightamerCore/Sources/Library/LibrarySchema.swift              # 修改：images 表 additive 列 `default_look_pending INTEGER DEFAULT 0` + schema user_version **v1→v2 首次迁移**（LibrarySchema.swift:7 FREEZE v1、:419-436 migrate slot 空置首填；ALTER TABLE ADD COLUMN 幂等，照 SessionIndexSchema.migrate 形态——checker E6 修正）
   - LightamerCore/Sources/Library/LibraryStore.swift               # 修改：import 路径 INSERT（:380 毗邻）写 default_look_pending = 1（新导入恒 1；无开关——OQ-8 A）
   - Project.swift                                                  # 修改：新测试文件登记（bundle 无 glob——checker E2 纪律）
   - Tests/LightamerTests/EditorStackRoutingTests.swift             # 修改：TAB-MATRIX 对账期望值随 Tone/Look 重组重写（分组断言 + compat 组 + 注记行）
@@ -83,19 +85,21 @@ enum PanelGroup: String, CaseIterable {   // Look 页四组 + Tone 页 compat �
   - **Master**：Saturation / Vibrance
   - **Look**（D9 占位组）：Clarity(=equalizer) / Sharpen / Film Grain(=grain) /
     Halation(=bloom)，四行带 `note`（pre-DRT 注记）；既有 detail 五件的
-    highpass/soften/localcontrast 与 velvia/monochrome/colorbalancergb/skinsmooth →
-    **Detail/Texture 组**（D6 收纳，§2.3 的 Detail/Texture 落点）
+    highpass/soften/localcontrast 与 velvia/monochrome/colorbalancergb/**colorzones**/
+    skinsmooth → **Detail/Texture 组**（D6 收纳，§2.3 的 Detail/Texture 落点；
+    checker m1：colorzones 归此组——既有 Look 13 行零丢失对账含它）
   - **Color**：White Balance(=cat02WhiteBalance) / Selective Color(=hls) /
     Color Wheels(=colorWheels) / Tint
   - **Detail/Texture**：见上；**LMT 不在 Look 页**（归 LUT 页既有行，D10 字面）
-- **Tone 页收敛后主面**：Exposure / Contrast / White / Black / Shadows(=shadhi) /
-  Highlights(=shadhi 同件双行——shadhi 是 shadows+highlights 双标量件，Alcedo 目录
-  两项目录项共享一 op 的两滑杆暴露，`panelExposures` 在 GradeCatalog 已声明) /
-  Curve(=tonecurve)；**compat 折叠组**：levels / colisa / colorcontrast / toneequal /
+- **Tone 页收敛后主面（checker m2 钉单行）**：Exposure / Contrast / White / Black /
+  **Shadows / Highlights（=shadhi 单行双滑杆）** / Curve(=tonecurve)——**UI 六行**；
+  Alcedo 目录仍两项目录项（shadows/highlights 共享 shadhi 一 op，`panelExposures`
+  双键暴露在 GradeCatalog 照旧声明），**UI 钉死单行「Shadows / Highlights」双滑杆**
+  （面板内两滑杆 = 两目录项的最小忠实映射）；**双行分支删除**——同 opName 双
+  descriptor 在既有 `ForEach(id: \.opName)` 面静态 id 冲突（duplicate-ID 静态面），
+  不走双行、无选型残留；shadhi.Params 零改动（sidecar 兼容零风险）。
+  **compat 折叠组**：levels / colisa / colorcontrast / toneequal /
   temperature（五件 D6 收纳，模块可编辑不删除）。
-  - shadhi 双行实现：两个 descriptor 同 opName、`panelExposures` 分别 ["shadows"]/
-    ["highlights"]（面板只渲染对应滑杆）——**新增能力 = 描述符字段过滤，shadhi.Params
-    零改动**（sidecar 兼容零风险）。
 - **CAT02 WB 面板页内提示**（§2.3 Alcedo 文案语义）：「Creative white balance under
   the AP1 assumption — camera WB lives on the RAW Decode page」（zh 收口批补）。
 
@@ -127,6 +131,10 @@ enum PanelGroup: String, CaseIterable {   // Look 页四组 + Tone 页 compat �
 - **选中 Grade 态**：「Add Adjustment」枚举 = `GradeCatalog.gradeItems()`（14 项：
   13 Grade 件 + Tint）；**Develop/未选中态**：枚举 = `.develop` 件 + compat 折叠组
   （`.grade` 项不出现——D4 收窄的完整表达）。
+- **枚举 UI 落点（checker E4 明写）**：Develop/未选中态 add 面 = **`InspectorView`
+  无层选中分支（新增 UI——既有宿主无此分支，T6 补建）**；选中 Grade 态枚举落点 =
+  既有 Add Adjustment 菜单宿主（执行期定位，若在 EditorAdjustmentStackView 内则随
+  T1 壳一并改——files_modified 已申报该文件）。
 - `addModuleToLayer` 既有 typed 校验缝（M2-4-1 交付）**零改动**——枚举面已经不让
   非法组合出现，校验缝只作为最后防线（防 programmatic 调用）。严格面激活的语义半径 =
   **新增动作**；历史加载/undo/复原零校验（既有惯例）。
@@ -138,12 +146,16 @@ enum PanelGroup: String, CaseIterable {   // Look 页四组 + Tone 页 compat �
 ```
 EditorState.load（sidecar probe 之后）：
   .lra 存在            → 既有 restore 路径，零改动（restore 恒压过 flag）
-  .lra 缺席 && flag==1 → resetHistoryForNewImage 后铸首 Grade：
-       NodeGraphCommand.apply(.addCleanGrade) 语义同款（既有命令面，M2-4 交付）
-       + 依次 apply 三参数（GradeCatalog.defaultLook 解码 params → setParams 路径）
+  .lra 缺席 && flag==1 → resetHistoryForNewImage 后内存 mint（KD-5，checker E5 重写）：
+       单个 AdjustmentLayer **内存构造**——chain 三 instance（exposure +1.5 /
+         contrast +15 / saturation 1.3，GradeCatalog.defaultLook 解码 params，
+         经既有 setParams 同款编码路径）
+       + **单次提交**（一笔 history entry）经「跳过 persist 调度」内部通道
+         （EditorState mint 专用入口，显式短路 2s debounce 调度——非逐 apply
+           调度、非靠时序巧合）
        + 清 flag（LibraryStore UPDATE images SET default_look_pending=0）
-       ——全程**不落 sidecar**（内存态；首次编辑随既有 2s debounce 落盘；
-         未编辑即切走 = 不留痕，「.lra 缺席 = 未编辑」不变量零破坏）
+       ——零 sidecar 落盘调度：**mint 后 flushNow() 亦无 .lra**（机检断言），
+         「.lra 缺席 = 未编辑」不变量构造上成立
   .lra 缺席 && flag==0 → 既有 pristine 路径，零改动
 ```
 
@@ -153,18 +165,27 @@ EditorState.load（sidecar probe 之后）：
   read_first 6 定位实态；若编辑器会话无 row 关联现成通道，fallback = flag 消费点移到
   打开图入口（LibraryPanels/LibraryProjectController 打开动作传 `Bool` 注入
   EditorState.load），语义等价、DECISIONS 签注选型）。
-- **三参数施加形态**：首 Grade chain = 三 instance（exposure +1.5 / contrast +15 /
-  saturation 1.3）——exposure 复用既有件（P1 KD-9 单源），undo 一步回 pristine
-  （用户「不要默认 look」= 一次 undo 或删 Grade，非破坏性）。用户新建 grade / reset
-  恒 identity（`GradeCatalog.identityJSON` 单源，与默认 look 分立——M2GRADE-03 字面）。
+- **三参数施加形态（checker E5 重写）**：首 Grade = **单个 AdjustmentLayer 内存
+  构造 + 单次提交**——chain 三 instance（exposure +1.5 / contrast +15 /
+  saturation 1.3，exposure 复用既有件 = P1 KD-9 单源）；**undo 一步回 pristine 由
+  单次提交构造上保证**（用户「不要默认 look」= 一次 undo 或删 Grade，非破坏性）；
+  **「跳过 persist 调度」内部通道** = mint 期间 persist 调度零发生——证明面 =
+  DefaultLookTests 的 flushNow 断言，非注释性承诺。用户新建 grade / reset 恒
+  identity（`GradeCatalog.identityJSON` 单源，与默认 look 分立——M2GRADE-03 字面）。
 - **has_edits 投影**：flag=1 且未编辑图在库投影 `has_edits=0`（`.lra` 缺席判据不
   变——`LibraryStore` has_edits 投影零改动，flag 列独立于投影）。
 
-### KD-6 LibrarySchema additive 升版 = 新列幂等迁移
+### KD-6 LibrarySchema v1→v2 首次迁移 = 新列幂等迁移（checker E6 修正）
 
+- **版本事实**：`LibrarySchema.swift:7` FREEZE v1（`schemaVersion = 1`），
+  `:419-436` migrate slot **空置**（v1 无历史版本可迁）——本次 = **v1→v2 首次
+  迁移、该 slot 首填**（非「v2→v3 惯例」，front-matter 同批修正）。
+- 形态照 slot 注释钦定的 `SessionIndexSchema.migrate` 模板：ONE `BEGIN IMMEDIATE`
+  + 失败 ROLLBACK + `writeUserVersion(2)`；ProjectFileStore dispatch 侧迁移前
+  `sqlite3_backup` 快照钩子既有（v1 预埋），本次首次消费。
 - `imagesColumns` 尾部追加 `("default_look_pending", "INTEGER DEFAULT 0")` +
-  schema 版本注释节（沿 v2 additive 先例：旧库打开时 `ALTER TABLE ADD COLUMN` 幂等
-  补列——执行期照既有迁移代码形态）；既有列序/DDL 零改动（append-only）。
+  旧库打开路径 `ALTER TABLE ADD COLUMN` 幂等补列；既有列序/DDL 零改动
+  （append-only）。
 
 ## read_first
 
@@ -174,7 +195,9 @@ EditorState.load（sidecar probe 之后）：
 3. `App/Sources/Lightamer/UI/Shell/EditorAdjustmentStackView.swift:140-200`——
    panels(for:) 消费宿主（分组壳渲染落点）。
 4. `App/Sources/Lightamer/State/InspectorState.swift:140-180`——provider 注册表 +
-   `InspectorEditSession` 层作用域（新 provider 挂接缝）。
+   `InspectorEditSession` 层作用域（新 provider 挂接缝）；同批读
+   `App/Sources/Lightamer/UI/InspectorView.swift`——inspector 宿主结构（**无层选中
+   分支 = Develop 态 add 面落点，checker E4**）。
 5. `App/Sources/Lightamer/State/EditorState.swift:95-130,380-430,600-650`——pristine
    seed / sidecar restore / addModuleToLayer / apply(NodeGraphCommand) 缝。
 6. `LightamerCore/Sources/Library/LibraryStore.swift:360-420`（import INSERT +
@@ -208,8 +231,9 @@ EditorState.load（sidecar probe 之后）：
    **APP**（EditorState 实例）。运行期总数基线相应上移。
 7. **收口核对（checker 教训②）**：T8 `git diff --stat` 与 front-matter 逐文件核对，
    越界 = 违约。
-8. **zh 键随手键纪律（D-M2-5-CONTEXT-12 A）**：新 UI 键随手 `String(localized:)`，
-   zh 值滞后允许；本 plan 新键入账（键名清单进 SUMMARY），phase 尾 P3 收口
+8. **zh 键随手键纪律（D-M2-5-CONTEXT-12 A）**：新 UI 键随手 `String(localized:)`
+   入 `Resources/Localizable.xcstrings`（front-matter 已申报——checker E4），zh 值
+   滞后允许；本 plan 新键入账（键名清单进 SUMMARY），phase 尾 P3 收口
    `Scripts/zh-audit.py --check` 对账补齐。
 
 ## Tasks
@@ -219,16 +243,17 @@ EditorState.load（sidecar probe 之后）：
 - **read_first**：上列 2/3/8。
 - **action**
   1. `EditorTabRoute.swift`：descriptor additive 字段（KD-1）+ Tone 页 rows 重写
-     （主面七行：exposure/contrast/white/black/shadhi×2/tonecurve；compat 组五件：
-     levels/colisa/colorcontrast/toneequal/temperature——temperature 摘除主面即
-     D5 的 Tone −1 行）。
+     （主面**六行**：exposure/contrast/white/black/shadhi 单行「Shadows /
+     Highlights」双滑杆/tonecurve——checker m2 钉单行，双行分支删除；compat 组
+     五件：levels/colisa/colorcontrast/toneequal/temperature——temperature 摘除
+     主面即 D5 的 Tone −1 行）。
   2. `EditorAdjustmentStackView.swift`：分组壳渲染（组头 + 折叠 + advanced/compat
      语义沿用既有 Geometry 页路径）。
   3. `EditorStackRoutingTests.swift` 期望值重写 + `M2-3-TAB-MATRIX.md` 同批更新
      （Tone 页新行账；Look 页留 T2）。
 - **验收标准**
-  - [ ] Tone 页主面七行 + compat 五件断言绿；routing 对账机检绿；compat 组内件面板
-        可开可编辑（既有 provider 零回归）。
+  - [ ] Tone 页主面六行（shadhi 单行双滑杆，m2）+ compat 五件断言绿；routing 对账
+        机检绿；compat 组内件面板可开可编辑（既有 provider 零回归）。
   - [ ] 渲染红线三文件零 diff。
   - [ ] 全套回归 `0 fail`。
 
@@ -239,7 +264,7 @@ EditorState.load（sidecar probe 之后）：
   1. Look 页 rows 按 KD-1 四组重排（Master/Vibrance+既有 velvia 等；Look 组四 DRT
      件带 note；Color 组挂新件行占位——T3/T4/T5 provider 到位前先挂既有 fallback 面
      或延后挂行，**本任务只动 routing 与组壳，不写新面板**）；Detail/Texture 组收
-     detail 族。
+     detail 族 + colorzones（checker m1）。
   2. D9 注记渲染（`note` 字段 → 组内行下标文案）。
   3. `EditorStackRoutingTests` + `M2-3-TAB-MATRIX.md` Look 页部分同批（分组断言：
      四组头 + 组内行序 + note 行）。
@@ -300,9 +325,12 @@ EditorState.load（sidecar probe 之后）：
 - **read_first**：上列 5（addModuleToLayer/apply 缝）+ P1 GradeCatalog。
 - **action**
   1. `EditorState.swift`：add 枚举面切 `GradeCatalog` 过滤（KD-4：Grade 态 14 项 /
-     Develop 态 .develop 件 + compat 组）；枚举 UI 落点 = 既有 Add Adjustment 菜单
-     （执行期定位其 SwiftUI 宿主，若在 EditorAdjustmentStackView 内则随 T1 壳一并
-     改——files_modified 已申报该文件）。
+     Develop 态 .develop 件 + compat 组）。**枚举 UI 落点（checker E4 明写）**：
+     Develop/未选中态 add 面 = **`InspectorView` 无层选中分支（新增 UI，本任务
+     补建）**——枚举列表 + compat 组头，文案键随手 `String(localized:)` 入
+     Localizable.xcstrings；选中 Grade 态枚举落点 = 既有 Add Adjustment 菜单宿主
+     （执行期定位，若在 EditorAdjustmentStackView 内则随 T1 壳一并改——
+     files_modified 已申报该文件）。
   2. 校验缝零改动确认（既有 `NodeOwnershipCatalogTests` 全绿 = 活体回归）。
   3. 新建 `Tests/LightamerTests/CatalogAddFaceTests.swift`：Grade 态枚举恰 14（逐
      目录 id 断言 + LMT/四 DRT 件不在列）；Develop 态枚举零 `.grade` 项（temperature
@@ -319,18 +347,23 @@ EditorState.load（sidecar probe 之后）：
 - **read_first**：上列 5/6 + `LightamerCore/Sources/Graph/NodeGraphCommand.swift`
   （AddClean 命令面）。
 - **action**
-  1. `LibrarySchema.swift` additive 列 + 幂等迁移（KD-6）。
+  1. `LibrarySchema.swift`：**v1→v2 首次迁移** + additive 列（KD-6——migrate slot
+     首填，照 SessionIndexSchema.migrate 形态，checker E6）。
   2. `LibraryStore.swift`：import INSERT 写 1（KD-5）+ 查询/清除 additive API
      （`defaultLookPending`/`clearDefaultLookPending`）。
-  3. `EditorState.swift`：mint 分支（KD-5 调用链图；AddClean + 三参数施加 + 清
-     flag；restore 腿零改动）。
-  4. 新建 `Tests/LightamerTests/DefaultLookTests.swift`：flag=1 无 .lra → 首 Grade
-     三参数值断言（+1.5/+15/1.3 逐参数）+ flag 清零 + 第二次载入零重复注入；有
-     .lra → 零注入（restore 压过 flag）；flag=0 → 零注入；用户新建 grade = 空
-     chain（identity）；undo 一步回 pristine。测试登记两处（APP）。
+  3. `EditorState.swift`：mint 分支（KD-5 调用链图；**单个 AdjustmentLayer 内存
+     构造（chain 三 instance）+ 单次提交 + 「跳过 persist 调度」内部通道** + 清
+     flag；restore 腿零改动——checker E5 重写形态，弃逐 apply 面）。
+  4. 新建 `Tests/LightamerTests/DefaultLookTests.swift`：**双断言（checker E5）**——
+     ①mint 后 `flushNow()` → 磁盘无 `.lra`（persist 零调度证明）；②undo 一步 →
+     pristine（单次提交证明）。外加四态：flag=1 无 .lra → 首 Grade 三参数值断言
+     （+1.5/+15/1.3 逐参数）+ flag 清零 + 第二次载入零重复注入；有 .lra → 零注入
+     （restore 压过 flag）；flag=0 → 零注入；用户新建 grade = 空 chain（identity）。
+     测试登记两处（APP）。
 - **验收标准**
-  - [ ] mint 分支四态断言全绿；pristine 不变量（`.lra` 缺席未编辑图零 sidecar 落
-        盘）断言绿；`LightamerSidecar.swift` 零 diff。
+  - [ ] mint 分支四态断言 + 双断言（flushNow 无 .lra / undo 一步 pristine，E5）
+        全绿；pristine 不变量（`.lra` 缺席未编辑图零 sidecar 落盘）断言绿；
+        `LightamerSidecar.swift` 零 diff。
   - [ ] 全套回归 `0 fail`。
 
 ### T8 收口——SUMMARY/DECISIONS + 续接点
@@ -350,26 +383,25 @@ EditorState.load（sidecar probe 之后）：
 
 | # | AC | 机检方式 |
 |---|---|---|
-| 1 | Tone 页主面 = Alcedo 七目录（exposure/contrast/white/black/shadows/highlights/curve）+ compat 折叠组五件（levels/colisa/colorcontrast/toneequal/temperature）；temperature 主面摘除 | EditorStackRoutingTests 重写断言 |
+| 1 | Tone 页主面 = Alcedo 七目录、**UI 六行**（exposure/contrast/white/black/**shadhi 单行 Shadows/Highlights 双滑杆**——m2/curve）+ compat 折叠组五件（levels/colisa/colorcontrast/toneequal/temperature）；temperature 主面摘除 | EditorStackRoutingTests 重写断言 |
 | 2 | Look 页四组 IA（Master/Look/Color/Detail+Texture）+ 组内行账 + LMT 不在 Look 页 + D9 四件 note 注记 | EditorStackRoutingTests 分组断言 |
 | 3 | TAB-MATRIX 文档与代码实态一致（两页分组化后） | `M2-3-TAB-MATRIX.md` 对照机检（既有对账测试口径） |
 | 4 | 新件八 provider 注册且面板范围/默认值与 P1 Params 一致；层作用域双态（Grade chain / base 链）行为保持 | 走查 + InspectorState 注册断言（测试可达面） |
 | 5 | trackball：disc 换算纯函数（P1）+ 双击 reset + Reset wheels → identityJSON 逐字节 | UI 态机检（EditorState 实例） |
 | 6 | Selective Color：bin 切换 + 四滑杆 ↔ `applyTargetEdit`（零面板内映射逻辑） | UI 态机检 |
 | 7 | add 面矩阵：Grade 态恰 14 / Develop 态零 .grade / LMT·四 DRT 件不在任何 add 枚举 / 校验缝零 diff | CatalogAddFaceTests + `git diff` |
-| 8 | 默认 look：flag=1 无 .lra → 首 Grade 三参数（+1.5/+15/1.3）+ flag 清零 + 不重复注入；有 .lra / flag=0 → 零注入；新建 grade/reset 恒 identity；undo 一步回 pristine；`.lra` 缺席未编辑零 sidecar 落盘 | DefaultLookTests |
-| 9 | `.lalb` 升版 additive：旧库幂等补列 + 既有列零改动 | DefaultLookTests 迁移断言 + `git diff LibrarySchema.swift` 逐 hunk |
+| 8 | 默认 look：flag=1 无 .lra → 首 Grade 三参数（+1.5/+15/1.3）+ flag 清零 + 不重复注入；有 .lra / flag=0 → 零注入；新建 grade/reset 恒 identity；**双断言（E5）：mint 后 flushNow 磁盘无 .lra（persist 零调度）+ undo 一步回 pristine（单次提交）**；`.lra` 缺席未编辑零 sidecar 落盘 | DefaultLookTests |
+| 9 | `.lalb` **v1→v2 首次迁移**（E6）：旧库幂等补列（ALTER TABLE ADD COLUMN，SessionIndexSchema.migrate 形态）+ 既有列/DDL 零改动 + user_version=2 + 迁移前快照钩子消费 | DefaultLookTests 迁移断言 + `git diff LibrarySchema.swift` 逐 hunk |
 | 10 | 渲染红线：LayerCompositeDriver/PixelPipe/PipeCacheKey/LightamerSidecar 零 diff | `git diff --name-only` 断言 |
 | 11 | 全套回归 0 fail（基线 = M2-5-1 收口总数 + 本批新增） | test-direct.sh --all BUNDLE 行双读 |
 | 12 | diff 边界 == 申报文件集；新测试登记闭环（两文件 × Project.swift + BUNDLE-MAP） | `git diff --stat` + `git grep` 双命中 |
 
 ## 风险与边界
 
-- **shadhi 双行共享一 op**：两个 descriptor 同 opName——既有「Add Adjustment 不重名」
-  或去重逻辑（effectiveChain dedupe by (opName, multiPriority)）可能吞第二行实例。
-  对策：目录项经 `multiPriority` 区分（既有机制）或 UI 呈现单行双滑杆折衷——**执行期
-  实测**，若 dedupe 语义阻碍双行，回退为 Tone 页单行「Shadows / Highlights」双滑杆
-  （面板内两滑杆 = Alcedo 两目录项的最小忠实映射），DECISIONS 签注选型。
+- **shadhi 行形态（已钉死，checker m2）**：Tone 页单行「Shadows / Highlights」双
+  滑杆——双行方案**删除**（同 opName 双 descriptor 在 `ForEach(id: \.opName)` 静态
+  id 冲突 + effectiveChain dedupe by (opName, multiPriority) 的吞行风险）；Alcedo
+  两目录项、`panelExposures` 双键声明的模型面不变。无选型残留。
 - **flag 消费点的 row 关联通道**：编辑器会话若无现成 imageRowID 通道，按 KD-5
   fallback（打开入口注入 Bool）——语义等价已预声明，不构成返工面。
 - **Look 页新件行在 T2 先挂、provider T3-T5 才到位**：组壳先行的窗口期出现无面行——
@@ -377,8 +409,9 @@ EditorState.load（sidecar probe 之后）：
   （routing 改动合入 T3 批），DECISIONS 签注。
 - **默认 look 与 M2DIS-04 pristine-decode 腿**：mint 分支在 pristine seed 之后铸
   Grade——pristine decode 腿（无 sidecar 即 pristine 渲染）零触碰；风险集中在
-  「首 Grade 铸造时机与 decode 完成回调的竞态」——mint 是文档结构操作（与 decode
-  异步），零竞态面；测试以真 load 链断言兜底。
+  「首 Grade 铸造时机与 decode 完成回调的竞态」——mint 是**内存文档操作（单个
+  AdjustmentLayer 构造 + 单次提交 + 跳过 persist 调度，checker E5 形态；与 decode
+  异步）**，零竞态面；测试以真 load 链断言兜底。
 - **trackball 手感（Manual-Only）**：拖拽阻尼/灵敏度不设机检门（无基线），走查清单
   入 P3 收口观察项；交互参数调整不视为返工。
 
@@ -393,3 +426,28 @@ EditorState.load（sidecar probe 之后）：
 - T7 `feat(app): default look injection for new imports`
 - T8 `docs(m2-5): close out plan 2 panels and default look`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-09-30）
+
+checker 判 FAIL（8E+6M）后本 plan 落地项：
+
+- **E4（front-matter/action 补锚点）**：增 `App/Sources/Lightamer/UI/InspectorView.swift`
+  + `Resources/Localizable.xcstrings` 两行申报；KD-4 增「枚举 UI 落点」bullet、
+  T6 action 1 明写 **Develop 态 add 面落点 = InspectorView 无层选中分支（新增
+  UI）**；read_first 4 + 纪律 8 同步（xcstrings 为新键入账申报文件）。
+- **E5（默认 look mint 重写）**：KD-5 弃「AddClean + 依次 apply 三参数」面，改
+  **内存构造单个 AdjustmentLayer（chain 三 instance）+ 单次提交 + 「跳过 persist
+  调度」内部通道**（EditorState mint 专用入口显式短路 debounce）；DefaultLookTests
+  **双断言** = ①mint 后 `flushNow()` → 磁盘无 `.lra`（persist 零调度证明）+
+  ②undo 一步 → pristine（单次提交证明）；T7 action 3/4、AC#8、风险节同步。
+- **E6（.lalb 版本修正）**：front-matter + KD-6 重写为 **v1→v2 首次迁移**——
+  `LibrarySchema.swift:7` FREEZE v1、`:419-436` migrate slot 空置**首填**（非
+  「v2→v3 惯例」）；`ALTER TABLE ADD COLUMN` 幂等，照 `SessionIndexSchema.migrate`
+  形态（ONE BEGIN IMMEDIATE + ROLLBACK + writeUserVersion(2) + 迁移前快照钩子）；
+  T7 action 1、AC#9 同步。
+- **m1（colorzones 归组）**：KD-1 Detail/Texture 组成员补 colorzones；T2 action 1
+  同步（既有 Look 13 行零丢失对账含它）。
+- **m2（shadhi 钉单行）**：KD-1/T1/AC#1 钉死 Tone 页**单行「Shadows / Highlights」
+  双滑杆**（UI 六行），**双行分支删除**（同 opName 双 descriptor 在
+  `ForEach(id: \.opName)` 静态 id 冲突）；风险节改「已钉死，无选型残留」；
+  `panelExposures` 双键模型面不变。
