@@ -23,6 +23,11 @@
 #   同 commit 登记进对应 bundle（归属按 front-matter 判定：MaskItemSemanticsTests =
 #   APP/App 级——lock 拦截实例化 EditorState/LayerEditingState；PipelineLinkageTests =
 #   LAYERS/Core 级——纯 Core 投影）。运行期总数基线相应上移（对账以各行 method 数为准）。
+# M2-4-3 增行记录（2026-09-30 执行期，checker E2 测试登记纪律）：两个新测试文件同
+#   commit 登记进 LightamerTestsApp（归属按 front-matter 判定，均 = APP/App 级——
+#   NodeCanvasGeometryTests 测 App target 类型 NodeCanvasGeometry；
+#   NodesPanelModelTests 实例化 EditorState/LayerEditingState）。行内 method 数随
+#   T3 交互测试补组同批修订（登记纪律 = 同 commit 闭环）。运行期总数基线相应上移。
 IOPP	5	AgXTests.swift
 IOPP	8	AshiftParityTests.swift
 IOPP	11	BilateralParityTests.swift
@@ -146,6 +151,8 @@ APP	9	McpLauncherSentinelTests.swift
 APP	9	SettingsPagesTests.swift
 APP	10	SidecarV5Tests.swift
 APP	9	MaskItemSemanticsTests.swift
+APP	8	NodeCanvasGeometryTests.swift
+APP	12	NodesPanelModelTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
 EXPORT	10	SpotlightAttributeMapperTests.swift

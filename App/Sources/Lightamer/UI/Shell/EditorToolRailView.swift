@@ -65,6 +65,7 @@ struct EditorToolRailView: View {
 
     @Environment(EditorState.self) private var editorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
+    @Environment(LayerEditingState.self) private var editingState
 
     var body: some View {
         HStack(spacing: 0) {
@@ -133,11 +134,11 @@ struct EditorToolRailView: View {
                         defaultValue: "Versions arrive in M2-8"),
                     marker: "editor.versions.placeholder")
             case .nodes:
-                EditorRailPlaceholder(
-                    copy: String(
-                        localized: "editor_nodes_placeholder",
-                        defaultValue: "Nodes arrive in M2-4"),
-                    marker: "editor.nodes.placeholder")
+                // Plan M2-4-3 T1: the LIVE node panel replaces the M2-4
+                // placeholder (the "Nodes arrive in M2-4" marker retires;
+                // the new panel marker = `editor.nodes.panel`).
+                EditorNodesPanelView(
+                    editorState: editorState, editingState: editingState)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
