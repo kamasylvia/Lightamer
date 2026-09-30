@@ -3,8 +3,8 @@
 > 汇总批：2026-09-30（M2-4-3 执行 worker 收口产出）。**verify-work 的输入
 > 正本**——本文件是三 plan 执行+验收结论的合并对照，签核 VALIDATION 归
 > verify-work 独立步（C 档门控第 3 条）。三 plan 各自的独立验收报告 =
-> `M2-4-1-ACCEPTANCE.md`（PASS）/ `M2-4-2-ACCEPTANCE.md`（PASS）/ 本 plan
-> 验收批待派。
+> `M2-4-1-ACCEPTANCE.md`（PASS）/ `M2-4-2-ACCEPTANCE.md`（PASS）/ 
+> `M2-4-3-ACCEPTANCE.md`（PASS / 0 error + 1 minor 已修 + 2 observation，2026-09-30 验收批）。
 
 ## Phase 交付全景（三 plan × 任务 × commit）
 
@@ -33,7 +33,7 @@
 | M2NODE-03 有序调整列表 + 18 目录所有权 | **☐ 不勾（框架宽限交付）** | `52cf75e` | M2-4-1-ACCEPTANCE 裁决：目录框架 + typed 校验面 + 宽限执行已交付；**严格面激活归 M2-5**（18 目录收窄时激活，加载/undo/复原零校验维持） |
 | M2NODE-04 蒙版 Grade-owned 绑定 | ✅ Delivered（数据/绑定面） | `42e2f95`/`9a3e906` | M2-4-2-ACCEPTANCE PASS；挂账四条在册（stroke payload 复核归 M2-7/M2MASK-04、feather 应用序归 M2MASK-04、面板 UI 归 M2-7、~~zh 滞后~~→P3 收口已闭环 `29 键`） |
 | M2NODE-05 sidecar/项目 schema 扩展 | ✅ Delivered（sidecar 腿） | `b7d7acd`/`48e2b7d` | M2-4-1-ACCEPTANCE PASS；`.lalb` 四表零触碰（项目文件腿归 M2-8）；deletionProtected 文件载体挂 M2MASK-04 |
-| M2NODE-06 节点面板 UI | ✅ Delivered（本批翻账） | `b4ea439`/`e245b46`/`34de49a` | 本 plan AC 11 条全绿（M2-4-3-SUMMARY 逐条机检）；独立验收批待派 |
+| M2NODE-06 节点面板 UI | ✅ Delivered（本批翻账） | `b4ea439`/`e245b46`/`34de49a` | 本 plan AC 11 条全绿 + 独立验收 PASS（`M2-4-3-ACCEPTANCE.md`：复跑 App 332/0/0 + Layers 174/2/0 + zh-audit 双检亲跑 + BUNDLE-MAP 求和 2240 精确） |
 
 ## 终态测试计数（对账链）
 
@@ -72,3 +72,4 @@
 - **M2-8**：`.lalb` mini-git 四表激活（M2-4 已钉数据面）。
 - **M2MASK-04**：deletionProtected `.lra` 文件载体 + feather 应用序。
 - **自由平移/缩放**：CONTEXT Deferred（节点溢出现实化再议）。
+- **M2-3-4 F1 延续**：ProjectWorkspaceFace 4 处 verbatim zh 缺口（挂「M2-4 队列」未获本 phase 任一 plan scope 承接——M2-4-3 验收 O2 复核实存 `ContentView.swift:668-690`）→ 归 M2-5 或专项 zh sweep。
