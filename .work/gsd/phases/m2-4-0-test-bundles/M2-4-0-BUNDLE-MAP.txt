@@ -148,6 +148,7 @@ APP	6	AppErrorTests.swift
 APP	6	McpCullingImageBudgetTests.swift
 APP	6	McpFinalSnapshotTests.swift
 APP	7	CropOverlayTests.swift
+APP	6	DefaultLookTests.swift
 APP	7	SoftProofUIWiringTests.swift
 APP	7	ThemeTokensTests.swift
 APP	71	PanelWiringTests.swift

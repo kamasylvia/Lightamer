@@ -648,6 +648,7 @@ let project = Project(
                 "Tests/LightamerTests/BeforeAfterTests.swift",
                 "Tests/LightamerTests/CatalogAddFaceTests.swift",
                 "Tests/LightamerTests/CropOverlayTests.swift",
+                "Tests/LightamerTests/DefaultLookTests.swift",
                 "Tests/LightamerTests/EditorMetalLegRegressionTests.swift",
                 "Tests/LightamerTests/EditorStackRoutingTests.swift",
                 "Tests/LightamerTests/EffectsWiringTests.swift",

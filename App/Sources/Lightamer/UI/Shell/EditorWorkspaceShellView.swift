@@ -1,3 +1,4 @@
+import LightamerCore
 import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,6 +29,10 @@ struct EditorWorkspaceShellView: View {
     /// The filmstrip's thumbnail bridge (owned by the host; nil = no
     /// project / no bridge).
     let bridge: LibraryThumbnailBridge?
+    /// The M2-5-2 KD-5 fallback flag leg: the OPEN project controller (the
+    /// LibraryStore handle rides it). nil = detached (no project) — the
+    /// mint branch never arms.
+    var projectController: LibraryProjectController?
 
     @Environment(EditorState.self) private var editorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
@@ -161,15 +166,33 @@ struct EditorWorkspaceShellView: View {
     /// and route it into `EditorState.load` (the唯一 decode request chain).
     /// A row whose source file cannot be resolved keeps the previous
     /// frame (the typed resolver answers nil — no path guessing here).
+    ///
+    /// M2-5-2 KD-5 (the sanctioned fallback): the OPEN entry carries the
+    /// per-image default-look pending flag (LibraryStore read) into the
+    /// load, then spends the marker — the mint branch inside EditorState
+    /// arms only when the `.lra` is absent (restore 恒压过 flag).
     private func loadCurrentImage() async {
         guard let row = workspace.currentRow,
             let url = workspace.editorURLResolver?(row) else { return }
         guard editorState.loadedImageURL != url else { return }
+        var defaultLookPending = false
+        if let store = projectController?.projectStore {
+            let libraryStore = LibraryStore(store: store)
+            defaultLookPending =
+                (try? await libraryStore.defaultLookPending(imageRowID: row.id)) ?? false
+        }
         editorState.load(
             url: url,
             decoder: workspace.editorDecoder,
             metal: pipeCoordinator.detectionMetal(),
             logger: EditorState.decodeLogger,
-            overrides: workspace.rawDecodeOverrides(for: url))
+            overrides: workspace.rawDecodeOverrides(for: url),
+            defaultLookPending: defaultLookPending)
+        // Spend the marker once it has served the open (idempotent; the
+        // mint branch itself re-probes the .lra file fact).
+        if defaultLookPending, let store = projectController?.projectStore {
+            try? await LibraryStore(store: store)
+                .clearDefaultLookPending(imageRowID: row.id)
+        }
     }
 }

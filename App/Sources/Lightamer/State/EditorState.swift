@@ -297,9 +297,15 @@ final class EditorState {
     /// the ONE decode request chain. Default nil = identity — every existing
     /// call site compiles and behaves unchanged (the declared incremental
     /// seam; `RAWDecoder.decode` clamps + treats identity as the no-op).
+    /// M2-5-2 KD-5: `defaultLookPending` carries the per-image pending flag
+    /// the OPEN entry read from the library (the sanctioned fallback — the
+    /// editor session has no row channel of its own); mint happens AFTER
+    /// the pipe load's sidecar probe settled, only when the `.lra` is
+    /// absent (restore 恒压过 flag).
     func load(
         url: URL, decoder: RAWDecoder, metal: MetalContext?, logger: Logger,
-        overrides: RAWTechnicalOverrides? = nil
+        overrides: RAWTechnicalOverrides? = nil,
+        defaultLookPending: Bool = false
     ) {
         decodeTask?.cancel()
         loadedImageURL = url
@@ -362,6 +368,23 @@ final class EditorState {
                     guard !Task.isCancelled else { // superseded mid-pipe
                         logger.info("pixelpipe superseded: \(url.lastPathComponent, privacy: .public)")
                         return
+                    }
+                    // M2-5-2 KD-5 (checker E5): the default-look mint —
+                    // strictly AFTER the pipe load's sidecar probe settled
+                    // (restore-or-pristine). The .lra absence is re-probed
+                    // at the file level: restore 恒压过 flag; the mint is a
+                    // MEMORY document operation (single AdjustmentLayer +
+                    // one commit + the persist-skipping channel, decode
+                    // async) with zero sidecar scheduling.
+                    if defaultLookPending {
+                        let sidecarURL = LightamerSidecar.sidecarURL(for: url)
+                        if FileManager.default.fileExists(atPath: sidecarURL.path) {
+                            logger.info("default look suppressed: sidecar present for \(url.lastPathComponent, privacy: .public)")
+                        } else {
+                            if mintDefaultLook() != nil {
+                                logger.info("default look minted: \(url.lastPathComponent, privacy: .public)")
+                            }
+                        }
                     }
                 }
             } catch {
@@ -809,8 +832,14 @@ final class EditorState {
 
     /// The shared structure-commit tail: exactly ONE item, snapshot
     /// placeholder (excluded from every projection — see the scope
-    /// marker) + the post-edit FULL stack snapshot.
-    private func commitLayerStructure(layerID: UUID, label: String) {
+    /// marker) + the post-edit FULL stack snapshot. `schedulePersist: false`
+    /// is the M2-5-2 mint's persist-skipping channel (the 2s debounce is
+    /// never scheduled — the `.lra` absence = unedited invariant holds
+    /// constructively; the render leg still runs so the preview shows the
+    /// minted look).
+    private func commitLayerStructure(
+        layerID: UUID, label: String, schedulePersist: Bool = true
+    ) {
         guard let layerStack else { return }
         // Placeholder snapshot: the CURRENT top global record. The
         // `layerStructureScope` marker keeps it out of the global AND
@@ -821,7 +850,62 @@ final class EditorState {
             placeholder, label: label,
             layerScope: Self.layerStructureScope,
             stackSnapshot: LayerStackSnapshot(layerStack))
-        notifyLayerChange(persist: true)
+        notifyLayerChange(persist: schedulePersist)
+    }
+
+    // MARK: M2-5-2 KD-5: the default-look mint (checker E5 shape)
+
+    /// The mint: memory-construct ONE AdjustmentLayer whose chain carries
+    /// the three `GradeCatalog.defaultLook` instances (+1.5 EV / contrast
+    /// +15 / saturation 1.3 — decoded through each module's own Codable
+    /// face, the same ParamsCoding path a panel commit writes), land it as
+    /// EXACTLY ONE history item through the persist-SKIPPING channel, and
+    /// leave the sidecar untouched. Undo steps back to pristine
+    /// constructively (one item). A stack that already carries adjustment
+    /// layers (restore won the race) never mints.
+    @discardableResult
+    func mintDefaultLook() -> AdjustmentLayer? {
+        guard let layerStack, layerStack.adjustmentLayers.isEmpty else { return nil }
+        var chain: [ModuleInstance] = []
+        for entry in GradeCatalog.defaultLook {
+            guard var record = Self.templateInstance(for: entry.opName) else { continue }
+            switch entry.opName {
+            case ExposureModule.opName:
+                if let params = try? JSONDecoder().decode(
+                    ExposureModule.Params.self, from: Data(entry.paramsJSON.utf8)) {
+                    try? record.setParams(params, as: ExposureModule.self)
+                }
+            case ContrastModule.opName:
+                if let params = try? JSONDecoder().decode(
+                    ContrastModule.Params.self, from: Data(entry.paramsJSON.utf8)) {
+                    try? record.setParams(params, as: ContrastModule.self)
+                }
+            case SaturationModule.opName:
+                if let params = try? JSONDecoder().decode(
+                    SaturationModule.Params.self, from: Data(entry.paramsJSON.utf8)) {
+                    try? record.setParams(params, as: SaturationModule.self)
+                }
+            default:
+                continue
+            }
+            chain.append(record)
+        }
+        guard !chain.isEmpty else { return nil }
+        let layer = AdjustmentLayer(
+            name: layerStack.nextLayerName(
+                base: String(localized: "layer_default_name")),
+            chain: chain.sorted {
+                ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+            })
+        var stack = layerStack
+        stack.addAdjustment(layer)
+        self.layerStack = stack
+        commitLayerStructure(
+            layerID: layer.id,
+            label: String(
+                localized: "history_default_look", defaultValue: "Default look"),
+            schedulePersist: false)
+        return layer
     }
 
     /// The EditorState → coordinator edge for the layer dimension (same

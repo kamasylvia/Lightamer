@@ -95,7 +95,8 @@ struct WorkspaceHostView: View {
                 case .editor:
                     EditorWorkspaceShellView(
                         workspace: workspace,
-                        bridge: thumbnailBridge)
+                        bridge: thumbnailBridge,
+                        projectController: projectController)
                         .transition(.opacity.combined(with: .offset(y: -8)))
                 }
             }
