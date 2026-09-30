@@ -198,14 +198,18 @@ final class PipelineLinkageTests: XCTestCase {
         // Unknown/retouch ids degrade to the same constant face (the view
         // cannot tell them apart from "nothing selected" — by design).
         XCTAssertEqual(document.displayTitle(for: UUID()), constantFace)
-        // The develop endpoint.
-        XCTAssertEqual(document.displayTitle(for: document.develop.id), "Develop")
+        // The develop endpoint. KEY identity, not the English literal (the
+        // M2-4-2 acceptance finding 3: the catalog now carries zh values,
+        // so a zh-locale host resolves them — assert the SAME resolution).
+        XCTAssertEqual(
+            document.displayTitle(for: document.develop.id),
+            String(localized: "editor_node_develop", defaultValue: "Develop"))
         // A grade → the LAYER NAME (user data, not a kind label).
         XCTAssertEqual(document.displayTitle(for: gradeID), "My Grade")
-        // The drt endpoint.
+        // The drt endpoint (the same KEY-identity contract).
         XCTAssertEqual(
             document.displayTitle(for: PipelineDocument.displayTransformNodeID),
-            "Display Transform")
+            String(localized: "editor_node_drt", defaultValue: "Display Transform"))
 
         // The rename command flows through the projection (Reconnect-style
         // pure derivation: re-init after the mutation).
