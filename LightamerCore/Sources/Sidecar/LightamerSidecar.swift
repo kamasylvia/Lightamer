@@ -118,7 +118,27 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// (v3 documents read with nil; ONE-WAY lock — never a migration), and
     /// the field is hash-isolated (the provenance is NOT a pipeline
     /// parameter — it never enters `driftDetected`).
-    public static let schemaVersionCurrent = 4
+    ///
+    /// v5 (Plan M2-4-1 T4, KD-4; M2DIS-04 销账): the node-model data face
+    /// joins additively —
+    ///   • `rawOverrides: RAWTechnicalOverrides?` at the DOCUMENT level
+    ///     (the Develop node's first real payload — the persisted RAW
+    ///     technical overrides; nil = pristine). decodeIfPresent +
+    ///     encodeIfPresent (absent key, the layerStack/provenance
+    ///     precedent). HASH ISOLATION: rawOverrides is a DECODE-domain
+    ///     carrier — the decode result is already represented by
+    ///     `decodeParamsHash`, so it never enters `HistoryHash.hash` /
+    ///     `driftDetected` (the v3 five-field isolation precedent's
+    ///     judgment form).
+    ///   • The MASK gap fields ride the shared payload spellings inside
+    ///     `layerStack`: `MaskGroupItem.enabled` / `.displayName` and
+    ///     `MaskSpec.deletionProtected` (all Optional, synthesized
+    ///     encodeIfPresent — nil keeps the canonical JSON bytes, so v4
+    ///     layers hash identically). Unlike rawOverrides these ARE
+    ///     mask-domain parameters: they fold into the derived
+    ///     `MaskSpec.stableHash()` naturally (the 06-05 hardening
+    ///     semantics — no new hashing code).
+    public static let schemaVersionCurrent = 5
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int
@@ -190,6 +210,14 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// `ProvenanceReplay.drift`).
     public var provenance: SidecarProvenance?
 
+    // MARK: - RAW overrides (v5, Plan M2-4-1 — the Develop node payload)
+
+    /// The persisted RAW technical overrides (the RAW Decode panel's
+    /// face; nil = pristine — single decode, zero re-decode). Hash-isolated:
+    /// a DECODE-domain carrier represented by `decodeParamsHash`; never
+    /// enters `driftDetected` (the v5 judgment above).
+    public var rawOverrides: RAWTechnicalOverrides?
+
     // MARK: - Paths (D-S2)
 
     /// `…/DSC09991.ARW` → `…/DSC09991.ARW.lra` — the FULL original name
@@ -238,7 +266,8 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         colorLabel: Int? = nil,
         keywords: [String]? = nil,
         note: String? = nil,
-        provenance: SidecarProvenance? = nil
+        provenance: SidecarProvenance? = nil,
+        rawOverrides: RAWTechnicalOverrides? = nil
     ) {
         self.schemaVersion = Self.schemaVersionCurrent
         self.appVersion = appVersion
@@ -255,6 +284,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         self.keywords = keywords
         self.note = note
         self.provenance = provenance
+        self.rawOverrides = rawOverrides
     }
 
     // MARK: - Codable (projection through the String-hash records)
@@ -263,6 +293,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         case schemaVersion, appVersion, imageID, decoderVersionUsed
         case decodeParamsHash, instances, history, historyHash, layerStack
         case rating, flag, colorLabel, keywords, note, provenance
+        case rawOverrides
     }
 
     public init(from decoder: Decoder) throws {
@@ -304,6 +335,12 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // contract :94-97).
         provenance = try container.decodeIfPresent(
             SidecarProvenance.self, forKey: .provenance)
+        // v5 rawOverrides (M2-4-1 T4): decodeIfPresent — v4 documents (and
+        // the FUTURE-version branch) read with nil; a document written by
+        // a NEWER schema still yields everything else (the tolerance
+        // contract :94-97).
+        rawOverrides = try container.decodeIfPresent(
+            RAWTechnicalOverrides.self, forKey: .rawOverrides)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -348,8 +385,64 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // Provenance (v4): write ONLY when present (the layerStack
         // precedent — optional STRUCT fields stay absent, never `null`).
         try container.encodeIfPresent(provenance, forKey: .provenance)
+        // RAW overrides (v5): write ONLY when present — nil (pristine)
+        // keeps the key ABSENT so v5 documents without RAW edits stay
+        // byte-compatible with the v4 shape.
+        try container.encodeIfPresent(rawOverrides, forKey: .rawOverrides)
     }
 }
+
+// MARK: - RAWTechnicalOverrides Codable (the frozen v5 spelling)
+
+/// The RAW technical overrides join the sidecar's value space in v5 (the
+/// M2DIS-04 write leg). The spelling below is FROZEN FROM BIRTH (the ONE-WAY
+/// lock: a rename = migration); the keys mirror the struct's stored
+/// properties and decode tolerates the absent legs (nil = identity for that
+/// leg — the same Optional-nil contract as the decode request itself).
+extension RAWTechnicalOverrides: Codable {
+
+    private enum CodingKeys: String, CodingKey {
+        case noiseReductionAmount
+        case luminanceNoiseReduction
+        case colorNoiseReduction
+        case sharpness
+        case boost
+        case decoderVersion
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        noiseReductionAmount = try container.decodeIfPresent(
+            Double.self, forKey: .noiseReductionAmount)
+        luminanceNoiseReduction = try container.decodeIfPresent(
+            Double.self, forKey: .luminanceNoiseReduction)
+        colorNoiseReduction = try container.decodeIfPresent(
+            Double.self, forKey: .colorNoiseReduction)
+        sharpness = try container.decodeIfPresent(Double.self, forKey: .sharpness)
+        boost = try container.decodeIfPresent(Double.self, forKey: .boost)
+        if let raw = try container.decodeIfPresent(
+            String.self, forKey: .decoderVersion),
+            let request = RAWTechnicalOverrides.DecoderRequest(rawValue: raw) {
+            decoderVersion = request
+        } else {
+            decoderVersion = .automatic
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(noiseReductionAmount, forKey: .noiseReductionAmount)
+        try container.encodeIfPresent(luminanceNoiseReduction, forKey: .luminanceNoiseReduction)
+        try container.encodeIfPresent(colorNoiseReduction, forKey: .colorNoiseReduction)
+        try container.encodeIfPresent(sharpness, forKey: .sharpness)
+        try container.encodeIfPresent(boost, forKey: .boost)
+        if decoderVersion != .automatic {
+            try container.encode(decoderVersion.rawValue, forKey: .decoderVersion)
+        }
+    }
+}
+
+extension RAWTechnicalOverrides.DecoderRequest: Codable {}
 
 // MARK: - Private projections (the on-disk spelling, checkpoint locks #1+#2)
 
