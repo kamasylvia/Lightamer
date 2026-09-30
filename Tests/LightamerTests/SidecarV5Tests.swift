@@ -190,7 +190,10 @@ final class SidecarV5Tests: XCTestCase {
             "the writer always emits the current version")
         let decoded = try Self.decoder.decode(LightamerSidecar.self, from: bytes)
 
-        XCTAssertEqual(decoded.schemaVersion, 5)
+        // v6 bump (M2-6-1 T6): the pin follows the CURRENT version constant
+        // — the writer's contract is "always emits the current version",
+        // which moved from the literal 5 to 6 with the additive bump.
+        XCTAssertEqual(decoded.schemaVersion, LightamerSidecar.schemaVersionCurrent)
         XCTAssertEqual(decoded.rawOverrides, overrides)
         let mask = try XCTUnwrap(decoded.layerStack?.layers.first?.mask?.spec)
         // The spec-level lock rides the RUNTIME spelling (MaskSpec's own
