@@ -144,4 +144,28 @@ final class GradeParamsCodingTests: XCTestCase {
         XCTAssertFalse(ColorWheelsModule.isIdentity(ColorWheelsModule.Params(
             gain: ColorWheelControl(colorOffset: SIMD3(0.9, 1.0, 1.0)))))
     }
+
+    // MARK: - T7: hls
+
+    func testHlsJSONKeysAndArrayRoundTrip() throws {
+        let json = try jsonString(HlsModule.Params())
+        for key in ["\"hue_bins\"", "\"hls_adj_table\"", "\"h_range_table\"",
+                    "\"target_hls\"", "\"hls_adj\"", "\"h_range\"",
+                    "\"l_range\"", "\"s_range\""] {
+            XCTAssertTrue(json.contains(key), "missing key \(key)")
+        }
+        // The HlsVec3 rides as an [h, l, s] ARRAY (the Alcedo VecToJson).
+        XCTAssertTrue(json.contains("[0,45,90,135,180,225,270,315]"),
+            "hue_bins as a flat array, sorted-keys compact")
+        var params = HlsModule.Params()
+        params.adjTable[3] = HlsVec3(h: 12.5, l: 0.02, s: -0.03)
+        params.hlsAdj = params.adjTable[3]
+        let decoded = try roundTrip(params)
+        XCTAssertEqual(decoded, params)
+        // The pristine defaults.
+        XCTAssertEqual(decoded.hueBins, [0, 45, 90, 135, 180, 225, 270, 315])
+        XCTAssertEqual(decoded.hRangeTable, Array(repeating: 45, count: 8))
+        XCTAssertEqual(decoded.lRange, 0.1)
+        XCTAssertEqual(decoded.sRange, 0.1)
+    }
 }

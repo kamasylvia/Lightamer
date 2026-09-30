@@ -153,14 +153,66 @@ public final class HlsModule: IOPModule {
         return p
     }
 
-    public init() {}
+    /// The kernel name (`Hls.metal`).
+    public static let hlsKernel = "grade_hls"
+
+    private let device: (any MTLDevice)?
+    private var uniformsBuffer: (any MTLBuffer)?
+    private var committedFlag: Float = -1
+
+    public init(device: (any MTLDevice)? = nil) {
+        self.device = device
+    }
 
     public func reloadDefaults(image: DecodedImage) async -> Params {
         Params()
     }
 
+    /// The all-zero-table predicate (the kernel flag): every adj row zero
+    /// → the byte-identical copy. The bins/ranges do NOT participate (the
+    /// Alcedo kernel consumes them but with a zero table the weighted
+    /// average is zero and it returns c unchanged — the flag skips the
+    /// work with the same result).
+    public static func isIdentity(_ params: Params) -> Bool {
+        params.adjTable.allSatisfy { $0.h == 0 && $0.l == 0 && $0.s == 0 }
+    }
+
+    /// The Alcedo behavior-8 packing: [0..7] hue bins, [8 + i·3 …] the adj
+    /// rows, [32 + i] the h_range table.
+    public static func packedValues(_ params: Params) -> [Float] {
+        var values = [Float](repeating: 0, count: 48)
+        for i in 0..<binCount {
+            values[i] = params.hueBins[i]
+            values[8 + i * 3] = params.adjTable[i].h
+            values[8 + i * 3 + 1] = params.adjTable[i].l
+            values[8 + i * 3 + 2] = params.adjTable[i].s
+            values[32 + i] = params.hRangeTable[i]
+        }
+        return values
+    }
+
     public func commitParams(_ params: Params, into piece: inout IOPiece) {
         piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
+        var floats = [Float](repeating: 0, count: 52)
+        floats[0] = Self.isIdentity(params) ? 0 : 1
+        for (index, value) in Self.packedValues(params).enumerated() {
+            floats[1 + index] = value
+        }
+        if uniformsBuffer == nil || committedFlag != floats[0] {
+            let resolved = device ?? MTLCreateSystemDefaultDevice()
+            uniformsBuffer = resolved?.makeBuffer(
+                length: 52 * MemoryLayout<Float>.stride, options: .storageModeShared)
+            committedFlag = floats[0]
+        }
+        guard let buffer = uniformsBuffer else {
+            piece.data = nil
+            return
+        }
+        floats.withUnsafeBytes {
+            buffer.contents().copyMemory(
+                from: $0.baseAddress!, byteCount: 52 * MemoryLayout<Float>.stride)
+        }
+        piece.data = buffer
     }
 
     public func process(
@@ -171,6 +223,64 @@ public final class HlsModule: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        throw GradeCarrierKernelPending(op: Self.opName)
+        guard let buffer = piece.data else { return }
+        try await metal.dispatch2DTexture(
+            functionName: Self.hlsKernel,
+            input: input,
+            output: output
+        ) { encoder in
+            encoder.setBuffer(buffer, offset: 0, index: 0)
+        }
+    }
+
+    // MARK: - CPU reference (KD-8 — the golden test's Float64 mirror)
+
+    /// The Float64 reference (Alcedo ApplyHls): the 8-bin Gaussian window
+    /// + the YIQ rotation/scale on the ACEScc texels.
+    public static func reference(acescc: SIMD3<Double>, params: Params) -> SIMD3<Double> {
+        if isIdentity(params) { return acescc }
+        let rgb = acescc
+        let maximum = max(rgb.x, max(rgb.y, rgb.z))
+        let minimum = min(rgb.x, min(rgb.y, rgb.z))
+        let chroma = maximum - minimum
+        if chroma <= 1.0e-6 { return acescc }
+        var hue: Double
+        if maximum == rgb.x {
+            hue = 60.0 * ((rgb.y - rgb.z) / chroma .truncatingRemainder(dividingBy: 6.0))
+        } else if maximum == rgb.y {
+            hue = 60.0 * ((rgb.z - rgb.x) / chroma + 2.0)
+        } else {
+            hue = 60.0 * ((rgb.x - rgb.y) / chroma + 4.0)
+        }
+        if hue < 0 { hue += 360.0 }
+        var sumH = 0.0, sumL = 0.0, sumS = 0.0, sumWeight = 0.0
+        for i in 0..<binCount {
+            let difference = abs(hue - Double(params.hueBins[i]))
+            let distance = min(difference, 360.0 - difference)
+            let width = max(Double(params.hRangeTable[i]), 1.0)
+            let weight = exp2(-distance * distance / (width * width))
+            sumH += Double(params.adjTable[i].h) * weight
+            sumL += Double(params.adjTable[i].l) * weight
+            sumS += Double(params.adjTable[i].s) * weight
+            sumWeight += weight
+        }
+        if sumWeight <= 1.0e-6 { return acescc }
+        let adjH = sumH / sumWeight
+        let adjL = sumL / sumWeight
+        let adjS = sumS / sumWeight
+        if abs(adjH) <= 1.0e-6 && abs(adjL) <= 1.0e-6 && abs(adjS) <= 1.0e-6 {
+            return acescc
+        }
+        let angle = adjH * 2.25 * Double.pi / 180.0
+        let scale = exp2(adjS * 2.25 * (adjS >= 0 ? 4.5 : 3.25))
+        let luma = 0.272229 * rgb.x + 0.674082 * rgb.y + 0.053689 * rgb.z + adjL * 1.125
+        let iComp = 0.596 * rgb.x - 0.274 * rgb.y - 0.322 * rgb.z
+        let qComp = 0.211 * rgb.x - 0.523 * rgb.y + 0.312 * rgb.z
+        let rotatedI = (iComp * cos(angle) - qComp * sin(angle)) * scale
+        let rotatedQ = (iComp * sin(angle) + qComp * cos(angle)) * scale
+        return SIMD3(
+            luma + 0.956 * rotatedI + 0.621 * rotatedQ,
+            luma - 0.272 * rotatedI - 0.647 * rotatedQ,
+            luma - 1.106 * rotatedI + 1.703 * rotatedQ)
     }
 }
