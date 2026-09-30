@@ -34,12 +34,60 @@ Third-party provenance
    GPL-3.0, (c) Yurun Zi) served as the read-only schema reference for the
    same phase; schema facts only, no code copied.
 
-2. aces-core (ACES 2.0 method — placeholder, lands with M2-6-2 / Plan 2)
+2. aces-core (ACES 2.0 method — Plan M2-6-2; code-level port with attribution)
 
-   Upstream: ampas/aces-core
+   Upstream: ampas/aces-core (renamed aces-aswf/aces-core at the v2.0
+   reorganization; this project preserves the ampas URL as the canonical
+   upstream identity)
    https://github.com/ampas/aces-core
-   License: AMPAS BSD-style (see third_party_licenses in the upstream
-   project). This entry is a placeholder for the P2 milestone; the ACES
-   2.0 render arm is an explicit stub in this tree and the AMPAS terms
-   will be honored (attribution + license text) when the ported code
-   lands.
+   Upstream version: v2.0 main, commit 069b0bc3e1f6c62820f19fdae2fecec3f4
+   fc0f80 (2026-09-01).
+   License: Apache-2.0 (the v2.0 main branch; "Copyright Contributors to
+   the ACES Project"). The plan-phase BSD assumption held only for the
+   v1.3-era tag (see the RGC item below); the v2.0 main re-licensed to
+   Apache-2.0 — the same permissive-porting terms (attribution + license
+   text honored here and in the ported files' headers).
+
+   Ported (transcribed to Swift Float64 + Metal, formulas re-derived in
+   the math form; per-function upstream line anchors carried in-file):
+
+     from lib/Lib.Academy.OutputTransform.ctl (v2.0 main):
+       init_JMhParams, RGB_to_Aab/Aab_to_JMh/RGB_to_JMh, JMh_to_Aab/
+       Aab_to_RGB/JMh_to_RGB, post_adaptation_cone_response_compression
+       fwd/inv, Achromatic_n_to_J/J_to_Achromatic_n, clamp_AP0_to_AP1,
+       the chroma-compression family (chroma_compress_norm/fwd/inv, toe,
+       reinhard_remap), the gamut-compression family (compute_compression_
+       vector_slope, solve_J_intersect, smin_scaled, estimate_line_and_
+       boundary_intersection_M, find_gamut_boundary_intersection,
+       get_focus_gain, remap_M, compute_focus_J, init_HueDependentGamut
+       Params, compress_gamut, gamut_compress_fwd, cusp_from_table,
+       lookup_hue_interval), the table builders (build_limiting_cusp_
+       corners_tables, find_reach_corners_table, extract_sorted_cube_hues,
+       build_hue_sample_interval, build_hue_table, find_display_cusp_for_
+       hue, build_cusp_table, make_uniform_hue_gamut_table, make_reach_m_
+       table, generate_gamma_test_data, evaluate_gamma_fit, make_upper_
+       hull_gamma_table, determine_hue_linearity_search_range), the ODT
+       parameter constants, and outputTransform_fwd;
+     from lib/Lib.Academy.Tonescale.ctl (v2.0 main):
+       TSParams/init_TSParams, tonescale_fwd/inv;
+     from lib/Lib.Academy.Utilities.ctl (v2.0 main):
+       the RGBtoXYZ_f33 primaries->matrix formula;
+     from transforms/ctl/lmt/LMT.Academy.GamutCompress.ctl (tag v1.3,
+       the ACES 1.3 reference gamut compression; AMPAS BSD-style license
+       terms, (c) 2015 A.M.P.A.S.):
+       the gamut-compress shaper (compress + the LIM/THR/PWR constant
+       table) — the fixed前置 stage of the aces20 method kernel.
+
+   Ported files:
+     LightamerCore/Sources/Pipe/Drt/Cam16.swift
+     LightamerCore/Sources/Pipe/Drt/Aces2Limiting.swift
+     LightamerCore/Sources/Pipe/Drt/Aces2Reference.swift
+     LightamerCore/Sources/Pipe/Drt/Aces2Kernels.metal
+
+   The limiting-space primary/white chromaticity table (rec709 / rec2020 /
+   p3d65 / p3d60 / p3dci / proPhoto / adobeRGB) is the public
+   specification facts of those spaces (ITU-R BT.709/BT.2020, DCI P3 +
+   SMPTE RP 431-2, ISO 22028 ROMM, Adobe RGB (1998)) — data, transcribed
+   with per-row source comments. The Alcedo Studio aces_reference_gamut_
+   compression.h (GPL-3.0) was consulted READ-ONLY to cross-check the RGC
+   shape; zero GPL code or text copied.

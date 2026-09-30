@@ -681,13 +681,14 @@ public extension DrtMethod {
         }
     }
 
-    /// The P2 replacement face (KD-6): `aces20` is an EXPLICIT STUB in this
-    /// plan — the render arm lands in M2-6-2. Callers (the DRT method box)
-    /// switch exhaustively on DrtMethod (no default arm) and must refuse to
-    /// dispatch an unimplemented method through this predicate.
+    /// The render-arm predicate (M2DRT-06): BOTH methods carry real render
+    /// arms since M2-6-2 (the aces20 stub face this predicate once pinned
+    /// is gone — the dispatch lives in DrtMethodBox, exhaustive, no
+    /// default arm). Callers refuse nothing here anymore; a NEW method
+    /// case must add its arm and this predicate flips with it.
     var isRenderImplemented: Bool {
         switch self {
-        case .aces20: return false
+        case .aces20: return true
         case .opendrt: return true
         }
     }

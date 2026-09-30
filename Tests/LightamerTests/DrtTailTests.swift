@@ -364,18 +364,25 @@ final class DrtTailTests: XCTestCase {
         }
     }
 
-    func testAces20MethodIsARefusedStubUntilP2() async throws {
+    func testAces20MethodRendersThroughTheTail() async throws {
+        // M2-6-2 (T4): the aces20 render arm is LIVE — the tail renders it
+        // (the P1 refusal stub face is gone), SDR format per the record,
+        // and the output DIFFERS from the opendrt arm on the same fixture
+        // (the two methods are genuinely different transforms).
         let metal = try await makeMetal()
-        var record = DrtRecord()
-        record.method = .aces20
+        var acesRecord = DrtRecord()
+        acesRecord.method = .aces20
         let chain = try await makeTerminalChain(registry: makeRegistry())
-        do {
-            _ = try await render(
-                makeImage(), chain, policy: .drt(DrtTailParams(record: record)), metal: metal)
-            XCTFail("the aces20 arm is an explicit stub — the render must refuse")
-        } catch let error as DrtTailError {
-            XCTAssertEqual(error, .methodNotImplemented(.aces20))
-        }
+        let (acesTexture, _) = try await render(
+            makeImage(), chain, policy: .drt(DrtTailParams(record: acesRecord)),
+            metal: metal)
+        XCTAssertEqual(acesTexture.pixelFormat, .bgra8Unorm)
+        let (openTexture, _) = try await render(
+            makeImage(), chain, policy: .drt(DrtTailParams(record: sdrRecord)),
+            metal: metal)
+        let acesBytes = readBytes(acesTexture)
+        let openBytes = readBytes(openTexture)
+        XCTAssertNotEqual(acesBytes, openBytes, "the two methods must diverge")
     }
 
     func testTerminalTailPolicySwitchIsExhaustiveAndDrivesThePath() {
