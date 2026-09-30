@@ -1,6 +1,9 @@
 import CoreGraphics
 import LightamerCore
+import LightamerIOP
+import SwiftUI
 import XCTest
+import AppKit
 
 @testable import Lightamer
 
@@ -233,6 +236,69 @@ final class NodeCanvasGeometryTests: XCTestCase {
             NodeCanvasGeometry.fitScale(contentHeight: 1200, containerHeight: 0), 1)
         XCTAssertEqual(
             NodeCanvasGeometry.fitScale(contentHeight: 1200, containerHeight: -10), 1)
+    }
+
+    // MARK: - T2: the render-geometry readback (AC3 — the machine check)
+
+    /// The preference sink (a class box — onPreferenceChange escapes to the
+    /// main actor across transaction commits).
+    @MainActor
+    private final class FrameBox {
+        var frames: [UUID: CGRect] = [:]
+    }
+
+    /// The REAL panel (EditorState + LayerEditingState instances — the
+    /// checker E2 App-level registration) hosted in a windowless
+    /// NSHostingView; the card frames flow back through the
+    /// `NodeCardFramesKey` preference.
+    @MainActor
+    func testRenderedCardFramesMatchTheLayout() throws {
+        let editorState = EditorState()
+        let seed = ModuleInstance(
+            module: TestGainModule.self, params: TestGainModule.Params())
+        editorState.resetHistoryForNewImage(defaultInstances: [seed])
+        _ = editorState.addAdjustmentLayer()
+        _ = editorState.addAdjustmentLayer()
+        let doc = try XCTUnwrap(editorState.layerStack.map(PipelineDocument.init))
+        XCTAssertEqual(doc.nodes.count, 4)
+
+        let containerWidth: CGFloat = 248
+        let containerHeight: CGFloat = 900 // the content fits → scale 1
+        let expected = NodeCanvasGeometry.layout(for: doc.nodes, width: containerWidth)
+
+        let box = FrameBox()
+        let panel = EditorNodesPanelView(
+            editorState: editorState, editingState: LayerEditingState())
+            .onPreferenceChange(NodeCardFramesKey.self) { box.frames = $0 }
+        let host = NSHostingView(rootView: panel)
+        host.frame = NSRect(
+            x: 0, y: 0, width: containerWidth, height: containerHeight)
+
+        // A window-less host lays out on demand; pump the main run loop so
+        // the SwiftUI transaction commits and the preference delivers.
+        let deadline = Date().addingTimeInterval(3)
+        host.layoutSubtreeIfNeeded()
+        while box.frames.count < doc.nodes.count && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            host.layoutSubtreeIfNeeded()
+        }
+
+        XCTAssertEqual(
+            box.frames.count, doc.nodes.count,
+            "every card reported its rendered frame through the preference")
+
+        // The RENDERED frames equal the pure-function layout, card for
+        // card (the render face derives from NOTHING else — the AC3
+        // machine check; recorded in DECISIONS as the 机检方式).
+        for node in doc.nodes {
+            let rendered = try XCTUnwrap(
+                box.frames[node.id], "missing frame for \(node.kind)")
+            let laid = try XCTUnwrap(expected.frames[node.id])
+            XCTAssertEqual(rendered.minX, laid.minX, accuracy: 0.01, "\(node.kind) x")
+            XCTAssertEqual(rendered.minY, laid.minY, accuracy: 0.01, "\(node.kind) y")
+            XCTAssertEqual(rendered.width, laid.width, accuracy: 0.01, "\(node.kind) w")
+            XCTAssertEqual(rendered.height, laid.height, accuracy: 0.01, "\(node.kind) h")
+        }
     }
 
     // MARK: - The 30-node BENCH (an observation line, NOT a gate — plan T2)
