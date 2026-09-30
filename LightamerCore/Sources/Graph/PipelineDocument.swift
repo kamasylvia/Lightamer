@@ -114,7 +114,7 @@ public struct PipelineDocument: Sendable, Equatable {
             mix: 1,
             isDeletionLocked: true,
             layerID: nil)
-        grades = stack.compositeLayers.map { layer in
+        let gradeNodes = stack.compositeLayers.map { layer in
             Node(
                 id: layer.id,
                 kind: .grade,
@@ -123,6 +123,12 @@ public struct PipelineDocument: Sendable, Equatable {
                 mix: layer.opacity,
                 isDeletionLocked: false,
                 layerID: layer.id)
+        }
+        grades = gradeNodes
+        maskGroups = zip(gradeNodes, stack.compositeLayers).map { node, layer in
+            MaskGroup(
+                gradeNode: node,
+                masks: (layer.mask?.maskItems ?? []).map(MaskItemSummary.init))
         }
         displayTransform = Node(
             id: Self.displayTransformNodeID,
@@ -137,4 +143,86 @@ public struct PipelineDocument: Sendable, Equatable {
     /// The full linear chain: develop → grades → displayTransform (the
     /// panel's top-to-bottom render order).
     public var nodes: [Node] { [develop] + grades + [displayTransform] }
+
+    // ── M2-7 data face + the selection mapping (Plan M2-4-2 T2, KD-3) ──
+
+    /// One mask of a group (the M2-7 Mask Groups panel's row data face) —
+    /// the `MaskSpec.maskItems` read view frozen into an Equatable summary
+    /// so projections stay comparable.
+    public struct MaskItemSummary: Sendable, Equatable {
+
+        /// The item's form id (the panel's row anchor).
+        public let id: UUID
+
+        /// The stored display name; nil = DERIVED at the display site (the
+        /// derivation consumes the Core single source
+        /// `LayerStack.nextLayerName(base:)` — never persisted).
+        public let name: String?
+
+        /// The v5 enabled gate (nil folded to true).
+        public let isEnabled: Bool
+
+        public let opacity: Float
+
+        public let isInverted: Bool
+
+        init(_ item: (id: UUID, name: String?, enabled: Bool, opacity: Float, inverted: Bool)) {
+            id = item.id
+            name = item.name
+            isEnabled = item.enabled
+            opacity = item.opacity
+            isInverted = item.inverted
+        }
+    }
+
+    /// One grade's mask group (the M2-7 panel's card): the grade node +
+    /// its masks in group order. Every grade projects exactly one group
+    /// (empty `masks` = the grade carries no mask).
+    public struct MaskGroup: Sendable, Equatable {
+
+        public let gradeNode: Node
+
+        public let masks: [MaskItemSummary]
+    }
+
+    /// The mask groups in GRADE ORDER — D-M2-4-CONTEXT-9's data semantics
+    /// (组序 = grade 序 = 层序; the M2-7 panel's drag-to-reorder rides the
+    /// Reconnect command and this projection FOLLOWS, pure derivation with
+    /// zero sync points). Computed in `init` alongside the other segments
+    /// — the same per-read rebuild as `grades`, not a cache.
+    public let maskGroups: [MaskGroup]
+
+    /// The selection mapping (the panels' seam — nil = nothing selected;
+    /// the develop-segment semantics for nil are the VIEW layer's call).
+    /// The develop/drt ids resolve their endpoints, a grade UUID resolves
+    /// its node, and an unknown id (e.g. a retouch layer, off-graph)
+    /// resolves nil.
+    public func node(for id: UUID?) -> Node? {
+        guard let id else { return nil }
+        return nodes.first { $0.id == id }
+    }
+
+    /// The node header's display title — the EXHAUSTIVE branch table (no
+    /// default arm; the checker discipline):
+    ///
+    ///   nil (unselected) → the M2-3-3 constant face "Color Grade" (the
+    ///                      SAME localization key, byte-identical render);
+    ///   develop          → "Develop" (`editor_node_develop`);
+    ///   grade            → the layer name (user data);
+    ///   displayTransform → "Display Transform" (`editor_node_drt`).
+    ///
+    /// `EditorNodeHeaderView` consumes ONLY this function for the title.
+    public func displayTitle(for id: UUID?) -> String {
+        switch node(for: id)?.kind {
+        case .develop:
+            String(localized: "editor_node_develop", defaultValue: "Develop")
+        case .grade:
+            node(for: id)?.name
+                ?? String(localized: "editor_node_name", defaultValue: "Color Grade")
+        case .displayTransform:
+            String(localized: "editor_node_drt", defaultValue: "Display Transform")
+        case nil:
+            String(localized: "editor_node_name", defaultValue: "Color Grade")
+        }
+    }
 }
