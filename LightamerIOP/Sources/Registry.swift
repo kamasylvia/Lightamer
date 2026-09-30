@@ -95,6 +95,18 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: Cat02WBModule.opName) { id in
             ModuleBox(module: Cat02WBModule(), instanceID: id)
         }
+        // M2-5-1 T4: contrast (the OkLab mid-grey-pivot lightness curve —
+        // NOT colisa's RGB scaling), white, black (the endpoint pair on
+        // the shared WhiteBlack.metal kernel), v50 slots 41.6/41.8/41.95.
+        await registry.register(opName: ContrastModule.opName) { id in
+            ModuleBox(module: ContrastModule(), instanceID: id)
+        }
+        await registry.register(opName: WhiteModule.opName) { id in
+            ModuleBox(module: WhiteModule(), instanceID: id)
+        }
+        await registry.register(opName: BlackModule.opName) { id in
+            ModuleBox(module: BlackModule(), instanceID: id)
+        }
         // Phase 3's first real iop (Plan 03-01-T5): exposure, v50 slot 21.0.
         await registry.register(opName: ExposureModule.opName) { id in
             ModuleBox(module: ExposureModule(), instanceID: id)
@@ -412,6 +424,9 @@ public enum LightamerIOPRegistry {
             ACESccKernel.inFunctionName,
             ACESccKernel.outFunctionName,
             Cat02WBKernel.functionName,
+            ContrastKernel.functionName,
+            WhiteKernel.functionName,
+            BlackKernel.functionName,
             TemperatureKernel.functionName,
             ExposureKernel.functionName,
             ColisaKernel.functionName,

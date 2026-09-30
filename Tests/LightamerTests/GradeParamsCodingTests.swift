@@ -50,4 +50,31 @@ final class GradeParamsCodingTests: XCTestCase {
         let far = Cat02WBModule.Params(temperature: 15000, tint: 150)
         XCTAssertEqual(try roundTrip(far), far)
     }
+
+    // MARK: - T4: contrast / white / black
+
+    func testContrastJSONKeyAndClamp() throws {
+        let json = try jsonString(ContrastModule.Params())
+        XCTAssertTrue(json.contains("\"contrast\""), "Alcedo key spelling")
+        XCTAssertEqual(try roundTrip(ContrastModule.Params()), ContrastModule.Params())
+        let high = ContrastModule.clamped(ContrastModule.Params(contrast: 999))
+        XCTAssertEqual(high.contrast, 100)
+        let low = ContrastModule.clamped(ContrastModule.Params(contrast: -999))
+        XCTAssertEqual(low.contrast, -100)
+    }
+
+    func testWhiteBlackJSONKeysAndClamps() throws {
+        XCTAssertTrue(try jsonString(WhiteModule.Params()).contains("\"white\""))
+        XCTAssertTrue(try jsonString(BlackModule.Params()).contains("\"black\""))
+        XCTAssertEqual(try roundTrip(WhiteModule.Params()), WhiteModule.Params())
+        XCTAssertEqual(try roundTrip(BlackModule.Params()), BlackModule.Params())
+        XCTAssertEqual(
+            WhiteModule.clamped(WhiteModule.Params(white: 999)).white, 100)
+        XCTAssertEqual(
+            WhiteModule.clamped(WhiteModule.Params(white: -999)).white, -100)
+        XCTAssertEqual(
+            BlackModule.clamped(BlackModule.Params(black: 999)).black, 100)
+        XCTAssertEqual(
+            BlackModule.clamped(BlackModule.Params(black: -999)).black, -100)
+    }
 }

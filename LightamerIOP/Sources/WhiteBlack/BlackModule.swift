@@ -3,14 +3,19 @@ import Metal
 
 // ─────────────────────────────────────────────────────────────────────────
 // BlackModule (Plan M2-5-1 T4; KD-5) — the Alcedo `black` catalog op:
-// scene-referred black-endpoint calibration, a ±100 scalar. Shares the
-// WhiteBlack.metal kernel with WhiteModule (one kernel, two entry points —
-// KD-5's "一枚 kernel 双方向"). Params key照抄 BlackTraits ("black", 0,
-// ±100).
-//
-// T1 CARRIER NOTE: param/op face only — kernel + registration land with the
-// T4 commit (GradeCarrierKernelPending tripwire; op unregistered meanwhile).
+// scene-referred black-endpoint calibration, a ±100 scalar riding the
+// ACEScc grade domain (behavior 4): offset = value·0.001 added to every
+// channel. Zero is the exact identity (the CPU packs the early-exit flag
+// for a byte-identical copy). Shares WhiteBlack.metal with WhiteModule
+// (one kernel file, two entries — KD-5's "一枚 kernel 双方向"). Params key
+// 照抄 BlackTraits ("black", 0, ±100).
 // ─────────────────────────────────────────────────────────────────────────
+
+public enum BlackKernel {
+    /// MSL function name (`WhiteBlack.metal` black entry).
+    public static let functionName = "grade_black"
+    public static let metalBundle = Bundle(for: IOPBundleMarker.self)
+}
 
 public final class BlackModule: IOPModule {
 
@@ -39,7 +44,13 @@ public final class BlackModule: IOPModule {
         Params(black: min(max(params.black, blackRange.lowerBound), blackRange.upperBound))
     }
 
-    public init() {}
+    private let device: (any MTLDevice)?
+    private var uniformsBuffer: (any MTLBuffer)?
+    private var committedFlag: Float = -1
+
+    public init(device: (any MTLDevice)? = nil) {
+        self.device = device
+    }
 
     public func reloadDefaults(image: DecodedImage) async -> Params {
         Params()
@@ -47,6 +58,28 @@ public final class BlackModule: IOPModule {
 
     public func commitParams(_ params: Params, into piece: inout IOPiece) {
         piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
+        let clamped = Self.clamped(params)
+        // Uniforms: [flag, offset, pad, pad]. The offset = value·0.001
+        // (Alcedo behavior 4 — additive in the ACEScc domain).
+        var floats: [Float] = [0, clamped.black * 0.001, 0, 0]
+        if clamped.black != 0 {
+            floats[0] = 1
+        }
+        if uniformsBuffer == nil || committedFlag != floats[0] {
+            let resolved = device ?? MTLCreateSystemDefaultDevice()
+            uniformsBuffer = resolved?.makeBuffer(
+                length: 4 * MemoryLayout<Float>.stride, options: .storageModeShared)
+            committedFlag = floats[0]
+        }
+        guard let buffer = uniformsBuffer else {
+            piece.data = nil
+            return
+        }
+        floats.withUnsafeBytes {
+            buffer.contents().copyMemory(
+                from: $0.baseAddress!, byteCount: 4 * MemoryLayout<Float>.stride)
+        }
+        piece.data = buffer
     }
 
     public func process(
@@ -57,6 +90,20 @@ public final class BlackModule: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        throw GradeCarrierKernelPending(op: Self.opName)
+        guard let buffer = piece.data else { return }
+        try await metal.dispatch2DTexture(
+            functionName: BlackKernel.functionName,
+            input: input,
+            output: output
+        ) { encoder in
+            encoder.setBuffer(buffer, offset: 0, index: 0)
+        }
+    }
+
+    /// The Float64 reference (KD-8): the channel offset in ACEScc space.
+    public static func reference(acescc: SIMD3<Double>, black: Double) -> SIMD3<Double> {
+        if black == 0 { return acescc }
+        let offset = black * 0.001
+        return acescc + offset
     }
 }
