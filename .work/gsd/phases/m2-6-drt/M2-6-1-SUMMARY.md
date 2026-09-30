@@ -19,7 +19,11 @@
 ## 测试数变化（对账 = BUNDLE-MAP 行）
 
 - 基线 2327/16skip/0fail → **终态 2403/16skip/0fail**（+76 = 17+13+10→15+11+8+12，逐行对账精确）。
-- 七 bundle 终态：IOP 467/1、IOPParity 357/3、Layers 234/3、Library 430/4、Sessions 279/4、Export 260/1、App 376/0（skip 全部为既有在案 skip）。
+  【2026-10-01 验收勘误：七 bundle 行和实测/对账 = **2402**（Layers 实测 233/3，非 234）——
+  +76 增量精确成立；±1 出在既有基线记账（M2-5-3 实测 executed 2327 vs 基线 BUNDLE-MAP 行和
+  2326，一处 map 行少记 1，非本 plan 引入）。后续全套 sweep（M2-6-2 收口）以 executed 实测
+  为准重钉基线。】
+- 七 bundle 终态：IOP 467/1、IOPParity 357/3、Layers 233/3、Library 430/4、Sessions 279/4、Export 260/1、App 376/0（skip 全部为既有在案 skip；Layers 数 = 验收实测勘误）。
 - 全套跑法：**逐 bundle 定向轮**（`--bundle <X>`，每 bundle 独立进程，MEMFAIL 8G 机检内置未触发；全程峰值 947MB@Layers）。`--all` 单进程串行等价覆盖，未触发报备需求。
 
 ## 容差谱实测（KD-8 逐断言签注 → 详见 DECISIONS §D4）
