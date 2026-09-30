@@ -156,10 +156,10 @@ APP	10	SidecarV5Tests.swift
 APP	9	MaskItemSemanticsTests.swift
 APP	9	NodeCanvasGeometryTests.swift
 APP	14	NodesPanelModelTests.swift
-APP	14	GradeCatalogTests.swift
+APP	15	GradeCatalogTests.swift
 LAYERS	5	ACESccEnvelopeTests.swift
-IOPP	4	GradeKernelGoldenTests.swift
-IOP	3	GradeParamsCodingTests.swift
+IOPP	18	GradeKernelGoldenTests.swift
+IOP	10	GradeParamsCodingTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
 EXPORT	10	SpotlightAttributeMapperTests.swift
@@ -284,3 +284,8 @@ SHARED	0	ChainBuilderHelpers.swift
 #   ACESccEnvelopeTests = LAYERS（Core driver 直测）；GradeKernelGoldenTests = IOPP
 #   （Golden* 惯例）；GradeParamsCodingTests = IOP）。运行期总数基线相应上移
 #   （2240 起算；对账以各行 method 数为准）。
+# M2-5-1 验收批勘误（2026-09-30 验收 subagent）：GradeKernelGoldenTests/IOPP 行
+#   4→18、GradeParamsCodingTests/IOP 行 3→10——T3 落行时点值，T4-T7 各任务的
+#   golden/coding 方法增量未随动（头注「对账以各行 method 数为准」）；APP 行
+#   14→15 = 验收批补 E7 全闭合机检 testAllCatalogOpsAreDefaultFaceRegistered
+#   （DECISIONS §3(b) 注释曾引用而测试缺失）。终态对账：2240 + 48 = 2288。

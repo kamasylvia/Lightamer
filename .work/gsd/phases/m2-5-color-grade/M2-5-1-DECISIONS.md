@@ -85,3 +85,9 @@ plan 字面 `default face ∖（18 目录 op 集 ∪ {testgain}）= ∅` **不�
 - **CAT02 CCT/tint→xy**：Planck 定律 × CIE 1931 2° CMF（1nm 360-830，CIE 018:2019 公开数据集）直接积分（c2 = 1.4387774e-2，与 Alcedo 表生成同源；对表首条目验证 du≈−9.6e-9），**不拷贝其派生表数据**；locus 切向窗 ΔK 照抄（clamp(cct·0.001, 0.5, 3250)）。
 - **identity 判定补充**：shadhi 目录快照（shadows/highlights 0）≠ 面板默认（50/−50）——checker m5 分立两套值的声明由测试钉死。
 - **HLS 8-bin uniform 装配**：values[0..7]=hue_bins、[8+i·3]=adj 行、[32+i]=h_range（Alcedo 行为 8 装配式样）；flag = 全零表早退（等价于 kernel 内 adj≈0 返回，省 8 bin 循环）。
+
+## 八、Tint 像素语义签注（2026-09-30 验收批补充）
+
+- **Alcedo 0.3.0 的 Tint 是悬空目录 op**：`adjustment_catalog.cpp` 注册（TintTraits：key "tint"、default 0、±100——目录面照抄无误），但 `TryResolveAdjustmentBehavior`（adjustment_runtime.cpp:98-117）**不解析 Tint**——无 AdjustmentBehavior、无 primary-grade 像素路径（入链即 throw "unregistered adjustment type"）。plan T5"绿-品红轴式子按源码钉"的前提（源码存在该式）不成立。
+- **落地公式** = `primary_grade.metal` 数值分支 behavior 14 原文：`scale = 1 + value·0.0025`；`c = luma + (c−luma)·scale`（luma = AP1 权 0.272229/0.674082/0.053689，ACEScc 域 texel 直施无 decode）。该数值槽在 Alcedo 自身派发下**不可达**（枚举 14 = Sharpen，neighborhood op 走 neighbor pass）——是文件内唯一 source-shaped 可引用语义，取之作本 op 公式（plan 风险节条款："按源码实测语义实现，DECISIONS 记偏差；公式形态可变"）。
+- **AC 底线不受影响**：identity @0 容差 0（flag 早退）、±100 端点有界、单调（对称 chroma 缩放）全部机检在册（GradeKernelGoldenTests testTintIdentityAndGolden）。P2 面板接线时如 Alcedo 上游给 Tint 补 runtime 语义，以彼时源码为准重钉（本节失效）。

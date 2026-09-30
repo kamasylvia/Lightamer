@@ -1,11 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────
-// Tint.metal (Plan M2-5-1 T5, KD-5) — the Alcedo `tint` op (primary_grade
-// behavior 14): an independent ±100 scalar, a gentle luma-pivot chroma
-// scale on the ACEScc texels:
+// Tint.metal (Plan M2-5-1 T5, KD-5) — the independent ±100 `tint` scalar.
+// CATALOG face faithful (Alcedo TintTraits: key "tint", default 0, ±100).
+// PIXEL semantics, signed in M2-5-1-DECISIONS §八: Alcedo 0.3.0's Tint is
+// a DORMANT catalog op — TryResolveAdjustmentBehavior does not resolve it
+// (no AdjustmentBehavior, no GPU leg). The formula below is the
+// primary_grade.metal numeric behavior-14 branch verbatim (a luma-pivot
+// chroma scale on the ACEScc texels):
 //   scale = 1 + value · 0.0025;  c = luma + (c − luma) · scale
-// (deliberately SEPARATE from the CAT02 WB's embedded tint — the catalog
-// carries both, 照抄目录). Value 0 takes the CPU's early-exit flag
-// (byte-identical copy, pixel tolerance 0).
+// (that numeric slot is unreachable in Alcedo's own dispatch — enum 14 is
+// Sharpen, a neighborhood op — so the branch is the only in-file
+// source-shaped semantics available). Deliberately SEPARATE from the
+// CAT02 WB's embedded tint — the catalog carries both, 照抄目录. Value 0
+// takes the CPU's early-exit flag (byte-identical copy, pixel tolerance 0).
 // ─────────────────────────────────────────────────────────────────────────
 #include <metal_stdlib>
 using namespace metal;
