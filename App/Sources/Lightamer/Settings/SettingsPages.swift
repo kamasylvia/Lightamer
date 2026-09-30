@@ -1,5 +1,6 @@
 import AppKit
 import LightamerCore
+import LightamerIOP
 import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,8 +194,13 @@ struct SettingsDefaultBehaviorPage: View {
 /// scratch). Per-project `.lathumbs` dirs live beside their projects and are
 /// named as rebuildable in the copy.
 struct SettingsCachePage: View {
+    /// nil = the app face (`.standard`); tests inject an isolated suite.
+    var preferences: AppPreferences = AppPreferences()
+
     @State private var cachesPath: String = ""
     @State private var clearedBanner = false
+    @State private var lutRootPath: String = ""
+    @State private var lutStatusLine: String?
 
     var body: some View {
         Form {
@@ -229,6 +235,47 @@ struct SettingsCachePage: View {
                     .font(.caption)
                     .foregroundStyle(LightamerColors.textSecondary)
             }
+
+            // M2-5-3 (KD-3, M2GRADE-06): the user-configurable LUT library
+            // root — probe-then-persist; a failed probe degrades with an
+            // error line and keeps the effective root (L009: no bookmarks
+            // in v1). USER data, not derived — hence the explicit copy.
+            Section(String(localized: "settings_lut_section",
+                           defaultValue: "LUT Library")) {
+                LabeledContent(String(localized: "settings_lut_root_location",
+                                      defaultValue: "Library root")) {
+                    Text(lutRootPath)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .help(lutRootPath)
+                        .accessibilityIdentifier("settings.lut.root")
+                }
+                HStack {
+                    Button(String(localized: "settings_lut_root_choose",
+                                  defaultValue: "Choose…")) {
+                        chooseLutRoot()
+                    }
+                    .accessibilityIdentifier("settings.lut.choose")
+                    Button(String(localized: "settings_lut_root_reset",
+                                  defaultValue: "Reset to Default Root")) {
+                        resetLutRoot()
+                    }
+                    .accessibilityIdentifier("settings.lut.reset")
+                }
+                if let lutStatusLine {
+                    Text(lutStatusLine)
+                        .font(.caption)
+                        .foregroundStyle(
+                            lutRootRejected ? Color.orange : LightamerColors.textSecondary)
+                        .accessibilityIdentifier("settings.lut.status")
+                }
+                Text(String(
+                    localized: "settings_lut_hint",
+                    defaultValue: "Tables live in subdirectories of the root; the built-in film set is seeded into BuiltIn/ on the default root only."))
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
         }
         .formStyle(.grouped)
         .accessibilityIdentifier("settings.page.cache")
@@ -236,7 +283,52 @@ struct SettingsCachePage: View {
             cachesPath = (FileManager.default
                 .urls(for: .cachesDirectory, in: .userDomainMask).first?
                 .path) ?? "—"
+            lutRootPath = preferences.lutLibraryRoot().path
         }
+    }
+
+    /// The error-line tint discriminator (the invalid-root copy renders
+    /// orange; the rescan outcome renders secondary).
+    private var lutRootRejected: Bool { lutStatusLine == rejectedCopy }
+
+    private var rejectedCopy: String {
+        String(localized: "settings_lut_root_invalid",
+               defaultValue: "That folder is not usable as the LUT library root — keeping the current root.")
+    }
+
+    /// KD-3: probe-then-persist-then-atomically-replace the shared store;
+    /// the result line reports the fresh registry size.
+    private func applyLutRoot(_ url: URL) {
+        guard LutLibraryStore.validateRoot(url) else {
+            lutStatusLine = rejectedCopy
+            return
+        }
+        preferences.setLutLibraryRoot(url)
+        let store = LutLibraryStore()  // reads the key → the new root
+        LutLibraryStore.replaceShared(store)
+        lutRootPath = store.lutsDirectory.path
+        lutStatusLine = String(
+            localized: "settings_lut_rescan_done \(store.installedNames.count)")
+    }
+
+    private func chooseLutRoot() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = preferences.lutLibraryRoot()
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        applyLutRoot(url)
+    }
+
+    private func resetLutRoot() {
+        preferences.resetLutLibraryRoot()
+        let store = LutLibraryStore()
+        LutLibraryStore.replaceShared(store)
+        lutRootPath = store.lutsDirectory.path
+        lutStatusLine = String(
+            localized: "settings_lut_rescan_done \(store.installedNames.count)")
     }
 
     /// The clear face: remove the CONTENTS of the app caches directory

@@ -1,4 +1,5 @@
 import Foundation
+import LightamerIOP
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AppPreferences (Plan M2-3-3 T5, KD-5) — the Settings pages' preference-key
@@ -39,6 +40,13 @@ struct AppPreferences: Sendable {
     /// The Keyboard override key prefix — full key = prefix + command id.
     nonisolated static let keyboardOverrideKeyPrefix = "keyboard.override."
 
+    /// The LUT library root key (M2-5-3 KD-3). The registered spelling is
+    /// owned by the store (the IOP init reads it straight from
+    /// `.standard` — IOP cannot import the App preferences face); this
+    /// alias is the App-side registration/reset host (the ImportDefaults
+    /// convention).
+    nonisolated static let lutLibraryRootKey = LutLibraryStore.libraryRootKey
+
     /// nil = `.standard` (the app face); tests pass an isolated suite name.
     let defaultsSuiteName: String?
 
@@ -67,6 +75,31 @@ struct AppPreferences: Sendable {
 
     func resetMaskDrawBehavior() {
         defaults.removeObject(forKey: Self.maskBehaviorKey)
+    }
+
+    // MARK: - LUT library root (M2-5-3 KD-3)
+
+    /// The configured library root: empty/unset = the default root
+    /// (`~/Library/Application Support/Lightamer/LUTs/`). The STORE reads
+    /// the same key from `.standard` at init — this face is the Settings
+    /// page's read/write/reset host (tests isolate through the suite).
+    func lutLibraryRoot() -> URL {
+        if let stored = defaults.string(forKey: Self.lutLibraryRootKey), !stored.isEmpty {
+            return URL(fileURLWithPath: stored, isDirectory: true)
+        }
+        return LutLibraryStore.defaultRoot
+    }
+
+    /// Persist a chosen root (call only after `LutLibraryStore.validateRoot`
+    /// accepts it — a failed probe degrades instead of persisting).
+    func setLutLibraryRoot(_ url: URL) {
+        defaults.set(url.path, forKey: Self.lutLibraryRootKey)
+    }
+
+    /// Clear the stored root (the effective root falls back to the
+    /// default on the next store construction).
+    func resetLutLibraryRoot() {
+        defaults.removeObject(forKey: Self.lutLibraryRootKey)
     }
 
     // MARK: - Keyboard (the v1 override store — see the file header)

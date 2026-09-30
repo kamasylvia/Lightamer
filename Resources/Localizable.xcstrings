@@ -24442,6 +24442,125 @@
           }
         }
       }
+    },
+    "settings_lut_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LUT Library"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LUT 图库"
+          }
+        }
+      }
+    },
+    "settings_lut_root_location": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Library root"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图库根目录"
+          }
+        }
+      }
+    },
+    "settings_lut_root_choose": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选取…"
+          }
+        }
+      }
+    },
+    "settings_lut_root_reset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset to Default Root"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置为默认根目录"
+          }
+        }
+      }
+    },
+    "settings_lut_rescan_done %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Library rescanned: %lld table(s)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图库已重扫：%lld 张表"
+          }
+        }
+      }
+    },
+    "settings_lut_root_invalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That folder is not usable as the LUT library root — keeping the current root."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该文件夹不能用作 LUT 图库根目录——保留当前根目录。"
+          }
+        }
+      }
+    },
+    "settings_lut_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tables live in subdirectories of the root; the built-in film set is seeded into BuiltIn/ on the default root only."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表文件位于根目录下的子目录；内置胶片集仅在默认根目录种入 BuiltIn/。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
