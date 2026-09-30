@@ -77,4 +77,22 @@ final class GradeParamsCodingTests: XCTestCase {
         XCTAssertEqual(
             BlackModule.clamped(BlackModule.Params(black: -999)).black, -100)
     }
+
+    // MARK: - T5: saturation / tint
+
+    func testSaturationJSONKeyAndClamp() throws {
+        XCTAssertTrue(try jsonString(SaturationModule.Params()).contains("\"saturation\""))
+        XCTAssertEqual(try roundTrip(SaturationModule.Params()), SaturationModule.Params())
+        XCTAssertEqual(
+            SaturationModule.clamped(SaturationModule.Params(saturation: 99)).saturation, 4)
+        XCTAssertEqual(
+            SaturationModule.clamped(SaturationModule.Params(saturation: -1)).saturation, 0)
+    }
+
+    func testTintJSONKeyAndClamp() throws {
+        XCTAssertTrue(try jsonString(TintModule.Params()).contains("\"tint\""))
+        XCTAssertEqual(try roundTrip(TintModule.Params()), TintModule.Params())
+        XCTAssertEqual(TintModule.clamped(TintModule.Params(tint: 999)).tint, 100)
+        XCTAssertEqual(TintModule.clamped(TintModule.Params(tint: -999)).tint, -100)
+    }
 }

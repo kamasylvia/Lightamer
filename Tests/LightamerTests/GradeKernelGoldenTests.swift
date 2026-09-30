@@ -450,4 +450,58 @@ final class GradeKernelGoldenTests: XCTestCase {
             XCTAssertTrue(b.x.isFinite && b.y.isFinite && b.z.isFinite)
         }
     }
+
+    // MARK: - T5: saturation + tint (KD-5/AC7)
+
+    func testSaturationIdentityAndEndpoints() async throws {
+        let metal = try await makeMetal()
+        let field = sampleField()
+        // 1.0 = the byte-identical early exit.
+        let texels = encodeField(field)
+        let (input, output) = makeTexture(metal, texels: texels)
+        let module = SaturationModule()
+        var piece = IOPiece()
+        module.commitParams(SaturationModule.Params(), into: &piece)
+        try await module.process(
+            input: input, output: output, roiIn: ROI(), roiOut: ROI(),
+            piece: &piece, metal: metal)
+        let out = readOutput(output, metal: metal)
+        for (index, value) in texels.enumerated() {
+            XCTAssertEqual(out[index], value, accuracy: 0, "texel \(index)")
+        }
+        // Golden points across the 0..4 range (0 and 4 included — the
+        // endpoints; the assertGolden bounded checks pin no NaN/Inf).
+        for saturation in [0.0, 1.3, 2.5, 4.0] {
+            try await assertGolden(
+                module: SaturationModule(),
+                params: SaturationModule.Params(saturation: Float(saturation)),
+                reference: { SaturationModule.reference(acescc: $0, saturation: saturation) },
+                field: field, metal: metal)
+        }
+    }
+
+    func testTintIdentityAndGolden() async throws {
+        let metal = try await makeMetal()
+        let field = sampleField()
+        // 0 = the byte-identical early exit.
+        let texels = encodeField(field)
+        let (input, output) = makeTexture(metal, texels: texels)
+        let module = TintModule()
+        var piece = IOPiece()
+        module.commitParams(TintModule.Params(), into: &piece)
+        try await module.process(
+            input: input, output: output, roiIn: ROI(), roiOut: ROI(),
+            piece: &piece, metal: metal)
+        let out = readOutput(output, metal: metal)
+        for (index, value) in texels.enumerated() {
+            XCTAssertEqual(out[index], value, accuracy: 0, "texel \(index)")
+        }
+        for tint in [50.0, 100.0, -100.0] {
+            try await assertGolden(
+                module: TintModule(),
+                params: TintModule.Params(tint: Float(tint)),
+                reference: { TintModule.reference(acescc: $0, tint: tint) },
+                field: field, metal: metal)
+        }
+    }
 }

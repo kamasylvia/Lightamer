@@ -107,6 +107,15 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: BlackModule.opName) { id in
             ModuleBox(module: BlackModule(), instanceID: id)
         }
+        // M2-5-1 T5: saturation (0..4 multiplicative, luma-pivot with the
+        // peak-raise limiter) + tint (the independent ±100 scalar), v50
+        // slots 42.2/42.4.
+        await registry.register(opName: SaturationModule.opName) { id in
+            ModuleBox(module: SaturationModule(), instanceID: id)
+        }
+        await registry.register(opName: TintModule.opName) { id in
+            ModuleBox(module: TintModule(), instanceID: id)
+        }
         // Phase 3's first real iop (Plan 03-01-T5): exposure, v50 slot 21.0.
         await registry.register(opName: ExposureModule.opName) { id in
             ModuleBox(module: ExposureModule(), instanceID: id)
@@ -427,6 +436,8 @@ public enum LightamerIOPRegistry {
             ContrastKernel.functionName,
             WhiteKernel.functionName,
             BlackKernel.functionName,
+            SaturationKernel.functionName,
+            TintKernel.functionName,
             TemperatureKernel.functionName,
             ExposureKernel.functionName,
             ColisaKernel.functionName,
