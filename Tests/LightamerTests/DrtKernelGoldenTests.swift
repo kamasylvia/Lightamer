@@ -196,3 +196,309 @@ final class DrtKernelGoldenTests: XCTestCase {
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// T4: the Metal kernel golden (KD-4/KD-8) — probes × parameter points vs the
+// Float64 reference, bit-exact determinism, uniform ABI pin, and the aces20
+// stub face.
+// ═══════════════════════════════════════════════════════════════════════════
+
+extension DrtKernelGoldenTests {
+
+    private func makeMetal4() throws -> MetalContext {
+        try MetalContext()
+    }
+
+    // MARK: ABI + stub face
+
+    func testUniformBridgeSizeMatchesTheMetalStruct() async throws {
+        let metal = try makeMetal4()
+        let out = metal.device.makeBuffer(length: MemoryLayout<UInt32>.stride)!
+        let session = try await metal.makeEncoder(functionName: "drt_uniforms_size_probe")
+        session.encoder.setBuffer(out, offset: 0, index: 0)
+        session.encoder.dispatchThreads(MTLSize(width: 1, height: 1, depth: 1),
+                                        threadsPerThreadgroup: MTLSize(width: 1, height: 1, depth: 1))
+        session.encoder.endEncoding()
+        session.commandBuffer.commit()
+        await session.commandBuffer.completed()
+        let gpuSize = out.contents().bindMemory(to: UInt32.self, capacity: 1).pointee
+        XCTAssertEqual(Int(gpuSize), MemoryLayout<DrtUniforms>.size,
+                       "the uniform ABI must be identical on both sides")
+        XCTAssertEqual(MemoryLayout<DrtUniforms>.size, 244)
+    }
+
+    func testAces20ArmIsAnExplicitP2Stub() {
+        // KD-6: the aces20 render arm is an explicit stub — the machine-
+        // checkable replacement face P2 flips to true.
+        XCTAssertFalse(DrtMethod.aces20.isRenderImplemented)
+        XCTAssertTrue(DrtMethod.opendrt.isRenderImplemented)
+        XCTAssertEqual(DrtMethod.aces20.kernelIndex, 0)
+        XCTAssertEqual(DrtMethod.opendrt.kernelIndex, 1)
+    }
+
+    // MARK: probe textures (deterministic synthetic inputs)
+
+    /// ① linear ramp 0..4, ② 8×8 saturation×hue grid, ③ extreme-saturation
+    /// primaries/secondaries × log luminance sweep.
+    private func probePixels(kind: String) -> (pixels: [Float], width: Int, height: Int) {
+        switch kind {
+        case "ramp":
+            let w = 1024
+            var px = [Float](repeating: 0, count: w * 4)
+            for i in 0..<w {
+                let x = 4.0 * Double(i) / Double(w - 1)
+                px[i * 4 + 0] = Float(x); px[i * 4 + 1] = Float(x)
+                px[i * 4 + 2] = Float(x); px[i * 4 + 3] = 1.0
+            }
+            return (px, w, 1)
+        case "grid":
+            let side = 8
+            var px = [Float](repeating: 0, count: side * side * 4)
+            for sy in 0..<side {
+                for hx in 0..<side {
+                    let theta = 2.0 * Double.pi * Double(hx) / Double(side)
+                    let sat = Double(sy) / Double(side - 1)
+                    var rgb = SIMD3(
+                        0.5 + 0.5 * Foundation.cos(theta),
+                        0.5 + 0.5 * Foundation.sin(theta),
+                        0.5 + 0.5 * Foundation.cos(theta + 2.0943951))
+                    rgb = SIMD3(
+                        Swift.min(Swift.max(rgb.x, 0), 1),
+                        Swift.min(Swift.max(rgb.y, 0), 1),
+                        Swift.min(Swift.max(rgb.z, 0), 1))
+                    rgb = 0.5 + (rgb - 0.5) * sat
+                    let o = (sy * side + hx) * 4
+                    px[o + 0] = Float(rgb.x); px[o + 1] = Float(rgb.y)
+                    px[o + 2] = Float(rgb.z); px[o + 3] = 1.0
+                }
+            }
+            return (px, side, side)
+        case "extreme":
+            let primaries = [
+                SIMD3<Double>(1, 0, 0), SIMD3<Double>(0, 1, 0), SIMD3<Double>(0, 0, 1),
+                SIMD3<Double>(1, 1, 0), SIMD3<Double>(1, 0, 1), SIMD3<Double>(0, 1, 1),
+            ]
+            let lums = (0..<16).map { lumIdx -> Double in
+                let t = Double(lumIdx) / 15.0
+                return 0.01 * Foundation.pow(10, 4 * t)  // 0.01..100 log sweep
+            }
+            var px = [Float](repeating: 0, count: primaries.count * lums.count * 4)
+            for (pIdx, primary) in primaries.enumerated() {
+                for (lIdx, lum) in lums.enumerated() {
+                    let rgb = primary * lum
+                    let o = (pIdx * lums.count + lIdx) * 4
+                    px[o + 0] = Float(rgb.x); px[o + 1] = Float(rgb.y)
+                    px[o + 2] = Float(rgb.z); px[o + 3] = 1.0
+                }
+            }
+            return (px, 16, primaries.count)
+        default:
+            fatalError("unknown probe \(kind)")
+        }
+    }
+
+    /// Parameter points: default / arriba-like / umbra-like (the dctl look
+    /// branches :762/:777 — the same numbers T5's snapshots formalize) /
+    /// the HDR point (rec2020 + st2084 + 1000 nits).
+    private func parameterPoints() -> [(name: String, record: DrtRecord, cwp: UInt32)] {
+        var points: [(String, DrtRecord, UInt32)] = [("default", DrtRecord(), 2)]
+
+        var arriba = DrtRecord()
+        arriba.parameters.tnCon = 1.05
+        arriba.parameters.tnToe = 0.1
+        arriba.parameters.tnOff = 0.01
+        arriba.parameters.tnLcon = 1.5
+        arriba.parameters.tnLconW = 0.2
+        arriba.parameters.ptLmlR = 0.45
+        arriba.parameters.ptLmhR = 0.25
+        arriba.parameters.ptmLow = 1.0
+        arriba.parameters.ptmLowRng = 0.4
+        arriba.parameters.ptmHighRng = 0.66
+        arriba.parameters.ptmHighSt = 0.6
+        arriba.parameters.brlp = 0.0
+        arriba.parameters.brlpR = -1.7
+        arriba.parameters.brlpG = -2.0
+        arriba.parameters.brlpB = -0.5
+        arriba.parameters.hsRRng = 0.8
+        arriba.parameters.hsC = 0.15
+        points.append(("arriba", arriba, 2))
+
+        var umbra = DrtRecord()
+        umbra.parameters.tnCon = 1.8
+        umbra.parameters.tnToe = 0.001
+        umbra.parameters.tnOff = 0.015
+        umbra.parameters.tnLcon = 1.0
+        umbra.parameters.tnLconW = 1.0
+        umbra.parameters.ptLml = 0.0
+        umbra.parameters.ptLmlB = 0.15
+        umbra.parameters.ptLmhR = 0.25
+        umbra.parameters.ptmLowRng = 0.35
+        umbra.parameters.ptmLowSt = 0.66
+        umbra.parameters.ptmHigh = -0.6
+        umbra.parameters.ptmHighRng = 0.45
+        umbra.parameters.ptmHighSt = 0.45
+        umbra.parameters.brl = -2.0
+        umbra.parameters.brlR = -4.5
+        umbra.parameters.brlG = -3.0
+        umbra.parameters.brlB = -4.0
+        umbra.parameters.brlRng = 0.35
+        umbra.parameters.brlSt = 0.3
+        umbra.parameters.brlp = 0.0
+        umbra.parameters.brlpR = -2.0
+        umbra.parameters.brlpG = -1.0
+        umbra.parameters.brlpB = -0.5
+        umbra.parameters.hcRRng = 0.35
+        umbra.parameters.hsR = 0.66
+        umbra.parameters.hsG = 0.5
+        umbra.parameters.hsGRng = 2.0
+        umbra.parameters.hsB = 0.85
+        umbra.parameters.hsBRng = 2.0
+        umbra.parameters.hsC = 0.0
+        umbra.parameters.hsY = 0.66
+        umbra.parameters.hsYRng = 0.66
+        points.append(("umbra", umbra, 5))  // umbra's creative white = D50
+
+        var hdr = DrtRecord()
+        hdr.encodingSpace = .rec2020
+        hdr.encodingEotf = .st2084
+        hdr.peakLuminance = 1000
+        points.append(("hdr", hdr, 2))
+        return points
+    }
+
+    // MARK: dispatch + compare
+
+    private func makeTexture(
+        _ metal: MetalContext, width: Int, height: Int
+    ) -> (any MTLTexture) {
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: width, height: height, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        return metal.device.makeTexture(descriptor: d)!
+    }
+
+    @discardableResult
+    private func dispatchOpenDrt(
+        _ metal: MetalContext, pixels: [Float], width: Int, height: Int,
+        record: DrtRecord, cwp: UInt32, functionName: String = "drt_opendrt"
+    ) async throws -> [Float] {
+        let input = makeTexture(metal, width: width, height: height)
+        pixels.withUnsafeBytes {
+            input.replace(region: MTLRegionMake2D(0, 0, width, height),
+                          mipmapLevel: 0, withBytes: $0.baseAddress!,
+                          bytesPerRow: width * 16)
+        }
+        var uniforms = DrtUniforms(record: record, cwp: cwp)
+        let uniformBuffer = metal.device.makeBuffer(
+            bytes: &uniforms, length: MemoryLayout<DrtUniforms>.stride)!
+        let output = makeTexture(metal, width: width, height: height)
+        try await metal.dispatch2DTexture(
+            functionName: functionName, input: input, output: output,
+            configure: { encoder in
+                encoder.setBuffer(uniformBuffer, offset: 0, index: 0)
+            })
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        await fence?.completed()
+        var readback = [Float](repeating: 0, count: width * height * 4)
+        output.getBytes(&readback, bytesPerRow: width * 16,
+                        from: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0)
+        return readback
+    }
+
+    private func reference(
+        record: DrtRecord, cwp: UInt32, pixels: [Float], width: Int, height: Int
+    ) -> [Float] {
+        var out = [Float](repeating: 0, count: width * height * 4)
+        for i in 0..<(width * height) {
+            let linear = SIMD3<Double>(
+                Double(pixels[i * 4]), Double(pixels[i * 4 + 1]), Double(pixels[i * 4 + 2]))
+            let transformed = OpenDrtReference.run(
+                record: record, linearRec2020: linear, cwp: Int(cwp))
+            out[i * 4 + 0] = Float(transformed.x)
+            out[i * 4 + 1] = Float(transformed.y)
+            out[i * 4 + 2] = Float(transformed.z)
+            out[i * 4 + 3] = pixels[i * 4 + 3]
+        }
+        return out
+    }
+
+    private func compare(
+        _ gpu: [Float], _ reference: [Float], label: String
+    ) -> (p999: Double, max: Double) {
+        var errors: [Double] = []
+        errors.reserveCapacity(gpu.count / 4 * 3)
+        for i in stride(from: 0, to: gpu.count, by: 4) {
+            for c in 0..<3 {
+                errors.append(abs(Double(gpu[i + c]) - Double(reference[i + c])))
+            }
+        }
+        errors.sort()
+        let p999 = errors[min(errors.count - 1, Int(Double(errors.count - 1) * 0.999))]
+        let maxErr = errors.last ?? 0
+        print("DRT-GOLDEN [\(label)] p99.9=\(p999) max=\(maxErr) band=1e-5 ceiling=5e-5")
+        return (p999, maxErr)
+    }
+
+    func testGoldenKernelAgainstReferenceAllProbeParameterPairs() async throws {
+        let metal = try makeMetal4()
+        var worstP999 = 0.0
+        var worstMax = 0.0
+        for (pointName, record, cwp) in parameterPoints() {
+            for probe in ["ramp", "grid", "extreme"] {
+                let (pixels, w, h) = probePixels(kind: probe)
+                let gpu = try await dispatchOpenDrt(
+                    metal, pixels: pixels, width: w, height: h,
+                    record: record, cwp: cwp)
+                let ref = self.reference(
+                    record: record, cwp: cwp, pixels: pixels, width: w, height: h)
+                let (p999, maxErr) = compare(gpu, ref, label: "\(pointName)/\(probe)")
+                worstP999 = max(worstP999, p999)
+                worstMax = max(worstMax, maxErr)
+                // KD-8 band; an overflow routes through the DECISIONS §D4
+                // value-tier protocol (never a silent widening).
+                XCTAssertLessThanOrEqual(
+                    p999, 1e-5, "\(pointName)/\(probe) p99.9 exceeded the KD-8 band")
+                XCTAssertLessThanOrEqual(
+                    maxErr, 5e-5, "\(pointName)/\(probe) max exceeded the hard ceiling")
+            }
+        }
+        print("DRT-GOLDEN WORST p99.9=\(worstP999) max=\(worstMax)")
+    }
+
+    func testGoldenIsBitExactAcrossRepeatedRuns() async throws {
+        let metal = try makeMetal4()
+        let (pixels, w, h) = probePixels(kind: "grid")
+        let record = DrtRecord()
+        let first = try await dispatchOpenDrt(
+            metal, pixels: pixels, width: w, height: h, record: record, cwp: 2)
+        let second = try await dispatchOpenDrt(
+            metal, pixels: pixels, width: w, height: h, record: record, cwp: 2)
+        XCTAssertEqual(first, second, "same PSO + same input = bit-identical planes")
+    }
+
+    func testGoldenIsSizeIndependent() async throws {
+        // The PREVIEW/FULL double-path shape: the same kernel + PSO at a
+        // different plane size produces the SAME per-pixel values (the
+        // pipe-level double-path smoke rides T7).
+        let metal = try makeMetal4()
+        let (pixels, w, _) = probePixels(kind: "ramp")
+        let record = DrtRecord()
+        let narrow = try await dispatchOpenDrt(
+            metal, pixels: pixels, width: w, height: 1, record: record, cwp: 2)
+        // Wider plane carrying the same ramp in its leading columns.
+        var widePixels = [Float](repeating: 0, count: 2560 * 4)
+        for i in 0..<w {
+            for c in 0..<4 { widePixels[i * 4 + c] = pixels[i * 4 + c] }
+        }
+        let wide = try await dispatchOpenDrt(
+            metal, pixels: widePixels, width: 2560, height: 1, record: record, cwp: 2)
+        for i in 0..<w {
+            for c in 0..<4 {
+                XCTAssertEqual(narrow[i * 4 + c], wide[i * 4 + c],
+                               "plane size must not change per-pixel math at x=\(i)")
+            }
+        }
+    }
+}

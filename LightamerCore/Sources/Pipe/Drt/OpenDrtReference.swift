@@ -668,3 +668,93 @@ public enum OpenDrtReference {
         return rgb
     }
 }
+
+// MARK: - GPU bridge (Plan M2-6-1 T4, KD-4 / OQ-10-A)
+
+public extension DrtMethod {
+    /// The kernel/uniform ordinal — the Alcedo hpp `DrtMethod` int order
+    /// (hpp :24-27). Part of the GPU contract.
+    var kernelIndex: UInt32 {
+        switch self {
+        case .aces20: return 0
+        case .opendrt: return 1
+        }
+    }
+
+    /// The P2 replacement face (KD-6): `aces20` is an EXPLICIT STUB in this
+    /// plan — the render arm lands in M2-6-2. Callers (the DRT method box)
+    /// switch exhaustively on DrtMethod (no default arm) and must refuse to
+    /// dispatch an unimplemented method through this predicate.
+    var isRenderImplemented: Bool {
+        switch self {
+        case .aces20: return false
+        case .opendrt: return true
+        }
+    }
+}
+
+/// The uniform buffer bridge to `DrtUniforms` in OpenDrtKernels.metal —
+/// field ORDER is the ABI (57 floats then 4 uints, 244 bytes, alignment 4;
+/// the size-probe kernel pins it). Parameters ride a BUFFER, never function
+/// constants (OQ-10-A: a param drag re-uploads 244 bytes, recompiles
+/// NOTHING — one PSO per method, resident).
+public struct DrtUniforms: Sendable {
+    // 53 detailed parameters (dctl spelling order).
+    public var tnCon, tnSh, tnToe, tnOff, tnHcon, tnHconPv, tnHconSt: Float
+    public var tnLcon, tnLconW: Float
+    public var cwpLm: Float
+    public var rsSa, rsRw, rsBw: Float
+    public var ptLml, ptLmlR, ptLmlG, ptLmlB: Float
+    public var ptLmh, ptLmhR, ptLmhB: Float
+    public var ptlC, ptlM, ptlY: Float
+    public var ptmLow, ptmLowRng, ptmLowSt: Float
+    public var ptmHigh, ptmHighRng, ptmHighSt: Float
+    public var brl, brlR, brlG, brlB, brlRng, brlSt: Float
+    public var brlp, brlpR, brlpG, brlpB: Float
+    public var hcR, hcRRng: Float
+    public var hsR, hsRRng, hsG, hsGRng, hsB, hsBRng: Float
+    public var hsC, hsCRng, hsM, hsMRng, hsY, hsYRng: Float
+    // 12 top-level fields — the four the DRT math consumes (the EOTF/space
+    // enumeration rides the EotfBox; look/tonescale/white preset STRINGS are
+    // UI tags, resolved into the detailed params + `cwp` upstream).
+    public var peakLuminance: Float
+    public var displayGreyLuminance: Float
+    public var hdrGreyBoost: Float
+    public var hdrPurity: Float
+    // Context ordinals.
+    public var method: UInt32
+    public var displayGamut: UInt32
+    public var cwp: UInt32
+    public var surround: UInt32
+
+    public init(record: DrtRecord, cwp: UInt32) {
+        let p = record.parameters
+        tnCon = p.tnCon; tnSh = p.tnSh; tnToe = p.tnToe; tnOff = p.tnOff
+        tnHcon = p.tnHcon; tnHconPv = p.tnHconPv; tnHconSt = p.tnHconSt
+        tnLcon = p.tnLcon; tnLconW = p.tnLconW
+        cwpLm = p.cwpLm
+        rsSa = p.rsSa; rsRw = p.rsRw; rsBw = p.rsBw
+        ptLml = p.ptLml; ptLmlR = p.ptLmlR; ptLmlG = p.ptLmlG; ptLmlB = p.ptLmlB
+        ptLmh = p.ptLmh; ptLmhR = p.ptLmhR; ptLmhB = p.ptLmhB
+        ptlC = p.ptlC; ptlM = p.ptlM; ptlY = p.ptlY
+        ptmLow = p.ptmLow; ptmLowRng = p.ptmLowRng; ptmLowSt = p.ptmLowSt
+        ptmHigh = p.ptmHigh; ptmHighRng = p.ptmHighRng; ptmHighSt = p.ptmHighSt
+        brl = p.brl; brlR = p.brlR; brlG = p.brlG; brlB = p.brlB
+        brlRng = p.brlRng; brlSt = p.brlSt
+        brlp = p.brlp; brlpR = p.brlpR; brlpG = p.brlpG; brlpB = p.brlpB
+        hcR = p.hcR; hcRRng = p.hcRRng
+        hsR = p.hsR; hsRRng = p.hsRRng; hsG = p.hsG; hsGRng = p.hsGRng
+        hsB = p.hsB; hsBRng = p.hsBRng
+        hsC = p.hsC; hsCRng = p.hsCRng; hsM = p.hsM; hsMRng = p.hsMRng
+        hsY = p.hsY; hsYRng = p.hsYRng
+        peakLuminance = record.peakLuminance
+        displayGreyLuminance = record.displayGreyLuminance
+        hdrGreyBoost = record.hdrGreyBoost
+        hdrPurity = record.hdrPurity
+        method = record.method.kernelIndex
+        displayGamut = UInt32(OpenDrtReference.displayGamutID(for: record.encodingSpace))
+        self.cwp = cwp
+        surround = UInt32(
+            OpenDrtReference.surround(for: record.encodingSpace, eotf: record.encodingEotf))
+    }
+}
