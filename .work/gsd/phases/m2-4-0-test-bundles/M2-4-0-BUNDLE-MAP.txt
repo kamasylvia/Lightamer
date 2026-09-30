@@ -157,6 +157,7 @@ APP	9	MaskItemSemanticsTests.swift
 APP	9	NodeCanvasGeometryTests.swift
 APP	14	NodesPanelModelTests.swift
 APP	14	GradeCatalogTests.swift
+LAYERS	5	ACESccEnvelopeTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
 EXPORT	10	SpotlightAttributeMapperTests.swift

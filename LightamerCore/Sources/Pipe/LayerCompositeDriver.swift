@@ -149,6 +149,11 @@ enum LayerCompositeDriver {
         return effective.first { layerForbiddenGeometryOps.contains($0.opName) }?.opName
     }
 
+    // MARK: - ACEScc envelope seam (M2-5-1 T2, D-M2-5-CONTEXT-3)
+
+    // (The seam holder `acesccEnvelope` sits at the top of this enum —
+    // public for the IOP installer, consumed by the adjustment leg below.)
+
     // MARK: - Hash composition (StableHash ONLY — L013)
 
     private static func fold(_ seed: UInt64, _ value: UInt64) -> UInt64 {
@@ -377,7 +382,12 @@ enum LayerCompositeDriver {
             guard adjustment.enabled else { continue }
 
             // The layer's own sub-run (independent params — LAYER-02).
-            let (boxes, _) = await registry.materializeBoxes(for: adjustment.chain)
+            var (boxes, _) = await registry.materializeBoxes(for: adjustment.chain)
+            // M2-5-1 (D-M2-5-CONTEXT-3): the ACEScc grade-domain envelope —
+            // IOP's installed seam wraps this leg ONLY when the effective
+            // chain carries ≥1 grade-catalog op (checker E2); blend stays
+            // Rec2020 and the envelope never touches sidecars (KD-2).
+            boxes = LayerCompositeSeam.acesccEnvelope(boxes)
             let layerPipe = PixelPipe(resolution: resolution, cache: cache)
             layerPipe.imageID = imageID
             // GUI-21 (2026-09-24): the sub-run's hash seed is the INPUT
@@ -660,4 +670,23 @@ enum LayerCompositeDriver {
         guard let extent else { return hint }
         return hint.union(extent)
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// The ACEScc envelope seam holder (M2-5-1 T2, D-M2-5-CONTEXT-3) — public
+// because Core cannot import IOP (D-03): the driver consults this wrapper
+// at the adjustment leg and LightamerIOP FILLS it at populate time
+// (`ACESccEnvelope.install()`). The wrapper appends the acesccIn/acesccOut
+// pair when the effective chain carries ≥1 grade-catalog op (the
+// checker-E2 narrowing — the GradeCatalog query face, never a hand-copied
+// whitelist); pure non-catalog chains pass through untouched. Default =
+// the identity wrapper: pure-Core harnesses keep byte-for-byte behavior.
+// Write-once at populate, read from composite legs — the
+// `nonisolated(unsafe)` escape mirrors the DisplayProfile/FocusMeasure
+// precedents. Envelopes are TRANSIENT assembly artifacts — never
+// registered, never in sidecars, zero user-visible face (KD-2).
+// ─────────────────────────────────────────────────────────────────────────
+public enum LayerCompositeSeam {
+    public nonisolated(unsafe) static var acesccEnvelope:
+        @Sendable ([any ModuleBoxing]) -> [any ModuleBoxing] = { $0 }
 }
