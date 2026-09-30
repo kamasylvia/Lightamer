@@ -56,13 +56,28 @@ final class DrtPanelModel {
         pipeCoordinator?.liveImageURL != nil
     }
 
-    /// The current record (pristine when nothing is loaded / untouched).
+    /// The current record — the OPEN LIVE WINDOW's pending value FIRST
+    /// (the slider's binding must read back what the drag is producing),
+    /// then the HISTORY's effective projection (the committed truth:
+    /// pointer-faithful across undo/redo, and immune to the carrier-sync
+    /// Task's hop lag — rapid successive edits each build on the previous
+    /// COMMIT, never on a stale carrier), falling back to the carrier (the
+    /// restore-leg field-wins face) and finally the pristine default. The
+    /// history and carrier sources agree by construction on every write
+    /// path (KD-1); the fallback only matters for foreign documents.
     var record: DrtRecord {
+        if let liveRecord { return liveRecord }
+        if let editorState, let effective = editorState.history.effectiveDrtRecord() {
+            return effective
+        }
         guard let url = pipeCoordinator?.liveImageURL, let workspace else {
             return DrtRecord()
         }
         return workspace.drtRecord(for: url)
     }
+
+    /// The pending value of an open live window (nil = no window / clean).
+    private var liveRecord: DrtRecord?
 
     /// The EOTF picker's data source — the Core single source consumed
     /// DIRECTLY (OQ-5-B: the linkage knowledge never gets a UI-local copy).
@@ -213,7 +228,8 @@ final class DrtPanelModel {
     }
 
     /// Peak luminance — the D-H1 LIVE leg (drag tick): carrier + re-render,
-    /// ZERO history items. Clamped to the producer range.
+    /// ZERO history items. Clamped to the producer range. The pending value
+    /// rides `liveRecord` so the binding reads back the drag's own value.
     func setPeakLive(_ nits: Float) {
         guard let pipeCoordinator, let url = pipeCoordinator.liveImageURL else {
             return
@@ -222,6 +238,7 @@ final class DrtPanelModel {
         let clamped = Self.clampedPeak(nits)
         guard next.peakLuminance != clamped else { return }
         next.peakLuminance = clamped
+        liveRecord = next
         workspace?.setSessionDrtRecord(next, for: url)
         Task { await pipeCoordinator.setDrtLive(next) }
     }
@@ -229,12 +246,14 @@ final class DrtPanelModel {
     /// Peak luminance — the drag END (the commit leg; exactly ONE item when
     /// the drag window saw a net change — the commitDrtEdit seed gate).
     func commitPeak() {
+        liveRecord = nil
         Task { await pipeCoordinator?.commitDrtEdit(
             label: String(localized: "history_drt_encoding")) }
     }
 
     /// Arm the peak live window (the slider's onEditingChanged(true)).
     func beginPeakDrag() {
+        liveRecord = nil
         pipeCoordinator?.beginDrtEdit()
     }
 }

@@ -577,14 +577,16 @@ final class PipeCoordinator {
     }
 
     /// The EditorState DRT commit notification target (the notifyPasteChange
-    /// edge): sync the carrier with the committed record, re-render (the
-    /// DRT tail re-runs on the record-hash fold — everything before colorout
+    /// edge): sync the carrier from the HISTORY truth (NOT the captured
+    /// record — queued notifications from rapid successive edits must never
+    /// stomp a NEWER state: the commit face writes the item BEFORE this Task
+    /// hops, so the history projection is always the idempotent truth, even
+    /// for a notification that fired before an undo), re-render (the DRT
+    /// tail re-runs on the record-hash fold — everything before colorout
     /// stays HIT), and schedule the sidecar write (a committed move).
     func drtRecordDidChange(_ record: DrtRecord) async {
         guard decoded != nil else { return }
-        if let url = currentImageURL {
-            workspace?.setSessionDrtRecord(record, for: url)
-        }
+        syncDrtCarrierWithHistory()
         await historyDidChange()
         scheduleSidecarWrite()
     }
