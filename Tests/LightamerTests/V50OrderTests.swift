@@ -10,23 +10,27 @@ import XCTest
 /// the executor protocol), so the count test asserts the source count.
 final class V50OrderTests: XCTestCase {
 
-    /// The table matches Darktable's v50_order + the ONE Lightamer-native
-    /// row: 94 entries spanning rawprepare 1.0 → gamma 78.0, first/last
+    /// The table matches Darktable's v50_order + the Lightamer-native
+    /// rows: 105 entries spanning rawprepare 1.0 → gamma 78.0, first/last
     /// locked (07-2: 93 → 94 with the skinSmooth 66.5 insertion — the first
     /// non-dt row; 08-5: 94 → 95 with the textOverlay 66.7 insertion — the
-    /// second non-dt row; both flagged in the table header and at the rows).
+    /// second; M2-5-1: 95 → 105 with the ten grade rows — the acesccIn/Out
+    /// envelope pair + the eight catalog ops; all flagged in the table at
+    /// the rows).
     func testEntriesCountApproximately76() {
-        XCTAssertEqual(V50Order.entries.count, 95, "93 dt-verbatim + skinSmooth 66.5 + textOverlay 66.7")
+        XCTAssertEqual(V50Order.entries.count, 105, "93 dt-verbatim + skinSmooth + textOverlay + 10 M2-5-1 grade rows")
         XCTAssertEqual(V50Order.entries.first?.opName, "rawprepare")
         XCTAssertEqual(V50Order.entries.first?.order, 1.0)
         XCTAssertEqual(V50Order.entries.last?.opName, "gamma")
         XCTAssertEqual(V50Order.entries.last?.order, 78.0)
     }
 
-    /// No duplicate opName anywhere (lookups are by name); the ONLY position
-    /// collision is the deliberate 28.5 cluster — channelmixerrgb / diffuse
-    /// / censorize / negadoctor / blurs / primaries share 28.5, and no other
-    /// order value repeats.
+    /// No duplicate opName anywhere (lookups are by name); the position
+    /// collisions are exactly the TWO declared clusters — the deliberate
+    /// 28.5 cluster (channelmixerrgb / diffuse / censorize / negadoctor /
+    /// blurs / primaries) and, since M2-5-1, the 41.0 pair where the
+    /// Lightamer-native colorWheels shares the slot with the UNREGISTERED
+    /// dt colorbalance row (the declared exception, M2-5-1-DECISIONS).
     func testNoDuplicateOpNameExceptDeliberateCollisions() {
         let names = V50Order.entries.map(\.opName)
         XCTAssertEqual(Set(names).count, names.count, "every opName unique")
@@ -39,12 +43,16 @@ final class V50OrderTests: XCTestCase {
         let orderCounts = Dictionary(grouping: V50Order.entries, by: \.order)
             .filter { $0.value.count > 1 }
         XCTAssertEqual(
-            Set(orderCounts.keys), [28.5],
-            "28.5 is the only shared position"
+            Set(orderCounts.keys), [28.5, 41.0],
+            "28.5 (dt cluster) and 41.0 (colorWheels↔colorbalance, M2-5-1 declared) are the only shared positions"
         )
         XCTAssertEqual(
             Set(orderCounts[28.5]!.map(\.opName)), Set(clustered),
             "exactly the six documented modules share 28.5"
+        )
+        XCTAssertEqual(
+            Set(orderCounts[41.0]!.map(\.opName)), ["colorbalance", "colorWheels"],
+            "colorWheels shares 41.0 with the unregistered dt colorbalance row"
         )
     }
 
@@ -230,9 +238,14 @@ final class V50OrderTests: XCTestCase {
         XCTAssertEqual(inTable.map(\.opName), neighborhood.map(\.0))
         XCTAssertEqual(inTable.map(\.order), neighborhood.map(\.1))
 
-        // Whole-table relative order: stripping BOTH native rows must
+        // Whole-table relative order: stripping ALL native rows (07-2's
+        // skinSmooth, 08-5's textOverlay, M2-5-1's ten grade rows) must
         // yield the pre-07-2 sequence back (spot anchors on both ends).
-        let nativeRows: Set<String> = ["skinSmooth", "textOverlay"]
+        let nativeRows: Set<String> = [
+            "skinSmooth", "textOverlay",
+            "acesccIn", "acesccOut", "colorWheels", "cat02WhiteBalance",
+            "contrast", "white", "black", "saturation", "tint", "hls",
+        ]
         let stripped = V50Order.entries.filter { !nativeRows.contains($0.opName) }
         XCTAssertEqual(stripped.count, 93)
         XCTAssertEqual(stripped.first?.opName, "rawprepare")

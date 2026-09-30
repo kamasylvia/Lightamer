@@ -54,6 +54,12 @@ public enum V50Order {
         ("liquify", 18.0),
         ("spots", 19.0),
         ("retouch", 20.0),
+        // LIGHTAMER: acesccIn — the grade-domain envelope entry (M2-5-1,
+        // D-M2-5-CONTEXT-3): sits BELOW every catalog op (exposure 21.0 is
+        // the lowest 18-catalog slot) so each layer sub-run enters ACEScc
+        // before any in-domain grading. Driver-constructed, never
+        // registered (KD-2) — this row only pins the sub-run sort position.
+        ("acesccIn", 20.5),
         ("exposure", 21.0),
         ("mask_manager", 22.0),
         ("tonemap", 23.0),
@@ -106,12 +112,39 @@ public enum V50Order {
         // nudges hues towards a set of target nodes
         ("colorharmonizer", 40.5),
         ("colorbalance", 41.0), // scene-referred color manipulation
+        // LIGHTAMER: colorWheels — lift/gamma/gain color wheels (M2-5-1,
+        // D-M2-5-CONTEXT-2 OQ-2-A). Shares 41.0 with the UNREGISTERED dt
+        // `colorbalance` row — the DECLARED collision exception (the 28.5
+        // cluster precedent; colorWheels is a NEW op, dt colorbalance has
+        // no Lightamer module; a future dt-colorbalance enablement re-homes
+        // one of the two — declared in M2-5-1-DECISIONS in advance).
+        ("colorWheels", 41.0),
         ("colorequal", 41.2),
+        // LIGHTAMER: cat02WhiteBalance — creative CAT02 white balance in the
+        // ACEScc grade domain (M2-5-1, KD-4; camera WB stays RAW Decode).
+        ("cat02WhiteBalance", 41.4),
         // scene-referred color manipulation
         ("colorbalancergb", 41.5),
+        // LIGHTAMER: contrast — the mid-grey-pivot lightness contrast
+        // (Alcedo OkLab S-curve semantics; ≠ colisa's RGB scaling, KD-5).
+        ("contrast", 41.6),
+        // LIGHTAMER: white — scene-referred white-endpoint calibration
+        // (KD-5). 41.8 was planned; 42.0 collides with the (unregistered)
+        // dt rgbcurve row, so black takes 41.95 within the KD-3 ±0.05
+        // escape (DECISIONS signed).
+        ("white", 41.8),
+        // LIGHTAMER: black — scene-referred black-endpoint calibration
+        // (KD-5; 41.95 = the KD-3 ±0.05 move off the rgbcurve 42.0 slot).
+        ("black", 41.95),
         // really versatile way to edit colour in scene-referred and
         // display-referred workflow
         ("rgbcurve", 42.0),
+        // LIGHTAMER: saturation / tint / hls — the remaining ACEScc-domain
+        // grade ops (M2-5-1, KD-5/KD-7): multiplicative saturation 0..4,
+        // the independent tint scalar, and the 8-bin selective color table.
+        ("saturation", 42.2),
+        ("tint", 42.4),
+        ("hls", 42.6),
         ("rgblevels", 43.0), // same
         // conversion from scene-referred to display referred,
         // reverse-engineered on camera JPEG default look
@@ -172,6 +205,11 @@ public enum V50Order {
         // things with them.
         ("colorreconstruct", 69.0),
         ("finalscale", 69.4),
+        // LIGHTAMER: acesccOut — the grade-domain envelope exit (M2-5-1,
+        // D-M2-5-CONTEXT-3): the HIGHEST below-floor position (terminal
+        // floor 70.0, splittoning 67.0 below it) so every catalog op stays
+        // inside the envelope and nothing escapes into the terminal tail.
+        ("acesccOut", 69.9),
         ("colorout", 70.0),
         ("clahe", 71.0),
         ("overexposed", 73.0),
