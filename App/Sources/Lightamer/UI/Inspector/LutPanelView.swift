@@ -4,9 +4,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 // ─────────────────────────────────────────────────────────────────────────
-// LUT panel (Plan 12-5 T5) — the IOP-COLOR-08 Inspector surface:
-//   • 导入 (NSOpenPanel .cube → the library store, content-dedup)
-//   • 库列表 (library picker → params.lutName; 无 = neutral blit)
+// LUT panel (Plan 12-5 T5; M2-5-3 tree upgrade) — the IOP-COLOR-08
+// Inspector surface:
+//   • 导入 (NSOpenPanel .cube → the library store root, content-dedup)
+//   • 库列表 (M2-5-3: subdirectory tree — root rows + collapsible
+//     subdirectory groups, BuiltIn leading; manual refresh button;
+//     opening the panel rescans. Selection writes the registry key)
 //   • 应用色彩空间 (sRGB default / displayP3 / rec2020 / proPhotoLinear)
 //   • 插值 (tetrahedral default / trilinear — 3D tables only)
 //   • 1D hint (no-domain-key files default to the sRGB face, §6.6)
@@ -42,14 +45,18 @@ internal struct LutPanelView: View {
                 }
                 .accessibilityIdentifier("inspector.button.lut.import")
 
-                Picker(String(localized: "panel_lut_library"), selection: lutSelection) {
-                    Text(String(localized: "panel_lut_none")).tag(String?.none)
-                        .accessibilityLabel(String(localized: "panel_lut_none"))
-                    ForEach(libraryNames, id: \.self) { name in
-                        Text(displayName(name)).tag(String?(name))
+                // M2-5-3 (M2GRADE-05): the library picker is a subdirectory
+                // TREE (own view — root rows + collapsible groups). The
+                // missing-reference toast/identity semantics are untouched.
+                LutLibraryTreeView(params: params) { key in
+                    var p = params
+                    p.lutName = key
+                    applyDiscrete(p)
+                    if store.isMissing(key) {
+                        edit.presentToast(String(localized: "toast_lut_missing"))
                     }
                 }
-                .accessibilityIdentifier("inspector.picker.lut.library")
+                .id(libraryRevision)
 
                 Picker(String(localized: "panel_lut_colorspace"), selection: colorspaceSelection) {
                     ForEach(LutColorspace.allCases, id: \.self) { cs in
@@ -95,27 +102,16 @@ internal struct LutPanelView: View {
         .scrollContentBackground(.hidden)
         .background(LightamerColors.surface)
         .accessibilityIdentifier("inspector.panel.lut")
+        .onAppear {
+            // M2-5-3: opening the panel rescans (the manual-refresh story
+            // — FSEvents watching stays a v2 idea); the revision bump
+            // re-reads the library faces.
+            store.rescan()
+            libraryRevision += 1
+        }
     }
 
     // MARK: - Derived state
-
-    private var libraryNames: [String] {
-        _ = libraryRevision  // view-scope rescan trigger after import
-        return store.installedNames
-    }
-
-    private var lutSelection: Binding<String?> {
-        Binding(
-            get: { params.lutName },
-            set: { name in
-                var p = params
-                p.lutName = name
-                applyDiscrete(p)
-                if store.isMissing(name) {
-                    edit.presentToast(String(localized: "toast_lut_missing"))
-                }
-            })
-    }
 
     private var colorspaceSelection: Binding<LutColorspace> {
         Binding(
@@ -147,13 +143,6 @@ internal struct LutPanelView: View {
     /// The interpolation picker only makes sense for a 3D table (1D is
     /// piecewise-linear by definition).
     private var showInterpolation: Bool { selectedEntry?.is1D != true }
-
-    private func displayName(_ name: String) -> String {
-        if let entry = store.entry(named: name), let title = entry.title, !title.isEmpty {
-            return "\(title) (\(name))"
-        }
-        return name
-    }
 
     private func colorspaceLabel(_ cs: LutColorspace) -> String {
         switch cs {
@@ -193,6 +182,125 @@ internal struct LutPanelView: View {
         if let record = PanelEditing.updated(instance, params: p, as: Lut3dModule.self) {
             edit.applyDiscrete(record, label: String(localized: "history_lut"))
         }
+    }
+}
+
+// MARK: - Library tree (M2-5-3, M2GRADE-05)
+
+/// The subdirectory tree replacing the flat library picker: a manual
+/// refresh button, the "None" row, root-level rows, then one collapsible
+/// group per subdirectory (BuiltIn leading — the seeded film set).
+/// Selection writes the registry KEY (the root-relative path) into
+/// params; a legacy bare-name reference still displays as selected
+/// through the store's resolution face WITHOUT being rewritten.
+internal struct LutLibraryTreeView: View {
+
+    let params: Lut3dModule.Params
+    /// The selection write face (the panel's applyDiscrete + toast).
+    let onSelect: (String?) -> Void
+
+    @State private var revision = 0
+    @State private var collapsedGroups: Set<String> = []
+
+    private var store: LutLibraryStore { LutLibraryStore.shared }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(String(localized: "panel_lut_library"))
+                Spacer()
+                Button {
+                    store.rescan()
+                    revision += 1
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("inspector.button.lut.refresh")
+                .accessibilityLabel(String(localized: "panel_lut_refresh"))
+                .help(String(localized: "panel_lut_refresh"))
+            }
+            .font(.callout)
+
+            row(key: nil, label: String(localized: "panel_lut_none"))
+            let groups = libraryGroups
+            ForEach(groups.filter { $0.path.isEmpty }, id: \.path) { group in
+                ForEach(group.keys, id: \.self) { key in
+                    row(key: key, label: displayName(for: key, groups: groups))
+                }
+            }
+            ForEach(groups.filter { !$0.path.isEmpty }, id: \.path) { group in
+                DisclosureGroup(isExpanded: expansion(group.path)) {
+                    ForEach(group.keys, id: \.self) { key in
+                        row(key: key, label: displayName(for: key, groups: groups))
+                    }
+                } label: {
+                    Text(verbatim: group.path)
+                        .font(.callout)
+                        .foregroundStyle(LightamerColors.textSecondary)
+                }
+            }
+        }
+        .accessibilityIdentifier("inspector.picker.lut.library")
+    }
+
+    private var libraryGroups: [LutLibraryStore.LibraryGroup] {
+        _ = revision
+        return store.libraryGroups()
+    }
+
+    /// Expanded-by-default disclosure state per subdirectory path (the
+    /// collapsed set only records what the user folded).
+    private func expansion(_ path: String) -> Binding<Bool> {
+        Binding(
+            get: { !collapsedGroups.contains(path) },
+            set: { expanded in
+                if expanded {
+                    collapsedGroups.remove(path)
+                } else {
+                    collapsedGroups.insert(path)
+                }
+            })
+    }
+
+    /// One selectable tree row (the selected entry shows a checkmark).
+    private func row(key: String?, label: String) -> some View {
+        let selected = store.displayKey(for: params.lutName) == key
+        return Button {
+            onSelect(key)
+        } label: {
+            HStack {
+                Text(label)
+                    .foregroundStyle(LightamerColors.textPrimary)
+                if selected {
+                    Spacer()
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(LightamerColors.accent)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(
+            key.map { "inspector.button.lut.entry.\($0)" } ?? "inspector.button.lut.none")
+    }
+
+    /// The row label: the TITLE suffix when present. When the same FILE
+    /// NAME lives in more than one group (root vs subdirectories), the
+    /// relative path takes over — the KD-1 display disambiguation.
+    private func displayName(
+        for key: String, groups: [LutLibraryStore.LibraryGroup]
+    ) -> String {
+        guard let entry = store.entry(named: key) else { return key }
+        let collisions = groups
+            .flatMap { $0.keys }
+            .compactMap { store.entry(named: $0) }
+            .filter { $0.name == entry.name }
+        let base = collisions.count > 1 ? entry.resolvedRelativePath : entry.name
+        if let title = entry.title, !title.isEmpty {
+            return "\(title) (\(base))"
+        }
+        return base
     }
 }
 
