@@ -130,7 +130,15 @@ public final class ColorWheelsModule: IOPModule {
         return liftOK && gammaOK && gainOK
     }
 
-    public init() {}
+    public static let colorWheelsKernel = "grade_color_wheels"
+
+    private let device: (any MTLDevice)?
+    private var uniformsBuffer: (any MTLBuffer)?
+    private var committedFlag: Float = -1
+
+    public init(device: (any MTLDevice)? = nil) {
+        self.device = device
+    }
 
     public func reloadDefaults(image: DecodedImage) async -> Params {
         Params()
@@ -138,6 +146,33 @@ public final class ColorWheelsModule: IOPModule {
 
     public func commitParams(_ params: Params, into piece: inout IOPiece) {
         piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
+        // The runtime packing (Alcedo behavior 11): colorOffset +
+        // luminanceOffset ONLY — disc/strength are UI state and never
+        // reach the pixels.
+        var floats = [Float](repeating: 0, count: 16)
+        floats[0] = Self.isIdentity(params) ? 0 : 1
+        let controls = [params.lift, params.gamma, params.gain]
+        for (index, control) in controls.enumerated() {
+            floats[1 + index * 4 + 0] = control.colorOffset.x
+            floats[1 + index * 4 + 1] = control.colorOffset.y
+            floats[1 + index * 4 + 2] = control.colorOffset.z
+            floats[1 + index * 4 + 3] = control.luminanceOffset
+        }
+        if uniformsBuffer == nil || committedFlag != floats[0] {
+            let resolved = device ?? MTLCreateSystemDefaultDevice()
+            uniformsBuffer = resolved?.makeBuffer(
+                length: 16 * MemoryLayout<Float>.stride, options: .storageModeShared)
+            committedFlag = floats[0]
+        }
+        guard let buffer = uniformsBuffer else {
+            piece.data = nil
+            return
+        }
+        floats.withUnsafeBytes {
+            buffer.contents().copyMemory(
+                from: $0.baseAddress!, byteCount: 16 * MemoryLayout<Float>.stride)
+        }
+        piece.data = buffer
     }
 
     public func process(
@@ -148,6 +183,41 @@ public final class ColorWheelsModule: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        throw GradeCarrierKernelPending(op: Self.opName)
+        guard let buffer = piece.data else { return }
+        try await metal.dispatch2DTexture(
+            functionName: Self.colorWheelsKernel,
+            input: input,
+            output: output
+        ) { encoder in
+            encoder.setBuffer(buffer, offset: 0, index: 0)
+        }
+    }
+
+    // MARK: - CPU reference (KD-8 — the golden test's Float64 mirror)
+
+    /// The Float64 reference (Alcedo behavior 11): the per-channel
+    /// lift/gamma/gain power ride on the ACEScc texels —
+    /// sign(c)·|c + lift.color + lift.luma|^(1/max(gamma.color + gamma.luma,
+    /// 1e-4)) · gain.color.
+    public static func reference(acescc: SIMD3<Double>, params: Params) -> SIMD3<Double> {
+        if isIdentity(params) { return acescc }
+        func channel(
+            _ c: Double, _ liftColor: Double, _ gammaColor: Double, _ gainColor: Double
+        ) -> Double {
+            let gammaLeg = max(gammaColor + Double(params.gamma.luminanceOffset), 1.0e-4)
+            return copysign(
+                pow(abs(c + liftColor + Double(params.lift.luminanceOffset)), 1.0 / gammaLeg), c
+            ) * gainColor
+        }
+        return SIMD3(
+            channel(
+                acescc.x, Double(params.lift.colorOffset.x),
+                Double(params.gamma.colorOffset.x), Double(params.gain.colorOffset.x)),
+            channel(
+                acescc.y, Double(params.lift.colorOffset.y),
+                Double(params.gamma.colorOffset.y), Double(params.gain.colorOffset.y)),
+            channel(
+                acescc.z, Double(params.lift.colorOffset.z),
+                Double(params.gamma.colorOffset.z), Double(params.gain.colorOffset.z)))
     }
 }

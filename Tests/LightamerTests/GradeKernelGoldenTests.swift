@@ -504,4 +504,48 @@ final class GradeKernelGoldenTests: XCTestCase {
                 field: field, metal: metal)
         }
     }
+
+    // MARK: - T6: colorWheels (KD-6)
+
+    func testColorWheelsIdentityIsPixelExact() async throws {
+        let metal = try await makeMetal()
+        let field = sampleField()
+        let texels = encodeField(field)
+        let (input, output) = makeTexture(metal, texels: texels)
+        let module = ColorWheelsModule()
+        var piece = IOPiece()
+        module.commitParams(ColorWheelsModule.Params(), into: &piece)
+        try await module.process(
+            input: input, output: output, roiIn: ROI(), roiOut: ROI(),
+            piece: &piece, metal: metal)
+        let out = readOutput(output, metal: metal)
+        for (index, value) in texels.enumerated() {
+            XCTAssertEqual(out[index], value, accuracy: 0, "texel \(index)")
+        }
+    }
+
+    func testColorWheelsGoldenParameterPoints() async throws {
+        let metal = try await makeMetal()
+        let field = sampleField()
+        // One point per wheel + the combined ride.
+        let liftPoint = ColorWheelsModule.Params(
+            lift: ColorWheelControl(
+                disc: SIMD2(0.3, -0.2), strength: 1.2,
+                colorOffset: SIMD3(0.1, -0.05, 0.02), luminanceOffset: 0.01))
+        let gammaPoint = ColorWheelsModule.Params(
+            gamma: ColorWheelControl(colorOffset: SIMD3(1.2, 0.9, 1.1)))
+        let gainPoint = ColorWheelsModule.Params(
+            gain: ColorWheelControl(colorOffset: SIMD3(1.3, 0.8, 0.9)))
+        let combined = ColorWheelsModule.Params(
+            lift: liftPoint.lift, gamma: gammaPoint.gamma, gain: gainPoint.gain)
+        for (name, params) in [
+            ("lift", liftPoint), ("gamma", gammaPoint),
+            ("gain", gainPoint), ("combined", combined),
+        ] {
+            try await assertGolden(
+                module: ColorWheelsModule(), params: params,
+                reference: { ColorWheelsModule.reference(acescc: $0, params: params) },
+                field: field, metal: metal)
+        }
+    }
 }
