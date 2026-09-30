@@ -154,7 +154,7 @@ APP	71	PanelWiringTests.swift
 APP	17	NodeGraphCommandTests.swift
 APP	6	NodeOwnershipCatalogTests.swift
 APP	8	McpRegistrySnapshotTests.swift
-APP	13	EditorStackRoutingTests.swift
+APP	14	EditorStackRoutingTests.swift
 APP	4	CatalogAddFaceTests.swift
 APP	9	McpLauncherSentinelTests.swift
 APP	9	SettingsPagesTests.swift

@@ -65,12 +65,12 @@ final class EditorStackRoutingTests: XCTestCase {
         XCTAssertEqual(
             rehomedOps.count, Set(rehomedOps).count,
             "every panel rehomes EXACTLY ONCE (no double-homing)")
-        // The executed cardinality (M2-5-2 T4): 41 populated − 1 = 40.
+        // The executed cardinality (M2-5-2 T5): 42 populated − 1 = 41.
         // (M2-3-3 base 34 − textOverlay = 33; +6 T3 scalar providers
-        // [cat02WhiteBalance/contrast/white/black/tint/saturation] + 1 T4
-        // colorWheels trackball provider → 41.)
-        XCTAssertEqual(expected.count, 40)
-        XCTAssertEqual(rehomedOps.count, 40)
+        // [cat02WhiteBalance/contrast/white/black/tint/saturation] + T4
+        // colorWheels + T5 hls → 42 — the EIGHT catalog providers complete.)
+        XCTAssertEqual(expected.count, 41)
+        XCTAssertEqual(rehomedOps.count, 41)
     }
 
     // MARK: - M2-5-2 T3: the six scalar panels (AC#4)
@@ -213,15 +213,15 @@ final class EditorStackRoutingTests: XCTestCase {
             "every pre-M2-5-2 Look row keeps a home (zero loss)")
         // T3 additions: the catalog order's Saturation (Master) + the Color
         // seat's White Balance (CAT02) / Tint.
-        XCTAssertEqual(look.count, 17, "13 ledger + 4 catalog rows (T3 ×3 + T4 colorWheels)")
+        XCTAssertEqual(look.count, 18, "13 ledger + 5 catalog rows (T3 ×3 + T4 colorWheels + T5 hls)")
         XCTAssertEqual(
             look.filter { $0.group == .master }.map(\.opName),
             [SaturationModule.opName, VibranceModule.opName],
             "Master = Saturation / Vibrance (§2.3 order)")
         XCTAssertEqual(
             Set(look.filter { $0.group == .color }.map(\.opName)),
-            [Cat02WBModule.opName, ColorWheelsModule.opName, TintModule.opName],
-            "Color seat: CAT02 WB + Color Wheels (T4) + Tint; hls joins T5")
+            [Cat02WBModule.opName, HlsModule.opName, ColorWheelsModule.opName, TintModule.opName],
+            "Color seat complete: CAT02 WB + Selective Color + Color Wheels + Tint")
         // Group membership (KD-1 §2.3 mapping + checker m1's colorzones).
         let group = { (op: String) in look.first { $0.opName == op }?.group }
         let drtSeatOps = [

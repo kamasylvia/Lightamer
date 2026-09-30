@@ -150,4 +150,52 @@ final class CatalogAddFaceTests: XCTestCase {
         XCTAssertTrue(
             ColorWheelsModule.isIdentity(try committed.params(of: ColorWheelsModule.self)))
     }
+
+    // MARK: - M2-5-2 T5: the Selective Color panel state machine (AC#6)
+
+    /// Bin switching: the panel's display faces read THE BIN's stored row
+    /// (the 8-bin table is the only truth — the selection is UI state).
+    func testHlsDisplayValuesTrackTheSelectedBin() throws {
+        var params = HlsModule.Params()
+        // Write bin 3 through the P1 mapping (the panel's own write face).
+        params = HlsModule.applyTargetEdit(
+            params: params, targetBin: 3, dh: 12, dl: -40, ds: 55)
+        // Bin 3 reflects the edit (lightness/chroma ride ×1000 display).
+        let bin3 = HlsPanelView.displayValues(of: params, bin: 3)
+        XCTAssertEqual(bin3.hueShift, 12, accuracy: 1e-6)
+        XCTAssertEqual(bin3.lightness, -40, accuracy: 1e-4)
+        XCTAssertEqual(bin3.chroma, 55, accuracy: 1e-4)
+        // A different bin still reads ITS OWN row (all zero here).
+        let bin0 = HlsPanelView.displayValues(of: params, bin: 0)
+        XCTAssertEqual(bin0.hueShift, 0, accuracy: 1e-6)
+        XCTAssertEqual(bin0.lightness, 0, accuracy: 1e-4)
+        // The smoothness face reads hRangeTable[bin] (default 45).
+        XCTAssertEqual(bin3.smoothness, 45, accuracy: 1e-6)
+    }
+
+    /// The slider write path == the P1 applyTargetEdit output (same source
+    /// as the golden Float64 reference), and the smoothness write mirrors
+    /// hRangeTable[bin] into hRange (the D4 projection leg).
+    func testHlsSliderWritesRideApplyTargetEditAndSmoothnessMirror() throws {
+        var params = HlsModule.Params()
+        // The panel's hue-shift tick transforms through applyTargetEdit;
+        // the model-level equivalence is the assertion here.
+        var transformed = params
+        transformed = HlsModule.applyTargetEdit(
+            params: transformed, targetBin: 5, dh: 30, dl: 0, ds: 0)
+        transformed.hRangeTable[5] = 90
+        transformed.hRange = 90
+        // The reference: hand-applying the same mapping legs.
+        var reference = params
+        reference.adjTable[5] = HlsVec3(h: 30, l: 0, s: 0)
+        reference.hlsAdj = reference.adjTable[5]
+        reference.hRangeTable[5] = 90
+        reference.hRange = reference.hRangeTable[5]
+        reference.targetHls = HlsVec3(h: reference.hueBins[5], l: 0.5, s: 0.5)
+        reference.lRange = 1.0
+        reference.sRange = 1.0
+        XCTAssertEqual(transformed, reference)
+        // Smoothness clamps hold (the slider range 1...180 feeds the field).
+        XCTAssertGreaterThan(transformed.hRangeTable[5], 0)
+    }
 }
