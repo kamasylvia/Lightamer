@@ -45,6 +45,47 @@ final class NodesPanelModelTests: XCTestCase {
         editorState.layerStack!.compositeLayers[0].id
     }
 
+    // MARK: - T3: the KD-3 interaction face (action set + lock trio)
+
+    func testCardActionSetFollowsTheKD3Table() throws {
+        let editorState = EditorState()
+        let seed = ModuleInstance(
+            module: TestGainModule.self, params: TestGainModule.Params())
+        editorState.resetHistoryForNewImage(defaultInstances: [seed])
+        _ = editorState.addAdjustmentLayer()
+        let doc = try XCTUnwrap(editorState.layerStack.map(PipelineDocument.init))
+
+        // Grades carry all four actions (the Delete row present).
+        let grade = doc.grades[0]
+        XCTAssertEqual(
+            EditorNodesPanelView.availableActions(for: grade),
+            [.rename, .toggleEnabled, .delete, .insertGradeBefore])
+
+        // The LOCKED ENDPOINTS carry NONE — no Delete, nothing to rename.
+        XCTAssertTrue(
+            EditorNodesPanelView.availableActions(for: doc.develop).isEmpty)
+        XCTAssertTrue(
+            EditorNodesPanelView.availableActions(
+                for: doc.displayTransform).isEmpty)
+    }
+
+    func testLockTrioMarkerAndCardMarkersAreStable() {
+        XCTAssertEqual(NodeLockedBadge.marker, "editor.nodes.locked")
+
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        stack.addAdjustment(AdjustmentLayer(name: "G"))
+        let doc = PipelineDocument(stack)
+        XCTAssertEqual(
+            EditorNodesPanelView.cardMarker(for: doc.develop),
+            "editor.nodes.develop")
+        XCTAssertEqual(
+            EditorNodesPanelView.cardMarker(for: doc.grades[0]),
+            "editor.nodes.grade.\(doc.grades[0].id.uuidString)")
+        XCTAssertEqual(
+            EditorNodesPanelView.cardMarker(for: doc.displayTransform),
+            "editor.nodes.drt")
+    }
+
     // MARK: - T1: the projection
 
     func testDocumentProjectsAndFollowsStackChanges() {

@@ -24,8 +24,21 @@ struct EditorNodesPanelView: View {
     @State private var containerSize: CGSize = .zero
 
     /// The active drag's drop index (nil = no drag → the indicator hides).
-    /// T2 mounts the RENDER SITE; the T3 gesture is the only writer.
     @State private var dropIndex: Int?
+
+    /// The card currently under a drag gesture (the scroll-lock arm — the
+    /// ScrollView disables itself while a card drag is live, KD-1's
+    /// double guard with the 6pt threshold).
+    @State private var draggingNodeID: UUID?
+
+    /// The rename alert's target + draft (nil = the alert is closed).
+    @State private var renameTargetID: UUID?
+    @State private var renameDraft: String = ""
+
+    /// The live mix draft per card (the slider's drag buffer — the commit
+    /// leg reads THIS, never a captured node snapshot, so a fast drag
+    /// commits the exact final value).
+    @State private var liveMixes: [UUID: Float] = [:]
 
     /// The Fit button's re-assert counter (the scroll-to-top trigger).
     @State private var fitToken = 0
@@ -53,6 +66,28 @@ struct EditorNodesPanelView: View {
                 .onChange(of: geo.size) { _, newSize in containerSize = newSize }
         }
         .onChange(of: model.document?.nodes.map(\.id)) { model.pruneSelection() }
+        .alert(
+            String(localized: "nodes_rename_title", defaultValue: "Rename Color Grade"),
+            isPresented: renameAlertBinding
+        ) {
+            TextField(
+                String(localized: "nodes_rename_field", defaultValue: "Name"),
+                text: $renameDraft)
+            Button(String(localized: "nodes_rename_ok", defaultValue: "Rename")) {
+                if let id = renameTargetID, !renameDraft.trimmingCharacters(
+                    in: .whitespacesAndNewlines).isEmpty
+                {
+                    model.apply(.renameGrade(id: id, to: renameDraft))
+                }
+                renameTargetID = nil
+            }
+            Button(
+                role: .cancel,
+                action: { renameTargetID = nil }
+            ) {
+                Text(String(localized: "nodes_rename_cancel", defaultValue: "Cancel"))
+            }
+        }
         .accessibilityIdentifier("editor.nodes.panel")
     }
 
@@ -101,6 +136,9 @@ struct EditorNodesPanelView: View {
                         proxy.scrollTo(Self.topAnchorID, anchor: .top)
                     }
                 }
+                // KD-1's scroll-lock arm: while a card drag is live the
+                // ScrollView yields (the 6pt threshold is the other guard).
+                .scrollDisabled(draggingNodeID != nil)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -122,11 +160,23 @@ struct EditorNodesPanelView: View {
         }
     }
 
-    /// The panel header row (the Fit affordance; the「+」add button is the
-    /// T3 interaction face).
+    /// The panel header row: the「+」add-grade affordance (the stack-top
+    /// AddClean — plan T3) and the Fit button (T2).
     private var header: some View {
         HStack(spacing: 8) {
+            Button {
+                model.apply(.addCleanGrade(before: nil))
+            } label: {
+                Image(systemName: "plus")
+                    .font(.callout)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("editor.nodes.add")
+            .accessibilityLabel(Text(
+                String(localized: "editor_nodes_add_grade", defaultValue: "Add Color Grade")))
+
             Spacer(minLength: 0)
+
             Button {
                 fitToken += 1
             } label: {
@@ -207,17 +257,133 @@ struct EditorNodesPanelView: View {
                             lineWidth: selected ? 1.5 : 1)
                 )
         )
+        // The lock trio FIRST (badge + content interception + hint); the
+        // selection/navigation face attaches OUTSIDE it — selecting a
+        // locked endpoint is navigation, not an edit (D-M2-4-CONTEXT-7:
+        // develop 点选 = the global chain).
+        .nodeLocked(node.isDeletionLocked, hint: { model.lockHint(node.id) })
         .contentShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { model.select(node.id) }
+        .contextMenu { menu(for: node) }
+        .gesture(dragGesture(for: node))
         .accessibilityIdentifier(Self.cardMarker(for: node))
     }
 
-    /// The Develop endpoint: name + RAW badge + lock mark (D-M2-4-CONTEXT-7).
+    // MARK: - The KD-3 interaction face (T3)
+
+    /// One card's context-menu action (the KD-3 table's command face — a
+    /// value so the ACTION SET is machine-checkable).
+    enum NodeCardAction: Equatable, CaseIterable {
+        case rename
+        case toggleEnabled
+        case delete
+        case insertGradeBefore
+    }
+
+    /// The action set per card kind — the KD-3 table verbatim: grades
+    /// carry all four; the LOCKED ENDPOINTS carry NONE (no Delete, nothing
+    /// to rename/toggle/insert into). Exhaustive switch, no `default` arm.
+    static func availableActions(for node: PipelineDocument.Node) -> [NodeCardAction] {
+        switch node.kind {
+        case .develop, .displayTransform: []
+        case .grade: NodeCardAction.allCases
+        }
+    }
+
+    @ViewBuilder
+    private func menu(for node: PipelineDocument.Node) -> some View {
+        ForEach(Self.availableActions(for: node), id: \.self) { action in
+            menuButton(action, for: node)
+        }
+    }
+
+    @ViewBuilder
+    private func menuButton(
+        _ action: NodeCardAction, for node: PipelineDocument.Node
+    ) -> some View {
+        switch action {
+        case .rename:
+            Button(String(localized: "nodes_menu_rename", defaultValue: "Rename…")) {
+                renameDraft = node.name
+                renameTargetID = node.id
+            }
+        case .toggleEnabled:
+            Button(
+                node.isEnabled
+                    ? String(localized: "nodes_menu_disable", defaultValue: "Disable")
+                    : String(localized: "nodes_menu_enable", defaultValue: "Enable")
+            ) {
+                model.apply(.setGradeEnabled(id: node.id, enabled: !node.isEnabled))
+            }
+        case .delete:
+            Button(
+                role: .destructive,
+                action: { model.apply(.removeGradeAndBridge(id: node.id)) }
+            ) {
+                Text(String(localized: "nodes_menu_delete", defaultValue: "Delete"))
+            }
+        case .insertGradeBefore:
+            Button(String(
+                    localized: "nodes_menu_insert_before",
+                    defaultValue: "Insert Grade Before")) {
+                model.apply(.addCleanGrade(before: node.id))
+            }
+        }
+    }
+
+    /// The drag-reconnect gesture (KD-1): 6pt threshold起步 (the scroll
+    /// coexistence guard; the ScrollView's scrollDisabled is the other),
+    /// the drop Y resolves through the PURE insertionIndex, the indicator
+    /// echoes it live, and the release routes `reconnectGrade` — UNLESS
+    /// the drop hit the card's own slot (the no-op position) or the card
+    /// is locked (the view-level refusal; the shell's silent interception
+    /// is the backstop).
+    private func dragGesture(for node: PipelineDocument.Node) -> some Gesture {
+        DragGesture(minimumDistance: 6, coordinateSpace: .named(Self.canvasSpace))
+            .onChanged { value in
+                guard node.kind == .grade, !model.isLocked(node.id) else { return }
+                draggingNodeID = node.id
+                dropIndex = NodeCanvasGeometry.insertionIndex(
+                    dragY: value.location.y,
+                    in: currentLayout())
+            }
+            .onEnded { value in
+                defer {
+                    draggingNodeID = nil
+                    dropIndex = nil
+                }
+                guard node.kind == .grade, !model.isLocked(node.id) else { return }
+                let index = NodeCanvasGeometry.insertionIndex(
+                    dragY: value.location.y, in: currentLayout())
+                let currentSlot = model.document?.grades.firstIndex {
+                    $0.id == node.id
+                } ?? -1
+                if index != currentSlot {
+                    model.apply(.reconnectGrade(id: node.id, toPosition: index))
+                }
+            }
+    }
+
+    /// The layout the gesture closures resolve against (re-derived per
+    /// event — pure and tens-of-nodes cheap; the container size state is
+    /// kept current by the body's GeometryReader).
+    private func currentLayout() -> NodeCanvasGeometry.Layout {
+        NodeCanvasGeometry.layout(
+            for: model.document?.nodes ?? [], width: containerSize.width)
+    }
+
+    /// The rename alert (the KD-3 Rename row): a text-field alert routed
+    /// through `renameGrade`; an empty (whitespace-only) draft is a no-op.
+    private var renameAlertBinding: Binding<Bool> {
+        Binding(
+            get: { renameTargetID != nil },
+            set: { if !$0 { renameTargetID = nil } })
+    }
+
+    /// The Develop endpoint: name + RAW badge (the lock affordance rides
+    /// the `.nodeLocked` trio, not the card content).
     private func developCard(_ node: PipelineDocument.Node) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: "lock.fill")
-                .font(.caption2)
-                .foregroundStyle(ThemeTokens.textSecondary)
             Text(String(localized: "editor_node_develop", defaultValue: "Develop"))
                 .font(.callout.weight(.medium))
                 .foregroundStyle(ThemeTokens.textPrimary)
@@ -234,21 +400,43 @@ struct EditorNodesPanelView: View {
         .padding(.horizontal, 10)
     }
 
-    /// The grade card: name + enabled dot + mix % (the slider/menu/drag
-    /// face lands in T3).
+    /// The grade card: name + enabled dot + mix % + the mix SLIDER (the
+    /// KD-2 live/commit legs — drag = `setMixLive` zero history, release =
+    /// `commitMix` EXACTLY one history item with the command face's key).
     private func gradeCard(_ node: PipelineDocument.Node) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(node.isEnabled ? ThemeTokens.accent : ThemeTokens.textSecondary)
-                .frame(width: 7, height: 7)
-            Text(node.name)
-                .font(.callout)
-                .foregroundStyle(ThemeTokens.textPrimary)
-                .lineLimit(1)
-            Spacer(minLength: 4)
-            Text("\(Int((Double(node.mix) * 100).rounded()))%")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(ThemeTokens.textSecondary)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(node.isEnabled ? ThemeTokens.accent : ThemeTokens.textSecondary)
+                    .frame(width: 7, height: 7)
+                Text(node.name)
+                    .font(.callout)
+                    .foregroundStyle(ThemeTokens.textPrimary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(Int((Double(node.mix) * 100).rounded()))%")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
+            Slider(
+                value: Binding(
+                    get: { Double(liveMixes[node.id] ?? node.mix) },
+                    set: { newValue in
+                        liveMixes[node.id] = Float(newValue)
+                        model.setMixLive(Float(newValue), nodeID: node.id)
+                    }),
+                in: 0...1
+            ) { editing in
+                if !editing {
+                    if let value = liveMixes[node.id] {
+                        model.commitMix(value, nodeID: node.id)
+                    }
+                    liveMixes[node.id] = nil
+                }
+            }
+            .controlSize(.mini)
+            .accessibilityLabel(Text(
+                String(localized: "nodes_mix_label", defaultValue: "Mix")))
         }
         .padding(.horizontal, 10)
     }
@@ -258,9 +446,6 @@ struct EditorNodesPanelView: View {
     private func drtCard(_ node: PipelineDocument.Node) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Image(systemName: "lock.fill")
-                    .font(.caption2)
-                    .foregroundStyle(ThemeTokens.textSecondary)
                 Text(String(localized: "editor_node_drt", defaultValue: "Display Transform"))
                     .font(.callout)
                     .foregroundStyle(ThemeTokens.textSecondary)
@@ -306,5 +491,52 @@ struct NodeCardFramesKey: PreferenceKey {
         value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]
     ) {
         value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The locked-node interaction TRIO (Plan M2-4-3 T3, KD-3; CONTEXT Specific
+// Ideas) — badge + interception + hint in ONE reusable modifier. The
+// signature is GENERIC (no node semantics): M2-7's first-group lock
+// consumes it verbatim. What this plan freezes is the trio's SEMANTICS
+// (visible lock mark / disabled interactions / tap-for-hint), not the
+// call sites — an M2-7 evolution is additive parameters (the plan's risk
+// note). Selection/navigation attaches OUTSIDE the trio by design: a
+// locked card is navigable, never editable (the D-M2-4-CONTEXT-7 face).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The lock badge (the trio's visual arm; the stable AX marker).
+struct NodeLockedBadge: View {
+
+    /// The badge's AX marker (L010: stable ids — the AC5 machine check).
+    static let marker = "editor.nodes.locked"
+
+    var body: some View {
+        Image(systemName: "lock.fill")
+            .font(.caption2)
+            .foregroundStyle(ThemeTokens.textSecondary)
+            .padding(4)
+            .background(Circle().fill(ThemeTokens.cardSurface))
+            .overlay(Circle().strokeBorder(ThemeTokens.cardBorder, lineWidth: 1))
+            .accessibilityIdentifier(Self.marker)
+    }
+}
+
+extension View {
+
+    /// The locked-node trio: the BADGE at the top-trailing corner (tap →
+    /// `hint`), the decorated view's interactions INTERCEPTED while locked
+    /// (hit testing off — sliders/menus inside die with it), and the hint
+    /// callback (the Alcedo `LockedNodeMaskPromptDialog` semantics as the
+    /// caller's toast/handling). Unlocked = the view verbatim.
+    func nodeLocked(_ locked: Bool, hint: @escaping () -> Void) -> some View {
+        allowsHitTesting(!locked)
+            .overlay(alignment: .topTrailing) {
+                if locked {
+                    NodeLockedBadge()
+                        .onTapGesture(perform: hint)
+                        .offset(x: 5, y: -5)
+                }
+            }
     }
 }
