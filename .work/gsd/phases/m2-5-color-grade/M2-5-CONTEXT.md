@@ -176,3 +176,9 @@
 ## 夜间授权预案（2026-09-29 起草时点）
 
 本 CONTEXT 提交夜间授权裁决：若无人干预，D-M2-5-CONTEXT-1..12 = **OQ-1..12 全部按推荐 A 生效**。晨审可推翻：推翻任一条 = 修订对应 plan（CONTEXT OQ 原文不改、以 Ruling/勘误注记为准，沿 M2-4-CONTEXT 先例）。plan 期需回填的悬决点（非 OQ 级）：Alcedo Curve 域语义精读（OQ-1 表）、LGG kernel 数学精貌（OQ-2）、HLS 单 target UI ↔ 8-bin 映射（OQ-6）、spectral_film_lut 许可结论与 clone SHA（OQ-7 许可门）、ACEScc 转换 pass 折叠形态（OQ-11）。
+
+---
+
+## Ruling（2026-09-30 夜间授权，晨审可推翻）
+
+D-M2-5-CONTEXT-1..12 = OQ-1..12 **全部按推荐 A 生效**。三条盘点发现采信为事实基线：①ACEScc 域转换落每层子 run 头尾（LayerCompositeDriver:73-77 现成结构）；②18 目录严面激活位点 = NodeOwnershipCatalog；③LUT 三件套 = registry 键升根相对路径一处升级承载。
