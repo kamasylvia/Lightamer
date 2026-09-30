@@ -14,6 +14,11 @@
 #   IOP 余 62 文件/523 tests）。bucket 标签 IOPP；target 依赖/SHARED 编列与 IOP 同构
 #   （Fixtures/ParityGate/ChainBuilderHelpers 三件全列）。6→7 bundle 超出 4-6 指导值，
 #   <3G 硬门优先（D5 原文），拆分有效性以 T3 复测两 bundle RSS 为准。
+# M2-4-1 增行记录（2026-09-30 执行期，checker E2 测试登记纪律）：四个新测试文件
+#   同 commit 登记进对应 bundle（归属按 front-matter 判定：PipelineDocumentTests =
+#   LAYERS/Core 级；NodeGraphCommandTests / NodeOwnershipCatalogTests / SidecarV5Tests
+#   = APP/App 级——undo/redo、addModuleToLayer、真 load 链均实例化 EditorState）。
+#   运行期总数基线相应上移（2165 → 2165 + 本批新增，对账以各行 method 数为准）。
 IOPP	5	AgXTests.swift
 IOPP	8	AshiftParityTests.swift
 IOPP	11	BilateralParityTests.swift
@@ -177,6 +182,7 @@ LAYERS	6	DrawnMaskSpecTests.swift
 LAYERS	8	DrawnMaskRasterTests.swift
 LAYERS	8	MaskCombineTests.swift
 LAYERS	9	RasterMaskRoundTripTests.swift
+LAYERS	5	PipelineDocumentTests.swift
 LIB	10	FilterPredicateTests.swift
 LIB	10	ImportServiceTests.swift
 LIB	10	LibraryFilterDomainTests.swift
