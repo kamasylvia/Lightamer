@@ -392,3 +392,16 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **对策**：①多对象装配 helper 的返回值**每个槽位具名绑定**（哪怕 `let c = ...; _ = c` 保活到 scope 尾）；②装配型测试的断言失败先查「被测对象还活着吗」（weak 网存活检查）再查业务逻辑；③排障 instrumentation 优先打在**守卫出口**而非入口（本例三轮入口探针全绿、出口早退，教训即此）。
 - **适用**：一切「weak 互指 + 外部强持有」的组合根测试（EditorState/PipeCoordinator/WorkspaceModel 族、未来 NodesPanelModel 同款）；一切「静默不作为」类失败的生命周期排查。
 - **来源**：M2-4-1 T5 AC7 真链用例三轮排障（hook/store/探针三级 instrumentation，2026-09-30）。
+
+## L047: xcodebuild 增量构建漏 .metal 重编——drift 值逐位不变即 binary 陈旧信号（2026-09-30，M2-5-1 T3）
+- **背景**：CAT02 golden 测试 kernel vs Swift 参考漂移排障：改 `.metal`（含 precise:: 数学替换）后重跑，drift 数值**逐位一致**（1.453622958171752 连续三轮相同）。
+- **现象**：`xcodebuild build-for-testing` 显示 TEST BUILD SUCCEEDED，default.metallib 未吸收新 kernel 源；touch `.metal` 文件后 MetalLink 才真正重跑。
+- **根因**：外置卷工程（L009 环境族）+ 增量构建的 .metal mtime 探测失灵——源码已改、产物陈旧，编译器无告警；「测试跑绿/跑红但数值纹丝不动」是唯一症状。
+- **对策**：①kernel golden 排障时**先 touch 全部相关 .metal 再重建**（成本秒级，排除陈旧维度）；②漂移数值逐位不变的复跑 = binary 未换的强信号，此时改源码无意义，先解决构建；③新建 `.metal` 文件必须 `tuist generate`（新文件不在 pbxproj 编列，metallib 永不包含——functionNotFound 同根因）。
+- **适用**：一切 Metal kernel 的 golden/parity 排障；外置卷工程的增量构建信任问题。
+
+## L048: GPU golden 比较空间选型——encode 对数腿零点斜率放大 f32 固有误差 750×（2026-09-30，M2-5-1 T3）
+- **背景**：CAT02 golden 逐 texel 比较，个别样本 encoded 域漂移 ~1e-4，其余 ≤1e-7——离群点全部落在 adapted linear ≈ 0 的 texel。
+- **根因**：ACEScc encode 对数腿斜率 = 1/(x·17.52·ln2)，x→0 时发散（x=1e-4 处 ~750×）：f32 kernel 的固有 epsilon（linear 域 ~1e-7，f32 求和不可消除）在 encoded 空间被放大两个数量级——不是 kernel 错，是**比较空间选错**。
+- **对策**：①ACEScc 域 op 的 golden 比较一律 decode 回 linear 再比（斜率 ~12×，对零交叉稳健）；②Swift Float64 参考的数学常数用**出厂 f32 值升 Double**（`Double(Float(17.52))`）——精确十进制参考会把常数舍入系统差（decode 斜率 ~4e-5）烤进每个线性腿样本；③encoded 空间统计按 plan 原文做 [-0.5, 2.5] 窗裁剪，病态参数化（适应阵元 ~1e10 角点）只做 bounded/NaN 断言——f32 求和消散在该处数学上不可达 1e-5。
+- **适用**：一切对数域传输函数（ACEScc/log 编码）两端 op 的 golden/parity 容差设计；任何「大部分样本极好、零交叉样本离群」的漂移形态归因。
