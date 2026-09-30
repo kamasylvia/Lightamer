@@ -34,7 +34,9 @@
 # M2-5-2 增行记录（2026-09-30 执行期，checker E2 测试登记纪律）：新测试文件
 #   DefaultLookTests / CatalogAddFaceTests 同 commit 登记进 LightamerTestsApp
 #   （均 = APP/App 级——mint 分支与 add 枚举面经 EditorState 实例断言）；既有
-#   EditorStackRoutingTests 行内计数随 Tone/Look 重组断言同批修订（9→10，T1）。
+#   EditorStackRoutingTests 行内计数随 Tone/Look 重组断言同批修订（终值 9→12：
+#   T1 Tone/T2 Look/T3 provider 路由各 +1 方法；T4/T5 的 populated 基数变化是
+#   既有方法内断言修订，无方法增量）。
 #   运行期总数基线相应上移（对账以各行 method 数为准）。
 IOPP	5	AgXTests.swift
 IOPP	8	AshiftParityTests.swift
@@ -148,14 +150,14 @@ APP	6	AppErrorTests.swift
 APP	6	McpCullingImageBudgetTests.swift
 APP	6	McpFinalSnapshotTests.swift
 APP	7	CropOverlayTests.swift
-APP	6	DefaultLookTests.swift
+APP	5	DefaultLookTests.swift
 APP	7	SoftProofUIWiringTests.swift
 APP	7	ThemeTokensTests.swift
 APP	71	PanelWiringTests.swift
 APP	17	NodeGraphCommandTests.swift
 APP	6	NodeOwnershipCatalogTests.swift
 APP	8	McpRegistrySnapshotTests.swift
-APP	14	EditorStackRoutingTests.swift
+APP	12	EditorStackRoutingTests.swift
 APP	9	CatalogAddFaceTests.swift
 APP	9	McpLauncherSentinelTests.swift
 APP	9	SettingsPagesTests.swift
