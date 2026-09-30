@@ -286,6 +286,7 @@ let project = Project(
                 "Tests/LightamerTests/LocalContrastTests.swift",
                 "Tests/LightamerTests/Lut3dGoldenImageTests.swift",
                 "Tests/LightamerTests/Lut3dKernelTests.swift",
+                "Tests/LightamerTests/LutLibraryRecursionTests.swift",
                 "Tests/LightamerTests/McpRenderParityTests.swift",
                 "Tests/LightamerTests/MonochromeParityTests.swift",
                 "Tests/LightamerTests/NLMeansParityTests.swift",
