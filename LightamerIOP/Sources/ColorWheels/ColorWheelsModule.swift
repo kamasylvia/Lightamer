@@ -85,6 +85,106 @@ public struct ColorWheelControl: Codable, Hashable, Sendable {
 
 public final class ColorWheelsModule: IOPModule {
 
+    /// The three wheels (the per-wheel derived-offset anchors — Alcedo
+    /// editor_cdl_trackball_model.cpp UpdateDerived's add_unity/invert flags
+    /// fold into the kind).
+    public enum WheelKind: String, Sendable, CaseIterable {
+        case lift
+        case gamma
+        case gain
+    }
+
+    /// Alcedo editor_support color_wheel.hpp constants (the trackball UI
+    /// face): strength is a 0...0.1 factor, the luminance master clamps
+    /// ±1, and kEpsilon guards the normalization.
+    public static let strengthRange: ClosedRange<Float> = (0.0...0.1)
+    public static let luminanceRange: ClosedRange<Float> = (-1.0...1.0)
+    static let kEpsilon: Float = 1.0e-6
+
+    // MARK: - Trackball coordinate math (Plan M2-5-2 KD-2 — pure, testable)
+
+    /// View point → unit-disc {x,y} (Alcedo ClampDiscPoint; y flipped —
+    /// view y grows downward, the disc's +y is up), length clamped ≤ 1.
+    public static func discFrom(
+        point: SIMD2<Float>, relativeTo center: SIMD2<Float>, radius: Float
+    ) -> SIMD2<Float> {
+        let r = max(radius, 1)
+        var d = (point - center) / r
+        d.y = -d.y
+        let length = sqrt(d.x * d.x + d.y * d.y)
+        if length > 1 { d /= length }
+        return d
+    }
+
+    /// Unit disc → the OFFSET from the wheel center in view points (the
+    /// inverse of `discFrom`; the caller adds the center). y flipped back.
+    public static func pointFrom(disc: SIMD2<Float>, radius: Float) -> SIMD2<Float> {
+        SIMD2(disc.x, -disc.y) * max(radius, 1)
+    }
+
+    /// Alcedo HueToUnitRgb: h ∈ [0,1) → the six-sector hue RGB.
+    public static func hueToUnitRgb(_ h: Float) -> SIMD3<Float> {
+        let hh = h - floor(h)
+        let scaled = hh * 6
+        let sector = Int(floor(scaled)) % 6
+        let f = scaled - floor(scaled)
+        switch sector {
+        case 0: return SIMD3(1, f, 0)
+        case 1: return SIMD3(1 - f, 1, 0)
+        case 2: return SIMD3(0, 1, f)
+        case 3: return SIMD3(0, 1 - f, 1)
+        case 4: return SIMD3(f, 0, 1)
+        default: return SIMD3(1, 0, 1 - f)
+        }
+    }
+
+    /// Alcedo DiscToCdlDelta: the disc position → the zero-sum RGB delta
+    /// direction scaled by strength × disc-radius (the wheel's pixel-state
+    /// derivation the UI performs on every drag).
+    public static func cdlDelta(
+        disc: SIMD2<Float>, strength: Float
+    ) -> SIMD3<Float> {
+        let x = disc.x, y = disc.y
+        let r = min(max(sqrt(x * x + y * y), 0), 1)
+        var h = atan2(y, x) / (2 * Float.pi)
+        if h < 0 { h += 1 }
+        let c = hueToUnitRgb(h)
+        let m = (c.x + c.y + c.z) / 3
+        var dr = c.x - m, dg = c.y - m, db = c.z - m
+        let length = sqrt(dr * dr + dg * dg + db * db)
+        let inv = 1 / (length + kEpsilon)
+        dr *= inv; dg *= inv; db *= inv
+        let scale = max(strength, 0) * r
+        return SIMD3(dr, dg, db) * scale
+    }
+
+    /// The per-wheel derived colorOffset (Alcedo UpdateDerived): lift rides
+    /// base 0, gamma/gain ride base 1 with gamma's delta INVERTED.
+    public static func colorOffset(
+        from disc: SIMD2<Float>, strength: Float, wheel: WheelKind
+    ) -> SIMD3<Float> {
+        let delta = cdlDelta(disc: disc, strength: strength)
+        switch wheel {
+        case .lift: return SIMD3(0, 0, 0) + delta
+        case .gamma: return SIMD3(1, 1, 1) - delta
+        case .gain: return SIMD3(1, 1, 1) + delta
+        }
+    }
+
+    /// The per-wheel payload-identity reset (the double-click face): the
+    /// wheel returns to the Params() default control — lift all-zero,
+    /// gamma/gain colorOffset (1,1,1), disc zero, strength 1 (the payload
+    /// pristine, byte-equal to the identityJSON components).
+    public static func resetting(_ params: Params, wheel: WheelKind) -> Params {
+        var p = params
+        switch wheel {
+        case .lift: p.lift = ColorWheelControl()
+        case .gamma: p.gamma = ColorWheelControl(colorOffset: SIMD3(1, 1, 1))
+        case .gain: p.gain = ColorWheelControl(colorOffset: SIMD3(1, 1, 1))
+        }
+        return p
+    }
+
     /// Alcedo `ColorWheelPayload` (color_wheel_model.hpp:42-47).
     public struct Params: Codable, Hashable, Sendable {
         public var lift: ColorWheelControl

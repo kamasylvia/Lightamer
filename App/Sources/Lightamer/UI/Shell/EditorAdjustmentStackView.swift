@@ -399,6 +399,9 @@ struct EditorAdjustmentStackView: View {
             localized: "module_tint", defaultValue: "Tint")
         case SaturationModule.opName: String(
             localized: "module_saturation", defaultValue: "Saturation")
+        // M2-5-2 T4/T5: the remaining two Color-seat captions.
+        case ColorWheelsModule.opName: String(
+            localized: "module_color_wheels", defaultValue: "Color Wheels")
         default: opName
         }
     }

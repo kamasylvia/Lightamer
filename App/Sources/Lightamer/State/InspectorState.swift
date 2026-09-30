@@ -156,6 +156,8 @@ final class InspectorState {
         register(BlackPanelProvider())
         register(TintPanelProvider())
         register(SaturationPanelProvider())
+        // Plan M2-5-2 T4: the LGG three-trackball panel (Color Wheels).
+        register(ColorWheelsPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()
