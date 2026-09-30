@@ -114,6 +114,31 @@ final class LutLibraryRecursionTests: XCTestCase {
         XCTAssertLessThan(elapsed, 5.0, "rescan soft cap (KD-2)")
     }
 
+    /// OQ-11 observation ③ — the TEN-THOUSAND-file probe behind
+    /// `LIGHTAMER_PERF_PROBE=1` (skipped in the default suite: fixture
+    /// creation dominates the runtime; the measurement is an observation
+    /// record, not a gate). Run manually:
+    ///   LIGHTAMER_PERF_PROBE=1 Scripts/test-direct.sh 'LutLibraryRecursionTests'
+    func testRescanTenThousandFilesManualProbe() throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["LIGHTAMER_PERF_PROBE"] == "1",
+            "manual probe — set LIGHTAMER_PERF_PROBE=1 (OQ-11 observation ③)")
+        for index in 0..<10_000 {
+            try write("Pack/Sub\(index % 50)/Deep\(index % 5)/Lut\(index).cube")
+        }
+        let start = Date()
+        let store = LutLibraryStore(directory: libraryDir)
+        let elapsed = Date().timeIntervalSince(start)
+        XCTAssertEqual(store.installedNames.count, 10_000)
+        print("PERF-PROBE|LUT-RESCAN|10000 files|\(String(format: "%.2f", elapsed))s")
+        // A second store on the warm registry (the panel-reopen shape).
+        let warmStart = Date()
+        _ = LutLibraryStore(directory: libraryDir)
+        print(
+            "PERF-PROBE|LUT-RESCAN-WARM|10000 files|"
+                + String(format: "%.2f", Date().timeIntervalSince(warmStart)) + "s")
+    }
+
     // MARK: - KD-1 legacy registry tolerance + migration idempotency
 
     private func legacyRegistryFixture() throws -> Data {

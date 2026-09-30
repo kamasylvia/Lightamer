@@ -64,7 +64,7 @@ IOPP	16	LiquifyParityTests.swift
 IOPP	6	LocalContrastTests.swift
 IOPP	5	Lut3dGoldenImageTests.swift
 IOPP	8	Lut3dKernelTests.swift
-IOPP	15	LutLibraryRecursionTests.swift
+IOPP	16	LutLibraryRecursionTests.swift
 IOPP	9	McpRenderParityTests.swift
 IOPP	3	MonochromeParityTests.swift
 IOPP	11	NLMeansParityTests.swift
@@ -169,6 +169,7 @@ APP	9	NodeCanvasGeometryTests.swift
 APP	14	NodesPanelModelTests.swift
 APP	15	GradeCatalogTests.swift
 LAYERS	5	ACESccEnvelopeTests.swift
+LAYERS	1	GradeEnvelopePerfProbeTests.swift
 IOPP	18	GradeKernelGoldenTests.swift
 IOP	10	GradeParamsCodingTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
