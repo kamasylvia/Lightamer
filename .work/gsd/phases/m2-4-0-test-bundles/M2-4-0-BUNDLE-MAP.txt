@@ -171,7 +171,7 @@ APP	15	GradeCatalogTests.swift
 LAYERS	5	ACESccEnvelopeTests.swift
 LAYERS	1	GradeEnvelopePerfProbeTests.swift
 IOPP	18	GradeKernelGoldenTests.swift
-IOPP	8	DrtKernelGoldenTests.swift
+IOPP	15	DrtKernelGoldenTests.swift
 IOP	10	GradeParamsCodingTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
