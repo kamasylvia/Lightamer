@@ -236,6 +236,21 @@ internal struct InspectorView: View {
         case DenoiseProfileModule.opName: return String(localized: "history_denoiseprofile")
         // Plan 05-08-T4: bilateral (same precedent).
         case BilateralModule.opName: return String(localized: "history_bilateral")
+        // M2-5-2 T3: the six catalog ops (the stack's caption set mirrored;
+        // the legacy face stays in lockstep — the add menu at T6 lists the
+        // same names).
+        case Cat02WBModule.opName: return String(
+            localized: "module_cat02_white_balance", defaultValue: "White Balance")
+        case ContrastModule.opName: return String(
+            localized: "module_contrast", defaultValue: "Contrast")
+        case WhiteModule.opName: return String(
+            localized: "module_white", defaultValue: "White")
+        case BlackModule.opName: return String(
+            localized: "module_black", defaultValue: "Black")
+        case TintModule.opName: return String(
+            localized: "module_tint", defaultValue: "Tint")
+        case SaturationModule.opName: return String(
+            localized: "module_saturation", defaultValue: "Saturation")
         default: return opName
         }
     }

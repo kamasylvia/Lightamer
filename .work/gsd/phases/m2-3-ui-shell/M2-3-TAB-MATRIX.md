@@ -28,18 +28,24 @@
 | 页签 | 面板（opName 字面） | 组语义 | Alcedo 对应物 | Alcedo 无对应标注 |
 |---|---|---|---|---|
 | Tone | `exposure` | main | Tone: Exposure | — |
-| Tone | `tonecurve` | main | Tone: Curve | — |
+| Tone | `contrast` | main | Tone: Contrast（新 contrast 件——OkLab S 曲线，M2-5-2 T3 批挂行） | — |
+| Tone | `white` | main | Tone: White（新 white 件，T3） | — |
+| Tone | `black` | main | Tone: Black（新 black 件，T3） | — |
 | Tone | `shadhi` | main | Tone: Shadows / Highlights（**单行双滑杆**——M2-5-2 checker m2 钉死：同 opName 双 descriptor 在 `ForEach(id: \.opName)` 静态 id 冲突，两行分支删除；面板内两滑杆 = 两目录项最小忠实映射） | — |
+| Tone | `tonecurve` | main | Tone: Curve | — |
 | Tone | `levels` | **compat** | —（D6 独有件） | **Alcedo 无对应**（M2-5-2 D10：compat 折叠组，可编辑不删除） |
 | Tone | `colisa` | **compat** | —（D6 独有件；Alcedo Contrast 语义由新 `contrast` 件承载） | **Alcedo 无对应**（同上） |
 | Tone | `colorcontrast` | **compat** | —（D6 独有件） | **Alcedo 无对应**（同上） |
 | Tone | `toneequal` | **compat** | —（dt tone equalizer） | **Alcedo 无对应**（同上） |
 | Tone | `temperature` | **compat** | —（相机 WB = RAW Decode / CIRAW 域，M2GRADE-04；CAT02 创意 WB = Look/Color 组新件） | **Alcedo 无对应**（M2-5-2 D5：主面摘除 =「Tone −1 行」） |
+| Look | `saturation` | **Master** | Look: Saturation（新 saturation 件，M2-5-2 T3 批挂行） | — |
 | Look | `vibrance` | **Master** | Look: Saturation/Vibrance | — |
 | Look | `equalizer` | **Look（D9 占位组）** | Look: Clarity（Equalizer 单滑杆呈现简化 = D9 面板决策） | 「applies pre-DRT for now — moves post-DRT with M2-6」注记行 |
 | Look | `sharpen` | **Look（D9 占位组）** | Look: Sharpen | 同上注记行 |
 | Look | `grain` | **Look（D9 占位组）** | Look: Film Grain | 同上注记行（M2-6 迁 DRT 后段） |
 | Look | `bloom` | **Look（D9 占位组）** | Look: Halation | 同上注记行（同上） |
+| Look | `cat02WhiteBalance` | **Color** | Look: White Balance（CAT02 创意 WB，M2GRADE-04；相机 WB = RAW Decode 域，D5） | — |
+| Look | `tint` | **Color** | Look: Tint（独立 ±100 标量，T3） | — |
 | Look | `velvia` | **Detail/Texture** | —（D6 独有增强） | **Alcedo 无对应**（D6 收纳 Detail/Texture 组） |
 | Look | `monochrome` | **Detail/Texture** | —（D6 独有增强） | **Alcedo 无对应**（同上） |
 | Look | `colorbalancergb` | **Detail/Texture** | —（D6 独有件；LGG 色轮 = 新 colorWheels 件，随 T4 批挂 Color 组） | **Alcedo 无对应**（同上） |
