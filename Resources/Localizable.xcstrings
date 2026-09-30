@@ -24408,6 +24408,23 @@
           }
         }
       }
+    },
+    "history_default_look": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default look"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认观感"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

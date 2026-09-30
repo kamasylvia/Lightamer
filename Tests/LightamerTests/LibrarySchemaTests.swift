@@ -8,9 +8,10 @@ import XCTest
 // LibrarySchemaTests (Plan M2-2-1 T1) — the `.lalb` freeze contract:
 //
 //   • three entity tables + project_meta + the FTS5 virtual table, fresh;
-//     `images` 28 columns / `albums` 7 / `album_content` 2 — VERBATIM
-//     (order IS the freeze, KD-3's complete enumeration)
-//   • fresh create: user_version == 1 + project_meta seeded (name/created_at)
+//     `images` 29 columns / `albums` 7 / `album_content` 2 — VERBATIM
+//     (order IS the freeze, KD-3's complete enumeration; M2-5-2 KD-6
+//     appended default_look_pending at the tail — v2, the first migration)
+//   • fresh create: user_version == 2 + project_meta seeded (name/created_at)
 //   • images_fts: external-content over images, content_rowid='id',
 //     tokenize='unicode61' (ZERO custom tokenchars), FTS column name ==
 //     `exif_search_words` (KD-5 rebuild dependency); the three sync
@@ -20,7 +21,7 @@ import XCTest
 //     the negative pin)
 //   • foreign_keys pragma is ON after apply (the CASCADE semantics are
 //     declared DDL, KD-4); second apply is idempotent
-//   • user_version >1 → typed `.futureSchema` REFUSE
+//   • user_version >2 → typed `.futureSchema` REFUSE
 //   • the OQ-12 import constants: 14-extension RAW whitelist (exact set),
 //     the five hardcoded sidecar exclusions
 //
@@ -100,7 +101,7 @@ final class LibrarySchemaTests: XCTestCase {
 
     // MARK: - Freeze contract (PRAGMA table_info verbatim)
 
-    func testImagesTwentyEightColumnsVerbatim() throws {
+    func testImagesTwentyNineColumnsVerbatim() throws {
         try withFreshHandle { handle in
             try self.assertColumns(
                 handle, table: "images", frozen: LibrarySchema.imagesColumns)
@@ -160,13 +161,14 @@ final class LibrarySchemaTests: XCTestCase {
 
     // MARK: - Fresh create: user_version + project_meta
 
-    func testFreshCreateStampsUserVersionOneAndSeedsProjectMeta() throws {
+    func testFreshCreateStampsUserVersionTwoAndSeedsProjectMeta() throws {
         try withFreshHandle { handle in
-            // The truth read (raw PRAGMA) and the helper agree.
+            // The truth read (raw PRAGMA) and the helper agree. (M2-5-2
+            // KD-6: v1→v2 = the first migration — fresh creates stamp 2.)
             let statement = try handle.prepare("PRAGMA user_version")
             try XCTAssertTrue(statement.step())
-            XCTAssertEqual(statement.columnInt(0), 1)
-            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 1)
+            XCTAssertEqual(statement.columnInt(0), 2)
+            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 2)
 
             let meta = try self.projectMeta(handle)
             XCTAssertEqual(meta[LibrarySchema.ProjectMetaKey.projectName], "TestProj")
@@ -187,8 +189,8 @@ final class LibrarySchemaTests: XCTestCase {
         try withFreshHandle { handle in
             try LibrarySchema.apply(to: handle, projectName: "Renamed")
             // Idempotent: the fresh leg does NOT re-run (user_version
-            // already 1), so the seed stays the ORIGINAL name.
-            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 1)
+            // already 2), so the seed stays the ORIGINAL name.
+            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 2)
             let meta = try self.projectMeta(handle)
             XCTAssertEqual(meta[LibrarySchema.ProjectMetaKey.projectName], "TestProj")
         }
@@ -264,22 +266,22 @@ final class LibrarySchemaTests: XCTestCase {
 
     // MARK: - Version dispatch (KD-2)
 
-    func testVersionOneReopensOK() throws {
+    func testCurrentVersionReopensOK() throws {
         try withFreshHandle { handle in } // fresh create + close
         let handle = try SQLiteHandle(path: databaseURL.path)
         defer { handle.close() }
         try LibrarySchema.apply(to: handle, projectName: "Ignored")
-        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 1)
+        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 2)
     }
 
     func testFutureVersionRefused() throws {
         try withFreshHandle { handle in
-            try LibrarySchema.writeUserVersion(2, to: handle)
+            try LibrarySchema.writeUserVersion(3, to: handle)
         }
         let handle = try SQLiteHandle(path: databaseURL.path)
         defer { handle.close() }
         XCTAssertThrowsError(try LibrarySchema.apply(to: handle)) { error in
-            XCTAssertEqual(error as? LibraryError, .futureSchema(version: 2))
+            XCTAssertEqual(error as? LibraryError, .futureSchema(version: 3))
         }
     }
 
