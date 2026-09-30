@@ -140,7 +140,7 @@ APP	8	McpRegistrySnapshotTests.swift
 APP	9	EditorStackRoutingTests.swift
 APP	9	McpLauncherSentinelTests.swift
 APP	9	SettingsPagesTests.swift
-APP	7	SidecarV5Tests.swift
+APP	10	SidecarV5Tests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
 EXPORT	10	SpotlightAttributeMapperTests.swift

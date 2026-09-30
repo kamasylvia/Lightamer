@@ -141,6 +141,12 @@ final class PipeCoordinator {
     /// Weak back-reference (see linkage note in the header).
     private weak var editorState: EditorState?
 
+    /// M2-4-1 T5 (KD-5/E1③): the shell back-reference for the RAW-overrides
+    /// faces — the restore leg reads/primes the SESSION carrier through it
+    /// and the re-decode borrows the shell's decoder. Same weak pattern as
+    /// `editorState` (the host strongly owns both ends).
+    private weak var workspace: WorkspaceModel?
+
     // ── 02-05 history-driven rendering (D-H1 trio state) ─────────────────
 
     /// True between `beginContinuousEdit()` and `commitContinuousEdit` —
@@ -496,6 +502,64 @@ final class PipeCoordinator {
         self.editorState = editorState
     }
 
+    /// M2-4-1 T5 (KD-5/E1③): wire the shell back-reference (the host's
+    /// assembly task calls this beside `workspace.attach(pipeCoordinator:)`).
+    func attach(workspace: WorkspaceModel) {
+        self.workspace = workspace
+    }
+
+    // ── M2-4-1 T5: RAW overrides persistence (sidecar v5, M2DIS-04) ─────
+
+    /// The WRITE leg's coordinator face (the WorkspaceModel pass-through
+    /// hook lands here): the session carrier was ALREADY updated by the
+    /// caller, and `makeSidecarDocument` reads THAT map for the sidecar's
+    /// `rawOverrides` field — one truth, no second mirror (a coordinator-
+    /// side copy would be a drift surface). So this face only schedules
+    /// the existing 2s-throttled write. `overrides`/`url` are the hook's
+    /// shape; the document build resolves the current session's value.
+    func updateRawOverrides(_ overrides: RAWTechnicalOverrides, for url: URL) {
+        guard url == currentImageURL else {
+            Self.logger.debug(
+                "raw overrides write for a non-current image — session carrier holds it"
+            )
+            return
+        }
+        scheduleSidecarWrite()
+    }
+
+    /// The RESTORE leg (checker E1 方案①): a loaded document's persisted
+    /// rawOverrides seed the session carrier and trigger a RE-DECODE with
+    /// the stored overrides. Per KD-5's declared cost face:
+    ///   • pristine documents (nil) — single decode, zero re-decode, zero
+    ///     priming (the pre-v5 behavior byte-for-byte);
+    ///   • stored == session cache — skip (the frame already carries the
+    ///     overrides: switch-backs decode once);
+    ///   • stored != cache — prime the cache (a: the switch-back instant
+    ///     redisplay channel is unchanged) + re-issue the ONE decode
+    ///     request chain through `EditorState.load` (b: decode #2 replaces
+    ///     the identity first frame — the pipe cache keys the two frames
+    ///     apart via the RAWTechnicalParams JSON fold, so the identity
+    ///     plane simply ages out). The same-url reload keeps the session
+    ///     history (the existing same-url branch — no second restore).
+    private func restoreRawOverridesLeg(document: LightamerSidecar, url: URL) {
+        guard let stored = document.rawOverrides else { return } // pristine 档
+        let session = workspace?.rawDecodeOverrides(for: url) ?? .identity
+        guard stored != session else { return } // frame already carries them
+        workspace?.restoreSessionOverrides(stored, for: url) // a: 回注
+        guard let editorState,
+            let decoder = workspace?.editorDecoder,
+            let metal else {
+            Self.logger.error(
+                "sidecar rawOverrides present but the re-decode face is detached (no workspace/metal) — first frame stays identity"
+            )
+            return
+        }
+        // b: the unique request chain — decode #2 replaces the first frame.
+        editorState.load(
+            url: url, decoder: decoder, metal: metal,
+            logger: EditorState.decodeLogger, overrides: stored)
+    }
+
     /// Inject the app-owned Metal dispatch context (the composition root's
     /// `metalContext` — ONE context, ONE command queue, D-L031).
     ///
@@ -698,6 +762,10 @@ final class PipeCoordinator {
                         document: document, url: url, decoded: decoded
                     )
                     Self.logger.info("pipe load: sidecar restore done")
+                    // M2-4-1 T5 (KD-5/E1): the persisted RAW-overrides
+                    // restore leg — prime the session carrier + re-decode
+                    // with the stored overrides (pristine documents skip).
+                    restoreRawOverridesLeg(document: document, url: url)
                 } else {
                     // Pristine seed (Plan 03-02-T4): terminal trio + the
                     // LightamerIOP tone iops with permanent panels at
@@ -931,6 +999,12 @@ final class PipeCoordinator {
         let stackRecord: SidecarLayerStackRecord? =
             editorState.layerStack.map { SidecarLayerStackRecord($0) }
             .flatMap { $0.layers.isEmpty ? nil : $0 }
+        // M2-4-1 T5: the persisted RAW overrides read from the SESSION
+        // carrier (the single in-memory truth — setRawDecodeOverrides
+        // wrote it, the restore leg primed it). Identity = absent key.
+        let sessionOverrides = currentImageURL.map {
+            workspace?.rawDecodeOverrides(for: $0) ?? .identity
+        } ?? .identity
         return LightamerSidecar(
             imageID: imageID,
             decoderVersionUsed: decoded.decoderVersionUsed.rawValue,
@@ -941,8 +1015,8 @@ final class PipeCoordinator {
                 stack: editorState.history, decodeParamsHash: decodeHash,
                 layerSnapshot: stackRecord?.snapshot),
             appVersion: LightamerSidecar.currentAppVersion,
-            layerStack: stackRecord
-        )
+            layerStack: stackRecord,
+            rawOverrides: sessionOverrides.isIdentity ? nil : sessionOverrides)
     }
 
     /// D-S3: every committed history MOVE throttles a `.lra` write (2s

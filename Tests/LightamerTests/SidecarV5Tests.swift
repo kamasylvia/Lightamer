@@ -1,4 +1,6 @@
 import LightamerCore
+import LightamerIOP
+import Metal
 import XCTest
 
 @testable import Lightamer
@@ -247,5 +249,187 @@ final class SidecarV5Tests: XCTestCase {
         XCTAssertEqual(plain.historyHash, withOverrides.historyHash)
         XCTAssertEqual(plain.driftDetected, withOverrides.driftDetected)
         XCTAssertFalse(withOverrides.driftDetected)
+    }
+
+    // MARK: - T5: the REAL load chain (AC7, checker E1)
+
+    /// The repo RAW fixture (the GUI-22 precedent: skip when absent).
+    private var fixtureURL: URL {
+        let testsDir = (#filePath as NSString).deletingLastPathComponent
+        let repoRoot = ((testsDir as NSString).deletingLastPathComponent as NSString)
+            .deletingLastPathComponent
+        return URL(fileURLWithPath: repoRoot)
+            .appendingPathComponent("input/RAW/DSC00012.ARW")
+    }
+
+    /// A fresh per-test work directory with the fixture copied in (the
+    /// sidecars land beside it — never beside the repo input sample).
+    private func makeWorkCopy() throws -> URL {
+        let fixture = fixtureURL
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
+            throw XCTSkip("RAW fixture missing: \(fixture.path)")
+        }
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sidecarv5-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent(fixture.lastPathComponent)
+        try FileManager.default.copyItem(at: fixture, to: url)
+        return url
+    }
+
+    /// A drift-free sidecar document (empty history, self-consistent
+    /// anchor) with an optional rawOverrides payload.
+    private func writeDriftFreeSidecar(
+        to imageURL: URL, rawOverrides: RAWTechnicalOverrides?
+    ) throws {
+        let decodeHash = UInt64(42)
+        let history = HistoryStack()
+        let document = LightamerSidecar(
+            imageID: UUID(), decoderVersionUsed: "v8",
+            decodeParamsHash: decodeHash, instances: [], history: history,
+            historyHash: HistoryHash.hash(
+                stack: history, decodeParamsHash: decodeHash, layerSnapshot: nil),
+            appVersion: "test", rawOverrides: rawOverrides)
+        try Self.canonicalEncoder.encode(document).write(
+            to: LightamerSidecar.sidecarURL(for: imageURL))
+    }
+
+    /// The production composition minus windowing: EditorState +
+    /// PipeCoordinator + WorkspaceModel cross-attached (the KD-5 E1③
+    /// channel), registry + metal injected.
+    @MainActor
+    private func makeAssembly() async throws -> (
+        editorState: EditorState, coordinator: PipeCoordinator,
+        workspace: WorkspaceModel, metal: MetalContext
+    ) {
+        let editorState = EditorState()
+        let coordinator = PipeCoordinator()
+        let workspace = WorkspaceModel()
+        editorState.attach(pipeCoordinator: coordinator)
+        coordinator.attach(editorState: editorState)
+        workspace.attach(pipeCoordinator: coordinator)
+        coordinator.attach(workspace: workspace)
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        coordinator.attach(metal: metal)
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        coordinator.attach(registry: registry, defaultFace: false)
+        return (editorState, coordinator, workspace, metal)
+    }
+
+    /// Poll until the boost readback shows `value` (the decoded readback
+    /// face — the decode #2 completion marker), with a generous timeout.
+    @MainActor
+    private func waitForBoostReadback(
+        _ editorState: EditorState, value: Double?, timeout: TimeInterval
+    ) async throws {
+        let start = Date()
+        while Date().timeIntervalSince(start) < timeout {
+            if editorState.image?.rawTech.boost == value, !editorState.isDecoding {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        XCTFail("decode readback never reached boost=\(String(describing: value))")
+    }
+
+    /// AC7 write leg: panel commit → session carrier → the pass-through
+    /// hook → the throttled document → the flushed FILE carries the
+    /// rawOverrides field; reload reads the same value back.
+    @MainActor
+    func testWriteLegPersistsOverridesIntoTheSidecarFile() async throws {
+        let url = try makeWorkCopy()
+        let (editorState, coordinator, workspace, metal) = try await makeAssembly()
+        editorState.load(
+            url: url, decoder: workspace.editorDecoder, metal: metal,
+            logger: EditorState.decodeLogger)
+        try await waitForBoostReadback(editorState, value: nil, timeout: 90)
+
+        // The panel commit's exact shape (the view body is untouched —
+        // the hook rides the WorkspaceModel write face).
+        let overrides = RAWTechnicalOverrides(boost: 0.6)
+        workspace.setRawDecodeOverrides(overrides, for: url)
+        // Let the schedule task hop to the store actor (pending is set
+        // there asynchronously; production flush sites are seconds later).
+        try await Task.sleep(for: .milliseconds(200))
+        await coordinator.flushSidecar()
+
+        let document = try Self.decoder.decode(
+            LightamerSidecar.self,
+            from: Data(contentsOf: LightamerSidecar.sidecarURL(for: url)))
+        XCTAssertEqual(
+            document.rawOverrides, overrides,
+            "the flushed sidecar carries the persisted overrides (M2DIS-04)")
+
+        // Reload on a FRESH assembly (the closed-editor semantics): the
+        // load side receives the same value from the file.
+        // coordinator2 stays a NAMED binding: the assembly's weak
+        // cross-references die with an immediately-discarded tuple slot.
+        let (editorState2, coordinator2, workspace2, metal2) = try await makeAssembly()
+        editorState2.load(
+            url: url, decoder: workspace2.editorDecoder, metal: metal2,
+            logger: EditorState.decodeLogger)
+        try await waitForBoostReadback(editorState2, value: 0.6, timeout: 90)
+        XCTAssertEqual(
+            workspace2.rawDecodeOverrides(for: url), overrides,
+            "the restore leg primes the session carrier from the document")
+    }
+
+    /// AC7 restore leg (E1 方案①): a document WITH rawOverrides loaded by
+    /// a fresh session — decode #1 is identity, the restore leg primes the
+    /// carrier and triggers the re-decode; the FINAL decoded readback
+    /// carries the stored overrides.
+    @MainActor
+    func testRestoreLegReDecodesWithStoredOverrides() async throws {
+        let url = try makeWorkCopy()
+        let stored = RAWTechnicalOverrides(boost: 0.6)
+        try writeDriftFreeSidecar(to: url, rawOverrides: stored)
+
+        let (editorState, coordinator, workspace, metal) = try await makeAssembly()
+        // The identity first frame arrives, then the overrides replace it.
+        editorState.load(
+            url: url, decoder: workspace.editorDecoder, metal: metal,
+            logger: EditorState.decodeLogger)
+        try await waitForBoostReadback(editorState, value: 0.6, timeout: 120)
+
+        XCTAssertEqual(
+            editorState.image?.rawTech.boost, 0.6,
+            "the FINAL decoded readback carries the stored overrides")
+        XCTAssertEqual(
+            workspace.rawDecodeOverrides(for: url), stored,
+            "the restore leg primed the session cache (switch-back = single decode)")
+        // A switch-back reload with the cache in place does NOT re-decode:
+        // the frame already carries the overrides (the equivalence gate) —
+        // the readback stays 0.6 and no second prime can occur.
+        editorState.load(
+            url: url, decoder: workspace.editorDecoder, metal: metal,
+            logger: EditorState.decodeLogger, overrides: stored)
+        try await waitForBoostReadback(editorState, value: 0.6, timeout: 90)
+    }
+
+    /// AC7 pristine leg: a v5 document WITHOUT the rawOverrides key —
+    /// single decode, zero re-decode, zero priming (the session dict stays
+    /// empty and the identity readback is never replaced).
+    @MainActor
+    func testPristineDocumentSingleDecodesWithoutPriming() async throws {
+        let url = try makeWorkCopy()
+        try writeDriftFreeSidecar(to: url, rawOverrides: nil)
+
+        let (editorState, coordinator, workspace, metal) = try await makeAssembly()
+        editorState.load(
+            url: url, decoder: workspace.editorDecoder, metal: metal,
+            logger: EditorState.decodeLogger)
+        // The identity readback settles and STAYS (a re-decode with any
+        // overrides would surface here as a non-nil boost leg).
+        try await waitForBoostReadback(editorState, value: nil, timeout: 90)
+        try await Task.sleep(for: .milliseconds(600)) // the re-decode window
+        _ = coordinator // alive to scope end (the weak web must not die)
+        XCTAssertNil(
+            editorState.image?.rawTech.boost,
+            "no re-decode may fire for a pristine document")
+        XCTAssertTrue(
+            workspace.rawDecodeOverrides.isEmpty,
+            "a pristine document never primes the session carrier")
     }
 }
