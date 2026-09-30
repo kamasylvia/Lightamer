@@ -1,4 +1,5 @@
 import LightamerCore
+import LightamerIOP
 import XCTest
 
 @testable import Lightamer
@@ -211,6 +212,29 @@ final class SettingsPagesTests: XCTestCase {
             XCTAssertEqual(defaults.resolvedMode(), .copy)
             XCTAssertFalse(defaults.rememberMode)
             XCTAssertEqual(defaults.resolvedWhitelist(), frozen)
+        }
+    }
+
+    // MARK: - 6: LUT library root (M2-5-3 KD-3)
+
+    func testLutLibraryRootDefaultsResetsAndRegistersTheSpelling() {
+        withSuite { suite in
+            let preferences = AppPreferences(defaultsSuiteName: suite)
+            // Unset = the default root (zero behavior change for existing
+            // installs — AC 5).
+            XCTAssertEqual(preferences.lutLibraryRoot(), LutLibraryStore.defaultRoot)
+            // Round-trip a custom root (isDirectory: true — the face
+            // returns directory URLs with the trailing slash).
+            let custom = URL(fileURLWithPath: "/tmp/lut-root-\(UUID().uuidString)", isDirectory: true)
+            preferences.setLutLibraryRoot(custom)
+            XCTAssertEqual(preferences.lutLibraryRoot(), custom)
+            // The registered spelling is the store's key (one key, two
+            // faces — the store reads it from .standard at init).
+            XCTAssertEqual(
+                AppPreferences.lutLibraryRootKey, LutLibraryStore.libraryRootKey)
+            // Reset falls back to the default root.
+            preferences.resetLutLibraryRoot()
+            XCTAssertEqual(preferences.lutLibraryRoot(), LutLibraryStore.defaultRoot)
         }
     }
 }

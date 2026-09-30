@@ -370,9 +370,13 @@ public enum LightamerIOPRegistry {
         // in the V50Order table (zero rows inserted). Neutral (lutName nil)
         // = blit identity ⇒ cache-neutral (exposure-0EV style); the T5
         // LUT panel drives this instance. Resolution rides the shared
-        // library store (T5) — missing entries degrade to the blit.
+        // library store THROUGH THE FORWARDING FACE (M2-5-3 KD-3): module
+        // boxes are constructed once — the forwarder keeps them on the
+        // live shared instance after a Settings root switch instead of
+        // capturing the construction-time store. Missing entries still
+        // degrade to the blit.
         await registry.register(opName: Lut3dModule.opName) { id in
-            ModuleBox(module: Lut3dModule(resolver: LutLibraryStore.shared), instanceID: id)
+            ModuleBox(module: Lut3dModule(resolver: LutLibraryStore.sharedResolver), instanceID: id)
         }
         // Plan 08-2-T1: vignette (creative effect), v50 slot 68.0 — ALREADY
         // in the V50Order table (zero rows inserted); < the 70.0 terminal

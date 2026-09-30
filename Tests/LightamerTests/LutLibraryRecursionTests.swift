@@ -198,4 +198,68 @@ final class LutLibraryRecursionTests: XCTestCase {
         XCTAssertEqual(groups[2].keys, ["Mine/Film.cube"])
         XCTAssertEqual(groups[3].keys, ["Zed/Alone.cube"])
     }
+
+    // MARK: - KD-3 configurable root
+
+    func testSwitchingRootBuildsAnIndependentRegistry() throws {
+        try write("FirstRootOnly.cube")
+        let secondRoot = workDir.appendingPathComponent("SecondRoot", isDirectory: true)
+        try FileManager.default.createDirectory(at: secondRoot, withIntermediateDirectories: true)
+        try cube2.write(
+            to: secondRoot.appendingPathComponent("SecondRootOnly.cube"), atomically: true,
+            encoding: .utf8)
+        let first = LutLibraryStore(directory: libraryDir)
+        let second = LutLibraryStore(directory: secondRoot)
+        // Each root holds its own self-contained registry (KD-3).
+        XCTAssertEqual(first.installedNames, ["FirstRootOnly.cube"])
+        XCTAssertEqual(second.installedNames, ["SecondRootOnly.cube"])
+        // The shared holder swaps atomically; the getter face serves the
+        // new instance.
+        let previous = LutLibraryStore.shared
+        LutLibraryStore.replaceShared(second)
+        XCTAssertTrue(LutLibraryStore.shared === second)
+        // The forwarding resolver keeps resolution on the live instance.
+        XCTAssertNotNil(LutLibraryStore.sharedResolver.lut(named: "SecondRootOnly.cube"))
+        XCTAssertNil(LutLibraryStore.sharedResolver.lut(named: "FirstRootOnly.cube"))
+        LutLibraryStore.replaceShared(previous)
+        XCTAssertNil(LutLibraryStore.sharedResolver.lut(named: "SecondRootOnly.cube"))
+    }
+
+    func testBadRootDegradesWithoutCrashing() throws {
+        // An unwritable/absent container (the L009 external-volume case):
+        // the store degrades to an empty library — typed absence, no
+        // throw, no crash.
+        let badRoot = URL(fileURLWithPath: "/nonexistent-volume-\(UUID().uuidString)/LUTs")
+        let store = LutLibraryStore(directory: badRoot)
+        XCTAssertTrue(store.installedNames.isEmpty)
+        XCTAssertTrue(store.isMissing("anything.cube"))
+        // The reachability probe rejects it BEFORE a switch persists it.
+        XCTAssertFalse(LutLibraryStore.validateRoot(badRoot))
+    }
+
+    func testValidateRootAcceptsARealDirectoryAndRejectsFiles() throws {
+        // setUp creates the work dir only; the library dir appears on the
+        // first write. Materialize it explicitly for the probe.
+        try FileManager.default.createDirectory(
+            at: libraryDir, withIntermediateDirectories: true)
+        XCTAssertTrue(LutLibraryStore.validateRoot(libraryDir))
+        let file = try write("plain.cube")
+        XCTAssertFalse(LutLibraryStore.validateRoot(file), "files are not roots")
+        XCTAssertFalse(
+            LutLibraryStore.validateRoot(URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)")))
+    }
+
+    func testOldReferenceMissingUnderNewRootDegrades() throws {
+        try write("OnlyHere.cube")
+        let secondRoot = workDir.appendingPathComponent("OtherRoot", isDirectory: true)
+        try FileManager.default.createDirectory(at: secondRoot, withIntermediateDirectories: true)
+        // The reference rides a document across a root switch; the new
+        // root has no such table → the degrade semantics (blit identity +
+        // toast) — the store face reports the typed absence.
+        let oldStore = LutLibraryStore(directory: libraryDir)
+        XCTAssertNotNil(oldStore.lut(named: "OnlyHere.cube"))
+        let newStore = LutLibraryStore(directory: secondRoot)
+        XCTAssertNil(newStore.lut(named: "OnlyHere.cube"))
+        XCTAssertTrue(newStore.isMissing("OnlyHere.cube"))
+    }
 }
