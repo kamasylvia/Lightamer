@@ -155,7 +155,7 @@ APP	17	NodeGraphCommandTests.swift
 APP	6	NodeOwnershipCatalogTests.swift
 APP	8	McpRegistrySnapshotTests.swift
 APP	14	EditorStackRoutingTests.swift
-APP	4	CatalogAddFaceTests.swift
+APP	9	CatalogAddFaceTests.swift
 APP	9	McpLauncherSentinelTests.swift
 APP	9	SettingsPagesTests.swift
 APP	10	SidecarV5Tests.swift

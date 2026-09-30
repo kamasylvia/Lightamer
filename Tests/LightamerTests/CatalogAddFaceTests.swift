@@ -198,4 +198,91 @@ final class CatalogAddFaceTests: XCTestCase {
         // Smoothness clamps hold (the slider range 1...180 feeds the field).
         XCTAssertGreaterThan(transformed.hRangeTable[5], 0)
     }
+
+    // MARK: - M2-5-2 T6: the add-face enumeration matrix (AC#7)
+
+    /// A fresh EditorState harness with one base record + one Grade layer.
+    private func makeEditorWithGradeLayer() throws -> (EditorState, UUID) {
+        let editor = EditorState()
+        editor.resetHistoryForNewImage(defaultInstances: [
+            ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params()),
+        ])
+        let layer = try XCTUnwrap(editor.addAdjustmentLayer())
+        return (editor, layer.id)
+    }
+
+    /// Grade scope: the catalog enumeration EXACTLY — the grade-owned rows
+    /// narrowed by the two binding clauses (LMT → the LUT page per D10;
+    /// the shadows/highlights pair = ONE shadhi entry per checker m2).
+    func testGradeScopeAddFaceEnumeratesTheCatalogMatrix() throws {
+        let (editor, layerID) = try makeEditorWithGradeLayer()
+        let entries = editor.addFaceEntries(layerID: layerID)
+        // The unique-op matrix (AC#7 "逐目录 id 断言"; the plan's "恰 14"
+        // count reconciliation lives in EditorState + DECISIONS — the
+        // binding clauses leave 12 unique-op entries).
+        XCTAssertEqual(
+            entries.compactMap(\.catalogID),
+            [
+                "cat02WhiteBalance", "exposure", "contrast", "white", "black",
+                "shadows", "curve", "hls", "saturation", "vibrance",
+                "colorWheel", "tint",
+            ])
+        // LMT is NOT in any add enumeration (its seat is the LUT page).
+        XCTAssertFalse(entries.contains { $0.template.opName == Lut3dModule.opName })
+        // The four DRT seats never enumerate.
+        for op in [SharpenModule.opName, GrainModule.opName, BloomModule.opName, EqualizerModule.opName] {
+            XCTAssertFalse(entries.contains { $0.template.opName == op }, op)
+        }
+        // The shadows/highlights collapse: exactly one shadhi entry.
+        XCTAssertEqual(entries.filter { $0.template.opName == ShadhiModule.opName }.count, 1)
+        // Every catalog template's params bytes == the row's identityJSON.
+        for entry in entries {
+            let item = try XCTUnwrap(
+                GradeCatalog.items.first { $0.catalogID == entry.catalogID })
+            XCTAssertEqual(entry.template.paramsData, Data(item.identityJSON.utf8))
+        }
+    }
+
+    /// Develop scope: ZERO grade-owned entries (D4 收窄); temperature 在
+    /// 列 and exposure 不在列 (the AC's two named pins).
+    func testDevelopScopeAddFaceExcludesEveryGradeOwnedOp() throws {
+        let (editor, _) = try makeEditorWithGradeLayer()
+        let entries = editor.addFaceEntries(layerID: nil)
+        XCTAssertFalse(entries.isEmpty)
+        for entry in entries {
+            XCTAssertNotEqual(
+                NodeOwnershipCatalog.owner(of: entry.template.opName), .grade,
+                "the Develop add face must never enumerate \(entry.template.opName)")
+            XCTAssertNil(entry.catalogID, "non-catalog ops carry no catalog id")
+        }
+        XCTAssertTrue(
+            entries.contains { $0.template.opName == TemperatureModule.opName },
+            "temperature 在列 (the AC's Develop pin)")
+        XCTAssertFalse(
+            entries.contains { $0.template.opName == ExposureModule.opName },
+            "exposure 不在列 (grade-owned, D4)")
+        // The compat section exists and carries the D6-only family.
+        let compat = entries.filter { $0.section == .compat }
+        XCTAssertTrue(compat.contains { $0.template.opName == AshiftModule.opName })
+        XCTAssertTrue(compat.contains { $0.template.opName == WatermarkModule.opName })
+    }
+
+    /// The base-chain add action: ONE D-H1 commit lands the fresh-identity
+    /// record in the global instance set (the no-layer branch's insert).
+    func testBaseChainAddLandsOneCommitWithFreshIdentity() throws {
+        let (editor, _) = try makeEditorWithGradeLayer()
+        let before = editor.instances.count
+        let historyBefore = editor.history.items.count
+        let template = try XCTUnwrap(
+            EditorState.templateInstance(for: TemperatureModule.opName))
+        let record = try XCTUnwrap(editor.addModuleToBaseChain(template: template))
+        XCTAssertNotEqual(record.id, template.id, "fresh identity on insert")
+        XCTAssertEqual(editor.instances.count, before + 1)
+        XCTAssertEqual(editor.history.items.count, historyBefore + 1, "ONE commit")
+        XCTAssertTrue(
+            editor.instances.contains { $0.id == record.id })
+        // One undo steps back over the add (the record vanishes).
+        XCTAssertTrue(editor.performUndo())
+        XCTAssertEqual(editor.instances.count, before)
+    }
 }

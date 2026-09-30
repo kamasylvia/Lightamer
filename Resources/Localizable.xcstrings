@@ -24374,6 +24374,40 @@
           }
         }
       }
+    },
+    "add_face_develop_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Develop"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Develop"
+          }
+        }
+      }
+    },
+    "history_base_module_add": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add module"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加模块"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
