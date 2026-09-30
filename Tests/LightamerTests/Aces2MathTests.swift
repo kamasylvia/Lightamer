@@ -483,4 +483,196 @@ final class Aces2MathTests: XCTestCase {
     private func inAP1(_ ap0: SIMD3<Double>) -> SIMD3<Double> {
         Aces2Cam.ap0ToAP1.multiply(ap0)
     }
+
+    // MARK: - T3: the ACES 2.0 ODT Float64 reference (KD-5, AC#4)
+
+    func testTonescaleMatchesItsConstructionAnchors() {
+        // The tonescale's grey anchor: 18% grey lands at 10 nits at the
+        // 100-nit reference peak (c_d = 10.013 is the pre-flare target;
+        // the t_1 flare settles the landing at 10.0 — the numeric fact of
+        // the upstream construction).
+        let ts = Aces2Reference.TSParams(peakLuminance: 100)
+        XCTAssertEqual(Aces2Reference.tonescaleFwd(0.18, ts), 10.0, accuracy: 1e-3)
+        // fwd/inv round-trip over the well-conditioned scene domain
+        // [0, r_hit]. DOMAIN NOTE: the upstream inverse consumes
+        // REF-NORMALIZED luminance (tonemap_and_compress_inv :552 divides
+        // by ref_luminance before calling tonescale_inv) — the fwd emits
+        // nits, so the round-trip hops /100 on the way in.
+        var worst = 0.0
+        for i in 0..<512 {
+            let x = ts.forwardLimit / 8.0 * Double(i) / 511.0  // 0..r_hit
+            let y = Aces2Reference.tonescaleFwd(x, ts)
+            let back = Aces2Reference.tonescaleInv(y / 100.0, ts)
+            worst = max(worst, abs(back - x))
+        }
+        XCTAssertLessThanOrEqual(worst, 1e-6)
+        // Black is bounded (the t_1 flare keeps f=0 → h=0 finite).
+        XCTAssertEqual(Aces2Reference.tonescaleFwd(0, ts), 0, accuracy: 0)
+        XCTAssertFalse(Aces2Reference.tonescaleFwd(0, ts).isNaN)
+    }
+
+    func testODTTonescaleIsMonotonicOverARamp() {
+        // 1000-point scene-linear grey ramp 0..4 — output order preserved
+        // (per channel).
+        let p = Aces2Reference.params(space: .rec709, peak: 100)
+        var previous: [Double] = [-1, -1, -1]
+        for i in 0..<1000 {
+            let x = 4.0 * Double(i) / 999.0
+            let out = Aces2Reference.runPixel(p, SIMD3(x, x, x))
+            for c in 0..<3 {
+                XCTAssertGreaterThanOrEqual(
+                    out[c], previous[c] - 1e-12,
+                    "ODT non-monotonic at x=\(x) channel \(c)")
+                previous[c] = out[c]
+            }
+        }
+    }
+
+    func testODTEndpointsAreBoundedAndNaNFree() {
+        let p = Aces2Reference.params(space: .rec709, peak: 100)
+        let probes: [SIMD3<Double>] = [
+            .zero,
+            SIMD3(repeating: 1e-6),
+            SIMD3(repeating: 1),
+            SIMD3(repeating: 1e6),
+            SIMD3(0.5, -0.2, 2.0),
+            SIMD3(repeating: -0.5),
+            SIMD3(1e-8, 1e4, 1.0),
+        ]
+        for probe in probes {
+            let out = Aces2Reference.runPixel(p, probe)
+            // The extreme-spread probe (1e4-valued channel) may escape the
+            // unit box by a hair — the upstream outputTransform_fwd does
+            // NOT clamp (the smin/cusp approximations overshoot slightly);
+            // the EotfBox encode clamps [0,1] for every non-linear EOTF
+            // (the D-COL4 clamp home). Sane probes stay ≤ 1+1e-7.
+            let band = simd.reduce_max(abs(probe)) > 1.0 ? 1.01 : 1.0000001
+            for c in 0..<3 {
+                XCTAssertFalse(out[c].isNaN, "NaN for probe \(probe)")
+                XCTAssertFalse(out[c].isInfinite, "inf for probe \(probe)")
+                XCTAssertGreaterThanOrEqual(out[c], -1e-9)
+                XCTAssertLessThanOrEqual(out[c], band, "unbounded at \(probe)")
+            }
+        }
+    }
+
+    func testODTGreyPlacementAnchor() {
+        // 18% AP0-neutral grey at the SDR baseline lands at ≈0.10013
+        // (c_t·ref/peak, peak-normalized) — the upstream design anchor
+        // through the FULL pixel path. The input must be AP0-neutral
+        // (mapped back to Rec2020): the working space's D65 grey is NOT
+        // AP0-neutral (no CAT on the fixed primaries conversion — the
+        // ACES system's own convention), so it renders with a slight
+        // chroma (pinned separately by the R/G gap face below).
+        let p = Aces2Reference.params(space: .rec709, peak: 100)
+        let neutralRec2020 = Aces2Cam.ap0ToRec2020.multiply(SIMD3(0.18, 0.18, 0.18))
+        let out = Aces2Reference.runPixel(p, neutralRec2020)
+        for c in 0..<3 {
+            // The construction lands grey at 10.0 nits (the c_d = 10.013
+            // intent carries a 0.013 construction gap — the numeric fact;
+            // DECISIONS §D5).
+            XCTAssertEqual(out[c], 0.10000, accuracy: 1e-4)
+        }
+        // The D65-referenced grey keeps its near-neutrality (a documented
+        // small shift, not a blow-up).
+        let d65 = Aces2Reference.runPixel(p, SIMD3(0.18, 0.18, 0.18))
+        XCTAssertLessThan(
+            Double(simd.reduce_max(abs(d65 - SIMD3(d65.x, d65.x, d65.x)))), 0.02)
+    }
+
+    func testODTPeakLuminanceChangesTheOutput() {
+        // peak 100 vs 1000 → different outputs at the SAME scene color
+        // (the tonescale's peak shaping; AC#4 existence face).
+        let p100 = Aces2Reference.params(space: .rec709, peak: 100)
+        let p1000 = Aces2Reference.params(space: .rec709, peak: 1000)
+        var differs = 0
+        for i in 0..<64 {
+            let x = 4.0 * Double(i) / 63.0
+            let a = Aces2Reference.runPixel(p100, SIMD3(x, x * 0.9, x * 0.8))
+            let b = Aces2Reference.runPixel(p1000, SIMD3(x, x * 0.9, x * 0.8))
+            if simd.reduce_max(abs(a - b)) > 1e-9 { differs += 1 }
+        }
+        XCTAssertGreaterThan(differs, 32, "peak must shape the output")
+    }
+
+    func testODTSDRPeakStillActive() {
+        // KD-5 必答: even under an SDR EOTF the peak participates in the
+        // tonescale (the RECORD's peak field — not the EOTF — drives this;
+        // "peak only affects HDR" is the misimplementation this pins out).
+        var rec100 = DrtRecord()
+        rec100.method = .aces20
+        var rec1000 = rec100
+        rec1000.peakLuminance = 1000
+        let p100 = Aces2Reference.params(
+            space: rec100.limitingSpace, peak: Double(rec100.peakLuminance))
+        let p1000 = Aces2Reference.params(
+            space: rec1000.limitingSpace, peak: Double(rec1000.peakLuminance))
+        var differs = 0
+        for i in 0..<64 {
+            let x = 4.0 * Double(i) / 63.0
+            let a = Aces2Reference.runPixel(p100, SIMD3(x, x, x))
+            let b = Aces2Reference.runPixel(p1000, SIMD3(x, x, x))
+            if simd.reduce_max(abs(a - b)) > 1e-9 { differs += 1 }
+        }
+        XCTAssertGreaterThan(differs, 32, "SDR output must still depend on peak")
+    }
+
+    func testODTLimitingSpacesAllRenderAndDiffer() {
+        // Every one of the seven limiting spaces renders bounded, and the
+        // outputs differ across spaces (the seven-choice table is live).
+        var outputs: [DrtLimitingSpace: SIMD3<Double>] = [:]
+        for space in DrtLimitingSpace.allCases {
+            let p = Aces2Reference.params(space: space, peak: 100)
+            let out = Aces2Reference.runPixel(p, SIMD3(1.0, 0.4, 0.2))
+            for c in 0..<3 {
+                XCTAssertFalse(out[c].isNaN, "\(space.rawValue) NaN")
+                XCTAssertGreaterThanOrEqual(out[c], -1e-9, "\(space.rawValue) negative")
+                XCTAssertLessThanOrEqual(out[c], 1.0000001, "\(space.rawValue) unbounded")
+            }
+            outputs[space] = out
+        }
+        // Pairwise difference existence (a cheap ∃ pair with a visible gap).
+        let values = Array(outputs.values)
+        var maxGap = 0.0
+        for i in 0..<values.count {
+            for j in (i + 1)..<values.count {
+                maxGap = max(maxGap, Double(simd.reduce_max(abs(values[i] - values[j]))))
+            }
+        }
+        XCTAssertGreaterThan(maxGap, 1e-3, "limiting spaces must diverge")
+    }
+
+    func testODTRGCCutoffChangesTheOutput() {
+        // The RGC前置 (KD-3): ON vs OFF differ for wide-gamut input and the
+        // OFF path still renders (the dispatch-side "OpenDRT never runs
+        // this" face lives in Aces2KernelGoldenTests).
+        let on = Aces2Reference.params(space: .rec709, peak: 100, rgcOn: true)
+        let off = Aces2Reference.params(space: .rec709, peak: 100, rgcOn: false)
+        let wide = SIMD3(2.0, 0.1, 0.1)
+        let a = Aces2Reference.runPixel(on, wide)
+        let b = Aces2Reference.runPixel(off, wide)
+        XCTAssertGreaterThan(
+            Double(simd.reduce_max(abs(a - b))), 1e-6, "RGC must affect wide-gamut input")
+    }
+
+    func testChromaCompressRoundTrip() {
+        // chroma_compress_fwd/inv round-trip (≤1e-6) over in-domain samples.
+        let p = Aces2Reference.params(space: .rec709, peak: 100)
+        var worst = 0.0
+        for k in 0..<64 {
+            let hue = 360.0 * Double(k) / 64.0
+            for m in stride(from: 2.0, through: 40.0, by: 4.0) {
+                for j in stride(from: 10.0, through: 80.0, by: 10.0) {
+                    let jmh = SIMD3(j, m, hue)
+                    let tonemappedJ = j * 1.3 + 5.0   // an arbitrary in-range J_ts
+                    let fwd = Aces2Reference.chromaCompressFwd(jmh, tonemappedJ, p)
+                    let back = Aces2Reference.chromaCompressInv(fwd, j, p)
+                    let err = simd.reduce_max(abs(back - jmh))
+                    let rel = err / max(1e-9, m)
+                    worst = max(worst, min(err, rel))
+                }
+            }
+        }
+        XCTAssertLessThanOrEqual(worst, 1e-6, "chroma compress round-trip")
+    }
 }
