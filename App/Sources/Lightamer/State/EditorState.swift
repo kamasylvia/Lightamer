@@ -1,5 +1,6 @@
 import Foundation
 import LightamerCore
+import LightamerIOP
 import Metal
 import Observation
 import os
@@ -578,6 +579,21 @@ final class EditorState {
         guard let layerStack,
               let layer = adjustmentLayer(id: layerID)
         else { return nil }
+        // M2-4 ownership seam (Plan M2-4-1 T3, KD-3; D-M2-4-CONTEXT-8
+        // grace): the UI insert face refuses develop/drtPost-owned ops
+        // INTO a grade — the typed check surfaces through the EXISTING
+        // toast (never a crash, never silent). Sidecar loading, undo/redo
+        // and InsertFromJson restoration stay validation-free (the user's
+        // own data; M2-5 activates the strict face by widening the TABLE,
+        // never this seam).
+        if NodeOwnership.validate(
+            owner: NodeOwnershipCatalog.owner(of: template.opName),
+            into: .grade) != nil {
+            presentToast(String(
+                localized: "toast_module_owner_rejected",
+                defaultValue: "This adjustment belongs to the Develop or DRT stage and cannot enter a color grade"))
+            return nil
+        }
         let record = template.clonedWithFreshIdentity()
         layer.chain.append(record)
         layer.chain.sort {
