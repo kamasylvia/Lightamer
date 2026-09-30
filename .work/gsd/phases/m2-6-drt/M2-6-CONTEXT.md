@@ -163,3 +163,9 @@
 ## Ruling（夜间授权，晨审可推翻）
 
 （待裁）
+
+---
+
+## Ruling（2026-10-01 夜间授权，晨审可推翻）
+
+D-M2-6-CONTEXT-1..12 = OQ-1..12 **全部按推荐 A 生效**。三条盘点发现采信为事实基线：①jedypod GPLv3 → OpenDRT 独立实现（源只读 + 预设数值表转录 + NOTICE），aces-core BSD 风格可移植；②OpenDrtDetailedParams 实数 53（hs 系 12 项最大缺口）；③接缝全备——M2-6 = 填实体非开门，图拓扑零改动。OQ-9 归属采 FEATURE-MAP §2.6（Post 四件 DRT 后 display-referred），hpp 注释判过时。
