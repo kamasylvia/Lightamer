@@ -196,8 +196,11 @@ enum EditorTabRoutingTable {
             // row"; D10: kept editable, never deleted).
             [
                 .page(ExposureModule.opName, .tone),
-                .page(ToneCurveModule.opName, .tone),
+                .page(ContrastModule.opName, .tone),
+                .page(WhiteModule.opName, .tone),
+                .page(BlackModule.opName, .tone),
                 .page(ShadhiModule.opName, .tone),
+                .page(ToneCurveModule.opName, .tone),
                 .grouped(LevelsModule.opName, .tone, group: .compat, advanced: true),
                 .grouped(ColisaModule.opName, .tone, group: .compat, advanced: true),
                 .grouped(ColorContrastModule.opName, .tone, group: .compat, advanced: true),
@@ -206,18 +209,18 @@ enum EditorTabRoutingTable {
             ]
         case .look:
             // M2-5-2 KD-1 — the Alcedo four-group IA (§2.3). The 13-row
-            // zero-loss ledger (T2, every existing row keeps a home):
-            //   Master        { vibrance } — Saturation joins with T3
+            // zero-loss ledger (every pre-M2-5-2 row keeps a home):
+            //   Master        { saturation (T3), vibrance }
             //   Look (D9)     { equalizer→Clarity, sharpen, grain→Film
             //                   Grain, bloom→Halation } — the .drtPost four
             //                   seats, each carrying the pre-DRT note
+            //   Color         { cat02WhiteBalance (T3), tint (T3); hls (T5)
+            //                   + colorWheels (T4) complete the seat }
             //   Detail/Texture{ velvia, monochrome, colorbalancergb,
             //                   colorzones (checker m1 — the D6 收纳 seat),
             //                   skinsmooth, highpass, soften, localcontrast }
-            // The Color group joins with the T3-T5 provider batches (the m3
-            // exactly-once domain keys on the populated provider face); LMT
-            // stays on the LUT page (D10 字面).
             [
+                .grouped(SaturationModule.opName, .look, group: .master),
                 .grouped(VibranceModule.opName, .look, group: .master),
                 .grouped(
                     EqualizerModule.opName, .look, group: .look,
@@ -231,6 +234,8 @@ enum EditorTabRoutingTable {
                 .grouped(
                     BloomModule.opName, .look, group: .look,
                     note: "panel_note_pre_drt"),
+                .grouped(Cat02WBModule.opName, .look, group: .color),
+                .grouped(TintModule.opName, .look, group: .color),
                 .grouped(VelviaModule.opName, .look, group: .detailTexture),
                 .grouped(MonochromeModule.opName, .look, group: .detailTexture),
                 .grouped(ColorBalanceRGBModule.opName, .look, group: .detailTexture),

@@ -385,6 +385,20 @@ struct EditorAdjustmentStackView: View {
         case ShadhiModule.opName: String(
             localized: "module_shadows_highlights",
             defaultValue: "Shadows / Highlights")
+        // M2-5-2 T3: the six catalog ops' row captions (the Alcedo §2.1
+        // directory names).
+        case Cat02WBModule.opName: String(
+            localized: "module_cat02_white_balance", defaultValue: "White Balance")
+        case ContrastModule.opName: String(
+            localized: "module_contrast", defaultValue: "Contrast")
+        case WhiteModule.opName: String(
+            localized: "module_white", defaultValue: "White")
+        case BlackModule.opName: String(
+            localized: "module_black", defaultValue: "Black")
+        case TintModule.opName: String(
+            localized: "module_tint", defaultValue: "Tint")
+        case SaturationModule.opName: String(
+            localized: "module_saturation", defaultValue: "Saturation")
         default: opName
         }
     }
