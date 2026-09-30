@@ -140,7 +140,10 @@ public final class ColorWheelsModule: IOPModule {
 
     /// Alcedo DiscToCdlDelta: the disc position → the zero-sum RGB delta
     /// direction scaled by strength × disc-radius (the wheel's pixel-state
-    /// derivation the UI performs on every drag).
+    /// derivation the UI performs on every drag). The strength rides the
+    /// UpdateDerived clamp (`clamp(strength, 0, kStrengthDefault)` — the
+    /// payload pristine carries 1.0, so the un-clamped first drag would
+    /// derive a 10× offset vs the Alcedo mapping).
     public static func cdlDelta(
         disc: SIMD2<Float>, strength: Float
     ) -> SIMD3<Float> {
@@ -154,7 +157,7 @@ public final class ColorWheelsModule: IOPModule {
         let length = sqrt(dr * dr + dg * dg + db * db)
         let inv = 1 / (length + kEpsilon)
         dr *= inv; dg *= inv; db *= inv
-        let scale = max(strength, 0) * r
+        let scale = min(max(strength, 0), strengthRange.upperBound) * r
         return SIMD3(dr, dg, db) * scale
     }
 

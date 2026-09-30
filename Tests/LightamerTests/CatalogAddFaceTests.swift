@@ -62,6 +62,13 @@ final class CatalogAddFaceTests: XCTestCase {
         XCTAssertEqual(
             ColorWheelsModule.cdlDelta(disc: SIMD2<Float>(0, 0), strength: 0.1),
             SIMD3<Float>(0, 0, 0))
+        // The UpdateDerived strength clamp: the payload pristine carries
+        // strength 1.0 (outside the 0...0.1 UI working range) — the first
+        // drag on a fresh wheel must derive the SAME offset as the clamp
+        // ceiling 0.1, never a 10× delta (acceptance M2-5-2).
+        XCTAssertEqual(
+            ColorWheelsModule.cdlDelta(disc: SIMD2<Float>(0.6, 0), strength: 1.0),
+            ColorWheelsModule.cdlDelta(disc: SIMD2<Float>(0.6, 0), strength: 0.1))
         // The per-wheel anchors (Alcedo UpdateDerived): lift rides base 0,
         // gamma/gain ride base 1 with gamma's delta inverted.
         let d = ColorWheelsModule.cdlDelta(disc: SIMD2<Float>(0.5, 0.5), strength: 0.05)
