@@ -155,6 +155,62 @@ final class EditorStackRoutingTests: XCTestCase {
         XCTAssertEqual(tone.filter { $0.opName == ShadhiModule.opName }.count, 1)
     }
 
+    // MARK: - M2-5-2: the Look four-group IA (KD-1 / D9 / checker m1)
+
+    /// T2: the existing 13 rows regroup with ZERO loss (every row keeps a
+    /// home on the page); the Color group joins with the T3-T5 provider
+    /// batches; LMT never rehomes here (D10).
+    func testLookPageFourGroupIALedger() {
+        let look = EditorTabRoutingTable.panels(for: .look)
+        // Zero loss: the ledger is the pre-M2-5-2 13-row set, verbatim.
+        XCTAssertEqual(
+            Set(look.map(\.opName)),
+            [
+                VibranceModule.opName, VelviaModule.opName,
+                MonochromeModule.opName, ColorBalanceRGBModule.opName,
+                ColorZonesModule.opName, SkinSmoothModule.opName,
+                SharpenModule.opName, HighpassModule.opName,
+                SoftenModule.opName, LocalContrastModule.opName,
+                EqualizerModule.opName, GrainModule.opName,
+                BloomModule.opName,
+            ])
+        XCTAssertEqual(look.count, 13, "no row added or dropped at T2")
+        // Group membership (KD-1 §2.3 mapping + checker m1's colorzones).
+        let group = { (op: String) in look.first { $0.opName == op }?.group }
+        XCTAssertEqual(group(VibranceModule.opName), .master)
+        let drtSeatOps = [
+            EqualizerModule.opName, SharpenModule.opName,
+            GrainModule.opName, BloomModule.opName,
+        ]
+        for op in drtSeatOps {
+            XCTAssertEqual(group(op), .look, "\(op) rides the D9 seat")
+        }
+        let textureOps = [
+            VelviaModule.opName, MonochromeModule.opName,
+            ColorBalanceRGBModule.opName, ColorZonesModule.opName,
+            SkinSmoothModule.opName, HighpassModule.opName,
+            SoftenModule.opName, LocalContrastModule.opName,
+        ]
+        for op in textureOps {
+            XCTAssertEqual(
+                group(op), .detailTexture,
+                "\(op) rides Detail/Texture (m1: colorzones included)")
+        }
+        // D9: the four DRT-seat rows carry the honest pre-DRT note.
+        for op in drtSeatOps {
+            XCTAssertEqual(
+                look.first { $0.opName == op }?.note, "panel_note_pre_drt",
+                "\(op) must carry the pre-DRT note")
+        }
+        XCTAssertEqual(
+            look.filter { $0.note != nil }.count, 4, "exactly the four D9 notes")
+        // LUT page: lmt stays (D10 字面) — Look never hosts it.
+        XCTAssertFalse(look.contains { $0.opName == Lut3dModule.opName })
+        XCTAssertEqual(
+            EditorTabRoutingTable.panels(for: .lut).map(\.opName),
+            [Lut3dModule.opName])
+    }
+
     func testGeometryAdvancedGroupComposition() {
         let advanced = EditorTabRoutingTable.panels(for: .geometry)
             .filter(\.isAdvancedGroup)

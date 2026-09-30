@@ -205,25 +205,40 @@ enum EditorTabRoutingTable {
                 .grouped(TemperatureModule.opName, .tone, group: .compat, advanced: true),
             ]
         case .look:
-            // OQ-4 Look row: vibrance/velvia/monochrome/colorbalancergb/
-            // colorzones/skinsmooth + the detail five (sharpen/highpass/
-            // soften/localcontrast/equalizer — highpass+soften stay the one
-            // view's two provider rows) + grain/bloom (the OQ-4 DT-row note:
-            // Alcedo post-DRT semantics — parked on Look until M2-6).
+            // M2-5-2 KD-1 — the Alcedo four-group IA (§2.3). The 13-row
+            // zero-loss ledger (T2, every existing row keeps a home):
+            //   Master        { vibrance } — Saturation joins with T3
+            //   Look (D9)     { equalizer→Clarity, sharpen, grain→Film
+            //                   Grain, bloom→Halation } — the .drtPost four
+            //                   seats, each carrying the pre-DRT note
+            //   Detail/Texture{ velvia, monochrome, colorbalancergb,
+            //                   colorzones (checker m1 — the D6 收纳 seat),
+            //                   skinsmooth, highpass, soften, localcontrast }
+            // The Color group joins with the T3-T5 provider batches (the m3
+            // exactly-once domain keys on the populated provider face); LMT
+            // stays on the LUT page (D10 字面).
             [
-                .page(VibranceModule.opName, .look),
-                .page(VelviaModule.opName, .look),
-                .page(MonochromeModule.opName, .look),
-                .page(ColorBalanceRGBModule.opName, .look),
-                .page(ColorZonesModule.opName, .look),
-                .page(SkinSmoothModule.opName, .look),
-                .page(SharpenModule.opName, .look),
-                .page(HighpassModule.opName, .look),
-                .page(SoftenModule.opName, .look),
-                .page(LocalContrastModule.opName, .look),
-                .page(EqualizerModule.opName, .look),
-                .page(GrainModule.opName, .look),
-                .page(BloomModule.opName, .look),
+                .grouped(VibranceModule.opName, .look, group: .master),
+                .grouped(
+                    EqualizerModule.opName, .look, group: .look,
+                    note: "panel_note_pre_drt"),
+                .grouped(
+                    SharpenModule.opName, .look, group: .look,
+                    note: "panel_note_pre_drt"),
+                .grouped(
+                    GrainModule.opName, .look, group: .look,
+                    note: "panel_note_pre_drt"),
+                .grouped(
+                    BloomModule.opName, .look, group: .look,
+                    note: "panel_note_pre_drt"),
+                .grouped(VelviaModule.opName, .look, group: .detailTexture),
+                .grouped(MonochromeModule.opName, .look, group: .detailTexture),
+                .grouped(ColorBalanceRGBModule.opName, .look, group: .detailTexture),
+                .grouped(ColorZonesModule.opName, .look, group: .detailTexture),
+                .grouped(SkinSmoothModule.opName, .look, group: .detailTexture),
+                .grouped(HighpassModule.opName, .look, group: .detailTexture),
+                .grouped(SoftenModule.opName, .look, group: .detailTexture),
+                .grouped(LocalContrastModule.opName, .look, group: .detailTexture),
             ]
         case .lut:
             // OQ-4 LUT row: the lut3d panel (recursive scan / root picker =
