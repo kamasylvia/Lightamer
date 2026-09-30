@@ -384,3 +384,11 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **对策**：①设内存门前先用**精确口径**测基线（`/usr/bin/time -l` 包宿主，parse ru_maxrss；ps 轮询只配后备）；②阈值推导 = 目标门 ÷ 实测每测试积累，先算可达性再定 bundle 数；③真解在「每测试/每 bundle 边界释放」（clearCaches/池复位）或接受现实档门 + 运行监视——M2-4-0 OQ 三选一待裁决（SUMMARY「内存事实」节）。
 - **适用**：一切长跑测试宿主的内存预算；一切「多进程拆分 vs 单进程清理」的取舍判断。
 - **来源**：M2-4-0 七 bundle 矩阵（对账 2165/14/0 精确 + MEMFAIL×3，2026-09-30）。
+
+## L046: 测试装配 tuple 弃元 = 弱引用网静默死亡——`let (a, _, c, d) = make()` 会让被装配对象当场失联（2026-09-30，M2-4-1 T5）
+- **背景**：SidecarV5Tests AC7 真链用例需要 EditorState + PipeCoordinator + WorkspaceModel 三方弱引用交叉 attach（生产同款组合根）。
+- **现象**：第二套装配 `let (editorState2, _, workspace2, metal2) = makeAssembly()` 把 coordinator 丢进 `_`——decode 完成、image 就位，但 pipe load / sidecar restore / 恢复腿全程不发生；排障三轮（hook 到没到 / store 读没读到 / 探针进没进）才定位：**`_` 绑定 = 值立即释放**，弱引用集体归 nil，`guard let` 全部静默走丢失分支（os_log 不可见，stdout 无痕迹）。
+- **根因**：Swift tuple 解构的 `_` 槽不持有强引用；组合根类全是 weak 互指（防环纪律的正确设计），装配面一旦无人强持有，整网静默蒸发——不是 bug，是生命周期契约被测试写法击穿。
+- **对策**：①多对象装配 helper 的返回值**每个槽位具名绑定**（哪怕 `let c = ...; _ = c` 保活到 scope 尾）；②装配型测试的断言失败先查「被测对象还活着吗」（weak 网存活检查）再查业务逻辑；③排障 instrumentation 优先打在**守卫出口**而非入口（本例三轮入口探针全绿、出口早退，教训即此）。
+- **适用**：一切「weak 互指 + 外部强持有」的组合根测试（EditorState/PipeCoordinator/WorkspaceModel 族、未来 NodesPanelModel 同款）；一切「静默不作为」类失败的生命周期排查。
+- **来源**：M2-4-1 T5 AC7 真链用例三轮排障（hook/store/探针三级 instrumentation，2026-09-30）。
