@@ -64,7 +64,7 @@ IOPP	16	LiquifyParityTests.swift
 IOPP	6	LocalContrastTests.swift
 IOPP	5	Lut3dGoldenImageTests.swift
 IOPP	8	Lut3dKernelTests.swift
-IOPP	13	LutLibraryRecursionTests.swift
+IOPP	15	LutLibraryRecursionTests.swift
 IOPP	9	McpRenderParityTests.swift
 IOPP	3	MonochromeParityTests.swift
 IOPP	11	NLMeansParityTests.swift
@@ -145,6 +145,7 @@ APP	20	McpEditingToolsetTests.swift
 APP	27	McpCullingToolsetTests.swift
 APP	3	EditorMetalLegRegressionTests.swift
 APP	5	BeforeAfterTests.swift
+APP	4	BuiltInLutSetTests.swift
 APP	5	EffectsWiringTests.swift
 APP	5	EyedropperTests.swift
 APP	6	AppErrorTests.swift

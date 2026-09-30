@@ -1,0 +1,14 @@
+Lightamer built-in film LUT set
+===============================
+
+The 40 .cube tables in this folder were generated with Spectral Film LUT
+by Jan Lohse — https://github.com/JanLohse/spectral_film_lut — version
+0.18.2 (commit 42f4f3fadfab3b7fcbdf8f9431c9b9d9aa05ce5f), at the tool's
+export defaults with two documented deviations: LUT size 65 (the tool's
+default is 33) and black-and-white stocks paired with the Kodak 2302
+print stock.
+
+The generator is MIT-licensed; its license text ships alongside as the
+LICENSE file (Copyright (c) 2026 Jan Lohse). These tables are original
+upstream-tool output — no bytes were copied from Alcedo Studio or any
+other GPL codebase.

@@ -2,14 +2,15 @@
 @testable import LightamerIOP
 import XCTest
 
-/// LutLibraryRecursionTests (Plan M2-5-3 T2/T4, M2GRADE-05/06) — the
+/// LutLibraryRecursionTests (Plan M2-5-3 T2/T4/T5, M2GRADE-05/06) — the
 /// registry key upgrade to root-relative POSIX paths (KD-1) and the
 /// recursive rescan (KD-2): deep-tree collection, hidden-directory
 /// skipping, legacy registry tolerance + migration idempotency, the
 /// legacy-reference tail-segment resolution fallback (ambiguous =
 /// degrade), the panel tree grouping face, the rescan scale sanity
-/// (KD-2 soft cap) and — T4 — the configurable root (KD-3: per-root
-/// registries, bad-root tolerance, cross-root degrade).
+/// (KD-2 soft cap), the configurable root (KD-3: per-root registries,
+/// bad-root tolerance, cross-root degrade) and the built-in seeder's
+/// idempotency face (KD-4).
 final class LutLibraryRecursionTests: XCTestCase {
 
     private var workDir: URL!
@@ -261,5 +262,47 @@ final class LutLibraryRecursionTests: XCTestCase {
         let newStore = LutLibraryStore(directory: secondRoot)
         XCTAssertNil(newStore.lut(named: "OnlyHere.cube"))
         XCTAssertTrue(newStore.isMissing("OnlyHere.cube"))
+    }
+
+    // MARK: - KD-4 seeder (store-level idempotency face; the packaged
+    // folder itself is the APP-level BuiltInLutSetTests' subject)
+
+    func testBuiltInSeederIsIdempotentByCountAndSize() throws {
+        let source = workDir.appendingPathComponent("BundleLUTs", isDirectory: true)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        try cube2.write(to: source.appendingPathComponent("A.cube"), atomically: true,
+                        encoding: .utf8)
+        try cube2.write(to: source.appendingPathComponent("B.cube"), atomically: true,
+                        encoding: .utf8)
+        try "MIT".write(to: source.appendingPathComponent("LICENSE"), atomically: true,
+                        encoding: .utf8)
+        let root = workDir.appendingPathComponent("SeedRoot", isDirectory: true)
+        // First launch: everything copies.
+        let first = LutLibraryStore.seedBuiltIns(from: source, into: root)
+        XCTAssertEqual(first, 3)
+        let builtIn = root.appendingPathComponent("BuiltIn", isDirectory: true)
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(
+                at: builtIn, includingPropertiesForKeys: nil).count, 3)
+        // Second launch: the count+size sentinel skips every file.
+        let second = LutLibraryStore.seedBuiltIns(from: source, into: root)
+        XCTAssertEqual(second, 0)
+        // A drifted file (same name, different size) re-copies.
+        try (cube2 + "\n").write(
+            to: builtIn.appendingPathComponent("A.cube"), atomically: true, encoding: .utf8)
+        let third = LutLibraryStore.seedBuiltIns(from: source, into: root)
+        XCTAssertEqual(third, 1)
+    }
+
+    func testSeederOnlyRunsOnTheDefaultRootBranch() throws {
+        // A custom directory never receives BuiltIn (user-data sovereignty,
+        // KD-4) even when a bundle LUTs folder exists.
+        try write("User.cube")
+        let store = LutLibraryStore(directory: libraryDir)
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: libraryDir.appendingPathComponent("BuiltIn").path),
+            "custom roots are never seeded")
+        XCTAssertEqual(store.installedNames, ["User.cube"])
     }
 }
