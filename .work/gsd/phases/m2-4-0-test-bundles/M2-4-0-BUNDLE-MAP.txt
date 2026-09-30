@@ -221,6 +221,7 @@ LAYERS	9	RasterMaskRoundTripTests.swift
 LAYERS	5	PipelineDocumentTests.swift
 LAYERS	17	DrtRecordTests.swift
 LAYERS	12	DrtEotfTests.swift
+LAYERS	11	DrtPresetsTests.swift
 LIB	10	FilterPredicateTests.swift
 LIB	10	ImportServiceTests.swift
 LIB	10	LibraryFilterDomainTests.swift

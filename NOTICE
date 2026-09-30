@@ -1,0 +1,45 @@
+Lightamer
+Copyright 2026 the Lightamer authors
+
+This project is licensed under the MIT License (see LICENSE).
+
+==============================================================================
+Third-party provenance
+==============================================================================
+
+1. OpenDRT (display render transform, Plan M2-6 phase)
+
+   Upstream: jedypod/open-display-transform v1.1.0
+   https://github.com/jedypod/open-display-transform
+   License: GPLv3 (c) Jed Smith
+
+   Lightamer's Display Transform (OpenDRT method) is an INDEPENDENT
+   implementation: the algorithm structure was studied from the upstream
+   DCTL (read-only reference) and re-written from the math in Swift and
+   Metal Shading Language. No upstream code or text is copied into this
+   repository. The preset parameter value tables (Look/Tonescale/Creative
+   White) are transcribed NUMERIC FACTS (parameter values that select
+   behaviors of the algorithm); they are data, not expressive content, and
+   are recorded here with attribution per that boundary. The reference
+   implementation files are:
+
+     LightamerCore/Sources/Graph/DrtRecord.swift
+     LightamerCore/Sources/Pipe/Drt/DrtEotf.swift
+     LightamerCore/Sources/Pipe/Drt/DrtEotfKernels.metal
+     LightamerCore/Sources/Pipe/Drt/OpenDrtReference.swift
+     LightamerCore/Sources/Pipe/Drt/OpenDrtKernels.metal
+     LightamerCore/Sources/Pipe/Drt/DrtPresets.swift
+
+   The Alcedo Studio parameter model (schema field names/defaults,
+   GPL-3.0, (c) Yurun Zi) served as the read-only schema reference for the
+   same phase; schema facts only, no code copied.
+
+2. aces-core (ACES 2.0 method — placeholder, lands with M2-6-2 / Plan 2)
+
+   Upstream: ampas/aces-core
+   https://github.com/ampas/aces-core
+   License: AMPAS BSD-style (see third_party_licenses in the upstream
+   project). This entry is a placeholder for the P2 milestone; the ACES
+   2.0 render arm is an explicit stub in this tree and the AMPAS terms
+   will be honored (attribution + license text) when the ported code
+   lands.
