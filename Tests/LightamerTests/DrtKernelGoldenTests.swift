@@ -228,9 +228,10 @@ extension DrtKernelGoldenTests {
     }
 
     func testAces20ArmIsAnExplicitP2Stub() {
-        // KD-6: the aces20 render arm is an explicit stub — the machine-
-        // checkable replacement face P2 flips to true.
-        XCTAssertFalse(DrtMethod.aces20.isRenderImplemented)
+        // M2-6-2 (T4): the P2 replacement face HAS landed — both methods
+        // carry real render arms (the stub assertion this test once pinned
+        // flipped with the aces20 kernel arm).
+        XCTAssertTrue(DrtMethod.aces20.isRenderImplemented)
         XCTAssertTrue(DrtMethod.opendrt.isRenderImplemented)
         XCTAssertEqual(DrtMethod.aces20.kernelIndex, 0)
         XCTAssertEqual(DrtMethod.opendrt.kernelIndex, 1)

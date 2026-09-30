@@ -1108,3 +1108,99 @@ enum Aces2Reference {
         return rgb * (Aces2Cam.refLuminance / p.peak)
     }
 }
+
+// MARK: - GPU bridge (Plan M2-6-2 T4, KD-5 — the M2-6-1 KD-4 shape)
+
+/// The uniform buffer bridge to `Aces2Uniforms` in `Aces2Kernels.metal` —
+/// a FLAT float4 plane (588 entries = 9408 bytes; the layout ORDER is the
+/// ABI, mirrored member-for-member in the Metal struct; the size-probe
+/// kernel pins the byte count). Parameters ride a BUFFER, never function
+/// constants (OQ-10-A: a param drag re-uploads, recompiles NOTHING — one
+/// PSO, resident). The per-point tables (reach-M / hues / cusps / upper
+/// hull gamma) ride in the tail sections, zero-padded to whole float4s.
+struct Aces2Uniforms {
+    /// The packed plane (the ABI).
+    var floats: [SIMD4<Float>]
+
+    static let float4Count = 588
+    static let tableFloat4Count = 91      // 362 floats → 364 → 91
+    static let cuspFloat4Count = 272      // 362×3 floats → 1088 → 272
+
+    /// Pack from the built Params (the Swift single source — the Metal
+    /// struct never authors a per-params value).
+    init(params: Aces2Reference.Params) {
+        var f: [SIMD4<Float>] = []
+        f.reserveCapacity(Self.float4Count)
+
+        func pack(_ rows: DrtMat3) {
+            f.append(SIMD4(Float(rows.r0.x), Float(rows.r0.y), Float(rows.r0.z), 0))
+            f.append(SIMD4(Float(rows.r1.x), Float(rows.r1.y), Float(rows.r1.z), 0))
+            f.append(SIMD4(Float(rows.r2.x), Float(rows.r2.y), Float(rows.r2.z), 0))
+        }
+        func packJMh(_ p: Aces2Cam.JMhParams) {
+            f.append(SIMD4(Float(p.fLn), Float(p.cz), Float(p.invCz), Float(p.awJ)))
+            f.append(SIMD4(Float(p.invAwJ), 0, 0, 0))
+            pack(p.rgbToCam16C)
+            pack(p.cam16CToRgb)
+            pack(p.coneResponseToAab)
+            pack(p.aabToConeResponse)
+        }
+        func packTable(_ table: [Double]) {
+            var padded = table.map { Float($0) }
+            padded.append(contentsOf: [Float](repeating: 0, count: 364 - padded.count))
+            for i in stride(from: 0, to: 364, by: 4) {
+                f.append(SIMD4(padded[i], padded[i + 1], padded[i + 2], padded[i + 3]))
+            }
+        }
+        func packCusps(_ cusps: [SIMD3<Double>]) {
+            var flat: [Float] = []
+            flat.reserveCapacity(1088)
+            for c in cusps {
+                flat.append(Float(c.x)); flat.append(Float(c.y)); flat.append(Float(c.z))
+            }
+            flat.append(contentsOf: [Float](repeating: 0, count: 1088 - flat.count))
+            for i in stride(from: 0, to: 1088, by: 4) {
+                f.append(SIMD4(flat[i], flat[i + 1], flat[i + 2], flat[i + 3]))
+            }
+        }
+
+        // ts0/ts1/ts2 — ts2.zw carry the hue-linearity search range.
+        let ts = params.ts
+        f.append(SIMD4(Float(ts.n), Float(ts.nR), Float(ts.g), Float(ts.t1)))
+        f.append(SIMD4(Float(ts.cT), Float(ts.s2), Float(ts.u2), Float(ts.m2)))
+        f.append(SIMD4(
+            Float(ts.forwardLimit), Float(ts.logPeak),
+            Float(params.hueLinearitySearchRange.0),
+            Float(params.hueLinearitySearchRange.1)))
+
+        // input (AP0) JMhParams.
+        packJMh(params.inputParams)
+        // limit (limiting-space) JMhParams.
+        packJMh(params.limitParams)
+
+        // gam0/gam1/gam2.
+        f.append(SIMD4(
+            Float(params.limitJMax), Float(params.modelGammaInv),
+            Float(params.sat), Float(params.satThr)))
+        f.append(SIMD4(
+            Float(params.compr), Float(params.chromaCompressScale),
+            Float(params.midJ), Float(params.focusDist)))
+        f.append(SIMD4(
+            Float(params.lowerHullGammaInv), Float(params.peak),
+            params.rgcOn ? 1 : 0, 0))
+
+        // the fixed-space matrices.
+        pack(Aces2Cam.ap0ToAP1)
+        pack(Aces2Cam.ap1ToAP0)
+        pack(Aces2Cam.rec2020ToAP0)
+
+        // tables.
+        packTable(params.tableReachM)
+        packTable(params.tableHues)
+        packCusps(params.tableGamutCusps)
+        packTable(params.tableUpperHullGamma)
+
+        assert(f.count == Self.float4Count, "Aces2Uniforms ABI drift: \(f.count)")
+        floats = f
+    }
+}

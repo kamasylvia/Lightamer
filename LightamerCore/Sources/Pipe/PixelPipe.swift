@@ -1255,6 +1255,7 @@ public final class DrtMethodBox: IOPModule {
     public static let defaultColorspace: IOPColorspace = .RGB
 
     private var uniforms: DrtUniforms?
+    private var aces2Uniforms: Aces2Uniforms?
 
     public let record: DrtRecord
 
@@ -1268,11 +1269,19 @@ public final class DrtMethodBox: IOPModule {
 
     public func commitParams(_ params: Params, into piece: inout IOPiece) {
         piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
-        // The creative white resolves HERE (the look-ride + explicit-white
-        // rules, T5) — the kernel consumes the resolved ordinal.
-        uniforms = DrtUniforms(
-            record: params.record,
-            cwp: UInt32(DrtPresets.resolvedCreativeWhiteOrdinal(params.record)))
+        // The method dispatch (M2-6-2 T4, E4 — exhaustive, no default arm):
+        // the OpenDRT arm resolves the creative white HERE; the aces20 arm
+        // packs the memoized per-point tables into the uniform plane.
+        switch params.record.method {
+        case .opendrt:
+            uniforms = DrtUniforms(
+                record: params.record,
+                cwp: UInt32(DrtPresets.resolvedCreativeWhiteOrdinal(params.record)))
+        case .aces20:
+            aces2Uniforms = Aces2Uniforms(params: Aces2Reference.params(
+                space: params.record.limitingSpace,
+                peak: Double(params.record.peakLuminance)))
+        }
     }
 
     public func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
@@ -1291,16 +1300,34 @@ public final class DrtMethodBox: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        var u = uniforms ?? DrtUniforms(
-            record: record,
-            cwp: UInt32(DrtPresets.resolvedCreativeWhiteOrdinal(record)))
-        let buffer = metal.device.makeBuffer(
-            bytes: &u, length: MemoryLayout<DrtUniforms>.stride,
-            options: .storageModeShared)
-        try await metal.dispatch2DTexture(
-            functionName: "drt_opendrt", input: input, output: output
-        ) { encoder in
-            encoder.setBuffer(buffer, offset: 0, index: 0)
+        switch record.method {
+        case .opendrt:
+            var u = uniforms ?? DrtUniforms(
+                record: record,
+                cwp: UInt32(DrtPresets.resolvedCreativeWhiteOrdinal(record)))
+            let buffer = metal.device.makeBuffer(
+                bytes: &u, length: MemoryLayout<DrtUniforms>.stride,
+                options: .storageModeShared)
+            try await metal.dispatch2DTexture(
+                functionName: "drt_opendrt", input: input, output: output
+            ) { encoder in
+                encoder.setBuffer(buffer, offset: 0, index: 0)
+            }
+        case .aces20:
+            let u = aces2Uniforms
+                ?? Aces2Uniforms(params: Aces2Reference.params(
+                    space: record.limitingSpace,
+                    peak: Double(record.peakLuminance)))
+            let buffer = u.floats.withUnsafeBufferPointer { rows in
+                metal.device.makeBuffer(
+                    bytes: rows.baseAddress!, length: rows.count * 16,
+                    options: .storageModeShared)
+            }
+            try await metal.dispatch2DTexture(
+                functionName: "drt_aces2", input: input, output: output
+            ) { encoder in
+                encoder.setBuffer(buffer, offset: 0, index: 0)
+            }
         }
     }
 }
