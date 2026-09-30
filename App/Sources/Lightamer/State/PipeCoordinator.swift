@@ -1813,7 +1813,8 @@ final class PipeCoordinator {
                 maskDirectory: currentImageURL.map {
                     RasterMaskStore.masksDirectory(forImageURL: $0)
                 },
-                edrDisplayLeg: edrDisplayEnabled && resolution != .thumbnail)
+                terminalTail: edrDisplayEnabled && resolution != .thumbnail
+                    ? .edrLinear : .sdrGamma)
             return RenderChainOutput(texture: texture, stats: stats)
         }
         let (texture, stats) = try await RenderPipeline.process(
@@ -1824,7 +1825,8 @@ final class PipeCoordinator {
             cache: cache,
             metal: metal,
             longEdge: longEdge,
-            edrDisplayLeg: edrDisplayEnabled && resolution != .thumbnail
+            terminalTail: edrDisplayEnabled && resolution != .thumbnail
+                ? .edrLinear : .sdrGamma
         )
         return RenderChainOutput(texture: texture, stats: stats)
     }
@@ -1894,7 +1896,7 @@ final class PipeCoordinator {
                 maskDirectory: currentImageURL.map {
                     RasterMaskStore.masksDirectory(forImageURL: $0)
                 },
-                edrDisplayLeg: edrDisplayEnabled)
+                terminalTail: edrDisplayEnabled ? .edrLinear : .sdrGamma)
             return RenderChainOutput(texture: texture, stats: stats)
         }
         let (texture, stats) = try await RenderPipeline.process(
@@ -1905,7 +1907,7 @@ final class PipeCoordinator {
             cache: cache,
             metal: metal,
             longEdge: longEdge,
-            edrDisplayLeg: edrDisplayEnabled
+            terminalTail: edrDisplayEnabled ? .edrLinear : .sdrGamma
         )
         return RenderChainOutput(texture: texture, stats: stats)
     }
