@@ -166,7 +166,7 @@ APP	9	SettingsPagesTests.swift
 APP	10	SidecarV5Tests.swift
 APP	8	DrtSidecarTests.swift
 APP	7	DrtPersistenceTests.swift
-APP	6	DrtPanelModelTests.swift
+APP	9	DrtPanelModelTests.swift
 APP	9	MaskItemSemanticsTests.swift
 APP	9	NodeCanvasGeometryTests.swift
 APP	14	NodesPanelModelTests.swift

@@ -271,4 +271,137 @@ final class DrtPanelModelTests: XCTestCase {
             editorState.history.items.count, after,
             "a no-op drag must not fabricate a history item")
     }
+
+    // MARK: - 7 (T3): the EOTF linkage snapping (KD-3)
+
+    /// The EOTF linkage matrix over the UI-REACHABLE state space: for every
+    /// (space, legal EOTF) starting point, a switch to EVERY target space
+    /// keeps a legal combination and snaps an illegal one to THAT space's
+    /// first legal value (AC#3, the machine check). Illegal starting points
+    /// are unconstructible from the UI BY DESIGN (the picker source test
+    /// pins that face); the pristine-entry snap/keep branches are covered
+    /// first. Assertions read the HISTORY projection (synchronous — the
+    /// item lands inside the commit; the carrier's Task hop trails).
+    func testEotfSnapMatrixAllSpaceEotfCombinations() async throws {
+        try await loadGradient()
+
+        // Pristine-entry branches: rec709/gamma22 (legal under rec709 AND
+        // p3d65) vs every other target (snap to the first legal).
+        for target in DrtEncodingSpace.allCases {
+            workspace.dropSessionDrtRecords()
+            editorState.performJump(to: -1) // pristine pointer, instances intact
+            let legal = legalEOTFs(for: target)
+            model.setEncodingSpace(target)
+            let result = editorState.history.effectiveDrtRecord() ?? DrtRecord()
+            XCTAssertEqual(result.encodingSpace, target, "pristine → \(target)")
+            if legal.contains(.gamma22) {
+                XCTAssertEqual(
+                    result.encodingEotf, .gamma22,
+                    "pristine EOTF kept for \(target)")
+            } else {
+                XCTAssertEqual(
+                    result.encodingEotf, legal.first,
+                    "pristine EOTF snapped for \(target)")
+            }
+        }
+
+        // The full reachable matrix: (S0, E0 legal) → switch to S1. The s1
+        // walk is a SEQUENTIAL state machine — each switch's expectation
+        // follows the CURRENT eotf (the previous step's result), not the
+        // original e0.
+        for s0 in DrtEncodingSpace.allCases {
+            for e0 in legalEOTFs(for: s0) {
+                // Reach (s0, e0) through the model.
+                workspace.dropSessionDrtRecords()
+                editorState.performJump(to: -1) // pristine pointer, instances intact
+                model.setEncodingSpace(s0)
+                model.setEncodingEotf(e0)
+                let start = editorState.history.effectiveDrtRecord() ?? DrtRecord()
+                XCTAssertEqual(start.encodingSpace, s0, "setup \(s0)/\(e0)")
+                XCTAssertEqual(start.encodingEotf, e0, "setup \(s0)/\(e0)")
+
+                var currentEotf = e0
+                for s1 in DrtEncodingSpace.allCases {
+                    model.setEncodingSpace(s1)
+                    let legal1 = legalEOTFs(for: s1)
+                    let result = editorState.history.effectiveDrtRecord() ?? DrtRecord()
+                    XCTAssertEqual(result.encodingSpace, s1, "\(s0)/\(e0) → \(s1)")
+                    if legal1.contains(currentEotf) {
+                        XCTAssertEqual(
+                            result.encodingEotf, currentEotf,
+                            "legal combo \(s0)/\(e0) → \(s1) must keep the EOTF")
+                    } else {
+                        XCTAssertEqual(
+                            result.encodingEotf, legal1.first,
+                            "illegal combo \(s0)/\(e0) → \(s1) must snap")
+                    }
+                    currentEotf = result.encodingEotf
+                }
+            }
+        }
+    }
+
+    /// The snap and the space switch are the SAME discrete commit: one ⌘Z
+    /// steps BOTH values back (the atomic dual-value rule, KD-3). The
+    /// pre-state is a COMMITTED history state (the honest app shape). The
+    /// carrier reads wait through waitForCarrier (the notification Task hop
+    /// + its re-render precede the sync; the history reads are synchronous).
+    func testSnapIsAtomicWithTheSpaceSwitch() async throws {
+        try await loadGradient()
+        let url = coordinator.liveImageURL!
+        let before = editorState.history.items.count
+
+        // Commit #1: rec709/g22 → rec2020 (legal first = st2084).
+        model.setEncodingSpace(.rec2020)
+        try await waitForItemCount(before + 1)
+        // Commit #2: the EOTF switch to hlg (legal under rec2020).
+        model.setEncodingEotf(.hlg)
+        try await waitForItemCount(before + 2)
+        var expected = DrtRecord()
+        expected.encodingSpace = .rec2020
+        expected.encodingEotf = .hlg
+        try await waitForCarrier(url, equals: expected)
+        XCTAssertEqual(
+            editorState.history.effectiveDrtRecord()?.encodingEotf, .hlg)
+
+        // Commit #3: the SNAPPING switch — rec2020/hlg → p3d60 (legal =
+        // g2.6 only): the hlg value is illegal there and snaps IN THE SAME
+        // commit as the space.
+        model.setEncodingSpace(.p3d60)
+        try await waitForItemCount(before + 3)
+        XCTAssertEqual(
+            editorState.history.items.count, before + 3,
+            "the snap must not fabricate a second item")
+        var snapped = DrtRecord()
+        snapped.encodingSpace = .p3d60
+        snapped.encodingEotf = .gamma26
+        try await waitForCarrier(url, equals: snapped)
+
+        // One undo steps BOTH values back (space AND eotf) to commit #2.
+        await coordinator.undo()
+        try await waitForCarrier(url, equals: expected)
+        XCTAssertEqual(
+            editorState.history.effectiveDrtRecord()?.encodingSpace, .rec2020)
+        XCTAssertEqual(
+            editorState.history.effectiveDrtRecord()?.encodingEotf, .hlg)
+    }
+
+    /// The picker's data source is the Core single source — the model's
+    /// legalEotfs ALWAYS equals legalEOTFs(for: the current space), and no
+    /// space's legal set is empty (the UI can never dead-end).
+    func testPickerDataSourceIsTheCoreSingleSource() async throws {
+        try await loadGradient()
+        for space in DrtEncodingSpace.allCases {
+            var seeded = DrtRecord()
+            seeded.encodingSpace = space
+            workspace.setSessionDrtRecord(seeded, for: coordinator.liveImageURL!)
+            XCTAssertEqual(model.legalEotfs, legalEOTFs(for: space))
+            XCTAssertFalse(
+                model.legalEotfs.isEmpty, "\(space) must have a legal EOTF")
+            // The picker source is a SUBSET of the model enum, values only
+            // from the legal set (an illegal item is unconstructible).
+            XCTAssertTrue(
+                model.legalEotfs.allSatisfy { DrtEotf.allCases.contains($0) })
+        }
+    }
 }
