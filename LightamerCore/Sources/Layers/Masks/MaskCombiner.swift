@@ -403,6 +403,18 @@ public enum MaskCombiner {
         precondition(depth < 8, "MaskGroup nesting deeper than 8 — reject")
         var inputs: [MaskCombineInput] = []
         for item in group.items {
+            // M2-4 (Plan M2-4-2 KD-1, D-M2-4-CONTEXT-3): the enabled gate —
+            // a disabled item does NOT participate in the combine. The
+            // filter is CPU-side BEFORE the assembly (the n-ary fold simply
+            // drops the term: union/sum lose an addend, intersect widens,
+            // difference/exclusion lose a subtracted term — "constraint
+            // lifted" holds per op), so kernels and the five formulas stay
+            // byte-identical. An EMPTY enabled set (all disabled / nothing
+            // resolvable) returns nil below → the caller's dt no-form fill
+            // 1 leg = the constant-1 passthrough (NOT constant 0 — that
+            // would disable the whole grade, which is the node-level
+            // enabled/mix semantics' job, D-M2-4-CONTEXT-6).
+            if item.enabled == false { continue }
             let plane: any MTLTexture
             if let child = item.child {
                 guard let childPlane = try await drawnGroupPlane(

@@ -317,3 +317,61 @@ public struct MaskSpec: Codable, Sendable, Equatable, Hashable {
         StableHash.hash(ParamsCoding.encode(self))
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The group-item access face (Plan M2-4-2 KD-2, M2NODE-04) — the M2-7 Mask
+// Groups panel's read/write doorway over `drawn.group.items`. VALUE SEMANTICS:
+// MaskSpec is a struct, so the setters copy-on-write and a miss (unknown id,
+// no group) is a documented silent no-op. NO second storage: the multi-mask
+// "list" IS `drawn.group.items` (D-M2-4-CONTEXT-3) — these helpers are a
+// facade, writes still ride the layer-commit history leg unchanged.
+// ─────────────────────────────────────────────────────────────────────────────
+
+public extension MaskSpec {
+
+    /// The read view over the group items, in group order. `id` = the
+    /// item's `formID` (nested child items keep their placeholder id —
+    /// the panel addresses children through M2-7's group tree, not here).
+    /// `name` = the stored `displayName` (nil = DERIVED at the display
+    /// site — the derivation consumes the Core single source
+    /// `LayerStack.nextLayerName(base:)`, never a second ordinal algorithm).
+    /// `enabled` folds the v5 optional (nil = true). nil group / no forms
+    /// = [] (nothing rasterizable to show).
+    public var maskItems: [
+        (id: UUID, name: String?, enabled: Bool, opacity: Float, inverted: Bool)
+    ] {
+        guard let drawn, !drawn.forms.isEmpty, let items = drawn.group?.items
+        else { return [] }
+        return items.map { item in
+            (id: item.formID, name: item.displayName,
+             enabled: item.enabled ?? true, opacity: item.opacity,
+             inverted: item.inverted)
+        }
+    }
+
+    /// Flip one item's enabled gate (nil → true default folded by the
+    /// panel through `maskItems`). Unknown id / no group = silent no-op.
+    public mutating func setItemEnabled(_ id: UUID, _ enabled: Bool) {
+        mutateTopLevelItem(id) { $0.enabled = enabled }
+    }
+
+    /// Set one item's display name (nil = back to the derived name).
+    /// Unknown id / no group = silent no-op.
+    public mutating func setItemDisplayName(_ id: UUID, _ name: String?) {
+        mutateTopLevelItem(id) { $0.displayName = name }
+    }
+
+    /// The one mutation shape both setters share: copy the drawn payload,
+    /// address the TOP-LEVEL item by formID, write back. (Nested children
+    /// are out of this face's scope — M2-7 owns the group tree UI.)
+    private mutating func mutateTopLevelItem(
+        _ id: UUID, _ mutate: (inout MaskGroupItem) -> Void
+    ) {
+        guard var drawn, var group = drawn.group,
+            let index = group.items.firstIndex(where: { $0.formID == id })
+        else { return }
+        mutate(&group.items[index])
+        drawn.group = group
+        self.drawn = drawn
+    }
+}

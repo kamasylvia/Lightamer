@@ -288,12 +288,25 @@ final class LayerEditingState {
             // 6 contract). Composite-identical to a full plane with ZERO
             // kernel/GPU involvement (the App layer never calls
             // MaskCombiner.fill — that is a render-time helper).
+            // M2-4 (Plan M2-4-2 KD-4, checker E3): fill empties the mask
+            // content exactly like clear does (empty spec = constant-1) —
+            // a deletionProtected mask refuses BOTH legs.
+            if Self.isDeletionProtected(layer) {
+                editorState.presentToast(Self.deletionProtectedToast)
+                return
+            }
             var copy = Self.snapshot(layer)
             copy.mask = MaskSpec()
             editorState.commitLayerEdit(
                 copy, label: String(localized: "mask_command_fill"))
         case .clear:
             // Clear = NO mask record at all (the chip's empty state).
+            // M2-4 (Plan M2-4-2 KD-4): the deletion-protected interception
+            // leg — toast + ZERO history item (the mask survives).
+            if Self.isDeletionProtected(layer) {
+                editorState.presentToast(Self.deletionProtectedToast)
+                return
+            }
             var copy = Self.snapshot(layer)
             copy.mask = nil
             editorState.commitLayerEdit(
@@ -317,6 +330,25 @@ final class LayerEditingState {
             opacity: layer.opacity, blendMode: layer.blendMode,
             blendOptions: layer.blendOptions, enabled: layer.enabled,
             chain: layer.chain, mask: layer.mask)
+    }
+
+    // MARK: deletion lock (Plan M2-4-2 KD-4, D-M2-4-CONTEXT-7)
+
+    /// The spec-level deletion lock (v5 optional; nil = unlocked). Only
+    /// the two content-CLEARING legs consult it — the command face's sole
+    /// unrecoverable writes (grep audit: `LayerEditingState.swift` .fill
+    /// `:292` empty-spec + .clear `:298` nil; every other `mask =` touch
+    /// is content-producing or a load/undo restore — the DECISIONS table).
+    private static func isDeletionProtected(_ layer: AdjustmentLayer) -> Bool {
+        layer.mask?.deletionProtected == true
+    }
+
+    /// The refusal notice (new UI key — D-M2-4-CONTEXT-11: zh lags, the
+    /// close-out batch reconciles the catalog).
+    private static var deletionProtectedToast: String {
+        String(
+            localized: "toast_mask_deletion_protected",
+            defaultValue: "This mask is protected and cannot be cleared")
     }
 
     /// The inversion flip across ALL mask payloads (the invert bits are
