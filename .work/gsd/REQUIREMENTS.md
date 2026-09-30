@@ -54,11 +54,11 @@
 
 ### 显示渲染变换 (DRT)
 - [ ] **M2DRT-01**: DRT 节点+面板——Method 分段卡（ACES 2.0/OpenDRT）恒展开；默认 OpenDRT
-- [ ] **M2DRT-02**: OpenDRT 预设三件套——Look 7（standard/arriba/sylvan/colorful/aery/dystopic/umbra+custom）+ Tonescale 15 + Creative White 6；45 个 detailed 参数 editor-owned 整体序列化（预设=具名快照）
+- [x] **M2DRT-02**: OpenDRT 预设三件套——Look 7（standard/arriba/sylvan/colorful/aery/dystopic/umbra+custom）+ Tonescale 15 + Creative White 6；45 个 detailed 参数 editor-owned 整体序列化（预设=具名快照）【2026-10-01 M2-6-1 交付：Tonescale 实枚举 14（USE LOOK PRESET + 13，m3 勘误——原文 15 系多计）；detailed 参数实数 53（hp p实态，CONTEXT 事实基线②）；53 参数整体序列化 + 预设快照 + NOTICE（M2-6-1-SUMMARY/DECISIONS §D6/§D7）；勾选留验收】
 - [ ] **M2DRT-03**: ACES 2.0——Limiting Space 七选 + ACES reference gamut compression 前置
-- [ ] **M2DRT-04**: Color & Encoding——Encoding Space 六选（Rec.709/P3-D65/P3-D60/P3-DCI/XYZ/Rec.2020）+ EOTF 随空间联动 + Peak Luminance 100-1000 nits；HDR 判定 = EOTF∈{ST2084,HLG}，驱动 EDR 预览与导出链
+- [x] **M2DRT-04**: Color & Encoding——Encoding Space 六选（Rec.709/P3-D65/P3-D60/P3-DCI/XYZ/Rec.2020）+ EOTF 随空间联动 + Peak Luminance 100-1000 nits；HDR 判定 = EOTF∈{ST2084,HLG}，驱动 EDR 预览与导出链【2026-10-01 M2-6-1 交付：legalEOTFs Core 单源 + isHdrEncoding 纯函数 + EOTF 编码核七函数（Float64+Metal 双落笔，M2-9 导出复用缝就位）；EDR 预览联动渲染腿 = drtTail（T7），面板/视口 colorSpace 切换归 P3；勾选留验收】
 - [ ] **M2DRT-05**: DRT/Post 四件套（Clarity ±100/Sharpen amount-radius-threshold/Halation 0-1/FilmGrain 0-1）在 display transform 后对全图应用一次（预览=成品）
-- [ ] **M2DRT-06**: 独有 DRT 扩展位（filmic/sigmoid/agx 按 D1 v1 禁用；架构预留 DRT method 注册口）
+- [x] **M2DRT-06**: 独有 DRT 扩展位（filmic/sigmoid/agx 按 D1 v1 禁用；架构预留 DRT method 注册口）【2026-10-01 M2-6-1 交付：DrtMethod 枚举注册口（aces_2_0/open_drt，cpp ToJson 终式）+ 穷举 switch 无 default 纪律 + aces20 显式 stub（isRenderImplemented 翻面 = P2 替换面）+ filmic/sigmoid/agx 零注册（Registry grep 零新增）；勾选留验收】
 
 ### 蒙版 (MASK2)
 - [ ] **M2MASK-01**: Radial（center 0.5/0.5、major/minor 0.5、rotation、inner/outer feather，归一化参考空间）
