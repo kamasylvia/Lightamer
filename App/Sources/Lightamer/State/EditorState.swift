@@ -607,6 +607,175 @@ final class EditorState {
         return record
     }
 
+    // MARK: M2-5-2 KD-4: the catalog-driven add face (18 目录严格化)
+
+    /// One add-menu entry — the enumeration's unit (KD-4).
+    struct AdjustmentAddEntry: Equatable, Identifiable {
+        /// The menu section (the Develop face vs the D6 compat fold).
+        enum Section: String, Sendable, Equatable {
+            case develop
+            case compat
+        }
+
+        let section: Section
+        /// The GradeCatalog id (nil = a non-catalog develop/compat op).
+        let catalogID: String?
+        /// The identity template — `addModuleToLayer`/`addModuleToBaseChain`
+        /// fresh-identity-clone it on insert.
+        let template: ModuleInstance
+        var id: String { template.opName }
+    }
+
+    /// The add-face enumeration for a scope (KD-4's strict face; the
+    /// RADIUS is new actions only — historical loads/undo stay validation
+    /// free, and the `addModuleToLayer` typed seam remains the backstop):
+    ///
+    ///   selected Grade → EXACTLY the 14 grade-owned catalog rows (13
+    ///                    Grade ops + Tint; LMT stays on the LUT page and
+    ///                    the four DRT seats never enumerate);
+    ///   no selection   → the develop-owned PANEL face only (geometry/
+    ///                    yiyin/temperature) — ZERO grade-owned entries
+    ///                    (D4 收窄: the base chain no longer accepts new
+    ///                    grade-owned inserts from the menu).
+    ///
+    /// A dangling `layerID` (removed layer) answers the Develop scope —
+    /// the same self-healing rule `activeLayerID` applies.
+    func addFaceEntries(layerID: UUID?) -> [AdjustmentAddEntry] {
+        if let layerID, adjustmentLayer(id: layerID) != nil {
+            return Self.gradeScopeEntries()
+        }
+        return Self.developScopeEntries()
+    }
+
+    /// The grade-owned catalog rows, narrowed to the ADD face (KD-4):
+    ///   − the lmt seat (D10/AC#7: LMT is hosted by the LUT page's library
+    ///     picker — an empty lut3d add is meaningless; the four DRT seats
+    ///     are excluded by owner already);
+    ///   − deduped by opName (the shadows/highlights pair share the ONE
+    ///     shadhi op — the checker-m2 single-row semantics; a second
+    ///     identical-priority record would be silently merged by the
+    ///     effectiveChain dedupe anyway).
+    /// COUNT NOTE (DECISIONS): the plan's "恰 14" counted gradeItems()
+    /// literally — 14 rows INCLUDING the lmt row and the shadhi duplicate —
+    /// which cannot coexist with the binding "LMT 不在枚举" clause; the
+    /// face carries 12 unique-op entries.
+    private static func gradeScopeEntries() -> [AdjustmentAddEntry] {
+        var seenOps = Set<String>()
+        return GradeCatalog.gradeItems()
+            .filter { $0.opName != Lut3dModule.opName }
+            .compactMap { item in
+                guard seenOps.insert(item.opName).inserted,
+                    let template = templateInstance(for: item.opName)
+                else { return nil }
+                return AdjustmentAddEntry(
+                    section: .develop, catalogID: item.catalogID, template: template)
+            }
+    }
+
+    /// The Develop-scope face: the develop-owned ops WITH a panel face.
+    /// The M2-1 disabled six are develop-owned but carry no panel and stay
+    /// out of every menu (the M2-1 narrowing's menu corollary).
+    private static func developScopeEntries() -> [AdjustmentAddEntry] {
+        let developFaceOps: [(AdjustmentAddEntry.Section, String)] = [
+            (.develop, TemperatureModule.opName),
+            (.develop, CropModule.opName),
+            (.develop, FlipModule.opName),
+            (.develop, LensModule.opName),
+            (.compat, AshiftModule.opName),
+            (.compat, LiquifyModule.opName),
+            (.compat, BordersModule.opName),
+            (.compat, WatermarkModule.opName),
+            (.compat, TextOverlayModule.opName),
+        ]
+        return developFaceOps.compactMap { section, op in
+            // Guard by construction: every listed op must answer .develop.
+            guard NodeOwnershipCatalog.owner(of: op) == .develop,
+                let template = templateInstance(for: op)
+            else { return nil }
+            return AdjustmentAddEntry(
+                section: section, catalogID: nil, template: template)
+        }
+    }
+
+    /// The typed template factory (exhaustive over the add-face op set —
+    /// the Params() defaults ARE the catalog identityJSON bytes; a new
+    /// add-face op must land a case here at compile time).
+    static func templateInstance(for opName: String) -> ModuleInstance? {
+        switch opName {
+        // The 13 grade-owned catalog ops + Tint.
+        case Cat02WBModule.opName:
+            ModuleInstance(module: Cat02WBModule.self, params: Cat02WBModule.Params())
+        case ExposureModule.opName:
+            ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params())
+        case ContrastModule.opName:
+            ModuleInstance(module: ContrastModule.self, params: ContrastModule.Params())
+        case WhiteModule.opName:
+            ModuleInstance(module: WhiteModule.self, params: WhiteModule.Params())
+        case BlackModule.opName:
+            ModuleInstance(module: BlackModule.self, params: BlackModule.Params())
+        case ShadhiModule.opName:
+            // The checker-m5 split: the ADD seed = the catalog identity
+            // (shadows 0 / highlights 0), decoded from the row's
+            // identityJSON (the P1 single source) — NOT the panel working
+            // point (50/−50). Every other grade op's Params() IS its
+            // identity, so only this case needs the decode.
+            ModuleInstance(
+                module: ShadhiModule.self,
+                params: (GradeCatalog.item(opName: ShadhiModule.opName)
+                    .flatMap { item in
+                        try? JSONDecoder().decode(
+                            ShadhiModule.Params.self,
+                            from: Data(item.identityJSON.utf8))
+                    }) ?? ShadhiModule.Params())
+        case ToneCurveModule.opName:
+            ModuleInstance(module: ToneCurveModule.self, params: ToneCurveModule.Params())
+        case HlsModule.opName:
+            ModuleInstance(module: HlsModule.self, params: HlsModule.Params())
+        case SaturationModule.opName:
+            ModuleInstance(module: SaturationModule.self, params: SaturationModule.Params())
+        case VibranceModule.opName:
+            ModuleInstance(module: VibranceModule.self, params: VibranceModule.Params())
+        case ColorWheelsModule.opName:
+            ModuleInstance(module: ColorWheelsModule.self, params: ColorWheelsModule.Params())
+        case TintModule.opName:
+            ModuleInstance(module: TintModule.self, params: TintModule.Params())
+        // The develop-owned panel face.
+        case TemperatureModule.opName:
+            ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params())
+        case CropModule.opName:
+            ModuleInstance(module: CropModule.self, params: CropModule.Params())
+        case FlipModule.opName:
+            ModuleInstance(module: FlipModule.self, params: FlipModule.Params())
+        case LensModule.opName:
+            ModuleInstance(module: LensModule.self, params: LensModule.Params())
+        case AshiftModule.opName:
+            ModuleInstance(module: AshiftModule.self, params: AshiftModule.Params())
+        case LiquifyModule.opName:
+            ModuleInstance(module: LiquifyModule.self, params: LiquifyModule.Params())
+        case BordersModule.opName:
+            ModuleInstance(module: BordersModule.self, params: BordersModule.Params())
+        case WatermarkModule.opName:
+            ModuleInstance(module: WatermarkModule.self, params: WatermarkModule.Params())
+        case TextOverlayModule.opName:
+            ModuleInstance(module: TextOverlayModule.self, params: TextOverlayModule.Params())
+        default:
+            nil
+        }
+    }
+
+    /// The Develop-scope add (the base chain): fresh-identity clone → ONE
+    /// D-H1 discrete commit landing the record in the global instance set
+    /// (`recordChange` shape — the same single-commit semantics a layer
+    /// add carries, minus the stack structure item). Undo steps over it.
+    @discardableResult
+    func addModuleToBaseChain(template: ModuleInstance) -> ModuleInstance? {
+        let record = template.clonedWithFreshIdentity()
+        recordChange(
+            record, label: String(
+                localized: "history_base_module_add", defaultValue: "Add module"))
+        return record
+    }
+
     /// D-H1 LIVE leg for a LAYER-SCOPED module param edit: upsert the
     /// record into the layer's chain, ZERO history.
     func applyLiveLayerInstance(_ snapshot: ModuleInstance, layerID: UUID) {
