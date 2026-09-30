@@ -315,4 +315,172 @@ final class Aces2MathTests: XCTestCase {
             Aces2Cam.postAdaptationCompressionFwd(-0.5),
             -Aces2Cam.postAdaptationCompressionFwd(0.5), accuracy: 0)
     }
+
+    // MARK: - T2: the limiting-space seven tables (KD-4, AC#2)
+
+    /// Enum-driven completeness + per-value primaries + white mapping.
+    func testLimitingTablesCompleteWithSpecPrimaries() {
+        // ① completeness: every DrtLimitingSpace case has a table row.
+        for space in DrtLimitingSpace.allCases {
+            XCTAssertNotNil(
+                Aces2Limiting.spaces[space],
+                "limiting table missing \(space.rawValue)")
+        }
+        XCTAssertEqual(Aces2Limiting.spaces.count, 7)
+        // ② primaries = the specification values (数值事实 per row).
+        let expect: [DrtLimitingSpace: (
+            SIMD2<Double>, SIMD2<Double>, SIMD2<Double>, SIMD2<Double>)] = [
+            .rec709: (SIMD2(0.64, 0.33), SIMD2(0.30, 0.60), SIMD2(0.15, 0.06), SIMD2(0.3127, 0.3290)),
+            .rec2020: (SIMD2(0.708, 0.292), SIMD2(0.170, 0.797), SIMD2(0.131, 0.046), SIMD2(0.3127, 0.3290)),
+            .p3d65: (SIMD2(0.680, 0.320), SIMD2(0.265, 0.690), SIMD2(0.150, 0.060), SIMD2(0.3127, 0.3290)),
+            .p3d60: (SIMD2(0.680, 0.320), SIMD2(0.265, 0.690), SIMD2(0.150, 0.060), SIMD2(0.327, 0.338)),
+            .p3dci: (SIMD2(0.680, 0.320), SIMD2(0.265, 0.690), SIMD2(0.150, 0.060), SIMD2(0.314, 0.351)),
+            .proPhoto: (SIMD2(0.7347, 0.2653), SIMD2(0.1596, 0.8404), SIMD2(0.0366, 0.0001), SIMD2(0.3457, 0.3585)),
+            .adobeRGB: (SIMD2(0.64, 0.33), SIMD2(0.21, 0.71), SIMD2(0.15, 0.06), SIMD2(0.3127, 0.3290)),
+        ]
+        for (space, primaries) in expect {
+            let (r, g, b, w) = primaries
+            let p = Aces2Limiting.spaces[space]!.primaries
+            XCTAssertEqual(p.red.x, r.x, accuracy: 0, "\(space) red.x")
+            XCTAssertEqual(p.red.y, r.y, accuracy: 0, "\(space) red.y")
+            XCTAssertEqual(p.green.x, g.x, accuracy: 0, "\(space) green.x")
+            XCTAssertEqual(p.green.y, g.y, accuracy: 0, "\(space) green.y")
+            XCTAssertEqual(p.blue.x, b.x, accuracy: 0, "\(space) blue.x")
+            XCTAssertEqual(p.blue.y, b.y, accuracy: 0, "\(space) blue.y")
+            XCTAssertEqual(p.white.x, w.x, accuracy: 0, "\(space) white.x")
+            XCTAssertEqual(p.white.y, w.y, accuracy: 0, "\(space) white.y")
+        }
+        // ③ p3d60 vs p3dci: same primaries, DIFFERENT whites (the two
+        // anchor values, ≤1e-12 — the transcription-row-shift guard).
+        let d60 = Aces2Limiting.spaces[.p3d60]!.primaries.white
+        let dci = Aces2Limiting.spaces[.p3dci]!.primaries.white
+        XCTAssertEqual(d60.x, 0.327, accuracy: 1e-12)
+        XCTAssertEqual(d60.y, 0.338, accuracy: 1e-12)
+        XCTAssertEqual(dci.x, 0.314, accuracy: 1e-12)
+        XCTAssertEqual(dci.y, 0.351, accuracy: 1e-12)
+        XCTAssertNotEqual(d60, dci)
+    }
+
+    func testLimitingWhiteMappingAndJMhAnchor() {
+        // RGB white → XYZ white, exactly (≤1e-12 — the matrix construction
+        // identity, asserted per space), and the space's own CAM16 params
+        // land the white at J=100/M=0.
+        for space in DrtLimitingSpace.allCases {
+            let s = Aces2Limiting.spaces[space]!
+            let whiteXYZ = s.rgbToXyz.multiply(SIMD3(1, 1, 1))
+            let expect = SIMD3(
+                s.primaries.white.x / s.primaries.white.y, 1.0,
+                (1 - s.primaries.white.x - s.primaries.white.y) / s.primaries.white.y)
+            XCTAssertLessThanOrEqual(
+                simd.reduce_max(abs(whiteXYZ - expect)), 1e-12,
+                "\(space.rawValue) white mapping")
+            let jmh = Aces2Cam.rgbToJMh(SIMD3(1, 1, 1), s.params)
+            XCTAssertEqual(jmh.x, 100.0, accuracy: 1e-9, "\(space.rawValue) white J")
+            XCTAssertLessThanOrEqual(jmh.y, 1e-9, "\(space.rawValue) white M")
+        }
+    }
+
+    // MARK: - T2: the reference gamut compression (KD-3, AC#3)
+
+    func testRGCConstantsMatchTheUpstreamTable() {
+        // The v1.3 LMT.Academy.GamutCompress table — also the values the
+        // Alcedo aces_reference_gamut_compression.h cross-check agrees on
+        // (read-only GPL comparison; DECISIONS §D4).
+        XCTAssertEqual(Aces2RGC.limCyan, 1.147, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.limMagenta, 1.264, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.limYellow, 1.312, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.thrCyan, 0.815, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.thrMagenta, 0.803, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.thrYellow, 0.880, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.pwr, 1.2, accuracy: 0)
+    }
+
+    func testRGCShaperIsIdentityBelowThreshold() {
+        // AC#3 identity face: dist < thr → the function returns the input
+        // BIT-FOR-BIT (tolerance 0; -0/+0 compares equal in Swift ==).
+        let cases: [(Double, Double, Double)] = [
+            (0.0, Aces2RGC.limCyan, Aces2RGC.thrCyan),
+            (0.5, Aces2RGC.limCyan, Aces2RGC.thrCyan),
+            (Aces2RGC.thrMagenta - 1e-9, Aces2RGC.limMagenta, Aces2RGC.thrMagenta),
+            (Aces2RGC.thrYellow - 1e-12, Aces2RGC.limYellow, Aces2RGC.thrYellow),
+        ]
+        for (dist, lim, thr) in cases {
+            XCTAssertEqual(
+                Aces2RGC.compressDistance(dist, limit: lim, threshold: thr),
+                dist, accuracy: 0)
+        }
+    }
+
+    func testRGCShaperPowerAnchorAndClosedForm() {
+        // Closed form at the nd = 1 point (dist = thr + scl): out =
+        // thr + scl/2^(1/pwr) — the 幂 1.2 anchor, exact algebra.
+        func scl(_ lim: Double, _ thr: Double) -> Double {
+            (lim - thr)
+                / Foundation.pow(
+                    Foundation.pow((1.0 - thr) / (lim - thr), -Aces2RGC.pwr) - 1.0,
+                    1.0 / Aces2RGC.pwr)
+        }
+        for (lim, thr) in [(Aces2RGC.limCyan, Aces2RGC.thrCyan),
+                           (Aces2RGC.limMagenta, Aces2RGC.thrMagenta),
+                           (Aces2RGC.limYellow, Aces2RGC.thrYellow)] {
+            let s = scl(lim, thr)
+            let atOne = Aces2RGC.compressDistance(thr + s, limit: lim, threshold: thr)
+            XCTAssertEqual(
+                atOne, thr + s / Foundation.pow(2.0, 1.0 / Aces2RGC.pwr),
+                accuracy: 1e-12)
+            // The y=1 intersect: the shaper maps the gamut-boundary
+            // distance (dist = lim) to EXACTLY 1.0 (the construction's
+            // definition — "scale factor for y = 1 intersect").
+            let atLim = Aces2RGC.compressDistance(lim, limit: lim, threshold: thr)
+            XCTAssertEqual(atLim, 1.0, accuracy: 1e-12)
+        }
+    }
+
+    func testRGCCompressesMonotonicallyOutsideThreshold() {
+        // Per channel: monotone nondecreasing, strictly contracting, and
+        // bounded by the limit over a wide sweep.
+        for (lim, thr) in [(Aces2RGC.limCyan, Aces2RGC.thrCyan),
+                           (Aces2RGC.limMagenta, Aces2RGC.thrMagenta),
+                           (Aces2RGC.limYellow, Aces2RGC.thrYellow)] {
+            var previous = -1.0
+            var dist = thr
+            while dist < lim * 4.0 {
+                let out = Aces2RGC.compressDistance(dist, limit: lim, threshold: thr)
+                XCTAssertGreaterThanOrEqual(out, previous - 1e-12, "non-monotone at \(dist)")
+                XCTAssertLessThanOrEqual(out, dist + 1e-12, "expansion at \(dist)")
+                XCTAssertLessThanOrEqual(out, lim + 1e-9, "unbounded at \(dist)")
+                previous = out
+                dist += lim / 200.0
+            }
+        }
+    }
+
+    func testRGCFullPathAnchors() {
+        // In-domain pass-through: an AP0 color whose AP1 form keeps every
+        // distance below its threshold is (numerically) unchanged.
+        let inGamut = SIMD3(0.18, 0.15, 0.12)
+        let unchanged = Aces2RGC.compress(inGamut)
+        XCTAssertLessThanOrEqual(
+            simd.reduce_max(abs(unchanged - inGamut)), 1e-12, "in-domain identity")
+        // The out-of-domain face: a hyper-saturated AP0 red collapses
+        // toward the achromatic axis (all channels pulled closer).
+        let extreme = SIMD3(10.0, -0.5, -0.5)
+        let compressed = Aces2RGC.compress(extreme)
+        let achIn = inAP1(extreme)
+        let achOut = inAP1(compressed)
+        let spreadIn = max(achIn.x, achIn.y, achIn.z) - min(achIn.x, achIn.y, achIn.z)
+        let spreadOut = max(achOut.x, achOut.y, achOut.z) - min(achOut.x, achOut.y, achOut.z)
+        XCTAssertLessThan(spreadOut, spreadIn, "no compression for \(extreme)")
+        // Recorded baseline (self-consistent — the kernel-alignment face;
+        // upstream ships no numeric example).
+        print("ACES2-ANCHOR RGC(10,-0.5,-0.5) = \(compressed)")
+        XCTAssertEqual(compressed.x, 10.417086575247234, accuracy: 1e-9)
+        XCTAssertEqual(compressed.y, 1.1772885885223947, accuracy: 1e-9)
+        XCTAssertEqual(compressed.z, 0.4709229324371746, accuracy: 1e-9)
+    }
+
+    /// The AP1 view of an AP0 color (test-side helper).
+    private func inAP1(_ ap0: SIMD3<Double>) -> SIMD3<Double> {
+        Aces2Cam.ap0ToAP1.multiply(ap0)
+    }
 }
