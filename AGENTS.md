@@ -294,7 +294,16 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **`.lalb` 包形态**：单个 SQLite 文件（`<stem>.lalb`）+ `project_meta` 表 manifest + `PRAGMA user_version` 双写；journal = WAL + synchronous=NORMAL + 写批节流 checkpoint（≥2s 或 ≥64 批 OR 语义）+ close 强制 TRUNCATE（close 后 `-wal`==0）；**备份唯一钦定路径 = `ProjectFileStore.backup(to:)`（sqlite3_backup 在线一致性拷）**，裸拷主文件在 WAL 未 checkpoint 时丢尾部事务；移动 = 整项目目录搬移（`Media/` 随行、`.<stem>.lathumbs/` 派生物可弃）；mini-git 四表 / 语义 AI 表 = 注释占位（M2-8/M2-10 激活）。
 - **真身边界（OQ-3）**：`.lra` 恒编辑态真相；项目库 = 相册组织 + 检索投影 + 引用（`Image.image_path` 引用式 PathKind 0 项目相对 / 1 卷相对+UUID / 2 绝对+UUID）；`exif_search_*` / 缩略图缓存（`.<stem>.lathumbs/`）全部可重建派生物；一切入包 UInt64 哈希 = DECIMAL TEXT（L013 延续）。
 - **剥离门（M2LIB-06/OQ-8）**：`LibraryLegacyGate.isLegacyLibraryRequested(environment:)` = 唯一 env 读点（纯函数可注入）；**`LIGHTAMER_LEGACY_LIBRARY=1`** = QA/回归回切通道（回切后 Sidebar/Settings/ContentView 与 M2-2 前逐字节同构）；默认 false = Sessions/Catalogs 双区 + 模式切换器 + Settings Catalogs 双节全隐，启动面 = 项目工作区最小容器（`ProjectWorkspaceFace`；无项目 → P2 Welcome sheet）；**Settings 页无开关**（防双库并存心智）；求值只在 LightamerApp 组装点一次，视图 body 零 ProcessInfo（M2-1 D-EXEC-1 注入式同款）。File 菜单 Session 项暂未门控（inert 死路由；菜单 IA 收纳归 M2-3）。
-- **UserDefaults 键登记**：`library.import.mode` / `library.import.rememberMode` / `library.import.rawExtensions`（ImportDefaults，全量替换语义 + reset）+ `library.recentProjects`（LibraryProjectController，dedupe-move-front 上限 10 + 死路径清扫）。
+- **UserDefaults 键登记**：`library.import.mode` / `library.import.rememberMode` / `library.import.rawExtensions`（ImportDefaults，全量替换语义 + reset）+ `library.recentProjects`（LibraryProjectController，dedupe-move-front 上限 10 + 死路径清扫）+ `lut.library.root`（M2-5-3，LutLibraryStore.libraryRootKey 单源拼写；IOP init 直读 `.standard`，AppPreferences 只承载登记/reset 面——空/缺 = 默认根 `~/Library/Application Support/Lightamer/LUTs/`）。
+
+### M2-5 架构增量（2026-10-01，M2-5-1..3 执行批）
+- **Grade 件族**：GradeCatalog（NodeOwnershipCatalog 同文件 18 目录五元组注册表 + defaultLook 单源）+ ACEScc envelope（LayerCompositeSeam 缝，Core 持有器 IOP 注入；含 ≥1 目录 op 的层子 run 才包夹）+ 七新件（colorWheels/cat02WhiteBalance/contrast/white/black/saturation/tint/hls，v50 RGB 段空位）。V50Order add-only 纪律维持。
+- **LUT 库键升级（M2-5-3 KD-1）**：`LutLibraryStore` 的 `installed`/`parsed` 键 = **根相对 POSIX 路径**（`BuiltIn/Foo.cube`；根下文件退化为文件名 = 旧行语义）；`lut3d` params `lutName` 新写入恒存 key，旧档裸文件名引用经**唯一尾段 fallback** resolution 兼容（歧义 = nil = blit identity + toast），**旧档字节零改写**。`InstalledLut.relativePath/subdirectory` = additive optional（synthesized decode 宽容 + init 迁移幂等）。
+- **shared holder（checker m6 形）**：`LutLibraryStore.shared` = `private static var sharedInstance` + NSLock（getter 锁内读 + `replaceShared(_:)` 原子换）；`SharedForwardingResolver` = module box 的长寿命转发面（Registry 注册行走 `sharedResolver`）——切根后已建模块恒解析活实例，Lut3dModule 零 diff。
+- **可配根（KD-3）**：`lut.library.root`（键拼写单源 = store 公开常量）；切根 = validateRoot（isDirectory + 写探针，L009：不建 bookmark）→ 持久化 → 重造 store → replaceShared；坏根 = 不持久化 + Settings 橙色错误行。
+- **内置集 seeder（KD-4）**：bundle `LUTs/` 夹（folder reference——Tuist 4.208 裸目录字符串静默忽略，必须 `Resource.folderReference(path:)`）→ 默认根分支 init 拷入 `BuiltIn/`；哨兵 = 存在且字节数相等跳过（漂移重拷）；可配根零自动拷贝。
+- **vendored 胶片集来源纪律**：`Resources/LUTs/` 40 张 = 上游 `JanLohse/spectral_film_lut` v0.18.2（MIT）无头重生成（offscreen GUI 应用默认参数 + 65³ + BW 配 Kodak 2302）；**零字节来自 Alcedo（GPL）**，LICENSE/NOTICE 随包；证据正本 = `.work/gsd/phases/m2-5-color-grade/evidence/spectral-film-lut-license.md`。
+- **性能探针惯例**：环境门控 `LIGHTAMER_PERF_PROBE=1` + XCTSkipUnless（默认套件 skip）；探针读钟前必须 queue fence（L014）——无 fence 的 GPU 计时是假数（首版 base 0.3ms 假数即此）。
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
