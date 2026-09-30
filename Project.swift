@@ -169,7 +169,16 @@ let project = Project(
                 ]
             ),
             sources: ["App/Sources/**"],
-            resources: ["Resources/**"], // D-04: app-level assets + String Catalog
+            // D-04: app-level assets + String Catalog. M2-5-3: the LUT
+            // set rides as a FOLDER reference so the bundle keeps the
+            // LUTs/ directory the seeder reads as a unit (a glob would
+            // copy the 40 tables flat into Resources/).
+            resources: [
+                "Resources/Assets.xcassets",
+                "Resources/Localizable.xcstrings",
+                .folderReference(path: "Resources/LUTs"),
+                "Resources/TestFixtures/**",
+            ],
             dependencies: [
                 .target(name: "LightamerCore"),
                 .target(name: "LightamerIOP"),
@@ -647,6 +656,7 @@ let project = Project(
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
                 "Tests/LightamerTests/AppErrorTests.swift",
                 "Tests/LightamerTests/BeforeAfterTests.swift",
+                "Tests/LightamerTests/BuiltInLutSetTests.swift",
                 "Tests/LightamerTests/CatalogAddFaceTests.swift",
                 "Tests/LightamerTests/CropOverlayTests.swift",
                 "Tests/LightamerTests/DefaultLookTests.swift",
