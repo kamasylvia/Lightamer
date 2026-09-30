@@ -24425,6 +24425,23 @@
           }
         }
       }
+    },
+    "panel_lut_refresh": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh Library"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新图库"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
