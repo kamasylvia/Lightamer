@@ -19,6 +19,10 @@
 #   LAYERS/Core 级；NodeGraphCommandTests / NodeOwnershipCatalogTests / SidecarV5Tests
 #   = APP/App 级——undo/redo、addModuleToLayer、真 load 链均实例化 EditorState）。
 #   运行期总数基线相应上移（2165 → 2165 + 本批新增，对账以各行 method 数为准）。
+# M2-4-2 增行记录（2026-09-30 执行期，checker E2 测试登记纪律）：两个新测试文件
+#   同 commit 登记进对应 bundle（归属按 front-matter 判定：MaskItemSemanticsTests =
+#   APP/App 级——lock 拦截实例化 EditorState/LayerEditingState；PipelineLinkageTests =
+#   LAYERS/Core 级——纯 Core 投影）。运行期总数基线相应上移（对账以各行 method 数为准）。
 IOPP	5	AgXTests.swift
 IOPP	8	AshiftParityTests.swift
 IOPP	11	BilateralParityTests.swift
@@ -141,6 +145,7 @@ APP	9	EditorStackRoutingTests.swift
 APP	9	McpLauncherSentinelTests.swift
 APP	9	SettingsPagesTests.swift
 APP	10	SidecarV5Tests.swift
+APP	9	MaskItemSemanticsTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
 EXPORT	10	SpotlightAttributeMapperTests.swift
