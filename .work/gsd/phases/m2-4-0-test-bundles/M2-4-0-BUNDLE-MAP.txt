@@ -156,6 +156,7 @@ APP	10	SidecarV5Tests.swift
 APP	9	MaskItemSemanticsTests.swift
 APP	9	NodeCanvasGeometryTests.swift
 APP	14	NodesPanelModelTests.swift
+APP	14	GradeCatalogTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
 EXPORT	10	SpotlightAttributeMapperTests.swift
@@ -273,3 +274,10 @@ SESS	8	CatalogTreeModelTests.swift
 SHARED	0	Fixtures.swift
 SHARED	0	ParityGate.swift
 SHARED	0	ChainBuilderHelpers.swift
+
+# M2-5-1 增行记录（2026-09-30 执行期，checker E2 测试登记纪律）：四个新测试文件
+#   随各自任务 commit 登记进对应 bundle（归属按 front-matter 判定：GradeCatalogTests
+#   = APP（IOP Registry face + catalog 面，NodeOwnershipCatalogTests 同位）；
+#   ACESccEnvelopeTests = LAYERS（Core driver 直测）；GradeKernelGoldenTests = IOPP
+#   （Golden* 惯例）；GradeParamsCodingTests = IOP）。运行期总数基线相应上移
+#   （2240 起算；对账以各行 method 数为准）。
