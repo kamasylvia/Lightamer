@@ -52,9 +52,9 @@ static inline float acescc_encode(float value) {
         return kFloor + value;
     }
     if (value < kTransition) {
-        return (log2(kOffset + value * 0.5f) + kA) / kB;
+        return (precise::log2(kOffset + value * 0.5f) + kA) / kB;
     }
-    return (log2(value) + kA) / kB;
+    return (precise::log2(value) + kA) / kB;
 }
 
 // ACEScc decode (ACEScc log → linear AP1; the exact inverse).
@@ -68,7 +68,7 @@ static inline float acescc_decode(float value) {
         return value - kFloor;
     }
     if (value <= kThreshold) {
-        return (exp2(value * kB - kA) - kOffset) * 2.0f;
+        return (precise::exp2(value * kB - kA) - kOffset) * 2.0f;
     }
-    return exp2(value * kB - kA);
+    return precise::exp2(value * kB - kA);
 }
