@@ -116,6 +116,12 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: TintModule.opName) { id in
             ModuleBox(module: TintModule(), instanceID: id)
         }
+        // M2-5-1 T6: colorWheels (the LGG three-wheel op, KD-6), v50 slot
+        // 41.0 — the declared slot share with the unregistered dt
+        // colorbalance row.
+        await registry.register(opName: ColorWheelsModule.opName) { id in
+            ModuleBox(module: ColorWheelsModule(), instanceID: id)
+        }
         // Phase 3's first real iop (Plan 03-01-T5): exposure, v50 slot 21.0.
         await registry.register(opName: ExposureModule.opName) { id in
             ModuleBox(module: ExposureModule(), instanceID: id)
@@ -438,6 +444,7 @@ public enum LightamerIOPRegistry {
             BlackKernel.functionName,
             SaturationKernel.functionName,
             TintKernel.functionName,
+            ColorWheelsModule.colorWheelsKernel,
             TemperatureKernel.functionName,
             ExposureKernel.functionName,
             ColisaKernel.functionName,

@@ -95,4 +95,53 @@ final class GradeParamsCodingTests: XCTestCase {
         XCTAssertEqual(TintModule.clamped(TintModule.Params(tint: 999)).tint, 100)
         XCTAssertEqual(TintModule.clamped(TintModule.Params(tint: -999)).tint, -100)
     }
+
+    // MARK: - T6: colorWheels
+
+    func testColorWheelsJSONKeysAndRoundTrip() throws {
+        let json = try jsonString(ColorWheelsModule.Params())
+        // The Alcedo spellings: lift/gamma/gain × disc.x/y, strength,
+        // color_offset.x/y/z, luminance_offset.
+        for key in ["\"lift\"", "\"gamma\"", "\"gain\"", "\"disc\"", "\"strength\"",
+                    "\"color_offset\"", "\"luminance_offset\""] {
+            XCTAssertTrue(json.contains(key), "missing key \(key)")
+        }
+        let params = ColorWheelsModule.Params(
+            lift: ColorWheelControl(
+                disc: SIMD2(0.25, -0.5), strength: 1.5,
+                colorOffset: SIMD3(0.1, 0.2, 0.3), luminanceOffset: 0.05),
+            gamma: ColorWheelControl(colorOffset: SIMD3(1.1, 0.95, 1.2)),
+            gain: ColorWheelControl(colorOffset: SIMD3(0.9, 1.05, 1.1)))
+        XCTAssertEqual(try roundTrip(params), params)
+    }
+
+    /// The IsIdentity judgment mirrors the Alcedo .cpp VERBATIM: lift all
+    /// zero (disc/colorOffset/luminanceOffset) AND gamma/gain colorOffset
+    /// == (1,1,1); disc/strength and gamma/gain luminanceOffset do NOT
+    /// participate (each line cites the .cpp term it mirrors).
+    func testColorWheelsIsIdentityJudgment() {
+        // The default IS the identity.
+        XCTAssertTrue(ColorWheelsModule.isIdentity(ColorWheelsModule.Params()))
+        // lift: ANY non-zero lift field breaks it (color, disc, luma).
+        XCTAssertFalse(ColorWheelsModule.isIdentity(ColorWheelsModule.Params(
+            lift: ColorWheelControl(colorOffset: SIMD3(0.1, 0, 0)))))
+        XCTAssertFalse(ColorWheelsModule.isIdentity(ColorWheelsModule.Params(
+            lift: ColorWheelControl(disc: SIMD2(0.1, 0)))))
+        XCTAssertFalse(ColorWheelsModule.isIdentity(ColorWheelsModule.Params(
+            lift: ColorWheelControl(luminanceOffset: 0.1))))
+        // gamma/gain: only colorOffset participates — a non-default disc/
+        // strength/luminanceOffset keeps the identity TRUE (the .cpp skips
+        // them for gamma/gain).
+        XCTAssertTrue(ColorWheelsModule.isIdentity(ColorWheelsModule.Params(
+            gamma: ColorWheelControl(
+                disc: SIMD2(0.4, 0.4), strength: 2.0, colorOffset: SIMD3(1, 1, 1)))),
+            "gamma disc/strength do not participate (the .cpp checks colorOffset only)")
+        XCTAssertTrue(ColorWheelsModule.isIdentity(ColorWheelsModule.Params(
+            gain: ColorWheelControl(colorOffset: SIMD3(1, 1, 1), luminanceOffset: 0.2))),
+            "gain luminanceOffset does not participate")
+        XCTAssertFalse(ColorWheelsModule.isIdentity(ColorWheelsModule.Params(
+            gamma: ColorWheelControl(colorOffset: SIMD3(1.0, 1.0, 1.1)))))
+        XCTAssertFalse(ColorWheelsModule.isIdentity(ColorWheelsModule.Params(
+            gain: ColorWheelControl(colorOffset: SIMD3(0.9, 1.0, 1.0)))))
+    }
 }
