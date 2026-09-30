@@ -100,10 +100,25 @@ public struct HistoryStack: Codable, Sendable, Equatable {
         /// snapshot, for paste items).
         public var pasteSet: [ModuleInstance]?
 
+        /// Plan M2-6-3 T1 (KD-1): the document-level Display Transform
+        /// record for a DRT edit item — the fold carrier of the
+        /// historyHash's DRT term. Additive optional (the 06-01
+        /// stackSnapshot precedent): decodeIfPresent — pre-M2-6-3 documents
+        /// decode unchanged; writers omit it when nil. `snapshot` stays the
+        /// REQUIRED record slot (frozen checkpoint lock #5): a DRT item
+        /// carries the current top global record as a PLACEHOLDER — the
+        /// `HistoryStack.drtDocumentScope` marker keeps that placeholder out
+        /// of every projection (the layerStructureScope ignore face, D-H1
+        /// unchanged), so the projection face is never polluted by it
+        /// (KD-1's hard constraint).
+        public var drtRecord: DrtRecord?
+
         /// Frozen CodingKeys — checkpoint 02-05-01 lock #6 (+ the 06-01
-        /// additive stackSnapshot + the 09-04 additive pasteSet fields).
+        /// additive stackSnapshot + the 09-04 additive pasteSet + the
+        /// M2-6-3 additive drtRecord fields).
         private enum CodingKeys: String, CodingKey {
             case id, snapshot, label, timestamp, layerScope, stackSnapshot, pasteSet
+            case drtRecord
         }
 
         public init(
@@ -113,7 +128,8 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             timestamp: Date = Date(),
             layerScope: String? = nil,
             stackSnapshot: LayerStackSnapshot? = nil,
-            pasteSet: [ModuleInstance]? = nil
+            pasteSet: [ModuleInstance]? = nil,
+            drtRecord: DrtRecord? = nil
         ) {
             self.id = id
             self.snapshot = snapshot
@@ -122,6 +138,7 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             self.layerScope = layerScope
             self.stackSnapshot = stackSnapshot
             self.pasteSet = pasteSet
+            self.drtRecord = drtRecord
         }
 
         public init(from decoder: Decoder) throws {
@@ -135,6 +152,7 @@ public struct HistoryStack: Codable, Sendable, Equatable {
                 LayerStackSnapshot.self, forKey: .stackSnapshot)
             pasteSet = try container.decodeIfPresent(
                 [ModuleInstance].self, forKey: .pasteSet)
+            drtRecord = try container.decodeIfPresent(DrtRecord.self, forKey: .drtRecord)
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -146,6 +164,7 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             try container.encodeIfPresent(layerScope, forKey: .layerScope)
             try container.encodeIfPresent(stackSnapshot, forKey: .stackSnapshot)
             try container.encodeIfPresent(pasteSet, forKey: .pasteSet)
+            try container.encodeIfPresent(drtRecord, forKey: .drtRecord)
         }
 
         /// The records this item projects into a chain: the paste payload
@@ -226,6 +245,32 @@ public struct HistoryStack: Codable, Sendable, Equatable {
         position = items.count - 1
     }
 
+    /// Commit a document-level DRT edit (Plan M2-6-3 T1, KD-1): ONE item
+    /// whose `drtRecord` carries the payload, so ONE ⌘Z undoes the edit
+    /// (the paste item's single-commit semantics, document-scope). The
+    /// `snapshot` slot takes the CALLER's placeholder (the current top
+    /// global record — the `commitLayerStructure` shape); the item's
+    /// `layerScope` is `drtDocumentScope`, which excludes it from the
+    /// global AND every layer projection (the placeholder never pollutes
+    /// the instance set — KD-1's hard constraint). Same truncate-redo-tail
+    /// + append + point discipline as `commit`.
+    public mutating func commitDrt(
+        record: DrtRecord,
+        placeholder: ModuleInstance,
+        label: String,
+        timestamp: Date = Date()
+    ) {
+        if position + 1 < items.count {
+            items.removeSubrange(items.index(items.startIndex, offsetBy: position + 1)...)
+        }
+        items.append(
+            HistoryItem(
+                snapshot: placeholder, label: label, timestamp: timestamp,
+                layerScope: HistoryStack.drtDocumentScope,
+                drtRecord: record))
+        position = items.count - 1
+    }
+
     /// Step back one entry. nil at `position == -1` (nothing to undo).
     @discardableResult
     public mutating func undo() -> HistoryItem? {        guard position >= 0 else { return nil }
@@ -264,6 +309,15 @@ public struct HistoryStack: Codable, Sendable, Equatable {
     /// structure edit can never be mistaken for a paste epoch — the layer
     /// restore path matches BOTH markers for `stackSnapshot` replay.
     public static let pasteEpochScope = "__pasteOverwrite__"
+
+    /// The `layerScope` marker of a document-level DRT commit (Plan M2-6-3
+    /// T1, KD-1): never a valid UUID string and never `nil`, so the item is
+    /// excluded from the global projection (`effectiveInstances()` filters
+    /// `layerScope == nil`) AND from every layer-chain projection (those
+    /// match a layer's UUID string). The DRT payload rides `drtRecord`; the
+    /// snapshot slot is a placeholder by contract. Same marker family as
+    /// `pasteEpochScope` / EditorState's `layerStructureScope`.
+    public static let drtDocumentScope = "__drtDocument__"
 
     /// History → pipe state: the effective GLOBAL instance set at
     /// `position` — the DIRECT translation of the Darktable hash query
@@ -404,5 +458,53 @@ public struct HistoryStack: Codable, Sendable, Equatable {
                 || $0.layerScope == HistoryStack.pasteEpochScope
         }).flatMap { upTo[$0].stackSnapshot }
         return (instances, layerSnapshot)
+    }
+
+    // MARK: - The document-level DRT projection (Plan M2-6-3 T1, KD-1)
+
+    /// The EFFECTIVE DRT record at the current position: the LAST item at
+    /// or below the pointer that carries a `drtRecord` (the newest-wins
+    /// time-travel rule — an undo across a DRT item changes this projection,
+    /// so the drift anchor and the session carrier follow). nil = no DRT
+    /// edit is in effect (pristine, or the pointer sits before every DRT
+    /// item). Pure: no mutation.
+    public func effectiveDrtRecord() -> DrtRecord? {
+        guard position >= 0 else { return nil }
+        return items[0...position].last(where: { $0.drtRecord != nil })?.drtRecord
+    }
+}
+
+// MARK: - The historyHash DRT fold (Plan M2-6-3 T1, KD-1 set-fields-move)
+//
+// PLACEMENT NOTE: this extension lives in THIS file (not HistoryHash.swift)
+// on purpose — M2-6-3's declared diff set pins the DRT fold's home next to
+// the item shape it digests, and the two consumption sites
+// (`LightamerSidecar.driftDetected` + the coordinator's
+// `makeSidecarDocument`) share this ONE formula so the write-side anchor
+// and the reload-side recompute can never drift apart (L013 fold-only).
+
+public extension HistoryHash {
+
+    /// The DRT-aware drift anchor: the 3-argument (layer-aware) hash with
+    /// the EFFECTIVE DRT record's `stableHash()` folded LAST (KD-1: the
+    /// 末位含 drtRecord 的 item's payload enters the anchor — a DRT edit
+    /// flips the identity, so OQ-2-A's drift judgment covers it). A
+    /// document whose history carries NO DRT item folds NOTHING and hashes
+    /// BIT-IDENTICALLY to the pre-M2-6-3 formula (the regression gate).
+    /// Time-travel safe by construction: the fold input is
+    /// `HistoryStack.effectiveDrtRecord()`, which follows the pointer.
+    static func hash(
+        stack: HistoryStack,
+        decodeParamsHash: UInt64,
+        layerSnapshot: LayerStackSnapshot?,
+        drtRecord: DrtRecord?
+    ) -> UInt64 {
+        var combined = hash(
+            stack: stack, decodeParamsHash: decodeParamsHash,
+            layerSnapshot: layerSnapshot)
+        guard let drtRecord else { return combined }
+        return withUnsafeBytes(of: drtRecord.stableHash()) {
+            StableHash.combine(combined, $0)
+        }
     }
 }

@@ -568,10 +568,16 @@ internal struct SidecarInstanceRecord: Codable, Sendable, Equatable {
 /// the same frozen layer spelling), optional + decodeIfPresent — v1
 /// documents decode with nil. 09-04 T2 adds `pasteSet` (the frozen HIST-05
 /// paste payload), optional + decodeIfPresent on the same additive pattern.
+/// M2-6-3 T1 adds `drtRecord` (the document-level DRT payload), optional +
+/// decodeIfPresent on the SAME additive pattern — pre-M2-6-3 documents
+/// decode unchanged, writers omit the key when nil (the runtime↔sidecar
+/// projection convention; DrtRecord is a plain Codable struct, so no
+/// UInt64-decimal projection applies — hashes stay decimal-String only).
 private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
 
     private enum Keys: String, CodingKey {
         case id, snapshot, label, timestamp, layerScope, stackSnapshot, pasteSet
+        case drtRecord
     }
 
     var item: HistoryStack.HistoryItem {
@@ -579,7 +585,8 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
             id: id, snapshot: snapshot.instance, label: label,
             timestamp: timestamp, layerScope: layerScope,
             stackSnapshot: stackSnapshot?.snapshot,
-            pasteSet: pasteSet?.map(\.instance)
+            pasteSet: pasteSet?.map(\.instance),
+            drtRecord: drtRecord
         )
     }
 
@@ -590,6 +597,7 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
     private var layerScope: String?
     private var stackSnapshot: SidecarLayerStackRecord?
     private var pasteSet: [SidecarInstanceRecord]?
+    private var drtRecord: DrtRecord?
 
     init(_ item: HistoryStack.HistoryItem) {
         id = item.id
@@ -599,6 +607,7 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         layerScope = item.layerScope
         stackSnapshot = item.stackSnapshot.map(SidecarLayerStackRecord.init)
         pasteSet = item.pasteSet?.map(SidecarInstanceRecord.init)
+        drtRecord = item.drtRecord
     }
 
     init(from decoder: Decoder) throws {
@@ -612,6 +621,7 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
             SidecarLayerStackRecord.self, forKey: .stackSnapshot)
         pasteSet = try container.decodeIfPresent(
             [SidecarInstanceRecord].self, forKey: .pasteSet)
+        drtRecord = try container.decodeIfPresent(DrtRecord.self, forKey: .drtRecord)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -623,6 +633,7 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         try container.encodeIfPresent(layerScope, forKey: .layerScope)
         try container.encodeIfPresent(stackSnapshot, forKey: .stackSnapshot)
         try container.encodeIfPresent(pasteSet, forKey: .pasteSet)
+        try container.encodeIfPresent(drtRecord, forKey: .drtRecord)
     }
 }
 
@@ -673,10 +684,21 @@ public extension LightamerSidecar {
     /// stack) hash exactly as the 02-06 form did. Seeding with the file's
     /// own decode hash (not the live one) keeps a decoder upgrade from
     /// false-positive as user drift.
+    ///
+    /// M2-6-3 T1 (KD-1 set-fields-move): the EFFECTIVE DRT record — the
+    /// restored history's own projection (`effectiveDrtRecord()`, pointer-
+    /// faithful) — folds LAST. The fold input is the HISTORY item payload,
+    /// NOT the document's `displayTransform` field (a field without a
+    /// backing item — the P1 test-document shape — stays anchor-stable,
+    /// DrtSidecarTests pinned); a real writer emits the field and the item
+    /// together, so the recompute matches the write-side fold formula for
+    /// bit-identity. A history with no DRT item folds NOTHING (bit-identical
+    /// to the pre-M2-6-3 anchor).
     var driftDetected: Bool {
         HistoryHash.hash(
             stack: history, decodeParamsHash: decodeParamsHash,
-            layerSnapshot: layerStack?.snapshot)
+            layerSnapshot: layerStack?.snapshot,
+            drtRecord: history.effectiveDrtRecord())
             != historyHash
     }
 
