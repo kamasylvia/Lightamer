@@ -437,6 +437,7 @@ let project = Project(
                 "Tests/LightamerTests/ACESccEnvelopeTests.swift",
                 "Tests/LightamerTests/DrtRecordTests.swift",
                 "Tests/LightamerTests/DrtEotfTests.swift",
+                "Tests/LightamerTests/DrtPresetsTests.swift",
                 "Tests/LightamerTests/GradeEnvelopePerfProbeTests.swift",
                 "Tests/LightamerTests/DrawnMaskRasterTests.swift",
                 "Tests/LightamerTests/DrawnMaskSpecTests.swift",
