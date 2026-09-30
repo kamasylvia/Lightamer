@@ -28,6 +28,9 @@
 #   NodeCanvasGeometryTests 测 App target 类型 NodeCanvasGeometry；
 #   NodesPanelModelTests 实例化 EditorState/LayerEditingState）。行内 method 数随
 #   T3 交互测试补组同批修订（登记纪律 = 同 commit 闭环）。运行期总数基线相应上移。
+#   终值勘误（2026-09-30 M2-4-3 收口批）：NodeCanvasGeometryTests 行 8→9（T2 渲染
+#   读回测试并入同文件时漏改行内计数，收口对账发现，随收口 commit 修正——
+#   终跑对账 = 2217 基线 + 23 新增（9+14）= 2240 精确）。
 IOPP	5	AgXTests.swift
 IOPP	8	AshiftParityTests.swift
 IOPP	11	BilateralParityTests.swift
@@ -151,7 +154,7 @@ APP	9	McpLauncherSentinelTests.swift
 APP	9	SettingsPagesTests.swift
 APP	10	SidecarV5Tests.swift
 APP	9	MaskItemSemanticsTests.swift
-APP	8	NodeCanvasGeometryTests.swift
+APP	9	NodeCanvasGeometryTests.swift
 APP	14	NodesPanelModelTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
