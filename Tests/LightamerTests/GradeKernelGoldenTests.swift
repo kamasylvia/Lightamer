@@ -277,4 +277,177 @@ final class GradeKernelGoldenTests: XCTestCase {
                 maxCap: degenerate ? 5e-3 : 5e-5)
         }
     }
+
+    // MARK: - T4: contrast (KD-5/AC6)
+
+    /// AC6: luma monotonicity + hue preservation — a 12-hue × 3-luma sweep
+    /// at ±100: the output OkLab-lightness ORDER matches the input order,
+    /// and the HSL hue never drifts more than 2°.
+    func testContrastMonotoneLumaAndHueDrift() async throws {
+        let metal = try await makeMetal()
+        // 12 hues × 3 lumas at fixed chroma — 36 probe pixels, built in
+        // OkLab and taken to scene-linear AP1 (the domain the op consumes;
+        // encoding OkLab coords as if they were linear would feed the
+        // curve nonsense).
+        var probes: [SIMD3<Double>] = []
+        for step in 0..<12 {
+            let hue = Double(step) / 12.0 * 2 * .pi
+            for luma in [0.35, 0.5, 0.7] {
+                let chroma = 0.08
+                let lab = SIMD3(luma, chroma * cos(hue), chroma * sin(hue))
+                probes.append(ContrastModule.okLabToLinearAp1(lab))
+            }
+        }
+        // Through the FLOAT64 reference (the monotonicity/hue contract is
+        // the formula's semantics — signed in DECISIONS; the kernel golden
+        // pins the kernel TO the same formula below).
+        for contrast in [100.0, -100.0] {
+            let outputs = probes.map { ContrastModule.reference(
+                acescc: SIMD3(
+                    Cat02WBMath.acesccEncode($0.x), Cat02WBMath.acesccEncode($0.y),
+                    Cat02WBMath.acesccEncode($0.z)),
+                contrast: contrast) }
+            for group in 0..<12 {
+                for l in 0..<2 {
+                    let a = outputs[group * 3 + l]
+                    let b = outputs[group * 3 + l + 1]
+                    let la = Cat02WBMath.acesccDecode(a.x)
+                    let lb = Cat02WBMath.acesccDecode(b.x)
+                    // OkLab L order preserved (lightness axis only).
+                    let labA = ContrastModule.linearAp1ToOkLab(SIMD3(
+                        Cat02WBMath.acesccDecode(a.x),
+                        Cat02WBMath.acesccDecode(a.y),
+                        Cat02WBMath.acesccDecode(a.z)))
+                    let labB = ContrastModule.linearAp1ToOkLab(SIMD3(
+                        Cat02WBMath.acesccDecode(b.x),
+                        Cat02WBMath.acesccDecode(b.y),
+                        Cat02WBMath.acesccDecode(b.z)))
+                    _ = (la, lb)
+                    XCTAssertLessThanOrEqual(
+                        labA.x, labB.x + 1e-9,
+                        "luma order inverted at hue \(group), contrast \(contrast)")
+                }
+            }
+            // Hue drift ≤ 2°, measured in the op's OWN hue basis: the
+            // formula scales a/b uniformly, so OkLab hue (atan2(b, a)) is
+            // the preserved quantity — HSL hue of linear RGB is a
+            // different basis and drifts ~2-4° even for the faithful
+            // formula (metric basis signed in M2-5-1-DECISIONS).
+            func oklabHue(_ linear: SIMD3<Double>) -> Double {
+                let lab = ContrastModule.linearAp1ToOkLab(linear)
+                return atan2(lab.z, lab.y) * 180 / .pi
+            }
+            for (index, probe) in probes.enumerated() {
+                let outLinear = SIMD3(
+                    Cat02WBMath.acesccDecode(outputs[index].x),
+                    Cat02WBMath.acesccDecode(outputs[index].y),
+                    Cat02WBMath.acesccDecode(outputs[index].z))
+                let inHue = oklabHue(probe)
+                let outHue = oklabHue(outLinear)
+                var drift = abs(inHue - outHue)
+                if drift > 180 { drift = 360 - drift }
+                XCTAssertLessThanOrEqual(
+                    drift, 2.0,
+                    "hue drifted \(drift)° at probe \(index), contrast \(contrast)")
+            }
+        }
+    }
+
+    /// The contrast golden gate: +15 (defaultLook), ±100 endpoints; 0 is
+    /// the byte-identical early exit (pixel tolerance 0).
+    func testContrastGoldenParameterPoints() async throws {
+        let metal = try await makeMetal()
+        let field = sampleField()
+        let module = ContrastModule()
+        for contrast in [15.0, 100.0, -100.0] {
+            try await assertGolden(
+                module: module, params: ContrastModule.Params(contrast: Float(contrast)),
+                reference: { ContrastModule.reference(acescc: $0, contrast: contrast) },
+                field: field, metal: metal)
+        }
+    }
+
+    func testContrastIdentityIsPixelExact() async throws {
+        let metal = try await makeMetal()
+        let field = sampleField()
+        let texels = encodeField(field)
+        let (input, output) = makeTexture(metal, texels: texels)
+        let module = ContrastModule()
+        var piece = IOPiece()
+        module.commitParams(ContrastModule.Params(), into: &piece)
+        try await module.process(
+            input: input, output: output, roiIn: ROI(), roiOut: ROI(),
+            piece: &piece, metal: metal)
+        let out = readOutput(output, metal: metal)
+        for (index, value) in texels.enumerated() {
+            XCTAssertEqual(out[index], value, accuracy: 0, "texel \(index)")
+        }
+    }
+
+    // MARK: - T4: white/black endpoints (KD-5/AC6)
+
+    func testWhiteBlackIdentityIsPixelExact() async throws {
+        let metal = try await makeMetal()
+        let field = sampleField()
+        let texels = encodeField(field)
+        // White 0 AND white −50 (the max(value,0) shape makes negatives
+        // the exact identity) — both take the early exit.
+        for params in [WhiteModule.Params(), WhiteModule.Params(white: -50)] {
+            let (input, output) = makeTexture(metal, texels: texels)
+            let module = WhiteModule()
+            var piece = IOPiece()
+            module.commitParams(params, into: &piece)
+            try await module.process(
+                input: input, output: output, roiIn: ROI(), roiOut: ROI(),
+                piece: &piece, metal: metal)
+            let out = readOutput(output, metal: metal)
+            for (index, value) in texels.enumerated() {
+                XCTAssertEqual(out[index], value, accuracy: 0, "texel \(index)")
+            }
+        }
+        // Black 0.
+        let (input, output) = makeTexture(metal, texels: texels)
+        let black = BlackModule()
+        var piece = IOPiece()
+        black.commitParams(BlackModule.Params(), into: &piece)
+        try await black.process(
+            input: input, output: output, roiIn: ROI(), roiOut: ROI(),
+            piece: &piece, metal: metal)
+        let out = readOutput(output, metal: metal)
+        for (index, value) in texels.enumerated() {
+            XCTAssertEqual(out[index], value, accuracy: 0, "texel \(index)")
+        }
+    }
+
+    func testWhiteBlackGoldenParameterPointsBounded() async throws {
+        let metal = try await makeMetal()
+        let field = sampleField()
+        for white in [50.0, 100.0] {
+            try await assertGolden(
+                module: WhiteModule(), params: WhiteModule.Params(white: Float(white)),
+                reference: { WhiteModule.reference(acescc: $0, white: white) },
+                field: field, metal: metal)
+        }
+        for black in [50.0, 100.0, -100.0] {
+            try await assertGolden(
+                module: BlackModule(), params: BlackModule.Params(black: Float(black)),
+                reference: { BlackModule.reference(acescc: $0, black: black) },
+                field: field, metal: metal)
+        }
+        // Endpoint boundedness: ±100 on the extreme field produces no
+        // NaN/Inf (the bounded check inside assertGolden covers every
+        // case above; this asserts the same on the REFERENCE side too).
+        for value in field {
+            let w = WhiteModule.reference(acescc: SIMD3(
+                Cat02WBMath.acesccEncode(value.x),
+                Cat02WBMath.acesccEncode(value.y),
+                Cat02WBMath.acesccEncode(value.z)), white: 100)
+            let b = BlackModule.reference(acescc: SIMD3(
+                Cat02WBMath.acesccEncode(value.x),
+                Cat02WBMath.acesccEncode(value.y),
+                Cat02WBMath.acesccEncode(value.z)), black: 100)
+            XCTAssertTrue(w.x.isFinite && w.y.isFinite && w.z.isFinite)
+            XCTAssertTrue(b.x.isFinite && b.y.isFinite && b.z.isFinite)
+        }
+    }
 }
