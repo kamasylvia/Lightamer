@@ -195,22 +195,34 @@ public enum MaskCombineOp: String, Codable, Sendable, Equatable, Hashable {
 /// — when set, the item's plane is the recursive evaluation of the child
 /// and `formID` is ignored. decodeIfPresent: documents written before
 /// 06-04 decode with nil (ONE-WAY additive rule).
+///
+/// M2-4 v5 additive optionals (Plan M2-4-1 T4, KD-4; M2NODE-04 data face):
+/// `enabled` (nil = true — the per-mask independent gate) and
+/// `displayName` (nil = the derived display name — the M2-7 panel's
+/// consumer face). Synthesized Codable encodes nil with encodeIfPresent,
+/// so v4-era items serialize to the SAME canonical JSON bytes (the
+/// stableHash zero-drift contract — pinned by SidecarV5Tests).
 public struct MaskGroupItem: Codable, Sendable, Equatable, Hashable {
     public var formID: UUID
     public var op: MaskCombineOp
     public var inverted: Bool
     public var opacity: Float
     public var child: MaskGroupSpec?
+    public var enabled: Bool?
+    public var displayName: String?
 
     public init(
         formID: UUID, op: MaskCombineOp, inverted: Bool, opacity: Float,
-        child: MaskGroupSpec? = nil
+        child: MaskGroupSpec? = nil, enabled: Bool? = nil,
+        displayName: String? = nil
     ) {
         self.formID = formID
         self.op = op
         self.inverted = inverted
         self.opacity = opacity
         self.child = child
+        self.enabled = enabled
+        self.displayName = displayName
     }
 }
 
@@ -252,16 +264,24 @@ public struct MaskSpec: Codable, Sendable, Equatable, Hashable {
     /// reference; pixels never enter this JSON, 06-RESEARCH §6).
     public var raster: RasterMaskRef?
 
+    /// M2-4 v5 additive optional (Plan M2-4-1 T4, KD-4; the D-M2-4-CONTEXT-7
+    /// spec-level deletion lock, M2MASK-04's data face): nil = false. The
+    /// synthesized Codable absent-encoding keeps v4 specs on their EXACT
+    /// canonical bytes (stableHash zero-drift — pinned by SidecarV5Tests).
+    public var deletionProtected: Bool?
+
     public init(
         version: Int = 1,
         drawn: DrawnMaskSpec? = nil,
         parametric: ParametricMask? = nil,
-        raster: RasterMaskRef? = nil
+        raster: RasterMaskRef? = nil,
+        deletionProtected: Bool? = nil
     ) {
         self.version = version
         self.drawn = drawn
         self.parametric = parametric
         self.raster = raster
+        self.deletionProtected = deletionProtected
     }
 
     /// True when the spec carries rasterizable drawn content.

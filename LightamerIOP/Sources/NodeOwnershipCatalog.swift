@@ -24,8 +24,15 @@ import LightamerCore
 //     the M2-1 disabled six (FilmicRGB/Sigmoid/AgX are DRT-domain tone
 //     mapping; DenoiseProfile/NLMeans/Bilateral are RAW-domain denoise —
 //     enumerated by constant, NEVER derived from the disabled-set flag:
-//     ownership is semantic, not face-dependent), and the two non-UI ops
-//     (passthrough_spike / testgain).
+//     ownership is semantic, not face-dependent).
+//
+//   NOTE (the plan M2-4-1 KD-3 deviation, signed in M2-4-1-DECISIONS):
+//   passthrough_spike / testgain are NOT develop-owned. The plan listed
+//   them under .develop by their non-UI status, but panel presence is not
+//   a stage fact — a gain/no-op op is stage-agnostic and grade-capable,
+//   and the existing layer-chain test corpus drives addModuleToLayer with
+//   testgain (the AC that the grade interior stays writable). They answer
+//   .grade through the default arm.
 //
 //   Everything else answers .grade (the DEFAULT — M2-5 will narrow the 18
 //   catalogs from this table without touching the validation seam).
@@ -64,9 +71,6 @@ public enum NodeOwnershipCatalog {
         DenoiseProfileModule.opName,
         NLMeansModule.opName,
         BilateralModule.opName,
-        // The two non-UI ops (Phase 1 spike + the dev-only gain).
-        PassthroughModule.opName,
-        TestGainModule.opName,
     ]
 
     /// The owner of an op. TOTAL over all op names: the default answer is

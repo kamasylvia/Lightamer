@@ -35,8 +35,9 @@ final class NodeOwnershipCatalogTests: XCTestCase {
         EqualizerModule.opName,
     ]
 
-    /// The develop family (17): camera WB + geometry five + yiyin three +
-    /// the disabled six + the two non-UI ops.
+    /// The develop family (15): camera WB + geometry five + yiyin three +
+    /// the disabled six. (passthrough_spike/testgain answer .grade through
+    /// the default arm — the D-M2-4-1-2 KD-3 deviation, see DECISIONS.)
     private static let pinnedDevelop: Set<String> = [
         TemperatureModule.opName,
         LensModule.opName,
@@ -53,8 +54,6 @@ final class NodeOwnershipCatalogTests: XCTestCase {
         DenoiseProfileModule.opName,
         NLMeansModule.opName,
         BilateralModule.opName,
-        PassthroughModule.opName,
-        TestGainModule.opName,
     ]
 
     /// The default-face registry set: the terminal trio + the editing
