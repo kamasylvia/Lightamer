@@ -39,6 +39,12 @@ struct WorkspaceHostView: View {
 
     @State private var workspace = WorkspaceModel()
 
+    /// M2-4-1 T5 (KD-5/E1③): the RAW-overrides persistence channel is the
+    /// app-root's singleton coordinator (`@Environment`, the same instance
+    /// `EditorState` already binds to) — the `.task` below cross-attaches it
+    /// with the shell model (both ends weak, the owners strong).
+    @Environment(PipeCoordinator.self) private var pipeCoordinator
+
     // Plan M2-3-1 T6 (M2UIW-06): the background-task faces — ONE registry
     // behind BOTH presentations (bar + dialog), the import leg riding the
     // read-only ImportTaskAdapter subscription.
@@ -176,6 +182,13 @@ struct WorkspaceHostView: View {
         }
         .onAppear {
             rebuildLibrarySurface()
+        }
+        // M2-4-1 T5 (KD-5/E1③): the bidirectional attach seam (the
+        // M2-3-1 `EditorState.attach` pattern) — write-leg pass-through +
+        // restore-leg priming ride it.
+        .task {
+            workspace.attach(pipeCoordinator: pipeCoordinator)
+            pipeCoordinator.attach(workspace: workspace)
         }
         .modifier(EditorProbeIfRequested(
             projectController: projectController, workspace: workspace,
