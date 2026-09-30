@@ -120,19 +120,29 @@ internal final class PixelPipe: @unchecked Sendable {
     internal var topEnabledPosition = -1
 
     /// 08-4 T2 (IOP-HDR-05): the terminal-segment SDR-clamp short-circuit —
-    /// the display-leg runtime override (`false` = TODAY's behavior, the
-    /// zero-path-difference default). When `true`, the `gamma` tail module
-    /// (v50 78.0, D-COL4's sRGB encode + [0,1] SDR-white clamp) is SKIPPED:
-    /// the chain's final plane stays the float32 LINEAR colorout output
-    /// (display gamut, unclamped — >1.0 values survive), consumed by the
-    /// editor viewport's 16F EDR blit tagged `extendedLinearSRGB`. Cache
-    /// semantics: NO key changes — gamma's key is simply not visited while
-    /// bypassed (every plane ≤ colorout stays resident and HIT; the
-    /// colorout output IS the final, already cached under its own key), so
-    /// an EDR toggle invalidates nothing and the next EDR-off render hits
-    /// the exact same gamma line again. Run-level data like `captureExif`
-    /// (never a param; set before `run`/`runSub` by the display leg).
-    internal var edrDisplayLeg = false
+    /// the display-leg runtime override. M2-6-1 T7 (KD-6): the raw flag
+    /// converged into `TerminalTailPolicy` — this is now a DERIVED property
+    /// (`terminalTail == .edrLinear`), so the two existing read points (the
+    /// `prepareChain` top mark + the `processRec` skip) keep their exact
+    /// statements and semantics; the EDR toggle maps `.sdrGamma ↔
+    /// .edrLinear` with zero invalidation semantics unchanged (the policy
+    /// never enters a main-chain key).
+    internal var edrDisplayLeg: Bool { terminalTail == .edrLinear }
+
+    /// The terminal-tail policy (M2-6-1 KD-6): WHAT owns the display tail.
+    /// `.sdrGamma` = today's bytes (colorout → gamma, the zero-path default);
+    /// `.edrLinear` = the EDR display leg (gamma demoted, float colorout
+    /// final); `.drt(DrtTailParams)` = the DRT tail owns the terminal
+    /// segment — colorout/gamma/borders/watermark demote OUT of the main
+    /// chain and the driver-assembled `[DrtMethodBox] → [EotfBox] →
+    /// [borders] → [watermark]` chain replays them after the EOTF encode
+    /// (E2: the印框 is never tone-mapped — the guard order is asserted by
+    /// DrtTailTests).
+    internal var terminalTail: TerminalTailPolicy = .sdrGamma
+
+    /// The tail-leg re-entry guard: the DRT tail runs as its own sub-run
+    /// pipe; THAT pipe must not assemble a tail of its own.
+    internal var isDrtTailLeg = false
 
     /// Decoded-frame ROI at entry scale (04-01-T4): the backward-negotiation
     /// clamp bound (halo wings may exceed the hinted/forward window but
@@ -215,11 +225,34 @@ internal final class PixelPipe: @unchecked Sendable {
     }
 
     /// The two formats the pipe produces (exhaustive — FOUND-02 interior +
-    /// the 02-04 display tail).
+    /// the 02-04 display tail). M2-6-1 T7 adds the DRT HDR 16F face.
     private static func bytesPerPixel(of format: MTLPixelFormat) -> Int {
         switch format {
         case GammaModule.outputPixelFormat: return 4
+        case .rgba16Float: return 8
         default: return WorkingSpace.bytesPerPixel
+        }
+    }
+
+    /// The terminal-tail skip predicate (KD-6): which op names the CURRENT
+    /// policy demotes out of the main chain. `.sdrGamma` = empty (today's
+    /// bytes); `.edrLinear` = gamma only; `.drt` = the whole terminal
+    /// resident set (E2: colorout 70 / borders 76 / watermark 77 / gamma
+    /// 78 — the tail chain replays borders/watermark post-EOTF).
+    private func isTerminalTailSkipped(_ opName: String) -> Bool {
+        // The tail leg's own chain carries its own order (the resident
+        // boxes replay verbatim) — nothing is skipped inside it.
+        if isDrtTailLeg { return false }
+        switch terminalTail {
+        case .sdrGamma:
+            return false
+        case .edrLinear:
+            return opName == GammaModule.opName
+        case .drt:
+            return opName == ColorOutModule.opName
+                || opName == GammaModule.opName
+                || opName == DrtMethodBox.tailResidentBordersOpName
+                || opName == DrtMethodBox.tailResidentWatermarkOpName
         }
     }
 
@@ -230,7 +263,24 @@ internal final class PixelPipe: @unchecked Sendable {
     /// (reusable across screens — a display change re-runs only the
     /// colorout+gamma segment). FULL gets the same treatment: its output
     /// is also display-format when run for 100% viewing.
+    /// M2-6-1 T7: the `.drt` tail's final plane follows the record's EOTF
+    /// family (KD-6: SDR powers → .bgra8Unorm; st2084/hlg → .rgba16Float;
+    /// linear → float32 working).
     private func tailPixelFormat(at position: Int) -> MTLPixelFormat {
+        // The tail leg: EVERY plane carries the display format. The
+        // resident watermark/borders handoff includes BLIT copies
+        // (blitIdentity) and a blit cannot convert pixel formats — a
+        // float32 intermediate feeding an 8/16-bit final would blit
+        // nothing. The encoded values survive format-for-format: the SDR
+        // unorm quantization IS the final quantization (the same bytes a
+        // direct write would produce), 16F/float32 are lossless.
+        if isDrtTailLeg, case .drt(let params) = terminalTail {
+            return DrtTailDisplay.format(for: params.record)
+        }
+        if case .drt(let params) = terminalTail,
+           position == topEnabledPosition {
+            return DrtTailDisplay.format(for: params.record)
+        }
         if position == topEnabledPosition,
            pieces.indices.contains(position),
            pieces[position].box.opName == GammaModule.opName {
@@ -621,11 +671,24 @@ internal final class PixelPipe: @unchecked Sendable {
         // `pixelpipe_hb.c:3368-3405`) — the walk body shared with `runSub`
         // (only the entry-ROI derivation differs between the two shapes).
         let walked = forwardWalk(entry: roi, frame: frameROI)
-        let final = try await processRec(
+        var final = try await processRec(
             position: pieces.count - 1,
             roiOut: walked,
             metal: metal
         )
+        // M2-6-1 T7 (KD-6): the DRT tail replays [DrtMethodBox] → [EotfBox]
+        // → [borders] → [watermark] on the main chain's final plane, as its
+        // own sub-run over the SHARED cache (the tail keys carry the folded
+        // seed — an EOTF switch re-runs exactly the tail).
+        if case .drt(let tailParams) = terminalTail, !isDrtTailLeg {
+            let tailTexture = try await runDrtTailLeg(
+                input: final.texture, inputROI: walked, params: tailParams,
+                upstreamSeed: topEnabledPosition >= 0
+                    ? levelHash[topEnabledPosition] : decodeParamsHash,
+                residentInstances: instances, metal: metal)
+            final = PipeCache.CachedPlane(
+                texture: tailTexture, byteCount: 0, lastHit: .now)
+        }
         let statsDelta = (await cache.stats) - statsBefore
         return (
             final.texture,
@@ -651,8 +714,12 @@ internal final class PixelPipe: @unchecked Sendable {
         // topEnabledPosition lands on colorout (the final plane = the
         // float32 linear colorout output) and gamma's hash never enters any
         // chain (it never enters a KEY — zero invalidation).
+        // M2-6-1 T7: the .drt policy widens the demotion to the whole
+        // terminal-tail resident set (colorout 70 / borders 76 / watermark
+        // 77 / gamma 78 — the E2 ruling); the tail boxes replay borders +
+        // watermark AFTER the EOTF encode.
         topEnabledPosition = pieces.lastIndex(where: {
-            $0.box.enabled && !(edrDisplayLeg && $0.box.opName == GammaModule.opName)
+            $0.box.enabled && !isTerminalTailSkipped($0.box.opName)
         }) ?? -1
         planesRendered = 0
         // §1.3: decodeParamsHash — the shared D-H4 atom.
@@ -702,7 +769,12 @@ internal final class PixelPipe: @unchecked Sendable {
             // (No-op today: stamps live in distinct fields; kept explicit
             // for the 04-02/04-05 modules that read dscIn/process in hooks.)
             var out = roiWalk
-            if pieces[index].box.enabled {
+            // M2-6-1 T7: a terminal-tail-SKIPPED module does not process —
+            // so its ROI hook must not fire either (the .drt walk must NOT
+            // negotiate the borders canvas into the MAIN chain's planes;
+            // the tail leg re-walks with its own borders and expands there
+            // exactly once).
+            if pieces[index].box.enabled, !isTerminalTailSkipped(pieces[index].box.opName) {
                 pieces[index].box.modifyROIOutErased(
                     &out, input: roiWalk, piece: pieces[index].state)
             }
@@ -742,11 +814,22 @@ internal final class PixelPipe: @unchecked Sendable {
         prepareChain(instances: instances, decodeHash: decodeHash)
         let statsBefore = await cache.stats
         let walked = forwardWalk(entry: inputROI, frame: inputROI)
-        let final = try await processRec(
+        var final = try await processRec(
             position: pieces.count - 1,
             roiOut: walked,
             metal: metal
         )
+        // M2-6-1 T7: the terminal-pipe shape of the same tail hook (the
+        // LayerCompositeDriver's terminal leg carries the policy).
+        if case .drt(let tailParams) = terminalTail, !isDrtTailLeg {
+            let tailTexture = try await runDrtTailLeg(
+                input: final.texture, inputROI: walked, params: tailParams,
+                upstreamSeed: topEnabledPosition >= 0
+                    ? levelHash[topEnabledPosition] : decodeHash,
+                residentInstances: instances, metal: metal)
+            final = PipeCache.CachedPlane(
+                texture: tailTexture, byteCount: 0, lastHit: .now)
+        }
         let statsDelta = (await cache.stats) - statsBefore
         return (
             final.texture,
@@ -756,6 +839,46 @@ internal final class PixelPipe: @unchecked Sendable {
                 planesRendered: planesRendered
             )
         )
+    }
+
+    /// The DRT tail leg (M2-6-1 T7, KD-6): assemble `[DrtMethodBox] →
+    /// [EotfBox] → [borders] → [watermark]` (the E2 guard order — borders
+    /// and watermark are the RESIDENT boxes replayed verbatim AFTER the
+    /// EOTF encode, so the印框 is never tone-mapped) and run them as a
+    /// sub-run over the SHARED cache. The sub-run's seed folds the
+    /// main-chain top identity ⊕ the record hash ⊕ the policy hash: an
+    /// EOTF switch flips the record hash and re-runs exactly the tail,
+    /// while every plane before colorout stays HIT (the main chain's keys
+    /// never carried either fold). The Post-four slot (M2-6-3 T5) lives
+    /// BETWEEN DrtMethodBox and EotfBox — deliberately EMPTY in this plan.
+    private func runDrtTailLeg(
+        input: any MTLTexture,
+        inputROI: ROI,
+        params: DrtTailParams,
+        upstreamSeed: UInt64,
+        residentInstances: [any ModuleBoxing],
+        metal: MetalContext
+    ) async throws -> any MTLTexture {
+        // The P2 stub face (KD-6/T4): a method without a render arm refuses
+        // here, typed — the UI surface never dispatches it.
+        guard params.record.method.isRenderImplemented else {
+            throw DrtTailError.methodNotImplemented(params.record.method)
+        }
+        let tailPipe = PixelPipe(resolution: resolution, cache: cache)
+        tailPipe.imageID = imageID
+        tailPipe.layerStack = layerStack
+        tailPipe.cacheLayerID = cacheLayerID
+        // The tail leg's OWN pipe carries the policy for the final-plane
+        // FORMAT (tailPixelFormat's .drt branch) and the no-re-entry guard.
+        tailPipe.terminalTail = .drt(params)
+        tailPipe.isDrtTailLeg = true
+        let (output, _) = try await tailPipe.runSub(
+            input: input, inputROI: inputROI,
+            instances: DrtTailAssembly.instances(
+                params: params, residents: residentInstances),
+            decodeHash: DrtTailAssembly.seed(upstream: upstreamSeed, params: params),
+            metal: metal, layerID: cacheLayerID)
+        return output
     }
 
     /// THUMBNAIL lazy fetch (`PipeResolution.isLazy` lifecycle): renders
@@ -869,8 +992,10 @@ internal final class PixelPipe: @unchecked Sendable {
         // clamped/encoded bytes to a 16F EDR drawable; the float32 colorout
         // plane becomes the final). The `edrDisplayLeg` check is constant
         // `false` for every non-EDR run: zero path difference when off.
+        // M2-6-1 T7: under `.drt` the whole terminal resident set passes
+        // through (the tail chain replays borders/watermark post-EOTF).
         guard pieces[position].box.enabled,
-              !(edrDisplayLeg && pieces[position].box.opName == GammaModule.opName)
+              !isTerminalTailSkipped(pieces[position].box.opName)
         else {
             return try await processRec(
                 position: position - 1,
@@ -981,6 +1106,10 @@ internal final class PixelPipe: @unchecked Sendable {
         let output: any MTLTexture =
             if isFinalOutput && (resolution == .full || tailFormat != WorkingSpace.pixelFormat) {
                 try Self.allocatePlane(roiOut: roiOut, metal: metal, pixelFormat: tailFormat)
+            } else if isDrtTailLeg, tailFormat != WorkingSpace.pixelFormat {
+                // The tail leg's intermediates carry the display format
+                // (the blit constraint above) — never the float32 scratch.
+                try Self.allocatePlane(roiOut: roiOut, metal: metal, pixelFormat: tailFormat)
             } else {
                 try nextScratchPlane(roiOut: roiOut, metal: metal)
             }
@@ -999,6 +1128,245 @@ internal final class PixelPipe: @unchecked Sendable {
         }
         planesRendered += 1
         return PipeCache.CachedPlane(texture: output, byteCount: 0, lastHit: .now)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The terminal-tail policy surface (Plan M2-6-1 T7, KD-6 — OQ-6-A's
+// 「drtTail 与 edrDisplayLeg 收敛为一个尾段策略枚举」). Lives next to the pipe:
+// the policy IS the pipe's tail contract.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// What owns the pipe's display tail (exhaustive — every switch over this
+/// enum answers all three cases with NO `default` arm, the M2DRT-06
+/// discipline). `.sdrGamma` is the ZERO-PATH default: every byte of the
+/// pre-M2-6 pipeline is identical under it (the DrtTailTests gate).
+public enum TerminalTailPolicy: Sendable, Equatable {
+    /// The SDR display handoff: colorout → gamma (sRGB TRC 8-bit plane).
+    case sdrGamma
+    /// The EDR display leg: gamma demoted, the float32 linear colorout
+    /// output IS the final (the 08-4 semantics, derived — see
+    /// `PixelPipe.edrDisplayLeg`).
+    case edrLinear
+    /// The DRT tail owns the terminal segment: colorout/gamma/borders/
+    /// watermark demote out of the main chain and the assembled
+    /// `[DrtMethodBox] → [EotfBox] → [borders] → [watermark]` chain replays
+    /// after the DRT + EOTF encode (E2: 印框永不被 tone map).
+    case drt(DrtTailParams)
+}
+
+/// The `.drt` payload: the document's record + its PRE-COMPUTED stableHash
+/// (the seed-fold single source — the hash the sidecar and the panel both
+/// consume, folded once here).
+public struct DrtTailParams: Sendable, Equatable {
+    public let record: DrtRecord
+    public let recordHash: UInt64
+
+    public init(record: DrtRecord) {
+        self.record = record
+        self.recordHash = record.stableHash()
+    }
+}
+
+/// The typed refusal of an unimplemented DRT method (the P2 stub face —
+/// M2-6-2 replaces by adding the render arm and flipping
+/// `DrtMethod.isRenderImplemented`). Namespaced under RenderPipeline (the
+/// app-facing bridge enum) via the extension below.
+public enum DrtTailError: Error, Equatable {
+    case methodNotImplemented(DrtMethod)
+}
+
+/// The `.drt` tail's final-plane format (KD-6): SDR power/BT.1886 → the
+/// gamma-tail precedent's software-encoded 8-bit plane (drawable NOT an
+/// _srgb variant); st2084/hlg → the EDR precedent's 16F plane; linear →
+/// the float32 working format (the EDR linear leg — headroom survives).
+public enum DrtTailDisplay {
+    public static func format(for record: DrtRecord) -> MTLPixelFormat {
+        if isHdrEncoding(record.encodingEotf) {
+            return .rgba16Float
+        }
+        if record.encodingEotf == .linear {
+            return WorkingSpace.pixelFormat
+        }
+        return GammaModule.outputPixelFormat
+    }
+}
+
+/// The tail chain assembly (KD-4/E2): the two driver-constructed boxes
+/// (zero registry, zero sidecar, no add face — the ACEScc envelope
+/// precedent) + the resident borders/watermark boxes replayed verbatim.
+public enum DrtTailAssembly {
+
+    /// The policy fold into the tail seed (KD-6): upstreamHash =
+    /// levelHash[top] ⊕ recordHash ⊕ tailPolicyHash. The policy string is
+    /// a constant — the REAL policy identity rides the record hash (the
+    /// EOTF is a record field, so an EOTF switch flips the record hash).
+    private static let policyTag = "lightamer.drt.tail.v1"
+
+    public static func seed(upstream: UInt64, params: DrtTailParams) -> UInt64 {
+        // The L013 fold order: recordHash ⊕ policyTag ⊕ upstream — one
+        // canonical FNV-1a thread (the blendTripleHash shape).
+        var h = StableHash.fnvOffsetBasis
+        withUnsafeBytes(of: params.recordHash) { h = StableHash.combine(h, $0) }
+        let tagBytes = Array(policyTag.utf8)
+        h = tagBytes.withUnsafeBufferPointer { StableHash.combine(h, UnsafeRawBufferPointer($0)) }
+        withUnsafeBytes(of: upstream) { h = StableHash.combine(h, $0) }
+        return h
+    }
+
+    /// `[DrtMethodBox(record), EotfBox(record)] + residents` — the residents
+    /// (enabled borders/watermark boxes from the caller's chain) ride with
+    /// their committed params; runSub sorts the four by (iopOrder,
+    /// multiPriority): 74 → 75 → 76 → 77 = the E2 guard order.
+    public static func instances(
+        params: DrtTailParams, residents: [any ModuleBoxing]
+    ) -> [any ModuleBoxing] {
+        let method = ModuleBox(module: DrtMethodBox(record: params.record))
+        let eotf = ModuleBox(module: EotfBox(record: params.record))
+        let replayed = residents.filter { box in
+            box.enabled && (box.opName == DrtMethodBox.tailResidentBordersOpName
+                || box.opName == DrtMethodBox.tailResidentWatermarkOpName)
+        }
+        return [method, eotf] + replayed
+    }
+}
+
+/// The DRT method box (KD-4) — the OpenDRT per-pixel transform, one PSO,
+/// parameters via MTLBuffer (OQ-10-A: a param drag re-uploads 244 bytes and
+/// recompiles NOTHING). opName/iopOrder are tail-internal (74.0 — inside
+/// the terminal window, before borders 76); never registered, never in
+/// sidecars, no add face. The Post-four slot (M2-6-3 T5) renders BETWEEN
+/// this box and EotfBox — deliberately empty in this plan.
+public final class DrtMethodBox: IOPModule {
+
+    /// The resident terminal modules the tail replays (E2) — named here so
+    /// the skip predicate and the assembly share ONE spelling source.
+    public static let tailResidentBordersOpName = "borders"
+    public static let tailResidentWatermarkOpName = "watermark"
+
+    public struct Params: Codable & Hashable & Sendable {
+        public var record: DrtRecord
+        public init(record: DrtRecord) { self.record = record }
+    }
+
+    public static let opName = "drtMethod"
+    public static let iopOrder: Float = 74.0
+    public static let flags: IOPFlags = []
+    public static let defaultColorspace: IOPColorspace = .RGB
+
+    private var uniforms: DrtUniforms?
+
+    public let record: DrtRecord
+
+    public init(record: DrtRecord) {
+        self.record = record
+    }
+
+    public func reloadDefaults(image: DecodedImage) async -> Params {
+        Params(record: record)
+    }
+
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
+        piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
+        // The creative white resolves HERE (the look-ride + explicit-white
+        // rules, T5) — the kernel consumes the resolved ordinal.
+        uniforms = DrtUniforms(
+            record: params.record,
+            cwp: UInt32(DrtPresets.resolvedCreativeWhiteOrdinal(params.record)))
+    }
+
+    public func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
+        roi = input
+    }
+
+    public func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
+        input = roi
+    }
+
+    public func process(
+        input: any MTLTexture,
+        output: any MTLTexture,
+        roiIn: ROI,
+        roiOut: ROI,
+        piece: inout IOPiece,
+        metal: MetalContext
+    ) async throws {
+        var u = uniforms ?? DrtUniforms(
+            record: record,
+            cwp: UInt32(DrtPresets.resolvedCreativeWhiteOrdinal(record)))
+        let buffer = metal.device.makeBuffer(
+            bytes: &u, length: MemoryLayout<DrtUniforms>.stride,
+            options: .storageModeShared)
+        try await metal.dispatch2DTexture(
+            functionName: "drt_opendrt", input: input, output: output
+        ) { encoder in
+            encoder.setBuffer(buffer, offset: 0, index: 0)
+        }
+    }
+}
+
+/// The EOTF encode box (KD-2/KD-4): the seven-function encoding core's GPU
+/// face, buffer-driven (one PSO per direction across all seven EOTFs — the
+/// uniform's eotf ordinal switches in-kernel). Output format = the tail
+/// policy's display format (tailPixelFormat).
+public final class EotfBox: IOPModule {
+
+    public struct Params: Codable & Hashable & Sendable {
+        public var eotf: DrtEotf
+        public var peak: Float
+        public init(eotf: DrtEotf, peak: Float) {
+            self.eotf = eotf
+            self.peak = peak
+        }
+    }
+
+    public static let opName = "drtEotf"
+    public static let iopOrder: Float = 75.0
+    public static let flags: IOPFlags = []
+    public static let defaultColorspace: IOPColorspace = .RGB
+
+    private var uniforms: DrtEotfUniforms?
+    public let record: DrtRecord
+
+    public init(record: DrtRecord) {
+        self.record = record
+    }
+
+    public func reloadDefaults(image: DecodedImage) async -> Params {
+        Params(eotf: record.encodingEotf, peak: record.peakLuminance)
+    }
+
+    public func commitParams(_ params: Params, into piece: inout IOPiece) {
+        piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
+        uniforms = DrtEotfUniforms(eotf: params.eotf, peak: params.peak)
+    }
+
+    public func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
+        roi = input
+    }
+
+    public func modifyROIIn(output roi: ROI, input: inout ROI, piece: IOPiece) {
+        input = roi
+    }
+
+    public func process(
+        input: any MTLTexture,
+        output: any MTLTexture,
+        roiIn: ROI,
+        roiOut: ROI,
+        piece: inout IOPiece,
+        metal: MetalContext
+    ) async throws {
+        var u = uniforms ?? DrtEotfUniforms(
+            eotf: record.encodingEotf, peak: record.peakLuminance)
+        let buffer = metal.device.makeBuffer(
+            bytes: &u, length: MemoryLayout<DrtEotfUniforms>.stride,
+            options: .storageModeShared)
+        try await metal.dispatch2DTexture(
+            functionName: "drt_eotf_encode", input: input, output: output
+        ) { encoder in
+            encoder.setBuffer(buffer, offset: 0, index: 0)
+        }
     }
 }
 
@@ -1068,16 +1436,16 @@ public enum RenderPipeline {
         longEdge: Int? = nil,
         maxTileWorkingBytes: Int? = nil,
         roiHint: ROI? = nil,
-        edrDisplayLeg: Bool = false
+        terminalTail: TerminalTailPolicy = .sdrGamma
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
         defer { signposter.endInterval("pixelpipe", interval) }
         let pipe = PixelPipe(resolution: resolution, cache: cache)
         pipe.imageID = imageID
-        // 08-4 T2: the display-leg SDR-clamp short-circuit (default false =
-        // today's bytes; the EXPORT face never sets it — IOP-HDR-05 is a
-        // display-leg-only toggle, D-08-CONTEXT-12③).
-        pipe.edrDisplayLeg = edrDisplayLeg
+        // 08-4 T2 / M2-6-1 T7: the terminal-tail policy (default .sdrGamma =
+        // today's bytes; the EXPORT face never sets a tail policy — the
+        // export chain builder strips gamma upstream, 11-03 T3).
+        pipe.terminalTail = terminalTail
         if let maxTileWorkingBytes {
             // Test/parametric injection of the per-tile budget (03-05-T6).
             pipe.maxTileWorkingBytes = maxTileWorkingBytes
@@ -1116,7 +1484,7 @@ public enum RenderPipeline {
         policy: LayerCachePolicy,
         hotLayerID: UUID? = nil,
         maskDirectory: URL? = nil,
-        edrDisplayLeg: Bool = false
+        terminalTail: TerminalTailPolicy = .sdrGamma
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -1125,7 +1493,7 @@ public enum RenderPipeline {
             layerStack: layerStack, registry: registry, resolution: resolution,
             cache: cache, metal: metal, longEdge: longEdge, roiHint: roiHint,
             policy: policy, hotLayerID: hotLayerID, maskDirectory: maskDirectory,
-            edrDisplayLeg: edrDisplayLeg)
+            terminalTail: terminalTail)
         var stats = result.baseStats
         for layer in result.layerStats {
             stats.hits += layer.run.hits

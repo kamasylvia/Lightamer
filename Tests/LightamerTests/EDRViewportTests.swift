@@ -280,7 +280,7 @@ final class EDRDisplayLegTests: XCTestCase {
             resolution: resolution,
             cache: cache,
             metal: metal,
-            edrDisplayLeg: edr)
+            terminalTail: edr ? .edrLinear : .sdrGamma)
         await Self.drain(metal)
         return (texture, stats)
     }
