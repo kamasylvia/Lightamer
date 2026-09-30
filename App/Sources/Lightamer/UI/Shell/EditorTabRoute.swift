@@ -11,10 +11,14 @@ import SwiftUI
 // Tone / Look / LUT / Display Transform / Geometry / RAW Decode / Mask.
 //
 // THE CHECKER E1 CORRECTION (2026-09-29): the Display Transform page is
-// Vignette + the "DRT arrives with M2-6" placeholder section. AgX is in
+// Vignette + a special-content slot. AgX is in
 // `LightamerIOPRegistry.defaultFaceDisabledOpNames` (the M2-1 narrowed face)
 // and stays UNHOUSED — hanging it would violate the M2-1 narrowing and the
 // plan's disabled-names grep zero-hit assertion.
+// M2-6-3 T2 (KD-2): the special-content slot now mounts the LIVE DRT panel
+// (`DrtPanelView`) — the `displayTransformPlaceholder` case remains the
+// routing-table marker for that slot, but the honest-shell PLACEHOLDER view
+// is retired (the reinterpretation signed in M2-6-3-DECISIONS).
 //
 // THE CHECKER m3 CORRECTION: the rehome-completeness assertion domain is the
 // DYNAMIC populated panel-provider set minus {TextOverlay} — Yiyin (the
@@ -168,12 +172,16 @@ enum EditorTabSpecialContent: Equatable, Sendable {
     case none
     /// RAW Decode page: the CIRAW parameter panel (T4 fills the slot).
     case rawDecodePanel
-    /// Display Transform page: the "DRT arrives with M2-6" placeholder
-    /// section (checker E1: AgX NOT housed — the M2-1 disabled face).
-    case displayTransformPlaceholder
-    /// Mask page: the adjustment-layers panel + the MaskToolbar linkage
+    /// The Mask page: the adjustment-layers panel + the MaskToolbar linkage
     /// entry (the M2-7 replacement's pre-home).
     case layersPanel
+    /// Display Transform page: the DRT panel slot. M2-6-3 T2 (KD-2): the
+    /// case NAME is the M2-3 era's shell marker; since the live panel
+    /// landed the value renders `DrtPanelView` — the honest-shell
+    /// placeholder copy is retired (grep-zero on
+    /// "editor.stack.drt.placeholder"; the rename-in-place choice over an
+    /// enum removal is the diff-minimum face, M2-6-3-DECISIONS).
+    case displayTransformPlaceholder
 }
 
 /// The D4/OQ-4 mapping table, coded (KD-2). Everything the stack renders
