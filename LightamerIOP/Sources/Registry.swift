@@ -69,6 +69,11 @@ public enum LightamerIOPRegistry {
     public static func populate(
         _ registry: ModuleRegistry, defaultFace: Bool = false
     ) async {
+        // M2-5-1 (KD-2): the ACEScc grade-domain envelope seam — the driver
+        // wraps grade-catalog layer sub-runs with the acesccIn/acesccOut
+        // pair. Envelope boxes are NEVER registered here (zero registry
+        // face — AC#4); this only hands the boxing closure to Core.
+        ACESccEnvelope.install()
         // The per-site gate (KD-1). Each gated site carries its matrix
         // verdict (M2-1-MATRIX.md is the disable decision of record); the
         // 34 enabled sites call `registry.register` directly, unchanged.
