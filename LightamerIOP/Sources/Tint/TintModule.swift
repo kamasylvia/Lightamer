@@ -3,10 +3,11 @@ import Metal
 
 // ─────────────────────────────────────────────────────────────────────────
 // TintModule (Plan M2-5-1 T5; KD-5) — the Alcedo `tint` catalog op: an
-// independent ±100 tint scalar (a gentle luma-pivot chroma scale — Alcedo
-// behavior 14), DELIBERATELY SEPARATE from the CAT02 WB's embedded tint
-// (the catalog carries both, 照抄目录). Params key照抄 TintTraits
-// ("tint", 0, ±100).
+// independent ±100 tint scalar (a gentle luma-pivot chroma scale — the
+// primary_grade.metal numeric behavior-14 branch; Alcedo's own Tint is
+// catalog-only/dormant, DECISIONS §八), DELIBERATELY SEPARATE from the
+// CAT02 WB's embedded tint (the catalog carries both, 照抄目录). Params
+// key照抄 TintTraits ("tint", 0, ±100).
 // ─────────────────────────────────────────────────────────────────────────
 
 public enum TintKernel {
@@ -95,7 +96,8 @@ public final class TintModule: IOPModule {
     }
 
     /// The Float64 reference (KD-8): the luma-pivot chroma scale
-    /// (Alcedo behavior 14 — on the ACEScc texels, no decode).
+    /// (the primary_grade.metal numeric behavior-14 branch — on the
+    /// ACEScc texels, no decode; DECISIONS §八).
     public static func reference(acescc: SIMD3<Double>, tint: Double) -> SIMD3<Double> {
         if tint == 0 { return acescc }
         let scale = 1.0 + tint * 0.0025

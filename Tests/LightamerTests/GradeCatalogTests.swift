@@ -110,6 +110,25 @@ final class GradeCatalogTests: XCTestCase {
         #endif
     }
 
+    /// DECISIONS §3 (b), the T7 closure: all 18 catalog rows' ops (17
+    /// unique opNames — Shadows/Highlights share shadhi) RESOLVE from the
+    /// default-face-populated registry. This is the strict-face narrowing
+    /// precondition the P2 panels build on. Seed membership is deliberately
+    /// NOT asserted here — the grade ops join the editing seed with their
+    /// panels (M2-5-1-SUMMARY 移交), so the closure face is the registry
+    /// registration face, not `editingDefaultInstances`.
+    func testAllCatalogOpsAreDefaultFaceRegistered() async {
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry, defaultFace: true)
+        var resolved: Set<String> = []
+        for item in GradeCatalog.items where !resolved.contains(item.opName) {
+            let box = await registry.makeBox(opName: item.opName)
+            XCTAssertNotNil(box, "\(item.opName) must be default-face registered")
+            resolved.insert(item.opName)
+        }
+        XCTAssertEqual(resolved.count, 17, "17 unique catalog ops all resolve")
+    }
+
     // MARK: - 3: the owner matrix
 
     func testOwnerMatrixOverAllEighteenRows() {
