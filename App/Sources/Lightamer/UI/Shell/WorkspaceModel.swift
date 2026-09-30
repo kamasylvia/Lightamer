@@ -235,6 +235,48 @@ final class WorkspaceModel {
         rawDecodeOverrides.removeAll()
     }
 
+    // MARK: - DRT record carrier (Plan M2-6-3 T1, KD-1 — the rawOverrides
+    // four-piece shape's session-carrier twin)
+
+    /// The session-level document DRT records, keyed by the source file
+    /// path. Session-scoped by contract (the rawDecodeOverrides carrier's
+    /// shape): a switched-away image keeps its record for the session;
+    /// closing the editor drops them (sidecar persistence = the v6
+    /// `displayTransform` field). ABSENT KEY = pristine — a DEFAULT record
+    /// never occupies the map (KD-1: 默认记录不写 sidecar, the
+    /// `isDrtRecordDefault` judgment folds here at the write faces so the
+    /// map is always the non-pristine truth).
+    private(set) var drtRecords: [String: DrtRecord] = [:]
+
+    /// The read face (pristine when the image has no session record).
+    func drtRecord(for url: URL) -> DrtRecord {
+        drtRecords[url.path] ?? DrtRecord()
+    }
+
+    /// Whether the image carries a NON-pristine session record (the run
+    /// pass-through's `.drt` gate + the EDR mutual-exclusion face).
+    func hasDrtRecord(for url: URL) -> Bool {
+        drtRecords[url.path] != nil
+    }
+
+    /// The raw write face — stores the record (nil = pristine, drops the
+    /// key), NO coordinator pass-through. Callers that must also schedule
+    /// the sidecar write go through the coordinator legs (the persistence
+    /// hook lives THERE, mirroring rawOverrides: the carrier is the memory
+    /// truth, the coordinator owns the disk face).
+    func setSessionDrtRecord(_ record: DrtRecord?, for url: URL) {
+        if let record, !isDrtRecordDefault(record) {
+            drtRecords[url.path] = record
+        } else {
+            drtRecords.removeValue(forKey: url.path)
+        }
+    }
+
+    /// The editor-close drop face (the rawOverrides 关图丢弃 twin).
+    func dropSessionDrtRecords() {
+        drtRecords.removeAll()
+    }
+
 
     // MARK: - Phase transitions (the D2 semantics)
 
@@ -257,10 +299,12 @@ final class WorkspaceModel {
 
     /// Close the editor back to the library, restoring the snapshotted face
     /// field-for-field (the D2 red line). The session RAW-decode overrides
-    /// drop with the editor (KD-4: 关图丢弃).
+    /// drop with the editor (KD-4: 关图丢弃) — the DRT carrier rides the
+    /// same close (M2-6-3 KD-1 twin).
     func closeEditor() {
         libraryState = preservedLibraryState
         dropSessionOverrides()
+        dropSessionDrtRecords()
         phase = .library
     }
 
