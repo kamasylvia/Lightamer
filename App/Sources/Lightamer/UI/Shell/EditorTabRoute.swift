@@ -235,6 +235,7 @@ enum EditorTabRoutingTable {
                     BloomModule.opName, .look, group: .look,
                     note: "panel_note_pre_drt"),
                 .grouped(Cat02WBModule.opName, .look, group: .color),
+                .grouped(HlsModule.opName, .look, group: .color),
                 .grouped(ColorWheelsModule.opName, .look, group: .color),
                 .grouped(TintModule.opName, .look, group: .color),
                 .grouped(VelviaModule.opName, .look, group: .detailTexture),

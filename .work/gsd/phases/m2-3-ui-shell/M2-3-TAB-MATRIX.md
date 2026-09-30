@@ -45,6 +45,7 @@
 | Look | `grain` | **Look（D9 占位组）** | Look: Film Grain | 同上注记行（M2-6 迁 DRT 后段） |
 | Look | `bloom` | **Look（D9 占位组）** | Look: Halation | 同上注记行（同上） |
 | Look | `cat02WhiteBalance` | **Color** | Look: White Balance（CAT02 创意 WB，M2GRADE-04；相机 WB = RAW Decode 域，D5） | — |
+| Look | `hls` | **Color** | Look: Selective Color（8-bin 表 + Target Hue 选择，M2-5-2 T5 批挂行；colorzones 三平滑曲线保留 Detail/Texture） | — |
 | Look | `colorWheels` | **Color** | Look: Color Wheel（LGG 三 trackball，M2-5-2 T4 批挂行） | — |
 | Look | `tint` | **Color** | Look: Tint（独立 ±100 标量，T3） | — |
 | Look | `velvia` | **Detail/Texture** | —（D6 独有增强） | **Alcedo 无对应**（D6 收纳 Detail/Texture 组） |

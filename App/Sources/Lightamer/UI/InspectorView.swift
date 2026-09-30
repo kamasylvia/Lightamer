@@ -253,6 +253,8 @@ internal struct InspectorView: View {
             localized: "module_saturation", defaultValue: "Saturation")
         case ColorWheelsModule.opName: return String(
             localized: "module_color_wheels", defaultValue: "Color Wheels")
+        case HlsModule.opName: return String(
+            localized: "module_selective_color", defaultValue: "Selective Color")
         default: return opName
         }
     }
