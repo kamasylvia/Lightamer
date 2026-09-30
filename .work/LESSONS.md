@@ -405,3 +405,16 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：ACEScc encode 对数腿斜率 = 1/(x·17.52·ln2)，x→0 时发散（x=1e-4 处 ~750×）：f32 kernel 的固有 epsilon（linear 域 ~1e-7，f32 求和不可消除）在 encoded 空间被放大两个数量级——不是 kernel 错，是**比较空间选错**。
 - **对策**：①ACEScc 域 op 的 golden 比较一律 decode 回 linear 再比（斜率 ~12×，对零交叉稳健）；②Swift Float64 参考的数学常数用**出厂 f32 值升 Double**（`Double(Float(17.52))`）——精确十进制参考会把常数舍入系统差（decode 斜率 ~4e-5）烤进每个线性腿样本；③encoded 空间统计按 plan 原文做 [-0.5, 2.5] 窗裁剪，病态参数化（适应阵元 ~1e10 角点）只做 bounded/NaN 断言——f32 求和消散在该处数学上不可达 1e-5。
 - **适用**：一切对数域传输函数（ACEScc/log 编码）两端 op 的 golden/parity 容差设计；任何「大部分样本极好、零交叉样本离群」的漂移形态归因。
+
+## L049: 定向轮残留目录吃穿系统盘——ENOSPC 让后续 bundle 假性挂测试（2026-10-01，M2-6-2 T5）
+- **背景**：App bundle 首轮 3 fail（2×Vision Code=9 + 2×ENOSPC），复跑只执行 10/376 且宿主
+  "terminated abnormally" 于 SidecarV5 写盘测试。
+- **根因**：`/private/var/folders/.../T/sidecarv5-*` 测试夹具目录（每个 ~71MB RAW 拷贝）**只在
+  全绿时清理**——fail/中断轮残留累积 193 目录共 13GB；系统盘自由空间跌到 ~6G 后 RAW 拷贝
+  ENOSPC → 级联假失败 + 宿主异常终止。重跑不清残留 → 逐轮恶化。
+- **对策**：①App bundle fail 且错误带 `NSPOSIXErrorDomain Code=28` / "No space left" 时，先
+  `rm -rf $TMPDIR/sidecarv5-*` 再归因（本次 13GB 即释）；②测试自身夹具改 `TearDown` 强清是
+  正解（挂账，改测试非本 plan 半径）；③Vision Code=9 "Unspecified error" 在磁盘压力下同发，
+  清盘复跑即绿——不要当场归因产品代码。
+- **适用**：一切「测试夹具写盘 + 仅成功路径清理」的 bundle；夜间连跑多轮后 App/Sessions 类
+  写盘重测先查 `$TMPDIR` 残留。
