@@ -92,6 +92,15 @@ public extension LayerStack {
         adjustmentLayers.append(layer)
     }
 
+    /// M2-4 (Plan M2-4-1 T2): insert an adjustment layer at a bottom-to-top
+    /// index, clamped into `0 ... count` (the same clamp semantics as
+    /// `reorder`). The AddClean(before:)/InsertFromJson graph-command
+    /// landing; ADDITIVE — every pre-existing API is untouched.
+    mutating func insert(_ layer: AdjustmentLayer, at index: Int) {
+        let clamped = min(max(index, 0), adjustmentLayers.count)
+        adjustmentLayers.insert(layer, at: clamped)
+    }
+
     /// Remove by UUID. The base layer is NOT removable (LAYER-01 invariant
     /// — always present). nil = no such layer.
     @discardableResult
@@ -181,5 +190,29 @@ public extension LayerStack {
                 < ($1.iopOrder, $1.multiPriority, $1.opName)
         }
         return .mergedIntoLayer(lowerID: lower.id)
+    }
+}
+
+// MARK: - Naming single source (Plan M2-4-1 T2, checker M4)
+
+public extension LayerStack {
+
+    /// The next unused numbered layer name (the M4 SINGLE SOURCE — the
+    /// algorithm moved VERBATIM out of the App layer's private
+    /// `EditorState.nextLayerName(in:)` so the structure commands and the
+    /// App face mint names through one implementation). Ordinal = the
+    /// composite-layer count + 1, swept upward past collisions. `base` is
+    /// passed by the CALLER (Core holds no localization keys — the App
+    /// passes its `layer_default_name` localized string; the graph
+    /// commands pass the "Color Grade" card label).
+    func nextLayerName(base: String) -> String {
+        let existing = Set(compositeLayers.map(\.name))
+        var ordinal = compositeLayers.count + 1
+        var candidate = "\(base) \(ordinal)"
+        while existing.contains(candidate) {
+            ordinal += 1
+            candidate = "\(base) \(ordinal)"
+        }
+        return candidate
     }
 }
