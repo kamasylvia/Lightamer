@@ -6,7 +6,7 @@
 # DYLD 注入 + 旧式 XCTestConfigurationFilePath 完全绕开 testmanagerd——零弹窗。
 # 2026-09-22 全套等价性验证：480/3skip/0fail 与 xcodebuild 逐值一致。
 #
-# M2-4-0 起（2026-09-30）：单 LightamerTests 拆为六个域 bundle（Project.swift
+# M2-4-0 起（2026-09-30）：单 LightamerTests 拆为七个域 bundle（Project.swift
 # 显式清单，归属正本 = .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt）。
 # 七 bundle 共享同一宿主二进制（D2），串行各起独立进程——进程退出即 Metal/CI/actor
 # 状态清零，任一单宿主峰值 RSS <8G 运行门由本脚本机检（MEMFAIL；门修订依据见下）。
