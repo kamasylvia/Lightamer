@@ -122,6 +122,11 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: ColorWheelsModule.opName) { id in
             ModuleBox(module: ColorWheelsModule(), instanceID: id)
         }
+        // M2-5-1 T7: hls (the 8-bin selective color table, KD-7), v50
+        // slot 42.6.
+        await registry.register(opName: HlsModule.opName) { id in
+            ModuleBox(module: HlsModule(), instanceID: id)
+        }
         // Phase 3's first real iop (Plan 03-01-T5): exposure, v50 slot 21.0.
         await registry.register(opName: ExposureModule.opName) { id in
             ModuleBox(module: ExposureModule(), instanceID: id)
@@ -445,6 +450,7 @@ public enum LightamerIOPRegistry {
             SaturationKernel.functionName,
             TintKernel.functionName,
             ColorWheelsModule.colorWheelsKernel,
+            HlsModule.hlsKernel,
             TemperatureKernel.functionName,
             ExposureKernel.functionName,
             ColisaKernel.functionName,

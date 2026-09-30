@@ -548,4 +548,124 @@ final class GradeKernelGoldenTests: XCTestCase {
                 field: field, metal: metal)
         }
     }
+
+    // MARK: - T7: HLS (KD-7)
+
+    /// The weight-window semantics, analytically:
+    /// (1) a UNIFORM table (same adj on all 8 bins) normalizes to that adj
+    ///     for EVERY hue — the rotation is exactly adj_h·2.25° of YIQ;
+    /// (2) a single bin with the minimal window (h_range = 1) acts at its
+    ///     center and does NOT leak 45° away (weight = 2^(-45²) ≈ 0).
+    /// (The plan's raised-cosine guess lost to the source's GAUSSIAN —
+    /// M2-5-1-DECISIONS.)
+    func testHlsWeightWindowShape() {
+        // (1) the uniform-table normalization.
+        var uniform = HlsModule.Params()
+        for i in 0..<8 { uniform.adjTable[i] = HlsVec3(h: 10, l: 0, s: 0) }
+        let pixel = SIMD3(0.2, 0.3, 0.1)  // hue 90°
+        let rotated = HlsModule.reference(acescc: pixel, params: uniform)
+        let angle = 10.0 * 2.25 * Double.pi / 180.0
+        let luma = 0.272229 * pixel.x + 0.674082 * pixel.y + 0.053689 * pixel.z
+        let iComp = 0.596 * pixel.x - 0.274 * pixel.y - 0.322 * pixel.z
+        let qComp = 0.211 * pixel.x - 0.523 * pixel.y + 0.312 * pixel.z
+        let expected = SIMD3(
+            luma + 0.956 * (iComp * cos(angle) - qComp * sin(angle))
+                + 0.621 * (iComp * sin(angle) + qComp * cos(angle)),
+            luma - 0.272 * (iComp * cos(angle) - qComp * sin(angle))
+                - 0.647 * (iComp * sin(angle) + qComp * cos(angle)),
+            luma - 1.106 * (iComp * cos(angle) - qComp * sin(angle))
+                + 1.703 * (iComp * sin(angle) + qComp * cos(angle)))
+        for channel in 0..<3 {
+            XCTAssertEqual(rotated[channel], expected[channel], accuracy: 1e-9,
+                "uniform table rotates every hue identically (ch \(channel))")
+        }
+        // (2) the narrow window contains the adjustment.
+        var narrow = HlsModule.Params()
+        narrow.adjTable[2] = HlsVec3(h: 30, l: 0, s: 0)  // bin 2 = 90°
+        narrow.hRangeTable[2] = 1
+        let atCenter = HlsModule.reference(acescc: SIMD3(0.2, 0.3, 0.1), params: narrow)
+        XCTAssertNotEqual(atCenter, pixel, "the center hue moves")
+        let off45 = HlsModule.reference(acescc: SIMD3(0.1, 0.3, 0.15), params: narrow)
+        for channel in 0..<3 {
+            XCTAssertEqual(
+                off45[channel], SIMD3(0.1, 0.3, 0.15)[channel], accuracy: 1e-12,
+                "45 degrees away with w=1 the Gaussian weight is ~2^-2025 (ch \(channel))")
+        }
+    }
+
+    func testHlsGoldenParameterPoints() async throws {
+        let metal = try await makeMetal()
+        let field = sampleField()
+        // Single-bin hue shift + a multi-bin table.
+        var singleBin = HlsModule.Params()
+        singleBin.adjTable[0] = HlsVec3(h: 10, l: 0.05, s: 0.1)
+        var multiBin = HlsModule.Params()
+        for i in 0..<8 {
+            multiBin.adjTable[i] = HlsVec3(
+                h: Float(i) - 4.0, l: Float(i) * 0.01 - 0.04,
+                s: Float(i % 3) * 0.05 - 0.05)
+            multiBin.hRangeTable[i] = 30 + Float(i) * 5
+        }
+        for params in [singleBin, multiBin] {
+            try await assertGolden(
+                module: HlsModule(), params: params,
+                reference: { HlsModule.reference(acescc: $0, params: params) },
+                field: field, metal: metal)
+        }
+    }
+
+    func testHlsIdentityIsPixelExact() async throws {
+        let metal = try await makeMetal()
+        let field = sampleField()
+        let texels = encodeField(field)
+        let (input, output) = makeTexture(metal, texels: texels)
+        let module = HlsModule()
+        var piece = IOPiece()
+        module.commitParams(HlsModule.Params(), into: &piece)
+        try await module.process(
+            input: input, output: output, roiIn: ROI(), roiOut: ROI(),
+            piece: &piece, metal: metal)
+        let out = readOutput(output, metal: metal)
+        for (index, value) in texels.enumerated() {
+            XCTAssertEqual(out[index], value, accuracy: 0, "texel \(index)")
+        }
+    }
+
+    /// The single-target mapping (KD-7/OQ-6): Float64 对照 + 8-bin 遍历完备.
+    func testHlsApplyTargetEditMapping() {
+        var params = HlsModule.Params()
+        // Editing bin 5 with (+15°, +30, −40):
+        let edited = HlsModule.applyTargetEdit(
+            params: params, targetBin: 5, dh: 15, dl: 30, ds: -40)
+        // The bin row: hue ±30 clamp, l/s = UI/1000.
+        XCTAssertEqual(edited.adjTable[5].h, 15)
+        XCTAssertEqual(edited.adjTable[5].l, 0.03, accuracy: 1e-9)
+        XCTAssertEqual(edited.adjTable[5].s, -0.04, accuracy: 1e-9)
+        // The current-target projection (Alcedo currentHlsWrite).
+        XCTAssertEqual(edited.hlsAdj.h, edited.adjTable[5].h)
+        XCTAssertEqual(edited.hRange, edited.hRangeTable[5])
+        XCTAssertEqual(edited.targetHls.h, edited.hueBins[5])
+        XCTAssertEqual(edited.targetHls.l, 0.5)
+        XCTAssertEqual(edited.targetHls.s, 0.5)
+        XCTAssertEqual(edited.lRange, 1.0)
+        XCTAssertEqual(edited.sRange, 1.0)
+        // Other bins untouched.
+        for i in 0..<8 where i != 5 {
+            XCTAssertEqual(edited.adjTable[i], params.adjTable[i])
+        }
+        // Clamps: hue ±30, l/s ±100.
+        let clamped = HlsModule.applyTargetEdit(
+            params: params, targetBin: 0, dh: 99, dl: 999, ds: -999)
+        XCTAssertEqual(clamped.adjTable[0].h, 30)
+        XCTAssertEqual(clamped.adjTable[0].l, 0.1, accuracy: 1e-9)
+        XCTAssertEqual(clamped.adjTable[0].s, -0.1, accuracy: 1e-9)
+        // 8-bin traversal completeness: every bin is editable and reads
+        // back its own row.
+        for bin in 0..<8 {
+            let p = HlsModule.applyTargetEdit(
+                params: params, targetBin: bin, dh: 5, dl: 10, ds: 10)
+            XCTAssertEqual(p.adjTable[bin].h, 5)
+            XCTAssertEqual(p.targetHls.h, params.hueBins[bin])
+        }
+    }
 }
