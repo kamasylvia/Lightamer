@@ -35,19 +35,19 @@
 | Tone | `colorcontrast` | **compat** | —（D6 独有件） | **Alcedo 无对应**（同上） |
 | Tone | `toneequal` | **compat** | —（dt tone equalizer） | **Alcedo 无对应**（同上） |
 | Tone | `temperature` | **compat** | —（相机 WB = RAW Decode / CIRAW 域，M2GRADE-04；CAT02 创意 WB = Look/Color 组新件） | **Alcedo 无对应**（M2-5-2 D5：主面摘除 =「Tone −1 行」） |
-| Look | `vibrance` | main | Look: Saturation/Vibrance | — |
-| Look | `velvia` | main | Look: Vibrance 增强 | **Alcedo 无对应**（D6 独有增强） |
-| Look | `monochrome` | main | Look: Selective Color/Mono | **Alcedo 无对应**（D6 独有增强） |
-| Look | `colorbalancergb` | main | Look: LGG 色轮（M2-5 前 ColorBalanceRGB 暂驻） | — |
-| Look | `colorzones` | main | Look: Selective Color（L/C/h 三轴） | — |
-| Look | `skinSmooth` | main | Look: Detail/Texture 辅助 | **Alcedo 无对应**（D6 独有增强） |
-| Look | `sharpen` | main | Look: Detail | — |
-| Look | `highpass` | main | Look: Texture（高频腿） | **Alcedo 无独立对应**（与 soften 同视图双 provider） |
-| Look | `soften` | main | Look: Texture（柔化腿） | 同上（共用 HighpassSoften 面板视图） |
-| Look | `bilat` | main | Look: Detail（局部对比） | **Alcedo 无对应**（LocalContrast 面板；opName 沿 dt `bilat` 字面） |
-| Look | `equalizer` | main | Look: Detail（多频带） | **Alcedo 无对应** |
-| Look | `grain` | main | DRT 后 Post: FilmGrain（M2-6 前暂驻 Look，OQ-4 DT 行注记） | 暂驻语义（M2-6 迁 DRT 后段） |
-| Look | `bloom` | main | DRT 后 Post: Halation（M2-6 前暂驻 Look，同上） | 暂驻语义（同上） |
+| Look | `vibrance` | **Master** | Look: Saturation/Vibrance | — |
+| Look | `equalizer` | **Look（D9 占位组）** | Look: Clarity（Equalizer 单滑杆呈现简化 = D9 面板决策） | 「applies pre-DRT for now — moves post-DRT with M2-6」注记行 |
+| Look | `sharpen` | **Look（D9 占位组）** | Look: Sharpen | 同上注记行 |
+| Look | `grain` | **Look（D9 占位组）** | Look: Film Grain | 同上注记行（M2-6 迁 DRT 后段） |
+| Look | `bloom` | **Look（D9 占位组）** | Look: Halation | 同上注记行（同上） |
+| Look | `velvia` | **Detail/Texture** | —（D6 独有增强） | **Alcedo 无对应**（D6 收纳 Detail/Texture 组） |
+| Look | `monochrome` | **Detail/Texture** | —（D6 独有增强） | **Alcedo 无对应**（同上） |
+| Look | `colorbalancergb` | **Detail/Texture** | —（D6 独有件；LGG 色轮 = 新 colorWheels 件，随 T4 批挂 Color 组） | **Alcedo 无对应**（同上） |
+| Look | `colorzones` | **Detail/Texture** | —（checker m1 裁定归 Detail/Texture；HLS Selective Color = 新 hls 件，随 T5 批挂 Color 组） | **Alcedo 无对应**（同上） |
+| Look | `skinSmooth` | **Detail/Texture** | —（D6 独有增强） | **Alcedo 无对应**（同上） |
+| Look | `highpass` | **Detail/Texture** | Look: Texture（高频腿） | **Alcedo 无独立对应**（与 soften 同视图双 provider） |
+| Look | `soften` | **Detail/Texture** | Look: Texture（柔化腿） | 同上（共用 HighpassSoften 面板视图） |
+| Look | `bilat` | **Detail/Texture** | —（局部对比；LocalContrast 面板，opName 沿 dt `bilat` 字面） | **Alcedo 无对应**（D6 收纳 Detail/Texture 组） |
 | LUT | `lut3d` | main | LUT 页（递归扫描/根目录选择器 = M2GRADE-05/06 留 M2-5） | — |
 | Display Transform | `vignette` | main | DRT/Post（暗角） | — |
 | Display Transform | —（占位节） | special | DRT 本体：OpenDRT / ACES 2.0（目标空间/传递函数/峰值亮度，HDR 直出） | 「arrives with M2-6」占位节；**AgX 失挂（E1 勘误）** |
