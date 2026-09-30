@@ -1,12 +1,13 @@
 ---
 phase: m2-6
 plan: "M2-6-1"
-title: "OpenDRT 核（wave 1）——DrtRecord schema 单文件（DrtMethod/DrtEotf/DrtEncodingSpace/DrtLimitingSpace 四枚举 + 12 顶层字段 + 53 detailed 参数 + legalEOTFs 联动表 + IsHdrEncoding 纯函数）+ EOTF 编码核七函数（ST2084/HLG/BT.1886/G2.6/G2.2/G1.8/Linear，Swift Float64 + Metal 双落笔）+ OpenDRT Float64 参考实现（dctl 走读转录，算法结构图头注）+ OpenDRT Metal kernel（53 参数 MTLBuffer 单 PSO）+ 预设三件套具名快照（Look 7 + Tonescale 全枚举 + Creative White 6，数值事实转录 + NOTICE 署名）+ sidecar v5→v6 additive + drtTail 尾段策略枚举与管线装配（edrDisplayLeg 收敛 + colorout/gamma 终端对降级）"
+title: "OpenDRT 核（wave 1）——DrtRecord schema 单文件（DrtMethod/DrtEotf/DrtEncodingSpace/DrtLimitingSpace 四枚举 + 12 顶层字段 + 53 detailed 参数 + legalEOTFs 联动表 + IsHdrEncoding 纯函数）+ EOTF 编码核七函数（ST2084/HLG/BT.1886/G2.6/G2.2/G1.8/Linear，Swift Float64 + Metal 双落笔）+ OpenDRT Float64 参考实现（dctl 走读转录，算法结构图头注）+ OpenDRT Metal kernel（53 参数 MTLBuffer 单 PSO）+ 预设三件套具名快照（Look 7 + Tonescale 全枚举 + Creative White 6，数值事实转录 + NOTICE 署名）+ sidecar v5→v6 additive + drtTail 尾段策略枚举与管线装配（edrDisplayLeg 收敛 + colorout/gamma/borders/watermark 终端降级）"
 wave: 1
 depends_on: ["M2-5"]
 autonomous: true
 requirements: [M2DRT-02, M2DRT-04, M2DRT-06]
 files_modified:
+  - App/Sources/Lightamer/State/PipeCoordinator.swift       # 修改（E1）：edrDisplayLeg→terminalTail 参数换名的四传点机械替换（run 传点组装处；传值语义等价，EDR 开关语义 P3 才动）——checker E1 申报补齐
   - LightamerCore/Sources/Graph/DrtRecord.swift            # 新建：DrtMethod/DrtEotf/DrtEncodingSpace/DrtLimitingSpace 枚举 + DrtRecord（12 顶层字段）+ OpenDrtDetailedParams（53 Float）+ legalEOTFs(for:) + isHdrEncoding(_:) + stableHash——「联动/HDR 判定知识单文件承载」（CONTEXT Specific Ideas 钦定；OQ-2-A/OQ-5-A/OQ-6-A 落点）
   - LightamerCore/Sources/Pipe/Drt/DrtEotf.swift            # 新建：七 EOTF Swift Float64 编码核（encode/decode 对 + 规范常数单源）
   - LightamerCore/Sources/Pipe/Drt/DrtEotfKernels.metal     # 新建：七 EOTF Metal 公共函数库（kernel 与测试共用同一份常数）
@@ -24,6 +25,7 @@ files_modified:
   - Tests/LightamerTests/DrtPresetsTests.swift              # 新建（LAYERS）：预设快照完备性 + 默认值断言 + custom 判定
   - Tests/LightamerTests/DrtTailTests.swift                 # 新建（LAYERS，LayerCompositeTests 同位）：尾段策略枚举三态 + 非 drt 路径逐字节不变 + SDR/HDR 平面格式 + 键稳定
   - Tests/LightamerTests/DrtSidecarTests.swift              # 新建（APP，SidecarV5Tests 同位——undo/redo 载入链实例化 EditorState）：v6 additive 双向 + v5 档字节零漂移 + 未来版本容忍
+  - Tests/LightamerTests/EDRViewportTests.swift             # 修改（E1）：edrDisplayLeg→terminalTail 测试调用点机械同步（传点一处，参数名替换；断言语句零改动；文件实在 LightamerTestsIOP bundle 在册，登记零改）——checker E1 申报补齐
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt  # 修改：六个新测试文件增行（登记纪律②，同 commit）
   - .work/gsd/phases/m2-6-drt/M2-6-1-SUMMARY.md             # 新建（收口任务）
   - .work/gsd/phases/m2-6-drt/M2-6-1-DECISIONS.md           # 新建（收口任务）
@@ -33,7 +35,8 @@ files_modified:
 
 # Plan M2-6-1 — OpenDRT 核（DrtRecord schema + EOTF 编码核 + Float64 参考 + Metal kernel + 预设三件套 + sidecar v6 + drtTail 装配）
 
-> **性质**：算法/管线 plan——App 层零改动（面板/持久化接线/HDR 视口归 P3/M2-6-3，ACES 2.0 method
+> **性质**：算法/管线 plan——App 层零改动（除 PipeCoordinator 的 edrDisplayLeg→terminalTail
+> 四传点参数名机械替换（E1）；面板/持久化接线/HDR 视口归 P3/M2-6-3，ACES 2.0 method
 > 归 P2/M2-6-2）。六块交付：①**DrtRecord 单文件 schema**（OQ-2-A/OQ-5-A/OQ-6-A 落盘：四枚举 +
 > 12 顶层字段 + 53 detailed 参数 + `legalEOTFs` 联动表 + `isHdrEncoding` 纯函数 + stableHash）；
 > ②**EOTF 编码核七函数**（M2DRT-04 编码腿地基 + M2-9 导出复用缝）；③**OpenDRT Float64 参考实现**
@@ -45,9 +48,9 @@ files_modified:
 >
 > **执行期精读悬决点**（CONTEXT「夜间授权预案」预告的 plan 期回填项中属本 plan 的三件，全部在
 > T1-T5 内核读钉死、DECISIONS 签注）：①预设数值转录许可边界（OQ-1 附注——夜间授权已按 A 生效，
-> 执行期只做 NOTICE 落笔与数值抽检记录，不再重开）；②预设枚举真值清单（tonescale 15 项系
-> REQUIREMENTS 计数，以 dctl `DEFINE_UI_PARAMS` 枚举清单为准——差异勘误注记入 DECISIONS，不改
-> REQUIREMENTS 原文）；③EOTF 规范常数终式（BT.1886 黑位参数/HLG OOTF 参考环境光取值——以
+> 执行期只做 NOTICE 落笔与数值抽检记录，不再重开）；②预设枚举真值清单（REQUIREMENTS 记 15 项；
+> dctl 实枚举 **14 项含 USE LOOK PRESET**（`tonescale_preset` tsprst0..13，m3 附注预记勘误）——
+> 执行期仍以 dctl 枚举清单为准核读钉死，差异勘误注记入 DECISIONS，不改 REQUIREMENTS 原文）；③EOTF 规范常数终式（BT.1886 黑位参数/HLG OOTF 参考环境光取值——以
 > ITU-R 规范 + dctl `eotf_pq`/`eotf_hlg`（:453/:476）数值抽检对照钉死）。**语义忠实 > 数学家
 > 自洽**：dctl 实现为唯一对照源，公式照思路重写，GPL 代码零复制入库。
 
@@ -120,6 +123,12 @@ public func isDrtRecordDefault(_ r: DrtRecord) -> Bool  // == DrtRecord()（pris
   Alcedo spelling」惯例一致（M2-5-1 KD-6 同款）； CodingKeys 全显式，禁 Swift 自动 camelCase
   转换。rawValue 字符串终值（method/空间/EOTF 的序列化形态）执行期核读 `drt_node_model.cpp`
   ToJson 钉死、DECISIONS 签注（工作假设 = hpp 枚举名 snake_case 直译）。
+- **hpp 值域偏离声明（m4，checker 回注）**：Alcedo hpp `DrtColorSpace` 仅 **3 值**
+  （Rec709/Rec2020/P3D65，:29-33——encoding_space 与 limiting_space 共用该枚举）；本模型的
+  `DrtEncodingSpace` 六值 / `DrtLimitingSpace` 七值系**超出 hpp 值域的产品偏离**（p3d60/
+  p3dci/xyz/proPhoto/adobeRGB 等为 Lightamer/FEATURE-MAP §5 扩展）。超出值的 rawValue **无
+  hpp 对照源**（自定 spelling，无 ToJson 可核）——T1 DECISIONS 写明偏离清单与自定 spelling
+  依据（hpp 内 3 值照抄、其余自定直译），禁谎称「照抄 hpp」。
 - **一致性维持答案（KD 必答）**：本 plan **不改任何加载/校验路径**——DrtRecord 是纯数据面，
   decode 面只有 sidecar v6 additive（KD-5）；PipelineDocument/LayerStack/NodeGraphCommand
   零触碰（图拓扑零改动，CONTEXT 事实基线③）。`displayTransformNodeID` 消费零变化。
@@ -130,8 +139,9 @@ public func isDrtRecordDefault(_ r: DrtRecord) -> Bool  // == DrtRecord()（pris
 
 ### KD-2 EOTF 编码核七函数 = Swift Float64 + Metal 公共库双落笔
 
-- 七函数：`linear`（恒等）/ `st2084`（PQ，ITU-R BT.2100：`E' = (c1 + c2·Y^m1) / (1 + c3·Y^m1)`
-  的 1/n 幂形，Y = 线性值 × peak nits / 10000）/ `hlg`（BT.2100 reference OOTF + 逆 OETF，
+- 七函数：`linear`（恒等）/ `st2084`（PQ，ITU-R BT.2100：`E' = ((c1 + c2·Y^m1) / (1 +
+  c3·Y^m1))^m2`——分式整体取 **m2 次幂**（m2 = 2523/32 ≈ 78.84，m6 订正；dctl :485/:492
+  同式对照），Y = 线性值 × peak nits / 10000）/ `hlg`（BT.2100 reference OOTF + 逆 OETF，
   1000-nit 参考 peak——OOTF 环境光项执行期按规范 Table 5 简化式钉死、DECISIONS 签注）/
   `gamma26`/`gamma22`/`gamma18`（纯幂）/ `bt1886`（ITU-R BT.1886：gamma 2.4 + 黑位 lift 项，
   Lb 执行期按规范 + dctl 数值抽检钉死）。
@@ -233,20 +243,35 @@ public struct DrtTailParams: Sendable, Equatable {
 
 - **收敛方式（半径红线）**：`edrDisplayLeg` 存储属性改为**派生计算属性**
   （`terminalTail == .edrLinear`），两处既有判定点（`PixelPipe.swift:655`/`:873` gamma skip
-  条件）**引用与语义零改**——EDR 既有测试（EDRViewportTests 等）全绿零改动 = 收敛无回归的
-  活体证明。调用面：`process`/`processComposite` 的 `edrDisplayLeg: Bool` 参数换
+  条件）**引用与语义零改**——EDR 既有测试（EDRViewportTests 等）除调用点参数名机械替换外
+  **断言零改动**全绿 = 收敛无回归的活体证明（E1：EDRViewportTests 传点机械同步）。调用面：
+  `process`/`processComposite` 的 `edrDisplayLeg: Bool` 参数换
   `terminalTail: TerminalTailPolicy = .sdrGamma`（默认值 = 现行为；**调用点穷举**——App
-  PipeCoordinator 传点 + 测试传点逐个改，`git grep edrDisplayLeg` 零残留为 AC 机检）。
-- **drt 尾段装配（run 内，顶位置渲染后）**：①colorout+gamma 入 skip 集（同 EDR gamma 降级
-  模式——禁用判定在 pass 装配处，非运行时跳跑）；②尾段 box 链 `[DrtMethodBox] → [EotfBox]`
-  driver 直构（KD-4）在顶位置输出平面上续跑；③输出平面格式按 `isHdrEncoding` +
+  PipeCoordinator 四传点 + 测试传点逐个改，`git grep edrDisplayLeg` 零残留为 AC 机检）。
+- **drt 尾段装配（run 内，顶位置渲染后）**：①colorout+gamma+borders+watermark 入 skip 集
+  （同 EDR gamma 降级模式——禁用判定在 pass 装配处，非运行时跳跑；skip 集扩含 borders/
+  watermark 系 E2 裁决，见下条）；②尾段 box 链 `[DrtMethodBox] → [EotfBox] →
+  [borders 原参数] → [watermark 原参数]` driver 直构（KD-4 + E2 机械搬运——borders/
+  watermark box 原样复用零新 kernel；Post 四件插槽锚仍在 DrtMethodBox 与 EotfBox 之间，
+  本 plan 恒空）在顶位置输出平面上续跑；③输出平面格式按 `isHdrEncoding` +
   EOTF 族：SDR（bt1886/gamma26/gamma22/gamma18）= `.bgra8Unorm` 显示平面（gamma 尾段先例：
   软件编码 + drawable 非 _srgb 变体）；HDR（st2084/hlg）= `.rgba16Float`（EDR 先例，16F
   drawable 直写）；linear = float32（编码空间线性原色，视口走 EDR 线性腿先例）。
+- **终端尾段居民全量 + borders/watermark 迁移裁决（E2，checker 回注——M2-5 E1 同族勘误）**：
+  terminal 尾段实态居民 = colorout(70.0)/**borders(76.0，Yiyin BordersModule)**/
+  **watermark(77.0，Yiyin WatermarkModule)**/gamma(78.0)——非仅 colorout+gamma。**裁决**：
+  drt 激活时 borders/watermark 随 Post 四件一并移入尾段——主链 skip（上条①）+ 尾段
+  EOTF 之后重放（上条②序位）；display-referred 域适配标定与 OQ-9 Post 四件标定**同批**
+  归 P3 T5（M2-6-3），本 plan 只做机械搬运（原参数原样复用）。**guard 断言（印框永不被
+  tone map）**：含印框/水印链的序/域断言 = `C_N→…→DRT→EOTF→borders→watermark`（borders/
+  watermark 段之后无任何 tone map 段）；P3 T5 填充 Post 四件插槽时不得违反本序（guard
+  断言锁序）。AC#8 吸收。
 - **缓存键（KD 必答——`PipeCacheKey.swift` 零 diff 红线）**：尾平面键 = 顶位置+1 的既有键
   结构，`upstreamHash = levelHash[top] ⊕ recordHash ⊕ tailPolicyHash`（policy 折叠进
-  upstreamHash，无新 key 字段）；EOTF 切换 → recordHash 不变但 policy 变 → 尾平面重算而
-  colorout 前全 HIT（与 gamma 先例「显示变更只重跑 colorout+gamma 段」同型）；EDR 开关
+  upstreamHash，无新 key 字段）；EOTF 切换 → encodingEotf 是 record 字段，recordHash
+  **随之变**；因 recordHash/policy 只折叠进尾平面键（主链键不含二者），尾平面重算而
+  colorout 前全 HIT——**policy 单独折叠使 EOTF 切换不重算主链**（m1 订正，结论不变；
+  与 gamma 先例「显示变更只重跑 colorout+gamma 段」同型）；EDR 开关
   （.sdrGamma ↔ .edrLinear）零失效语义不变（既有注释 :135-146 断言语义由测试保持）。
   EXPORT 不缓存红线不动（11-03）。
 - **零行为差门（AC 硬条）**：`terminalTail == .sdrGamma` 时全管线输出**逐字节**等于改造前
@@ -256,11 +281,12 @@ public struct DrtTailParams: Sendable, Equatable {
 
 - `DrtPresets.swift`：
   - `DrtLookPreset`：standard/arriba/sylvan/colorful/aery/dystopic/umbra 七具名（+ custom
-    派生态）→ 各自 `OpenDrtDetailedParams` 全 53 值（dctl `:791-828` 各 look 分支数值表
-    逐字段转录——**数值事实**，OQ-1-A 许可边界内）。
-  - `DrtTonescalePreset`：枚举清单执行期从 dctl `DEFINE_UI_PARAMS(_tonescale_preset,…)`
-    枚举转录（REQUIREMENTS 记 15 项；实际枚举以 dctl 为准，差异勘误注记 DECISIONS）——每项
-    → tn 系参数覆盖表（use_look_preset = 不覆盖，随 look）。
+    派生态）→ 各自 `OpenDrtDetailedParams` 全 53 值（dctl `:758-783` 各 look 分支数值表
+    逐字段转录——**数值事实**，OQ-1-A 许可边界内；m3 行号订正）。
+  - `DrtTonescalePreset`：枚举清单执行期从 dctl `DEFINE_UI_PARAMS(tonescale_preset,…)`
+    枚举转录（参数名**无前导下划线**，dctl :125——m3 订正；REQUIREMENTS 记 15 项，dctl
+    实枚举 **14 项含 USE LOOK PRESET**——m3 附注预记勘误，执行期核读钉死后差异勘误注记
+    DECISIONS）——每项 → tn 系参数覆盖表（use_look_preset = 不覆盖，随 look）。
   - `DrtCreativeWhite`：useLookPreset/d93/d75/d65/d60/d55/d50（dctl `_cwp` 七值——6 具名
     白 + use_look_preset，FEATURE-MAP「6」按具名白计数）。
   - `applyPreset(record:look:tonescale:white:) -> DrtRecord`：一次原子应用（P3 面板消费，
@@ -327,7 +353,9 @@ public struct DrtTailParams: Sendable, Equatable {
    不触）；`PixelPipe.swift` 改动半径 = TerminalTailPolicy 枚举 + drt 尾段装配 + 头注
    （blend 公式/retouch leg/base sub-run/composite 段零改动——diff 越界 = 违约）；
    `LayerCompositeDriver.swift` 改动半径 = terminalTail 参数透传（与既有 edrDisplayLeg
-   参数同位）；`EditorTabRoute.swift`/App 层全目录零触（P3 面）。GPL 参考只读（dctl 代码
+   参数同位）；**App 层零触，除 `PipeCoordinator.swift` 的 edrDisplayLeg→terminalTail
+   传点机械替换**（E1——四传点参数名替换 + 传值语义等价，EDR 开关语义 P3 才动）；
+   `EditorTabRoute.swift` 零触（P3 面）。GPL 参考只读（dctl 代码
    与 expected bins 不入库）。
 6. **测试登记纪律（checker E2）**：新建测试文件**同 commit** 登记两处——①`Project.swift`
    对应 bundle sources 显式清单；②`.work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt`
@@ -413,7 +441,7 @@ public struct DrtTailParams: Sendable, Equatable {
 
 ### T5 预设三件套 + NOTICE
 
-- **read_first**：上列 6（dctl :43-200 参数/枚举定义 + :791-828 look 分支）。
+- **read_first**：上列 6（dctl :43-200 参数/枚举定义 + :758-783 look 分支——m3 行号订正）。
 - **action**
   1. 新建 `LightamerCore/Sources/Pipe/Drt/DrtPresets.swift`：KD-7 全量（look 七具名快照 +
      tonescale 枚举真值清单 + creative white 七项 + applyPreset 纯函数 + isCustomLook）。
@@ -449,12 +477,15 @@ public struct DrtTailParams: Sendable, Equatable {
 - **read_first**：上列 3/5/7。
 - **action**
   1. `PixelPipe.swift`：KD-6 全量（TerminalTailPolicy + edrDisplayLeg 派生化 + 调用点
-     穷举改传 + drt 尾段装配 `[DrtMethodBox] → [EotfBox]` + colorout/gamma skip + 平面
-     格式三态 + 缓存键折叠）。`LayerCompositeDriver.swift`：terminalTail 参数透传。
+     穷举改传 + drt 尾段装配 `[DrtMethodBox] → [EotfBox] → [borders] → [watermark]` +
+     colorout/gamma/borders/watermark skip（E2）+ 平面格式三态 + 缓存键折叠）。
+     `LayerCompositeDriver.swift`：terminalTail 参数透传。
   2. 新建 `Tests/LightamerTests/DrtTailTests.swift`（LAYERS）：**零行为差门**（.sdrGamma
      时既有 fixture 栈输出逐字节不变）+ EDR 路径等价（.edrLinear 与改造前 edrDisplayLeg
-     true 语义一致——EDR 既有测试全绿佐证）+ drt 尾段 SDR 8bit 平面格式断言 + HDR 16F
-     断言 + linear float32 断言 + gamma/colorout skip（drt 激活时二位不进 pieces 求值）+
+     true 语义一致——EDR 既有测试（机械替换后）全绿佐证）+ drt 尾段 SDR 8bit 平面格式断言 +
+     HDR 16F 断言 + linear float32 断言 + gamma/colorout/borders/watermark skip（drt 激活时
+     四位不进主链 pieces 求值）+ **含印框链 guard 断言**（borders/watermark 文档 drt 激活：
+     尾段序 `C_N→…→DRT→EOTF→borders→watermark` + 印框段之后无 tone map 段——E2）+
      键稳定（同 record 二次运行 HIT）+ EOTF 切换失效面（record 换 eotf → 尾平面 MISS 而
      colorout 前全 HIT）+ PREVIEW/FULL 双路径烟测 + method switch 穷举断言（aces20 stub
      触发、opendrt 正常——无 default 臂机检）。
@@ -473,7 +504,9 @@ public struct DrtTailParams: Sendable, Equatable {
      SUMMARY）。
   2. 落盘 `M2-6-1-SUMMARY.md`（测试数变化/容差实配值与报警行/kernel PSO 编译耗时观察/
      EOTF 常数终式引用）+ `M2-6-1-DECISIONS.md`（执行期精读悬决点终式签注：rawValue 终式/
-     BT.1886 黑位与 HLG OOTF 简化式/tonescale 枚举勘误/容差谱终版与分级依据/数值抽检结论）。
+     BT.1886 黑位与 HLG OOTF 简化式/tonescale 枚举勘误（实枚举 14 项——m3 附注）/hpp 值域
+     偏离声明（DrtColorSpace 仅 3 值，六/七值枚举超出值域的自定 spelling——m4）/容差谱终版
+     与分级依据/数值抽检结论）。
   3. `.work/GOAL-STATE.md` 续接点追加（M2-6-1 完成 + 下一步 = M2-6-2）；LESSONS 如踩坑。
   4. `git diff --stat` 核对文件边界与 front-matter 一致（纪律 7）。
 - **验收标准**
@@ -490,9 +523,9 @@ public struct DrtTailParams: Sendable, Equatable {
 | 5 | OpenDRT kernel golden：探针三件套 × 参数四点 ≤1e-5 p99.9（或 DECISIONS 签注分级终谱）；位精确确定性（同输入两次逐字节相等）；PREVIEW/FULL 双路径同容差 | DrtKernelGoldenTests |
 | 6 | 预设三件套：七 look 快照完备 + applyPreset 原子（逐字段相等）+ isCustomLook 派生语义 + tonescale 真值清单 + creative white 七项；NOTICE 署名在册；抽检结论入 DECISIONS | DrtPresetsTests + `git grep` NOTICE |
 | 7 | sidecar v6：schemaVersionCurrent==6；round-trip 一致；**v5 档编码字节零漂移**；v5 档读 nil；schema 99 容忍；diff 仅 additive | DrtSidecarTests + `git diff` 逐 hunk |
-| 8 | drtTail：.sdrGamma 零行为差（fixture 栈逐字节不变）；.edrLinear 等价（EDR 既有测试零改动全绿）；SDR 8bit/HDR 16F/linear float32 三态格式；colorout+gamma skip；键稳定 + EOTF 切换尾平面 MISS 而 colorout 前全 HIT；PREVIEW/FULL 烟测 | DrtTailTests + 既有 EDR 测试 |
+| 8 | drtTail：.sdrGamma 零行为差（fixture 栈逐字节不变）；.edrLinear 等价（EDR 既有测试**除调用点参数名机械替换外断言零改动**全绿——E1）；SDR 8bit/HDR 16F/linear float32 三态格式；colorout+gamma+borders/watermark skip；**含印框链序/域断言（C_N→…→DRT→EOTF→borders→watermark，印框永不被 tone map——E2）**；键稳定 + EOTF 切换尾平面 MISS 而 colorout 前全 HIT；PREVIEW/FULL 烟测 | DrtTailTests + 既有 EDR 测试 |
 | 9 | method 注册口形状：DrtMethod switch 穷举无 default（编译+CaseIterable 机检）；aces20 = 显式 stub（测试锁定，P2 替换面）；filmic/sigmoid/agx 零注册（`git grep` Registry 无新增） | DrtTailTests + grep |
-| 10 | `PipeCacheKey.swift`/`PipelineDocument.swift`/`LayerStack.swift`/`HistoryStack.swift`/`NodeOwnershipCatalog.swift`/`Registry.swift`/`V50Order.swift` 零 diff；`edrDisplayLeg` 调用点穷举清零（残留仅派生属性/头注） | `git diff --name-only` + `git grep` |
+| 10 | `PipeCacheKey.swift`/`PipelineDocument.swift`/`LayerStack.swift`/`HistoryStack.swift`/`NodeOwnershipCatalog.swift`/`Registry.swift`/`V50Order.swift` 零 diff；`edrDisplayLeg` 调用点穷举清零（残留仅派生属性/头注）；`PipeCoordinator.swift`/`EDRViewportTests.swift` diff = 调用点参数名机械替换（四传点 + 测试传点，断言语句零改动——E1） | `git diff --name-only` + `git grep` |
 | 11 | 全套回归 0 fail，计数 ≈ 2327 + 50..65 | test-direct.sh --all TOTAL 行双读 |
 | 12 | diff 边界 == 申报文件集；测试登记闭环（六文件 × Project.swift + BUNDLE-MAP 双命中） | `git diff --stat` + `git grep` |
 
@@ -529,3 +562,34 @@ public struct DrtTailParams: Sendable, Equatable {
 - T7 `feat(pipe): drt tail segment with terminal tail policy`
 - T8 `docs(m2-6): close out plan 1 opendrt core`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-10-01）
+
+checker 判 FAIL（5E+6M）后本 plan 落地项（E1/E2/m1/m3/m4/m6；E4 归 P2、E3/E5/m2/m5 归 P3）：
+
+- **E1（files_modified 申报缺 App 触面）**：front-matter 增 `App/Sources/Lightamer/
+  State/PipeCoordinator.swift`（edrDisplayLeg→terminalTail 参数换名的**四传点**机械替换）
+  + `Tests/LightamerTests/EDRViewportTests.swift`（测试传点机械同步，断言零改动）；纪律 5
+  改「**App 层零触，除 PipeCoordinator 传点替换**」（EditorTabRoute 仍零触）；性质行/
+  KD-6 收敛句/AC#8/#10 同步为「除调用点参数名机械替换外断言零改动」口径（实态核对：
+  PipeCoordinator :1816/:1827/:1897/:1908 四传点 + EDRViewportTests :283 一传点）。
+- **E2（terminal 尾段居民勘误——M2-5 E1 同族）**：KD-6 增裁决 bullet——terminal 尾段实态
+  居民 = colorout(70.0)/**borders(76.0)**/**watermark(77.0)**/gamma(78.0)；drt 激活时
+  borders/watermark 随 Post 四件移入尾段（主链 skip + EOTF 之后重放，display-referred 域
+  适配与 OQ-9 Post 标定同批归 P3 T5，本 plan 机械搬运原样复用）；**guard 断言**（含印框链
+  序/域断言 `C_N→…→DRT→EOTF→borders→watermark`，印框永不被 tone map）入 KD-6 + T7 测试面；
+  **AC#8 增含印框链断言**；尾段装配序改为 `[DrtMethodBox] → [EotfBox] → [borders] →
+  [watermark]`；标题/头注⑥「colorout/gamma 终端对降级」同步扩 borders/watermark。
+- **m1（EOTF 切换机制句订正）**：KD-6 缓存键 bullet——encodingEotf 是 record 字段，
+  recordHash 会变（原文「recordHash 不变」错）；结论不变，改「**policy 单独折叠使 EOTF
+  切换不重算主链**」（recordHash/policy 只折叠进尾平面键，主链键不含二者）。
+- **m3（dctl 引用漂移订正）**：look 分支 `:791-828` → **`:758-783`**（KD-7 + T5
+  read_first 两处）；`DEFINE_UI_PARAMS(_tonescale_preset,…)` → **`tonescale_preset`**
+  （无前导下划线，dctl :125）。**m3 附注**：tonescale 实枚举 **14 项（含 USE LOOK
+  PRESET**，tsprst0..13）预记勘误进悬决点②/KD-7/T8 DECISIONS 项。
+- **m4（hpp 值域偏离声明）**：KD-1 增 bullet——Alcedo hpp `DrtColorSpace` 仅 **3 值**
+  （Rec709/Rec2020/P3D65，:29-33）；六值 DrtEncodingSpace / 七值 DrtLimitingSpace 系超出
+  hpp 值域的产品偏离，超出值 rawValue **无对照源**（自定 spelling）——T1 DECISIONS 写明
+  偏离清单与依据，禁谎称「照抄 hpp」。
+- **m6（PQ encode 公式行订正）**：KD-2 st2084——`E' = ((c1 + c2·Y^m1) / (1 + c3·Y^m1))^m2`
+  （分式整体取 **m2 次幂**，m2 = 2523/32；dctl :485/:492 同式对照），原文「1/n 幂形」删。

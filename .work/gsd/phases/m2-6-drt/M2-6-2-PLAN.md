@@ -11,6 +11,7 @@ files_modified:
   - LightamerCore/Sources/Pipe/Drt/Aces2Reference.swift     # 新建：ACES 2.0 ODT Float64 参考实现（JMh 参数化 tonescale + purity/highlight/shadow 处理 + limiting 编码链；算法结构图头注 = aces-core CTL 转录正本）
   - LightamerCore/Sources/Pipe/Drt/Aces2Limiting.swift      # 新建：Limiting Space 七选数据表（七组 primaries → RGB→XYZ 矩阵 + 编码限制面参数；BSD 数据表 vendored 署名行）
   - LightamerCore/Sources/Pipe/Drt/Aces2Kernels.metal       # 新建：ACES 2.0 compute kernel（CAM16 + ODT + RGC 前置段 + limiting 全内联；参数 MTLBuffer 单 PSO 沿 M2-6-1 KD-4 形态）
+  - LightamerCore/Sources/Pipe/PixelPipe.swift              # 修改（E4 申报补齐，T4）：aces20 stub 臂替换为真实现——diff 半径 = DrtMethodBox 分派函数内数行（纪律 9 红线：禁触尾段装配/键折叠/策略枚举；D-M2-6-CONTEXT-12 D1 兑现）
   - NOTICE                                                  # 修改：AMPAS aces-core（BSD 风格）署名条目落笔（移植函数清单 + 上游 SHA/版本）
   - Project.swift                                           # 修改：新测试文件登记（checker E2 纪律）
   - Tests/LightamerTests/Aces2MathTests.swift               # 新建（LAYERS，Core 级）：CAM16 往返/锚点 + limiting 表 + RGC 纯函数
@@ -284,3 +285,13 @@ files_modified:
 - T4 `feat(core): aces 2.0 metal kernel and method dispatch`
 - T5 `docs(m2-6): close out plan 2 aces 2.0`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-10-01）
+
+checker 判 FAIL（5E+6M）后本 plan 落地项（本 plan 仅 E4；E1/E2/m1/m3/m4/m6 归 P1、
+E3/E5/m2/m5 归 P3）：
+
+- **E4（front-matter 申报缺件）**：files_modified 增
+  `LightamerCore/Sources/Pipe/PixelPipe.swift`——T4 action 2 的 aces20 stub 臂替换真实现
+  本就改动该文件（纪律 9 半径与 AC#8 已有半径描述，front-matter 漏申报）；申报行注明
+  diff 半径 = DrtMethodBox 分派函数内数行（禁触尾段装配/键折叠/策略枚举）。

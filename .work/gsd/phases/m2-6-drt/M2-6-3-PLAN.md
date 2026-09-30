@@ -24,7 +24,7 @@ files_modified:
   - Project.swift                                            # 修改：新测试文件登记（checker E2 纪律）
   - Tests/LightamerTests/DrtPersistenceTests.swift           # 新建（APP，SidecarV5Tests 同位）：session carrier/写腿/restore 腿/undo-redo 恢复/historyHash 折叠
   - Tests/LightamerTests/DrtPanelModelTests.swift            # 新建（APP）：面板 Model 预设应用/吸附/commit 语义
-  - Tests/LightamerTests/DrtViewportTests.swift              # 新建（APP，EDRViewportTests 同位）：HDR 判定→blit regime/colorspace 四分支 + 非 DRT 逐字节不变
+  - Tests/LightamerTests/DrtViewportTests.swift              # 新建（APP，EditorMetalLegRegressionTests 同位——EDRViewportTests 实在 IOP bundle，m2 同位订正）：HDR 判定→blit regime/colorspace 四分支 + D-COL2 follow gate 扩展（E3） + 非 DRT 逐字节不变
   - Tests/LightamerTests/DrtPostMigrationTests.swift         # 新建（LAYERS）：Post 四件主链 skip + 尾段应用 + display-referred golden 重钉
   - .work/gsd/phases/m2-3-ui-shell/M2-3-TAB-MATRIX.md        # 修改：displayTransform 页 + Look 页注记勘误行（路由表实态同步惯例）
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt  # 修改：四个新测试文件增行
@@ -141,12 +141,15 @@ files_modified:
 
 ### KD-4 HDR→EDR 视口（OQ-6-A 预览腿）
 
-- **判定→尾段输出**（P1 已备）：HDR（st2084/hlg）尾平面 = 16F 编码值平面。视口腿：
-  - `EditorMTKView.applyEDRDisplaySurface` 三分支化→四分支：SDR-gamma（现 bgra8Unorm）/
-    EDR-linear（现 16F + extendedLinearSRGB）/**DRT-SDR**（bgra8Unorm + drawable
-    colorSpace = DRT encoding space 对应 CGColorSpace——P3 原色匹配，gamma 先例「软件编码
-    + layer colorSpace 匹配」）/**DRT-HDR**（16F + colorspace = PQ/HLG 对应 CGColorSpace
-    + `wantsExtendedDynamicRangeContent`）。
+- **判定→尾段输出**（P1 已备）：HDR（st2084/hlg）尾平面 = 16F 编码值平面。视口腿（m5 措辞
+  订正：分支机制 = `applyEDRDisplaySurface` 现态扩展 + `BlitRegime` 增臂，非单函数三分支）：
+  - `EditorMTKView.applyEDRDisplaySurface`（现 `edrActive` 双态）扩**四态判定**：SDR-gamma
+    （现 bgra8Unorm）/ EDR-linear（现 16F + extendedLinearSRGB）/**DRT-SDR**（bgra8Unorm +
+    drawable colorSpace = DRT encoding space 对应 CGColorSpace——P3 原色匹配，gamma 先例
+    「软件编码 + layer colorSpace 匹配」）/**DRT-HDR**（16F + colorspace = PQ/HLG 对应
+    CGColorSpace + `wantsExtendedDynamicRangeContent`）；blit 侧 `BlitRegime`（现三臂
+    legacyFloat/displayReadySDR/edr16F，`EDRViewportTests` 钉三臂——该测试实在 IOP bundle）
+    增 DRT 两臂。
   - **colorSpace 终式（执行期钉死）**：PQ = `CGColorSpace(name: .extendedITUR_2100PQ)`
     / HLG = `.extendedITUR_2100HLG`（macOS 原生 name 常数——实态核读 + 非 nil 断言；
     不可用时回落 extendedSRGB + E3 记录）；peak→layer 映射 = PQ 编码为绝对亮度语义、
@@ -156,6 +159,14 @@ files_modified:
   - **blit regime 扩展**：`blitRegime(edrActive:sourceIsDisplayReady:)` 增 DRT 两臂
     （sourceIsDisplayReady 在 DRT 尾平面恒 true——尾平面即显示就绪编码面）；16F blit
     路径复用 EDR 腿直写面。
+  - **D-COL2 follow gate 扩展（E3，checker 回注）**：`EditorMTKView.swift:449` 每帧
+    colorspace follow gate（`!edrActive` 时把 window screen colorspace 挂上 CAMetalLayer
+    ——SDR gamma 先例的「多屏跟随」）会打掉 DRT-SDR 臂的 encoding-space 挂载（每帧把 layer
+    colorspace 覆盖回 screen colorspace，原色匹配失效）——gate 条件扩展为
+    **`!edrActive && !drtTailActive`**（drtTailActive = 视口侧 TerminalTailPolicy ∈ drt 臂
+    镜像，coordinator 注入）。入 `EditorMTKView.swift` diff 半径（纪律 9）；DrtViewportTests
+    断言覆盖（drt 激活时 follow gate 不触——layer colorspace 保持 encoding-space 挂载，
+    连续两帧不被覆盖）。
 - **判定纯函数消费**：视口分支判定 = `isHdrEncoding(record.encodingEotf)`（Core 单源，
   禁视图层复制判定式——OQ-6-C 拒绝理由的机检面：grep 无第二实现）。
 - **零差门**：非 DRT 文档（pristine → `.sdrGamma`）视口路径**逐字节不变**（现 bgra8 腿）；
@@ -168,7 +179,10 @@ files_modified:
 - **主链 skip**：drt 尾段激活时，`drtPostOpNames` 命中的 box 在主链 pass 装配处跳过
   （gamma skip 同模式——装配期摘除非运行时跳跑）；opName 集由 App 注入（App 侧从
   `NodeOwnershipCatalog.drtPostOpNames` 计算 → `DrtTailParams` 或并位参数传入——**Core
-  不 import IOP 方向约束**保持；注入面执行期定形，DECISIONS 签注）。
+  不 import IOP 方向约束**保持；注入面执行期定形，DECISIONS 签注）。**尾平面键折叠增
+  post-params 项**（E5——P1 KD-6 公式 `upstreamHash = levelHash[top] ⊕ recordHash ⊕
+  tailPolicyHash` 的 P3 扩展：⊕ postParamsHash；四件参数变更 → 尾平面 MISS、colorout 前
+  全 HIT 的实现载体，AC#5 键局部性；主链键面零改动）。
 - **尾段插槽填充**（P1 T7 注释锚）：装配序 = `[DrtMethodBox] → [post 四 box 原参数] →
   [EotfBox]`——四 box **原样复用**（ModuleBoxing 装配面零新 kernel），仅在尾段重放；
   输入域 = DRT 输出 display-referred 线性（encoding space 原色）。
@@ -211,13 +225,14 @@ files_modified:
    四件同构正本 + commitContinuousEdit 语义。
 4. `App/Sources/Lightamer/UI/Shell/EditorTabRoute.swift:160-300` + `EditorAdjustmentStackView
    .swift:120-290`——specialContent/占位特面/panel descriptor 面（面板接入点）。
-5. `App/Sources/Lightamer/UI/EditorMTKView.swift:320-460`——applyEDRDisplaySurface/blit
-   regime（KD-4 四分支化点）。
+5. `App/Sources/Lightamer/UI/EditorMTKView.swift:320-480`——applyEDRDisplaySurface/blit
+   regime/D-COL2 follow gate（:449，E3 gate 扩展点——KD-4 分支化面）。
 6. `LightamerCore/Sources/Pipe/History/HistoryStack.swift:49-230`——HistoryItem additive
    先例（stackSnapshot/pasteSet）+ commit/投影面。
 7. `LightamerIOP/Sources/{Bloom,Sharpen,Grain,Equalizer}` + 各 Reference——Post 四件 kernel
    与标定锚现位（KD-5 重钉源）。
-8. `Tests/LightamerTests/`（SidecarV5Tests/EDRViewportTests/LayerCompositeTests 同位参照）+
+8. `Tests/LightamerTests/`（SidecarV5Tests/EditorMetalLegRegressionTests/LayerCompositeTests
+   同位参照——EDRViewportTests 实在 IOP bundle，m2）+
    `Scripts/test-direct.sh` 头注 + `Scripts/zh-audit.py` 用法。
 
 ## 纪律（强制）
@@ -227,8 +242,10 @@ files_modified:
 
 9. **架构红线**：`PipelineDocument.swift`/`NodeOwnershipCatalog.swift`/`Registry.swift`/
    `V50Order.swift`/`PipeCacheKey.swift` **零 diff**；`PixelPipe.swift` diff 半径 = Post
-   四件 skip 集 + 尾段插槽填充（策略枚举/键折叠/DRT 装配段零改动）；`EditorMTKView.swift`
-   diff 半径 = applyEDRDisplaySurface 分支扩展 + blit regime 两臂（渲染数学零改）；
+   四件 skip 集 + 尾段插槽填充 + **尾平面键折叠增 post-params 项**（主链键面/策略枚举/DRT
+   装配段零改动；键扩展 = P1 KD-6 公式的 P3 扩展，AC#5 键局部性为准——E5）；`EditorMTKView
+   .swift` diff 半径 = applyEDRDisplaySurface 分支扩展 + blit regime 两臂 + **D-COL2 follow
+   gate 扩展（:449，`!edrActive && !drtTailActive`——E3）**（渲染数学零改）；
    `LibraryLegacyGate` 回切面零触碰（回切后 UI 与 M2-2 前同构红线不破——DRT 面板只在
    非 legacy face 挂载）。
 10. **zh 纪律**：新键全部 `String(localized:)` 随手入 `Resources/Localizable.xcstrings`；
@@ -296,10 +313,13 @@ files_modified:
 - **action**
   1. `EditorMTKView.swift`：KD-4 全量（四分支 applyEDRDisplaySurface + blit regime DRT
      两臂 + colorSpace 终式 + 互斥收敛）。
-  2. 新建 `Tests/LightamerTests/DrtViewportTests.swift`（APP）：四分支判定矩阵
+  2. 新建 `Tests/LightamerTests/DrtViewportTests.swift`（APP，EditorMetalLegRegressionTests
+     同位——EDRViewportTests 实在 IOP bundle，m2 同位订正）：四分支判定矩阵
      （isHdrEncoding × drt 激活 → colorPixelFormat/colorspace 期望值逐臂断言）+ 非 DRT
      路径逐字节不变（现 bgra8 腿参数全等）+ 手动 EDR 臂原样 + DRT-HDR 与手动 EDR 互斥
-     断言 + colorSpace 非 nil 断言 + blit regime 新臂。
+     断言 + colorSpace 非 nil 断言 + blit regime 新臂 + **D-COL2 follow gate 扩展断言**
+     （drt 激活时 `!edrActive && !drtTailActive` 不触——layer colorspace 保持 encoding-
+     space 挂载不被每帧覆盖；E3）。
   3. 走查观察项启动项记 SUMMARY（HDR 屏实机/降容显示观察——纪律 11）。
   4. 测试登记两处。
 - **验收标准**
@@ -362,7 +382,7 @@ files_modified:
 | 1 | 持久化链：carrier 隔离/写腿一次/restore 三态/undo-redo 一步回/historyHash 折叠（drt 变更→hash 变；无 drt 档逐位不变）/旧档零漂移/pristine 档不写 key | DrtPersistenceTests |
 | 2 | 面板：Method 恒展开 + 三组结构与 FEATURE-MAP §5 逐行一致 + 预设单 discrete commit + custom 派生 + peak 钳制 + Vignette 行原位 + 占位特面不再产生 | DrtPanelModelTests + grep |
 | 3 | EOTF 吸附：6×7 全组合机检（非法→吸附首合法 + 合法保持）+ 原子 commit（undo 一步双值回）+ 联动知识单源（legalEOTFs 唯一消费） | DrtPanelModelTests + grep |
-| 4 | HDR 视口：四分支判定矩阵（isHdrEncoding 单源消费）+ 非 DRT 逐字节不变 + 手动 EDR 臂原样 + 互斥收敛 + colorSpace 非 nil | DrtViewportTests |
+| 4 | HDR 视口：四分支判定矩阵（isHdrEncoding 单源消费）+ 非 DRT 逐字节不变 + 手动 EDR 臂原样 + 互斥收敛 + colorSpace 非 nil + D-COL2 follow gate 扩展断言（drt 激活不触 follow，encoding-space 挂载不被每帧覆盖——E3） | DrtViewportTests |
 | 5 | Post 四件：drt 激活主链 skip + 尾段序 DRT→四件→EOTF + display-referred golden（重钉锚值全绿）+ 键局部性（四件参数变更尾平面 MISS、colorout 前全 HIT）+ 非 drt 四件原位零回归 | DrtPostMigrationTests |
 | 6 | `panel_note_pre_drt` 零残留 + TAB-MATRIX 勘误行在册；`defaultFaceDisabledOpNames`/注册面零 diff（method 收口——grep 审计） | grep + `git diff` |
 | 7 | zh：新键全落 xcstrings + `zh-audit.py --check` PASS；技术专名不译 | 脚本 + `git grep` |
@@ -402,3 +422,23 @@ files_modified:
 - T6 `chore(m2-6): method registry closeout zh audit and tab matrix errata`
 - T7 `docs(m2-6): close out plan 3 and m2-6 phase`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-10-01）
+
+checker 判 FAIL（5E+6M）后本 plan 落地项（E3/E5/m2/m5；E1/E2/m1/m3/m4/m6 归 P1、E4 归 P2）：
+
+- **E3（D-COL2 follow gate 打掉 DRT-SDR 挂载）**：`EditorMTKView.swift:449` 每帧 follow
+  gate（`!edrActive`）会把 layer colorspace 每帧覆盖回 screen colorspace，打掉 DRT-SDR 臂
+  的 encoding-space 挂载——KD-4 增 bullet「**follow gate 扩展为
+  `!edrActive && !drtTailActive`**」（drtTailActive = 视口侧 drt 臂镜像，coordinator 注入）；
+  纪律 9 EditorMTKView 半径显式纳入 gate 扩展；DrtViewportTests 增 follow-gate 断言 +
+  AC#4 吸收。
+- **E5（纪律 9 vs AC#5 键局部性矛盾）**：纪律 9 PixelPipe 半径改「主链键面/策略枚举/DRT
+  装配段零改动；**尾平面键折叠增 post-params 项**（P1 KD-6 公式的 P3 扩展，AC#5 键局部性
+  为准）」；KD-5 主链 skip bullet 补 `⊕ postParamsHash` 扩展式（四件参数变更 → 尾平面
+  MISS 的实现载体）。
+- **m2（DrtViewportTests 同位订正）**：EDRViewportTests 实在 **LightamerTestsIOP** bundle
+  ——front-matter/T4/read_first 8 的 APP 同位参照改 **EditorMetalLegRegressionTests**。
+- **m5（分支措辞订正）**：KD-4「applyEDRDisplaySurface 三分支化→四分支」措辞订正——分支
+  机制实为 `applyEDRDisplaySurface`（现 edrActive 双态）扩四态 + **`BlitRegime` 增臂**（现
+  三臂 legacyFloat/displayReadySDR/edr16F）。
