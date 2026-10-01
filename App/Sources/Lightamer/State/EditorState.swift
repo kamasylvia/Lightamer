@@ -530,6 +530,37 @@ final class EditorState {
         commitLayerStructure(layerID: id, label: String(localized: "history_layer_reorder"))
     }
 
+    // MARK: M2-7-2 T4 (KD-4): the Default Behavior newLayer migration
+
+    /// The drawn-mask migration: a FRESH adjustment layer ABOVE the source
+    /// carries the just-finished drawn mask; the source is left WITHOUT it
+    /// (原层无残留). Exactly ONE structure item (one stack snapshot carries
+    /// both changes) — the AC's 「恰 1 history item」pin. A source without
+    /// drawn forms = a silent no-op (the dispatch guards before this).
+    @discardableResult
+    func migrateMaskToNewLayer(from sourceID: UUID) -> AdjustmentLayer? {
+        guard let layerStack,
+            let source = adjustmentLayer(id: sourceID),
+            let mask = source.mask,
+            mask.hasDrawnForms
+        else { return nil }
+        var stack = layerStack
+        let migrated = AdjustmentLayer(
+            name: stack.nextLayerName(base: String(localized: "layer_default_name")),
+            mask: mask)
+        var stripped = source
+        stripped.mask = nil
+        stack.replace(stripped)
+        stack.addAdjustment(migrated)
+        self.layerStack = stack
+        commitLayerStructure(
+            layerID: migrated.id,
+            label: String(
+                localized: "history_mask_behavior_migrated",
+                defaultValue: "Move mask to new layer"))
+        return migrated
+    }
+
     // MARK: M2-7-2 (KD-3): the Mask Groups panel's unified mask seams
 
     /// D-H1 LIVE leg for panel mask edits: swap the layer's mask in place,

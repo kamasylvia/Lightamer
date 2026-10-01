@@ -451,10 +451,15 @@ internal struct MaskOverlayHost: View {
         let hadInteraction = grab != nil
         grab = nil
         pressedPoint = nil
-        record.endInteraction(
+        // T4 (KD-4, checker E1): the completion-time Default Behavior
+        // dispatch — AFTER the commit leg, gated on it (a no-op tap is
+        // never a "completed drawn mask").
+        let didCommit = record.endInteraction(
             hadInteraction: hadInteraction,
             editingState: editingState, editorState: editorState,
             label: String(localized: String.LocalizationValue(commitLabelKey)))
+        editingState.maskDrawInteractionDidComplete(
+            didCommit: didCommit, editorState: editorState)
     }
 
     private var commitLabelKey: String {
@@ -727,21 +732,24 @@ struct MaskOverlayRecord {
     ///             object), bump the merged value, commit;
     ///   mismatch, mutate-only → REFUSE: drop the interaction (zero
     ///             history, zero bump), re-read live, toast.
+    /// Whether a commit landed (the T4 Default Behavior dispatch gates on
+    /// it — a no-op tap never triggers the behavior).
+    @discardableResult
     mutating func endInteraction(
         hadInteraction: Bool,
         editingState: LayerEditingState,
         editorState: EditorState,
         label: String
-    ) {
+    ) -> Bool {
         defer {
             dirty = false
             expectedRevision = nil
             appendedForms = []
             mutatedExisting = false
         }
-        guard hadInteraction, dirty else { return }
+        guard hadInteraction, dirty else { return false }
         guard let live = editingState.selectedLayer(in: editorState.layerStack)
-        else { return }
+        else { return false }
 
         // The gate: validate BEFORE any bump (the pinned order).
         if !MaskSpec.matchesExpected(expectedRevision, in: live.mask ?? MaskSpec()) {
@@ -764,17 +772,18 @@ struct MaskOverlayRecord {
                     chain: live.chain, mask: spec)
                 editorState.commitLayerEdit(copy, label: label)
                 editorState.presentToast(Self.replayToast)
-                return
+                return true
             }
             // Mutate-only REFUSE: drop the interaction — zero history,
             // zero bump; the live spec (with the async writer's content)
             // re-renders as-is.
             editorState.presentToast(Self.refuseToast)
-            return
+            return false
         }
 
         live.mask?.bumpContentRevision()
         editorState.commitLayerEdit(live, label: label)
+        return true
     }
 
     /// The conflict notices (new UI keys — the close-out batch reconciles

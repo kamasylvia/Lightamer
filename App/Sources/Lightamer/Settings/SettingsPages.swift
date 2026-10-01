@@ -173,7 +173,7 @@ struct SettingsDefaultBehaviorPage: View {
                 .accessibilityIdentifier("settings.behavior.mask")
                 Text(String(
                     localized: "settings_behavior_mask_hint",
-                    defaultValue: "Applies when a drawn mask is completed. Takes effect with the mask editor (M2-7)."))
+                    defaultValue: "Applies when a drawn mask is completed."))
                     .font(.caption)
                     .foregroundStyle(LightamerColors.textSecondary)
             }
