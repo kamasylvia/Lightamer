@@ -334,6 +334,141 @@ final class MaskRevisionTests: XCTestCase {
             ref.fileName, "the installed raster is untouched")
     }
 
+    // MARK: M2-7-2 T3 — the optimistic-concurrency dispatch (checker E5)
+
+    /// The snapshot timing pin: the press write completes BEFORE the
+    /// snapshot (live legs never bump → the pre-interaction value); the
+    /// NEXT interaction's snapshot reads the post-bump value (the
+    /// anti-self-mismatch rule for append+commit-style presses).
+    func testSnapshotTimingIsPostPressWriteAndPostBump() throws {
+        makeSimpleSeed()
+        let layer = try newLayer()
+        let items = editorState.history.items.count
+        var record = MaskOverlayRecord()
+
+        let form = record.appendForm(
+            strokeForm(x: 0.3, y: 0.3).kind, layer: layer, editorState: editorState)
+        XCTAssertNil(
+            record.expectedRevision,
+            "the press-write snapshot reads the CURRENT (nil → 0) value")
+
+        record.endInteraction(
+            hadInteraction: true, editingState: editingState,
+            editorState: editorState, label: "test stroke")
+        XCTAssertEqual(revision(layer.id), 1)
+
+        // The NEXT interaction's press: the snapshot is the POST-BUMP
+        // value — it can never mismatch its own previous commit.
+        var second = MaskOverlayRecord()
+        _ = second.appendForm(
+            strokeForm(x: 0.7, y: 0.7).kind, layer: layer, editorState: editorState)
+        XCTAssertEqual(second.expectedRevision, 1, "post-bump snapshot")
+        second.endInteraction(
+            hadInteraction: true, editingState: editingState,
+            editorState: editorState, label: "test stroke 2")
+        XCTAssertEqual(revision(layer.id), 2, "the equal path again: exactly +1")
+        XCTAssertEqual(editorState.history.items.count, items + 2)
+    }
+
+    /// The append-type replay: an async writer (the AI bake) commits
+    /// DURING the stroke — the interaction's append replays onto the
+    /// fresh spec, bumps the MERGED value and lands exactly one item.
+    func testConcurrentAIInstallDuringStrokeReplaysTheAppend() async throws {
+        try await loadSynthetic()
+        let layer = try newLayer()
+        let items = editorState.history.items.count
+        var record = MaskOverlayRecord()
+
+        // PRESS: the live write; the snapshot = nil (revision 0).
+        let form = record.appendForm(
+            strokeForm(x: 0.3, y: 0.3).kind, layer: layer, editorState: editorState)
+
+        // The concurrent writer: an AI install commits (bumps 0 → 1) and
+        // REPLACES the stack's layer object with a snapshot carrying no
+        // drawn payload.
+        _ = try await AIMaskEditing.commitRasterMask(
+            plane: AIMaskPlane(width: 16, height: 16,
+                               floats: [Float](repeating: 0.5, count: 256)),
+            source: .segment, imageURL: tempDirectory, label: "test ai mask",
+            activateTool: nil, coordinator: coordinator, editorState: editorState,
+            editingState: editingState, metal: metal, expectedRevision: 0)
+        XCTAssertEqual(revision(layer.id), 1)
+        // NOTE: the form SURVIVES here — the live legs write into the
+        // SHARED layer object, so the async writer's sibling-faithful
+        // snapshot carries the in-flight form (the D-M2-4-2-5 fix makes
+        // the real race window narrower than the replay's worst case).
+        // The replay still exercises the mismatch path (expected 0 vs the
+        // now-current 1) and its dedup keeps exactly one form.
+        XCTAssertEqual(
+            editorState.adjustmentLayer(id: layer.id)?.mask?.drawn?.forms.count, 1)
+
+        // END: mismatch (expected 0 vs current 1) + append-type → REPLAY.
+        record.endInteraction(
+            hadInteraction: true, editingState: editingState,
+            editorState: editorState, label: "test stroke")
+        let committed = try XCTUnwrap(editorState.adjustmentLayer(id: layer.id))
+        XCTAssertEqual(revision(layer.id), 2, "the replay bumps the MERGED value 1 → 2")
+        XCTAssertEqual(
+            editorState.history.items.count, items + 2,
+            "the AI item + the replay item, nothing else")
+        XCTAssertEqual(committed.mask?.drawn?.forms.count, 1, "the stroke re-landed")
+        XCTAssertEqual(
+            committed.mask?.drawn?.forms.first?.id, form.id, "the SAME form id (NDE-1)")
+        XCTAssertNotNil(committed.mask?.raster, "the concurrent writer's payload survives")
+        XCTAssertNotNil(editorState.toast, "the replay notice surfaced")
+    }
+
+    /// The mutate-only refuse: an existing-form edit races an async
+    /// writer — the interaction is DISCARDED (zero history, zero bump,
+    /// toast; the live spec re-reads as-is).
+    func testConcurrentInstallDuringExistingFormMutateIsRefused() async throws {
+        try await loadSynthetic()
+        let layer = try newLayer()
+        installCommittedSpec(on: layer)
+        let formID = editorState.adjustmentLayer(id: layer.id)!.mask!.drawn!.forms[0].id
+        let items = editorState.history.items.count
+        var record = MaskOverlayRecord()
+
+        // A feather-grip-style mutation of the EXISTING form (no append).
+        record.mutateForm(id: formID, layer: layer, editorState: editorState) { kind in
+            if case var .brush(stroke) = kind {
+                stroke.radius = 0.09
+                kind = .brush(stroke)
+            }
+        }
+        XCTAssertNil(record.expectedRevision, "first mutation snapshots too")
+
+        // The concurrent writer lands (0 → 1).
+        _ = try await AIMaskEditing.commitRasterMask(
+            plane: AIMaskPlane(width: 16, height: 16,
+                               floats: [Float](repeating: 0.5, count: 256)),
+            source: .segment, imageURL: tempDirectory, label: "test ai mask",
+            activateTool: nil, coordinator: coordinator, editorState: editorState,
+            editingState: editingState, metal: metal, expectedRevision: 0)
+
+        // END: mismatch + mutate-only → REFUSE.
+        record.endInteraction(
+            hadInteraction: true, editingState: editingState,
+            editorState: editorState, label: "test mutate")
+        XCTAssertEqual(revision(layer.id), 1, "zero bump on refusal")
+        XCTAssertEqual(
+            editorState.history.items.count, items + 1,
+            "only the AI item — the mutation never landed history")
+        XCTAssertNotNil(editorState.toast, "the refusal notice surfaced")
+        // The live spec carries the concurrent writer's content; the
+        // stroke radius edit stays uncommitted live state.
+        let live = editorState.adjustmentLayer(id: layer.id)
+        XCTAssertNotNil(live?.mask?.raster)
+    }
+
+    /// A committed two-form spec (the mutate tests' base).
+    private func installCommittedSpec(on layer: AdjustmentLayer) {
+        let live = editorState.adjustmentLayer(id: layer.id)!
+        var copy = live
+        copy.mask = MaskSpec(drawn: DrawnMaskSpec(forms: [strokeForm(x: 0.2, y: 0.2)]))
+        editorState.commitLayerEdit(copy, label: "test install")
+    }
+
     // MARK: the undo cross-write refusal (KD-5's snapshot-restore semantics)
 
     func testUndoRestoredRevisionRefusesInFlightWrite() async throws {
