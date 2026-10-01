@@ -346,9 +346,16 @@ final class MaskFeatherAlignTests: XCTestCase {
 
         // Alcedo default: origin 0.5/0.5, normal (0,1), τ=0.2, start 1 →
         // end 0. Ours: anchor 0.5/0.5, rotation = atan2(0, 1) = 0,
-        // compression = τ/(2√2) (MaskGradientDefaults.compressionDefault).
-        for (tau, label) in [(0.2, "alcedo default τ=0.2"), (1.0, "scale档 τ=1.0")] {
-            let compression = Float(tau / (2.0 * 2.0.squareRoot()))
+        // compression = τ/(2√2) — the default档 consumes the Core single
+        // source MaskGradientDefaults.compressionDefault directly.
+        XCTAssertEqual(
+            MaskGradientDefaults.compressionDefault,
+            Float(0.2 / (2.0 * 2.0.squareRoot())),
+            accuracy: 1e-7, "the single-source default encodes τ=0.2")
+        for (tau, compression, label) in [
+            (0.2, MaskGradientDefaults.compressionDefault, "alcedo default τ=0.2"),
+            (1.0, Float(1.0 / (2.0 * 2.0.squareRoot())), "scale档 τ=1.0"),
+        ] {
             let (values, gw, gh) = try await rasterize(
                 MaskForm(kind: .gradient(GradientForm(
                     anchor: MaskPoint(x: 0.5, y: 0.5), rotationDegrees: 0,
@@ -378,7 +385,7 @@ final class MaskFeatherAlignTests: XCTestCase {
 
         // Direction sign: normal (0,1) ⇔ rotation 0 (the 1-side is
         // −n̂ = up): above the anchor the plane saturates to 1.
-        let compression = Float(0.2 / (2.0 * 2.0.squareRoot()))
+        let compression = MaskGradientDefaults.compressionDefault
         let (values, _, _) = try await rasterize(
             MaskForm(kind: .gradient(GradientForm(
                 anchor: MaskPoint(x: 0.5, y: 0.5), rotationDegrees: 0,
@@ -424,7 +431,7 @@ final class MaskFeatherAlignTests: XCTestCase {
         let w = 129, h = 129 // odd → pixel 64 hits 0.5 exactly
         let window = ROI(x: 0, y: 0, width: w, height: h, scale: 1.0)
         let mapper = identityMapper(width: w, height: h)
-        let compression = Float(0.2 / (2.0 * 2.0.squareRoot()))
+        let compression = MaskGradientDefaults.compressionDefault
         let (values, _, _) = try await rasterize(
             MaskForm(kind: .gradient(GradientForm(
                 anchor: MaskPoint(x: 0.5, y: 0.5), rotationDegrees: 0,
