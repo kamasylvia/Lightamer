@@ -38,6 +38,10 @@
 #   纯 Core renderer；MaskGroupsPanelTests / MaskDefaultBehaviorTests = APP/App 级
 #   ——真实 EditorState 链；RangePanelMappingTests = LAYERS/Core 级换算）。
 #   行内 method 数以终态对账为准。运行期总数基线相应上移。
+# M2-8-1 增行记录（2026-09-29 执行期，checker E2 测试登记纪律）：新测试文件随任务
+#   commit 登记进对应 bundle（SidecarV7Tests = APP/App 级——SidecarV5Tests/
+#   DrtSidecarTests 同位；VersionSwapTests = APP/App 级——真链实例化 EditorState，
+#   随 T2 commit 增行）。行内 method 数以终态对账为准。运行期总数基线相应上移。
 #   终值勘误（2026-10-01 M2-7-2 验收批）：RangePanelMappingTests 行 5→4、
 #   MaskGroupsPanelTests 行 10→9（登记时预写数与文件实况差 1，验收对账发现随
 #   验收 commit 修正）；MaskRevisionTests 行 6→11（M2-7-1 登记基数 6，本 plan
@@ -234,6 +238,7 @@ LAYERS	4	RangePanelMappingTests.swift
 APP	9	MaskGroupsPanelTests.swift
 APP	5	MaskDefaultBehaviorTests.swift
 APP	11	MaskRevisionTests.swift
+APP	9	SidecarV7Tests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
 LAYERS	5	PipelineLinkageTests.swift

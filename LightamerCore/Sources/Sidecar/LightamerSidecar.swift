@@ -151,7 +151,31 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     ///     cache fold is live from M2-6-1 T7.
     ///   • v5 documents (and the FUTURE-version branch) read with nil; the
     ///     v5 byte shape is pinned zero-drift by DrtSidecarTests.
-    public static let schemaVersionCurrent = 6
+    ///
+    /// v7 (Plan M2-8-1 T1, KD-1; D-M2-8-CONTEXT-11): the VERSION face joins
+    /// additively — TWO optional keys (the rawOverrides/displayTransform
+    /// "write ONLY when present" discipline, one per key):
+    ///   • `versions: [SidecarVersionRecord]?` — the version metadata +
+    ///     NON-ACTIVE chains (each record = id/name/createdAt/updatedAt +
+    ///     `chain` reusing the FROZEN `{items, position}` spelling via the
+    ///     same `SidecarHistoryItemRecord` encoder — version chains and the
+    ///     non-version chain are byte-identical shapes by construction).
+    ///   • `activeVersionID: String?` — the UUID string of the ACTIVE
+    ///     version.
+    ///   • KEY-SEMANTICS UPGRADE (D-M2-8-CONTEXT-4): the frozen `history`
+    ///     key now carries the ACTIVE version's transaction chain (its
+    ///     items are NOT duplicated into `versions[]` — the active slot's
+    ///     `chain` stays nil, so active-chain bytes live in exactly one
+    ///     place). A v6 reader (unknown-key-ignoring JSONDecoder) sees the
+    ///     active version as "the history" — the sanctioned degrade (the
+    ///     last-active version's appearance, editable as a plain v6 doc).
+    ///   • nil version face (no versions ever created) keeps BOTH keys
+    ///     ABSENT — the v6 byte shape survives untouched (SidecarV7Tests
+    ///     pins the three byte faces). HASH ISOLATION: version metadata is
+    ///     NOT a pixel semantic — it never enters `HistoryHash.hash` /
+    ///     `driftDetected` (the v3 metadata judgment; the fold formula is
+    ///     untouched — structural, pinned by a tamper negative test).
+    public static let schemaVersionCurrent = 7
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int
@@ -239,6 +263,21 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// record's stableHash rides the tail plane's cache key (KD-6).
     public var displayTransform: DrtRecord?
 
+    // MARK: - Versions (v7, Plan M2-8-1 — the version metadata + chains)
+
+    /// The version records (nil = no version structure — the implicit
+    /// single-version document; the key is ABSENT on disk, the v6 byte
+    /// shape). The ACTIVE version's chain lives in `history` (its record's
+    /// `chain` is nil — items never double-write, OQ-11); every OTHER
+    /// version's chain rides its record.
+    public var versions: [SidecarVersionRecord]?
+
+    /// The active version's UUID string (nil = no version structure or the
+    /// record absent — the implicit single version). A dangling value (no
+    /// matching record) degrades on restore: the version structure is
+    /// dropped, `history` stays the chain — edits are never lost (KD-2).
+    public var activeVersionID: String?
+
     // MARK: - Paths (D-S2)
 
     /// `…/DSC09991.ARW` → `…/DSC09991.ARW.lra` — the FULL original name
@@ -289,7 +328,9 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         note: String? = nil,
         provenance: SidecarProvenance? = nil,
         rawOverrides: RAWTechnicalOverrides? = nil,
-        displayTransform: DrtRecord? = nil
+        displayTransform: DrtRecord? = nil,
+        versions: [SidecarVersionRecord]? = nil,
+        activeVersionID: String? = nil
     ) {
         self.schemaVersion = Self.schemaVersionCurrent
         self.appVersion = appVersion
@@ -308,6 +349,8 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         self.provenance = provenance
         self.rawOverrides = rawOverrides
         self.displayTransform = displayTransform
+        self.versions = versions
+        self.activeVersionID = activeVersionID
     }
 
     // MARK: - Codable (projection through the String-hash records)
@@ -318,6 +361,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         case rating, flag, colorLabel, keywords, note, provenance
         case rawOverrides
         case displayTransform
+        case versions, activeVersionID
     }
 
     public init(from decoder: Decoder) throws {
@@ -371,6 +415,14 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // contract :94-97).
         displayTransform = try container.decodeIfPresent(
             DrtRecord.self, forKey: .displayTransform)
+        // v7 versions face (M2-8-1 T1): decodeIfPresent — v6 documents (and
+        // the FUTURE-version branch) read with nil; a document written by a
+        // NEWER schema still yields everything else (the tolerance
+        // contract :94-97).
+        versions = try container.decodeIfPresent(
+            [SidecarVersionRecord].self, forKey: .versions)
+        activeVersionID = try container.decodeIfPresent(
+            String.self, forKey: .activeVersionID)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -423,6 +475,12 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // keeps the key ABSENT so v6 documents without DRT edits stay
         // byte-compatible with the v5 shape (the zero-drift AC).
         try container.encodeIfPresent(displayTransform, forKey: .displayTransform)
+        // Versions (v7): write ONLY when present — nil (the implicit
+        // single-version document) keeps BOTH keys ABSENT so documents
+        // without version structure stay byte-compatible with the v6 shape
+        // (the zero-drift AC; SidecarV7Tests pins the three byte faces).
+        try container.encodeIfPresent(versions, forKey: .versions)
+        try container.encodeIfPresent(activeVersionID, forKey: .activeVersionID)
     }
 }
 
@@ -573,7 +631,12 @@ internal struct SidecarInstanceRecord: Codable, Sendable, Equatable {
 /// decode unchanged, writers omit the key when nil (the runtime↔sidecar
 /// projection convention; DrtRecord is a plain Codable struct, so no
 /// UInt64-decimal projection applies — hashes stay decimal-String only).
-private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
+/// Internal (not private) since Plan M2-8-1 T1 — the version-chain spelling
+/// (`SidecarVersionRecord.chain`) embeds the SAME record pair, and duplicated
+/// key sets would be two formats to migrate (the SidecarInstanceRecord
+/// 06-01 widening precedent; the record pair itself never leaves Core —
+/// the App consumes it through `SidecarVersionRecord`'s public face).
+internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
 
     private enum Keys: String, CodingKey {
         case id, snapshot, label, timestamp, layerScope, stackSnapshot, pasteSet
@@ -638,8 +701,9 @@ private struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
 }
 
 /// `HistoryStack` → on-disk record: `{items, position}` verbatim (frozen
-/// 02-05 spelling).
-private struct SidecarHistoryRecord: Codable, Sendable, Equatable {
+/// 02-05 spelling). Internal since Plan M2-8-1 T1 — the version-chain
+/// spelling embeds it (see `SidecarHistoryItemRecord`).
+internal struct SidecarHistoryRecord: Codable, Sendable, Equatable {
 
     private enum Keys: String, CodingKey {
         case items, position
@@ -667,6 +731,101 @@ private struct SidecarHistoryRecord: Codable, Sendable, Equatable {
         var container = encoder.container(keyedBy: Keys.self)
         try container.encode(items, forKey: .items)
         try container.encode(position, forKey: .position)
+    }
+}
+
+/// One VERSION's on-disk record (Plan M2-8-1 T1, KD-1; the frozen v7
+/// spelling): identity + presentation metadata + the NON-ACTIVE chain.
+/// `chain == nil` marks the ACTIVE version (its items ride the document's
+/// `history` key — items never double-write, D-M2-8-CONTEXT-11).
+///
+/// Access shape = the `SidecarLayerRecord` precedent (public struct +
+/// internal stored spelling + public projection face): the App NEVER sees
+/// `SidecarHistoryRecord`; it constructs through
+/// `init(id:name:createdAt:updatedAt:chain: HistoryStack?)` and reads back
+/// through `chainStack`. UInt64 note (L013): the record carries NO hash
+/// fields — id is a UUID string, timestamps are Doubles — so the
+/// decimal-String lock has no new surface here.
+public struct SidecarVersionRecord: Codable, Sendable, Equatable {
+
+    public var id: UUID
+    public var name: String
+    public var createdAt: Date
+    public var updatedAt: Date
+
+    /// The version's transaction chain in the FROZEN `{items, position}`
+    /// spelling; nil = the ACTIVE version (items live in the document's
+    /// `history` key). Internal stored — the public face is `chainStack`.
+    var chain: SidecarHistoryRecord?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, createdAt, updatedAt, chain
+    }
+
+    /// The App-side construction entry (the `SidecarLayerStackRecord.init(
+    /// _ snapshot:)` shape): a runtime `HistoryStack?` projects into the
+    /// internal record spelling here — the ONLY place the chain encoding
+    /// is minted.
+    public init(
+        id: UUID, name: String, createdAt: Date, updatedAt: Date,
+        chain: HistoryStack?
+    ) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.chain = chain.map { SidecarHistoryRecord(stack: $0) }
+    }
+
+    /// The App-side read face (the `SidecarLayerStackRecord.snapshot`
+    /// shape): the chain projected back to the runtime `HistoryStack`.
+    public var chainStack: HistoryStack? { chain?.stack }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        chain = try container.decodeIfPresent(
+            SidecarHistoryRecord.self, forKey: .chain)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+        // Absent key for the ACTIVE slot (nil chain) — the additive
+        // optional discipline; a decode of the record round-trips nil.
+        try container.encodeIfPresent(chain, forKey: .chain)
+    }
+}
+
+// MARK: - The version-chain branch seam (Plan M2-8-1 T1, KD-1 ③)
+//
+// PLACEMENT NOTE: this extension lives in THIS file (not HistoryStack.swift)
+// on purpose — M2-8-1's zero-diff red line keeps the HistoryStack file
+// byte-untouched (the DRT fold extension took the same liberty in
+// M2-6-3). LightamerCore is ONE target, so this public face reaches the
+// App while the internal `HistoryStack.init(items:position:)` stays
+// same-module: the branch command (`branchFromCurrent`) cannot assemble a
+// chain in App code without it.
+
+public extension HistoryStack {
+
+    /// Branch-face prefix copy (KD-1 seam ③): a NEW stack holding
+    /// `source.items[0...index]` with `position` at the copy tail — the
+    /// REDO TAIL STAYS BEHIND (branching from a jumped-back point leaves
+    /// the future tail in the SOURCE version). `index` clamps into
+    /// `-1 ... count-1`; a `-1` (pristine source) yields the empty stack.
+    /// Value semantics: items are param-byte copies (KB scale — D-H2).
+    static func copyingPrefixOf(_ source: HistoryStack, upTo index: Int) -> HistoryStack {
+        let clamped = min(max(index, -1), source.items.count - 1)
+        guard clamped >= 0 else { return HistoryStack() }
+        let prefix = Array(source.items[0...clamped])
+        return HistoryStack(items: prefix, position: prefix.count - 1)
     }
 }
 

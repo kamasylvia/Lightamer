@@ -11,7 +11,9 @@ import XCTest
 // precedent) — the sidecar v6 additive transaction:
 //
 //   1. V6 ROUND-TRIP: a document carrying displayTransform survives
-//      encode→decode verbatim; the writer emits schemaVersion 6.
+//      encode→decode verbatim; the writer emits the current
+//      schemaVersion (the `schemaVersionCurrent` constant — M2-8-1 E3
+//      pins the assertion to the symbol so v7+ never touches this file).
 //   2. V5 BYTE ZERO-DRIFT: a document without DRT edits encodes to EXACTLY
 //      the v5 shape — the displayTransform key ABSENT (encodeIfPresent).
 //   3. V5 READS NIL: a v5-shaped document decodes with displayTransform nil
@@ -68,7 +70,10 @@ final class DrtSidecarTests: XCTestCase {
             "the writer always emits the current version")
         let decoded = try Self.decoder.decode(LightamerSidecar.self, from: bytes)
 
-        XCTAssertEqual(decoded.schemaVersion, 6)
+        // The current-version constant (M2-8-1 E3): a document built NOW
+        // always decodes at the writer's version — the literal `6` died
+        // with v7 (the constant survives future bumps untouched).
+        XCTAssertEqual(decoded.schemaVersion, LightamerSidecar.schemaVersionCurrent)
         XCTAssertEqual(decoded.displayTransform, record, "the record round-trips verbatim")
         XCTAssertFalse(decoded.driftDetected, "the v6 anchor is self-consistent")
     }
