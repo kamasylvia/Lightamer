@@ -45,6 +45,9 @@ internal struct MaskToolbarView: View {
     @State private var aiPhase: AIGenerationPhase = .idle
     /// Non-nil = the layer-A multi-subject picker is up.
     @State private var instanceCatalog: AIInstanceCatalog?
+    /// The T7 sugar: the invert assembly rides the pending generation (the
+    /// multi-subject picker's confirm consumes it).
+    @State private var pendingInvert = false
 
     enum AIGenerationPhase: Equatable {
         case idle
@@ -285,7 +288,7 @@ internal struct MaskToolbarView: View {
                     .accessibilityIdentifier("ai.mask.progress")
             } else {
                 Button {
-                    Task { await generateSubjectMask() }
+                    Task { await generateSubjectMask(invert: false) }
                 } label: {
                     Image(systemName: "person.crop.square.badge.camera")
                         .font(.callout)
@@ -300,6 +303,23 @@ internal struct MaskToolbarView: View {
                 .disabled(!hasSelection)
                 .accessibilityLabel(Text("ai_mask_subject"))
                 .accessibilityIdentifier("ai.mask.subject")
+
+                // T7 (KD-7): the「主体以外」sugar — the SAME subject
+                // generation with the invert assembly baked via the per-ref
+                // invert bit (RasterMaskRef.invert). Zero new kernel, zero
+                // AIMaskEditing/AIMaskService change.
+                Button {
+                    Task { await generateSubjectMask(invert: true) }
+                } label: {
+                    Image(systemName: "person.slash")
+                        .font(.callout)
+                        .frame(width: 24, height: 22)
+                        .cornerRadius(4)
+                }
+                .buttonStyle(.borderless)
+                .disabled(!hasSelection)
+                .accessibilityLabel(Text("ai_mask_subject_inverted"))
+                .accessibilityIdentifier("ai.mask.subject.inverted")
             }
         }
         .popover(item: $instanceCatalog) { catalog in
@@ -307,9 +327,14 @@ internal struct MaskToolbarView: View {
                 catalog: catalog,
                 onConfirm: { plane in
                     instanceCatalog = nil
-                    Task { await commitSubjectPlane(plane) }
+                    let invert = pendingInvert
+                    pendingInvert = false
+                    Task { await commitSubjectPlane(plane, invert: invert) }
                 },
-                onCancel: { instanceCatalog = nil })
+                onCancel: {
+                    instanceCatalog = nil
+                    pendingInvert = false
+                })
         }
 
         // 点击选取 — layer B entry, the asset-phase gate.
@@ -373,10 +398,12 @@ internal struct MaskToolbarView: View {
     // MARK: generation flows
 
     /// Layer A stage 1 → single subject bakes straight through; multiple
-    /// subjects raise the instance picker.
-    private func generateSubjectMask() async {
+    /// subjects raise the instance picker. `invert` = the「主体以外」sugar
+    /// (the SAME generation; the invert rides the per-ref bit).
+    private func generateSubjectMask(invert: Bool) async {
         guard let metal = metalContext else { return }
         aiPhase = .running
+        pendingInvert = invert
         defer { if case .running = aiPhase { aiPhase = .idle } }
         do {
             guard let (input, _, _) = AIMaskEditing.decodeFrameInput(pipeCoordinator) else {
@@ -388,29 +415,33 @@ internal struct MaskToolbarView: View {
                 instanceCatalog = catalog
             } else {
                 let plane = try AIMaskService.subjectMask(from: catalog, selection: .all)
-                try await commitAIMask(plane: plane, source: .subject, metal: metal)
+                try await commitAIMask(
+                    plane: plane, source: .subject, invert: invert, metal: metal)
                 aiPhase = .idle
             }
         } catch let error as AIMaskError {
             aiPhase = .failed("\(error)")
+            pendingInvert = false
             editorState.presentToast(
                 error == .noSubject
                     ? String(localized: "ai_toast_no_subject")
                     : String(localized: "ai_toast_generate_failed") + " (\(error))")
         } catch {
             aiPhase = .failed("\(error)")
+            pendingInvert = false
             editorState.presentToast(
                 String(localized: "ai_toast_generate_failed") + " (\(error))")
         }
     }
 
     /// The instance picker's confirmed subset.
-    private func commitSubjectPlane(_ plane: AIMaskPlane) async {
+    private func commitSubjectPlane(_ plane: AIMaskPlane, invert: Bool = false) async {
         guard let metal = metalContext else { return }
         aiPhase = .running
         defer { if case .running = aiPhase { aiPhase = .idle } }
         do {
-            try await commitAIMask(plane: plane, source: .subject, metal: metal)
+            try await commitAIMask(
+                plane: plane, source: .subject, invert: invert, metal: metal)
             aiPhase = .idle
         } catch {
             aiPhase = .failed("\(error)")
@@ -420,14 +451,18 @@ internal struct MaskToolbarView: View {
     }
 
     /// The shared commit channel (exactly ONE stackSnapshot item + the
-    /// AI-06 landing form).
-    func commitAIMask(plane: AIMaskPlane, source: AIMaskSource, metal: MetalContext) async throws {
+    /// AI-06 landing form). `invert` rides the per-ref bit (KD-7's
+    /// raster-first assembly — RasterMaskRef.invert, the 06-04 semantics).
+    func commitAIMask(
+        plane: AIMaskPlane, source: AIMaskSource, invert: Bool = false,
+        metal: MetalContext
+    ) async throws {
         guard let (input, width, height) = AIMaskEditing.decodeFrameInput(pipeCoordinator) else {
             throw AIMaskError.invalidInput("no decoded frame for the mask commit")
         }
         _ = input
         let ref = try await AIMaskEditing.commitRasterMask(
-            plane: plane, source: source,
+            plane: plane, source: source, invert: invert,
             decodeWidth: width, decodeHeight: height,
             label: String(localized: "history_ai_mask"),
             activateTool: .brush,

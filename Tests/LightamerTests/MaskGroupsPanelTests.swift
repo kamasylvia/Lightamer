@@ -1,6 +1,7 @@
 @testable import Lightamer
 @testable import LightamerCore
 @testable import LightamerIOP
+import Metal
 import XCTest
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,7 +176,6 @@ final class MaskGroupsPanelTests: XCTestCase {
         let layer = addLayer(name: "remove")
         installMask(groupedMask(), on: layer)
         let first = layer.mask!.maskItems[0].id
-        let form1 = layer.mask!.drawn!.forms[0].id
         let form2 = layer.mask!.drawn!.forms[1].id
         editingState.select(layer.id)
 
@@ -244,5 +244,62 @@ final class MaskGroupsPanelTests: XCTestCase {
         // The CaseIterable synthesis survived (payload-free cases).
         XCTAssertEqual(MaskCommand.allCases.count, 7)
         XCTAssertTrue(MaskCommand.allCases.contains(.addMaskItem))
+    }
+
+    // MARK: T7 — the AI subject invert sugar (KD-7)
+
+    /// The sugar round-trip through the REAL commit channel: the SAME
+    /// `commitRasterMask` seam with `invert: true` — the per-ref invert
+    /// bit (RasterMaskRef.invert, the raster-first KD-7 assembly) carries
+    /// the inversion; zero AIMaskEditing/AIMaskService change.
+    func testSubjectInvertedSugarAssemblyRoundTrip() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            throw XCTSkip("no Metal GPU")
+        }
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let coordinator = PipeCoordinator()
+        editorState.attach(pipeCoordinator: coordinator)
+        coordinator.attach(editorState: editorState)
+        let layer = addLayer(name: "sugar")
+        editingState.select(layer.id)
+        let items = editorState.history.items.count
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("sugar-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        // The「主体以外」assembly: one commit, the invert bit set.
+        let ref = try await AIMaskEditing.commitRasterMask(
+            plane: AIMaskPlane(width: 16, height: 16,
+                               floats: [Float](repeating: 0.5, count: 256)),
+            source: .subject, invert: true,
+            imageURL: directory, label: "test subject inverted",
+            activateTool: nil, coordinator: coordinator, editorState: editorState,
+            editingState: editingState, metal: metal, expectedRevision: 0)
+        XCTAssertTrue(ref.invert, "the per-ref invert bit IS the assembly")
+        XCTAssertTrue(
+            ref.fileName.hasPrefix("ai-subject-"),
+            "the SAME subject source prefix (the generation flow is reused)")
+        let mask = try XCTUnwrap(editorState.adjustmentLayer(id: layer.id)?.mask)
+        XCTAssertEqual(mask.raster?.fileName, ref.fileName)
+        XCTAssertEqual(mask.raster?.invert, true)
+        XCTAssertEqual(mask.contentRevision, 1, "one bump")
+        XCTAssertEqual(editorState.history.items.count, items + 1, "one item")
+
+        // The re-bake semantics unchanged (D-07-CONTEXT-5): the SAME file
+        // name overwrites — one raster entry survives, the revision moves.
+        _ = try await AIMaskEditing.commitRasterMask(
+            plane: AIMaskPlane(width: 16, height: 16,
+                               floats: [Float](repeating: 0.7, count: 256)),
+            source: .subject, invert: true,
+            imageURL: directory, label: "test subject re-bake",
+            activateTool: nil, coordinator: coordinator, editorState: editorState,
+            editingState: editingState, metal: metal, expectedRevision: 1)
+        let rebaked = try XCTUnwrap(editorState.adjustmentLayer(id: layer.id)?.mask)
+        XCTAssertEqual(rebaked.raster?.fileName, ref.fileName, "the overwrite re-bake")
+        XCTAssertEqual(editorState.history.items.count, items + 2)
+        XCTAssertEqual(rebaked.contentRevision, 2)
     }
 }
