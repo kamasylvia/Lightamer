@@ -230,6 +230,11 @@ internal struct LightamerApp: App {
     @State private var batchSidecarWriter: BatchSidecarWriter?
     @State private var pastePartialRequested = false
 
+    /// Plan M2-8-2 T3 (KD-3): the Copy Adjustments transfer dialog request
+    /// flag (the menu sets it; the app scene presents the sheet — the
+    /// pastePartialRequested shape).
+    @State private var adjustmentTransferPresented = false
+
     /// Plan 12-1 T6: the metadata write face for the UI (commands +
     /// inspector rows + grid menus route through it; it wraps the Core
     /// MetadataService — the single implementation). Rebuilt per session
@@ -1125,6 +1130,13 @@ internal struct LightamerApp: App {
                         },
                         onDismiss: { libraryWelcomePresented = false })
                 }
+                .sheet(isPresented: $adjustmentTransferPresented) {
+                    // Plan M2-8-2 T3 (KD-3): the Copy Adjustments transfer
+                    // dialog (the environment carries EditorState +
+                    // VersionCoordinator — the paste leg rides the
+                    // coordinator's pasteChain command).
+                    AdjustmentTransferView()
+                }
                 .overlay {
                     // Plan M2-3-1 T6: the progress overlay is now the LEGACY
                     // channel's face — the new shell renders the background-
@@ -1331,6 +1343,16 @@ internal struct LightamerApp: App {
                     pastePartialRequested = true
                 }
                 .disabled(!pasteboard.hasPayload)
+                Divider()
+                // Plan M2-8-2 T3 (KD-3, D-M2-8-CONTEXT-7): the Copy
+                // Adjustments transfer DIALOG — the three-pane checked
+                // paste that lands a NEW VERSION on the target image (the
+                // clipboard copy above stays the batch face).
+                Button(String(localized: "menu_copy_adjustments_dialog")) {
+                    adjustmentTransferPresented = true
+                }
+                .disabled(editorState.loadedImageURL == nil)
+                .accessibilityIdentifier("menu.edit.copyAdjustments")
                 Divider()
                 // Plan 12-4 T3: the preset MANAGER (the CRUD/import/export
                 // face; the apply face lives in the Inspector's preset

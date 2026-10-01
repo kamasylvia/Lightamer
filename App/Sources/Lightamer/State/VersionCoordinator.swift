@@ -193,6 +193,64 @@ final class VersionCoordinator {
         finishVersionAction()
     }
 
+    /// Copy Adjustments' landing command (Plan M2-8-2 T3, KD-4;
+    /// D-M2-8-CONTEXT-7): the checked transfer payload lands as a NEW
+    /// VERSION on the TARGET image (the dialog opens ON the target).
+    /// materialize-if-needed → the new slot (`name` = the panel's default
+    /// 「粘贴的调色」) → the new chain = ①ONE OVERWRITE-paste epoch item
+    /// (`pasteSet` = the checked record set, `stackSnapshot` = the checked
+    /// layer payload, `snapshot` slot = the first record placeholder, scope
+    /// = `pasteEpochScope` — the 09-04 HIST-05 shape VERBATIM) + ②when DRT
+    /// is checked, ONE `commitDrt`-shaped item (`drtRecord` payload +
+    /// `drtDocumentScope` placeholder). ZERO new projection semantics: the
+    /// epoch truncation, the stackSnapshot rebuild and the
+    /// `effectiveDrtRecord` scan are ALL existing paths (P1 swap already
+    /// reused them). The new slot activates; render/write ride the same
+    /// `finishVersionAction` tail as every P1 command.
+    ///
+    /// Two-step undo note (DECISIONS signed deviation): with DRT checked
+    /// the version's undo costs TWO steps (epoch + DRT) — Alcedo's single
+    /// commit has no counterpart here, the behavior face is equivalent.
+    func pasteChain(
+        records: [ModuleInstance],
+        layerSnapshot: LayerStackSnapshot?,
+        drtRecord: DrtRecord?,
+        name: String
+    ) {
+        guard let editorState, !records.isEmpty || drtRecord != nil else { return }
+        materializeImplicitChainIfNeeded()
+        var chain = HistoryStack()
+        if !records.isEmpty {
+            chain.commitPaste(
+                records: records,
+                label: String(
+                    localized: "history_paste_adjustments",
+                    defaultValue: "Paste Adjustments"),
+                scope: HistoryStack.pasteEpochScope,
+                stackSnapshot: layerSnapshot)
+        }
+        if let drtRecord {
+            // The placeholder = the current top global record (the
+            // `recordDrtChange` shape); the drtDocumentScope marker keeps
+            // it out of every projection.
+            guard let placeholder = editorState.instances.first else { return }
+            chain.commitDrt(
+                record: drtRecord, placeholder: placeholder,
+                label: String(
+                    localized: "history_drt_paste",
+                    defaultValue: "Paste Display Transform"))
+        }
+        let now = Date()
+        let slot = VersionSlot(
+            id: UUID(), name: name, createdAt: now, updatedAt: now,
+            chain: nil)
+        captureActiveChain(from: editorState.history)
+        slots.append(slot)
+        editorState.installVersionChain(chain)
+        activeVersionID = slot.id
+        finishVersionAction()
+    }
+
     /// Switch to `id`: the swap — outgoing capture → install the target's
     /// chain → target cleared → activate. Same-image switches never
     /// re-decode (PipeCache); switching to the active id is a no-op.

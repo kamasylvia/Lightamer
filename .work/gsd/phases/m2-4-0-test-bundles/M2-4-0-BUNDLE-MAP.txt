@@ -250,6 +250,7 @@ APP	8	SidecarV7Tests.swift
 APP	11	VersionSwapTests.swift
 APP	5	VersionsPanelTests.swift
 APP	7	HistoryRowJumpTests.swift
+APP	7	AdjustmentTransferTests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
 LAYERS	5	PipelineLinkageTests.swift

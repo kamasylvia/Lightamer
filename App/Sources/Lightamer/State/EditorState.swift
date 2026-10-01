@@ -1093,27 +1093,15 @@ final class EditorState {
     /// dedup tuple — items recorded AFTER a structure edit are already
     /// baked into that snapshot, so re-applying ALL in-scope items is
     /// idempotent and chronology-safe).
+    ///
+    /// M2-8-2 T3 (KD-5): the rule lives in Core as
+    /// `LayerStackProjection.rebuild(history:baseLayer:)` — this body is a
+    /// ONE-LINE delegation (the single-path/single-source mandate; the
+    /// Copy Adjustments source enumeration shares the SAME function, and
+    /// the transfer model must never re-derive a second copy).
     private func rebuildLayerStack() {
-        var stack = LayerStack(baseLayer: layerStack?.baseLayer ?? BackgroundLayer())
-        let upTo = history.position >= 0 ? Array(history.items[0...history.position]) : []
-        // The structure slot: layer-structure items AND overwrite-paste
-        // epochs (09-04) both carry a stackSnapshot to rebuild from.
-        if let lastStructure = upTo.lastIndex(where: {
-            $0.layerScope == Self.layerStructureScope
-                || $0.layerScope == HistoryStack.pasteEpochScope
-        }), let snapshot = upTo[lastStructure].stackSnapshot {
-            for layer in snapshot.makeLayers() { stack.addAdjustment(layer) }
-        }
-        // The in-scope param items re-apply onto their layer's chain. The
-        // M2-6-3 DRT document items (drtDocumentScope) are not layer state —
-        // excluded explicitly (the payload rides drtRecord, never a chain).
-        for item in upTo where item.layerScope != nil && item.layerScope != Self.layerStructureScope
-            && item.layerScope != HistoryStack.drtDocumentScope {
-            guard let layer = stack.compositeLayers.first(where: {
-                $0.id.uuidString == item.layerScope
-            }) as? AdjustmentLayer else { continue }
-            layer.chain = HistoryStack.effectiveChain(layer.chain + [item.snapshot])
-        }
-        self.layerStack = stack
+        layerStack = LayerStackProjection.rebuild(
+            history: history,
+            baseLayer: layerStack?.baseLayer ?? BackgroundLayer())
     }
 }
