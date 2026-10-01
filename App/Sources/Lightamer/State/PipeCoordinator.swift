@@ -147,6 +147,18 @@ final class PipeCoordinator {
     /// `editorState` (the host strongly owns both ends).
     private weak var workspace: WorkspaceModel?
 
+    /// M2-8-1 T2 (KD-4): the version orchestrator back-reference — the
+    /// write face reads the slots for the v7 keys, the restore leg
+    /// hydrates/resets them, version commands land here for the render +
+    /// write. Same weak pattern (the host strongly owns both ends).
+    private weak var versionCoordinator: VersionCoordinator?
+
+    /// Wire the version orchestrator (called once beside the other
+    /// attaches).
+    func attach(versionCoordinator: VersionCoordinator) {
+        self.versionCoordinator = versionCoordinator
+    }
+
     // ── 02-05 history-driven rendering (D-H1 trio state) ─────────────────
 
     /// True between `beginContinuousEdit()` and `commitContinuousEdit` —
@@ -514,6 +526,25 @@ final class PipeCoordinator {
     /// assembly task calls this beside `workspace.attach(pipeCoordinator:)`).
     func attach(workspace: WorkspaceModel) {
         self.workspace = workspace
+    }
+
+    // ── M2-8-1 T2 (KD-2): the version-command notification face ─────────
+
+    /// The VersionCoordinator's ONE edge (the drtRecordDidChange shape): a
+    /// version command landed (swap / create / branch / rename / remove).
+    /// Re-syncs the DRT carrier from the POST-command history truth (the
+    /// undo/redo restore-leg half — a version swap can cross a DRT item),
+    /// re-renders through the one `historyDidChange` path (the swap's
+    /// param replay — milliseconds, zero re-decode), and schedules the
+    /// sidecar write: `makeSidecarDocument` reads the POST-command
+    /// snapshot ONCE, SidecarStore promotes it atomically — the disk never
+    /// sees a mid-swap state, and rapid re-clicks merge into the same 2s
+    /// debounce (KD-2's write atomicity answer).
+    func versionActionDidChange() async {
+        guard decoded != nil else { return }
+        syncDrtCarrierWithHistory()
+        await historyDidChange()
+        scheduleSidecarWrite()
     }
 
     // ── M2-4-1 T5: RAW overrides persistence (sidecar v5, M2DIS-04) ─────
@@ -932,7 +963,21 @@ final class PipeCoordinator {
                     // prime the session carrier (pristine documents skip;
                     // the render rides this load's own preview pass).
                     restoreDrtRecordLeg(document: document, url: url)
+                    // M2-8-1 T2 (KD-4): the version hydrate leg — a
+                    // versioned document loads its slots (the active one
+                    // marked, non-active chains read through the public
+                    // accessor); a version-less document RESETS to the
+                    // implicit single-version state (checker E4: the
+                    // outgoing image's slots must never leak into the
+                    // incoming one). Runs after `restoreFromSidecar` — the
+                    // active chain is already the live history.
+                    versionCoordinator?.hydrate(
+                        versions: document.versions,
+                        activeVersionID: document.activeVersionID)
                 } else {
+                    // M2-8-1 T2 (KD-4/E4): a pristine seed (no `.lra`) is
+                    // ALSO the implicit single-version state — clear any
+                    // outgoing image's slot list (the same E4 path).
                     // Pristine seed (Plan 03-02-T4): terminal trio + the
                     // LightamerIOP tone iops with permanent panels at
                     // IDENTITY params — their Inspector panels need
@@ -951,6 +996,7 @@ final class PipeCoordinator {
                             ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
                         }
                     )
+                    versionCoordinator?.resetToImplicit()
                 }
                 historyLoadedURL = url
             }
@@ -1182,6 +1228,26 @@ final class PipeCoordinator {
         }
         let drtForField: DrtRecord? =
             sessionDrt.flatMap { isDrtRecordDefault($0) ? nil : $0 }
+        // M2-8-1 T2 (KD-4): the version face. A structure-less session
+        // (nil) keeps the v6 byte shape (both keys absent); a structured
+        // one touches the active slot (KD-2's write-face updatedAt rule)
+        // and projects the slots — the ACTIVE slot's chain stays nil (its
+        // items live in the `history` key above — items never double-write,
+        // OQ-11), non-active slots map through the public record init. The
+        // document build reads the post-command snapshot exactly once (the
+        // swap atomicity — no await between the swap and this read).
+        var versionRecords: [SidecarVersionRecord]?
+        var activeVersionID: String?
+        if let versions = versionCoordinator, versions.hasVersionStructure {
+            versions.touchActive()
+            versionRecords = versions.slots.map { slot in
+                SidecarVersionRecord(
+                    id: slot.id, name: slot.name, createdAt: slot.createdAt,
+                    updatedAt: slot.updatedAt,
+                    chain: slot.id == versions.activeVersionID ? nil : slot.chain)
+            }
+            activeVersionID = versions.activeVersionID?.uuidString
+        }
         return LightamerSidecar(
             imageID: imageID,
             decoderVersionUsed: decoded.decoderVersionUsed.rawValue,
@@ -1195,7 +1261,9 @@ final class PipeCoordinator {
             appVersion: LightamerSidecar.currentAppVersion,
             layerStack: stackRecord,
             rawOverrides: sessionOverrides.isIdentity ? nil : sessionOverrides,
-            displayTransform: drtForField)
+            displayTransform: drtForField,
+            versions: versionRecords,
+            activeVersionID: activeVersionID)
     }
 
     /// D-S3: every committed history MOVE throttles a `.lra` write (2s

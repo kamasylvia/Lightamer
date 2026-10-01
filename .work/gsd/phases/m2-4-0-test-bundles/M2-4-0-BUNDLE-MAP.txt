@@ -239,6 +239,7 @@ APP	9	MaskGroupsPanelTests.swift
 APP	5	MaskDefaultBehaviorTests.swift
 APP	11	MaskRevisionTests.swift
 APP	9	SidecarV7Tests.swift
+APP	10	VersionSwapTests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
 LAYERS	5	PipelineLinkageTests.swift
