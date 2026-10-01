@@ -346,4 +346,47 @@ final class DrtPostMigrationTests: XCTestCase {
                     + "\(bytesA[center + 2]), \(bytesA[center + 3])]")
         }
     }
+
+    // MARK: - 6: the OQ-10 bench observation (non-gating)
+
+    /// The full-DRT-tail wall clock at the PREVIEW cap bucket (2560) and a
+    /// small FULL render — the OQ-10 observation row (60fps 复验归 M2-11).
+    /// NO hard gate: the asserts only sanity the shapes; the numbers land
+    /// in M2-6-3-SUMMARY.
+    func testDrtTailBenchObservation() async throws {
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let policy = DrtTailParams(
+            record: sdrRecord, postOpNames: Self.postSet)
+
+        // PREVIEW cap bucket: 2560-px long edge synthetic.
+        let previewImage = makeImage(width: 1920, height: 2560)
+        let terminal = try await makeTerminalChain(registry: registry)
+        let postBoxes = try await makePostBoxes(registry: registry, sharpenAmount: 0.8)
+        let previewChain = terminal + postBoxes
+        var start = Date()
+        _ = try await render(
+            previewImage, previewChain, policy: .drt(policy), metal: metal)
+        let coldPreview = Date().timeIntervalSince(start)
+        start = Date()
+        _ = try await render(
+            previewImage, previewChain, policy: .drt(policy), metal: metal)
+        let warmPreview = Date().timeIntervalSince(start)
+
+        // FULL small image (the 100MP full-frame bench is NOT a gate).
+        let fullImage = makeImage(width: 1024, height: 640)
+        start = Date()
+        let (fullPlane, _) = try await RenderPipeline.process(
+            image: fullImage, instances: previewChain,
+            imageID: Self.fixtureImageID, resolution: .full,
+            cache: PipeCache(), metal: metal, longEdge: nil,
+            terminalTail: .drt(policy))
+        await Self.drain(metal)
+        let fullSeconds = Date().timeIntervalSince(start)
+        XCTAssertEqual(fullPlane.pixelFormat, .bgra8Unorm)
+        print(
+            String(
+                format: "BENCH drt-tail: preview2560 cold=%.0fms warm=%.0fms; full1024x640=%.0fms",
+                coldPreview * 1000, warmPreview * 1000, fullSeconds * 1000))
+    }
 }
