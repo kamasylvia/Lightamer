@@ -1155,10 +1155,14 @@ internal struct LightamerApp: App {
                 }
                 .sheet(isPresented: $adjustmentTransferPresented) {
                     // Plan M2-8-2 T3 (KD-3): the Copy Adjustments transfer
-                    // dialog (the environment carries EditorState +
-                    // VersionCoordinator — the paste leg rides the
-                    // coordinator's pasteChain command).
-                    AdjustmentTransferView()
+                    // dialog — the paste leg rides the coordinator's
+                    // pasteChain command. The content face re-injects the two
+                    // Observable objects itself (the sheet boundary sits
+                    // outside this chain's .environment writes — the M2-8-3
+                    // acceptance FINDING-A fix; a bare AdjustmentTransferView()
+                    // here traps on open).
+                    AdjustmentTransferSheetContent(
+                        versions: versionCoordinator, editorState: editorState)
                 }
                 .onChange(of: editorState.loadedImageURL != nil) { _, editorReady in
                     // M2-8-2 T4 (KD-6): the one-shot unclean-terminate

@@ -309,3 +309,32 @@ struct AdjustmentTransferView: View {
             .padding(.top, 8)
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AdjustmentTransferSheetContent (M2-8-3 acceptance FINDING-A fix) — the Copy
+// Adjustments sheet CONTENT face. The dialog's two Observable dependencies
+// (`VersionCoordinator` / `EditorState`) are re-injected HERE, inside the
+// presented content: the app-root sheet closure sits OUTSIDE the root's
+// `.environment(...)` writes on the modifier chain, so the sheet's
+// environment snapshot carried neither object and the first content update
+// trapped ("No Observable object of type VersionCoordinator found",
+// EXC_BREAKPOINT — deterministic on open). The explicit re-injection follows
+// the repo's own convention for out-of-tree presentations (the preset-manager
+// Window re-injects at the scene; LibraryWelcomeView / ImportModeDialog take
+// init parameters). `SheetEnvironmentInjectionTests` mounts THIS face through
+// a real `.sheet` presentation — the layer the M2-8-2 model tests skipped
+// (they exercised the transfer outside any sheet, so the shipped crash never
+// surfaced).
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct AdjustmentTransferSheetContent: View {
+
+    let versions: VersionCoordinator
+    let editorState: EditorState
+
+    var body: some View {
+        AdjustmentTransferView()
+            .environment(versions)
+            .environment(editorState)
+    }
+}
