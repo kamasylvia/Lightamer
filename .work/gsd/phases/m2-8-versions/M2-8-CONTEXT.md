@@ -160,3 +160,9 @@
 ## 夜间授权预案（2026-09-29 起草时点）
 
 本 CONTEXT 提交夜间授权裁决：若无人干预，D-M2-8-CONTEXT-1..12 = **OQ-1..12 全部按推荐 A 生效**。晨审可推翻：推翻任一条 = 修订对应 plan（CONTEXT OQ 原文不改、以 Ruling/勘误注记为准，沿 M2-4/M2-5 先例）。两条 ROADMAP 字面收窄需晨审特别注意：**OQ-2-A（EditCommit hash 图不落库）与 OQ-3-A（fork-from-root 并入新建）**——推翻即回到 Alcedo DDL 照抄线，plan 形状显著变大。plan 期需回填的悬决点（非 OQ 级）：版本 swap 的 sidecar 写原子序（OQ-11）、蒙版 contentRevision 拷贝重置规则（OQ-7）、`version_ref` upsert 触发位（OQ-1）、500 条链验收脚本（OQ-8/10）。
+
+---
+
+## Ruling（2026-10-01 夜间授权，晨审可推翻）
+
+D-M2-8-CONTEXT-1..12 = OQ-1..12 **全部按推荐 A 生效**。三条盘点发现采信为事实基线：①sidecar 升版起点 = **v6→v7**（非 v5）；②Alcedo 版本交互规则在现有 HistoryStack 已实现（jump 保尾/commit 截尾），M2VER-04 undo 半边 = 验收固化；③Sessions 无库约束判决载体 = .lra 真身 + .lalb 仅 version_ref 投影。**ROADMAP 字面收窄点①②**（OQ-2 不落 hash DAG/双亲、OQ-3 fork-from-root 并入新建）为晨审专项追认项——翻回 = 照抄 Alcedo DDL 全量语义。
