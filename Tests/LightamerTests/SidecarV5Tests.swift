@@ -174,6 +174,7 @@ final class SidecarV5Tests: XCTestCase {
     func testV5RoundTripCarriesAllNewFields() throws {
         var spec = v4FormSpec()
         spec.deletionProtected = true
+        spec.contentRevision = 7
         let overrides = RAWTechnicalOverrides(
             noiseReductionAmount: 0.3,
             luminanceNoiseReduction: 0.4,
@@ -196,17 +197,49 @@ final class SidecarV5Tests: XCTestCase {
         XCTAssertEqual(decoded.schemaVersion, LightamerSidecar.schemaVersionCurrent)
         XCTAssertEqual(decoded.rawOverrides, overrides)
         let mask = try XCTUnwrap(decoded.layerStack?.layers.first?.mask?.spec)
-        // The spec-level lock rides the RUNTIME spelling (MaskSpec's own
-        // Codable — pinned by the stableHash test above); the sidecar MASK
-        // projection carries the drawn payload verbatim, so the ITEM
-        // fields survive the file round-trip:
-        XCTAssertNil(
-            mask.deletionProtected,
-            "the SidecarMaskSpec projection (outside this plan's declared file set) carries the drawn payload only — the spec-level lock's file carriage lands with M2MASK-04")
+        // M2-7 flip (Plan M2-7-1 T4, KD-4 — the D-M2-4-1-3 gap-pin above is
+        // now a TRUE two-way carriage assertion): the SidecarMaskSpec
+        // projection captures AND restores the spec-level lock and the
+        // content revision; the drawn payload verbatim check stays.
+        XCTAssertEqual(mask.deletionProtected, true, "the lock rides the file now")
+        XCTAssertEqual(mask.contentRevision, 7, "the revision rides the file now")
         XCTAssertEqual(
             mask.drawn?.group?.items.first?.inverted, false,
             "the drawn payload round-trips verbatim")
         XCTAssertFalse(decoded.driftDetected, "the v5 anchor is self-consistent")
+    }
+
+    // MARK: - M2-7: the revision data face (Plan M2-7-1 T4, KD-3/KD-5)
+
+    /// The bump primitive (nil → 1, then +1), the optimistic-concurrency
+    /// gate (nil folds to 0 both sides), and the mask-hash fold.
+    func testContentRevisionBumpAndMatchesExpectedPrimitives() throws {
+        var spec = v4FormSpec()
+        XCTAssertNil(spec.contentRevision, "pre-M2-7 shape decodes nil")
+
+        spec.bumpContentRevision()
+        XCTAssertEqual(spec.contentRevision, 1, "nil folds to 0, then +1")
+        spec.bumpContentRevision()
+        XCTAssertEqual(spec.contentRevision, 2, "exactly +1 per bump")
+
+        // The gate: nil ↔ 0 folding both sides (the single implementation).
+        XCTAssertTrue(MaskSpec.matchesExpected(nil, in: MaskSpec()))
+        XCTAssertFalse(MaskSpec.matchesExpected(1, in: MaskSpec()))
+        XCTAssertTrue(MaskSpec.matchesExpected(2, in: spec))
+        XCTAssertFalse(MaskSpec.matchesExpected(1, in: spec), "stale snapshot")
+        XCTAssertFalse(MaskSpec.matchesExpected(3, in: spec), "unseen write")
+
+        // Setting the revision moves the canonical bytes + the hash; the
+        // round-trip is stable (encode → decode → encode).
+        let withRevision = spec
+        let bytes = try Self.canonicalEncoder.encode(withRevision)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        XCTAssertEqual(object["contentRevision"] as? Int, 2)
+        let hash = withRevision.stableHash()
+        let decoded = try Self.decoder.decode(MaskSpec.self, from: bytes)
+        XCTAssertEqual(decoded.contentRevision, 2)
+        XCTAssertEqual(decoded.stableHash(), hash)
     }
 
     func testFutureVersionStillDecodes() throws {

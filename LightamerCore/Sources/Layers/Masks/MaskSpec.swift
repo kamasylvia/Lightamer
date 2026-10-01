@@ -318,18 +318,35 @@ public struct MaskSpec: Codable, Sendable, Equatable, Hashable {
     /// canonical bytes (stableHash zero-drift — pinned by SidecarV5Tests).
     public var deletionProtected: Bool?
 
+    /// M2-7 v5 additive optional (Plan M2-7-1 T4, KD-3/KD-4; M2MASK-07):
+    /// the mask-content revision — a CONCURRENT-WRITE guard counter, NOT a
+    /// cache key (`stableHash()` remains THE invalidation truth; it folds
+    /// into the mask hash naturally when set — the 06-05 hardening
+    /// semantics). nil = 0 (pre-M2-7 documents decode nil; canonical bytes
+    /// carry no key). Rises by exactly +1 at every HISTORY commit leg that
+    /// writes mask content (the write-point table: the overlay's
+    /// endInteraction commit, the AI bake install, MaskCommand
+    /// fill/duplicateAndInvert, the P2 panel's item-property writes;
+    /// overlay live ticks never bump). "Monotonic" scopes to ONE linear
+    /// history segment — an undo snapshot restore legitimately carries the
+    /// revision back (a stale in-flight writer then fails validation =
+    /// the correct cross-write refusal).
+    public var contentRevision: Int?
+
     public init(
         version: Int = 1,
         drawn: DrawnMaskSpec? = nil,
         parametric: ParametricMask? = nil,
         raster: RasterMaskRef? = nil,
-        deletionProtected: Bool? = nil
+        deletionProtected: Bool? = nil,
+        contentRevision: Int? = nil
     ) {
         self.version = version
         self.drawn = drawn
         self.parametric = parametric
         self.raster = raster
         self.deletionProtected = deletionProtected
+        self.contentRevision = contentRevision
     }
 
     /// True when the spec carries rasterizable drawn content.
@@ -364,6 +381,34 @@ public struct MaskSpec: Codable, Sendable, Equatable, Hashable {
     public func stableHash() -> UInt64 {
         StableHash.hash(ParamsCoding.encode(self))
     }
+
+    /// The single bump primitive (KD-3): nil folds to 0, then +1 — exactly
+    /// once per commit leg, by the producer that owns the leg. The
+    /// precondition is the documented no-wrap guard.
+    public mutating func bumpContentRevision() {
+        let next = (contentRevision ?? 0) + 1
+        precondition(next > 0, "contentRevision overflow")
+        contentRevision = next
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The optimistic-concurrency gate (Plan M2-7-1 KD-5; M2MASK-07) — the ONE
+// Core primitive every async producer's seam validates through. P2 wires the
+// overlay leg with it; the AI install leg consumes it from day one (a
+// mismatch refuses the install — the typed-error path, never a silent
+// overwrite).
+// ─────────────────────────────────────────────────────────────────────────────
+
+public extension MaskSpec {
+
+    /// Optimistic-concurrency gate (D-M2-7-CONTEXT-9): true = the caller's
+    /// snapshot is current and the write may proceed. nil folds to 0 both
+    /// sides (pre-M2-7 documents). THE single implementation — the AC's
+    /// `contentRevision ?? 0` grep must land here and nowhere else.
+    public static func matchesExpected(
+        _ expected: Int?, in current: MaskSpec
+    ) -> Bool { (expected ?? 0) == (current.contentRevision ?? 0) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

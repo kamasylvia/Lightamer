@@ -17,6 +17,12 @@ import Foundation
 //                                           // shape, paramsHash as a
 //                                           // decimal String (lock #2)
 //     mask : SidecarMaskSpec?               // { version } — payload 6-3/6-4
+//                                           //   + M2-7 (Plan M2-7-1 T4, KD-4):
+//                                           //   deletionProtected /
+//                                           //   contentRevision carriage
+//                                           //   (D-M2-4-1-3 owed; drawn-item
+//                                           //   feathers/revision ride the
+//                                           //   drawn payload spelling)
 //   }
 //
 // `kind` is the LayerKind string spelling ("adjustment"; the base layer is
@@ -46,16 +52,30 @@ public struct SidecarMaskSpec: Codable, Sendable, Equatable {
     /// enter this JSON, 06-RESEARCH §6).
     public var raster: RasterMaskRef?
 
+    /// M2-7 v5 additive optionals (Plan M2-7-1 T4, KD-4 — the D-M2-4-1-3
+    /// owed carriage): `deletionProtected` (the spec-level deletion lock,
+    /// file-persistent from here; nil = false) and `contentRevision` (the
+    /// concurrent-write guard counter, nil = 0). decodeIfPresent /
+    /// encodeIfPresent — absent keys keep older documents' canonical
+    /// bytes; both fold into the derived stableHash when set (mask-domain
+    /// parameters, the 06-05 hardening semantics).
+    public var deletionProtected: Bool?
+    public var contentRevision: Int?
+
     public init(
         version: Int = 1,
         drawn: DrawnMaskSpec? = nil,
         parametric: ParametricMask? = nil,
-        raster: RasterMaskRef? = nil
+        raster: RasterMaskRef? = nil,
+        deletionProtected: Bool? = nil,
+        contentRevision: Int? = nil
     ) {
         self.version = version
         self.drawn = drawn
         self.parametric = parametric
         self.raster = raster
+        self.deletionProtected = deletionProtected
+        self.contentRevision = contentRevision
     }
 
     /// Capture from the runtime record (identity verbatim).
@@ -64,11 +84,16 @@ public struct SidecarMaskSpec: Codable, Sendable, Equatable {
         drawn = spec.drawn
         parametric = spec.parametric
         raster = spec.raster
+        deletionProtected = spec.deletionProtected
+        contentRevision = spec.contentRevision
     }
 
     /// Restore the runtime record.
     var spec: MaskSpec {
-        MaskSpec(version: version, drawn: drawn, parametric: parametric, raster: raster)
+        MaskSpec(
+            version: version, drawn: drawn, parametric: parametric,
+            raster: raster, deletionProtected: deletionProtected,
+            contentRevision: contentRevision)
     }
 }
 
