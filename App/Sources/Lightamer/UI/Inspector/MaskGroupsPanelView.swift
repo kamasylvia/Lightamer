@@ -54,14 +54,19 @@ internal struct MaskGroupsPanelView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        // The projection reads at BODY scope (the observation transaction):
+        // inside the LazyVStack's deferred closure the @Observable read is
+        // NOT registered and the panel never re-renders on stack changes
+        // (the T8 walkthrough caught exactly that — the empty hint stayed
+        // up after the first layer was added).
+        let groups = document?.maskGroups ?? []
+        return VStack(alignment: .leading, spacing: 4) {
             Text("mask_groups_title")
                 .font(.caption)
                 .foregroundStyle(ThemeTokens.textSecondary)
                 .accessibilityIdentifier("mask.groups.title")
             ScrollView(.vertical) {
                 LazyVStack(alignment: .leading, spacing: 6) {
-                    let groups = document?.maskGroups ?? []
                     if groups.isEmpty {
                         Text("mask_groups_empty_hint")
                             .font(.caption2)
