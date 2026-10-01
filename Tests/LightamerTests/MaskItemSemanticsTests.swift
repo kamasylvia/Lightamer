@@ -375,6 +375,117 @@ final class MaskItemCombinerSemanticsTests: XCTestCase {
         XCTAssertTrue(got.contains { $0 > 0.99 }, "the form still renders")
         XCTAssertTrue(got.contains { $0 < 0.01 }, "…and it is a shaped mask, not fill-1")
     }
+
+    // MARK: M2-7-1 T3 (KD-3, M2MASK-04): the item feather leg + order pin
+
+    /// The gate threshold (dt blend.c:306): feather 0.1 keeps the gate shut
+    /// (plane BIT-IDENTICAL to the nil-feather render); 0.11 opens it (the
+    /// Deriche pass runs and the plane moves).
+    func testItemFeatherGateThreshold() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 64, h = 64
+        let mapper = GeometryPointMapper.compose(
+            boxes: [], frameSize: SIMD2(Double(w), Double(h)))
+        let window = ROI(x: 0, y: 0, width: w, height: h)
+        let form = MaskForm(kind: .ellipse(EllipseForm(
+            center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.3, radiusY: 0.3,
+            rotationDegrees: 0, border: 0)))
+
+        func plane(_ feather: Float?) async throws -> [Float] {
+            let group = MaskGroupSpec(items: [
+                MaskGroupItem(
+                    formID: form.id, op: .union, inverted: false, opacity: 1,
+                    feather: feather),
+            ])
+            let combined = try await MaskCombiner.drawnGroupPlane(
+                group: group, forms: [form], window: window,
+                mapper: mapper, metal: metal)
+            return readMask(try XCTUnwrap(combined), metal: metal)
+        }
+
+        let noFeather = try await plane(nil)
+        let atGate = try await plane(0.1)
+        let pastGate = try await plane(0.11)
+        XCTAssertEqual(noFeather, atGate, "feather 0.1 = gate shut, no blur leg")
+        var moved = false
+        for (a, b) in zip(noFeather, pastGate) where a != b { moved = true }
+        XCTAssertTrue(moved, "feather 0.11 opens the gate — the blur leg runs")
+    }
+
+    /// The application-order non-null-turning probe (KD-3): the item
+    /// feather is a PER-ITEM blur BEFORE the reduce — a hard DIFFERENCE cut
+    /// through a feathered item stays SHARP (the combine kernel sees the
+    /// already-feathered profile). A feather-after-combine regression would
+    /// blur the cut too (the value just inside the cut leaks well above 0).
+    func testApplicationOrderFeatherBeforeCombineProbe() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 64, h = 64
+        let mapper = GeometryPointMapper.compose(
+            boxes: [], frameSize: SIMD2(Double(w), Double(h)))
+        let window = ROI(x: 0, y: 0, width: w, height: h)
+
+        func disc(_ cx: Float, _ r: Float) -> MaskForm {
+            MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: cx, y: 0.5), radiusX: r, radiusY: r,
+                rotationDegrees: 0, border: 0)))
+        }
+        // A: hard disc r .15 @.30, FEATHERED (σ = 3 px); B: hard disc
+        // r .15 @.55, DIFFERENCE. A spans x 0.15..0.45; B spans 0.40..0.70.
+        let a = disc(0.30, 0.15)
+        let b = disc(0.55, 0.15)
+        let group = MaskGroupSpec(items: [
+            MaskGroupItem(
+                formID: a.id, op: .union, inverted: false, opacity: 1,
+                feather: 3.0),
+            MaskGroupItem(formID: b.id, op: .difference, inverted: false, opacity: 1),
+        ])
+        let combined = try await MaskCombiner.drawnGroupPlane(
+            group: group, forms: [a, b], window: window, mapper: mapper, metal: metal)
+        let got = readMask(try XCTUnwrap(combined), metal: metal)
+
+        // Inside the cut, 1.9 px past B's hard edge: the feathered A value
+        // is cut to EXACTLY 0 by the unfeathered difference leg (m = 1 →
+        // d·(1−m) = 0). A blur-after-combine regression leaks ~0.2-0.4 here.
+        let insideCut = got[(32 * w) + 27]
+        XCTAssertEqual(insideCut, 0, accuracy: 0.02, "the cut stays sharp — feather ran BEFORE combine")
+
+        // Feather-active witness: 1.1 px OUTSIDE A's left edge (clear of B)
+        // sits in A's feather band — strictly intermediate (a hard A reads 0).
+        let band = got[(32 * w) + 8]
+        XCTAssertGreaterThan(band, 0.02, "A's outer band is feathered, not hard")
+        XCTAssertLessThan(band, 0.9)
+    }
+
+    /// The feather→invert reading: an INVERTED feathered item inverts the
+    /// feathered profile — solid core 0, far field 1, soft ring between
+    /// (the kernel's invert leg consumes the blurred plane).
+    func testInvertedFeatheredProfileAnchor() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let w = 64, h = 64
+        let mapper = GeometryPointMapper.compose(
+            boxes: [], frameSize: SIMD2(Double(w), Double(h)))
+        let window = ROI(x: 0, y: 0, width: w, height: h)
+        let form = MaskForm(kind: .ellipse(EllipseForm(
+            center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.2, radiusY: 0.2,
+            rotationDegrees: 0, border: 0)))
+        let group = MaskGroupSpec(items: [
+            MaskGroupItem(
+                formID: form.id, op: .union, inverted: true, opacity: 1,
+                feather: 3.0),
+        ])
+        let combined = try await MaskCombiner.drawnGroupPlane(
+            group: group, forms: [form], window: window, mapper: mapper, metal: metal)
+        let got = readMask(try XCTUnwrap(combined), metal: metal)
+        XCTAssertEqual(got[(32 * w) + 32], 0, accuracy: 0.02, "core inverted to 0")
+        XCTAssertEqual(got[(4 * w) + 4], 1, accuracy: 0.02, "far field inverted to 1")
+        // 0.6 px inside the geometric edge: the soft inverted ring.
+        let ring = got[(32 * w) + 39] // x = 0.617, edge at 0.7 → 5.3 px inside
+        XCTAssertGreaterThan(ring, 0.05, "the inverted band is soft, not hard")
+        XCTAssertLessThan(ring, 0.95)
+    }
 }
 
 // MARK: - The record/state face (KD-2 accessors + KD-4 lock; App types)
@@ -561,5 +672,108 @@ final class MaskItemSemanticsTests: XCTestCase {
             "clear removes the record")
         XCTAssertEqual(editorState.history.items.count, items + 1)
         XCTAssertNil(editorState.toast)
+    }
+
+    // MARK: M2-7-1 T3 (KD-3): the three property setters
+
+    func testItemPropertySettersRoundTrip() {
+        let forms = makeCircleForms()
+        var spec = MaskSpec(drawn: DrawnMaskSpec(
+            forms: forms,
+            group: MaskGroupSpec(items: [
+                MaskGroupItem(formID: forms[0].id, op: .union, inverted: false, opacity: 1),
+            ])))
+
+        // Feather round-trip; the hash moves (mask-domain params).
+        let hashBefore = spec.stableHash()
+        spec.setItemFeather(forms[0].id, 2.5)
+        XCTAssertEqual(spec.drawn?.group?.items[0].feather, 2.5)
+        XCTAssertNotEqual(spec.stableHash(), hashBefore)
+        spec.setItemFeather(forms[0].id, nil)
+        XCTAssertNil(spec.drawn?.group?.items[0].feather, "nil reset = no feather")
+
+        // Invert + opacity round-trip; opacity clamps at the facade.
+        spec.setItemInverted(forms[0].id, true)
+        XCTAssertTrue(spec.drawn?.group?.items[0].inverted ?? false)
+        spec.setItemOpacity(forms[0].id, 1.7)
+        XCTAssertEqual(spec.drawn?.group?.items[0].opacity, 1, "clamped to [0,1]")
+        spec.setItemOpacity(forms[0].id, 0.4)
+        XCTAssertEqual(spec.drawn?.group?.items[0].opacity, 0.4)
+
+        // Unknown id = the documented silent no-op (all three setters).
+        let untouched = spec
+        spec.setItemFeather(UUID(), 1)
+        spec.setItemInverted(UUID(), true)
+        spec.setItemOpacity(UUID(), 0.5)
+        XCTAssertEqual(spec, untouched)
+    }
+
+    // MARK: M2-7-1 T3 (KD-3): the nested-child recursive addressing
+
+    func testNestedChildAddressingReachesDeepItems() {
+        let forms = makeCircleForms()
+        func circle(_ r: Float) -> MaskForm {
+            MaskForm(kind: .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.5, y: 0.5), radiusX: r, radiusY: r,
+                rotationDegrees: 0, border: 0)))
+        }
+        let deep4 = circle(0.05)
+        // top: f0, f1(child: f2(child: f3)) — a TWO-level child chain.
+        var spec = MaskSpec(drawn: DrawnMaskSpec(
+            forms: forms + [deep4],
+            group: MaskGroupSpec(items: [
+                MaskGroupItem(formID: forms[0].id, op: .union, inverted: false, opacity: 1),
+                MaskGroupItem(
+                    formID: forms[1].id, op: .intersect, inverted: false, opacity: 1,
+                    child: MaskGroupSpec(items: [
+                        MaskGroupItem(
+                            formID: forms[2].id, op: .union, inverted: false,
+                            opacity: 1,
+                            child: MaskGroupSpec(items: [
+                                MaskGroupItem(
+                                    formID: deep4.id, op: .union, inverted: false,
+                                    opacity: 1),
+                            ])),
+                    ])),
+            ])))
+
+        // One level down: f2 (inside f1's child).
+        spec.setItemOpacity(forms[2].id, 0.5)
+        XCTAssertEqual(
+            spec.drawn?.group?.items[1].child?.items[0].opacity, 0.5)
+        // Two levels down: deep4 (inside f2's child).
+        spec.setItemInverted(deep4.id, true)
+        XCTAssertEqual(
+            spec.drawn?.group?.items[1].child?.items[0].child?.items[0].inverted,
+            true)
+        spec.setItemFeather(deep4.id, 1.5)
+        XCTAssertEqual(
+            spec.drawn?.group?.items[1].child?.items[0].child?.items[0].feather,
+            1.5)
+        // The siblings stay untouched.
+        XCTAssertEqual(spec.drawn?.group?.items[0].opacity, 1)
+        XCTAssertEqual(spec.drawn?.group?.items[1].opacity, 1)
+
+        // First-hit semantics (documented defense against duplicate ids):
+        // the same id at the top level AND deep — the top-level item wins.
+        let duplicate = circle(0.03)
+        var dup = MaskSpec(drawn: DrawnMaskSpec(
+            forms: forms + [duplicate],
+            group: MaskGroupSpec(items: [
+                MaskGroupItem(formID: duplicate.id, op: .union, inverted: false, opacity: 1),
+                MaskGroupItem(
+                    formID: forms[0].id, op: .union, inverted: false, opacity: 1,
+                    child: MaskGroupSpec(items: [
+                        MaskGroupItem(
+                            formID: duplicate.id, op: .union, inverted: false,
+                            opacity: 1),
+                    ])),
+            ])))
+        dup.setItemFeather(duplicate.id, 2)
+        XCTAssertEqual(
+            dup.drawn?.group?.items[0].feather, 2, "first hit mutates")
+        XCTAssertNil(
+            dup.drawn?.group?.items[1].child?.items[0].feather,
+            "the deep twin stays untouched")
     }
 }
