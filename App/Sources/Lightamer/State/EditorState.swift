@@ -530,6 +530,37 @@ final class EditorState {
         commitLayerStructure(layerID: id, label: String(localized: "history_layer_reorder"))
     }
 
+    // MARK: M2-7-2 (KD-3): the Mask Groups panel's unified mask seams
+
+    /// D-H1 LIVE leg for panel mask edits: swap the layer's mask in place,
+    /// ZERO history, ZERO bump (the write-point-⑤ bump rides the commit
+    /// seam only — the slider preview never moves the guard).
+    func applyLiveMaskEdit(layerID: UUID, mutate: (inout MaskSpec) -> Void) {
+        guard let layer = adjustmentLayer(id: layerID) else { return }
+        var mask = layer.mask ?? MaskSpec()
+        mutate(&mask)
+        layer.mask = mask
+        applyLiveLayer(layer)
+    }
+
+    /// D-H1 COMMIT leg for panel mask edits (the `history_mask_item_*` /
+    /// `history_mask_range_*` key families): exactly ONE structure item,
+    /// and the contentRevision bump happens HERE — before the commit,
+    /// exactly once (KD-5's division: the facade setters are value writes;
+    /// the producer = this seam).
+    func commitMaskEdit(layerID: UUID, label: String, mutate: (inout MaskSpec) -> Void) {
+        guard let layer = adjustmentLayer(id: layerID) else { return }
+        var mask = layer.mask ?? MaskSpec()
+        mutate(&mask)
+        mask.bumpContentRevision()
+        let copy = AdjustmentLayer(
+            id: layer.id, name: layer.name, isVisible: layer.isVisible,
+            opacity: layer.opacity, blendMode: layer.blendMode,
+            blendOptions: layer.blendOptions, enabled: layer.enabled,
+            chain: layer.chain, mask: mask)
+        commitLayerEdit(copy, label: label)
+    }
+
     // MARK: M2-4 node-graph command entry (Plan M2-4-1 T2, KD-2)
 
     /// The ONE execution entry for every node-graph command (the P3 panels

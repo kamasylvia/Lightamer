@@ -77,15 +77,34 @@ enum MaskOverlayStyle: String, CaseIterable, Sendable {
 /// lands EXACTLY ONE history item, ⌘Z-able). KERNEL ZERO-CHANGE: nothing
 /// here touches `AdjustmentLayer`/`MaskCombiner`/the combine assembly
 /// (the Phase 6 verified surface) — a command is a RECORD edit.
+///
+/// M2-7-2 (Plan T2, checker M5 ruling = option A): `addMaskItem` /
+/// `removeMaskItem` join as PAYLOAD-FREE cases — the associated-value form
+/// would break the `CaseIterable` synthesis and leak into every `allCases`
+/// consumer. The removal/insertion TARGET rides the execution-seam
+/// parameter (`performMaskCommand(.removeMaskItem, itemID:)`) instead, and
+/// the layer-row menu enumerates the `panelMenuCases` whitelist (the two
+/// item commands are panel-row actions, never layer-menu rows).
 enum MaskCommand: String, CaseIterable, Sendable {
     case duplicate
     case duplicateAndInvert
     case fill
     case clear
     case resetEdits
+    case addMaskItem
+    case removeMaskItem
 
     /// zh/en catalog key stem (`mask_command_<rawValue>`).
     var labelKey: String { "mask_command_\(rawValue)" }
+
+    /// The layer-row context-menu whitelist (checker M5): the five
+    /// layer-scoped commands. The two item commands need a TARGET ITEM id
+    /// (the panel row's seam parameter) and MUST NOT enumerate in the
+    /// layer menu — every menu consumer reads this list, never `allCases`,
+    /// so a future command case cannot silently leak into the menu.
+    static let panelMenuCases: [MaskCommand] = [
+        .duplicate, .duplicateAndInvert, .fill, .clear, .resetEdits,
+    ]
 }
 
 @Observable
@@ -256,6 +275,23 @@ final class LayerEditingState {
         return .crop
     }
 
+    // MARK: Locate (M2-7-2, KD-3 dispatch table)
+
+    /// The ONE-shot pending right-rail tab route. The Mask Groups panel's
+    /// Locate writes it; `EditorAdjustmentStackView` consumes (clears) it
+    /// on change — the tab STATE stays the stack view's private `@State`
+    /// (no second selection truth; this is a routed REQUEST, not state).
+    var pendingTabRoute: EditorTabRoute?
+
+    /// Locate a mask row: select its layer (the seven tabs then edit that
+    /// layer — the D-M2-4-CONTEXT-9 write side), disarm any armed tool
+    /// (KD-3「联动选中」), and route the right rail to the Mask page.
+    func locateMask(layerID: UUID) {
+        select(layerID)
+        setTool(nil)
+        pendingTabRoute = .mask
+    }
+
     // MARK: mask commands (13-3 T5 — the five-command face)
 
     /// Route a mask command onto the SELECTED layer through EditorState's
@@ -264,7 +300,13 @@ final class LayerEditingState {
     /// exception: the structural clone + the inversion flip — TWO items,
     /// two ⌘Z steps, both recorded). No selection → a silent no-op (the
     /// menu disables before this can fire).
-    func performMaskCommand(_ command: MaskCommand, editorState: EditorState) {
+    ///
+    /// `itemID` is the ITEM-command execution seam (checker M5): the
+    /// payload-free `.removeMaskItem` case takes its target here. A nil
+    /// id with an item command = a silent no-op (the caller never does).
+    func performMaskCommand(
+        _ command: MaskCommand, itemID: UUID? = nil, editorState: EditorState
+    ) {
         guard let id = selectedLayerID,
               let layer = editorState.adjustmentLayer(id: id)
         else { return }
@@ -336,7 +378,135 @@ final class LayerEditingState {
             copy.chain = []
             editorState.commitLayerEdit(
                 copy, label: String(localized: "mask_command_resetEdits"))
+        case .addMaskItem:
+            // M2-7-2 (KD-3): one default-shaped form + one group item —
+            // EXACTLY ONE history item (the write-point-⑤ bump inside).
+            Self.addMaskItem(to: layer, tool: activeTool, editorState: editorState)
+        case .removeMaskItem:
+            // M2-7-2 (KD-3): drop the item (depth-first across nested
+            // children), sweep its form when nothing references it, and
+            // honor the deletion lock with the EXISTING double-leg toast.
+            guard let itemID else { return }
+            Self.removeMaskItem(itemID, from: layer, editorState: editorState)
         }
+    }
+
+    // MARK: M2-7-2 item commands (KD-3 dispatch table; checker M5 shape)
+
+    /// The default form shape for a panel-add (the current tool's shape;
+    /// no armed tool = the ellipse — Alcedo's default mask shape).
+    private static func defaultFormKind(for tool: MaskTool?) -> MaskForm.Kind {
+        switch tool {
+        case .brush, .eraser, nil:
+            .brush(BrushStroke(
+                points: [BrushPoint(
+                    corner: MaskPoint(x: 0.5, y: 0.5), ctrl1: MaskPoint(x: 0.5, y: 0.5),
+                    ctrl2: MaskPoint(x: 0.5, y: 0.5))],
+                radius: 0.06, hardness: 0.7, density: 1, opacity: 1))
+        case .gradient:
+            .gradient(GradientForm(
+                anchor: MaskPoint(x: 0.35, y: 0.5), rotationDegrees: 0,
+                compression: 0.3, state: .linear))
+        case .ellipse:
+            .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.2, radiusY: 0.2,
+                rotationDegrees: 0, border: 0))
+        case .path:
+            .path(PathForm(
+                nodes: [
+                    PathNode(corner: MaskPoint(x: 0.35, y: 0.35), ctrl1: MaskPoint(x: 0.35, y: 0.35), ctrl2: MaskPoint(x: 0.35, y: 0.35)),
+                    PathNode(corner: MaskPoint(x: 0.65, y: 0.35), ctrl1: MaskPoint(x: 0.65, y: 0.35), ctrl2: MaskPoint(x: 0.65, y: 0.35)),
+                    PathNode(corner: MaskPoint(x: 0.5, y: 0.65), ctrl1: MaskPoint(x: 0.5, y: 0.65), ctrl2: MaskPoint(x: 0.5, y: 0.65)),
+                ],
+                border: 0))
+        }
+    }
+
+    /// Add: the default-shaped form joins `drawn.forms` and a group item
+    /// (union, visible, opacity 1) joins `drawn.group` (created when the
+    /// spec was on the single-form path). One commit, one +1 bump.
+    private static func addMaskItem(
+        to layer: AdjustmentLayer, tool: MaskTool?, editorState: EditorState
+    ) {
+        var spec = layer.mask ?? MaskSpec()
+        var drawn = spec.drawn ?? DrawnMaskSpec(forms: [])
+        let form = MaskForm(kind: defaultFormKind(for: tool))
+        drawn.forms.append(form)
+        var group = drawn.group ?? MaskGroupSpec(items: [])
+        group.items.append(
+            MaskGroupItem(formID: form.id, op: .union, inverted: false, opacity: 1))
+        drawn.group = group
+        spec.drawn = drawn
+        spec.bumpContentRevision()
+        var copy = snapshot(layer)
+        copy.mask = spec
+        editorState.commitLayerEdit(
+            copy, label: String(localized: "mask_command_addMaskItem"))
+    }
+
+    /// Remove: depth-first item drop (nested children included), then the
+    /// ORPHAN FORM SWEEP (a form no leaf item references is dead weight —
+    /// dt's group semantics keep forms alive only through items). The
+    /// deletion lock intercepts with the EXISTING toast (zero history);
+    /// a miss (unknown id / no group) is a silent no-op.
+    private static func removeMaskItem(
+        _ itemID: UUID, from layer: AdjustmentLayer, editorState: EditorState
+    ) {
+        if isDeletionProtected(layer) {
+            editorState.presentToast(deletionProtectedToast)
+            return
+        }
+        guard var spec = layer.mask, var drawn = spec.drawn,
+            var group = drawn.group
+        else { return }
+        guard let remaining = Self.removingItem(itemID, from: group.items) else {
+            return
+        }
+        group.items = remaining
+        drawn.group = group
+        let referenced = Self.referencedFormIDs(in: group.items)
+        drawn.forms.removeAll { !referenced.contains($0.id) }
+        spec.drawn = drawn
+        spec.bumpContentRevision()
+        var copy = snapshot(layer)
+        copy.mask = spec
+        editorState.commitLayerEdit(
+            copy, label: String(localized: "mask_command_removeMaskItem"))
+    }
+
+    /// Depth-first item removal: nil = the id matched nothing (miss).
+    private static func removingItem(
+        _ id: UUID, from items: [MaskGroupItem]
+    ) -> [MaskGroupItem]? {
+        var changed = false
+        var out: [MaskGroupItem] = []
+        for var item in items {
+            if item.formID == id {
+                changed = true
+                continue
+            }
+            if var child = item.child,
+                let grandChild = removingItem(id, from: child.items) {
+                child.items = grandChild
+                item.child = child
+                changed = true
+            }
+            out.append(item)
+        }
+        return changed ? out : nil
+    }
+
+    /// The form ids the tree still references (leaf items only — a child
+    /// group's items carry their own leaves).
+    private static func referencedFormIDs(in items: [MaskGroupItem]) -> Set<UUID> {
+        var ids = Set<UUID>()
+        for item in items {
+            if item.child == nil { ids.insert(item.formID) }
+            if let child = item.child {
+                ids.formUnion(referencedFormIDs(in: child.items))
+            }
+        }
+        return ids
     }
 
     /// The VALUE copy with the SAME identity (the class fields are all
