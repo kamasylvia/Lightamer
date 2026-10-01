@@ -18,11 +18,11 @@
   （`60582c3`，App 域 429/0/0 定向复归平 P2 基线）；walker 与 `.streamline`
   分支保留，模式选择器仍可选；streamline 完整流线**挂 V2**。
 - **判据实测**（正本 = `evidence/m2-7-3/probe/probe.log`，叠加图 ev_*.png）：
-  - 判据① 冷 6.1ms 中位（×10）/ 热 ~0.001ms（×100）——远内 200ms，未触发；
+  - 判据① 冷 6.3ms 中位（×10，probe.log 在案值）/ 热 ~0.001ms（×100）——远内 200ms，未触发；
   - 判据② **触发**：8 景盒 × 2 阈值 streamline 链长 ≤3 点；100-seed 网格
     82/100 空；场分辨率（1024/2560）× 步长（1.5/0.75）扫频 0/3 功能链
     （排除降采样假说）；snap 12px 触达内确定性 2 点贴边线；
-  - 判据③ n/a（seam 只跑 preview 桶；FULL 单发 80.3ms 语境数字在 perf.md）。
+  - 判据③ n/a（seam 只跑 preview 桶；FULL 单发 73.7ms 语境数字在 perf.md）。
 - **走查形态限制（复核时须知）**：GUI pointer 注入环境不可达（synthetic
   click 不达窗口——P2 E3 同根因），走查 = 进程内真链探针（CIRAW 真解码 +
   真 kernel 原文编译 + FollowEdges.swift 原文，shim 仅脚手架）+ GUI 工具栏
@@ -63,6 +63,6 @@
   （本批源码增量仅 App 域一行 + xcstrings；全套终跑数字在 M2-7-3-SUMMARY
   §测试数字，采用执行方声明对账 + 抽域复跑同 M2-7-2 先例）。
 - 机检随手可用：`uv run python3 Scripts/zh-audit.py --check`（exit 0）；
-  `git diff 7b88bbb..HEAD --stat`（源码面 = LayerEditingState.swift +
+  `git diff bf2a4db..HEAD --stat`（P3 真窗口：源码面 = LayerEditingState.swift +
   Localizable.xcstrings 两文件 + .work 申报面，零第三类）。
 - 熔断复核入口：`evidence/m2-7-3/probe/probe.log` + SUMMARY §走查裁决。

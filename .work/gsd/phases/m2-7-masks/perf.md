@@ -30,17 +30,17 @@
 
 | 项 | 值 | 对照 |
 |---|---|---|
-| 边缘图首算（GPU Sobel + L014 fence 读回 + ≤512 箱式降采样，preview 桶 2560×1707） | **中位 6.1 ms**（min 5.7 / max 7.3，×10；首调 PSO 编译噪声 74.8 ms 一次性） | 单帧预算 16.7 ms @60fps：**达标**（冷态亦 < ½ 帧） |
+| 边缘图首算（GPU Sobel + L014 fence 读回 + ≤512 箱式降采样，preview 桶 2560×1707） | **中位 6.3 ms**（min 6.1 / max 7.3，×10——probe.log 在案值；验收轮独立复跑同值 6.3 ms 再现） | 单帧预算 16.7 ms @60fps：**达标**（冷态亦 < ½ 帧） |
 | 缓存命中后（walker-only，同层连笔语义） | **中位 ~0.001 ms**（×100 seed 网格；命中率语义 = `PipeCoordinator` prefixHash：imageID⊕base⊕下层 id+chain records⊕IOP instances——**mask append 不在折叠集**（`instances` = IOP 模块实例非 mask），同层连续 seed 恒命中，下方层编辑/参数变更才翻失） | 命中收益 ≈ 6000×；KD-2「100 枚 seed 计时」以 ×100 网格覆盖 |
-| 100MP FULL 读回（判据③语境） | FULL 9504×6336 单发 **80.3 ms**（> 1 帧）——但 **P2 seam 只跑 preview 桶**（`followEdgesSurface` resolution: .preview + `currentBucket ?? cap`），FULL 读回不在出货路径 → 判据③ **n/a（如实记录，非豁免）**；若 V2 把边缘图上 FULL 需改 stroke-local 窗口裁读 | KD-1 判据③ |
+| 100MP FULL 读回（判据③语境） | FULL 9504×6336 单发 **73.7 ms**（> 1 帧；验收轮复跑 73.5 ms 同量级）——但 **P2 seam 只跑 preview 桶**（`followEdgesSurface` resolution: .preview + `currentBucket ?? cap`），FULL 读回不在出货路径 → 判据③ **n/a（如实记录，非豁免）**；若 V2 把边缘图上 FULL 需改 stroke-local 窗口裁读 | KD-1 判据③ |
 | 边缘图质量（真样张目测） | `field_vis.png`：脊线连续（建筑直边/灯笼圆轮廓可辨），非降采样碎裂 | 走查裁决输入 |
 
 ## OQ-11 预算项逐条对照（CONTEXT D-M2-7-CONTEXT-11）
 
 | 预算/观察项 | 结论 | 证据 |
 |---|---|---|
-| Follow Edges 边缘图 per-image 一次预计算随缓存失效 | **达标**（冷 6.1 ms < ½ 帧；失效键语义实现正确） | 表三 |
+| Follow Edges 边缘图 per-image 一次预计算随缓存失效 | **达标**（冷 6.3 ms < ½ 帧；失效键语义实现正确） | 表三 |
 | 缩略图 pass O(缩略像素)/格 | **架构面达标 / 运行时未实测** → Manual-Only 挂账 | 表二 |
 | 手柄 overlay display 腿不进 pipe 与 60fps 解耦 | 既有架构（06-07 display 腿先例）未重测——**观察项挂账**（随 GUI 验收轮） | — |
 | 双羽化手柄拖动实时性（超标 fallback = 拖动中缩略窗口预览） | **GUI 实操未取得**（E3 五点之一，pointer 注入不可达）→ fallback 未启用、挂账 Manual-Only | M2-7-2 DECISIONS §四 |
-| Follow Edges 交互手感（流线追踪） | **熔断触发**——streamline 真样张断链（判据②成立）：8 景盒 × 2 阈值链长 0-3 点、100-seed 网格 82/100 空、场分辨率/步长扫频 0/3 功能链；snap 12px 触达内确定性 2 点贴边线。冷延迟 6.1 ms（判据①远内）。**默认值翻 `.snap`（`60582c3`），walker 保留 V2** | `evidence/m2-7-3/`（ev_*.png + probe.log） |
+| Follow Edges 交互手感（流线追踪） | **熔断触发**——streamline 真样张断链（判据②成立）：8 景盒 × 2 阈值链长 0-3 点、100-seed 网格 82/100 空、场分辨率/步长扫频 0/3 功能链；snap 12px 触达内确定性 2 点贴边线。冷延迟 6.3 ms（判据①远内）。**默认值翻 `.snap`（`60582c3`），walker 保留 V2** | `evidence/m2-7-3/`（ev_*.png + probe.log） |

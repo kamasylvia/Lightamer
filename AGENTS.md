@@ -320,6 +320,7 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **Follow Edges 熔断态（OQ-4-C 行使，可逆）**：UI 默认 mode = `.snap`（`LayerEditingState.followEdgesParams` 单点；Core `FollowEdgesParams.init` 缺省仍 `.streamline`——改默认改 App 消费点不动 Core，FollowEdgesTests 不受扰）。walker 对真实照片脊型失稳已实测（`phases/m2-7-masks/evidence/m2-7-3/probe/probe.log`：8 景盒 × 2 阈值 ≤3 点链、场分辨率/步长扫频 0/3 功能链——非降采样假说），V2 修复方向 = 脊线预提取/亚像素质心/自适应步长；`.streamline` 分支与模式选择器保留，复活零重写。
 - **进程内真链探针方法论（GUI pointer 不可达环境的走查通道先例）**：仓库源原文 `swiftc` 直编——单文件级 Core 源（FollowEdges.swift 全文 + MaskPoint verbatim sed 抽取）+ 脚手架 shim（`makeEncoder`/`maskLikeShape` 机械复制，PSO 同步版）+ `.metal` 原文运行时 `makeLibrary(source:)`。全 framework import 路线不可行（swiftinterface 拉 libwebp 模块闭包）。探针源与 log 随 evidence 入库（`phases/m2-7-masks/evidence/m2-7-3/probe/`）。
 - **xcstrings 批次追加惯例**：新键块 append 至 `"strings"` 尾部（历史键字节与顺序零触碰，diff = 纯插入）；`zh-audit --check` 的 MISSING 仅覆盖 scanner 可见的静态键——**动态族（Core 映射 label / labelKey stem / switch 返回常量 / 多行 String(localized:)）scanner 不可见**，phase 尾对账须以 SUMMARY 键清单并集核对（M2-7 实例：39 MISSING + 13 动态 = 52 全族）。
+- **测试宿主进程清理教训（M2-7-3 执行事故，验收批补登记）**：全套 `--all` 运行中清理 GUI 进程时误杀 IOPParity 测试宿主（`test-direct.sh` 的 HOST_BIN 与 `open` 启动的 GUI 实例路径仅一斜杠之差，截断该 bundle 16/362）——**进程清理前先核 parentage（`ps -o ppid`：测试宿主 parent = 脚本进程树，GUI 实例 parent = launchd）**；处置 = 留证（`evidence/m2-7-3/all_run_incident.log`）后干净重跑全套、终值取净轮，其余六 bundle 两轮逐值一致佐证无连带影响。
 
 <!-- GSD:conventions-end -->
 
