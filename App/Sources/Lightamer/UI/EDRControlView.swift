@@ -29,6 +29,11 @@ internal struct EDRControlView: View {
                     set: { pipeCoordinator.setEDRDisplay($0) }
                 )
             )
+            // M2-6-3 KD-4: the DRT tail OWNS the display surface while a
+            // non-pristine DRT record is in effect — the manual toggle is
+            // DISABLED there (置灰; the coordinator guard is the state
+            // backstop — 旁路).
+            .disabled(pipeCoordinator.drtTailActive)
             .accessibilityIdentifier("edr.toggle")
 
             Divider()
