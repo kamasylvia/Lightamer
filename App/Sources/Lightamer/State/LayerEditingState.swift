@@ -28,12 +28,15 @@ import Observation
 // ─────────────────────────────────────────────────────────────────────────
 
 /// The mask drawing tools (plan T3.1 — five, Manual-Only 手感 red line).
+/// M2-7-2 T6 (checker E6): `.followEdges` joins the radio set — the
+/// CaseIterable consumers (the toolbar ForEach) pick it up automatically.
 enum MaskTool: String, CaseIterable, Sendable {
     case brush
     case eraser
     case gradient
     case ellipse
     case path
+    case followEdges
 
     /// The AX/toolbar identifier stem (L010: stable ids, not indexes).
     var identifier: String { "mask.tool.\(rawValue)" }
@@ -48,6 +51,7 @@ enum MaskTool: String, CaseIterable, Sendable {
         case .gradient: return "line.diagonal" // GUI-14 fix: "gradient.3.crossing" is MISSING on this OS → blank icon
         case .ellipse: return "circle" // GUI-14 fix: "ellipse" is MISSING → blank icon
         case .path: return "scribble"
+        case .followEdges: return "arrow.triangle.branch"
         }
     }
 }
@@ -174,6 +178,21 @@ final class LayerEditingState {
     var brushFlow: Float = 1.0          // per-stamp weight
     var brushOpacity: Float = 1.0       // stroke ceiling multiplier
     var gradientState: GradientState = .linear
+
+    // MARK: Follow Edges parameters (M2-7-2 T5, KD-5 — the toolbar section
+    // binds these; the walker consumes them per stroke. EDITING-MODE state:
+    // no history, never persisted — the brush-parameter precedent).
+
+    /// The edge-aware brush's parameters (Core `FollowEdgesParams`; the
+    /// brush WIDTH is NOT here — it passes through as the current brush
+    /// radius, the KD-5 division).
+    var followEdgesParams = FollowEdgesParams()
+
+    /// The empty-chain degrade status (KD-P1 KD-6 consumption face): set by
+    /// the interaction leg when the walker returns an EMPTY chain (no map /
+    /// no edge within reach) — the toolbar status hint surfaces it; any
+    /// successful stroke clears it.
+    var followEdgesDegraded = false
 
     // MARK: retouch tools (Plan 06-07 T4)
 
@@ -443,10 +462,12 @@ final class LayerEditingState {
     // MARK: M2-7-2 item commands (KD-3 dispatch table; checker M5 shape)
 
     /// The default form shape for a panel-add (the current tool's shape;
-    /// no armed tool = the ellipse — Alcedo's default mask shape).
+    /// no armed tool = the ellipse — Alcedo's default mask shape; the
+    /// follow-edges tool defaults to the same brush stroke — the walker's
+    /// output IS a brush form).
     private static func defaultFormKind(for tool: MaskTool?) -> MaskForm.Kind {
         switch tool {
-        case .brush, .eraser, nil:
+        case .brush, .eraser, .followEdges, nil:
             .brush(BrushStroke(
                 points: [BrushPoint(
                     corner: MaskPoint(x: 0.5, y: 0.5), ctrl1: MaskPoint(x: 0.5, y: 0.5),

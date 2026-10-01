@@ -96,6 +96,14 @@ internal struct MaskToolbarView: View {
                     .frame(width: 230)
             }
 
+            // T5 (KD-5): the Follow Edges parameter section — the walker's
+            // four parameters (the WIDTH passes through as the brush
+            // radius) + the mode indicator + the empty-chain status hint.
+            // EDITING-MODE state only: nothing here commits history.
+            if editingState.activeTool == .followEdges {
+                followEdgesSection
+            }
+
             // Gradient profile toggle (linear ↔ sigmoidal, discrete).
             Picker("mask_gradient_profile", selection: Binding(
                 get: { editingState.gradientState },
@@ -179,6 +187,70 @@ internal struct MaskToolbarView: View {
     }
 
     private var hasSelection: Bool { editingState.selectedLayerID != nil }
+
+    // MARK: - Follow Edges parameters (T5, KD-5)
+
+    /// The walker parameter section: mode indicator + contrast threshold +
+    /// follow strength + the one-sided direction + the empty-chain status
+    /// hint (KD-P1 KD-6's degrade face; the interaction leg clears it on
+    /// success). Binding through explicit get/set pairs (the @Environment
+    /// Observable projection has no $ — the brush popover's precedent).
+    private var followEdgesSection: some View {
+        func floatBinding(
+            _ get: @escaping (LayerEditingState) -> Float,
+            _ set: @escaping (LayerEditingState, Float) -> Void
+        ) -> Binding<Float> {
+            Binding(get: { get(editingState) }, set: { set(editingState, $0) })
+        }
+        return HStack(spacing: 10) {
+            Picker("mask_follow_mode", selection: Binding(
+                get: { editingState.followEdgesParams.mode },
+                set: { editingState.followEdgesParams.mode = $0 }
+            )) {
+                Text("mask_follow_mode_streamline").tag(FollowEdgesMode.streamline)
+                Text("mask_follow_mode_snap").tag(FollowEdgesMode.snap)
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+            .frame(width: 140)
+            .accessibilityIdentifier("mask.toolbar.follow.mode")
+
+            slider(
+                "mask_follow_threshold",
+                value: floatBinding(
+                    { $0.followEdgesParams.edgeThreshold },
+                    { $0.followEdgesParams.edgeThreshold = $1 }),
+                in: 0...1)
+
+            slider(
+                "mask_follow_strength",
+                value: floatBinding(
+                    { $0.followEdgesParams.followStrength },
+                    { $0.followEdgesParams.followStrength = $1 }),
+                in: 0...1)
+
+            Button {
+                editingState.followEdgesParams.direction =
+                    editingState.followEdgesParams.direction >= 0 ? -1 : 1
+            } label: {
+                Image(systemName:
+                    editingState.followEdgesParams.direction >= 0
+                        ? "arrow.right" : "arrow.left")
+                    .font(.callout)
+                    .frame(width: 24, height: 22)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("mask_follow_direction"))
+            .accessibilityIdentifier("mask.toolbar.follow.direction")
+
+            if editingState.followEdgesDegraded {
+                Text("mask_follow_degraded_hint")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("mask.toolbar.follow.degraded")
+            }
+        }
+    }
 
     /// Re-issue the CURRENT layer's overlay request with the live style
     /// (13-3 T5 — the style flip's re-render leg; the LayersPanel twin is

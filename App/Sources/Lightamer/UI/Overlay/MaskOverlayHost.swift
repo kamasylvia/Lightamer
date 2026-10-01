@@ -279,6 +279,11 @@ internal struct MaskOverlayHost: View {
                         layer: layer, at: p, screen: value.location, transform: xf)
                 case .path:
                     dragPathNode(layer: layer, at: p)
+                case .followEdges:
+                    // The T6 interaction leg (press → seed → walker →
+                    // BrushStroke → appendForm) lands with the coordinator
+                    // seam; the parameter section ships in T5.
+                    break
                 }
             }
             .onEnded { _ in
@@ -468,6 +473,7 @@ internal struct MaskOverlayHost: View {
         case .gradient: return "history_mask_gradient"
         case .ellipse: return "history_mask_ellipse"
         case .path: return "history_mask_path"
+        case .followEdges: return "history_mask_follow_edges"
         }
     }
 
