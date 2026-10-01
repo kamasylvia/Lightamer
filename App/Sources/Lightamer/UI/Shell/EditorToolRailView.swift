@@ -10,8 +10,9 @@ import SwiftUI
 // 活体壳 (D3 A): History mounts the LIVE M1 history stack (one row per real
 // edit transaction: operation name + time, undo/redo header buttons — the
 // Alcedo `EditorHistoryTransactionsPanel` semantics over `EditorState
-// .history` + `PipeCoordinator.undo/redo`); Versions and Nodes are the
-// honest empty states ("<Feature> arrives in M2-x" family — M2-8 / M2-4).
+// .history` + `PipeCoordinator.undo/redo`); Versions is the LIVE versions
+// panel since M2-8-2 (the placeholder retired); Nodes is the live M2-4-3
+// node canvas (its own placeholder retired the same way).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// One rail section (the Alcedo rail button triplet).
@@ -128,11 +129,11 @@ struct EditorToolRailView: View {
             switch section {
             case .history: historyPanel
             case .versions:
-                EditorRailPlaceholder(
-                    copy: String(
-                        localized: "editor_versions_placeholder",
-                        defaultValue: "Versions arrive in M2-8"),
-                    marker: "editor.versions.placeholder")
+                // Plan M2-8-2 T1 (KD-1): the LIVE versions panel replaces
+                // the M2-8 placeholder (the "Versions arrive in M2-8"
+                // marker retires; the new panel marker =
+                // `editor.versions.panel` — the M2-4-3 nodes precedent).
+                VersionsPanelView()
             case .nodes:
                 // Plan M2-4-3 T1: the LIVE node panel replaces the M2-4
                 // placeholder (the "Nodes arrive in M2-4" marker retires;

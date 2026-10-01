@@ -45,6 +45,16 @@ final class VersionSwapTests: XCTestCase {
 
     private static let decoder = JSONDecoder()
 
+    /// The materialized implicit slot's name resolves through the CATALOG —
+    /// the host locale picks zh (「版本 1」) or en ("Version 1"). The T1
+    /// panel batch registered the `versions_default_name` key, so the zh
+    /// table went live (previously the English defaultValue answered
+    /// everywhere); the tests mirror the production key instead of pinning
+    /// one locale's literal.
+    private static var implicitMaterializedName: String {
+        String(localized: "versions_default_name", defaultValue: "Version 1")
+    }
+
     // MARK: - Assembly (the DrtPersistenceTests production-minus-window shape)
 
     private func makeAssembly() async throws -> (
@@ -144,9 +154,9 @@ final class VersionSwapTests: XCTestCase {
         // First create: the implicit chain materializes as Version 1
         // (captured — its empty chain rides the slot from now on) and the
         // new EMPTY version activates as Version 2.
-        versions.createFromScratch()
+        versions.createFromScratch(name: "Version 2")
         XCTAssertEqual(versions.slots.count, 2)
-        XCTAssertEqual(versions.slots[0].name, "Version 1")
+        XCTAssertEqual(versions.slots[0].name, Self.implicitMaterializedName)
         XCTAssertEqual(versions.slots[0].chain?.items.count, 0,
                        "the materialized slot captured the implicit (empty) chain")
         XCTAssertNotNil(versions.activeVersionID)
@@ -157,7 +167,7 @@ final class VersionSwapTests: XCTestCase {
         XCTAssertTrue(editorState.history.items.isEmpty)
 
         // A second create appends (Version 3) and activates.
-        versions.createFromScratch()
+        versions.createFromScratch(name: "Version 3")
         XCTAssertEqual(versions.slots.count, 3)
         XCTAssertEqual(versions.slots[2].name, "Version 3")
         XCTAssertNotNil(versions.slots[1].chain, "the previous active captured its chain")
@@ -174,7 +184,7 @@ final class VersionSwapTests: XCTestCase {
 
         // Jump back to item 1 (the redo tail = items 2..3), then branch.
         editorState.performJump(to: 1)
-        versions.branchFromCurrent()
+        versions.branchFromCurrent(name: "branch")
 
         // The branch carries items[0...1] with position at the copy tail.
         XCTAssertEqual(versions.slots.count, 2)
@@ -208,7 +218,7 @@ final class VersionSwapTests: XCTestCase {
         XCTAssertEqual(original.position, 1)
 
         // Branch → edit the branch → switch back to Version 1.
-        versions.branchFromCurrent()
+        versions.branchFromCurrent(name: "branch")
         commitEdit(editorState, ev: -2.0, label: "branch-edit")
         XCTAssertEqual(editorState.history.items.count, 3)
 
@@ -239,8 +249,8 @@ final class VersionSwapTests: XCTestCase {
         let versions = VersionCoordinator()
         versions.attach(editorState: editorState, pipeCoordinator: PipeCoordinator())
 
-        versions.createFromScratch() // v1 materialized + v2 active
-        versions.createFromScratch() // v3 active
+        versions.createFromScratch(name: "Version 2") // v1 materialized + v2 active
+        versions.createFromScratch(name: "Version 3") // v3 active
         XCTAssertEqual(versions.slots.count, 3)
         let v1 = versions.slots[0].id
         let v3 = try XCTUnwrap(versions.activeVersionID)
@@ -263,7 +273,7 @@ final class VersionSwapTests: XCTestCase {
         try await load(url, into: coordinator, metal: metal)
 
         commitEdit(editorState, ev: 0.5, label: "e1")
-        versions.createFromScratch() // v1 (with e1) + v2 active
+        versions.createFromScratch(name: "Version 2") // v1 (with e1) + v2 active
         XCTAssertEqual(versions.slots.count, 2)
 
         // Remove v2 (active) → v1 activates; remove v1 (last) → implicit.
@@ -322,8 +332,8 @@ final class VersionSwapTests: XCTestCase {
         // A: load, branch twice → three slots (A's own edits included).
         try await load(urlA, into: coordinator, metal: metal)
         commitEdit(editorState, ev: 0.5, label: "a1")
-        versions.branchFromCurrent()
-        versions.createFromScratch()
+        versions.branchFromCurrent(name: "a-branch")
+        versions.createFromScratch(name: "a-blank")
         XCTAssertEqual(versions.slots.count, 3)
         // Let the version-command write Tasks land, then flush A's .lra.
         await settleNotifications()
@@ -337,9 +347,9 @@ final class VersionSwapTests: XCTestCase {
         XCTAssertNil(versions.activeVersionID)
 
         // B's first create starts counting at Version 1 — never Version 4.
-        versions.createFromScratch()
+        versions.createFromScratch(name: "Version 2")
         XCTAssertEqual(versions.slots.count, 2)
-        XCTAssertEqual(versions.slots[0].name, "Version 1",
+        XCTAssertEqual(versions.slots[0].name, Self.implicitMaterializedName,
                        "the implicit materialize restarts the naming")
         XCTAssertEqual(versions.slots[1].name, "Version 2")
         XCTAssertEqual(versions.activeVersionID, versions.slots[1].id)
@@ -364,7 +374,7 @@ final class VersionSwapTests: XCTestCase {
         try await load(url, into: coordinator, metal: metal)
 
         // ZERO edits — only version commands.
-        versions.createFromScratch()
+        versions.createFromScratch(name: "v2")
         try await flushUntilPersisted(sidecarURL, coordinator)
 
         // The .lra exists with ZERO edits AND the version structure.
@@ -388,7 +398,7 @@ final class VersionSwapTests: XCTestCase {
         try await load(url, into: coordinator, metal: metal)
 
         commitEdit(editorState, ev: 0.5, label: "e1")
-        versions.branchFromCurrent()
+        versions.branchFromCurrent(name: "b")
         commitEdit(editorState, ev: 1.0, label: "b1")
         let branchID = try XCTUnwrap(versions.slots[1].id)
         try await flushUntilPersisted(sidecarURL, coordinator)
@@ -440,7 +450,7 @@ final class VersionSwapTests: XCTestCase {
         await coordinator.undo()
         XCTAssertFalse(workspace.hasDrtRecord(for: url),
                        "the undo leg re-derived the carrier")
-        versions.branchFromCurrent()
+        versions.branchFromCurrent(name: "branch")
         // Give the branch a plain edit so the chains differ.
         commitEdit(editorState, ev: 0.25, label: "branch-plain")
         await settleNotifications()
@@ -490,11 +500,11 @@ final class VersionSwapTests: XCTestCase {
             elementID: elementID, store: store)
 
         // Version commands reconcile the rows (the command-tail trigger).
-        versions.createFromScratch()
+        versions.createFromScratch(name: "v2")
         versions.rename(versions.slots[1].id, to: "暖调")
         let expected = try await projectionRows(store, elementID: elementID, count: 2)
         XCTAssertEqual(
-            Set(expected.map(\.displayName)), ["Version 1", "暖调"],
+            Set(expected.map(\.displayName)), [Self.implicitMaterializedName, "暖调"],
             "the row set mirrors the slots (create + rename reconciled)")
 
         // remove → the gone row leaves the projection.

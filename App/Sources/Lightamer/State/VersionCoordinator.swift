@@ -148,13 +148,16 @@ final class VersionCoordinator {
     /// Create a version FROM SCRATCH (「另起炉灶」): a new EMPTY chain
     /// (position −1 — pristine-of-chain, the base seed renders). Implicit
     /// chain materializes first (版本 1); the new version ACTIVATES (the
-    /// Alcedo create-activates semantics, DECISIONS signed).
-    func createFromScratch() {
+    /// Alcedo create-activates semantics, DECISIONS signed). P2 KD-1: the
+    /// caller (the Versions panel) supplies the NAME — default-name
+    /// generation lives in the UI layer; only the materialized implicit
+    /// slot's 「版本 1」 stays coordinator-internal.
+    func createFromScratch(name: String) {
         guard let editorState else { return }
         materializeImplicitChainIfNeeded()
         let now = Date()
         let slot = VersionSlot(
-            id: UUID(), name: nextDefaultName(), createdAt: now,
+            id: UUID(), name: name, createdAt: now,
             updatedAt: now, chain: nil)
         // The swap discipline with an EMPTY incoming chain: outgoing
         // capture → install the empty chain → the new slot is active
@@ -170,15 +173,16 @@ final class VersionCoordinator {
     /// tail STAYS in the source — the snapshot point is the command's
     /// instant `history.position`, not the chain end) into a new version
     /// that ACTIVATES. The prefix copy rides the public Core seam
-    /// (`HistoryStack.copyingPrefixOf`).
-    func branchFromCurrent() {
+    /// (`HistoryStack.copyingPrefixOf`). P2 KD-1: `name` is caller-supplied
+    /// (the panel's UI-side default-name face).
+    func branchFromCurrent(name: String) {
         guard let editorState else { return }
         materializeImplicitChainIfNeeded()
         let now = Date()
         let branchChain = HistoryStack.copyingPrefixOf(
             editorState.history, upTo: editorState.history.position)
         let slot = VersionSlot(
-            id: UUID(), name: nextDefaultName(), createdAt: now,
+            id: UUID(), name: name, createdAt: now,
             updatedAt: now, chain: branchChain)
         // Capture the source state into ITS slot, then activate the branch
         // (its chain becomes the live history; the slot copy drops to nil).
@@ -285,7 +289,7 @@ final class VersionCoordinator {
         guard slots.isEmpty else { return }
         let now = Date()
         let slot = VersionSlot(
-            id: UUID(), name: nextDefaultName(), createdAt: now,
+            id: UUID(), name: implicitVersionName(), createdAt: now,
             updatedAt: now, chain: nil)
         slots = [slot]
         activeVersionID = slot.id
@@ -300,13 +304,12 @@ final class VersionCoordinator {
         slots[index].chain = history
     }
 
-    /// 「版本 N」 — count-based within the current structure (after a full
-    /// remove the count restarts at 1, the E4 expectation). Cosmetic only —
-    /// identity is the UUID.
-    private func nextDefaultName() -> String {
-        String(
-            localized: "versions_default_name",
-            defaultValue: "Version \(slots.count + 1)")
+    /// 「版本 1」 — the MATERIALIZED implicit slot's internal name only (the
+    /// P2 KD-1 name rule: every USER-CREATED version's name is supplied by
+    /// the panel; the coordinator mints no user-facing defaults). Cosmetic
+    /// only — identity is the UUID.
+    private func implicitVersionName() -> String {
+        String(localized: "versions_default_name", defaultValue: "Version 1")
     }
 
     /// The command tail: one coordinator notification (carrier re-sync +
