@@ -26312,6 +26312,74 @@
           }
         }
       }
+    },
+    "history_row_kind_global": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Global adjustment"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全局调整"
+          }
+        }
+      }
+    },
+    "history_row_kind_structure": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Layer structure change"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图层结构变更"
+          }
+        }
+      }
+    },
+    "history_row_kind_paste": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasted adjustments"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴的调整"
+          }
+        }
+      }
+    },
+    "history_row_kind_drt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display transform edit"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示变换编辑"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
