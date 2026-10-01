@@ -226,6 +226,7 @@ LAYERS	4	MaskEditIncrementTests.swift
 LAYERS	9	MaskFeatherAlignTests.swift
 LAYERS	8	FollowEdgesTests.swift
 LAYERS	9	MaskThumbnailRendererTests.swift
+APP	10	MaskGroupsPanelTests.swift
 APP	6	MaskRevisionTests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
