@@ -599,6 +599,19 @@ final class PipeCoordinator {
         return workspace.hasDrtRecord(for: url)
     }
 
+    /// The viewport surface spec for the CURRENT image's DRT tail (nil = no
+    /// tail / pristine — the legacy faces). The derivation is the view
+    /// layer's terminal form (EditorMTKView.Coordinator.drtSurfaceSpec — the
+    /// CGColorSpace constants live with the CAMetalLayer writer); the
+    /// @Observable read makes every surface flip re-render the view body.
+    var drtViewportSurface: DrtSurfaceSpec? {
+        guard drtTailActive, let url = currentImageURL, let workspace else {
+            return nil
+        }
+        return EditorMTKView.Coordinator.drtSurfaceSpec(
+            for: workspace.drtRecord(for: url))
+    }
+
     /// ④ RUN pass-through (KD-1 item 4): the terminal-tail policy for a
     /// render at `resolution`, in ONE decision place. A non-pristine
     /// carrier record routes `.drt(DrtTailParams)` — DRT owns the terminal
