@@ -118,6 +118,7 @@ final class VersionCoordinator {
             )
             resetToImplicit()
         }
+        syncProjection()
     }
 
     /// Back to the implicit single version (the E4 clear path — the same
@@ -247,14 +248,31 @@ final class VersionCoordinator {
 
     /// One whole-table reconcile per version command tail + per restore
     /// hydrate (KD-5's trigger answer). Idempotent by the reconcile
-    /// semantics; failures log — the projection is not truth (the `.lra`
+    /// semantics; failures LOG — the projection is not truth (the `.lra`
     /// is), so a failed sync never blocks editing. Sessions mode (nil
-    /// sink) returns with zero reference held.
+    /// sink) returns with zero reference held. The active marker is
+    /// deliberately NOT projected (`image_edit_state` stays reserved —
+    /// OQ-5-A; the rows mirror the version LIST only).
     func syncProjection() {
         guard let projection else { return } // Sessions mode: skip
-        // T3 lands the store call (LibraryStore.replaceVersionRefs) here —
-        // the rows project from `slots` + the active marker.
-        _ = projection
+        let store = projection.store
+        let elementID = projection.elementID
+        let rows = slots.map { slot in
+            LibraryStore.VersionRefRow(
+                versionID: slot.id.uuidString, elementID: elementID,
+                displayName: slot.name,
+                createdAtUnix: Int64(slot.createdAt.timeIntervalSince1970),
+                updatedAtUnix: Int64(slot.updatedAt.timeIntervalSince1970))
+        }
+        Task {
+            do {
+                try await store.replaceVersionRefs(elementID: elementID, rows: rows)
+            } catch {
+                Self.logger.error(
+                    "version_ref projection failed (non-blocking): \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
     }
 
     // MARK: - Internals

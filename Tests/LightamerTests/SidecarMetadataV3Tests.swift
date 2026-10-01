@@ -171,11 +171,13 @@ final class SidecarMetadataV3Tests: XCTestCase {
         for line in metadataLines {
             XCTAssertTrue(text.contains(line), "missing golden line: \(line)")
         }
-        // v6 re-pin (M2-6-1 T6 bump sync; was v5 M2-4-1 T4): the version
-        // rides the current schema; the provenance/rawOverrides/
-        // displayTransform keys are ABSENT for a plain document
-        // (encodeIfPresent).
-        XCTAssertTrue(text.contains("  \"schemaVersion\" : 6\n"))
+        // Current-version pin (M2-8-1 E3 补点: the constant survives the
+        // v7 bump — was the v6 literal M2-6-1 T6, before that v5): the
+        // version rides the current schema; the provenance/rawOverrides/
+        // displayTransform/versions/activeVersionID keys are ABSENT for a
+        // plain document (encodeIfPresent).
+        XCTAssertTrue(text.contains(
+            "  \"schemaVersion\" : \(LightamerSidecar.schemaVersionCurrent)\n"))
         XCTAssertFalse(text.contains("\"provenance\""))
 
         let json = try JSONSerialization.jsonObject(with: first) as! [String: Any]
@@ -247,7 +249,7 @@ final class SidecarMetadataV3Tests: XCTestCase {
         var v2Lines: [String] = []
         for line in v3Text.split(separator: "\n").map(String.init) {
             if metadataPrefixes.contains(where: { line.hasPrefix($0) }) { continue }
-            if line == "  \"schemaVersion\" : 6" {
+            if line == "  \"schemaVersion\" : \(LightamerSidecar.schemaVersionCurrent)" {
                 v2Lines.append("  \"schemaVersion\" : 2")
             } else {
                 v2Lines.append(line)
@@ -264,7 +266,7 @@ final class SidecarMetadataV3Tests: XCTestCase {
         let removed = v2LineSet.subtracting(v3Lines)
         XCTAssertEqual(
             removed, ["  \"schemaVersion\" : 2"],
-            "the ONLY changed line is the version bump (2 gone, 6 added)")
+            "the ONLY changed line is the version bump (2 gone, current added)")
         XCTAssertEqual(
             added,
             [
@@ -273,7 +275,7 @@ final class SidecarMetadataV3Tests: XCTestCase {
               "  \"keywords\" : null,",
               "  \"note\" : null,",
               "  \"rating\" : null,",
-              "  \"schemaVersion\" : 6",
+              "  \"schemaVersion\" : \(LightamerSidecar.schemaVersionCurrent)",
             ],
             "the diff is exactly the five metadata keys + the version bump")
     }

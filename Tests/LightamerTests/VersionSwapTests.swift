@@ -467,4 +467,61 @@ final class VersionSwapTests: XCTestCase {
         XCTAssertEqual(workspace.drtRecord(for: url), record)
         XCTAssertTrue(coordinator.drtTailActive)
     }
+
+    // MARK: - 11: the projection sink (KD-5; T3) — the row-set reconcile
+
+    func testVersionCommandsReconcileTheProjectionRows() async throws {
+        // A REAL .lalb package (the真链纪律 — no fake store): one images
+        // row = the element the sink points at.
+        let packageURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ver-proj-\(UUID().uuidString).lalb")
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let fileStore = ProjectFileStore(at: packageURL)
+        _ = try await fileStore.create(name: "VerProj")
+        let store = LibraryStore(store: fileStore)
+        let elementID = try await store.insertImage(
+            record: LibraryImageRecord(
+                imagePath: "Media/p.arw", pathKind: .projectRelative))
+
+        let editorState = EditorState()
+        let versions = VersionCoordinator()
+        versions.attach(editorState: editorState, pipeCoordinator: PipeCoordinator())
+        versions.projection = VersionProjectionSink(
+            elementID: elementID, store: store)
+
+        // Version commands reconcile the rows (the command-tail trigger).
+        versions.createFromScratch()
+        versions.rename(versions.slots[1].id, to: "暖调")
+        let expected = try await projectionRows(store, elementID: elementID, count: 2)
+        XCTAssertEqual(
+            Set(expected.map(\.displayName)), ["Version 1", "暖调"],
+            "the row set mirrors the slots (create + rename reconciled)")
+
+        // remove → the gone row leaves the projection.
+        versions.remove(versions.slots[1].id)
+        _ = try await projectionRows(store, elementID: elementID, count: 1)
+
+        // Remove the last → the element's projection empties (the clear
+        // face) while the chain stays.
+        versions.remove(versions.slots[0].id)
+        _ = try await projectionRows(store, elementID: elementID, count: 0)
+        XCTAssertEqual(editorState.history.items.count, 0)
+
+        try await fileStore.close()
+    }
+
+    /// Bounded wait for the async reconcile Task to settle at `count`.
+    private func projectionRows(
+        _ store: LibraryStore, elementID: Int64, count: Int
+    ) async throws -> [LibraryStore.VersionRefRow] {
+        var rows: [LibraryStore.VersionRefRow] = []
+        let start = Date()
+        while Date().timeIntervalSince(start) < 5 {
+            rows = try await store.versionRefs(elementID: elementID)
+            if rows.count == count { return rows }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTFail("the projection never settled at \(count): \(rows.count)")
+        return rows
+    }
 }

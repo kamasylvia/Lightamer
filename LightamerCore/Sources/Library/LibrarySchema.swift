@@ -77,7 +77,17 @@ public enum LibrarySchema {
     /// pending marker); old v1 packages open through the ProjectFileStore
     /// dispatch (pre-migration `sqlite3_backup` snapshot → the v1→v2 slot
     /// below → idempotent `ALTER TABLE ADD COLUMN`).
-    public static let schemaVersion = 2
+    ///
+    /// M2-8-1 (KD-3): v2 → v3 = the SECOND migration — the `version_ref`
+    /// PROJECTION table activates (D-M2-8-CONTEXT-1-A: the `.lra` sidecar
+    /// stays the version TRUTH; this table is a rebuildable mirror written
+    /// through `LibraryStore.replaceVersionRefs` whole-table reconcile).
+    /// The DDL is the REDUCED spelling — the reserved sketch's
+    /// `head_commit_hash` column is NOT activated (OQ-2-A: no DAG, no commit
+    /// hash to write; the reserved comment block at the file tail carries the
+    /// deviation note). Idempotent `CREATE IF NOT EXISTS` twice over (table +
+    /// index), so a partially-migrated snapshot re-runs clean.
+    public static let schemaVersion = 3
 
     // MARK: - Package layout constants (KD-1; consumed by P2 import, M2-3 UI)
 
@@ -334,16 +344,51 @@ public enum LibrarySchema {
         "CREATE INDEX IF NOT EXISTS idx_album_content_image ON album_content(image_id)",
     ]
 
+    /// The `version_ref` PROJECTION table (Plan M2-8-1 KD-3; activated from
+    /// the M2-2 reserved sketch with a REDUCED column set — see
+    /// `schemaVersion`'s v3 note). `version_id` is the `.lra` version UUID
+    /// STRING (the `.lra`↔`.lalb` join key — L013's decimal rule does not
+    /// apply: no hash columns). Both foreign legs cascade with the images
+    /// row (the KD-4 DDL-declared semantics). The version TRUTH stays in
+    /// the `.lra`; this table is rebuilt wholesale through
+    /// `LibraryStore.replaceVersionRefs` (idempotent, no incremental
+    /// drift face).
+    static let createVersionRefTableSQL = """
+        CREATE TABLE IF NOT EXISTS version_ref (
+          version_id TEXT PRIMARY KEY,
+          element_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+          display_name TEXT NOT NULL,
+          created_at_unix INTEGER NOT NULL,
+          updated_at_unix INTEGER NOT NULL
+        )
+        """
+
+    /// The version_ref reverse lookup (per-image version list).
+    static let createVersionRefIndexSQL =
+        "CREATE INDEX IF NOT EXISTS idx_version_ref_element ON version_ref(element_id)"
+
+    /// The version_ref columns IN ORDER (the reduced-DDL freeze face; the
+    /// LibrarySchemaTests column pin reads this).
+    public static let versionRefColumns: [(name: String, type: String)] = [
+        ("version_id", "TEXT"),              // PK — the .lra version UUID string
+        ("element_id", "INTEGER"),           // FK → images.id ON DELETE CASCADE
+        ("display_name", "TEXT"),            // "版本 1" … (the .lra record's name)
+        ("created_at_unix", "INTEGER"),      // epoch seconds (the .lra record's)
+        ("updated_at_unix", "INTEGER"),      // epoch seconds (the .lra record's)
+    ]
+
     public static let triggerNames = [
         "images_fts_ai", "images_fts_ad", "images_fts_au",
     ]
     public static let indexNames = ["idx_images_capture", "idx_album_content_image"]
 
-    /// The RESERVED mini-git table names (OQ-3 A: comment placeholder ONLY
-    /// — the negative test pins their ABSENCE until M2-8 activates them
-    /// through the KD-2 migrate seam).
+    /// The still-RESERVED mini-git table names (OQ-2-A: comment placeholder
+    /// ONLY — the negative test pins their ABSENCE). `version_ref` LEFT the
+    /// set in M2-8-1 (activated as a projection table); `edit_commit`/
+    /// `image_edit_state`/`pipeline_root` stay reserved (no DAG, no
+    /// materialization — D-M2-8-CONTEXT-2/5).
     public static let reservedTableNames = [
-        "edit_commit", "version_ref", "image_edit_state", "pipeline_root",
+        "edit_commit", "image_edit_state", "pipeline_root",
     ]
 
     // MARK: - user_version helpers (the schema-version truth, OQ-2)
@@ -392,6 +437,10 @@ public enum LibrarySchema {
         try handle.execute(createImagesFTSSQL)
         for sql in createTriggerSQL { try handle.execute(sql) }
         for sql in createIndexSQL { try handle.execute(sql) }
+        // M2-8-1 (KD-3): the version_ref projection joins the fresh DDL —
+        // a v3 fresh create carries the table from birth.
+        try handle.execute(createVersionRefTableSQL)
+        try handle.execute(createVersionRefIndexSQL)
 
         if stored == 0 {
             // Fresh create: seed the manifest (name when provided,
@@ -425,12 +474,16 @@ public enum LibrarySchema {
 
     /// The migration slots (KD-6, checker E6): ONE `BEGIN IMMEDIATE`,
     /// ROLLBACK on failure, the original file untouched. The v1→v2 slot
-    /// (FIRST migration) adds the `images.default_look_pending` column —
-    /// IDEMPOTENT (`ALTER TABLE ADD COLUMN` guarded by a column-existence
-    /// probe; a partially-migrated snapshot re-runs clean). The
-    /// PRE-migration automatic `sqlite3_backup` snapshot lives at the
-    /// ProjectFileStore dispatch (its dead-at-v1 pin became LIVE with this
-    /// migration — the hook's first consumer).
+    /// adds the `images.default_look_pending` column — IDEMPOTENT
+    /// (`ALTER TABLE ADD COLUMN` guarded by a column-existence probe; a
+    /// partially-migrated snapshot re-runs clean). The v2→v3 slot (M2-8-1
+    /// KD-3) creates the `version_ref` projection table + index —
+    /// IDEMPOTENT twice over (`CREATE IF NOT EXISTS`; the same partial-
+    /// snapshot re-run guarantee). The PRE-migration automatic
+    /// `sqlite3_backup` snapshot lives at the ProjectFileStore dispatch
+    /// (the hook's consumers: the v1→v2 first migration and, since
+    /// M2-8-1, every v2 package opening under a v3 binary — the hook
+    /// ROTATES its snapshots, see ProjectFileStore).
     public static func migrate(
         from: Int, to: Int, on handle: SQLiteHandle
     ) throws {
@@ -439,6 +492,9 @@ public enum LibrarySchema {
             if from <= 1 && to >= 2 {
                 try addImagesDefaultLookPendingColumn(on: handle)
             }
+            if from <= 2 && to >= 3 {
+                try createVersionRefTable(on: handle)
+            }
             try writeUserVersion(to, to: handle)
             try handle.exec("COMMIT")
         } catch {
@@ -446,6 +502,15 @@ public enum LibrarySchema {
             throw LibraryError.migrationFailed(
                 detail: "library schema migration \(from)→\(to) failed")
         }
+    }
+
+    /// The v2→v3 additive projection table (M2-8-1 KD-3). Idempotent: the
+    /// DDL is `CREATE IF NOT EXISTS` on both the table and the index, so a
+    /// partially-migrated snapshot re-runs clean (the default_look_pending
+    /// probe slot's same discipline).
+    static func createVersionRefTable(on handle: SQLiteHandle) throws {
+        try handle.execute(createVersionRefTableSQL)
+        try handle.execute(createVersionRefIndexSQL)
     }
 
     /// The v1→v2 additive column (append-only; every frozen column's
@@ -462,17 +527,28 @@ public enum LibrarySchema {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RESERVED FOR M2-8 (OQ-3 A — comment placeholder, NO entity tables):
+// RESERVED FOR M2-8/M2-10 (OQ-2/3 A — comment placeholder, NO entity tables
+// EXCEPT version_ref, ACTIVATED in M2-8-1):
 //
 // The Alcedo mini-git history family, transcribed for schema-stability
-// planning. Activation order: M2-4 (node model) must stabilize the edit
-// pipeline FIRST; M2-8 then activates these through the KD-2 migrate seam
-// (pre-migration automatic `sqlite3_backup` snapshot → table-driven
-// migration). Until then the `.lalb` carries only the `has_edits`/
-// `params_hash` PROJECTION columns — the `.lra` sidecar stays the
-// edit-state truth (the phase's architecture red line).
+// planning. M2-4 (node model) stabilized the edit pipeline; M2-8-1 then
+// activated version_ref through the KD-2 migrate seam (pre-migration
+// automatic `sqlite3_backup` snapshot → table-driven migration). The
+// `.lalb` still carries only PROJECTION/RESERVATION state — the `.lra`
+// sidecar stays the edit-state truth (the phase's architecture red line).
 //
-//   edit_commit(
+//   version_ref — ACTIVATED M2-8 (REDUCED DDL; see createVersionRefTableSQL):
+//     version_id TEXT PRIMARY KEY,         -- the .lra version UUID STRING
+//     element_id INTEGER NOT NULL,         // → images.id CASCADE
+//     display_name TEXT NOT NULL,
+//     created_at_unix INTEGER NOT NULL,
+//     updated_at_unix INTEGER NOT NULL
+//   DEVIATION vs the sketch below: `head_commit_hash` is NOT a column —
+//   OQ-2-A ruled v1 versions = independent linear chains, NO commit DAG,
+//   so there is no hash to write. The column may join additively if a
+//   future OQ reopens the DAG world.
+//
+//   edit_commit(                          -- still RESERVED (no DAG in v1)
 //     commit_hash TEXT PRIMARY KEY,        -- immutable commit graph node
 //     root_id INTEGER,                     // → pipeline_root
 //     first_parent_hash TEXT,              -- NULL = root commit
@@ -481,24 +557,16 @@ public enum LibrarySchema {
 //     kind TEXT,                           -- adjust / version-create / …
 //     edit_payload TEXT)                   -- JSON
 //
-//   version_ref(
-//     version_id INTEGER PRIMARY KEY,
-//     element_id INTEGER,                  // → images.id
-//     display_name TEXT,                   -- "暖调" / "黑白" …
-//     head_commit_hash TEXT,
-//     created_at_unix INTEGER,
-//     updated_at_unix INTEGER)
-//
-//   image_edit_state(
-//     element_id INTEGER PRIMARY KEY,      // → images.id
-//     root_id INTEGER,
-//     active_version_id INTEGER,
-//     materialized_head_commit_hash TEXT,
+//   image_edit_state(                     -- still RESERVED (D5: no落库
+//     element_id INTEGER PRIMARY KEY,      //   materialization — the active
+//     root_id INTEGER,                     //   chain lives in memory + the
+//     active_version_id INTEGER,           //   .lra; param replay is the
+//     materialized_head_commit_hash TEXT,  //   switch-immediacy answer)
 //     materialized_transaction_chain_hash TEXT,
 //     serialized_pipeline_state TEXT)      -- JSON; materialization cache,
 //                                          -- NOT a user concept
 //
-//   pipeline_root(
+//   pipeline_root(                        -- still RESERVED
 //     root_id INTEGER PRIMARY KEY,
 //     element_id INTEGER UNIQUE,           // → images.id
 //     serialized_pipeline_state TEXT)      -- JSON (Develop → Color Grade×N

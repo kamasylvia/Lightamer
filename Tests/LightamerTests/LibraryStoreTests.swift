@@ -18,6 +18,9 @@ import XCTest
 //     the images row
 //   • filter_data JSON round-trip (the OQ-6 zero-new-format face)
 //   • removeImage cleans every membership (the FK cascade)
+//   • the version_ref whole-table reconcile (M2-8-1 KD-3): round-trip,
+//     the delete face, idempotence, the typed unknown-image rejection,
+//     and the FK CASCADE with the images row
 //
 // All faces go through the store API (no raw-SQL closures from the test —
 // the actor seam stays intact). Async reads hoist into locals before the
@@ -333,5 +336,85 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertEqual(image.hasEdits, 1)
         XCTAssertEqual(image.paramsHash, hash)
         XCTAssertEqual(image.refCount, 0)
+    }
+
+    // MARK: - M2-8-1 (KD-3): the version_ref whole-table reconcile
+
+    func testReplaceVersionRefsRoundTripAndReconcile() async throws {
+        let imageID = try await store.insertImage(
+            record: LibraryImageRecord(
+                imagePath: "Media/v.arw", pathKind: .projectRelative))
+        let otherID = try await store.insertImage(
+            record: LibraryImageRecord(
+                imagePath: "Media/w.arw", pathKind: .projectRelative))
+
+        // Write two rows → read back: the row set matches (round-trip).
+        let v1 = LibraryStore.VersionRefRow(
+            versionID: "11111111-1111-4111-8111-111111111111",
+            elementID: imageID, displayName: "Version 1",
+            createdAtUnix: 1_000, updatedAtUnix: 1_100)
+        let v2 = LibraryStore.VersionRefRow(
+            versionID: "22222222-2222-4222-8222-222222222222",
+            elementID: imageID, displayName: "Version 2",
+            createdAtUnix: 2_000, updatedAtUnix: 2_200)
+        try await store.replaceVersionRefs(elementID: imageID, rows: [v1, v2])
+        let read = try await store.versionRefs(elementID: imageID)
+        XCTAssertEqual(read, [v1, v2], "the row set reconciles exactly")
+
+        // RECONCILE (KD-3): replacing with a smaller set DELETES the gone
+        // rows — no incremental residue (the remove face).
+        try await store.replaceVersionRefs(elementID: imageID, rows: [v2])
+        let readAfter = try await store.versionRefs(elementID: imageID)
+        XCTAssertEqual(readAfter, [v2], "the gone row is deleted, not stale")
+
+        // Idempotent: the SAME set again → the same row set (no dupes).
+        try await store.replaceVersionRefs(elementID: imageID, rows: [v2])
+        let readAgain = try await store.versionRefs(elementID: imageID)
+        XCTAssertEqual(readAgain, [v2])
+
+        // Whole-table CLEAR (remove-all face): an empty set empties it.
+        try await store.replaceVersionRefs(elementID: imageID, rows: [])
+        let cleared = try await store.versionRefs(elementID: imageID)
+        XCTAssertTrue(cleared.isEmpty)
+
+        // Isolation: the sibling image's rows are untouched by elementID.
+        try await store.replaceVersionRefs(elementID: otherID, rows: [
+            LibraryStore.VersionRefRow(
+                versionID: "33333333-3333-4333-8333-333333333333",
+                elementID: otherID, displayName: "Version 1",
+                createdAtUnix: 3_000, updatedAtUnix: 3_000),
+        ])
+        try await store.replaceVersionRefs(elementID: imageID, rows: [v1, v2])
+        let otherRows = try await store.versionRefs(elementID: otherID)
+        let imageRows = try await store.versionRefs(elementID: imageID)
+        XCTAssertEqual(otherRows.count, 1)
+        XCTAssertEqual(imageRows.count, 2)
+    }
+
+    func testReplaceVersionRefsUnknownImageTypedNotFound() async throws {
+        await assertConstraintError {
+            try await self.store.replaceVersionRefs(
+                elementID: 999_999, rows: [])
+        }
+    }
+
+    func testVersionRefCascadeWithImageDelete() async throws {
+        let imageID = try await store.insertImage(
+            record: LibraryImageRecord(
+                imagePath: "Media/c.arw", pathKind: .projectRelative))
+        try await store.replaceVersionRefs(elementID: imageID, rows: [
+            LibraryStore.VersionRefRow(
+                versionID: "44444444-4444-4444-8444-444444444444",
+                elementID: imageID, displayName: "Version 1",
+                createdAtUnix: 4_000, updatedAtUnix: 4_000),
+        ])
+        let before = try await store.versionRefs(elementID: imageID)
+        XCTAssertEqual(before.count, 1)
+
+        // The declared DDL semantics: the image row delete cascades the
+        // projection rows away (KD-4's cleanup shape).
+        try await store.removeImage(id: imageID)
+        let rows = try await store.versionRefs(elementID: imageID)
+        XCTAssertTrue(rows.isEmpty, "FK CASCADE cleared the projection rows")
     }
 }
