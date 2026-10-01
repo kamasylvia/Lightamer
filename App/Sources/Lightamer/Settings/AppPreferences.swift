@@ -217,6 +217,9 @@ enum DefaultKeymap {
         case .librarySearch: SettingsKeyCombo("f", command: true)
         // The editor-shell visibility toggles (no shortcuts in the menu).
         case .viewToolRail, .viewScopes, .viewAdjustmentStack: nil
+        // The M2-8-2 transfer dialog (no default shortcut — ⌘⇧C belongs to
+        // the clipboard copy face).
+        case .editCopyAdjustments: nil
         }
     }
 }
