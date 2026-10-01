@@ -92,6 +92,8 @@
 - [ ] **M2AI-06**: 凭据与安全——Keychain 存 key（zeroize）+ 强制 HTTPS（localhost dev 例外）+ prompt profile 护栏（rubric 变更可检）
 - [ ] **M2AI-07**: 后台执行——任务注册表+取消，分析期间可继续工作
 - [ ] **M2AI-08**: MCP server 保留互补（Phase 14 资产；launcher 与外部 client 双入口照旧）
+- [ ] **M2AI-09**: AI 出片入工作流——超分/降噪增强在独立预览对话框执行（模型档位 M2-10 research 定），结果作为**新可编辑副本**插入项目（版本链/胶片条可见、可继续调整），原图零触碰（Lumen RAW「editable copy」UX 模式，2026-10-01 用户裁决采纳；副本格式按 Lightamer 惯例随原格式 + sidecar，不强制 DNG）
+- [ ] **M2AI-10**: AI 推理进程隔离 crash-safe——神经模型推理跑独立 worker 进程：推理崩溃编辑器不死、任务可重试/降级（设备不可用换 ANE↔GPU↔CPU）、记住失败设备组合；M2AI 本地推理面（01..05/09）共用此范式（Lumen RAW crash-safe 模式，2026-10-01 用户裁决采纳）
 
 ### 性能与收口 (M2PERF)
 - [ ] **M2PERF-01**: 原 PERF-01..07 按新架构重校——60fps@100MP 决战/零卡顿 hitch=0/RAW9 解码 500ms 可交互/懒加载万张 60fps/批量 apply 万张≤5s/内存 3GB/Instruments profile 落账
@@ -360,7 +362,14 @@ Deferred to future release. Tracked but not in current roadmap.
 对标 Gentlemen Coders Nitro Photo（macOS）蒙版面的缺口项；蒙版主体已在 v1 Phase 6/7 交付（IOP-MASK-01..05 + AI-01/05/06/07）。
 
 - **IOP-MASK-06**: Follow Edges 边缘感知笔刷——brush 沿图像轮廓单侧跟随涂抹（edge-aware/contour-following），Metal 边缘导向实现；Nitro 独门能力，算法级新需求（可插队 v1 后期 UI 打磨轮）
-- **IOP-MASK-07**: Depth 深度蒙版——读取图像内嵌深度数据（AVDepthData / ProRAW embedded matte，iPhone 人像类源）作为蒙版源；桌面 RAW 深度源稀缺，依赖数据面非算法面
+- **IOP-MASK-07**: Depth 深度蒙版——读取图像内嵌深度数据（AVDepthData / ProRAW embedded matte，iPhone 人像类源）作为蒙版源；桌面 RAW 深度源稀缺，依赖数据面非算法面。**（2026-10-01 用户裁决：采纳 Lumen RAW 候选——以 MiDaS 级单目深度模型〔ONNX→CoreML，relative-depth 前景选择〕作桌面 RAW 数据面解法，本项解锁）**
+
+### Photo Merging Extensions (v2) — Lumen RAW 借鉴（2026-10-01 用户裁决登记）
+
+来源 = `.work/gsd/research/LUMEN-RAW-NOTES.md`（MIT 项目，只借鉴模式不搬代码）；DNG 导出候选经用户裁决**不采纳**。
+
+- **IOP-HDR-06**: Mertens 曝光融合——无 CRF 估计的快速 HDR 合并第二模式（含多档 deghosting），与已交付 Robertson02（IOP-HDR-01）互为合并选项；输出 32f HDR 进 IOP-HDR-04 管线
+- **IOP-PANO-01**: 全景合成——特征匹配对齐 + 相机参数优化 + 球面投影 + 分块羽化融合，输出 100MP+ 大图入正常编辑管线；v1 合成族（HDR/焦点堆栈/降噪堆栈）之外的新合成模式
 
 ### Editor Workflow Extensions
 
