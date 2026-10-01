@@ -1607,6 +1607,107 @@ final class PipeCoordinator {
         decoded
     }
 
+    // ── M2-7-2 T6 (checker E6): the Follow Edges READ face seam ─────────
+
+    /// The seam's answer: the below-composite plane + the identity the
+    /// edge map keys on. READ-ONLY — zero walk logic lives in the
+    /// coordinator (the walker/interaction leg is the overlay's).
+    /// `@unchecked Sendable` is the established ownership seam (the
+    /// coordinator's SendableTextureBox precedent): the plane is created
+    /// on the MainActor seam leg and only ever GPU-READ afterwards.
+    struct FollowEdgesSurface: @unchecked Sendable {
+        let plane: any MTLTexture
+        let imageID: UUID
+        let prefixHash: UInt64
+    }
+
+    /// The below-composite plane for the target layer: the TRUNCATED-stack
+    /// composite (base + the layers strictly below), through the EXISTING
+    /// `RenderPipeline.processComposite` entry. After any preview render
+    /// every sub-run key already sits in the cache — the seam's re-run is
+    /// pure cache reads (the same imageID/bucket/layer keys); a cold miss
+    /// renders once and warms the same lines the preview reuses. The
+    /// render walk itself is untouched (the driver consumes a shorter
+    /// stack; no driver diff).
+    ///
+    /// `prefixHash` = the below CONTENT identity (in-process Hasher fold —
+    /// the PipeCacheKey Hashable precedent, never persisted): imageID ⊕
+    /// base ⊕ each below layer's id + chain records. A below edit flips a
+    /// record → the hash flips → the edge map invalidates (KD-6①'s key
+    /// semantics through the coordinator-owned cache).
+    func followEdgesSurface(forLayerID layerID: UUID) async -> FollowEdgesSurface? {
+        guard let decoded, let metal, let currentImageID,
+            let editorState, let registry,
+            let stack = editorState.layerStack,
+            let index = stack.compositeLayers.firstIndex(where: { $0.id == layerID })
+        else { return nil }
+        var truncated = LayerStack(baseLayer: stack.baseLayer)
+        for layer in stack.compositeLayers[..<index] {
+            truncated.addAdjustment(layer)
+        }
+        do {
+            let (plane, _) = try await RenderPipeline.processComposite(
+                image: decoded, instances: instances, layerStack: truncated,
+                registry: registry, imageID: currentImageID, resolution: .preview,
+                cache: cache, metal: metal,
+                longEdge: currentBucket ?? PreviewBucket.cap,
+                policy: .preview, hotLayerID: nil,
+                maskDirectory: currentImageURL.map {
+                    RasterMaskStore.masksDirectory(forImageURL: $0)
+                })
+            var hasher = Hasher()
+            hasher.combine(currentImageID)
+            hasher.combine(stack.baseLayer.id)
+            for layer in stack.compositeLayers[..<index] {
+                hasher.combine(layer.id)
+                for record in layer.chain { hasher.combine(record) }
+            }
+            hasher.combine(editorState.instances)
+            return FollowEdgesSurface(
+                plane: plane, imageID: currentImageID,
+                prefixHash: UInt64(bitPattern: Int64(hasher.finalize())))
+        } catch {
+            Self.logger.error(
+                "follow edges surface failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    /// The edge map for a surface, cache-or-compute. DEVIATION (recorded
+    /// in DECISIONS): P1's `PipeCacheKey.edgeMapKey`/`edgeMapPosition` is
+    /// Core-INTERNAL — App cannot name the key type, and PipeCache.swift
+    /// is outside this plan's declared boundary — so the field caches in
+    /// a coordinator-owned bounded dict keyed by the prefixHash (the SAME
+    /// invalidation semantics: a below edit flips a record → the hash
+    /// flips → the entry misses; the imageID is folded in). The GPU
+    /// submit rides `FollowEdges.edgeMap` — the MetalContext unique
+    /// routing point (L031) — and the readback is the L014-fenced
+    /// ≤512-guard `FollowEdges.readEdgeMap`.
+    private var edgeMapFieldCache: [UInt64: EdgeMapField] = [:]
+
+    private static let edgeMapFieldCacheLimit = 8
+
+    func edgeMapField(for surface: FollowEdgesSurface) async -> EdgeMapField? {
+        if let hit = edgeMapFieldCache[surface.prefixHash] { return hit }
+        guard let metal else { return nil }
+        do {
+            let plane = try await FollowEdges.edgeMap(below: surface.plane, metal: metal)
+            guard let field = FollowEdges.readEdgeMap(plane, metal: metal) else {
+                return nil
+            }
+            if edgeMapFieldCache.count >= Self.edgeMapFieldCacheLimit,
+                let oldest = edgeMapFieldCache.keys.first {
+                edgeMapFieldCache.removeValue(forKey: oldest)
+            }
+            edgeMapFieldCache[surface.prefixHash] = field
+            return field
+        } catch {
+            Self.logger.error(
+                "edge map failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
     /// The Metal context for the AI mask bake channel (07-3 T3 — the
     /// SkinSmoothPanel「定位皮肤」bake rides the same context the pipes
     /// use). Read-only additive seam (the detectionSourceImage twin).

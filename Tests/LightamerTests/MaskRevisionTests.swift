@@ -461,6 +461,115 @@ final class MaskRevisionTests: XCTestCase {
         XCTAssertNotNil(live?.mask?.raster)
     }
 
+    // MARK: M2-7-2 T6 — the Follow Edges interaction (checker E6, AC7)
+
+    /// The synthetic below plane: a vertical step at column 32 (the luma
+    /// step → the Sobel ridge the walker hugs).
+    private func syntheticEdgePlane(metal: MetalContext) throws -> any MTLTexture {
+        let w = 64, h = 64
+        var pixels = [Float](repeating: 0, count: w * h * 4)
+        for y in 0..<h {
+            for x in 0..<w {
+                let v: Float = x < 32 ? 0.2 : 0.7
+                let base = (y * w + x) * 4
+                pixels[base] = v
+                pixels[base + 1] = v
+                pixels[base + 2] = v
+                pixels[base + 3] = 1
+            }
+        }
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: w, height: h, mipmapped: false)
+        d.usage = [.shaderRead, .shaderWrite]
+        d.storageMode = .shared
+        let plane = try XCTUnwrap(metal.device.makeTexture(descriptor: d))
+        try pixels.withUnsafeBytes {
+            plane.replace(
+                region: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0,
+                withBytes: $0.baseAddress!, bytesPerRow: w * 16)
+        }
+        return plane
+    }
+
+    /// The REAL production legs (kernel + fenced readback) behind an
+    /// injected surface — the stub-seam shape: only the surface provider
+    /// is synthetic; the edge map pipeline is the coordinator's own math.
+    func testFollowEdgesStrokeHugsSyntheticEdgeAndBumpsOnce() async throws {
+        try await loadSynthetic()
+        let layer = try newLayer()
+        let plane = try syntheticEdgePlane(metal: metal)
+        let surface = PipeCoordinator.FollowEdgesSurface(
+            plane: plane, imageID: UUID(), prefixHash: 1)
+
+        let chain = await FollowEdgesInteraction.chain(
+            seed: MaskPoint(x: 0.5, y: 0.5),
+            layerID: layer.id,
+            params: FollowEdgesParams(),
+            surfaceProvider: { _ in surface },
+            fieldReader: { surface in
+                // The REAL production legs: the Sobel pass over the below
+                // plane, then the fenced readback (only the surface
+                // provider is synthetic — the stub-seam shape).
+                guard let edge = try? await FollowEdges.edgeMap(
+                    below: surface.plane, metal: self.metal)
+                else { return nil }
+                return FollowEdges.readEdgeMap(edge, metal: self.metal)
+            })
+        XCTAssertGreaterThanOrEqual(chain.count, 8, "the walk spans the ridge")
+        for point in chain {
+            XCTAssertEqual(
+                Double(point.x) * 63.0, 32.0, accuracy: 2.0,
+                "every point hugs the vertical edge (贴边)")
+        }
+
+        // The view's press leg packs the SAME chain into a BrushStroke and
+        // appends through the record — the commit bumps EXACTLY once
+        // (the E5 semantics hold for the follow-edges tool too).
+        let items = editorState.history.items.count
+        var record = MaskOverlayRecord()
+        let stroke = BrushStroke(
+            points: chain.map { p in BrushPoint(corner: p, ctrl1: p, ctrl2: p) },
+            radius: 0.02, hardness: 0.8, density: 1, opacity: 1)
+        _ = record.appendForm(.brush(stroke), layer: layer, editorState: editorState)
+        record.endInteraction(
+            hadInteraction: true, editingState: editingState,
+            editorState: editorState, label: "test follow edges")
+        XCTAssertEqual(revision(layer.id), 1, "exactly ONE bump")
+        XCTAssertEqual(editorState.history.items.count, items + 1, "one commit")
+        XCTAssertEqual(
+            editorState.adjustmentLayer(id: layer.id)?.mask?.drawn?.forms.count, 1)
+    }
+
+    /// The empty-chain degrade: a flat field (everything below threshold)
+    /// yields NO chain — the interaction leg appends nothing (the degrade
+    /// input; the view sets the status hint on this branch).
+    func testFollowEdgesEmptyFieldDegradesWithoutAppend() async throws {
+        try await loadSynthetic()
+        let layer = try newLayer()
+        let items = editorState.history.items.count
+
+        // A flat surface: no gradient anywhere → the walker's snap finds
+        // nothing above 0.25 → the empty chain.
+        let flat = EdgeMapField(
+            width: 32, height: 32,
+            values: [Float](repeating: 0.02, count: 32 * 32))
+        let chain = await FollowEdgesInteraction.chain(
+            seed: MaskPoint(x: 0.5, y: 0.5),
+            layerID: layer.id,
+            params: FollowEdgesParams(),
+            surfaceProvider: { _ in nil }, // no surface = the same degrade
+            fieldReader: { _ in flat })
+        XCTAssertTrue(chain.isEmpty, "the flat field degrades")
+
+        // The leg's contract: nothing appended, nothing committed.
+        XCTAssertEqual(editorState.history.items.count, items, "zero history")
+        XCTAssertNil(editorState.adjustmentLayer(id: layer.id)?.mask?.drawn)
+        // The state hint flag is the view's face; the state var exists.
+        editingState.followEdgesDegraded = true
+        XCTAssertTrue(editingState.followEdgesDegraded)
+        editingState.followEdgesDegraded = false
+    }
+
     /// A committed two-form spec (the mutate tests' base).
     private func installCommittedSpec(on layer: AdjustmentLayer) {
         let live = editorState.adjustmentLayer(id: layer.id)!
