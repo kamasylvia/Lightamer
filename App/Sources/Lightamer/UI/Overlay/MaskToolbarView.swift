@@ -142,6 +142,40 @@ internal struct MaskToolbarView: View {
         .padding(.horizontal, 10)
         .padding(.bottom, 8)
         .accessibilityIdentifier("mask.toolbar")
+        // T4 (KD-4, checker E1): the completion-time ask sheet — the
+        // `ask` behavior's one-shot face. The choice is NOT persisted
+        // (M2-3 semantics: ask on every completion; no "don't ask again").
+        .sheet(isPresented: Binding(
+            get: { editingState.pendingMaskBehaviorAsk },
+            set: { editingState.pendingMaskBehaviorAsk = $0 }
+        )) {
+            VStack(spacing: 16) {
+                Text("mask_behavior_ask_title")
+                    .font(.headline)
+                Text("mask_behavior_ask_body")
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+                HStack(spacing: 12) {
+                    Button {
+                        // Keep: dismiss, zero history items.
+                        editingState.pendingMaskBehaviorAsk = false
+                    } label: {
+                        Text("mask_behavior_ask_keep")
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier("mask.behavior.ask.keep")
+                    Button {
+                        // Move: the SAME one-item migration the newLayer
+                        // behavior uses.
+                        editingState.confirmMaskBehaviorMove(editorState: editorState)
+                    } label: {
+                        Text("mask_behavior_ask_move")
+                    }
+                    .accessibilityIdentifier("mask.behavior.ask.move")
+                }
+            }
+            .padding(24)
+        }
     }
 
     private var hasSelection: Bool { editingState.selectedLayerID != nil }

@@ -292,6 +292,55 @@ final class LayerEditingState {
         pendingTabRoute = .mask
     }
 
+    // MARK: Default Behavior (M2-7-2 T4, KD-4 — checker E1 re-ruling)
+
+    /// The completion-time behavior resolver, INJECTED (M2-1 D-EXEC-1
+    /// shape): the default reads the M2-3 stored preference
+    /// (`AppPreferences.maskDrawBehavior`, key `mask.behavior.default`);
+    /// tests inject a constant. View bodies NEVER read UserDefaults —
+    /// the resolver is invoked from event handlers only.
+    var maskDrawBehaviorResolver: () -> MaskDrawBehavior = {
+        AppPreferences().maskDrawBehavior
+    }
+
+    /// The one-shot ask-sheet request (`ask` behavior). NOT a persisted
+    /// choice — M2-3's semantics is ask-every-completion (no "don't ask
+    /// again").
+    var pendingMaskBehaviorAsk = false
+
+    /// The completion-time dispatch (M2-3 page semantics: the choice
+    /// applies when a drawn mask is COMPLETED). Call AFTER the
+    /// interaction's commit landed; `didCommit` false (a no-op tap) is a
+    /// silent no-op. Exhaustive, no default arm (纪律 7).
+    ///
+    ///   currentNode — zero action (the mask stays on its layer);
+    ///   newLayer    — the drawn mask migrates to a FRESH layer above
+    ///                 (ONE structure item, the source left clean);
+    ///   ask         — the one-shot sheet (the move lands ONE item when
+    ///                 confirmed; "keep" lands nothing).
+    func maskDrawInteractionDidComplete(didCommit: Bool, editorState: EditorState) {
+        guard didCommit else { return }
+        switch maskDrawBehaviorResolver() {
+        case .currentNode:
+            break
+        case .newLayer:
+            if let id = selectedLayerID {
+                _ = editorState.migrateMaskToNewLayer(from: id)
+            }
+        case .ask:
+            pendingMaskBehaviorAsk = true
+        }
+    }
+
+    /// The ask-sheet「移入新层」action — the SAME one-item migration the
+    /// newLayer behavior uses (the sheet choice is NOT persisted).
+    func confirmMaskBehaviorMove(editorState: EditorState) {
+        pendingMaskBehaviorAsk = false
+        if let id = selectedLayerID {
+            _ = editorState.migrateMaskToNewLayer(from: id)
+        }
+    }
+
     // MARK: mask commands (13-3 T5 — the five-command face)
 
     /// Route a mask command onto the SELECTED layer through EditorState's
