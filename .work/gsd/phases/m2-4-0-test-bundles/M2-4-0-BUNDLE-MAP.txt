@@ -38,6 +38,10 @@
 #   纯 Core renderer；MaskGroupsPanelTests / MaskDefaultBehaviorTests = APP/App 级
 #   ——真实 EditorState 链；RangePanelMappingTests = LAYERS/Core 级换算）。
 #   行内 method 数以终态对账为准。运行期总数基线相应上移。
+#   终值勘误（2026-10-01 M2-7-2 验收批）：RangePanelMappingTests 行 5→4、
+#   MaskGroupsPanelTests 行 10→9（登记时预写数与文件实况差 1，验收对账发现随
+#   验收 commit 修正）；MaskRevisionTests 行 6→11（M2-7-1 登记基数 6，本 plan
+#   T3 +3 / T6 +2 扩测后未随批更新，按「终态对账」口径补齐）。
 #   终值勘误（2026-09-30 M2-4-3 收口批）：NodeCanvasGeometryTests 行 8→9（T2 渲染
 #   读回测试并入同文件时漏改行内计数，收口对账发现，随收口 commit 修正——
 #   终跑对账 = 2217 基线 + 23 新增（9+14）= 2240 精确）。
@@ -226,10 +230,10 @@ LAYERS	4	MaskEditIncrementTests.swift
 LAYERS	9	MaskFeatherAlignTests.swift
 LAYERS	8	FollowEdgesTests.swift
 LAYERS	9	MaskThumbnailRendererTests.swift
-LAYERS	5	RangePanelMappingTests.swift
-APP	10	MaskGroupsPanelTests.swift
+LAYERS	4	RangePanelMappingTests.swift
+APP	9	MaskGroupsPanelTests.swift
 APP	5	MaskDefaultBehaviorTests.swift
-APP	6	MaskRevisionTests.swift
+APP	11	MaskRevisionTests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
 LAYERS	5	PipelineLinkageTests.swift
