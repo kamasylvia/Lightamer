@@ -131,6 +131,12 @@ Clarity ±100、Sharpen 0…100、Film Grain 0…100、Halation 0…100；0.3.0 
 
 ## 5. 显示渲染变换 DRT（Display Rendering Transform）
 
+> **勘误注记（M2-6-3 T6，2026-10-01）**：本节「45 个 detailed 参数」系少计——
+> `OpenDrtDetailedParams` 实数 **53**（tn×9 + cwp_lm + rs×3 + pt_lml×4 + pt_lmh×3 +
+> ptl×3 + ptm×6 + brl×6 + brlp×4 + hc×2 + hs×12；`drt_node_model.hpp:45-99` 逐字段
+> 清点，M2-6-CONTEXT 事实基线②）。schema 按实际枚举落（`DrtRecord.swift`），本注记
+> 为文档勘误——**REQUIREMENTS 原文不改**。
+
 面板 `EditorDisplayTransformPanel.qml`；模型 `drt_node_model.hpp`。默认 **OpenDRT**（`drt_node_model.hpp:102`，面板 defaultIndex 1）。
 
 - **Method**：`ACES 2.0` / `OpenDRT`（分段卡切换，Method 恒展开）。

@@ -40,10 +40,10 @@
 | Tone | `temperature` | **compat** | —（相机 WB = RAW Decode / CIRAW 域，M2GRADE-04；CAT02 创意 WB = Look/Color 组新件） | **Alcedo 无对应**（M2-5-2 D5：主面摘除 =「Tone −1 行」） |
 | Look | `saturation` | **Master** | Look: Saturation（新 saturation 件，M2-5-2 T3 批挂行） | — |
 | Look | `vibrance` | **Master** | Look: Saturation/Vibrance | — |
-| Look | `equalizer` | **Look（D9 占位组）** | Look: Clarity（Equalizer 单滑杆呈现简化 = D9 面板决策） | 「applies pre-DRT for now — moves post-DRT with M2-6」注记行 |
-| Look | `sharpen` | **Look（D9 占位组）** | Look: Sharpen | 同上注记行 |
-| Look | `grain` | **Look（D9 占位组）** | Look: Film Grain | 同上注记行（M2-6 迁 DRT 后段） |
-| Look | `bloom` | **Look（D9 占位组）** | Look: Halation | 同上注记行（同上） |
+| Look | `equalizer` | **Look（D9 占位组）** | Look: Clarity（Equalizer 单滑杆呈现简化 = D9 面板决策） | 「applies pre-DRT for now」注记行 → **M2-6-3 勘误：注记摘除（M2DRT-05 兑现，四件已迁 DRT 后段）** |
+| Look | `sharpen` | **Look（D9 占位组）** | Look: Sharpen | 同上注记行 → **M2-6-3 勘误：注记摘除** |
+| Look | `grain` | **Look（D9 占位组）** | Look: Film Grain | 同上注记行（M2-6 迁 DRT 后段）→ **M2-6-3 勘误：已迁 + 注记摘除** |
+| Look | `bloom` | **Look（D9 占位组）** | Look: Halation | 同上注记行（同上）→ **M2-6-3 勘误：已迁 + 注记摘除** |
 | Look | `cat02WhiteBalance` | **Color** | Look: White Balance（CAT02 创意 WB，M2GRADE-04；相机 WB = RAW Decode 域，D5） | — |
 | Look | `hls` | **Color** | Look: Selective Color（8-bin 表 + Target Hue 选择，M2-5-2 T5 批挂行；colorzones 三平滑曲线保留 Detail/Texture） | — |
 | Look | `colorWheels` | **Color** | Look: Color Wheel（LGG 三 trackball，M2-5-2 T4 批挂行） | — |
@@ -58,7 +58,7 @@
 | Look | `bilat` | **Detail/Texture** | —（局部对比；LocalContrast 面板，opName 沿 dt `bilat` 字面） | **Alcedo 无对应**（D6 收纳 Detail/Texture 组） |
 | LUT | `lut3d` | main | LUT 页（递归扫描/根目录选择器 = M2GRADE-05/06 留 M2-5） | — |
 | Display Transform | `vignette` | main | DRT/Post（暗角） | — |
-| Display Transform | —（占位节） | special | DRT 本体：OpenDRT / ACES 2.0（目标空间/传递函数/峰值亮度，HDR 直出） | 「arrives with M2-6」占位节；**AgX 失挂（E1 勘误）** |
+| Display Transform | —（specialContent 槽） | special | DRT 本体：**DrtPanelView（M2-6-3 落地）**——Method 分段卡恒展开（ACES 2.0/OpenDRT）+ Color & Encoding（六空间/EOTF 合法子集联动吸附/Peak 100-1000）+ aces20 限色组 + opendrt 预设三件套；Vignette 行原地保留 | 占位节退休（case 保留为槽标记、渲染臂换真面板，DECISIONS 签注）；**AgX 失挂（E1 勘误）不变** |
 | Geometry | `crop` | main | crop/aspect | — |
 | Geometry | `flip` | main | rotate/flip | — |
 | Geometry | `lens` | main | 镜头校正 | **Alcedo 无独立面板**（自动 metadata 校正） |
@@ -100,7 +100,8 @@ Tone → Look → LUT → Display Transform → Geometry → RAW Decode → Mask
 - **Look 页四组 IA**（M2-5-2 KD-1）：Master / Look（D9 占位组，四 DRT 件带 pre-DRT
   注记）/ Color / Detail/Texture——分组 = 纯呈现投影（`PanelGroup`），行账随 T2 批
   同批更新；新件行（cat02WhiteBalance/hls/colorWheels/tint/saturation）随 T3-T5
-  provider 批逐批挂入。
+  provider 批逐批挂入。**M2-6-3 勘误：四件已迁 DRT 后段渲染（行仍在 Look 页，
+  M2-3 IA 不动；pre-DRT 注记摘除）**。
 - 组头键族：`panel_group_master` / `panel_group_look` / `panel_group_color` /
   `panel_group_detail_texture` / `editor_stack_compat`（Tone compat 组头，复用
   `isAdvancedGroup` 折叠槽）。
