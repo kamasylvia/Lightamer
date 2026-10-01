@@ -95,7 +95,10 @@ files_modified:
 - **类型图标**（行尾 caption2 小图标，scope 标记族现成判定）：`layerScope == nil` 无
   图标（全局参数）；`EditorStructureScope.marker` = `square.on.square`（结构）；`pasteEpochScope`
   = `doc.on.doc`（粘贴）；`drtDocumentScope` = `circle.lefthalf.filled`（DRT）。AX 标签
-  四键（`history_row_kind_*`）。穷举 switch 无 default（新 scope 标记编译期强制应答）。
+  四键（`history_row_kind_*`）。穷举 switch 无 default——`layerScope` 是 `String?`，
+  直 switch 必带 default、无编译期强制；实现先把 scope 标记族映射为闭集 enum
+  （nil/结构/粘贴/DRT 四 case）再穷举 switch（checker M2：映射 enum 才能编译期强制——
+  新 scope 标记在映射处强制应答）。
 - **undo 四条验收固化**（CONTEXT 发现 1——已实现行为，测试立此存照）：
   ①jump 到早期 → `canRedo == true`（redo 尾保留）；②jump 后 commit → 尾截断
   （`canRedo == false` + items 收缩）；③面板按钮与 ⌘Z/⇧⌘Z 同一 coordinator 面共同
@@ -120,10 +123,11 @@ func isAdjustmentTransferable(_ instance: ModuleInstance) -> Bool {
   灰显计数注记——排除面可视化，不静默吞）；DRT = 独立勾选行（源 `effectiveDrtRecord()`
   非 nil 才出现）。
 - **排除面枚举完整性（KD 必答——风险节字面）**：测试穷举断言——develop 15 件
-  （NodeOwnershipCatalog.developOpNames 全表）+ drtPost 四件 + terminal trio
-  （colorout/gamma/out 边——owner 默认臂 .grade 例外核实：terminal 三件 opName 若答
-  .grade 则谓词需显式排除集，**执行期以 `NodeOwnershipCatalog.owner` 实测为准**，
-  DECISIONS 签注终表）逐一 `isAdjustmentTransferable == false`；.grade 18 目录抽样
+  （NodeOwnershipCatalog.developOpNames 全表）+ drtPost 四件 + terminal trio =
+  **`colorin`/`colorout`/`gamma`（终表已实测写死——checker M1：三件均未登记 catalog
+  表，`NodeOwnershipCatalog.owner` 默认臂答 .grade；opName 正本 =
+  `ColorInModule.opName`/`ColorOutModule.opName`/`GammaModule.opName`）→ 谓词显式
+  排除集写死此三件**，逐一 `isAdjustmentTransferable == false`；.grade 18 目录抽样
   == true。
 - **蒙版随行 + contentRevision 重置（悬决销账）**：层拷贝 = `AdjustmentLayer` 值拷贝
   （mask 记录随行——Grade-owned 无外部引用，CONTEXT 发现 8）；拷贝面 mask
@@ -172,8 +176,9 @@ func isAdjustmentTransferable(_ instance: ModuleInstance) -> Bool {
   最后数秒）」；键缺失（首次运行）→ 静默。
 - **纯函数核**（CleanTerminateSentinelTests 真值表）：
   `uncleanTermination(stored: Bool?) -> Bool` = `stored == true`（nil = 首运行 false）。
-  UserDefaults 经注入 `UserDefaultsSuite` 测试（L036：组装根读一次显式注入，生产路径
-  深处零直读）。
+  UserDefaults 经注入隔离 suite 测试——`UserDefaults(suiteName:)`（checker M3：
+  AppPreferences.swift:58 先例同款——注入 suite name，无 UserDefaultsSuite 类型；
+  L036：组装根读一次显式注入，生产路径深处零直读）。
 - **toast 挂点**：编辑器面首次就绪时消费一次性检出结果（presentToast 既有面）；仅
   影响 editor 打开态图（CONTEXT OQ-9-A 字面——全局单 toast，无逐图条）。
 
@@ -270,7 +275,8 @@ func isAdjustmentTransferable(_ instance: ModuleInstance) -> Bool {
      灰显注记 + Paste/取消）；`MenuCommandSet.swift` + `LightamerApp.swift` 菜单命令
      + sheet 挂载。
   4. 新建 `Tests/LightamerTests/AdjustmentTransferTests.swift`：KD-3 排除面穷举
-     （develop 15 + drtPost 4 + terminal 三件实测 + grade 抽样）+ 源链枚举（真 .lra
+     （develop 15 + drtPost 4 + terminal 三件（KD-3 终表：colorin/colorout/gamma）
+     + grade 抽样）+ 源链枚举（真 .lra
      fixture：v7 多版本源 + v6 单链源）+ pasteChain 落版本（epoch item 形状/DRT 第二
      item/蒙版 contentRevision nil/激活 + .lra 写触发）+ 目标隐式 materialize 边界。
   5. 登记 + generate。
@@ -301,7 +307,8 @@ func isAdjustmentTransferable(_ instance: ModuleInstance) -> Bool {
 - **action**
   1. AC 逐条机检 + 全套终跑（`--all` 前报备）。
   2. 落盘 `M2-8-2-SUMMARY.md`（测试数/500 链实测数字/杀进程走查记录/zh 键清单）
-     + `M2-8-2-DECISIONS.md`（KD-3 terminal 三件 owner 终表 + KD-4 两步 undo 偏离 +
+     + `M2-8-2-DECISIONS.md`（KD-3 terminal trio 终表确认——colorin/colorout/gamma
+     均答 .grade，排除集已写死 KD-3 / KD-4 两步 undo 偏离 +
      KD-4 跨图源 Deferred + contentRevision 重置 + delta Deferred 维持）。
   3. `.work/GOAL-STATE.md` 续接点追加；LESSONS 如踩坑。
   4. `git diff --stat` 核对边界（纪律 8）。
@@ -327,9 +334,9 @@ func isAdjustmentTransferable(_ instance: ModuleInstance) -> Bool {
 
 ## 风险与边界
 
-- **Copy Adjustments 排除面枚举完整性（任务简报字面风险）**：owner 默认臂 .grade 意味
-  terminal trio 等未登记 op **可能答 .grade**——谓词若只判 owner 会误贴；T3 执行期以
-  `owner` 实测终表钉死（误贴 = 谓词补显式排除集），DECISIONS 签注。**禁**在面板层散抄
+- **Copy Adjustments 排除面枚举完整性（任务简报字面风险——checker M1 已销）**：
+  terminal trio 实测 = `colorin`/`colorout`/`gamma` 均答 .grade（KD-3 终表写死）——
+  谓词显式排除集已入 KD-3，T3 只按终表断言，无执行期再核实环节。**禁**在面板层散抄
   第二份排除逻辑（单函数纪律）。
 - **多版本 × 导入链交互（P1 风险延续）**：面板创建动作使 .lra 提前诞生——`sidecar_present`
   下游观察项照旧挂 M2-8-3；本 plan 无新交互面。
@@ -351,3 +358,14 @@ func isAdjustmentTransferable(_ instance: ModuleInstance) -> Bool {
 - T4 `feat(app): clean-terminate sentinel toast`
 - T5 `docs(m2-8): close out plan 2 panels and interactions`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-10-01）
+
+checker 批（4E+5M）措辞联动修订，全量记录见 `M2-8-1-PLAN.md` 同名节。本文件三处：
+- **m1** terminal trio 终表实测写死（`colorin`/`colorout`/`gamma` 均答 .grade，
+  NodeOwnershipCatalog 未登记三件 + ColorIn/ColorOut/Gamma Module.opName 实测）——
+  KD-3/风险节/T3 action/T5 DECISIONS 四处，删「执行期再核实」环节。
+- **m2** KD-2 类型图标措辞改：`layerScope` 是 `String?`，直 switch 必带 default；
+  编译期强制 = 先映射闭集 enum 再穷举。
+- **m3** KD-6 措辞改：`UserDefaults(suiteName:)` 注入先例（AppPreferences.swift:58），
+  无 `UserDefaultsSuite` 类型。
