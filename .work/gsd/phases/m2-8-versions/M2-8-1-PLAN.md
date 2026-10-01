@@ -13,11 +13,15 @@ files_modified:
   - App/Sources/Lightamer/State/PipeCoordinator.swift      # 修改：makeSidecarDocument 版本两键投影（active 链在 history 键不双写 + touchActive）+ restore 腿 hydrate（versions 解码 → coordinator 装载 + dangling activeVersionID typed degrade）+ 版本动作 scheduleWrite 触发
   - LightamerCore/Sources/Library/LibrarySchema.swift      # 修改：schemaVersion 2→3 + createVersionRefTableSQL/idx_version_ref_element + migrate v2→v3 slot（幂等 CREATE IF NOT EXISTS）+ apply() DDL 清单追加 + reservedTableNames 收窄为三名（version_ref 移出）+ 头注释/预留注释节更新（reduced DDL 签注：无 head_commit_hash——OQ-2-A 无 DAG）
   - LightamerCore/Sources/Library/LibraryStore.swift       # 修改：replaceVersionRefs(elementID:rows:)（单事务 DELETE+INSERT 整表 reconcile 投影——versionRefRow 结构落 Core）
+  - LightamerCore/Sources/Library/ProjectFileStore.swift   # 修改（checker E2 红线推翻申报）：pre-migrate 快照轮换——按 stored→to 命名 + 同名清旧后重照（二次迁移死锁解锁）+ `backup(from:to:allowExisting:)` 死参收窄；dispatchSchema 三路 dispatch 形状零改
   - App/Sources/Lightamer/UI/Shell/EditorWorkspaceShellView.swift # 修改（最小半径）：loadCurrentImage 的 row.id 注入点——projectStore 非 nil 时装配 VersionProjectionSink（elementID + LibraryStore），切图/关闭清空
   - Project.swift                                          # 修改：新测试文件登记（bundle 无 glob——checker E2 纪律）
   - Tests/LightamerTests/SidecarV7Tests.swift              # 新建（APP——SidecarV5Tests/DrtSidecarTests 同位先例）：v7 字节形 pin + v6 零漂移 + historyHash 版本结构零折叠负测 + dangling degrade
   - Tests/LightamerTests/VersionSwapTests.swift            # 新建（APP——真链实例化 EditorState）：materialize/branch 时点/switch 往返字节忠实/remove 边界/pristine 收窄边界
-  - Tests/LightamerTests/LibrarySchemaTests.swift          # 修改：负测翻面（version_ref 现应存在，余三名仍负）+ v2→v3 迁移测试（含 pre-migrate.bak 快照真实触发）
+  - Tests/LightamerTests/DrtSidecarTests.swift             # 修改（checker E3）：:71 版本 pin 字面 `== 6` → `LightamerSidecar.schemaVersionCurrent`（:14 头注释措辞同步）
+  - Tests/LightamerTests/LibraryDocumentTests.swift        # 修改（checker E3）：:107/:151 `readUserVersion == 2`→`== 3` + :174-180 future 探针 3→4（注释同步）
+  - Tests/LightamerTests/DefaultLookTests.swift            # 修改（checker E3）：:277/:297 `readUserVersion(v1URL) == 2`→`== 3`
+  - Tests/LightamerTests/LibrarySchemaTests.swift          # 修改：负测翻面（version_ref 现应存在，余三名仍负）+ v2→v3 迁移测试（含 pre-migrate 快照真实触发）+ 链式两代迁移测试（checker E2）+ 版本 pin 触点（:171/:193/:274 `== 2`→`== 3` + :279/:284 future 探针 3→4——checker E3）
   - Tests/LightamerTests/LibraryStoreTests.swift           # 修改：replaceVersionRefs round-trip + reconcile 删除面 + FK CASCADE
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt # 修改（checker E2）：两新测试文件登记行 + 增行记录注
   - .work/gsd/phases/m2-8-versions/M2-8-1-SUMMARY.md       # 新建（收口任务）
@@ -35,7 +39,8 @@ files_modified:
 > 旁挂编排**——版本元数据 + 链 swap 三命令，`EditorState.history` 保持唯一链真相源
 > （D4 投影复用，零重建），切换即时性 = swap + `rebuildLayerStack()` param 重放（D5，
 > 同图切版本零重新解码）；③**`.lalb version_ref` 投影表激活**——migration v2→v3 走
-> KD-2 缝（pre-migrate 快照已活）+ `replaceVersionRefs` 整表 reconcile（OQ-1-A；
+> KD-2 缝（pre-migrate 快照轮换——E2 hook 增强已申报）+ `replaceVersionRefs` 整表
+> reconcile（OQ-1-A；
 > `edit_commit/image_edit_state/pipeline_root` 维持预留，负测只翻 version_ref 一名）。
 > 规格锚点 = D-M2-8-CONTEXT-1..12（**全部已裁决，不得重开**）+ Feature-map §6.2/§6.3 +
 > REQUIREMENTS M2VER-01/02/03。**降级条款未触发**：盘点实测迁移缝已活
@@ -80,8 +85,17 @@ public struct SidecarVersionRecord: Codable, Sendable, Equatable {
     public var name: String                   // 「版本 N」默认名（P2 面板消费）
     public var createdAt: Date
     public var updatedAt: Date
-    public var chain: SidecarHistoryRecord?   // nil = ACTIVE 版本（items 在 history 键）
+    var chain: SidecarHistoryRecord?          // internal stored——public 属性挂 internal
+                                              // 类型 = 编译错；SidecarLayerRecord 先例
+                                              // （存储面 internal + 消费面 public 投影）
+                                              // nil = ACTIVE 版本（items 在 history 键）
     // CodingKeys: id/name/createdAt/updatedAt/chain；chain = 冻结 {items, position}
+    // public init(id:name:createdAt:updatedAt:chain: HistoryStack?)
+    //   —— App 写入侧唯一构造入口（HistoryStack? → 内部 record 投影，同
+    //      SidecarLayerStackRecord.init(_ snapshot:) 款）
+    // public var chainStack: HistoryStack? { … }
+    //   —— App 读取侧只读访问器（record → HistoryStack? 投影，同
+    //      SidecarLayerStackRecord.snapshot / SidecarHistoryRecord.stack 款）
 }
 ```
 
@@ -89,6 +103,15 @@ public struct SidecarVersionRecord: Codable, Sendable, Equatable {
   纯 access level——L042「先查 access level」先例）：版本链与非版本链**同一份 item
   编码器**，字节同形（CONTEXT Specific Ideas 字面）。改 access level 的理由入 commit
   body。
+- **App 可见性缝（checker E1——版本链访问面三件，internal record 永不出 Core）**：
+  ①`SidecarVersionRecord.public init(id:name:createdAt:updatedAt:chain: HistoryStack?)`
+  （VersionSlot 装载/落盘投影的构造入口）；②`public var chainStack: HistoryStack?`
+  只读访问器（coordinator hydrate 读取面）；③branch 前缀拷贝 = **public Core
+  extension `HistoryStack(copyingPrefixOf:upTo:)`**——`items` 虽 public private(set)
+  可切片，但 `HistoryStack.init(items:position:)` 是 internal（App 组不出链）；
+  extension 落 `LightamerSidecar.swift`（LightamerCore 单 target，internal init 同
+  模块可见），**`HistoryStack.swift` 本体保零 diff**（纪律 5 同步）。paste/switch
+  免缝：值拷贝 + `commitPaste`/`commitDrt` 已 public（HistoryStack.swift:229/:257）。
 - **v7 additive 三件套照抄 v5/v6 惯例**：decode `decodeIfPresent`（v6 文档读 nil）；
   encode `encodeIfPresent`（nil 版本面 = 键缺席——`rawOverrides/displayTransform`
   「write ONLY when present」正本 `:418-424` 同款）；`schemaVersionCurrent = 7`。
@@ -145,7 +168,9 @@ struct VersionSlot: Identifiable, Equatable {
   （CONTEXT 发现 7）；**rawOverrides 不随版本换**（image-global decode 域，换 = 触发
   重解码，违「切换即时」）——KD 签注为有意排除面。
 - **branchFromCurrent 快照时点（KD 必答）**：拷贝源链 `items[0...position]`
-  （**redo 尾不带**）为新区链，position = 拷贝尾索引；时点 = 命令执行瞬间的
+  （**redo 尾不带**）为新区链，position = 拷贝尾索引；新区链构造 =
+  `HistoryStack(copyingPrefixOf:upTo:)`（KD-1 缝③——App 无 internal init 访问权）；
+  时点 = 命令执行瞬间的
   `EditorState.history.position`（非「链末尾」——跳回中途 branch 时 redo 尾留在源版本）。
 - **createFromScratch**：新空链（position -1）——编辑器呈现 pristine-of-chain
   （base 种子渲染）。**创建即激活**（Alcedo 语义推定，DECISIONS 签注）。
@@ -177,9 +202,21 @@ CREATE INDEX IF NOT EXISTS idx_version_ref_element ON version_ref(element_id);
 - **migration v2→v3**：`LibrarySchema.schemaVersion = 2→3`；migrate slot
   `if from <= 2 && to >= 3 { createVersionRefTable(on:) }`——CREATE IF NOT EXISTS 双幂
   等（表+索引），部分迁移快照重跑干净（default_look_pending slot 同款）。`apply()` DDL
-  清单追加同两语句（fresh create 路径 v3 直落）。**KD-2 缝零改动**：
-  `ProjectFileStore.dispatchSchema` 的 stored<schemaVersion 臂自动走 pre-migrate 快照 +
-  migrate（v1→v2 先例的结构性收益，本 plan 不触 ProjectFileStore）。
+  清单追加同两语句（fresh create 路径 v3 直落）。
+- **pre-migrate hook 二次迁移轮换（checker E2——「本 plan 不触 ProjectFileStore」红线
+  推翻，front-matter 已申报）**：既有 hook = 固定路径 `<stem>.pre-migrate.bak` +
+  `backup(..., allowExisting: false)` typed refusal——**v1→v2 迁过一次的包，二代二进制
+  再开（stored=2 < 3）必撞「destination already exists」= 打开即死、且永远死**（二次
+  迁移死锁）。改法（hook 侧轮换，dispatchSchema 三路 dispatch 形状零改）：快照按
+  `stored→to` 命名（`<stem>.pre-migrate.<stored>-<to>.bak`，代际各自保留、异代不覆盖）
+  + **同名旧件清旧后重照**；`backup(from:to:allowExisting:)` 死参一并处理——参数删除
+  收窄为 `backup(from:to:)`（两调用点同语义；public `backup(to:)` 的「目标不得存在」
+  typed refusal 不动）。
+- **链式迁移测试（LibrarySchemaTests，防跨任务时序回归——E5 教训移植）**：v1 fixture
+  → 首开迁 1→3（`user_version==3` + 快照 1-3 诞生）→ 关 → `writeUserVersion(2)` 回拨
+  模拟上一代在线产物（.bak 在场）→ 重开迁 2→3（**轮换路径生效**）→ 终态断言
+  `user_version==3` + 两代快照都在（「v1 fixture → 连开两代 → user_version==3 + 快照
+  在」，链式迁移不再死锁）。
 - **reservedTableNames 收窄为 `["edit_commit", "image_edit_state", "pipeline_root"]`**；
   `LibrarySchemaTests.testReservedMiniGitTablesDoNotExist` 翻面 = version_ref 移入
   存在性断言（新建存在 + 列序 `PRAGMA table_info` 对照 reduced DDL），余三名负测
@@ -193,13 +230,17 @@ CREATE INDEX IF NOT EXISTS idx_version_ref_element ON version_ref(element_id);
 ### KD-4 makeSidecarDocument / restore 腿扩展（PipeCoordinator 最小半径）
 
 - **写腿**：`makeSidecarDocument()` 追加两参数——`versions:`（coordinator.slots 非空时
-  映射 `[SidecarVersionRecord]`：active 槽 chain=nil，非 active 槽 chain=其链）+
+  映射 `[SidecarVersionRecord]`——**经 KD-1 public init 构造**（App 侧唯一入口）：
+  active 槽 chain=nil，非 active 槽 chain=其链）+
   `activeVersionID:`（UUID string 或 nil）。写前 `coordinator.touchActive()`（updatedAt
   触碰——见 KD-2）。**items 不双写**（active 链只在 history 键——OQ-11 字面，测试钉：
   同一 items 数组字节不出现在两处）。
 - **读腿**（restoreSidecar 扩展）：`document.versions` 非 nil → coordinator hydrate
-  （非 active 槽装载链、active 槽标记）+ `restoreFromSidecar` 照旧（active 链）；nil →
-  no-op（v6/隐式单版本）。dangling degrade 见 KD-2。
+  （非 active 槽装载链——经 `chainStack` 访问器取回、active 槽标记）+
+  `restoreFromSidecar` 照旧（active 链）；**nil → slots 清空 + activeVersionID=nil
+  （回隐式单版本态，当前链保持——checker E4：A 图多版本切到 B 图无版本键，不清空 =
+  A 的槽位泄漏进 B 的面板与下一次 materialize 起算；与 KD-2「删除唯一版本」同一
+  「回隐式」语义，复用同一条清空路径）**。dangling degrade 见 KD-2。
 - **版本动作的 scheduleWrite**：三命令 + rename/remove 尾部经 PipeCoordinator 面触发
   `scheduleSidecarWrite()`（低频用户动作——CONTEXT OQ-9 字面「版本创建/切换动作补触发」）。
 
@@ -250,7 +291,8 @@ struct VersionProjectionSink: Sendable {
    + restore 腿 + `syncDrtCarrierWithHistory`（`:646`）+ `scheduleSidecarWrite`。
 6. `LightamerCore/Sources/Library/LibrarySchema.swift`——schemaVersion=2 冻结面 + migrate
    slot 形 + reservedTableNames + 尾部预留注释块；`ProjectFileStore.swift:131-152`——
-   dispatchSchema KD-2 缝（本 plan 零触）。
+   dispatchSchema KD-2 缝 + pre-migrate hook（本 plan 触碰半径 = 快照轮换两行——E2；
+   dispatch 形状零改）。
 7. `LightamerCore/Sources/Library/LibraryStore.swift:405-445`——withWriteBatch/
    assertImageExists/updateProjection 形态（replaceVersionRefs 同款）。
 8. `Tests/LightamerTests/LibrarySchemaTests.swift:254-263`——负测翻面落点；
@@ -262,17 +304,20 @@ struct VersionProjectionSink: Sendable {
    body 写 what+why + 同批 md 清单）；只 add 本任务申报文件；**不 push**；git add 用
    `.work/gsd/...` 真路径；多段 message 用 `-F` 文件（L040）。
 2. **构建纪律**：`caffeinate -dis` 包裹一切构建；不加 `-derivedDataPath`；**tuist
-   generate 必须落在全部新文件落盘之后**（L041——本 plan T1/T2 新测试文件同批 generate
-   一次即可）。
+   generate 必须落在全部新文件落盘之后**（L041；generate 时点以各任务 action 括注为准
+   ——T1 只对当批已落盘文件 generate）。
 3. **测试纪律**：单测命令 = `Scripts/test-direct.sh '<Class>'`；判据 = Executed 计数行
    + failures 行双读（L028）。**回归基线 = 2525/16skip/0fail**；每任务全套 suite 绿。
    **全套跑法 = `Scripts/test-direct.sh --all`（七 bundle），跑前向 orchestrator 报备**
    （--all 报备制）；RSS ≥8G = MEMFAIL 机检，触发记 E3 不自行重试超两次；定向轮残留
    目录清盘纪律（L049）。在案 flake 隔离复跑 ×3 归因入 SUMMARY。
 4. **边界纪律**：每任务边界检查 `.work/config.toml [gsd]`（`auto`/`paused`）。
-5. **架构红线**：`HistoryStack.swift`/`HistoryHash.swift` **零 diff**（HistoryItem
+5. **架构红线**：`HistoryStack.swift`/`HistoryHash.swift` **本体零 diff**（版本链前缀
+   拷贝 = `LightamerSidecar.swift` 内外挂 public extension——本体不加行；HistoryItem
    FROZEN CodingKeys + 折叠公式不动——版本结构不进 hash 是 KD-1 负测的行为面，非代码
-   面）；`ProjectFileStore.swift` **零触**（KD-2 缝已活，结构性收益）；`PixelPipe.swift`
+   面）；`ProjectFileStore.swift` **触碰半径 = pre-migrate 快照轮换单点**（checker E2
+   红线推翻，front-matter 申报——dispatchSchema 三路 dispatch/`migrate` 签名零改）；
+   `PixelPipe.swift`
    /`PipeCacheKey.swift`/`LayerCompositeDriver.swift` 零触；EditorState 改动半径 =
    installVersionChain 面 + versions 挂点（rebuild 单路径零改）；PipeCoordinator 改动
    半径 = makeSidecarDocument 两键 + restore hydrate + 版本动作写触发；`.xmp` 永不读写
@@ -296,18 +341,24 @@ struct VersionProjectionSink: Sendable {
 - **action**
   1. `LightamerSidecar.swift`：KD-1 全量——`schemaVersionCurrent = 7` + 头注释 v7 节
      （含「history 键语义 = active 版本链」升级 + v6 读者降级注）+
-     `SidecarVersionRecord` + 双可选键 decode/encode + 两 record access level internal
-     化（拼写零改）。
+     `SidecarVersionRecord`（public init + `chainStack` 访问器）+ 双可选键 decode/encode
+     + 两 record access level internal 化（拼写零改）+ `HistoryStack(copyingPrefixOf:
+     upTo:)` public extension（KD-1 缝③——同文件落，T2 branchFromCurrent 消费）。
   2. 新建 `Tests/LightamerTests/SidecarV7Tests.swift`：KD-1 三字节形断言（v6 round-trip
      逐字节 / v7 全 nil = v6 形除版本位 / v7 带版本 round-trip）+ historyHash 篡改负测
      （KD-1）+ dangling activeVersionID degrade 面（decode 层输入，行为断言归 T2 真链）
      + pristine 判定面回归（KD-6 ②）+ UInt64 零新增面确认（版本记录无 hash 字段——
      L013 不涉及，注释声明）。
-  3. `Project.swift` 登记 + BUNDLE-MAP 增行（APP）+ `tuist generate`（T2 文件未落盘前
+  3. `DrtSidecarTests.swift` 版本 pin 触点（checker E3）：`:71` 字面
+     `XCTAssertEqual(decoded.schemaVersion, 6)` → 引 `LightamerSidecar.
+     schemaVersionCurrent`（常量引述，三代免改；`:14` 头注释「emits schemaVersion 6」
+     措辞同步）。
+  4. `Project.swift` 登记 + BUNDLE-MAP 增行（APP）+ `tuist generate`（T2 文件未落盘前
      只登记 T1 文件——L041：generate 在本任务新文件落盘后跑）。
 - **验收标准**
   - [ ] 三字节形断言 + hash 负测 + pristine 判定面回归全绿；既有 SidecarV5Tests/
-        DrtSidecarTests/SidecarMetadataV3Tests 零改动全绿。
+        DrtSidecarTests/SidecarMetadataV3Tests 除显式列出版本 pin 触点（action 3）外
+        零改动全绿。
   - [ ] `HistoryStack.swift`/`HistoryHash.swift` 零 diff（机检 `git diff --name-only`）。
   - [ ] 登记闭环（Project.swift + BUNDLE-MAP 双命中）。
   - [ ] 全套回归 `0 fail`（基线 2525 + 新增）。
@@ -327,14 +378,18 @@ struct VersionProjectionSink: Sendable {
      materialize-on-first-create（首创建 = 版本1+版本2 双槽）/branch 快照时点（跳回
      中途 branch：redo 尾留源版本）/switch 往返字节忠实（编辑→切走→切回→链 items+
      position 逐字节相等）/remove active 切首项/remove 唯一版本回隐式/dangling degrade
-     （手造 doc → slots 丢弃 + history 保持）/KD-6 ①（空链版本 .lra 诞生 + position==-1）
+     （手造 doc → slots 丢弃 + history 保持）/**跨图版本态污染钉死（checker E4：
+     A 多版本 → 切 B 无版本键 → slots 清空回隐式 → B 创建首版本 = 「版本 1」起算，
+     非「版本 3」）**/KD-6 ①（空链版本 .lra 诞生 + position==-1）
      /切换触发 scheduleWrite（flushNow 后文件反映 post-swap 态）/DRT carrier swap 后
      重同步（effectiveDrtRecord 驱动）。
   5. Project.swift/BUNDLE-MAP 登记 + `tuist generate`（两新文件齐后）。
 - **验收标准**
-  - [ ] VersionSwapTests 全绿（真链，无存储后门）；`rebuildLayerStack`/`rebuildInstances`
+  - [ ] VersionSwapTests 全绿（真链，无存储后门；含 E4 跨图污染用例）；
+        `rebuildLayerStack`/`rebuildInstances`
         零 diff（机检——单路径复用证明）。
-  - [ ] 既有 HistoryStack/undo/redo/sidecar restore 测试零改动全绿（D4 零重建证明）。
+  - [ ] 既有 HistoryStack/undo/redo/sidecar restore 测试零改动全绿（D4 零重建证明；
+        版本 pin 触点已在 T1 一次性修毕，T2 半径内零新增改动）。
   - [ ] 登记闭环；全套回归 `0 fail`。
 
 ### T3 .lalb version_ref 激活 + 投影 sink 装配 + LIB 测试
@@ -344,18 +399,30 @@ struct VersionProjectionSink: Sendable {
   1. `LibrarySchema.swift`：KD-3 全量（schemaVersion 3 + DDL/索引 + migrate slot +
      apply 追加 + reservedTableNames 收窄 + 头注释 v3 节 + 尾部预留块 version_ref
      「ACTIVATED M2-8（reduced DDL）」改注）。
-  2. `LibraryStore.swift`：`replaceVersionRefs(elementID:rows:)` + `versionRefRow`。
-  3. `EditorWorkspaceShellView.swift`：loadCurrentImage 注入点（KD-5；切图清空）。
-  4. `LibrarySchemaTests.swift`：负测翻面（version_ref 存在 + 列序对照 + 余三名仍负）
-     + v2→v3 迁移测试（v2 包升级 → 行完好 + user_version==3 + `pre-migrate.bak` 真实
-     产生断言——快照 hook 首个 v2→v3 消费者）+ fresh create v3 直落断言。
-  5. `LibraryStoreTests.swift`：replaceVersionRefs round-trip（写→读回行集相等）+
+  2. `ProjectFileStore.swift` pre-migrate hook 轮换（checker E2——KD-3 轮换节全量：
+     按 stored→to 命名 + 同名清旧后重照 + `backup(from:to:allowExisting:)` 死参收窄；
+     dispatchSchema 三路 dispatch 形状零改）。
+  3. `LibraryStore.swift`：`replaceVersionRefs(elementID:rows:)` + `versionRefRow`。
+  4. `EditorWorkspaceShellView.swift`：loadCurrentImage 注入点（KD-5；切图清空）。
+  5. `LibrarySchemaTests.swift`：负测翻面（version_ref 存在 + 列序对照 + 余三名仍负）
+     + v2→v3 迁移测试（v2 包升级 → 行完好 + user_version==3 + pre-migrate 快照真实
+     产生断言——快照 hook 首个 v2→v3 消费者）+ **链式两代迁移测试（KD-3——E2 死锁
+     钉死）** + fresh create v3 直落断言。
+  6. 库侧版本 pin 触点穷举（checker E3——注释同步，逐点改毕）：
+     `LibraryDocumentTests.swift:107`/`:151`（`readUserVersion == 2` → `== 3`）+
+     `:174-180` future 探针 3→4（`writeUserVersion(3)`→`(4)`、`futureSchema(version:
+     3)`→`4`、「current version is 2, so 3 is the future」注释同步）+
+     `DefaultLookTests.swift:277`/`:297`（`readUserVersion(v1URL) == 2` → `== 3`）+
+     `LibrarySchemaTests.swift:171`/`:193`/`:274`（`readUserVersion == 2` → `== 3`）+
+     `:279`/`:284` future 探针 3→4。
+  7. `LibraryStoreTests.swift`：replaceVersionRefs round-trip（写→读回行集相等）+
      reconcile 删除面（旧行清除）+ FK CASCADE（image 删 → 投影行删）+ notFound typed。
-  6. VersionSwapTests 追加投影面：sink 注入下版本命令后行集 reconcile 相等断言
+  8. VersionSwapTests 追加投影面：sink 注入下版本命令后行集 reconcile 相等断言
      （内存 fake store 或内存库——LibraryStore 可指向临时 .lalb，真链优先）。
 - **验收标准**
-  - [ ] 翻面负测 + 迁移 + 快照 hook + Store 四面全绿；`ProjectFileStore.swift` 零 diff
-        （机检）。
+  - [ ] 翻面负测 + 迁移 + 链式两代迁移 + 快照 hook + Store 四面全绿；
+        `ProjectFileStore.swift` 轮换单点（action 2）外零 diff
+        （机检——dispatch 形状逐行核对）。
   - [ ] Sessions 模式零回归（现有全 suite 不含 sink 路径——App bundle 全绿即证）。
   - [ ] 全套回归 `0 fail`。
 
@@ -366,7 +433,13 @@ struct VersionProjectionSink: Sendable {
   1. AC 逐条机检 + 全套回归终跑（`--all` 前报备；计数/秒数/bundle 峰值入 SUMMARY）。
   2. 落盘 `M2-8-1-SUMMARY.md`（测试数变化/字节形 pin 实测值/迁移实测/v7 键形 JSON 样例）
      + `M2-8-1-DECISIONS.md`（三悬决销账签注：swap 原子序 KD-2 / upsert 触发位 KD-5 /
-     pristine 边界 KD-6 + reduced DDL 偏离 + 创建即激活 + rawOverrides 不随版本换）。
+     pristine 边界 KD-6 + reduced DDL 偏离 + 创建即激活 + rawOverrides 不随版本换
+     + checker 批签注：**版本链访问缝三件**（public init/`chainStack` 访问器/
+     `HistoryStack(copyingPrefixOf:upTo:)` 落点 LightamerSidecar.swift——HistoryStack.swift
+     本体零 diff 保持；两 record private→internal 理由同录）+ **红线偏离申报**
+     （「不触 ProjectFileStore」推翻 → pre-migrate 轮换单点——E2 二次迁移死锁根因与
+     改法 + `allowExisting` 死参收窄）+ paste/switch 免缝说明（值拷贝 + public
+     commitPaste/commitDrt））。
   3. `.work/GOAL-STATE.md` 续接点追加（M2-8-1 完成 + 下一步 = M2-8-2）；LESSONS 如踩坑。
   4. `git diff --stat` 核对文件边界与 front-matter 一致（纪律 8）。
 - **验收标准**
@@ -376,17 +449,17 @@ struct VersionProjectionSink: Sendable {
 
 | # | AC | 机检方式 |
 |---|---|---|
-| 1 | v7 三字节形断言（v6 round-trip 逐字节 / 全 nil = v6 形除版本位 / 带版本 round-trip）+ v6 既有 pin 测试零改动全绿 | SidecarV7Tests + 既有三 sidecar 测试文件 |
+| 1 | v7 三字节形断言（v6 round-trip 逐字节 / 全 nil = v6 形除版本位 / 带版本 round-trip）+ 既有 pin 测试除显式版本触点（DrtSidecarTests:71）外零改动全绿 | SidecarV7Tests + 既有三 sidecar 测试文件 |
 | 2 | historyHash 版本结构零折叠：篡改版本元数据 `driftDetected == false`；`HistoryHash.swift`/`HistoryStack.swift` 零 diff | SidecarV7Tests + `git diff --name-only` |
 | 3 | swap 真链：materialize / branch 快照时点（redo 尾留源）/ switch 往返字节忠实 / remove 两边界 / dangling typed degrade 全绿 | VersionSwapTests |
 | 4 | 切换即时：swap 后 `rebuildLayerStack` 单路径零 diff + DRT carrier 重同步 + 零重新解码（无 decode 请求面触发断言） | VersionSwapTests + `git diff` EditorState 半径 |
 | 5 | pristine 收窄：空链版本 .lra 诞生且 position==-1（KD-6 ①）；投影判定面不被版本结构翻转（KD-6 ②） | VersionSwapTests + SidecarV7Tests |
 | 6 | items 不双写：active 链字节只在 `history` 键（文档 JSON 无重复 items） | SidecarV7Tests |
-| 7 | version_ref 激活：v2→v3 迁移 + pre-migrate.bak 真实产生 + fresh v3 直落 + 负测翻面（余三名仍负）+ 列序对照 reduced DDL | LibrarySchemaTests |
+| 7 | version_ref 激活：v2→v3 迁移 + pre-migrate 快照真实产生 + 链式两代迁移（快照轮换——E2）+ fresh v3 直落 + 负测翻面（余三名仍负）+ 列序对照 reduced DDL | LibrarySchemaTests |
 | 8 | replaceVersionRefs：round-trip / reconcile 删除 / FK CASCADE / typed notFound + 版本命令投影 reconcile 相等 | LibraryStoreTests + VersionSwapTests |
 | 9 | 注入式投影：视图 body 零 LibraryStore 直读；Sessions 模式（projectStore nil）零引用 | `git grep` EditorWorkspaceShellView body + App suite |
 | 10 | 全套回归 0 fail，计数 ≈ 2525 + 30..38 | test-direct.sh --all BUNDLE 行双读 |
-| 11 | diff 边界 == 申报文件集；ProjectFileStore/HistoryStack/HistoryHash 零触 | `git diff --stat` 逐文件核对 |
+| 11 | diff 边界 == 申报文件集；HistoryStack/HistoryHash 本体零 diff（版本链 extension 外挂 LightamerSidecar.swift）；ProjectFileStore 触碰 = 申报的 pre-migrate 轮换单点 | `git diff --stat` 逐文件核对 |
 | 12 | 登记闭环（两新测试文件 × Project.swift + BUNDLE-MAP） | `git grep` 双命中 |
 
 ## 风险与边界
@@ -414,3 +487,56 @@ struct VersionProjectionSink: Sendable {
 - T3 `feat(library): version_ref projection table`
 - T4 `docs(m2-8): close out plan 1 version model core`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-10-01）
+
+checker 判 FAIL（4E+5M，全落本 plan + P2/P3 措辞联动）；本轮按 hint 全量修订，
+源码事实逐条实测复核后落笔。
+
+### Error
+
+- **E1 版本链访问缝（KD-1/KD-2/KD-4/纪律 5）**：实测 `SidecarHistoryItemRecord`/
+  `SidecarHistoryRecord` 现为 private、`HistoryStack.init(items:position:)` 为
+  internal（App 组不出链）——按 `SidecarLayerRecord`（public struct + internal 存储 +
+  public init）与 `SidecarLayerStackRecord.snapshot`（public 访问器投影回 runtime
+  类型）双先例补 public 面：`SidecarVersionRecord.public init(id:name:createdAt:
+  updatedAt:chain: HistoryStack?)` + `public var chainStack: HistoryStack?`；
+  两 record private→internal（拼写零改）；branch 前缀拷贝 = public Core extension
+  `HistoryStack(copyingPrefixOf:upTo:)`，落 `LightamerSidecar.swift`（LightamerCore
+  单 target，internal init 同模块可见），`HistoryStack.swift` 本体保零 diff——KD-1
+  sketch/纪律 5 同步，T4 DECISIONS 签注。paste/switch 免缝（值拷贝 + public
+  `commitPaste`/`commitDrt`，HistoryStack.swift:229/:257 实测）。
+- **E2 二次迁移死锁（KD-3）**：实测 `ProjectFileStore.swift:147-148` = 固定路径
+  `.pre-migrate.bak` + `allowExisting: false` typed refusal——v1→v2 迁过的包二代再开
+  必死。「不触 ProjectFileStore」红线推翻（front-matter 补申报）；pre-migrate hook 改
+  「.bak 存在即轮换」（按 stored→to 命名 + 同名清旧后重照）；`allowExisting` 死参收窄
+  （参数删除，public `backup(to:)` refusal 不动）；T3 补链式两代迁移测试（v1 fixture
+  → 回拨 user_version=2 模拟上一代 → 重开 → user_version==3 + 两代快照在）；DECISIONS
+  签注红线偏离。
+- **E3 测试触点漏穷举（T1/T3）**：实测复核后逐点列入——front-matter 补
+  `DrtSidecarTests.swift`/`LibraryDocumentTests.swift`/`DefaultLookTests.swift`；
+  T1 action 3 = DrtSidecarTests:71（`== 6` → `schemaVersionCurrent`）；T3 action 6 =
+  LibraryDocumentTests:107/:151 + :174-180 future 探针、DefaultLookTests:277/:297、
+  LibrarySchemaTests:171/:193/:274 + :279/:284 探针，注释同步；「零改动全绿」表述
+  全文改为「除显式列出版本 pin 触点外零改动」（T1/T2 AC + AC 表行 1）。
+- **E4 切图版本态泄漏（KD-4）**：读腿 nil 臂由「no-op」改「slots 清空 +
+  activeVersionID=nil（回隐式单版本，链保持——与 remove 唯一版本同一语义路径）」；
+  T2 VersionSwapTests 补「A(多版本)→B(无版本)→创建（=「版本 1」起算）」跨图污染
+  钉死用例。
+
+### Minor
+
+- **m1**：terminal trio 终表实测写死 = `colorin`/`colorout`/`gamma`（三件均未登记
+  NodeOwnershipCatalog，`owner` 默认臂答 .grade；opName 正本 ColorIn/ColorOut/Gamma
+  Module.opName）——M2-8-2 KD-3/风险节/T3 action/T5 DECISIONS 四处联动，删「执行期
+  再核实」环节。
+- **m2**：M2-8-2 KD-2 类型图标措辞改——`layerScope` 为 `String?`，直 switch 必带
+  default；编译期强制只在先映射闭集 enum 再穷举时成立。
+- **m3**：M2-8-2 KD-6 措辞改——`UserDefaults(suiteName:)` 注入先例
+  （AppPreferences.swift:58 实测），无 `UserDefaultsSuite` 类型。
+- **m4**：M2-8-1 纪律 2 删「T1/T2 同批 generate 一次」句（与 T1 action 3 打架，以
+  action 为准）；M2-8-3 四处 T4→T3（本 plan 无 T4 任务——含 checker 点名两处
+  「T4 收口」）。
+- **m5**：M2-8-3 KD-2 表行 1 钉 fixture 复用方式（程序化 scratch、运行时重建、
+  不入仓）；CONTEXT :67 OQ-1「migration v1→v2」勘误（实做 v2→v3）列入 M2-8-3
+  DECISIONS 对账（CONTEXT 正文不改）。

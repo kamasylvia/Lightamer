@@ -9,7 +9,7 @@ requirements: [M2VER-01, M2VER-02, M2VER-03, M2VER-04, M2VER-05]
 files_modified:
   - Resources/Localizable.xcstrings                          # 修改：zh/en 缺口补齐（T1——M2-3-4/M2-4/M2-7 三先例：随手键 + 收尾对账）
   - .work/gsd/phases/m2-8-versions/M2-8-3-SUMMARY.md         # 新建：观察项数字 + phase 汇总（含 M2-8 phase 小结节——M2-6-3 先例）
-  - .work/gsd/phases/m2-8-versions/M2-8-3-DECISIONS.md       # 新建：观察项裁决 + 翻账注记底稿
+  - .work/gsd/phases/m2-8-versions/M2-8-3-DECISIONS.md       # 新建：观察项裁决 + 翻账注记底稿（含 CONTEXT OQ-1 迁移代际勘误对账——checker M5）
   - .work/gsd/REQUIREMENTS.md                                # 修改：M2VER-01..05 勾选 + Delivered 终态 + 两条收窄追认注记
   - .work/GOAL-STATE.md                                      # 修改：M2-8 续接点翻账 + C 档第 3 停登记
   - .work/TODO.md                                            # 修改：M2-8 条目勾选/清账
@@ -19,7 +19,7 @@ files_modified:
 
 # Plan M2-8-3 — 收口（zh 对账 + 观察项三查 + 翻账 + phase 汇总）
 
-> **性质**：零功能收口 plan——**除 zh String Catalog 增行外零源码 diff**（红线：T4
+> **性质**：零功能收口 plan——**除 zh String Catalog 增行外零源码 diff**（红线：T3
 > `git diff --stat` 出现第三类文件 = 违约）。四块交付：①**zh-audit 对账补齐**（OQ-12
 > A：P1/P2 随手键的 phase 尾终核——`Scripts/zh-audit.py --check` PASS 为门）；②**观察
 > 项三查**（OQ-10：不设上限不投机的兑现方式 = 实测数字落账，超带才立项专项；外加
@@ -53,7 +53,7 @@ files_modified:
 
 | # | 观察项 | 方法 | 落账 |
 |---|---|---|---|
-| 1 | 500+ 条链的版本切换耗时 sanity | 程序化：500 链 fixture（P2 T2 已建）→ switch ×20 计时均值/峰值（signpost 或 Date 间隔，debug 构建注明口径） | SUMMARY 数字行 |
+| 1 | 500+ 条链的版本切换耗时 sanity | 程序化：500 链 fixture（P2 T2 同款——checker M5：程序化 scratch 构造、运行时重建，**不入仓**；P3 不引用仓库 fixture 文件，以同款程序化链重建）→ switch ×20 计时均值/峰值（signpost 或 Date 间隔，debug 构建注明口径） | SUMMARY 数字行 |
 | 2 | 万条历史 .lra 加载/保存耗时 | 程序化：10000 item 链写盘 → 读回计时（SidecarStore 直测面；注意 ru_maxrss 口径 L045） | SUMMARY 数字行 |
 | 3 | Versions 面板百版本列表滚动流畅度 | headless 不可测——真机走查登记（100 版本 fixture 经 debug 入口构造），GUI 不可用 = 待人工项登记 | SUMMARY 或待人工 |
 
@@ -103,13 +103,13 @@ files_modified:
 3. **边界纪律**：每任务边界检查 `.work/config.toml [gsd]`（`auto`/`paused`）。
 4. **架构红线（本 plan 核心）**：除 `Resources/Localizable.xcstrings` 外**零源码 diff**
    ——`.work/` 与 `AGENTS.md` 的账本 md 除外；`git diff --stat` 出现第三类源码文件 =
-   违约（T4 收口核对）。
+   违约（T3 收口核对）。
 5. **证据纪律（§3.2/§9）**：观察数字必须程序化实测（禁估算/禁引用他人数字）；GUI 走查
    截图 = 视口关键区 + 图注关键数字；不可自动化项如实登记待人工，禁假完成。
 6. **checker 四条（逐条对表）**：①真链实测禁造假（E1）——观察项亲测非引用 P2 数字；
    ②登记（E2）——本 plan 无新测试文件，免；③语义断言可观测（E4）——perf 数字 + 对账
-   表成对；④边界核对（M 级）——T4 逐文件对表 + zh 键单源核验（`--check` 工具判）。
-7. **收口核对**：T4 `git diff --stat` 与 front-matter 逐文件核对，越界 = 违约。
+   表成对；④边界核对（M 级）——T3 逐文件对表 + zh 键单源核验（`--check` 工具判）。
+7. **收口核对**：T3 `git diff --stat` 与 front-matter 逐文件核对，越界 = 违约。
 
 ## Tasks
 
@@ -138,7 +138,10 @@ files_modified:
 - **action**
   1. REQUIREMENTS 翻账（KD-3 五行 + 注记义务）；GOAL-STATE 续接点 + C 档第 3 停登记；
      TODO 清账；AGENTS.md M2-8 增量节——同批落盘（§3.1）。
-  2. `M2-8-3-SUMMARY.md`（含 phase 小结节）+ `M2-8-3-DECISIONS.md`。
+  2. `M2-8-3-SUMMARY.md`（含 phase 小结节）+ `M2-8-3-DECISIONS.md`（含 checker M5
+     勘误对账：CONTEXT :67 OQ-1「激活走 KD-2 缝（migration v1→v2 + 自动快照）」系
+     v1→v2 已被 M2-2 default_look_pending 消费前的旧表述——实做 = **v2→v3**
+     （M2-8-1 KD-3）；CONTEXT 正文不改，勘误只在 DECISIONS 侧记账）。
   3. 全套 `--all` 终跑（前报备）+ `git diff --stat` 逐文件核对（纪律 4/7）。
 - **验收标准**
   - [ ] 五账同批一致（REQUIREMENTS/GOAL-STATE/TODO/AGENTS/SUMMARY）；diff 边界 =
@@ -175,3 +178,12 @@ files_modified:
 - T2 `docs(m2-8): performance observation records`
 - T3 `docs(m2-8): phase summary and requirements ledger`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-10-01）
+
+checker 批（4E+5M）措辞联动修订，全量记录见 `M2-8-1-PLAN.md` 同名节。本文件三处：
+- **m4** 四处 T4→T3（本 plan 无 T4 任务；含 checker 点名两处「T4 收口」）。
+- **m5a** KD-2 表行 1 钉 500 链 fixture 复用方式：程序化 scratch 构造、运行时重建、
+  不入仓——P3 以同款程序化链重建，不引用仓库 fixture 文件。
+- **m5b** CONTEXT :67 OQ-1「migration v1→v2」勘误（实做 v2→v3，M2-8-1 KD-3）列入
+  T3 DECISIONS 对账（front-matter 注同步；CONTEXT 正文不改）。
