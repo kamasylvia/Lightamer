@@ -16,9 +16,10 @@ import XCTest
 //   ② E5 double assertion #2: ONE undo steps back to pristine;
 //   ③ flag=1 + .lra present → restore wins, ZERO injection;
 //   ④ flag=0 → ZERO injection; a user-built grade = EMPTY chain (identity);
-//   ⑤ the AC#9 `.lalb` v1→v2 first migration: hand-rolled v1 package →
-//     open → the pre-migration sqlite3_backup snapshot + user_version 2 +
-//     the idempotent additive column + old rows flag 0 + new imports 1.
+//   ⑤ the AC#9 `.lalb` v1→v3 migration: hand-rolled v1 package →
+//     open → the pre-migration sqlite3_backup snapshot (generation-named,
+//     M2-8-1 E2) + user_version 3 + the idempotent additive column + old
+//     rows flag 0 + new imports 1.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
@@ -270,11 +271,11 @@ final class DefaultLookTests: XCTestCase {
         let store = ProjectFileStore(at: v1URL)
         _ = try await store.open()
         let snapshotURL = v1URL.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.bak")
+            .appendingPathExtension("pre-migrate.1-3.bak")  // M2-8-1 E2: generation-named
         XCTAssertTrue(
             FileManager.default.fileExists(atPath: snapshotURL.path),
             "the pre-migration sqlite3_backup snapshot hook consumed")
-        XCTAssertEqual(try readUserVersion(v1URL), 2)
+        XCTAssertEqual(try readUserVersion(v1URL), 3)
 
         let library = LibraryStore(store: store)
         // The legacy row: flag 0 (old imports never mint).
@@ -289,12 +290,12 @@ final class DefaultLookTests: XCTestCase {
         try await library.clearDefaultLookPending(imageRowID: newID)
         let cleared = try await library.defaultLookPending(imageRowID: newID)
         XCTAssertFalse(cleared)
-        // The migration is IDEMPOTENT: a second open (stored == 2) neither
-        // re-runs it nor re-snapshots (the column probe short-circuits).
+        // The migration is IDEMPOTENT: a second open (stored == 3) neither
+        // re-runs it nor re-snapshots (the dispatch short-circuits).
         try await store.close()
         let reopened = ProjectFileStore(at: v1URL)
         _ = try await reopened.open()
-        XCTAssertEqual(try readUserVersion(v1URL), 2)
+        XCTAssertEqual(try readUserVersion(v1URL), 3)
         try await reopened.close()
     }
 

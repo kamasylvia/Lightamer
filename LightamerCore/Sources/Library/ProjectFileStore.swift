@@ -25,12 +25,12 @@ import SQLite3
 //     expose a bare file copy (M2-2-1 SUMMARY declares the posture).
 //
 // VERSION DISPATCH (KD-2): open reads `PRAGMA user_version` — 0 → fresh
-// create (fresh DDL + manifest seed + stamp 1); 1 → ok; >1 → typed
-// `.futureSchema` REFUSE before any write (the future file stays
-// byte-untouched). A future 1 < N < current open runs the AUTOMATIC
-// pre-migration `sqlite3_backup` snapshot BEFORE `LibrarySchema.migrate`
-// (the hook pinned at v1, dead code until M2-8/M2-10 activate reserved
-// tables through it).
+// create (fresh DDL + manifest seed + stamp N); 0 < stored < N → the
+// AUTOMATIC pre-migration `sqlite3_backup` snapshot, then
+// `LibrarySchema.migrate`; >N → typed `.futureSchema` REFUSE before any
+// write (the future file stays byte-untouched). Snapshot names carry
+// their stored→to GENERATION and rotate (M2-8-1 E2: the old fixed-name +
+// must-not-exist form deadlocked every second-generation reopen).
 //
 // `synchronous=NORMAL` is pinned (NOT OFF — the SessionIndexSchema header
 // rationale carries over: checkpoint discipline already bounds the loss
@@ -140,12 +140,21 @@ public actor ProjectFileStore {
         if stored == 0 {
             try LibrarySchema.apply(to: handle)
         } else if stored < LibrarySchema.schemaVersion {
-            // The KD-2 pre-migration hook: snapshot BEFORE the migration
-            // (dead at v1 — no N exists in 1..<1; pinned structurally so
-            // the M2-8/M2-10 activation walks THIS seam).
+            // The KD-2 pre-migration hook: snapshot BEFORE the migration.
+            // M2-8-1 (checker E2): the snapshot ROTATES — named by its
+            // stored→to GENERATION (`<stem>.pre-migrate.<stored>-<to>.bak`,
+            // generations coexist) and a same-name stale snapshot (a prior
+            // failed attempt at the same leg) is cleared before the
+            // re-shot. The old fixed `.pre-migrate.bak` +
+            // destination-must-not-exist refusal DEADLOCKED every second
+            // migration: a v1→v2-migrated package reopened by a v3 binary
+            // hit "destination already exists" and could never open again.
             let snapshotURL = url.deletingPathExtension()
-                .appendingPathExtension("pre-migrate.bak")
-            try backup(from: url.path, to: snapshotURL, allowExisting: false)
+                .appendingPathExtension("pre-migrate.\(stored)-\(LibrarySchema.schemaVersion).bak")
+            if FileManager.default.fileExists(atPath: snapshotURL.path) {
+                try? FileManager.default.removeItem(at: snapshotURL)
+            }
+            try backup(from: url.path, to: snapshotURL)
             try LibrarySchema.migrate(
                 from: stored, to: LibrarySchema.schemaVersion, on: handle)
         }
@@ -213,7 +222,11 @@ public actor ProjectFileStore {
     /// silently overwrite a user file).
     public func backup(to destination: URL) throws {
         guard handle != nil else { throw LibraryError.notOpen }
-        try backup(from: url.path, to: destination, allowExisting: false)
+        if FileManager.default.fileExists(atPath: destination.path) {
+            throw LibraryError.backupFailed(
+                detail: "destination already exists: \(destination.path)")
+        }
+        try backup(from: url.path, to: destination)
     }
 
     /// The backup core (also the KD-2 pre-migration snapshot's engine).
@@ -221,16 +234,13 @@ public actor ProjectFileStore {
     /// same file — in WAL mode it reads the latest committed snapshot, and
     /// `sqlite3_backup` holds it consistent for the whole copy (probe P3).
     /// This keeps `SQLiteHandle` (the frozen Session connection layer)
-    /// untouched; the raw handles live entirely inside this actor. The
-    /// destination must NOT exist (typed refusal — never silently
-    /// overwrite a user file).
-    private func backup(
-        from sourcePath: String, to destination: URL, allowExisting: Bool
-    ) throws {
-        if FileManager.default.fileExists(atPath: destination.path) {
-            throw LibraryError.backupFailed(
-                detail: "destination already exists: \(destination.path)")
-        }
+    /// untouched; the raw handles live entirely inside this actor.
+    /// EXISTENCE POLICY BELONGS TO THE CALLER (M2-8-1 E2): the public
+    /// `backup(to:)` keeps its typed refusal; the pre-migrate hook
+    /// ROTATES (clears a same-generation stale snapshot first). The
+    /// former `allowExisting` parameter died with that change — no caller
+    /// ever passed `true`, and the flag's refusal now lives one frame up.
+    private func backup(from sourcePath: String, to destination: URL) throws {
         var sourcePointer: OpaquePointer?
         var destinationPointer: OpaquePointer?
         let sourceCode = sqlite3_open_v2(

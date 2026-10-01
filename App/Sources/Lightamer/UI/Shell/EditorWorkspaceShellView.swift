@@ -36,6 +36,7 @@ struct EditorWorkspaceShellView: View {
 
     @Environment(EditorState.self) private var editorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
+    @Environment(VersionCoordinator.self) private var versionCoordinator
 
     /// The filmstrip column width (the P1 slot budget).
     private static let filmstripWidth: CGFloat = 148
@@ -180,6 +181,19 @@ struct EditorWorkspaceShellView: View {
             let libraryStore = LibraryStore(store: store)
             defaultLookPending =
                 (try? await libraryStore.defaultLookPending(imageRowID: row.id)) ?? false
+        }
+        // M2-8-1 T3 (KD-5): the version projection sink — assembled HERE
+        // (the row.id seam, the defaultLookPending read's same place) and
+        // injected BEFORE the load, so the pipe restore's hydrate tail
+        // reconciles against the INCOMING image's element. Project closed
+        // / Sessions mode (nil store) clears it — the projection is
+        // naturally skipped with zero reference held. The view body never
+        // reads the store (L036: the assembly point reads, views inject).
+        if let store = projectController?.projectStore {
+            versionCoordinator.projection = VersionProjectionSink(
+                elementID: row.id, store: LibraryStore(store: store))
+        } else {
+            versionCoordinator.projection = nil
         }
         editorState.load(
             url: url,

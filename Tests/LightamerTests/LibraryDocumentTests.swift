@@ -103,8 +103,8 @@ final class LibraryDocumentTests: XCTestCase {
 
         let handle = try SQLiteHandle(path: packageURL.path)
         defer { handle.close() }
-        // M2-5-2 KD-6: v1→v2 = the first migration — fresh creates stamp 2.
-        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 2)
+        // M2-8-1 KD-3: fresh creates stamp the current version (3).
+        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 3)
         let statement = try handle.prepare(
             "SELECT value FROM project_meta WHERE key = 'project_name'")
         try XCTAssertTrue(statement.step())
@@ -148,7 +148,7 @@ final class LibraryDocumentTests: XCTestCase {
         XCTAssertTrue(opened)
         let handle = try SQLiteHandle(path: packageURL.path)
         defer { handle.close() }
-        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 2)
+        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 3)
         let statement = try handle.prepare("SELECT COUNT(*) FROM project_meta")
         try XCTAssertTrue(statement.step())
         XCTAssertGreaterThan(statement.columnInt(0) ?? 0, 0)
@@ -171,13 +171,13 @@ final class LibraryDocumentTests: XCTestCase {
         try await store.close()
 
         // Hand-modify the version stamp (the "written by a future binary"
-        // simulation; M2-5-2: the current version is 2, so 3 is the future).
+        // simulation; M2-8-1: the current version is 3, so 4 is the future).
         let handle = try SQLiteHandle(path: packageURL.path)
-        try LibrarySchema.writeUserVersion(3, to: handle)
+        try LibrarySchema.writeUserVersion(4, to: handle)
         handle.close()
 
         let reopened = ProjectFileStore(at: packageURL)
-        await assertLibraryError(.futureSchema(version: 3)) {
+        await assertLibraryError(.futureSchema(version: 4)) {
             try await reopened.open()
         }
         let refusedOpen = await isOpen(reopened)
