@@ -48,6 +48,8 @@ internal struct MaskOverlayHost: View {
     /// 06-06 fit-layout assumption is retired FOR THE MASK ROUTE ONLY;
     /// crop/liquify/retouch stay locked to fit by the mutex).
     @Environment(ViewportState.self) private var viewportState
+    /// T6: the Follow Edges seam (the surface + edge-map read face).
+    @Environment(PipeCoordinator.self) private var pipeCoordinator
 
     /// What the current drag grabbed (always references a REAL form id in
     /// the layer's mask — press installs the form first).
@@ -280,10 +282,7 @@ internal struct MaskOverlayHost: View {
                 case .path:
                     dragPathNode(layer: layer, at: p)
                 case .followEdges:
-                    // The T6 interaction leg (press → seed → walker →
-                    // BrushStroke → appendForm) lands with the coordinator
-                    // seam; the parameter section ships in T5.
-                    break
+                    followEdgesInteraction(layer: layer, at: p)
                 }
             }
             .onEnded { _ in
@@ -332,7 +331,10 @@ internal struct MaskOverlayHost: View {
                 opacity: editingState.brushOpacity)
             let form = appendForm(.brush(stroke), layer: layer)
             grab = .stroke(form.id)
-        default:
+        case .gradientTip, .gradientAnchor, .ellipseRim, .ellipseCenter,
+             .ellipseInnerFeather, .ellipseOuterFeather, .pathNode:
+            // A different tool's grab — not this drag's (the explicit
+            // enumeration keeps the touchpoint file default-free).
             break
         }
     }
@@ -366,7 +368,10 @@ internal struct MaskOverlayHost: View {
             updateGradientForm(id: formID, layer: layer) { g in
                 g.anchor = p
             }
-        default:
+        case nil, .stroke, .ellipseRim, .ellipseCenter,
+             .ellipseInnerFeather, .ellipseOuterFeather, .pathNode:
+            // No grab / a different tool's grab — not this drag's (the
+            // explicit enumeration keeps the touchpoint file default-free).
             break
         }
     }
@@ -421,7 +426,10 @@ internal struct MaskOverlayHost: View {
                     x: e.center.x + (p.x - press.x), y: e.center.y + (p.y - press.y))
                 pressedPoint = p
             }
-        default:
+        case nil, .gradientTip, .gradientAnchor, .stroke, .pathNode:
+            // No grab / a different tool's grab — not this drag's (the
+            // explicit enumeration keeps the touchpoint file default-free;
+            // the ellipse cases above already matched).
             break
         }
     }
@@ -433,6 +441,68 @@ internal struct MaskOverlayHost: View {
                 path.nodes[index].corner = p
                 path.nodes[index].ctrl1 = p
                 path.nodes[index].ctrl2 = p
+            }
+        }
+    }
+
+    // MARK: Follow Edges interaction (M2-7-2 T6, checker E6)
+
+    /// Newest-wins guard for the async walk tasks (a drag tick supersedes
+    /// the previous re-walk).
+    @State private var followEdgesGeneration = 0
+
+    /// The interaction leg: PRESS = seed → seam → edge map → walker →
+    /// `BrushStroke` → `appendForm` (the live leg — the revision semantics
+    /// are the T3 gate's); the DRAG re-walks from the moved point and
+    /// REPLACES the chain through the mutate arm. An EMPTY chain (no map /
+    /// no edge within reach) = NO append + the toolbar status hint
+    /// (KD-P1 KD-6's degrade semantics — never a silent no-op stroke).
+    private func followEdgesInteraction(layer: AdjustmentLayer, at p: MaskPoint) {
+        let pressing = (grab == nil)
+        let formID: UUID?
+        if case let .stroke(id) = grab { formID = id } else { formID = nil }
+        guard pressing || formID != nil else { return }
+        followEdgesGeneration += 1
+        let generation = followEdgesGeneration
+        let params = editingState.followEdgesParams
+        Task { @MainActor in
+            let chain = await FollowEdgesInteraction.chain(
+                seed: p, layerID: layer.id, params: params,
+                surfaceProvider: { id in
+                    await pipeCoordinator.followEdgesSurface(forLayerID: id)
+                },
+                fieldReader: { surface in
+                    await pipeCoordinator.edgeMapField(for: surface)
+                })
+            guard generation == followEdgesGeneration else { return }
+            guard !chain.isEmpty else {
+                // The documented degrade: no append, the status hint on.
+                editingState.followEdgesDegraded = true
+                return
+            }
+            editingState.followEdgesDegraded = false
+            let stroke = BrushStroke(
+                points: chain.map { point in
+                    BrushPoint(corner: point, ctrl1: point, ctrl2: point)
+                },
+                radius: editingState.brushRadius,
+                hardness: editingState.brushHardness,
+                density: editingState.brushFlow,
+                opacity: editingState.brushOpacity)
+            if let formID {
+                // The drag micro-adjust arm: the chain REPLACES the
+                // stroke's points (the mutate leg, zero history).
+                record.mutateForm(id: formID, layer: layer, editorState: editorState) {
+                    kind in
+                    if case var .brush(existing) = kind {
+                        existing.points = stroke.points
+                        kind = .brush(existing)
+                    }
+                }
+            } else {
+                // The press append (the live leg; grab arms the drag arm).
+                let form = appendForm(.brush(stroke), layer: layer)
+                grab = .stroke(form.id)
             }
         }
     }
@@ -804,5 +874,34 @@ struct MaskOverlayRecord {
         String(
             localized: "toast_mask_revision_refused",
             defaultValue: "The mask changed during your edit — the change was discarded")
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The Follow Edges walk driver (Plan M2-7-2 T6, checker E6) — the TESTABLE
+// seam consumer: seed → surface (the coordinator's read face, injectable)
+// → the edge map field (the coordinator's cache seam in production, a
+// synthetic field in tests) → the CPU walker. Extracted from the View so
+// MaskRevisionTests drives the exact press path the gesture runs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@MainActor
+enum FollowEdgesInteraction {
+
+    /// The chain for one seed. EMPTY = the documented degrade (no surface /
+    /// no map / no edge above threshold within reach). The production call
+    /// wires `surfaceProvider` = `PipeCoordinator.followEdgesSurface` and
+    /// `fieldReader` = `PipeCoordinator.edgeMapField`; the tests inject a
+    /// synthetic surface + field (the stub-seam acceptance shape).
+    static func chain(
+        seed: MaskPoint,
+        layerID: UUID,
+        params: FollowEdgesParams,
+        surfaceProvider: (UUID) async -> PipeCoordinator.FollowEdgesSurface?,
+        fieldReader: (PipeCoordinator.FollowEdgesSurface) async -> EdgeMapField?
+    ) async -> [MaskPoint] {
+        guard let surface = await surfaceProvider(layerID) else { return [] }
+        let field = await fieldReader(surface)
+        return FollowEdges.chain(seed: seed, field: field, params: params)
     }
 }
