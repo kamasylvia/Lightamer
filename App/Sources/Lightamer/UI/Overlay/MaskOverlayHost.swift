@@ -57,6 +57,11 @@ internal struct MaskOverlayHost: View {
         case gradientAnchor(UUID)
         case ellipseRim(UUID) // a new ellipse being dragged out + resize
         case ellipseCenter(UUID)
+        /// M2-7-2 T3: the radial DUAL-feather grips (the rim's inner
+        /// solid-core inset / the outer transition band — Alcedo's two
+        /// ring handles on the major axis).
+        case ellipseInnerFeather(UUID)
+        case ellipseOuterFeather(UUID)
         case pathNode(UUID, index: Int)
     }
     @State private var grab: Grab?
@@ -147,6 +152,7 @@ internal struct MaskOverlayHost: View {
                     handleDot(
                         at: screen(MaskPoint(x: e.center.x + e.radiusX, y: e.center.y)),
                         &context, filled: false)
+                    drawFeatherTokens(e, transform: xf, fitPoint: fitPoint, &context)
                 case let .path(p):
                     var path = Path()
                     for (index, node) in p.nodes.enumerated() {
@@ -173,6 +179,78 @@ internal struct MaskOverlayHost: View {
             context.fill(Path(ellipseIn: rect), with: .color(.white))
         }
         context.stroke(Path(ellipseIn: rect), with: .color(.yellow), lineWidth: 1.5)
+    }
+
+    // MARK: guidance tokens (M2-7-2 T3 — the Alcedo overlay visual language)
+
+    /// The THREE token classes for the radial mask:
+    ///   center cross   — a thin neutral cross at the center;
+    ///   radius axis    — the yellow main-axis spoke center → rim (the
+    ///                    feather grips' rail);
+    ///   band bounds    — the dashed inner/outer feather boundaries.
+    /// Geometry mirrors the rasterizer's width-units convention (the radii
+    /// scale with the window WIDTH; the band circles ride the same affine
+    /// as the rim so rotation/zoom stay correct).
+    private func drawFeatherTokens(
+        _ e: EllipseForm, transform xf: ViewportTransform,
+        fitPoint: (MaskPoint) -> CGPoint, _ context: inout GraphicsContext
+    ) {
+        let center = fitPoint(e.center)
+        let rx = CGFloat(e.radiusX) * xf.rect.width
+        let ry = CGFloat(e.radiusY) * xf.rect.width
+        let rim = CGPoint(x: center.x + rx, y: center.y)
+
+        // ① the center cross (6 px, neutral, thin).
+        let cross: CGFloat = 6
+        var crossPath = Path()
+        crossPath.move(to: CGPoint(x: center.x - cross, y: center.y))
+        crossPath.addLine(to: CGPoint(x: center.x + cross, y: center.y))
+        crossPath.move(to: CGPoint(x: center.x, y: center.y - cross))
+        crossPath.addLine(to: CGPoint(x: center.x, y: center.y + cross))
+        context.stroke(
+            crossPath.applying(xf.affine), with: .color(.white.opacity(0.6)), lineWidth: 1)
+
+        // ② the radius main axis (center → rim; the grips' rail).
+        var axis = Path()
+        axis.move(to: center)
+        axis.addLine(to: rim)
+        context.stroke(
+            axis.applying(xf.affine), with: .color(.yellow.opacity(0.8)), lineWidth: 1.5)
+
+        // ③ the feather band boundaries (dashed).
+        let innerFraction = CGFloat(e.innerFeather ?? 0)
+        let outerFraction = CGFloat(e.resolvedOuterFeather)
+        for (factor, active) in [(1 - innerFraction, e.innerFeather != nil),
+                                 (1 + outerFraction, true)] {
+            let bandRx = rx * factor
+            let bandRy = ry * factor
+            let bandRect = CGRect(
+                x: center.x - bandRx, y: center.y - bandRy,
+                width: bandRx * 2, height: bandRy * 2)
+            let dashed = Path(ellipseIn: bandRect)
+            context.stroke(
+                dashed.applying(xf.affine),
+                with: .color(active ? .white.opacity(0.7) : .white.opacity(0.3)),
+                style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        }
+
+        // The two feather grips: small SQUARE handles on the axis (the
+        // filled/unfilled dot language stays the rim/center's).
+        let innerGrip = fitPoint(
+            MaskPoint(
+                x: e.center.x + e.radiusX * (1 - (e.innerFeather ?? 0)), y: e.center.y))
+        let outerGrip = fitPoint(
+            MaskPoint(
+                x: e.center.x + e.radiusX * (1 + e.resolvedOuterFeather), y: e.center.y))
+        for p in [innerGrip, outerGrip] {
+            let rect = CGRect(x: p.x - 4, y: p.y - 4, width: 8, height: 8)
+            context.fill(
+                Path(roundedRect: rect, cornerRadius: 2),
+                with: .color(.white.opacity(0.9)))
+            context.stroke(
+                Path(roundedRect: rect, cornerRadius: 2),
+                with: .color(.yellow), lineWidth: 1)
+        }
     }
 
     // MARK: gestures
@@ -310,6 +388,22 @@ internal struct MaskOverlayHost: View {
             updateEllipseForm(id: formID, layer: layer) { e in
                 e.radiusX = max(0.005, abs(p.x - e.center.x))
                 e.radiusY = max(0.005, abs(p.y - e.center.y))
+            }
+        case let .ellipseInnerFeather(formID):
+            updateEllipseForm(id: formID, layer: layer) { e in
+                // The first grab converts a legacy-border ellipse to the
+                // dual leg with the border FOLDED into outer (the resolved
+                // read convention — an explicit partner pair, no silent
+                // mode change mid-drag).
+                if e.innerFeather == nil { e.outerFeather = e.resolvedOuterFeather }
+                let factor = abs(p.x - e.center.x) / max(e.radiusX, 0.005)
+                e.innerFeather = max(0, min(1, 1 - factor))
+            }
+        case let .ellipseOuterFeather(formID):
+            updateEllipseForm(id: formID, layer: layer) { e in
+                if e.innerFeather == nil { e.innerFeather = 0 }
+                let factor = abs(p.x - e.center.x) / max(e.radiusX, 0.005)
+                e.outerFeather = max(0, min(2, factor - 1))
             }
         case let .ellipseCenter(formID):
             updateEllipseForm(id: formID, layer: layer) { e in
@@ -459,6 +553,20 @@ internal struct MaskOverlayHost: View {
     ) -> Grab? {
         for form in layer.mask?.drawn?.forms ?? [] {
             if case let .ellipse(e) = form.kind {
+                // The feather grips first (they sit near the rim on the
+                // axis — the screen-space 16px constant covers them).
+                let inner = MaskPoint(
+                    x: e.center.x + e.radiusX * (1 - (e.innerFeather ?? 0)),
+                    y: e.center.y)
+                if hypot(location.x - xf.point(atUV: inner.asUV).x,
+                         location.y - xf.point(atUV: inner.asUV).y)
+                    < Self.handleRadius { return .ellipseInnerFeather(form.id) }
+                let outer = MaskPoint(
+                    x: e.center.x + e.radiusX * (1 + e.resolvedOuterFeather),
+                    y: e.center.y)
+                if hypot(location.x - xf.point(atUV: outer.asUV).x,
+                         location.y - xf.point(atUV: outer.asUV).y)
+                    < Self.handleRadius { return .ellipseOuterFeather(form.id) }
                 let rim = MaskPoint(x: e.center.x + e.radiusX, y: e.center.y)
                 if hypot(location.x - xf.point(atUV: rim.asUV).x,
                          location.y - xf.point(atUV: rim.asUV).y)
@@ -541,10 +649,26 @@ struct MaskOverlayRecord {
     /// True when THIS interaction actually mutated the mask.
     var dirty = false
 
+    /// The optimistic-concurrency snapshot (Plan M2-7-2 T3, KD-6, checker
+    /// E5): the `contentRevision` value read when the PRESS-segment write
+    /// completed. Live legs never bump, so this is the pre-interaction
+    /// value N; a "press = append+commit" interaction's NEXT snapshot
+    /// naturally reads the post-bump value (anti-self-mismatch). nil =
+    /// no snapshot yet.
+    var expectedRevision: Int?
+
+    /// The forms THIS interaction appended (the replay's payload) and
+    /// whether any EXISTING form was mutated (the dispatch split:
+    /// append-type replays, mutate-only refuses).
+    private var appendedForms: [MaskForm] = []
+    private var mutatedExisting = false
+
     /// Append a form to the layer's drawn mask (LIVE leg — zero history)
     /// and return it (the caller grabs its real id). Sibling payloads and
     /// the revision value ride through untouched; the revision bumps at
-    /// the commit leg, never here.
+    /// the commit leg, never here. The KD-6 snapshot lands HERE — AFTER
+    /// the press write completed (the pinned timing: post-write, and the
+    /// live leg's zero-bump contract keeps it the pre-interaction value).
     @discardableResult
     mutating func appendForm(
         _ kind: MaskForm.Kind, layer: AdjustmentLayer, editorState: EditorState
@@ -557,11 +681,15 @@ struct MaskOverlayRecord {
         layer.mask = spec
         dirty = true
         editorState.applyLiveLayer(layer)
+        expectedRevision = layer.mask?.contentRevision
+        appendedForms.append(form)
         return form
     }
 
     /// The LIVE leg: mutate one form by id, zero history (sibling-faithful;
-    /// zero bump — checker E5).
+    /// zero bump — checker E5). The FIRST mutation of an interaction
+    /// snapshots too (a re-grab can mutate without ever appending — e.g.
+    /// a feather grip on an existing ellipse).
     mutating func mutateForm(
         id: UUID, layer: AdjustmentLayer, editorState: EditorState,
         mutate: (inout MaskForm.Kind) -> Void
@@ -575,26 +703,91 @@ struct MaskOverlayRecord {
         spec.drawn = drawn
         live.mask = spec
         dirty = true
+        if expectedRevision == nil {
+            expectedRevision = live.mask?.contentRevision
+        }
+        if !appendedForms.contains(where: { $0.id == id }) {
+            mutatedExisting = true
+        }
         editorState.applyLiveLayer(live)
     }
 
     /// The COMMIT leg: exactly ONE structure item per finished,
     /// ACTUALLY-MUTATING interaction (「笔画结束 1 条」; a no-op tap never
     /// lands history), and the contentRevision bump rides HERE — before
-    /// the commit, exactly once. The P2 optimistic-concurrency wiring
-    /// (grab-time expectedRevision snapshot + the mismatch replay/refuse
-    /// dispatch) lands with the P2 handle tasks; this leg owns the bump.
+    /// the commit, exactly once.
+    ///
+    /// M2-7-2 T3 (KD-6, checker E5): the commit point VALIDATES FIRST,
+    /// then bumps — `matchesExpected(expectedRevision, live)`:
+    ///   equal   → bump exactly once → commit (the NORMAL stroke path:
+    ///             exactly +1, never a replay);
+    ///   mismatch, append-type → REPLAY: re-read the live spec, re-install
+    ///             this interaction's appended forms (the async writer —
+    ///             in practice the AI bake — may have replaced the layer
+    ///             object), bump the merged value, commit;
+    ///   mismatch, mutate-only → REFUSE: drop the interaction (zero
+    ///             history, zero bump), re-read live, toast.
     mutating func endInteraction(
         hadInteraction: Bool,
         editingState: LayerEditingState,
         editorState: EditorState,
         label: String
     ) {
-        defer { dirty = false }
+        defer {
+            dirty = false
+            expectedRevision = nil
+            appendedForms = []
+            mutatedExisting = false
+        }
         guard hadInteraction, dirty else { return }
         guard let live = editingState.selectedLayer(in: editorState.layerStack)
         else { return }
+
+        // The gate: validate BEFORE any bump (the pinned order).
+        if !MaskSpec.matchesExpected(expectedRevision, in: live.mask ?? MaskSpec()) {
+            if !appendedForms.isEmpty {
+                // Append-type REPLAY: re-read the CURRENT live spec and
+                // re-install the appended forms, then bump + commit (the
+                // standard value-copy shape — same identity, fresh struct).
+                var spec = live.mask ?? MaskSpec()
+                var drawn = spec.drawn ?? DrawnMaskSpec(forms: [])
+                let have = Set(drawn.forms.map(\.id))
+                for form in appendedForms where !have.contains(form.id) {
+                    drawn.forms.append(form)
+                }
+                spec.drawn = drawn
+                spec.bumpContentRevision()
+                let copy = AdjustmentLayer(
+                    id: live.id, name: live.name, isVisible: live.isVisible,
+                    opacity: live.opacity, blendMode: live.blendMode,
+                    blendOptions: live.blendOptions, enabled: live.enabled,
+                    chain: live.chain, mask: spec)
+                editorState.commitLayerEdit(copy, label: label)
+                editorState.presentToast(Self.replayToast)
+                return
+            }
+            // Mutate-only REFUSE: drop the interaction — zero history,
+            // zero bump; the live spec (with the async writer's content)
+            // re-renders as-is.
+            editorState.presentToast(Self.refuseToast)
+            return
+        }
+
         live.mask?.bumpContentRevision()
         editorState.commitLayerEdit(live, label: label)
+    }
+
+    /// The conflict notices (new UI keys — the close-out batch reconciles
+    /// the catalog).
+    private static var replayToast: String {
+        String(
+            localized: "toast_mask_revision_replayed",
+            defaultValue: "The mask changed during your stroke — the new stroke was re-applied")
+    }
+
+    private static var refuseToast: String {
+        String(
+            localized: "toast_mask_revision_refused",
+            defaultValue: "The mask changed during your edit — the change was discarded")
     }
 }
