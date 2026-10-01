@@ -26754,6 +26754,23 @@
           }
         }
       }
+    },
+    "toast_unclean_terminate": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The last session quit unexpectedly — edits were auto-saved (at most the last few seconds were lost)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次会话异常退出——编辑已自动保存（至多丢失最后数秒）。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

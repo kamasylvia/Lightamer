@@ -116,7 +116,13 @@ internal final class AppDelegate: NSObject, NSApplicationDelegate {
     /// D-S3: force the pending sidecar write before the process exits
     /// (bounded wait inside the handler; a hung volume must not block
     /// termination forever).
-    func applicationWillTerminate(_ application: NSApplication) {
+    /// The parameter type is LOAD-BEARING: the protocol's optional is
+    /// `applicationWillTerminate(_ notification: Notification)` — an
+    /// `NSApplication`-typed parameter "nearly matches" (the compiler
+    /// warning) and the ObjC selector dispatch NEVER fires it (found by
+    /// the M2-8-2 T4 kill-walkthrough: the flush/sentinel legs were dead
+    /// on every quit since 02-06; the 2s debounce masked the flush gap).
+    func applicationWillTerminate(_ notification: Notification) {
         guard let handler = terminateHandler else { return }
         MainActor.assumeIsolated {
             handler()
@@ -234,6 +240,13 @@ internal struct LightamerApp: App {
     /// flag (the menu sets it; the app scene presents the sheet — the
     /// pastePartialRequested shape).
     @State private var adjustmentTransferPresented = false
+
+    /// Plan M2-8-2 T4 (KD-6): the clean-terminate sentinel — the store is
+    /// the ONE defaults face (L036: read/written at the assembly root
+    /// only, never in a view body); the verdict survives here until the
+    /// editor face consumes it as the one-shot toast.
+    @State private var cleanTerminateStore = CleanTerminateSentinelStore()
+    @State private var lastLaunchWasUnclean = false
 
     /// Plan 12-1 T6: the metadata write face for the UI (commands +
     /// inspector rows + grid menus route through it; it wraps the Core
@@ -468,6 +481,11 @@ internal struct LightamerApp: App {
                     // render path.
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
+                    // M2-8-2 T4 (KD-6): the sentinel launch leg — read the
+                    // PREVIOUS session's verdict, then mark THIS session
+                    // running (the toast decision rides the editor-ready
+                    // onChange below; a missing key = first launch = silent).
+                    lastLaunchWasUnclean = cleanTerminateStore.consumeAtLaunch()
                     // M2-8-1 T2: the version triangle — all three weak
                     // back-references land BEFORE any open is drained, so
                     // the first restore already hydrates the slots.
@@ -1023,6 +1041,11 @@ internal struct LightamerApp: App {
                         // cleans up through the kernel + the discovery
                         // probe).
                         McpServerController.stopEmbeddedForTermination()
+                        // Plan M2-8-2 T4 (KD-6): the sentinel clears AFTER
+                        // the bounded flushes return — a kill inside the
+                        // flush window leaves the flag set, which is the
+                        // unclean case the next launch reports.
+                        cleanTerminateStore.markClean()
                     }
                     #if DEBUG
                     resizeProbeIfRequested()
@@ -1136,6 +1159,16 @@ internal struct LightamerApp: App {
                     // VersionCoordinator — the paste leg rides the
                     // coordinator's pasteChain command).
                     AdjustmentTransferView()
+                }
+                .onChange(of: editorState.loadedImageURL != nil) { _, editorReady in
+                    // M2-8-2 T4 (KD-6): the one-shot unclean-terminate
+                    // toast — consumed at the EDITOR face's first readiness
+                    // (the OQ-9-A global single toast; the flag clears so a
+                    // later image never re-raises it).
+                    if editorReady, lastLaunchWasUnclean {
+                        editorState.presentToast(CleanTerminateSentinel.toastCopy)
+                        lastLaunchWasUnclean = false
+                    }
                 }
                 .overlay {
                     // Plan M2-3-1 T6: the progress overlay is now the LEGACY

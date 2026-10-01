@@ -704,6 +704,7 @@ let project = Project(
                 "Tests/LightamerTests/VersionsPanelTests.swift",
                 "Tests/LightamerTests/HistoryRowJumpTests.swift",
                 "Tests/LightamerTests/AdjustmentTransferTests.swift",
+                "Tests/LightamerTests/CleanTerminateSentinelTests.swift",
                 "Tests/LightamerTests/DrtPersistenceTests.swift",
                 "Tests/LightamerTests/DrtPanelModelTests.swift",
                 "Tests/LightamerTests/DrtViewportTests.swift",
