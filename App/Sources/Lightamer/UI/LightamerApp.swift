@@ -183,6 +183,10 @@ internal struct LightamerApp: App {
     @State private var sessionState = SessionState()
     @State private var editorState = EditorState()
     @State private var pipeCoordinator = PipeCoordinator()
+    // Plan M2-8-1 T2 (KD-2): the version orchestrator — the side-挂
+    // observable beside its two weak-linked owners (the same root-owns-
+    // both shape; the Versions PANEL itself stays P2).
+    @State private var versionCoordinator = VersionCoordinator()
     @State private var exportState = ExportState()
     @State private var inspectorState = InspectorState()
     // Plan 06-05 T3: the layer-selection + editing-mode state machine
@@ -414,6 +418,7 @@ internal struct LightamerApp: App {
                 .environment(sessionCoordinator)
                 .environment(editorState)
                 .environment(pipeCoordinator)
+                .environment(versionCoordinator)
                 .environment(beforeAfterState)
                 .environment(softProofState)
                 .environment(edrHeadroomMonitor)
@@ -458,6 +463,13 @@ internal struct LightamerApp: App {
                     // render path.
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
+                    // M2-8-1 T2: the version triangle — all three weak
+                    // back-references land BEFORE any open is drained, so
+                    // the first restore already hydrates the slots.
+                    versionCoordinator.attach(
+                        editorState: editorState, pipeCoordinator: pipeCoordinator)
+                    editorState.attach(versionCoordinator: versionCoordinator)
+                    pipeCoordinator.attach(versionCoordinator: versionCoordinator)
                     // Defect B fix: the app-owned Metal context rides the
                     // coordinator from launch — `detectionMetal()` (the
                     // editor GUI chain's render-leg key) is non-nil BEFORE

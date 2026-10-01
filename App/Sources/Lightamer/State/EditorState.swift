@@ -109,6 +109,32 @@ final class EditorState {
         self.pipeCoordinator = pipeCoordinator
     }
 
+    // ── M2-8-1 T2: the version dimension (KD-2) ─────────────────────────
+
+    /// The version-orchestration back-reference (the pipeCoordinator weak
+    /// pattern — the app root strongly owns both). The coordinator never
+    /// writes history except THROUGH `installVersionChain` below; P2's
+    /// Versions panel consumption rides this same attach. Weak: no cycle.
+    private weak var versionCoordinator: VersionCoordinator?
+
+    /// Wire the version orchestrator (called once beside the other
+    /// attaches).
+    func attach(versionCoordinator: VersionCoordinator) {
+        self.versionCoordinator = versionCoordinator
+    }
+
+    /// The version-swap INSTALL face (KD-2): assign the incoming chain and
+    /// re-derive the live projections through the SAME single rebuild path
+    /// every other history assignment uses (`restoreFromSidecar`,
+    /// `performUndo/Redo/Jump`) — zero new projection code. `baseInstances`
+    /// is deliberately untouched: the pristine seed is shared across
+    /// versions (only chain-owned instances differ).
+    func installVersionChain(_ chain: HistoryStack) {
+        history = chain
+        rebuildInstances()
+        rebuildLayerStack()
+    }
+
     // ── 02-05 history mutators (the ONLY writers of history/instances) ──
 
     /// Seed a freshly loaded image to PRISTINE: empty history + the
