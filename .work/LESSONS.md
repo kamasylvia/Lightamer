@@ -418,3 +418,31 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   清盘复跑即绿——不要当场归因产品代码。
 - **适用**：一切「测试夹具写盘 + 仅成功路径清理」的 bundle；夜间连跑多轮后 App/Sessions 类
   写盘重测先查 `$TMPDIR` 残留。
+
+## L050: 版本 pin 触点穷举靠 grep 不靠人工枚举——checker 四处名单漏了第五处+一个 LIB bundle 字节 golden 家族（2026-10-01，M2-8-1）
+- **背景**：sidecar `schemaVersionCurrent` 6→7 升版，checker E3 人工穷举版本 pin
+  测试触点四处（DrtSidecarTests/LibraryDocumentTests/DefaultLookTests/
+  LibrarySchemaTests）；执行期实测又冒出三处同类：DrtPersistenceTests:325（APP）
+  、SidecarMetadataV3Tests:178/250/261/265/268（LIB bundle 字节 golden——含
+  `\"schemaVersion\" : 6` 字面 diff 期望集）、DefaultLookTests 快照文件名触点。
+- **根因**：版本号既是「断言值」又是「字节 golden 的组成」——凡 pin 字节形的测试
+  都可能嵌字面版本位；人工枚举按「测试名/主题」联想必漏。症状固定：升版后全套
+  必红，失败行即完整名单。
+- **对策**：升版任务把「`grep -rn 'schemaVersion.*: 6\|== 6\|, 6)' Tests/` + 字节
+  golden 测试全名单」列为 T1 机检步骤，跑红即穷举（每处改引
+  `schemaVersionCurrent`，一次修毕三代免改）；勿在 plan 期承诺「除点名处外零改动」
+  ——以机检名单为准写入 front-matter。
+- **适用**：一切 one-way format lock 升版（sidecar/.lalb/预设）；连带触发面
+  （如迁移快照文件名）同批穷举。
+
+## L051: store open 期间持第二读连接挡 TRUNCATE checkpoint——statement 停在 SQLITE_ROW 即持 WAL 读锁（2026-10-01，M2-8-1 T3）
+- **背景**：迁移测试在 `store.open()` 后开 `SQLiteHandle` 读 user_version/行数，
+  close 顺序换成「读句柄先关」仍 busy=1/log=4。
+- **根因**：`SELECT COUNT(*)` step 返回 ROW 后未 drain，statement 停在半途持隐式
+  读锁；`sqlite3_close_v2` 对含未 finalize statement 的连接转 zombie，读锁不放，
+  store 的强制 `wal_checkpoint(TRUNCATE)` 必败。测试代码问题，非产品 checkpoint
+  纪律问题。
+- **对策**：测试需要读迁移结果时用 DefaultLookTests 形态——`store.close()` 后再
+  开 detached 句柄读（TRUNCATE 已完成，读的是干净态）；必须 open 期间读的，走
+  store 自身 seam（withHandle）且 statement 读完 drain。
+- **适用**：一切「checkpoint 纪律 + 测试旁路读」组合（SessionIndex 同族）。
