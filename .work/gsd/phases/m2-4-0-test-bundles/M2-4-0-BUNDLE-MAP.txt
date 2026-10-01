@@ -49,6 +49,11 @@
 #   终值勘误第二批（2026-10-01 M2-8-1 验收批）：SidecarV7Tests 行 9→8（登记
 #   预写数 vs 文件实况 8 法）、VersionSwapTests 行 10→11（T2 登记基数 10，T3
 #   增投影面用例后未回更）；APP 两行合计 19 不变（+25 总增量对账不受影响）。
+# M2-8-2 增行记录（2026-10-01 执行期，checker E2 测试登记纪律）：四新测试文件
+#   全 APP/App 级，随各自任务 commit 增行（VersionsPanelTests = T1；历史行跳转
+#   = T2 HistoryRowJumpTests；Copy Adjustments = T3 AdjustmentTransferTests；
+#   崩溃哨兵 = T4 CleanTerminateSentinelTests）。行内 method 数以终态对账为准。
+#   运行期总数基线相应上移（2550 起算）。
 #   终值勘误（2026-09-30 M2-4-3 收口批）：NodeCanvasGeometryTests 行 8→9（T2 渲染
 #   读回测试并入同文件时漏改行内计数，收口对账发现，随收口 commit 修正——
 #   终跑对账 = 2217 基线 + 23 新增（9+14）= 2240 精确）。
@@ -243,6 +248,7 @@ APP	5	MaskDefaultBehaviorTests.swift
 APP	11	MaskRevisionTests.swift
 APP	8	SidecarV7Tests.swift
 APP	11	VersionSwapTests.swift
+APP	5	VersionsPanelTests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
 LAYERS	5	PipelineLinkageTests.swift
