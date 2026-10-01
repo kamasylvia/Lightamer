@@ -28,19 +28,19 @@
   探针正本 = `evidence/m2-7-3/probe/`（main/shim/extract + probe.log）。
   **禁造假纪律：本节数字全部来自 probe.log，无引用冒充实测。**
 - **判据①（交互延迟 200ms）**：冷（edgeMap GPU + fence 读回 + ≤512 降采样）
-  ×10 中位 **6.1ms**（min 5.7/max 7.3；首调 PSO 编译噪声 74.8ms 一次性）；
-  热（缓存命中 walker-only）×100 中位 **~0.001ms**——**远内**，非触发项。
+  ×10 中位 **6.3ms**（min 6.1/max 7.3——probe.log 在案值；验收轮独立复跑同值
+  再现）；热（缓存命中 walker-only）×100 中位 **~0.001ms**——**远内**，非触发项。
 - **判据②（弯曲轮廓断链 >2 且 snap 显著更稳）**：**成立**——
   - 8 个景盒（直边 ×3 / 灯笼圆轮廓 ×3 / 低对比 ×2）× 2 阈值（0.25 默认 /
     0.15）：streamline 链长全部 ≤3 点（功能性笔划需 ≥10 点量级）；
-  - 100-seed 全场网格：82/100 空链，非空链均为 1 点孤子；
+  - 100-seed 全场网格：82/100 空链，非空链均 ≤3 点（20 点/18 非空 seed，均值 1.1）；
   - 控制组：场分辨率 1024/2560（无降采样）× 步长 1.5/0.75 扫频 =
     **0/3 功能链**——排除「≤512 读回降采样碎脊」假说，失败在 walker 对
     真实照片脊型（细脊 + 幅值快速衰减 + 分叉）的假设本身；
   - snap：12px 触达内**确定性** 2 点贴边线（ev_B_snap 灯笼上缘亲证）。
 - **判据③（100MP FULL 边缘图读回 >1 帧）**：**n/a（路径不存在，非豁免）**——
   P2 seam 只跑 preview 桶（`followEdgesSurface` = `.preview` + bucket cap）；
-  FULL 9504×6336 单发 80.3ms 作为语境数字记录于 perf.md 表三。
+  FULL 9504×6336 单发 73.7ms 作为语境数字记录于 perf.md 表三。
 - **行使动作**：`60582c3`（UI 默认值一行；walker 代码保留——V2 复活零重写）。
   M2MASK-05 REQUIREMENTS 注记措辞按 KD-1 预制：「Delivered（snap 态，
   streamline 挂 V2）」。
@@ -49,7 +49,7 @@
 
 | 观察项 | 终值 | 处置 |
 |---|---|---|
-| 边缘图首算 / 缓存命中 | 冷 6.1ms 中位 / 热 ~0.001ms（同层连笔恒命中——mask append 不在 prefixHash 折叠集） | 达标 |
+| 边缘图首算 / 缓存命中 | 冷 6.3ms 中位 / 热 ~0.001ms（同层连笔恒命中——mask append 不在 prefixHash 折叠集） | 达标 |
 | 缩略 pass 单格 + 20 格滚动 | **未测得**（探针不可达 Core framework 闭包 + GUI 无蒙版内容可渲） | Manual-Only 挂账（不虚报） |
 | 双羽化手柄拖动实时性 | GUI 实操未取得（E3 五点之一） | fallback 未启用；Manual-Only 挂账 |
 | stamping 基线 | 0.744ms/千枚 bench 引证（rasterizer 零 diff）+ Layers 298/3/0 golden 族新鲜复归 | 有效 |
@@ -82,7 +82,7 @@ commit label switch / Picker 字面量——scanner 不可见），**52 键全�
 | 4 | REQUIREMENTS M2MASK 措辞与实态一致 | ✅（M2MASK-05 补 P3 熔断注记，其余六行 P1/P2 验收批已翻不动） |
 | 5 | ACCEPTANCE-INPUT 四节齐 | ✅（AC 指针 / 熔断记录 / 挂账 / Manual-Only） |
 | 6 | GOAL-STATE 终态 + TODO 推进 + 收口 md 同批 | ✅ |
-| 7 | 源码 diff = 熔断行 + zh 键，零第三类 | ✅（`git diff 7b88bbb..HEAD --stat` 逐文件核对：LayerEditingState.swift + Localizable.xcstrings + .work md/evidence，零其他） |
+| 7 | 源码 diff = 熔断行 + zh 键，零第三类 | ✅（`git diff bf2a4db..HEAD --stat` 逐文件核对：LayerEditingState.swift + Localizable.xcstrings + .work md/evidence，零其他；7b88bbb 为全 phase 基点非 P3 窗口——验收勘误） |
 | 8 | 全套回归 0 fail（基线 = P2 终数） | ✅ 净轮 `TOTAL|2525/16/0|877s EXIT=0`（BUNDLE 行双读；首轮事故轮如实登记 §执行事故） |
 
 ## 偏差与挂账
@@ -103,8 +103,8 @@ commit label switch / Picker 字面量——scanner 不可见），**52 键全�
 ## 红线核
 
 源码 diff 全集 = `LayerEditingState.swift`（熔断行）+
-`Resources/Localizable.xcstrings`（zh 键）——`git diff 7b88bbb..HEAD --stat`
-零第三类源码文件（evidence/probe/.work md 为 plan 申报面）。walker 与
+`Resources/Localizable.xcstrings`（zh 键）——`git diff bf2a4db..HEAD --stat`
+（P3 真窗口；7b88bbb 是全 phase 计划基点）零第三类源码文件（evidence/probe/.work md 为 plan 申报面）。walker 与
 `.streamline` 分支零删除（源码 grep 在案）；GPL（Alcedo/darktable）只读
 零拷贝；未 push。
 
