@@ -322,8 +322,10 @@ final class EditorStackRoutingTests: XCTestCase {
                 markdown.contains("| `\(descriptor.opName)` |"),
                 "the sheet row \(descriptor.opName) rides the sheet section")
         }
-        // The special slots are declared.
-        XCTAssertTrue(markdown.contains("arrives with M2-6"), "the DRT slot")
+        // The special slots are declared. M2-6-3: the DRT slot's marker is
+        // the LIVE panel face (the placeholder copy retired with it — the
+        // transcription pins the current reality).
+        XCTAssertTrue(markdown.contains("DrtPanelView"), "the DRT slot (the live panel)")
         XCTAssertTrue(markdown.contains("LayersPanelView"), "the Mask pre-home")
         XCTAssertTrue(markdown.contains("CIRAW"), "the RAW Decode slot")
         // The page order line.
