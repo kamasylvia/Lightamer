@@ -154,3 +154,35 @@
 ## Ruling（2026-10-01 夜间授权，晨审可推翻）
 
 D-M2-7-CONTEXT-1..12 = OQ-1..12 **全部按推荐 A 生效**。三条盘点发现采信为事实基线：①底座存量超预期——M2-7 主体 = 参数对齐 + UI 面，内核新增仅 Follow Edges；②Alcedo 出货版两侧皆非超集（brush 编译关/parametric 占位），Lightamer 双侧超集；③参数真缺口仅 inner/outer 双羽化一处。
+
+---
+
+## 勘误注记（2026-10-01 checker 回注，晨审可推翻；OQ 原文不改、以本节为准——M2-3-CONTEXT E1 勘误先例）
+
+- **勘误-1（checker E1：Default Behavior 消费面与时点）**：OQ-8 A 的「Settings
+  **新**「Default Behavior」节」与「消费点 = 蒙版工具 **arm 时**」两处失实——
+  M2-3-3 T5 已交付全部载体（枚举 `MaskDrawBehavior`
+  `App/Sources/Lightamer/Settings/AppPreferences.swift:25` / 键
+  `mask.behavior.default`（`maskBehaviorKey`:38）/ 设置页
+  `SettingsDefaultBehaviorPage`（`SettingsPages.swift:146`）），M2-7 = **纯消费者**
+  （设置侧仅 hint 文案一行更新）。消费时点对表 M2-3 页面语义**三处文字见证**
+  （AppPreferences.swift:23-24 头注「consumes it when the user finishes a drawn
+  mask」/ Picker 标签「After drawing a mask」/ hint「Applies when a drawn mask
+  is completed」）裁决为**绘制完成时**（一笔 drawn mask 交互提交后求值三分流）。
+  Alcedo 字面「Create a new layer, *then draw*」为 arm 时——以 M2-3 既有面为准
+  （消费面复用优先于字面复刻），偏差理由归 P2 DECISIONS。
+- **勘误-2（checker E2：边缘图缓存段位）**：plan 期起草曾引「沿
+  `maskPosition = -2` 惯例取 -3」——Specific Ideas 原文并无 -3 数值钉（该引用
+  失实），且 `retouchPosition = -3` 已被 06-07 retouch stroke-leg 输出槽占用
+  （`PipeCacheKey.swift:79`）。正解 = **`edgeMapPosition = -4`**，tier 归
+  `.maskPlane` 逐出档（一次 Sobel pass 可重建、成本与 mask 栅格同量级；归类
+  理由归 P1 DECISIONS）。保留段位表现状 = composite -1 / mask -2 / retouch -3 /
+  **edge map -4**。
+- **勘误-3（checker E3/E5：revision 写点枚举与 bump 腿）**：OQ-9 A ①「每个内容
+  写点（stroke append/form mutate/AI 烤贝/clear-fill）revision 单调 +1」收窄——
+  append/mutate 是 overlay **live 腿**（零 history），bump 只挂 **history 提交腿
+  五处**（overlay `endInteraction` 提交前恰一次 / AI install 提交前 / `fill` /
+  `duplicateAndInvert` / P2 面板 item 属性写）；duplicate/resetEdits/clear
+  **无 bump 载体**（理由归 P1 DECISIONS）；live tick 零 bump、快照时点 =
+  press 段写毕后现值、正常笔画 = 相等路径恰 +1 不走重放。以 P1 KD-3 终表与
+  KD-5 bump 腿重挂为准。
