@@ -16,3 +16,7 @@ LibRaw 解码（我=CIRAW 9）/ Qt UI（SwiftUI）/ CPU spatial 算子（我=Met
 
 ## 明确不借鉴
 AI 作用域 = developed RGB 非 mosaic（我方 RAW 9 在解码层融合降噪更强）；TensorRT EP 目录（Windows 专属）；运行时生成 GPU 图（Python 特定）；CuPy 实验分支。
+
+## 裁决（2026-10-01 用户）
+
+候选 1/2/3/5/6 **全部采纳**（登记：IOP-MASK-07 MiDaS 解锁注记 + 新「Photo Merging Extensions (v2)」节 IOP-HDR-06/IOP-PANO-01 + M2AI-09/M2AI-10 + ROADMAP M2-10 行扩充）；**候选 4（16-bit linear DNG 导出）不采纳**。
