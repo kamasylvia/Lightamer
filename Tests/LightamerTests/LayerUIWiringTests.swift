@@ -458,10 +458,11 @@ final class LayerUIWiringTests: XCTestCase {
     }
 
     func testMaskToolIdentifiersAreStableAndComplete() {
-        // L010: stable AX ids, not indexes; the five tools all registered.
+        // L010: stable AX ids, not indexes; the six tools all registered
+        // (M2-7-2 T6 added .followEdges to the radio set).
         XCTAssertEqual(Set(MaskTool.allCases.map(\.identifier)), [
             "mask.tool.brush", "mask.tool.eraser", "mask.tool.gradient",
-            "mask.tool.ellipse", "mask.tool.path",
+            "mask.tool.ellipse", "mask.tool.path", "mask.tool.followEdges",
         ])
     }
 

@@ -131,10 +131,11 @@ struct EditorAdjustmentStackView: View {
                 case .layersPanel:
                     // M2-7-2: the Mask Groups panel (the grade-ordered
                     // projection + the per-item editing face) heads the
-                    // Mask page; the layer-structure panel keeps its seat
-                    // (add/duplicate/merge/delete stay reachable) and the
-                    // viewport-toolbar linkage closes the page.
+                    // Mask page; the Range quick panels (T5) and the
+                    // layer-structure panel follow; the viewport-toolbar
+                    // linkage closes the page.
                     MaskGroupsPanelView()
+                    LuminanceColorRangePanelView()
                     Divider()
                     LayersPanelView()
                     maskToolbarLink
