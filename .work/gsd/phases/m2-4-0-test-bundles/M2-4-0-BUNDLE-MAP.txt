@@ -54,6 +54,9 @@
 #   = T2 HistoryRowJumpTests；Copy Adjustments = T3 AdjustmentTransferTests；
 #   崩溃哨兵 = T4 CleanTerminateSentinelTests）。行内 method 数以终态对账为准。
 #   运行期总数基线相应上移（2550 起算）。
+#   终值勘误（2026-10-01 M2-8-2 验收批）：AdjustmentTransferTests 行 7→8（登记
+#   预写数 vs 文件实况 8 法，M2-8-1 验收批同款差 1；APP 四行合计 23 不变，
+#   2550+23=2573 总对账不受影响）。
 #   终值勘误（2026-09-30 M2-4-3 收口批）：NodeCanvasGeometryTests 行 8→9（T2 渲染
 #   读回测试并入同文件时漏改行内计数，收口对账发现，随收口 commit 修正——
 #   终跑对账 = 2217 基线 + 23 新增（9+14）= 2240 精确）。
@@ -250,7 +253,7 @@ APP	8	SidecarV7Tests.swift
 APP	11	VersionSwapTests.swift
 APP	5	VersionsPanelTests.swift
 APP	7	HistoryRowJumpTests.swift
-APP	7	AdjustmentTransferTests.swift
+APP	8	AdjustmentTransferTests.swift
 APP	3	CleanTerminateSentinelTests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
