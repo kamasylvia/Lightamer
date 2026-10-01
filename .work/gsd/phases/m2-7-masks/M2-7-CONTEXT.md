@@ -148,3 +148,9 @@
 ## 夜间授权预案（2026-09-29 起草时点）
 
 本 CONTEXT 提交夜间授权裁决：若无人干预，D-M2-7-CONTEXT-1..12 = **OQ-1..12 全部按推荐 A 生效**。晨审可推翻：推翻任一条 = 修订对应 plan（CONTEXT OQ 原文不改、以 Ruling/勘误注记为准，沿 M2-3-CONTEXT E1 勘误先例）。plan 期需回填的悬决点（非 OQ 级）：feather 双值回落次序与 compression↔transition 换算式（OQ-1）、缩略图尺寸与缓存预算（OQ-3）、Follow Edges 流线复杂度熔断实测（OQ-4）、`contentRevision` 递增写点全表（OQ-9）。
+
+---
+
+## Ruling（2026-10-01 夜间授权，晨审可推翻）
+
+D-M2-7-CONTEXT-1..12 = OQ-1..12 **全部按推荐 A 生效**。三条盘点发现采信为事实基线：①底座存量超预期——M2-7 主体 = 参数对齐 + UI 面，内核新增仅 Follow Edges；②Alcedo 出货版两侧皆非超集（brush 编译关/parametric 占位），Lightamer 双侧超集；③参数真缺口仅 inner/outer 双羽化一处。
