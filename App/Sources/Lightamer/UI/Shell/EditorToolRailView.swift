@@ -1,3 +1,4 @@
+import LightamerCore
 import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -148,6 +149,11 @@ struct EditorToolRailView: View {
 
     /// The LIVE history stack (D3 活体壳): undo/redo header + one row per
     /// real edit transaction (operation name + wall time), newest first.
+    /// M2-8-2 T2 (KD-2): rows are CLICKABLE (`jumpToHistory` — HIST-02's
+    /// jump-to-any-point face), the row at `history.position` highlights
+    /// (a pure derivation — no second state source), and each row carries
+    /// a scope-kind icon (the closed `HistoryRowKind` enum — new scope
+    /// markers are forced to answer at the ONE mapping site).
     private var historyPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
@@ -176,22 +182,129 @@ struct EditorToolRailView: View {
 
             Divider()
 
-            List(Array(editorState.history.items.reversed())) { item in
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(item.label)
-                        .font(.caption)
-                        .foregroundStyle(ThemeTokens.textPrimary)
-                        .lineLimit(1)
-                    Text(item.timestamp, format: .dateTime.hour().minute().second())
-                        .font(.caption2)
-                        .foregroundStyle(ThemeTokens.textSecondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .accessibilityIdentifier("editor.rail.history.item.\(item.id)")
+            let rows = Self.historyRows(items: editorState.history.items)
+            let selectedID = editorState.history.position >= 0
+                ? editorState.history.items[editorState.history.position].id
+                : nil
+            List(rows) { row in
+                historyRow(row, selected: row.item.id == selectedID)
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+        }
+    }
+
+    /// One history row: label + time + the scope-kind icon, tap = jump.
+    private func historyRow(
+        _ row: HistoryRowData, selected: Bool
+    ) -> some View {
+        let kind = HistoryRowKind.kind(of: row.item.layerScope)
+        return HStack(alignment: .center, spacing: 4) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(row.item.label)
+                    .font(.caption)
+                    .foregroundStyle(ThemeTokens.textPrimary)
+                    .lineLimit(1)
+                Text(row.item.timestamp, format: .dateTime.hour().minute().second())
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
+            Spacer(minLength: 2)
+            // The scope kind icon (global rows carry none — KD-2).
+            if kind != .global {
+                Image(systemName: kind.symbol)
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+                    .accessibilityLabel(Text(kind.accessibilityLabel))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .background(selected ? ThemeTokens.accent.opacity(0.14) : .clear)
+        .onTapGesture {
+            // The display order is reversed; the jump takes the ORIGINAL
+            // index (the stack clamps — −1..count−1).
+            Task { await pipeCoordinator.jumpToHistory(row.originalIndex) }
+        }
+        .accessibilityIdentifier("editor.rail.history.item.\(row.item.id)")
+        .accessibilityLabel(Text(row.item.label))
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    // MARK: - KD-2: the history-row data + scope-kind faces
+
+    struct HistoryRowData: Identifiable {
+        let item: HistoryStack.HistoryItem
+        let originalIndex: Int
+        var id: UUID { item.id }
+    }
+
+    /// The display rows: NEWEST FIRST (the panel convention), each carrying
+    /// its ORIGINAL stack index (the jump target — the index conversion
+    /// lives here, the view layer, per KD-2).
+    static func historyRows(items: [HistoryStack.HistoryItem]) -> [HistoryRowData] {
+        items.enumerated().reversed().map {
+            HistoryRowData(item: $1, originalIndex: $0)
+        }
+    }
+
+    /// The CLOSED scope-kind enum (KD-2, checker m2): `layerScope` is a
+    /// `String?` — switching it directly would force a `default` arm with
+    /// zero compile-time enforcement. The kind mapping is the ONE site a
+    /// new scope marker must answer; the render switch below is exhaustive
+    /// over the enum (the compiler forces the icon + AX faces).
+    enum HistoryRowKind: Equatable {
+        /// `layerScope == nil` — an image-global param edit (no icon).
+        case global
+        /// `EditorStructureScope.marker` — a layer-structure commit.
+        case structure
+        /// `HistoryStack.pasteEpochScope` — an overwrite-paste epoch.
+        case paste
+        /// `HistoryStack.drtDocumentScope` — a document-level DRT edit.
+        case drt
+
+        static func kind(of layerScope: String?) -> HistoryRowKind {
+            switch layerScope {
+            case nil: .global
+            case EditorStructureScope.marker: .structure
+            case HistoryStack.pasteEpochScope: .paste
+            case HistoryStack.drtDocumentScope: .drt
+            // A layer UUID string (the 06-05 layer-chain scope) is not a
+            // member of the marker family — no icon, same as global.
+            default: .global
+            }
+        }
+
+        /// The SF Symbol (KD-2's icon table; `.global` renders nothing).
+        var symbol: String {
+            switch self {
+            case .global: ""
+            case .structure: "square.on.square"
+            case .paste: "doc.on.doc"
+            case .drt: "circle.lefthalf.filled"
+            }
+        }
+
+        /// The AX label (the four `history_row_kind_*` keys).
+        var accessibilityLabel: String {
+            switch self {
+            case .global:
+                String(
+                    localized: "history_row_kind_global",
+                    defaultValue: "Global adjustment")
+            case .structure:
+                String(
+                    localized: "history_row_kind_structure",
+                    defaultValue: "Layer structure change")
+            case .paste:
+                String(
+                    localized: "history_row_kind_paste",
+                    defaultValue: "Pasted adjustments")
+            case .drt:
+                String(
+                    localized: "history_row_kind_drt",
+                    defaultValue: "Display transform edit")
+            }
         }
     }
 }
