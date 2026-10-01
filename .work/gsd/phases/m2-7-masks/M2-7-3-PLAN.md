@@ -93,7 +93,7 @@ files_modified:
 - **GOAL-STATE**：M2-7 phase 续接点终态（三 plan 闭环 + 熔断裁决结论 + 挂账
   清单指针）+ 下一步 = M2-7 验收 subagent（C 档门控第 3 停前的验收批）。
 - **TODO**：M2 节推进；**AGENTS.md** M2-7 架构增量节（新增惯例：边缘图缓存键
-  口径/revision 写点全表/Default Behavior 键——沿 M2-2 增量节先例，仅当执行批
+  口径/revision 写点终表/Default Behavior 既有键消费——沿 M2-2 增量节先例，仅当执行批
   沉淀了值得登记的惯例）。
 - **ACCEPTANCE-INPUT**：验收 subagent 移交清单——AC 指针（三 plan AC 表）+
   熔断裁决记录 + 挂账（观察项残留/手册级限制）+ Manual-Only 候选（真机 HDR
@@ -214,3 +214,11 @@ files_modified:
 - T3 `chore(i18n): zh strings for mask system phase`
 - T4 `docs(m2-7): close out mask system phase with acceptance handoff`
 - 全英文 Conventional Commits；body 写 what+why + 同批同步的 md 清单；不 push。
+
+## Checker 回注记录（2026-10-01）
+
+checker 判 FAIL（7E+9M）后本 plan **零实质修订项**——E1-E7/M1/M4/M5 的落点全在
+P1/P2 与 CONTEXT 勘误注记（E6 后 Follow Edges 接线为 P2 T6 交付，本 plan KD-1
+走查矩阵与熔断条款消费对象不变）；front-matter 申报对本 plan 范围已闭环（E4
+自查通过）。M2/M3/M6-M9 留执行期 DECISIONS（checker 口径）。本节为申报闭环
+登记，非修订记录。
