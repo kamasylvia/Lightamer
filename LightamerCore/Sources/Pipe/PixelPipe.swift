@@ -248,11 +248,18 @@ internal final class PixelPipe: @unchecked Sendable {
             return false
         case .edrLinear:
             return opName == GammaModule.opName
-        case .drt:
-            return opName == ColorOutModule.opName
+        case .drt(let params):
+            var skipped = opName == ColorOutModule.opName
                 || opName == GammaModule.opName
                 || opName == DrtMethodBox.tailResidentBordersOpName
                 || opName == DrtMethodBox.tailResidentWatermarkOpName
+            // M2-6-3 T5 (KD-5): the injected Post-four set joins the demotion
+            // — the four boxes replay in the tail segment (DRT → post →
+            // EOTF), ONCE, on the display-referred plane.
+            if !params.postOpNames.isEmpty, params.postOpNames.contains(opName) {
+                skipped = true
+            }
+            return skipped
         }
     }
 
@@ -267,20 +274,35 @@ internal final class PixelPipe: @unchecked Sendable {
     /// family (KD-6: SDR powers → .bgra8Unorm; st2084/hlg → .rgba16Float;
     /// linear → float32 working).
     private func tailPixelFormat(at position: Int) -> MTLPixelFormat {
-        // The tail leg: EVERY plane carries the display format. The
-        // resident watermark/borders handoff includes BLIT copies
-        // (blitIdentity) and a blit cannot convert pixel formats — a
-        // float32 intermediate feeding an 8/16-bit final would blit
-        // nothing. The encoded values survive format-for-format: the SDR
-        // unorm quantization IS the final quantization (the same bytes a
-        // direct write would produce), 16F/float32 are lossless.
+        // The tail leg: EVERY plane from the EOTF box onward carries the
+        // display format. The resident watermark/borders handoff includes
+        // BLIT copies (blitIdentity) and a blit cannot convert pixel
+        // formats — a float32 intermediate feeding an 8/16-bit final would
+        // blit nothing. The encoded values survive format-for-format: the
+        // SDR unorm quantization IS the final quantization, 16F/float32
+        // are lossless.
+        // M2-6-3 T5 (KD-5): the Post-four planes sit BEFORE the EOTF encode
+        // — display-referred LINEAR at full float precision (8-bit linear
+        // intermediates would band in shadows). The display format starts
+        // AT the EOTF box; everything before it (the method plane, the
+        // post replay) stays on the working float32 face. Pre-T5 tails
+        // (method directly into the EOTF) gain the same precision on the
+        // method plane; the P1 FINAL-plane format pins are untouched.
         if isDrtTailLeg, case .drt(let params) = terminalTail {
-            return DrtTailDisplay.format(for: params.record)
+            if let eotfPosition = pieces.firstIndex(where: {
+                $0.box.opName == EotfBox.opName
+            }), position >= eotfPosition {
+                return DrtTailDisplay.format(for: params.record)
+            }
+            return WorkingSpace.pixelFormat
         }
-        if case .drt(let params) = terminalTail,
-           position == topEnabledPosition {
-            return DrtTailDisplay.format(for: params.record)
-        }
+        // M2-6-3 T5 correction: the MAIN chain's top plane (the tail's
+        // INPUT) stays on the working float32 face under .drt — the P1
+        // display-format-for-top branch quantized the DRT method's scene-
+        // linear input to 8 bits for SDR records (a quality defect the
+        // post insertion would have inherited; DECISIONS-signed). The
+        // default fallthrough (working float32) is the correct face — the
+        // branch is retired.
         if position == topEnabledPosition,
            pieces.indices.contains(position),
            pieces[position].box.opName == GammaModule.opName {
@@ -1157,14 +1179,22 @@ public enum TerminalTailPolicy: Sendable, Equatable {
 
 /// The `.drt` payload: the document's record + its PRE-COMPUTED stableHash
 /// (the seed-fold single source — the hash the sidecar and the panel both
-/// consume, folded once here).
+/// consume, folded once here). M2-6-3 T5 (KD-5): the INJECTED Post-four
+/// op-name set rides along — the App computes it from
+/// `NodeOwnershipCatalog.drtPostOpNames` (the Core-does-not-import-IOP
+/// direction constraint) and passes it at the policy construction site.
 public struct DrtTailParams: Sendable, Equatable {
     public let record: DrtRecord
     public let recordHash: UInt64
+    /// The Post-four ops demoted from the main chain into the tail segment.
+    /// Empty = the pre-T5 shape (no demotion, bit-identical seed — the P1
+    /// behavior face).
+    public let postOpNames: [String]
 
-    public init(record: DrtRecord) {
+    public init(record: DrtRecord, postOpNames: [String] = []) {
         self.record = record
         self.recordHash = record.stableHash()
+        self.postOpNames = postOpNames
     }
 }
 
@@ -1204,20 +1234,42 @@ public enum DrtTailAssembly {
     private static let policyTag = "lightamer.drt.tail.v1"
 
     public static func seed(upstream: UInt64, params: DrtTailParams) -> UInt64 {
-        // The L013 fold order: recordHash ⊕ policyTag ⊕ upstream — one
-        // canonical FNV-1a thread (the blendTripleHash shape).
+        // The L013 fold order: recordHash ⊕ policyTag ⊕ postSet ⊕ upstream
+        // — one canonical FNV-1a thread (the blendTripleHash shape). The
+        // P3 extension (M2-6-3 E5): the injected Post-four set identity
+        // folds WHEN NON-EMPTY — an empty set folds NOTHING, so the pre-T5
+        // (P1) seeds stay BIT-IDENTICAL for tail params that carry no post
+        // names (the behavior red line). The four boxes' param VALUES ride
+        // the tail sub-run's own levelHash chain (each replayed box's
+        // paramsHash); this fold pins the SET identity (which ops belong to
+        // the segment — a constant at runtime, cheap insurance).
         var h = StableHash.fnvOffsetBasis
         withUnsafeBytes(of: params.recordHash) { h = StableHash.combine(h, $0) }
         let tagBytes = Array(policyTag.utf8)
         h = tagBytes.withUnsafeBufferPointer { StableHash.combine(h, UnsafeRawBufferPointer($0)) }
+        if !params.postOpNames.isEmpty {
+            for name in params.postOpNames.sorted() {
+                let nameBytes = Array(name.utf8)
+                h = nameBytes.withUnsafeBufferPointer {
+                    StableHash.combine(h, UnsafeRawBufferPointer($0))
+                }
+            }
+        }
         withUnsafeBytes(of: upstream) { h = StableHash.combine(h, $0) }
         return h
     }
 
-    /// `[DrtMethodBox(record), EotfBox(record)] + residents` — the residents
-    /// (enabled borders/watermark boxes from the caller's chain) ride with
-    /// their committed params; runSub sorts the four by (iopOrder,
-    /// multiPriority): 74 → 75 → 76 → 77 = the E2 guard order.
+    /// `[DrtMethodBox(record), Post-four replay, EotfBox(record), residents]`
+    /// — the residents (enabled borders/watermark boxes from the caller's
+    /// chain) ride with their committed params; runSub sorts the chain by
+    /// (iopOrder, multiPriority): 74 → post slots 74.1+ → 75 → 76 → 77 =
+    /// the E2 guard order. M2-6-3 T5 (KD-5): the enabled Post-four boxes
+    /// (matched against the injected `postOpNames`) replay BETWEEN the
+    /// method and the EOTF through `TailOrderedBox` — their committed
+    /// params are forwarded verbatim, only the SORT ORDER moves into the
+    /// tail-internal slot (their natural v50 orders sit BELOW 74 and would
+    /// otherwise sort ahead of the method box). Post-empty calls assemble
+    /// EXACTLY the pre-T5 chain (the P1 assembly face, bit-for-bit).
     public static func instances(
         params: DrtTailParams, residents: [any ModuleBoxing]
     ) -> [any ModuleBoxing] {
@@ -1227,7 +1279,86 @@ public enum DrtTailAssembly {
             box.enabled && (box.opName == DrtMethodBox.tailResidentBordersOpName
                 || box.opName == DrtMethodBox.tailResidentWatermarkOpName)
         }
-        return [method, eotf] + replayed
+        guard !params.postOpNames.isEmpty else {
+            return [method, eotf] + replayed
+        }
+        let postCandidates = residents.filter { box in
+            box.enabled && params.postOpNames.contains(box.opName)
+        }.sorted {
+            ($0.iopOrder, $0.multiPriority, $0.opName)
+                < ($1.iopOrder, $1.multiPriority, $1.opName)
+        }
+        // The tail-internal slot orders: 74.1, 74.2, … — strictly between
+        // the method box (74.0) and the EOTF box (75.0), preserving the
+        // candidates' v50 relative order.
+        let post = postCandidates.enumerated().map { index, box in
+            TailOrderedBox(box: box, slotOrder: 74.0 + Float(index + 1) * 0.1)
+        }
+        return [method] + post + [eotf] + replayed
+    }
+}
+
+/// The tail-slot replay wrapper (M2-6-3 T5, KD-5): forwards EVERYTHING to
+/// the original box VERBATIM except `iopOrder`, which is overridden to the
+/// tail-internal slot so the tail sub-run's v50 sort places the Post-four
+/// BETWEEN DrtMethodBox (74.0) and EotfBox (75.0). ZERO new kernels — the
+/// wrapped box's process/ROI/hash members are forwarded untouched (the
+/// 「四 box 原样复用」ruling; the wrapper is assembly-face plumbing only).
+final class TailOrderedBox: ModuleBoxing, @unchecked Sendable {
+
+    let box: any ModuleBoxing
+    let slotOrder: Float
+
+    init(box: any ModuleBoxing, slotOrder: Float) {
+        self.box = box
+        self.slotOrder = slotOrder
+    }
+
+    var instanceID: UUID { box.instanceID }
+    var opName: String { box.opName }
+    var multiPriority: Int { box.multiPriority }
+    var multiName: String { box.multiName }
+    var iopOrder: Float { slotOrder }
+    var enabled: Bool { box.enabled }
+    var paramsData: Data { box.paramsData }
+    var paramsHash: UInt64 { box.paramsHash }
+
+    func makeRunPiece() -> IOPiece { box.makeRunPiece() }
+    func apply(_ record: ModuleInstance) throws { try box.apply(record) }
+
+    func processErased(
+        input: any MTLTexture,
+        output: any MTLTexture,
+        roiIn: ROI,
+        roiOut: ROI,
+        piece: inout IOPiece,
+        metal: MetalContext
+    ) async throws {
+        try await box.processErased(
+            input: input, output: output, roiIn: roiIn, roiOut: roiOut,
+            piece: &piece, metal: metal)
+    }
+
+    func tileHaloErased(roi: ROI, piece: IOPiece) -> Int {
+        box.tileHaloErased(roi: roi, piece: piece)
+    }
+
+    func tileWorkingSetBytesPerPixelErased(piece: IOPiece) -> Int {
+        box.tileWorkingSetBytesPerPixelErased(piece: piece)
+    }
+
+    func modifyROIOutErased(_ roi: inout ROI, input: ROI, piece: IOPiece) {
+        box.modifyROIOutErased(&roi, input: input, piece: piece)
+    }
+
+    func modifyROIInErased(output roi: ROI, input: inout ROI, piece: IOPiece) {
+        box.modifyROIInErased(output: roi, input: &input, piece: piece)
+    }
+
+    func pointMapSegmentErased(
+        inputSize: SIMD2<Double>
+    ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)? {
+        box.pointMapSegmentErased(inputSize: inputSize)
     }
 }
 

@@ -23610,23 +23610,6 @@
         }
       }
     },
-    "panel_note_pre_drt": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Applies pre-DRT for now — moves post-DRT with M2-6"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂施于 DRT 之前 —— 随 M2-6 移至 DRT 之后"
-          }
-        }
-      }
-    },
     "panel_cat02_section": {
       "extractionState": "manual",
       "localizations": {
