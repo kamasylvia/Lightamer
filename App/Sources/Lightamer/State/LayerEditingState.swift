@@ -278,8 +278,18 @@ final class LayerEditingState {
             // entry; the inversion is ONE property commit on the copy).
             guard let copy = editorState.duplicateLayer(id: id) as? AdjustmentLayer
             else { return }
+            // Defensive revision pin (KD-5 dispatch table): the synchronous
+            // single-writer leg cannot see a mid-command write on
+            // @MainActor — the assert documents the unreachability (release
+            // runs the unconditional path; a future async caller must go
+            // through the gate instead).
+            let expected = copy.mask?.contentRevision
+            assert(MaskSpec.matchesExpected(expected, in: copy.mask ?? MaskSpec()))
             var invertedCopy = Self.snapshot(copy)
             invertedCopy.mask = Self.inverted(invertedCopy.mask)
+            // The invert variant is a CONTENT WRITE (KD-3 write-point ④):
+            // the committed value bumps +1 (nil folds to 0 first).
+            invertedCopy.mask?.bumpContentRevision()
             editorState.commitLayerEdit(
                 invertedCopy, label: String(localized: "mask_command_duplicateAndInvert"))
         case .fill:
@@ -295,8 +305,15 @@ final class LayerEditingState {
                 editorState.presentToast(Self.deletionProtectedToast)
                 return
             }
+            // The committed value carries the revision FORWARD +1 (KD-3
+            // write-point ③ — a content rewrite keeps the guard monotonic
+            // within the history segment, so a stale in-flight writer's
+            // expected value can never re-validate against the new record).
             var copy = Self.snapshot(layer)
-            copy.mask = MaskSpec()
+            var newMask = MaskSpec()
+            newMask.contentRevision = layer.mask?.contentRevision
+            newMask.bumpContentRevision()
+            copy.mask = newMask
             editorState.commitLayerEdit(
                 copy, label: String(localized: "mask_command_fill"))
         case .clear:

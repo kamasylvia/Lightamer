@@ -65,7 +65,11 @@ internal struct MaskOverlayHost: View {
     @State private var pressedPoint: MaskPoint?
     /// True when THIS interaction actually mutated the mask (a pure
     /// handle tap without movement must NOT fabricate a history item).
-    @State private var dirty = false
+    /// M2-7-1 T5: the flag + the record plumbing live in the extracted
+    /// `MaskOverlayRecord` (the write-point contract is unit-tested
+    /// through it — MaskRevisionTests drives the exact press → live
+    /// ticks → commit path the gestures run).
+    @State private var record = MaskOverlayRecord()
 
     private var layer: AdjustmentLayer? {
         editingState.selectedLayer(in: editorState.layerStack)
@@ -353,17 +357,10 @@ internal struct MaskOverlayHost: View {
         let hadInteraction = grab != nil
         grab = nil
         pressedPoint = nil
-        // Exactly ONE structure item per finished, ACTUALLY-MUTATING
-        // interaction (「笔画结束 1 条」; a no-op tap never lands history).
-        guard hadInteraction, dirty else { return }
-        dirty = false
-        guard let live = selectedLayer() else { return }
-        editorState.commitLayerEdit(
-            live, label: String(localized: String.LocalizationValue(commitLabelKey)))
-    }
-
-    private func selectedLayer() -> AdjustmentLayer? {
-        editingState.selectedLayer(in: editorState.layerStack)
+        record.endInteraction(
+            hadInteraction: hadInteraction,
+            editingState: editingState, editorState: editorState,
+            label: String(localized: String.LocalizationValue(commitLabelKey)))
     }
 
     private var commitLabelKey: String {
@@ -375,33 +372,20 @@ internal struct MaskOverlayHost: View {
         }
     }
 
-    // MARK: mask record plumbing
+    // MARK: mask record plumbing (the MaskOverlayRecord delegates)
 
     /// Append a form to the layer's drawn mask (LIVE leg — zero history)
     /// and return it (the caller grabs its real id).
     @discardableResult
     private func appendForm(_ kind: MaskForm.Kind, layer: AdjustmentLayer) -> MaskForm {
-        let form = MaskForm(kind: kind)
-        var drawn = layer.mask?.drawn ?? DrawnMaskSpec(forms: [])
-        drawn.forms.append(form)
-        layer.mask = MaskSpec(drawn: drawn)
-        dirty = true
-        editorState.applyLiveLayer(layer)
-        return form
+        record.appendForm(kind, layer: layer, editorState: editorState)
     }
 
     /// The LIVE leg: mutate one form by id, zero history.
     private func mutateForm(
         id: UUID, layer: AdjustmentLayer, mutate: (inout MaskForm.Kind) -> Void
     ) {
-        guard let live = editorState.adjustmentLayer(id: layer.id),
-              var drawn = live.mask?.drawn,
-              let index = drawn.forms.firstIndex(where: { $0.id == id })
-        else { return }
-        mutate(&drawn.forms[index].kind)
-        dirty = true
-        live.mask = MaskSpec(drawn: drawn)
-        editorState.applyLiveLayer(live)
+        record.mutateForm(id: id, layer: layer, editorState: editorState, mutate: mutate)
     }
 
     private func updateStrokeForm(
@@ -533,4 +517,84 @@ private extension MaskPoint {
 
 private extension SIMD2<Double> {
     var asMaskPoint: MaskPoint { MaskPoint(x: Float(x), y: Float(y)) }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The mask-record plumbing + the commit leg (Plan M2-7-1 T5, KD-5) —
+// extracted from the View so the write-point contract is UNIT-TESTABLE
+// (MaskRevisionTests drives the exact press → live ticks → commit path the
+// gestures run; the View keeps only gesture/geometry).
+//
+// The revision contract (checker E5): the bump rides the HISTORY COMMIT
+// leg ONLY — `endInteraction` bumps exactly once before the commit (the
+// no-op tap never lands: the dirty gate); `appendForm`/`mutateForm` are
+// the LIVE legs (the "zero history" shape) and NEVER bump — the revision
+// value stays constant across live ticks. Both record writes are
+// SIBLING-PAYLOAD faithful (the D-M2-4-2-5 fix): the existing spec's
+// parametric / raster / deletionProtected / contentRevision survive
+// instead of being reset by a `MaskSpec(drawn:)` rebuild.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@MainActor
+struct MaskOverlayRecord {
+
+    /// True when THIS interaction actually mutated the mask.
+    var dirty = false
+
+    /// Append a form to the layer's drawn mask (LIVE leg — zero history)
+    /// and return it (the caller grabs its real id). Sibling payloads and
+    /// the revision value ride through untouched; the revision bumps at
+    /// the commit leg, never here.
+    @discardableResult
+    mutating func appendForm(
+        _ kind: MaskForm.Kind, layer: AdjustmentLayer, editorState: EditorState
+    ) -> MaskForm {
+        let form = MaskForm(kind: kind)
+        var spec = layer.mask ?? MaskSpec()
+        var drawn = spec.drawn ?? DrawnMaskSpec(forms: [])
+        drawn.forms.append(form)
+        spec.drawn = drawn
+        layer.mask = spec
+        dirty = true
+        editorState.applyLiveLayer(layer)
+        return form
+    }
+
+    /// The LIVE leg: mutate one form by id, zero history (sibling-faithful;
+    /// zero bump — checker E5).
+    mutating func mutateForm(
+        id: UUID, layer: AdjustmentLayer, editorState: EditorState,
+        mutate: (inout MaskForm.Kind) -> Void
+    ) {
+        guard let live = editorState.adjustmentLayer(id: layer.id),
+              var spec = live.mask,
+              var drawn = spec.drawn,
+              let index = drawn.forms.firstIndex(where: { $0.id == id })
+        else { return }
+        mutate(&drawn.forms[index].kind)
+        spec.drawn = drawn
+        live.mask = spec
+        dirty = true
+        editorState.applyLiveLayer(live)
+    }
+
+    /// The COMMIT leg: exactly ONE structure item per finished,
+    /// ACTUALLY-MUTATING interaction (「笔画结束 1 条」; a no-op tap never
+    /// lands history), and the contentRevision bump rides HERE — before
+    /// the commit, exactly once. The P2 optimistic-concurrency wiring
+    /// (grab-time expectedRevision snapshot + the mismatch replay/refuse
+    /// dispatch) lands with the P2 handle tasks; this leg owns the bump.
+    mutating func endInteraction(
+        hadInteraction: Bool,
+        editingState: LayerEditingState,
+        editorState: EditorState,
+        label: String
+    ) {
+        defer { dirty = false }
+        guard hadInteraction, dirty else { return }
+        guard let live = editingState.selectedLayer(in: editorState.layerStack)
+        else { return }
+        live.mask?.bumpContentRevision()
+        editorState.commitLayerEdit(live, label: label)
+    }
 }
