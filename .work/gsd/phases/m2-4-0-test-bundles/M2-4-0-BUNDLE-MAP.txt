@@ -61,9 +61,11 @@
 #   读回测试并入同文件时漏改行内计数，收口对账发现，随收口 commit 修正——
 #   终跑对账 = 2217 基线 + 23 新增（9+14）= 2240 精确）。
 # M2-8-3 验收批增行记录（2026-10-02 验收 subagent，FINDING 修复回归随修随补）：
-#   新测试文件 APP/App 级——SheetEnvironmentInjectionTests = FINDING-A 回归
+#   两新测试文件全 APP/App 级——SheetEnvironmentInjectionTests = FINDING-A 回归
 #   （Copy Adjustments sheet 内容环境注入，真 .sheet 挂载防「非 sheet 层级测绿」
-#   盲区复发）。2573 起算 +1 = 2574（ToastFaceTests 行随后续修复 commit 增行）。
+#   盲区复发；负腿已实测：掏空注入 = 宿主进程同一 fatal 签名硬失败）； 
+#   ToastFaceTests = FINDING-B 回归（默认面 D-26 toast 渲染宿主：零 chrome 契约
+#   + AX 树 status_toast 可见性 wiring 断言）。2573 起算 +4 = 2577。
 # M2-5-2 增行记录（2026-09-30 执行期，checker E2 测试登记纪律）：新测试文件
 #   DefaultLookTests / CatalogAddFaceTests 同 commit 登记进 LightamerTestsApp
 #   （均 = APP/App 级——mint 分支与 add 枚举面经 EditorState 实例断言）；既有
@@ -260,6 +262,7 @@ APP	7	HistoryRowJumpTests.swift
 APP	8	AdjustmentTransferTests.swift
 APP	3	CleanTerminateSentinelTests.swift
 APP	1	SheetEnvironmentInjectionTests.swift
+APP	3	ToastFaceTests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
 LAYERS	5	PipelineLinkageTests.swift

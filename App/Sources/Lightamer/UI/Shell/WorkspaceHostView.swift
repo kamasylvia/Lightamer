@@ -45,6 +45,12 @@ struct WorkspaceHostView: View {
     /// with the shell model (both ends weak, the owners strong).
     @Environment(PipeCoordinator.self) private var pipeCoordinator
 
+    /// M2-8-3 acceptance FINDING-B fix: the D-26 toast channel's DEFAULT-face
+    /// render site reads the editor state's toast here (the StatusBar slot is
+    /// the legacy face's twin — reachable at this depth, the same injection
+    /// YiyinTopBarSheet reads beside it).
+    @Environment(EditorState.self) private var editorState
+
     // Plan M2-3-1 T6 (M2UIW-06): the background-task faces — ONE registry
     // behind BOTH presentations (bar + dialog), the import leg riding the
     // read-only ImportTaskAdapter subscription.
@@ -108,6 +114,18 @@ struct WorkspaceHostView: View {
         }
         .background(ThemeTokens.windowBackground)
         .accessibilityIdentifier(ThemeTokens.Markers.workspaceHost)
+        // M2-8-3 acceptance FINDING-B fix: the DEFAULT shell's D-26 toast
+        // render site. The M2-3-1 shell swap moved the project workspace onto
+        // this host and left `EditorState.presentToast`'s channel with no
+        // render point on the default face (the StatusBar toast slot only
+        // mounts in `legacyBody`) — the unclean-terminate sentinel, export
+        // failures, deletion locks and drift warnings were structurally
+        // invisible here. Zero-height when no toast is up; the StatusBar's
+        // 22pt visual language when one is.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            ToastBarView(toast: editorState.toast)
+                .animation(.easeInOut(duration: 0.2), value: editorState.toast)
+        }
         .focusedSceneValue(\.lightamerWorkspaceModel, workspace)
         // The task-dialog host (the SAME registry — dual presentation).
         .sheet(isPresented: $isTaskDialogPresented) {
@@ -452,6 +470,45 @@ struct YiyinTopBarSheet: View {
         _ opName: String, fallback: ModuleInstance
     ) -> ModuleInstance {
         editorState.instances.first { $0.opName == opName } ?? fallback
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ToastBarView (M2-8-3 acceptance FINDING-B fix) — the DEFAULT shell's D-26
+// toast face. The StatusBar toast slot (ContentView.legacyBody's bottom
+// safeAreaInset) is the legacy face's twin; this host mirrors its visual
+// language (22pt raised bar, monospaced secondary text, hairline top border)
+// with one contract difference: NO toast = NO chrome (EmptyView — the default
+// face gains nothing permanent; the legacy face's always-on Ready/Decoding
+// readout stays legacy-only). `ToastFaceTests` pins both halves of that
+// contract.
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct ToastBarView: View {
+
+    /// D-26 background notice (nil = nothing shown).
+    var toast: String?
+
+    var body: some View {
+        if let toast {
+            HStack(spacing: 8) {
+                Text(toast)
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .foregroundStyle(LightamerColors.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .transition(.opacity)
+                    .accessibilityIdentifier("status_toast")
+            }
+            .frame(height: 22)
+            .frame(maxWidth: .infinity)
+            .background(LightamerColors.surfaceRaised)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(LightamerColors.border)
+                    .frame(height: 1)
+            }
+        }
     }
 }
 
