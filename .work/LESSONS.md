@@ -446,3 +446,17 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   开 detached 句柄读（TRUNCATE 已完成，读的是干净态）；必须 open 期间读的，走
   store 自身 seam（withHandle）且 statement 读完 drain。
 - **适用**：一切「checkpoint 纪律 + 测试旁路读」组合（SessionIndex 同族）。
+
+## L052: NSApplicationDelegate 可选回调形参类型错写 = "nearly matches" 警告即永不触发（2026-10-01，M2-8-2 T4）
+
+- **现象**：kill -9 走查发现清退腿从不执行——`applicationWillTerminate(_ application: NSApplication)`
+  的形参类型写错（协议正身 = `(_ notification: Notification)`），Swift 6 报
+  "nearly matches optional requirement" 警告但**不接 ObjC 选择器分发**，回调自
+  02-06 起从未真正触发；2s debounce 常态下先于退出写完盘，缺口被完全掩盖。
+- **根因**：@objc 协议可选要求按选择器匹配，形参类型不符 = 选择器不存在 =
+  永不调用；编译器只给 warning 不给 error。
+- **对策**：①"nearly matches" 警告一律当 bug 修（对表协议正身签名），不当代
+  码异味容忍；②依赖 delegate 回调的面（flush/哨兵/终止清理）必须有运行期验证
+  走查（defaults/file 痕迹读回），编译绿 ≠ 回调活。
+- **适用**：一切 NSApplicationDelegate/UITraitEnvironment 等 @objc 可选回调的
+  手写实现。
