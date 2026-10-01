@@ -172,9 +172,10 @@ enum AIMaskEditing {
         // expected value here): mismatch = refuse BEFORE any state change.
         if let expectedRevision,
             !MaskSpec.matchesExpected(expectedRevision, in: layer.mask ?? MaskSpec()) {
+            let currentRevision = layer.mask?.contentRevision.map(String.init) ?? "0"
             throw AIMaskError.invalidInput(
                 "mask content revision mismatch: expected \(expectedRevision), " +
-                    "current \(layer.mask?.contentRevision ?? 0) — refusing the AI install")
+                    "current \(currentRevision) — refusing the AI install")
         }
         var updated = layer
         var mask = layer.mask ?? MaskSpec()
