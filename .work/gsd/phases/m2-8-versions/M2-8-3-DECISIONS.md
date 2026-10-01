@@ -169,3 +169,12 @@ toast）在默认 shell 无渲染点
 - **证据**：`m2-8-06-editor-bottom-no-statusbar.png`（编辑器底缘无状态栏）
   / `m2-8-07-library-bottom-no-statusbar.png`（图库面同）+ 代码引用链。
 
+## 4. checker M5 勘误对账（CONTEXT :67 OQ-1 migration 代际）
+
+CONTEXT :67 OQ-1 推荐行「激活走 KD-2 缝（**migration v1→v2** + 自动快照）」
+系 M2-2 `default_look_pending` 消费 v1→v2 **之前**起草的旧表述——实做 =
+**v2→v3**（M2-8-1 T3 KD-3：reduced DDL `version_ref` + 幂等 migrate slot +
+pre-migrate 快照轮换）。CONTEXT 正文按先例不改，勘误只在本节记账；链式两代
+迁移（v1 fixture 首开 1→3 + 回拨 2→3 轮换路径）由 LibrarySchemaTests E2
+钉死，代际表述以测试正本为准。
+
