@@ -219,6 +219,7 @@ LAYERS	3	AIMaskPlaneFormatTests.swift
 LAYERS	3	LayerDragPerfTests.swift
 LAYERS	4	MaskEditIncrementTests.swift
 LAYERS	9	MaskFeatherAlignTests.swift
+APP	6	MaskRevisionTests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
 LAYERS	5	PipelineLinkageTests.swift
