@@ -185,8 +185,12 @@ final class LayerEditingState {
 
     /// The edge-aware brush's parameters (Core `FollowEdgesParams`; the
     /// brush WIDTH is NOT here — it passes through as the current brush
-    /// radius, the KD-5 division).
-    var followEdgesParams = FollowEdgesParams()
+    /// radius, the KD-5 division). The UI default is `.snap` — the M2-7-3
+    /// walkthrough fuse verdict (OQ-4-C): the streamline walker breaks on
+    /// real-photo ridges at shipped params (chains of 1-3 points across all
+    /// scenes); snap delivers deterministic edge-anchored lines. The walker
+    /// stays selectable from the mode picker and is parked for V2.
+    var followEdgesParams = FollowEdgesParams(mode: .snap)
 
     /// The empty-chain degrade status (KD-P1 KD-6 consumption face): set by
     /// the interaction leg when the walker returns an EMPTY chain (no map /
