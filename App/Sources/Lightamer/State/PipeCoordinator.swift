@@ -626,7 +626,13 @@ final class PipeCoordinator {
         if resolution != .thumbnail, let url = currentImageURL, let workspace,
             workspace.hasDrtRecord(for: url)
         {
-            return .drt(DrtTailParams(record: workspace.drtRecord(for: url)))
+            return .drt(DrtTailParams(
+                record: workspace.drtRecord(for: url),
+                // M2-6-3 T5 (KD-5): the Post-four demotion set — computed
+                // from the IOP catalog HERE (the App side; the Core-does-
+                // not-import-IOP direction constraint holds) and injected
+                // into the tail params.
+                postOpNames: NodeOwnershipCatalog.drtPostOpNames))
         }
         return edrDisplayEnabled && resolution != .thumbnail
             ? .edrLinear : .sdrGamma

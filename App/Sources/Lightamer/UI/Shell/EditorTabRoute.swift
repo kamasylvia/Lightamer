@@ -219,9 +219,11 @@ enum EditorTabRoutingTable {
             // M2-5-2 KD-1 — the Alcedo four-group IA (§2.3). The 13-row
             // zero-loss ledger (every pre-M2-5-2 row keeps a home):
             //   Master        { saturation (T3), vibrance }
-            //   Look (D9)     { equalizer→Clarity, sharpen, grain→Film
+            //   Look          { equalizer→Clarity, sharpen, grain→Film
             //                   Grain, bloom→Halation } — the .drtPost four
-            //                   seats, each carrying the pre-DRT note
+            //                   seats; M2-6-3 T5 (M2DRT-05): the seats RUN
+            //                   post-DRT now — the pre-DRT notes are RETIRED
+            //                   (the rows stay on the Look page, M2-3 IA).
             //   Color         { cat02WhiteBalance (T3), tint (T3); hls (T5)
             //                   + colorWheels (T4) complete the seat }
             //   Detail/Texture{ velvia, monochrome, colorbalancergb,
@@ -230,18 +232,10 @@ enum EditorTabRoutingTable {
             [
                 .grouped(SaturationModule.opName, .look, group: .master),
                 .grouped(VibranceModule.opName, .look, group: .master),
-                .grouped(
-                    EqualizerModule.opName, .look, group: .look,
-                    note: "panel_note_pre_drt"),
-                .grouped(
-                    SharpenModule.opName, .look, group: .look,
-                    note: "panel_note_pre_drt"),
-                .grouped(
-                    GrainModule.opName, .look, group: .look,
-                    note: "panel_note_pre_drt"),
-                .grouped(
-                    BloomModule.opName, .look, group: .look,
-                    note: "panel_note_pre_drt"),
+                .grouped(EqualizerModule.opName, .look, group: .look),
+                .grouped(SharpenModule.opName, .look, group: .look),
+                .grouped(GrainModule.opName, .look, group: .look),
+                .grouped(BloomModule.opName, .look, group: .look),
                 .grouped(Cat02WBModule.opName, .look, group: .color),
                 .grouped(HlsModule.opName, .look, group: .color),
                 .grouped(ColorWheelsModule.opName, .look, group: .color),
