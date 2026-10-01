@@ -48,7 +48,7 @@ using namespace metal;
 // L006: full float math throughout; no half.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Swift mirror: `MaskRasterUniforms` (DrawnMaskRasterizer.swift) — 11×16B
+/// Swift mirror: `MaskRasterUniforms` (DrawnMaskRasterizer.swift) — 17×16B
 /// constant chunks (the ashift float3-packing postmortem pattern: every
 /// member is a 16-byte SIMD4 on both sides).
 struct MaskRasterUniforms {
@@ -69,6 +69,13 @@ struct MaskRasterUniforms {
     float4 post2;   //   in rows0..2 unchanged)
     float4 liq0;    // liquify grid: originX, originY (mid px), gridW, gridH
     float4 liq1;    // hasLiquify, midW, midH, 0
+    // Plan M2-7-1 T1 (KD-1, M2MASK-01) — additive tail slot (every earlier
+    // offset byte-identical): ellipse dual feather = innerFeather,
+    // outerFeather, modeFlag, pad. modeFlag 0 = the legacy quadratic leg
+    // (dual-nil forms; the two feather slots are ignored), 1 = the Alcedo
+    // linear-band leg (a nil partner folds to 0 INSIDE the leg — an
+    // explicit 0 there is a value, not the legacy default).
+    float4 form2;
 };
 
 // cn = the pixel in COMPOSITE-FRAME normalized units ((winOrigin+px)/outSize)
@@ -154,6 +161,19 @@ static float mask_eval_form(float2 p, constant MaskRasterUniforms &u,
         // linear in the SQUARED elliptical radius (no sqrt — the float32
         // precision of the e-domain form leaked ~2e-6 into the band)
         float q = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+        // M2-7-1 T1 (KD-1, M2MASK-01): the Alcedo DUAL-feather leg — the
+        // linear-band coverage of Alcedo grade_mask_coverage.cpp:150-153
+        // verbatim (GPL numeric reference only; rho = the normalized
+        // elliptical radius, edge = 1). Routes on the mode flag, NOT on
+        // the feather values: dual-nil forms keep the legacy quadratic
+        // leg byte-identical, and an explicit (0, 0) pair is the Alcedo
+        // leg's hard edge — never a fall-back to the legacy formula.
+        if (u.form2.z != 0.0) {
+            float rho = sqrt(q);
+            float inner = max(0.0, 1.0 - u.form2.x);
+            float outer = 1.0 + max(0.0, u.form2.y);
+            return 1.0 - clamp((rho - inner) / max(outer - inner, 1e-6), 0.0, 1.0);
+        }
         float border = u.form1.y;
         float f;
         if (border <= 1e-6) {

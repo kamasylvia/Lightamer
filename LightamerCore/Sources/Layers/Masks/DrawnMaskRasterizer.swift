@@ -49,6 +49,11 @@ struct MaskRasterUniforms {
     var post2: SIMD4<Float>     // row 2
     var liq0: SIMD4<Float>      // grid originX, originY (mid px), gridW, gridH
     var liq1: SIMD4<Float>      // hasLiquify, midW, midH, 0
+    // Plan M2-7-1 T1 (KD-1) — additive tail slot mirroring the MSL tail:
+    // ellipse dual feather = (innerFeather, outerFeather, modeFlag, pad).
+    // nil feathers pack (0, 0, 0, 0) — the mode flag routes dual-nil to
+    // the untouched legacy quadratic leg (the zero-drift contract).
+    var form2: SIMD4<Float>
 
     init(mapper: GeometryPointMapper, window: ROI, form: MaskForm) {
         // Staged decomposition: `pre` carries the full fold when no liquify
@@ -89,18 +94,27 @@ struct MaskRasterUniforms {
             form0 = SIMD4(e.center.x, e.center.y, Float(e.radiusX), Float(e.radiusY))
             form1 = SIMD4(e.rotationDegrees, e.border, 0, 0)
             misc = SIMD4(0, 0, 0, 0)
+            // KD-1: the mode flag is a pure function of nil-ness (checker
+            // E7 — dual-nil → legacy leg; either present → Alcedo leg with
+            // a nil partner folded to 0 INSIDE the leg).
+            form2 = SIMD4(
+                e.innerFeather ?? 0, e.outerFeather ?? 0,
+                e.hasDualFeather ? 1 : 0, 0)
         case let .gradient(g):
             form0 = SIMD4(g.anchor.x, g.anchor.y, 0, 0)
             form1 = SIMD4(g.rotationDegrees, 0, g.compression, g.curvature)
             misc = SIMD4(2, g.state == .linear ? 0 : 1, 0, 0)
+            form2 = SIMD4(0, 0, 0, 0)
         case .path:
             form0 = SIMD4(0, 0, 0, 0)
             form1 = SIMD4(0, 0, 0, 0)
             misc = SIMD4(1, 0, 0, 0)
+            form2 = SIMD4(0, 0, 0, 0)
         case .brush:
             form0 = SIMD4(0, 0, 0, 0)
             form1 = SIMD4(0, 0, 0, 0)
             misc = SIMD4(0, 0, 0, 0)
+            form2 = SIMD4(0, 0, 0, 0)
         }
         bands = SIMD4(0, UInt32.max, 0, 0)
     }

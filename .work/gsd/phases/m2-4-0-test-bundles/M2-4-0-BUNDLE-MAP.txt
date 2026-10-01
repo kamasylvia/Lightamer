@@ -28,6 +28,11 @@
 #   NodeCanvasGeometryTests 测 App target 类型 NodeCanvasGeometry；
 #   NodesPanelModelTests 实例化 EditorState/LayerEditingState）。行内 method 数随
 #   T3 交互测试补组同批修订（登记纪律 = 同 commit 闭环）。运行期总数基线相应上移。
+# M2-7-1 增行记录（2026-09-29 执行期，checker E2 测试登记纪律）：三个新测试文件随
+#   各自任务 commit 登记进对应 bundle（归属按 front-matter 判定：
+#   MaskFeatherAlignTests = LAYERS/Core 级 kernel golden；FollowEdgesTests =
+#   LAYERS/Core 级 walker；MaskRevisionTests = APP/App 级——写点经 overlay/AI/命令
+#   实态）。行内 method 数以终态对账为准。
 #   终值勘误（2026-09-30 M2-4-3 收口批）：NodeCanvasGeometryTests 行 8→9（T2 渲染
 #   读回测试并入同文件时漏改行内计数，收口对账发现，随收口 commit 修正——
 #   终跑对账 = 2217 基线 + 23 新增（9+14）= 2240 精确）。
@@ -213,6 +218,7 @@ LAYERS	19	LayerUIWiringTests.swift
 LAYERS	3	AIMaskPlaneFormatTests.swift
 LAYERS	3	LayerDragPerfTests.swift
 LAYERS	4	MaskEditIncrementTests.swift
+LAYERS	10	MaskFeatherAlignTests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
 LAYERS	5	PipelineLinkageTests.swift

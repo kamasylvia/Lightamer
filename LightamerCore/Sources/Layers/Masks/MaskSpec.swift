@@ -107,22 +107,59 @@ public struct PathForm: Codable, Sendable, Equatable, Hashable {
 /// GUI flags — center normalized, radii in width units (the record is
 /// aspect-free; the rasterizer maps through the frame aspect), rotation
 /// in degrees, border = feather fraction of the radius.
+///
+/// M2-7 v5 additive optionals (Plan M2-7-1 T1, KD-1; M2MASK-01): the
+/// Alcedo DUAL-feather pair — `innerFeather` (the solid-core inset
+/// fraction, Alcedo `inner_feather`) and `outerFeather` (the outer
+/// transition fraction, Alcedo `outer_feather`). nil = fall back to the
+/// legacy single-`border` quadratic leg (ONE-WAY additive rule: v4-era
+/// documents decode with both nil and render BYTE-IDENTICAL planes —
+/// the rasterizer's mode flag routes dual-nil to the untouched legacy
+/// formula). When EITHER is non-nil the Alcedo linear-band leg takes
+/// over and `border` is ignored (the leg folds a nil partner to 0 —
+/// an EXPLICIT 0 is a value there, not the legacy default).
 public struct EllipseForm: Codable, Sendable, Equatable, Hashable {
     public var center: MaskPoint
     public var radiusX: Float
     public var radiusY: Float
     public var rotationDegrees: Float
     public var border: Float
+    public var innerFeather: Float?
+    public var outerFeather: Float?
 
     public init(
         center: MaskPoint, radiusX: Float, radiusY: Float,
-        rotationDegrees: Float, border: Float
+        rotationDegrees: Float, border: Float,
+        innerFeather: Float? = nil, outerFeather: Float? = nil
     ) {
         self.center = center
         self.radiusX = radiusX
         self.radiusY = radiusY
         self.rotationDegrees = rotationDegrees
         self.border = border
+        self.innerFeather = innerFeather
+        self.outerFeather = outerFeather
+    }
+
+    /// True when the Alcedo dual-feather leg owns this form (either
+    /// feather present). The SINGLE predicate both the rasterizer's mode
+    /// flag and the panel read-consumers fold through — one source, no
+    /// second nil-check (checker E7).
+    public var hasDualFeather: Bool {
+        innerFeather != nil || outerFeather != nil
+    }
+}
+
+public extension EllipseForm {
+
+    /// The mode-aware outer-feather read convention (KD-1, checker E7 —
+    /// THE single source; P2 panel display consumes this expression and
+    /// must not re-derive it): when the Alcedo leg is active a missing
+    /// outer reads 0 (the leg's own nil-fold — an explicit-0 partner is a
+    /// value); on the legacy leg a missing outer reads `border` (the
+    /// quadratic leg's single feather IS the outer transition).
+    public var resolvedOuterFeather: Float {
+        outerFeather ?? (innerFeather != nil ? 0 : border)
     }
 }
 
