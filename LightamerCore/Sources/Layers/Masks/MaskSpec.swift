@@ -239,6 +239,15 @@ public enum MaskCombineOp: String, Codable, Sendable, Equatable, Hashable {
 /// consumer face). Synthesized Codable encodes nil with encodeIfPresent,
 /// so v4-era items serialize to the SAME canonical JSON bytes (the
 /// stableHash zero-drift contract — pinned by SidecarV5Tests).
+///
+/// M2-7 v5 additive optional (Plan M2-7-1 T3, KD-3; M2MASK-04): `feather`
+/// — the mask-LEVEL (item) feather, the SECOND feather stage after the
+/// form-intrinsic one (ellipse border / path border / brush hardness are
+/// the rasterizer's "source feather"). nil = no additional feather; a set
+/// value runs the Deriche blur (sigma = the value, gated > 0.1 per dt
+/// blend.c:306) over the item's plane BEFORE the combine — the pinned
+/// application order feather→invert→opacity→clamp (the kernel's
+/// invert/opacity legs see the feathered profile).
 public struct MaskGroupItem: Codable, Sendable, Equatable, Hashable {
     public var formID: UUID
     public var op: MaskCombineOp
@@ -247,11 +256,12 @@ public struct MaskGroupItem: Codable, Sendable, Equatable, Hashable {
     public var child: MaskGroupSpec?
     public var enabled: Bool?
     public var displayName: String?
+    public var feather: Float?
 
     public init(
         formID: UUID, op: MaskCombineOp, inverted: Bool, opacity: Float,
         child: MaskGroupSpec? = nil, enabled: Bool? = nil,
-        displayName: String? = nil
+        displayName: String? = nil, feather: Float? = nil
     ) {
         self.formID = formID
         self.op = op
@@ -260,6 +270,7 @@ public struct MaskGroupItem: Codable, Sendable, Equatable, Hashable {
         self.child = child
         self.enabled = enabled
         self.displayName = displayName
+        self.feather = feather
     }
 }
 
@@ -389,26 +400,73 @@ public extension MaskSpec {
     /// Flip one item's enabled gate (nil → true default folded by the
     /// panel through `maskItems`). Unknown id / no group = silent no-op.
     public mutating func setItemEnabled(_ id: UUID, _ enabled: Bool) {
-        mutateTopLevelItem(id) { $0.enabled = enabled }
+        mutateItem(id) { $0.enabled = enabled }
     }
 
     /// Set one item's display name (nil = back to the derived name).
     /// Unknown id / no group = silent no-op.
     public mutating func setItemDisplayName(_ id: UUID, _ name: String?) {
-        mutateTopLevelItem(id) { $0.displayName = name }
+        mutateItem(id) { $0.displayName = name }
     }
 
-    /// The one mutation shape both setters share: copy the drawn payload,
-    /// address the TOP-LEVEL item by formID, write back. (Nested children
-    /// are out of this face's scope — M2-7 owns the group tree UI.)
-    private mutating func mutateTopLevelItem(
+    /// Set one item's mask-level feather (KD-3; nil = none). Unknown id /
+    /// no group = silent no-op. The setter does NOT bump contentRevision —
+    /// the CALLER bumps on its history commit leg (KD-5's division: the
+    /// facade is a value write, the bump rides the producer).
+    public mutating func setItemFeather(_ id: UUID, _ feather: Float?) {
+        mutateItem(id) { $0.feather = feather }
+    }
+
+    /// Flip one item's invert bit. Unknown id / no group = silent no-op.
+    /// Caller bumps (same division as `setItemFeather`).
+    public mutating func setItemInverted(_ id: UUID, _ inverted: Bool) {
+        mutateItem(id) { $0.inverted = inverted }
+    }
+
+    /// Set one item's opacity (clamped to [0,1] here — the kernel clamps
+    /// again at combine time). Unknown id / no group = silent no-op.
+    /// Caller bumps (same division as `setItemFeather`).
+    public mutating func setItemOpacity(_ id: UUID, _ opacity: Float) {
+        mutateItem(id) { $0.opacity = max(0, min(1, opacity)) }
+    }
+
+    /// Depth-first item addressing (KD-3, M2-7's nested-child reach — the
+    /// M2-4-2 D-M2-2-4 top-level-only scope is superseded here): walk the
+    /// group tree level-by-item — each item is tested BEFORE descending
+    /// into its child chain; the FIRST formID match mutates and stops.
+    /// Duplicate ids across the tree are a construction error today (form
+    /// ids are unique in the flat forms array), defended by this documented
+    /// first-hit semantics. Miss = silent no-op (the facade contract).
+    private mutating func mutateItem(
         _ id: UUID, _ mutate: (inout MaskGroupItem) -> Void
     ) {
         guard var drawn, var group = drawn.group,
-            let index = group.items.firstIndex(where: { $0.formID == id })
+            Self.mutateFirstMatch(&group.items, id, mutate)
         else { return }
-        mutate(&group.items[index])
         drawn.group = group
         self.drawn = drawn
+    }
+
+    /// The recursive walk primitive: mutate the first matching item in
+    /// `items`, descending into child chains depth-first. Returns whether
+    /// anything was mutated (the caller writes the tree back only on hit).
+    private static func mutateFirstMatch(
+        _ items: inout [MaskGroupItem], _ id: UUID,
+        _ mutate: (inout MaskGroupItem) -> Void
+    ) -> Bool {
+        for index in items.indices {
+            if items[index].formID == id {
+                mutate(&items[index])
+                return true
+            }
+            if items[index].child != nil {
+                var child = items[index].child!
+                if mutateFirstMatch(&child.items, id, mutate) {
+                    items[index].child = child
+                    return true
+                }
+            }
+        }
+        return false
     }
 }
