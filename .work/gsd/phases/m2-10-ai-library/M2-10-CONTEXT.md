@@ -65,7 +65,7 @@
 | `LibrarySchema` 版本化纪律 | 同文件 :90（`schemaVersion = 3`）+:394-407（user_version 双写） | v4 additive：新表 + 迁移分支，>4 REFUSE 照旧 |
 | keyset 分页 + 性能基准方法学 | `LightamerCore/Sources/Library/LibraryQueries.swift`；M2-2-3 先例（15.66ms p95 @ 2 万行） | 语义结果集分页照此；嵌入扫描基准入 perf.md |
 | 后台任务注册表（M2AI-07 消费面） | M2-2 导入管线 + `SessionThumbnailProvider` 双档管线（App 层注入 render leg 先例） | 嵌入/打标任务入同一注册表 + 取消；AI 任务优先级低于交互 |
-| VersionRef 面收口（M2-8 终态） | `.work/gsd/phases/m2-8-versions/M2-8-3-SUMMARY.md` 交接节 | M2AI-09 副本不进 version_ref（D-4）；sidecar v7 零改动 |
+| VersionRef 面收口（M2-8 终态） | `.work/gsd/phases/m2-8-versions/M2-8-3-SUMMARY.md` 交接节 | M2AI-09 副本不进 version_ref（D-4）；sidecar v7 零改动（M8 注记，2026-10-02 checker 回注：指 **v7 读取字节兼容零漂移**；写入面 = M2-10-06 **v8 additive**——D-3 裁决 provenance 入 sidecar 必然 bump schemaVersion 7→8，归 06，防后人引本行判 06 越界） |
 | MCP server + launcher 双入口 | Phase 14 资产（14-CONTEXT.md:42 same-binary 先例） | M2AI-08 保留不动；same-binary 启动参数形态 = M2AI-10 worker 先例 |
 | 缩略图管线 | `SessionThumbnailProvider` 档 A（10.6ms/张 @86MP 实测） | CLIP 输入 = 256×256 预缩图（嵌入专用低分辨率重采样，不劫持缩略图缓存） |
 | Settings 壳 | M2-3 现有 Settings 页族 | 新增 LCR / ACA 两设置页（Alcedo IA 对齐，见 OQ-8） |
