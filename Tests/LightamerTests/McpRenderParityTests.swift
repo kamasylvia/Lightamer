@@ -194,9 +194,15 @@ final class McpRenderParityTests: XCTestCase {
         try FileManager.default.copyItem(at: sample.url, to: imageURL)
         try FileManager.default.copyItem(at: sample.sidecar, to: imageURL.appendingPathExtension("lra"))
 
+        // The live repo sidecar can carry layers at any time (a GUI session
+        // rewrites it — the M2-9-01 finding), and a layer-bearing sidecar
+        // routes the render through the composite driver's `compositeLayer`
+        // KERNEL — register the IOP metallib like SC3 below does.
+        let metal: MetalContext = self.metal
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+
         let memo = ParityDecodeMemo()
         let decodeLeg: QuickLookRenderer.DecodeLeg = { try await memo.decoded(for: $0) }
-        let metal: MetalContext = self.metal
         let modules: ModuleRegistry = self.modules
 
         // The export reference: percent-100, sRGB, JPEG q0.9, no yiyin —
@@ -242,6 +248,9 @@ final class McpRenderParityTests: XCTestCase {
         let decodeLeg: QuickLookRenderer.DecodeLeg = { try await memo.decoded(for: $0) }
         let metal: MetalContext = self.metal
         let modules: ModuleRegistry = self.modules
+        // Layer-bearing live sidecar → composite driver kernel (M2-9-01
+        // finding): register the IOP metallib like SC3 does.
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
         let seams = makeSeams(
             session: (store, root), metal: metal, modules: modules, decodeLeg: decodeLeg)
         let registry = await makeEditingRegistry(seams: seams)
@@ -400,6 +409,10 @@ final class McpRenderParityTests: XCTestCase {
             overlap.exit()
             return Self.syntheticDecoded(width: 320, height: 240)
         }
+        // The copied live sidecar can carry a layer (M2-9-01 finding) → the
+        // composite driver dispatches the IOP `compositeLayer` kernel —
+        // register the metallib like SC3 does.
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
         let seams = makeSeams(
             session: (store, root), metal: metal, modules: modules, decodeLeg: slowish)
         let registry = await makeEditingRegistry(seams: seams)
