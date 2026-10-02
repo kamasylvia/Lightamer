@@ -149,6 +149,10 @@ private func derivedTag(
     switch effective.mode {
     case .longEdge(let px), .shortEdge(let px):
         return "\(px)"
+    case .bounds(let w, let h):
+        return "\(w)x\(h)" // M2-9-01 KD-5#2 (planner ruling, DECISIONS)
+    case .physical:
+        return variant.format.formatName // same fallback rule as original
     case .original:
         return variant.format.formatName
     }
