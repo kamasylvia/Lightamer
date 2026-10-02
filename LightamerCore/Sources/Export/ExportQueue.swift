@@ -58,6 +58,14 @@ public actor ExportQueue {
         /// legacy path, the engine never consults it (DRT does not enter
         /// the snapshot/UI face).
         let drtTail: DrtTailParams?
+        /// The per-image naming request (M2-9-03 KD-1, additive): the
+        /// batch-wide template with the queue-stamped batch ordinal.
+        /// nil = the legacy stem+tag face.
+        let naming: ExportNamingRequest?
+        /// The batch-wide collision tier (OQ-5).
+        let collisionPolicy: ExportNamer.ExportCollisionPolicy
+        /// The batch-wide landing subfolder (OQ-11).
+        let subfolder: String?
         /// FIFO arrival order (retried jobs get a FRESH seq — the re-queue
         /// lands at the tail; only `retry` mutates this).
         var seq: Int
@@ -181,7 +189,10 @@ public actor ExportQueue {
         destinationDirectory: URL,
         instancesOverride: [ModuleInstance]? = nil,
         editorSignature: String? = nil,
-        drtTails: [DrtTailParams?]? = nil
+        drtTails: [DrtTailParams?]? = nil,
+        naming: ExportNamingRequest? = nil,
+        collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
+        subfolder: String? = nil
     ) -> [ExportJobSnapshot] {
         if let drtTails {
             precondition(
@@ -196,6 +207,15 @@ public actor ExportQueue {
             for variant in variants {
                 seqCounter += 1
                 progressTotal += 1
+                // OQ-4: the sequence is the BATCH ordinal (1-based, shared
+                // by every variant of one image) — stamped here, the single
+                // source; the carrier's own sequence value is not consulted
+                // at this face.
+                let stampedNaming = naming.map {
+                    ExportNamingRequest(
+                        pattern: $0.pattern, sequence: imageIndex + 1,
+                        fallbackStem: $0.fallbackStem)
+                }
                 let job = ExportJob(
                     id: UUID(),
                     imageURL: image.url,
@@ -205,6 +225,9 @@ public actor ExportQueue {
                     instancesOverride: instancesOverride,
                     editorSignature: editorSignature,
                     drtTail: drtTails?[imageIndex],
+                    naming: stampedNaming,
+                    collisionPolicy: collisionPolicy,
+                    subfolder: subfolder,
                     seq: seqCounter,
                     generation: generation,
                     state: .pending)
@@ -350,9 +373,14 @@ public actor ExportQueue {
             return
         }
 
+        // M2-9-03 KD-1: the occupancy snapshot enumerates the JOINED
+        // directory (the same `landingDirectory` join the render stage
+        // performs — one source, so the snapshot and the landing agree).
         let context = ExportJobContext(
             destinationDirectory: queued.destinationDirectory,
-            occupiedNames: occupiedNamesProvider(queued.destinationDirectory),
+            occupiedNames: occupiedNamesProvider(
+                ExportRenderer.landingDirectory(
+                    base: queued.destinationDirectory, subfolder: queued.subfolder)),
             instancesOverride: queued.instancesOverride,
             editorSignature: queued.editorSignature)
 
@@ -360,15 +388,21 @@ public actor ExportQueue {
         await markState(jobID: queued.id, state: .rendering)
         var artifact: ExportRenderArtifact?
         do {
-            // The per-image DRT carrier (M2-9-02 KD-4): the leg signature is
-            // contract-frozen (snapshot + context), so the payload rides a
-            // TaskLocal scoped to THIS leg call — the detached task inherits
-            // no TaskLocals, the wrapper sits inside. nil (the default) is
-            // the zero-path legacy face; pump/cancel/retry/generation
-            // semantics are untouched.
-            artifact = try await ExportRenderer.$jobDrtTail.withValue(queued.drtTail) {
-                try await MetalContext.$routesToExportQueue.withValue(true) {
-                    try await renderLeg(queued.snapshot(), context)
+            // The per-job payload carriers (M2-9-02 KD-4 DRT + M2-9-03 KD-1
+            // naming): the leg signature is contract-frozen (snapshot +
+            // context), so the payloads ride TaskLocals scoped to THIS leg
+            // call — the detached task inherits no TaskLocals, the wrapper
+            // sits inside. nil (the default) is the zero-path legacy face;
+            // pump/cancel/retry/generation semantics are untouched.
+            let namingCarrier = ExportRenderer.ExportNamingCarrier(
+                naming: queued.naming,
+                collisionPolicy: queued.collisionPolicy,
+                subfolder: queued.subfolder)
+            artifact = try await ExportRenderer.$jobNamingCarrier.withValue(namingCarrier) {
+                try await ExportRenderer.$jobDrtTail.withValue(queued.drtTail) {
+                    try await MetalContext.$routesToExportQueue.withValue(true) {
+                        try await renderLeg(queued.snapshot(), context)
+                    }
                 }
             }
         } catch {
