@@ -361,14 +361,16 @@ final class ExportState {
         loadM2LastDirectory() ?? firstTargetDirectory
     }
 
-    /// One quality knob's memory (0...1). Out-of-domain / non-finite
-    /// degrade to nil (a corrupt value never blocks the panel).
+    /// One quality knob's memory (0...1). Absent / foreign-typed / out-of-
+    /// domain / non-finite degrade to nil (a corrupt value never blocks
+    /// the panel — and never masquerades as a remembered 0: the TYPED
+    /// read distinguishes unset, a stored 0.0, and garbage).
     func loadM2Quality(forKey key: String) -> Double? {
-        let value = defaults.double(forKey: key)
-        guard value.isFinite, ExportFormatSpec.qualityRange.contains(value) else {
+        guard let stored = defaults.object(forKey: key) as? Double else { return nil }
+        guard stored.isFinite, ExportFormatSpec.qualityRange.contains(stored) else {
             return nil
         }
-        return value
+        return stored
     }
 
     /// The quality write-back face (the page writes on run + off-page —
