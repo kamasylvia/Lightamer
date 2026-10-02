@@ -15,6 +15,7 @@ files_modified:
   - LightamerCore/Sources/Export/ExportMetadataPolicy.swift      # 新建：STANDARD/NONE 模式 + 7 bool + 固定剥离三项默认
   - LightamerCore/Sources/Export/ExportNamer.swift               # 修改：destinationURL 增 collisionPolicy 参数（默认 .increment = 现行为逐字节）
   - App/Sources/Lightamer/Export/ExportNamingTemplates.swift     # 新建：NamingTemplateStore（UserDefaults JSON 数组，键 export.namingTemplates + 3 内置 + 改名/删除）
+  - App/Sources/Lightamer/Export/ExportPanelView.swift           # 修改：仅编译性补臂（OutputMode 新 case 不可达臂——:435-436 mode→SizingKind 映射 switch 与 :698-701 (SizingKind, OutputMode) 二元组 switch 两处穷举面；KD-5#3 原文口径：legacy 面行为字节冻结、逐 hunk 机检。checker 回注 E4 登记）
   - Tests/LightamerTests/ExportFileNameTemplateTests.swift       # 新建【Export】
   - Tests/LightamerTests/ExportMetadataPolicyTests.swift         # 新建【Export】
   - Tests/LightamerTests/ExportCollisionPolicyTests.swift        # 新建【Export】
@@ -80,15 +81,20 @@ files_modified:
      physical = **dpi ≤ 0 → success=false**（typed），像素 = physical/unitsPerInch ×
      dpi 再 fit-inside；**maximumEdgePixels 尾段全模式生效**（cpp:324）。
 - 既有 `targetSize` **保留签名与返回值语义**，改为委托 resolve（丢 dpi）——既有调用
-  面（ExportRenderer:214 / ExportRecipeTests 向量）零改动零漂移；M2-9-02 的 renderer
-  切换到 resolve 拿修正后 DPI。shortEdge 走同族数学（我方超集，Alcedo 无此模式——
+  面（ExportRenderer:214 / ExportRecipeTests 向量）零改动零漂移；修正后 DPI 的
+  renderer 消费落 **M2-9-03 T1 显式第 3 步**（renderStage sizing 腿切 resolve +
+  `StageOutput.dpi = result.dpi`——checker 回注 E6：原写「M2-9-02 的 renderer」系
+  悬空交接，02 任务集/AC 无 sizing/DPI 条目）。
+  shortEdge 走同族数学（我方超集，Alcedo 无此模式——
   upscale 钳与 cap 尾段同样生效）。
 - `ExportRecipe.effectiveSizing`（percent fold）不动——fold 产物仍是 longEdge 模式的
   `YiyinExportSettings`，新数学自然覆盖。
 
 ### KD-2 additive Codable 纪律（v6/v7 sidecar 先例）
 
-- `OutputMode` 新 case = enum additive（旧 rawValue 解码不破坏）；`allowUpscale`/
+- `OutputMode` 新 case = enum additive（带关联值枚举，synthesized Codable 按
+  **case 名 keyed container** 编解码——非 rawValue，旧 payload 解码安全结论不变；
+  checker 回注 m1 措辞修正）；`allowUpscale`/
   `maximumEdgePixels`/ExportVariant 新字段全部 **decodeIfPresent + 默认值**（synthesized
   Codable 会炸旧 payload——必须手写 `init(from:)`，YiyinExportSettings 现无自定义
   decode，补之；ExportVariant 同法）。测试钉：旧 JSON 字面（三模式、无新键）解码
@@ -140,8 +146,17 @@ files_modified:
    裁决，DECISIONS 记录。
 3. `ExportPanelView`（App，`ExportPanelViewSizingKind` 映射臂）——**编译性补臂**
    （新 case 不可达臂，legacy 面行为字节冻结）；除该补臂外 ExportPanelView.swift
-   **零 diff**（逐 hunk 机检）。
+   **零 diff**（逐 hunk 机检）。该文件已登记 front-matter（checker 回注 E4——
+   实测穷举面 = :435-436 mode→SizingKind 映射 switch 与 :698-701
+   `(SizingKind, OutputMode)` 二元组 switch 两处）。
 4. yiyin 面板消费面（执行时 grep 定位）——同款编译性补臂纪律。
+
+> checker 回注（2026-10-02）[E4]：第 3 条的 `ExportPanelView.swift` 原不在
+> front-matter files_modified，与 KD-5#3/AC9 的「仅编译性补臂、逐 hunk 机检」要求
+> 在纪律 6 收口核对时自爆。已登记（实测 production 穷举面全集五处：①validate
+> ②targetSize ③derivedTag ④ExportPanelView :435-436/:698-701 两 switch
+> ⑤EditingToolset.swift:336 三元式构造非 switch 不炸——④已登记，①②③所在文件
+> 原已登记，⑤无需处理；KD-5#4 grep 保留，结果入 DECISIONS 闭环）。
 
 ## read_first
 
@@ -158,6 +173,8 @@ files_modified:
    :183-197 sanitize / :210-259 token / :287-325 resolve / :376-422 解析错误）。
 6. `Tests/LightamerTests/ExportRecipeTests.swift` + `YiyinExportSettingsTests.swift`——
    零漂移基线（effectiveSizing 向量 + targetSize 向量逐条保绿）。
+7. 行号锚（含 Alcedo cpp:NN 与本仓源码 :NN）以**符号检索为准**——执行期以符号名
+   定位，行号漂移不作违例（checker 回注 m2）。
 
 ## 纪律（强制）
 
@@ -192,7 +209,9 @@ files_modified:
   - [ ] 四模式数学 golden 全绿（含 DPI 修正锚 + fit-inside/upscale 钳/cap 三要素）；
         physical DPI≤0 = success=false typed。
   - [ ] 旧 JSON payload（三模式无新键）解码 = 新默认字段值（测试钉）；既有
-        ExportRecipeTests/YiyinExportSettingsTests 零修改全绿。
+        ExportRecipeTests/YiyinExportSettingsTests **既有测试方法零改动**（本 plan
+        仅追加新测试——append-only，checker 回注 E9：该两文件在 front-matter 申报
+        「修改（追加）」，整文件零 hunk 机检不可满足）。
   - [ ] `git diff` 中 ExportFormatSpec/ExportColorSpace 枚举体零 diff。
 
 ### T2 文件名模板引擎（KD-3）
@@ -260,13 +279,19 @@ files_modified:
 |---|---|---|
 | 1 | 四模式数学 golden 全绿（fit-inside/upscale 钳/cap/DPI 修正锚/physical typed 失败） | 测试名清单 + bundle 行 |
 | 2 | 旧 payload 解码兼容（YiyinExportSettings/ExportVariant 两侧）| 测试名 |
-| 3 | 既有 ExportRecipeTests/YiyinExportSettingsTests/ExportNamerTests 零修改全绿（targetSize 向量 + 递增行为字节零漂移） | `git diff` 零 hunk + 测试绿 |
+| 3 | 既有测试零漂移：ExportNamerTests 文件零修改全绿（递增行为字节零漂移）；ExportRecipeTests/YiyinExportSettingsTests **既有测试方法零改动（append-only）** + 全绿（targetSize 向量保绿） | 机检拆分（checker 回注 E9）：Namer = `git diff` 零 hunk；Recipe/Settings = 既有测试方法名清单 diff 为空 + 测试绿 |
 | 4 | 模板引擎 12 字段/转义/typed 错误/sanitize(200)/fallback 全族绿；shutter=Alcedo 形态 | 测试名 + DECISIONS 对照记录 |
 | 5 | 冲突三档语义绿（默认 .increment 逐字节） | 测试名 |
 | 6 | 元数据策略默认 = STANDARD 剥离三项；7 bool 全量在模型 | 测试名 |
 | 7 | NamingTemplateStore 三内置拼写一致 + CRUD round-trip；键 = export.namingTemplates | 测试名 + 源码 grep |
 | 8 | 新测试文件 Project.swift + BUNDLE-MAP 双登记；Export/App bundle 0 fail | 两文件 grep + bundle 行 |
 | 9 | ExportFormatSpec/ExportColorSpace 枚举体零 diff；ExportPanelView 仅编译性补臂 | `git diff` 逐 hunk 审 |
+
+> checker 回注（2026-10-02）[E9]：原 AC3 对 ExportRecipeTests/YiyinExportSettingsTests
+> 列「`git diff` 零 hunk」机检，但 front-matter 申报这两文件**修改（追加）**——
+> 机检方式对自家申报不可满足。已拆分：ExportNamerTests = 真 zero-diff（零 hunk +
+> 全绿）；ExportRecipeTests/YiyinExportSettingsTests = append-only（既有测试方法
+> 零改动 + 全绿，机检 = 既有测试方法名清单 diff 为空）。
 
 ## 风险与边界
 
