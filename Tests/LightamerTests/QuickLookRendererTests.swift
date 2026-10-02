@@ -2,6 +2,7 @@ import CoreGraphics
 import CoreImage
 import XCTest
 @testable import LightamerCore
+@testable import LightamerIOP
 
 // ─────────────────────────────────────────────────────────────────────────────
 // QuickLookRendererTests (Plan 13-1 T3) — the QL render seam suite:
@@ -177,6 +178,13 @@ final class QuickLookRendererTests: XCTestCase {
 
         let memo = DecodeMemo()
         let decodeLeg: QuickLookRenderer.DecodeLeg = { try await memo.decoded(for: $0) }
+
+        // A layer-bearing sidecar routes the render through the composite
+        // driver, which dispatches the IOP `compositeLayer` KERNEL — register
+        // the IOP metallib like every other pipe test does (M2-9-01 finding:
+        // this suite never registered it, so ANY layer-bearing sidecar
+        // degraded the parity leg with functionNotFound).
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
 
         // The reference leg: the full export render stage (decode → chain →
         // routed render → exit → quantize), percent-100 → full-frame.
