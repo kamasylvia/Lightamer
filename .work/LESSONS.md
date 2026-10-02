@@ -460,3 +460,29 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   走查（defaults/file 痕迹读回），编译绿 ≠ 回调活。
 - **适用**：一切 NSApplicationDelegate/UITraitEnvironment 等 @objc 可选回调的
   手写实现。
+
+## L053: macOS 27 自建 ICC 三坑——CalibratedRGB 生成器坏、para fn=0 被误解析、嵌入写出行重序列化（2026-10-03，M2-9-02 T1/T2）
+
+- **现象**（三个独立坑，同属「程序构造 ICC profile」家族）：
+  ①`CGColorSpaceCreateCalibratedRGB` 在 macOS 27 生成的 ICC **非合规**——wtpt
+  携带原始色度 (x,y,1) 而非 D50 PCS 三刺激、bXYZ 退化为 (32768,1,-32768)、三个
+  TRC 标签同一偏移；任何经它的 ColorSync/CI 转换返回垃圾（灰→0 或补色）。
+  ②ICC v4 `para` fn=0（单参数 gamma）TRC 被 ColorSync **误解析**——同矩阵同
+  gamma 换 `curv` count=1 就精确转换（linear 0.5 → γ2.2 编码 0.7297 钉死），
+  para 则跨 profile 转换塌缩成 0/1。
+  ③含自建 ICC 的 PNG/TIFF **文件字节跨渲染不稳定**——ImageIO/ColorSync 写出时
+  对自定义嵌入 profile 重序列化（iCCP 块内等长、早偏移漂移、时敏抖动），两次
+  渲染像素逐字节相同而文件不同。
+- **根因**：①②= 平台缺陷（探针证据在 M2-9-02-DECISIONS §1；Alcedo 自带 .icc
+  资产同 d50+chad+para 结构但行为以实测为准）；③= 写出路径对非系统 profile 的
+  规范化/重盖章，非确定性源在框架内部。
+- **对策**：①弃 CalibratedRGB，自建 ICC v4 matrix-shaper 字节（Bradford D50
+  适配 + D50 wtpt + chad + curv-1 TRC）走 `CGColorSpace(iccProfileData:)`
+  （deprecated 但工作）；②TRC 一律 curv count=1（u8Fixed8 载体 1/256 量化为
+  ICC 格式自身地板）；③跨渲染恒等断言只钉**像素 parity + profile 名**，文件
+  字节恒等只对系统 profile profile（sRGB 等）使用；ICC 载体字节确定性单独在
+  纯函数层钉（copyICCData 相等）。
+- **适用**：一切程序化 ICC 构造/嵌入场景（导出 ICC、软打样、HDR 容器 V2）；一
+  切「同渲染两次文件字节应相等」的 golden 设计（先确认嵌入数据不走重序列化）。
+- **来源**：M2-9-02 T1 探针（probe2-probe8 行为矩阵 + probe13 para/curv 对照 +
+  T2 队列 parity 测试的 iCCP diffAt=58 诊断）。
