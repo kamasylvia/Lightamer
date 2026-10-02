@@ -371,6 +371,14 @@ Deferred to future release. Tracked but not in current roadmap.
 - **IOP-HDR-06**: Mertens 曝光融合——无 CRF 估计的快速 HDR 合并第二模式（含多档 deghosting），与已交付 Robertson02（IOP-HDR-01）互为合并选项；输出 32f HDR 进 IOP-HDR-04 管线
 - **IOP-PANO-01**: 全景合成——特征匹配对齐 + 相机参数优化 + 球面投影 + 分块羽化融合，输出 100MP+ 大图入正常编辑管线；v1 合成族（HDR/焦点堆栈/降噪堆栈）之外的新合成模式
 
+### Film Simulation Extensions (v2) — SpektraLab 借鉴（2026-10-02 用户指令吸纳）
+
+来源 = `.work/gsd/research/SPEKTRALAB-NOTES.md`（GPL-3.0 代码只读；CC BY-SA 4.0 资产如引入须独立归属）；参考源码 = `/Volumes/UNITEK/Documents/Development/SpektraLab`（指南 + `rfc/`）。
+
+- **FSIM-01**: 两段式胶片模拟语义——「场景置位（胶片前）→ 胶片记录光 → 配光（测光自动算印相滤色组合 + Yellow/Magenta 手动偏移）→ 相纸呈现」阶段模型，升维现行 M2GRADE 单段 LUT；配光自动求解为其 UX 亮点对齐物
+- **FSIM-02**: 宽容度面板——场景直方图 + 胶片容纳范围双虚线 + 低于/内/高于占比读数；「场景置位与显影后曝光严格分离」「EDR 不可找回输入端已丢高光」的交互教导对齐
+- **FSIM-03**: 印相域影调蒙版阶段归属研究注记——影调蒙版属负片后、相纸前印放阶段，与场景置位/调整层蒙版非同一功能
+
 ### Editor Workflow Extensions
 
 - **WORK-01**: 标签/收藏夹集合（虚拟文件夹跨 Session）
