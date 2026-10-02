@@ -379,3 +379,6 @@ APP	6	ExportNamingTemplateStoreTests.swift
 EXPORT	10	DrtOutputColorSpaceTests.swift
 EXPORT	5	ExportDrtChainTests.swift
 EXPORT	8	ExportDrtTailE2ETests.swift
+
+# M2-9-03 增行记录（2026-10-03 执行期）：ExportNamingE2ETests = EXPORT/E2E——模板命名/冲突三档/子文件夹/DPI 消费（T1）。行内 method 数以终态对账为准。运行期总数基线上移（2634 起算）。
+EXPORT	10	ExportNamingE2ETests.swift

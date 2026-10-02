@@ -64,6 +64,33 @@ public struct ExportYiyinInjector: @unchecked Sendable {
     }
 }
 
+/// One job's file-name template request (M2-9-03 KD-1, OQ-4). The pattern
+/// evaluates INSIDE `renderStage` (the Alcedo RunExportRenderTask seat —
+/// the context material is the DECODED capture facts + the disk sidecar's
+/// rating + the batch sequence; App never pre-renders). `sequence` = the
+/// batch ordinal, 1-based, SHARED by every variant of one image (OQ-4).
+public struct ExportNamingRequest: Sendable {
+
+    /// The `{token:arg}` pattern (the panel parses it to gate startExport;
+    /// the renderer re-parses per job — parse is cheap and pure).
+    public let pattern: String
+
+    /// The batch ordinal (1-based; same for all variants of one image).
+    public let sequence: Int
+
+    /// The all-empty-render fallback stem (Alcedo hpp:93 default "image").
+    public let fallbackStem: String
+
+    public init(
+        pattern: String, sequence: Int = 1,
+        fallbackStem: String = ExportFileNameTemplate.fallbackStem
+    ) {
+        self.pattern = pattern
+        self.sequence = sequence
+        self.fallbackStem = fallbackStem
+    }
+}
+
 public enum ExportRenderer {
 
     private static let logger = Logger(
@@ -78,6 +105,34 @@ public enum ExportRenderer {
     /// `routesToExportQueue` zero-default posture; nil = the legacy path).
     /// `renderStage` consumes it when the request's own `drtTail` is nil.
     @TaskLocal public static var jobDrtTail: DrtTailParams? = nil
+
+    /// The QUEUE-side naming bundle (M2-9-03 KD-1): the template request +
+    /// collision tier + subfolder, delivered through the same contract-
+    /// frozen leg signature as `jobDrtTail`. nil = the legacy face; the
+    /// explicit `Request` fields win over the carrier when both are set.
+    public struct ExportNamingCarrier: Sendable {
+
+        /// The per-job template request (sequence already stamped).
+        public let naming: ExportNamingRequest?
+
+        /// The collision tier (OQ-5).
+        public let collisionPolicy: ExportNamer.ExportCollisionPolicy
+
+        /// The landing subfolder (OQ-11).
+        public let subfolder: String?
+
+        public init(
+            naming: ExportNamingRequest? = nil,
+            collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
+            subfolder: String? = nil
+        ) {
+            self.naming = naming
+            self.collisionPolicy = collisionPolicy
+            self.subfolder = subfolder
+        }
+    }
+
+    @TaskLocal public static var jobNamingCarrier: ExportNamingCarrier? = nil
 
     // MARK: - Request / outcome
 
@@ -112,6 +167,23 @@ public enum ExportRenderer {
         /// TaskLocal seam); the explicit field wins.
         public var drtTail: DrtTailParams?
 
+        // ── M2-9-03 KD-1 naming carriers (additive; defaults = the legacy
+        // face byte-for-byte: the stem+tag increment path) ────────────────
+
+        /// Non-nil = the OQ-4 template face: step 9 evaluates the pattern
+        /// per job (KD-2 context) and resolves through the collision tier.
+        /// `nil` = the historical stem+tag path, byte-frozen.
+        public var naming: ExportNamingRequest?
+
+        /// The collision tier (OQ-5). Consumed by the TEMPLATE face only —
+        /// the legacy path keeps the historical increment (KD-1's freeze).
+        public var collisionPolicy: ExportNamer.ExportCollisionPolicy
+
+        /// The landing subfolder (OQ-11): non-nil = `destinationDirectory`
+        /// gains the sanitized subdirectory (created before the render;
+        /// occupancy enumerates the JOINED directory). `nil` = off.
+        public var subfolder: String?
+
         /// The yiyin output tag (`ExportNamer`; nil = derive/absent).
         public var outputTag: String? { variant.outputTag }
 
@@ -125,7 +197,10 @@ public enum ExportRenderer {
             variant: ExportVariant,
             instancesOverride: [ModuleInstance]? = nil,
             editorSignature: String? = nil,
-            drtTail: DrtTailParams? = nil
+            drtTail: DrtTailParams? = nil,
+            naming: ExportNamingRequest? = nil,
+            collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
+            subfolder: String? = nil
         ) {
             self.imageURL = imageURL
             self.destinationDirectory = destinationDirectory
@@ -134,6 +209,9 @@ public enum ExportRenderer {
             self.instancesOverride = instancesOverride
             self.editorSignature = editorSignature
             self.drtTail = drtTail
+            self.naming = naming
+            self.collisionPolicy = collisionPolicy
+            self.subfolder = subfolder
         }
     }
 
@@ -219,6 +297,33 @@ public enum ExportRenderer {
         let variant = request.variant
         try variant.validate()
 
+        // ── 0. the naming face (M2-9-03 KD-1) + the landing zone ────────
+        // The queue delivers its batch carriers through the TaskLocal seam
+        // (the contract-frozen leg signature); the explicit Request fields
+        // win when both are set. `naming == nil` everywhere = the legacy
+        // increment face, byte-frozen.
+        let carrier = Self.jobNamingCarrier
+        let naming = request.naming ?? carrier?.naming
+        let collisionPolicy = carrier?.collisionPolicy ?? request.collisionPolicy
+        let subfolder = request.subfolder ?? carrier?.subfolder
+        // OQ-11: the subfolder joins BEFORE anything runs, so the occupancy
+        // snapshot (already enumerated against this joined directory by the
+        // queue) and the landing face agree, and a missing directory is
+        // created typed-fail-fast — the render never starts into a void
+        // (L009 family: the encoder's own write stays tmp-atomic).
+        let landingDirectory = Self.landingDirectory(
+            base: request.destinationDirectory, subfolder: subfolder)
+        if landingDirectory != request.destinationDirectory {
+            do {
+                try FileManager.default.createDirectory(
+                    at: landingDirectory, withIntermediateDirectories: true)
+            } catch {
+                throw AppError.encodeFailed(
+                    "export: subfolder create failed for "
+                        + "\(landingDirectory.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+
         // ── 1. decode leg (full frame, once) ─────────────────────────────
         try cancellationCheckpoint()
         let decoded: DecodedImage
@@ -229,12 +334,23 @@ public enum ExportRenderer {
         }
 
         // ── 2. sizing (EXP-03): percent fold → targetSize → entry plane ──
+        // E6 (checker 回注): the sizing leg consumes `resolveExportResolution`
+        // DIRECTLY so the cap stage's width-ratio DPI correction reaches the
+        // product metadata (`StageOutput.dpi = result.dpi`). `targetSize()`
+        // already delegates to the same resolution — the pixel math is
+        // byte-identical; only the DPI face changes (the corrected value on
+        // capped physical exports, the clamped value elsewhere).
         let fullWidth = max(Int(decoded.ciImage.extent.width), 1)
         let fullHeight = max(Int(decoded.ciImage.extent.height), 1)
         let effectiveSizing = variant.effectiveSizing(
             canvasWidth: fullWidth, canvasHeight: fullHeight)
-        let targetSize = effectiveSizing.targetSize(
+        let resolution = effectiveSizing.resolveExportResolution(
             canvasWidth: fullWidth, canvasHeight: fullHeight)
+        guard resolution.success, resolution.width >= 1, resolution.height >= 1 else {
+            throw AppError.invalidParameter(
+                "export sizing resolution failed: \(resolution.message ?? "unknown")")
+        }
+        let targetSize = (width: resolution.width, height: resolution.height)
         // The entry LONG EDGE (the pipe's scale-at-entry parameter) and the
         // ENTRY PLANE — computed with the pipe's EXACT math (coordinator
         // mirror) so the yiyin `mainImageSize` is the borders guard's
@@ -252,14 +368,23 @@ public enum ExportRenderer {
         let records: [ModuleInstance]
         let layerRecord: SidecarLayerStackRecord?
         let imageID: UUID
+        // KD-2: the template's `rating` face reads the DISK sidecar even in
+        // the override mode (the rating is not a render parameter — the
+        // on-disk META is the truth). The step-3 read is reused when it
+        // already happened.
+        var namingDocument: LightamerSidecar?
         if let override = request.instancesOverride {
             records = override
             layerRecord = nil
             imageID = UUID()
+            if naming != nil {
+                namingDocument = Self.readDocument(imageURL: request.imageURL)
+            }
         } else if let document = Self.readDocument(imageURL: request.imageURL) {
             records = document.instances
             layerRecord = document.layerStack
             imageID = document.imageID
+            namingDocument = document
         } else {
             records = []
             layerRecord = nil
@@ -402,17 +527,50 @@ public enum ExportRenderer {
             data: packed, width: encoded.width, height: encoded.height, layout: layout)
 
         // ── 9. name (the encode stage does encode + atomic promote) ─────
-        let destination = ExportNamer.destinationURL(
-            directory: request.destinationDirectory,
-            stem: request.imageURL.deletingPathExtension().lastPathComponent,
-            tag: request.outputTag,
-            ext: variant.format.fileExtension,
-            occupiedNames: request.occupiedNames)
+        // KD-1's dispatch: the template face evaluates INSIDE the renderer
+        // (OQ-4's Alcedo seat) and resolves through the collision tier; the
+        // `naming == nil` face is the historical stem+tag increment path,
+        // byte-frozen (the legacy sheet and every existing E2E anchor on
+        // it). The tag face is UNCHANGED on both paths — multi-variant
+        // batches never overwrite each other (a single-variant batch tags
+        // nil and lands the pure template name).
+        let destination: URL
+        if let naming {
+            let context = ExportFileNameContext(
+                sourceStem: request.imageURL.deletingPathExtension().lastPathComponent,
+                captureDate: decoded.capture.captureTime,
+                cameraMake: decoded.capture.cameraMake,
+                cameraModel: decoded.capture.cameraModel,
+                lensModel: decoded.capture.lensModel,
+                iso: decoded.capture.iso,
+                aperture: decoded.capture.aperture,
+                shutterSeconds: decoded.capture.shutterSpeed,
+                focalLengthMM: decoded.capture.focalLength,
+                rating: namingDocument?.rating,
+                sequence: naming.sequence)
+            let stem = ExportFileNameTemplate.resolvedStem(
+                pattern: naming.pattern, context: context,
+                fallback: naming.fallbackStem)
+            destination = try ExportNamer.destinationURL(
+                directory: landingDirectory,
+                stem: stem,
+                tag: request.outputTag,
+                ext: variant.format.fileExtension,
+                occupiedNames: request.occupiedNames,
+                collisionPolicy: collisionPolicy)
+        } else {
+            destination = ExportNamer.destinationURL(
+                directory: landingDirectory,
+                stem: request.imageURL.deletingPathExtension().lastPathComponent,
+                tag: request.outputTag,
+                ext: variant.format.fileExtension,
+                occupiedNames: request.occupiedNames)
+        }
         return StageOutput(
             plane: plane,
             formatSpec: variant.format,
             targetColorSpace: built.exportTargetOverride,
-            dpi: Double(effectiveSizing.dpi),
+            dpi: Double(resolution.dpi),
             destination: destination,
             sourceURL: request.imageURL,
             editorSignature: request.editorSignature,
@@ -473,6 +631,18 @@ public enum ExportRenderer {
         Self.logger.info(
             "export: \(destination.lastPathComponent, privacy: .public) \(plane.width, privacy: .public)×\(plane.height, privacy: .public)")
         return destination
+    }
+
+    /// The OQ-11 subfolder join — the ONE source for the renderer's landing
+    /// face AND the queue's occupancy enumeration (they must agree). An
+    /// absent or empty-sanitizing subfolder returns the base verbatim; a
+    /// non-empty one appends the template-sanitized name (KD-1: the template
+    /// sanitize is the subfolder sanitize — one policy, two jobs).
+    public static func landingDirectory(base: URL, subfolder: String?) -> URL {
+        guard let subfolder else { return base }
+        let sanitized = ExportFileNameTemplate.sanitizedStem(subfolder)
+        guard !sanitized.isEmpty else { return base }
+        return base.appendingPathComponent(sanitized, isDirectory: true)
     }
 
     // MARK: - Disk sidecar reading (the SessionBatchApplier method)
