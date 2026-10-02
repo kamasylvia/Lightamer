@@ -615,8 +615,10 @@ let project = Project(
             sources: [
                 "Tests/LightamerTests/Fixtures.swift",
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
+                "Tests/LightamerTests/ExportCollisionPolicyTests.swift",
                 "Tests/LightamerTests/ExportEncoderGoldenTests.swift",
                 "Tests/LightamerTests/ExportFileNameTemplateTests.swift",
+                "Tests/LightamerTests/ExportMetadataPolicyTests.swift",
                 "Tests/LightamerTests/ExportNamerTests.swift",
                 "Tests/LightamerTests/ExportPerfProbeTests.swift",
                 "Tests/LightamerTests/ExportPhaseE2ETests.swift",
