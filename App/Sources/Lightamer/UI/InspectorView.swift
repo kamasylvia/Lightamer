@@ -110,6 +110,30 @@ internal struct InspectorView: View {
     }
 
     var body: some View {
+        // M2-9-04 KD-1: the Export page claims the WHOLE column while the
+        // page switch is on (the Layers list + module panel yield — the
+        // OQ-1 A face). The inactive branch is the pre-M2-9-4 body
+        // byte-for-byte (the剥离门: gate-on reproduces the legacy face
+        // exactly, and the page is unreachable there — the switch never
+        // arms in the legacy shell).
+        Group {
+            if inspectorState.exportPageActive {
+                ExportInspectorView()
+            } else {
+                standardBody
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(LightamerColors.surface)
+        .accessibilityIdentifier("Inspector")
+        .accessibilityHint(Text("a11y_inspector_hint"))
+        // NO container accessibilityLabel — L010: it would absorb the rows.
+    }
+
+    /// The standard inspector face (the former whole body, verbatim — the
+    /// module list + the selected panel + the preset/metadata bottom zones).
+    @ViewBuilder
+    private var standardBody: some View {
         Group {
             if editorState.loadedImageURL == nil {
                 ContentUnavailableView {
@@ -152,11 +176,6 @@ internal struct InspectorView: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(LightamerColors.surface)
-        .accessibilityIdentifier("Inspector")
-        .accessibilityHint(Text("a11y_inspector_hint"))
-        // NO container accessibilityLabel — L010: it would absorb the rows.
     }
 
     // MARK: - Module list

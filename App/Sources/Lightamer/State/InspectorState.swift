@@ -42,6 +42,31 @@ final class InspectorState {
     /// (set by the panel that armed the mode).
     private var eyedropperHandler: ((simd_float3) -> Void)?
 
+    // MARK: - M2-9-04 KD-1: the Export page switch (OQ-1 A)
+
+    /// True while the Inspector column shows the M2 Export page (the
+    /// Alcedo `ExportInspectorPanel` face — the whole column; the Layers
+    /// list and the module panel yield). SESSION STATE on purpose: never
+    /// persisted, never in UserDefaults — this is a transient page route,
+    /// not a user preference (KD-4's injection note; the `inspectorVisible`
+    /// LAYOUT memory stays the ContentView `@AppStorage` face, a separate
+    /// concern — DECISIONS).
+    private(set) var exportPageActive = false
+
+    /// The M2 export entry route (the shell top-bar button + the File >
+    /// Export menu command's focused-value arm): raise the page AND the
+    /// column in one move (KD-1: 置 exportPageActive + inspector 可见).
+    func openExportPage() {
+        exportPageActive = true
+    }
+
+    /// The page's own close face (the page header's close button; the
+    /// inspector column's dismissal binding routes back through here too —
+    /// one truth for the switch).
+    func closeExportPage() {
+        exportPageActive = false
+    }
+
     // MARK: - Provider registry
 
     /// Register one panel provider (idempotent per opName — last wins).
