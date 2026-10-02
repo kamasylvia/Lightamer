@@ -224,3 +224,7 @@ M2EXP-01..05。核心架构事实：
 - **UserDefaults 新键**（AGENTS.md 登记段）：`export.jpegQuality` 等 4 键（OQ-10）+
   `export.namingTemplates`（OQ-9）+ 落点记忆键（OQ-3 裁 (B) 时）。
 </impacts>
+
+## 裁决记录（用户回批 2026-10-02）
+
+- **OQ-1..12 全部按推荐采纳 + D-1..6 确认**（用户指令「按推荐推进任务」）。各 OQ 生效值 = CONTEXT 正文各条的推荐项：OQ-1 检查器新页 / OQ-2 原地扩 YiyinExportSettings / OQ-3 最近使用跨会话记忆 / OQ-4 模板语法全量移植 / OQ-5 三档默认 Increment / OQ-6 模型 7 bool + UI 单开关 + XMP 摘要 packet 默认不嵌 / OQ-7 ICC 强制联动 / OQ-8 PQ/HLG v1 钳位 / OQ-9 v1 仅命名模板预设 / OQ-10 四格式各一键 / OQ-11 子文件夹默认关 / OQ-12 高级折叠区暴露。
