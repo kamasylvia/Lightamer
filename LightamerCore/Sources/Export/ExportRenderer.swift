@@ -276,7 +276,8 @@ public enum ExportRenderer {
             targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
             sourceURL: stage.sourceURL, editorSignature: stage.editorSignature,
             destination: stage.destination,
-            metadataPolicy: request.variant.metadataPolicy)
+            metadataPolicy: request.variant.metadataPolicy,
+            embedICC: request.variant.embedICC)
         return Outcome(
             destination: destination,
             outputWidth: stage.outputWidth,
@@ -594,7 +595,8 @@ public enum ExportRenderer {
         editorSignature: String?,
         destination: URL,
         metadataPolicy: ExportMetadataPolicy = .standard,
-        exifSoftware: String? = nil
+        exifSoftware: String? = nil,
+        embedICC: Bool = true
     ) throws -> URL {
         let encodeRequest = ExportEncodeRequest(
             plane: plane,
@@ -605,7 +607,8 @@ public enum ExportRenderer {
             editorSignature: editorSignature,
             destination: destination,
             exifSoftware: exifSoftware,
-            metadataPolicy: metadataPolicy)
+            metadataPolicy: metadataPolicy,
+            embedICC: embedICC)
         do {
             let encoder = try ExportEncoderRegistry.encoder(
                 for: formatSpec, plane: plane)
@@ -618,6 +621,22 @@ public enum ExportRenderer {
             // residue; a COMPLETED export never reaches this path.
             try? FileManager.default.removeItem(at: destination)
             throw error
+        }
+
+        // ── the post-encode ICC face (M2-9-03 T3, OQ-7 / E1 case A): the
+        // EMBED default is the CGImage construction itself; OMIT is the
+        // strip — mountXMP 同位次 outcome face, degrade-only (an export
+        // never hard-fails on the ICC tier; the unreachable containers keep
+        // their embed and the outcome records it).
+        if !embedICC {
+            let iccOutcome = ExportICCStrip.stripICC(
+                from: destination, format: formatSpec)
+            if case .failed(let reason) = iccOutcome {
+                Self.logger.error(
+                    "export: ICC strip degraded for \(destination.lastPathComponent, privacy: .public): \(reason, privacy: .public)")
+            } else {
+                Self.logger.info("export: ICC strip \(String(describing: iccOutcome), privacy: .public)")
+            }
         }
 
         // ── the XMP mount (Plan 12-3 T4; OQ-6 policy gate M2-9-03): the
