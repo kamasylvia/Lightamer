@@ -418,4 +418,109 @@ final class ExportDrtTailE2ETests: XCTestCase {
             try Data(contentsOf: second.destination),
             "the nil carrier is the zero path — byte-stable across entry shapes")
     }
+
+    // MARK: - 5: the tail-format float override (T3, KD-3 + checker E8)
+
+    /// The seam's mechanism face: the display `.drt` tail keeps the EOTF
+    /// family format (SDR → bgra8, HDR → 16F); the override pins EVERY
+    /// tail plane to the working float32 face (the quantizer owns the
+    /// clamp + the tiers). Default false — the display face untouched.
+    func testTailFormatOverrideKeepsTheWorkingPlaneFloat32() async throws {
+        try await makeRegistryReady()
+        let image = try await Self.syntheticDecode(url: URL(fileURLWithPath: "/ignored.png"))
+        let records = await registry.makeDefaultInstances()
+        let (chain, _) = await registry.materializeBoxes(for: records)
+
+        // Display face (override off): the EOTF family decides.
+        let (sdrDisplay, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .export, cache: PipeCache(), metal: metal,
+            terminalTail: .drt(sdrDrtTail()))
+        XCTAssertEqual(sdrDisplay.pixelFormat, .bgra8Unorm,
+                       "the display SDR tail is the bgra8 face (zero drift)")
+        let (hdrDisplay, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .export, cache: PipeCache(), metal: metal,
+            terminalTail: .drt(hdrDrtTail()))
+        XCTAssertEqual(hdrDisplay.pixelFormat, .rgba16Float,
+                       "the display HDR tail is the 16F face (zero drift)")
+
+        // Export face (override on): ALWAYS the working float32 plane.
+        let (sdrExport, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .export, cache: PipeCache(), metal: metal,
+            terminalTail: .drt(sdrDrtTail()), tailFormatFloatOverride: true)
+        XCTAssertEqual(sdrExport.pixelFormat, WorkingSpace.pixelFormat,
+                       "the export SDR tail plane is float32, not bgra8")
+        let (hdrExport, _) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .export, cache: PipeCache(), metal: metal,
+            terminalTail: .drt(hdrDrtTail()), tailFormatFloatOverride: true)
+        XCTAssertEqual(hdrExport.pixelFormat, WorkingSpace.pixelFormat,
+                       "the export HDR tail plane is float32, not 16F")
+    }
+
+    /// Checker E8's composite-path bit-depth: the driver builds its OWN
+    /// terminal pipe (it never crosses RenderPipeline's static entry), so
+    /// the override must ride the driver's pass-through or the layered
+    /// export (the M2常态) would keep the display-format tail.
+    func testCompositeTailFormatOverrideReachesTheDriverPlane() async throws {
+        try await makeRegistryReady()
+        let image = try await Self.syntheticDecode(url: URL(fileURLWithPath: "/ignored.png"))
+        let records = await registry.makeDefaultInstances()
+        let (chain, _) = await registry.materializeBoxes(for: records)
+        let layerStack = LayerStack(baseLayer: BackgroundLayer())
+
+        // Without the override the terminal leg carries the display face.
+        let (display, _) = try await RenderPipeline.processComposite(
+            image: image, instances: chain, layerStack: layerStack,
+            registry: registry, imageID: UUID(), resolution: .export,
+            cache: PipeCache(), metal: metal, policy: .export,
+            terminalTail: .drt(sdrDrtTail()))
+        XCTAssertEqual(display.pixelFormat, .bgra8Unorm,
+                       "the composite display tail is the bgra8 face (zero drift)")
+        // With the override the driver's terminal plane is float32.
+        let (overridden, _) = try await RenderPipeline.processComposite(
+            image: image, instances: chain, layerStack: layerStack,
+            registry: registry, imageID: UUID(), resolution: .export,
+            cache: PipeCache(), metal: metal, policy: .export,
+            terminalTail: .drt(sdrDrtTail()), tailFormatFloatOverride: true)
+        XCTAssertEqual(overridden.pixelFormat, WorkingSpace.pixelFormat,
+                       "the composite export tail plane is float32 (the E8 pass-through)")
+    }
+
+    /// The E2E bit-depth: a DRT-SDR export through TIFF 32f carries
+    /// FULL-precision encoded values — NOT the 8-bit lattice the display
+    /// tail's bgra8 plane would have quantized to (the float values are
+    /// continuous; a bgra8 intermediate pins every sample to k/255).
+    func testDrtExportSDRToTIFF32fIsFullPrecision() async throws {
+        try await makeRegistryReady()
+        let source = try writePNG(width: 96, height: 64, stem: "DRTF_0001")
+        try await writeSidecar(imageURL: source, records: await seedRecords())
+        let variant = ExportVariant(
+            sizing: YiyinExportSettings(mode: .longEdge(px: 48)),
+            format: .tiff(bitDepth: .float32, compression: .none), colorSpace: .sRGB)
+        let outcome = try await ExportRenderer.render(
+            request: makeRequest(
+                source: source, variant: variant, drtTail: sdrDrtTail(),
+                directory: try makeLanding("float")),
+            metal: metal, registry: registry,
+            decodeLeg: { url in try await ExportDrtTailE2ETests.syntheticDecode(url: url) })
+        let values = try decodedFloatTIFFValues(outcome.destination)
+        // Count samples OFF the 8-bit lattice (|v - k/255| > 1/1024 — half
+        // the bgra8 quantization step). A float32 tail produces continuous
+        // values; an 8-bit tail produces lattice-exact ones.
+        var offLattice = 0
+        for index in stride(from: 0, to: values.samples.count, by: 4) {
+            for channel in 0..<3 {
+                let v = Double(values.samples[index + channel])
+                let lattice = (v * 255.0).rounded() / 255.0
+                if abs(v - lattice) > 1.0 / 1024.0 { offLattice += 1 }
+            }
+        }
+        XCTAssertGreaterThan(
+            offLattice, 16,
+            "the export tail plane is float32 — continuous values, not the "
+                + "bgra8 lattice (off-lattice samples: \(offLattice))")
+    }
 }
