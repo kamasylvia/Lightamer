@@ -343,13 +343,21 @@ enum EditingToolset {
         // The yiyin switch (EXP-05 shared configuration — ONE semantic: use
         // the image's existing panel configuration, no border detail params).
         let wantsYiyin = arguments["yiyin"]?.boolValue == true
-        let variant = ExportVariant(
+        var variant = ExportVariant(
             sizing: sizing, format: format, colorSpace: colorSpace, yiyin: wantsYiyin)
         do {
             try variant.validate()
         } catch {
             throw McpToolError.invalidParams(String(describing: error))
         }
+        // M2-9-03 (OQ-6): the metadata-policy default no longer mounts the
+        // editing-summary XMP packet. THIS tool's interop contract pins the
+        // packet (the toolset's behavior spec: "export lands in Output WITH
+        // XMP" — the mount has ridden encodeStage since 14-2) — so the MCP
+        // face opts in explicitly; the OQ-6 narrowing keeps applying to
+        // paths that do not opt in (the GUI export faces, wired in M2-9-04).
+        variant.metadataPolicy = ExportMetadataPolicy(editingHistory: true)
+        let exportVariant = variant
 
         // The landing zone is SERVER-PINNED: Session/Output/ — the input
         // schema carries no path argument by construction (the negative test
@@ -393,7 +401,7 @@ enum EditingToolset {
                     }
                     let request = ExportRenderer.Request(
                         imageURL: member.imageURL, destinationDirectory: outputDirectory,
-                        occupiedNames: occupied, variant: variant)
+                        occupiedNames: occupied, variant: exportVariant)
                     return try await ExportRenderer.render(
                         request: request, metal: metal, registry: modules,
                         decodeLeg: seams.decodeLeg, yiyinInjector: resolvedInjector)
