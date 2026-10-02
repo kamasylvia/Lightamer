@@ -414,7 +414,7 @@ extension DrtOutputColorSpace {
         d.u8(UInt8(ascii: "e")); d.u8(UInt8(ascii: "n")) // language "en"
         d.u8(UInt8(ascii: "U")); d.u8(UInt8(ascii: "S")) // country "US"
         d.u32(UInt32(utf16.count * 2))
-        d.u32(20) // string offset relative to the mluc start
+        d.u32(28) // string offset relative to the mluc start (header 16 + record 12)
         for unit in utf16 { d.u16(unit) }
         return d.data
     }
