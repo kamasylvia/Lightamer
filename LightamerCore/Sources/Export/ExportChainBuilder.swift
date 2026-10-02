@@ -191,6 +191,11 @@ public enum ExportChainBuilder {
         /// HEIC / AVIF / WebP — the D-12-CONTEXT-10 documented exceptions
         /// (the export matrix's reverse anchors byte-scan their absence).
         case skippedUnsupportedFormat
+        /// The OQ-6 policy gate closed the mount (M2-9-03): mode `none`,
+        /// the XMP carrier off, or the editing-history carrier off (the
+        /// packet's DEFAULT face — the sanctioned behavior narrowing, not a
+        /// degradation).
+        case skippedByPolicy
         /// A typed injection error degraded the mount: the product exists,
         /// carries no XMP, the export continues. Payload = the reason.
         case failed(String)
@@ -201,6 +206,12 @@ public enum ExportChainBuilder {
     /// has no XMP seat), serialize, inject into the freshly encoded
     /// product, and promote atomically (L009 — same-directory tmp rename).
     ///
+    /// The OQ-6 policy gate (M2-9-03): the packet rides the editing-history
+    /// carrier — the default policy (`.standard`) does NOT mount it (the
+    /// sanctioned behavior narrowing; `skippedByPolicy`). The gate is the
+    /// conjunction of the mode, the XMP carrier and the editing-history
+    /// carrier (the v1 consumption face of the three bools, DECISIONS).
+    ///
     /// The exported image has LEFT the session truth-chain (the D-2
     /// ruling's reason face): the XMP rides the product only — the
     /// original and its `.lra` are never touched (the red line: this
@@ -209,8 +220,13 @@ public enum ExportChainBuilder {
     /// Called by the encode stage after the atomic promote; a throw from
     /// the encoder itself never reaches here.
     public static func mountXMP(
-        destination: URL, format: ExportFormatSpec, sourceURL: URL
+        destination: URL, format: ExportFormatSpec, sourceURL: URL,
+        policy: ExportMetadataPolicy = .standard
     ) -> XMPMountOutcome {
+        guard policy.mode == .standard, policy.includeXMP, policy.includeEditingHistory
+        else {
+            return .skippedByPolicy
+        }
         guard let containerFormat = XMPContainerFormat(exportSpec: format) else {
             return .skippedUnsupportedFormat
         }
