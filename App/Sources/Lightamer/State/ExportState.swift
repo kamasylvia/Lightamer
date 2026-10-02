@@ -24,6 +24,17 @@ final class ExportState {
 
     private static let logger = AppError.logger
 
+    /// The injected defaults (OQ-3/OQ-10 memory keys read/write through
+    /// HERE — the M2-1 D-EXEC-1 discipline: views never touch UserDefaults,
+    /// the state object is the single access face). The default init passes
+    /// `.standard` (the app face — the app-root construction site is a
+    /// zero-diff surface); tests pass an isolated suite.
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
     // MARK: - Queue plumbing (configured by the app root, D-03b-safe)
 
     private var metal: MetalContext?
@@ -303,5 +314,103 @@ final class ExportState {
             bordersBox.module.jointLayoutOverride = watermark.makeJointLayoutRecord(
                 mainImageSize: mainImageSize, bordersParams: bordersParams)
         }
+    }
+
+    // MARK: - The M2 face (Plan M2-9-04; additive — the legacy sheet face
+    // above is byte-frozen)
+
+    // MARK: Memory keys (OQ-3 destination + OQ-10 quality four)
+
+    /// The registered storage keys (the ONLY spellings — AC4 greps these).
+    nonisolated static let lastDirectoryKey = "export.lastDirectory"
+    nonisolated static let jpegQualityKey = "export.jpegQuality"
+    nonisolated static let heicQualityKey = "export.heicQuality"
+    nonisolated static let avifQualityKey = "export.avifQuality"
+    nonisolated static let webpQualityKey = "export.webpQuality"
+
+    /// The four quality memory keys by format kind (the page's memory map —
+    /// every quality knob gets its own key, OQ-10 A: AVIF 95 ≠ WebP 95).
+    nonisolated static let qualityKeysByFormat: [String: String] = [
+        "jpeg": ExportState.jpegQualityKey,
+        "heic": ExportState.heicQualityKey,
+        "avif": ExportState.avifQualityKey,
+        "webp": ExportState.webpQualityKey,
+    ]
+
+    /// The last-used destination directory (OQ-3 B). nil = unset/first use
+    /// — the fallback face below serves the source-image directory. Stored
+    /// as a path STRING (the destinationSection precedent: a plain URL, no
+    /// bookmark — the app is not sandboxed; Alcedo `defaultExportFolder`
+    /// same-shape memory).
+    func loadM2LastDirectory() -> URL? {
+        let path = defaults.string(forKey: Self.lastDirectoryKey) ?? ""
+        guard !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
+    /// The directory-picker write-back face (OQ-3: 目录选择器记忆写回).
+    func storeM2LastDirectory(_ url: URL) {
+        defaults.set(url.path, forKey: Self.lastDirectoryKey)
+    }
+
+    /// The effective destination (OQ-3's first-use fallback): the memory
+    /// key wins; nil memory falls back to the first target's directory
+    /// (首用回落 = 当前选中首图所在目录); neither → nil (the run gate stays
+    /// disabled — no silent guess).
+    func m2EffectiveDestination(firstTargetDirectory: URL?) -> URL? {
+        loadM2LastDirectory() ?? firstTargetDirectory
+    }
+
+    /// One quality knob's memory (0...1). Out-of-domain / non-finite
+    /// degrade to nil (a corrupt value never blocks the panel).
+    func loadM2Quality(forKey key: String) -> Double? {
+        let value = defaults.double(forKey: key)
+        guard value.isFinite, ExportFormatSpec.qualityRange.contains(value) else {
+            return nil
+        }
+        return value
+    }
+
+    /// The quality write-back face (the page writes on run + off-page —
+    /// the Alcedo QML:271-288 lifecycle).
+    func storeM2Quality(_ value: Double, forKey key: String) {
+        defaults.set(value, forKey: key)
+    }
+
+    // MARK: The M2 target derivation (KD-4 — additive; the session-semantics
+    // `targetRelPaths` above never enters the M2 face)
+
+    /// The M2 selection provider — armed by the SHELL (the grid state
+    /// machine's multi-select, resolved to source URLs in row order). The
+    /// L036 shape: the assembly point reads, views inject. nil/unarmed =
+    /// no selection face (the derivation falls to the current image).
+    var m2SelectionProvider: (() -> [URL])?
+
+    /// The pure M2 目标 derivation: the grid selection when non-empty,
+    /// else the currently edited image, else empty (no URL guessing — the
+    /// M2 leg holds URL values directly; no relPath projection, plan risk
+    /// note / DECISIONS).
+    nonisolated static func m2TargetURLs(
+        selection: [URL], loadedImageURL: URL?
+    ) -> [URL] {
+        if !selection.isEmpty { return selection }
+        guard let loaded = loadedImageURL else { return [] }
+        return [loaded]
+    }
+
+    /// The instance face the page consults (provider + the editor fallback).
+    func m2Targets(currentImageURL: URL?) -> [URL] {
+        Self.m2TargetURLs(
+            selection: m2SelectionProvider?() ?? [],
+            loadedImageURL: currentImageURL)
+    }
+
+    /// The project-open rebuild leg (KD-1 队列生命周期): the SAME semantics
+    /// the session-open face uses — a fresh queue + rows/progress/recipe
+    /// reset (the M2 workspace has no Session concept; the reset point is
+    /// the project switch). The M2 face calls THIS; the legacy face keeps
+    /// its session-open call site — one rebuild body, two named entries.
+    func rebuildQueueForProject() async {
+        await rebuildQueueForSession()
     }
 }

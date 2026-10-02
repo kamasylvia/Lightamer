@@ -2814,6 +2814,23 @@
         }
       }
     },
+    "export_destination_default_subfolder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Processed"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出"
+          }
+        }
+      }
+    },
     "export_destination_section": {
       "extractionState": "manual",
       "localizations": {
@@ -2827,6 +2844,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "输出位置"
+          }
+        }
+      }
+    },
+    "export_destination_subfolder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Put in Subfolder"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存入子文件夹"
+          }
+        }
+      }
+    },
+    "export_destination_subfolder_name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subfolder name"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "子文件夹名称"
           }
         }
       }
@@ -3086,6 +3137,193 @@
         }
       }
     },
+    "export_m2_no_destination": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a destination"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择导出位置"
+          }
+        }
+      }
+    },
+    "export_naming_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File Naming"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件命名"
+          }
+        }
+      }
+    },
+    "export_naming_custom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义"
+          }
+        }
+      }
+    },
+    "export_naming_delete": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除"
+          }
+        }
+      }
+    },
+    "export_naming_invalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid pattern — export is disabled."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模板无效——导出已禁用。"
+          }
+        }
+      }
+    },
+    "export_naming_pattern_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File name pattern"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件名模板"
+          }
+        }
+      }
+    },
+    "export_naming_preset_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预设"
+          }
+        }
+      }
+    },
+    "export_naming_preview": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览"
+          }
+        }
+      }
+    },
+    "export_naming_rename": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改名"
+          }
+        }
+      }
+    },
+    "export_naming_save_preset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Preset"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存预设"
+          }
+        }
+      }
+    },
+    "export_naming_save_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Naming Preset"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存命名预设"
+          }
+        }
+      }
+    },
     "export_no_session": {
       "extractionState": "manual",
       "localizations": {
@@ -3269,6 +3507,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "导出后动作"
+          }
+        }
+      }
+    },
+    "export_page_close": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
           }
         }
       }

@@ -180,9 +180,51 @@ internal struct ContentView: View {
             // demoted to the library face inside WorkspaceHostView (its
             // `library.project.workspace` marker survives; the editor face
             // routes beside it).
+            //
+            // Plan M2-9-04 (OQ-1 A / KD-1): the M2 face's export entry routes
+            // to the INSPECTOR Export PAGE — the page rides the inspector
+            // column (mounted here, over the shell) behind the
+            // `exportPageActive` switch, and the app menu's File > Export
+            // command (the same focused-value key the legacy arm publishes
+            // below) opens the page in this face. The legacy body and its
+            // sheet arm are byte-frozen above (M2-2-4 gate discipline) — this
+            // branch is the ONLY route that arms the page switch.
             WorkspaceHostView(
                 projectController: projectController,
                 onImportFolder: onImportFolder)
+            // The page's inspector column: present exactly while the switch
+            // is on; the column's own dismissal routes back through the SAME
+            // switch (one truth, no second presentation flag).
+                .inspector(isPresented: Binding(
+                    get: { inspectorState.exportPageActive },
+                    set: { visible in
+                        if visible {
+                            inspectorState.openExportPage()
+                        } else {
+                            inspectorState.closeExportPage()
+                        }
+                    })) {
+                    InspectorView()
+                        .navigationSplitViewColumnWidth(
+                            min: 200, ideal: clamped(inspectorWidth, 200, 460), max: 460)
+                }
+            // The M2 export ROUTE: publishes the legacy menu key so the app
+            // menu's Export command enables in this face and lands on the
+            // page (the set side raises the page; the get side is the page
+            // switch itself).
+                .focusedSceneValue(\.exportPanelRequest, Binding<Bool>(
+                    get: { inspectorState.exportPageActive },
+                    set: { requested in
+                        guard requested else { return }
+                        inspectorState.openExportPage()
+                    }))
+            // KD-1: the queue rebuild rides the PROJECT-open event (the M2
+            // workspace has no Session concept — the reset point is the
+            // project switch; the same rebuild semantics the session-open
+            // leg uses).
+                .onChange(of: projectController?.projectURL) { _, _ in
+                    Task { await exportState.rebuildQueueForProject() }
+                }
         }
     }
 
