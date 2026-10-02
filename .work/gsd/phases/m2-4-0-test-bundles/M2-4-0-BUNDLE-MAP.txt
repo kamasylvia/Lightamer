@@ -388,3 +388,4 @@ EXPORT	8	ExportIccEmbedTests.swift
 # M2-9-04 增行记录（2026-10-03 执行期）：ExportInspectorFaceTests = APP/App 级——检查器 Export 页挂载 AX + 命名编辑器状态层 + 落点记忆（T1）；ExportMemoryKeysTests = APP/App 级——质量四键 round-trip（T2）；ExportAssemblyTests = APP/App 级——M2 装配逐字段断言（T3）。行内 method 数以终态对账为准。运行期总数基线上移（2662 起算）。
 APP	9	ExportInspectorFaceTests.swift
 APP	11	ExportMemoryKeysTests.swift
+APP	11	ExportAssemblyTests.swift

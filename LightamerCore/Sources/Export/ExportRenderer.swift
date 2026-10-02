@@ -106,6 +106,16 @@ public enum ExportRenderer {
     /// `renderStage` consumes it when the request's own `drtTail` is nil.
     @TaskLocal public static var jobDrtTail: DrtTailParams? = nil
 
+    /// The App-carried EXIF Software stamp (M2-9-04 KD-4 — the
+    /// `Lightamer <version>` face, D-M2-9-CONTEXT-5): nil = no stamp (the
+    /// legacy faces). The batch-wide value rides the SAME contract-frozen
+    /// leg discipline as `$jobDrtTail` / `$jobNamingCarrier` — the queue's
+    /// `execute` scopes the ENCODE-leg call in `$jobExifSoftware.withValue`
+    /// (a detached task inherits no TaskLocals), and the default encode leg
+    /// hands it to `encodeStage` → `mountMetadata`'s `{TIFF}` Software seat
+    /// (the seat the M2-9-03 probe chain proved is the only serializer).
+    @TaskLocal public static var jobExifSoftware: String? = nil
+
     /// The QUEUE-side naming bundle (M2-9-03 KD-1): the template request +
     /// collision tier + subfolder, delivered through the same contract-
     /// frozen leg signature as `jobDrtTail`. nil = the legacy face; the

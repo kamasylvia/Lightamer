@@ -47,6 +47,16 @@ internal struct ExportInspectorView: View {
                     metadataColorSection
                     sectionDivider
                     sdrSection
+                    sectionDivider
+                    ExportQueueFaceView(
+                        jobRows: exportState.jobRows,
+                        progress: exportState.progress,
+                        canRun: pageCanRun,
+                        targetsCount: targets.count,
+                        onRun: { runExport() },
+                        onClear: { Task { await exportState.cancelAllJobs() } },
+                        onRetry: { id in Task { await exportState.retryJob(id) } },
+                        onCancel: { id in Task { await exportState.cancelJob(id) } })
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
@@ -225,6 +235,66 @@ internal struct ExportInspectorView: View {
         return editorState.loadedImageURL?
             .deletingPathExtension()
             .lastPathComponent
+    }
+
+    // MARK: - Section 5: the run face (KD-4 装配点)
+
+    /// The M2 目标集 (KD-4): the grid selection when the shell armed the
+    /// provider, else the currently edited image, else empty.
+    private var targets: [URL] {
+        exportState.m2Targets(currentImageURL: editorState.loadedImageURL)
+    }
+
+    /// The page's run gate: naming + sizing domains (the model) AND a
+    /// non-empty target set AND a resolvable destination.
+    private var pageCanRun: Bool {
+        model.canRun && !targets.isEmpty && displayDestination != nil
+    }
+
+    /// The batch enqueue (the queue section's add face): the pre-export
+    /// sidecar flush (the panel-hops-through-environment legacy posture —
+    /// the current image's pending writes land before the queue reads),
+    /// then the KD-4 assembly.
+    private func runExport() {
+        let batch = targets
+        guard !batch.isEmpty, let destination = displayDestination else { return }
+        let subfolder: String? = {
+            guard model.subfolderEnabled else { return nil }
+            let trimmed = model.subfolderName.trimmingCharacters(in: .whitespaces)
+            return trimmed.isEmpty ? nil : trimmed
+        }()
+        // KD-4: the projection override rides the OPEN image only (the
+        // EditorState live projection — the same set a flush would
+        // persist); every other batch image exports its DISK sidecar
+        // truth (nil override). The DRT record is the CURRENT image's
+        // effective face — `?? DrtRecord()` default (KD-4).
+        let loaded = editorState.loadedImageURL
+        let overrides: [[ModuleInstance]?] = batch.map { url in
+            (url.path == loaded?.path) ? editorState.instances : nil
+        }
+        let drtRecord = editorState.history.effectiveDrtRecord() ?? DrtRecord()
+        let variant = model.makeVariant()
+        let pattern = model.pattern
+        let software = ExportState.currentExifSoftware
+        Task {
+            await pipeCoordinator.flushSidecar()
+            do {
+                try await exportState.enqueueExportM2(
+                    images: batch,
+                    instancesOverrides: overrides,
+                    drtRecord: drtRecord,
+                    variant: variant,
+                    destination: destination,
+                    subfolder: subfolder,
+                    namingPattern: pattern,
+                    exifSoftware: software)
+                // The lifecycle write-backs (OQ-3 导出发起写回 + OQ-10).
+                exportState.storeM2LastDirectory(destination)
+                writeBackQualityMemory()
+            } catch {
+                editorState.presentToast(String(localized: "export_enqueue_failed"))
+            }
+        }
     }
 
     // MARK: - Section 3: Metadata & Color (OQ-6 / OQ-7)

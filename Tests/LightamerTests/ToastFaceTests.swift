@@ -54,16 +54,23 @@ final class ToastFaceTests: XCTestCase {
 
     // MARK: - 2: the default-shell wiring (the accessibility face)
 
-    /// A hosting root carrying exactly the two injections the host reads at
-    /// its depth (the app root writes both; the test mirrors that).
+    /// A hosting root carrying exactly the injections the host reads at
+    /// its depth (the app root writes them; the test mirrors that). M2-9-04:
+    /// the host gained the ExportState/InspectorState faces (the top-bar
+    /// export entry + the grid-selection provider arm), so the mount
+    /// carries those two beside the original pair.
     private struct HostRoot: View {
         let editorState: EditorState
         let pipeCoordinator: PipeCoordinator
+        let exportState: ExportState
+        let inspectorState: InspectorState
 
         var body: some View {
             WorkspaceHostView(projectController: nil, onImportFolder: { })
                 .environment(editorState)
                 .environment(pipeCoordinator)
+                .environment(exportState)
+                .environment(inspectorState)
         }
     }
 
@@ -96,7 +103,8 @@ final class ToastFaceTests: XCTestCase {
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false)
         let host = NSHostingView(rootView: HostRoot(
-            editorState: editorState, pipeCoordinator: pipeCoordinator))
+            editorState: editorState, pipeCoordinator: pipeCoordinator,
+            exportState: ExportState(), inspectorState: InspectorState()))
         host.frame = NSRect(x: 0, y: 0, width: 900, height: 600)
         window.contentView = host
         window.orderFrontRegardless()
