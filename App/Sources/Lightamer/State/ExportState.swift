@@ -415,4 +415,98 @@ final class ExportState {
     func rebuildQueueForProject() async {
         await rebuildQueueForSession()
     }
+
+    /// Test seam (the Core `inFlightCountForTesting` precedent — never
+    /// called by app code): installs a queue with INJECTED legs so the
+    /// assembly face is assertable without Metal. The production face
+    /// stays `rebuildQueueForSession/Project` (metal-gated).
+    func installQueueForTesting(_ queue: ExportQueue) {
+        self.queue = queue
+    }
+
+    // MARK: The M2 assembly (KD-4 — D-M2-9-CONTEXT-4's terminal form)
+
+    /// The EXIF Software stamp (D-M2-9-CONTEXT-5): `Lightamer <version>`.
+    /// The pure face is injectable for tests; the app face resolves
+    /// CFBundleShortVersionString.
+    nonisolated static func exifSoftwareString(version: String) -> String {
+        "Lightamer \(version)"
+    }
+
+    static var currentExifSoftware: String {
+        exifSoftwareString(
+            version: (Bundle.main.object(
+                forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "?")
+    }
+
+    /// The batch DRT tail params (KD-4: `NodeOwnershipCatalog.drtPostOpNames
+    /// ∩ 启用集` — the intersection happens INSIDE PixelPipe's tail demotion
+    /// (enabled-box filter), so the App passes the catalog list verbatim,
+    /// the PipeCoordinator 同法).
+    nonisolated static func m2DrtTail(record: DrtRecord) -> DrtTailParams {
+        DrtTailParams(record: record, postOpNames: NodeOwnershipCatalog.drtPostOpNames)
+    }
+
+    /// The M2 入队装配: per-image overrides + the batch DRT record + the
+    /// panel's variant + the naming/collision/subfolder/destination face →
+    /// variant 组 + the per-image drtTails carrier + the exifSoftware
+    /// carrier (KD-4). `enqueueExport`'s body stays byte-frozen — the
+    /// legacy sheet keeps the old face.
+    ///
+    ///   • `variant.drtOutput` = `drtRecord` (OQ-7 强制联动; the peak gate
+    ///     rides M2-9-03's `ExportVariant.validate` typed refusal — a bad
+    ///     record fails the job typed, never silently);
+    ///   • `naming` = the pattern with the queue-stamped batch ordinal
+    ///     (sequence = 选中序 1 起 — the queue stamps imageIndex+1);
+    ///   • `relPath` = the file's display name (the M2 leg holds URLs —
+    ///     no session-root projection; the snapshot display face is
+    ///     unaffected, plan risk note / DECISIONS).
+    func enqueueExportM2(
+        images: [URL],
+        instancesOverrides: [[ModuleInstance]?],
+        drtRecord: DrtRecord,
+        variant: ExportVariant,
+        destination: URL,
+        subfolder: String?,
+        namingPattern: String,
+        collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
+        exifSoftware: String? = nil
+    ) async throws {
+        // The M2-9-02 acceptance O-2 前车之鉴: the per-image carriers are
+        // INDEXED — a count mismatch is a caller bug and gets the typed
+        // rejection BEFORE any environment lookup (the queue's per-image
+        // precondition would otherwise trap).
+        guard instancesOverrides.count == images.count else {
+            throw AppError.invalidParameter(
+                "export m2: per-image payload count \(instancesOverrides.count) "
+                    + "!= image count \(images.count)")
+        }
+        guard let queue else {
+            throw AppError.invalidParameter("no export queue (no project open)")
+        }
+        guard !images.isEmpty else { return }
+        try ExportFileWriter.ensureDirectory(destination)
+        // OQ-7: the DRT linkage is FORCED — the record lands on the variant
+        // (peak gate: a non-finite/non-positive peak is the renderStage
+        // validate's typed refusal, the 03 兜底 face) and on every image's
+        // tail carrier (the render half of the same linkage).
+        var assembled = variant
+        assembled.drtOutput = drtRecord
+        let tails = images.map { _ in Self.m2DrtTail(record: drtRecord) }
+        let naming = ExportNamingRequest(
+            pattern: namingPattern,
+            sequence: 1,
+            fallbackStem: ExportFileNameTemplate.fallbackStem)
+        await queue.enqueue(
+            images: images.map { (url: $0, relPath: $0.lastPathComponent) },
+            variants: [assembled],
+            destinationDirectory: destination,
+            instancesOverrides: instancesOverrides,
+            drtTails: tails,
+            naming: naming,
+            collisionPolicy: collisionPolicy,
+            subfolder: subfolder,
+            exifSoftware: exifSoftware)
+        await refreshFromQueue()
+    }
 }

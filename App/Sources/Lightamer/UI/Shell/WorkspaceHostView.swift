@@ -51,6 +51,13 @@ struct WorkspaceHostView: View {
     /// YiyinTopBarSheet reads beside it).
     @Environment(EditorState.self) private var editorState
 
+    // M2-9-04 (declared increment — the front-matter omission family): the
+    // top-bar EXPORT entry (OQ-1 A / KD-1 — the M2 face's "toolbar 导出按钮")
+    // and the grid-selection provider arm (KD-4's target derivation — the
+    // shell owns the selection, the assembly point reads, views inject L036).
+    @Environment(ExportState.self) private var exportState
+    @Environment(InspectorState.self) private var inspectorState
+
     // Plan M2-3-1 T6 (M2UIW-06): the background-task faces — ONE registry
     // behind BOTH presentations (bar + dialog), the import leg riding the
     // read-only ImportTaskAdapter subscription.
@@ -208,6 +215,19 @@ struct WorkspaceHostView: View {
         .task {
             workspace.attach(pipeCoordinator: pipeCoordinator)
             pipeCoordinator.attach(workspace: workspace)
+            // M2-9-04 (KD-4): the M2 export target provider — the grid
+            // multi-select resolved to source URLs in ROW order (the filmstrip
+            // and the grid share the one selection state machine). Weakly
+            // captured: a torn-down surface drops the face to empty and the
+            // derivation falls back to the current image.
+            exportState.m2SelectionProvider = { [weak workspace] in
+                guard let workspace, let grid = workspace.editorGrid else { return [] }
+                let ids = grid.selectedIDs
+                guard !ids.isEmpty else { return [] }
+                return grid.rows
+                    .filter { ids.contains($0.id) }
+                    .compactMap { workspace.editorURLResolver?($0) }
+            }
         }
         .modifier(EditorProbeIfRequested(
             projectController: projectController, workspace: workspace,
@@ -359,6 +379,18 @@ struct WorkspaceHostView: View {
                 .accessibilityIdentifier("shell.topbar.projectName")
             Spacer()
             if workspace.phase == .editor {
+                // M2-9-04 (OQ-1 A / KD-1): the M2 export entry — routes to
+                // the Inspector Export page (the page switch + the column
+                // raise in one arm via ContentView's inspector mount; the
+                // legacy sheet face is not reachable here).
+                Button {
+                    inspectorState.openExportPage()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("shell.topbar.export")
+                .accessibilityLabel(Text(String(localized: "menu_export")))
                 // The D4 独有入口: the yiyin 印框/水印 sheet (the export-domain
                 // first-class panel — no Alcedo counterpart; TextOverlay is
                 // the sheet's text carrier).

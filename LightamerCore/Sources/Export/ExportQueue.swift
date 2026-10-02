@@ -66,6 +66,10 @@ public actor ExportQueue {
         let collisionPolicy: ExportNamer.ExportCollisionPolicy
         /// The batch-wide landing subfolder (OQ-11).
         let subfolder: String?
+        /// The batch-wide EXIF Software stamp (M2-9-04 KD-4, additive):
+        /// nil = no stamp (the legacy faces). Engine-private — never in the
+        /// snapshot/UI face; rides `$jobExifSoftware` into the encode leg.
+        let exifSoftware: String?
         /// FIFO arrival order (retried jobs get a FRESH seq — the re-queue
         /// lands at the tail; only `retry` mutates this).
         var seq: Int
@@ -189,10 +193,12 @@ public actor ExportQueue {
         destinationDirectory: URL,
         instancesOverride: [ModuleInstance]? = nil,
         editorSignature: String? = nil,
+        instancesOverrides: [[ModuleInstance]?]? = nil,
         drtTails: [DrtTailParams?]? = nil,
         naming: ExportNamingRequest? = nil,
         collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
-        subfolder: String? = nil
+        subfolder: String? = nil,
+        exifSoftware: String? = nil
     ) -> [ExportJobSnapshot] {
         if let drtTails {
             precondition(
@@ -200,6 +206,13 @@ public actor ExportQueue {
                 "export enqueue: drtTails (\(drtTails.count)) must be "
                     + "per-image (\(images.count)) — the carrier is indexed "
                     + "against the images array")
+        }
+        if let instancesOverrides {
+            precondition(
+                instancesOverrides.count == images.count,
+                "export enqueue: instancesOverrides (\(instancesOverrides.count)) "
+                    + "must be per-image (\(images.count)) — the carrier is "
+                    + "indexed against the images array")
         }
         var fresh: [ExportJobSnapshot] = []
         fresh.reserveCapacity(images.count * variants.count)
@@ -222,12 +235,14 @@ public actor ExportQueue {
                     relPath: image.relPath,
                     variant: variant,
                     destinationDirectory: destinationDirectory,
-                    instancesOverride: instancesOverride,
+                    instancesOverride: instancesOverrides?[imageIndex]
+                        ?? instancesOverride,
                     editorSignature: editorSignature,
                     drtTail: drtTails?[imageIndex],
                     naming: stampedNaming,
                     collisionPolicy: collisionPolicy,
                     subfolder: subfolder,
+                    exifSoftware: exifSoftware,
                     seq: seqCounter,
                     generation: generation,
                     state: .pending)
@@ -423,8 +438,14 @@ public actor ExportQueue {
         await markState(jobID: queued.id, state: .encoding)
         let url: URL
         do {
-            url = try await MetalContext.$routesToExportQueue.withValue(true) {
-                try await encodeLeg(artifact, queued.variant)
+            // The EXIF Software carrier (M2-9-04 KD-4) rides the same
+            // TaskLocal discipline as the render legs' carriers — the
+            // encode leg reads it through `withValue` (additive wrapper;
+            // the engine semantics are untouched).
+            url = try await ExportRenderer.$jobExifSoftware.withValue(queued.exifSoftware) {
+                try await MetalContext.$routesToExportQueue.withValue(true) {
+                    try await encodeLeg(artifact, queued.variant)
+                }
             }
         } catch {
             await finish(jobID: queued.id, generation: queued.generation, error: error)
@@ -587,13 +608,15 @@ public actor ExportQueue {
             // M2-9-03 T2/T3: the variant's metadata policy + ICC tier ride
             // the encode leg (the frozen ExportRenderStage payload cannot
             // carry them); exifSoftware is App-carried (KD-4 — the 04
-            // assembly face).
+            // assembly face) through the `$jobExifSoftware` TaskLocal that
+            // `execute` scopes this call in.
             return try ExportRenderer.encodeStage(
                 plane: stage.plane, formatSpec: stage.formatSpec,
                 targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
                 sourceURL: stage.sourceURL, editorSignature: stage.editorSignature,
                 destination: stage.destination,
                 metadataPolicy: variant.metadataPolicy,
+                exifSoftware: ExportRenderer.jobExifSoftware,
                 embedICC: variant.embedICC)
         }
         return (renderLeg, encodeLeg)
