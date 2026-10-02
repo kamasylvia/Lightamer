@@ -201,7 +201,8 @@ enum LayerCompositeDriver {
         policy: LayerCachePolicy = .preview,
         hotLayerID: UUID? = nil,
         maskDirectory: URL? = nil,
-        terminalTail: TerminalTailPolicy = .sdrGamma
+        terminalTail: TerminalTailPolicy = .sdrGamma,
+        tailFormatFloatOverride: Bool = false
     ) async throws -> LayerCompositeResult {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -543,6 +544,12 @@ enum LayerCompositeDriver {
             // terminal-scoped (the pass-through radius: same seat, new
             // type — the derived edrDisplayLeg keeps the EDR semantics).
             terminalPipe.terminalTail = terminalTail
+            // M2-9-02 KD-3 (checker E8): the export tail-format override
+            // rides the SAME seam — this pipe is built INSIDE the driver
+            // (it never crosses RenderPipeline's static entry), so without
+            // the pass-through the composite export path (the layered
+            // document's常态) would keep the display EOTF-format tail.
+            terminalPipe.tailFormatFloatOverride = tailFormatFloatOverride
             // GUI-21 (2026-09-24): the terminal's hash seed is the FINAL
             // composite prefix identity — NOT the bare decode hash. The
             // decode-only seed made the terminal's cache lines blind to

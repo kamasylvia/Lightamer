@@ -140,6 +140,19 @@ internal final class PixelPipe: @unchecked Sendable {
     /// DrtTailTests).
     internal var terminalTail: TerminalTailPolicy = .sdrGamma
 
+    /// The export tail-format override (M2-9-02 KD-3): `true` = the `.drt`
+    /// tail's final plane stays on the working float32 face regardless of
+    /// the record's EOTF family — the export quantizer owns the [0,1]
+    /// clamp AND the bit-depth tiers (OQ-8-A), so an 8/16-bit tail plane
+    /// would quantize BEFORE the quantizer (a display-only policy leaking
+    /// into the export face). Zero-path default: display legs never set it
+    /// (`tailPixelFormat`'s `.drt` branch consults it before the EOTF
+    /// family table). RenderPipeline's two entries + LayerCompositeDriver
+    /// carry it additively (default false — every existing call site
+    /// unchanged); `runDrtTailLeg` forwards it to the tail pipe (the tail
+    /// leg's pipe produces the final plane).
+    internal var tailFormatFloatOverride = false
+
     /// The tail-leg re-entry guard: the DRT tail runs as its own sub-run
     /// pipe; THAT pipe must not assemble a tail of its own.
     internal var isDrtTailLeg = false
@@ -289,6 +302,11 @@ internal final class PixelPipe: @unchecked Sendable {
         // (method directly into the EOTF) gain the same precision on the
         // method plane; the P1 FINAL-plane format pins are untouched.
         if isDrtTailLeg, case .drt(let params) = terminalTail {
+            // M2-9-02 KD-3: the export face's one-line consult — the float
+            // override pins EVERY tail plane to the working float32 face
+            // (the quantizer owns the clamp + the tiers), display legs are
+            // untouched (the zero-path default).
+            if tailFormatFloatOverride { return WorkingSpace.pixelFormat }
             if let eotfPosition = pieces.firstIndex(where: {
                 $0.box.opName == EotfBox.opName
             }), position >= eotfPosition {
@@ -894,6 +912,9 @@ internal final class PixelPipe: @unchecked Sendable {
         // FORMAT (tailPixelFormat's .drt branch) and the no-re-entry guard.
         tailPipe.terminalTail = .drt(params)
         tailPipe.isDrtTailLeg = true
+        // M2-9-02 KD-3: the export float override rides the same seam (the
+        // tail leg's pipe decides the final plane's format).
+        tailPipe.tailFormatFloatOverride = tailFormatFloatOverride
         let (output, _) = try await tailPipe.runSub(
             input: input, inputROI: inputROI,
             instances: DrtTailAssembly.instances(
@@ -1594,7 +1615,8 @@ public enum RenderPipeline {
         longEdge: Int? = nil,
         maxTileWorkingBytes: Int? = nil,
         roiHint: ROI? = nil,
-        terminalTail: TerminalTailPolicy = .sdrGamma
+        terminalTail: TerminalTailPolicy = .sdrGamma,
+        tailFormatFloatOverride: Bool = false
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
         defer { signposter.endInterval("pixelpipe", interval) }
@@ -1604,6 +1626,9 @@ public enum RenderPipeline {
         // today's bytes; the EXPORT face never sets a tail policy — the
         // export chain builder strips gamma upstream, 11-03 T3).
         pipe.terminalTail = terminalTail
+        // M2-9-02 KD-3: the export tail-format override (default false —
+        // every pre-existing call site is byte-unchanged).
+        pipe.tailFormatFloatOverride = tailFormatFloatOverride
         if let maxTileWorkingBytes {
             // Test/parametric injection of the per-tile budget (03-05-T6).
             pipe.maxTileWorkingBytes = maxTileWorkingBytes
@@ -1642,7 +1667,8 @@ public enum RenderPipeline {
         policy: LayerCachePolicy,
         hotLayerID: UUID? = nil,
         maskDirectory: URL? = nil,
-        terminalTail: TerminalTailPolicy = .sdrGamma
+        terminalTail: TerminalTailPolicy = .sdrGamma,
+        tailFormatFloatOverride: Bool = false
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -1651,7 +1677,8 @@ public enum RenderPipeline {
             layerStack: layerStack, registry: registry, resolution: resolution,
             cache: cache, metal: metal, longEdge: longEdge, roiHint: roiHint,
             policy: policy, hotLayerID: hotLayerID, maskDirectory: maskDirectory,
-            terminalTail: terminalTail)
+            terminalTail: terminalTail,
+            tailFormatFloatOverride: tailFormatFloatOverride)
         var stats = result.baseStats
         for layer in result.layerStats {
             stats.hits += layer.run.hits

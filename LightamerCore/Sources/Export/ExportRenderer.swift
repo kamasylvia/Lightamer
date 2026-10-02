@@ -333,10 +333,13 @@ public enum ExportRenderer {
         // M2-9-02 KD-4: the DRT tail owns the terminal segment on the
         // EXPORT run (the pipe's `.drt` policy demotes colorout/gamma/
         // borders/watermark and replays the tail) — the legacy carrier
-        // stays `.sdrGamma`, the zero-path default. (The tail-plane FLOAT
-        // override lands with the T3 seam.)
+        // stays `.sdrGamma`, the zero-path default. The T3 seam rides the
+        // same switch: the export tail plane is ALWAYS the working float32
+        // face (the quantizer owns the [0,1] clamp + the bit tiers — an
+        // 8/16-bit display tail would quantize before the quantizer).
         let terminalTailPolicy: TerminalTailPolicy =
             drtTail.map { .drt($0) } ?? .sdrGamma
+        let tailFormatFloatOverride = drtTail != nil
         if let layerStack {
             let (texture, _) = try await MetalContext.$routesToExportQueue.withValue(true) {
                 try await RenderPipeline.processComposite(
@@ -344,7 +347,8 @@ public enum ExportRenderer {
                     registry: registry, imageID: imageID, resolution: .export,
                     cache: cache, metal: metal, longEdge: entryLongEdge,
                     roiHint: nil, policy: .export,
-                    terminalTail: terminalTailPolicy)
+                    terminalTail: terminalTailPolicy,
+                    tailFormatFloatOverride: tailFormatFloatOverride)
             }
             outputTexture = texture
         } else {
@@ -352,7 +356,8 @@ public enum ExportRenderer {
                 try await RenderPipeline.process(
                     image: decoded, instances: boxes, imageID: imageID,
                     resolution: .export, cache: cache, metal: metal,
-                    longEdge: entryLongEdge, terminalTail: terminalTailPolicy)
+                    longEdge: entryLongEdge, terminalTail: terminalTailPolicy,
+                    tailFormatFloatOverride: tailFormatFloatOverride)
             }
             outputTexture = texture
         }
