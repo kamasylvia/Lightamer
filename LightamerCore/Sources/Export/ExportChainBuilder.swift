@@ -58,6 +58,18 @@ public enum ExportChainBuilder {
         /// conversion from the working space (the 11-02 default face,
         /// `sourceColorSpace == WorkingSpace.colorSpace`).
         public let coloroutOverridden: Bool
+
+        /// The DRT-encoding carrier (M2-9-02, checker E7): `nil` = the
+        /// legacy five-space chain (`target` is the real menu choice);
+        /// non-nil = the OQ-7-A mandatory linkage — `target` is then a
+        /// DUMMY `.sRGB` seat filler (the `ExportColorSpace` enum NEVER
+        /// gains DRT arms; every consumer of the real encoding reads THIS
+        /// pair, or `exportTargetOverride` which is minted from it). The
+        /// defaulted memberwise slot keeps the legacy `exportChain` body
+        /// byte-frozen (its call site compiles untouched).
+        /// (`var` because a defaulted `let` leaves the memberwise
+        /// initializer entirely — the DRT call site needs the slot.)
+        public var drtEncoding: (space: DrtEncodingSpace, eotf: DrtEotf)? = nil
     }
 
     /// Assemble the export chain for one variant's color target.
@@ -120,6 +132,40 @@ public enum ExportChainBuilder {
             exportTargetOverride: override,
             target: target,
             coloroutOverridden: coloroutOverridden)
+    }
+
+    /// Assemble the DRT-LINKAGE export chain (M2-9-02 KD-2, OQ-7-A): the
+    /// output encoding IS the document's DRT encoding. ADDITIVE to the
+    /// legacy face — `exportChain(from:target:linearVariant:)` stays
+    /// byte-frozen, this function never strips a record:
+    ///
+    ///   • `instances` = the records VERBATIM (enabled or not). The gamma /
+    ///     colorout / borders / watermark demotion happens IN-PIPE through
+    ///     `PixelPipe.isTerminalTailSkipped` under the `.drt` terminal-tail
+    ///     policy — the builder does not pre-edit the list, avoiding a
+    ///     second demotion semantic that could drift from the display leg.
+    ///   • `exportTargetOverride` = the KD-1 mapping of the record's
+    ///     encoding pair — the exit leg's identity source/target AND the
+    ///     ICC the encoder embeds (消费在 M2-9-03).
+    ///   • `coloroutOverridden = true` reuses the legacy exit face's
+    ///     identity semantics (source == target).
+    ///   • `target` = the E7 dummy `.sRGB` (see `Built.drtEncoding`).
+    ///
+    /// A pair outside `legalEOTFs(for:)` throws typed (the KD-1 resolver's
+    /// domain — the linkage table is the single source of legality).
+    public static func exportDrtChain(
+        from source: [ModuleInstance],
+        space: DrtEncodingSpace,
+        eotf: DrtEotf
+    ) throws -> Built {
+        let override = try DrtOutputColorSpace.drtOutputColorSpace(
+            space: space, eotf: eotf)
+        return Built(
+            instances: source,
+            exportTargetOverride: override,
+            target: .sRGB,
+            coloroutOverridden: true,
+            drtEncoding: (space, eotf))
     }
 
     /// The quantization tier's flavor question in one place: TIFF 32f is

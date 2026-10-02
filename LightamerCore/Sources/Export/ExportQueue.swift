@@ -54,6 +54,10 @@ public actor ExportQueue {
         let destinationDirectory: URL
         let instancesOverride: [ModuleInstance]?
         let editorSignature: String?
+        /// The per-image DRT carrier (M2-9-02 KD-4, additive): nil = the
+        /// legacy path, the engine never consults it (DRT does not enter
+        /// the snapshot/UI face).
+        let drtTail: DrtTailParams?
         /// FIFO arrival order (retried jobs get a FRESH seq — the re-queue
         /// lands at the tail; only `retry` mutates this).
         var seq: Int
@@ -162,17 +166,33 @@ public actor ExportQueue {
     /// order interleaves per image — image0-v0, image0-v1, … — so a
     /// cancelled batch still completes whole files of the earlier
     /// images first). Returns the fresh snapshots in enqueue order.
+    ///
+    /// `drtTails` (M2-9-02 KD-4, additive): one DRT policy payload PER
+    /// IMAGE (indexed against `images`), fanned to every variant of that
+    /// image. `nil` = the legacy face for the whole batch; a per-element
+    /// nil keeps that image on the legacy face. The payload rides the job
+    /// privately and reaches the render leg through
+    /// `ExportRenderer.$jobDrtTail` — the engine (pump/cancel/retry/
+    /// generation/concurrency) never consults it.
     @discardableResult
     public func enqueue(
         images: [(url: URL, relPath: String)],
         variants: [ExportVariant],
         destinationDirectory: URL,
         instancesOverride: [ModuleInstance]? = nil,
-        editorSignature: String? = nil
+        editorSignature: String? = nil,
+        drtTails: [DrtTailParams?]? = nil
     ) -> [ExportJobSnapshot] {
+        if let drtTails {
+            precondition(
+                drtTails.count == images.count,
+                "export enqueue: drtTails (\(drtTails.count)) must be "
+                    + "per-image (\(images.count)) — the carrier is indexed "
+                    + "against the images array")
+        }
         var fresh: [ExportJobSnapshot] = []
         fresh.reserveCapacity(images.count * variants.count)
-        for image in images {
+        for (imageIndex, image) in images.enumerated() {
             for variant in variants {
                 seqCounter += 1
                 progressTotal += 1
@@ -184,6 +204,7 @@ public actor ExportQueue {
                     destinationDirectory: destinationDirectory,
                     instancesOverride: instancesOverride,
                     editorSignature: editorSignature,
+                    drtTail: drtTails?[imageIndex],
                     seq: seqCounter,
                     generation: generation,
                     state: .pending)
@@ -339,8 +360,16 @@ public actor ExportQueue {
         await markState(jobID: queued.id, state: .rendering)
         var artifact: ExportRenderArtifact?
         do {
-            artifact = try await MetalContext.$routesToExportQueue.withValue(true) {
-                try await renderLeg(queued.snapshot(), context)
+            // The per-image DRT carrier (M2-9-02 KD-4): the leg signature is
+            // contract-frozen (snapshot + context), so the payload rides a
+            // TaskLocal scoped to THIS leg call — the detached task inherits
+            // no TaskLocals, the wrapper sits inside. nil (the default) is
+            // the zero-path legacy face; pump/cancel/retry/generation
+            // semantics are untouched.
+            artifact = try await ExportRenderer.$jobDrtTail.withValue(queued.drtTail) {
+                try await MetalContext.$routesToExportQueue.withValue(true) {
+                    try await renderLeg(queued.snapshot(), context)
+                }
             }
         } catch {
             await finish(jobID: queued.id, generation: queued.generation, error: error)

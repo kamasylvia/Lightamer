@@ -69,6 +69,16 @@ public enum ExportRenderer {
     private static let logger = Logger(
         subsystem: "com.kamasylvia.lightamer", category: "export-render")
 
+    /// The QUEUE-side per-image DRT carrier (M2-9-02 KD-4's delivery seam):
+    /// the export leg signature `(ExportJobSnapshot, ExportJobContext)` is
+    /// contract-frozen (`ExportQueueContract.swift` zero-diff red line), so
+    /// the actor's `execute` scopes each render-leg call in
+    /// `$jobDrtTail.withValue(queued.drtTail)` — a detached task inherits
+    /// NO TaskLocals, so the wrapper sits INSIDE the leg dispatch (the
+    /// `routesToExportQueue` zero-default posture; nil = the legacy path).
+    /// `renderStage` consumes it when the request's own `drtTail` is nil.
+    @TaskLocal public static var jobDrtTail: DrtTailParams? = nil
+
     // MARK: - Request / outcome
 
     public struct Request {
@@ -92,6 +102,16 @@ public enum ExportRenderer {
         /// Non-nil = explicit records (the 11-04 live-edit export face).
         public var instancesOverride: [ModuleInstance]?
 
+        /// The DRT tail policy payload (M2-9-02 KD-4): non-nil = the OQ-7-A
+        /// mandatory linkage — the render runs the `.drt` terminal tail and
+        /// the output ICC is the record's encoding pair. The payload
+        /// (record + postOpNames) is APP-ASSEMBLED (D-M2-9-CONTEXT-4 — Core
+        /// cannot name the IOP catalog); `nil` = the legacy five-space
+        /// path, byte-frozen. Queue jobs may also deliver it through
+        /// `ExportRenderer.jobDrtTail` (the contract-frozen leg signature's
+        /// TaskLocal seam); the explicit field wins.
+        public var drtTail: DrtTailParams?
+
         /// The yiyin output tag (`ExportNamer`; nil = derive/absent).
         public var outputTag: String? { variant.outputTag }
 
@@ -104,7 +124,8 @@ public enum ExportRenderer {
             occupiedNames: Set<String>,
             variant: ExportVariant,
             instancesOverride: [ModuleInstance]? = nil,
-            editorSignature: String? = nil
+            editorSignature: String? = nil,
+            drtTail: DrtTailParams? = nil
         ) {
             self.imageURL = imageURL
             self.destinationDirectory = destinationDirectory
@@ -112,6 +133,7 @@ public enum ExportRenderer {
             self.variant = variant
             self.instancesOverride = instancesOverride
             self.editorSignature = editorSignature
+            self.drtTail = drtTail
         }
     }
 
@@ -246,11 +268,24 @@ public enum ExportRenderer {
                 "export: no readable sidecar for \(request.imageURL.lastPathComponent, privacy: .public) — exporting pristine")
         }
 
-        // ── 4. the export chain (OQ-11-2: gamma strip + target override) ─
-        let built = try ExportChainBuilder.exportChain(
-            from: records,
-            target: variant.colorSpace,
-            linearVariant: ExportChainBuilder.isLinearVariant(variant.format))
+        // ── 4. the export chain ─────────────────────────────────────────
+        // M2-9-02 KD-2/KD-4: a DRT carrier switches the assembly to the
+        // OQ-7-A linkage (verbatim records — the pipe demotes the terminal
+        // set in-pipe under `.drt`; the output ICC is the record's encoding
+        // pair). nil carrier = the legacy five-space face, byte-frozen.
+        let drtTail = request.drtTail ?? Self.jobDrtTail
+        let built: ExportChainBuilder.Built
+        if let drtTail {
+            built = try ExportChainBuilder.exportDrtChain(
+                from: records,
+                space: drtTail.record.encodingSpace,
+                eotf: drtTail.record.encodingEotf)
+        } else {
+            built = try ExportChainBuilder.exportChain(
+                from: records,
+                target: variant.colorSpace,
+                linearVariant: ExportChainBuilder.isLinearVariant(variant.format))
+        }
         let (boxes, unknownOps) = await registry.materializeBoxes(for: built.instances)
         if !unknownOps.isEmpty {
             Self.logger.info(
@@ -295,13 +330,21 @@ public enum ExportRenderer {
 
         let cache = PipeCache()
         let outputTexture: any MTLTexture
+        // M2-9-02 KD-4: the DRT tail owns the terminal segment on the
+        // EXPORT run (the pipe's `.drt` policy demotes colorout/gamma/
+        // borders/watermark and replays the tail) — the legacy carrier
+        // stays `.sdrGamma`, the zero-path default. (The tail-plane FLOAT
+        // override lands with the T3 seam.)
+        let terminalTailPolicy: TerminalTailPolicy =
+            drtTail.map { .drt($0) } ?? .sdrGamma
         if let layerStack {
             let (texture, _) = try await MetalContext.$routesToExportQueue.withValue(true) {
                 try await RenderPipeline.processComposite(
                     image: decoded, instances: boxes, layerStack: layerStack,
                     registry: registry, imageID: imageID, resolution: .export,
                     cache: cache, metal: metal, longEdge: entryLongEdge,
-                    roiHint: nil, policy: .export)
+                    roiHint: nil, policy: .export,
+                    terminalTail: terminalTailPolicy)
             }
             outputTexture = texture
         } else {
@@ -309,7 +352,7 @@ public enum ExportRenderer {
                 try await RenderPipeline.process(
                     image: decoded, instances: boxes, imageID: imageID,
                     resolution: .export, cache: cache, metal: metal,
-                    longEdge: entryLongEdge)
+                    longEdge: entryLongEdge, terminalTail: terminalTailPolicy)
             }
             outputTexture = texture
         }
