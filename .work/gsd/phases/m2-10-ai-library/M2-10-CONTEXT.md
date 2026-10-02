@@ -367,3 +367,8 @@
 - **性能基准挂账**：嵌入扫描 p95（1 万 / 10 万 / 20 万张三档）入 `.work/gsd/phases/m2-10-ai-library/perf.md`
   （M2-2-3 方法学）。
 - **依赖登记**：预期零新增 SPM 依赖（D-8/D-9）；sqlite-vec 仍为后手（D-1）。
+
+## 裁决记录（用户回批）
+
+- **OQ-1（2026-10-02）**：用户裁决「采用偏质量」= **选项 B（Chinese-CLIP ViT-B/16 质量档，int8 ≈190MB）**。已同步 REQUIREMENTS M2AI-01。
+- OQ-2..12 及 D-M2-10-CONTEXT-1..9：**仍待裁决**。
