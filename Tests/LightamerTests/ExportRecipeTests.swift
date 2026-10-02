@@ -381,4 +381,68 @@ final class ExportRecipeTests: XCTestCase {
             outputTag: variant.outputTag)
         XCTAssertEqual(variant, mirrored)
     }
+
+    // MARK: - M2-9-01 T3: additive carriers (KD-2) + derivedTag new arms
+
+    /// A pre-M2-9 variant JSON (no new keys) decodes with the new fields at
+    /// their defaults — the synthesized decoder would have thrown. The
+    /// literal replicates the OLD synthesized emission byte-shape (nil
+    /// optionals emit NO key at all).
+    func testVariantLegacyPayloadDecodeCompatibility() throws {
+        let legacyJSON = """
+        {"sizing":{"mode":{"longEdge":{"px":1200}},"dpi":300},\
+        "format":{"jpeg":{"quality":0.9}},"colorSpace":"sRGB","yiyin":false}
+        """
+        let decoded = try JSONDecoder().decode(
+            ExportVariant.self, from: Data(legacyJSON.utf8))
+        XCTAssertEqual(decoded.sizing.mode, .longEdge(px: 1200))
+        XCTAssertEqual(decoded.drtOutput, nil, "legacy payload = the legacy five-space path")
+        XCTAssertEqual(decoded.metadataPolicy, .standard)
+        XCTAssertTrue(decoded.embedICC)
+        XCTAssertEqual(
+            decoded, ExportVariant(
+                sizing: YiyinExportSettings(mode: .longEdge(px: 1200), dpi: 300),
+                format: .jpeg(quality: 0.9), colorSpace: .sRGB))
+
+        // A drtOutput-bearing payload round-trips (the DRT linkage face).
+        var linked = ExportVariant(
+            format: .jpeg(quality: 0.9), colorSpace: .sRGB,
+            drtOutput: DrtRecord(), embedICC: false)
+        let data = try JSONEncoder().encode(linked)
+        let roundTripped = try JSONDecoder().decode(ExportVariant.self, from: data)
+        XCTAssertEqual(roundTripped, linked)
+        XCTAssertNotNil(roundTripped.drtOutput)
+        XCTAssertFalse(roundTripped.embedICC)
+
+        // The metadata policy rides the carrier.
+        linked.metadataPolicy = .none
+        let noneData = try JSONEncoder().encode(linked)
+        let noneDecoded = try JSONDecoder().decode(ExportVariant.self, from: noneData)
+        XCTAssertEqual(noneDecoded.metadataPolicy, .none)
+
+        // colorSpace gained an init default (the additive-init face): the
+        // memberwise call compiles without it and lands on .sRGB.
+        XCTAssertEqual(
+            ExportVariant(format: .png(bitDepth: .eight)).colorSpace, .sRGB)
+    }
+
+    /// The KD-5#2 derivedTag arms: bounds → "WxH", physical → the format
+    /// name (the original fallback rule).
+    func testDerivedTagBoundsAndPhysicalArms() {
+        let recipe: ExportRecipe = [
+            ExportVariant(
+                sizing: YiyinExportSettings(mode: .bounds(w: 2048, h: 1536)),
+                format: .jpeg(quality: 0.9), colorSpace: .sRGB),
+            ExportVariant(
+                sizing: YiyinExportSettings(
+                    mode: .physical(width: 210, height: 297, unit: .millimeters, dpi: 300)),
+                format: .avif(quality: 0.8, bitDepth: .ten), colorSpace: .sRGB),
+            ExportVariant(
+                sizing: YiyinExportSettings(mode: .original),
+                format: .webp(quality: 0.8, lossless: false), colorSpace: .sRGB),
+        ]
+        XCTAssertEqual(
+            recipe.resolvedOutputTags(canvasWidth: 6000, canvasHeight: 4000),
+            ["2048x1536", "avif", "webp"])
+    }
 }

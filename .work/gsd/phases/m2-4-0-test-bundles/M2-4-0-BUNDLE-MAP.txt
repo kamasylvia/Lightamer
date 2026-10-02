@@ -371,3 +371,5 @@ SHARED	0	ChainBuilderHelpers.swift
 #   UserDefaults store 注入式）。行内 method 数以终态对账为准。运行期总数基线
 #   相应上移（2577 起算）。
 EXPORT	11	ExportFileNameTemplateTests.swift
+EXPORT	5	ExportCollisionPolicyTests.swift
+EXPORT	4	ExportMetadataPolicyTests.swift
