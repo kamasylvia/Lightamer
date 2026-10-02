@@ -2695,6 +2695,40 @@
         }
       }
     },
+    "export_advanced": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高级"
+          }
+        }
+      }
+    },
+    "export_allow_upscale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow upscaling"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许放大"
+          }
+        }
+      }
+    },
     "export_bit_depth_label": {
       "extractionState": "manual",
       "localizations": {
@@ -2878,6 +2912,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "子文件夹名称"
+          }
+        }
+      }
+    },
+    "export_drt_readout": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Output encoding"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输出编码"
+          }
+        }
+      }
+    },
+    "export_embed_icc": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Embed output ICC profile"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "嵌入输出 ICC 配置文件"
+          }
+        }
+      }
+    },
+    "export_embed_icc_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This container keeps the embedded profile — ICC stripping is unsupported here."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该容器会保留内嵌 profile——此处不支持剥离。"
           }
         }
       }
@@ -3150,6 +3235,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "请选择导出位置"
+          }
+        }
+      }
+    },
+    "export_max_edge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum edge (px, 0 = off)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最大边（像素，0 = 不限制）"
+          }
+        }
+      }
+    },
+    "export_metadata_include": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Include photo metadata"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包含照片元数据"
+          }
+        }
+      }
+    },
+    "export_metadata_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Writes EXIF, XMP, and IPTC. Location, device serials, and edit history stay excluded."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写入 EXIF、XMP 与 IPTC；位置、设备序列号与编辑历史保持剔除。"
+          }
+        }
+      }
+    },
+    "export_metadata_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadata & Color"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "元数据与色彩"
           }
         }
       }
@@ -3698,6 +3851,74 @@
         }
       }
     },
+    "export_sdr_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SDR Export"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SDR 导出"
+          }
+        }
+      }
+    },
+    "export_sizing_bounds": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bounding Box"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "边界框"
+          }
+        }
+      }
+    },
+    "export_sizing_bounds_h": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Height (px)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高（像素）"
+          }
+        }
+      }
+    },
+    "export_sizing_bounds_w": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Width (px)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宽（像素）"
+          }
+        }
+      }
+    },
     "export_sizing_dpi": {
       "extractionState": "manual",
       "localizations": {
@@ -3711,6 +3932,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "DPI"
+          }
+        }
+      }
+    },
+    "export_sizing_invalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fix the highlighted values to export."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修正高亮数值后才能导出。"
           }
         }
       }
@@ -3813,6 +4051,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "占原图百分比"
+          }
+        }
+      }
+    },
+    "export_sizing_physical": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Print Size"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打印尺寸"
+          }
+        }
+      }
+    },
+    "export_sizing_physical_h": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Height"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高"
+          }
+        }
+      }
+    },
+    "export_sizing_physical_w": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Width"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宽"
           }
         }
       }
@@ -3932,6 +4221,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "ZIP"
+          }
+        }
+      }
+    },
+    "export_sizing_unit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unit"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "单位"
+          }
+        }
+      }
+    },
+    "export_unit_centimeters": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Centimeters"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "厘米"
+          }
+        }
+      }
+    },
+    "export_unit_inches": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inches"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "英寸"
+          }
+        }
+      }
+    },
+    "export_unit_millimeters": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Millimeters"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "毫米"
           }
         }
       }
