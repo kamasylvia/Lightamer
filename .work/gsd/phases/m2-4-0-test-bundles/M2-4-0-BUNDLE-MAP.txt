@@ -377,3 +377,5 @@ APP	6	ExportNamingTemplateStoreTests.swift
 
 # M2-9-02 增行记录（2026-10-03 执行期，checker E2 测试登记纪律）：DrtOutputColorSpaceTests = EXPORT/Core 级——DRT 输出 ICC 映射纯函数（KD-1）。行内 method 数以终态对账为准。运行期总数基线相应上移（2611 起算）。
 EXPORT	10	DrtOutputColorSpaceTests.swift
+EXPORT	9	ExportDrtChainTests.swift
+EXPORT	4	ExportDrtTailE2ETests.swift
