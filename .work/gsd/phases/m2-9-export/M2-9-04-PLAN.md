@@ -13,8 +13,10 @@ files_modified:
   - App/Sources/Lightamer/Export/ExportNamingEditor.swift         # 新建：模板编辑器（预设下拉 + token 插入 + 模式串 + live 预览 + 存/改名/删）
   - App/Sources/Lightamer/Export/ExportQueueFaceView.swift        # 新建：队列节（四态行 + 36 行帽 + 汇总行 + 进度 + add/clear）
   - App/Sources/Lightamer/State/ExportState.swift                 # 修改：additive M2 装配面（enqueueExportM2 + 目标推导 M2 腿 + 记忆键读写）——既有方法体零 diff
+  - App/Sources/Lightamer/State/InspectorState.swift             # 修改：additive 页开关（exportPageActive，KD-1——checker 回注 E5 登记）
   - App/Sources/Lightamer/UI/InspectorView.swift                  # 修改：Export 页挂载（页开关 + 切换臂）
   - App/Sources/Lightamer/UI/ContentView.swift                    # 修改：M2 面 toolbar 导出路由检查器页（legacy sheet 臂零 diff）
+  - Resources/Localizable.xcstrings                              # 修改：zh/en 键（纪律 3 自认会碰——checker 回注 E5 登记）
   - Tests/LightamerTests/ExportInspectorFaceTests.swift           # 新建【App】
   - Tests/LightamerTests/ExportAssemblyTests.swift                # 新建【App】
   - Tests/LightamerTests/ExportMemoryKeysTests.swift              # 新建【App】
@@ -145,6 +147,14 @@ files_modified:
    swift`（projection/effectiveDrtRecord 面）。
 6. `App/Sources/Lightamer/Library/LibraryProjectController.swift`（项目打开事件挂点
    ——KD-1 队列 rebuild 触发源）。
+7. 行号锚以**符号检索为准**——实测行号有漂移（checker 回注 m2：PipeCoordinator
+   drtCarrier 实际 :595-604），执行期以符号名定位，行号偏差不作违例。
+
+> checker 回注（2026-10-02）[E5]：KD-1 的 `InspectorState` additive 页开关落点
+> （`App/Sources/Lightamer/State/InspectorState.swift`，:22 实核存在）与纪律 3 的
+> `Resources/Localizable.xcstrings` 原均不在 front-matter files_modified——与
+> 纪律 6 收口核对自爆（T4 原 AC 措辞「front-matter + .xcstrings」即自认会碰后者）。
+> 两文件已登记；T4 验收措辞同步为「diff 边界 == front-matter」。
 
 ## 纪律（强制）
 
@@ -196,7 +206,8 @@ files_modified:
   DECISIONS 底稿（KD-4 注记 / 页开关非持久 / token 插入位裁决 / 四态取消归档）。
 - **验收标准**
   - [ ] 全套 0 fail；zh-audit PASS；legacy 冻结机检过；diff 边界 == front-matter
-        + .xcstrings。
+        （.xcstrings 已登记 front-matter——checker 回注 E5，原「+ .xcstrings」后缀
+        不再需要）。
 
 ## 验收标准（AC 总表，逐条可机检）
 

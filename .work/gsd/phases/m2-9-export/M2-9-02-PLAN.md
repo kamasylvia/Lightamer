@@ -6,7 +6,7 @@ wave: 2
 depends_on: ["M2-9-01"]
 autonomous: true
 requirements: [M2EXP-04]
-estimated_new_tests: 24
+estimated_new_tests: 25
 bundles: [Export]
 files_modified:
   - LightamerCore/Sources/Export/DrtOutputColorSpace.swift        # 新建：DrtEncodingSpace×DrtEotf→CGColorSpace 穷举映射（PQ/HLG 系统空间 + 幂gamma CalibratedRGB + peak 注记）
@@ -14,6 +14,7 @@ files_modified:
   - LightamerCore/Sources/Export/ExportRenderer.swift             # 修改：Request 增 drtTail: DrtTailParams? + 渲染腿传 terminalTail + exit 腿 DRT identity 面
   - LightamerCore/Sources/Export/ExportQueue.swift                # 修改：Job/enqueue additive drtTail 载体（引擎体零 diff——pump/cancel/retry/generation 语义不动）
   - LightamerCore/Sources/Pipe/PixelPipe.swift                    # 修改：尾格式导出覆写缝（additive 属性 + tailPixelFormat .drt 分支 consult 一行——display 路径逐字节零漂移）
+  - LightamerCore/Sources/Pipe/LayerCompositeDriver.swift         # 修改：composite 增尾格式覆写透传参数（默认 false）+ :204 收参 / :545 terminalPipe 同 terminalTail 路径同构透传——合成导出路径（分层文档）吃到覆写（checker 回注 E8 登记）
   - Tests/LightamerTests/DrtOutputColorSpaceTests.swift           # 新建【Export】
   - Tests/LightamerTests/ExportDrtChainTests.swift                # 新建【Export】
   - Tests/LightamerTests/ExportDrtTailE2ETests.swift              # 新建【Export】
@@ -77,19 +78,38 @@ files_modified:
   DrtEotf) -> Built`：`instances` = records **verbatim**（gamma/colorout 的降级由
   pipe `isTerminalTailSkipped` 在管道内做——builder 不再预剔，避免双处语义漂移）；
   `exportTargetOverride` = KD-1 映射（exit 腿 identity 的 source/target）；
-  `coloroutOverridden = true`（identity 语义复用既有 exit 面）；`target` 载体记
-  DRT 派生（Built.target 类型如需扩 = additive 枚举臂，穷举补全）。
+  `coloroutOverridden = true`（identity 语义复用既有 exit 面）；DRT 派生由 `Built`
+  **新可选载体字段**承载（如 `drtEncoding: (space: DrtEncodingSpace, eotf: DrtEotf)?`
+  或新建小枚举 `Built.ColorExit` 单独承载 DRT 派生——落点执行定，单一载体即可）。
+
+> checker 回注（2026-10-02）[E7]：原括注「`Built.target` 类型如需扩 = additive
+> 枚举臂」一旦被采纳即双爆——`Built.target: ExportColorSpace`（ExportChainBuilder
+> .swift:52）加臂违反 01 AC9「ExportColorSpace 枚举体零 diff」，且 `exportChain`
+> 体内 target 穷举 switch（:103-109）必须补臂、违反本 plan AC2「exportChain 函数体
+> 零 diff」。已删该括注：**`ExportColorSpace` 永不加臂**；DRT 腿 `target` 留
+> `.sRGB` 哑值、消费以新载体字段为准（DECISIONS 注记哑值语义）。
 - **既有 `exportChain(from:target:linearVariant:)` 函数体零 diff**（legacy 面）；
   `isLinearVariant` 不动——DRT 档下 TIFF 32f 的「线性变体」专属 legacy 语义：
   **DRT 联动档 TIFF 32f = DRT EOTF 编码值 float32**（「输出编码即 DRT 编码」字面；
   DECISIONS 记录该语义边界，scene-referred TIFF 手作需求 = legacy 档保留可达）。
 
-### KD-3 PixelPipe 导出尾格式覆写缝（本 plan 唯一 Pipe diff）
+### KD-3 PixelPipe 导出尾格式覆写缝（Pipe 面 diff = PixelPipe + LayerCompositeDriver 两文件）
 
 - additive internal 属性（如 `tailFormatFloatOverride = false`）+ `tailPixelFormat`
   的 `.drt` 分支前置 consult 一行（override 为真 → 恒 `WorkingSpace.pixelFormat`）。
 - `RenderPipeline.process`/`processComposite` 增同名透传参数（默认 false——**全部
-  既有调用点默认实参零改动**）。
+  既有调用点默认实参零改动**）；**`LayerCompositeDriver.composite` 增同名透传参数**
+  （默认 false）并传入 driver 内部自建的 terminal pipe——该 pipe 直赋
+  `terminalTail`（:204 收参 / :545）不经 RenderPipeline 静态入口，覆写 flag 不透传
+  driver 则合成导出路径（分层文档 = M2 常态）尾平面仍 bgra8/16F → exit 腿 float
+  读回破坏。
+
+> checker 回注（2026-10-02）[E8]：原案「三处 additive」漏算 LayerCompositeDriver
+> 透传（第四处缝）——export 路遇 layerStack 非空走 `processComposite` →
+> `LayerCompositeDriver.composite`，覆写缝在合成路径失效。已补：driver 透传 =
+> 第四处 additive + 文件登记 front-matter + T3 补合成 layerStack 导出 E2E 位深
+> 断言。
+
 - display 路径零漂移门：`DrtTailTests`（含尾格式分档断言）+ `AIMaskPlaneFormatTests`
   + Drt 系全族测试**零修改全绿**为硬 AC。
 
@@ -99,6 +119,8 @@ files_modified:
   renderStage：非 nil → step 4 装配切 `exportDrtChain`、step 6 两渲染入口传
   `terminalTail: .drt(drtTail)` + 尾格式覆写真、step 7 exit 腿 source/target =
   `built.exportTargetOverride`（identity）；step 8 quantizer 不动（钳位红线）。
+  **本 plan 渲染腿改动纯 DRT 面**——sizing/修正后 DPI 消费不在本 plan（01 KD-1
+  交接的 renderer 消费落 M2-9-03 T1 显式第 3 步，checker 回注 E6 交接修正）。
 - `ExportQueue.ExportJob` 增 `drtTail` 透传 + `enqueue(images:variants:
   destinationDirectory:instancesOverride:editorSignature:drtTails:)` 增参（默认 nil；
   per-image 数组与 images 等长——nil 或逐图 nil = 引擎零感知）。`StageOutput`/
@@ -122,6 +144,9 @@ files_modified:
    （exact-TRC parser/`LinearVariantCache`/linear 变体先例——KD-1 复用面）。
 6. `.work/gsd/phases/m2-6-drt/M2-6-3-DECISIONS.md` D4/D9（BT.1886 终式 + 尾平面格式
    修正先例）；`phases/11-export-pipeline/11-02-PLAN.md`（golden 矩阵红线正本）。
+7. 行号锚以**符号检索为准**——PixelPipe/ExportRenderer/PipeCoordinator 实测行号有
+   漂移（checker 回注 m2：RenderPipeline 入口实际 :1590/:1642 附近），执行期以
+   符号名定位，行号偏差不作违例。
 
 ## 纪律（强制）
 
@@ -157,12 +182,17 @@ files_modified:
 
 ### T3 PixelPipe 尾格式覆写缝（KD-3）
 
-- **action**：additive 属性 + 一行 consult + RenderPipeline 透传参数；测试：DRT 导出
+- **action**：additive 属性 + 一行 consult + RenderPipeline 透传参数 +
+  LayerCompositeDriver 透传（:204/:545 同 terminalTail 路径同构）；测试：DRT 导出
   E2E 读回面宽断言（输出 plane 位深 = 格式档而非 bgra8——L014 fence 读回纪律）+
+  **合成 layerStack 导出 E2E 位深断言一条**（合成路径 = 分层文档常态，driver 透传
+  覆盖——checker 回注 E8，现在只有平面路径）+
   display 尾格式分档既有断言全绿零改。
 - **验收标准**
   - [ ] `git diff PixelPipe.swift` 仅 additive 属性 + 一行 consult + RenderPipeline
-        签名增参三处；DrtTailTests/AIMaskPlaneFormatTests 零修改全绿。
+        签名增参三处；`git diff LayerCompositeDriver.swift` 仅透传参数与透传赋值
+        （:204/:545 同 terminalTail 路径同构，checker 回注 E8）；DrtTailTests/
+        AIMaskPlaneFormatTests 零修改全绿；合成 layerStack 导出位深断言绿。
   - [ ] TIFF 32f DRT 档出图 = 编码值 float32（KD-2 语义边界测试钉）。
 
 ### T4 yiyin×DRT 并存 + 波次收尾
@@ -184,7 +214,7 @@ files_modified:
 | 3 | space×eotf 穷举映射无 default；非法组合 typed 拒绝 | 源码 grep + 测试 |
 | 4 | DRT 导出 E2E：SDR/HDR/launch TIFF32f/yiyin 并存四景出图成功 | 测试名 |
 | 5 | HDR 输出值域 [0,1]（钳位口径，OQ-8 A） | 测试断言 |
-| 6 | PixelPipe diff = 三处 additive（属性/consult/透传参数）；display 尾格式断言零漂移 | `git diff` + DrtTailTests |
+| 6 | 尾格式覆写缝 = **四处 additive**（PixelPipe 属性/consult 一行/RenderPipeline 两入口透传 + LayerCompositeDriver 透传——checker 回注 E8）；display 尾格式断言零漂移 | `git diff` 逐 hunk（PixelPipe 三处 + Driver 一处）+ DrtTailTests |
 | 7 | ExportQueue 引擎体（pump/cancel/retry/generation/concurrency）零 diff，仅 additive 载体 | `git diff` 逐 hunk |
 | 8 | Export bundle 0 fail；双登记闭环 | bundle 行 + 两文件 grep |
 
