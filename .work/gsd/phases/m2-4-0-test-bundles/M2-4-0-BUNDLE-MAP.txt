@@ -375,7 +375,7 @@ EXPORT	5	ExportCollisionPolicyTests.swift
 EXPORT	4	ExportMetadataPolicyTests.swift
 APP	6	ExportNamingTemplateStoreTests.swift
 
-# M2-9-02 增行记录（2026-10-03 执行期，checker E2 测试登记纪律）：DrtOutputColorSpaceTests = EXPORT/Core 级——DRT 输出 ICC 映射纯函数（KD-1）。行内 method 数以终态对账为准。运行期总数基线相应上移（2611 起算）。
+# M2-9-02 增行记录（2026-10-03 执行期，checker E2 测试登记纪律）：DrtOutputColorSpaceTests = EXPORT/Core 级——DRT 输出 ICC 映射纯函数（KD-1）。行内 method 数以终态对账为准。运行期总数基线相应上移（2611 起算）。（2026-10-03 验收批勘误：ExportDrtChainTests 行 9→5——9 是 T2 任务增量（builder 5 + E2E 4），行内以文件 method 终态为准 = 5；全套复跑 2634/16/0 实证。）
 EXPORT	10	DrtOutputColorSpaceTests.swift
-EXPORT	9	ExportDrtChainTests.swift
+EXPORT	5	ExportDrtChainTests.swift
 EXPORT	8	ExportDrtTailE2ETests.swift
