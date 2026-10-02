@@ -486,3 +486,54 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   切「同渲染两次文件字节应相等」的 golden 设计（先确认嵌入数据不走重序列化）。
 - **来源**：M2-9-02 T1 探针（probe2-probe8 行为矩阵 + probe13 para/curv 对照 +
   T2 队列 parity 测试的 iCCP diffAt=58 诊断）。
+
+## L054: ImageIO 写入面 ≠ readback 面——seat/payload 断言先字节探针，readback 会双向说谎（2026-10-03，M2-9-03 T2/T3）
+
+- **现象**（三族独立坑，同属「ImageIO 元数据断言」家族）：
+  ①**seat 双向假象**：`{Exif}["Software"]` 键在全部容器被 writer 静默丢弃
+  （EXIF 0x0131 是 IFD0 tag，不属 Exif IFD 面）；`{TIFF}["Software"]` 写入
+  JPEG EXIF APP1 后 **readback 永不回显 `{TIFF}`**（字节在、readback nil，
+  probe4 H 双证）——readback 断言假阴性；裸 Software 单键 `{TIFF}` dict 又
+  被 JPEG writer 整体丢弃（round-trip Exif dict 在场才序列化）。
+  ②**profileName 推断回落**：已知空间（sRGB）的 JPEG/PNG 产物 writer **不嵌
+  任何 profile payload**（JFIF marker / sRGB chunk 推断），untagged 化后
+  readback 仍报 "sRGB IEC61966-2.1"（JPEG/TIFF 面）；PNG 才真 nil——
+  「profileName nil == 未嵌入」断言假阳性/假阴性双向。
+  ③**跨 ICC 上下文 decode 不可比**：同一文件带/不带嵌入 profile 经
+  color-managed decode 出不同 device 值——「剥离前后像素相等」的 decode
+  比对在 ICC 面测试中天然不成立。
+- **根因**：ImageIO 的属性 readback 是**推断合成的展示面**（inferred
+  defaults + 命名空间重映射），不是容器字节的镜像；writer 对「已知空间」
+  走省略优化、对「不可归属键」静默丢弃——三者都不告警。
+- **对策**：①任何 seat/payload 断言先 ObjC 探针**字节取证**（`strings`/
+  marker 逐段走查），再选断言面——字节在 readback 不回显的容器走
+  byte-scan；readback 面断言只用于探针证实回显的容器。②「未嵌入」断言 =
+  payload 签名缺席（`ICC_PROFILE`/`iCCP`/`acsp`）+ typed 无 payload 降解
+  面，不用 profileName。③ICC 面完整性断言用**剥离确定性**
+  （`stripped == strip(embedded)` 逐字节）+ 熵流/IDAT 恒等，不用 decode
+  像素比对。
+- **适用**：一切 ImageIO 元数据 seat 消费（EXIF Software/GPS 剥离、TIFF tag
+  面、容器 ICC tier）、导出 tier 测试设计、任何「writer 写了 X」类主
+  张的验证。
+- **来源**：M2-9-03 T2/T3 探针（probe2–probe9 + 测试三轮迭代：裸 dict 陷阱/
+  host trio 面/TIFF 孤儿清零）。
+
+## L055: test-direct.sh 崩溃假绿——宿主中途 crash 时解析器取末条类 suite 行当 bundle 计数（2026-10-03，M2-9-03 收尾）
+
+- **现象**：全套 --all 轮 App bundle 宿主在 `HistoryRowJumpTests` 中途 crash
+  （`time: command terminated abnormally`，126 tests 已过），BUNDLE 行却报
+  `App|15/0/0` 且脚本整体 EXIT=0——bundle 计数 = 日志中**末条
+  `Executed N tests` 行**，恰是崩溃前最后一个完整类 suite（GradeCatalogTests
+  15 tests），非 bundle 总计。
+- **根因**：脚本判据 = 「测试结果行」（L019b 家族设计），但未区分「类 suite
+  的 Executed 行」与「All tests 总计行」，也未把 `terminated abnormally`
+  / 宿主异常退出当作 bundle 失败信号——崩溃恰落在类间时输出形似正常完成。
+- **对策**：①读全套数字先 `tail` 各 bundle 段核对「末条 Executed 是否
+  All tests 总计 + passed 数与 BUNDLE 行一致」；②`grep "terminated
+  abnormally\|Restarting after unexpected exit" <log>` 作为崩 Vanity 信号
+  纳入人工/验收轮机检；③脚本级修复（崩溃签名 → bundle FAIL）另案报备
+  orchestrator（M2-9-03 执行波不改脚本，front-matter 外）。
+- **适用**：一切 test-direct.sh 结果判读（执行波/验收波/巡检）；任何「按
+  末条结果行取数」的日志解析器设计。
+- **来源**：M2-9-03 收尾全套跑 1（App 15/0/0 假绿 → 隔离复跑 ×2 揭示：
+  481/0/1 + 481/0/0）。
