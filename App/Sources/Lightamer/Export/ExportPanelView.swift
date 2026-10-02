@@ -434,6 +434,10 @@ private struct VariantEditor: View {
                 case .original: return .original
                 case .longEdge: return .longEdge
                 case .shortEdge: return .shortEdge
+                // M2-9-01 compile-only arms (KD-5#3): the legacy panel has
+                // no setter path to the Alcedo bounds/physical modes, so
+                // these are unreachable — behavior frozen byte-for-byte.
+                case .bounds, .physical: return .original
                 }
             },
             set: { kind in
@@ -697,6 +701,9 @@ private struct VariantEditor: View {
                 switch (face, variant.sizing.mode) {
                 case (_, .longEdge(let px)): return px
                 case (_, .shortEdge(let px)): return px
+                // M2-9-01 compile-only arms (KD-5#3): unreachable — the
+                // legacy panel never constructs bounds/physical modes.
+                case (_, .bounds), (_, .physical): return 2048
                 case (.longEdgeFallback, _): return 2048
                 case (.shortEdgeFallback, _): return 1080
                 }
