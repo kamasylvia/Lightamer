@@ -363,3 +363,11 @@ SHARED	0	ChainBuilderHelpers.swift
 #   golden/coding 方法增量未随动（头注「对账以各行 method 数为准」）；APP 行
 #   14→15 = 验收批补 E7 全闭合机检 testAllCatalogOpsAreDefaultFaceRegistered
 #   （DECISIONS §3(b) 注释曾引用而测试缺失）。终态对账：2240 + 48 = 2288。
+# M2-9-01 增行记录（2026-10-02 执行期，checker E2 测试登记纪律）：新测试文件随
+#   各自任务 commit 登记进对应 bundle（归属按 front-matter 判定：
+#   ExportFileNameTemplateTests = EXPORT/Core 级——模板引擎纯函数；
+#   ExportMetadataPolicyTests / ExportCollisionPolicyTests = EXPORT/Core 级——
+#   政策模型与冲突三档纯函数；ExportNamingTemplateStoreTests = APP/App 级——
+#   UserDefaults store 注入式）。行内 method 数以终态对账为准。运行期总数基线
+#   相应上移（2577 起算）。
+EXPORT	11	ExportFileNameTemplateTests.swift
