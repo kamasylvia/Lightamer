@@ -114,11 +114,25 @@ public struct ExportVariant: Codable, Hashable, Sendable {
     }
 
     /// Validate every dimension BEFORE a queue action consumes it
-    /// (sizing bounds + format quality bounds + percent domain).
+    /// (sizing bounds + format quality bounds + percent domain + the OQ-7
+    /// resolved-output-color gate).
     public func validate() throws {
         try sizing.validate()
         try format.validate()
         try Self.validateScalePercent(scalePercent)
+        // OQ-7 (M2-9-03 T3, Alcedo RequireResolvedExportOutputColor 同构):
+        // a DRT linkage WITHOUT a usable peak is a construction bug — the
+        // peak feeds the render's tonemap and the record's ICC; a
+        // non-finite/non-positive value would poison both. Typed refusal
+        // at the variant gate; `drtOutput == nil` (the legacy five-space
+        // face) never triggers it.
+        if let record = drtOutput {
+            guard record.peakLuminance.isFinite, record.peakLuminance > 0 else {
+                throw AppError.invalidParameter(
+                    "export drtOutput peak must be a finite positive value, "
+                        + "got \(record.peakLuminance)")
+            }
+        }
     }
 
     /// The percent-mode legal domain (execution decision, 11-01-DECISIONS D4):

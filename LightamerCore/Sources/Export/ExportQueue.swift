@@ -584,15 +584,17 @@ public actor ExportQueue {
                 throw AppError.invalidParameter(
                     "export encode leg: synthetic artifact (no stage payload)")
             }
-            // M2-9-03 T2: the variant's metadata policy rides the encode
-            // leg (the frozen ExportRenderStage payload cannot carry it);
-            // exifSoftware is App-carried (KD-4 — the 04 assembly face).
+            // M2-9-03 T2/T3: the variant's metadata policy + ICC tier ride
+            // the encode leg (the frozen ExportRenderStage payload cannot
+            // carry them); exifSoftware is App-carried (KD-4 — the 04
+            // assembly face).
             return try ExportRenderer.encodeStage(
                 plane: stage.plane, formatSpec: stage.formatSpec,
                 targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
                 sourceURL: stage.sourceURL, editorSignature: stage.editorSignature,
                 destination: stage.destination,
-                metadataPolicy: variant.metadataPolicy)
+                metadataPolicy: variant.metadataPolicy,
+                embedICC: variant.embedICC)
         }
         return (renderLeg, encodeLeg)
     }
