@@ -275,7 +275,8 @@ public enum ExportRenderer {
             plane: stage.plane, formatSpec: stage.formatSpec,
             targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
             sourceURL: stage.sourceURL, editorSignature: stage.editorSignature,
-            destination: stage.destination)
+            destination: stage.destination,
+            metadataPolicy: request.variant.metadataPolicy)
         return Outcome(
             destination: destination,
             outputWidth: stage.outputWidth,
@@ -591,7 +592,9 @@ public enum ExportRenderer {
         dpi: Double,
         sourceURL: URL,
         editorSignature: String?,
-        destination: URL
+        destination: URL,
+        metadataPolicy: ExportMetadataPolicy = .standard,
+        exifSoftware: String? = nil
     ) throws -> URL {
         let encodeRequest = ExportEncodeRequest(
             plane: plane,
@@ -600,7 +603,9 @@ public enum ExportRenderer {
             dpi: dpi,
             sourceURL: sourceURL,
             editorSignature: editorSignature,
-            destination: destination)
+            destination: destination,
+            exifSoftware: exifSoftware,
+            metadataPolicy: metadataPolicy)
         do {
             let encoder = try ExportEncoderRegistry.encoder(
                 for: formatSpec, plane: plane)
@@ -615,12 +620,16 @@ public enum ExportRenderer {
             throw error
         }
 
-        // ── the XMP mount (Plan 12-3 T4): the sidecar's five metadata
-        // fields ride the PRODUCT (the exported image has left the session
-        // truth-chain). Every non-attached outcome degrades — an export
-        // never hard-fails on metadata; the outcome value is the tally face.
+        // ── the XMP mount (Plan 12-3 T4; OQ-6 policy gate M2-9-03): the
+        // sidecar's five metadata fields ride the PRODUCT (the exported
+        // image has left the session truth-chain) UNDER THE POLICY — the
+        // editing-history carrier closes the gate by default
+        // (`.skippedByPolicy`). Every non-attached outcome degrades — an
+        // export never hard-fails on metadata; the outcome value is the
+        // tally face.
         let xmpOutcome = ExportChainBuilder.mountXMP(
-            destination: destination, format: formatSpec, sourceURL: sourceURL)
+            destination: destination, format: formatSpec, sourceURL: sourceURL,
+            policy: metadataPolicy)
         if case .failed(let reason) = xmpOutcome {
             Self.logger.error(
                 "export: XMP injection degraded for \(destination.lastPathComponent, privacy: .public): \(reason, privacy: .public)")

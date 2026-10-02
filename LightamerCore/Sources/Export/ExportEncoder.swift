@@ -121,6 +121,27 @@ public struct ExportEncodeRequest {
     /// `ExportNamer`.
     public let destination: URL
 
+    // ── M2-9-03 T2/T3 additive metadata carriers (KD-3/KD-4) — the
+    // defaults reproduce the pre-M2-9-03 assembly byte-for-byte except the
+    // OQ-6 sanctioned default-policy narrowing (the packet's default-not-
+    // mounted face) ──
+
+    /// The EXIF `Software` carrier (D-M2-9-CONTEXT-5): `nil` = omit (the
+    /// App layer passes `Lightamer <version>` from `Bundle.main` — Core
+    /// never reads the bundle). Consumed in the STANDARD mode only.
+    public let exifSoftware: String?
+
+    /// The MEXP-02 metadata strategy (OQ-6). The type default IS the
+    /// STANDARD-with-fixed-strips face; `NONE` short-circuits the whole
+    /// EXIF round-trip and the Software seat.
+    public let metadataPolicy: ExportMetadataPolicy
+
+    /// The output-ICC face (OQ-7 / E1 case A): `true` = EMBED (the CGImage
+    /// construction's target space — unchanged); `false` = OMIT, consumed
+    /// as the post-encode strip (T3). HEIC/AVIF/WebP cannot strip — the
+    /// outcome records the unreachable tier, the product stays embedded.
+    public let embedICC: Bool
+
     public init(
         plane: ExportQuantizedPlane,
         spec: ExportFormatSpec,
@@ -128,7 +149,10 @@ public struct ExportEncodeRequest {
         dpi: Double? = nil,
         sourceURL: URL? = nil,
         editorSignature: String? = nil,
-        destination: URL
+        destination: URL,
+        exifSoftware: String? = nil,
+        metadataPolicy: ExportMetadataPolicy = .standard,
+        embedICC: Bool = true
     ) {
         self.plane = plane
         self.spec = spec
@@ -137,6 +161,9 @@ public struct ExportEncodeRequest {
         self.sourceURL = sourceURL
         self.editorSignature = editorSignature
         self.destination = destination
+        self.exifSoftware = exifSoftware
+        self.metadataPolicy = metadataPolicy
+        self.embedICC = embedICC
     }
 }
 

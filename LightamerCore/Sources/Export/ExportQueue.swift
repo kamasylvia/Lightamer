@@ -579,16 +579,20 @@ public actor ExportQueue {
                     sourceURL: stage.sourceURL,
                     editorSignature: stage.editorSignature))
         }
-        let encodeLeg: ExportEncodeLeg = { artifact, _ in
+        let encodeLeg: ExportEncodeLeg = { artifact, variant in
             guard let stage = artifact.stage else {
                 throw AppError.invalidParameter(
                     "export encode leg: synthetic artifact (no stage payload)")
             }
+            // M2-9-03 T2: the variant's metadata policy rides the encode
+            // leg (the frozen ExportRenderStage payload cannot carry it);
+            // exifSoftware is App-carried (KD-4 — the 04 assembly face).
             return try ExportRenderer.encodeStage(
                 plane: stage.plane, formatSpec: stage.formatSpec,
                 targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
                 sourceURL: stage.sourceURL, editorSignature: stage.editorSignature,
-                destination: stage.destination)
+                destination: stage.destination,
+                metadataPolicy: variant.metadataPolicy)
         }
         return (renderLeg, encodeLeg)
     }

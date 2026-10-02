@@ -11,7 +11,19 @@ import XCTest
 /// packet (positive anchors + host round-trip where the host reads XMP),
 /// HEIC/AVIF/WebP products byte-scan CLEAN (the D-12-CONTEXT-10 reverse
 /// anchors — any host drift flips these red, the 11-02 discipline).
+///
+/// M2-9-03 retrofit (checker E2 whitelist): the OQ-6 policy gate closes the
+/// mount under the DEFAULT policy (`skippedByPolicy` — the sanctioned
+/// narrowing). This file is the packet's behavior SPEC, not a legacy
+/// frozen face: every packet-asserting case passes the EXPLICIT
+/// `editingHistory: true` policy to anchor the historical mount behavior,
+/// and the new default-policy assertions pin the narrowed face
+/// (the before/after case list lives in M2-9-03-DECISIONS).
 final class XMPExportMatrixTests: XCTestCase {
+
+    /// The pre-M2-9-03 packet face, made explicit (STANDARD + the
+    /// editing-history carrier on).
+    private static let editingHistoryMounted = ExportMetadataPolicy(editingHistory: true)
 
     private var tempDirectory: URL!
     private var outputDirectory: URL!
@@ -76,7 +88,10 @@ final class XMPExportMatrixTests: XCTestCase {
         try data.write(to: LightamerSidecar.sidecarURL(for: imageURL))
     }
 
-    private func encode(_ source: URL, _ spec: ExportFormatSpec) throws -> URL {
+    private func encode(
+        _ source: URL, _ spec: ExportFormatSpec,
+        policy: ExportMetadataPolicy = .standard
+    ) throws -> URL {
         // The plane layout must match the spec (the registry's rule).
         let layout = try ExportEncoderRegistry.expectedLayout(for: spec)
         let samples: [UInt8]
@@ -105,7 +120,7 @@ final class XMPExportMatrixTests: XCTestCase {
             plane: plane, formatSpec: spec,
             targetColorSpace: ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB),
             dpi: 72, sourceURL: source, editorSignature: nil,
-            destination: destination)
+            destination: destination, metadataPolicy: policy)
     }
 
     private func byteScan(_ url: URL, _ needle: String) throws -> Bool {
@@ -127,7 +142,7 @@ final class XMPExportMatrixTests: XCTestCase {
         let source = try makeSource()
 
         // ── the three POSITIVE anchors ──────────────────────────────────
-        let jpeg = try encode(source, .jpeg(quality: 0.9))
+        let jpeg = try encode(source, .jpeg(quality: 0.9), policy: Self.editingHistoryMounted)
         XCTAssertTrue(try byteScan(jpeg, "x:xmpmeta"), "jpeg carries the packet")
         // The host's JPEG reader has no XMP face (documented host fact) —
         // the VALUE proof is the serialized element in the APP1 bytes.
@@ -136,24 +151,24 @@ final class XMPExportMatrixTests: XCTestCase {
             jpegData.range(of: Data("<xmp:Rating>3</xmp:Rating>".utf8)),
             "jpeg packet carries the sidecar rating")
 
-        let png = try encode(source, .png(bitDepth: .eight))
+        let png = try encode(source, .png(bitDepth: .eight), policy: Self.editingHistoryMounted)
         XCTAssertTrue(try byteScan(png, "XML:com.adobe.xmp"), "png carries the iTXt")
         XCTAssertEqual(try hostRating(png), "3", "the host reads the pre-IDAT iTXt (replacing the host's own exif:* bridge packet)")
 
-        let tiff = try encode(source, .tiff(bitDepth: .eight, compression: .none))
+        let tiff = try encode(source, .tiff(bitDepth: .eight, compression: .none), policy: Self.editingHistoryMounted)
         XCTAssertTrue(try byteScan(tiff, "x:xmpmeta"), "tiff carries tag 700")
         XCTAssertEqual(try hostRating(tiff), "3", "the host reads TIFF tag 700")
 
         // ── the three REVERSE anchors (11-02 discipline: host drift = red) ──
-        let heic = try encode(source, .heic(quality: 0.9, bitDepth: .eight))
+        let heic = try encode(source, .heic(quality: 0.9, bitDepth: .eight), policy: Self.editingHistoryMounted)
         XCTAssertFalse(try byteScan(heic, "x:xmpmeta"), "heic: documented exception")
         XCTAssertFalse(try byteScan(heic, "XML:com.adobe.xmp"), "heic: documented exception")
 
-        let avif = try encode(source, .avif(quality: 0.6, bitDepth: .eight))
+        let avif = try encode(source, .avif(quality: 0.6, bitDepth: .eight), policy: Self.editingHistoryMounted)
         XCTAssertFalse(try byteScan(avif, "x:xmpmeta"), "avif: documented exception")
         XCTAssertFalse(try byteScan(avif, "XML:com.adobe.xmp"), "avif: documented exception")
 
-        let webp = try encode(source, .webp(quality: 0.8, lossless: true))
+        let webp = try encode(source, .webp(quality: 0.8, lossless: true), policy: Self.editingHistoryMounted)
         XCTAssertFalse(try byteScan(webp, "x:xmpmeta"), "webp: documented exception")
         XCTAssertFalse(try byteScan(webp, "XML:com.adobe.xmp"), "webp: documented exception")
     }
@@ -162,14 +177,14 @@ final class XMPExportMatrixTests: XCTestCase {
 
     func testRejectFlagMapsToRatingMinusOne() throws {
         let source = try makeSource(rating: 5, flag: 2, colorLabel: nil, keywords: nil)
-        let jpeg = try encode(source, .jpeg(quality: 0.9))
+        let jpeg = try encode(source, .jpeg(quality: 0.9), policy: Self.editingHistoryMounted)
         let data = try Data(contentsOf: jpeg)
         // The packet rides APP1; find the Rating element in the bytes.
         XCTAssertTrue(data.range(of: Data("<xmp:Rating>-1</xmp:Rating>".utf8)) != nil,
             "reject must serialize Rating = -1 (the dt/Lr convention)")
         // A flagged-pick sidecar keeps its star rating (no XMP pick seat).
         let pickSource = try makeSource(rating: 4, flag: 1, colorLabel: nil, keywords: nil)
-        let pickJPEG = try encode(pickSource, .jpeg(quality: 0.9))
+        let pickJPEG = try encode(pickSource, .jpeg(quality: 0.9), policy: Self.editingHistoryMounted)
         let pickData = try Data(contentsOf: pickJPEG)
         XCTAssertTrue(pickData.range(of: Data("<xmp:Rating>4</xmp:Rating>".utf8)) != nil)
         XCTAssertFalse(pickData.range(of: Data("<xmp:Rating>-1</xmp:Rating>".utf8)) != nil)
@@ -178,15 +193,44 @@ final class XMPExportMatrixTests: XCTestCase {
     // MARK: - The degradation faces (export NEVER hard-fails on metadata)
 
     func testEmptySidecarSkipsAndNoFieldProductHasNoPacket() throws {
-        // All-nil metadata → no packet even though the sidecar EXISTS.
+        // All-nil metadata → no packet even though the sidecar EXISTS
+        // (the explicit editing-history policy reaching the no-fields face).
         let source = try makeSource(
             rating: nil, flag: nil, colorLabel: nil, keywords: nil)
-        let jpeg = try encode(source, .jpeg(quality: 0.9))
+        let jpeg = try encode(source, .jpeg(quality: 0.9), policy: Self.editingHistoryMounted)
         XCTAssertFalse(try byteScan(jpeg, "x:xmpmeta"), "no fields, no packet")
         // The mount outcome face: skippedNoFields.
         let outcome = ExportChainBuilder.mountXMP(
-            destination: jpeg, format: .jpeg(quality: 0.9), sourceURL: source)
+            destination: jpeg, format: .jpeg(quality: 0.9), sourceURL: source,
+            policy: Self.editingHistoryMounted)
         XCTAssertEqual(outcome, .skippedNoFields)
+
+        // M2-9-03: the DEFAULT policy narrows the mount — the gate closes
+        // BEFORE the fields are even consulted (skippedByPolicy).
+        let defaultMount = ExportChainBuilder.mountXMP(
+            destination: jpeg, format: .jpeg(quality: 0.9), sourceURL: source)
+        XCTAssertEqual(defaultMount, .skippedByPolicy)
+    }
+
+    /// M2-9-03 (OQ-6): the default policy does NOT mount the packet even
+    /// when fields exist — the sanctioned narrowing, asserted through the
+    /// real chain (a metadata-bearing sidecar, gate closed). The NONE mode
+    /// closes the gate identically.
+    func testDefaultPolicyKeepsPacketUnmounted() throws {
+        let source = try makeSource()
+        let jpeg = try encode(source, .jpeg(quality: 0.9))
+        XCTAssertFalse(
+            try byteScan(jpeg, "x:xmpmeta"),
+            "the editing-summary packet is not mounted under the default policy")
+        let png = try encode(source, .png(bitDepth: .eight))
+        XCTAssertNil(try hostRating(png), "no iTXt packet under the default policy")
+        let outcome = ExportChainBuilder.mountXMP(
+            destination: jpeg, format: .jpeg(quality: 0.9), sourceURL: source)
+        XCTAssertEqual(outcome, .skippedByPolicy)
+        let noneOutcome = ExportChainBuilder.mountXMP(
+            destination: jpeg, format: .jpeg(quality: 0.9), sourceURL: source,
+            policy: .none)
+        XCTAssertEqual(noneOutcome, .skippedByPolicy)
     }
 
     func testInjectionFailureDegradesWithoutBlocking() throws {
@@ -198,7 +242,8 @@ final class XMPExportMatrixTests: XCTestCase {
         let corrupt = outputDirectory.appendingPathComponent("corrupt.jpg")
         try Data([0xFF, 0xD8, 0x12, 0x34, 0x56, 0x78]).write(to: corrupt)
         let outcome = ExportChainBuilder.mountXMP(
-            destination: corrupt, format: .jpeg(quality: 0.9), sourceURL: source)
+            destination: corrupt, format: .jpeg(quality: 0.9), sourceURL: source,
+            policy: Self.editingHistoryMounted)
         guard case .failed = outcome else {
             return XCTFail("expected .failed, got \(outcome)")
         }
@@ -207,7 +252,8 @@ final class XMPExportMatrixTests: XCTestCase {
         // The unsupported-format face: HEIC → skippedUnsupportedFormat.
         let heicOutcome = ExportChainBuilder.mountXMP(
             destination: outputDirectory.appendingPathComponent("x.heic"),
-            format: .heic(quality: 0.9, bitDepth: .eight), sourceURL: source)
+            format: .heic(quality: 0.9, bitDepth: .eight), sourceURL: source,
+            policy: Self.editingHistoryMounted)
         XCTAssertEqual(heicOutcome, .skippedUnsupportedFormat)
     }
 
@@ -220,7 +266,8 @@ final class XMPExportMatrixTests: XCTestCase {
         let source = try makeSource()
         let variant = ExportVariant(
             sizing: YiyinExportSettings(mode: .longEdge(px: 16), dpi: 72),
-            format: .jpeg(quality: 0.9), colorSpace: .sRGB)
+            format: .jpeg(quality: 0.9), colorSpace: .sRGB,
+            metadataPolicy: Self.editingHistoryMounted)
         let outcome = try await ExportRenderer.render(
             request: ExportRenderer.Request(
                 imageURL: source,
@@ -229,7 +276,7 @@ final class XMPExportMatrixTests: XCTestCase {
                 variant: variant),
             metal: metal, registry: registry)
         XCTAssertTrue(try byteScan(outcome.destination, "x:xmpmeta"),
-            "the render leg's encode stage mounts the XMP")
+            "the render leg's encode stage mounts the XMP under the explicit policy")
         let data = try Data(contentsOf: outcome.destination)
         XCTAssertTrue(data.range(of: Data("<xmp:Rating>3</xmp:Rating>".utf8)) != nil)
     }
