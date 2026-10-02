@@ -382,10 +382,12 @@ final class ExportDrtTailE2ETests: XCTestCase {
         XCTAssertEqual(
             maxDiff, 0,
             "pixel parity first (the delivery-seam diagnostic, max diff \(maxDiff))")
-        XCTAssertEqual(
-            queuedBytes, referenceBytes,
-            "the queue's drtTails carrier must render identically to the "
-                + "direct request field (the frozen-leg delivery seam)")
+        // NOTE: FILE bytes are deliberately NOT compared across the two
+        // ICC-bearing exports — ImageIO/ColorSync re-serializes a CUSTOM
+        // embedded profile on write (observed: equal-length, early-offset
+        // drift inside the iCCP chunk, timing-dependent). The seam proof is
+        // the exact pixel parity + the profile identity above; the ICC
+        // payload itself is pinned deterministic by DrtOutputColorSpaceTests.
         XCTAssertFalse(snapshots.isEmpty)
     }
 
@@ -522,5 +524,97 @@ final class ExportDrtTailE2ETests: XCTestCase {
             offLattice, 16,
             "the export tail plane is float32 — continuous values, not the "
                 + "bgra8 lattice (off-lattice samples: \(offLattice))")
+    }
+
+    // MARK: - 6: yiyin × DRT coexistence (T4 — the E2 order at export)
+
+    /// The yiyin variant AND the DRT carrier in one export: the印框 replays
+    /// AFTER the EOTF encode (the pipe tail's assembly), so the canvas band
+    /// is display-white — never tone-mapped — while the content IS PQ-
+    /// encoded (an HDR record makes the two distinguishable: a tone-mapped
+    /// band would sit at the PQ code of white, well below the raw 1.0 the
+    /// post-EOTF paint produces), the canvas grew (borders margin), and the
+    /// ICC is still the DRT encoding's profile (the印框 never enters the
+    /// color face).
+    func testYiyinDrtCoexistenceBandIsPostEOTFWhite() async throws {
+        try await makeRegistryReady()
+        let source = try writePNG(width: 96, height: 64, stem: "DRTY_0001")
+        // The configured pair: a 50%-rate EXPANDING solid border (canvas ×2
+        // width) + the neutral watermark carrier.
+        var records = await seedRecords().filter {
+            $0.opName != BordersModule.opName && $0.opName != WatermarkModule.opName
+        }
+        records.append(ModuleInstance(
+            module: BordersModule.self,
+            params: BordersModule.Params(
+                mode: .solid(color: "#ffffff"), mainImageWidthRate: 50,
+                miniTopBottomMargin: 0, aspectRatio: nil, landscapeOutput: false,
+                cornerRadius: nil, shadow: nil, textBottomOffset: 0.027,
+                adaptiveBackdrop: false)))
+        records.append(ModuleInstance(
+            module: WatermarkModule.self, params: WatermarkModule.Params.neutralSeed))
+        records.sort { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+        // The DISK truth (the renderer reads the sidecar — a missing one
+        // would export pristine and the印框 would never appear).
+        try await writeSidecar(imageURL: source, records: records)
+
+        let variant = ExportVariant(
+            sizing: YiyinExportSettings(mode: .longEdge(px: 48)),
+            format: .png(bitDepth: .eight), colorSpace: .sRGB, yiyin: true)
+        let outcome = try await ExportRenderer.render(
+            request: makeRequest(
+                source: source, variant: variant, drtTail: hdrDrtTail(),
+                directory: try makeLanding("yiyin")),
+            metal: metal, registry: registry,
+            decodeLeg: { url in try await ExportDrtTailE2ETests.syntheticDecode(url: url) },
+            yiyinInjector: ExportYiyinInjector { boxes, injectedRecords, mainImageSize, capture in
+                guard let watermarkBox = boxes.first(where: {
+                    $0.opName == WatermarkModule.opName
+                }) as? ModuleBox<WatermarkModule> else { return }
+                let bordersParams = try? injectedRecords
+                    .first { $0.opName == BordersModule.opName }?
+                    .params(of: BordersModule.self)
+                let watermark = watermarkBox.module
+                watermark.captureExif = capture
+                watermark.jointContext = WatermarkModule.JointContext(
+                    mainImageSize: mainImageSize, bordersParams: bordersParams)
+                let record = watermark.makeJointLayoutRecord(
+                    mainImageSize: mainImageSize, bordersParams: bordersParams)
+                if let bordersBox = boxes.first(where: {
+                    $0.opName == BordersModule.opName
+                }) as? ModuleBox<BordersModule> {
+                    bordersBox.module.jointLayoutOverride = record
+                }
+            })
+
+        // The canvas grew (the borders margin rode the tail replay — the
+        // entry plane was 48×32; the 50% rate doubles the width).
+        XCTAssertGreaterThan(outcome.outputWidth, 48, "the canvas grew in the tail")
+        let values = try decodedPNGValues(outcome.destination)
+        XCTAssertEqual(values.width, outcome.outputWidth)
+        XCTAssertEqual(values.height, outcome.outputHeight)
+        XCTAssertTrue(
+            values.profile.contains("BT.2100"),
+            "the ICC stays the DRT encoding — the印框 never enters the color "
+                + "face, got \(values.profile)")
+
+        // The E2 outcome guard: the LEFT band column is display-white (the
+        // borders painted AFTER the PQ encode — a tone-mapped white would
+        // sit at its PQ code, well below the raw 1.0 the paint produces,
+        // then clamped to the PNG's 255), while the content center is
+        // PQ-encoded (well below the painted white).
+        func sample(_ x: Int, _ y: Int) -> (r: Int, g: Int, b: Int) {
+            let i = (y * values.width + x) * 4
+            return (Int(values.bytes[i]), Int(values.bytes[i + 1]), Int(values.bytes[i + 2]))
+        }
+        let band = sample(2, values.height / 2)
+        XCTAssertGreaterThan(
+            band.r, 250,
+            "the canvas band is display-white (post-EOTF paint, never tone-mapped)")
+        let content = sample(values.width / 2, values.height / 2)
+        XCTAssertLessThan(
+            content.r, 250,
+            "the content side stayed PQ-encoded (the tail replaced the "
+                + "gamma+colorout pair)")
     }
 }
