@@ -393,3 +393,7 @@ APP	11	ExportAssemblyTests.swift
 # M2-10-01 增行记录（2026-10-03 执行期，checker E2 测试登记纪律）：ModelAssetCatalogTests = LIB/Core 级——模型资产清单不变量 + digest fail-closed 面 + ModelLocator 注入 round-trip（T1）；ModelAssetStoreTests = LIB/Core 级——URLProtocol mock 下载状态机（T3，随该任务 commit 增行）。行内 method 数以终态对账为准。运行期总数基线上移（2693 起算）。
 LIB	13	ModelAssetCatalogTests.swift
 LIB	12	ModelAssetStoreTests.swift
+
+# M2-10-02 增行记录（2026-10-03 执行期，checker E2 测试登记纪律）：WordPieceTokenizerTests = LIB/Core 级——BERT WordPiece 管线 golden fixture 对拍（Scripts/ai-models/tokenizer_ref.py 产 Tests/Fixtures/tokenizer_golden.json，≤10KB 随 LIB bundle resources）+ 截断/[UNK] 边界（T2）；SemanticStoreTests = LIB/Core 级——语义四域读写 round-trip/reconcile/FTS 触发器同步/CASCADE（T2）。行内 method 数以终态对账为准。运行期总数基线上移（2718 起算）。
+LIB	9	WordPieceTokenizerTests.swift
+LIB	10	SemanticStoreTests.swift

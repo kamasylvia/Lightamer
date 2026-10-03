@@ -86,6 +86,23 @@ public final class SQLiteStatement {
         guard code == SQLITE_OK else { throw fail(code, lastMessage) }
     }
 
+    /// Bind a BLOB (copied — SQLITE_TRANSIENT semantics like the text face;
+    /// M2-10-02: the `image_embedding.embedding` fp16 column is the first
+    /// consumer — the wrapper predates blob faces).
+    public func bindBlob(_ index: Int32, _ value: Data?) throws {
+        let code: Int32
+        if let value {
+            code = value.withUnsafeBytes { buffer in
+                sqlite3_bind_blob(
+                    handle, index, buffer.baseAddress, Int32(value.count),
+                    SQLITE_TRANSIENT)
+            }
+        } else {
+            code = sqlite3_bind_null(handle, index)
+        }
+        guard code == SQLITE_OK else { throw fail(code, lastMessage) }
+    }
+
     public func bindNull(_ index: Int32) throws {
         let code = sqlite3_bind_null(handle, index)
         guard code == SQLITE_OK else { throw fail(code, lastMessage) }
@@ -125,6 +142,15 @@ public final class SQLiteStatement {
     public func columnDouble(_ index: Int32) -> Double? {
         guard sqlite3_column_type(handle, index) != SQLITE_NULL else { return nil }
         return sqlite3_column_double(handle, index)
+    }
+
+    /// Read a BLOB column as Data (copied; nil for NULL — M2-10-02: the
+    /// `image_embedding.embedding` fp16 scan rows are the first consumer).
+    public func columnBlob(_ index: Int32) -> Data? {
+        guard sqlite3_column_type(handle, index) != SQLITE_NULL else { return nil }
+        guard let pointer = sqlite3_column_blob(handle, index) else { return nil }
+        let count = Int(sqlite3_column_bytes(handle, index))
+        return Data(bytes: pointer, count: count)
     }
 
     /// The sqlite error message for the LAST failure on this statement.
