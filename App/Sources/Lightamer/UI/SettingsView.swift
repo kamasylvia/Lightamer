@@ -75,6 +75,14 @@ internal struct SettingsView: View {
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(190)
+            // Plan M2-10-07: the entry-guidance deep link (the Inspector's
+            // key-absent guidance routes here) — consumed once on appear.
+            .onAppear {
+                if let pending = SettingsDeepLink.pendingPage {
+                    selectedPage = pending
+                    SettingsDeepLink.pendingPage = nil
+                }
+            }
         } detail: {
             switch selectedPage {
             case .languageTheme: SettingsLanguageThemePage()
@@ -88,12 +96,7 @@ internal struct SettingsView: View {
                         localized: "settings_lcr_feature",
                         defaultValue: "Local content recognition"))
             case .advancedContentAnalysis:
-                SettingsPlaceholderPage(
-                    identifier: SettingsPage.advancedContentAnalysis.rawValue,
-                    title: SettingsPage.advancedContentAnalysis.title,
-                    featureName: String(
-                        localized: "settings_aca_feature",
-                        defaultValue: "Advanced content analysis"))
+                SettingsACAPage(model: ACASettingsModel())
             case .keyboard: SettingsKeyboardPage()
             case .about: SettingsAboutPage()
             case .importDefaults: SettingsImportDefaultsPage()
@@ -104,4 +107,12 @@ internal struct SettingsView: View {
         }
         .frame(minWidth: 640, minHeight: 420)
     }
+}
+
+/// Plan M2-10-07: the Settings page the entry-guidance commands route to
+/// (set BEFORE a SettingsLink opens the window; consumed on the Settings
+/// view's appear). A plain MainActor static — no view body touches it.
+@MainActor
+enum SettingsDeepLink {
+    nonisolated(unsafe) static var pendingPage: SettingsPage?
 }
