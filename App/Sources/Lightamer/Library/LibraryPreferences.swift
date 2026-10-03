@@ -39,3 +39,55 @@ enum LibraryLegacyGate {
         environment[environmentKey] == "1"
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LabelingPreferences (Plan M2-10-03 KD-3 / M2AI-03) — the auto-labeling
+// ask-mode key family (`library.ai.labelingMode`), the ImportDefaults twin:
+// constant key + injectable suite + full-replacement store + reset. Three
+// states (OQ-6-A): `.ask` (default — the SemanticGenerationDialog-style
+// prompt on import), `.always` (skip the ask, enqueue), `.never` (silent).
+// An absent/unreadable stored value falls back to `.ask` — labeling writes
+// user-visible state, so the safe default is the ASK.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The auto-labeling ask mode (`LabelingPreferences.mode`).
+enum LabelingMode: String, Sendable, CaseIterable {
+    case ask
+    case always
+    case never
+}
+
+struct LabelingPreferences: Sendable {
+
+    /// The single key (the ONLY spelling).
+    nonisolated static let modeKey = "library.ai.labelingMode"
+
+    /// nil = `.standard` (the app face); tests pass an isolated suite name.
+    let defaultsSuiteName: String?
+
+    init(defaultsSuiteName: String? = nil) {
+        self.defaultsSuiteName = defaultsSuiteName
+    }
+
+    private var defaults: UserDefaults {
+        defaultsSuiteName.flatMap { UserDefaults(suiteName: $0) } ?? .standard
+    }
+
+    /// The effective mode: the stored value when parseable, else `.ask`.
+    var mode: LabelingMode {
+        guard let raw = defaults.string(forKey: Self.modeKey),
+            let mode = LabelingMode(rawValue: raw)
+        else { return .ask }
+        return mode
+    }
+
+    /// The full-replacement write face (never a partial/union semantic).
+    func store(_ mode: LabelingMode) {
+        defaults.set(mode.rawValue, forKey: Self.modeKey)
+    }
+
+    /// Clear the key (the settings page's reset face) — back to `.ask`.
+    func reset() {
+        defaults.removeObject(forKey: Self.modeKey)
+    }
+}

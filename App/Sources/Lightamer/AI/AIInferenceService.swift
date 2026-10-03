@@ -27,7 +27,7 @@ final class AIInferenceService {
     /// bundle topology, injected downward from here).
     static let shared = AIInferenceService()
 
-    private var cachedSearcher: (any SemanticSearching)?
+    private var cachedEngine: SemanticEngine?
     private var loadFailed = false
     private let locator = ModelLocator()
 
@@ -36,7 +36,19 @@ final class AIInferenceService {
     /// The semantic searcher, or nil when the bundled CLIP assets are
     /// absent/broken (memoized both ways — first answer wins).
     func semanticSearcher() async -> (any SemanticSearching)? {
-        if let cachedSearcher { return cachedSearcher }
+        await engine()
+    }
+
+    /// M2-10-03: the SAME memoized engine typed for the analysis registry
+    /// (the AIAnalysisEngining seam — one assembly, two typed views; nil
+    /// under the same fail-closed discipline).
+    func analysisEngine() async -> (any AIAnalysisEngining)? {
+        await engine()
+    }
+
+    /// The memoized assembly body (KD-5 single point).
+    private func engine() async -> SemanticEngine? {
+        if let cachedEngine { return cachedEngine }
         if loadFailed { return nil }
         let clip = ModelAssetCatalog.chineseClipViTB16Int8
         guard
@@ -65,7 +77,7 @@ final class AIInferenceService {
             return nil
         }
         let engine = SemanticEngine(runner: runner, tokenizer: tokenizer)
-        cachedSearcher = engine
+        cachedEngine = engine
         return engine
     }
 
