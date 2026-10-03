@@ -398,3 +398,4 @@ LIB	12	ModelAssetStoreTests.swift
 LIB	9	WordPieceTokenizerTests.swift
 LIB	10	SemanticStoreTests.swift
 LIB	8	EmbeddingScannerTests.swift
+LIB	10	SemanticSearchTests.swift

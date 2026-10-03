@@ -5,8 +5,10 @@ import SwiftUI
 // GlobalSearchDialog (Plan M2-3-2 T3, KD-3 / D8 = OQ-8 A) — the three-segment
 // global search, the Alcedo `GlobalSearchDialog` IA: MODE (three segment
 // cards) + INPUT + APPLY. The EXIF leg is REAL (ExifSearchParser → the
-// shared filter); the CLIP and AI-description/full-text legs are the HONEST
-// M2-10 placeholders (a typed empty state and nothing else — no fake
+// shared filter); the CLIP leg is REAL since M2-10-02 (KD-6: the submit leg
+// rides LibrarySearchModel.submitSemantic → the grid's semantic overlay —
+// EXIF 腿同型集合过滤); the AI-description/full-text leg stays the HONEST
+// M2-10-04 placeholder (a typed empty state and nothing else — no fake
 // toggles, no fake results).
 //
 // PRESENTATION (checker m6): the sheet rides WorkspaceModel's
@@ -14,6 +16,8 @@ import SwiftUI
 // dismissal back; the dialog NEVER self-owns the presentation state.
 //
 // ERRORS render INLINE (the input segment's error line) — never an alert.
+// A ZERO-hit CLIP search keeps the dialog open with the honest「无语义匹配」
+// note (the empty result set IS applied behind it — the count card shows 0).
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct GlobalSearchDialog: View {
@@ -25,6 +29,8 @@ struct GlobalSearchDialog: View {
 
     @State private var query = ""
     @State private var lastError: LibrarySearchModel.ErrorFamily?
+    /// The zero-hit semantic note (kept-open face; cleared on any submit).
+    @State private var emptyNote: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -125,11 +131,36 @@ struct GlobalSearchDialog: View {
                     .foregroundStyle(ThemeTokens.textSecondary)
             }
         case .clip:
-            placeholderState(
-                marker: "search.tab.clip.placeholder",
-                copy: String(
-                    localized: "search_tab_clip_placeholder",
-                    defaultValue: "Semantic CLIP search arrives with M2-10"))
+            VStack(alignment: .leading, spacing: 6) {
+                TextField(
+                    String(localized:
+                        "search_clip_placeholder",
+                        defaultValue:
+                        "Describe what you're looking for — any language"),
+                    text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.callout)
+                    .onSubmit { Task { await apply() } }
+                    .accessibilityIdentifier("search.input.clip")
+                if let lastError {
+                    Text(verbatim: lastError.message)
+                        .font(.caption)
+                        .foregroundStyle(ThemeTokens.accent)
+                        .accessibilityIdentifier("search.error")
+                }
+                if let emptyNote {
+                    Text(verbatim: emptyNote)
+                        .font(.caption)
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                        .accessibilityIdentifier("search.empty.note")
+                }
+                Text(String(
+                    localized: "search_clip_hint",
+                    defaultValue:
+                        "Semantic search runs against the analyzed collection — import first, then let embedding finish."))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
         case .fullText:
             placeholderState(
                 marker: "search.tab.fulltext.placeholder",
@@ -163,6 +194,7 @@ struct GlobalSearchDialog: View {
             Button {
                 query = ""
                 lastError = nil
+                emptyNote = nil
                 Task { await apply() }
             } label: {
                 Text(String(
@@ -181,16 +213,26 @@ struct GlobalSearchDialog: View {
                     .padding(.vertical, 4)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(model.mode != .exif)
+            .disabled(model.mode == .fullText)
             .accessibilityIdentifier("search.apply")
         }
     }
 
     private func apply() async {
+        emptyNote = nil
         let outcome = await model.submit(query)
-        if case .failed(let family) = outcome {
+        switch outcome {
+        case .failed(let family):
             lastError = family
-        } else {
+        case .semanticApplied(0):
+            // Zero hits: the empty result set IS installed behind the
+            // dialog — the honest「无语义匹配」note keeps it open for a
+            // rephrase (KD-6's 空命中空态).
+            lastError = nil
+            emptyNote = String(
+                localized: "search_semantic_empty",
+                defaultValue: "No semantic matches — the collection has no image close to that description")
+        case .applied, .semanticApplied:
             lastError = nil
             onDismiss()
         }

@@ -42,6 +42,13 @@ final class LibraryGridModel {
     private(set) var filter = ExifSearchFilter()
     private(set) var sort = FilterSort(key: .filename, ascending: true)
 
+    /// The M2-10-02 semantic overlay (KD-6): the score-ordered hit IDs of
+    /// the active CLIP search. Non-nil = the collection IS the semantic
+    /// result set (rows render in HIT order, non-hits hidden, the walk is
+    /// a finite full sweep); nil = the ordinary keyset collection. Cleared
+    /// by every EXIF filter/sort application (the two legs never mix).
+    private(set) var semanticHits: [Int64]?
+
     /// The loaded rows, in walk order (keyset order — already the display
     /// order).
     private(set) var rows: [LibraryImageRow] = []
@@ -79,7 +86,10 @@ final class LibraryGridModel {
     /// Apply a new filter (keeping the sort), reset the cursor and refetch
     /// the first page. Throws when the query face rejects the input (the
     /// whitelist guard is the query face's, passed straight through).
+    /// An EXIF filter application EXITS the semantic overlay (the legs are
+    /// exclusive — the search model's empty-input clear rides this too).
     func apply(filter newFilter: ExifSearchFilter) async throws {
+        semanticHits = nil
         filter = newFilter
         try await reloadFirstPage()
     }
@@ -87,9 +97,58 @@ final class LibraryGridModel {
     /// Apply a new sort (keeping the filter), reset the cursor and refetch.
     /// An illegal key throws the query face's typed violation AFTER the
     /// reset (the collection stays empty until a legal sort is applied).
+    /// Exits the semantic overlay (hit order is score order — a re-sort is
+    /// not a semantic query).
     func apply(sort newSort: FilterSort) async throws {
+        semanticHits = nil
         sort = newSort
         try await reloadFirstPage()
+    }
+
+    /// The semantic result set (KD-6): a FULL keyset walk of the current
+    /// filter/sort (the existing pagination faces — zero new SQL), then the
+    /// loaded rows filtered to the hit set IN HIT ORDER (有序表保序过滤).
+    /// Hit IDs missing from the walk (deleted rows / other-project ids)
+    /// drop out. `nil` = leave semantic mode and reload normally.
+    func apply(semanticHits newHits: [Int64]?) async throws {
+        semanticHits = newHits
+        guard let hits = newHits else {
+            try await reloadFirstPage()
+            return
+        }
+        let pageSize = 500
+        let hitSet = Set(hits)
+        var byID: [Int64: LibraryImageRow] = [:]
+        byID.reserveCapacity(hits.count)
+        // Segment 1: the main keyset walk (non-NULL sort keys).
+        var anchor: LibraryPageAnchor?
+        while true {
+            let page = try await queries.searchPage(
+                filter: filter, sort: sort, anchor: anchor, limit: pageSize)
+            for row in page where hitSet.contains(row.id) { byID[row.id] = row }
+            guard page.count == pageSize,
+                  let last = page.last, let next = LibraryPageAnchor.anchor(of: last, key: sort.key)
+            else { break }
+            anchor = next
+        }
+        // Segment 2: the NULL tier (rows whose sort key IS NULL).
+        var tailAnchor: LibraryPageAnchor?
+        while true {
+            let page = try await queries.searchNullTail(
+                filter: filter, sort: sort, anchor: tailAnchor, limit: pageSize)
+            for row in page where hitSet.contains(row.id) { byID[row.id] = row }
+            guard page.count == pageSize, let last = page.last else { break }
+            tailAnchor = LibraryPageAnchor(
+                keyValue: .int(nil), imagePath: last.imagePath)
+        }
+        // The hit-ordered projection (score order — the engine's contract).
+        rows = hits.compactMap { byID[$0] }
+        // A finite result set: the pager's further walks are no-ops.
+        isExhausted = true
+        segment = .main
+        mainAnchor = nil
+        tailAnchor = nil
+        selectedIDs = selectedIDs.filter { byID[$0] != nil }
     }
 
     /// Apply filter AND sort in one reset + refetch.
