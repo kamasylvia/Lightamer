@@ -701,6 +701,7 @@ let project = Project(
                 "Tests/LightamerTests/AIWorkerProtocolTests.swift",
                 "Tests/LightamerTests/AppErrorTests.swift",
                 "Tests/LightamerTests/AnalysisRegistryTests.swift",
+                "Tests/LightamerTests/CompatRecordTests.swift",
                 "Tests/LightamerTests/BeforeAfterTests.swift",
                 "Tests/LightamerTests/BuiltInLutSetTests.swift",
                 "Tests/LightamerTests/CatalogAddFaceTests.swift",
