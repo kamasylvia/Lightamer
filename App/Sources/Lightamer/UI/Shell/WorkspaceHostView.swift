@@ -156,7 +156,12 @@ struct WorkspaceHostView: View {
             if let searchModel {
                 GlobalSearchDialog(
                     model: searchModel,
-                    onDismiss: { workspace.dismissSearchDialog() })
+                    onDismiss: {
+                        workspace.dismissSearchDialog()
+                        // M2-10-02: the count card rides the fresh filter /
+                        // semantic result set (the EXIF leg shares this).
+                        Task { await inspectorModel?.refresh() }
+                    })
             }
         }
         // The batch-relink sheet (Plan M2-3-2 T4, KD-4): the rows were
@@ -341,7 +346,13 @@ struct WorkspaceHostView: View {
             grid: grid,
             queries: LibraryQueries(store: store),
             smartAlbums: SmartAlbumStore())
-        let search = LibrarySearchModel(grid: grid)
+        let search = LibrarySearchModel(
+            grid: grid,
+            // M2-10-02 (KD-5/T4): the CLIP leg — the semantic read face over
+            // THIS project's package + the App assembly point's engine
+            // (nil in no-model environments = the honest unavailable face).
+            semanticStore: SemanticStore(store: store),
+            semantic: { await AIInferenceService.shared.semanticSearcher() })
         thumbnailBridge = bridge
         gridModel = grid
         inspectorModel = inspector
