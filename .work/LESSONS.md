@@ -574,3 +574,47 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **适用**：一切 String Catalog 动态键构造（本项目第二次踩：06-07 L025
   zh-Hans 标签、本次插值 pattern）；zh-audit 工具的能力边界注记。
 - **来源**：M2-9-05 走查批（证据 `.work/gui-acceptance/m2-9/m2-9-01-export-page-five-sections.png`）。
+
+## L059: 外部内容 FTS + INSERT OR REPLACE = 索引静默双文档（2026-10-03，M2-10-02 T2）
+
+- **现象**：`replaceUnderstanding` 用 `INSERT OR REPLACE` 落 UNIQUE(image,task)
+  行后，`MATCH '旧词'` 仍命中、新词也命中——外部内容索引同 rowid 挂了**两份
+  文档**。
+- **根因**：SQLite 的约束解决删除（REPLACE 撞 UNIQUE 时的隐式 DELETE）**只在
+  `recursive_triggers=ON` 时才触发 DELETE 触发器**（默认 OFF）——AFTER DELETE
+  腿没执行，FTS 'delete' 命令没入，旧行词项残留。普通显式 DELETE 恒触发。
+- **对策**：外部内容 FTS 表上的 upsert 一律**显式 DELETE 再 INSERT**（同事务），
+  禁 INSERT OR REPLACE；FTS 同步测试必须覆盖「同 task 重写后旧词不再命中」腿。
+- **来源**：M2-10-02 SemanticStoreTests（testUnderstandingReconcileFlipsActiveAndMirrorsFTS 首轮红）。
+
+## L060: 内置 CoreML .mlpackage 三坑——需 compileModel、cropping 返 nil、fp16 输出 trap（2026-10-03，M2-10-02 T4）
+
+- **①未编译包拒载**：`MLModel(contentsOf:)` 对 `.mlpackage` 目录直接报错
+  （"Compile the model with Xcode or MLModel.compileModel(at:)"）——内置资产
+  必须先 `MLModel.compileModel(at:)`（CLIP img 塔 ~21s），`.mlmodelc` 缓存进
+  `~/Library/Caches/…`（可重建派生物）跨启动复用，否则每次启动白付编译。
+- **②cropping 对 context-backed 图返 nil**：`CGImage.cropping(to:)` 在
+  CGContext `makeImage()` 产物上实测返回 nil（RAW 解码帧同族风险）——resize
+  +center-crop 用**单次 bitmap context draw**（负偏移原点 + 高质量插值），
+  万无一失。
+- **③量化模型输出是 FP16 MLMultiArray**：int8 权重 + fp16 激活的转换产物，
+  输出数组 dataType = float16——`withUnsafeBytes` 里把指针 `bindMemory(to:
+  Float.self)` 直接 EXC_BREAKPOINT（测试宿主 crash，.ips 帧落在闭包内）。
+  读向量用逐元素 `NSNumber.doubleValue`（MLMultiArray 下标），几百元素零成本；
+  或按 `dataType` 分派。**别对 MLMultiArray 的 scoped 字节接口做类型重绑**。
+- **附**：`MLMultiArray.withUnsafeMutableBytes` 闭包是双参（指针 + strides
+  `[Int]`）；`MLModel.prediction(from:options:)` 在 Swift 6 并发导入为 async。
+- **来源**：M2-10-02 M5 真模型 sanity（资源门激活态）三轮 bisect，证据链
+  `.ips` ×2 + 探针 probe 汇总在 M2-10-02-DECISIONS §4。
+
+## L061: vDSP/Accelerate 半精度检索的 API 实名与形状（2026-10-03，M2-10-02 T3）
+
+- **fp16→fp32**：研究稿 `vDSP_vconvert` 无 half 重载（`vDSP.convertElements`
+  亦无）——可用原语 = `vImageConvert_Planar16FtoPlanarF`（vImage_Buffer 支持
+  多行块、可直指平面 payload 零拷贝）；逐元素 Swift 循环在 -O 下 106ms/20 万
+  行不可用。点积实名 = `vDSP_dotpr`（`vDSP_dotv` 不存在）。
+- **逐行 Data 面的 Debug 宿主税**：200k 行 × 每行 `Data.copyBytes` 桥接在
+  Debug 宿主 +25ms 量级——生产扫描面必须整表平面 buffer（装载时一次 memcpy
+  合并），预算哨兵量在生产形状上，别让 sketch face 的形状税污染预算结论。
+- **来源**：perf.md §A.3 方法学注记 + 独立 -O 探针（转换 15.4ms/点积 8.0ms/
+  逐行循环 106ms）。
