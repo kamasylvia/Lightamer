@@ -262,7 +262,6 @@ final class EnhanceDialogModel {
                 albumID: context.albumID,
                 aiProvenance: provenance)
             phase = .done(copyURL.lastPathComponent)
-            phase = .done(copyURL.lastPathComponent)
         } catch let error as EnhanceEngineError {
             phase = Self.phase(for: error)
         } catch {
