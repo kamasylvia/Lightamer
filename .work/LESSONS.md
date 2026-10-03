@@ -618,3 +618,22 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   合并），预算哨兵量在生产形状上，别让 sketch face 的形状税污染预算结论。
 - **来源**：perf.md §A.3 方法学注记 + 独立 -O 探针（转换 15.4ms/点积 8.0ms/
   逐行循环 106ms）。
+
+## L062: Data.resetBytes 默认 range 是 0..<0——裸调用清零零字节（2026-10-04，M2-10-04 T1）
+
+- **背景**：Keychain 凭据读出缓冲的 zeroize 契约（M2AI-06：读出 Data 用完
+  resetBytes）。
+- **现象**：`key.resetBytes()` 直接编译错 `missing argument for parameter 'in'
+  in call`——直觉以为 resetBytes() 无参可用。
+- **根因**：Foundation 的 `Data.resetBytes(in range: Range<Data.Index>)` 的
+  默认值是**空区间 0..<0**（文档语义 = 不清任何字节）。本 SDK 把默认实参去掉
+  强制显式 range，编译期拦住了「以为清了其实没清」的静默安全洞；但旧文档/
+  AI 样例大量演示无参调用。
+- **对策**：①全项目 zeroize 一律 `resetBytes(in: 0..<count)`，字节级断言
+  （allSatisfy == 0）钉在测试里，不以「编译过 = 清了」自证；②安全相关 API
+  的「默认参数」要查签名实义——默认值本身可能就是 no-op（本例是幸存的编译错，
+  若默认实参在就是静默零防护）。
+- **适用**：一切密钥/明文缓冲用后清场景（凭据、剪贴板敏感串、导出密钥）；
+  一切「安全行为靠约定」的 API 消费。
+- **来源**：M2-10-04 AICredentialStoreTests E4 断言首写（2026-10-03），
+  DECISIONS §4。

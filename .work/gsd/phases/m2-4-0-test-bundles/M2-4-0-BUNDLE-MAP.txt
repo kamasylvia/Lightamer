@@ -417,3 +417,18 @@ APP	13	LabelingDefaultsTests.swift
 #   对账锚：base 2718 执行数 + 本波净 41（schema +4 + 新四文件 37）= 2759，
 #   全套 `TOTAL|2759/16/1` → SidecarV5 环境型 flake 隔离复跑 11/0/0 → 终账
 #   2759/16/0（func test 总数 2761 对执行数 2759 的 −2 为基线既有偏移，非本波）。
+
+# M2-10-04 增行记录（2026-10-04 执行期，checker E2 测试登记纪律）：四 LIB + 一 APP
+#   ——AIEndpointPolicyTests（准入矩阵逐格）+ AICredentialStoreTests（真宿主
+#   keychain round-trip/隔离/删除/E4 字节级 zeroize；缺席环境 XCTSkip）+
+#   AIProviderClientTests（双协议 URLProtocol golden/错误映射/取消/AIJSON 四形）
+#   + AIRatingDescriptionTests（真 .lalb：rubric/profile id/哨兵/clamp/
+#   reconcile+FTS JOIN active=1 + E5 负测钉）= LIB/Core 级；
+#   FulltextSearchTests = APP/App 级——fulltext 提交腿（grid overlay）+
+#   OQ-11-A 确认门（present 不落列负测钉/confirm 族/批 200 硬顶/不再询问偏好）。
+#   运行期总数基线上移（2797 起算）。
+LIB	9	AIEndpointPolicyTests.swift
+LIB	7	AICredentialStoreTests.swift
+LIB	22	AIProviderClientTests.swift
+LIB	15	AIRatingDescriptionTests.swift
+APP	13	FulltextSearchTests.swift
