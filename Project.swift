@@ -500,6 +500,7 @@ let project = Project(
                 "Tests/LightamerTests/AICredentialStoreTests.swift",
                 "Tests/LightamerTests/AIEndpointPolicyTests.swift",
                 "Tests/LightamerTests/AIProviderClientTests.swift",
+                "Tests/LightamerTests/AIRatingDescriptionTests.swift",
                 "Tests/LightamerTests/BackgroundTaskRegistryTests.swift",
                 "Tests/LightamerTests/ExifFoldTests.swift",
                 "Tests/LightamerTests/ExifSearchParserTests.swift",
