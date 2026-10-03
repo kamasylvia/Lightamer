@@ -526,6 +526,7 @@ let project = Project(
                 "Tests/LightamerTests/MetadataServiceTests.swift",
                 "Tests/LightamerTests/MetadataTests.swift",
                 "Tests/LightamerTests/ModelAssetCatalogTests.swift",
+                "Tests/LightamerTests/ModelAssetStoreTests.swift",
                 "Tests/LightamerTests/Phase4SidecarTests.swift",
                 "Tests/LightamerTests/Phase5SidecarTests.swift",
                 "Tests/LightamerTests/Phase6SidecarTests.swift",
