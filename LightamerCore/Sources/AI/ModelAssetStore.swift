@@ -400,21 +400,32 @@ public actor ModelAssetStore {
             throw CocoaError(.fileReadUnknown)
         }
         var rows: [(String, Int, String)] = []
-        // L039: enumerator physicalizes the root spelling (/var →
-        // /private/var under the firmlink) — strip BOTH spellings.
-        let prefix = directory.path + "/"
+        // L039/L027 family: path SPELLINGS diverge between the input URL and
+        // the enumerator's output. The enumerator physicalizes (realpath —
+        // which also collapses "//" produced e.g. by a launch path like
+        // "Debug//Lightamer.app"), while URL.path preserves the original
+        // spelling. Collapse redundant separators on BOTH sides before the
+        // prefix strip, and keep the /private firmlink variant.
+        func collapse(_ p: String) -> String {
+            var s = p.replacingOccurrences(
+                of: "//+", with: "/", options: .regularExpression
+            )
+            while s.hasSuffix("/") { s.removeLast() }
+            return s
+        }
+        let prefix = collapse(directory.path) + "/"
         let physicalPrefix = "/private" + prefix
         for case let fileURL as URL in enumerator {
             let values = try fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
             guard values.isRegularFile == true else { continue }
-            let path = fileURL.path
+            let path = collapse(fileURL.path)
             let relPath: String
             if path.hasPrefix(prefix) {
                 relPath = String(path.dropFirst(prefix.count))
             } else if path.hasPrefix(physicalPrefix) {
                 relPath = String(path.dropFirst(physicalPrefix.count))
             } else {
-                relPath = fileURL.lastPathComponent
+                relPath = (path as NSString).lastPathComponent
             }
             let size = values.fileSize ?? 0
             rows.append((relPath, size, try sha256Hex(ofFileAt: fileURL)))

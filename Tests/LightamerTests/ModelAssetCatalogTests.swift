@@ -134,13 +134,15 @@ final class ModelAssetCatalogTests: XCTestCase {
                 locator.bundledAssetURL(profile.assetFileName, profileID: profile.profileID),
                 "digest published but primary asset missing: \(profile.profileID)"
             )
+            // Directory artifacts (.mlpackage) verify via the canonical tree
+            // hash — the SAME algorithm the digest-rewrite script used.
             XCTAssertEqual(
-                try Self.sha256Hex(ofFileAt: primary),
+                try ModelAssetStore.artifactDigestHex(of: primary),
                 digest.sha256Hex,
                 "\(profile.profileID) primary digest mismatch"
             )
             XCTAssertEqual(
-                (try FileManager.default.attributesOfItem(atPath: primary.path)[.size] as? Int) ?? -1,
+                try ModelAssetStore.artifactByteCount(of: primary),
                 digest.byteCount,
                 "\(profile.profileID) primary byte count mismatch"
             )
@@ -150,7 +152,7 @@ final class ModelAssetCatalogTests: XCTestCase {
                     "auxiliary missing: \(profile.profileID)/\(auxiliary.fileName)"
                 )
                 XCTAssertEqual(
-                    try Self.sha256Hex(ofFileAt: url),
+                    try ModelAssetStore.artifactDigestHex(of: url),
                     auxiliary.sha256Hex,
                     "\(profile.profileID)/\(auxiliary.fileName) digest mismatch"
                 )

@@ -74,9 +74,12 @@ public enum ModelAssetDigests {
 
     // BEGIN REWRITABLE ENTRIES (build_default_bundle.sh rewrites `= nil`)
 
-    private static let chineseClipViTB16Int8: ModelAssetDigestEntry? = nil
+    private static let chineseClipViTB16Int8: ModelAssetDigestEntry? = ModelAssetDigestEntry(sha256Hex: "f3edaccbf904d4beca098c049d72db9c8444798e4499ff5da9c551211aa677c7", byteCount: 92558991, auxiliaryFiles: [
+            .init(fileName: "chinese-clip-vitb16-txt.mlpackage", sha256Hex: "aaa9fae5b0e26748f19a34f4a13b10e5dd95a320dbf3afaeeb4a2498015c4c32", byteCount: 108474128),
+            .init(fileName: "vocab.txt", sha256Hex: "45bbac6b341c319adc98a532532882e91a9cefc0329aa57bac9ae761c27b291c", byteCount: 109540)
+        ], generatedAt: "2026-10-03T05:46:15Z")
 
-    private static let realesrGeneralX4V3FP16: ModelAssetDigestEntry? = nil
+    private static let realesrGeneralX4V3FP16: ModelAssetDigestEntry? = ModelAssetDigestEntry(sha256Hex: "2f4838ec8e554976815a4b5bc96042521360a7a98694795305fe196694027a21", byteCount: 2494268, auxiliaryFiles: [], generatedAt: "2026-10-03T05:46:15Z")
 
     private static let jinaClipV2Int8: ModelAssetDigestEntry? = nil
 
