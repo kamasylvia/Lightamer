@@ -533,6 +533,7 @@ let project = Project(
                 "Tests/LightamerTests/PresetApplierTests.swift",
                 "Tests/LightamerTests/PresetsStoreTests.swift",
                 "Tests/LightamerTests/ProvenanceV4Tests.swift",
+                "Tests/LightamerTests/EmbeddingScannerTests.swift",
                 "Tests/LightamerTests/SemanticStoreTests.swift",
                 "Tests/LightamerTests/SidecarMetadataV3Tests.swift",
                 "Tests/LightamerTests/SidecarRoundTripTests.swift",

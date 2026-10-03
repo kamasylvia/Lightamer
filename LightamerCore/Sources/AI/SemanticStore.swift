@@ -12,7 +12,9 @@ import Foundation
 // FP16 BLOB (KD-1): embeddings store as native-endian fp16, `dim*2` bytes —
 // `FP16Coding` is the single pack/decode face (the scanner consumes the same
 // rows). Single-machine app: NO cross-endian exchange semantics (DECISIONS
-// pins the posture).
+// pins the posture). The scan-side load ships TWO shapes: `loadScanRows`
+// (KD-2's per-row face) and `loadScanTable` (ONE flat buffer — the
+// production sweep input; a single materialization, no per-row Data churn).
 //
 // RECONCILE DISCIPLINE: labels replace WHOLE-GROUP (the M2-8
 // replaceVersionRefs shape — re-runs are idempotent); understanding upserts
@@ -26,19 +28,6 @@ import Foundation
 // M2-10-04 fulltext leg) MUST JOIN `ai_understanding` and filter
 // `active = 1`.
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// One `loadScanRows` output row: the image rowid + the raw fp16 BLOB (the
-/// scanner converts to fp32 in its own loop — the store never materializes
-/// the fp32 copy for the whole table).
-public struct EmbeddingScanRow: Sendable {
-    public let imageID: Int64
-    public let fp16: Data
-
-    public init(imageID: Int64, fp16: Data) {
-        self.imageID = imageID
-        self.fp16 = fp16
-    }
-}
 
 /// The fp16 BLOB coding (native endian, `dim*2` bytes) — the ONE pack /
 /// decode face shared by the store (pack) and the scanner (decode).
@@ -219,6 +208,31 @@ public actor SemanticStore {
                 }
             }
             return rows
+        }
+    }
+
+    /// The PRODUCTION scan load (the scanner's contiguous face): one flat
+    /// fp16 buffer + the parallel id array — a single materialization built
+    /// with one reserved-capacity append per row (no per-row Data churn on
+    /// the query path; the 200k-tier budget rides THIS shape).
+    public func loadScanTable(modelKey: String) async throws
+        -> (rowIDs: [Int64], fp16: Data) {
+        try await store.withHandle { handle in
+            let statement = try handle.prepare("""
+                SELECT image_id, embedding FROM image_embedding
+                WHERE model_key = ?
+                """)
+            try statement.bindText(1, modelKey)
+            var ids: [Int64] = []
+            var flat = Data()
+            while try statement.step() {
+                if let imageID = statement.columnInt(0),
+                   let blob = statement.columnBlob(1) {
+                    ids.append(imageID)
+                    flat.append(blob)
+                }
+            }
+            return (ids, flat)
         }
     }
 
