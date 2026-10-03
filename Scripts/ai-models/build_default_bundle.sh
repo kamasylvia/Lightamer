@@ -168,10 +168,18 @@ for profile, (sentinel, primary, aux) in PROFILES.items():
         "ModelAssetDigestEntry(sha256Hex: \"%s\", byteCount: %d, "
         "auxiliaryFiles: [%s], generatedAt: \"%s\")" % (sha, count, aux_literal, generated_at)
     )
+    # Match the WHOLE declaration value (nil sentinel OR a previously
+    # rewritten literal, which may span lines until the blank line) so the
+    # chain is re-runnable — e.g. M2-10-06 re-converts after overturning the
+    # format ruling, and the sentinels are already non-nil then.
     pattern = re.compile(
-        r"(private static let %s: ModelAssetDigestEntry\? = )nil" % sentinel
+        r"private static let %s: ModelAssetDigestEntry\? = .*?(?=\n\n)" % sentinel,
+        re.DOTALL,
     )
-    text, n = pattern.subn(lambda m: m.group(1) + literal, text)
+    text, n = pattern.subn(
+        lambda m: "private static let %s: ModelAssetDigestEntry? = %s" % (sentinel, literal),
+        text,
+    )
     if n != 1:
         raise SystemExit(f"sentinel not found (or not unique) for {profile}")
     print(f"== {profile}: {count} bytes sha256={sha[:16]}... aux={len(aux)}")
