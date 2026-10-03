@@ -1524,6 +1524,38 @@ internal struct LightamerApp: App {
                 }
             }
 
+            // ── Image (Plan M2-10-07 T3, KD-3 / OQ-8-A) — the editor's AI
+            // enhancement entries: the two commands act on the CURRENT
+            // image and route through the WorkspaceModel request face
+            // (ONE presentation owner — the host presents the dialog).
+            CommandMenu(String(localized: "menu_image",
+                               defaultValue: "Image")) {
+                Button(String(localized: "menu_image_ai_upscale",
+                              defaultValue: "AI Super Resolution…")) {
+                    guard let workspace = focusedWorkspace,
+                        let id = workspace.editorPhase.currentImageID
+                    else { return }
+                    workspace.requestAIEnhance(
+                        kind: .upscale, imageIDs: [id])
+                }
+                .disabled(
+                    focusedWorkspace?.phase != .editor
+                        || focusedWorkspace?.editorPhase.currentImageID == nil)
+                .accessibilityIdentifier(AIEntryPointCoordinator.Marker.menuUpscale)
+                Button(String(localized: "menu_image_ai_denoise",
+                              defaultValue: "AI Denoise…")) {
+                    guard let workspace = focusedWorkspace,
+                        let id = workspace.editorPhase.currentImageID
+                    else { return }
+                    workspace.requestAIEnhance(
+                        kind: .denoise, imageIDs: [id])
+                }
+                .disabled(
+                    focusedWorkspace?.phase != .editor
+                        || focusedWorkspace?.editorPhase.currentImageID == nil)
+                .accessibilityIdentifier(AIEntryPointCoordinator.Marker.menuDenoise)
+            }
+
             // ── Help ────────────────────────────────────────────────
             CommandGroup(replacing: .help) {
                 // Phase 13 fills; placeholder in Phase 1.

@@ -25,6 +25,13 @@ struct LibraryInspectorView: View {
     /// presentation itself lives in the host).
     var onRelinkRequested: () -> Void = {}
 
+    // Plan M2-10-07 (KD-3, minimal radius): the AI analysis command area.
+    // The host passes the key-absent face + the two command routes (the
+    // sweeps + the confirm gate live in the host's coordinator).
+    var aiNeedsSetup: Bool = false
+    var onAIRating: () -> Void = {}
+    var onAIDescription: () -> Void = {}
+
     static let panelWidth: CGFloat = 280
 
     var body: some View {
@@ -38,6 +45,7 @@ struct LibraryInspectorView: View {
                 activitySection
                 filterSection
                 actionsSection
+                aiSection
                 smartAlbumsSection
             }
             .padding(12)
@@ -299,6 +307,70 @@ struct LibraryInspectorView: View {
             }
         }
         .accessibilityIdentifier("library.inspector.actions")
+    }
+
+    // MARK: - AI ANALYSIS (Plan M2-10-07 T3, KD-3)
+
+    /// The image-domain AI commands, the actions area's tail (the plan's
+    /// 「图片域操作区尾」): 「AI 评片…」 through the confirm gate (the OQ-11-A
+    /// face) and 「AI 描述」 straight to the queue (no confirm — the
+    /// description rows are derived data, not user-authored stars). A
+    /// missing key renders the guidance row INSTEAD of the commands
+    /// (点 = 打开 ACA 设置页 — the SettingsDeepLink route).
+    private var aiSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            sectionHeader(String(
+                localized: "library_inspector_ai",
+                defaultValue: "AI ANALYSIS"))
+            if aiNeedsSetup {
+                HStack(spacing: 6) {
+                    Text(String(
+                        localized: "library_inspector_ai_needs_setup",
+                        defaultValue: "Configure a provider first"))
+                        .font(.caption)
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                    Spacer()
+                    SettingsLink {
+                        Text(String(
+                            localized: "library_inspector_ai_open_settings",
+                            defaultValue: "Open Settings…"))
+                            .font(.caption)
+                    }
+                    .simultaneousGesture(TapGesture().onEnded {
+                        SettingsDeepLink.pendingPage = .advancedContentAnalysis
+                    })
+                    .accessibilityIdentifier("library.inspector.aiSetup")
+                }
+            } else {
+                Button {
+                    onAIRating()
+                } label: {
+                    Label(
+                        String(localized: "library_inspector_ai_rating",
+                               defaultValue: "AI Rate…"),
+                        systemImage: "star")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(ThemeTokens.accent)
+                .disabled(model.selectedCount == 0)
+                .accessibilityIdentifier("library.inspector.aiRating")
+                Button {
+                    onAIDescription()
+                } label: {
+                    Label(
+                        String(localized: "library_inspector_ai_description",
+                               defaultValue: "AI Describe"),
+                        systemImage: "text.bubble")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(ThemeTokens.accent)
+                .disabled(model.selectedCount == 0)
+                .accessibilityIdentifier("library.inspector.aiDescription")
+            }
+        }
+        .accessibilityIdentifier("library.inspector.ai")
     }
 
     // MARK: - SMART ALBUMS
