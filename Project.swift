@@ -177,6 +177,11 @@ let project = Project(
                 "Resources/Assets.xcassets",
                 "Resources/Localizable.xcstrings",
                 .folderReference(path: "Resources/LUTs"),
+                // Plan M2-10-01 (E1): bundled AI models ride as a folder
+                // reference too — the repo-root Resources/AIModels directory
+                // (model bytes gitignored, .keep tracked) copies into the
+                // bundle preserving AIModels/<profile_id>/ hierarchy.
+                .folderReference(path: "Resources/AIModels"),
                 "Resources/TestFixtures/**",
             ],
             dependencies: [
@@ -520,6 +525,7 @@ let project = Project(
                 "Tests/LightamerTests/LutLibraryStoreTests.swift",
                 "Tests/LightamerTests/MetadataServiceTests.swift",
                 "Tests/LightamerTests/MetadataTests.swift",
+                "Tests/LightamerTests/ModelAssetCatalogTests.swift",
                 "Tests/LightamerTests/Phase4SidecarTests.swift",
                 "Tests/LightamerTests/Phase5SidecarTests.swift",
                 "Tests/LightamerTests/Phase6SidecarTests.swift",
