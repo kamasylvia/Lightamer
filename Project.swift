@@ -543,7 +543,13 @@ let project = Project(
                 "Tests/LightamerTests/XMPImportTests.swift",
                 "Tests/LightamerTests/XMPWriterTests.swift",
             ],
-            resources: ["Resources/TestFixtures/**"], // same fixtures ride in every bundle (D3; ~6.2 MB each)
+            resources: [
+                "Resources/TestFixtures/**",
+                // Plan M2-10-02 (E2): the WordPiece golden fixture rides the
+                // LIB bundle (revision-locked, <=10KB — Scripts/ai-models/
+                // tokenizer_ref.py generates it; the CI face needs no model).
+                "Tests/Fixtures/tokenizer_golden.json",
+            ],
             dependencies: [
                 .target(name: "LightamerCore"),
                 .target(name: "LightamerIOP"),

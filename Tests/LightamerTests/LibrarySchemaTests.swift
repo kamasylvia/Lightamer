@@ -11,20 +11,24 @@ import XCTest
 //     `images` 29 columns / `albums` 7 / `album_content` 2 — VERBATIM
 //     (order IS the freeze, KD-3's complete enumeration; M2-5-2 KD-6
 //     appended default_look_pending at the tail — v2, the first migration)
-//   • fresh create: user_version == 3 + project_meta seeded (name/created_at)
-//     (M2-8-1: fresh creates stamp 3 — the version_ref projection table
-//     joins the fresh DDL)
+//   • fresh create: user_version == 4 + project_meta seeded (name/created_at)
+//     (M2-8-1: the version_ref projection joins the fresh DDL; M2-10-02:
+//     the AI-library seven-table family joins it too)
 //   • images_fts: external-content over images, content_rowid='id',
 //     tokenize='unicode61' (ZERO custom tokenchars), FTS column name ==
 //     `exif_search_words` (KD-5 rebuild dependency); the three sync
 //     triggers registered with the `new.exif_search_words` mapping
-//   • the two frozen indexes (idx_images_capture / idx_album_content_image)
+//   • the frozen indexes (idx_images_capture / idx_album_content_image +
+//     the four v4 semantic indexes)
 //   • version_ref EXISTS with the reduced-DDL column order (M2-8-1 KD-3
 //     activated the projection — the negative pin FLIPPED for this one
 //     name); the other three reserved mini-git tables DO NOT exist
+//   • the seven v4 semantic tables exist with the KD-1 column order, the
+//     understanding FTS carries its three triggers, and the OQ-9-A single
+//     active model is DB-enforced (partial UNIQUE at 1) (M2-10-02 KD-1)
 //   • foreign_keys pragma is ON after apply (the CASCADE semantics are
 //     declared DDL, KD-4); second apply is idempotent
-//   • user_version >3 → typed `.futureSchema` REFUSE
+//   • user_version >4 → typed `.futureSchema` REFUSE
 //   • the OQ-12 import constants: 14-extension RAW whitelist (exact set),
 //     the five hardcoded sidecar exclusions
 //
@@ -145,35 +149,43 @@ final class LibrarySchemaTests: XCTestCase {
     func testPackageTablesCreated() throws {
         try withFreshHandle { handle in
             let tables = Set(try self.sqliteMasterRows(handle, type: "table").map(\.name))
-            // The six package tables (the FTS5 virtual table counts as one;
-            // version_ref joined in M2-8-1 as the projection table).
+            // The package tables: the v1 core six, the v3 version_ref
+            // projection, and the v4 AI-library seven (both FTS5 virtual
+            // tables count).
             for required in ["album_content", "albums", "images", "images_fts",
-                             "project_meta", "version_ref"] {
+                             "project_meta", "version_ref",
+                             "semantic_model", "image_embedding", "image_label",
+                             "label_query", "ai_understanding",
+                             "ai_understanding_fts", "ai_rating"] {
                 XCTAssertTrue(tables.contains(required), "\(required) must exist")
             }
             // Everything else may only be the FTS5 shadow-table family
-            // (images_fts_data/docsize/config/idx — fts5 implementation
+            // (images_fts_* / ai_understanding_fts_* — fts5 implementation
             // detail, not a package table).
             let extras = tables.subtracting([
                 "album_content", "albums", "images", "images_fts", "project_meta",
-                "version_ref",
+                "version_ref", "semantic_model", "image_embedding", "image_label",
+                "label_query", "ai_understanding", "ai_understanding_fts",
+                "ai_rating",
             ])
             XCTAssertTrue(
-                extras.allSatisfy { $0.hasPrefix("images_fts_") },
+                extras.allSatisfy {
+                    $0.hasPrefix("images_fts_") || $0.hasPrefix("ai_understanding_fts_")
+                },
                 "unexpected tables: \(extras)")
         }
     }
 
     // MARK: - Fresh create: user_version + project_meta
 
-    func testFreshCreateStampsUserVersionThreeAndSeedsProjectMeta() throws {
+    func testFreshCreateStampsUserVersionFourAndSeedsProjectMeta() throws {
         try withFreshHandle { handle in
-            // The truth read (raw PRAGMA) and the helper agree. (M2-8-1
-            // KD-3: v2→v3 = the second migration — fresh creates stamp 3.)
+            // The truth read (raw PRAGMA) and the helper agree. (M2-10-02
+            // KD-1: v3→v4 = the third migration — fresh creates stamp 4.)
             let statement = try handle.prepare("PRAGMA user_version")
             try XCTAssertTrue(statement.step())
-            XCTAssertEqual(statement.columnInt(0), 3)
-            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 3)
+            XCTAssertEqual(statement.columnInt(0), 4)
+            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 4)
 
             let meta = try self.projectMeta(handle)
             XCTAssertEqual(meta[LibrarySchema.ProjectMetaKey.projectName], "TestProj")
@@ -194,8 +206,8 @@ final class LibrarySchemaTests: XCTestCase {
         try withFreshHandle { handle in
             try LibrarySchema.apply(to: handle, projectName: "Renamed")
             // Idempotent: the fresh leg does NOT re-run (user_version
-            // already 3), so the seed stays the ORIGINAL name.
-            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 3)
+            // already 4), so the seed stays the ORIGINAL name.
+            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 4)
             let meta = try self.projectMeta(handle)
             XCTAssertEqual(meta[LibrarySchema.ProjectMetaKey.projectName], "TestProj")
         }
@@ -234,8 +246,10 @@ final class LibrarySchemaTests: XCTestCase {
             }
             // The KD-5 mapping pin: the sync legs reference the SAME
             // materialized column (`new.` on insert/update legs, `old.`
-            // on delete legs — never a renamed shadow).
-            for trigger in triggers where LibrarySchema.triggerNames.contains(trigger.name) {
+            // on delete legs — never a renamed shadow). The v4
+            // ai_understanding triggers map caption/tags instead — only the
+            // images_fts trio pins exif_search_words.
+            for trigger in triggers where trigger.name.hasPrefix("images_fts_") {
                 XCTAssertTrue(
                     trigger.sql?.contains("exif_search_words") == true,
                     "\(trigger.name) must map exif_search_words")
@@ -303,26 +317,41 @@ final class LibrarySchemaTests: XCTestCase {
         let handle = try SQLiteHandle(path: databaseURL.path)
         defer { handle.close() }
         try LibrarySchema.apply(to: handle, projectName: "Ignored")
-        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 3)
+        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 4)
     }
 
     func testFutureVersionRefused() throws {
         try withFreshHandle { handle in
-            try LibrarySchema.writeUserVersion(4, to: handle)
+            try LibrarySchema.writeUserVersion(5, to: handle)
         }
         let handle = try SQLiteHandle(path: databaseURL.path)
         defer { handle.close() }
         XCTAssertThrowsError(try LibrarySchema.apply(to: handle)) { error in
-            XCTAssertEqual(error as? LibraryError, .futureSchema(version: 4))
+            XCTAssertEqual(error as? LibraryError, .futureSchema(version: 5))
         }
     }
 
-    // MARK: - Migrations (KD-2/KD-3): v2→v3 + the chained two-generation
-    // rotation (checker E2 — the second-migration deadlock stays dead)
+    // MARK: - Migrations (KD-2/KD-3/KD-1): v3→v4 + the chained FULL-CHAIN
+    // v1→v4 rotation (checker E2 — the second-migration deadlock stays
+    // dead; M2: the dispatch issues ONE `migrate(from:stored, to:)` that
+    // walks ALL legs v1→v2→v3→v4 — the test pins every leg's product so a
+    // regression that only covers two legs cannot pass)
 
     /// A hand-rolled v2 package: the full v2 DDL (29-column images +
     /// default_look_pending) + one row + one album, user_version 2.
     private func makeV2Package(at url: URL) throws {
+        try makeV1Package(at: url, stampVersion: 2)
+        let handle = try SQLiteHandle(path: url.path)
+        defer { handle.close() }
+        try handle.exec(
+            "ALTER TABLE images ADD COLUMN default_look_pending INTEGER DEFAULT 0")
+    }
+
+    /// A hand-rolled v1 package: the 29-column images (NO
+    /// default_look_pending), albums, project_meta, one row; user_version
+    /// = `stampVersion` (1 = the original-generation fixture, 2 = the v2
+    /// body above).
+    private func makeV1Package(at url: URL, stampVersion: Int) throws {
         let handle = try SQLiteHandle(path: url.path)
         defer { handle.close() }
         try handle.execute("PRAGMA journal_mode=WAL")
@@ -341,8 +370,7 @@ final class LibrarySchemaTests: XCTestCase {
               filename TEXT, dir TEXT, flag INTEGER, note TEXT,
               has_edits INTEGER, params_hash TEXT,
               ref_count INTEGER NOT NULL DEFAULT 0,
-              added_time REAL, modified_time REAL,
-              default_look_pending INTEGER DEFAULT 0
+              added_time REAL, modified_time REAL
             )
             """)
         try handle.execute("""
@@ -361,20 +389,93 @@ final class LibrarySchemaTests: XCTestCase {
         let insert = try handle.prepare(
             "INSERT INTO images (image_path, path_kind) VALUES ('Media/v2.ARW', 0)")
         _ = try insert.step()
-        try LibrarySchema.writeUserVersion(2, to: handle)
+        try LibrarySchema.writeUserVersion(stampVersion, to: handle)
     }
 
-    func testV2ToV3MigrationCreatesVersionRefAndSnapshots() async throws {
-        let v2URL = tempDirectory.appendingPathComponent("legacy-v2.lalb")
-        try makeV2Package(at: v2URL)
+    /// A hand-rolled v3 package: the v2 body + the `version_ref` projection
+    /// table (with one row) — the M2-8-1 end state, user_version 3.
+    private func makeV3Package(at url: URL) throws {
+        try makeV2Package(at: url)
+        let handle = try SQLiteHandle(path: url.path)
+        defer { handle.close() }
+        try handle.execute("""
+            CREATE TABLE version_ref (
+              version_id TEXT PRIMARY KEY,
+              element_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+              display_name TEXT NOT NULL,
+              created_at_unix INTEGER NOT NULL,
+              updated_at_unix INTEGER NOT NULL
+            )
+            """)
+        let insert = try handle.prepare("""
+            INSERT INTO version_ref (version_id, element_id, display_name,
+                created_at_unix, updated_at_unix)
+            VALUES ('v-1', 1, '版本 1', 1700000000, 1700000001)
+            """)
+        _ = try insert.step()
+        try LibrarySchema.writeUserVersion(3, to: handle)
+    }
+
+    /// The seven v4 semantic tables + the understanding FTS + the three
+    /// extra triggers + the FOUR SEMANTIC indexes exist. (Hand-rolled v3
+    /// fixtures lack the v1-era indexes, so the index assertion covers only
+    /// the v4 additions — the full-index pin runs on fresh packages where
+    /// `LibrarySchema.indexNames` is complete.)
+    private func assertSemanticFamilyPresent(_ handle: SQLiteHandle) throws {
+        let tables = Set(try self.sqliteMasterRows(handle, type: "table").map(\.name))
+        for required in ["semantic_model", "image_embedding", "image_label",
+                         "label_query", "ai_understanding",
+                         "ai_understanding_fts", "ai_rating"] {
+            XCTAssertTrue(tables.contains(required), "\(required) must exist")
+        }
+        let triggers = Set(try self.sqliteMasterRows(handle, type: "trigger").map(\.name))
+        // Hand-rolled fixtures predate images_fts — only the v4 trigger trio
+        // is required here (the full triggerNames pin runs on fresh packages).
+        for name in ["ai_understanding_fts_ai", "ai_understanding_fts_ad",
+                     "ai_understanding_fts_au"] {
+            XCTAssertTrue(triggers.contains(name), "trigger \(name) must exist")
+        }
+        let indexes = Set(try self.sqliteMasterRows(handle, type: "index").map(\.name))
+        for name in ["idx_semantic_model_active", "idx_image_embedding_model",
+                     "idx_ai_understanding_image", "idx_ai_rating_image"] {
+            XCTAssertTrue(indexes.contains(name), "index \(name) must exist")
+        }
+    }
+
+    /// The v4 column-order pins, table by table (the KD-1 enumeration —
+    /// order IS the DDL order).
+    private func assertSemanticColumnPins(_ handle: SQLiteHandle) throws {
+        try self.assertColumns(
+            handle, table: "semantic_model",
+            frozen: LibrarySchema.semanticModelColumns)
+        try self.assertColumns(
+            handle, table: "image_embedding",
+            frozen: LibrarySchema.imageEmbeddingColumns)
+        try self.assertColumns(
+            handle, table: "image_label",
+            frozen: LibrarySchema.imageLabelColumns)
+        try self.assertColumns(
+            handle, table: "label_query",
+            frozen: LibrarySchema.labelQueryColumns)
+        try self.assertColumns(
+            handle, table: "ai_understanding",
+            frozen: LibrarySchema.aiUnderstandingColumns)
+        try self.assertColumns(
+            handle, table: "ai_rating",
+            frozen: LibrarySchema.aiRatingColumns)
+    }
+
+    func testV3ToV4MigrationCreatesSemanticFamilyAndSnapshots() async throws {
+        let v3URL = tempDirectory.appendingPathComponent("legacy-v3.lalb")
+        try makeV3Package(at: v3URL)
 
         // Open through the REAL dispatch: snapshot first (the pre-migrate
-        // hook's first v2→v3 consumer — the rotated generation name), then
-        // the idempotent CREATE.
-        let store = ProjectFileStore(at: v2URL)
+        // hook's v3→v4 consumer — the rotated generation name), then the
+        // idempotent CREATE family.
+        let store = ProjectFileStore(at: v3URL)
         _ = try await store.open()
-        let snapshotURL = v2URL.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.2-3.bak")
+        let snapshotURL = v3URL.deletingPathExtension()
+            .appendingPathExtension("pre-migrate.3-4.bak")
         XCTAssertTrue(
             FileManager.default.fileExists(atPath: snapshotURL.path),
             "the pre-migration snapshot hook consumed (generation-named)")
@@ -384,39 +485,51 @@ final class LibrarySchemaTests: XCTestCase {
         // DefaultLookTests shape — a second connection held while the
         // store is open pins the WAL and the forced TRUNCATE checkpoint
         // fails busy).
-        let handle = try SQLiteHandle(path: v2URL.path)
+        let handle = try SQLiteHandle(path: v3URL.path)
         defer { handle.close() }
-        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 3)
-        // The pre-existing row survived; the projection table exists.
+        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 4)
+        // The pre-existing rows survived (the additive red line).
         let count = try handle.prepare("SELECT COUNT(*) FROM images")
         try XCTAssertTrue(count.step())
         XCTAssertEqual(count.columnInt(0), 1)
-        let columns = try tableColumns(handle, "version_ref")
-        XCTAssertEqual(
-            columns.map(\.name), LibrarySchema.versionRefColumns.map(\.name))
+        let versionCount = try handle.prepare("SELECT COUNT(*) FROM version_ref")
+        try XCTAssertTrue(versionCount.step())
+        XCTAssertEqual(versionCount.columnInt(0), 1)
+        // The semantic family arrived complete, columns in the KD-1 order.
+        try assertSemanticFamilyPresent(handle)
+        try assertSemanticColumnPins(handle)
     }
 
-    func testChainedTwoGenerationMigrationRotatesSnapshots() async throws {
-        // The E2 deadlock scenario: a package migrated 1→3 by the FIRST
-        // generation binary (snapshot 1-3 on disk), then its user_version
-        // rewound to 2 (the上一代在线产物 simulation) — reopening under the
-        // current binary must migrate 2→3 WITHOUT hitting the old
-        // destination-exists refusal.
-        let url = tempDirectory.appendingPathComponent("legacy-chain.lalb")
-        try makeV2Package(at: url)
-        // Rewind to a v1 shape: drop the v2 column and stamp 1 (the
-        // original-generation fixture).
-        let v1 = try SQLiteHandle(path: url.path)
-        try v1.exec("ALTER TABLE images DROP COLUMN default_look_pending")
-        try LibrarySchema.writeUserVersion(1, to: v1)
-        v1.close()
+    func testSemanticMigrationIdempotentOnRerun() throws {
+        // A partially-migrated snapshot (or a double-open race) re-runs the
+        // v3→v4 slot clean: every statement is CREATE IF NOT EXISTS.
+        let url = tempDirectory.appendingPathComponent("idempotent-v4.lalb")
+        try makeV3Package(at: url)
+        let handle = try SQLiteHandle(path: url.path)
+        defer { handle.close() }
+        try LibrarySchema.migrate(from: 3, to: 4, on: handle)
+        try LibrarySchema.migrate(from: 3, to: 4, on: handle) // re-run
+        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 4)
+        try assertSemanticFamilyPresent(handle)
+    }
 
-        // Generation 1: open → migrate 1→3, snapshot 1-3 born.
+    func testFullChainV1ToV4MigrationRotatesSnapshots() async throws {
+        // The E2 deadlock scenario, one generation on: a package migrated
+        // 1→4 by the FIRST generation binary (snapshot 1-4 on disk), then
+        // its user_version rewound to 2 (the上一代在线产物 simulation) —
+        // reopening under the current binary must migrate 2→4 WITHOUT
+        // hitting the old destination-exists refusal. The dispatch issues
+        // ONE migrate call walking ALL legs — the test asserts each leg's
+        // product (the M2 anti-two-legs-only pin).
+        let url = tempDirectory.appendingPathComponent("legacy-chain.lalb")
+        try makeV1Package(at: url, stampVersion: 1)
+
+        // Generation 1: open → migrate 1→4, snapshot 1-4 born.
         let first = ProjectFileStore(at: url)
         _ = try await first.open()
-        let snapshot13 = url.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.1-3.bak")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot13.path))
+        let snapshot14 = url.deletingPathExtension()
+            .appendingPathExtension("pre-migrate.1-4.bak")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot14.path))
         try await first.close()
 
         // The rewind: user_version 2 (the previous binary's online
@@ -425,17 +538,17 @@ final class LibrarySchemaTests: XCTestCase {
         try LibrarySchema.writeUserVersion(2, to: rewind)
         rewind.close()
 
-        // Generation 2: reopen → migrate 2→3 through the ROTATION path
-        // (snapshot 2-3 born beside 1-3; no destination-exists death).
+        // Generation 2: reopen → migrate 2→4 through the ROTATION path
+        // (snapshot 2-4 born beside 1-4; no destination-exists death).
         let second = ProjectFileStore(at: url)
         _ = try await second.open()
-        let snapshot23 = url.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.2-3.bak")
+        let snapshot24 = url.deletingPathExtension()
+            .appendingPathExtension("pre-migrate.2-4.bak")
         XCTAssertTrue(
-            FileManager.default.fileExists(atPath: snapshot23.path),
+            FileManager.default.fileExists(atPath: snapshot24.path),
             "the second-generation snapshot was taken (rotation, not refusal)")
         XCTAssertTrue(
-            FileManager.default.fileExists(atPath: snapshot13.path),
+            FileManager.default.fileExists(atPath: snapshot14.path),
             "the first generation's snapshot is preserved (generations coexist)")
         try await second.close()
 
@@ -443,8 +556,125 @@ final class LibrarySchemaTests: XCTestCase {
         let handle = try SQLiteHandle(path: url.path)
         defer { handle.close() }
         XCTAssertEqual(
-            try LibrarySchema.readUserVersion(from: handle), 3,
-            "the chained migration lands at v3 — the deadlock is dead")
+            try LibrarySchema.readUserVersion(from: handle), 4,
+            "the chained migration lands at v4 — the deadlock is dead")
+        // Leg products: 1→2 (the additive column), 2→3 (version_ref), and
+        // 3→4 (the semantic family) — ALL present after the single call.
+        let columns = try tableColumns(handle, "images")
+        XCTAssertNotNil(
+            columns.first(where: { $0.name == "default_look_pending" }),
+            "leg v1→v2 product missing")
+        let tables = Set(try self.sqliteMasterRows(handle, type: "table").map(\.name))
+        XCTAssertTrue(
+            tables.contains("version_ref"), "leg v2→v3 product missing")
+        try assertSemanticFamilyPresent(handle)
+        try assertSemanticColumnPins(handle)
+    }
+
+    // MARK: - v4 family semantics (KD-1): fresh-carried + the OQ-9-A
+    // single-activation invariant + the declared CASCADE across all four
+    // AI domains
+
+    func testFreshV4CarriesSemanticFamilyFromBirth() throws {
+        try withFreshHandle { handle in
+            try assertSemanticFamilyPresent(handle)
+            try assertSemanticColumnPins(handle)
+            // The FTS virtual table shape (the images_fts :206 pin, two
+            // document columns this time).
+            let fts = try self.sqliteMasterRows(handle, type: "table")
+                .first { $0.name == "ai_understanding_fts" }
+            let sql = fts?.sql ?? ""
+            XCTAssertTrue(sql.contains("content='ai_understanding'"))
+            XCTAssertTrue(sql.contains("content_rowid='id'"))
+            XCTAssertTrue(sql.contains("tokenize='unicode61'"))
+            XCTAssertFalse(sql.contains("tokenchars"))
+        }
+    }
+
+    func testActiveModelSingleActivationEnforced() throws {
+        try withFreshHandle { handle in
+            let insert = try handle.prepare("""
+                INSERT INTO semantic_model (model_key, model_id, revision,
+                    embedding_dim, image_size, prompt_config_hash, active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """)
+            func seed(_ key: String, _ active: Int64) throws {
+                try insert.reset()
+                try insert.bindText(1, key)
+                try insert.bindText(2, "OFA-Sys/chinese-clip-vit-base-patch16")
+                try insert.bindText(3, "36e679e6")
+                try insert.bindInt(4, 512)
+                try insert.bindInt(5, 224)
+                try insert.bindNull(6)
+                try insert.bindInt(7, active)
+                _ = try insert.step()
+            }
+            try seed("a-profile", 1)
+            try seed("b-profile", 0) // inactive siblings are fine
+            // A SECOND active=1 row violates the partial unique index —
+            // the OQ-9-A invariant is DB-level, not store-discipline.
+            XCTAssertThrowsError(try seed("c-profile", 1))
+        }
+    }
+
+    func testSemanticTablesCascadeWithImageRow() throws {
+        try withFreshHandle { handle in
+            // One image + one row in EACH AI domain + an understanding row
+            // the FTS index picked up through the trigger.
+            let image = try handle.prepare(
+                "INSERT INTO images (image_path, path_kind) VALUES ('Media/c.ARW', 0)")
+            _ = try image.step()
+            try handle.execute("""
+                INSERT INTO semantic_model (model_key, model_id, revision,
+                    embedding_dim, image_size, prompt_config_hash, active)
+                VALUES ('k', 'm', 'r', 4, 224, NULL, 1)
+                """)
+            try handle.execute("""
+                INSERT INTO image_embedding (image_id, model_key, dim,
+                    embedding, computed_time)
+                VALUES (1, 'k', 4, x'00003c0040003f00', 1)
+                """)
+            try handle.execute("""
+                INSERT INTO image_label (image_id, model_key, label, score,
+                    confident) VALUES (1, 'k', 'sunset', 0.9, 1)
+                """)
+            try handle.execute("""
+                INSERT INTO label_query (model_key, label, query_text, lang)
+                VALUES ('k', 'sunset', 'a sunset photo', 'en')
+                """)
+            try handle.execute("""
+                INSERT INTO ai_understanding (image_id, task_id, provider_id,
+                    model_id, prompt_profile_id, caption, tags, computed_time)
+                VALUES (1, 't1', 'p', 'm', '123', 'a golden sunset', '["x"]', 1)
+                """)
+            try handle.execute("""
+                INSERT INTO ai_rating (image_id, task_id, provider_id, model_id,
+                    prompt_profile_id, rating, reasons, computed_time)
+                VALUES (1, 't1', 'p', 'm', '123', 4, '["r"]', 1)
+                """)
+            // The trigger indexed the caption (pre-delete sanity).
+            let match = try handle.prepare(
+                "SELECT rowid FROM ai_understanding_fts WHERE ai_understanding_fts MATCH 'sunset'")
+            try XCTAssertTrue(match.step())
+            // The CASCADE: deleting the image row annihilates all four AI
+            // domains (label_query has NO image FK — it survives).
+            try handle.execute("DELETE FROM images WHERE id = 1")
+            for table in ["image_embedding", "image_label",
+                          "ai_understanding", "ai_rating"] {
+                let count = try handle.prepare("SELECT COUNT(*) FROM \(table)")
+                try XCTAssertTrue(count.step())
+                XCTAssertEqual(
+                    count.columnInt(0), 0, "\(table) rows must cascade away")
+            }
+            // The FTS index unstaged the deleted row through the trigger.
+            let afterMatch = try handle.prepare(
+                "SELECT COUNT(*) FROM ai_understanding_fts WHERE ai_understanding_fts MATCH 'sunset'")
+            try XCTAssertTrue(afterMatch.step())
+            XCTAssertEqual(afterMatch.columnInt(0), 0)
+            let queryCount = try handle.prepare("SELECT COUNT(*) FROM label_query")
+            try XCTAssertTrue(queryCount.step())
+            XCTAssertEqual(queryCount.columnInt(0), 1)
+        }
     }
 
     // MARK: - Import filter constants (OQ-12)
