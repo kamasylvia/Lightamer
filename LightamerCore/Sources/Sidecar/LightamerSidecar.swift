@@ -175,7 +175,21 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     ///     NOT a pixel semantic — it never enters `HistoryHash.hash` /
     ///     `driftDetected` (the v3 metadata judgment; the fold formula is
     ///     untouched — structural, pinned by a tamper negative test).
-    public static let schemaVersionCurrent = 7
+    ///
+    /// v8 (Plan M2-10-06 T1, KD-3; D-M2-10-CONTEXT-3): the AI PROVENANCE
+    /// face joins additively — ONE optional key (the rawOverrides/
+    /// displayTransform/versions "write ONLY when present" discipline):
+    ///   • `aiProvenance: SidecarAIProvenanceRecord?` — the AI-enhanced
+    ///     editable copy's birth record (six fields, the D-3 snake_case
+    ///     spelling: operation/scale/amount/source_file/source_image_id/
+    ///     backend). nil (a plain or non-AI document) keeps the key ABSENT
+    ///     — the v7 byte shape survives untouched (SidecarV8Tests pins the
+    ///     three byte faces).
+    ///   • HASH ISOLATION: provenance is NOT a pixel semantic — it never
+    ///     enters `HistoryHash.hash` / `driftDetected` (the v3/v4/v7
+    ///     metadata judgment; the fold formula untouched — structural,
+    ///     pinned by a tamper negative test).
+    public static let schemaVersionCurrent = 8
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int
@@ -278,6 +292,14 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// dropped, `history` stays the chain — edits are never lost (KD-2).
     public var activeVersionID: String?
 
+    // MARK: - AI provenance (v8, Plan M2-10-06 — the enhanced-copy birth record)
+
+    /// The AI-enhanced editable copy's birth record (nil = not an AI copy —
+    /// the v7 zero-harm read; the key is ABSENT on disk). Hash-isolated:
+    /// provenance is not a pixel semantic — it never enters
+    /// `driftDetected` (the v8 judgment above).
+    public var aiProvenance: SidecarAIProvenanceRecord?
+
     // MARK: - Paths (D-S2)
 
     /// `…/DSC09991.ARW` → `…/DSC09991.ARW.lra` — the FULL original name
@@ -330,7 +352,8 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         rawOverrides: RAWTechnicalOverrides? = nil,
         displayTransform: DrtRecord? = nil,
         versions: [SidecarVersionRecord]? = nil,
-        activeVersionID: String? = nil
+        activeVersionID: String? = nil,
+        aiProvenance: SidecarAIProvenanceRecord? = nil
     ) {
         self.schemaVersion = Self.schemaVersionCurrent
         self.appVersion = appVersion
@@ -351,6 +374,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         self.displayTransform = displayTransform
         self.versions = versions
         self.activeVersionID = activeVersionID
+        self.aiProvenance = aiProvenance
     }
 
     // MARK: - Codable (projection through the String-hash records)
@@ -362,6 +386,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         case rawOverrides
         case displayTransform
         case versions, activeVersionID
+        case aiProvenance
     }
 
     public init(from decoder: Decoder) throws {
@@ -423,6 +448,12 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
             [SidecarVersionRecord].self, forKey: .versions)
         activeVersionID = try container.decodeIfPresent(
             String.self, forKey: .activeVersionID)
+        // v8 AI provenance (M2-10-06 T1): decodeIfPresent — v7 documents
+        // (and the FUTURE-version branch) read with nil; a document written
+        // by a NEWER schema still yields everything else (the tolerance
+        // contract :94-97).
+        aiProvenance = try container.decodeIfPresent(
+            SidecarAIProvenanceRecord.self, forKey: .aiProvenance)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -481,6 +512,11 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // (the zero-drift AC; SidecarV7Tests pins the three byte faces).
         try container.encodeIfPresent(versions, forKey: .versions)
         try container.encodeIfPresent(activeVersionID, forKey: .activeVersionID)
+        // AI provenance (v8): write ONLY when present (the versions v7
+        // precedent — nil keeps the key ABSENT so documents without an AI
+        // birth record stay byte-compatible with the v7 shape; SidecarV8Tests
+        // pins the three byte faces).
+        try container.encodeIfPresent(aiProvenance, forKey: .aiProvenance)
     }
 }
 
@@ -800,6 +836,62 @@ public struct SidecarVersionRecord: Codable, Sendable, Equatable {
         // Absent key for the ACTIVE slot (nil chain) — the additive
         // optional discipline; a decode of the record round-trips nil.
         try container.encodeIfPresent(chain, forKey: .chain)
+    }
+}
+
+// MARK: - AI provenance record (v8, Plan M2-10-06 KD-3; D-M2-10-CONTEXT-3)
+
+/// The operation an AI-enhanced copy was born from (the frozen v8 value
+/// space; DECISIONS M2-10-06 pins the enum — new operations extend the raw
+/// values, never rename).
+public enum AIProvenanceOperation: String, Codable, Sendable {
+    /// Super-resolution (scale ≥ 2; `scale` carries the factor).
+    case upscale
+    /// Denoising (scale == 1; `amount` carries the strength 0...100).
+    case denoise
+}
+
+/// One AI-enhanced copy's birth record — the sidecar v8 value space
+/// (`SidecarAIProvenanceRecord`), the SIX D-3 fields verbatim. The on-disk
+/// keys are the snake_case D-3 spelling (Lumen `enhance` provenance
+/// lineage); the record is TOTAL (all six always encoded — the
+/// optionality lives at the DOCUMENT-level `aiProvenance` key, not here).
+///
+/// FROZEN FROM BIRTH (the ONE-WAY lock: a rename = migration). No hash
+/// fields — the UInt64 decimal-String lock (L013) has zero new surface.
+public struct SidecarAIProvenanceRecord: Codable, Sendable, Equatable {
+
+    /// What the copy was born from (`upscale` / `denoise`).
+    public var operation: AIProvenanceOperation
+    /// The super-resolution factor (4 for x4 models; 1 for denoise).
+    public var scale: Int
+    /// The denoise strength 0...100 (0 for upscale).
+    public var amount: Double
+    /// The original file's name (e.g. `DSC09991.ARW`) — human-facing
+    /// provenance; the machine link is `sourceImageID`.
+    public var sourceFile: String
+    /// The ORIGINAL image's UUID string (the `imageID` of the source
+    /// document — the future "derived-from" pointer's join key, OQ-4-C).
+    public var sourceImageID: String
+    /// The inference backend (e.g. `coreml-worker`).
+    public var backend: String
+
+    private enum CodingKeys: String, CodingKey {
+        case operation, scale, amount, backend
+        case sourceFile = "source_file"
+        case sourceImageID = "source_image_id"
+    }
+
+    public init(
+        operation: AIProvenanceOperation, scale: Int, amount: Double,
+        sourceFile: String, sourceImageID: String, backend: String
+    ) {
+        self.operation = operation
+        self.scale = scale
+        self.amount = amount
+        self.sourceFile = sourceFile
+        self.sourceImageID = sourceImageID
+        self.backend = backend
     }
 }
 
