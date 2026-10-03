@@ -288,7 +288,7 @@ LIB	10	LutLibraryStoreTests.swift
 LIB	11	LibraryDocumentTests.swift
 LIB	11	LibraryInspectorModelTests.swift
 LIB	11	LibraryLegacyGateTests.swift
-LIB	11	LibraryStoreTests.swift
+LIB	14	LibraryStoreTests.swift
 LIB	11	MetadataServiceTests.swift
 LIB	11	Phase6SidecarTests.swift
 LIB	12	Phase5SidecarTests.swift
@@ -298,7 +298,7 @@ LIB	13	SidecarRoundTripTests.swift
 LIB	14	ExifFoldTests.swift
 LIB	15	ImageLinkerTests.swift
 LIB	16	LibraryGridModelTests.swift
-LIB	16	LibrarySchemaTests.swift
+LIB	23	LibrarySchemaTests.swift
 LIB	2	ImportCompletionRegressionTests.swift
 LIB	2	LibraryBenchmarkHarness.swift
 LIB	20	LibraryQueriesTests.swift
@@ -307,7 +307,7 @@ LIB	27	FilterSQLTests.swift
 LIB	3	SidecarTieBreakTests.swift
 LIB	4	MetadataTests.swift
 LIB	5	LibrarySearchModelTests.swift
-LIB	5	XMPExportMatrixTests.swift
+LIB	6	XMPExportMatrixTests.swift
 LIB	6	FilmstripModelTests.swift
 LIB	6	LibraryProjectControllerTests.swift
 LIB	6	LibraryRelinkModelTests.swift
@@ -399,3 +399,10 @@ LIB	9	WordPieceTokenizerTests.swift
 LIB	10	SemanticStoreTests.swift
 LIB	8	EmbeddingScannerTests.swift
 LIB	10	SemanticSearchTests.swift
+
+# M2-10-02 执行期勘误（2026-10-03，`func test` 全量对账机检发现）：三行行值为
+#   更早波次的陈旧计数——LibraryStoreTests 11→14、XMPExportMatrixTests 5→6、
+#   LibrarySchemaTests 16→19（M2-10-02 前实际值；本波 v4 化后 23，净 +4）。
+#   对账锚：base 2718 执行数 + 本波净 41（schema +4 + 新四文件 37）= 2759，
+#   全套 `TOTAL|2759/16/1` → SidecarV5 环境型 flake 隔离复跑 11/0/0 → 终账
+#   2759/16/0（func test 总数 2761 对执行数 2759 的 −2 为基线既有偏移，非本波）。
