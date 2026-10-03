@@ -29,6 +29,12 @@ import XCTest
 
 final class SidecarV5Tests: XCTestCase {
 
+    /// The 71MB work directories created by THIS test instance (the T5 real
+    /// chain makes one per real-chain test). `tearDown` removes them on every
+    /// path — pass or fail (the M2-8-2 observation③ hygiene debt: the copies
+    /// used to leak into TMPDIR on every App bundle run, tens of GB accrued).
+    private var workDirs: [URL] = []
+
     /// Canonical JSON (the D-S2 writer convention — sorted keys, stable
     /// bytes across encodes: the modern Foundation JSONEncoder emits keyed
     /// properties in unstable dictionary order without this).
@@ -300,17 +306,53 @@ final class SidecarV5Tests: XCTestCase {
 
     /// A fresh per-test work directory with the fixture copied in (the
     /// sidecars land beside it — never beside the repo input sample).
+    /// Tracks the directory for `tearDown` and sweeps abandoned siblings.
     private func makeWorkCopy() throws -> URL {
         let fixture = fixtureURL
         guard FileManager.default.fileExists(atPath: fixture.path) else {
             throw XCTSkip("RAW fixture missing: \(fixture.path)")
         }
+        sweepAbandonedWorkDirs()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("sidecarv5-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent(fixture.lastPathComponent)
         try FileManager.default.copyItem(at: fixture, to: url)
+        workDirs.append(dir)
         return url
+    }
+
+    /// The per-test guarantee (runs on pass AND fail paths; a hard-killed
+    /// process self-heals through `sweepAbandonedWorkDirs` on the next run).
+    override func tearDown() {
+        for dir in workDirs {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        workDirs.removeAll()
+        super.tearDown()
+    }
+
+    /// Removes `sidecarv5-*` directories older than 24h — residue of runs
+    /// whose process never reached `tearDown` (SIGKILL on a hung decode).
+    /// The age cutoff keeps concurrent runs of this class safe (their copies
+    /// are minutes old).
+    private func sweepAbandonedWorkDirs() {
+        let temp = FileManager.default.temporaryDirectory
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: temp, includingPropertiesForKeys: [
+                .isDirectoryKey, .contentModificationDateKey,
+            ])
+        else { return }
+        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+        for url in contents where url.lastPathComponent.hasPrefix("sidecarv5-") {
+            let values = try? url.resourceValues(
+                forKeys: [.isDirectoryKey, .contentModificationDateKey])
+            guard values?.isDirectory == true,
+                  let modified = values?.contentModificationDate,
+                  modified < cutoff
+            else { continue }
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     /// A drift-free sidecar document (empty history, self-consistent
