@@ -417,7 +417,13 @@ struct WorkspaceHostView: View {
             // THIS project's package + the App assembly point's engine
             // (nil in no-model environments = the honest unavailable face).
             semanticStore: SemanticStore(store: store),
-            semantic: { await AIInferenceService.shared.semanticSearcher() })
+            semantic: { await AIInferenceService.shared.semanticSearcher() },
+            // M2-10-04 (KD-4): the fulltext leg — the same package's
+            // ai_understanding FTS (the E5 JOIN-active face lives in Core).
+            fulltext: { query in
+                try await AIDescriptionService.imageIDs(
+                    matching: query, store: store)
+            })
         thumbnailBridge = bridge
         gridModel = grid
         inspectorModel = inspector
