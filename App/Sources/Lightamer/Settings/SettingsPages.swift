@@ -349,7 +349,8 @@ struct SettingsCachePage: View {
 // MARK: - Pages 4+5: LCR / ACA honest empty states (M2-10)
 
 /// The shared structural skeleton for the two M2-10 pages: a segmented-card
-/// layout with the arrival copy and ZERO fake switches (D7).
+/// layout with the arrival copy and ZERO fake switches (D7). The ACA page is
+/// real from M2-10-07 T1; the LCR page lands with T2.
 struct SettingsPlaceholderPage: View {
     let identifier: String
     let title: String
@@ -378,6 +379,255 @@ struct SettingsPlaceholderPage: View {
         }
         .formStyle(.grouped)
         .accessibilityIdentifier("settings.page.\(identifier)")
+    }
+}
+
+// MARK: - Page 5: Advanced Content Analysis (M2-10-07 T1, KD-2)
+
+/// The ACA page: the single remote connection form (protocol / baseURL /
+/// model) with the live admission gate, the key face (SecureField →
+/// Keychain + the 「未配置」 banner), the rating preferences (strictness /
+/// output language / the 不再询问 toggle) and the inline connection test.
+struct SettingsACAPage: View {
+    var model: ACASettingsModel = ACASettingsModel()
+
+    @State private var keyBuffer = ""
+    @State private var loaded = false
+
+    var body: some View {
+        Form {
+            connectionSection
+            keySection
+            ratingSection
+            testSection
+            policySection
+        }
+        .formStyle(.grouped)
+        .accessibilityIdentifier("settings.page.advancedContentAnalysis")
+        .onAppear {
+            guard !loaded else { return }
+            loaded = true
+            model.load()
+        }
+    }
+
+    // MARK: Connection form
+
+    private var connectionSection: some View {
+        Section(String(
+            localized: "settings_aca_connection_section",
+            defaultValue: "Connection")) {
+            Picker(String(
+                localized: "settings_aca_protocol",
+                defaultValue: "Protocol"), selection: Binding(
+                    get: { model.provider },
+                    set: { model.setProvider($0) })
+            ) {
+                Text(String(
+                    localized: "settings_aca_protocol_openai",
+                    defaultValue: "OpenAI-compatible (chat completions)"))
+                    .tag(AIProviderProtocol.openAIChatCompletions)
+                Text(String(
+                    localized: "settings_aca_protocol_anthropic",
+                    defaultValue: "Anthropic (messages)"))
+                    .tag(AIProviderProtocol.anthropicMessages)
+            }
+            .pickerStyle(.radioGroup)
+            .accessibilityIdentifier("settings.aca.protocol")
+
+            LabeledContent(String(
+                localized: "settings_aca_base_url",
+                defaultValue: "Base URL")) {
+                TextField(
+                    String(
+                        localized: "settings_aca_base_url_placeholder",
+                        defaultValue: "https://api.openai.com/v1"),
+                    text: Binding(
+                        get: { model.baseURLText },
+                        set: { model.baseURLText = $0; model.commitConnection() }),
+                    axis: .vertical)
+                .font(.system(size: 11, design: .monospaced))
+                .accessibilityIdentifier("settings.aca.baseURL")
+            }
+
+            if let rejection = model.endpointRejection {
+                Text(rejection)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("settings.aca.endpoint.rejection")
+            }
+
+            LabeledContent(String(
+                localized: "settings_aca_model",
+                defaultValue: "Model")) {
+                TextField(
+                    String(
+                        localized: "settings_aca_model_placeholder",
+                        defaultValue: "gpt-4o-mini / claude-sonnet…"),
+                    text: Binding(
+                        get: { model.modelText },
+                        set: { model.modelText = $0; model.commitConnection() }))
+                .font(.system(size: 11, design: .monospaced))
+                .accessibilityIdentifier("settings.aca.model")
+            }
+        }
+    }
+
+    // MARK: Key face
+
+    @ViewBuilder
+    private var keySection: some View {
+        Section(String(
+            localized: "settings_aca_key_section",
+            defaultValue: "API Key")) {
+            if model.needsSetup {
+                Label(String(
+                    localized: "settings_aca_key_missing_banner",
+                    defaultValue: "No API key configured — rating and description cannot run until a key is saved."),
+                    systemImage: "exclamationmark.triangle")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("settings.aca.key.missing")
+            }
+            SecureField(
+                String(localized: "settings_aca_key_placeholder",
+                       defaultValue: "Paste the provider API key"),
+                text: $keyBuffer)
+                .font(.system(size: 11, design: .monospaced))
+                .accessibilityIdentifier("settings.aca.key.field")
+            HStack {
+                Button(String(
+                    localized: "settings_aca_key_save",
+                    defaultValue: "Save Key")) {
+                    model.saveKey(keyBuffer)
+                    keyBuffer = ""
+                }
+                .disabled(keyBuffer.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityIdentifier("settings.aca.key.save")
+                if model.keyPresent {
+                    Button(String(
+                        localized: "settings_aca_key_delete",
+                        defaultValue: "Remove Key"), role: .destructive) {
+                        model.deleteKey()
+                    }
+                    .accessibilityIdentifier("settings.aca.key.delete")
+                    Text(String(
+                        localized: "settings_aca_key_present",
+                        defaultValue: "A key is stored in the Keychain."))
+                        .font(.caption)
+                        .foregroundStyle(LightamerColors.textSecondary)
+                }
+            }
+            Text(String(
+                localized: "settings_aca_key_hint",
+                defaultValue: "The key is stored only in the macOS Keychain and is sent solely in the request's auth header — never into defaults, logs or error text."))
+                .font(.caption)
+                .foregroundStyle(LightamerColors.textSecondary)
+        }
+    }
+
+    // MARK: Rating preferences
+
+    private var ratingSection: some View {
+        Section(String(
+            localized: "settings_aca_rating_section",
+            defaultValue: "AI Rating")) {
+            HStack {
+                Text(String(
+                    localized: "settings_aca_strictness",
+                    defaultValue: "Strictness \(model.strictness)"))
+                    .accessibilityIdentifier("settings.aca.strictness.label")
+                Slider(
+                    value: Binding(
+                        get: { Double(model.strictness) },
+                        set: { model.setStrictness(Int($0.rounded())) }),
+                    in: 1...5, step: 1)
+                    .accessibilityIdentifier("settings.aca.strictness")
+            }
+            Text(String(
+                localized: "settings_aca_strictness_hint",
+                defaultValue: "1 = only obvious rejects … 5 = exhibition standard. The wording ships with the rubric sent to the provider."))
+                .font(.caption)
+                .foregroundStyle(LightamerColors.textSecondary)
+
+            Picker(String(
+                localized: "settings_aca_language",
+                defaultValue: "Output language"), selection: Binding(
+                    get: { model.language },
+                    set: { model.setLanguage($0) })
+            ) {
+                Text(String(
+                    localized: "settings_aca_language_system",
+                    defaultValue: "Follow system"))
+                    .tag(AIOutputLanguage.system)
+                Text(String(
+                    localized: "settings_aca_language_chinese",
+                    defaultValue: "Chinese"))
+                    .tag(AIOutputLanguage.chinese)
+                Text(String(
+                    localized: "settings_aca_language_english",
+                    defaultValue: "English"))
+                    .tag(AIOutputLanguage.english)
+            }
+            .accessibilityIdentifier("settings.aca.language")
+
+            Toggle(String(
+                localized: "settings_aca_skip_confirm",
+                defaultValue: "Apply ratings without asking"),
+                isOn: Binding(
+                    get: { model.skipRatingConfirmation },
+                    set: { model.skipRatingConfirmation = $0 }))
+                .accessibilityIdentifier("settings.aca.skip.confirm")
+        }
+    }
+
+    // MARK: Connection test
+
+    @ViewBuilder
+    private var testSection: some View {
+        Section(String(
+            localized: "settings_aca_test_section",
+            defaultValue: "Connection Test")) {
+            Button {
+                Task { await model.runConnectionTest() }
+            } label: {
+                if model.testRunning {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text(String(
+                        localized: "settings_aca_test_run",
+                        defaultValue: "Test Connection"))
+                }
+            }
+            .disabled(model.testRunning)
+            .accessibilityIdentifier("settings.aca.test.run")
+            if let line = model.testOutcomeLine {
+                Text(line)
+                    .font(.caption)
+                    .foregroundStyle(
+                        model.testOutcome == .ok
+                            ? LightamerColors.textSecondary : Color.orange)
+                    .accessibilityIdentifier("settings.aca.test.outcome")
+            }
+            if let statusLine = model.statusLine {
+                Text(statusLine)
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
+        }
+    }
+
+    // MARK: The remote data-policy statement
+
+    private var policySection: some View {
+        Section {
+            Text(String(
+                localized: "settings_aca_policy",
+                defaultValue: "Rating and description send the photograph you choose to the provider configured above. Nothing is sent until you run a command; local AI features never use this connection."))
+                .font(.caption)
+                .foregroundStyle(LightamerColors.textSecondary)
+                .accessibilityIdentifier("settings.aca.policy")
+        }
     }
 }
 
