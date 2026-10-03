@@ -263,10 +263,12 @@ final class SemanticSearchTests: XCTestCase {
         XCTAssertNil(grid.semanticHits)
         XCTAssertEqual(grid.rows.count, 1)
         XCTAssertEqual(grid.rows.first?.fileStem, "bbb")
-        // And a full-text submit never touches anything (the 04 placeholder).
+        // And a full-text submit without an injected query face stays the
+        // HONEST typed refusal (M2-10-04 replaced the placeholder — the leg
+        // is real where the assembly supplies it; this model supplies none).
         model.select(mode: .fullText)
         let outcome = await model.submit("anything")
-        XCTAssertEqual(outcome, .failed(.unrecognizedToken("anything")))
+        XCTAssertEqual(outcome, .failed(.fulltextUnavailable))
         XCTAssertNil(grid.semanticHits)
         XCTAssertEqual(grid.rows.count, 1)
     }
