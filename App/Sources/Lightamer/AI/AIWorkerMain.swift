@@ -138,7 +138,12 @@ private actor WorkerLoop {
         self.output = output
     }
 
-    func serve() {
+    /// Sequential frame loop. The async tower forwards are AWAITED INLINE:
+    /// a child Task would deadlock here — `serve` hogs this actor's executor
+    /// with the blocking pipe reads, so a detached forward could never run.
+    /// Await suspension is the only release point (and the client is
+    /// strictly single-flight, so inline ordering is the contract anyway).
+    func serve() async {
         let reader = AIWorkerFrameReader(handle: input)
         while true {
             let read: AIWorkerFrameRead?
@@ -181,17 +186,19 @@ private actor WorkerLoop {
             case .open:
                 open(request)
             case .run:
-                run(request)
+                await run(request)
             case .stop:
                 send(AIWorkerResponse(id: request.id, ok: true))
                 sessions.removeAll()
                 return
             case nil:
+                #if DEBUG
+                if request.op == AIWorkerMain.spikeOp {
+                    spike(request)
+                    break
+                }
+                #endif
                 sendError(request.id, "unknown op: \(request.op)", nil)
-            #if DEBUG
-            case .some where request.op == AIWorkerMain.spikeOp:
-                spike(request)
-            #endif
             }
         }
     }
@@ -281,7 +288,7 @@ private actor WorkerLoop {
 
     // MARK: - run
 
-    private func run(_ request: AIWorkerRequest) {
+    private func run(_ request: AIWorkerRequest) async {
         guard let profile = request.profile,
               let units = request.unitsKind,
               let runner = sessions[
@@ -295,12 +302,7 @@ private actor WorkerLoop {
             sendError(request.id, "run requires a payload", nil)
             return
         }
-        // The async tower forwards are awaited on a child task; the actor
-        // keeps the frame loop free to keep READING while a prediction is in
-        // flight (the client is strictly single-flight, so ordering holds).
-        Task {
-            await self.forwardRun(request, runner: runner, payload: payload)
-        }
+        await forwardRun(request, runner: runner, payload: payload)
     }
 
     private func forwardRun(

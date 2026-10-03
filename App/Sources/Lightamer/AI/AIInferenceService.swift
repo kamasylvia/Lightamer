@@ -5,18 +5,21 @@ import Observation
 // ─────────────────────────────────────────────────────────────────────────────
 // AIInferenceService (Plan M2-10-02 KD-5 / T4 action 2) — the App-layer
 // ASSEMBLY SINGLE POINT for local inference: the bundled Chinese-CLIP assets
-// (folder reference via ModelLocator) → InProcessMLModelRunner →
-// SemanticEngine, memoized.
+// (folder reference via ModelLocator, the readiness probe) → the worker-
+// process runner (AIWorkerClient, M2-10-05) → SemanticEngine, memoized.
 //
-// M2-10-05 SWITCH LINE: the worker-process conformer lands there and
-// REPLACES the `InProcessMLModelRunner(...)` construction below — the
+// M2-10-05 SWITCH LINE: the pinned runner construction below swapped the
+// InProcess conformer for the `--ai-worker` child process (OQ-5-A) — the
 // engine/store/search faces are untouched (the KD-5 assembly-point
-// rationale). The comment pins the seam.
+// rationale). InProcessMLModelRunner survives as the test fixture and as
+// the worker's session object.
 //
 // FAIL-CLOSED (KD-5): any absent/broken asset (no bundle models, vocab
-// unreadable, tokenizer construction failure, MLModel load failure) → nil,
-// memoized — the honest「语义模型未就绪」face. NEVER a fake empty result
-// (D8's 禁假开关, the search-dialog discipline).
+// unreadable, tokenizer construction failure) → nil, memoized — the
+// honest「语义模型未就绪」face. NEVER a fake empty result (D8's 禁假开关,
+// the search-dialog discipline). Runtime worker failures surface through
+// the client's typed errors (unavailable/crashed/exhausted) — the same
+// honest-face rule one layer out.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
@@ -56,39 +59,30 @@ final class AIInferenceService {
                 "vocab.txt", profileID: clip.profileID),
             let vocab = try? String(contentsOf: vocabURL, encoding: .utf8),
             let tokenizer = try? WordPieceTokenizer(vocabText: vocab),
-            let imageURL = locator.bundledAssetURL(
-                clip.assetFileName, profileID: clip.profileID),
-            // The twin-tower naming is the bundle format's convention
-            // (M2-10-01 built img/txt siblings; the catalog carries the
-            // PRIMARY asset name only — the text twin derives from it).
-            let textURL = locator.bundledAssetURL(
+            // The bundled twin assets stay the MODEL-READINESS probe (the
+            // nil「语义模型未就绪」face for absent models is unchanged) —
+            // the worker process resolves and loads them on its own side
+            // of the IPC, the editor side only needs the tokenizer.
+            locator.bundledAssetURL(
+                clip.assetFileName, profileID: clip.profileID) != nil,
+            locator.bundledAssetURL(
                 clip.assetFileName.replacingOccurrences(of: "-img.", with: "-txt."),
-                profileID: clip.profileID)
+                profileID: clip.profileID) != nil
         else {
             loadFailed = true
             return nil
         }
-        // ── M2-10-05: the worker-process runner replaces THIS line ──
-        guard let runner = try? InProcessMLModelRunner(
-            imageModelURL: imageURL, textModelURL: textURL,
-            compileCacheDirectory: Self.compiledModelCache)
-        else {
-            loadFailed = true
-            return nil
-        }
+        // ── M2-10-05: THE SWITCH LINE — the WORKER-PROCESS runner now sits
+        // here (OQ-5-A); the `InProcessMLModelRunner(...)` construction this
+        // replaces survives as the test fixture and as the worker's own
+        // session object. Failures degrade through the worker client's
+        // chain: an unreachable worker surfaces typed `.workerUnavailable`
+        // (the honest feature-degraded face) — NEVER an in-process
+        // fallback, which would put the crash risk back into the editor.
+        let runner = AIWorkerClient(
+            record: CompatRecord(path: CompatRecord.defaultPath()))
         let engine = SemanticEngine(runner: runner, tokenizer: tokenizer)
         cachedEngine = engine
         return engine
-    }
-
-    /// The compiled-model cache (a rebuildable Caches-class derivative —
-    /// the bundled .mlpackage trees compile once, then load directly).
-    private static var compiledModelCache: URL? {
-        guard let caches = FileManager.default.urls(
-            for: .cachesDirectory, in: .userDomainMask).first
-        else { return nil }
-        return caches
-            .appendingPathComponent("Lightamer", isDirectory: true)
-            .appendingPathComponent("compiled-models", isDirectory: true)
     }
 }
