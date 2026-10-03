@@ -637,3 +637,41 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   一切「安全行为靠约定」的 API 消费。
 - **来源**：M2-10-04 AICredentialStoreTests E4 断言首写（2026-10-03），
   DECISIONS §4。
+
+## L063: UInt8 原位移位仍是 UInt8——多字节大端装载必须先宽化再移位（2026-10-03，M2-10-05 T1）
+
+- **背景**：worker 帧协议的 4 字节大端长度前缀解码写成
+  `UInt8(byte0) << 24 | …`——Swift 里 `UInt8 << 24` 的移位结果类型仍是
+  UInt8（模 256 截断），5359 字节的帧长度 0x14EF 被读成 0xEF = 239，
+  JSON 尾部截断后解码报「格式不正确」。
+- **根因**：Swift 整数移位是**同类型**运算，不自动宽化；小端/单字节
+  路径永远踩不到，只有载荷 >255 字节的帧才暴露——golden 测试用 25 字节
+  小帧全绿（低位字节掩蔽了 bug），是 512 维 float 数组的 ~5KB 帧当场抓出。
+- **对策**：①逐字节装载一律先 `UInt32(byte)` 宽化再移位；②帧协议测试
+  必须含 >255 字节载荷的 round-trip（单字节 golden 是假覆盖）；③
+  `load(as: UInt8.self)` 后紧跟移位的代码是固定审计点。
+- **适用**：一切二进制协议头/长度前缀/魔数解析（本仓后续：sidecar 容器、
+  导出封装、IPC 通道）。
+- **来源**：AIWorkerProtocolTests testResponseRoundTripKeepsEmbeddingPrecision
+  首跑红（2026-10-03），独立 swiftc 复现器定位。
+
+## L064: 同步阻塞的 actor 方法饿死执行器——actor 内派生子任务等不到调度即死锁（2026-10-03，M2-10-05 T2）
+
+- **背景**：worker 主循环 `serve()` 是同步 actor 方法，循环体 blocking 读
+  管道（availableData）；`run` 的 async 推理腿用
+  `Task { await self.forwardRun(...) }` 派发——子任务永远排不上该 actor
+  的执行器（同步方法不挂起、不让位），run 请求零响应 → 客户端超时 kill
+  → 降级链三档全烧 → exhausted。ping/open/spike 全内联处理所以只有
+  run 挂（症状高度误导，像是模型/ANE 问题）。
+- **根因**：actor 的串行执行器被同步阻塞占用 = 该 actor 上一切后续任务
+  （包括自己派生的）饿死。Swift actor 不是线程，是「挂起点之间的互斥」
+  ——blocking call 没有挂起点。
+- **对策**：①actor 方法内禁派生依赖同一 actor 的子任务——要么内联
+  await（本例：`await forwardRun(...)`，await 挂起即让位），要么把阻塞
+  读移出 actor；②「部分 op 有响应、部分 op 零响应」的 hang 先查执行器
+  饿死再查模型；③专用进程里的阻塞读可容忍（无其他任务可饿），但必须
+  保证无子任务派生。
+- **适用**：一切 actor 包 I/O 的形状（SidecarStore/PipeCache 家族复核过
+  无此形态；后续 worker/长任务 actor 遵此）。
+- **来源**：AIWorkerClientTests testRealModelEmbedImageThroughWorkerProcess
+  482s exhausted 首跑（2026-10-03）；python 管道探针复现 run 响应缺失。

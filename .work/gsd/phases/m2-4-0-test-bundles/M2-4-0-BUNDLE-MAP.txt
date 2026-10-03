@@ -432,3 +432,16 @@ LIB	7	AICredentialStoreTests.swift
 LIB	22	AIProviderClientTests.swift
 LIB	15	AIRatingDescriptionTests.swift
 APP	13	FulltextSearchTests.swift
+
+# M2-10-05 增行记录（2026-10-03 执行期，checker E2 测试登记纪律）：三 APP——
+#   AIWorkerProtocolTests（帧编解码纯函数：BE 布局 golden/管道 round-trip/
+#   8MB 构造期 typed 拒/越界 skip 重对齐/坏帧 typed/双通道形状）+
+#   CompatRecordTests（记账/两模型全禁/CPU 不记/原子写终态/坏 JSON 容忍/
+#   reset/machineKey 注入）+ AIWorkerClientTests（真子进程生命周期——
+#   ping 往返/crash 注入 exit(9) 重启链/超时 kill/外杀管道断裂折叠/
+#   降级序消耗/excluded 预剔除/不可用不回退/真模型探针 XCTSkip 资源门/
+#   OQ-10-C IPC spike 基准）= APP/App 级（worker 生命周期测试宿主耦合）。
+#   运行期总数基线上移（2863 起算，+27）。
+APP	10	AIWorkerProtocolTests.swift
+APP	8	CompatRecordTests.swift
+APP	9	AIWorkerClientTests.swift
