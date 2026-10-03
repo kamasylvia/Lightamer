@@ -24,7 +24,7 @@ KD-1 骨架四类展开后实收 **173**（场景 51 / 人物 14 / 动物 9 / �
 E3 只申报了 `build_default_bundle.sh` 的修改。生成阶段实现为**独立脚本**而非
 shell 内联 heredoc——mirror `convert_chinese_clip.py` 先例（可独立运行、可维护、
 本机可直接重跑产真原型）。shell 侧 = 纯 opt-in 调用（无 flag 时 01 链字节等价，
-`zsh -n` + diff 机检 17 行纯插入）。**已在本机实跑**：173 原型 × 512 维 fp16 =
+`zsh -n` + diff 机检 18 行纯插入——2026-10-03 验收批勘误，原记 17）。**已在本机实跑**：173 原型 × 512 维 fp16 =
 177,152 bytes 落
 `Resources/AIModels/chinese-clip-vitb16-int8/label-prototypes/`（gitignore 覆盖
 机检过；revision = Catalog pin `36e679e6…`）。
