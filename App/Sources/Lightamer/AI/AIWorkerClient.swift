@@ -186,6 +186,67 @@ public final class AIWorkerClient: AIInferencing, @unchecked Sendable {
         }
     }
 
+    // MARK: - Enhancement tile channel (Plan M2-10-06 T3a, additive)
+
+    /// The enhancement open's model facts (the supported tile edges + the
+    /// super-resolution factor) — reported by the worker's open leg and
+    /// memoized here on the LAST successful open (queue-confined; the
+    /// embed paths never populate it, nil until an enhancement open).
+    public private(set) var lastEnhancementModelFacts: (tileEdges: [Int], scale: Int)?
+
+    /// Open the enhancement profile through the fallback chain and return
+    /// the model facts. The session stays open for the subsequent tile
+    /// runs (the same (profile, units) open cache).
+    public func openEnhancement(
+        _ profileID: String
+    ) async throws -> (tileEdges: [Int], scale: Int) {
+        try await runOnQueue {
+            try self.withFallbackChain(profile: profileID) { units in
+                try self.ensureOpen(profile: profileID, units: units)
+                guard let facts = self.lastEnhancementModelFacts else {
+                    throw AIWorkerClientError.requestFailed(
+                        "enhancement open returned no model facts")
+                }
+                return facts
+            }
+        }
+    }
+
+    /// One tile through the PATH channel (the red line — the 8MB frame
+    /// bound never applies to enhancement frames): the worker decodes
+    /// `inPath` (16-bit RGB TIFF), runs the model at the feed shape
+    /// (denoise blends output with input by amount/100 in the worker —
+    /// the models carry no strength input), and writes `outPath`.
+    /// Returns the output path (echo).
+    @discardableResult
+    public func enhanceTile(
+        _ profileID: String, inPath: String, outPath: String,
+        feedHeight: Int, feedWidth: Int, amount: Double?
+    ) async throws -> String {
+        try await runOnQueue {
+            try self.withFallbackChain(profile: profileID) { units in
+                let response = try self.requestSync(
+                    AIWorkerRequest(
+                        id: self.nextRequestID(), op: AIWorkerOp.run.rawValue,
+                        profile: profileID, units: units.rawValue,
+                        payload: AIWorkerPayload(
+                            inPath: inPath, outPath: outPath,
+                            tile: AITileParameters(
+                                height: feedHeight, width: feedWidth,
+                                amount: amount))),
+                    timeout: self.configuration.runTimeout)
+                guard response.ok, let outPath = response.result?.outPath else {
+                    // A run-level error frame: the worker is healthy (the
+                    // session was already opened) — surface typed, no chain
+                    // consumption (the embedText precedent).
+                    throw AIWorkerClientError.requestFailed(
+                        response.error ?? "tile run returned no output path")
+                }
+                return outPath
+            }
+        }
+    }
+
     // MARK: - Liveness (tests + health diagnostics)
 
     /// One ping round trip against a (possibly freshly spawned) worker.
@@ -325,6 +386,13 @@ public final class AIWorkerClient: AIInferencing, @unchecked Sendable {
             throw ChainFailure.profileFailed(response.error ?? "open failed")
         }
         openSessionKey = key
+        // The enhancement model facts ride the open response (M2-10-06);
+        // cleared with the session so a CLIP open never leaves stale facts.
+        if let edges = response.result?.tileEdges, let scale = response.result?.scale {
+            lastEnhancementModelFacts = (tileEdges: edges, scale: scale)
+        } else {
+            lastEnhancementModelFacts = nil
+        }
     }
 
     // MARK: - The request cycle (queue-confined)
@@ -484,6 +552,7 @@ public final class AIWorkerClient: AIInferencing, @unchecked Sendable {
         stdinHandle = nil
         openSessionKey = nil
         lastOpenedUnits = nil
+        lastEnhancementModelFacts = nil
         pumpThread = nil
     }
 

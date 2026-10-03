@@ -452,3 +452,4 @@ APP	9	AIWorkerClientTests.swift
 LIB	13	TileInferenceTests.swift
 APP	5	SidecarV8Tests.swift
 APP	8	EnhanceCopyTests.swift
+APP	10	EnhanceDialogTests.swift

@@ -125,10 +125,29 @@ public struct AIWorkerPayload: Codable, Equatable, Sendable {
     }
 }
 
-/// Tiling parameters container (M2-10-06 fills the fields; today it is the
-/// proven-empty shape so the path-channel envelope is stable).
+/// Tiling parameters container (Plan M2-10-06 T3a fills the fields; the
+/// envelope round-trips the container so the frame shape stays the
+/// M2-10-05-proven one — pure field addition inside the payload, no frame
+/// version movement):
+///
+///   • `height` / `width` — the FEED shape the model runs at (the worker
+///     session's compiled-shape key, the ShapedSessions LRU dimension).
+///     The engine pads sub-tile spans to this shape before writing the
+///     tile file (the DRUNet pad-and-crop precedent — the only padding
+///     in the system).
+///   • `amount` — the denoise strength 0...100 (nil for upscale; the
+///     models carry no strength input — the engine blends output with
+///     input by amount/100, the industry-standard linear interpolation).
 public struct AITileParameters: Codable, Equatable, Sendable {
-    public init() {}
+    public var height: Int?
+    public var width: Int?
+    public var amount: Double?
+
+    public init(height: Int? = nil, width: Int? = nil, amount: Double? = nil) {
+        self.height = height
+        self.width = width
+        self.amount = amount
+    }
 }
 
 /// One worker response envelope. `ok:false` carries the human-readable
@@ -160,8 +179,10 @@ public struct AIWorkerResponse: Codable, Equatable, Sendable {
 }
 
 /// The success-result variants (KD-1): the ping pid, the open echo, the
-/// embedding vector, the enhancement output path, and the spike byte count
-/// (the DEBUG-only IPC microbenchmark op).
+/// embedding vector, the enhancement output path, the spike byte count
+/// (the DEBUG-only IPC microbenchmark op), and the M2-10-06 enhancement
+/// open's model facts (additive optional fields — an M2-10-05 worker's
+/// frames decode unchanged with these nil).
 public struct AIWorkerResult: Codable, Equatable, Sendable {
     public var pid: Int?
     public var profile: String?
@@ -169,10 +190,19 @@ public struct AIWorkerResult: Codable, Equatable, Sendable {
     public var embedding: [Float]?
     public var outPath: String?
     public var bytes: Int?
+    /// Enhancement family (M2-10-06 open leg): the model's SUPPORTED input
+    /// edges (ascending; a static-converted asset reports exactly its
+    /// baked edge — manifest.inputSize). The engine's planner consumes
+    /// these.
+    public var tileEdges: [Int]?
+    /// Enhancement family: the model's super-resolution factor read from
+    /// the output/input edge ratio (4 for the x4 family, 1 for denoise).
+    public var scale: Int?
 
     public init(
         pid: Int? = nil, profile: String? = nil, units: String? = nil,
-        embedding: [Float]? = nil, outPath: String? = nil, bytes: Int? = nil
+        embedding: [Float]? = nil, outPath: String? = nil, bytes: Int? = nil,
+        tileEdges: [Int]? = nil, scale: Int? = nil
     ) {
         self.pid = pid
         self.profile = profile
@@ -180,6 +210,8 @@ public struct AIWorkerResult: Codable, Equatable, Sendable {
         self.embedding = embedding
         self.outPath = outPath
         self.bytes = bytes
+        self.tileEdges = tileEdges
+        self.scale = scale
     }
 }
 
