@@ -675,3 +675,19 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   无此形态；后续 worker/长任务 actor 遵此）。
 - **来源**：AIWorkerClientTests testRealModelEmbedImageThroughWorkerProcess
   482s exhausted 首跑（2026-10-03）；python 管道探针复现 run 响应缺失。
+
+## L065: 裸 `await taskHandle` 不等待任务——join 必须 `await task.value`（2026-10-04，M2-10-06 T3d）
+
+- **现象**：测试里 `let runTask = Task { await model.run() }` … `await runTask` 后立刻断言
+  run 的终态，断言看到的是中间态——`await runTask` **零等待立即返回**（独立 swiftc 探针：
+  join 返回耗时 0.0s，被等任务 300ms 后才完成）。
+- **根因**：`Task` 句柄是普通 Sendable 值；裸 `await` 作用其上是**冗余 await**（对非挂起
+  表达式的合法 no-op），不是 join。真正等待 = `await task.value`（throwing 任务再 try）。
+  心智陷阱来自 `async let` 的**隐式 join**语法（`await (a, b)`）——那是对 `async let`
+  绑定的特例，不适用于显式 `Task {}` 句柄。
+- **对策**：①join 一律写 `await task.value`（或 `try await task.value`）；②「await 了
+  Task 却看到中间态」先查本条再查 actor 饥饿；③冗余 await 编译器不警告——测试里 join
+  后断言终态的形状是固定审计点。
+- **适用**：一切 unstructured Task + 测试/调用方需要等终态的场景。
+- **来源**：EnhanceDialogTests testCancelMidRun 首跑 2 连红（2026-10-04），独立 swiftc
+  复现器定位。
