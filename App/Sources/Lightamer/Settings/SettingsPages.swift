@@ -346,39 +346,311 @@ struct SettingsCachePage: View {
     }
 }
 
-// MARK: - Pages 4+5: LCR / ACA honest empty states (M2-10)
+// MARK: - Page 4: Local Content Recognition (M2-10-07 T2, KD-1)
 
-/// The shared structural skeleton for the two M2-10 pages: a segmented-card
-/// layout with the arrival copy and ZERO fake switches (D7). The ACA page is
-/// real from M2-10-07 T1; the LCR page lands with T2.
-struct SettingsPlaceholderPage: View {
-    let identifier: String
-    let title: String
-    let featureName: String
+/// The LCR page: the five-tier model list (M2-10-01 Catalog) with status,
+/// download/remove, the fail-closed 「待发布」 face, the OQ-9-A 换激活
+/// (confirm → registry recompute enqueue), the D-6 compatibility-record
+/// reset, the auto-labeling three-choice (03 handoff), the readiness probe
+/// line and the local data-policy footnote. Zero fake switches.
+struct SettingsLCRPage: View {
+    let model: LCRSettingsModel
+
+    @State private var pendingActivateKey: String?
+    @State private var pendingActivateName = ""
+    @State private var confirmCompatReset = false
+    @State private var loaded = false
 
     var body: some View {
         Form {
-            Section(title) {
-                Label {
-                    Text(verbatim: "\(featureName) ")
-                        + Text(String(
-                            localized: "settings_placeholder_arrives",
-                            defaultValue: "arrives with M2-10"))
-                } icon: {
-                    Image(systemName: "clock.arrow.circlepath")
-                }
-                .font(.callout)
-                .foregroundStyle(LightamerColors.textSecondary)
-                .accessibilityIdentifier("\(identifier).arrival")
-                Text(String(
-                    localized: "settings_placeholder_hint",
-                    defaultValue: "This page is a placeholder — no settings exist yet. On-device recognition features land with milestone M2-10."))
-                    .font(.caption)
-                    .foregroundStyle(LightamerColors.textSecondary)
-            }
+            readinessSection
+            tiersSection
+            labelingSection
+            compatibilitySection
+            policySection
         }
         .formStyle(.grouped)
-        .accessibilityIdentifier("settings.page.\(identifier)")
+        .accessibilityIdentifier("settings.page.localContentRecognition")
+        .onAppear {
+            guard !loaded else { return }
+            loaded = true
+            Task { await model.refresh() }
+        }
+        .confirmationDialog(
+            String(
+                localized: "settings_lcr_activate_confirm_title",
+                defaultValue: "Switch the active semantic model?"),
+            isPresented: Binding(
+                get: { pendingActivateKey != nil },
+                set: { if !$0 { pendingActivateKey = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(String(
+                localized: "settings_lcr_activate_confirm_accept",
+                defaultValue: "Switch & Recompute")) {
+                if let key = pendingActivateKey {
+                    model.enqueueRecompute(newModelKey: key)
+                }
+                pendingActivateKey = nil
+            }
+            Button(String(
+                localized: "settings_lcr_activate_confirm_cancel",
+                defaultValue: "Cancel"), role: .cancel) {
+                pendingActivateKey = nil
+            }
+        } message: {
+            Text(String(
+                localized: "settings_lcr_activate_confirm_body \(pendingActivateName)"))
+        }
+        .confirmationDialog(
+            String(
+                localized: "settings_lcr_compat_confirm_title",
+                defaultValue: "Reset the AI compatibility record?"),
+            isPresented: $confirmCompatReset,
+            titleVisibility: .visible
+        ) {
+            Button(String(
+                localized: "settings_lcr_compat_confirm_accept",
+                defaultValue: "Reset"), role: .destructive) {
+                model.resetCompatibilityRecord()
+            }
+            Button(String(
+                localized: "settings_lcr_compat_confirm_cancel",
+                defaultValue: "Cancel"), role: .cancel) {}
+        } message: {
+            Text(String(
+                localized: "settings_lcr_compat_confirm_body",
+                defaultValue: "The record of compute units that crashed is cleared, so every combination is tried again after a driver or system update."))
+        }
+    }
+
+    // MARK: Readiness (the worker/asset probe line)
+
+    @ViewBuilder
+    private var readinessSection: some View {
+        Section(String(
+            localized: "settings_lcr_readiness_section",
+            defaultValue: "Local AI")) {
+            switch model.readiness {
+            case .probing:
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(String(
+                        localized: "settings_lcr_probe_probing",
+                        defaultValue: "Checking local AI readiness…"))
+                        .foregroundStyle(LightamerColors.textSecondary)
+                }
+                .accessibilityIdentifier("settings.lcr.probing")
+            case .ready:
+                Label(String(
+                    localized: "settings_lcr_probe_ready",
+                    defaultValue: "AI ready — local inference is available."),
+                    systemImage: "checkmark.circle")
+                    .font(.callout)
+                    .accessibilityIdentifier("settings.lcr.ready")
+            case .unavailable(let reason):
+                Label(reason, systemImage: "exclamationmark.triangle")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("settings.lcr.unavailable")
+            }
+            if let statusLine = model.statusLine {
+                Text(statusLine)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("settings.lcr.status")
+            }
+            if model.recomputeActive {
+                Label(String(
+                    localized: "settings_lcr_recompute_active",
+                    defaultValue: "Recomputing library embeddings — progress is in the background-task bar."),
+                    systemImage: "arrow.triangle.2.circlepath")
+                    .font(.callout)
+                    .accessibilityIdentifier("settings.lcr.recompute.active")
+            }
+        }
+    }
+
+    // MARK: The five-tier list
+
+    private var tiersSection: some View {
+        Section(String(
+            localized: "settings_lcr_models_section",
+            defaultValue: "Models")) {
+            ForEach(model.rows) { row in
+                tierRow(row)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tierRow(_ row: LCRSettingsModel.TierRow) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(verbatim: row.manifest.profileID)
+                    .font(.callout.weight(.medium))
+                tierBadge(row)
+                if row.isActiveModel {
+                    Text(String(
+                        localized: "settings_lcr_active_badge",
+                        defaultValue: "Active"))
+                        .font(.caption2)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(.quaternary, in: Capsule())
+                }
+                Spacer()
+                actionButton(row)
+            }
+            Text(String(
+                localized: "settings_lcr_tier_detail \(dimCopy(row)) \(row.manifest.licenseName) \(row.sizeCopy ?? "—")"))
+                .font(.caption)
+                .foregroundStyle(LightamerColors.textSecondary)
+            Text(row.statusCopy)
+                .font(.caption)
+                .foregroundStyle(row.status == .corrupt ? Color.orange : LightamerColors.textSecondary)
+        }
+        .padding(.vertical, 2)
+        .accessibilityIdentifier("settings.lcr.tier.\(row.manifest.profileID)")
+    }
+
+    private func dimCopy(_ row: LCRSettingsModel.TierRow) -> String {
+        guard let dim = row.manifest.embeddingDim else {
+            return String(
+                localized: "settings_lcr_dim_enhancement",
+                defaultValue: "Enhancement")
+        }
+        return String(localized: "settings_lcr_dim_semantic \(dim)")
+    }
+
+    @ViewBuilder
+    private func tierBadge(_ row: LCRSettingsModel.TierRow) -> some View {
+        switch row.manifest.tier {
+        case .bundled:
+            Text(String(
+                localized: "settings_lcr_tier_bundled",
+                defaultValue: "Built in"))
+                .font(.caption2)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(.quaternary, in: Capsule())
+        case .gitHubRelease:
+            Text(String(
+                localized: "settings_lcr_tier_release",
+                defaultValue: "Download"))
+                .font(.caption2)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(.quaternary, in: Capsule())
+        }
+    }
+
+    @ViewBuilder
+    private func actionButton(_ row: LCRSettingsModel.TierRow) -> some View {
+        switch row.action {
+        case .builtIn, .downloading:
+            EmptyView()
+        case .download:
+            Button(String(
+                localized: "settings_lcr_action_download",
+                defaultValue: "Download")) {
+                Task { await model.download(row.manifest.profileID) }
+            }
+            .accessibilityIdentifier("settings.lcr.download.\(row.manifest.profileID)")
+        case .remove:
+            Button(String(
+                localized: "settings_lcr_action_remove",
+                defaultValue: "Remove")) {
+                Task { await model.remove(row.manifest.profileID) }
+            }
+            .accessibilityIdentifier("settings.lcr.remove.\(row.manifest.profileID)")
+        case .awaitingRelease:
+            Text(String(
+                localized: "settings_lcr_action_awaiting",
+                defaultValue: "Awaiting release"))
+                .font(.caption)
+                .foregroundStyle(LightamerColors.textSecondary)
+                .accessibilityIdentifier("settings.lcr.awaiting.\(row.manifest.profileID)")
+        }
+        if row.canActivate {
+            Button(String(
+                localized: "settings_lcr_action_activate",
+                defaultValue: "Activate…")) {
+                pendingActivateKey = row.manifest.profileID
+                pendingActivateName = row.manifest.profileID
+            }
+            .accessibilityIdentifier("settings.lcr.activate.\(row.manifest.profileID)")
+        }
+    }
+
+    // MARK: Auto-labeling (the M2-10-03 three-choice)
+
+    private var labelingSection: some View {
+        Section(String(
+            localized: "settings_lcr_labeling_section",
+            defaultValue: "Auto-labeling")) {
+                Picker(
+                    String(localized: "settings_lcr_labeling_mode",
+                           defaultValue: "When importing images"),
+                    selection: Binding(
+                        get: { model.labelingMode },
+                        set: { model.setLabelingMode($0) })
+                ) {
+                    Text(String(
+                        localized: "settings_lcr_labeling_ask",
+                        defaultValue: "Ask what to do"))
+                        .tag(LabelingMode.ask)
+                    Text(String(
+                        localized: "settings_lcr_labeling_always",
+                        defaultValue: "Label automatically"))
+                        .tag(LabelingMode.always)
+                    Text(String(
+                        localized: "settings_lcr_labeling_never",
+                        defaultValue: "Never label"))
+                        .tag(LabelingMode.never)
+                }
+                .pickerStyle(.radioGroup)
+                .accessibilityIdentifier("settings.lcr.labeling.mode")
+                Button(String(
+                    localized: "settings_lcr_labeling_reset",
+                    defaultValue: "Reset Auto-labeling Preference")) {
+                    model.resetLabelingPreference()
+                }
+                .accessibilityIdentifier("settings.lcr.labeling.reset")
+            }
+    }
+
+    // MARK: Compatibility record
+
+    private var compatibilitySection: some View {
+        Section(String(
+            localized: "settings_lcr_compat_section",
+            defaultValue: "Diagnostics")) {
+            Button(String(
+                localized: "settings_lcr_compat_reset",
+                defaultValue: "Reset AI Compatibility Record")) {
+                confirmCompatReset = true
+            }
+            .accessibilityIdentifier("settings.lcr.compat.reset")
+            Text(String(
+                localized: "settings_lcr_compat_hint",
+                defaultValue: "Clears the memory of compute units that crashed local inference, so every combination is retried after a driver or system update."))
+                .font(.caption)
+                .foregroundStyle(LightamerColors.textSecondary)
+        }
+    }
+
+    // MARK: The local data-policy statement
+
+    private var policySection: some View {
+        Section {
+            Text(String(
+                localized: "settings_lcr_policy",
+                defaultValue: "All semantic indexing and enhancement runs locally on this device. No image is ever uploaded."))
+                .font(.caption)
+                .foregroundStyle(LightamerColors.textSecondary)
+                .accessibilityIdentifier("settings.lcr.policy")
+        }
     }
 }
 

@@ -1566,6 +1566,9 @@ internal struct LightamerApp: App {
             SettingsView(legacyLibraryEnabled: legacyLibraryEnabled)
                 .environment(catalogPreferences)
                 .environment(pipeCoordinator)
+                // Plan M2-10-07: the LCR page's 换激活 registry + active-model
+                // read ride the OPEN project controller.
+                .environment(libraryProjects)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
         }
     }
