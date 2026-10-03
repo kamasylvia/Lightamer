@@ -451,3 +451,4 @@ APP	9	AIWorkerClientTests.swift
 #   同款字节形 pin 先例）。运行期总数基线相应上移（对账以各行 method 数为准）。
 LIB	13	TileInferenceTests.swift
 APP	5	SidecarV8Tests.swift
+APP	8	EnhanceCopyTests.swift

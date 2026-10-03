@@ -43,6 +43,11 @@ public enum ImportError: Error, Equatable, Sendable {
     /// The `.lra`/`.xmp` sidecar migration failed (the whole file failed;
     /// placed bytes were rolled back).
     case sidecarMigrationFailed(detail: String)
+    /// `importFile` (Plan M2-10-06 KD-4) was handed a file that does not
+    /// live under the project's `Media/` directory — the in-place adopt
+    /// only registers ALREADY-PLACED bytes (the enhance-copy writer does
+    /// the placement; this twin never moves bytes).
+    case adoptTargetOutsideMedia(path: String)
 }
 
 /// The KD-4 progress snapshot (a plain value — the UI layer renders it,
@@ -559,10 +564,11 @@ public actor ImportService {
             pathKind: .projectRelative, volumeUUID: nil, file: destination)
     }
 
+    @discardableResult
     private func insertRow(
         imagePath: String, pathKind: LibrarySchema.PathKind,
         volumeUUID: String?, file: URL
-    ) async throws {
+    ) async throws -> Int64 {
         let rowID = try await libraryStore.insertImage(record: LibraryImageRecord(
             imagePath: imagePath,
             pathKind: pathKind,
@@ -572,6 +578,7 @@ public actor ImportService {
             filename: file.lastPathComponent,
             dir: file.deletingLastPathComponent().path))
         _ = try await indexer.fillMetadata(imageID: rowID, from: file)
+        return rowID
     }
 
     private func sameVolume(_ a: URL, _ b: URL) async -> Bool {
@@ -580,6 +587,92 @@ public actor ImportService {
         // safe direction for the red line: verify-then-delete).
         guard let aUUID = probe(a), let bUUID = probe(b) else { return false }
         return aUUID == bUUID
+    }
+
+    // MARK: - Single-file twin (Plan M2-10-06 KD-4)
+
+    /// Register ONE file that is ALREADY placed under the project's
+    /// `Media/` directory (the AI-enhance copy writer reserves + writes
+    /// the bytes; this twin does the registration half of the per-file
+    /// executor — the SAME `insertRow` internal the folder transports
+    /// call, zero copy-paste):
+    ///
+    ///   1. the images row (kind0 project-relative) + EXIF backfill
+    ///      (the indexer seam);
+    ///   2. the optional album placement;
+    ///   3. the optional `.lra` mint carrying the AI provenance — a
+    ///      pristine document (empty history, own UUID imageID) written
+    ///      ATOMICALLY through the SidecarStore flushNow path (the copy's
+    ///      birth is a synchronous user action — it never waits for a
+    ///      debounce). D-M2-10-CONTEXT-3: the copy is a NEW image — the
+    ///      ORIGINAL's sidecar/version face is never touched.
+    ///
+    /// - Returns: the new images row id.
+    @discardableResult
+    public func importFile(
+        at fileURL: URL,
+        projectDirectory: URL,
+        albumID: Int64? = nil,
+        aiProvenance: SidecarAIProvenanceRecord? = nil
+    ) async throws -> Int64 {
+        let mediaRoot = projectDirectory
+            .appendingPathComponent(LibrarySchema.mediaDirectoryName, isDirectory: true)
+        let relative: String
+        do {
+            relative = try Self.mediaRelativePath(of: fileURL, under: mediaRoot)
+        } catch {
+            throw ImportError.adoptTargetOutsideMedia(path: fileURL.path)
+        }
+        let rowID = try await insertRow(
+            imagePath: LibrarySchema.mediaDirectoryName + "/" + relative,
+            pathKind: .projectRelative, volumeUUID: nil, file: fileURL)
+        if let albumID {
+            try await libraryStore.addImage(rowID, to: albumID)
+        }
+        if let aiProvenance {
+            try await Self.mintProvenanceSidecar(
+                for: fileURL, provenance: aiProvenance)
+        }
+        return rowID
+    }
+
+    /// The `Media/`-relative path of a placed file (its last path
+    /// components below the media root). Throws when the file is not
+    /// under the root (the typed adopt rejection).
+    nonisolated private static func mediaRelativePath(
+        of file: URL, under mediaRoot: URL
+    ) throws -> String {
+        let filePath = file.standardizedFileURL.path
+        let rootPath = mediaRoot.standardizedFileURL.path
+        guard filePath.hasPrefix(rootPath + "/") else {
+            throw ImportError.adoptTargetOutsideMedia(path: filePath)
+        }
+        return String(filePath.dropFirst(rootPath.count + 1))
+    }
+
+    /// The provenance `.lra` mint (KD-4): pristine document + the v8
+    /// record, written atomically (SidecarStore flushNow semantics). The
+    /// decode-hash seed is the neutral 0 — the document has no decode
+    /// parameters of its own; the coordinator re-stamps the hash on the
+    /// first real edit, and the drift anchor is self-consistent either
+    /// way (it recomputes with the FILE's own seed).
+    nonisolated private static func mintProvenanceSidecar(
+        for fileURL: URL, provenance: SidecarAIProvenanceRecord
+    ) async throws {
+        let decodeHash = UInt64(0)
+        let document = LightamerSidecar(
+            imageID: UUID(),
+            decoderVersionUsed: "v8",
+            decodeParamsHash: decodeHash,
+            instances: [],
+            history: HistoryStack(),
+            historyHash: HistoryHash.hash(
+                stack: HistoryStack(), decodeParamsHash: decodeHash),
+            aiProvenance: provenance)
+        let store = SidecarStore(
+            destination: LightamerSidecar.sidecarURL(for: fileURL))
+        await store.scheduleWrite(document)
+        try await store.flushNow()
     }
 
     private func emit(_ progress: ImportProgress) async {
