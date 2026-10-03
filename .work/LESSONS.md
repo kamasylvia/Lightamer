@@ -233,6 +233,7 @@ locale 的 Bundle 解析停在该表（不再向 zh.lproj 回退）——**全 a
 - **对策**：①一切"从子路径剥离根前缀"的逻辑，用 `realpath(3)`（`withCString` + 4096 缓冲）显式求物理根，**同时匹配多种拼写**（物理 + 原样）；目录树归属判定不要用"父路径字符串相等"，改用自身 relPath 是否含 `/`（`dropFirst` 式裁剪而非 `replacingOccurrences`——后者会在中段误替换制造 `/private` + 名字的缝合怪）；②`realpath` 的 C 交互一律 `withCString` 作用域缓冲，禁止对 `fileSystemRepresentation(withPath:)` 结果 deallocate/free。
 - **适用**：一切目录扫描/相对路径计算（Phase 9 全系：scanner/store/watcher reconcile）；一切 Foundation C 字符串桥接。
 - **增补（09-02 T2，FSEvents 场景活体复现）**：`FSEventStream`（UseCFTypes）上报的事件路径同样是**物理拼写**（`/private/var/...`），与 `URL.path` 的 `/var` 前缀不匹配——watcher 初版全部文件事件被前缀过滤静默丢弃，而 WatchRoot flag-only 事件正常到达（不看路径），极易误判为「流没起」。对策：watcher init 时 `realpath(3)` 求物理根**双前缀匹配**；下游 journal 查询 / rowKey 映射同用双拼写**变体对**（`pathVariants`）。测试侧注意：`kFSEventStreamEventIdSinceNow` 会把 arm 前瞬间的合并残留事件投递进来，时序断言用基线差值。来源：09-02 T2 SessionWatcherTests 三轮排障（create 事件 10s 超时 → WatchRoot 单测却绿 → 前缀比对定位）。
+- **增补（M2-10-01，冗余分隔符也是拼写差）**：launch path 含 `//`（如 test-direct.sh 的 `Debug//Lightamer.app`）时，`URL.path` **保留**双斜杠而 `FileManager.enumerator` 物理化（realpath）**折叠**——树哈希 prefix 匹配全数失败静默退化 `lastPathComponent` 兜底（字节总量守恒 → 不炸、只有 hash 不符，且同目录树下不同文件可呈现「有的匹配有的不匹配」的假象）。对策：一切「URL 拼 prefix 再剥子路径」的比较，两侧先归一化（折叠 `//+` 与尾斜杠）再比；仅凭「字节量一致」不足以证明枚举正确，树哈希测试必须钉逐行行集。来源：M2-10-01 CatalogTests 资源门三轮排障（standalone Swift 全对、测试内全错 → DBG 打印 URL 双斜杠定位）。
 - **来源**：09-01 T3 golden 测试三轮排障（首轮 `/privatescan.jpg` 缝合串、次轮 leaf 退化 + deeper/Capture 误排除、`fileSystemRepresentation` SIGABRT 崩溃报告 malloc 栈定位）。
 
 ### L028: px --up 自锁——代理 env 常开而 daemon 未跑时，起 daemon 的工具链自身也被死端口坑；解法 = 清代理 env 跑 px --up
