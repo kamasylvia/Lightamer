@@ -7,17 +7,18 @@ import SwiftUI
 // cards) + INPUT + APPLY. The EXIF leg is REAL (ExifSearchParser → the
 // shared filter); the CLIP leg is REAL since M2-10-02 (KD-6: the submit leg
 // rides LibrarySearchModel.submitSemantic → the grid's semantic overlay —
-// EXIF 腿同型集合过滤); the AI-description/full-text leg stays the HONEST
-// M2-10-04 placeholder (a typed empty state and nothing else — no fake
-// toggles, no fake results).
+// EXIF 腿同型集合过滤); the fulltext leg is REAL since M2-10-04 (KD-4: the
+// submit leg rides submitFulltext → ai_understanding_fts MATCH → JOIN
+// active=1 → the same overlay, rank-ordered).
 //
 // PRESENTATION (checker m6): the sheet rides WorkspaceModel's
 // isSearchDialogPresented — the HOST presents this view and writes
 // dismissal back; the dialog NEVER self-owns the presentation state.
 //
 // ERRORS render INLINE (the input segment's error line) — never an alert.
-// A ZERO-hit CLIP search keeps the dialog open with the honest「无语义匹配」
-// note (the empty result set IS applied behind it — the count card shows 0).
+// A ZERO-hit semantic/fulltext search keeps the dialog open with the honest
+//「无命中」note (the empty result set IS applied behind it — the count card
+// shows 0).
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct GlobalSearchDialog: View {
@@ -162,28 +163,41 @@ struct GlobalSearchDialog: View {
                     .foregroundStyle(ThemeTokens.textSecondary)
             }
         case .fullText:
-            placeholderState(
-                marker: "search.tab.fulltext.placeholder",
-                copy: String(
-                    localized: "search_tab_fulltext_placeholder",
-                    defaultValue: "AI description & tag full-text search arrives with M2-10"))
+            // M2-10-04 (KD-4): the REAL fulltext leg — the query rides
+            // LibrarySearchModel.submitFulltext (FTS MATCH → JOIN active=1
+            // → the grid overlay). Radius: this branch ONLY (the CLIP and
+            // EXIF branches are untouched).
+            VStack(alignment: .leading, spacing: 6) {
+                TextField(
+                    String(localized:
+                        "search_fulltext_placeholder",
+                        defaultValue:
+                        "Search AI descriptions and tags"),
+                    text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.callout)
+                    .onSubmit { Task { await apply() } }
+                    .accessibilityIdentifier("search.input.fulltext")
+                if let lastError {
+                    Text(verbatim: lastError.message)
+                        .font(.caption)
+                        .foregroundStyle(ThemeTokens.accent)
+                        .accessibilityIdentifier("search.error")
+                }
+                if let emptyNote {
+                    Text(verbatim: emptyNote)
+                        .font(.caption)
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                        .accessibilityIdentifier("search.empty.note")
+                }
+                Text(String(
+                    localized: "search_fulltext_hint",
+                    defaultValue:
+                        "Matches image captions and tags written by AI description analysis."))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
         }
-    }
-
-    private func placeholderState(marker: String, copy: String) -> some View {
-        VStack(spacing: 6) {
-            Image(systemName: "sparkles")
-                .foregroundStyle(ThemeTokens.textSecondary)
-            Text(verbatim: copy)
-                .font(.callout)
-                .foregroundStyle(ThemeTokens.textSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, minHeight: 84)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(ThemeTokens.cardBorder.opacity(0.2)))
-        .accessibilityIdentifier(marker)
     }
 
     // MARK: - The apply segment
@@ -213,7 +227,6 @@ struct GlobalSearchDialog: View {
                     .padding(.vertical, 4)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(model.mode == .fullText)
             .accessibilityIdentifier("search.apply")
         }
     }
@@ -226,15 +239,29 @@ struct GlobalSearchDialog: View {
             lastError = family
         case .semanticApplied(0):
             // Zero hits: the empty result set IS installed behind the
-            // dialog — the honest「无语义匹配」note keeps it open for a
-            // rephrase (KD-6's 空命中空态).
+            // dialog — the honest「无命中」note keeps it open for a
+            // rephrase (KD-6's 空命中空态). The copy is mode-keyed; the
+            // CLIP arm's text is byte-identical to its pre-fulltext form.
             lastError = nil
-            emptyNote = String(
-                localized: "search_semantic_empty",
-                defaultValue: "No semantic matches — the collection has no image close to that description")
+            emptyNote = Self.emptyNoteText(for: model.mode)
         case .applied, .semanticApplied:
             lastError = nil
             onDismiss()
+        }
+    }
+
+    private static func emptyNoteText(
+        for mode: LibrarySearchModel.Mode
+    ) -> String {
+        switch mode {
+        case .fullText:
+            return String(
+                localized: "search_fulltext_empty",
+                defaultValue: "No description matches — the analyzed collection has no image whose AI caption or tags contain those words")
+        default:
+            return String(
+                localized: "search_semantic_empty",
+                defaultValue: "No semantic matches — the collection has no image close to that description")
         }
     }
 }

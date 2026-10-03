@@ -47,6 +47,9 @@ final class LibrarySearchModel {
         case modelUnavailable
         /// A semantic query failed at runtime (inference/scan rejection).
         case semanticQueryFailed
+        /// M2-10-04 (KD-4): the fulltext leg has no query face — no open
+        /// package assembly passed one (the honest「未就绪」face).
+        case fulltextUnavailable
 
         /// The dialog's inline copy (localized at the presentation edge).
         var message: String {
@@ -75,6 +78,10 @@ final class LibrarySearchModel {
                 return String(
                     localized: "search_error_semantic_failed",
                     defaultValue: "The semantic query failed — try again or rephrase")
+            case .fulltextUnavailable:
+                return String(
+                    localized: "search_error_fulltext_unavailable",
+                    defaultValue: "Full-text search is not available — open a project first")
             }
         }
     }
@@ -104,14 +111,21 @@ final class LibrarySearchModel {
     /// available). Supplied per submit so a late asset load still lands.
     private let semanticProvider: (@Sendable () async -> (any SemanticSearching)?)?
 
+    /// The M2-10-04 fulltext query seam (KD-4: FTS MATCH → JOIN active=1 →
+    /// ordered ids — the Core face is `AIDescriptionService.imageIDs`; nil =
+    /// the honest `.fulltextUnavailable` family).
+    private let fulltextProvider: (@Sendable (String) async throws -> [Int64])?
+
     init(
         grid: LibraryGridModel,
         semanticStore: SemanticStore? = nil,
-        semantic: (@Sendable () async -> (any SemanticSearching)?)? = nil
+        semantic: (@Sendable () async -> (any SemanticSearching)?)? = nil,
+        fulltext: (@Sendable (String) async throws -> [Int64])? = nil
     ) {
         self.grid = grid
         self.semanticStore = semanticStore
         self.semanticProvider = semantic
+        self.fulltextProvider = fulltext
     }
 
     // MARK: - Mode segment
@@ -125,8 +139,8 @@ final class LibrarySearchModel {
     /// Parse the input and fold the plan into the shared filter. Empty
     /// input installs the empty plan (clear the lexical leg). A typed
     /// parser error maps to an inline family — never an alert, never a
-    /// silent no-op. The CLIP leg routes to `submitSemantic`; the
-    /// fulltext placeholder keeps its honest refusal (M2-10-04 owns it).
+    /// silent no-op. The CLIP leg routes to `submitSemantic`; the fulltext
+    /// leg (M2-10-04) routes to `submitFulltext`.
     @discardableResult
     func submit(_ raw: String) async -> Outcome {
         switch mode {
@@ -135,9 +149,7 @@ final class LibrarySearchModel {
         case .clip:
             return await submitSemantic(raw)
         case .fullText:
-            // The placeholder legs never fabricate results (D8: 禁放假开关).
-            lastOutcome = .failed(.unrecognizedToken(raw))
-            return lastOutcome!
+            return await submitFulltext(raw)
         }
     }
 
@@ -196,6 +208,32 @@ final class LibrarySearchModel {
     /// The D-1 top-K budget (the scanner's k; the dialog presents the
     /// count card from the same number).
     static let semanticHitLimit = 256
+
+    /// The fulltext leg (KD-4): the query rides the Core seam (FTS MATCH →
+    /// JOIN active=1 → ordered ids) and folds into the grid's overlay —
+    /// the CLIP leg's exact shape, rank-ordered instead of score-ordered.
+    /// Empty input clears the leg; a missing query face is the honest
+    /// `.fulltextUnavailable` family; a MATCH failure is the runtime family.
+    private func submitFulltext(_ raw: String) async -> Outcome {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            try? await grid.apply(semanticHits: nil)
+            lastOutcome = .applied(termCount: 0)
+            return lastOutcome!
+        }
+        guard let fulltextProvider else {
+            lastOutcome = .failed(.fulltextUnavailable)
+            return lastOutcome!
+        }
+        do {
+            let hits = try await fulltextProvider(trimmed)
+            try await grid.apply(semanticHits: hits)
+            lastOutcome = .semanticApplied(hitCount: hits.count)
+        } catch {
+            lastOutcome = .failed(.semanticQueryFailed)
+        }
+        return lastOutcome!
+    }
 
     /// The typed error → presentation family (the pure classification).
     static func family(for error: ExifSearchParserError) -> ErrorFamily {
