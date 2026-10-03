@@ -154,6 +154,15 @@ final class EnhanceDialogModel {
         "输出超过 4 亿像素上限（\(outputPixels) > \(limit)），请降低倍率或裁切后重试。"
     }
 
+    /// The memory-budget message (the typed gate's estimate mapped to the
+    /// honest copy text — the job is refused before any allocation).
+    static func memoryBudgetMessage(estimatedBytes: Int, limit: Int) -> String {
+        func gb(_ bytes: Int) -> String {
+            String(format: "%.1f", Double(bytes) / (1024 * 1024 * 1024))
+        }
+        return "预计内存峰值 \(gb(estimatedBytes)) GB 超过 \(gb(limit)) GB 上限，请降低倍率或裁切后重试。"
+    }
+
     // MARK: - Model availability (the release-tier download row)
 
     func refreshModelStatus() async {
@@ -189,10 +198,17 @@ final class EnhanceDialogModel {
         defer { runInProgress = false }
         runInProgress = true
         do {
-            let full = try await frameProvider()
+            // The full-size fp32 source is SCOPED: the crop is all the
+            // preview needs and the full frame provably dies with this
+            // block (the release-pin discipline, applied at preview scale).
+            // @Sendable = nonisolated: the crop work stays off the main
+            // actor.
+            let provider = frameProvider
+            let crop: EnhanceFrame = try await { @Sendable () -> EnhanceFrame in
+                let full = try await provider()
+                return Self.centralCrop(full, edge: 192)
+            }()
             let facts = try await modelFacts(choice.profileID)
-            let edge = 192
-            let crop = Self.centralCrop(full, edge: edge)
             let engine = EnhanceEngine(
                 supportedEdges: facts.tileEdges, scale: facts.scale,
                 amount: choice.amount)
@@ -201,7 +217,8 @@ final class EnhanceDialogModel {
                     isDirectory: true)
             defer { try? FileManager.default.removeItem(at: tmp) }
             let output = try await engine.run(
-                input: crop, tmpDirectory: tmp,
+                prepared: EnhanceEngine.prepareInput(crop),
+                tmpDirectory: tmp,
                 tileExecutor: tileExecutor,
                 onProgress: nil,
                 cancellation: { [cancelFlag] in cancelFlag.isSet })
@@ -224,25 +241,39 @@ final class EnhanceDialogModel {
         phase = .running(0)
         runInProgress = true
         do {
-            let frame = try await frameProvider()
             let facts = try await modelFacts(choice.profileID)
-            let engine = EnhanceEngine(
-                supportedEdges: facts.tileEdges, scale: facts.scale,
-                amount: choice.amount)
             let tmp = FileManager.default.temporaryDirectory
                 .appendingPathComponent("lightamer-enhance-\(UUID().uuidString)",
                     isDirectory: true)
             defer { try? FileManager.default.removeItem(at: tmp) }
-            let output = try await engine.run(
-                input: frame, tmpDirectory: tmp,
-                tileExecutor: tileExecutor,
-                onInputConsumed: nil,
-                onProgress: { [weak self] percent in
-                    Task { @MainActor in
-                        self?.phase = .running(percent)
-                    }
-                },
-                cancellation: { [cancelFlag] in cancelFlag.isSet })
+            // THE MEMORY PIN (the M-1 #1 fix, structural): the fp32 frame
+            // AND the uint16 prepared input live ONLY inside this block —
+            // when it returns, the run holds nothing input-sized and the
+            // copy write below holds only the output accumulator + the
+            // writer's transient encode buffer. @Sendable = nonisolated:
+            // quantize + run stay off the main actor. The Sendable
+            // captures are pre-copied (the class is @MainActor — property
+            // reads cannot cross into the closure).
+            let provider = frameProvider
+            let executor = tileExecutor
+            let choice = choice
+            let cancelFlag = cancelFlag
+            let output = try await { @Sendable () -> EnhanceFrame in
+                let frame = try await provider()
+                let prepared = EnhanceEngine.prepareInput(frame)
+                let engine = EnhanceEngine(
+                    supportedEdges: facts.tileEdges, scale: facts.scale,
+                    amount: choice.amount)
+                return try await engine.run(
+                    prepared: prepared, tmpDirectory: tmp,
+                    tileExecutor: executor,
+                    onProgress: { [weak self] percent in
+                        Task { @MainActor in
+                            self?.phase = .running(percent)
+                        }
+                    },
+                    cancellation: { cancelFlag.isSet })
+            }()
 
             // The copy write (KD-3) + the import twin (KD-4).
             let copyURL = try await Self.writeCopy(
@@ -294,6 +325,9 @@ final class EnhanceDialogModel {
             return .cancelled
         case .pixelBudgetExceeded(let pixels, let limit):
             return .failed(budgetMessage(outputPixels: pixels, limit: limit))
+        case .memoryBudgetExceeded(let bytes, let limit):
+            return .failed(
+                memoryBudgetMessage(estimatedBytes: bytes, limit: limit))
         case .tileFailed(_, let detail):
             return .failed(detail)
         case .modelFactsInvalid(let detail):
@@ -302,8 +336,11 @@ final class EnhanceDialogModel {
     }
 
     /// The central `edge`×`edge` crop (clamped at the image edges — the
-    /// Lumen `region` arithmetic, :117-118).
-    static func centralCrop(_ frame: EnhanceFrame, edge: Int) -> EnhanceFrame {
+    /// Lumen `region` arithmetic, :117-118). `nonisolated` + pure: the
+    /// scoped provider closures run it off the main actor.
+    nonisolated static func centralCrop(
+        _ frame: EnhanceFrame, edge: Int
+    ) -> EnhanceFrame {
         let width = min(edge, frame.width)
         let height = min(edge, frame.height)
         let originX = max(0, frame.width / 2 - width / 2)

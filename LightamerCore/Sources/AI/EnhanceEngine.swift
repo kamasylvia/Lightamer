@@ -9,14 +9,27 @@ import ImageIO
 // The App-side dialog wires the tile-executor seam to the worker client;
 // tests wire a stub inferencer (the resource-gate discipline).
 //
-// EXECUTION ORDER (the KD-2 memory pin, Lumen ai_dialog.py:103-104
-// semantics): the fp32 input render buffer is CONVERTED once to a uint16
-// RGB working buffer and the PROVIDER IS RELEASED (onInputConsumed)
-// BEFORE the tile loop starts allocating toward the 4× output — the loop
-// holds only the uint16 input (~1/2 the fp32 size), the current tile's
-// frames, and the fp32 output. The 100MP×4 output peak (6.4 GB fp32) is
-// the plan's documented risk; the row-band streaming mitigation stays the
-// E3 fallback (DECISIONS).
+// EXECUTION ORDER (the KD-2 memory pin, the M-1 fix): the fp32 input is
+// QUANTIZED OUTSIDE the run — `prepareInput` converts it to the uint16
+// working buffer in a frame of its own, and the CALLER drops their fp32
+// reference before `run(prepared:)` starts (the production runFullCopy
+// scopes both, so no frame in the chain holds the fp32 across the tile
+// loop — the old `run(input:)` parameter pin was inert: the callee frame
+// held the input array until return, M2-10-06 ACCEPTANCE M-1 #1). The
+// loop holds only the uint16 input (6 B/px), the current tile's frames,
+// and ONE fp32 RGBA accumulator (16 B/output px) — the M-1 #2 endgame
+// double buffer (RGB accumulate + RGBA normalize coexisting, 28 B/px) is
+// GONE: blend accumulates into the RGBA layout and normalization divides
+// IN PLACE. The writer's uint16 encode buffer adds 8 B/output px at the
+// fill transient (the provider owns it — no full-frame Data copy), so
+// the honest worst case is ~24 B/output px.
+//
+// MEMORY GATE (the M-1 #3 defense): before any output-sized allocation,
+// the engine estimates the peak footprint from the planned geometry and
+// typed-rejects jobs over the budget — never an OOM button. The 400 MP
+// output cap (TilePlanner) stays the absolute planner bound; this gate
+// sits below it. The row-band streaming unlock (E3) is what eventually
+// raises the gate — until then, honest rejection over silent OOM.
 //
 // TILE FRAMES travel the PATH channel (the M2-10-05 red line): the engine
 // crops each tile (+pad-to-fit for sub-tile spans) into a 16-bit RGB TIFF
@@ -50,11 +63,34 @@ public enum EnhanceEngineError: Error, Equatable {
     case cancelled
     /// The output budget was exceeded (the planner's typed rejection).
     case pixelBudgetExceeded(outputPixels: Int, limit: Int)
+    /// The estimated peak footprint exceeded the memory budget (the typed
+    /// defense — rejected BEFORE any allocation, never an OOM).
+    case memoryBudgetExceeded(estimatedBytes: Int, limit: Int)
     /// Tile `index` failed with the executor's detail (the worker's typed
     /// error rides through).
     case tileFailed(index: Int, detail: String)
     /// The model facts were unusable (empty supported edges).
     case modelFactsInvalid(String)
+}
+
+/// The quantized input (the fp32 release pin's payload): the uint16 RGB
+/// working buffer + its shape. `EnhanceEngine.prepareInput` builds it in
+/// a frame of its own — when that frame returns the ENGINE side holds no
+/// fp32, and the caller drops their own reference before `run(prepared:)`
+/// (the production runFullCopy scopes both; nothing in the chain holds
+/// the fp32 across the tile loop).
+public struct EnhancePreparedInput: Sendable {
+    /// Interleaved RGB uint16, clamped to [0,1] (the output container is
+    /// uint16 anyway — the input leg quantizes once).
+    public let working: [UInt16]
+    public let width: Int
+    public let height: Int
+
+    public init(working: [UInt16], width: Int, height: Int) {
+        self.working = working
+        self.width = width
+        self.height = height
+    }
 }
 
 /// One tile-run request through the executor seam (the worker client's
@@ -88,35 +124,50 @@ public struct EnhanceEngine {
     public let scale: Int
     /// The denoise strength 0...100 (nil for upscale).
     public let amount: Double?
+    /// The peak-footprint budget (bytes) — the typed gate's limit. The
+    /// default is 6 GiB: the 8192 MB run gate (the test harness MEMFAIL
+    /// line) minus ~2 GB of app + framework + allocator headroom.
+    public let memoryBudgetBytes: Int
 
-    public init(supportedEdges: [Int], scale: Int, amount: Double?) {
+    public init(
+        supportedEdges: [Int], scale: Int, amount: Double?,
+        memoryBudgetBytes: Int = EnhanceEngine.memoryBudgetBytes
+    ) {
         self.supportedEdges = supportedEdges
         self.scale = scale
         self.amount = amount
+        self.memoryBudgetBytes = memoryBudgetBytes
     }
 
-    /// The full orchestration (KD-2). `onInputConsumed` fires after the
-    /// input has been converted to the uint16 working buffer — the caller
-    /// drops its fp32 render buffer there (the memory pin).
-    public func run(
-        input: EnhanceFrame,
-        tmpDirectory: URL,
-        tileExecutor: @escaping @Sendable (EnhanceTileRequest) async throws -> Void,
-        onInputConsumed: (@Sendable () -> Void)? = nil,
-        onProgress: (@Sendable (Int) -> Void)? = nil,
-        cancellation: @escaping @Sendable () -> Bool = { false }
-    ) async throws -> EnhanceFrame {
-        guard !supportedEdges.isEmpty, scale >= 1 else {
-            throw EnhanceEngineError.modelFactsInvalid(
-                "supportedEdges/scale unusable")
-        }
-        let grid = try TilePlanner.plan(
-            inputWidth: input.width, inputHeight: input.height,
-            scale: scale, supportedEdges: supportedEdges)
+    // MARK: - Memory posture (the honest gate arithmetic, M-1 #3)
 
-        // The uint16 RGB working buffer (the encode clamp — the output
-        // container is uint16 anyway, so the input leg quantizes once).
-        var working = [UInt16](repeating: 0, count: input.width * input.height * 3)
+    /// The estimated peak footprint for one job, BEFORE any allocation:
+    /// 16 B/output px (the fp32 RGBA accumulator — the ONLY output
+    /// buffer; the M-1 #2 double buffer is gone) + 8 B/output px (the
+    /// writer's uint16 encode buffer, held with the accumulator during
+    /// the fill transient) + 6 B/input px (the uint16 working input).
+    /// The row-band streaming unlock (E3) is what eventually lowers it.
+    public static func estimatedPeakBytes(
+        outputPixels: Int, inputPixels: Int
+    ) -> Int {
+        outputPixels * 24 + inputPixels * 6
+    }
+
+    /// The default peak-footprint budget (6 GiB).
+    public static let memoryBudgetBytes = 6 * 1024 * 1024 * 1024
+
+    /// The input PREPARE (the fp32 release pin, M-1 #1): quantize the
+    /// fp32 frame to the uint16 working buffer in a frame of its own —
+    /// when it returns this frame's fp32 reference is gone and
+    /// `onInputConsumed` has fired. The CALLER must also drop their own
+    /// reference (the production runFullCopy scopes the frame so BOTH
+    /// sides die before the tile loop allocates toward the output).
+    public static func prepareInput(
+        _ input: EnhanceFrame,
+        onInputConsumed: (@Sendable () -> Void)? = nil
+    ) -> EnhancePreparedInput {
+        var working = [UInt16](
+            repeating: 0, count: input.width * input.height * 3)
         for index in 0..<(input.width * input.height) {
             for channel in 0..<3 {
                 let value = min(max(input.rgba[index * 4 + channel], 0), 1)
@@ -125,16 +176,52 @@ public struct EnhanceEngine {
             }
         }
         onInputConsumed?()
+        return EnhancePreparedInput(
+            working: working, width: input.width, height: input.height)
+    }
 
-        // The fp32 output accumulator + the separable normalization sums
-        // (×scale-repeated to output space — Lumen's `np.repeat` parity).
+    /// The full orchestration (KD-2, the two-phase form): `prepared`
+    /// comes from `prepareInput` — the fp32 input is already out of the
+    /// picture, so the loop holds only the uint16 input (6 B/px), the
+    /// current tile's frames, and the single fp32 RGBA accumulator
+    /// (16 B/output px).
+    public func run(
+        prepared: EnhancePreparedInput,
+        tmpDirectory: URL,
+        tileExecutor: @escaping @Sendable (EnhanceTileRequest) async throws -> Void,
+        onProgress: (@Sendable (Int) -> Void)? = nil,
+        cancellation: @escaping @Sendable () -> Bool = { false }
+    ) async throws -> EnhanceFrame {
+        guard !supportedEdges.isEmpty, scale >= 1 else {
+            throw EnhanceEngineError.modelFactsInvalid(
+                "supportedEdges/scale unusable")
+        }
+        let grid = try TilePlanner.plan(
+            inputWidth: prepared.width, inputHeight: prepared.height,
+            scale: scale, supportedEdges: supportedEdges)
+
+        // THE MEMORY GATE (typed, BEFORE any output-sized allocation —
+        // the estimate never hands a budget breach to an allocation). The
+        // planner's 400 MP output cap stays the absolute bound above it.
+        let estimated = Self.estimatedPeakBytes(
+            outputPixels: grid.outputWidth * grid.outputHeight,
+            inputPixels: grid.width * grid.height)
+        guard estimated <= memoryBudgetBytes else {
+            throw EnhanceEngineError.memoryBudgetExceeded(
+                estimatedBytes: estimated, limit: memoryBudgetBytes)
+        }
+
+        // The fp32 RGBA accumulator — THE single output buffer (16 B per
+        // output pixel). Blend accumulates channels 0..<3 at stride 4;
+        // the final normalization divides IN PLACE (the M-1 #2 fix: no
+        // second RGBA frame — the old RGB + RGBA pair peaked at 28 B/px).
         let outputWidth = grid.outputWidth
         let outputHeight = grid.outputHeight
-        var output = [Float](repeating: 0, count: outputWidth * outputHeight * 3)
+        var rgba = [Float](repeating: 0, count: outputWidth * outputHeight * 4)
         let rowSums = TilePlanner.axisWeightSums(
-            spans: rowSpans(grid), length: input.height)
+            spans: rowSpans(grid), length: prepared.height)
         let columnSums = TilePlanner.axisWeightSums(
-            spans: columnSpans(grid), length: input.width)
+            spans: columnSpans(grid), length: prepared.width)
 
         try FileManager.default.createDirectory(
             at: tmpDirectory, withIntermediateDirectories: true)
@@ -152,7 +239,8 @@ public struct EnhanceEngine {
                     .appendingPathComponent("tile-out-\(tileIndex).tif")
                 inFlight.append(contentsOf: [inputTile, outputTile])
                 try Self.writeTileFile(
-                    working, width: input.width, height: input.height,
+                    prepared.working, width: prepared.width,
+                    height: prepared.height,
                     tile: tile, grid: grid, to: inputTile)
                 // The path channel (the worker decodes, infers, blends the
                 // denoise amount, and writes the output tile).
@@ -173,7 +261,7 @@ public struct EnhanceEngine {
                 Self.blend(
                     tile: tile, grid: grid, tilePixels: result.rgb,
                     tileWidth: result.width,
-                    into: &output, outputWidth: outputWidth)
+                    into: &rgba, outputWidth: outputWidth)
                 // The tile's frames are consumed — keep the tmp set small
                 // on long runs (a cancel sweep only has the current pair).
                 try? FileManager.default.removeItem(at: inputTile)
@@ -190,19 +278,18 @@ public struct EnhanceEngine {
             throw error
         }
 
-        // Normalize by the accumulated weights (strictly positive — the
-        // planner's coverage anchor) and re-attach opaque alpha.
-        var rgba = [Float](repeating: 1, count: outputWidth * outputHeight * 4)
+        // In-place normalize by the accumulated weights (strictly
+        // positive — the planner's coverage anchor) and re-attach opaque
+        // alpha — ONE buffer end to end.
         for y in 0..<outputHeight {
-            let wy = rowSums[min(y / scale, input.height - 1)]
+            let wy = rowSums[min(y / scale, prepared.height - 1)]
             for x in 0..<outputWidth {
-                let wx = columnSums[min(x / scale, input.width - 1)]
-                let source = (y * outputWidth + x) * 3
+                let wx = columnSums[min(x / scale, prepared.width - 1)]
                 let target = (y * outputWidth + x) * 4
                 for channel in 0..<3 {
-                    rgba[target + channel] =
-                        output[source + channel] / (wx * wy)
+                    rgba[target + channel] /= (wx * wy)
                 }
+                rgba[target + 3] = 1
             }
         }
         return EnhanceFrame(
@@ -348,10 +435,12 @@ public struct EnhanceEngine {
     // MARK: - Blend
 
     /// Accumulate one output tile into the frame (the separable ramp
-    /// weights; the normalization divides at the end).
+    /// weights; the normalization divides at the end). The target is the
+    /// RGBA accumulator (stride 4 — channels 0..<3 only; alpha is set at
+    /// the in-place normalize).
     static func blend(
         tile: TileGrid.Tile, grid: TileGrid, tilePixels: [Float],
-        tileWidth: Int, into output: inout [Float], outputWidth: Int
+        tileWidth: Int, into rgba: inout [Float], outputWidth: Int
     ) {
         let rect = grid.outputRect(of: tile)
         for y in 0..<rect.height {
@@ -363,10 +452,10 @@ public struct EnhanceEngine {
                 // The tile buffer's row stride is the TILE's width (the
                 // feed shape) — the valid rect may be narrower (pad-to-fit).
                 let source = (y * tileWidth + x) * 3
-                let target = ((rect.y + y) * outputWidth + rect.x + x) * 3
-                output[target] += tilePixels[source] * weight
-                output[target + 1] += tilePixels[source + 1] * weight
-                output[target + 2] += tilePixels[source + 2] * weight
+                let target = ((rect.y + y) * outputWidth + rect.x + x) * 4
+                rgba[target] += tilePixels[source] * weight
+                rgba[target + 1] += tilePixels[source + 1] * weight
+                rgba[target + 2] += tilePixels[source + 2] * weight
             }
         }
     }
