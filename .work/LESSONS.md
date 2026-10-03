@@ -537,3 +537,39 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   末条结果行取数」的日志解析器设计。
 - **来源**：M2-9-03 收尾全套跑 1（App 15/0/0 假绿 → 隔离复跑 ×2 揭示：
   481/0/1 + 481/0/0）。
+
+## L057: macOS 27 NSOpenPanel 取消路径可 SIGSEGV——面板「取消」腿必须 GUI 走查覆盖（2026-10-03，M2-9-05 走查 F-1）
+
+- **现象**：Import Folder 面板（NSOpenPanel.runModal）点「取消」→ app
+  SIGSEGV，2/2 复现；`.ips` 栈 = `swift release_dealloc` 链至 SwiftUI
+  `destroy for Button`（闭包过度释放，"Could not determine thread index for
+  stack guard region"）。`.ips` 存档
+  `~/Library/Logs/DiagnosticReports/Lightamer-2026-10-03-072103/-072747.ips`。
+- **根因**：runModal 的模态返回路径上 SwiftUI 闭包销毁顺序问题（M2-3 时代
+  导入面板装配）；单测不可能覆盖（runModal 阻塞主线程，测试宿主无法驱动）。
+- **对策**：①一切 NSOpenPanel/NSSavePanel 调用点的「取消」腿必须真机走查
+  （单测绿 ≠ 面板取消活）；②临时规避 = 不取消面板（重开代替）；③修复另案
+  （面板调用点包 autoreleasepool 或改异步 presented 形态，归 M2-3 面小修）。
+- **适用**：一切 macOS 面板（open/save/modal）调用点；GUI 走查清单必须含
+  每个面板的取消腿。
+- **来源**：M2-9-05 走查批（2026-10-03，导入夹具时两次取消即崩）。
+
+## L058: String.LocalizationValue 插值字面量 = 查表键带 %@ 占位——catalog 无该键时静默回退裸键观感（2026-10-03，M2-9-05 走查 F-2）
+
+- **现象**：导出页格式 Picker 显示裸键 `export_format_jpeg`——而 catalog 明明
+  有该键（zh/en 双语 JPEG）。`String(localized: String.LocalizationValue(
+  "export_format_\(kind.rawValue)"))` 的插值字面量使 LocalizationValue 携带
+  pattern `export_format_%@`——运行时查表键是 **`export_format_%@`**（不存在）
+  → 回退渲染「pattern 代入实参后的文本」= 拼接结果 = 裸键观感。
+- **根因**：`String.LocalizationValue` 把字符串插值编译为 format pattern；
+  与「先拼好完整字符串再查表」的直觉相反。zh-audit `--check` 静态扫描看到
+  的是源码字面量 `export_format_` 前缀 + 六静态键在册 → PASS 不报——查表键
+  （含 %@ 的动态形态）对 scanner 不可见（M2-7-3 xcstrings 动态族教训同族）。
+- **对策**：①动态查表键一律先落常量再包装：`String.LocalizationValue(key)`
+  （key 为 String 变量、无插值）——查的就是拼接结果本身；②禁止
+  `String.LocalizationValue("prefix_\(x)")` 形态入码（review 项）；③catalog
+  键的运行时有效性验证靠 GUI 走查首屏中文渲染检查（L025 防线②），不靠
+  zh-audit。
+- **适用**：一切 String Catalog 动态键构造（本项目第二次踩：06-07 L025
+  zh-Hans 标签、本次插值 pattern）；zh-audit 工具的能力边界注记。
+- **来源**：M2-9-05 走查批（证据 `.work/gui-acceptance/m2-9/m2-9-01-export-page-five-sections.png`）。
