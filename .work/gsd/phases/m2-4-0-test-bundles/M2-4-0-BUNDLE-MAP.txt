@@ -453,3 +453,11 @@ LIB	13	TileInferenceTests.swift
 APP	5	SidecarV8Tests.swift
 APP	8	EnhanceCopyTests.swift
 APP	10	EnhanceDialogTests.swift
+# M2-10-07 增行记录（2026-10-04 执行期，checker E2 测试登记纪律）：三个 APP——
+#   ACASettingsTests（连接 round-trip
+#   key 零 defaults 负测/准入拒绝前置/连接测试 mock 往返/严格度语言/不再询问/
+#   load 种子）+ LCRSettingsTests（五态映射/待发布禁点/换激活→registry 入队
+#   断言/重置→文件删除终态/就绪探针三态/active 徽标/labeling 三态）=
+#   APP/App 级。运行期总数基线上移（2929 起算，+20）。
+APP	10	ACASettingsTests.swift
+APP	10	LCRSettingsTests.swift

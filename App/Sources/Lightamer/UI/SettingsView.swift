@@ -61,6 +61,11 @@ internal struct SettingsView: View {
 
     @State private var selectedPage: SettingsPage = .languageTheme
 
+    // Plan M2-10-07: the LCR page's 换激活 arm rides the OPEN project's AI
+    // registry (the recompute enqueue) + the active-model read. Injected at
+    // the Settings scene (the catalogPreferences precedent).
+    @Environment(LibraryProjectController.self) private var libraryProjects
+
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedPage) {
@@ -89,12 +94,15 @@ internal struct SettingsView: View {
             case .defaultBehavior: SettingsDefaultBehaviorPage()
             case .cache: SettingsCachePage()
             case .localContentRecognition:
-                SettingsPlaceholderPage(
-                    identifier: SettingsPage.localContentRecognition.rawValue,
-                    title: SettingsPage.localContentRecognition.title,
-                    featureName: String(
-                        localized: "settings_lcr_feature",
-                        defaultValue: "Local content recognition"))
+                SettingsLCRPage(model: LCRSettingsModel(
+                    registry: libraryProjects.aiAnalysis,
+                    activeModelKeyProvider: { [weak libraryProjects] in
+                        guard let controller = libraryProjects,
+                            let store = controller.projectStore
+                        else { return nil }
+                        return try? await SemanticStore(store: store)
+                            .activeModel()?.modelKey
+                    }))
             case .advancedContentAnalysis:
                 SettingsACAPage(model: ACASettingsModel())
             case .keyboard: SettingsKeyboardPage()
