@@ -44,3 +44,11 @@ input/golden/fixtures/lensfun/*
 
 # reasonix CLI session artifacts
 /.reasonix/
+
+# Plan M2-10-01 (E1): bundled AI model assets live at the repo-root
+# Resources/AIModels folder reference — model BYTES never enter git
+# (volume red line). The directory itself is tracked via .keep; the
+# conversion scripts + digest lock in Scripts/ai-models are the
+# reproducible source of everything in here.
+Resources/AIModels/**
+!Resources/AIModels/.keep
