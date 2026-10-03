@@ -1279,8 +1279,17 @@ internal struct LightamerApp: App {
                 } label: { Text(verbatim: "Open Recent Project") }
                 .disabled(libraryProjects.recentProjects.isEmpty)
                 Divider()
+                // F-1 (fix(m2-3), 2026-10-03): this is the ONLY panel action
+                // that ran synchronously INSIDE the menu-item dispatch —
+                // NSOpenPanel.runModal() then nested a modal session inside
+                // the menu transaction, and cancelling tore the SwiftUI menu
+                // item closures down mid-transaction (SIGSEGV over-release
+                // in the next menuNeedsUpdate populate; .ips ×3 archived).
+                // The Task hop matches the four sibling panel actions (New/
+                // Open/Backup/Move Project — none ever crashed): the menu
+                // transaction completes first, the panel runs clean.
                 Button {
-                    importFolderFromPanel()
+                    Task { importFolderFromPanel() }
                 } label: { Text(verbatim: "Import Folder…") }
                 .disabled(libraryProjects.projectStore == nil)
                 .keyboardShortcut("i", modifiers: [.command, .shift])
