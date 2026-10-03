@@ -399,6 +399,17 @@ LIB	9	WordPieceTokenizerTests.swift
 LIB	10	SemanticStoreTests.swift
 LIB	8	EmbeddingScannerTests.swift
 LIB	10	SemanticSearchTests.swift
+LIB	12	LabelEngineTests.swift
+
+# M2-10-03 增行记录（2026-10-03 执行期，checker E2 测试登记纪律）：LabelEngineTests
+#   = LIB/Core 级——余弦分类手算锚/threshold 双侧边界/top8 裁度+JSON/原型加载
+#   typed 家族/出厂集 zh-en 对齐+真 .lalb 幂等 seed/真原型链 sanity（资源门
+#   XCTSkip）；AnalysisRegistryTests + LabelingDefaultsTests = APP/App 级——
+#   registry 三任务型真链（真 .lalb + 真 ImportService 导入链）/取消增量/
+#   重算翻档保旧维/typed 失败面 + labelingMode 三态/remember 写回/reset。
+#   运行期总数基线上移（2759 起算）。
+APP	13	AnalysisRegistryTests.swift
+APP	13	LabelingDefaultsTests.swift
 
 # M2-10-02 执行期勘误（2026-10-03，`func test` 全量对账机检发现）：三行行值为
 #   更早波次的陈旧计数——LibraryStoreTests 11→14、XMPExportMatrixTests 5→6、
