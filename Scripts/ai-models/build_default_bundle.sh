@@ -10,6 +10,7 @@
 #
 # Usage:
 #   Scripts/ai-models/build_default_bundle.sh [--skip-convert] [--skip-digests]
+#                                            [--with-label-prototypes]
 #
 # Prerequisites:
 #   ~/Library/Caches/LightamerModels/chinese-clip/  (pinned-revision HF files)
@@ -30,10 +31,12 @@ ESRGAN_W="$CACHE/realesrgan"
 
 SKIP_CONVERT=0
 SKIP_DIGESTS=0
+WITH_PROTOTYPES=0
 for arg in "$@"; do
   case "$arg" in
     --skip-convert) SKIP_CONVERT=1 ;;
     --skip-digests) SKIP_DIGESTS=1 ;;
+    --with-label-prototypes) WITH_PROTOTYPES=1 ;;
     *) echo "unknown flag: $arg" >&2; exit 2 ;;
   esac
 done
@@ -74,11 +77,26 @@ cp -R "$CONVERTED/realesr-general-x4v3-fp16.mlpackage" "$BUNDLE_DIR/realesr-gene
 # Label-prototype placeholder (M2-10-03 ships the real prototype embeddings;
 # they ride WITH the model revision and never enter the user library/git).
 mkdir -p "$BUNDLE_DIR/chinese-clip-vitb16-int8/prototypes"
+
 cat > "$BUNDLE_DIR/chinese-clip-vitb16-int8/prototypes/README.txt" <<'EOF'
 Label query prototype embeddings (M2-10-03) ship here.
 They are generated from the SAME model revision as the sibling .mlpackage
 files and die with it (D-M2-10-CONTEXT-7). Never copied into the user library.
 EOF
+
+# -- 2b. Label prototypes (M2-10-03, opt-in — needs the HF weight cache) ----
+if [[ $WITH_PROTOTYPES -eq 1 ]]; then
+  echo "==> generate_label_prototypes.py (factory catalog, en queries)"
+  uv run --with "torch==2.7.*" --with "transformers<5" --with numpy \
+    python "$ROOT/Scripts/ai-models/generate_label_prototypes.py" \
+    --weights-dir "$CLIP_W" \
+    --profile-dir "$BUNDLE_DIR/chinese-clip-vitb16-int8" \
+    --catalog "$ROOT/LightamerCore/Sources/AI/LabelQueries.swift" \
+    --manifest "$ROOT/LightamerCore/Sources/AI/ModelAssetCatalog.swift"
+  # The 01 placeholder seat is superseded by the real label-prototypes/ tree
+  # (both are gitignored bundle bytes; the no-flag chain never touches it).
+  rm -rf "$BUNDLE_DIR/chinese-clip-vitb16-int8/prototypes"
+fi
 
 # ── 3. Digests (SHA-256 over the final in-bundle distribution bytes) ────
 if [[ $SKIP_DIGESTS -eq 0 ]]; then
