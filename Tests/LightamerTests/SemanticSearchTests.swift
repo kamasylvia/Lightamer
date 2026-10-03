@@ -333,7 +333,6 @@ final class SemanticSearchTests: XCTestCase {
         XCTAssertEqual(table.rowIDs.count, 2)
 
         // zh + en queries, each end-to-end (tokenize → text tower → sweep):
-        // zh + en queries, each end-to-end (tokenize → text tower → sweep):
         // non-empty, ordered descending, scores inside the normalized band.
         // Synthetic gradients carry no semantics — this is the CHAIN sanity
         // (M2AI-01's 检索面可审计用例), NOT a quality judgment (01 DECISIONS
