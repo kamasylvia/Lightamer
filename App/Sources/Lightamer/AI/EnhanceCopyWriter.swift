@@ -46,6 +46,25 @@ enum EnhanceCopyError: Error, Equatable {
     case encodeFailed(String)
 }
 
+/// The copy-free encode buffer's ownership box: retained by the
+/// CGDataProvider through the dataInfo pointer; the provider's release
+/// callback drops that retain and deinit frees the heap allocation (the
+/// M2-10-06 M-1 fix — no intermediate full-frame Data copy at the
+/// 8 B/output-pixel scale).
+final class PixelBufferContext {
+    let pointer: UnsafeMutableRawPointer
+    let byteCount: Int
+
+    init(byteCount: Int) {
+        self.byteCount = byteCount
+        self.pointer = UnsafeMutableRawPointer.allocate(
+            byteCount: byteCount,
+            alignment: MemoryLayout<UInt16>.alignment)
+    }
+
+    deinit { pointer.deallocate() }
+}
+
 enum EnhanceCopyWriter {
 
     /// The output container (the KD-3 rule above).
@@ -165,6 +184,10 @@ enum EnhanceCopyWriter {
     }
 
     /// The 16-bit CGImage: float RGBA → clamped uint16 (opaque alpha).
+    /// The pixel buffer is handed to the CGDataProvider WITH ownership —
+    /// the provider frees it in its release callback, so the encode leg
+    /// holds the buffer ONCE (8 B/output px) instead of buffer + full
+    /// Data copy (16 B/px — the M-1 #2 endgame transient).
     static func makeImage(
         rgba: [Float], width: Int, height: Int, colorSpace: CGColorSpace
     ) throws -> CGImage {
@@ -172,7 +195,8 @@ enum EnhanceCopyWriter {
             throw EnhanceCopyError.encodeFailed(
                 "frame shape \(rgba.count) does not match \(width)×\(height)×4")
         }
-        var pixels = [UInt16](repeating: 0, count: width * height * 4)
+        let context = PixelBufferContext(byteCount: width * height * 8)
+        let pixels = context.pointer.assumingMemoryBound(to: UInt16.self)
         for index in 0..<width * height {
             let source = index * 4
             // Clamp to [0,1] — a 16-bit integer container cannot carry the
@@ -186,12 +210,24 @@ enum EnhanceCopyWriter {
                     Int((clamped * 65535.0).rounded()))
             }
         }
-        let pixelData = pixels.withUnsafeBytes { Data($0) }
-        guard let provider = CGDataProvider(data: pixelData as CFData) else {
+        let info = Unmanaged.passRetained(context).toOpaque()
+        guard let provider = CGDataProvider(
+            dataInfo: info, data: context.pointer, size: context.byteCount,
+            releaseData: { info, _, _ in
+                if let info {
+                    Unmanaged<PixelBufferContext>.fromOpaque(info).release()
+                }
+            })
+        else {
+            // No provider owns the buffer — drop the retain manually (the
+            // box's deinit frees the heap allocation).
+            Unmanaged.passUnretained(context).release()
             throw EnhanceCopyError.encodeFailed("provider create failed")
         }
         // 16bpc RGBA, little-endian 16-bit words, premultiplied-last (the
-        // alpha is opaque so premultiplication is the identity).
+        // alpha is opaque so premultiplication is the identity). If the
+        // CGImage create fails, the provider deallocs here → its release
+        // callback fires → the box releases → the buffer frees.
         let bitmapInfo = CGBitmapInfo(
             rawValue: CGBitmapInfo.byteOrder16Little.rawValue
                 | CGImageAlphaInfo.premultipliedLast.rawValue)

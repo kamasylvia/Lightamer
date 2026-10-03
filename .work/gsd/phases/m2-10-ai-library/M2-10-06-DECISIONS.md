@@ -114,3 +114,76 @@ fp32 输出 ≈ 6.4GB 贴 8G 门的风险维持 plan 申报；「输出按 tile 
 首轮 EnhanceDialogTests 全类跑出现一次宿主 mid-run `terminated abnormally`
 （DrtPersistenceTests 域，AGX texture assertion 刷屏伴生）——隔离复跑 + 全类复跑
 + 全套 --all 三轮全绿，归环境型（M2-10-04/05 崩溃家族同口径）。
+
+## §14 M-1 修复追记（验收后专项波，2026-10-04 夜间授权）
+
+> 验收 M-1「内存姿态两处口径差」的专项修复正本。单笔
+> `fix(M2-10-06)` 提交；金样链与全部 AC 语义零回归。
+
+### 两处根因的确认（与验收口径逐条对上）
+
+1. **fp32 输入释放 pin inert**：`runFullCopy` 传 `onInputConsumed: nil`
+   且 `run(input:)` 的 `input` 参数（struct 持数组引用）在 callee 帧
+   存活至返回——caller 置 nil 也释放不了，fp32 全程驻留（Debug 语义
+   确定性；语言级无保证）。
+2. **终段双缓冲**：归一段 `output`（RGB fp32，12 B/输出 px）与
+   `rgba`（RGBA fp32，16 B/输出 px）共存 → 28 B/px；叠加 writer 的
+   uint16 编码缓冲 + `Data($0)` 全帧拷贝，编码腿瞬时实达 32 B/px。
+
+### 修复落点（a + b + c 全做）
+
+- **a（pin 结构性生效）**：engine API 拆两阶段——`prepareInput(_:)` 
+  （static，自有帧：量化完返回即 engine 侧 fp32 归零）+
+  `run(prepared:)`（只持 uint16 输入 + 单缓冲累加器）。生产
+  `runFullCopy` 用立即调用 `@Sendable` 闭包把 fp32 帧 + prepared 双双
+  scope 在块内（闭包非隔离，量化循环不占主线程）；`onInputConsumed`
+  回调迁到 `prepareInput`（语义保留：量化完即触发）。旧
+  `run(input:)` 整体退役（测试 4 调用点同步改造）。
+- **b（双缓冲消除）**：blend 直接累加进 stride-4 RGBA 单缓冲（16
+  B/px），归一在原缓冲 in-place 除权重 + 写 alpha——RGB+RGBA 共存
+  不复存在。writer 侧 `makeImage` 弃 `Data($0)` 全帧拷贝，改
+  `CGDataProvider(dataInfo:releaseData:)` 所有权移交（PixelBufferContext
+  box：provider 持 retain，release 回调释放堆缓冲）——编码腿 32 →
+  24 B/px 瞬时上界。
+- **c（大图防御）**：新 typed 错误 `memoryBudgetExceeded`，engine 在
+  plan 后、**任何输出级分配前**核验
+  `estimatedPeakBytes = outputPx×24 + inputPx×6`（诚实上界：16 累加器
+  + 8 编码瞬时 + 6 工作缓冲），超 `memoryBudgetBytes`（默认 6 GiB =
+  8192 MB 运行门 − ~2 GB 头寸）即拒——不给 OOM 炸弹按钮。400MP
+  planner 上限保持绝对界，本门在其下。预算经 init 注入（测试用微型
+  预算钉 typed 行为）。对话框映射诚实文案
+  `memoryBudgetMessage`（预计峰值 GB vs 上限 GB + 降倍率/裁切指引）。
+  **直白后果**：100MP@×2（400M 输出，est ≈ 9.6 GB > 6 GiB）在流式
+  直写（E3）落地前被 typed 拒绝——验收 M-1 的「粗算 >285M 输出越 8G」
+  修正为「>~268M 输出越 6 GiB 预算」（~67MP@×2 / ~16MP@×4 为当前
+  准入包络）；解锁靠 E3 流水线化，不靠放水。
+
+### footprint 实测（identity stub，12MP@×2 = 48M 输出 px，物理采样 2ms）
+
+| 指标 | 修复前（HEAD `bbb22d1`） | 修复后 | 变化 |
+|---|---|---|---|
+| run 稳态 Δfootprint | 1572 MB（32.7 B/px） | **834 MB（17.4 B/px）** | −47%，与公式吻合（16 累加器 + 6×¼ 工作缓冲） |
+| 全程峰值 Δfootprint | **1939 MB（42 B/px）** | **1201 MB（26 B/px）** | **−38%**；26 = 公式 24 + 分配器 slack |
+| 峰值所在腿 | 归一双缓冲段 | 编码填充腿（16+8） | 与设计一致 |
+| 宿主 peakRSS（App bundle 单类） | 2130 MB | 1424 MB | 含框架地板 |
+
+探针 = 临时测试（mach_footprint 采样），数字入账后已删——本文件为
+数字正本。
+
+### 回归
+
+- 金样 `testRealModelGolden64SquaredTo256SquaredThroughWorker` 激活态
+  过（逐元素 ≤1/255 不变——stride-3→4 换道不触任何浮点数值路径）；
+  身份多 tile / pad-to-fit 预览 / 取消扫描 / 进度端点全绿。
+- 新增 3 永久测试：pin 触发序（`prepareInput` 回调 + 量化钳制契约）、
+  typed 门先于任何 tile I/O（微型注入预算 + 零 executor 调用 + tmp
+  终态空）、footprint 公式锚（常量 + 默认预算 < 8G 门 + 400M 输出
+  被拒算术）。既有 EnhanceDialogTests 10 + TileInferenceTests 13 +
+  EnhanceCopyTests 8 + SidecarV8Tests 5 零语义改动（engine 调用点
+  机械适配）。
+
+### 剩余挂账（E3，Maintenance）
+
+- 输出行/块直写 TIFF 流水线化——当前 24 B/px 上界下 100MP@×2 /
+  大图@×4 档仍被 typed 门拒绝；流式直写落地后同步上调
+  `memoryBudgetBytes` 并放宽文案。挂 M2AI-09 Delivered 注记同源。

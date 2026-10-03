@@ -153,7 +153,8 @@ final class EnhanceDialogTests: XCTestCase {
         // Tile 0 arms the cancel; tile 1's checkpoint fires it.
         do {
             _ = try await engine.run(
-                input: gradientFrame(width: 300, height: 300),
+                prepared: EnhanceEngine.prepareInput(
+                    gradientFrame(width: 300, height: 300)),
                 tmpDirectory: tmp,
                 tileExecutor: { request in
                     if request.tileIndex == 0 { flag.setTrue() }
@@ -202,7 +203,8 @@ final class EnhanceDialogTests: XCTestCase {
             supportedEdges: [256], scale: 1, amount: 35)
         let tmp = root.appendingPathComponent("progress-tmp", isDirectory: true)
         _ = try await engine.run(
-            input: gradientFrame(width: 300, height: 300),
+            prepared: EnhanceEngine.prepareInput(
+                gradientFrame(width: 300, height: 300)),
             tmpDirectory: tmp,
             tileExecutor: identityExecutor,
             onProgress: { percent in recorded.append(percent) })
@@ -236,7 +238,7 @@ final class EnhanceDialogTests: XCTestCase {
         let engine = EnhanceEngine(supportedEdges: [256], scale: 1, amount: 35)
         let input = gradientFrame(width: 300, height: 300) // 2×2 tiles
         let output = try await engine.run(
-            input: input,
+            prepared: EnhanceEngine.prepareInput(input),
             tmpDirectory: root.appendingPathComponent("identity-tmp"),
             tileExecutor: identityExecutor)
         XCTAssertEqual(output.width, 300)
@@ -357,7 +359,8 @@ final class EnhanceDialogTests: XCTestCase {
                     amount: request.amount)
             }
         let first = try await engine.run(
-            input: input, tmpDirectory: tmp, tileExecutor: executor)
+            prepared: EnhanceEngine.prepareInput(input),
+            tmpDirectory: tmp, tileExecutor: executor)
         XCTAssertEqual(first.width, 256, "64² × 4 = 256²")
         XCTAssertEqual(first.height, 256)
         // Finite + in-domain.
@@ -366,9 +369,12 @@ final class EnhanceDialogTests: XCTestCase {
             XCTAssertTrue((0.0...1.0).contains(value))
         }
         // Determinism within 1/255 (the tile-consistency tolerance — the
-        // CoreML numeric-stability anchor, Lumen MODEL.md:9).
+        // CoreML numeric-stability anchor, Lumen MODEL.md:9). The SECOND
+        // run reuses the SAME prepared input — the quantization is
+        // deterministic and the golden is reproducible.
         let second = try await engine.run(
-            input: input, tmpDirectory: tmp, tileExecutor: executor)
+            prepared: EnhanceEngine.prepareInput(input),
+            tmpDirectory: tmp, tileExecutor: executor)
         XCTAssertEqual(second.width, 256)
         for index in 0..<first.rgba.count {
             XCTAssertEqual(
@@ -377,4 +383,93 @@ final class EnhanceDialogTests: XCTestCase {
         }
         await client.stop()
     }
+
+    // MARK: - The M-1 memory-posture regression (the two-phase pin, the
+    // typed gate, the footprint arithmetic)
+
+    func testPrepareInputFiresOnInputConsumedAndQuantizesClamped() {
+        let frame = gradientFrame(width: 8, height: 8)
+        let fired = CounterBox()
+        let prepared = EnhanceEngine.prepareInput(frame) {
+            fired.increment()
+        }
+        XCTAssertEqual(
+            fired.value, 1,
+            "the callback fires before prepareInput returns — the caller "
+                + "drops their fp32 there")
+        XCTAssertEqual(prepared.width, 8)
+        XCTAssertEqual(prepared.height, 8)
+        XCTAssertEqual(prepared.working.count, 8 * 8 * 3)
+        // The quantization contract: uint16 RGB off the [0,1] clamp.
+        XCTAssertEqual(
+            prepared.working[0],
+            UInt16(Int((frame.rgba[0] * 65535.0).rounded())))
+        var hot = gradientFrame(width: 2, height: 2)
+        hot.rgba[0] = 1.5
+        hot.rgba[1] = -0.5
+        let hotPrepared = EnhanceEngine.prepareInput(hot)
+        XCTAssertEqual(hotPrepared.working[0], 65535, "values clamp on encode")
+        XCTAssertEqual(hotPrepared.working[1], 0)
+    }
+
+    func testMemoryBudgetGateRejectsTypedBeforeAnyTileRuns() async throws {
+        let calls = CounterBox()
+        // A budget no real job meets — the gate must fire BEFORE the tile
+        // loop (no I/O, no tmp, no allocation toward the output).
+        let engine = EnhanceEngine(
+            supportedEdges: [256], scale: 2, amount: nil,
+            memoryBudgetBytes: 1024)
+        let tmp = root.appendingPathComponent("gate-tmp", isDirectory: true)
+        do {
+            _ = try await engine.run(
+                prepared: EnhanceEngine.prepareInput(
+                    gradientFrame(width: 300, height: 300)),
+                tmpDirectory: tmp,
+                tileExecutor: { _ in calls.increment() })
+            XCTFail("the gate must reject before the tile loop")
+        } catch EnhanceEngineError.memoryBudgetExceeded(
+            let estimated, let limit)
+        {
+            XCTAssertEqual(limit, 1024)
+            XCTAssertGreaterThan(estimated, limit)
+        }
+        XCTAssertEqual(calls.value, 0, "no tile ran — no OOM button")
+        let leftovers = (try? FileManager.default.contentsOfDirectory(
+            at: tmp, includingPropertiesForKeys: nil)) ?? []
+        XCTAssertTrue(leftovers.isEmpty, "the rejection precedes any I/O")
+    }
+
+    func testEstimatedPeakBytesPinsTheFootprintConstants() {
+        // The honest worst case the gate guards: 16 B/output px (the fp32
+        // RGBA accumulator — the single buffer) + 8 B/output px (the
+        // writer's uint16 encode transient) + 6 B/input px (the uint16
+        // working input).
+        XCTAssertEqual(
+            EnhanceEngine.estimatedPeakBytes(
+                outputPixels: 100, inputPixels: 25),
+            100 * 24 + 25 * 6)
+        // The default budget sits under the 8192 MB run gate with
+        // headroom (the MEMFAIL line stays unreachable through the gate).
+        XCTAssertLessThan(
+            EnhanceEngine.memoryBudgetBytes, 8 * 1024 * 1024 * 1024)
+        // The M2AI-09 headline case (100MP@×2 = 400M output px) is
+        // HONESTLY gated out until the E3 streaming unlock — the gate
+        // arithmetic must refuse it rather than OOM (the M-1 #3 ruling).
+        XCTAssertGreaterThan(
+            EnhanceEngine.estimatedPeakBytes(
+                outputPixels: 400_000_000, inputPixels: 100_000_000),
+            EnhanceEngine.memoryBudgetBytes)
+    }
+
+    private final class CounterBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage = 0
+        func increment() {
+            lock.lock(); storage += 1; lock.unlock()
+        }
+        var value: Int {
+            lock.lock(); defer { lock.unlock() }; return storage
+        }
+    }
+
 }
