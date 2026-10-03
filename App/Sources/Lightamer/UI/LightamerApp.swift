@@ -82,6 +82,14 @@ enum LightamerEntryPoint {
             McpServerController.runHeadless(mode: mode) // parks forever
             return
         }
+        // Plan M2-10-05 (OQ-5-A): the AI worker fork — the same-binary
+        // child process the editor spawns for local inference (a native
+        // inference crash must never take the editor down). Like the MCP
+        // arm above: parks in its frame loop and NEVER constructs the
+        // SwiftUI App.
+        if AIWorkerMain.runIfRequested() {
+            return // unreachable: runIfRequested parks forever on this arm
+        }
         LightamerApp.main()
     }
 }
