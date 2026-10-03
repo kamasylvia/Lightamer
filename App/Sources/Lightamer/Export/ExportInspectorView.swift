@@ -363,7 +363,10 @@ internal struct ExportInspectorView: View {
 
             Picker(String(localized: "export_format_label"), selection: formatSelection) {
                 ForEach(ExportM2FormatKind.allCases) { kind in
-                    Text(String(localized: String.LocalizationValue("export_format_\(kind.rawValue)")))
+                    // L058: build the lookup key as a plain String FIRST — an
+                    // interpolated String.LocalizationValue literal makes the
+                    // catalog key "export_format_%@" (silent raw-key fallback).
+                    Text(String(localized: String.LocalizationValue("export_format_" + kind.rawValue)))
                         .tag(kind)
                 }
             }
