@@ -131,6 +131,9 @@ private actor WorkerLoop {
     private let output: FileHandle
     private let locator = ModelLocator()
     private var sessions: [String: InProcessMLModelRunner] = [:]
+    /// The enhancement family's sessions (Plan M2-10-06): one per
+    /// (profile, units), carrying the model's shape facts.
+    private var enhancementSessions: [String: EnhancementSession] = [:]
     private var anonymousID: UInt64 = 0
 
     init(input: FileHandle, output: FileHandle) {
@@ -190,6 +193,7 @@ private actor WorkerLoop {
             case .stop:
                 send(AIWorkerResponse(id: request.id, ok: true))
                 sessions.removeAll()
+                enhancementSessions.removeAll()
                 return
             case nil:
                 #if DEBUG
@@ -242,22 +246,23 @@ private actor WorkerLoop {
             Darwin.exit(9)
         }
         #endif
-        // Profile-level failure (assets absent from THIS bundle): answered
+        // Profile-level failure (assets absent from THIS install): answered
         // WITHOUT a culprit — retrying other compute units cannot help.
-        guard let manifest = ModelAssetCatalog.manifest(for: profile),
-              let profileDirectory = locator.bundledProfileURL(profile)
-        else {
+        guard let manifest = ModelAssetCatalog.manifest(for: profile) else {
             sendError(
                 request.id, "profile assets absent: \(profile)", nil)
             return
         }
-        // The enhancement family opens through the M2-10-06 leg (its tile
-        // session is not the CLIP twin-tower shape).
+        // The enhancement family opens through its OWN leg (M2-10-06): one
+        // package, the static-shape facts read from the model description.
         guard manifest.embeddingDim != nil else {
+            openEnhancementLeg(
+                request, profile: profile, units: units, manifest: manifest)
+            return
+        }
+        guard let profileDirectory = locator.bundledProfileURL(profile) else {
             sendError(
-                request.id,
-                "enhancement profile \(profile) opens via the M2-10-06 leg",
-                nil)
+                request.id, "profile assets absent: \(profile)", nil)
             return
         }
         // Units-level load failure (the ANE/GPU compilation can genuinely
@@ -286,23 +291,80 @@ private actor WorkerLoop {
             result: AIWorkerResult(profile: profile, units: units.rawValue)))
     }
 
+    /// The enhancement open leg (Plan M2-10-06): resolve the package
+    /// (bundled folder reference first, then the installed Application
+    /// Support root), compile+load with the requested compute units, and
+    /// report the model's shape facts (supported tile edges + the
+    /// super-resolution factor) so the editor's planner never guesses.
+    /// Asset absence = profile-level (no culprit); a load failure on the
+    /// requested units = units-level (the degradation input).
+    private func openEnhancementLeg(
+        _ request: AIWorkerRequest,
+        profile: String, units: AIComputeUnits,
+        manifest: ModelAssetManifest
+    ) {
+        let key = AIWorkerMain.sessionKey(profile: profile, units: units)
+        if enhancementSessions[key] != nil {
+            respondEnhancementFacts(request, profile: profile, units: units)
+            return
+        }
+        guard let package = EnhancementSession.resolvePackage(
+            profile: profile, manifest: manifest, locator: locator)
+        else {
+            sendError(
+                request.id, "profile assets absent: \(profile)", nil)
+            return
+        }
+        do {
+            let session = try EnhancementSession(
+                packageURL: package, manifest: manifest,
+                computeUnits: units.mlComputeUnits,
+                compileCacheDirectory: AIWorkerMain.compiledCacheDirectory(
+                    profile: profile))
+            enhancementSessions[key] = session
+        } catch {
+            sendError(
+                request.id,
+                "model load failed on \(units.rawValue): \(error)", units)
+            return
+        }
+        respondEnhancementFacts(request, profile: profile, units: units)
+    }
+
+    private func respondEnhancementFacts(
+        _ request: AIWorkerRequest, profile: String, units: AIComputeUnits
+    ) {
+        let key = AIWorkerMain.sessionKey(profile: profile, units: units)
+        guard let session = enhancementSessions[key] else { return }
+        send(AIWorkerResponse(
+            id: request.id, ok: true,
+            result: AIWorkerResult(
+                profile: profile, units: units.rawValue,
+                tileEdges: session.supportedEdges, scale: session.scale)))
+    }
+
     // MARK: - run
 
     private func run(_ request: AIWorkerRequest) async {
         guard let profile = request.profile,
               let units = request.unitsKind,
-              let runner = sessions[
-                AIWorkerMain.sessionKey(profile: profile, units: units)]
+              let payload = request.payload
         else {
             sendError(
                 request.id, "run before open: \(request.profile ?? "-")", nil)
             return
         }
-        guard let payload = request.payload else {
-            sendError(request.id, "run requires a payload", nil)
+        let key = AIWorkerMain.sessionKey(profile: profile, units: units)
+        if let runner = sessions[key] {
+            await forwardRun(request, runner: runner, payload: payload)
             return
         }
-        await forwardRun(request, runner: runner, payload: payload)
+        if let enhancement = enhancementSessions[key] {
+            await forwardPathRun(request, session: enhancement, payload: payload)
+            return
+        }
+        sendError(
+            request.id, "run before open: \(request.profile ?? "-")", nil)
     }
 
     private func forwardRun(
@@ -329,17 +391,52 @@ private actor WorkerLoop {
                 return
             }
             if payload.inPath != nil {
-                // The path channel's inference leg is M2-10-06 scope; the
-                // frame shape is already proven (the protocol tests ride it).
+                // A path-channel run without an open enhancement session:
+                // the open leg must run first (the run-before-open face).
                 sendError(
                     request.id,
-                    "path-channel inference lands with M2-10-06", nil)
+                    "path-channel run before open: \(request.profile ?? "-")",
+                    nil)
                 return
             }
             sendError(request.id, "run payload carries no known variant", nil)
         } catch {
             // A run-level failure leaves the worker healthy — answered, not
             // crashed (Lumen `'error'` string parity, ai_worker.py:94-96).
+            sendError(request.id, "run failed: \(error)", nil)
+        }
+    }
+
+    /// The PATH channel's inference leg (Plan M2-10-06, the M2-10-05
+    /// placeholder retired): the enhancement session decodes the input
+    /// tile (16-bit RGB TIFF), runs the model at the FEED shape from
+    /// `tile`, blends the denoise amount (worker-side — the models carry
+    /// no strength input), and writes the output tile (16-bit TIFF).
+    private func forwardPathRun(
+        _ request: AIWorkerRequest, session: EnhancementSession,
+        payload: AIWorkerPayload
+    ) async {
+        guard let inPath = payload.inPath,
+              let outPath = payload.outPath
+        else {
+            sendError(
+                request.id,
+                "path-channel run requires inPath and outPath", nil)
+            return
+        }
+        let feedHeight = payload.tile?.height ?? session.supportedEdges.first ?? 0
+        let feedWidth = payload.tile?.width ?? session.supportedEdges.first ?? 0
+        do {
+            try await session.runTile(
+                inPath: URL(fileURLWithPath: inPath),
+                outPath: URL(fileURLWithPath: outPath),
+                feedHeight: feedHeight, feedWidth: feedWidth,
+                amount: payload.tile?.amount)
+            send(AIWorkerResponse(
+                id: request.id, ok: true,
+                result: AIWorkerResult(outPath: outPath)))
+        } catch {
+            // The worker stays healthy (the Lumen error-frame parity).
             sendError(request.id, "run failed: \(error)", nil)
         }
     }
