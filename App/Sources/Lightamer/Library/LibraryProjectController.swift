@@ -56,6 +56,12 @@ final class LibraryProjectController {
     var verifyStrategy: (@Sendable (URL, URL) async throws -> Bool)?
     var uuidProbe: (@Sendable (URL) -> String?)?
 
+    /// M2-10-03 (OQ-6-A): the AI-analysis legs, injected by the shell host
+    /// once its faces exist. nil = the inert face (no-shell contexts and
+    /// the existing import tests skip the AI tail entirely).
+    var aiAnalysis: AIAnalysisRegistry?
+    var labelingPrompts: LabelingPromptController?
+
     private let defaultsSuiteName: String?
     private var activeImportService: LightamerCore.ImportService?
 
@@ -262,6 +268,11 @@ final class LibraryProjectController {
         await service.setProgressHandler { [weak self] snapshot in
             Task { @MainActor in self?.importProgress = snapshot }
         }
+        // M2-10-03 (OQ-6-A): the AI legs key on the rows this import ADDS —
+        // captured against the pre-import high-water mark. A failed read
+        // skips the legs: derived-data bookkeeping never fails an import.
+        let beforeMaxRowID = try? await AIAnalysisQueries.maxImageRowID(in: store)
+        var newImageIDs: [Int64] = []
         do {
             let defaults = ImportDefaults(defaultsSuiteName: defaultsSuiteName)
             let plan = try await service.makePlan(
@@ -271,12 +282,34 @@ final class LibraryProjectController {
                 whitelist: defaults.resolvedWhitelist())
             importProgress = ImportProgress(
                 phase: .importing, total: plan.items.count)
-            _ = try await service.importFolder(plan)
+            let outcome = try await service.importFolder(plan)
+            if let beforeMaxRowID, outcome.imported > 0, !outcome.cancelled {
+                newImageIDs = (try? await AIAnalysisQueries.imageIDs(
+                    in: store, afterRowID: beforeMaxRowID)) ?? []
+            }
         } catch {
             lastError = error.localizedDescription
         }
         activeImportService = nil
         importProgress = nil
+
+        // The AI tail (auto leg first, no prompt; then the labeling mode
+        // three-state). Everything here is post-close: the prompt publishes
+        // one beat AFTER the progress publication (the plan's 弹询时机 pin —
+        // a Task.yield gives the overlay dismissal's render the turn first).
+        guard !newImageIDs.isEmpty else { return }
+        aiAnalysis?.enqueue(.embedding(imageIDs: newImageIDs))
+        if let prompts = labelingPrompts {
+            switch prompts.intentForNewImages(newImageIDs) {
+            case .enqueueNow:
+                aiAnalysis?.enqueue(.labeling(imageIDs: newImageIDs))
+            case .ask:
+                await Task.yield()
+                prompts.presentPrompt(newImageIDs)
+            case nil:
+                break
+            }
+        }
     }
 
     /// Cancel at the next per-file checkpoint.

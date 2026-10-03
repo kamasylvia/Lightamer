@@ -65,6 +65,15 @@ struct WorkspaceHostView: View {
     @State private var isTaskDialogPresented = false
     @State private var importAdapter: ImportTaskAdapter?
 
+    // M2-10-03 (declared increment): the AI analysis leg + the labeling ask.
+    // The registry rides THIS host's aggregate task registry (the bar/dialog
+    // render AI rows with zero new presentation faces — the M2UIW-06
+    // single-aggregate discipline) and the prompt sheet hangs beside the
+    // other shell sheets. The controller receives both legs by injection
+    // (nil-until-bound = the inert face the import tests see).
+    @State private var labelingPrompts = LabelingPromptController()
+    @State private var aiAnalysis: AIAnalysisRegistry?
+
     // Plan M2-3-2 T1 (KD-1): the library surface the grid renders from —
     // rebuilt on project open/close/move (the queries ride the OPEN store;
     // the bridge rides the package's `.<stem>.lathumbs/` directory). The
@@ -182,6 +191,28 @@ struct WorkspaceHostView: View {
         .sheet(isPresented: $isYiyinSheetPresented) {
             YiyinTopBarSheet(onDismiss: { isYiyinSheetPresented = false })
         }
+        // M2-10-03: the labeling ask (OQ-6-A — labeling writes user-visible
+        // state, so it asks). 「分析」routes the ids into the registry's
+        // labeling task; the remember checkbox persists through
+        // LabelingPreferences (the ImportDefaults storeChoice semantics —
+        // a single-shot answer persists nothing). isPresented + content-read
+        // shape: the controller's pendingPrompt is private(set) — the sheet
+        // never writes it except through the controller faces.
+        .sheet(isPresented: Binding(
+            get: { labelingPrompts.pendingPrompt != nil },
+            set: { if !$0 { labelingPrompts.dismissPrompt() } })) {
+            if let request = labelingPrompts.pendingPrompt {
+                LabelingAskDialog(request: request) { accepted, remember in
+                    if accepted {
+                        if let ids = labelingPrompts.accept(remember: remember) {
+                            aiAnalysis?.enqueue(.labeling(imageIDs: ids))
+                        }
+                    } else {
+                        labelingPrompts.decline(remember: remember)
+                    }
+                }
+            }
+        }
         // The import-leg subscription (checker E3): a READ-ONLY observation
         // of the controller's importProgress publication. The adapter
         // mirrors it into the registry; the run's end (nil) finishes the
@@ -218,6 +249,40 @@ struct WorkspaceHostView: View {
         // M2-3-1 `EditorState.attach` pattern) — write-leg pass-through +
         // restore-leg priming ride it.
         .task {
+            // M2-10-03: bind the AI legs to the project controller (once per
+            // host lifetime; the injections are plain reference writes).
+            if aiAnalysis == nil {
+                aiAnalysis = AIAnalysisRegistry(
+                    backgroundRegistry: taskRegistry,
+                    storeProvider: { [weak projectController] in
+                        projectController?.projectStore
+                    },
+                    engineProvider: {
+                        await AIInferenceService.shared.analysisEngine()
+                    },
+                    prototypesProvider: { [weak projectController] in
+                        // The bundle prototype tree, revision-checked against
+                        // the ACTIVE model row per task (the same-revision
+                        // contract; a mismatch throws the typed refusal).
+                        guard let store = projectController?.projectStore,
+                            let revision = try await SemanticStore(store: store)
+                                .activeModel()?.revision
+                        else { return nil }
+                        let clip = ModelAssetCatalog.chineseClipViTB16Int8
+                        guard let directory = ModelLocator().bundledProfileURL(
+                            clip.profileID)?
+                            .appendingPathComponent(
+                                "label-prototypes", isDirectory: true)
+                        else { return nil }
+                        return try LabelPrototypeSet.load(
+                            directory: directory, expectingRevision: revision)
+                    },
+                    projectDirectoryProvider: { [weak projectController] in
+                        projectController?.projectURL?.deletingLastPathComponent()
+                    })
+            }
+            projectController?.aiAnalysis = aiAnalysis
+            projectController?.labelingPrompts = labelingPrompts
             workspace.attach(pipeCoordinator: pipeCoordinator)
             pipeCoordinator.attach(workspace: workspace)
             // M2-9-04 (KD-4): the M2 export target provider — the grid
