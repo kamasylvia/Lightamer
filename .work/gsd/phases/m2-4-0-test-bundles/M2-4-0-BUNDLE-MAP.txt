@@ -445,3 +445,9 @@ APP	13	FulltextSearchTests.swift
 APP	10	AIWorkerProtocolTests.swift
 APP	8	CompatRecordTests.swift
 APP	9	AIWorkerClientTests.swift
+# M2-10-06 增行记录（2026-10-03 执行期，checker E2 测试登记纪律）：两个新测试文件
+#   随 T1 commit 登记进对应 bundle（归属按 front-matter 判定：TileInferenceTests =
+#   LIB/Core 级——纯 Core tiling 面；SidecarV8Tests = APP/App 级——SidecarV7Tests
+#   同款字节形 pin 先例）。运行期总数基线相应上移（对账以各行 method 数为准）。
+LIB	13	TileInferenceTests.swift
+APP	5	SidecarV8Tests.swift
