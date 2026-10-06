@@ -154,12 +154,19 @@ IOP	10	PipeCacheTests.swift
 IOP	5	PreviewBucketTests.swift
 IOP	5	PreviewChainPerfTests.swift
 IOP	2	M2DefaultChainPerfTests.swift
+IOP	1	FullRenderBenchmarkTests.swift
 # M2-11-02 增行记录（2026-10-07 执行期，checker E2 测试登记纪律）：M2DefaultChainPerfTests
 #   = IOP/IOP 级——M2 默认面 PERF-01 bench（真 RenderPipeline/真 RAWDecoder，fixture
 #   在场即跑非 env 门控，无样张环境 XCTSkip——基线 skip 对账按「有样张机器」口径，
 #   本机两样张在场 = skip 零新增）。行内 method 数终态 2（T1 warm bench + T2 拖动
 #   两档，T2 随 7e79a2e 并入）。运行期总数基线上移（2955 → 2957 起算，对账以运行期
 #   Executed 为准；本波未跑全套 --all——批准制未申请，定向/全量 bundle 轮在授权面内）。
+# M2-11-03 增行记录（2026-10-07 执行期，checker E2 测试登记纪律）：FullRenderBenchmarkTests
+#   = IOP/IOP 级——SpektraLab 对标① FULL 桶全链渲染 warm<1s 硬门 bench（真 RAW decode
+#   + 真 FULL 桶渲，60.2MP ARW 主列 + 100MP RAF 加列，无样张环境 XCTSkip——skip 对账
+#   同「有样张机器」口径，本机零新增）。行内 method 数终态 1。DrtTailTests 行
+#   12→14 同批（SpektraLab 对标②尾命中计时两腿扩展）。运行期总数基线上移
+#   （2957 → 2960 起算，对账以运行期 Executed 为准）。
 IOP	8	RAW03Tests.swift
 IOP	11	RAWDecoderTests.swift
 IOP	11	ROINegotiationTests.swift
@@ -284,7 +291,7 @@ LAYERS	5	PipelineDocumentTests.swift
 LAYERS	17	DrtRecordTests.swift
 LAYERS	12	DrtEotfTests.swift
 LAYERS	11	DrtPresetsTests.swift
-LAYERS	12	DrtTailTests.swift
+LAYERS	14	DrtTailTests.swift
 LAYERS	7	DrtPostMigrationTests.swift
 LAYERS	28	Aces2MathTests.swift
 LIB	10	FilterPredicateTests.swift
