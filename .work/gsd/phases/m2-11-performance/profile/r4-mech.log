@@ -1,0 +1,19 @@
+Timestamp                       Thread     Type        Activity             PID    TTL  
+2026-10-07 07:40:34.297073+0800 0x6c7eb7   Info        0x0                  35702  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 1 planes (100 bytes) at threshold 299
+2026-10-07 07:40:34.298000+0800 0x6c7e89   Info        0x0                  35702  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 2 planes (600 bytes) at threshold 999
+2026-10-07 07:40:34.298881+0800 0x6c7eb7   Info        0x0                  35702  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 1 planes (100 bytes) at threshold 599
+2026-10-07 07:40:34.299609+0800 0x6c7e89   Info        0x0                  35702  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 4 planes (400 bytes) at threshold 1199
+2026-10-07 07:40:36.244643+0800 0x6c7eb8   Info        0x0                  35702  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 4 planes (400 bytes) at threshold 999
+2026-10-07 07:40:36.246115+0800 0x6c7eb8   Info        0x0                  35702  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 4 planes (360 bytes) at threshold 900
+2026-10-07 07:40:36.246145+0800 0x6c7eb8   Info        0x0                  35702  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 3 planes (330 bytes) at threshold 900
+2026-10-07 07:40:36.246172+0800 0x6c7eb8   Info        0x0                  35702  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 3 planes (330 bytes) at threshold 900
+2026-10-07 07:40:36.246198+0800 0x6c7eb8   Info        0x0                  35702  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 3 planes (330 bytes) at threshold 900
+2026-10-07 07:41:23.812229+0800 0x6c84a4   Info        0x0                  35772  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 1 planes (100 bytes) at threshold 299
+2026-10-07 07:41:23.813260+0800 0x6c84a3   Info        0x0                  35772  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 2 planes (600 bytes) at threshold 999
+2026-10-07 07:41:23.815629+0800 0x6c84a3   Info        0x0                  35772  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 1 planes (100 bytes) at threshold 599
+2026-10-07 07:41:23.818251+0800 0x6c84a4   Info        0x0                  35772  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 4 planes (400 bytes) at threshold 1199
+2026-10-07 07:41:25.760784+0800 0x6c8339   Info        0x0                  35772  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 4 planes (400 bytes) at threshold 999
+2026-10-07 07:41:25.762048+0800 0x6c850c   Info        0x0                  35772  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 4 planes (360 bytes) at threshold 900
+2026-10-07 07:41:25.762075+0800 0x6c850c   Info        0x0                  35772  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 3 planes (330 bytes) at threshold 900
+2026-10-07 07:41:25.762101+0800 0x6c850c   Info        0x0                  35772  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 3 planes (330 bytes) at threshold 900
+2026-10-07 07:41:25.762126+0800 0x6c850c   Info        0x0                  35772  0    Lightamer: (LightamerCore) [com.kamasylvia.lightamer:error] enforceBudget: evicted 3 planes (330 bytes) at threshold 900
