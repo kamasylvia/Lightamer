@@ -402,3 +402,123 @@ final class DrtTailTests: XCTestCase {
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - 8: the SpektraLab gate ② timing legs (Plan M2-11-03 T2, KD-2)
+//
+// SpektraLab's "reprint 0.01s" = a same-config, data-hot LUT re-slap; OUR
+// semantic counterpart = the tail-plane cache-hit rerender leg. Two legs at
+// the preview-2560 bucket (KD-2):
+//   ① same-record second render (the all-hits leg — the 5:1 semantic
+//     scenarios above, now TIMED; the hits>0/misses==0 assertion stays as
+//     the SEMANTIC gate that must red BEFORE the timing gate);
+//   ② single-parameter tick tail replay (the EOTF-switch shape, kept on a
+//     per-frame single-field tick so every frame flips the tail seed —
+//     misses==2 / hits==1 asserted per frame).
+// Gate (OQ-2-A②): Release asserts median ≤ 10ms (the hard gate ITSELF);
+// Debug records + carries a 25ms loose bound (architecture-regression
+// guard, NOT the gate). Timing discipline: the first render never counts
+// (warm = data-hot planes in PipeCache); the L014 drain sits INSIDE every
+// timing window (the render helper fences before returning).
+// ─────────────────────────────────────────────────────────────────────────────
+
+extension DrtTailTests {
+
+    private var isReleaseBuild: Bool {
+        #if DEBUG
+        return false
+        #else
+        return true
+        #endif
+    }
+
+    /// The preview-2560 bench fixture (native = the D-C3 bucket edge —
+    /// scale 1 through the pipe; the suite's 48×32 smoke fixture is too
+    /// small to carry a gate number).
+    private func makeBenchImage() -> DecodedImage {
+        makeImage(width: 2560, height: 1920)
+    }
+
+    /// Leg ①: the same-record second render — every timed frame must be an
+    /// ALL-HITS frame (the semantic assertion IS the gate's meaning guard).
+    func testSameRecordSecondRunTimingAllHits() async throws {
+        let metal = try await makeMetal()
+        let image = makeBenchImage()
+        let chain = try await makeTerminalChain(registry: makeRegistry())
+        let cache = PipeCache()
+        let policy = TerminalTailPolicy.drt(DrtTailParams(record: sdrRecord))
+        // PSO + plane warm-up — the FIRST render never counts (KD-2: the
+        // warm semantics = data-hot planes, SpektraLab's data-hot reprint).
+        _ = try await render(image, chain, policy: policy, cache: cache, metal: metal)
+
+        var times: [Double] = []
+        for _ in 0..<7 {
+            let start = ContinuousClock.now
+            let (_, stats) = try await render(
+                image, chain, policy: policy, cache: cache, metal: metal)
+            times.append(
+                Double((ContinuousClock.now - start).components.attoseconds) / 1e18 * 1000.0)
+            XCTAssertGreaterThan(stats.hits, 0, "the input plane must hit")
+            XCTAssertEqual(stats.misses, 0, "the same record re-hits the entire tail (semantic gate BEFORE the timing gate)")
+        }
+        let median = times.sorted()[times.count / 2]
+        let label = isReleaseBuild ? "Release" : "Debug"
+        print(String(
+            format: "PERF| drt-tail same-record rerender preview-2560 (%@): median %.3f ms  all: %@",
+            label, median, times.map { String(format: "%.3f", $0) }.joined(separator: ",")))
+        if isReleaseBuild {
+            XCTAssertLessThanOrEqual(
+                median, 10,
+                String(format: "SpektraLab gate ② tail-hit rerender: median %.3f ms > 10 ms", median))
+        } else {
+            XCTAssertLessThanOrEqual(median, 25, "Debug loose bound (non-gate)")
+        }
+    }
+
+    /// Leg ②: the single-parameter tick tail replay — every timed frame
+    /// flips ONLY the tail seed (EOTF base + one ticked record field), so
+    /// exactly the two tail boxes re-render while the input plane hits.
+    func testEOTFTickTailReplayTiming() async throws {
+        let metal = try await makeMetal()
+        let image = makeBenchImage()
+        let chain = try await makeTerminalChain(registry: makeRegistry())
+        let cache = PipeCache()
+        // PSO + plane warm-up on the gamma22 base (the first render never
+        // counts).
+        _ = try await render(
+            image, chain, policy: .drt(DrtTailParams(record: sdrRecord)),
+            cache: cache, metal: metal)
+
+        var whiteLimit: Float = 0.25
+        var times: [Double] = []
+        for _ in 0..<7 {
+            // The EOTF-switch shape on a per-frame single-field tick: every
+            // frame's seed is fresh — the two tail boxes miss, the input
+            // plane (everything before colorout) hits.
+            var record = DrtRecord()
+            record.encodingEotf = .bt1886
+            whiteLimit += 0.001
+            record.creativeWhiteLimit = whiteLimit
+            let start = ContinuousClock.now
+            let (_, stats) = try await render(
+                image, chain, policy: .drt(DrtTailParams(record: record)),
+                cache: cache, metal: metal)
+            times.append(
+                Double((ContinuousClock.now - start).components.attoseconds) / 1e18 * 1000.0)
+            XCTAssertEqual(stats.misses, 2, "exactly the two tail boxes re-render (semantic gate BEFORE the timing gate)")
+            XCTAssertEqual(stats.hits, 1, "the input plane stays HIT")
+        }
+        let median = times.sorted()[times.count / 2]
+        let label = isReleaseBuild ? "Release" : "Debug"
+        print(String(
+            format: "PERF| drt-tail eotf-tick replay preview-2560 (%@): median %.3f ms  all: %@",
+            label, median, times.map { String(format: "%.3f", $0) }.joined(separator: ",")))
+        if isReleaseBuild {
+            XCTAssertLessThanOrEqual(
+                median, 10,
+                String(format: "SpektraLab gate ② tick replay: median %.3f ms > 10 ms", median))
+        } else {
+            XCTAssertLessThanOrEqual(median, 25, "Debug loose bound (non-gate)")
+        }
+    }
+}
