@@ -58,6 +58,57 @@ final class QuickLookPerfProbeTests: XCTestCase {
             try Fixtures.require(sample.url)
         }
 
+        // ── PERF-05 open→first-frame segments (M2-11-02 T4, KD-4; checker
+        // E3-a: the new分项 live INSIDE this single func — zero new test
+        // funcs, zero skip delta on the default suite). This leg runs FIRST
+        // so the first decode of the process carries the RAW9 CoreML
+        // one-time compile for the A7R V column (the compile-cold single
+        // column — NOTE: CoreML caches compiled models on disk across
+        // processes, so a warm-disk run measures a cache-hit cold; the
+        // in-case 2.62s was a fresh-cache first compile). The grid loop
+        // below therefore starts decode-warm (its cold cells keep only the
+        // per-cell PSO compile — annotate in the transcription).
+        // Gate object (OQ-6-A): warm thumb-512 first frame total ≤ 0.500 s;
+        // fit-2560 = the record column (in-case warm ~2.08s). Judgment is
+        // NOT asserted here — the numbers land in perf.md (KD-4).
+        var openRows: [String] = []
+        openRows.append("")
+        openRows.append("## open→first-frame segments (PERF-05, warm = in-process second)")
+        openRows.append("")
+        openRows.append("| sample | decode cold (s) | decode warm (s) | first frame 512 total (s) | first frame 2560 total (s) |")
+        openRows.append("|---|---|---|---|---|")
+        for sample in samples {
+            let coldStart = DispatchTime.now()
+            let decoded = try await RAWDecoder().decode(sample.url)
+            let decodeCold = Self.seconds(since: coldStart)
+            let warmStart = DispatchTime.now()
+            _ = try await RAWDecoder().decode(sample.url)
+            let decodeWarm = Self.seconds(since: warmStart)
+            _ = decoded
+            // PSO warm-up (the throwaway first pipe run — the process-global
+            // PSO compile lands here, untimed).
+            _ = try await Self.probeRender(
+                url: sample.url, longEdge: 512, metal: metal, registry: registry)
+            // Warm first frames (fresh imageID per run = full pipe miss; the
+            // exit leg rides the export queue per the probeRender shape).
+            let f512Start = DispatchTime.now()
+            _ = try await Self.probeRender(
+                url: sample.url, longEdge: 512, metal: metal, registry: registry)
+            let first512 = Self.seconds(since: f512Start)
+            let f2560Start = DispatchTime.now()
+            _ = try await Self.probeRender(
+                url: sample.url, longEdge: 2560, metal: metal, registry: registry)
+            let first2560 = Self.seconds(since: f2560Start)
+            print(String(
+                format: "PERF05| open→first-frame %@: decodeCold=%.3f decodeWarm=%.3f first512=%.3f first2560=%.3f (gate: warm thumb-512 total ≤ 0.500 s)",
+                sample.label, decodeCold, decodeWarm, first512, first2560))
+            openRows.append("| \(sample.label) | "
+                + String(format: "%.3f", decodeCold) + " | "
+                + String(format: "%.3f", decodeWarm) + " | "
+                + String(format: "%.3f", first512) + " | "
+                + String(format: "%.3f", first2560) + " |")
+        }
+
         var rows: [String] = []
         rows.append("| sample | long edge | cold (s) | warm median (s) | warm ×3 (s) | out px |")
         rows.append("|---|---|---|---|---|---|")
@@ -98,6 +149,7 @@ final class QuickLookPerfProbeTests: XCTestCase {
         }
 
         let report = rows.joined(separator: "\n") + "\n"
+            + openRows.joined(separator: "\n") + "\n"
         print("\n===== QL RENDER LATENCY PROBE =====\n\(report)=====\n")
         let out = URL(fileURLWithPath: "/tmp/la-ql-perf.md")
         try? report.write(to: out, atomically: true, encoding: .utf8)
