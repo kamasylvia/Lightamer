@@ -275,6 +275,7 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 - [x] **YIYIN-06**: Make/Model 品牌名归一化（如 Sony ILCE→α、Nikon Z→ℤ，移植 yiyin 的 model-map）—— **Delivered**（08-2 T2 表驱动逐点；D-08-2-2 定性 model-map.ts 为死代码面——归一化走 exif-format 活跃路径，忠实 yiyin 实际行为）
 - [x] **YIYIN-07**: 文字模板系统（预设模板 + 用户自定义模板字符串）—— **Delivered**（08-2 T3 引擎三门/交错/forceUse + 面板 CRUD 稳定 key 行）
 - [x] **YIYIN-08**: 输出尺寸/分辨率配置（DPI、长边/短边像素、是否保留原尺寸）—— **Delivered**（08-3 T3 YiyinExportSettings 独立值类型 + 校验 + 纯 targetSize 数学 + 与水印参数正交；物理应用 resize/DPI 写入 = Phase 11 EXP-03、导出消费点 = EXP-05，D-08-CONTEXT-7 裁决）
+- [ ] **YIYIN-09**: 预览面板拖拽调整——yiyin sheet 预览区支持拖拽垂直/水平分割线调整大小（对齐上游 ggchivalrous/yiyin PR #126 `a7ab9f8`，2026-10-07 fork 已同步 `f8de57a`；参考 `web/main/components/actions/`；Lightamer 侧 = yiyin sheet 预览面 UX 小件，M2-11 收官后 mini-plan）
 
 ### Metadata & Organization (META)
 
