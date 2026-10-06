@@ -324,3 +324,5 @@ Lightamer 现状基线：39 个 iop（exposure/temperature/tonecurve/levels/gamm
 3. **OCIO ACES 2.0 reference forward transform（8f8e712）**——我方 M2-6 aces-core 移植的**交叉验证资产**机会（parity 测试对表，非功能缺口）。
 4. **图库编辑时间排序分组（57d6385/#276）+ 后台任务岛（ef12a93/#275）**——UI parity 注记；我方 BackgroundTaskHosting 语义已有，形态可对照。
 5. **0.3.1 稳定性批**——导入扫描不卡窗（增量入列）/中文 Windows 崩溃修复/AMD OpenCL。方法论注记：其「扫描大文件夹持续加入文件」对 M2LIB-07 导入三模式 UX 有参考。
+
+> **裁决（2026-10-07 用户「按推荐走」）**：delta 1/2 立项 = RASTER-IN-01 + M2GRADE-08（已入 REQUIREMENTS V2 节「Alcedo Upstream Parity Extensions」）；delta 3/4 = 注记不立项（OCIO 参考变换留作 parity 测试资产；图库分组/任务岛仅 UI 参照）。
