@@ -312,3 +312,15 @@ Lightamer 现状基线：39 个 iop（exposure/temperature/tonecurve/levels/gamm
 
 - **文件夹导入不过滤附属文件（0.3.0 实机复现，2026-09-27 用户报告 + 源码定位）**：导入含 `.ARW` + `.ARW.xmp` 对的 C1 Session 目录时 `.xmp` 被当图片导入、数量翻倍。源码链：`CollectFolderFiles`（`import_export.cpp:131`）递归枚举**零扩展名过滤** → `StartImportPaths` 仅全路径去重 → `is_supported_file`（`supported_file_type.hpp:57`）仅 test host 调用、`image_loader.cpp:66` 处调用被注释；与 0.3.0 changelog「Import accepts camera RAW files only」不符。修复位 = `CollectFolderFiles`/`StartImportResolvedPaths` 套 `is_supported_file`。Lightamer 反向教训已钉入 REQUIREMENTS M2LIB-03 过滤加固 AC。
 - **AI 离线包应用内下载全报错（0.3.0 实机，2026-09-27 用户报告）**：默认端点已设 `https://hf-mirror.com`（`ai_sidecar_runtime_service.hpp:65`）但仍失败；疑点 = `rust/puerh_mind/src/service/model_assets.rs:496` 的 `_hf_endpoint` 参数带下划线前缀（未使用惯例）——端点可能未接线到实际下载路径。未深查（非我方 scope）。Lightamer 对策 = M2AI-01 混合策略：默认模型内置包 + 大档走本仓 Release 资产。
+
+---
+
+## 上游增量测绘（2026-10-07，34241d0 → f1fae5d = 188 commits，v0.3.1 + 未发布主干）
+
+> 本地仓已 ff 合并。我们提的 #213/#214/#215 **全部 CLOSED**（#214 → 0.3.1 导入文件类型选择器；#215 → #226 LUT library service）。以下为** parity 影响**，候选待裁决：
+
+1. **非 RAW 栅格输入链（#265-270，大件）**——JPEG/PNG/TIFF/**OpenEXR** 导入即开发：源 color description（ICC）解析 + HDR 旗标 → **DisplayToAp1（ACES 2.0 inverse，OCIO 实现）** 进 develop 图；Metal staging 上传；缩略图取自全尺寸 decode；文件夹导入文件类型选择器（#264）。对照：我方编辑器可开非 RAW 但未形式化「栅格 = display-referred 输入经 DRT 逆链」语义。**候选 = V2 RASTER-IN 需求族**（EXR 与 ALCE-02 OpenEXR 导出对偶）。
+2. **LUT 编码面（#271-274 + #226，直撞我方 LMT）**——LUT 面板 **input/output encoding 选择器** + 编码**烘焙进 LMT 表** + 库记住每 LUT 编码 + 传递曲线/色域目录（c740f7b）+ lut_catalog.cpp（413 行）退役换 **LUT library service**（递归清单/导入/根迁移 #226）。对照：我方 M2GRADE-05/06 递归+可配根已交付打平；**缺口 = LUT 作者编码建模**（胶片 LUT 常作于 log 域，我方按 working space 直套会有系统性偏差）。**候选 = M2GRADE-08 LUT IO 编码**（V2/M2 后期）。
+3. **OCIO ACES 2.0 reference forward transform（8f8e712）**——我方 M2-6 aces-core 移植的**交叉验证资产**机会（parity 测试对表，非功能缺口）。
+4. **图库编辑时间排序分组（57d6385/#276）+ 后台任务岛（ef12a93/#275）**——UI parity 注记；我方 BackgroundTaskHosting 语义已有，形态可对照。
+5. **0.3.1 稳定性批**——导入扫描不卡窗（增量入列）/中文 Windows 崩溃修复/AMD OpenCL。方法论注记：其「扫描大文件夹持续加入文件」对 M2LIB-07 导入三模式 UX 有参考。
