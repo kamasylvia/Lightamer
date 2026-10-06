@@ -366,6 +366,7 @@ let project = Project(
                 "Tests/LightamerTests/DehazeTests.swift",
                 "Tests/LightamerTests/EDRViewportTests.swift",
                 "Tests/LightamerTests/FocusStackTests.swift",
+                "Tests/LightamerTests/FullRenderBenchmarkTests.swift",
                 "Tests/LightamerTests/GaussianBlurTests.swift",
                 "Tests/LightamerTests/GeometryPointMapperTests.swift",
                 "Tests/LightamerTests/GrainTests.swift",
