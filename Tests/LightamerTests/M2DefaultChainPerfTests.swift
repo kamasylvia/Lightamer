@@ -211,3 +211,128 @@ final class M2DefaultChainPerfTests: XCTestCase {
         _ = lines
     }
 }
+
+// MARK: - Plan M2-11-02 T2 — the drag-gate two chains on the M2 face (KD-2)
+
+extension M2DefaultChainPerfTests {
+
+    /// KD-2 拖动两档（testPhase5DragGateTwoChains 形态平移到 M2 默认面）：
+    /// ① color 七件 enabled（colorbalancergb/channelmixerrgb/channelmixer/
+    /// colorzones/vibrance/velvia/colorcontrast @ dt defaults）拖 vibrance；
+    /// ② nlmeans 单件 enabled（降载档）拖 strength —— 链沿 ① 递增（05-08
+    /// 同款 progressive 形态）。PREVIEW 2560 拖动帧型（params tick per
+    /// frame，每帧全链 miss），4 warm-up + 10 帧中位，DRT SDR 尾保持。
+    /// 判定（60fps 16.6ms / OQ-7 降载对照）不在测试内断言——数字落
+    /// perf.md（本表 = T3 降载尝试的 before 列）。
+    func testM2DragGateTwoChains() async throws {
+        let samples: [(label: String, url: URL)] = [
+            ("100MP GFX100S RAF", raf100MP),
+            ("60MP A7R V ARW", dsc00012),
+        ]
+        for sample in samples {
+            guard FileManager.default.fileExists(atPath: sample.url.path) else {
+                throw XCTSkip("M2 bench fixture missing: \(sample.url.lastPathComponent)")
+            }
+        }
+
+        let metal = try await makeMetal()
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        await metal.prewarmPipelineStates(
+            functionNames: LightamerIOPRegistry.prewarmFunctionNames)
+
+        func enable<M: IOPModule>(_ type: M.Type, _ params: M.Params) async throws -> any ModuleBoxing {
+            let made = await registry.makeBox(opName: type.opName)
+            let box = try XCTUnwrap(made)
+            // apply 要求 record.id == box.instanceID——用现有实例 id 重建
+            // record（05-08 enableBox 同款），enabled 翻 true 随 apply 同步。
+            let record = ModuleInstance(
+                id: box.instanceID, module: type, params: params, enabled: true)
+            try box.apply(record)
+            return box
+        }
+
+        let clock = ContinuousClock()
+        let tail = TerminalTailPolicy.drt(DrtTailParams(record: DrtRecord()))
+
+        func measure(
+            _ name: String, chain: [any ModuleBoxing], image: DecodedImage,
+            imageID: UUID, cache: PipeCache, tick: @escaping () -> Void
+        ) async throws -> Double {
+            var timings: [Double] = []
+            for _ in 0..<4 { // warm-up
+                tick()
+                _ = try await RenderPipeline.process(
+                    image: image, instances: chain, imageID: imageID,
+                    resolution: .preview, cache: cache, metal: metal,
+                    longEdge: 2560, terminalTail: tail)
+            }
+            drain(metal)
+            for _ in 0..<10 {
+                tick()
+                let start = clock.now
+                _ = try await RenderPipeline.process(
+                    image: image, instances: chain, imageID: imageID,
+                    resolution: .preview, cache: cache, metal: metal,
+                    longEdge: 2560, terminalTail: tail)
+                drain(metal)
+                timings.append(Double((clock.now - start).components.attoseconds) / 1e18 * 1000.0)
+            }
+            let median = timings.sorted()[timings.count / 2]
+            print(String(
+                format: "PERF| m2-drag %@ (%@): median %.1f ms  all: %@",
+                name, isReleaseBuild ? "Release" : "Debug", median,
+                timings.map { String(format: "%.1f", $0) }.joined(separator: ",")))
+            return median
+        }
+
+        for sample in samples {
+            let image = try await RAWDecoder().decode(sample.url)
+            _ = try await RAWDecoder().decode(sample.url) // warm decode
+            var chain = try await makeM2DefaultChain(registry: registry)
+
+            // ① color 七件全启用（dt defaults）。
+            chain.append(try await enable(ColorBalanceRGBModule.self, .init()))
+            chain.append(try await enable(ChannelMixerRGBModule.self, .init()))
+            chain.append(try await enable(ChannelMixerModule.self, .init()))
+            chain.append(try await enable(ColorZonesModule.self, .init()))
+            chain.append(try await enable(VibranceModule.self, .init()))
+            chain.append(try await enable(VelviaModule.self, .init()))
+            chain.append(try await enable(ColorContrastModule.self, .init()))
+            chain = chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+
+            let imageID = UUID()
+            let cache = PipeCache()
+            var vib: Float = -0.5
+            let colorMedian = try await measure(
+                "color7-enabled drag vibrance @\(sample.label)", chain: chain,
+                image: image, imageID: imageID, cache: cache, tick: {
+                    if let box = chain.first(where: { $0.opName == VibranceModule.opName })
+                        as? ModuleBox<VibranceModule> {
+                        box.setParams(.init(amount: vib))
+                        vib += 0.01
+                    }
+                })
+
+            // ② nlmeans 单件启用（降载档）——链沿 ① 递增（05-08 形态）。
+            let nlBox = try await enable(NLMeansModule.self, NLMeansModule.Params())
+            chain.append(nlBox)
+            chain = chain.sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
+            let passesDown = NLMeansModule.offsets(K: 3, decimate: true).count * 4 + 1
+            var strength: Float = 50
+            let denoiseMedian = try await measure(
+                "nlmeans-enabled(\(passesDown)-pass) drag strength @\(sample.label)",
+                chain: chain, image: image, imageID: imageID, cache: cache, tick: {
+                    if let box = chain.first(where: { $0.opName == NLMeansModule.opName })
+                        as? ModuleBox<NLMeansModule> {
+                        box.setParams(.init(strength: strength))
+                        strength += 1
+                    }
+                })
+
+            // 架构回归界（非 60fps 门——判定在 perf.md/DECISIONS 落账）。
+            XCTAssertLessThan(colorMedian, 500, "color chain drag gate sanity")
+            XCTAssertLessThan(denoiseMedian, 2000, "denoise chain drag gate sanity")
+        }
+    }
+}
