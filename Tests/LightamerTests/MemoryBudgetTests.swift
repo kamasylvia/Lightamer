@@ -536,6 +536,91 @@ final class MemoryBudgetTests: XCTestCase {
             (30 * 30 + 24 * 24) * WorkingSpace.bytesPerPixel,
             "input (30×30 expanded) + halo-out (24×24 window)")
     }
+    // ── 7. PERF-02 tripartite arm 1: the budgeted PREVIEW working set ──
+    // (M2-11-04 KD-2①; OQ-1-A裁定正本 = M2-11-CONTEXT.md)
+
+    /// OQ-1-A① mechanism face: the GUI steady-state working set is bounded
+    /// by the PipeCache budget policy. The PRODUCTION constants this gate
+    /// leans on are pinned here (3 GB D-C1 session budget, 2 GB eviction
+    /// floor); the full-process 3 GB number itself is NOT asserted in unit
+    /// tests — it is measured on the real GUI app (perf.md §PERF-02, three
+    /// real-sample rounds). This test pins the IN-CODE mechanism upper
+    /// bound at model scale: a working set under the threshold is a no-op
+    /// (steady state = zero churn), and crossing the injected threshold
+    /// evicts the evictable face while the current/previous PREVIEW planes
+    /// (the resident core) survive — "预算超限即逐出 = footprint 有界".
+    func testPreviewWorkingSetBoundedByInjectedBudget() async throws {
+        // (a) Production constant pins (D-C1, PipeCache header doc).
+        XCTAssertEqual(PipeCache.defaultBudget, 3 * 1024 * 1024 * 1024,
+                       "the GUI steady-state gate leans on the 3 GB budget constant")
+        XCTAssertEqual(PipeCache.evictTarget, 2 * 1024 * 1024 * 1024,
+                       "hysteresis floor target (0.66 × budget)")
+        XCTAssertEqual(min(PipeCache.evictTarget, PipeCache.defaultBudget * 2 / 3),
+                       PipeCache.evictTarget,
+                       "at production constants the floor is evictTarget itself")
+
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+
+        // (b) Steady state: a PREVIEW-only working set (current + previous,
+        // the D-C1 keep set) AT the threshold is a no-op — zero churn while
+        // the interactive session stays within budget.
+        let steady = PipeCache(byteBudget: 1000)
+        let current = UUID()
+        let previous = UUID()
+        try await insert(steady, metal: metal, imageID: current, .preview, bytes: 400)
+        try await insert(steady, metal: metal, imageID: previous, .preview, bytes: 300)
+        let steadyBytes = await steady.totalBytes
+        XCTAssertEqual(steadyBytes, 700)
+        let freed0 = await steady.enforceBudget(
+            now: 700,
+            keeping: PipeCache.KeepingPolicy(currentImageID: current, previousImageID: previous))
+        XCTAssertEqual(freed0.planesEvicted, 0, "at/below threshold the sweep is a no-op")
+        let totalAfterNoOp = await steady.totalBytes
+        XCTAssertEqual(totalAfterNoOp, 700, "steady state = zero churn")
+
+        // (c) Over budget: crossing the injected threshold evicts LRU-first
+        // through tiers 1-3 until the resident set lands AT OR UNDER the
+        // hysteresis floor, while the kept PREVIEW faces (the working set's
+        // resident core) survive — "预算超限即逐出 = footprint 有界" at
+        // model scale (no GB allocations). Exact ledger, floor semantics
+        // (the sweep STOPS at the floor — by design, anti-thrash):
+        // budget 1000 → floor 666; total exactly 1000 (insert-time LRU
+        // never fires); trigger 999 → tiers t1(2×100)+t2(2×100) evict,
+        // stopping at 600 before tier 3.
+        let cache = PipeCache(byteBudget: 1000)
+        try await insert(cache, metal: metal, imageID: current, .preview, bytes: 400)
+        try await insert(cache, metal: metal, imageID: previous, .preview, bytes: 100)
+        for _ in 0..<2 {
+            let other = UUID()
+            try await insert(cache, metal: metal, imageID: other, .thumbnail, bytes: 100)
+            try await insert(cache, metal: metal, imageID: other, .full, bytes: 100)
+        }
+        try await insert(cache, metal: metal, imageID: UUID(), .preview, bytes: 100)
+        let total = await cache.totalBytes
+        XCTAssertEqual(total, 1000)
+
+        let freed = await cache.enforceBudget(
+            now: 999,
+            keeping: PipeCache.KeepingPolicy(currentImageID: current, previousImageID: previous))
+        XCTAssertEqual(freed.planesEvicted, 4, "tiers 1-2 evict (2×thumbnail + 2×full)")
+        XCTAssertEqual(freed.bytesFreed, 400)
+        let resident = await cache.totalBytes
+        // The BOUND (the mechanism upper bound the GUI gate leans on):
+        // post-sweep resident never exceeds the hysteresis floor, and the
+        // kept PREVIEW core is never sacrificed to get there.
+        let floor = min(PipeCache.evictTarget, 1000 * 2 / 3)
+        XCTAssertLessThanOrEqual(resident, floor,
+                                 "post-sweep working set ≤ hysteresis floor (bounded)")
+        XCTAssertGreaterThanOrEqual(resident, 500, "the kept PREVIEW core survives intact")
+        XCTAssertEqual(resident, 600, "exact ledger: floor stops the sweep before tier 3")
+        let curPreview = try await survives(cache, metal: metal, imageID: current, .preview, bytes: 400)
+        let prevPreview = try await survives(cache, metal: metal, imageID: previous, .preview, bytes: 100)
+        XCTAssertTrue(curPreview, "current-image PREVIEW = resident core, never evicted")
+        XCTAssertTrue(prevPreview, "previous-image PREVIEW survives (D-C1 keep)")
+    }
+
+
     private func mach_footprint() -> UInt64 {
         var info = task_vm_info_data_t()
         var count = mach_msg_type_number_t(
