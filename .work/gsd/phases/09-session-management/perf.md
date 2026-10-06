@@ -88,6 +88,22 @@
   收敛。全走档 B 退路**否决**(10k × 秒级首扫与 PERF-06 吞吐冲突)。
 - 常驻复核:`testDoubleTierVisualSpotCheckThreeRealRAWs` 随管线演进出真值。
 
+### 档 A/档 B Release 复核（M2-11-02 T5，2026-10-07——PERF-06 明文欠账清偿）
+
+> 口径：clean Release `xcodebuild build-for-testing -configuration Release
+> -derivedDataPath build`（构建期顺手修复两处 Release 配置断代缺陷——
+> WorkspaceHostView 未 guarded 的 DEBUG probe modifier + AIWorkerClientTests
+> spike 测试未 gated，commit `bff022e`）+ 本地证书重签直启（D-09-04-D9 惯例
+> 延续；本轮布局增量 = XCTest 依赖闭包新增 Testing.framework/
+> lib_TestingInterop/XCTestCore + WebP/libwebp 两个 PackageProduct framework
+> 须手动嵌入 app Frameworks——Xcode 26 闭包较 09-05 轮扩大）。测试名同表：
+> `testThumbnailThroughputBaselineTierAAndTierB`（Executed 1 test / 0 failures）。
+
+| 项 | 口径 | 数字（Release） | 判定 |
+|---|---|---|---|
+| 档 A 吞吐(嵌入预览) | 同上表口径,Release 构建 | **9.7 ms/张** | 预算 10-50ms/张 量级带内（Debug 10.6 同量级）✓ |
+| 档 B 吞吐(真渲染) | 同上表口径,Release 构建,单次 | **2.70 s/张**(86MP) | 预算 0.5-2s/张 **上沿外 ~35%**（Debug 2.87 → Release 2.70,仅 ~6% 改善——瓶颈非构建优化,系真渲染链本征成本）;量级一致;吞吐预算由档 A 承担（9.7ms ✓）,档 B 维持单图质量回退档定位（磁盘缓存后二次浏览 0 渲染）——判定:复核义务清偿,不翻档 |
+
 ## PERF-07 批量 apply 计量门（09-04 T5）
 
 > 口径：10k sidecar fixture（8 字节原片占位 + 真 `.lra` JSON，apply 不解码原片）
