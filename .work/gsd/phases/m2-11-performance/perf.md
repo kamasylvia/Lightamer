@@ -201,3 +201,82 @@
   `/tmp/la-direct-tests-Layers.log`（Debug 尾计时）、`/tmp/la-release-m2-11-03-full.log`
   + `-full2.log`（Release FULL 双轮）、`/tmp/la-release-m2-11-03-tail.log`
   （Release 尾计时）。
+
+## §PERF-02 内存三分法落地（M2-11-04 wave 4 落账，2026-10-07；OQ-1-A 裁决正本）
+
+> 三分口径总纲（OQ-1-A，不得重开）：**①GUI 编辑器交互稳态工作集 ≤3GB（本节实测）**
+> **②FULL 管线瞬态 = TilingPlan 窗口有界断言（不设绝对数，维持零新增）**
+> **③测试宿主 8G 运行门不变（`Scripts/test-direct.sh:59 RSS_LIMIT_MB=8192` 零触碰——
+> 8G = 运行门（MEMFAIL 机检），非内存 SC 门；M2-4-0 SPIKE `70e09e5` 已证 <3G 宿主侧
+> 数学不可达，证据正本 = `phases/m2-4-0-test-bundles/M2-4-0-SPIKE.md`）**。
+
+### 口径① GUI 稳态工作集实测（KD-1；`profile/r{1,2,3}-footprint-*.txt`）
+
+- **读数口径**：`/usr/bin/footprint`（macOS 27.0.1）`--noCategories` 摘要，主判据 =
+  **phys_footprint**（与 AGENTS.md 资源监控同族口径，Instruments VM Tracker
+  Dirty+Swapped 汇总同源）；辅读 = ps resident（参考列）。B 判据 = 三轮（三次独立
+  app 会话）**中位 ≤3GB**。
+- **场景脚本（可复现，`profile/memprof-round.sh` + `profile/cgdrive.swift` 驱动源）**：
+  probe 缝建项目（link 导入**单图项目**）→ 正常 GUI 启动 → File/Open Recent 开项目 →
+  网格双击开图（M2 默认链 = Develop + defaultLook(+1.5EV/+15/1.3) + DRT SDR 自动应用）
+  → 编辑序列 = Z(100% 实际大小) + 滚轮平移 + F(适应屏幕) + **色温/色调轨道 drag ×10**
+  （每 drag ~1.6s 间隔触发 live 重渲 + discrete commit）+ 反向滚轮平移（缩放×2 平移×2）
+  → **静置 60s**（clearCaches 60s Task sweep 窗）→ 读数。
+- **样张列**：RAF 100MP = `Fujifilm-GFX100S-14bits-uncompress-4_3.RAF`（`Fixtures.raf100MP`
+  同源 TestRAW 镜像文件，硬链入 /tmp 单图项目；**用列 = 100MP**，KD-1 任一列口径）。
+  AX 驱动 = System Events 菜单/键盘 + CGEvent double-click/scroll/drag（拖动序列 ×10
+  实测每 drag 均改值——首轮 click 不改值发现，slider 需 drag 语义，驱动源在档）。
+
+| 轮 | T0 编辑尾 phys_footprint | **T60 稳态 phys_footprint（主判据）** | resident(T60) | peak（辅助列） |
+|---|---|---|---|---|
+| R1 | 2391 MB | **2427 MB** | 1.64 GB | 6317 MB |
+| R2 | 1914 MB | **1975 MB** | 1.11 GB | 8556 MB |
+| R3 | 1809 MB | **1856 MB** | 1.10 GB | 8558 MB |
+| **中位** | 1914 MB | **1975 MB ≈ 1.93 GB** | — | — |
+| **门判定** | | **≤3GB → PASS（余量 ~1.55×）** | | |
+
+- R1 略高（2.43GB）：R1 会话含 AX 通道调试动作（直方图→波形 toggle click-test）——
+  scope 平面切换一次的会话面；R2/R3 = 纯脚本序列。中位口径对此稳健。
+
+### 机制核验（KD-1；enforceBudget/LRU 实活）
+
+- **三轮统一日志查询**（`/usr/bin/log show` predicate `enforceBudget|evict`，--info，
+  会话全程窗）= **零命中**（`profile/r{1,2,3}-mech.log` 仅表头）+ **D-26 toast 零出现**
+  （>500MB 释放才 toast）→ 稳态 footprint 低于 3GB 预算 → `enforceBudget` 60s sweep
+  **no-op（设计语义：超阈值才逐出，`PipeCache.enforceBudget` guard 分支）**。
+- **如实注记（触发态证据边界）**：三轮均在预算内运行 → GUI 会话内「预算执行器触发态」
+  证据不可得（未越界即无触发日志/toast）——触发面机制证据由**口径①断言层（T2
+  MemoryBudgetTests 注入阈值用例）**承载：越界即逐出 = footprint 有界的机制上界在
+  单测钉死，与本节稳态负证两层互证（KD-2① 分工）。insert-time LRU 逐出
+  （`evictUnderBudget`）无日志面（代码事实）——其正确性同样由 MemoryBudgetTests
+  既有 keep/evict 矩阵钉死。
+
+### 观察项 O-2（新登记）：100% 缩放腿瞬态峰
+
+- `phys_footprint_peak` 三轮 6317 / 8556 / 8558 MB——峰值腿 = **Z(100% 实际大小) 缩放
+  瞬态**（100MP 全幅显示管线工作面）；F(适应屏幕) 回落后稳态回落至 1.8-2.4GB。
+- 口径注记：稳态门 = OQ-1-A①（T60 中位），**瞬态不入门**；瞬态峰 8.6GB 与宿主 8G
+  运行门数字无关（口径③ = 测试宿主全套轮 ru_maxrss，不同主体不同语义）。移交
+  M2-11-05 GUI 走查轮顺带观察（16GB 机器 100% 缩放 100MP 体验如遇 swap 压力，
+  归 O-2 处置：TilingPlan 窗口化在显示腿的杠杆评估——超本 plan 半径，禁改码）。
+
+### 口径② FULL 窗口（负证，零新增）
+
+- `MemoryBudgetTests.testNLMeansFullFootprintBudget`（bilateral FULL Δfootprint <3GB
+  D-C1 门）+ `testCompositeFullWindowedPlaneSizes`（FULL 窗口化 O(视窗) 精确台账）+
+  `PreviewChainPerfTests.testFullToneEqualMemoryBudget`（:178）**零触碰且在册绿**——
+  T2 定向轮复跑在案（本节下方对账）。FULL 瞬态 = TilingPlan 窗口有界断言**维持**，
+  不设绝对数（OQ-1-A②）。
+
+### 口径③ 宿主 8G 运行门（负证，零触碰）
+
+- `Scripts/test-direct.sh:59 RSS_LIMIT_MB=8192` **零变化**（`git diff Scripts/` 空，
+  T4 机检）；8G = **运行门**（MEMFAIL 机检兜底）非内存 SC 门——防误读口径行，SPIKE
+  证据指针见节首引文。
+
+### 对账与计数（wave 4 增量）
+
+- 基线 **2960/16/0**（03 波终值）+ 本波 Δ = **+1**（MemoryBudgetTests 新增 1 法，
+  T2）→ 预期 **2961/16/0**。T1 为 GUI 实测轨零新测（checker E1 真链 = 真 GUI app
+  真样张三轮）；T2 定向轮实测见 §PERF-02 对账尾注。全套 `--all` 终值对账留
+  M2-11-05 终验（批准制）。
