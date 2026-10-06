@@ -691,3 +691,27 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **适用**：一切 unstructured Task + 测试/调用方需要等终态的场景。
 - **来源**：EnhanceDialogTests testCancelMidRun 首跑 2 连红（2026-10-04），独立 swiftc
   复现器定位。
+
+## L066: 插值键 + defaultValue 不能共存——StaticString 限制（2026-10-04，M2-10-07）
+
+- **现象**：`String(localized: "key \(x)", defaultValue: "…\(x)…")` 编译报
+  「cannot convert value of type 'String' to expected argument type
+  'StaticString'」——带 `defaultValue:` 的重载要求 key 为 StaticString 字面量，
+  插值 key 走的是「keyAndValue」重载（无 defaultValue，文案全靠 catalog）。
+- **根因**：Foundation 两个重载的 key 参数类型不同（`StaticString` vs
+  `String.LocalizationValue`）；插值只有后者接受。
+- **对策**：①插值键一律 `String(localized: "key \(x)")` + catalog 双语条目
+  （键族提取照常覆盖，zh-audit 动态族规则 c）；②格式占位 = Int→`%lld`、
+  String→`%@`（Error 需先 `String(describing:)`——Error 不 conform CVarArg）。
+- **适用**：一切本地化新键；静态键 + 插值 defaultValue 合法（format 编译进
+  defaultValue），二选一。
+
+## L067: URLProtocol 子类嵌在 @MainActor 测试类里继承隔离——文件顶层放置（2026-10-04，M2-10-07）
+
+- **现象**：`@MainActor final class XTests` 内嵌 `URLProtocol` 子类，startLoading
+  报隔离冲突（主 actor 隔离方法覆写 nonisolated 方法）。
+- **根因**：嵌套类型继承外层 actor 隔离；URLProtocol 的回调来自 session 队列
+  （nonisolated）。
+- **对策**：mock URLProtocol 放文件顶层（AIProviderClientTests 外层非隔离所以
+  没踩过——抄它的嵌套形态到 @MainActor 类里才爆）。
+- **适用**：一切 @MainActor 测试类 + 协议 mock 回调形状。
