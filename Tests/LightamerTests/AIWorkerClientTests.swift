@@ -263,6 +263,11 @@ final class AIWorkerClientTests: XCTestCase {
     /// PATH channel (worker reads the file), and the 50MP TIFF path-channel
     /// leg. Numbers land in /tmp/lightamer-ipc-spike.json and the SUMMARY —
     /// they justify the 8MB boundary; the semantics do not move with them.
+    // DEBUG-only (the worker's `spike` op is #if DEBUG — Release binaries
+    // answer unknown-op): the whole IPC spike func is DEBUG-gated so the
+    // Release test bundle compiles (M2-11-02 T5 execution finding — the
+    // Release configuration was last built before M2-10 landed this test).
+    #if DEBUG
     func testIPCChannelSpikeBenchmark() async throws {
         let process = Process()
         process.executableURL = try XCTUnwrap(
@@ -353,6 +358,7 @@ final class AIWorkerClientTests: XCTestCase {
         try data.write(to: URL(fileURLWithPath: "/tmp/lightamer-ipc-spike.json"))
         print("IPC-SPIKE " + String(data: data, encoding: .utf8)!)
     }
+    #endif
 
     // MARK: - Helpers
 
