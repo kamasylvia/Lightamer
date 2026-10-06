@@ -1,4 +1,4 @@
-# M2-11 perf.md — PERF 计量正本（M2-11-02 wave 2 落账，2026-10-07）
+# M2-11 perf.md — PERF 计量正本（M2-11-02 wave 2 落账，2026-10-07；M2-11-03 wave 3 增 §SpektraLab 对标节）
 
 > 机器口径：Mac mini（Laniakea），macOS 27.0.1 (26A434)，M4-class Apple Silicon。
 > Debug = `Scripts/test-direct.sh` 直启宿主（`xcodebuild build-for-testing` Debug 产物）；
@@ -106,3 +106,98 @@
 - 观察项 **O-1（RAF 100MP warm 双峰噪声）**：静态 warm RAF 在 14ms 档与 ~40ms 档两态
   跳变（三轮内即见 13.6/40.8；ARW 无此现象）。疑源 = 入口平面腿/CI 解码状态机或 GPU
   时钟态，未定位；不判缺陷，移交 GUI 验收轮（M2-11-05）顺带观察 + 必要时 spike。
+
+## §SpektraLab 对标两硬门（M2-11-03 wave 3 落账，2026-10-07）
+
+> 口径：`FullRenderBenchmarkTests`（IOP，T1 新建）+ `DrtTailTests` 计时两腿（LAYERS，
+> T2 扩展）。语义映射正本 = RESEARCH §B（B.1 全渲染 → FULL 桶全链；B.2 重印 → 尾平面
+> 命中重渲；B.3 二进制不对标）。样张列 = 60.2MP ARW 主列（**>45MP = 更严口径**，
+> DECISIONS 签注）+ 100MP RAF 加列（fixture 在场）。计时纪律同 §PERF-01（L014 fence
+> /三轮中位/PSO 预热/首轮不计入）；Release = clean `build-for-testing
+> -configuration Release -derivedDataPath build` + 重签直启（M2-11-02 T5 同链路，
+> XCTest 闭包 + WebP PackageProduct 手动嵌入 + `Lightamer Dev` 重签，本轮照配方重做）。
+
+### 对标① FULL 桶全链渲染 warm < 1s（OQ-2-A①，硬门 → **PASS**）
+
+| 列 | Debug warm 中位（三轮） | Release warm 中位（三轮） | <1s 判定 | Release 轮次 |
+|---|---|---|---|---|
+| ARW 60.2MP | **170.3 ms**（175.4/167.5/170.3；cold 189.9） | **168.2 ms**（168.2/168.5/167.3；cold 655.1） | **PASS ✓**（余量 ~5.9×） | 轮 1 |
+| RAF 100MP | **280.1 ms**（274.6/305.6/280.1；cold 763.5） | **300.6 ms**（331.0/300.6/296.8；cold 696.7） | **PASS ✓**（余量 ~3.3×） | 轮 1 |
+| ARW 60.2MP（稳定性轮 2） | — | 164.2 ms（164.2/168.1/160.5） | PASS ✓（跨轮 -2.4%，带内） | 轮 2 |
+| RAF 100MP（稳定性轮 2） | — | 273.8 ms（292.3/273.8/273.4） | PASS ✓（跨轮 -8.9%，带内） | 轮 2 |
+
+- **KD-4 未触发**：两列两构建 warm 全部 <1s，门如实 PASS，无降门/挂账。
+- Debug ≈ Release（60MP 170.3 vs 168.2；100MP 280.1 vs 300.6，±2-9%）——带宽主导
+  本征（02 波 nlmeans 同现象，perf.md §OQ-7-A 注记同源），Debug 分栏数字有效。
+- 语义注记：60.2MP > 45MP = 登记线更严侧；SpektraLab 45MP 为全分辨率印相出图，
+  我方 FULL 桶全链（decode warm → terminal trio + defaultLook grade + DRT SDR 尾）
+  同构映射（RESEARCH §B.1）。冷列单值记录不设门（缓存冷 + 首渲 PSO 变体噪声）。
+
+### 对标② 尾平面缓存命中重渲 ≤ 10ms（OQ-2-A②，硬门 → **PASS 两腿**）
+
+| 腿 | Debug 中位 ×7 | Release 中位 ×7 | ≤10ms 判定 |
+|---|---|---|---|
+| ① 同参二次渲染（全命中腿；前置断言 hits>0 && misses==0） | **0.034 ms** | **0.021 ms** | **PASS ✓**（余量 ~476×） |
+| ② 单参数 tick 尾段重放（EOTF 基座 + record 单字段 tick；前置断言 misses==2 && hits==1） | **4.637 ms** | **5.009 ms** | **PASS ✓**（余量 ~2×） |
+
+- 语义对齐（RESEARCH §B.2 原文语义）：SpektraLab 重印 0.01s = 同配置数据热重贴 →
+  我方对应物 = 尾平面命中后的重渲腿（腿①全命中 = 重印本义；腿②单 tick 重放 =
+  参数变更只重跑尾段）。腿①亚毫秒（纯缓存 blit 级）；腿② ~5ms（两尾 box 在
+  preview-2560 平面真实重渲）。
+- 前置命中语义断言在先（命中语义回归先红，计时门其次——KD-2 纪律）；L014 drain
+  在计时窗内；首轮不计入（warm = 数据热平面，`PipeCache`）。
+
+### 分解探针（KD-4 归因输入恒采；对标①两列数字）
+
+| 段 | ARW 60.2MP（Release） | RAF 100MP（Release） | 说明 |
+|---|---|---|---|
+| decode 腿（warm） | 0.108 s | 0.073 s | 进程内二次解码（RAW9 磁盘缓存命中态） |
+| 全链帧（.drt 尾，warm 中位） | 168.2 ms | 300.6 ms | 门对象 |
+| 主链对照（.sdrGamma 帧，warm 中位） | 184.7 / 149.9 ms | 259.3 / 246.9 ms | 主链含 colorout+gamma 软编码尾；与 .drt 帧同量级 = DRT 尾增重非主导 |
+| 同参 FULL 重渲（观测腿） | 0.0-0.1 ms（hits=2 misses=0） | 0.0-0.1 ms（hits=2 misses=0） | FULL 桶缓存（input+final）命中下限亚毫秒 |
+
+- **主导项判定**：全链帧 ≈ 主链对照（±10-20% 轮间方差内），DRT 尾增重非主导；
+  FULL warm 300ms 级 @100MP ≈ float32 全幅带宽 × 主链趟数的本征成本，无意外缺陷
+  形态（尾平面在 FULL 桶漏缓存/格式转换冗余拷贝均未观察到——同参重渲亚毫秒即
+  缓存腿健康的直接证据）。引擎级杠杆（TilingPlan 实战化/链趟合并）在 <1s 达标
+  面前无立项必要（OQ-4-A 不触发）。
+- stats 口径注记：同参 FULL 重渲腿的 hits=2 = 主链 input+final 两平面（尾段 sub-run
+  的 stats 在 `runDrtTailLeg` 丢弃点不进主 run 统计——既有形态，0.1ms 时间值证明
+  尾平面全命中，语义不受计数口径影响）。
+
+### 峰值观测（checker m5）
+
+| 轮 | peak RSS（ru_maxrss） | 判定 |
+|---|---|---|
+| FULL bench Debug 定向（IOP） | 4373 MB | <8G ✓ |
+| FULL bench Release 直启轮 1 | 4486 MB | <8G ✓ |
+| FULL bench Release 直启轮 2 | 5831 MB | <8G ✓ |
+| IOP bundle 全量（本波新 bench 在内，470 tests） | **7840 MB** | **<8192 门 ✓**（零 MEMFAIL；vs SPIKE 7865 = -0.3%，贴线方差带内） |
+
+- 100MP 跑完 footprint-now 高水位 6764-6784MB（缓存/池驻留）不回落——IOP 全量轮
+  实测未推破 8G 门（池复用），维持观察；若后续连续 MEMFAIL 先查本 bench 顺序位
+  （SPIKE 处置序）。
+
+### 记录档与不对标注记（KD-3）
+
+- **preview 全链 warm = 记录档，不参与对标**：02 波实测 ARW 13.4/13.2 ms、RAF
+  14-42 ms 带（§PERF-01）+ 在案 M2-6-3 bench 合成图 85 ms——语义差异注记
+  （RESEARCH §B.2 原文语义）：SpektraLab 0.01s = LUT 重贴级重印；我方全链场景
+  渲染不同语义，**对标行在尾命中腿（对标②），preview 全链 warm 不与 0.01s 对标**。
+- **二进制 32MB 不对标**：SpektraLab 单二进制 32MB 为我方无对应单一体——内置 AI
+  模型 ≈193MB by-design（`Resources/AIModels`，`M2-10-01-SUMMARY.md:42` 锚）+
+  Swift/框架面；开源 DMG 分发体积非 M2PERF SC 族（RESEARCH §B.3）。
+
+### 对账与计数（wave 3）
+
+- 基线 2957/16/0（02 波终值）+ 本波 Δ = **+3**（FullRenderBenchmarkTests 1 法 +
+  DrtTailTests 计时 2 法）→ 预期 **2960/16/0**。实测：Layers 定向 `DrtTailTests`
+  14/0/0（12+2 精确，Debug；Release 直启同 14/0/0）、IOP 定向 1/0/0（Debug+Release
+  双构建 ×2 轮）、**IOP 全量 470/1/0**（Debug；469+1 精确）——skip 零新增（两样张
+  在场；无样张机器口径 = FULL bench 1 法 + DrtTail 计时 2 法不 skip【合成图】，
+  仅 FULL bench fixture 缺席时 1 skip）。
+- 本波未跑全套 `--all`（批准制未申请）；`--all` 终值对账留 M2-11-05 终验。
+- 证据日志：`/tmp/la-direct-tests-IOP.log`（Debug FULL bench + IOP 全量）、
+  `/tmp/la-direct-tests-Layers.log`（Debug 尾计时）、`/tmp/la-release-m2-11-03-full.log`
+  + `-full2.log`（Release FULL 双轮）、`/tmp/la-release-m2-11-03-tail.log`
+  （Release 尾计时）。
