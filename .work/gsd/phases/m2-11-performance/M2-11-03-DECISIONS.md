@@ -15,6 +15,14 @@
   缓存策略事实下的对齐，非门槛放宽（门本体 = warm <1s，不受影响）。
 - **依据**：plan 风险节自带「DrtTailTests 宿主为合成小图…不碰生产行」的桶语义
   分工；KD-4 探针定义是「分段计时落账」非「断言」。
+- **验收注记（2026-10-07 验收 subagent，minor-1）**：上条「尾段 method box 每次重
+  渲，`misses==0` 断言必然假红」表述失准——(a) 尾段 sub-run stats 在 `runDrtTailLeg`
+  的 `let (output, _) = runSub(…)` 丢弃点不进主 run 统计，尾段 miss 到不了该断言；
+  (b) 实测（执行轮 + 验收轮双构建一致）同参 FULL 重渲 = hits=2 misses=0（尾段终面
+  seed 键自顶向下命中即返回，method box 不重渲），断言若保留会绿不会红。降观测列的
+  真依据 = 主 run stats 对「尾平面全命中」是空证（尾段 stats 不可见），0.0-0.1ms
+  时间值才是全命中证据。**裁定结论不变（采纳，非门槛放宽）**，详见
+  `M2-11-03-ACCEPTANCE.md` §二。
 
 ## §2 D-M2-11-03-2：样张口径签注（checker E5 措辞对齐）
 
