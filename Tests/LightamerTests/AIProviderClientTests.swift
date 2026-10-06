@@ -304,6 +304,10 @@ final class AIProviderClientTests: XCTestCase {
             {"error":{"message":"Rate limit reached","type":"requests","code":"rate_limit"}}
             """)
         await assertProviderError(status: 429, message: "Rate limit reached")
+        // M2-10-07 (the M2-10-04 acceptance O-2 consumption): the no-retry
+        // automaton's EXPLICIT pin — exactly ONE request hit the wire; the
+        // user re-runs by hand (the fee-storm guard, D-9).
+        XCTAssertEqual(StubURLProtocol.recorded.count, 1)
     }
 
     func testAnthropicErrorBodyMapsToTypedProviderError() async {
