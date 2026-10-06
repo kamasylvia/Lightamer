@@ -278,5 +278,7 @@
 
 - 基线 **2960/16/0**（03 波终值）+ 本波 Δ = **+1**（MemoryBudgetTests 新增 1 法，
   T2）→ 预期 **2961/16/0**。T1 为 GUI 实测轨零新测（checker E1 真链 = 真 GUI app
-  真样张三轮）；T2 定向轮实测见 §PERF-02 对账尾注。全套 `--all` 终值对账留
-  M2-11-05 终验（批准制）。
+  真样张三轮）。**T2 实测**：`--bundle IOP MemoryBudgetTests` 定向 **14/0/0**（13 既有
+  + 1 新增精确，零 skip 增量）；IOP 全量 **471/1/0**（470+1 精确，149s，peak 7650MB
+  < 8192 门零 MEMFAIL；唯一 skip = 既有 SkinRegion Vision 环境件，基线内）。全套
+  `--all` 终值对账留 M2-11-05 终验（批准制）。
