@@ -715,3 +715,10 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **对策**：mock URLProtocol 放文件顶层（AIProviderClientTests 外层非隔离所以
   没踩过——抄它的嵌套形态到 @MainActor 类里才爆）。
 - **适用**：一切 @MainActor 测试类 + 协议 mock 回调形状。
+
+## L068: SwiftUI Slider 自动化驱动 = drag 语义——合成单击不改值（2026-10-07，M2-11-04 T1）
+
+- **现象**：CGEvent 合成单击（down/up 同点，clickState=1）打在编辑器色温滑块 thumb 中心与轨道上，值零变化（6504K 纹丝不动）；同一坐标换 `leftMouseDown → leftMouseDragged ×12 → leftMouseUp` 序列立即改值（23521K，截图实证）。按钮/菜单/toggle 单击照常可达（波形 toggle 实证切换）。
+- **根因**：SwiftUI Slider 的值变更绑在拖拽手势的连续编辑路径；合成单击不携带 moved 事件序列，不触发真鼠标 NSSlider 的 track-click-to-jump 行为——合成事件语义 ≠ 真鼠标语义的又一例（L032 ④ 合成 click 无修饰键的同族）。
+- **对策**：①AX/CGEvent 驱动滑块一律 drag（down → 分步 dragged → up，驱动源 `phases/m2-11-performance/profile/cgdrive.swift`）；②值是否真改必须截图/AX 复核（本轮首轮 click 序列 10 连击全部空点、截图发现值未动——「事件发了」≠「控件吃了」）；③滑块坐标从原分辨率截图量取再换算 pt（L032 ① 比例纪律）。
+- **适用**：一切 macOS GUI 自动化滑块驱动（M2-11-05 GUI 走查轮、hitch 计量轮、Phase 12/13 走查脚本复用）。
