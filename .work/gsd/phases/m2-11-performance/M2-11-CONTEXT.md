@@ -157,3 +157,7 @@ App/Sources/Lightamer/MCP/ LightamerCore/Sources/MCP/` 零命中（M2-10 签核�
    P1 计量批（§F #1-7 bench 面）/ P2 GUI 走查批（§F #8-10 + AI 走查 + L057）/
    P3 flaky+脚本清算批（D-4）/ P4 Instruments+内存 profile / P5 closeout 终验批）。
 2. 本文件 + RESEARCH-NOTES 一笔 docs commit 入库（`.work/gsd/` 真路径，不 push）。
+
+## 裁决记录（用户回批 2026-10-07）
+
+- **OQ-1..8 全部按推荐采纳（全部 = A 项）**（用户指令「按推荐」）：OQ-1 内存口径三分法 / OQ-2 半硬对标 SC（FULL warm <1s + 尾命中 ≤10ms）/ OQ-3 确定件全修+环境件观测 / OQ-4 100MP 流式维持 Maintenance / OQ-5 PERF-01 链面 = M2 默认面 / OQ-6 warm 首帧 ≤500ms + 编译冷单列 / OQ-7 denoise bounded 降载尝试 / OQ-8 M2-11-VALIDATION 兼 M2 收口正本。
