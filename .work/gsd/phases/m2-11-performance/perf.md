@@ -60,6 +60,12 @@
   V2 备选语义（「denoise 拖动降档预览」）移交 M2-11-04 重述批注记。
 - Release 对照（committed 57 趟档）：拖动② RAF ~64 / ARW ~57.3（上表）——Debug≈Release
   ±2%，T3 尝试期间未跑 Release 档位轮（Debug 双档已证不可达，Release 线性平移不改判定）。
+- **证据注记（M2-11-02 验收批 2026-10-07，minor-1）**：现存 `/tmp` 尝试期引擎行标签打印
+  `downgraded(57 passes) 26.5 ms`——标签按 `offsets(K:3, decimate:true)` 默认 step 计算，
+  尝试期 runtime 档加深后不随之变（stale label 伪影）。归档正确性经满血腿判别亲证：full
+  481 趟（kernel 自 a61f746 09-22 与 05 锚同码）430.9 → 370.6 = 仅 -14% 机器态漂移，26.5
+  属 57 趟档需 -54% 不可能；26.5 ≈ 49.7（57.8×0.86）× 29/57，与上表「26.5 = 29 趟档」
+  归档吻合。判定链不受影响。正本 = `M2-11-02-ACCEPTANCE.md` §一。
 
 ## §PERF-05 open→首帧端到端（T4；`testQLRenderLatencyGrid` 内部分段，`LA_QL_PERF=1`）
 
