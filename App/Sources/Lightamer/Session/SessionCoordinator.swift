@@ -120,6 +120,22 @@ final class SessionCoordinator {
     /// path) copies. nil (the default) = no drop targets wired.
     var importHandler: ((_ urls: [URL], _ move: Bool) async -> Void)?
 
+    /// Plan 08-1 T1: the HDR-merge orchestration seam (grid multi-select
+    /// menu → confirm dialog → StackMergeService enqueue → toast). The app
+    /// root wires the body (service enqueue + toast + reload). nil = the
+    /// entry renders disabled/unwired.
+    var hdrMergeHandler: ((_ relPaths: [String], _ deGhost: Bool) async -> Void)?
+
+    /// Plan 08-3 T4: the stacking seams (the same menu → service shape;
+    /// the mode maps 1:1 onto the service's stack kinds). nil = unwired.
+    var focusStackHandler: ((_ relPaths: [String]) async -> Void)?
+    var stackDenoiseHandler: ((_ relPaths: [String], _ mode: SessionBrowserView.StackDenoiseMode) async -> Void)?
+
+    /// Plan 08-1 T1: the merge service instance the app root owns (the
+    /// dedicated low-priority queue lives inside it). The coordinator only
+    /// routes to it through `hdrMergeHandler` — no direct calls here.
+    var stackMergeService: StackMergeService?
+
     init(
         flushCurrentImage: @escaping () async -> Void = {},
         teardownRenderer: @escaping () async -> Void = {},
@@ -366,6 +382,15 @@ final class SessionIndexController {
     /// it after each open; nil before the first open / after a close).
     var currentStore: SessionIndexStore? { store }
 
+    /// The CURRENT session pair (Plan 14-2: the MCP editing face's session
+    /// seam — the tools build absolute image URLs and the Output landing
+    /// zone from store + root). Recorded at `openAndSync`, cleared at
+    /// `close`; nil-for-nil honest like `currentStore`.
+    var currentSession: (store: SessionIndexStore, root: URL)? {
+        guard let store, let root = sessionRootURL else { return nil }
+        return (store, root)
+    }
+
     /// Plan 09-3 progressive-ingest seam: every scanner page lands here
     /// BEFORE the sync transaction commits (the grid's placeholder cells
     /// render while the walk runs). App-root wired to the browser model.
@@ -375,6 +400,7 @@ final class SessionIndexController {
     func openAndSync(root: URL) async -> SessionCoordinator.SessionOpenSyncResult {
         let store = SessionIndexStore(sessionRoot: root)
         self.store = store
+        sessionRootURL = root
         do {
             let result = try await store.openSession(
                 root: root, scan: SessionTreeScanner.scan(root: root)
@@ -419,7 +445,11 @@ final class SessionIndexController {
     func close() async {
         await store?.close()
         store = nil
+        sessionRootURL = nil
     }
+
+    /// The open session's root (Plan 14-2 — see `currentSession`).
+    private var sessionRootURL: URL?
 
     // MARK: - Reconcile (Plan 09-02 T3)
 

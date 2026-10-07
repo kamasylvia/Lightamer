@@ -116,6 +116,17 @@ final class InspectorState {
         // Plan 12-5 T5: lut3d (library import/picker + colorspace +
         // interpolation pickers + the 1D/missing hints).
         register(LutPanelProvider())
+        // Plan 08-2 T1: vignette (the dt-verbatim falloff/shape panel).
+        register(VignettePanelProvider())
+        // Plan 08-2 T2: grain (coarseness-ISO / strength / mid-tones bias).
+        register(GrainPanelProvider())
+        // Plan 08-2 T3: bloom (the dt-verbatim size/threshold/strength panel).
+        register(BloomPanelProvider())
+        // Plan 08-5 T1: hazeremoval (the dt-verbatim strength/distance/
+        // adaptive panel — the dark-channel-prior dehaze).
+        register(DehazePanelProvider())
+        // Plan 08-5 T2: textOverlay (the editing-time text layer face).
+        register(TextOverlayPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

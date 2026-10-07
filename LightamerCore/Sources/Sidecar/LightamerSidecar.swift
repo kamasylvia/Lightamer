@@ -82,7 +82,8 @@ import Foundation
 ///   "layerStack" : null,                            // Phase 6 reservation
 ///   "rating" : null, "flag" : null, "colorLabel" : null,   // v3 metadata
 ///   "keywords" : null, "note" : null,               // (always written)
-///   "schemaVersion" : 3
+///   "provenance" : { … },                           // v4 (merged docs only)
+///   "schemaVersion" : 4
 /// }
 /// ```
 ///
@@ -110,7 +111,14 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// parameters — they never enter `HistoryHash.hash` /
     /// `driftDetected`, so a rating change cannot stale a thumbnail or
     /// false-positive as external-edit drift.
-    public static let schemaVersionCurrent = 3
+    ///
+    /// v4 (Plan 08-1 T6): the optional `provenance` field joins — the
+    /// merged-document birth record (`SidecarProvenance`; nil = a plain
+    /// document). Same additive discipline as `layerStack`: decodeIfPresent
+    /// (v3 documents read with nil; ONE-WAY lock — never a migration), and
+    /// the field is hash-isolated (the provenance is NOT a pipeline
+    /// parameter — it never enters `driftDetected`).
+    public static let schemaVersionCurrent = 4
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int
@@ -174,6 +182,14 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// Free-form note (MCP-06 `append_note` upstream; nil = no note).
     public var note: String?
 
+    // MARK: - Provenance (v4, Plan 08-1 — the merge birth record)
+
+    /// The merged-document provenance (nil = a plain document — the v3
+    /// zero-harm read). Hash-isolated: the provenance never enters
+    /// `driftDetected` (its own source-drift face is
+    /// `ProvenanceReplay.drift`).
+    public var provenance: SidecarProvenance?
+
     // MARK: - Paths (D-S2)
 
     /// `…/DSC09991.ARW` → `…/DSC09991.ARW.lra` — the FULL original name
@@ -221,7 +237,8 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         flag: Int? = nil,
         colorLabel: Int? = nil,
         keywords: [String]? = nil,
-        note: String? = nil
+        note: String? = nil,
+        provenance: SidecarProvenance? = nil
     ) {
         self.schemaVersion = Self.schemaVersionCurrent
         self.appVersion = appVersion
@@ -237,6 +254,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         self.colorLabel = colorLabel
         self.keywords = keywords
         self.note = note
+        self.provenance = provenance
     }
 
     // MARK: - Codable (projection through the String-hash records)
@@ -244,7 +262,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, appVersion, imageID, decoderVersionUsed
         case decodeParamsHash, instances, history, historyHash, layerStack
-        case rating, flag, colorLabel, keywords, note
+        case rating, flag, colorLabel, keywords, note, provenance
     }
 
     public init(from decoder: Decoder) throws {
@@ -280,6 +298,12 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         colorLabel = try container.decodeIfPresent(Int.self, forKey: .colorLabel)
         keywords = try container.decodeIfPresent([String].self, forKey: .keywords)
         note = try container.decodeIfPresent(String.self, forKey: .note)
+        // v4 provenance (08-1 T6): decodeIfPresent — v3 documents (and the
+        // FUTURE-version branch) read with nil; a document written by a
+        // NEWER schema still yields everything else (the tolerance
+        // contract :94-97).
+        provenance = try container.decodeIfPresent(
+            SidecarProvenance.self, forKey: .provenance)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -321,6 +345,9 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         } else {
             try container.encodeNil(forKey: .note)
         }
+        // Provenance (v4): write ONLY when present (the layerStack
+        // precedent — optional STRUCT fields stay absent, never `null`).
+        try container.encodeIfPresent(provenance, forKey: .provenance)
     }
 }
 

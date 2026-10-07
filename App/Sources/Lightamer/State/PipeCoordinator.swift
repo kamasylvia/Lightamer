@@ -174,6 +174,14 @@ final class PipeCoordinator {
     /// anchor (`<original>.lra.masks/`) for raster-mask loading.
     private var currentImageURL: URL?
 
+    /// The GUI-live judge for the MCP editing face (Plan 14-2 T2; §RQ-14-3①
+    /// 精确来源): the image currently loaded in the editor, or nil. The MCP
+    /// toolset reads this through an injected closure with a MainActor hop
+    /// (the `LightamerApp` terminateHandler `assumeIsolated` posture) — the
+    /// coordinator reference itself never leaves the App state layer.
+    /// Read-only: the write path stays the load flow (:638).
+    var liveImageURL: URL? { currentImageURL }
+
     /// The UI-facing hot-layer setter (the LayersPanel selection drives
     /// this through the session; additive, idempotent).
     func setHotLayer(_ layerID: UUID?) {
@@ -423,6 +431,33 @@ final class PipeCoordinator {
             chain.append(box)
         }
         return chain
+    }
+
+    // ── 08-4 T1: EDR display (IOP-HDR-05) — the second display-leg runtime
+    //    override (the soft proof same-position contract, D-08-CONTEXT-12①) ──
+
+    /// The viewport-level HDR preview toggle. NOT a document parameter: it
+    /// never enters instances, history, the sidecar, or the export chain.
+    /// ON re-runs the DISPLAY legs with the terminal SDR clamp bypassed
+    /// (T2's `edrDisplayLeg` pipe leg) and flips the viewport to the 16F
+    /// EDR surface (T1's `EditorMTKView.edrActive`); OFF = today's bytes.
+    private(set) var edrDisplayEnabled = false
+
+    /// Set/clear the EDR display leg and re-render the display leg.
+    /// THUMBNAIL is deliberately not dirtied (browser thumbnails are not
+    /// EDR surfaces — mirrors `setSoftProof`). The re-render rides the
+    /// SAME cache with ZERO key invalidation: the colorout plane survives
+    /// the toggle both ways (T2/T4's zero-stale contract).
+    func setEDRDisplay(_ on: Bool) {
+        guard edrDisplayEnabled != on else { return }
+        edrDisplayEnabled = on
+        guard decoded != nil else { return }
+        generation += 1
+        Task { [weak self] in
+            guard let self else { return }
+            await self.renderPreview(
+                bucket: self.currentBucket ?? PreviewBucket.cap, generation: self.generation)
+        }
     }
 
     /// The yiyin logo store (08-3 T3 wiring): the embedded 26-brand PDF
@@ -1581,7 +1616,8 @@ final class PipeCoordinator {
                 hotLayerID: currentHotLayerID,
                 maskDirectory: currentImageURL.map {
                     RasterMaskStore.masksDirectory(forImageURL: $0)
-                })
+                },
+                edrDisplayLeg: edrDisplayEnabled && resolution != .thumbnail)
             return RenderChainOutput(texture: texture, stats: stats)
         }
         let (texture, stats) = try await RenderPipeline.process(
@@ -1591,7 +1627,8 @@ final class PipeCoordinator {
             resolution: resolution,
             cache: cache,
             metal: metal,
-            longEdge: longEdge
+            longEdge: longEdge,
+            edrDisplayLeg: edrDisplayEnabled && resolution != .thumbnail
         )
         return RenderChainOutput(texture: texture, stats: stats)
     }
@@ -1660,7 +1697,8 @@ final class PipeCoordinator {
                 hotLayerID: nil,
                 maskDirectory: currentImageURL.map {
                     RasterMaskStore.masksDirectory(forImageURL: $0)
-                })
+                },
+                edrDisplayLeg: edrDisplayEnabled)
             return RenderChainOutput(texture: texture, stats: stats)
         }
         let (texture, stats) = try await RenderPipeline.process(
@@ -1670,7 +1708,8 @@ final class PipeCoordinator {
             resolution: .preview,
             cache: cache,
             metal: metal,
-            longEdge: longEdge
+            longEdge: longEdge,
+            edrDisplayLeg: edrDisplayEnabled
         )
         return RenderChainOutput(texture: texture, stats: stats)
     }

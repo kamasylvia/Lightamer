@@ -82,7 +82,8 @@ internal struct EditorAreaView: View {
                             sourceTexture: $editorState.displayTexture,
                             secondaryTexture: beforeAfterState.isCompareActive ? comparePlane : nil,
                             splitFraction: beforeAfterState.isCompareActive
-                                ? beforeAfterState.effectiveSplitFraction : nil
+                                ? beforeAfterState.effectiveSplitFraction : nil,
+                            edrActive: pipeCoordinator.edrDisplayEnabled
                         )
                         .transition(.opacity)
                         .accessibilityLabel(Text("editor_viewport"))
@@ -193,14 +194,17 @@ internal struct EditorAreaView: View {
                                     .padding(.leading, 12)
                             }
                         }
-                        // 13-2 T4 (COLOR-02): the soft-proof capsule — a
-                        // floating top-trailing control (toggle + printer
-                        // picker + gamut check; the same SoftProofState the
-                        // View menu drives).
+                        // 13-2 T4 (COLOR-02) + 08-4 T1 (IOP-HDR-05): the
+                        // floating top-trailing control capsules — the two
+                        // display-leg runtime overrides (EDR HDR preview +
+                        // soft proof) share the slot as siblings.
                         .overlay(alignment: .topTrailing) {
-                            SoftProofControlView()
-                                .padding(.top, 8)
-                                .padding(.trailing, 12)
+                            HStack(spacing: 8) {
+                                EDRControlView()
+                                SoftProofControlView()
+                            }
+                            .padding(.top, 8)
+                            .padding(.trailing, 12)
                         }
                         // The compare plane lifecycle: fetched through the
                         // coordinator's OVERRIDE render on activation /

@@ -32,7 +32,61 @@ internal extension FocusedValues {
         get { self[ExportPanelRequestKey.self] }
         set { self[ExportPanelRequestKey.self] = newValue }
     }
-}/// Handles the open-document Apple Event (Finder double-click, `open` CLI,
+}
+
+/// Plan 14-4: the lock-guarded latest (writer, provider) pair the MCP
+/// culling face reads. The GUI publishes the SHARED segment-3 writer and
+/// thumbnail provider here at the per-session rebuild, and clears them at
+/// the teardown — the MCP write face is the SAME single source the GUI
+/// rides (D-14-CONTEXT-5①), never a private queue.
+final class McpWriteFaceBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _writer: BatchSidecarWriter?
+    private var _provider: SessionThumbnailProvider?
+
+    var writer: BatchSidecarWriter? {
+        lock.lock(); defer { lock.unlock() }
+        return _writer
+    }
+
+    var provider: SessionThumbnailProvider? {
+        lock.lock(); defer { lock.unlock() }
+        return _provider
+    }
+
+    func set(writer: BatchSidecarWriter?, provider: SessionThumbnailProvider?) {
+        lock.lock()
+        _writer = writer
+        _provider = provider
+        lock.unlock()
+    }
+}/// Plan 14-1 T1 (D-14-CONTEXT-2⑤): the process entry fork. A headless MCP
+/// launch (`--mcp-stdio` / `--mcp-http`) NEVER constructs the SwiftUI App
+/// struct below — `@NSApplicationDelegateAdaptor` and the whole `@State`
+/// graph are instance properties that only initialize inside
+/// `App.main()`'s instance creation — and never enters `NSApplication.run`
+/// (the research §RQ-14-1④ shape; the fork itself is the R3 risk probe).
+/// Every other launch runs the normal GUI flow unchanged.
+@main
+enum LightamerEntryPoint {
+    @MainActor
+    static func main() {
+        #if DEBUG
+        // The two-process flock fixture (McpHostTests): must short-circuit
+        // BEFORE the GUI decision — it never constructs any App state.
+        if McpServerController.holdLockFixtureIfRequested() {
+            return // parks inside; never returns
+        }
+        #endif
+        if let mode = McpServerController.headlessModeIfRequested() {
+            McpServerController.runHeadless(mode: mode) // parks forever
+            return
+        }
+        LightamerApp.main()
+    }
+}
+
+/// Handles the open-document Apple Event (Finder double-click, `open` CLI,
 /// drag onto the Dock icon) so declared CFBundleDocumentTypes actually route
 /// into `EditorState.load`. Opens that arrive before the scene is ready are
 /// buffered and flushed on first appearance. Also bridges
@@ -116,7 +170,8 @@ private struct WindowCapture: NSViewRepresentable {
 /// Owns the four D-03b state objects at the root via `@State` (D-35:
 /// `@Observable` objects are owned with `@State`, never `@StateObject`) and
 /// injects them into the environment. Forces dark mode (D-10).
-@main
+/// 14-1 T1: the `@main` attribute moved up to `LightamerEntryPoint` (the
+/// headless MCP fork); the GUI flow starts through `LightamerApp.main()`.
 internal struct LightamerApp: App {
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -186,6 +241,11 @@ internal struct LightamerApp: App {
     /// override, never history/export).
     @State private var softProofState = SoftProofState()
 
+    /// 08-4 T3 (IOP-HDR-05): the display EDR headroom monitor (the badge's
+    /// number source; the same two screen notifications the D-COL2 follow
+    /// rides, never crossing the toggle state).
+    @State private var edrHeadroomMonitor = EDRHeadroomMonitor()
+
     /// 13-3 T1 (D-13-CONTEXT-6): the viewport zoom/pan/rotation state
     /// machine + the overlay mutex lock (D-03b isolated; the App-scene
     /// menu commands drive it directly).
@@ -229,6 +289,12 @@ internal struct LightamerApp: App {
     /// The decode actor (D-21) — one app-wide instance, injected into
     /// `ContentView` so every Open path feeds `EditorState.load`.
     @State private var decoder = RAWDecoder()
+
+    /// Plan 14-4: the MCP culling face's view of the per-session segment-3
+    /// writer + thumbnail provider (published at the rebuild site, cleared
+    /// at the teardown — a box so the MCP closures always read the CURRENT
+    /// pair without re-wiring the host seams per session switch).
+    @State private var mcpWriteFace = McpWriteFaceBox()
 
     /// The module registry (Plan 02-04-05): terminal trio self-registered
     /// in `ModuleRegistry.init()`; LightamerIOP's modules join via
@@ -301,6 +367,7 @@ internal struct LightamerApp: App {
                 .environment(pipeCoordinator)
                 .environment(beforeAfterState)
                 .environment(softProofState)
+                .environment(edrHeadroomMonitor)
                 .environment(viewportState)
                 .environment(exportState)
                 .environment(inspectorState)
@@ -320,6 +387,11 @@ internal struct LightamerApp: App {
                 .background(WindowCapture { window in
                     pipeCoordinator.configure(window: window)
                 })
+                .task {
+                    // 08-4 T3: the headroom monitor's initial query + the
+                    // two screen-event observers (idempotent, app-lifetime).
+                    edrHeadroomMonitor.start()
+                }
                 .task {
                     // Wire the pipe owner ↔ editor state pair (both weakly
                     // linked, root-owned strongly). Runs before any open is
@@ -441,6 +513,11 @@ internal struct LightamerApp: App {
                                 await writer.flushForTeardown()
                                 batchSidecarWriter = nil
                             }
+                            // Plan 14-4: the MCP culling face reads the
+                            // live segment-3 writer + thumbnail provider
+                            // through this box — cleared WITH the teardown
+                            // so a closed session never serves a stale leg.
+                            mcpWriteFace.set(writer: nil, provider: nil)
                             await sessionIndexController.close()
                         },
                         ensureDirectoriesHandler: { url in
@@ -481,6 +558,13 @@ internal struct LightamerApp: App {
                                     // queue, rebuilt on the NEW store.
                                     batchSidecarWriter = BatchSidecarWriter(
                                         root: url, store: store)
+                                    // Plan 14-4: publish the pair to the MCP
+                                    // culling face (the SAME shared writer
+                                    // instance — D-14-CONTEXT-5① single
+                                    // source; never a private queue).
+                                    mcpWriteFace.set(
+                                        writer: batchSidecarWriter,
+                                        provider: thumbnailProvider)
                                 }
                                 if let store = sessionIndexController.currentStore {
                                     // 12-2 T4: install the persisted sort/
@@ -666,6 +750,116 @@ internal struct LightamerApp: App {
                         }
                     }
 
+                    // Plan 08-1 T1: the HDR-merge service (its OWN dedicated
+                    // command queue inside) + the coordinator seam wiring —
+                    // grid menu → confirm dialog → enqueue → queued/done
+                    // toasts. T5 completes the product-into-grid reload.
+                    if let metalContext {
+                        do {
+                            let mergeService = try StackMergeService(
+                                device: metalContext.device)
+                            sessionCoordinator.stackMergeService = mergeService
+                            sessionCoordinator.hdrMergeHandler = { relPaths, deGhost in
+                                guard let root = sessionState.currentSessionURL else {
+                                    return
+                                }
+                                let urls = relPaths.map {
+                                    root.appendingPathComponent($0)
+                                }
+                                do {
+                                    _ = try await mergeService.enqueue(
+                                        kind: .hdrMerge, sources: urls,
+                                        params: StackMergeService.MergeParams(
+                                            deGhost: deGhost),
+                                        sessionRoot: root)
+                                    editorState.presentToast(
+                                        String(localized: "toast_hdr_merge_queued"))
+                                } catch {
+                                    editorState.presentToast(
+                                        error.localizedDescription)
+                                }
+                            }
+                            // Plan 08-3 T4: the stacking handlers — the
+                            // same enqueue + toast shape; the default tag
+                            // rides the kind (fstack / stack_avg / ...).
+                            sessionCoordinator.focusStackHandler = { relPaths in
+                                guard let root = sessionState.currentSessionURL else {
+                                    return
+                                }
+                                let urls = relPaths.map {
+                                    root.appendingPathComponent($0)
+                                }
+                                do {
+                                    _ = try await mergeService.enqueue(
+                                        kind: .focusStack, sources: urls,
+                                        params: StackMergeService.MergeParams(
+                                            deGhost: false, tag: nil),
+                                        sessionRoot: root)
+                                    editorState.presentToast(
+                                        String(localized: "toast_stack_merge_queued"))
+                                } catch {
+                                    editorState.presentToast(
+                                        error.localizedDescription)
+                                }
+                            }
+                            sessionCoordinator.stackDenoiseHandler = { relPaths, mode in
+                                guard let root = sessionState.currentSessionURL else {
+                                    return
+                                }
+                                let kind: StackMergeService.MergeKind
+                                switch mode {
+                                case .average: kind = .stackAverage
+                                case .median: kind = .stackMedian
+                                case .sigmaClip: kind = .stackSigma
+                                }
+                                let urls = relPaths.map {
+                                    root.appendingPathComponent($0)
+                                }
+                                do {
+                                    _ = try await mergeService.enqueue(
+                                        kind: kind, sources: urls,
+                                        params: StackMergeService.MergeParams(
+                                            deGhost: false, tag: nil),
+                                        sessionRoot: root)
+                                    editorState.presentToast(
+                                        String(localized: "toast_stack_merge_queued"))
+                                } catch {
+                                    editorState.presentToast(
+                                        error.localizedDescription)
+                                }
+                            }
+                            await mergeService.setCompletionHook { snapshot, outcome in
+                                if case .done = snapshot.state {
+                                    for warning in outcome.warnings {
+                                        await MainActor.run {
+                                            editorState.presentToast(warning)
+                                        }
+                                    }
+                                    // T5: the product enters the grid — the
+                                    // EXPLICIT reconcile ingest + the reload
+                                    // (the import seam's posture). The whole
+                                    // body hops to the MainActor (the state
+                                    // objects are MainActor-isolated; this
+                                    // hook runs detached) through the helper
+                                    // below.
+                                    await self.refreshGridAfterMerge(
+                                        holeFraction: outcome.holeFraction)
+                                }
+                            }
+                            await mergeService.setFailureHook { snapshot, error in
+                                let message = String(localized:
+                                    "toast_hdr_merge_failed \(error.localizedDescription)")
+                                await MainActor.run {
+                                    editorState.presentToast(message)
+                                }
+                            }
+                        } catch {
+                            AppError.logger.error(
+                                "stack merge service unavailable: \(error.localizedDescription, privacy: .public)"
+                            )
+                        }
+                    }
+
                     // 02-04: register LightamerIOP's modules into the
                     // registry (testgain in DEBUG; Phase 3+ joins here),
                     // then hand the registry to the coordinator so loads
@@ -730,11 +924,86 @@ internal struct LightamerApp: App {
                     appDelegate.terminateHandler = {
                         pipeCoordinator.flushForTermination()
                         exportState.flushForTermination()
+                        // Plan 14-1 T4: the embedded MCP host's graceful
+                        // stop rides the SAME synchronous termination
+                        // callback — bounded drain (5s), discovery json
+                        // deleted, writer lock released (or the process exit
+                        // cleans up through the kernel + the discovery
+                        // probe).
+                        McpServerController.stopEmbeddedForTermination()
                     }
                     #if DEBUG
                     resizeProbeIfRequested()
                     sidecarProbeIfRequested()
                     #endif
+                    // Plan 14-1 T4: the EMBEDDED MCP host (D-14-CONTEXT-2①:
+                    // preference on → writer lock → bind 127.0.0.1 → write
+                    // the discovery json → serve; the Settings toggle lands
+                    // in 14-4 — this is the read face it will drive). The
+                    // probe tools see the live session store through the
+                    // same seam every other closure here uses.
+                    // Plan 14-2: the editing tools ride the same kernel —
+                    // the GUI host supplies the live (store, root) pair,
+                    // the editor's current image (the GUI-live judge,
+                    // MainActor hop) and the production yiyin injector.
+                    // Plan 14-4 T1: the probes RETIRED; the culling face
+                    // (14 tools) rides the same kernel against the live
+                    // session pair + the SHARED segment-3 writer and
+                    // thumbnail provider (the mcpWriteFace box published at
+                    // the per-session rebuild above — D-14-CONTEXT-5①).
+                    // The metadata seed is the app-wide default chain
+                    // (the same face MetadataController.configure rides).
+                    let mcpSeed = await seedInstances()
+                    let cullingContext = McpCullingContext(
+                        store: { [sessionIndexController] in
+                            await MainActor.run { sessionIndexController.currentStore }
+                        },
+                        sessionRoot: { [sessionIndexController] in
+                            await MainActor.run { sessionIndexController.currentSession?.root }
+                        },
+                        metadata: { [sessionIndexController, mcpWriteFace, mcpSeed] in
+                            let pair = await MainActor.run {
+                                sessionIndexController.currentSession
+                            }
+                            guard let (store, root) = pair else { return nil }
+                            return MetadataService(
+                                root: root, store: store,
+                                writer: mcpWriteFace.writer,
+                                seed: mcpSeed)
+                        },
+                        sidecarWriter: { [mcpWriteFace] in mcpWriteFace.writer },
+                        presets: { [presetsStore] in presetsStore },
+                        liveRelPaths: { [pipeCoordinator, sessionIndexController] in
+                            await MainActor.run {
+                                guard let url = pipeCoordinator.liveImageURL,
+                                    let (_, root) = sessionIndexController.currentSession
+                                else { return Set<String>() }
+                                let base = root.path
+                                let imagePath = url.path
+                                guard imagePath.hasPrefix(base + "/") else {
+                                    return Set<String>()
+                                }
+                                return [String(imagePath.dropFirst(base.count + 1))]
+                            }
+                        },
+                        thumbnailProvider: { [mcpWriteFace] in mcpWriteFace.provider },
+                        decodeImage: McpCullingContext.defaultDecodeImage(),
+                        renderGate: McpServerController.sharedRenderGate)
+                    let editingSeams = await McpServerController.makeEditingSeams(
+                        session: { [sessionIndexController] in
+                            await MainActor.run { sessionIndexController.currentSession }
+                        },
+                        liveImageURL: { [pipeCoordinator] in
+                            await MainActor.run { pipeCoordinator.liveImageURL }
+                        },
+                        yiyinInjector: { [browserLogoStore] in
+                            await MainActor.run {
+                                ExportState.makeYiyinInjector(logoStore: browserLogoStore)
+                            }
+                        })
+                    await McpServerController.startEmbeddedIfPreferenceEnabled(
+                        editing: editingSeams,
+                        culling: cullingContext)
                 }
         }
         .defaultSize(width: 1440, height: 900)
@@ -848,6 +1117,11 @@ internal struct LightamerApp: App {
                     openWindow(id: "preset-manager")
                 }
                 .accessibilityIdentifier("menu.preset_manager")
+                // Plan 14-4 T2: the MCP agent launcher panel (MCP-10).
+                Button(String(localized: "menu_mcp_launcher")) {
+                    openWindow(id: "mcp-launcher")
+                }
+                .accessibilityIdentifier("menu.mcp_launcher")
             }
 
             // ── View ────────────────────────────────────────────────
@@ -959,6 +1233,15 @@ internal struct LightamerApp: App {
         }
         .defaultSize(width: 520, height: 480)
 
+        // Plan 14-4 T2: the MCP launcher panel (MCP-10 — one-click agent
+        // launch + the log faces). An independent app-level Window like the
+        // preset manager; the launcher CORE is the process-wide
+        // McpLauncher.shared, so closing the window loses nothing.
+        Window("window_mcp_launcher", id: "mcp-launcher") {
+            McpLauncherPanelView()
+        }
+        .defaultSize(width: 720, height: 480)
+
         // Settings… (Cmd+,) — Plan 16-2 T1: the Catalogs section (enable
         // toggle + location picker + rebuild hint) replaces the Phase 13
         // placeholder. The preferences model is injected explicitly (the
@@ -976,6 +1259,23 @@ internal struct LightamerApp: App {
     // Targets = the browser/culling SELECTION when non-empty, else the
     // editor's CURRENT image (if inside the open session) — the three
     // states (grid / culling / single) share one routing shape.
+
+    /// Plan 08-1 T5: the post-merge grid refresh + the completion toast —
+    /// MainActor-isolated (the completion hook hops here). The product
+    /// landed in the session ROOT, so the browse set picks it up through
+    /// the EXPLICIT reconcile ingest (the import seam's posture).
+    @MainActor
+    private func refreshGridAfterMerge(holeFraction: Float) async {
+        let message = String(localized:
+            "toast_hdr_merge_done \(holeFraction * 100)")
+        editorState.presentToast(message)
+        if let root = sessionState.currentSessionURL {
+            _ = await sessionReconciler.reconcileHandler?(root)
+            if let store = sessionIndexController.currentStore {
+                await browserModel.reload(store: store, includeOrphans: true)
+            }
+        }
+    }
 
     private func metadataTargets() -> [String] {
         let selected = browserModel.selectedOrderedPaths

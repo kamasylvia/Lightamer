@@ -17,8 +17,14 @@ import SwiftUI
 /// state change, or drawable resize (UI-1 pitfall: ONLY on identity
 /// change, never per-frame). The blit render pipeline state is built
 /// ONCE in the Coordinator and reused every frame (RESEARCH §4).
-/// `pixelFormat = .bgra8Unorm` per UI-SPEC (`.rgba16Float` reserved for the
-/// Phase 8 EDR viewport).
+/// `pixelFormat = .bgra8Unorm` per UI-SPEC — and the Phase 8 reservation on
+/// the next two lines is now HONORED (Plan 08-4 T1, IOP-HDR-05): the
+/// Coordinator builds a SECOND blit PSO with a `.rgba16Float` color
+/// attachment (both PSOs coexist; the EDR toggle picks — the SDR path is
+/// byte-identical). EDR ON flips the whole display surface at once
+/// (`applyEDRDisplaySurface`): 16F drawable + `wantsExtendedDynamicRange
+/// Content` + `extendedLinearSRGB` (linear interpretation — the pipe feeds
+/// the linear colorout plane, 08-4 T2) + a LINEAR clear color.
 ///
 /// UAT issue #1 root cause (Plan 02-01, fixed in `LightamerApp`): SwiftUI's
 /// `WindowGroup` opened a NEW WINDOW per odoc Apple Event, stacking fresh
@@ -50,6 +56,12 @@ internal struct EditorMTKView: NSViewRepresentable {
     /// from the app root). The blit and the gesture face (T2) read it; the
     /// state itself lives in `ViewportState` (D-03b isolated).
     @Environment(ViewportState.self) private var viewportState
+
+    /// 08-4 T1 (IOP-HDR-05): the viewport-level HDR preview toggle — a
+    /// DISPLAY-leg runtime override (never a document parameter, the soft
+    /// proof same-position contract). Default `false` = the exact Phase-1
+    /// SDR surface (zero path difference).
+    var edrActive: Bool = false
 
     func makeNSView(context: Context) -> MTKView {
         // 13-3 T2 (D-13-CONTEXT-6①): the AppKit GESTURE face — the
@@ -114,6 +126,14 @@ internal struct EditorMTKView: NSViewRepresentable {
             context.coordinator.zoomSignature = signature
             needsDisplay = true
         }
+        // 08-4 T1: the EDR surface flip — property writes ONLY on change
+        // (an untouched default never touches the layer, so the SDR leg
+        // stays byte-identical down to property traffic).
+        if context.coordinator.edrActive != edrActive {
+            context.coordinator.edrActive = edrActive
+            context.coordinator.applyEDRDisplaySurface(to: view)
+            needsDisplay = true
+        }
         if let texture = sourceTexture {
             viewportState.noteGeometry(
                 viewportSize: view.bounds.size,
@@ -139,6 +159,24 @@ internal struct EditorMTKView: NSViewRepresentable {
             red: 0x16 / 255.0, green: 0x16 / 255.0, blue: 0x19 / 255.0, alpha: 1.0
         )
 
+        /// The same mat in LINEAR terms (08-4 T1): the EDR drawable is
+        /// tagged `extendedLinearSRGB`, which the compositor interprets as
+        /// LINEAR values — the visual #161619 mat therefore needs the
+        /// sRGB-decoded components there (the SDR drawable holds the
+        /// ENCODED bytes raw; the pair keeps the mat identical across the
+        /// toggle).
+        static let canvasClearColorLinear = MTLClearColor(
+            red: srgbDecode(0x16 / 255.0),
+            green: srgbDecode(0x16 / 255.0),
+            blue: srgbDecode(0x19 / 255.0), alpha: 1.0
+        )
+
+        /// The exact sRGB EOTF decode (the inverse of gamma's encode form,
+        /// D-COL4).
+        private static func srgbDecode(_ c: Double) -> Double {
+            c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+
         private let commandQueue: any MTLCommandQueue
         private let device: any MTLDevice
         /// Phase 1 PSO — legacy inline Rec2020→sRGB conversion (float32
@@ -148,7 +186,18 @@ internal struct EditorMTKView: NSViewRepresentable {
         /// 02-04 PSO — display-ready passthrough (gamma-tail `.bgra8Unorm`
         /// source; gamut+TRC applied in the pipe, SC#1). Built lazily.
         private var blitDisplayReadyPipelineState: (any MTLRenderPipelineState)?
+        /// 08-4 T1 PSO — the EDR variant: SAME blit shaders, `.rgba16Float`
+        /// color attachment (the :20-21 reservation honored). Coexists with
+        /// the two SDR PSOs; the EDR toggle picks it. Built lazily. The
+        /// EDR leg always blits the pipe's float32 linear colorout plane
+        /// (T2 strips the gamma clamp), so only the `displayReady: false`
+        /// specialization exists.
+        private var blitEDRPipelineState: (any MTLRenderPipelineState)?
         var sourceTexture: (any MTLTexture)?
+
+        /// 08-4 T1: the pushed EDR toggle (change = one surface flip + one
+        /// armed redraw — the same push-once discipline as the texture).
+        var edrActive = false
 
         /// 09-04 T7: the before/after split inputs (nil texture = the
         /// legacy single-plane draw; nil fraction = no split line).
@@ -264,8 +313,59 @@ internal struct EditorMTKView: NSViewRepresentable {
             }
         }
 
-        private static func makeBlitPipelineState(
-            device: any MTLDevice, displayReady: Bool
+        // MARK: 08-4 T1 — the EDR display surface (IOP-HDR-05)
+
+        /// Flip the whole viewport display surface for the EDR toggle.
+        ///
+        /// ON: `.rgba16Float` drawable + `wantsExtendedDynamicRangeContent`
+        /// + `extendedLinearSRGB` (the P4-verified trio, research §0 P4) +
+        /// the LINEAR clear color. The compositor then interprets frame-
+        /// buffer values as linear — the pipe feeds the linear colorout
+        /// plane (T2's `edrDisplayLeg`) and >1.0 values render as EDR
+        /// headroom (SC#3: headroom is NOT a different color space).
+        ///
+        /// OFF: the exact Phase-1 SDR surface — every property restored to
+        /// the `makeNSView` literals. The layer colorspace re-attach rides
+        /// the per-frame D-COL2 follow in `draw` (the SDR path remains the
+        /// only writer of that property; the tracker is nil-ed so the next
+        /// off draw re-attaches). @MainActor: the NSView/layer property
+        /// writes (called from `updateNSView`).
+        @MainActor
+        func applyEDRDisplaySurface(to view: MTKView) {
+            view.colorPixelFormat = edrActive ? .rgba16Float : .bgra8Unorm
+            view.clearColor = edrActive ? Self.canvasClearColorLinear : Self.canvasClearColor
+            guard let metalLayer = view.layer as? CAMetalLayer else { return }
+            metalLayer.wantsExtendedDynamicRangeContent = edrActive
+            if edrActive {
+                // Research §7.1 择优定案: extendedLinearSRGB directly (no
+                // stable public API queries the display's native EDR space;
+                // the WWDC convention path). COLOR-4: headroom is expressed
+                // in THIS space, never as a second colorspace.
+                metalLayer.colorspace = CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!
+                attachedLayerColorSpace = nil
+            }
+        }
+
+        /// The blit regime pick (08-4 T1; the testable single source —
+        /// `EDRViewportTests` pins all three arms). EDR wins outright: the
+        /// EDR leg's source is ALWAYS the float32 colorout plane (T2), so
+        /// the source-format probe below never applies there.
+        enum BlitRegime: Equatable {
+            case legacyFloat
+            case displayReadySDR
+            case edr16F
+        }
+
+        static func blitRegime(edrActive: Bool, sourceIsDisplayReady: Bool) -> BlitRegime {
+            if edrActive { return .edr16F }
+            return sourceIsDisplayReady ? .displayReadySDR : .legacyFloat
+        }
+
+        /// internal for `EDRViewportTests` (the dual-variant existence pin);
+        /// app callers are the Coordinator itself.
+        static func makeBlitPipelineState(
+            device: any MTLDevice, displayReady: Bool,
+            colorPixelFormat: MTLPixelFormat = .bgra8Unorm
         ) -> (any MTLRenderPipelineState)? {
             // The blit shaders live in the APP target → Bundle.main is the
             // correct library here (the framework-bundle gotcha applies to
@@ -292,7 +392,7 @@ internal struct EditorMTKView: NSViewRepresentable {
             let descriptor = MTLRenderPipelineDescriptor()
             descriptor.vertexFunction = vertex
             descriptor.fragmentFunction = fragment
-            descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+            descriptor.colorAttachments[0].pixelFormat = colorPixelFormat
             do {
                 return try device.makeRenderPipelineState(descriptor: descriptor)
             } catch {
@@ -325,14 +425,28 @@ internal struct EditorMTKView: NSViewRepresentable {
             }
             renderPass.colorAttachments[0].loadAction = .clear
             renderPass.colorAttachments[0].storeAction = .store
-            renderPass.colorAttachments[0].clearColor = Self.canvasClearColor
+            // 08-4 acceptance fix: the clear color must follow the active
+            // regime — the 16F EDR drawable is tagged extendedLinearSRGB
+            // (linear interpretation), so clearing it with the SDR-ENCODED
+            // mat bytes read them as linear (a ~10x brighter mat). The
+            // OFF arm carries the exact Phase-1 literal (zero path
+            // difference); the ON arm is D-T1-3's linear decode — the same
+            // value `applyEDRDisplaySurface` parks in `view.clearColor`
+            // (this per-frame assignment is the authoritative one because
+            // the render pass descriptor is rebuilt by MTKView).
+            renderPass.colorAttachments[0].clearColor =
+                edrActive ? Self.canvasClearColorLinear : Self.canvasClearColor
 
             // D-COL2 (Plan 02-04-05): attach the resolved display colorspace
             // to the CAMetalLayer so the gamma-encoded bytes (fast path:
             // P3/sRGB gamut; fallback: sRGB workalike) are interpreted
             // as-emitted — the compositor performs NO further matching.
             // Window's screen wins (multi-display follows the window).
-            if let metalLayer = view.layer as? CAMetalLayer {
+            // 08-4 T1: EDR ON skips this attach entirely — the layer is
+            // pinned to extendedLinearSRGB (see `applyEDRDisplaySurface`);
+            // the compositor no longer matches, the values ARE the display
+            // intent (research §7.1).
+            if !edrActive, let metalLayer = view.layer as? CAMetalLayer {
                 let target = (view.window?.screen ?? NSScreen.main)?.colorSpace?.cgColorSpace
                     ?? metalLayer.colorspace
                 if let target, target !== attachedLayerColorSpace {
@@ -349,16 +463,28 @@ internal struct EditorMTKView: NSViewRepresentable {
                 // 02-04: pick the blit regime by SOURCE format — the pipe's
                 // gamma tail produces .bgra8Unorm (display-ready);
                 // everything else is the Phase 1 float32 linear plane.
+                // 08-4 T1: the EDR toggle wins the pick outright (the EDR
+                // leg's source is always the float32 colorout plane, T2).
                 let displayReady = texture.pixelFormat == .bgra8Unorm
                 let state: any MTLRenderPipelineState?
-                if displayReady {
+                switch Self.blitRegime(
+                    edrActive: edrActive, sourceIsDisplayReady: displayReady) {
+                case .edr16F:
+                    if blitEDRPipelineState == nil {
+                        blitEDRPipelineState = Self.makeBlitPipelineState(
+                            device: device, displayReady: false,
+                            colorPixelFormat: .rgba16Float
+                        )
+                    }
+                    state = blitEDRPipelineState
+                case .displayReadySDR:
                     if blitDisplayReadyPipelineState == nil {
                         blitDisplayReadyPipelineState = Self.makeBlitPipelineState(
                             device: device, displayReady: true
                         )
                     }
                     state = blitDisplayReadyPipelineState
-                } else {
+                case .legacyFloat:
                     state = blitPipelineState
                 }
                 if let state {

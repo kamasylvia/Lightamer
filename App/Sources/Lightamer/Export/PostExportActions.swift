@@ -111,6 +111,14 @@ enum PostExportActions {
 
     // MARK: - Process DIRECT EXEC (no shell string, ever)
 
+    // INJECTION-FACE DISCIPLINE — DELIBERATELY OUT OF SYNC WITH THE MCP
+    // LAUNCHER, DO NOT MERGE (Plan 14-4, D-14-CONTEXT-10③): THIS face is an
+    // app-BUILTIN action, so it pins the narrower argv-direct form below
+    // (paths ride ARGV, never a parsed command string). The MCP launcher
+    // (McpLauncher.swift) executes the USER'S OWN template through
+    // /bin/zsh -c — there the user is the command author (self-injection,
+    // documented in the Settings copy). Two call sites, two disciplines.
+
     /// Run the script with `$1 = <output file path>`. An executable file
     /// runs directly; a `.sh` lacking the execute bit runs through
     /// `/bin/sh` — in BOTH cases the paths ride ARGV (never a parsed

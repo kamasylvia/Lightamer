@@ -13,9 +13,10 @@ final class V50OrderTests: XCTestCase {
     /// The table matches Darktable's v50_order + the ONE Lightamer-native
     /// row: 94 entries spanning rawprepare 1.0 → gamma 78.0, first/last
     /// locked (07-2: 93 → 94 with the skinSmooth 66.5 insertion — the first
-    /// non-dt row, flagged in the table header and at the row itself).
+    /// non-dt row; 08-5: 94 → 95 with the textOverlay 66.7 insertion — the
+    /// second non-dt row; both flagged in the table header and at the rows).
     func testEntriesCountApproximately76() {
-        XCTAssertEqual(V50Order.entries.count, 94, "93 dt-verbatim + 1 Lightamer row (skinSmooth 66.5)")
+        XCTAssertEqual(V50Order.entries.count, 95, "93 dt-verbatim + skinSmooth 66.5 + textOverlay 66.7")
         XCTAssertEqual(V50Order.entries.first?.opName, "rawprepare")
         XCTAssertEqual(V50Order.entries.first?.order, 1.0)
         XCTAssertEqual(V50Order.entries.last?.opName, "gamma")
@@ -191,15 +192,37 @@ final class V50OrderTests: XCTestCase {
             "66.5 is a unique position")
     }
 
+    /// 08-5: textOverlay 66.7 — the SECOND Lightamer-native row (the
+    /// 66.5–67.0 gap; D-08-CONTEXT-9): module statics AND the table agree;
+    /// the position is unique; the 70.0 floor relation (layer-mask
+    /// eligibility) and the yiyin watermark 77.0 division both hold.
+    func testTextOverlaySlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "textOverlay"), 66.7)
+        XCTAssertEqual(TextOverlayModule.iopOrder, 66.7)
+        XCTAssertEqual(TextOverlayModule.opName, "textOverlay")
+        XCTAssertLessThan(V50Order.order(for: "skinSmooth")!, V50Order.order(for: "textOverlay")!)
+        XCTAssertLessThan(V50Order.order(for: "textOverlay")!, V50Order.order(for: "splittoning")!)
+        // The layer-mask eligibility floor + the yiyin division.
+        XCTAssertLessThan(66.7, 70.0, "textOverlay must sit BELOW the terminal tail floor")
+        XCTAssertLessThan(
+            V50Order.order(for: "textOverlay")!, V50Order.order(for: "watermark")!,
+            "the editing text layer (66.7) vs the final-output watermark (77.0)")
+        XCTAssertEqual(
+            V50Order.entries.filter { $0.order == 66.7 }.count, 1,
+            "66.7 is a unique position")
+    }
+
     /// 07-2 zero-move pin: the 66.5 insertion moved NO dt-verbatim row —
     /// the 93 original entries appear in the same relative order with the
     /// same values (an add-only insertion between soften and splittoning).
+    /// 08-5 extends the pin: textOverlay is the second add-only row, and
+    /// stripping BOTH native rows yields the 93-entry verbatim sequence.
     func testSkinSmoothInsertionMovesNoVerbatimRow() {
         // The dt-verbatim neighborhood, value-pinned on both sides of the
         // insertion point (iop_order.c:298-415 order).
         let neighborhood: [(String, Float)] = [
             ("grain", 65.0), ("soften", 66.0), ("skinSmooth", 66.5),
-            ("splittoning", 67.0), ("vignette", 68.0),
+            ("textOverlay", 66.7), ("splittoning", 67.0), ("vignette", 68.0),
         ]
         let inTable = V50Order.entries.filter { entry in
             neighborhood.contains { $0.0 == entry.opName }
@@ -207,9 +230,10 @@ final class V50OrderTests: XCTestCase {
         XCTAssertEqual(inTable.map(\.opName), neighborhood.map(\.0))
         XCTAssertEqual(inTable.map(\.order), neighborhood.map(\.1))
 
-        // Whole-table relative order: stripping skinSmooth must yield the
-        // pre-07-2 sequence back (spot anchors on both ends of the table).
-        let stripped = V50Order.entries.filter { $0.opName != "skinSmooth" }
+        // Whole-table relative order: stripping BOTH native rows must
+        // yield the pre-07-2 sequence back (spot anchors on both ends).
+        let nativeRows: Set<String> = ["skinSmooth", "textOverlay"]
+        let stripped = V50Order.entries.filter { !nativeRows.contains($0.opName) }
         XCTAssertEqual(stripped.count, 93)
         XCTAssertEqual(stripped.first?.opName, "rawprepare")
         XCTAssertEqual(stripped.last?.opName, "gamma")

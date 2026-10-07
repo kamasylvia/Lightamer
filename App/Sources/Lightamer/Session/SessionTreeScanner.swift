@@ -205,6 +205,15 @@ enum SessionTreeScanner {
                             continue
                         }
 
+                        // Plan 08-1: the mask-attachment face — everything
+                        // under a `<image>.lra.masks/` directory is sidecar
+                        // attachment (the RasterMaskRef PNGs), never a browse
+                        // row (the same semantics the `.lra` exclusion
+                        // carries; the scan is the ONE collection face the
+                        // reconcile rides, so the index agrees).
+                        if relPath(of: url).contains(".lra.masks/") {
+                            continue
+                        }
                         if isExcludedFile(name) {
                             if name.hasSuffix(".lra") {
                                 // Orphan classification: the sidecar's

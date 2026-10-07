@@ -248,6 +248,51 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: Lut3dModule.opName) { id in
             ModuleBox(module: Lut3dModule(resolver: LutLibraryStore.shared), instanceID: id)
         }
+        // Plan 08-2-T1: vignette (creative effect), v50 slot 68.0 — ALREADY
+        // in the V50Order table (zero rows inserted); < the 70.0 terminal
+        // floor → layer-mask eligible. Seed DISABLED (the dt-verbatim
+        // defaults brightness −0.5/saturation −0.5 are not pixel-identity —
+        // the highpass/soften creative disposition; the 08-2 panel drives
+        // this instance).
+        await registry.register(opName: VignetteModule.opName) { id in
+            ModuleBox(module: VignetteModule(), instanceID: id)
+        }
+        // Plan 08-2-T2: grain (film grain, 3-octave simplex), v50 slot
+        // 65.0 — ALREADY in the V50Order table (zero rows inserted); <
+        // the 70.0 terminal floor → layer-mask eligible. Seed DISABLED
+        // (dt default strength 25 is not pixel-identity — the creative
+        // disposition); the 08-2 panel drives this instance.
+        await registry.register(opName: GrainModule.opName) { id in
+            ModuleBox(module: GrainModule(imageIdentity: id), instanceID: id)
+        }
+        // Plan 08-2-T3: bloom (glow, cascade blur), v50 slot 61.0 — ALREADY
+        // in the V50Order table (zero rows inserted); < the 70.0 terminal
+        // floor → layer-mask eligible. Seed DISABLED (the dt defaults
+        // threshold 90 / strength 25 are not pixel-identity — the creative
+        // disposition; the 08-2 panel drives this instance).
+        await registry.register(opName: BloomModule.opName) { id in
+            ModuleBox(module: BloomModule(), instanceID: id)
+        }
+        // Plan 08-5-T1: hazeremoval (dark-channel-prior dehaze), v50 slot
+        // 14.0 — ALREADY in the V50Order table (zero rows inserted); dt's
+        // flags() carries NO tiling flag (the whole-image ambient stats) —
+        // mirrored on the module. Seed DISABLED (the dt defaults strength
+        // 0.2 / distance 0.2 are not pixel-identity — the creative
+        // disposition; the 08-5 panel drives this instance).
+        await registry.register(opName: DehazeModule.opName) { id in
+            ModuleBox(module: DehazeModule(), instanceID: id)
+        }
+        // Plan 08-5-T2: textOverlay (the editing-time text layer), the
+        // SECOND Lightamer-native V50Order row (66.7 — inserted between
+        // skinSmooth 66.5 and splittoning 67.0, add-only); < the 70.0
+        // terminal floor → layer-mask eligible (the essential division
+        // from yiyin watermark 77.0 — the watermark face is untouched).
+        // Seed ENABLED-neutral: the empty default content draws NOTHING —
+        // the routed-blit identity (cache-neutral, exposure-0EV style);
+        // the 08-5 panel drives this instance.
+        await registry.register(opName: TextOverlayModule.opName) { id in
+            ModuleBox(module: TextOverlayModule(), instanceID: id)
+        }
         #if DEBUG
         await registry.register(opName: TestGainModule.opName) { id in
             ModuleBox(module: TestGainModule(), instanceID: id)
@@ -369,6 +414,28 @@ public enum LightamerIOPRegistry {
             Lut3dModule.Kernel.tetrahedral,
             Lut3dModule.Kernel.trilinear,
             Lut3dModule.Kernel.ramp1D,
+            // Plan 08-2-T1: the vignette single-pass falloff.
+            VignetteKernel.functionName,
+            // Plan 08-2-T2: the grain single-pass simplex injection.
+            GrainKernel.functionName,
+            // Plan 08-2-T3: the bloom four-pass cascade chain.
+            BloomKernel.thresholdFunction,
+            BloomKernel.boxFunction,
+            BloomKernel.gaussFunction,
+            BloomKernel.screenFunction,
+            // Plan 08-5-T1: the hazeremoval chain (ambient grid + the four
+            // box min/max + transition + the box-mean pair + the restore).
+            DehazeKernel.ambientGridFunction,
+            DehazeKernel.boxMinXFunction,
+            DehazeKernel.boxMinYFunction,
+            DehazeKernel.boxMaxXFunction,
+            DehazeKernel.boxMaxYFunction,
+            DehazeKernel.transisionMapFunction,
+            DehazeKernel.boxMeanXFunction,
+            DehazeKernel.boxMeanYFunction,
+            DehazeKernel.applyFunction,
+            // Plan 08-5-T2: the text overlay alpha composite.
+            TextOverlayKernel.compositeFunction,
         ]
     }
 
@@ -484,6 +551,30 @@ public enum LightamerIOPRegistry {
             // nil = the routed blit identity — cache-neutral, exposure-0EV
             // style; the LUT panel has an instance to drive).
             ModuleInstance(module: Lut3dModule.self, params: Lut3dModule.Params()),
+            // Plan 08-2-T1: vignette joins the seed DISABLED (dt-verbatim
+            // defaults brightness −0.5/saturation −0.5 are not pixel-
+            // identity — the highpass/soften creative disposition; the
+            // 08-2 panel drives this instance).
+            ModuleInstance(module: VignetteModule.self, params: VignetteModule.Params(), enabled: false),
+            // Plan 08-2-T2: grain joins the seed DISABLED (dt default
+            // strength 25 is not pixel-identity — the creative
+            // disposition; the box UUID rides in as the pattern-identity
+            // carrier, DECISIONS D-08-2-1).
+            ModuleInstance(module: GrainModule.self, params: GrainModule.Params(), enabled: false),
+            // Plan 08-2-T3: bloom joins the seed DISABLED (the dt defaults
+            // threshold 90 / strength 25 are not pixel-identity — the
+            // creative disposition; the 08-2 panel drives this instance).
+            ModuleInstance(module: BloomModule.self, params: BloomModule.Params(), enabled: false),
+            // Plan 08-5-T1: hazeremoval joins the seed DISABLED (the dt
+            // defaults strength 0.2 / distance 0.2 are not pixel-identity —
+            // the creative disposition; the 08-5 panel drives this
+            // instance).
+            ModuleInstance(module: DehazeModule.self, params: DehazeModule.Params(), enabled: false),
+            // Plan 08-5-T2: textOverlay joins the seed ENABLED-neutral (the
+            // empty default content draws NOTHING — the routed-blit
+            // identity, cache-neutral; the 08-5 panel has an instance to
+            // drive).
+            ModuleInstance(module: TextOverlayModule.self, params: TextOverlayModule.Params()),
         ]
         .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
 }

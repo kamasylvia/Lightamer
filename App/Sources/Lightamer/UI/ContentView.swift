@@ -335,6 +335,21 @@ internal struct ContentView: View {
                         // 13-3 T4: the grid drop routes through the
                         // coordinator's import seam (COPY default).
                         Task { await sessionCoordinator.importHandler?(urls, move) }
+                    },
+                    onHDRMerge: { relPaths, deGhost in
+                        // Plan 08-1 T1: the grid menu routes through the
+                        // coordinator's merge seam (enqueue + toasts).
+                        Task { await sessionCoordinator.hdrMergeHandler?(relPaths, deGhost) }
+                    },
+                    onFocusStack: { relPaths in
+                        // Plan 08-3 T4: the focus-stack entry (same seam
+                        // shape as the HDR merge).
+                        Task { await sessionCoordinator.focusStackHandler?(relPaths) }
+                    },
+                    onStackDenoise: { relPaths, mode in
+                        // Plan 08-3 T4: the stack-denoise entry (mode
+                        // Picker → the kind dispatch).
+                        Task { await sessionCoordinator.stackDenoiseHandler?(relPaths, mode) }
                     }
                 )
             case .single:

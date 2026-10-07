@@ -23,8 +23,14 @@ import ProjectDescription
 // Locks honored: D-05 bundle id `com.kamasylvia.lightamer` (one-way),
 // D-33 Swift 6 strict concurrency (complete), macOS 27.0 floor on ALL targets
 // (FOUND-01), ENABLE_HARDENED_RUNTIME (DIST-5).
-// SPM policy (D-11-CONTEXT-1): Swift-WebP is the ONLY package in this
-// project — libavif stays out (native public.avif on the macOS 27 floor).
+// SPM policy (D-11-CONTEXT-1, revised Plan 14-1 T2): TWO packages —
+// Swift-WebP (11-01, WebP write) and swift-sdk (14-1, the MCP server,
+// EXACT-pinned: the 0.x line churns, no version ranges). Transitive deps
+// ride along and are pinned in .package.resolved: swift-nio (a REAL app
+// dependency — the SDK's HTTP server transport is a framework-agnostic
+// pure-function face with NO listener, the NIO adapter leg is app code),
+// swift-log, swift-system, eventsource. libavif stays out (native
+// public.avif on the macOS 27 floor).
 // ─────────────────────────────────────────────────────────────────────────────
 
 let baseSettings: SettingsDictionary = [
@@ -85,6 +91,12 @@ let project = Project(
             // this is the single deliberate dependency (RESEARCH §2).
             packages: [
                 .package(url: "https://github.com/ainame/Swift-WebP.git", from: "0.6.0"),
+                // Plan 14-1 (D-14-CONTEXT-1): the official MCP swift-sdk,
+                // EXACT pin (0.x churn — R1). App target only; LightamerCore
+                // keeps ZERO import MCP (the registry seam is pure Swift).
+                .package(
+                    url: "https://github.com/modelcontextprotocol/swift-sdk.git",
+                    exact: "0.12.1"),
             ],
             settings: .settings(
                 base: baseSettings,
@@ -164,6 +176,18 @@ let project = Project(
                 // processes through the runpath below.
                 .target(name: "LightamerQuickLook"),
                 .target(name: "LightamerSpotlight"),
+                // Plan 14-1 (D-14-CONTEXT-1③④): the MCP SDK product lands
+                // ONLY on the app target — the adapter layer
+                // App/Sources/Lightamer/MCP/ is the sole import site; Core
+                // and IOP stay SDK-free (layering iron rule).
+                .package(product: "MCP"),
+                // Plan 14-1 T4 (research D1): swift-nio is a REAL app
+                // dependency, not an SDK implementation detail — the SDK's
+                // HTTP server transport has NO listener; the NIO adapter leg
+                // (McpHTTPTransport.swift) imports the three faces below.
+                .package(product: "NIOCore"),
+                .package(product: "NIOPosix"),
+                .package(product: "NIOHTTP1"),
             ],
             settings: .settings(
                 base: baseSettings.merging([
@@ -228,6 +252,7 @@ let project = Project(
                 .target(name: "LightamerIOP"),
                 .target(name: "Lightamer"), // Plan 03-02: D-T6 panel wiring tests drive the APP-side state (InspectorState/PipeCoordinator) via @testable
                 .package(product: "WebP"), // Plan 11-01: the WebPIntegrationSmokeTests import WebP directly (link smoke)
+                .package(product: "MCP"), // Plan 14-1: the MCP snapshot/host tests drive the InMemoryTransport leg directly (same WebP precedent)
             ]
         ),
 

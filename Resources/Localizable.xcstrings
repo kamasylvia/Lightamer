@@ -1293,6 +1293,39 @@
         }
       }
     },
+    "browser_menu_focus_stack": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus Stack…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "焦点堆栈…"
+          }
+        }
+      }
+    },
+    "browser_menu_hdr_merge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR Merge…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并…"
+          }
+        }
+      }
+    },
     "browser_menu_paste": {
       "extractionState": "manual",
       "localizations": {
@@ -1323,6 +1356,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "粘贴部分…"
+          }
+        }
+      }
+    },
+    "browser_menu_stack_denoise": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack Denoise…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "堆栈降噪…"
           }
         }
       }
@@ -2115,6 +2164,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "图像视口"
+          }
+        }
+      }
+    },
+    "edr_headroom_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EDR headroom %@×"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EDR 余量 %@×"
+          }
+        }
+      }
+    },
+    "edr_no_headroom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No EDR headroom on this display"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前显示器无 EDR 余量"
+          }
+        }
+      }
+    },
+    "edr_toggle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR Preview"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 预览"
           }
         }
       }
@@ -3666,6 +3766,122 @@
         }
       }
     },
+    "focus_stack_dialog_body": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aligns the focus rail (MTB), measures sharpness (SML) and blends a quality-weighted Laplacian pyramid. Sources are never modified."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对焦轨 MTB 对齐后以 SML 度量清晰度，加权拉普拉斯金字塔融合。源文件不会被修改。"
+          }
+        }
+      }
+    },
+    "focus_stack_dialog_start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus Stack"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始堆栈"
+          }
+        }
+      }
+    },
+    "focus_stack_dialog_title %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus-stack %lld sources"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "焦点堆栈 %lld 张源图"
+          }
+        }
+      }
+    },
+    "hdr_merge_dialog_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merges the selected bracket into a new 32-bit float HDR document in the session root. The sources stay untouched. Note: with only 3 frames the ghost detection is statistically weak."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将所选括号合并为会话根目录下的新 32-bit float HDR 文档，源文件不受影响。注意：仅 3 帧时鬼影检测的统计能力较弱。"
+          }
+        }
+      }
+    },
+    "hdr_merge_dialog_deghost": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detect and mask ghosts"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检测并蒙版鬼影"
+          }
+        }
+      }
+    },
+    "hdr_merge_dialog_merge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merge"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并"
+          }
+        }
+      }
+    },
+    "hdr_merge_dialog_title %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR Merge (%lld images)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并（%lld 张）"
+          }
+        }
+      }
+    },
     "history_agx": {
       "extractionState": "manual",
       "localizations": {
@@ -3747,6 +3963,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "表面模糊"
+          }
+        }
+      }
+    },
+    "history_bloom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloom"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辉光"
           }
         }
       }
@@ -3870,6 +4103,23 @@
         }
       }
     },
+    "history_dehaze": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haze removal"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "除雾"
+          }
+        }
+      }
+    },
     "history_denoiseprofile": {
       "extractionState": "manual",
       "localizations": {
@@ -3951,6 +4201,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "翻转"
+          }
+        }
+      }
+    },
+    "history_grain": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grain"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "颗粒"
           }
         }
       }
@@ -4464,6 +4731,23 @@
         }
       }
     },
+    "history_textoverlay": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text overlay"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文字图层"
+          }
+        }
+      }
+    },
     "history_toggle": {
       "extractionState": "manual",
       "localizations": {
@@ -4545,6 +4829,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "自然饱和度"
+          }
+        }
+      }
+    },
+    "history_vignette": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vignette"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暗角"
           }
         }
       }
@@ -5499,6 +5800,412 @@
         }
       }
     },
+    "mcp_launcher_already_running": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An agent session is already in progress."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已有一个 agent 会话进行中。"
+          }
+        }
+      }
+    },
+    "mcp_launcher_copy_log": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Log"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制日志"
+          }
+        }
+      }
+    },
+    "mcp_launcher_done_writes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session completed — %lld write-back(s)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务完成——本次会话写回 %lld 次"
+          }
+        }
+      }
+    },
+    "mcp_launcher_exit_code": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent exited with code %lld"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 非零退出（退出码 %lld）"
+          }
+        }
+      }
+    },
+    "mcp_launcher_follow_scroll": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow output"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随输出"
+          }
+        }
+      }
+    },
+    "mcp_launcher_launch_failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Launch failed: %@"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动失败：%@"
+          }
+        }
+      }
+    },
+    "mcp_launcher_log_empty": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(no output yet)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（暂无输出）"
+          }
+        }
+      }
+    },
+    "mcp_launcher_no_writeback": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session completed — no write-backs this session"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务完成——本次会话无写回"
+          }
+        }
+      }
+    },
+    "mcp_launcher_prompt_empty_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The task prompt is empty; {{PROMPT}} was expanded to an empty word."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务提示词为空；{{PROMPT}} 已替换为空串。"
+          }
+        }
+      }
+    },
+    "mcp_launcher_server_off_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The MCP server is not running — enable it in Settings first (the agent would have nothing to connect to)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP 服务器未运行——请先在设置中启用（agent 将无从连接）。"
+          }
+        }
+      }
+    },
+    "mcp_launcher_start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Launch Agent"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动 Agent"
+          }
+        }
+      }
+    },
+    "mcp_launcher_status_idle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idle — no agent session"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空闲——无 agent 会话"
+          }
+        }
+      }
+    },
+    "mcp_launcher_status_running": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent running (pid %lld)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 运行中（pid %lld）"
+          }
+        }
+      }
+    },
+    "mcp_launcher_status_running_generic": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent running"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 运行中"
+          }
+        }
+      }
+    },
+    "mcp_launcher_stop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
+          }
+        }
+      }
+    },
+    "mcp_launcher_template_missing_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No agent command template configured — set one in Settings."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未配置 agent 命令模板——请先在设置中填写。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_apply_params": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对一个会话内图像应用模块参数编辑（模块级 upsert，非破坏：在其上追加一条可撤销的历史提交）。每个 op 按 (opName, multiPriority——默认 0) 寻址实例，可设置 params（叠加在模块参数上的部分 JSON）、翻转 enabled，或用 \"remove\": true 删除实例。未知 op → unknownOp；未知/错型键 → invalidParams；重置单模块 = 应用其默认参数。写入在本工具返回前落盘。硬拒绝：在 Lightamer 编辑器中打开的图像返回 imageLiveInEditor——请让用户关闭后重试，或改用 GUI 操作。参数键参考：list_iops。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_apply_preset": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对当前打开 Lightamer 会话的照片应用 develop 预设（apply = 粘贴语义；mode merge 在各目标历史上追加，overwrite 重置为预设）。在 GUI 编辑器中打开的照片会被跳过并报告在 skippedRelPaths（请用户在 GUI 关闭后重试，或改选其他照片）。export 类预设不能在此应用。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_diff_presets": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按实例键（opName + multiPriority）对比两个预设：哪些实例只在 A、只在 B，或两者都在但参数不同。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_export_image": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将一个会话内图像导出为文件（唯一向磁盘写图像的工具）。目的地服务端钉死在会话 Output/ 目录——刻意不设路径参数；命名取源文件 stem 并以 -1/-2 递增防撞（原子落盘）。返回绝对路径文本及 note：远程 client 无法读取本机路径——如需内联视图请用 render_preview，或经 GUI/文件共享取文件。format：jpeg|png|tiff|heic|avif|webp（默认 jpeg；quality 仅作用于有损格式，1...100 默认 90）。sizing：{\"mode\":\"original\"} 或 {\"mode\":\"longEdge\"|\"shortEdge\",\"px\":N}（永不放大）。colorSpace：sRGB|displayP3|adobeRGB|proPhoto|rec2020（默认 sRGB）。yiyin（默认 false）按该图既有的 yiyin 面板配置渲染。渲染的是已保存 sidecar 态。错误：exportFailed、invalidParams、notSessionMember、serverReadOnly。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_contact_sheet": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为当前打开 Lightamer 会话的照片渲染一张拼合联系表 JPEG：cols×rows 网格（最大 6×5=30 格，256px 格），每格 24px 标注条（文件名 + 评分星 + 挑/拒色条）。relPaths（显式列表）与 filter（FilterPredicateGroup，按排序行序）二选一。缺失缩略图渲染为占位格。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_detail_crop": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁剪一张当前打开 Lightamer 会话的照片并返回内联 JPEG。roi 为照片「解码像素坐标」（与 list_photos 的 orientation/width/height 列同坐标系；原点左上）的 {x, y, w, h}。输出按 longEdge 下采样（默认 1024，最大 1536，q85）。读取照片像素（RAW 解码）——不反映已保存编辑；要编辑态请用 render_preview。脸部 ROI 来自 get_face_regions。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_face_regions": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检测当前打开 Lightamer 会话最多 20 张照片中的人脸。返回每张照片的（解码像素坐标的）人脸边界框——与 get_detail_crop ROI 同一坐标面，原点左上；空数组 = 未检出人脸，不是错误。可选返回逐脸 landmark 点集（同一像素空间）。Vision 每请求直跑、不缓存（实测约 4ms/图）；请求内部串行。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_thumbnails": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内联获取当前打开 Lightamer 会话最多 20 张照片的缩略图。档位跟随浏览器管线：未编辑照片取 RAW 内嵌预览，已编辑照片取渲染缓存。stale 行返回缓存图并带 stale:true；传 regenerate:true 可先重渲该图（阻塞）。载荷是 JSON 清单（relPath、stale、missing、byteLength、index）加按序每张非缺失照片一个 JPEG 图像块。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_list_bursts": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把当前打开 Lightamer 会话的照片分组为连拍序列：同一 camera_model 且相邻拍摄间隔在 gapSeconds（默认 2.0）内的照片为一组；单张归入 singles。跨日间隔自然切组。行带 capture_date/filename/relPath——之后用 list_photos 过滤成员（relPath 即会话键）。纯索引查询：不解码、不渲染任何像素。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_list_iops": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列出已登记的 iop 模块及其参数键 schema：每个 op 给出 opName、显示名、v50 iopOrder、VERSION（变化时请刷新缓存）、适用域与带类型的参数键。apply_params 在调用时按模块真实 Codable schema 校验 params JSON——本目录是保证校验可预期的运行时键参考。只读、无状态，除 internalError 外无其他错误。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_list_photos": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列出当前打开的 Lightamer 会话的照片。filter 为 FilterPredicateGroup JSON 对象（{\"schemaVersion\":1,\"match\":\"all\"|\"any\",\"rules\":[{\"field\":…,\"op\":…,\"value\":{\"kind\":…}}]}）；字段：rating、colorLabel、keywords、flag、note、cameraMake、cameraModel、lensModel、iso、focalLength、aperture、exposure、captureDate、hasEdits、filename、dir；操作符：eq、neq、gt、gte、lt、lte、between、in、contains、startsWith、empty、notEmpty；值为带标签的 {\"kind\":\"text|int|double|textList|intRange|doubleRange|intList|doubleList\", …}。sort 为 {key: filename|rating|captureDate|iso|focalLength|scanEpoch, ascending}。分页：回传 nextCursor 作 cursor；短页即末页（不返回总数）。行暴露 25 列（path/dir/filename、file_size/file_mtime、has_edits、layer_count/layer_summary、orientation/width/height、capture_date、thumb_state、rating/color_label/keywords/flag/note、camera_make/camera_model/lens_model、iso/focal_length/aperture/exposure）；width/height 是 get_detail_crop ROI 校验所用的像素坐标系。错误：invalidFilter、serverReadOnly。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_list_presets": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列出 app 级 Lightamer 预设（develop = 调整配方；export = 输出配方）。按 kind 过滤或省略以取全部。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_load_image": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取会话内图像的「已保存」编辑态 JSON 视图：模块实例摘要（每实例 opName/multiPriority/enabled）、图层计数、尺寸与方向。设计为无状态：不建服务端会话句柄——所有工具都用 relPath 指名图像，多客户端可安全交错。视图反映最近一次已保存的 sidecar 态；render_preview 同样反映已保存编辑态（GUI 编辑约 2s debounce）。成员限定：relPath 必须是当前打开会话的已索引成员。错误：notSessionMember。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_render_preview": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渲染一个会话内图像的「已保存」编辑态（盘上 sidecar）并以内联 JPEG（base64）返回。预览是 sRGB 编码的「编辑态」——无 yiyin 印框/水印，也不是 GUI 的 EDR 显示域。它反映最近一次已保存的编辑：GUI 保存的编辑约有 2s debounce。界限：longEdge 1...2048（默认 1024），quality 1...90（默认 85）；更大尺寸或需要落盘文件请用 export_image。typed 失败：renderFailed、renderTimeout（30s）、notSessionMember、invalidParams。只读宿主错误：serverReadOnly。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_write_metadata": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对当前打开 Lightamer 会话的照片批量写元数据（relPaths）。一次批量变更 = 一个事务；写入落入 sidecar 真身与会话索引（GUI 网格/过滤面读同一索引）。只修改会话元数据——绝不改像素、绝不删除/移动文件。"
+          }
+        }
+      }
+    },
     "menu_actual_size": {
       "extractionState": "manual",
       "localizations": {
@@ -5614,6 +6321,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "导入 XMP…"
+          }
+        }
+      }
+    },
+    "menu_mcp_launcher": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP Agent Launcher…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP Agent 启动器…"
           }
         }
       }
@@ -6971,6 +7694,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "通道平滑度"
+          }
+        }
+      }
+    },
+    "panel_bloom_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloom"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辉光"
+          }
+        }
+      }
+    },
+    "panel_bloom_size": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Size"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尺寸"
+          }
+        }
+      }
+    },
+    "panel_bloom_strength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强度"
+          }
+        }
+      }
+    },
+    "panel_bloom_threshold": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Threshold"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阈值"
           }
         }
       }
@@ -9525,6 +10316,74 @@
         }
       }
     },
+    "panel_dehaze_adaptive": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adaptive windows"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自适应窗口"
+          }
+        }
+      }
+    },
+    "panel_dehaze_distance": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distance"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "距离"
+          }
+        }
+      }
+    },
+    "panel_dehaze_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haze removal"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "除雾"
+          }
+        }
+      }
+    },
+    "panel_dehaze_strength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强度"
+          }
+        }
+      }
+    },
     "panel_dp_bias": {
       "extractionState": "manual",
       "localizations": {
@@ -10898,6 +11757,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "横转"
+          }
+        }
+      }
+    },
+    "panel_grain_midtones": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mid-tones Bias"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中间调偏置"
+          }
+        }
+      }
+    },
+    "panel_grain_scale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coarseness (ISO)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粗细（ISO）"
+          }
+        }
+      }
+    },
+    "panel_grain_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grain"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "颗粒"
+          }
+        }
+      }
+    },
+    "panel_grain_strength": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强度"
           }
         }
       }
@@ -12722,6 +13649,193 @@
         }
       }
     },
+    "panel_text_color": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text color"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文字颜色"
+          }
+        }
+      }
+    },
+    "panel_text_content_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overlay text…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "叠加文字…"
+          }
+        }
+      }
+    },
+    "panel_text_font": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Font"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字体"
+          }
+        }
+      }
+    },
+    "panel_text_font_size": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Size"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字号"
+          }
+        }
+      }
+    },
+    "panel_text_opacity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opacity"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不透明度"
+          }
+        }
+      }
+    },
+    "panel_text_pos_x": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position X"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "位置 X"
+          }
+        }
+      }
+    },
+    "panel_text_pos_y": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position Y"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "位置 Y"
+          }
+        }
+      }
+    },
+    "panel_text_rotation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转"
+          }
+        }
+      }
+    },
+    "panel_text_section_color": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "颜色"
+          }
+        }
+      }
+    },
+    "panel_text_section_content": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文字"
+          }
+        }
+      }
+    },
+    "panel_text_section_geometry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position & transform"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "位置与变换"
+          }
+        }
+      }
+    },
     "panel_tonecurve_autoscale": {
       "extractionState": "manual",
       "localizations": {
@@ -13755,6 +14869,227 @@
           "stringUnit": {
             "state": "translated",
             "value": "自然饱和度"
+          }
+        }
+      }
+    },
+    "panel_vignette_autoratio": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic Ratio"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动比例"
+          }
+        }
+      }
+    },
+    "panel_vignette_brightness": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brightness"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "亮度"
+          }
+        }
+      }
+    },
+    "panel_vignette_center_x": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontal Center"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "水平中心"
+          }
+        }
+      }
+    },
+    "panel_vignette_center_y": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertical Center"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "垂直中心"
+          }
+        }
+      }
+    },
+    "panel_vignette_clipping": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clipping"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁剪"
+          }
+        }
+      }
+    },
+    "panel_vignette_falloff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fall-off Radius"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "衰减半径"
+          }
+        }
+      }
+    },
+    "panel_vignette_geometry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geometry"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "几何"
+          }
+        }
+      }
+    },
+    "panel_vignette_saturation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saturation"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "饱和度"
+          }
+        }
+      }
+    },
+    "panel_vignette_scale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fall-off Start"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "起始半径"
+          }
+        }
+      }
+    },
+    "panel_vignette_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vignette"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暗角"
+          }
+        }
+      }
+    },
+    "panel_vignette_shape": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shape"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形状"
+          }
+        }
+      }
+    },
+    "panel_vignette_unbound": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbound"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不裁剪"
+          }
+        }
+      }
+    },
+    "panel_vignette_whratio": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Width/Height Ratio"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宽高比"
           }
         }
       }
@@ -16380,6 +17715,198 @@
         }
       }
     },
+    "settings_mcp_agent_consumption_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent reads host/port/auth from mcp-endpoint.json and connects to http://<host>:<port>/mcp (Streamable HTTP; the Origin header must carry the port, e.g. http://localhost:51234)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "agent 从 mcp-endpoint.json 读取 host/port/auth，连接 http://<host>:<port>/mcp（Streamable HTTP；Origin 头必须带端口，如 http://localhost:51234）。"
+          }
+        }
+      }
+    },
+    "settings_mcp_agent_prompt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task prompt (optional)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务提示词（可选）"
+          }
+        }
+      }
+    },
+    "settings_mcp_agent_prompt_placeholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. Filter unrated photos, then report the picks"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如：筛出未评分照片并汇报入选结果"
+          }
+        }
+      }
+    },
+    "settings_mcp_agent_template": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent command template"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 命令模板"
+          }
+        }
+      }
+    },
+    "settings_mcp_enable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable MCP Server"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用 MCP 服务器"
+          }
+        }
+      }
+    },
+    "settings_mcp_enable_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When enabled, Lightamer serves its MCP endpoint on 127.0.0.1 and writes the discovery file (mcp-endpoint.json). Tools evaluate against the currently open session."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用后 Lightamer 在 127.0.0.1 上提供 MCP 端点并写入发现文件（mcp-endpoint.json）。工具针对当前打开的会话求值。"
+          }
+        }
+      }
+    },
+    "settings_mcp_lan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expose beyond loopback (LAN)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非回环暴露（局域网）"
+          }
+        }
+      }
+    },
+    "settings_mcp_lan_risk": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The listening interface will be exposed to the LAN; the Bearer token becomes mandatory."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "监听接口将暴露至局域网，鉴权 token 将强制启用。"
+          }
+        }
+      }
+    },
+    "settings_mcp_placeholders_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Placeholders: {{LIGHTAMER_MCP}} = endpoint discovery file path; {{PROMPT}} = task prompt (inlined single-quote escaped). The template runs via /bin/zsh -c as YOUR OWN command — the app never calls a model."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "占位符：{{LIGHTAMER_MCP}} = 端点发现文件路径；{{PROMPT}} = 任务提示词（单引号转义后内联）。模板经 /bin/zsh -c 执行，命令作者是你自己——app 不含任何模型调用。"
+          }
+        }
+      }
+    },
+    "settings_mcp_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP Server"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP 服务器"
+          }
+        }
+      }
+    },
+    "settings_mcp_template_placeholder_omp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "omp -p --auto-approve \"Use the Lightamer MCP tools to screen photos with rating IS NULL in the session at {{LIGHTAMER_MCP}}; {{PROMPT}}\""
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "omp -p --auto-approve \"请用 lightamer MCP 工具筛选 {{LIGHTAMER_MCP}} 所在会话中 rating IS NULL 的照片，{{PROMPT}}\""
+          }
+        }
+      }
+    },
+    "settings_mcp_template_placeholder_pi": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pi -p \"Run a screening task on the current Lightamer session (MCP endpoint config: {{LIGHTAMER_MCP}}): {{PROMPT}}\""
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pi -p \"对当前 Lightamer 会话（MCP 端点配置见 {{LIGHTAMER_MCP}}）执行筛图任务：{{PROMPT}}\""
+          }
+        }
+      }
+    },
     "settings_placeholder": {
       "extractionState": "manual",
       "localizations": {
@@ -16992,6 +18519,118 @@
         }
       }
     },
+    "stack_denoise_dialog_body": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aligns the frames (MTB) and aggregates each pixel: average (best SNR), median (motion robust) or sigma-clipped (star trails). Sources are never modified."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MTB 对齐后逐像素聚合：平均（信噪比最优）、中值（运动鲁棒）或 Sigma 剔除（星野）。源文件不会被修改。"
+          }
+        }
+      }
+    },
+    "stack_denoise_dialog_mode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模式"
+          }
+        }
+      }
+    },
+    "stack_denoise_dialog_start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始堆叠"
+          }
+        }
+      }
+    },
+    "stack_denoise_dialog_title %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack denoise %lld sources"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "堆栈降噪 %lld 张源图"
+          }
+        }
+      }
+    },
+    "stack_denoise_mode_average": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Average"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均"
+          }
+        }
+      }
+    },
+    "stack_denoise_mode_median": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Median"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中值"
+          }
+        }
+      }
+    },
+    "stack_denoise_mode_sigma": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sigma-clipped"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sigma 剔除"
+          }
+        }
+      }
+    },
     "status_decoding": {
       "extractionState": "manual",
       "localizations": {
@@ -17128,6 +18767,57 @@
         }
       }
     },
+    "toast_hdr_merge_done %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR merge done — %lld%% of the frame was outside the bracket's coverage"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并完成——%lld%% 区域超出括号覆盖"
+          }
+        }
+      }
+    },
+    "toast_hdr_merge_failed %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR merge failed: %@"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并失败：%@"
+          }
+        }
+      }
+    },
+    "toast_hdr_merge_queued": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR merge queued"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并已加入队列"
+          }
+        }
+      }
+    },
     "toast_import_done %lld": {
       "extractionState": "manual",
       "localizations": {
@@ -17226,6 +18916,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法写入 .lra sidecar——本次会话中的编辑仍然有效"
+          }
+        }
+      }
+    },
+    "toast_stack_merge_queued": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack merge queued"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "堆栈任务已入队"
           }
         }
       }
@@ -17396,6 +19102,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "100%"
+          }
+        }
+      }
+    },
+    "window_mcp_launcher": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP Agent Launcher"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP Agent 启动器"
           }
         }
       }

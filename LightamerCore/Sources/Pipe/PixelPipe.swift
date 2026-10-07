@@ -119,6 +119,21 @@ internal final class PixelPipe: @unchecked Sendable {
     /// output (cached even in FULL mode). -1 = everything disabled.
     internal var topEnabledPosition = -1
 
+    /// 08-4 T2 (IOP-HDR-05): the terminal-segment SDR-clamp short-circuit —
+    /// the display-leg runtime override (`false` = TODAY's behavior, the
+    /// zero-path-difference default). When `true`, the `gamma` tail module
+    /// (v50 78.0, D-COL4's sRGB encode + [0,1] SDR-white clamp) is SKIPPED:
+    /// the chain's final plane stays the float32 LINEAR colorout output
+    /// (display gamut, unclamped — >1.0 values survive), consumed by the
+    /// editor viewport's 16F EDR blit tagged `extendedLinearSRGB`. Cache
+    /// semantics: NO key changes — gamma's key is simply not visited while
+    /// bypassed (every plane ≤ colorout stays resident and HIT; the
+    /// colorout output IS the final, already cached under its own key), so
+    /// an EDR toggle invalidates nothing and the next EDR-off render hits
+    /// the exact same gamma line again. Run-level data like `captureExif`
+    /// (never a param; set before `run`/`runSub` by the display leg).
+    internal var edrDisplayLeg = false
+
     /// Decoded-frame ROI at entry scale (04-01-T4): the backward-negotiation
     /// clamp bound (halo wings may exceed the hinted/forward window but
     /// never the frame). Set in `run()` alongside `roi`.
@@ -631,7 +646,14 @@ internal final class PixelPipe: @unchecked Sendable {
         pieces = instances
             .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
             .map { Piece(box: $0, state: $0.makeRunPiece()) }
-        topEnabledPosition = pieces.lastIndex(where: { $0.box.enabled }) ?? -1
+        // 08-4 T2: the EDR display leg demotes the gamma tail to disabled
+        // (the SDR-clamp short-circuit) BEFORE the top mark + hash chain —
+        // topEnabledPosition lands on colorout (the final plane = the
+        // float32 linear colorout output) and gamma's hash never enters any
+        // chain (it never enters a KEY — zero invalidation).
+        topEnabledPosition = pieces.lastIndex(where: {
+            $0.box.enabled && !(edrDisplayLeg && $0.box.opName == GammaModule.opName)
+        }) ?? -1
         planesRendered = 0
         // §1.3: decodeParamsHash — the shared D-H4 atom.
         decodeParamsHash = decodeHash
@@ -842,7 +864,14 @@ internal final class PixelPipe: @unchecked Sendable {
             }
         }
         // 04-01: passes `roiOut` straight through (dt `:3378-3384`).
-        guard pieces[position].box.enabled else {
+        // 08-4 T2: the gamma tail is ALSO passed through on the EDR display
+        // leg (the SDR-clamp short-circuit — the pipeline never hands the
+        // clamped/encoded bytes to a 16F EDR drawable; the float32 colorout
+        // plane becomes the final). The `edrDisplayLeg` check is constant
+        // `false` for every non-EDR run: zero path difference when off.
+        guard pieces[position].box.enabled,
+              !(edrDisplayLeg && pieces[position].box.opName == GammaModule.opName)
+        else {
             return try await processRec(
                 position: position - 1,
                 roiOut: roiOut,
@@ -1038,12 +1067,17 @@ public enum RenderPipeline {
         metal: MetalContext,
         longEdge: Int? = nil,
         maxTileWorkingBytes: Int? = nil,
-        roiHint: ROI? = nil
+        roiHint: ROI? = nil,
+        edrDisplayLeg: Bool = false
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
         defer { signposter.endInterval("pixelpipe", interval) }
         let pipe = PixelPipe(resolution: resolution, cache: cache)
         pipe.imageID = imageID
+        // 08-4 T2: the display-leg SDR-clamp short-circuit (default false =
+        // today's bytes; the EXPORT face never sets it — IOP-HDR-05 is a
+        // display-leg-only toggle, D-08-CONTEXT-12③).
+        pipe.edrDisplayLeg = edrDisplayLeg
         if let maxTileWorkingBytes {
             // Test/parametric injection of the per-tile budget (03-05-T6).
             pipe.maxTileWorkingBytes = maxTileWorkingBytes
@@ -1081,15 +1115,17 @@ public enum RenderPipeline {
         roiHint: ROI? = nil,
         policy: LayerCachePolicy,
         hotLayerID: UUID? = nil,
-        maskDirectory: URL? = nil
+        maskDirectory: URL? = nil,
+        edrDisplayLeg: Bool = false
     ) async throws -> (any MTLTexture, PipeRunStats) {
-        let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
-        defer { signposter.endInterval("pixelpipe", interval) }
+        let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
+        defer { signposter.endInterval("composite", interval) }
         let result = try await LayerCompositeDriver.composite(
             image: image, imageID: imageID, baseInstances: instances,
             layerStack: layerStack, registry: registry, resolution: resolution,
             cache: cache, metal: metal, longEdge: longEdge, roiHint: roiHint,
-            policy: policy, hotLayerID: hotLayerID, maskDirectory: maskDirectory)
+            policy: policy, hotLayerID: hotLayerID, maskDirectory: maskDirectory,
+            edrDisplayLeg: edrDisplayLeg)
         var stats = result.baseStats
         for layer in result.layerStats {
             stats.hits += layer.run.hits
