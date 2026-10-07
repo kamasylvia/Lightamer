@@ -1,5 +1,6 @@
 @testable import LightamerCore
 @testable import LightamerIOP
+import Foundation
 import simd
 import XCTest
 
@@ -387,5 +388,417 @@ final class Lut3dEncodingTests: XCTestCase {
             XCTAssertLessThanOrEqual(
                 p999, Self.roundTripTolerance, "\(row.id.rawValue) display round trip")
         }
+    }
+}
+
+// MARK: - Params additive + bake (M3-1-01 T2, KD-3)
+
+final class Lut3dBakeTests: XCTestCase {
+
+    private final class Resolver: Lut3dModule.LutResolving, @unchecked Sendable {
+        var tables: [String: CubeLut] = [:]
+        func lut(named: String) -> CubeLut? { tables[named] }
+    }
+
+    private var resolver: Resolver!
+    private var metal: MetalContext!
+
+    override func setUpWithError() throws {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            throw XCTSkip("no Metal GPU")
+        }
+        resolver = Resolver()
+        metal = try MetalContext()
+    }
+
+    private func makeModule() -> Lut3dModule {
+        Lut3dModule(device: metal.device, resolver: resolver)
+    }
+
+    /// An identity lattice table (table value = its own position — the
+    /// "log-domain identity table" that eats the sampling arm).
+    private func identityTable(level: Int) -> CubeLut {
+        let d = Double(level - 1)
+        let data: [SIMD3<Float>] = (0..<(level * level * level)).map { i in
+            let r = i % level, g = (i / level) % level, b = i / (level * level)
+            return SIMD3(
+                Float(Double(r) / d), Float(Double(g) / d), Float(Double(b) / d))
+        }
+        return CubeLut(kind: .lut3d(size: level), data: data)
+    }
+
+    // MARK: - Hash zero drift (OQ-1① byte contract)
+
+    /// The default (unannotated) params MUST encode byte-identically to the
+    /// legacy two-key blob — no new keys emitted for the nil pair, so every
+    /// pre-M3 paramsHash survives bit-for-bit (PipeCacheKey zero invalidation).
+    func testParamsEncodingZeroDrift() {
+        let encoded = ParamsCoding.encode(Lut3dModule.Params())
+        let legacy =
+            #"{"colorspace":"sRGB","interpolation":"tetrahedral"}"#
+        XCTAssertEqual(String(data: encoded, encoding: .utf8), legacy)
+        XCTAssertEqual(
+            StableHash.hash(encoded),
+            StableHash.hash(Data(legacy.utf8)),
+            "paramsHash over the default params = the legacy hash")
+        // Named fields present → they appear; nil pair never does.
+        let withPair = ParamsCoding.encode(
+            Lut3dModule.Params(
+                lutName: "a.cube", inputEncoding: .arriLogC4AWG4,
+                outputEncoding: .rec709BT1886))
+        let json = String(data: withPair, encoding: .utf8) ?? ""
+        XCTAssertTrue(json.contains(#""inputEncoding":"arri_logc4_awg4""#))
+        XCTAssertTrue(json.contains(#""outputEncoding":"rec709_bt1886""#))
+    }
+
+    /// Tolerant decode: missing keys = nil pair; unknown rawValue degrades
+    /// to nil (never throws into the sidecar/history loader).
+    func testParamsDecodeTolerant() throws {
+        let legacy =
+            #"{"colorspace":"sRGB","interpolation":"tetrahedral","lutName":"a.cube"}"#
+        let params = try JSONDecoder().decode(
+            Lut3dModule.Params.self, from: Data(legacy.utf8))
+        XCTAssertNil(params.inputEncoding)
+        XCTAssertNil(params.outputEncoding)
+        XCTAssertEqual(params.lutName, "a.cube")
+
+        let unknownPair =
+            #"{"colorspace":"sRGB","interpolation":"tetrahedral","inputEncoding":"made_up_id","outputEncoding":"also_made_up"}"#
+        let degraded = try JSONDecoder().decode(
+            Lut3dModule.Params.self, from: Data(unknownPair.utf8))
+        XCTAssertNil(degraded.inputEncoding)
+        XCTAssertNil(degraded.outputEncoding)
+
+        let validPair =
+            #"{"colorspace":"sRGB","interpolation":"tetrahedral","inputEncoding":"arri_logc4_awg4","outputEncoding":"rec709_bt1886"}"#
+        let good = try JSONDecoder().decode(
+            Lut3dModule.Params.self, from: Data(validPair.utf8))
+        XCTAssertEqual(good.inputEncoding, .arriLogC4AWG4)
+        XCTAssertEqual(good.outputEncoding, .rec709BT1886)
+    }
+
+    // MARK: - Bake vs Float64 CPU reference (KD-6 bake layer)
+
+    /// A synthetic log-coded gradient table with a KNOWN inverse (the
+    /// table = logc4-encoded identity), pair (logc4 → bt1886): the baked
+    /// composite vs the Float64 CPU chain per voxel (p99.9 ≤ 1e-5). The
+    /// CPU chain uses the TEST-side sampler (Lut3dKernelTests.cpuLut3d,
+    /// an independent double-write of the kernel sample leg).
+    func testBakeCompositeVsCPUReference() throws {
+        let level = 9
+        let d = Double(level - 1)
+        // table(position) = LogC4_encode(position) — a "log domain" table.
+        let table = CubeLut(
+            kind: .lut3d(size: level),
+            data: (0..<(level * level * level)).map { i in
+                let r = i % level, g = (i / level) % level, b = i / (level * level)
+                let v = SIMD3(Double(r) / d, Double(g) / d, Double(b) / d)
+                let e = LutTransferMath.encode(.logC4, v)
+                return SIMD3(Float(e.x), Float(e.y), Float(e.z))
+            })
+        resolver.tables["logc4.cube"] = table
+
+        let inputRow = LutEncodingCatalog.find(id: .arriLogC4AWG4)
+        let outputRow = LutEncodingCatalog.find(id: .rec709BT1886)
+        let inGamut = LutEncodingCatalog.gamut(id: inputRow.gamutId)!
+        let outGamut = LutEncodingCatalog.gamut(id: outputRow.gamutId)!
+
+        let module = makeModule()
+        var piece = IOPiece()
+        module.commitParams(
+            Lut3dModule.Params(
+                lutName: "logc4.cube", colorspace: .rec2020,
+                inputEncoding: .arriLogC4AWG4, outputEncoding: .rec709BT1886),
+            into: &piece)
+        let baked = try XCTUnwrap(module.lastCompositedTable)
+
+        var errors: [Double] = []
+        for (i, voxel32) in baked.enumerated() {
+            let r = i % level, g = (i / level) % level, b = i / (level * level)
+            let voxel = SIMD3(Double(r) / d, Double(g) / d, Double(b) / d)
+            // CPU reference: encode arm → independent test sampler → decode arm.
+            let linear = inGamut.fromRec2020 * voxel
+            let pos = LutTransferMath.encode(.logC4, linear)
+            let sampled = Lut3dKernelTests.cpuLut3d(
+                pos, table: table.data, level: level,
+                domainMin: table.domainMin, domainMax: table.domainMax,
+                interpolation: .tetrahedral)
+            let light = LutTransferMath.displayDecode(
+                .bt1886, sampled, peakNits: outputRow.peakNits)
+            let want = outGamut.toRec2020 * light
+            let got = SIMD3<Double>(voxel32)
+            for ch in 0..<3 {
+                errors.append(abs(got[ch] - want[ch]))
+            }
+        }
+        errors.sort()
+        let p999 = errors[Int((Double(errors.count) * 0.999).rounded(.down))]
+        XCTAssertLessThanOrEqual(p999, 1e-5, "composite vs Float64 CPU reference")
+    }
+
+    // MARK: - Direction-probe goldens (checker E1 — anti-misread-self-reference)
+
+    /// Probe A (input arm): the identity table eats the sample arm — with
+    /// pair (logc4 → linear) the composite IS `LogC4_encode(FromRec2020(AWG4)·voxel)`.
+    /// An arm-order misread (input DECODE first) produces a wildly
+    /// different curve and this goes red.
+    func testDirectionProbeInputEncodeArm() throws {
+        resolver.tables["identity.cube"] = identityTable(level: 7)
+        let module = makeModule()
+        var piece = IOPiece()
+        module.commitParams(
+            Lut3dModule.Params(
+                lutName: "identity.cube", colorspace: .rec2020,
+                inputEncoding: .arriLogC4AWG4, outputEncoding: .linearRec2020),
+            into: &piece)
+        let baked = try XCTUnwrap(module.lastCompositedTable)
+        assertDirection(
+            baked, level: 7,
+            closedForm: { voxel in
+                let linear = LutEncodingCatalog.gamut(id: "awg4")!.fromRec2020 * voxel
+                return LutTransferMath.encode(.logC4, linear)
+            }, label: "input encode arm")
+    }
+
+    /// Probe B (output arm): identity table, pair (linear → bt1886) —
+    /// the composite IS `ToRec2020(Rec709)·pow(voxel, 2.4)`. An arm-order
+    /// misread (output ENCODE) goes red.
+    func testDirectionProbeOutputDecodeArm() throws {
+        resolver.tables["identity.cube"] = identityTable(level: 7)
+        let module = makeModule()
+        var piece = IOPiece()
+        module.commitParams(
+            Lut3dModule.Params(
+                lutName: "identity.cube", colorspace: .rec2020,
+                inputEncoding: .linearRec2020, outputEncoding: .rec709BT1886),
+            into: &piece)
+        let baked = try XCTUnwrap(module.lastCompositedTable)
+        assertDirection(
+            baked, level: 7,
+            closedForm: { voxel in
+                let code = SIMD3(
+                    Foundation.pow(voxel.x, 2.4),
+                    Foundation.pow(voxel.y, 2.4),
+                    Foundation.pow(voxel.z, 2.4))
+                return LutEncodingCatalog.gamut(id: "rec709")!.toRec2020 * code
+            }, label: "output decode arm")
+    }
+
+    /// Probe C (full pair): identity table, pair (logc4 → bt1886) —
+    /// `ToRec2020(Rec709)·pow(LogC4_encode(FromRec2020(AWG4)·voxel), 2.4)`.
+    func testDirectionProbeFullPair() throws {
+        resolver.tables["identity.cube"] = identityTable(level: 7)
+        let module = makeModule()
+        var piece = IOPiece()
+        module.commitParams(
+            Lut3dModule.Params(
+                lutName: "identity.cube", colorspace: .rec2020,
+                inputEncoding: .arriLogC4AWG4, outputEncoding: .rec709BT1886),
+            into: &piece)
+        let baked = try XCTUnwrap(module.lastCompositedTable)
+        assertDirection(
+            baked, level: 7,
+            closedForm: { voxel in
+                let linear = LutEncodingCatalog.gamut(id: "awg4")!.fromRec2020 * voxel
+                let code = LutTransferMath.encode(.logC4, linear)
+                let light = SIMD3(
+                    Foundation.pow(code.x, 2.4),
+                    Foundation.pow(code.y, 2.4),
+                    Foundation.pow(code.z, 2.4))
+                return LutEncodingCatalog.gamut(id: "rec709")!.toRec2020 * light
+            }, label: "full pair direction")
+    }
+
+    private func assertDirection(
+        _ baked: [SIMD3<Float>], level: Int,
+        closedForm: (SIMD3<Double>) -> SIMD3<Double>, label: String
+    ) {
+        let d = Double(level - 1)
+        var worst: (Double, Double) = (0, 0)
+        for (i, v32) in baked.enumerated() {
+            let r = i % level, g = (i / level) % level, b = i / (level * level)
+            let voxel = SIMD3(Double(r) / d, Double(g) / d, Double(b) / d)
+            let want = closedForm(voxel)
+            let got = SIMD3<Double>(v32)
+            for ch in 0..<3 {
+                let e = abs(got[ch] - want[ch])
+                if e > worst.1 { worst = (voxel.x, e) }
+            }
+        }
+        XCTAssertLessThanOrEqual(worst.1, 1e-5, "\(label) worst @x=\(worst.0)")
+    }
+
+    // MARK: - Bake counter three states + LRU (KD-3)
+
+    /// Default pair (or legacy params with the nil pair) = fast path: zero
+    /// bake. A pair change = exactly one bake. Repeating the pair = LRU
+    /// hit, zero bake. Past 16 entries the least-recent composite is
+    /// evicted and re-baked on demand.
+    func testBakeCountThreeStatesAndLRU() {
+        let level = 5
+        resolver.tables["t.cube"] = identityTable(level: level)
+        let module = makeModule()
+
+        // Fast path (nil pair = the default pair, unit domain).
+        var piece = IOPiece()
+        module.commitParams(Lut3dModule.Params(lutName: "t.cube"), into: &piece)
+        XCTAssertEqual(module.bakeCount, 0, "fast path: zero bake")
+        XCTAssertNil(module.lastCompositedTable, "fast path: source verbatim")
+
+        // One pair = exactly one bake.
+        module.commitParams(
+            Lut3dModule.Params(
+                lutName: "t.cube", colorspace: .rec2020,
+                inputEncoding: .arriLogC4AWG4, outputEncoding: .rec709BT1886),
+            into: &piece)
+        XCTAssertEqual(module.bakeCount, 1)
+        // Same pair again = LRU hit.
+        module.commitParams(
+            Lut3dModule.Params(
+                lutName: "t.cube", colorspace: .rec2020,
+                inputEncoding: .arriLogC4AWG4, outputEncoding: .rec709BT1886),
+            into: &piece)
+        XCTAssertEqual(module.bakeCount, 1, "LRU hit: zero rebake")
+
+        // Fill the LRU past 16 with distinct OUTPUT ids, then return to the
+        // first pair — it was evicted and bakes once more.
+        let outputs: [LutEncodingId] = [
+            .rec709BT1886, .rec709SRGB, .rec709Gamma22, .displayP3SRGB,
+            .rec2100PQ1000, .rec2100HLG1000, .linearRec2020,
+        ]
+        var combos: [(LutEncodingId, LutEncodingId)] = []
+        outer: for input in LutEncodingCatalog.sceneEncodings.map({ $0.id }) {
+            for output in outputs {
+                combos.append((input, output))
+                if combos.count >= Lut3dModule.compositeCacheLimit { break outer }
+            }
+        }
+        XCTAssertEqual(combos.count, Lut3dModule.compositeCacheLimit)
+        let firstPair = (LutEncodingId.arriLogC4AWG4, LutEncodingId.rec709BT1886)
+        var expectedBakes = 1  // the first-pair bake above; the repeat was a hit
+        for combo in combos where combo != firstPair {
+            module.commitParams(
+                Lut3dModule.Params(
+                    lutName: "t.cube", colorspace: .rec2020,
+                    inputEncoding: combo.0, outputEncoding: combo.1),
+                into: &piece)
+            expectedBakes += 1
+        }
+        // 15 fresh bakes (the combo equal to the cached first pair is an
+        // LRU hit) — the cache now holds 16 entries exactly.
+        XCTAssertEqual(module.bakeCount, expectedBakes, "each distinct pair bakes once")
+        // One MORE distinct pair pushes past 16 — the least-recent entry
+        // (the first pair) is evicted…
+        module.commitParams(
+            Lut3dModule.Params(
+                lutName: "t.cube", colorspace: .rec2020,
+                inputEncoding: .canonCLog3, outputEncoding: .rec709SRGB),
+            into: &piece)
+        expectedBakes += 1
+        XCTAssertEqual(module.bakeCount, expectedBakes, "17th insert evicts")
+        // …so the first pair re-bakes on demand.
+        module.commitParams(
+            Lut3dModule.Params(
+                lutName: "t.cube", colorspace: .rec2020,
+                inputEncoding: .arriLogC4AWG4, outputEncoding: .rec709BT1886),
+            into: &piece)
+        expectedBakes += 1
+        XCTAssertEqual(module.bakeCount, expectedBakes, "evicted entry rebakes")
+    }
+
+    /// Non-unit-domain tables under the DEFAULT pair stay byte-verbatim
+    /// (the OQ-1① contract is STRONGER than Alcedo's `HasUnitDomain` fast
+    /// path: the HDR-domain storage tests pin the native domain uniforms —
+    /// the domain remap only happens inside a real pair bake).
+    func testNonUnitDomainDefaultPairStaysVerbatim() {
+        let level = 5
+        var lut = identityTable(level: level)
+        lut.domainMin = SIMD3(-0.5, -0.5, -0.5)
+        lut.domainMax = SIMD3(1.5, 1.5, 1.5)
+        resolver.tables["wide.cube"] = lut
+        let module = makeModule()
+        var piece = IOPiece()
+        module.commitParams(
+            Lut3dModule.Params(lutName: "wide.cube", colorspace: .rec2020), into: &piece)
+        XCTAssertEqual(module.bakeCount, 0, "default pair: verbatim even off-unit-domain")
+        XCTAssertNil(module.lastCompositedTable)
+        XCTAssertNotNil(piece.data)
+    }
+
+    /// Encoding pairs never apply to 1D tables (KD-3 boundary) — the ramp
+    /// uploads verbatim, zero bake.
+    func test1DSkipsEncodingBake() {
+        let ramp = CubeLut(
+            kind: .lut1d(size: 8),
+            data: (0..<8).map {
+                SIMD3(Float($0) / 7, Float($0) / 7, Float($0) / 7)
+            })
+        resolver.tables["ramp.cube"] = ramp
+        let module = makeModule()
+        var piece = IOPiece()
+        module.commitParams(
+            Lut3dModule.Params(
+                lutName: "ramp.cube", colorspace: .rec2020,
+                inputEncoding: .arriLogC4AWG4, outputEncoding: .rec709BT1886),
+            into: &piece)
+        XCTAssertEqual(module.bakeCount, 0, "1D boundary: no bake")
+        XCTAssertNil(module.lastCompositedTable)
+        XCTAssertNotNil(piece.data, "1D still commits the ramp")
+    }
+
+    /// Concurrent commitParams/process on ONE shared instance stays alive
+    /// (the stateLock regression, 08dd061 shape — overlapping pipe runs).
+    func testConcurrentCommitProcessStayAlive() async throws {
+        let level = 9
+        resolver.tables["t.cube"] = identityTable(level: level)
+        let module = makeModule()
+
+        let width = 16, height = 16
+        func makeTexture() -> (any MTLTexture) {
+            let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+                pixelFormat: .rgba32Float, width: width, height: height, mipmapped: false)
+            descriptor.usage = [.shaderRead, .shaderWrite]
+            descriptor.storageMode = .shared
+            return metal.device.makeTexture(descriptor: descriptor)!
+        }
+        let input = makeTexture()
+        let output = makeTexture()
+        // A deliberate-race carrier: the module under test is deliberately
+        // shared across overlapping tasks (the coordinator's live box set
+        // shape). @unchecked here is the POINT of the test.
+        final class Box: @unchecked Sendable {
+            let module: Lut3dModule
+            let metal: MetalContext
+            let input: any MTLTexture
+            let output: any MTLTexture
+            init(_ m: Lut3dModule, _ ctx: MetalContext, _ i: any MTLTexture, _ o: any MTLTexture) {
+                module = m; metal = ctx; input = i; output = o
+            }
+        }
+        let box = Box(module, metal, input, output)
+
+        await withTaskGroup(of: Void.self) { group in
+            for round in 0..<8 {
+                group.addTask {
+                    var piece = IOPiece()
+                    let params: Lut3dModule.Params =
+                        round % 2 == 0
+                        ? Lut3dModule.Params(
+                            lutName: "t.cube", colorspace: .rec2020,
+                            inputEncoding: .arriLogC4AWG4, outputEncoding: .rec709BT1886)
+                        : Lut3dModule.Params(lutName: "t.cube", colorspace: .rec2020)
+                    box.module.commitParams(params, into: &piece)
+                    if piece.data != nil {
+                        try? await box.module.process(
+                            input: box.input, output: box.output,
+                            roiIn: ROI(x: 0, y: 0, width: width, height: height, scale: 1),
+                            roiOut: ROI(x: 0, y: 0, width: width, height: height, scale: 1),
+                            piece: &piece, metal: box.metal)
+                    }
+                }
+            }
+            await group.waitForAll()
+        }
+        _ = module.bakeCount  // post-storm state read must not trap
     }
 }
