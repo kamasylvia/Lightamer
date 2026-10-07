@@ -27,6 +27,9 @@ internal struct LutPanelView: View {
 
     @State private var libraryRevision = 0
     @State private var statusLine: String?
+    /// The remember toggle (KD-4 ③, session-level, default ON): when set,
+    /// encoding-picker changes write back to the library entry.
+    @State private var rememberEncodings = true
 
     private var params: Lut3dModule.Params {
         PanelEditing.params(of: instance, as: Lut3dModule.self)
@@ -56,6 +59,17 @@ internal struct LutPanelView: View {
                 LutLibraryTreeView(params: params) { key in
                     var p = params
                     p.lutName = key
+                    // M3-1-01 (KD-4 ①): a remembered pair rides the SAME
+                    // single applyDiscrete commit; no memory = the encoding
+                    // fields stay nil (the default-pair semantics — nothing
+                    // written, the existing-document byte contract).
+                    if let key,
+                        let entry = store.entry(named: key),
+                        let memory = LutEncodingPanelLogic.rememberedPair(forSelection: key, entry: entry)
+                    {
+                        p.inputEncoding = memory.input
+                        p.outputEncoding = memory.output
+                    }
                     applyDiscrete(p)
                     if store.isMissing(key) {
                         edit.presentToast(String(localized: "toast_lut_missing"))
@@ -69,6 +83,29 @@ internal struct LutPanelView: View {
                     }
                 }
                 .accessibilityIdentifier("inspector.picker.lut.colorspace")
+
+                // M3-1-01 (M2GRADE-08, KD-4): the authoring-encoding pair —
+                // scene/display grouped, visible only for a selected 3D LUT.
+                // Picker changes are one applyDiscrete commit each; the
+                // remember toggle rides the same store write face.
+                if LutEncodingPanelLogic.showsEncodingPickers(
+                    lutName: params.lutName, is1D: is1D)
+                {
+                    Picker(String(localized: "panel_lut_encoding_input"), selection: inputEncodingSelection) {
+                        LutEncodingPickerGroups()
+                    }
+                    .accessibilityIdentifier("inspector.picker.lut.encoding.input")
+
+                    Picker(String(localized: "panel_lut_encoding_output"), selection: outputEncodingSelection) {
+                        LutEncodingPickerGroups()
+                    }
+                    .accessibilityIdentifier("inspector.picker.lut.encoding.output")
+
+                    Toggle(isOn: $rememberEncodings) {
+                        Text(String(localized: "panel_lut_remember_encodings"))
+                    }
+                    .accessibilityIdentifier("inspector.toggle.lut.remember-encodings")
+                }
 
                 if showInterpolation {
                     Picker(String(localized: "panel_lut_interpolation"), selection: interpolationSelection) {
@@ -135,6 +172,36 @@ internal struct LutPanelView: View {
                 var p = params
                 p.interpolation = interp
                 applyDiscrete(p)
+            })
+    }
+
+    /// The encoding picker bindings (KD-4 ②③): get = the params value (or
+    /// the default pair id); set = ONE applyDiscrete commit + the
+    /// remember-toggle write-back (entry absent = typed no-op).
+    private var inputEncodingSelection: Binding<LutEncodingId> {
+        encodingSelection(keyPath: \.inputEncoding)
+    }
+
+    private var outputEncodingSelection: Binding<LutEncodingId> {
+        encodingSelection(keyPath: \.outputEncoding)
+    }
+
+    private func encodingSelection(
+        keyPath: WritableKeyPath<Lut3dModule.Params, LutEncodingId?>
+    ) -> Binding<LutEncodingId> {
+        Binding(
+            get: { params[keyPath: keyPath] ?? .linearRec2020 },
+            set: { newValue in
+                var p = params
+                p[keyPath: keyPath] = newValue
+                applyDiscrete(p)
+                if rememberEncodings, let key = p.lutName,
+                    store.entry(named: key) != nil
+                {
+                    store.updateRememberedEncodings(
+                        named: key,
+                        to: LutEncodingPanelLogic.writeBackPair(for: p))
+                }
             })
     }
 
@@ -306,6 +373,57 @@ internal struct LutLibraryTreeView: View {
             return "\(title) (\(base))"
         }
         return base
+    }
+}
+
+// MARK: - Encoding panel logic (M3-1-01, KD-4 — testable without a view)
+
+/// The encoding-picker decision logic, extracted so the App-level tests
+/// drive the exact functions the panel body calls (the panel test stance:
+/// programmatic, no UI — the PanelWiringTests discipline).
+enum LutEncodingPanelLogic {
+
+    /// The picker visibility rule: a selected 3D LUT (1D tables have no
+    /// authoring-encoding semantics — the KD-3 boundary).
+    static func showsEncodingPickers(lutName: String?, is1D: Bool) -> Bool {
+        lutName != nil && !is1D
+    }
+
+    /// The remembered pair a library selection loads into params (KD-4 ①):
+    /// the entry's memory when present; nil = keep the fields unset (the
+    /// default-pair semantics — nothing written).
+    static func rememberedPair(
+        forSelection key: String?, entry: LutLibraryStore.InstalledLut?
+    ) -> RememberedEncodings? {
+        guard key != nil, let entry else { return nil }
+        return entry.rememberedEncodings
+    }
+
+    /// The pair written back on a remember-ON picker change: the CURRENT
+    /// params pair (defaults filled in).
+    static func writeBackPair(for params: Lut3dModule.Params) -> RememberedEncodings {
+        RememberedEncodings(
+            input: params.inputEncoding ?? .linearRec2020,
+            output: params.outputEncoding ?? .linearRec2020)
+    }
+}
+
+/// The scene/display grouped picker content (the Alcedo
+/// editor_lut_encoding_model grouping; the row labels are the catalog
+/// display names — technical names stay untranslated per the DRT panel
+/// convention).
+struct LutEncodingPickerGroups: View {
+    var body: some View {
+        Section(String(localized: "panel_lut_group_scene")) {
+            ForEach(LutEncodingCatalog.sceneEncodings, id: \.id) { row in
+                Text(verbatim: row.displayName).tag(row.id)
+            }
+        }
+        Section(String(localized: "panel_lut_group_display")) {
+            ForEach(LutEncodingCatalog.displayEncodings, id: \.id) { row in
+                Text(verbatim: row.displayName).tag(row.id)
+            }
+        }
     }
 }
 

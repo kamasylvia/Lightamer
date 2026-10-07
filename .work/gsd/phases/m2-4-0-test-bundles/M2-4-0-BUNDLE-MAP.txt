@@ -196,6 +196,7 @@ APP	27	McpCullingToolsetTests.swift
 APP	3	EditorMetalLegRegressionTests.swift
 APP	5	BeforeAfterTests.swift
 APP	4	BuiltInLutSetTests.swift
+APP	6	LutEncodingPanelTests.swift
 APP	5	EffectsWiringTests.swift
 APP	5	EyedropperTests.swift
 APP	6	AppErrorTests.swift
