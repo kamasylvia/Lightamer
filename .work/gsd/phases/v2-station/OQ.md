@@ -71,3 +71,7 @@
 - ALCE-01/04/05/06/07 已随 2026-09-27 重定义提级 V1 并交付（M2-5/6/8/10），本站零动作；REQUIREMENTS ALCE 行翻勾注记归下批翻账（非本文范围）。
 - V1-V17 观察项按 M2-11-VALIDATION-INPUT §4.4 落位维持；V5/V9/V10 已关闭；V14/V15 随 M3-W1 zh 清算（若 OQ-V2-9 同批则一并）。
 - M4/M5 两 error FINDING 在飞修复批处置，本站零动作；修复批交付后其挂账状态以修复批报告为准。
+
+## 裁决记录（用户预裁 2026-10-08「按推荐」生效）
+
+OQ-V2-1..10 全部按推荐采纳：**M3 = 方案 A「胶片暗房」**（M2GRADE-08 W1 前置 + FSIM-01/02 主打 + 搭车族 YIYIN-09/zh 清算/冲突档选择器/peak-ICC/denoise 降档语义/M7 spike 搭 research）；方案 B（RASTER-IN/MASK-06/07）滚 M4；TRACK/Mertens M4、PANO M5；EXR 砍出首批（research 环出依赖对比再裁）。
