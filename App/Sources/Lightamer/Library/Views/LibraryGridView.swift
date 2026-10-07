@@ -77,6 +77,13 @@ struct LibraryGridView: View {
     /// WorkspaceModel (D2 真缝).
     var onOpen: (Int64) -> Void = { _ in }
 
+    // Plan M2-10-07 (KD-3, minimal radius): the AI enhancement context-menu
+    // commands. The callbacks carry the RIGHT-CLICKED row id (the host
+    // resolves the acted-on set = the clicked row's selection). nil = the
+    // commands stay hidden (the test skeleton state).
+    var onAIUpscale: ((Int64) -> Void)?
+    var onAIDenoise: ((Int64) -> Void)?
+
     @State private var pager: LibraryGridPager?
 
     /// The adaptive cell width (the Alcedo thumbnail-grid density intent:
@@ -158,6 +165,35 @@ struct LibraryGridView: View {
             .onTapGesture(count: 2) {
                 grid.selectSingle(row.id)
                 onOpen(row.id)
+            }
+            // Plan M2-10-07 (KD-3): the two AI enhancement entries — the
+            // right-click acts on the clicked row (selected first, so the
+            // host's selection resolution sees it).
+            .contextMenu {
+                if let onAIUpscale {
+                    Button {
+                        grid.selectSingle(row.id)
+                        onAIUpscale(row.id)
+                    } label: {
+                        Label(String(
+                            localized: "library_grid_ai_upscale",
+                            defaultValue: "AI Super Resolution…"),
+                            systemImage: "arrow.up.left.and.arrow.down.right")
+                    }
+                    .accessibilityIdentifier("library.grid.cell.aiUpscale")
+                }
+                if let onAIDenoise {
+                    Button {
+                        grid.selectSingle(row.id)
+                        onAIDenoise(row.id)
+                    } label: {
+                        Label(String(
+                            localized: "library_grid_ai_denoise",
+                            defaultValue: "AI Denoise…"),
+                            systemImage: "sparkles")
+                    }
+                    .accessibilityIdentifier("library.grid.cell.aiDenoise")
+                }
             }
     }
 

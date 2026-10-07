@@ -41,6 +41,15 @@ final class LibrarySearchModel {
         case apertureToken(String)
         case dateDisjoint
         case unrecognizedToken(String)
+        /// M2-10-02 (KD-5): the active semantic model / bundled assets are
+        /// absent — the「语义模型未就绪」honest face (never a fake empty
+        /// result).
+        case modelUnavailable
+        /// A semantic query failed at runtime (inference/scan rejection).
+        case semanticQueryFailed
+        /// M2-10-04 (KD-4): the fulltext leg has no query face — no open
+        /// package assembly passed one (the honest「未就绪」face).
+        case fulltextUnavailable
 
         /// The dialog's inline copy (localized at the presentation edge).
         var message: String {
@@ -61,6 +70,18 @@ final class LibrarySearchModel {
                 return String(
                     localized: "search_error_unrecognized",
                     defaultValue: "“\(token)” was not recognized — plain words search EXIF text")
+            case .modelUnavailable:
+                return String(
+                    localized: "search_error_model_unavailable",
+                    defaultValue: "The semantic model is not ready — the bundled CLIP assets are missing or failed to load")
+            case .semanticQueryFailed:
+                return String(
+                    localized: "search_error_semantic_failed",
+                    defaultValue: "The semantic query failed — try again or rephrase")
+            case .fulltextUnavailable:
+                return String(
+                    localized: "search_error_fulltext_unavailable",
+                    defaultValue: "Full-text search is not available — open a project first")
             }
         }
     }
@@ -70,6 +91,9 @@ final class LibrarySearchModel {
     enum Outcome: Equatable {
         /// The plan was installed (empty input = the clearing plan).
         case applied(termCount: Int)
+        /// The semantic result set was installed (M2-10-02); zero hits
+        /// keeps the dialog open with the honest「无语义匹配」note.
+        case semanticApplied(hitCount: Int)
         /// A typed error family — the dialog shows it inline.
         case failed(ErrorFamily)
     }
@@ -80,8 +104,28 @@ final class LibrarySearchModel {
     /// The grid cursor — the ONE collection state the plan folds into.
     private let grid: LibraryGridModel
 
-    init(grid: LibraryGridModel) {
+    /// The M2-10-02 semantic read face over the OPEN package (nil in the
+    /// EXIF-only tests — a CLIP submit then fails `.modelUnavailable`).
+    private let semanticStore: SemanticStore?
+    /// The engine supplier (the AIInferenceService seam; nil = never
+    /// available). Supplied per submit so a late asset load still lands.
+    private let semanticProvider: (@Sendable () async -> (any SemanticSearching)?)?
+
+    /// The M2-10-04 fulltext query seam (KD-4: FTS MATCH → JOIN active=1 →
+    /// ordered ids — the Core face is `AIDescriptionService.imageIDs`; nil =
+    /// the honest `.fulltextUnavailable` family).
+    private let fulltextProvider: (@Sendable (String) async throws -> [Int64])?
+
+    init(
+        grid: LibraryGridModel,
+        semanticStore: SemanticStore? = nil,
+        semantic: (@Sendable () async -> (any SemanticSearching)?)? = nil,
+        fulltext: (@Sendable (String) async throws -> [Int64])? = nil
+    ) {
         self.grid = grid
+        self.semanticStore = semanticStore
+        self.semanticProvider = semantic
+        self.fulltextProvider = fulltext
     }
 
     // MARK: - Mode segment
@@ -90,19 +134,26 @@ final class LibrarySearchModel {
         mode = newMode
     }
 
-    // MARK: - The submit flow (KD-3)
+    // MARK: - The submit flow (KD-3 + M2-10-02 KD-6)
 
     /// Parse the input and fold the plan into the shared filter. Empty
     /// input installs the empty plan (clear the lexical leg). A typed
     /// parser error maps to an inline family — never an alert, never a
-    /// silent no-op.
+    /// silent no-op. The CLIP leg routes to `submitSemantic`; the fulltext
+    /// leg (M2-10-04) routes to `submitFulltext`.
     @discardableResult
     func submit(_ raw: String) async -> Outcome {
-        guard mode == .exif else {
-            // The placeholder legs never fabricate results (D8: 禁放假开关).
-            lastOutcome = .failed(.unrecognizedToken(raw))
-            return lastOutcome!
+        switch mode {
+        case .exif:
+            return await submitExif(raw)
+        case .clip:
+            return await submitSemantic(raw)
+        case .fullText:
+            return await submitFulltext(raw)
         }
+    }
+
+    private func submitExif(_ raw: String) async -> Outcome {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
             let plan = try ExifSearchParser.parse(trimmed)
@@ -116,6 +167,70 @@ final class LibrarySearchModel {
         } catch {
             // The query face's own typed rejections ride the same surface.
             lastOutcome = .failed(.unrecognizedToken(trimmed))
+        }
+        return lastOutcome!
+    }
+
+    /// The CLIP leg (KD-6): query → engine → hit IDs → the grid's semantic
+    /// overlay (EXIF 腿同型集合过滤, hit order). Empty input clears the
+    /// leg (the EXIF empty-plan symmetry). Model absence is the typed
+    /// `.modelUnavailable` family — an honest state, not a fake empty set.
+    private func submitSemantic(_ raw: String) async -> Outcome {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            try? await grid.apply(semanticHits: nil)
+            lastOutcome = .applied(termCount: 0)
+            return lastOutcome!
+        }
+        guard let semanticStore, let semanticProvider else {
+            lastOutcome = .failed(.modelUnavailable)
+            return lastOutcome!
+        }
+        guard let searcher = await semanticProvider() else {
+            lastOutcome = .failed(.modelUnavailable)
+            return lastOutcome!
+        }
+        do {
+            let hits = try await searcher.search(
+                trimmed, limit: Self.semanticHitLimit, in: semanticStore)
+            try await grid.apply(semanticHits: hits.map(\.imageID))
+            lastOutcome = .semanticApplied(hitCount: hits.count)
+        } catch SemanticSearchError.modelUnavailable {
+            lastOutcome = .failed(.modelUnavailable)
+        } catch {
+            // Inference/scan rejections (dimension mismatch, cancellation,
+            // runner failures) — one honest runtime family.
+            lastOutcome = .failed(.semanticQueryFailed)
+        }
+        return lastOutcome!
+    }
+
+    /// The D-1 top-K budget (the scanner's k; the dialog presents the
+    /// count card from the same number).
+    static let semanticHitLimit = 256
+
+    /// The fulltext leg (KD-4): the query rides the Core seam (FTS MATCH →
+    /// JOIN active=1 → ordered ids) and folds into the grid's overlay —
+    /// the CLIP leg's exact shape, rank-ordered instead of score-ordered.
+    /// Empty input clears the leg; a missing query face is the honest
+    /// `.fulltextUnavailable` family; a MATCH failure is the runtime family.
+    private func submitFulltext(_ raw: String) async -> Outcome {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            try? await grid.apply(semanticHits: nil)
+            lastOutcome = .applied(termCount: 0)
+            return lastOutcome!
+        }
+        guard let fulltextProvider else {
+            lastOutcome = .failed(.fulltextUnavailable)
+            return lastOutcome!
+        }
+        do {
+            let hits = try await fulltextProvider(trimmed)
+            try await grid.apply(semanticHits: hits)
+            lastOutcome = .semanticApplied(hitCount: hits.count)
+        } catch {
+            lastOutcome = .failed(.semanticQueryFailed)
         }
         return lastOutcome!
     }

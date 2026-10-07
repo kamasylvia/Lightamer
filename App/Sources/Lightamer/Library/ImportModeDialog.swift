@@ -112,3 +112,55 @@ struct ImportModeDialog: View {
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LabelingAskDialog (Plan M2-10-03 KD-3 / OQ-6-A) — the auto-labeling ask,
+// the Alcedo `SemanticGenerationDialog` interaction shape (GPL read-only
+// reference — copy not reused): one question, 是/否, and the Remember-my-
+// choice checkbox. Same stateless-binding shell as the transport dialog: the
+// buttons hand (accepted, remember) straight back — all state lives in the
+// LabelingPromptController + LabelingPreferences faces.
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct LabelingAskDialog: View {
+    let request: LabelingPromptController.Request
+    let onDecide: (_ accepted: Bool, _ remember: Bool) -> Void
+
+    @State private var remember = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(String(localized: "labeling_ask_title",
+                        defaultValue: "Analyze photo content with AI?"))
+                .font(.headline)
+            Text(String(localized: "labeling_ask_body",
+                        defaultValue: "Lightamer can compute local labels for the \(request.imageCount) newly imported photos — keywords like “mountain” or “sunset”, computed entirely on this Mac. No photos leave the machine."))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Toggle(isOn: $remember) {
+                Text(String(localized: "labeling_ask_remember",
+                            defaultValue: "Remember my choice"))
+            }
+            HStack {
+                Spacer()
+                Button {
+                    onDecide(false, remember)
+                } label: {
+                    Text(String(localized: "labeling_ask_decline",
+                                defaultValue: "Not Now"))
+                }
+                .keyboardShortcut(.cancelAction)
+                Button {
+                    onDecide(true, remember)
+                } label: {
+                    Text(String(localized: "labeling_ask_accept",
+                                defaultValue: "Analyze"))
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 440)
+    }
+}

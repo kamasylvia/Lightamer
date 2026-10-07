@@ -278,6 +278,41 @@ final class WorkspaceModel {
     }
 
 
+    // MARK: - AI enhancement entry requests (Plan M2-10-07 T3, KD-3)
+
+    /// The editor Image menu's two enhancement commands route through HERE
+    /// (the ⌘F presentation-boolean pattern: one presentation owner — the menu
+    /// command sets the request, WorkspaceHostView consumes it and presents
+    /// the EnhanceDialog sheet; the dialog never self-owns its state).
+    enum AIEnhanceKind: Equatable, Sendable {
+        case upscale
+        case denoise
+    }
+
+    struct AIEnhanceRequest: Equatable, Sendable {
+        let kind: AIEnhanceKind
+        /// The library rowids to enhance (the editor entry = the current
+        /// image; the grid entry carries the whole selection).
+        let imageIDs: [Int64]
+    }
+
+    /// The pending enhancement request (nil = nothing pending; consumed by
+    /// the host's onChange leg).
+    var pendingAIEnhance: AIEnhanceRequest?
+
+    func requestAIEnhance(
+        kind: AIEnhanceKind, imageIDs: [Int64]
+    ) {
+        pendingAIEnhance = AIEnhanceRequest(kind: kind, imageIDs: imageIDs)
+    }
+
+    /// The one consumption face (the host clears after reading).
+    func consumeAIEnhance() -> AIEnhanceRequest? {
+        let request = pendingAIEnhance
+        pendingAIEnhance = nil
+        return request
+    }
+
     // MARK: - Phase transitions (the D2 semantics)
 
     /// Enter the editor on `imageID` (nil = reopen the last image — the

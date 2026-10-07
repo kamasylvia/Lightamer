@@ -109,7 +109,13 @@ final class LibraryInspectorModel {
         isLoading = true
         defer { isLoading = false }
         let filter = grid.filter
-        overviewCount = (try? await queries.overviewCount(filter: filter)) ?? 0
+        // M2-10-02 (KD-6): an active semantic overlay IS the collection —
+        // the count card shows the HIT count, not the filter aggregate.
+        if let hits = grid.semanticHits {
+            overviewCount = hits.count
+        } else {
+            overviewCount = (try? await queries.overviewCount(filter: filter)) ?? 0
+        }
         for key in LibraryGroupKey.allCases {
             groups[key] = (try? await queries.groupCounts(by: key, filter: filter)) ?? []
         }

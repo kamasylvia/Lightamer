@@ -82,6 +82,14 @@ enum LightamerEntryPoint {
             McpServerController.runHeadless(mode: mode) // parks forever
             return
         }
+        // Plan M2-10-05 (OQ-5-A): the AI worker fork — the same-binary
+        // child process the editor spawns for local inference (a native
+        // inference crash must never take the editor down). Like the MCP
+        // arm above: parks in its frame loop and NEVER constructs the
+        // SwiftUI App.
+        if AIWorkerMain.runIfRequested() {
+            return // unreachable: runIfRequested parks forever on this arm
+        }
         LightamerApp.main()
     }
 }
@@ -1279,8 +1287,17 @@ internal struct LightamerApp: App {
                 } label: { Text(verbatim: "Open Recent Project") }
                 .disabled(libraryProjects.recentProjects.isEmpty)
                 Divider()
+                // F-1 (fix(m2-3), 2026-10-03): this is the ONLY panel action
+                // that ran synchronously INSIDE the menu-item dispatch —
+                // NSOpenPanel.runModal() then nested a modal session inside
+                // the menu transaction, and cancelling tore the SwiftUI menu
+                // item closures down mid-transaction (SIGSEGV over-release
+                // in the next menuNeedsUpdate populate; .ips ×3 archived).
+                // The Task hop matches the four sibling panel actions (New/
+                // Open/Backup/Move Project — none ever crashed): the menu
+                // transaction completes first, the panel runs clean.
                 Button {
-                    importFolderFromPanel()
+                    Task { importFolderFromPanel() }
                 } label: { Text(verbatim: "Import Folder…") }
                 .disabled(libraryProjects.projectStore == nil)
                 .keyboardShortcut("i", modifiers: [.command, .shift])
@@ -1507,6 +1524,38 @@ internal struct LightamerApp: App {
                 }
             }
 
+            // ── Image (Plan M2-10-07 T3, KD-3 / OQ-8-A) — the editor's AI
+            // enhancement entries: the two commands act on the CURRENT
+            // image and route through the WorkspaceModel request face
+            // (ONE presentation owner — the host presents the dialog).
+            CommandMenu(String(localized: "menu_image",
+                               defaultValue: "Image")) {
+                Button(String(localized: "menu_image_ai_upscale",
+                              defaultValue: "AI Super Resolution…")) {
+                    guard let workspace = focusedWorkspace,
+                        let id = workspace.editorPhase.currentImageID
+                    else { return }
+                    workspace.requestAIEnhance(
+                        kind: .upscale, imageIDs: [id])
+                }
+                .disabled(
+                    focusedWorkspace?.phase != .editor
+                        || focusedWorkspace?.editorPhase.currentImageID == nil)
+                .accessibilityIdentifier(AIEntryPointCoordinator.Marker.menuUpscale)
+                Button(String(localized: "menu_image_ai_denoise",
+                              defaultValue: "AI Denoise…")) {
+                    guard let workspace = focusedWorkspace,
+                        let id = workspace.editorPhase.currentImageID
+                    else { return }
+                    workspace.requestAIEnhance(
+                        kind: .denoise, imageIDs: [id])
+                }
+                .disabled(
+                    focusedWorkspace?.phase != .editor
+                        || focusedWorkspace?.editorPhase.currentImageID == nil)
+                .accessibilityIdentifier(AIEntryPointCoordinator.Marker.menuDenoise)
+            }
+
             // ── Help ────────────────────────────────────────────────
             CommandGroup(replacing: .help) {
                 // Phase 13 fills; placeholder in Phase 1.
@@ -1549,6 +1598,9 @@ internal struct LightamerApp: App {
             SettingsView(legacyLibraryEnabled: legacyLibraryEnabled)
                 .environment(catalogPreferences)
                 .environment(pipeCoordinator)
+                // Plan M2-10-07: the LCR page's 换激活 registry + active-model
+                // read ride the OPEN project controller.
+                .environment(libraryProjects)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
         }
     }
