@@ -35,6 +35,19 @@ import LightamerCore
 // silent fallback, the YiyinFontStore discipline).
 // ─────────────────────────────────────────────────────────────────────────
 
+/// The per-LUT remembered authoring-encoding pair (M3-1-01 KD-5) — ONE
+/// atomic struct: a half-remembered pair is unrepresentable by construction
+/// (the plan's 禁两独立 optional ruling).
+public struct RememberedEncodings: Codable, Equatable, Sendable {
+    public var input: LutEncodingId
+    public var output: LutEncodingId
+
+    public init(input: LutEncodingId, output: LutEncodingId) {
+        self.input = input
+        self.output = output
+    }
+}
+
 public final class LutLibraryStore: Lut3dModule.LutResolving, @unchecked Sendable {
 
     public enum LutError: Error, Equatable {
@@ -45,7 +58,7 @@ public final class LutLibraryStore: Lut3dModule.LutResolving, @unchecked Sendabl
     }
 
     /// One installed LUT (the registry row). `name` is the FILE NAME (the
-    /// display base); the registry KEY is `relativePath` (KD-1). The two
+    /// display base); the registry KEY is `relativePath` (KD-1). The
     /// additive fields are optional so the pre-recursive registry (flat
     /// keys, no new fields) decodes without a custom conformance; the
     /// decode fixup derives them from the dict key.
@@ -62,10 +75,16 @@ public final class LutLibraryStore: Lut3dModule.LutResolving, @unchecked Sendabl
         /// The containing subdirectory relative to the root (nil = the
         /// root itself; the panel groups on this).
         public var subdirectory: String?
+        /// The remembered authoring-encoding pair (M3-1-01 KD-5) —
+        /// additive optional: the synthesized encoder omits nil, so a
+        /// no-memory registry row's JSON bytes are unchanged (the
+        /// byte-zero-drift contract, the M2-5 `relativePath` precedent).
+        public var rememberedEncodings: RememberedEncodings?
 
         public init(
             name: String, relativePath: String? = nil, subdirectory: String? = nil,
-            hash: String, is1D: Bool, size: Int, title: String?
+            hash: String, is1D: Bool, size: Int, title: String?,
+            rememberedEncodings: RememberedEncodings? = nil
         ) {
             self.name = name
             self.hash = hash
@@ -74,6 +93,7 @@ public final class LutLibraryStore: Lut3dModule.LutResolving, @unchecked Sendabl
             self.title = title
             self.relativePath = relativePath
             self.subdirectory = subdirectory
+            self.rememberedEncodings = rememberedEncodings
         }
 
         /// The in-memory key face (relativePath is always set post-fixup).
@@ -146,6 +166,21 @@ public final class LutLibraryStore: Lut3dModule.LutResolving, @unchecked Sendabl
     }
 
     public static let supportedExtensions = ["cube"]
+
+    /// The seeded-set directory marker (the KD-4 seeder's destination) —
+    /// the KD-5 stamping scope is permanently this prefix.
+    public static let builtInPrefix = "BuiltIn/"
+
+    /// The built-in spectral-film set's authoring pair (KD-5; the
+    /// generation parameters are on record in
+    /// `.work/gsd/phases/m2-5-color-grade/evidence/spectral-film-lut-license.md`:
+    /// input ARRI Wide Gamut 4 / output Rec.709 + Gamma 2.4). Selecting
+    /// these LUTs with the remembered pair runs the log-domain pipeline —
+    /// the OBSERVABLE-CHANGE delivery note (new selections render
+    /// differently = the corrected pipeline, not a regression; existing
+    /// documents keep the default pair through the three-layer order).
+    public static let builtInRememberedPair = RememberedEncodings(
+        input: .arriLogC4AWG4, output: .rec709BT1886)
 
     public let lutsDirectory: URL
     public let registryURL: URL
@@ -259,6 +294,19 @@ public final class LutLibraryStore: Lut3dModule.LutResolving, @unchecked Sendabl
 
     /// Parse + register `data` under `relativePath` (no dedup — the
     /// adopt/update path). Caller holds the lock.
+    ///
+    /// M3-1-01 KD-5 (checker E3): the adoption path is the registry row's
+    /// REAL birth point (`seedBuiltIns` is a static pure file copy with no
+    /// registry access) — so the built-in spectral-film pair is stamped
+    /// HERE, on every `BuiltIn/`-prefixed row this path creates. Drift
+    /// re-adoption rebuilds the row wholesale, so the stamp re-applies
+    /// (the built-in pair is on record — re-stamping is a return to the
+    /// documented authoring values); a row carrying its own memory is not
+    /// reachable through this path unless the file drifted (the known
+    /// external-drift corner, DECISIONS). Stamping scope is permanently
+    /// the `BuiltIn/` prefix (the seeder's directory discipline — a custom
+    /// root never gets auto-stamped rows unless the user names a folder
+    /// BuiltIn themselves).
     private func adopt(data: Data, relativePath: String) {
         do {
             let lut = try CubeLutParser.parse(data: data)
@@ -272,9 +320,13 @@ public final class LutLibraryStore: Lut3dModule.LutResolving, @unchecked Sendabl
             let subdirectory = relativePath.contains("/")
                 ? String(relativePath[..<relativePath.lastIndex(of: "/")!])
                 : nil
-            installed[relativePath] = InstalledLut(
+            var entry = InstalledLut(
                 name: name, relativePath: relativePath, subdirectory: subdirectory,
                 hash: String(StableHash.hash(data)), is1D: is1D, size: size, title: lut.title)
+            if relativePath.hasPrefix(Self.builtInPrefix) {
+                entry.rememberedEncodings = Self.builtInRememberedPair
+            }
+            installed[relativePath] = entry
             parsed[relativePath] = lut
         } catch {
             // A drifted/corrupt file loses its row (typed absence — the
@@ -282,6 +334,20 @@ public final class LutLibraryStore: Lut3dModule.LutResolving, @unchecked Sendabl
             installed.removeValue(forKey: relativePath)
             parsed.removeValue(forKey: relativePath)
         }
+    }
+
+    /// The panel's remember-toggle write face (KD-4): store `pair` on the
+    /// entry (nil = clear the memory). Unknown reference = typed no-op.
+    /// Persistence rides the existing `persistRegistry` (additive
+    /// `encodeIfPresent` — clearing a memory REMOVES the key again).
+    public func updateRememberedEncodings(
+        named name: String, to pair: RememberedEncodings?
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let key = resolvedKey(for: name), installed[key] != nil else { return }
+        installed[key]?.rememberedEncodings = pair
+        persistRegistry()
     }
 
     private func persistRegistry() {

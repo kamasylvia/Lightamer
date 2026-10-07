@@ -52,3 +52,8 @@ input/golden/fixtures/lensfun/*
 # reproducible source of everything in here.
 Resources/AIModels/**
 !Resources/AIModels/.keep
+
+# local-only scratch (2026-10-08)
+.work/tmp-public/
+.work/debug-flaky/
+.build/
