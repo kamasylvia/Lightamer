@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: M2
-milestone_name: Alcedo V1 (2026-09-27 project redefinition)
-current_phase: M2 closed — milestone terminal (next: V2 / Maintenance station; no milestone chartered)
-status: M2-11 complete + M2 milestone closed (VALIDATION signed 2026-10-07, terminal 2961/16/0); next station = V2 / Maintenance (not chartered)
-last_updated: "2026-10-07T00:00:00.000Z"
+milestone: M3
+milestone_name: Film Darkroom (2026-10-08 chartered from V2/Maintenance station, plan A)
+current_phase: M3-0 (charter) in_progress — next: M3-1 discuss/research drafting
+status: M3 chartered per V2 station plan A (OQ-V2-1..10 all-recommendations pre-ruling 6e265ee, user can overturn); M2 closed 2026-10-07 (terminal 2961/16/0)
+last_updated: "2026-10-08T00:00:00.000Z"
 progress:
   total_phases: 16
   completed_phases: 14
@@ -12,13 +12,15 @@ progress:
   completed_plans: 140
   m2_phases_total: 12
   m2_phases_complete: 12
+  m3_phases_total: 5
+  m3_phases_complete: 0
 ---
 
 # Project State: Lightamer
 
-**Last updated:** 2026-10-07
-**Current phase:** M2 closed（M2-11 VALIDATION 兼收口 signed 2026-10-07；下一站 = V2 / Maintenance，未立项态）
-**Status:** Milestone 1 Phases 1-16 = 历史记录；Milestone 2 **closed**（M2-0..M2-11 全 complete；M2-11 VALIDATION 兼收口 signed 2026-10-07，终验 TOTAL|2961/16/0|1081s 干净绿；挂账移交 = `phases/m2-11-performance/M2-11-VALIDATION-INPUT.md` §4.4 单一清单）
+**Last updated:** 2026-10-08
+**Current phase:** M3-0 立项 in_progress（M2 closed 2026-10-07；V2/Maintenance 站立项 = 方案 A「胶片暗房」，OQ-V2-1..10 用户预裁「按推荐」）
+**Status:** Milestone 1 Phases 1-16 = 历史记录；Milestone 2 **closed**（M2-0..M2-11 全 complete；M2-11 VALIDATION 兼收口 signed 2026-10-07，终验 TOTAL|2961/16/0|1081s 干净绿；挂账移交 = `phases/m2-11-performance/M2-11-VALIDATION-INPUT.md` §4.4 单一清单）；**Milestone 3 opened 2026-10-08**（方案 A「胶片暗房」：M3-1 前置批 M2GRADE-08+YIYIN-09+小件族 → M3-2 FSIM research → M3-3 FSIM-01 主打 → M3-4 FSIM-02 收口；规格正本 = `phases/v2-station/V2-PROPOSAL.md` + `OQ.md`）
 
 ## Completion Ledger
 
@@ -58,9 +60,20 @@ progress:
 | M2-10 | AI library features | **complete (VALIDATION signed 2026-10-07; 7 plans accepted; M2AI-01..10 all Delivered — flip ledger carried by `de68703`, zero error-level findings across six acceptance rounds; minor ×3 fixed in acceptance batches `6f768c0`/`ede45f8`/`b766cf5` + 06 memory M-1 closed by `c573087`; 07 execution batch closed by continuation worker after predecessor death — D16; SidecarV5 ANE flake five-wave ledger closed, environment attribution — `phases/m2-10-ai-library/M2-10-VALIDATION.md`)** | **2955/16skip/0fail** |
 | M2-11 | Performance + closeout | **complete — M2 milestone closed** (VALIDATION 兼收口 signed 2026-10-07 — `phases/m2-11-performance/M2-11-VALIDATION.md`; five plans accepted; M2PERF-01/02 + M2DRT-06 + M2NODE-03 Delivered via closeout flip; terminal round `TOTAL|2961/16/0|1081s` clean green after recovery protocol — ToneEqual latent crash family + L057-family LUT-import SIGSEGV registered with .ips evidence, ownership to morning review; red-line domains zero diff; PERF-07 0.543s in-band; GUI round four meanings done — zoom/pan hitch >50ms = 0 live, O-2 8557MB reproduced; backlog single list = VALIDATION-INPUT §4.4) | **2961/16skip/0fail** |
 
+## Milestone 3 Ledger (Film Darkroom — 2026-10-08 chartered, V2 station plan A)
+
+| Phase | Name | Status | Terminal tests |
+|---|---|---|---|
+| M3-0 | Charter & station spec | **in_progress** (2026-10-08: V2 proposal `4f84351` + OQ-V2-1..10 all-recommendations ruling `6e265ee`; five ledgers updated this batch — ROADMAP M3 block / REQUIREMENTS → M3 marks + FSIM-01a..d drafts / STATE / GOAL-STATE append-only continuation / TODO header; next = M3-1 discuss/research drafting) | — |
+| M3-1 | W1 lead batch: M2GRADE-08 + YIYIN-09 + small-items family (zh cleanup / collision-tier selector / peak-ICC / denoise drag-down semantics) | pending | — |
+| M3-2 | FSIM research round (+ M7 spike + FSIM-03 note riders) | pending | — |
+| M3-3 | FSIM-01 two-stage film simulation (stage model + auto printing-filter solve + Y/M offsets) | pending | — |
+| M3-4 | FSIM-02 latitude panel + M3 VALIDATION closeout | pending | — |
+
 ## Notes
 
 - Phase 9/11/12 UAT: user exemption 2026-09-27（四期翻转一句话豁免；材料全齐：09-UAT.md 12 pass/3 skip/0 真缺陷 + 各 VALIDATION validated）。
 - Phase 10 (yiyin) was executed as Phase 8 (execution-order 08 = ROADMAP §Phase 10).
 - Phase 16 backend ruling: v1 = local SQLite (user 2026-09-27); pg = v2 evaluation item.
+- Milestone 3 chartered 2026-10-08 per V2/Maintenance station proposal plan A (film darkroom); OQ-V2-1..10 all-recommendations pre-ruling (user can overturn at any time). Plan B (RASTER-IN-01 / IOP-MASK-06 V2 / IOP-MASK-07) rolls to M4; ALCE-02/03 (EXR / Ultra HDR) M4; Mertens M4-W2; TRACK-01..05 M4; IOP-PANO-01 M5. In-flight fix batch (FINDING-F / ToneEqual) isolation discipline carries over to all M3 waves.
 - push: local-only per user instruction (~370+ commits ahead of Azure DevOps origin; GitHub repo not yet created — 13-4 DIST-01).

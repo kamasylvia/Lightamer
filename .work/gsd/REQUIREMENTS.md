@@ -275,7 +275,7 @@ Lightamer 采用 Capture One 风格的 adjustment layers 作为局部调整的�
 - [x] **YIYIN-06**: Make/Model 品牌名归一化（如 Sony ILCE→α、Nikon Z→ℤ，移植 yiyin 的 model-map）—— **Delivered**（08-2 T2 表驱动逐点；D-08-2-2 定性 model-map.ts 为死代码面——归一化走 exif-format 活跃路径，忠实 yiyin 实际行为）
 - [x] **YIYIN-07**: 文字模板系统（预设模板 + 用户自定义模板字符串）—— **Delivered**（08-2 T3 引擎三门/交错/forceUse + 面板 CRUD 稳定 key 行）
 - [x] **YIYIN-08**: 输出尺寸/分辨率配置（DPI、长边/短边像素、是否保留原尺寸）—— **Delivered**（08-3 T3 YiyinExportSettings 独立值类型 + 校验 + 纯 targetSize 数学 + 与水印参数正交；物理应用 resize/DPI 写入 = Phase 11 EXP-03、导出消费点 = EXP-05，D-08-CONTEXT-7 裁决）
-- [ ] **YIYIN-09**: 预览面板拖拽调整——yiyin sheet 预览区支持拖拽垂直/水平分割线调整大小（对齐上游 ggchivalrous/yiyin PR #126 `a7ab9f8`，2026-10-07 fork 已同步 `f8de57a`；参考 `web/main/components/actions/`；Lightamer 侧 = yiyin sheet 预览面 UX 小件，M2-11 收官后 mini-plan）
+- [ ] **YIYIN-09**: 预览面板拖拽调整——yiyin sheet 预览区支持拖拽垂直/水平分割线调整大小（对齐上游 ggchivalrous/yiyin PR #126 `a7ab9f8`，2026-10-07 fork 已同步 `f8de57a`；参考 `web/main/components/actions/`；Lightamer 侧 = yiyin sheet 预览面 UX 小件，M2-11 收官后 mini-plan）—— **→ M3-W1**（2026-10-08 V2 立项裁决，OQ-V2-7：与小件族同批搭车）
 
 ### Metadata & Organization (META)
 
@@ -376,16 +376,20 @@ Deferred to future release. Tracked but not in current roadmap.
 
 来源 = `.work/gsd/research/SPEKTRALAB-NOTES.md`（GPL-3.0 代码只读；CC BY-SA 4.0 资产如引入须独立归属）；参考源码 = `/Volumes/UNITEK/Documents/Development/SpektraLab`（指南 + `rfc/`）。
 
-- **FSIM-01**: 两段式胶片模拟语义——「场景置位（胶片前）→ 胶片记录光 → 配光（测光自动算印相滤色组合 + Yellow/Magenta 手动偏移）→ 相纸呈现」阶段模型，升维现行 M2GRADE 单段 LUT；配光自动求解为其 UX 亮点对齐物
-- **FSIM-02**: 宽容度面板——场景直方图 + 胶片容纳范围双虚线 + 低于/内/高于占比读数；「场景置位与显影后曝光严格分离」「EDR 不可找回输入端已丢高光」的交互教导对齐
-- **FSIM-03**: 印相域影调蒙版阶段归属研究注记——影调蒙版属负片后、相纸前印放阶段，与场景置位/调整层蒙版非同一功能
+- **FSIM-01**: 两段式胶片模拟语义——「场景置位（胶片前）→ 胶片记录光 → 配光（测光自动算印相滤色组合 + Yellow/Magenta 手动偏移）→ 相纸呈现」阶段模型，升维现行 M2GRADE 单段 LUT；配光自动求解为其 UX 亮点对齐物 —— **→ M3 主打**（2026-10-08 V2 站立项方案 A：M3-3 实现，前置 M2GRADE-08 = M3-1；research 环 = M3-2）。M3 细化需求草案（**M3-2 research 细化**，转正或修正随 research 定稿）：
+  - **FSIM-01a**（草案）：节点图胶片段语义——Develop→Color Grade×N→Display Transform 链上新增胶片阶段（场景置位输入→胶片记录→配光→相纸四子阶段映射），与 M2-4 命令集/history/sidecar schema 兼容
+  - **FSIM-01b**（草案）：配光自动求解——软件测光（场景统计）自动求解印相滤色组合（Y/M/C 密度）+ Yellow/Magenta 手动偏移覆盖；确定性门 = 同输入同解
+  - **FSIM-01c**（草案）：染料近似域基线——RGB 域胶片响应近似（81 波长光谱引擎架构性不可达声明随 research 落档）；golden 参考基线构造方式 plan 期定
+  - **FSIM-01d**（草案）：胶片/相纸资产面——自建配置起步 vs 引入 SpektraLab 28 款实测配置 + 8 放大 LUT（CC BY-SA 4.0，独立归属义务，不与 MIT spectral_film_lut 混用），OQ-V2-10 三态对比 research 裁
+- **FSIM-02**: 宽容度面板——场景直方图 + 胶片容纳范围双虚线 + 低于/内/高于占比读数；「场景置位与显影后曝光严格分离」「EDR 不可找回输入端已丢高光」的交互教导对齐 —— **→ M3-W3 尾（M3-4，随 FSIM-01）**（2026-10-08 V2 站立项方案 A）
+- **FSIM-03**: 印相域影调蒙版阶段归属研究注记——影调蒙版属负片后、相纸前印放阶段，与场景置位/调整层蒙版非同一功能 —— **→ M3-2 research 并入**（2026-10-08 V2 站立项；研究注记不独立立项）
 
 ### Alcedo Upstream Parity Extensions (v2) — 2026-10-07 上游增量裁决（用户「按推荐走」）
 
 来源 = `.work/gsd/research/ALCEDO-FEATURE-MAP.md`「上游增量测绘」节（34241d0→f1fae5d，188 commits，v0.3.1+）。
 
-- **RASTER-IN-01**: 非 RAW 栅格开发链——JPEG/PNG/TIFF/OpenEXR 导入即开发：源 color description（ICC）解析 + HDR 旗标 → display-referred 输入经 DRT 逆链（ACES 2.0 逆变换路径）进编辑管线；含 OpenEXR（与 ALCE-02 OpenEXR 导出对偶）；文件夹导入文件类型选择器对齐上游 #264 形态
-- **M2GRADE-08**: LUT 作者编码建模——LUT input/output encoding（面板选择器 + 编码随 LMT 生效 + 库内逐 LUT 记忆 + 传递曲线/色域目录，对齐上游 c740f7b 形态）；解决「胶片 LUT 作于 log 域而我方按 working space 直套」的系统性偏差（V2 段，可插队 M2 后期 UI 打磨轮）
+- **RASTER-IN-01**: 非 RAW 栅格开发链——JPEG/PNG/TIFF/OpenEXR 导入即开发：源 color description（ICC）解析 + HDR 旗标 → display-referred 输入经 DRT 逆链（ACES 2.0 逆变换路径）进编辑管线；含 OpenEXR（与 ALCE-02 OpenEXR 导出对偶）；文件夹导入文件类型选择器对齐上游 #264 形态 —— **→ M4**（2026-10-08 V2 站立项：方案 B 滚存 M4 主打，不入 M3）
+- **M2GRADE-08**: LUT 作者编码建模——LUT input/output encoding（面板选择器 + 编码随 LMT 生效 + 库内逐 LUT 记忆 + 传递曲线/色域目录，对齐上游 c740f7b 形态）；解决「胶片 LUT 作于 log 域而我方按 working space 直套」的系统性偏差（V2 段，可插队 M2 后期 UI 打磨轮）—— **→ M3-W1 前置**（2026-10-08 V2 立项裁决；「插队 M2 后期」窗口随 M2 收官兑现，FSIM-01 软前置基建）
 - **注记（非需求）**：OCIO ACES 2.0 reference forward transform（上游 `8f8e712`）= M2-6 aces-core 移植的交叉验证测试资产机会，规划 parity 测试时取用；图库编辑时间分组（#276）/后台任务岛（#275）= UI parity 参照，不立项。
 
 ### Editor Workflow Extensions
