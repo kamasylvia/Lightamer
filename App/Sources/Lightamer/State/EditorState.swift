@@ -160,6 +160,35 @@ final class EditorState {
         upsert(instance: snapshot)
     }
 
+    // ── M2-6-3 T1 (KD-1): the document-level DRT commit face ─────────────
+
+    /// D-H1 COMMIT leg for the document-level DRT record: EXACTLY ONE
+    /// history item whose payload rides `drtRecord` (the additive
+    /// HistoryItem field); the required snapshot slot carries the current
+    /// top global record as a PLACEHOLDER (the `commitLayerStructure`
+    /// shape) and the `HistoryStack.drtDocumentScope` marker keeps that
+    /// placeholder out of every projection (KD-1's hard constraint — the
+    /// instance set is never polluted). Preset applications, method
+    /// switches and encodings all land through here (the panel passes the
+    /// `history_drt_*` label family); undo/redo restore through the
+    /// coordinator's navigation faces (the carrier re-syncs from
+    /// `effectiveDrtRecord()` there).
+    func recordDrtChange(_ record: DrtRecord, label: String) {
+        let placeholder = instances.first ?? baseInstances.first
+        guard let placeholder else { return }
+        history.commitDrt(record: record, placeholder: placeholder, label: label)
+        notifyDrtChange(record)
+    }
+
+    /// The EditorState → coordinator edge for the DRT dimension (the
+    /// `notifyPasteChange` shape): the coordinator updates the session
+    /// carrier, re-renders (the tail re-runs on the record hash fold) and
+    /// schedules the sidecar write — the caller does none of that.
+    private func notifyDrtChange(_ record: DrtRecord) {
+        guard let pipeCoordinator else { return }
+        Task { await pipeCoordinator.drtRecordDidChange(record) }
+    }
+
     /// 04-08-F2 (GUI-9 闭环): menu enablement source — true while the
     /// stack has an entry at/below the pointer to step back into.
     /// The Edit → Undo menu binds `.disabled(!canUndo)` to this, so ⌘Z
@@ -987,7 +1016,11 @@ final class EditorState {
         }), let snapshot = upTo[lastStructure].stackSnapshot {
             for layer in snapshot.makeLayers() { stack.addAdjustment(layer) }
         }
-        for item in upTo where item.layerScope != nil && item.layerScope != Self.layerStructureScope {
+        // The in-scope param items re-apply onto their layer's chain. The
+        // M2-6-3 DRT document items (drtDocumentScope) are not layer state —
+        // excluded explicitly (the payload rides drtRecord, never a chain).
+        for item in upTo where item.layerScope != nil && item.layerScope != Self.layerStructureScope
+            && item.layerScope != HistoryStack.drtDocumentScope {
             guard let layer = stack.compositeLayers.first(where: {
                 $0.id.uuidString == item.layerScope
             }) as? AdjustmentLayer else { continue }

@@ -242,14 +242,17 @@ final class EditorStackRoutingTests: XCTestCase {
                 group(op), .detailTexture,
                 "\(op) rides Detail/Texture (m1: colorzones included)")
         }
-        // D9: the four DRT-seat rows carry the honest pre-DRT note.
+        // M2-6-3 T5 (M2DRT-05): the four DRT seats RUN post-DRT now — the
+        // D9 pre-DRT notes are RETIRED (the rows stay on the Look page;
+        // the flip mirrors the M2-6-2 stub-pin synchronization precedent).
         for op in drtSeatOps {
-            XCTAssertEqual(
-                look.first { $0.opName == op }?.note, "panel_note_pre_drt",
-                "\(op) must carry the pre-DRT note")
+            XCTAssertNil(
+                look.first { $0.opName == op }?.note,
+                "\(op) must NOT carry the retired pre-DRT note")
         }
         XCTAssertEqual(
-            look.filter { $0.note != nil }.count, 4, "exactly the four D9 notes")
+            look.filter { $0.note != nil }.count, 0,
+            "no Look-page note survives the post-DRT migration")
         // LUT page: lmt stays (D10 字面) — Look never hosts it.
         XCTAssertFalse(look.contains { $0.opName == Lut3dModule.opName })
         XCTAssertEqual(
@@ -319,8 +322,10 @@ final class EditorStackRoutingTests: XCTestCase {
                 markdown.contains("| `\(descriptor.opName)` |"),
                 "the sheet row \(descriptor.opName) rides the sheet section")
         }
-        // The special slots are declared.
-        XCTAssertTrue(markdown.contains("arrives with M2-6"), "the DRT slot")
+        // The special slots are declared. M2-6-3: the DRT slot's marker is
+        // the LIVE panel face (the placeholder copy retired with it — the
+        // transcription pins the current reality).
+        XCTAssertTrue(markdown.contains("DrtPanelView"), "the DRT slot (the live panel)")
         XCTAssertTrue(markdown.contains("LayersPanelView"), "the Mask pre-home")
         XCTAssertTrue(markdown.contains("CIRAW"), "the RAW Decode slot")
         // The page order line.

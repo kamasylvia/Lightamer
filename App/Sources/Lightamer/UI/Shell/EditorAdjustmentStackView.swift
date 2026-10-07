@@ -16,10 +16,10 @@ import SwiftUI
 // `EditorTabRoutingTable` (the coded OQ-4 map).
 //
 // SPECIAL PAGES (the D3 活体壳 boundaries):
-//   • Display Transform = Vignette + the "OpenDRT / ACES 2.0 arrive with
-//     M2-6" placeholder section (checker E1: AgX stays unhoused — the M2-1
-//     disabled face; the env=1 full-face opt-back rides the legacy flat
-//     path, untouched).
+//   • Display Transform = Vignette + the LIVE DRT panel (M2-6-3 T2 — the
+//     M2-3 honest-shell placeholder is retired; the checker E1 boundary
+//     stands: AgX stays unhoused, the M2-1 disabled face; the env=1
+//     full-face opt-back rides the legacy flat path, untouched).
 //   • RAW Decode = the CIRAW parameter panel slot (T4 fills it; until then
 //     the honest slot copy shows).
 //   • Mask = the adjustment-layers panel (LayersPanelView) + the MaskToolbar
@@ -132,7 +132,16 @@ struct EditorAdjustmentStackView: View {
                         decoder: workspace.editorDecoder,
                         metalContext: rawDecodeMetal)
                 case .displayTransformPlaceholder:
-                    drtPlaceholder
+                    // M2-6-3 T2 (KD-2): the honest shell is GONE — the enum
+                    // case remains the routing table's special-content
+                    // marker for the page, but the value now renders the
+                    // LIVE DRT panel (the reinterpretation is signed in
+                    // M2-6-3-DECISIONS; the placeholder copy/accessibility
+                    // id are deleted — grep-zero on
+                    // "editor.stack.drt.placeholder").
+                    DrtPanelView(
+                        workspace: workspace, editorState: editorState,
+                        pipeCoordinator: pipeCoordinator)
                 case .none:
                     EmptyView()
                 }
@@ -276,26 +285,10 @@ struct EditorAdjustmentStackView: View {
 
     // MARK: - Special pages
 
-    /// The Display Transform placeholder (checker E1 勘误: NO AgX — the
-    /// DRT arrives with M2-6; the honest-shell family copy).
-    private var drtPlaceholder: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label {
-                Text(String(
-                    localized: "editor_stack_drt_placeholder",
-                    defaultValue: "OpenDRT / ACES 2.0 arrive with M2-6"))
-            } icon: {
-                Image(systemName: "waveform.path.ecg")
-            }
-            .font(.caption)
-            .foregroundStyle(ThemeTokens.textSecondary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(ThemeTokens.cardBorder.opacity(0.15))
-        .accessibilityIdentifier("editor.stack.drt.placeholder")
-    }
+    // M2-6-3 T2: the Display Transform placeholder view is RETIRED — the
+    // page's special-content arm mounts the live DrtPanelView (see the
+    // pageContent switch; the editor_stack_drt_placeholder key retired
+    // with it).
 
     /// The Mask page's toolbar linkage (mask drawing happens on the
     /// viewport; the floating toolbar owns the tool face — M2-7 replaces).

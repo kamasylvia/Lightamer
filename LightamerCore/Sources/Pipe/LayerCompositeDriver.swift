@@ -201,7 +201,7 @@ enum LayerCompositeDriver {
         policy: LayerCachePolicy = .preview,
         hotLayerID: UUID? = nil,
         maskDirectory: URL? = nil,
-        edrDisplayLeg: Bool = false
+        terminalTail: TerminalTailPolicy = .sdrGamma
     ) async throws -> LayerCompositeResult {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -537,10 +537,12 @@ enum LayerCompositeDriver {
             let terminalPipe = PixelPipe(resolution: resolution, cache: cache)
             terminalPipe.imageID = imageID
             terminalPipe.layerStack = layerStack // baseLayer.id namespace
-            // 08-4 T2: the EDR display leg rides the TERMINAL leg only —
-            // gamma lives at the tail end of this chain (the base chain is
-            // all < 70.0), so the SDR-clamp short-circuit is terminal-scoped.
-            terminalPipe.edrDisplayLeg = edrDisplayLeg
+            // 08-4 T2 / M2-6-1 T7: the terminal-tail policy rides the
+            // TERMINAL leg only — the tail residents live at the chain's
+            // end (the base chain is all < 70.0), so the policy is
+            // terminal-scoped (the pass-through radius: same seat, new
+            // type — the derived edrDisplayLeg keeps the EDR semantics).
+            terminalPipe.terminalTail = terminalTail
             // GUI-21 (2026-09-24): the terminal's hash seed is the FINAL
             // composite prefix identity — NOT the bare decode hash. The
             // decode-only seed made the terminal's cache lines blind to

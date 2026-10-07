@@ -461,6 +461,14 @@ final class PipeCoordinator {
     /// the toggle both ways (T2/T4's zero-stale contract).
     func setEDRDisplay(_ on: Bool) {
         guard edrDisplayEnabled != on else { return }
+        // M2-6-3 KD-4: the DRT tail OWNS the terminal segment on a
+        // non-pristine DRT document — the manual EDR toggle is BYPASSED
+        // there (the state-drift defense; the UI face disables the toggle
+        // and this guard is the state-machine backstop).
+        guard !drtTailActive else {
+            Self.logger.debug("EDR toggle bypassed — the DRT tail owns the display tail")
+            return
+        }
         edrDisplayEnabled = on
         guard decoded != nil else { return }
         generation += 1
@@ -526,6 +534,160 @@ final class PipeCoordinator {
         }
         scheduleSidecarWrite()
     }
+
+    // ── M2-6-3 T1 (KD-1): the DRT persistence four-piece (rawOverrides
+    //    shape) + the live/commit trio (the document-scope D-H1 twin) ──
+
+    /// ② WRITE leg's coordinator face (the updateRawOverrides twin): the
+    /// session carrier was ALREADY updated by the caller and
+    /// `makeSidecarDocument` reads THAT carrier for the sidecar v6
+    /// `displayTransform` field — one truth, no second mirror. This face
+    /// only schedules the existing 2s-throttled write.
+    func updateDrtRecord(_ record: DrtRecord, for url: URL) {
+        guard url == currentImageURL else {
+            Self.logger.debug(
+                "drt record write for a non-current image — session carrier holds it"
+            )
+            return
+        }
+        scheduleSidecarWrite()
+    }
+
+    /// ③ RESTORE leg (the restoreRawOverridesLeg :544 graded semantics):
+    ///   • pristine documents (nil field) — zero action (the v5 shape and
+    ///     behavior byte-for-byte);
+    ///   • stored == session carrier — skip (switch-backs re-prime nothing);
+    ///   • stored != carrier — prime the carrier (the render rides THIS
+    ///     load's own `renderPreview` pass — no decode-#2 face needed: the
+    ///     DRT tail keys on the record hash, not the decode request).
+    /// The record travels in the HISTORY item too; on a consistent document
+    /// the field equals `effectiveDrtRecord()` — a mismatch (hand-edited/
+    /// foreign doc) logs and the FIELD wins (the plan's persistence truth;
+    /// the item replay still covers undo from here).
+    private func restoreDrtRecordLeg(document: LightamerSidecar, url: URL) {
+        guard let stored = document.displayTransform else { return } // pristine 档零动作
+        if let editorState, editorState.history.effectiveDrtRecord() != stored {
+            Self.logger.error(
+                "sidecar displayTransform disagrees with the history's DRT item — the persisted field wins"
+            )
+        }
+        let session = workspace?.drtRecord(for: url) ?? DrtRecord()
+        guard stored != session else { return } // switch-back skip
+        workspace?.setSessionDrtRecord(stored, for: url)
+    }
+
+    /// The EditorState DRT commit notification target (the notifyPasteChange
+    /// edge): sync the carrier from the HISTORY truth (NOT the captured
+    /// record — queued notifications from rapid successive edits must never
+    /// stomp a NEWER state: the commit face writes the item BEFORE this Task
+    /// hops, so the history projection is always the idempotent truth, even
+    /// for a notification that fired before an undo), re-render (the DRT
+    /// tail re-runs on the record-hash fold — everything before colorout
+    /// stays HIT), and schedule the sidecar write (a committed move).
+    func drtRecordDidChange(_ record: DrtRecord) async {
+        guard decoded != nil else { return }
+        syncDrtCarrierWithHistory()
+        await historyDidChange()
+        scheduleSidecarWrite()
+    }
+
+    /// Whether the CURRENT image carries a NON-pristine DRT record (the
+    /// `.drt` run-pass gate + the manual-EDR mutual-exclusion face —
+    /// KD-4). This is the viewport-side `drtTailActive` mirror's source.
+    var drtTailActive: Bool {
+        guard let url = currentImageURL, let workspace else { return false }
+        return workspace.hasDrtRecord(for: url)
+    }
+
+    /// The viewport surface spec for the CURRENT image's DRT tail (nil = no
+    /// tail / pristine — the legacy faces). The derivation is the view
+    /// layer's terminal form (EditorMTKView.Coordinator.drtSurfaceSpec — the
+    /// CGColorSpace constants live with the CAMetalLayer writer); the
+    /// @Observable read makes every surface flip re-render the view body.
+    var drtViewportSurface: DrtSurfaceSpec? {
+        guard drtTailActive, let url = currentImageURL, let workspace else {
+            return nil
+        }
+        return EditorMTKView.Coordinator.drtSurfaceSpec(
+            for: workspace.drtRecord(for: url))
+    }
+
+    /// ④ RUN pass-through (KD-1 item 4): the terminal-tail policy for a
+    /// render at `resolution`, in ONE decision place. A non-pristine
+    /// carrier record routes `.drt(DrtTailParams)` — DRT owns the terminal
+    /// segment and the manual EDR toggle is BYPASSED (KD-4's mutual
+    /// convergence). A pristine document passes the pre-M2-6 tail decision
+    /// UNCHANGED (`.sdrGamma` / the manual `.edrLinear`) — the zero-
+    /// pipeline-difference red line; 「DRT 恒在」是面板概念, the RENDER face
+    /// of pristine = no DRT segment (KD-1). THUMBNAIL keeps the legacy SDR
+    /// tail in every branch (the EDR gate's `resolution != .thumbnail`
+    /// shape — the grid consumes display-ready SDR planes).
+    private func terminalTailPolicy(for resolution: PipeResolution) -> TerminalTailPolicy {
+        if resolution != .thumbnail, let url = currentImageURL, let workspace,
+            workspace.hasDrtRecord(for: url)
+        {
+            return .drt(DrtTailParams(
+                record: workspace.drtRecord(for: url),
+                // M2-6-3 T5 (KD-5): the Post-four demotion set — computed
+                // from the IOP catalog HERE (the App side; the Core-does-
+                // not-import-IOP direction constraint holds) and injected
+                // into the tail params.
+                postOpNames: NodeOwnershipCatalog.drtPostOpNames))
+        }
+        return edrDisplayEnabled && resolution != .thumbnail
+            ? .edrLinear : .sdrGamma
+    }
+
+    /// Navigation faces carrier re-sync (the undo/redo 恢复腿's carrier
+    /// half): after a pointer move the carrier re-derives from the
+    /// HISTORY's effective record (the edit truth — the commit face wrote
+    /// the same value, so this is a no-op after a commit and the REAL
+    /// restore after an undo/redo/jump crosses a DRT item).
+    private func syncDrtCarrierWithHistory() {
+        guard let editorState, let url = currentImageURL else { return }
+        workspace?.setSessionDrtRecord(
+            editorState.history.effectiveDrtRecord(), for: url)
+    }
+
+    /// D-H1 LIVE leg for the document-level DRT record (the panel's drag
+    /// ticks): carrier update + re-render, ZERO history items (the
+    /// setLiveParams shape). The record rides the pending slot so the
+    /// commit leg lands ONE item per interaction.
+    func setDrtLive(_ record: DrtRecord) async {
+        guard decoded != nil, let url = currentImageURL else { return }
+        workspace?.setSessionDrtRecord(record, for: url)
+        drtEditPending = record
+        await historyDidChange()
+    }
+
+    /// D-H1 drag END for the DRT record: commit the pending record as ONE
+    /// `history_drt_*` item (a no-op drag — no pending change vs the seed —
+    /// lands nothing, the commitContinuousEdit `guard !touched.isEmpty`
+    /// shape).
+    func commitDrtEdit(label: String) async {
+        isEditingDrt = false
+        guard let pending = drtEditPending else { return }
+        drtEditPending = nil
+        guard pending != drtEditSeed else { return }
+        drtEditSeed = nil
+        editorState?.recordDrtChange(pending, label: label)
+        // The carrier sync + re-render + sidecar write ride the
+        // drtRecordDidChange notification from the commit face.
+    }
+
+    /// Arm the DRT live window (the beginContinuousEdit shape).
+    func beginDrtEdit() {
+        isEditingDrt = true
+        drtEditPending = nil
+        drtEditSeed = currentImageURL.map { workspace?.drtRecord(for: $0) ?? DrtRecord() }
+    }
+
+    /// The pending record of an open DRT live window (nil = none).
+    private var drtEditPending: DrtRecord?
+    /// The carrier record captured at `beginDrtEdit` (the no-op-drag gate).
+    private var drtEditSeed: DrtRecord?
+    /// True between `beginDrtEdit` and `commitDrtEdit`.
+    private var isEditingDrt = false
 
     /// The RESTORE leg (checker E1 方案①): a loaded document's persisted
     /// rawOverrides seed the session carrier and trigger a RE-DECODE with
@@ -766,6 +928,10 @@ final class PipeCoordinator {
                     // restore leg — prime the session carrier + re-decode
                     // with the stored overrides (pristine documents skip).
                     restoreRawOverridesLeg(document: document, url: url)
+                    // M2-6-3 T1 (KD-1): the persisted DRT restore leg —
+                    // prime the session carrier (pristine documents skip;
+                    // the render rides this load's own preview pass).
+                    restoreDrtRecordLeg(document: document, url: url)
                 } else {
                     // Pristine seed (Plan 03-02-T4): terminal trio + the
                     // LightamerIOP tone iops with permanent panels at
@@ -1005,6 +1171,17 @@ final class PipeCoordinator {
         let sessionOverrides = currentImageURL.map {
             workspace?.rawDecodeOverrides(for: $0) ?? .identity
         } ?? .identity
+        // M2-6-3 T1 (KD-1): the persisted DRT record reads the SESSION
+        // carrier the same way; a DEFAULT record persists as the ABSENT
+        // key (isDrtRecordDefault — the v5 byte shape is preserved). The
+        // drift anchor folds the HISTORY's effective record (KD-1
+        // set-fields-move) — the carrier and the history projection agree
+        // by construction (every write face syncs both).
+        let sessionDrt = currentImageURL.map {
+            workspace?.drtRecord(for: $0) ?? DrtRecord()
+        }
+        let drtForField: DrtRecord? =
+            sessionDrt.flatMap { isDrtRecordDefault($0) ? nil : $0 }
         return LightamerSidecar(
             imageID: imageID,
             decoderVersionUsed: decoded.decoderVersionUsed.rawValue,
@@ -1013,10 +1190,12 @@ final class PipeCoordinator {
             history: editorState.history,
             historyHash: HistoryHash.hash(
                 stack: editorState.history, decodeParamsHash: decodeHash,
-                layerSnapshot: stackRecord?.snapshot),
+                layerSnapshot: stackRecord?.snapshot,
+                drtRecord: editorState.history.effectiveDrtRecord()),
             appVersion: LightamerSidecar.currentAppVersion,
             layerStack: stackRecord,
-            rawOverrides: sessionOverrides.isIdentity ? nil : sessionOverrides)
+            rawOverrides: sessionOverrides.isIdentity ? nil : sessionOverrides,
+            displayTransform: drtForField)
     }
 
     /// D-S3: every committed history MOVE throttles a `.lra` write (2s
@@ -1318,6 +1497,7 @@ final class PipeCoordinator {
     /// sit in the cache from before the edit.
     func undo() async {
         guard let editorState, editorState.performUndo() else { return }
+        syncDrtCarrierWithHistory()
         await historyDidChange()
         scheduleSidecarWrite() // position moved — persist it too
     }
@@ -1325,6 +1505,7 @@ final class PipeCoordinator {
     /// HIST-02 redo: into an untruncated tail only.
     func redo() async {
         guard let editorState, editorState.performRedo() else { return }
+        syncDrtCarrierWithHistory()
         await historyDidChange()
         scheduleSidecarWrite()
     }
@@ -1343,6 +1524,7 @@ final class PipeCoordinator {
     func jumpToHistory(_ index: Int) async {
         guard let editorState else { return }
         editorState.performJump(to: index)
+        syncDrtCarrierWithHistory()
         await historyDidChange()
         scheduleSidecarWrite()
     }
@@ -1813,7 +1995,7 @@ final class PipeCoordinator {
                 maskDirectory: currentImageURL.map {
                     RasterMaskStore.masksDirectory(forImageURL: $0)
                 },
-                edrDisplayLeg: edrDisplayEnabled && resolution != .thumbnail)
+                terminalTail: terminalTailPolicy(for: resolution))
             return RenderChainOutput(texture: texture, stats: stats)
         }
         let (texture, stats) = try await RenderPipeline.process(
@@ -1824,7 +2006,7 @@ final class PipeCoordinator {
             cache: cache,
             metal: metal,
             longEdge: longEdge,
-            edrDisplayLeg: edrDisplayEnabled && resolution != .thumbnail
+            terminalTail: terminalTailPolicy(for: resolution)
         )
         return RenderChainOutput(texture: texture, stats: stats)
     }
@@ -1894,7 +2076,7 @@ final class PipeCoordinator {
                 maskDirectory: currentImageURL.map {
                     RasterMaskStore.masksDirectory(forImageURL: $0)
                 },
-                edrDisplayLeg: edrDisplayEnabled)
+                terminalTail: edrDisplayEnabled ? .edrLinear : .sdrGamma)
             return RenderChainOutput(texture: texture, stats: stats)
         }
         let (texture, stats) = try await RenderPipeline.process(
@@ -1905,7 +2087,7 @@ final class PipeCoordinator {
             cache: cache,
             metal: metal,
             longEdge: longEdge,
-            edrDisplayLeg: edrDisplayEnabled
+            terminalTail: edrDisplayEnabled ? .edrLinear : .sdrGamma
         )
         return RenderChainOutput(texture: texture, stats: stats)
     }

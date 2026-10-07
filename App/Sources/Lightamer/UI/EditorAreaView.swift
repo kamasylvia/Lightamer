@@ -83,7 +83,8 @@ internal struct EditorAreaView: View {
                             secondaryTexture: beforeAfterState.isCompareActive ? comparePlane : nil,
                             splitFraction: beforeAfterState.isCompareActive
                                 ? beforeAfterState.effectiveSplitFraction : nil,
-                            edrActive: pipeCoordinator.edrDisplayEnabled
+                            edrActive: pipeCoordinator.edrDisplayEnabled,
+                            drtTail: pipeCoordinator.drtViewportSurface
                         )
                         .transition(.opacity)
                         .accessibilityLabel(Text("editor_viewport"))

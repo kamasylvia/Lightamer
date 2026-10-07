@@ -1,0 +1,678 @@
+@testable import LightamerCore
+import Foundation
+import simd
+import XCTest
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Aces2MathTests (Plan M2-6-2 T1/T2/T3, AC#1-#4 — LAYERS bundle, Core level):
+// the Float64 ACES 2.0 math face.
+//
+//   T1 (this section): the CAM16 JMh core — viewing-condition constants
+//   asserted one by one, the SMPTE ST 2065-1 matrix anchors, the white/prim
+//   anchors, RGB→JMh→RGB round-trips over ramps + colorchecker-like
+//   sampling + extreme saturations, and the AP0/AP1 white-invariance
+//   (same XYZ → same JMh under either primaries' params).
+//
+//   T2 (the section below): the limiting-space seven tables + the RGC
+//   pure functions.
+//
+//   T3 (the section after): the ACES 2.0 ODT Float64 reference — tonescale
+//   monotonicity, endpoint boundedness, peak-dependence semantics.
+// ─────────────────────────────────────────────────────────────────────────────
+
+final class Aces2MathTests: XCTestCase {
+
+    // MARK: - T1: viewing-condition constants (逐常数断言, upstream :60-71)
+
+    func testViewingConditionConstants() {
+        XCTAssertEqual(Aces2Cam.refLuminance, 100.0, accuracy: 0)
+        XCTAssertEqual(Aces2Cam.luminousAscent, 100.0, accuracy: 0) // L_A
+        XCTAssertEqual(Aces2Cam.backgroundLuminance, 20.0, accuracy: 0) // Y_b
+        XCTAssertEqual(Aces2Cam.surround.x, 0.9, accuracy: 0)
+        XCTAssertEqual(Aces2Cam.surround.y, 0.59, accuracy: 0)
+        XCTAssertEqual(Aces2Cam.surround.z, 0.9, accuracy: 0)
+        XCTAssertEqual(Aces2Cam.jScale, 100.0, accuracy: 0)
+        XCTAssertEqual(Aces2Cam.camNlYReference, 100.0, accuracy: 0)
+        XCTAssertEqual(Aces2Cam.camNlOffset, 27.13, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.camNlScale, 400.0, accuracy: 0)
+        // The Hellwig-form model gamma (cz): 0.59·(1.48+√0.2) ≈ 1.13705602…
+        XCTAssertEqual(Aces2Cam.modelGamma, 0.59 * (1.48 + (0.2).squareRoot()), accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.modelGamma, 1.137056021344975, accuracy: 1e-12)
+    }
+
+    // MARK: - T1: chromaticity constants (逐值)
+
+    func testChromaticityConstants() {
+        // AP0 (SMPTE ST 2065-1).
+        XCTAssertEqual(Aces2Cam.ap0.red.x, 0.73470, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap0.red.y, 0.26530, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap0.green.x, 0.00000, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap0.green.y, 1.00000, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap0.blue.x, 0.00010, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap0.blue.y, -0.07700, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap0.white.x, 0.32168, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap0.white.y, 0.33767, accuracy: 1e-12)
+        // AP1.
+        XCTAssertEqual(Aces2Cam.ap1.red.x, 0.713, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap1.red.y, 0.293, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap1.green.x, 0.165, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap1.green.y, 0.830, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap1.blue.x, 0.128, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap1.blue.y, 0.044, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap1.white.x, 0.32168, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.ap1.white.y, 0.33767, accuracy: 1e-12)
+        // The CAM16 sharpened primaries (upstream :928-932).
+        XCTAssertEqual(Aces2Cam.cam16Primaries.red.x, 0.8336, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.cam16Primaries.red.y, 0.1735, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.cam16Primaries.green.x, 2.3854, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.cam16Primaries.green.y, -1.4659, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.cam16Primaries.blue.x, 0.087, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.cam16Primaries.blue.y, -0.125, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.cam16Primaries.white.x, 0.333, accuracy: 1e-12)
+        XCTAssertEqual(Aces2Cam.cam16Primaries.white.y, 0.333, accuracy: 1e-12)
+    }
+
+    // MARK: - T1: SMPTE ST 2065-1 matrix anchors (published spec facts)
+
+    func testAP0MatricesMatchThePublishedAnchors() {
+        // Published AP0↔XYZ (ACES documentation; row-major math form —
+        // scaled primaries in the COLUMNS, M·(1,1,1) = whiteXYZ).
+        let ap0ToXyz = Aces2Cam.rgbToXyzMat(Aces2Cam.ap0)
+        XCTAssertEqual(ap0ToXyz.r0.x, 0.952552395938841, accuracy: 1e-9)
+        XCTAssertEqual(ap0ToXyz.r0.z, 0.000093678631604, accuracy: 1e-9)
+        XCTAssertEqual(ap0ToXyz.r1.x, 0.343966449765075, accuracy: 1e-9)
+        XCTAssertEqual(ap0ToXyz.r1.y, 0.728166096613485, accuracy: 1e-9)
+        XCTAssertEqual(ap0ToXyz.r1.z, -0.072132546375727, accuracy: 1e-9)
+        XCTAssertEqual(ap0ToXyz.r2.z, 1.008825184435015, accuracy: 1e-9)
+        let xyzToAp0 = Aces2Cam.xyzToRgbMat(Aces2Cam.ap0)
+        XCTAssertEqual(xyzToAp0.r0.x, 1.049811017458754, accuracy: 1e-9)
+        XCTAssertEqual(xyzToAp0.r0.z, -0.000097484540577, accuracy: 1e-9)
+        XCTAssertEqual(xyzToAp0.r1.x, -0.495903023069619, accuracy: 1e-9)
+        XCTAssertEqual(xyzToAp0.r1.y, 1.373313045835589, accuracy: 1e-9)
+        XCTAssertEqual(xyzToAp0.r1.z, 0.098240036058067, accuracy: 1e-9)
+        XCTAssertEqual(xyzToAp0.r2.z, 0.991252018189460, accuracy: 1e-9)
+    }
+
+    func testAP1MatrixMatchesThePublishedAnchor() {
+        // The published AP1→XYZ (row-major math form) — the AP1-side
+        // INDEPENDENT anchor (KD-2: AP0 and AP1 facts asserted separately,
+        // never cross-derived; the AP0→AP1 conversion itself is asserted
+        // structurally — same white → unit white map — in the next test).
+        // Tolerance 1e-4: the published matrix is itself derived from
+        // 3-decimal chromaticities, so its last digits carry that rounding
+        // (the AP0 anchors are exact — ST 2065-1 publishes more digits).
+        let ap1ToXyz = Aces2Cam.rgbToXyzMat(Aces2Cam.ap1)
+        XCTAssertEqual(ap1ToXyz.r0.x, 0.662454181063565, accuracy: 1e-9)
+        XCTAssertEqual(ap1ToXyz.r0.y, 0.134004206456433, accuracy: 1e-9)
+        XCTAssertEqual(ap1ToXyz.r0.z, 0.156261860668380, accuracy: 1e-4)
+        XCTAssertEqual(ap1ToXyz.r1.x, 0.272228716780914, accuracy: 1e-9)
+        XCTAssertEqual(ap1ToXyz.r1.y, 0.674081765811148, accuracy: 1e-9)
+        XCTAssertEqual(ap1ToXyz.r1.z, 0.053689517418023, accuracy: 1e-9)
+        XCTAssertEqual(ap1ToXyz.r2.x, -0.005574649490394, accuracy: 1e-9)
+        XCTAssertEqual(ap1ToXyz.r2.y, 0.004060733805703, accuracy: 1e-9)
+        XCTAssertEqual(ap1ToXyz.r2.z, 1.010334100679690, accuracy: 1e-4)
+    }
+
+    func testAP0ToAP1PreservesXYZAndWhite() {
+        // AP0 and AP1 share the SAME white → (1,1,1) must map to (1,1,1)
+        // EXACTLY (the structural anchor; the upstream derives this matrix
+        // from the same primaries facts — no published table to compare).
+        let white = Aces2Cam.ap0ToAP1.multiply(SIMD3(1, 1, 1))
+        XCTAssertEqual(simd.reduce_max(abs(white - SIMD3(1, 1, 1))), 0, accuracy: 1e-9)
+        // Every color's XYZ survives the hop.
+        for v in [SIMD3(1.0, 0.0, 0.0), SIMD3(0.0, 1.0, 0.0), SIMD3(0.0, 0.0, 1.0),
+                  SIMD3(0.3, 0.5, 0.2), SIMD3(1.2, 0.1, 0.9)] {
+            let xyz = Aces2Cam.rgbToXyzMat(Aces2Cam.ap0).multiply(v)
+            let back = Aces2Cam.rgbToXyzMat(Aces2Cam.ap1)
+                .multiply(Aces2Cam.ap0ToAP1.multiply(v))
+            XCTAssertLessThanOrEqual(
+                simd.reduce_max(abs(back - xyz)), 1e-9, "AP0→AP1 XYZ drift at \(v)")
+        }
+    }
+
+    func testRec2020ToAP0IsSpaceConsistent() {
+        // rec2020ToAP0 must carry EVERY color's XYZ unchanged: for the three
+        // rec2020 primaries, XYZ(ap0 space) of the mapped value == XYZ of
+        // the original (the definition of a gamut conversion matrix).
+        for v in [SIMD3(1.0, 0.0, 0.0), SIMD3(0.0, 1.0, 0.0), SIMD3(0.0, 0.0, 1.0)] {
+            let xyz2020 = Aces2Cam.rgbToXyzMat(Aces2Cam.rec2020Primaries).multiply(v)
+            let inAP0 = Aces2Cam.rec2020ToAP0.multiply(v)
+            let xyzAP0 = Aces2Cam.rgbToXyzMat(Aces2Cam.ap0).multiply(inAP0)
+            let err = simd.reduce_max(abs(xyz2020 - xyzAP0))
+            XCTAssertLessThanOrEqual(err, 1e-9, "rec2020→AP0 XYZ drift at \(v)")
+        }
+        // Round-trip is the identity.
+        let back = Aces2Cam.ap0ToRec2020.multiply(
+            Aces2Cam.rec2020ToAP0.multiply(SIMD3(0.3, 0.5, 0.2)))
+        XCTAssertEqual(simd.reduce_max(abs(back - SIMD3(0.3, 0.5, 0.2))), 0, accuracy: 1e-9)
+    }
+
+    // MARK: - T1: white / primary anchors
+
+    func testWhiteAnchorIsJ100M0() {
+        // AP0 white (1,1,1) → J = 100, M = 0 (the ref_luminance identity —
+        // exact by construction, asserted ≤1e-9).
+        let params = Aces2Cam.JMhParams(primaries: Aces2Cam.ap0)
+        let jmh = Aces2Cam.rgbToJMh(SIMD3(1, 1, 1), params)
+        XCTAssertEqual(jmh.x, 100.0, accuracy: 1e-9)
+        XCTAssertLessThanOrEqual(jmh.y, 1e-9)
+    }
+
+    func testHueIsWhiteEncodingInvariant() {
+        // AP0 and AP1 share the same white → the same XYZ must produce the
+        // same JMh under either primaries' params (a strong transcription
+        // anchor: any matrix-order error breaks this immediately).
+        let ap0Params = Aces2Cam.JMhParams(primaries: Aces2Cam.ap0)
+        let ap1Params = Aces2Cam.JMhParams(primaries: Aces2Cam.ap1)
+        // Sample the AP0 unit cube (includes out-of-AP1 saturations).
+        for r in stride(from: -0.2, through: 1.2, by: 0.35) {
+            for g in stride(from: -0.2, through: 1.2, by: 0.35) {
+                for b in stride(from: -0.2, through: 1.2, by: 0.35) {
+                    let c0 = SIMD3(r, g, b)
+                    let xyz = Aces2Cam.rgbToXyzMat(Aces2Cam.ap0).multiply(c0)
+                    let c1 = Aces2Cam.xyzToRgbMat(Aces2Cam.ap1).multiply(xyz)
+                    let j0 = Aces2Cam.rgbToJMh(c0, ap0Params)
+                    let j1 = Aces2Cam.rgbToJMh(c1, ap1Params)
+                    // J/M invariance holds everywhere; the hue angle is
+                    // meaningless near achromatic (M→0 — the atan2 of a
+                    // vanishing vector), so it is only asserted when both
+                    // sides carry real chroma.
+                    var dh = abs(j0.z - j1.z)
+                    if dh > 180 { dh = 360 - dh }
+                    let err = max(abs(j0.x - j1.x), abs(j0.y - j1.y))
+                    XCTAssertLessThanOrEqual(err, 1e-8, "JMh drift at \(c0)")
+                    if j0.y > 1e-3 && j1.y > 1e-3 {
+                        XCTAssertLessThanOrEqual(dh, 1e-6, "hue drift at \(c0)")
+                    }
+                }
+            }
+        }
+    }
+
+    func testPrimaryHuesAreOrderedAndAnchored() {
+        // The AP1 primaries' CAM16 hue angles (recorded baseline — upstream
+        // ships no numeric example table; the invariance anchor above is the
+        // algorithm-fidelity face, this pins the values; DECISIONS §D3).
+        let params = Aces2Cam.JMhParams(primaries: Aces2Cam.ap1)
+        // 50%-white blends — the pure AP1 primaries (even at 18%) sit
+        // OUTSIDE the CAM16 response domain (A ≤ 0 → the upstream
+        // `Aab_to_JMh` guard collapses them to (0,0,0); the ACES 2.0
+        // pipeline never asks JMh of them — clamp_AP0_to_AP1 + the RRT keep
+        // the working domain inside), so the hue anchor uses in-domain
+        // blends. Values = the transcription's recorded baseline (upstream
+        // ships no numeric table; DECISIONS §D3).
+        let red = Aces2Cam.rgbToJMh(SIMD3(0.18, 0.09, 0.09), params)
+        let green = Aces2Cam.rgbToJMh(SIMD3(0.09, 0.18, 0.09), params)
+        let blue = Aces2Cam.rgbToJMh(SIMD3(0.09, 0.09, 0.18), params)
+        print("ACES2-ANCHOR AP1-red-blend JMh = \(red)")
+        print("ACES2-ANCHOR AP1-green-blend JMh = \(green)")
+        print("ACES2-ANCHOR AP1-blue-blend JMh = \(blue)")
+        // Recorded baseline (self-consistent — regression pins; corrected
+        // for the fixed primaries matrices):
+        XCTAssertEqual(red.z, 13.98281323068272, accuracy: 1e-6)
+        XCTAssertEqual(green.z, 155.6313261207179, accuracy: 1e-6)
+        XCTAssertEqual(blue.z, 278.3981706110758, accuracy: 1e-6)
+        // Hue ordering around the circle: red < green < blue (no wrap).
+        XCTAssertLessThan(red.z, green.z)
+        XCTAssertLessThan(green.z, blue.z)
+        // M > 0 for all three (they are chromatic by definition).
+        XCTAssertGreaterThan(red.y, 0)
+        XCTAssertGreaterThan(green.y, 0)
+        XCTAssertGreaterThan(blue.y, 0)
+    }
+
+    // MARK: - T1: round-trips (≤1e-6, ramp + colorchecker-like + extreme)
+
+    func testRGBJMhRoundTripOverRampsAndSaturations() {
+        let paramSets: [(String, Aces2Cam.JMhParams)] = [
+            ("ap0", Aces2Cam.JMhParams(primaries: Aces2Cam.ap0)),
+            ("ap1", Aces2Cam.JMhParams(primaries: Aces2Cam.ap1)),
+        ]
+        var samples: [SIMD3<Double>] = []
+        // ① grey ramp 0..4 (the working-space scene range).
+        for i in 0..<128 {
+            let x = 4.0 * Double(i) / 127.0
+            samples.append(SIMD3(x, x, x))
+        }
+        // ② hue × saturation grid (the "colorchecker-like" face — 8 hues ×
+        // 5 saturations × 3 luminances around 18% grey).
+        for h in 0..<8 {
+            let theta = 2.0 * Double.pi * Double(h) / 8.0
+            for s in stride(from: 0.0, through: 1.0, by: 0.25) {
+                for lum in [0.02, 0.18, 1.2] {
+                    var rgb = SIMD3(
+                        0.5 + 0.5 * cos(theta),
+                        0.5 + 0.5 * sin(theta),
+                        0.5 + 0.5 * cos(theta + 2.0943951))
+                    rgb = SIMD3(min(max(rgb.x, 0), 1), min(max(rgb.y, 0), 1), min(max(rgb.z, 0), 1))
+                    samples.append((SIMD3(lum, lum, lum)) + (rgb - 0.5) * 2.0 * s * lum)
+                }
+            }
+        }
+        // ③ extreme saturations: AP0/Rec2020 primaries and secondaries over
+        // a log luminance sweep.
+        let primaries = [
+            SIMD3<Double>(1, 0, 0), SIMD3<Double>(0, 1, 0), SIMD3<Double>(0, 0, 1),
+            SIMD3<Double>(1, 1, 0), SIMD3<Double>(1, 0, 1), SIMD3<Double>(0, 1, 1),
+        ]
+        for p in primaries {
+            for i in 0..<12 {
+                let lum = 0.01 * pow(10, 4 * Double(i) / 11.0) // 0.01..100
+                samples.append(p * lum)
+            }
+        }
+        for (name, params) in paramSets {
+            var worst = 0.0
+            var worstAt = SIMD3<Double>.zero
+            var collapsed = 0
+            for rgb in samples {
+                let jmh = Aces2Cam.rgbToJMh(rgb, params)
+                if jmh.x == 0 {
+                    // The upstream `Aab_to_JMh` guard collapses A ≤ 0 to
+                    // (0,0,0) — the round-trip is undefined there BY DESIGN
+                    // (the real pipeline keeps colors in the A>0 domain via
+                    // clamp_AP0_to_AP1 + the tonescale); count and skip.
+                    collapsed += 1
+                    continue
+                }
+                let back = Aces2Cam.jmhToRGB(jmh, params)
+                let err = simd.reduce_max(abs(back - rgb))
+                let rel = err / max(1e-9, simd.reduce_max(abs(rgb)))
+                let score = min(err, rel)
+                if score > worst { worst = score; worstAt = rgb }
+            }
+            XCTAssertLessThanOrEqual(
+                worst, 1e-6, "\(name) round-trip drift at \(worstAt)")
+            XCTAssertLessThan(collapsed, samples.count / 4,
+                "\(name): the collapse guard ate too much of the domain")
+        }
+    }
+
+    func testAabJmhDegenerateFaces() {
+        let params = Aces2Cam.JMhParams(primaries: Aces2Cam.ap0)
+        // A ≤ 0 collapses to (0, 0, 0) — the upstream :273-276 guard.
+        XCTAssertEqual(Aces2Cam.aabToJMh(SIMD3(-1, 3, 4), params), .zero)
+        XCTAssertEqual(Aces2Cam.aabToJMh(SIMD3(0, 3, 4), params), .zero)
+        // J = 0 → A = 0 → finite RGB (never NaN).
+        let rgb = Aces2Cam.jmhToRGB(SIMD3(0, 5, 200), params)
+        XCTAssertFalse(rgb.x.isNaN || rgb.y.isNaN || rgb.z.isNaN)
+    }
+
+    func testPostAdaptationCompressionRoundTrip() {
+        // Fwd/inv round-trip below the 0.99 clamp knee (≤1e-9); the clamp
+        // region (> 0.99) is documented non-invertible (upstream :194).
+        for i in 0..<256 {
+            let x = 0.99 * Double(i) / 255.0
+            let back = Aces2Cam.postAdaptationCompressionInv(
+                Aces2Cam.postAdaptationCompressionFwd(x))
+            XCTAssertEqual(back, x, accuracy: 1e-9)
+        }
+        // The clamp face: inv(min(fwd(huge), 0.99)) caps below fwd⁻¹(0.99).
+        let clamped = Aces2Cam.postAdaptationCompressionInv(1.5)
+        XCTAssertLessThanOrEqual(clamped, Aces2Cam.postAdaptationCompressionInv(0.99) + 1e-12)
+        // Negative side mirrors by copysign.
+        XCTAssertEqual(
+            Aces2Cam.postAdaptationCompressionFwd(-0.5),
+            -Aces2Cam.postAdaptationCompressionFwd(0.5), accuracy: 0)
+    }
+
+    // MARK: - T2: the limiting-space seven tables (KD-4, AC#2)
+
+    /// Enum-driven completeness + per-value primaries + white mapping.
+    func testLimitingTablesCompleteWithSpecPrimaries() {
+        // ① completeness: every DrtLimitingSpace case has a table row.
+        for space in DrtLimitingSpace.allCases {
+            XCTAssertNotNil(
+                Aces2Limiting.spaces[space],
+                "limiting table missing \(space.rawValue)")
+        }
+        XCTAssertEqual(Aces2Limiting.spaces.count, 7)
+        // ② primaries = the specification values (数值事实 per row).
+        let expect: [DrtLimitingSpace: (
+            SIMD2<Double>, SIMD2<Double>, SIMD2<Double>, SIMD2<Double>)] = [
+            .rec709: (SIMD2(0.64, 0.33), SIMD2(0.30, 0.60), SIMD2(0.15, 0.06), SIMD2(0.3127, 0.3290)),
+            .rec2020: (SIMD2(0.708, 0.292), SIMD2(0.170, 0.797), SIMD2(0.131, 0.046), SIMD2(0.3127, 0.3290)),
+            .p3d65: (SIMD2(0.680, 0.320), SIMD2(0.265, 0.690), SIMD2(0.150, 0.060), SIMD2(0.3127, 0.3290)),
+            .p3d60: (SIMD2(0.680, 0.320), SIMD2(0.265, 0.690), SIMD2(0.150, 0.060), SIMD2(0.327, 0.338)),
+            .p3dci: (SIMD2(0.680, 0.320), SIMD2(0.265, 0.690), SIMD2(0.150, 0.060), SIMD2(0.314, 0.351)),
+            .proPhoto: (SIMD2(0.7347, 0.2653), SIMD2(0.1596, 0.8404), SIMD2(0.0366, 0.0001), SIMD2(0.3457, 0.3585)),
+            .adobeRGB: (SIMD2(0.64, 0.33), SIMD2(0.21, 0.71), SIMD2(0.15, 0.06), SIMD2(0.3127, 0.3290)),
+        ]
+        for (space, primaries) in expect {
+            let (r, g, b, w) = primaries
+            let p = Aces2Limiting.spaces[space]!.primaries
+            XCTAssertEqual(p.red.x, r.x, accuracy: 0, "\(space) red.x")
+            XCTAssertEqual(p.red.y, r.y, accuracy: 0, "\(space) red.y")
+            XCTAssertEqual(p.green.x, g.x, accuracy: 0, "\(space) green.x")
+            XCTAssertEqual(p.green.y, g.y, accuracy: 0, "\(space) green.y")
+            XCTAssertEqual(p.blue.x, b.x, accuracy: 0, "\(space) blue.x")
+            XCTAssertEqual(p.blue.y, b.y, accuracy: 0, "\(space) blue.y")
+            XCTAssertEqual(p.white.x, w.x, accuracy: 0, "\(space) white.x")
+            XCTAssertEqual(p.white.y, w.y, accuracy: 0, "\(space) white.y")
+        }
+        // ③ p3d60 vs p3dci: same primaries, DIFFERENT whites (the two
+        // anchor values, ≤1e-12 — the transcription-row-shift guard).
+        let d60 = Aces2Limiting.spaces[.p3d60]!.primaries.white
+        let dci = Aces2Limiting.spaces[.p3dci]!.primaries.white
+        XCTAssertEqual(d60.x, 0.327, accuracy: 1e-12)
+        XCTAssertEqual(d60.y, 0.338, accuracy: 1e-12)
+        XCTAssertEqual(dci.x, 0.314, accuracy: 1e-12)
+        XCTAssertEqual(dci.y, 0.351, accuracy: 1e-12)
+        XCTAssertNotEqual(d60, dci)
+    }
+
+    func testLimitingWhiteMappingAndJMhAnchor() {
+        // RGB white → XYZ white, exactly (≤1e-12 — the matrix construction
+        // identity, asserted per space), and the space's own CAM16 params
+        // land the white at J=100/M=0.
+        for space in DrtLimitingSpace.allCases {
+            let s = Aces2Limiting.spaces[space]!
+            let whiteXYZ = s.rgbToXyz.multiply(SIMD3(1, 1, 1))
+            let expect = SIMD3(
+                s.primaries.white.x / s.primaries.white.y, 1.0,
+                (1 - s.primaries.white.x - s.primaries.white.y) / s.primaries.white.y)
+            XCTAssertLessThanOrEqual(
+                simd.reduce_max(abs(whiteXYZ - expect)), 1e-12,
+                "\(space.rawValue) white mapping")
+            let jmh = Aces2Cam.rgbToJMh(SIMD3(1, 1, 1), s.params)
+            XCTAssertEqual(jmh.x, 100.0, accuracy: 1e-9, "\(space.rawValue) white J")
+            XCTAssertLessThanOrEqual(jmh.y, 1e-9, "\(space.rawValue) white M")
+        }
+    }
+
+    // MARK: - T2: the reference gamut compression (KD-3, AC#3)
+
+    func testRGCConstantsMatchTheUpstreamTable() {
+        // The v1.3 LMT.Academy.GamutCompress table — also the values the
+        // Alcedo aces_reference_gamut_compression.h cross-check agrees on
+        // (read-only GPL comparison; DECISIONS §D4).
+        XCTAssertEqual(Aces2RGC.limCyan, 1.147, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.limMagenta, 1.264, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.limYellow, 1.312, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.thrCyan, 0.815, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.thrMagenta, 0.803, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.thrYellow, 0.880, accuracy: 0)
+        XCTAssertEqual(Aces2RGC.pwr, 1.2, accuracy: 0)
+    }
+
+    func testRGCShaperIsIdentityBelowThreshold() {
+        // AC#3 identity face: dist < thr → the function returns the input
+        // BIT-FOR-BIT (tolerance 0; -0/+0 compares equal in Swift ==).
+        let cases: [(Double, Double, Double)] = [
+            (0.0, Aces2RGC.limCyan, Aces2RGC.thrCyan),
+            (0.5, Aces2RGC.limCyan, Aces2RGC.thrCyan),
+            (Aces2RGC.thrMagenta - 1e-9, Aces2RGC.limMagenta, Aces2RGC.thrMagenta),
+            (Aces2RGC.thrYellow - 1e-12, Aces2RGC.limYellow, Aces2RGC.thrYellow),
+        ]
+        for (dist, lim, thr) in cases {
+            XCTAssertEqual(
+                Aces2RGC.compressDistance(dist, limit: lim, threshold: thr),
+                dist, accuracy: 0)
+        }
+    }
+
+    func testRGCShaperPowerAnchorAndClosedForm() {
+        // Closed form at the nd = 1 point (dist = thr + scl): out =
+        // thr + scl/2^(1/pwr) — the 幂 1.2 anchor, exact algebra.
+        func scl(_ lim: Double, _ thr: Double) -> Double {
+            (lim - thr)
+                / Foundation.pow(
+                    Foundation.pow((1.0 - thr) / (lim - thr), -Aces2RGC.pwr) - 1.0,
+                    1.0 / Aces2RGC.pwr)
+        }
+        for (lim, thr) in [(Aces2RGC.limCyan, Aces2RGC.thrCyan),
+                           (Aces2RGC.limMagenta, Aces2RGC.thrMagenta),
+                           (Aces2RGC.limYellow, Aces2RGC.thrYellow)] {
+            let s = scl(lim, thr)
+            let atOne = Aces2RGC.compressDistance(thr + s, limit: lim, threshold: thr)
+            XCTAssertEqual(
+                atOne, thr + s / Foundation.pow(2.0, 1.0 / Aces2RGC.pwr),
+                accuracy: 1e-12)
+            // The y=1 intersect: the shaper maps the gamut-boundary
+            // distance (dist = lim) to EXACTLY 1.0 (the construction's
+            // definition — "scale factor for y = 1 intersect").
+            let atLim = Aces2RGC.compressDistance(lim, limit: lim, threshold: thr)
+            XCTAssertEqual(atLim, 1.0, accuracy: 1e-12)
+        }
+    }
+
+    func testRGCCompressesMonotonicallyOutsideThreshold() {
+        // Per channel: monotone nondecreasing, strictly contracting, and
+        // bounded by the limit over a wide sweep.
+        for (lim, thr) in [(Aces2RGC.limCyan, Aces2RGC.thrCyan),
+                           (Aces2RGC.limMagenta, Aces2RGC.thrMagenta),
+                           (Aces2RGC.limYellow, Aces2RGC.thrYellow)] {
+            var previous = -1.0
+            var dist = thr
+            while dist < lim * 4.0 {
+                let out = Aces2RGC.compressDistance(dist, limit: lim, threshold: thr)
+                XCTAssertGreaterThanOrEqual(out, previous - 1e-12, "non-monotone at \(dist)")
+                XCTAssertLessThanOrEqual(out, dist + 1e-12, "expansion at \(dist)")
+                XCTAssertLessThanOrEqual(out, lim + 1e-9, "unbounded at \(dist)")
+                previous = out
+                dist += lim / 200.0
+            }
+        }
+    }
+
+    func testRGCFullPathAnchors() {
+        // In-domain pass-through: an AP0 color whose AP1 form keeps every
+        // distance below its threshold is (numerically) unchanged.
+        let inGamut = SIMD3(0.18, 0.15, 0.12)
+        let unchanged = Aces2RGC.compress(inGamut)
+        XCTAssertLessThanOrEqual(
+            simd.reduce_max(abs(unchanged - inGamut)), 1e-12, "in-domain identity")
+        // The out-of-domain face: a hyper-saturated AP0 red collapses
+        // toward the achromatic axis (all channels pulled closer).
+        let extreme = SIMD3(10.0, -0.5, -0.5)
+        let compressed = Aces2RGC.compress(extreme)
+        let achIn = inAP1(extreme)
+        let achOut = inAP1(compressed)
+        let spreadIn = max(achIn.x, achIn.y, achIn.z) - min(achIn.x, achIn.y, achIn.z)
+        let spreadOut = max(achOut.x, achOut.y, achOut.z) - min(achOut.x, achOut.y, achOut.z)
+        XCTAssertLessThan(spreadOut, spreadIn, "no compression for \(extreme)")
+        // Recorded baseline (self-consistent — the kernel-alignment face;
+        // upstream ships no numeric example).
+        print("ACES2-ANCHOR RGC(10,-0.5,-0.5) = \(compressed)")
+        XCTAssertEqual(compressed.x, 10.417086575247234, accuracy: 1e-9)
+        XCTAssertEqual(compressed.y, 1.1772885885223947, accuracy: 1e-9)
+        XCTAssertEqual(compressed.z, 0.4709229324371746, accuracy: 1e-9)
+    }
+
+    /// The AP1 view of an AP0 color (test-side helper).
+    private func inAP1(_ ap0: SIMD3<Double>) -> SIMD3<Double> {
+        Aces2Cam.ap0ToAP1.multiply(ap0)
+    }
+
+    // MARK: - T3: the ACES 2.0 ODT Float64 reference (KD-5, AC#4)
+
+    func testTonescaleMatchesItsConstructionAnchors() {
+        // The tonescale's grey anchor: 18% grey lands at 10 nits at the
+        // 100-nit reference peak (c_d = 10.013 is the pre-flare target;
+        // the t_1 flare settles the landing at 10.0 — the numeric fact of
+        // the upstream construction).
+        let ts = Aces2Reference.TSParams(peakLuminance: 100)
+        XCTAssertEqual(Aces2Reference.tonescaleFwd(0.18, ts), 10.0, accuracy: 1e-3)
+        // fwd/inv round-trip over the well-conditioned scene domain
+        // [0, r_hit]. DOMAIN NOTE: the upstream inverse consumes
+        // REF-NORMALIZED luminance (tonemap_and_compress_inv :552 divides
+        // by ref_luminance before calling tonescale_inv) — the fwd emits
+        // nits, so the round-trip hops /100 on the way in.
+        var worst = 0.0
+        for i in 0..<512 {
+            let x = ts.forwardLimit / 8.0 * Double(i) / 511.0  // 0..r_hit
+            let y = Aces2Reference.tonescaleFwd(x, ts)
+            let back = Aces2Reference.tonescaleInv(y / 100.0, ts)
+            worst = max(worst, abs(back - x))
+        }
+        XCTAssertLessThanOrEqual(worst, 1e-6)
+        // Black is bounded (the t_1 flare keeps f=0 → h=0 finite).
+        XCTAssertEqual(Aces2Reference.tonescaleFwd(0, ts), 0, accuracy: 0)
+        XCTAssertFalse(Aces2Reference.tonescaleFwd(0, ts).isNaN)
+    }
+
+    func testODTTonescaleIsMonotonicOverARamp() {
+        // 1000-point scene-linear grey ramp 0..4 — output order preserved
+        // (per channel).
+        let p = Aces2Reference.params(space: .rec709, peak: 100)
+        var previous: [Double] = [-1, -1, -1]
+        for i in 0..<1000 {
+            let x = 4.0 * Double(i) / 999.0
+            let out = Aces2Reference.runPixel(p, SIMD3(x, x, x))
+            for c in 0..<3 {
+                XCTAssertGreaterThanOrEqual(
+                    out[c], previous[c] - 1e-12,
+                    "ODT non-monotonic at x=\(x) channel \(c)")
+                previous[c] = out[c]
+            }
+        }
+    }
+
+    func testODTEndpointsAreBoundedAndNaNFree() {
+        let p = Aces2Reference.params(space: .rec709, peak: 100)
+        let probes: [SIMD3<Double>] = [
+            .zero,
+            SIMD3(repeating: 1e-6),
+            SIMD3(repeating: 1),
+            SIMD3(repeating: 1e6),
+            SIMD3(0.5, -0.2, 2.0),
+            SIMD3(repeating: -0.5),
+            SIMD3(1e-8, 1e4, 1.0),
+        ]
+        for probe in probes {
+            let out = Aces2Reference.runPixel(p, probe)
+            // The extreme-spread probe (1e4-valued channel) may escape the
+            // unit box by a hair — the upstream outputTransform_fwd does
+            // NOT clamp (the smin/cusp approximations overshoot slightly);
+            // the EotfBox encode clamps [0,1] for every non-linear EOTF
+            // (the D-COL4 clamp home). Sane probes stay ≤ 1+1e-7.
+            let band = simd.reduce_max(abs(probe)) > 1.0 ? 1.01 : 1.0000001
+            for c in 0..<3 {
+                XCTAssertFalse(out[c].isNaN, "NaN for probe \(probe)")
+                XCTAssertFalse(out[c].isInfinite, "inf for probe \(probe)")
+                XCTAssertGreaterThanOrEqual(out[c], -1e-9)
+                XCTAssertLessThanOrEqual(out[c], band, "unbounded at \(probe)")
+            }
+        }
+    }
+
+    func testODTGreyPlacementAnchor() {
+        // 18% AP0-neutral grey at the SDR baseline lands at ≈0.10013
+        // (c_t·ref/peak, peak-normalized) — the upstream design anchor
+        // through the FULL pixel path. The input must be AP0-neutral
+        // (mapped back to Rec2020): the working space's D65 grey is NOT
+        // AP0-neutral (no CAT on the fixed primaries conversion — the
+        // ACES system's own convention), so it renders with a slight
+        // chroma (pinned separately by the R/G gap face below).
+        let p = Aces2Reference.params(space: .rec709, peak: 100)
+        let neutralRec2020 = Aces2Cam.ap0ToRec2020.multiply(SIMD3(0.18, 0.18, 0.18))
+        let out = Aces2Reference.runPixel(p, neutralRec2020)
+        for c in 0..<3 {
+            // The construction lands grey at 10.0 nits (the c_d = 10.013
+            // intent carries a 0.013 construction gap — the numeric fact;
+            // DECISIONS §D5).
+            XCTAssertEqual(out[c], 0.10000, accuracy: 1e-4)
+        }
+        // The D65-referenced grey keeps its near-neutrality (a documented
+        // small shift, not a blow-up).
+        let d65 = Aces2Reference.runPixel(p, SIMD3(0.18, 0.18, 0.18))
+        XCTAssertLessThan(
+            Double(simd.reduce_max(abs(d65 - SIMD3(d65.x, d65.x, d65.x)))), 0.02)
+    }
+
+    func testODTPeakLuminanceChangesTheOutput() {
+        // peak 100 vs 1000 → different outputs at the SAME scene color
+        // (the tonescale's peak shaping; AC#4 existence face).
+        let p100 = Aces2Reference.params(space: .rec709, peak: 100)
+        let p1000 = Aces2Reference.params(space: .rec709, peak: 1000)
+        var differs = 0
+        for i in 0..<64 {
+            let x = 4.0 * Double(i) / 63.0
+            let a = Aces2Reference.runPixel(p100, SIMD3(x, x * 0.9, x * 0.8))
+            let b = Aces2Reference.runPixel(p1000, SIMD3(x, x * 0.9, x * 0.8))
+            if simd.reduce_max(abs(a - b)) > 1e-9 { differs += 1 }
+        }
+        XCTAssertGreaterThan(differs, 32, "peak must shape the output")
+    }
+
+    func testODTSDRPeakStillActive() {
+        // KD-5 必答: even under an SDR EOTF the peak participates in the
+        // tonescale (the RECORD's peak field — not the EOTF — drives this;
+        // "peak only affects HDR" is the misimplementation this pins out).
+        var rec100 = DrtRecord()
+        rec100.method = .aces20
+        var rec1000 = rec100
+        rec1000.peakLuminance = 1000
+        let p100 = Aces2Reference.params(
+            space: rec100.limitingSpace, peak: Double(rec100.peakLuminance))
+        let p1000 = Aces2Reference.params(
+            space: rec1000.limitingSpace, peak: Double(rec1000.peakLuminance))
+        var differs = 0
+        for i in 0..<64 {
+            let x = 4.0 * Double(i) / 63.0
+            let a = Aces2Reference.runPixel(p100, SIMD3(x, x, x))
+            let b = Aces2Reference.runPixel(p1000, SIMD3(x, x, x))
+            if simd.reduce_max(abs(a - b)) > 1e-9 { differs += 1 }
+        }
+        XCTAssertGreaterThan(differs, 32, "SDR output must still depend on peak")
+    }
+
+    func testODTLimitingSpacesAllRenderAndDiffer() {
+        // Every one of the seven limiting spaces renders bounded, and the
+        // outputs differ across spaces (the seven-choice table is live).
+        var outputs: [DrtLimitingSpace: SIMD3<Double>] = [:]
+        for space in DrtLimitingSpace.allCases {
+            let p = Aces2Reference.params(space: space, peak: 100)
+            let out = Aces2Reference.runPixel(p, SIMD3(1.0, 0.4, 0.2))
+            for c in 0..<3 {
+                XCTAssertFalse(out[c].isNaN, "\(space.rawValue) NaN")
+                XCTAssertGreaterThanOrEqual(out[c], -1e-9, "\(space.rawValue) negative")
+                XCTAssertLessThanOrEqual(out[c], 1.0000001, "\(space.rawValue) unbounded")
+            }
+            outputs[space] = out
+        }
+        // Pairwise difference existence (a cheap ∃ pair with a visible gap).
+        let values = Array(outputs.values)
+        var maxGap = 0.0
+        for i in 0..<values.count {
+            for j in (i + 1)..<values.count {
+                maxGap = max(maxGap, Double(simd.reduce_max(abs(values[i] - values[j]))))
+            }
+        }
+        XCTAssertGreaterThan(maxGap, 1e-3, "limiting spaces must diverge")
+    }
+
+    func testODTRGCCutoffChangesTheOutput() {
+        // The RGC前置 (KD-3): ON vs OFF differ for wide-gamut input and the
+        // OFF path still renders (the dispatch-side "OpenDRT never runs
+        // this" face lives in Aces2KernelGoldenTests).
+        let on = Aces2Reference.params(space: .rec709, peak: 100, rgcOn: true)
+        let off = Aces2Reference.params(space: .rec709, peak: 100, rgcOn: false)
+        let wide = SIMD3(2.0, 0.1, 0.1)
+        let a = Aces2Reference.runPixel(on, wide)
+        let b = Aces2Reference.runPixel(off, wide)
+        XCTAssertGreaterThan(
+            Double(simd.reduce_max(abs(a - b))), 1e-6, "RGC must affect wide-gamut input")
+    }
+
+    func testChromaCompressRoundTrip() {
+        // chroma_compress_fwd/inv round-trip (≤1e-6) over in-domain samples.
+        let p = Aces2Reference.params(space: .rec709, peak: 100)
+        var worst = 0.0
+        for k in 0..<64 {
+            let hue = 360.0 * Double(k) / 64.0
+            for m in stride(from: 2.0, through: 40.0, by: 4.0) {
+                for j in stride(from: 10.0, through: 80.0, by: 10.0) {
+                    let jmh = SIMD3(j, m, hue)
+                    let tonemappedJ = j * 1.3 + 5.0   // an arbitrary in-range J_ts
+                    let fwd = Aces2Reference.chromaCompressFwd(jmh, tonemappedJ, p)
+                    let back = Aces2Reference.chromaCompressInv(fwd, j, p)
+                    let err = simd.reduce_max(abs(back - jmh))
+                    let rel = err / max(1e-9, m)
+                    worst = max(worst, min(err, rel))
+                }
+            }
+        }
+        XCTAssertLessThanOrEqual(worst, 1e-6, "chroma compress round-trip")
+    }
+}

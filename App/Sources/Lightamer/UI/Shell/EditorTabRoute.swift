@@ -11,10 +11,14 @@ import SwiftUI
 // Tone / Look / LUT / Display Transform / Geometry / RAW Decode / Mask.
 //
 // THE CHECKER E1 CORRECTION (2026-09-29): the Display Transform page is
-// Vignette + the "DRT arrives with M2-6" placeholder section. AgX is in
+// Vignette + a special-content slot. AgX is in
 // `LightamerIOPRegistry.defaultFaceDisabledOpNames` (the M2-1 narrowed face)
 // and stays UNHOUSED — hanging it would violate the M2-1 narrowing and the
 // plan's disabled-names grep zero-hit assertion.
+// M2-6-3 T2 (KD-2): the special-content slot now mounts the LIVE DRT panel
+// (`DrtPanelView`) — the `displayTransformPlaceholder` case remains the
+// routing-table marker for that slot, but the honest-shell PLACEHOLDER view
+// is retired (the reinterpretation signed in M2-6-3-DECISIONS).
 //
 // THE CHECKER m3 CORRECTION: the rehome-completeness assertion domain is the
 // DYNAMIC populated panel-provider set minus {TextOverlay} — Yiyin (the
@@ -168,12 +172,16 @@ enum EditorTabSpecialContent: Equatable, Sendable {
     case none
     /// RAW Decode page: the CIRAW parameter panel (T4 fills the slot).
     case rawDecodePanel
-    /// Display Transform page: the "DRT arrives with M2-6" placeholder
-    /// section (checker E1: AgX NOT housed — the M2-1 disabled face).
-    case displayTransformPlaceholder
-    /// Mask page: the adjustment-layers panel + the MaskToolbar linkage
+    /// The Mask page: the adjustment-layers panel + the MaskToolbar linkage
     /// entry (the M2-7 replacement's pre-home).
     case layersPanel
+    /// Display Transform page: the DRT panel slot. M2-6-3 T2 (KD-2): the
+    /// case NAME is the M2-3 era's shell marker; since the live panel
+    /// landed the value renders `DrtPanelView` — the honest-shell
+    /// placeholder copy is retired (grep-zero on
+    /// "editor.stack.drt.placeholder"; the rename-in-place choice over an
+    /// enum removal is the diff-minimum face, M2-6-3-DECISIONS).
+    case displayTransformPlaceholder
 }
 
 /// The D4/OQ-4 mapping table, coded (KD-2). Everything the stack renders
@@ -211,9 +219,11 @@ enum EditorTabRoutingTable {
             // M2-5-2 KD-1 — the Alcedo four-group IA (§2.3). The 13-row
             // zero-loss ledger (every pre-M2-5-2 row keeps a home):
             //   Master        { saturation (T3), vibrance }
-            //   Look (D9)     { equalizer→Clarity, sharpen, grain→Film
+            //   Look          { equalizer→Clarity, sharpen, grain→Film
             //                   Grain, bloom→Halation } — the .drtPost four
-            //                   seats, each carrying the pre-DRT note
+            //                   seats; M2-6-3 T5 (M2DRT-05): the seats RUN
+            //                   post-DRT now — the pre-DRT notes are RETIRED
+            //                   (the rows stay on the Look page, M2-3 IA).
             //   Color         { cat02WhiteBalance (T3), tint (T3); hls (T5)
             //                   + colorWheels (T4) complete the seat }
             //   Detail/Texture{ velvia, monochrome, colorbalancergb,
@@ -222,18 +232,10 @@ enum EditorTabRoutingTable {
             [
                 .grouped(SaturationModule.opName, .look, group: .master),
                 .grouped(VibranceModule.opName, .look, group: .master),
-                .grouped(
-                    EqualizerModule.opName, .look, group: .look,
-                    note: "panel_note_pre_drt"),
-                .grouped(
-                    SharpenModule.opName, .look, group: .look,
-                    note: "panel_note_pre_drt"),
-                .grouped(
-                    GrainModule.opName, .look, group: .look,
-                    note: "panel_note_pre_drt"),
-                .grouped(
-                    BloomModule.opName, .look, group: .look,
-                    note: "panel_note_pre_drt"),
+                .grouped(EqualizerModule.opName, .look, group: .look),
+                .grouped(SharpenModule.opName, .look, group: .look),
+                .grouped(GrainModule.opName, .look, group: .look),
+                .grouped(BloomModule.opName, .look, group: .look),
                 .grouped(Cat02WBModule.opName, .look, group: .color),
                 .grouped(HlsModule.opName, .look, group: .color),
                 .grouped(ColorWheelsModule.opName, .look, group: .color),

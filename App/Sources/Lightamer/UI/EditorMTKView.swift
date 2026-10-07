@@ -60,8 +60,18 @@ internal struct EditorMTKView: NSViewRepresentable {
     /// 08-4 T1 (IOP-HDR-05): the viewport-level HDR preview toggle — a
     /// DISPLAY-leg runtime override (never a document parameter, the soft
     /// proof same-position contract). Default `false` = the exact Phase-1
-    /// SDR surface (zero path difference).
+    /// SDR surface (zero path difference). M2-6-3 KD-4: BYPASSED while a
+    /// DRT tail owns the display surface (`drtTail != nil` — the mutual
+    /// convergence; the coordinator's setEDRDisplay guard is the state
+    /// backstop and this prop simply reads false there).
     var edrActive: Bool = false
+
+    /// M2-6-3 T4 (KD-4): the DRT tail's viewport surface spec. nil = no DRT
+    /// tail (the legacy/EDR faces above, byte-for-byte unchanged). Non-nil:
+    /// the DRT tail owns the display surface — the drawable format and the
+    /// CAMetalLayer colorspace follow the record's encoding (the four-state
+    /// surface, see `applyEDRDisplaySurface`).
+    var drtTail: DrtSurfaceSpec?
 
     func makeNSView(context: Context) -> MTKView {
         // 13-3 T2 (D-13-CONTEXT-6①): the AppKit GESTURE face — the
@@ -134,6 +144,12 @@ internal struct EditorMTKView: NSViewRepresentable {
             context.coordinator.applyEDRDisplaySurface(to: view)
             needsDisplay = true
         }
+        // M2-6-3 T4 (KD-4): the DRT surface flip — the same push-once shape.
+        if context.coordinator.drtTailSurface != drtTail {
+            context.coordinator.drtTailSurface = drtTail
+            context.coordinator.applyEDRDisplaySurface(to: view)
+            needsDisplay = true
+        }
         if let texture = sourceTexture {
             viewportState.noteGeometry(
                 viewportSize: view.bounds.size,
@@ -198,6 +214,11 @@ internal struct EditorMTKView: NSViewRepresentable {
         /// 08-4 T1: the pushed EDR toggle (change = one surface flip + one
         /// armed redraw — the same push-once discipline as the texture).
         var edrActive = false
+
+        /// M2-6-3 T4 (KD-4): the pushed DRT tail surface (nil = absent).
+        /// This is the viewport-side `drtTailActive` mirror the E3 follow
+        /// gate and the blit regime read.
+        var drtTailSurface: DrtSurfaceSpec?
 
         /// 09-04 T7: the before/after split inputs (nil texture = the
         /// legacy single-plane draw; nil fraction = no split line).
@@ -330,8 +351,32 @@ internal struct EditorMTKView: NSViewRepresentable {
         /// only writer of that property; the tracker is nil-ed so the next
         /// off draw re-attaches). @MainActor: the NSView/layer property
         /// writes (called from `updateNSView`).
+        ///
+        /// M2-6-3 T4 (KD-4) — the FOUR-STATE surface: while a DRT tail owns
+        /// the display (`drtTailSurface != nil`) the record's encoding
+        /// decides, EDGING OUT both legacy faces:
+        ///   • DRT-SDR (power/BT.1886): `.bgra8Unorm` drawable + the
+        ///     encoding space's CGColorSpace (the gamma-tail precedent —
+        ///     software encode + layer tag match);
+        ///   • DRT-HDR (st2084/hlg): `.rgba16Float` + EDR content + the
+        ///     PQ/HLG terminal colorspace form;
+        ///   • DRT-linear (persistable, UI-unreachable): the float32 plane
+        ///     rides the EDR-linear face (16F + extendedLinearSRGB — the
+        ///     headroom-surviving handoff the tail format already chose).
+        /// The manual EDR toggle is MUTUALLY EXCLUSIVE here by construction
+        /// (the coordinator refuses the toggle while the tail is active).
         @MainActor
         func applyEDRDisplaySurface(to view: MTKView) {
+            if let drt = drtTailSurface {
+                view.colorPixelFormat = drt.hdrDrawable ? .rgba16Float : .bgra8Unorm
+                view.clearColor =
+                    drt.hdrDrawable ? Self.canvasClearColorLinear : Self.canvasClearColor
+                guard let metalLayer = view.layer as? CAMetalLayer else { return }
+                metalLayer.wantsExtendedDynamicRangeContent = drt.hdrDrawable
+                metalLayer.colorspace = drt.layerColorSpace
+                attachedLayerColorSpace = nil
+                return
+            }
             view.colorPixelFormat = edrActive ? .rgba16Float : .bgra8Unorm
             view.clearColor = edrActive ? Self.canvasClearColorLinear : Self.canvasClearColor
             guard let metalLayer = view.layer as? CAMetalLayer else { return }
@@ -347,18 +392,44 @@ internal struct EditorMTKView: NSViewRepresentable {
         }
 
         /// The blit regime pick (08-4 T1; the testable single source —
-        /// `EDRViewportTests` pins all three arms). EDR wins outright: the
-        /// EDR leg's source is ALWAYS the float32 colorout plane (T2), so
-        /// the source-format probe below never applies there.
+        /// `EDRViewportTests` pins all three legacy arms, `DrtViewportTests`
+        /// the two DRT arms). DRT wins outright while the tail owns the
+        /// surface: the tail's final plane IS the display-ready encoded
+        /// plane (bgra8 → the passthrough SDR regime; 16F/float32 → the
+        /// EDR 16F blit path reuse, KD-4), so the source-format probe below
+        /// picks the DRT arm's format face.
         enum BlitRegime: Equatable {
             case legacyFloat
             case displayReadySDR
             case edr16F
+            /// The DRT tail's software-encoded bgra8 plane — the same
+            /// passthrough blit as displayReadySDR; the arm exists so the
+            /// regime is explicit about WHO owns the surface (tests).
+            case drtSDR
+            /// The DRT tail's 16F (HDR) / float32 (linear) plane — the EDR
+            /// leg's direct-write blit path reused (KD-4).
+            case drtFloat16
         }
 
-        static func blitRegime(edrActive: Bool, sourceIsDisplayReady: Bool) -> BlitRegime {
+        static func blitRegime(
+            edrActive: Bool, drtTailActive: Bool = false,
+            sourceIsDisplayReady: Bool
+        ) -> BlitRegime {
+            if drtTailActive {
+                return sourceIsDisplayReady ? .drtSDR : .drtFloat16
+            }
             if edrActive { return .edr16F }
             return sourceIsDisplayReady ? .displayReadySDR : .legacyFloat
+        }
+
+        /// The D-COL2 follow gate (M2-6-3 E3, checker 回注): the per-frame
+        /// screen-colorspace attach must run ONLY on the legacy SDR face —
+        /// an EDR pin (08-4) or a DRT encoding-space pin (this plan) would
+        /// otherwise be overwritten EVERY frame (the DRT-SDR原色匹配 would
+        /// silently die). `drtTailActive` is the viewport-side mirror
+        /// (`drtTailSurface != nil`).
+        static func followGateActive(edrActive: Bool, drtTailActive: Bool) -> Bool {
+            !edrActive && !drtTailActive
         }
 
         /// internal for `EDRViewportTests` (the dual-variant existence pin);
@@ -434,8 +505,13 @@ internal struct EditorMTKView: NSViewRepresentable {
             // value `applyEDRDisplaySurface` parks in `view.clearColor`
             // (this per-frame assignment is the authoritative one because
             // the render pass descriptor is rebuilt by MTKView).
+            // M2-6-3 KD-4: the DRT faces follow the same rule (the HDR
+            // drawable gets the linear mat — the PQ-interpretation shade
+            // is a registered walkthrough observation, not a gate).
+            let drtActive = drtTailSurface != nil
             renderPass.colorAttachments[0].clearColor =
-                edrActive ? Self.canvasClearColorLinear : Self.canvasClearColor
+                (edrActive || (drtActive && drtTailSurface!.hdrDrawable))
+                    ? Self.canvasClearColorLinear : Self.canvasClearColor
 
             // D-COL2 (Plan 02-04-05): attach the resolved display colorspace
             // to the CAMetalLayer so the gamma-encoded bytes (fast path:
@@ -446,7 +522,13 @@ internal struct EditorMTKView: NSViewRepresentable {
             // pinned to extendedLinearSRGB (see `applyEDRDisplaySurface`);
             // the compositor no longer matches, the values ARE the display
             // intent (research §7.1).
-            if !edrActive, let metalLayer = view.layer as? CAMetalLayer {
+            // M2-6-3 E3 (checker 回注): the DRT encoding-space pin rides the
+            // same skip — the follow gate extended to
+            // `!edrActive && !drtTailActive` (the pure gate above; the
+            // per-frame override would otherwise kill the DRT-SDR原色匹配).
+            if Self.followGateActive(
+                edrActive: edrActive, drtTailActive: drtActive),
+                let metalLayer = view.layer as? CAMetalLayer {
                 let target = (view.window?.screen ?? NSScreen.main)?.colorSpace?.cgColorSpace
                     ?? metalLayer.colorspace
                 if let target, target !== attachedLayerColorSpace {
@@ -465,11 +547,15 @@ internal struct EditorMTKView: NSViewRepresentable {
                 // everything else is the Phase 1 float32 linear plane.
                 // 08-4 T1: the EDR toggle wins the pick outright (the EDR
                 // leg's source is always the float32 colorout plane, T2).
+                // M2-6-3 T4: the DRT tail wins over BOTH legacy faces — its
+                // final plane is the display-ready encoded plane (bgra8 →
+                // drtSDR; 16F/float32 → the 16F direct-write path).
                 let displayReady = texture.pixelFormat == .bgra8Unorm
                 let state: any MTLRenderPipelineState?
                 switch Self.blitRegime(
-                    edrActive: edrActive, sourceIsDisplayReady: displayReady) {
-                case .edr16F:
+                    edrActive: edrActive, drtTailActive: drtActive,
+                    sourceIsDisplayReady: displayReady) {
+                case .edr16F, .drtFloat16:
                     if blitEDRPipelineState == nil {
                         blitEDRPipelineState = Self.makeBlitPipelineState(
                             device: device, displayReady: false,
@@ -477,7 +563,7 @@ internal struct EditorMTKView: NSViewRepresentable {
                         )
                     }
                     state = blitEDRPipelineState
-                case .displayReadySDR:
+                case .displayReadySDR, .drtSDR:
                     if blitDisplayReadyPipelineState == nil {
                         blitDisplayReadyPipelineState = Self.makeBlitPipelineState(
                             device: device, displayReady: true
@@ -613,6 +699,109 @@ struct FitQuad {
     var p1: SIMD2<Float>
     var p2: SIMD2<Float>
     var p3: SIMD2<Float>
+}
+
+/// The DRT viewport surface spec (Plan M2-6-3 T4, KD-4) — the pushed state
+/// that flips the whole display surface when a DRT tail owns the terminal
+/// segment. `hdrDrawable`: the 16F drawable + EDR content face (st2084/hlg;
+/// the persistable-but-UI-unreachable linear rides it too — the tail format
+/// already chose the float plane there); `layerColorSpace`: the encoding's
+/// terminal CGColorSpace form (`drtLayerColorSpace`).
+struct DrtSurfaceSpec: Equatable {
+    var hdrDrawable: Bool
+    var layerColorSpace: CGColorSpace
+}
+
+extension EditorMTKView.Coordinator {
+
+    /// The encoding's terminal colorspace form (KD-4 终式, DECISIONS-signed):
+    ///   • st2084/hlg — the macOS native PQ/HLG name constants. PLAN-LETTER
+    ///     CORRECTION: the SDK has NO `extendedITUR_2100*` variant — the
+    ///     terminal forms are `itur_2100_PQ` / `itur_2100_HLG` (macOS 11+;
+    ///     PQ/HLG are absolute [0,1]→nits encodings, no extension needed).
+    ///     The P3-encoding variants take the displayP3_PQ/HLG containers so
+    ///     the primaries match the encoded gamut. A nil fallback = the E3
+    ///     note (never observed on macOS 27).
+    ///   • linear — extendedLinearSRGB (the EDR-linear handoff).
+    ///   • SDR powers/BT.1886 — a calibrated-RGB space built from the
+    ///     encoding space's primaries + white point + the EOTF's gamma (the
+    ///     gamma-tail precedent: software encode + matching layer tag).
+    ///     XYZ has no RGB derivation — the calibrated Rec709-gamut
+    ///     approximation carries a DECISIONS note (degenerate display
+    ///     target, walkthrough observation).
+    static func drtLayerColorSpace(_ record: DrtRecord) -> CGColorSpace? {
+        switch record.encodingEotf {
+        case .st2084, .hlg:
+            let pq = record.encodingEotf == .st2084
+            switch record.encodingSpace {
+            case .rec2020:
+                return CGColorSpace(
+                    name: pq ? CGColorSpace.itur_2100_PQ : CGColorSpace.itur_2100_HLG)
+            case .p3d65:
+                return CGColorSpace(
+                    name: pq ? CGColorSpace.displayP3_PQ : CGColorSpace.displayP3_HLG)
+            case .rec709, .p3d60, .p3dci, .xyz:
+                return CGColorSpace(
+                    name: pq ? CGColorSpace.itur_2100_PQ : CGColorSpace.itur_2100_HLG)
+            }
+        case .linear:
+            return CGColorSpace(name: CGColorSpace.extendedLinearSRGB)
+        case .gamma26, .bt1886, .gamma22, .gamma18:
+            let gamma: [CGFloat] = {
+                switch record.encodingEotf {
+                case .bt1886: return [2.4, 2.4, 2.4]
+                case .gamma26: return [2.6, 2.6, 2.6]
+                case .gamma18: return [1.8, 1.8, 1.8]
+                default: return [2.2, 2.2, 2.2]
+                }
+            }()
+            let black: [CGFloat] = [0, 0, 0]
+            let white: [CGFloat]
+            let gamut: [[CGFloat]]
+            switch record.encodingSpace {
+            case .rec709, .xyz:
+                // Rec709 gamut, D65 (the XYZ degenerate target's
+                // approximation — DECISIONS note).
+                white = [0.3127, 0.329, 0.0]
+                gamut = [[0.640, 0.330], [0.300, 0.600], [0.150, 0.060]]
+            case .p3d65:
+                white = [0.3127, 0.329, 0.0]
+                gamut = [[0.680, 0.320], [0.265, 0.690], [0.150, 0.060]]
+            case .p3d60:
+                white = [0.32168, 0.33767, 0.0]
+                gamut = [[0.680, 0.320], [0.265, 0.690], [0.150, 0.060]]
+            case .p3dci:
+                white = [0.314, 0.351, 0.0]
+                gamut = [[0.680, 0.320], [0.265, 0.690], [0.150, 0.060]]
+            case .rec2020:
+                // Not legal for SDR powers (the linkage table), but the
+                // record is persistable — build the honest gamut anyway.
+                white = [0.3127, 0.329, 0.0]
+                gamut = [[0.708, 0.292], [0.170, 0.797], [0.131, 0.046]]
+            }
+            // The SDK's Swift replacement of the obsoleted C constructor —
+            // the matrix rides the FLAT 6-component face.
+            var whitePoint = white
+            var blackPoint = black
+            var gamutFlat = gamut.flatMap { $0 }
+            var gammaValues = gamma
+            return CGColorSpace(
+                calibratedRGBWhitePoint: &whitePoint,
+                blackPoint: &blackPoint,
+                gamma: &gammaValues,
+                matrix: &gamutFlat)
+        }
+    }
+
+    /// The surface spec for a record (nil = the Core layer refused the
+    /// colorspace form — the caller stays on the legacy face + E3).
+    static func drtSurfaceSpec(for record: DrtRecord) -> DrtSurfaceSpec? {
+        guard let colorspace = drtLayerColorSpace(record) else { return nil }
+        return DrtSurfaceSpec(
+            hdrDrawable: record.encodingEotf != .gamma26 && record.encodingEotf != .bt1886
+                && record.encodingEotf != .gamma22 && record.encodingEotf != .gamma18,
+            layerColorSpace: colorspace)
+    }
 }
 
 /// Layout mirror of `BlitUniforms` in `EditorBlitShader.metal`
