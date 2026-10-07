@@ -214,3 +214,10 @@ Delivered 维持。正本 = perf.md §PERF-07 终验带内复核节。
 - **verify-work 输入** = 本 INPUT + `M2-11-VALIDATION.md`（正本）+ 五 plan SUMMARY/DECISIONS + `perf.md`（数字正本）+ `MANIFEST.md`（GUI 证据）+ REQUIREMENTS M2PERF/M2DRT-06/M2NODE-03 终态。
 - **呈报裁决点（禁静默）**：①M2NODE-03 翻勾——行内注记「严格面激活归 M2-5」+ `TODO.md` M2-5 批「add 面严格化」指针在案，checker E2 判「翻勾逾期带指针件」→ 翻账批拟补勾 + Delivered 注记（指针 = `TODO.md` M2-5 批 + `M2-5-3-ACCEPTANCE.md`）；**若 orchestrator 另有裁决（严格面语义未满）则该行保持 uncheck 收口**。②error 级 FINDING 两枚（M4 ToneEqual / M5 L057 家族）——「零 error 级 FINDING」判据 = 无未登记 error，两枚均已登记带证据 → 照签核纪律可放行，归属裁决随晨审。
 - **夜间授权在案**（D-07-3-T5-1 先例 + 用户「开跑，不要停」）→ INPUT 落盘即同批落签 VALIDATION（status validated）+ 翻账批；晨审可推翻。
+
+## §4.5 裁决结果（用户回批 2026-10-08）
+
+- **①M2NODE-03 翻勾维持**（用户确认）
+- **②FINDING-F + ToneEqual 走修复批**（用户裁决；修复批已派遣在飞——FINDING-F 修复 + ToneEqual 根因排查〔小改即修/大改报告挂专项〕）
+- **③M2 收口签核追认**（VALIDATION `3f91221` + 终审 `80f778f` 有效，推翻窗关闭）
+- **④V2 站排期**：用户预裁「按推荐」——规划草案（`phases/v2-station/V2-PROPOSAL.md`）定稿后按其推荐方案与 OQ 推荐项直接进入 planner，不再停等
