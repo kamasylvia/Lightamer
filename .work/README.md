@@ -35,7 +35,7 @@
 │                           #   子目录 m2-*/fix-batch/reverify-* = M2 时代，各含 MANIFEST.md）
 ├── matrix/                 # 多路复审存档（05-05-r1 一轮；细则正本 = skills/matrix/SKILL.md + config.toml）
 ├── debug-flaky/            # [gitignored] flaky 探针残渣（2026-09-26，调查已收口）
-└── tmp-public/             # [gitignored] 公开仓抽取 scratch（2026-09-27/28；repo/ 自带独立 .git）
+└── （已删除：tmp-public 公开仓 scratch 由 `../Lightamer-release` worktree 替代，2026-10-08）/             # [gitignored] 公开仓抽取 scratch（2026-09-27/28；repo/ 自带独立 .git）
 ```
 
 仓库根的 `.planning -> .work/gsd` 符号链接是 gsd-tools 兼容垫片（不入 git）；git pathspec 一律用 `.work/gsd/` 真路径。
@@ -160,7 +160,7 @@ skip 恒 16 零新增为 M2 后期纪律；对账链逐波独立验收背书，�
 
 | # | 路径 | 判断依据 |
 |---|---|---|
-| O1 | `.work/tmp-public/`（46M，gitignored） | 公开仓抽取 scratch（2026-09-27/28）：`messages/`+`tree/`+`repo/`（repo 自带独立 `.git`）。gitignore 注记「local-only scratch」。使命已完成即残渣；注意有会话以 `tmp-public/repo` 为 cwd 复用作 scratch，清除前须确认无在飞引用 |
+| O1 | `.work/（已删除：tmp-public 公开仓 scratch 由 `../Lightamer-release` worktree 替代，2026-10-08）/`（46M，gitignored） | 公开仓抽取 scratch（2026-09-27/28）：`messages/`+`tree/`+`repo/`（repo 自带独立 `.git`）。gitignore 注记「local-only scratch」。使命已完成即残渣；注意有会话以 `（已删除：tmp-public 公开仓 scratch 由 `../Lightamer-release` worktree 替代，2026-10-08）/repo` 为 cwd 复用作 scratch，清除前须确认无在飞引用 |
 | O2 | `.work/debug-flaky/`（464K，gitignored） | 2026-09-26 flaky 探针（`probe*.raw/png`）。调查已收口（flake 台账五波终态环境型归因，M2-10-07 收口），GOAL-STATE/LESSONS 零引用 → 残渣 |
 | O3 | `.work/.DS_Store` 及各级同名义件 | Finder 垃圾（gitignore 已全局忽略，不入库）；仅观感问题 |
 | O4 | `.work/gui-acceptance/09-3-tiers-{raf,arw,nef}-A-vs-B.jpg` | 9-3 D10 抽检**再生成物**（复跑必 dirty）：raf 一张已被 gitignore 钉；arw/nef 两张现为 working-tree 脏文件，GOAL-STATE 已登记「存量脏两 jpg 不入修复批」——保留在案，勿手工"修复" |
@@ -168,3 +168,11 @@ skip 恒 16 零新增为 M2 后期纪律；对账链逐波独立验收背书，�
 | O6 | `.work/matrix/`（仅 `05-05-r1/review/TASK.md`，4K） | 非残渣但近乎闲置：多路复审自 2026-09-22 起改走串行单验收路（config.toml [matrix.review] 仍为阵容/阈值正本）。保留 |
 
 **不列入清理的易混淆项**：working tree 中 61 个 .work 未跟踪/已修改文件（`gsd/phases/m3-1-w1/*`、`gsd/research/dt-clone-archive/`、REQUIREMENTS.md、BUNDLE-MAP.txt、散张走查截图）= **在飞工作产物**（M3-1 worker + 修复批），归属各在飞批的收口 commit，禁止他人代提交。
+
+## 公开仓同步（release）
+
+- 主仓含双 remote：`origin` = ADO 私有（明细史增量推）；`github` = `kamasylvia/Lightamer` 公开仓（压缩主题史）
+- `release` 分支跟踪 `github/main`，检出在独立 worktree `../Lightamer-release`（与 main 两套谱系，禁在主工作区 checkout——`.work` 证据链会被清出）
+- 同步流程：`cd ../Lightamer-release && git release-sync "<主题 message>" && git push github release:main`
+  - `release-sync` = read-tree main 树 → 剔 `.work`/`AGENTS.md` → 单主题提交（无差异则空转）
+- 公开面红线：零 `.work` 证据、零 AGENTS.md、全英文 message
