@@ -32,6 +32,38 @@ import SwiftUI
 
 internal struct SettingsView: View {
 
+    /// Plan M2-2-4 (M2LIB-06 / OQ-8): the legacy-library gate. Default
+    /// `false` — the Catalogs section AND the rebuild section (both are the
+    /// catalog face) are hidden; the display + MCP sections stay. There is
+    /// deliberately NO new "legacy library" switch here (双库并存的心智负担 —
+    /// the OQ-8 rationale); `LIGHTAMER_LEGACY_LIBRARY=1` at the assembly
+    /// point opts back. The production assembly passes the value in (KD-1 —
+    /// this body never touches ProcessInfo). (`var` + default: the
+    /// memberwise init parameter defaults to the narrowed face — only the
+    /// assembly point passes the evaluated gate.)
+    var legacyLibraryEnabled: Bool = false
+
+    /// Plan M2-2-4 (KD-4 layer 2): the catalog-section markers as a pure
+    /// function of the gate — a 1:1 mirror of the body's single conditional
+    /// below. The frozen M2-2-era set includes the two state-conditional
+    /// rebuild rows (schema-failed label / destructive recovery) at family
+    /// granularity; `LibraryLegacyGateTests` pins it against a hardcoded
+    /// `Set<String>` literal (never runtime-recorded).
+    nonisolated static func visibleCatalogSectionMarkers(
+        legacyLibraryEnabled: Bool
+    ) -> Set<String> {
+        guard legacyLibraryEnabled else { return [] }
+        return [
+            "settings.catalogs.enable",
+            "settings.catalogs.path",
+            "settings.catalogs.existence",
+            "settings.catalogs.change_location",
+            "settings.catalogs.schema_failed",
+            "settings.catalogs.rebuild_destructive",
+            "settings.catalogs.rebuild_reconcile",
+        ]
+    }
+
     @Environment(CatalogPreferencesModel.self) private var catalogPreferences
     @Environment(PipeCoordinator.self) private var pipeCoordinator
 
@@ -65,91 +97,97 @@ internal struct SettingsView: View {
                     .foregroundStyle(LightamerColors.textSecondary)
             }
 
-            Section(String(localized: "settings_catalogs_section")) {
-                Toggle(
-                    String(localized: "settings_catalogs_enable"),
-                    isOn: Binding(
-                        get: { catalogPreferences.catalogsEnabled },
-                        set: { catalogPreferences.setCatalogsEnabled($0) }
-                    )
-                )
-                .disabled(catalogPreferences.isRebuilding)
-                .accessibilityIdentifier("settings.catalogs.enable")
-
-                LabeledContent(String(localized: "settings_catalogs_location")) {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(catalogPreferences.catalogURL.path)
-                            .font(.caption)
-                            .lineLimit(1)
-                            .truncationMode(.head)
-                            .help(catalogPreferences.catalogURL.path)
-                            .accessibilityIdentifier("settings.catalogs.path")
-                        Text(
-                            catalogPreferences.catalogFileExists
-                                ? String(localized: "settings_catalogs_file_exists")
-                                : String(localized: "settings_catalogs_file_missing")
+            // Plan M2-2-4 (M2LIB-06 / OQ-8): both catalog sections hide
+            // behind the legacy gate — the enable toggle AND its rebuild
+            // faces (they are one face; 既有开关随 catalog 面同隐). Gate false
+            // leaves the display + MCP sections only.
+            if legacyLibraryEnabled {
+                Section(String(localized: "settings_catalogs_section")) {
+                    Toggle(
+                        String(localized: "settings_catalogs_enable"),
+                        isOn: Binding(
+                            get: { catalogPreferences.catalogsEnabled },
+                            set: { catalogPreferences.setCatalogsEnabled($0) }
                         )
-                        .font(.caption2)
-                        .foregroundStyle(LightamerColors.textSecondary)
-                        .accessibilityIdentifier("settings.catalogs.existence")
-                    }
-                }
-
-                Button(String(localized: "settings_catalogs_location_change")) {
-                    chooseLocation()
-                }
-                .disabled(catalogPreferences.isRebuilding)
-                .accessibilityIdentifier("settings.catalogs.change_location")
-
-                Text("settings_catalogs_backup_hint")
-                    .font(.caption)
-                    .foregroundStyle(LightamerColors.textSecondary)
-            }
-
-            Section(String(localized: "settings_catalogs_rebuild_section")) {
-                if catalogPreferences.schemaFailed {
-                    // The 损坏处置 disabled state (RQ-16-14): Catalogs mode
-                    // cannot open the library; the destructive file-level
-                    // recovery is the ONLY action. Sessions mode untouched.
-                    Label(String(localized: "settings_catalogs_schema_failed"),
-                          systemImage: "exclamationmark.triangle")
-                        .font(.callout)
-                        .foregroundStyle(.orange)
-                        .accessibilityIdentifier("settings.catalogs.schema_failed")
-
-                    Button(String(localized: "settings_catalogs_rebuild_destructive")) {
-                        confirmDestructive = true
-                    }
+                    )
                     .disabled(catalogPreferences.isRebuilding)
-                    .accessibilityIdentifier("settings.catalogs.rebuild_destructive")
-                } else {
-                    // The daily entry (the DEFAULT 档): the row-set repair
-                    // that keeps ids and organization data.
-                    Button(String(localized: "settings_catalogs_rebuild_reconcile")) {
-                        Task { await catalogPreferences.runReconcileRebuild() }
-                    }
-                    .disabled(
-                        !catalogPreferences.catalogsEnabled
-                            || catalogPreferences.isRebuilding)
-                    .accessibilityIdentifier("settings.catalogs.rebuild_reconcile")
-                }
+                    .accessibilityIdentifier("settings.catalogs.enable")
 
-                Text("settings_catalogs_rebuild_hint")
-                    .font(.caption)
-                    .foregroundStyle(LightamerColors.textSecondary)
-
-                if catalogPreferences.isRebuilding {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        if let progress = catalogPreferences.rebuildProgress {
-                            Text("settings_catalogs_rebuild_progress \(progress.completed) \(progress.total)")
-                        } else {
-                            Text("settings_catalogs_rebuild_preparing")
+                    LabeledContent(String(localized: "settings_catalogs_location")) {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(catalogPreferences.catalogURL.path)
+                                .font(.caption)
+                                .lineLimit(1)
+                                .truncationMode(.head)
+                                .help(catalogPreferences.catalogURL.path)
+                                .accessibilityIdentifier("settings.catalogs.path")
+                            Text(
+                                catalogPreferences.catalogFileExists
+                                    ? String(localized: "settings_catalogs_file_exists")
+                                    : String(localized: "settings_catalogs_file_missing")
+                            )
+                            .font(.caption2)
+                            .foregroundStyle(LightamerColors.textSecondary)
+                            .accessibilityIdentifier("settings.catalogs.existence")
                         }
                     }
-                    .font(.callout)
-                    .accessibilityIdentifier("settings.catalogs.rebuild_progress")
+
+                    Button(String(localized: "settings_catalogs_location_change")) {
+                        chooseLocation()
+                    }
+                    .disabled(catalogPreferences.isRebuilding)
+                    .accessibilityIdentifier("settings.catalogs.change_location")
+
+                    Text("settings_catalogs_backup_hint")
+                        .font(.caption)
+                        .foregroundStyle(LightamerColors.textSecondary)
+                }
+
+                Section(String(localized: "settings_catalogs_rebuild_section")) {
+                    if catalogPreferences.schemaFailed {
+                        // The 损坏处置 disabled state (RQ-16-14): Catalogs mode
+                        // cannot open the library; the destructive file-level
+                        // recovery is the ONLY action. Sessions mode untouched.
+                        Label(String(localized: "settings_catalogs_schema_failed"),
+                              systemImage: "exclamationmark.triangle")
+                            .font(.callout)
+                            .foregroundStyle(.orange)
+                            .accessibilityIdentifier("settings.catalogs.schema_failed")
+
+                        Button(String(localized: "settings_catalogs_rebuild_destructive")) {
+                            confirmDestructive = true
+                        }
+                        .disabled(catalogPreferences.isRebuilding)
+                        .accessibilityIdentifier("settings.catalogs.rebuild_destructive")
+                    } else {
+                        // The daily entry (the DEFAULT 档): the row-set repair
+                        // that keeps ids and organization data.
+                        Button(String(localized: "settings_catalogs_rebuild_reconcile")) {
+                            Task { await catalogPreferences.runReconcileRebuild() }
+                        }
+                        .disabled(
+                            !catalogPreferences.catalogsEnabled
+                                || catalogPreferences.isRebuilding)
+                        .accessibilityIdentifier("settings.catalogs.rebuild_reconcile")
+                    }
+
+                    Text("settings_catalogs_rebuild_hint")
+                        .font(.caption)
+                        .foregroundStyle(LightamerColors.textSecondary)
+
+                    if catalogPreferences.isRebuilding {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            if let progress = catalogPreferences.rebuildProgress {
+                                Text("settings_catalogs_rebuild_progress \(progress.completed) \(progress.total)")
+                            } else {
+                                Text("settings_catalogs_rebuild_preparing")
+                            }
+                        }
+                        .font(.callout)
+                        .accessibilityIdentifier("settings.catalogs.rebuild_progress")
+                    }
                 }
             }
 

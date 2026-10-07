@@ -269,22 +269,28 @@ public struct CatalogImageIdentity: Sendable, Equatable {
 
 /// The domain-parameterized evaluation result (the row faces differ —
 /// rel paths on the session side, composite identities on the catalog
-/// side — so the result is one enum, never a lossy merge).
+/// side, image ids on the library side — so the result is one enum, never
+/// a lossy merge). The `.library` case is Plan M2-2-3 T2's seam closure:
+/// the library's stable identity is the images rowid PK.
 public enum SmartAlbumEvaluation: Sendable, Equatable {
     case session(paths: [String])
     case catalog(identities: [CatalogImageIdentity])
+    case library(imageIDs: [Int64])
 }
 
 extension SmartAlbumStore {
 
     /// The 16-2 evaluation entry (domain: FilterDomain). Throws the typed
     /// registry error for a missing album and `missingStore` when the
-    /// caller has no connection for the requested domain.
+    /// caller has no connection for the requested domain. The library
+    /// domain (Plan M2-2-3 T2) consumes `LibraryQueries` — pass the open
+    /// project's query face; nil keeps the typed `missingStore` refusal.
     public func evaluate(
         id: String,
         domain: FilterDomain,
         sessionStore: SessionIndexStore?,
-        catalogStore: CatalogIndexStore?
+        catalogStore: CatalogIndexStore?,
+        libraryQueries: LibraryQueries? = nil
     ) async throws -> SmartAlbumEvaluation {
         guard let album = album(id: id) else {
             throw SmartAlbumError.notFound(id: id)
@@ -297,6 +303,15 @@ extension SmartAlbumStore {
             let rows = try await sessionStore.query(
                 groups: [album.group], sort: nil)
             return .session(paths: rows.map(\.path))
+        case .library:
+            // Plan M2-2-3 T2 (the M2-2-1 T4 placeholder's real face): the
+            // FULL member set rides LibraryQueries' id-keyset walk over
+            // `FROM images i` with the .library translation. No query
+            // face injected = the typed refusal, never a silent empty.
+            guard let libraryQueries else { throw SmartAlbumError.missingStore }
+            let ids = try await libraryQueries.memberIDs(
+                matching: album.group)
+            return .library(imageIDs: ids)
         case .catalog:
             guard let catalogStore else { throw SmartAlbumError.missingStore }
             var identities: [CatalogImageIdentity] = []

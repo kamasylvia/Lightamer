@@ -1,0 +1,192 @@
+import LightamerCore
+import SwiftUI
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WorkspaceModel (Plan M2-3-1 T2, KD-2 / D2 = OQ-2 A) — the two-workspace
+// routing state of the NEW shell: ONE window, two routed phases (the Alcedo
+// WorkspaceHost semantics). The model is the P2/P3 SEAM (本 plan 是缝正本):
+// the library collection model (LibraryGridModel), the editor shell and the
+// ⌘F search dialog all consume THIS face — later plans only consume, never
+// reopen the shape.
+//
+// LOSSLESS ROUND TRIP (the D2 red line): library → editor → library restores
+// the ENTIRE library face verbatim — filter, sort, selection, page anchor,
+// scroll position and inspector selection are preserved field-for-field
+// (pinned by WorkspaceRoutingTests). The library state is snapshotted at
+// editor entry and restored at editor exit; the editor face (current image +
+// filmstrip anchor) survives the round trip too (re-entering without a new
+// image id reopens the last image).
+//
+// EXHAUSTIVE SWITCHES: every `switch` over AppPhase is exhaustive with NO
+// `default` arm — a future phase case must answer every switch site at
+// compile time (the D-16-CONTEXT-3② discipline carried into the shell).
+//
+// ⌘F PRESENTATION (checker m6, P1 预埋): `isSearchDialogPresented` is a plain
+// presentation boolean OWNED here. The P2 GlobalSearchDialog is presented by
+// WorkspaceHostView reading THIS boolean — the dialog never self-owns its
+// presentation state, so the menu command, the grid and the dialog itself
+// stay consistent through one source.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The two routed workspaces of the shell (D2: single-window two-state
+/// routing — no tabs, no second window).
+enum AppPhase: Equatable, Sendable {
+    case library
+    case editor
+}
+
+/// The preserved LIBRARY face (everything the library workspace renders
+/// from). Every field survives the editor round trip.
+struct LibraryPhaseState: Equatable, Sendable {
+    /// The collection filter (structured group + lexical plan) — the ONE
+    /// source the grid / filmstrip / search dialog agree on (KD-3).
+    var filter: ExifSearchFilter
+    /// The sort (the five-key library whitelist rides LibraryQueries' guard).
+    var sort: FilterSort
+    /// The multi-select set (library rowids).
+    var selectedIDs: Set<Int64>
+    /// The keyset pagination cursor (the last page's last row).
+    var pageAnchor: LibraryPageAnchor?
+    /// The scroll face (the topmost visible row + the offset into it).
+    var scrollPosition: WorkspaceScrollPosition?
+    /// The Album Inspector group card selection (nil = overview / none).
+    var inspectorSelection: LibraryGroupKey?
+
+    init(
+        filter: ExifSearchFilter = ExifSearchFilter(),
+        sort: FilterSort = FilterSort(key: .filename, ascending: true),
+        selectedIDs: Set<Int64> = [],
+        pageAnchor: LibraryPageAnchor? = nil,
+        scrollPosition: WorkspaceScrollPosition? = nil,
+        inspectorSelection: LibraryGroupKey? = nil
+    ) {
+        self.filter = filter
+        self.sort = sort
+        self.selectedIDs = selectedIDs
+        self.pageAnchor = pageAnchor
+        self.scrollPosition = scrollPosition
+        self.inspectorSelection = inspectorSelection
+    }
+}
+
+/// The preserved EDITOR face. Survives the library round trip (D2).
+struct EditorPhaseState: Equatable, Sendable {
+    /// The image the editor is opened on (library rowid; nil = none yet).
+    var currentImageID: Int64?
+    /// The filmstrip's scroll anchor (kept aligned to the current image).
+    var filmstripScrollAnchor: Int64?
+
+    init(currentImageID: Int64? = nil, filmstripScrollAnchor: Int64? = nil) {
+        self.currentImageID = currentImageID
+        self.filmstripScrollAnchor = filmstripScrollAnchor
+    }
+}
+
+/// The scroll face of a virtualized collection surface: the anchor image id
+/// (the topmost visible row) + the pixel offset into that row — enough for
+/// the P2 grid / filmstrip to restore the scroll exactly.
+struct WorkspaceScrollPosition: Equatable, Sendable {
+    var anchorImageID: Int64
+    var rowOffset: Double
+
+    init(anchorImageID: Int64, rowOffset: Double = 0) {
+        self.anchorImageID = anchorImageID
+        self.rowOffset = rowOffset
+    }
+}
+
+/// The shell's routing state (KD-2). `@MainActor` + `@Observable` — the
+/// routing state IS main-thread state (plan risk note: never split out of
+/// the actor for testability; tests run on the main actor like the other
+/// MainActor model suites).
+@MainActor
+@Observable
+final class WorkspaceModel {
+
+    private(set) var phase: AppPhase = .library
+
+    /// The live library face (restored verbatim on editor exit).
+    private(set) var libraryState = LibraryPhaseState()
+
+    /// The live editor face (kept across the round trip).
+    private(set) var editorPhase = EditorPhaseState()
+
+    /// The library face as it stood at editor entry (the round-trip
+    /// snapshot; restored by `closeEditor`).
+    private var preservedLibraryState = LibraryPhaseState()
+
+    /// The ⌘F global-search dialog presentation (P1 预埋, m6). The P2
+    /// GlobalSearchDialog is presented by WorkspaceHostView reading THIS
+    /// boolean — the dialog never self-owns its presentation state, so the
+    /// menu command, the grid and the dialog itself stay consistent through
+    /// one source. P2 consumes it ONLY through the two faces below.
+    var isSearchDialogPresented = false
+
+    /// The ⌘F presentation route (the menu command + the dialog's own
+    /// re-open faces go through here — m6: ONE presentation owner).
+    func presentSearchDialog() {
+        isSearchDialogPresented = true
+    }
+
+    /// The dismissal route (the host's sheet binding writes back through
+    /// here; the dialog never pokes the boolean directly).
+    func dismissSearchDialog() {
+        isSearchDialogPresented = false
+    }
+
+    // MARK: - Editor-shell visibility toggles (the View-menu placeholder
+    // faces, T5/KD-6 — P3 hangs the real panels on these)
+
+    /// The editor tool rail (History/Versions/Nodes icon column).
+    var toolRailVisible = true
+    /// The scopes column (histogram/waveform, M2UIW-04).
+    var scopesVisible = true
+    /// The adjustment stack column (seven tabs).
+    var adjustmentStackVisible = true
+
+    // MARK: - Phase transitions (the D2 semantics)
+
+    /// Enter the editor on `imageID` (nil = reopen the last image — the
+    /// Alcedo re-entry semantics). The library face is snapshotted for the
+    /// lossless return. THIS IS THE T1-POINTLIGHT FACE (KD-1/D2 真缝): the
+    /// grid's double-click routes through here — `EditorPhaseState` carries
+    /// the current image id + the filmstrip anchor from this call.
+    func openEditor(imageID: Int64?) {
+        if phase == .library {
+            preservedLibraryState = libraryState
+        }
+        if let imageID {
+            editorPhase.currentImageID = imageID
+        }
+        editorPhase.filmstripScrollAnchor =
+            editorPhase.currentImageID ?? editorPhase.filmstripScrollAnchor
+        phase = .editor
+    }
+
+    /// Close the editor back to the library, restoring the snapshotted face
+    /// field-for-field (the D2 red line).
+    func closeEditor() {
+        libraryState = preservedLibraryState
+        phase = .library
+    }
+
+    /// The single toggle (⌘E / ⌘W equivalents route here).
+    func switchPhase() {
+        switch phase {
+        case .library: openEditor(imageID: nil)
+        case .editor: closeEditor()
+        }
+    }
+
+    /// The ONE mutation face for the library state (the P2 grid / search
+    /// dialog write through this; keeping it a closure keeps the field
+    /// read-only to everything else).
+    func updateLibraryState(_ mutation: (inout LibraryPhaseState) -> Void) {
+        mutation(&libraryState)
+    }
+
+    /// The ONE mutation face for the editor state (P3 filmstrip/viewport).
+    func updateEditorPhase(_ mutation: (inout EditorPhaseState) -> Void) {
+        mutation(&editorPhase)
+    }
+}

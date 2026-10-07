@@ -307,6 +307,25 @@ internal struct LightamerApp: App {
     /// Metal GPU → the fatal `.metalDeviceUnavailable` alert (UI-SPEC).
     @State private var metalContext: MetalContext? = (try? MetalContext())
 
+    /// Plan M2-2-2 (KD-5/OQ-1 A): the project lifecycle face (create/open/
+    /// recent/backup/move) + the import orchestration state — progress
+    /// routes THROUGH the controller so the @Sendable handler never
+    /// captures the App struct.
+    @State private var libraryProjects = LibraryProjectController()
+    @State private var libraryImportRequest: ImportFlowRequest?
+    @State private var libraryImportChoice = ImportModeChoice(
+        mode: .copy, remember: false)
+    @State private var libraryWelcomePresented = false
+
+    /// Plan M2-2-4 (M2LIB-06 / OQ-8, KD-1): the legacy-library gate,
+    /// evaluated ONCE here at the assembly point and distributed to the
+    /// gated faces as plain values (the M2-1 D-EXEC-1 injection discipline —
+    /// view bodies never read the environment). `LIGHTAMER_LEGACY_LIBRARY=1`
+    /// opts back into the pre-M2-2-4 Sessions/Catalogs face (the QA/
+    /// regression channel); the default (false) starts into the project
+    /// workspace (OQ-1).
+    private let legacyLibraryEnabled = LibraryLegacyGate.isLegacyLibraryRequested()
+
     init() {
         #if DEBUG
         // 07-1 T2: the headless cross-process determinism probe — runs at
@@ -329,6 +348,33 @@ internal struct LightamerApp: App {
     /// "3"/"x" must reach the TEXT FIELD, not the menu).
     @FocusedBinding(\.metadataFieldFocused)
     private var metadataFieldFocused: Bool?
+
+    /// Plan M2-3-1 T5 (KD-6): the focused window's shell routing state — the
+    /// workspace circuit commands (⌘E/⌘W/⌘F) and the View-menu visibility
+    /// toggles read it through the WorkspaceHostView-published key. nil when
+    /// no shell window is focused (or the gate=true face owns it).
+    @FocusedValue(\.lightamerWorkspaceModel)
+    private var focusedWorkspace: WorkspaceModel?
+
+    /// Plan M2-3-1 T5 (KD-6): the menu IA's visible command set — the pure
+    /// function consumed ONCE per menu render; every gate wrap below queries
+    /// THIS value (the single source), and the gate=true inner statements
+    /// stay byte-identical to the M2-2 baseline.
+    private var visibleMenuCommands: Set<MenuCommandID> {
+        MenuCommandSet.visibleCommandIDs(
+            gate: legacyLibraryEnabled,
+            phase: focusedWorkspace?.phase ?? .library)
+    }
+
+    /// A two-way binding into the focused workspace's visibility toggles
+    /// (the View-menu placeholder faces; false = no shell window focused).
+    private func workspaceToggleBinding(
+        _ keyPath: ReferenceWritableKeyPath<WorkspaceModel, Bool>
+    ) -> Binding<Bool> {
+        Binding(
+            get: { self.focusedWorkspace?[keyPath: keyPath] ?? false },
+            set: { self.focusedWorkspace?[keyPath: keyPath] = $0 })
+    }
 
     /// Plan 12-4 T3: the preset-manager window opener (the Edit-menu and
     /// toolbar entries route here).
@@ -359,7 +405,10 @@ internal struct LightamerApp: App {
                 onPartialPaste: { selection, mode in
                     await pasteToSelection(selection: selection, mode: mode)
                 },
-                pastePartialRequested: $pastePartialRequested
+                pastePartialRequested: $pastePartialRequested,
+                legacyLibraryEnabled: legacyLibraryEnabled,
+                projectController: libraryProjects,
+                onImportFolder: { importFolderFromPanel() }
             )
                 .environment(sessionState)
                 .environment(sessionCoordinator)
@@ -391,6 +440,16 @@ internal struct LightamerApp: App {
                     // 08-4 T3: the headroom monitor's initial query + the
                     // two screen-event observers (idempotent, app-lifetime).
                     edrHeadroomMonitor.start()
+                }
+                .task {
+                    // Plan M2-2-2 (OQ-1 A): the minimal Welcome entry shows
+                    // at launch when no project is open AND the recent list
+                    // is empty — the additive path beside the Session face
+                    // (coexistence until M2-2-4's 剥离门).
+                    if libraryProjects.projectStore == nil,
+                       libraryProjects.recentProjects.isEmpty {
+                        libraryWelcomePresented = true
+                    }
                 }
                 .task {
                     // Wire the pipe owner ↔ editor state pair (both weakly
@@ -1015,16 +1074,75 @@ internal struct LightamerApp: App {
                         editing: editingSeams,
                         culling: cullingContext)
                 }
+                // Plan M2-2-2: the project/import minimal faces (OQ-1 A +
+                // OQ-4/OQ-11 切分线 — dialog + progress here, the complete
+                // shell M2-3). View-level modifiers on the ContentView chain
+                // (Scene `Window` carries no sheet/overlay face).
+                .sheet(item: $libraryImportRequest) { request in
+                    ImportModeDialog(
+                        request: request, initial: libraryImportChoice,
+                        onConfirm: { choice in
+                            libraryImportRequest = nil
+                            // The OQ-4 persistence face (write on ACTION,
+                            // never a body read — the D-EXEC-1 discipline).
+                            ImportDefaults().storeChoice(choice)
+                            Task {
+                                await libraryProjects.runImport(
+                                    folder: request.folder, choice: choice)
+                            }
+                        },
+                        onCancel: { libraryImportRequest = nil })
+                }
+                .sheet(isPresented: $libraryWelcomePresented) {
+                    LibraryWelcomeView(
+                        recentProjects: libraryProjects.recentProjects,
+                        onCreate: { Task { await newLibraryProjectFromPanel() } },
+                        onOpen: { Task { await openLibraryProjectFromPanel() } },
+                        onOpenRecent: { url in
+                            Task {
+                                try? await libraryProjects.openProject(at: url)
+                                libraryWelcomePresented = false
+                            }
+                        },
+                        onDismiss: { libraryWelcomePresented = false })
+                }
+                .overlay {
+                    // Plan M2-3-1 T6: the progress overlay is now the LEGACY
+                    // channel's face — the new shell renders the background-
+                    // task bar + dialog (BackgroundTaskBarView) instead; the
+                    // M2-2 view file itself stays untouched.
+                    if legacyLibraryEnabled, let progress = libraryProjects.importProgress {
+                        ImportProgressView(progress: progress) {
+                            libraryProjects.cancelImport()
+                        }
+                    }
+                }
+                .alert(
+                    Text(verbatim: "Lightamer Project"),
+                    isPresented: Binding(
+                        get: { libraryProjects.lastError != nil },
+                        set: { if !$0 { libraryProjects.clearLastError() } })
+                ) {
+                    Button {
+                        libraryProjects.clearLastError()
+                    } label: {
+                        Text(verbatim: "OK")
+                    }
+                } message: {
+                    Text(verbatim: libraryProjects.lastError ?? "")
+                }
         }
         .defaultSize(width: 1440, height: 900)
         .windowToolbarStyle(.unified) // UI-SPEC: unified toolbar
         .commands {
             // ── File ────────────────────────────────────────────────
             CommandGroup(replacing: .newItem) {
-                // Phase 9 — disabled in Phase 1 (UI-SPEC Menu Bar table).
-                Button(String(localized: "menu_new_session")) {}
-                    .disabled(true)
-                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                if visibleMenuCommands.contains(.sessionNew) {
+                    // Phase 9 — disabled in Phase 1 (UI-SPEC Menu Bar table).
+                    Button(String(localized: "menu_new_session")) {}
+                        .disabled(true)
+                        .keyboardShortcut("n", modifiers: [.command, .shift])
+                }
             }
             CommandGroup(after: .newItem) {
                 // Phase 1 active: file picker → EditorState.load (real
@@ -1040,31 +1158,106 @@ internal struct LightamerApp: App {
                     }
                 }
                 .keyboardShortcut("o", modifiers: .command)
-                // Plan 09-01 (SESS-01): pick a folder → the session path
-                // (same-window routing; FileOpener.openFolder's panel
-                // wrapper reused).
-                Button(String(localized: "menu_open_session")) {
-                    FileOpener.openSessionFolder { url in
-                        Task { await sessionCoordinator.openSession(url: url) }
-                    }
-                }
-                .keyboardShortcut("o", modifiers: [.command, .shift])
-                // Plan 09-01 fills the recent-sessions list (SESS-04); the
-                // rows route into the SAME openSession path (L012).
-                Menu(String(localized: "menu_open_recent")) {
-                    ForEach(sessionState.recentSessions, id: \.absoluteString) { url in
-                        Button(url.lastPathComponent) {
+                if visibleMenuCommands.contains(.sessionOpen) {
+                    // Plan 09-01 (SESS-01): pick a folder → the session path
+                    // (same-window routing; FileOpener.openFolder's panel
+                    // wrapper reused).
+                    Button(String(localized: "menu_open_session")) {
+                        FileOpener.openSessionFolder { url in
                             Task { await sessionCoordinator.openSession(url: url) }
                         }
                     }
+                    .keyboardShortcut("o", modifiers: [.command, .shift])
+                    // Plan 09-01 fills the recent-sessions list (SESS-04); the
+                    // rows route into the SAME openSession path (L012).
+                    Menu(String(localized: "menu_open_recent")) {
+                        ForEach(sessionState.recentSessions, id: \.absoluteString) { url in
+                            Button(url.lastPathComponent) {
+                                Task { await sessionCoordinator.openSession(url: url) }
+                            }
+                        }
+                    }
+                    .disabled(sessionState.recentSessions.isEmpty)
                 }
-                .disabled(sessionState.recentSessions.isEmpty)
+                if visibleMenuCommands.contains(.sessionClose) {
+                    Divider()
+                    // Phase 9 — disabled. (No .closeItem placement in SwiftUI's
+                    // CommandGroupPlacement, so it sits with the File items.)
+                    Button(String(localized: "menu_close_session")) {}
+                        .disabled(true)
+                        .keyboardShortcut("w", modifiers: [.command, .shift])
+                }
                 Divider()
-                // Phase 9 — disabled. (No .closeItem placement in SwiftUI's
-                // CommandGroupPlacement, so it sits with the File items.)
-                Button(String(localized: "menu_close_session")) {}
-                    .disabled(true)
-                    .keyboardShortcut("w", modifiers: [.command, .shift])
+                // Plan M2-2-2 (OQ-1 A/KD-5): the project command face —
+                // additive beside the Session face (coexistence until the
+                // M2-2-4 剥离门). Verbatim labels: zh lands with M2-3.
+                Button {
+                    Task { await newLibraryProjectFromPanel() }
+                } label: { Text(verbatim: "New Project…") }
+                .keyboardShortcut("n", modifiers: [.command])
+                Button {
+                    Task { await openLibraryProjectFromPanel() }
+                } label: { Text(verbatim: "Open Project…") }
+                .keyboardShortcut("o", modifiers: [.command, .option])
+                Menu {
+                    ForEach(libraryProjects.recentProjects, id: \.absoluteString) { url in
+                        Button(url.lastPathComponent) {
+                            Task {
+                                try? await libraryProjects.openProject(at: url)
+                                libraryWelcomePresented = false
+                            }
+                        }
+                    }
+                } label: { Text(verbatim: "Open Recent Project") }
+                .disabled(libraryProjects.recentProjects.isEmpty)
+                Divider()
+                Button {
+                    importFolderFromPanel()
+                } label: { Text(verbatim: "Import Folder…") }
+                .disabled(libraryProjects.projectStore == nil)
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+                Divider()
+                Button {
+                    Task { await backupProjectFromPanel() }
+                } label: { Text(verbatim: "Backup Project…") }
+                .disabled(libraryProjects.projectStore == nil)
+                Button {
+                    Task { await moveProjectFromPanel() }
+                } label: { Text(verbatim: "Move Project…") }
+                .disabled(libraryProjects.projectStore == nil)
+                if visibleMenuCommands.contains(.workspaceEnterEditor) {
+                    Divider()
+                    // Plan M2-3-1 (KD-6 / D11): the two-workspace circuit.
+                    // ⌘E enters the editor (the P2 grid double-click stays
+                    // the primary entry); ⌘W closes the image back to the
+                    // library (the Alcedo close-image semantic — the window
+                    // close yields while the editor holds the workspace).
+                    Button(String(localized: "menu_enter_editor",
+                                  defaultValue: "Enter Editor")) {
+                        focusedWorkspace?.openEditor(imageID: nil)
+                    }
+                    .disabled(focusedWorkspace?.phase != .library)
+                    .keyboardShortcut("e", modifiers: [.command])
+                    .accessibilityIdentifier("menu.workspace.enterEditor")
+                    Button(String(localized: "menu_back_to_library",
+                                  defaultValue: "Back to Library")) {
+                        focusedWorkspace?.closeEditor()
+                    }
+                    .disabled(focusedWorkspace?.phase != .editor)
+                    .keyboardShortcut("w", modifiers: [.command])
+                    .accessibilityIdentifier("menu.workspace.backToLibrary")
+                    Divider()
+                    // The global search dialog (⌘F) — the presentation state
+                    // rides WorkspaceModel.isSearchDialogPresented (the P1
+                    // seam); the dialog itself renders in P2.
+                    Button(String(localized: "menu_library_search",
+                                  defaultValue: "Search Library…")) {
+                        focusedWorkspace?.isSearchDialogPresented = true
+                    }
+                    .disabled(focusedWorkspace == nil)
+                    .keyboardShortcut("f", modifiers: [.command])
+                    .accessibilityIdentifier("menu.library.search")
+                }
             }
             CommandGroup(replacing: .saveItem) {
                 // Phase 2 (sidecar) — disabled.
@@ -1168,6 +1361,21 @@ internal struct LightamerApp: App {
                     viewportState.fit()
                 }
                 .keyboardShortcut("f", modifiers: [])
+                if visibleMenuCommands.contains(.viewToolRail) {
+                    Divider()
+                    // Plan M2-3-1 (KD-6): the editor-shell visibility toggles
+                    // — placeholder booleans on the shell state; P3 hangs the
+                    // real panels on them.
+                    Toggle(String(localized: "menu_view_tool_rail",
+                                  defaultValue: "Tool Rail"),
+                           isOn: workspaceToggleBinding(\.toolRailVisible))
+                    Toggle(String(localized: "menu_view_scopes",
+                                  defaultValue: "Scopes"),
+                           isOn: workspaceToggleBinding(\.scopesVisible))
+                    Toggle(String(localized: "menu_view_adjustment_stack",
+                                  defaultValue: "Adjustment Stack"),
+                           isOn: workspaceToggleBinding(\.adjustmentStackVisible))
+                }
             }
 
             // ── 标记 (12-1 T6, META-01/META-05) — the three-state metadata
@@ -1257,9 +1465,71 @@ internal struct LightamerApp: App {
         // placeholder. The preferences model is injected explicitly (the
         // Settings scene has its own environment).
         Settings {
-            SettingsView()
+            SettingsView(legacyLibraryEnabled: legacyLibraryEnabled)
                 .environment(catalogPreferences)
                 .preferredColorScheme(.dark) // D-10: v1 forced dark
+        }
+    }
+
+    // MARK: - Project command routes (Plan M2-2-2, KD-5)
+
+    private func newLibraryProjectFromPanel() async {
+        guard let url = LibraryPanels.newProject() else { return }
+        do {
+            try await libraryProjects.createProject(
+                at: url, name: url.deletingPathExtension().lastPathComponent)
+            libraryWelcomePresented = false
+        } catch {
+            libraryProjects.reportError(error.localizedDescription)
+        }
+    }
+
+    private func openLibraryProjectFromPanel() async {
+        guard let url = LibraryPanels.openProject() else { return }
+        do {
+            try await libraryProjects.openProject(at: url)
+            libraryWelcomePresented = false
+        } catch {
+            libraryProjects.reportError(error.localizedDescription)
+        }
+    }
+
+    private func importFolderFromPanel() {
+        guard let folder = LibraryPanels.folder(title: "Import Folder") else { return }
+        // Seed the dialog choice OUTSIDE any view body (the D-EXEC-1
+        // no-defaults-in-body discipline).
+        let defaults = ImportDefaults()
+        libraryImportChoice = ImportModeChoice(
+            mode: defaults.resolvedMode(), remember: defaults.rememberMode)
+        libraryImportRequest = ImportFlowRequest(folder: folder)
+    }
+
+    private func backupProjectFromPanel() async {
+        guard libraryProjects.projectStore != nil else { return }
+        let stem = libraryProjects.projectURL?
+            .deletingPathExtension().lastPathComponent ?? "Project"
+        guard let destination = LibraryPanels.destination(
+            title: "Backup Project",
+            defaultName: stem + "-backup." + LibrarySchema.fileExtension)
+        else { return }
+        do {
+            try await libraryProjects.backupProject(to: destination)
+        } catch {
+            libraryProjects.reportError(error.localizedDescription)
+        }
+    }
+
+    private func moveProjectFromPanel() async {
+        guard let packageURL = libraryProjects.projectURL else { return }
+        let stem = packageURL.deletingPathExtension().lastPathComponent
+        guard let picked = LibraryPanels.folder(title: "Move Project To") else { return }
+        // The open panel picks an existing parent; the moved directory
+        // takes the project's stem inside it.
+        let destination = picked.appendingPathComponent(stem)
+        do {
+            try await libraryProjects.moveProject(to: destination)
+        } catch {
+            libraryProjects.reportError(error.localizedDescription)
         }
     }
 

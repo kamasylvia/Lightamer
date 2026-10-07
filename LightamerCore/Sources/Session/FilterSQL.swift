@@ -107,13 +107,19 @@ public struct FilterSort: Codable, Equatable, Sendable {
     /// indexes `(k IS NULL, k [DESC], rel_path)` from
     /// CatalogIndexSchema.orderingIndexSQL, so the planner picks the
     /// covering index with zero TEMP B-TREE (F6). The session domain is
-    /// byte-identical to the pre-16-1 spelling.
+    /// byte-identical to the pre-16-1 spelling. The library domain (Plan
+    /// M2-2-1 T4, KD-7): the tiebreaker is `image_path ASC` — the
+    /// library's real, always-non-NULL column (the session `path` /
+    /// catalog `rel_path` same family; the query face pins
+    /// `FROM images i`; `file_stem` was the documented alternative).
     public func orderBySQL(domain: FilterDomain) -> String {
         switch domain {
         case .session:
             "\(key.orderByTerm(ascending: ascending)), path ASC"
         case .catalog:
             "\(key.orderByTerm(ascending: ascending)), rel_path ASC"
+        case .library:
+            "\(key.orderByTerm(ascending: ascending)), image_path ASC"
         }
     }
 }
@@ -129,12 +135,23 @@ public struct FilterSort: Codable, Equatable, Sendable {
 /// `startsWith` under `case_sensitive_like=ON` (RQ-16-16①: the BINARY
 /// index is otherwise unreachable by a case-insensitive LIKE).
 ///
-/// The catalog templates reference the OUTER ALIAS `i` — the catalog query
-/// face (CatalogIndexStore) ALWAYS spells `FROM catalog_images i`; that
+/// `.library` (Plan M2-2-1 T4, KD-7) = the CATALOG domain's alias variant
+/// over the project package: the same predicate model over `images` —
+/// baseline collapses to `(1=1)` (a library has no orphan-scan semantics),
+/// every non-sorting term carries the same `+i.` prefix discipline, and
+/// keywords hit the MATERIALIZED `keywords` column with the session
+/// four-clause shape (the KD-3 reserved column — zero EXISTS: the library
+/// stores the `|`-joined string directly). NO `default` arm anywhere —
+/// the exhaustive switches are the compiler-enforced guarantee that a new
+/// domain cannot skip a face.
+///
+/// The library templates reference the OUTER ALIAS `i` — the library query
+/// face (M2-2-3 LibraryQueries) ALWAYS spells `FROM images i`; that
 /// convention is pinned HERE, in the template comments, not at call sites.
 public enum FilterDomain: Sendable {
     case session
     case catalog
+    case library
 }
 
 public enum FilterSQL {
@@ -189,12 +206,15 @@ public enum FilterSQL {
             binds: binds)
     }
 
-    /// The baseline in both domains (catalog carries the `+` prefix + the
-    /// `i` alias — the F10 discipline covers EVERY non-sorting term).
+    /// The baseline in all three domains (catalog/library carry the `+`
+    /// prefix + the `i` alias — the F10 discipline covers EVERY
+    /// non-sorting term). The library baseline is `(1=1)`: the package has
+    /// no orphan classification to scan out (KD-7).
     private static func baselineClause(_ domain: FilterDomain) -> String {
         switch domain {
         case .session: "(orphan_sidecar = 0)"
         case .catalog: "(+i.orphan_sidecar = 0)"
+        case .library: "(1=1)"
         }
     }
 
@@ -214,15 +234,16 @@ public enum FilterSQL {
 
     /// The column reference for a domain: the bare frozen name on the
     /// session side; the `+`-prefixed `i`-aliased spelling on the catalog
-    /// side (F10 — `+` bans the term from driving an index, keeping the
-    /// ordering index in the lead; `i` is the catalog query face's pinned
-    /// `FROM catalog_images i` alias).
+    /// AND library sides (F10 — `+` bans the term from driving an index,
+    /// keeping the ordering index in the lead; `i` is the query face's
+    /// pinned alias — `FROM catalog_images i` / `FROM images i`).
     private static func columnRef(
         _ column: String, _ domain: FilterDomain
     ) -> String {
         switch domain {
         case .session: column
         case .catalog: "+i.\(column)"
+        case .library: "+i.\(column)"
         }
     }
 
@@ -252,14 +273,23 @@ public enum FilterSQL {
     /// collapse to the equality EXISTS over `image_tags` — one bind per
     /// tag, NO LIKE and NO ESCAPE (the projection already expanded the
     /// ancestors; the sub-query walks the WITHOUT ROWID PK, F11).
-    /// `empty`/`notEmpty` consume the mirrored keywords column (the
-    /// NULL/'' two-state distinction lives THERE in both domains).
+    /// LIBRARY domain (Plan M2-2-1 T4, KD-7): the keywords column is the
+    /// MATERIALIZED `|`-joined string reserved at schema time — the SESSION
+    /// four-clause shape with the `+i.` reference (no EXISTS: there is no
+    /// tags side table). `empty`/`notEmpty` consume the mirrored keywords
+    /// column (the NULL/'' two-state distinction lives THERE in all three
+    /// domains).
     private static func keywordsCondition(
         for rule: FilterPredicateGroup.Rule, column: String,
         domain: FilterDomain, binds: inout [FilterSQLBind]
     ) throws -> String {
         switch domain {
         case .session:
+            return try sessionKeywordsCondition(
+                for: rule, column: column, binds: &binds)
+        case .library:
+            // The materialized `|`-joined column — the session four-clause
+            // shape over the `+i.`-referenced reserved column.
             return try sessionKeywordsCondition(
                 for: rule, column: column, binds: &binds)
         case .catalog:
