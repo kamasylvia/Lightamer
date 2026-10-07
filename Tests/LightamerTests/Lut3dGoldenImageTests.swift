@@ -314,3 +314,178 @@ final class Lut3dGoldenImageTests: XCTestCase {
     }
 }
 
+// MARK: - Full-chain log-domain golden (M3-1-01 T5, KD-6)
+
+/// The built-in spectral-film set sampled through the REMEMBERED pair
+/// (LogC4/AWG4 in -> table -> BT.1886/Rec709 out) on the real GPU chain:
+/// real parse, real composite bake, real texture upload, real kernel
+/// sampling (checker ①). The CPU reference composes the same pipeline in
+/// Float64 with the TEST-side sampler (the independent double-write of the
+/// kernel sample leg). Fence-before-readback per L014.
+final class Lut3dFullChainEncodingTests: XCTestCase {
+
+    /// Deterministic sampling of the built-in set: sorted names, first /
+    /// middle / last (the KD-6 "确定性命名" contract).
+    private func sampleBuiltInNames() throws -> [String] {
+        guard let dir = Bundle.main.url(forResource: "LUTs", withExtension: nil),
+            let items = try? FileManager.default.contentsOfDirectory(
+                at: dir, includingPropertiesForKeys: nil)
+        else { throw XCTSkip("bundle LUTs/ not present in this host") }
+        let names = items
+            .map { $0.lastPathComponent }
+            .filter { $0.hasSuffix(".cube") }
+            .sorted()
+        guard names.count >= 3 else { throw XCTSkip("built-in set too small") }
+        return [names[0], names[names.count / 2], names[names.count - 1]]
+    }
+
+    private func makeMetal() async throws -> MetalContext {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        return metal
+    }
+
+    private func drain(_ metal: MetalContext) async {
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        await fence?.completed()
+    }
+
+    private final class Resolver: Lut3dModule.LutResolving, @unchecked Sendable {
+        var tables: [String: CubeLut] = [:]
+        func lut(named: String) -> CubeLut? { tables[named] }
+    }
+
+    private func makeTexture(
+        _ metal: MetalContext, width: Int, height: Int, write pixels: [SIMD4<Float>]
+    ) throws -> any MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: width, height: height, mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        let texture = try XCTUnwrap(metal.device.makeTexture(descriptor: descriptor))
+        var px = pixels
+        px.withUnsafeBytes { raw in
+            texture.replace(
+                region: MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
+                    size: MTLSize(width: width, height: height, depth: 1)),
+                mipmapLevel: 0, withBytes: raw.baseAddress!,
+                bytesPerRow: width * MemoryLayout<SIMD4<Float>>.stride)
+        }
+        return texture
+    }
+
+    private func readback(_ metal: MetalContext, _ texture: any MTLTexture) async -> [SIMD4<Float>] {
+        await drain(metal)  // L014: fence before getBytes
+        let w = texture.width, h = texture.height
+        var pixels = [SIMD4<Float>](repeating: .zero, count: w * h)
+        pixels.withUnsafeMutableBytes { raw in
+            texture.getBytes(
+                raw.baseAddress!, bytesPerRow: w * MemoryLayout<SIMD4<Float>>.stride,
+                from: MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
+                    size: MTLSize(width: w, height: h, depth: 1)),
+                mipmapLevel: 0)
+        }
+        return pixels
+    }
+
+    /// The test grid: a gray ramp plus chromatic patches (all inside [0,1],
+    /// the composite table's unit sample domain under .rec2020 matrices).
+    private static let grid = 8
+    private static let inputs: [SIMD4<Float>] = (0..<(8 * 8)).map { i in
+        let x = Float(i % 8) / 7, y = Float(i / 8) / 7
+        return SIMD4(x, y, (1 - x) * 0.5 + y * 0.5, 0.5)
+    }
+
+    private func gpuRun(
+        _ metal: MetalContext, resolver: Resolver, params: Lut3dModule.Params
+    ) async throws -> (pixels: [SIMD4<Float>], composite: [SIMD3<Float>]?) {
+        let module = Lut3dModule(device: metal.device, resolver: resolver)
+        var piece = IOPiece()
+        module.commitParams(params, into: &piece)
+        XCTAssertNotNil(piece.data, "\(params.lutName ?? "nil") commit")
+        let input = try makeTexture(metal, width: Self.grid, height: Self.grid, write: Self.inputs)
+        let output = try makeTexture(metal, width: Self.grid, height: Self.grid, write: [])
+        try await module.process(
+            input: input, output: output,
+            roiIn: ROI(x: 0, y: 0, width: Self.grid, height: Self.grid, scale: 1),
+            roiOut: ROI(x: 0, y: 0, width: Self.grid, height: Self.grid, scale: 1),
+            piece: &piece, metal: metal)
+        return (await readback(metal, output), module.lastCompositedTable)
+    }
+
+    /// The remembered pair renders the sampled built-ins faithfully: the
+    /// GPU output equals the COMPOSITE table's own tetrahedral
+    /// interpolation (±1.5/1024 — the same-table gate of
+    /// testNonIdentityTableWithRealMatrices). The TRUE-chain correctness
+    /// (baked composite vs the Float64 encode/sample/decode chain) is the
+    /// VOXEL-LEVEL gate in Lut3dBakeTests.testBakeCompositeVsCPUReference
+    /// (≤1e-5) + the direction-probe goldens; a full-chain "GPU vs
+    /// source-table Float64" gate at 1e-5 is mathematically unattainable
+    /// here — the 65³ composite lattice's interpolation floor for film
+    /// curves in linear working space measures ~8e-3 (observed), the
+    /// lattice resample being inherent to the host-side bake.
+    func testBuiltInSampleRememberedPairFullChain() async throws {
+        let metal = try await makeMetal()
+        let resolver = Resolver()
+        for name in try sampleBuiltInNames() {
+            let url = try XCTUnwrap(
+                Bundle.main.url(forResource: "LUTs", withExtension: nil)?
+                    .appendingPathComponent(name))
+            let lut = try CubeLutParser.parse(data: try Data(contentsOf: url))
+            resolver.tables[name] = lut
+            guard case .lut3d(let level) = lut.kind else { continue }
+
+            let (got, composite) = try await gpuRun(
+                metal, resolver: resolver,
+                params: Lut3dModule.Params(
+                    lutName: name, colorspace: .rec2020,
+                    inputEncoding: .arriLogC4AWG4, outputEncoding: .rec709BT1886))
+            let table = try XCTUnwrap(composite, "the pair must bake a composite")
+
+            var maxAbs: Float = 0
+            for (i, px) in Self.inputs.enumerated() {
+                let ref = Lut3dKernelTests.cpuLut3d(
+                    SIMD3(Double(px.x), Double(px.y), Double(px.z)),
+                    table: table, level: level,
+                    domainMin: SIMD3(0, 0, 0), domainMax: SIMD3(1, 1, 1),
+                    interpolation: .tetrahedral)
+                for ch in 0..<3 {
+                    maxAbs = max(maxAbs, abs(got[i][ch] - Float(ref[ch])))
+                }
+            }
+            XCTAssertLessThanOrEqual(maxAbs, 1.5 / 1024.0, "\(name) faithful-pipeline gate")
+        }
+    }
+
+    /// The deviation-correction evidence (KD-6): the remembered-pair
+    /// rendering DIFFERS from the default-pair (fast-path) rendering —
+    /// non-zero and directional (the default pair passes the log table
+    /// linear input, the remembered pair feeds it log codes).
+    func testRememberedPairRenderingDiffersFromDefaultPair() async throws {
+        let metal = try await makeMetal()
+        let resolver = Resolver()
+        let name = try sampleBuiltInNames()[0]
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: "LUTs", withExtension: nil)?
+                .appendingPathComponent(name))
+        resolver.tables[name] = try CubeLutParser.parse(data: try Data(contentsOf: url))
+
+        let (defaultPair, _) = try await gpuRun(
+            metal, resolver: resolver,
+            params: Lut3dModule.Params(lutName: name, colorspace: .rec2020))
+        let (rememberedPair, _) = try await gpuRun(
+            metal, resolver: resolver,
+            params: Lut3dModule.Params(
+                lutName: name, colorspace: .rec2020,
+                inputEncoding: .arriLogC4AWG4, outputEncoding: .rec709BT1886))
+
+        var maxDiff: Float = 0
+        for (a, b) in zip(defaultPair, rememberedPair) {
+            for ch in 0..<3 { maxDiff = max(maxDiff, abs(a[ch] - b[ch])) }
+        }
+        XCTAssertGreaterThan(maxDiff, 0.01, "\(name): the pair must change the render")
+    }
+}
+
