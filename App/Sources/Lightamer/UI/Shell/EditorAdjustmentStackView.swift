@@ -44,6 +44,10 @@ struct EditorAdjustmentStackView: View {
     /// The Geometry page's Advanced folded group (D6-only items; folded by
     /// default so the Alcedo IA face stays clean).
     @State private var advancedExpanded = false
+    /// The M2-5-2 group shells (KD-1): the Look page's four groups. Main
+    /// groups default EXPANDED (the IA face stays scannable); the compat/
+    /// advanced folds default collapsed (the D6 收纳 posture).
+    @State private var groupExpanded: [PanelGroup: Bool] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -140,21 +144,32 @@ struct EditorAdjustmentStackView: View {
         }
     }
 
-    /// The page's panel rows: main group first, the Advanced folded group
-    /// last (Geometry's D6-only items). A descriptor with no instance in
-    /// the active chain renders no row (the M1 chain-list semantics).
+    /// The page's panel rows (M2-5-2 KD-1 group shell): ungrouped main rows
+    /// flat first (the legacy path — Geometry/LUT unchanged), then the
+    /// `PanelGroup.mainOrder` shells, then the trailing fold (Geometry's
+    /// "Advanced" / the Tone compat group — the header follows the rows'
+    /// group). A descriptor with no instance in the active chain renders no
+    /// row (the M1 chain-list semantics).
     private func pageRows(
         _ tab: EditorTabRoute, session: InspectorEditSession
     ) -> some View {
         let descriptors = EditorTabRoutingTable.panels(for: tab)
         let advanced = descriptors.filter { $0.isAdvancedGroup }
+        let main = descriptors.filter { !$0.isAdvancedGroup }
+        let ungrouped = main.filter { $0.group == nil }
+        let grouped: [(PanelGroup, [EditorPanelDescriptor])] =
+            PanelGroup.mainOrder.compactMap { group in
+                let members = main.filter { $0.group == group }
+                return members.isEmpty ? nil : (group, members)
+            }
         return VStack(alignment: .leading, spacing: 0) {
-            ForEach(
-                descriptors.filter { !$0.isAdvancedGroup }, id: \.opName
-            ) { descriptor in
+            ForEach(ungrouped, id: \.opName) { descriptor in
                 if let row = row(for: descriptor, session: session) {
                     row
                 }
+            }
+            ForEach(grouped, id: \.0) { group, members in
+                groupShell(group, members: members, session: session)
             }
             if !advanced.isEmpty {
                 DisclosureGroup(isExpanded: $advancedExpanded) {
@@ -164,9 +179,7 @@ struct EditorAdjustmentStackView: View {
                         }
                     }
                 } label: {
-                    Text(String(
-                        localized: "editor_stack_advanced",
-                        defaultValue: "Advanced"))
+                    Text(advancedHeaderLabel(for: advanced))
                         .font(.caption)
                         .foregroundStyle(ThemeTokens.textSecondary)
                 }
@@ -175,6 +188,52 @@ struct EditorAdjustmentStackView: View {
                 .accessibilityIdentifier("editor.stack.advanced")
             }
         }
+    }
+
+    /// One group shell (KD-1): a DisclosureGroup per `PanelGroup.mainOrder`
+    /// member with rows + the D9 note captions inside. The expansion state
+    /// lives in `groupExpanded` (default EXPANDED for main groups).
+    @ViewBuilder
+    private func groupShell(
+        _ group: PanelGroup, members: [EditorPanelDescriptor],
+        session: InspectorEditSession
+    ) -> some View {
+        DisclosureGroup(
+            isExpanded: Binding(
+                get: { groupExpanded[group] ?? true },
+                set: { groupExpanded[group] = $0 })
+        ) {
+            ForEach(members, id: \.opName) { descriptor in
+                VStack(alignment: .leading, spacing: 0) {
+                    if let row = row(for: descriptor, session: session) {
+                        row
+                    }
+                    if let note = descriptor.note {
+                        Text(String(localized: String.LocalizationValue(note)))
+                            .font(.caption2)
+                            .foregroundStyle(ThemeTokens.textSecondary)
+                            .padding(.horizontal, 10)
+                            .padding(.bottom, 2)
+                    }
+                }
+            }
+        } label: {
+            Text(group.label)
+                .font(.caption)
+                .foregroundStyle(ThemeTokens.textSecondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
+        .accessibilityIdentifier("editor.stack.group.\(group.rawValue)")
+    }
+
+    /// The trailing fold's header: the Tone compat group renames it (KD-1 —
+    /// `PanelGroup.compat` only owns the group caption), Geometry keeps the
+    /// historical "Advanced".
+    private func advancedHeaderLabel(for advanced: [EditorPanelDescriptor]) -> String {
+        advanced.contains { $0.group == .compat }
+            ? PanelGroup.compat.label
+            : String(localized: "editor_stack_advanced", defaultValue: "Advanced")
     }
 
     /// The selected instance's panel body (the M1 selectedPanel shape —
@@ -320,6 +379,31 @@ struct EditorAdjustmentStackView: View {
         case VelviaModule.opName: String(localized: "history_velvia")
         case ColorZonesModule.opName: String(localized: "history_colorzones")
         case MonochromeModule.opName: String(localized: "history_monochrome")
+        // M2-5-2 checker m2: the ONE Tone row is the "Shadows / Highlights"
+        // pair caption (the shadhi panel carries BOTH sliders — the two-row
+        // branch stays deleted, the static-id conflict is the pinned why).
+        case ShadhiModule.opName: String(
+            localized: "module_shadows_highlights",
+            defaultValue: "Shadows / Highlights")
+        // M2-5-2 T3: the six catalog ops' row captions (the Alcedo §2.1
+        // directory names).
+        case Cat02WBModule.opName: String(
+            localized: "module_cat02_white_balance", defaultValue: "White Balance")
+        case ContrastModule.opName: String(
+            localized: "module_contrast", defaultValue: "Contrast")
+        case WhiteModule.opName: String(
+            localized: "module_white", defaultValue: "White")
+        case BlackModule.opName: String(
+            localized: "module_black", defaultValue: "Black")
+        case TintModule.opName: String(
+            localized: "module_tint", defaultValue: "Tint")
+        case SaturationModule.opName: String(
+            localized: "module_saturation", defaultValue: "Saturation")
+        // M2-5-2 T4/T5: the remaining two Color-seat captions.
+        case ColorWheelsModule.opName: String(
+            localized: "module_color_wheels", defaultValue: "Color Wheels")
+        case HlsModule.opName: String(
+            localized: "module_selective_color", defaultValue: "Selective Color")
         default: opName
         }
     }

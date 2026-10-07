@@ -69,6 +69,11 @@ public enum LightamerIOPRegistry {
     public static func populate(
         _ registry: ModuleRegistry, defaultFace: Bool = false
     ) async {
+        // M2-5-1 (KD-2): the ACEScc grade-domain envelope seam — the driver
+        // wraps grade-catalog layer sub-runs with the acesccIn/acesccOut
+        // pair. Envelope boxes are NEVER registered here (zero registry
+        // face — AC#4); this only hands the boxing closure to Core.
+        ACESccEnvelope.install()
         // The per-site gate (KD-1). Each gated site carries its matrix
         // verdict (M2-1-MATRIX.md is the disable decision of record); the
         // 34 enabled sites call `registry.register` directly, unchanged.
@@ -81,6 +86,46 @@ public enum LightamerIOPRegistry {
                 return // default-face skip — \(matrixVerdict)
             }
             await registry.register(opName: opName, factory: factory)
+        }
+        // M2-5-1 T3: cat02WhiteBalance (creative CAT02 WB in the ACEScc
+        // grade domain, KD-4), v50 slot 41.4. Seed stays ABSENT — the grade
+        // catalog ops join the editing seed with their P2 panels (the
+        // pristine seed keeps its terminal-trio + tone face; a CAT02
+        // instance is add-face material, not a fresh-image default).
+        await registry.register(opName: Cat02WBModule.opName) { id in
+            ModuleBox(module: Cat02WBModule(), instanceID: id)
+        }
+        // M2-5-1 T4: contrast (the OkLab mid-grey-pivot lightness curve —
+        // NOT colisa's RGB scaling), white, black (the endpoint pair on
+        // the shared WhiteBlack.metal kernel), v50 slots 41.6/41.8/41.95.
+        await registry.register(opName: ContrastModule.opName) { id in
+            ModuleBox(module: ContrastModule(), instanceID: id)
+        }
+        await registry.register(opName: WhiteModule.opName) { id in
+            ModuleBox(module: WhiteModule(), instanceID: id)
+        }
+        await registry.register(opName: BlackModule.opName) { id in
+            ModuleBox(module: BlackModule(), instanceID: id)
+        }
+        // M2-5-1 T5: saturation (0..4 multiplicative, luma-pivot with the
+        // peak-raise limiter) + tint (the independent ±100 scalar), v50
+        // slots 42.2/42.4.
+        await registry.register(opName: SaturationModule.opName) { id in
+            ModuleBox(module: SaturationModule(), instanceID: id)
+        }
+        await registry.register(opName: TintModule.opName) { id in
+            ModuleBox(module: TintModule(), instanceID: id)
+        }
+        // M2-5-1 T6: colorWheels (the LGG three-wheel op, KD-6), v50 slot
+        // 41.0 — the declared slot share with the unregistered dt
+        // colorbalance row.
+        await registry.register(opName: ColorWheelsModule.opName) { id in
+            ModuleBox(module: ColorWheelsModule(), instanceID: id)
+        }
+        // M2-5-1 T7: hls (the 8-bin selective color table, KD-7), v50
+        // slot 42.6.
+        await registry.register(opName: HlsModule.opName) { id in
+            ModuleBox(module: HlsModule(), instanceID: id)
         }
         // Phase 3's first real iop (Plan 03-01-T5): exposure, v50 slot 21.0.
         await registry.register(opName: ExposureModule.opName) { id in
@@ -325,9 +370,13 @@ public enum LightamerIOPRegistry {
         // in the V50Order table (zero rows inserted). Neutral (lutName nil)
         // = blit identity ⇒ cache-neutral (exposure-0EV style); the T5
         // LUT panel drives this instance. Resolution rides the shared
-        // library store (T5) — missing entries degrade to the blit.
+        // library store THROUGH THE FORWARDING FACE (M2-5-3 KD-3): module
+        // boxes are constructed once — the forwarder keeps them on the
+        // live shared instance after a Settings root switch instead of
+        // capturing the construction-time store. Missing entries still
+        // degrade to the blit.
         await registry.register(opName: Lut3dModule.opName) { id in
-            ModuleBox(module: Lut3dModule(resolver: LutLibraryStore.shared), instanceID: id)
+            ModuleBox(module: Lut3dModule(resolver: LutLibraryStore.sharedResolver), instanceID: id)
         }
         // Plan 08-2-T1: vignette (creative effect), v50 slot 68.0 — ALREADY
         // in the V50Order table (zero rows inserted); < the 70.0 terminal
@@ -395,6 +444,17 @@ public enum LightamerIOPRegistry {
             // in Metal validation; the display-profile PSO warms on the
             // first render instead.
             TerminalKernels.gammaEncode,
+            // M2-5-1: the grade-domain envelope pair + the catalog kernels.
+            ACESccKernel.inFunctionName,
+            ACESccKernel.outFunctionName,
+            Cat02WBKernel.functionName,
+            ContrastKernel.functionName,
+            WhiteKernel.functionName,
+            BlackKernel.functionName,
+            SaturationKernel.functionName,
+            TintKernel.functionName,
+            ColorWheelsModule.colorWheelsKernel,
+            HlsModule.hlsKernel,
             TemperatureKernel.functionName,
             ExposureKernel.functionName,
             ColisaKernel.functionName,

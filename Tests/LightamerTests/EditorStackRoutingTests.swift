@@ -65,9 +65,45 @@ final class EditorStackRoutingTests: XCTestCase {
         XCTAssertEqual(
             rehomedOps.count, Set(rehomedOps).count,
             "every panel rehomes EXACTLY ONCE (no double-homing)")
-        // The executed cardinality (DECISIONS D3): 34 populated − 1 = 33.
-        XCTAssertEqual(expected.count, 33)
-        XCTAssertEqual(rehomedOps.count, 33)
+        // The executed cardinality (M2-5-2 T5): 42 populated − 1 = 41.
+        // (M2-3-3 base 34 − textOverlay = 33; +6 T3 scalar providers
+        // [cat02WhiteBalance/contrast/white/black/tint/saturation] + T4
+        // colorWheels + T5 hls → 42 — the EIGHT catalog providers complete.)
+        XCTAssertEqual(expected.count, 41)
+        XCTAssertEqual(rehomedOps.count, 41)
+    }
+
+    // MARK: - M2-5-2 T3: the six scalar panels (AC#4)
+
+    /// The six catalog ops' providers populate AND their rows ride the
+    /// right pages/groups. The panels' slider ranges/defaults cite the
+    /// modules' own range constants AT COMPILE TIME (GradeScalarPanels.swift
+    /// — the "constant reference" acceptance form: zero hand-copied drift
+    /// is a construction property, not a runtime assertion).
+    func testScalarPanelProvidersRegisterAndRoute() {
+        let state = InspectorState()
+        state.registerDefaultProviders(defaultFace: true)
+        let populated = Set(state.panelOpNames)
+        let scalarOps: Set<String> = [
+            Cat02WBModule.opName, ContrastModule.opName, WhiteModule.opName,
+            BlackModule.opName, TintModule.opName, SaturationModule.opName,
+        ]
+        XCTAssertTrue(
+            scalarOps.isSubset(of: populated),
+            "the six scalar panels must populate the provider face")
+        // Tone main: contrast/white/black (the Alcedo Tone catalog rows).
+        let toneMain = EditorTabRoutingTable.panels(for: .tone)
+            .filter { !$0.isAdvancedGroup }.map(\.opName)
+        for op in [ContrastModule.opName, WhiteModule.opName, BlackModule.opName] {
+            XCTAssertTrue(toneMain.contains(op), "\(op) rides the Tone main face")
+        }
+        // Look: saturation → Master; cat02WhiteBalance/tint → Color.
+        let look = EditorTabRoutingTable.panels(for: .look)
+        XCTAssertEqual(
+            look.first { $0.opName == SaturationModule.opName }?.group, .master)
+        XCTAssertEqual(
+            look.first { $0.opName == Cat02WBModule.opName }?.group, .color)
+        XCTAssertEqual(look.first { $0.opName == TintModule.opName }?.group, .color)
     }
 
     func testDisabledSixNamesNeverAppearInTheRoutingTable() {
@@ -116,6 +152,109 @@ final class EditorStackRoutingTests: XCTestCase {
                 EditorTabRoutingTable.specialContent(for: tab), .none,
                 "\(tab) is a plain panel page")
         }
+    }
+
+    // MARK: - M2-5-2: the Tone convergence (KD-1 / checker m2)
+
+    /// T1 carrier + T3 completion: the Tone main face IS the Alcedo six-row
+    /// catalog (exposure/contrast/white/black/the ONE shadhi row/curve).
+    func testTonePageConvergedWithCompatGroup() {
+        let tone = EditorTabRoutingTable.panels(for: .tone)
+        let main = tone.filter { !$0.isAdvancedGroup }
+        let compat = tone.filter { $0.isAdvancedGroup }
+        // AC#1: the six-row main face in the Alcedo catalog order (the
+        // contrast/white/black rows joined with the T3 provider batch).
+        XCTAssertEqual(
+            main.map(\.opName),
+            [
+                ExposureModule.opName, ContrastModule.opName,
+                WhiteModule.opName, BlackModule.opName,
+                ShadhiModule.opName, ToneCurveModule.opName,
+            ],
+            "the Alcedo Tone main face = the six catalog rows")
+        // D5: temperature's main-face removal IS the "Tone −1 row".
+        XCTAssertFalse(main.contains { $0.opName == TemperatureModule.opName })
+        // D10: the D6-era five stay EDITABLE — the compat fold, not a delete.
+        XCTAssertEqual(
+            Set(compat.map(\.opName)),
+            [
+                LevelsModule.opName, ColisaModule.opName,
+                ColorContrastModule.opName, ToneEqualModule.opName,
+                TemperatureModule.opName,
+            ])
+        XCTAssertTrue(
+            compat.allSatisfy { $0.group == .compat },
+            "every compat row carries the compat group (the fold header source)")
+        // checker m2: the shadhi op rides EXACTLY ONE row (the two-slider
+        // panel is the pair's minimal faithful mapping; the two-row branch
+        // is deleted for the `ForEach(id: \.opName)` static-id conflict).
+        XCTAssertEqual(tone.filter { $0.opName == ShadhiModule.opName }.count, 1)
+    }
+
+    // MARK: - M2-5-2: the Look four-group IA (KD-1 / D9 / checker m1)
+
+    /// T2 regroup + T3 additions: the pre-M2-5-2 13 rows ALL keep a home
+    /// (zero loss) and the catalog ops hang with their provider batches.
+    /// hls/colorWheels join at T5/T4 — their absence here is the T3 state.
+    func testLookPageFourGroupIALedger() {
+        let look = EditorTabRoutingTable.panels(for: .look)
+        // Zero loss: the 13 pre-M2-5-2 rows, verbatim, still all present.
+        let ledger13: Set<String> = [
+            VibranceModule.opName, VelviaModule.opName,
+            MonochromeModule.opName, ColorBalanceRGBModule.opName,
+            ColorZonesModule.opName, SkinSmoothModule.opName,
+            SharpenModule.opName, HighpassModule.opName,
+            SoftenModule.opName, LocalContrastModule.opName,
+            EqualizerModule.opName, GrainModule.opName,
+            BloomModule.opName,
+        ]
+        XCTAssertTrue(
+            ledger13.isSubset(of: Set(look.map(\.opName))),
+            "every pre-M2-5-2 Look row keeps a home (zero loss)")
+        // T3 additions: the catalog order's Saturation (Master) + the Color
+        // seat's White Balance (CAT02) / Tint.
+        XCTAssertEqual(look.count, 18, "13 ledger + 5 catalog rows (T3 ×3 + T4 colorWheels + T5 hls)")
+        XCTAssertEqual(
+            look.filter { $0.group == .master }.map(\.opName),
+            [SaturationModule.opName, VibranceModule.opName],
+            "Master = Saturation / Vibrance (§2.3 order)")
+        XCTAssertEqual(
+            Set(look.filter { $0.group == .color }.map(\.opName)),
+            [Cat02WBModule.opName, HlsModule.opName, ColorWheelsModule.opName, TintModule.opName],
+            "Color seat complete: CAT02 WB + Selective Color + Color Wheels + Tint")
+        // Group membership (KD-1 §2.3 mapping + checker m1's colorzones).
+        let group = { (op: String) in look.first { $0.opName == op }?.group }
+        let drtSeatOps = [
+            EqualizerModule.opName, SharpenModule.opName,
+            GrainModule.opName, BloomModule.opName,
+        ]
+        for op in drtSeatOps {
+            XCTAssertEqual(group(op), .look, "\(op) rides the D9 seat")
+        }
+        let textureOps = [
+            VelviaModule.opName, MonochromeModule.opName,
+            ColorBalanceRGBModule.opName, ColorZonesModule.opName,
+            SkinSmoothModule.opName, HighpassModule.opName,
+            SoftenModule.opName, LocalContrastModule.opName,
+        ]
+        for op in textureOps {
+            XCTAssertEqual(
+                group(op), .detailTexture,
+                "\(op) rides Detail/Texture (m1: colorzones included)")
+        }
+        // D9: the four DRT-seat rows carry the honest pre-DRT note.
+        for op in drtSeatOps {
+            XCTAssertEqual(
+                look.first { $0.opName == op }?.note, "panel_note_pre_drt",
+                "\(op) must carry the pre-DRT note")
+        }
+        XCTAssertEqual(
+            look.filter { $0.note != nil }.count, 4, "exactly the four D9 notes")
+        // LUT page: lmt stays (D10 字面) — Look never hosts it.
+        XCTAssertFalse(look.contains { $0.opName == Lut3dModule.opName })
+        XCTAssertEqual(
+            EditorTabRoutingTable.panels(for: .lut).map(\.opName),
+            [Lut3dModule.opName])
     }
 
     func testGeometryAdvancedGroupComposition() {

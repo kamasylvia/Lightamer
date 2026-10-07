@@ -297,9 +297,15 @@ final class EditorState {
     /// the ONE decode request chain. Default nil = identity — every existing
     /// call site compiles and behaves unchanged (the declared incremental
     /// seam; `RAWDecoder.decode` clamps + treats identity as the no-op).
+    /// M2-5-2 KD-5: `defaultLookPending` carries the per-image pending flag
+    /// the OPEN entry read from the library (the sanctioned fallback — the
+    /// editor session has no row channel of its own); mint happens AFTER
+    /// the pipe load's sidecar probe settled, only when the `.lra` is
+    /// absent (restore 恒压过 flag).
     func load(
         url: URL, decoder: RAWDecoder, metal: MetalContext?, logger: Logger,
-        overrides: RAWTechnicalOverrides? = nil
+        overrides: RAWTechnicalOverrides? = nil,
+        defaultLookPending: Bool = false
     ) {
         decodeTask?.cancel()
         loadedImageURL = url
@@ -362,6 +368,23 @@ final class EditorState {
                     guard !Task.isCancelled else { // superseded mid-pipe
                         logger.info("pixelpipe superseded: \(url.lastPathComponent, privacy: .public)")
                         return
+                    }
+                    // M2-5-2 KD-5 (checker E5): the default-look mint —
+                    // strictly AFTER the pipe load's sidecar probe settled
+                    // (restore-or-pristine). The .lra absence is re-probed
+                    // at the file level: restore 恒压过 flag; the mint is a
+                    // MEMORY document operation (single AdjustmentLayer +
+                    // one commit + the persist-skipping channel, decode
+                    // async) with zero sidecar scheduling.
+                    if defaultLookPending {
+                        let sidecarURL = LightamerSidecar.sidecarURL(for: url)
+                        if FileManager.default.fileExists(atPath: sidecarURL.path) {
+                            logger.info("default look suppressed: sidecar present for \(url.lastPathComponent, privacy: .public)")
+                        } else {
+                            if mintDefaultLook() != nil {
+                                logger.info("default look minted: \(url.lastPathComponent, privacy: .public)")
+                            }
+                        }
                     }
                 }
             } catch {
@@ -607,6 +630,175 @@ final class EditorState {
         return record
     }
 
+    // MARK: M2-5-2 KD-4: the catalog-driven add face (18 目录严格化)
+
+    /// One add-menu entry — the enumeration's unit (KD-4).
+    struct AdjustmentAddEntry: Equatable, Identifiable {
+        /// The menu section (the Develop face vs the D6 compat fold).
+        enum Section: String, Sendable, Equatable {
+            case develop
+            case compat
+        }
+
+        let section: Section
+        /// The GradeCatalog id (nil = a non-catalog develop/compat op).
+        let catalogID: String?
+        /// The identity template — `addModuleToLayer`/`addModuleToBaseChain`
+        /// fresh-identity-clone it on insert.
+        let template: ModuleInstance
+        var id: String { template.opName }
+    }
+
+    /// The add-face enumeration for a scope (KD-4's strict face; the
+    /// RADIUS is new actions only — historical loads/undo stay validation
+    /// free, and the `addModuleToLayer` typed seam remains the backstop):
+    ///
+    ///   selected Grade → EXACTLY the 14 grade-owned catalog rows (13
+    ///                    Grade ops + Tint; LMT stays on the LUT page and
+    ///                    the four DRT seats never enumerate);
+    ///   no selection   → the develop-owned PANEL face only (geometry/
+    ///                    yiyin/temperature) — ZERO grade-owned entries
+    ///                    (D4 收窄: the base chain no longer accepts new
+    ///                    grade-owned inserts from the menu).
+    ///
+    /// A dangling `layerID` (removed layer) answers the Develop scope —
+    /// the same self-healing rule `activeLayerID` applies.
+    func addFaceEntries(layerID: UUID?) -> [AdjustmentAddEntry] {
+        if let layerID, adjustmentLayer(id: layerID) != nil {
+            return Self.gradeScopeEntries()
+        }
+        return Self.developScopeEntries()
+    }
+
+    /// The grade-owned catalog rows, narrowed to the ADD face (KD-4):
+    ///   − the lmt seat (D10/AC#7: LMT is hosted by the LUT page's library
+    ///     picker — an empty lut3d add is meaningless; the four DRT seats
+    ///     are excluded by owner already);
+    ///   − deduped by opName (the shadows/highlights pair share the ONE
+    ///     shadhi op — the checker-m2 single-row semantics; a second
+    ///     identical-priority record would be silently merged by the
+    ///     effectiveChain dedupe anyway).
+    /// COUNT NOTE (DECISIONS): the plan's "恰 14" counted gradeItems()
+    /// literally — 14 rows INCLUDING the lmt row and the shadhi duplicate —
+    /// which cannot coexist with the binding "LMT 不在枚举" clause; the
+    /// face carries 12 unique-op entries.
+    private static func gradeScopeEntries() -> [AdjustmentAddEntry] {
+        var seenOps = Set<String>()
+        return GradeCatalog.gradeItems()
+            .filter { $0.opName != Lut3dModule.opName }
+            .compactMap { item in
+                guard seenOps.insert(item.opName).inserted,
+                    let template = templateInstance(for: item.opName)
+                else { return nil }
+                return AdjustmentAddEntry(
+                    section: .develop, catalogID: item.catalogID, template: template)
+            }
+    }
+
+    /// The Develop-scope face: the develop-owned ops WITH a panel face.
+    /// The M2-1 disabled six are develop-owned but carry no panel and stay
+    /// out of every menu (the M2-1 narrowing's menu corollary).
+    private static func developScopeEntries() -> [AdjustmentAddEntry] {
+        let developFaceOps: [(AdjustmentAddEntry.Section, String)] = [
+            (.develop, TemperatureModule.opName),
+            (.develop, CropModule.opName),
+            (.develop, FlipModule.opName),
+            (.develop, LensModule.opName),
+            (.compat, AshiftModule.opName),
+            (.compat, LiquifyModule.opName),
+            (.compat, BordersModule.opName),
+            (.compat, WatermarkModule.opName),
+            (.compat, TextOverlayModule.opName),
+        ]
+        return developFaceOps.compactMap { section, op in
+            // Guard by construction: every listed op must answer .develop.
+            guard NodeOwnershipCatalog.owner(of: op) == .develop,
+                let template = templateInstance(for: op)
+            else { return nil }
+            return AdjustmentAddEntry(
+                section: section, catalogID: nil, template: template)
+        }
+    }
+
+    /// The typed template factory (exhaustive over the add-face op set —
+    /// the Params() defaults ARE the catalog identityJSON bytes; a new
+    /// add-face op must land a case here at compile time).
+    static func templateInstance(for opName: String) -> ModuleInstance? {
+        switch opName {
+        // The 13 grade-owned catalog ops + Tint.
+        case Cat02WBModule.opName:
+            ModuleInstance(module: Cat02WBModule.self, params: Cat02WBModule.Params())
+        case ExposureModule.opName:
+            ModuleInstance(module: ExposureModule.self, params: ExposureModule.Params())
+        case ContrastModule.opName:
+            ModuleInstance(module: ContrastModule.self, params: ContrastModule.Params())
+        case WhiteModule.opName:
+            ModuleInstance(module: WhiteModule.self, params: WhiteModule.Params())
+        case BlackModule.opName:
+            ModuleInstance(module: BlackModule.self, params: BlackModule.Params())
+        case ShadhiModule.opName:
+            // The checker-m5 split: the ADD seed = the catalog identity
+            // (shadows 0 / highlights 0), decoded from the row's
+            // identityJSON (the P1 single source) — NOT the panel working
+            // point (50/−50). Every other grade op's Params() IS its
+            // identity, so only this case needs the decode.
+            ModuleInstance(
+                module: ShadhiModule.self,
+                params: (GradeCatalog.item(opName: ShadhiModule.opName)
+                    .flatMap { item in
+                        try? JSONDecoder().decode(
+                            ShadhiModule.Params.self,
+                            from: Data(item.identityJSON.utf8))
+                    }) ?? ShadhiModule.Params())
+        case ToneCurveModule.opName:
+            ModuleInstance(module: ToneCurveModule.self, params: ToneCurveModule.Params())
+        case HlsModule.opName:
+            ModuleInstance(module: HlsModule.self, params: HlsModule.Params())
+        case SaturationModule.opName:
+            ModuleInstance(module: SaturationModule.self, params: SaturationModule.Params())
+        case VibranceModule.opName:
+            ModuleInstance(module: VibranceModule.self, params: VibranceModule.Params())
+        case ColorWheelsModule.opName:
+            ModuleInstance(module: ColorWheelsModule.self, params: ColorWheelsModule.Params())
+        case TintModule.opName:
+            ModuleInstance(module: TintModule.self, params: TintModule.Params())
+        // The develop-owned panel face.
+        case TemperatureModule.opName:
+            ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params())
+        case CropModule.opName:
+            ModuleInstance(module: CropModule.self, params: CropModule.Params())
+        case FlipModule.opName:
+            ModuleInstance(module: FlipModule.self, params: FlipModule.Params())
+        case LensModule.opName:
+            ModuleInstance(module: LensModule.self, params: LensModule.Params())
+        case AshiftModule.opName:
+            ModuleInstance(module: AshiftModule.self, params: AshiftModule.Params())
+        case LiquifyModule.opName:
+            ModuleInstance(module: LiquifyModule.self, params: LiquifyModule.Params())
+        case BordersModule.opName:
+            ModuleInstance(module: BordersModule.self, params: BordersModule.Params())
+        case WatermarkModule.opName:
+            ModuleInstance(module: WatermarkModule.self, params: WatermarkModule.Params())
+        case TextOverlayModule.opName:
+            ModuleInstance(module: TextOverlayModule.self, params: TextOverlayModule.Params())
+        default:
+            nil
+        }
+    }
+
+    /// The Develop-scope add (the base chain): fresh-identity clone → ONE
+    /// D-H1 discrete commit landing the record in the global instance set
+    /// (`recordChange` shape — the same single-commit semantics a layer
+    /// add carries, minus the stack structure item). Undo steps over it.
+    @discardableResult
+    func addModuleToBaseChain(template: ModuleInstance) -> ModuleInstance? {
+        let record = template.clonedWithFreshIdentity()
+        recordChange(
+            record, label: String(
+                localized: "history_base_module_add", defaultValue: "Add module"))
+        return record
+    }
+
     /// D-H1 LIVE leg for a LAYER-SCOPED module param edit: upsert the
     /// record into the layer's chain, ZERO history.
     func applyLiveLayerInstance(_ snapshot: ModuleInstance, layerID: UUID) {
@@ -640,8 +832,14 @@ final class EditorState {
 
     /// The shared structure-commit tail: exactly ONE item, snapshot
     /// placeholder (excluded from every projection — see the scope
-    /// marker) + the post-edit FULL stack snapshot.
-    private func commitLayerStructure(layerID: UUID, label: String) {
+    /// marker) + the post-edit FULL stack snapshot. `schedulePersist: false`
+    /// is the M2-5-2 mint's persist-skipping channel (the 2s debounce is
+    /// never scheduled — the `.lra` absence = unedited invariant holds
+    /// constructively; the render leg still runs so the preview shows the
+    /// minted look).
+    private func commitLayerStructure(
+        layerID: UUID, label: String, schedulePersist: Bool = true
+    ) {
         guard let layerStack else { return }
         // Placeholder snapshot: the CURRENT top global record. The
         // `layerStructureScope` marker keeps it out of the global AND
@@ -652,7 +850,62 @@ final class EditorState {
             placeholder, label: label,
             layerScope: Self.layerStructureScope,
             stackSnapshot: LayerStackSnapshot(layerStack))
-        notifyLayerChange(persist: true)
+        notifyLayerChange(persist: schedulePersist)
+    }
+
+    // MARK: M2-5-2 KD-5: the default-look mint (checker E5 shape)
+
+    /// The mint: memory-construct ONE AdjustmentLayer whose chain carries
+    /// the three `GradeCatalog.defaultLook` instances (+1.5 EV / contrast
+    /// +15 / saturation 1.3 — decoded through each module's own Codable
+    /// face, the same ParamsCoding path a panel commit writes), land it as
+    /// EXACTLY ONE history item through the persist-SKIPPING channel, and
+    /// leave the sidecar untouched. Undo steps back to pristine
+    /// constructively (one item). A stack that already carries adjustment
+    /// layers (restore won the race) never mints.
+    @discardableResult
+    func mintDefaultLook() -> AdjustmentLayer? {
+        guard let layerStack, layerStack.adjustmentLayers.isEmpty else { return nil }
+        var chain: [ModuleInstance] = []
+        for entry in GradeCatalog.defaultLook {
+            guard var record = Self.templateInstance(for: entry.opName) else { continue }
+            switch entry.opName {
+            case ExposureModule.opName:
+                if let params = try? JSONDecoder().decode(
+                    ExposureModule.Params.self, from: Data(entry.paramsJSON.utf8)) {
+                    try? record.setParams(params, as: ExposureModule.self)
+                }
+            case ContrastModule.opName:
+                if let params = try? JSONDecoder().decode(
+                    ContrastModule.Params.self, from: Data(entry.paramsJSON.utf8)) {
+                    try? record.setParams(params, as: ContrastModule.self)
+                }
+            case SaturationModule.opName:
+                if let params = try? JSONDecoder().decode(
+                    SaturationModule.Params.self, from: Data(entry.paramsJSON.utf8)) {
+                    try? record.setParams(params, as: SaturationModule.self)
+                }
+            default:
+                continue
+            }
+            chain.append(record)
+        }
+        guard !chain.isEmpty else { return nil }
+        let layer = AdjustmentLayer(
+            name: layerStack.nextLayerName(
+                base: String(localized: "layer_default_name")),
+            chain: chain.sorted {
+                ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+            })
+        var stack = layerStack
+        stack.addAdjustment(layer)
+        self.layerStack = stack
+        commitLayerStructure(
+            layerID: layer.id,
+            label: String(
+                localized: "history_default_look", defaultValue: "Default look"),
+            schedulePersist: false)
+        return layer
     }
 
     /// The EditorState → coordinator edge for the layer dimension (same

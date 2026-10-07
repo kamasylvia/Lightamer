@@ -169,7 +169,16 @@ let project = Project(
                 ]
             ),
             sources: ["App/Sources/**"],
-            resources: ["Resources/**"], // D-04: app-level assets + String Catalog
+            // D-04: app-level assets + String Catalog. M2-5-3: the LUT
+            // set rides as a FOLDER reference so the bundle keeps the
+            // LUTs/ directory the seeder reads as a unit (a glob would
+            // copy the 40 tables flat into Resources/).
+            resources: [
+                "Resources/Assets.xcassets",
+                "Resources/Localizable.xcstrings",
+                .folderReference(path: "Resources/LUTs"),
+                "Resources/TestFixtures/**",
+            ],
             dependencies: [
                 .target(name: "LightamerCore"),
                 .target(name: "LightamerIOP"),
@@ -275,6 +284,7 @@ let project = Project(
                 "Tests/LightamerTests/FilmicRGBTests.swift",
                 "Tests/LightamerTests/FlipParityTests.swift",
                 "Tests/LightamerTests/GeometryGoldenTests.swift",
+                "Tests/LightamerTests/GradeKernelGoldenTests.swift",
                 "Tests/LightamerTests/GoldenColorTests.swift",
                 "Tests/LightamerTests/GoldenParityTests.swift",
                 "Tests/LightamerTests/HDRPipelineMatrixTests.swift",
@@ -285,6 +295,7 @@ let project = Project(
                 "Tests/LightamerTests/LocalContrastTests.swift",
                 "Tests/LightamerTests/Lut3dGoldenImageTests.swift",
                 "Tests/LightamerTests/Lut3dKernelTests.swift",
+                "Tests/LightamerTests/LutLibraryRecursionTests.swift",
                 "Tests/LightamerTests/McpRenderParityTests.swift",
                 "Tests/LightamerTests/MonochromeParityTests.swift",
                 "Tests/LightamerTests/NLMeansParityTests.swift",
@@ -343,6 +354,7 @@ let project = Project(
                 "Tests/LightamerTests/ColorZonesCommitTests.swift",
                 "Tests/LightamerTests/CPUDerivationTests.swift",
                 "Tests/LightamerTests/CubeLutParserTests.swift",
+                "Tests/LightamerTests/GradeParamsCodingTests.swift",
                 "Tests/LightamerTests/DefaultFaceTests.swift",
                 "Tests/LightamerTests/DehazeTests.swift",
                 "Tests/LightamerTests/EDRViewportTests.swift",
@@ -421,6 +433,8 @@ let project = Project(
                 "Tests/LightamerTests/AIMaskGeometryTests.swift",
                 "Tests/LightamerTests/AIMaskPlaneFormatTests.swift",
                 "Tests/LightamerTests/AIMaskSemanticTests.swift",
+                "Tests/LightamerTests/ACESccEnvelopeTests.swift",
+                "Tests/LightamerTests/GradeEnvelopePerfProbeTests.swift",
                 "Tests/LightamerTests/DrawnMaskRasterTests.swift",
                 "Tests/LightamerTests/DrawnMaskSpecTests.swift",
                 "Tests/LightamerTests/HistoryStackTests.swift",
@@ -643,11 +657,15 @@ let project = Project(
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
                 "Tests/LightamerTests/AppErrorTests.swift",
                 "Tests/LightamerTests/BeforeAfterTests.swift",
+                "Tests/LightamerTests/BuiltInLutSetTests.swift",
+                "Tests/LightamerTests/CatalogAddFaceTests.swift",
                 "Tests/LightamerTests/CropOverlayTests.swift",
+                "Tests/LightamerTests/DefaultLookTests.swift",
                 "Tests/LightamerTests/EditorMetalLegRegressionTests.swift",
                 "Tests/LightamerTests/EditorStackRoutingTests.swift",
                 "Tests/LightamerTests/EffectsWiringTests.swift",
                 "Tests/LightamerTests/EyedropperTests.swift",
+                "Tests/LightamerTests/GradeCatalogTests.swift",
                 "Tests/LightamerTests/GUI22UndoWarmColdTests.swift",
                 "Tests/LightamerTests/McpCullingImageBudgetTests.swift",
                 "Tests/LightamerTests/McpCullingToolsetTests.swift",

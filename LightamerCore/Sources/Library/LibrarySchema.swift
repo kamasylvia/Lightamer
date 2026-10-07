@@ -72,7 +72,12 @@ import Foundation
 public enum LibrarySchema {
 
     /// The frozen on-disk schema version (one-way format lock anchor).
-    public static let schemaVersion = 1
+    /// M2-5-2 (KD-6): v1 → v2 = the FIRST migration — the additive
+    /// `images.default_look_pending` column (the M2GRADE-03 per-image
+    /// pending marker); old v1 packages open through the ProjectFileStore
+    /// dispatch (pre-migration `sqlite3_backup` snapshot → the v1→v2 slot
+    /// below → idempotent `ALTER TABLE ADD COLUMN`).
+    public static let schemaVersion = 2
 
     // MARK: - Package layout constants (KD-1; consumed by P2 import, M2-3 UI)
 
@@ -140,6 +145,7 @@ public enum LibrarySchema {
         ("ref_count", "INTEGER"),            // KD-4: materialized album-membership counter
         ("added_time", "REAL"),              // import timestamp
         ("modified_time", "REAL"),           // last row mutation
+        ("default_look_pending", "INTEGER"),  // M2-5-2 KD-5: new-import default-look marker (appended, v2; DDL default 0 — the freeze type rides the PRAGMA spelling)
     ]
 
     /// The `albums` table columns IN ORDER — the OQ-6 语义对齐 + 表形简化:
@@ -255,7 +261,8 @@ public enum LibrarySchema {
           params_hash TEXT,
           ref_count INTEGER NOT NULL DEFAULT 0,
           added_time REAL,
-          modified_time REAL
+          modified_time REAL,
+          default_look_pending INTEGER DEFAULT 0
         )
         """
 
@@ -416,19 +423,22 @@ public enum LibrarySchema {
         }
     }
 
-    /// The future-version migration slot — EMPTY at v1, shape pinned NOW
-    /// (the SessionIndexSchema/CatalogIndexSchema template): ONE
-    /// BEGIN IMMEDIATE, ROLLBACK on failure, the original file untouched.
-    /// The PRE-migration automatic `sqlite3_backup` snapshot hook lives at
-    /// the ProjectFileStore dispatch (KD-2) — a future N→N+1 open path
-    /// snapshots BEFORE calling this.
+    /// The migration slots (KD-6, checker E6): ONE `BEGIN IMMEDIATE`,
+    /// ROLLBACK on failure, the original file untouched. The v1→v2 slot
+    /// (FIRST migration) adds the `images.default_look_pending` column —
+    /// IDEMPOTENT (`ALTER TABLE ADD COLUMN` guarded by a column-existence
+    /// probe; a partially-migrated snapshot re-runs clean). The
+    /// PRE-migration automatic `sqlite3_backup` snapshot lives at the
+    /// ProjectFileStore dispatch (its dead-at-v1 pin became LIVE with this
+    /// migration — the hook's first consumer).
     public static func migrate(
         from: Int, to: Int, on handle: SQLiteHandle
     ) throws {
         try handle.exec("BEGIN IMMEDIATE")
         do {
-            // v1: no prior versions exist — nothing to ALTER. The v2 shape
-            // fills this slot following SessionIndexSchema.migrate.
+            if from <= 1 && to >= 2 {
+                try addImagesDefaultLookPendingColumn(on: handle)
+            }
             try writeUserVersion(to, to: handle)
             try handle.exec("COMMIT")
         } catch {
@@ -436,6 +446,18 @@ public enum LibrarySchema {
             throw LibraryError.migrationFailed(
                 detail: "library schema migration \(from)→\(to) failed")
         }
+    }
+
+    /// The v1→v2 additive column (append-only; every frozen column's
+    /// position/DDL is untouched). Idempotent: a `PRAGMA table_info` probe
+    /// skips the ALTER when the column already exists.
+    static func addImagesDefaultLookPendingColumn(on handle: SQLiteHandle) throws {
+        let probe = try handle.prepare("PRAGMA table_info(images)")
+        while try probe.step() {
+            if probe.columnText(1) == "default_look_pending" { return }
+        }
+        try handle.exec(
+            "ALTER TABLE images ADD COLUMN default_look_pending INTEGER DEFAULT 0")
     }
 }
 

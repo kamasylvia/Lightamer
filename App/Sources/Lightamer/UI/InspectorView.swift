@@ -93,12 +93,20 @@ internal struct InspectorView: View {
         return editorState.instances.filter { !Self.terminalOps.contains($0.opName) }
     }
 
-    /// The「添加模块」templates for the layer scope: every registered
-    /// editing op that is NOT base-only (the 24 panels + testgain minus
-    /// geometry). Read from the GLOBAL seed — the layer record is a fresh
-    /// identity clone (`addModuleToLayer`).
-    private var addableTemplates: [ModuleInstance] {
-        editorState.instances.filter { !Self.terminalOps.contains($0.opName) && !Self.baseOnlyOps.contains($0.opName) }
+    /// The「添加模块」menu rows for the scope — the M2-5-2 KD-4 catalog
+    /// face (EditorState.addFaceEntries): the selected-Grade scope carries
+    /// the grade-owned catalog ops (LMT stays on the LUT page; the DRT
+    /// seats never enumerate) and the no-layer scope carries ONLY the
+    /// develop-owned panel face (zero grade-owned entries — the D4
+    /// narrowing's complete expression, checker E4's new-UI branch).
+    private var addFaceEntries: [EditorState.AdjustmentAddEntry] {
+        editorState.addFaceEntries(layerID: activeLayerID)
+    }
+
+    /// The catalog caption for an add entry (the catalog display name
+    /// family; non-catalog entries ride the localizedLabel fallback).
+    private func addEntryLabel(_ entry: EditorState.AdjustmentAddEntry) -> String {
+        localizedLabel(for: entry.template.opName)
     }
 
     var body: some View {
@@ -154,11 +162,12 @@ internal struct InspectorView: View {
     // MARK: - Module list
 
     private func moduleListHeight(in columnHeight: CGFloat) -> CGFloat {
-        // 06-05: the「添加模块」menu row joins the content when a layer is
-        // selected — an empty layer chain must still show it (the 0-row
-        // list used to collapse to the bare padding and CLIP the menu
-        // into invisibility — GUI-14).
-        let menuRow: CGFloat = activeLayerID != nil ? 30 : 0
+        // 06-05: the「添加模块」menu row joins the content — an empty chain
+        // must still show it (the 0-row list used to collapse to the bare
+        // padding and CLIP the menu into invisibility — GUI-14). M2-5-2:
+        // the menu row lives in BOTH scopes now (the no-layer Develop
+        // branch is the checker-E4 add face), so it is unconditional.
+        let menuRow: CGFloat = 30
         let content = CGFloat(editableInstances.count)
             * Self.estimatedRowHeight + Self.listVerticalPadding + menuRow
         return max(min(content, columnHeight * Self.listMaxFraction), menuRow + 8)
@@ -167,27 +176,53 @@ internal struct InspectorView: View {
     private var moduleList: some View {
         ScrollView(.vertical) {
             VStack(spacing: 0) {
-                // 06-05: layer scope「添加模块」menu — a fresh identity
-                // clone of the chosen global template lands in the layer
-                // chain as ONE structure commit.
-                if activeLayerID != nil {
-                    Menu {
-                        ForEach(addableTemplates, id: \.id) { template in
-                            Button(localizedLabel(for: template.opName)) {
+                // M2-5-2 KD-4: the scope-split add menu. LAYER scope = the
+                // grade-owned catalog enumeration (a fresh identity clone
+                // lands in the layer chain as ONE structure commit); the
+                // NO-LAYER branch (checker E4's new UI) = the develop-owned
+                // face over the base chain (Develop section + the D6 compat
+                // fold) — ZERO grade-owned entries (D4 收窄).
+                Menu {
+                    if activeLayerID != nil {
+                        ForEach(addFaceEntries) { entry in
+                            Button(addEntryLabel(entry)) {
                                 if let layerID = activeLayerID {
                                     _ = editorState.addModuleToLayer(
-                                        layerID: layerID, template: template)
+                                        layerID: layerID, template: entry.template)
                                 }
                             }
                         }
-                    } label: {
-                        Label("layers_add_module", systemImage: "plus.circle")
-                            .font(.caption)
+                    } else {
+                        Section(String(
+                            localized: "add_face_develop_section",
+                            defaultValue: "Develop")) {
+                            ForEach(
+                                addFaceEntries.filter { $0.section == .develop }
+                            ) { entry in
+                                Button(addEntryLabel(entry)) {
+                                    _ = editorState.addModuleToBaseChain(
+                                        template: entry.template)
+                                }
+                            }
+                        }
+                        Section(PanelGroup.compat.label) {
+                            ForEach(
+                                addFaceEntries.filter { $0.section == .compat }
+                            ) { entry in
+                                Button(addEntryLabel(entry)) {
+                                    _ = editorState.addModuleToBaseChain(
+                                        template: entry.template)
+                                }
+                            }
+                        }
                     }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 6)
-                    .accessibilityIdentifier("layers.addmodule")
+                } label: {
+                    Label("layers_add_module", systemImage: "plus.circle")
+                        .font(.caption)
                 }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 6)
+                .accessibilityIdentifier("layers.addmodule")
                 ForEach(editableInstances, id: \.id) { instance in
                     row(for: instance)
                 }
@@ -236,6 +271,25 @@ internal struct InspectorView: View {
         case DenoiseProfileModule.opName: return String(localized: "history_denoiseprofile")
         // Plan 05-08-T4: bilateral (same precedent).
         case BilateralModule.opName: return String(localized: "history_bilateral")
+        // M2-5-2 T3: the six catalog ops (the stack's caption set mirrored;
+        // the legacy face stays in lockstep — the add menu at T6 lists the
+        // same names).
+        case Cat02WBModule.opName: return String(
+            localized: "module_cat02_white_balance", defaultValue: "White Balance")
+        case ContrastModule.opName: return String(
+            localized: "module_contrast", defaultValue: "Contrast")
+        case WhiteModule.opName: return String(
+            localized: "module_white", defaultValue: "White")
+        case BlackModule.opName: return String(
+            localized: "module_black", defaultValue: "Black")
+        case TintModule.opName: return String(
+            localized: "module_tint", defaultValue: "Tint")
+        case SaturationModule.opName: return String(
+            localized: "module_saturation", defaultValue: "Saturation")
+        case ColorWheelsModule.opName: return String(
+            localized: "module_color_wheels", defaultValue: "Color Wheels")
+        case HlsModule.opName: return String(
+            localized: "module_selective_color", defaultValue: "Selective Color")
         default: return opName
         }
     }

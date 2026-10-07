@@ -369,7 +369,9 @@ public actor LibraryStore {
 
     // MARK: - Images row face
 
-    /// Insert one images row (ref_count starts 0; timestamps now).
+    /// Insert one images row (ref_count starts 0; timestamps now; the
+    /// M2-5-2 KD-5 `default_look_pending` marker starts 1 — EVERY new
+    /// import carries the pending default look; no switch, OQ-8 A).
     /// Returns the new id (the rowid-alias PK the FTS/FK/keyset faces
     /// consume).
     @discardableResult
@@ -379,8 +381,8 @@ public actor LibraryStore {
             let insert = try handle.prepare("""
                 INSERT INTO images (image_path, path_kind, volume_uuid,
                     file_stem, file_ext, filename, dir,
-                    added_time, modified_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    added_time, modified_time, default_look_pending)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                 """)
             try insert.bindText(1, record.imagePath)
             try insert.bindInt(2, record.pathKind.rawValue)
@@ -440,6 +442,35 @@ public actor LibraryStore {
                     detail: "unknown image id \(id)")
             }
             return image
+        }
+    }
+
+    // MARK: - M2-5-2 default-look pending marker (KD-5, additive)
+
+    /// The per-image default-look pending read (the editor OPEN entry
+    /// consumes this to decide the mint branch). Missing row = false.
+    public func defaultLookPending(imageRowID: Int64) async throws -> Bool {
+        try await store.withHandle { handle in
+            let statement = try handle.prepare(
+                "SELECT default_look_pending FROM images WHERE id = ?")
+            try statement.bindInt(1, imageRowID)
+            guard try statement.step() else { return false }
+            return (statement.columnInt(0) ?? 0) != 0
+        }
+    }
+
+    /// Clear the pending marker (the mint branch consumes it — once the
+    /// flag has served the open, the marker is spent). Idempotent.
+    public func clearDefaultLookPending(imageRowID: Int64) async throws {
+        _ = try await store.withWriteBatch { handle in
+            try Self.assertImageExists(handle, id: imageRowID)
+            let update = try handle.prepare(
+                "UPDATE images SET default_look_pending = 0, modified_time = ?"
+                    + " WHERE id = ?")
+            try update.bindDouble(1, Date().timeIntervalSince1970)
+            try update.bindInt(2, imageRowID)
+            _ = try update.step()
+            return true
         }
     }
 

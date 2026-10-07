@@ -145,6 +145,21 @@ final class InspectorState {
         register(DehazePanelProvider())
         // Plan 08-5 T2: textOverlay (the editing-time text layer face).
         register(TextOverlayPanelProvider())
+        // Plan M2-5-2 T3: the six thin slider panels for the M2-5-1
+        // catalog ops (CAT02 creative WB / Contrast / White / Black /
+        // Tint / Saturation — the ranges/defaults cite the modules' own
+        // constants). colorWheels (T4) and hls (T5) join with their
+        // panels.
+        register(Cat02WBPanelProvider())
+        register(ContrastPanelProvider())
+        register(WhitePanelProvider())
+        register(BlackPanelProvider())
+        register(TintPanelProvider())
+        register(SaturationPanelProvider())
+        // Plan M2-5-2 T4: the LGG three-trackball panel (Color Wheels).
+        register(ColorWheelsPanelProvider())
+        // Plan M2-5-2 T5: the Selective Color panel (hls 8-bin model).
+        register(HlsPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()
