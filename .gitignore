@@ -56,3 +56,4 @@ Resources/AIModels/**
 # local-only scratch (2026-10-08)
 .work/tmp-public/
 .work/debug-flaky/
+.build/
