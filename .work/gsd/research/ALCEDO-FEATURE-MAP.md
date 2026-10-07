@@ -326,3 +326,5 @@ Lightamer 现状基线：39 个 iop（exposure/temperature/tonecurve/levels/gamm
 5. **0.3.1 稳定性批**——导入扫描不卡窗（增量入列）/中文 Windows 崩溃修复/AMD OpenCL。方法论注记：其「扫描大文件夹持续加入文件」对 M2LIB-07 导入三模式 UX 有参考。
 
 > **裁决（2026-10-07 用户「按推荐走」）**：delta 1/2 立项 = RASTER-IN-01 + M2GRADE-08（已入 REQUIREMENTS V2 节「Alcedo Upstream Parity Extensions」）；delta 3/4 = 注记不立项（OCIO 参考变换留作 parity 测试资产；图库分组/任务岛仅 UI 参照）。
+
+> **增补（2026-10-08）**：本地仓已 ff 至 **v0.3.2**（`9ce6a24`，25 commits）——上节 delta 正式进 tagged release；新增修复面：`display_to_ap1.metallib` macOS bundle 打包修复（**RASTER-IN-01 立项时的资源完整性教训**：Metal lib 须显式入 bundle）、discard-close 管线 JSON/journal 卫生、open-input 序禁止 history 跳转（M2-8 版本交互参照）、open-project 非法 unicode 防御、contributing 规则（**上游现允许用户开 feature issue + 标题规则**——后续代提 issue 照其格式）。
