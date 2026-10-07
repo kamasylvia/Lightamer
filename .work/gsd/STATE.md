@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: M2
 milestone_name: Alcedo V1 (2026-09-27 project redefinition)
-current_phase: M2-11 — Performance + closeout (M2 final phase; next: research drafting)
-status: M2-10 complete (VALIDATION signed 2026-10-07); M2-11 next
+current_phase: M2 closed — milestone terminal (next: V2 / Maintenance station; no milestone chartered)
+status: M2-11 complete + M2 milestone closed (VALIDATION signed 2026-10-07, terminal 2961/16/0); next station = V2 / Maintenance (not chartered)
 last_updated: "2026-10-07T00:00:00.000Z"
 progress:
   total_phases: 16
@@ -11,14 +11,14 @@ progress:
   total_plans: 140
   completed_plans: 140
   m2_phases_total: 12
-  m2_phases_complete: 11
+  m2_phases_complete: 12
 ---
 
 # Project State: Lightamer
 
 **Last updated:** 2026-10-07
-**Current phase:** M2-11 — Performance + closeout (M2-10 validated; research drafting is the next action)
-**Status:** Milestone 1 Phases 1-12 complete / 13 in progress (historical record); Milestone 2: M2-0..M2-10 complete (M2-10 VALIDATION signed 2026-10-07, terminal suite 2955/16skip/0fail), M2-11 next (final M2 phase)
+**Current phase:** M2 closed（M2-11 VALIDATION 兼收口 signed 2026-10-07；下一站 = V2 / Maintenance，未立项态）
+**Status:** Milestone 1 Phases 1-16 = 历史记录；Milestone 2 **closed**（M2-0..M2-11 全 complete；M2-11 VALIDATION 兼收口 signed 2026-10-07，终验 TOTAL|2961/16/0|1081s 干净绿；挂账移交 = `phases/m2-11-performance/M2-11-VALIDATION-INPUT.md` §4.4 单一清单）
 
 ## Completion Ledger
 
@@ -56,7 +56,7 @@ progress:
 | M2-8 | Versions & History (mini-git) | **complete (VALIDATION signed 2026-10-02; 3 plans accepted; both error-level walkthrough findings fixed & re-verified — `phases/m2-8-versions/M2-8-VALIDATION.md`)** | **2577/16skip/0fail** |
 | M2-9 | Export Options Alcedo-fication | **complete (VALIDATION signed 2026-10-03; 5 plans accepted; M2EXP-01..05 all Delivered with five annotation obligations; zero error-level findings — F-2 minor walkthrough finding fixed & re-verified in acceptance batch `afb1f88`; pending items: F-1 Import crash / SidecarV5 hygiene / L055 script / collision-tier selector — `phases/m2-9-export/M2-9-VALIDATION.md`)** | **2693/16skip/0fail** |
 | M2-10 | AI library features | **complete (VALIDATION signed 2026-10-07; 7 plans accepted; M2AI-01..10 all Delivered — flip ledger carried by `de68703`, zero error-level findings across six acceptance rounds; minor ×3 fixed in acceptance batches `6f768c0`/`ede45f8`/`b766cf5` + 06 memory M-1 closed by `c573087`; 07 execution batch closed by continuation worker after predecessor death — D16; SidecarV5 ANE flake five-wave ledger closed, environment attribution — `phases/m2-10-ai-library/M2-10-VALIDATION.md`)** | **2955/16skip/0fail** |
-| M2-11 | Performance + closeout | **next** (research drafting; final M2 phase — handoff face = `M2-10-07-SUMMARY.md` §M2-11 交接: 60fps@100MP re-verify / MCP zero-touch + semantic_search defer / AI GUI walkthrough / flaky cleanup three cases) | — |
+| M2-11 | Performance + closeout | **complete — M2 milestone closed** (VALIDATION 兼收口 signed 2026-10-07 — `phases/m2-11-performance/M2-11-VALIDATION.md`; five plans accepted; M2PERF-01/02 + M2DRT-06 + M2NODE-03 Delivered via closeout flip; terminal round `TOTAL|2961/16/0|1081s` clean green after recovery protocol — ToneEqual latent crash family + L057-family LUT-import SIGSEGV registered with .ips evidence, ownership to morning review; red-line domains zero diff; PERF-07 0.543s in-band; GUI round four meanings done — zoom/pan hitch >50ms = 0 live, O-2 8557MB reproduced; backlog single list = VALIDATION-INPUT §4.4) | **2961/16skip/0fail** |
 
 ## Notes
 
