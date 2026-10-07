@@ -205,4 +205,150 @@ final class LutLibraryStoreTests: XCTestCase {
         XCTAssertEqual(decoded.interpolation, .trilinear)
         _ = params
     }
+
+    // MARK: - Remembered encodings (M3-1-01 T3, KD-5 + checker E3)
+
+    /// The adoption path stamps the built-in pair on `BuiltIn/` rows; a
+    /// root-level row carries NO memory (the stamp scope is permanently
+    /// the BuiltIn/ prefix).
+    func testBuiltInAdoptionStampsRememberedPair() throws {
+        try FileManager.default.createDirectory(
+            at: libraryDir.appendingPathComponent("BuiltIn"), withIntermediateDirectories: true)
+        try cube3D.write(
+            to: libraryDir.appendingPathComponent("BuiltIn/FilmA.cube"), atomically: true,
+            encoding: .utf8)
+        try cube1D.write(
+            to: libraryDir.appendingPathComponent("Root.cube"), atomically: true,
+            encoding: .utf8)
+        let store = LutLibraryStore(directory: libraryDir)
+        let film = try XCTUnwrap(store.entry(named: "BuiltIn/FilmA.cube"))
+        XCTAssertEqual(
+            film.rememberedEncodings, LutLibraryStore.builtInRememberedPair,
+            "BuiltIn/ row stamped at adoption")
+        let root = try XCTUnwrap(store.entry(named: "Root.cube"))
+        XCTAssertNil(root.rememberedEncodings, "non-BuiltIn row untouched")
+    }
+
+    /// Idempotence: rescan / re-init never overwrites an existing memory
+    /// (the nil-guard sentinel) — the built-in stamp is stable and a user
+    /// pair on a BuiltIn row survives an UNCHANGED-file rescan.
+    func testRememberedPairIdempotentAcrossRescan() throws {
+        try FileManager.default.createDirectory(
+            at: libraryDir.appendingPathComponent("BuiltIn"), withIntermediateDirectories: true)
+        try cube3D.write(
+            to: libraryDir.appendingPathComponent("BuiltIn/Film.cube"), atomically: true,
+            encoding: .utf8)
+        let store = LutLibraryStore(directory: libraryDir)
+        XCTAssertEqual(
+            store.entry(named: "BuiltIn/Film.cube")?.rememberedEncodings,
+            LutLibraryStore.builtInRememberedPair)
+        // Re-init (a fresh store over the same library) = same stamp.
+        let reinit = LutLibraryStore(directory: libraryDir)
+        XCTAssertEqual(
+            reinit.entry(named: "BuiltIn/Film.cube")?.rememberedEncodings,
+            LutLibraryStore.builtInRememberedPair)
+        // The user's own pair rides an unchanged-file rescan (the row is
+        // not re-adopted when the hash matches).
+        let userPair = RememberedEncodings(input: .acescct, output: .rec709SRGB)
+        reinit.updateRememberedEncodings(named: "BuiltIn/Film.cube", to: userPair)
+        reinit.rescan()
+        XCTAssertEqual(
+            reinit.entry(named: "BuiltIn/Film.cube")?.rememberedEncodings, userPair)
+    }
+
+    /// Drift re-adoption REBUILDS the row: a BuiltIn row re-stamps the
+    /// documented pair; an External (root-level) row's user memory is
+    /// CLEARED — the known external-drift corner (DECISIONS).
+    func testDriftReadoptionRestampsBuiltInAndClearsExternal() throws {
+        try FileManager.default.createDirectory(
+            at: libraryDir.appendingPathComponent("BuiltIn"), withIntermediateDirectories: true)
+        try cube3D.write(
+            to: libraryDir.appendingPathComponent("BuiltIn/Film.cube"), atomically: true,
+            encoding: .utf8)
+        try cube1D.write(
+            to: libraryDir.appendingPathComponent("Ext.cube"), atomically: true,
+            encoding: .utf8)
+        let store = LutLibraryStore(directory: libraryDir)
+        let userPair = RememberedEncodings(input: .sonySLog3, output: .rec2100PQ1000)
+        store.updateRememberedEncodings(named: "BuiltIn/Film.cube", to: userPair)
+        store.updateRememberedEncodings(named: "Ext.cube", to: userPair)
+        // External drift: rewrite both files with new (valid) content.
+        try cube1D.write(
+            to: libraryDir.appendingPathComponent("BuiltIn/Film.cube"), atomically: true,
+            encoding: .utf8)
+        try cube3D.write(
+            to: libraryDir.appendingPathComponent("Ext.cube"), atomically: true,
+            encoding: .utf8)
+        let rescanned = LutLibraryStore(directory: libraryDir)
+        XCTAssertEqual(
+            rescanned.entry(named: "BuiltIn/Film.cube")?.rememberedEncodings,
+            LutLibraryStore.builtInRememberedPair,
+            "BuiltIn drift re-adoption re-stamps the documented pair")
+        XCTAssertNil(
+            rescanned.entry(named: "Ext.cube")?.rememberedEncodings,
+            "external drift clears the user memory (the DECISIONS corner)")
+    }
+
+    /// Registry JSON byte zero-drift: a no-memory row's JSON carries NO
+    /// rememberedEncodings key at all (additive encodeIfPresent).
+    func testRegistryJSONZeroDriftWithoutMemory() throws {
+        let store = LutLibraryStore(directory: libraryDir)
+        _ = try store.importLut(from: writeSource("plain.cube", cube3D))
+        let data = try Data(contentsOf: store.registryURL)
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let row = try XCTUnwrap(json["plain.cube"] as? [String: Any])
+        XCTAssertFalse(
+            row.keys.contains("rememberedEncodings"),
+            "no-memory row has no rememberedEncodings key")
+        // And the round trip through the decoder is lossless when present.
+        store.updateRememberedEncodings(
+            named: "plain.cube",
+            to: RememberedEncodings(input: .panasonicVLog, output: .rec2100HLG1000))
+        let reinit = LutLibraryStore(directory: libraryDir)
+        XCTAssertEqual(
+            reinit.entry(named: "plain.cube")?.rememberedEncodings,
+            RememberedEncodings(input: .panasonicVLog, output: .rec2100HLG1000))
+    }
+
+    /// The remember write face: set / overwrite / clear / typed no-op on
+    /// an unknown reference.
+    func testUpdateRememberedEncodingsFace() throws {
+        let store = LutLibraryStore(directory: libraryDir)
+        _ = try store.importLut(from: writeSource("m.cube", cube3D))
+        let pair = RememberedEncodings(input: .fujiFLog, output: .rec709Gamma22)
+        store.updateRememberedEncodings(named: "m.cube", to: pair)
+        XCTAssertEqual(store.entry(named: "m.cube")?.rememberedEncodings, pair)
+        let overwrite = RememberedEncodings(input: .nikonNLog, output: .rec709BT1886)
+        store.updateRememberedEncodings(named: "m.cube", to: overwrite)
+        XCTAssertEqual(store.entry(named: "m.cube")?.rememberedEncodings, overwrite)
+        store.updateRememberedEncodings(named: "m.cube", to: nil)
+        XCTAssertNil(store.entry(named: "m.cube")?.rememberedEncodings)
+        // Unknown reference = no-op (no crash, no registry write).
+        store.updateRememberedEncodings(named: "ghost.cube", to: pair)
+        XCTAssertNil(store.entry(named: "ghost.cube"))
+    }
+
+    /// The full built-in set: all 40 seeded spectral-film rows carry the
+    /// documented pair (the OQ-4① per-row contract).
+    func testAllBuiltInSetStampsRememberedPair() throws {
+        // Seed the REAL bundle set into a temp root (never the user's
+        // default library), then adopt through a store over that root.
+        guard let bundled = Bundle.main.url(forResource: "LUTs", withExtension: nil) else {
+            throw XCTSkip("bundle LUTs/ not present in this host")
+        }
+        let seeded = LutLibraryStore.seedBuiltIns(from: bundled, into: libraryDir)
+        XCTAssertGreaterThanOrEqual(seeded, 40, "the bundle set seeded into the temp root")
+        let store = LutLibraryStore(directory: libraryDir)
+        let builtInRows = store.installedNames.filter { $0.hasPrefix("BuiltIn/") }
+        // Exactly the 40 spectral-film LUT rows (the seeder also copies the
+        // LICENSE/NOTICE files; those never adopt into the registry — the
+        // extension filter).
+        XCTAssertEqual(builtInRows.count, 40)
+        for key in builtInRows {
+            XCTAssertEqual(
+                store.entry(named: key)?.rememberedEncodings,
+                LutLibraryStore.builtInRememberedPair, "\(key)")
+        }
+    }
 }
