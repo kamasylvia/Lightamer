@@ -722,3 +722,11 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：SwiftUI Slider 的值变更绑在拖拽手势的连续编辑路径；合成单击不携带 moved 事件序列，不触发真鼠标 NSSlider 的 track-click-to-jump 行为——合成事件语义 ≠ 真鼠标语义的又一例（L032 ④ 合成 click 无修饰键的同族）。
 - **对策**：①AX/CGEvent 驱动滑块一律 drag（down → 分步 dragged → up，驱动源 `phases/m2-11-performance/profile/cgdrive.swift`）；②值是否真改必须截图/AX 复核（本轮首轮 click 序列 10 连击全部空点、截图发现值未动——「事件发了」≠「控件吃了」）；③滑块坐标从原分辨率截图量取再换算 pt（L032 ① 比例纪律）。
 - **适用**：一切 macOS GUI 自动化滑块驱动（M2-11-05 GUI 走查轮、hitch 计量轮、Phase 12/13 走查脚本复用）。
+
+## L069: coordinator live box 集跨重叠 render Task 共享——IOP 模块可变引用态必须加锁（2026-10-07，V2/Maintenance 首波 ToneEqual 修复批）
+
+- **现象**：SIGTRAP `swift_unknownObjectRetain` ← `ToneEqualModule.dispatchPack/dispatchLuma`（.ips ×2；崩点漂移跨测试类、隔离复跑全绿、当日 5 红 2 绿、盘/缓存卫生后净轮——统计性不复发 ≠ 根因消除）。.ips 亲读实锤：faultingThread 13（测试 `load` 腿渲染）与 thread 3（先前 `notifyLayerChange` fire-and-forget Task 渲染仍未返回）**两路并发同在 ToneEqualModule.process 内**。
+- **根因**：PipeCoordinator 的 renderPreview 是 fire-and-forget Task，generation 门只丢弃**结果**、从不取消在飞 run；两次重叠 run 共享同一 live `instances` box 集 → 同一 `ToneEqualModule` 实例并发 `process`。模块类的引用态可变存储（ToneEqual `scratch` 结构体含 8 个纹理/缓冲引用且按平面尺寸**整体替换**、`resolvedDevice`/`pieceBuffer`/`lutBuffer`）无同步 → 撕裂引用被强 retain = `swift_unknownObjectRetain` 陷阱（release 侧 = SIGSEGV 形态）；崩点随堆态漂移、单测隔离恒绿。「pipe 串行 per run」成立，**跨 run 无串行化保证**才是缺口。
+- **对策**：①有引用态的 IOP 模块，全部读-改-写窗口用 `NSLock` 守护（ToneEqualModule `stateLock` 先例：commitParams/ensureScratch/process 三处提取窗口，锁内零 await，微秒级）；process 入口把引用**提取为局部**后全程只用局部。②GUI-10/GUI-13 先例（apply 同步化）同理推广：跨线程共享的类实例，凡引用槽位写入都要么单 owner 要么加锁。③同型存量：NLMeans/DenoiseProfile 的 scratch 元组、全模块 pieceBuffer 模式——出现同签名崩溃按此方处置（登记 Maintenance）。④协调面根治（render 串行化/取消传播）= 架构级改动，挂 Maintenance 不随手做。
+- **适用**：一切 IOPModule 实现（含新模块评审项：引用态字段清单 + 锁纪律）；任何「共享 box 集 + 重叠异步 run」的管线形态。
+- **来源**：V2/Maintenance 首波修复批（2026-10-07，commit 见 GOAL-STATE 续接点；证据 `phases/m2-11-performance/profile/appbundle-crash-2026-10-07-0812.ips` + Flaky 台账 2026-10-07 行）。

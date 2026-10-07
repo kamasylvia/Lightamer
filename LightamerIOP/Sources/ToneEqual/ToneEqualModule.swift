@@ -199,6 +199,24 @@ public final class ToneEqualModule: IOPModule {
     private var lutBuffer: (any MTLBuffer)?
     private var committed: Params?
 
+    /// M4 root-cause fix (2026-10-07 fix batch): the pipe coordinator's
+    /// live box set is shared across OVERLAPPING renderPreview tasks
+    /// (fire-and-forget Tasks gate results by generation but never cancel
+    /// the in-flight run — .ips appbundle-crash-2026-10-07-0812 caught TWO
+    /// concurrent `process` executions of this module at crash time, one
+    /// from a `load` leg and one from a still-running notifyLayerChange
+    /// leg). Two runs then race this class's reference-bearing mutable
+    /// state (`scratch` carries eight texture/buffer refs and is REPLACED
+    /// per plane size; `resolvedDevice`/`pieceBuffer`/`lutBuffer` are
+    /// written by every/first commit) — a torn reference read back as a
+    /// strong retain is exactly the observed SIGTRAP
+    /// `swift_unknownObjectRetain` in dispatchPack/dispatchLuma (release
+    /// side = the SIGSEGV shapes). Every locked window below is
+    /// synchronous (no awaits) and microsecond-scale; `process` extracts
+    /// the refs into locals under the lock and never touches the
+    /// properties past that point.
+    private let stateLock = NSLock()
+
     public init(device: (any MTLDevice)? = nil) {
         self.device = device
     }
@@ -217,39 +235,41 @@ public final class ToneEqualModule: IOPModule {
             piece.data = nil
             return
         }
-        resolvedDevice = resolved
+        stateLock.withLock {
+            resolvedDevice = resolved
 
-        if pieceBuffer == nil || committed != params {
-            var derived = Self.derive(params)
-            let bands = params.bands
-            let weights = CorrectionLUT.weights(bands: bands, sigma: params.smoothing)
-                ?? [Float](repeating: 0, count: CorrectionLUT.controlPointCount)
-            let lut = CorrectionLUT.lut(weights: weights, sigma: params.smoothing)
+            if pieceBuffer == nil || committed != params {
+                var derived = Self.derive(params)
+                let bands = params.bands
+                let weights = CorrectionLUT.weights(bands: bands, sigma: params.smoothing)
+                    ?? [Float](repeating: 0, count: CorrectionLUT.controlPointCount)
+                let lut = CorrectionLUT.lut(weights: weights, sigma: params.smoothing)
 
-            if pieceBuffer == nil {
-                pieceBuffer = resolved.makeBuffer(
-                    length: MemoryLayout<Derived>.stride, options: .storageModeShared
-                )
-                lutBuffer = resolved.makeBuffer(
-                    length: CorrectionLUT.lutCount * MemoryLayout<Float>.stride,
-                    options: .storageModeShared
-                )
-            }
-            if let buffer = pieceBuffer {
-                withUnsafeBytes(of: &derived) {
-                    buffer.contents().copyMemory(
-                        from: $0.baseAddress!, byteCount: MemoryLayout<Derived>.stride)
+                if pieceBuffer == nil {
+                    pieceBuffer = resolved.makeBuffer(
+                        length: MemoryLayout<Derived>.stride, options: .storageModeShared
+                    )
+                    lutBuffer = resolved.makeBuffer(
+                        length: CorrectionLUT.lutCount * MemoryLayout<Float>.stride,
+                        options: .storageModeShared
+                    )
                 }
-            }
-            if let buffer = lutBuffer {
-                lut.withUnsafeBytes {
-                    buffer.contents().copyMemory(
-                        from: $0.baseAddress!, byteCount: CorrectionLUT.lutCount * MemoryLayout<Float>.stride)
+                if let buffer = pieceBuffer {
+                    withUnsafeBytes(of: &derived) {
+                        buffer.contents().copyMemory(
+                            from: $0.baseAddress!, byteCount: MemoryLayout<Derived>.stride)
+                    }
                 }
+                if let buffer = lutBuffer {
+                    lut.withUnsafeBytes {
+                        buffer.contents().copyMemory(
+                            from: $0.baseAddress!, byteCount: CorrectionLUT.lutCount * MemoryLayout<Float>.stride)
+                    }
+                }
+                committed = params
             }
-            committed = params
+            piece.data = pieceBuffer
         }
-        piece.data = pieceBuffer
     }
 
     /// ROI 帧约定（L020/L021）：恒等 —— 不读 `piece.dscIn`，无 double-scale
@@ -345,26 +365,28 @@ public final class ToneEqualModule: IOPModule {
     private func ensureScratch(
         width: Int, height: Int, dsWidth: Int, dsHeight: Int
     ) throws {
-        guard let resolved = resolvedDevice else {
-            throw MetalError.psoCreationFailed(ToneEqualKernel.lumaEstimateFunction, nil)
+        try stateLock.withLock {
+            guard let resolved = resolvedDevice else {
+                throw MetalError.psoCreationFailed(ToneEqualKernel.lumaEstimateFunction, nil)
+            }
+            let s = scratch
+            if s.width == width, s.height == height, s.dsWidth == dsWidth, s.dsHeight == dsHeight,
+               s.maskA != nil {
+                return
+            }
+            scratch = Scratch(
+                width: width, height: height, dsWidth: dsWidth, dsHeight: dsHeight,
+                maskA: Self.r32(resolved, width: width, height: height),
+                maskB: Self.r32(resolved, width: width, height: height),
+                quantFull: Self.r32(resolved, width: width, height: height),
+                dsImage: Self.r32(resolved, width: dsWidth, height: dsHeight),
+                dsMask: Self.r32(resolved, width: dsWidth, height: dsHeight),
+                dsPacked: Self.rgba32(resolved, width: dsWidth, height: dsHeight),
+                dsAv: Self.rgba32(resolved, width: dsWidth, height: dsHeight),
+                gaussPlanes: resolved.makeBuffer(
+                    length: max(dsWidth, 1) * max(dsHeight, 1) * 16 * 2,
+                    options: .storageModeShared))
         }
-        let s = scratch
-        if s.width == width, s.height == height, s.dsWidth == dsWidth, s.dsHeight == dsHeight,
-           s.maskA != nil {
-            return
-        }
-        scratch = Scratch(
-            width: width, height: height, dsWidth: dsWidth, dsHeight: dsHeight,
-            maskA: Self.r32(resolved, width: width, height: height),
-            maskB: Self.r32(resolved, width: width, height: height),
-            quantFull: Self.r32(resolved, width: width, height: height),
-            dsImage: Self.r32(resolved, width: dsWidth, height: dsHeight),
-            dsMask: Self.r32(resolved, width: dsWidth, height: dsHeight),
-            dsPacked: Self.rgba32(resolved, width: dsWidth, height: dsHeight),
-            dsAv: Self.rgba32(resolved, width: dsWidth, height: dsHeight),
-            gaussPlanes: resolved.makeBuffer(
-                length: max(dsWidth, 1) * max(dsHeight, 1) * 16 * 2,
-                options: .storageModeShared))
     }
 
     // MARK: Process (toneequal.c:866-934 compute_luminance_mask + :771-803 apply)
@@ -377,8 +399,16 @@ public final class ToneEqualModule: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        guard let uniformsBuffer = piece.data, let lutBuffer else {
-            throw MetalError.psoCreationFailed(ToneEqualKernel.applyFunction, nil)
+        // Ref extraction under the state lock (M4): the property reads
+        // below race overlapping runs' commitParams — snapshot into locals
+        // once; everything past this point touches locals only.
+        let uniformsBuffer: any MTLBuffer
+        let lutBuffer: any MTLBuffer
+        (uniformsBuffer, lutBuffer) = try stateLock.withLock {
+            guard let pieceBuffer = piece.data, let committedLut = self.lutBuffer else {
+                throw MetalError.psoCreationFailed(ToneEqualKernel.applyFunction, nil)
+            }
+            return (pieceBuffer, committedLut)
         }
         let derived = uniformsBuffer.contents().assumingMemoryBound(to: Derived.self).pointee
         let width = input.width
@@ -414,8 +444,11 @@ public final class ToneEqualModule: IOPModule {
         // NONE: mask passes straight to the apply kernel (:871-878).
         if derived.details == Int32(ToneEqualDetails.none.rawValue) {
             try await ensureScratch(width: width, height: height, dsWidth: 1, dsHeight: 1)
-            guard let mask = scratch.maskA else {
-                throw MetalError.psoCreationFailed(ToneEqualKernel.lumaEstimateFunction, nil)
+            let mask: any MTLTexture = try stateLock.withLock {
+                guard let mask = scratch.maskA else {
+                    throw MetalError.psoCreationFailed(ToneEqualKernel.lumaEstimateFunction, nil)
+                }
+                return mask
             }
             try await dispatchLuma(
                 metal, input: input, output: mask, uniforms: &lumaU,
@@ -449,13 +482,31 @@ public final class ToneEqualModule: IOPModule {
         let dsHeight = max(1, Int(Float(height) / scaling))
         try await ensureScratch(
             width: width, height: height, dsWidth: dsWidth, dsHeight: dsHeight)
-        guard let maskA = scratch.maskA, let maskB = scratch.maskB,
-              let quantFull = scratch.quantFull, let dsImage = scratch.dsImage,
-              let dsMask = scratch.dsMask, let dsPacked = scratch.dsPacked,
-              let dsAv = scratch.dsAv, let gaussPlanes = scratch.gaussPlanes
-        else {
-            throw MetalError.psoCreationFailed(ToneEqualKernel.lumaEstimateFunction, nil)
+        // The eight-plane scratch extraction under the state lock (M4):
+        // locals keep the planes alive for this run even if an overlapping
+        // run replaces `scratch` for a different plane size mid-render.
+        let (
+            extractedMaskA, extractedMaskB, extractedQuantFull,
+            extractedDsImage, extractedDsMask, extractedDsPacked,
+            extractedDsAv, extractedGaussPlanes
+        ) = try stateLock.withLock {
+            guard let maskA = scratch.maskA, let maskB = scratch.maskB,
+                  let quantFull = scratch.quantFull, let dsImage = scratch.dsImage,
+                  let dsMask = scratch.dsMask, let dsPacked = scratch.dsPacked,
+                  let dsAv = scratch.dsAv, let gaussPlanes = scratch.gaussPlanes
+            else {
+                throw MetalError.psoCreationFailed(ToneEqualKernel.lumaEstimateFunction, nil)
+            }
+            return (maskA, maskB, quantFull, dsImage, dsMask, dsPacked, dsAv, gaussPlanes)
         }
+        let maskA = extractedMaskA
+        let maskB = extractedMaskB
+        let quantFull = extractedQuantFull
+        let dsImage = extractedDsImage
+        let dsMask = extractedDsMask
+        let dsPacked = extractedDsPacked
+        let dsAv = extractedDsAv
+        let gaussPlanes = extractedGaussPlanes
 
         // Stage 1 — the luma mask.
         try await dispatchLuma(
