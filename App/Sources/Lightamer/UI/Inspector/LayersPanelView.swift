@@ -357,9 +357,15 @@ private struct LayerRowView: View {
                 }
             }
 
-            // ── mask chip (the schematic snapshot — D-06-05-T1-1) ──
-            MaskChipView(mask: layer.mask)
-                .frame(width: 34, height: 26)
+            // ── mask chip (T2: the GPU thumbnail — the renderer output is
+            // the ONE visual language shared with the Mask Groups rows;
+            // the CPU-schematic MaskChipView is RETIRED) ──
+            MaskThumbnailChipView(
+                layerID: layer.id, mask: layer.mask,
+                metal: pipeCoordinator.detectionMetal(),
+                maskDirectory: pipeCoordinator.liveImageURL.map(
+                    RasterMaskStore.masksDirectory(forImageURL:)),
+                frameExtent: chipFrameExtent)
                 .accessibilityIdentifier(rowID + ".chip")
         }
         .padding(.vertical, 3)
@@ -383,8 +389,11 @@ private struct LayerRowView: View {
         // The command targets the RIGHT-CLICKED row (it selects first);
         // routing rides `LayerEditingState.performMaskCommand` → the
         // existing commit entries (each step ONE history item).
+        // M2-7-2 (checker M5): the menu enumerates the panelMenuCases
+        // WHITELIST — the item commands (add/removeMaskItem) are panel-row
+        // actions with an itemID seam and never leak into the layer menu.
         .contextMenu {
-            ForEach(MaskCommand.allCases, id: \.rawValue) { command in
+            ForEach(MaskCommand.panelMenuCases, id: \.rawValue) { command in
                 Button(String(localized: String.LocalizationValue(command.labelKey))) {
                     editingState.select(layer.id)
                     pipeCoordinator.setHotLayer(layer.id)
@@ -400,6 +409,15 @@ private struct LayerRowView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text(layer.name))
         .accessibilityIdentifier(rowID)
+    }
+
+    /// The decoded frame aspect for the thumbnail window (the chip's
+    /// shape source; the no-image fallback keeps a 3:2 face).
+    private var chipFrameExtent: SIMD2<Int> {
+        guard let extent = editorState.image?.ciImage.extent,
+            extent.width >= 1, extent.height >= 1
+        else { return SIMD2(3, 2) }
+        return SIMD2(Int(extent.width), Int(extent.height))
     }
 
     /// The CURRENT stack object for this row's id (the live leg replaces
@@ -441,84 +459,13 @@ private struct LayerRowView: View {
     }
 }
 
-// MARK: - Mask chip (the snapshot strategy: D-06-05-T1-1)
+// MARK: - Mask chip — RETIRED (Plan M2-7-2 T2)
 
-/// The layer-row mask chip: a VECTOR SCHEMATIC of the drawn forms (brush
-/// polylines / ellipse outline / gradient band / path outline) rendered in
-/// a mini Canvas — zero GPU readback, zero L014 concerns, updates live
-/// with the record. Parametric/raster show glyphs, none a quiet frame.
-/// (A low-res GPU plane snapshot is the documented follow-up; the
-/// schematic IS the v1 snapshot policy, recorded in DECISIONS.)
-private struct MaskChipView: View {
-    let mask: MaskSpec?
-
-    var body: some View {
-        Canvas { context, size in
-            let frame = CGRect(origin: .zero, size: size).insetBy(dx: 2, dy: 2)
-            guard let mask else {
-                context.stroke(
-                    Path(roundedRect: frame, cornerRadius: 3),
-                    with: .color(.secondary.opacity(0.5)), lineWidth: 1)
-                return
-            }
-            if mask.hasParametric {
-                context.draw(
-                    Text(Image(systemName: "curlybraces")).font(.caption2),
-                    at: CGPoint(x: frame.midX, y: frame.midY))
-            }
-            if mask.hasRaster {
-                context.draw(
-                    Text(Image(systemName: "photo")).font(.caption2),
-                    at: CGPoint(x: frame.midX, y: frame.midY))
-            }
-            for form in mask.drawn?.forms ?? [] {
-                switch form.kind {
-                case let .brush(stroke):
-                    var path = Path()
-                    for (index, point) in stroke.points.enumerated() {
-                        let p = CGPoint(
-                            x: frame.minX + CGFloat(point.corner.x) * frame.width,
-                            y: frame.minY + CGFloat(point.corner.y) * frame.height)
-                        if index == 0 { path.move(to: p) } else { path.addLine(to: p) }
-                    }
-                    context.stroke(path, with: .color(.yellow), lineWidth: 2)
-                case let .ellipse(ellipse):
-                    let rect = CGRect(
-                        x: frame.minX + CGFloat(ellipse.center.x) * frame.width
-                            - CGFloat(ellipse.radiusX) * frame.width,
-                        y: frame.minY + CGFloat(ellipse.center.y) * frame.height
-                            - CGFloat(ellipse.radiusY) * frame.width,
-                        width: CGFloat(ellipse.radiusX) * 2 * frame.width,
-                        height: CGFloat(ellipse.radiusY) * 2 * frame.width)
-                    context.stroke(Path(ellipseIn: rect), with: .color(.yellow), lineWidth: 1.5)
-                case let .gradient(gradient):
-                    var path = Path()
-                    let anchor = CGPoint(
-                        x: frame.minX + CGFloat(gradient.anchor.x) * frame.width,
-                        y: frame.minY + CGFloat(gradient.anchor.y) * frame.height)
-                    path.move(to: anchor)
-                    path.addLine(
-                        to: CGPoint(
-                            x: anchor.x + CGFloat(cos(gradient.rotationDegrees * .pi / 180)) * 14,
-                            y: anchor.y + CGFloat(sin(gradient.rotationDegrees * .pi / 180)) * 14))
-                    context.stroke(path, with: .color(.yellow), lineWidth: 2)
-                case let .path(pathForm):
-                    var path = Path()
-                    for (index, node) in pathForm.nodes.enumerated() {
-                        let p = CGPoint(
-                            x: frame.minX + CGFloat(node.corner.x) * frame.width,
-                            y: frame.minY + CGFloat(node.corner.y) * frame.height)
-                        if index == 0 { path.move(to: p) } else { path.addLine(to: p) }
-                    }
-                    path.closeSubpath()
-                    context.stroke(path, with: .color(.yellow), lineWidth: 1.5)
-                }
-            }
-        }
-        .background(RoundedRectangle(cornerRadius: 3).fill(.quaternary.opacity(0.4)))
-        .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-}
+// The CPU-schematic `MaskChipView` (the 06-05 v1 snapshot policy) is
+// replaced by `MaskThumbnailChipView` (MaskGroupsPanelView.swift): the GPU
+// thumbnail pass over the unchanged assembly — the documented follow-up
+// from D-06-05-T1-1, now landed ("a low-res GPU plane snapshot" became the
+// shared renderer; the schematic is gone, git-revert single-file reversible).
 
 // MARK: - Drag-reorder drop region
 

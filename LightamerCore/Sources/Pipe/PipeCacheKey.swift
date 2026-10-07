@@ -40,7 +40,9 @@ internal struct PipeCacheKey: Hashable {
     /// (`pixelpipe_cache.c:113` note). Position 0 = the input plane.
     /// Negative values are RESERVED plane classes:
     /// `compositePosition` (-1) = the composite-prefix plane C_k,
-    /// `maskPosition` (-2) = a mask plane (6-3/6-4 tier placeholder).
+    /// `maskPosition` (-2) = a mask plane (6-3/6-4 tier placeholder),
+    /// `edgeMapPosition` (-4) = the Follow-Edges edge map (Plan M2-7-1 T6;
+    /// -3 is the retouch stroke-leg slot — checker E2 勘误).
     let position: Int
 
     /// FNV-1a chain over `decodeParamsHash` + every ENABLED piece's
@@ -77,6 +79,47 @@ internal struct PipeCacheKey: Hashable {
     /// — keyed on (input prefix ⊕ stroke-list hash); the same layer-output
     /// eviction tier as a chain plane.
     internal static let retouchPosition = -3
+
+    /// Reserved position: the Follow-Edges edge map (Plan M2-7-1 T6, KD-6;
+    /// checker E2 勘误 — `retouchPosition` owns -3). Keyed on the
+    /// below-composite CONTENT identity (imageID ⊕ pipeType ⊕
+    /// upstreamHash ⊕ roi ⊕ algorithm version — folded in `edgeMapKey`),
+    /// NOT on a layer: grades sharing a below prefix share one map, and a
+    /// below edit (or decode) invalidates it — never a per-grade,
+    /// per-render recompute.
+    internal static let edgeMapPosition = -4
+
+    /// The edge-map algorithm version (the key's 5th ingredient): bump to
+    /// invalidate every cached map after a kernel/formula change.
+    internal static let edgeMapAlgorithmVersion: UInt64 = 1
+
+    /// The FIXED namespace anchor for edge-map keys — never a real layer
+    /// (the map hangs off the below-composite content). Distinct from the
+    /// base sentinel so the `layerTier` branch below (not the sentinel
+    /// exemption) governs its eviction tier.
+    internal static let edgeMapNamespaceID = UUID(
+        uuidString: "00000000-0000-0000-0000-000000000004")!
+
+    /// The edge-map key (KD-6①): (imageID, pipeType, upstreamHash ⊕
+    /// algorithm version, roi) at the reserved `edgeMapPosition`, under the
+    /// fixed edge-map namespace. `upstreamHash` = the caller's composite
+    /// prefix hash at the sampling point (the below content the map was
+    /// computed FROM).
+    static func edgeMapKey(
+        imageID: UUID,
+        pipeType: PipeResolution,
+        upstreamHash: UInt64,
+        roi: ROI
+    ) -> PipeCacheKey {
+        var version = Self.edgeMapAlgorithmVersion
+        let keyed = withUnsafeBytes(of: &version) {
+            StableHash.combine(upstreamHash, $0)
+        }
+        return PipeCacheKey(
+            imageID: imageID, pipeType: pipeType,
+            position: PipeCacheKey.edgeMapPosition,
+            upstreamHash: keyed, roi: roi, layerID: PipeCacheKey.edgeMapNamespaceID)
+    }
 
     init(
         imageID: UUID,
@@ -119,6 +162,13 @@ internal struct PipeCacheKey: Hashable {
     internal var layerTier: LayerPlaneTier? {
         if layerID == Self.baseLayerSentinelID { return nil }
         if position == Self.maskPosition { return .maskPlane }
+        // M2-7-1 T6 (KD-6①, checker E2): the edge map rides the maskPlane
+        // eviction tier — ONE Sobel pass rebuilds it (mask-raster cost
+        // magnitude), the cheapest-rebuild family evicted LAST. Without
+        // this branch -4 falls through to .layerChainOutput (the most
+        // expensive tier) — semantically wrong. Additive ONLY: the existing
+        // branches are untouched.
+        if position == Self.edgeMapPosition { return .maskPlane }
         if position == Self.compositePosition { return .compositePrefix }
         return .layerChainOutput
     }}

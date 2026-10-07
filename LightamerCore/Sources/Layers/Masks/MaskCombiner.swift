@@ -415,7 +415,7 @@ public enum MaskCombiner {
             // would disable the whole grade, which is the node-level
             // enabled/mix semantics' job, D-M2-4-CONTEXT-6).
             if item.enabled == false { continue }
-            let plane: any MTLTexture
+            var plane: any MTLTexture
             if let child = item.child {
                 guard let childPlane = try await drawnGroupPlane(
                     group: child, forms: forms, window: window,
@@ -427,6 +427,17 @@ public enum MaskCombiner {
                     form: form, window: window, mapper: mapper, metal: metal)
             } else {
                 continue // missing form — dt skips the item (nb_ok accounting)
+            }
+            // M2-7-1 T3 (KD-3, M2MASK-04): the mask-LEVEL (item) feather —
+            // the SECOND feather stage after the form-intrinsic one, applied
+            // to the item's plane BEFORE the reduce assembly so the combine
+            // kernel's invert→opacity→clamp legs see the feathered profile
+            // (the pinned application order feather→invert→opacity→clamp).
+            // Gate = dt blend.c:306 (feathering_radius > 0.1); nil = no leg.
+            // Additive ONLY: the five formulas / the enabled filter above
+            // are byte-identical (an unfeathered item never enters here).
+            if let feather = item.feather, feather > 0.1 {
+                plane = try await blur(mask: plane, sigma: feather, metal: metal)
             }
             inputs.append(MaskCombineInput(
                 plane: plane, op: item.op, inverted: item.inverted,

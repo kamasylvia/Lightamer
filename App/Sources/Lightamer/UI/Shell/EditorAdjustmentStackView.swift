@@ -74,6 +74,15 @@ struct EditorAdjustmentStackView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(ThemeTokens.cardSurface)
         .accessibilityIdentifier("editor.stack")
+        // M2-7-2 (KD-3 Locate): consume the ONE-shot tab route the Mask
+        // Groups panel's Locate writes — the tab state stays THIS view's
+        // private @State (the pending field is a routed request, cleared
+        // on arrival).
+        .onChange(of: editingState.pendingTabRoute) { _, route in
+            guard let route else { return }
+            selectedTab = route
+            editingState.pendingTabRoute = nil
+        }
     }
 
     // MARK: - The tab rail (the Alcedo seven-tab sequence)
@@ -120,8 +129,14 @@ struct EditorAdjustmentStackView: View {
             VStack(alignment: .leading, spacing: 0) {
                 switch EditorTabRoutingTable.specialContent(for: tab) {
                 case .layersPanel:
-                    // The Mask page's pre-home: the adjustment-layers panel
-                    // (M2-7 replaces it) + the viewport-toolbar linkage.
+                    // M2-7-2: the Mask Groups panel (the grade-ordered
+                    // projection + the per-item editing face) heads the
+                    // Mask page; the Range quick panels (T5) and the
+                    // layer-structure panel follow; the viewport-toolbar
+                    // linkage closes the page.
+                    MaskGroupsPanelView()
+                    LuminanceColorRangePanelView()
+                    Divider()
                     LayersPanelView()
                     maskToolbarLink
                 case .rawDecodePanel:

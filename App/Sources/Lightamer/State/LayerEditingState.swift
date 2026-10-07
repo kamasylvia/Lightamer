@@ -28,12 +28,15 @@ import Observation
 // ─────────────────────────────────────────────────────────────────────────
 
 /// The mask drawing tools (plan T3.1 — five, Manual-Only 手感 red line).
+/// M2-7-2 T6 (checker E6): `.followEdges` joins the radio set — the
+/// CaseIterable consumers (the toolbar ForEach) pick it up automatically.
 enum MaskTool: String, CaseIterable, Sendable {
     case brush
     case eraser
     case gradient
     case ellipse
     case path
+    case followEdges
 
     /// The AX/toolbar identifier stem (L010: stable ids, not indexes).
     var identifier: String { "mask.tool.\(rawValue)" }
@@ -48,6 +51,7 @@ enum MaskTool: String, CaseIterable, Sendable {
         case .gradient: return "line.diagonal" // GUI-14 fix: "gradient.3.crossing" is MISSING on this OS → blank icon
         case .ellipse: return "circle" // GUI-14 fix: "ellipse" is MISSING → blank icon
         case .path: return "scribble"
+        case .followEdges: return "arrow.triangle.branch"
         }
     }
 }
@@ -77,15 +81,34 @@ enum MaskOverlayStyle: String, CaseIterable, Sendable {
 /// lands EXACTLY ONE history item, ⌘Z-able). KERNEL ZERO-CHANGE: nothing
 /// here touches `AdjustmentLayer`/`MaskCombiner`/the combine assembly
 /// (the Phase 6 verified surface) — a command is a RECORD edit.
+///
+/// M2-7-2 (Plan T2, checker M5 ruling = option A): `addMaskItem` /
+/// `removeMaskItem` join as PAYLOAD-FREE cases — the associated-value form
+/// would break the `CaseIterable` synthesis and leak into every `allCases`
+/// consumer. The removal/insertion TARGET rides the execution-seam
+/// parameter (`performMaskCommand(.removeMaskItem, itemID:)`) instead, and
+/// the layer-row menu enumerates the `panelMenuCases` whitelist (the two
+/// item commands are panel-row actions, never layer-menu rows).
 enum MaskCommand: String, CaseIterable, Sendable {
     case duplicate
     case duplicateAndInvert
     case fill
     case clear
     case resetEdits
+    case addMaskItem
+    case removeMaskItem
 
     /// zh/en catalog key stem (`mask_command_<rawValue>`).
     var labelKey: String { "mask_command_\(rawValue)" }
+
+    /// The layer-row context-menu whitelist (checker M5): the five
+    /// layer-scoped commands. The two item commands need a TARGET ITEM id
+    /// (the panel row's seam parameter) and MUST NOT enumerate in the
+    /// layer menu — every menu consumer reads this list, never `allCases`,
+    /// so a future command case cannot silently leak into the menu.
+    static let panelMenuCases: [MaskCommand] = [
+        .duplicate, .duplicateAndInvert, .fill, .clear, .resetEdits,
+    ]
 }
 
 @Observable
@@ -155,6 +178,25 @@ final class LayerEditingState {
     var brushFlow: Float = 1.0          // per-stamp weight
     var brushOpacity: Float = 1.0       // stroke ceiling multiplier
     var gradientState: GradientState = .linear
+
+    // MARK: Follow Edges parameters (M2-7-2 T5, KD-5 — the toolbar section
+    // binds these; the walker consumes them per stroke. EDITING-MODE state:
+    // no history, never persisted — the brush-parameter precedent).
+
+    /// The edge-aware brush's parameters (Core `FollowEdgesParams`; the
+    /// brush WIDTH is NOT here — it passes through as the current brush
+    /// radius, the KD-5 division). The UI default is `.snap` — the M2-7-3
+    /// walkthrough fuse verdict (OQ-4-C): the streamline walker breaks on
+    /// real-photo ridges at shipped params (chains of 1-3 points across all
+    /// scenes); snap delivers deterministic edge-anchored lines. The walker
+    /// stays selectable from the mode picker and is parked for V2.
+    var followEdgesParams = FollowEdgesParams(mode: .snap)
+
+    /// The empty-chain degrade status (KD-P1 KD-6 consumption face): set by
+    /// the interaction leg when the walker returns an EMPTY chain (no map /
+    /// no edge within reach) — the toolbar status hint surfaces it; any
+    /// successful stroke clears it.
+    var followEdgesDegraded = false
 
     // MARK: retouch tools (Plan 06-07 T4)
 
@@ -256,6 +298,72 @@ final class LayerEditingState {
         return .crop
     }
 
+    // MARK: Locate (M2-7-2, KD-3 dispatch table)
+
+    /// The ONE-shot pending right-rail tab route. The Mask Groups panel's
+    /// Locate writes it; `EditorAdjustmentStackView` consumes (clears) it
+    /// on change — the tab STATE stays the stack view's private `@State`
+    /// (no second selection truth; this is a routed REQUEST, not state).
+    var pendingTabRoute: EditorTabRoute?
+
+    /// Locate a mask row: select its layer (the seven tabs then edit that
+    /// layer — the D-M2-4-CONTEXT-9 write side), disarm any armed tool
+    /// (KD-3「联动选中」), and route the right rail to the Mask page.
+    func locateMask(layerID: UUID) {
+        select(layerID)
+        setTool(nil)
+        pendingTabRoute = .mask
+    }
+
+    // MARK: Default Behavior (M2-7-2 T4, KD-4 — checker E1 re-ruling)
+
+    /// The completion-time behavior resolver, INJECTED (M2-1 D-EXEC-1
+    /// shape): the default reads the M2-3 stored preference
+    /// (`AppPreferences.maskDrawBehavior`, key `mask.behavior.default`);
+    /// tests inject a constant. View bodies NEVER read UserDefaults —
+    /// the resolver is invoked from event handlers only.
+    var maskDrawBehaviorResolver: () -> MaskDrawBehavior = {
+        AppPreferences().maskDrawBehavior
+    }
+
+    /// The one-shot ask-sheet request (`ask` behavior). NOT a persisted
+    /// choice — M2-3's semantics is ask-every-completion (no "don't ask
+    /// again").
+    var pendingMaskBehaviorAsk = false
+
+    /// The completion-time dispatch (M2-3 page semantics: the choice
+    /// applies when a drawn mask is COMPLETED). Call AFTER the
+    /// interaction's commit landed; `didCommit` false (a no-op tap) is a
+    /// silent no-op. Exhaustive, no default arm (纪律 7).
+    ///
+    ///   currentNode — zero action (the mask stays on its layer);
+    ///   newLayer    — the drawn mask migrates to a FRESH layer above
+    ///                 (ONE structure item, the source left clean);
+    ///   ask         — the one-shot sheet (the move lands ONE item when
+    ///                 confirmed; "keep" lands nothing).
+    func maskDrawInteractionDidComplete(didCommit: Bool, editorState: EditorState) {
+        guard didCommit else { return }
+        switch maskDrawBehaviorResolver() {
+        case .currentNode:
+            break
+        case .newLayer:
+            if let id = selectedLayerID {
+                _ = editorState.migrateMaskToNewLayer(from: id)
+            }
+        case .ask:
+            pendingMaskBehaviorAsk = true
+        }
+    }
+
+    /// The ask-sheet「移入新层」action — the SAME one-item migration the
+    /// newLayer behavior uses (the sheet choice is NOT persisted).
+    func confirmMaskBehaviorMove(editorState: EditorState) {
+        pendingMaskBehaviorAsk = false
+        if let id = selectedLayerID {
+            _ = editorState.migrateMaskToNewLayer(from: id)
+        }
+    }
+
     // MARK: mask commands (13-3 T5 — the five-command face)
 
     /// Route a mask command onto the SELECTED layer through EditorState's
@@ -264,7 +372,13 @@ final class LayerEditingState {
     /// exception: the structural clone + the inversion flip — TWO items,
     /// two ⌘Z steps, both recorded). No selection → a silent no-op (the
     /// menu disables before this can fire).
-    func performMaskCommand(_ command: MaskCommand, editorState: EditorState) {
+    ///
+    /// `itemID` is the ITEM-command execution seam (checker M5): the
+    /// payload-free `.removeMaskItem` case takes its target here. A nil
+    /// id with an item command = a silent no-op (the caller never does).
+    func performMaskCommand(
+        _ command: MaskCommand, itemID: UUID? = nil, editorState: EditorState
+    ) {
         guard let id = selectedLayerID,
               let layer = editorState.adjustmentLayer(id: id)
         else { return }
@@ -278,8 +392,18 @@ final class LayerEditingState {
             // entry; the inversion is ONE property commit on the copy).
             guard let copy = editorState.duplicateLayer(id: id) as? AdjustmentLayer
             else { return }
+            // Defensive revision pin (KD-5 dispatch table): the synchronous
+            // single-writer leg cannot see a mid-command write on
+            // @MainActor — the assert documents the unreachability (release
+            // runs the unconditional path; a future async caller must go
+            // through the gate instead).
+            let expected = copy.mask?.contentRevision
+            assert(MaskSpec.matchesExpected(expected, in: copy.mask ?? MaskSpec()))
             var invertedCopy = Self.snapshot(copy)
             invertedCopy.mask = Self.inverted(invertedCopy.mask)
+            // The invert variant is a CONTENT WRITE (KD-3 write-point ④):
+            // the committed value bumps +1 (nil folds to 0 first).
+            invertedCopy.mask?.bumpContentRevision()
             editorState.commitLayerEdit(
                 invertedCopy, label: String(localized: "mask_command_duplicateAndInvert"))
         case .fill:
@@ -295,8 +419,15 @@ final class LayerEditingState {
                 editorState.presentToast(Self.deletionProtectedToast)
                 return
             }
+            // The committed value carries the revision FORWARD +1 (KD-3
+            // write-point ③ — a content rewrite keeps the guard monotonic
+            // within the history segment, so a stale in-flight writer's
+            // expected value can never re-validate against the new record).
             var copy = Self.snapshot(layer)
-            copy.mask = MaskSpec()
+            var newMask = MaskSpec()
+            newMask.contentRevision = layer.mask?.contentRevision
+            newMask.bumpContentRevision()
+            copy.mask = newMask
             editorState.commitLayerEdit(
                 copy, label: String(localized: "mask_command_fill"))
         case .clear:
@@ -319,7 +450,137 @@ final class LayerEditingState {
             copy.chain = []
             editorState.commitLayerEdit(
                 copy, label: String(localized: "mask_command_resetEdits"))
+        case .addMaskItem:
+            // M2-7-2 (KD-3): one default-shaped form + one group item —
+            // EXACTLY ONE history item (the write-point-⑤ bump inside).
+            Self.addMaskItem(to: layer, tool: activeTool, editorState: editorState)
+        case .removeMaskItem:
+            // M2-7-2 (KD-3): drop the item (depth-first across nested
+            // children), sweep its form when nothing references it, and
+            // honor the deletion lock with the EXISTING double-leg toast.
+            guard let itemID else { return }
+            Self.removeMaskItem(itemID, from: layer, editorState: editorState)
         }
+    }
+
+    // MARK: M2-7-2 item commands (KD-3 dispatch table; checker M5 shape)
+
+    /// The default form shape for a panel-add (the current tool's shape;
+    /// no armed tool = the ellipse — Alcedo's default mask shape; the
+    /// follow-edges tool defaults to the same brush stroke — the walker's
+    /// output IS a brush form).
+    private static func defaultFormKind(for tool: MaskTool?) -> MaskForm.Kind {
+        switch tool {
+        case .brush, .eraser, .followEdges, nil:
+            .brush(BrushStroke(
+                points: [BrushPoint(
+                    corner: MaskPoint(x: 0.5, y: 0.5), ctrl1: MaskPoint(x: 0.5, y: 0.5),
+                    ctrl2: MaskPoint(x: 0.5, y: 0.5))],
+                radius: 0.06, hardness: 0.7, density: 1, opacity: 1))
+        case .gradient:
+            .gradient(GradientForm(
+                anchor: MaskPoint(x: 0.35, y: 0.5), rotationDegrees: 0,
+                compression: 0.3, state: .linear))
+        case .ellipse:
+            .ellipse(EllipseForm(
+                center: MaskPoint(x: 0.5, y: 0.5), radiusX: 0.2, radiusY: 0.2,
+                rotationDegrees: 0, border: 0))
+        case .path:
+            .path(PathForm(
+                nodes: [
+                    PathNode(corner: MaskPoint(x: 0.35, y: 0.35), ctrl1: MaskPoint(x: 0.35, y: 0.35), ctrl2: MaskPoint(x: 0.35, y: 0.35)),
+                    PathNode(corner: MaskPoint(x: 0.65, y: 0.35), ctrl1: MaskPoint(x: 0.65, y: 0.35), ctrl2: MaskPoint(x: 0.65, y: 0.35)),
+                    PathNode(corner: MaskPoint(x: 0.5, y: 0.65), ctrl1: MaskPoint(x: 0.5, y: 0.65), ctrl2: MaskPoint(x: 0.5, y: 0.65)),
+                ],
+                border: 0))
+        }
+    }
+
+    /// Add: the default-shaped form joins `drawn.forms` and a group item
+    /// (union, visible, opacity 1) joins `drawn.group` (created when the
+    /// spec was on the single-form path). One commit, one +1 bump.
+    private static func addMaskItem(
+        to layer: AdjustmentLayer, tool: MaskTool?, editorState: EditorState
+    ) {
+        var spec = layer.mask ?? MaskSpec()
+        var drawn = spec.drawn ?? DrawnMaskSpec(forms: [])
+        let form = MaskForm(kind: defaultFormKind(for: tool))
+        drawn.forms.append(form)
+        var group = drawn.group ?? MaskGroupSpec(items: [])
+        group.items.append(
+            MaskGroupItem(formID: form.id, op: .union, inverted: false, opacity: 1))
+        drawn.group = group
+        spec.drawn = drawn
+        spec.bumpContentRevision()
+        var copy = snapshot(layer)
+        copy.mask = spec
+        editorState.commitLayerEdit(
+            copy, label: String(localized: "mask_command_addMaskItem"))
+    }
+
+    /// Remove: depth-first item drop (nested children included), then the
+    /// ORPHAN FORM SWEEP (a form no leaf item references is dead weight —
+    /// dt's group semantics keep forms alive only through items). The
+    /// deletion lock intercepts with the EXISTING toast (zero history);
+    /// a miss (unknown id / no group) is a silent no-op.
+    private static func removeMaskItem(
+        _ itemID: UUID, from layer: AdjustmentLayer, editorState: EditorState
+    ) {
+        if isDeletionProtected(layer) {
+            editorState.presentToast(deletionProtectedToast)
+            return
+        }
+        guard var spec = layer.mask, var drawn = spec.drawn,
+            var group = drawn.group
+        else { return }
+        guard let remaining = Self.removingItem(itemID, from: group.items) else {
+            return
+        }
+        group.items = remaining
+        drawn.group = group
+        let referenced = Self.referencedFormIDs(in: group.items)
+        drawn.forms.removeAll { !referenced.contains($0.id) }
+        spec.drawn = drawn
+        spec.bumpContentRevision()
+        var copy = snapshot(layer)
+        copy.mask = spec
+        editorState.commitLayerEdit(
+            copy, label: String(localized: "mask_command_removeMaskItem"))
+    }
+
+    /// Depth-first item removal: nil = the id matched nothing (miss).
+    private static func removingItem(
+        _ id: UUID, from items: [MaskGroupItem]
+    ) -> [MaskGroupItem]? {
+        var changed = false
+        var out: [MaskGroupItem] = []
+        for var item in items {
+            if item.formID == id {
+                changed = true
+                continue
+            }
+            if var child = item.child,
+                let grandChild = removingItem(id, from: child.items) {
+                child.items = grandChild
+                item.child = child
+                changed = true
+            }
+            out.append(item)
+        }
+        return changed ? out : nil
+    }
+
+    /// The form ids the tree still references (leaf items only — a child
+    /// group's items carry their own leaves).
+    private static func referencedFormIDs(in items: [MaskGroupItem]) -> Set<UUID> {
+        var ids = Set<UUID>()
+        for item in items {
+            if item.child == nil { ids.insert(item.formID) }
+            if let child = item.child {
+                ids.formUnion(referencedFormIDs(in: child.items))
+            }
+        }
+        return ids
     }
 
     /// The VALUE copy with the SAME identity (the class fields are all

@@ -114,6 +114,13 @@ enum AIMaskEditing {
     /// - `activateTool`: the mask tool to arm after the commit (nil = leave
     ///   the current mode) — the AI-06 "user lands in ordinary mask
     ///   editing" form.
+    /// - `expectedRevision`: the optimistic-concurrency snapshot (KD-5,
+    ///   D-M2-7-CONTEXT-9) — the caller's `MaskSpec.contentRevision` value
+    ///   read when the bake was requested. nil = legacy callers (no gate).
+    ///   A mismatch REFUSES the install (typed error along the 07 face —
+    ///   no silent overwrite, no auto-rebake; the rebake decision is the
+    ///   user's). The install itself is a history commit leg: it bumps the
+    ///   revision exactly once before the commit.
     @discardableResult
     static func commitRasterMask(
         plane: AIMaskPlane,
@@ -128,7 +135,8 @@ enum AIMaskEditing {
         coordinator: PipeCoordinator,
         editorState: EditorState,
         editingState: LayerEditingState,
-        metal: MetalContext
+        metal: MetalContext,
+        expectedRevision: Int? = nil
     ) async throws -> RasterMaskRef {
         guard let layerID = editingState.selectedLayerID,
               let layer = editorState.adjustmentLayer(id: layerID)
@@ -157,10 +165,24 @@ enum AIMaskEditing {
 
         // The mask slot write: KEEP existing payloads (a refine/draw-patch
         // world — the raster ref joins drawn/parametric through the
-        // assembler's intersect), swap in the fresh reference.
+        // assembler's intersect), swap in the fresh reference. The
+        // optimistic-concurrency gate reads the layer's LIVE spec (the
+        // reference is shared with the stack, so this is the post-await
+        // state — a user edit landing during the bake fails the stale
+        // expected value here): mismatch = refuse BEFORE any state change.
+        if let expectedRevision,
+            !MaskSpec.matchesExpected(expectedRevision, in: layer.mask ?? MaskSpec()) {
+            let currentRevision = layer.mask?.contentRevision.map(String.init) ?? "0"
+            throw AIMaskError.invalidInput(
+                "mask content revision mismatch: expected \(expectedRevision), " +
+                    "current \(currentRevision) — refusing the AI install")
+        }
         var updated = layer
         var mask = layer.mask ?? MaskSpec()
         mask.raster = ref
+        // The AI install is a history commit leg (KD-5's write-point table):
+        // bump exactly once before the commit.
+        mask.bumpContentRevision()
         updated.mask = mask
         editorState.commitLayerEdit(updated, label: label)
 

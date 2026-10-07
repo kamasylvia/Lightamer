@@ -48,6 +48,8 @@ internal struct MaskOverlayHost: View {
     /// 06-06 fit-layout assumption is retired FOR THE MASK ROUTE ONLY;
     /// crop/liquify/retouch stay locked to fit by the mutex).
     @Environment(ViewportState.self) private var viewportState
+    /// T6: the Follow Edges seam (the surface + edge-map read face).
+    @Environment(PipeCoordinator.self) private var pipeCoordinator
 
     /// What the current drag grabbed (always references a REAL form id in
     /// the layer's mask — press installs the form first).
@@ -57,6 +59,11 @@ internal struct MaskOverlayHost: View {
         case gradientAnchor(UUID)
         case ellipseRim(UUID) // a new ellipse being dragged out + resize
         case ellipseCenter(UUID)
+        /// M2-7-2 T3: the radial DUAL-feather grips (the rim's inner
+        /// solid-core inset / the outer transition band — Alcedo's two
+        /// ring handles on the major axis).
+        case ellipseInnerFeather(UUID)
+        case ellipseOuterFeather(UUID)
         case pathNode(UUID, index: Int)
     }
     @State private var grab: Grab?
@@ -65,7 +72,11 @@ internal struct MaskOverlayHost: View {
     @State private var pressedPoint: MaskPoint?
     /// True when THIS interaction actually mutated the mask (a pure
     /// handle tap without movement must NOT fabricate a history item).
-    @State private var dirty = false
+    /// M2-7-1 T5: the flag + the record plumbing live in the extracted
+    /// `MaskOverlayRecord` (the write-point contract is unit-tested
+    /// through it — MaskRevisionTests drives the exact press → live
+    /// ticks → commit path the gestures run).
+    @State private var record = MaskOverlayRecord()
 
     private var layer: AdjustmentLayer? {
         editingState.selectedLayer(in: editorState.layerStack)
@@ -143,6 +154,7 @@ internal struct MaskOverlayHost: View {
                     handleDot(
                         at: screen(MaskPoint(x: e.center.x + e.radiusX, y: e.center.y)),
                         &context, filled: false)
+                    drawFeatherTokens(e, transform: xf, fitPoint: fitPoint, &context)
                 case let .path(p):
                     var path = Path()
                     for (index, node) in p.nodes.enumerated() {
@@ -171,6 +183,78 @@ internal struct MaskOverlayHost: View {
         context.stroke(Path(ellipseIn: rect), with: .color(.yellow), lineWidth: 1.5)
     }
 
+    // MARK: guidance tokens (M2-7-2 T3 — the Alcedo overlay visual language)
+
+    /// The THREE token classes for the radial mask:
+    ///   center cross   — a thin neutral cross at the center;
+    ///   radius axis    — the yellow main-axis spoke center → rim (the
+    ///                    feather grips' rail);
+    ///   band bounds    — the dashed inner/outer feather boundaries.
+    /// Geometry mirrors the rasterizer's width-units convention (the radii
+    /// scale with the window WIDTH; the band circles ride the same affine
+    /// as the rim so rotation/zoom stay correct).
+    private func drawFeatherTokens(
+        _ e: EllipseForm, transform xf: ViewportTransform,
+        fitPoint: (MaskPoint) -> CGPoint, _ context: inout GraphicsContext
+    ) {
+        let center = fitPoint(e.center)
+        let rx = CGFloat(e.radiusX) * xf.rect.width
+        let ry = CGFloat(e.radiusY) * xf.rect.width
+        let rim = CGPoint(x: center.x + rx, y: center.y)
+
+        // ① the center cross (6 px, neutral, thin).
+        let cross: CGFloat = 6
+        var crossPath = Path()
+        crossPath.move(to: CGPoint(x: center.x - cross, y: center.y))
+        crossPath.addLine(to: CGPoint(x: center.x + cross, y: center.y))
+        crossPath.move(to: CGPoint(x: center.x, y: center.y - cross))
+        crossPath.addLine(to: CGPoint(x: center.x, y: center.y + cross))
+        context.stroke(
+            crossPath.applying(xf.affine), with: .color(.white.opacity(0.6)), lineWidth: 1)
+
+        // ② the radius main axis (center → rim; the grips' rail).
+        var axis = Path()
+        axis.move(to: center)
+        axis.addLine(to: rim)
+        context.stroke(
+            axis.applying(xf.affine), with: .color(.yellow.opacity(0.8)), lineWidth: 1.5)
+
+        // ③ the feather band boundaries (dashed).
+        let innerFraction = CGFloat(e.innerFeather ?? 0)
+        let outerFraction = CGFloat(e.resolvedOuterFeather)
+        for (factor, active) in [(1 - innerFraction, e.innerFeather != nil),
+                                 (1 + outerFraction, true)] {
+            let bandRx = rx * factor
+            let bandRy = ry * factor
+            let bandRect = CGRect(
+                x: center.x - bandRx, y: center.y - bandRy,
+                width: bandRx * 2, height: bandRy * 2)
+            let dashed = Path(ellipseIn: bandRect)
+            context.stroke(
+                dashed.applying(xf.affine),
+                with: .color(active ? .white.opacity(0.7) : .white.opacity(0.3)),
+                style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        }
+
+        // The two feather grips: small SQUARE handles on the axis (the
+        // filled/unfilled dot language stays the rim/center's).
+        let innerGrip = fitPoint(
+            MaskPoint(
+                x: e.center.x + e.radiusX * (1 - (e.innerFeather ?? 0)), y: e.center.y))
+        let outerGrip = fitPoint(
+            MaskPoint(
+                x: e.center.x + e.radiusX * (1 + e.resolvedOuterFeather), y: e.center.y))
+        for p in [innerGrip, outerGrip] {
+            let rect = CGRect(x: p.x - 4, y: p.y - 4, width: 8, height: 8)
+            context.fill(
+                Path(roundedRect: rect, cornerRadius: 2),
+                with: .color(.white.opacity(0.9)))
+            context.stroke(
+                Path(roundedRect: rect, cornerRadius: 2),
+                with: .color(.yellow), lineWidth: 1)
+        }
+    }
+
     // MARK: gestures
 
     private func dragGesture(
@@ -197,6 +281,8 @@ internal struct MaskOverlayHost: View {
                         layer: layer, at: p, screen: value.location, transform: xf)
                 case .path:
                     dragPathNode(layer: layer, at: p)
+                case .followEdges:
+                    followEdgesInteraction(layer: layer, at: p)
                 }
             }
             .onEnded { _ in
@@ -245,7 +331,10 @@ internal struct MaskOverlayHost: View {
                 opacity: editingState.brushOpacity)
             let form = appendForm(.brush(stroke), layer: layer)
             grab = .stroke(form.id)
-        default:
+        case .gradientTip, .gradientAnchor, .ellipseRim, .ellipseCenter,
+             .ellipseInnerFeather, .ellipseOuterFeather, .pathNode:
+            // A different tool's grab — not this drag's (the explicit
+            // enumeration keeps the touchpoint file default-free).
             break
         }
     }
@@ -279,7 +368,10 @@ internal struct MaskOverlayHost: View {
             updateGradientForm(id: formID, layer: layer) { g in
                 g.anchor = p
             }
-        default:
+        case nil, .stroke, .ellipseRim, .ellipseCenter,
+             .ellipseInnerFeather, .ellipseOuterFeather, .pathNode:
+            // No grab / a different tool's grab — not this drag's (the
+            // explicit enumeration keeps the touchpoint file default-free).
             break
         }
     }
@@ -307,6 +399,22 @@ internal struct MaskOverlayHost: View {
                 e.radiusX = max(0.005, abs(p.x - e.center.x))
                 e.radiusY = max(0.005, abs(p.y - e.center.y))
             }
+        case let .ellipseInnerFeather(formID):
+            updateEllipseForm(id: formID, layer: layer) { e in
+                // The first grab converts a legacy-border ellipse to the
+                // dual leg with the border FOLDED into outer (the resolved
+                // read convention — an explicit partner pair, no silent
+                // mode change mid-drag).
+                if e.innerFeather == nil { e.outerFeather = e.resolvedOuterFeather }
+                let factor = abs(p.x - e.center.x) / max(e.radiusX, 0.005)
+                e.innerFeather = max(0, min(1, 1 - factor))
+            }
+        case let .ellipseOuterFeather(formID):
+            updateEllipseForm(id: formID, layer: layer) { e in
+                if e.innerFeather == nil { e.innerFeather = 0 }
+                let factor = abs(p.x - e.center.x) / max(e.radiusX, 0.005)
+                e.outerFeather = max(0, min(2, factor - 1))
+            }
         case let .ellipseCenter(formID):
             updateEllipseForm(id: formID, layer: layer) { e in
                 guard let press = pressedPoint else {
@@ -318,7 +426,10 @@ internal struct MaskOverlayHost: View {
                     x: e.center.x + (p.x - press.x), y: e.center.y + (p.y - press.y))
                 pressedPoint = p
             }
-        default:
+        case nil, .gradientTip, .gradientAnchor, .stroke, .pathNode:
+            // No grab / a different tool's grab — not this drag's (the
+            // explicit enumeration keeps the touchpoint file default-free;
+            // the ellipse cases above already matched).
             break
         }
     }
@@ -330,6 +441,68 @@ internal struct MaskOverlayHost: View {
                 path.nodes[index].corner = p
                 path.nodes[index].ctrl1 = p
                 path.nodes[index].ctrl2 = p
+            }
+        }
+    }
+
+    // MARK: Follow Edges interaction (M2-7-2 T6, checker E6)
+
+    /// Newest-wins guard for the async walk tasks (a drag tick supersedes
+    /// the previous re-walk).
+    @State private var followEdgesGeneration = 0
+
+    /// The interaction leg: PRESS = seed → seam → edge map → walker →
+    /// `BrushStroke` → `appendForm` (the live leg — the revision semantics
+    /// are the T3 gate's); the DRAG re-walks from the moved point and
+    /// REPLACES the chain through the mutate arm. An EMPTY chain (no map /
+    /// no edge within reach) = NO append + the toolbar status hint
+    /// (KD-P1 KD-6's degrade semantics — never a silent no-op stroke).
+    private func followEdgesInteraction(layer: AdjustmentLayer, at p: MaskPoint) {
+        let pressing = (grab == nil)
+        let formID: UUID?
+        if case let .stroke(id) = grab { formID = id } else { formID = nil }
+        guard pressing || formID != nil else { return }
+        followEdgesGeneration += 1
+        let generation = followEdgesGeneration
+        let params = editingState.followEdgesParams
+        Task { @MainActor in
+            let chain = await FollowEdgesInteraction.chain(
+                seed: p, layerID: layer.id, params: params,
+                surfaceProvider: { id in
+                    await pipeCoordinator.followEdgesSurface(forLayerID: id)
+                },
+                fieldReader: { surface in
+                    await pipeCoordinator.edgeMapField(for: surface)
+                })
+            guard generation == followEdgesGeneration else { return }
+            guard !chain.isEmpty else {
+                // The documented degrade: no append, the status hint on.
+                editingState.followEdgesDegraded = true
+                return
+            }
+            editingState.followEdgesDegraded = false
+            let stroke = BrushStroke(
+                points: chain.map { point in
+                    BrushPoint(corner: point, ctrl1: point, ctrl2: point)
+                },
+                radius: editingState.brushRadius,
+                hardness: editingState.brushHardness,
+                density: editingState.brushFlow,
+                opacity: editingState.brushOpacity)
+            if let formID {
+                // The drag micro-adjust arm: the chain REPLACES the
+                // stroke's points (the mutate leg, zero history).
+                record.mutateForm(id: formID, layer: layer, editorState: editorState) {
+                    kind in
+                    if case var .brush(existing) = kind {
+                        existing.points = stroke.points
+                        kind = .brush(existing)
+                    }
+                }
+            } else {
+                // The press append (the live leg; grab arms the drag arm).
+                let form = appendForm(.brush(stroke), layer: layer)
+                grab = .stroke(form.id)
             }
         }
     }
@@ -353,17 +526,15 @@ internal struct MaskOverlayHost: View {
         let hadInteraction = grab != nil
         grab = nil
         pressedPoint = nil
-        // Exactly ONE structure item per finished, ACTUALLY-MUTATING
-        // interaction (「笔画结束 1 条」; a no-op tap never lands history).
-        guard hadInteraction, dirty else { return }
-        dirty = false
-        guard let live = selectedLayer() else { return }
-        editorState.commitLayerEdit(
-            live, label: String(localized: String.LocalizationValue(commitLabelKey)))
-    }
-
-    private func selectedLayer() -> AdjustmentLayer? {
-        editingState.selectedLayer(in: editorState.layerStack)
+        // T4 (KD-4, checker E1): the completion-time Default Behavior
+        // dispatch — AFTER the commit leg, gated on it (a no-op tap is
+        // never a "completed drawn mask").
+        let didCommit = record.endInteraction(
+            hadInteraction: hadInteraction,
+            editingState: editingState, editorState: editorState,
+            label: String(localized: String.LocalizationValue(commitLabelKey)))
+        editingState.maskDrawInteractionDidComplete(
+            didCommit: didCommit, editorState: editorState)
     }
 
     private var commitLabelKey: String {
@@ -372,36 +543,24 @@ internal struct MaskOverlayHost: View {
         case .gradient: return "history_mask_gradient"
         case .ellipse: return "history_mask_ellipse"
         case .path: return "history_mask_path"
+        case .followEdges: return "history_mask_follow_edges"
         }
     }
 
-    // MARK: mask record plumbing
+    // MARK: mask record plumbing (the MaskOverlayRecord delegates)
 
     /// Append a form to the layer's drawn mask (LIVE leg — zero history)
     /// and return it (the caller grabs its real id).
     @discardableResult
     private func appendForm(_ kind: MaskForm.Kind, layer: AdjustmentLayer) -> MaskForm {
-        let form = MaskForm(kind: kind)
-        var drawn = layer.mask?.drawn ?? DrawnMaskSpec(forms: [])
-        drawn.forms.append(form)
-        layer.mask = MaskSpec(drawn: drawn)
-        dirty = true
-        editorState.applyLiveLayer(layer)
-        return form
+        record.appendForm(kind, layer: layer, editorState: editorState)
     }
 
     /// The LIVE leg: mutate one form by id, zero history.
     private func mutateForm(
         id: UUID, layer: AdjustmentLayer, mutate: (inout MaskForm.Kind) -> Void
     ) {
-        guard let live = editorState.adjustmentLayer(id: layer.id),
-              var drawn = live.mask?.drawn,
-              let index = drawn.forms.firstIndex(where: { $0.id == id })
-        else { return }
-        mutate(&drawn.forms[index].kind)
-        dirty = true
-        live.mask = MaskSpec(drawn: drawn)
-        editorState.applyLiveLayer(live)
+        record.mutateForm(id: id, layer: layer, editorState: editorState, mutate: mutate)
     }
 
     private func updateStrokeForm(
@@ -475,6 +634,20 @@ internal struct MaskOverlayHost: View {
     ) -> Grab? {
         for form in layer.mask?.drawn?.forms ?? [] {
             if case let .ellipse(e) = form.kind {
+                // The feather grips first (they sit near the rim on the
+                // axis — the screen-space 16px constant covers them).
+                let inner = MaskPoint(
+                    x: e.center.x + e.radiusX * (1 - (e.innerFeather ?? 0)),
+                    y: e.center.y)
+                if hypot(location.x - xf.point(atUV: inner.asUV).x,
+                         location.y - xf.point(atUV: inner.asUV).y)
+                    < Self.handleRadius { return .ellipseInnerFeather(form.id) }
+                let outer = MaskPoint(
+                    x: e.center.x + e.radiusX * (1 + e.resolvedOuterFeather),
+                    y: e.center.y)
+                if hypot(location.x - xf.point(atUV: outer.asUV).x,
+                         location.y - xf.point(atUV: outer.asUV).y)
+                    < Self.handleRadius { return .ellipseOuterFeather(form.id) }
                 let rim = MaskPoint(x: e.center.x + e.radiusX, y: e.center.y)
                 if hypot(location.x - xf.point(atUV: rim.asUV).x,
                          location.y - xf.point(atUV: rim.asUV).y)
@@ -533,4 +706,202 @@ private extension MaskPoint {
 
 private extension SIMD2<Double> {
     var asMaskPoint: MaskPoint { MaskPoint(x: Float(x), y: Float(y)) }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The mask-record plumbing + the commit leg (Plan M2-7-1 T5, KD-5) —
+// extracted from the View so the write-point contract is UNIT-TESTABLE
+// (MaskRevisionTests drives the exact press → live ticks → commit path the
+// gestures run; the View keeps only gesture/geometry).
+//
+// The revision contract (checker E5): the bump rides the HISTORY COMMIT
+// leg ONLY — `endInteraction` bumps exactly once before the commit (the
+// no-op tap never lands: the dirty gate); `appendForm`/`mutateForm` are
+// the LIVE legs (the "zero history" shape) and NEVER bump — the revision
+// value stays constant across live ticks. Both record writes are
+// SIBLING-PAYLOAD faithful (the D-M2-4-2-5 fix): the existing spec's
+// parametric / raster / deletionProtected / contentRevision survive
+// instead of being reset by a `MaskSpec(drawn:)` rebuild.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@MainActor
+struct MaskOverlayRecord {
+
+    /// True when THIS interaction actually mutated the mask.
+    var dirty = false
+
+    /// The optimistic-concurrency snapshot (Plan M2-7-2 T3, KD-6, checker
+    /// E5): the `contentRevision` value read when the PRESS-segment write
+    /// completed. Live legs never bump, so this is the pre-interaction
+    /// value N; a "press = append+commit" interaction's NEXT snapshot
+    /// naturally reads the post-bump value (anti-self-mismatch). nil =
+    /// no snapshot yet.
+    var expectedRevision: Int?
+
+    /// The forms THIS interaction appended (the replay's payload) and
+    /// whether any EXISTING form was mutated (the dispatch split:
+    /// append-type replays, mutate-only refuses).
+    private var appendedForms: [MaskForm] = []
+    private var mutatedExisting = false
+
+    /// Append a form to the layer's drawn mask (LIVE leg — zero history)
+    /// and return it (the caller grabs its real id). Sibling payloads and
+    /// the revision value ride through untouched; the revision bumps at
+    /// the commit leg, never here. The KD-6 snapshot lands HERE — AFTER
+    /// the press write completed (the pinned timing: post-write, and the
+    /// live leg's zero-bump contract keeps it the pre-interaction value).
+    @discardableResult
+    mutating func appendForm(
+        _ kind: MaskForm.Kind, layer: AdjustmentLayer, editorState: EditorState
+    ) -> MaskForm {
+        let form = MaskForm(kind: kind)
+        var spec = layer.mask ?? MaskSpec()
+        var drawn = spec.drawn ?? DrawnMaskSpec(forms: [])
+        drawn.forms.append(form)
+        spec.drawn = drawn
+        layer.mask = spec
+        dirty = true
+        editorState.applyLiveLayer(layer)
+        expectedRevision = layer.mask?.contentRevision
+        appendedForms.append(form)
+        return form
+    }
+
+    /// The LIVE leg: mutate one form by id, zero history (sibling-faithful;
+    /// zero bump — checker E5). The FIRST mutation of an interaction
+    /// snapshots too (a re-grab can mutate without ever appending — e.g.
+    /// a feather grip on an existing ellipse).
+    mutating func mutateForm(
+        id: UUID, layer: AdjustmentLayer, editorState: EditorState,
+        mutate: (inout MaskForm.Kind) -> Void
+    ) {
+        guard let live = editorState.adjustmentLayer(id: layer.id),
+              var spec = live.mask,
+              var drawn = spec.drawn,
+              let index = drawn.forms.firstIndex(where: { $0.id == id })
+        else { return }
+        mutate(&drawn.forms[index].kind)
+        spec.drawn = drawn
+        live.mask = spec
+        dirty = true
+        if expectedRevision == nil {
+            expectedRevision = live.mask?.contentRevision
+        }
+        if !appendedForms.contains(where: { $0.id == id }) {
+            mutatedExisting = true
+        }
+        editorState.applyLiveLayer(live)
+    }
+
+    /// The COMMIT leg: exactly ONE structure item per finished,
+    /// ACTUALLY-MUTATING interaction (「笔画结束 1 条」; a no-op tap never
+    /// lands history), and the contentRevision bump rides HERE — before
+    /// the commit, exactly once.
+    ///
+    /// M2-7-2 T3 (KD-6, checker E5): the commit point VALIDATES FIRST,
+    /// then bumps — `matchesExpected(expectedRevision, live)`:
+    ///   equal   → bump exactly once → commit (the NORMAL stroke path:
+    ///             exactly +1, never a replay);
+    ///   mismatch, append-type → REPLAY: re-read the live spec, re-install
+    ///             this interaction's appended forms (the async writer —
+    ///             in practice the AI bake — may have replaced the layer
+    ///             object), bump the merged value, commit;
+    ///   mismatch, mutate-only → REFUSE: drop the interaction (zero
+    ///             history, zero bump), re-read live, toast.
+    /// Whether a commit landed (the T4 Default Behavior dispatch gates on
+    /// it — a no-op tap never triggers the behavior).
+    @discardableResult
+    mutating func endInteraction(
+        hadInteraction: Bool,
+        editingState: LayerEditingState,
+        editorState: EditorState,
+        label: String
+    ) -> Bool {
+        defer {
+            dirty = false
+            expectedRevision = nil
+            appendedForms = []
+            mutatedExisting = false
+        }
+        guard hadInteraction, dirty else { return false }
+        guard let live = editingState.selectedLayer(in: editorState.layerStack)
+        else { return false }
+
+        // The gate: validate BEFORE any bump (the pinned order).
+        if !MaskSpec.matchesExpected(expectedRevision, in: live.mask ?? MaskSpec()) {
+            if !appendedForms.isEmpty {
+                // Append-type REPLAY: re-read the CURRENT live spec and
+                // re-install the appended forms, then bump + commit (the
+                // standard value-copy shape — same identity, fresh struct).
+                var spec = live.mask ?? MaskSpec()
+                var drawn = spec.drawn ?? DrawnMaskSpec(forms: [])
+                let have = Set(drawn.forms.map(\.id))
+                for form in appendedForms where !have.contains(form.id) {
+                    drawn.forms.append(form)
+                }
+                spec.drawn = drawn
+                spec.bumpContentRevision()
+                let copy = AdjustmentLayer(
+                    id: live.id, name: live.name, isVisible: live.isVisible,
+                    opacity: live.opacity, blendMode: live.blendMode,
+                    blendOptions: live.blendOptions, enabled: live.enabled,
+                    chain: live.chain, mask: spec)
+                editorState.commitLayerEdit(copy, label: label)
+                editorState.presentToast(Self.replayToast)
+                return true
+            }
+            // Mutate-only REFUSE: drop the interaction — zero history,
+            // zero bump; the live spec (with the async writer's content)
+            // re-renders as-is.
+            editorState.presentToast(Self.refuseToast)
+            return false
+        }
+
+        live.mask?.bumpContentRevision()
+        editorState.commitLayerEdit(live, label: label)
+        return true
+    }
+
+    /// The conflict notices (new UI keys — the close-out batch reconciles
+    /// the catalog).
+    private static var replayToast: String {
+        String(
+            localized: "toast_mask_revision_replayed",
+            defaultValue: "The mask changed during your stroke — the new stroke was re-applied")
+    }
+
+    private static var refuseToast: String {
+        String(
+            localized: "toast_mask_revision_refused",
+            defaultValue: "The mask changed during your edit — the change was discarded")
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The Follow Edges walk driver (Plan M2-7-2 T6, checker E6) — the TESTABLE
+// seam consumer: seed → surface (the coordinator's read face, injectable)
+// → the edge map field (the coordinator's cache seam in production, a
+// synthetic field in tests) → the CPU walker. Extracted from the View so
+// MaskRevisionTests drives the exact press path the gesture runs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@MainActor
+enum FollowEdgesInteraction {
+
+    /// The chain for one seed. EMPTY = the documented degrade (no surface /
+    /// no map / no edge above threshold within reach). The production call
+    /// wires `surfaceProvider` = `PipeCoordinator.followEdgesSurface` and
+    /// `fieldReader` = `PipeCoordinator.edgeMapField`; the tests inject a
+    /// synthetic surface + field (the stub-seam acceptance shape).
+    static func chain(
+        seed: MaskPoint,
+        layerID: UUID,
+        params: FollowEdgesParams,
+        surfaceProvider: (UUID) async -> PipeCoordinator.FollowEdgesSurface?,
+        fieldReader: (PipeCoordinator.FollowEdgesSurface) async -> EdgeMapField?
+    ) async -> [MaskPoint] {
+        guard let surface = await surfaceProvider(layerID) else { return [] }
+        let field = await fieldReader(surface)
+        return FollowEdges.chain(seed: seed, field: field, params: params)
+    }
 }

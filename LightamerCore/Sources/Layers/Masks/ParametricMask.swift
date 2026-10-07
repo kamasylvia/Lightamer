@@ -197,3 +197,90 @@ public struct ParametricMask: Codable, Sendable, Equatable, Hashable {
         return parameters
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The Range quick panels' pure mapping face (Plan M2-7-2 T5, KD-5;
+// M2MASK-05, D-M2-7-CONTEXT-6 A) — the Luminance/Color Range UI writes the
+// EXISTING ParametricMask payload; these helpers are the UI-domain mapping
+// ONLY (pure arithmetic over already-computed domain values).
+//
+// COLOR SAMPLE SOURCE NOTE: the eyedropper's linear Rec2020 → JzCzhz chain
+// is the IOP `JzCzhz.fromRGB` SINGLE SOURCE (the L023 five-leg chain) —
+// Core cannot import IOP (D-03), so NO second Jz implementation lives here;
+// the App panel converts first and feeds the computed (Jz, Cz, hz) into
+// `colorRangeEntries` below.
+// ─────────────────────────────────────────────────────────────────────────────
+
+public extension ParametricMask {
+
+    /// dt's Jz/Cz default boost factor (blend.c:170-190 table; the header
+    /// note's −6.64385619): exp2(−6.64385619) = 1/100, so a UI-domain
+    /// curve point p corresponds to the kernel-domain Cz value p/100.
+    /// The hz (hue turns) channel rides boost 0 (its domain IS [0,1]).
+    static let jzczhzBoostDefault: Float = -6.64385619
+
+    /// The dt channel slots of the JzCzhz selection family (blend.h:120-172
+    /// numbering: 8 Jz_in, 9 Cz_in, 10 hz_in).
+    static let czChannel = 9
+    static let hzChannel = 10
+
+    /// Luminance Range (Nitro semantics): the [dark, light] brightness band
+    /// plus a feathered ramp on both sides → the 4-point UI trapezoid
+    /// [p0, p1, p2, p3] on the luma channel. UI domain [0,1] → curve UI
+    /// domain DIRECT (the luma family carries no boost).
+    static func luminanceTrapezoid(
+        dark: Float, light: Float, feather: Float
+    ) -> [Float] {
+        let d = max(0, min(1, min(dark, light)))
+        let l = max(0, min(1, max(dark, light)))
+        let f = max(0, min(0.5, feather))
+        return [
+            max(0, d - f),
+            d,
+            l,
+            min(1, l + f),
+        ]
+    }
+
+    /// The Color Range entries from a SAMPLED JzCzhz value (the eyedropper
+    /// output, kernel domain) + the UI range (half-width) and feather:
+    ///   Cz (slot 9) — a band around the sampled chroma, UI points on the
+    ///                 ×100 boost convention (see jzczhzBoostDefault);
+    ///   hz (slot 10) — a band around the sampled hue (turns, wrapped to
+    ///                 [0,1)), boost 0.
+    static func colorRangeEntries(
+        cz: Float, hz: Float, range: Float, feather: Float
+    ) -> [ChannelEntry] {
+        let half = max(0, min(0.5, range))
+        let f = max(0, min(0.5, feather))
+        // The UI-domain chroma center (kernel Cz × 100, clamped).
+        let c = max(0, min(1, cz * 100))
+        let czCurve = ChannelCurve(
+            points: [
+                max(0, c - half - f),
+                max(0, c - half),
+                min(1, c + half),
+                min(1, c + half + f),
+            ],
+            boost: Self.jzczhzBoostDefault)
+        let h = wrap01(hz)
+        let hzCurve = ChannelCurve(
+            points: [
+                wrap01(h - half - f),
+                wrap01(h - half),
+                wrap01(h + half),
+                wrap01(h + half + f),
+            ],
+            boost: 0)
+        return [
+            ChannelEntry(channel: Self.czChannel, curve: czCurve),
+            ChannelEntry(channel: Self.hzChannel, curve: hzCurve),
+        ]
+    }
+
+    /// Wrap a hue-turns value into [0,1).
+    static func wrap01(_ value: Float) -> Float {
+        let v = value.truncatingRemainder(dividingBy: 1)
+        return v < 0 ? v + 1 : v
+    }
+}

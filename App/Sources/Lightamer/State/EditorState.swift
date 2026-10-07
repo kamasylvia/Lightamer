@@ -530,6 +530,68 @@ final class EditorState {
         commitLayerStructure(layerID: id, label: String(localized: "history_layer_reorder"))
     }
 
+    // MARK: M2-7-2 T4 (KD-4): the Default Behavior newLayer migration
+
+    /// The drawn-mask migration: a FRESH adjustment layer ABOVE the source
+    /// carries the just-finished drawn mask; the source is left WITHOUT it
+    /// (原层无残留). Exactly ONE structure item (one stack snapshot carries
+    /// both changes) — the AC's 「恰 1 history item」pin. A source without
+    /// drawn forms = a silent no-op (the dispatch guards before this).
+    @discardableResult
+    func migrateMaskToNewLayer(from sourceID: UUID) -> AdjustmentLayer? {
+        guard let layerStack,
+            let source = adjustmentLayer(id: sourceID),
+            let mask = source.mask,
+            mask.hasDrawnForms
+        else { return nil }
+        var stack = layerStack
+        let migrated = AdjustmentLayer(
+            name: stack.nextLayerName(base: String(localized: "layer_default_name")),
+            mask: mask)
+        var stripped = source
+        stripped.mask = nil
+        stack.replace(stripped)
+        stack.addAdjustment(migrated)
+        self.layerStack = stack
+        commitLayerStructure(
+            layerID: migrated.id,
+            label: String(
+                localized: "history_mask_behavior_migrated",
+                defaultValue: "Move mask to new layer"))
+        return migrated
+    }
+
+    // MARK: M2-7-2 (KD-3): the Mask Groups panel's unified mask seams
+
+    /// D-H1 LIVE leg for panel mask edits: swap the layer's mask in place,
+    /// ZERO history, ZERO bump (the write-point-⑤ bump rides the commit
+    /// seam only — the slider preview never moves the guard).
+    func applyLiveMaskEdit(layerID: UUID, mutate: (inout MaskSpec) -> Void) {
+        guard let layer = adjustmentLayer(id: layerID) else { return }
+        var mask = layer.mask ?? MaskSpec()
+        mutate(&mask)
+        layer.mask = mask
+        applyLiveLayer(layer)
+    }
+
+    /// D-H1 COMMIT leg for panel mask edits (the `history_mask_item_*` /
+    /// `history_mask_range_*` key families): exactly ONE structure item,
+    /// and the contentRevision bump happens HERE — before the commit,
+    /// exactly once (KD-5's division: the facade setters are value writes;
+    /// the producer = this seam).
+    func commitMaskEdit(layerID: UUID, label: String, mutate: (inout MaskSpec) -> Void) {
+        guard let layer = adjustmentLayer(id: layerID) else { return }
+        var mask = layer.mask ?? MaskSpec()
+        mutate(&mask)
+        mask.bumpContentRevision()
+        let copy = AdjustmentLayer(
+            id: layer.id, name: layer.name, isVisible: layer.isVisible,
+            opacity: layer.opacity, blendMode: layer.blendMode,
+            blendOptions: layer.blendOptions, enabled: layer.enabled,
+            chain: layer.chain, mask: mask)
+        commitLayerEdit(copy, label: label)
+    }
+
     // MARK: M2-4 node-graph command entry (Plan M2-4-1 T2, KD-2)
 
     /// The ONE execution entry for every node-graph command (the P3 panels

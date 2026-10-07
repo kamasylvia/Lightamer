@@ -45,6 +45,9 @@ internal struct MaskToolbarView: View {
     @State private var aiPhase: AIGenerationPhase = .idle
     /// Non-nil = the layer-A multi-subject picker is up.
     @State private var instanceCatalog: AIInstanceCatalog?
+    /// The T7 sugar: the invert assembly rides the pending generation (the
+    /// multi-subject picker's confirm consumes it).
+    @State private var pendingInvert = false
 
     enum AIGenerationPhase: Equatable {
         case idle
@@ -96,6 +99,14 @@ internal struct MaskToolbarView: View {
                     .frame(width: 230)
             }
 
+            // T5 (KD-5): the Follow Edges parameter section — the walker's
+            // four parameters (the WIDTH passes through as the brush
+            // radius) + the mode indicator + the empty-chain status hint.
+            // EDITING-MODE state only: nothing here commits history.
+            if editingState.activeTool == .followEdges {
+                followEdgesSection
+            }
+
             // Gradient profile toggle (linear ↔ sigmoidal, discrete).
             Picker("mask_gradient_profile", selection: Binding(
                 get: { editingState.gradientState },
@@ -142,9 +153,107 @@ internal struct MaskToolbarView: View {
         .padding(.horizontal, 10)
         .padding(.bottom, 8)
         .accessibilityIdentifier("mask.toolbar")
+        // T4 (KD-4, checker E1): the completion-time ask sheet — the
+        // `ask` behavior's one-shot face. The choice is NOT persisted
+        // (M2-3 semantics: ask on every completion; no "don't ask again").
+        .sheet(isPresented: Binding(
+            get: { editingState.pendingMaskBehaviorAsk },
+            set: { editingState.pendingMaskBehaviorAsk = $0 }
+        )) {
+            VStack(spacing: 16) {
+                Text("mask_behavior_ask_title")
+                    .font(.headline)
+                Text("mask_behavior_ask_body")
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+                HStack(spacing: 12) {
+                    Button {
+                        // Keep: dismiss, zero history items.
+                        editingState.pendingMaskBehaviorAsk = false
+                    } label: {
+                        Text("mask_behavior_ask_keep")
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier("mask.behavior.ask.keep")
+                    Button {
+                        // Move: the SAME one-item migration the newLayer
+                        // behavior uses.
+                        editingState.confirmMaskBehaviorMove(editorState: editorState)
+                    } label: {
+                        Text("mask_behavior_ask_move")
+                    }
+                    .accessibilityIdentifier("mask.behavior.ask.move")
+                }
+            }
+            .padding(24)
+        }
     }
 
     private var hasSelection: Bool { editingState.selectedLayerID != nil }
+
+    // MARK: - Follow Edges parameters (T5, KD-5)
+
+    /// The walker parameter section: mode indicator + contrast threshold +
+    /// follow strength + the one-sided direction + the empty-chain status
+    /// hint (KD-P1 KD-6's degrade face; the interaction leg clears it on
+    /// success). Binding through explicit get/set pairs (the @Environment
+    /// Observable projection has no $ — the brush popover's precedent).
+    private var followEdgesSection: some View {
+        func floatBinding(
+            _ get: @escaping (LayerEditingState) -> Float,
+            _ set: @escaping (LayerEditingState, Float) -> Void
+        ) -> Binding<Float> {
+            Binding(get: { get(editingState) }, set: { set(editingState, $0) })
+        }
+        return HStack(spacing: 10) {
+            Picker("mask_follow_mode", selection: Binding(
+                get: { editingState.followEdgesParams.mode },
+                set: { editingState.followEdgesParams.mode = $0 }
+            )) {
+                Text("mask_follow_mode_streamline").tag(FollowEdgesMode.streamline)
+                Text("mask_follow_mode_snap").tag(FollowEdgesMode.snap)
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+            .frame(width: 140)
+            .accessibilityIdentifier("mask.toolbar.follow.mode")
+
+            slider(
+                "mask_follow_threshold",
+                value: floatBinding(
+                    { $0.followEdgesParams.edgeThreshold },
+                    { $0.followEdgesParams.edgeThreshold = $1 }),
+                in: 0...1)
+
+            slider(
+                "mask_follow_strength",
+                value: floatBinding(
+                    { $0.followEdgesParams.followStrength },
+                    { $0.followEdgesParams.followStrength = $1 }),
+                in: 0...1)
+
+            Button {
+                editingState.followEdgesParams.direction =
+                    editingState.followEdgesParams.direction >= 0 ? -1 : 1
+            } label: {
+                Image(systemName:
+                    editingState.followEdgesParams.direction >= 0
+                        ? "arrow.right" : "arrow.left")
+                    .font(.callout)
+                    .frame(width: 24, height: 22)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("mask_follow_direction"))
+            .accessibilityIdentifier("mask.toolbar.follow.direction")
+
+            if editingState.followEdgesDegraded {
+                Text("mask_follow_degraded_hint")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("mask.toolbar.follow.degraded")
+            }
+        }
+    }
 
     /// Re-issue the CURRENT layer's overlay request with the live style
     /// (13-3 T5 — the style flip's re-render leg; the LayersPanel twin is
@@ -179,7 +288,7 @@ internal struct MaskToolbarView: View {
                     .accessibilityIdentifier("ai.mask.progress")
             } else {
                 Button {
-                    Task { await generateSubjectMask() }
+                    Task { await generateSubjectMask(invert: false) }
                 } label: {
                     Image(systemName: "person.crop.square.badge.camera")
                         .font(.callout)
@@ -194,6 +303,23 @@ internal struct MaskToolbarView: View {
                 .disabled(!hasSelection)
                 .accessibilityLabel(Text("ai_mask_subject"))
                 .accessibilityIdentifier("ai.mask.subject")
+
+                // T7 (KD-7): the「主体以外」sugar — the SAME subject
+                // generation with the invert assembly baked via the per-ref
+                // invert bit (RasterMaskRef.invert). Zero new kernel, zero
+                // AIMaskEditing/AIMaskService change.
+                Button {
+                    Task { await generateSubjectMask(invert: true) }
+                } label: {
+                    Image(systemName: "person.slash")
+                        .font(.callout)
+                        .frame(width: 24, height: 22)
+                        .cornerRadius(4)
+                }
+                .buttonStyle(.borderless)
+                .disabled(!hasSelection)
+                .accessibilityLabel(Text("ai_mask_subject_inverted"))
+                .accessibilityIdentifier("ai.mask.subject.inverted")
             }
         }
         .popover(item: $instanceCatalog) { catalog in
@@ -201,9 +327,14 @@ internal struct MaskToolbarView: View {
                 catalog: catalog,
                 onConfirm: { plane in
                     instanceCatalog = nil
-                    Task { await commitSubjectPlane(plane) }
+                    let invert = pendingInvert
+                    pendingInvert = false
+                    Task { await commitSubjectPlane(plane, invert: invert) }
                 },
-                onCancel: { instanceCatalog = nil })
+                onCancel: {
+                    instanceCatalog = nil
+                    pendingInvert = false
+                })
         }
 
         // 点击选取 — layer B entry, the asset-phase gate.
@@ -267,10 +398,12 @@ internal struct MaskToolbarView: View {
     // MARK: generation flows
 
     /// Layer A stage 1 → single subject bakes straight through; multiple
-    /// subjects raise the instance picker.
-    private func generateSubjectMask() async {
+    /// subjects raise the instance picker. `invert` = the「主体以外」sugar
+    /// (the SAME generation; the invert rides the per-ref bit).
+    private func generateSubjectMask(invert: Bool) async {
         guard let metal = metalContext else { return }
         aiPhase = .running
+        pendingInvert = invert
         defer { if case .running = aiPhase { aiPhase = .idle } }
         do {
             guard let (input, _, _) = AIMaskEditing.decodeFrameInput(pipeCoordinator) else {
@@ -282,29 +415,33 @@ internal struct MaskToolbarView: View {
                 instanceCatalog = catalog
             } else {
                 let plane = try AIMaskService.subjectMask(from: catalog, selection: .all)
-                try await commitAIMask(plane: plane, source: .subject, metal: metal)
+                try await commitAIMask(
+                    plane: plane, source: .subject, invert: invert, metal: metal)
                 aiPhase = .idle
             }
         } catch let error as AIMaskError {
             aiPhase = .failed("\(error)")
+            pendingInvert = false
             editorState.presentToast(
                 error == .noSubject
                     ? String(localized: "ai_toast_no_subject")
                     : String(localized: "ai_toast_generate_failed") + " (\(error))")
         } catch {
             aiPhase = .failed("\(error)")
+            pendingInvert = false
             editorState.presentToast(
                 String(localized: "ai_toast_generate_failed") + " (\(error))")
         }
     }
 
     /// The instance picker's confirmed subset.
-    private func commitSubjectPlane(_ plane: AIMaskPlane) async {
+    private func commitSubjectPlane(_ plane: AIMaskPlane, invert: Bool = false) async {
         guard let metal = metalContext else { return }
         aiPhase = .running
         defer { if case .running = aiPhase { aiPhase = .idle } }
         do {
-            try await commitAIMask(plane: plane, source: .subject, metal: metal)
+            try await commitAIMask(
+                plane: plane, source: .subject, invert: invert, metal: metal)
             aiPhase = .idle
         } catch {
             aiPhase = .failed("\(error)")
@@ -314,14 +451,18 @@ internal struct MaskToolbarView: View {
     }
 
     /// The shared commit channel (exactly ONE stackSnapshot item + the
-    /// AI-06 landing form).
-    func commitAIMask(plane: AIMaskPlane, source: AIMaskSource, metal: MetalContext) async throws {
+    /// AI-06 landing form). `invert` rides the per-ref bit (KD-7's
+    /// raster-first assembly — RasterMaskRef.invert, the 06-04 semantics).
+    func commitAIMask(
+        plane: AIMaskPlane, source: AIMaskSource, invert: Bool = false,
+        metal: MetalContext
+    ) async throws {
         guard let (input, width, height) = AIMaskEditing.decodeFrameInput(pipeCoordinator) else {
             throw AIMaskError.invalidInput("no decoded frame for the mask commit")
         }
         _ = input
         let ref = try await AIMaskEditing.commitRasterMask(
-            plane: plane, source: source,
+            plane: plane, source: source, invert: invert,
             decodeWidth: width, decodeHeight: height,
             label: String(localized: "history_ai_mask"),
             activateTool: .brush,
