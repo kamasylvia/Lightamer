@@ -390,6 +390,7 @@ Deferred to future release. Tracked but not in current roadmap.
 
 - **RASTER-IN-01**: 非 RAW 栅格开发链——JPEG/PNG/TIFF/OpenEXR 导入即开发：源 color description（ICC）解析 + HDR 旗标 → display-referred 输入经 DRT 逆链（ACES 2.0 逆变换路径）进编辑管线；含 OpenEXR（与 ALCE-02 OpenEXR 导出对偶）；文件夹导入文件类型选择器对齐上游 #264 形态 —— **→ M4**（2026-10-08 V2 站立项：方案 B 滚存 M4 主打，不入 M3）
 - **M2GRADE-08**: LUT 作者编码建模——LUT input/output encoding（面板选择器 + 编码随 LMT 生效 + 库内逐 LUT 记忆 + 传递曲线/色域目录，对齐上游 c740f7b 形态）；解决「胶片 LUT 作于 log 域而我方按 working space 直套」的系统性偏差（V2 段，可插队 M2 后期 UI 打磨轮）—— **→ M3-W1 前置**（2026-10-08 V2 立项裁决；「插队 M2 后期」窗口随 M2 收官兑现，FSIM-01 软前置基建）
+  - [x] **Delivered（M3-1-01，2026-10-08）**：编码目录 17 条表驱动（scene 11 = camera log 10 + linear working 1 + display 6，KD-1）+ 传递曲线 Float64 正逆函数族（`LutEncodingCatalog` / `LutTransferMath`，公开标准公式，golden = 各标准公开参考值；gamut 矩阵 Bradford 自算非手抄）+ Params additive 编码对（nil = working 直通逐字节保现状，旧档 paramsHash 零漂移专测）+ 宿主侧复合表重烘焙（零新 kernel，Alcedo `Compose` :273 同构方向，LRU 16 + bakeCount 可观测 + stateLock）+ 库内逐 LUT 记忆三层序 + 内置 40 张 seeder 补标 {arri_logc4_awg4, rec709_bt1886}（adoption 路径盖章）+ 面板双 Picker（scene/display 分组 + 记住 Toggle）。**交付注记：新选内置 LUT 的观感变化 = 偏差修正非回归**（补标前 = log 表按线性直套的系统性偏差本体；既有文档按三层序停在旧渲染）。**FSIM-01 软前置交付物 = 目录 + 曲线族即 M3-3 消费面**。测试新增 37（IOPP 31 + LIB 6 + APP 5，口径 = Lut3dEncodingTests.swift 两类 24 + FullChain 2 + LIB 6 + APP 5）+ 既有 LUT 族零 diff 全绿（IOP 471/1/0 逐位基线）。
 - **注记（非需求）**：OCIO ACES 2.0 reference forward transform（上游 `8f8e712`）= M2-6 aces-core 移植的交叉验证测试资产机会，规划 parity 测试时取用；图库编辑时间分组（#276）/后台任务岛（#275）= UI parity 参照，不立项。
 
 ### Editor Workflow Extensions
