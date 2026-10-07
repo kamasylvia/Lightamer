@@ -124,6 +124,37 @@ final class LibraryThumbnailBridgeTests: XCTestCase {
         }
     }
 
+    /// Test-only one-shot gate: `awaitOpen()` suspends until `open()`. Used to
+    /// pin the running production on the single slot so the queue order can be
+    /// arranged while the queue state is frozen (no wall-clock race).
+    private final class OneShotGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var opened = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        func awaitOpen() async {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                lock.lock()
+                if opened {
+                    lock.unlock()
+                    continuation.resume()
+                    return
+                }
+                waiters.append(continuation)
+                lock.unlock()
+            }
+        }
+
+        func open() {
+            lock.lock()
+            opened = true
+            let pending = waiters
+            waiters = []
+            lock.unlock()
+            pending.forEach { $0.resume() }
+        }
+    }
+
     // MARK: - AC #5: the dual-tier decision (has_edits)
 
     func testTierAUsesTheEmbeddedPreviewAndNeverTheRenderLeg() async throws {
@@ -335,17 +366,32 @@ final class LibraryThumbnailBridgeTests: XCTestCase {
 
     func testPrioritizeReordersQueuedProductions() async throws {
         let box = ObservationBox()
+        // Deterministic sequence injection (M2-11-01 KD-4): A's production
+        // holds the single slot on a one-shot gate until the promotion below
+        // has been arranged. The earlier form (fixed 250ms sleep for A + poll
+        // for queue readiness) still raced under full-suite load: if the
+        // polling task starved past A's sleep, B started before `prioritize`
+        // landed and C never jumped the queue — the M2-10-05 double hit. With
+        // the gate the queue state is FROZEN while the test arranges the
+        // order, so no scheduler delay can invalidate it. The gate is opened
+        // unconditionally right after `prioritize`, so even the deadline
+        // failure path releases A and the test always terminates.
+        let aGate = OneShotGate()
         let leg: LibraryThumbnailBridge.RenderLeg = { [weak box] source in
             box?.enter()
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            box?.exit()
+            defer { box?.exit() }
             let stem = source.deletingPathExtension().lastPathComponent
+            if stem == "1" {
+                await aGate.awaitOpen()   // A holds the slot; opened below
+            } else {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
             box?.record(Int64(stem) ?? -1)
             return Self.makeImage()
         }
         let bridge = makeBridge(renderLeg: leg, maxConcurrency: 1)
 
-        // A (running) → B, C queue behind it. Promoting C must land it
+        // A (running, gated) → B, C queue behind it. Promoting C must land it
         // BEFORE B when A's slot hands over.
         let a = try makeSource("1.jpg")
         let b = try makeSource("2.jpg")
@@ -358,8 +404,8 @@ final class LibraryThumbnailBridgeTests: XCTestCase {
         async let resultB = bridge.thumbnail(for: rowB)
         async let resultC = bridge.thumbnail(for: rowC)
         // Deterministic readiness: poll until BOTH B and C sit in the gate
-        // queue (a wall-clock sleep races under full-suite load — the
-        // 15:42 run proved it), then promote C.
+        // queue, then promote C. A cannot complete in the meantime (pinned by
+        // the gate), so the window the old sleep form raced on is gone.
         let deadline = Date().addingTimeInterval(10)
         while await bridge.queuedCountForTesting() < 2 {
             if Date() > deadline {
@@ -369,6 +415,7 @@ final class LibraryThumbnailBridgeTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 5_000_000)
         }
         await bridge.prioritize([3])
+        aGate.open()
 
         _ = await (resultA, resultB, resultC)
         let order = box.snapshot().order

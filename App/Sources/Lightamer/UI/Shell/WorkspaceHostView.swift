@@ -284,8 +284,13 @@ struct WorkspaceHostView: View {
                 importAdapter = nil
                 guard gridModel != nil else { return }
                 Task {
-                    try? await gridModel?.reloadFirstPage()
-                    await inspectorModel?.refresh()
+                    // Hoisted locals: the optional-chain compound below the
+                    // locals trips the Release -O type-checker timeout
+                    // (M2-11-02 T5 execution finding — Debug face identical).
+                    let grid = gridModel
+                    try? await grid?.reloadFirstPage()
+                    let inspector = inspectorModel
+                    await inspector?.refresh()
                 }
             }
         }
@@ -367,9 +372,11 @@ struct WorkspaceHostView: View {
                     .compactMap { workspace.editorURLResolver?($0) }
             }
         }
+        #if DEBUG
         .modifier(EditorProbeIfRequested(
             projectController: projectController, workspace: workspace,
             gridModel: $gridModel))
+        #endif
     }
 
     // MARK: - Library face (Plan M2-3-2 T1, KD-1: 左网格 + 右 Inspector 槽位;

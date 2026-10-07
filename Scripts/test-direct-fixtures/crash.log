@@ -1,0 +1,13 @@
+Test Suite 'All tests' started at 2026-10-03 21:14:02.105.
+Test Suite 'LightamerTestsApp.xctest' started at 2026-10-03 21:14:02.107.
+Test Suite 'DrtPanelTests' started at 2026-10-03 21:14:02.300.
+Test Case '-[LightamerTestsApp.DrtPanelTests testMethodPanelSwitchKeepsRecord]' passed (0.104 seconds).
+Test Case '-[LightamerTestsApp.DrtPanelTests testPeakSliderCommitsOnceOnRelease]' passed (0.032 seconds).
+Test Suite 'DrtPanelTests' passed at 2026-10-03 21:14:03.010.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.710 (0.712) seconds
+Test Suite 'GradeCatalogTests' started at 2026-10-03 21:14:03.011.
+Test Case '-[LightamerTestsApp.GradeCatalogTests testDefaultLookRegistration]' passed (0.001 seconds).
+Test Suite 'GradeCatalogTests' passed at 2026-10-03 21:14:03.020.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.009 (0.009) seconds
+time: command terminated abnormally
+        4268991388  maximum resident set size
