@@ -97,6 +97,7 @@ IOPP	7	LensParityTests.swift
 IOPP	9	LevelsParityTests.swift
 IOPP	16	LiquifyParityTests.swift
 IOPP	6	LocalContrastTests.swift
+IOPP	14	Lut3dEncodingTests.swift
 IOPP	5	Lut3dGoldenImageTests.swift
 IOPP	8	Lut3dKernelTests.swift
 IOPP	16	LutLibraryRecursionTests.swift
@@ -478,3 +479,8 @@ APP	10	EnhanceDialogTests.swift
 APP	10	ACASettingsTests.swift
 APP	10	LCRSettingsTests.swift
 APP	6	AIEntryPointsTests.swift
+# M3-1-01 增行记录（2026-10-08 执行期，checker E2 测试登记纪律）：Lut3dEncodingTests
+#   = IOPP（`Lut3d*` 域模式，D5 拆分规则）随 T1 commit 增行；LutLibraryStoreTests =
+#   LIB 原地扩（checker 回注 E2：Project.swift :531 LightamerTestsLibrary +
+#   BUNDLE-MAP :301 `LIB 10`，禁 --bundle IOP 假绿）；LutEncodingPanelTests = APP
+#   随 T4 commit 增行。行内 method 数以各批终态对账为准（运行期总数基线相应上移）。

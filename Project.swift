@@ -300,6 +300,7 @@ let project = Project(
                 "Tests/LightamerTests/LevelsParityTests.swift",
                 "Tests/LightamerTests/LiquifyParityTests.swift",
                 "Tests/LightamerTests/LocalContrastTests.swift",
+                "Tests/LightamerTests/Lut3dEncodingTests.swift",
                 "Tests/LightamerTests/Lut3dGoldenImageTests.swift",
                 "Tests/LightamerTests/Lut3dKernelTests.swift",
                 "Tests/LightamerTests/LutLibraryRecursionTests.swift",
