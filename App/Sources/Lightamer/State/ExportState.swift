@@ -24,6 +24,17 @@ final class ExportState {
 
     private static let logger = AppError.logger
 
+    /// The injected defaults (OQ-3/OQ-10 memory keys read/write through
+    /// HERE — the M2-1 D-EXEC-1 discipline: views never touch UserDefaults,
+    /// the state object is the single access face). The default init passes
+    /// `.standard` (the app face — the app-root construction site is a
+    /// zero-diff surface); tests pass an isolated suite.
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
     // MARK: - Queue plumbing (configured by the app root, D-03b-safe)
 
     private var metal: MetalContext?
@@ -303,5 +314,199 @@ final class ExportState {
             bordersBox.module.jointLayoutOverride = watermark.makeJointLayoutRecord(
                 mainImageSize: mainImageSize, bordersParams: bordersParams)
         }
+    }
+
+    // MARK: - The M2 face (Plan M2-9-04; additive — the legacy sheet face
+    // above is byte-frozen)
+
+    // MARK: Memory keys (OQ-3 destination + OQ-10 quality four)
+
+    /// The registered storage keys (the ONLY spellings — AC4 greps these).
+    nonisolated static let lastDirectoryKey = "export.lastDirectory"
+    nonisolated static let jpegQualityKey = "export.jpegQuality"
+    nonisolated static let heicQualityKey = "export.heicQuality"
+    nonisolated static let avifQualityKey = "export.avifQuality"
+    nonisolated static let webpQualityKey = "export.webpQuality"
+
+    /// The four quality memory keys by format kind (the page's memory map —
+    /// every quality knob gets its own key, OQ-10 A: AVIF 95 ≠ WebP 95).
+    nonisolated static let qualityKeysByFormat: [String: String] = [
+        "jpeg": ExportState.jpegQualityKey,
+        "heic": ExportState.heicQualityKey,
+        "avif": ExportState.avifQualityKey,
+        "webp": ExportState.webpQualityKey,
+    ]
+
+    /// The last-used destination directory (OQ-3 B). nil = unset/first use
+    /// — the fallback face below serves the source-image directory. Stored
+    /// as a path STRING (the destinationSection precedent: a plain URL, no
+    /// bookmark — the app is not sandboxed; Alcedo `defaultExportFolder`
+    /// same-shape memory).
+    func loadM2LastDirectory() -> URL? {
+        let path = defaults.string(forKey: Self.lastDirectoryKey) ?? ""
+        guard !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
+    /// The directory-picker write-back face (OQ-3: 目录选择器记忆写回).
+    func storeM2LastDirectory(_ url: URL) {
+        defaults.set(url.path, forKey: Self.lastDirectoryKey)
+    }
+
+    /// The effective destination (OQ-3's first-use fallback): the memory
+    /// key wins; nil memory falls back to the first target's directory
+    /// (首用回落 = 当前选中首图所在目录); neither → nil (the run gate stays
+    /// disabled — no silent guess).
+    func m2EffectiveDestination(firstTargetDirectory: URL?) -> URL? {
+        loadM2LastDirectory() ?? firstTargetDirectory
+    }
+
+    /// One quality knob's memory (0...1). Absent / foreign-typed / out-of-
+    /// domain / non-finite degrade to nil (a corrupt value never blocks
+    /// the panel — and never masquerades as a remembered 0: the TYPED
+    /// read distinguishes unset, a stored 0.0, and garbage).
+    func loadM2Quality(forKey key: String) -> Double? {
+        guard let stored = defaults.object(forKey: key) as? Double else { return nil }
+        guard stored.isFinite, ExportFormatSpec.qualityRange.contains(stored) else {
+            return nil
+        }
+        return stored
+    }
+
+    /// The quality write-back face (the page writes on run + off-page —
+    /// the Alcedo QML:271-288 lifecycle).
+    func storeM2Quality(_ value: Double, forKey key: String) {
+        defaults.set(value, forKey: key)
+    }
+
+    // MARK: The M2 target derivation (KD-4 — additive; the session-semantics
+    // `targetRelPaths` above never enters the M2 face)
+
+    /// The M2 selection provider — armed by the SHELL (the grid state
+    /// machine's multi-select, resolved to source URLs in row order). The
+    /// L036 shape: the assembly point reads, views inject. nil/unarmed =
+    /// no selection face (the derivation falls to the current image).
+    var m2SelectionProvider: (() -> [URL])?
+
+    /// The pure M2 目标 derivation: the grid selection when non-empty,
+    /// else the currently edited image, else empty (no URL guessing — the
+    /// M2 leg holds URL values directly; no relPath projection, plan risk
+    /// note / DECISIONS).
+    nonisolated static func m2TargetURLs(
+        selection: [URL], loadedImageURL: URL?
+    ) -> [URL] {
+        if !selection.isEmpty { return selection }
+        guard let loaded = loadedImageURL else { return [] }
+        return [loaded]
+    }
+
+    /// The instance face the page consults (provider + the editor fallback).
+    func m2Targets(currentImageURL: URL?) -> [URL] {
+        Self.m2TargetURLs(
+            selection: m2SelectionProvider?() ?? [],
+            loadedImageURL: currentImageURL)
+    }
+
+    /// The project-open rebuild leg (KD-1 队列生命周期): the SAME semantics
+    /// the session-open face uses — a fresh queue + rows/progress/recipe
+    /// reset (the M2 workspace has no Session concept; the reset point is
+    /// the project switch). The M2 face calls THIS; the legacy face keeps
+    /// its session-open call site — one rebuild body, two named entries.
+    func rebuildQueueForProject() async {
+        await rebuildQueueForSession()
+    }
+
+    /// Test seam (the Core `inFlightCountForTesting` precedent — never
+    /// called by app code): installs a queue with INJECTED legs so the
+    /// assembly face is assertable without Metal. The production face
+    /// stays `rebuildQueueForSession/Project` (metal-gated).
+    func installQueueForTesting(_ queue: ExportQueue) {
+        self.queue = queue
+    }
+
+    // MARK: The M2 assembly (KD-4 — D-M2-9-CONTEXT-4's terminal form)
+
+    /// The EXIF Software stamp (D-M2-9-CONTEXT-5): `Lightamer <version>`.
+    /// The pure face is injectable for tests; the app face resolves
+    /// CFBundleShortVersionString.
+    nonisolated static func exifSoftwareString(version: String) -> String {
+        "Lightamer \(version)"
+    }
+
+    static var currentExifSoftware: String {
+        exifSoftwareString(
+            version: (Bundle.main.object(
+                forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "?")
+    }
+
+    /// The batch DRT tail params (KD-4: `NodeOwnershipCatalog.drtPostOpNames
+    /// ∩ 启用集` — the intersection happens INSIDE PixelPipe's tail demotion
+    /// (enabled-box filter), so the App passes the catalog list verbatim,
+    /// the PipeCoordinator 同法).
+    nonisolated static func m2DrtTail(record: DrtRecord) -> DrtTailParams {
+        DrtTailParams(record: record, postOpNames: NodeOwnershipCatalog.drtPostOpNames)
+    }
+
+    /// The M2 入队装配: per-image overrides + the batch DRT record + the
+    /// panel's variant + the naming/collision/subfolder/destination face →
+    /// variant 组 + the per-image drtTails carrier + the exifSoftware
+    /// carrier (KD-4). `enqueueExport`'s body stays byte-frozen — the
+    /// legacy sheet keeps the old face.
+    ///
+    ///   • `variant.drtOutput` = `drtRecord` (OQ-7 强制联动; the peak gate
+    ///     rides M2-9-03's `ExportVariant.validate` typed refusal — a bad
+    ///     record fails the job typed, never silently);
+    ///   • `naming` = the pattern with the queue-stamped batch ordinal
+    ///     (sequence = 选中序 1 起 — the queue stamps imageIndex+1);
+    ///   • `relPath` = the file's display name (the M2 leg holds URLs —
+    ///     no session-root projection; the snapshot display face is
+    ///     unaffected, plan risk note / DECISIONS).
+    func enqueueExportM2(
+        images: [URL],
+        instancesOverrides: [[ModuleInstance]?],
+        drtRecord: DrtRecord,
+        variant: ExportVariant,
+        destination: URL,
+        subfolder: String?,
+        namingPattern: String,
+        collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
+        exifSoftware: String? = nil
+    ) async throws {
+        // The M2-9-02 acceptance O-2 前车之鉴: the per-image carriers are
+        // INDEXED — a count mismatch is a caller bug and gets the typed
+        // rejection BEFORE any environment lookup (the queue's per-image
+        // precondition would otherwise trap).
+        guard instancesOverrides.count == images.count else {
+            throw AppError.invalidParameter(
+                "export m2: per-image payload count \(instancesOverrides.count) "
+                    + "!= image count \(images.count)")
+        }
+        guard let queue else {
+            throw AppError.invalidParameter("no export queue (no project open)")
+        }
+        guard !images.isEmpty else { return }
+        try ExportFileWriter.ensureDirectory(destination)
+        // OQ-7: the DRT linkage is FORCED — the record lands on the variant
+        // (peak gate: a non-finite/non-positive peak is the renderStage
+        // validate's typed refusal, the 03 兜底 face) and on every image's
+        // tail carrier (the render half of the same linkage).
+        var assembled = variant
+        assembled.drtOutput = drtRecord
+        let tails = images.map { _ in Self.m2DrtTail(record: drtRecord) }
+        let naming = ExportNamingRequest(
+            pattern: namingPattern,
+            sequence: 1,
+            fallbackStem: ExportFileNameTemplate.fallbackStem)
+        await queue.enqueue(
+            images: images.map { (url: $0, relPath: $0.lastPathComponent) },
+            variants: [assembled],
+            destinationDirectory: destination,
+            instancesOverrides: instancesOverrides,
+            drtTails: tails,
+            naming: naming,
+            collisionPolicy: collisionPolicy,
+            subfolder: subfolder,
+            exifSoftware: exifSoftware)
+        await refreshFromQueue()
     }
 }

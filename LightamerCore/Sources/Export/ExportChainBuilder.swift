@@ -58,6 +58,18 @@ public enum ExportChainBuilder {
         /// conversion from the working space (the 11-02 default face,
         /// `sourceColorSpace == WorkingSpace.colorSpace`).
         public let coloroutOverridden: Bool
+
+        /// The DRT-encoding carrier (M2-9-02, checker E7): `nil` = the
+        /// legacy five-space chain (`target` is the real menu choice);
+        /// non-nil = the OQ-7-A mandatory linkage — `target` is then a
+        /// DUMMY `.sRGB` seat filler (the `ExportColorSpace` enum NEVER
+        /// gains DRT arms; every consumer of the real encoding reads THIS
+        /// pair, or `exportTargetOverride` which is minted from it). The
+        /// defaulted memberwise slot keeps the legacy `exportChain` body
+        /// byte-frozen (its call site compiles untouched).
+        /// (`var` because a defaulted `let` leaves the memberwise
+        /// initializer entirely — the DRT call site needs the slot.)
+        public var drtEncoding: (space: DrtEncodingSpace, eotf: DrtEotf)? = nil
     }
 
     /// Assemble the export chain for one variant's color target.
@@ -122,6 +134,40 @@ public enum ExportChainBuilder {
             coloroutOverridden: coloroutOverridden)
     }
 
+    /// Assemble the DRT-LINKAGE export chain (M2-9-02 KD-2, OQ-7-A): the
+    /// output encoding IS the document's DRT encoding. ADDITIVE to the
+    /// legacy face — `exportChain(from:target:linearVariant:)` stays
+    /// byte-frozen, this function never strips a record:
+    ///
+    ///   • `instances` = the records VERBATIM (enabled or not). The gamma /
+    ///     colorout / borders / watermark demotion happens IN-PIPE through
+    ///     `PixelPipe.isTerminalTailSkipped` under the `.drt` terminal-tail
+    ///     policy — the builder does not pre-edit the list, avoiding a
+    ///     second demotion semantic that could drift from the display leg.
+    ///   • `exportTargetOverride` = the KD-1 mapping of the record's
+    ///     encoding pair — the exit leg's identity source/target AND the
+    ///     ICC the encoder embeds (消费在 M2-9-03).
+    ///   • `coloroutOverridden = true` reuses the legacy exit face's
+    ///     identity semantics (source == target).
+    ///   • `target` = the E7 dummy `.sRGB` (see `Built.drtEncoding`).
+    ///
+    /// A pair outside `legalEOTFs(for:)` throws typed (the KD-1 resolver's
+    /// domain — the linkage table is the single source of legality).
+    public static func exportDrtChain(
+        from source: [ModuleInstance],
+        space: DrtEncodingSpace,
+        eotf: DrtEotf
+    ) throws -> Built {
+        let override = try DrtOutputColorSpace.drtOutputColorSpace(
+            space: space, eotf: eotf)
+        return Built(
+            instances: source,
+            exportTargetOverride: override,
+            target: .sRGB,
+            coloroutOverridden: true,
+            drtEncoding: (space, eotf))
+    }
+
     /// The quantization tier's flavor question in one place: TIFF 32f is
     /// the ONLY linear-variant consumer (RESEARCH §3.3 — the D-11-CONTEXT-7
     /// tiers; every display tier, 8/16/10/12-bit, encodes display TRC).
@@ -145,6 +191,11 @@ public enum ExportChainBuilder {
         /// HEIC / AVIF / WebP — the D-12-CONTEXT-10 documented exceptions
         /// (the export matrix's reverse anchors byte-scan their absence).
         case skippedUnsupportedFormat
+        /// The OQ-6 policy gate closed the mount (M2-9-03): mode `none`,
+        /// the XMP carrier off, or the editing-history carrier off (the
+        /// packet's DEFAULT face — the sanctioned behavior narrowing, not a
+        /// degradation).
+        case skippedByPolicy
         /// A typed injection error degraded the mount: the product exists,
         /// carries no XMP, the export continues. Payload = the reason.
         case failed(String)
@@ -155,6 +206,12 @@ public enum ExportChainBuilder {
     /// has no XMP seat), serialize, inject into the freshly encoded
     /// product, and promote atomically (L009 — same-directory tmp rename).
     ///
+    /// The OQ-6 policy gate (M2-9-03): the packet rides the editing-history
+    /// carrier — the default policy (`.standard`) does NOT mount it (the
+    /// sanctioned behavior narrowing; `skippedByPolicy`). The gate is the
+    /// conjunction of the mode, the XMP carrier and the editing-history
+    /// carrier (the v1 consumption face of the three bools, DECISIONS).
+    ///
     /// The exported image has LEFT the session truth-chain (the D-2
     /// ruling's reason face): the XMP rides the product only — the
     /// original and its `.lra` are never touched (the red line: this
@@ -163,8 +220,13 @@ public enum ExportChainBuilder {
     /// Called by the encode stage after the atomic promote; a throw from
     /// the encoder itself never reaches here.
     public static func mountXMP(
-        destination: URL, format: ExportFormatSpec, sourceURL: URL
+        destination: URL, format: ExportFormatSpec, sourceURL: URL,
+        policy: ExportMetadataPolicy = .standard
     ) -> XMPMountOutcome {
+        guard policy.mode == .standard, policy.includeXMP, policy.includeEditingHistory
+        else {
+            return .skippedByPolicy
+        }
         guard let containerFormat = XMPContainerFormat(exportSpec: format) else {
             return .skippedUnsupportedFormat
         }

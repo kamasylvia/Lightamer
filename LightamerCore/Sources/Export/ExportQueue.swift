@@ -54,6 +54,22 @@ public actor ExportQueue {
         let destinationDirectory: URL
         let instancesOverride: [ModuleInstance]?
         let editorSignature: String?
+        /// The per-image DRT carrier (M2-9-02 KD-4, additive): nil = the
+        /// legacy path, the engine never consults it (DRT does not enter
+        /// the snapshot/UI face).
+        let drtTail: DrtTailParams?
+        /// The per-image naming request (M2-9-03 KD-1, additive): the
+        /// batch-wide template with the queue-stamped batch ordinal.
+        /// nil = the legacy stem+tag face.
+        let naming: ExportNamingRequest?
+        /// The batch-wide collision tier (OQ-5).
+        let collisionPolicy: ExportNamer.ExportCollisionPolicy
+        /// The batch-wide landing subfolder (OQ-11).
+        let subfolder: String?
+        /// The batch-wide EXIF Software stamp (M2-9-04 KD-4, additive):
+        /// nil = no stamp (the legacy faces). Engine-private — never in the
+        /// snapshot/UI face; rides `$jobExifSoftware` into the encode leg.
+        let exifSoftware: String?
         /// FIFO arrival order (retried jobs get a FRESH seq — the re-queue
         /// lands at the tail; only `retry` mutates this).
         var seq: Int
@@ -162,28 +178,71 @@ public actor ExportQueue {
     /// order interleaves per image — image0-v0, image0-v1, … — so a
     /// cancelled batch still completes whole files of the earlier
     /// images first). Returns the fresh snapshots in enqueue order.
+    ///
+    /// `drtTails` (M2-9-02 KD-4, additive): one DRT policy payload PER
+    /// IMAGE (indexed against `images`), fanned to every variant of that
+    /// image. `nil` = the legacy face for the whole batch; a per-element
+    /// nil keeps that image on the legacy face. The payload rides the job
+    /// privately and reaches the render leg through
+    /// `ExportRenderer.$jobDrtTail` — the engine (pump/cancel/retry/
+    /// generation/concurrency) never consults it.
     @discardableResult
     public func enqueue(
         images: [(url: URL, relPath: String)],
         variants: [ExportVariant],
         destinationDirectory: URL,
         instancesOverride: [ModuleInstance]? = nil,
-        editorSignature: String? = nil
+        editorSignature: String? = nil,
+        instancesOverrides: [[ModuleInstance]?]? = nil,
+        drtTails: [DrtTailParams?]? = nil,
+        naming: ExportNamingRequest? = nil,
+        collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
+        subfolder: String? = nil,
+        exifSoftware: String? = nil
     ) -> [ExportJobSnapshot] {
+        if let drtTails {
+            precondition(
+                drtTails.count == images.count,
+                "export enqueue: drtTails (\(drtTails.count)) must be "
+                    + "per-image (\(images.count)) — the carrier is indexed "
+                    + "against the images array")
+        }
+        if let instancesOverrides {
+            precondition(
+                instancesOverrides.count == images.count,
+                "export enqueue: instancesOverrides (\(instancesOverrides.count)) "
+                    + "must be per-image (\(images.count)) — the carrier is "
+                    + "indexed against the images array")
+        }
         var fresh: [ExportJobSnapshot] = []
         fresh.reserveCapacity(images.count * variants.count)
-        for image in images {
+        for (imageIndex, image) in images.enumerated() {
             for variant in variants {
                 seqCounter += 1
                 progressTotal += 1
+                // OQ-4: the sequence is the BATCH ordinal (1-based, shared
+                // by every variant of one image) — stamped here, the single
+                // source; the carrier's own sequence value is not consulted
+                // at this face.
+                let stampedNaming = naming.map {
+                    ExportNamingRequest(
+                        pattern: $0.pattern, sequence: imageIndex + 1,
+                        fallbackStem: $0.fallbackStem)
+                }
                 let job = ExportJob(
                     id: UUID(),
                     imageURL: image.url,
                     relPath: image.relPath,
                     variant: variant,
                     destinationDirectory: destinationDirectory,
-                    instancesOverride: instancesOverride,
+                    instancesOverride: instancesOverrides?[imageIndex]
+                        ?? instancesOverride,
                     editorSignature: editorSignature,
+                    drtTail: drtTails?[imageIndex],
+                    naming: stampedNaming,
+                    collisionPolicy: collisionPolicy,
+                    subfolder: subfolder,
+                    exifSoftware: exifSoftware,
                     seq: seqCounter,
                     generation: generation,
                     state: .pending)
@@ -329,9 +388,14 @@ public actor ExportQueue {
             return
         }
 
+        // M2-9-03 KD-1: the occupancy snapshot enumerates the JOINED
+        // directory (the same `landingDirectory` join the render stage
+        // performs — one source, so the snapshot and the landing agree).
         let context = ExportJobContext(
             destinationDirectory: queued.destinationDirectory,
-            occupiedNames: occupiedNamesProvider(queued.destinationDirectory),
+            occupiedNames: occupiedNamesProvider(
+                ExportRenderer.landingDirectory(
+                    base: queued.destinationDirectory, subfolder: queued.subfolder)),
             instancesOverride: queued.instancesOverride,
             editorSignature: queued.editorSignature)
 
@@ -339,8 +403,22 @@ public actor ExportQueue {
         await markState(jobID: queued.id, state: .rendering)
         var artifact: ExportRenderArtifact?
         do {
-            artifact = try await MetalContext.$routesToExportQueue.withValue(true) {
-                try await renderLeg(queued.snapshot(), context)
+            // The per-job payload carriers (M2-9-02 KD-4 DRT + M2-9-03 KD-1
+            // naming): the leg signature is contract-frozen (snapshot +
+            // context), so the payloads ride TaskLocals scoped to THIS leg
+            // call — the detached task inherits no TaskLocals, the wrapper
+            // sits inside. nil (the default) is the zero-path legacy face;
+            // pump/cancel/retry/generation semantics are untouched.
+            let namingCarrier = ExportRenderer.ExportNamingCarrier(
+                naming: queued.naming,
+                collisionPolicy: queued.collisionPolicy,
+                subfolder: queued.subfolder)
+            artifact = try await ExportRenderer.$jobNamingCarrier.withValue(namingCarrier) {
+                try await ExportRenderer.$jobDrtTail.withValue(queued.drtTail) {
+                    try await MetalContext.$routesToExportQueue.withValue(true) {
+                        try await renderLeg(queued.snapshot(), context)
+                    }
+                }
             }
         } catch {
             await finish(jobID: queued.id, generation: queued.generation, error: error)
@@ -360,8 +438,14 @@ public actor ExportQueue {
         await markState(jobID: queued.id, state: .encoding)
         let url: URL
         do {
-            url = try await MetalContext.$routesToExportQueue.withValue(true) {
-                try await encodeLeg(artifact, queued.variant)
+            // The EXIF Software carrier (M2-9-04 KD-4) rides the same
+            // TaskLocal discipline as the render legs' carriers — the
+            // encode leg reads it through `withValue` (additive wrapper;
+            // the engine semantics are untouched).
+            url = try await ExportRenderer.$jobExifSoftware.withValue(queued.exifSoftware) {
+                try await MetalContext.$routesToExportQueue.withValue(true) {
+                    try await encodeLeg(artifact, queued.variant)
+                }
             }
         } catch {
             await finish(jobID: queued.id, generation: queued.generation, error: error)
@@ -516,16 +600,24 @@ public actor ExportQueue {
                     sourceURL: stage.sourceURL,
                     editorSignature: stage.editorSignature))
         }
-        let encodeLeg: ExportEncodeLeg = { artifact, _ in
+        let encodeLeg: ExportEncodeLeg = { artifact, variant in
             guard let stage = artifact.stage else {
                 throw AppError.invalidParameter(
                     "export encode leg: synthetic artifact (no stage payload)")
             }
+            // M2-9-03 T2/T3: the variant's metadata policy + ICC tier ride
+            // the encode leg (the frozen ExportRenderStage payload cannot
+            // carry them); exifSoftware is App-carried (KD-4 — the 04
+            // assembly face) through the `$jobExifSoftware` TaskLocal that
+            // `execute` scopes this call in.
             return try ExportRenderer.encodeStage(
                 plane: stage.plane, formatSpec: stage.formatSpec,
                 targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
                 sourceURL: stage.sourceURL, editorSignature: stage.editorSignature,
-                destination: stage.destination)
+                destination: stage.destination,
+                metadataPolicy: variant.metadataPolicy,
+                exifSoftware: ExportRenderer.jobExifSoftware,
+                embedICC: variant.embedICC)
         }
         return (renderLeg, encodeLeg)
     }

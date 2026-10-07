@@ -49,13 +49,33 @@ public struct ExportVariant: Codable, Hashable, Sendable {
     /// `ExportRecipe.resolvedOutputTags`).
     public var outputTag: String?
 
+    // ── M2-9-01 T3 additive carriers (KD-2) — consumption in M2-9-02/03 ──
+
+    /// The DRT mandatory-linkage carrier (OQ-7): `nil` = the LEGACY
+    /// five-space path (`colorSpace` decides — every existing test and the
+    /// legacy sheet ride this, byte-frozen); non-nil = the DRT linkage is
+    /// FORCED and `colorSpace` is an ignored legacy carrier (the M2 UI
+    /// always sets this; space/EOTF/peak come from the record).
+    public var drtOutput: DrtRecord?
+
+    /// The M2EXP-02 metadata strategy (OQ-6). The type default IS the
+    /// STANDARD-with-fixed-strips face.
+    public var metadataPolicy: ExportMetadataPolicy
+
+    /// The output-ICC face (Alcedo ExportIccPolicy): `true` = EMBED
+    /// (the Alcedo default), `false` = OMIT (M2-9-03's post-encode strip).
+    public var embedICC: Bool
+
     public init(
         sizing: YiyinExportSettings = YiyinExportSettings(),
         scalePercent: Double? = nil,
         format: ExportFormatSpec,
-        colorSpace: ExportColorSpace,
+        colorSpace: ExportColorSpace = .sRGB,
         yiyin: Bool = false,
-        outputTag: String? = nil
+        outputTag: String? = nil,
+        drtOutput: DrtRecord? = nil,
+        metadataPolicy: ExportMetadataPolicy = .standard,
+        embedICC: Bool = true
     ) {
         self.sizing = sizing
         self.scalePercent = scalePercent
@@ -63,14 +83,56 @@ public struct ExportVariant: Codable, Hashable, Sendable {
         self.colorSpace = colorSpace
         self.yiyin = yiyin
         self.outputTag = outputTag
+        self.drtOutput = drtOutput
+        self.metadataPolicy = metadataPolicy
+        self.embedICC = embedICC
+    }
+
+    // MARK: - Codable (KD-2 additive decode tolerance)
+
+    // Hand-written decode: the synthesized one would demand the three new
+    // keys (two of them non-optional) and THROW on every pre-M2-9 payload.
+    // All three new fields decode with decodeIfPresent + defaults. The
+    // encode face stays synthesized (additive keys only).
+    private enum CodingKeys: String, CodingKey {
+        case sizing, scalePercent, format, colorSpace, yiyin, outputTag
+        case drtOutput, metadataPolicy, embedICC
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sizing = try container.decode(YiyinExportSettings.self, forKey: .sizing)
+        scalePercent = try container.decodeIfPresent(Double.self, forKey: .scalePercent)
+        format = try container.decode(ExportFormatSpec.self, forKey: .format)
+        colorSpace = try container.decode(ExportColorSpace.self, forKey: .colorSpace)
+        yiyin = try container.decode(Bool.self, forKey: .yiyin)
+        outputTag = try container.decodeIfPresent(String.self, forKey: .outputTag)
+        drtOutput = try container.decodeIfPresent(DrtRecord.self, forKey: .drtOutput)
+        metadataPolicy = try container.decodeIfPresent(
+            ExportMetadataPolicy.self, forKey: .metadataPolicy) ?? .standard
+        embedICC = try container.decodeIfPresent(Bool.self, forKey: .embedICC) ?? true
     }
 
     /// Validate every dimension BEFORE a queue action consumes it
-    /// (sizing bounds + format quality bounds + percent domain).
+    /// (sizing bounds + format quality bounds + percent domain + the OQ-7
+    /// resolved-output-color gate).
     public func validate() throws {
         try sizing.validate()
         try format.validate()
         try Self.validateScalePercent(scalePercent)
+        // OQ-7 (M2-9-03 T3, Alcedo RequireResolvedExportOutputColor 同构):
+        // a DRT linkage WITHOUT a usable peak is a construction bug — the
+        // peak feeds the render's tonemap and the record's ICC; a
+        // non-finite/non-positive value would poison both. Typed refusal
+        // at the variant gate; `drtOutput == nil` (the legacy five-space
+        // face) never triggers it.
+        if let record = drtOutput {
+            guard record.peakLuminance.isFinite, record.peakLuminance > 0 else {
+                throw AppError.invalidParameter(
+                    "export drtOutput peak must be a finite positive value, "
+                        + "got \(record.peakLuminance)")
+            }
+        }
     }
 
     /// The percent-mode legal domain (execution decision, 11-01-DECISIONS D4):
@@ -149,6 +211,10 @@ private func derivedTag(
     switch effective.mode {
     case .longEdge(let px), .shortEdge(let px):
         return "\(px)"
+    case .bounds(let w, let h):
+        return "\(w)x\(h)" // M2-9-01 KD-5#2 (planner ruling, DECISIONS)
+    case .physical:
+        return variant.format.formatName // same fallback rule as original
     case .original:
         return variant.format.formatName
     }

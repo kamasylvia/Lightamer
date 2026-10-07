@@ -82,6 +82,77 @@ struct ImageIOEncodeCore {
         return exif
     }
 
+    // MARK: The metadata ASSEMBLY leg (M2-9-03 T2 — the E1 case-A sanctioned
+    // additive surface; the encode core above — makeCGImage's signature, the
+    // CGImageDestination parameters, the quality/DPI mapping — is hunk-
+    // frozen. The five native encoders swap their `sourceEXIF` call site for
+    // the one `mountMetadata` call below.)
+
+    /// The OQ-6 strip constants (the single source; pinned per-key by
+    /// ExportEncoderMetadataTests). MEASURED KEY SET (M2-9-03 DECISIONS):
+    /// the host surfaces NO serial/GPS keys inside `{Exif}` for the Sony
+    /// ARW fixture (38 keys, serials ride MakerNote which ImageIO does not
+    /// surface into the dictionary — the "not in the round-trip whitelist"
+    /// probe face), so the strip list is the EXIF-STANDARD defensive set,
+    /// applied whenever a source carries the keys:
+    /// - the serial family's EXIF-standard seat (BodySerialNumber, 0xa431);
+    /// - any `{Exif}` GPS-lineage key (the `{GPS}` dictionary itself is a
+    ///   TOP-LEVEL properties sibling and is never mounted by this encoder —
+    ///   construction-level absence, asserted by the tests).
+    /// Computed (not stored) — CFString is not Sendable, a stored static
+    /// would trip the Swift 6 mutable-global-state diagnostic.
+    private static var strippedSerialKeys: [CFString] {
+        [kCGImagePropertyExifBodySerialNumber]
+    }
+    private static let locationKeyPrefix = "GPS"
+
+    /// The policy-processed EXIF round-trip (OQ-6). `nil` = the dictionary
+    /// is absent from the AddImage properties:
+    /// - `NONE` mode → the WHOLE round-trip skipped (and no Software seat);
+    /// - `exif` carrier off → the round-trip skipped (the v1 consumption
+    ///   face — the IPTC carrier rides this switch too, no separate IPTC
+    ///   dictionary is mounted on this host, DECISIONS);
+    /// - otherwise the source dictionary minus the fixed strips.
+    static func processedEXIF(for request: ExportEncodeRequest) -> [CFString: Any]? {
+        let policy = request.metadataPolicy
+        guard policy.mode == .standard, policy.includeExif else { return nil }
+        guard var exif = sourceEXIF(from: request.sourceURL) else { return nil }
+        if !policy.includeSerials {
+            for key in strippedSerialKeys {
+                exif.removeValue(forKey: key)
+            }
+        }
+        if !policy.includeLocation {
+            for key in exif.keys where (key as String).hasPrefix(locationKeyPrefix) {
+                exif.removeValue(forKey: key)
+            }
+        }
+        return exif
+    }
+
+    /// The one metadata assembly call: the policy-processed EXIF dictionary
+    /// plus the EXIF `Software` carrier (D-M2-9-CONTEXT-5). The Software
+    /// seat is the `{TIFF}` dictionary's `Software` tag (0x0131) — the only
+    /// seat that SERIALIZES on this host (probed: a `Software` key inside
+    /// `{Exif}` is silently dropped on every container; the `{TIFF}` seat
+    /// lands in the JPEG EXIF APP1, the TIFF tag 0x0131, the HEIC/AVIF
+    /// metadata, and PNG's XMP CreatorTool bridge — per-container evidence
+    /// in M2-9-03-DECISIONS). An existing `Software` seat (the TIFF
+    /// encoder's `editorSignature` reserved face) WINS — the two carriers
+    /// never fight over the tag.
+    static func mountMetadata(into properties: inout [CFString: Any], request: ExportEncodeRequest) {
+        if let exif = processedEXIF(for: request) {
+            properties[kCGImagePropertyExifDictionary] = exif
+        }
+        if request.metadataPolicy.mode == .standard, let software = request.exifSoftware {
+            var tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any] ?? [:]
+            if tiff[kCGImagePropertyTIFFSoftware] == nil {
+                tiff[kCGImagePropertyTIFFSoftware] = software
+                properties[kCGImagePropertyTIFFDictionary] = tiff
+            }
+        }
+    }
+
     /// Encode → finalize → atomic write (Foundation `.atomic`: the
     /// half-artifact always lives in the same-directory tmp until the
     /// rename — L009 / D-11-CONTEXT-8).
@@ -115,9 +186,7 @@ struct JPEGEncoder: ExportEncoder {
             throw AppError.invalidParameter("jpeg needs an rgba8 plane")
         }
         properties[kCGImageDestinationLossyCompressionQuality] = request.spec.quality ?? 0.9
-        if let exif = ImageIOEncodeCore.sourceEXIF(from: request.sourceURL) {
-            properties[kCGImagePropertyExifDictionary] = exif
-        }
+        ImageIOEncodeCore.mountMetadata(into: &properties, request: request)
         if let dpi = request.dpi {
             properties[kCGImagePropertyDPIWidth] = dpi
             properties[kCGImagePropertyDPIHeight] = dpi
@@ -149,9 +218,7 @@ struct PNGEncoder: ExportEncoder {
         default:
             throw AppError.invalidParameter("PNGEncoder dispatched a non-png spec")
         }
-        if let exif = ImageIOEncodeCore.sourceEXIF(from: request.sourceURL) {
-            properties[kCGImagePropertyExifDictionary] = exif
-        }
+        ImageIOEncodeCore.mountMetadata(into: &properties, request: request)
         if let dpi = request.dpi {
             properties[kCGImagePropertyDPIWidth] = dpi
             properties[kCGImagePropertyDPIHeight] = dpi
@@ -193,9 +260,7 @@ struct TIFFEncoder: ExportEncoder {
                 kCGImagePropertyTIFFSoftware: signature,
             ] as [CFString: Any]
         }
-        if let exif = ImageIOEncodeCore.sourceEXIF(from: request.sourceURL) {
-            properties[kCGImagePropertyExifDictionary] = exif
-        }
+        ImageIOEncodeCore.mountMetadata(into: &properties, request: request)
         if let dpi = request.dpi {
             properties[kCGImagePropertyDPIWidth] = dpi
             properties[kCGImagePropertyDPIHeight] = dpi
@@ -225,9 +290,7 @@ struct HEICEncoder: ExportEncoder {
         // The 16bpc source IS the 10-bit path (probed: depth reads 10 with
         // no base-pixel-format request — the encoder requantizes).
         properties[kCGImageDestinationLossyCompressionQuality] = request.spec.quality ?? 0.9
-        if let exif = ImageIOEncodeCore.sourceEXIF(from: request.sourceURL) {
-            properties[kCGImagePropertyExifDictionary] = exif
-        }
+        ImageIOEncodeCore.mountMetadata(into: &properties, request: request)
         if let dpi = request.dpi {
             properties[kCGImagePropertyDPIWidth] = dpi
             properties[kCGImagePropertyDPIHeight] = dpi
@@ -263,9 +326,7 @@ struct AVIFEncoder: ExportEncoder {
         // and the libavif seam are recorded in 11-02-DECISIONS.
         var properties: [CFString: Any] = [:]
         properties[kCGImageDestinationLossyCompressionQuality] = request.spec.quality ?? 0.9
-        if let exif = ImageIOEncodeCore.sourceEXIF(from: request.sourceURL) {
-            properties[kCGImagePropertyExifDictionary] = exif
-        }
+        ImageIOEncodeCore.mountMetadata(into: &properties, request: request)
         if let dpi = request.dpi {
             properties[kCGImagePropertyDPIWidth] = dpi
             properties[kCGImagePropertyDPIHeight] = dpi
