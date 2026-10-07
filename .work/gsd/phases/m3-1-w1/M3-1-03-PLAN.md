@@ -17,7 +17,7 @@ files_modified:
   - Scripts/zh-audit.py                                      # 修改：提取器硬化（continuation 漏提面，V15）
   - Resources/Localizable.xcstrings                          # 修改：新键块 append 尾部（collision 档名 + 降档提示 + 分割线 label 若 02 未清尾）
   - Tests/LightamerTests/ExportCollisionPickerTests.swift    # 新建（App）：model 默认 increment + Picker 写面 + run 传值装配
-  - Tests/LightamerTests/NLMeansDragDowngradeTests.swift     # 新建（App）：拖动态旁路不进 params/history + 松手恰一 commit + FULL 桶零变化
+  - Tests/LightamerTests/NLMeansDragDowngradeTests.swift     # 新建（App）：拖动态旁路不进 params/history + 松手恰一 commit + FULL 桶判定面零受扰（拖动窗外逐字节不变；实例身份键控零连带）
   - Tests/LightamerTests/ZhAuditExtractorTests.swift         # 新建（App 或脚本自测面——形态执行期定，见 T4）：硬化负测（continuation 样例可提）
   - Project.swift                                            # 修改：新测试文件登记（L041 generate 批尾）
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt  # 修改：增行登记（E2）
@@ -81,19 +81,25 @@ files_modified:
 
 ### KD-3 denoise 拖动降档（T3，App 层旁路）
 
+> checker 回注（2026-10-08）M6：①旁路键控 = **被拖实例身份**（layer/节点级
+> identity），非 opName 全局开关——同图 layer 内嵌 nlmeans 与被拖实例互不连带；②FULL
+> 桶 AC 口径改为「判定面」语义（见 AC3），拖动窗内并发缺 denoise 归风险节已登记项，
+> 两处不再自相矛盾。
 - **机制**：拖动态旁路 = EditorState live 投影面对**被拖 nlmeans 实例**临时置
   `enabled = false`（live 态，零 history——D-H1 trio 的 beginContinuousEdit 窗口内），
   PREVIEW 活渲染即跳过该实例；松手（commitContinuousEdit）恢复 enabled + 落既有的那
   **一次 commit**（LightamerSlider 三件套既有语义，`NLMeansPanelView.swift:14-15` 在案
   「exactly ONE history commit per drag」——本批零新增 commit 面）。
 - **落点**：`NLMeansPanelView` 各滑杆 `onDragBegin/onDragEnd` 挂旁路标志（EditorState
-  新 face：`setPreviewDenoiseBypass(_ opName: String?, on:)` 一类——**执行期以
-  EditorState live 投影实位为准亲核**，read_first 3/4）；状态条提示走既有 toast/status
-  通道（「预览降档」提示，拖动窗口内显示）。
+  新 face：`setPreviewDenoiseBypass(_ instanceID: <被拖实例身份>, on:)` 一类——**键控
+  = 被拖实例身份**，非 opName 全局（layer 内嵌 nlmeans 不得被连带，checker 回注 M6）；
+  **执行期以 EditorState live 投影实位为准亲核**，read_first 3/4）；状态条提示走既有
+  toast/status 通道（「预览降档」提示，拖动窗口内显示）。
 - **红线**：`NLMeansModule.swift` / `PixelPipe.swift` 零 diff（旁路 = App 层实例投影，
-  非 pipe 桶逻辑、非 kernel、非参数面——CONTEXT D-8 隔离注记）；FULL/THUMBNAIL 桶
-  零变化（旁路窗口 = 拖动态，拖动结束即恢复；若拖动窗口内发生 FULL 重渲的并发窗口
-  风险 → DECISIONS 登记，M4 coordinator 串行化余量承接）。
+  非 pipe 桶逻辑、非 kernel、非参数面——CONTEXT D-8 隔离注记）；**params/history/
+  旁路标志不进 FULL 桶判定面**——拖动窗外 FULL 渲染逐字节不变（旁路窗口 = 拖动态，
+  拖动结束即恢复）；拖动窗口内若并发发生 FULL 重渲则短暂缺 denoise = 已登记风险
+  （见「风险与边界」，M4 coordinator 串行化余量承接），非 AC 违反。
 - **降档维度裁定**：跳过（enabled=false）而非减趟——decimate 减趟引擎档已证不达
   16.6ms（`perf.md:43-64`），跳过 = 拖动流畅优先的最大档，松手即全质量（OQ-6①
   「拖动态降档（跳过/减趟……plan 期按实测观感定」的兑现裁定，DECISIONS 留观感走查
@@ -182,9 +188,10 @@ files_modified:
 
 ### T3 denoise 拖动降档（KD-3）
 
-- **action**：EditorState 旁路 face + NLMeansPanelView 三件套挂点 + 状态条提示 +
-  `NLMeansDragDowngradeTests`（拖动态旁路 = live 态不进 params/history；history count
-  拖动窗口零变；松手恰一 commit 且 enabled 恢复；FULL 桶判定零受扰）。
+- **action**：EditorState 旁路 face（实例身份键控）+ NLMeansPanelView 三件套挂点 +
+  状态条提示 + `NLMeansDragDowngradeTests`（拖动态旁路 = live 态不进 params/history；
+  history count 拖动窗口零变；松手恰一 commit 且 enabled 恢复；FULL 桶判定面零受扰
+  ——拖动窗外 FULL 渲染逐字节不变；旁路仅命中被拖实例身份、layer 内嵌 nlmeans 零连带）。
 - **验收标准**
   - [ ] App 定向轮绿；`NLMeansModule.swift`/`PixelPipe.swift` 零 diff；实机拖动观感
         走查（拖动流畅 + 松手全质量恢复 + 提示面）落证据。
@@ -212,7 +219,7 @@ files_modified:
 |---|---|---|
 | 1 | 三档 Picker 在场（Increment 默认）且选择值达队列；引擎/`ExportState` 形参零 diff；既有引擎钉死测试零改全绿 | T1 测试 + diff 核 + EXPORT 定向 |
 | 2 | peak-ICC 说明行 HDR 档在场（peak 值 + ICC 语义 + UltraHDR 注记）、SDR 零变化、`DrtOutputColorSpace` 签名零触碰 | T2 走查 + diff 核 |
-| 3 | 拖动态 nlmeans 旁路：零 params/零 history/零 pipe-module 触碰；松手恰一 commit 恢复全质量；FULL 桶零变化；状态条提示在场 | T3 测试 + 走查 |
+| 3 | 拖动态 nlmeans 旁路：零 params/零 history/零 pipe-module 触碰；松手恰一 commit 恢复全质量；params/history/旁路标志不进 FULL 桶判定面（拖动窗外 FULL 渲染逐字节不变；拖动窗内并发缺 denoise = DECISIONS 已登记风险，非 AC 违反）；旁路按被拖实例身份键控（layer 内嵌零连带）；状态条提示在场 | T3 测试 + 走查 |
 | 4 | V14：两处动态键位显式化（静态键 11 枚已在册含 zh）；V15：提取器硬化负测在案；F1 四处清账 | T4 测试 + `--check` PASS |
 | 5 | `zh-audit --check` PASS（三 plan 键块并集终核）+ 标记菜单实机 zh | T4 + 走查 |
 | 6 | 全套 `--all` 终轮绿（报备 + MEMFAIL 机检）；终值对账 = 2962 + 登记增量；CONTEXT §七七条锚逐条状态落 SUMMARY | T5 终轮日志 + SUMMARY |
@@ -221,8 +228,9 @@ files_modified:
 ## 风险与边界
 
 - **旁路并发窗口**：拖动中 FULL 重渲会短暂缺 denoise——拖动窗口极短 + commit 恢复，
-  接受并在 DECISIONS 登记；根治（coordinator 串行化）= M4 余量（ToneEqual 修复批同款
-  归位，不本批扩）。
+  接受并在 DECISIONS 登记（checker 回注 M6：该窗口为 AC3 明文豁免面——FULL 判定只
+  窗「拖动窗外」，窗内并发 = 本风险项，不构成 AC 违反）；根治（coordinator 串行化）
+  = M4 余量（ToneEqual 修复批同款归位，不本批扩）。
 - **collision 档位不持久化**：会话态裁定（KD-1）——若走查后用户要跨会话记忆，属新
   挂账非本批（UserDefaults 键登记纪律外零新增）。
 - **提取器硬化的回归风险**：zh-audit 是流程工具非产线——硬化负测锁形态，`--check`

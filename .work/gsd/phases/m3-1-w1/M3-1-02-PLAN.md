@@ -52,8 +52,16 @@ files_modified:
 
 ### KD-1 钳制域映射（上游常量 → sheet 语境）
 
+> checker 回注（2026-10-08）M7：px 帽移植的**非对称后果显式裁定**——width 上限 720 >
+> 现默认 420（可增可减）；height 上限 560 **= 现默认高** ⇒ 高度只能缩不能增（大屏上
+> 先撞 px 帽、比例域 0.92 不可达）。裁定：height 帽 = 默认值系**有意**（sheet 是控制
+> 面板，高度超出 560 无内容增量，维持上游常量原值移植一致性与「未拖过 = 零观感变化」
+> 锚），非移植疏漏；DECISIONS 同批登记。执行期走查若发现大屏高度不足，属新挂账，禁
+> 本批静默改帽。
+
 - px 界**原值移植**：width 120-720 / height 160-560（上游 `PREVIEW_MIN/MAX_*` 常量——
-  sheet 语境同为面板宽度语义，数值沿用并在 DECISIONS 注记对表出处）。
+  sheet 语境同为面板宽度语义，数值沿用并在 DECISIONS 注记对表出处；height 帽非对称
+  后果见上注裁定）。
 - 比例界**原值移植**：width 0.15-0.75 / height 0.35-0.92，可用域基准 = sheet 挂载容器
   （workspace host 可视域）。
 - **上游扣除项不移植**（DECISIONS 注记）：上游可用域扣 `SPLITTER_SIZE 6 + gap 15×2 +
@@ -142,7 +150,8 @@ files_modified:
 
 - **action**：实机走查（双方向拖到两端终端值 + 读数一致性 + 跨会话 ratio 持久回归 +
   首用默认观感 = 420×560）；证据 MANIFEST；SUMMARY / DECISIONS（扣除项不移植 + 首用
-  默认裁定）/ REQUIREMENTS YIYIN-09 翻账 / AGENTS.md 键登记 / GOAL-STATE 续接点。
+  默认裁定 + height 帽 = 默认值的非对称有意裁定，checker 回注 M7）/ REQUIREMENTS
+  YIYIN-09 翻账 / AGENTS.md 键登记 / GOAL-STATE 续接点。
 - **验收标准**
   - [ ] 走查五项逐条落 SUMMARY（截图 + 判定）；翻账注记含「上游 PR #126 形态对表 =
         方案 A 映射」声明；diff 边界 == 申报集。
@@ -160,6 +169,9 @@ files_modified:
 
 ## 风险与边界
 
+- **px 帽非对称（checker 回注 M7）**：height 160-560 的上限 = 现默认高 560——**高度
+  只能缩不能增**（KD-1 显式裁定：有意，sheet 控制面板语义）；width 120-720 双向可调。
+  验收期以该口径判定「拖不动增高」= 设计非缺陷，防扯皮；大屏增高诉求走新挂账。
 - **sheet 挂载容器的「可用域」语义**：`.sheet` 内容自报尺寸、容器域 = 挂载点可视域——
   若实测 sheet 系统级行为限制尺寸上限（屏幕边距），以系统上限为准并在 DECISIONS 注记
   （钳制数学不变，有效域收窄）。
