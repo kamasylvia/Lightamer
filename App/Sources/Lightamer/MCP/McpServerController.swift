@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import LightamerCore
 import LightamerIOP
@@ -512,6 +513,29 @@ enum McpServerController {
         }
     }
 
+    /// Best-effort stdout flush for the lock fixture. `fsync(2)` is only
+    /// meaningful on regular files — on a pipe (the McpHostTests spawn shape)
+    /// it returns EINVAL and Foundation raises an uncatchable ObjC exception
+    /// (SIGABRT at app startup, observed 2026-09-29). `print` has already
+    /// delivered the bytes ON A REGULAR FILE — on a pipe the C stdio stream
+    /// is FULL-buffered and the bytes sit in the buffer until exit, which
+    /// the park-until-EOF fixture never reaches; the McpHostTests handshake
+    /// deadline is on the PIPE, so flush the stream explicitly first (the
+    /// M2-3-3 acceptance rerun: the three flock tests hung deterministically
+    /// without this line — the sampled child was parked in read() with the
+    /// LOCKED line still buffered).
+    private static func syncStdoutBestEffort() {
+        // fflush moves the C-stdio user-space buffer into the fd (pipe-safe);
+        // the raw fsync(2) then flushes the fd with the errno merely ignored.
+        // Foundation's FileHandle.synchronizeFile is banned here — it raises
+        // an uncatchable ObjC exception on ANY error (EINVAL on pipes
+        // 21:16, still raised on the fstat-guarded regular-file path
+        // 21:38 — likely a read-only/special fd) and took the host down
+        // twice on 2026-09-29. print's bytes live in the fd either way.
+        fflush(stdout)
+        fsync(STDOUT_FILENO)
+    }
+
     // MARK: - DEBUG: the two-process lock fixture (T3 tests)
 
     #if DEBUG
@@ -533,10 +557,10 @@ enum McpServerController {
         switch McpEndpointLock.acquire(in: paths) {
         case .success:
             print("LOCKED \(paths.lockURL.path)")
-            FileHandle.standardOutput.synchronizeFile()
+            syncStdoutBestEffort()
         case .failure(let error):
             print("LOCK-FAIL \(error)")
-            FileHandle.standardOutput.synchronizeFile()
+            syncStdoutBestEffort()
             exit(3)
         }
         // Park until stdin EOF (the test harness closes the pipe), then

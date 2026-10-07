@@ -1,4 +1,5 @@
 import LightamerCore
+import LightamerIOP
 import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,6 +64,8 @@ struct WorkspaceHostView: View {
     @State private var isRelinkSheetPresented = false
     @State private var relinkModel: LibraryRelinkModel?
     @State private var relinkRows: [LibraryImageRow] = []
+    /// The M2-3-3 T2 yiyin top-bar sheet (the D4 独有入口).
+    @State private var isYiyinSheetPresented = false
 
     /// The content-face markers this host renders (the test surface, the
     /// ContentView.visibleContentFaceMarkers precedent). The gate=true face
@@ -84,7 +87,9 @@ struct WorkspaceHostView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity.combined(with: .offset(y: 8)))
                 case .editor:
-                    EditorWorkspaceShellView(workspace: workspace)
+                    EditorWorkspaceShellView(
+                        workspace: workspace,
+                        bridge: thumbnailBridge)
                         .transition(.opacity.combined(with: .offset(y: -8)))
                 }
             }
@@ -136,10 +141,17 @@ struct WorkspaceHostView: View {
                     onDismiss: { isRelinkSheetPresented = false })
             }
         }
+        // The yiyin 印框/水印 + text-overlay sheet (M2-3-3 T2, D4 独有入口).
+        .sheet(isPresented: $isYiyinSheetPresented) {
+            YiyinTopBarSheet(onDismiss: { isYiyinSheetPresented = false })
+        }
         // The import-leg subscription (checker E3): a READ-ONLY observation
         // of the controller's importProgress publication. The adapter
         // mirrors it into the registry; the run's end (nil) finishes the
-        // task. The controller itself is never touched.
+        // task. The controller itself is never touched. The M2-3-4 T2
+        // walkthrough fix: the run's end also refreshes the library surface
+        // (grid first page + inspector aggregates) — a fresh import must
+        // land in the visible collection without a project reopen.
         .onChange(of: projectController?.importProgress) { _, progress in
             guard let controller = projectController else { return }
             if progress != nil {
@@ -152,6 +164,11 @@ struct WorkspaceHostView: View {
             } else if let adapter = importAdapter {
                 taskRegistry.finish(id: adapter.id)
                 importAdapter = nil
+                guard gridModel != nil else { return }
+                Task {
+                    try? await gridModel?.reloadFirstPage()
+                    await inspectorModel?.refresh()
+                }
             }
         }
         .onChange(of: projectController?.projectURL) { _, _ in
@@ -237,6 +254,10 @@ struct WorkspaceHostView: View {
             thumbnailBridge = nil
             inspectorModel = nil
             searchModel = nil
+            // The P3 editor seam drops with the surface (the shell's
+            // rows/EXIF/readback face rides the open project).
+            workspace.editorGrid = nil
+            workspace.editorURLResolver = nil
             return
         }
         let directory = packageURL.deletingLastPathComponent()
@@ -270,6 +291,11 @@ struct WorkspaceHostView: View {
         gridModel = grid
         inspectorModel = inspector
         searchModel = search
+        // The P3 editor seam (M2-3-3 T1): the shell reads rows + resolves
+        // source URLs through the SAME surface the grid renders (zero
+        // collection-state copying, KD-3).
+        workspace.editorGrid = grid
+        workspace.editorURLResolver = resolve
         Task {
             try? await grid.reloadFirstPage()
             await inspector.refresh()
@@ -297,6 +323,21 @@ struct WorkspaceHostView: View {
                 .foregroundStyle(ThemeTokens.textPrimary)
                 .accessibilityIdentifier("shell.topbar.projectName")
             Spacer()
+            if workspace.phase == .editor {
+                // The D4 独有入口: the yiyin 印框/水印 sheet (the export-domain
+                // first-class panel — no Alcedo counterpart; TextOverlay is
+                // the sheet's text carrier).
+                Button {
+                    isYiyinSheetPresented = true
+                } label: {
+                    Image(systemName: "signature")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("shell.topbar.yiyin")
+                .accessibilityLabel(Text(String(
+                    localized: "shell_topbar_yiyin",
+                    defaultValue: "Yiyin frame & watermark")))
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -314,5 +355,85 @@ struct WorkspaceHostView: View {
             return String(localized: "shell_topbar_no_project", defaultValue: "Lightamer")
         }
         return url.deletingPathExtension().lastPathComponent
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// YiyinTopBarSheet (Plan M2-3-3 T2, D4) — the 印框/水印 first-class entry: the
+// dual-section yiyin panel (watermark + borders rows) plus the TextOverlay
+// carrier, presented from the editor top bar. The panel FILES are untouched:
+// the sheet instances them with chain records (a missing op mounts a default
+// record — the first edit absorbs it into the global chain through the D-H1
+// live upsert, so the sheet is honest on an un-edited image too).
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct YiyinTopBarSheet: View {
+
+    let onDismiss: () -> Void
+
+    @Environment(EditorState.self) private var editorState
+    @Environment(PipeCoordinator.self) private var pipeCoordinator
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(String(
+                    localized: "yiyin_sheet_title",
+                    defaultValue: "Yiyin frame & watermark"))
+                    .font(.headline)
+                    .foregroundStyle(ThemeTokens.textPrimary)
+                Spacer()
+                Button {
+                    onDismiss()
+                } label: {
+                    Image(systemName: "xmark.circle")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("yiyin.sheet.close")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            Divider()
+            if editorState.loadedImageURL == nil {
+                ContentUnavailableView {
+                    Label("no_image_selected", systemImage: "signature")
+                } description: {
+                    Text("no_image_selected_body")
+                }
+            } else {
+                let session = InspectorEditSession(coordinator: pipeCoordinator)
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        YiyinPanelView(
+                            dispatched: record(
+                                WatermarkModule.opName,
+                                fallback: ModuleInstance(
+                                    module: WatermarkModule.self,
+                                    params: WatermarkModule.Params())),
+                            edit: session)
+                        TextOverlayPanelView(
+                            instance: record(
+                                TextOverlayModule.opName,
+                                fallback: ModuleInstance(
+                                    module: TextOverlayModule.self,
+                                    params: TextOverlayModule.Params())),
+                            edit: session)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .top)
+                }
+            }
+        }
+        .frame(width: 420, height: 560)
+        .background(ThemeTokens.windowBackground)
+        .accessibilityIdentifier("yiyin.sheet")
+    }
+
+    /// The chain record for the op, or the default record when the op has
+    /// never been edited (the D-H1 live upsert absorbs it on first edit).
+    private func record(
+        _ opName: String, fallback: ModuleInstance
+    ) -> ModuleInstance {
+        editorState.instances.first { $0.opName == opName } ?? fallback
     }
 }

@@ -292,7 +292,14 @@ final class EditorState {
     /// the pixelpipe leg is signposted inside `RenderPipeline` itself.
     /// `metal` nil = no GPU — decode still succeeds, display stays empty
     /// (the fatal no-GPU alert is hosted by `ContentView`).
-    func load(url: URL, decoder: RAWDecoder, metal: MetalContext?, logger: Logger) {
+    /// M2-3-3 T4 (checker E2): the RAW Decode panel's session overrides ride
+    /// the ONE decode request chain. Default nil = identity — every existing
+    /// call site compiles and behaves unchanged (the declared incremental
+    /// seam; `RAWDecoder.decode` clamps + treats identity as the no-op).
+    func load(
+        url: URL, decoder: RAWDecoder, metal: MetalContext?, logger: Logger,
+        overrides: RAWTechnicalOverrides? = nil
+    ) {
         decodeTask?.cancel()
         loadedImageURL = url
         decodeError = nil
@@ -312,7 +319,8 @@ final class EditorState {
             }
 
             do {
-                let decoded = try await decoder.decode(url) // off-MainActor
+                let decoded = try await decoder.decode(
+                    url, technicalOverrides: overrides ?? .init()) // off-MainActor
                 guard !Task.isCancelled else { // a newer load superseded this one
                     logger.info("decode superseded: \(url.lastPathComponent, privacy: .public)")
                     return

@@ -264,7 +264,10 @@ final class LibraryRelinkModelTests: XCTestCase {
         // A replayed/out-of-order snapshot never moves the bar backwards.
         handle.apply(processed: 2, total: 10)
         XCTAssertEqual(handle.snapshot.progress, 0.6, "the monotonic clamp")
-        XCTAssertEqual(handle.snapshot.detail, "6 of 10")
+        // Locale-independent counts (M2-3-4 T1 localized tasks_relink_counts;
+        // zh renders "已处理 6 / 10" — only the numbers are contractual).
+        XCTAssertTrue(handle.snapshot.detail.contains("6"))
+        XCTAssertTrue(handle.snapshot.detail.contains("10"))
 
         await handle.cancel()
         XCTAssertEqual(handle.snapshot.progress, 0.6, "cancel keeps the floor")

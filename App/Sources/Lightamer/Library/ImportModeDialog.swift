@@ -10,7 +10,9 @@ import SwiftUI
 // seeds `libraryImportChoice` OUTSIDE any view body — the M2-1 D-EXEC-1
 // no-static-defaults-in-body discipline), and the confirm lands as a plain
 // ImportModeChoice value the caller persists through ImportDefaults.
-// Verbatim strings: zh localization lands with the M2-3 shell.
+// zh localization landed with M2-3-4 T1 (the P4 backfill batch): the static
+// verbatim copy moved onto String(localized:) keys; dynamic data (folder
+// names, per-mode labels/hints resolve through the catalog) stays verbatim.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The sheet item: one pending import-folder request.
@@ -43,7 +45,9 @@ struct ImportModeDialog: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(verbatim: "Import “\(request.folder.lastPathComponent)”")
+            // zh backfill (M2-3-4 T1): the M2-2 verbatim debts land here.
+            Text(String(localized: "import_dialog_title_folder",
+                        defaultValue: "Import “\(request.folder.lastPathComponent)”"))
                 .font(.headline)
             Picker(selection: $mode) {
                 ForEach(ImportMode.allCases, id: \.self) { candidate in
@@ -51,7 +55,8 @@ struct ImportModeDialog: View {
                         .tag(candidate)
                 }
             } label: {
-                Text(verbatim: "Transport")
+                Text(String(localized: "import_dialog_transport",
+                            defaultValue: "Transport"))
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -60,20 +65,23 @@ struct ImportModeDialog: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Toggle(isOn: $remember) {
-                Text(verbatim: "Remember my choice")
+                Text(String(localized: "import_dialog_remember",
+                            defaultValue: "Remember my choice"))
             }
             HStack {
                 Spacer()
                 Button {
                     onCancel()
                 } label: {
-                    Text(verbatim: "Cancel")
+                    Text(String(localized: "import_dialog_cancel",
+                                defaultValue: "Cancel"))
                 }
                 .keyboardShortcut(.cancelAction)
                 Button {
                     onConfirm(ImportModeChoice(mode: mode, remember: remember))
                 } label: {
-                    Text(verbatim: "Import")
+                    Text(String(localized: "import_dialog_confirm",
+                                defaultValue: "Import"))
                 }
                 .keyboardShortcut(.defaultAction)
             }
@@ -84,20 +92,23 @@ struct ImportModeDialog: View {
 
     private static func label(for mode: ImportMode) -> String {
         switch mode {
-        case .move: "Move"
-        case .copy: "Copy"
-        case .link: "Link"
+        case .move: String(localized: "import_mode_move", defaultValue: "Move")
+        case .copy: String(localized: "import_mode_copy", defaultValue: "Copy")
+        case .link: String(localized: "import_mode_link", defaultValue: "Link")
         }
     }
 
     private static func hint(for mode: ImportMode) -> String {
         switch mode {
         case .move:
-            "Move photos into the project (same-volume renames, verified cross-volume copies; sources removed only after verification)."
+            String(localized: "import_hint_move",
+                   defaultValue: "Move photos into the project (same-volume renames, verified cross-volume copies; sources removed only after verification).")
         case .copy:
-            "Copy photos into the project Media folder, verifying every file; identical duplicates are skipped."
+            String(localized: "import_hint_copy",
+                   defaultValue: "Copy photos into the project Media folder, verifying every file; identical duplicates are skipped.")
         case .link:
-            "Reference photos in place (no bytes move; the project records volume-relative paths and the original stays put)."
+            String(localized: "import_hint_link",
+                   defaultValue: "Reference photos in place (no bytes move; the project records volume-relative paths and the original stays put).")
         }
     }
 }

@@ -144,6 +144,65 @@ final class WorkspaceModel {
     /// The adjustment stack column (seven tabs).
     var adjustmentStackVisible = true
 
+    // MARK: - P3 editor seams (Plan M2-3-3 T1)
+
+    /// The shell-owned decode actor (D-21 family). The ContentView/
+    /// LightamerApp assembly is a zero-diff surface for M2-3-3 (the
+    /// front-matter file set excludes both), so the app-owned instance is
+    /// unreachable from the new shell — the shell carries its own
+    /// long-lived `RAWDecoder`. The actor is stateless (a per-instance
+    /// probe cache only) and decode output is a function of
+    /// (file, overrides) — `contentDedupeID` keys on the file fingerprint,
+    /// so the CI render memo and the pipe caches see identical keys. A
+    /// second coexisting instance diverges nothing (DECISIONS D-exec).
+    let editorDecoder = RAWDecoder()
+
+    /// The library collection face the editor reads rows through (the
+    /// filmstrip source + the EXIF readout + the current-image load leg).
+    /// Weak: the grid is OWNED by the host (`@State`); the shell borrows.
+    /// Set/dropped by the host's `rebuildLibrarySurface`.
+    weak var editorGrid: LibraryGridModel?
+
+    /// The row → source-URL resolver (the ImageLinker face the host builds
+    /// beside the grid — zero path guessing in the shell).
+    var editorURLResolver: ((LibraryImageRow) -> URL?)?
+
+    /// The current image's library row (the EXIF readout face: the node
+    /// header's focal/aperture/shutter/ISO come from here — one lookup,
+    /// no copying).
+    var currentRow: LibraryImageRow? {
+        guard let id = editorPhase.currentImageID else { return nil }
+        return editorGrid?.rows.first { $0.id == id }
+    }
+
+    // MARK: - RAW decode overrides carrier (Plan M2-3-3 T4, KD-4)
+
+    /// The session-level RAW decode overrides, keyed by the source file
+    /// path. Session-scoped by contract: a switched-away image keeps its
+    /// values for the session; closing the editor drops them (sidecar
+    /// persistence = M2-4's node-model schema, the D3 boundary).
+    private(set) var rawDecodeOverrides: [String: RAWTechnicalOverrides] = [:]
+
+    /// The read face (identity when the image has no session overrides).
+    func rawDecodeOverrides(for url: URL) -> RAWTechnicalOverrides {
+        rawDecodeOverrides[url.path] ?? .identity
+    }
+
+    /// The write face (the RawDecodePanelView routes through here; the
+    /// caller then re-issues the `EditorState.load` request chain).
+    func setRawDecodeOverrides(_ overrides: RAWTechnicalOverrides, for url: URL) {
+        rawDecodeOverrides[url.path] = overrides.isIdentity ? nil : overrides
+        if rawDecodeOverrides[url.path] == nil {
+            rawDecodeOverrides.removeValue(forKey: url.path)
+        }
+    }
+
+    /// The editor-close drop face (KD-4: 关图丢弃).
+    func dropSessionOverrides() {
+        rawDecodeOverrides.removeAll()
+    }
+
+
     // MARK: - Phase transitions (the D2 semantics)
 
     /// Enter the editor on `imageID` (nil = reopen the last image — the
@@ -164,9 +223,11 @@ final class WorkspaceModel {
     }
 
     /// Close the editor back to the library, restoring the snapshotted face
-    /// field-for-field (the D2 red line).
+    /// field-for-field (the D2 red line). The session RAW-decode overrides
+    /// drop with the editor (KD-4: 关图丢弃).
     func closeEditor() {
         libraryState = preservedLibraryState
+        dropSessionOverrides()
         phase = .library
     }
 
