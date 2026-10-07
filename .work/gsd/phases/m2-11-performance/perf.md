@@ -285,6 +285,18 @@
 - 基线 **2960/16/0**（03 波终值）+ 本波 Δ = **+1**（MemoryBudgetTests 新增 1 法，
   T2）→ 预期 **2961/16/0**。T1 为 GUI 实测轨零新测（checker E1 真链 = 真 GUI app
   真样张三轮）。**T2 实测**：`--bundle IOP MemoryBudgetTests` 定向 **14/0/0**（13 既有
-  + 1 新增精确，零 skip 增量）；IOP 全量 **471/1/0**（470+1 精确，149s，peak 7650MB
+  + 1 新增精确，func test 13→14）+ IOP 全量 **471/1/0**（470+1 精确，149s，peak 7650MB
   < 8192 门零 MEMFAIL；唯一 skip = 既有 SkinRegion Vision 环境件，基线内）。全套
   `--all` 终值对账留 M2-11-05 终验（批准制）。
+
+## §PERF-07 终验带内复核（M2-11-05 T2，2026-10-07）
+
+- **终验净轮**（第 3 试全套 `TOTAL|2961/16/0|1081s` 干净绿；恢复协议两轮前置——
+  App bundle ToneEqual 崩溃家族四红二绿，台账见 GOAL-STATE Flaky 清算台账追加行）
+  内 `Perf07MassApplyTests` 双测绿：`PERF07-GATE segments1+2 10k: **0.543s**
+  (gate ≤ 5.000s)` + `PERF07-PROBE composeSegment: 0.524s` / `claimBatchApply:
+  0.020s` / `FIXTURE-BUILD: 1.655s`；config 行 = Debug harness record（门本体 =
+  Release 轮，`Perf07MassApplyTests.swift:181/192`）。
+- 判定：**带内即过**——vs 在案 0.490s（09 perf 在案锚）= +10.8% 机器态漂移，
+  门余量 ~9.2×（≤5s）；万张 apply Delivered 终态维持。证据 =
+  `/tmp/la-direct-tests-Sessions.log`（净轮 Sessions bundle 内）。
