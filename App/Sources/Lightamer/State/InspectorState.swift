@@ -52,19 +52,37 @@ final class InspectorState {
     /// The Phase 3 default set: exposure + temperature + the 03-03 Lab
     /// trio (colisa / tonecurve / levels) + the 03-04 additions (sigmoid
     /// D-T2 baseline / shadhi). Later plans append theirs.
-    func registerDefaultProviders() {
+    ///
+    /// M2-1: `defaultFace: true` skips the D1/D2 disable set's panel
+    /// providers (KD-1) — the Inspector panel rows AND the layer
+    /// add-module menu enumerate this registry, so both UI faces narrow
+    /// with the seed face. Default `false` = full face (KD-2: every
+    /// existing caller/test keeps all panels; only the app composition
+    /// root passes the face — KD-3 `isFullFaceRequested`).
+    func registerDefaultProviders(defaultFace: Bool = false) {
+        // The gate (KD-2): providers are gated by their opName against the
+        // registry's own disable-set constant — one source of truth, zero
+        // duplicated names.
+        let skip = defaultFace
+            ? LightamerIOPRegistry.defaultFaceDisabledOpNames : []
+        func gated(_ provider: any IOPPanelProvider) {
+            guard !skip.contains(provider.opName) else { return }
+            register(provider)
+        }
         register(ExposurePanelProvider())
         register(TemperaturePanelProvider())
         register(ColisaPanelProvider())
         register(ToneCurvePanelProvider())
         register(LevelsPanelProvider())
-        register(SigmoidPanelProvider())
+        // M2-1 matrix rows 1-3 (D1: tone mapping → terminal DRT, M2-6) and
+        // rows 4-6 (D2: denoise → RAW 9 decode layer) — gated below.
+        gated(SigmoidPanelProvider())
         register(ShadhiPanelProvider())
         register(ToneEqualPanelProvider())
         // Plan 03-06: filmicrgb (the scene-referred filmic transform) +
         // agx (the filmic VARIANT).
-        register(FilmicRGBPanelProvider())
-        register(AgXPanelProvider())
+        gated(FilmicRGBPanelProvider())
+        gated(AgXPanelProvider())
         // Plan 04-02-T5: crop (the framing window).
         register(CropPanelProvider())
         // Plan 04-08-T1 (GUI-6): flip orientation Picker (EXIF auto + 8
@@ -97,11 +115,11 @@ final class InspectorState {
         // Plan 05-05-T4: monochrome (Lab chroma wheel + size/highlights).
         register(MonochromePanelProvider())
         // Plan 05-06-T5: nlmeans (astrophoto denoise — 4 sliders).
-        register(NLMeansPanelProvider())
+        gated(NLMeansPanelProvider())
         // Plan 05-07-T6: denoiseprofile (mode/profile/force-curve panel).
-        register(DenoiseProfilePanelProvider())
+        gated(DenoiseProfilePanelProvider())
         // Plan 05-08-T4: bilateral (surface blur — radius + 3 sigma sliders).
-        register(BilateralPanelProvider())
+        gated(BilateralPanelProvider())
         // Plan 07-3 T3: skinSmooth (the 25TH panel — frequency-separation
         // skin smoothing + the「定位皮肤」skin-mask generator action).
         register(SkinSmoothPanelProvider())

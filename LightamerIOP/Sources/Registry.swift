@@ -1,3 +1,4 @@
+import Foundation
 import LightamerCore
 
 /// LightamerIOP's registration hook (Plan 02-04-01) — the ONE place the app
@@ -17,8 +18,70 @@ import LightamerCore
 /// scenario the dev-only module exists to exercise).
 public enum LightamerIOPRegistry {
 
+    /// M2-1 (ROADMAP D1/D2, user sign-off 2026-09-27「全按推荐」): the ops a
+    /// DEFAULT-face registry refuses to register. Machine-readable twin of
+    /// `.work/gsd/phases/m2-1-dt-disable/M2-1-MATRIX.md` — the matrix is the
+    /// verdict of record and this set must equal its 6-row disable table
+    /// (DefaultFaceTests pins the equality; the string literals live ONLY
+    /// there). Built from module opName CONSTANTS, never string literals,
+    /// so a module rename fails compilation instead of silently widening
+    /// the face.
+    ///
+    /// Semantics (KD-1): "disabled" = NOT registered into a default-face
+    /// registry — `makeBox` answers nil and every consumer face (UI panel
+    /// rows, the layer add-module menu, MCP `apply_params` addressing)
+    /// narrows through that one seam. Legacy sidecars referencing these ops
+    /// degrade via the 02-06 `degradedForUnknownOps` / `degradedLayerStack`
+    /// mechanism (params verbatim + enabled=false + one-time toast — user
+    /// data is never dropped), and `LIGHTAMER_FULL_IOP_FACE=1` (KD-3)
+    /// restores the full face. The module sources, kernels, prewarm list
+    /// and golden tests all stay (KD-5 — opt-in is zero-rebuild).
+    public static let defaultFaceDisabledOpNames: Set<String> = [
+        // D1: tone mapping moves wholesale to the terminal DRT (ACES 2.0 /
+        // OpenDRT, M2-6) — the D1 trio (matrix rows 1-3).
+        FilmicRGBModule.opName,
+        SigmoidModule.opName,
+        AgXModule.opName,
+        // D2: denoise is owned by the RAW 9 decode layer (CIRAW NR — the
+        // RAWDecoder path, NOT the iop registry; matrix rows 4-6).
+        DenoiseProfileModule.opName,
+        NLMeansModule.opName,
+        BilateralModule.opName,
+    ]
+
+    /// KD-3 opt-in: launch with `LIGHTAMER_FULL_IOP_FACE=1` to restore the
+    /// pre-M2-1 full face (dev/debug + legacy-image full fidelity). The
+    /// production composition roots pass `defaultFace:
+    /// !isFullFaceRequested`; there is deliberately no settings UI (the
+    /// M2-3 IA owns that face — this env seam is its backend hook).
+    public static var isFullFaceRequested: Bool {
+        ProcessInfo.processInfo.environment["LIGHTAMER_FULL_IOP_FACE"] == "1"
+    }
+
     /// Register every LightamerIOP module into `registry`.
-    public static func populate(_ registry: ModuleRegistry) async {
+    ///
+    /// M2-1: `defaultFace: true` SKIPS the D1/D2 disable set — a gated
+    /// module's factory never enters the registry, so `makeBox` answers nil
+    /// and every consumer face narrows through that single seam (KD-1).
+    /// Default `false` = the pre-M2-1 full face (KD-2: every existing
+    /// caller and test keeps its behavior byte-for-byte; only the
+    /// production composition roots pass the face explicitly).
+    public static func populate(
+        _ registry: ModuleRegistry, defaultFace: Bool = false
+    ) async {
+        // The per-site gate (KD-1). Each gated site carries its matrix
+        // verdict (M2-1-MATRIX.md is the disable decision of record); the
+        // 34 enabled sites call `registry.register` directly, unchanged.
+        func gatedRegister(
+            _ opName: String,
+            matrixVerdict: String,
+            factory: @escaping @Sendable (UUID) -> any ModuleBoxing
+        ) async {
+            if defaultFace, defaultFaceDisabledOpNames.contains(opName) {
+                return // default-face skip — \(matrixVerdict)
+            }
+            await registry.register(opName: opName, factory: factory)
+        }
         // Phase 3's first real iop (Plan 03-01-T5): exposure, v50 slot 21.0.
         await registry.register(opName: ExposureModule.opName) { id in
             ModuleBox(module: ExposureModule(), instanceID: id)
@@ -46,7 +109,10 @@ public enum LightamerIOPRegistry {
         // Plan 03-04-T4: sigmoid (scene-referred log-logistic tone mapping),
         // v50 slot 45.3 — the D-T2 scene-referred baseline (filmicrgb's
         // risk buffer, plan 03-06's template).
-        await registry.register(opName: SigmoidModule.opName) { id in
+        await gatedRegister(
+            SigmoidModule.opName,
+            matrixVerdict: "M2-1-MATRIX row 2 — D1: tone mapping → terminal DRT (M2-6)"
+        ) { id in
             ModuleBox(module: SigmoidModule(), instanceID: id)
         }
         // Plan 03-04-T2: shadhi (shadows & highlights, Lab-domain gaussian
@@ -64,13 +130,19 @@ public enum LightamerIOPRegistry {
         // Plan 03-06-T5: filmicrgb (scene-referred filmic view transform,
         // V5 colorscience + Yrg gamut mapping), v50 slot 46.0 — the
         // ROADMAP's hardest single port (IOP-FILM-01, F0-F4 sub-stages).
-        await registry.register(opName: FilmicRGBModule.opName) { id in
+        await gatedRegister(
+            FilmicRGBModule.opName,
+            matrixVerdict: "M2-1-MATRIX row 1 — D1: tone mapping → terminal DRT (M2-6)"
+        ) { id in
             ModuleBox(module: FilmicRGBModule(), instanceID: id)
         }
         // Plan 03-06-T6: agx (the Blender AgX-inspired filmic VARIANT,
         // sigmoid-trapezoid curve + primaries adjustments), v50 slot 45.5
         // (IOP-FILM-03; hatchless = no dt counterpart, not implemented).
-        await registry.register(opName: AgXModule.opName) { id in
+        await gatedRegister(
+            AgXModule.opName,
+            matrixVerdict: "M2-1-MATRIX row 3 — D1: tone mapping → terminal DRT (M2-6)"
+        ) { id in
             ModuleBox(module: AgXModule(), instanceID: id)
         }
         // Plan 04-04-T1: lens (manual warp + Lensfun XML resolve), v50
@@ -180,7 +252,10 @@ public enum LightamerIOPRegistry {
         // smooths similar patches and the commit clamp floors
         // luma/chroma at 0.0001 so the finish blend never reaches zero
         // weight; colorbalancergb D1 disposition, DECISIONS D-05-06-T2-1).
-        await registry.register(opName: NLMeansModule.opName) { id in
+        await gatedRegister(
+            NLMeansModule.opName,
+            matrixVerdict: "M2-1-MATRIX row 5 — D2: denoise → RAW 9 decode layer"
+        ) { id in
             ModuleBox(module: NLMeansModule(), instanceID: id)
         }
         // Plan 05-07-T2: denoiseprofile ("denoise (profiled)", VST + eaw
@@ -191,7 +266,10 @@ public enum LightamerIOPRegistry {
         // exists — force 0.5 keeps thrs>0 so noisy pixels move, and the
         // auto profile makes defaults image-dependent; identity holds only
         // via the disabled piece, colorbalancergb D1 disposition).
-        await registry.register(opName: DenoiseProfileModule.opName) { id in
+        await gatedRegister(
+            DenoiseProfileModule.opName,
+            matrixVerdict: "M2-1-MATRIX row 4 — D2: denoise → RAW 9 decode layer"
+        ) { id in
             ModuleBox(module: DenoiseProfileModule(), instanceID: id)
         }
         // Plan 05-08-T1: bilateral ("surface blur", direct stamp ≤ rad 6 +
@@ -200,7 +278,10 @@ public enum LightamerIOPRegistry {
         // slots. Seed DISABLED (D-05-08-T1-3: no zero-param identity —
         // radius $MIN 1.0 still smooths, so identity holds only via the
         // disabled piece; colorbalancergb D1 disposition).
-        await registry.register(opName: BilateralModule.opName) { id in
+        await gatedRegister(
+            BilateralModule.opName,
+            matrixVerdict: "M2-1-MATRIX row 6 — D2: surface-blur denoise → RAW 9 decode layer"
+        ) { id in
             ModuleBox(module: BilateralModule(), instanceID: id)
         }
         // Plan 04-05-T3: soften (Orton effect, RGB linear domain), v50 slot
@@ -444,8 +525,16 @@ public enum LightamerIOPRegistry {
     /// loaded image at IDENTITY params, so their panels have instances to
     /// drive (D-T6's "ModuleRegistry-driven panel generation"). Identity
     /// params keep the default chain cache-neutral (byte-identical hashes).
-    public static func editingDefaultInstances() -> [ModuleInstance] {
-        [
+    ///
+    /// M2-1: `defaultFace: true` drops the D1/D2 disable set from the seed
+    /// (KD-1) — the UI panel rows and the layer add-module menu enumerate
+    /// this seed, so they narrow with it. Default `false` = full face
+    /// (KD-2). The count contract: `defaultFace: true` == full − 6
+    /// (DefaultFaceTests pins it).
+    public static func editingDefaultInstances(
+        defaultFace: Bool = false
+    ) -> [ModuleInstance] {
+        var seed: [ModuleInstance] = [
             ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params()),
             // Plan 04-04-T1: lens (neutral OFF) joins the seed — neutral
             // ⇒ blit identity ⇒ cache-neutral (exposure-0EV style), so
@@ -576,6 +665,14 @@ public enum LightamerIOPRegistry {
             // drive).
             ModuleInstance(module: TextOverlayModule.self, params: TextOverlayModule.Params()),
         ]
-        .sorted { ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority) }
-}
+        // M2-1 (KD-1): the default face drops the disable set from the
+        // seed AFTER the literal (the literal stays the full-face truth —
+        // KD-5 keeps the module sources and their seed rows alive).
+        if defaultFace {
+            seed.removeAll { defaultFaceDisabledOpNames.contains($0.opName) }
+        }
+        return seed.sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+    }
 }

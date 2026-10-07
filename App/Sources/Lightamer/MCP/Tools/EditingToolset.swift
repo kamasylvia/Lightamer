@@ -73,6 +73,18 @@ enum EditingToolset {
         /// HARD-REJECTS a matching target (`imageLiveInEditor`).
         let liveImageURL: @Sendable () async -> URL?
 
+        /// M2-1: the editing FACE the seams' registry was populated with
+        /// (KD-1/KD-3) — `true` = the default face (the D1/D2 disable set
+        /// is unregistered, so list_iops drops the 3 cataloged disabled
+        /// entries and the pristine seed used by apply_params narrows with
+        /// it). The production assembly (`McpServerController
+        /// .makeEditingSeams`) derives this from the same
+        /// `isFullFaceRequested` read that populated the registry — ONE
+        /// switch, same source. Default `false` = full face: test seams
+        /// and every existing construction keep the pre-M2-1 behavior
+        /// (KD-2).
+        var defaultFace: Bool = false
+
         /// The production yiyin injector seam (export_image `yiyin: true`).
         /// nil (headless/tests) + yiyin:true → `exportFailed` (the honest
         /// typed face — no silent degradation).
@@ -100,13 +112,15 @@ enum EditingToolset {
             metal: @escaping @Sendable () async -> MetalContext?,
             modules: @escaping @Sendable () async -> ModuleRegistry,
             gate: McpRenderGate = McpRenderGate(),
-            liveImageURL: @escaping @Sendable () async -> URL? = { nil }
+            liveImageURL: @escaping @Sendable () async -> URL? = { nil },
+            defaultFace: Bool = false
         ) {
             self.session = session
             self.metal = metal
             self.modules = modules
             self.gate = gate
             self.liveImageURL = liveImageURL
+            self.defaultFace = defaultFace
         }
     }
 
@@ -129,8 +143,12 @@ enum EditingToolset {
         await registerRenderPreview(into: registry, seams: seams)
         await registry.register(
             listIopsDescriptor, requiresWriter: false,
-            handler: { _ in
-                .text(try IopCatalog.catalogJSON())
+            handler: { [seams] _ in
+                // M2-1: the catalog face rides the seams' editing face —
+                // the SAME switch that populated the registry (KD-1), so
+                // the agent's key reference never lists a key the write
+                // face would reject.
+                .text(try IopCatalog.catalogJSON(defaultFace: seams.defaultFace))
             })
         await registry.register(
             exportImageDescriptor, requiresWriter: true,
@@ -517,10 +535,16 @@ enum EditingToolset {
                     if let document {
                         current = document.instances
                     } else {
-                        current = await Self.editingSeed(modules: modules)
+                        // The pristine seed rides the seams' editing face —
+                        // the same switch that populated the registry
+                        // (KD-1; the face itself is KD-3's
+                        // isFullFaceRequested read in makeEditingSeams).
+                        current = await Self.editingSeed(
+                            modules: modules, defaultFace: seams.defaultFace)
                     }
                     let desired = try await Self.projectInstances(
-                        current: current, ops: ops, modules: modules)
+                        current: current, ops: ops, modules: modules,
+                        defaultFace: seams.defaultFace)
 
                     // Idempotence: an apply whose projection equals the
                     // current document writes NOTHING (byte-identical retries
@@ -562,10 +586,15 @@ enum EditingToolset {
     }
 
     /// The pristine-load seed (the editor's own fresh-load convention —
-    /// `LightamerApp.seedInstances`), v50-sorted.
-    static func editingSeed(modules: ModuleRegistry) async -> [ModuleInstance] {
+    /// `LightamerApp.seedInstances`), v50-sorted. M2-1: `defaultFace: true`
+    /// drops the D1/D2 disable set (KD-1); default `false` = full face
+    /// (KD-2).
+    static func editingSeed(
+        modules: ModuleRegistry, defaultFace: Bool = false
+    ) async -> [ModuleInstance] {
         let defaults = await modules.makeDefaultInstances()
-            + LightamerIOPRegistry.editingDefaultInstances()
+            + LightamerIOPRegistry.editingDefaultInstances(
+                defaultFace: defaultFace)
         return defaults.sorted {
             ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
         }
@@ -576,9 +605,12 @@ enum EditingToolset {
     /// Projects `ops` onto `current`: same-key params replacement (merged
     /// over the CURRENT/default params), optional enable flip, optional
     /// removal, append for missing keys. The result is the DESIRED full
-    /// instance set, v50-sorted.
+    /// instance set, v50-sorted. M2-1: `defaultFace` only shapes the
+    /// CREATE merge base (the seed lookup) — a disabled op never reaches
+    /// it (the makeBox addressing guard rejects the upsert first).
     static func projectInstances(
-        current: [ModuleInstance], ops: [ParamOp], modules: ModuleRegistry
+        current: [ModuleInstance], ops: [ParamOp], modules: ModuleRegistry,
+        defaultFace: Bool = false
     ) async throws -> [ModuleInstance] {
         var instances = current
         for op in ops {
@@ -602,7 +634,7 @@ enum EditingToolset {
                 // CREATE: the module's default record is the merge base.
                 guard var record = await Self.defaultRecord(
                     opName: op.opName, multiPriority: op.multiPriority,
-                    modules: modules)
+                    modules: modules, defaultFace: defaultFace)
                 else {
                     throw McpToolError.invalidParams(
                         "op '\(op.opName)' has no derivable default params — only an "
@@ -630,12 +662,16 @@ enum EditingToolset {
     }
 
     /// The default instance record for `opName` (terminal trio + editing
-    /// seed), or nil when the op ships no derivable defaults.
+    /// seed), or nil when the op ships no derivable defaults. M2-1: the
+    /// face rides through to `editingDefaultInstances` (KD-2 default
+    /// false = full face).
     static func defaultRecord(
-        opName: String, multiPriority: Int, modules: ModuleRegistry
+        opName: String, multiPriority: Int, modules: ModuleRegistry,
+        defaultFace: Bool = false
     ) async -> ModuleInstance? {
         let defaults = await modules.makeDefaultInstances()
-            + LightamerIOPRegistry.editingDefaultInstances()
+            + LightamerIOPRegistry.editingDefaultInstances(
+                defaultFace: defaultFace)
         guard let base = defaults.first(where: {
             $0.opName == opName && $0.multiPriority == 0
         }) else { return nil }

@@ -222,14 +222,21 @@ enum McpServerController {
         yiyinInjector: (@Sendable () async -> ExportYiyinInjector?)? = nil
     ) async -> EditingToolset.Seams {
         let modules = ModuleRegistry()
-        await LightamerIOPRegistry.populate(modules)
+        // M2-1 (D1/D2 + KD-1/KD-3): the PRODUCTION editing face — the
+        // default face unless LIGHTAMER_FULL_IOP_FACE=1 opts back in. The
+        // SAME read populates the registry and stamps `seams.defaultFace`
+        // (one switch, same source), so list_iops and the apply_params
+        // pristine seed narrow with the registry.
+        let defaultFace = !LightamerIOPRegistry.isFullFaceRequested
+        await LightamerIOPRegistry.populate(modules, defaultFace: defaultFace)
         let metal = LazyMetalContext()
         var seams = EditingToolset.Seams(
             session: session,
             metal: { await metal.get() },
             modules: { modules },
             gate: sharedRenderGate,
-            liveImageURL: liveImageURL)
+            liveImageURL: liveImageURL,
+            defaultFace: defaultFace)
         seams.writeGate = McpRenderGate()
         seams.yiyinInjector = yiyinInjector
         return seams
