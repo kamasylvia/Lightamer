@@ -2151,6 +2151,57 @@
         }
       }
     },
+    "editor_node_develop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Develop"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显影"
+          }
+        }
+      }
+    },
+    "editor_node_drt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display Transform"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示变换"
+          }
+        }
+      }
+    },
+    "editor_node_drt_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DRT arrives with M2-6"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示变换随 M2-6 交付"
+          }
+        }
+      }
+    },
     "editor_node_exif_missing": {
       "extractionState": "manual",
       "localizations": {
@@ -2185,6 +2236,40 @@
         }
       }
     },
+    "editor_node_kind_drt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display Transform"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示变换"
+          }
+        }
+      }
+    },
+    "editor_node_kind_grade": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color Grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调色"
+          }
+        }
+      }
+    },
     "editor_node_name": {
       "extractionState": "manual",
       "localizations": {
@@ -2202,19 +2287,36 @@
         }
       }
     },
-    "editor_nodes_placeholder": {
+    "editor_nodes_add_grade": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nodes arrive in M2-4"
+            "value": "Add Color Grade"
           }
         },
         "zh": {
           "stringUnit": {
             "state": "translated",
-            "value": "节点功能随 M2-4 交付"
+            "value": "添加调色节点"
+          }
+        }
+      }
+    },
+    "editor_nodes_fit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fit"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "适应"
           }
         }
       }
@@ -4609,6 +4711,125 @@
           "stringUnit": {
             "state": "translated",
             "value": "颗粒"
+          }
+        }
+      }
+    },
+    "history_graph_add": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add color grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加调色节点"
+          }
+        }
+      }
+    },
+    "history_graph_enable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle color grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换调色节点启用"
+          }
+        }
+      }
+    },
+    "history_graph_insert": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insert color grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插入调色节点"
+          }
+        }
+      }
+    },
+    "history_graph_mix": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjust color grade mix"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整调色节点混合度"
+          }
+        }
+      }
+    },
+    "history_graph_reconnect": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect color grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重连调色节点"
+          }
+        }
+      }
+    },
+    "history_graph_remove": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove color grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除调色节点"
+          }
+        }
+      }
+    },
+    "history_graph_rename": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename color grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名调色节点"
           }
         }
       }
@@ -8326,6 +8547,210 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用 文件 → 打开… 或将文件夹拖放到此处。"
+          }
+        }
+      }
+    },
+    "node_lock_develop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Develop node is locked"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显影节点已锁定"
+          }
+        }
+      }
+    },
+    "node_lock_drt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display Transform is a fixed endpoint"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示变换是固定端点"
+          }
+        }
+      }
+    },
+    "nodes_menu_delete": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除"
+          }
+        }
+      }
+    },
+    "nodes_menu_disable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disable"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停用"
+          }
+        }
+      }
+    },
+    "nodes_menu_enable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用"
+          }
+        }
+      }
+    },
+    "nodes_menu_insert_before": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insert Grade Before"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此前插入调色节点"
+          }
+        }
+      }
+    },
+    "nodes_menu_rename": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名…"
+          }
+        }
+      }
+    },
+    "nodes_mix_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mix"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "混合度"
+          }
+        }
+      }
+    },
+    "nodes_rename_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "nodes_rename_field": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名称"
+          }
+        }
+      }
+    },
+    "nodes_rename_ok": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名"
+          }
+        }
+      }
+    },
+    "nodes_rename_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Color Grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名调色节点"
           }
         }
       }
@@ -22439,6 +22864,23 @@
         }
       }
     },
+    "toast_graph_command_rejected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This node action cannot be applied"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该节点操作无法应用"
+          }
+        }
+      }
+    },
     "toast_hdr_merge_done %lld": {
       "extractionState": "manual",
       "localizations": {
@@ -22537,6 +22979,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "LUT 不在库中——已按恒等处理"
+          }
+        }
+      }
+    },
+    "toast_mask_deletion_protected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This mask is protected and cannot be cleared"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此蒙版受保护，无法清空"
+          }
+        }
+      }
+    },
+    "toast_module_owner_rejected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This adjustment belongs to the Develop or DRT stage and cannot enter a color grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该调整属于显影或显示变换阶段，无法进入调色节点"
           }
         }
       }

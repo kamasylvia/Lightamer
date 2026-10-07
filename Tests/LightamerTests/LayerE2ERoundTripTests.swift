@@ -140,7 +140,7 @@ final class LayerE2ERoundTripTests: XCTestCase {
         // Render the FULL state (L014 fence; bgra8 display plane).
         let registry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(registry)
-        let baseChain = await TerminalTrioTests.makeCommittedDefaultChain(
+        let baseChain = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         let imageID = try XCTUnwrap(coordinator.currentImageID)
 

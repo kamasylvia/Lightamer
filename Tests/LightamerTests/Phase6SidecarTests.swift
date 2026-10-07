@@ -126,7 +126,7 @@ final class Phase6SidecarTests: XCTestCase {
 
         // (b) Render-level fidelity: composite(original) == composite(restored).
         let image = try makeGradientImage()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         var restoredStack = LayerStack(baseLayer: BackgroundLayer())
         for layer in restored { restoredStack.addAdjustment(layer) }
@@ -222,7 +222,7 @@ final class Phase6SidecarTests: XCTestCase {
         // Render fidelity with the raster leg live (both runs load the
         // SAME PNG through the store).
         let image = try makeGradientImage()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         var restoredStack = LayerStack(baseLayer: BackgroundLayer())
         for layer in restored { restoredStack.addAdjustment(layer) }

@@ -598,7 +598,7 @@ final class MemoryBudgetTests: XCTestCase {
         let registry = await makePopulatedRegistry()
         let image = makeLayerImage()
         let cache = PipeCache()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         var stack = LayerStack(baseLayer: BackgroundLayer())
         for index in 0..<5 {
@@ -639,7 +639,7 @@ final class MemoryBudgetTests: XCTestCase {
         let registry = await makePopulatedRegistry()
         let image = makeLayerImage(width: 96, height: 64)
         let cache = PipeCache()
-        let base = await TerminalTrioTests.makeCommittedDefaultChain(
+        let base = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .sRGB)
         var stack = LayerStack(baseLayer: BackgroundLayer())
         let cold = gainLayerForBudget(1.4, name: "cold")

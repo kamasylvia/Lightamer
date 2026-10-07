@@ -195,22 +195,34 @@ public enum MaskCombineOp: String, Codable, Sendable, Equatable, Hashable {
 /// — when set, the item's plane is the recursive evaluation of the child
 /// and `formID` is ignored. decodeIfPresent: documents written before
 /// 06-04 decode with nil (ONE-WAY additive rule).
+///
+/// M2-4 v5 additive optionals (Plan M2-4-1 T4, KD-4; M2NODE-04 data face):
+/// `enabled` (nil = true — the per-mask independent gate) and
+/// `displayName` (nil = the derived display name — the M2-7 panel's
+/// consumer face). Synthesized Codable encodes nil with encodeIfPresent,
+/// so v4-era items serialize to the SAME canonical JSON bytes (the
+/// stableHash zero-drift contract — pinned by SidecarV5Tests).
 public struct MaskGroupItem: Codable, Sendable, Equatable, Hashable {
     public var formID: UUID
     public var op: MaskCombineOp
     public var inverted: Bool
     public var opacity: Float
     public var child: MaskGroupSpec?
+    public var enabled: Bool?
+    public var displayName: String?
 
     public init(
         formID: UUID, op: MaskCombineOp, inverted: Bool, opacity: Float,
-        child: MaskGroupSpec? = nil
+        child: MaskGroupSpec? = nil, enabled: Bool? = nil,
+        displayName: String? = nil
     ) {
         self.formID = formID
         self.op = op
         self.inverted = inverted
         self.opacity = opacity
         self.child = child
+        self.enabled = enabled
+        self.displayName = displayName
     }
 }
 
@@ -252,16 +264,24 @@ public struct MaskSpec: Codable, Sendable, Equatable, Hashable {
     /// reference; pixels never enter this JSON, 06-RESEARCH §6).
     public var raster: RasterMaskRef?
 
+    /// M2-4 v5 additive optional (Plan M2-4-1 T4, KD-4; the D-M2-4-CONTEXT-7
+    /// spec-level deletion lock, M2MASK-04's data face): nil = false. The
+    /// synthesized Codable absent-encoding keeps v4 specs on their EXACT
+    /// canonical bytes (stableHash zero-drift — pinned by SidecarV5Tests).
+    public var deletionProtected: Bool?
+
     public init(
         version: Int = 1,
         drawn: DrawnMaskSpec? = nil,
         parametric: ParametricMask? = nil,
-        raster: RasterMaskRef? = nil
+        raster: RasterMaskRef? = nil,
+        deletionProtected: Bool? = nil
     ) {
         self.version = version
         self.drawn = drawn
         self.parametric = parametric
         self.raster = raster
+        self.deletionProtected = deletionProtected
     }
 
     /// True when the spec carries rasterizable drawn content.
@@ -295,5 +315,63 @@ public struct MaskSpec: Codable, Sendable, Equatable, Hashable {
     /// the SAME bytes as before (06-03 documents keep their cache keys).
     public func stableHash() -> UInt64 {
         StableHash.hash(ParamsCoding.encode(self))
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The group-item access face (Plan M2-4-2 KD-2, M2NODE-04) — the M2-7 Mask
+// Groups panel's read/write doorway over `drawn.group.items`. VALUE SEMANTICS:
+// MaskSpec is a struct, so the setters copy-on-write and a miss (unknown id,
+// no group) is a documented silent no-op. NO second storage: the multi-mask
+// "list" IS `drawn.group.items` (D-M2-4-CONTEXT-3) — these helpers are a
+// facade, writes still ride the layer-commit history leg unchanged.
+// ─────────────────────────────────────────────────────────────────────────────
+
+public extension MaskSpec {
+
+    /// The read view over the group items, in group order. `id` = the
+    /// item's `formID` (nested child items keep their placeholder id —
+    /// the panel addresses children through M2-7's group tree, not here).
+    /// `name` = the stored `displayName` (nil = DERIVED at the display
+    /// site — the derivation consumes the Core single source
+    /// `LayerStack.nextLayerName(base:)`, never a second ordinal algorithm).
+    /// `enabled` folds the v5 optional (nil = true). nil group / no forms
+    /// = [] (nothing rasterizable to show).
+    public var maskItems: [
+        (id: UUID, name: String?, enabled: Bool, opacity: Float, inverted: Bool)
+    ] {
+        guard let drawn, !drawn.forms.isEmpty, let items = drawn.group?.items
+        else { return [] }
+        return items.map { item in
+            (id: item.formID, name: item.displayName,
+             enabled: item.enabled ?? true, opacity: item.opacity,
+             inverted: item.inverted)
+        }
+    }
+
+    /// Flip one item's enabled gate (nil → true default folded by the
+    /// panel through `maskItems`). Unknown id / no group = silent no-op.
+    public mutating func setItemEnabled(_ id: UUID, _ enabled: Bool) {
+        mutateTopLevelItem(id) { $0.enabled = enabled }
+    }
+
+    /// Set one item's display name (nil = back to the derived name).
+    /// Unknown id / no group = silent no-op.
+    public mutating func setItemDisplayName(_ id: UUID, _ name: String?) {
+        mutateTopLevelItem(id) { $0.displayName = name }
+    }
+
+    /// The one mutation shape both setters share: copy the drawn payload,
+    /// address the TOP-LEVEL item by formID, write back. (Nested children
+    /// are out of this face's scope — M2-7 owns the group tree UI.)
+    private mutating func mutateTopLevelItem(
+        _ id: UUID, _ mutate: (inout MaskGroupItem) -> Void
+    ) {
+        guard var drawn, var group = drawn.group,
+            let index = group.items.firstIndex(where: { $0.formID == id })
+        else { return }
+        mutate(&group.items[index])
+        drawn.group = group
+        self.drawn = drawn
     }
 }

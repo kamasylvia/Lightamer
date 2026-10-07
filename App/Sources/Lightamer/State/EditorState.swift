@@ -1,5 +1,6 @@
 import Foundation
 import LightamerCore
+import LightamerIOP
 import Metal
 import Observation
 import os
@@ -411,7 +412,9 @@ final class EditorState {
             self.layerStack = stack
             return addAdjustmentLayer()
         }
-        let layer = AdjustmentLayer(name: Self.nextLayerName(in: layerStack))
+        let layer = AdjustmentLayer(
+            name: layerStack.nextLayerName(
+                base: String(localized: "layer_default_name")))
         var stack = layerStack
         stack.addAdjustment(layer)
         self.layerStack = stack
@@ -475,6 +478,66 @@ final class EditorState {
         commitLayerStructure(layerID: id, label: String(localized: "history_layer_reorder"))
     }
 
+    // MARK: M2-4 node-graph command entry (Plan M2-4-1 T2, KD-2)
+
+    /// The ONE execution entry for every node-graph command (the P3 panels
+    /// are pure producers — they never switch on commands). Runs the pure
+    /// Core transform (`NodeGraphCommand.apply(to:)`), reassigns
+    /// `layerStack` (the GUI-19 @Observable atom), then lands EXACTLY ONE
+    /// structure history item carrying the post-edit stack snapshot with a
+    /// `history_graph_*` label — undo/redo restore through the existing
+    /// single `rebuildLayerStack` path, identity-preserving (M2NODE-02).
+    ///
+    /// Error face (the plan's toast 面序): `lockedNode` is intercepted
+    /// SILENTLY (the endpoint lock is a visible affordance, not an error);
+    /// every other typed failure raises the D-26 background toast. Both
+    /// switches are exhaustive with NO default arm — a new command or
+    /// error case must be answered here at compile time (checker ①).
+    func apply(_ command: NodeGraphCommand) {
+        guard let layerStack else { return }
+        do {
+            let transformed = try command.apply(to: layerStack)
+            self.layerStack = transformed
+            let face = Self.graphCommandFace(of: command)
+            commitLayerStructure(
+                layerID: face.target ?? layerStack.baseLayer.id, // dead slot (scope lives in layerStructureScope)
+                label: face.label)
+        } catch {
+            guard let graphError = error as? NodeGraphError else { return }
+            switch graphError {
+            case .lockedNode:
+                break // silent interception (D-M2-4-CONTEXT-7)
+            case .nodeNotFound, .notAGrade, .badPayload, .badPosition:
+                presentToast(String(
+                    localized: "toast_graph_command_rejected",
+                    defaultValue: "This node action cannot be applied"))
+            }
+        }
+    }
+
+    /// The command's history label + target id in ONE exhaustive switch
+    /// (the `history_graph_*` label family, plan M2-4-1 KD-2).
+    private static func graphCommandFace(of command: NodeGraphCommand)
+        -> (label: String, target: UUID?)
+    {
+        switch command {
+        case .addCleanGrade:
+            (String(localized: "history_graph_add", defaultValue: "Add color grade"), nil)
+        case let .removeGradeAndBridge(id):
+            (String(localized: "history_graph_remove", defaultValue: "Remove color grade"), id)
+        case let .reconnectGrade(id, _):
+            (String(localized: "history_graph_reconnect", defaultValue: "Reconnect color grade"), id)
+        case let .renameGrade(id, _):
+            (String(localized: "history_graph_rename", defaultValue: "Rename color grade"), id)
+        case let .setGradeEnabled(id, _):
+            (String(localized: "history_graph_enable", defaultValue: "Toggle color grade"), id)
+        case let .setGradeMix(id, _):
+            (String(localized: "history_graph_mix", defaultValue: "Adjust color grade mix"), id)
+        case .insertGradeFromJSON:
+            (String(localized: "history_graph_insert", defaultValue: "Insert color grade"), nil)
+        }
+    }
+
     /// D-H1 LIVE leg for layer properties/mask: swap the layer in place,
     /// ZERO history (the drag/stroke preview renders live; the commit
     /// lands once at drag/stroke end through `commitLayerStructure`).
@@ -516,6 +579,21 @@ final class EditorState {
         guard let layerStack,
               let layer = adjustmentLayer(id: layerID)
         else { return nil }
+        // M2-4 ownership seam (Plan M2-4-1 T3, KD-3; D-M2-4-CONTEXT-8
+        // grace): the UI insert face refuses develop/drtPost-owned ops
+        // INTO a grade — the typed check surfaces through the EXISTING
+        // toast (never a crash, never silent). Sidecar loading, undo/redo
+        // and InsertFromJson restoration stay validation-free (the user's
+        // own data; M2-5 activates the strict face by widening the TABLE,
+        // never this seam).
+        if NodeOwnership.validate(
+            owner: NodeOwnershipCatalog.owner(of: template.opName),
+            into: .grade) != nil {
+            presentToast(String(
+                localized: "toast_module_owner_rejected",
+                defaultValue: "This adjustment belongs to the Develop or DRT stage and cannot enter a color grade"))
+            return nil
+        }
         let record = template.clonedWithFreshIdentity()
         layer.chain.append(record)
         layer.chain.sort {
@@ -602,7 +680,9 @@ final class EditorState {
             self.layerStack = stack
             return addRetouchLayer()
         }
-        let layer = RetouchLayer(name: Self.nextLayerName(in: layerStack))
+        let layer = RetouchLayer(
+            name: layerStack.nextLayerName(
+                base: String(localized: "layer_default_name")))
         var stack = layerStack
         stack.addAdjustment(layer)
         self.layerStack = stack
@@ -661,19 +741,5 @@ final class EditorState {
             layer.chain = HistoryStack.effectiveChain(layer.chain + [item.snapshot])
         }
         self.layerStack = stack
-    }
-
-    /// The default layer name: "调整 N" style ordinal (never reused —
-    /// derived from the current stack size + a collision sweep).
-    private static func nextLayerName(in stack: LayerStack) -> String {
-        let base = String(localized: "layer_default_name")
-        let existing = Set(stack.compositeLayers.map(\.name))
-        var ordinal = stack.compositeLayers.count + 1
-        var candidate = "\(base) \(ordinal)"
-        while existing.contains(candidate) {
-            ordinal += 1
-            candidate = "\(base) \(ordinal)"
-        }
-        return candidate
     }
 }

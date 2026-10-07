@@ -239,7 +239,7 @@ final class CropParityTests: XCTestCase {
         let metal = try await makeMetal()
         let image = gradientImage(width: 128, height: 96)
         let registry = ModuleRegistry.makeDefault()
-        let trio = await TerminalTrioTests.makeCommittedDefaultChain(
+        let trio = await makeCommittedDefaultChain(
             registry: registry, outputProfile: .displayP3)
         let crop = ModuleBox(module: CropModule())
         crop.setParams(CropModule.Params())

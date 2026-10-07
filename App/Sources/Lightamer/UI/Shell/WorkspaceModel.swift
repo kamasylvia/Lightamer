@@ -181,7 +181,24 @@ final class WorkspaceModel {
     /// path. Session-scoped by contract: a switched-away image keeps its
     /// values for the session; closing the editor drops them (sidecar
     /// persistence = M2-4's node-model schema, the D3 boundary).
+    ///
+    /// M2-4-1 T5: the map is ALSO the persisted truth's in-memory face —
+    /// `PipeCoordinator.makeSidecarDocument` reads it for the sidecar v5
+    /// `rawOverrides` field (one truth, no second mirror), and the restore
+    /// leg primes it from a loaded document (`restoreSessionOverrides`).
     private(set) var rawDecodeOverrides: [String: RAWTechnicalOverrides] = [:]
+
+    /// The M2-4-1 T5 persistence channel (E1③ — weak back-reference, the
+    /// `EditorState.attach` M2-3-1 pattern; the app-root/host strongly owns
+    /// both ends). nil = detached (tests, pre-assembly): the session dict
+    /// still works, only the sidecar pass-through is dark.
+    private weak var pipeCoordinator: PipeCoordinator?
+
+    /// Wire the sidecar-persistence channel (called once from the host's
+    /// assembly task).
+    func attach(pipeCoordinator: PipeCoordinator) {
+        self.pipeCoordinator = pipeCoordinator
+    }
 
     /// The read face (identity when the image has no session overrides).
     func rawDecodeOverrides(for url: URL) -> RAWTechnicalOverrides {
@@ -190,7 +207,23 @@ final class WorkspaceModel {
 
     /// The write face (the RawDecodePanelView routes through here; the
     /// caller then re-issues the `EditorState.load` request chain).
+    /// M2-4-1 T5: the persistence pass-through hook rides AFTER the session
+    /// dict write — the dict semantics above are untouched (zero diff).
     func setRawDecodeOverrides(_ overrides: RAWTechnicalOverrides, for url: URL) {
+        rawDecodeOverrides[url.path] = overrides.isIdentity ? nil : overrides
+        if rawDecodeOverrides[url.path] == nil {
+            rawDecodeOverrides.removeValue(forKey: url.path)
+        }
+        pipeCoordinator?.updateRawOverrides(overrides, for: url)
+    }
+
+    /// The M2-4-1 T5 restore-leg priming face: seed the session cache from
+    /// a LOADED sidecar document WITHOUT the persistence pass-through —
+    /// the document IS this value's source, so a write-back echo would
+    /// schedule a redundant sidecar write stamped by the identity first
+    /// frame (the E1 double-decode window). The panel's user write face
+    /// (`setRawDecodeOverrides`) keeps its hook semantics unchanged.
+    func restoreSessionOverrides(_ overrides: RAWTechnicalOverrides, for url: URL) {
         rawDecodeOverrides[url.path] = overrides.isIdentity ? nil : overrides
         if rawDecodeOverrides[url.path] == nil {
             rawDecodeOverrides.removeValue(forKey: url.path)

@@ -171,9 +171,10 @@ final class SidecarMetadataV3Tests: XCTestCase {
         for line in metadataLines {
             XCTAssertTrue(text.contains(line), "missing golden line: \(line)")
         }
-        // v4 re-pin (08-1 T6): the version rides the current schema; the
-        // provenance key is ABSENT for a plain document (encodeIfPresent).
-        XCTAssertTrue(text.contains("  \"schemaVersion\" : 4\n"))
+        // v5 re-pin (M2-4-1 T4): the version rides the current schema; the
+        // provenance AND rawOverrides keys are ABSENT for a plain document
+        // (encodeIfPresent).
+        XCTAssertTrue(text.contains("  \"schemaVersion\" : 5\n"))
         XCTAssertFalse(text.contains("\"provenance\""))
 
         let json = try JSONSerialization.jsonObject(with: first) as! [String: Any]
@@ -245,7 +246,7 @@ final class SidecarMetadataV3Tests: XCTestCase {
         var v2Lines: [String] = []
         for line in v3Text.split(separator: "\n").map(String.init) {
             if metadataPrefixes.contains(where: { line.hasPrefix($0) }) { continue }
-            if line == "  \"schemaVersion\" : 4" {
+            if line == "  \"schemaVersion\" : 5" {
                 v2Lines.append("  \"schemaVersion\" : 2")
             } else {
                 v2Lines.append(line)
@@ -262,7 +263,7 @@ final class SidecarMetadataV3Tests: XCTestCase {
         let removed = v2LineSet.subtracting(v3Lines)
         XCTAssertEqual(
             removed, ["  \"schemaVersion\" : 2"],
-            "the ONLY changed line is the version bump (2 gone, 4 added)")
+            "the ONLY changed line is the version bump (2 gone, 5 added)")
         XCTAssertEqual(
             added,
             [
@@ -271,7 +272,7 @@ final class SidecarMetadataV3Tests: XCTestCase {
               "  \"keywords\" : null,",
               "  \"note\" : null,",
               "  \"rating\" : null,",
-              "  \"schemaVersion\" : 4",
+              "  \"schemaVersion\" : 5",
             ],
             "the diff is exactly the five metadata keys + the version bump")
     }
@@ -288,7 +289,7 @@ final class SidecarMetadataV3Tests: XCTestCase {
         XCTAssertEqual(restored.colorLabel, 6)
         XCTAssertEqual(restored.keywords, [], "empty array survives (cleared, not untagged)")
         XCTAssertEqual(restored.note, "")
-        XCTAssertEqual(restored.schemaVersion, 4,
-            "fresh writers emit the current schema (v4, 08-1)")
+        XCTAssertEqual(restored.schemaVersion, 5,
+            "fresh writers emit the current schema (v5, M2-4-1)")
     }
 }
