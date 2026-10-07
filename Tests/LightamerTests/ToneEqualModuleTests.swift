@@ -237,4 +237,57 @@ final class ToneEqualModuleTests: XCTestCase {
         let restored = await registry.makeBox(opName: ToneEqualModule.opName, instanceID: id)
         XCTAssertEqual(try XCTUnwrap(restored).instanceID, id, "identity-restoring init wired")
     }
+
+    // MARK: 5. Concurrent runs on a SHARED instance (M4 crash family)
+
+    // The coordinator's live box set is shared across OVERLAPPING
+    // renderPreview tasks — the generation gate drops stale RESULTS but
+    // never cancels the in-flight run (.ips appbundle-crash-2026-10-07-0812
+    // caught TWO concurrent ToneEqualModule.process executions at crash
+    // time: one from a load leg, one from a still-running
+    // notifyLayerChange leg). Pre-fix, the module's reference-bearing
+    // mutable state — the eight-ref `scratch`, REPLACED per plane size —
+    // raced between the runs and tore references (SIGTRAP
+    // swift_unknownObjectRetain in dispatchPack/dispatchLuma; release side
+    // = the SIGSEGV shapes). This test drives the exact overlap shape:
+    // ONE shared box, TWO concurrent RenderPipeline.process runs at
+    // ALTERNATING entry sizes (forcing concurrent ensureScratch
+    // replacements), eight rounds. The gate is survival + completion —
+    // torn-ref detonation is the only failure mode under test, so output
+    // bytes are deliberately not compared.
+    func testConcurrentRunsOnSharedInstanceStayAlive() async throws {
+        let metal = try await makeMetal()
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        let maybeBox = await registry.makeBox(opName: ToneEqualModule.opName)
+        let box = try XCTUnwrap(maybeBox as? ModuleBox<ToneEqualModule>)
+        // Default params = EIGF — the filter leg whose dispatchPack was
+        // the .ips trap frame.
+        box.setParams(ToneEqualModule.Params())
+        let maybeColorin = await registry.makeBox(opName: ColorInModule.opName)
+        let colorin = try XCTUnwrap(maybeColorin)
+        // ONE shared cache — the coordinator shape (per-run pipes, shared
+        // boxes + shared session cache). The DecodedImage is built INSIDE
+        // the closure so the @Sendable child-task captures stay Sendable
+        // (boxes are @unchecked-Sendable, cache/metal are actors).
+        let cache = PipeCache()
+        let runOnce: @Sendable (Int) async throws -> Void = { longEdge in
+            let image = DecodedImage(
+                ciImage: CIImage(color: CIColor(red: 0.25, green: 0.25, blue: 0.25))
+                    .cropped(to: CGRect(x: 0, y: 0, width: 128, height: 96)),
+                rawTech: RAWTechnicalParams(), capture: CaptureMetadata(),
+                segmentationSkyMatte: nil, decoderVersionUsed: .v8)
+            _ = try await RenderPipeline.process(
+                image: image, instances: [colorin, box], imageID: UUID(),
+                resolution: .preview, cache: cache, metal: metal, longEdge: longEdge)
+        }
+
+        for _ in 0..<8 {
+            async let a: Void = try runOnce(64)
+            async let b: Void = try runOnce(96)
+            try await a
+            try await b
+        }
+        drain(metal)
+    }
 }
