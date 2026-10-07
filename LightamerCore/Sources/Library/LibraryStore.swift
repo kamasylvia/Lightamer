@@ -474,6 +474,90 @@ public actor LibraryStore {
         }
     }
 
+    // MARK: - M2-8-1 version_ref projection (KD-3; D-M2-8-CONTEXT-1-A)
+
+    /// One `version_ref` row (the projection's typed face). `versionID` is
+    /// the `.lra` version UUID STRING (the `.lra`↔`.lalb` join key).
+    public struct VersionRefRow: Sendable, Equatable {
+        public var versionID: String
+        public var elementID: Int64
+        public var displayName: String
+        public var createdAtUnix: Int64
+        public var updatedAtUnix: Int64
+
+        public init(
+            versionID: String, elementID: Int64, displayName: String,
+            createdAtUnix: Int64, updatedAtUnix: Int64
+        ) {
+            self.versionID = versionID
+            self.elementID = elementID
+            self.displayName = displayName
+            self.createdAtUnix = createdAtUnix
+            self.updatedAtUnix = updatedAtUnix
+        }
+    }
+
+    /// Whole-table reconcile for ONE image's version projection (KD-3):
+    /// DELETE the element's every row, then INSERT the current set — ONE
+    /// transaction, idempotent, no incremental drift face (the row set is
+    /// a rebuildable mirror of the `.lra` truth; an empty `rows` clears
+    /// the projection — the remove/remove-all face). The app-side sink
+    /// calls this at every version-command tail + restore hydrate (KD-5);
+    /// failures are the caller's log-and-continue (projection ≠ truth).
+    public func replaceVersionRefs(
+        elementID: Int64, rows: [VersionRefRow]
+    ) async throws {
+        try await store.withWriteBatch { handle in
+            try Self.assertImageExists(handle, id: elementID)
+            let delete = try handle.prepare(
+                "DELETE FROM version_ref WHERE element_id = ?")
+            try delete.bindInt(1, elementID)
+            _ = try delete.step()
+            let insert = try handle.prepare("""
+                INSERT INTO version_ref (version_id, element_id, display_name,
+                    created_at_unix, updated_at_unix)
+                VALUES (?, ?, ?, ?, ?)
+                """)
+            for row in rows {
+                try insert.reset()
+                try insert.bindText(1, row.versionID)
+                try insert.bindInt(2, row.elementID)
+                try insert.bindText(3, row.displayName)
+                try insert.bindInt(4, row.createdAtUnix)
+                try insert.bindInt(5, row.updatedAtUnix)
+                _ = try insert.step()
+            }
+            return true
+        }
+    }
+
+    /// The version_ref rows of one image (id-ordered by version_id —
+    /// stable iteration for the reconcile assertions).
+    public func versionRefs(elementID: Int64) async throws -> [VersionRefRow] {
+        try await store.withHandle { handle in
+            let statement = try handle.prepare("""
+                SELECT version_id, element_id, display_name,
+                    created_at_unix, updated_at_unix
+                FROM version_ref WHERE element_id = ?
+                ORDER BY version_id
+                """)
+            try statement.bindInt(1, elementID)
+            var rows: [VersionRefRow] = []
+            while try statement.step() {
+                guard let versionID = statement.columnText(0),
+                    let element = statement.columnInt(1),
+                    let name = statement.columnText(2)
+                else { continue }
+                rows.append(VersionRefRow(
+                    versionID: versionID, elementID: element,
+                    displayName: name,
+                    createdAtUnix: statement.columnInt(3) ?? 0,
+                    updatedAtUnix: statement.columnInt(4) ?? 0))
+            }
+            return rows
+        }
+    }
+
     // MARK: - Row helpers (static — actor-confined closures carry no self)
 
     static func assertAlbumExists(

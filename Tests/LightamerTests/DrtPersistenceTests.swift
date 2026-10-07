@@ -322,7 +322,10 @@ final class DrtPersistenceTests: XCTestCase {
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(contentsOf: sidecarURL))
                 as? [String: Any])
-        XCTAssertEqual(object["schemaVersion"] as? Int, 6)
+        // The current-version constant (M2-8-1 E3 补点——checker 点名四处外
+        // 的实测第五处): a write NOW always stamps the writer's version.
+        XCTAssertEqual(
+            object["schemaVersion"] as? Int, LightamerSidecar.schemaVersionCurrent)
         XCTAssertTrue(object.keys.contains("displayTransform"))
         let document = try Self.decoder.decode(
             LightamerSidecar.self, from: Data(contentsOf: sidecarURL))

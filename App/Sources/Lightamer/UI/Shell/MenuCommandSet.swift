@@ -47,6 +47,10 @@ enum MenuCommandID: String, CaseIterable, Sendable {
     case viewToolRail = "view.toolRail"
     case viewScopes = "view.scopes"
     case viewAdjustmentStack = "view.adjustmentStack"
+
+    // The Copy Adjustments transfer dialog (gate=false; M2-8-2 T3 — the
+    // editor-scoped enablement is the app layer's business, as everywhere).
+    case editCopyAdjustments = "edit.copyAdjustments"
 }
 
 enum MenuCommandSet {
@@ -56,13 +60,15 @@ enum MenuCommandSet {
         .sessionNew, .sessionOpen, .sessionClose, .sessionImport,
     ]
 
-    /// The gate=false command family (project + workspace + search + view).
+    /// The gate=false command family (project + workspace + search + view
+    /// + the M2-8-2 transfer dialog).
     static let newShellRoutes: Set<MenuCommandID> = [
         .projectNew, .projectOpen, .projectRecent, .projectImportFolder,
         .projectBackup, .projectMove,
         .workspaceEnterEditor, .workspaceBackToLibrary,
         .librarySearch,
         .viewToolRail, .viewScopes, .viewAdjustmentStack,
+        .editCopyAdjustments,
     ]
 
     /// The KD-6 pure function: gate × phase → the visible command ids.

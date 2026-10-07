@@ -109,6 +109,32 @@ final class EditorState {
         self.pipeCoordinator = pipeCoordinator
     }
 
+    // ── M2-8-1 T2: the version dimension (KD-2) ─────────────────────────
+
+    /// The version-orchestration back-reference (the pipeCoordinator weak
+    /// pattern — the app root strongly owns both). The coordinator never
+    /// writes history except THROUGH `installVersionChain` below; P2's
+    /// Versions panel consumption rides this same attach. Weak: no cycle.
+    private weak var versionCoordinator: VersionCoordinator?
+
+    /// Wire the version orchestrator (called once beside the other
+    /// attaches).
+    func attach(versionCoordinator: VersionCoordinator) {
+        self.versionCoordinator = versionCoordinator
+    }
+
+    /// The version-swap INSTALL face (KD-2): assign the incoming chain and
+    /// re-derive the live projections through the SAME single rebuild path
+    /// every other history assignment uses (`restoreFromSidecar`,
+    /// `performUndo/Redo/Jump`) — zero new projection code. `baseInstances`
+    /// is deliberately untouched: the pristine seed is shared across
+    /// versions (only chain-owned instances differ).
+    func installVersionChain(_ chain: HistoryStack) {
+        history = chain
+        rebuildInstances()
+        rebuildLayerStack()
+    }
+
     // ── 02-05 history mutators (the ONLY writers of history/instances) ──
 
     /// Seed a freshly loaded image to PRISTINE: empty history + the
@@ -1067,27 +1093,15 @@ final class EditorState {
     /// dedup tuple — items recorded AFTER a structure edit are already
     /// baked into that snapshot, so re-applying ALL in-scope items is
     /// idempotent and chronology-safe).
+    ///
+    /// M2-8-2 T3 (KD-5): the rule lives in Core as
+    /// `LayerStackProjection.rebuild(history:baseLayer:)` — this body is a
+    /// ONE-LINE delegation (the single-path/single-source mandate; the
+    /// Copy Adjustments source enumeration shares the SAME function, and
+    /// the transfer model must never re-derive a second copy).
     private func rebuildLayerStack() {
-        var stack = LayerStack(baseLayer: layerStack?.baseLayer ?? BackgroundLayer())
-        let upTo = history.position >= 0 ? Array(history.items[0...history.position]) : []
-        // The structure slot: layer-structure items AND overwrite-paste
-        // epochs (09-04) both carry a stackSnapshot to rebuild from.
-        if let lastStructure = upTo.lastIndex(where: {
-            $0.layerScope == Self.layerStructureScope
-                || $0.layerScope == HistoryStack.pasteEpochScope
-        }), let snapshot = upTo[lastStructure].stackSnapshot {
-            for layer in snapshot.makeLayers() { stack.addAdjustment(layer) }
-        }
-        // The in-scope param items re-apply onto their layer's chain. The
-        // M2-6-3 DRT document items (drtDocumentScope) are not layer state —
-        // excluded explicitly (the payload rides drtRecord, never a chain).
-        for item in upTo where item.layerScope != nil && item.layerScope != Self.layerStructureScope
-            && item.layerScope != HistoryStack.drtDocumentScope {
-            guard let layer = stack.compositeLayers.first(where: {
-                $0.id.uuidString == item.layerScope
-            }) as? AdjustmentLayer else { continue }
-            layer.chain = HistoryStack.effectiveChain(layer.chain + [item.snapshot])
-        }
-        self.layerStack = stack
+        layerStack = LayerStackProjection.rebuild(
+            history: history,
+            baseLayer: layerStack?.baseLayer ?? BackgroundLayer())
     }
 }

@@ -116,7 +116,13 @@ internal final class AppDelegate: NSObject, NSApplicationDelegate {
     /// D-S3: force the pending sidecar write before the process exits
     /// (bounded wait inside the handler; a hung volume must not block
     /// termination forever).
-    func applicationWillTerminate(_ application: NSApplication) {
+    /// The parameter type is LOAD-BEARING: the protocol's optional is
+    /// `applicationWillTerminate(_ notification: Notification)` — an
+    /// `NSApplication`-typed parameter "nearly matches" (the compiler
+    /// warning) and the ObjC selector dispatch NEVER fires it (found by
+    /// the M2-8-2 T4 kill-walkthrough: the flush/sentinel legs were dead
+    /// on every quit since 02-06; the 2s debounce masked the flush gap).
+    func applicationWillTerminate(_ notification: Notification) {
         guard let handler = terminateHandler else { return }
         MainActor.assumeIsolated {
             handler()
@@ -183,6 +189,10 @@ internal struct LightamerApp: App {
     @State private var sessionState = SessionState()
     @State private var editorState = EditorState()
     @State private var pipeCoordinator = PipeCoordinator()
+    // Plan M2-8-1 T2 (KD-2): the version orchestrator — the side-挂
+    // observable beside its two weak-linked owners (the same root-owns-
+    // both shape; the Versions PANEL itself stays P2).
+    @State private var versionCoordinator = VersionCoordinator()
     @State private var exportState = ExportState()
     @State private var inspectorState = InspectorState()
     // Plan 06-05 T3: the layer-selection + editing-mode state machine
@@ -225,6 +235,18 @@ internal struct LightamerApp: App {
     @State private var pasteboard = AdjustmentsPasteboard()
     @State private var batchSidecarWriter: BatchSidecarWriter?
     @State private var pastePartialRequested = false
+
+    /// Plan M2-8-2 T3 (KD-3): the Copy Adjustments transfer dialog request
+    /// flag (the menu sets it; the app scene presents the sheet — the
+    /// pastePartialRequested shape).
+    @State private var adjustmentTransferPresented = false
+
+    /// Plan M2-8-2 T4 (KD-6): the clean-terminate sentinel — the store is
+    /// the ONE defaults face (L036: read/written at the assembly root
+    /// only, never in a view body); the verdict survives here until the
+    /// editor face consumes it as the one-shot toast.
+    @State private var cleanTerminateStore = CleanTerminateSentinelStore()
+    @State private var lastLaunchWasUnclean = false
 
     /// Plan 12-1 T6: the metadata write face for the UI (commands +
     /// inspector rows + grid menus route through it; it wraps the Core
@@ -414,6 +436,7 @@ internal struct LightamerApp: App {
                 .environment(sessionCoordinator)
                 .environment(editorState)
                 .environment(pipeCoordinator)
+                .environment(versionCoordinator)
                 .environment(beforeAfterState)
                 .environment(softProofState)
                 .environment(edrHeadroomMonitor)
@@ -458,6 +481,18 @@ internal struct LightamerApp: App {
                     // render path.
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
+                    // M2-8-2 T4 (KD-6): the sentinel launch leg — read the
+                    // PREVIOUS session's verdict, then mark THIS session
+                    // running (the toast decision rides the editor-ready
+                    // onChange below; a missing key = first launch = silent).
+                    lastLaunchWasUnclean = cleanTerminateStore.consumeAtLaunch()
+                    // M2-8-1 T2: the version triangle — all three weak
+                    // back-references land BEFORE any open is drained, so
+                    // the first restore already hydrates the slots.
+                    versionCoordinator.attach(
+                        editorState: editorState, pipeCoordinator: pipeCoordinator)
+                    editorState.attach(versionCoordinator: versionCoordinator)
+                    pipeCoordinator.attach(versionCoordinator: versionCoordinator)
                     // Defect B fix: the app-owned Metal context rides the
                     // coordinator from launch — `detectionMetal()` (the
                     // editor GUI chain's render-leg key) is non-nil BEFORE
@@ -1006,6 +1041,11 @@ internal struct LightamerApp: App {
                         // cleans up through the kernel + the discovery
                         // probe).
                         McpServerController.stopEmbeddedForTermination()
+                        // Plan M2-8-2 T4 (KD-6): the sentinel clears AFTER
+                        // the bounded flushes return — a kill inside the
+                        // flush window leaves the flag set, which is the
+                        // unclean case the next launch reports.
+                        cleanTerminateStore.markClean()
                     }
                     #if DEBUG
                     resizeProbeIfRequested()
@@ -1112,6 +1152,27 @@ internal struct LightamerApp: App {
                             }
                         },
                         onDismiss: { libraryWelcomePresented = false })
+                }
+                .sheet(isPresented: $adjustmentTransferPresented) {
+                    // Plan M2-8-2 T3 (KD-3): the Copy Adjustments transfer
+                    // dialog — the paste leg rides the coordinator's
+                    // pasteChain command. The content face re-injects the two
+                    // Observable objects itself (the sheet boundary sits
+                    // outside this chain's .environment writes — the M2-8-3
+                    // acceptance FINDING-A fix; a bare AdjustmentTransferView()
+                    // here traps on open).
+                    AdjustmentTransferSheetContent(
+                        versions: versionCoordinator, editorState: editorState)
+                }
+                .onChange(of: editorState.loadedImageURL != nil) { _, editorReady in
+                    // M2-8-2 T4 (KD-6): the one-shot unclean-terminate
+                    // toast — consumed at the EDITOR face's first readiness
+                    // (the OQ-9-A global single toast; the flag clears so a
+                    // later image never re-raises it).
+                    if editorReady, lastLaunchWasUnclean {
+                        editorState.presentToast(CleanTerminateSentinel.toastCopy)
+                        lastLaunchWasUnclean = false
+                    }
                 }
                 .overlay {
                     // Plan M2-3-1 T6: the progress overlay is now the LEGACY
@@ -1319,6 +1380,16 @@ internal struct LightamerApp: App {
                     pastePartialRequested = true
                 }
                 .disabled(!pasteboard.hasPayload)
+                Divider()
+                // Plan M2-8-2 T3 (KD-3, D-M2-8-CONTEXT-7): the Copy
+                // Adjustments transfer DIALOG — the three-pane checked
+                // paste that lands a NEW VERSION on the target image (the
+                // clipboard copy above stays the batch face).
+                Button(String(localized: "menu_copy_adjustments_dialog")) {
+                    adjustmentTransferPresented = true
+                }
+                .disabled(editorState.loadedImageURL == nil)
+                .accessibilityIdentifier("menu.edit.copyAdjustments")
                 Divider()
                 // Plan 12-4 T3: the preset MANAGER (the CRUD/import/export
                 // face; the apply face lives in the Inspector's preset
