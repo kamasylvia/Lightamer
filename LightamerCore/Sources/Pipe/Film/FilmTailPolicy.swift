@@ -126,17 +126,18 @@ public enum FilmTailAssembly {
 
     /// The film box's params identity — the leg computes the sub-run's
     /// output hash from the SAME derivation the box's commitParams uses
-    /// (one source; the T2 solve payload extends the Params struct and this
-    /// function is its only hash site).
-    public static func methodParamsHash(params: FilmTailParams) -> UInt64 {
-        StableHash.hash(ParamsCoding.encode(FilmMethodBox.Params(record: params.record)))
+    /// (one source; the T2 solve payload rides Params, so the solve is IN
+    /// the box hash — the seed's solvedPackHash term stays the
+    /// cross-run locality fold).
+    public static func methodParamsHash(method: FilmMethodBox.Params) -> UInt64 {
+        StableHash.hash(ParamsCoding.encode(method))
     }
 
     /// `[FilmMethodBox]` — the film sub-run's whole chain (the fused
     /// transform is ONE box; the negative segment and the print LUT sample
     /// live in a single kernel, KD-1's no-intermediate-plane discipline).
-    public static func instances(params: FilmTailParams) -> [any ModuleBoxing] {
-        [ModuleBox(module: FilmMethodBox(record: params.record))]
+    public static func instances(method: FilmMethodBox.Params) -> [any ModuleBoxing] {
+        [ModuleBox(module: FilmMethodBox(record: method.record, method: method))]
     }
 
     /// The display-replay resident filter (the 3×2 matrix's replay half,
@@ -178,22 +179,40 @@ public enum FilmTailAssembly {
     }
 }
 
-/// The film transform box (KD-1/T1) — the sub-run's sole module,
-/// driver-constructed (never registered, never in sidecars, no add face).
-/// The fused single-pass kernel lands with T2 (negative-segment density
-/// lookup → base → crosstalk → print-exposure → print-LUT tetrahedral
-/// sample → log-domain strength mix); T1 ships the BLIT IDENTITY carrier so
-/// the seam/demotion/replay semantics are exercisable and cache-neutral
-/// (the exposure-0EV style: the same-format whole-plane blit writes every
-/// pixel, so the plane identity is honest for the cache).
+/// The film transform box (KD-1/T1 carrier, T2 fused kernel) — the
+/// sub-run's sole module, driver-constructed (never registered, never in
+/// sidecars, no add face).
+///
+/// T2: the box consumes the SOLVED print session (the neutral pack +
+/// runtime exposure gain — `FilmSolveCache`'s output, resolved per run by
+/// the pipe's film leg) and dispatches `film_subrun` (FilmSubRunKernels.metal
+/// — negative segment → filter pack → print LUT → strength mix, ONE pass).
+/// A nil `method` payload (the T1 face: unresolved materials) keeps the
+/// routed-blit identity carrier — cache-neutral, byte-exact.
 public final class FilmMethodBox: IOPModule {
 
-    /// The box's committed payload (T1: the record only — the seed carries
-    /// the solve identity; T2 extends with the solve payload and the hash
-    /// derivation stays on `FilmTailAssembly.methodParamsHash`).
+    /// The box's committed payload: the record + the solved pack. The
+    /// whole struct encodes into the params hash, so ANY solve-component
+    /// change (pack or gain) flips the box's plane keys (and the seed's
+    /// solvedPackHash term flips in step — one truth).
     public struct Params: Codable & Hashable & Sendable {
         public var record: FilmRecord
-        public init(record: FilmRecord) { self.record = record }
+        /// The solved Magenta dial, CC points (0 = the T1 unresolved face).
+        public var magentaCC: Float
+        /// The solved Yellow dial, CC points.
+        public var yellowCC: Float
+        /// The exposure gain (auto normalization × 2^exposureEv), linear.
+        public var exposureGain: Float
+
+        public init(
+            record: FilmRecord, magentaCC: Float = 0, yellowCC: Float = 0,
+            exposureGain: Float = 1
+        ) {
+            self.record = record
+            self.magentaCC = magentaCC
+            self.yellowCC = yellowCC
+            self.exposureGain = exposureGain
+        }
     }
 
     public static let opName = "filmMethod"
@@ -206,18 +225,22 @@ public final class FilmMethodBox: IOPModule {
     public static let defaultColorspace: IOPColorspace = .RGB
 
     public let record: FilmRecord
+    /// The resolved method params (the T1 identity face when the materials
+    /// never resolved — the caller hands the same Params in).
+    public let method: Params
 
-    public init(record: FilmRecord) {
+    public init(record: FilmRecord, method: Params? = nil) {
         self.record = record
+        self.method = method ?? Params(record: record)
     }
 
     public func reloadDefaults(image: DecodedImage) async -> Params {
-        Params(record: record)
+        method
     }
 
     public func commitParams(_ params: Params, into piece: inout IOPiece) {
         piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
-        piece.data = nil  // T1: no uniforms (the fused kernel arrives with T2)
+        piece.data = nil  // uniforms ride the per-run assembly (upload leg)
     }
 
     public func modifyROIOut(_ roi: inout ROI, input: ROI, piece: IOPiece) {
@@ -236,10 +259,25 @@ public final class FilmMethodBox: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        // T1 carrier: the same-format whole-plane blit (the Ashift/Crop
-        // blitIdentity shape — makeRoutedCommandBuffer, L008 endEncoding
-        // before commit, L031 routed acquisition). T2 replaces this body
-        // with the fused kernel dispatch.
+        // The fused leg needs the run's GPU payloads (the curve buffer +
+        // the baked table — installed by the pipe's film leg assembly).
+        // Absent payloads = the identity degrade: the T1 carrier face (a
+        // box processed outside the film leg's assembly — unresolved
+        // materials, tests without profiles).
+        guard let context = FilmMethodBox.runContext ?? FilmMethodBox.assemblyContextForTesting,
+            let command = context.payload(for: method)
+        else {
+            try blitIdentity(input: input, output: output, metal: metal)
+            return
+        }
+        try await command.dispatch(input: input, output: output, metal: metal)
+    }
+
+    /// Whole-plane same-format blit (the T1 carrier — routed acquisition,
+    /// L031; L008 endEncoding before commit).
+    private func blitIdentity(
+        input: any MTLTexture, output: any MTLTexture, metal: MetalContext
+    ) throws {
         guard let commandBuffer = try? metal.makeRoutedCommandBuffer(),
             let blit = commandBuffer.makeBlitCommandEncoder()
         else {
@@ -254,4 +292,338 @@ public final class FilmMethodBox: IOPModule {
         blit.endEncoding()  // L008
         commandBuffer.commit()
     }
+
+    // MARK: - The per-run assembly context (the GPU payload seam)
+
+    /// The film leg uploads the curve buffer + the baked print table PER
+    /// RUN (the profiles are per-document; the buffers are run-scoped —
+    /// never cached beyond the run, the PlaneCache discipline). The pipe
+    /// films this context onto the leg pipe; the box reads it at process.
+    /// `nonisolated(unsafe)` + explicit set/clear INSIDE runFilmLeg — the
+    /// same escape the DisplayProfile seam uses (one writer, synchronous
+    /// window, no cross-run leakage).
+    nonisolated(unsafe) static var runContext: FilmGPUPayloads?
+
+    /// Test injection face (never set by production code).
+    nonisolated(unsafe) static var assemblyContextForTesting: FilmGPUPayloads?
+}
+
+/// The film sub-run's GPU payloads for ONE run (the curve buffer, the baked
+/// table texture, the uniform carrier). Built by the pipe's film leg (T2
+/// wiring) from the tail params' resolved profiles; dropped with the run.
+public final class FilmGPUPayloads: @unchecked Sendable {
+
+    public struct Command {
+        public let uniforms: FilmSubRunUniforms
+        public let curveBuffer: (any MTLBuffer)
+        public let tableTexture: (any MTLTexture)
+
+        public func dispatch(
+            input: any MTLTexture, output: any MTLTexture, metal: MetalContext
+        ) async throws {
+            var u = uniforms
+            try await metal.dispatch2DTexture(
+                functionName: "film_subrun", input: input, output: output
+            ) { encoder in
+                encoder.setBuffer(curveBuffer, offset: 0, index: 0)
+                encoder.setBytes(&u, length: MemoryLayout<FilmSubRunUniforms>.stride, index: 1)
+                encoder.setTexture(tableTexture, index: 2)
+            }
+        }
+    }
+
+    private var commands: [FilmMethodBox.Params: Command] = [:]
+    private let lock = NSLock()
+
+    public init() {}
+
+    /// Register the payload for one method params value (the assembly leg).
+    public func install(_ method: FilmMethodBox.Params, command: Command) {
+        lock.lock()
+        commands[method] = command
+        lock.unlock()
+    }
+
+    public func payload(for method: FilmMethodBox.Params) -> Command? {
+        lock.lock()
+        defer { lock.unlock() }
+        return commands[method]
+    }
+}
+
+/// The Swift mirror of the MSL `FilmSubRunUniforms` (the ABI single source
+/// is the MSL struct; every member 4-byte aligned — no padding surprises at
+/// 17 floats... the stride rounds to 68 → padded 80; `MemoryLayout.stride`
+/// matches on both sides).
+public struct FilmSubRunUniforms {
+    var exposureGain: Float
+    var kM: Float
+    var kY: Float
+    var strength: Float
+    var baseR: Float
+    var baseG: Float
+    var baseB: Float
+    var axisLo: Float
+    var axisHi: Float
+    var curveCountF: Float
+    var domainLoX: Float
+    var domainLoY: Float
+    var domainLoZ: Float
+    var domainHiX: Float
+    var domainHiY: Float
+    var domainHiZ: Float
+    var width: Float
+    var height: Float
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The runtime statistics leg (KD-2) — the exposure-normalization side of
+// FSIM-01b. The HISTOGRAM machinery lives in LightamerIOP
+// (ScopeReduce.histogram); Core cannot import IOP (D-03), so the seam
+// follows the LayerCompositeSeam precedent: Core holds the holder + the
+// value type, IOP installs the adapter at populate time. Uninstalled (pure
+// Core harnesses) = nil → the solve degrades to the bake-time neutral pack
+// (the exposure gain rides 2^exposureEv alone) — the deterministic face.
+// ─────────────────────────────────────────────────────────────────────────────
+
+public enum FilmStatsSeam {
+
+    /// The full-plane counting histogram (256 bins × R/G/B/luma — the
+    /// ScopeReduce shape, Core-side value copy). The statsHash is FNV-1a
+    /// over the flattened counts (L013 — the deterministic byte face).
+    public struct PlaneHistogram: Sendable, Equatable {
+        public let perChannel: [[UInt32]]
+
+        public init(perChannel: [[UInt32]]) {
+            self.perChannel = perChannel
+        }
+
+        public var statsHash: UInt64 {
+            var h = StableHash.fnvOffsetBasis
+            for channel in perChannel {
+                for count in channel {
+                    var v = count
+                    h = withUnsafeBytes(of: &v) { StableHash.combine(h, $0) }
+                }
+            }
+            return h
+        }
+    }
+
+    /// The installed adapter (IOP's ScopeReduce bridge; L014 fence inside).
+    public nonisolated(unsafe) static var histogram:
+        @Sendable (_ plane: any MTLTexture, _ metal: MetalContext) async throws -> PlaneHistogram? =
+            { _, _ in nil }
+}
+
+/// The runtime solve cache (KD-2): key = fnv(materialPairHash ⊕ statsHash ⊕
+/// modeTag); value = the solved pack (M0, Y0) + the exposure gain + the
+/// value-domain identity hash. NSLock + insertion-order LRU 8. Deterministic
+/// by construction (the solve is a pure function of the key's terms).
+public final class FilmSolveCache: @unchecked Sendable {
+
+    public struct Solution: Equatable, Sendable {
+        public let magentaCC: Double
+        public let yellowCC: Double
+        public let exposureGain: Double
+        /// FNV over the bit patterns of (M, Y, gain) — the seed's
+        /// solvedPackHash term (the value-domain identity).
+        public var solvedPackHash: UInt64 {
+            var h = StableHash.fnvOffsetBasis
+            for value in [magentaCC, yellowCC, exposureGain] {
+                var bits = value.bitPattern
+                h = withUnsafeBytes(of: &bits) { StableHash.combine(h, $0) }
+            }
+            return h
+        }
+    }
+
+    /// The AUTO core (the cached face): the neutral pack + the exposure
+    /// normalization + the content-adaptive projection — a pure function of
+    /// the cache key's terms. The RECORD terms (manual Y/M shifts, the
+    /// exposure trim) layer at consumption and are NEVER cached.
+    public struct AutoSolution: Equatable, Sendable {
+        public let neutralMagentaCC: Double
+        public let neutralYellowCC: Double
+        public let autoGain: Double
+        public let contentDeltaM: Double
+        public let contentDeltaY: Double
+    }
+
+    private let lock = NSLock()
+    private var solutions: [UInt64: AutoSolution] = [:]
+    private var order: [UInt64] = []
+    private let capacity: Int
+
+    public init(capacity: Int = 8) {
+        self.capacity = capacity
+    }
+
+    public func autoSolution(for key: UInt64) -> AutoSolution? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let hit = solutions[key] else { return nil }
+        order.removeAll { $0 == key }
+        order.append(key)
+        return hit
+    }
+
+    public func store(_ solution: AutoSolution, for key: UInt64) {
+        lock.lock()
+        defer { lock.unlock() }
+        solutions[key] = solution
+        order.append(key)
+        while order.count > capacity {
+            solutions.removeValue(forKey: order.removeFirst())
+        }
+    }
+
+    public var countForTesting: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return solutions.count
+    }
+}
+
+/// The runtime solve (KD-2): the bake-time neutral pack + the exposure
+/// normalization (+ the optional content-adaptive channel shift), the
+/// manual Y/M shifts ALWAYS added on top. All Float64 channel math; the
+/// percentiles are INTEGER RANK (cumulative counts — never float
+/// comparisons on percentile values). The Core solve does NOT clamp — the
+/// CC totals clamp [0, 100] at consumption (the FilmRecord posture).
+public enum FilmRuntimeSolve {
+
+    /// The mode tag (the cache key's third term — contentAdaptiveShift only;
+    /// NO ROI/context term: one solve per run over the FULL top plane — the
+    /// per-ROI red line is structural here).
+    public static func modeTag(contentAdaptive: Bool) -> String {
+        contentAdaptive ? "film.solve.contentAdaptive.v1" : "film.solve.spektraLab.v1"
+    }
+
+    public static func cacheKey(
+        materialPairHash: UInt64, statsHash: UInt64, contentAdaptive: Bool
+    ) -> UInt64 {
+        var h = StableHash.fnvOffsetBasis
+        withUnsafeBytes(of: materialPairHash) { h = StableHash.combine(h, $0) }
+        withUnsafeBytes(of: statsHash) { h = StableHash.combine(h, $0) }
+        let tag = Array(modeTag(contentAdaptive: contentAdaptive).utf8)
+        h = tag.withUnsafeBufferPointer {
+            StableHash.combine(h, UnsafeRawBufferPointer($0))
+        }
+        return h
+    }
+
+    /// The integer-rank percentile of a 256-bin channel (the rank where the
+    /// cumulative count crosses the fraction of the total). P50 of channel
+    /// 3 = the exposure-normalization anchor.
+    public static func percentileBin(
+        _ counts: [UInt32], fraction: Double
+    ) -> Int {
+        let total = counts.reduce(0) { $0 + Int($1) }
+        guard total > 0 else { return 0 }
+        let target = Int(Double(total) * fraction)
+        var cumulative = 0
+        for (bin, count) in counts.enumerated() {
+            cumulative += Int(count)
+            if cumulative >= max(target, 1) {
+                return bin
+            }
+        }
+        return 255
+    }
+
+    /// The exposure gain: normalize the luma P50 to mid-gray (0.184). The
+    /// TARGET is principled, not assumed: the bake's per-pair exposure
+    /// calibration (FilmPrintBake.solveExposureCalibration) places the
+    /// neutral mid-gray AT the paper's mid density — so "the paper
+    /// mid-density's target EV" ≡ 0 EV, and the gain is the ratio 0.184 /
+    /// P50. The [0,1] histogram domain is the ScopeReduce contract (an
+    /// over-exposed P50 clamps at bin 255 — the registered stats boundary).
+    public static func exposureGain(
+        histogram: FilmStatsSeam.PlaneHistogram
+    ) -> Double {
+        let luma = histogram.perChannel[3]
+        let p50Bin = percentileBin(luma, fraction: 0.5)
+        let p50Linear = (Double(p50Bin) + 0.5) / 256.0
+        guard p50Linear > 0 else { return 1.0 }
+        return 0.184 / p50Linear
+    }
+
+    /// The content-adaptive channel shift (default OFF): the mid-gray
+    /// three-channel imbalance projected onto the filter-gain basis — the
+    /// closed form over the orthogonal basis (M → G, Y → B; R anchored).
+    /// Returns (ΔM, ΔY) in CC points.
+    public static func contentAdaptiveShift(
+        histogram: FilmStatsSeam.PlaneHistogram
+    ) -> (deltaM: Double, deltaY: Double) {
+        // The per-channel P50 (integer rank) as EV offsets vs the luma P50.
+        func channelEV(_ channel: Int) -> Double {
+            let bin = percentileBin(histogram.perChannel[channel], fraction: 0.5)
+            return log2((Double(bin) + 0.5) / 256.0 / 0.184)
+        }
+        let lumaEV = channelEV(3)
+        // The imbalance in STOPS (per channel); the dial conversion
+        // q = s × log2(10) stops per CC turns the projection into CC.
+        let u = SIMD3<Double>(channelEV(0) - lumaEV, channelEV(1) - lumaEV, channelEV(2) - lumaEV)
+        let qM = FilmFilterPackSolver.magentaExposurePerCC * Foundation.log2(10.0)
+        let qY = FilmFilterPackSolver.yellowExposurePerCC * Foundation.log2(10.0)
+        // The basis vectors (0, qM, 0) / (0, 0, qY): orthogonal → the
+        // closed form is the coordinate projection.
+        let deltaM = u.y / (qM * qM) * qM
+        let deltaY = u.z / (qY * qY) * qY
+        return (deltaM, deltaY)
+    }
+
+    /// The full solve: the AUTO core (cached — the neutral pack + the
+    /// exposure normalization + the content-adaptive projection, a pure
+    /// function of pair ⊕ stats ⊕ mode) with the RECORD terms layered at
+    /// consumption (the manual Y/M shifts + the exposure trim are NOT cache
+    /// terms — the KD-2 ruling: they ride the recordHash; the FINAL values
+    /// return). All Float64 channel math; the percentiles are INTEGER RANK
+    /// (cumulative counts — never float comparisons on percentile values).
+    /// The Core solve does NOT clamp — the CC totals clamp [0, 100] at
+    /// consumption (the FilmRecord posture).
+    public static func solve(
+        record: FilmRecord, film: FilmProfile, paper: FilmProfile,
+        materialPairHash: UInt64, histogram: FilmStatsSeam.PlaneHistogram?
+    ) throws -> FilmSolveCache.Solution {
+        let statsHash = histogram?.statsHash ?? 0
+        let key = cacheKey(
+            materialPairHash: materialPairHash, statsHash: statsHash,
+            contentAdaptive: record.contentAdaptiveShift)
+        var auto: FilmSolveCache.AutoSolution
+        if let cached = FilmSolveCache.shared.autoSolution(for: key) {
+            auto = cached
+        } else {
+            // The bake-time neutral pack (the 01 solver single source).
+            let neutral = try FilmFilterPackSolver.solveNeutralPack(film: film, paper: paper)
+            var gain = 1.0
+            var dM = 0.0
+            var dY = 0.0
+            if record.contentAdaptiveShift, let histogram {
+                let shift = contentAdaptiveShift(histogram: histogram)
+                dM = shift.deltaM
+                dY = shift.deltaY
+            }
+            if let histogram {
+                gain = exposureGain(histogram: histogram)
+            }
+            auto = FilmSolveCache.AutoSolution(
+                neutralMagentaCC: neutral.magentaCC, neutralYellowCC: neutral.yellowCC,
+                autoGain: gain, contentDeltaM: dM, contentDeltaY: dY)
+            FilmSolveCache.shared.store(auto, for: key)
+        }
+        // The manual shifts ALWAYS on top (CC point domain, unclamped here —
+        // the consumption clamp is the panel/consumer's face).
+        let m = auto.neutralMagentaCC + auto.contentDeltaM + Double(record.mFilterShift)
+        let y = auto.neutralYellowCC + auto.contentDeltaY + Double(record.yFilterShift)
+        let totalGain = auto.autoGain * Foundation.pow(2.0, Double(record.exposureEv))
+        return FilmSolveCache.Solution(magentaCC: m, yellowCC: y, exposureGain: totalGain)
+    }
+}
+
+extension FilmSolveCache {
+    /// The process-wide cache (one per session — the solve is a pure
+    /// function of the key, so sharing across pipes is value-invisible).
+    public static let shared = FilmSolveCache()
 }

@@ -1022,17 +1022,19 @@ internal final class PixelPipe: @unchecked Sendable {
         return (texture, roi)
     }
 
-    /// The film leg (KD-1 ①): a fresh sub-run pipe over the driver-assembled
-    /// `[FilmMethodBox]` — fresh-tail-pipe shape (`runDrtTailLeg` twin),
-    /// `isFilmTailLeg` re-entry guard, working float32 in/out. Returns the
-    /// film plane + its negotiated ROI + the film OUTPUT hash (the seed ⊕
-    /// the film box's paramsHash — the SAME fold the sub-run's levelChain
-    /// computes, so the DRT tail / display replay seed and the film plane's
-    /// cache key agree by construction).
+    /// The film leg (KD-1 ① + KD-2): a fresh sub-run pipe over the driver-
+    /// assembled `[FilmMethodBox]` — fresh-tail-pipe shape (`runDrtTailLeg`
+    /// twin), `isFilmTailLeg` re-entry guard, working float32 in/out.
     ///
-    /// T2 adds the statistics leg HERE (the full-frame histogram of `input`
-    /// → statsHash → `FilmSolveCache` → solvedPackHash — the seed's third
-    /// fold term; the T1 placeholder 0 keeps the fold order final).
+    /// T2 statistics leg: ONE full-plane histogram of the top plane (the
+    /// ScopeReduce seam — never per-ROI/per-tile: the film box is not
+    /// tile-eligible, so one solve governs the whole run — the seam-free
+    /// red line is structural). The solve (KD-2: bake-time neutral pack ⊕
+    /// exposure normalization ⊕ the manual shifts) lands in the
+    /// process-wide `FilmSolveCache` and feeds BOTH the seed's
+    /// solvedPackHash term AND the box's Params (one truth). Unresolved
+    /// materials (nil profiles / an uninstalled histogram seam) = the T1
+    /// identity face (solvedPackHash 0, the byte-neutral carrier).
     private func runFilmLeg(
         input: any MTLTexture,
         inputROI: ROI,
@@ -1040,11 +1042,37 @@ internal final class PixelPipe: @unchecked Sendable {
         upstreamSeed: UInt64,
         metal: MetalContext
     ) async throws -> (texture: any MTLTexture, roi: ROI, outputHash: UInt64) {
-        // T1 solve placeholder: the runtime normalization leg (statistics →
-        // solve cache) arrives with T2; the seed's solvedPackHash term is
-        // the constant 0 until then (never a legal FNV output — cannot
-        // collide with a real solve identity).
-        let solvedPackHash: UInt64 = 0
+        var solvedPackHash: UInt64 = 0
+        var method = FilmMethodBox.Params(record: params.record)
+        var payloads: FilmGPUPayloads? = nil
+        if let film = params.filmProfile, let paper = params.paperProfile {
+            // ① the statistics: ONE full-plane pass (the seam may be
+            // uninstalled in pure-Core harnesses — the gain then rides the
+            // manual exposure trim alone, deterministically).
+            let histogram = try? await FilmStatsSeam.histogram(input, metal)
+            // ② the solve (cached; key = pair ⊕ stats ⊕ mode).
+            if let solution = try? FilmRuntimeSolve.solve(
+                record: params.record, film: film, paper: paper,
+                materialPairHash: params.materialPairHash, histogram: histogram)
+            {
+                solvedPackHash = solution.solvedPackHash
+                method = FilmMethodBox.Params(
+                    record: params.record,
+                    magentaCC: Float(solution.magentaCC),
+                    yellowCC: Float(solution.yellowCC),
+                    exposureGain: Float(solution.exposureGain))
+                // ③ the GPU payload assembly (run-scoped; the bake rides
+                // the per-pair LRU inside FilmPrintBake.Cache).
+                if let assembled = Self.assembleFilmPayloads(
+                    film: film, paper: paper, method: method, plane: input,
+                    metal: metal)
+                {
+                    payloads = assembled
+                }
+            }
+        }
+        defer { FilmMethodBox.runContext = nil }
+        FilmMethodBox.runContext = payloads
         let filmPipe = PixelPipe(resolution: resolution, cache: cache)
         filmPipe.imageID = imageID
         filmPipe.layerStack = layerStack
@@ -1055,11 +1083,91 @@ internal final class PixelPipe: @unchecked Sendable {
             upstream: upstreamSeed, params: params, solvedPackHash: solvedPackHash)
         let (output, _) = try await filmPipe.runSub(
             input: input, inputROI: inputROI,
-            instances: FilmTailAssembly.instances(params: params),
+            instances: FilmTailAssembly.instances(method: method),
             decodeHash: seed, metal: metal, layerID: cacheLayerID)
         let outputHash = Self.chain(
-            seed, FilmTailAssembly.methodParamsHash(params: params))
+            seed, FilmTailAssembly.methodParamsHash(method: method))
         return (output, filmPipe.roi, outputHash)
+    }
+
+    /// The film leg's GPU payload assembly: the curve buffer (channel-major
+    /// 3×256 float32), the baked print table (texture3d rgba32Float — HALF
+    /// precision is barred on the scene-linear output face), and the
+    /// uniforms. nil = the assembly degraded (no device resources) — the
+    /// box then takes the identity face (the typed-degrade posture).
+    private static func assembleFilmPayloads(
+        film: FilmProfile, paper: FilmProfile, method: FilmMethodBox.Params,
+        plane: any MTLTexture, metal: MetalContext
+    ) -> FilmGPUPayloads? {
+        guard let table = try? FilmPrintBake.Cache.shared.table(
+            forPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper),
+            film: film, paper: paper)
+        else { return nil }
+        // The curves: channel-major (3 × 256) float32.
+        var curves = [Float](repeating: 0, count: 3 * film.logExposure.count)
+        let count = film.logExposure.count
+        for i in 0..<count {
+            for c in 0..<3 {
+                curves[c * count + i] = film.densityCurves[i][c]
+            }
+        }
+        guard let curveBuffer = metal.device.makeBuffer(
+            bytes: curves, length: curves.count * MemoryLayout<Float>.stride,
+            options: .storageModeShared)
+        else { return nil }
+        let level = FilmPrintTable.level
+        let descriptor = MTLTextureDescriptor()
+        descriptor.textureType = .type3D
+        descriptor.pixelFormat = .rgba32Float
+        descriptor.width = level
+        descriptor.height = level
+        descriptor.depth = level
+        descriptor.usage = [.shaderRead]
+        descriptor.storageMode = .shared
+        guard let tableTexture = metal.device.makeTexture(descriptor: descriptor) else {
+            return nil
+        }
+        var texels = [Float](repeating: 0, count: table.data.count * 4)
+        for (index, value) in table.data.enumerated() {
+            texels[index * 4 + 0] = value.x
+            texels[index * 4 + 1] = value.y
+            texels[index * 4 + 2] = value.z
+            texels[index * 4 + 3] = 1
+        }
+        texels.withUnsafeBytes {
+            tableTexture.replace(
+                region: MTLRegionMake3D(0, 0, 0, level, level, level),
+                mipmapLevel: 0, slice: 0, withBytes: $0.baseAddress!,
+                bytesPerRow: level * 16, bytesPerImage: level * level * 16)
+        }
+        let base: (r: Double, g: Double, b: Double)
+        do {
+            base = try film.baseDensityProjection()
+        } catch {
+            return nil
+        }
+        let axisLo = Float(film.logExposure.first ?? -3)
+        let axisHi = Float(film.logExposure.last ?? 4)
+        let uniforms = FilmSubRunUniforms(
+            exposureGain: method.exposureGain,
+            kM: method.magentaCC * Float(FilmFilterPackSolver.magentaExposurePerCC),
+            kY: method.yellowCC * Float(FilmFilterPackSolver.yellowExposurePerCC),
+            strength: method.record.strength,
+            baseR: Float(base.r), baseG: Float(base.g), baseB: Float(base.b),
+            axisLo: axisLo, axisHi: axisHi,
+            curveCountF: Float(count),
+            domainLoX: table.domainLo.x, domainLoY: table.domainLo.y,
+            domainLoZ: table.domainLo.z,
+            domainHiX: table.domainHi.x, domainHiY: table.domainHi.y,
+            domainHiZ: table.domainHi.z,
+            width: Float(plane.width), height: Float(plane.height))
+        let payloads = FilmGPUPayloads()
+        payloads.install(
+            method,
+            command: FilmGPUPayloads.Command(
+                uniforms: uniforms, curveBuffer: curveBuffer,
+                tableTexture: tableTexture))
+        return payloads
     }
 
     /// The film display replay leg (KD-1, checker E4): the demoted display

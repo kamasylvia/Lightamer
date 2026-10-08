@@ -74,6 +74,14 @@ public enum LightamerIOPRegistry {
         // pair. Envelope boxes are NEVER registered here (zero registry
         // face — AC#4); this only hands the boxing closure to Core.
         ACESccEnvelope.install()
+        // M3-3-02 T2 (KD-2): the film statistics seam — Core's film leg
+        // consumes the full-plane histogram through the Core-side value
+        // type; the ScopeReduce bridge (L014 fence inside) installs here,
+        // the same direction as the envelope above.
+        FilmStatsSeam.histogram = { plane, metal in
+            let histogram = try await ScopeReduce.histogram(of: plane, metal: metal)
+            return FilmStatsSeam.PlaneHistogram(perChannel: histogram.perChannel)
+        }
         // The per-site gate (KD-1). Each gated site carries its matrix
         // verdict (M2-1-MATRIX.md is the disable decision of record); the
         // 34 enabled sites call `registry.register` directly, unchanged.

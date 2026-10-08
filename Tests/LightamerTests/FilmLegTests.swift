@@ -376,7 +376,57 @@ final class FilmLegTests: XCTestCase {
             "input + film + colorout + borders + watermark + gamma — a re-entering film leg would exceed (the cold-store exact count)")
     }
 
-    // MARK: - 8: FULL-resolution smoke (the matrix holds at 100% viewing)
+    // MARK: - 8 (T2): the RESOLVED-materials face — the fused kernel path
+
+    /// The profiles resolved + the histogram seam installed (the registry
+    /// populate) → the film leg dispatches `film_subrun` (the fused kernel)
+    /// instead of the identity carrier. Gate: the kernel runs (bytes MOVE),
+    /// the plane stays working float32, the solve locality holds (a record
+    /// change re-runs exactly the film plane).
+    func testResolvedMaterialsRenderThroughTheFusedKernel() async throws {
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()  // installs FilmStatsSeam
+        let store = try FilmMaterialStore(
+            profilesDirectory: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Resources/FilmProfiles/profiles"))
+        let film = try XCTUnwrap(store.profile(id: "kodak_portra_400"))
+        let paper = try XCTUnwrap(store.profile(id: "kodak_portra_endura"))
+        let pairHash = FilmMaterialStore.materialPairHash(film: film, paper: paper)
+        let image = makeImage()
+        let chain = try await makeTerminalChain(registry: registry)
+        let params = FilmTailParams(
+            record: filmRecord, filmProfile: film, paperProfile: paper,
+            materialPairHash: pairHash)
+        // The film-off face (the same chain, byte-comparable).
+        let (off, _) = try await render(image, chain, policy: .edrLinear, metal: metal)
+        // The film-on face: the fused kernel renders.
+        let (on, onStats) = try await render(
+            image, chain, policy: .edrLinear, filmTail: params, metal: metal)
+        XCTAssertEqual(on.pixelFormat, WorkingSpace.pixelFormat, "the float32 working face")
+        XCTAssertNotEqual(
+            Self.readAllBytes(on), Self.readAllBytes(off),
+            "the film look MOVED the pixels (the fused kernel dispatched)")
+        XCTAssertEqual(
+            onStats.misses, 3, "input + film box + colorout replay")
+        // The solve locality: a strength change flips the record hash (the
+        // seed AND the box params) — the film plane + the replay re-render.
+        var shifted = filmRecord
+        shifted.strength = 0.5
+        let (coldTexture, _) = try await render(
+            image, chain, policy: .edrLinear,
+            filmTail: FilmTailParams(
+                record: shifted, filmProfile: film, paperProfile: paper,
+                materialPairHash: pairHash),
+            metal: metal)
+        XCTAssertNotEqual(
+            Self.readAllBytes(on), Self.readAllBytes(coldTexture),
+            "a strength change moves the render (the strength mix)")
+    }
+
+    // MARK: - 9: FULL-resolution smoke (the matrix holds at 100% viewing)
 
     func testSDRGammaFilmHoldsAtFullResolution() async throws {
         let metal = try await makeMetal()
