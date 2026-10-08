@@ -1,5 +1,6 @@
 import LightamerCore
 import LightamerIOP
+import AppKit
 import ImageIO
 import CoreImage
 import SwiftUI
@@ -105,6 +106,10 @@ struct WorkspaceHostView: View {
     @State private var relinkRows: [LibraryImageRow] = []
     /// The M2-3-3 T2 yiyin top-bar sheet (the D4 独有入口).
     @State private var isYiyinSheetPresented = false
+    /// M3-1-02: the yiyin sheet's ratio domain — THIS host's visible face,
+    /// measured below at the sheet mount segment (KD-2: the ratio bound's
+    /// basis; a .sheet content face cannot see its presenting view).
+    @State private var yiyinSheetDomain: CGSize = .zero
 
     /// The content-face markers this host renders (the test surface, the
     /// ContentView.visibleContentFaceMarkers precedent). The gate=true face
@@ -199,8 +204,17 @@ struct WorkspaceHostView: View {
             }
         }
         // The yiyin 印框/水印 + text-overlay sheet (M2-3-3 T2, D4 独有入口).
+        // M3-1-02: the host's own geometry is the sheet's ratio domain
+        // (KD-2) — measured on THIS segment via onGeometryChange (the
+        // ResizeObserver equivalent) and handed to the sheet, whose size
+        // re-derives from the stored ratios when the domain changes.
+        .onGeometryChange(for: CGSize.self) { proxy in
+            proxy.size
+        } action: { yiyinSheetDomain = $0 }
         .sheet(isPresented: $isYiyinSheetPresented) {
-            YiyinTopBarSheet(onDismiss: { isYiyinSheetPresented = false })
+            YiyinTopBarSheet(
+                onDismiss: { isYiyinSheetPresented = false },
+                domainSize: yiyinSheetDomain)
         }
         // M2-10-03: the labeling ask (OQ-6-A — labeling writes user-visible
         // state, so it asks). 「分析」routes the ids into the registry's
@@ -1205,20 +1219,37 @@ struct AIRatingConfirmSheet: View {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// YiyinTopBarSheet (Plan M2-3-3 T2, D4) — the 印框/水印 first-class entry: the
-// dual-section yiyin panel (watermark + borders rows) plus the TextOverlay
-// carrier, presented from the editor top bar. The panel FILES are untouched:
-// the sheet instances them with chain records (a missing op mounts a default
-// record — the first edit absorbs it into the global chain through the D-H1
-// live upsert, so the sheet is honest on an un-edited image too).
+// YiyinTopBarSheet (Plan M2-3-3 T2, D4; M3-1-02 draggable edges) — the
+// 印框/水印 first-class entry: the dual-section yiyin panel (watermark +
+// borders rows) plus the TextOverlay carrier, presented from the editor top
+// bar. The panel FILES are untouched: the sheet instances them with chain
+// records (a missing op mounts a default record — the first edit absorbs it
+// into the global chain through the D-H1 live upsert, so the sheet is honest
+// on an un-edited image too).
+//
+// M3-1-02 (YIYIN-09): the sheet itself is drag-resizable on BOTH axes —
+// ratio-driven frame + right/bottom edge handles + live readout, a semantic
+// port of upstream PR #126's five disciplines (double clamp / persist only
+// on release / zero history+pipe during drag / container re-derive / size
+// readout). The sizing math lives in YiyinSheetSizing.swift; the ratio keys
+// in YiyinSheetMetrics.swift (injected defaults).
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct YiyinTopBarSheet: View {
 
     let onDismiss: () -> Void
 
+    /// The attaching-container visible domain (KD-2: the ratio bound's
+    /// basis) — measured at the MOUNT segment in WorkspaceHostView (a
+    /// .sheet content face cannot see its presenting view) and handed in.
+    var domainSize: CGSize = .zero
+
     @Environment(EditorState.self) private var editorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
+    /// M3-1-02: the sizing state landing surface (KD-2/KD-4) — the body
+    /// binds to the model's resolved faces; persistence rides the model's
+    /// injected metrics (the body never touches UserDefaults).
+    @State private var model = YiyinSheetResizeModel()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1229,6 +1260,12 @@ struct YiyinTopBarSheet: View {
                     .font(.headline)
                     .foregroundStyle(ThemeTokens.textPrimary)
                 Spacer()
+                // M3-1-02: the live size readout (upstream PR #126's
+                // `${round(w)} × ${round(h)}` verbatim — no key).
+                Text(verbatim: model.readout)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(ThemeTokens.textSecondary)
+                    .accessibilityIdentifier("yiyin.sheet.size-readout")
                 Button {
                     onDismiss()
                 } label: {
@@ -1270,8 +1307,19 @@ struct YiyinTopBarSheet: View {
                 }
             }
         }
-        .frame(width: 420, height: 560)
+        // M3-1-02: ratio-driven size (KD-2). Absent ratio keys (first use)
+        // resolve to the shipped 420×560 constants — the pre-plan look,
+        // byte-for-byte; a stored ratio resolves clamped against the
+        // domain handed in from the mount segment.
+        .frame(width: model.resolvedWidth, height: model.resolvedHeight)
         .background(ThemeTokens.windowBackground)
+        // M3-1-02: the two edge handles (right = width axis, bottom =
+        // height axis) — invisible hit strips, cursor-flavored, ZERO
+        // chrome (the sheet's resting look stays untouched).
+        .overlay(alignment: .trailing) { edgeHandle(.width) }
+        .overlay(alignment: .bottom) { edgeHandle(.height) }
+        .onAppear { model.containerChanged(to: domainSize) }
+        .onChange(of: domainSize) { _, new in model.containerChanged(to: new) }
         .accessibilityIdentifier("yiyin.sheet")
     }
 
@@ -1281,6 +1329,72 @@ struct YiyinTopBarSheet: View {
         _ opName: String, fallback: ModuleInstance
     ) -> ModuleInstance {
         editorState.instances.first { $0.opName == opName } ?? fallback
+    }
+
+    // MARK: - M3-1-02 edge handles (KD-2)
+
+    /// The invisible drag strip for one axis: a clear hit area of the
+    /// SPLITTER_SIZE-equivalent thickness, the axis's cursor flavor, and
+    /// the drag window routed into the model (ticks are pure state; only
+    /// `onEnded` persists — AC 3).
+    @ViewBuilder
+    private func edgeHandle(_ axis: YiyinSheetDragSession.Axis) -> some View {
+        Group {
+            if axis == .width {
+                Color.clear
+                    .frame(width: YiyinSheetSizing.handleThickness)
+                    .frame(maxHeight: .infinity)
+            } else {
+                Color.clear
+                    .frame(height: YiyinSheetSizing.handleThickness)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .contentShape(Rectangle())
+        .gesture(dragGesture(axis))
+        .onHover { hovering in hoverCursor(axis, hovering: hovering) }
+        .accessibilityIdentifier(
+            axis == .width ? "yiyin.sheet.splitter.width" : "yiyin.sheet.splitter.height")
+        .accessibilityLabel(Text(String(localized: axis == .width
+            ? "yiyin_sheet_splitter_width"
+            : "yiyin_sheet_splitter_height")))
+    }
+
+    /// The body-class cursor semantic (upstream preview-resizing-x/y):
+    /// resizeLeftRight on the width edge, resizeUpDown on the height edge.
+    private func hoverCursor(
+        _ axis: YiyinSheetDragSession.Axis, hovering: Bool
+    ) {
+        if hovering {
+            (axis == .width ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push()
+        } else {
+            NSCursor.pop()
+        }
+    }
+
+    private func dragGesture(
+        _ axis: YiyinSheetDragSession.Axis
+    ) -> some Gesture {
+        DragGesture(minimumDistance: 1)
+            .onChanged { value in
+                // The drag window: live ticks land in @State ONLY — zero
+                // history commit, zero pipe dispatch, zero defaults write
+                // (upstream isDragging early-return; AC 3).
+                switch axis {
+                case .width:
+                    model.widthTick(translation: value.translation.width)
+                case .height:
+                    model.heightTick(translation: value.translation.height)
+                }
+            }
+            .onEnded { _ in
+                // Release: ONE quantized write per axis (upstream
+                // persistPreviewRatio on pointerup).
+                switch axis {
+                case .width: model.widthEnd()
+                case .height: model.heightEnd()
+                }
+            }
     }
 }
 
