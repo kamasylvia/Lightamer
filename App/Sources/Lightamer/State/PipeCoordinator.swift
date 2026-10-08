@@ -801,6 +801,29 @@ final class PipeCoordinator {
     /// a failed store build — the typed degrade logged once).
     private var filmStore: FilmMaterialStore?
 
+    // ── M3-3-03 T3 (KD-3): the panel/card READ faces — additive exposure
+    //    of the film state the FilmPanelModel and the node-graph Film card
+    //    project (no second truth: the store IS the picker data source; the
+    //    carrier record IS the render face's truth — the sidecar restore
+    //    leg primes it without a history item).
+
+    /// The film material store's read-only exposure (the pickers' data
+    /// source; nil = the film face dark).
+    var filmMaterialStore: FilmMaterialStore? { filmStore }
+
+    /// The current document's film session carrier record (nil = pristine).
+    var currentFilmRecord: FilmRecord? {
+        guard let url = currentImageURL, let workspace,
+            workspace.hasFilmRecord(for: url)
+        else { return nil }
+        return workspace.filmRecord(for: url)
+    }
+
+    /// Whether the document carries a film record (the render gate's face).
+    func hasFilmRecord(for url: URL) -> Bool {
+        workspace?.hasFilmRecord(for: url) ?? false
+    }
+
     /// Inject the store (called from the composition root; a nil store =
     /// the film face dark). The store construction itself is the App's —
     /// this face only seats it.

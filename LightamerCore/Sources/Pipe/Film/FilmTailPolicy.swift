@@ -483,6 +483,18 @@ public final class FilmSolveCache: @unchecked Sendable {
         defer { lock.unlock() }
         return solutions.count
     }
+
+    /// The invalidation face (M3-3-03 T3, KD-3): the panel's Solve button
+    /// forces a re-solve on the next consult. Value-invisible by
+    /// construction (the solve is a pure function of the key's terms) — the
+    /// face exists so the user gesture has a real edge to ride and so a
+    /// future stats-face change (M3-4 descriptor) lands in one place.
+    public func invalidateAll() {
+        lock.lock()
+        defer { lock.unlock() }
+        solutions.removeAll()
+        order.removeAll()
+    }
 }
 
 /// The runtime solve (KD-2): the bake-time neutral pack + the exposure
