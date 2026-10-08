@@ -497,3 +497,10 @@ APP	14	YiyinSheetSizingTests.swift
 #   对账为准。运行期总数基线相应上移（3013 起算）。
 APP	5	ExportCollisionPickerTests.swift
 APP	6	NLMeansDragDowngradeTests.swift
+
+# M3-3-01 增行记录（2026-10-07 执行期，checker E2 测试登记纪律）：新测试文件随各自
+#   任务 commit 登记进对应 bundle（归属按 front-matter 判定：FilmRecordTests /
+#   FilmProfileTests / FilmFilterPackSolverTests / FilmHistoryTests = LAYERS/Core 级；
+#   FilmSidecarTests = LIB/Core 级）。行内 method 数以终态对账为准。运行期总数基线
+#   相应上移（3029 起算）。
+LAYERS	9	FilmRecordTests.swift
