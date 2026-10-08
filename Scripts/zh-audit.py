@@ -14,6 +14,11 @@ Key extraction (assertion 1 — source keys must exist in the catalog)
       1. ``String(localized: "K"``            — K must match ``^[a-z][a-z0-9_]+$``
       1b. the continuation form ``\n    localized: "K",`` (label on its own
           line, the M2-3 P2/P3 call style)
+      1c. the NEXT-LINE continuation form (V15 hardening): ``localized:``
+          ends the line and the key literal opens the following scanned
+          line — ``String(localized:\n        "K"`` (the per-line regexes
+          see neither shape; found live in GlobalSearchDialog /
+          LightamerApp toasts)
       2. ``Text("K")``                         — same shape (LocalizableStringKey
                                                 literal, not prose)
     Excluded: ``Text(verbatim:`` lines and comment lines (``//``, block
@@ -109,6 +114,11 @@ LOCATED_CONT_RE = re.compile(r'\blocalized:\s*"([A-Za-z0-9_]+)"')
 TEXT_RE = re.compile(r'\bText\(\s*"([A-Za-z0-9_]+)"\s*[,)]')
 INTERP_PREFIX_RE = re.compile(r'"([a-z][a-z0-9_]+)\s*\\\(')
 LITERAL_RE = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
+# V15 hardening (form 1c): a line ENDING with `localized:` (optionally as
+# `String(localized:`) hands the key to the NEXT scanned line; that line
+# must OPEN with the key literal.
+PENDING_LOCALIZED_RE = re.compile(r'(?:String\(\s*)?localized:\s*$')
+LEAD_LITERAL_RE = re.compile(r'^"([A-Za-z0-9_]+)"')
 
 SKIP_DIR_PARTS = {
     "Tests",
@@ -174,6 +184,7 @@ def scan_source(root: str) -> ScanResult:
             continue
         rel = os.path.relpath(path, root)
         in_block_comment = False
+        pending_localized = False
         for raw in lines:
             line = raw.strip()
             if in_block_comment:
@@ -192,6 +203,17 @@ def scan_source(root: str) -> ScanResult:
                 continue
             if "Text(verbatim" in line:
                 continue
+            # V15 (form 1c): consume a pending next-line continuation — the
+            # previous scanned line ended with `localized:` (comments in
+            # between keep the pending state alive). The key must OPEN this
+            # line; anything else cancels the pending state. Comments and
+            # blank lines fall through the filters above without touching
+            # the flag.
+            if pending_localized:
+                pending_localized = False
+                lead = LEAD_LITERAL_RE.match(line)
+                if lead and KEY_SHAPE.match(lead.group(1)):
+                    result.static_keys.setdefault(lead.group(1), []).append(rel)
             for match in LOCATED_RE.finditer(line):
                 key = match.group(1)
                 if KEY_SHAPE.match(key):
@@ -208,6 +230,8 @@ def scan_source(root: str) -> ScanResult:
                 result.literals.add(match.group(1))
             for match in INTERP_PREFIX_RE.finditer(line):
                 result.interp_prefixes.add(match.group(1))
+            if PENDING_LOCALIZED_RE.search(line):
+                pending_localized = True
     return result
 
 
@@ -343,6 +367,16 @@ struct FixtureView: View {
             Button(String(localized: "selftest_orphan_hunter")) {}
             let n = 3
             _ = String(localized: "selftest_family \\(n)")
+            // V15 form 1c: `localized:` ends the line, the key opens the
+            // next scanned line — the per-line regexes miss this shape.
+            _ = String(
+                localized:
+                    "selftest_continuation_key")
+            // V15 form 1c interpolation twin: the continuation line opens
+            // with an interpolated literal (dynamic family coverage).
+            _ = String(
+                localized:
+                    "selftest_family_cont \\(n)")
         }
     }
 }
@@ -426,6 +460,22 @@ def run_selftest() -> int:
 
         check("A1 missing detects selftest_missing_key", "selftest_missing_key" in violations.missing)
         check("A1 missing does not include cataloged keys", "selftest_good_key" not in violations.missing)
+        # V15 form 1c: the next-line continuation key IS extracted (it is
+        # catalog-absent here, so it must surface as MISSING).
+        check(
+            "A1 continuation key extracted (V15 hardening)",
+            "selftest_continuation_key" in violations.missing,
+        )
+        check(
+            "A1 continuation key registered as a static source key",
+            "selftest_continuation_key" in scan.static_keys,
+        )
+        # V15 form 1c twin: the continuation interpolation prefix joins the
+        # dynamic families (the catalog family keys stay orphan-clean).
+        check(
+            "interp continuation prefix registered (V15)",
+            "selftest_family_cont" in scan.interp_prefixes,
+        )
         check("A2 orphan detects selftest_orphan_key", "selftest_orphan_key" in violations.orphans)
         # selftest_family is an interpolation prefix; it must NOT be an orphan.
         check("A2 dynamic family covered", "selftest_family" not in violations.orphans)
