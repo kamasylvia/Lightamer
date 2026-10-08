@@ -29626,6 +29626,22 @@
           }
         }
       }
+    },
+    "export_drt_peak_note": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The ICC profile embeds the color space and transfer function only — the peak luminance (the nits value above) does not enter the ICC profile; a true HDR container (UltraHDR) is planned."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ICC 嵌入仅含色彩空间与传递函数，峰值亮度（上方 nits 值）不进 ICC；真 HDR 容器 UltraHDR 规划中。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

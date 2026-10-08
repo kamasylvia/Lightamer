@@ -337,20 +337,36 @@ internal struct ExportInspectorView: View {
     /// EOTF / peak from the CURRENT image's effective record (nil history
     /// record = the default record face; no image = hidden). The values
     /// stay verbatim rawValues — technical identifiers (语言纪律).
+    ///
+    /// M3-1-03 KD-2: the HDR arms (st2084/hlg — the `isHdrEncoding` Core
+    /// single source, never re-written here) append the peak-ICC caption:
+    /// the ICC profile carries space+TRC only, the peak rides the render
+    /// (EotfBox record) and the enqueue gate (ExportVariant.validate) —
+    /// the true HDR container (UltraHDR) is the M4 ALCE-02 face
+    /// (M2-9-02-DECISIONS boundary). SDR arms render byte-identical.
     @ViewBuilder
     private var drtReadout: some View {
         if editorState.loadedImageURL != nil {
             let record = editorState.history.effectiveDrtRecord() ?? DrtRecord()
-            HStack(spacing: 6) {
-                Text(String(localized: "export_drt_readout"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(
-                    verbatim: "\(record.encodingSpace.rawValue) · "
-                        + "\(record.encodingEotf.rawValue) · "
-                        + "\(Int(record.peakLuminance)) nits")
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(String(localized: "export_drt_readout"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(
+                        verbatim: "\(record.encodingSpace.rawValue) · "
+                            + "\(record.encodingEotf.rawValue) · "
+                            + "\(Int(record.peakLuminance)) nits")
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+                if isHdrEncoding(record.encodingEotf) {
+                    Text(String(localized: "export_drt_peak_note"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("export.page.drt_peak_note")
+                }
             }
             .accessibilityIdentifier("export.page.drt_readout")
         }
