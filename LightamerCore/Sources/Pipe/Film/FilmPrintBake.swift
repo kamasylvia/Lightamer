@@ -1,0 +1,343 @@
+import Foundation
+import Metal
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FilmPrintBake (Plan M3-3-02 T2, KD-3) — the print-segment 65³ composite
+// table per film×paper pair, the `bakedCompositeTable` mechanism shape
+// (65³ / Float64 CPU reference / concurrentPerform per lattice slice / LRU
+// 16) self-held here: `LutEncodingCatalog` is ZERO-TOUCHED (the research
+// red line — the catalog is the user LUT encoding-choice face; the film
+// bake domain is an internal per-pair calibration, never a catalog row).
+//
+// DOMAIN RULING (KD-3's RESEARCH §4.3兑现): the print LUT input domain is
+// the NORMALIZED NEGATIVE-DENSITY CUBE — the negative-segment density AFTER
+// the filter-pack density shift (d′ = d − k, the algebraic twin of the
+// solver's print-exposure form x = −d + k; the E3 channel mapping: the
+// Magenta dial acts on GREEN, the Yellow dial on BLUE). Linear-domain LUT
+// input was rejected (the filter gain is a density-domain scalar — the
+// study's own erratum); the density cube is what makes "one LUT serves all
+// filter combinations" hold.
+//
+// CONTENT (per voxel, per channel c):
+//   1. d′_c  — the cube coordinate decoded back to density;
+//   2. x_c   = −d′_c                       (the print exposure);
+//   3. P_c   = paperCurve_c(x_c)           (status-A print density);
+//   4. P′_c  = P_c − Dmin_c                (paper white → 0);
+//   5. the FILM-CHANNEL INVERSION (RFC-028's gray-error-exactly-0
+//      discipline — the inversion must use the film's own channel curves):
+//      find e_c with SysC_c(e_c) = P′_c, where
+//      SysC_c(e) = paperCurve_c(−(filmCurve_c(e) + base_c)) − Dmin_c
+//      is the composite system response along the neutral axis (monotone
+//      decreasing → bracketed bisection on the fixed log-exposure axis);
+//   6. out_c = 10^(e_c)                    (scene-linear Rec2020; a
+//      mid-gray round-trip is EXACT under the neutral pack — gray error 0).
+// The "film terms" inversion (undo the curve completely) leaves the print
+// flat and wide — the display tone belongs to the DRT tail (the
+// architecture's scene-referred posture).
+//
+// DETERMINISM: Float64 channel math, concurrentPerform per lattice slice
+// (deterministic index merge, no await), fixed bisection ladder — a double
+// bake of the same pair is BIT-IDENTICAL (test-pinned). The baked table is
+// Float32 STORAGE of Float64-computed values (the Lut3d bake posture).
+//
+// LICENSING: consumes the CC BY-SA profile data through the typed loader
+// (the consumer-keys contract); no asset bytes are embedded or modified.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One baked print table + its calibrated cube domain (per-pair; the bounds
+/// ride WITH the table — the kernel consumes both as one unit).
+public struct FilmPrintTable: Sendable, Equatable {
+    /// The lattice level (65 — the bakedCompositeTable convention).
+    public static let level = 65
+
+    /// The composite table, lattice-ordered x + y·L + z·L² (RGB in .rgb).
+    public let data: [SIMD3<Float>]
+    /// The calibrated density-cube bounds (per channel): the film's density
+    /// range over its log-exposure axis WIDENED by the filter-gain headroom
+    /// (the pack shifts density DOWN by up to k_max = 100 CC × s).
+    public let domainLo: SIMD3<Float>
+    public let domainHi: SIMD3<Float>
+
+    public init(data: [SIMD3<Float>], domainLo: SIMD3<Float>, domainHi: SIMD3<Float>) {
+        self.data = data
+        self.domainLo = domainLo
+        self.domainHi = domainHi
+    }
+
+    public static func == (lhs: FilmPrintTable, rhs: FilmPrintTable) -> Bool {
+        lhs.domainLo == rhs.domainLo && lhs.domainHi == rhs.domainHi
+            && lhs.data.elementsEqual(rhs.data)
+    }
+}
+
+public enum FilmPrintBake {
+
+    /// The film log-exposure axis' bounds the solver family shares (the
+    /// assets' 256-point −3…+4 axis — read per-profile at bake time, these
+    /// constants only seed the clamp guards).
+    public static let logExposureFloor = -3.0
+    public static let logExposureCeiling = 4.0
+
+    // MARK: - The bake (KD-3)
+
+    /// Bake the print table for one pair. Float64 channel math throughout;
+    /// the lattice slices run on the cooperative-perform pool.
+    public static func bake(film: FilmProfile, paper: FilmProfile) throws -> FilmPrintTable {
+        let level = FilmPrintTable.level
+        let count = level * level * level
+        let base = try film.baseDensityProjection()
+
+        // The film density range over the axis (per channel) + the filter
+        // headroom — the cube bounds (KD-3: film density domain + base +
+        // gain headroom, per-pair calibrated, carried with the table).
+        let axisLo = Double(film.logExposure.first ?? Float(logExposureFloor))
+        let axisHi = Double(film.logExposure.last ?? Float(logExposureCeiling))
+        var densityLo = SIMD3<Double>(.greatestFiniteMagnitude, .greatestFiniteMagnitude, .greatestFiniteMagnitude)
+        var densityHi = SIMD3<Double>(-.greatestFiniteMagnitude, -.greatestFiniteMagnitude, -.greatestFiniteMagnitude)
+        for i in 0..<film.logExposure.count {
+            for c in 0..<3 {
+                let d = Double(film.densityCurves[i][c])
+                densityLo[c] = min(densityLo[c], d)
+                densityHi[c] = max(densityHi[c], d)
+            }
+        }
+        // The E3 filter vectors: M → G with s_m, Y → B with s_y (density
+        // SUBTRACTED). Headroom = the full 100-CC dial travel.
+        let headroom = SIMD3<Double>(
+            0, 100 * FilmFilterPackSolver.magentaExposurePerCC,
+            100 * FilmFilterPackSolver.yellowExposurePerCC)
+        let domainLo = densityLo + SIMD3<Double>(base.r, base.g, base.b) - headroom
+        let domainHi = densityHi + SIMD3<Double>(base.r, base.g, base.b)
+
+        // The paper's per-channel Dmin (the curve minimum over the paper's
+        // own axis — the paper-white floor of step 4).
+        var dmin = SIMD3<Double>(.greatestFiniteMagnitude, .greatestFiniteMagnitude, .greatestFiniteMagnitude)
+        for i in 0..<paper.logExposure.count {
+            for c in 0..<3 {
+                dmin[c] = min(dmin[c], Double(paper.densityCurves[i][c]))
+            }
+        }
+
+        // The per-pair EXPOSURE CALIBRATION K (the enlarger's exposure
+        // time — the common print-exposure term, identical on all three
+        // channels): the SOLVED-SESSION mid-gray must print at the paper's
+        // mid density. Without it the negative densities (≥ ~0.5 + base)
+        // only ever reach the paper's TOE; calibrating on the PACK-SHIFTED
+        // density (the session's actual operating point — the neutral pack
+        // rides the input coordinate) keeps the mid-gray print ON the
+        // paper's working range. Monotone in K → bracketed bisection.
+        let paperMidGreen = (dmin[1] + maxGreen(paper)) / 2
+        let eMid = Foundation.log10(midGraySceneValue)
+        let neutralPack = try FilmFilterPackSolver.solveNeutralPack(
+            film: film, paper: paper)
+        let sessionMidGreenDensity = FilmFilterPackSolver.curveValue(
+            film, channel: 1, at: eMid) + base.g
+            - neutralPack.magentaCC * FilmFilterPackSolver.magentaExposurePerCC
+        let calibration = solveExposureCalibration(
+            film: film, paper: paper, base: base,
+            midGrayDensity: sessionMidGreenDensity,
+            paperMid: paperMidGreen)
+
+        var table = [SIMD3<Float>](repeating: .zero, count: count)
+        let span = domainHi - domainLo
+        table.withUnsafeMutableBufferPointer { buffer in
+            DispatchQueue.concurrentPerform(iterations: level) { z in
+                for y in 0..<level {
+                    let baseIndex = z * level * level + y * level
+                    for x in 0..<level {
+                        let d = Double(level - 1)
+                        let voxel = SIMD3<Double>(
+                            Double(x) / d, Double(y) / d, Double(z) / d)
+                        // Step 1-2: the cube coordinate → print exposure
+                        // (the K calibration is the COMMON term — baked in).
+                        let density = domainLo + voxel * span
+                        var mapped = SIMD3<Double>()
+                        for c in 0..<3 {
+                            let printExposure = -density[c] + calibration
+                            // Step 3-4: paper density, minus Dmin.
+                            let paperDensity = max(
+                                FilmFilterPackSolver.curveValue(
+                                    paper, channel: c, at: printExposure)
+                                    - dmin[c], 0)
+                            // Step 5: the film-channel inversion — find the
+                            // neutral-axis exposure whose system response
+                            // equals the print density (monotone decreasing
+                            // → bracketed bisection on the fixed axis).
+                            // Step 6: out = 10^e — the scene-linear face.
+                            let e = invertSystem(
+                                film: film, paper: paper, base: base,
+                                channel: c, targetDensity: paperDensity,
+                                dmin: dmin[c], axisLo: axisLo, axisHi: axisHi,
+                                calibration: calibration,
+                                packM: neutralPack.magentaCC
+                                    * FilmFilterPackSolver.magentaExposurePerCC,
+                                packY: neutralPack.yellowCC
+                                    * FilmFilterPackSolver.yellowExposurePerCC)
+                            mapped[c] = Foundation.pow(10.0, e)
+                        }
+                        buffer[baseIndex + x] = SIMD3<Float>(
+                            Float(mapped.x), Float(mapped.y), Float(mapped.z))
+                    }
+                }
+            }
+        }
+        return FilmPrintTable(
+            data: table,
+            domainLo: SIMD3<Float>(domainLo),
+            domainHi: SIMD3<Float>(domainHi))
+    }
+
+    /// The mid-gray the calibration anchors (the solver's 0.184 — one
+    /// constant source value; spelled locally to avoid an IOP-facing import
+    /// cycle in docs).
+    static let midGraySceneValue = FilmFilterPackSolver.midGraySceneLinear
+
+    /// The paper green curve's maximum (the density-range top).
+    static func maxGreen(_ paper: FilmProfile) -> Double {
+        paper.densityCurves.reduce(-Double.greatestFiniteMagnitude) {
+            max($0, Double($1[1]))
+        }
+    }
+
+    /// The per-pair exposure calibration: find K with
+    /// paperCurve_G(−(curve_G(e_mid) + base_G) + K) = paperMidGreen —
+    /// monotone rising in K → bracketed bisection (fixed ladder).
+    static func solveExposureCalibration(
+        film: FilmProfile, paper: FilmProfile, base: (r: Double, g: Double, b: Double),
+        midGrayDensity: Double, paperMid: Double
+    ) -> Double {
+        func residual(_ k: Double) -> Double {
+            FilmFilterPackSolver.curveValue(paper, channel: 1, at: -midGrayDensity + k)
+                - paperMid
+        }
+        var lo = -5.0   // F < 0 (underexposed — the paper's toe)
+        var hi = 12.0   // F > 0 (past Dmax)
+        if residual(lo) > 0 { return lo }
+        if residual(hi) < 0 { return hi }
+        for _ in 0..<FilmFilterPackSolver.maxIterations {
+            let mid = (lo + hi) / 2
+            if residual(mid) < 0 {
+                lo = mid
+            } else {
+                hi = mid
+            }
+            if hi - lo < FilmFilterPackSolver.convergenceEpsilon { break }
+        }
+        return (lo + hi) / 2
+    }
+
+    /// The composite SESSION system response SysC_c(e) (step 5's forward
+    /// face; the calibration K rides the per-pair bake that closes over
+    /// it). The SESSION density subtracts the solved pack (the E3 channel
+    /// mapping: M → G with s_m, Y → B with s_y) — the inverse of the
+    /// session system is what the LUT content needs (the kernel's input
+    /// coordinate is the post-pack density).
+    static func systemDensity(
+        film: FilmProfile, paper: FilmProfile, base: (r: Double, g: Double, b: Double),
+        channel: Int, exposure e: Double, dmin: Double, calibration: Double,
+        packM: Double, packY: Double
+    ) -> Double {
+        let pack = channel == 1 ? packM : (channel == 2 ? packY : 0)
+        let negative = FilmFilterPackSolver.curveValue(film, channel: channel, at: e)
+            + [base.r, base.g, base.b][channel] - pack
+        return max(
+            FilmFilterPackSolver.curveValue(paper, channel: channel, at: -negative + calibration) - dmin, 0)
+    }
+
+    /// The bracketed bisection inverse of SysC (fixed 60-halving ladder on
+    /// the film axis — deterministic; the flat clamped ends map the axis
+    /// ends, the same closure the forward curves have).
+    static func invertSystem(
+        film: FilmProfile, paper: FilmProfile, base: (r: Double, g: Double, b: Double),
+        channel: Int, targetDensity: Double,
+        dmin: Double, axisLo: Double, axisHi: Double, calibration: Double,
+        packM: Double, packY: Double
+    ) -> Double {
+        // SysC is DECREASING in e: high exposure → dense negative → less
+        // print exposure → less paper density. F(e) = SysC(e) − target:
+        // positive at the axis bottom (dense paper), negative at the top.
+        var lo = axisLo   // F(lo) > 0 (dense end)
+        var hi = axisHi   // F(hi) < 0 (clear end)
+        let fLo = systemDensity(
+            film: film, paper: paper, base: base, channel: channel,
+            exposure: lo, dmin: dmin, calibration: calibration,
+            packM: packM, packY: packY) - targetDensity
+        if fLo <= 0 { return lo }
+        let fHi = systemDensity(
+            film: film, paper: paper, base: base, channel: channel,
+            exposure: hi, dmin: dmin, calibration: calibration,
+            packM: packM, packY: packY) - targetDensity
+        if fHi >= 0 { return hi }
+        for _ in 0..<FilmFilterPackSolver.maxIterations {
+            let mid = (lo + hi) / 2
+            let fMid = systemDensity(
+                film: film, paper: paper, base: base, channel: channel,
+                exposure: mid, dmin: dmin, calibration: calibration,
+                packM: packM, packY: packY) - targetDensity
+            if fMid > 0 {
+                lo = mid
+            } else {
+                hi = mid
+            }
+            if hi - lo < FilmFilterPackSolver.convergenceEpsilon { break }
+        }
+        return (lo + hi) / 2
+    }
+
+    // MARK: - The per-pair LRU (the bakedCompositeTable LRU 16 shape)
+
+    /// The bake cache: NSLock + dictionary + insertion-order LRU 16, keyed
+    /// by `FilmMaterialStore.materialPairHash` (the 01 identity single
+    /// source). A cache HIT returns the SAME table instance — the bake is
+    /// deterministic, so hit-vs-miss is value-invisible (the test pins the
+    /// bit-identity through a forced re-bake).
+    public final class Cache: @unchecked Sendable {
+        /// The process-wide cache (the bake is a pure function of the pair —
+        /// sharing across pipes is value-invisible).
+        public static let shared = Cache()
+
+        private let lock = NSLock()
+        private var tables: [UInt64: FilmPrintTable] = [:]
+        private var order: [UInt64] = []
+        private let capacity: Int
+
+        public init(capacity: Int = 16) {
+            self.capacity = capacity
+        }
+
+        public func table(
+            forPairHash pairHash: UInt64,
+            film: FilmProfile, paper: FilmProfile
+        ) throws -> FilmPrintTable {
+            lock.lock()
+            if let hit = tables[pairHash] {
+                // Touch: move to the MRU end.
+                order.removeAll { $0 == pairHash }
+                order.append(pairHash)
+                lock.unlock()
+                return hit
+            }
+            lock.unlock()
+            // Bake OUTSIDE the lock (the bake is the expensive leg; the
+            // same-pair concurrent bake bakes twice and both land — the
+            // value-identical determinism makes the race harmless).
+            let baked = try bake(film: film, paper: paper)
+            lock.lock()
+            tables[pairHash] = baked
+            order.append(pairHash)
+            while order.count > capacity {
+                let evicted = order.removeFirst()
+                tables.removeValue(forKey: evicted)
+            }
+            lock.unlock()
+            return baked
+        }
+
+        /// Test face: the cached entry count.
+        public var countForTesting: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return tables.count
+        }
+    }
+}
