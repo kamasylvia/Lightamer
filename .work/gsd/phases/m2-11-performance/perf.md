@@ -1,4 +1,4 @@
-# M2-11 perf.md — PERF 计量正本（M2-11-02 wave 2 落账，2026-10-07；M2-11-03 wave 3 增 §SpektraLab 对标节）
+# M2-11 perf.md — PERF 计量正本（M2-11-02 wave 2 落账，2026-10-07；M2-11-03 wave 3 增 §SpektraLab 对标节；M3-2 裁⑥ spike 增 §O-1 SPIKE 根因判定节，2026-10-08）
 
 > 机器口径：Mac mini（Laniakea），macOS 27.0.1 (26A434)，M4-class Apple Silicon。
 > Debug = `Scripts/test-direct.sh` 直启宿主（`xcodebuild build-for-testing` Debug 产物）；
@@ -300,3 +300,85 @@
 - 判定：**带内即过**——vs 在案 0.490s（09 perf 在案锚）= +10.8% 机器态漂移，
   门余量 ~9.2×（≤5s）；万张 apply Delivered 终态维持。证据 =
   `/tmp/la-direct-tests-Sessions.log`（净轮 Sessions bundle 内）。
+
+## §O-1 SPIKE RAF 100MP warm 双峰根因判定（M3-2 裁⑥ 补批，2026-10-08；RESEARCH-NOTES §8 设计的兑现）
+
+> 方法：**工作树探针测试**（未入 git，源码快照 + 日志正本 =
+> `phases/m3-2-fsim-research/evidence/M3-2-SPIKE-README.md` 文件索引；产线
+> diff = 0）。每帧 ContinuousClock 计时窗内含 L014 drain（M2 bench 同形）+
+> 进程内协变量（主 run hit/miss/planesRendered、PipeCache 字节、
+> phys_footprint）+ 外部 1s 采样（ioreg Renderer Utilization、
+> memory_pressure、swap）。GPU 频率直读（powermetrics/IOReport）需 sudo，
+> 本环境不可用——以间接判别式替代（RESEARCH §8 ③④：分段相关性 + 状态变量
+> 二分）。分段口径注记：以**每帧统计 + 相位对照**替代 os_signpost（分辨率
+> 更高；既有 signpost 面只覆盖 decode/pixelpipe 整段，无箱内分段）。
+
+### 状态变量二分结果（探针六相位 × RAF/ARW 双列 + 列序反转）
+
+| 相位（RAF 列，recap 轮正本） | n | min | 中位 | max | 判读 |
+|---|---|---|---|---|---|
+| base（bench 形状：tick + 共享 cache，前 5 帧） | 5 | 21.4 | — | **81.0** | **瞬态带**（decode 后第 0-8 帧随机 21-98ms） |
+| base（同相位 i≥5 稳态） | 35 | 15.1 | ~17 | 24.5 | 稳态带（= O-1 的「14ms 档」本态） |
+| fresh（每帧新 PipeCache，分配回收态） | 25 | 15.7 | 17.4 | 25.1 | **稳态无瞬态**——缓存增长/换页churn 缺席即瞬态缺席 |
+| same（不 tick，全命中） | 12 | 0.03 | 0.04 | 0.11 | 计算面地板（整条管线的确定性下限） |
+| gap（帧间 400ms 空闲） | 15 | 16.6 | 22.0 | 28.8 | **空闲衰减效应**（ARW gap 中位 20.7 同现——双格式共有） |
+| sdr（.sdrGamma 无 DRT 尾） | 20 | 15.2 | 16.0 | 26.8 | DRT 尾非主导（与 .drt 同带） |
+| clr（每帧 clearCICaches） | 15 | 15.0 | 16.2 | 25.2 | CI 内部态非主导 |
+| ARW base（第二列，全程） | 40 | 13.7 | 15.0 | 18.7 | ARW 在 RAF 6+ 帧之后 = 无瞬态（= 在案「ARW 稳定」的成因） |
+
+- **列序反转（testProbeARWFirst，4 探针合跑轮）**：ARW 作为进程**第一列**时
+  同样出现瞬态——base i0-i5 = 18.3/18.7/**53.3/80.0/46.3**/27.6，i6 起回落
+  14-19。**瞬态非 RAF 专属**；在案 bench「ARW 无此现象」= ARW 恒列第二
+  （吃进 RAF 已扰动的分配器稳态）+ 60MP 开图内存增幅小，非格式免疫。
+- **120 帧连跑（testProbeRAFGrind）**：n=120，min 13.58 / med 15.16 /
+  p90 18.65 / max 45.04——**仅帧 5-7 为瞬态（27.6/45.0/28.3），其后 113 帧
+  零自发翻态**。稳态渲染自身确定性，双峰非管本征。
+- decode 腿排除：进程内 warm decode 稳定（RAF 74-81ms、ARW 110-112ms，
+  跨列跨轮零漂移），且在计时窗外——「CI 解码状态机」候选排除。
+- 系统态排除：全程 pmset 无热警告、系统空闲 ≥80%、swap 零活动、GPU util
+  1s 均值 ≤10%——「系统热节流/内存压力带」候选排除。
+- LUT 烘焙 LRU 静态排除：bench 链 = terminal trio + defaultLook 三件
+  （exposure/contrast/saturation），**无 lut3d**，`LutEncodingCatalog` 烘焙
+  缝不在本 bench 消费面——候选①出局。
+
+### bench 形状进程内复刻 + 跨进程复跑（判定链收口）
+
+- **进程内复刻**（testProbeBenchShapeReplica，bench 形状 ×6 轮/列）：
+  RAF round0 = cold 750.4 → warms 15.0/14.2/**49.5**（瞬态尾部一帧落进计时
+  窗）；round1-5 cold 14-15.6、warms 全带 13.9-15.6。ARW round0 warms
+  13.7/13.4/13.1。**瞬态只在「fresh decode + 冷管线」后的头几帧存活，
+  且落窗位置随机**。
+- **跨进程真 bench 复跑 ×4**（run4-7，日志存档）：
+
+| 轮 | RAF cold | RAF warm ×3 → 中位 | ARW warm ×3 → 中位 |
+|---|---|---|---|
+| run4 | 2.5 ms | 82.1 / 57.5 / 51.7 → **57.5** | 13.6/15.6/14.5 → 14.5 |
+| run5 | 223.4 ms | 44.7 / 81.1 / 37.1 → **44.7** | 13.5/12.3/12.8 → 12.8 |
+| run6 | 746.4 ms | 15.0 / 50.2 / 46.5 → **46.5** | 13.4/13.1/13.2 → 13.2 |
+| run7 | 759.9 ms | 14.7 / 50.6 / 92.6 → **50.6** | 13.3/13.3/13.7 → 13.3 |
+
+  RAF 三帧中位 44.7-57.5（原 O-1 带 38.9/42.0/14.0 同型），单帧跨
+  14.7-92.6；ARW 四轮 12.3-15.6 全稳。**14↔42 双峰按需复现**。
+
+### 根因判定（O-1 结案）
+
+**判定 = bench 采样窗伪影 + 交互态空闲衰减，两层环境效应叠加；非管线缺陷，
+非 RAF 解码状态机，零产线 diff 保证。**
+
+1. **主因（bench 14↔42 中位翻态）**：M2 bench 的 3 个计时 warm 帧落在
+   「fresh decode + 冷管线」后第 4-6 帧——恰为**开图内存增长瞬态带**
+   （PipeCache 向 3GB LRU 预算增长期的 Metal 纹理新分配/换页 churn，单帧
+   21-98ms，持续 0-8 帧、逐轮随机）。3 帧中位落进瞬态 = 40ms 档，错过 =
+   14ms 档；run4（cold 2.5ms，重活在 decode 侧）整窗全瞬态 = 57.5。RAF 的
+   瞬态窗更宽（100MP 开图 fp 增幅 5.1→6.4GB + 冷 CIRAW GB 级中间面 vs
+   ARW 2.5→3.9GB）→ 命中概率更高——格式差异是**幅度差**而非机制差。
+2. **次因（拖动尾尖峰 10-52ms 带，补充裁定）**：帧间空闲 ≥ 数百 ms 后下一
+   帧 +50-100%（RAF gap 中位 22.0 vs 连跑 ~17；ARW 20.7 vs ~15），双格式
+   共有、连跑即消失——空闲期资源衰减（GPU 功率态或 VM 回收，本环境无
+   sudo 不可分辨，判别止于此层）。人速拖动天然带帧间间隔 → 拖动帧型的
+   尖峰带由此解释；bench 连跑帧型不受影响。
+3. **稳态结论**：preview-2560 全链 warm 稳态 RAF 14-19ms（p90 18.65）/
+   ARW 12.3-15.6ms，全命中地板 0.03ms——PERF-01 判定移交 M2-11-04 的
+   「RAF 未稳态达标」观察项自此有根因解，**维持不判缺陷、不设门**的在案
+   裁决；如需稳态数字，bench 侧补偿 = 加深 settle（≥8 帧）或扩大采样窗
+   （≥10 帧），属测试基建改造（未实施，不在本批半径）。
