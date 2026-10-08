@@ -516,6 +516,183 @@ final class FilmProfileTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - T4: FilmMaterialStore (KD-4)
+
+    func testRealDirectoryIndexesTheVendoredSplitDeterministically() throws {
+        let store = try FilmMaterialStore(
+            profilesDirectory: Self.profilesDirectory)
+        let films = store.filmStocks()
+        let papers = store.paperStocks()
+        XCTAssertEqual(films.count, 22)
+        XCTAssertEqual(papers.count, 6)
+        // Deterministic id-sorted order (menu/UI face).
+        XCTAssertEqual(
+            films.map(\.info.stock), films.map(\.info.stock!).sorted())
+        XCTAssertEqual(
+            papers.map(\.info.stock), papers.map(\.info.stock!).sorted())
+        // The id lookup resolves both ways.
+        XCTAssertEqual(
+            store.profile(id: "kodak_portra_400")?.info.name,
+            "Kodak Portra 400")
+        XCTAssertNil(store.profile(id: "no_such_stock"))
+        XCTAssertTrue(films.allSatisfy { $0.info.support == "film" })
+        XCTAssertTrue(papers.allSatisfy { $0.info.support == "paper" })
+    }
+
+    func testMaterialPairHashIsStableWithAMovingDifferenceFace() throws {
+        let store = try FilmMaterialStore(
+            profilesDirectory: Self.profilesDirectory)
+        let portra = try XCTUnwrap(store.profile(id: "kodak_portra_400"))
+        let ektar = try XCTUnwrap(store.profile(id: "kodak_ektar_100"))
+        let endura = try XCTUnwrap(store.profile(id: "kodak_portra_endura"))
+        let ultra = try XCTUnwrap(store.profile(id: "kodak_ultra_endura"))
+
+        // Determinism: the same pair hashes identically (and the hash
+        // function is pure static — no instance state can leak in).
+        XCTAssertEqual(
+            FilmMaterialStore.materialPairHash(film: portra, paper: endura),
+            FilmMaterialStore.materialPairHash(film: portra, paper: endura))
+        // Fresh store instances over the same directory agree (load order
+        // cannot influence the identity).
+        let store2 = try FilmMaterialStore(
+            profilesDirectory: Self.profilesDirectory)
+        XCTAssertEqual(
+            FilmMaterialStore.materialPairHash(
+                film: store.profile(id: "kodak_portra_400")!,
+                paper: store.profile(id: "kodak_portra_endura")!),
+            FilmMaterialStore.materialPairHash(
+                film: store2.profile(id: "kodak_portra_400")!,
+                paper: store2.profile(id: "kodak_portra_endura")!))
+        // Difference face: film change, paper change and operand order
+        // each move the hash (set-fields-move).
+        let portraEndura = FilmMaterialStore.materialPairHash(
+            film: portra, paper: endura)
+        XCTAssertNotEqual(
+            portraEndura,
+            FilmMaterialStore.materialPairHash(film: ektar, paper: endura))
+        XCTAssertNotEqual(
+            portraEndura,
+            FilmMaterialStore.materialPairHash(film: portra, paper: ultra))
+        XCTAssertNotEqual(
+            portraEndura,
+            FilmMaterialStore.materialPairHash(film: endura, paper: portra))
+    }
+
+    func testMaterialPairHashMatchesTheDocumentedFoldFormula() throws {
+        // Independent re-derivation of the documented formula over a tiny
+        // synthetic pair (the same independent-formula discipline as the
+        // FilmRecord stableHash check): stock UTF-8 ‖ log_exposure bits ‖
+        // density_curves bits ‖ base_density tag+bits ‖ wavelengths bits,
+        // film then paper, FNV-1a over platform-order UInt64 folds.
+        var objectA = syntheticValidObject()
+        mutateData(&objectA, "wavelengths", [450.0, 550.0, 650.0])
+        let a = try FilmProfile.load(try writeTemporaryProfile(objectA))
+        var objectB = syntheticValidObject()
+        mutateData(&objectB, "wavelengths", [460.0, 560.0, 660.0])
+        mutateData(&objectB, "base_density", [0.15, 0.10, 0.05])
+        if var info = objectB["info"] as? [String: Any] {
+            info["stock"] = "synthetic_paper"
+            info["support"] = "paper"
+            objectB["info"] = info
+        }
+        let b = try FilmProfile.load(try writeTemporaryProfile(objectB))
+
+        var expected = StableHash.fnvOffsetBasis
+        for profile in [a, b] {
+            for byte in (profile.info.stock ?? "").utf8 {
+                withUnsafeBytes(of: byte) {
+                    expected = StableHash.combine(expected, $0)
+                }
+            }
+            for value in profile.logExposure {
+                var v = UInt64(value.bitPattern)
+                withUnsafeBytes(of: &v) {
+                    expected = StableHash.combine(expected, $0)
+                }
+            }
+            for row in profile.densityCurves {
+                for value in row {
+                    var v = UInt64(value.bitPattern)
+                    withUnsafeBytes(of: &v) {
+                        expected = StableHash.combine(expected, $0)
+                    }
+                }
+            }
+            for sample in profile.baseDensity {
+                if let value = sample {
+                    var tag = UInt64(1)
+                    withUnsafeBytes(of: &tag) {
+                        expected = StableHash.combine(expected, $0)
+                    }
+                    var v = UInt64(value.bitPattern)
+                    withUnsafeBytes(of: &v) {
+                        expected = StableHash.combine(expected, $0)
+                    }
+                } else {
+                    var tag = UInt64(0)
+                    withUnsafeBytes(of: &tag) {
+                        expected = StableHash.combine(expected, $0)
+                    }
+                }
+            }
+            for value in profile.wavelengths {
+                var v = UInt64(value.bitPattern)
+                withUnsafeBytes(of: &v) {
+                    expected = StableHash.combine(expected, $0)
+                }
+            }
+        }
+        XCTAssertEqual(
+            FilmMaterialStore.materialPairHash(film: a, paper: b), expected)
+    }
+
+    func testDuplicateAndMissingStockIdsAreTypedRejected() throws {
+        // Two files claiming one stock id.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("film-store-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        for name in ["a.json", "b.json"] {
+            let data = try JSONSerialization.data(
+                withJSONObject: syntheticValidObject())
+            try data.write(to: dir.appendingPathComponent(name))
+        }
+        XCTAssertThrowsError(try FilmMaterialStore(profilesDirectory: dir)) {
+            XCTAssertEqual(
+                $0 as? FilmMaterialStoreError, .duplicateStockId("synthetic"))
+        }
+
+        // A file with no info.stock.
+        let dir2 = FileManager.default.temporaryDirectory
+            .appendingPathComponent("film-store-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: dir2, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir2) }
+        var noStock = syntheticValidObject()
+        var info = (noStock["info"] as? [String: Any]) ?? [:]
+        info.removeValue(forKey: "stock")
+        noStock["info"] = info
+        let data = try JSONSerialization.data(withJSONObject: noStock)
+        try data.write(to: dir2.appendingPathComponent("a.json"))
+        XCTAssertThrowsError(try FilmMaterialStore(profilesDirectory: dir2)) {
+            XCTAssertEqual(
+                $0 as? FilmMaterialStoreError,
+                .missingStockId("a.json"))
+        }
+    }
+
+    func testUnreadableDirectoryIsTypedRejected() {
+        XCTAssertThrowsError(
+            try FilmMaterialStore(
+                profilesDirectory: URL(
+                    fileURLWithPath: "/no/such/film/dir-\(UUID().uuidString)"))
+        ) {
+            XCTAssertEqual(
+                $0 as? FilmMaterialStoreError, .directoryUnreadable)
+        }
+    }
 }
 
 /// Hex SHA-256 (the MANIFEST format) — CryptoKit-free one-file helper so

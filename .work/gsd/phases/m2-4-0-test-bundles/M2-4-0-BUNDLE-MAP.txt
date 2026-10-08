@@ -505,4 +505,6 @@ APP	6	NLMeansDragDowngradeTests.swift
 #   相应上移（3029 起算）。
 LAYERS	9	FilmRecordTests.swift
 #   T3 勘误（同批）：FilmProfileTests 行 5→16（T3 追加 schema/加载器/投影 11 法）。
-LAYERS	16	FilmProfileTests.swift
+#   T4 勘误（同批）：FilmProfileTests 行 16→21（T4 追加 store/pair-hash 5 法——store
+#   测试按 front-matter 五测试文件清单并入 FilmProfileTests，不另立文件）。
+LAYERS	21	FilmProfileTests.swift
