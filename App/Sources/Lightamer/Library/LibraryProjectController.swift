@@ -372,53 +372,55 @@ final class LibraryProjectController {
 // FileOpener sibling for the project commands.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// L057 (fix(l057), 2026-10-08): every wrapper is async and presents via
+// PanelPresentation.present (the `begin` seam) — runModal nested inside
+// the menu-command dispatch tore down SwiftUI button/menu-item closure
+// contexts on cancel (SIGSEGV over-release; .ips 2026-10-08-085205 came
+// from the Task-wrapped menu path, so the hop alone was not enough).
 @MainActor
 enum LibraryPanels {
 
     /// New project: NSSavePanel, the `.lalb` suffix appended when absent.
-    static func newProject() -> URL? {
+    static func newProject() async -> URL? {
         let panel = NSSavePanel()
         panel.title = "New Project"
         panel.nameFieldStringValue = "Untitled." + LibrarySchema.fileExtension
         panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        guard let url = await PanelPresentation.present(panel) else { return nil }
         return url.pathExtension.isEmpty
             ? url.appendingPathExtension(LibrarySchema.fileExtension)
             : url
     }
 
     /// Open project: NSOpenPanel for an existing `.lalb`.
-    static func openProject() -> URL? {
+    static func openProject() async -> URL? {
         let panel = NSOpenPanel()
         panel.title = "Open Project"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        return url
+        return await PanelPresentation.present(panel)
     }
 
     /// Pick an existing directory (the import source / the move destination
     /// parent).
-    static func folder(title: String) -> URL? {
+    static func folder(title: String) async -> URL? {
         let panel = NSOpenPanel()
         panel.title = title
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        return url
+        return await PanelPresentation.present(panel)
     }
 
     /// Pick a destination file (the backup target).
-    static func destination(title: String, defaultName: String) -> URL? {
+    static func destination(title: String, defaultName: String) async -> URL? {
         let panel = NSSavePanel()
         panel.title = title
         panel.nameFieldStringValue = defaultName
         panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        return url
+        return await PanelPresentation.present(panel)
     }
 }
 

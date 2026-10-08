@@ -254,7 +254,8 @@ struct SettingsCachePage: View {
                 HStack {
                     Button(String(localized: "settings_lut_root_choose",
                                   defaultValue: "Choose…")) {
-                        chooseLutRoot()
+                        // L057 (fix(l057)): async panel via the begin seam.
+                        Task { await chooseLutRoot() }
                     }
                     .accessibilityIdentifier("settings.lut.choose")
                     Button(String(localized: "settings_lut_root_reset",
@@ -311,14 +312,16 @@ struct SettingsCachePage: View {
             localized: "settings_lut_rescan_done \(store.installedNames.count)")
     }
 
-    private func chooseLutRoot() {
+    /// L057 (fix(l057)): async via the begin seam — a sync runModal here
+    /// nested inside the button-action dispatch (the crash family shape).
+    private func chooseLutRoot() async {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = preferences.lutLibraryRoot()
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = await PanelPresentation.present(panel) else { return }
         applyLutRoot(url)
     }
 
@@ -1165,7 +1168,8 @@ struct SettingsDisplaysPage: View {
         LabeledContent {
             HStack(spacing: 8) {
                 Button(String(localized: "settings_displays_choose")) {
-                    chooseICCProfile(displayID: displayID)
+                    // L057 (fix(l057)): async panel via the begin seam.
+                    Task { await chooseICCProfile(displayID: displayID) }
                 }
                 .disabled(displayID == nil)
                 .accessibilityIdentifier("settings.displays.choose")
@@ -1195,7 +1199,8 @@ struct SettingsDisplaysPage: View {
         .accessibilityIdentifier("settings.displays.row.\(screen.localizedName)")
     }
 
-    private func chooseICCProfile(displayID: UInt32?) {
+    /// L057 (fix(l057)): async via the begin seam.
+    private func chooseICCProfile(displayID: UInt32?) async {
         guard let displayID else { return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false
@@ -1203,7 +1208,7 @@ struct SettingsDisplaysPage: View {
         panel.allowsMultipleSelection = false
         panel.allowedFileTypes = ["icc", "icm"]
         panel.directoryURL = URL(fileURLWithPath: "/Library/ColorSync/Profiles")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = await PanelPresentation.present(panel) else { return }
         ManualDisplayOverrideStore.shared.setOverride(url.path, displayID: displayID)
         pipeCoordinator.refreshDisplayProfile()
     }
@@ -1355,7 +1360,8 @@ struct SettingsCatalogsPage: View {
                 }
 
                 Button(String(localized: "settings_catalogs_location_change")) {
-                    chooseLocation()
+                    // L057 (fix(l057)): async panel via the begin seam.
+                    Task { await chooseLocation() }
                 }
                 .disabled(catalogPreferences.isRebuilding)
                 .accessibilityIdentifier("settings.catalogs.change_location")
@@ -1457,14 +1463,15 @@ struct SettingsCatalogsPage: View {
         }
     }
 
-    private func chooseLocation() {
+    /// L057 (fix(l057)): async via the begin seam.
+    private func chooseLocation() async {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = catalogPreferences.catalogURL.deletingLastPathComponent()
-        guard panel.runModal() == .OK, let directory = panel.url else { return }
+        guard let directory = await PanelPresentation.present(panel) else { return }
         catalogPreferences.setLocation(directory: directory)
     }
 }

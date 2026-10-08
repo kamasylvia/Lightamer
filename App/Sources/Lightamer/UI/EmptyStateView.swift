@@ -37,7 +37,8 @@ internal struct EmptyStateView: View {
                 .frame(maxWidth: 460)
 
             Button(String(localized: "select_folder")) {
-                FileOpener.openFolder { onOpen($0) }
+                // L057 (fix(l057)): async panel via the begin seam.
+                Task { await FileOpener.openFolder { onOpen($0) } }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)

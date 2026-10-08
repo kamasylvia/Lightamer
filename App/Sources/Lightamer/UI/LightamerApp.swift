@@ -438,7 +438,9 @@ internal struct LightamerApp: App {
                 pastePartialRequested: $pastePartialRequested,
                 legacyLibraryEnabled: legacyLibraryEnabled,
                 projectController: libraryProjects,
-                onImportFolder: { importFolderFromPanel() }
+                // L057 (fix(l057)): Task hop — the begin-seam panel runs
+                // outside this closure's frame.
+                onImportFolder: { Task { await importFolderFromPanel() } }
             )
                 .environment(sessionState)
                 .environment(sessionCoordinator)
@@ -1224,13 +1226,17 @@ internal struct LightamerApp: App {
                 // Phase 1 active: file picker → EditorState.load (real
                 // RAWDecoder decode since Plan 02).
                 Button(String(localized: "menu_open")) {
-                    FileOpener.openImage {
-                        editorState.load(
-                            url: $0,
-                            decoder: decoder,
-                            metal: metalContext,
-                            logger: EditorState.decodeLogger
-                        )
+                    // L057 (fix(l057)): async panel via the begin seam — a
+                    // sync runModal here nested inside the menu dispatch.
+                    Task {
+                        await FileOpener.openImage {
+                            editorState.load(
+                                url: $0,
+                                decoder: decoder,
+                                metal: metalContext,
+                                logger: EditorState.decodeLogger
+                            )
+                        }
                     }
                 }
                 .keyboardShortcut("o", modifiers: .command)
@@ -1239,8 +1245,10 @@ internal struct LightamerApp: App {
                     // (same-window routing; FileOpener.openFolder's panel
                     // wrapper reused).
                     Button(String(localized: "menu_open_session")) {
-                        FileOpener.openSessionFolder { url in
-                            Task { await sessionCoordinator.openSession(url: url) }
+                        Task {
+                            await FileOpener.openSessionFolder { url in
+                                Task { await sessionCoordinator.openSession(url: url) }
+                            }
                         }
                     }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
@@ -1287,17 +1295,16 @@ internal struct LightamerApp: App {
                 } label: { Text(verbatim: "Open Recent Project") }
                 .disabled(libraryProjects.recentProjects.isEmpty)
                 Divider()
-                // F-1 (fix(m2-3), 2026-10-03): this is the ONLY panel action
-                // that ran synchronously INSIDE the menu-item dispatch —
-                // NSOpenPanel.runModal() then nested a modal session inside
-                // the menu transaction, and cancelling tore the SwiftUI menu
-                // item closures down mid-transaction (SIGSEGV over-release
-                // in the next menuNeedsUpdate populate; .ips ×3 archived).
-                // The Task hop matches the four sibling panel actions (New/
-                // Open/Backup/Move Project — none ever crashed): the menu
-                // transaction completes first, the panel runs clean.
+                // L057 (fix(l057), 2026-10-08): the panel actions ride
+                // PanelPresentation.present (the `begin` seam) — a modal
+                // session nested inside the menu transaction tore down
+                // SwiftUI button/menu-item closure contexts on cancel
+                // (SIGSEGV over-release). The Task hop alone was NOT
+                // sufficient (the .ips 2026-10-08-085205 crash came from
+                // this Task-wrapped path): begin removes the nesting
+                // itself. Discriminant: L057-DECISIONS.md D2.
                 Button {
-                    Task { importFolderFromPanel() }
+                    Task { await importFolderFromPanel() }
                 } label: { Text(verbatim: "Import Folder…") }
                 .disabled(libraryProjects.projectStore == nil)
                 .keyboardShortcut("i", modifiers: [.command, .shift])
@@ -1611,7 +1618,7 @@ internal struct LightamerApp: App {
     // MARK: - Project command routes (Plan M2-2-2, KD-5)
 
     private func newLibraryProjectFromPanel() async {
-        guard let url = LibraryPanels.newProject() else { return }
+        guard let url = await LibraryPanels.newProject() else { return }
         do {
             try await libraryProjects.createProject(
                 at: url, name: url.deletingPathExtension().lastPathComponent)
@@ -1622,7 +1629,7 @@ internal struct LightamerApp: App {
     }
 
     private func openLibraryProjectFromPanel() async {
-        guard let url = LibraryPanels.openProject() else { return }
+        guard let url = await LibraryPanels.openProject() else { return }
         do {
             try await libraryProjects.openProject(at: url)
             libraryWelcomePresented = false
@@ -1631,8 +1638,8 @@ internal struct LightamerApp: App {
         }
     }
 
-    private func importFolderFromPanel() {
-        guard let folder = LibraryPanels.folder(title: "Import Folder") else { return }
+    private func importFolderFromPanel() async {
+        guard let folder = await LibraryPanels.folder(title: "Import Folder") else { return }
         // Seed the dialog choice OUTSIDE any view body (the D-EXEC-1
         // no-defaults-in-body discipline).
         let defaults = ImportDefaults()
@@ -1645,7 +1652,7 @@ internal struct LightamerApp: App {
         guard libraryProjects.projectStore != nil else { return }
         let stem = libraryProjects.projectURL?
             .deletingPathExtension().lastPathComponent ?? "Project"
-        guard let destination = LibraryPanels.destination(
+        guard let destination = await LibraryPanels.destination(
             title: "Backup Project",
             defaultName: stem + "-backup." + LibrarySchema.fileExtension)
         else { return }
@@ -1659,7 +1666,7 @@ internal struct LightamerApp: App {
     private func moveProjectFromPanel() async {
         guard let packageURL = libraryProjects.projectURL else { return }
         let stem = packageURL.deletingPathExtension().lastPathComponent
-        guard let picked = LibraryPanels.folder(title: "Move Project To") else { return }
+        guard let picked = await LibraryPanels.folder(title: "Move Project To") else { return }
         // The open panel picks an existing parent; the moved directory
         // takes the project's stem inside it.
         let destination = picked.appendingPathComponent(stem)

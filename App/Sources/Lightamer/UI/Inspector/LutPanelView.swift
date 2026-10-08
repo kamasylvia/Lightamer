@@ -42,12 +42,13 @@ internal struct LutPanelView: View {
         Form {
             Section {
                 Button {
-                    // L057/F-1 family (FINDING-F, .ips 2026-10-07-0937):
-                    // runModal nested inside the button-action dispatch
-                    // corrupted button-closure lifetimes on cancel
-                    // (SIGSEGV in swift release_dealloc). Hop the panel
-                    // out of the transaction — the 7a4a603 menu fix shape.
-                    Task { importLut() }
+                    // L057 family (FINDING-F, .ips 2026-10-07-0937): the
+                    // Task hop alone is NOT sufficient (the 2026-10-08
+                    // menu crash came from a Task-wrapped path) — the
+                    // panel presents via PanelPresentation.present (the
+                    // `begin` seam) so the modal loop is never nested
+                    // inside this button-action dispatch.
+                    Task { await importLut() }
                 } label: {
                     Label(String(localized: "panel_lut_import"), systemImage: "square.stack.3d.up.badge.plus")
                 }
@@ -227,7 +228,8 @@ internal struct LutPanelView: View {
 
     // MARK: - Actions
 
-    private func importLut() {
+    /// L057 (fix(l057)): async via the begin seam (PanelPresentation).
+    private func importLut() async {
         let panel = NSOpenPanel()
         panel.title = String(localized: "panel_lut_import")
         panel.canChooseFiles = true
@@ -236,7 +238,7 @@ internal struct LutPanelView: View {
         panel.allowedContentTypes = [
             UTType(filenameExtension: "cube") ?? .data
         ]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = await PanelPresentation.present(panel) else { return }
         do {
             let entry = try store.importLut(from: url)
             libraryRevision += 1

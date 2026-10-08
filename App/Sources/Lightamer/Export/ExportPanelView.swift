@@ -216,7 +216,8 @@ internal struct ExportPanelView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button(String(localized: "export_choose_directory")) {
-                    chooseDestination()
+                    // L057 (fix(l057)): async panel via the begin seam.
+                    Task { await chooseDestination() }
                 }
                 .accessibilityIdentifier("export.button.choose_directory")
                 if exportState.customDestination != nil {
@@ -239,13 +240,15 @@ internal struct ExportPanelView: View {
         return ExportFileWriter.defaultDestination(for: root).path
     }
 
-    private func chooseDestination() {
+    /// L057 (fix(l057)): async via the begin seam — a sync runModal here
+    /// nested inside the button-action dispatch (the crash family shape).
+    private func chooseDestination() async {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK, let url = panel.url {
+        if let url = await PanelPresentation.present(panel) {
             exportState.customDestination = url
         }
     }
@@ -268,7 +271,8 @@ internal struct ExportPanelView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button(String(localized: "export_postactions_choose_script")) {
-                    chooseScript()
+                    // L057 (fix(l057)): async panel via the begin seam.
+                    Task { await chooseScript() }
                 }
                 .accessibilityIdentifier("export.button.choose_script")
                 if PostExportActions.scriptBookmark != nil {
@@ -301,13 +305,14 @@ internal struct ExportPanelView: View {
 
     /// The script pick — BY PATH (an executable FILE), never an inline
     /// command string (D-11-CONTEXT-6). A plain bookmark persists it.
-    private func chooseScript() {
+    /// L057 (fix(l057)): async via the begin seam.
+    private func chooseScript() async {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.message = String(localized: "export_postactions_pick_message")
-        if panel.runModal() == .OK, let url = panel.url {
+        if let url = await PanelPresentation.present(panel) {
             PostExportActions.storeScript(url)
         }
     }
