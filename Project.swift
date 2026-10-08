@@ -481,6 +481,7 @@ let project = Project(
                 "Tests/LightamerTests/FollowEdgesTests.swift",
                 "Tests/LightamerTests/FilmHistoryTests.swift",
                 "Tests/LightamerTests/FilmLegTests.swift",
+                "Tests/LightamerTests/FilmDeterminismTests.swift",
                 "Tests/LightamerTests/FilmPlacementDriverTests.swift",
                 "Tests/LightamerTests/FilmPrintBakeTests.swift",
                 "Tests/LightamerTests/FilmProfileTests.swift",
