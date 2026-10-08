@@ -14,7 +14,8 @@ files_modified:
   - LightamerCore/Sources/Film/FilmDescriptor.swift                   # 新建：ProfileLatitudeDescriptor 值类型（evMin/evMax/usefulShadowEV/usefulHighlightEV/referenceEV/response/slope/pairHash）+ ISO 6846 归约纯函数 + pairHash 键缓存
   - LightamerCore/Sources/Pipe/Film/FilmDescriptorProbe.swift         # 新建：中性 ramp 过真链 probe（复用 FilmMethodBox + film 腿 payload 组装；L014 fence 读回；probe 配置常量 tag）
   - LightamerCore/Sources/Pipe/PixelPipe.swift                        # 修改（声明外扩·结构必经）：film 腿 payload 组装抽 internal factory 供 probe 复用——零行为 diff（私有腿改调 factory，film 腿既有测试零改全绿为门）
-  - Tests/LightamerTests/FilmDescriptorTests.swift                    # 新建（LAYERS）：probe T(E) 单调 + portra×endura 端到端带宽 sanity 带 + reference_ev ≈ 0 标定带 + bit-identical 确定性 + ISO 归约手算向量
+  - LightamerIOP/Sources/Registry.swift                               # 修改：`FilmStatsSeam.histogram` 安装适配器内 stats 快照保留副作用（LastValue 槽）——面板直方图投递机制 (b)（checker 回注 2026-10-09 m5；coordinator 只读取数 = 机制 (c)）
+  - Tests/LightamerTests/FilmDescriptorTests.swift                    # 新建（LAYERS）：probe T(E) 单调 + portra×endura useful 对带宽 sanity 带（ISO 判据锚 5.66 → 初带 [4.0,7.5]）+ reference_ev ≈ 0 标定带 + bit-identical 确定性 + ISO 归约手算向量（实测判据式）
   - App/Sources/Lightamer/UI/Shell/FilmPanelModel.swift               # 修改：宽容度节读面（stats 快照 + descriptor）+ 置位节解析写路径（solveKnee 消费 + 有效性规则单源）+ Fit 默认策略
   - App/Sources/Lightamer/UI/Shell/FilmPanelView.swift                # 修改：宽容度节（EV 轴直方图 + 双虚线 + 占比读数 + 教导两条）+ 置位节（N_h/N_s 动态最小值滑杆 + m + Fit + §9.2 三 readouts + 越界点名呈现）
   - App/Sources/Lightamer/State/PipeCoordinator.swift                 # 修改：additive 只读面（film stats 快照 + descriptor 缓存消费面——面板唯一数据源，零第二真相）
@@ -56,7 +57,11 @@ files_modified:
    多根/切点谷、m≥3 Abel-Ruffini，推导与数值证据 = §A）——缺陷根因不在求解器
    在**落点语义**：t = C ∓ N（简化臂）换 t = a ∓ N（精确形）+ 实测锚，切点
    不可达与深根随换锚消解（本波数值复验：同锚集 exact 形根条件良好，
-   F'(K*) ∈ [0.05..0.34] 有正下界）。
+   F'(K*) 有正下界 ≈0.045——exact 形根独立复算 highlights m=1/2/4/8 =
+   0.3188/0.1672/0.0869/0.0447、shadows m=1/2 = 0.3493/0.1873）。
+   > checker 回注（2026-10-09）m1：F'(K*) 旧区间 [0.05..0.34] 出自两位舍入
+   > 值（任何单一口径均不可复现），按独立复算值改正并注明侧别；载荷性结论
+   > （正下界存在、二分条件良好）不变。
 3. **锚源（RFC-023 §9.2/§8.3 语义）**：a_h/a_s = film stats 直方图 P99.9/P0.1
    （**整数秩**，`FilmRuntimeSolve.percentileBin` 单源；bin→EV 换算 =
    `log2(((bin+0.5)/256)/0.184)`，与 `contentAdaptiveShift.channelEV` 同式）；
@@ -72,13 +77,28 @@ files_modified:
    identity**（真实面为零——M3-3 编辑面缺位，非零档只存在于测试；DECISIONS
    登记）。`FilmMethodBox.Params`（record + solved pack 同体）为结构先例。
 5. **有效性规则三条进 UI 不进钳制（RFC-023 §9.2 validity rules）**：
-   ①每侧 `N ≥ (a − C) + margin`（滑杆**动态最小值**，随纸/锚移动；margin 默认
-   0.25 stop = §9.3 Fit 政策值）②`K_s < K_h` 违反 = **typed 拒绝并点名该回退
-   的滑杆**（禁静默钳制——§6.4 第五行即此形态）③`H ≥ H_min`（曲率顶棚；H_min
-   默认 3.0 stop，标定依据 = §7.3 `max|f''| = 0.8587/H`，取 mapper 峰值 ≈ 胶片
-   自身峰值 0.28 stop⁻² 同量级——执行期 DECISIONS 记终值）。高 m（≥4）窄介质下
-   规则②拒绝 = **预期物理行为非缺陷**（本波数值复验：Fit 边距下 m=4 已交叉，
-   §6.4 同型）；m 值域 [1,8] 不收窄。
+   ①每侧 `N ≥ 边距 + margin`，**侧别显式式**：highlights `N_h ≥ (a_h−C_h)+
+   margin`、shadows `N_s ≥ (C_s−a_s)+margin`（滑杆**动态最小值**，随纸/锚
+   移动；margin 默认 0.25 stop = §9.3 Fit 政策值）②`K_s < K_h` 违反 =
+   **typed 拒绝并点名该回退的滑杆**（禁静默钳制——§6.4 第五行即此形态；
+   typed 拒绝仅保留给真正的输入域违例）③`H ≥ H_min`（曲率顶棚；H_min 默认
+   3.0 stop）= **Fit 建议面守卫**（RFC-023 §7.3「lets the Fit refuse」原义：
+   Fit 拒绝推荐该 N 并在面板提示；**手动 N 不 typed 拒绝、不受钳**——§6.4
+   四行 room 独立复算每行至少一侧 < 3.0〔row1 两侧全违 1.922/1.597、row2
+   H_h=2.969 即 §6.1 旗舰映射〕，③ 若实现为 typed 拒绝则 golden 参考向量
+   全体被判非法，与 RFC §6.4 表把 row1 标为合法行矛盾）。标定锚：0.8587/
+   3.0 ≈ 0.286 = **mapper 峰值量级锚**（§6.1 mapper 峰 0.289；非「胶片自身
+   峰值」——§7.3 表胶片自身峰 0.195~0.284，portra G = 0.199）；执行期
+   DECISIONS 记终值与依据。高 m 交叉自 **m≥3** 起（独立复算：Fit 边距下
+   m=3 已交叉 K_h=−0.602 < K_s=−0.293；m=4/5/8 = −2.48/+1.22、−4.37/+2.75、
+   −10.09/+7.37 单调深化）规则②拒绝 = **预期物理行为非缺陷**（§6.4 同型）；
+   m 值域 [1,8] 不收窄。
+   > checker 回注（2026-10-09）E3+m3+m6：③原缺 disposition 且标定表述
+   > 「mapper 峰值 ≈ 胶片自身峰值 0.28」不准——按处方 (i) 补 Fit 建议面
+   > 守卫（RFC §7.3 原义，推荐项；DECISIONS 记终值与依据）；①改侧别显式式
+   > （阴影侧字面代入 `a−C` 为负 → 滑杆最小值 0 而真下限 = C−a，防「UI
+   > 接受 → solver 拒绝」churn）；交叉阈值 m≥4 → m≥3（Fit 分摊自 m≥3 即
+   > 承重，最小交叉测试例取 m=3）。
 6. **descriptor = 真链 probe，绝不并行第二套数学（RFC-023 §8.1 repo 纪律）**：
    1024×1 中性 ramp（`2^E · 0.184`，E 均匀网格 [−12,+12]）过 `FilmMethodBox`
    真子运行（neutral pack、零 shift、strength 1、**gain = 1 = auto exposure
@@ -120,12 +140,24 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
   四次式；m≥3 时阶 ≥6，**Abel-Ruffini ⟹ 一般根式解不存在**。
 - **m=2 也不走解析**（双杀）：四次式在物理根邻域呈**多根/切点谷**——本波
   数值复验（a=8/C=4.2/N=4.05/m=2）：真根 `v*=2.9687`（fq(v*)≈0）但
-  `fq(0)=+0.90`、`fq(2)<0`、`fq(50)>0`——区间 (0,2) 另有增外根、真根附近
-  不保号，**对多项式套 bracketing 必错根**（DECISIONS §5「切点深谷多根」的
-  精确机理）；Ferrari 根式在近重根处灾难性相消。**落点函数 F(K) 本身**则
+  `fq(0)=+0.90`、`fq(2)<0`、`fq(50)>0`——区间 (0,2) 另有增外根 `v=0.1250`
+  （残差 +0.25 ≠ 0，偶数 m 负幂取等翻转引入，非原方程根）；真根两侧正常
+  变号（fq(2.90)=−3.2 / fq(3.00)=+1.6），bracketing 不可行的真机理 =
+  **自然域端点同号（+0.90 / +6.1×10⁶，括弧无法起步）+ (0,2) 增外根截胡
+  （含 0.125 的括弧先收敛于增根）**，**对多项式套 bracketing 必错根**
+  （DECISIONS §5「切点深谷多根」的精确机理）；Ferrari 根式在近重根处灾难
+  性相消。
+  > checker 回注（2026-10-09）m2：旧「真根附近不保号」措辞失准——复算真根
+  > 两侧变号（fq(2.90)=−3.2 / fq(3.00)=+1.6）；DECISIONS 转录按「端点同号
+  > 无法起步 + 增外根 v=0.1250 截胡」机理措辞，防测试注释写入假命题。**落点函数 F(K) 本身**则
   严格递增（`F'(K) = 1 − (1+w)^−(m+1)/m·(1+w^((m+1)/m)) > 0`，w∈(0,∞) 内部
-  严格）且在有效域根处 `F'(K*)` 有正下界（复验 m=1/2/4/8 → 0.34/0.18/0.09/
-  0.05）——**对 F 二分必收敛、条件良好**。此即「保留二分」的数学正本。
+  严格）且在有效域根处 `F'(K*)` 有正下界——exact 形根独立复算（同锚集，
+  根处代入 `F'(K) = 1 − (1+w)^−(m+1)/m·(1+w^((m+1)/m))`）：highlights
+  m=1/2/4/8 = 0.3188/0.1672/0.0869/0.0447，shadows m=1/2 = 0.3493/0.1873
+  ——**对 F 二分必收敛、条件良好**。此即「保留二分」的数学正本。
+  > checker 回注（2026-10-09）m1：旧「0.34/0.18/0.09/0.05」两位值无单一口
+  > 径可复现；DECISIONS §A 按独立复算值钉入并注明侧别与公式，执行期「独立
+  > 复算钉门」以数值吻合为准，不照抄两位值。
 - **换锚消解实证**：旧简化臂（t=C−N）同锚集复现深根 K_h=−5.73（与验收
   Python 复算逐位一致）；exact 形 + 有效性规则下根条件良好，且联合双侧
   `K_s < K_h` 恢复（m=2 Fit 边距复验 K_h=+1.231 / K_s=−1.783 / core 3.015）。
@@ -168,10 +200,23 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
   slope[N], materialPairHash }`（RFC-023 §8.3 字段面；`response/slope` = 诊断
   用 T(E) 及其导数）。**ISO 6846 归约 = 纯函数**（LAYERS 可测）：`Y_white =
   plateau max`、`Y_black = plateau min`；`useful_highlight_ev` = 首个
-  `Y ≥ Y_black + 0.9·(Y_white−Y_black)` 的 E；`useful_shadow_ev` = 首个
-  `D(E) ≤ D_black + 0.04` 的 E（`D = −log10(Y/Y_white)`，ε 钳）；`reference_ev`
-  = 中点密度对应 E（执行期对齐 `FilmPrintBake.solveExposureCalibration` 的
-  mid 锚，sanity 带 |reference_ev| ≤ 0.5）。
+  `Y ≥ Y_black + 0.9·(Y_white−Y_black)` 的 E（独立复算穿越 ≈+2.49 命中上游
+  实测表）；`useful_shadow_ev` =（E 升序）**最后一个满足 `D ≥ 0.9·D_black`
+  的 E**（等价式：首个 `Y ≥ Y_white·10^(−0.9·D_black)` 的 E；`D =
+  −log10(Y/Y_white)`，ε 钳）；`reference_ev` = **「输入 0.184 印在纸中密度」
+  读法**——对齐 `FilmPrintBake.solveExposureCalibration` 的 mid 锚（公式定形
+  落 DECISIONS；sanity 带 |reference_ev| ≤ 0.5）。
+  > checker 回注（2026-10-09）E1（+E2 同批 reference_ev）：阴影判据弃旧文
+  > 「首个 `D(E) ≤ D_black + 0.04` 的 E」——黑 plateau 即最大密度，
+  > `D ≤ D_black` 对一切 E 恒真，谓词退化为常函数（归约输出与材料无关，
+  > 手算向量会把错判据钉成 golden）。正本 = RFC-023 §15.2 实测实现
+  > （`0.90·Dmax` 阴影端）：独立复算 D_black=2.2019、0.9·D_black=1.9817、
+  > 穿越 E≈−3.28 与实测 −3.18 一致；旧「D_black−0.04」读法预测 ≈−4.33 与
+  > 实测表矛盾（§8.2 行文让位于 §15.2 表头 + 实测值）。DECISIONS 登记判据
+  > 式 + 上游实测窗 [−3.18, +2.49]/5.66 stop 对照锚；ISO 手算向量按本判据
+  > 重写。`reference_ev` 公式写死为 mid 锚读法（「中点密度对应 E」的密度
+  > 中点读法在上游数据算得 ≈−1.1，会破 |reference_ev| ≤ 0.5 带；mid 锚
+  > 读法 ≈0 满足带）——防 executor 取错读法。
 - **probe（Core `Pipe/Film/FilmDescriptorProbe.swift`）**：1024×1 float32
   ramp 程序化生成 → film 腿 payload 组装（**复用既有组装**——`PixelPipe`
   私有腿抽 internal factory，probe 与真链同一构造路径，§8.1「same code path
@@ -182,18 +227,45 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
   profile 字节已覆盖）；NSLock + LRU 4（`FilmSolveCache` 同构；值域无关不共
   cache——descriptor 与 solve 分键域）。会话级重算入口 = pair 变更事件。
 - **golden（T2 同批，RESEARCH §6-4 口径）**：T(E) 单调非降；portra_400 ×
-  portra_endura 端到端宽度 sanity 带（上游实测 ≈8.5 stop → 带
-  [6.5, 10.5] 执行期实测定值收窄 + DECISIONS 记依据）；`reference_ev ≈ 0`
-  标定带；确定性 = 同 pair 双 probe bit-identical + 跨 fresh payload 实例
-  相等；ISO 归约手算向量（合成 T(E) 折线 → 边界 EV 手算对表）。
+  portra_endura **useful 对（ISO 判据 `usefulHighlightEV − usefulShadowEV`）
+  宽度 sanity 带**：上游 ISO 判据值 = **5.66 stop**（RFC-023 §15.2 表）→
+  初带 **[4.0, 7.5]**，执行期按本仓引擎实测收窄 + DECISIONS 记依据（判据与
+  带同源）；`reference_ev ≈ 0` 标定带（公式 = mid 锚读法，见上条）；确定性
+  = 同 pair 双 probe bit-identical + 跨 fresh payload 实例相等；ISO 归约
+  手算向量（合成 T(E) 折线 → 边界 EV 手算对表；判据式 = E1 修正形——阴影
+  端最后一个 `D ≥ 0.9·D_black` 的 E）。
+  > checker 回注（2026-10-09）E2：旧文「上游实测 ≈8.5 stop → 带 [6.5,10.5]」
+  > 是 slope≥30% 判据值（§15.2 表四判据并排：ISO 5.66 / slope≥30% 8.50 /
+  > slope≥20% 13.06 / slope≥50% 3.99）——带错锚到诊断判据上，E1 修正后
+  > useful 对真值 ~5.66（本仓染料近似引擎预期更低）必落带外 = 红或反向放带
+  > （触发纪律 3「禁反向改参考迁就产线」失守）。采纳处方 (a)：带套 useful
+  > （ISO）对、锚 5.66、初带 [4.0, 7.5]、执行期收窄 + DECISIONS 记依据。
 
 ### KD-3 C：FSIM-02 宽容度面板 + 置位编辑面（T3，硬序 A/B 后）
 
 - **宽容度节（filmPageActive 列内新 section）**：
-  - 直方图：film stats 快照（`FilmStatsSeam.PlaneHistogram` 经 coordinator
-    additive 只读面；luma 通道）绘 EV 轴（bin→EV 换算同裁决 3；轴窗
-    [−12,+12] 与 probe 域一致；stats 未到 = 占位态）；canvas/SwiftUI shapes
-    纯绘制，零新 kernel。
+  - 直方图：film stats 快照（`FilmStatsSeam.PlaneHistogram`；luma 通道）
+    绘 EV 轴（bin→EV 换算同裁决 3；**轴窗 = 直方图原生 EV 跨度
+    [−6.56, +2.44]**——256 bins × [0,1] 线性域的 bin→EV 实际可绘跨度 =
+    [log2(0.5/256/0.184), log2(255.5/256/0.184)]；[−12,+12] 是 descriptor
+    ramp 域不得混称——≤−6.56 段恒空、≥+2.44 恒钳 bin 255；stats 未到 =
+    占位态）；canvas/SwiftUI shapes 纯绘制，零新 kernel。
+    > checker 回注（2026-10-09）m4：旧「轴窗 [−12,+12] 与 probe 域一致」
+    > 不可实现——film stats 直方图 = 256 bins × [0,1] 线性域（ScopeReduce
+    > 契约），bin→EV 实际可绘跨度 ≈ [−6.56, +2.44]；轴改按原生跨度绘制，
+    > 与风险节「量化容差」注记同批落 DECISIONS。
+  - **stats 快照投递机制（实名申报，KD-3 数据面唯一机制）**：(b) IOP
+    `Registry.swift` 的 `FilmStatsSeam.histogram` 安装适配器（:81）内保留
+    副作用——闭包内缓存最近一次 `PlaneHistogram` 快照（LastValue 槽；零触
+    PixelPipe——直方图在 `PixelPipe.runFilmLeg`（:1052）内算即用零保留的
+    现状不变）；(c) coordinator 经该只读面按需取数 + statsHash 记忆（面板
+    唯一数据源，零第二真相）。**不走 (a) PixelPipe 侧保留/访问器**（超出
+    纪律 1「PixelPipe 唯一允许增量 = factory 抽取」）；执行期若发现
+    (b)/(c) 需触 PixelPipe 或其他未列文件 = C 档回注申报，禁静默扩。
+    > checker 回注（2026-10-09）m5：旧文未申报投递路径（直方图 runFilmLeg
+    > :1052 算即用零保留；coordinator 只读面取数三路均未点名机制与实名
+    > 文件）——按现文执行必中途撞 undeclared 扩面；现点名机制 (b)+(c) 与
+    > 实名文件 `LightamerIOP/Sources/Registry.swift`（front-matter 已补列）。
   - 双虚线：descriptor `usefulShadowEV/usefulHighlightEV` 两线（film off 或
     descriptor 未到 = 虚线缺席 + 注记，不造假数据）。
   - 占比读数：低于/内/高于三值 = 直方图计数对 EV 阈值的精确分箱和
@@ -203,16 +275,22 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
 - **置位编辑面（同节下半；T1+T2 落地后开工）**：
   - 无 filmPlacement 实例 → 「添加场景置位」入口（**既有 add 命令面**，
     NodeGraphCommand 零 diff）；有实例 → 参数编辑。
-  - N_h/N_s 滑杆：域 = `[max(0,(a−C)+margin), 上限]` **动态最小值**（裁决
-    5①；fallback 锚时随 fallback 值）；D-H1 三件（拖动 live 零 item、松手
+  - N_h/N_s 滑杆：域 = 侧别显式**动态最小值**（裁决 5①）——`N_h ∈ [max(0,
+    (a_h−C_h)+margin), 上限]`、`N_s ∈ [max(0,(C_s−a_s)+margin), 上限]`
+    （fallback 锚时随 fallback 值）；D-H1 三件（拖动 live 零 item、松手
     一 commit——commit 内容 = resolver 以当前锚+descriptor 解出的 resolved
     knees + pull-backs 一次写入，M2-5 per-op provider 形态）。
   - m 步进器（[1,8]，0.5 步进；不变更 V50/params 键族）。
   - **有效性呈现**：规则②违反 = typed 错误行**点名滑杆**（「高光回退不足/
-    阴影回退不足」），拒绝写入（滑杆回弹到上次有效值）；禁静默钳制。
-  - **Fit 按钮（§9.3 默认政策）**：`N = (a−C) + 0.25` 每侧；膝点交叉 →
-    不足额按两侧溢出比例分摊并报告；某侧 `a ≤ C` → 该侧 off（滑杆归零，
-    §9.3 简并态）。Fit = 一次 discrete commit。
+    阴影回退不足」），拒绝写入（滑杆回弹到上次有效值）；禁静默钳制。规则③
+    H_min 不走此路——Fit 建议面守卫（裁决 5③）：手动 N 不 typed 拒绝、不
+    受钳，仅 Fit 推荐越 H_min 时拒绝推荐 + 提示行。
+  - **Fit 按钮（§9.3 默认政策）**：`N = 侧别边距 + 0.25` 每侧（highlights
+    (a_h−C_h)、shadows (C_s−a_s)）；膝点交叉 → 不足额按两侧溢出比例分摊并
+    报告（分摊逻辑自 m≥3 即承重——分摊测试最小交叉例取 m=3）；某侧
+    `a ≤ C` → 该侧 off（滑杆归零，§9.3 简并态）；推荐结果越 H_min（裁决
+    5③）= 拒绝推荐 + 面板提示（建议面，不改手填值）。Fit = 一次 discrete
+    commit。
   - **§9.2 三 readouts**：identity core 宽度（K_h−K_s）/ 双侧落点 EV /
     双侧端点斜率 `f'(a∓)`（g'_Δ 域公式）——只读行 + Solve 式刷新。
   - resolver 输入锚 = live stats + descriptor 缓存；两者缺任一 = fallback
@@ -221,8 +299,8 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
   标签、占位注记；全部静态键——F-2 插值禁令；材料名/技术专名不翻译口径同
   M3-3-03）；`zh-audit --check` PASS 门（键清单并集口径，SUMMARY 报实数）。
 - 测试（APP）：宽容度节投影（有/无 stats、有/无 descriptor 四态）、占比
-  手算、Fit 三政策分支、拒绝呈现与回弹、置位 commit 单漏斗、教导键静态性、
-  fallback 注记态。
+  手算、Fit 政策分支（含 m=3 最小交叉分摊例 + H_min 建议面提示态）、拒绝
+  呈现与回弹、置位 commit 单漏斗、教导键静态性、fallback 注记态。
 
 ### KD-4 D：Film 页走查补课（T4，随 T3 证据同批）
 
@@ -230,9 +308,17 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
   （`EditorNodesPanelView.swift:532` `openFilmPage`）——合成事件环境不可达
   （M3-3-03 §6 登记）。旁路 = App 菜单命令「显示胶片面板」（View 菜单，
   静态键；菜单 commands 所在文件 read_first 7 亲核实位后实名——预判
-  `LightamerApp` 组装根或 App/Shell 菜单文件）。卡 tap 原样保留（双入口并
-  存）；click-dead 本体维持「登记 + 人工真机复核」处置不变（合成事件限制
-  非本波修复面，VALIDATION 挂账单 carry）。
+  `LightamerApp` 组装根或 App/Shell 菜单文件）；旁路命令 = **无门控静态
+  项**（零新 `MenuCommandID`、零 keyboardShortcut）。卡 tap 原样保留（双
+  入口并存）；click-dead 本体维持「登记 + 人工真机复核」处置不变（合成
+  事件限制非本波修复面，VALIDATION 挂账单 carry）。
+  > checker 回注（2026-10-09）m8：menu IA = `MenuCommandID` 纯函数电路
+  > （`LightamerApp` :393 `visibleMenuCommands`；`WorkspaceRoutingTests`
+  > :225/:240/:254 对 allCases 穷举断言）——旁路命令一旦加 gate 或
+  > keyboardShortcut 即牵动 `MenuCommandSet.swift` + `AppPreferences`
+  > (DefaultKeymap) + `WorkspaceRoutingTests` 三件未申报面：越出即 C 档
+  > 回注申报三件，禁静默扩。无门控静态项（同 menu_show_sidebar :1457 静态
+  > 先例）则零 MenuCommandSet/AppPreferences diff。
 - **走查单**（证据落 `.work/gui-acceptance/m3-4/` MANIFEST，§3.2 视口关键区
   截图纪律）：旁路入口开页 → Film 页挂载/材料切换重渲/Y·M·强度·曝光滑杆
   D-H1/宽容度节双虚线与占比随图变化/置位滑杆动态最小值与拒绝呈现/Fit 一次
@@ -249,8 +335,15 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
   degrade / 有效性规则单源（resolver）/ 封存面清单与 PixelPipe factory 扩面
   申报 / fallback 锚降格注记。
 - SUMMARY：P1 增量对账（3152 + 登记增量，逐 bundle）+ P2 交接面（终验轮
-  基线、走查 Manual-Only 行、挂账 carry 清单）；DECISIONS = §A 推导转录 +
-  标定值（H_min/margin/sanity 带/占比容差）+ 哨兵核验记录。
+  基线、走查 Manual-Only 行、挂账 carry 清单）；DECISIONS = §A 推导转录
+  （F'(K*) 按独立复算值钉入 + 侧别 + 公式；m=2 bracketing 机理措辞照
+  「端点同号 + 增外根截胡」转录）+ 标定值（H_min 终值与 mapper 峰量级
+  依据/margin/sanity 带〔ISO 锚 5.66 + 执行期收窄依据〕/占比容差/直方图轴
+  原生跨度 [−6.56,+2.44]）+ ISO 6846 判据式（实测实现形）与上游实测窗
+  [−3.18,+2.49]/5.66 对照锚 + `reference_ev` 公式定形（mid 锚读法）+ Fit
+  m≥3 交叉分摊登记 + H_min 建议面守卫终形 + 哨兵核验记录。
+  > checker 回注（2026-10-09）：E1/E2/m1/m2/m4/m6 的 DECISIONS 执行期转录
+  > 清单随本批同步（判据式/带锚/复算值/机理措辞/轴跨度/m≥3）。
 - GOAL-STATE 续接点 → P2（M3-4-02 VALIDATION）；TODO 清账。
 
 ## read_first
@@ -338,8 +431,9 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
   `FilmDescriptorProbe` 真链 probe + `PixelPipe` factory 抽取（零行为 diff）；
   `FilmDescriptorTests`（LAYERS）。
 - **验收标准**
-  - [ ] LAYERS 定向轮绿；T(E) 单调 + portra 带宽 sanity 带 + reference_ev
-        标定带 + bit-identical + 手算向量全绿；film 腿既有测试零改全绿
+  - [ ] LAYERS 定向轮绿；T(E) 单调 + portra useful 对 sanity 带（ISO 判据
+        锚 5.66、初带 [4.0,7.5]）+ reference_ev 标定带 + bit-identical +
+        ISO 归约手算向量（E1 修正判据式）全绿；film 腿既有测试零改全绿
         （factory 零行为门）。
 
 ### T3 C：宽容度面板 + 置位编辑面（KD-3）
@@ -349,8 +443,13 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
   provider 写路径 + `latitude_*` 键块 + `FilmLatitudePanelTests`（APP）+
   登记同 commit。
 - **验收标准**
-  - [ ] APP 定向轮绿；占比手算向量 + Fit 三分支 + 拒绝回弹 + 四态投影
-        全绿；`zh-audit --check` PASS（实数入 SUMMARY）；DrtPanel 族零 diff。
+  - [ ] APP 定向轮绿；占比手算向量 + Fit 政策分支（含 m=3 最小交叉分摊例
+        + H_min 建议面提示）+ 拒绝回弹 + 四态投影全绿；**§6.4 四行参考向量
+        在 T3 有效性面下全部可写入**（H_min = Fit 建议面守卫，不拦 golden）；
+        `zh-audit --check` PASS（实数入 SUMMARY）；DrtPanel 族零 diff。
+        > checker 回注（2026-10-09）E3 验收门补条：修正后 §6.4 四行在 T3
+        > 有效性面下全部可写入（typed 拒绝仅保留输入域违例——第五行交叉对
+        > 负测照旧）。
 
 ### T4 D：走查补课（KD-4）
 
@@ -374,8 +473,8 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
 | # | AC | 机检方式 |
 |---|---|---|
 | 1 | 精确锚替换落地：exact 落点 + 锚注入 + typed 域守卫 + Params v2 迁移；§6.4 向量 golden + 排序门 + 拒绝门全绿（错根反向钉死） | T1 测试 |
-| 2 | descriptor 运行时：真链 probe + ISO 6846 归约 + pairHash 缓存；单调/带宽/标定/确定性四门全绿；零并行数学 | T2 测试 + 读码 |
-| 3 | 宽容度面板：直方图 + 双虚线 + 占比读数 + 教导两条；置位编辑面（动态最小值/拒绝点名/Fit/三 readouts）；D-H1 单 commit | T3 测试 + 走查 |
+| 2 | descriptor 运行时：真链 probe + ISO 6846 归约（判据式 = 实测实现：阴影端最后一个 `D ≥ 0.9·D_black` 的 E）+ pairHash 缓存；单调/带宽〔ISO 锚 5.66〕/标定/确定性四门全绿；零并行数学 | T2 测试 + 读码 |
+| 3 | 宽容度面板：直方图（原生 EV 跨度轴 [−6.56,+2.44]）+ 双虚线 + 占比读数 + 教导两条；置位编辑面（动态最小值/拒绝点名〔仅输入域违例〕/Fit〔含 H_min 建议面守卫〕/三 readouts）；§6.4 四行在 T3 有效性面下全部可写入；D-H1 单 commit | T3 测试 + 走查 |
 | 4 | Film 页走查补课：旁路入口 + 走查单全项证据；click-dead 登记态 carry | T4 证据 |
 | 5 | pristine 直通 + 密封面零命中（PixelPipe factory 唯一申报增量，零行为门） | 负测 + diff 机检 |
 | 6 | 登记闭环（E2/L041，登记随文件同 commit）+ zh 键清单 PASS | 三方对表 + zh-audit |
@@ -386,12 +485,17 @@ f(K) = K + g_m(a−K; C−K) = t,   g_m(Δ,H) = Δ·(1+(Δ/H)^m)^(−1/m) = (Δ^
 - **错根 = 本波最大风险**：对策 = 纪律 3（测试先行 + §6.4 向量 + 排序门 +
   拒绝门三重反向钉死）；任何向量失配 = 停下排查，**禁反向改参考迁就产线**
   （参考 = 独立真相）。
-- **高 m 交叉物理性**：m≥4 窄介质 Fit 边距下规则②拒绝 = 预期（复验在案，
-  DECISIONS 登记 §6.4 第五行同型语义）；面板不得「修好」它（禁静默钳制）。
+- **高 m 交叉物理性**：m≥3 窄介质 Fit 边距下规则②拒绝 = 预期（复验在案：
+  m=3 已交叉、m=4/5/8 单调深化，DECISIONS 登记 §6.4 第五行同型语义）；
+  面板不得「修好」它（禁静默钳制）。
+  > checker 回注（2026-10-09）m6：交叉阈值实为 m≥3 非 m≥4（独立复算；
+  > Fit「膝点交叉按溢出比例分摊」自 m≥3 起即承重——Fit 分摊测试最小交叉例
+  > 取 m=3）。
 - **PixelPipe factory 抽取**：结构必经预申报；若执行期发现组装面超出私有腿
   （如需触 GPU payload 类型公共面），停下按 C 档回注，禁静默扩公共 API。
 - **统计量化容差**：256 bin 线性域在深阴影的 EV 分辨率 ~0.3-0.6 stop/ bin
-  （锚与占比的量化界，DECISIONS 登记公式）；EV 域分箱升级 = 未来项不入
+  （锚与占比的量化界，DECISIONS 登记公式）；直方图 EV 轴原生可绘跨度
+  [−6.56,+2.44] 注记同批登记（m4，KD-3）；EV 域分箱升级 = 未来项不入
   本波（确定性机器已钉 256-bin 语义）。
 - **哨兵翻转**：placement 不在哨兵链的预判若被推翻，按重钉流程同 commit
   处理，禁跨 commit 漂移。

@@ -51,6 +51,7 @@ files_modified:
 
 | SC 域 | 正本指针 |
 |---|---|
+| M3-0（立项与站规格） | 无独立 SC 判据（no-SC 注记行）——立项批产物（V2 站草案 `4f84351` + OQ-V2-1..10 全裁决 `6e265ee` + 规划五正本落账）已随 M3-1 签核清偿；指针索引 = `ROADMAP.md` M3-0 行（✅ 闭环 2026-10-08） |
 | M2GRADE-08 | `phases/m3-1-w1/M3-1-01-*`（已 Delivered——本件只终态索引） |
 | YIYIN-09 | `phases/m3-1-w1/M3-1-02-*`（同上） |
 | 小件族四件（冲突档/peak-ICC/降档/zh 清算） | `phases/m3-1-w1/M3-1-03-*`（同上） |
@@ -61,6 +62,11 @@ files_modified:
 | FSIM-01d（资产三态 + 许可面） | 01 §2 + NOTICE |
 | FSIM-02（宽容度面板 + 教导 + 置位编辑面） | M3-4-01 SUMMARY AC 表 + 走查证据 |
 | SC 数字门 | KD-1 终验轮（ROADMAP「M3-4 plan 期定」兑现 = 本件 KD-1/KD-2） |
+
+> checker 回注（2026-10-09）m7：SC 表原缺 M3-0 行（ROADMAP :19 / STATE 均有
+> M3-0「立项与站规格」✅ 闭环行）——与「M3 全 phase」声称不符；补 no-SC
+> 注记行（判定 = 立项批已随 M3-1 签核清偿 + 指针索引），SC 表覆盖面恢复
+> M3-0..M3-4 全相。
 
 - **nyquist 判定**：逐 SC ≥1 机器锚 + ≥1 数字/实证背书；「无证据 ✅」零项；
   Manual-Only 行（click-dead 人工复核等）如实列通道边界理由。
