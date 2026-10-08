@@ -1487,7 +1487,9 @@ internal struct LightamerApp: App {
                 .keyboardShortcut("0", modifiers: [])
                 .disabled(metadataTextEntryActive)
                 ForEach(1...5, id: \.self) { stars in
-                    Button(String(localized: String.LocalizationValue("metadata_rating_\(stars)"))) {
+                    // V14: the explicit-switch static-key face (KD-4) —
+                    // the runtime-built lookup key is retired.
+                    Button(ratingMenuLabel(stars)) {
                         applyRating(stars)
                     }
                     .keyboardShortcut(KeyEquivalent(Character(String(stars))), modifiers: [])
@@ -1515,7 +1517,8 @@ internal struct LightamerApp: App {
                 .keyboardShortcut("0", modifiers: .command)
                 .disabled(metadataTextEntryActive)
                 ForEach(0..<6, id: \.self) { label in
-                    Button(String(localized: String.LocalizationValue("metadata_color_\(label)"))) {
+                    // V14: the explicit-switch static-key face (KD-4).
+                    Button(colorMenuLabel(label)) {
                         applyColor(label)
                     }
                     .keyboardShortcut(
@@ -1719,6 +1722,38 @@ internal struct LightamerApp: App {
         let targets = metadataTargets()
         guard !targets.isEmpty else { return }
         Task { await metadataController.setRating(value, relPaths: targets) }
+    }
+
+    /// V14/FINDING-G (M3-1-03 KD-4): the rating menu labels resolved
+    /// through an EXPLICIT switch returning STATIC keys. The old shape —
+    /// `String(localized: String.LocalizationValue("metadata_rating_\(stars)"))`
+    /// — built the lookup key at runtime, invisible to the zh-audit
+    /// extractor (the F-2 interpolated-literal trap family). The 11 keys
+    /// are in the catalog WITH zh values; this is shape hardening (the
+    /// keys become extractor-visible and auditable), not key addition.
+    private func ratingMenuLabel(_ stars: Int) -> String {
+        switch stars {
+        case 1: return String(localized: "metadata_rating_1")
+        case 2: return String(localized: "metadata_rating_2")
+        case 3: return String(localized: "metadata_rating_3")
+        case 4: return String(localized: "metadata_rating_4")
+        case 5: return String(localized: "metadata_rating_5")
+        default: return String(localized: "metadata_rating_clear")
+        }
+    }
+
+    /// V14/FINDING-G (M3-1-03 KD-4): the color-label menu's static-key
+    /// twin of `ratingMenuLabel`.
+    private func colorMenuLabel(_ label: Int) -> String {
+        switch label {
+        case 0: return String(localized: "metadata_color_0")
+        case 1: return String(localized: "metadata_color_1")
+        case 2: return String(localized: "metadata_color_2")
+        case 3: return String(localized: "metadata_color_3")
+        case 4: return String(localized: "metadata_color_4")
+        case 5: return String(localized: "metadata_color_5")
+        default: return String(localized: "metadata_color_clear")
+        }
     }
 
     private func applyColor(_ value: Int?) {

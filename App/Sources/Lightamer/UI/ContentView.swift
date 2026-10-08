@@ -714,28 +714,25 @@ struct ProjectWorkspaceFace: View {
                 .deletingPathExtension().lastPathComponent {
                 Text(verbatim: name)
                     .font(.title2)
-                Text(verbatim:
-                    "Project open. Import a folder to fill this project.")
+                // M3-1-03 T4 F1: the four verbatim zh gaps localized (the
+                // M2-3-4 F1 ledger debt closed; the brand word stays
+                // verbatim by design).
+                Text(String(localized: "project_face_open_hint"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                // A String-typed local (not a literal) so Label picks the
-                // StringProtocol overload — no LocalizedStringKey lookup,
-                // zero String Catalog churn (the M2-2-2 discipline).
-                let importTitle = String("Import Folder…")
                 Button {
                     onImportFolder()
                 } label: {
                     Label(
-                        importTitle,
+                        String(localized: "project_face_import_folder"),
                         systemImage: "square.and.arrow.down")
                 }
                 .keyboardShortcut("i", modifiers: [.command, .shift])
                 .accessibilityIdentifier("library.project.import")
             } else {
-                Text(verbatim: "No project open.")
+                Text(String(localized: "project_face_no_project"))
                     .font(.title2)
-                Text(verbatim:
-                    "Create or open a project to organize your library.")
+                Text(String(localized: "project_face_no_project_hint"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

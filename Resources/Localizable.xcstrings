@@ -29658,6 +29658,102 @@
           }
         }
       }
+    },
+    "project_face_import_folder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import Folder…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入文件夹…"
+          }
+        }
+      }
+    },
+    "project_face_no_project": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No project open."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未打开项目。"
+          }
+        }
+      }
+    },
+    "project_face_no_project_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create or open a project to organize your library."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建或打开一个项目来整理你的图库。"
+          }
+        }
+      }
+    },
+    "project_face_open_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project open. Import a folder to fill this project."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目已打开。导入文件夹以填充此项目。"
+          }
+        }
+      }
+    },
+    "search_clip_placeholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Describe what you're looking for — any language"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "描述你要找的内容——任何语言"
+          }
+        }
+      }
+    },
+    "search_exif_placeholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. sony iso800 f/2.8 35mm 2024-06"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如 sony iso800 f/2.8 35mm 2024-06"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
