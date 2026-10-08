@@ -321,6 +321,7 @@ LIB	20	LibraryQueriesTests.swift
 LIB	21	ExifSearchParserTests.swift
 LIB	27	FilterSQLTests.swift
 LIB	3	SidecarTieBreakTests.swift
+LIB	5	SidecarSeedTopUpTests.swift
 LIB	4	MetadataTests.swift
 LIB	5	LibrarySearchModelTests.swift
 LIB	6	XMPExportMatrixTests.swift
