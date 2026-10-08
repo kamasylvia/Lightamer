@@ -509,3 +509,5 @@ LAYERS	9	FilmRecordTests.swift
 #   测试按 front-matter 五测试文件清单并入 FilmProfileTests，不另立文件）。
 LAYERS	21	FilmProfileTests.swift
 LAYERS	8	FilmFilterPackSolverTests.swift
+LAYERS	8	FilmHistoryTests.swift
+LIB	6	FilmSidecarTests.swift
