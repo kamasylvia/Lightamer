@@ -226,13 +226,15 @@ final class CatalogAddFaceTests: XCTestCase {
         let entries = editor.addFaceEntries(layerID: layerID)
         // The unique-op matrix (AC#7 "逐目录 id 断言"; the plan's "恰 14"
         // count reconciliation lives in EditorState + DECISIONS — the
-        // binding clauses leave 12 unique-op entries).
+        // binding clauses leave 13 unique-op entries; M3-3-02 T4 adds the
+        // filmPlacement row to the enumeration per the m4 identity-
+        // placeholder ruling — addable, non-editable until M3-4).
         XCTAssertEqual(
             entries.compactMap(\.catalogID),
             [
                 "cat02WhiteBalance", "exposure", "contrast", "white", "black",
                 "shadows", "curve", "hls", "saturation", "vibrance",
-                "colorWheel", "tint",
+                "colorWheel", "tint", "filmPlacement",
             ])
         // LMT is NOT in any add enumeration (its seat is the LUT page).
         XCTAssertFalse(entries.contains { $0.template.opName == Lut3dModule.opName })

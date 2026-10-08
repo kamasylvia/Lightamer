@@ -937,6 +937,13 @@ final class EditorState {
             ModuleInstance(module: ColorWheelsModule.self, params: ColorWheelsModule.Params())
         case TintModule.opName:
             ModuleInstance(module: TintModule.self, params: TintModule.Params())
+        // M3-3-02 T4 (KD-5/m4): the placement op joins the ADD face as the
+        // 19th row's identity template — the addable, NON-editable identity
+        // placeholder (the per-op hand-written provider mechanism = no
+        // editing face until the M3-4 FSIM-02 panel; Params() IS the
+        // kernel no-op point, so add + leave = bit-exact pass-through).
+        case FilmPlacementModule.opName:
+            ModuleInstance(module: FilmPlacementModule.self, params: FilmPlacementModule.Params())
         // The develop-owned panel face.
         case TemperatureModule.opName:
             ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params())

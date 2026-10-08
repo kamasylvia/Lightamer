@@ -3,20 +3,21 @@ import LightamerIOP
 import XCTest
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GradeCatalogTests (Plan M2-5-1 T1) — the 18-catalog grade registry face
-// (KD-1) + the LIGHTAMER V50Order rows (KD-3):
+// GradeCatalogTests (Plan M2-5-1 T1) — the grade registry face (KD-1) + the
+// LIGHTAMER V50Order rows (KD-3). M3-3-02 T4 adds the 19th catalog row
+// (filmPlacement — the m8 closure list, counts 18/14/17 → 19/15/18):
 //
-//   1. SHAPE: exactly 18 catalog rows (FEATURE-MAP §2.1 order), 14
-//      grade-owned (13 + Tint), unique catalogIDs.
+//   1. SHAPE: exactly 19 catalog rows (FEATURE-MAP §2.1 order + the
+//      M3-3-02 placement row), 15 grade-owned (14 + Tint), unique catalogIDs.
 //   2. COMPLETENESS (checker E7): the default-face registry op set minus
-//      (the 18 catalog ops ∪ {testgain}) = ∅. THE testgain EXEMPTION: it
+//      (the 19 catalog ops ∪ {testgain}) = ∅. THE testgain EXEMPTION: it
 //      is the DEBUG-only registration (Registry.swift `#if DEBUG` — the
 //      module type is compiled out of Release), NOT a catalog omission;
 //      this note is the pin that keeps a later reader from "fixing" it.
-//   3. OWNER MATRIX: all 18 rows carry the expected owner, the catalog
+//   3. OWNER MATRIX: all 19 rows carry the expected owner, the catalog
 //      column and owner(of:) AGREE (the KD-1 consumption face), the four
 //      DRT/Post seats are named, and the develop family regression holds.
-//   4. V50 UNIQUENESS (KD-3 invariants): the ten LIGHTAMER rows are
+//   4. V50 UNIQUENESS (KD-3 invariants): the eleven LIGHTAMER rows are
 //      mutually unique; disjoint from every REGISTERED op's position; the
 //      whole-table position collisions are exactly {28.5 cluster, 41.0
 //      colorWheels↔colorbalance} — the ONE declared exception.
@@ -33,7 +34,7 @@ final class GradeCatalogTests: XCTestCase {
     // MARK: - 1: shape
 
     func testExactlyEighteenItemsInFeatureMapOrder() {
-        XCTAssertEqual(GradeCatalog.items.count, 18)
+        XCTAssertEqual(GradeCatalog.items.count, 19)
         XCTAssertEqual(
             GradeCatalog.items.map(\.catalogID),
             [
@@ -41,14 +42,15 @@ final class GradeCatalogTests: XCTestCase {
                 "shadows", "highlights", "curve", "hls", "saturation",
                 "vibrance", "colorWheel", "lmt", "tint",
                 "clarity", "sharpen", "halation", "filmGrain",
+                "filmPlacement",
             ],
-            "the FEATURE-MAP §2.1 table order is the registry order")
-        XCTAssertEqual(Set(GradeCatalog.items.map(\.catalogID)).count, 18, "unique ids")
+            "the FEATURE-MAP §2.1 table order + the M3-3-02 placement row")
+        XCTAssertEqual(Set(GradeCatalog.items.map(\.catalogID)).count, 19, "unique ids")
     }
 
     func testGradeItemsAreExactlyFourteen() {
         let grade = GradeCatalog.gradeItems()
-        XCTAssertEqual(grade.count, 14, "13 Grade ops + Tint")
+        XCTAssertEqual(grade.count, 15, "14 Grade ops + Tint (filmPlacement joined, M3-3-02)")
         XCTAssertEqual(grade.filter { $0.catalogID == "tint" }.count, 1)
         XCTAssertTrue(grade.allSatisfy { $0.owner == .grade })
         // The four DRT/Post seats never leak into the grade face.
@@ -88,11 +90,16 @@ final class GradeCatalogTests: XCTestCase {
         //       keeps a later reader from "fixing" it.
         let face = await defaultFaceRegistryOps()
         let catalogOps = Set(GradeCatalog.items.map(\.opName))
-        XCTAssertEqual(catalogOps.count, 17, "18 rows; Shadows/Highlights share the shadhi op")
+        XCTAssertEqual(catalogOps.count, 18, "19 rows; Shadows/Highlights share the shadhi op")
+        // The SEED-DEFERRED ops (join the editing seed with their panels —
+        // the M2-5-1 seven + the M3-3-02 placement op, whose FSIM-02 panel
+        // is M3-4; each IS default-face REGISTERED, only seed membership
+        // waits). The subset check below pins the PRE-EXISTING aligned ops.
         let newSevenOps: Set<String> = [
             Cat02WBModule.opName, ContrastModule.opName, WhiteModule.opName,
             BlackModule.opName, SaturationModule.opName, TintModule.opName,
             ColorWheelsModule.opName, HlsModule.opName,
+            FilmPlacementModule.opName,
         ]
         let alignedOps = catalogOps.subtracting(newSevenOps)
         XCTAssertTrue(
@@ -110,7 +117,7 @@ final class GradeCatalogTests: XCTestCase {
         #endif
     }
 
-    /// DECISIONS §3 (b), the T7 closure: all 18 catalog rows' ops (17
+    /// DECISIONS §3 (b), the T7 closure: all 19 catalog rows' ops (18
     /// unique opNames — Shadows/Highlights share shadhi) RESOLVE from the
     /// default-face-populated registry. This is the strict-face narrowing
     /// precondition the P2 panels build on. Seed membership is deliberately
@@ -126,7 +133,7 @@ final class GradeCatalogTests: XCTestCase {
             XCTAssertNotNil(box, "\(item.opName) must be default-face registered")
             resolved.insert(item.opName)
         }
-        XCTAssertEqual(resolved.count, 17, "17 unique catalog ops all resolve")
+        XCTAssertEqual(resolved.count, 18, "18 unique catalog ops all resolve")
     }
 
     // MARK: - 3: the owner matrix
@@ -151,6 +158,7 @@ final class GradeCatalogTests: XCTestCase {
             "sharpen": .drtPost,
             "halation": .drtPost,
             "filmGrain": .drtPost,
+            "filmPlacement": .grade,
         ]
         for item in GradeCatalog.items {
             XCTAssertEqual(
@@ -180,6 +188,7 @@ final class GradeCatalogTests: XCTestCase {
 
     private static let lightamerGradeRows: [(String, Float)] = [
         ("acesccIn", 20.5),
+        ("filmPlacement", 20.8),
         ("acesccOut", 69.9),
         ("colorWheels", 41.0),
         ("cat02WhiteBalance", 41.4),
@@ -197,7 +206,11 @@ final class GradeCatalogTests: XCTestCase {
         }
         // The envelope-entry/exit relations (KD-3): acesccIn sits BELOW the
         // lowest 18-catalog op (exposure 21.0); acesccOut sits ABOVE every
-        // in-domain op and BELOW the 70.0 terminal floor.
+        // in-domain op and BELOW the 70.0 terminal floor. M3-3-02: the
+        // placement op is the FIRST grade-domain mapping (acesccIn <
+        // filmPlacement < exposure).
+        XCTAssertLessThan(V50Order.order(for: "acesccIn")!, V50Order.order(for: "filmPlacement")!)
+        XCTAssertLessThan(V50Order.order(for: "filmPlacement")!, V50Order.order(for: "exposure")!)
         XCTAssertLessThan(V50Order.order(for: "acesccIn")!, V50Order.order(for: "exposure")!)
         XCTAssertGreaterThan(V50Order.order(for: "retouch")!, 0)
         XCTAssertLessThan(V50Order.order(for: "retouch")!, V50Order.order(for: "acesccIn")!)

@@ -7,13 +7,12 @@
 ///
 /// Load-bearing properties (sidecar-stable from Phase 2 — the order value
 /// rides in every history entry, so renumbering breaks decoding):
-/// - 94 entries, positions 1.0 (`rawprepare`) → 78.0 (`gamma`).
-/// - **The table is dt verbatim EXCEPT one Lightamer-native row**: the
-///   `skinSmooth` 66.5 entry (Phase 7, Plan 07-2) — the FIRST non-dt row
-///   inserted into the verbatim table (D-07-CONTEXT-2). The dt verbatim
-///   discipline applies to it UNCHANGED: no reordering, no renumbering,
-///   add-only (a later removal would orphan sidecar order values). It is
-///   flagged with a `LIGHTAMER` comment at the row itself.
+/// - The native rows (add-only family, each flagged at its row): skinSmooth
+///   66.5 (07-2), textOverlay 66.7 (08-5), acesccIn/Out + eight M2-5-1
+///   grade rows, filmPlacement 20.8 (M3-3-02) — 106 entries total (93
+///   dt-verbatim + 13 native), positions 1.0 (`rawprepare`) → 78.0
+///   (`gamma`). The dt discipline applies to EVERY native row: no
+///   reordering, no renumbering, add-only.
 /// - The deliberate 28.5 cluster: `channelmixerrgb` / `diffuse` /
 ///   `censorize` / `negadoctor` / `blurs` / `primaries` all share 28.5 —
 ///   the ONLY position collision in the table (they are mutually
@@ -60,6 +59,14 @@ public enum V50Order {
         // before any in-domain grading. Driver-constructed, never
         // registered (KD-2) — this row only pins the sub-run sort position.
         ("acesccIn", 20.5),
+        // LIGHTAMER-NATIVE ROW (NOT a dt entry — Plan M3-3-02 T4, KD-5):
+        // filmPlacement (the RFC-023 scene-placement curve, FSIM-01) sits
+        // between acesccIn (20.5) and exposure (21.0) — placement is the
+        // FIRST grade-domain mapping ("Scene Placement is the first
+        // mapping": camera WB/temp 3.0 runs in the RAW domain before it,
+        // every other catalog op sorts above). The dt discipline (no
+        // reorder / unique / add-only) applies exactly as to 66.5/66.7.
+        ("filmPlacement", 20.8),
         ("exposure", 21.0),
         ("mask_manager", 22.0),
         ("tonemap", 23.0),

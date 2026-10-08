@@ -87,6 +87,16 @@ public enum LightamerIOPRegistry {
             }
             await registry.register(opName: opName, factory: factory)
         }
+        // M3-3-02 T4 (KD-5): filmPlacement (the RFC-023 scene-placement
+        // curve), v50 slot 20.8 — the first grade-domain mapping (inside
+        // the acesccIn 20.5 envelope). Identity at the default params (both
+        // pull-backs 0 = the bit-exact core), so default-face registration
+        // is pixel-safe (the E7 closure: the 19th catalog row registers
+        // with its implementation). Seed stays ABSENT (grade ops join the
+        // editing seed with their panels — M3-4 FSIM-02).
+        await registry.register(opName: FilmPlacementModule.opName) { id in
+            ModuleBox(module: FilmPlacementModule(), instanceID: id)
+        }
         // M2-5-1 T3: cat02WhiteBalance (creative CAT02 WB in the ACEScc
         // grade domain, KD-4), v50 slot 41.4. Seed stays ABSENT — the grade
         // catalog ops join the editing seed with their P2 panels (the
@@ -447,6 +457,7 @@ public enum LightamerIOPRegistry {
             // M2-5-1: the grade-domain envelope pair + the catalog kernels.
             ACESccKernel.inFunctionName,
             ACESccKernel.outFunctionName,
+            FilmPlacementKernel.functionName,
             Cat02WBKernel.functionName,
             ContrastKernel.functionName,
             WhiteKernel.functionName,
