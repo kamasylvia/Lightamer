@@ -1375,7 +1375,14 @@ struct YiyinTopBarSheet: View {
     private func dragGesture(
         _ axis: YiyinSheetDragSession.Axis
     ) -> some Gesture {
-        DragGesture(minimumDistance: 1)
+        // .global space (upstream clientX semantics, the screen-anchored
+        // delta): the sheet window RE-CENTERS/RE-HANGS while it resizes, so
+        // a local-space translation is partially eaten by the window's own
+        // movement. The global delta minimizes that coupling; a residual
+        // step survives on the height axis when the system re-hangs the
+        // sheet (observed in walkthrough, DECISIONS) — the clamp/persist
+        // semantics are unaffected.
+        DragGesture(minimumDistance: 1, coordinateSpace: .global)
             .onChanged { value in
                 // The drag window: live ticks land in @State ONLY — zero
                 // history commit, zero pipe dispatch, zero defaults write
