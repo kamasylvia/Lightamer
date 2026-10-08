@@ -511,3 +511,12 @@ LAYERS	21	FilmProfileTests.swift
 LAYERS	8	FilmFilterPackSolverTests.swift
 LAYERS	8	FilmHistoryTests.swift
 LIB	6	FilmSidecarTests.swift
+
+# M3-3-02 增行记录（2026-10-08 执行期，checker E2 测试登记纪律）：新测试文件随各自
+#   任务 commit 登记进对应 bundle（归属按 front-matter 判定：FilmLegTests /
+#   FilmPrintBakeTests / FilmPlacementDriverTests = LAYERS/Core 级；
+#   FilmPlacementTests = IOP 级；FilmPlacementKernelTests = IOPP 级
+#   （*Kernel* 域惯例）；FilmCoordinatorTests = APP/App 级；
+#   ExportFilmChainTests = EXPORT/Core 级）。行内 method 数以终态对账为准。
+#   运行期总数基线相应上移（3081 推算值起算，首个全套轮实测校正）。
+LAYERS	8	FilmLegTests.swift

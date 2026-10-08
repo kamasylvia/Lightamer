@@ -202,7 +202,8 @@ enum LayerCompositeDriver {
         hotLayerID: UUID? = nil,
         maskDirectory: URL? = nil,
         terminalTail: TerminalTailPolicy = .sdrGamma,
-        tailFormatFloatOverride: Bool = false
+        tailFormatFloatOverride: Bool = false,
+        filmTail: FilmTailPolicy? = nil
     ) async throws -> LayerCompositeResult {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -550,6 +551,12 @@ enum LayerCompositeDriver {
             // the pass-through the composite export path (the layered
             // document's常态) would keep the display EOTF-format tail.
             terminalPipe.tailFormatFloatOverride = tailFormatFloatOverride
+            // M3-3-02 T3 (KD-4): the film sub-run policy rides the terminal
+            // leg too (the terminal pipe's `runSub` sequences film → DRT →
+            // display replay internally; the base/layer legs never carry it
+            // — the film consumes the pre-display plane only). Default nil
+            // = OFF, every pre-existing call site byte-unchanged.
+            terminalPipe.filmTail = filmTail
             // GUI-21 (2026-09-24): the terminal's hash seed is the FINAL
             // composite prefix identity — NOT the bare decode hash. The
             // decode-only seed made the terminal's cache lines blind to
