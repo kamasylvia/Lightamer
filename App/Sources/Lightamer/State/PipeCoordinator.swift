@@ -720,6 +720,140 @@ final class PipeCoordinator {
     /// True between `beginDrtEdit` and `commitDrtEdit`.
     private var isEditingDrt = false
 
+    // ── M3-3-02 T5 (KD-6): the FILM persistence four-piece — the DRT
+    //    four-piece's twin (updateDrtRecord :577 / restoreDrtRecordLeg :598
+    //    / drtRecordDidChange / terminalTailPolicy :656 shapes) ──────────
+
+    /// ② WRITE leg's coordinator face: the session carrier was ALREADY
+    /// updated by the caller and `makeSidecarDocument` reads THAT carrier
+    /// for the sidecar v9 `filmRecord` field — one truth, no second mirror.
+    /// This face only schedules the existing 2s-throttled write.
+    func updateFilmRecord(_ record: FilmRecord, for url: URL) {
+        guard url == currentImageURL else {
+            Self.logger.debug(
+                "film record write for a non-current image — session carrier holds it"
+            )
+            return
+        }
+        scheduleSidecarWrite()
+    }
+
+    /// ③ RESTORE leg (the restoreDrtRecordLeg graded semantics): pristine
+    /// documents (nil field) — zero action; stored == session carrier —
+    /// skip; stored != carrier — prime the carrier (the render rides THIS
+    /// load's own preview pass — the film tail keys on the record hash, not
+    /// the decode request). A mismatch against the history's projection
+    /// logs and the FIELD wins (the same persistence truth).
+    private func restoreFilmRecordLeg(document: LightamerSidecar, url: URL) {
+        guard let stored = document.filmRecord else { return } // pristine 零动作
+        if let editorState, editorState.history.effectiveFilmRecord() != stored {
+            Self.logger.error(
+                "sidecar filmRecord disagrees with the history's film item — the persisted field wins"
+            )
+        }
+        let session = workspace?.filmRecord(for: url) ?? FilmRecord()
+        guard stored != session else { return } // switch-back skip
+        workspace?.setSessionFilmRecord(stored, for: url)
+    }
+
+    /// The EditorState FILM commit notification target (the
+    /// drtRecordDidChange twin): sync the carrier from the HISTORY truth,
+    /// re-render (the film leg re-runs on the record/pack fold), schedule
+    /// the sidecar write.
+    func filmRecordDidChange(_ record: FilmRecord) async {
+        guard decoded != nil else { return }
+        syncFilmCarrierWithHistory()
+        await historyDidChange()
+        scheduleSidecarWrite()
+    }
+
+    /// ④ RUN pass-through (KD-6): the film-tail policy for a render at
+    /// `resolution`, in ONE decision place. A non-pristine carrier +
+    /// resolved materials route `FilmTailParams`; an unknown stock degrades
+    /// typed (film leg disabled + one-time toast — never silent, never a
+    /// crash). THUMBNAIL stays nil in every branch (the KD-4 gate — the
+    /// grid consumes display-ready SDR planes). Internal: the APP tests
+    /// drive the four-piece's run-pass face directly (@testable).
+    func filmTailPolicy(for resolution: PipeResolution) -> FilmTailPolicy? {
+        guard resolution != .thumbnail, let url = currentImageURL, let workspace,
+            workspace.hasFilmRecord(for: url), let filmStore
+        else { return nil }
+        let record = workspace.filmRecord(for: url)
+        guard !isFilmRecordDefault(record) else { return nil }
+        // The material resolution: an unknown stock = the typed degrade
+        // (the film leg禁用 + toast — the KD-6 bad-directory posture's
+        // per-record twin).
+        guard let film = filmStore.profile(id: record.filmStock),
+            let paper = filmStore.profile(id: record.paperStock)
+        else {
+            Self.logger.error(
+                "film stocks unresolved (film '\(record.filmStock, privacy: .public)' / paper '\(record.paperStock, privacy: .public)') — the film leg is disabled for this render"
+            )
+            return nil
+        }
+        return FilmTailParams(
+            record: record, filmProfile: film, paperProfile: paper,
+            materialPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper))
+    }
+
+    /// The film material store (KD-6): injected at composition (the
+    /// bundle's FilmProfiles/profiles); nil = the film face dark (tests /
+    /// a failed store build — the typed degrade logged once).
+    private var filmStore: FilmMaterialStore?
+
+    /// Inject the store (called from the composition root; a nil store =
+    /// the film face dark). The store construction itself is the App's —
+    /// this face only seats it.
+    func attachFilmStore(_ store: FilmMaterialStore?) {
+        filmStore = store
+    }
+
+    /// Navigation faces carrier re-sync (the syncDrtCarrierWithHistory
+    /// twin): after a pointer move the carrier re-derives from the
+    /// HISTORY's effective film record.
+    private func syncFilmCarrierWithHistory() {
+        guard let editorState, let url = currentImageURL else { return }
+        workspace?.setSessionFilmRecord(
+            editorState.history.effectiveFilmRecord(), for: url)
+    }
+
+    /// D-H1 LIVE leg for the document-level film record (the panel's drag
+    /// ticks): carrier update + re-render, ZERO history items. The record
+    /// rides the pending slot so the commit leg lands ONE item.
+    func setFilmLive(_ record: FilmRecord) async {
+        guard decoded != nil, let url = currentImageURL else { return }
+        workspace?.setSessionFilmRecord(record, for: url)
+        filmEditPending = record
+        await historyDidChange()
+    }
+
+    /// D-H1 drag END for the film record: commit the pending record as ONE
+    /// `history_film_*` item (the no-op drag gate).
+    func commitFilmEdit(label: String) async {
+        isEditingFilm = false
+        guard let pending = filmEditPending else { return }
+        filmEditPending = nil
+        guard pending != filmEditSeed else { return }
+        filmEditSeed = nil
+        editorState?.recordFilmChange(pending, label: label)
+        // The carrier sync + re-render + sidecar write ride the
+        // filmRecordDidChange notification from the commit face.
+    }
+
+    /// Arm the film live window (the beginDrtEdit shape).
+    func beginFilmEdit() {
+        isEditingFilm = true
+        filmEditPending = nil
+        filmEditSeed = currentImageURL.map { workspace?.filmRecord(for: $0) ?? FilmRecord() }
+    }
+
+    /// The pending record of an open film live window (nil = none).
+    private var filmEditPending: FilmRecord?
+    /// The carrier record captured at `beginFilmEdit` (the no-op-drag gate).
+    private var filmEditSeed: FilmRecord?
+    /// True between `beginFilmEdit` and `commitFilmEdit`.
+    private var isEditingFilm = false
+
     /// The RESTORE leg (checker E1 方案①): a loaded document's persisted
     /// rawOverrides seed the session carrier and trigger a RE-DECODE with
     /// the stored overrides. Per KD-5's declared cost face:
@@ -963,6 +1097,10 @@ final class PipeCoordinator {
                     // prime the session carrier (pristine documents skip;
                     // the render rides this load's own preview pass).
                     restoreDrtRecordLeg(document: document, url: url)
+                    // M3-3-02 T5 (KD-6): the persisted FILM restore leg —
+                    // the same three-state graded semantics (pristine zero
+                    // action / same-value skip / re-prime the carrier).
+                    restoreFilmRecordLeg(document: document, url: url)
                     // M2-8-1 T2 (KD-4): the version hydrate leg — a
                     // versioned document loads its slots (the active one
                     // marked, non-active chains read through the public
@@ -1244,6 +1382,16 @@ final class PipeCoordinator {
         }
         let drtForField: DrtRecord? =
             sessionDrt.flatMap { isDrtRecordDefault($0) ? nil : $0 }
+        // M3-3-02 T5 (KD-6 + the 01 handover's ANCHOR-CONSISTENCY rule):
+        // the persisted film record reads the SESSION carrier the same way
+        // (a default persists as the ABSENT key) AND the historyHash fold
+        // tail carries the HISTORY's effective film record — the film item
+        // and the document field land PAIRED (the drift anchor's feed).
+        let sessionFilm = currentImageURL.map {
+            workspace?.filmRecord(for: $0) ?? FilmRecord()
+        }
+        let filmForField: FilmRecord? =
+            sessionFilm.flatMap { isFilmRecordDefault($0) ? nil : $0 }
         // M2-8-1 T2 (KD-4): the version face. A structure-less session
         // (nil) keeps the v6 byte shape (both keys absent); a structured
         // one touches the active slot (KD-2's write-face updatedAt rule)
@@ -1273,13 +1421,15 @@ final class PipeCoordinator {
             historyHash: HistoryHash.hash(
                 stack: editorState.history, decodeParamsHash: decodeHash,
                 layerSnapshot: stackRecord?.snapshot,
-                drtRecord: editorState.history.effectiveDrtRecord()),
+                drtRecord: editorState.history.effectiveDrtRecord(),
+                filmRecord: editorState.history.effectiveFilmRecord()),
             appVersion: LightamerSidecar.currentAppVersion,
             layerStack: stackRecord,
             rawOverrides: sessionOverrides.isIdentity ? nil : sessionOverrides,
             displayTransform: drtForField,
             versions: versionRecords,
-            activeVersionID: activeVersionID)
+            activeVersionID: activeVersionID,
+            filmRecord: filmForField)
     }
 
     /// D-S3: every committed history MOVE throttles a `.lra` write (2s
@@ -1591,6 +1741,7 @@ final class PipeCoordinator {
     func undo() async {
         guard let editorState, editorState.performUndo() else { return }
         syncDrtCarrierWithHistory()
+        syncFilmCarrierWithHistory()
         await historyDidChange()
         scheduleSidecarWrite() // position moved — persist it too
     }
@@ -1599,6 +1750,7 @@ final class PipeCoordinator {
     func redo() async {
         guard let editorState, editorState.performRedo() else { return }
         syncDrtCarrierWithHistory()
+        syncFilmCarrierWithHistory()
         await historyDidChange()
         scheduleSidecarWrite()
     }
@@ -1618,6 +1770,7 @@ final class PipeCoordinator {
         guard let editorState else { return }
         editorState.performJump(to: index)
         syncDrtCarrierWithHistory()
+        syncFilmCarrierWithHistory()
         await historyDidChange()
         scheduleSidecarWrite()
     }
@@ -2189,7 +2342,8 @@ final class PipeCoordinator {
                 maskDirectory: currentImageURL.map {
                     RasterMaskStore.masksDirectory(forImageURL: $0)
                 },
-                terminalTail: terminalTailPolicy(for: resolution))
+                terminalTail: terminalTailPolicy(for: resolution),
+                filmTail: filmTailPolicy(for: resolution))
             return RenderChainOutput(texture: texture, stats: stats)
         }
         let (texture, stats) = try await RenderPipeline.process(
@@ -2200,7 +2354,8 @@ final class PipeCoordinator {
             cache: cache,
             metal: metal,
             longEdge: longEdge,
-            terminalTail: terminalTailPolicy(for: resolution)
+            terminalTail: terminalTailPolicy(for: resolution),
+            filmTail: filmTailPolicy(for: resolution)
         )
         return RenderChainOutput(texture: texture, stats: stats)
     }

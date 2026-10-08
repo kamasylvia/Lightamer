@@ -263,6 +263,27 @@ final class EditorState {
         Task { await pipeCoordinator.drtRecordDidChange(record) }
     }
 
+    // ── M3-3-02 T5 (KD-6): the document-level FILM commit face — the DRT
+    //    commit's twin (one item per interaction, `history_film_*` labels;
+    //    undo/redo restore through the coordinator's navigation faces).
+
+    /// D-H1 COMMIT leg for the document-level film record: EXACTLY ONE
+    /// history item whose payload rides `filmRecord`; the placeholder slot
+    /// keeps the instance set unpolluted (the commitDrt shape).
+    func recordFilmChange(_ record: FilmRecord, label: String) {
+        let placeholder = instances.first ?? baseInstances.first
+        guard let placeholder else { return }
+        history.commitFilm(record: record, placeholder: placeholder, label: label)
+        notifyFilmChange(record)
+    }
+
+    /// The EditorState → coordinator edge for the film dimension (the
+    /// notifyDrtChange twin).
+    private func notifyFilmChange(_ record: FilmRecord) {
+        guard let pipeCoordinator else { return }
+        Task { await pipeCoordinator.filmRecordDidChange(record) }
+    }
+
     /// 04-08-F2 (GUI-9 闭环): menu enablement source — true while the
     /// stack has an entry at/below the pointer to step back into.
     /// The Edit → Undo menu binds `.disabled(!canUndo)` to this, so ⌘Z

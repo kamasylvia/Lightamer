@@ -277,6 +277,40 @@ final class WorkspaceModel {
         drtRecords.removeAll()
     }
 
+    // MARK: - Film record carrier (Plan M3-3-02 T5, KD-6 — the DRT
+    // carrier's twin; sidecar persistence = the v9 `filmRecord` field)
+
+    /// The session-level document film records, keyed by the source file
+    /// path. ABSENT KEY = pristine — a default record never occupies the
+    /// map (the `isFilmRecordDefault` judgment folds at the write faces).
+    private(set) var filmRecords: [String: FilmRecord] = [:]
+
+    /// The read face (pristine when the image has no session record).
+    func filmRecord(for url: URL) -> FilmRecord {
+        filmRecords[url.path] ?? FilmRecord()
+    }
+
+    /// Whether the image carries a NON-pristine session record (the
+    /// `filmTailPolicy(for:)` gate).
+    func hasFilmRecord(for url: URL) -> Bool {
+        filmRecords[url.path] != nil
+    }
+
+    /// The raw write face (nil = pristine, drops the key), NO coordinator
+    /// pass-through — the persistence hook lives in the coordinator legs.
+    func setSessionFilmRecord(_ record: FilmRecord?, for url: URL) {
+        if let record, !isFilmRecordDefault(record) {
+            filmRecords[url.path] = record
+        } else {
+            filmRecords.removeValue(forKey: url.path)
+        }
+    }
+
+    /// The editor-close drop face.
+    func dropSessionFilmRecords() {
+        filmRecords.removeAll()
+    }
+
 
     // MARK: - AI enhancement entry requests (Plan M2-10-07 T3, KD-3)
 
@@ -340,6 +374,7 @@ final class WorkspaceModel {
         libraryState = preservedLibraryState
         dropSessionOverrides()
         dropSessionDrtRecords()
+        dropSessionFilmRecords()  // M3-3-02 T5: the film carrier rides the close (KD-6)
         phase = .library
     }
 
