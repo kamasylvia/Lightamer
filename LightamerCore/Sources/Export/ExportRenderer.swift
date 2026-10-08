@@ -116,6 +116,14 @@ public enum ExportRenderer {
     /// (the seat the M2-9-03 probe chain proved is the only serializer).
     @TaskLocal public static var jobExifSoftware: String? = nil
 
+    /// The QUEUE-side per-image FILM carrier (M3-3-02 T6, KD-7 — the
+    /// `$jobDrtTail` seam's twin): the export leg signature is contract-
+    /// frozen, so the actor's `execute` scopes each render-leg call in
+    /// `$jobFilmTail.withValue(queued.filmTail)` (a detached task inherits
+    /// NO TaskLocals — the wrapper sits inside). nil = the legacy face.
+    /// `renderStage` consults it when the request's own `filmTail` is nil.
+    @TaskLocal public static var jobFilmTail: FilmTailParams? = nil
+
     /// The QUEUE-side naming bundle (M2-9-03 KD-1): the template request +
     /// collision tier + subfolder, delivered through the same contract-
     /// frozen leg signature as `jobDrtTail`. nil = the legacy face; the
@@ -167,6 +175,13 @@ public enum ExportRenderer {
         /// Non-nil = explicit records (the 11-04 live-edit export face).
         public var instancesOverride: [ModuleInstance]?
 
+        /// The film sub-run policy payload (M3-3-02 T6, KD-7): non-nil =
+        /// the export renders the film leg (pre-display, KD-1's seam).
+        /// Queue jobs may also deliver it through `ExportRenderer
+        /// .jobFilmTail` (the contract-frozen leg signature's TaskLocal
+        /// seam); the explicit field wins. nil = the legacy face.
+        public var filmTail: FilmTailParams?
+
         /// The DRT tail policy payload (M2-9-02 KD-4): non-nil = the OQ-7-A
         /// mandatory linkage — the render runs the `.drt` terminal tail and
         /// the output ICC is the record's encoding pair. The payload
@@ -207,6 +222,7 @@ public enum ExportRenderer {
             variant: ExportVariant,
             instancesOverride: [ModuleInstance]? = nil,
             editorSignature: String? = nil,
+            filmTail: FilmTailParams? = nil,
             drtTail: DrtTailParams? = nil,
             naming: ExportNamingRequest? = nil,
             collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
@@ -218,6 +234,7 @@ public enum ExportRenderer {
             self.variant = variant
             self.instancesOverride = instancesOverride
             self.editorSignature = editorSignature
+            self.filmTail = filmTail
             self.drtTail = drtTail
             self.naming = naming
             self.collisionPolicy = collisionPolicy
@@ -411,6 +428,9 @@ public enum ExportRenderer {
         // set in-pipe under `.drt`; the output ICC is the record's encoding
         // pair). nil carrier = the legacy five-space face, byte-frozen.
         let drtTail = request.drtTail ?? Self.jobDrtTail
+        // M3-3-02 T6 (KD-7): the film carrier rides the SAME consult shape
+        // (the explicit Request field wins over the TaskLocal).
+        let filmTail = request.filmTail ?? Self.jobFilmTail
         let built: ExportChainBuilder.Built
         if let drtTail {
             built = try ExportChainBuilder.exportDrtChain(
@@ -485,7 +505,8 @@ public enum ExportRenderer {
                     cache: cache, metal: metal, longEdge: entryLongEdge,
                     roiHint: nil, policy: .export,
                     terminalTail: terminalTailPolicy,
-                    tailFormatFloatOverride: tailFormatFloatOverride)
+                    tailFormatFloatOverride: tailFormatFloatOverride,
+                    filmTail: filmTail)
             }
             outputTexture = texture
         } else {
@@ -494,7 +515,8 @@ public enum ExportRenderer {
                     image: decoded, instances: boxes, imageID: imageID,
                     resolution: .export, cache: cache, metal: metal,
                     longEdge: entryLongEdge, terminalTail: terminalTailPolicy,
-                    tailFormatFloatOverride: tailFormatFloatOverride)
+                    tailFormatFloatOverride: tailFormatFloatOverride,
+                    filmTail: filmTail)
             }
             outputTexture = texture
         }

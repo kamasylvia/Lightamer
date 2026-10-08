@@ -58,6 +58,10 @@ public actor ExportQueue {
         /// legacy path, the engine never consults it (DRT does not enter
         /// the snapshot/UI face).
         let drtTail: DrtTailParams?
+        /// The per-image FILM carrier (M3-3-02 T6, KD-7, additive): nil =
+        /// the legacy path. Rides `$jobFilmTail` into the render leg (the
+        /// E1 three-edit-point face); the engine never consults it.
+        let filmTail: FilmTailParams?
         /// The per-image naming request (M2-9-03 KD-1, additive): the
         /// batch-wide template with the queue-stamped batch ordinal.
         /// nil = the legacy stem+tag face.
@@ -195,6 +199,7 @@ public actor ExportQueue {
         editorSignature: String? = nil,
         instancesOverrides: [[ModuleInstance]?]? = nil,
         drtTails: [DrtTailParams?]? = nil,
+        filmTails: [FilmTailParams?]? = nil,
         naming: ExportNamingRequest? = nil,
         collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
         subfolder: String? = nil,
@@ -204,6 +209,13 @@ public actor ExportQueue {
             precondition(
                 drtTails.count == images.count,
                 "export enqueue: drtTails (\(drtTails.count)) must be "
+                    + "per-image (\(images.count)) — the carrier is indexed "
+                    + "against the images array")
+        }
+        if let filmTails {
+            precondition(
+                filmTails.count == images.count,
+                "export enqueue: filmTails (\(filmTails.count)) must be "
                     + "per-image (\(images.count)) — the carrier is indexed "
                     + "against the images array")
         }
@@ -239,6 +251,7 @@ public actor ExportQueue {
                         ?? instancesOverride,
                     editorSignature: editorSignature,
                     drtTail: drtTails?[imageIndex],
+                    filmTail: filmTails?[imageIndex],
                     naming: stampedNaming,
                     collisionPolicy: collisionPolicy,
                     subfolder: subfolder,
@@ -415,8 +428,10 @@ public actor ExportQueue {
                 subfolder: queued.subfolder)
             artifact = try await ExportRenderer.$jobNamingCarrier.withValue(namingCarrier) {
                 try await ExportRenderer.$jobDrtTail.withValue(queued.drtTail) {
-                    try await MetalContext.$routesToExportQueue.withValue(true) {
-                        try await renderLeg(queued.snapshot(), context)
+                    try await ExportRenderer.$jobFilmTail.withValue(queued.filmTail) {
+                        try await MetalContext.$routesToExportQueue.withValue(true) {
+                            try await renderLeg(queued.snapshot(), context)
+                        }
                     }
                 }
             }

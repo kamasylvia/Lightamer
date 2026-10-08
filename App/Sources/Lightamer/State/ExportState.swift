@@ -470,8 +470,14 @@ final class ExportState {
         subfolder: String?,
         namingPattern: String,
         collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
-        exifSoftware: String? = nil
+        exifSoftware: String? = nil,
+        filmTails: [FilmTailParams?]? = nil
     ) async throws {
+        if let filmTails, filmTails.count != images.count {
+            throw AppError.invalidParameter(
+                "export m2: per-image filmTails count \(filmTails.count) "
+                    + "!= image count \(images.count)")
+        }
         // The M2-9-02 acceptance O-2 前车之鉴: the per-image carriers are
         // INDEXED — a count mismatch is a caller bug and gets the typed
         // rejection BEFORE any environment lookup (the queue's per-image
@@ -503,6 +509,7 @@ final class ExportState {
             destinationDirectory: destination,
             instancesOverrides: instancesOverrides,
             drtTails: tails,
+            filmTails: filmTails,
             naming: naming,
             collisionPolicy: collisionPolicy,
             subfolder: subfolder,

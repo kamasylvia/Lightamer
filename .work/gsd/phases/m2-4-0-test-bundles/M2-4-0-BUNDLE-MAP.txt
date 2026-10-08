@@ -525,3 +525,4 @@ LAYERS	4	FilmPlacementDriverTests.swift
 IOP	7	FilmPlacementTests.swift
 IOPP	3	FilmPlacementKernelTests.swift
 APP	5	FilmCoordinatorTests.swift
+EXPORT	4	ExportFilmChainTests.swift
