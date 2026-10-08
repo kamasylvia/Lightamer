@@ -130,7 +130,8 @@ internal struct ExportInspectorView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button(String(localized: "export_choose_directory")) {
-                    chooseDestination()
+                    // L057 (fix(l057)): async panel via the begin seam.
+                    Task { await chooseDestination() }
                 }
                 .accessibilityIdentifier("export.page.choose_directory")
                 if model.destinationOverride != nil {
@@ -197,13 +198,15 @@ internal struct ExportInspectorView: View {
         return base.appendingPathComponent(trimmed, isDirectory: true)
     }
 
-    private func chooseDestination() {
+    /// L057 (fix(l057)): async via the begin seam — a sync runModal here
+    /// nested inside the button-action dispatch (the crash family shape).
+    private func chooseDestination() async {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK, let url = panel.url {
+        if let url = await PanelPresentation.present(panel) {
             model.destinationOverride = url
             // OQ-3: the picker write-back (the memory key updates NOW, not
             // only on run — Alcedo's outDir memory lifecycle).

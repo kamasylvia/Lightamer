@@ -5,30 +5,37 @@ import UniformTypeIdentifiers
 ///
 /// Panel copy comes from the String Catalog; results are handed back on the
 /// MainActor so callers can route straight into `EditorState.load(url:)`.
+///
+/// L057 (fix(l057), 2026-10-08): the three panels present via
+/// PanelPresentation.present (the `begin` seam) and the wrappers are async.
+/// A sync runModal here nested inside the menu-command dispatch (File →
+/// Open…, ⌘O — the UNCONDITIONAL File menu item) — the L057 crash family
+/// shape; the Task hop at the call sites alone is not sufficient (see
+/// PanelPresentation.swift for the discriminant).
 @MainActor
 internal enum FileOpener {
 
     /// Open a RAW/image file picker and load the chosen file.
-    static func openImage(load: @MainActor @escaping (URL) -> Void) {
+    static func openImage(load: @MainActor @escaping (URL) -> Void) async {
         let panel = makePanel(
             titleKey: "open_panel_title",
             messageKey: "open_panel_message",
             canChooseDirectories: false,
             types: [.rawImage, .image, .webP]
         )
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = await PanelPresentation.present(panel) else { return }
         load(url)
     }
     /// Pick a folder (or a file). Phase 1 fallback per UI-SPEC drag rule 2:
     /// folder → session is Phase 9, so opening a folder loads its first image.
-    static func openFolder(load: @MainActor @escaping (URL) -> Void) {
+    static func openFolder(load: @MainActor @escaping (URL) -> Void) async {
         let panel = makePanel(
             titleKey: "open_panel_title",
             messageKey: "open_panel_message",
             canChooseDirectories: true,
             types: []
         )
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = await PanelPresentation.present(panel) else { return }
         let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
         if isDirectory {
             let contents = (try? FileManager.default.contentsOfDirectory(
@@ -52,14 +59,14 @@ internal enum FileOpener {
     /// the shared `makePanel` wrapper; the directory check keeps parity
     /// with `openFolder`'s behavior for stray file picks (routed to `load`
     /// unchanged).
-    static func openSessionFolder(route: @MainActor @escaping (URL) -> Void) {
+    static func openSessionFolder(route: @MainActor @escaping (URL) -> Void) async {
         let panel = makePanel(
             titleKey: "menu_open_session",
             messageKey: "select_folder_to_create_session",
             canChooseDirectories: true,
             types: []
         )
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = await PanelPresentation.present(panel) else { return }
         let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
         if isDirectory {
             route(url)

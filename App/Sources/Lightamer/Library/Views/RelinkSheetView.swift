@@ -139,7 +139,8 @@ struct RelinkSheetView: View {
     private var pickerRow: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
-                pickDirectory()
+                // L057 (fix(l057)): async panel via the begin seam.
+                Task { await pickDirectory() }
             } label: {
                 Label(
                     String(
@@ -180,7 +181,9 @@ struct RelinkSheetView: View {
         }
     }
 
-    private func pickDirectory() {
+    /// L057 (fix(l057)): async via the begin seam — a sync runModal here
+    /// nested inside the button-action dispatch (the crash family shape).
+    private func pickDirectory() async {
         let panel = NSOpenPanel()
         panel.title = String(
             localized: "relink_pick_title",
@@ -188,7 +191,7 @@ struct RelinkSheetView: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = await PanelPresentation.present(panel) else { return }
         pickedDirectory = url
     }
 

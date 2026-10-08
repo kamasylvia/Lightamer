@@ -384,7 +384,8 @@ internal struct SidebarView: View {
                         .font(.callout)
                         .foregroundStyle(LightamerColors.textSecondary)
                     Button(String(localized: "session_open_button")) {
-                        openSessionPanel()
+                        // L057 (fix(l057)): async panel via the begin seam.
+                        Task { await openSessionPanel() }
                     }
                     .accessibilityIdentifier(SessionIdentifiers.openButton)
                 }
@@ -574,8 +575,8 @@ internal struct SidebarView: View {
 
     // MARK: - Actions
 
-    private func openSessionPanel() {
-        FileOpener.openSessionFolder { url in
+    private func openSessionPanel() async {
+        await FileOpener.openSessionFolder { url in
             Task { await sessionCoordinator.openSession(url: url) }
         }
     }
@@ -920,7 +921,10 @@ internal struct SidebarView: View {
                     }
                     Button(String(localized: "catalog_session_relink")) {
                         relinkSessionTarget = row
-                        chooseRelinkDirectory()
+                        // L057 (fix(l057)): async panel via the begin seam
+                        // (this is a CONTEXT-MENU item — the same menu
+                        // transaction shape the crash family lives in).
+                        Task { await chooseRelinkDirectory() }
                     }
                 }
             }
@@ -974,7 +978,7 @@ internal struct SidebarView: View {
     /// The re-link directory picker (D-16-CONTEXT-7②: the user picks the
     /// moved folder — no automatic path search). The re-projection rides
     /// the projector's relink face; the sidebar faces refresh after.
-    private func chooseRelinkDirectory() {
+    private func chooseRelinkDirectory() async {
         guard let target = relinkSessionTarget else { return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -982,7 +986,7 @@ internal struct SidebarView: View {
         panel.canCreateDirectories = false
         panel.allowsMultipleSelection = false
         panel.message = String(localized: "catalog_session_relink")
-        guard panel.runModal() == .OK, let directory = panel.url else {
+        guard let directory = await PanelPresentation.present(panel) else {
             relinkSessionTarget = nil
             return
         }

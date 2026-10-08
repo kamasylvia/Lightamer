@@ -526,13 +526,16 @@ internal struct ContentView: View {
             .accessibilityHint(Text("a11y_toggle_sidebar_hint"))
 
             Button {
-                FileOpener.openImage {
-                    editorState.load(
-                        url: $0,
-                        decoder: decoder,
-                        metal: metalContext,
-                        logger: EditorState.decodeLogger
-                    )
+                // L057 (fix(l057)): async panel via the begin seam.
+                Task {
+                    await FileOpener.openImage {
+                        editorState.load(
+                            url: $0,
+                            decoder: decoder,
+                            metal: metalContext,
+                            logger: EditorState.decodeLogger
+                        )
+                    }
                 }
             } label: {
                 Label(String(localized: "toolbar_open"), systemImage: "folder")

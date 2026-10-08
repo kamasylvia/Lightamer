@@ -226,7 +226,9 @@ internal struct PresetManagerWindow: View {
                 categoryTarget = preset
             }
             Button(String(localized: "preset_export")) {
-                exportPreset(preset)
+                // L057 (fix(l057)): async panel via the begin seam
+                // (context-menu item — the menu-transaction shape).
+                Task { await exportPreset(preset) }
             }
             Divider()
             Button(String(localized: "preset_delete"), role: .destructive) {
@@ -352,8 +354,9 @@ internal struct PresetManagerWindow: View {
         }
     }
 
-    private func exportPreset(_ preset: StoredPreset) {
-        guard let destination = PresetFilePanels.exportPanel(
+    /// L057 (fix(l057)): async via the begin seam.
+    private func exportPreset(_ preset: StoredPreset) async {
+        guard let destination = await PresetFilePanels.exportPanel(
             suggestedName: preset.document.name) else { return }
         do {
             try presetsStore.exportFile(id: preset.id, to: destination)
@@ -390,6 +393,12 @@ internal struct PresetManagerWindow: View {
 
 // MARK: - The file panels (PRES-02: the panels are HOSTS only — the store
 // does the byte-level copy; zero format conversion on either side)
+//
+// L057 (fix(l057), 2026-10-08): the former sync importPanel() host is
+// DELETED — the import face moved to the .fileImporter sheet (above) and a
+// repo-wide sweep found zero callers. exportPanel presents via
+// PanelPresentation.present (the `begin` seam): a sync runModal from the
+// context-menu item nested inside the menu transaction (the L057 family).
 
 @MainActor
 internal enum PresetFilePanels {
@@ -400,25 +409,12 @@ internal enum PresetFilePanels {
         UTType(filenameExtension: PresetsStore.fileExtension) ?? .data
     }
 
-    /// The import host (the store validates + copies under a fresh stem).
-    static func importPanel() -> URL? {
-        let panel = NSOpenPanel()
-        panel.title = String(localized: "preset_import")
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [presetType]
-        guard panel.runModal() == .OK else { return nil }
-        return panel.url
-    }
-
     /// The export host (the store copies the file bytes verbatim).
-    static func exportPanel(suggestedName: String) -> URL? {
+    static func exportPanel(suggestedName: String) async -> URL? {
         let panel = NSSavePanel()
         panel.title = String(localized: "preset_export")
         panel.nameFieldStringValue = suggestedName
         panel.allowedContentTypes = [presetType]
-        guard panel.runModal() == .OK else { return nil }
-        return panel.url
+        return await PanelPresentation.present(panel)
     }
 }
