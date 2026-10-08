@@ -679,6 +679,7 @@ let project = Project(
                 "Tests/LightamerTests/ExportDrtChainTests.swift",
                 "Tests/LightamerTests/ExportDrtTailE2ETests.swift",
                 "Tests/LightamerTests/ExportEncoderGoldenTests.swift",
+                "Tests/LightamerTests/ExportFilmChainTests.swift",
                 "Tests/LightamerTests/ExportEncoderMetadataTests.swift",
                 "Tests/LightamerTests/ExportFileNameTemplateTests.swift",
                 "Tests/LightamerTests/ExportIccEmbedTests.swift",

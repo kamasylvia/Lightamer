@@ -277,7 +277,8 @@ internal struct ExportInspectorView: View {
             loadedImageURL: editorState.loadedImageURL,
             instances: editorState.instances,
             effectiveDrtRecord: editorState.history.effectiveDrtRecord(),
-            destination: displayDestination)
+            destination: displayDestination,
+            filmTailForLoaded: pipeCoordinator.filmTailPolicy(for: .export))
         guard let assembly else { return }
         let software = ExportState.currentExifSoftware
         Task {
@@ -292,7 +293,8 @@ internal struct ExportInspectorView: View {
                     subfolder: assembly.subfolder,
                     namingPattern: assembly.pattern,
                     collisionPolicy: assembly.collisionPolicy,
-                    exifSoftware: software)
+                    exifSoftware: software,
+                    filmTails: assembly.filmTails)
                 // The lifecycle write-backs (OQ-3 导出发起写回 + OQ-10).
                 exportState.storeM2LastDirectory(assembly.destination)
                 writeBackQualityMemory()
@@ -830,6 +832,10 @@ final class ExportM2PanelModel {
         let collisionPolicy: ExportNamer.ExportCollisionPolicy
         let destination: URL
         let subfolder: String?
+        /// M3-3-02 T6 (KD-7): the per-image film carriers (the loaded
+        /// image's session carrier via the coordinator's policy; the batch
+        /// siblings nil — the M2 page's carrier walk boundary, DECISIONS).
+        var filmTails: [FilmTailParams?]?
     }
 
     /// The run assembly (KD-4's panel half + M3-1-03 KD-1): the OPEN image
@@ -842,7 +848,8 @@ final class ExportM2PanelModel {
         loadedImageURL: URL?,
         instances: [ModuleInstance],
         effectiveDrtRecord: DrtRecord?,
-        destination: URL?
+        destination: URL?,
+        filmTailForLoaded: FilmTailParams? = nil
     ) -> RunAssembly? {
         guard !targets.isEmpty, let destination else { return nil }
         let subfolder: String? = {
@@ -853,6 +860,12 @@ final class ExportM2PanelModel {
         let overrides: [[ModuleInstance]?] = targets.map { url in
             (url.path == loadedImageURL?.path) ? instances : nil
         }
+        // M3-3-02 T6 (KD-7): the loaded image's carrier rides its slot; the
+        // batch siblings keep nil (the M2 page has no film UI — the carrier
+        // walk covers the session image this batch).
+        let filmTails: [FilmTailParams?]? = targets.map { url in
+            (url.path == loadedImageURL?.path) ? filmTailForLoaded : nil
+        }
         return RunAssembly(
             batch: targets,
             overrides: overrides,
@@ -861,7 +874,8 @@ final class ExportM2PanelModel {
             pattern: pattern,
             collisionPolicy: collisionPolicy,
             destination: destination,
-            subfolder: subfolder)
+            subfolder: subfolder,
+            filmTails: filmTails)
     }
 
     /// The quality write-back snapshot: (key, value) for the ACTIVE format
