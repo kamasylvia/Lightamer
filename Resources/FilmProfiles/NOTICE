@@ -1,0 +1,62 @@
+FilmProfiles — attribution and provenance notice
+=================================================
+
+The files in this directory are UNMODIFIED, byte-verbatim copies of the
+spektrafilm film and paper profiles (28 JSON files under profiles/) and
+the neutral print-filter measurement table (neutral_print_filters.json).
+
+  Author / licensor:  Andrea Volpato
+  Project:            spektrafilm
+  Canonical source:   https://github.com/andreavolpato/spektrafilm
+  Source version:     0.3.2 (every profile's metadata.version; import
+                      recorded in CHANGELOG.md in this directory)
+  License:            CC BY-SA 4.0 — the full legal text plus the
+                      author's attribution requirements is shipped
+                      verbatim as LICENSE in this directory (the
+                      upstream SPEKTRAFILM_LICENSE.txt, unmodified).
+  Application:        Lightamer (https://github.com/kamasylvia/Lightamer)
+
+Suggested attribution (upstream form, for unmodified files):
+
+    spektrafilm by Andrea Volpato
+    https://github.com/andreavolpato/spektrafilm
+    Licensed CC BY-SA 4.0
+
+Citation (transcribed verbatim from every profile's metadata.citation):
+
+    If you use this profile in your work, please cite the spektrafilm
+    project: https://github.com/andreavolpato/spektrafilm, see
+    CITATION.cff for details.
+
+License compliance statements
+-----------------------------
+
+1. These copies are NOT modified. The MANIFEST.sha256 in this directory
+   pins the SHA-256 of every file; a CI/unit test reconciles the manifest
+   against the tree. Any future upstream update must be a fresh verbatim
+   copy with a new CHANGELOG.md entry — never an in-place edit.
+
+2. The 81-wavelength spectral arrays carried inside the profiles
+   (log_sensitivity, channel_density, midscale_neutral_density and the
+   spectral shape of base_density) are NOT consumed as a spectral
+   forward model: Lightamer's decode chain is RGB-domain (CIRAW), so
+   spectral replay is architecturally unreachable (the project's
+   documented "physical process modelling, not spectral replay"
+   boundary). The consumer face is the density domain only:
+   data.log_exposure + data.density_curves (256x3), plus base_density
+   sampled at three registered wavelengths (650/550/450 nm, nearest
+   neighbour) as an RGB constant, and data.wavelengths used solely as
+   the axis for that sampling. This consumption statement is disclosed
+   here per the license's modifications-transparency spirit; the FILES
+   themselves remain untouched.
+
+3. Share-alike scope: the CC BY-SA 4.0 obligations attach to these
+   profile assets and their direct derivatives (bake products of this
+   data), not to the Lightamer source code that reads them. Derived
+   bake assets, if ever distributed with the app, must carry the same
+   license and attribution; runtime-generated caches that are not
+   distributed leave the obligation on these source files.
+
+4. Isolation: this directory is physically separate from the MIT-licensed
+   LUT set (Resources/LUTs/) — no bytes are shared between the two asset
+   families.
