@@ -213,6 +213,20 @@ let project = Project(
                     "ENABLE_USER_SELECTED_FILES": "read-write", // non-sandboxed file access
                     "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/../Frameworks",
                     "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
+                    // L057-B hardening (2026-10-08): raise the main-thread
+                    // stack from the 8MB default to 64MB. The three AX-pressure
+                    // crashes (the .ips trio in .work/gui-acceptance/fix-batch/)
+                    // are main-thread stack-guard faults: AppKit entry stack +
+                    // SwiftUI AX/layout update + a destructor cascade reach the
+                    // guard page at only 74-165 frames — Debug -Onone SwiftUI
+                    // frames are tens of KB each. The detonation surfaces are
+                    // REAL AX paths (VoiceOver drives the same menu populate /
+                    // hitTest / AccessibilityViewGraph updates), so give every
+                    // build 8x headroom; the reservation is virtual, committed
+                    // on use (Chrome/Firefox carry the same linker flag).
+                    "OTHER_LDFLAGS": [
+                        "$(inherited)", "-Xlinker", "-stack_size", "-Xlinker", "0x4000000",
+                    ],
                 ]) { $1 }
             )
         ),
