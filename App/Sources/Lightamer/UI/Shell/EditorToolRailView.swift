@@ -68,6 +68,7 @@ struct EditorToolRailView: View {
     @Environment(EditorState.self) private var editorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
     @Environment(LayerEditingState.self) private var editingState
+    @Environment(InspectorState.self) private var inspectorState
 
     var body: some View {
         HStack(spacing: 0) {
@@ -139,8 +140,12 @@ struct EditorToolRailView: View {
                 // Plan M2-4-3 T1: the LIVE node panel replaces the M2-4
                 // placeholder (the "Nodes arrive in M2-4" marker retires;
                 // the new panel marker = `editor.nodes.panel`).
+                // M3-3-03 T4: the coordinator + inspector feed the read-only
+                // Film card (the tap opens the Film page).
                 EditorNodesPanelView(
-                    editorState: editorState, editingState: editingState)
+                    editorState: editorState, editingState: editingState,
+                    pipeCoordinator: pipeCoordinator,
+                    inspectorState: inspectorState)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
