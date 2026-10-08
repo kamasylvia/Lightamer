@@ -113,12 +113,24 @@ public struct HistoryStack: Codable, Sendable, Equatable {
         /// (KD-1's hard constraint).
         public var drtRecord: DrtRecord?
 
+        /// Plan M3-3-01 T6 (KD-6): the document-level film-simulation
+        /// record for a film edit item — the `drtRecord` twin, additive
+        /// optional on the same 06-01 precedent (decodeIfPresent —
+        /// pre-M3-3-01 documents decode unchanged; writers omit it when
+        /// nil). `snapshot` stays the REQUIRED record slot: a film item
+        /// carries the caller's placeholder there, and the
+        /// `HistoryStack.filmDocumentScope` marker keeps it out of every
+        /// projection.
+        public var filmRecord: FilmRecord?
+
         /// Frozen CodingKeys — checkpoint 02-05-01 lock #6 (+ the 06-01
         /// additive stackSnapshot + the 09-04 additive pasteSet + the
-        /// M2-6-3 additive drtRecord fields).
+        /// M2-6-3 additive drtRecord + the M3-3-01 additive filmRecord
+        /// fields).
         private enum CodingKeys: String, CodingKey {
             case id, snapshot, label, timestamp, layerScope, stackSnapshot, pasteSet
             case drtRecord
+            case filmRecord
         }
 
         public init(
@@ -129,7 +141,8 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             layerScope: String? = nil,
             stackSnapshot: LayerStackSnapshot? = nil,
             pasteSet: [ModuleInstance]? = nil,
-            drtRecord: DrtRecord? = nil
+            drtRecord: DrtRecord? = nil,
+            filmRecord: FilmRecord? = nil
         ) {
             self.id = id
             self.snapshot = snapshot
@@ -139,6 +152,7 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             self.stackSnapshot = stackSnapshot
             self.pasteSet = pasteSet
             self.drtRecord = drtRecord
+            self.filmRecord = filmRecord
         }
 
         public init(from decoder: Decoder) throws {
@@ -153,6 +167,8 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             pasteSet = try container.decodeIfPresent(
                 [ModuleInstance].self, forKey: .pasteSet)
             drtRecord = try container.decodeIfPresent(DrtRecord.self, forKey: .drtRecord)
+            filmRecord = try container.decodeIfPresent(
+                FilmRecord.self, forKey: .filmRecord)
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -165,6 +181,7 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             try container.encodeIfPresent(stackSnapshot, forKey: .stackSnapshot)
             try container.encodeIfPresent(pasteSet, forKey: .pasteSet)
             try container.encodeIfPresent(drtRecord, forKey: .drtRecord)
+            try container.encodeIfPresent(filmRecord, forKey: .filmRecord)
         }
 
         /// The records this item projects into a chain: the paste payload
@@ -271,6 +288,31 @@ public struct HistoryStack: Codable, Sendable, Equatable {
         position = items.count - 1
     }
 
+    /// Commit a document-level film edit (Plan M3-3-01 T6, KD-6): the
+    /// `commitDrt` twin — ONE item whose `filmRecord` carries the payload,
+    /// so ONE ⌘Z undoes the edit (document-scope). The `snapshot` slot
+    /// takes the CALLER's placeholder (the current top global record);
+    /// the item's `layerScope` is `filmDocumentScope`, which excludes it
+    /// from the global AND every layer projection (the placeholder never
+    /// pollutes the instance set). Same truncate-redo-tail + append +
+    /// point discipline as `commit`/`commitDrt`.
+    public mutating func commitFilm(
+        record: FilmRecord,
+        placeholder: ModuleInstance,
+        label: String,
+        timestamp: Date = Date()
+    ) {
+        if position + 1 < items.count {
+            items.removeSubrange(items.index(items.startIndex, offsetBy: position + 1)...)
+        }
+        items.append(
+            HistoryItem(
+                snapshot: placeholder, label: label, timestamp: timestamp,
+                layerScope: HistoryStack.filmDocumentScope,
+                filmRecord: record))
+        position = items.count - 1
+    }
+
     /// Step back one entry. nil at `position == -1` (nothing to undo).
     @discardableResult
     public mutating func undo() -> HistoryItem? {        guard position >= 0 else { return nil }
@@ -318,6 +360,14 @@ public struct HistoryStack: Codable, Sendable, Equatable {
     /// snapshot slot is a placeholder by contract. Same marker family as
     /// `pasteEpochScope` / EditorState's `layerStructureScope`.
     public static let drtDocumentScope = "__drtDocument__"
+
+    /// The `layerScope` marker of a document-level film commit (Plan
+    /// M3-3-01 T6, KD-6): the `drtDocumentScope` twin — never a valid UUID
+    /// string and never `nil`, so the item is excluded from the global
+    /// projection (`effectiveInstances()` filters `layerScope == nil`) AND
+    /// from every layer-chain projection. The film payload rides
+    /// `filmRecord`; the snapshot slot is a placeholder by contract.
+    public static let filmDocumentScope = "__filmDocument__"
 
     /// History → pipe state: the effective GLOBAL instance set at
     /// `position` — the DIRECT translation of the Darktable hash query
@@ -472,6 +522,18 @@ public struct HistoryStack: Codable, Sendable, Equatable {
         guard position >= 0 else { return nil }
         return items[0...position].last(where: { $0.drtRecord != nil })?.drtRecord
     }
+
+    // MARK: - The document-level film projection (Plan M3-3-01 T6, KD-6)
+
+    /// The EFFECTIVE film record at the current position: the LAST item at
+    /// or below the pointer that carries a `filmRecord` (the newest-wins
+    /// time-travel rule — `effectiveDrtRecord` same shape). nil = no film
+    /// edit is in effect (pristine, or the pointer sits before every film
+    /// item). Pure: no mutation.
+    public func effectiveFilmRecord() -> FilmRecord? {
+        guard position >= 0 else { return nil }
+        return items[0...position].last(where: { $0.filmRecord != nil })?.filmRecord
+    }
 }
 
 // MARK: - The historyHash DRT fold (Plan M2-6-3 T1, KD-1 set-fields-move)
@@ -485,26 +547,37 @@ public struct HistoryStack: Codable, Sendable, Equatable {
 
 public extension HistoryHash {
 
-    /// The DRT-aware drift anchor: the 3-argument (layer-aware) hash with
-    /// the EFFECTIVE DRT record's `stableHash()` folded LAST (KD-1: the
-    /// 末位含 drtRecord 的 item's payload enters the anchor — a DRT edit
-    /// flips the identity, so OQ-2-A's drift judgment covers it). A
-    /// document whose history carries NO DRT item folds NOTHING and hashes
-    /// BIT-IDENTICALLY to the pre-M2-6-3 formula (the regression gate).
-    /// Time-travel safe by construction: the fold input is
-    /// `HistoryStack.effectiveDrtRecord()`, which follows the pointer.
+    /// The DRT- and film-aware drift anchor: the 3-argument (layer-aware)
+    /// hash with the EFFECTIVE DRT record's `stableHash()` folded, then
+    /// the EFFECTIVE film record's (KD-6: film ranks AFTER drt in the
+    /// tail). A document whose history carries NO film item folds NOTHING
+    /// extra — and one with neither folds BIT-IDENTICALLY to the
+    /// pre-M2-6-3 formula (the regression gate, negative-test pinned).
+    /// Time-travel safe by construction: the fold inputs are
+    /// `HistoryStack.effectiveDrtRecord()` / `.effectiveFilmRecord()`,
+    /// which follow the pointer. The `filmRecord` parameter defaults to
+    /// nil, so every pre-M3-3-01 call site compiles unchanged and hashes
+    /// unchanged.
     static func hash(
         stack: HistoryStack,
         decodeParamsHash: UInt64,
         layerSnapshot: LayerStackSnapshot?,
-        drtRecord: DrtRecord?
+        drtRecord: DrtRecord?,
+        filmRecord: FilmRecord? = nil
     ) -> UInt64 {
         var combined = hash(
             stack: stack, decodeParamsHash: decodeParamsHash,
             layerSnapshot: layerSnapshot)
-        guard let drtRecord else { return combined }
-        return withUnsafeBytes(of: drtRecord.stableHash()) {
-            StableHash.combine(combined, $0)
+        if let drtRecord {
+            combined = withUnsafeBytes(of: drtRecord.stableHash()) {
+                StableHash.combine(combined, $0)
+            }
         }
+        if let filmRecord {
+            combined = withUnsafeBytes(of: filmRecord.stableHash()) {
+                StableHash.combine(combined, $0)
+            }
+        }
+        return combined
     }
 }

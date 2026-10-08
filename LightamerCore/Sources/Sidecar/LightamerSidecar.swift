@@ -189,7 +189,22 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     ///     enters `HistoryHash.hash` / `driftDetected` (the v3/v4/v7
     ///     metadata judgment; the fold formula untouched — structural,
     ///     pinned by a tamper negative test).
-    public static let schemaVersionCurrent = 8
+    ///
+    /// v9 (Plan M3-3-01 T6, KD-6): the FILM record joins additively —
+    ///   • `filmRecord: FilmRecord?` at the DOCUMENT level (nil = pristine
+    ///     — the user never touched the film session). decodeIfPresent +
+    ///     encodeIfPresent (absent key — the displayTransform v6
+    ///     precedent). SET-FIELDS-MOVE (the displayTransform judgment,
+    ///     NOT hash isolation): the record's `stableHash()` folds into the
+    ///     historyHash tail AFTER the DRT term (driftDetected reads the
+    ///     restored history's own `effectiveFilmRecord()` projection —
+    ///     the same pointer-faithful source the write side commits from).
+    ///   • The per-item `filmRecord` rides the SAME additive pattern in
+    ///     the `SidecarHistoryItemRecord` pair (the drtRecord twin).
+    ///   • nil film face keeps the key ABSENT — the v8 byte shape
+    ///     survives untouched (FilmSidecarTests pins the byte faces; a v8
+    ///     document decodes and re-encodes byte-exact).
+    public static let schemaVersionCurrent = 9
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int
@@ -300,6 +315,15 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// `driftDetected` (the v8 judgment above).
     public var aiProvenance: SidecarAIProvenanceRecord?
 
+    // MARK: - Film record (v9, Plan M3-3-01 — the film document record)
+
+    /// The document-level film-simulation record (KD-6; nil = pristine —
+    /// no film session, the render path is the legacy chain). NOT
+    /// hash-isolated: set-fields-move — the record's stableHash folds
+    /// into the historyHash tail after the DRT term (the displayTransform
+    /// judgment).
+    public var filmRecord: FilmRecord?
+
     // MARK: - Paths (D-S2)
 
     /// `…/DSC09991.ARW` → `…/DSC09991.ARW.lra` — the FULL original name
@@ -353,7 +377,8 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         displayTransform: DrtRecord? = nil,
         versions: [SidecarVersionRecord]? = nil,
         activeVersionID: String? = nil,
-        aiProvenance: SidecarAIProvenanceRecord? = nil
+        aiProvenance: SidecarAIProvenanceRecord? = nil,
+        filmRecord: FilmRecord? = nil
     ) {
         self.schemaVersion = Self.schemaVersionCurrent
         self.appVersion = appVersion
@@ -375,6 +400,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         self.versions = versions
         self.activeVersionID = activeVersionID
         self.aiProvenance = aiProvenance
+        self.filmRecord = filmRecord
     }
 
     // MARK: - Codable (projection through the String-hash records)
@@ -387,6 +413,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         case displayTransform
         case versions, activeVersionID
         case aiProvenance
+        case filmRecord
     }
 
     public init(from decoder: Decoder) throws {
@@ -454,6 +481,12 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // contract :94-97).
         aiProvenance = try container.decodeIfPresent(
             SidecarAIProvenanceRecord.self, forKey: .aiProvenance)
+        // v9 film record (M3-3-01 T6): decodeIfPresent — v8 documents
+        // (and the FUTURE-version branch) read with nil; a document
+        // written by a NEWER schema still yields everything else (the
+        // tolerance contract :94-97).
+        filmRecord = try container.decodeIfPresent(
+            FilmRecord.self, forKey: .filmRecord)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -517,6 +550,11 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // birth record stay byte-compatible with the v7 shape; SidecarV8Tests
         // pins the three byte faces).
         try container.encodeIfPresent(aiProvenance, forKey: .aiProvenance)
+        // Film record (v9): write ONLY when present (the versions v7 /
+        // aiProvenance v8 precedent — nil keeps the key ABSENT so
+        // documents without a film session stay byte-compatible with the
+        // v8 shape; FilmSidecarTests pins the byte faces).
+        try container.encodeIfPresent(filmRecord, forKey: .filmRecord)
     }
 }
 
@@ -677,6 +715,7 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
     private enum Keys: String, CodingKey {
         case id, snapshot, label, timestamp, layerScope, stackSnapshot, pasteSet
         case drtRecord
+        case filmRecord
     }
 
     var item: HistoryStack.HistoryItem {
@@ -685,7 +724,8 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
             timestamp: timestamp, layerScope: layerScope,
             stackSnapshot: stackSnapshot?.snapshot,
             pasteSet: pasteSet?.map(\.instance),
-            drtRecord: drtRecord
+            drtRecord: drtRecord,
+            filmRecord: filmRecord
         )
     }
 
@@ -697,6 +737,10 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
     private var stackSnapshot: SidecarLayerStackRecord?
     private var pasteSet: [SidecarInstanceRecord]?
     private var drtRecord: DrtRecord?
+    /// M3-3-01 T6 (KD-6): the film edit item's payload — the drtRecord
+    /// twin, additive + decodeIfPresent/encodeIfPresent (pre-M3-3-01
+    /// documents decode unchanged; nil is omitted on write).
+    private var filmRecord: FilmRecord?
 
     init(_ item: HistoryStack.HistoryItem) {
         id = item.id
@@ -707,6 +751,7 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         stackSnapshot = item.stackSnapshot.map(SidecarLayerStackRecord.init)
         pasteSet = item.pasteSet?.map(SidecarInstanceRecord.init)
         drtRecord = item.drtRecord
+        filmRecord = item.filmRecord
     }
 
     init(from decoder: Decoder) throws {
@@ -721,6 +766,8 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         pasteSet = try container.decodeIfPresent(
             [SidecarInstanceRecord].self, forKey: .pasteSet)
         drtRecord = try container.decodeIfPresent(DrtRecord.self, forKey: .drtRecord)
+        filmRecord = try container.decodeIfPresent(
+            FilmRecord.self, forKey: .filmRecord)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -733,6 +780,7 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         try container.encodeIfPresent(stackSnapshot, forKey: .stackSnapshot)
         try container.encodeIfPresent(pasteSet, forKey: .pasteSet)
         try container.encodeIfPresent(drtRecord, forKey: .drtRecord)
+        try container.encodeIfPresent(filmRecord, forKey: .filmRecord)
     }
 }
 
@@ -945,11 +993,18 @@ public extension LightamerSidecar {
     /// together, so the recompute matches the write-side fold formula for
     /// bit-identity. A history with no DRT item folds NOTHING (bit-identical
     /// to the pre-M2-6-3 anchor).
+    ///
+    /// M3-3-01 T6 (KD-6): the film record joins the tail AFTER the DRT
+    /// term on the same terms — the fold input is the history's own
+    /// `effectiveFilmRecord()` projection, not the document field; a
+    /// history with no film item folds NOTHING (bit-identical to the
+    /// pre-M3-3-01 anchor, FilmSidecarTests negative-test pinned).
     var driftDetected: Bool {
         HistoryHash.hash(
             stack: history, decodeParamsHash: decodeParamsHash,
             layerSnapshot: layerStack?.snapshot,
-            drtRecord: history.effectiveDrtRecord())
+            drtRecord: history.effectiveDrtRecord(),
+            filmRecord: history.effectiveFilmRecord())
             != historyHash
     }
 
