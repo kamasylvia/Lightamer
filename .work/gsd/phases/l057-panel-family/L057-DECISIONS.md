@@ -151,3 +151,21 @@ grep 假阴性根因：**类型名是 `FileOpener`，文件名才是 `FileOpenHe
 证据 = `.work/gui-acceptance/fix-batch/`（l057a/⌘O l057d/Export 页 l057f 三组
 round png + 两份 .ips 副本 + 三个驱动脚本 + MANIFEST）。
 
+## D10 修复批结案（2026-10-08 夜间双 error 批；证据 = `gui-acceptance/fix-batch/L057-B-EVIDENCE.md`）
+
+1. **D8-1（L057-B）已交付**：三 .ips 全主线程栈底 guard 故障（74/92/165 帧）——无自研
+   循环，析构级联撞 8MB 主栈，Debug -Onone 巨帧放大；detonation 三面均为 VoiceOver
+   等价真实 AX 路径（非纯自动化伪影）。修复 = 主线程栈 `-stack_size 0x4000000`（64MB，
+   双配置；vmmap 机检 thread-0 64.0M reserve）→ `fix(l057)` 9c074a4。0937 的
+   runModal 嵌套形态另由 L057-A begin 缝结构性消除（D3），与本旗标互补。
+2. **D8-2（LUT 页空白）改判 + 已交付**：**非 M3-1-01 回归**——空白 = 老 base 文档
+   （快照早于 lut3d 入种子）恢复后活集缺 lut3d 实例，页面零行零面板无空态；
+   同构建上 base 含 lut3d 的文档（GFX editor-probe）完整渲染（AX 验证选中态对照）。
+   D8-2 原判「M3-1-01 最可疑」系文档考古错位（T7 与复现用的是不同文档；且 recents
+   存在 8 个 editor-probe-*，AX press 未生效会误报「按钮不可达」——本批起按压一律
+   AXSelected 复核）。修复 = 恢复补种（`SidecarSeedTopUp` + restoreFromSidecar 接线，
+   5 测入 Library bundle）→ `fix(app)` 571c3c0；先前空白文档的 LUT 页取消 ×5 补课
+   全零崩（D9 表 LUT 行缺口就此闭合）。
+3. **D8-3（Settings AX 不物化）不在本批**：L057-B 栈旗标落地后 AX 压力面余量 8×，
+   后续走查可重试；仍挂工具面账（SwiftUI Settings scene AX 惰性非崩溃面）。
+

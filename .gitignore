@@ -69,3 +69,6 @@ Resources/AIModels/**
 *.ARW
 *.arw
 .work/archive/
+
+# Python bytecode caches from walkthrough drive scripts (L057 fix-batch)
+__pycache__/

@@ -735,3 +735,7 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **触发**：M1 时代 33 条中文 message（09-20~24，规则生效前）用户令重写；顺带发现 `.work` 2.8G 大头 = Phase 1 RAW 样片（~625MB）与双份 fixtures（~290MB）被 commit 入史（pack 1.91GiB）。
 - **做法**：①filter-branch --msg-filter 按 `$GIT_COMMIT` 键 `/tmp/rewrite-batch/new/<old>.txt` 定向 main ②filter-repo `--invert-paths --path <fixtures> --strip-blobs-bigger-than 50M`（70s，pack 1.91GiB→907MB）→ ADO 单次 force-push 瘦身史（避免 1.9GB 胖史 + 瘦身史两次全量重传）。
 - **教训**：①**evidence 入仓的仓禁做 message 级手术而不掂量传输**——SHA 级联 = 全量重传，体积 = pack 全重；②msg-filter 的 `%B` 会被 git 补尾换行（byte-compare 假阴性），**SHA 映射用 subject 首行匹配构建**最稳（33/33）；③`git filter-repo` 保留 remotes/Worktree 但会重写 refs/stash（pop 回即可）；④子代理 SSH 能力完好（launchd agent 继承、ADO auth 实证），push 失败是传输体积问题——**push 收敛主会话**是状态机纪律非能力限制；⑤RAW 样片/fixtures 从此 untracked-by-design（`.gitignore` 媒体类 + 路径），新克隆不再拉几百 MB 样片。
+
+## L071（2026-10-08）— 双 error 批：批回归假象 = 文档考古 + AX 驱动双陷阱（陈帧截图 / press 未生效）
+- **触发**：LUT 页空白 queue 行的「M3-1-01 批回归」疑判（T7 正常 → 复现空白）被夜间批证伪——真因 = restore 不补种（pre-12-5 文档 base 缺 lut3d，页面零行零面板无空态）；同构建对照（base 含 lut3d 的 GFX 文档完整渲染）一步定案。
+- **教训**：①**「X 批时正常」的截图证据必须核对到文档身份**——走查常用 throwaway 项目会换镜像，sidecar base = 首次 pristine 写入时代的种子快照且 restore 从不补种，不同文档不同 base，「同项目」≠「同文档」；recents 里 8 个 editor-probe-* 同前缀实例，ff_drive 前缀匹配可能错配。②**AX press 会静默不生效**（AXPress err=0 但选中态不变）——按压后必须 AXSelected 复核再下「页面空白」结论；本批两轮「仍空白」误判均源于此。③**d.shot 截图有陈帧/错窗风险**（两次 AX 已在 LUT 页而截图仍是色调页；一次抓到 ZCode 自己的前窗）——判据以 AX 树为准、截图仅旁证；坐标点击前必须确认目标 app 前置。④主线程栈 guard 族崩溃（74-165 帧即打穿 8MB）先查 Debug -Onone 巨帧放大——修复选项 = `-Xlinker -stack_size`（vmmap thread-0 reserve 机检），不是所有 stack overflow 都有自研递归可修。
