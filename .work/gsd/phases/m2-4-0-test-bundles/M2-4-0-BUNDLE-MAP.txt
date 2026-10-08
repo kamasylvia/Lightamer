@@ -485,3 +485,7 @@ APP	6	AIEntryPointsTests.swift
 #   LIB 原地扩（checker 回注 E2：Project.swift :531 LightamerTestsLibrary +
 #   BUNDLE-MAP :301 `LIB 10`，禁 --bundle IOP 假绿）；LutEncodingPanelTests = APP
 #   随 T4 commit 增行。行内 method 数以各批终态对账为准（运行期总数基线相应上移）。
+# M3-1-02 增行记录（2026-10-08 执行期，checker E2 测试登记纪律）：YiyinSheetSizingTests
+#   = APP（App 级——YiyinSheetResizeModel/EditorState 结构断言 + 注入式 defaults 面）随
+#   T1 commit 增行。运行期总数基线相应上移（对账以本行 method 数为准）。
+APP	14	YiyinSheetSizingTests.swift
