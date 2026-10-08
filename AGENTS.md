@@ -350,6 +350,12 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **zh 提取器硬化（V15 正本）**：`zh-audit.py` form 1c = `localized:` 行尾 + 键字面量次行开头（`PENDING_LOCALIZED_RE` + `LEAD_LITERAL_RE` 行对状态机；注释行保持 pending）；self-test golden 负测两样例（静态键/插值前缀 continuation）。**硬化首轮即抓 search_{exif,clip}_placeholder 真缺口**（catalog 从未在册 = 运行时 zh 缺失）——提取器硬化后必须实跑 `--check` 对账一轮再收工。V14 形态：动态键位一律显式 switch 返回静态键（11 键在册非补键）；`String.LocalizationValue("prefix_\(x)")` 禁令维持。
 - **M3-1 键族登记**：`export_collision_label/increment/fail/replace` + `export_drt_peak_note` + `panel_nlmeans_preview_downgrade` + `project_face_import_folder/no_project/no_project_hint/open_hint` + `search_exif_placeholder/search_clip_placeholder`（xcstrings 尾块纯插入；UserDefaults 零新增——冲突档会话态裁定）。
 
+### L057 面板呈现约定（2026-10-08，fix(l057) 批——面板/文件对话框呈现约定正本）
+- **`runModal` 族禁入产线**：一切 `NSOpenPanel/NSSavePanel` 呈现走唯一缝 `PanelPresentation.present(_:) async -> URL?`（`begin(withCompletionHandler:)` 非阻塞形态，AppKit 在安全点自行调度面板 modal loop，**从不嵌套进 SwiftUI 动作 callout 栈**）；机检 gate = `grep -rn "\.runModal(" App/Sources` 零命中。调用点纪律 = 菜单命令/按钮/contextMenu 项一律 `Task { await … }` hop。
+- **判别式（Task hop 何时不够）**：main queue drain 挂 CFRunLoop common modes（含 event-tracking mode）——`Task {}`/`DispatchQueue.main.async` 只拆动作帧、不保证脱离菜单追踪/AX simulated-open 态，modal 嵌套可幸存（.ips 085205 = Task 包裹菜单路实证）。充分模式 = begin 缝（结构性消除嵌套）。正本 = `.work/gsd/phases/l057-panel-family/L057-DECISIONS.md` D1R/D2。
+- **机制现状（L057 二分）**：在案三份 .ips 全为主线程栈边界故障（stack guard），且 140155 实例零面板仍崩——面板取消非全部实例必要条件，AX 自动化压力（AXManualAccessibility + 深度 AX 遍历）为共同因子 = **L057-B 专项（queue 行在案）**；LUT 检查器页 HEAD 空白（D8-2）疑同根。嵌套 modal 假说降级为未证实假说之一，begin 缝作为文档禁忌形态卫生修复保留。
+- **账面勘误（对 M3-1-02-ACCEPTANCE §三）**：`FileOpenHelper.swift` 的类型名是 **FileOpener**（非死代码——File→Open ⌘O 无条件可见，5 调用点）；`PresetFilePanels.importPanel` = 真死代码已删（导入面早已换 `.fileImporter`）。排查面板族时**按类型名 grep，勿按文件名**。
+
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
