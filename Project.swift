@@ -767,6 +767,7 @@ let project = Project(
                 "Tests/LightamerTests/ViewportTransformTests.swift",
                 "Tests/LightamerTests/WorkspaceRoutingTests.swift",
                 "Tests/LightamerTests/YiyinSheetSizingTests.swift",
+                "Tests/LightamerTests/ExportCollisionPickerTests.swift",
             ],
             resources: ["Resources/TestFixtures/**"], // same fixtures ride in every bundle (D3; ~6.2 MB each)
             dependencies: [

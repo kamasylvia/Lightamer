@@ -29562,6 +29562,70 @@
           }
         }
       }
+    },
+    "export_collision_label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collision"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命名冲突"
+          }
+        }
+      }
+    },
+    "export_collision_increment": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Increment"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Increment（占用时自动 -1、-2…）"
+          }
+        }
+      }
+    },
+    "export_collision_fail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fail"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fail（占用即报错，不写盘）"
+          }
+        }
+      }
+    },
+    "export_collision_replace": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace（覆盖占用文件）"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

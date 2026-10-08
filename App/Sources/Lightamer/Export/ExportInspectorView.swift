@@ -221,6 +221,18 @@ internal struct ExportInspectorView: View {
                 pattern: $model.pattern,
                 sampleStem: sampleStem,
                 store: templateStore)
+            // M3-1-03 KD-1: the collision-tier Picker (the M2-9-VALIDATION
+            // 挂账#4 close-out — the tier names stay technical identifiers,
+            // 语言纪律). Session state per the model field's ruling.
+            Picker(String(localized: "export_collision_label"), selection: $model.collisionPolicy) {
+                Text(String(localized: "export_collision_increment"))
+                    .tag(ExportNamer.ExportCollisionPolicy.increment)
+                Text(String(localized: "export_collision_fail"))
+                    .tag(ExportNamer.ExportCollisionPolicy.fail)
+                Text(String(localized: "export_collision_replace"))
+                    .tag(ExportNamer.ExportCollisionPolicy.replace)
+            }
+            .accessibilityIdentifier("export.page.collision")
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("export.section.naming")
@@ -251,45 +263,35 @@ internal struct ExportInspectorView: View {
         model.canRun && !targets.isEmpty && displayDestination != nil
     }
 
-    /// The batch enqueue (the queue section's add face): the pre-export
-    /// sidecar flush (the panel-hops-through-environment legacy posture —
-    /// the current image's pending writes land before the queue reads),
-    /// then the KD-4 assembly.
+    /// The batch enqueue (the queue section's add face): the pure KD-4
+    /// assembly first (the state-layer seam — the picker value + the live
+    /// projection resolve WITHOUT I/O), then the pre-export sidecar flush
+    /// (the panel-hops-through-environment legacy posture — the current
+    /// image's pending writes land before the queue reads) and the enqueue.
     private func runExport() {
-        let batch = targets
-        guard !batch.isEmpty, let destination = displayDestination else { return }
-        let subfolder: String? = {
-            guard model.subfolderEnabled else { return nil }
-            let trimmed = model.subfolderName.trimmingCharacters(in: .whitespaces)
-            return trimmed.isEmpty ? nil : trimmed
-        }()
-        // KD-4: the projection override rides the OPEN image only (the
-        // EditorState live projection — the same set a flush would
-        // persist); every other batch image exports its DISK sidecar
-        // truth (nil override). The DRT record is the CURRENT image's
-        // effective face — `?? DrtRecord()` default (KD-4).
-        let loaded = editorState.loadedImageURL
-        let overrides: [[ModuleInstance]?] = batch.map { url in
-            (url.path == loaded?.path) ? editorState.instances : nil
-        }
-        let drtRecord = editorState.history.effectiveDrtRecord() ?? DrtRecord()
-        let variant = model.makeVariant()
-        let pattern = model.pattern
+        let assembly = model.makeRunAssembly(
+            targets: targets,
+            loadedImageURL: editorState.loadedImageURL,
+            instances: editorState.instances,
+            effectiveDrtRecord: editorState.history.effectiveDrtRecord(),
+            destination: displayDestination)
+        guard let assembly else { return }
         let software = ExportState.currentExifSoftware
         Task {
             await pipeCoordinator.flushSidecar()
             do {
                 try await exportState.enqueueExportM2(
-                    images: batch,
-                    instancesOverrides: overrides,
-                    drtRecord: drtRecord,
-                    variant: variant,
-                    destination: destination,
-                    subfolder: subfolder,
-                    namingPattern: pattern,
+                    images: assembly.batch,
+                    instancesOverrides: assembly.overrides,
+                    drtRecord: assembly.drtRecord,
+                    variant: assembly.variant,
+                    destination: assembly.destination,
+                    subfolder: assembly.subfolder,
+                    namingPattern: assembly.pattern,
+                    collisionPolicy: assembly.collisionPolicy,
                     exifSoftware: software)
                 // The lifecycle write-backs (OQ-3 导出发起写回 + OQ-10).
-                exportState.storeM2LastDirectory(destination)
+                exportState.storeM2LastDirectory(assembly.destination)
                 writeBackQualityMemory()
             } catch {
                 editorState.presentToast(String(localized: "export_enqueue_failed"))
@@ -598,6 +600,14 @@ final class ExportM2PanelModel {
     /// first-use face — Alcedo's default pattern).
     var pattern = NamingTemplateStore.builtIns[0].pattern
 
+    /// The collision-tier session face (M3-1-03 KD-1): Increment default =
+    /// the historical `-1/-2` behavior byte-identical; the picked tier rides
+    /// the run assembly into `enqueueExportM2` — the ENGINE-zero-diff UI
+    /// exposure that closes M2-9-VALIDATION 挂账#4. NOT persisted: the M2-9
+    /// memory-key family stays at six keys (the DECISIONS 会话态裁定 —
+    /// Alcedo remembers directory/quality only, the tier is per-session).
+    var collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment
+
     /// The naming validity gate (KD-3: an invalid pattern disables the
     /// page's run/add actions — the shared single gate).
     var namingInvalid: Bool {
@@ -786,6 +796,53 @@ final class ExportM2PanelModel {
             format: makeFormat(),
             metadataPolicy: makeMetadataPolicy(),
             embedICC: embedICC)
+    }
+
+    /// The run-face assembly bundle (M3-1-03 KD-1): everything the queue
+    /// enqueue consumes, resolved in ONE pure step — the state-layer seam
+    /// that makes the collision-picker→queue path testable (the M2-9-04
+    /// view-independent-faces discipline).
+    struct RunAssembly {
+        let batch: [URL]
+        let overrides: [[ModuleInstance]?]
+        let drtRecord: DrtRecord
+        let variant: ExportVariant
+        let pattern: String
+        let collisionPolicy: ExportNamer.ExportCollisionPolicy
+        let destination: URL
+        let subfolder: String?
+    }
+
+    /// The run assembly (KD-4's panel half + M3-1-03 KD-1): the OPEN image
+    /// rides the live projection (the same set a flush would persist);
+    /// every other batch image keeps its DISK sidecar truth (nil override).
+    /// The DRT record is the current image's effective face — `?? DrtRecord()`
+    /// default. nil = the run-gate miss (empty targets / no destination).
+    func makeRunAssembly(
+        targets: [URL],
+        loadedImageURL: URL?,
+        instances: [ModuleInstance],
+        effectiveDrtRecord: DrtRecord?,
+        destination: URL?
+    ) -> RunAssembly? {
+        guard !targets.isEmpty, let destination else { return nil }
+        let subfolder: String? = {
+            guard subfolderEnabled else { return nil }
+            let trimmed = subfolderName.trimmingCharacters(in: .whitespaces)
+            return trimmed.isEmpty ? nil : trimmed
+        }()
+        let overrides: [[ModuleInstance]?] = targets.map { url in
+            (url.path == loadedImageURL?.path) ? instances : nil
+        }
+        return RunAssembly(
+            batch: targets,
+            overrides: overrides,
+            drtRecord: effectiveDrtRecord ?? DrtRecord(),
+            variant: makeVariant(),
+            pattern: pattern,
+            collisionPolicy: collisionPolicy,
+            destination: destination,
+            subfolder: subfolder)
     }
 
     /// The quality write-back snapshot: (key, value) for the ACTIVE format
