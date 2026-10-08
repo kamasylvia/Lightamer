@@ -158,3 +158,7 @@ CC BY-SA 资产入库五件套：独立目录 + LICENSE 全文 + NOTICE（署名
 - 推荐：**①**。宽容度面板（FSIM-02）需要置位曲线一等参数与 descriptor 读数
   语义（「after placement」直方图）；现有 exposure/contrast 无恒等核/双侧独立
   膝点，语义不对位；新 op = IOP additive，风险低（RESEARCH §1.2/§3）。
+
+## 裁决记录（用户回批 2026-10-08）
+
+**OQ-M3-2-1..7 全部按推荐采纳**：①document 级 FilmRecord + film sub-run + filmPlacement 可蒙版 grade op ②配光自动（bake 期中性包闭式解 + 运行期曝光归一）+ 内容偏移可选档默认关 + Y/M 手动恒在 ③资产 c 混合（引擎自建 + spektrafilm CC BY-SA JSON 原样引入 + SA 隔离五件套）④宽容度面板维持 M3-4 ⑤golden = 数学复算主门 + SpektraLab 渲染仅本地目测不入仓 ⑥spike 同批（RAF 100MP 双峰 signpost 二分）⑦独立 filmPlacement op。
