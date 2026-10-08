@@ -11,14 +11,15 @@ import XCTest
 final class V50OrderTests: XCTestCase {
 
     /// The table matches Darktable's v50_order + the Lightamer-native
-    /// rows: 105 entries spanning rawprepare 1.0 → gamma 78.0, first/last
+    /// rows: 106 entries spanning rawprepare 1.0 → gamma 78.0, first/last
     /// locked (07-2: 93 → 94 with the skinSmooth 66.5 insertion — the first
     /// non-dt row; 08-5: 94 → 95 with the textOverlay 66.7 insertion — the
     /// second; M2-5-1: 95 → 105 with the ten grade rows — the acesccIn/Out
-    /// envelope pair + the eight catalog ops; all flagged in the table at
-    /// the rows).
+    /// envelope pair + the eight catalog ops; M3-3-02: 105 → 106 with
+    /// filmPlacement 20.8 — the placement curve row; all flagged in the
+    /// table at the rows).
     func testEntriesCountApproximately76() {
-        XCTAssertEqual(V50Order.entries.count, 105, "93 dt-verbatim + skinSmooth + textOverlay + 10 M2-5-1 grade rows")
+        XCTAssertEqual(V50Order.entries.count, 106, "93 dt-verbatim + skinSmooth + textOverlay + 10 M2-5-1 grade rows + filmPlacement")
         XCTAssertEqual(V50Order.entries.first?.opName, "rawprepare")
         XCTAssertEqual(V50Order.entries.first?.order, 1.0)
         XCTAssertEqual(V50Order.entries.last?.opName, "gamma")
@@ -220,6 +221,21 @@ final class V50OrderTests: XCTestCase {
             "66.7 is a unique position")
     }
 
+    /// M3-3-02: filmPlacement 20.8 — the THIRD edit-window native row (the
+    /// placement curve, KD-5): module statics AND the table agree; it sits
+    /// BETWEEN acesccIn (20.5) and exposure (21.0) — the first grade-domain
+    /// mapping, inside the envelope; the position is unique.
+    func testFilmPlacementSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "filmPlacement"), 20.8)
+        XCTAssertEqual(FilmPlacementModule.iopOrder, 20.8)
+        XCTAssertEqual(FilmPlacementModule.opName, "filmPlacement")
+        XCTAssertLessThan(V50Order.order(for: "acesccIn")!, V50Order.order(for: "filmPlacement")!)
+        XCTAssertLessThan(V50Order.order(for: "filmPlacement")!, V50Order.order(for: "exposure")!)
+        XCTAssertEqual(
+            V50Order.entries.filter { $0.order == 20.8 }.count, 1,
+            "20.8 is a unique position")
+    }
+
     /// 07-2 zero-move pin: the 66.5 insertion moved NO dt-verbatim row —
     /// the 93 original entries appear in the same relative order with the
     /// same values (an add-only insertion between soften and splittoning).
@@ -239,12 +255,14 @@ final class V50OrderTests: XCTestCase {
         XCTAssertEqual(inTable.map(\.order), neighborhood.map(\.1))
 
         // Whole-table relative order: stripping ALL native rows (07-2's
-        // skinSmooth, 08-5's textOverlay, M2-5-1's ten grade rows) must
-        // yield the pre-07-2 sequence back (spot anchors on both ends).
+        // skinSmooth, 08-5's textOverlay, M2-5-1's ten grade rows, M3-3-02's
+        // filmPlacement) must yield the pre-07-2 sequence back (spot
+        // anchors on both ends).
         let nativeRows: Set<String> = [
             "skinSmooth", "textOverlay",
             "acesccIn", "acesccOut", "colorWheels", "cat02WhiteBalance",
             "contrast", "white", "black", "saturation", "tint", "hls",
+            "filmPlacement",
         ]
         let stripped = V50Order.entries.filter { !nativeRows.contains($0.opName) }
         XCTAssertEqual(stripped.count, 93)

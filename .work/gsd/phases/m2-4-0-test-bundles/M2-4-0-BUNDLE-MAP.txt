@@ -520,3 +520,6 @@ LIB	6	FilmSidecarTests.swift
 #   ExportFilmChainTests = EXPORT/Core 级）。行内 method 数以终态对账为准。
 #   运行期总数基线相应上移（3081 推算值起算，首个全套轮实测校正）。
 LAYERS	8	FilmLegTests.swift
+LAYERS	4	FilmPlacementDriverTests.swift
+IOP	7	FilmPlacementTests.swift
+IOPP	3	FilmPlacementKernelTests.swift

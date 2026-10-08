@@ -94,8 +94,8 @@ public enum NodeOwnershipCatalog {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The grade catalog (Plan M2-5-1 T1, KD-1) — the 18 Alcedo adjustment
-// catalogs as a five-tuple table (D-M2-5-CONTEXT-1's on-disk carrier):
+// The grade catalog (Plan M2-5-1 T1, KD-1; M3-3-02 T4 adds the 19th row) —
+// the Alcedo adjustment catalogs as a five-tuple table (D-M2-5-CONTEXT-1's on-disk carrier):
 //
 //   catalogID      — the stable Alcedo catalog id (KD-1 camelCase form,
 //                    e.g. "cat02WhiteBalance"; the add-face enumeration id).
@@ -104,7 +104,7 @@ public enum NodeOwnershipCatalog {
 //                    compilation here too). Shadows AND Highlights share the
 //                    one `shadhi` op (the Alcedo catalog has two entries;
 //                    `item(opName:)` answers the first — Shadows).
-//   owner          — 13× .grade + Tint (.grade) + the four DRT/Post seats
+//   owner          — 14× .grade + Tint (.grade) + the four DRT/Post seats
 //                    (Clarity/Sharpen/Halation/FilmGrain — the M2-4-1
 //                    rulings, mirroring drtPostOpNames above).
 //   identityJSON   — the identity parameter snapshot (the reset/new-grade
@@ -119,7 +119,7 @@ public enum NodeOwnershipCatalog {
 //                    declarative source).
 //
 // Completeness (checker E7): ModuleRegistry's default face minus
-// (the 18 catalog ops ∪ {testgain}) = ∅ — testgain is the DEBUG-only
+// (the 19 catalog ops ∪ {testgain}) = ∅ — testgain is the DEBUG-only
 // registration exemption (Registry.swift `#if DEBUG`; the Release face
 // excludes it). GradeCatalogTests asserts the closure and carries the
 // same note so nobody "fixes" testgain back in.
@@ -165,7 +165,10 @@ public enum GradeCatalog {
         String(data: ParamsCoding.encode(params), encoding: .utf8) ?? ""
     }
 
-    /// The 18 catalogs, FEATURE-MAP §2.1 table order (M2-5-1 KD-1).
+    /// The 19 catalogs — the FEATURE-MAP §2.1 table order (M2-5-1 KD-1)
+    /// with the M3-3-02 filmPlacement row appended (the Alcedo-18 model is
+    /// EXTENSIBLE: the placement op is the differentiation row, no Alcedo
+    /// counterpart — M3-3-02-DECISIONS).
     public static let items: [GradeCatalogItem] = [
         GradeCatalogItem(
             catalogID: "cat02WhiteBalance", opName: Cat02WBModule.opName, owner: .grade,
@@ -250,6 +253,17 @@ public enum GradeCatalog {
             // Same disposition as halation: strength 0 = the no-op point.
             identityJSON: json(of: GrainModule.Params(strength: 0)),
             panelExposures: ["strength"]),
+        // M3-3-02 T4 (KD-5) — the 19th row: the RFC-023 scene-placement
+        // curve. Owner .grade (a scene-referred exposure op — masking is
+        // legal); identityJSON = the kernel no-op point (both pull-backs 0
+        // — the exact identity core; rolloff carries its working default).
+        // panelExposures names the M3-4 FSIM-02 slider keys (no panel this
+        // batch — the op is an addable, non-editable identity placeholder
+        // until then, the m4 ruling).
+        GradeCatalogItem(
+            catalogID: "filmPlacement", opName: FilmPlacementModule.opName, owner: .grade,
+            identityJSON: json(of: FilmPlacementModule.Params()),
+            panelExposures: ["shadowsPullBack", "highlightsPullBack", "rolloff"]),
     ]
 
     /// The catalog row for an op name (first match — Shadows wins the
@@ -258,7 +272,7 @@ public enum GradeCatalog {
         items.first { $0.opName == opName }
     }
 
-    /// The grade-owned rows (13 Grade items + Tint — the 18 minus the four
+    /// The grade-owned rows (14 Grade items + Tint — the 19 minus the four
     /// DRT/Post seats).
     public static func gradeItems() -> [GradeCatalogItem] {
         items.filter { $0.owner == .grade }
