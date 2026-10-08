@@ -154,7 +154,8 @@ enum NodeCanvasGeometry {
 
     // MARK: The drop domain (the drag-reconnect pure function, KD-1)
 
-    /// The drop index for a drag point at `dragY` (canvas Y): a GRADE-space    /// index `0...grades.count` (endpoints excluded from the TARGET space —
+    /// The drop index for a drag point at `dragY` (canvas Y): a GRADE-space
+    /// index `0...grades.count` (endpoints excluded from the TARGET space —
     /// the command face's reconnect position). The boundaries are the
     /// midpoints between adjacent GRADE cards PLUS the midpoint between the
     /// last grade and the DRT endpoint (so the zone below the last grade

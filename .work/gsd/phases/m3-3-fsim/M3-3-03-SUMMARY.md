@@ -19,11 +19,11 @@
 | `App/Sources/Lightamer/State/PipeCoordinator.swift` | 只读三面 additive（filmMaterialStore/currentFilmRecord/hasFilmRecord——面板与卡的唯一数据源） | 94168f8 |
 | `App/Sources/Lightamer/UI/InspectorView.swift` | filmPageActive 整列分支（inactive 面逐字节现状） | 94168f8 |
 | `LightamerCore/Sources/Pipe/Film/FilmTailPolicy.swift` | `FilmSolveCache.invalidateAll()` 失效缝（Solve 按钮） | 94168f8 |
-| `Resources/Localizable.xcstrings` | film_* 19 键 + history_film_* 4 键 + editor_node_film* 3 键（尾块纯插入；zh-audit PASS 1557/1795） | 94168f8 / 5a8a2f8 |
+| `Resources/Localizable.xcstrings` | film_* 15 键 + history_film_* 4 键 + editor_node_film* 3 键（共 22 静态键；尾块纯插入；zh-audit PASS 1557/1795——03 验收实跑复核） | 94168f8 / 5a8a2f8 |
 | `App/Sources/Lightamer/UI/Shell/Nodes/NodeCanvasGeometry.swift` | `filmCardID` 常量 + `layout(includesFilmCard:)` additive 默认参（ grades/DRT 之间 = sub-run 物理座位；默认调用零改） | 5a8a2f8 |
 | `App/Sources/Lightamer/UI/Shell/Nodes/NodesPanelModel.swift` | `FilmCardProjection`（pair 名 + active）+ pipeCoordinator 注入 | 5a8a2f8 |
 | `App/Sources/Lightamer/UI/Shell/Nodes/EditorNodesPanelView.swift` | Film 卡视图（只读/导航面/AX 三件）+ cardsLayer 渲染支 | 5a8a2f8 |
-| `App/Sources/Lightamer/UI/Shell/EditorToolRailView.swift` | 构造点传 coordinator/inspector（卡数据源） | 94168f8 / 5a8a2f8 |
+| `App/Sources/Lightamer/UI/Shell/EditorToolRailView.swift` | 构造点传 coordinator/inspector（卡数据源） | 5a8a2f8 |
 | `Tests/LightamerTests/FilmPanelTests.swift` / `FilmCardTests.swift` | 新建（APP）：面板事务面 6 法 + 卡 4 法 | 94168f8 / 5a8a2f8 |
 | `Project.swift` / `M2-4-0-BUNDLE-MAP.txt` | 测试登记（L041 批尾 generate ×3）+ 增行四条 | 随各任务 |
 | `.work/gui-acceptance/m3-3/` | MANIFEST + 画布 Film 卡实机截图 + zh-audit PASS | T5 |
