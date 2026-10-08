@@ -524,3 +524,4 @@ LAYERS	7	FilmPrintBakeTests.swift
 LAYERS	4	FilmPlacementDriverTests.swift
 IOP	7	FilmPlacementTests.swift
 IOPP	3	FilmPlacementKernelTests.swift
+APP	5	FilmCoordinatorTests.swift

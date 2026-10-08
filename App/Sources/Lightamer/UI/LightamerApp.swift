@@ -985,6 +985,29 @@ internal struct LightamerApp: App {
                     pipeCoordinator.attach(
                         registry: moduleRegistry, defaultFace: defaultFace)
 
+                    // M3-3-02 T5 (KD-6): the film material store assembly —
+                    // the bundle's FilmProfiles/profiles (the folder
+                    // reference). A failed store = the typed degrade: the
+                    // film face goes DARK (filmTailPolicy answers nil), one
+                    // toast — never silent, never a crash.
+                    if let profilesURL = Bundle.main.resourceURL?
+                        .appendingPathComponent("FilmProfiles/profiles")
+                    {
+                        do {
+                            let store = try FilmMaterialStore(
+                                profilesDirectory: profilesURL)
+                            pipeCoordinator.attachFilmStore(store)
+                        } catch {
+                            AppError.logger.error(
+                                "film material store unavailable (\(String(describing: error), privacy: .public)) — the film simulation face is disabled"
+                            )
+                            await MainActor.run {
+                                editorState.presentToast(String(
+                                    localized: "toast_film_store_unavailable"))
+                            }
+                        }
+                    }
+
                     // Plan 03-02-T3 (D-T6): register the Inspector panel
                     // providers (exposure + temperature are the first two).
                     // M2-1: the same face gates the 6 disabled panels —

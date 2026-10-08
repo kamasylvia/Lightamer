@@ -23544,6 +23544,23 @@
         }
       }
     },
+    "toast_film_store_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Film profiles unavailable — film simulation disabled"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "胶片配置不可用——胶片模拟已停用"
+          }
+        }
+      }
+    },
     "toast_hdr_merge_queued": {
       "extractionState": "manual",
       "localizations": {
