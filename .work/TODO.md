@@ -401,3 +401,5 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 ---
 
 *镜像自 `.work/gsd/ROADMAP.md`。阶段进度以 `.work/gsd/STATE.md` 为准。*
+
+- [ ] M3 收官后：全史瘦身手术第二次（规格 = `.work/gsd/research/HISTORY-SLIM-SURGERY-SPEC.md`；pack 907→~400-500MB）
