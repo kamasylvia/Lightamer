@@ -144,6 +144,7 @@ final class EditorState {
         history = HistoryStack()
         baseInstances = defaultInstances
         instances = defaultInstances
+        clearPreviewDenoiseBypass()
     }
 
     /// 02-06 sidecar RESTORE (replaces the pristine reset when a `.lra`
@@ -174,6 +175,11 @@ final class EditorState {
     /// proves cache hits).
     func recordChange(_ snapshot: ModuleInstance, label: String) {
         history.commit(snapshot, label: label)
+        // M3-1-03 KD-3: a commit IS the truth landing — an armed bypass on
+        // the committed instance yields here (the real flow disarms before
+        // the commit; this keeps any racing commit path from diverging the
+        // live set from the history truth via the upsert's enforcement).
+        previewDenoiseBypass.removeValue(forKey: snapshot.id)
         upsert(instance: snapshot)
         guard let pipeCoordinator else { return }
         Task { await pipeCoordinator.historyDidChange() }
@@ -184,6 +190,48 @@ final class EditorState {
     /// the commit lands once at drag end).
     func applyLiveInstance(_ snapshot: ModuleInstance) {
         upsert(instance: snapshot)
+    }
+
+    // ── M3-1-03 T3: the drag-time denoise preview bypass (OQ-6①/KD-3) ──
+
+    /// The drag-window bypass state: the DRAGGED instance's UUID → the
+    /// `enabled` value the record carried when the bypass armed (restored
+    /// verbatim on disarm — a user-disabled module stays disabled).
+    /// Live-projection only: never enters params, history, or liveEdited,
+    /// so FULL renders OUTSIDE the drag window are byte-identical (a FULL
+    /// rerun DURING the window briefly misses denoise — the DECISIONS
+    /// registered risk, M4 coordinator serialization is the根治余量).
+    private var previewDenoiseBypass: [UUID: Bool] = [:]
+
+    /// Drag-time preview bypass (M3-1-03 KD-3, OQ-6①): while a nlmeans
+    /// slider drags, the DRAGGED instance's live projection temporarily
+    /// reads `enabled = false` so the PREVIEW pipe skips it (full-quality
+    /// nlmeans ≈ 65ms — far over the 16.6ms interactive budget, perf.md
+    /// OQ-7-A; decimate 减趟 proved math-unreachable, skip = the maximal
+    /// downgrade). Keyed by INSTANCE IDENTITY, never opName — a
+    /// layer-embedded nlmeans is never collateral (checker 回注 M6).
+    func setPreviewDenoiseBypass(_ instanceID: UUID, on: Bool) {
+        if on {
+            guard previewDenoiseBypass[instanceID] == nil else { return }
+            guard let index = instances.firstIndex(where: { $0.id == instanceID })
+            else { return }
+            previewDenoiseBypass[instanceID] = instances[index].enabled
+            instances[index].enabled = false
+        } else {
+            guard let prior = previewDenoiseBypass.removeValue(forKey: instanceID)
+            else { return }
+            if let index = instances.firstIndex(where: { $0.id == instanceID }) {
+                instances[index].enabled = prior
+            }
+        }
+    }
+
+    /// Wholesale projection replacement drops any armed bypass (load /
+    /// version swap / undo-redo-jump rebuilds) — a stale force-false would
+    /// diverge the live set from the history truth after the gesture.
+    private func clearPreviewDenoiseBypass() {
+        guard !previewDenoiseBypass.isEmpty else { return }
+        previewDenoiseBypass.removeAll()
     }
 
     // ── M2-6-3 T1 (KD-1): the document-level DRT commit face ─────────────
@@ -298,10 +346,19 @@ final class EditorState {
     /// Upsert by instance UUID, keep v50 order (records ARE the pipe
     /// order — boxes are materialized in this sequence).
     private func upsert(instance: ModuleInstance) {
-        if let index = instances.firstIndex(where: { $0.id == instance.id }) {
-            instances[index] = instance
+        // M3-1-03 KD-3: while the drag-window bypass is armed for this
+        // instance, the live projection keeps `enabled = false` — the
+        // panel's ticks carry the record's stored enabled (true), the
+        // projection enforces the downgrade until disarm restores the
+        // prior value. Zero trace outside the window.
+        var incoming = instance
+        if previewDenoiseBypass[incoming.id] != nil {
+            incoming.enabled = false
+        }
+        if let index = instances.firstIndex(where: { $0.id == incoming.id }) {
+            instances[index] = incoming
         } else {
-            instances.append(instance)
+            instances.append(incoming)
         }
         instances.sort {
             ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
@@ -315,6 +372,7 @@ final class EditorState {
     /// history params). Instances that exist only in abandoned redo-state
     /// vanish (their box is dropped at the next materialization).
     private func rebuildInstances() {
+        clearPreviewDenoiseBypass()
         var merged = baseInstances
         for record in history.effectiveInstances() {
             if let index = merged.firstIndex(where: {

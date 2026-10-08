@@ -495,3 +495,4 @@ APP	14	YiyinSheetSizingTests.swift
 #   （App 级——EditorState 旁路 live 投影面）随 T3 commit 增行。行内 method 数以终态
 #   对账为准。运行期总数基线相应上移（3013 起算）。
 APP	5	ExportCollisionPickerTests.swift
+APP	6	NLMeansDragDowngradeTests.swift

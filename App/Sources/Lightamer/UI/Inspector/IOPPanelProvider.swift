@@ -90,6 +90,16 @@ final class InspectorEditSession {
         }
     }
 
+    /// M3-1-03 T3 (KD-3/OQ-6①): the drag-time denoise preview bypass —
+    /// the EditorState live-projection face through the coordinator's weak
+    /// back-reference. Keyed by the DRAGGED instance's IDENTITY (not
+    /// opName): a layer-embedded nlmeans is never collateral. Live-state
+    /// only — zero params, zero history; the commit at drag end carries
+    /// the untouched enabled/params.
+    func setPreviewDenoiseBypass(_ instanceID: UUID, on: Bool) {
+        coordinator?.setPreviewDenoiseBypass(instanceID, on: on)
+    }
+
     /// Discrete control semantics (double-click reset, preset pick,
     /// eyedropper apply): ONE commit per click, compressed trio.
     /// `autoEnable = false` preserves an explicit enabled=false (the
