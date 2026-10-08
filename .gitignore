@@ -57,3 +57,14 @@ Resources/AIModels/**
 .work/tmp-public/
 .work/debug-flaky/
 .build/
+
+# RAW media samples & duplicate fixtures — kept on disk, never tracked (2026-10-08 slim pass)
+.work/gsd/artifacts/fixtures/
+.work/gsd/**/samples/
+*.3FR
+*.RAF
+*.raf
+*.IIQ
+*.iiq
+*.ARW
+*.arw
