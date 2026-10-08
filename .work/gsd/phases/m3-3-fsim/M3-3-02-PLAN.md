@@ -12,7 +12,7 @@ files_modified:
   - LightamerCore/Sources/Pipe/Film/FilmTailPolicy.swift       # 新建：FilmTailPolicy/FilmTailParams/FilmTailAssembly（seed = fnv(recordHash ⊕ policyTag ⊕ solvedPackHash ⊕ upstream)）+ FilmSolveCache 键控
   - LightamerCore/Sources/Pipe/Film/FilmSubRunKernels.metal    # 新建：fused kernel（密度查表→底色→串扰→滤色增益→印相 LUT 四面体采样，单 pass）
   - LightamerCore/Sources/Pipe/Film/FilmPrintBake.swift        # 新建：印相段 65³ 复合表 bake（Float64 CPU 参考 + concurrentPerform + LRU 16，bakedCompositeTable 同款机制；LutEncodingCatalog 零触碰）
-  - LightamerCore/Sources/Pipe/PixelPipe.swift                 # 修改：filmTail 属性 + runFilmLeg（:864 DRT 尾腿同位前置）+ legacy 显示三件降出查询点扩臂 + RenderPipeline 传参（默认 nil = 零路径）
+  - LightamerCore/Sources/Pipe/PixelPipe.swift                 # 修改：filmTail 属性 + runFilmLeg（runDrtTailLeg 调用点同位前置——run() :723-724 / runSub() :864-865 两处）+ 终端驻留集降出查询点按 KD-1 3×2 矩阵扩臂 + RenderPipeline 传参（默认 nil = 零路径）
   - LightamerCore/Sources/Pipe/LayerCompositeDriver.swift      # 修改：filmTail 参数贯通（composite :204 签名 additive 默认参 + :546 终段管传递）
   - LightamerIOP/Sources/FilmPlacement/FilmPlacementModule.swift # 新建：filmPlacement grade op（RFC-023 恒等核+双侧支曲线，delta 形 bit-exact）
   - LightamerIOP/Sources/FilmPlacement/FilmPlacementKernels.metal # 新建：置位曲线 kernel
@@ -22,6 +22,7 @@ files_modified:
   - App/Sources/Lightamer/State/PipeCoordinator.swift          # 修改：FilmRecord 持久化四件 App 半面（carrier/写腿/恢复腿/filmTailPolicy run 传点）+ 统计腿接线 + FilmMaterialStore 装配注入
   - App/Sources/Lightamer/State/EditorState.swift              # 修改：recordFilmChange/setFilmLive（recordDrtChange/setDrtLive 同构）
   - LightamerCore/Sources/Export/ExportRenderer.swift          # 修改：$jobFilmTail TaskLocal（$jobDrtTail 同款递缝三件套范式）+ process/processComposite 调用点传 filmTail
+  - LightamerCore/Sources/Export/ExportQueue.swift             # 修改：Job.filmTail 字段（:60 drtTail 旁 additive）+ enqueue(filmTails:) per-image 索引参数 + precondition（:197/:203 同款）+ 渲染腿内 $jobFilmTail.withValue 包装（:417 嵌套一层）——checker 回注 2026-10-08 E1：detached 腿不继承 TaskLocal，载体面必须落本文件
   - App/Sources/Lightamer/State/ExportState.swift              # 修改：enqueueExportM2 恒装配 filmTail（drtOutput 强制联动同款）
   - Tests/LightamerTests/FilmLegTests.swift                    # 新建（LAYERS/Core 级）：seed 折叠/pristine 零路径/降出与重放序/DRT 叠序
   - Tests/LightamerTests/FilmPrintBakeTests.swift              # 新建（LAYERS/Core 级）：bake 确定性/LRU/域标定
@@ -83,23 +84,41 @@ files_modified:
   （置位/grades 之后、显示编码之前）；film 输出 = float32 working-linear Rec2020，
   喂给显示尾段（legacy `colorout→gamma` 或 DRT tail）——两模式下序皆物理正确
   （display encoding 恒在 film 之后）。
-- **机制**：`PixelPipe` 新 `internal var filmTail: FilmTailPolicy? = nil`
-  （默认 nil = 零路径，既有字节逐位不变）；**film 激活时 legacy 显示三件
-  （colorout 70.0/gamma 78.0）与 `.drt` 同法降出主链**——降出查询点
-  （`splitTerminal` 的 ≥70.0 过滤 / `:258-304` 尾格式与降出 switch）扩一臂
-  `displayTailDemoted = terminalTail 活 || filmTail != nil`，**`.drt` 分支语义
-  零改**（只加触发条件）。film 未激活 = 该臂全短路（既有三档 `.sdrGamma`/
-  `.edrLinear`/`.drt` 行为逐位现状——DrtTailTests 族零改全绿为门）。
-- **序**：`run()` 内 `runDrtTailLeg` 调用点（:864）**前置** `runFilmLeg`：
+- **机制——终端驻留集 × film 交互矩阵（3×2，逐格规范形）**：
+  > checker 回注（2026-10-08，E4）：原文只给「legacy 显示三件降出」（连件数都
+  > 与所列 ops 不符）——legacy(.sdrGamma)+film 时 borders 76/watermark 77 若留
+  > 主链会被 film 调色（违反 M2-6 E2「印框/水印永不进 tone mapping」纪律）；
+  > .edrLinear+film 则 film 会消费 post-colorout 平面（破坏物理不变量）且重放
+  > 分类无 EDR 臂（重放 gamma 会错钳 SDR）。两缺口以本矩阵补全。
+  >
+  > | terminalTail \ film | off（零路径） | on |
+  > |---|---|---|
+  > | `.sdrGamma` | 现状：终端驻留集全驻主链，尾平面 bgra8（`isTerminalTailSkipped` 全 false） | **降出整个终端驻留集**（colorout 70 / borders 76 / watermark 77 / gamma 78——与 `.drt` 同法），主链顶 = pre-colorout float32 → film 腿 → 按 v50 序重放 **colorout → borders → watermark → gamma**（印框/水印在 film 后 = 恒不被调色）；终平面 bgra8（SDR gamma 族既有尾格式逻辑） |
+  > | `.edrLinear` | 现状：仅 gamma 降出，colorout 驻主链，终平面 float32 linear | **colorout 随 film 臂加入降出**（降出集 = colorout+gamma），film 腿 → film 后**重放 colorout**；gamma 维持 EDR 档降出**不重放**（重放即错钳 SDR）；终平面保持 float32 linear |
+  > | `.drt` | 现状：DrtTailAssembly 尾链（M2-6 E2 降出集+Post 四件） | 降出集**零改**（终端驻留集本就全降）；film 腿输出 = DRT 尾腿 input + upstreamSeed（见「序」）；DRT 尾链重放照旧 |
+  >
+  > 降出查询点（`splitTerminal` 的 ≥70.0 过滤 / `:258-304` 尾格式与降出 switch）
+  > 扩臂 = **film 激活时按行扩 `isTerminalTailSkipped` 返回集**（.sdrGamma 行 =
+  > 终端驻留集四件、.edrLinear 行 = colorout+gamma、.drt 行不变）；film 未激活 =
+  > 该臂全短路（既有三档 `.sdrGamma`/`.edrLinear`/`.drt` 行为逐位现状——
+  > DrtTailTests 族零改全绿为门）。
+- **序**：`run()` 内 `runDrtTailLeg` 调用点**前置** `runFilmLeg`：
+  > checker 回注（2026-10-08，m7）：原标「:864」张冠李戴——:864-865 属
+  > `runSub()`，`run()` 的调用点在 :723-724；两处调用点同批接线（T1 action 已
+  > 覆盖），本 KD 标注改正。
   main walk → film sub-run（`runSub` 重放，fresh tailPipe 同款形态，
-  `isFilmTailLeg` 防重入标志）→ 显示尾段（legacy 重放 colorout+gamma 既有 box
-  原样 / `.drt` 尾链）→ 输出。`.drt` 模式下 DRT 尾腿 `input` = film 输出纹理、
+  `isFilmTailLeg` 防重入标志）→ 显示尾段（按上表逐行重放链：.sdrGamma =
+  colorout→borders→watermark→gamma 既有 box 原样 / .edrLinear = colorout /
+  `.drt` = 尾链）→ 输出。`.drt` 模式下 DRT 尾腿 `input` = film 输出纹理、
   `upstreamSeed` = **film 输出平面 hash**（levelHash[top] → film 输出 hash 的
   数源替换——seed 签名零改的兑现点）。
 - **fused kernel 单 pass**：负片段（log10 → density_curves 查表线性插值 →
-  base_density 底色 → 3×3 串扰 → 滤色密度增益 `+ k_y·[0,0,1] + k_m·[0,1,1]`）
-  与印相段（baked 65³ LUT 四面体采样）在**一个 kernel 内完成**——中间密度平面
-  不落显存（100MP 内存纪律；负片段出「归一化密度立方坐标」直接作 LUT 采样位）。
+  base 底色（01 KD-5 三点投影常数——E2 裁决，非谱形重放）→ 3×3 串扰 → 滤色
+  密度增益 `+ k_y·[0,0,1] + k_m·[0,1,0]`）与印相段（baked 65³ LUT 四面体采样）
+  在**一个 kernel 内完成**——中间密度平面不落显存（100MP 内存纪律；负片段出
+  「归一化密度立方坐标」直接作 LUT 采样位）。
+  > checker 回注（2026-10-08，E3）：滤色增益向量修正——M 吸绿 = [0,1,0]
+  > （原 `k_m·[0,1,1]` 物理错，等制品红+黄混色）；Y [0,0,1] / C [1,0,0] 不变。
   曲线数据 = 256×3 float32 `MTLBuffer` + 域 uniform（log_exposure 轴 −3…+4）。
 - **seed**（L013 折叠序，DrtTailAssembly.seed 同构）：`fnv(filmRecordHash ⊕
   filmPolicyTag("lightamer.film.subrun.v1") ⊕ solvedPackHash ⊕ upstream)`——
@@ -125,7 +144,8 @@ files_modified:
 - **曝光归一解**：mid-gray（P50）当前落点 EV ↔ 相纸 mid-density 对应目标 EV 之
   差 → 线性 gain（Y 通道单值——「归一只动亮度不动滤色包的色」SpektraLab 语义）；
   内容自适应档（默认关）= mid-gray 三通道密度失衡向量在滤色增益基上的最小二乘
-  投影 (ΔM,ΔY)——闭式 2×2 解，确定性同门。
+  投影 (ΔM,ΔY)——闭式 2×2 解，确定性同门（增益基 = KD-1 修正向量
+  M=[0,1,0]/Y=[0,0,1]——E3 回注联动）。
 - **手动臂恒叠加**：最终滤色 = (M0+ΔM_content+M_shift, Y0+ΔY_content+Y_shift)
   （CC 点域相加后钳 0-100 在消费点——Core 求解面不钳，与 DrtRecord.peakLuminance
   同款分工）；曝光 = 自动 gain × 2^exposureEv。
@@ -136,7 +156,8 @@ files_modified:
   **归一化负片密度立方**（负片段密度 + 滤色增益后的域——研究候选「LUT 输入 =
   linear_rec2020」**不采纳**：滤色增益是密度域标量，线性域直套物理错位；
   采纳密度域 = 滤色「一 LUT 服务全滤色组合」成立的前提）。立方域界 = film
-  profile 密度域 + base + 增益头量，per-pair 标定（store/bake 计算并随表携带）。
+  profile 密度域 + base + 增益头量，per-pair 标定（store/bake 计算并随表携带；
+  base = 01 KD-5 三点投影 RGB 常数——E2 回注联动，非谱形重放）。
 - LUT 内容 = 相纸密度曲线 → 减 Dmin → **胶片中性曲线反转**（RFC-028：反转必须
   用胶片自身中性曲线——灰阶误差恰 0 的纪律）→ 强度混入（strength k 于 bake 外
   per-pixel 混——`out = in + k·(film − in)` 密度域，fused kernel 尾段）→ 输出
@@ -177,10 +198,20 @@ files_modified:
 - **GradeCatalog 第 19 行**（NodeOwnershipCatalog.swift）：catalogID
   `"filmPlacement"`、owner `.grade`、identityJSON = 恒等点、panelExposures =
   `["shadowsPullBack", "highlightsPullBack", "rolloff"]`。**E7 完备性闭包**：
-  op 入默认面注册即须 catalog 行——`GradeCatalogTests` 计数断言 18→19（additive
-  修订，DECISIONS 登记偏离「18 Alcedo 目录」口径的理由：Alcedo 无此面 = 差异化
-  卖点，catalog 模型可扩）。`defaultFaceDisabledOpNames` **零 diff**（恒等核
-  默认启用安全——bit-exact）。
+  op 入默认面注册即须 catalog 行。
+  > checker 回注（2026-10-08，m8）：`GradeCatalogTests` 修订实为**多点**而非单
+  > 「18→19」——执行按此清单全改（计数闭合修订 = 登记闭环，不属「既有断言需改
+  > = 停下上报」红线；红线针对行为断言）：`:36` count 18→19；`:46` unique ids
+  > 18→19；`:51` grade-owner 计数 14→15；`:91` unique catalog ops 17→18；
+  > `:129` resolved 17→18；文件头注释（:6-16 的 18/14/17 记载）。DECISIONS 登记
+  > 偏离「18 Alcedo 目录」口径的理由：Alcedo 无此面 = 差异化卖点，catalog 模型
+  > 可扩。
+  `defaultFaceDisabledOpNames` **零 diff**（恒等核默认启用安全——bit-exact）。
+- **面板语义（m4 回注 2026-10-08）**：本批**无编辑面板** = filmPlacement 在
+  M3-4 前为**可加不可编的恒等占位**（per-op 手写 provider 机制下无注册即无编辑
+  面；add face 可枚举、参数恒零点 = 恒等直通）——02/03 措辞以此为准（03 裁④
+  「已可达」高估措辞已同步修正），DECISIONS 注记登记；置位参数编辑面 = M3-4
+  FSIM-02。
 - ACEScc envelope：20.8 在 [20.5, 69.9] 包裹内（LayerCompositeSeam「≥1 目录 op
   包夹」机制自动生效——曲线数学在 ACEScc/log 域天然对位 EV delta，envelope 腿
   测试在 FilmPlacementDriverTests 钉）。
@@ -207,14 +238,28 @@ files_modified:
   FilmProfiles/profiles` 注入 store（KD-4/01 注入式；坏目录/缺资产 = typed 降级
   + film 腿禁用 + D-26 toast 通道提示——不静默不崩）。
 
-### KD-7 导出递缝（T6，M2-9 TaskLocal 三件套范式照办）
+### KD-7 导出递缝（T6，M2-9 TaskLocal 三件套范式照办——含 ExportQueue 载体面三编辑点）
 
+> checker 回注（2026-10-08，E1）：`$jobFilmTail` TaskLocal 在 detached 渲染腿
+> **不自动继承**（ExportQueue.swift:408-413 注释原文即「the detached task
+> inherits no TaskLocals, the wrapper sits inside」）——M2-9 `$jobDrtTail` 先例
+> 实际落了三处 ExportQueue.swift 编辑，原 KD-7 漏列 = enqueueExportM2 到渲染腿
+> 的值传递链断裂（executor 无法交付或产生未申报 diff）。补全如下；files_modified
+> 已同步增列 `ExportQueue.swift`。`ExportQueueContract.swift` **零 diff 红线
+> 不变**（Contract 与 Queue 是两个文件，M2-9 在案）。
+
+- **ExportQueue 三编辑点（载体面，drtTail 先例同位）**：①`ExportJob.filmTail`
+  字段（:60 `drtTail` 旁 additive optional）；②`enqueue(... filmTails:
+  [FilmTailParams?]? = nil ...)` per-image 索引参数 + precondition count==images
+  （:197/:203 drtTails 同款）；③渲染腿内 `$jobFilmTail.withValue(queued.filmTail)`
+  包装（:417 `$jobDrtTail.withValue` 外再嵌套一层——两 TaskLocal 嵌套序 =
+  drt 外 film 内，值域互不干扰）。
 - `$jobFilmTail: FilmTailParams?` TaskLocal（`ExportRenderer.swift`，`$jobDrtTail`
   同款——**Contract 文件零 diff** 红线延续：per-job 载体走 TaskLocal 不动
   Request/Recipe 结构面）。
 - `enqueueExportM2` 恒装配 filmTail（`drtOutput = drtRecord` 强制联动同款：
-  carrier 非 pristine → 传 record；M2 检查器无 film 专属 UI = 恒从 carrier 走，
-  DECISIONS 注记）。
+  carrier 非 pristine → 传 record 并组装 `filmTails:` 数组入 enqueue；M2 检查器
+  无 film 专属 UI = 恒从 carrier 走，DECISIONS 注记）。
 - ExportRenderer 渲染调用点（:487/:496）传 `filmTail`（TaskLocal 值解析）；
   导出尾平面 float32 裁定不受扰（quantizer 拥钳位——film 输出本就 working
   float32，序不变）。
@@ -242,7 +287,10 @@ files_modified:
    （terminalTailPolicy）+:2192/:2203（渲染调用点）；`EditorState.swift` :250-253。
 6. `LightamerCore/Sources/Export/ExportRenderer.swift`——:445-500（drtTail 
    TaskLocal 解析与调用点）；`ExportState.swift` enqueueExportM2 装配段（drtOutput
-   联动位）；`ExportQueueContract.swift`（零 diff 红线体）。
+   联动位）；`ExportQueueContract.swift`（零 diff 红线体）；
+   `ExportQueue.swift`——:60（Job.drtTail 字段位）/:182-206（enqueue drtTails
+   per-image 参数 + precondition 形态）/:417（腿内 withValue 包装位）/:408-413
+   （detached 腿不继承 TaskLocal 注释原文——E1 载体面三编辑点的先例锚）。
 7. `Tests/LightamerTests/DrtTailTests.swift`（LAYERS 14 法——pristine 零路径/
    seed 折叠的断言形态模板）+ `DrtPersistenceTests.swift` + `DrtSidecarTests.swift`
    （APP 侧 carrier 断言形态）；`.work/LESSONS.md` L014（fence）/L031（queue）。
@@ -277,13 +325,17 @@ files_modified:
 ### T1 film sub-run 缝与降出臂（KD-1）
 
 - **action**：FilmTailPolicy/FilmTailParams/FilmTailAssembly（seed）+
-  PixelPipe filmTail 属性/runFilmLeg/降出扩臂/两处调用点接线 + legacy
-  colorout+gamma 重放（film 输出后）；`FilmLegTests`（seed 折叠稳定性与差异面 /
-  film nil 零路径逐位不变 / legacy+film 重放序 / drt+film 叠序 / 子平面格式
-  float32 / 防重入）。
+  PixelPipe filmTail 属性/runFilmLeg/降出扩臂（KD-1 3×2 矩阵）/两处调用点接线
+  （run() :723-724 + runSub() :864-865——m7 回注改正标注）+ 按矩阵重放链
+  （.sdrGamma = colorout→borders→watermark→gamma / .edrLinear = 仅 colorout /
+  `.drt` = 尾链）；`FilmLegTests`（seed 折叠稳定性与差异面 / film nil 零路径
+  逐位不变 / legacy+film 重放序 / drt+film 叠序 / 子平面格式 float32 / 防重入
+  / **film+yiyin 边框组合（边框平面在 film 后 = 不被调色）** / **film+EDR 组合
+  （输出 linear、无 gamma 重放）**——E4 回注补两格）。
 - **验收标准**
   - [ ] LAYERS 定向轮绿 + DrtTailTests 族零改全绿（film 未激活行为逐位门）；
-        `DrtTailAssembly`/`TerminalTailPolicy` 零 diff。
+        `DrtTailAssembly`/`TerminalTailPolicy` 零 diff；KD-1 矩阵六格逐格有
+        断言（off 三格 = 既有族，on 三格 = FilmLegTests）。
 
 ### T2 统计腿 + 印相段 bake + fused kernel（KD-2/KD-3）
 
@@ -304,7 +356,8 @@ files_modified:
 ### T4 filmPlacement op（KD-5）
 
 - **action**：Module+Kernels 文件对 + Params/identityJSON + V50Order 20.8 行 +
-  GradeCatalog 第 19 行 + Registry 注册 + E7 断言 18→19；`FilmPlacementTests`
+  GradeCatalog 第 19 行 + Registry 注册 + GradeCatalogTests **多点修订**（:36/
+  :46/:51/:91/:129 + 文件头注释——KD-5 m8 回注清单，全改不误停）；`FilmPlacementTests`
   (IOP)/`FilmPlacementKernelTests`（IOPP——恒等 bit-exact/单调/m 阶接触 smoke）/
   `FilmPlacementDriverTests`（LAYERS——envelope 包夹/蒙版合法/层链不受扰）。
 - **验收标准**
@@ -323,9 +376,11 @@ files_modified:
 
 ### T6 导出递缝（KD-7）
 
-- **action**：$jobFilmTail TaskLocal + ExportRenderer 解析与传参 + enqueueExportM2
-  恒装配；`ExportFilmChainTests`（无 film job 零漂移 / film job 装配值达渲染 /
-  Contract 零 diff 面）。
+- **action**：$jobFilmTail TaskLocal + **ExportQueue 三编辑点**（Job 字段/enqueue
+  `filmTails:` 参数/腿内 withValue 包装——KD-7 E1 回注）+ ExportRenderer 解析与
+  传参 + enqueueExportM2 恒装配（`filmTails:` 数组入 enqueue）；`ExportFilmChainTests`
+  （无 film job 零漂移 / film job 装配值达渲染 / **per-image fan-out：两图不同
+  carrier 各达渲染腿**——E1 回注补 / Contract 零 diff 面）。
 - **验收标准**
   - [ ] EXPORT 定向轮绿；既有 EXPORT 族零改全绿；`ExportQueueContract.swift`
         零 diff。
@@ -334,7 +389,9 @@ files_modified:
 
 - **action**：SUMMARY（测试增量对账链 + KD 落点核对 + FSIM-03 不立项注记）/
   DECISIONS（KD-1..7 + 串扰常量值域出处 + descriptor 简化臂 + thumbnail 恒
-  legacy）/ GOAL-STATE / TODO；密封面机检对表。
+  legacy + **KD-1 3×2 交互矩阵与 E4 语义声明** + **filmPlacement 可加不可编
+  恒等占位注记（m4，与 03 措辞一致）** + **修正滤色向量复核结论（E3，联动
+  01 DECISIONS）**）/ GOAL-STATE / TODO；密封面机检对表。
 - **验收标准**
   - [ ] 三方对表；封存面零命中；docs 完整。
 
@@ -342,19 +399,33 @@ files_modified:
 
 | # | AC | 机检方式 |
 |---|---|---|
-| 1 | film sub-run 缝位正确（pre-display 平面进、working float32 出、DRT upstream = film 输出 hash、seed 签名零改）；film 未激活全链逐位现状（DrtTail 族零改全绿） | T1 测试 + diff |
+| 1 | film sub-run 缝位正确（pre-display 平面进、working float32 出、DRT upstream = film 输出 hash、seed 签名零改）；**KD-1 3×2 交互矩阵逐格成立**（含 yiyin 边框后置不被调色、EDR+film 输出 linear 无 gamma 重放）；film 未激活全链逐位现状（DrtTail 族零改全绿） | T1 测试 + diff |
 | 2 | 运行期腿确定性：整数秩统计 + 缓存键 `fnv(材料对⊕统计⊕模式)` + 同图跨 ROI 同解 + 手动 Y/M/exposureEv 恒叠加 | T2/T5 测试 |
 | 3 | 印相段 bake：65³ Float64 concurrentPerform + LRU 16 + 密度域输入裁定落地；LutEncodingCatalog 零触碰 | T2 测试 + diff |
 | 4 | filmPlacement：恒等 bit-exact、可蒙版、V50 20.8 add-only、E7 19 行闭合、envelope 包夹 | T4 测试 |
 | 5 | 持久化四件 App 半面：缺键 pristine / 恢复腿三态 / thumbnail 恒 legacy / store 坏目录 typed 降级不崩 | T5 测试 |
-| 6 | 导出：$jobFilmTail 递缝（Contract 零 diff）+ enqueueExportM2 恒装配 + 无 film job 零漂移 | T6 测试 |
+| 6 | 导出：$jobFilmTail 递缝（**ExportQueue 三编辑点在案**，Contract 零 diff）+ enqueueExportM2 恒装配 + per-image fan-out 达渲染 + 无 film job 零漂移 | T6 测试 |
 | 7 | 登记闭环（E2/L041）+ 封存面零命中 | 三方对表 + diff 机检 |
 
 ## 风险与边界
 
-- **降出臂回归面（最高风险）**：legacy 显示三件降出触碰主链 walk 的条件表达式
-  ——用 DrtTailTests + IOPP 既有族全绿作逐位门；任何既有断言需改 = 停下上报
-  （非 additive = 设计违反）。
+- **降出臂回归面（最高风险）**：终端驻留集降出（KD-1 3×2 矩阵——.sdrGamma 行
+  从「无降出」变「film 激活时四件降出」、.edrLinear 行 colorout 随 film 臂加入）
+  触碰主链 walk 的条件表达式——用 DrtTailTests + IOPP 既有族全绿作逐位门（film
+  未激活 = 既有行为逐位现状）；任何**行为**断言需改 = 停下上报（非 additive =
+  设计违反；GradeCatalogTests 计数闭合修订除外——KD-5 m8 回注清单在案）。
+  > checker 回注（2026-10-08，m9——切分点预授权裁定）：**不切 02a/02b，02 内
+  > T 序重排 + 预授权断点**。执行序调整为 **T1 → T3 → T4 → T2 → T5 → T6 → T7**
+  > （T3 小任务前置给出 T4 独立交付窗；T2 重头戏后移——超支触发断点时 T4 已
+  > 在 02 内交付、可 shedding 面只剩 T6）。**预授权断点**：若 T1+T2 合计实际
+  > 超估算 ~2× 或单项硬阻塞 > 半天，**T6（导出递缝——M2-9 同款机械面，体量
+  > 最小）移出为后续 plan M3-3-04**（T6 独立小收口，排在 03 之后；03 的
+  > golden/确定性/面板不依赖 T6），orchestrator 无需二次裁决；**T1/T2 本体禁
+  > 自缩**（降出矩阵与 fused kernel 是本 plan 不可让渡面），卡死 = 停下上报。
+  > 裁定理由：七任务共享 FilmTailPolicy 类型与 seed 面，预切分产生跨 plan 类型
+  > 稳定性约束 + 两轮验收开销；checker 建议的切分动机（T1/T2 超支保护）由断点
+  > 条款等价覆盖且仅在触发时付费；03 置位曲线 golden 门依赖 T4 在 02 内交付
+  > （预切 02b 会拖 03 主门），重排使该风险归零。
 - **全幅统计的额外 pass**：film 激活每次 render 多一次 256-bin reduce（全幅缓存
   面命中时近零成本；FULL 冷缓存首帧多一腿）——DECISIONS 登记成本口径；M3-4
   宽容度面板复用同统计面（读数语义「after placement」本批已成立：统计腿吃

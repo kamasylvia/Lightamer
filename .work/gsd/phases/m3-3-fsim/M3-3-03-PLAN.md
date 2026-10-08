@@ -14,7 +14,8 @@ files_modified:
   - App/Sources/Lightamer/UI/Shell/FilmPanelModel.swift   # 新建：@Observable 面板 model（读三级投影 + 单 discrete commit，DrtPanelModel 同构）
   - App/Sources/Lightamer/UI/Shell/FilmPanelView.swift    # 新建：材料对双 Picker + Y/M 双滑杆（D-H1 trio）+ 强度/曝光 + 内容偏移 Toggle + readout
   - App/Sources/Lightamer/State/InspectorState.swift      # 修改：filmPageActive 会话开关（exportPageActive 先例，Inspector 列分支）
-  - App/Sources/Lightamer/UI/Shell/Nodes/…（投影卡触点）   # 修改：只读 Film 卡（PipelineDocument 投影层，执行期实位亲核——见 read_first 5）
+  - App/Sources/Lightamer/UI/Shell/Nodes/NodesPanelModel.swift   # 修改：只读 Film 卡投影行（卡列表构建点 additive——预判触点实名，checker 回注 2026-10-08 m5）
+  - App/Sources/Lightamer/UI/Shell/Nodes/EditorNodesPanelView.swift  # 修改：Film 卡视图 + AX 标签位（预判触点实名；执行期 read_first 5 亲核实位——触点外溢 = C 档回注，禁静默扩面）
   - Resources/Localizable.xcstrings                       # 修改：film_* 键块 append 尾部（既有键字节与顺序零触碰）
   - Tests/LightamerTests/FilmPanelTests.swift             # 新建（APP/App 级）：model 投影/commit 面/滑杆 D-H1/缺键 pristine
   - Tests/LightamerTests/FilmCardTests.swift              # 新建（APP/App 级）：只读卡投影/AX 可达
@@ -60,8 +61,12 @@ files_modified:
    document 级编辑面（DrtPanel 同构）。
 4. **④ 面板范围裁界**：材料对选择 + Y/M 双滑杆 + 强度 + 曝光 + 内容偏移 Toggle
    + 求解 readout + 启停——**不含**宽容度教导/直方图/双虚线/descriptor（M3-4 
-   FSIM-02）；不含置位参数面板（M3-4 同批；filmPlacement 参数经 grade add face
-   已可达）。
+   FSIM-02）；不含置位参数面板。
+   > checker 回注（2026-10-08，m4）：原「filmPlacement 参数经 grade add face
+   > 已可达」高估——面板机制 = per-op 手写 provider（无通用面板驱动），02 注册
+   > 即止 = filmPlacement 在 M3-4 前为**可加不可编的恒等占位**（add face 可
+   > 枚举、参数恒零点恒等直通、无编辑面）——本 plan 一切涉及 filmPlacement 的
+   > 措辞以此为准，与 02 KD-5「面板语义」注记互为正本。
 5. **pristine 直通**：无 FilmRecord 文档 = 面板呈现 pristine 态 + 渲染链逐位
    现状（02 已钉管线门，本批补 UI 面门）。
 
@@ -70,15 +75,32 @@ files_modified:
 ### KD-1 golden 数学复算主门（T1，IOPP Golden* 域）
 
 - **三面**：
-  1. **fused kernel 逐像素**：受控输入纹理（梯度/中性 ramp/棋盘，规模 ≤512² 
-     —— 3024 基线 RSS 纪律，禁 100MP 面进 golden）× 2-3 材料对 × Y/M/强度
-     角点 → kernel 输出（L014 fence 读回）vs **独立 Float64 复算函数**（测试
-     文件内独立实现——不复用产线 FilmPrintBake/midGrayDensities 代码路径，复算
-     才「独立」；公式域 = RESEARCH §4.1 文档化模型 + 02 DECISIONS 的串扰常量）。
-     容差标定：float32 管线 vs Float64 参考 = 每通道 ≤2e-6 相对（LUT 插值段
-     ≤1e-5——执行期按实测标定写死，M3-1 Lut3dEncoding 体素级先例口径）。
+  > checker 回注（2026-10-08，E5）：门 1 容差锚原写「float32 管线 vs Float64
+  > 参考 = 每通道 ≤2e-6 相对（LUT 插值段 ≤1e-5）」——与本仓实测先例矛盾：
+  > M3-1-01-ACCEPTANCE §五/DECISIONS §4 已实测裁决「GPU==理想 Float64 ±1e-5
+  > 在任何 ~65³ 复合晶格下**数学不可达**」（胶片曲线解码到线性 working 域的
+  > 65³ 晶格插值地板 **~8e-3，1e-3..1e-2**——Agfa_Vista_100 全链 0.0087 /
+  > Kodak_Vision_320T 0.0068 实测），同类门结构 M3-1-01 §4 已收窄过一次，本
+  > plan **预声明同款两级分解**，不再留给执行轮重裁。
+  1. **fused kernel 逐像素（两级门）**：受控输入纹理（梯度/中性 ramp/棋盘，
+     规模 ≤512²—— 3024 基线 RSS 纪律，禁 100MP 面进 golden）× 2-3 材料对 ×
+     Y/M/强度角点 → kernel 输出（L014 fence 读回）。
+     - **门 1a（kernel 实现正确性）**：kernel vs **同表 CPU 四面体采样双写**
+       （测试文件内独立 sampler——`Lut3dKernelTests.cpuLut3d` 非 bake 自身
+       `sampleTable` 的非同源纪律先例）：float 类容差 **~1e-6 相对可达**。
+     - **门 1b（烘焙表忠实度）**：烘焙表 vs **理想连续模型独立 Float64 复算**
+       （测试文件内独立实现——不复用产线 FilmPrintBake/midGrayDensities 代码
+       路径；公式域 = RESEARCH §4.1 文档化模型 + 02 DECISIONS 串扰常量）：容差
+       **按 65³ 晶格插值地板标定写死**（先例带 1e-3..1e-2，执行期实测定值 +
+       DECISIONS 记依据）——禁用 ±1e-5 端到端锚（数学不可达，M3-1-01 §4 在案）。
+     - **比较空间纪律（L048）**：比较一律 **decode 回 linear working 域**（对数
+       腿 encode 零点斜率放大 f32 epsilon 750×——对数域逐像素比较是假失败源）；
+       Float64 参考常数一律 `Double(Float(x))` 出厂值升维（f32 产线常量直接写
+       Double 字面 = 参考失真）。
   2. **印相 LUT bake 体素级**：随机种子固定（LCG 常量种子——确定性）密度域
-     体素 → FilmPrintBake vs 独立复算逐体素；负域界/域标定一致性断言。
+     体素 → FilmPrintBake vs 独立复算逐体素（**voxel 级 ≤1e-5 保留**——
+     Float64 bake vs Float64 复算可达，M3-1-01 KD-6 体素门先例）；负域界/域标定
+     一致性断言。
   3. **置位曲线数学**：`g_m` 曲线族 vs 独立复算（m=1 闭式与 m=2 数值解交叉）+
      恒等 bit-exact（delta≡0 逐位）+ 单调 + 硬渐近线不越相纸白黑地板。
 - **中性闭合门（求解器×管线）**：mid-gray 场景过「负片段+自动解+印相 LUT」
@@ -156,7 +178,10 @@ files_modified:
 2. `Tests/LightamerTests/DrtKernelGoldenTests.swift`（IOPP 15 法——kernel vs 
    Float64 参考的容差标定与受控输入形态）+ `Lut3dEncodingTests.swift`（体素级
    golden + 公开参考值口径）+ `GradeKernelGoldenTests.swift`（受控纹理 + fence
-   读回纪律）。
+   读回纪律）+ `.work/gsd/phases/m3-1-w1/M3-1-01-DECISIONS.md` §4（**门结构两级
+   收窄正本**——「±1e-5 数学不可达」实测裁决与两级分解语义，KD-1 门 1b 的先例
+   锚，E5 回注）+ `.work/gsd/phases/m3-1-w1/M3-1-01-ACCEPTANCE.md` §五/§4.4
+   （晶格插值地板 ~8e-3 实测值与非门槛放水论证）。
 3. `.work/gsd/phases/m3-3-fsim/M3-3-01-PLAN.md` / `M3-3-02-PLAN.md` 全部 KD +
    两批交付的 SUMMARY/DECISIONS（串扰常量/域标定/缓存键实位——golden 复算的
    公式域即此两处登记值）。
@@ -171,7 +196,10 @@ files_modified:
    （键清单并集口径）+ `.work/gsd/phases/m2-9-export/M2-9-05-SUMMARY.md` F-2
    （插值键陷阱禁令原文）。
 7. `.work/gsd/phases/m3-1-w1/M3-1-VALIDATION.md`（SC 对账形态 + 全套轮记录
-   格式）+ AGENTS 资源监控节（报备制/MEMFAIL 处置）+ `.work/LESSONS.md` L041/L014。
+   格式）+ AGENTS 资源监控节（报备制/MEMFAIL 处置）+ `.work/LESSONS.md`
+   L041/L014/**L048**（GPU golden 比较空间选型——decode 回 linear 域比较 +
+   参考常数 `Double(Float(x))` 出厂值升维，KD-1 门 1 比较空间纪律正本，E5
+   回注）。
 
 ## 纪律（强制）
 
@@ -198,8 +226,10 @@ files_modified:
 
 ### T1 golden 数学复算主门（KD-1）
 
-- **action**：`FilmGoldenTests`（IOPP）：fused kernel 逐像素三材料对角点矩阵 /
-  bake 体素级 / 置位曲线三断言族 / 中性闭合门；容差标定值写死 + DECISIONS
+- **action**：`FilmGoldenTests`（IOPP）：fused kernel 逐像素**两级门**（1a
+  kernel vs 同表 CPU 四面体采样 / 1b 烘焙表 vs 理想模型 Float64 复算——KD-1
+  E5 回注）三材料对角点矩阵 / bake 体素级 / 置位曲线三断言族 / 中性闭合门；
+  比较一律 decode 回 linear working 域（L048）；容差标定值写死 + DECISIONS
   登记。
 - **验收标准**
   - [ ] IOPP 定向轮绿；复算实现测试文件内自包含；零图像资产入库。
@@ -253,9 +283,11 @@ files_modified:
 
 ## 风险与边界
 
-- **容差标定循环**：float32 kernel vs Float64 复算的容差首轮实测若超预估
-  （LUT 三线/四面体插值段）——按实测标定写死并 DECISIONS 记录依据；**禁反向
-  改复算迁就 kernel**（复算是独立真相）。
+- **容差标定循环**：门 1 容差已**预声明两级分解**（KD-1 E5 回注——1a kernel vs
+  同表采样 ~1e-6 / 1b 烘焙表 vs 理想模型按晶格地板带标定写死），执行期只做
+  「带内定值 + DECISIONS 记依据」；若 1a 实测超 ~1e-6 量级 = kernel 实现疑点
+  （非标定问题），停下排查；**禁反向改复算迁就 kernel**（复算是独立真相）；
+  比较空间纪律（L048）违式 = 门无效须重跑。
 - **hash 哨兵的重钉摩擦**：模型数学有意变更（如串扰常量修订）会翻哨兵——流程
   = DECISIONS 登记变更 → 重算 → 同 commit 重钉（M2-5 adoption 盖章先例口径）；
   无登记的哨兵翻转 = 缺陷。

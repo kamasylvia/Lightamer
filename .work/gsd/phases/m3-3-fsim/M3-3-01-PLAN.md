@@ -9,8 +9,8 @@ requirements: ["FSIM-01d", "FSIM-01a（数据模型半面——record/persistenc
 estimated_tests: "+34..40"
 test_bundles: [Layers, Library]
 files_modified:
-  - LightamerCore/Sources/Graph/FilmRecord.swift          # 新建：FilmRecord + 四枚举 + stableHash + isFilmRecordDefault（DrtRecord.swift 同构）
-  - LightamerCore/Sources/Film/FilmProfile.swift           # 新建：profile schema Codable（density_curves/log_exposure 消费面；光谱字段不消费随文件保留）+ 加载器 + typed 错误
+  - LightamerCore/Sources/Graph/FilmRecord.swift          # 新建：FilmRecord + stableHash + isFilmRecordDefault（DrtRecord.swift 同构；枚举不设——开放字符串 id，见 KD-1）
+  - LightamerCore/Sources/Film/FilmProfile.swift           # 新建：profile schema Codable（density_curves/log_exposure 消费面 + base_density 三点标定投影消费 + wavelengths 仅作 λ 轴校验；81 波长谱形不作光谱重放消费、随文件保留）+ 加载器 + typed 错误
   - LightamerCore/Sources/Film/FilmMaterialStore.swift     # 新建：目录注入式 store（film/paper 索引 + 材料对身份 stableHash）
   - LightamerCore/Sources/Film/FilmFilterPackSolver.swift  # 新建：bake 期中性滤色包闭式解 (M0,Y0)（有界二分，确定性）
   - LightamerCore/Sources/Sidecar/LightamerSidecar.swift   # 修改：v9 additive filmRecord 文档字段（schemaVersionCurrent 8→9）
@@ -40,9 +40,20 @@ files_modified:
 > filmPlacement op / coordinator 接线）= M3-3-02；golden/确定性门/UI = M3-3-03。
 > **光谱不可达边界（FSIM-01c 架构注记，全 phase 生效）**：解码链 CIRAW = RGB 域起步，
 > 81 波长光谱重放架构性不可达（光谱信息在 demosaic 即折叠）；本批消费
-> `density_curves`/`log_exposure`（256×3，status M 打印密度域，与 RGB 域染料近似
-> **直接同构**，RESEARCH §1.5）；光谱字段**不消费、随文件原样保留**（避免「修改版
-> CC BY-SA 文件」归属混乱）。用户可见措辞 =「物理流程建模，非光谱重放」。
+> `density_curves`/`log_exposure`（256×3 密度域，与 RGB 域染料近似**直接同构**，
+> RESEARCH §1.5；film 侧 status M / 相纸侧 status A 密度计量域——见 KD-3 回注）
+> + `base_density` 经 KD-5 登记的三点标定投影为 RGB 常数。光谱**重放**零消费、
+> 随文件原样保留（避免「修改版 CC BY-SA 文件」归属混乱）。用户可见措辞 =「物理
+> 流程建模，非光谱重放」。
+>
+> **checker 回注呈报（2026-10-08，orchestrator 处置项——非本 plan 执行面，m6）**：
+> ①M3-2 裁⑥「spike 同批」（RAF 100MP 双峰 signpost 二分 → `perf.md` O-1 结论行 +
+> `phases/m3-2-fsim-research/evidence/`）**未执行**——perf.md O-1 仍为 M2-11 旧文，
+> M3-2 验收形态（spike 结论入 perf.md）未满足前 M3-2 不应翻 ✅。需 orchestrator
+> 派发 M3-3 前裁定：**补批执行 spike** 或**显式改裁**（spike 顺延 M3-4 尾 / 移出
+> M3-2 验收形态）。②台账滞后：ROADMAP M3-2 行仍「▶ next」、GOAL-STATE 无 M3-2
+> 收口与 M3-3 规划续接点（裁决 `e02dcc7` 与 plan 批 `c546b31` 均未回写）——随
+> ①一并翻账。
 
 ## 已定裁决（生效值，硬约束，不得重开）
 
@@ -50,7 +61,9 @@ M3-2 OQ-1..7 **全部按推荐裁**（M3-2-CONTEXT 裁决记录 2026-10-08）。
 
 1. **③ 资产 c 混合态**：引擎/schema/加载器**自建**；`engine/resources/profiles/`
    28 配置 JSON + `resources/neutral_print_filters.json`（TH-KG3 头 × 8 相纸 × 
-   film stock，值域 C=0 / M≈49-79 / Y≈48-79 点，planner 2026-10-08 亲核实值）
+   film stock，全表 160 组合实测 **C=0 / M∈[28.4,92.1] / Y∈[24.6,116.0] 点**——
+   2026-10-08 回注亲核实值，覆盖此前「M≈49-79 / Y≈48-79」误载；约 1/5 组合出
+   [40,90] 带，故 sanity 带只对具名组合断言，见 KD-5）
    **整文件原样字节**入库；**五件套** = ①隔离目录 `Resources/FilmProfiles/`（与
    `Resources/LUTs/`（MIT）物理隔离）②`LICENSE`（CC BY-SA 4.0 全文）③`NOTICE`
    （Andrea Volpato / spektrafilm 署名 + citation 全文 + 来源版本）④`CHANGELOG`
@@ -104,7 +117,8 @@ M3-2 OQ-1..7 **全部按推荐裁**（M3-2-CONTEXT 裁决记录 2026-10-08）。
   `Resources/FilmProfiles/neutral_print_filters.json` + 四件文书同目录：
   `LICENSE`（CC BY-SA 4.0 法律全文，creativecommons.org 官方文本）、`NOTICE`
   （署名 + `metadata.citation` 全文转录 + 来源 repo 与版本 + 「本目录资产为原样
-  未修改副本」声明 + 光谱字段未消费注记）、`MANIFEST.sha256`（逐文件哈希，
+  未修改副本」声明 + 光谱字段未作光谱重放消费注记（base_density 仅经登记投影
+  采样——DECISIONS 正本））、`MANIFEST.sha256`（逐文件哈希，
   测试对账正本）、`CHANGELOG.md`（引入版本 v0.3.2——profile `metadata.version`
   亲核值——与引入日期）。
 - `Project.swift` App target `resources:` 加 `.folderReference(path:
@@ -121,15 +135,28 @@ M3-2 OQ-1..7 **全部按推荐裁**（M3-2-CONTEXT 裁决记录 2026-10-08）。
   对未知键天然忽略——光谱字段零触碰的机制保证）：`metadata.{version,license,
   copyright,citation}` + `info.{stock,name,type,support,stage,target_print,
   channel_model,densitometer,reference_illuminant}` + `data.{log_exposure,
-  density_curves,base_density}`。
+  density_curves,base_density,wavelengths}`。
+  > checker 回注（2026-10-08，E2）：消费键补 `data.wavelengths`——**仅作 λ→索引
+  > 轴与形状校验，非光谱响应消费**（KD-5 三点投影按 λ 最近邻采样需要真轴，禁按
+  > 「380..780/5nm 网格约定」硬编码索引）。
   - `log_exposure: [Float]`（256 点，log10 域 −3.0…+4.0）；`density_curves:
-    [[Float]]`（256×3，per-channel status M 密度）；`base_density: [Float?]` 
-    （film 侧橙罩常数半；paper 侧 Dmin 对应物——执行期以 28 文件实盘核对 nullable
-    形态，tolerant 解码兜底）。
+    [[Float]]`（256×3 per-channel 密度）；`base_density: [Float?]`（**81 波长
+    谱域标量数组**——2026-10-08 回注亲核：film 侧 61/81 非 None（None 前导 4 点
+    380-395nm + 尾段 705-780nm），每波长一标量的橙罩谱形，**文件内不存在 RGB
+    常数形态**；paper 侧 81/81 非 None ~0.09 谱域 Dmin。消费方式 = KD-5 登记
+    的三点标定投影（非谱形重放）；执行期以 28 文件实盘核对 nullable 形态，
+    tolerant 解码兜底）。
+  - `wavelengths: [Float]`（81 点 λ 轴，380…780nm）——轴校验与投影采样用。
 - typed 加载错误族：`FilmProfileError { fileUnreadable, schemaMismatch(String),
   curveShapeMismatch(expected:actual) }`——fail-closed（坏文件不静默降级）。
 - **形状校验**：`density_curves.count == log_exposure.count`（256）+ 每行 3 通道
-  ——染料近似的域约定进文档注释（RESEARCH §4.1 模型域）。
+  + `base_density`/`wavelengths` 同长（81；nullable 容忍）——染料近似的域约定进
+  文档注释（RESEARCH §4.1 模型域）。
+  > checker 回注（2026-10-08，E2/m3）：形状校验补 base_density/wavelengths——
+  > 防「谱域数组被当 RGB 常数走错数据」的静默错位。`densitometer` 实盘：film 侧
+  > `status_M` / 相纸侧 `status_A`（portra_endura 亲核）——两种密度计量域在同名
+  > 加性密度链混用属**风格化近似边界**，DECISIONS 首批登记口径（不改资产、不做
+  > M/A 域换算，模型自洽闭形）。
 
 ### KD-4 FilmMaterialStore（T4）
 
@@ -141,33 +168,70 @@ M3-2 OQ-1..7 **全部按推荐裁**（M3-2-CONTEXT 裁决记录 2026-10-08）。
 - 面：`filmStocks() -> [FilmProfile]`（`info.support == "film"`）/
   `paperStocks() -> [FilmProfile]` / `profile(id:) -> FilmProfile?` /
   `materialPairHash(film:paper:) -> UInt64`（= FNV over 两 profile 消费数据域
-  canonical 字节——`density_curves + log_exposure + base_density` bit pattern，
-  L013；**不含**光谱字段——未消费数据不进身份）。
+  canonical 字节——`density_curves + log_exposure + base_density + wavelengths`
+  bit pattern，L013；**不含**光谱响应字段——未消费数据不进身份）。
+  > checker 回注（2026-10-08，E2 联动）：base_density 实为**消费数据**（经 KD-5
+  > 三点投影入密度模型）、wavelengths 为投影采样轴——两者随裁决入消费集；裁决
+  > 若改（弃用投影）须同步移除，身份域与消费域恒一致。
 - 加载即索引（一次性读目录 + 按 stock id 去重；重名/缺 `info.stock` = typed 错误
   上抛）。**不 bake 不缓存求解结果**（solve 缓存 = M3-3-02 运行期腿的键控面，
   本 plan 只交确定性求解函数本体）。
 
-### KD-5 bake 期中性包闭式求解器（T6）
+### KD-5 bake 期中性包闭式求解器（T5）
+
+> checker 回注（2026-10-08，编号对齐）：本节执行任务 = **T5**（原标「T6」为笔误
+> ——任务节与提交约定均 T5 = solver、T6 = sidecar v9；KD-6 同步由「T7」改
+> 「T6」，T7 = 收口不变）。
 
 - 位置 `LightamerCore/Sources/Film/FilmFilterPackSolver.swift`；纯 CPU、Float64、
   无状态（所有输入显式传参——bake 期/运行期解耦的第一半）。
+- **base 三点标定投影（E2 裁决，DECISIONS 正本登记）**：
+  > checker 回注（2026-10-08，E2）：`base_density` 实盘为 **81 波长谱域标量数组**
+  > （film 侧橙罩谱形 61/81 非 None；paper 侧谱域 Dmin 81/81），文件内**不存在**
+  > 「RGB 常数/三元组」形态——原 KD-5「`base_density` 偏移」按常数消费与实盘
+  > 矛盾。裁决 = checker 处方**选项 1（定义文档化投影）**：`base_R/G/B :=
+  > base_density(λ≈650/550/450nm)` 三点最近邻采样（橙罩谱形在三原色波长的取样
+  > ——确定性、可写进 golden 复算；portra_400 实测 0.195/0.602/0.815 量级 =
+  > 橙罩物理正确性自证；采样点 None 或越界 = typed fail-closed）。纪律措辞相应
+  > 修订为「光谱**重放**零消费；base_density 谱数组仅经本投影为 RGB 常数」——
+  > 资产三态语义（裁决③ c 混合态）**不变**（asset 数据仍为密度域消费，未改
+  > 归属/许可面），**不升 OQ**；RESEARCH §1.5 的「光谱字段零消费」行以本裁决
+  > 为准（勘误行由 orchestrator 补）。
 - 输入：film profile + paper profile + 负片段密度变换的**同构 CPU 参考**
   （mid-gray 场景 → 负片段得密度三元组；本 plan 交付参考函数
   `midGrayDensities(film:)`——log10(0.184) 查 `density_curves`（线性插值）+
-  `base_density` 偏移；串扰矩阵 M3-3-02 kernel 定形时回填本参考——本 plan 先以
-  恒等串扰解 (M0,Y0)，**02 落串扰后 sanity 断言不翻**（解随模型走是设计内））。
-- 求解：滤色增益 RGB 域简化 `gain = k_y·[0,0,1] + k_m·[0,1,1] + k_c·[1,0,0]`
-  （C 恒中性 0——SpektraLab `c_filter_neutral=0` 同构）；2 元 2 方程（印相输出
-  R=G、G=B 两等式）各通道对 M/Y 单调 → **有界二分**（固定迭代数 + 固定收敛
-  epsilon 常量——确定性硬约束，无自适应步长无随机性）。
-- sanity 带（测试）：对 `neutral_print_filters.json` 在册 (film×paper) 组合，
-  自解 (M0,Y0) 落该表实测域的**宽容区间**（M∈[40,90] / Y∈[40,90] 点级——不逐值
-  复刻：其头/光源/工艺域不同，区间断言即「解在物理合理域」）；至少覆盖
-  portra_400×portra_endura、ektar_100×ultra_endura 两组合。
+  base 三点投影常数偏移；串扰矩阵 M3-3-02 kernel 定形时回填本参考——本 plan
+  先以恒等串扰解 (M0,Y0)，**02 落串扰后 sanity 断言不翻**（解随模型走是设计
+  内））。
+- 求解：滤色增益 RGB 域简化 `gain = k_y·[0,0,1] + k_m·[0,1,0] + k_c·[1,0,0]`
+  （C 恒中性 0——SpektraLab `c_filter_neutral=0` 同构）。
+  > checker 回注（2026-10-08，E3）：原式 `k_m·[0,1,1]` 为物理错误——dichroic
+  > 密度域 M 滤色**只吸绿** = [0,1,0]，[0,1,1] 会同时加蓝密度（等制品红+黄混
+  > 色）；Y 吸蓝 [0,0,1] / C 吸红 [1,0,0] 不变。RESEARCH §4.1 散文（「M 滤色
+  > 吸绿」）本就正确、公式侧错——plan 以修正式为准，RESEARCH 勘误行由
+  > orchestrator 补。T5 执行期按修正向量复核两具名组合解值并写 DECISIONS。
+  - 解方程结构（修正向量下）：R 通道恒无滤色作锚（C=0），`paper_R(f_R)` 为
+    常量锚；G 对 k_m 单调、B 对 k_y 单调 → **顺序两步 1-D 有界二分**（k_m 解自
+    `paper_R(f_R)=paper_G(f_G+k_m)`；k_y 解自 `paper_G(f_G+k_m*)=
+    paper_B(f_B+k_y)`）——比 2-D 联合二分更干净且同样确定性（恒等串扰下严格
+    解耦；02 非恒等串扰落地后单调性保持、顺序初始化照收敛，DECISIONS 登记）。
+    固定迭代数 + 固定收敛 epsilon 常量——确定性硬约束，无自适应步长无随机性。
+- sanity 带（测试）：
+  > checker 回注（2026-10-08，E3+m2）：原「M∈[40,90] / Y∈[40,90]」带宽 50 CC
+  > 点，错误滤色向量大概率落带内**测不出**——收窄至可判别精度并限定组合面。
+  1. **仅两具名组合**（portra_400×portra_endura 表值 M=51.6/Y=52.5、
+     ektar_100×ultra_endura M=71.2/Y=55.6，2026-10-08 亲核；不扩组合——全表
+     160 组合值域 M∈[28.4,92.1]/Y∈[24.6,116.0]、33/160 出 [40,90] 带，扩面
+     = 假失败源）；
+  2. **窄带**：以表值为心 ±10 CC 点级初值，T5 执行期按**修正向量**解值标定
+     写死并 DECISIONS 登记终值；
+  3. **判别自检断言**：以错误向量 `k_m·[0,1,1]` 重解同组合 → 解**必落带外**
+     （判别力本身入测试——若实测不出带 = 停下上报收窄带宽或升 sanity 语义，
+     禁静默放宽）。
 - **确定性门先钉**：`solve(...) 两次调用 bit-identical`（Float 位型断言）+
   收敛解不依赖初值（无初值——纯二分）。
 
-### KD-6 持久化三件（T7，M2-6 DRT 四件套的 Core 半面）
+### KD-6 持久化三件（T6，M2-6 DRT 四件套的 Core 半面）
 
 - **sidecar v9**：`schemaVersionCurrent = 8 → 9`（LightamerSidecar.swift:192）；
   文档级 `filmRecord: FilmRecord?` additive 字段（`displayTransform` 同位形态：
@@ -188,8 +252,10 @@ M3-2 OQ-1..7 **全部按推荐裁**（M3-2-CONTEXT 裁决记录 2026-10-08）。
 ## read_first
 
 1. `.work/gsd/phases/m3-2-fsim-research/M3-2-CONTEXT.md`——文末裁决记录（七项生效值）
-   + D-M3-2-1/3/5/8；`RESEARCH-NOTES.md` §1.5（资产 schema 实测）/§4.1-4.2（模型域
-   与求解草案）/§5（许可操作面清单）/§6（golden 策略）。
+   + D-M3-2-1/3/5/8；`RESEARCH-NOTES.md` §1.5（资产 schema 实测——base_density
+   谱域形态以本 plan KD-3/KD-5 回注亲核值与投影裁决为准）/§4.1-4.2（模型域与求解
+   草案——**§4.1 滤色公式侧 `k_m·[0,1,1]` 为笔误，以 KD-5 修正式 `k_m·[0,1,0]`
+   为准，勘误行由 orchestrator 补**）/§5（许可操作面清单）/§6（golden 策略）。
 2. `LightamerCore/Sources/Graph/DrtRecord.swift`——KD-1 的逐位同构模板（枚举
    CodingKeys 终式纪律、tolerant decode、stableHash、isDrtRecordDefault、
    「LICENSING: schema facts only」头注形态）。
@@ -211,8 +277,11 @@ M3-2 OQ-1..7 **全部按推荐裁**（M3-2-CONTEXT 裁决记录 2026-10-08）。
 
 ## 纪律（强制）
 
-1. **光谱字段零消费**（机制 = 只解码消费键）；**资产字节零改动**（MANIFEST.sha256
-   为对账正本；任何确需改动的发现 = 停下上报，不得改资产适配代码）。
+1. **光谱重放零消费**（机制 = 只解码消费键；> checker 回注 2026-10-08 E2：
+   base_density 谱数组仅经 KD-5 登记的三点标定投影为 RGB 常数、wavelengths 仅作
+   λ 轴校验——谱形本身不进任何渲染/求解路径）；**资产字节零改动**
+   （MANIFEST.sha256 为对账正本；任何确需改动的发现 = 停下上报，不得改资产适配
+   代码）。
 2. **GPL 零复制**：SpektraLab 代码/脚本（bake_all_print_luts.py 等）零参考复制；
    本仓只引 CC BY-SA 数据文件。
 3. **密封面（本 plan 范围零 diff 清单）**：`TerminalTailPolicy` / 
@@ -267,12 +336,14 @@ M3-2 OQ-1..7 **全部按推荐裁**（M3-2-CONTEXT 裁决记录 2026-10-08）。
 
 ### T5 bake 期求解器（KD-5）
 
-- **action**：`FilmFilterPackSolver.swift` 新建（midGrayDensities 参考 + 有界
-  二分 (M0,Y0) + 常量族）；测试（两组合 sanity 带、bit-identical 双调用、单调
-  前提自检、epsilon/迭代数常量在册）。
+- **action**：`FilmFilterPackSolver.swift` 新建（midGrayDensities 参考（base 三点
+  投影常数偏移——KD-5 E2 裁决）+ 顺序两步 1-D 有界二分 (M0,Y0)（修正滤色向量）
+  + 常量族）；测试（两具名组合窄 sanity 带（±10 CC 初值）+ **错误向量判别自检**
+  （[0,1,1] 重解必出带）、bit-identical 双调用、单调前提自检、epsilon/迭代数常量
+  在册）；修正向量解值复核写 DECISIONS。
 - **验收标准**
   - [ ] LAYERS 定向轮绿；确定性断言在案；sanity 带非逐值复刻（区间断言 +
-        DECISIONS 注记口径）。
+        DECISIONS 注记口径）；判别自检断言在案。
 
 ### T6 持久化三件（KD-6）
 
@@ -288,8 +359,9 @@ M3-2 OQ-1..7 **全部按推荐裁**（M3-2-CONTEXT 裁决记录 2026-10-08）。
 ### T7 收口
 
 - **action**：SUMMARY（含「光谱不可达边界」架构注记转述 + 测试增量对账链）/
-  DECISIONS（KD-1..6 + sanity 带口径 + 资产版本）/ GOAL-STATE 续接点 / TODO；
-  `git diff --stat` 对表 + 密封面机检。
+  DECISIONS（KD-1..6 + **base 三点标定投影正本登记（E2）** + densitometer M/A
+  域混用口径（m3）+ sanity 带标定终值与判别自检结论 + 资产版本）/ GOAL-STATE
+  续接点 / TODO；`git diff --stat` 对表 + 密封面机检。
 - **验收标准**
   - [ ] 三方对表（登记 vs 文件 vs BUNDLE-MAP）；密封面 `git diff --name-only`
         零命中；docs 完整。
@@ -300,8 +372,8 @@ M3-2 OQ-1..7 **全部按推荐裁**（M3-2-CONTEXT 裁决记录 2026-10-08）。
 |---|---|---|
 | 1 | FilmRecord 落位（字段/KD-1 域/pristine 判定/stableHash），round-trip 与 tolerant decode 全绿 | T1 测试 |
 | 2 | 资产五件套完整：28+1 文件字节原样（MANIFEST 全量对账）+ LICENSE/NOTICE/CHANGELOG + 隔离目录；MIT LUT 目录零触碰 | T2 shasum + diff + 走查 |
-| 3 | 加载器只解码消费键（光谱字段不进类型面）；坏文件 typed fail-closed | T3 测试 |
-| 4 | 求解器确定性（bit-identical 双调用）+ sanity 带两组合 + 常量族在册 | T5 测试 |
+| 3 | 加载器只解码消费键（81 波长谱形不作光谱消费——base_density 仅经登记三点投影、wavelengths 仅作轴校验）；形状校验含 base_density/wavelengths；坏文件 typed fail-closed | T3 测试 |
+| 4 | 求解器确定性（bit-identical 双调用）+ sanity 带两具名组合窄带（±10 CC 初值）+ 错误向量判别自检 + 常量族在册 | T5 测试 |
 | 5 | sidecar v9 additive（v8 零漂移负测钉死）+ HistoryItem.filmRecord/commitFilm/effectiveFilmRecord + HistoryHash 默认参数零改动（无 film 档逐位不变负测钉死） | T6 测试 |
 | 6 | 登记闭环（E2/L041）+ 密封面零命中 | 三方对表 + diff 机检 |
 
@@ -310,9 +382,16 @@ M3-2 OQ-1..7 **全部按推荐裁**（M3-2-CONTEXT 裁决记录 2026-10-08）。
 - **base_density/相纸 Dmin 的 nullable 形态**：28 文件实盘可能不一（film 侧
   `[None,...]` 前导实测在案）——tolerant 解码兜底 + 执行期若发现成片缺键 =
   DECISIONS 注记消费策略（缺省 0），**不改资产**。
+  > checker 回注（2026-10-08，E2）：本风险原只覆盖 None 形态，不覆盖「谱域 vs
+  > 常数」语义错位——已由 KD-5 三点投影裁决消解（消费面 = 投影常数，谱形不经
+  > 任何求解路径）；投影采样点 None = typed fail-closed（fail-closed 优先于
+  > 缺省 0）。
+- **densitometer 域混用（m3）**：film status_M / paper status_A 同链混用 =
+  风格化近似边界，DECISIONS 登记口径（KD-3 回注）。
 - **sanity 带宽严**：SpektraLab 表 = TH-KG3 头工艺域，我方闭式解域更宽——区间
-  断言取宽容带（KD-5），过紧 = 假失败风险；宽严标定写 DECISIONS，M3-3-03 golden
-  门不依赖本带（主门 = 数学复算）。
+  断言取**窄带 ±10 CC 初值 + 执行期标定写死**（KD-5 回注：可判别精度优先于宽
+  容带；错误向量判别自检入测试）；宽严标定写 DECISIONS，M3-3-03 golden 门不
+  依赖本带（主门 = 数学复算）。
 - **串扰矩阵未定**（M3-3-02 kernel 定形）：本 plan 求解参考以恒等串扰起步，
   02 落串扰后 sanity 断言不翻（解随模型走是设计内）；02 有回填义务（DECISIONS
   双向登记）。
