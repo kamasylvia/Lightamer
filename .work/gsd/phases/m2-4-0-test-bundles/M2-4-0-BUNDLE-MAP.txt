@@ -520,9 +520,14 @@ LIB	6	FilmSidecarTests.swift
 #   ExportFilmChainTests = EXPORT/Core 级）。行内 method 数以终态对账为准。
 #   运行期总数基线相应上移（3081 推算值起算，首个全套轮实测校正）。
 LAYERS	9	FilmLegTests.swift
-LAYERS	7	FilmPrintBakeTests.swift
-LAYERS	4	FilmPlacementDriverTests.swift
-IOP	7	FilmPlacementTests.swift
+LAYERS	8	FilmPrintBakeTests.swift
+LAYERS	3	FilmPlacementDriverTests.swift
+IOP	11	FilmPlacementTests.swift
 IOPP	3	FilmPlacementKernelTests.swift
 APP	5	FilmCoordinatorTests.swift
 EXPORT	4	ExportFilmChainTests.swift
+# M3-3-02 验收勘误（2026-10-09 验收 subagent）：上行四处 method 数按文件终态实数
+#   修正（FilmPrintBake 7→8、FilmPlacementDriver 4→3、FilmPlacementTests 7→11）——
+#   执行期初记值与文件 func test 实数不符（净差 -4）。相应地本批实际增量 = +44
+#   （9+8+3+11+3+5+4 + V50OrderTests 1），账面基线 = 3081（01 波推算值；3125 − 44），
+#   SUMMARY/DECISIONS 的「3085 + 40」系按初记值倒推的错账（TOTAL 3125 两账巧合一致）。
