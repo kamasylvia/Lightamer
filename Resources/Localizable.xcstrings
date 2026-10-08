@@ -29530,6 +29530,38 @@
           }
         }
       }
+    },
+    "yiyin_sheet_splitter_height": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag to resize the sheet height"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖拽调整面板高度"
+          }
+        }
+      }
+    },
+    "yiyin_sheet_splitter_width": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag to resize the sheet width"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖拽调整面板宽度"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
