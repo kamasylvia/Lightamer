@@ -177,6 +177,14 @@ let project = Project(
                 "Resources/Assets.xcassets",
                 "Resources/Localizable.xcstrings",
                 .folderReference(path: "Resources/LUTs"),
+                // M3-3-01 T2 (KD-2): the CC BY-SA spektrafilm film/paper
+                // profiles ride as a FOLDER reference too — the bundle keeps
+                // the FilmProfiles/ directory (profiles/ + compliance
+                // documents) intact and physically separate from the MIT
+                // LUTs/ set; a folder reference (not a bare directory
+                // string) because Tuist 4.208 silently ignores the latter
+                // (M2-5-3 precedent).
+                .folderReference(path: "Resources/FilmProfiles"),
                 // Plan M2-10-01 (E1): bundled AI models ride as a folder
                 // reference too — the repo-root Resources/AIModels directory
                 // (model bytes gitignored, .keep tracked) copies into the
@@ -468,6 +476,7 @@ let project = Project(
                 "Tests/LightamerTests/DrawnMaskRasterTests.swift",
                 "Tests/LightamerTests/DrawnMaskSpecTests.swift",
                 "Tests/LightamerTests/FollowEdgesTests.swift",
+                "Tests/LightamerTests/FilmProfileTests.swift",
                 "Tests/LightamerTests/FilmRecordTests.swift",
                 "Tests/LightamerTests/HistoryStackTests.swift",
                 "Tests/LightamerTests/LayerCacheTests.swift",
