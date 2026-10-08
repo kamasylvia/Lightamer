@@ -309,6 +309,7 @@ let project = Project(
                 "Tests/LightamerTests/DenoiseProfileParityTests.swift",
                 "Tests/LightamerTests/EqualizerParityTests.swift",
                 "Tests/LightamerTests/FilmPlacementKernelTests.swift",
+                "Tests/LightamerTests/FilmGoldenTests.swift",
                 "Tests/LightamerTests/FilmicRGBTests.swift",
                 "Tests/LightamerTests/FlipParityTests.swift",
                 "Tests/LightamerTests/GeometryGoldenTests.swift",
