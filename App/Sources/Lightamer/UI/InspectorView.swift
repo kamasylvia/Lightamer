@@ -119,6 +119,11 @@ internal struct InspectorView: View {
         Group {
             if inspectorState.exportPageActive {
                 ExportInspectorView()
+            } else if inspectorState.filmPageActive {
+                // M3-3-03 T3 (KD-3): the Film page claims the whole column
+                // while the page switch is on (the export twin; the inactive
+                // branch is the standard body byte-for-byte).
+                FilmPanelView()
             } else {
                 standardBody
             }

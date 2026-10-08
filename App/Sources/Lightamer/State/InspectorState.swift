@@ -67,6 +67,25 @@ final class InspectorState {
         exportPageActive = false
     }
 
+    // MARK: - M3-3-03 T3 (KD-3): the Film page switch (the exportPageActive
+    // twin)
+
+    /// True while the Inspector column shows the Film panel page (the whole
+    /// column; the Layers list and the module panel yield). SESSION STATE on
+    /// purpose: never persisted — a transient page route. Inactive renders
+    /// are byte-for-byte the standard body (the exportPageActive precedent).
+    private(set) var filmPageActive = false
+
+    /// The film page entry route (the node-graph Film card's tap).
+    func openFilmPage() {
+        filmPageActive = true
+    }
+
+    /// The film page's own close face.
+    func closeFilmPage() {
+        filmPageActive = false
+    }
+
     // MARK: - Provider registry
 
     /// Register one panel provider (idempotent per opName — last wins).
