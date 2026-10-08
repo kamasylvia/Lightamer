@@ -1173,8 +1173,24 @@ final class PipeCoordinator {
             )
         }
 
+        // Restore-time seed top-up (the LUT-page-blank fix, 2026-10-08): a
+        // document whose persisted base predates an op's seed membership
+        // (lut3d joined the seed at Plan 12-5) restored WITHOUT that op, and
+        // its routed tab page rendered zero rows + zero panel — the silent
+        // blank LUT page. Merge the CURRENT seed's identity records for the
+        // pairs absent from both the persisted base and the history's
+        // effective set, so restored documents converge to what a pristine
+        // document of this build would carry (identity/neutral params — the
+        // per-op cache-neutral invariants; zero pixel semantics).
+        // (the unknown-op guard above already unwrapped the registry — the
+        // top-up needs the same non-nil registry, so it sits after it).
+        let seed = LightamerIOPRegistry.editingDefaultInstances(defaultFace: defaultFace)
+        let toppedUpInstances = document.instances + SidecarSeedTopUp.missingSeedInstances(
+            persisted: document.instances,
+            effective: degradedHistory.effectiveInstances(),
+            seed: seed)
         editorState?.restoreFromSidecar(
-            history: degradedHistory, persistedInstances: document.instances
+            history: degradedHistory, persistedInstances: toppedUpInstances
         )
         Self.logger.info(
             "sidecar restored: \(url.lastPathComponent, privacy: .public) (history \(document.history.position + 1)/\(document.history.items.count), imageID \(document.imageID.uuidString, privacy: .public))"
