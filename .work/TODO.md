@@ -345,11 +345,11 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 ---
 
-## Milestone 3（胶片暗房——ROADMAP §Milestone 3，2026-10-08 立项：V2/Maintenance 站方案 A，OQ-V2-1..10 用户预裁「按推荐」可推翻）—— 立项完成（M3-0），M3-1 discuss/research 待起草
+## Milestone 3（胶片暗房——ROADMAP §Milestone 3，2026-10-08 立项：V2/Maintenance 站方案 A，OQ-V2-1..10 用户预裁「按推荐」可推翻）—— M3-1 W1 前置批三 plan 执行全闭环（01/02 验收 PASS；03 执行收口、验收待派；phase VALIDATION 签核待 C 档第 3 停）
 
 **状态**：规格正本 = `.work/gsd/phases/v2-station/V2-PROPOSAL.md`（`4f84351`）+ `OQ.md` 裁决记录（`6e265ee`）；规划五正本（ROADMAP/REQUIREMENTS/STATE/GOAL-STATE/TODO）同批落账（本批 docs commit）。波次 = M3-1 前置批（M2GRADE-08 LUT 作者编码建模 + YIYIN-09 预览拖拽 mini-plan + 小件族〔V14/V15 zh 清算 + 导出冲突档选择器 + peak-ICC 标注 + denoise 拖动降档语义〕）→ M3-2 FSIM research（阶段模型 + 配光自动求解设计 + 光谱不可达边界声明 + CC BY-SA 资产取舍 + FSIM-03 注记 + M7 spike 搭车）→ M3-3 FSIM-01 主打（阶段模型进节点图 + 配光求解 + Y/M 偏移）→ M3-4 FSIM-02 宽容度面板 + M3 VALIDATION 收口。**边界**：方案 B（RASTER-IN-01/MASK-06 V2/MASK-07）滚 M4 主打；ALCE-02/03（EXR/UltraHDR）M4；Mertens M4-W2；TRACK M4；PANO M5。**在飞修复批（FINDING-F/ToneEqual）隔离纪律维持**——M3 各 wave 派遣前复核 git log/GOAL-STATE，修复批 owned 面（IOP ToneEqual/LUT 导入面板）不并行触碰。
 
-- [ ] **M3-1**（W1 前置批，估 3 plans）—— discuss/research 待起草（**下一步**；必读锚点 = V2-PROPOSAL §二逐项档案 M2GRADE-08/YIYIN-09/小件族 + §五波次草案 + OQ.md OQ-V2-7/9 + REQUIREMENTS :278/:388「→ M3」注记）
+- [ ] **M3-1**（W1 前置批，3 plans 执行全闭环——登记面 2962 → **3024/16/0**【+62 = 01 +37 / 02 +14 / 03 +11；全套 `--all` 终验轮 + MEMFAIL 机检见 `phases/m3-1-w1/M3-1-03-SUMMARY.md` §四/§八；zh-audit 1534/1772 PASS】；**下一步 = M3-1-03 验收 subagent → phase VALIDATION 签核（C 档第 3 停）→ M3-2**）：01 M2GRADE-08 LUT 作者编码建模（编码目录 17 条 + 曲线 Float64 正逆 + 复合表重烘焙零新 kernel + 库记忆三层序 + 面板双 Picker + 全链 golden 方向探针 + 内置 40 张补标 LogC4/AWG4→BT.1886〔观感变化 = 修偏差非回归交付注记〕+ FSIM-01 软前置就位，六 commit，验收 PASS 0e+1m+2o）；02 YIYIN-09 sheet 拖拽调尺寸（上游五语义映射 + 纯数学/值类型/模型分层 + 14 测 + 实机六探针；`.global` 锚定修复 + D6 机制修订；F-1 扩围登记 New Project 面板取消即崩，四 commit，验收 PASS 0e+2m+1o）；03 小件族（冲突档三档 Picker **M2-9 挂账#4 关闭** + peak-ICC 说明行 + denoise 拖动降档〔OQ-6①：实例身份键控旁路 + 零 params/history + 松手恰一 commit + 状态条；实机走查 Manual-Only——nlmeans 默认 IA 不可达，配方在 MANIFEST〕+ V14/V15/F1 zh 清算〔动态键位 switch 化 + zh-audit 提取器 1c 硬化 + self-test 负测 + **硬化即抓两枚真缺口** search_*_placeholder 入账 + F1 四键清账 + 两处 verbatim「Import Folder…」同族登记不修 D7〕，四 commit）。**挂账**：L057 面板族加固专项（队列行正本 = GOAL-STATE；修复范围 = M3-1-02-ACCEPTANCE §三全集）+ M4 coordinator 串行化（拖动窗并发 FULL）+ T3 补走查配方 + 冲突档跨会话记忆（等用户诉求）。
 - [ ] **M3-2**（FSIM research 环，估 1 plan + 搭车；C 档第 1 停 = research 定稿后停）
 - [ ] **M3-3**（FSIM-01 两段式胶片模拟实现，估 2-3 plans；细化面 = REQUIREMENTS FSIM-01a..d 草案）
 - [ ] **M3-4**（FSIM-02 宽容度面板 + M3 VALIDATION 收口，估 1 plan）
