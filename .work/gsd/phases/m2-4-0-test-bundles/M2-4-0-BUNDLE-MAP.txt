@@ -504,4 +504,5 @@ APP	6	NLMeansDragDowngradeTests.swift
 #   FilmSidecarTests = LIB/Core 级）。行内 method 数以终态对账为准。运行期总数基线
 #   相应上移（3029 起算）。
 LAYERS	9	FilmRecordTests.swift
-LAYERS	5	FilmProfileTests.swift
+#   T3 勘误（同批）：FilmProfileTests 行 5→16（T3 追加 schema/加载器/投影 11 法）。
+LAYERS	16	FilmProfileTests.swift
