@@ -1498,6 +1498,15 @@ final class PipeCoordinator {
         liveEdited.removeAll()
     }
 
+    /// M3-1-03 T3 (KD-3): the drag-time denoise preview bypass routing —
+    /// the panels only ever see the `InspectorEditSession` façade, so the
+    /// EditorState live-projection face rides the same weak back-reference
+    /// every other panel edge uses. Pure forwarding: the bypass state and
+    /// its instance-identity keying live in EditorState.
+    func setPreviewDenoiseBypass(_ instanceID: UUID, on: Bool) {
+        editorState?.setPreviewDenoiseBypass(instanceID, on: on)
+    }
+
     /// D-H1 live leg (per drag tick): upsert the snapshot into the live
     /// instance set WITHOUT history, re-materialize + re-render. Inside
     /// an edit window the snapshot is remembered for the commit; outside

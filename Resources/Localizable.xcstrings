@@ -29642,6 +29642,22 @@
           }
         }
       }
+    },
+    "panel_nlmeans_preview_downgrade": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview downgraded — releasing the slider restores full quality"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览降档——松手恢复全质量"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

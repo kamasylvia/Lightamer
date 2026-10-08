@@ -33,18 +33,18 @@ internal struct NLMeansPanelView: View {
                     label: String(localized: "panel_nlmeans_radius"),
                     value: Double(params.radius), range: 0...4, defaultValue: 2,
                     readoutFormat: "%.1f", unit: "",
-                    onDragBegin: { edit.beginEditing() },
+                    onDragBegin: { dragBegin() },
                     onChange: { set(\.radius, Float($0)) },
-                    onDragEnd: { edit.endEditing(label: String(localized: "history_nlmeans")) },
+                    onDragEnd: { dragEnd() },
                     onReset: { reset(\.radius, 2) },
                     accessibilityID: "inspector.slider.nlmeans.radius")
                 LightamerSlider(
                     label: String(localized: "panel_nlmeans_strength"),
                     value: Double(params.strength), range: 0...100, defaultValue: 50,
                     readoutFormat: "%.0f", unit: "",
-                    onDragBegin: { edit.beginEditing() },
+                    onDragBegin: { dragBegin() },
                     onChange: { set(\.strength, Float($0)) },
-                    onDragEnd: { edit.endEditing(label: String(localized: "history_nlmeans")) },
+                    onDragEnd: { dragEnd() },
                     onReset: { reset(\.strength, 50) },
                     accessibilityID: "inspector.slider.nlmeans.strength")
             } header: {
@@ -55,18 +55,18 @@ internal struct NLMeansPanelView: View {
                     label: String(localized: "panel_nlmeans_luma"),
                     value: Double(params.luma), range: 0...1, defaultValue: 0.5,
                     readoutFormat: "%.2f", unit: "",
-                    onDragBegin: { edit.beginEditing() },
+                    onDragBegin: { dragBegin() },
                     onChange: { set(\.luma, Float($0)) },
-                    onDragEnd: { edit.endEditing(label: String(localized: "history_nlmeans")) },
+                    onDragEnd: { dragEnd() },
                     onReset: { reset(\.luma, 0.5) },
                     accessibilityID: "inspector.slider.nlmeans.luma")
                 LightamerSlider(
                     label: String(localized: "panel_nlmeans_chroma"),
                     value: Double(params.chroma), range: 0...1, defaultValue: 1,
                     readoutFormat: "%.2f", unit: "",
-                    onDragBegin: { edit.beginEditing() },
+                    onDragBegin: { dragBegin() },
                     onChange: { set(\.chroma, Float($0)) },
-                    onDragEnd: { edit.endEditing(label: String(localized: "history_nlmeans")) },
+                    onDragEnd: { dragEnd() },
                     onReset: { reset(\.chroma, 1) },
                     accessibilityID: "inspector.slider.nlmeans.chroma")
             } header: {
@@ -77,6 +77,28 @@ internal struct NLMeansPanelView: View {
         .scrollContentBackground(.hidden)
         .background(LightamerColors.surface)
         .accessibilityIdentifier("inspector.panel.nlmeans")
+    }
+
+    // MARK: - The drag-time preview bypass (M3-1-03 T3, KD-3/OQ-6①)
+
+    /// Drag START: open the D-H1 window AND arm the preview bypass on the
+    /// DRAGGED instance (identity-keyed — full-quality nlmeans ≈65ms is
+    /// far over the 16.6ms interactive budget, perf.md OQ-7-A; skip = the
+    /// maximal downgrade, 松手即全质量) + the status-bar notice. The bypass
+    /// is live-state only: zero params, zero history.
+    private func dragBegin() {
+        edit.beginEditing()
+        edit.setPreviewDenoiseBypass(instance.id, on: true)
+        edit.presentToast(String(localized: "panel_nlmeans_preview_downgrade"))
+    }
+
+    /// Drag END: disarm FIRST (the live projection restores the prior
+    /// enabled before the commit's upsert reads it), then the existing
+    /// single-commit collapse (exactly ONE history item per drag — the
+    /// panel's D-H1 semantics, zero new commit faces).
+    private func dragEnd() {
+        edit.setPreviewDenoiseBypass(instance.id, on: false)
+        edit.endEditing(label: String(localized: "history_nlmeans"))
     }
 
     private func set(
