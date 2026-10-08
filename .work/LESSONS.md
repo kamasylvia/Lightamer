@@ -730,3 +730,8 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **对策**：①有引用态的 IOP 模块，全部读-改-写窗口用 `NSLock` 守护（ToneEqualModule `stateLock` 先例：commitParams/ensureScratch/process 三处提取窗口，锁内零 await，微秒级）；process 入口把引用**提取为局部**后全程只用局部。②GUI-10/GUI-13 先例（apply 同步化）同理推广：跨线程共享的类实例，凡引用槽位写入都要么单 owner 要么加锁。③同型存量：NLMeans/DenoiseProfile 的 scratch 元组、全模块 pieceBuffer 模式——出现同签名崩溃按此方处置（登记 Maintenance）。④协调面根治（render 串行化/取消传播）= 架构级改动，挂 Maintenance 不随手做。
 - **适用**：一切 IOPModule 实现（含新模块评审项：引用态字段清单 + 锁纪律）；任何「共享 box 集 + 重叠异步 run」的管线形态。
 - **来源**：V2/Maintenance 首波修复批（2026-10-07，commit 见 GOAL-STATE 续接点；证据 `phases/m2-11-performance/profile/appbundle-crash-2026-10-07-0812.ips` + Flaky 台账 2026-10-07 行）。
+
+## L070（2026-10-08）— 全史手术日：message 重写 + 媒体剥离一体批
+- **触发**：M1 时代 33 条中文 message（09-20~24，规则生效前）用户令重写；顺带发现 `.work` 2.8G 大头 = Phase 1 RAW 样片（~625MB）与双份 fixtures（~290MB）被 commit 入史（pack 1.91GiB）。
+- **做法**：①filter-branch --msg-filter 按 `$GIT_COMMIT` 键 `/tmp/rewrite-batch/new/<old>.txt` 定向 main ②filter-repo `--invert-paths --path <fixtures> --strip-blobs-bigger-than 50M`（70s，pack 1.91GiB→907MB）→ ADO 单次 force-push 瘦身史（避免 1.9GB 胖史 + 瘦身史两次全量重传）。
+- **教训**：①**evidence 入仓的仓禁做 message 级手术而不掂量传输**——SHA 级联 = 全量重传，体积 = pack 全重；②msg-filter 的 `%B` 会被 git 补尾换行（byte-compare 假阴性），**SHA 映射用 subject 首行匹配构建**最稳（33/33）；③`git filter-repo` 保留 remotes/Worktree 但会重写 refs/stash（pop 回即可）；④子代理 SSH 能力完好（launchd agent 继承、ADO auth 实证），push 失败是传输体积问题——**push 收敛主会话**是状态机纪律非能力限制；⑤RAW 样片/fixtures 从此 untracked-by-design（`.gitignore` 媒体类 + 路径），新克隆不再拉几百 MB 样片。
