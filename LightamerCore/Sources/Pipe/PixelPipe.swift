@@ -153,6 +153,22 @@ internal final class PixelPipe: @unchecked Sendable {
     /// leg's pipe produces the final plane).
     internal var tailFormatFloatOverride = false
 
+    /// The film sub-run policy (M3-3-02 T1, KD-1): nil = OFF — the zero
+    /// path (every pre-M3-3 byte identical). Non-nil = the film leg runs at
+    /// the fixed point AFTER the main chain's top plane and BEFORE the
+    /// display tail; the terminal-tail demotion widens per the 3×2 matrix
+    /// (`isTerminalTailSkipped`) and the demoted display residents replay
+    /// after the film leg (`runFilmDisplayReplayLeg`) or feed the DRT tail
+    /// (whose `upstreamSeed` becomes the film output hash — the
+    /// `DrtTailAssembly.seed(upstream:)` signature-unchanged hand-off).
+    internal var filmTail: FilmTailPolicy?
+
+    /// The film-leg re-entry guard (the `isDrtTailLeg` twin): the film leg
+    /// AND the display-replay leg run as their own sub-run pipes; THOSE
+    /// pipes must not demote anything (their residents process verbatim)
+    /// nor assemble a film leg of their own.
+    internal var isFilmTailLeg = false
+
     /// The tail-leg re-entry guard: the DRT tail runs as its own sub-run
     /// pipe; THAT pipe must not assemble a tail of its own.
     internal var isDrtTailLeg = false
@@ -253,13 +269,35 @@ internal final class PixelPipe: @unchecked Sendable {
     /// resident set (E2: colorout 70 / borders 76 / watermark 77 / gamma
     /// 78 — the tail chain replays borders/watermark post-EOTF).
     private func isTerminalTailSkipped(_ opName: String) -> Bool {
-        // The tail leg's own chain carries its own order (the resident
-        // boxes replay verbatim) — nothing is skipped inside it.
-        if isDrtTailLeg { return false }
+        // The tail legs' own chains carry their own order (the resident
+        // boxes replay verbatim; the film box processes alone) — nothing is
+        // skipped inside them.
+        if isDrtTailLeg || isFilmTailLeg { return false }
         switch terminalTail {
         case .sdrGamma:
+            // M3-3-02 (KD-1 3×2, checker E4): with the film leg active the
+            // WHOLE terminal resident set demotes out of the main chain —
+            // the film consumes the pre-colorout float32 plane and the
+            // demoted four replay AFTER it (colorout → borders → watermark
+            // → gamma; the印框 is never film-graded). Off = today's bytes
+            // (empty set, the zero-path default).
+            if filmTail != nil {
+                return opName == ColorOutModule.opName
+                    || opName == GammaModule.opName
+                    || opName == DrtMethodBox.tailResidentBordersOpName
+                    || opName == DrtMethodBox.tailResidentWatermarkOpName
+            }
             return false
         case .edrLinear:
+            // M3-3-02 (KD-1 3×2, checker E4): with film active, colorout
+            // joins the demotion (the film must consume the PRE-colorout
+            // working plane, not the post-colorout output) and replays
+            // after the film leg; gamma stays demoted and is NEVER replayed
+            // (the SDR re-encode would clamp the EDR float plane). Off =
+            // the 08-4 bytes (gamma only).
+            if filmTail != nil {
+                return opName == GammaModule.opName || opName == ColorOutModule.opName
+            }
             return opName == GammaModule.opName
         case .drt(let params):
             var skipped = opName == ColorOutModule.opName
@@ -720,14 +758,15 @@ internal final class PixelPipe: @unchecked Sendable {
         // → [borders] → [watermark] on the main chain's final plane, as its
         // own sub-run over the SHARED cache (the tail keys carry the folded
         // seed — an EOTF switch re-runs exactly the tail).
-        if case .drt(let tailParams) = terminalTail, !isDrtTailLeg {
-            let tailTexture = try await runDrtTailLeg(
-                input: final.texture, inputROI: walked, params: tailParams,
-                upstreamSeed: topEnabledPosition >= 0
-                    ? levelHash[topEnabledPosition] : decodeParamsHash,
-                residentInstances: instances, metal: metal)
-            final = PipeCache.CachedPlane(
-                texture: tailTexture, byteCount: 0, lastHit: .now)
+        // M3-3-02 T1 (KD-1): the film sub-run pre-empts the display tail —
+        // the sequencing (film → DRT tail → display replay) lives in the
+        // shared `runTerminalTails` body (nil filmTail = byte-identical to
+        // the pre-M3-3 shape).
+        if let tailed = try await runTerminalTails(
+            top: final.texture, walked: walked, instances: instances,
+            fallbackSeed: decodeParamsHash, metal: metal)
+        {
+            final = PipeCache.CachedPlane(texture: tailed.texture, byteCount: 0, lastHit: .now)
         }
         let statsDelta = (await cache.stats) - statsBefore
         return (
@@ -861,14 +900,12 @@ internal final class PixelPipe: @unchecked Sendable {
         )
         // M2-6-1 T7: the terminal-pipe shape of the same tail hook (the
         // LayerCompositeDriver's terminal leg carries the policy).
-        if case .drt(let tailParams) = terminalTail, !isDrtTailLeg {
-            let tailTexture = try await runDrtTailLeg(
-                input: final.texture, inputROI: walked, params: tailParams,
-                upstreamSeed: topEnabledPosition >= 0
-                    ? levelHash[topEnabledPosition] : decodeHash,
-                residentInstances: instances, metal: metal)
-            final = PipeCache.CachedPlane(
-                texture: tailTexture, byteCount: 0, lastHit: .now)
+        // M3-3-02 T1 (KD-1): the film sub-run sequencing — see `run()`.
+        if let tailed = try await runTerminalTails(
+            top: final.texture, walked: walked, instances: instances,
+            fallbackSeed: decodeHash, metal: metal)
+        {
+            final = PipeCache.CachedPlane(texture: tailed.texture, byteCount: 0, lastHit: .now)
         }
         let statsDelta = (await cache.stats) - statsBefore
         return (
@@ -922,6 +959,139 @@ internal final class PixelPipe: @unchecked Sendable {
             decodeHash: DrtTailAssembly.seed(upstream: upstreamSeed, params: params),
             metal: metal, layerID: cacheLayerID)
         return output
+    }
+
+    // ── The film sub-run seam (M3-3-02 T1, KD-1) ─────────────────────────
+
+    /// The terminal-tail sequencing shared by `run` and `runSub` (KD-1):
+    /// film sub-run → DRT tail → display replay, in the physical order
+    /// (film consumes the PRE-display float32 plane; display encoding last).
+    /// nil return = nothing ran (film off AND not `.drt`) — the caller keeps
+    /// the main walk's plane verbatim (the pre-M3-3 shape, byte-for-byte).
+    ///
+    /// The `.drt` row returns after the DRT tail (its chain owns the
+    /// borders/watermark replay; the film output hash went in as the
+    /// upstream seed — `DrtTailAssembly.seed(upstream:)` keeps its exact
+    /// signature, only the VALUE changed hands).
+    private func runTerminalTails(
+        top: any MTLTexture,
+        walked: ROI,
+        instances: [any ModuleBoxing],
+        fallbackSeed: UInt64,
+        metal: MetalContext
+    ) async throws -> (texture: any MTLTexture, roi: ROI)? {
+        var texture = top
+        var roi = walked
+        var upstreamSeed = topEnabledPosition >= 0 ? levelHash[topEnabledPosition] : fallbackSeed
+        // ① the film sub-run (KD-1 ①): consumes the working float32 plane.
+        if let filmParams = filmTail, !isFilmTailLeg {
+            let leg = try await runFilmLeg(
+                input: texture, inputROI: roi, params: filmParams,
+                upstreamSeed: upstreamSeed, metal: metal)
+            texture = leg.texture
+            roi = leg.roi
+            upstreamSeed = leg.outputHash
+        }
+        // ② the DRT tail (unchanged semantics; under film the seed source
+        // is the film output hash).
+        if case .drt(let tailParams) = terminalTail, !isDrtTailLeg {
+            let tailTexture = try await runDrtTailLeg(
+                input: texture, inputROI: roi, params: tailParams,
+                upstreamSeed: upstreamSeed,
+                residentInstances: instances, metal: metal)
+            return (tailTexture, roi)
+        }
+        // ③ the film display replay (KD-1's .sdrGamma/.edrLinear rows,
+        // checker E4): the demoted display residents replay AFTER the film
+        // leg. Only reachable with film active (off = no demotion happened,
+        // nothing to replay).
+        if filmTail != nil, !isFilmTailLeg {
+            let replayed = try await runFilmDisplayReplayLeg(
+                input: texture, inputROI: roi, residentInstances: instances,
+                upstreamSeed: upstreamSeed, metal: metal)
+            texture = replayed.texture
+            roi = replayed.roi
+        }
+        if filmTail == nil {
+            // Neither the film leg nor the DRT tail ran (a .drt policy that
+            // could run already returned above; tail-leg pipes never carry
+            // a filmTail) — the zero path keeps the caller's plane
+            // verbatim.
+            return nil
+        }
+        return (texture, roi)
+    }
+
+    /// The film leg (KD-1 ①): a fresh sub-run pipe over the driver-assembled
+    /// `[FilmMethodBox]` — fresh-tail-pipe shape (`runDrtTailLeg` twin),
+    /// `isFilmTailLeg` re-entry guard, working float32 in/out. Returns the
+    /// film plane + its negotiated ROI + the film OUTPUT hash (the seed ⊕
+    /// the film box's paramsHash — the SAME fold the sub-run's levelChain
+    /// computes, so the DRT tail / display replay seed and the film plane's
+    /// cache key agree by construction).
+    ///
+    /// T2 adds the statistics leg HERE (the full-frame histogram of `input`
+    /// → statsHash → `FilmSolveCache` → solvedPackHash — the seed's third
+    /// fold term; the T1 placeholder 0 keeps the fold order final).
+    private func runFilmLeg(
+        input: any MTLTexture,
+        inputROI: ROI,
+        params: FilmTailParams,
+        upstreamSeed: UInt64,
+        metal: MetalContext
+    ) async throws -> (texture: any MTLTexture, roi: ROI, outputHash: UInt64) {
+        // T1 solve placeholder: the runtime normalization leg (statistics →
+        // solve cache) arrives with T2; the seed's solvedPackHash term is
+        // the constant 0 until then (never a legal FNV output — cannot
+        // collide with a real solve identity).
+        let solvedPackHash: UInt64 = 0
+        let filmPipe = PixelPipe(resolution: resolution, cache: cache)
+        filmPipe.imageID = imageID
+        filmPipe.layerStack = layerStack
+        filmPipe.cacheLayerID = cacheLayerID
+        filmPipe.isFilmTailLeg = true
+        filmPipe.tailFormatFloatOverride = tailFormatFloatOverride
+        let seed = FilmTailAssembly.seed(
+            upstream: upstreamSeed, params: params, solvedPackHash: solvedPackHash)
+        let (output, _) = try await filmPipe.runSub(
+            input: input, inputROI: inputROI,
+            instances: FilmTailAssembly.instances(params: params),
+            decodeHash: seed, metal: metal, layerID: cacheLayerID)
+        let outputHash = Self.chain(
+            seed, FilmTailAssembly.methodParamsHash(params: params))
+        return (output, filmPipe.roi, outputHash)
+    }
+
+    /// The film display replay leg (KD-1, checker E4): the demoted display
+    /// residents replay AFTER the film leg as their own sub-run (fresh
+    /// tail-pipe shape, `isFilmTailLeg` guards re-entry AND demotion inside
+    /// — the residents process verbatim here). `.sdrGamma` row = colorout →
+    /// borders → watermark → gamma (the final plane lands bgra8 through the
+    /// ordinary top-is-gamma format policy); `.edrLinear` row = colorout
+    /// only (float32 linear final; gamma never replays). Empty replay set →
+    /// the input passes through untouched.
+    private func runFilmDisplayReplayLeg(
+        input: any MTLTexture,
+        inputROI: ROI,
+        residentInstances: [any ModuleBoxing],
+        upstreamSeed: UInt64,
+        metal: MetalContext
+    ) async throws -> (texture: any MTLTexture, roi: ROI) {
+        let residents = FilmTailAssembly.displayReplayResidents(
+            terminalTail: terminalTail, residents: residentInstances)
+        guard !residents.isEmpty else { return (input, inputROI) }
+        let replayPipe = PixelPipe(resolution: resolution, cache: cache)
+        replayPipe.imageID = imageID
+        replayPipe.layerStack = layerStack
+        replayPipe.cacheLayerID = cacheLayerID
+        replayPipe.isFilmTailLeg = true
+        replayPipe.tailFormatFloatOverride = tailFormatFloatOverride
+        let (output, _) = try await replayPipe.runSub(
+            input: input, inputROI: inputROI,
+            instances: residents,
+            decodeHash: FilmTailAssembly.replaySeed(upstream: upstreamSeed),
+            metal: metal, layerID: cacheLayerID)
+        return (output, replayPipe.roi)
     }
 
     /// THUMBNAIL lazy fetch (`PipeResolution.isLazy` lifecycle): renders
@@ -1616,7 +1786,8 @@ public enum RenderPipeline {
         maxTileWorkingBytes: Int? = nil,
         roiHint: ROI? = nil,
         terminalTail: TerminalTailPolicy = .sdrGamma,
-        tailFormatFloatOverride: Bool = false
+        tailFormatFloatOverride: Bool = false,
+        filmTail: FilmTailPolicy? = nil
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
         defer { signposter.endInterval("pixelpipe", interval) }
@@ -1629,6 +1800,9 @@ public enum RenderPipeline {
         // M2-9-02 KD-3: the export tail-format override (default false —
         // every pre-existing call site is byte-unchanged).
         pipe.tailFormatFloatOverride = tailFormatFloatOverride
+        // M3-3-02 T3 (KD-4): the film sub-run policy (default nil = OFF —
+        // every pre-existing call site is byte-unchanged).
+        pipe.filmTail = filmTail
         if let maxTileWorkingBytes {
             // Test/parametric injection of the per-tile budget (03-05-T6).
             pipe.maxTileWorkingBytes = maxTileWorkingBytes
@@ -1668,7 +1842,8 @@ public enum RenderPipeline {
         hotLayerID: UUID? = nil,
         maskDirectory: URL? = nil,
         terminalTail: TerminalTailPolicy = .sdrGamma,
-        tailFormatFloatOverride: Bool = false
+        tailFormatFloatOverride: Bool = false,
+        filmTail: FilmTailPolicy? = nil
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -1678,7 +1853,8 @@ public enum RenderPipeline {
             cache: cache, metal: metal, longEdge: longEdge, roiHint: roiHint,
             policy: policy, hotLayerID: hotLayerID, maskDirectory: maskDirectory,
             terminalTail: terminalTail,
-            tailFormatFloatOverride: tailFormatFloatOverride)
+            tailFormatFloatOverride: tailFormatFloatOverride,
+            filmTail: filmTail)
         var stats = result.baseStats
         for layer in result.layerStats {
             stats.hits += layer.run.hits
