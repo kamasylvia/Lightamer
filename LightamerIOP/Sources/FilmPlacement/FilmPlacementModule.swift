@@ -119,8 +119,9 @@ public final class FilmPlacementModule: IOPModule {
     /// (f(a) = K + g_m(a−K; C−K) ≤ K + H = C always, so a "drag down by N
     /// from the scene top" landing needs the measured scene extreme; the
     /// descriptor arm restores the exact §9.2 form in M3-4). The knee
-    /// solves K + g_m(a−K)|_{H=C−K} = t — the m=1 closed form
-    /// K = t − √((a−t)(C−t)) (§9.2) for m == 1, the bracketed bisection +
+    /// solves K + σ·g_m(a−K; C−K) = t — the m=1 closed form
+    /// K = t ∓ √((a−t)(C−t)) (§9.2; MINUS highlights / PLUS shadows —
+    /// the branch-direction sign) for m == 1, the bracketed bisection +
     /// fixed Newton polish for m ≥ 2 (deterministic: fixed iteration
     /// counts, no adaptive stepping — the FSIM-01b posture).
     public static func solveKnee(
@@ -131,11 +132,16 @@ public final class FilmPlacementModule: IOPModule {
         }
         let negativeSide = a < 0   // shadows: the landing moves TOWARD mid
         let t = negativeSide ? c + pullBack : c - pullBack
-        // m=1 closed form (also the Newton seed for m ≥ 2): the shadow
-        // side mirrors (f = K − g(K−a; K−C)) and solves to the SAME shape
-        // K = t − √((t−a)(t−C)) — sign-symmetric in the (a−t)(c−t) term.
+        // m=1 closed form (also the Newton seed for m ≥ 2). The SIGN is
+        // side-dependent: the m=1 landing equation K ∓ g(K−a; K−C) = t
+        // solves to K = t ± √((t−a)(t−c)) — MINUS on the highlights
+        // (f = K + g) and PLUS on the shadows (f = K − g; expanding
+        // (K−a)(K−c) = (K−t)(2K−a−c) gives u = t ± √((t−a)(t−c)) with the
+        // sign following the branch's direction). (The golden batch's
+        // independent derivation — M3-3-03; the shared `s` term is the
+        // symmetric part, only the sign flips.)
         let s = ((a - t) * (c - t)).squareRoot()
-        var knee = t - s
+        var knee = negativeSide ? t + s : t - s
         if m > 1 {
             // F(K) = K + σ·g_m(|a−K|; |C−K|) − t (σ = +1 highlights / −1
             // shadows) is strictly decreasing in K on BOTH sides with the
