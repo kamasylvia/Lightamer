@@ -26,6 +26,6 @@ M3-4 起走双验收制度；M1 期不在范围（早于 M2 charter）。
 - [x] M3-0 立项
 - [x] M3-1 三波（W1 前置批）
 - [x] M3-2 research + spike
-- [ ] M3-3 三波（FSIM-01）
+- [x] M3-3 三波（FSIM-01）
 
 > 编排提示：按 phase 粒度回溯（非逐 wave）；phase 内证据以 ACCEPTANCE 正本为抽查主锚。
