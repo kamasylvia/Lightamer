@@ -373,6 +373,16 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
 
+### M3-4 架构增量（2026-10-10，M3-4-01 执行批——FSIM-02 宽容度面板约定正本）
+
+- **精确锚落点（01 T1，obs-6 硬序兑现）**：`solveKnee` exact 形 t = a∓N（M3-3 简化臂 t=C∓N 退役；scene/medium 常数降格 no-film fallback，锚由 resolver 注入）+ optional 化 typed 域守卫（`landingRoomFloor` 1e-3，nil = invalidDemand）+ m≥2 **深膝 bracket 确定性几何扩张**（exact 形 F 严格递增、F'(K*) 有正下界 0.0447..0.3493——旧「F 递减/切点」注释为简化臂病理，已改正；m=8/N=8 根 ≈−60 案例在册）。**§6.4 四行 8 值公开参考向量** = golden 反向钉死正本（文件内独立 solver，产线 ≤1e-8；K_s<K_h 排序门 + 第五行交叉 typed 拒绝 + 域守卫负测）。**简化臂缺陷措辞定版**：m=2 多项式 bracketing 不可行之机理 = 自然域端点同号（fq(0)=+0.90/fq(50)=+6.1e6）+ 增外根 v≈0.125 截胡（真根两侧正常变号）——产线从不解多项式。
+- **Placement Params v2（RFC-023 §8.3 wire 纪律）**：resolved knees（k/h × shadow/highlight）= additive optionals 随 params 走 wire（换纸不静默改既有编辑）；v1 零档字节零漂移、**非零 v1 = typed degrade 到默认 identity**（真实面为零）；`commitParams` 直包 uniforms（solve 移出 GPU commit 路径，FilmMethodBox solved-pack 同构）；`clamped()` 膝点穿透（wire state 非 clamped 输入——首轮三红根因）；`validateCoreOrder` = 联合规则②单源。
+- **descriptor 运行时（01 T2）**：`ProfileLatitudeDescriptor` + ISO 6846 归约（**E1 修正判据式**：highlight = 首个 `Y ≥ Y_black+0.9(Y_white−Y_black)`；shadow = 升序最后一个 `D ≥ 0.9·D_black`——「Dmin+0.04」字面为常函数退化弃用）+ `FilmDescriptorCache`（fnv(pairHash⊕probeTag)，LRU 4）。**probe = 真链 + scan seam**：1024×1 ramp 过 `PixelPipe.assembleFilmLeg`（产线 factory，film 腿测试零改 = 零行为门）；**响应列 = print reflectance**——腿输出为 scene-referred 10^e，须过链自身前向 `FilmPrintBake.systemDensity`（同会话项单源）回映射，scene 面直接归约与上游实测表全盘失配。本引擎实测（portra×endura）：pair 5.9148 stop（带 [4.0,7.5]，上游 ISO 锚 5.66）/ reference_ev +0.068（mid 锚读法）。T(E) 单调门 = highlight 边界下 band 2e-3（65³ 地板 reflectance 域表达）+ plateau 豁免。
+- **宽容度面板（01 T3）**：直方图轴 = **原生跨度 [−6.5578,+2.4394]**（256 bins×[0,1] 过 binEV；±12 为 ramp 域不混用）；占比 = 整 bin 分类（跨界归内侧 ≤1 bin）；有效性三规则终形 = ①滑杆动态最小值 `max(0,(a−C)+0.25)` ②K_s<K_h typed 拒绝点名滑杆+回弹（禁静默钳制）③H_min=3.0 = **Fit 建议面守卫**（推荐 room<3.0 → 收回+橙提示；手动不拒不钳——§6.1 型场景 Fit 恒拒 = 注册行为）；Fit = margin 0.25 + a≤C 侧 off + m≥3 交叉 λ 比例分摊（λ→0 = 双侧 off 简并；m=3 交叉例 −0.602/−0.293 亲证）；三 readouts（核宽/落点/端点斜率 g'_Δ——§6.4 发布值 0.0648/0.0820 逐位）。
+- **stats/descriptor 投递（m5 机制 (b)+(c)）**：(b) Registry 直方图适配器保留 LastValue 快照（`FilmStatsSnapshot.last`，IOP 侧）；(c) coordinator PREVIEW 完成点镜像 `filmStatsSnapshot` @Observable 面 + `filmDescriptor` cache-first——面板唯一数据源零第二真相；PixelPipe 唯一增量 = factory 抽取（预申报零行为门）。
+- **页面挂载（01 T4 结构修复）**：InspectorView（export/film 页宿主）在 gate-false 面只挂于 ContentView `.inspector(isPresented:)`——binding = **`exportPageActive || filmPageActive`**（dismiss 双关；**present 侧 no-op**——SwiftUI 呈现回声不得盖写活动页）。编辑器右列常态 = 调整栈，InspectorView 非常态挂载。
+- **Film 页入口**：View 菜单「显示胶片面板」无门静态项（零 MenuCommandID/零快捷键——三电路零触）+ 画布卡 tap 双入口；DEBUG 探针缝 `-la_film_probe`（合成输入环境的走查通道）。菜单/画布/步进器合成激活环境级全惰（三路对照实验在案）——GUI 走查 Manual-Only 行配方 = `.work/gui-acceptance/m3-4/MANIFEST.md`。
+
 ## Architecture
 
 Architecture not yet mapped. Follow existing patterns found in the codebase.
