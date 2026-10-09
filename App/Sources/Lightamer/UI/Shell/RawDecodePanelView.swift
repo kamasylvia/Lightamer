@@ -36,65 +36,19 @@ struct RawDecodePanelView: View {
     /// True while a re-decode is in flight (the busy caption).
     @State private var isReloading = false
 
+    /// The M4-1-02 T3 raster gate (KD-2): a raster document carries no
+    /// CIRAW surface — the NR/decoder/boost sections hide and the input
+    /// color readout line replaces them.
+    private var rasterDescription: RasterColorDescription? {
+        editorState.image?.rasterColor
+    }
+
     var body: some View {
         Form {
-            Section(String(localized: "rawdecode_nr_section", defaultValue: "Noise reduction")) {
-                sliderRow(
-                    label: String(localized: "rawdecode_nr_amount", defaultValue: "Amount"),
-                    value: $noiseAmount, marker: "editor.rawdecode.nr.amount")
-                sliderRow(
-                    label: String(localized: "rawdecode_nr_luminance", defaultValue: "Luminance"),
-                    value: $luminance, marker: "editor.rawdecode.nr.luminance")
-                sliderRow(
-                    label: String(localized: "rawdecode_nr_chroma", defaultValue: "Chroma"),
-                    value: $chroma, marker: "editor.rawdecode.nr.chroma")
-                sliderRow(
-                    label: String(localized: "rawdecode_nr_sharpness", defaultValue: "Sharpness"),
-                    value: $sharpness, marker: "editor.rawdecode.nr.sharpness")
-            }
-
-            Section(String(localized: "rawdecode_decoder_section", defaultValue: "Decoder")) {
-                Picker(
-                    String(localized: "rawdecode_decoder_version", defaultValue: "Version"),
-                    selection: $versionRequest
-                ) {
-                    Text(String(localized: "rawdecode_decoder_auto", defaultValue: "Default"))
-                        .tag(RAWTechnicalOverrides.DecoderRequest.automatic)
-                    Text("RAW 8")
-                        .tag(RAWTechnicalOverrides.DecoderRequest.forceV8)
-                    Text("RAW 9")
-                        .tag(RAWTechnicalOverrides.DecoderRequest.forceV9)
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("editor.rawdecode.decoder.version")
-                if showsV9DowngradeHint {
-                    Label(String(
-                        localized: "rawdecode_v9_unsupported",
-                        defaultValue: "This camera's RAW 9 is unavailable — running RAW 8"),
-                        systemImage: "info.circle")
-                        .font(.caption)
-                        .foregroundStyle(ThemeTokens.textSecondary)
-                        .accessibilityIdentifier("editor.rawdecode.v9.hint")
-                }
-            }
-
-            Section(String(localized: "rawdecode_boost_section", defaultValue: "Boost")) {
-                sliderRow(
-                    label: String(localized: "rawdecode_boost", defaultValue: "Boost"),
-                    value: $boost, marker: "editor.rawdecode.boost")
-            }
-
-            Section {
-                Button(String(localized: "rawdecode_reset", defaultValue: "Reset")) {
-                    noiseAmount = nil
-                    luminance = nil
-                    chroma = nil
-                    sharpness = nil
-                    boost = nil
-                    versionRequest = .automatic
-                    commit()
-                }
-                .accessibilityIdentifier("editor.rawdecode.reset")
+            if let description = rasterDescription {
+                rasterReadoutSection(description)
+            } else {
+                rawSections
             }
         }
         .formStyle(.grouped)
@@ -103,6 +57,146 @@ struct RawDecodePanelView: View {
         .accessibilityIdentifier("editor.rawdecode")
         // Re-seed per image (the session carrier is the truth).
         .task(id: editorState.loadedImageURL) { reseed() }
+    }
+
+    /// The pre-M4-1 CIRAW face (RAW documents only — byte-identical).
+    @ViewBuilder private var rawSections: some View {
+        Section(String(localized: "rawdecode_nr_section", defaultValue: "Noise reduction")) {
+            sliderRow(
+                label: String(localized: "rawdecode_nr_amount", defaultValue: "Amount"),
+                value: $noiseAmount, marker: "editor.rawdecode.nr.amount")
+            sliderRow(
+                label: String(localized: "rawdecode_nr_luminance", defaultValue: "Luminance"),
+                value: $luminance, marker: "editor.rawdecode.nr.luminance")
+            sliderRow(
+                label: String(localized: "rawdecode_nr_chroma", defaultValue: "Chroma"),
+                value: $chroma, marker: "editor.rawdecode.nr.chroma")
+            sliderRow(
+                label: String(localized: "rawdecode_nr_sharpness", defaultValue: "Sharpness"),
+                value: $sharpness, marker: "editor.rawdecode.nr.sharpness")
+        }
+
+        Section(String(localized: "rawdecode_decoder_section", defaultValue: "Decoder")) {
+            Picker(
+                String(localized: "rawdecode_decoder_version", defaultValue: "Version"),
+                selection: $versionRequest
+            ) {
+                Text(String(localized: "rawdecode_decoder_auto", defaultValue: "Default"))
+                    .tag(RAWTechnicalOverrides.DecoderRequest.automatic)
+                Text("RAW 8")
+                    .tag(RAWTechnicalOverrides.DecoderRequest.forceV8)
+                Text("RAW 9")
+                    .tag(RAWTechnicalOverrides.DecoderRequest.forceV9)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("editor.rawdecode.decoder.version")
+            if showsV9DowngradeHint {
+                Label(String(
+                    localized: "rawdecode_v9_unsupported",
+                    defaultValue: "This camera's RAW 9 is unavailable — running RAW 8"),
+                    systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+                    .accessibilityIdentifier("editor.rawdecode.v9.hint")
+            }
+        }
+
+        Section(String(localized: "rawdecode_boost_section", defaultValue: "Boost")) {
+            sliderRow(
+                label: String(localized: "rawdecode_boost", defaultValue: "Boost"),
+                value: $boost, marker: "editor.rawdecode.boost")
+        }
+
+        Section {
+            Button(String(localized: "rawdecode_reset", defaultValue: "Reset")) {
+                noiseAmount = nil
+                luminance = nil
+                chroma = nil
+                sharpness = nil
+                boost = nil
+                versionRequest = .automatic
+                commit()
+            }
+            .accessibilityIdentifier("editor.rawdecode.reset")
+        }
+    }
+
+    /// The raster document's input-color readout (KD-2): the decode-time
+    /// description — profile name, color family (origin/transfer) and the
+    /// derived peak. Read-only; the color intent lives in the DRT panel.
+    private func rasterReadoutSection(_ description: RasterColorDescription) -> some View {
+        Section(String(localized: "rawdecode_raster_section", defaultValue: "Input color")) {
+            LabeledContent(
+                String(localized: "rawdecode_raster_profile", defaultValue: "Profile")) {
+                Text(verbatim: description.profileDescription
+                    ?? String(localized: "rawdecode_raster_profile_untagged",
+                              defaultValue: "untagged"))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
+            .accessibilityIdentifier("editor.rawdecode.raster.profile")
+            LabeledContent(
+                String(localized: "rawdecode_raster_origin", defaultValue: "Source")) {
+                Text(verbatim: Self.originName(description.origin))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
+            .accessibilityIdentifier("editor.rawdecode.raster.origin")
+            LabeledContent(
+                String(localized: "rawdecode_raster_transfer", defaultValue: "Transfer")) {
+                Text(verbatim: Self.transferName(description.transfer))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
+            .accessibilityIdentifier("editor.rawdecode.raster.transfer")
+            LabeledContent(
+                String(localized: "rawdecode_raster_peak", defaultValue: "Peak")) {
+                Text("\(Int(description.peakLuminanceNits)) nits")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
+            .accessibilityIdentifier("editor.rawdecode.raster.peak")
+        }
+    }
+
+    /// The dynamic origin label — V14: explicit switch returning STATIC
+    /// localization keys (the scanner never sees interpolated key stems).
+    private static func originName(_ origin: RasterColorOrigin) -> String {
+        switch origin {
+        case .iccMatrixShaper:
+            String(localized: "rawdecode_raster_origin_icc", defaultValue: "embedded ICC")
+        case .iccLutConverted:
+            String(localized: "rawdecode_raster_origin_lut", defaultValue: "ICC (LUT-converted)")
+        case .iccCicp:
+            String(localized: "rawdecode_raster_origin_icc", defaultValue: "embedded ICC")
+        case .tiffNoIccFloatLinear:
+            String(localized: "rawdecode_raster_origin_float", defaultValue: "float32 (untagged)")
+        case .defaultSrgb:
+            String(localized: "rawdecode_raster_origin_default", defaultValue: "assumed sRGB")
+        }
+    }
+
+    /// The dynamic transfer label (same V14 discipline).
+    private static func transferName(_ transfer: RasterTransfer) -> String {
+        switch transfer {
+        case .srgbPiecewise:
+            String(localized: "rawdecode_raster_trc_srgb", defaultValue: "sRGB")
+        case .linear:
+            String(localized: "rawdecode_raster_trc_linear", defaultValue: "linear")
+        case .gamma(let g):
+            String(localized: "rawdecode_raster_trc_gamma", defaultValue: "gamma")
+            + String(format: " %.2f", g)
+        case .bt1886:
+            String(localized: "rawdecode_raster_trc_bt1886", defaultValue: "BT.1886")
+        case .st2084:
+            String(localized: "rawdecode_raster_trc_pq", defaultValue: "PQ (ST 2084)")
+        case .hlg:
+            String(localized: "rawdecode_raster_trc_hlg", defaultValue: "HLG")
+        case .iccParametric:
+            String(localized: "rawdecode_raster_trc_parametric", defaultValue: "ICC parametric")
+        case .iccSampled:
+            String(localized: "rawdecode_raster_trc_sampled", defaultValue: "ICC sampled")
+        }
     }
 
     // MARK: - Rows

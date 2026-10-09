@@ -277,6 +277,31 @@ final class WorkspaceModel {
         drtRecords.removeAll()
     }
 
+    // MARK: - Raster default record seed (Plan M4-1-02 T3, KD-2)
+
+    /// The raster document's default DRT record seed (OQ-1's production
+    /// landing, three branches):
+    ///   ② non-raster decode (nil description) → zero action;
+    ///   ① a carrier record already present (the sidecar restore leg ran
+    ///     first — user history wins; a repeated open stays idempotent)
+    ///     → zero action;
+    ///   ③ otherwise → carrier write of `RasterDefaultRecord.derive` —
+    ///     CARRIER-ONLY: the raw write face schedules NO sidecar write
+    ///     (the user must edit before anything persists; undo-to-top keeps
+    ///     the derive record → the render stays DRT, the Alcedo「DRT 恒在」
+    ///     semantics — the explicit deviation from RAW documents recorded
+    ///     in DECISIONS). The derive product is method-aces20, never the
+    ///     default record, so the carrier always holds it.
+    func seedRasterDrtRecord(
+        url: URL, description: RasterColorDescription?, contentProbeMax: Float
+    ) {
+        guard let description else { return }             // ② non-raster
+        guard drtRecords[url.path] == nil else { return } // ① restore 胜 derive
+        let derived = RasterDefaultRecord.derive(
+            from: description, contentProbeMax: contentProbeMax).record
+        setSessionDrtRecord(derived, for: url)
+    }
+
     // MARK: - Film record carrier (Plan M3-3-02 T5, KD-6 — the DRT
     // carrier's twin; sidecar persistence = the v9 `filmRecord` field)
 

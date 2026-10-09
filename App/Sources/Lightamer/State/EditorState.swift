@@ -510,9 +510,18 @@ final class EditorState {
                     // MEMORY document operation (single AdjustmentLayer +
                     // one commit + the persist-skipping channel, decode
                     // async) with zero sidecar scheduling.
+                    // M4-1-02 T3 (KD-2, upstream D2): a RASTER document
+                    // never mints the RAW default look (the neutral Color
+                    // Grade is RAW-domain — the raster doc opens WITH the
+                    // derived DRT record instead; the carrier seed ran
+                    // inside the pipe load above).
                     if defaultLookPending {
                         let sidecarURL = LightamerSidecar.sidecarURL(for: url)
-                        if FileManager.default.fileExists(atPath: sidecarURL.path) {
+                        if decoded.rasterColor != nil {
+                            logger.info(
+                                "default look skipped (raster document): \(url.lastPathComponent, privacy: .public)"
+                            )
+                        } else if FileManager.default.fileExists(atPath: sidecarURL.path) {
                             logger.info("default look suppressed: sidecar present for \(url.lastPathComponent, privacy: .public)")
                         } else {
                             if mintDefaultLook() != nil {

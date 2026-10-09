@@ -674,10 +674,27 @@ final class PipeCoordinator {
     /// HISTORY's effective record (the edit truth — the commit face wrote
     /// the same value, so this is a no-op after a commit and the REAL
     /// restore after an undo/redo/jump crosses a DRT item).
+    /// M4-1-02 T3 (KD-2): a RASTER document never loses its DRT tail on
+    /// the way back to the all-default history — the derive record re-arms
+    /// REPLACE-any-stale-carrier (the undone edit's record is no longer
+    /// the history truth; the Alcedo「DRT 恒在」semantics, the explicit
+    /// deviation from RAW documents where undo-to-top drops the tail).
     private func syncDrtCarrierWithHistory() {
         guard let editorState, let url = currentImageURL else { return }
-        workspace?.setSessionDrtRecord(
-            editorState.history.effectiveDrtRecord(), for: url)
+        if let effective = editorState.history.effectiveDrtRecord() {
+            workspace?.setSessionDrtRecord(effective, for: url)
+            return
+        }
+        if let decoded, let description = decoded.rasterColor {
+            workspace?.setSessionDrtRecord(
+                RasterDefaultRecord.derive(
+                    from: description,
+                    contentProbeMax: decoded.rasterNative?.contentProbeMax ?? 0
+                ).record,
+                for: url)
+        } else {
+            workspace?.setSessionDrtRecord(nil, for: url)
+        }
     }
 
     /// D-H1 LIVE leg for the document-level DRT record (the panel's drag
@@ -689,6 +706,16 @@ final class PipeCoordinator {
         workspace?.setSessionDrtRecord(record, for: url)
         drtEditPending = record
         await historyDidChange()
+    }
+
+    /// The M4-1-02 T3 seed call point (KD-2): carrier-only, restore-first
+    /// (the WorkspaceModel face owns the three branches; this site only
+    /// orders it after the restore legs and before the first render).
+    private func seedRasterDrtRecord(url: URL, decoded: DecodedImage) {
+        workspace?.seedRasterDrtRecord(
+            url: url,
+            description: decoded.rasterColor,
+            contentProbeMax: decoded.rasterNative?.contentProbeMax ?? 0)
     }
 
     /// D-H1 drag END for the DRT record: commit the pending record as ONE
@@ -1191,6 +1218,13 @@ final class PipeCoordinator {
             }
             await rematerializeInstances()
         }
+        // M4-1-02 T3 (KD-2): the raster default-record seed — load
+        // completion (DecodedImage in hand, BEFORE the first render); the
+        // restore legs above ran inside the same actor turn, so
+        // restore-wins-derive and the repeated-open idempotency hold by
+        // ordering. The seed is carrier-only (zero sidecar write); the
+        // `drtEditSeed` (:beginDrtEdit) reads the carrier AFTER this.
+        seedRasterDrtRecord(url: url, decoded: decoded)
         currentLayerStack = editorState?.layerStack // fresh or restored stack
         if currentHotLayerID != nil,
            currentLayerStack?.compositeLayers.contains(where: { $0.id == currentHotLayerID }) != true {
