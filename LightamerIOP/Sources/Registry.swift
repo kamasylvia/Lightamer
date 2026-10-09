@@ -49,8 +49,8 @@ public enum LightamerIOPRegistry {
         BilateralModule.opName,
     ]
 
-/// KD-3 opt-in: launch with `LIGHTAMER_FULL_IOP_FACE=1` to restore the
-/// pre-M2-1 full face (dev/debug + legacy-image full fidelity). The
+    /// KD-3 opt-in: launch with `LIGHTAMER_FULL_IOP_FACE=1` to restore the
+    /// pre-M2-1 full face (dev/debug + legacy-image full fidelity). The
     /// production composition roots pass `defaultFace:
     /// !isFullFaceRequested`; there is deliberately no settings UI (the
     /// M2-3 IA owns that face — this env seam is its backend hook).
