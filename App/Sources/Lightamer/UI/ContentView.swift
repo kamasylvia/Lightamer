@@ -192,16 +192,29 @@ internal struct ContentView: View {
             WorkspaceHostView(
                 projectController: projectController,
                 onImportFolder: onImportFolder)
-            // The page's inspector column: present exactly while the switch
-            // is on; the column's own dismissal routes back through the SAME
-            // switch (one truth, no second presentation flag).
+            // The page's inspector column: present exactly while A page
+            // switch is on (M3-4-01 T4 walkthrough find: the M3-3-03 film
+            // page branch lives inside InspectorView, which mounts ONLY
+            // here — a filmPageActive without this OR-term left the film
+            // page structurally unreachable in the gate-false face, the
+            // default editor's right column being the adjustment stack,
+            // never InspectorView). The column's own dismissal routes back
+            // through the SAME switches (one truth, no second presentation
+            // flag); the develop editing face is the shell's adjustment
+            // stack and never depended on this panel.
                 .inspector(isPresented: Binding(
-                    get: { inspectorState.exportPageActive },
+                    get: { inspectorState.exportPageActive
+                        || inspectorState.filmPageActive },
                     set: { visible in
-                        if visible {
-                            inspectorState.openExportPage()
-                        } else {
+                        // The PRESENT side is a no-op: the page switches own
+                        // the truth (a SwiftUI presentation echo must not arm
+                        // the export page over a live film page — the M3-4-01
+                        // walkthrough's first mount attempt armed it). The
+                        // DISMISS side closes whichever page is active (both
+                        // closes are idempotent).
+                        if !visible {
                             inspectorState.closeExportPage()
+                            inspectorState.closeFilmPage()
                         }
                     })) {
                     InspectorView()

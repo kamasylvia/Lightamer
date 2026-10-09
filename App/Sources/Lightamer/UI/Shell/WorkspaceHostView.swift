@@ -1463,11 +1463,20 @@ struct EditorProbeIfRequested: ViewModifier {
     @Binding var gridModel: LibraryGridModel?
     @Environment(EditorState.self) private var editorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
+    @Environment(InspectorState.self) private var inspectorState
 
     func body(content: Content) -> some View {
         content.task {
+            // M3-4-01 T4 (KD-4): `-la_film_probe <sourceFolder>` = the editor
+            // probe flow + `openFilmPage()`, STAYING ALIVE for the AX
+            // walkthrough (the synthetic-input environment cannot activate
+            // menu commands nor canvas cards — M3-3-03 §6's click-dead is
+            // environment-wide; the debug seam is the walkthrough's page
+            // opener. The menu bypass entry's own reachability = the
+            // MANIFEST's Manual-Only row).
             guard !editorProbeArmed,
                 ProcessInfo.processInfo.arguments.contains("-la_editor_probe")
+                    || ProcessInfo.processInfo.arguments.contains("-la_film_probe")
             else { return }
             editorProbeArmed = true
             let note: @MainActor (String) -> Void = { line in
@@ -1565,6 +1574,19 @@ struct EditorProbeIfRequested: ViewModifier {
                     // the wait loop observes a FRESH push).
                     editorState.displayTexture = nil
                     try? await Task.sleep(for: .milliseconds(300))
+                }
+                if ProcessInfo.processInfo.arguments.contains("-la_film_probe") {
+                    inspectorState.openFilmPage()
+                    note("film page flag = \(inspectorState.filmPageActive)")
+                    // A settle pass: some later-arriving surface may reset
+                    // the page — re-arm after the editor settles.
+                    try? await Task.sleep(for: .milliseconds(1500))
+                    if !inspectorState.filmPageActive {
+                        inspectorState.openFilmPage()
+                        note("film page re-armed = \(inspectorState.filmPageActive)")
+                    }
+                    note("film page final = \(inspectorState.filmPageActive) — staying alive")
+                    return   // no terminate — the walkthrough drives from here
                 }
             } catch {
                 note("FAIL: \(error)")
