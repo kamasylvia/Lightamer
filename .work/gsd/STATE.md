@@ -2,25 +2,25 @@
 gsd_state_version: 1.0
 milestone: M3
 milestone_name: Film Darkroom (2026-10-08 chartered from V2/Maintenance station, plan A)
-current_phase: M3-2 complete (research + OQ rulings + M7 spike closed 2026-10-08) — next: M3-3 FSIM-01 plan round
-status: M3 chartered per V2 station plan A (OQ-V2-1..10 all-recommendations pre-ruling 6e265ee, user can overturn); M3-1 closed 2026-10-08 (terminal 3024/16/0); M3-2 closed 2026-10-08 (research + OQ-M3-2-1..7 rulings e02dcc7 + M7 spike adjudicated, verdict in m2-11 perf.md §O-1 SPIKE); M2 closed 2026-10-07 (terminal 2961/16/0)
-last_updated: "2026-10-08T13:30:00.000Z"
+current_phase: M3-4 complete (FSIM-02 delivered + M3 VALIDATION signed 2026-10-10) — M3 milestone closure GATED on OMP-RETRO-QUEUE all-PASS (user directive a2d3c0a); next: main-session omp retro sweep → gate flip → history-slim surgery
+status: M3-4 closed 2026-10-10 (dual acceptance zcode PASS + omp FAIL→fix d8d72d9→reverify PASS; terminal 3174/16/0); M3 all 5 phases complete — milestone closure gated (retro-acceptance sweep 16 items pending); M3-1 closed 2026-10-08 (terminal 3024/16/0); M3-2 closed 2026-10-08; M2 closed 2026-10-07 (terminal 2961/16/0)
+last_updated: "2026-10-10T22:30:00.000Z"
 progress:
   total_phases: 16
   completed_phases: 14
-  total_plans: 140
-  completed_plans: 140
+  total_plans: 145
+  completed_plans: 145
   m2_phases_total: 12
   m2_phases_complete: 12
   m3_phases_total: 5
-  m3_phases_complete: 3
+  m3_phases_complete: 5
 ---
 
 # Project State: Lightamer
 
-**Last updated:** 2026-10-08
-**Current phase:** M3-3 FSIM-01（next = plan round；M3-2 closed 2026-10-08——RESEARCH-NOTES 定稿 `b4049b8` + OQ-M3-2-1..7 全按推荐回批 `e02dcc7` + M7 RAF 双峰 spike 补批结案〔perf.md §O-1 SPIKE + evidence/ 证据包〕；M3-1 closed 2026-10-08 VALIDATION signed；M2 closed 2026-10-07；V2/Maintenance 站立项 = 方案 A「胶片暗房」，OQ-V2-1..10 用户预裁「按推荐」）
-**Status:** Milestone 1 Phases 1-16 = 历史记录；Milestone 2 **closed**（M2-0..M2-11 全 complete；M2-11 VALIDATION 兼收口 signed 2026-10-07，终验 TOTAL|2961/16/0|1081s 干净绿；挂账移交 = `phases/m2-11-performance/M2-11-VALIDATION-INPUT.md` §4.4 单一清单）；**Milestone 3 opened 2026-10-08**（方案 A「胶片暗房」：M3-1 前置批 M2GRADE-08+YIYIN-09+小件族 → M3-2 FSIM research → M3-3 FSIM-01 主打 → M3-4 FSIM-02 收口；规格正本 = `phases/v2-station/V2-PROPOSAL.md` + `OQ.md`）；**M3-1 closed 2026-10-08**（VALIDATION signed 夜间授权批——`phases/m3-1-w1/M3-1-VALIDATION.md`；三 plan 全验收 PASS 0 error，终验 TOTAL|3024/16/0|1113s；挂账单一清单七项 = VALIDATION 挂账总汇编表）
+**Last updated:** 2026-10-10
+**Current phase:** **M3 milestone closure GATED**（M3-0..M3-4 全 5 phase complete；M3-4-02 VALIDATION signed 2026-10-10 终验 `TOTAL|3174/16/0|1470s`——`phases/m3-4-latitude/M3-4-02-VALIDATION.md`；**closure 门 = OMP-RETRO-QUEUE 16 项 omp 回溯二次验收全 PASS**〔用户令 `a2d3c0a`，主会话串行接力〕→ 门注记翻正 + 触发「全史瘦身手术第二次」；M3-1 closed 2026-10-08 VALIDATION signed；M3-2 closed 2026-10-08；M2 closed 2026-10-07）
+**Status:** Milestone 1 Phases 1-16 = 历史记录；Milestone 2 **closed**（M2-0..M2-11 全 complete；M2-11 VALIDATION 兼收口 signed 2026-10-07，终验 TOTAL|2961/16/0|1081s 干净绿；挂账移交 = `phases/m2-11-performance/M2-11-VALIDATION-INPUT.md` §4.4 单一清单）；**Milestone 3 = 全 5 phase complete（2026-10-10），closure gated**（M3-1 closed 2026-10-08 终态 3024/16/0 → M3-2 closed 2026-10-08 → M3-3 三波闭环 3152/16/0 → M3-4-01 双验收 + M3-4-02 VALIDATION 终态 **3174/16/0**；翻账正本 = `phases/m3-4-latitude/M3-4-02-VALIDATION.md`——SC 三列 M3-0..M3-4 全相 Delivered + 挂账单一清单总汇编 Maintenance M1-M7 / V2 V1-V12 / 手术前置 S1-S2；**「milestone closed」名分待回溯验收门清后由主会话翻正**，晨审可推翻）
 
 ## Completion Ledger
 
@@ -67,8 +67,8 @@ progress:
 | M3-0 | Charter & station spec | **complete** (2026-10-08: V2 proposal `4f84351` + OQ-V2-1..10 all-recommendations ruling `6e265ee`; five ledgers updated — ROADMAP M3 block / REQUIREMENTS → M3 marks + FSIM-01a..d drafts / STATE / GOAL-STATE append-only continuation / TODO header; M3-1 discuss/research/plan/execute subsequently delivered, charter discharged) | — |
 | M3-1 | W1 lead batch: M2GRADE-08 + YIYIN-09 + small-items family (zh cleanup / collision-tier selector / peak-ICC / denoise drag-down semantics) | **complete (VALIDATION signed 2026-10-08, night-autobatch authorization on record — `phases/m3-1-w1/M3-1-VALIDATION.md`; 3 plans accepted, all PASS / 0 error; M2GRADE-08 + YIYIN-09 + small-items Delivered with M2-9 backlog#4 closed; backlog single list = VALIDATION 挂账总汇编 seven items led by L057 panel-family hardening; morning review may overturn)** | **3024/16skip/0fail** |
 | M3-2 | FSIM research round (+ M7 spike + FSIM-03 note riders) | **complete** (2026-10-08: RESEARCH-NOTES 定稿 `b4049b8` + OQ-M3-2-1..7 all-recommendations user ruling `e02dcc7` + M7 RAF warm-bimodal spike adjudicated — bench sampling-window artifact + idle-decay effect, steady RAF 14-19ms / ARW 12.3-15.6ms deterministic, no pipeline defect; verdict + data = `phases/m2-11-performance/perf.md` §O-1 SPIKE, evidence pack = `phases/m3-2-fsim-research/evidence/`; probe zero production diff, night-relay authorization on record) | — |
-| M3-3 | FSIM-01 two-stage film simulation (stage model + auto printing-filter solve + Y/M offsets) | pending | — |
-| M3-4 | FSIM-02 latitude panel + M3 VALIDATION closeout | pending | — |
+| M3-3 | FSIM-01 two-stage film simulation (stage model + auto printing-filter solve + Y/M offsets) | **complete** (three waves 2026-10-08/09, all accepted PASS / 0 error — 01 data foundation: FilmRecord + CC BY-SA asset quintet + solver + sidecar v9; 02 pipeline: film sub-run seam + fused kernel + print bake + filmPlacement op + export seam; 03 golden four gates + m=1 shadow sign production fix + determinism suite five + Film panel/readonly card; terminal 3152/16/0 = 03 full-suite verified; VALIDATION carried by M3-4 signoff batch per plan) | **3152/16skip/0fail** |
+| M3-4 | FSIM-02 latitude panel + M3 VALIDATION closeout | **complete — M3 milestone closure GATED** (2026-10-10: M3-4-01 dual acceptance — zcode PASS/0E+3obs + omp FAIL→fix `d8d72d9`→OMP-REVERIFY PASS〔dual-acceptance first live run〕; M3-4-02 VALIDATION signed 2026-10-10 night-autobatch — `phases/m3-4-latitude/M3-4-02-VALIDATION.md`; M3 full-phase SC three-column reconciliation all Delivered + SC numeric gate met; backlog single list = Maintenance M1-M7 + V2 V1-V12 + surgery-precondition S1-S2; **milestone "closed" title flips only after OMP-RETRO-QUEUE 16 items all-PASS (user directive a2d3c0a, main-session serial sweep) → then history-slim surgery triggers**) | **3174/16skip/0fail** (M3 terminal) |
 
 ## Notes
 
