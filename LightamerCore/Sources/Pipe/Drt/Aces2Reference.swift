@@ -17,9 +17,12 @@ import simd
 //     (init_ODTParams :1632-1672 + the make_*/build_* families), and
 //     outputTransform_fwd (:1674-1688).
 // Each function cites its upstream anchor. NOT ported (v1 subset, KD-1):
-//   outputTransform_inv (forward-only render path), hueDependentUpperHull
-//   Gamma (dead in the upstream forward path), the LMT creative family,
-//   the ACES 1.x RRT/ODT hard tables.
+//   hueDependentUpperHullGamma (dead in the upstream forward path), the
+//   LMT creative family, the ACES 1.x RRT/ODT hard tables.
+//   (M4-1-01 update: outputTransform_inv — originally noted here as a
+//   forward-only deferral — now lives in the same-directory sibling
+//   Aces2InverseReference.swift; this file's algorithm bodies are
+//   unchanged by that port.)
 //
 // ═══ ALGORITHM STRUCTURE MAP (stage numbers = the shared vocabulary with
 //     the kernel + golden tests; stage order = outputTransform_fwd) ═══
