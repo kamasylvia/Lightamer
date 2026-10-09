@@ -117,3 +117,7 @@ IOP/IOPParity 逐位基线、JPEG/PNG 通路零回退断言。
 - 我方锚：`Decode/RAWDecoder.swift`、`Metal/CIContextPool.swift:144`、`Pipe/Drt/Aces2Reference.swift`、
   `Pipe/Drt/DrtEotf.swift`、`Graph/DrtRecord.swift`、`Export/ImageIOEncoders.swift:231`、
   `Library/ImportFilter.swift`、`Library/LibrarySchema.swift:235`、`App/.../Library/ImportModeDialog.swift`。
+
+## 裁决记录（用户回批 2026-10-10）
+
+**OQ-1..7 全部按推荐采纳**：①raster 默认 DRT = Alcedo D2 同形（aces20 record 随源 + DrtEotf srgbPiecewise additive）②新 TIFF 开发分支 ③逆变换 = aces-core 移植（RGC 逆不移植）④HDR 旗标 = PQ/HLG TRC 或 float>1.0，图库徽标 defer ⑤选择器默认双开 + `library.import.categories` 新键 ⑥TIFF 整体切新分支、旧 CI 臂退役保留、JPEG/PNG 零回退 ⑦import 三模式零特例。
