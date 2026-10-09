@@ -70,6 +70,12 @@ Third-party provenance
        parameter constants, and outputTransform_fwd;
      from lib/Lib.Academy.Tonescale.ctl (v2.0 main):
        TSParams/init_TSParams, tonescale_fwd/inv;
+     from lib/Lib.Academy.OutputTransform.ctl (v2.0 main) — the INVERSE
+       leg, added additively by Plan M4-1-01 (the same commit 069b0bc3...
+       fc0f80): outputTransform_inv, tonemap_and_compress_inv,
+       gamut_compress_inv (the RGC inverse is NOT ported — no upstream
+       inverse exists; the raster-document policy keeps RGC off in both
+       directions).
      from lib/Lib.Academy.Utilities.ctl (v2.0 main):
        the RGBtoXYZ_f33 primaries->matrix formula;
      from transforms/ctl/lmt/LMT.Academy.GamutCompress.ctl (tag v1.3,
@@ -82,6 +88,7 @@ Third-party provenance
      LightamerCore/Sources/Pipe/Drt/Cam16.swift
      LightamerCore/Sources/Pipe/Drt/Aces2Limiting.swift
      LightamerCore/Sources/Pipe/Drt/Aces2Reference.swift
+     LightamerCore/Sources/Pipe/Drt/Aces2InverseReference.swift
      LightamerCore/Sources/Pipe/Drt/Aces2Kernels.metal
 
    The limiting-space primary/white chromaticity table (rec709 / rec2020 /
