@@ -109,12 +109,14 @@ public actor RAWDecoder {
     // MARK: - Unified entry (D-24)
 
     /// Decode any supported image: RAW UTIs route through `CIRAWFilter`,
-    /// raster UTIs (JPEG/HEIC/PNG/WebP/TIFF/PSD-flat, RAW-04) through
-    /// `CGImageSource`. Callers see one entry point; the branching is
-    /// internal. The M2-3-3 T4 second parameter carries the RAW Decode
-    /// panel's technical overrides — DEFAULT = identity, i.e. ZERO behavior
-    /// change for every pre-existing call site (the declared KD-4
-    /// incremental seam, the ONE Core touch of plan M2-3-3).
+    /// the TIFF family routes through the M4-1 native raster leg
+    /// (`RasterDecoder.decodeTIFF`), and the remaining raster UTIs
+    /// (JPEG/HEIC/PNG/WebP/PSD-flat, RAW-04) through `CGImageSource`.
+    /// Callers see one entry point; the branching is internal. The M2-3-3
+    /// T4 second parameter carries the RAW Decode panel's technical
+    /// overrides — DEFAULT = identity, i.e. ZERO behavior change for every
+    /// pre-existing call site (the declared KD-4 incremental seam, the ONE
+    /// Core touch of plan M2-3-3).
     public func decode(
         _ url: URL, technicalOverrides: RAWTechnicalOverrides = .identity
     ) async throws -> DecodedImage {
@@ -135,9 +137,18 @@ public actor RAWDecoder {
         let uti = Self.utiForFile(at: url)
         if Self.isRAWUTI(uti) {
             return try await decodeRAW(url, overrides: technicalOverrides)
-        } else {
-            return try decodeRaster(url, uti: uti)
         }
+        // M4-1-02 T1 (KD-1, OQ-6 effective ruling): the UTI split FLIP —
+        // the whole TIFF family (`public.tiff` conformance: .tif/.tiff and
+        // every conforming UTI) rides the M4-1-01 native develop leg
+        // (`RasterDecoder.decodeTIFF`). The pre-M4-1 CI arm below stays for
+        // JPEG/PNG/HEIC/WebP/PSD (zero regression — RasterRoutingTests pins
+        // the per-UTI arm shapes) and as the RETIRED-but-kept TIFF path
+        // (the future "quick browse" revival reads it back in).
+        if Self.isTIFFUTI(uti) {
+            return try RasterDecoder.decodeTIFF(url)
+        }
+        return try decodeRaster(url, uti: uti)
     }
 
     // MARK: - RAW path (CIRAWFilter, D-21/D-22)
@@ -296,16 +307,20 @@ public actor RAWDecoder {
 
     // MARK: - Raster path (CGImageSource, RAW-04)
 
-    /// Non-RAW decode (JPEG/HEIC/PNG/WebP/TIFF/PSD-flat). Multi-image TIFF →
-    /// first image.
+    /// Non-RAW decode (JPEG/HEIC/PNG/WebP/PSD-flat — M4-1-02 T1: the TIFF
+    /// family no longer routes here; the arm is RETIRED but kept, the
+    /// future "quick browse" revival reads it back in). Multi-image
+    /// containers → first image.
     ///
     /// **RAW-03 float decision (Plan 02-06-06, host-proven 2026-09-19,
-    /// macOS 27.0 / M4):** 32-bit float TIFF and EXR preserve their bit
-    /// depth through THIS path — `CGImageSourceCreateImageAtIndex` returns
-    /// bpp=32/96 for float32 RGB TIFF and bpp=32/128 for float32 RGBA EXR
-    /// (`bitsPerComponent == 32`, colorspace extendedLinearSRGB), and the
-    /// pinned extreme values (0.0 / 0.5 / 1.0 / 2.0 / 65504.0) survive into
-    /// the float32 pipe input plane bit-near-exactly (`RAW03Tests`). The
+    /// macOS 27.0 / M4):** since M4-1 the FLOAT TIFF form no longer rides
+    /// this path (the native leg preserves float32 bit-exactly), but the
+    /// finding stands for the retained raster family — 32-bit float EXR
+    /// preserves its bit depth through THIS path —
+    /// `CGImageSourceCreateImageAtIndex` returns bpp=32/128 for float32
+    /// RGBA EXR (`bitsPerComponent == 32`, colorspace
+    /// extendedLinearSRGB), and the pinned extreme values survive into the
+    /// float32 pipe input plane bit-near-exactly (`RAW03Tests`). The
     /// research-sketched `CIImage(contentsOf:)` fallback is therefore NOT
     /// adopted: the CGImage leg is float-faithful, and one loader keeps the
     /// decode surface uniform. Re-probe if a future macOS regresses (probe:
@@ -404,6 +419,15 @@ public actor RAWDecoder {
               let type = CGImageSourceGetType(source)
         else { return "public.data" }
         return type as String
+    }
+
+    /// The TIFF family check (KD-1): `public.tiff` conformance covers the
+    /// .tif/.tiff extensions and every UTI that conforms to it (the same
+    /// conformance-or-membership shape as `isRAWUTI`).
+    internal static func isTIFFUTI(_ uti: String) -> Bool {
+        if uti == UTType.tiff.identifier { return true }
+        guard let type = UTType(uti) else { return false }
+        return type.conforms(to: .tiff)
     }
 
     /// RAW routing: static set membership OR conformance to

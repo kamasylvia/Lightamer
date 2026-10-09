@@ -146,6 +146,139 @@ public enum RasterDecoder {
             rasterNative: native)
     }
 
+    // MARK: - The negotiation-window payload (M4-1-02 T2, KD-3)
+
+    /// The payload for ONE pipe run: extract `window` (source-pixel rect in
+    /// the CGImage TOP-LEFT view space) at `targetWidth×targetHeight`,
+    /// delivered TOP-ROW-FIRST — the pipe INPUT-plane convention (the CI
+    /// bitmap+replace input render lands row 0 = image top; RAW03's
+    /// passing pinned diagonal pins this face; the display-terminal leg
+    /// owns the one flip to the row-0-bottom FINAL face). A 1:1 window →
+    /// a straight row copy; a downscale → a deterministic box average
+    /// over the covered source span (≤1 px source-edge rounding registered
+    /// in DECISIONS); an upscale (never produced by the pipe — downscale-
+    /// only) falls back to nearest sampling. The channel layout and the
+    /// probe rule (≤4096-cell deterministic stride) carry over.
+    public static func windowedPayload(
+        _ native: RasterNativePixels, window: CGRect,
+        targetWidth: Int, targetHeight: Int
+    ) throws -> RasterNativePixels {
+        let bounds = CGRect(x: 0, y: 0, width: native.width, height: native.height)
+        guard targetWidth >= 1, targetHeight >= 1 else {
+            throw AppError.invalidParameter(
+                "windowed payload: degenerate target \(targetWidth)×\(targetHeight)")
+        }
+        let clipped = window.intersection(bounds)
+        guard !clipped.isEmpty else {
+            throw AppError.invalidParameter(
+                "windowed payload: empty window \(window) in \(native.width)×\(native.height)")
+        }
+        let componentBytes = native.bitsPerComponent / 8
+        let srcBpp = native.bytesPerPixel
+        let outBytesPerPixel = 3 * componentBytes
+        var out = [UInt8](repeating: 0, count: targetWidth * targetHeight * outBytesPerPixel)
+
+        let sourceIsCopy = Int(clipped.width.rounded(.down)) == targetWidth
+            && Int(clipped.height.rounded(.down)) == targetHeight
+
+        func sourceComponent(_ x: Int, _ y: Int, _ c: Int) -> Double {
+            // native.data is LITTLE-endian (the extraction pushes LE16 /
+            // LE f32) — read it back little-endian.
+            let base = (y * native.width + x) * srcBpp + c * componentBytes
+            switch componentBytes {
+            case 1: return Double(native.data[base])
+            case 2:
+                let v = UInt16(native.data[base + 1]) << 8 | UInt16(native.data[base])
+                return Double(v)
+            default:
+                let bits = UInt32(native.data[base + 3]) << 24
+                    | UInt32(native.data[base + 2]) << 16
+                    | UInt32(native.data[base + 1]) << 8
+                    | UInt32(native.data[base])
+                return Double(Float(bitPattern: bits))
+            }
+        }
+
+        func writeComponent(_ index: Int, _ c: Int, _ value: Double) {
+            let base = index * outBytesPerPixel + c * componentBytes
+            switch componentBytes {
+            case 1: out[base] = UInt8(max(0, min(255, value.rounded())))
+            case 2:
+                let v = UInt16(max(0, min(65535, value.rounded())))
+                out[base] = UInt8(v & 0xFF)
+                out[base + 1] = UInt8(v >> 8)
+            default:
+                let f = Float(value)
+                withUnsafeBytes(of: f.bitPattern.littleEndian) { pattern in
+                    for k in 0..<4 { out[base + k] = pattern[k] }
+                }
+            }
+        }
+
+        let xScale = clipped.width / CGFloat(targetWidth)
+        let yScale = clipped.height / CGFloat(targetHeight)
+        var probeMax: Float = 0
+        let cellCount = targetWidth * targetHeight
+        let probeStride = max(1, cellCount / 4096)
+
+        // Target rows run TOP-FIRST: `ty = 0` is the image top (the input
+        // plane face RAW03 pins).
+        for ty in 0..<targetHeight {
+            let sy0 = clipped.minY + CGFloat(ty) * yScale
+            let sy1 = sy0 + yScale
+            let y0 = max(0, min(native.height - 1, Int(sy0.rounded(.down))))
+            let y1 = max(y0, min(native.height - 1, Int(sy1.rounded(.down) - 1)))
+            for tx in 0..<targetWidth {
+                let sx0 = clipped.minX + CGFloat(tx) * xScale
+                let sx1 = sx0 + xScale
+                let x0 = max(0, min(native.width - 1, Int(sx0.rounded(.down))))
+                let x1 = max(x0, min(native.width - 1, Int(sx1.rounded(.down) - 1)))
+                let dstIndex = ty * targetWidth + tx
+                for c in 0..<3 {
+                    if sourceIsCopy {
+                        writeComponent(dstIndex, c, sourceComponent(x0, y0, c))
+                    } else {
+                        if xScale < 1 || yScale < 1 {
+                            // Nearest (upscale face — never pipe-produced).
+                            writeComponent(dstIndex, c, sourceComponent(x0, y0, c))
+                            continue
+                        }
+                        var sum = 0.0
+                        var count = 0
+                        var y = y0
+                        while y <= y1 {
+                            var x = x0
+                            while x <= x1 {
+                                sum += sourceComponent(x, y, c)
+                                count += 1
+                                x += 1
+                            }
+                            y += 1
+                        }
+                        writeComponent(dstIndex, c, count > 0 ? sum / Double(count) : 0)
+                    }
+                }
+                // The probe (visited target cells only, the window's max).
+                if dstIndex % probeStride == 0 {
+                    for c in 0..<3 {
+                        let v = Float(sourceComponent(x0, y0, c))
+                        let normalized: Float
+                        switch native.channelLayout {
+                        case .rgb8: normalized = v / 255.0
+                        case .rgb16: normalized = v / 65535.0
+                        case .rgb32Float: normalized = v
+                        }
+                        if normalized > probeMax { probeMax = normalized }
+                    }
+                }
+            }
+        }
+
+        return RasterNativePixels(
+            data: out, width: targetWidth, height: targetHeight,
+            channelLayout: native.channelLayout, contentProbeMax: probeMax)
+    }
+
     // MARK: - Native pixel extraction (the numeric-copy face)
 
     /// Draw into a bitmap context that MATCHES the source (colorspace

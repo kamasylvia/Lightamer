@@ -1,3 +1,4 @@
+import CoreImage
 import Metal
 import os
 
@@ -240,8 +241,26 @@ internal final class PixelPipe: @unchecked Sendable {
     /// the first cut shipped — RetouchParity/GoldenColor regressions).
     internal var inputPlaneDedupeKey: UInt64? {
         guard let content = decodedImage?.contentDedupeID else { return nil }
+        return Self.foldedInputPlaneDedupeKey(
+            content: content,
+            descriptionHash: decodedImage?.rasterColor?.stableFingerprint(),
+            decodeParams: decodeParamsHash)
+    }
+
+    /// The fold face (M4-1-02 T2, L013 field-explicit): content ⊕
+    /// [description fingerprint when a raster description rides the decode]
+    /// ⊕ decodeParams. The description fold is EXPLICIT — an ICC swap on
+    /// the same file flips the key (the plane re-renders through the new
+    /// leg); nil `descriptionHash` folds the pre-M4-1 two-input shape
+    /// BYTE-IDENTICAL (the zero-drift contract for every non-raster doc).
+    internal static func foldedInputPlaneDedupeKey(
+        content: UInt64, descriptionHash: UInt64?, decodeParams: UInt64
+    ) -> UInt64 {
         var running = content
-        var params = decodeParamsHash
+        if let descriptionHash {
+            withUnsafeBytes(of: descriptionHash) { running = StableHash.combine(running, $0) }
+        }
+        var params = decodeParams
         withUnsafeBytes(of: &params) { running = StableHash.combine(running, $0) }
         return running
     }
@@ -624,6 +643,12 @@ internal final class PixelPipe: @unchecked Sendable {
     /// The input-plane render legs (Plan 11-03 T3 extraction of the base-
     /// case miss body — byte-identical behavior, now shared by the cached
     /// leg and the export no-cache bypass). Counts this run's plane render.
+    ///
+    /// M4-1-02 T2 (KD-3, the ②-unseal dispatch): a decode carrying a raster
+    /// color description (`rasterColor != nil` — the LUT-ICC arm is a raster
+    /// document even without a native payload) routes to the raster input
+    /// leg BEFORE the three CI returns; every pre-existing decode keeps
+    /// these returns BYTE-IDENTICAL.
     private func renderInputPlane(
         image: DecodedImage,
         roiOut: ROI,
@@ -631,6 +656,11 @@ internal final class PixelPipe: @unchecked Sendable {
         needsSubdomain: Bool,
         metal: MetalContext
     ) async throws -> any MTLTexture {
+        if image.rasterColor != nil {
+            return try await renderRasterInputPlane(
+                image: image, roiOut: roiOut, scale: scale,
+                needsSubdomain: needsSubdomain, metal: metal)
+        }
         planesRendered += 1
         if needsSubdomain {
             // ROI is top-left origin; CI extent is bottom-up
@@ -662,6 +692,101 @@ internal final class PixelPipe: @unchecked Sendable {
         }
         return try await metal.renderToTexture(
             image.ciImage, dedupeKey: inputPlaneDedupeKey)
+    }
+
+    // MARK: - The raster input leg (M4-1-02 T2, KD-3)
+
+    /// The per-pipe input leg (lazy — a pipe serves ONE resolution family,
+    /// so the Stage's bucket tag rides along for cache-name separation only).
+    private var rasterStage: RasterInputStage?
+
+    /// The raster develop-input plane at the negotiated ROI (the dispatch
+    /// target of `renderInputPlane` for `rasterColor != nil` decodes):
+    ///   • native-payload sub-form — the negotiation-window payload rides
+    ///     `RasterInputStage.run` (sceneLinear → the matrix branch, every
+    ///     display-referred description → `raster_input_display`);
+    ///   • iccLutConverted sub-form — the CI-converted plane (float32
+    ///     linear, the LUT profile TRC-linearized through full color
+    ///     management) rides the display inverse leg with the TRC identity
+    ///     (01 KD-5/KD-6 m4①).
+    /// The output plane is EXACTLY `roiOut` (the processRec negotiated-ROI
+    /// precondition) in the working float32 format.
+    private func renderRasterInputPlane(
+        image: DecodedImage,
+        roiOut: ROI,
+        scale: CGFloat,
+        needsSubdomain: Bool,
+        metal: MetalContext
+    ) async throws -> any MTLTexture {
+        planesRendered += 1
+        guard let description = image.rasterColor else {
+            throw AppError.invalidParameter(
+                "raster input dispatch without a color description")
+        }
+        let stage = rasterStage ?? RasterInputStage(metal: metal)
+        rasterStage = stage
+        let bucket: RasterInputStage.Bucket
+        switch resolution {
+        case .thumbnail: bucket = .thumbnail
+        case .preview: bucket = .preview
+        case .full, .export: bucket = .full
+        }
+        // The SOURCE-pixel window this run covers (the CI legs' scale-at-
+        // entry / sub-domain semantics mirrored into payload space; the CI
+        // extent carries the decoded geometry).
+        let extent = image.ciImage.extent
+        let window: CGRect = needsSubdomain
+            ? CGRect(
+                x: CGFloat(roiOut.x) / scale,
+                y: CGFloat(roiOut.y) / scale,
+                width: CGFloat(roiOut.width) / scale,
+                height: CGFloat(roiOut.height) / scale)
+            : CGRect(x: 0, y: 0, width: extent.width, height: extent.height)
+
+        if let native = image.rasterNative {
+            let payload = try RasterDecoder.windowedPayload(
+                native, window: window,
+                targetWidth: roiOut.width, targetHeight: roiOut.height)
+            return try await stage.run(
+                description: description, native: payload, bucket: bucket)
+        }
+
+        // The iccLutConverted sub-form: the CI-converted plane first (the
+        // retained render legs — the folded dedupe key includes the
+        // description fingerprint so an ICC swap re-renders), then the
+        // display inverse leg over it.
+        let converted = try await renderConvertedCIPlane(
+            image.ciImage, window: window, scale: scale,
+            roiOut: roiOut, needsSubdomain: needsSubdomain, metal: metal)
+        return try await stage.runDisplayInverse(
+            description: description, plane: converted, bucket: bucket)
+    }
+
+    /// The CI-converted plane for the LUT-ICC sub-form (the same three
+    /// faces as the retained input legs, keyed on the folded dedupe key).
+    private func renderConvertedCIPlane(
+        _ ciImage: CIImage, window: CGRect, scale: CGFloat,
+        roiOut: ROI, needsSubdomain: Bool, metal: MetalContext
+    ) async throws -> sending any MTLTexture {
+        if needsSubdomain {
+            let ex = ciImage.extent
+            let rw = window.width
+            let rh = window.height
+            return try await metal.renderRegion(
+                ciImage,
+                region: CGRect(
+                    x: window.minX,
+                    y: ex.maxY - window.maxY,
+                    width: rw, height: rh),
+                scale: scale,
+                dedupeKey: inputPlaneDedupeKey)
+        }
+        if roiOut.scale < 1.0 {
+            return try await metal.renderToTexture(
+                ciImage, longEdge: max(roiOut.width, roiOut.height),
+                dedupeKey: inputPlaneDedupeKey)
+        }
+        return try await metal.renderToTexture(ciImage, dedupeKey: inputPlaneDedupeKey)
     }
 
     /// Run the pipe over a decoded image with the given (unsorted) module

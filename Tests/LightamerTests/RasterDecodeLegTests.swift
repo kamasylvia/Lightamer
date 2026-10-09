@@ -3,6 +3,7 @@ import CoreGraphics
 import CoreImage
 import Foundation
 import ImageIO
+import UniformTypeIdentifiers
 import XCTest
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,8 +19,9 @@ import XCTest
 //     iccLutConverted description);
 //   • the content probe (deterministic ≤4096-cell max) — the float32
 //     fixture with 2.0 content reports > 1.0 (the HDR flag input);
-//   • the ROUTING RED LINE: RAWDecoder.decode() still routes TIFF through
-//     the CI path (raster fields nil) — the production flip is 02;
+//   • the ROUTING FLIP (M4-1-02): RAWDecoder.decode() routes the TIFF
+//     family onto this leg (raster fields populated); the retired CI arm
+//     stays reachable verbatim (the revival snapshot);
 //   • the DecodedImage additive-optional zero-drift negative: existing
 //     construction sites carry nil (byte-identical fields).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -196,16 +198,31 @@ final class RasterDecodeLegTests: XCTestCase {
         XCTAssertGreaterThan(native.contentProbeMax, 0.9)
     }
 
-    // MARK: - The routing red line + additive zero drift
+    // MARK: - The routing flip (M4-1-02 T1) + additive zero drift
 
-    func testProductionDecodeRoutingStillCIPath() async throws {
-        // THE routing red line (this plan): the production decode keeps
-        // TIFF on the CI path — the raster fields stay nil there.
+    func testProductionDecodeRoutingTakesTheNativeLeg() async throws {
+        // THE routing FLIP (M4-1-02 T1, OQ-6): the production decode now
+        // routes the TIFF family onto the native leg — the raster fields
+        // are populated there (this replaces 01's pre-flip golden, which
+        // pinned the CI path until this plan landed).
         let url = try fixture("srgb-matrix-16.tif")
         let decoder = RAWDecoder()
         let decoded = try await decoder.decode(url)
-        XCTAssertNil(decoded.rasterColor, "routing must NOT be switched in this plan")
-        XCTAssertNil(decoded.rasterNative, "routing must NOT be switched in this plan")
+        XCTAssertNotNil(decoded.rasterColor, "the flip must populate the description")
+        XCTAssertNotNil(decoded.rasterNative, "the flip must populate the native payload")
+        XCTAssertNotNil(decoded.ciImage)
+    }
+
+    func testProductionDecodeRoutingRetiredArmStaysReachable() async throws {
+        // The RETIRED arm is kept verbatim (the OQ-6 revival path): a
+        // direct `decodeRaster` call still decodes the fixture through the
+        // CI face with nil raster fields — the pre-M4-1 behavior byte
+        // snapshot.
+        let url = try fixture("srgb-matrix-16.tif")
+        let decoder = RAWDecoder()
+        let decoded = try await decoder.decodeRaster(url, uti: UTType.tiff.identifier)
+        XCTAssertNil(decoded.rasterColor)
+        XCTAssertNil(decoded.rasterNative)
         XCTAssertNotNil(decoded.ciImage)
     }
 
@@ -244,5 +261,80 @@ final class RasterDecodeLegTests: XCTestCase {
         let (decoded1, native1) = try decodeNative("linear-icc-float32.tif")
         XCTAssertEqual(try XCTUnwrap(decoded1.rasterColor).referral, .sceneLinear)
         XCTAssertEqual(native1.channelLayout, .rgb32Float)
+    }
+
+    // MARK: - M4-1-02 T2: the negotiation-window payload (KD-3)
+
+    func testWindowedPayloadIdentityCopyTopFirst() throws {
+        // The 64×64 fixture, full-window 1:1 → a straight byte copy, rows
+        // TOP-FIRST (the pipe INPUT-plane convention RAW03 pins).
+        let (_, native) = try decodeNative("srgb-matrix-16.tif")
+        XCTAssertEqual(native.width, 64)
+        let window = CGRect(x: 0, y: 0, width: 64, height: 64)
+        let payload = try RasterDecoder.windowedPayload(
+            native, window: window, targetWidth: 64, targetHeight: 64)
+        XCTAssertEqual(payload.width, 64)
+        XCTAssertEqual(payload.height, 64)
+        XCTAssertEqual(payload.channelLayout, native.channelLayout)
+        XCTAssertEqual(payload.data, native.data, "a 1:1 window must be a byte copy")
+    }
+
+    func testWindowedPayloadSubWindowCopy() throws {
+        // The right half (view x 32..<64) at 1:1, rows top-first.
+        let (_, native) = try decodeNative("srgb-matrix-16.tif")
+        let payload = try RasterDecoder.windowedPayload(
+            native, window: CGRect(x: 32, y: 0, width: 32, height: 64),
+            targetWidth: 32, targetHeight: 64)
+        XCTAssertEqual(payload.width, 32)
+        let bpp = native.bytesPerPixel
+        for y in 0..<64 {
+            for x in 0..<32 {
+                for k in 0..<bpp {
+                    XCTAssertEqual(
+                        payload.data[(y * 32 + x) * bpp + k],
+                        native.data[(y * 64 + 32 + x) * bpp + k])
+                }
+            }
+        }
+    }
+
+    func testWindowedPayloadBoxAverageDownsample() throws {
+        // A 2×2 white block (view TOP-LEFT) downsampled 2× lands at target
+        // (0,0) at 255; the all-zero view BOTTOM-RIGHT quadrant lands at
+        // (1,1).
+        var data = [UInt8](repeating: 0, count: 4 * 4 * 3)
+        func put(_ x: Int, _ y: Int, _ v: UInt8) {
+            let i = (y * 4 + x) * 3
+            data[i] = v; data[i + 1] = v; data[i + 2] = v
+        }
+        put(0, 0, 255); put(1, 0, 255); put(0, 1, 255); put(1, 1, 255)
+        let native = RasterNativePixels(
+            data: data, width: 4, height: 4,
+            channelLayout: .rgb8, contentProbeMax: 1.0)
+        let payload = try RasterDecoder.windowedPayload(
+            native, window: CGRect(x: 0, y: 0, width: 4, height: 4),
+            targetWidth: 2, targetHeight: 2)
+        let white = Int(payload.data[0])
+        XCTAssertEqual(white, 255, "the full-white view quadrant must average to 255")
+        let zero = Int(payload.data[(1 * 2 + 1) * 3])
+        XCTAssertEqual(zero, 0)
+    }
+
+    func testWindowedPayloadDeterministic() throws {
+        let (_, native) = try decodeNative("srgb-matrix-16.tif")
+        let window = CGRect(x: 0, y: 0, width: 64, height: 64)
+        let a = try RasterDecoder.windowedPayload(
+            native, window: window, targetWidth: 13, targetHeight: 9)
+        let b = try RasterDecoder.windowedPayload(
+            native, window: window, targetWidth: 13, targetHeight: 9)
+        XCTAssertEqual(a.data, b.data, "the resample must be deterministic")
+        XCTAssertEqual(a.contentProbeMax, b.contentProbeMax)
+    }
+
+    func testWindowedPayloadEmptyWindowTypedReject() throws {
+        let (_, native) = try decodeNative("srgb-matrix-16.tif")
+        XCTAssertThrowsError(try RasterDecoder.windowedPayload(
+            native, window: CGRect(x: 100, y: 100, width: 4, height: 4),
+            targetWidth: 4, targetHeight: 4))
     }
 }

@@ -25,7 +25,10 @@ import UniformTypeIdentifiers
 // (zero copy through CGDataProvider) and promotes `X.tmp-<uuid>` → `X`
 // atomically in the same directory (the L009 posture). The plane is
 // linear-Rec2020 TAGGED so the product round-trips the working space
-// through `RAWDecoder.decodeRaster` (the RAW-03 bpp=32 float-faithful leg).
+// through `RAWDecoder.decode()` — since M4-1 the native float-faithful
+// raster leg (the ①′ linear-ICC float32 → sceneLinear rule routes the
+// product through the matrix branch; pre-M4-1 this was the RAW-03
+// bpp=32-faithful `decodeRaster` arm).
 // ─────────────────────────────────────────────────────────────────────────────
 
 public enum BandStreamer {
