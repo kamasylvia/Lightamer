@@ -104,8 +104,20 @@ final class FilmPlacementKernelTests: XCTestCase {
 
     func testKernelMatchesTheScalarReferenceOnProbeField() async throws {
         let metal = try await makeMetal()
+        // The RESOLVED face (M3-4-01): the knees ride the params, solved
+        // against the fallback anchors (valid demands only — minimum 3.0).
+        let a = FilmPlacementModule.sceneTopEV
+        let c = FilmPlacementModule.mediumTopEV
+        let aS = FilmPlacementModule.sceneBottomEV
+        let cS = FilmPlacementModule.mediumBottomEV
+        let hi = FilmPlacementModule.solveKnee(
+            pullBack: 3.25, rolloff: 2, sceneExtreme: a, mediumBoundary: c)!
+        let lo = FilmPlacementModule.solveKnee(
+            pullBack: 3.05, rolloff: 2, sceneExtreme: aS, mediumBoundary: cS)!
         let params = FilmPlacementModule.Params(
-            shadowsPullBack: 1.5, highlightsPullBack: 2.0, rolloff: 2)
+            shadowsPullBack: 3.05, highlightsPullBack: 3.25, rolloff: 2,
+            kShadow: lo.knee, hShadow: lo.room,
+            kHighlight: hi.knee, hHighlight: hi.room)
         let texels = probeField()
         let module = FilmPlacementModule(device: metal.device)
         var piece = IOPiece()
@@ -116,7 +128,7 @@ final class FilmPlacementKernelTests: XCTestCase {
             piece: &piece, metal: metal)
         let out = read(output, metal: metal)
         // Both sides compared in ACEScc (the domain the op lives in); the
-        // smoke gate is deliberately loose (the golden gate = M3-3-03).
+        // smoke gate is deliberately loose (the golden gate = FilmGoldenTests).
         var maxDiff: Float = 0
         for index in 0..<(size.width * size.height) {
             let encoded = SIMD3(
@@ -142,7 +154,7 @@ final class FilmPlacementKernelTests: XCTestCase {
         }
         XCTAssertLessThanOrEqual(
             maxDiff, 2e-3,
-            "GPU vs Float64 reference on the encoded axis (smoke; golden = M3-3-03)")
+            "GPU vs Float64 reference on the encoded axis (smoke; golden = FilmGoldenTests)")
     }
 
     // MARK: - 3: the m-order knee contact (smoke)
@@ -153,9 +165,9 @@ final class FilmPlacementKernelTests: XCTestCase {
         // the knee SHRINKS with m (the C^m contact: δ ~ Δ^(m+1) scale).
         func nearKneeDelta(m: Double) -> Double {
             let sol = FilmPlacementModule.solveKnee(
-                pullBack: 2.0, rolloff: m,
+                pullBack: 4.0, rolloff: m,
                 sceneExtreme: FilmPlacementModule.sceneTopEV,
-                mediumBoundary: FilmPlacementModule.mediumTopEV)
+                mediumBoundary: FilmPlacementModule.mediumTopEV)!
             let excursion = 1e-3
             let placed = FilmPlacementModule.smoothMin(excursion, sol.room, m)
             return excursion - placed   // the compression delta at the excursion

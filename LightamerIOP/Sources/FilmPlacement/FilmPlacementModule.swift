@@ -10,13 +10,19 @@ import Metal
 // smooth-min compression branches (RFC-023 §5.4, formula-level
 // transcription; zero GPL code).
 //
-// Params = the two pull-backs (STOPS, ≥ 0) + the roll-off order m ([1, 8],
-// default 2 — the lowest order with no curvature step at the knee, §5.5).
-// The knees K and the rooms H are DERIVED on the CPU at commit time
-// (RFC-023 §9.2: never typed), from fixed descriptor-absent anchors — the
-// plan's simplified arm (the descriptor/histogram solve is M3-4 FSIM-02;
-// DECISIONS registers the anchors + the m=1 closed form / m≥2
-// bisection+Newton double-write).
+// Params v2 (M3-4-01 T1, KD-1) = the two pull-backs (STOPS, ≥ 0) + the
+// roll-off order m ([1, 8], default 2) + the RESOLVED knees (additive
+// optionals — RFC-023 §8.3's wire discipline: the wire carries resolved
+// K/H, never the pull-backs alone, so changing the paper/descriptor can
+// never silently move an existing edit). The knees are solved by the App
+// resolver at parameter-commit time (the §9.2 exact landing: the scene
+// extreme lands N stops from ITS OWN position, t = a ∓ N — M3-4-01
+// replaced the M3-3 simplified arm t = C ∓ N, whose descriptor-absent
+// anchors put the root in the deep-tangency regime; the m=1 closed form
+// / m≥2 bracketed bisection+Newton double-write carries over verbatim).
+// A v1 archive (nil knees): zero pull-backs = the exact identity;
+// NON-zero pull-backs = the typed degrade to the default identity (the
+// M3-3 corpus never carries one — the edit face did not ship; DECISIONS).
 //
 // DOMAIN: ACEScc in/out (the op sits at v50 20.8, INSIDE the [20.5, 69.9]
 // grade envelope — the layer sub-run wraps it; the curve math decodes to
@@ -46,19 +52,47 @@ public final class FilmPlacementModule: IOPModule {
         /// Roll-off order m, [1, 8], default 2 (§5.5: the lowest order
         /// that removes the curvature step; m=1 keeps the corner).
         public var rolloff: Float
+        // ── Params v2 (M3-4-01 T1, KD-1): the resolved knees. Additive
+        // optionals — v1 archives decode with all four nil (byte-identical
+        // wire for the zero pull-backs). All four present TOGETHER or all
+        // nil (the resolver writes them as one unit; `hasResolvedKnees`).
+        /// Shadow knee K_s, stops relative to mid-gray.
+        public var kShadow: Double?
+        /// Shadow room H_s (K_s → C_s), stops.
+        public var hShadow: Double?
+        /// Highlight knee K_h, stops relative to mid-gray.
+        public var kHighlight: Double?
+        /// Highlight room H_h (C_h → K_h), stops.
+        public var hHighlight: Double?
 
         public init(
-            shadowsPullBack: Float = 0, highlightsPullBack: Float = 0, rolloff: Float = 2
+            shadowsPullBack: Float = 0, highlightsPullBack: Float = 0, rolloff: Float = 2,
+            kShadow: Double? = nil, hShadow: Double? = nil,
+            kHighlight: Double? = nil, hHighlight: Double? = nil
         ) {
             self.shadowsPullBack = shadowsPullBack
             self.highlightsPullBack = highlightsPullBack
             self.rolloff = rolloff
+            self.kShadow = kShadow
+            self.hShadow = hShadow
+            self.kHighlight = kHighlight
+            self.hHighlight = hHighlight
         }
 
         private enum CodingKeys: String, CodingKey {
             case shadowsPullBack = "shadows_pull_back"
             case highlightsPullBack = "highlights_pull_back"
             case rolloff
+            case kShadow = "k_shadow"
+            case hShadow = "h_shadow"
+            case kHighlight = "k_highlight"
+            case hHighlight = "h_highlight"
+        }
+
+        /// The v2 gate: all four resolved knees present (the resolver
+        /// writes them as one unit; nil = a v1 archive face).
+        public var hasResolvedKnees: Bool {
+            kShadow != nil && hShadow != nil && kHighlight != nil && hHighlight != nil
         }
     }
 
@@ -78,24 +112,28 @@ public final class FilmPlacementModule: IOPModule {
 
     /// The module's clamp face (the ContrastModule pattern): rolloff into
     /// [1, 8]; pull-backs clamped non-negative (negative pull-back is
-    /// meaningless — the branches PUSH the extremes out; the M3-4 panel
-    /// owns the finer RFC-023 §9.2 validity UX).
+    /// meaningless — the branches PUSH the extremes out; the panel owns the
+    /// finer RFC-023 §9.2 validity UX). The RESOLVED KNEES RIDE THROUGH —
+    /// they are wire state, not clamped inputs (M3-4-01 KD-1).
     public static func clamped(_ params: Params) -> Params {
         Params(
             shadowsPullBack: max(params.shadowsPullBack, 0),
             highlightsPullBack: max(params.highlightsPullBack, 0),
-            rolloff: min(max(params.rolloff, rolloffRange.lowerBound), rolloffRange.upperBound))
+            rolloff: min(max(params.rolloff, rolloffRange.lowerBound), rolloffRange.upperBound),
+            kShadow: params.kShadow, hShadow: params.hShadow,
+            kHighlight: params.kHighlight, hHighlight: params.hHighlight)
     }
 
-    // MARK: - The simplified-arm anchors (DECISIONS-registered)
+    // MARK: - The fallback anchors (DECISIONS-registered)
 
-    /// Scene-extreme anchors, stops relative to mid-gray (the fixed stand-in
-    /// for the descriptor's measured P99.9/P0.1 — M3-4 replaces with the
-    /// real histogram read; the INTERACTION SEMANTICS are final).
+    /// Scene-extreme anchors, stops relative to mid-gray. M3-4-01 demoted
+    /// these to the NO-FILM fallback face (the M3-3 constants, kept for the
+    /// resolver's fallback arm + the golden anchors — the production
+    /// anchors are the film stats' P99.9/P0.1 and the descriptor's
+    /// useful EV pair, injected at the solve site).
     public static let sceneTopEV = 7.0
     public static let sceneBottomEV = -7.5
-    /// Medium-boundary anchors (where the paper's white/black sit on the
-    /// same axis — the descriptor's C face).
+    /// Medium-boundary fallback anchors (the descriptor-absent C face).
     public static let mediumTopEV = 4.0
     public static let mediumBottomEV = -4.5
 
@@ -112,48 +150,83 @@ public final class FilmPlacementModule: IOPModule {
         public let room: Double
     }
 
+    /// The per-side domain-guard floor: the landing must leave a positive
+    /// room at the root, so a demand landing within this distance of the
+    /// medium boundary is the typed invalid-demand face (§9.2 rule 1).
+    public static let landingRoomFloor = 1e-3
+
     /// Solve (K, H) for one side from the pull-back N. LANDING SEMANTICS
-    /// (the simplified arm; DECISIONS-registered): the extreme lands N
-    /// stops INSIDE the medium boundary — t = C − N (highlights) / C + N
-    /// (shadows) — because the branch asymptote is the boundary itself
-    /// (f(a) = K + g_m(a−K; C−K) ≤ K + H = C always, so a "drag down by N
-    /// from the scene top" landing needs the measured scene extreme; the
-    /// descriptor arm restores the exact §9.2 form in M3-4). The knee
-    /// solves K + σ·g_m(a−K; C−K) = t — the m=1 closed form
-    /// K = t ∓ √((a−t)(C−t)) (§9.2; MINUS highlights / PLUS shadows —
-    /// the branch-direction sign) for m == 1, the bracketed bisection +
-    /// fixed Newton polish for m ≥ 2 (deterministic: fixed iteration
-    /// counts, no adaptive stepping — the FSIM-01b posture).
+    /// (M3-4-01 exact form, RFC-023 §9.2): the extreme lands N stops from
+    /// ITS OWN position — t = a − N (highlights) / a + N (shadows) — so the
+    /// pull-back reads directly off the scene (the M3-3 simplified arm
+    /// t = C ∓ N landed the extreme at a distance from the boundary that
+    /// ignored where the scene actually ended; its descriptor-absent
+    /// anchors put the m≥2 root in a deep-tangency regime — the registered
+    /// M3-3-03 defect). Validity: nothing may land beyond the boundary
+    /// (§9.2 rule 1: highlights N ≥ a − C ⟹ t ≤ C; shadows N ≥ C − a ⟹
+    /// t ≥ C), guarded at `landingRoomFloor` — violated demands answer
+    /// NIL (the typed invalid-demand face; the caller names the slider).
+    ///
+    /// The knee solves K + σ·g_m(a−K; C−K) = t (σ = +1 highlights with
+    /// f = K + g / −1 shadows with f = K − g). m=1: the closed form
+    /// K = t ∓ √((t−a)(t−c)) — MINUS highlights / PLUS shadows (the
+    /// branch-direction sign; the REJECTED root sits on the far side of C
+    /// with a NEGATIVE room — pinned by the golden). m ≥ 2: F(K) is
+    /// strictly INCREASING with the root's slope bounded away from zero
+    /// (F'(K) = 1 − (1+w)^−(m+1)/m·(1 + w^((m+1)/m)) > 0 — exact-form
+    /// roots: 0.3188/0.1672/0.0869/0.0447 for highlights m=1/2/4/8,
+    /// 0.3493/0.1873 for shadows m=1/2 at the §6.1 anchors), so the
+    /// bracketed bisection cannot fail and the fixed Newton polish
+    /// converges in two or three steps (RFC-023 §9.2's prescribed shape).
+    /// Deterministic: fixed iteration counts, no adaptive stepping.
+    @discardableResult
     public static func solveKnee(
         pullBack: Double, rolloff m: Double, sceneExtreme a: Double, mediumBoundary c: Double
-    ) -> KneeSolution {
+    ) -> KneeSolution? {
         guard pullBack > 0 else {
             return KneeSolution(active: false, knee: a, room: abs(c - a))
         }
         let negativeSide = a < 0   // shadows: the landing moves TOWARD mid
-        let t = negativeSide ? c + pullBack : c - pullBack
+        // The exact landing: N stops from the scene extreme ITSELF.
+        let t = negativeSide ? a + pullBack : a - pullBack
+        // §9.2 rule 1's domain guard (the typed invalid-demand face):
+        // highlights t ≤ C − floor / shadows t ≥ C + floor.
+        let beyond = negativeSide ? (t < c + landingRoomFloor) : (t > c - landingRoomFloor)
+        if beyond { return nil }
         // m=1 closed form (also the Newton seed for m ≥ 2). The SIGN is
         // side-dependent: the m=1 landing equation K ∓ g(K−a; K−C) = t
         // solves to K = t ± √((t−a)(t−c)) — MINUS on the highlights
-        // (f = K + g) and PLUS on the shadows (f = K − g; expanding
-        // (K−a)(K−c) = (K−t)(2K−a−c) gives u = t ± √((t−a)(t−c)) with the
-        // sign following the branch's direction). (The golden batch's
-        // independent derivation — M3-3-03; the shared `s` term is the
-        // symmetric part, only the sign flips.)
+        // (f = K + g) and PLUS on the shadows (f = K − g). The rejected
+        // root sits across C with a negative room (H = C − K < 0) — the
+        // physical-domain selection is this sign, and the golden pins the
+        // rejected root's negative room as evidence.
         let s = ((a - t) * (c - t)).squareRoot()
         var knee = negativeSide ? t + s : t - s
         if m > 1 {
-            // F(K) = K + σ·g_m(|a−K|; |C−K|) − t (σ = +1 highlights / −1
-            // shadows) is strictly decreasing in K on BOTH sides with the
-            // landing root a TANGENCY (F' → 0 there — the C^m contact), so
-            // a bare Newton diverges. Safeguarded Newton: each of the 4
-            // polish steps is accepted ONLY inside the live bracket and
-            // only when it improves |F|; otherwise the ladder bisects (the
-            // 40-halving bisection is the convergence workhorse — fixed
-            // iteration counts, no adaptive stepping, FSIM-01b posture).
+            // F(K) = K + σ·g_m(|a−K|; |C−K|) − t is strictly increasing
+            // with the root slope bounded away from zero (exact form —
+            // see the doc comment), so the 40-halving bisection is the
+            // convergence workhorse and each of the 4 polish steps is
+            // accepted ONLY inside the live bracket and only when it
+            // improves |F| (fixed iteration counts, FSIM-01b posture).
             let shadow = negativeSide
             var lo = shadow ? c : -(abs(a) + abs(c) + pullBack + 10.0)
             var hi = shadow ? (abs(a) + abs(c) + pullBack + 10.0) : c
+            // Deterministic bracket expansion (the deep-knee face): at high
+            // m the branch engages slowly (the C^m contact), so the root can
+            // sit far beyond the naive bound (m=8/N=8 at the §6.1 anchors
+            // solves near K≈−60). F is strictly increasing, so walk the
+            // loose end until the signs bracket — a pure function of the
+            // inputs (bit-deterministic; fixed growth, no early exit).
+            if !shadow {
+                while residual(a: a, c: c, t: t, knee: lo, m: m) >= 0 {
+                    lo -= max(16.0, abs(lo) * 0.5)
+                }
+            } else {
+                while residual(a: a, c: c, t: t, knee: hi, m: m) <= 0 {
+                    hi += max(16.0, abs(hi) * 0.5)
+                }
+            }
             for _ in 0..<40 {
                 let mid = (lo + hi) / 2
                 if residual(a: a, c: c, t: t, knee: mid, m: m) < 0 { lo = mid } else { hi = mid }
@@ -177,6 +250,21 @@ public final class FilmPlacementModule: IOPModule {
             }
         }
         return KneeSolution(active: true, knee: knee, room: abs(c - knee))
+    }
+
+    /// The joint validity face (§9.2 rule 2 — the SINGLE source the App
+    /// resolver consumes; `kneeOrderViolation` = the §6.4 fifth-row shape:
+    /// the identity core collapsed/negative, the typed refusal names a
+    /// pull-back slider — never a silent clamp).
+    public enum PlacementValidity: Equatable, Sendable {
+        case valid
+        case kneeOrderViolation
+    }
+
+    public static func validateCoreOrder(
+        highlights: KneeSolution, shadows: KneeSolution
+    ) -> PlacementValidity {
+        shadows.knee < highlights.knee ? .valid : .kneeOrderViolation
     }
 
     /// F(K) = K + σ·g_m(|a−K|; |C−K|) − t with σ = +1 highlights (the
@@ -213,34 +301,39 @@ public final class FilmPlacementModule: IOPModule {
     // MARK: - The scalar placement function (the CPU reference twin —
     // the M3-3-03 golden gate consumes the Float64 face)
 
-    /// The per-pixel scalar face: E = log2(powerNorm(rgb)/0.184) (floored),
-    /// the branch delta, the gain k. Returns (k, onBranch) — `onBranch ==
+    /// The per-pixel scalar face (the CPU reference twin — the golden's
+    /// dual-drive face): E = log2(powerNorm(rgb)/0.184) (floored), the
+    /// branch delta, the gain k. Returns (k, onBranch) — `onBranch ==
     /// false` means the pixel sits in the identity core (k == 1 exactly).
+    ///
+    /// RESOLVED face (v2): the knees ride the params (RFC-023 §8.3 — the
+    /// wire carries resolved K/H; the commit path and this twin consume
+    /// the SAME struct, one truth). The v1 face (nil knees): zero
+    /// pull-backs = the identity; NON-zero v1 = the typed degrade to the
+    /// default identity (M3-4-01 裁决 4 — never a silent re-solve).
     public static func placementGain(
         _ rgb: SIMD3<Double>, params: Params
     ) -> (gain: Double, onBranch: Bool) {
         let clamped = Self.clamped(params)
+        guard clamped.hasResolvedKnees,
+            let kH = clamped.kHighlight, let hH = clamped.hHighlight,
+            let kS = clamped.kShadow, let hS = clamped.hShadow
+        else { return (1.0, false) }
         let ss = Double(rgb.x * rgb.x + rgb.y * rgb.y + rgb.z * rgb.z)
         let n = ss > 0
             ? Double(rgb.x * rgb.x * rgb.x + rgb.y * rgb.y * rgb.y + rgb.z * rgb.z * rgb.z) / ss
             : 0
         let e = Foundation.log2(max(n, Double(scalarFloor)) / 0.184)
-        let hi = solveKnee(
-            pullBack: Double(clamped.highlightsPullBack), rolloff: Double(clamped.rolloff),
-            sceneExtreme: sceneTopEV, mediumBoundary: mediumTopEV)
-        let lo = solveKnee(
-            pullBack: Double(clamped.shadowsPullBack), rolloff: Double(clamped.rolloff),
-            sceneExtreme: sceneBottomEV, mediumBoundary: mediumBottomEV)
-        if hi.active, e > hi.knee {
-            let delta = e - hi.knee
+        if clamped.highlightsPullBack > 0, e > kH {
+            let delta = e - kH
             // Highlights compress DOWN: δ = −(Δ − g_m(Δ)) ≤ 0.
-            let d = -(delta - smoothMin(delta, hi.room, Double(clamped.rolloff)))
+            let d = -(delta - smoothMin(delta, hH, Double(clamped.rolloff)))
             return (Foundation.exp2(d), true)
         }
-        if lo.active, e < lo.knee {
-            let delta = lo.knee - e
+        if clamped.shadowsPullBack > 0, e < kS {
+            let delta = kS - e
             // Shadows compress UP: δ = +(Δ − g_m(Δ)) ≥ 0.
-            let d = delta - smoothMin(delta, lo.room, Double(clamped.rolloff))
+            let d = delta - smoothMin(delta, hS, Double(clamped.rolloff))
             return (Foundation.exp2(d), true)
         }
         return (1.0, false)
@@ -264,23 +357,28 @@ public final class FilmPlacementModule: IOPModule {
         piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
         let clamped = Self.clamped(params)
         let armed = clamped.shadowsPullBack > 0 || clamped.highlightsPullBack > 0
-        guard armed else {
+        // The identity faces: no armed branch (the exact identity), or a
+        // v1 archive with NON-zero pull-backs (nil knees — the M3-4-01
+        // 裁决 4 typed degrade: the resolve happens in the App resolver
+        // BEFORE commit; a v1 non-zero archive is degraded to the default
+        // identity, never re-solved against hidden anchors).
+        guard armed, clamped.hasResolvedKnees,
+            let kH = clamped.kHighlight, let hH = clamped.hHighlight,
+            let kS = clamped.kShadow, let hS = clamped.hShadow
+        else {
             // The identity point: no uniforms — the kernel takes the
             // bit-exact copy path off the flags alone.
             piece.data = nil
             committed = clamped
             return
         }
-        // The knees solve ONCE here (CPU, Float64) — never per pixel.
-        let hi = Self.solveKnee(
-            pullBack: Double(clamped.highlightsPullBack), rolloff: Double(clamped.rolloff),
-            sceneExtreme: Self.sceneTopEV, mediumBoundary: Self.mediumTopEV)
-        let lo = Self.solveKnee(
-            pullBack: Double(clamped.shadowsPullBack), rolloff: Double(clamped.rolloff),
-            sceneExtreme: Self.sceneBottomEV, mediumBoundary: Self.mediumBottomEV)
+        // The knees arrive RESOLVED (the App solver's output — RFC-023
+        // §9.2: solved once per commit on the CPU, never per pixel; the
+        // commit just packs the uniforms, the FilmMethodBox solved-pack
+        // shape).
         var u = FilmPlacementUniforms(
-            K_h: Float(hi.knee), H_h: Float(max(hi.room, 1e-6)),
-            K_s: Float(lo.knee), H_s: Float(max(lo.room, 1e-6)),
+            K_h: Float(kH), H_h: Float(max(hH, 1e-6)),
+            K_s: Float(kS), H_s: Float(max(hS, 1e-6)),
             m: clamped.rolloff,
             flagHi: clamped.highlightsPullBack > 0 ? 1 : 0,
             flagLo: clamped.shadowsPullBack > 0 ? 1 : 0,

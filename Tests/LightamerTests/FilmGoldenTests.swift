@@ -37,11 +37,13 @@ import XCTest
 //      per voxel (fixed-seed LCG voxels) — ≤1e-5 relative (Float64 bake vs
 //      Float64 recomputation, f32 STORAGE widening only), plus the domain
 //      calibration consistency face.
-//   3. THE PLACEMENT CURVE MATH: the g_m family vs independent
-//      recomputation (the m=1 closed form EXACT; the m=2 landing vs an
-//      independent bisection), the delta-form identity bit-exact face, the
-//      monotonicity sweep, and the hard-asymptote (the branch never crosses
-//      the medium boundary).
+//   3. THE PLACEMENT CURVE MATH (M3-4-01 exact-landing re-pin): the g_m
+//      family vs independent recomputation, the RFC-023 §6.4 four-row
+//      eight-value PUBLIC reference vector + the joint K_s<K_h ordering
+//      gate + the fifth-row typed rejection + the per-side domain guard,
+//      the resolved-face per-pixel golden (core bit-exact), the
+//      monotonicity sweep, the hard-asymptote, and the v1 typed-degrade
+//      face (nil knees + non-zero pull-backs = the identity).
 //   4. THE NEUTRAL CLOSURE (solver × pipeline): a neutral gray field
 //      through the full fused chain (negative segment ⊕ solved neutral
 //      pack ⊕ print LUT, strength 1, gain 1) stays neutral — the RFC-028
@@ -1116,7 +1118,7 @@ final class FilmGoldenTests: XCTestCase {
         XCTAssertLessThan(bounds.lo.z, bounds.lo.y, "B carries the larger Y headroom")
     }
 
-    // MARK: - Gate 3: the placement curve math
+    // MARK: - Gate 3: the placement curve math (M3-4-01 exact-landing re-pin)
 
     // (The ACEScc transfer, locally double-written from the public standard
     // S-2014-004 — the reference face stays self-contained: the (0, 2^-15)
@@ -1149,70 +1151,274 @@ final class FilmGoldenTests: XCTestCase {
         return delta * Foundation.pow(1 + w, -1 / m)
     }
 
-    /// The m=1 closed-form knee (§9.2): K = t − √((a−t)(C−t)) — the
-    /// solver's closed form is EXACT for m=1; the independent check.
+    /// The EXACT landing knee (M3-4-01): t = a ∓ N, F(K) = K + σ·g_m(|a−K|;
+    /// |C−K|) − t solved by an in-file ladder (m=1 closed form exact; m≥2 a
+    /// 200-step bisection — F is strictly increasing, bracket [lo, C] or
+    /// [C, hi]). Never touches the production solver (checker ③).
+    private func refSolveKnee(
+        pullBack n: Double, rolloff m: Double, sceneExtreme a: Double, mediumBoundary c: Double
+    ) -> (knee: Double, room: Double, landing: Double)? {
+        guard n > 0 else { return nil }
+        let negativeSide = a < 0
+        let t = negativeSide ? a + n : a - n
+        let floor = 1e-3
+        if negativeSide ? (t < c + floor) : (t > c - floor) { return nil }
+        func f(_ k: Double) -> Double {
+            let sign: Double = k < c ? 1 : -1
+            return k + sign * refSmoothMin(abs(a - k), abs(c - k), m) - t
+        }
+        var lo = negativeSide ? c : -(abs(a) + abs(c) + n + 10.0)
+        var hi = negativeSide ? (abs(a) + abs(c) + n + 10.0) : c
+        // Deterministic bracket expansion (the deep-knee face — high m
+        // engages slowly; same shape as the production solver's walk).
+        if !negativeSide {
+            while f(lo) >= 0 { lo -= max(16.0, abs(lo) * 0.5) }
+        } else {
+            while f(hi) <= 0 { hi += max(16.0, abs(hi) * 0.5) }
+        }
+        for _ in 0..<200 {
+            let mid = (lo + hi) / 2
+            if f(mid) < 0 { lo = mid } else { hi = mid }
+        }
+        let knee = (lo + hi) / 2
+        return (knee, abs(c - knee), t)
+    }
+
+    /// The in-file scalar reference face (the placement twin's oracle —
+    /// never the production `placementGain`).
+    private func refPlacementGain(
+        _ rgb: SIMD3<Double>, pullBacks: (shadows: Float, highlights: Float),
+        rolloff m: Float, knees: (kH: Double, hH: Double, kS: Double, hS: Double)
+    ) -> (gain: Double, onBranch: Bool) {
+        let ss = rgb.x * rgb.x + rgb.y * rgb.y + rgb.z * rgb.z
+        let n = ss > 0 ? (rgb.x*rgb.x*rgb.x + rgb.y*rgb.y*rgb.y + rgb.z*rgb.z*rgb.z) / ss : 0
+        let e = Foundation.log2(max(n, Double(FilmPlacementModule.scalarFloor)) / 0.184)
+        if pullBacks.highlights > 0, e > knees.kH {
+            let delta = e - knees.kH
+            return (
+                Foundation.exp2(-(delta - refSmoothMin(delta, knees.hH, Double(m)))), true)
+        }
+        if pullBacks.shadows > 0, e < knees.kS {
+            let delta = knees.kS - e
+            return (
+                Foundation.exp2(delta - refSmoothMin(delta, knees.hS, Double(m))), true)
+        }
+        return (1.0, false)
+    }
+
+    /// obs-5: the direct-launch host swallows `print` — measured values ride
+    /// XCTAttachment so the run artifact carries them.
+    private func attachMeasured(_ text: String, name: String) {
+        let attachment = XCTAttachment(string: text)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// The m=1 closed form (§9.2): K = t ∓ √((t−a)(t−c)) with the EXACT
+    /// landing t = a ∓ N — exact for m=1, valid demands only. The REJECTED
+    /// root (the opposite sign) sits across the boundary with a NEGATIVE
+    /// room — pinned as evidence for the physical-domain root selection.
     func testPlacementKneeMClosedFormExact() {
-        for pullBack in [0.5, 1.5, 3.0, 6.0] {
+        // The module's fallback anchors: a=7/C=4 → the valid minimum N=3.0.
+        let a = FilmPlacementModule.sceneTopEV
+        let c = FilmPlacementModule.mediumTopEV
+        for pullBack in [3.05, 3.5, 4.5, 6.0] {
             let sol = FilmPlacementModule.solveKnee(
-                pullBack: pullBack, rolloff: 1,
-                sceneExtreme: FilmPlacementModule.sceneTopEV,
-                mediumBoundary: FilmPlacementModule.mediumTopEV)
-            let t = FilmPlacementModule.mediumTopEV - pullBack
-            let a = FilmPlacementModule.sceneTopEV
-            let c = FilmPlacementModule.mediumTopEV
-            let expected = t - ((a - t) * (c - t)).squareRoot()
+                pullBack: pullBack, rolloff: 1, sceneExtreme: a, mediumBoundary: c)
+            let t = a - pullBack
+            let expected = t - ((t - a) * (t - c)).squareRoot()
             XCTAssertLessThanOrEqual(
-                abs(sol.knee - expected), 1e-9,
+                abs(sol!.knee - expected), 1e-9,
                 "m=1 knee vs the closed form at pull-back \(pullBack)")
-            // The landing equation: K + g(a−K; C−K) == t.
-            let landing = sol.knee
-                + refSmoothMin(a - sol.knee, sol.room, 1)
+            // The landing equation: K + g(a−K; C−K) == t (EXACT landing).
+            let landing = sol!.knee
+                + refSmoothMin(a - sol!.knee, sol!.room, 1)
             XCTAssertEqual(landing, t, accuracy: 1e-9)
+            // The rejected root: K = t + √ sits across C (negative room).
+            let rejected = t + ((t - a) * (t - c)).squareRoot()
+            XCTAssertLessThan(c - rejected, 0, "the rejected root's room is negative")
         }
     }
 
-    /// The m=2 landing vs an INDEPENDENT bisection on the documented
-    /// residual F(K) = K + g_m(a−K; C−K) − t (the solver's own bisection is
-    /// the subject; the independent ladder is the oracle).
+    /// The m≥2 landing vs an INDEPENDENT in-file bisection on the exact
+    /// residual F(K) = K + σ·g_m(|a−K|; |C−K|) − t with t = a ∓ N (the
+    /// solver's own ladder is the subject; the in-file ladder is the
+    /// oracle). Valid demands only (N ≥ a − C per side).
     func testPlacementKneeM2MatchesIndependentBisection() {
-        for pullBack in [1.0, 2.5, 5.0] {
-            for m in [2.0, 4.0] {
-                let a = FilmPlacementModule.sceneTopEV
-                let c = FilmPlacementModule.mediumTopEV
-                let t = c - pullBack
-                func residual(_ k: Double) -> Double {
-                    k + refSmoothMin(a - k, c - k, m) - t
-                }
-                // Independent bracket + 200-step bisection (F is strictly
-                // decreasing on the highlights side).
-                var lo = -(abs(a) + abs(c) + pullBack + 10.0)
-                var hi = c
-                for _ in 0..<200 {
-                    let mid = (lo + hi) / 2
-                    if residual(mid) < 0 { lo = mid } else { hi = mid }
-                }
-                let expected = (lo + hi) / 2
+        let (a, c) = (FilmPlacementModule.sceneTopEV, FilmPlacementModule.mediumTopEV)
+        let (aS, cS) = (FilmPlacementModule.sceneBottomEV, FilmPlacementModule.mediumBottomEV)
+        for pullBack in [3.1, 4.05, 5.5] {
+            for m in [2.0, 4.0, 8.0] {
                 let sol = FilmPlacementModule.solveKnee(
                     pullBack: pullBack, rolloff: m, sceneExtreme: a, mediumBoundary: c)
+                let ref = refSolveKnee(
+                    pullBack: pullBack, rolloff: m, sceneExtreme: a, mediumBoundary: c)
                 XCTAssertLessThanOrEqual(
-                    abs(sol.knee - expected), 1e-8,
-                    "m=\(m) knee vs the independent bisection at \(pullBack)")
+                    abs(sol!.knee - ref!.knee), 1e-8,
+                    "m=\(m) highlight knee vs the independent bisection at \(pullBack)")
+                XCTAssertEqual(
+                    ref!.landing, a - pullBack, accuracy: 1e-12,
+                    "the reference lands the extreme N stops from ITSELF")
+                let solS = FilmPlacementModule.solveKnee(
+                    pullBack: pullBack, rolloff: m, sceneExtreme: aS, mediumBoundary: cS)
+                let refS = refSolveKnee(
+                    pullBack: pullBack, rolloff: m, sceneExtreme: aS, mediumBoundary: cS)
+                XCTAssertLessThanOrEqual(
+                    abs(solS!.knee - refS!.knee), 1e-8,
+                    "m=\(m) shadow knee vs the independent bisection at \(pullBack)")
             }
         }
+    }
+
+    // The RFC-023 §6.4 published reference table (the golden vector source —
+    // an independent truth this file never derives from the production
+    // solver): 15 EV scene → 8.5 EV medium, m = 2,
+    // a_h=+8 / C_h=+4.2 / a_s=−7 / C_s=−4.3.
+    static let rfc64Anchors =
+        (aH: 8.0, cH: 4.2, aS: -7.0, cS: -4.3, m: 2.0)
+    static let rfc64Rows: [(nH: Double, nS: Double, kH: Double, kS: Double, core: Double)] = [
+        (3.90, 2.80, +2.278, -2.703, 4.98),
+        (4.05, 2.95, +1.231, -1.783, 3.01),
+        (4.50, 2.95, -1.011, -1.783, 0.77),
+        (4.05, 3.40, +1.231, +0.266, 0.97),
+    ]
+    /// The §6.4 fifth row: knees cross — the typed-refusal shape.
+    static let rfc64CrossingRow = (nH: 4.50, nS: 3.40)
+
+    /// THE PUBLIC REFERENCE VECTOR (the M3-4-01 re-pin's reverse pin): the
+    //  §6.4 four rows' eight knee values recomputed by the IN-FILE
+    /// reference and matched against the PUBLISHED table (±5e-4 — the
+    /// three-decimal published precision), then the production solver
+    /// matched against the in-file reference (≤1e-8). Measured residuals
+    /// ride XCTAttachment (obs-5).
+    func testPlacementReferenceVectorRFC023Section64() {
+        let a = Self.rfc64Anchors
+        var report = "RFC-023 §6.4 exact-landing knees (m=\(a.m))\n"
+        var worstPublished = 0.0
+        var worstProduction = 0.0
+        for row in Self.rfc64Rows {
+            let refH = refSolveKnee(
+                pullBack: row.nH, rolloff: a.m, sceneExtreme: a.aH, mediumBoundary: a.cH)
+            let refS = refSolveKnee(
+                pullBack: row.nS, rolloff: a.m, sceneExtreme: a.aS, mediumBoundary: a.cS)
+            XCTAssertLessThanOrEqual(
+                abs(refH!.knee - row.kH), 5e-4,
+                "row (\(row.nH),\(row.nS)): K_h vs the published +\(row.kH)")
+            XCTAssertLessThanOrEqual(
+                abs(refS!.knee - row.kS), 5e-4,
+                "row (\(row.nH),\(row.nS)): K_s vs the published \(row.kS)")
+            worstPublished = max(
+                worstPublished, abs(refH!.knee - row.kH), abs(refS!.knee - row.kS))
+            // The production solver consumes the SAME demand (the anchors
+            // are injected — the §6.4 scene, not the module's fallback).
+            let prodH = FilmPlacementModule.solveKnee(
+                pullBack: row.nH, rolloff: a.m, sceneExtreme: a.aH, mediumBoundary: a.cH)
+            let prodS = FilmPlacementModule.solveKnee(
+                pullBack: row.nS, rolloff: a.m, sceneExtreme: a.aS, mediumBoundary: a.cS)
+            XCTAssertLessThanOrEqual(
+                abs(prodH!.knee - refH!.knee), 1e-8,
+                "production K_h == in-file reference at (\(row.nH),\(row.nS))")
+            XCTAssertLessThanOrEqual(
+                abs(prodS!.knee - refS!.knee), 1e-8,
+                "production K_s == in-file reference at (\(row.nH),\(row.nS))")
+            worstProduction = max(
+                worstProduction, abs(prodH!.knee - refH!.knee),
+                abs(prodS!.knee - refS!.knee))
+            // The landing lands the extreme N stops from ITSELF.
+            let landedH = prodH!.knee
+                + refSmoothMin(a.aH - prodH!.knee, prodH!.room, a.m)
+            let landedS = prodS!.knee
+                - refSmoothMin(prodS!.knee - a.aS, prodS!.room, a.m)
+            XCTAssertEqual(landedH, a.aH - row.nH, accuracy: 1e-8)
+            XCTAssertEqual(landedS, a.aS + row.nS, accuracy: 1e-8)
+            report += String(
+                format: "N=(%.2f,%.2f) K_h=%+.4f K_s=%+.4f core=%.3f\n",
+                row.nH, row.nS, prodH!.knee, prodS!.knee, prodH!.knee - prodS!.knee)
+        }
+        report += String(
+            format: "worst vs published %.2e (gate 5e-4); worst production-vs-ref %.2e "
+                + "(gate 1e-8)", worstPublished, worstProduction)
+        attachMeasured(report, name: "rfc023-section64-knees")
+    }
+
+    /// THE JOINT ORDERING GATE (the reverse pin of the kernel's
+    /// "K_s < K_h by construction"): every VALID §6.4 pair keeps the knees
+    /// ordered (the identity core positive), and the fifth-row crossing
+    /// pair is the typed `.kneeOrderViolation` — the single-source
+    /// validator the App resolver consumes (never a silent clamp).
+    func testPlacementOrderingGateAndCrossRejection() {
+        let a = Self.rfc64Anchors
+        for row in Self.rfc64Rows {
+            let h = FilmPlacementModule.solveKnee(
+                pullBack: row.nH, rolloff: a.m, sceneExtreme: a.aH, mediumBoundary: a.cH)
+            let s = FilmPlacementModule.solveKnee(
+                pullBack: row.nS, rolloff: a.m, sceneExtreme: a.aS, mediumBoundary: a.cS)
+            XCTAssertEqual(
+                FilmPlacementModule.validateCoreOrder(highlights: h!, shadows: s!),
+                .valid,
+                "the valid row (\(row.nH),\(row.nS)) keeps K_s < K_h (core \(row.core))")
+            XCTAssertGreaterThan(h!.knee - s!.knee, 0)
+        }
+        // The crossing pair: both sides individually VALID (each lands
+        // inside its own boundary) — the JOINT face is what refuses.
+        let h5 = FilmPlacementModule.solveKnee(
+            pullBack: Self.rfc64CrossingRow.nH, rolloff: a.m,
+            sceneExtreme: a.aH, mediumBoundary: a.cH)
+        let s5 = FilmPlacementModule.solveKnee(
+            pullBack: Self.rfc64CrossingRow.nS, rolloff: a.m,
+            sceneExtreme: a.aS, mediumBoundary: a.cS)
+        XCTAssertNotNil(h5)
+        XCTAssertNotNil(s5)
+        XCTAssertGreaterThan(s5!.knee, h5!.knee, "the §6.4 fifth row crosses")
+        XCTAssertEqual(
+            FilmPlacementModule.validateCoreOrder(highlights: h5!, shadows: s5!),
+            .kneeOrderViolation,
+            "the crossing pair is the typed refusal (the slider-naming face)")
+    }
+
+    /// The per-side DOMAIN GUARD (§9.2 rule 1): a demand landing beyond
+    /// (or within the floor of) the boundary answers nil — the typed
+    /// invalid-demand face. N = 0 stays the inactive identity (not nil).
+    func testPlacementDomainGuardRejectsBeyondBoundary() {
+        let (a, c) = (FilmPlacementModule.sceneTopEV, FilmPlacementModule.mediumTopEV)
+        let (aS, cS) = (FilmPlacementModule.sceneBottomEV, FilmPlacementModule.mediumBottomEV)
+        // Highlights: a−C = 3.0 — anything below (+floor) is invalid.
+        for n in [0.5, 1.5, 2.5, 2.999] {
+            XCTAssertNil(
+                FilmPlacementModule.solveKnee(
+                    pullBack: n, rolloff: 2, sceneExtreme: a, mediumBoundary: c),
+                "highlight pull-back \(n) < a−C lands beyond the boundary → invalid")
+        }
+        // Shadows: C−a = 3.0 — same face.
+        for n in [0.5, 1.5, 2.5, 2.999] {
+            XCTAssertNil(
+                FilmPlacementModule.solveKnee(
+                    pullBack: n, rolloff: 2, sceneExtreme: aS, mediumBoundary: cS),
+                "shadow pull-back \(n) < C−a lands beyond the boundary → invalid")
+        }
+        // The valid minimum: N = a−C + floor lands just inside (a real
+        // solve with a small but positive room).
+        let edge = FilmPlacementModule.solveKnee(
+            pullBack: 3.01, rolloff: 2, sceneExtreme: a, mediumBoundary: c)
+        XCTAssertNotNil(edge)
+        XCTAssertGreaterThan(edge!.room, 0)
+        // N = 0 → the inactive identity (NOT the invalid face).
+        let off = FilmPlacementModule.solveKnee(
+            pullBack: 0, rolloff: 2, sceneExtreme: a, mediumBoundary: c)
+        XCTAssertFalse(off!.active)
     }
 
     /// The monotonicity + hard-asymptote sweep: g_m is monotone in Δ and
     /// bounded by Δ; each branch's face approaches its OWN medium boundary
     /// from the inside (highlight branch placed ≤ C_h, shadow branch
-    /// placed ≥ C_s — one-sided params, the per-branch asymptote contract).
-    /// THE JOINT two-sided face (both branches armed) is deliberately NOT
-    /// asserted here: at m ≥ 2 the landing equation's roots solve deep
-    /// (K_h can drop below K_s — the registered M3-3-03-DECISIONS defect
-    /// analysis; zero user-visible face until M3-4's descriptor arm
-    /// replaces the anchors).
+    /// placed ≥ C_s). With the exact landing the placed extreme IS the
+    /// landing point t (pinned ≤/≥ the boundary). Valid demands only.
     func testPlacementAsymptoteNeverCrossesTheMediumBoundary() {
+        let (a, c) = (FilmPlacementModule.sceneTopEV, FilmPlacementModule.mediumTopEV)
+        let (aS, cS) = (FilmPlacementModule.sceneBottomEV, FilmPlacementModule.mediumBottomEV)
         for m in [1.0, 2.0, 8.0] {
-            for pullBack in [0.5, 1.0, 2.0, 4.0, 8.0] {
+            for pullBack in [3.25, 3.5, 4.0, 5.0, 8.0] {
                 // g_m monotone rising in Δ and ≤ Δ (the smooth-min bound).
                 var prev = refSmoothMin(1e-6, 1.0, m)
                 for step in 1..<40 {
@@ -1222,61 +1428,116 @@ final class FilmGoldenTests: XCTestCase {
                     XCTAssertLessThanOrEqual(g, d, "g_m ≤ Δ (the smooth-min bound)")
                     prev = g
                 }
-                // Highlight branch ALONE: the placed scene top stays at or
-                // inside the paper-white boundary.
+                // Highlight branch ALONE: the placed scene top lands at the
+                // exact landing t and never crosses the paper-white boundary.
                 let hi = FilmPlacementModule.solveKnee(
-                    pullBack: pullBack, rolloff: m,
-                    sceneExtreme: FilmPlacementModule.sceneTopEV,
-                    mediumBoundary: FilmPlacementModule.mediumTopEV)
-                let placedTop = hi.knee + refSmoothMin(
-                    FilmPlacementModule.sceneTopEV - hi.knee, hi.room, m)
+                    pullBack: pullBack, rolloff: m, sceneExtreme: a, mediumBoundary: c)
+                let placedTop = hi!.knee + refSmoothMin(a - hi!.knee, hi!.room, m)
+                XCTAssertEqual(placedTop, a - pullBack, accuracy: 1e-8)
                 XCTAssertLessThanOrEqual(
-                    placedTop, FilmPlacementModule.mediumTopEV + 1e-9,
+                    placedTop, c + 1e-9,
                     "the highlight branch never crosses the paper-white boundary")
-                // Shadow branch ALONE: the placed scene bottom stays at or
-                // inside the paper-black boundary.
+                // Shadow branch ALONE: the placed scene bottom lands at t
+                // and never crosses the paper-black boundary.
                 let lo = FilmPlacementModule.solveKnee(
-                    pullBack: pullBack, rolloff: m,
-                    sceneExtreme: FilmPlacementModule.sceneBottomEV,
-                    mediumBoundary: FilmPlacementModule.mediumBottomEV)
-                let placedBottom = lo.knee - refSmoothMin(
-                    lo.knee - FilmPlacementModule.sceneBottomEV, lo.room, m)
+                    pullBack: pullBack, rolloff: m, sceneExtreme: aS, mediumBoundary: cS)
+                let placedBottom = lo!.knee - refSmoothMin(
+                    lo!.knee - aS, lo!.room, m)
+                XCTAssertEqual(placedBottom, aS + pullBack, accuracy: 1e-8)
                 XCTAssertGreaterThanOrEqual(
-                    placedBottom, FilmPlacementModule.mediumBottomEV - 1e-9,
+                    placedBottom, cS - 1e-9,
                     "the shadow branch never crosses the paper-black boundary")
             }
         }
     }
 
     /// The m=1 SHADOW landing (the golden batch's regression gate for the
-    /// closed-form sign fix): the shadow closed form K = t + √((t−a)(t−c))
-    /// satisfies its landing equation EXACTLY (the pre-fix sign landed
-    /// f(a) 1.9 stops off — M3-3-03-DECISIONS).
+    /// closed-form sign fix, re-pinned to the exact landing): the shadow
+    /// closed form K = t + √((t−a)(t−c)) with t = a + N satisfies its
+    /// landing equation EXACTLY.
     func testPlacementM1ShadowClosedFormLandsExactly() {
-        for pullBack in [0.5, 1.0, 1.5, 3.0, 6.0] {
-            let a = FilmPlacementModule.sceneBottomEV
-            let c = FilmPlacementModule.mediumBottomEV
+        let a = FilmPlacementModule.sceneBottomEV
+        let c = FilmPlacementModule.mediumBottomEV
+        for pullBack in [3.05, 3.5, 4.5, 6.0] {
             let sol = FilmPlacementModule.solveKnee(
                 pullBack: pullBack, rolloff: 1, sceneExtreme: a, mediumBoundary: c)
-            let t = c + pullBack
+            let t = a + pullBack
             // The independent closed form: K = t + √((t−a)(t−c)).
             let expected = t + ((t - a) * (t - c)).squareRoot()
             XCTAssertLessThanOrEqual(
-                abs(sol.knee - expected), 1e-9,
+                abs(sol!.knee - expected), 1e-9,
                 "m=1 shadow knee vs the independent closed form at \(pullBack)")
             // The landing equation: f(a) = K − g(K−a; K−C) = t, exactly.
-            let landing = sol.knee - refSmoothMin(sol.knee - a, sol.room, 1)
+            let landing = sol!.knee - refSmoothMin(sol!.knee - a, sol!.room, 1)
             XCTAssertEqual(landing, t, accuracy: 1e-9)
         }
     }
 
-    /// The per-pixel placement golden: ARMED-side runs with SMALL pull-backs
-    /// (each run keeps a live identity core + one live branch — the joint
-    /// two-sided params at m ≥ 2 solve the landing equation's deep root,
-    /// the registered DECISIONS defect, and would leave no core at all).
-    /// Branch pixels vs the independent Float64 scalar reference (compared
-    /// DECODED to linear — L048); CORE pixels BIT-EXACT (the delta form's
-    /// δ≡0 verbatim-pixel discipline).
+    /// Build the v2 params the way the App resolver does: solve both sides
+    /// against the module's FALLBACK anchors (the §6.4 shape at the M3-3
+    /// constants) and store the resolved knees in the params. Valid
+    /// demands only (the fallback minimum is 3.0 per side).
+    private func makeResolvedParams(
+        shadows: Float, highlights: Float, rolloff: Float = 2
+    ) -> FilmPlacementModule.Params {
+        let hi = FilmPlacementModule.solveKnee(
+            pullBack: Double(highlights), rolloff: Double(rolloff),
+            sceneExtreme: FilmPlacementModule.sceneTopEV,
+            mediumBoundary: FilmPlacementModule.mediumTopEV)
+        let lo = FilmPlacementModule.solveKnee(
+            pullBack: Double(shadows), rolloff: Double(rolloff),
+            sceneExtreme: FilmPlacementModule.sceneBottomEV,
+            mediumBoundary: FilmPlacementModule.mediumBottomEV)
+        return FilmPlacementModule.Params(
+            shadowsPullBack: shadows, highlightsPullBack: highlights, rolloff: rolloff,
+            kShadow: lo?.knee, hShadow: lo?.room,
+            kHighlight: hi?.knee, hHighlight: hi?.room)
+    }
+
+    /// The v1 typed degrade (M3-4-01 裁决 4): nil knees + non-zero
+    /// pull-backs = the DEFAULT IDENTITY at every face (commit packs NO
+    /// uniforms, the scalar twin answers the core) — never a silent
+    /// re-solve against hidden anchors. The v1 zero face stays the exact
+    /// identity (byte-identical to the M3-3 shape).
+    func testV1ParamsTypedDegradeToIdentity() {
+        // Non-zero v1: the commit packs NO uniforms.
+        let module = FilmPlacementModule()
+        var piece = IOPiece()
+        module.commitParams(
+            FilmPlacementModule.Params(
+                shadowsPullBack: 1.5, highlightsPullBack: 2.0, rolloff: 2),
+            into: &piece)
+        XCTAssertNil(
+            piece.data,
+            "a v1 non-zero archive degrades to the identity (no uniforms)")
+        // The scalar twin answers the core on the same archive.
+        let (gain, onBranch) = FilmPlacementModule.placementGain(
+            SIMD3(0.184 * 64, 0.184, 0.184),
+            params: FilmPlacementModule.Params(
+                shadowsPullBack: 0, highlightsPullBack: 4.0, rolloff: 2))
+        XCTAssertEqual(gain, 1.0)
+        XCTAssertFalse(onBranch)
+        // The v1 ZERO face: still the exact identity (and round-trips).
+        var zeroPiece = IOPiece()
+        FilmPlacementModule().commitParams(FilmPlacementModule.Params(), into: &zeroPiece)
+        XCTAssertNil(zeroPiece.data)
+        // v1 wire bytes: the knees are encodeIfPresent — a nil-knee params
+        // encodes WITHOUT the four v2 keys (v1 archives byte-compatible).
+        let json = String(
+            data: ParamsCoding.encode(
+                FilmPlacementModule.Params(shadowsPullBack: 0, highlightsPullBack: 0)),
+            encoding: .utf8) ?? ""
+        XCTAssertFalse(json.contains("k_shadow"), "v1 wire carries no knee keys")
+        XCTAssertFalse(json.contains("k_highlight"), "v1 wire carries no knee keys")
+    }
+
+    /// The per-pixel placement golden, RESOLVED face (M3-4-01 dual-drive):
+    /// the params carry knees resolved by the IN-FILE reference (never the
+    /// production solver); commitParams must pack THOSE knees, the kernel
+    /// must place with them, and the scalar twin must answer the SAME
+    /// face. Branch pixels vs the in-file reference (compared DECODED to
+    /// linear — L048); CORE pixels BIT-EXACT (the delta form's δ≡0
+    /// verbatim discipline); production placementGain == reference.
     func testPlacementKernelMatchesFloat64ScalarReferenceAndCoreIsBitExact() async throws {
         let metal = try await makeMetal()
         try await metal.registerDefaultLibrary(in: FilmPlacementKernel.metalBundle)
@@ -1290,78 +1551,100 @@ final class FilmGoldenTests: XCTestCase {
             }
             encoded[index * 4 + 3] = 1.0
         }
-        for (label, params) in [
-            "highlights": FilmPlacementModule.Params(
-                shadowsPullBack: 0, highlightsPullBack: 0.5, rolloff: 2),
-            "shadows": FilmPlacementModule.Params(
-                shadowsPullBack: 0.5, highlightsPullBack: 0, rolloff: 2),
-        ] {
-            let module = FilmPlacementModule(device: metal.device)
-            var piece = IOPiece()
-            module.commitParams(params, into: &piece)
-            let (input, output) = makePlane(metal, texels: encoded)
-            try await module.process(
-                input: input, output: output, roiIn: ROI(), roiOut: ROI(),
-                piece: &piece, metal: metal)
-            let actual = readPlane(output, metal: metal)
+        // The reference knees at the fallback anchors (both sides valid —
+        // the joint core spans [-K_s, K_h] and both branches stay live).
+        let m = Float(2.0)
+        let nS = Float(3.05), nH = Float(3.25)
+        let refHi = refSolveKnee(
+            pullBack: Double(nH), rolloff: Double(m),
+            sceneExtreme: FilmPlacementModule.sceneTopEV,
+            mediumBoundary: FilmPlacementModule.mediumTopEV)!
+        let refLo = refSolveKnee(
+            pullBack: Double(nS), rolloff: Double(m),
+            sceneExtreme: FilmPlacementModule.sceneBottomEV,
+            mediumBoundary: FilmPlacementModule.mediumBottomEV)!
+        let params = FilmPlacementModule.Params(
+            shadowsPullBack: nS, highlightsPullBack: nH, rolloff: m,
+            kShadow: refLo.knee, hShadow: refLo.room,
+            kHighlight: refHi.knee, hHighlight: refHi.room)
+        // The commit must pack the REFERENCE knees (the wire discipline).
+        let module = FilmPlacementModule(device: metal.device)
+        var piece = IOPiece()
+        module.commitParams(params, into: &piece)
+        let (input, output) = makePlane(metal, texels: encoded)
+        try await module.process(
+            input: input, output: output, roiIn: ROI(), roiOut: ROI(),
+            piece: &piece, metal: metal)
+        let actual = readPlane(output, metal: metal)
 
-            var coreChecked = 0
-            var branchChecked = 0
-            var worstBranch = 0.0
-            for index in 0..<(fieldWidth * fieldHeight) {
-                let lin = SIMD3<Double>(
-                    Double(field[index * 4]), Double(field[index * 4 + 1]),
-                    Double(field[index * 4 + 2]))
-                let (_, onBranch) = FilmPlacementModule.placementGain(lin, params: params)
-                if !onBranch {
-                    // The delta form's core face: the RAW texel verbatim.
-                    for c in 0..<4 {
-                        XCTAssertEqual(
-                            actual[index * 4 + c].bitPattern,
-                            encoded[index * 4 + c].bitPattern,
-                            "\(label) core pixel \(index) must be the raw texel "
-                                + "verbatim (δ≡0)")
-                    }
-                    coreChecked += 1
-                } else {
-                    // The reference consumes the EXACT f32-encoded input the
-                    // kernel decoded (the encoded f32 storage is transport —
-                    // L048's widened-reference discipline).
-                    let kernelInput = SIMD3<Double>(
-                        Self.acesccDecodeForTest(Double(encoded[index * 4])),
-                        Self.acesccDecodeForTest(Double(encoded[index * 4 + 1])),
-                        Self.acesccDecodeForTest(Double(encoded[index * 4 + 2])))
-                    let (exactGain, _) = FilmPlacementModule.placementGain(
-                        kernelInput, params: params)
-                    let placed = kernelInput * exactGain
-                    for c in 0..<3 {
-                        let gotLinear = Self.acesccDecodeForTest(
-                            Double(actual[index * 4 + c]))
-                        let scale = max(abs(placed[c]), 1e-5)
-                        worstBranch = max(
-                            worstBranch, abs(gotLinear - placed[c]) / scale)
-                    }
-                    branchChecked += 1
-                }
+        var coreChecked = 0
+        var branchChecked = 0
+        var worstBranch = 0.0
+        var worstTwin = 0.0
+        for index in 0..<(fieldWidth * fieldHeight) {
+            let lin = SIMD3<Double>(
+                Double(field[index * 4]), Double(field[index * 4 + 1]),
+                Double(field[index * 4 + 2]))
+            let knees = (refHi.knee, refHi.room, refLo.knee, refLo.room)
+            let reference = refPlacementGain(
+                lin, pullBacks: (nS, nH), rolloff: m, knees: knees)
+            let (twinGain, twinBranch) = FilmPlacementModule.placementGain(
+                lin, params: params)
+            // The production twin == the in-file reference (1e-12).
+            if twinBranch == reference.onBranch {
+                worstTwin = max(worstTwin, abs(twinGain - reference.gain))
+            } else {
+                XCTFail("twin/reference branch disagreement at texel \(index)")
             }
-            XCTAssertGreaterThan(coreChecked, 0, "\(label): the field must exercise the core")
-            XCTAssertGreaterThan(
-                branchChecked, 0, "\(label): the field must exercise the branch")
-            XCTAssertLessThanOrEqual(
-                worstBranch, 2e-5,
-                "\(label): branch pixels vs the Float64 scalar reference (relative "
-                    + "\(worstBranch) linear-domain; f32 exp2/pow + ACEScc log legs)")
+            if !reference.onBranch {
+                // The delta form's core face: the RAW texel verbatim.
+                for c in 0..<4 {
+                    XCTAssertEqual(
+                        actual[index * 4 + c].bitPattern,
+                        encoded[index * 4 + c].bitPattern,
+                        "core pixel \(index) must be the raw texel verbatim (δ≡0)")
+                }
+                coreChecked += 1
+            } else {
+                // The reference consumes the EXACT f32-encoded input the
+                // kernel decoded (the encoded f32 storage is transport —
+                // L048's widened-reference discipline).
+                let kernelInput = SIMD3<Double>(
+                    Self.acesccDecodeForTest(Double(encoded[index * 4])),
+                    Self.acesccDecodeForTest(Double(encoded[index * 4 + 1])),
+                    Self.acesccDecodeForTest(Double(encoded[index * 4 + 2])))
+                let placed = kernelInput * reference.gain
+                for c in 0..<3 {
+                    let gotLinear = Self.acesccDecodeForTest(
+                        Double(actual[index * 4 + c]))
+                    let scale = max(abs(placed[c]), 1e-5)
+                    worstBranch = max(
+                        worstBranch, abs(gotLinear - placed[c]) / scale)
+                }
+                branchChecked += 1
+            }
         }
+        XCTAssertGreaterThan(coreChecked, 0, "the field must exercise the core")
+        XCTAssertGreaterThan(branchChecked, 0, "the field must exercise the branch")
+        XCTAssertLessThanOrEqual(
+            worstTwin, 1e-12,
+            "production placementGain == the in-file reference (resolved face)")
+        XCTAssertLessThanOrEqual(
+            worstBranch, 2e-5,
+            "branch pixels vs the Float64 reference (relative \(worstBranch) "
+                + "linear-domain; f32 exp2/pow + ACEScc log legs)")
+        attachMeasured(
+            String(format: "resolved-face per-pixel: worstBranch %.3e", worstBranch),
+            name: "placement-pixel-golden")
     }
 
     /// The sweep probe field: the placement face is MONOTONE along the
     /// exposure axis, and each ONE-SIDED arm keeps its output inside its
-    /// own medium boundary (the per-branch asymptote through the scalar
-    /// face; the joint-arm defect analysis lives in DECISIONS).
+    /// own medium boundary (the per-branch asymptote through the resolved
+    /// scalar face; the joint ordering gate lives in its own test).
     func testPlacementGainMonotoneAlongTheExposureAxis() {
-        // Highlight arm only: placed ≤ C_h, monotone rising.
-        let hiParams = FilmPlacementModule.Params(
-            shadowsPullBack: 0, highlightsPullBack: 2.5, rolloff: 2)
+        // Highlight arm only (resolved, valid N): placed ≤ C_h, monotone.
+        let hiParams = makeResolvedParams(shadows: 0, highlights: 3.5)
         var prevPlaced = -Double.greatestFiniteMagnitude
         for step in 0..<480 {
             let e = -12.0 + Double(step) * 0.05
@@ -1378,8 +1661,7 @@ final class FilmGoldenTests: XCTestCase {
             prevPlaced = placed
         }
         // Shadow arm only: placed ≥ C_s, monotone rising.
-        let loParams = FilmPlacementModule.Params(
-            shadowsPullBack: 2.0, highlightsPullBack: 0, rolloff: 2)
+        let loParams = makeResolvedParams(shadows: 3.5, highlights: 0)
         prevPlaced = -Double.greatestFiniteMagnitude
         for step in 0..<480 {
             let e = -12.0 + Double(step) * 0.05
