@@ -107,7 +107,18 @@ static inline float3 drtPowerDecode(float3 c, float gamma) {
                   pow(clamp(c.z, 0.0f, 1.0f), gamma));
 }
 
-// Encode dispatch — exhaustive over the seven kernel ordinals, NO default
+// The sRGB piecewise (IEC 61966-2-1) — the M4-1-01 KD-8 eighth ordinal.
+static inline float drtSrgbPiecewiseDecode(float c) {
+    float v = clamp(c, 0.0f, 1.0f);
+    return v <= 0.04045f ? v / 12.92f : pow((v + 0.055f) / 1.055f, 2.4f);
+}
+
+static inline float drtSrgbPiecewiseEncode(float v) {
+    float x = clamp(v, 0.0f, 1.0f);
+    return x <= 0.0031308f ? x * 12.92f : 1.055f * pow(x, 1.0f / 2.4f) - 0.055f;
+}
+
+// Encode dispatch — exhaustive over the kernel ordinals, NO default
 // arm (a new DrtEotf case must extend this switch at compile time).
 static inline float3 drtEotfEncode(float3 rgb, uint eotf, float peak) {
     switch (eotf) {
@@ -127,6 +138,10 @@ static inline float3 drtEotfEncode(float3 rgb, uint eotf, float peak) {
             return drtPowerEncode(rgb, 2.2f);
         case 6:  // gamma 1.8
             return drtPowerEncode(rgb, 1.8f);
+        case 7:  // srgb piecewise (IEC 61966-2-1; KD-8)
+            return float3(drtSrgbPiecewiseEncode(rgb.x),
+                          drtSrgbPiecewiseEncode(rgb.y),
+                          drtSrgbPiecewiseEncode(rgb.z));
     }
     return rgb;
 }
@@ -149,6 +164,10 @@ static inline float3 drtEotfDecode(float3 rgb, uint eotf, float peak) {
             return drtPowerDecode(rgb, 2.2f);
         case 6:
             return drtPowerDecode(rgb, 1.8f);
+        case 7:
+            return float3(drtSrgbPiecewiseDecode(rgb.x),
+                          drtSrgbPiecewiseDecode(rgb.y),
+                          drtSrgbPiecewiseDecode(rgb.z));
     }
     return rgb;
 }

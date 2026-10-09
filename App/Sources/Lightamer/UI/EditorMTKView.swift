@@ -746,12 +746,18 @@ extension EditorMTKView.Coordinator {
             }
         case .linear:
             return CGColorSpace(name: CGColorSpace.extendedLinearSRGB)
-        case .gamma26, .bt1886, .gamma22, .gamma18:
+        case .gamma26, .bt1886, .gamma22, .gamma18, .srgbPiecewise:
             let gamma: [CGFloat] = {
                 switch record.encodingEotf {
                 case .bt1886: return [2.4, 2.4, 2.4]
                 case .gamma26: return [2.6, 2.6, 2.6]
                 case .gamma18: return [1.8, 1.8, 1.8]
+                // M4-1-01 KD-8 (the explicit ruling): srgbPiecewise sits
+                // in the SDR-power group; CGColorSpace has no piecewise
+                // table form, so the calibrated face approximates the sRGB
+                // segment curve with its 2.2 power (the display-side
+                // approximation — DECISIONS records the deviation).
+                case .srgbPiecewise: return [2.2, 2.2, 2.2]
                 default: return [2.2, 2.2, 2.2]
                 }
             }()
@@ -799,7 +805,8 @@ extension EditorMTKView.Coordinator {
         guard let colorspace = drtLayerColorSpace(record) else { return nil }
         return DrtSurfaceSpec(
             hdrDrawable: record.encodingEotf != .gamma26 && record.encodingEotf != .bt1886
-                && record.encodingEotf != .gamma22 && record.encodingEotf != .gamma18,
+                && record.encodingEotf != .gamma22 && record.encodingEotf != .gamma18
+                && record.encodingEotf != .srgbPiecewise,
             layerColorSpace: colorspace)
     }
 }

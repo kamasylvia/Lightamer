@@ -74,6 +74,9 @@ public enum DrtEotf: String, Codable, Sendable, CaseIterable {
     case gamma22 = "gamma_2_2"
     /// Pure 1.8 power.
     case gamma18 = "gamma_1_8"
+    /// The IEC 61966-2-1 piecewise (M4-1-01 OQ-1①: the rawValue is the
+    /// Alcedo serialization spelling, hpp `SrgbPiecewise` → "srgb_piecewise").
+    case srgbPiecewise = "srgb_piecewise"
 }
 
 /// The limiting color space (ACES 2.0 method only — OpenDRT ignores it).
@@ -443,9 +446,13 @@ public struct DrtRecord: Codable, Hashable, Sendable {
 /// `gamma18` appear in NO set (the model layer keeps them persistable, the
 /// UI never offers them).
 public func legalEOTFs(for space: DrtEncodingSpace) -> [DrtEotf] {
+    // M4-1-01 (KD-8): the srgbPiecewise rows join the SDR-power display
+    // spaces — the order IS the KD-9 fallback chain (the UI snap order on
+    // a space switch). The HDR族 and the p3d60/p3dci/xyz single-value sets
+    // are untouched (the accept-set mirror).
     switch space {
-    case .rec709: return [.bt1886, .gamma22]
-    case .p3d65: return [.gamma22, .st2084]
+    case .rec709: return [.srgbPiecewise, .gamma22, .bt1886]
+    case .p3d65: return [.gamma22, .st2084, .srgbPiecewise]
     case .p3d60, .p3dci, .xyz: return [.gamma26]
     case .rec2020: return [.st2084, .hlg]
     }
@@ -456,7 +463,7 @@ public func legalEOTFs(for space: DrtEncodingSpace) -> [DrtEotf] {
 public func isHdrEncoding(_ eotf: DrtEotf) -> Bool {
     switch eotf {
     case .st2084, .hlg: return true
-    case .linear, .gamma26, .bt1886, .gamma22, .gamma18: return false
+    case .linear, .gamma26, .bt1886, .gamma22, .gamma18, .srgbPiecewise: return false
     }
 }
 

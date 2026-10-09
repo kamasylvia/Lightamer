@@ -30604,6 +30604,23 @@
           }
         }
       }
+    },
+    "drt_eotf_srgb_piecewise": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sRGB"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sRGB"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

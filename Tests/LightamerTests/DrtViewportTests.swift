@@ -317,4 +317,21 @@ final class DrtViewportTests: XCTestCase {
                 edrActive: true, drtTailActive: true, sourceIsDisplayReady: true),
             .drtSDR)
     }
+    /// M4-1-01 KD-8 (the E6 negative): the srgbPiecewise record sits in the
+    /// SDR group — hdrDrawable must stay FALSE (the boolean chain is not a
+    /// switch; the compiler cannot catch a missing arm here).
+    func testSrgbPiecewiseRecordIsNotHdrDrawable() throws {
+        var record = DrtRecord()
+        record.method = .aces20
+        record.encodingSpace = .rec709
+        record.encodingEotf = .srgbPiecewise
+        record.peakLuminance = 100
+        let spec = try XCTUnwrap(
+            EditorMTKView.Coordinator.drtSurfaceSpec(for: record))
+        XCTAssertFalse(spec.hdrDrawable,
+                       "srgbPiecewise is an SDR power-group face — 16F/EDR must not arm")
+        // The layer colorspace still resolves (the calibrated γ2.2
+        // approximation face).
+        XCTAssertNotNil(spec.layerColorSpace)
+    }
 }

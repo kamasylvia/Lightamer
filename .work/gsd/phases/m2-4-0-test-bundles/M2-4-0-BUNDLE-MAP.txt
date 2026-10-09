@@ -400,7 +400,8 @@ APP	6	ExportNamingTemplateStoreTests.swift
 
 # M2-9-02 增行记录（2026-10-03 执行期，checker E2 测试登记纪律）：DrtOutputColorSpaceTests = EXPORT/Core 级——DRT 输出 ICC 映射纯函数（KD-1）。行内 method 数以终态对账为准。运行期总数基线相应上移（2611 起算）。（2026-10-03 验收批勘误：ExportDrtChainTests 行 9→5——9 是 T2 任务增量（builder 5 + E2E 4），行内以文件 method 终态为准 = 5；全套复跑 2634/16/0 实证。）
 EXPORT	10	DrtOutputColorSpaceTests.swift
-EXPORT	5	ExportDrtChainTests.swift
+EXPORT	5	ExportDrtChainTests
+EXPORT	5	ExportDrtColorSpaceSrgbTests.swift
 EXPORT	8	ExportDrtTailE2ETests.swift
 
 # M2-9-03 增行记录（2026-10-03 执行期）：ExportNamingE2ETests = EXPORT/E2E——模板命名/冲突三档/子文件夹/DPI 消费（T1）。行内 method 数以终态对账为准。运行期总数基线上移（2634 起算）。（2026-10-03 验收批勘误：三行 10/9/7 → 11/8/8——执行行值与文件 `func test` 终态逐一不符（11/8/8），SUMMARY 双登记节又把行值误报为 11/9/7；XMPExportMatrixTests +1 走 LIBRARY 既有行不入增行。全套复跑对账见 M2-9-03-ACCEPTANCE.md。）
