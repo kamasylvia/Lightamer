@@ -21,6 +21,53 @@ struct ImportFlowRequest: Identifiable, Equatable {
     let folder: URL
 }
 
+/// The import type selector's state face (M4-1-02 T5, KD-4 — the M2-1
+/// D-EXEC-1 discipline: all state lives in a testable model, the view only
+/// renders it). The mask persists on every toggle (记忆 = 选择即写
+/// `library.import.categories`); the summary lands once the folder scan
+/// completes; the import gate = 扫描完成 && 允许数 > 0.
+@MainActor
+@Observable
+final class ImportTypeSelectionModel {
+
+    private let defaults: ImportDefaults
+    private(set) var categories: ImportCategory
+    private(set) var summary: ImportTypeSummary?
+
+    init(defaults: ImportDefaults) {
+        self.defaults = defaults
+        self.categories = defaults.resolvedCategories()
+    }
+
+    /// The scan-completion face (the dialog's `.task` drives it once).
+    func scanCompleted(_ summary: ImportTypeSummary) {
+        self.summary = summary
+    }
+
+    var scanned: Bool { summary != nil }
+
+    /// The per-family checkbox write: toggle + persist immediately.
+    func setFamily(_ family: ImportCategory, on: Bool) {
+        if on {
+            categories.insert(family)
+        } else {
+            categories.remove(family)
+        }
+        defaults.setCategories(categories)
+    }
+
+    func isOn(_ family: ImportCategory) -> Bool {
+        categories.contains(family)
+    }
+
+    /// The import button's gate: the scan must have completed AND at least
+    /// one allowed file must exist under the current mask.
+    var importEnabled: Bool {
+        guard let summary else { return false }
+        return summary.allowedCount(categories: categories) > 0
+    }
+}
+
 struct ImportModeDialog: View {
     let request: ImportFlowRequest
     let initial: ImportModeChoice
@@ -29,6 +76,9 @@ struct ImportModeDialog: View {
 
     @State private var mode: ImportMode
     @State private var remember: Bool
+    /// The M4-1-02 selector model (fresh per presentation; the mask seed
+    /// reads the persisted key through the injected defaults host).
+    @State private var selection: ImportTypeSelectionModel
 
     init(
         request: ImportFlowRequest, initial: ImportModeChoice,
@@ -41,6 +91,8 @@ struct ImportModeDialog: View {
         self.onCancel = onCancel
         _mode = State(initialValue: initial.mode)
         _remember = State(initialValue: initial.remember)
+        _selection = State(initialValue: ImportTypeSelectionModel(
+            defaults: ImportDefaults()))
     }
 
     var body: some View {
@@ -64,6 +116,7 @@ struct ImportModeDialog: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            fileTypeSection
             Toggle(isOn: $remember) {
                 Text(String(localized: "import_dialog_remember",
                             defaultValue: "Remember my choice"))
@@ -78,16 +131,111 @@ struct ImportModeDialog: View {
                 }
                 .keyboardShortcut(.cancelAction)
                 Button {
-                    onConfirm(ImportModeChoice(mode: mode, remember: remember))
+                    onConfirm(ImportModeChoice(
+                        mode: mode, remember: remember,
+                        categories: selection.categories))
                 } label: {
                     Text(String(localized: "import_dialog_confirm",
                                 defaultValue: "Import"))
                 }
                 .keyboardShortcut(.defaultAction)
+                .disabled(!selection.importEnabled)
             }
         }
         .padding(24)
         .frame(width: 440)
+        .task { await scanFolder() }
+    }
+
+    // MARK: - The file-type selector section (KD-4, the upstream §9.3
+    // narrowed shape: two checkable families with counts; every other
+    // type shows its count UNCHECKABLE).
+
+    @ViewBuilder private var fileTypeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(String(localized: "import_dialog_types",
+                        defaultValue: "File types"))
+                .font(.subheadline)
+            if let summary = selection.summary {
+                typeRow(
+                    id: "raw",
+                    label: String(localized: "import_type_raw",
+                                  defaultValue: "Camera raw"),
+                    count: summary.rawCount,
+                    on: Binding(
+                        get: { selection.isOn(.raw) },
+                        set: { selection.setFamily(.raw, on: $0) }))
+                typeRow(
+                    id: "tiff",
+                    label: String(localized: "import_type_tiff",
+                                  defaultValue: "TIFF images"),
+                    count: summary.tiffCount,
+                    on: Binding(
+                        get: { selection.isOn(.tiff) },
+                        set: { selection.setFamily(.tiff, on: $0) }))
+                otherTypesRow(count: summary.otherCount)
+            } else {
+                Text(String(localized: "import_types_scanning",
+                            defaultValue: "Scanning…"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("import.type.selector")
+    }
+
+    @ViewBuilder private func typeRow(
+        id: String, label: String, count: Int, on: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: on) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(verbatim: Self.countText(count))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityIdentifier("import.type.\(id)")
+    }
+
+    @ViewBuilder private func otherTypesRow(count: Int) -> some View {
+        HStack {
+            Text(String(localized: "import_type_other",
+                        defaultValue: "Other types"))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(verbatim: Self.countText(count))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            Image(systemName: "lock")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("import.type.other")
+    }
+
+    /// V14: explicit switch returning STATIC localization keys — the
+    /// interpolated-key form is scanner-invisible (the M2-9-05 F-2 ban).
+    private static func countText(_ count: Int) -> String {
+        if count == 1 {
+            return String(localized: "import_type_count_one", defaultValue: "1 file")
+        }
+        return String(
+            localized: "import_type_count_many",
+            defaultValue: "\(count) files")
+    }
+
+    /// The one-shot scan (the dialog's only async work): the SHARED walker
+    /// + the aggregate fold — no second scan logic. (Module-qualified: the
+    /// App module carries its own Session-domain `ImportService` enum.)
+    private func scanFolder() async {
+        let urls = await Task.detached(priority: .userInitiated) { () -> [URL] in
+            LightamerCore.ImportService.recursiveFiles(in: request.folder).map(\.url)
+        }.value
+        selection.scanCompleted(ImportTypeSummary.aggregate(urls))
     }
 
     private static func label(for mode: ImportMode) -> String {

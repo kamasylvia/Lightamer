@@ -108,9 +108,14 @@ final class ImportServiceTests: XCTestCase {
         sourceFolder: URL, mode: ImportMode,
         whitelist: Set<String> = LibrarySchema.defaultRawExtensions
     ) async throws -> ImportPlan {
+        // M4-1-02 T5 registration: the C1 fixture contract pins the
+        // RAW-ONLY era count (7 RAWs, 2 .tif noise typed-rejected) — the
+        // helper pins `categories: .raw` so the fixture math stays exact
+        // under the OQ-5 double-on default. The double-on flip face lives
+        // in ImportCategoryTests / the flipped ImportFilterTests row.
         try await service.makePlan(
             sourceFolder: sourceFolder, projectDirectory: packageDirectory,
-            mode: mode, whitelist: whitelist)
+            mode: mode, whitelist: whitelist, categories: .raw)
     }
 
     private var packageDirectory: URL {
@@ -167,7 +172,10 @@ final class ImportServiceTests: XCTestCase {
         XCTAssertEqual(plan.items.count, 7, "only the RAWs pass the filter")
         let byReason = Dictionary(grouping: plan.rejected, by: \.reason)
         XCTAssertEqual(byReason[.sidecar]?.count, 6, "the six .ARW.xmp pairs")
-        XCTAssertEqual(byReason[.extensionNotWhitelisted]?.count, 2, "the two .tif noise")
+        // M4-1-02 T5: with the RAW-only category face the two .tif noise
+        // files account as `.excludedType` (the family-mask account, NOT
+        // the whitelist account — the OQ-7 分账).
+        XCTAssertEqual(byReason[.excludedType]?.count, 2, "the two .tif noise")
         XCTAssertEqual(byReason[.hidden]?.count, 1, "the dot-hidden file")
 
         let outcome = try await service.importFolder(plan)
