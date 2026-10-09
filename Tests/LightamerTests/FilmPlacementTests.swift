@@ -193,14 +193,32 @@ final class FilmPlacementTests: XCTestCase {
             }
             ev += 0.5
         }
-        // …and the asymptote: the extreme lands EXACTLY at the landing
-        // point t = a − N = 3.75 (the exact landing, never beyond).
+        // …and the EXACT LANDING: the scene extreme itself (E = a = 7)
+        // lands exactly at t = a − N = 3.75 (§9.2 — the extreme moves N
+        // stops from ITS OWN position; the golden gate's f(a) face). The
+        // single-channel pixel pins E = a exactly (the power norm of
+        // (x, 0, 0) is x; mixed channels sit a hair below).
+        let (aGain, aBranch) = FilmPlacementModule.placementGain(
+            SIMD3(0.184 * Foundation.pow(2.0, FilmPlacementModule.sceneTopEV), 0, 0),
+            params: params)
+        XCTAssertTrue(aBranch)
+        let landedEV = FilmPlacementModule.sceneTopEV + Foundation.log2(aGain)
+        XCTAssertEqual(
+            landedEV, FilmPlacementModule.sceneTopEV - 3.25, accuracy: 1e-9,
+            "the scene extreme lands at its own pull-back point (the exact landing)")
+        // The g_m asymptote face (corrected): a FAR-OUT sample (20 stops)
+        // compresses toward the medium boundary and never crosses it —
+        // placed(E → ∞) → C, NOT t — and stays above the landing point
+        // (the branch keeps rising monotonically past the extreme).
         let (topGain, topBranch) = FilmPlacementModule.placementGain(
             SIMD3(0.184 * Foundation.pow(2.0, 20.0), 0.184, 0.184), params: params)
         XCTAssertTrue(topBranch)
-        let landedEV = 20.0 + Foundation.log2(topGain)
-        XCTAssertEqual(
-            landedEV, FilmPlacementModule.sceneTopEV - 3.25, accuracy: 1e-9,
-            "the extreme lands at its own pull-back point (the exact landing)")
+        let farEV = 20.0 + Foundation.log2(topGain)
+        XCTAssertLessThan(
+            farEV, FilmPlacementModule.mediumTopEV,
+            "the far-out sample asymptotes to the boundary, never crosses it")
+        XCTAssertGreaterThan(
+            farEV, landedEV,
+            "the branch keeps rising past the landing point (monotone)")
     }
 }
