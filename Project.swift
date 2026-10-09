@@ -422,6 +422,7 @@ let project = Project(
                 "Tests/LightamerTests/RAWDecoderTests.swift",
                 "Tests/LightamerTests/RasterColorDescriptionTests.swift",
                 "Tests/LightamerTests/RasterIccSemanticsTests.swift",
+                "Tests/LightamerTests/RasterDecodeLegTests.swift",
                 "Tests/LightamerTests/ROINegotiationTests.swift",
                 "Tests/LightamerTests/ScopeReduceTests.swift",
                 "Tests/LightamerTests/SkinRegionGeometryTests.swift",
