@@ -9,7 +9,7 @@ import XCTest
 //
 //   • the resolution order, one method per position: ① embedded ICC
 //     matrix-shaper (chad undone), ①′ linear-ICC float32 → sceneLinear
-//     (checker E1 half-edge), ② no-ICC float32 → scene-linear Rec.709,
+//     (checker E1 half-edge), ② no-ICC float32 → scene-linear Rec.2020,
 //     ③ the sRGB default;
 //   • the dual-tag precedence (matrix-shaper + A2B0 → matrix-shaper wins)
 //     and the LUT-only form (iccLutConverted);
@@ -299,8 +299,8 @@ final class RasterColorDescriptionTests: XCTestCase {
         XCTAssertNil(d.defaultReason)
     }
 
-    /// ② no ICC + float32 → scene-linear Rec.709 default.
-    func testNoICCFloat32DefaultsToSceneLinearRec709() {
+    /// ② no ICC + float32 → scene-linear Rec.2020 default.
+    func testNoICCFloat32DefaultsToSceneLinearRec2020() {
         let d = RasterColorResolver.resolve(iccData: nil, colorSpaceName: nil, isFloat: true)
         XCTAssertEqual(d.referral, .sceneLinear)
         XCTAssertEqual(d.transfer, .linear)

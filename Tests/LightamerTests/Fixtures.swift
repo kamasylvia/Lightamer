@@ -102,13 +102,18 @@ final class Fixtures {
 
     // ── Golden color fixtures (Plan 02-04-06, D-COL1 harness) ───────────
 
-    /// The committed synthetic neutral target — 1024×1024 16-bit TIFF,
-    /// sRGB-tagged, 3×3 patch grid. Generated ONCE by
-    /// `.work/plans/02-04/make-neutral-target.swift` (byte-order gotcha
-    /// documented there); regenerate only with that script. Throwing (not
-    /// stored) so a missing bundle resource skips instead of crashing.
+    /// The committed synthetic neutral target — 1024×1024 16-bit PNG,
+    /// untagged (ImageIO synthesizes system sRGB — the same numeric
+    /// conversion the original sRGB-tagged TIFF rode), 3×3 patch grid.
+    /// GENERATED AS TIFF by `.work/plans/02-04/make-neutral-target.swift`
+    /// (byte-order gotcha documented there); M4-1-02 T2 converted the
+    /// container TIFF→PNG losslessly (pixel-identical, pypng 16-bit) so
+    /// the D-COL1/parity harnesses stay on the CI decode arm under the
+    /// TIFF routing flip — the harnesses pin the CI color-management
+    /// chain, not the develop input leg. Do NOT convert back to TIFF (it
+    /// would ride the M4-1 native leg and re-pin ~10 suites).
     static func neutralTarget() throws -> URL {
-        try raster("NeutralTarget", "tif")
+        try raster("NeutralTarget", "png")
     }
 
     /// Gray patch definitions shared by both golden criteria: normalized

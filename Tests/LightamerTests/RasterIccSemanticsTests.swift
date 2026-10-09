@@ -174,7 +174,7 @@ final class RasterIccSemanticsTests: XCTestCase {
         }
     }
 
-    /// ② the no-ICC float32 half → scene-linear Rec.709.
+    /// ② the no-ICC float32 half → scene-linear Rec.2020.
     func testNoICCFloat32FixtureIsSceneLinear() throws {
         let d = try describe("no-icc-float32.tif")
         XCTAssertEqual(d.referral, .sceneLinear)

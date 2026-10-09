@@ -219,7 +219,9 @@ struct RasterColorDescription {
 - **解析序（TIFF）**：① 内嵌 ICC（tag 34675，ImageIO 侧 = `CGImageGetColorSpace` /
   `CGColorSpaceCopyICCData`）→ matrix-shaper（rXYZ/gXYZ/bXYZ 反 chad 回 native 白；
   TRC 参数化或采样化）或 v4.4 `cicp` tag（覆盖 TRC/primaries）或 LUT-based（§3.2.4）；
-  ② 无 ICC 且 float → **scene-linear Rec.709 默认**（上游 D3）；③ 其余无 ICC → sRGB 默认
+  ② 无 ICC 且 float → **scene-linear Rec.2020 默认**（上游 D3；〔omp-minor-1 勘误
+  2026-10-10：本行原写 Rec.709，实际落地 = rec2020 primaries——无 ICC 色域未知时
+  limiting 取最大包络更保守，行为面自洽，字面订正〕）；③ 其余无 ICC → sRGB 默认
   （上游产品 owner 钦定的唯一默认，我方建议沿用）。
 - **usable 三检查**（上游 §4.2）：primaries 非退化三角 / 白点在三角内 / 曲线单调——败者记
   `defaultReason` 顺位下落，不是错误。

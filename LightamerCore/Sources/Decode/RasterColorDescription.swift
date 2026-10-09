@@ -17,7 +17,7 @@ import simd
 //   ①′ embedded ICC ∧ TRC == linear ∧ float32 → sceneLinear (matrix branch
 //     only — the checker E1 half-edge; the in-repo victim chain is the
 //     BandStreamer stack-merge float32 TIFF with a linear-Rec2020 ICC);
-//   ② no ICC ∧ float32 → scene-linear Rec.709 default;
+//   ② no ICC ∧ float32 → scene-linear Rec.2020 default;
 //   ③ otherwise → sRGB default (the product default, `defaultReason`
 //     records why).
 // A usable-check failure demotes the ICC to "not present" (reason recorded)
@@ -64,7 +64,7 @@ public enum RasterColorOrigin: String, Sendable {
     /// TIFF form): the description describes the CONVERTED plane.
     case iccLutConverted
     case iccCicp
-    /// No ICC, float32 — the scene-linear Rec.709 default (②).
+    /// No ICC, float32 — the scene-linear Rec.2020 default (②).
     case tiffNoIccFloatLinear
     /// The sRGB default (③).
     case defaultSrgb
@@ -223,7 +223,7 @@ public enum RasterColorResolver {
             ? "embedded ICC failed the usable checks (or did not parse) — demoted to not-present"
             : nil
         if isFloat {
-            // ② no-ICC float32 → scene-linear Rec.709.
+            // ② no-ICC float32 → scene-linear Rec.2020.
             return RasterColorDescription(
                 referral: .sceneLinear,
                 primariesXY: Self.rec2020Primaries,
@@ -231,7 +231,7 @@ public enum RasterColorResolver {
                 peakLuminanceNits: sdrPeakNits,
                 origin: .tiffNoIccFloatLinear,
                 profileDescription: nil,
-                defaultReason: unusableReason ?? "no ICC, float32 storage → scene-linear Rec.709 default",
+                defaultReason: unusableReason ?? "no ICC, float32 storage → scene-linear Rec.2020 default",
                 profileHash: nil)
         }
         // ③ the sRGB default.

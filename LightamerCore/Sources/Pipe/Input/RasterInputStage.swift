@@ -74,6 +74,28 @@ public final class RasterInputStage: @unchecked Sendable {
         return texture
     }
 
+    /// The iccLutConverted sub-form's entry (M4-1-02 T2, KD-3 sub-form ②):
+    /// the CI-converted plane — float32, linear, the LUT profile already
+    /// TRC-linearized through full color management — rides the display
+    /// inverse leg with the TRC identity (01 KD-5/KD-6 m4①). Same cache /
+    /// typed-failure contract as `run`; the plane must be a
+    /// `.rgba32Float`-family shader-readable texture (the CI pool legs
+    /// deliver exactly that).
+    public func runDisplayInverse(
+        description: RasterColorDescription,
+        plane: any MTLTexture,
+        bucket: Bucket
+    ) async throws -> any MTLTexture {
+        let key = Self.cacheKey(
+            description: description, width: plane.width, height: plane.height,
+            bucket: bucket)
+        if let hit = cachedTexture(key) { return hit }
+        let texture = try await executeDisplayInverse(
+            description: description, plane: plane)
+        storeTexture(key, texture)
+        return texture
+    }
+
     /// The synchronous cache faces (NSLock must not span an await).
     private func cachedTexture(_ key: UInt64) -> (any MTLTexture)? {
         lock.lock()
@@ -105,9 +127,21 @@ public final class RasterInputStage: @unchecked Sendable {
         native: RasterNativePixels,
         bucket: Bucket
     ) -> UInt64 {
+        cacheKey(
+            description: description, width: native.width, height: native.height,
+            bucket: bucket)
+    }
+
+    /// The geometry-explicit key face (the display-inverse entry's shape —
+    /// the CI-converted plane carries no native payload).
+    public static func cacheKey(
+        description: RasterColorDescription,
+        width: Int, height: Int,
+        bucket: Bucket
+    ) -> UInt64 {
         var h = description.stableFingerprint()
-        withUnsafeBytes(of: UInt64(native.width)) { h = StableHash.combine(h, $0) }
-        withUnsafeBytes(of: UInt64(native.height)) { h = StableHash.combine(h, $0) }
+        withUnsafeBytes(of: UInt64(width)) { h = StableHash.combine(h, $0) }
+        withUnsafeBytes(of: UInt64(height)) { h = StableHash.combine(h, $0) }
         h = StableHash.hash("\(h)-\(bucket.rawValue)")
         return h
     }
@@ -136,22 +170,48 @@ public final class RasterInputStage: @unchecked Sendable {
             throw AppError.invalidParameter(
                 "raster input leg: non-positive peak \(description.peakLuminanceNits)")
         }
+        let input = try Self.upload(native, metal: metal)
+        return try await dispatchLeg(
+            description: description, input: input,
+            sceneLinear: description.referral == .sceneLinear)
+    }
+
+    private func executeDisplayInverse(
+        description: RasterColorDescription,
+        plane: any MTLTexture
+    ) async throws -> any MTLTexture {
+        guard description.peakLuminanceNits > 0 else {
+            throw AppError.invalidParameter(
+                "raster input leg: non-positive peak \(description.peakLuminanceNits)")
+        }
+        return try await dispatchLeg(
+            description: description, input: plane,
+            sceneLinear: false) // display branch — the TRC identity arm
+    }
+
+    /// The shared uniforms + dispatch core: builds the leg uniforms from
+    /// the description, allocates the working-plane output, and dispatches
+    /// `raster_input_scene_linear` (the ②/①′ matrix branch) or
+    /// `raster_input_display` (every display-referred arm).
+    private func dispatchLeg(
+        description: RasterColorDescription,
+        input: any MTLTexture,
+        sceneLinear: Bool
+    ) async throws -> any MTLTexture {
         let params = Aces2Reference.params(
             space: Self.limitingSpace(for: description.primariesXY),
             peak: Double(description.peakLuminanceNits),
             rgcOn: false) // the raster RGC-off policy (KD-9)
-        let sceneLinear = description.referral == .sceneLinear
         let sceneMatrix: DrtMat3? = sceneLinear
             ? try Self.sceneToRec2020Matrix(primaries: description.primariesXY)
             : nil
         let uniforms = RasterInputUniforms(
             description: description, params: params, sceneLinearMatrix: sceneMatrix)
 
-        let input = try Self.upload(native, metal: metal)
-        guard input.width == native.width, input.height == native.height else {
-            throw AppError.decodeFailed("raster input upload geometry mismatch")
+        guard input.width >= 1, input.height >= 1 else {
+            throw AppError.decodeFailed("raster input leg: degenerate input plane")
         }
-        let out = try Self.makeOutputTexture(native.width, native.height, metal: metal)
+        let out = try Self.makeOutputTexture(input.width, input.height, metal: metal)
 
         // The uniform buffer is created BEFORE the encode and held by the
         // enclosing scope — an encoder's setBuffer does not keep a

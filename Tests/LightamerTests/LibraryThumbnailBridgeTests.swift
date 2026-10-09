@@ -199,6 +199,38 @@ final class LibraryThumbnailBridgeTests: XCTestCase {
         XCTAssertNotNil(tierA, "tier A is independent of the leg")
     }
 
+    /// M4-1-02 T2 (KD-3, Tier A): a TIFF with NO embedded preview still
+    /// produces through tier A — `SessionThumbnailProvider.embeddedPreview`
+    /// falls back to `CGImageSourceCreateThumbnailAtIndex` full-decode
+    /// (`FromImageIfAbsent: true`), so unedited raster rows thumbnail
+    /// without the pipe.
+    func testTierATiffWithoutEmbeddedPreviewFallsBackToImageIODecode() async throws {
+        // The committed fixture matrix rides Tests/Fixtures (path-based —
+        // the bundle carries only TestFixtures).
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = repoRoot
+            .appendingPathComponent("Tests/Fixtures/TiffRaster/srgb-matrix-8.tif")
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
+            throw XCTSkip("fixture missing: srgb-matrix-8.tif")
+        }
+        let box = ObservationBox()
+        let leg: LibraryThumbnailBridge.RenderLeg = { _ in
+            box.enter()
+            defer { box.exit() }
+            return Self.makeImage()
+        }
+        let bridge = makeBridge(renderLeg: leg)
+        let image = await bridge.thumbnail(
+            for: makeRow(id: 7, sourceURL: fixture, hasEdits: 0))
+        XCTAssertNotNil(image, "tier A must fall back to the ImageIO decode")
+        XCTAssertEqual(box.snapshot().entered, 0, "tier A never touches the render leg")
+        let actual = await bridge.productionCount
+        XCTAssertEqual(actual, 1)
+    }
+
     // MARK: - AC #5: disk cache hit = zero reproduction; staleness regenerates
 
     func testDiskCacheHitNeverReproduces() async throws {

@@ -172,7 +172,8 @@ IOP	8	RAW03Tests.swift
 IOP	11	RAWDecoderTests.swift
 IOP	14	RasterColorDescriptionTests.swift
 IOP	18	RasterIccSemanticsTests.swift
-IOP	16	RasterDecodeLegTests.swift
+IOP	19	RasterDecodeLegTests.swift
+IOP	12	RasterRoutingTests.swift
 IOP	11	ROINegotiationTests.swift
 IOP	5	RawDecodeOverridesTests.swift
 IOP	7	ScopeReduceTests.swift
@@ -221,7 +222,10 @@ APP	10	SidecarV5Tests.swift
 APP	8	DrtSidecarTests.swift
 APP	7	DrtPersistenceTests.swift
 APP	9	DrtPanelModelTests.swift
-APP	6	DrtViewportTests.swift
+APP	7	DrtViewportTests.swift
+APP	7	RasterEditFaceTests.swift
+APP	5	RasterHdrViewportTests.swift
+APP	5	ImportCategorySelectorTests.swift
 APP	9	MaskItemSemanticsTests.swift
 APP	9	NodeCanvasGeometryTests.swift
 APP	14	NodesPanelModelTests.swift
@@ -231,7 +235,7 @@ LAYERS	1	GradeEnvelopePerfProbeTests.swift
 IOPP	18	GradeKernelGoldenTests.swift
 IOPP	15	DrtKernelGoldenTests.swift
 IOPP	5	Aces2KernelGoldenTests.swift
-IOPP	6	Aces2InverseTests.swift
+IOPP	8	Aces2InverseTests.swift
 IOPP	8	RasterInputPlaneTests.swift
 IOPP	3	RasterKernelParityTests.swift
 IOP	10	GradeParamsCodingTests.swift
@@ -297,14 +301,16 @@ LAYERS	8	MaskCombineTests.swift
 LAYERS	9	RasterMaskRoundTripTests.swift
 LAYERS	5	PipelineDocumentTests.swift
 LAYERS	17	DrtRecordTests.swift
-LAYERS	12	DrtEotfTests.swift
-LAYERS	15	RasterDefaultRecordTests.swift
+LAYERS	15	DrtEotfTests.swift
+LAYERS	14	RasterDefaultRecordTests.swift
 LAYERS	11	DrtPresetsTests.swift
 LAYERS	14	DrtTailTests.swift
 LAYERS	7	DrtPostMigrationTests.swift
 LAYERS	28	Aces2MathTests.swift
 LIB	10	FilterPredicateTests.swift
 LIB	10	ImportServiceTests.swift
+LIB	16	ImportCategoryTests.swift
+LIB	4	ImportTransportTiffTests.swift
 LIB	10	LibraryFilterDomainTests.swift
 LIB	10	LibraryThumbnailBridgeTests.swift
 LIB	16	LutLibraryStoreTests.swift
@@ -401,7 +407,8 @@ APP	6	ExportNamingTemplateStoreTests.swift
 
 # M2-9-02 增行记录（2026-10-03 执行期，checker E2 测试登记纪律）：DrtOutputColorSpaceTests = EXPORT/Core 级——DRT 输出 ICC 映射纯函数（KD-1）。行内 method 数以终态对账为准。运行期总数基线相应上移（2611 起算）。（2026-10-03 验收批勘误：ExportDrtChainTests 行 9→5——9 是 T2 任务增量（builder 5 + E2E 4），行内以文件 method 终态为准 = 5；全套复跑 2634/16/0 实证。）
 EXPORT	10	DrtOutputColorSpaceTests.swift
-EXPORT	5	ExportDrtChainTests
+EXPORT	5	ExportDrtChainTests.swift
+EXPORT	3	RasterRoundTripTests.swift
 EXPORT	5	ExportDrtColorSpaceSrgbTests.swift
 EXPORT	8	ExportDrtTailE2ETests.swift
 
