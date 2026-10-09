@@ -31,7 +31,8 @@ final class DrtRecordTests: XCTestCase {
 
     func testEnumCaseCountsAreTwoSevenSixSeven() {
         XCTAssertEqual(DrtMethod.allCases.count, 2)
-        XCTAssertEqual(DrtEotf.allCases.count, 7)
+        // M4-1-01 KD-8: the eighth ordinal (srgbPiecewise) joins.
+        XCTAssertEqual(DrtEotf.allCases.count, 8)
         XCTAssertEqual(DrtEncodingSpace.allCases.count, 6)
         XCTAssertEqual(DrtLimitingSpace.allCases.count, 7)
     }
@@ -162,9 +163,13 @@ final class DrtRecordTests: XCTestCase {
     // MARK: - 4: linkage table + HDR judgment (AC#2)
 
     func testLegalEOTFsMatchTheLiteralTable() {
-        // FEATURE-MAP §5 row-for-row (KD-1 literal table).
-        XCTAssertEqual(Set(legalEOTFs(for: .rec709)), [.bt1886, .gamma22])
-        XCTAssertEqual(Set(legalEOTFs(for: .p3d65)), [.gamma22, .st2084])
+        // FEATURE-MAP §5 row-for-row (KD-1 literal table) + the M4-1-01
+        // KD-8 srgbPiecewise rows (the order IS the KD-9 fallback chain —
+        // the accept-set equality test pins set-equality; this pins both).
+        XCTAssertEqual(
+            legalEOTFs(for: .rec709), [.srgbPiecewise, .gamma22, .bt1886])
+        XCTAssertEqual(
+            legalEOTFs(for: .p3d65), [.gamma22, .st2084, .srgbPiecewise])
         XCTAssertEqual(Set(legalEOTFs(for: .p3d60)), [.gamma26])
         XCTAssertEqual(Set(legalEOTFs(for: .p3dci)), [.gamma26])
         XCTAssertEqual(Set(legalEOTFs(for: .xyz)), [.gamma26])

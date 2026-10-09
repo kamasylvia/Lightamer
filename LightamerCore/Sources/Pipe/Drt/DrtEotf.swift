@@ -53,6 +53,7 @@ public extension DrtEotf {
         case .bt1886: return 4
         case .gamma22: return 5
         case .gamma18: return 6
+        case .srgbPiecewise: return 7 // Alcedo hpp:46 `SrgbPiecewise = 7` (M4-1-01 KD-8)
         }
     }
 
@@ -65,7 +66,7 @@ public extension DrtEotf {
         case .bt1886: return 2.4
         case .gamma22: return 2.2
         case .gamma18: return 1.8
-        case .linear, .st2084, .hlg: return 2.2 // never consumed
+        case .linear, .st2084, .hlg, .srgbPiecewise: return 2.2 // never consumed
         }
     }
 }
@@ -165,6 +166,21 @@ public enum DrtEotfMath {
         return scene * scale * (hlgReferencePeakNits / peak)
     }
 
+    // MARK: - sRGB piecewise (IEC 61966-2-1 — the M4-1-01 KD-8 case)
+
+    /// The sRGB EOTF: code → linear (the exact standard piecewise).
+    public static func srgbPiecewiseDecode(_ code: Double) -> Double {
+        let c = min(max(code, 0), 1)
+        return c <= 0.04045 ? c / 12.92 : Foundation.pow((c + 0.055) / 1.055, 2.4)
+    }
+
+    /// The sRGB inverse EOTF: linear → code. Clamps to [0,1] (the SDR
+    /// display range — the same D-COL4 home as the power family).
+    public static func srgbPiecewiseEncode(_ linear: Double) -> Double {
+        let v = min(max(linear, 0), 1)
+        return v <= 0.0031308 ? v * 12.92 : 1.055 * Foundation.pow(v, 1 / 2.4) - 0.055
+    }
+
     // MARK: - Power family (gamma26 / bt1886 / gamma22 / gamma18)
 
     /// SDR power encode (the pure `1/γ` power; bt1886's terminal form Lb=0
@@ -202,6 +218,8 @@ public enum DrtEotfMath {
             return perChannel(rgb) { powerEncode($0, gamma: 2.2) }
         case .gamma18:
             return perChannel(rgb) { powerEncode($0, gamma: 1.8) }
+        case .srgbPiecewise:
+            return perChannel(rgb) { srgbPiecewiseEncode($0) }
         }
     }
 
@@ -228,6 +246,8 @@ public enum DrtEotfMath {
             return perChannel(rgb) { powerDecode($0, gamma: 2.2) }
         case .gamma18:
             return perChannel(rgb) { powerDecode($0, gamma: 1.8) }
+        case .srgbPiecewise:
+            return perChannel(rgb) { srgbPiecewiseDecode($0) }
         }
     }
 

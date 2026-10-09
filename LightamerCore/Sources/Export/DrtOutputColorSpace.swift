@@ -63,12 +63,18 @@ public enum DrtOutputColorSpace {
                 // DECISIONS §D2 terminal form — the dctl reference is the
                 // bare 2.4; content encoding carries no black lift).
                 built = try calibratedICC(
-                    gamut: .rec709, white: .d65, gamma: 2.4,
+                    gamut: .rec709, white: .d65, trc: .gamma(2.4),
                     label: "Lightamer Rec709 BT.1886")
             case .gamma22:
                 built = try calibratedICC(
-                    gamut: .rec709, white: .d65, gamma: 2.2,
+                    gamut: .rec709, white: .d65, trc: .gamma(2.2),
                     label: "Lightamer Rec709 Gamma 2.2")
+            case .srgbPiecewise:
+                // M4-1-01 KD-8: the piecewise rides a curv SAMPLE TABLE
+                // (L053: never a para tag — the macOS 27 misparse).
+                built = try calibratedICC(
+                    gamut: .rec709, white: .d65, trc: .srgbPiecewise,
+                    label: "Lightamer Rec709 sRGB")
             case .linear, .st2084, .hlg, .gamma26, .gamma18:
                 throw illegal(space: space, eotf: eotf)
             }
@@ -76,10 +82,14 @@ public enum DrtOutputColorSpace {
             switch eotf {
             case .gamma22:
                 built = try calibratedICC(
-                    gamut: .p3, white: .d65, gamma: 2.2,
+                    gamut: .p3, white: .d65, trc: .gamma(2.2),
                     label: "Lightamer P3-D65 Gamma 2.2")
             case .st2084:
                 built = try systemSpace(.displayP3PQ, space: space, eotf: eotf)
+            case .srgbPiecewise:
+                built = try calibratedICC(
+                    gamut: .p3, white: .d65, trc: .srgbPiecewise,
+                    label: "Lightamer P3-D65 sRGB")
             case .linear, .hlg, .bt1886, .gamma26, .gamma18:
                 throw illegal(space: space, eotf: eotf)
             }
@@ -87,18 +97,20 @@ public enum DrtOutputColorSpace {
             switch eotf {
             case .gamma26:
                 built = try calibratedICC(
-                    gamut: .p3, white: .d60, gamma: 2.6,
+                    gamut: .p3, white: .d60, trc: .gamma(2.6),
                     label: "Lightamer P3-D60 Gamma 2.6")
-            case .linear, .st2084, .hlg, .bt1886, .gamma22, .gamma18:
+            case .linear, .st2084, .hlg, .bt1886, .gamma22, .gamma18,
+                 .srgbPiecewise:
                 throw illegal(space: space, eotf: eotf)
             }
         case .p3dci:
             switch eotf {
             case .gamma26:
                 built = try calibratedICC(
-                    gamut: .p3, white: .dci, gamma: 2.6,
+                    gamut: .p3, white: .dci, trc: .gamma(2.6),
                     label: "Lightamer P3-DCI Gamma 2.6")
-            case .linear, .st2084, .hlg, .bt1886, .gamma22, .gamma18:
+            case .linear, .st2084, .hlg, .bt1886, .gamma22, .gamma18,
+                 .srgbPiecewise:
                 throw illegal(space: space, eotf: eotf)
             }
         case .xyz:
@@ -107,9 +119,10 @@ public enum DrtOutputColorSpace {
                 // The XYZ basis: R=X, G=Y, B=Z — the IDENTITY matrix over
                 // tristimulus space, white E (see header note).
                 built = try calibratedICC(
-                    gamut: .xyzBasis, white: .e, gamma: 2.6,
+                    gamut: .xyzBasis, white: .e, trc: .gamma(2.6),
                     label: "Lightamer XYZ Gamma 2.6")
-            case .linear, .st2084, .hlg, .bt1886, .gamma22, .gamma18:
+            case .linear, .st2084, .hlg, .bt1886, .gamma22, .gamma18,
+                 .srgbPiecewise:
                 throw illegal(space: space, eotf: eotf)
             }
         case .rec2020:
@@ -118,7 +131,8 @@ public enum DrtOutputColorSpace {
                 built = try systemSpace(.itur2100PQ, space: space, eotf: eotf)
             case .hlg:
                 built = try systemSpace(.itur2100HLG, space: space, eotf: eotf)
-            case .linear, .bt1886, .gamma22, .gamma26, .gamma18:
+            case .linear, .bt1886, .gamma22, .gamma26, .gamma18,
+                 .srgbPiecewise:
                 throw illegal(space: space, eotf: eotf)
             }
         }
@@ -189,6 +203,13 @@ public enum DrtOutputColorSpace {
 
 // MARK: - The calibrated ICC builder (bytes → CGColorSpace)
 
+/// The TRC face the calibrated builder writes (M4-1-01 KD-8): the plain
+/// u8Fixed8 power or the sRGB piecewise sample table (never para — L053).
+enum DrtOutputTRC {
+    case gamma(Double)
+    case srgbPiecewise
+}
+
 /// The gamut constants (xy chromaticity row order: r, g, b).
 private enum DrtOutputGamut {
     /// xy triple per primary.
@@ -225,10 +246,11 @@ extension DrtOutputColorSpace {
     /// `CGColorSpace` from its bytes. Deterministic bytes (fixed timestamp,
     /// no profile ID) — the same combo always yields the same profile.
     fileprivate static func calibratedICC(
-        gamut: DrtOutputGamut, white: DrtOutputWhite, gamma: Double, label: String
+        gamut: DrtOutputGamut, white: DrtOutputWhite, trc: DrtOutputTRC,
+        label: String
     ) throws -> CGColorSpace {
         let data = Self.iccProfileData(
-            gamut: gamut, white: white, gamma: gamma, label: label)
+            gamut: gamut, white: white, trc: trc, label: label)
         guard let space = CGColorSpace(iccProfileData: data as CFData) else {
             throw AppError.invalidParameter(
                 "drt output ICC: ColorSync refused the generated profile (\(label))")
@@ -305,7 +327,8 @@ extension DrtOutputColorSpace {
     /// u8Fixed8 carrier quantizes the power by 1/256 (2.2 → 2.19922) — the
     /// ICC format's own floor, the same face lcms-era profiles ship.
     fileprivate static func iccProfileData(
-        gamut: DrtOutputGamut, white: DrtOutputWhite, gamma: Double, label: String
+        gamut: DrtOutputGamut, white: DrtOutputWhite, trc: DrtOutputTRC,
+        label: String
     ) -> Data {
         let m = rgbToXYZD50(gamut: gamut, white: white)
         var out = ByteSink()
@@ -340,6 +363,20 @@ extension DrtOutputColorSpace {
         let tagR = xyz(SIMD3<Double>(m.rows[0][0], m.rows[1][0], m.rows[2][0]))
         let tagG = xyz(SIMD3<Double>(m.rows[0][1], m.rows[1][1], m.rows[2][1]))
         let tagB = xyz(SIMD3<Double>(m.rows[0][2], m.rows[1][2], m.rows[2][2]))
+        /// The `curv` sampled-table TRC (count N over code 0...1).
+        func curvTable(_ f: (Double) -> Double, count: Int = 1024) -> Data {
+            var d = ByteSink()
+            d.fourCC("curv")
+            d.u32(0)
+            d.u32(UInt32(count))
+            for i in 0..<count {
+                let x = Double(i) / Double(count - 1)
+                let v = max(0, min(1, f(x)))
+                d.u16(UInt16((v * 65535.0).rounded()))
+            }
+            if count % 2 == 1 { d.u16(0) } // 4-byte element alignment
+            return d.data
+        }
         /// The `curv` count-1 TRC: one u8Fixed8 power (ICC floor 1/256).
         func curvGamma(_ g: Double) -> Data {
             var d = ByteSink()
@@ -350,9 +387,27 @@ extension DrtOutputColorSpace {
             d.u16(0) // (padding to the 4-byte element alignment)
             return d.data
         }
-        let tagRTRC = curvGamma(gamma)
-        let tagGTRC = curvGamma(gamma)
-        let tagBTRC = curvGamma(gamma)
+        let tagRTRC: Data
+        let tagGTRC: Data
+        let tagBTRC: Data
+        switch trc {
+        case .gamma(let g):
+            tagRTRC = curvGamma(g)
+            tagGTRC = curvGamma(g)
+            tagBTRC = curvGamma(g)
+        case .srgbPiecewise:
+            // The piecewise rides a curv SAMPLE TABLE (1024 u16 entries —
+            // the u16 carrier's 7.6e-6 quantization sits far inside the
+            // reimport canonicalization's 1e-4 gate). L053: NEVER a para.
+            // DIRECTION (T9 probed): an ICC TRC is the LINEARIZATION
+            // (device code → PCS linear) — writing the encode direction
+            // forces ColorSync to invert through its internal quantized
+            // representation on write, which smears the knee by ~3e-3 and
+            // breaks the reimport canonicalization; the decode direction
+            // survives the write verbatim.
+            let table = curvTable { RasterTRC.srgbPiecewiseDecode($0) }
+            tagRTRC = table; tagGTRC = table; tagBTRC = table
+        }
 
         // ── the header + tag table + payloads ────────────────────────────
         let tags: [(String, Data)] = [

@@ -36,8 +36,8 @@ final class DrtOutputColorSpaceTests: XCTestCase {
     func testLegalLinkageCombosResolve() throws {
         // The legalEOTFs mirror — every UI-reachable pair.
         let legal: [(DrtEncodingSpace, DrtEotf)] = [
-            (.rec709, .bt1886), (.rec709, .gamma22),
-            (.p3d65, .gamma22), (.p3d65, .st2084),
+            (.rec709, .bt1886), (.rec709, .gamma22), (.rec709, .srgbPiecewise),
+            (.p3d65, .gamma22), (.p3d65, .st2084), (.p3d65, .srgbPiecewise),
             (.p3d60, .gamma26), (.p3dci, .gamma26), (.xyz, .gamma26),
             (.rec2020, .st2084), (.rec2020, .hlg),
         ]

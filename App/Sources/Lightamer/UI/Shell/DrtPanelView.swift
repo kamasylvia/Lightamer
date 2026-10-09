@@ -268,6 +268,7 @@ internal struct DrtPanelView: View {
         case .bt1886: String(localized: "drt_eotf_bt1886", defaultValue: "BT.1886")
         case .gamma22: String(localized: "drt_eotf_gamma22", defaultValue: "Gamma 2.2")
         case .gamma18: String(localized: "drt_eotf_gamma18", defaultValue: "Gamma 1.8")
+        case .srgbPiecewise: String(localized: "drt_eotf_srgb_piecewise", defaultValue: "sRGB")
         }
     }
 

@@ -313,4 +313,43 @@ final class DrtEotfTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - 9: srgbPiecewise (M4-1-01 KD-8 — the eighth ordinal)
+
+    func testSrgbPiecewiseSerdeAndKernelIndex() {
+        // The Alcedo serialization spelling (hpp SrgbPiecewise → :46 ordinal 7).
+        XCTAssertEqual(DrtEotf.srgbPiecewise.rawValue, "srgb_piecewise")
+        XCTAssertEqual(DrtEotf.srgbPiecewise.kernelIndex, 7)
+        // The serde round trip through the record (Codable rawValue face).
+        let json = try! JSONEncoder().encode(DrtEotf.srgbPiecewise)
+        let back = try! JSONDecoder().decode(DrtEotf.self, from: json)
+        XCTAssertEqual(back, .srgbPiecewise)
+        // The HDR judgment: explicitly false (KD-8).
+        XCTAssertFalse(isHdrEncoding(.srgbPiecewise))
+        // The SDR family: peak-independent.
+        let a = DrtEotfMath.encode(.srgbPiecewise, rgb: SIMD3(0.25, 0.5, 0.75), peak: 100)
+        let b = DrtEotfMath.encode(.srgbPiecewise, rgb: SIMD3(0.25, 0.5, 0.75), peak: 1000)
+        XCTAssertEqual(a, b, "srgbPiecewise ignores peak")
+    }
+
+    func testSrgbPiecewiseStandardAnchors() {
+        // IEC 61966-2-1 anchors (the same values DrtEotfMath/RasterTRC pin).
+        XCTAssertEqual(
+            DrtEotfMath.srgbPiecewiseDecode(0.5), 0.21404114048223255, accuracy: 1e-12)
+        XCTAssertEqual(DrtEotfMath.srgbPiecewiseDecode(0.0), 0.0, accuracy: 1e-12)
+        XCTAssertEqual(DrtEotfMath.srgbPiecewiseDecode(1.0), 1.0, accuracy: 1e-12)
+        XCTAssertEqual(DrtEotfMath.srgbPiecewiseEncode(0.5), 0.7353569830524495, accuracy: 1e-12)
+        // The knee pair.
+        XCTAssertEqual(
+            DrtEotfMath.srgbPiecewiseEncode(0.0031308), 0.04045, accuracy: 1e-6)
+        // The clamp faces (the SDR family D-COL4 home).
+        XCTAssertEqual(DrtEotfMath.srgbPiecewiseEncode(-0.5), 0.0, accuracy: 1e-12)
+        XCTAssertEqual(DrtEotfMath.srgbPiecewiseEncode(1.5), 1.0, accuracy: 1e-12)
+        XCTAssertEqual(DrtEotfMath.srgbPiecewiseDecode(-0.5), 0.0, accuracy: 1e-12)
+        // Not a pure power: the piecewise differs from γ2.2 beyond the
+        // piecewise-gate (the distinguishing sanity).
+        XCTAssertGreaterThan(
+            abs(DrtEotfMath.srgbPiecewiseDecode(0.5)
+                - DrtEotfMath.powerDecode(0.5, gamma: 2.2)), 1e-3)
+    }
 }
