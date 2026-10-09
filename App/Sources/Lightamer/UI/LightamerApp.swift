@@ -1458,6 +1458,18 @@ internal struct LightamerApp: App {
                     .keyboardShortcut("s", modifiers: [.command, .option])
                 Button(String(localized: "menu_show_inspector")) { toggleInspector() }
                     .keyboardShortcut("i", modifiers: [.command, .option])
+                // M3-4-01 T4 (KD-4/m8): the film page's click-dead BYPASS —
+                // the canvas card's synthetic-event blindness (M3-3-03 §6)
+                // left the film page reachable only through that tap. A
+                // deliberately UNGATED static item (the menu_show_sidebar
+                // precedent): zero MenuCommandID, zero keyboardShortcut —
+                // the MenuCommandID circuit (MenuCommandSet / AppPreferences
+                // DefaultKeymap / WorkspaceRoutingTests) stays untouched.
+                // The card tap remains (the dual-entry coexistence).
+                Button(String(localized: "menu_show_film_panel")) {
+                    inspectorState.openFilmPage()
+                }
+                .accessibilityIdentifier("menu.show_film_panel")
                 Divider()
                 // 13-2 T4 (COLOR-02): the soft-proof toggle (⌥⌘P — bare P is
                 // the flag picker, ⌘P unused; the execution decision) and

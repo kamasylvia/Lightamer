@@ -30587,6 +30587,23 @@
           }
         }
       }
+    },
+    "menu_show_film_panel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Film Panel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示胶片面板"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
