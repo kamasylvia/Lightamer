@@ -232,6 +232,8 @@ IOPP	18	GradeKernelGoldenTests.swift
 IOPP	15	DrtKernelGoldenTests.swift
 IOPP	5	Aces2KernelGoldenTests.swift
 IOPP	6	Aces2InverseTests.swift
+IOPP	8	RasterInputPlaneTests.swift
+IOPP	1	RasterKernelParityTests.swift (T8 placeholder — count updated in T8)
 IOP	10	GradeParamsCodingTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
