@@ -112,6 +112,17 @@ Tests that need full-size RAW camera samples (~1.2 GB, not distributed
 Golden-reference regeneration against a local darktable build:
 `DT=/path/to/darktable-cli bash input/golden/regenerate.sh`.
 
+## Development artifacts
+
+Internal planning documents live under `.work/` (roadmap, requirements,
+state, per-phase plans and decision records). The evidence chain — GUI
+walkthrough captures (`.work/gui-acceptance/`) and per-phase evidence
+bundles (`.work/gsd/phases/*/evidence/`) — is **not tracked in this
+repository**: it is mirrored to a separate private Azure DevOps
+repository, `kamasylvia/Evidence/lightamer-evidence` (snapshot
+2026-10-08, pack policy B). The files remain on disk locally,
+gitignored; per-phase `perf.md` performance ledgers stay tracked here.
+
 ## Sample images
 
 Camera-sample RAW files used during development (manufacturer press
