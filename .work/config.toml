@@ -76,3 +76,9 @@ roster = ["subagent"]  # ← 跨夜验收 = 串行单 subagent(和全天各 plan
 # 流水线开关（2026-09-24 用户指令；消费方 = 保活巡检/orchestrator/subagent worker，每任务边界与派发前必读）
 auto = true      # 自动流转：worker 完成后自动接下一波（false = 每波完成后停等用户「继续」）
 paused = false # 手动暂停：true = 全链路停（等同旧 .work/PAUSE 文件，随时可切；恢复 = 改回 false）——末次状态变更：2026-09-27 用户签核 M2 D1-D6 全按推荐（「M2 全按推荐走」），流水线恢复推进
+# 双重验收制度（2026-10-09 用户指令；消费方 = orchestrator/巡检，每波验收环节必读）
+dual_acceptance = true
+# zcode 独立验收 PASS 后，必须呼叫 omp 做二次验收（omp 具备 computer-use）；
+# 硬约束：两次验收严禁并发（computer-use 单实例会打架），严格串行；
+# omp 二次验收结论同样落 ACCEPTANCE 记录（PASS/FAIL + 证据），FAIL 回注修复批；
+# 推送动作仍收敛主会话（worker 禁 push 纪律不变）。

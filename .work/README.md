@@ -169,6 +169,10 @@ skip 恒 16 零新增为 M2 后期纪律；对账链逐波独立验收背书，�
 
 **不列入清理的易混淆项**：working tree 中 61 个 .work 未跟踪/已修改文件（`gsd/phases/m3-1-w1/*`、`gsd/research/dt-clone-archive/`、REQUIREMENTS.md、BUNDLE-MAP.txt、散张走查截图）= **在飞工作产物**（M3-1 worker + 修复批），归属各在飞批的收口 commit，禁止他人代提交。
 
+## 双重验收（2026-10-09 用户指令）
+
+zcode 独立验收 **PASS 后**，呼叫 omp 做二次验收（omp 具备 computer-use；调用式 `omp -p --auto-approve --thinking max "<验收 prompt>"`）。**严禁两次验收并发**（computer-use 单实例会打架）——严格串行：前一轮验收进程结束后才发起下一轮。omp 二次验收结论落同一 ACCEPTANCE 记录（PASS/FAIL + 证据），FAIL 回注修复批。推送仍收敛主会话。
+
 ## 公开仓同步（release）
 
 - 主仓含双 remote：`origin` = ADO 私有（明细史增量推）；`github` = `kamasylvia/Lightamer` 公开仓（压缩主题史）
