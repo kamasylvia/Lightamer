@@ -72,3 +72,9 @@ Resources/AIModels/**
 
 # Python bytecode caches from walkthrough drive scripts (L057 fix-batch)
 __pycache__/
+
+# Evidence chain split (2026-10-10, pack policy B): walkthrough evidence and
+# per-phase evidence bundles moved to the private `lightamer-evidence` repo
+# (Azure DevOps, project Evidence). Files stay on disk, out of git.
+.work/gui-acceptance/
+.work/gsd/phases/*/evidence/
