@@ -11,9 +11,9 @@ M3-4 起走双验收制度；M1 期不在范围（早于 M2 charter）。
 4. 全部 PASS → 进 M3 VALIDATION（M3-4-02 收口波）
 
 ## 清单（执行序）
-- [ ] M2-0（charter/feature map）
-- [ ] M2-1 禁用矩阵
-- [ ] M2-2 图库与项目模型
+- [x] M2-0（charter/feature map）
+- [x] M2-1 禁用矩阵
+- [x] M2-2 图库与项目模型
 - [ ] M2-3 UI 壳
 - [ ] M2-4 节点模型 + 七 bundle
 - [ ] M2-5 调色
