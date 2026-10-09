@@ -237,6 +237,12 @@ public enum LibrarySchema {
         "pef", "orf", "rwl", "iiq",
     ]
 
+    /// The TIFF-family import extensions (M4-1-02 T5, OQ-5): hardcoded and
+    /// ORTHOGONAL to the RAW whitelist — never mixed into
+    /// `defaultRawExtensions` (the RAW whitelist semantics stay
+    /// byte-identical; the category mask is the TIFF family's only gate).
+    public static let tiffRasterExtensions: Set<String> = ["tif", "tiff"]
+
     /// The HARDCODED sidecar-exclusion table (M2LIB-03 加固 AC② — NOT
     /// user-configurable; the Alcedo zero-filter defect's hardened
     /// lesson: a configurable exclusion list would let `.xmp` back in).

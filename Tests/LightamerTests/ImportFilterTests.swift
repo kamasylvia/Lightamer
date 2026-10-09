@@ -79,11 +79,18 @@ final class ImportFilterTests: XCTestCase {
     }
 
     func testNoExtensionAndNonWhitelistedFormatsRejected() {
+        // M4-1-02 T5 (OQ-5, THE designed flip — the plan's 恰一处 AC):
+        // `photo.tif` was whitelist-rejected pre-M4-1; with the tiff
+        // family DOUBLE-ON by default it is now ACCEPTED (nil reason).
+        // The remaining names stay genuinely non-whitelisted.
         let map = reasons(["photo", "photo.jpeg", "photo.tif", "photo.jpg", "photo.png"])
-        for name in ["photo", "photo.jpeg", "photo.tif", "photo.jpg", "photo.png"] {
+        for name in ["photo", "photo.jpeg", "photo.jpg", "photo.png"] {
             XCTAssertEqual(
                 map[name], .extensionNotWhitelisted, "\(name) must be whitelist-rejected")
         }
+        XCTAssertNil(
+            map["photo.tif"],
+            "the tiff family is double-on by default — the M4-1-02 flip")
     }
 
     func testLastExtensionSemanticsDocumented() {

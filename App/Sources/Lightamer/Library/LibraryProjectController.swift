@@ -279,7 +279,8 @@ final class LibraryProjectController {
                 sourceFolder: folder,
                 projectDirectory: packageURL.deletingLastPathComponent(),
                 mode: choice.mode,
-                whitelist: defaults.resolvedWhitelist())
+                whitelist: defaults.resolvedWhitelist(),
+                categories: choice.categories)
             importProgress = ImportProgress(
                 phase: .importing, total: plan.items.count)
             let outcome = try await service.importFolder(plan)

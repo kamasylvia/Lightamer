@@ -32,6 +32,10 @@ public struct ImportRejection: Sendable, Equatable {
         /// Last path extension ∈ the HARDCODED sidecar table (never
         /// user-configurable — OQ-12).
         case sidecar
+        /// Last path extension names an import FAMILY (raw / tiff) the
+        /// category mask switched OFF (M4-1-02 T5, OQ-5) — distinct from
+        /// `extensionNotWhitelisted` (a format outside every family).
+        case excludedType
         /// Last path extension ∉ the whitelist (or no extension at all).
         case extensionNotWhitelisted
     }
@@ -45,20 +49,36 @@ public struct ImportRejection: Sendable, Equatable {
     }
 }
 
+/// The import category mask (M4-1-02 T5, OQ-5 effective value): raw = 1 /
+/// tiff = 2, the persisted Int rides `library.import.categories` (absent /
+/// out-of-domain = `.all` — the default DOUBLE-ON). TIFF sits OUTSIDE the
+/// RAW whitelist (the two keys are orthogonal — `rawExtensions` keeps its
+/// RAW-only semantics byte-identical).
+public struct ImportCategory: OptionSet, Sendable, Equatable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let raw = ImportCategory(rawValue: 1)
+    public static let tiff = ImportCategory(rawValue: 2)
+    public static let all: ImportCategory = [.raw, .tiff]
+}
+
 public enum ImportFilter {
 
     /// Split candidates into accepted RAWs and typed rejections (KD-1).
     /// `whitelist` defaults to the frozen LibrarySchema face; callers that
     /// honor the user-configurable host pass `ImportDefaults.resolvedWhitelist()`.
+    /// `categories` defaults to `.all` (the pre-M4-1 byte shape — every
+    /// existing call site compiles and behaves identically).
     public static func select(
         _ urls: [URL],
-        whitelist: Set<String> = LibrarySchema.defaultRawExtensions
+        whitelist: Set<String> = LibrarySchema.defaultRawExtensions,
+        categories: ImportCategory = .all
     ) -> (accepted: [URL], rejected: [ImportRejection]) {
         var accepted: [URL] = []
         var rejected: [ImportRejection] = []
         accepted.reserveCapacity(urls.count)
         for url in urls {
-            if let reason = rejectReason(for: url, whitelist: whitelist) {
+            if let reason = rejectReason(for: url, whitelist: whitelist, categories: categories) {
                 rejected.append(ImportRejection(url: url, reason: reason))
             } else {
                 accepted.append(url)
@@ -69,7 +89,9 @@ public enum ImportFilter {
 
     /// The single judgment face (order ①②③ above) — `nil` means accept.
     public static func rejectReason(
-        for url: URL, whitelist: Set<String>
+        for url: URL,
+        whitelist: Set<String>,
+        categories: ImportCategory = .all
     ) -> ImportRejection.Reason? {
         // ① hidden: the dot-prefix convention OR the Finder hidden flag.
         if url.lastPathComponent.hasPrefix(".") { return .hidden }
@@ -85,8 +107,17 @@ public enum ImportFilter {
         if LibrarySchema.hardcodedSidecarExclusions.contains(ext) {
             return .sidecar
         }
-        // ③ whitelist exact match ("" = no extension → not whitelisted).
-        if whitelist.contains(ext) { return nil }
+        // ③ the category mask over the two import families (KD-4): the
+        // TIFF family first (the hardcoded set — never the RAW whitelist),
+        // then the RAW whitelist. A masked-off family rejects
+        // `.excludedType`; everything else stays
+        // `.extensionNotWhitelisted` ("" = no extension included).
+        if LibrarySchema.tiffRasterExtensions.contains(ext) {
+            return categories.contains(.tiff) ? nil : .excludedType
+        }
+        if whitelist.contains(ext) {
+            return categories.contains(.raw) ? nil : .excludedType
+        }
         return .extensionNotWhitelisted
     }
 }
@@ -106,13 +137,85 @@ public enum ImportMode: String, Sendable, CaseIterable, Codable {
 }
 
 /// The dialog's resolved choice (KD-4: a plain Codable struct, test-built).
+/// M4-1-02 T5 (OQ-5): the category mask rides along — default `.all` keeps
+/// every existing construction site compiling and behaving identically
+/// (the mask only matters once the selector UI hands it over).
 public struct ImportModeChoice: Codable, Equatable, Sendable {
     public var mode: ImportMode
     public var remember: Bool
+    public var categories: ImportCategory
 
-    public init(mode: ImportMode, remember: Bool) {
+    public init(mode: ImportMode, remember: Bool, categories: ImportCategory = .all) {
         self.mode = mode
         self.remember = remember
+        self.categories = categories
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case mode, remember, categories
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mode = try container.decode(ImportMode.self, forKey: .mode)
+        remember = try container.decode(Bool.self, forKey: .remember)
+        categories = try container.decodeIfPresent(
+            ImportCategory.self, forKey: .categories) ?? .all
+    }
+}
+
+/// ImportCategory rides Codable through the choice (the rawValue Int form).
+extension ImportCategory: Codable {
+    public init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(Int.self)
+        self.init(rawValue: value)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
+/// The selector's aggregate (M4-1-02 T5, KD-4): the count fold over ONE
+/// `ImportFilter.select` pass at `.all` — the dialog renders it, the tests
+/// drive it (no second scan logic anywhere).
+public struct ImportTypeSummary: Sendable, Equatable {
+    public let rawCount: Int
+    public let tiffCount: Int
+    public let otherCount: Int
+
+    public init(rawCount: Int, tiffCount: Int, otherCount: Int) {
+        self.rawCount = rawCount
+        self.tiffCount = tiffCount
+        self.otherCount = otherCount
+    }
+
+    public static func aggregate(
+        _ urls: [URL], whitelist: Set<String> = LibrarySchema.defaultRawExtensions
+    ) -> ImportTypeSummary {
+        let selection = ImportFilter.select(urls, whitelist: whitelist, categories: .all)
+        var raw = 0
+        var tiff = 0
+        for url in selection.accepted {
+            if LibrarySchema.tiffRasterExtensions.contains(
+                url.pathExtension.lowercased()) {
+                tiff += 1
+            } else {
+                raw += 1
+            }
+        }
+        return ImportTypeSummary(
+            rawCount: raw, tiffCount: tiff,
+            otherCount: selection.rejected.filter {
+                $0.reason == .extensionNotWhitelisted
+            }.count)
+    }
+
+    /// The allowed count under a mask (the import button's gate input).
+    public func allowedCount(categories: ImportCategory) -> Int {
+        (categories.contains(.raw) ? rawCount : 0)
+            + (categories.contains(.tiff) ? tiffCount : 0)
     }
 }
 
@@ -123,11 +226,14 @@ public struct ImportModeChoice: Codable, Equatable, Sendable {
 ///   • `rememberMode` — whether the dialog's last choice persists (OQ-4)
 ///   • `rawExtensions` — the whitelist REPLACEMENT face (KD-1: replace,
 ///     never union — the settings page writes the full set)
+///   • `categories` — the M4-1-02 category mask (OQ-5; absent or
+///     out-of-domain = `.all`, the default DOUBLE-ON)
 public struct ImportDefaults: Sendable {
 
     public nonisolated static let modeKey = "library.import.mode"
     public nonisolated static let rememberModeKey = "library.import.rememberMode"
     public nonisolated static let rawExtensionsKey = "library.import.rawExtensions"
+    public nonisolated static let categoriesKey = "library.import.categories"
 
     /// nil = `.standard` (the app face); tests pass an isolated suite name.
     public let defaultsSuiteName: String?
@@ -168,6 +274,26 @@ public struct ImportDefaults: Sendable {
         setWhitelist(Set(extensions))
     }
 
+    // MARK: - Categories (M4-1-02 T5, OQ-5)
+
+    /// The effective category mask: the stored Int when present AND in the
+    /// 0...3 domain, else `.all` (缺键 = 双开; 域外 = 缺席 = 双开 — the
+    /// typed read with the domain check folds both into the default).
+    public func resolvedCategories() -> ImportCategory {
+        guard defaults.object(forKey: Self.categoriesKey) != nil else {
+            return .all
+        }
+        let value = defaults.integer(forKey: Self.categoriesKey)
+        guard (0...3).contains(value) else { return .all }
+        return ImportCategory(rawValue: value)
+    }
+
+    /// The mask write face (the selector's memory: a toggle persists
+    /// immediately — the same full-replacement semantics as the whitelist).
+    public func setCategories(_ categories: ImportCategory) {
+        defaults.set(categories.rawValue, forKey: Self.categoriesKey)
+    }
+
     // MARK: - Mode + remember (OQ-4: default = copy)
 
     /// The dialog's effective default: the remembered mode ONLY when the
@@ -199,10 +325,11 @@ public struct ImportDefaults: Sendable {
         defaults.set(true, forKey: Self.rememberModeKey)
     }
 
-    /// Clear all three keys (the settings page's reset face, OQ-4).
+    /// Clear all four keys (the settings page's reset face, OQ-4).
     public func reset() {
         defaults.removeObject(forKey: Self.modeKey)
         defaults.removeObject(forKey: Self.rememberModeKey)
         defaults.removeObject(forKey: Self.rawExtensionsKey)
+        defaults.removeObject(forKey: Self.categoriesKey)
     }
 }

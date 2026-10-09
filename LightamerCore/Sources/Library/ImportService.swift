@@ -66,10 +66,16 @@ public struct ImportProgress: Sendable, Equatable {
     public var failed: Int
     public var skippedDuplicates: Int
     public var bytesCopied: Int64
+    /// The M4-1-02 T5 category-mask account (OQ-7): candidates rejected
+    /// because their FAMILY (raw/tiff) was switched off in the selector —
+    /// distinct from the whitelist rejections. Additive, default 0 = the
+    /// pre-M4-1 snapshot shape byte-identical.
+    public var excludedType: Int
 
     public init(
         phase: Phase, total: Int, processed: Int = 0, failed: Int = 0,
-        skippedDuplicates: Int = 0, bytesCopied: Int64 = 0
+        skippedDuplicates: Int = 0, bytesCopied: Int64 = 0,
+        excludedType: Int = 0
     ) {
         self.phase = phase
         self.total = total
@@ -77,6 +83,7 @@ public struct ImportProgress: Sendable, Equatable {
         self.failed = failed
         self.skippedDuplicates = skippedDuplicates
         self.bytesCopied = bytesCopied
+        self.excludedType = excludedType
     }
 }
 
@@ -101,6 +108,13 @@ public struct ImportPlan: Sendable, Equatable {
     public let mode: ImportMode
     public let items: [Item]
     public let rejected: [ImportRejection]
+
+    /// The M4-1-02 T5 category-mask account: the `.excludedType` share of
+    /// the rejections (the progress panel's typed 分账 vs the whitelist
+    /// count — the upstream excluded_type/unsupported twin).
+    public var excludedTypeCount: Int {
+        rejected.filter { $0.reason == .excludedType }.count
+    }
 
     public init(
         sourceFolder: URL, projectDirectory: URL, mode: ImportMode,
@@ -190,7 +204,8 @@ public actor ImportService {
     /// lesson: filter everything, reject typed).
     public func makePlan(
         sourceFolder: URL, projectDirectory: URL, mode: ImportMode,
-        whitelist: Set<String> = LibrarySchema.defaultRawExtensions
+        whitelist: Set<String> = LibrarySchema.defaultRawExtensions,
+        categories: ImportCategory = .all
     ) async throws -> ImportPlan {
         cancelRequested = false
         await emit(ImportProgress(phase: .scanning, total: 0))
@@ -201,7 +216,7 @@ public actor ImportService {
         // is unsound by construction).
         let scanned = Self.recursiveFiles(in: sourceFolder)
         let selection = ImportFilter.select(
-            scanned.map(\.url), whitelist: whitelist)
+            scanned.map(\.url), whitelist: whitelist, categories: categories)
         let folderName = sourceFolder.lastPathComponent
         let relatives = Dictionary(
             uniqueKeysWithValues: scanned.map { ($0.url.path, $0.relative) })
@@ -218,7 +233,8 @@ public actor ImportService {
         await emit(ImportProgress(
             phase: .scanning, total: items.count,
             processed: 0, failed: 0,
-            skippedDuplicates: 0, bytesCopied: 0))
+            skippedDuplicates: 0, bytesCopied: 0,
+            excludedType: plan.excludedTypeCount))
         return plan
     }
 
@@ -228,8 +244,9 @@ public actor ImportService {
     /// manager's absolute spellings (which resolve the root's firmlink to
     /// /private/var while the caller's URL may keep /var). Dot-hidden
     /// entries ride in — the filter rejects them typed (AC②'s hidden leg
-    /// needs the counts).
-    nonisolated private static func recursiveFiles(
+    /// needs the counts). M4-1-02 T5: public so the import selector's
+    /// count fold reuses THE scan (the dialog grows no second walker).
+    public nonisolated static func recursiveFiles(
         in root: URL
     ) -> [(url: URL, relative: String)] {
         var results: [(url: URL, relative: String)] = []
@@ -264,7 +281,8 @@ public actor ImportService {
     public func importFolder(_ plan: ImportPlan) async throws -> ImportOutcome {
         cancelRequested = false
         var progress = ImportProgress(
-            phase: .importing, total: plan.items.count)
+            phase: .importing, total: plan.items.count,
+            excludedType: plan.excludedTypeCount)
         await emit(progress)
         var outcome = ImportOutcome()
         var wroteAnyRow = false
