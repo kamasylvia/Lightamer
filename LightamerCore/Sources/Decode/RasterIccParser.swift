@@ -302,6 +302,77 @@ enum RasterIccParser {
 
     /// The D50 PCS illuminant (XYZ), the ICC constant.
     static let d50PCS = SIMD3<Double>(0.96420288, 1.0, 0.82490539)
+
+    // MARK: - TIFF IFD ICC extraction (tag 34675)
+
+    /// Read the embedded ICC profile (TIFF tag 34675) straight from the
+    /// file's IFD0 — the header-only route the description resolution is
+    /// specified over. This is the PRIMARY ICC source for TIFF (host-probed
+    /// 2026-10-09, T2/T3): ImageIO SYNTHESIZES colorspaces for untagged
+    /// files (no-ICC 8/16-bit → the system sRGB profile, float32 →
+    /// extendedLinearSRGB with a ProfileName), so the
+    /// `cgImage.colorSpace?.copyICCData()` face cannot distinguish an
+    /// embedded profile from a synthesized one — and ColorSync REDUCES
+    /// close-matching embedded profiles to system spaces (the dual-tag and
+    /// LUT fixtures lose their original bytes on that face). Bounded reads
+    /// only: 8-byte header, IFD0 (entries ≤ 4096), then one ranged read at
+    /// the ICC offset.
+    static func tiffEmbeddedICCData(at url: URL) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let header = try? handle.read(upToCount: 8), header.count == 8 else {
+            return nil
+        }
+        let magic = String(bytes: header.prefix(2), encoding: .ascii)
+        let littleEndian: Bool
+        switch magic {
+        case "II": littleEndian = true
+        case "MM": littleEndian = false
+        default: return nil
+        }
+        func u16(_ b: Data, _ o: Int) -> Int {
+            littleEndian
+                ? Int(UInt16(b[o]) | UInt16(b[o + 1]) << 8)
+                : Int(UInt16(b[o]) << 8 | UInt16(b[o + 1]))
+        }
+        func u32(_ b: Data, _ o: Int) -> Int {
+            littleEndian
+                ? Int(UInt32(b[o]) | UInt32(b[o + 1]) << 8
+                    | UInt32(b[o + 2]) << 16 | UInt32(b[o + 3]) << 24)
+                : Int(UInt32(b[o]) << 24 | UInt32(b[o + 1]) << 16
+                    | UInt32(b[o + 2]) << 8 | UInt32(b[o + 3]))
+        }
+        let ifd0Offset = u32(header, 4)
+        guard (try? handle.seek(toOffset: UInt64(ifd0Offset))) != nil,
+              let countData = try? handle.read(upToCount: 2), countData.count == 2
+        else { return nil }
+        let entryCount = u16(countData, 0)
+        guard entryCount > 0, entryCount < 4096 else { return nil }
+        guard let entries = try? handle.read(upToCount: entryCount * 12),
+              entries.count == entryCount * 12
+        else { return nil }
+        for i in 0..<entryCount {
+            let base = i * 12
+            let tag = u16(entries, base)
+            guard tag == 34675 else { continue }
+            // ICCProfile: type 7 (UNDEFINED) or type 1 (BYTE), count bytes.
+            let type = u16(entries, base + 2)
+            guard type == 7 || type == 1 else { return nil }
+            let byteCount = u32(entries, base + 4)
+            guard byteCount > 0, byteCount < 64 * 1024 * 1024 else { return nil }
+            if byteCount <= 4 {
+                // The payload rides the value field itself.
+                return entries.subdata(in: base + 8..<base + 8 + byteCount)
+            }
+            let dataOffset = u32(entries, base + 8)
+            guard (try? handle.seek(toOffset: UInt64(dataOffset))) != nil,
+                  let icc = try? handle.read(upToCount: byteCount),
+                  icc.count == byteCount
+            else { return nil }
+            return icc
+        }
+        return nil
+    }
 }
 
 // MARK: - TRC evaluation + canonicalization (the Core host Float64 twins)
@@ -518,7 +589,7 @@ struct RasterIccMat3: Sendable {
         return RasterIccMat3(rows: [
             [inv(a[1][1] * a[2][2] - a[1][2] * a[2][1]),
              inv(a[0][2] * a[2][1] - a[0][1] * a[2][2]),
-             inv(a[0][1] * a[1][2] - a[0][2] * a[1][0])],
+             inv(a[0][1] * a[1][2] - a[0][2] * a[1][1])],
             [inv(a[1][2] * a[2][0] - a[1][0] * a[2][2]),
              inv(a[0][0] * a[2][2] - a[0][2] * a[2][0]),
              inv(a[0][2] * a[1][0] - a[0][0] * a[1][2])],
