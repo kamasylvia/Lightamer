@@ -43,6 +43,19 @@ public struct DecodedImage: Sendable {
     /// collision the first cut shipped).
     public let contentDedupeID: UInt64?
 
+    /// The raster source color description (Plan M4-1-01 T6, KD-5) —
+    /// populated ONLY by the native TIFF leg (`RasterDecoder.decodeTIFF`);
+    /// nil for every pre-existing decode path (the additive-optional
+    /// zero-drift contract: the RAW/CI paths construct without these and
+    /// stay byte-identical). Not persisted — the file is the truth, the
+    /// description re-resolves per decode.
+    public let rasterColor: RasterColorDescription?
+
+    /// The native pixel payload (raw bytes at source bit depth) — nil for
+    /// the CI-leg forms (the LUT-ICC TIFF converts through ColorSync and
+    /// carries only `rasterColor`; every pre-existing path is nil).
+    public let rasterNative: RasterNativePixels?
+
     public enum DecoderVersion: String, Codable, Sendable {
         case v8
         case v9
@@ -54,7 +67,9 @@ public struct DecodedImage: Sendable {
         capture: CaptureMetadata,
         segmentationSkyMatte: CIImage?,
         decoderVersionUsed: DecoderVersion,
-        contentDedupeID: UInt64? = nil
+        contentDedupeID: UInt64? = nil,
+        rasterColor: RasterColorDescription? = nil,
+        rasterNative: RasterNativePixels? = nil
     ) {
         self.ciImage = ciImage
         self.rawTech = rawTech
@@ -62,5 +77,7 @@ public struct DecodedImage: Sendable {
         self.segmentationSkyMatte = segmentationSkyMatte
         self.decoderVersionUsed = decoderVersionUsed
         self.contentDedupeID = contentDedupeID
+        self.rasterColor = rasterColor
+        self.rasterNative = rasterNative
     }
 }

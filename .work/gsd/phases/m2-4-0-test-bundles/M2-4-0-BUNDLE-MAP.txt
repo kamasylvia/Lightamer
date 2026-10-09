@@ -172,6 +172,7 @@ IOP	8	RAW03Tests.swift
 IOP	11	RAWDecoderTests.swift
 IOP	14	RasterColorDescriptionTests.swift
 IOP	18	RasterIccSemanticsTests.swift
+IOP	16	RasterDecodeLegTests.swift
 IOP	11	ROINegotiationTests.swift
 IOP	5	RawDecodeOverridesTests.swift
 IOP	7	ScopeReduceTests.swift

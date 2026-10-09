@@ -384,7 +384,7 @@ public actor RAWDecoder {
     /// first render (CIRAW re-execution is speckle-nondeterministic); an
     /// in-place re-save changes mtime → a fresh render. Key domain note:
     /// same class as the pipe cache's §1.3 decode domain — no new staleness.
-    private static func contentDedupeID(for url: URL) -> UInt64? {
+    internal static func contentDedupeID(for url: URL) -> UInt64? {
         // NOTE: hash the path's UTF-8 CONTENT — `withUnsafeBytes(of: &path)`
         // on a String hashes the STRUCT (a heap pointer for long paths:
         // fresh per call, the first cut's drifting key).
