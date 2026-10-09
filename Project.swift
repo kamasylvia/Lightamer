@@ -801,6 +801,7 @@ let project = Project(
                 "Tests/LightamerTests/DrtPanelModelTests.swift",
                 "Tests/LightamerTests/FilmPanelTests.swift",
                 "Tests/LightamerTests/FilmCardTests.swift",
+                "Tests/LightamerTests/FilmLatitudePanelTests.swift",
                 "Tests/LightamerTests/DrtViewportTests.swift",
                 "Tests/LightamerTests/SoftProofUIWiringTests.swift",
                 "Tests/LightamerTests/ThemeTokensTests.swift",

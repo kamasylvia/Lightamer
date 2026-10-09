@@ -1,30 +1,30 @@
+import Foundation
 import LightamerCore
+import LightamerIOP
 import Observation
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FilmPanelModel (Plan M3-3-03 T3, KD-3) — the film-simulation panel's
-// ViewModel: DrtPanelModel's structural twin. Read = the three-level
-// projection (the open live window's pending value FIRST, then the history's
-// effective projection — the committed truth, pointer-faithful across
-// undo/redo — then the coordinator's carrier face, which covers the sidecar
-// restore leg's field-wins priming); write = every action lands exactly ONE
-// `history_film_*` item through EditorState's document-level commit face, or
-// the D-H1 live/commit pair for sliders (drag ticks re-render with ZERO
-// items through the coordinator's film live window; the drag end commits
-// exactly ONE item when the window saw a net change).
+// FilmPanelModel (Plan M3-3-03 T3, KD-3; extended M3-4-01 T3, KD-3) — the
+// film-simulation panel's ViewModel: DrtPanelModel's structural twin. Read =
+// the three-level projection (the open live window's pending value FIRST,
+// then the history's effective projection — the committed truth,
+// pointer-faithful across undo/redo — then the coordinator's carrier face,
+// which covers the sidecar restore leg's field-wins priming); write = every
+// action lands exactly ONE `history_film_*` item through EditorState's
+// document-level commit face, or the D-H1 live/commit pair for sliders.
 //
-// PANEL SCOPE (KD-3's裁界): the film/paper pickers (the material store's
-// typed lists, display = info.name, value = stock id; a material change =
-// ONE commit — the solve cache re-keys naturally on the pair hash), the Y/M
-// dual sliders (CC domain 0-100, the panel owns the clamp — Core does not),
-// strength (0-1) + exposure trim (-3..3 EV) sliders, the content-adaptive
-// offset Toggle (default off — the SpektraLab-aligned behavior), the solve
-// readout row (the current effective (M, Y, gain), read-only) with the
-// Solve button (the solve cache's invalidation face), and the enable entry
-// (pristine documents: one tap commits the default-pair record — enabling
-// IS an edit, the KD-3 pristine-gate note). NO tolerance teaching face, no
-// histogram, no descriptor — FSIM-02 (M3-4). NO placement parameters (the
-// filmPlacement op is the M3-4 add-face placeholder).
+// M3-4-01 EXTENSION (FSIM-02): the latitude section (the stats snapshot +
+// the descriptor read face + the below/inside/above shares + the two
+// teaching notes) and the PLACEMENT EDITING SECTION (the resolver's single
+// source lives in `PlacementResolver` below: anchors = live stats P99.9/P0.1
+// + the descriptor's useful EV pair, the no-film fallback constants
+// demoted to the documented fallback arm; validity = the T1 typed faces
+// only — rule ① rides the sliders' dynamic minimums, rule ② is the typed
+// refusal naming a slider, rule ③ is the Fit's suggestion-face guard).
+// The placement instance rides the EXISTING command faces: lookup through
+// the coordinator's sibling-record face, add through
+// `addAdjustmentLayer`+`addModuleToLayer` (the grade envelope hosts it),
+// params through the M2-5 per-op D-H1 session shape.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
@@ -228,5 +228,521 @@ final class FilmPanelModel {
         liveRecord = nil
         Task { await pipeCoordinator?.commitFilmEdit(
             label: String(localized: "history_film_shift")) }
+    }
+
+    // MARK: - The latitude section (FSIM-02, KD-3)
+
+    /// The histogram's native EV axis (256 bins × [0,1] linear through the
+    /// bin→EV formula — the drawable span; [−12,+12] is the descriptor
+    /// ramp's domain and never mixes with this axis, checker m4).
+    static let latitudeAxisMinEV = Foundation.log2(0.5 / 256.0 / 0.184)
+    static let latitudeAxisMaxEV = Foundation.log2(255.5 / 256.0 / 0.184)
+
+    /// bin→EV: the contentAdaptiveShift.channelEV formula (one source).
+    static func binEV(_ bin: Int) -> Double {
+        Foundation.log2((Double(bin) + 0.5) / 256.0 / 0.184)
+    }
+
+    /// The consumed medium descriptor (nil = the probe hasn't landed for
+    /// the current pair — the dashed lines stay absent + noted, never
+    /// fake data).
+    var latitudeDescriptor: ProfileLatitudeDescriptor?
+    /// The pair hash the current descriptor was probed for (the refresh
+    /// gate — a material switch re-probes once).
+    private var latitudeDescriptorPairHash: UInt64 = 0
+    private var latitudeDescriptorTask: Task<Void, Never>?
+
+    /// The film stats' read face (the coordinator's mirrored snapshot —
+    /// the panel's ONLY stats source, mechanism (c)).
+    var latitudeStats: FilmStatsSeam.PlaneHistogram? {
+        pipeCoordinator?.filmStatsSnapshot
+    }
+
+    /// The descriptor refresh (cache-first; the probe is the compute-back).
+    /// Driven by the view on the pair-identity change.
+    func refreshLatitudeDescriptor() {
+        guard let coordinator = pipeCoordinator,
+            let store = coordinator.filmMaterialStore,
+            !record.filmStock.isEmpty, !record.paperStock.isEmpty,
+            let film = store.profile(id: record.filmStock),
+            let paper = store.profile(id: record.paperStock)
+        else {
+            latitudeDescriptor = nil
+            latitudeDescriptorPairHash = 0
+            return
+        }
+        let pairHash = FilmMaterialStore.materialPairHash(film: film, paper: paper)
+        guard pairHash != latitudeDescriptorPairHash else { return }
+        latitudeDescriptorPairHash = pairHash
+        latitudeDescriptorTask?.cancel()
+        latitudeDescriptorTask = Task { [weak self] in
+            let descriptor = await coordinator.filmDescriptor(
+                film: film, paper: paper, materialPairHash: pairHash)
+            guard !Task.isCancelled else { return }
+            self?.latitudeDescriptor = descriptor
+        }
+    }
+
+    /// The share readout (below / inside / above the useful pair), from
+    /// the LUMA histogram counts against the linear thresholds. Whole-bin
+    /// classification: a bin counts BELOW only when its entire range sits
+    /// under the threshold, ABOVE only when entirely over — a straddling
+    /// bin counts INSIDE (the ≤1-bin tolerance, DECISIONS). nil levels =
+    /// nil (the descriptor's absence is presented, never faked).
+    static func latitudeShares(
+        histogram: FilmStatsSeam.PlaneHistogram,
+        belowEV: Double?, aboveEV: Double?
+    ) -> (below: Double, inside: Double, above: Double)? {
+        guard let belowEV, let aboveEV else { return nil }
+        let luma = histogram.perChannel[3]
+        let total = luma.reduce(0) { $0 + Int($1) }
+        guard total > 0 else { return nil }
+        let vLow = 0.184 * Foundation.pow(2.0, belowEV)
+        let vHigh = 0.184 * Foundation.pow(2.0, aboveEV)
+        var below = 0
+        var inside = 0
+        var above = 0
+        for (bin, count) in luma.enumerated() {
+            let lowEdge = Double(bin) / 256.0
+            let highEdge = Double(bin + 1) / 256.0
+            if highEdge <= vLow {
+                below += Int(count)
+            } else if lowEdge >= vHigh {
+                above += Int(count)
+            } else {
+                inside += Int(count)
+            }
+        }
+        return (
+            Double(below) / Double(total),
+            Double(inside) / Double(total),
+            Double(above) / Double(total))
+    }
+
+    // MARK: - The placement editing section (KD-3; the resolver single
+    // source = `PlacementResolver` below)
+
+    /// The document's placement instance, wherever it sits: the base
+    /// chain's flat set first, then the adjustment layers' chains (the
+    /// add face lands it in a LAYER — the grade envelope's host — so the
+    /// layer chains are the primary residence). The host layer id rides
+    /// along: the edit session routes layer-scoped (the 06-05 dual-track).
+    var placementTarget: (instance: ModuleInstance, layerID: UUID?)? {
+        guard let coordinator = pipeCoordinator else { return nil }
+        if let instance = coordinator.instanceRecord(opName: FilmPlacementModule.opName) {
+            return (instance, nil)
+        }
+        let layers = editorState?.layerStack?.adjustmentLayers.compactMap {
+            $0 as? AdjustmentLayer
+        } ?? []
+        for layer in layers {
+            if let instance = layer.chain.first(
+                where: { $0.opName == FilmPlacementModule.opName }) {
+                return (instance, layer.id)
+            }
+        }
+        return nil
+    }
+
+    /// The placement edit session (the M2-5 provider shape, routed to the
+    /// host layer when the record lives in a layer chain).
+    private func placementSession(layerID: UUID?) -> InspectorEditSession? {
+        guard let coordinator = pipeCoordinator else { return nil }
+        return InspectorEditSession(coordinator: coordinator, layerScope: layerID)
+    }
+
+    /// The ADD face (the existing command surfaces, zero new commands):
+    /// ensure a host layer (the topmost adjustment layer, else ONE
+    /// structure commit) + land the identity template in its chain (ONE
+    /// commit). The placement is a grade-domain op — the ACEScc envelope
+    /// wraps it ONLY inside an adjustment layer's sub-run.
+    @discardableResult
+    func addPlacement() -> ModuleInstance? {
+        guard let editorState else { return nil }
+        let layerID: UUID
+        if let top = editorState.layerStack?.adjustmentLayers.last {
+            layerID = top.id
+        } else {
+            guard let created = editorState.addAdjustmentLayer() else { return nil }
+            layerID = created.id
+        }
+        guard let template = EditorState.templateInstance(
+            for: FilmPlacementModule.opName)
+        else { return nil }
+        return editorState.addModuleToLayer(layerID: layerID, template: template)
+    }
+
+    /// The resolver's current anchors (live stats + descriptor; any miss
+    /// drops to the fallback constants + the note flag).
+    var placementAnchors: PlacementAnchors {
+        PlacementResolver.anchors(
+            stats: latitudeStats, descriptor: latitudeDescriptor)
+    }
+
+    /// The resolve + write (ONE discrete commit through the D-H1 session):
+    /// the resolver's validity faces are the panel's ONLY write gate —
+    /// rule ② refusal names a slider in the view, no silent clamp.
+    func commitPlacement(nH: Double, nS: Double, m: Float) -> PlacementResolveOutcome {
+        switch PlacementResolver.resolve(
+            anchors: placementAnchors, nH: nH, nS: nS, m: m) {
+        case .failure(let rejection):
+            return .rejected(rejection)
+        case .success(let params):
+            guard let target = placementTarget else { return .rejected(.noInstance) }
+            guard let record = PanelEditing.updated(
+                target.instance, params: params, as: FilmPlacementModule.self)
+            else { return .rejected(.noInstance) }
+            placementSession(layerID: target.layerID)?.applyDiscrete(
+                record, label: String(localized: "history_film_placement"))
+            return .committed
+        }
+    }
+
+    /// The Fit face (§9.3, ONE discrete commit): the default policy pair,
+    /// the m≥3 crossing share, the H_min suggestion-face guard (a refusal
+    /// writes NOTHING — the manual values stay).
+    func applyFit(m: Float) -> PlacementFitOutcome {
+        let outcome = PlacementResolver.fit(anchors: placementAnchors, m: m)
+        guard !outcome.refusedByHMin else { return outcome }
+        switch commitPlacement(nH: outcome.nH, nS: outcome.nS, m: m) {
+        case .committed:
+            return outcome
+        case .rejected(let rejection):
+            var refused = outcome
+            refused.refusedByHMin = true
+            refused.rejection = rejection
+            return refused
+        }
+    }
+
+    /// The placement params of the document's instance (nil = none).
+    var placementParams: FilmPlacementModule.Params? {
+        guard let target = placementTarget else { return nil }
+        return PanelEditing.params(of: target.instance, as: FilmPlacementModule.self)
+    }
+
+    /// The typed refusal surfaced by the last write attempt (the view
+    /// names the slider; cleared by the next successful commit).
+    var lastPlacementRejection: PlacementReject?
+    /// The last Fit's outcome (the refusal/shared/off notes ride it).
+    var lastFitOutcome: PlacementFitOutcome?
+
+    /// The placement live window (the M2-5 per-op provider shape: the
+    /// ticks write the RESOLVER's output — resolved knees + pull-backs —
+    /// so the preview rides the same math the commit lands).
+    private func tickPlacementRecord(
+        _ mutate: (inout FilmPlacementModule.Params) -> Void
+    ) {
+        guard let target = placementTarget else { return }
+        var params = placementParams ?? FilmPlacementModule.Params()
+        mutate(&params)
+        switch PlacementResolver.resolve(
+            anchors: placementAnchors,
+            nH: Double(params.highlightsPullBack),
+            nS: Double(params.shadowsPullBack),
+            m: params.rolloff)
+        {
+        case .success(let resolved):
+            lastPlacementRejection = nil
+            if let record = PanelEditing.updated(
+                target.instance, params: resolved, as: FilmPlacementModule.self) {
+                placementSession(layerID: target.layerID)?.update(record)
+            }
+        case .failure(let rejection):
+            // The typed refusal: the tick does NOT write — the slider
+            // binding reads the instance truth and springs back.
+            lastPlacementRejection = rejection
+        }
+    }
+
+    /// D-H1 drag START (zero items until the commit).
+    func beginPlacementDrag() {
+        placementSession(layerID: placementTarget?.layerID)?.beginEditing()
+    }
+
+    /// The N_h tick (the resolver re-solves; a rejection leaves the truth).
+    func tickPlacement(highlights: Double?, shadows: Double?) {
+        tickPlacementRecord { params in
+            if let highlights {
+                params.highlightsPullBack = Float(highlights)
+            }
+            if let shadows {
+                params.shadowsPullBack = Float(shadows)
+            }
+        }
+    }
+
+    /// D-H1 drag END: exactly ONE history item (the window's net gate).
+    func endPlacementDrag() {
+        placementSession(layerID: placementTarget?.layerID)?.endEditing(
+            label: String(localized: "history_film_placement"))
+    }
+
+    /// The double-click reset (one side to the OFF identity).
+    func resetPlacementSide(highlights: Bool) {
+        guard let target = placementTarget else { return }
+        var params = placementParams ?? FilmPlacementModule.Params()
+        if highlights {
+            params.highlightsPullBack = 0
+            params.kHighlight = nil
+            params.hHighlight = nil
+        } else {
+            params.shadowsPullBack = 0
+            params.kShadow = nil
+            params.hShadow = nil
+        }
+        // The reset re-resolves the surviving side (one discrete commit).
+        switch PlacementResolver.resolve(
+            anchors: placementAnchors,
+            nH: Double(params.highlightsPullBack),
+            nS: Double(params.shadowsPullBack),
+            m: params.rolloff) {
+        case .success(let resolved):
+            lastPlacementRejection = nil
+            if let record = PanelEditing.updated(
+                target.instance, params: resolved, as: FilmPlacementModule.self) {
+                placementSession(layerID: target.layerID)?.applyDiscrete(
+                    record, label: String(localized: "history_film_placement"))
+            }
+        case .failure(let rejection):
+            lastPlacementRejection = rejection
+        }
+    }
+
+    /// The m stepper (ONE discrete commit per click; the resolve re-runs
+    /// at the new order — the m≥3 crossing is the expected physics and
+    /// names its slider through the typed refusal).
+    func stepM(_ m: Float) {
+        guard let target = placementTarget else { return }
+        let clamped = FilmPlacementModule.clamped(
+            FilmPlacementModule.Params(
+                shadowsPullBack: placementParams?.shadowsPullBack ?? 0,
+                highlightsPullBack: placementParams?.highlightsPullBack ?? 0,
+                rolloff: m))
+        switch PlacementResolver.resolve(
+            anchors: placementAnchors,
+            nH: Double(clamped.highlightsPullBack),
+            nS: Double(clamped.shadowsPullBack),
+            m: clamped.rolloff) {
+        case .success(let resolved):
+            lastPlacementRejection = nil
+            if let record = PanelEditing.updated(
+                target.instance, params: resolved, as: FilmPlacementModule.self) {
+                placementSession(layerID: target.layerID)?.applyDiscrete(
+                    record, label: String(localized: "history_film_placement"))
+            }
+        case .failure(let rejection):
+            lastPlacementRejection = rejection
+        }
+    }
+
+    /// The Fit gesture (§9.3, ONE discrete commit when it lands).
+    func runFit(m: Float) {
+        let outcome = applyFit(m: m)
+        lastFitOutcome = outcome
+    }
+}
+
+// MARK: - The placement resolver (KD-3's validity single source — the App
+// side of the T1 typed faces)
+
+/// The resolver's anchor set (stops relative to mid-gray). `usedFallback`
+/// = the no-film fallback constants answered (the panel notes it).
+struct PlacementAnchors: Equatable {
+    var aH: Double
+    var cH: Double
+    var aS: Double
+    var cS: Double
+    var usedFallback: Bool
+}
+
+enum PlacementReject: Equatable, Error {
+    /// §9.2 rule ② — the identity core collapsed; the panel names a
+    /// slider (never a silent clamp).
+    case kneeOrder
+    /// The T1 typed invalid-demand face, named per side.
+    case highlightDemand
+    case shadowDemand
+    case noInstance
+}
+
+enum PlacementResolveOutcome: Equatable {
+    case committed
+    case rejected(PlacementReject)
+}
+
+/// The Fit outcome (the suggestion face — a refusal writes NOTHING).
+struct PlacementFitOutcome: Equatable {
+    var nH: Double = 0
+    var nS: Double = 0
+    /// The m≥3 crossing share engaged (the recommended pair is the
+    /// proportionally scaled one, or the sides-off degenerate).
+    var sharedDeficit = false
+    /// The recommendation landed at both-sides-off (§9.3's degenerate).
+    var sidesOff = false
+    /// The H_min suggestion-face guard fired — the recommendation is
+    /// WITHHELD (the panel shows the notice; manual values stay).
+    var refusedByHMin = false
+    /// The resolver's rejection when the apply leg failed (diagnostic).
+    var rejection: PlacementReject?
+
+    static func == (lhs: PlacementFitOutcome, rhs: PlacementFitOutcome) -> Bool {
+        lhs.nH == rhs.nH && lhs.nS == rhs.nS && lhs.sharedDeficit == rhs.sharedDeficit
+            && lhs.sidesOff == rhs.sidesOff && lhs.refusedByHMin == rhs.refusedByHMin
+    }
+}
+
+enum PlacementResolver {
+
+    /// The Fit policy constants (§9.3's defaults + the §7.3 curvature
+    /// ceiling — the DECISIONS-registered calibration: 0.8587/3.0 ≈ 0.286
+    /// = the mapper's peak magnitude anchor at m=2, §6.1's 0.289).
+    static let fitMargin = 0.25
+    static let hMin = 3.0
+
+    /// The anchors: the film stats' P99.9/P0.1 (integer rank through
+    /// `FilmRuntimeSolve.percentileBin`, bin→EV the channelEV formula) +
+    /// the descriptor's useful pair. Any miss = the documented no-film
+    /// fallback constants (the M3-3 constants, demoted — never deleted).
+    static func anchors(
+        stats: FilmStatsSeam.PlaneHistogram?,
+        descriptor: ProfileLatitudeDescriptor?
+    ) -> PlacementAnchors {
+        let fallback = PlacementAnchors(
+            aH: FilmPlacementModule.sceneTopEV, cH: FilmPlacementModule.mediumTopEV,
+            aS: FilmPlacementModule.sceneBottomEV, cS: FilmPlacementModule.mediumBottomEV,
+            usedFallback: true)
+        guard let descriptor else { return fallback }
+        var aH: Double?
+        var aS: Double?
+        if let stats {
+            let luma = stats.perChannel[3]
+            let topBin = FilmRuntimeSolve.percentileBin(luma, fraction: 0.999)
+            let bottomBin = FilmRuntimeSolve.percentileBin(luma, fraction: 0.001)
+            aH = log2((Double(topBin) + 0.5) / 256.0 / 0.184)
+            aS = log2((Double(bottomBin) + 0.5) / 256.0 / 0.184)
+        }
+        guard let topEV = aH, let bottomEV = aS else { return fallback }
+        return PlacementAnchors(
+            aH: topEV, cH: descriptor.usefulHighlightEV,
+            aS: bottomEV, cS: descriptor.usefulShadowEV,
+            usedFallback: false)
+    }
+
+    /// The sliders' dynamic minimums (§9.2 rule ①, the side-explicit form:
+    /// the shadow side's literal a−C substitution is NEGATIVE — the true
+    /// lower bound is C−a; max(0, ·) covers the side-off degenerate).
+    static func sliderMinimums(
+        anchors: PlacementAnchors, margin: Double = PlacementResolver.fitMargin
+    ) -> (nH: Double, nS: Double) {
+        (
+            max(0, (anchors.aH - anchors.cH) + margin),
+            max(0, (anchors.cS - anchors.aS) + margin)
+        )
+    }
+
+    /// The resolve: both sides against the anchors → the joint validity →
+    /// the v2 params (resolved knees + pull-backs, one unit).
+    static func resolve(
+        anchors: PlacementAnchors, nH: Double, nS: Double, m: Float
+    ) -> Result<FilmPlacementModule.Params, PlacementReject> {
+        let hi = FilmPlacementModule.solveKnee(
+            pullBack: nH, rolloff: Double(m),
+            sceneExtreme: anchors.aH, mediumBoundary: anchors.cH)
+        let lo = FilmPlacementModule.solveKnee(
+            pullBack: nS, rolloff: Double(m),
+            sceneExtreme: anchors.aS, mediumBoundary: anchors.cS)
+        guard let hi else { return .failure(.highlightDemand) }
+        guard let lo else { return .failure(.shadowDemand) }
+        switch FilmPlacementModule.validateCoreOrder(highlights: hi, shadows: lo) {
+        case .valid:
+            return .success(FilmPlacementModule.Params(
+                shadowsPullBack: Float(nS), highlightsPullBack: Float(nH), rolloff: m,
+                kShadow: lo.knee, hShadow: lo.room,
+                kHighlight: hi.knee, hHighlight: hi.room))
+        case .kneeOrderViolation:
+            return .failure(.kneeOrder)
+        }
+    }
+
+    /// The Fit (§9.3's default policy): land each robust extreme a quarter
+    /// stop inside the medium; a side whose scene extreme sits at/below
+    /// its boundary goes OFF (the degenerate that matters most); the m≥3
+    /// crossing shares the deficit proportionally (the pair's ratio kept,
+    /// the landing degenerate = both sides off + reported); the H_min
+    /// curvature ceiling REFUSES the recommendation (the suggestion face —
+    /// the manual values are never touched).
+    static func fit(
+        anchors: PlacementAnchors, m: Float,
+        margin: Double = PlacementResolver.fitMargin,
+        hMin: Double = PlacementResolver.hMin
+    ) -> PlacementFitOutcome {
+        var outcome = PlacementFitOutcome()
+        // §9.3's side-off degenerate: a ≤ C → the branch is the identity.
+        let baseNH = anchors.aH > anchors.cH ? (anchors.aH - anchors.cH) + margin : 0
+        let baseNS = anchors.cS > anchors.aS ? (anchors.cS - anchors.aS) + margin : 0
+        outcome.nH = baseNH
+        outcome.nS = baseNS
+        if case .failure(let rejection) = resolve(
+            anchors: anchors, nH: baseNH, nS: baseNS, m: m) {
+            if rejection == .kneeOrder {
+                // The m≥3 crossing: scale the pair, ratio kept — the
+                // deficit spent proportionally (40-step deterministic
+                // bisection on λ; λ→0 = the sides-off degenerate).
+                var low = 0.0
+                var high = 1.0
+                for _ in 0..<40 {
+                    let mid = (low + high) / 2
+                    if case .success = resolve(
+                        anchors: anchors, nH: baseNH * mid, nS: baseNS * mid, m: m) {
+                        low = mid
+                    } else {
+                        high = mid
+                    }
+                }
+                if low > 0 {
+                    outcome.nH = baseNH * low
+                    outcome.nS = baseNS * low
+                } else {
+                    outcome.nH = 0
+                    outcome.nS = 0
+                    outcome.sidesOff = true
+                }
+                outcome.sharedDeficit = true
+            } else {
+                // An invalid-demand at the fit's own anchors: refuse the
+                // recommendation (the suggestion face).
+                outcome.refusedByHMin = false
+                outcome.rejection = rejection
+                outcome.nH = 0
+                outcome.nS = 0
+                outcome.sidesOff = true
+                return outcome
+            }
+        }
+        // The H_min guard (§7.3): a solved side's room below the ceiling
+        // → withhold the recommendation (the manual values stay).
+        if case .success(let params) = resolve(
+            anchors: anchors, nH: outcome.nH, nS: outcome.nS, m: m) {
+            if params.highlightsPullBack > 0, let hH = params.hHighlight, hH < hMin {
+                outcome.refusedByHMin = true
+            }
+            if params.shadowsPullBack > 0, let hS = params.hShadow, hS < hMin {
+                outcome.refusedByHMin = true
+            }
+        }
+        return outcome
+    }
+
+    /// The §9.2 endpoint slope readout: f'(a∓) = g'_Δ = (1+w)^−(m+1)/m at
+    /// the scene extreme (the §5.4 pair's Δ face — the documented formula).
+    static func endpointSlope(
+        extreme a: Double, boundary c: Double, knee k: Double, m: Double
+    ) -> Double {
+        let delta = abs(a - k)
+        let room = max(abs(c - k), 1e-9)
+        guard delta > 0 else { return 1 }
+        let w = Foundation.pow(delta / room, m)
+        return Foundation.pow(1 + w, -(m + 1) / m)
     }
 }
