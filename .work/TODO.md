@@ -345,6 +345,16 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 ---
 
+## Milestone 4（栅格与蒙版·收窄版——ROADMAP §Milestone 4，2026-10-10 立项：M3 收官后接棒；**范围收窄 = RAW + TIFF 编辑**〔2026-10-08 用户裁决：EXR/JPEG/PNG 栅格链移出〕）—— M4-0 ✅ 闭环（charter 批：五正本落账 = ROADMAP §M4 块 + REQUIREMENTS RASTER-IN-01/ALCE-02 原位注记 + STATE M4 段 + 本头部 + GOAL-STATE 续接点；pack 政策 B = 证据分仓同批落地，证据链新家 = ADO 私有仓 `lightamer-evidence`，主仓 filter-repo 剥证据大对象）
+
+**状态**：charter 落账完成。波次 = M4-1 TIFF 栅格开发链（RASTER-IN-01 收窄版：ImageIO 原生读写 8/16/32-bit float + 内嵌 ICC → DRT 逆链 ACES 2.0 逆变换路径 + HDR TIFF 支持 + 导入文件类型选择器对齐上游 #264）→ M4-2 IOP-MASK-06 Follow Edges V2 换锚重做（脊线预提取 + 亚像素质心 + 自适应步长；`.snap` 默认熔断态 → V2 换锚，`.streamline` 分支零重写保留）→ M4-3 IOP-MASK-07 Depth 蒙版（MiDaS ONNX→CoreML〔Lumen RAW 借鉴①，参考 `lumen/auto_masks.py`〕；模型资产走 GitHub Release 分发不入仓；许可/体积 research 定）。**边界**：JPEG/PNG 维持图库可浏览现状不进开发链；EXR 连同 ALCE-02 推迟（依赖对比存档 V2-PROPOSAL OQ-V2-5）；UltraHDR/TRACK/Mertens/PANO 不入 M4。
+
+- [ ] **M4-1**（TIFF 栅格开发链）—— 待 research
+- [ ] **M4-2**（Follow Edges V2 换锚重做）—— 待 research
+- [ ] **M4-3**（Depth 蒙版）—— 待 research
+
+---
+
 ## Milestone 3（胶片暗房——ROADMAP §Milestone 3，2026-10-08 立项：V2/Maintenance 站方案 A，OQ-V2-1..10 用户预裁「按推荐」可推翻）—— **M3-1 closed（2026-10-08 VALIDATION signed，`phases/m3-1-w1/M3-1-VALIDATION.md`）+ M3-2 closed（2026-10-08：research 定稿 + OQ-M3-2-1..7 全按推荐回批 `e02dcc7` + M7 spike 补批结案）+ M3-3 closed（2026-10-09 三波，终态 3152/16/0）+ M3-4 closed（2026-10-10：M3-4-01 双验收 + M3-4-02 VALIDATION signed，`phases/m3-4-latitude/M3-4-02-VALIDATION.md`，**M3 终值 3174/16/0**）；**milestone closure 门已清（2026-10-10 夜收官批翻正）：OMP-RETRO-QUEUE 16 项 omp 回溯二次验收 16/16 全 PASS（checkpoint `81114d4`→现世 `5f6860d`，sha-rewrite-map 解析），「closed」名分生效**〔原「门控中」注记保留为历史；同批 S2 msg 补课 3 枚完成 + 瘦身手术预检证伪停手，见手术队列行〕
 
 **状态**：规格正本 = `.work/gsd/phases/v2-station/V2-PROPOSAL.md`（`4f84351`）+ `OQ.md` 裁决记录（`6e265ee`）；规划五正本（ROADMAP/REQUIREMENTS/STATE/GOAL-STATE/TODO）同批落账（本批 docs commit）。波次 = M3-1 前置批（M2GRADE-08 LUT 作者编码建模 + YIYIN-09 预览拖拽 mini-plan + 小件族〔V14/V15 zh 清算 + 导出冲突档选择器 + peak-ICC 标注 + denoise 拖动降档语义〕）→ M3-2 FSIM research（阶段模型 + 配光自动求解设计 + 光谱不可达边界声明 + CC BY-SA 资产取舍 + FSIM-03 注记 + M7 spike 搭车）→ M3-3 FSIM-01 主打（阶段模型进节点图 + 配光求解 + Y/M 偏移）→ M3-4 FSIM-02 宽容度面板 + M3 VALIDATION 收口。**边界**：方案 B（RASTER-IN-01/MASK-06 V2/MASK-07）滚 M4 主打；ALCE-02/03（EXR/UltraHDR）M4；Mertens M4-W2；TRACK M4；PANO M5。**在飞修复批（FINDING-F/ToneEqual）隔离纪律维持**——M3 各 wave 派遣前复核 git log/GOAL-STATE，修复批 owned 面（IOP ToneEqual/LUT 导入面板）不并行触碰。

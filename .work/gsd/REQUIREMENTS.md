@@ -394,7 +394,7 @@ Deferred to future release. Tracked but not in current roadmap.
 
 来源 = `.work/gsd/research/ALCEDO-FEATURE-MAP.md`「上游增量测绘」节（34241d0→f1fae5d，188 commits，v0.3.1+）。
 
-- **RASTER-IN-01**: 非 RAW 栅格开发链——JPEG/PNG/TIFF/OpenEXR 导入即开发：源 color description（ICC）解析 + HDR 旗标 → display-referred 输入经 DRT 逆链（ACES 2.0 逆变换路径）进编辑管线；含 OpenEXR（与 ALCE-02 OpenEXR 导出对偶）；文件夹导入文件类型选择器对齐上游 #264 形态 —— **→ M4**（2026-10-08 V2 站立项：方案 B 滚存 M4 主打，不入 M3）
+- **RASTER-IN-01**: 非 RAW 栅格开发链——JPEG/PNG/TIFF/OpenEXR 导入即开发：源 color description（ICC）解析 + HDR 旗标 → display-referred 输入经 DRT 逆链（ACES 2.0 逆变换路径）进编辑管线；含 OpenEXR（与 ALCE-02 OpenEXR 导出对偶）；文件夹导入文件类型选择器对齐上游 #264 形态 —— **→ M4**（2026-10-08 V2 站立项：方案 B 滚存 M4 主打，不入 M3）。**M4 立项 + 范围收窄 = TIFF only（用户 2026-10-08 裁决），EXR/JPEG/PNG 移出**——TIFF 读写经 ImageIO 原生 + 内嵌 ICC → ACES 工作流 + HDR TIFF；JPEG/PNG 维持图库可浏览现状不进开发链；EXR 连同 ALCE-02 推迟（依赖对比存档 V2-PROPOSAL OQ-V2-5）。charter 正本 = ROADMAP §Milestone 4（M4-1）
 - **M2GRADE-08**: LUT 作者编码建模——LUT input/output encoding（面板选择器 + 编码随 LMT 生效 + 库内逐 LUT 记忆 + 传递曲线/色域目录，对齐上游 c740f7b 形态）；解决「胶片 LUT 作于 log 域而我方按 working space 直套」的系统性偏差（V2 段，可插队 M2 后期 UI 打磨轮）—— **→ M3-W1 前置**（2026-10-08 V2 立项裁决；「插队 M2 后期」窗口随 M2 收官兑现，FSIM-01 软前置基建）
   - [x] **Delivered（M3-1-01，2026-10-08）**：编码目录 17 条表驱动（scene 11 = camera log 10 + linear working 1 + display 6，KD-1）+ 传递曲线 Float64 正逆函数族（`LutEncodingCatalog` / `LutTransferMath`，公开标准公式，golden = 各标准公开参考值；gamut 矩阵 Bradford 自算非手抄）+ Params additive 编码对（nil = working 直通逐字节保现状，旧档 paramsHash 零漂移专测）+ 宿主侧复合表重烘焙（零新 kernel，Alcedo `Compose` :273 同构方向，LRU 16 + bakeCount 可观测 + stateLock）+ 库内逐 LUT 记忆三层序 + 内置 40 张 seeder 补标 {arri_logc4_awg4, rec709_bt1886}（adoption 路径盖章）+ 面板双 Picker（scene/display 分组 + 记住 Toggle）。**交付注记：新选内置 LUT 的观感变化 = 偏差修正非回归**（补标前 = log 表按线性直套的系统性偏差本体；既有文档按三层序停在旧渲染）。**FSIM-01 软前置交付物 = 目录 + 曲线族即 M3-3 消费面**。测试新增 37（IOPP 31 + LIB 6 + APP 5，口径 = Lut3dEncodingTests.swift 两类 24 + FullChain 2 + LIB 6 + APP 5）+ 既有 LUT 族零 diff 全绿（IOP 471/1/0 逐位基线）。
 - **注记（非需求）**：OCIO ACES 2.0 reference forward transform（上游 `8f8e712`）= M2-6 aces-core 移植的交叉验证测试资产机会，规划 parity 测试时取用；图库编辑时间分组（#276）/后台任务岛（#275）= UI parity 参照，不立项。
@@ -648,7 +648,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 > **基准**：Alcedo Studio（GPL-3.0，`/Volumes/UNITEK/Documents/Development/AlcedoStudio`）。已覆盖面不重复立需求（色调/曲线/可选颜色/细节/局部色调映射 = Phase 3/4/5 已交付；LUT/颗粒/光晕 ≈ Phase 12 + bloom/grain；图库/分组/EXIF 搜索 = Phase 9/16；蒙版 = Phase 6；HDR/EDR = Phase 8；导出命名模板 = Phase 11）。**CIRAW 边界排除项不入本族**：demosaic 算法菜单、raw 域 inpaint-opposed 高光重建——架构上不可达（STACK.md Decoder 策略对比节 2026-09-27），v2+ 若做须走 libraw 兜底解码路线。Lensfun 镜头数据库维持 STACK.md 原评估（数据只读 + Metal warp），不因翻转加码。
 
 - [ ] **ALCE-01**: LGG 三向色轮（Lift/Gamma/Gain，grading 标准 3-way）——每 adjustment layer 一个色轮实例，蒙版可绑；与现有 colorbalancergb/colisa 并存。UI 色轮 + Metal kernel + golden-image 门
-- [ ] **ALCE-02**: OpenEXR 导出（32-bit float，half/float 可选）——现导出矩阵 JPG/PNG/TIFF/HEIF/WebP/AVIF 无 EXR；HDR/堆栈工作流回传 3D 软件需要
+- [ ] **ALCE-02**: OpenEXR 导出（32-bit float，half/float 可选）——现导出矩阵 JPG/PNG/TIFF/HEIF/WebP/AVIF 无 EXR；HDR/堆栈工作流回传 3D 软件需要 —— **随 RASTER-IN 推迟，M4 不立项**（2026-10-08 用户裁决：M4 范围收窄 TIFF only；EXR 读写依赖对比存档 V2-PROPOSAL OQ-V2-5，届时独立裁决）
 - [ ] **ALCE-03**: Ultra HDR JPEG 导出（gain map，SDR base + HDR 增益层）——嵌入现有 JPEG 编码腿，EDR 渲染值映射 gain map
 - [ ] **ALCE-04**: DRT 扩容——ACES 2.0 输出变换 + OpenDRT（现有 filmicrgb/sigmoid/agx 三个 DRT 之外）；目标色彩空间/传递函数/峰值亮度可选，与 EDR 输出联动（参考 Alcedo display-transform 面板与 jedypod/open-display-transform、aces-aswf/aces-core 算法）
 - [ ] **ALCE-05**: 每片命名版本（named versions）——同一原片多个命名编辑版本并存，可从 history stack 任意步分叉；sidecar schema 扩展 + 浏览器版本切换 UI

@@ -5,7 +5,7 @@
 **Granularity:** fine
 **Mode:** standard (Horizontal Layers)
 
-A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) **Alcedo Studio clone, macOS-exclusive, RAW 9 decoding** (**2026-09-27 project redefinition, user directive** — supersedes both the Darktable full-iop baseline and the C1 Session workflow). UI and feature surface fully mimic Alcedo Studio; dt-exclusive delivered features stay in code but are disabled by default (feature flags). Phases below (Milestone 2 draft) are ordered by dependency; Milestone 1 (Phases 1-16) is retained below as historical record of delivered assets. **Milestone 3 (2026-10-08 chartered, active station) sits first; Milestone 2 / Milestone 1 blocks below are retained as record.**
+A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) **Alcedo Studio clone, macOS-exclusive, RAW 9 decoding** (**2026-09-27 project redefinition, user directive** — supersedes both the Darktable full-iop baseline and the C1 Session workflow). UI and feature surface fully mimic Alcedo Studio; dt-exclusive delivered features stay in code but are disabled by default (feature flags). Phases below (Milestone 2 draft) are ordered by dependency; Milestone 1 (Phases 1-16) is retained below as historical record of delivered assets. **Milestone 3 closed (2026-10-10); Milestone 4「栅格与蒙版（收窄版）」(2026-10-10 chartered, active station) sits first; Milestone 2 / Milestone 1 blocks below are retained as record.**
 
 ## Milestone 3: 胶片暗房（Film Darkroom）【2026-10-08 立项（V2 站方案 A）；2026-10-10 M3-0..M3-4 全 5 phase 闭环；**2026-10-10 夜门清翻正：omp 回溯二次验收 16/16 全 PASS（用户令 `a2d3c0a`→现世 `a435f50d`，checkpoint `81114d4`→`5f6860d`，sha-rewrite-map 解析）——M3 milestone closed 名分生效**；原「closure 待门清」注记保留为历史；瘦身手术预检证伪停手（GOAL-STATE 手术队列行；见 M3-4 行）】
 
@@ -23,6 +23,22 @@ A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) **Alcedo Studio cl
 | M3-4 | FSIM-02 宽容度面板 + M3 收口（估 1 plan） | ✅ 闭环（2026-10-10：M3-4-01 双验收〔zcode PASS/0E+3obs + omp FAIL→修复 `d8d72d9`→**OMP-REVERIFY: PASS**——双验收制度首次实战〕+ M3-4-02 VALIDATION signed——`phases/m3-4-latitude/M3-4-02-VALIDATION.md`，夜间授权批落签晨审可推翻；**M3 终值 3174/16skip/0fail**（终验轮亲跑 1470s 零 MEMFAIL，对账链 2962→3024→3081→3125→3152→3174 两式互证逐位）；M3 全 phase SC 三列对账全 Delivered + SC 数字门达成；挂账单一清单总汇编 = Maintenance M1-M7 + V2/观察项 V1-V12 + 手术前置 S1-S2；**M3 milestone closure 带回溯验收门注记**——OMP-RETRO-QUEUE 16 项全 PASS 方翻正 + 触发瘦身手术（用户令 `a2d3c0a`，主会话接力）〔→ **已翻正（2026-10-10 夜收官批）：16/16 PASS，checkpoint `81114d4`→`5f6860d`，「closed」名分生效；手术预检证伪停手**——strip 集 = 0（tip 不可达仅 2.16MB 零命中规则），SPEC 前提被 L070 手术剥净，pack 971.73MiB 全为 tip 在册内容；GOAL-STATE 手术队列行有明细〕）。原 Goal：宽容度教导交互落地 + M3 phase 收口。**内容**：场景直方图 + 胶片容纳范围双虚线 + 低于/内/高于占比读数；「场景置位与显影后曝光严格分离」「EDR 不可找回输入端已丢高光」交互教导对齐；M3 VALIDATION（全 M3 SC 终验 + REQUIREMENTS 翻账）。**验收形态兑现**：双虚线/占比读数 GUI 走查 ✓（实机 verbatim + 双验截图）+ 教导语义走查 ✓（两条 zh verbatim 在屏）+ 置位编辑面实机（拖拽落点精确/⌘Z 恰一回退/typed 拒绝红行）；SC 数字门 = 3174 判定式兑现 | M3-3 |
 
 **边界与纪律**（承 V2-PROPOSAL §六）：在飞修复批（FINDING-F L057 家族 + ToneEqual 根因排查）隔离纪律维持——M3 各 wave 派遣前复核 `git log`/GOAL-STATE，修复批 owned 面（IOP ToneEqual / LUT 导入面板）不并行触碰；zh 清算批（V14/V15）随 M3-W1 属提前执行非另立 phase；新 SPM 依赖裁决权在用户（M3 范围内无已知候选）。
+
+## Milestone 4: 栅格与蒙版（收窄版）【2026-10-10 立项（M4 station charter，M3 收官后接棒）；**范围收窄 = RAW + TIFF 编辑**（2026-10-08 用户裁决：EXR/JPEG/PNG 栅格链移出）；pack 政策 B = 证据分仓同批落地（证据链大对象迁独立私有仓 `lightamer-evidence`，主仓 git 史剥离）】
+
+> M3 收官后 V2/Maintenance 站滚存项的 M4 兑现批。**范围红线（2026-10-08 用户裁决）**：M4 = 「RAW + TIFF 编辑」——RASTER-IN-01 收窄为 **TIFF only**（读写经 ImageIO 原生 + 内嵌 ICC → ACES 工作流 + HDR TIFF 支持）；JPEG/PNG 维持图库可浏览现状**不进开发链**；EXR 连同 ALCE-02 **推迟不入 M4**（读写依赖对比存档于 V2-PROPOSAL OQ-V2-5：③砍出首批 → research 环 ①SPM binding vs ②自写 minimal 子集出对比结论再裁，依赖红线修订是用户专属裁决权）。UltraHDR（ALCE-03）/TRACK-01..05/Mertens（IOP-HDR-06）/PANO（IOP-PANO-01）不入 M4（V2 待办原位挂账）。
+> 资产复用底座：M2-7 蒙版体系（Follow Edges 熔断态 `.snap` 默认 + `.streamline` 分支零重写保留；`phases/m2-7-masks/evidence/m2-7-3/probe/` 进程内真链探针方法论）+ M2-6 DRT 尾段（DrtRecord/逆链语义）+ M2-9 导出矩阵（TIFF 腿现成，零改动红线）+ M2-11 计量基建（test-direct 七域 bundle + ru_maxrss 机检）。
+
+### M4 Phase 表
+
+| # | Phase | 内容（Goal + 验收锚；SC 数字门 = 各 plan 期定） | 依赖 |
+|---|---|---|---|
+| M4-0 | 立项与范围收窄 | ✅ 闭环（2026-10-10：charter 五正本落账 = 本 ROADMAP §Milestone 4 块 + REQUIREMENTS RASTER-IN-01/ALCE-02 原位注记 + STATE M4 段 + TODO M4 头部 + GOAL-STATE 续接点；范围收窄 = TIFF only 入账；pack 政策 B 证据分仓同批执行——evidence 仓 `lightamer-evidence`（ADO 私有）+ 主仓 filter-repo 剥证据大对象，终值见 GOAL-STATE 续接点。验收形态：五正本落账一致 ✓ + 证据分仓完成 ✓ | — |
+| M4-1 | TIFF 栅格开发链（RASTER-IN-01 收窄版） | TIFF 导入即开发：读写经 ImageIO 原生（8/16/32-bit float）+ 内嵌 ICC 解析（源 color description → display-referred 输入经 DRT 逆链 ACES 2.0 逆变换路径进编辑管线）；HDR TIFF 支持（HDR 旗标 → EDR 面）；导入面文件类型选择器对齐上游 #264 形态；JPEG/PNG 维持图库可浏览现状不进开发链；导出矩阵零改动红线（六格式不动）。**验收形态**：TIFF 开发链 round-trip ✓ + ICC 语义 golden ✓ + HDR TIFF EDR ✓；SC 数字门 = 期定 | M4-0 |
+| M4-2 | IOP-MASK-06 Follow Edges V2 换锚重做 | M2-7 熔断态（`.snap` 默认）换锚重做：脊线预提取 + 亚像素质心 + 自适应步长（M2-7-3 probe 实测 8 景盒 × 2 阈值 0/3 功能链的根因面）；`.streamline` 分支与模式选择器保留，复活零重写（M2-7 架构增量节）。**验收形态**：真实照片脊型走查功能链达既定门 ✓ + 与 `.snap` 对照 golden ✓；SC 数字门 = 期定 | M4-0 |
+| M4-3 | IOP-MASK-07 Depth 蒙版 | MiDaS 单目深度（Lumen RAW 借鉴①，参考 `lumen/auto_masks.py`）ONNX→CoreML 转换进蒙版面；**模型资产走 GitHub Release 分发**（不入仓，`Resources/AIModels` 同款纪律）；许可/体积 research 定。**验收形态**：Depth 蒙版生成 + Phase 6 蒙版集成 ✓ + 资产分发链走查 ✓；SC 数字门 = 期定 | M4-0 |
+
+**边界与纪律**：JPEG/PNG 图库可浏览现状零回退（不因 TIFF 链立项破坏既有导入面）；导出矩阵零改动（EXR/UltraHDR 缺口维持 V2 = ALCE-02/03）；蒙版两件沿用 M2-7 蒙版修订 revision/乐观并发纪律；新 SPM 依赖裁决权在用户（M4-3 CoreML 转换为构建期工具链，运行时零新依赖；EXR 依赖修订若启动 = 用户专属裁决）。
 
 ## Milestone 2: Alcedo V1 — 2026-09-27 重定义【M2-0 细化完成 2026-09-27，待用户签核开工】
 
