@@ -170,6 +170,7 @@ IOP	1	FullRenderBenchmarkTests.swift
 #   （2957 → 2960 起算，对账以运行期 Executed 为准）。
 IOP	8	RAW03Tests.swift
 IOP	11	RAWDecoderTests.swift
+IOP	14	RasterColorDescriptionTests.swift
 IOP	11	ROINegotiationTests.swift
 IOP	5	RawDecodeOverridesTests.swift
 IOP	7	ScopeReduceTests.swift
