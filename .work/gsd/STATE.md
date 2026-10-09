@@ -2,25 +2,27 @@
 gsd_state_version: 1.0
 milestone: M4
 milestone_name: Raster & Masks, narrowed (RAW + TIFF only; 2026-10-10 chartered from V2/Maintenance station plan B items)
-current_phase: M4 chartered（M4-0 closed by charter batch 2026-10-10——五正本落账 + pack 政策 B 证据分仓同批执行）；next: M4-1 TIFF 栅格开发链 research
-status: M4 chartered 2026-10-10（范围收窄 = RAW + TIFF only，2026-10-08 用户裁决；EXR/JPEG/PNG 移出）；M3 milestone closed 2026-10-10（omp 回溯 16/16 PASS 门清，夜间授权在案）；M3-4 closed 2026-10-10 (dual acceptance zcode PASS + omp FAIL→fix d8d72d9→reverify PASS; terminal 3174/16/0); M3-1 closed 2026-10-08 (terminal 3024/16/0); M3-2 closed 2026-10-08; M2 closed 2026-10-07 (terminal 2961/16/0)
-last_updated: "2026-10-10T23:30:00.000Z"
+current_phase: M4-1 closed（VALIDATION signed 2026-10-10——dual acceptance 双路 PASS + SC 三列 Delivered，终验 3335/16/0）；next: M4-2 Follow Edges V2 换锚重做 research
+status: M4-1 closed 2026-10-10 (dual acceptance 4-lane PASS; terminal 3335/16/0); M4 chartered 2026-10-10（范围收窄 = RAW + TIFF only，2026-10-08 用户裁决；EXR/JPEG/PNG 移出）；M4-0 closed 2026-10-10 (charter batch); M3 milestone closed 2026-10-10（omp 回溯 16/16 PASS 门清，夜间授权在案）；M3-4 closed 2026-10-10 (dual acceptance zcode PASS + omp FAIL→fix d8d72d9→reverify PASS; terminal 3174/16/0); M3-1 closed 2026-10-08 (terminal 3024/16/0); M3-2 closed 2026-10-08; M2 closed 2026-10-07 (terminal 2961/16/0)
+last_updated: "2026-10-10T07:00:00.000Z"
 progress:
   total_phases: 16
   completed_phases: 14
-  total_plans: 145
-  completed_plans: 145
+  total_plans: 147
+  completed_plans: 147
   m2_phases_total: 12
   m2_phases_complete: 12
   m3_phases_total: 5
   m3_phases_complete: 5
+  m4_phases_total: 4
+  m4_phases_complete: 2
 ---
 
 # Project State: Lightamer
 
 **Last updated:** 2026-10-10
-**Current phase:** **M4 chartered（栅格与蒙版·收窄版，2026-10-10 charter 批立项）**——范围收窄 = RAW + TIFF 编辑（2026-10-08 用户裁决；RASTER-IN-01 收窄 TIFF only，EXR/JPEG/PNG 移出；ALCE-02 随 RASTER-IN 推迟）。M4-0 闭环 = charter 五正本落账（ROADMAP §Milestone 4 + REQUIREMENTS 注记 + 本文件 + TODO 头部 + GOAL-STATE 续接点）+ pack 政策 B 证据分仓同批执行（evidence 仓 `lightamer-evidence` ADO 私有 + 主仓 filter-repo 剥证据大对象，终值见 GOAL-STATE）。next: M4-1 research（M3 已 closed：M3-0..M3-4 全 5 phase complete，M3-4-02 VALIDATION signed 终验 `TOTAL|3174/16/0|1470s`——`phases/m3-4-latitude/M3-4-02-VALIDATION.md`；closure 门 2026-10-10 夜收官批翻正 = OMP-RETRO-QUEUE 16 项 omp 回溯 16/16 PASS〔checkpoint `81114d4`→`5f6860d`〕；「全史瘦身手术第二次」预检证伪停手后由 pack 政策 B 证据分仓接替——见 GOAL-STATE 手术队列行与续接点）
-**Status:** Milestone 1 Phases 1-16 = 历史记录；Milestone 2 **closed**（M2-0..M2-11 全 complete；M2-11 VALIDATION 兼收口 signed 2026-10-07，终验 TOTAL|2961/16/0|1081s 干净绿；挂账移交 = `phases/m2-11-performance/M2-11-VALIDATION-INPUT.md` §4.4 单一清单）；**Milestone 3 = closed（2026-10-10 全 5 phase complete + 门清翻正）**（M3-1 closed 2026-10-08 终态 3024/16/0 → M3-2 closed 2026-10-08 → M3-3 三波闭环 3152/16/0 → M3-4-01 双验收 + M3-4-02 VALIDATION 终态 **3174/16/0**；翻账正本 = `phases/m3-4-latitude/M3-4-02-VALIDATION.md`——SC 三列 M3-0..M3-4 全相 Delivered + 挂账单一清单总汇编 Maintenance M1-M7 / V2 V1-V12 / 手术前置 S1-S2；**「milestone closed」名分 2026-10-10 夜由收官批翻正生效**〔omp 回溯 16/16 PASS，checkpoint `81114d4`→`5f6860d`〕，晨审可推翻）；**Milestone 4 = chartered（2026-10-10）**——M4-1 TIFF 栅格开发链 / M4-2 Follow Edges V2 换锚重做 / M4-3 Depth 蒙版，wave 序 = M4-1 research 起
+**Current phase:** **M4-1 closed（TIFF 栅格开发链，VALIDATION signed 2026-10-10）**——`phases/m4-1-tiff-raster/M4-1-VALIDATION.md`（`status: validated` + `nyquist_compliant: true`）；SC#1/SC#2/SC#3 全 Delivered + 七项生效值（OQ-1..7 裁决）全落地；终验 `TOTAL|3335/16/0|1604s`（对账链 3174+102+59 两式互证；zcode 验收路 1584s 独立复跑逐位）；双重验收 4 路 PASS / 0 error（01 omp-minor-1 字面订正由 02 批闭环；02 omp-minor-1 测试卫生挂账）；挂账单一清单六项 = VALIDATION 挂账总汇编。**next: M4-2 Follow Edges V2 换锚重做（research 起）**——M2-7 熔断态（`.snap` 默认）换锚：脊线预提取 + 亚像素质心 + 自适应步长；`.streamline` 分支保留复活零重写。M3 已 closed：M3-0..M3-4 全 5 phase complete，M3-4-02 VALIDATION signed 终验 `TOTAL|3174/16/0|1470s`——`phases/m3-4-latitude/M3-4-02-VALIDATION.md`；closure 门 2026-10-10 夜收官批翻正 = OMP-RETRO-QUEUE 16 项 omp 回溯 16/16 PASS〔checkpoint `81114d4`→`5f6860d`〕；「全史瘦身手术第二次」预检证伪停手后由 pack 政策 B 证据分仓接替——见 GOAL-STATE 手术队列行与续接点
+**Status:** Milestone 1 Phases 1-16 = 历史记录；Milestone 2 **closed**（M2-0..M2-11 全 complete；M2-11 VALIDATION 兼收口 signed 2026-10-07，终验 TOTAL|2961/16/0|1081s 干净绿；挂账移交 = `phases/m2-11-performance/M2-11-VALIDATION-INPUT.md` §4.4 单一清单）；**Milestone 3 = closed（2026-10-10 全 5 phase complete + 门清翻正）**（M3-1 closed 2026-10-08 终态 3024/16/0 → M3-2 closed 2026-10-08 → M3-3 三波闭环 3152/16/0 → M3-4-01 双验收 + M3-4-02 VALIDATION 终态 **3174/16/0**；翻账正本 = `phases/m3-4-latitude/M3-4-02-VALIDATION.md`——SC 三列 M3-0..M3-4 全相 Delivered + 挂账单一清单总汇编 Maintenance M1-M7 / V2 V1-V12 / 手术前置 S1-S2；**「milestone closed」名分 2026-10-10 夜由收官批翻正生效**〔omp 回溯 16/16 PASS，checkpoint `81114d4`→`5f6860d`〕，晨审可推翻）；**Milestone 4 = in flight（2026-10-10 charter）**——M4-0 closed（charter 五正本落账 + pack 政策 B 证据分仓）→ **M4-1 closed（VALIDATION signed 2026-10-10，终态 3335/16skip/0fail——翻账正本 = `phases/m4-1-tiff-raster/M4-1-VALIDATION.md`：SC 三列 Delivered + 七项生效值落地 + 挂账六项移交）**→ M4-2 Follow Edges V2 换锚重做（next）/ M4-3 Depth 蒙版
 
 ## Completion Ledger
 
@@ -69,6 +71,15 @@ progress:
 | M3-2 | FSIM research round (+ M7 spike + FSIM-03 note riders) | **complete** (2026-10-08: RESEARCH-NOTES 定稿 `b4049b8` + OQ-M3-2-1..7 all-recommendations user ruling `e02dcc7` + M7 RAF warm-bimodal spike adjudicated — bench sampling-window artifact + idle-decay effect, steady RAF 14-19ms / ARW 12.3-15.6ms deterministic, no pipeline defect; verdict + data = `phases/m2-11-performance/perf.md` §O-1 SPIKE, evidence pack = `phases/m3-2-fsim-research/evidence/`; probe zero production diff, night-relay authorization on record) | — |
 | M3-3 | FSIM-01 two-stage film simulation (stage model + auto printing-filter solve + Y/M offsets) | **complete** (three waves 2026-10-08/09, all accepted PASS / 0 error — 01 data foundation: FilmRecord + CC BY-SA asset quintet + solver + sidecar v9; 02 pipeline: film sub-run seam + fused kernel + print bake + filmPlacement op + export seam; 03 golden four gates + m=1 shadow sign production fix + determinism suite five + Film panel/readonly card; terminal 3152/16/0 = 03 full-suite verified; VALIDATION carried by M3-4 signoff batch per plan) | **3152/16skip/0fail** |
 | M3-4 | FSIM-02 latitude panel + M3 VALIDATION closeout | **complete — M3 milestone closed（gate cleared, flipped 2026-10-10 night closeout batch）** (2026-10-10: M3-4-01 dual acceptance — zcode PASS/0E+3obs + omp FAIL→fix `d8d72d9`→OMP-REVERIFY PASS〔dual-acceptance first live run〕; M3-4-02 VALIDATION signed 2026-10-10 night-autobatch — `phases/m3-4-latitude/M3-4-02-VALIDATION.md`; M3 full-phase SC three-column reconciliation all Delivered + SC numeric gate met; backlog single list = Maintenance M1-M7 + V2 V1-V12 + surgery-precondition S1-S2; **milestone "closed" title flips only after OMP-RETRO-QUEUE 16 items all-PASS (user directive a2d3c0a, main-session serial sweep) → then history-slim surgery triggers**〔→ 已翻正（2026-10-10 夜）：16/16 PASS，checkpoint `81114d4`→`5f6860d`，「closed」名分生效；手术预检证伪停手——GOAL-STATE 手术队列行〕) | **3174/16skip/0fail** (M3 terminal) |
+
+## Milestone 4 Ledger (Raster & Masks, narrowed — 2026-10-10 chartered, RAW + TIFF only)
+
+| Phase | Name | Status | Terminal tests |
+|---|---|---|---|
+| M4-0 | Charter & scope narrowing | **complete** (2026-10-10: charter 五正本落账 = ROADMAP §Milestone 4 + REQUIREMENTS RASTER-IN-01/ALCE-02 原位注记 + STATE + TODO 头部 + GOAL-STATE 续接点；范围收窄 = TIFF only 入账；pack 政策 B 证据分仓同批落地——evidence 仓 `lightamer-evidence` ADO 私有 + 主仓 filter-repo 剥证据大对象) | — |
+| M4-1 | TIFF raster develop chain (RASTER-IN-01 narrowed) | **complete (VALIDATION signed 2026-10-10 — `phases/m4-1-tiff-raster/M4-1-VALIDATION.md`; 2 plans accepted, dual acceptance 4-lane PASS / 0 error: 01 zcode 0E+0M+3obs + omp 0E+1M+3obs〔omp-minor-1 literal correction closed by 02 batch〕/ 02 zcode 0E+0M+3obs + omp 0E+1M+2obs〔omp-minor-1 test-hygiene carried as backlog〕; SC#1 round-trip real-queue / SC#2 ICC golden + IOP·IOPParity bitwise / SC#3 HDR viewport five tests all Delivered; OQ-1..7 rulings all landed; backlog single list = six items — deep-shadow desaturation / HDR LUT-arm face / CMYK·16-bit-gray UX / 16-bit-gray leg / RGC-off morning-review-flippable / omp-minor-1 fix batch; morning review may overturn)** | **3335/16skip/0fail** |
+| M4-2 | IOP-MASK-06 Follow Edges V2 (re-anchor) | pending research (next) | — |
+| M4-3 | IOP-MASK-07 Depth mask (MiDaS) | pending research | — |
 
 ## Notes
 
