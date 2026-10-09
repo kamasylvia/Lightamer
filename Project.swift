@@ -478,6 +478,7 @@ let project = Project(
                 "Tests/LightamerTests/Aces2MathTests.swift",
                 "Tests/LightamerTests/DrtRecordTests.swift",
                 "Tests/LightamerTests/DrtEotfTests.swift",
+                "Tests/LightamerTests/RasterDefaultRecordTests.swift",
                 "Tests/LightamerTests/DrtPresetsTests.swift",
                 "Tests/LightamerTests/DrtTailTests.swift",
                 "Tests/LightamerTests/DrtPostMigrationTests.swift",
