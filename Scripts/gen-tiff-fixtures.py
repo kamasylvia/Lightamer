@@ -367,24 +367,35 @@ def _strip_gray(icc):
     buf = bytearray(icc)
     count = struct.unpack(">I", buf[128:132])[0]
     keep = []
+    trc_payload = None
     for i in range(count):
         entry = 132 + i * 12
         sig = bytes(buf[entry:entry + 4])
-        if sig in (b"rXYZ", b"gXYZ", b"bXYZ", b"rTRC", b"gTRC", b"bTRC"):
+        off = struct.unpack(">I", buf[entry + 4:entry + 8])[0]
+        size = struct.unpack(">I", buf[entry + 8:entry + 12])[0]
+        if sig in (b"rXYZ", b"gXYZ", b"bXYZ"):
             continue
-        keep.append((sig,
-                     struct.unpack(">I", buf[entry + 4:entry + 8])[0],
-                     struct.unpack(">I", buf[entry + 8:entry + 12])[0]))
+        if sig == b"rTRC":
+            trc_payload = bytes(buf[off:off + size])  # becomes kTRC below
+            continue
+        if sig in (b"gTRC", b"bTRC"):
+            continue
+        keep.append((sig, off, size))
+    if trc_payload is not None:
+        keep.append((b"kTRC", 0, trc_payload))  # (sig, unused-offset, payload)
     # Rebuild the payload region: copy live tag payloads in keep order.
     payload_start = 132 + count * 12
     payloads = b""
     new_entries = []
     for (sig, off, size) in keep:
-        data = bytes(buf[off:off + size])
+        if sig == b"kTRC":
+            payload = size          # the renamed rTRC payload rides inline
+        else:
+            payload = bytes(buf[off:off + size])
         while (128 + 4 + len(keep) * 12 + len(payloads)) % 4 != 0:
             payloads += b"\0"
-        new_entries.append((sig, 128 + 4 + len(keep) * 12 + len(payloads), data))
-        payloads += data
+        new_entries.append((sig, 128 + 4 + len(keep) * 12 + len(payloads), payload))
+        payloads += payload
     total = 128 + 4 + len(keep) * 12 + len(payloads)
     header = bytearray(buf[:128])
     header[0:4] = struct.pack(">I", total)
