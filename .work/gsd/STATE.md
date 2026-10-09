@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: M3
-milestone_name: Film Darkroom (2026-10-08 chartered from V2/Maintenance station, plan A)
-current_phase: M3 milestone closed（M3-0..M3-4 全 complete；门已清 2026-10-10 夜收官批翻正——omp 回溯二次验收 16/16 PASS，checkpoint `81114d4`→现世 `5f6860d`〔S2 msg 补课 57 对，sha-rewrite-map 解析〕；手术预检证伪停手）；next: M4 station charter + pack-slim 决策项（GOAL-STATE 手术队列行）
-status: M3 milestone closed 2026-10-10（omp 回溯 16/16 PASS 门清，夜间授权在案）；M3-4 closed 2026-10-10 (dual acceptance zcode PASS + omp FAIL→fix d8d72d9→reverify PASS; terminal 3174/16/0); M3-1 closed 2026-10-08 (terminal 3024/16/0); M3-2 closed 2026-10-08; M2 closed 2026-10-07 (terminal 2961/16/0)
-last_updated: "2026-10-10T22:30:00.000Z"
+milestone: M4
+milestone_name: Raster & Masks, narrowed (RAW + TIFF only; 2026-10-10 chartered from V2/Maintenance station plan B items)
+current_phase: M4 chartered（M4-0 closed by charter batch 2026-10-10——五正本落账 + pack 政策 B 证据分仓同批执行）；next: M4-1 TIFF 栅格开发链 research
+status: M4 chartered 2026-10-10（范围收窄 = RAW + TIFF only，2026-10-08 用户裁决；EXR/JPEG/PNG 移出）；M3 milestone closed 2026-10-10（omp 回溯 16/16 PASS 门清，夜间授权在案）；M3-4 closed 2026-10-10 (dual acceptance zcode PASS + omp FAIL→fix d8d72d9→reverify PASS; terminal 3174/16/0); M3-1 closed 2026-10-08 (terminal 3024/16/0); M3-2 closed 2026-10-08; M2 closed 2026-10-07 (terminal 2961/16/0)
+last_updated: "2026-10-10T23:30:00.000Z"
 progress:
   total_phases: 16
   completed_phases: 14
@@ -19,8 +19,8 @@ progress:
 # Project State: Lightamer
 
 **Last updated:** 2026-10-10
-**Current phase:** **M3 milestone closed（门已清，2026-10-10 夜收官批翻正）**（M3-0..M3-4 全 5 phase complete；M3-4-02 VALIDATION signed 2026-10-10 终验 `TOTAL|3174/16/0|1470s`——`phases/m3-4-latitude/M3-4-02-VALIDATION.md`；**closure 门已清 = OMP-RETRO-QUEUE 16 项 omp 回溯二次验收 16/16 全 PASS**〔用户令 `a2d3c0a`→现世 `a435f50d`，checkpoint `81114d4`→`5f6860d`，sha-rewrite-map 解析〕；原「GATED」注记保留为历史；「全史瘦身手术第二次」预检证伪停手——strip 集 = 0，见 GOAL-STATE 手术队列行；M3-1 closed 2026-10-08 VALIDATION signed；M3-2 closed 2026-10-08；M2 closed 2026-10-07）
-**Status:** Milestone 1 Phases 1-16 = 历史记录；Milestone 2 **closed**（M2-0..M2-11 全 complete；M2-11 VALIDATION 兼收口 signed 2026-10-07，终验 TOTAL|2961/16/0|1081s 干净绿；挂账移交 = `phases/m2-11-performance/M2-11-VALIDATION-INPUT.md` §4.4 单一清单）；**Milestone 3 = closed（2026-10-10 全 5 phase complete + 门清翻正）**（M3-1 closed 2026-10-08 终态 3024/16/0 → M3-2 closed 2026-10-08 → M3-3 三波闭环 3152/16/0 → M3-4-01 双验收 + M3-4-02 VALIDATION 终态 **3174/16/0**；翻账正本 = `phases/m3-4-latitude/M3-4-02-VALIDATION.md`——SC 三列 M3-0..M3-4 全相 Delivered + 挂账单一清单总汇编 Maintenance M1-M7 / V2 V1-V12 / 手术前置 S1-S2；**「milestone closed」名分 2026-10-10 夜由收官批翻正生效**〔omp 回溯 16/16 PASS，checkpoint `81114d4`→`5f6860d`〕，晨审可推翻）
+**Current phase:** **M4 chartered（栅格与蒙版·收窄版，2026-10-10 charter 批立项）**——范围收窄 = RAW + TIFF 编辑（2026-10-08 用户裁决；RASTER-IN-01 收窄 TIFF only，EXR/JPEG/PNG 移出；ALCE-02 随 RASTER-IN 推迟）。M4-0 闭环 = charter 五正本落账（ROADMAP §Milestone 4 + REQUIREMENTS 注记 + 本文件 + TODO 头部 + GOAL-STATE 续接点）+ pack 政策 B 证据分仓同批执行（evidence 仓 `lightamer-evidence` ADO 私有 + 主仓 filter-repo 剥证据大对象，终值见 GOAL-STATE）。next: M4-1 research（M3 已 closed：M3-0..M3-4 全 5 phase complete，M3-4-02 VALIDATION signed 终验 `TOTAL|3174/16/0|1470s`——`phases/m3-4-latitude/M3-4-02-VALIDATION.md`；closure 门 2026-10-10 夜收官批翻正 = OMP-RETRO-QUEUE 16 项 omp 回溯 16/16 PASS〔checkpoint `81114d4`→`5f6860d`〕；「全史瘦身手术第二次」预检证伪停手后由 pack 政策 B 证据分仓接替——见 GOAL-STATE 手术队列行与续接点）
+**Status:** Milestone 1 Phases 1-16 = 历史记录；Milestone 2 **closed**（M2-0..M2-11 全 complete；M2-11 VALIDATION 兼收口 signed 2026-10-07，终验 TOTAL|2961/16/0|1081s 干净绿；挂账移交 = `phases/m2-11-performance/M2-11-VALIDATION-INPUT.md` §4.4 单一清单）；**Milestone 3 = closed（2026-10-10 全 5 phase complete + 门清翻正）**（M3-1 closed 2026-10-08 终态 3024/16/0 → M3-2 closed 2026-10-08 → M3-3 三波闭环 3152/16/0 → M3-4-01 双验收 + M3-4-02 VALIDATION 终态 **3174/16/0**；翻账正本 = `phases/m3-4-latitude/M3-4-02-VALIDATION.md`——SC 三列 M3-0..M3-4 全相 Delivered + 挂账单一清单总汇编 Maintenance M1-M7 / V2 V1-V12 / 手术前置 S1-S2；**「milestone closed」名分 2026-10-10 夜由收官批翻正生效**〔omp 回溯 16/16 PASS，checkpoint `81114d4`→`5f6860d`〕，晨审可推翻）；**Milestone 4 = chartered（2026-10-10）**——M4-1 TIFF 栅格开发链 / M4-2 Follow Edges V2 换锚重做 / M4-3 Depth 蒙版，wave 序 = M4-1 research 起
 
 ## Completion Ledger
 
