@@ -542,5 +542,8 @@ IOPP	16	FilmGoldenTests.swift
 #   （exact t 语义 + §6.4 四行 8 值参考向量 + 联合排序门 + 交叉拒绝负测 + 域守卫门
 #   + v1 typed-degrade 负测），12→16 净增 4 法；IOPP 执行面 404→408。
 LAYERS	5	FilmDeterminismTests.swift
+#   M3-4-01 T2 增行（2026-10-09，登记随文件同 commit）：FilmDescriptorTests =
+#   LAYERS/Core 级（descriptor 归约纯函数 + 真链 probe + 缓存键），7 法。
+LAYERS	7	FilmDescriptorTests.swift
 APP	6	FilmPanelTests.swift
 APP	4	FilmCardTests.swift

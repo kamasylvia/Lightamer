@@ -1042,37 +1042,21 @@ internal final class PixelPipe: @unchecked Sendable {
         upstreamSeed: UInt64,
         metal: MetalContext
     ) async throws -> (texture: any MTLTexture, roi: ROI, outputHash: UInt64) {
-        var solvedPackHash: UInt64 = 0
-        var method = FilmMethodBox.Params(record: params.record)
-        var payloads: FilmGPUPayloads? = nil
-        if let film = params.filmProfile, let paper = params.paperProfile {
-            // ① the statistics: ONE full-plane pass (the seam may be
-            // uninstalled in pure-Core harnesses — the gain then rides the
-            // manual exposure trim alone, deterministically).
-            let histogram = try? await FilmStatsSeam.histogram(input, metal)
-            // ② the solve (cached; key = pair ⊕ stats ⊕ mode).
-            if let solution = try? FilmRuntimeSolve.solve(
-                record: params.record, film: film, paper: paper,
-                materialPairHash: params.materialPairHash, histogram: histogram)
-            {
-                solvedPackHash = solution.solvedPackHash
-                method = FilmMethodBox.Params(
-                    record: params.record,
-                    magentaCC: Float(solution.magentaCC),
-                    yellowCC: Float(solution.yellowCC),
-                    exposureGain: Float(solution.exposureGain))
-                // ③ the GPU payload assembly (run-scoped; the bake rides
-                // the per-pair LRU inside FilmPrintBake.Cache).
-                if let assembled = Self.assembleFilmPayloads(
-                    film: film, paper: paper, method: method, plane: input,
-                    metal: metal)
-                {
-                    payloads = assembled
-                }
-            }
-        }
+        // ① the statistics: ONE full-plane pass — only when the materials
+        // are resolved (the factory's guard; the seam may be uninstalled
+        // in pure-Core harnesses — the gain then rides the manual exposure
+        // trim alone, deterministically).
+        let histogram: FilmStatsSeam.PlaneHistogram? =
+            (params.filmProfile != nil && params.paperProfile != nil)
+            ? try? await FilmStatsSeam.histogram(input, metal) : nil
+        // ② ③ the solve + the GPU payload assembly (the shared factory —
+        // the descriptor probe constructs through the SAME path).
+        let assembled = Self.assembleFilmLeg(
+            record: params.record, film: params.filmProfile, paper: params.paperProfile,
+            materialPairHash: params.materialPairHash, histogram: histogram,
+            plane: input, metal: metal)
         defer { FilmMethodBox.runContext = nil }
-        FilmMethodBox.runContext = payloads
+        FilmMethodBox.runContext = assembled.payloads
         let filmPipe = PixelPipe(resolution: resolution, cache: cache)
         filmPipe.imageID = imageID
         filmPipe.layerStack = layerStack
@@ -1080,14 +1064,48 @@ internal final class PixelPipe: @unchecked Sendable {
         filmPipe.isFilmTailLeg = true
         filmPipe.tailFormatFloatOverride = tailFormatFloatOverride
         let seed = FilmTailAssembly.seed(
-            upstream: upstreamSeed, params: params, solvedPackHash: solvedPackHash)
+            upstream: upstreamSeed, params: params,
+            solvedPackHash: assembled.solvedPackHash)
         let (output, _) = try await filmPipe.runSub(
             input: input, inputROI: inputROI,
-            instances: FilmTailAssembly.instances(method: method),
+            instances: FilmTailAssembly.instances(method: assembled.method),
             decodeHash: seed, metal: metal, layerID: cacheLayerID)
         let outputHash = Self.chain(
-            seed, FilmTailAssembly.methodParamsHash(method: method))
+            seed, FilmTailAssembly.methodParamsHash(method: assembled.method))
         return (output, filmPipe.roi, outputHash)
+    }
+
+    /// The film leg's payload assembly FACTORY (M3-4-01 T2 extraction,
+    /// KD-2 — zero behavior diff: the production leg and the descriptor
+    /// probe construct through this ONE path, RFC-023 §8.1 "same code path
+    /// as the picture"). histogram → solve (cached) → the GPU payload
+    /// build. Unresolved materials / a failed solve = the identity face
+    /// (solvedPackHash 0, nil payloads — the byte-neutral carrier).
+    static func assembleFilmLeg(
+        record: FilmRecord, film: FilmProfile?, paper: FilmProfile?,
+        materialPairHash: UInt64, histogram: FilmStatsSeam.PlaneHistogram?,
+        plane: any MTLTexture, metal: MetalContext
+    ) -> (method: FilmMethodBox.Params, payloads: FilmGPUPayloads?, solvedPackHash: UInt64) {
+        var solvedPackHash: UInt64 = 0
+        var method = FilmMethodBox.Params(record: record)
+        var payloads: FilmGPUPayloads? = nil
+        if let film, let paper,
+            let solution = try? FilmRuntimeSolve.solve(
+                record: record, film: film, paper: paper,
+                materialPairHash: materialPairHash, histogram: histogram)
+        {
+            solvedPackHash = solution.solvedPackHash
+            method = FilmMethodBox.Params(
+                record: record,
+                magentaCC: Float(solution.magentaCC),
+                yellowCC: Float(solution.yellowCC),
+                exposureGain: Float(solution.exposureGain))
+            // The GPU payload assembly (run-scoped; the bake rides the
+            // per-pair LRU inside FilmPrintBake.Cache).
+            payloads = assembleFilmPayloads(
+                film: film, paper: paper, method: method, plane: plane, metal: metal)
+        }
+        return (method, payloads, solvedPackHash)
     }
 
     /// The film leg's GPU payload assembly: the curve buffer (channel-major
