@@ -5,10 +5,16 @@ status: validated
 nyquist_compliant: true
 created: 2026-10-10
 validated: 2026-10-10
-milestone_closeout: M3 (closure gated — OMP-RETRO-QUEUE all-PASS pending, see §前置门)
+milestone_closeout: M3
 ---
 
 # Phase M3-4 — Validation（FSIM-02 收口 + **M3 milestone 收口正本**，单文档收口 OQ-8-A 体例）
+
+> **✅ 门已清（2026-10-10 夜收官批翻正）：omp 回溯二次验收 16/16 全 PASS**
+> （checkpoint `81114d4`——S2 msg 补课后现世 `5f6860d`，sha-rewrite-map 解析），
+> **M3 milestone closed 名分生效**；下节「⚠️ M3 milestone closure 前置门」
+> 注记保留为历史不改写。同批手术预检：strip 集实算 = 0（SPEC 前提证伪，
+> 手术停手上报，见 GOAL-STATE 手术队列行）。
 
 > 体例对齐 `phases/m2-11-performance/M2-11-VALIDATION.md`（单文档收口——里程碑
 > 终态由本件 + 翻账批承载，不另跑 gsd-complete-milestone）。**翻账只认证据**：

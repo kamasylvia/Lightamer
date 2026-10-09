@@ -53,3 +53,32 @@
 plan front-matter 申报「新建（收口期裁决——如有）」：本批收口期裁决共三项
 （门控态 / 预检 / 死 SHA），均有后续主会话动作面，独立成文便于门清批与手术批
 直接消费；SC 对账与签核语义仍在 VALIDATION 正本，不在此重复。
+
+## §5 门清翻正 + 手术批执行记录（2026-10-10 夜收官批 subagent，本节为 §1-§3 的消账节）
+
+- **§1 门控态 → 已消账**：omp 回溯二次验收 16/16 全 PASS（checkpoint
+  `81114d4`——msg 补课后现世 `5f6860d`，sha-rewrite-map 解析）；翻正清单五处
+  全落（VALIDATION frontmatter + 置顶注记 / STATE frontmatter+正文+Ledger
+  M3-4 行 / ROADMAP 块头+M3-4 行 / TODO M3 头部+手术队列行 / GOAL-STATE
+  队列行+新续接点）+ 本节，共六处；历史行零改写。**M3 milestone closed
+  名分生效。**
+- **§2 断言① → 已补课**：3 枚 commit msg 英文化（`2d580d8`→`9102975`/
+  `ca714f9`→`8f2f84f`/`c5afe0d`→`96d2937`，filter-branch --msg-filter；
+  perl 模式须 `-Mutf8`，首跑缺它静默不命中 = "Ref unchanged"，L072）；
+  后代 57 枚 SHA 联动（subject-exact 配对 57/57，边界 `158a4680` 以下零
+  变化）全量入 map；全史 CJK 复扫 CLEAN；ADO `--force-with-lease` 收敛
+  `0e27519..5f6860d`（github 公开仓未动）。
+- **§3 死 SHA → map 消账 + 链式更新**：`b4049b7`（原判 b4049b8 现世系）
+  本身在 57 枚重写集内 → 现世系链至 `b412addb`；其余三枚（06ffb91/ffe0d9e/
+  e50b291）不在集内仍活。map 以「死 SHA 短式 → 现活 full SHA」单跳入账。
+- **手术批（步骤 3）停手——SPEC 前提实测证伪**：strip 集 = tip 不可达
+  （41 blob / 2.16MB，无一路径命中规则）∩ 规则集 = **0 候选**；SPEC 预期
+  对象（LUTs「旧」314MB / 归档证据历史版）实为 tip 在册内容（pack
+  971.73MiB = .work/gsd/phases 882MB + Resources/LUTs 314MB + gui-acceptance
+  ~300MB，5954/5995 blob tip 可达）——「907→400-500MB」数学不可达。按红线
+  （tip blob 禁入 strip 集）执行 = 零收益全史重写，停手；filter-repo 未跑
+  （remotes/release `ec389f2`/worktree 零扰动）。pack 瘦身转决策项
+  （tip 证据资产出仓：LFS/外部仓/降采样归档），挂晨审另立 SPEC。
+- **验证五项**：size-pack 971.73MiB（手术未执行，如实不变）/ 零 CJK CLEAN
+  / input 240M + Tests/Fixtures + Resources/TestFixtures 在盘 / commit 数
+  1237 前后一致 / release SHA `ec389f2` 不变。
