@@ -317,6 +317,8 @@ let project = Project(
                 "Tests/LightamerTests/DrtKernelGoldenTests.swift",
                 "Tests/LightamerTests/Aces2KernelGoldenTests.swift",
                 "Tests/LightamerTests/Aces2InverseTests.swift",
+                "Tests/LightamerTests/RasterInputPlaneTests.swift",
+                "Tests/LightamerTests/RasterKernelParityTests.swift",
                 "Tests/LightamerTests/GoldenColorTests.swift",
                 "Tests/LightamerTests/GoldenParityTests.swift",
                 "Tests/LightamerTests/HDRPipelineMatrixTests.swift",
