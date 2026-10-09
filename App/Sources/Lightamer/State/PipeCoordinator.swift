@@ -811,6 +811,34 @@ final class PipeCoordinator {
     /// source; nil = the film face dark).
     var filmMaterialStore: FilmMaterialStore? { filmStore }
 
+    // ── M3-4-01 T3 (KD-3/m5): the latitude READ faces — additive; the
+    //    panel's single data source (零第二真相).
+
+    /// The mirrored film-stats snapshot (mechanism (c)): refreshed at the
+    /// PREVIEW render's completion from the IOP-side LastValue slot
+    /// (FilmStatsSnapshot.last — mechanism (b)'s adapter side effect; the
+    /// film leg's compute-in-place shape is untouched). nil = the film leg
+    /// has not run (film off / stats never computed — the placeholder).
+    var filmStatsSnapshot: FilmStatsSeam.PlaneHistogram?
+
+    /// The medium descriptor's consumption face (cache-first; the probe is
+    /// the compute-back on a miss). The panel drives it on the pair-change
+    /// event; a degraded probe answers nil (the panel presents the absence).
+    func filmDescriptor(
+        film: FilmProfile, paper: FilmProfile, materialPairHash: UInt64
+    ) async -> ProfileLatitudeDescriptor? {
+        let key = FilmDescriptorCache.cacheKey(materialPairHash: materialPairHash)
+        if let cached = FilmDescriptorCache.shared.descriptor(for: key) {
+            return cached
+        }
+        guard let metal else { return nil }
+        guard let descriptor = try? await FilmDescriptorProbe.probe(
+            film: film, paper: paper, materialPairHash: materialPairHash, metal: metal)
+        else { return nil }
+        FilmDescriptorCache.shared.store(descriptor, for: key)
+        return descriptor
+    }
+
     /// The current document's film session carrier record (nil = pristine).
     var currentFilmRecord: FilmRecord? {
         guard let url = currentImageURL, let workspace,
@@ -2311,6 +2339,10 @@ final class PipeCoordinator {
             if let pushed = editorState?.displayTexture {
                 scheduleScopeSample(SendableTextureBox(texture: pushed))
             }
+            // M3-4-01 T3 (m5 mechanism (c)): mirror the film stats' LastValue
+            // slot into the observed face — the latitude panel re-renders on
+            // it. Cheap value copy (the 256×4 count matrix).
+            filmStatsSnapshot = FilmStatsSnapshot.last
             Self.logger.info(
                 "pixelpipe output ready: PREVIEW bucket \(bucket, privacy: .public)px (\(stats.hits, privacy: .public) hits / \(stats.misses, privacy: .public) misses, \(stats.planesRendered, privacy: .public) planes)"
             )

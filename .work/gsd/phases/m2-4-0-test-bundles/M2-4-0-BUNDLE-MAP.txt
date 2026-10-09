@@ -546,4 +546,8 @@ LAYERS	5	FilmDeterminismTests.swift
 #   LAYERS/Core 级（descriptor 归约纯函数 + 真链 probe + 缓存键），7 法。
 LAYERS	7	FilmDescriptorTests.swift
 APP	6	FilmPanelTests.swift
+#   M3-4-01 T3 增行（2026-10-09，登记随文件同 commit）：FilmLatitudePanelTests =
+#   APP/App 级（占比手算/锚三态/动态最小值/§6.4 四行可写入+交叉拒绝/Fit 三分支/
+#   端点斜率/session 面/教导键静态），9 法。
+APP	9	FilmLatitudePanelTests.swift
 APP	4	FilmCardTests.swift

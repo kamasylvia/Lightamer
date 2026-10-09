@@ -49,8 +49,8 @@ public enum LightamerIOPRegistry {
         BilateralModule.opName,
     ]
 
-    /// KD-3 opt-in: launch with `LIGHTAMER_FULL_IOP_FACE=1` to restore the
-    /// pre-M2-1 full face (dev/debug + legacy-image full fidelity). The
+/// KD-3 opt-in: launch with `LIGHTAMER_FULL_IOP_FACE=1` to restore the
+/// pre-M2-1 full face (dev/debug + legacy-image full fidelity). The
     /// production composition roots pass `defaultFace:
     /// !isFullFaceRequested`; there is deliberately no settings UI (the
     /// M2-3 IA owns that face — this env seam is its backend hook).
@@ -78,9 +78,18 @@ public enum LightamerIOPRegistry {
         // consumes the full-plane histogram through the Core-side value
         // type; the ScopeReduce bridge (L014 fence inside) installs here,
         // the same direction as the envelope above.
+        // M3-4-01 T3 (m5, mechanism (b)): the adapter RETAINS the most
+        // recent histogram as a side effect (the LastValue slot below) —
+        // the latitude panel's data path never touches PixelPipe (the
+        // leg's compute-in-place shape at runFilmLeg is unchanged); the
+        // coordinator reads the slot at the render's completion (mechanism
+        // (c)) and mirrors it into its observed face. Advisory value copy
+        // — a render-Task write racing a MainActor read is benign.
         FilmStatsSeam.histogram = { plane, metal in
             let histogram = try await ScopeReduce.histogram(of: plane, metal: metal)
-            return FilmStatsSeam.PlaneHistogram(perChannel: histogram.perChannel)
+            let value = FilmStatsSeam.PlaneHistogram(perChannel: histogram.perChannel)
+            FilmStatsSnapshot.last = value
+            return value
         }
         // The per-site gate (KD-1). Each gated site carries its matrix
         // verdict (M2-1-MATRIX.md is the disable decision of record); the
@@ -754,4 +763,17 @@ public enum LightamerIOPRegistry {
             ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
         }
     }
+}
+
+/// The film stats' LastValue snapshot slot (M3-4-01 m5, mechanism (b)): the
+/// installed histogram adapter retains the most recent PlaneHistogram here —
+/// the latitude panel's data path never touches PixelPipe (the leg's
+/// compute-in-place shape is unchanged); the coordinator reads this slot at
+/// the render's completion (mechanism (c)) and mirrors it into its observed
+/// face. Advisory value copy — a render-Task write racing a MainActor read
+/// is benign (the panel renders whatever snapshot it reads).
+public enum FilmStatsSnapshot {
+    /// nil = the film leg has not run in this session (film off / stats
+    /// never computed — the panel's placeholder face).
+    public nonisolated(unsafe) static var last: FilmStatsSeam.PlaneHistogram?
 }

@@ -1,4 +1,5 @@
 import LightamerCore
+import LightamerIOP
 import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,10 +31,14 @@ internal struct FilmPanelView: View {
                         .font(.caption)
                         .foregroundStyle(ThemeTokens.textSecondary)
                         .padding(8)
-                } else if model.isPristine {
-                    enableEntry
                 } else {
-                    sessionControls
+                    if model.isPristine {
+                        enableEntry
+                    } else {
+                        sessionControls
+                    }
+                    latitudeSection
+                    placementSection
                 }
             } else {
                 EmptyView()
@@ -43,6 +48,12 @@ internal struct FilmPanelView: View {
         .accessibilityIdentifier("editor.stack.film.panel")
         .onAppear { model = FilmPanelModel(
             editorState: editorState, pipeCoordinator: pipeCoordinator) }
+        .task(id: model?.record.filmStock ?? "") {
+            model?.refreshLatitudeDescriptor()
+        }
+        .task(id: model?.record.paperStock ?? "") {
+            model?.refreshLatitudeDescriptor()
+        }
     }
 
     // MARK: - Header (the page title + the close face)
@@ -216,6 +227,334 @@ internal struct FilmPanelView: View {
         }
     }
 
+    // MARK: - The latitude section (FSIM-02, M3-4-01 KD-3)
+
+    private var latitudeSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Divider().padding(.vertical, 2)
+            Text(String(localized: "latitude_section", defaultValue: "Latitude"))
+                .font(.callout.weight(.medium))
+                .foregroundStyle(ThemeTokens.textPrimary)
+                .padding(.horizontal, 8)
+            // The two teaching notes (static keys — the RFC's semantics).
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(localized: "latitude_teaching_scene_vs_dev",
+                            defaultValue: "Scene placement acts BEFORE the film; dev exposure acts AFTER it — they are not interchangeable."))
+                Text(String(localized: "latitude_teaching_edr_output",
+                            defaultValue: "EDR lives on the output side — it cannot recover highlights lost at the input."))
+            }
+            .font(.caption2)
+            .foregroundStyle(ThemeTokens.textSecondary)
+            .padding(.horizontal, 8)
+            latitudeHistogram
+            shareReadoutRow
+            notes
+        }
+        .padding(.bottom, 6)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("film.latitude.section")
+    }
+
+    /// The EV-axis histogram (the native drawable span [−6.56, +2.44] —
+    /// 256 bins × [0,1] linear through the bin→EV formula) + the useful
+    /// pair's dashed lines (absent + noted without a descriptor).
+    private var latitudeHistogram: some View {
+        Canvas { context, size in
+            let luma = model?.latitudeStats?.perChannel[3] ?? []
+            let maxCount = luma.max().map { Int($0) } ?? 0
+            let barWidth = max(1.0, size.width / 256.0)
+            for (bin, count) in luma.enumerated() {
+                guard Int(count) > 0 else { continue }
+                let h = maxCount > 0
+                    ? Double(count) / Double(maxCount) * (size.height - 2) : 0
+                let fraction = evFraction(FilmPanelModel.binEV(bin))
+                guard fraction >= 0, fraction <= 1 else { continue }
+                let rect = CGRect(
+                    x: size.width * fraction, y: size.height - h,
+                    width: barWidth, height: h)
+                context.fill(
+                    Path(rect), with: .color(ThemeTokens.textSecondary.opacity(0.65)))
+            }
+            if let descriptor = model?.latitudeDescriptor {
+                for ev in [descriptor.usefulShadowEV, descriptor.usefulHighlightEV] {
+                    let x = size.width * min(max(evFraction(ev), 0), 1)
+                    var path = Path()
+                    path.move(to: CGPoint(x: x, y: 0))
+                    path.addLine(to: CGPoint(x: x, y: size.height))
+                    context.stroke(
+                        path, with: .color(.yellow),
+                        style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                }
+            }
+        }
+        .frame(height: 72)
+        .padding(.horizontal, 8)
+        .accessibilityIdentifier("film.latitude.histogram")
+    }
+
+    private func evFraction(_ ev: Double) -> Double {
+        (ev - FilmPanelModel.latitudeAxisMinEV)
+            / (FilmPanelModel.latitudeAxisMaxEV - FilmPanelModel.latitudeAxisMinEV)
+    }
+
+    /// The below/inside/above shares (nil = the descriptor's absence is
+    /// presented, never faked).
+    private var shareReadoutRow: some View {
+        Group {
+            if let stats = model?.latitudeStats,
+                let descriptor = model?.latitudeDescriptor,
+                let shares = FilmPanelModel.latitudeShares(
+                    histogram: stats,
+                    belowEV: descriptor.usefulShadowEV,
+                    aboveEV: descriptor.usefulHighlightEV) {
+                HStack(spacing: 10) {
+                    shareLabel(
+                        String(localized: "latitude_share_below",
+                               defaultValue: "Below"), shares.below,
+                        "film.latitude.share.below")
+                    shareLabel(
+                        String(localized: "latitude_share_inside",
+                               defaultValue: "Inside"), shares.inside,
+                        "film.latitude.share.inside")
+                    shareLabel(
+                        String(localized: "latitude_share_above",
+                               defaultValue: "Above"), shares.above,
+                        "film.latitude.share.above")
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 8)
+            } else {
+                Text(String(localized: "latitude_histogram_placeholder",
+                            defaultValue: "Histogram arrives with the first film render; the dashed lines need the descriptor."))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+                    .padding(.horizontal, 8)
+            }
+        }
+    }
+
+    private func shareLabel(_ label: String, _ share: Double, _ axID: String)
+        -> some View
+    {
+        Text(verbatim: "\(label) \(Int((share * 100).rounded()))%")
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(ThemeTokens.textSecondary)
+            .accessibilityIdentifier(axID)
+    }
+
+    @ViewBuilder
+    private var notes: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if model?.latitudeStats == nil {
+                Text(String(localized: "latitude_stats_missing",
+                            defaultValue: "Film statistics not in yet."))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
+            if model?.latitudeDescriptor == nil {
+                Text(String(localized: "latitude_descriptor_missing",
+                            defaultValue: "Descriptor unavailable for this pair — the dashed lines stay absent."))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
+            if model?.placementAnchors.usedFallback == true {
+                Text(String(localized: "latitude_fallback_note",
+                            defaultValue: "Anchors on the no-film fallback constants."))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
+        }
+        .padding(.horizontal, 8)
+    }
+
+    // MARK: - The placement editing section (KD-3; T1+T2 landed — the
+    // hard order satisfied)
+
+    @ViewBuilder
+    private var placementSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Divider().padding(.vertical, 2)
+            Text(String(localized: "latitude_placement_section",
+                        defaultValue: "Scene Placement"))
+                .font(.callout.weight(.medium))
+                .foregroundStyle(ThemeTokens.textPrimary)
+                .padding(.horizontal, 8)
+            if model?.placementTarget == nil {
+                Button {
+                    model?.addPlacement()
+                } label: {
+                    Text(String(localized: "latitude_placement_add",
+                                defaultValue: "Add Scene Placement"))
+                        .frame(maxWidth: .infinity)
+                }
+                .controlSize(.small)
+                .padding(.horizontal, 8)
+                .accessibilityIdentifier("film.placement.add")
+            } else {
+                placementControls
+            }
+        }
+        .padding(.bottom, 6)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("film.placement.section")
+    }
+
+    private var placementControls: some View {
+        let params = model?.placementParams ?? FilmPlacementModule.Params()
+        let anchors = model?.placementAnchors
+            ?? PlacementResolver.anchors(stats: nil, descriptor: nil)
+        let minimums = PlacementResolver.sliderMinimums(anchors: anchors)
+        let capH = max(minimums.nH, anchors.aH - anchors.cS)
+        let capS = max(minimums.nS, anchors.cH - anchors.aS)
+        let lo = Float(FilmPlacementModule.rolloffRange.lowerBound)
+        let hi = Float(FilmPlacementModule.rolloffRange.upperBound)
+        let mRange: ClosedRange<Float> = lo...hi
+        return VStack(alignment: .leading, spacing: 2) {
+            LightamerSlider(
+                label: String(localized: "latitude_label_nh",
+                              defaultValue: "Highlight pull-back"),
+                value: Double(params.highlightsPullBack),
+                range: minimums.nH...capH,
+                defaultValue: 0,
+                readoutFormat: "%.2f",
+                unit: " EV",
+                onDragBegin: { model?.beginPlacementDrag() },
+                onChange: { model?.tickPlacement(highlights: $0, shadows: nil) },
+                onDragEnd: { model?.endPlacementDrag() },
+                onReset: { model?.resetPlacementSide(highlights: true) },
+                accessibilityID: "film.placement.nh")
+            LightamerSlider(
+                label: String(localized: "latitude_label_ns",
+                              defaultValue: "Shadow pull-back"),
+                value: Double(params.shadowsPullBack),
+                range: minimums.nS...capS,
+                defaultValue: 0,
+                readoutFormat: "%.2f",
+                unit: " EV",
+                onDragBegin: { model?.beginPlacementDrag() },
+                onChange: { model?.tickPlacement(highlights: nil, shadows: $0) },
+                onDragEnd: { model?.endPlacementDrag() },
+                onReset: { model?.resetPlacementSide(highlights: false) },
+                accessibilityID: "film.placement.ns")
+            row(String(localized: "latitude_label_m",
+                       defaultValue: "Roll-off m")) {
+                HStack {
+                    Stepper(
+                        value: Binding(
+                            get: { params.rolloff },
+                            set: { model?.stepM($0) }
+                        ),
+                        in: mRange,
+                        step: 0.5
+                    ) {
+                        Text(verbatim: String(format: "%.1f", params.rolloff))
+                            .font(.caption2.monospacedDigit())
+                    }
+                    .accessibilityIdentifier("film.placement.m")
+                }
+            }
+            row(String(localized: "latitude_fit", defaultValue: "Fit")) {
+                HStack(spacing: 6) {
+                    Button(String(localized: "latitude_fit", defaultValue: "Fit")) {
+                        model?.runFit(m: params.rolloff)
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                    .accessibilityIdentifier("film.placement.fit")
+                    if let outcome = model?.lastFitOutcome, outcome.refusedByHMin {
+                        Text(String(localized: "latitude_fit_refused_hmin",
+                                    defaultValue: "Refused: the recommended rooms would undercut the curvature floor (H < 3.0)."))
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .accessibilityIdentifier("film.placement.fit.refused")
+                    }
+                }
+            }
+            placementReadouts(params: params, anchors: anchors)
+            rejectionRows
+        }
+        .padding(.horizontal, 8)
+    }
+
+    /// The §9.2 readouts (the identity core width / both landings / both
+    /// endpoint slopes) — read-only, Solve-style refresh.
+    private func placementReadouts(
+        params: FilmPlacementModule.Params, anchors: PlacementAnchors
+    ) -> some View {
+        let coreWidth = (params.kHighlight ?? 0) - (params.kShadow ?? 0)
+        let landingH = anchors.aH - Double(params.highlightsPullBack)
+        let landingS = anchors.aS + Double(params.shadowsPullBack)
+        let slopeH = params.kHighlight.map {
+            PlacementResolver.endpointSlope(
+                extreme: anchors.aH, boundary: anchors.cH, knee: $0,
+                m: Double(params.rolloff))
+        } ?? 1
+        let slopeS = params.kShadow.map {
+            PlacementResolver.endpointSlope(
+                extreme: anchors.aS, boundary: anchors.cS, knee: $0,
+                m: Double(params.rolloff))
+        } ?? 1
+        return VStack(alignment: .leading, spacing: 1) {
+            Text(verbatim: String(
+                format: "%@ %.2f EV    %@ %+.2f / %+.2f    %@ %.3f / %.3f",
+                String(localized: "latitude_readout_core",
+                       defaultValue: "Core"),
+                coreWidth,
+                String(localized: "latitude_readout_landing",
+                       defaultValue: "Lands"),
+                landingH, landingS,
+                String(localized: "latitude_readout_slope",
+                       defaultValue: "Slopes"),
+                slopeH, slopeS))
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(ThemeTokens.textSecondary)
+            .accessibilityIdentifier("film.placement.readouts")
+        }
+    }
+
+    /// The typed refusal rows (naming the slider — never a silent clamp).
+    @ViewBuilder
+    private var rejectionRows: some View {
+        if let rejection = model?.lastPlacementRejection {
+            switch rejection {
+            case .kneeOrder:
+                Text(String(localized: "latitude_reject_knee_order",
+                            defaultValue: "Knees crossed — the identity core collapsed. Reduce the highlight or the shadow pull-back."))
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("film.placement.reject.knee")
+            case .highlightDemand:
+                Text(String(localized: "latitude_reject_highlight_demand",
+                            defaultValue: "The highlight pull-back cannot land inside the medium."))
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("film.placement.reject.nh")
+            case .shadowDemand:
+                Text(String(localized: "latitude_reject_shadow_demand",
+                            defaultValue: "The shadow pull-back cannot land inside the medium."))
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("film.placement.reject.ns")
+            case .noInstance:
+                EmptyView()
+            }
+        }
+        if let outcome = model?.lastFitOutcome, outcome.sharedDeficit {
+            Text(String(localized: "latitude_fit_shared",
+                        defaultValue: "The medium's budget was short — the pull-backs were shared proportionally."))
+                .font(.caption2)
+                .foregroundStyle(ThemeTokens.textSecondary)
+                .accessibilityIdentifier("film.placement.fit.shared")
+        }
+        if let outcome = model?.lastFitOutcome, outcome.sidesOff, !outcome.refusedByHMin {
+            Text(String(localized: "latitude_fit_sides_off",
+                        defaultValue: "A side's scene extreme sits inside the medium — that branch stays off."))
+                .font(.caption2)
+                .foregroundStyle(ThemeTokens.textSecondary)
+                .accessibilityIdentifier("film.placement.fit.sidesoff")
+        }
+    }
+
     // MARK: - Shared row shell (the DrtPanelView row shape)
 
     private func row(_ label: String, @ViewBuilder content: () -> some View)
@@ -230,7 +569,6 @@ internal struct FilmPanelView: View {
         }
         .padding(.vertical, 2)
     }
-
     /// One slider row: the D-H1 trio rides the shared bindings (live ticks
     /// re-render with zero items; the drag end commits exactly once).
     private func shiftRow(

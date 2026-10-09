@@ -30145,6 +30145,448 @@
           }
         }
       }
+    },
+    "latitude_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latitude"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宽容度"
+          }
+        }
+      }
+    },
+    "latitude_teaching_scene_vs_dev": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scene placement acts BEFORE the film; dev exposure acts AFTER it — they are not interchangeable."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "场景置位作用于胶片模拟之前，显影曝光作用于其后——两者不可互替。"
+          }
+        }
+      }
+    },
+    "latitude_teaching_edr_output": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EDR lives on the output side — it cannot recover highlights lost at the input."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EDR 位于输出侧，无法找回输入端已损失的高光。"
+          }
+        }
+      }
+    },
+    "latitude_histogram_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Histogram arrives with the first film render; the dashed lines need the descriptor."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直方图随首次胶片渲染到来；双虚线需要描述子到位。"
+          }
+        }
+      }
+    },
+    "latitude_share_below": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Below"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低于"
+          }
+        }
+      }
+    },
+    "latitude_share_inside": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inside"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "容纳"
+          }
+        }
+      }
+    },
+    "latitude_share_above": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Above"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高于"
+          }
+        }
+      }
+    },
+    "latitude_stats_missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Film statistics not in yet."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "胶片统计尚未就绪。"
+          }
+        }
+      }
+    },
+    "latitude_descriptor_missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descriptor unavailable for this pair — the dashed lines stay absent."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该材料对的描述子不可用——双虚线保持缺席。"
+          }
+        }
+      }
+    },
+    "latitude_fallback_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anchors on the no-film fallback constants."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "锚点处于无胶片回退常数。"
+          }
+        }
+      }
+    },
+    "latitude_placement_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scene Placement"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "场景置位"
+          }
+        }
+      }
+    },
+    "latitude_placement_add": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Scene Placement"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加场景置位"
+          }
+        }
+      }
+    },
+    "latitude_label_nh": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highlight pull-back"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高光回退"
+          }
+        }
+      }
+    },
+    "latitude_label_ns": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadow pull-back"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阴影回退"
+          }
+        }
+      }
+    },
+    "latitude_label_m": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roll-off m"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滚降阶 m"
+          }
+        }
+      }
+    },
+    "latitude_fit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fit"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动适配"
+          }
+        }
+      }
+    },
+    "latitude_readout_core": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Core"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核宽"
+          }
+        }
+      }
+    },
+    "latitude_readout_landing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lands"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "落点"
+          }
+        }
+      }
+    },
+    "latitude_readout_slope": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slopes"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端点斜率"
+          }
+        }
+      }
+    },
+    "latitude_reject_knee_order": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Knees crossed — the identity core collapsed. Reduce the highlight or the shadow pull-back."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "膝点交叉——恒等核塌缩：请减小高光回退或阴影回退。"
+          }
+        }
+      }
+    },
+    "latitude_reject_highlight_demand": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The highlight pull-back cannot land inside the medium."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高光回退无法落入介质边界之内。"
+          }
+        }
+      }
+    },
+    "latitude_reject_shadow_demand": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The shadow pull-back cannot land inside the medium."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阴影回退无法落入介质边界之内。"
+          }
+        }
+      }
+    },
+    "latitude_fit_refused_hmin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refused: the recommended rooms would undercut the curvature floor (H < 3.0)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒绝：推荐留出的空间低于曲率下限（H < 3.0）。"
+          }
+        }
+      }
+    },
+    "latitude_fit_shared": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The medium's budget was short — the pull-backs were shared proportionally."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "介质预算不足——两侧回退已按比例分摊。"
+          }
+        }
+      }
+    },
+    "latitude_fit_sides_off": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A side's scene extreme sits inside the medium — that branch stays off."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一侧的场景极值已落在介质之内——该分支保持关闭。"
+          }
+        }
+      }
+    },
+    "history_film_placement": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjust scene placement"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整场景置位"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
