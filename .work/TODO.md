@@ -349,7 +349,7 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 **状态**：charter 落账完成。波次 = M4-1 TIFF 栅格开发链（RASTER-IN-01 收窄版：ImageIO 原生读写 8/16/32-bit float + 内嵌 ICC → DRT 逆链 ACES 2.0 逆变换路径 + HDR TIFF 支持 + 导入文件类型选择器对齐上游 #264）→ M4-2 IOP-MASK-06 Follow Edges V2 换锚重做（脊线预提取 + 亚像素质心 + 自适应步长；`.snap` 默认熔断态 → V2 换锚，`.streamline` 分支零重写保留）→ M4-3 IOP-MASK-07 Depth 蒙版（MiDaS ONNX→CoreML〔Lumen RAW 借鉴①，参考 `lumen/auto_masks.py`〕；模型资产走 GitHub Release 分发不入仓；许可/体积 research 定）。**边界**：JPEG/PNG 维持图库可浏览现状不进开发链；EXR 连同 ALCE-02 推迟（依赖对比存档 V2-PROPOSAL OQ-V2-5）；UltraHDR/TRACK/Mertens/PANO 不入 M4。
 
-- [ ] **M4-1**（TIFF 栅格开发链）—— 待 research
+- [ ] **M4-1**（TIFF 栅格开发链）—— research/discuss/plan 定稿（OQ-1..7 全按推荐裁）+ **M4-1-01 执行+收口完成（2026-10-10 夜，11 commits 未 push：底座批 = 描述解析/fixture/逆变换/解码腿/kernel/缓存/srgbPiecewise 全族/默认 record；定向四 bundle 全绿 IOP 544/IOPP 427/Layers 394/Export 347，全套预期 3276/16/0；双重验收待编排）→ M4-1-02 待启（路由翻转 + PixelPipe 接线 + 编辑面门控 + 导入选择器 + SC#1 收口 + 全套回归）**
 - [ ] **M4-2**（Follow Edges V2 换锚重做）—— 待 research
 - [ ] **M4-3**（Depth 蒙版）—— 待 research
 
