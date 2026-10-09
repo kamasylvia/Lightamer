@@ -230,6 +230,7 @@ LAYERS	1	GradeEnvelopePerfProbeTests.swift
 IOPP	18	GradeKernelGoldenTests.swift
 IOPP	15	DrtKernelGoldenTests.swift
 IOPP	5	Aces2KernelGoldenTests.swift
+IOPP	6	Aces2InverseTests.swift
 IOP	10	GradeParamsCodingTests.swift
 EXPORT	1	QuickLookPerfProbeTests.swift
 EXPORT	10	QuickLookRendererTests.swift
