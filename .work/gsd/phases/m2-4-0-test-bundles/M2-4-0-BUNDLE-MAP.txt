@@ -575,4 +575,7 @@ APP	4	FilmCardTests.swift
 #   M4-2-01 T1 增行（2026-10-09，登记随文件同 commit）：RidgeExtractTests =
 #   LAYERS/Core 级（V2 脊线预提取阶段 golden——NMS/滞回/链接/桥接/质心/确定性
 #   + Steger Taylor 对照腿，纯 Core 可单测），10 法。
-LAYERS	10	RidgeExtractTests.swift
+#   M4-2-01 T3 行内修订（2026-10-10，登记随文件同 commit）：九景 golden 矩阵
+#   +9（straight/arc/L/T-fork differential/bridged-gap/parallel/dip/texture/
+#   varying + 双跑确定性 + snap 对照轨），10→19。
+LAYERS	19	RidgeExtractTests.swift
