@@ -1,4 +1,5 @@
 @testable import LightamerCore
+import Metal
 import XCTest
 
 /// Plan M4-2-01 T1 (KD-1) — the ridge-extractor stage goldens on synthetic
@@ -314,6 +315,128 @@ final class RidgeExtractTests: XCTestCase {
             maxDeviation, 0.5,
             "centroid stays within the Taylor displacement evidence band (measured \(maxDeviation))")
         print("[M4-2-01] Steger-Taylor vs centroid max deviation: \(maxDeviation)")
+    }
+
+    // MARK: M4-2-02 (KD-2) — the 1024 readback path + the pure-domain guard
+
+    /// The widened readback working domain (M4-2-02 KD-1): a >1024 source
+    /// plane reads back to a 1024-long-edge field with the pinned
+    /// nearest-neighbor box order — while the ≤512 DEFAULT stays untouched
+    /// (the production call site owns the wider domain; the signature and
+    /// default are frozen by red line).
+    func testReadEdgeMap1024WorkingDomainScalesWithNearestNeighborOrder() throws {
+        let metal = try MetalContext()
+        // Column-encoded source: value(x, y) = Float(x) — the row index
+        // vanishes from the sample, isolating the x sampling order.
+        let w = 1536, h = 1024 // long edge 1536 > 1024 → the downsample branch
+        var raw = [Float](repeating: 0, count: w * h)
+        for y in 0..<h {
+            for x in 0..<w { raw[y * w + x] = Float(x) }
+        }
+        let d = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .r32Float, width: w, height: h, mipmapped: false)
+        d.usage = [.shaderRead]
+        d.storageMode = .shared
+        let plane = try XCTUnwrap(metal.device.makeTexture(descriptor: d))
+        raw.withUnsafeBytes {
+            plane.replace(
+                region: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0,
+                withBytes: $0.baseAddress!, bytesPerRow: w * 4)
+        }
+
+        // The ≤512 default is UNCHANGED (red line: signature/default frozen).
+        let byDefault = try XCTUnwrap(FollowEdges.readEdgeMap(plane, metal: metal))
+        XCTAssertEqual(max(byDefault.width, byDefault.height), 512)
+
+        // The widened domain: scale = 1536/1024 = 1.5 → 1024×682 (the
+        // readEdgeMap out-dimension formula, exact).
+        let field = try XCTUnwrap(
+            FollowEdges.readEdgeMap(plane, maxLongEdge: 1024, metal: metal))
+        XCTAssertEqual(max(field.width, field.height), 1024)
+        XCTAssertEqual(field.width, 1024)
+        XCTAssertEqual(field.height, 682)
+
+        // Nearest-neighbor box order pinned against the formula:
+        // out[y, x] = raw[min(h-1, Int((y+0.5)·1.5)), min(w-1, Int((x+0.5)·1.5))].
+        // value = Float(source x), so the expected value IS the sampled x.
+        let scale = 1.5
+        func expectedX(_ x: Int, _ y: Int) -> Float {
+            Float(min(w - 1, Int((Double(x) + 0.5) * scale)))
+        }
+        // The corners: the last column exercises the width clamp.
+        XCTAssertEqual(field.values[0], expectedX(0, 0))
+        XCTAssertEqual(
+            field.values[field.width - 1], expectedX(field.width - 1, 0),
+            "the +0.5·scale stride clamps at the last source column")
+        XCTAssertEqual(
+            field.values[(field.height - 1) * field.width],
+            expectedX(0, field.height - 1))
+        // A deterministic stride across the whole field.
+        for y in stride(from: 0, to: field.height, by: 97) {
+            for x in stride(from: 0, to: field.width, by: 89) {
+                XCTAssertEqual(
+                    field.values[y * field.width + x], expectedX(x, y),
+                    "nearest-neighbor order at (\(x), \(y))")
+            }
+        }
+    }
+
+    /// The pure-function face is unreachable by the readback domain (the
+    /// M4-2-02 KD-2 negative test): a DIRECTLY-constructed EdgeMapField
+    /// extracts to the M4-2-01-frozen values — `maxLongEdge` has no path
+    /// into `RidgeExtract.graph`, so widening the production working domain
+    /// cannot perturb a single synthetic gate. The frozen values are this
+    /// fixture's M4-2-01 graph topology and walk (byte-identical double run).
+    func testExtractionPureDomainUnreachableByReadbackDomain() {
+        // The M4-2-01 matrix arc scene, constructed in memory — no readback
+        // leg anywhere in the input path.
+        var arcVals = [Float](repeating: 0, count: 48 * 48)
+        var arcTruth: [SIMD2<Double>] = []
+        for i in 0...20 {
+            let t = Double(i) / 20 * Double.pi / 2
+            arcTruth.append(SIMD2(20 + 20 * cos(t), 20 + 20 * sin(t)))
+        }
+        for y in 0..<48 {
+            for x in 0..<48 {
+                guard x >= 20, y >= 20 else { continue }
+                let r = hypot(Double(x - 20), Double(y - 20))
+                arcVals[y * 48 + x] = Float(max(0, 1 - abs(r - 20) / 1.5))
+            }
+        }
+        let field = EdgeMapField(width: 48, height: 48, values: arcVals)
+        let first = RidgeExtract.graph(from: field, high: high)
+        let second = RidgeExtract.graph(from: field, high: high)
+        XCTAssertEqual(first, second, "double run bit-identical (M4-2-01 gate)")
+        var vertices = 0, longest = 0
+        for c in first.chains {
+            vertices += c.vertices.count
+            longest = max(longest, c.vertices.count)
+        }
+        // The M4-2-01-frozen graph topology for this fixture (byte-identical
+        // to the pre-upgrade working domain — the readback parameter has no
+        // path here).
+        XCTAssertEqual(first.chains.count, 21, "frozen chain count")
+        XCTAssertEqual(first.junctions.count, 13, "frozen junction count")
+        XCTAssertEqual(first.bridges.count, 0, "frozen bridge count")
+        XCTAssertEqual(vertices, 60, "frozen vertex count")
+        XCTAssertEqual(longest, 11, "frozen longest chain")
+        // The frozen carrier walk (the injected-carrier path the production
+        // coordinator rides): the M4-2-01 walk shape on this fixture.
+        var injected = field
+        injected = injected.withRidges(first)
+        let chain = FollowEdges.chain(
+            seed: MaskPoint(x: Float(40) / 47, y: Float(20) / 47),
+            field: injected, params: FollowEdgesParams())
+        let W = Double(field.width - 1), H = Double(field.height - 1)
+        var arc = 0.0
+        for i in 0..<(chain.count - 1) {
+            let a = SIMD2(Double(chain[i].x) * W, Double(chain[i].y) * H)
+            let b = SIMD2(Double(chain[i + 1].x) * W, Double(chain[i + 1].y) * H)
+            let d = b - a
+            arc += (d.x * d.x + d.y * d.y).squareRoot()
+        }
+        XCTAssertEqual(chain.count, 5, "frozen walk point count")
+        XCTAssertEqual(arc, 28.2, accuracy: 0.05, "frozen walk arc (px)")
     }
 
 
