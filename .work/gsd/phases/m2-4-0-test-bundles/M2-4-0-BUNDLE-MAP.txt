@@ -568,3 +568,7 @@ APP	11	FilmLatitudePanelTests.swift
 #   T5 勘误（同批）：上行 9→11（初记值漏计 session 面两法；文件 func test 实数
 #   11 × Project.swift 登记一致；App 执行面 675→686 = +11 两式互证）。
 APP	4	FilmCardTests.swift
+#   M4-2-01 T1 增行（2026-10-09，登记随文件同 commit）：RidgeExtractTests =
+#   LAYERS/Core 级（V2 脊线预提取阶段 golden——NMS/滞回/链接/桥接/质心/确定性
+#   + Steger Taylor 对照腿，纯 Core 可单测），10 法。
+LAYERS	10	RidgeExtractTests.swift
