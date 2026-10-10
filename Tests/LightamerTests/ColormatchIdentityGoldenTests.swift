@@ -159,4 +159,93 @@ final class ColormatchIdentityGoldenTests: XCTestCase {
         XCTAssertNotEqual(c, plane, "the solved strength-1 instance moves pixels")
         XCTAssertEqual(c.count, plane.count)
     }
+
+    // MARK: - The S2 LUT-arm extension states (M5-1-02 T8, G5)
+
+    /// The in-memory resolver (the module tests' twin).
+    private final class GoldenResolver: ColormatchAssetResolving, @unchecked Sendable {
+        var solution: ColorMatchCDFSolution?
+        var table: [SIMD3<Float>]?
+        var degradeReason: String?
+        func loadCube(
+            assetRef: String, expectedHash: String?
+        ) -> ColormatchCubeAsset.LoadResult {
+            if let degradeReason { return .degraded(reason: degradeReason) }
+            guard let table else { return .degraded(reason: "no table") }
+            return .loaded(table: table, bytesHash: 1)
+        }
+        func cdfSolution(
+            sourceStatsHash: String, referenceStatsHash: String
+        ) -> ColorMatchCDFSolution? {
+            solution
+        }
+    }
+
+    func testLutArmIdentityStatesBlitByteExact() async throws {
+        let metal = try await makeMetal()
+        try await metal.registerDefaultLibrary(in: ColormatchKernel.metalBundle)
+        let plane = Self.probePlane()
+        let width = 33, height = 17
+
+        func run(
+            _ params: ColormatchModule.Params, resolver: GoldenResolver
+        ) async throws -> [SIMD4<Float>] {
+            let module = ColormatchModule(device: metal.device, resolver: resolver)
+            var piece = IOPiece()
+            module.commitParams(params, into: &piece)
+            let input = try makeTexture(metal, width: width, height: height, write: plane)
+            let output = try makeTexture(metal, width: width, height: height, write: [])
+            try await module.process(
+                input: input, output: output,
+                roiIn: ROI(x: 0, y: 0, width: width, height: height, scale: 1),
+                roiOut: ROI(x: 0, y: 0, width: width, height: height, scale: 1),
+                piece: &piece, metal: metal)
+            return await readback(metal, output)
+        }
+
+        func cdfParams(assetRef: String?) -> ColormatchModule.Params {
+            var p = ColormatchModule.Params()
+            p.solver = .cdf
+            p.strength = 0.9
+            p.sourceStatsHash = "1"
+            p.referenceStatsHash = "2"
+            p.assetRef = assetRef
+            return p
+        }
+
+        // ④ assetRef nil (the unsolved LUT arm): the routed blit — exact.
+        let a = try await run(cdfParams(assetRef: nil), resolver: GoldenResolver())
+        XCTAssertEqual(a, plane, "cdf + assetRef nil → byte-exact passthrough")
+
+        // ⑤ the degraded asset: the routed blit — exact.
+        let degrading = GoldenResolver()
+        degrading.degradeReason = "colormatch asset hash mismatch"
+        let b = try await run(cdfParams(assetRef: "x.cube"), resolver: degrading)
+        XCTAssertEqual(b, plane, "cdf + degraded asset → byte-exact passthrough")
+
+        // ANTI-VACUUM (the LUT arm): a real table MOVES pixels.
+        let armed = GoldenResolver()
+        armed.solution = {
+            var histogram = [UInt32](repeating: 0, count: 256)
+            for bin in 0..<256 { histogram[bin] = 100 }
+            let stats = ColorMatchStats(
+                mu: SIMD3(0.5, 0, 0), sigma: (0.02, 0, 0, 0.02, 0, 0.02),
+                histograms: [histogram, histogram, histogram],
+                supportLo: SIMD3(0.05, -0.4, -0.4), supportHi: SIMD3(0.95, 0.4, 0.4),
+                sampleCount: 25_600)
+            return ColorMatchCDFSolver.solve(
+                source: {
+                    var shifted = [[UInt32]](repeating: [UInt32](repeating: 0, count: 256), count: 3)
+                    for channel in 0..<3 {
+                        for bin in 40..<216 { shifted[channel][bin] = 100 }
+                    }
+                    return ColorMatchStats(
+                        mu: SIMD3(0.3, 0, 0), sigma: (0.02, 0, 0, 0.02, 0, 0.02),
+                        histograms: shifted, supportLo: SIMD3(0.1, -0.3, -0.3),
+                        supportHi: SIMD3(0.7, 0.3, 0.3), sampleCount: 17_600)
+                }(), reference: stats)
+        }()
+        let c = try await run(cdfParams(assetRef: "x.cube"), resolver: armed)
+        XCTAssertNotEqual(c, plane, "the LUT arm with a real table moves pixels")
+    }
 }
