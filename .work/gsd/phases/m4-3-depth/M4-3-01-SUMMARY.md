@@ -1,7 +1,7 @@
 # M4-3-01 SUMMARY — Depth 蒙版批（DA V2 Small × M2AI-10 worker × Lumen 四段管线）
 
 > 执行 = ZCode executor subagent worker（夜间全自动授权在案）；
-> 2026-10-10，起点 `d2e234a`，基线 **3335/16/0**（M4-1-VALIDATION）。
+> 2026-10-10，起点 `d2e234a`，批次 tip `644588e`（9 提交），基线 **3335/16/0**（M4-1-VALIDATION）。
 > 规格正本 = `M4-3-01-PLAN.md`；裁决正本 = `M4-3-CONTEXT.md`（OQ-1..7 全 A +
 > D-1..D-5）；执行期正本 = `M4-3-01-DECISIONS.md`（§1..§9）；
 > checker 处方回勾 = DECISIONS §9（m1..m7 全 ✅）。
@@ -17,7 +17,7 @@
 | T5 | `98de649` `feat(app): depth mask toolbar entry with download states` | DepthEntryGate.visual 折叠 + MaskToolbarView Depth 组（单入口/下载/进度/重试四态）+ LightamerApp 注入（front-matter 增补申报）+ xcstrings 七键尾块纯插入（zh-audit PASS 1855） |
 | T6 | `ec4894f` `test(app): depth golden precision and determinism gates` | `gen-depth-golden.py`（确定性合成 + sRGB ICC 标签 + F32 参考件 CPU_ONLY）+ 5 fixtures + ref-f32.bin（4,061,160 B）+ DepthGoldenTests 3（精度门/确定性/worker 端到端 + m5 open 形状） |
 | T7 | `b615636` `chore(perf): depth inference probe across compute units` | `DepthPerfProbeTests`（env 双门控 skip）+ `perf.md` 落账 |
-| T8 | 本提交 | SUMMARY/DECISIONS §7-9/ACCEPTANCE 骨架/GOAL-STATE/TODO/LESSONS/gui-acceptance 草案 |
+| T8 | `dda9433` docs + `644588e` `fix(test): temp-copy the image anchor in depth commit tests`（污染修复随收口补提交，事实 = DECISIONS §7） | SUMMARY/DECISIONS §7-9/ACCEPTANCE 骨架/GOAL-STATE/TODO/LESSONS/gui-acceptance 草案（local-only） |
 
 ## 2. 实测带与门值
 
