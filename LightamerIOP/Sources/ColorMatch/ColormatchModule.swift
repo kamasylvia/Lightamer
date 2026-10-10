@@ -61,6 +61,19 @@ public final class ColormatchModule: IOPModule {
         /// The R1 fallback diagnostic (nil = no fallback recorded; equals
         /// `solver` byte-for-byte semantics on a clean solve).
         public var effectiveSolver: ColorMatchSolverKind?
+        /// The baked `.cube` derived asset (M5-1-02 T4, KD-4; OQ-3): the
+        /// project(-image)-relative ref + the byte FNV (L013 decimal
+        /// String). nil = no LUT-arm asset (the arm never renders). The
+        /// table bytes NEVER ride here — the 3.3MB sidecar-bloat red line
+        /// (the <8KB paramsData bound assertion pins it).
+        ///
+        /// ADDITIVE SERDE (the M3-1-01 inputEncoding precedent): these two
+        /// keys encode via encodeIfPresent — ABSENT when nil — so the
+        /// default Params() encoding and every P1-era blob re-encode
+        /// BYTE-IDENTICALLY (the paramsHash zero-drift contract and the
+        /// sidecar drift check both hold). Decode is tolerant.
+        public var assetRef: String?
+        public var assetHash: String?
 
         public init(
             solver: ColorMatchSolverKind = .gaussianOT,
@@ -69,7 +82,9 @@ public final class ColormatchModule: IOPModule {
             strength: Float = 0,
             sourceStatsHash: String? = nil,
             referenceStatsHash: String? = nil,
-            effectiveSolver: ColorMatchSolverKind? = nil
+            effectiveSolver: ColorMatchSolverKind? = nil,
+            assetRef: String? = nil,
+            assetHash: String? = nil
         ) {
             self.solver = solver
             self.matrix = matrix
@@ -78,16 +93,19 @@ public final class ColormatchModule: IOPModule {
             self.sourceStatsHash = sourceStatsHash
             self.referenceStatsHash = referenceStatsHash
             self.effectiveSolver = effectiveSolver
+            self.assetRef = assetRef
+            self.assetHash = assetHash
         }
 
         private enum CodingKeys: String, CodingKey {
             case solver, matrix, offset, strength
             case sourceStatsHash, referenceStatsHash, effectiveSolver
+            case assetRef, assetHash
         }
 
-        /// EXPLICIT-null encode (checker E2): every key encodes EVERY time —
-        /// nil as JSON null — so the encoded default key set is closed and
-        /// the IopCatalog guard holds.
+        /// EXPLICIT-null encode for the P1 key set (checker E2) + ADDITIVE
+        /// omit-nil encode for the M5-1-02 keys (the zero-drift contract —
+        /// the default encoding stays byte-identical to P1's).
         public func encode(to encoder: Encoder) throws {
             var c = encoder.container(keyedBy: CodingKeys.self)
             try c.encode(solver, forKey: .solver)
@@ -97,6 +115,8 @@ public final class ColormatchModule: IOPModule {
             try c.encode(sourceStatsHash, forKey: .sourceStatsHash)
             try c.encode(referenceStatsHash, forKey: .referenceStatsHash)
             try c.encode(effectiveSolver, forKey: .effectiveSolver)
+            try c.encodeIfPresent(assetRef, forKey: .assetRef)
+            try c.encodeIfPresent(assetHash, forKey: .assetHash)
         }
 
         /// Tolerant decode: missing/null keys → the defaults; an unknown
@@ -114,9 +134,13 @@ public final class ColormatchModule: IOPModule {
             referenceStatsHash = try? c.decodeIfPresent(String.self, forKey: .referenceStatsHash)
             effectiveSolver = try? c.decodeIfPresent(
                 ColorMatchSolverKind.self, forKey: .effectiveSolver)
+            assetRef = try? c.decodeIfPresent(String.self, forKey: .assetRef)
+            assetHash = try? c.decodeIfPresent(String.self, forKey: .assetHash)
         }
 
-        /// The identity-blit gate (the unsolved face = either hash nil).
+        /// The identity-blit gate (the unsolved face): the linear arm's
+        /// either-hash-nil form; the LUT arm has its own gate (assetRef
+        /// nil / degrade → blit) checked in commitParams.
         public var isUnsolved: Bool {
             sourceStatsHash == nil || referenceStatsHash == nil
         }
