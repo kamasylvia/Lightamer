@@ -156,9 +156,18 @@ public enum RidgeExtract {
             candidates: candidates, raw: field.values, width: w, height: h,
             high: Double(high))
         var graph = link(domain: domain, width: w, height: h, high: high)
+        // Junction pixels keep their integer positions: the ±2 centroid
+        // window at a crossing mixes several branches' mass, so the 1D
+        // profile there is not a ridge — refining it would shift the
+        // topology nodes and smear the walk's branch tangents.
+        var junctionPixels = Set<Int>()
+        for junction in graph.junctions {
+            let x = Int(junction.position.x.rounded()), y = Int(junction.position.y.rounded())
+            junctionPixels.insert(y * w + x)
+        }
         refineCentroids(
             &graph, smoothed: smoothed, orientation: orientation, width: w, height: h,
-            low: Double(high) * hysteresisRatio)
+            low: Double(high) * hysteresisRatio, skipPixels: junctionPixels)
         buildLookups(&graph)
         return graph
     }
@@ -386,7 +395,9 @@ public enum RidgeExtract {
         }
 
         /// Walk from `current` (already in chain) toward `next`; append until a
-        /// junction (appended, stop) / visited pixel (stop) / dead end (stop).
+        /// junction (appended + recorded, even when a previous trace already
+        /// claimed the junction pixel — every arriving chain must attach) /
+        /// visited non-junction pixel (cycle closure, stop) / dead end (stop).
         func trace(_ chain: inout [SIMD2<Double>], prev: SIMD2<Int>, next: SIMD2<Int>) {
             var previous = prev
             var current = next
@@ -407,7 +418,13 @@ public enum RidgeExtract {
                     nextPixel = candidate
                     break
                 }
-                guard let onward = nextPixel, !state.visited[onward.y * w + onward.x] else {
+                guard let onward = nextPixel else { return }
+                if state.visited[onward.y * w + onward.x] {
+                    if state.isJunction[onward.y * w + onward.x] {
+                        // Shared junction: append + attach this chain too.
+                        chain.append(SIMD2(Double(onward.x), Double(onward.y)))
+                        noteJunction(onward.x, onward.y, chain: chains.count, end: 1)
+                    }
                     return
                 }
                 previous = current
@@ -608,15 +625,16 @@ public enum RidgeExtract {
     /// Per candidate vertex: profile f_k = bilinear(smoothed, p + k·n),
     /// w_k = max(f_k − low, 0), δ = Σk·w_k / Σw_k (Σw < ε → 0; |δ| ≤ clamp);
     /// refined vertex = p + δ·n (n = the tensor orientation at the vertex).
-    /// Junction positions follow their first attachment's refined vertex
-    /// (same pixel → same refinement).
+    /// `skipPixels` (junction pixels) keep their integer positions. Junction
+    /// positions follow their first attachment's vertex.
     static func refineCentroids(
         _ graph: inout RidgeGraph, smoothed s: [Double], orientation o: [SIMD2<Double>],
-        width w: Int, height h: Int, low: Double
+        width w: Int, height h: Int, low: Double, skipPixels: Set<Int> = []
     ) {
         func refineVertex(_ p: SIMD2<Double>) -> SIMD2<Double> {
             let x = Int(p.x.rounded()), y = Int(p.y.rounded())
             guard x >= 0, y >= 0, x < w, y < h else { return p }
+            guard !skipPixels.contains(y * w + x) else { return p }
             let n = o[y * w + x]
             var sumKW = 0.0, sumW = 0.0
             for k in -centroidHalfWindow...centroidHalfWindow {
