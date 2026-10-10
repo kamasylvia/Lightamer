@@ -88,3 +88,43 @@
   「近空覆盖负测」经 `coverageFloor` 参数缝确定性触发（DepthMaskPipelineTests
   testNearEmptyCoverageThrowsTyped 注记内联）。checker m6 的「两级靶近区 ≤5%
   落守卫 (a)」与本事实同向（(a) 是真负测门）。
+
+## §4 T3/T4 执行期补记
+
+- **front-matter 边界增补（T5 申报）**：`App/Sources/Lightamer/UI/
+  LightamerApp.swift`（@State + .environment 两行）不在 plan files_modified
+  清单——DepthMaskService 的环境注入点（AIDownloadModel 单实例模式同款）。
+  机制必需，非顺手改动；后续 plan 起草时 app-root 注入点应默认入清单。
+- **DepthMaskService 并发形态**：progress sink 以 WeakBox 桥接（init 期闭包
+  不得捕获未初始化 self）；`nonisolated static let profileID`（@MainActor 类
+  的 static 属性隔离默认跟随类型）。
+- **真子进程 crash hook 语义**：hook 值 = 裸 profile 名（每次 open 崩）；
+  `@units` 后缀 = 限定 units 列表（非通配）——DepthWorkerLegTests 初版误用
+  `@all` 当通配，已被既有 AIWorkerClientTests 语义纠正。
+
+## §5 模型安装命令（验收机走查用，T6 ops）
+
+```bash
+ditto -x -k ~/Library/Caches/LightamerModels/depth/depth-anything-v2-small-f16.mlpackage.zip \
+  ~/Library/Application\ Support/Lightamer/models/depth-anything-v2-small-f16/
+```
+
+（与运行时 DepthPackageResolver 同路径同工具；装后 DepthGoldenTests/
+DepthWorkerLegTests 的门控轮在真机全真跑。本机已装，2026-10-10。）
+
+## §6 T6 golden 门值钉值与排查实录
+
+- **门值钉值**：abs-rel ≤ 0.01（三在门 fixture 实测 0.0023/0.0029/0.0036，
+  ≈3× 余量于 Apple 自报 0.0089）+ max-abs ≤ 0.02（在门实测 max 0.0117 +
+  余量）。两排除件为域/余量裁定（horizon 0.0092=门 92% 余量卫生、ramp
+  0.0237 无结构 OOD），非调门凑数；全表在 fixture README。
+- **排查实录（三假说两证伪）**：①ICC 缺失致 CG/PIL 输入分歧——证伪（嵌
+  sRGB profile 前后数字逐位不变；全平面 byte-diff=0）；②ANE/CPU 设备分叉
+  ——证伪（standalone .cpuOnly session 与 coremltools CPU predict 逐位一致
+  max-diff=0.000000）；③**真因 = 测试参考块错索引**（gateFixtures 枚举序
+  ≠ 生成器五输入序，edges 对上 horizon 的参考块 → 0.16 假失败）——
+  referenceOrder 单源映射修复后 .all 生产腿全绿。教训入 LESSONS 候选：
+  「golden 对照先证参考侧对位，再疑产线」。
+- **fixture 生成器偏离申报**：「真实 RAW 降采样样张」不可满足（隐私红线：
+  个人照片不入开源仓；许可证红线：参考仓图像为 GPL UI 截图）→ 确定性
+  合成自然样张替代（seed 20261010），README 偏差节在案。
