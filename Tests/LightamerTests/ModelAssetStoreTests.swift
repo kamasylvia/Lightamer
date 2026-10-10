@@ -290,6 +290,74 @@ final class ModelAssetStoreTests: XCTestCase {
         XCTAssertEqual(url, finalFile())
     }
 
+    // MARK: Depth profile (M4-3-01 T1) — the depth-shaped release manifest
+    // flows the SAME store chain; the in-repo digest makes these REAL
+    // (no injection needed beyond the payload serve).
+
+    private func finalDepthFile() -> URL {
+        root
+            .appendingPathComponent("depth-anything-v2-small-f16", isDirectory: true)
+            .appendingPathComponent("depth-anything-v2-small-f16.mlpackage.zip")
+    }
+
+    /// The depth release manifest downloads → promotes → .installed. The
+    /// digest is INJECTED (the real in-repo digest pins the 45MB zip; the
+    /// 64KiB served payload here stands in for the network bytes).
+    func testDepthManifestDownloadPromotes() async throws {
+        serve()
+        let injected = makeDigest(for: payload)
+        let store = ModelAssetStore(
+            manifestProvider: { ModelAssetCatalog.manifest(for: $0) },
+            digestProvider: { $0 == "depth-anything-v2-small-f16" ? injected : ModelAssetDigests.digest(for: $0) },
+            locator: self.locator,
+            session: session
+        )
+        try await store.download("depth-anything-v2-small-f16")
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: finalDepthFile().path))
+        let status = await store.status(for: "depth-anything-v2-small-f16")
+        XCTAssertEqual(status, .installed)
+        let url = await store.modelURL(for: "depth-anything-v2-small-f16")
+        XCTAssertEqual(url, finalDepthFile())
+    }
+
+    /// Depth digest absent → fail-closed typed refusal (the depth face of
+    /// the AC#2 semantic).
+    func testDepthDigestAbsentFailClosed() async throws {
+        let store = ModelAssetStore(
+            manifestProvider: { ModelAssetCatalog.manifest(for: $0) },
+            digestProvider: { _ in nil },
+            locator: self.locator,
+            session: session
+        )
+        let status = await store.status(for: "depth-anything-v2-small-f16")
+        XCTAssertEqual(status, .digestUnpublished)
+        await assertStoreError(.digestUnpublished("depth-anything-v2-small-f16")) {
+            try await store.download("depth-anything-v2-small-f16")
+        }
+    }
+
+    /// Depth checksum mismatch → typed, tmp removed, nothing promoted.
+    func testDepthChecksumMismatchDeletesTmp() async throws {
+        serve()
+        let wrongDigest = makeDigest(for: payload + Data([0xAA]))
+        let store = ModelAssetStore(
+            manifestProvider: { ModelAssetCatalog.manifest(for: $0) },
+            digestProvider: { $0 == "depth-anything-v2-small-f16" ? wrongDigest : nil },
+            locator: self.locator,
+            session: session
+        )
+        do {
+            try await store.download("depth-anything-v2-small-f16")
+            XCTFail("expected checksumMismatch")
+        } catch let error as ModelAssetStoreError {
+            guard case .checksumMismatch = error else {
+                return XCTFail("unexpected error: \(error)")
+            }
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: finalDepthFile().path))
+    }
+
     func testSourceOrderAllThreeSourcesExhausted() async throws {
         MockURLProtocol.handler = { _ in .success(status: 404, data: Data()) }
         let store = makeStore(digest: makeDigest(for: payload))

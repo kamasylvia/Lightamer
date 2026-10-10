@@ -16,7 +16,7 @@ final class ModelAssetCatalogTests: XCTestCase {
     func testProfileIDsAreUnique() {
         let ids = ModelAssetCatalog.allProfiles.map(\.profileID)
         XCTAssertEqual(ids.count, Set(ids).count, "profileID must be unique: \(ids)")
-        XCTAssertEqual(ids.count, 5, "the catalog carries exactly five profiles")
+        XCTAssertEqual(ids.count, 6, "the catalog carries exactly six profiles (M4-3-01 depth additive)")
     }
 
     func testBundledTierHasExactlyTwoProfiles() {
@@ -103,17 +103,89 @@ final class ModelAssetCatalogTests: XCTestCase {
 
     // MARK: Digest face (fail-closed)
 
-    /// In-repo truth: the three release profiles are NOT yet uploaded →
-    /// digests stay nil and `download` must refuse (fail-closed semantics
-    /// tested end-to-end in ModelAssetStoreTests).
+    /// In-repo truth: the three pre-depth release profiles are NOT yet
+    /// uploaded → digests stay nil and `download` must refuse (fail-closed
+    /// semantics tested end-to-end in ModelAssetStoreTests). The DEPTH
+    /// profile's digest IS published at build time (M4-3-01 T1 — the
+    /// digest-before-upload order is plan-sanctioned; a 404 download
+    /// surfaces as typed allSourcesFailed, no half state).
     func testReleaseDigestsUnpublishedFailClosed() {
-        for profile in ModelAssetCatalog.releaseProfiles {
+        for profile in ModelAssetCatalog.releaseProfiles
+        where profile.profileID != ModelAssetCatalog.depthAnythingV2SmallF16.profileID {
             XCTAssertNil(
                 ModelAssetDigests.digest(for: profile.profileID),
                 "\(profile.profileID) release digest must stay nil until the asset is uploaded"
             )
         }
         XCTAssertNil(ModelAssetDigests.digest(for: "unknown-profile"))
+    }
+
+    /// M4-3-01 T1: the depth digest is published in-repo. The in-repo
+    /// assertable face is the VALUE FORMAT + positive byte count; the
+    /// byteCount==zip equality lives in the build script's self-check
+    /// (checker m4 prescription ①) + M4-3-01-DECISIONS §1 (the zip is a
+    /// repo-external machine artifact, invisible to LIB).
+    func testDepthDigestPublishedValueFormat() throws {
+        let digest = try XCTUnwrap(
+            ModelAssetDigests.digest(for: ModelAssetCatalog.depthAnythingV2SmallF16.profileID),
+            "depth digest must be published (build-depth-release-asset.sh)")
+        XCTAssertEqual(digest.sha256Hex.count, 64, "SHA-256 hex length")
+        XCTAssertTrue(digest.sha256Hex.allSatisfy(\.isHexDigit), "hex alphabet")
+        XCTAssertEqual(digest.sha256Hex, digest.sha256Hex.lowercased(), "lowercase hex")
+        XCTAssertGreaterThan(digest.byteCount, 40_000_000, "F16 zip sanity band")
+        XCTAssertLessThan(digest.byteCount, 55_000_000, "F16 zip sanity band")
+        XCTAssertTrue(digest.auxiliaryFiles.isEmpty, "single-archive release")
+    }
+
+    // MARK: Depth profile (M4-3-01 T1, OQ-7 + KD-1)
+
+    func testDepthProfileInvariants() {
+        let depth = ModelAssetCatalog.depthAnythingV2SmallF16
+        XCTAssertEqual(depth.profileID, "depth-anything-v2-small-f16")
+        XCTAssertEqual(depth.modelID, "apple/coreml-depth-anything-v2-small")
+        XCTAssertEqual(depth.revision, "cfef6f6f2a70783dedc0bfae40cecbc2052285d3")
+        XCTAssertEqual(depth.licenseName, "Apache-2.0", "Apache-2.0 all the way down (AC#12)")
+        XCTAssertEqual(depth.tier, .gitHubRelease)
+        XCTAssertEqual(depth.releaseTag, "ai-models-v1")
+        XCTAssertEqual(depth.assetFileName, "depth-anything-v2-small-f16.mlpackage.zip")
+        XCTAssertEqual(depth.inputSize, 518, "long edge")
+        XCTAssertEqual(depth.inputShortEdge, 392, "short edge — D-4 spike pin (NOT the plan's transcribed 396)")
+        XCTAssertNil(depth.embeddingDim)
+        XCTAssertTrue(depth.textLanguages.isEmpty)
+    }
+
+    /// OQ-7 zero-drift: the five pre-depth profiles keep the square-input
+    /// semantics (short edge nil) — the additive optional touches nothing.
+    func testShortEdgeNilOnPreDepthProfiles() {
+        for profile in ModelAssetCatalog.allProfiles
+        where profile.family != .depth {
+            XCTAssertNil(
+                profile.inputShortEdge,
+                "\(profile.profileID) must keep nil shortEdge (zero-drift)")
+        }
+    }
+
+    /// The family discriminant's six-profile exhaustiveness (KD-1 single
+    /// source; checker m5's routing钉 relies on this + o2's precedence).
+    func testFamilyExhaustiveOverAllProfiles() {
+        var counts: [ModelAssetFamily: Int] = [:]
+        for profile in ModelAssetCatalog.allProfiles {
+            counts[profile.family, default: 0] += 1
+        }
+        XCTAssertEqual(counts[.clip], 2, "chinese-clip + jina-clip")
+        XCTAssertEqual(counts[.enhancement], 3, "realesr + x4plus + drunet")
+        XCTAssertEqual(counts[.depth], 1, "depth-anything-v2-small-f16")
+        XCTAssertEqual(counts.values.reduce(0, +), 6)
+        // The precedence rule (o2): clip marker wins over a depth marker.
+        XCTAssertEqual(
+            ModelAssetCatalog.chineseClipViTB16Int8.family, .clip)
+        XCTAssertEqual(
+            ModelAssetCatalog.depthAnythingV2SmallF16.family, .depth)
+        // == folds the additive line (the round-trip through the catalog
+        // exercises the new comparison row).
+        XCTAssertEqual(
+            ModelAssetCatalog.manifest(for: "depth-anything-v2-small-f16"),
+            ModelAssetCatalog.depthAnythingV2SmallF16)
     }
 
     /// RESOURCE-GATED. When the bundled digests are published (post-T2) the
