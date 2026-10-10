@@ -722,7 +722,7 @@ final class McpHostTests: XCTestCase {
     /// expected tuple rides the SAME face switch the production hosts
     /// assemble with (`!isFullFaceRequested` — makeEditingSeams), so the
     /// three-form conformance compares identical faces: 19 ops under
-    /// LIGHTAMER_FULL_IOP_FACE=1, the narrowed 15 in the default face.
+    /// LIGHTAMER_FULL_IOP_FACE=1, the narrowed 16 in the default face.
     private static func expectedListIopsText() async throws -> String {
         let registry = McpToolRegistry()
         await EditingToolset.register(
