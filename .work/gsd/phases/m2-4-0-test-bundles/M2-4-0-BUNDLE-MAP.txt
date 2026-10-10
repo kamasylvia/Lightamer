@@ -275,7 +275,11 @@ LAYERS	3	AIMaskPlaneFormatTests.swift
 LAYERS	3	LayerDragPerfTests.swift
 LAYERS	4	MaskEditIncrementTests.swift
 LAYERS	9	MaskFeatherAlignTests.swift
-LAYERS	8	FollowEdgesTests.swift
+LAYERS	15	FollowEdgesTests.swift
+#   M4-2-01 T2 行内修订（2026-10-10，登记随文件同 commit）：V2 换锚批 walker
+#   goldens +7（arc/bridge-injected/fuse/degrade/junction-ring/carrier-contract/
+#   snap-frozen），8→15；既有 8 法几何断言逐字保留，点数门实测重校（≥30→≥12 /
+#   ≥20→≥12，M4-2-01 DECISIONS 记带）。
 LAYERS	9	MaskThumbnailRendererTests.swift
 LAYERS	4	RangePanelMappingTests.swift
 APP	9	MaskGroupsPanelTests.swift
