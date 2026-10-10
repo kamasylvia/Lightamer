@@ -263,22 +263,3 @@ extension ColormatchModule.Params {
             referenceStatsHash: UInt64(referenceStatsHash ?? "0") ?? 0)
     }
 }
-
-/// The MSL uniform mirror (flat floats — zero function constants; the ABI
-/// is pinned by the T6 size-probe).
-struct ColormatchUniforms {
-    var mi0: Float = 0; var mi1: Float = 0; var mi2: Float = 0
-    var mi3: Float = 0; var mi4: Float = 0; var mi5: Float = 0
-    var mi6: Float = 0; var mi7: Float = 0; var mi8: Float = 0
-    var c0: Float = 0; var c1: Float = 0; var c2: Float = 0
-    var strength: Float = 0
-
-    mutating func setMi(_ v: [Float]) {
-        mi0 = v[0]; mi1 = v[1]; mi2 = v[2]
-        mi3 = v[3]; mi4 = v[4]; mi5 = v[5]
-        mi6 = v[6]; mi7 = v[7]; mi8 = v[8]
-    }
-    mutating func setC(_ v: [Float]) {
-        c0 = v[0]; c1 = v[1]; c2 = v[2]
-    }
-}
