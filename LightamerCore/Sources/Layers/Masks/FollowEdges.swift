@@ -2,11 +2,10 @@ import Foundation
 import Metal
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Follow Edges (Plan M2-7-1 T6, KD-6; M2MASK-05, D-M2-7-CONTEXT-4 A; V2
-// re-anchor Plan M4-2-01 KD-2) — the edge-aware brush: a precomputed edge map
-// (MaskEdgeKernels.metal, cached at `PipeCacheKey.edgeMapPosition`) + a CPU
-// walk over the EXTRACTED RIDGE GRAPH (RidgeExtract) that turns one seed into
-// a MaskPoint chain riding the ridge.
+// Follow Edges (Plan M2-7-1 T6, KD-6; M2MASK-05, D-M2-7-CONTEXT-4 A) — the
+// edge-aware brush: a precomputed edge map (MaskEdgeKernels.metal, cached at
+// `PipeCacheKey.edgeMapPosition`) + a CPU streamline WALKER that turns one
+// seed into a MaskPoint chain riding the local edge tangent.
 //
 // The output is an ORDINARY brush form's point chain — the caller packs it
 // into a BrushStroke (radius/hardness/density/opacity = the current brush
@@ -15,25 +14,19 @@ import Metal
 // lives in the input chain's GENERATION (the Phase-6 stamping brush stays
 // the data正本, D-M2-7-CONTEXT-2).
 //
-// V2 (M4-2-01): the `.streamline` arm consumes the pre-extracted RidgeGraph
-// (seed attach → bidirectional traversal → greedy junction continuation →
-// curvature-modulated resampling). The V1 per-point tangent walker
-// (lookahead flanking samples, momentum blend λ, ring-gradient fallback) is
-// RETIRED in the same batch (OQ-7 — the golden landed with the deletion).
-//
 // Complexity fuse (OQ-4-C, pre-wired): `FollowEdgesMode` carries BOTH cases
-// from day one — `.streamline` (the ridge-graph walk) and `.snap` (seed
+// from day one — `.streamline` (the full tangent walker) and `.snap` (seed
 // snaps to the nearest strong edge, straight-line stamps). The P3实测
-// ruling flips the UI DEFAULT, not the code.
+// ruling flips the UI DEFAULT, not the code: the walker is never deleted.
 //
 // Failure degradation: an unavailable edge map (nil field / empty values /
-// no ridge vertex within reach) yields an EMPTY chain — the caller
+// no edge above threshold within reach) yields an EMPTY chain — the caller
 // performs NO append and surfaces the state (never a silent no-op stroke).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The two wired modes (the complexity-fuse switch — see the header).
 public enum FollowEdgesMode: String, Codable, Sendable, Equatable, Hashable {
-    /// The ridge-graph walker (V2).
+    /// The full tangent-streamline walker.
     case streamline
     /// The degrade: snap the seed to the nearest strong edge, straight
     /// stamps from there (the OQ-4-C fallback shape).
@@ -43,29 +36,24 @@ public enum FollowEdgesMode: String, Codable, Sendable, Equatable, Hashable {
 /// The Follow Edges parameter face (KD-6③) — the P2 UI consumes these.
 /// The brush WIDTH is not here: it passes through as the packed
 /// BrushStroke's radius (the caller's current brush parameter).
-/// Session-state only (never persisted) — field evolution carries no
-/// migration (M4-2-01 OQ-4-A: the fixed-step and chain-cap fields are
-/// withdrawn; the adaptive resampling made a fixed step meaningless and the
-/// chain fuse became the walker-internal constant below).
 public struct FollowEdgesParams: Sendable, Equatable {
 
-    /// The contrast gate on the NORMALIZED edge map [0,1]: the hysteresis
-    /// HIGH of the V2 ridge extraction (low = 0.4·high is internal) — the
-    /// same "how strong counts as an edge" meaning the V1 walk gated on.
+    /// The contrast gate on the NORMALIZED edge map [0,1]: below it the
+    /// walker stops (and the seed snaps).
     public var edgeThreshold: Float
 
-    /// The WALK-phase junction-continuation bias (V2 redefinition — V1's
-    /// tangent-momentum blend is retired): the minimum alignment cosine
-    /// (0..1) for taking a branch through a degree-≥3 junction; the
-    /// default 0.5 ≈ a 60° aperture; no branch passes → the walk stops.
-    /// EXTRACTION never consumes this (checker E1 prescription A: the ≤3px
-    /// gap-bridge alignment gate is an extraction-internal 0.5 constant).
+    /// Tangent momentum 0..1: 0 = pure local tangent every step (turns
+    /// sharply around corners), 1 = straight line after the first heading.
     public var followStrength: Float
 
-    /// The output/traversal side: +1 emits the forward (index-ascending)
-    /// side of the attached chain first and spends the point budget there
-    /// first; −1 the backward side.
+    /// The tangent side: +1 or −1 (the gradient rotated ±90°).
     public var direction: Float
+
+    /// The walker step in edge-map pixels.
+    public var stepPixels: Float
+
+    /// The chain-length bound (the runaway fuse).
+    public var maxPoints: Int
 
     public var mode: FollowEdgesMode
 
@@ -73,11 +61,15 @@ public struct FollowEdgesParams: Sendable, Equatable {
         edgeThreshold: Float = 0.25,
         followStrength: Float = 0.5,
         direction: Float = 1,
+        stepPixels: Float = 1.5,
+        maxPoints: Int = 256,
         mode: FollowEdgesMode = .streamline
     ) {
         self.edgeThreshold = edgeThreshold
         self.followStrength = followStrength
         self.direction = direction
+        self.stepPixels = stepPixels
+        self.maxPoints = maxPoints
         self.mode = mode
     }
 }
@@ -94,25 +86,10 @@ public struct EdgeMapField: Sendable {
     /// Normalized edge strength [0,1], row-major (width × height).
     public var values: [Float]
 
-    /// V2 additive (M4-2-01 KD-2): the extracted ridge graph. nil = not yet
-    /// extracted — the `.streamline` arm then extracts lazily in-chain (same
-    /// pure function, same output). The App carrier injects it per
-    /// prefixHash ⊕ threshold so a press walks instead of extracting.
-    public var ridges: RidgeGraph?
-
     public init(width: Int, height: Int, values: [Float]) {
         self.width = width
         self.height = height
         self.values = values
-        self.ridges = nil
-    }
-
-    /// Value copy with the ridge graph attached (the carrier's return shape;
-    /// the field cache itself stays threshold-free — OQ-3/KD-4).
-    public func withRidges(_ ridges: RidgeGraph?) -> EdgeMapField {
-        var copy = self
-        copy.ridges = ridges
-        return copy
     }
 
     public func value(atX x: Int, y: Int) -> Float? {
@@ -122,16 +99,6 @@ public struct EdgeMapField: Sendable {
 }
 
 public enum FollowEdges {
-
-    /// The chain-length fuse (M4-2-01 checker M1: the withdrawn params
-    /// field, now an internal constant — the whole-repo grep for the
-    /// identifier ends at this file).
-    private static let maxPoints = 256
-
-    // KD-2④ pinned resampling constants (AGENTS.md M2-7 note is the registry).
-    private static let resampleMinStep = 0.75
-    private static let resampleMaxStep = 4.0
-    private static let resampleMaxTurn = Double.pi / 4 // 45°
 
     /// The mode dispatcher (exhaustive — no default; 纪律 7).
     public static func chain(
@@ -143,20 +110,18 @@ public enum FollowEdges {
         }
     }
 
-    // MARK: - The V2 walker (pure Swift, deterministic — no RNG anywhere)
+    // MARK: - The walker (pure Swift, deterministic — no RNG anywhere)
 
     /// Seed (normalized [0,1] over the map's own frame) → the MaskPoint
-    /// chain riding the extracted ridge. Empty output = the documented
-    /// degrade (no map / no ridge vertex within reach).
+    /// chain riding the local edge. Empty output = the documented degrade
+    /// (no map / no edge above threshold within reach).
     ///
-    /// Mechanics (KD-2): attach the seed to the nearest ridge vertex within
-    /// 8 px, then walk the graph bidirectionally — along the attached chain,
-    /// through junctions (greedy strongest continuation gated by
-    /// `followStrength`, ties broken by the branch's first-past-the-junction
-    /// vertex in row-major order, first hit wins) and across recorded ≤3px
-    /// bridges — emitting curvature-modulated resampled points
-    /// (s = 0.75 + (4 − 0.75)·(1 − θ/45°), arc accumulator reset at chain
-    /// crossings), capped at `maxPoints`.
+    /// Mechanics (KD-6②): the heading follows the edge tangent = the local
+    /// gradient rotated 90°, sampled AHEAD of the walker (a magnitude
+    /// ridge's crest self-sample vanishes — the flank one step ahead is
+    /// the informative reading, and it is what rotates the heading around
+    /// a corner); a zero reading falls back to the strongest ±1-ring
+    /// gradient, then to pure momentum (the follow-strength blend).
     public static func streamline(
         seed: MaskPoint, field: EdgeMapField?, params: FollowEdgesParams
     ) -> [MaskPoint] {
@@ -164,218 +129,72 @@ public enum FollowEdges {
             field.values.count == field.width * field.height
         else { return [] }
         let w = Double(field.width - 1), h = Double(field.height - 1)
-        let seedPixel = SIMD2(Double(seed.x), Double(seed.y)) * SIMD2(w, h)
+        var seedPixel = SIMD2(Double(seed.x), Double(seed.y)) * SIMD2(w, h)
+        let dirSign: Double = params.direction >= 0 ? 1 : -1
+        let λ = Double(max(0, min(1, params.followStrength)))
         let threshold = Double(params.edgeThreshold)
+        let step = Double(max(0.5, params.stepPixels))
 
-        // The ridge graph: a threshold-matched injected carrier, else lazy
-        // in-chain extraction (E1 prescription A: extraction consumes
-        // (field, edgeThreshold) only — same field, same threshold, same
-        // graph, byte for byte).
-        let graph: RidgeGraph
-        if let ridges = field.ridges, ridges.high == params.edgeThreshold {
-            graph = ridges
-        } else {
-            graph = RidgeExtract.graph(from: field, high: params.edgeThreshold)
+        // Seed snap: an off-edge seed walks from its nearest STRONG
+        // neighbor (8 px reach — the streamline share of the snap
+        // geometry); none → the empty-chain degrade.
+        if sample(field, seedPixel) < threshold {
+            guard let snapped = snapTarget(
+                field, around: seedPixel, radius: 8, threshold: threshold)
+            else { return [] }
+            seedPixel = snapped
         }
 
-        // Seed attach (KD-2①): the nearest ridge vertex within 8 px
-        // (snapTarget-family geometry; tie-break = distance² → row-major).
-        // No hit → the V1-verbatim degrade: strongest neighbor via
-        // snapTarget (8 px, threshold gate), then a RE-ATTACH within the
-        // same 8 px of the snapped point (checker M2); both paths empty →
-        // the empty-chain degrade.
-        var attach = nearestVertex(graph, around: seedPixel, radius: 8)
-        if attach == nil,
-            let snapped = snapTarget(field, around: seedPixel, radius: 8, threshold: threshold) {
-            attach = nearestVertex(graph, around: snapped, radius: 8)
-        }
-        guard let (startChain, startVertex) = attach else { return [] }
+        var heading = initialHeading(field, at: seedPixel, dirSign: dirSign)
 
-        let attachPos = graph.chains[startChain].vertices[startVertex]
-        var forward: [SIMD2<Double>] = []
-        var backward: [SIMD2<Double>] = []
-        var budget = maxPoints - 1
-        // The first-output side spends the budget first (KD-2② direction).
-        if params.direction >= 0 {
-            walk(graph, from: (startChain, startVertex), sense: 1,
-                 gate: gateValue(params), into: &forward, budget: &budget)
-            walk(graph, from: (startChain, startVertex), sense: -1,
-                 gate: gateValue(params), into: &backward, budget: &budget)
-        } else {
-            walk(graph, from: (startChain, startVertex), sense: -1,
-                 gate: gateValue(params), into: &backward, budget: &budget)
-            walk(graph, from: (startChain, startVertex), sense: 1,
-                 gate: gateValue(params), into: &forward, budget: &budget)
-        }
-        var out = [attachPos]
-        out.append(contentsOf: params.direction >= 0 ? forward : backward)
-        out.append(contentsOf: params.direction >= 0 ? backward : forward)
-        return out.map { MaskPoint(x: Float($0.x / w), y: Float($0.y / h)) }
-    }
-
-    private static func gateValue(_ params: FollowEdgesParams) -> Double {
-        Double(max(0, min(1, params.followStrength)))
-    }
-
-    /// One direction of the graph walk: consumes the vertex stream from
-    /// `(chain, vertex)` toward `sense`, crossing junctions/bridges, and
-    /// emits adaptively spaced points (never the start vertex itself).
-    private static func walk(
-        _ graph: RidgeGraph, from start: (chain: Int, vertex: Int), sense initialSense: Int,
-        gate: Double, into out: inout [SIMD2<Double>], budget: inout Int
-    ) {
-        var chain = start.chain
-        var index = start.vertex
-        var sense = initialSense
-        var lastPos = graph.chains[chain].vertices[index]
-        var arrival: SIMD2<Double>? = nil // the direction INTO lastPos
-        // The arc accumulator: distance until the next emission. At the
-        // attach vertex θ is unknown → the straight-run spacing.
-        var deficit = resampleStep(turnAngle: 0)
-        var spacing = resampleStep(turnAngle: 0)
-        var steps = 0
-        let stepGuard = maxPoints * 8 // traversal safety fuse
-        while budget > 0 {
-            guard steps < stepGuard else { return }
-            steps += 1
-
-            // Advance the cursor one vertex along the traversal.
-            let vertices = graph.chains[chain].vertices
-            let nextIndex = index + sense
-            let crossed: Bool
-            var nextPos: SIMD2<Double>
-            if nextIndex >= 0, nextIndex < vertices.count {
-                index = nextIndex
-                nextPos = vertices[index]
-                crossed = false
-            } else {
-                // Chain end: bridge / junction continuation / free end.
-                let end = sense > 0 ? 1 : 0
-                guard let continuation = continuationFrom(graph, chain: chain, end: end, gate: gate)
-                else { return }
-                chain = continuation.chain
-                let nextVertices = graph.chains[chain].vertices
-                index = continuation.end == 1 ? nextVertices.count - 1 : 0
-                sense = continuation.end == 1 ? -1 : 1
-                // 弧长累计清零 (KD-2④): the accumulator resets at crossings.
-                spacing = resampleStep(turnAngle: 0)
-                deficit = spacing
-                crossed = true
-                continue
-            }
-
-            let seg = nextPos - lastPos
-            let segLen = (seg.x * seg.x + seg.y * seg.y).squareRoot()
-            if segLen > 1e-9 {
-                let dir = seg / segLen
-                // The spacing is set by the turn at the segment's start
-                // vertex (θ = 0 until a direction change is observed).
-                if !crossed, let a = arrival {
-                    let cosTurn = max(-1.0, min(1.0, a.x * dir.x + a.y * dir.y))
-                    spacing = resampleStep(turnAngle: acos(cosTurn))
+        func walk(_ sign: Double) -> [SIMD2<Double>] {
+            var chain: [SIMD2<Double>] = []
+            var position = seedPixel
+            var direction = heading * sign
+            for _ in 0..<(params.maxPoints / 2) {
+                // Lookahead gradient (the flank one step ahead), falling
+                // back to the strongest ring reading, then to momentum.
+                let look = position + direction * step
+                var grad = gradient(field, at: look) ?? SIMD2(0, 0)
+                if lengthOf(grad) < 1e-4 {
+                    grad = strongestRingGradient(field, at: position) ?? SIMD2(0, 0)
                 }
-                var t = 0.0
-                while deficit <= segLen - t, budget > 0 {
-                    t += deficit
-                    out.append(lastPos + dir * t)
-                    budget -= 1
-                    deficit = spacing
+                if lengthOf(grad) >= 1e-4 {
+                    let tangent = tryNormalize(SIMD2(-grad.y, grad.x) * dirSign)
+                        ?? direction
+                    direction = tryNormalize(direction * λ + tangent * (1 - λ))
+                        ?? direction
                 }
-                deficit -= segLen - t
-                arrival = dir
+                let next = position + direction * step
+                guard next.x >= 0, next.y >= 0,
+                    next.x <= Double(field.width - 1),
+                    next.y <= Double(field.height - 1),
+                    sample(field, next) >= threshold
+                else { break }
+                chain.append(next)
+                position = next
             }
-            lastPos = nextPos
+            return chain
         }
-    }
 
-    /// The continuation at a chain end: a recorded bridge (alignment-gated
-    /// at extraction — crossed ungated), else the junction's greedy
-    /// strongest branch with cosine ≥ `gate` (checker M3: candidates
-    /// enumerated by their first-past-the-junction vertex in row-major
-    /// order, argmax first-hit wins). None → nil (the walk stops).
-    private static func continuationFrom(
-        _ graph: RidgeGraph, chain: Int, end: Int, gate: Double
-    ) -> (chain: Int, end: Int)? {
-        let key = ChainEndKey(chain: chain, end: end)
-        if let bridged = graph.bridgeByEnd[key] {
-            return (bridged.chain, bridged.end)
-        }
-        guard let ji = graph.junctionByEnd[key] else { return nil }
-        let junction = graph.junctions[ji]
-        guard let arrivalDir = RidgeExtract.outwardTangent(
-            graph.chains[chain].vertices, end: end)
-        else { return nil }
-        struct Candidate {
-            var chain: Int
-            var end: Int
-            var cos: Double
-            var order: (Int, Int, Int)
-        }
-        var candidates: [Candidate] = []
-        for att in junction.attachments where !(att.chain == chain && att.end == end) {
-            let leaving = RidgeExtract.outwardTangent(graph.chains[att.chain].vertices, end: att.end)
-            let leavingDir = leaving.map { SIMD2(-$0.x, -$0.y) } ?? SIMD2(0.0, 0.0)
-            let cos = arrivalDir.x * leavingDir.x + arrivalDir.y * leavingDir.y
-            guard cos >= gate else { continue }
-            // M3 enumeration order: the branch's first vertex past the
-            // junction, row-major (y, then x); single-vertex branches order
-            // at the junction itself.
-            let branch = graph.chains[att.chain].vertices
-            let first: SIMD2<Double>
-            if branch.count >= 2 {
-                first = att.end == 1 ? branch[branch.count - 2] : branch[1]
-            } else {
-                first = junction.position
-            }
-            candidates.append(Candidate(
-                chain: att.chain, end: att.end, cos: cos,
-                order: (Int(first.y.rounded()), Int(first.x.rounded()), att.chain)))
-        }
-        candidates.sort { $0.order < $1.order }
-        var best: Candidate?
-        for candidate in candidates {
-            if best == nil || candidate.cos > best!.cos { best = candidate }
-        }
-        guard let winner = best else { return nil }
-        return (winner.chain, winner.end)
-    }
+        // Bidirectional walk from the seed (双步进): + heading and −
+        // heading, gated independently.
+        let forward = walk(1)
+        let backward = walk(-1)
+        var pixels: [SIMD2<Double>] = backward.reversed()
+        pixels.append(seedPixel)
+        pixels.append(contentsOf: forward)
 
-    /// The nearest graph vertex within `radius` px of `around`
-    /// (tie-break = distance² → row-major y/x — KD-2①).
-    private static func nearestVertex(
-        _ graph: RidgeGraph, around p: SIMD2<Double>, radius: Double
-    ) -> (chain: Int, vertex: Int)? {
-        var best: (chain: Int, vertex: Int, dist2: Double)? = nil
-        for (ci, chain) in graph.chains.enumerated() {
-            for (vi, v) in chain.vertices.enumerated() {
-                let d = v - p
-                let dist2 = d.x * d.x + d.y * d.y
-                guard dist2 <= radius * radius else { continue }
-                let better: Bool
-                if let b = best {
-                    if dist2 < b.dist2 {
-                        better = true
-                    } else if dist2 == b.dist2 {
-                        let bv = graph.chains[b.chain].vertices[b.vertex]
-                        better = (v.y, v.x) < (bv.y, bv.x)
-                    } else {
-                        better = false
-                    }
-                } else {
-                    better = true
-                }
-                if better { best = (ci, vi, dist2) }
-            }
+        var seen = Set< SIMDTwoKey>() // grid-quantized dedup
+        var out: [MaskPoint] = []
+        out.reserveCapacity(pixels.count)
+        for pixel in pixels {
+            let key = SIMDTwoKey(
+                x: (pixel.x * 2).rounded(), y: (pixel.y * 2).rounded())
+            guard seen.insert(key).inserted else { continue }
+            out.append(MaskPoint(x: Float(pixel.x / w), y: Float(pixel.y / h)))
         }
-        guard let b = best else { return nil }
-        return (b.chain, b.vertex)
-    }
-
-    /// s = s_min + (s_max − s_min)·(1 − min(θ, θ_max)/θ_max) — straight
-    /// runs emit sparsely, bends densify (KD-2④).
-    private static func resampleStep(turnAngle θ: Double) -> Double {
-        let t = min(max(θ, 0), resampleMaxTurn) / resampleMaxTurn
-        return resampleMinStep + (resampleMaxStep - resampleMinStep) * (1 - t)
+        return out
     }
 
     /// The `.snap` degrade: [seed, snappedTarget] — the caller stamps a
@@ -401,6 +220,83 @@ public enum FollowEdges {
 
     // MARK: - Field sampling primitives (pure)
 
+    /// A hashable grid key (SIMD2<Double> is not Hashable — the dedup
+    /// grid is half-pixel quantized, deterministic).
+    private struct SIMDTwoKey: Hashable {
+        var x: Double
+        var y: Double
+    }
+
+    private static func lengthOf(_ v: SIMD2<Double>) -> Double {
+        (v.x * v.x + v.y * v.y).squareRoot()
+    }
+
+    private static func sample(_ field: EdgeMapField, _ p: SIMD2<Double>) -> Double {
+        let x = min(max(0, Int(p.x.rounded())), field.width - 1)
+        let y = min(max(0, Int(p.y.rounded())), field.height - 1)
+        return Double(field.values[y * field.width + x])
+    }
+
+    /// Central-difference gradient of the normalized map at a pixel.
+    private static func gradient(
+        _ field: EdgeMapField, at p: SIMD2<Double>
+    ) -> SIMD2<Double>? {
+        let x = Int(p.x.rounded()), y = Int(p.y.rounded())
+        guard let cx0 = field.value(atX: x - 1, y: y),
+            let cx1 = field.value(atX: x + 1, y: y),
+            let cy0 = field.value(atX: x, y: y - 1),
+            let cy1 = field.value(atX: x, y: y + 1)
+        else { return nil }
+        return SIMD2(Double(cx1 - cx0), Double(cy1 - cy0))
+    }
+
+    /// The initial heading: the strongest gradient among the seed and its
+    /// ±1 ring, rotated 90° (on a magnitude ridge the crest self-sample is
+    /// zero — a flank neighbor carries the reading).
+    private static func initialHeading(
+        _ field: EdgeMapField, at p: SIMD2<Double>, dirSign: Double
+    ) -> SIMD2<Double> {
+        let x = Int(p.x.rounded()), y = Int(p.y.rounded())
+        var best = SIMD2(0.0, 0.0)
+        var bestLength = 0.0
+        for dy in -1...1 {
+            for dx in -1...1 {
+                guard let grad = gradient(
+                    field, at: SIMD2(Double(x + dx), Double(y + dy)))
+                else { continue }
+                let length = lengthOf(grad)
+                if length > bestLength {
+                    bestLength = length
+                    best = grad
+                }
+            }
+        }
+        guard bestLength > 1e-4 else { return SIMD2(dirSign, 0) }
+        return tryNormalize(SIMD2(-best.y, best.x) * dirSign) ?? SIMD2(dirSign, 0)
+    }
+
+    /// The strongest gradient among the ±1 ring (the on-crest fallback).
+    private static func strongestRingGradient(
+        _ field: EdgeMapField, at p: SIMD2<Double>
+    ) -> SIMD2<Double>? {
+        let x = Int(p.x.rounded()), y = Int(p.y.rounded())
+        var best: SIMD2<Double>?
+        var bestLength = 0.0
+        for dy in -1...1 {
+            for dx in -1...1 {
+                guard let grad = gradient(
+                    field, at: SIMD2(Double(x + dx), Double(y + dy)))
+                else { continue }
+                let length = lengthOf(grad)
+                if length > bestLength {
+                    bestLength = length
+                    best = grad
+                }
+            }
+        }
+        return best
+    }
+
     /// The strongest pixel within `radius` of `around` whose value clears
     /// `threshold` (the seed snap; deterministic scan order — purity). No
     /// candidate → nil (the empty-chain degrade; sub-threshold ripples
@@ -423,6 +319,12 @@ public enum FollowEdges {
         }
         guard let best else { return nil }
         return best.point
+    }
+
+    private static func tryNormalize(_ v: SIMD2<Double>) -> SIMD2<Double>? {
+        let length = lengthOf(v)
+        guard length > 1e-9 else { return nil }
+        return v / length
     }
 
     // MARK: - The fenced readback primitive (L014) + the ≤512 resolution guard

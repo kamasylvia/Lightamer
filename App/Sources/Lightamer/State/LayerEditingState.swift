@@ -189,7 +189,9 @@ final class LayerEditingState {
     /// walkthrough fuse verdict (OQ-4-C): the streamline walker breaks on
     /// real-photo ridges at shipped params (chains of 1-3 points across all
     /// scenes); snap delivers deterministic edge-anchored lines. The walker
-    /// stays selectable from the mode picker and is parked for V2.
+    /// stays selectable from the mode picker; the V2 re-anchor (M4-2) was
+    /// deleted after its gate failure (2026-10-10 user ruling — requirement
+    /// IOP-MASK-06 parked, restart = a reliable open-source reference).
     var followEdgesParams = FollowEdgesParams(mode: .snap)
 
     /// The empty-chain degrade status (KD-P1 KD-6 consumption face): set by

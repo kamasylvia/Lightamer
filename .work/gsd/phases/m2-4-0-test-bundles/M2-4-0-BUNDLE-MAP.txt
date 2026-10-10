@@ -572,17 +572,7 @@ APP	11	FilmLatitudePanelTests.swift
 #   T5 勘误（同批）：上行 9→11（初记值漏计 session 面两法；文件 func test 实数
 #   11 × Project.swift 登记一致；App 执行面 675→686 = +11 两式互证）。
 APP	4	FilmCardTests.swift
-#   M4-2-01 T1 增行（2026-10-09，登记随文件同 commit）：RidgeExtractTests =
-#   LAYERS/Core 级（V2 脊线预提取阶段 golden——NMS/滞回/链接/桥接/质心/确定性
-#   + Steger Taylor 对照腿，纯 Core 可单测），10 法。
-#   M4-2-01 T3 行内修订（2026-10-10，登记随文件同 commit）：九景 golden 矩阵
-#   +9（straight/arc/L/T-fork differential/bridged-gap/parallel/dip/texture/
-#   varying + 双跑确定性 + snap 对照轨），10→19。
-#   M4-2-02 T1 行内修订（2026-10-10，登记随文件同 commit）：readEdgeMap 1024
-#   工作域路径法（维度/最近邻 box 序 + 缺省 512 不变断言）+ 纯函数面零变负测
-#   （冻结 M4-2-01 graph/walk 值——readback 域不可达纯函数域），19→21。
-LAYERS	21	RidgeExtractTests.swift
-#   M4-2-01 T4 增行（2026-10-10，登记随文件同 commit）：FollowEdgesRidgeCacheTests
-#   = APP/App 级（carrier 折键/LRU/注入缝/合同计数器——真 coordinator 链），
-#   4 法；App 执行面 704→708。
-APP	4	FollowEdgesRidgeCacheTests.swift
+#   M4-2-01/02 行退役（2026-10-10，用户裁决功能删除挂待定）：RidgeExtractTests
+#   (LAYERS 21) 与 FollowEdgesRidgeCacheTests (APP 4) 随 V2 功能代码同批删除
+#   （历史增行注记 2026-10-09/10 在 git；执行面回落 Layers 394 / App 704 =
+#   M4-1 基线）。

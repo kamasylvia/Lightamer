@@ -363,7 +363,7 @@ Deferred to future release. Tracked but not in current roadmap.
 
 对标 Gentlemen Coders Nitro Photo（macOS）蒙版面的缺口项；蒙版主体已在 v1 Phase 6/7 交付（IOP-MASK-01..05 + AI-01/05/06/07）。
 
-- **IOP-MASK-06**: Follow Edges 边缘感知笔刷——brush 沿图像轮廓单侧跟随涂抹（edge-aware/contour-following），Metal 边缘导向实现；Nitro 独门能力，算法级新需求（可插队 v1 后期 UI 打磨轮）
+- **IOP-MASK-06**: Follow Edges 边缘感知笔刷——brush 沿图像轮廓单侧跟随涂抹（edge-aware/contour-following），Metal 边缘导向实现；Nitro 独门能力，算法级新需求。**待定（parked）——2026-10-10 用户裁决：V1 熔断 + V2 门 2/8 未达，功能代码删除；重启条件 = 出现可靠开源参考实现（边缘跟随笔刷类）**。〔历程：M2-7-1/2 内核+接线 Delivered → M2-7-3 熔断行使（`.snap` 默认，streamline 挂 V2）→ M4-2-01 V2 换锚（RidgeExtract 六段 + ridge-graph walker + App carrier；合成 golden 九景全绿，真图门 FAIL 0/8）→ M4-2-02 升域 512→1024（真图门 FAIL 2/8 <6/8，预算第一档）→ 三选一上报后用户终裁删除挂待定——V2 代码面全撤（逆 M4-2-01/02），代码回落 M2-7 熔断基线；重启时以参考实现为锚重立项，`phases/m4-2-follow-edges/` 全套（RESEARCH-NOTES/01·02 正本/03-CONTEXT 终裁）保留为重启输入〕
 - **IOP-MASK-07**: Depth 深度蒙版——读取图像内嵌深度数据（AVDepthData / ProRAW embedded matte，iPhone 人像类源）作为蒙版源；桌面 RAW 深度源稀缺，依赖数据面非算法面。**（2026-10-01 用户裁决：采纳 Lumen RAW 候选——以 MiDaS 级单目深度模型〔ONNX→CoreML，relative-depth 前景选择〕作桌面 RAW 数据面解法，本项解锁）**
 
 ### Photo Merging Extensions (v2) — Lumen RAW 借鉴（2026-10-01 用户裁决登记）
