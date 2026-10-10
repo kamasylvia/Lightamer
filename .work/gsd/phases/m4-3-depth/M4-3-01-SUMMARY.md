@@ -43,6 +43,13 @@
 | App | 704 | **711/4/0** | +7 | Leg 3 + Golden 3 + Probe 1（2 skip = probe env 门 + absent-assets 门，装包后正确语义） |
 | 三 bundle 合计 | 1717 | **1748/11/0** | +31 | 估测带 +26..32（o4）命中；checker 注估 30-40 内 |
 
+> **验收批勘误（m-b，2026-10-11）**：XCTest `Executed` 计数含 skip——上表 App
+> 711/4/0 为**模型缺席态**轮（4 skip = 3 golden absent + 1 probe）；装包态 =
+> **711/2/0**（skip = probe + absent-assets，与旁注身份吻合）。zcode 验收已按
+> DECISIONS §5 装模型复跑：golden 3/3 真跑全绿 + 净树终值轮 711/2/0 + perf
+> 探针亲证（all 40.8 / cpuAndGPU 55.6 / cpuOnly 67.7 / e2e 234.1 ms）——
+> 正本 = `M4-3-01-ACCEPTANCE.md` §1/§8。
+
 IOP/IOPParity 零触碰（本批零渲染管线面）——零漂移天然成立，未跑（非本批
 边界；收口只跑定向三 bundle，`--all` 未申请）。
 
