@@ -74,6 +74,40 @@ public protocol ColormatchAssetResolving: Sendable {
     func cdfSolution(sourceStatsHash: String, referenceStatsHash: String) -> ColorMatchCDFSolution?
 }
 
+/// The session resolver's shared holder + the registry factory's
+/// long-lived forwarding face (the `LutLibraryStore.sharedResolver`/
+/// SharedForwardingResolver 同形): boxes constructed by the factory read
+/// THROUGH the forward to whatever session resolver is installed —
+/// already-built boxes keep resolving the live instance after a swap.
+public enum ColormatchResolverBox {
+    /// The installed session resolver (nil = no session — every load
+    /// degrades to the typed reason, the arm blits).
+    public nonisolated(unsafe) static var shared: ColormatchAssetResolving?
+}
+
+/// The factory-facing forward: reads the box at CALL time (the registry
+/// factory captures THIS value at populate time — never the session
+/// resolver itself).
+public struct ColormatchSharedResolverForward: ColormatchAssetResolving, @unchecked Sendable {
+    public init() {}
+
+    public func loadCube(
+        assetRef: String, expectedHash: String?
+    ) -> ColormatchCubeAsset.LoadResult {
+        guard let shared = ColormatchResolverBox.shared else {
+            return .degraded(reason: "colormatch resolver not installed")
+        }
+        return shared.loadCube(assetRef: assetRef, expectedHash: expectedHash)
+    }
+
+    public func cdfSolution(
+        sourceStatsHash: String, referenceStatsHash: String
+    ) -> ColorMatchCDFSolution? {
+        ColormatchResolverBox.shared?.cdfSolution(
+            sourceStatsHash: sourceStatsHash, referenceStatsHash: referenceStatsHash)
+    }
+}
+
 public final class ColormatchModule: IOPModule {
 
     /// The colormatch params. `strength` defaults to 0 — the

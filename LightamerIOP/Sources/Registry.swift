@@ -121,8 +121,13 @@ public enum LightamerIOPRegistry {
         // editing seed with their panels; the M5-1-02 panel is the seed
         // moment). Default Params() = strength 0 = the blit identity, so a
         // user-added instance is pixel-safe before any solve lands.
+        // M5-1-02 (KD-5): the LUT arm's resolver rides the SHARED forward
+        // (the LutLibraryStore.sharedResolver 体例) — boxes read through it
+        // to whatever session resolver the App installed.
         await registry.register(opName: ColormatchModule.opName) { id in
-            ModuleBox(module: ColormatchModule(), instanceID: id)
+            ModuleBox(
+                module: ColormatchModule(resolver: ColormatchSharedResolverForward()),
+                instanceID: id)
         }
         // M2-5-1 T3: cat02WhiteBalance (creative CAT02 WB in the ACEScc
         // grade domain, KD-4), v50 slot 41.4. Seed stays ABSENT — the grade
