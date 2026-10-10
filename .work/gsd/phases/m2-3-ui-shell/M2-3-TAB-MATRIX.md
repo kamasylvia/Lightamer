@@ -57,6 +57,7 @@
 | Look | `soften` | **Detail/Texture** | Look: Texture（柔化腿） | 同上（共用 HighpassSoften 面板视图） |
 | Look | `bilat` | **Detail/Texture** | —（局部对比；LocalContrast 面板，opName 沿 dt `bilat` 字面） | **Alcedo 无对应**（D6 收纳 Detail/Texture 组） |
 | LUT | `lut3d` | main | LUT 页（递归扫描/根目录选择器 = M2GRADE-05/06 留 M2-5） | — |
+| LUT | `colormatch` | main | LUT 页（M5-1-02：求解器/参考列表/强度/读数面板） | — |
 | Display Transform | `vignette` | main | DRT/Post（暗角） | — |
 | Display Transform | —（specialContent 槽） | special | DRT 本体：**DrtPanelView（M2-6-3 落地）**——Method 分段卡恒展开（ACES 2.0/OpenDRT）+ Color & Encoding（六空间/EOTF 合法子集联动吸附/Peak 100-1000）+ aces20 限色组 + opendrt 预设三件套；Vignette 行原地保留 | 占位节退休（case 保留为槽标记、渲染臂换真面板，DECISIONS 签注）；**AgX 失挂（E1 勘误）不变** |
 | Geometry | `crop` | main | crop/aspect | — |

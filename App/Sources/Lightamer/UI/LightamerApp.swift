@@ -342,6 +342,13 @@ internal struct LightamerApp: App {
     /// Metal GPU → the fatal `.metalDeviceUnavailable` alert (UI-SPEC).
     @State private var metalContext: MetalContext? = (try? MetalContext())
 
+    /// Plan M5-1-02 (KD-6): the colormatch solve orchestration service —
+    /// the pipeline-level extraction + solve + attach face. The pipe
+    /// primitives configure in the scene `.task` (after the registry
+    /// population); the panel and (M5-1-03) the MCP match_color tool share
+    /// this ONE instance (the session curves live here).
+    @State private var colorMatchService = ColorMatchService()
+
     /// Plan M2-2-2 (KD-5/OQ-1 A): the project lifecycle face (create/open/
     /// recent/backup/move) + the import orchestration state — progress
     /// routes THROUGH the controller so the @Sendable handler never
@@ -463,6 +470,7 @@ internal struct LightamerApp: App {
                 .environment(depthMaskService)
                 .environment(metadataController)
                 .environment(smartAlbumStore)
+                .environment(colorMatchService)
                 .environment(presetsStore)
                 .environment(presetController)
                 .environment(catalogPreferences)
@@ -990,6 +998,13 @@ internal struct LightamerApp: App {
                         moduleRegistry, defaultFace: defaultFace)
                     pipeCoordinator.attach(
                         registry: moduleRegistry, defaultFace: defaultFace)
+                    // Plan M5-1-02 (KD-6): the colormatch service's pipe
+                    // faces (the extraction render + the LUT-arm resolver
+                    // installation ride them).
+                    if let metalContext {
+                        colorMatchService.configure(
+                            metal: metalContext, registry: moduleRegistry)
+                    }
 
                     // M3-3-02 T5 (KD-6): the film material store assembly —
                     // the bundle's FilmProfiles/profiles (the folder
