@@ -11,6 +11,20 @@ public enum ModelDistributionTier: Sendable, Equatable {
     case gitHubRelease
 }
 
+/// The model family discriminant (M4-3-01 KD-1). Derived — never stored:
+/// `ModelAssetManifest.family` computes it from the existing fields, so
+/// adding a profile cannot desynchronize a second stored marker. The
+/// worker's open/run dispatch and the tests consume THIS one discriminant.
+public enum ModelAssetFamily: Sendable, Equatable {
+    /// CLIP embedding profiles (`embeddingDim != nil`).
+    case clip
+    /// Monocular-depth profiles (`inputShortEdge != nil` — a non-square
+    /// static input edge pair is the depth face's marker).
+    case depth
+    /// Super-resolution / denoise tile profiles (the fall-through).
+    case enhancement
+}
+
 /// Compiled-in manifest for one model asset profile.
 ///
 /// This is the single constant source for downstream consumers (M2-10-02
@@ -40,6 +54,12 @@ public struct ModelAssetManifest: Sendable, Equatable {
     ///
     /// Single constant source: pre-scaling legs in 02/03 read this value.
     public let inputSize: Int
+    /// Canonical SHORT input edge for non-square models (M4-3-01 OQ-7:
+    /// additive optional). `nil` = the square-input semantics (the five
+    /// pre-depth profiles drift nowhere). The depth leg consumes the
+    /// (inputSize, inputShortEdge) pair as its (long, short) static shape —
+    /// the D-4 spike's single source (no call site re-types the numbers).
+    public let inputShortEdge: Int?
     /// Text-tower languages, e.g. `["zh", "en"]` / `["multilingual"]`.
     public let textLanguages: [String]
     /// SPDX license name of the shipped weights.
@@ -57,12 +77,56 @@ public struct ModelAssetManifest: Sendable, Equatable {
     /// provenance/re-derivation by the conversion scripts).
     public let hfFallback: (repo: String, file: String)
 
+    /// Explicit init: `inputShortEdge` defaults to nil so the five
+    /// pre-depth profile constructions (and any test fixture) compile
+    /// byte-for-byte unchanged — the additive-optional discipline
+    /// (InstalledLut.relativePath precedent).
+    public init(
+        profileID: String,
+        modelID: String,
+        revision: String,
+        embeddingDim: Int?,
+        inputSize: Int,
+        inputShortEdge: Int? = nil,
+        textLanguages: [String],
+        licenseName: String,
+        tier: ModelDistributionTier,
+        releaseTag: String?,
+        assetFileName: String,
+        hfFallback: (repo: String, file: String)
+    ) {
+        self.profileID = profileID
+        self.modelID = modelID
+        self.revision = revision
+        self.embeddingDim = embeddingDim
+        self.inputSize = inputSize
+        self.inputShortEdge = inputShortEdge
+        self.textLanguages = textLanguages
+        self.licenseName = licenseName
+        self.tier = tier
+        self.releaseTag = releaseTag
+        self.assetFileName = assetFileName
+        self.hfFallback = hfFallback
+    }
+
+    /// The single-source family discriminant (KD-1). PRIORITY ORDER IS
+    /// LOAD-BEARING (checker o2): `clip` is judged before `depth`, so a
+    /// hypothetical future double-marked profile would silently land on
+    /// clip — this doc comment pins the precedence; the six-profile
+    /// exhaustiveness test is the behavioral lock.
+    public var family: ModelAssetFamily {
+        if embeddingDim != nil { return .clip }
+        if inputShortEdge != nil { return .depth }
+        return .enhancement
+    }
+
     public static func == (lhs: ModelAssetManifest, rhs: ModelAssetManifest) -> Bool {
         lhs.profileID == rhs.profileID
             && lhs.modelID == rhs.modelID
             && lhs.revision == rhs.revision
             && lhs.embeddingDim == rhs.embeddingDim
             && lhs.inputSize == rhs.inputSize
+            && lhs.inputShortEdge == rhs.inputShortEdge
             && lhs.textLanguages == rhs.textLanguages
             && lhs.licenseName == rhs.licenseName
             && lhs.tier == rhs.tier
@@ -188,15 +252,48 @@ public enum ModelAssetCatalog {
         )
     )
 
+    // MARK: Depth profiles
+
+    /// Depth Anything V2 Small — Apple's official Core ML F16 conversion
+    /// (49.8 MB, Apache-2.0; ruling OQ-1-A: zero conversion, the official
+    /// package IS the release unit).
+    ///
+    /// Static IMAGE input, 518 (W) × 392 (H) — the D-4 SPIKE pin
+    /// (2026-10-10, MLModelDescription probed first-hand on the pinned
+    /// revision): the plan's "396" was a research transcription; the real
+    /// constraint is 392. `inputSize` carries the long edge (518), the
+    /// additive `inputShortEdge` the short (392); the image-typed input
+    /// means preprocessing is BAKED (no ImageNet normalization at call
+    /// sites — KD-3 arm a). The output is a one-component 32-bit-half
+    /// image, larger = nearer, roughly [0,1].
+    public static let depthAnythingV2SmallF16 = ModelAssetManifest(
+        profileID: "depth-anything-v2-small-f16",
+        modelID: "apple/coreml-depth-anything-v2-small",
+        revision: "cfef6f6f2a70783dedc0bfae40cecbc2052285d3",
+        embeddingDim: nil,
+        inputSize: 518,
+        inputShortEdge: 392,
+        textLanguages: [],
+        licenseName: "Apache-2.0",
+        tier: .gitHubRelease,
+        releaseTag: "ai-models-v1",
+        assetFileName: "depth-anything-v2-small-f16.mlpackage.zip",
+        hfFallback: (
+            repo: "apple/coreml-depth-anything-v2-small",
+            file: "DepthAnythingV2SmallF16.mlpackage/Data/com.apple.CoreML/weights/weight.bin"
+        )
+    )
+
     // MARK: Queries
 
-    /// All five profiles, bundled first.
+    /// All six profiles, bundled first.
     public static let allProfiles: [ModelAssetManifest] = [
         chineseClipViTB16Int8,
         realesrGeneralX4V3FP16,
         jinaClipV2Int8,
         realESRGANX4PlusFP16,
         drunetColorFP16,
+        depthAnythingV2SmallF16,
     ]
 
     /// Profiles expected inside the app bundle (exactly two, OQ-1-B/OQ-3-B).

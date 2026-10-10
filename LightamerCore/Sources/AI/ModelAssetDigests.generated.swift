@@ -67,6 +67,8 @@ public enum ModelAssetDigests {
             return realESRGANX4PlusFP16
         case "drunet-color-fp16":
             return drunetColorFP16
+        case "depth-anything-v2-small-f16":
+            return depthAnythingV2SmallF16
         default:
             return nil
         }
@@ -86,6 +88,9 @@ public enum ModelAssetDigests {
     private static let realESRGANX4PlusFP16: ModelAssetDigestEntry? = nil
 
     private static let drunetColorFP16: ModelAssetDigestEntry? = nil
+
+    // M4-3-01: rewritten by Scripts/ai-models/build-depth-release-asset.sh.
+    private static let depthAnythingV2SmallF16: ModelAssetDigestEntry? = ModelAssetDigestEntry(sha256Hex: "3824a48c6d17d2c5d76607bd0c0dea8427f062b7b014fa916d54e2aac91d9da9", byteCount: 45759882, auxiliaryFiles: [], generatedAt: "2026-10-10T11:37:38Z")
 
     // END REWRITABLE ENTRIES
 }
