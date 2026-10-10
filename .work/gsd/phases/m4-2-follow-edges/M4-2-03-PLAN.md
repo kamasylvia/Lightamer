@@ -1,3 +1,5 @@
+> **⛔ SUPERSEDED（2026-10-10 用户裁决：删除 Follow Edges 功能并挂待定）**——本 plan 描述的walker 纪律批永不执行；IOP-MASK-06 状态见 REQUIREMENTS「待定（parked）」条目与 M4-2-02-DECISIONS 三选一记录。本文件保留为 research 复审（M4-2-03-CONTEXT）的规划存档。
+
 ---
 phase: m4-2
 plan: "M4-2-03"
