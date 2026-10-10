@@ -490,7 +490,12 @@ func testMatrixTForkFollowStrengthDifferential() {
     matrixStamp(matrixBresenham(SIMD2(33, 32), SIMD2(38, 46)), amplitude: 1.0, into: &tv, w: 64, h: 64)
     let field = EdgeMapField(width: 64, height: 64, values: tv)
 
-    // E1 machine-check: extraction never consumes strength.
+    // E1 machine-check (acceptance fix 2026-10-10): the honest guarantee is
+    // the SIGNATURE — `graph(from:high:)` has no strength parameter to pass,
+    // so the extractor cannot consume strength at all; the assertion below
+    // pins the determinism face of the same contract (two calls byte-equal).
+    // The strength differential lives in the WALK gates under it, and the
+    // carrier-level strength-independence in FollowEdgesRidgeCacheTests.
     XCTAssertEqual(
         RidgeExtract.graph(from: field, high: 0.25),
         RidgeExtract.graph(from: field, high: 0.25))
