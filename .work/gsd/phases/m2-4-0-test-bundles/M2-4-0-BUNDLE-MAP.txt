@@ -271,6 +271,7 @@ LAYERS	7	ColorMatchOklabTests.swift
 LAYERS	10	ColorMatchSolverGoldenTests.swift
 LAYERS	10	ColorMatchStatsTests.swift
 LAYERS	8	ColorMatchCDFSolverTests.swift
+LAYERS	6	ColorMatchPoolingTests.swift
 LAYERS	10	AIMaskSemanticTests.swift
 LAYERS	10	LayerCacheTests.swift
 LAYERS	10	LayerCompositeTests.swift

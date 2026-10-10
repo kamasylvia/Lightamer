@@ -477,6 +477,7 @@ let project = Project(
                 "Tests/LightamerTests/ColorMatchSolverGoldenTests.swift",
                 "Tests/LightamerTests/ColorMatchStatsTests.swift",
                 "Tests/LightamerTests/ColorMatchCDFSolverTests.swift",
+                "Tests/LightamerTests/ColorMatchPoolingTests.swift",
                 "Tests/LightamerTests/AIMaskDeterminismTests.swift",
                 "Tests/LightamerTests/AIMaskEditPathsTests.swift",
                 "Tests/LightamerTests/AIMaskGeometryTests.swift",
