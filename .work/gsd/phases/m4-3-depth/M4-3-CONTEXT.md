@@ -238,3 +238,7 @@
 ## 裁决记录（用户回批）
 
 - （待填：OQ-1..7 与 D-1..5 裁决后在此登记，同 M2-10-CONTEXT 惯例。）
+
+## 裁决记录（用户回批 2026-10-10）
+
+**OQ-1..7 全部按推荐采纳（全 A）**：①DA V2 Small Apple 官方 CoreML F16 直采 ②GitHub Release 分发（不内置）③M2AI-10 worker 推理 ④单「深度」入口 + Lumen 固定参数（0.48/0.22 窗 + 10/95 分位）⑤v1 双线性 + 既有羽化（guided filter 挂 V2）⑥golden 三件套（abs-rel ≤0.01 + 逐字节确定性 + 合成靶语义）⑦additive optional `inputShortEdge`。另有 5 条低分叉直接裁决项同批按推荐生效。
