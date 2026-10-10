@@ -55,20 +55,26 @@ import simd
 // demotion point for that form.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// The solver selection (checker 回注 m2: TWO values this batch — the `.cdf`
-/// case is M5-1-02 additive and its arrival breaks every exhaustive switch on
+/// The solver selection (checker 回注 m2: TWO values at P1; the `.cdf` case
+/// is M5-1-02's additive arrival — it breaks every exhaustive switch on
 /// purpose, the M2-7 discipline).
 public enum ColorMatchSolverKind: String, Codable, Sendable, CaseIterable {
     /// S1 Gaussian OT closed form (the Bures-Wasserstein sandwich).
     case gaussianOT
     /// S3 Reinhard diagonal (the closed-covariance special case).
     case reinhard
+    /// S2 per-channel CDF matching (M5-1-02): three 256-entry curve ladders
+    /// applied in the Oklab domain; the PERSISTED face is the baked `.cube`
+    /// asset (`{assetRef, assetHash}` params) — the curves themselves are
+    /// never persisted.
+    case cdf
 
     /// The solve-cache tag (the key's third term).
     var cacheTag: String {
         switch self {
         case .gaussianOT: return "colormatch.solve.gaussianOT.v1"
         case .reinhard: return "colormatch.solve.reinhard.v1"
+        case .cdf: return "colormatch.solve.cdf.v1"
         }
     }
 }
@@ -206,6 +212,12 @@ public enum ColorMatchSolver {
             return (m, .gaussianOT)
         case .reinhard:
             return (reinhardMatrix64(source: source, reference: reference), .reinhard)
+        case .cdf:
+            // S2 produces NO linear map — its product is the curve ladder
+            // (ColorMatchCDFSolver) and the persisted face is the baked
+            // `.cube` asset. Reaching here is a caller routing bug: fail
+            // loud, never hand back a wrong matrix silently.
+            preconditionFailure("ColorMatchSolver: solver .cdf has no linear form")
         }
     }
 
