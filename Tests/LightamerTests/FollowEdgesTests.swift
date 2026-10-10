@@ -63,7 +63,11 @@ final class FollowEdgesTests: XCTestCase {
             seed: seed, field: field,
             params: FollowEdgesParams(edgeThreshold: 0.25, followStrength: 0.5))
 
-        XCTAssertGreaterThanOrEqual(chain.count, 30, "the chain spans the ridge")
+        // V2 point-count gate recalibrated (M4-2-01): the adaptive
+        // resampling emits ~4px spacing on straight runs — the measured
+        // count on this 64px ridge is 16 (was the V1 ≥30 step-per-pixel
+        // gate; recalibration recorded in M4-2-01 DECISIONS).
+        XCTAssertGreaterThanOrEqual(chain.count, 12, "the chain spans the ridge")
         var maxY = 0.0, minY = 1.0
         for point in chain {
             let px = pixel(point, field)
@@ -79,18 +83,18 @@ final class FollowEdgesTests: XCTestCase {
 
     func testStreamlineTurnsTheCorner() {
         let field = cornerField()
-        // Seed mid-horizontal-arm, heading −x: the walk must round (32,32)
-        // into the vertical arm.
+        // Seed mid-horizontal-arm: the walk must round (32,32) into the
+        // vertical arm. The L bend is a degree-2 vertex (no junction), so
+        // followStrength (the V2 junction gate) is not consumed here —
+        // the value rides along unchanged from the V1 era.
         let seed = MaskPoint(x: Float(55) / 63, y: Float(32) / 63)
-        // Lower momentum (tangent-dominant): the corner rotation completes
-        // before the stop gate's pixel rounding can drop the walker off
-        // the ridge flank.
         let chain = FollowEdges.streamline(
             seed: seed, field: field,
-            params: FollowEdgesParams(
-                edgeThreshold: 0.25, followStrength: 0.25, stepPixels: 1.0))
+            params: FollowEdgesParams(edgeThreshold: 0.25, followStrength: 0.25))
 
-        XCTAssertGreaterThanOrEqual(chain.count, 20)
+        // V2 point-count gate recalibrated: measured 17 (bends densify to
+        // 0.75px around the corner, straights ~4px).
+        XCTAssertGreaterThanOrEqual(chain.count, 12)
         // The corner is visited (within the tolerance band).
         let corner = SIMD2(32.0, 32.0)
         let minCornerDistance = chain.map { p in
@@ -167,6 +171,168 @@ final class FollowEdgesTests: XCTestCase {
         let first = FollowEdges.streamline(seed: seed, field: field, params: params)
         let second = FollowEdges.streamline(seed: seed, field: field, params: params)
         XCTAssertEqual(first, second, "same input → point-identical chain")
+    }
+
+    // MARK: M4-2-01 V2 walker goldens (arc / bridge crossing / fuse / degrade)
+
+    /// The arc: the walk rides the curved crest with subpixel radial accuracy.
+    func testStreamlineWalksTheArc() {
+        let w = 48, h = 48
+        var values = [Float](repeating: 0, count: w * h)
+        for y in 0..<h {
+            for x in 0..<w {
+                guard x >= 20, y >= 20 else { continue }
+                let r = hypot(Double(x - 20), Double(y - 20))
+                values[y * w + x] = Float(max(0, 1 - abs(r - 20) / 1.5))
+            }
+        }
+        let chain = FollowEdges.streamline(
+            seed: MaskPoint(x: Float(40) / 47, y: Float(20) / 47),
+            field: EdgeMapField(width: w, height: h, values: values),
+            params: FollowEdgesParams(edgeThreshold: 0.25))
+        XCTAssertGreaterThanOrEqual(chain.count, 4, "the arc walks (measured 5)")
+        for point in chain {
+            let px = pixel(point, EdgeMapField(width: w, height: h, values: values))
+            let radius = hypot(px.x - 20, px.y - 20)
+            XCTAssertEqual(radius, 20, accuracy: 1.5, "the chain hugs the arc")
+        }
+    }
+
+    /// The bridge crossing: an INJECTED graph with a recorded ≤3px bridge —
+    /// the walk continues onto the bridged chain without re-gating (the
+    /// alignment gate already passed at extraction, checker E1).
+    func testStreamlineCrossesBridgeOnInjectedGraph() {
+        // Field is geometry-only here (the V2 walk consumes the graph); the
+        // painted crest gives the seed something to attach to.
+        let field = verticalRidgeField(width: 64, height: 16, edgeX: 10)
+        var graph = RidgeGraph(high: 0.25)
+        let chainA = RidgeChain(vertices: (2...20).map { SIMD2(Double($0), 8.0) })
+        let chainB = RidgeChain(vertices: (23...40).map { SIMD2(Double($0), 8.0) })
+        graph.chains = [chainA, chainB]
+        graph.bridges = [RidgeBridge(chainA: 0, endA: 1, chainB: 1, endB: 0)]
+        RidgeExtract.buildLookups(&graph)
+        let chain = FollowEdges.streamline(
+            seed: MaskPoint(x: Float(10) / 63, y: 0.5),
+            field: field.withRidges(graph),
+            params: FollowEdgesParams(edgeThreshold: 0.25))
+        XCTAssertGreaterThanOrEqual(chain.count, 8, "the walk spans both chains")
+        let xs = chain.map { Double($0.x) * 63.0 }
+        XCTAssertLessThanOrEqual((xs.min() ?? 99), 4, "reaches chain A's far end")
+        XCTAssertGreaterThanOrEqual((xs.max() ?? -1), 39, "crosses the bridge into chain B")
+    }
+
+    /// The chain fuse: the withdrawn params field, now the walker-internal
+    /// 256 constant (checker M1) — a 2000px ridge emits at most 256 points.
+    func testStreamlineFuseCapsAt256() {
+        let w = 8, h = 2000
+        var values = [Float](repeating: 0, count: w * h)
+        for y in 0..<h {
+            for x in 0..<w { values[y * w + x] = max(0, 1 - abs(Float(x - 4)) / 1.5) }
+        }
+        let chain = FollowEdges.streamline(
+            seed: MaskPoint(x: 0.5, y: 0.5),
+            field: EdgeMapField(width: w, height: h, values: values),
+            params: FollowEdgesParams())
+        XCTAssertEqual(chain.count, 256, "the fuse caps the emitted chain")
+    }
+
+    /// The no-attachment degrade: a seed far from any ridge (path A miss +
+    /// path B snap miss) yields the empty chain — V1-verbatim semantics.
+    func testStreamlineDegradesWhenNoRidgeNearby() {
+        let chain = FollowEdges.streamline(
+            seed: MaskPoint(x: 5.0 / 63, y: 5.0 / 63),
+            field: verticalRidgeField(edgeX: 32),
+            params: FollowEdgesParams())
+        XCTAssertTrue(chain.isEmpty, "no ridge within the 8px reach → empty")
+    }
+
+    /// The junction ring crossing: a seed on one arm walks THROUGH the
+    /// crossing onto the collinear continuation (greedy strongest, cos 1.0
+    /// beats the perpendicular branches) — the extracted ring topology is
+    /// traversed transparently.
+    func testStreamlineCrossesJunctionRing() {
+        var values = [Float](repeating: 0, count: 64 * 64)
+        for y in 0..<64 {
+            for x in 0..<64 {
+                let horizontal: Float = (16...48).contains(x)
+                    ? max(0, 1 - abs(Float(y - 32)) / 1.5) : 0
+                let vertical: Float = (16...48).contains(y)
+                    ? max(0, 1 - abs(Float(x - 32)) / 1.5) : 0
+                values[y * 64 + x] = max(horizontal, vertical)
+            }
+        }
+        let chain = FollowEdges.streamline(
+            seed: MaskPoint(x: Float(20) / 63, y: Float(32) / 63),
+            field: EdgeMapField(width: 64, height: 64, values: values),
+            params: FollowEdgesParams(edgeThreshold: 0.25, followStrength: 0.0))
+        var minX = 100.0, maxX = -100.0
+        for point in chain {
+            let px = pixel(point, EdgeMapField(width: 64, height: 64, values: values))
+            XCTAssertEqual(px.y, 32, accuracy: 1.5, "the through-walk stays on the arm")
+            minX = min(minX, px.x)
+            maxX = max(maxX, px.x)
+        }
+        XCTAssertLessThanOrEqual(minX, 18, "the walk passes the crossing leftward")
+        // Measured 45 (the last emission lands within one spacing of the
+        // arm's end — the 4px straight-run bound).
+        XCTAssertGreaterThanOrEqual(maxX, 44, "…and rightward (greedy straight-through)")
+    }
+
+    /// The carrier contract at Core level (checker E1): lazy in-chain
+    /// extraction == injected-carrier walk, and a THRESHOLD-STALE carrier is
+    /// refused (the walk re-extracts at its own threshold).
+    func testInjectedRidgesMatchLazyAndStaleCarrierIsRefused() {
+        var field = verticalRidgeField(edgeX: 32)
+        let seed = MaskPoint(x: Float(32) / 63, y: 0.6)
+        let lazy = FollowEdges.streamline(
+            seed: seed, field: field, params: FollowEdgesParams())
+        let injected = FollowEdges.streamline(
+            seed: seed,
+            field: field.withRidges(RidgeExtract.graph(from: field, high: 0.25)),
+            params: FollowEdgesParams())
+        XCTAssertEqual(lazy, injected, "injected == lazy (byte-identical walk)")
+
+        let stale = FollowEdges.streamline(
+            seed: seed,
+            field: field.withRidges(RidgeExtract.graph(from: field, high: 0.25)),
+            params: FollowEdgesParams(edgeThreshold: 0.4))
+        let fresh = FollowEdges.streamline(
+            seed: seed, field: field, params: FollowEdgesParams(edgeThreshold: 0.4))
+        XCTAssertEqual(stale, fresh, "stale-threshold carrier refused → fresh extraction")
+    }
+
+    /// The `.snap` frozen baseline: three scenes pinned to exact constants —
+    /// the behavioral nail on the zero-diff face (snap body untouched).
+    func testSnapFrozenConstants() {
+        let a = FollowEdges.snap(
+            seed: MaskPoint(x: Float(30) / 63, y: 0.3),
+            field: verticalRidgeField(edgeX: 40),
+            params: FollowEdgesParams(edgeThreshold: 0.25))
+        XCTAssertEqual(a.count, 2)
+        XCTAssertEqual(a[0].x, 0.476190478, accuracy: 1e-6)
+        XCTAssertEqual(a[0].y, 0.300000012, accuracy: 1e-6)
+        XCTAssertEqual(a[1].x, 0.634920657, accuracy: 1e-6)
+        XCTAssertEqual(a[1].y, 0.111111112, accuracy: 1e-6)
+
+        let b = FollowEdges.snap(
+            seed: MaskPoint(x: Float(32) / 63, y: 0.6),
+            field: verticalRidgeField(edgeX: 32),
+            params: FollowEdgesParams(edgeThreshold: 0.25))
+        XCTAssertEqual(b.count, 2)
+        XCTAssertEqual(b[0].x, 0.507936537, accuracy: 1e-6)
+        XCTAssertEqual(b[0].y, 0.600000024, accuracy: 1e-6)
+        XCTAssertEqual(b[1].x, 0.507936537, accuracy: 1e-6)
+        XCTAssertEqual(b[1].y, 0.412698418, accuracy: 1e-6)
+
+        let c = FollowEdges.snap(
+            seed: MaskPoint(x: Float(55) / 63, y: Float(32) / 63),
+            field: cornerField(),
+            params: FollowEdgesParams(edgeThreshold: 0.25))
+        XCTAssertEqual(c.count, 2)
+        XCTAssertEqual(c[0].x, 0.873015881, accuracy: 1e-6)
+        XCTAssertEqual(c[0].y, 0.507936537, accuracy: 1e-6)
+        XCTAssertEqual(c[1].x, 0.682539701, accuracy: 1e-6)
+        XCTAssertEqual(c[1].y, 0.507936537, accuracy: 1e-6)
     }
 
     // MARK: the GPU kernel smoke pass

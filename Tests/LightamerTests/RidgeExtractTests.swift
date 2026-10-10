@@ -54,7 +54,7 @@ final class RidgeExtractTests: XCTestCase {
         let g = RidgeExtract.gradients(of: s, width: 64, height: 64)
         let o = RidgeExtract.orientations(of: g, width: 64, height: 64)
         let candidates = RidgeExtract.nmsCandidates(
-            smoothed: s, orientation: o, width: 64, height: 64,
+            smoothed: s, raw: field.values, orientation: o, width: 64, height: 64,
             low: Double(high) * RidgeExtract.hysteresisRatio)
         for y in 0..<64 {
             XCTAssertTrue(candidates[y * 64 + 32], "crest column survives at y=\(y)")
@@ -82,7 +82,7 @@ final class RidgeExtractTests: XCTestCase {
         let g = RidgeExtract.gradients(of: s, width: 64, height: 64)
         let o = RidgeExtract.orientations(of: g, width: 64, height: 64)
         let candidates = RidgeExtract.nmsCandidates(
-            smoothed: s, orientation: o, width: 64, height: 64,
+            smoothed: s, raw: field.values, orientation: o, width: 64, height: 64,
             low: Double(high) * RidgeExtract.hysteresisRatio)
         for x in 4..<60 {
             XCTAssertFalse(candidates[31 * 64 + x], "plateau row A suppressed at x=\(x)")
@@ -104,9 +104,10 @@ final class RidgeExtractTests: XCTestCase {
                 values[y * 64 + x] = amplitude * max(0, 1 - abs(Float(x - 32)) / 1.5)
             }
         }
-        // Isolated weak 2×2 blob (no strong seed anywhere near).
+        // Isolated weak 2×2 blob (no strong seed anywhere near; raw 0.2 is
+        // above low but below the 0.25 high → candidate-only, dropped).
         for (y, x) in [(8, 8), (8, 9), (9, 8), (9, 9)] {
-            values[y * 64 + x] = 0.3
+            values[y * 64 + x] = 0.2
         }
         let field = EdgeMapField(width: 64, height: 64, values: values)
         let s = RidgeExtract.gaussianSmooth(field)
@@ -114,9 +115,9 @@ final class RidgeExtractTests: XCTestCase {
         let o = RidgeExtract.orientations(of: g, width: 64, height: 64)
         let low = Double(high) * RidgeExtract.hysteresisRatio
         let candidates = RidgeExtract.nmsCandidates(
-            smoothed: s, orientation: o, width: 64, height: 64, low: low)
+            smoothed: s, raw: field.values, orientation: o, width: 64, height: 64, low: low)
         let domain = RidgeExtract.hysteresis(
-            candidates: candidates, smoothed: s, width: 64, height: 64, high: Double(high))
+            candidates: candidates, raw: field.values, width: 64, height: 64, high: Double(high))
 
         XCTAssertTrue(domain[10 * 64 + 32], "strong crest enters")
         XCTAssertTrue(domain[30 * 64 + 32], "weak mid-section joins via connectivity")

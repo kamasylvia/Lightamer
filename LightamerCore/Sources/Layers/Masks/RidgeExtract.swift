@@ -134,6 +134,13 @@ public enum RidgeExtract {
 
     /// The pipeline entry: field + hysteresis high → the ridge graph.
     /// Degenerate fields yield the empty graph (never traps).
+    ///
+    /// Threshold continuity (M4-2-01 DECISIONS): the hysteresis low/high
+    /// gates read the RAW field values — the same quantity the V1 walk
+    /// thresholded — because the σ0.9 smoothing costs ~33% amplitude on
+    /// 1-2px ridges (a 0.354 Sobel step ridge would drop below the default
+    /// 0.25 high and vanish). The NMS geometry and the centroid profile
+    /// stay on the smoothed field (position quality).
     public static func graph(from field: EdgeMapField, high: Float) -> RidgeGraph {
         let w = field.width, h = field.height
         guard w > 1, h > 1, field.values.count == w * h else {
@@ -143,10 +150,10 @@ public enum RidgeExtract {
         let gradient = gradients(of: smoothed, width: w, height: h)
         let orientation = orientations(of: gradient, width: w, height: h)
         let candidates = nmsCandidates(
-            smoothed: smoothed, orientation: orientation, width: w, height: h,
-            low: Double(high) * hysteresisRatio)
+            smoothed: smoothed, raw: field.values, orientation: orientation,
+            width: w, height: h, low: Double(high) * hysteresisRatio)
         let domain = hysteresis(
-            candidates: candidates, smoothed: smoothed, width: w, height: h,
+            candidates: candidates, raw: field.values, width: w, height: h,
             high: Double(high))
         var graph = link(domain: domain, width: w, height: h, high: high)
         refineCentroids(
@@ -270,16 +277,17 @@ public enum RidgeExtract {
 
     /// NMS survivor mask: keep p iff S(p) > S(p+e) && S(p) >= S(p−e) with
     /// e = the structure-tensor orientation (the pinned asymmetric tie-break —
-    /// deterministic); candidates = survivors clearing `low`.
+    /// deterministic); candidates = survivors whose RAW field value clears
+    /// `low` (threshold continuity — see `graph`).
     static func nmsCandidates(
-        smoothed s: [Double], orientation o: [SIMD2<Double>], width w: Int, height h: Int,
-        low: Double
+        smoothed s: [Double], raw: [Float], orientation o: [SIMD2<Double>],
+        width w: Int, height h: Int, low: Double
     ) -> [Bool] {
         var keep = [Bool](repeating: false, count: w * h)
         for y in 0..<h {
             for x in 0..<w {
                 let idx = y * w + x
-                guard s[idx] >= low else { continue }
+                guard Double(raw[idx]) >= low else { continue }
                 let e = o[idx]
                 let p = SIMD2(Double(x), Double(y))
                 let sPlus = bilinear(s, width: w, height: h, p + e)
@@ -292,10 +300,10 @@ public enum RidgeExtract {
 
     // MARK: - Stage ④: hysteresis (strong seeds row-major → 8-connected growth)
 
-    /// Strong points (≥ high, row-major seeds) grow 8-connected through the
-    /// candidate set; the reached candidates form the link domain.
+    /// Strong points (raw value ≥ high, row-major seeds) grow 8-connected
+    /// through the candidate set; the reached candidates form the link domain.
     static func hysteresis(
-        candidates c: [Bool], smoothed s: [Double], width w: Int, height h: Int,
+        candidates c: [Bool], raw: [Float], width w: Int, height h: Int,
         high: Double
     ) -> [Bool] {
         var domain = [Bool](repeating: false, count: w * h)
@@ -303,7 +311,7 @@ public enum RidgeExtract {
         for y in 0..<h { // row-major seeding
             for x in 0..<w {
                 let idx = y * w + x
-                if c[idx], Double(s[idx]) >= high { stack.append(idx) }
+                if c[idx], Double(raw[idx]) >= high { stack.append(idx) }
             }
         }
         var seen = [Bool](repeating: false, count: w * h)
@@ -509,6 +517,18 @@ public enum RidgeExtract {
         return graph
     }
 
+    /// The outward unit tangent at a chain end (nil for single-vertex chains
+    /// and degenerate segments) — shared with the walker's junction cosine.
+    static func outwardTangent(_ vertices: [SIMD2<Double>], end: Int) -> SIMD2<Double>? {
+        guard vertices.count >= 2 else { return nil }
+        let v = end == 1
+            ? vertices[vertices.count - 1] - vertices[vertices.count - 2]
+            : vertices[0] - vertices[1]
+        let length = (v.x * v.x + v.y * v.y).squareRoot()
+        guard length > 1e-9 else { return nil }
+        return v / length
+    }
+
     /// Free-end bridge pairing (pure): candidate pairs of non-junction-attached
     /// chain ends within `bridgeMaxGap` px whose outward tangents BOTH point
     /// into the gap (cosine ≥ `bridgeAlignmentGate` on each side — the pinned
@@ -524,11 +544,6 @@ public enum RidgeExtract {
             var position: SIMD2<Int>
             var tangent: SIMD2<Double>?
         }
-        func outwardTangent(_ vertices: [SIMD2<Double>], end: Int) -> SIMD2<Double>? {
-            guard vertices.count >= 2 else { return nil }
-            return end == 1 ? normalize(vertices[vertices.count - 1] - vertices[vertices.count - 2])
-                : normalize(vertices[0] - vertices[1])
-        }
         var freeEnds: [EndRef] = []
         for (ci, chain) in chains.enumerated() {
             for end in 0...1 {
@@ -541,8 +556,7 @@ public enum RidgeExtract {
                     : SIMD2(Int(chain.vertices[0].x.rounded()), Int(chain.vertices[0].y.rounded()))
                 freeEnds.append(
                     EndRef(chain: ci, end: end, position: pos,
-                           tangent: outwardTangent(chain.vertices, end: end)))
-            }
+                           tangent: outwardTangent(chain.vertices, end: end)))            }
         }
         struct Pair {
             var a: Int
@@ -647,11 +661,5 @@ public enum RidgeExtract {
         }
         graph.junctionByEnd = junctionByEnd
         graph.bridgeByEnd = bridgeByEnd
-    }
-
-    private static func normalize(_ v: SIMD2<Double>) -> SIMD2<Double> {
-        let length = (v.x * v.x + v.y * v.y).squareRoot()
-        guard length > 1e-9 else { return SIMD2(0, 0) }
-        return v / length
     }
 }
