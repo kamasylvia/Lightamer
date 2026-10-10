@@ -593,3 +593,7 @@ APP	3	DepthGoldenTests.swift
 #   M4-3-01 T6 增行（2026-10-10，登记随文件同 commit）：DepthGoldenTests =
 #   APP/模型在场门控（精度门 abs-rel≤0.01 + max-abs≤0.02 钉值 + 逐字节确定性 +
 #   worker 端到端含 m5 open 形状断言），3 法（无模型环境 skip 零失败）。
+APP	1	DepthPerfProbeTests.swift
+#   M4-3-01 T7 增行（2026-10-10，登记随文件同 commit）：DepthPerfProbeTests =
+#   APP/env 门控探针（LIGHTAMER_PERF_PROBE=1 + 资产门控双 skip；三档 N=5 中位
+#   数 + 端到端一趟），1 法（默认套件 skip 零失败）。

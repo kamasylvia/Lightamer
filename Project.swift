@@ -760,6 +760,7 @@ let project = Project(
                 "Tests/LightamerTests/CompatRecordTests.swift",
                 "Tests/LightamerTests/EnhanceCopyTests.swift",
                 "Tests/LightamerTests/DepthGoldenTests.swift",
+                "Tests/LightamerTests/DepthPerfProbeTests.swift",
                 "Tests/LightamerTests/DepthWorkerLegTests.swift",
                 "Tests/LightamerTests/EnhanceDialogTests.swift",
                 "Tests/LightamerTests/BeforeAfterTests.swift",
