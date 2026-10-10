@@ -264,6 +264,17 @@ public enum GradeCatalog {
             catalogID: "filmPlacement", opName: FilmPlacementModule.opName, owner: .grade,
             identityJSON: json(of: FilmPlacementModule.Params()),
             panelExposures: ["shadowsPullBack", "highlightsPullBack", "rolloff"]),
+        // M5-1-01 T5 (KD-5) — the 20th row: the TRACK color-transfer linear
+        // arm (OQ-M5-1-3). Owner .grade (supportsBlending = the existing
+        // mask chain applies as-is, OQ-M5-1-7); identityJSON = Params()
+        // (strength 0 = the byte identity core); panelExposures names the
+        // M5-1-02 panel's strength slider (no panel this batch — the
+        // addable, non-editable identity placeholder, the filmPlacement
+        // m4 precedent).
+        GradeCatalogItem(
+            catalogID: "colormatch", opName: ColormatchModule.opName, owner: .grade,
+            identityJSON: json(of: ColormatchModule.Params()),
+            panelExposures: ["strength"]),
     ]
 
     /// The catalog row for an op name (first match — Shadows wins the

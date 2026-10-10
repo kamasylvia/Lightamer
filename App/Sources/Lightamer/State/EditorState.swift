@@ -974,6 +974,13 @@ final class EditorState {
         // kernel no-op point, so add + leave = bit-exact pass-through).
         case FilmPlacementModule.opName:
             ModuleInstance(module: FilmPlacementModule.self, params: FilmPlacementModule.Params())
+        // M5-1-01 T5 (KD-5, checker E2): colormatch joins the ADD face as
+        // the 20th row's identity template — the addable, NON-editable
+        // identity placeholder until the M5-1-02 panel (Params() IS the
+        // byte identity core, strength 0 = blit). Missing this case would
+        // silently drop the row from the menu via the compactMap below.
+        case ColormatchModule.opName:
+            ModuleInstance(module: ColormatchModule.self, params: ColormatchModule.Params())
         // The develop-owned panel face.
         case TemperatureModule.opName:
             ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params())

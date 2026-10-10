@@ -457,23 +457,40 @@ final class McpEditingToolsetTests: XCTestCase {
         for op in IopCatalog.ops {
             let registered = await populated.makeBox(opName: op.opName) != nil
             XCTAssertTrue(registered, "\(op.opName) must be a registered module")
-            let record = try XCTUnwrap(
-                defaults.first { $0.opName == op.opName && $0.multiPriority == 0 },
-                "\(op.opName): no default seed record to guard against")
+            // Seed-absent ops (the grade catalog rows that join the editing
+            // seed with their panels — the filmPlacement precedent, now
+            // colormatch) have no seed record; their encoded default IS the
+            // GradeCatalog identityJSON (the same ParamsCoding bytes — the
+            // row's single source).
+            let encodedData: Data
+            let versionPin: Int
+            let orderPin: Float
+            if let record = defaults.first(
+                where: { $0.opName == op.opName && $0.multiPriority == 0 }) {
+                encodedData = record.paramsData
+                versionPin = record.version
+                orderPin = record.iopOrder
+            } else if let row = GradeCatalog.item(opName: op.opName) {
+                encodedData = Data(row.identityJSON.utf8)
+                versionPin = 1  // the fresh-module shape version
+                orderPin = V50Order.order(for: op.opName) ?? -1
+            } else {
+                return XCTFail("\(op.opName): no seed record or catalog row to guard against")
+            }
             let object = try? JSONSerialization.jsonObject(
-                with: record.paramsData, options: []) as? [String: Any]
+                with: encodedData, options: []) as? [String: Any]
             let encodedKeys = Set((object ?? [:]).keys)
             let catalogKeys = Set(op.params.map(\.name))
             XCTAssertEqual(
                 catalogKeys, encodedKeys,
                 "\(op.opName): handwritten keys must equal the encoded default keys")
-            XCTAssertEqual(op.version, record.version,
+            XCTAssertEqual(op.version, versionPin,
                            "\(op.opName): version pin drifted — refresh the catalog")
-            XCTAssertEqual(op.iopOrder, record.iopOrder,
+            XCTAssertEqual(op.iopOrder, orderPin,
                            "\(op.opName): iopOrder drifted from the module record")
             checked += 1
         }
-        XCTAssertEqual(checked, 18, "the catalog coverage is pinned at 18 ops")
+        XCTAssertEqual(checked, 19, "the catalog coverage is pinned at 19 ops (M5-1-01 colormatch joined)")
     }
 
     func testListIopsReturnsTheCatalogShape() async throws {
@@ -487,7 +504,7 @@ final class McpEditingToolsetTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(text.utf8), options: [])
                 as? [String: Any])
         let ops = try XCTUnwrap(object["ops"] as? [[String: Any]])
-        XCTAssertEqual(ops.count, 18)
+        XCTAssertEqual(ops.count, 19)
         let exposure = try XCTUnwrap(
             ops.first { ($0["opName"] as? String) == "exposure" })
         XCTAssertEqual(exposure["version"] as? Int, 1)

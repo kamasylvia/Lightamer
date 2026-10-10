@@ -114,6 +114,16 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: FilmPlacementModule.opName) { id in
             ModuleBox(module: FilmPlacementModule(), instanceID: id)
         }
+        // M5-1-01 T5 (KD-5): colormatch (the TRACK color-transfer linear
+        // arm), v50 slot 36.5 — the LIGHTAMER-NATIVE row between lut3d
+        // (36.0) and the unregistered dt colortransfer (37.0). Seed stays
+        // ABSENT (CAT02/filmPlacement 注记同款 — grade catalog ops join the
+        // editing seed with their panels; the M5-1-02 panel is the seed
+        // moment). Default Params() = strength 0 = the blit identity, so a
+        // user-added instance is pixel-safe before any solve lands.
+        await registry.register(opName: ColormatchModule.opName) { id in
+            ModuleBox(module: ColormatchModule(), instanceID: id)
+        }
         // M2-5-1 T3: cat02WhiteBalance (creative CAT02 WB in the ACEScc
         // grade domain, KD-4), v50 slot 41.4. Seed stays ABSENT — the grade
         // catalog ops join the editing seed with their P2 panels (the

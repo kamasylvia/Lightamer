@@ -164,6 +164,16 @@ public enum V50Order {
         // apply a creative style or film emulation, possibly non-linear
         // (listed out of numeric order in the C source — verbatim port)
         ("lut3d", 36.0),
+        // LIGHTAMER-NATIVE ROW (NOT a dt entry — Plan M5-1-01 T5, KD-5):
+        // colormatch (the TRACK color-transfer linear arm, OQ-M5-1-3) sits
+        // between lut3d (36.0) and the dt-verbatim colortransfer (37.0) —
+        // the 追色 op lands in lut3d's creative-LUT neighborhood; well below
+        // the 70.0 terminal-tail floor (layer-internal legality). The dt
+        // discipline (no reorder / unique / add-only) applies exactly as to
+        // 20.8/66.5. The dt colortransfer 37.0 / colormapping 38.0 rows stay
+        // VERBATIM and UNREGISTERED (the dt modules themselves are not
+        // ported — the rows are the verbatim port's placeholders).
+        ("colormatch", 36.5),
         // edit contrast while damaging colour
         ("colisa", 47.0),
         ("tonecurve", 48.0), // same

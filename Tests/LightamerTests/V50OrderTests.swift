@@ -11,15 +11,16 @@ import XCTest
 final class V50OrderTests: XCTestCase {
 
     /// The table matches Darktable's v50_order + the Lightamer-native
-    /// rows: 106 entries spanning rawprepare 1.0 → gamma 78.0, first/last
+    /// rows: 107 entries spanning rawprepare 1.0 → gamma 78.0, first/last
     /// locked (07-2: 93 → 94 with the skinSmooth 66.5 insertion — the first
     /// non-dt row; 08-5: 94 → 95 with the textOverlay 66.7 insertion — the
     /// second; M2-5-1: 95 → 105 with the ten grade rows — the acesccIn/Out
     /// envelope pair + the eight catalog ops; M3-3-02: 105 → 106 with
-    /// filmPlacement 20.8 — the placement curve row; all flagged in the
-    /// table at the rows).
+    /// filmPlacement 20.8 — the placement curve row; M5-1-01: 106 → 107
+    /// with colormatch 36.5 — the TRACK color-transfer row; all flagged in
+    /// the table at the rows).
     func testEntriesCountApproximately76() {
-        XCTAssertEqual(V50Order.entries.count, 106, "93 dt-verbatim + skinSmooth + textOverlay + 10 M2-5-1 grade rows + filmPlacement")
+        XCTAssertEqual(V50Order.entries.count, 107, "93 dt-verbatim + skinSmooth + textOverlay + 10 M2-5-1 grade rows + filmPlacement + colormatch")
         XCTAssertEqual(V50Order.entries.first?.opName, "rawprepare")
         XCTAssertEqual(V50Order.entries.first?.order, 1.0)
         XCTAssertEqual(V50Order.entries.last?.opName, "gamma")
@@ -236,6 +237,27 @@ final class V50OrderTests: XCTestCase {
             "20.8 is a unique position")
     }
 
+    /// M5-1-01: colormatch 36.5 — the FOURTH edit-window native row (the
+    /// TRACK color-transfer linear arm, KD-5): module statics AND the table
+    /// agree; it sits BETWEEN lut3d (36.0) and the dt-verbatim (unregistered)
+    /// colortransfer (37.0) — lut3d's creative neighborhood; the position is
+    /// unique; the 70.0 floor relation (layer-mask legality) holds.
+    func testColormatchSlotOrderConstraint() {
+        XCTAssertEqual(V50Order.order(for: "colormatch"), 36.5)
+        XCTAssertEqual(ColormatchModule.iopOrder, 36.5)
+        XCTAssertEqual(ColormatchModule.opName, "colormatch")
+        XCTAssertLessThan(V50Order.order(for: "lut3d")!, V50Order.order(for: "colormatch")!)
+        XCTAssertLessThan(V50Order.order(for: "colormatch")!, V50Order.order(for: "colortransfer")!)
+        XCTAssertLessThan(36.5, 70.0, "colormatch must sit BELOW the terminal tail floor")
+        XCTAssertEqual(
+            V50Order.entries.filter { $0.order == 36.5 }.count, 1,
+            "36.5 is a unique position")
+        // The dt rows stay verbatim and unregistered (the port's
+        // placeholders — the modules themselves are not ported).
+        XCTAssertEqual(V50Order.order(for: "colortransfer"), 37.0)
+        XCTAssertEqual(V50Order.order(for: "colormapping"), 38.0)
+    }
+
     /// 07-2 zero-move pin: the 66.5 insertion moved NO dt-verbatim row —
     /// the 93 original entries appear in the same relative order with the
     /// same values (an add-only insertion between soften and splittoning).
@@ -256,13 +278,13 @@ final class V50OrderTests: XCTestCase {
 
         // Whole-table relative order: stripping ALL native rows (07-2's
         // skinSmooth, 08-5's textOverlay, M2-5-1's ten grade rows, M3-3-02's
-        // filmPlacement) must yield the pre-07-2 sequence back (spot
-        // anchors on both ends).
+        // filmPlacement, M5-1-01's colormatch) must yield the pre-07-2
+        // sequence back (spot anchors on both ends).
         let nativeRows: Set<String> = [
             "skinSmooth", "textOverlay",
             "acesccIn", "acesccOut", "colorWheels", "cat02WhiteBalance",
             "contrast", "white", "black", "saturation", "tint", "hls",
-            "filmPlacement",
+            "filmPlacement", "colormatch",
         ]
         let stripped = V50Order.entries.filter { !nativeRows.contains($0.opName) }
         XCTAssertEqual(stripped.count, 93)
