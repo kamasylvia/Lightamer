@@ -370,8 +370,8 @@ Deferred to future release. Tracked but not in current roadmap.
 
 来源 = `.work/gsd/research/LUMEN-RAW-NOTES.md`（MIT 项目，只借鉴模式不搬代码）；DNG 导出候选经用户裁决**不采纳**。
 
-- **IOP-HDR-06**: Mertens 曝光融合——无 CRF 估计的快速 HDR 合并第二模式（含多档 deghosting），与已交付 Robertson02（IOP-HDR-01）互为合并选项；输出 32f HDR 进 IOP-HDR-04 管线
-- **IOP-PANO-01**: 全景合成——特征匹配对齐 + 相机参数优化 + 球面投影 + 分块羽化融合，输出 100MP+ 大图入正常编辑管线；v1 合成族（HDR/焦点堆栈/降噪堆栈）之外的新合成模式
+- **IOP-HDR-06**: Mertens 曝光融合——无 CRF 估计的快速 HDR 合并第二模式（含多档 deghosting），与已交付 Robertson02（IOP-HDR-01）互为合并选项；输出 32f HDR 进 IOP-HDR-04 管线 —— **→ M5-2**（2026-10-11 M5 立项）
+- **IOP-PANO-01**: 全景合成——特征匹配对齐 + 相机参数优化 + 球面投影 + 分块羽化融合，输出 100MP+ 大图入正常编辑管线；v1 合成族（HDR/焦点堆栈/降噪堆栈）之外的新合成模式 —— **→ M5-3**（2026-10-11 M5 立项）
 
 ### Film Simulation Extensions (v2) — SpektraLab 借鉴（2026-10-02 用户指令吸纳）
 
@@ -634,7 +634,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 
 ## V2 Requirements
 
-### Color Transfer / 追色 (TRACK)【V2；2026-09-22 用户指令维持 V2（当日曾短暂提级 Phase 7，已回撤）】
+### Color Transfer / 追色 (TRACK)【V2；2026-09-22 用户指令维持 V2（当日曾短暂提级 Phase 7，已回撤）】—— **→ M5-1 整族**（2026-10-11 M5「追色与合成」station 立项；research 正本 = `phases/m5-1-track/`，OQ-M5-1-1..8 C 档第 1 停待用户裁决；charter 正本 = ROADMAP §Milestone 5）
 
 > **定位再确认（2026-09-26）**：计算核 native 不可外包——追色是统计算法（Reinhard/CDF/OT → 3D LUT），TRACK-05 确定性门与 TRACK-02 多参考统计聚合排除 agent vision 迭代路线（LumaRescue 类方法论无色彩匹配算法）。MCP+agent 作**编排皮**：选参考/批量触发/强度/事后微调（MCP-09 研究项 C `match_color` 工具位，依赖本模块 colormatch iop）；与 AIV2-01「AI 追色」的语义由编排层承载。GUI 拖入交互（TRACK-04）与 agent 编排并存不冲突。
 
