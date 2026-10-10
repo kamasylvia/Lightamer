@@ -576,3 +576,7 @@ APP	4	FilmCardTests.swift
 #   (LAYERS 21) 与 FollowEdgesRidgeCacheTests (APP 4) 随 V2 功能代码同批删除
 #   （历史增行注记 2026-10-09/10 在 git；执行面回落 Layers 394 / App 704 =
 #   M4-1 基线）。
+LAYERS	8	DepthMaskPipelineTests.swift
+#   M4-3-01 T2 增行（2026-10-10，登记随文件同 commit）：DepthMaskPipelineTests =
+#   LAYERS/Core 级（numpy 锚 percentile + 两级靶三断言 + 斜坡单调/窗带/Double 参考
+#   golden + 窗平移参数扫描 + 双 typed 负测 + NaN 负测 + byteIdentity 纯函数性），8 法。
