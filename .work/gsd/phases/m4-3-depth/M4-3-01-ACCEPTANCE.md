@@ -84,11 +84,11 @@ T1 `814fc97`（6 文件，catalog+digest+脚本+两测试）/ T2 `b7f2598`（管
 
 ## 第二路：omp 二次验收（串行，第一路 PASS 后）
 
-- 结论：**（待落账）**
-- 证据（computer-use 走查配方 = `.work/gui-acceptance/m4-3/MANIFEST.md`）：
-  **（待落账）**
-- 日期：**（待落账）**
+- 结论：**PASS / 0 error + 2 minor（o-1 账面口径沿用 m-b 已勘误；o-2 复算余量注记，无代码影响）**
+- 证据（正本 = `M4-3-01-ACCEPTANCE-OMP.md`）：定向复跑 Layers **411/3/0**（180s，1090MB）+ Library **626/4/0**（79s，611MB）逐位零 MEMFAIL；numpy 8/8 + **Swift 原文探针独立复算** 8/8 容差内；两级靶精确算术（Fraction）+ 守卫 (b) 严格论证加强；digest 亲算 + MANIFEST.sha256 **5/5 OK** + 远端 Release size 交叉；读码抽查（family 单源/三腿分派/isfinite/可容性/提交边界）+ 红线零 diff + zh-audit `--check` PASS 复证；GUI 走查行（MANIFEST A-G）= Manual-Only，代码面读码代证，实机走查留用户侧
+- 日期：2026-10-10
+- 分歧：无实质分歧（o-2 = 新增测试口径注记；首验「逐位命中」措辞勘误为「容差内通过」，实质成立）
 
 ## FAIL 回注
 
-（两路任一 FAIL → 修复批后重走；回注条目在此登记。第一路无 FAIL 项——m-a 已修、m-b 勘误注记随本验收落账。）
+（两路任一 FAIL → 修复批后重走；回注条目在此登记。两路均无 FAIL 项——m-a 已修 `57596d3`、m-b 勘误注记随本验收落账、omp o-2 注记不阻塞。）
