@@ -159,3 +159,7 @@ MCP（G4；可并入 03）。执行分工照 Phase 执行模型（omp 执行 + s
 ## 裁决记录
 
 （待用户回批后回填：OQ-M5-1-1..8 各项生效值 + 日期 + 回批载体。）
+
+## 裁决记录（用户回批 2026-10-11）
+
+**OQ-1..8 全部按推荐采纳**：①求解族三档全交付（S1 Gaussian OT + S2 per-channel CDF + S3 Reinhard 对角）②统计域 Oklab ③独立 colormatch op + .cube 派生资产（不进 paramsData）④65³ + 1%/99% 截尾支撑域 ⑤多参考统计级加权矩池化 ⑥match_color 最小面（微调走既有 apply_params）⑦grade 层自动可用、参考侧全图 ⑧golden 五门（bit-identity/kernel parity ≤1e-5/合成对恢复/MCP e2e/恒等直通）。
