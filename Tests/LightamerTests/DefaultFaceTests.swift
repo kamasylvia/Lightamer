@@ -356,14 +356,18 @@ final class DefaultFaceTests: XCTestCase {
     // MARK: - T3: the MCP catalog + tool face
 
     /// AC7: the default-face MCP seams narrow the list_iops output to the
-    /// 15 cataloged enabled ops (the D1 trio drops) while the tool
+    /// 16 cataloged enabled ops (the D1 trio drops) while the tool
     /// registration face stays intact (M2DIS-05: no tool is deleted — the
     /// 19-tool closed set is pinned by McpRegistrySnapshotTests, zero
-    /// changes) and IopCatalog.ops keeps all 18 entries (the reflection
+    /// changes) and IopCatalog.ops keeps all 19 entries (the reflection
     /// guard's data source, untouched — KD-2).
     func testMCPDefaultFaceCatalogAndToolFace() async throws {
-        XCTAssertEqual(IopCatalog.ops.count, 18, "the catalog table is untouched")
-        XCTAssertEqual(IopCatalog.defaultFaceOps().count, 15)
+        XCTAssertEqual(IopCatalog.ops.count, 19, "the catalog table is untouched (M5-1-01 colormatch joined)")
+        // Mechanically coupled with the table growth: colormatch is NOT in
+        // the disable set, so the default face lists 16 (19 − the D1 trio)
+        // — the plan's "15 钉不动" reading was the pre-colormatch face
+        // (DECISIONS records the correction; L050's enumerate-by-mechanism).
+        XCTAssertEqual(IopCatalog.defaultFaceOps().count, 16)
 
         let narrowRegistry = ModuleRegistry.makeDefault()
         await LightamerIOPRegistry.populate(narrowRegistry, defaultFace: true)
@@ -381,7 +385,7 @@ final class DefaultFaceTests: XCTestCase {
                 as? [String: Any])
         let ops = try XCTUnwrap(object["ops"] as? [[String: Any]])
         let names = ops.compactMap { $0["opName"] as? String }
-        XCTAssertEqual(names.count, 15)
+        XCTAssertEqual(names.count, 16)
         for name in ["sigmoid", "agx", "filmicrgb"] {
             XCTAssertFalse(
                 names.contains(name),
@@ -407,7 +411,7 @@ final class DefaultFaceTests: XCTestCase {
                 as? [String: Any])
         let fullOps = try XCTUnwrap(fullObject["ops"] as? [[String: Any]])
         let fullNames = fullOps.compactMap { $0["opName"] as? String }
-        XCTAssertEqual(fullNames.count, 18)
+        XCTAssertEqual(fullNames.count, 19)
         XCTAssertTrue(fullNames.contains("filmicrgb"))
 
         // M2DIS-05: the editing tool face still REGISTERS list_iops (no

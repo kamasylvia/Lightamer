@@ -17,7 +17,7 @@ import LightamerIOP
 // module record's version (a params-shape migration flips the test red and
 // forces a conscious catalog update — the agent cache-invalidation key).
 //
-// COVERAGE (execution decision D-14-2-T3-1): the EIGHTEEN tone/color grading
+// COVERAGE (execution decision D-14-2-T3-1): the nineteen tone/color grading
 // ops with scalar/enum params — the set an agent meaningfully drives through
 // apply_params. Payload/geometry modules (crop/flip/ashift/lens/liquify/
 // borders/watermark/textOverlay), the denoise family and the remaining
@@ -278,16 +278,33 @@ enum IopCatalog {
                 Param("a", "number"), Param("b", "number"),
                 Param("size", "number"), Param("highlights", "number"),
             ]),
+        // M5-1-01 T5 (KD-5): the TRACK color-transfer linear arm — the
+        // matrix/offset pair is the solved Oklab-domain 3×3 + translation
+        // (the carrier an agent reads/adjusts); strength is the α blend
+        // (0 = identity); the stats hashes identify the solve (decimal
+        // strings, L013). explicit-null optionals ride as JSON nulls.
+        Op(
+            opName: "colormatch", display: "Color Match", iopOrder: 36.5,
+            version: 1, domain: "both",
+            params: [
+                Param("solver", "enum:gaussianOT=0,reinhard=1"),
+                Param("matrix", "array[9] (row-major Oklab 3x3)"),
+                Param("offset", "array[3] (Oklab translation)"),
+                Param("strength", "range:[0,1]"),
+                Param("sourceStatsHash", "string|null"),
+                Param("referenceStatsHash", "string|null"),
+                Param("effectiveSolver", "string|null"),
+            ]),
     ]
 
     /// M2-1 (KD-1): the DEFAULT-face catalog source — `ops` filtered
     /// against the registry's disable-set constant (the matrix machine
-    /// twin). Of the 18 cataloged ops exactly the D1 trio
-    /// sigmoid/agx/filmicrgb is disabled, so the default face lists 15;
+    /// twin). Of the 19 cataloged ops exactly the D1 trio
+    /// sigmoid/agx/filmicrgb is disabled, so the default face lists 16;
     /// the D2 trio was never cataloged (the denoise family is
     /// deliberately outside the table — the COVERAGE note above).
     /// `ops` itself is untouched: the reflection guard
-    /// (McpEditingToolsetTests) pins the 18-entry table against the
+    /// (McpEditingToolsetTests) pins the 19-entry table against the
     /// modules' encoded defaults (KD-2 zero-change).
     static func defaultFaceOps() -> [Op] {
         ops.filter {
@@ -296,9 +313,9 @@ enum IopCatalog {
     }
 
     /// The catalog face for `list_iops`: a JSON document of the table.
-    /// M2-1: `defaultFace: true` selects `defaultFaceOps()` (15 — no keys
+    /// M2-1: `defaultFace: true` selects `defaultFaceOps()` (16 — no keys
     /// for ops the write face would reject); default `false` keeps the
-    /// full 18 (KD-2).
+    /// full 19 (KD-2).
     static func catalogJSON(defaultFace: Bool = false) throws -> String {
         let faceOps = defaultFace ? defaultFaceOps() : ops
         let object: [String: Any] = [

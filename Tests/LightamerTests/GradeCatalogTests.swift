@@ -5,10 +5,12 @@ import XCTest
 // ─────────────────────────────────────────────────────────────────────────────
 // GradeCatalogTests (Plan M2-5-1 T1) — the grade registry face (KD-1) + the
 // LIGHTAMER V50Order rows (KD-3). M3-3-02 T4 adds the 19th catalog row
-// (filmPlacement — the m8 closure list, counts 18/14/17 → 19/15/18):
+// (filmPlacement — counts 18/14/17 → 19/15/18); M5-1-01 T5 adds the 20th
+// (colormatch — counts 19/15/18 → 20/16/19):
 //
-//   1. SHAPE: exactly 19 catalog rows (FEATURE-MAP §2.1 order + the
-//      M3-3-02 placement row), 15 grade-owned (14 + Tint), unique catalogIDs.
+//   1. SHAPE: exactly 20 catalog rows (FEATURE-MAP §2.1 order + the
+//      M3-3-02 placement row + the M5-1-01 colormatch row), 16 grade-owned
+//      (14 + Tint + colormatch), unique catalogIDs.
 //   2. COMPLETENESS (checker E7): the default-face registry op set minus
 //      (the 19 catalog ops ∪ {testgain}) = ∅. THE testgain EXEMPTION: it
 //      is the DEBUG-only registration (Registry.swift `#if DEBUG` — the
@@ -34,7 +36,7 @@ final class GradeCatalogTests: XCTestCase {
     // MARK: - 1: shape
 
     func testExactlyEighteenItemsInFeatureMapOrder() {
-        XCTAssertEqual(GradeCatalog.items.count, 19)
+        XCTAssertEqual(GradeCatalog.items.count, 20)
         XCTAssertEqual(
             GradeCatalog.items.map(\.catalogID),
             [
@@ -42,15 +44,15 @@ final class GradeCatalogTests: XCTestCase {
                 "shadows", "highlights", "curve", "hls", "saturation",
                 "vibrance", "colorWheel", "lmt", "tint",
                 "clarity", "sharpen", "halation", "filmGrain",
-                "filmPlacement",
+                "filmPlacement", "colormatch",
             ],
-            "the FEATURE-MAP §2.1 table order + the M3-3-02 placement row")
-        XCTAssertEqual(Set(GradeCatalog.items.map(\.catalogID)).count, 19, "unique ids")
+            "the FEATURE-MAP §2.1 table order + the placement and colormatch rows")
+        XCTAssertEqual(Set(GradeCatalog.items.map(\.catalogID)).count, 20, "unique ids")
     }
 
     func testGradeItemsAreExactlyFourteen() {
         let grade = GradeCatalog.gradeItems()
-        XCTAssertEqual(grade.count, 15, "14 Grade ops + Tint (filmPlacement joined, M3-3-02)")
+        XCTAssertEqual(grade.count, 16, "14 Grade ops + Tint + colormatch (M5-1-01)")
         XCTAssertEqual(grade.filter { $0.catalogID == "tint" }.count, 1)
         XCTAssertTrue(grade.allSatisfy { $0.owner == .grade })
         // The four DRT/Post seats never leak into the grade face.
@@ -90,7 +92,7 @@ final class GradeCatalogTests: XCTestCase {
         //       keeps a later reader from "fixing" it.
         let face = await defaultFaceRegistryOps()
         let catalogOps = Set(GradeCatalog.items.map(\.opName))
-        XCTAssertEqual(catalogOps.count, 18, "19 rows; Shadows/Highlights share the shadhi op")
+        XCTAssertEqual(catalogOps.count, 19, "20 rows; Shadows/Highlights share the shadhi op")
         // The SEED-DEFERRED ops (join the editing seed with their panels —
         // the M2-5-1 seven + the M3-3-02 placement op, whose FSIM-02 panel
         // is M3-4; each IS default-face REGISTERED, only seed membership
@@ -100,6 +102,7 @@ final class GradeCatalogTests: XCTestCase {
             BlackModule.opName, SaturationModule.opName, TintModule.opName,
             ColorWheelsModule.opName, HlsModule.opName,
             FilmPlacementModule.opName,
+            ColormatchModule.opName,
         ]
         let alignedOps = catalogOps.subtracting(newSevenOps)
         XCTAssertTrue(
@@ -117,7 +120,7 @@ final class GradeCatalogTests: XCTestCase {
         #endif
     }
 
-    /// DECISIONS §3 (b), the T7 closure: all 19 catalog rows' ops (18
+    /// DECISIONS §3 (b), the T7 closure: all 20 catalog rows' ops (19
     /// unique opNames — Shadows/Highlights share shadhi) RESOLVE from the
     /// default-face-populated registry. This is the strict-face narrowing
     /// precondition the P2 panels build on. Seed membership is deliberately
@@ -133,7 +136,7 @@ final class GradeCatalogTests: XCTestCase {
             XCTAssertNotNil(box, "\(item.opName) must be default-face registered")
             resolved.insert(item.opName)
         }
-        XCTAssertEqual(resolved.count, 18, "18 unique catalog ops all resolve")
+        XCTAssertEqual(resolved.count, 19, "19 unique catalog ops all resolve")
     }
 
     // MARK: - 3: the owner matrix
@@ -159,6 +162,7 @@ final class GradeCatalogTests: XCTestCase {
             "halation": .drtPost,
             "filmGrain": .drtPost,
             "filmPlacement": .grade,
+            "colormatch": .grade,
         ]
         for item in GradeCatalog.items {
             XCTAssertEqual(
@@ -189,6 +193,7 @@ final class GradeCatalogTests: XCTestCase {
     private static let lightamerGradeRows: [(String, Float)] = [
         ("acesccIn", 20.5),
         ("filmPlacement", 20.8),
+        ("colormatch", 36.5),
         ("acesccOut", 69.9),
         ("colorWheels", 41.0),
         ("cat02WhiteBalance", 41.4),
@@ -220,7 +225,7 @@ final class GradeCatalogTests: XCTestCase {
 
     func testLightamerRowsAreMutuallyUnique() {
         let orders = Self.lightamerGradeRows.map(\.1)
-        XCTAssertEqual(Set(orders).count, orders.count, "the ten LIGHTAMER rows are unique")
+        XCTAssertEqual(Set(orders).count, orders.count, "the eleven LIGHTAMER rows are unique")
     }
 
     func testLightamerRowsDisjointFromRegisteredOpPositions() async {
