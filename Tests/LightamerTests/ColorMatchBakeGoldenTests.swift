@@ -124,6 +124,7 @@ final class ColorMatchBakeGoldenTests: XCTestCase {
             let drift = max(abs(stored.x - ideal.x), abs(stored.y - ideal.y), abs(stored.z - ideal.z))
             worst = max(worst, drift)
         }
+        print("ColorMatchBake voxel gate worst: \(worst) (gate 1e-5)")
         XCTAssertLessThanOrEqual(
             worst, 1e-5, "voxel gate breached (measured band \(worst))")
     }
