@@ -265,12 +265,19 @@ final class DepthMaskEditingTests: XCTestCase {
         return root.appendingPathComponent("Tests/Fixtures/TiffRaster", isDirectory: true)
     }()
 
-    private func fixture(_ name: String) throws -> URL {
-        let url = Self.fixtureDirectory.appendingPathComponent(name)
-        guard FileManager.default.fileExists(atPath: url.path) else {
+    /// The commit writes the sidecar + the masks directory NEXT TO the
+    /// loaded image URL — loading the SHARED repo fixture directly would
+    /// pollute `Tests/Fixtures/TiffRaster/` and race the
+    /// RasterEditFaceTests restore leg across bundles (the M4-1 ledger
+    /// item #6 family). Every commit test loads a TEMP COPY.
+    private func tempFixtureCopy(_ name: String) throws -> URL {
+        let source = Self.fixtureDirectory.appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: source.path) else {
             throw XCTSkip("fixture missing: \(name)")
         }
-        return url
+        let destination = tempDirectory.appendingPathComponent(name)
+        try FileManager.default.copyItem(at: source, to: destination)
+        return destination
     }
 
     private func makeAssembly() async throws -> (
@@ -300,7 +307,7 @@ final class DepthMaskEditingTests: XCTestCase {
     func testCommitLandsExactlyOneItemAndArmsBrush() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let (editorState, coordinator, metal, editingState) = try await makeAssembly()
-        let url = try fixture("srgb-matrix-8.tif")
+        let url = try tempFixtureCopy("srgb-matrix-8.tif")
         editorState.load(
             url: url, decoder: RAWDecoder(), metal: metal,
             logger: EditorState.decodeLogger)
@@ -332,7 +339,7 @@ final class DepthMaskEditingTests: XCTestCase {
     func testCommitDiscardsOnImageSwitch() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let (editorState, coordinator, metal, editingState) = try await makeAssembly()
-        let first = try fixture("srgb-matrix-8.tif")
+        let first = try tempFixtureCopy("srgb-matrix-8.tif")
         editorState.load(
             url: first, decoder: RAWDecoder(), metal: metal,
             logger: EditorState.decodeLogger)
@@ -347,7 +354,7 @@ final class DepthMaskEditingTests: XCTestCase {
         // The switch: a second document loads over the session (a real
         // load RESETS the session state — history/stack included — which
         // is exactly why the stale result must never land).
-        let second = try fixture("no-icc-8.tif")
+        let second = try tempFixtureCopy("no-icc-8.tif")
         editorState.load(
             url: second, decoder: RAWDecoder(), metal: metal,
             logger: EditorState.decodeLogger)
