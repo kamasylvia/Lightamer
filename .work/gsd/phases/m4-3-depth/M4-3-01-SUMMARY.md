@@ -65,7 +65,7 @@ IOP/IOPParity 零触碰（本批零渲染管线面）——零漂移天然成立
 4. **跨 bundle fixture 污染事故（本批引入，已修复自证）**：T4 commit 测试
    直 load 共享 fixture → masks/sidecar 污染 RasterEditFaceTests 竞态面；
    修复 = tempFixtureCopy + 残留清除；修复后 App 711/4/0 全绿 + 三向对照
-   实验存档（§7）。**LESSONS L072 沉淀**。
+   实验存档（§7）。**LESSONS L074 沉淀**（验收批勘误：L072 已被 M3 手术批占用，撞号重编号）。
 5. **Resolver 勘误兑现**：release 档「zip→可用包」一跳在 App 侧 depth 腿
    补齐（enhancement 族顺延待其 digest 发布批，observation 不扩面）。
 6. **边界增补**：`LightamerApp.swift` 两行（环境注入点）+ 深度包安装 ops
