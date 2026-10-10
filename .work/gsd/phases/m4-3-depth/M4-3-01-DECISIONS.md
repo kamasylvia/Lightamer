@@ -144,7 +144,7 @@ DepthWorkerLegTests 的门控轮在真机全真跑。本机已装，2026-10-10�
   RasterEditFaceTests 7/0/0；全 App bundle 711/4/0 全绿（含全量 Depth 测试
   真跑）。对照实验存档：深度包移除（Depth 测试全 skip）轮 flaky 仍挂 →
   当时排除了「本批测试负载」假说但未抓到污染真因；最终由 fixture 目录
-  mtime 取证定位。**教训入 LESSONS（L072）**：直驱 commit 类测试的图片锚
+  mtime 取证定位。**教训入 LESSONS（L074；验收批勘误——执行批误记 L072，该号已被 M3 手术批占用）**：直驱 commit 类测试的图片锚
   必须 temp 化——共享 fixture 旁的 sidecar/masks 是跨 bundle 共享态。
 - **遗留（非本批）**：Layers bundle 基线测试仍有 debounce 泄漏（22:38 的
   `.lra` 写入发生在本批测试全 temp 化之后；写入者 = Raster* 基线族）——
