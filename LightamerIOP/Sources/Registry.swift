@@ -615,6 +615,12 @@ public enum LightamerIOPRegistry {
             DehazeKernel.applyFunction,
             // Plan 08-5-T2: the text overlay alpha composite.
             TextOverlayKernel.compositeFunction,
+            // Plan M5-1-02 (P1 DECISIONS §8 移交): the colormatch linear
+            // kernel + the LUT arm's SHARED tetrahedral function (already
+            // warmed for lut3d above — the duplicate entry is the same PSO
+            // key, deduped by the PSO cache; listed here for the arm's
+            // discoverability).
+            ColormatchKernel.linear,
         ]
     }
 
