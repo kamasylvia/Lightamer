@@ -345,7 +345,17 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 ---
 
-## Milestone 4（栅格与蒙版·收窄版——ROADMAP §Milestone 4，2026-10-10 立项：M3 收官后接棒；**范围收窄 = RAW + TIFF 编辑**〔2026-10-08 用户裁决：EXR/JPEG/PNG 栅格链移出〕）—— M4-0 ✅ 闭环（charter 批：五正本落账 = ROADMAP §M4 块 + REQUIREMENTS RASTER-IN-01/ALCE-02 原位注记 + STATE M4 段 + 本头部 + GOAL-STATE 续接点；pack 政策 B = 证据分仓同批落地，证据链新家 = ADO 私有仓 `lightamer-evidence`，主仓 filter-repo 剥证据大对象）—— **M4 收官（2026-10-11）：M4-0..M4-3 全闭环（M4-2 = 删除挂待定 closed-parked），milestone closed；收口正本 = `phases/m4-3-depth/M4-3-VALIDATION.md`（milestone_closeout: M4）；下一步 = 主会话「全史瘦身手术」（触发确认在 GOAL-STATE）**
+## Milestone 5（追色与合成——ROADMAP §Milestone 5，2026-10-11 立项：M4 收官后接棒；组成 = V2 滚存已批项 TRACK-01..05 + IOP-HDR-06 Mertens + IOP-PANO-01）—— M5-0 ✅ 闭环（charter 批：五正本落账 = ROADMAP §M5 块 + REQUIREMENTS TRACK/IOP-HDR-06/IOP-PANO-01「→ M5」注记 + STATE M5 段 + 本头部 + GOAL-STATE 续接点；手术第二次改挂 M5-4〔strip 集重算非空才动手〕）—— ▶ M5-1 research 起草完成，**C 档第 1 停：OQ-M5-1-1..8 交用户裁决（`phases/m5-1-track/M5-1-CONTEXT.md`），裁决前不进 plan**
+
+- [x] **M5-0 立项与站规格** —— 完成（2026-10-11 charter 批，doc-only 零源码）
+- [ ] **M5-1 TRACK 追色族 research + 执行**（TRACK-01..05 + MCP `match_color` 工具位；research 正本 = `phases/m5-1-track/`——OQ：求解族选型〔推荐 Gaussian OT 闭式 + CDF + Reinhard 对角三档统计框架〕/统计空间〔推荐 Oklab〕/colormatch iop 形态与 LUT 载体/分辨率与域端裁剪/多参考加权聚合语义/match_color 工具面范围/蒙版 region 范围/golden 确定性门定义；零新 SPM 红线；darktable colortransfer/colormapping GPL 只读零复制；LumaRescue 方法论可读文本/代码禁搬）
+- [ ] **M5-2 IOP-HDR-06 Mertens 曝光融合**（免 CRF + 多档 deghosting；与 Robertson02 互为选项；复用 Phase 8 合成族管线；参考 `lumen/merge.py` MIT 模式借鉴）
+- [ ] **M5-3 IOP-PANO-01 全景合成**（SIFT + 相机优化 + 球面投影 + 分块羽化，100MP+ 输出；独立大件；参考 `lumen/merge.py`）
+- [ ] **M5-4 VALIDATION 收口 + 「全史瘦身手术第二次」**（全 M5 SC 终验 + REQUIREMENTS 翻账；手术 SPEC = `research/HISTORY-SLIM-SURGERY-SPEC.md`——strip 集重算**非空才动手**，零命中停手上报；filter-repo 后重 add remotes〔L070 坑〕；push 收敛主会话）
+
+---
+
+## Milestone 4（栅格与蒙版·收窄版——ROADMAP §Milestone 4，2026-10-10 立项：M3 收官后接棒；**范围收窄 = RAW + TIFF 编辑**〔2026-10-08 用户裁决：EXR/JPEG/PNG 栅格链移出〕）—— M4-0 ✅ 闭环（charter 批：五正本落账 = ROADMAP §M4 块 + REQUIREMENTS RASTER-IN-01/ALCE-02 原位注记 + STATE M4 段 + 本头部 + GOAL-STATE 续接点；pack 政策 B = 证据分仓同批落地，证据链新家 = ADO 私有仓 `lightamer-evidence`，主仓 filter-repo 剥证据大对象）—— **M4 收官（2026-10-11）：M4-0..M4-3 全闭环（M4-2 = 删除挂待定 closed-parked），milestone closed；收口正本 = `phases/m4-3-depth/M4-3-VALIDATION.md`（milestone_closeout: M4）；~~下一步 = 主会话「全史瘦身手术」（触发确认在 GOAL-STATE）~~〔2026-10-11 M5 立项批改挂：手术第二次随 M5-4〕**
 
 **状态**：**M4 收官（2026-10-11 milestone closed）**——M4-1 闭环（VALIDATION signed 2026-10-10）→ M4-2 删除挂待定结案（2026-10-10 用户终裁）→ M4-3 闭环（**VALIDATION signed 2026-10-11：双验收 zcode PASS / 0E+2M + omp PASS / 0E+2M 零实质分歧；SC 三列全 Delivered；定向终值三 bundle 1748/11/0 双路亲证〔基线 1717+31 精确；全套推算 3366/16/0 未跑 = 零 IOP 触碰〕；正本 = `phases/m4-3-depth/M4-3-VALIDATION.md`**）。波次 = M4-1 TIFF 栅格开发链（RASTER-IN-01 收窄版：ImageIO 原生读写 8/16/32-bit float + 内嵌 ICC → DRT 逆链 ACES 2.0 逆变换路径 + HDR TIFF 支持 + 导入文件类型选择器对齐上游 #264）✅ → M4-2 IOP-MASK-06 Follow Edges V2 换锚重做（V2 门 0/8→2/8 未达 6/8，用户终裁删除挂待定——V2 代码面全撤，代码回落 M2-7 熔断基线；重启条件 = 可靠开源参考实现〔边缘跟随笔刷类〕）⛔ → M4-3 IOP-MASK-07 Depth 蒙版（DA V2 Small Apple 官方 F16 直采〔零转换〕+ worker 第三腿 + 四段 Lumen 同参管线 + Release 分发 fail-closed）✅【收官】。**边界**：JPEG/PNG 维持图库可浏览现状不进开发链；EXR 连同 ALCE-02 推迟（依赖对比存档 V2-PROPOSAL OQ-V2-5）；UltraHDR/TRACK/Mertens/PANO 不入 M4。
 
