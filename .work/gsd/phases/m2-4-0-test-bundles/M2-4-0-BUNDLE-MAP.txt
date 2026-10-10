@@ -265,6 +265,7 @@ EXPORT	9	ExportRendererE2ETests.swift
 EXPORT	9	YiyinFontStoreTests.swift
 LAYERS	1	LayerE2ERoundTripTests.swift
 LAYERS	7	ColorMatchOklabTests.swift
+LAYERS	9	ColorMatchSolverGoldenTests.swift
 LAYERS	10	ColorMatchStatsTests.swift
 LAYERS	10	AIMaskSemanticTests.swift
 LAYERS	10	LayerCacheTests.swift
