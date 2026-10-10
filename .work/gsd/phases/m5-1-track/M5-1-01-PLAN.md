@@ -29,6 +29,11 @@ files_modified:
   - Tests/LightamerTests/ColormatchIdentityGoldenTests.swift    # 新建（IOPParity，G5）：缺席/禁用/strength=0 三态逐字节直通
   - Tests/LightamerTests/V50OrderTests.swift                    # 修改：106→107 + 36.5 行唯一性/邻域断言（additive 申报内更新；IOP bundle）
   - Tests/LightamerTests/GradeCatalogTests.swift                # 修改：第 20 行断言（19→20；APP bundle）
+  - App/Sources/Lightamer/State/EditorState.swift               # 修改（checker 回注 E2）：`templateInstance(for:)` 穷举 switch 补 `case ColormatchModule.opName`（Params() 模板 = 行 identityJSON 同字节，filmPlacement case 先例同形）——漏补则 add-face 枚举经 `compactMap` 静默丢行，add 菜单不出现 colormatch（编译零报错），AC「生产行为唯一可见变化」静默落空
+  - Tests/LightamerTests/CatalogAddFaceTests.swift              # 修改（E2）：add-face 精确列表 13→14（+`"colormatch"`）+ 模板 paramsData == identityJSON 逐字节断言自动覆盖新行（APP bundle）
+  - Tests/LightamerTests/McpEditingToolsetTests.swift           # 修改（E2）：反射 guard 收口钉数 `checked == 18`→`== 19`（:476）+ `ops.count == 18`→`== 19`（:490）（APP bundle）
+  - Tests/LightamerTests/DefaultFaceTests.swift                 # 修改（E2）：`IopCatalog.ops.count == 18`→`== 19`（:365；相邻 `defaultFaceOps() == 15` 钉不动——seed ABSENT 不入默认 face；IOP bundle——与 E7 定向轮覆盖联动）
+  - Tests/LightamerTests/McpHostTests.swift                     # 修改（E2）：`expectedListIopsText()` 18-op 规范文本 +1 行（:725 起，三宿主形态一致性比对；APP bundle）
   - Project.swift                                               # 修改：新测试文件登记对应 target 数组（显式清单无 glob）+ tuist generate 恒为该批最后一个动作（L041）
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt  # 修改：新测试文件增行登记（E2 纪律，随各自任务 commit）
   - .work/gsd/phases/m5-1-track/M5-1-01-SUMMARY.md              # 新建（收口）
@@ -83,6 +88,8 @@ M5-1 OQ-1..8 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-11，用户�
 ### KD-1 Oklab 转换面（T1，OQ-2 生效值；RESEARCH §3.1）
 
 - 公开解析式自写（Björn Ottosson Oklab 公开常数：linear RGB→LMS 锥响应矩阵→cube root→opponent 轴；常数为公开数学常数非任何 GPL 仓代码）。**常数来源注释单源**：`OklabMath.swift` 文件头注记来源与精度说明；MSL 侧常数注释指向同源。
+- **组合链常数钉死（checker 回注 m1，2026-10-09）**：Ottosson 公开 M1 的输入域是 **linear sRGB**，working 域是 linear Rec2020——本 plan 组合链 = `linear Rec2020 →（BT.2020→BT.709 线性矩阵）→ linear sRGB → M1 → cbrt → M2 → Oklab`（逆链反演）；组合矩阵常数推导与「预合并为单 3×3（`M1·M(2020→sRGB)`）与否」的 bit-identity 内部自由度选择一并入文件头单源注记 + DECISIONS。
+- **负 LMS 符号保持（checker 回注 m1）**：Rec2020 色域角/管线负值可产生负 LMS——CPU 与 MSL 两侧一律符号保持 cbrt（`sign(lms)·pow(abs(lms), 1/3)`），**禁裸 `pow(x, 1/3)`**（负输入 = NaN）；G2 驱动集含负 LMS/超域探针（见 KD-7）。
 - **Float32 产线 + Float64 孪生同文件**：产线（kernel 消费口径）= Float32；golden 孪生 = Float64（比较域纪律 L048：一律 decode 回 linear + `Double(Float(x))` 升维）。
 - 转换面 = `linearRec2020ToOklab` / `oklabToLinearRec2020` 双向；往返门（ Float32 往返实测带写 DECISIONS，先验假设 ≤1e-6；G2 parity 消费同带）。
 - working space 常数复用 `LightamerCore/Sources/Foundation/WorkingSpace.swift`（线性 Rec2020 已在库；零新色彩空间定义）。
@@ -94,12 +101,17 @@ M5-1 OQ-1..8 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-11，用户�
 - **直方图域映射（钉死）**：L ∈ [0,1] 线性映射 256 bin；a/b ∈ [−0.5, +0.5] 对称映射 256 bin；域外 clamp 到端 bin（计数不丢）。整数 bin 索引 = `Int((v−lo)/(hi−lo)·255)` 截断（Float32 序，禁插值——FilmSolveCache 整数秩先例）。
 - **截尾**：逐通道 1%/99% 分位 = 直方图整数秩爬梯（累积计数 ≥ ⌈0.01·N⌉ 的首 bin / ≥ ⌈0.99·N⌉ 的首 bin）；支撑域界 = 截尾 bin 的域值。
 - **矩**：支撑域内样本 Float64 累积（μ 与中心化二阶矩）；输出降格 Float32 存储。矩计算与直方图同遍（顺序固定 = 样本序）。
-- statsHash 覆盖 = 直方图计数 + sampleCount（矩为派生物不重复入哈希——直方图即分布的充分统计面）。
+- statsHash 覆盖 = 直方图计数 + sampleCount + **μ/Σ Float32 位模式 + 支撑域界 supportLo/supportHi**（FNV-1a 字节面规范序不变——FilmPrintBake/FilmStatsSeam 体例）。
+  > checker 回注（2026-10-09）：E4——原文「矩不入哈希——直方图即分布的充分统计面」为假命题：本 KD 的 μ/Σ 按规则从原始样本 Float64 累积，**不是直方图的函数**（两组样本集可 256-bin 直方图逐字节相同而矩不同）→ 旧折叠面下求解缓存键 `fnv(srcStatsHash ⊕ refStatsHash ⊕ solverTag)` 在此类碰撞下返回他解，statsHash 兼任 params 持久身份与重解漂移判据同受染——违反 bit-identity 教义。正确表述：**哈希覆盖 = 直方图（S2 的完全输入）+ 矩位模式（S1/S3 的完全输入）的并集**，「充分统计面」措辞摘除。T2 验收同步加「改一矩位翻哈希」断言。
 
 ### KD-3 求解族（T3，OQ-1 生效值；RESEARCH §3.2）
 
-- **S1 Gaussian OT 闭式**：`M = Σt^{1/2} · A · Σs^{−1/2}`，`A = (Σs^{−1/2} Σt Σs^{−1/2})^{1/2}`；平移项 `offset = μt − M·μs`。数学关键面：**SPD 矩阵主平方根唯一**（与特征向量符号/基选取无关——对称特征分解的符号翻转在重构 `V D^{1/2} Vᵀ` 中不变）→ G1 bit-identity 数学可达；数值确定性 = **固定算法阶梯**（对称矩阵 Jacobi 特征分解、固定旋转扫描序 + 固定收敛门；禁调用 LAPACK/accelerate 跨版本不定路径）。
-- **正则化与退化回落（R1，钉死）**：`Σ + εI`（ε = 1e-12·trace(Σ)）先行；最小特征值 < 1e-9·trace（秩亏——单色/低方差源图）→ **回落 S3 对角路径**（`effectiveSolver = .reinhardFallback` 记录；params solver 保持用户选择；G1 断言回落确定性）。
+> checker 回注（2026-10-09）：E1（灵魂级）——原式 `M = Σt^{1/2}·A·Σs^{−1/2}`（`A = (Σs^{−1/2} Σt Σs^{−1/2})^{1/2}`）把 SPD 矩阵平方根误套进极因子三明治（双重开方）：①不满足 OT 定义约束 `M·Σs·Mᵀ = Σt`（对角代入得方差比 `diag((σt/σs)²)`，平方量级过冲一倍）；②与自身「S3 = S1 关协方差特例」主张断裂；③与 RESEARCH §1.2 正确形式相悖。按下式改正本（对称三明治形 = 教科书正本；数值复核在案：200 组随机非交换 SPD 对上 `‖M·Σs·Mᵀ − Σt‖/‖Σt‖ ≤ 4.9e−15`，原式同测 worst 5.3）。
+>
+> **复查轮补正（修复批数值审计，2026-10-09）**：checker 处方 B 字面「`U` = `Σt^{1/2}Σs^{−1/2}` 极因子」经 Trace 最大化判据（Von Neumann：约束解族 `M = Σt^{1/2}·Q·Σs^{−1/2}`（Q 正交）中 OT 最优 = `Tr(M·Σs)` 最大者）数值证伪——该拼写满足约束但**非最优**（`Tr` 缺口 ~1e−2，`|M − M*|` ~1e−2）；与三明治正解逐位恒等（6.5e−16）的极因子是 **`U` = `Σt^{1/2}·Σs^{1/2}` 的极因子**。KD 按下文拼写执行（RESEARCH §1.2 的「U 来自一次 SVD 的极因子」以其为准）。
+
+- **S1 Gaussian OT 闭式（Bures-Wasserstein 正解）**：正本 = **对称三明治形** `M = Σs^{−1/2}·(Σs^{1/2}·Σt·Σs^{1/2})^{1/2}·Σs^{−1/2}`（注意内层指数为 **+1/2**、外层 **−1/2**）；等价极因子形 `M = Σt^{1/2} · U · Σs^{−1/2}`，其中 `U` = `Σt^{1/2}·Σs^{1/2}` 的**极因子**（polar factor，`U = X·(XᵀX)^{−1/2}`——一次 SVD；**禁**拼成 `polar(Σt^{1/2}·Σs^{−1/2})`，见上方补正注）。两形数值恒等（≤1e−15），实现择一并入 DECISIONS。**三条数学约束（T4 硬断言，checker E1 处方）**：①定义约束 `M·Σs·Mᵀ = Σt`；②对角归约 = `diag(√(tᵢ/sᵢ))`——**标准差比**（Σs/Σt 对角时极因子**数学上** `U = I`——Jacobi 对对角阵零旋转；数值路径舍入差由 T4 的 ≤1e-6 断言吸收，不做逐位预期）；③各向同性自洽 `Σs = σs²I / Σt = σt²I` → `M = (σt/σs)·I` = S3 特例关系闭合。平移项 `offset = μt − M·μs`。数学关键面：**SPD 矩阵主平方根唯一**（与特征向量符号/基选取无关——对称特征分解的符号翻转在重构 `V D^{1/2} Vᵀ` 中不变）→ G1 bit-identity 数学可达；数值确定性 = **固定算法阶梯**（对称矩阵 Jacobi 特征分解、固定旋转扫描序 + 固定收敛门；禁调用 LAPACK/accelerate 跨版本不定路径）。
+- **正则化与退化回落（R1，钉死）**：`Σ + εI`（ε = 1e-12·trace(Σ)）先行；最小特征值 < 1e-9·trace（秩亏——单色/低方差源图）→ **回落 S3 对角路径**（`effectiveSolver = .reinhard` 记录 + DECISIONS 注记回落语义——`.reinhardFallback` **不入** `ColorMatchSolverKind` 枚举（KD-5 两值枚举零矛盾，checker 回注 m2），effectiveSolver 是「实际生效路径」诊断面，走 S3 路径即记 `.reinhard`；params solver 保持用户选择；G1 断言回落确定性）。
 - **S3 Reinhard 对角**：`M = diag(σt_i/σs_i)`（逐轴，ε 地板同上）+ 同式 offset；= S1 关协方差特例，代码路径独立纯函数（不 share S1 内部）。
 - **strength 语义（三档共用）**：`out_oklab = (1−α)·x + α·(M·(x−μs)+μt)`，α ∈ [0,1]；0 = 恒等。α 不进求解面（kernel 运行时 uniform——拖拽零重解）。
 - `ColorMatchSolution`：`solver` / `effectiveSolver` / `matrix: [Float]`（9，行主序——**Float64 求解、Float32 存储的降格点钉死在此**，G1 断言存储字节面）/ `offset: [Float]`（3）/ `sourceStatsHash` / `referenceStatsHash` / `strength 默认 1.0 不入解`（strength 是 params 面）+ `stableHash()`（FNV-1a over sorted-keys JSON——L013/DrtRecord 同款）。
@@ -107,18 +119,22 @@ M5-1 OQ-1..8 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-11，用户�
 
 ### KD-4 G1/G3 golden（T4，OQ-8；RESEARCH §6）
 
+- **数学结构断言（checker 回注 E1，2026-10-09——G1 前置硬门）**：①**定义约束重建断言**——对 golden 求解集（含非对角非交换 Σ）：`M·Σs·Mᵀ ≈ Σt`（Float64 域元素相对容差实测带入 DECISIONS）；②**S1 对角输入 ≡ S3 输出断言**——Σs/Σt 取对角矩阵，S1 与 S3 两求解器输出矩阵元素差 ≤1e-6（两路径舍入式不同——`√tᵢ·(1/√sᵢ)` vs `tᵢ/sᵢ`——不求逐位，各自双跑仍须逐位；此断言同时防未来公式回归）+ 各向同性特例 `Σs = σs²I / Σt = σt²I` → 两解均为 `(σt/σs)·I`（S3 自洽性校验）。
 - **G1 求解确定性**：①同统计输入双跑 → solution 逐字节（matrix/offset Float32 位模式 + stableHash）；②退化输入（单色/秩亏样本集）→ 回落路径确定（双跑同 effectiveSolver 同解）；③求解缓存命中/未命中同解（缓存透明性）；④缓存键折叠序 = DECISIONS 记录精确值（FilmSolveCache 折叠序钉死先例）。
 - **G3 语义 golden**：合成参考对——LCG 常量种子（FilmPrintBake 先例）生成确定性源样本集（Oklab 域，含设定 μs/Σs）；参考集 = 已知 `T_true`（固定矩阵+offset）映射产物（矩精确匹配构造或大 N 采样——容差带写 DECISIONS）；solve(源, 参考) 恢复 `T_true`：矩阵元素相对误差 ≤ 1e-3（矩精确构造臂）/ 实测带（采样臂）；S3 同法对角恢复。自然样张目测 = M5-1-02 GUI 走查（OQ-8 备选 A 默认形态）。
 
 ### KD-5 colormatch op（T5，OQ-3/OQ-7 生效值；RESEARCH §3.3）
 
 - **模块**：`ColormatchModule`（Lut3dModule 结构孪生：`opName = "colormatch"` / `iopOrder = 36.5` / `flags = [.supportsBlending, .allowTiling]` / `defaultColorspace = .RGB`）。
-- **Params（线性臂直存，OQ-3）**：`solver: ColorMatchSolverKind`（枚举 `{gaussianOT, reinhard}`——`.cdf` case M5-1-02 additive，枚举本轮两值）/ `matrix: [Float]`（9，行主序）/ `offset: [Float]`（3）/ `strength: Float`（默认 0 = 恒等核）/ `sourceStatsHash: String?` / `referenceStatsHash: String?`（**L013 decimal String wrapper**——UInt64 入 sidecar 纪律）/ `effectiveSolver: ColorMatchSolverKind?`（回落诊断面，additive optional）。serde = decodeIfPresent 宽容（未知 solver rawValue → nil 恒等降格，Lut3dModule inputEncoding 同款）；**默认 Params() 编码逐字节 = 恒等核**（paramsHash 零漂移专测——M3-1 hash 零漂移专测同款）。
+- **Params（线性臂直存，OQ-3）**：`solver: ColorMatchSolverKind`（枚举 `{gaussianOT, reinhard}`——`.cdf` case M5-1-02 additive，枚举本轮两值）/ `matrix: [Float]`（9，行主序）/ `offset: [Float]`（3）/ `strength: Float`（默认 0 = 恒等核）/ `sourceStatsHash: String?` / `referenceStatsHash: String?`（**L013 decimal String wrapper**——UInt64 入 sidecar 纪律）/ `effectiveSolver: ColorMatchSolverKind?`（回落诊断面，additive optional）。
+  > checker 回注（2026-10-09）：E2 附带钉死面决策（m4 联动）——三个 optional 字段**显式编码：nil → null 进 JSON**（不 encodeIfPresent 缺席）。理由：IopCatalog 反射 guard 比的是「默认编码键集」，缺席式编码下目录含 optional 键反而 guard 红；显式 null 则目录键集 = 模块键集闭合，且 P3 match_color attach=false 参数组（可含 assetRef）能经 apply_params 回灌（「cataloged op 未知键拒绝」不误伤）。decode 侧 decodeIfPresent 宽容维持（读旧档/缺 null 键零破坏；未知 solver rawValue → nil 恒等降格，Lut3dModule inputEncoding 同款）。**P2 additive 的 assetRef/assetHash 沿用同款显式 null 约定**；决策入 DECISIONS。
+  **默认 Params() 编码逐字节 = 恒等核**（paramsHash 零漂移专测——M3-1 hash 零漂移专测同款；显式 null 形态由该专测逐字节钉死）。
 - **identity blit（L031 红线）**：`strength == 0` 或 statsHash 对缺一（未求解态）→ `makeRoutedCommandBuffer()` blit 恒等（cache-neutral、exposure-0EV style；Lut3dModule lutName nil 同款）。kernel 只在非恒等态 dispatch。
 - **V50Order 原生行**：`("colormatch", 36.5)`——注记 = LIGHTAMER-NATIVE ROW（NOT a dt entry——Plan M5-1-01 T5，OQ-M5-1-3）：sits between lut3d (36.0) and the dt-verbatim colortransfer (37.0)——追色落在 lut3d 同邻域（creative band，层内合法性 < 70.0 floor）。dt 纪律（no reorder / unique / add-only）照 66.5/20.8 先例全文。dt 的 `colortransfer` 37.0 / `colormapping` 38.0 verbatim 行**零触碰、保持未注册**（dt 模块本身未移植；表行是 verbatim 港口）。
 - **GradeCatalog 第 20 行**：`catalogID: "colormatch"` / owner `.grade` / `identityJSON = json(of: ColormatchModule.Params())` / `panelExposures: ["strength"]`（M5-1-02 面板消费；filmPlacement 先例——可加不可编占位至面板落地）。`NodeOwnershipCatalog` 18 目录注册表零新目录。
 - **Registry 注册**：`register(opName: ColormatchModule.opName)`，**seed ABSENT**（CAT02 注记同款——grade 目录 op 随面板入编辑种子；本 plan 面板未落地 = 纯 addable）；注册块注释照 lut3d 块格式。
-- **IopCatalog additive 行**：strength（number）/ solver（string）/ matrix（number[]）/ offset（number[]）/ sourceStatsHash 等（string）；guard（键集 == 模块默认编码键集 + version）自动核验——McpEditingToolsetTests 既有面零改动即覆盖新行（若 guard 需要 version 初值登记则随行）。
+- **IopCatalog additive 行**：strength（number）/ solver（string）/ matrix（number[]）/ offset（number[]）/ sourceStatsHash 等（string）；guard（键集 == 模块默认编码键集 + version）自动核验新行键集——但**既有钉数断言随行更新**（checker 回注 E2：`McpEditingToolsetTests` `checked`/`ops.count` 18→19、`DefaultFaceTests` ops.count 18→19、`McpHostTests.expectedListIopsText` 18-op 规范文本 +1 行——五个受波及文件全部入 files_modified）。
+- **add-face 枚举缝（checker 回注 E2）**：`EditorState.templateInstance(for:)` 穷举 switch 补 `case ColormatchModule.opName`（`ModuleInstance(module: ColormatchModule.self, params: ColormatchModule.Params())`——Params() = 行 identityJSON 同字节，filmPlacement case 同形注释）；漏补则 `gradeScopeEntries()` 经 `compactMap` 静默丢行（编译零报错），add 菜单不出现 colormatch——AC「生产行为唯一可见变化」的**前置缝**。
 
 ### KD-6 kernel 面（T6/T7）
 
@@ -128,7 +144,7 @@ M5-1 OQ-1..8 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-11，用户�
 
 ### KD-7 G2/G5 门（T7/T8，OQ-8；RESEARCH §6）
 
-- **G2 kernel parity**：`colormatch_linear` vs `OklabMath` Float64 CPU 参考（同解矩阵/offset 注入）。驱动集 = 33³ 网格 × {S1 解, S3 解, 随机解} × α ∈ {0.0, 0.25, 0.5, 1.0}；判据 = **p99.9 ≤ 1e-5 目标 + 实测带收窄钉门**（M3-3/M4-1 纪律：实测值落带后钉实测带为门——目标值不进最终断言）；L048 比较域纪律；fence 纪律 L014。
+- **G2 kernel parity**：`colormatch_linear` vs `OklabMath` Float64 CPU 参考（同解矩阵/offset 注入）。驱动集 = 33³ 网格 × {S1 解, S3 解, 随机解} × α ∈ {0.0, 0.25, 0.5, 1.0} + **负 LMS/超域探针**（checker 回注 m1：Rec2020 色域角点 + 管线负值输入——符号保持 cbrt 路径的 MSL↔CPU 镜像断言；HDR 直通断言既有，负值路径此批补）；判据 = **p99.9 ≤ 1e-5 目标 + 实测带收窄钉门**（M3-3/M4-1 纪律：实测值落带后钉实测带为门——目标值不进最终断言）；L048 比较域纪律；fence 纪律 L014。
 - **G5 恒等回归（L031 惯例）**：三态逐字节直通——①colormatch 缺席（默认 face，注册不种子）②实例存在但 disabled ③实例 enabled + strength=0。断言面 = 渲染输出逐字节（恒等链既有 golden 输出对照）+ 既有 IOP/IOPParity 全量逐位基线零漂移（本 plan 未触既有 op）。
 
 ### KD-8 可加不可编占位（filmPlacement 先例）
@@ -155,7 +171,7 @@ M5-1 OQ-1..8 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-11，用户�
 - **构建**：`caffeinate -dis` 包裹；单测标准命令 = `Scripts/test-direct.sh --bundle <域>`（直启宿主）；全套 `--all` 需 orchestrator 批准，本 plan 收口轮才申请。
 - **GPU 读回 fence（L014）**：parity/identity 测试读纹理前必须 queue fence（`drain()` 模式）。
 - **比较域（L048）**：golden 一律 decode 回 linear + `Double(Float(x))` 升维；Oklab 域比较只在孪生带测试内做（产线断言回归 working 域）。
-- **零 diff 红线自证**：收口任务跑 `git diff <基线SHA>..HEAD -- LightamerIOP/Sources/Lut3d/ LightamerCore/Sources/Sidecar/ LightamerCore/Sources/Pipe/History/ LightamerCore/Sources/Pipe/PipeCacheKey.swift LightamerCore/Sources/Pipe/PipelineDocument.swift` 零命中并记录入 SUMMARY。
+- **零 diff 红线自证**：收口任务跑 `git diff <基线SHA>..HEAD -- LightamerIOP/Sources/Lut3d/ LightamerCore/Sources/Sidecar/ LightamerCore/Sources/Pipe/History/ LightamerCore/Sources/Pipe/PipeCacheKey.swift LightamerCore/Sources/Pipe/PipelineDocument.swift LightamerCore/Sources/Graph/NodeGraphCommand.swift` 零命中并记录入 SUMMARY（checker 回注 m3：路径集与红线自证清单对齐——`NodeGraphCommand` 在红线零触碰清单内，其真身 = `LightamerCore/Sources/Graph/NodeGraphCommand.swift`，补入 diff 路径集）。
 - **资源监控**（AGENTS）：跑测试宿主期间照常巡检；IOP/IOPParity 贴线 bundle 若 MEMFAIL 先查重测漂移再查本批（新测试均小 fixture/合成集，理论零增量）。
 - 中文标注（待核/待定/待补）一律显式；无源待核项入 DECISIONS 待供件清单。
 
@@ -164,12 +180,12 @@ M5-1 OQ-1..8 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-11，用户�
 ### T1 Oklab 转换面（KD-1）
 
 - read_first 1/9 → `OklabMath.swift`（双向 Float32 产线 + Float64 孪生 + 常数来源头注）。
-- 验收：`ColorMatchOklabTests`（LAYERS）——公开常数锚点（白点/原色样本点对已发布参考值，硬编码）；往返门（Rec2020 色域角点 + 灰轴 + 随机集，Float32 往返实测带入 DECISIONS）；Float32/Float64 孪生带；负分量/超域输入行为断言（clamp 政策记录）。
+- 验收：`ColorMatchOklabTests`（LAYERS）——公开常数锚点（白点/原色样本点对已发布参考值，硬编码）；往返门（Rec2020 色域角点 + 灰轴 + 随机集，Float32 往返实测带入 DECISIONS）；Float32/Float64 孪生带；负分量/超域输入行为断言（clamp 政策记录 + **组合链常数推导记录**（checker 回注 m1：Rec2020→sRGB 前置矩阵 + 预合并选择入 DECISIONS））。
 
 ### T2 统计提取面（KD-2）
 
 - read_first 1/3 → `ColorMatchStats.swift`（值类型 + 提取纯函数：直方图/截尾/矩/statsHash）。
-- 验收：`ColorMatchStatsTests`（LAYERS）——直方图域映射逐 bin（L 与 a/b 两域 + 端 bin clamp）；1%/99% 整数秩分位（构造分布精确断言）；矩对解析值（高斯样本集 vs 闭式）；statsHash 双跑逐字节 + 字段敏感（改一计数翻哈希）；空样本集 typed 行为。
+- 验收：`ColorMatchStatsTests`（LAYERS）——直方图域映射逐 bin（L 与 a/b 两域 + 端 bin clamp）；1%/99% 整数秩分位（构造分布精确断言）；矩对解析值（高斯样本集 vs 闭式）；statsHash 双跑逐字节 + 字段敏感（改一计数翻哈希 + **改一矩位翻哈希**——checker 回注 E4 同步断言 + 支撑域界位翻哈希）；空样本集 typed 行为。
 
 ### T3 S1/S3 求解器 + 缓存（KD-3）
 
@@ -179,12 +195,13 @@ M5-1 OQ-1..8 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-11，用户�
 ### T4 G1/G3 golden（KD-4）
 
 - read_first 1/11 → `ColorMatchSolverGoldenTests`（LAYERS）。
-- 验收：G1 四断言（双跑逐字节/退化回落确定/缓存透明/键折叠序 DECISIONS 记录）；G3 合成参考对恢复（S1 矩精确构造臂 ≤1e-3 + S3 对角恢复 + 实测带入 DECISIONS）；LCG 种子可再生（生成器双跑同集）。
+- 验收：G1 四断言（双跑逐字节/退化回落确定/缓存透明/键折叠序 DECISIONS 记录）；**数学结构断言两件（checker 回注 E1）**：`M·Σs·Mᵀ ≈ Σt` 重建断言（非对角求解集，容差入 DECISIONS）+ S1 对角输入 ≡ S3 输出（≤1e-6）+ 各向同性 `(σt/σs)·I` 特例；G3 合成参考对恢复（S1 矩精确构造臂 ≤1e-3 + S3 对角恢复 + 实测带入 DECISIONS）；LCG 种子可再生（生成器双跑同集）。
 
 ### T5 colormatch 模块 + 注册 + 目录行（KD-5）
 
 - read_first 2/5/6/7/8 → `ColormatchModule.swift` + `Registry.swift` 注册块 + `V50Order.swift` 36.5 行 + `NodeOwnershipCatalog.swift` 第 20 行 + `IopCatalog.swift` additive 行 + xcstrings 显示名键。
-- 验收：`ColormatchModuleTests`（IOPParity）——serde 往返/未知 solver 降格/默认 Params 编码逐字节恒等核（hash 零漂移专测）/identity blit 路径（strength 0 → blit 非 kernel）/flags/order 静态断言；`V50OrderTests` 107 + 36.5 唯一性 + floor 关系；`GradeCatalogTests` 20 行；zh-audit `--check` 对新键绿。
+- **add-face 既有钉死面同步（checker 回注 E2，2026-10-09）**：`EditorState.templateInstance` 补 colormatch case（ Params() 模板 = identityJSON 同字节——filmPlacement 同形；缺此 case 则 add 菜单静默不出现）+ `CatalogAddFaceTests` 精确列表 13→14（DECISIONS 记 unique-op 计数演变）+ `McpEditingToolsetTests` 钉数 18→19（:476 checked / :490 ops.count）+ `DefaultFaceTests` ops.count 18→19（:365；`defaultFaceOps()==15` 不动——seed ABSENT）+ `McpHostTests.expectedListIopsText` 规范文本 +1 行——**5 文件全部在 files_modified 申报内**。
+- 验收：`ColormatchModuleTests`（IOPParity）——serde 往返/未知 solver 降格/默认 Params 编码逐字节恒等核（hash 零漂移专测；**optional 字段显式 null 编码形态由本专测钉死**——checker E2 决策）/identity blit 路径（strength 0 → blit 非 kernel）/flags/order 静态断言；`V50OrderTests` 107 + 36.5 唯一性 + floor 关系；`GradeCatalogTests` 20 行；`CatalogAddFaceTests` 14 行含 colormatch + templateInstance 新 case 断言；zh-audit `--check` 对新键绿。
 
 ### T6 kernel + uniforms（KD-6）
 
@@ -203,8 +220,8 @@ M5-1 OQ-1..8 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-11，用户�
 
 ### T9 收口
 
-- SUMMARY（任务序/实测带/bundle 分账/红线自证清单）+ DECISIONS（KD 偏差/G2 实测带/G3 恢复带/statsHash 折叠序/往返带）+ GOAL-STATE 续接点（M5-1-02 待启）+ TODO 同批。
-- 验收：定向轮 `--bundle LAYERS/IOPParity/APP` 全绿（exit 0 + 零 MEMFAIL）；zh-audit `--check` 绿；零 diff 红线清单（KD 红线节全项）亲证入 SUMMARY。
+- SUMMARY（任务序/实测带/bundle 分账/红线自证清单）+ DECISIONS（KD 偏差/**E1 公式改正记录与数值复核锚**/**数学结构断言容差带**/G2 实测带/G3 恢复带/**E4 statsHash 折叠序（含矩位模式）**/往返带/**E2 optional 显式编码决策 + unique-op 计数演变（13→14）**/**m2 effectiveSolver 回落语义注记**/**m1 组合链常数推导与预合并选择**）+ GOAL-STATE 续接点（M5-1-02 待启）+ TODO 同批。
+- 验收：定向轮 `--bundle LAYERS/IOP/IOPParity/APP` 全绿（exit 0 + 零 MEMFAIL）——**IOP bundle 必跑**（checker 回注 E7：本 plan 修改的 `V50OrderTests`（106→107，BUNDLE-MAP:189）与 `DefaultFaceTests`（E2 波及，BUNDLE-MAP:131）均属 IOP bundle，漏跑则自家计数断言不进验收轮、漂移藏到 M5-1-03 收口才炸；与 T8 的「定向轮 IOP/IOPParity 全量逐位基线零漂移」口径对齐）；zh-audit `--check` 绿；零 diff 红线清单（KD 红线节全项 + m3 NodeGraphCommand 路径）亲证入 SUMMARY。
 - **双重验收（config `dual_acceptance = true`）**：zcode subagent 独立验收 PASS 后 → **串行** omp 二次验收（**严禁并发**——computer-use 单实例，config 硬约束）；两路结论落 `M5-1-01-ACCEPTANCE.md`；FAIL 回注修复批后重走验收。
 
 ## 验收标准（AC 总表）
@@ -214,11 +231,11 @@ M5-1 OQ-1..8 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-11，用户�
 3. **生效值③（线性臂半）**：colormatch 独立 op 在册（iopOrder 36.5 + supportsBlending/allowTiling + seed ABSENT）；线性臂 params 直存（matrix/offset/strength/statsHash L013 decimal）；lut3d 密封面零触碰；sidecar 零 schema 变更。【T5】
 4. **生效值④（截尾半）**：1%/99% 整数秩截尾 + 支撑域界在 `ColorMatchStats` 在册（构造分布精确断言）；矩阵臂全定义域（kernel 无域端钳制——HDR 值直通断言）。【T2/T7】
 5. **生效值⑦（grade 层）**：GradeCatalog 第 20 行 owner `.grade` + supportsBlending = 既有蒙版体系自动可用（零新 blendop 面——BlendOp 路径零 diff 断言）；统计面全图语义（无 region 参数）。【T5】
-6. **G1**：双跑 bit-identity + 退化回落确定 + 缓存透明 + 键折叠序记录。【T4】
+6. **G1**：双跑 bit-identity + 退化回落确定 + 缓存透明 + 键折叠序记录 + **数学结构断言两件**（`M·Σs·Mᵀ ≈ Σt` 重建 + S1 对角 ≡ S3 ≤1e-6 + 各向同性特例——checker E1）。【T4】
 7. **G2**：kernel parity 实测带收窄钉门（目标 1e-5），L048 纪律，uniform ABI size-probe。【T6/T7】
 8. **G3**：合成参考对恢复 T_true（矩精确臂 ≤1e-3 + 采样臂实测带）+ LCG 可再生。【T4】
-9. **G5**：三态逐字节直通 + IOP/IOPParity 既有基线逐位零漂移 + add 菜单可见但加实例 = 恒等（占位语义）。【T8】
-10. **红线自证**：零新 SPM；V50Order add-only（106→107）；`defaultFaceDisabledOpNames`/lut3d 密封面/sidecar/HistoryStack/HistoryHash/PipeCacheKey/PipelineDocument 零 diff；`.metal` 新增 = ColorMatchKernels.metal 一文件。【T9】
+9. **G5**：三态逐字节直通 + IOP/IOPParity 既有基线逐位零漂移 + add 菜单可见但加实例 = 恒等（占位语义；**前置缝 = templateInstance colormatch case + CatalogAddFaceTests 14 行——checker E2，缺缝则本 AC 静默落空**）。【T8】
+10. **红线自证**：零新 SPM；V50Order add-only（106→107）；`defaultFaceDisabledOpNames`/lut3d 密封面/sidecar/HistoryStack/HistoryHash/PipeCacheKey/PipelineDocument/NodeGraphCommand 零 diff（diff 路径集与清单对齐——checker m3）；`.metal` 新增 = ColorMatchKernels.metal 一文件。【T9】
 
 ## 风险与边界
 

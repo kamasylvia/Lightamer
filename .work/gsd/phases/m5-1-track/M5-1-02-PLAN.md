@@ -20,7 +20,7 @@ files_modified:
   - Tests/LightamerTests/ColormatchCubeAssetTests.swift          # 新建（LAYERS/Core 级）：写出/读入位精确往返 + 哈希验证 + degrade 形态 + 原子晋升
   - Tests/LightamerTests/ColormatchModuleTests.swift             # 修改：LUT 臂 additive（.cdf serde/assetRef 缺席恒等/资产 degrade 恒等）
   - Tests/LightamerTests/ColormatchIdentityGoldenTests.swift     # 修改：S2 恒等态扩展（assetRef nil/资产丢失 degrade 逐字节直通）
-  - App/Sources/Lightamer/State/ColorMatchService.swift          # 新建：求解编排（源统计 = PREVIEW 完成面 readback ≤512² box 降采样 → Core 提取；参考统计 = THUMBNAIL 桶 pristine 渲染同法；attach = addAdjustmentLayer+addModuleToLayer；重解缝）
+  - App/Sources/Lightamer/State/ColorMatchService.swift          # 新建：求解编排（提取面 = 管线级 API `extractStats(document:bucket:)`——in-pipe 无头渲染到桶 + readback + Core 提取，GUI PREVIEW 完成点只是其一调用点，checker 回注 E5/E6；源统计平面 = colormatch 实例输入平面（bypass 集）；参考统计 = THUMBNAIL 桶 pristine 渲染同法；attach = store 级实例投影缝（apply_params projectInstances 同缝，非 GUI addAdjustmentLayer 专属）；重解缝）
   - App/Sources/Lightamer/UI/Shell/ColorMatchPanelModel.swift    # 新建：FilmPanelModel 孪生（三级读投影 + 单 discrete commit + strength D-H1 live 三件 + 求解动作 + readout）
   - App/Sources/Lightamer/UI/Shell/ColorMatchPanelView.swift     # 新建：参考选取（PanelPresentation 缝，L057 禁 runModal）+ solver picker + strength + readout（solver/effectiveSolver/statsHash/支撑域宽）+ before/after 既有三形态
   - App/Sources/Lightamer/UI/Shell/EditorAdjustmentStackView.swift # 修改（如挂载需要）：colormatch 实例选中 → 面板内容区（照 grade op 既有机制；若机制零改则此行撤销——DECISIONS 申报）
@@ -97,7 +97,7 @@ files_modified:
 
 ### KD-4 .cube 派生资产（T4，OQ-3；RasterMaskStore 孪生）
 
-- 路径 = `<原文件完整名>.lra.colormatch/<bakeKeyHex>.cube`（`.lra.masks/` 同款兄弟目录惯例）；内容 = 标准 `LUT_3D_SIZE 65` 文本格式（float 三元组，**最短往返表示法序列化——写→读位精确**，G1 断言字节往返）。
+- 路径 = `<原文件完整名>.lra.colormatch/<bakeKeyHex>.cube`（`.lra.masks/` 同款兄弟目录惯例）；内容 = 标准 `LUT_3D_SIZE 65` 文本格式（float 三元组，**最短往返表示法序列化——写→读位精确**，G1 断言字节往返；**格式器钉死（checker 回注 m5，2026-10-09）：序列化 = Swift `String(Float)` 最短往返表示——locale 不变（小数点恒 `.`，专测断言无非 locale 小数点形态）；读回端 = colormatch 自有 reader（CubeLutParser 零触碰红线维持——写读自洽即可，不承诺对外 .cube 生态位逐字节兼容）**）。
 - `ColormatchCubeAsset`（Core，RasterMaskStore 结构孪生）：write（同目录 tmp 原子晋升——L009）/ load（**全验证**：尺寸 + 字节 FNV 对 params.assetHash；失配/缺失 = `LoadResult.degraded(reason)` 值形态非静默）；**同解前缀清理**（同 solutionHash 不同 α 的旧资产 commit 时 best-effort 删除——孤儿残留为观察项非门）。
 - **typed degrade 闭环**：资产丢失/失配 → 模块恒等直通（degrade 值携带 reason 面板可见）+ **重解缝**（面板/服务按哈希重提取统计重跑 solve→bake→write——G1⑤重解产物与原表逐字节断言；参考图不可达 = degrade 维持 + 面板提示）。
 - params 载体：`assetRef: String?`（库根相对风格 POSIX 相对路径——项目相对）+ `assetHash: String?`（L013 decimal String）。**paramsData 尺寸上界断言**（LUT 字节不进 sidecar 的机检面：<8KB 上界）。
@@ -112,8 +112,12 @@ files_modified:
 
 ### KD-6 面板与求解编排服务（T6，TRACK-04；RESEARCH §4）
 
-- `ColorMatchService`（App/State）：**源统计** = PREVIEW 完成面 readback → CPU box 降采样 ≤512×512（固定序）→ 样本集 → Core 提取（P1 纯函数）；**参考统计** = 参考图 THUMBNAIL 桶 **pristine** 渲染（编辑关——KD 注记：edited-reference 挂 V2 走查反馈；pristine = 确定性 + MCP parity 前提）→ 同法提取。readback 前 fence（L014）。
-- 求解 = 后台任务（BackgroundTaskHosting 三腿协议先例）；完成 → attach = `addAdjustmentLayer` + `addModuleToLayer`（grade 层）+ params 写入 = `recordChange` 单 discrete commit（**零新 history 键族**——colormatch 参数走 per-instance params 既有通道；strength D-H1 = M2-5 per-op live 会话形）。
+> checker 回注（2026-10-09）：E5+E6——原文「源统计 = PREVIEW 完成面 readback」两缺口：①**重解反馈回路**——Solve 重解缝在实例激活后，源统计含 colormatch 自身输出 → 统计≈参考 → 新解≈恒等 → 再按 Solve 效果向恒等塌缩（用户可见行为缺陷）；②**提取面绑 GUI 会话态**——MCP 会话可全无头（非打开目标图既无 PREVIEW 完成点也无 GUI attach 面），与 P3「零新提取路径」红线不可同时成立。按下两条钉死（E6 取 checker 推荐处方：管线级化）。
+
+- **提取面 = 管线级 API（E6 钉死）**：`ColorMatchService.extractStats(document:bucket:)` = **in-pipe 无头渲染**到指定桶（PREVIEW/THUMBNAIL）+ readback + P1 Core 纯函数——不依赖 GUI 活编辑器；**GUI 侧 PREVIEW 完成点只是其一个调用点**（FilmStatsSeam PREVIEW 完成点 tap 体例）。参考统计/批量目标/无头 MCP 会话走同一 API（P3「零新提取路径」红线照旧成立）；CPU box 降采样 ≤512×512（固定序）；readback 前 fence（L014）。
+- **源统计平面 = colormatch 实例输入平面（E5 钉死）**：统计提取期间**旁路 colormatch 实例**（提取适配器声明 bypass 集——FilmStatsSeam 体例）或取实例入点 tap；首解（实例尚不存在，天然无污染）与重解（实例已激活）同平面 → 源统计与实例自身输出解耦。
+- **参考统计** = 参考图 THUMBNAIL 桶 **pristine** 渲染（编辑关——KD 注记：edited-reference 挂 V2 走查反馈；pristine = 确定性 + MCP parity 前提）→ 同法提取。
+- 求解 = 后台任务（BackgroundTaskHosting 三腿协议先例）；完成 → attach = **store 级实例投影缝**（apply_params `projectInstances` 同缝——非 GUI `addAdjustmentLayer` 专属路径；GUI 面板与 MCP match_color 共用该缝，无头批量目标可落位——checker E6）+ params 写入 = 单 discrete commit（**零新 history 键族**——colormatch 参数走 per-instance params 既有通道；strength D-H1 = M2-5 per-op live 会话形）。
 - `ColorMatchPanelModel`（FilmPanelModel 结构孪生）：三级读（live 窗口值 → history 投影 → params 真相）；写 = 单 commit / D-H1。面板面：参考选取（库内选择器 + 文件面板走 `PanelPresentation.present`——L057）/ solver picker（gaussian-ot/reinhard/cdf）/ strength 滑杆 / Solve 按钮（重解 + 缓存 invalidateAll 缝）/ readout（solver/effectiveSolver/statsHash/支撑域宽/资产 degrade 提示）/ before/after（9-4 三形态既有面：split/hold/projectedState override）。
 - 挂载 = grade op 选中实例 → 面板内容区（EditorAdjustmentStackView 既有机制；若机制零改则 files_modified 该行撤销并 DECISIONS 申报）。
 
@@ -125,7 +129,7 @@ files_modified:
 
 ### KD-8 G 门扩展（T8，OQ-8）
 
-- **G1 全链**：solve → bake → .cube 写出字节 → 读回，全程逐字节双跑断言；资产删除 → 重解（同统计重提取）→ 重 bake → 新文件与原文件逐字节（重解闭合）；池化同集异序同字节。
+- **G1 全链**：solve → bake → .cube 写出字节 → 读回，全程逐字节双跑断言；资产删除 → 重解（同统计重提取）→ 重 bake → 新文件与原文件逐字节（重解闭合）；池化同集异序同字节；**solve-twice 稳定断言（checker 回注 E5，2026-10-09）：上游不变时重解产物与首解逐字节同**（提取平面钉死 = colormatch 实例输入平面 → 重解不构成反馈回路；入 G1 全链）。
 - **G5 扩展态**：solver=.cdf + assetRef nil → blit；资产 degrade → blit（逐字节直通对照既有 golden 输出）。
 - **G3 自然样张目测** = 本 plan GUI 走查 Manual-Only 行（gui-acceptance 记录，OQ-8 备选 A 默认形态）——执行方出走查配方（`.work/gui-acceptance/m5-1/` MANIFEST 行），实测由验收轮完成。
 
@@ -171,7 +175,7 @@ files_modified:
 
 ### T6 面板 + 编排服务（KD-6）
 
-- 验收：`ColorMatchServiceTests`（APP）——源/参考提取适配器（合成平面 → 统计断言）；attach 落位（addAdjustmentLayer+addModuleToLayer+params commit 链）；重解缝；pristine 参考语义（参考编辑不改变统计——THUMBNAIL pristine 断言）；`ColorMatchPanelModelTests`（APP）——三级读/D-H1 commit 单 item/solver picker/readout 投影。
+- 验收：`ColorMatchServiceTests`（APP）——源/参考提取适配器（合成平面 → 统计断言）；**提取面管线级断言（checker 回注 E6）**：`extractStats(document:bucket:)` 无 GUI 会话态可提取（无头一条）+ GUI PREVIEW 完成点调用点同值；**solve-twice 稳定断言（checker 回注 E5）**：实例激活后重解，源统计与首解同平面 → 重解产物与首解逐字节同（入 G1 全链）；attach 落位（**store 级实例投影缝** + params commit 链——E6）；重解缝（缓存 invalidateAll 消费点走钉死平面）；pristine 参考语义（参考编辑不改变统计——THUMBNAIL pristine 断言）；`ColorMatchPanelModelTests`（APP）——三级读/D-H1 commit 单 item/solver picker/readout 投影。
 - 红线：runModal 零命中；文件面板走 PanelPresentation。
 
 ### T7 多参考 UI（KD-7）
@@ -197,7 +201,7 @@ files_modified:
 5. **生效值⑤（池化）**：统计级加权矩池化 + 直方图整合 + 权重滑杆 UI + N=1 退化 + 序规范化确定性。【T2/T7】
 6. **生效值⑦（参考侧全图）**：提取适配器无 region 参数；参考 = THUMBNAIL pristine（edited-reference V2 注记在册）。【T6】
 7. **TRACK-04**：面板参考选取（PanelPresentation 缝）/自动求解/强度 D-H1/before-after 三形态/readout 全落。【T6】
-8. **G1 扩展**：全链 bit-identity + 重解闭合 + 池化序规范化。【T8】
+8. **G1 扩展**：全链 bit-identity + 重解闭合 + 池化序规范化 + **solve-twice 稳定（源统计平面 = colormatch 实例输入平面，重解无反馈回路——checker E5）**。【T6/T8】
 9. **G2/G5 扩展**：零新采样 kernel（lut3d 密封面零 diff）+ 链路断言；S2 恒等态逐字节。【T5/T8】
 10. **红线自证**：零新 SPM；.metal 零新增；sidecar 零 schema；Film 域/LutEncodingCatalog 零触碰；runModal 零命中；xcstrings 尾块纯插入 + zh-audit 绿。【T9】
 
