@@ -59,7 +59,10 @@ static inline float3 mulRowMajor9(constant float* m, float3 v) {
 }
 
 static inline float signedCbrt(float x) {
-    return x >= 0.0f ? pow(x, kOneThird) : -pow(-x, kOneThird);
+    // precise:: — the MSL default compiles fast-math (the plain pow is the
+    // approximate form; the FilmPlacement kernel precedent) and the parity
+    // gate measures against the precise CPU face.
+    return x >= 0.0f ? precise::pow(x, kOneThird) : -precise::pow(-x, kOneThird);
 }
 
 static inline float3 signedCbrt3(float3 v) {
