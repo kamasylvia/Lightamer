@@ -71,3 +71,20 @@
   exit≠0）+ NOTICE 署名行断言（"Depth Anything" / "apple/coreml-depth-anything-
   v2-small"）内嵌脚本；DECISIONS（本节）记录自检输出。env 门控单测路线（处方②）
   不取（zip 在仓外机器位，LIB 单测不可见）。
+
+## §3 T2 执行期数学事实：守卫 (b) 对非 NaN 输入不可达（plan KD-4 字面修正注记）
+
+- **事实**：任何通过守卫 (a)（`high−low > max(1e−6, 1e−4·scale)`）的平面，
+  `P(v ≥ p95) ≥ ~5%`（p95 = 95 分位定义），且这些像素 `relative ≥ 1 → α=1` →
+  `mean(α>0.5) ≥ ~5% ≫ 3e−4`。即 **默认参数下守卫 (b) 是 NaN backstop only**
+  （NaN 使 α 全 NaN、`α>0.5` 全 false → coverage=0 → (b) throw）。
+- **为什么 Lumen 可达而我方不可达**：Lumen 的 `(alpha>.5).mean() < .0003` 计数
+  在 guided-filter **refine 之后**（`selection.py:75→77`，refine 把高 α 抹开），
+  且其非深度腿（U2NetP 等）不走 percentile 窗化；我方四段纯函数无 refine
+  （OQ-5 裁定），窗化后覆盖下界 5% 是解析事实。
+- **处置**：守卫 (b) 代码照 plan/KD-4 原样保留（Lumen parity + NaN backstop +
+  `coverageFloor` 参数缝 = 后手 refine 档的预留面）；「近空覆盖」的真实用户面
+  由守卫 (a) 承担（无分层场景 p95−p10 ≈ 0 → degenerate）。plan T2 验收的
+  「近空覆盖负测」经 `coverageFloor` 参数缝确定性触发（DepthMaskPipelineTests
+  testNearEmptyCoverageThrowsTyped 注记内联）。checker m6 的「两级靶近区 ≤5%
+  落守卫 (a)」与本事实同向（(a) 是真负测门）。

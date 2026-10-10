@@ -135,6 +135,13 @@ public enum AIMaskError: Error, Equatable, Sendable {
     /// The model ran but found no subject (`results` empty / nil
     /// observation) — the "no subject" toast, NOT an all-ones mask.
     case noSubject
+    /// The depth model ran but the plane carries no usable layering —
+    /// EITHER a degenerate depth range (the flat-wall face) OR a near
+    /// mask below the 0.03% coverage floor (Lumen auto_masks.py:77-79
+    /// parity). The "no depth structure" toast, NOT an all-ones mask
+    /// (M4-3-01 D-2: two triggers, one gate, one case — the message
+    /// discriminates).
+    case noDepthStructure(String)
     /// Layer B assets not downloaded (assetStatus not ready). The caller
     /// gates/disables the layer-B entry — layer A stays unaffected.
     case modelNotReady(String)
