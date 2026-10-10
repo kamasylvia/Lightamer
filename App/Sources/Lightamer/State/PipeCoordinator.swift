@@ -1950,14 +1950,6 @@ final class PipeCoordinator {
         let plane: any MTLTexture
         let imageID: UUID
         let prefixHash: UInt64
-        /// M4-2-01 (OQ-3/KD-4): the threshold the RIDGE extraction runs at
-        /// for this surface — the ridge cache folds it into its key while
-        /// the FIELD cache stays prefixHash-keyed (拖阈不重跑 GPU pass).
-        /// Defaults to the walker default: the frozen overlay leg cannot
-        /// thread the live slider value through the surface, so non-default
-        /// thresholds take the walker's fresh lazy path (the RidgeGraph.high
-        /// stamp mismatch) — correct, just uncached (DECISIONS §3 note).
-        var edgeThreshold: Float = 0.25
     }
 
     /// The below-composite plane for the target layer: the TRUNCATED-stack
@@ -2021,86 +2013,17 @@ final class PipeCoordinator {
     /// flips → the entry misses; the imageID is folded in). The GPU
     /// submit rides `FollowEdges.edgeMap` — the MetalContext unique
     /// routing point (L031) — and the readback is the L014-fenced
-    /// 1024-working-domain `FollowEdges.readEdgeMap` (M4-2-02: the call
-    /// site widens the ≤512 default for fine-ridge capture; the readback
-    /// signature/default is untouched).
+    /// ≤512-guard `FollowEdges.readEdgeMap`.
     private var edgeMapFieldCache: [UInt64: EdgeMapField] = [:]
 
     private static let edgeMapFieldCacheLimit = 8
 
-    /// The ridge-graph carrier (M4-2-01 KD-4, OQ-3-A): a PARALLEL dict next
-    /// to the field cache, keyed by prefixHash ⊕ edgeThreshold.bitPattern
-    /// (explicit fold — the L013 spirit; never persisted), LRU 8 with
-    /// explicit recency order. INDEPENDENT of the field cache: a threshold
-    /// drag re-extracts (ms-level) without re-running the GPU pass.
-    struct FollowEdgesRidgeCache {
-        private var entries: [UInt64: RidgeGraph] = [:]
-        private var order: [UInt64] = [] // front = most recent
-        static let limit = 8
-
-        func graph(for key: UInt64) -> RidgeGraph? {
-            guard let hit = entries[key] else { return nil }
-            return hit
-        }
-
-        mutating func refresh(key: UInt64) {
-            order.removeAll { $0 == key }
-            order.insert(key, at: 0)
-        }
-
-        mutating func insert(_ graph: RidgeGraph, key: UInt64) {
-            if entries[key] != nil {
-                order.removeAll { $0 == key }
-            } else if order.count >= Self.limit, let evicted = order.last {
-                order.removeLast()
-                entries.removeValue(forKey: evicted)
-            }
-            entries[key] = graph
-            order.insert(key, at: 0)
-        }
-
-        var count: Int { entries.count }
-
-        /// prefixHash ⊕ edgeThreshold bitPattern (UInt64 domain, explicit).
-        static func key(prefixHash: UInt64, edgeThreshold: Float) -> UInt64 {
-            prefixHash ^ UInt64(edgeThreshold.bitPattern)
-        }
-    }
-
-    private var followEdgesRidgeCache = FollowEdgesRidgeCache()
-
-    /// Test seams (KD-4): the GPU-pass and extraction counters make the
-    /// carrier contract machine-checkable (拖阈只重提取不重跑 GPU pass;
-    /// 重复取用零重提取).
-    private(set) var followEdgesEdgeMapRuns = 0
-    private(set) var followEdgesRidgeExtractions = 0
-
-    /// The ridge-injected field for a cache hit / fresh extraction (the
-    /// walker refuses threshold-stale carriers via `RidgeGraph.high`).
-    private func injectedField(
-        for field: EdgeMapField, surface: FollowEdgesSurface
-    ) -> EdgeMapField? {
-        let key = FollowEdgesRidgeCache.key(
-            prefixHash: surface.prefixHash, edgeThreshold: surface.edgeThreshold)
-        if let hit = followEdgesRidgeCache.graph(for: key) {
-            followEdgesRidgeCache.refresh(key: key)
-            return field.withRidges(hit)
-        }
-        let graph = RidgeExtract.graph(from: field, high: surface.edgeThreshold)
-        followEdgesRidgeExtractions += 1
-        followEdgesRidgeCache.insert(graph, key: key)
-        return field.withRidges(graph)
-    }
-
     func edgeMapField(for surface: FollowEdgesSurface) async -> EdgeMapField? {
-        if let hit = edgeMapFieldCache[surface.prefixHash] {
-            return injectedField(for: hit, surface: surface)
-        }
+        if let hit = edgeMapFieldCache[surface.prefixHash] { return hit }
         guard let metal else { return nil }
         do {
             let plane = try await FollowEdges.edgeMap(below: surface.plane, metal: metal)
-            followEdgesEdgeMapRuns += 1
-            guard let field = FollowEdges.readEdgeMap(plane, maxLongEdge: 1024, metal: metal) else {
+            guard let field = FollowEdges.readEdgeMap(plane, metal: metal) else {
                 return nil
             }
             if edgeMapFieldCache.count >= Self.edgeMapFieldCacheLimit,
@@ -2108,7 +2031,7 @@ final class PipeCoordinator {
                 edgeMapFieldCache.removeValue(forKey: oldest)
             }
             edgeMapFieldCache[surface.prefixHash] = field
-            return injectedField(for: field, surface: surface)
+            return field
         } catch {
             Self.logger.error(
                 "edge map failed: \(error.localizedDescription, privacy: .public)")

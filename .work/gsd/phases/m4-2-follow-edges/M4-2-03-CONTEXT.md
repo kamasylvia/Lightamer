@@ -141,3 +141,20 @@ plan（CONTEXT OQ 原文不改、以 Ruling 注记为准，沿 M2-3-CONTEXT E1 �
 ## 裁决记录（用户回批 2026-10-10）
 
 **OQ-1..6 全部按推荐采纳（全 A）**：①方案 A 行走纪律修复先行单执行批（防绕 visited + next-best 回退 + deficit 跨穿越携带，gate 0.5 不动，零提取侧）②门定义修订 v2（arc≥24 ∧ 逐点贴脊率 ≥90% ∧ 出点 ≥8，旧数据不重算双轨并行）③followStrength 缺省维持 0.5 ④golden 零删 + 按 v2 语义重推导 + 无弦线哨兵 ⑤总门维持 6/8 + P1 后中期核对点不停批 ⑥GPU NMS/2048 本批不立项（C 批后败景形态判别再议）。
+
+## 终裁注记（2026-10-10 用户，删除挂待定批转正）
+
+方案 A（行走纪律修复单执行批）裁决（全 A）后**未执行**——用户终裁改为
+**删除功能、IOP-MASK-06 挂待定**：V1 熔断（M2-7 走查 0/8）+ V2 换锚门
+0/8→2/8 未达 6/8（junction 门掉链 = 算法层深水区；五参考仓零先例、Nitro
+闭源无可借），迭代修复不再投入。**重启条件 = 出现可靠开源参考实现（边缘
+跟随笔刷类）**，届时以参考实现为锚重立项——本 CONTEXT 的 OQ-1..6 裁决与
+RESEARCH-NOTES Part 2 机理实测**保留作重启输入**（M4-2-03-PLAN 作废未执
+行，文件保留为历史）。
+
+执行批 = 删除挂待定批（2026-10-10 夜）：V2 代码面全撤（逆 M4-2-01/02 代
+码提交——RidgeExtract.swift / 两测试文件删；FollowEdges.swift /
+FollowEdgesTests.swift / PipeCoordinator.swift 逐字节回落 M4-2 前内容；
+readEdgeMap 回缺省 512），代码回落 M2-7 熔断基线；验证 = Layers 394/3/0 +
+App 704/0/0 逐位（M4-1 基线）；记账五正本同批（REQUIREMENTS parked 行 /
+ROADMAP ⛔ 行 / STATE / TODO / GOAL-STATE）。
