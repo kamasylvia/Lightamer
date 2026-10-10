@@ -204,6 +204,10 @@ final class InspectorState {
         register(ColorWheelsPanelProvider())
         // Plan M2-5-2 T5: the Selective Color panel (hls 8-bin model).
         register(HlsPanelProvider())
+        // Plan M5-1-02 T6 (KD-6, TRACK-04): the colormatch panel (the
+        // solver picker + the multi-reference list + Solve + strength +
+        // the readout) — the P1 placeholder's seed moment.
+        register(ColorMatchPanelProvider())
     }
     var panelOpNames: [String] {
         providers.keys.sorted()

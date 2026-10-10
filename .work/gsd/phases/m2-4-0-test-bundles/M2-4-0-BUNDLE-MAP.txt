@@ -274,6 +274,8 @@ LAYERS	8	ColorMatchCDFSolverTests.swift
 LAYERS	6	ColorMatchPoolingTests.swift
 LAYERS	6	ColorMatchBakeGoldenTests.swift
 LAYERS	8	ColormatchCubeAssetTests.swift
+APP	6	ColorMatchServiceTests.swift
+APP	6	ColorMatchPanelModelTests.swift
 LAYERS	10	AIMaskSemanticTests.swift
 LAYERS	10	LayerCacheTests.swift
 LAYERS	10	LayerCompositeTests.swift

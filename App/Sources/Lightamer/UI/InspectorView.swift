@@ -314,6 +314,10 @@ internal struct InspectorView: View {
             localized: "module_color_wheels", defaultValue: "Color Wheels")
         case HlsModule.opName: return String(
             localized: "module_selective_color", defaultValue: "Selective Color")
+        // Plan M5-1-02 T6: colormatch (the P1 raw-opName fallback retires
+        // with the panel — P1 DECISIONS §5's 承诺兑现).
+        case ColormatchModule.opName: return String(
+            localized: "module_colormatch", defaultValue: "Color Match")
         default: return opName
         }
     }

@@ -65,12 +65,11 @@ final class EditorStackRoutingTests: XCTestCase {
         XCTAssertEqual(
             rehomedOps.count, Set(rehomedOps).count,
             "every panel rehomes EXACTLY ONCE (no double-homing)")
-        // The executed cardinality (M2-5-2 T5): 42 populated − 1 = 41.
-        // (M2-3-3 base 34 − textOverlay = 33; +6 T3 scalar providers
-        // [cat02WhiteBalance/contrast/white/black/tint/saturation] + T4
-        // colorWheels + T5 hls → 42 — the EIGHT catalog providers complete.)
-        XCTAssertEqual(expected.count, 41)
-        XCTAssertEqual(rehomedOps.count, 41)
+        // The executed cardinality (M5-1-02 T6): 43 populated − 1 = 42.
+        // (M2-5-2 base 42 — the EIGHT catalog providers complete; M5-1-02
+        // adds the colormatch provider + its LUT-page routing row.)
+        XCTAssertEqual(expected.count, 42)
+        XCTAssertEqual(rehomedOps.count, 42)
     }
 
     // MARK: - M2-5-2 T3: the six scalar panels (AC#4)
@@ -257,7 +256,8 @@ final class EditorStackRoutingTests: XCTestCase {
         XCTAssertFalse(look.contains { $0.opName == Lut3dModule.opName })
         XCTAssertEqual(
             EditorTabRoutingTable.panels(for: .lut).map(\.opName),
-            [Lut3dModule.opName])
+            [Lut3dModule.opName, ColormatchModule.opName],
+            "M5-1-02: the colormatch panel joins the LUT page (the v50 family seat)")
     }
 
     func testGeometryAdvancedGroupComposition() {

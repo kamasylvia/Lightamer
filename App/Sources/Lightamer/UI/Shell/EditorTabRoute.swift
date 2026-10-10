@@ -252,7 +252,13 @@ enum EditorTabRoutingTable {
         case .lut:
             // OQ-4 LUT row: the lut3d panel (recursive scan / root picker =
             // M2-5, the page mounts the current face).
-            [.page(Lut3dModule.opName, .lut)]
+            // M5-1-02 T6: the colormatch panel joins the page (the TRACK
+            // color-transfer family's v50 neighborhood — 36.0 lut3d <
+            // 36.5 colormatch; the solver/reference/Solve face).
+            [
+                .page(Lut3dModule.opName, .lut),
+                .page(ColormatchModule.opName, .lut),
+            ]
         case .displayTransform:
             // Checker E1 勘误: Vignette ONLY — AgX stays unhoused (the M2-1
             // disabled face); the DRT placeholder rides `specialContent`.
