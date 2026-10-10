@@ -31046,6 +31046,125 @@
           }
         }
       }
+    },
+    "ai_mask_depth": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depth mask"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深度蒙版"
+          }
+        }
+      }
+    },
+    "ai_mask_depth_download": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download depth model"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载深度模型"
+          }
+        }
+      }
+    },
+    "ai_mask_depth_download_help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One-time download of the depth model from the project release (pending release cannot download yet)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从项目 Release 一次性下载深度模型（待发布时不可下载）。"
+          }
+        }
+      }
+    },
+    "ai_toast_depth_download_done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depth model ready."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深度模型就绪。"
+          }
+        }
+      }
+    },
+    "ai_toast_depth_download_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depth model download failed."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深度模型下载失败。"
+          }
+        }
+      }
+    },
+    "ai_toast_depth_no_structure": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No clear depth layering found; try another scene or use the brush mask."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未识别到明确的深度分层；可换一个场景或改用画笔蒙版。"
+          }
+        }
+      }
+    },
+    "history_depth_mask": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depth mask"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深度蒙版"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

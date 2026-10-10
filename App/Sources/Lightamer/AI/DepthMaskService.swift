@@ -66,6 +66,40 @@ enum DepthEntryGate {
     }
 }
 
+extension DepthEntryGate {
+
+    /// The toolbar's visual fold (KD-6): the service's pure gate state +
+    /// the local generation phase → the five button faces. Pure = the
+    /// view logic is gate-driven and unit-testable without a view.
+    enum Visual: Equatable, Sendable {
+        /// The one generate button (ready).
+        case generate
+        /// A generation is in flight (spinner replaces the button).
+        case generating
+        /// The guided download entry; `armed == false` renders the
+        /// disabled 「待发布」 face (the fail-closed note).
+        case download(armed: Bool)
+        /// The download progress (mini spinner + percentage).
+        case downloading(Double)
+        /// The failed face (orange retry).
+        case retry
+    }
+
+    static func map(service entry: Entry, running: Bool) -> Visual {
+        if running { return .generating }
+        switch entry {
+        case .ready:
+            return .generate
+        case .needsDownload(let hasDigest):
+            return .download(armed: hasDigest)
+        case .downloading(let fraction):
+            return .downloading(fraction)
+        case .failed:
+            return .retry
+        }
+    }
+}
+
 /// The release-zip → extracted-`mlpackage` hop (the resolver erratum's
 /// depth-leg fill). `/usr/bin/ditto -x -k` (the Lensfun Process precedent);
 /// idempotent — the extracted directory short-circuits.

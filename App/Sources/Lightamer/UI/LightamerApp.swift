@@ -228,6 +228,11 @@ internal struct LightamerApp: App {
     /// observe ONE instance (the AIAssetStore actor stays the truth).
     @State private var aiDownloadModel = AIDownloadModel()
 
+    /// M4-3-01: the depth mask orchestration — app-root owned so the
+    /// MaskToolbar's depth entry observes the ONE service (the store
+    /// actor stays the truth; the AIDownloadModel pattern).
+    @State private var depthMaskService = DepthMaskService()
+
     /// Plan 09-3: the browser collection model (rows + selection), the
     /// thumbnail memory LRU (a session switch drains it — teardown ②) and
     /// the thumbnail pipeline (REBUILT per session on the new store; nil
@@ -455,6 +460,7 @@ internal struct LightamerApp: App {
                 .environment(inspectorState)
                 .environment(layerEditingState)
                 .environment(aiDownloadModel)
+                .environment(depthMaskService)
                 .environment(metadataController)
                 .environment(smartAlbumStore)
                 .environment(presetsStore)

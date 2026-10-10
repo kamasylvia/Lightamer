@@ -584,8 +584,8 @@ APP	3	DepthWorkerLegTests.swift
 #   M4-3-01 T3 增行（2026-10-10，登记随文件同 commit）：DepthWorkerLegTests =
 #   APP/真子进程（crash 注入链走 runDepth + envelope 零新字段往返 + 资产缺席
 #   typed 无 culprit 门控轮），3 法。
-LAYERS	8	DepthMaskEditingTests.swift
+LAYERS	9	DepthMaskEditingTests.swift
 #   M4-3-01 T4 增行（2026-10-10，登记随文件同 commit）：DepthMaskEditingTests =
 #   LAYERS/App 级（gate 四态映射 + .depth 命名往返/segment 不受扰 + resolver 幂等/
 #   typed 失败 + float 读回头校验 + preview 长边帽 + commit 竞态守卫/一次 item），
-#   8 法（T5 勘误：初记 7 漏计竞态丢弃法）。
+#   9 法（T5 补 +1：entry gate 视觉折叠面；T4 期初记 7 又勘 8，累计勘误两轮）。
