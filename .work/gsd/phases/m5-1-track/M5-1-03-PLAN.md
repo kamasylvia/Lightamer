@@ -13,6 +13,10 @@ files_modified:
   - App/Sources/Lightamer/MCP/Tools/EditingToolset.swift      # 修改：register 内一行 `await MatchColorToolset.register(into:seams:)`（密封面最小 diff）
   - Tests/LightamerTests/McpMatchColorToolsetTests.swift      # 新建（APP/App 级）：签名/解析/fan-out/attach/哈希披露/安全面
   - Tests/LightamerTests/McpMatchColorParityTests.swift       # 新建（APP/App 级，G4）：match_color → apply_params → render_preview vs 本地渲染
+  - Tests/LightamerTests/McpRegistrySnapshotTests.swift       # 修改（checker 回注 E3，2026-10-09）：`names.count == 19`→`== 20`（:186——security face 注记「closed set asserted VERBATIM」，快照更新必须显式申报非 executor 顺手改数）
+  - Tests/LightamerTests/McpLauncherTests.swift               # 修改（E3）：`names.count == 19`→`== 20`（:200）
+  - Tests/LightamerTests/McpHostTests.swift                   # 修改（E3）：closed 19-tool face → 20（:242/:694 两处；宿主形态一致性）
+  - Tests/LightamerTests/McpFinalSnapshotTests.swift          # 修改（E3）：frozen 19-tool 逐字表 → 20（:165/:193——match_color 的 descriptor/inputSchema/destructiveHint 入 `all19` 表并更名 all20；`testFinalSnapshotUnion19Verbatim` 同步）
   - .work/gsd/phases/m5-1-track/M5-1-03-SUMMARY.md            # 新建（收口）
   - .work/gsd/phases/m5-1-track/M5-1-03-DECISIONS.md          # 新建（收口）
   - .work/gsd/phases/m5-1-track/M5-1-03-ACCEPTANCE.md         # 新建（双重验收）
@@ -45,17 +49,17 @@ files_modified:
 - **零新增既有三工具外的任何 MCP 面**（不暴露簇统计/高级参数——OQ-6 备选 B 否；preset 化挂 V2——备选 A 否）。
 - **零新网络面、零新依赖**：复用 MCP server 既有绑定/鉴权（回环默认 + token）+ render gate（§RQ-14-13——match_color 为 render-class 工具，进 `withRenderGate`）。
 - `EditingToolset.swift` diff 收窄到 register 内**一行**（工具实现全在新文件——密封面最小 diff 申报）。
-- GUI/渲染/管线面零 diff（本 plan 纯 App/MCP/测试/文档）；源统计/参考统计提取 = M5-1-02 `ColorMatchService` 既有面复用，零新提取路径。
+- GUI/渲染/管线面零 diff（本 plan 纯 App/MCP/测试/文档）；源统计/参考统计提取 = M5-1-02 `ColorMatchService` 既有面复用，零新提取路径（**checker 回注 E6，2026-10-09：一致性注记**——P2 提取面已钉死为管线级 API `extractStats(document:bucket:)`（in-pipe 无头渲染 + readback + P1 纯函数，GUI PREVIEW 完成点只是一调用点），非打开目标图的批量 fan-out 与 attach（store 级实例投影缝）同面复用，本红线与 OQ-6 批量语义同时成立）。
 - **许可红线**：LumaRescue 文本/代码零搬（RESEARCH §1.3）——工具 doc/帮助文本自写。
 
 ## 关键设计决策（planner 裁决，执行中不重开）
 
 ### KD-1 工具签名与语义（T1，OQ-6 生效值）
 
-- 入参 schema（JSON Schema 面）：`reference`（string，必填——库内 image id 或路径，load_image 同源解析）；`targets`（string | string[]，缺省 = 当前图）；`strength`（number 0..1，缺省 1.0）；`solver`（enum `gaussian-ot|reinhard|cdf`，缺省 gaussian-ot）；`attach`（boolean，缺省 true）。
+- 入参 schema（JSON Schema 面）：`reference`（string，必填——**两种形态解析缝钉死（checker 回注 m6，2026-10-09）**：①库内 image id（数字串）→ `LibraryStore.image(id:)`（:438）取行 → `ImageLinker.resolve`（:146——PathKind 0 项目相对 / 1 卷相对+UUID / 2 绝对+UUID 三态）→ URL；②路径 → load_image 同源 `resolveMember(relPath:seams:)`（open-session 成员限定，`notSessionMember` typed 错误）；两形态均 typed 失败披露）；`targets`（string | string[]，缺省 = 当前图）；`strength`（number 0..1，缺省 1.0）；`solver`（enum `gaussian-ot|reinhard|cdf`，缺省 gaussian-ot）；`attach`（boolean，缺省 true）。
 - **fan-out 语义**：N 目标 = N 次独立（源统计, 同参考池化统计）求解——**解各不相同是设计语义非缺陷**（工具返回逐目标摘要数组）；单目标 = 数组一角。
 - 多参考：**v1 单 reference/调用**（裁决最小面字面——多参考池化 = GUI 面 M5-1-02；MCP 多参考 = V2 若 agent 编排暴露真实需求）。DECISIONS 注记。
-- **attach = true**：落位 = `ColorMatchService` 既有 attach 缝（addAdjustmentLayer + addModuleToLayer + params commit）；返回 `{op: "colormatch", instanceId, params: {solver, strength, statsHash 对}, solveHash: solution.stableHash 十进制}`。**attach = false**：返回参数组（matrix/offset 或 assetRef 语义说明），agent 经 `apply_params` 自行落位。
+- **attach = true**：落位 = `ColorMatchService` 既有 attach 缝（**store 级实例投影缝——apply_params `projectInstances` 同缝，checker 回注 E6**；GUI addAdjustmentLayer 非本缝依赖）+ params commit；返回 `{op: "colormatch", instanceId, params: {solver, strength, statsHash 对}, solveHash: solution.stableHash 十进制}`。**attach = false**：返回参数组（matrix/offset 或 assetRef 语义说明），agent 经 `apply_params` 自行落位（**回灌可行性 = P1 E2 optional 显式 null 编码决策**——cataloged op 键集含 optional 键，未知键拒绝不误伤；T1 端到端断言，checker 回注 m4）。
 - **确定性承诺（G1 面向 agent 的披露）**：同 reference + 同 target + 同 params → 同 solveHash——工具返回值携带哈希，agent 可自行复验（文档字符串写明）。
 - 超时/并发：render gate 串行（§RQ-14-13 既有）；工具超时 = McpTimeouts render 档既有。
 
@@ -73,7 +77,7 @@ files_modified:
 
 ### KD-4 翻账与收口（T4）
 
-- REQUIREMENTS：TRACK-01..05 勾选 + MCP-09 研究项 C 注记兑现（**翻账留验收**惯例——终态 Delivered 由 VALIDATION 批盖）；逐条附门锚（TRACK-01→G1/G3、02→池化测试、03→G5/持久化、04→面板走查、05→五门台账）。
+- REQUIREMENTS：TRACK-01..05 勾选 + MCP-09 研究项 C 注记兑现（**翻账留验收**惯例——终态 Delivered 由 VALIDATION 批盖）；逐条附门锚（TRACK-01→G1/G3、02→池化测试、03→G5/持久化、04→面板走查、05→五门台账）；**TRACK-03 勾选注记显式记录裁决偏差（checker 回注 m7，2026-10-09）**：REQUIREMENTS TRACK-03 原文「**内嵌 LUT** + tetrahedral 插值 kernel」→ 生效值 = `.cube` 派生资产 + params 存引用（内嵌 → 派生资产，OQ-M5-1-3 裁决 2026-10-11）——防 VALIDATION 期对表困惑。
 - VALIDATION 输入件 = GATE-LEDGER + 三 plan ACCEPTANCE + 走查配方（`.work/gui-acceptance/m5-1/` MANIFEST——P2 T8 已落，本批汇总指针）。
 - **双重验收**照 config（zcode → 串行 omp；严禁并发）。
 
@@ -98,7 +102,8 @@ files_modified:
 ### T1 match_color 工具（KD-1）
 
 - read_first 2/4/6 → `MatchColorToolset.swift` + EditingToolset register 一行。
-- 验收：`McpMatchColorToolsetTests`（APP）——schema 解析全参/缺省；reference 解析（id/路径/非法 typed 错误）；fan-out（双目标 → 两摘要两解）；attach=true 落位链（实例在 grade 层 + params 摘要 + solveHash 十进制）；attach=false 参数组返回；strength/solver 透传；render gate 消费断言；**colormatch 经 list_iops/apply_params 元数据自动可用**（IopCatalog 既有机制端到端一条）。
+- **19-tool 快照族全量更新（checker 回注 E3，2026-10-09——独立验收面非顺手改数）**：`McpRegistrySnapshotTests`（:186）/`McpLauncherTests`（:200）/`McpHostTests`（:242/:694）`names.count`/`tools.count` 19→20 + `McpFinalSnapshotTests` frozen 逐字表（:165/:193）入 match_color descriptor/inputSchema 并更名 all20——四文件在 files_modified 申报内；`McpRenderParityTests.swift:564` 为注释级引用不动（checker 亲核）。工具名快照属 security face，更新显式入 SUMMARY。
+- 验收：`McpMatchColorToolsetTests`（APP）——schema 解析全参/缺省；reference 解析（id→`LibraryStore.image(id:)`+`ImageLinker.resolve` / 路径→`resolveMember` / 非法 typed 错误——m6 解析缝两形态各一条）；fan-out（双目标 → 两摘要两解）；**无头批量一条（checker 回注 E6）**：非打开 GUI 会话态目标图 → `extractStats(document:bucket:)` 无头提取 + store 级 attach 落位 → 摘要返回；attach=true 落位链（实例在 grade 层 + params 摘要 + solveHash 十进制）；attach=false 参数组返回 + **参数组经 `apply_params` 回灌成功端到端一条（checker 回注 m4——assetRef 语义说明在参数组内，显式 null 编码键集接纳）**；strength/solver 透传；render gate 消费断言；**colormatch 经 list_iops/apply_params 元数据自动可用**（IopCatalog 既有机制端到端一条）。
 
 ### T2 G4 端到端 parity（KD-2）
 
@@ -117,7 +122,7 @@ files_modified:
 
 ## 验收标准（AC 总表）
 
-1. **生效值⑥（最小面）**：match_color 五参签名全落（reference/targets 批量逐目标独立求解/strength/solver/attach）；返回摘要 + solveHash；微调/验收/元数据全走既有三工具（**零新 MCP 面**机检）。【T1】
+1. **生效值⑥（最小面）**：match_color 五参签名全落（reference/targets 批量逐目标独立求解/strength/solver/attach）；返回摘要 + solveHash；微调/验收/元数据全走既有三工具（**零新 MCP 面**机检）；**19-tool 快照族 19→20 全量更新 + match_color 入 frozen 逐字表（checker E3）**；无头批量提取/attach 一条（E6）+ attach=false 参数组 apply_params 回灌一条（m4）。【T1】
 2. **生效值⑧（G4）**：端到端 parity 链量化一致（Phase 14 SC#3 同型）+ solveHash 披露断言（G1 的 agent 可复验面）。【T2】
 3. **五门收口**：GATE-LEDGER 五门全表（定义/锚/终值带/落位）亲验闭合；对账链逐位。【T3】
 4. **确定性承诺**：同输入同 solveHash（双调用断言）——agent 自行复验可行。【T2】
