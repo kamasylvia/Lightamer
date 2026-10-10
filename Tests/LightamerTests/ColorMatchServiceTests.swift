@@ -173,6 +173,27 @@ final class ColorMatchServiceTests: XCTestCase {
         XCTAssertEqual(
             editorState.history.items.count, historyAfterFirst,
             "the re-solve's identical projection must not fabricate history")
+
+        // G1 full chain: the PERSISTED asset's table == the in-memory bake
+        // elementwise (solve → bake → serialize → write → load bit-exact
+        // through the real solution, not just the synthetic store test).
+        let loaded = ColormatchCubeAsset.load(
+            assetRef: params1.assetRef!, forImageURL: url,
+            expectedHash: params1.assetHash)
+        guard case .loaded(let table, _) = loaded else {
+            return XCTFail("the persisted asset failed verification: \(loaded)")
+        }
+        let curves = service.resolver.cdfSolution(
+            sourceStatsHash: String(source1.statsHash),
+            referenceStatsHash: String(reference.statsHash))
+        let expectedTable = ColorMatchBake.bake(
+            solution: try XCTUnwrap(curves), strength: 0.7)
+        XCTAssertEqual(table.count, expectedTable.count)
+        for (a, b) in zip(table, expectedTable) {
+            XCTAssertEqual(a.x.bitPattern, b.x.bitPattern)
+            XCTAssertEqual(a.y.bitPattern, b.y.bitPattern)
+            XCTAssertEqual(a.z.bitPattern, b.z.bitPattern)
+        }
     }
 
     // MARK: - The attach seam
