@@ -113,3 +113,7 @@
 ## C 档第 1 停（research 定稿停等裁决）
 
 本 CONTEXT 与 RESEARCH-NOTES.md 为 research 定稿产出（一笔 docs commit，未 push）。**按 AGENTS.md「C 档门控」第 1 条：Phase research 定稿后停——等用户过目 OQ-1..7（尤其 OQ-1 算法选型 / OQ-4 参数改义 / OQ-5 回翻时点）裁决后再入 plan。**晨审可整批推翻；推翻任一条 = 修订对应 plan（CONTEXT OQ 原文不改、以 Ruling 注记为准，沿 M2-3-CONTEXT E1 勘误先例）。
+
+## 裁决记录（用户回批 2026-10-10）
+
+**OQ-1..7 全部按推荐采纳（全 A）**：①Canny 式 NMS+滞回+链接（Steger 仅 golden 对照）②全 CPU 读回后段（GPU NMS 逃生口）③随场同键 coordinator carrier LRU 8 ④UI 零新增、followStrength 改义、stepPixels 撤出 ⑤验收门后翻回 .streamline ⑥合成 9 景 + 真图 8 景盒 ≥6/8 + snap 对照 ⑦V1 walker 实现体 golden 落地同批删除（分支保留）。
