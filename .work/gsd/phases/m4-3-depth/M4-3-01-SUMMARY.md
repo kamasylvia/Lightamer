@@ -1,7 +1,7 @@
 # M4-3-01 SUMMARY — Depth 蒙版批（DA V2 Small × M2AI-10 worker × Lumen 四段管线）
 
 > 执行 = ZCode executor subagent worker（夜间全自动授权在案）；
-> 2026-10-10，起点 `d2e234a`，批次 tip `644588e`（9 提交），基线 **3335/16/0**（M4-1-VALIDATION）。
+> 2026-10-10，起点 `d2e234a`，批次 tip `bfdeff9`（9 提交），基线 **3335/16/0**（M4-1-VALIDATION）。
 > 规格正本 = `M4-3-01-PLAN.md`；裁决正本 = `M4-3-CONTEXT.md`（OQ-1..7 全 A +
 > D-1..D-5）；执行期正本 = `M4-3-01-DECISIONS.md`（§1..§9）；
 > checker 处方回勾 = DECISIONS §9（m1..m7 全 ✅）。
