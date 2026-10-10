@@ -174,49 +174,65 @@ public enum ColorMatchSolver {
         source: ColorMatchStats, reference: ColorMatchStats,
         solver: ColorMatchSolverKind
     ) -> ColorMatchSolution {
-        let sourceHash = source.statsHash
-        let referenceHash = reference.statsHash
+        let float64 = solveMatrix64(source: source, reference: reference, solver: solver)
+        return assemble(
+            solver: solver, effectiveSolver: float64.effective, m: float64.m,
+            source: source, reference: reference,
+            sourceHash: source.statsHash, referenceHash: reference.statsHash)
+    }
+
+    /// The Float64 solve face (internal — the G1 math-structure gate
+    /// consumes it: the OT definition constraint is a FLOAT64 assertion;
+    /// the Float32 demotion face rides `solve` above).
+    static func solveMatrix64(
+        source: ColorMatchStats, reference: ColorMatchStats,
+        solver: ColorMatchSolverKind
+    ) -> (m: [Double], effective: ColorMatchSolverKind) {
         switch solver {
         case .gaussianOT:
             // R1: the rank check rides the REGULARIZED source covariance.
+            // The `<= 0` arm catches the zero-trace face (a constant-color
+            // source: trace 0 → ε 0 → eigenvalues 0 — `min < 0·1e-9` would
+            // be false and the sandwich would hit 1/√0 = inf).
             let s = regularizedCovariance(source)
             let (valuesS, vectorsS) = jacobiEigen(s)
             let traceS = s[0] + s[4] + s[8]
-            if min(valuesS.0, valuesS.1, valuesS.2) < rankFloorRelative * traceS {
-                return solveReinhard(
-                    source: source, reference: reference,
-                    solver: solver, sourceHash: sourceHash, referenceHash: referenceHash)
+            if min(valuesS.0, valuesS.1, valuesS.2) <= 0
+                || min(valuesS.0, valuesS.1, valuesS.2) < rankFloorRelative * traceS {
+                return (reinhardMatrix64(source: source, reference: reference), .reinhard)
             }
             let m = gaussianOTMatrix(
                 sourceCovEigen: (valuesS, vectorsS), source: source, reference: reference)
-            return assemble(
-                solver: solver, effectiveSolver: .gaussianOT, m: m,
-                source: source, reference: reference,
-                sourceHash: sourceHash, referenceHash: referenceHash)
+            return (m, .gaussianOT)
         case .reinhard:
-            return solveReinhard(
-                source: source, reference: reference,
-                solver: solver, sourceHash: sourceHash, referenceHash: referenceHash)
+            return (reinhardMatrix64(source: source, reference: reference), .reinhard)
         }
     }
 
     /// The S3 path (both the direct selection and the S1 fallback — one
     /// independent pure function, no shared internals with the sandwich).
-    static func solveReinhard(
-        source: ColorMatchStats, reference: ColorMatchStats,
-        solver: ColorMatchSolverKind, sourceHash: UInt64, referenceHash: UInt64
-    ) -> ColorMatchSolution {
+    /// Zero-trace source (a constant-color image): the diagonal ratio is
+    /// 0/0, so the honest face is the IDENTITY matrix + the pure-offset map
+    /// c = μt − μs (any M is "optimal" against a zero covariance; identity
+    /// is the neutral deterministic choice — DECISIONS).
+    static func reinhardMatrix64(
+        source: ColorMatchStats, reference: ColorMatchStats
+    ) -> [Double] {
         let s = regularizedCovariance(source)
+        let traceS = s[0] + s[4] + s[8]
+        guard traceS > 0 else {
+            return [1, 0, 0, 0, 1, 0, 0, 0, 1]
+        }
         let t = regularizedCovariance(reference)
-        // diag(σt_i/σs_i) — the regularized diagonals are ≥ ε > 0.
+        // diag(√(Σt_ii/Σs_ii)) — the STANDARD-DEVIATION ratio (checker E1's
+        // 对角归约 form: matching moments per axis means the transformed
+        // variance M²·Σs_ii lands on Σt_ii; the regularized diagonals are
+        // ≥ ε > 0 here).
         var m = [Double](repeating: 0, count: 9)
         for i in 0..<3 {
-            m[i * 3 + i] = t[i * 3 + i] / s[i * 3 + i]
+            m[i * 3 + i] = (t[i * 3 + i] / s[i * 3 + i]).squareRoot()
         }
-        return assemble(
-            solver: solver, effectiveSolver: .reinhard, m: m,
-            source: source, reference: reference,
-            sourceHash: sourceHash, referenceHash: referenceHash)
+        return m
     }
 
     /// The S1 sandwich: M = Σs^{−1/2}·(Σs^{1/2}·Σt·Σs^{1/2})^{1/2}·Σs^{−1/2}.
@@ -246,8 +262,10 @@ public enum ColorMatchSolver {
     ) -> ColorMatchSolution {
         let muS = SIMD3<Double>(source.mu)
         let muT = SIMD3<Double>(reference.mu)
-        let mRows = simd_double3x3(rows: (
-            SIMD3(m[0], m[1], m[2]), SIMD3(m[3], m[4], m[5]), SIMD3(m[6], m[7], m[8])))
+        let r0 = SIMD3(m[0], m[1], m[2])
+        let r1 = SIMD3(m[3], m[4], m[5])
+        let r2 = SIMD3(m[6], m[7], m[8])
+        let mRows = simd_double3x3(rows: [r0, r1, r2])
         let offset = muT - mRows * muS
         return ColorMatchSolution(
             solver: solver, effectiveSolver: effectiveSolver,
@@ -333,11 +351,14 @@ public enum ColorMatchSolver {
         entries.sort {
             $0.value != $1.value ? $0.value > $1.value : $0.column < $1.column
         }
-        let columns = (
-            SIMD3(v[entries.0.column * 3], v[entries.0.column * 3 + 1], v[entries.0.column * 3 + 2]),
-            SIMD3(v[entries.1.column * 3], v[entries.1.column * 3 + 1], v[entries.1.column * 3 + 2]),
-            SIMD3(v[entries.2.column * 3], v[entries.2.column * 3 + 1], v[entries.2.column * 3 + 2]))
-        let vectors = simd_double3x3(columns: columns)
+        let c0 = entries[0].column
+        let c1 = entries[1].column
+        let c2 = entries[2].column
+        // v is ROW-MAJOR: column j lives at stride 3 (v[j], v[3+j], v[6+j]).
+        let col0 = SIMD3(v[c0], v[3 + c0], v[6 + c0])
+        let col1 = SIMD3(v[c1], v[3 + c1], v[6 + c1])
+        let col2 = SIMD3(v[c2], v[3 + c2], v[6 + c2])
+        let vectors = simd_double3x3(columns: (col0, col1, col2))
         return ((entries[0].value, entries[1].value, entries[2].value), vectors)
     }
 
