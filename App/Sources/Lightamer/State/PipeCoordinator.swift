@@ -2021,7 +2021,9 @@ final class PipeCoordinator {
     /// flips → the entry misses; the imageID is folded in). The GPU
     /// submit rides `FollowEdges.edgeMap` — the MetalContext unique
     /// routing point (L031) — and the readback is the L014-fenced
-    /// ≤512-guard `FollowEdges.readEdgeMap`.
+    /// 1024-working-domain `FollowEdges.readEdgeMap` (M4-2-02: the call
+    /// site widens the ≤512 default for fine-ridge capture; the readback
+    /// signature/default is untouched).
     private var edgeMapFieldCache: [UInt64: EdgeMapField] = [:]
 
     private static let edgeMapFieldCacheLimit = 8
@@ -2098,7 +2100,7 @@ final class PipeCoordinator {
         do {
             let plane = try await FollowEdges.edgeMap(below: surface.plane, metal: metal)
             followEdgesEdgeMapRuns += 1
-            guard let field = FollowEdges.readEdgeMap(plane, metal: metal) else {
+            guard let field = FollowEdges.readEdgeMap(plane, maxLongEdge: 1024, metal: metal) else {
                 return nil
             }
             if edgeMapFieldCache.count >= Self.edgeMapFieldCacheLimit,

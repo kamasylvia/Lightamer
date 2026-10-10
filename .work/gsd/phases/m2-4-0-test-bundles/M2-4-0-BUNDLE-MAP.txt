@@ -578,7 +578,10 @@ APP	4	FilmCardTests.swift
 #   M4-2-01 T3 行内修订（2026-10-10，登记随文件同 commit）：九景 golden 矩阵
 #   +9（straight/arc/L/T-fork differential/bridged-gap/parallel/dip/texture/
 #   varying + 双跑确定性 + snap 对照轨），10→19。
-LAYERS	19	RidgeExtractTests.swift
+#   M4-2-02 T1 行内修订（2026-10-10，登记随文件同 commit）：readEdgeMap 1024
+#   工作域路径法（维度/最近邻 box 序 + 缺省 512 不变断言）+ 纯函数面零变负测
+#   （冻结 M4-2-01 graph/walk 值——readback 域不可达纯函数域），19→21。
+LAYERS	21	RidgeExtractTests.swift
 #   M4-2-01 T4 增行（2026-10-10，登记随文件同 commit）：FollowEdgesRidgeCacheTests
 #   = APP/App 级（carrier 折键/LRU/注入缝/合同计数器——真 coordinator 链），
 #   4 法；App 执行面 704→708。
