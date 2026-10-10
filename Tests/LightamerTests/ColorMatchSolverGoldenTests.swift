@@ -156,8 +156,6 @@ final class ColorMatchSolverGoldenTests: XCTestCase {
         let band64 = relErr(rebuilt64, T)
         XCTAssertLessThanOrEqual(
             band64, 1e-10, "Float64 M·Σs·Mᵀ vs Σt, got \(band64)")
-        XCTAssertLessThanOrEqual(
-            band64, 1e-10, "Float64 M·Σs·Mᵀ vs Σt, got \(band64)")
 
         // The Float32 demotion face (the public solution).
         let solution = ColorMatchSolver.solve(source: src, reference: ref, solver: .gaussianOT)
@@ -464,9 +462,5 @@ final class ColorMatchSolverGoldenTests: XCTestCase {
             Double(c.0.y), Double(c.1.y), Double(c.2.y),
             Double(c.0.z), Double(c.1.z), Double(c.2.z),
         ]
-    }
-
-    private func transpose(_ m: simd_double3x3) -> [Double] {
-        rowMajor(m)
     }
 }
