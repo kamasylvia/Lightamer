@@ -98,6 +98,7 @@ IOPP	9	LevelsParityTests.swift
 IOPP	16	LiquifyParityTests.swift
 IOPP	6	LocalContrastTests.swift
 IOPP	24	Lut3dEncodingTests.swift
+IOPP	2	ColormatchIdentityGoldenTests.swift
 IOPP	2	ColormatchKernelParityTests.swift
 IOPP	7	ColormatchModuleTests.swift
 IOPP	7	Lut3dGoldenImageTests.swift
