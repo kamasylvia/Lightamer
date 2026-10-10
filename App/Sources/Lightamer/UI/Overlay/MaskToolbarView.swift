@@ -38,11 +38,16 @@ internal struct MaskToolbarView: View {
     /// The layer-B asset phase — the SAME model the app-level
     /// AIDownloadPrompt observes (one state machine, D-07-CONTEXT-1).
     @Environment(AIDownloadModel.self) private var aiDownload
+    /// The depth mask orchestration (M4-3-01) — app-root owned, the
+    /// single DepthMaskService instance.
+    @Environment(DepthMaskService.self) private var depthService
 
     @State private var showsBrushPopover = false
 
     /// The AI generation lifecycle (spinner + error toast face).
     @State private var aiPhase: AIGenerationPhase = .idle
+    /// The depth generation lifecycle (the same three-state face).
+    @State private var depthPhase: AIGenerationPhase = .idle
     /// Non-nil = the layer-A multi-subject picker is up.
     @State private var instanceCatalog: AIInstanceCatalog?
     /// The T7 sugar: the invert assembly rides the pending generation (the
@@ -153,6 +158,7 @@ internal struct MaskToolbarView: View {
         .padding(.horizontal, 10)
         .padding(.bottom, 8)
         .accessibilityIdentifier("mask.toolbar")
+        .task { await depthService.refresh() }
         // T4 (KD-4, checker E1): the completion-time ask sheet — the
         // `ask` behavior's one-shot face. The choice is NOT persisted
         // (M2-3 semantics: ask on every completion; no "don't ask again").
@@ -393,6 +399,118 @@ internal struct MaskToolbarView: View {
             .accessibilityLabel(Text("ai_download_retry"))
             .accessibilityIdentifier("ai.mask.tap.retry")
         }
+
+        depthGroup
+    }
+
+    // MARK: - Depth group (M4-3-01 KD-6, OQ-4-A: ONE entry, zero parameter
+    // face — 0.48/0.22 window and the 10/95 percentiles are named Core
+    // constants, nothing here exposes them; far side = the invert bit).
+
+    @ViewBuilder
+    private var depthGroup: some View {
+        Divider()
+            .frame(height: 16)
+        switch DepthEntryGate.map(service: depthService.entry, running: depthPhase == .running) {
+        case .generating:
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 24, height: 22)
+                .accessibilityLabel(Text("ai_mask_depth"))
+                .accessibilityIdentifier("ai.mask.depth.progress")
+        case .generate:
+            Button {
+                Task { await generateDepthMask() }
+            } label: {
+                Image(systemName: "square.stack.3d.up.forward")
+                    .font(.callout)
+                    .frame(width: 24, height: 22)
+                    .cornerRadius(4)
+            }
+            .buttonStyle(.borderless)
+            .disabled(!hasSelection)
+            .accessibilityLabel(Text("ai_mask_depth"))
+            .accessibilityIdentifier("ai.mask.depth")
+        case .download(let armed):
+            Button {
+                Task {
+                    await downloadAndGenerateDepth()
+                }
+            } label: {
+                Image(systemName: "arrow.down.circle.dotted")
+                    .font(.callout)
+                    .frame(width: 24, height: 22)
+                    .cornerRadius(4)
+            }
+            .buttonStyle(.borderless)
+            .disabled(!armed || !hasSelection)
+            .help(String(localized: "ai_mask_depth_download_help"))
+            .accessibilityLabel(Text("ai_mask_depth_download"))
+            .accessibilityIdentifier("ai.mask.depth.download")
+        case .downloading(let fraction):
+            ProgressView()
+                .controlSize(.mini)
+                .frame(width: 24, height: 22)
+            Text(verbatim: "\(Int((fraction * 100).rounded()))%")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("ai.mask.depth.downloading")
+        case .retry:
+            Button {
+                Task {
+                    await downloadAndGenerateDepth()
+                }
+            } label: {
+                Image(systemName: "exclamationmark.arrow.circlepath")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                    .frame(width: 24, height: 22)
+                    .cornerRadius(4)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("ai_download_retry"))
+            .accessibilityIdentifier("ai.mask.depth.retry")
+        }
+    }
+
+    // MARK: depth generation flows
+
+    /// One depth generation (the service owns preview → worker → pipeline;
+    /// the commit lands through the shared seam). The noDepthStructure
+    /// face carries its own toast (the honest no-layering message).
+    private func generateDepthMask() async {
+        guard let metal = metalContext else { return }
+        depthPhase = .running
+        defer { if case .running = depthPhase { depthPhase = .idle } }
+        do {
+            try await depthService.generate(
+                coordinator: pipeCoordinator, editorState: editorState,
+                editingState: editingState, metal: metal)
+            depthPhase = .idle
+            editorState.presentToast(String(localized: "ai_toast_mask_ready"))
+        } catch let error as AIMaskError {
+            depthPhase = .idle
+            if case .noDepthStructure = error {
+                editorState.presentToast(
+                    String(localized: "ai_toast_depth_no_structure"))
+            } else {
+                editorState.presentToast(
+                    String(localized: "ai_toast_generate_failed") + " (\(error))")
+            }
+        } catch {
+            depthPhase = .idle
+            editorState.presentToast(
+                String(localized: "ai_toast_generate_failed") + " (\(error))")
+        }
+    }
+
+    /// The single-tap journey: download → extract → one generation (the
+    /// service reports its own done/failed toasts and re-reads the gate).
+    private func downloadAndGenerateDepth() async {
+        guard let metal = metalContext else { return }
+        await depthService.downloadThenGenerate(
+            coordinator: pipeCoordinator, editorState: editorState,
+            editingState: editingState, metal: metal)
     }
 
     // MARK: generation flows

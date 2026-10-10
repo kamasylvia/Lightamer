@@ -227,6 +227,34 @@ final class DepthMaskEditingTests: XCTestCase {
         XCTAssertEqual(smallProps[kCGImagePropertyPixelHeight] as? Int, 250)
     }
 
+    // MARK: - The toolbar's visual fold (T5, KD-6)
+
+    /// The five faces fold from the pure gate + the local phase; the
+    /// disabled「待发布」arm comes from needsDownload(hasDigest: false).
+    func testEntryGateVisualFold() {
+        XCTAssertEqual(
+            DepthEntryGate.map(service: .ready, running: false), .generate)
+        XCTAssertEqual(
+            DepthEntryGate.map(service: .ready, running: true), .generating,
+            "the running phase wins over the gate (the spinner face)")
+        XCTAssertEqual(
+            DepthEntryGate.map(
+                service: .needsDownload(hasDigest: true), running: false),
+            .download(armed: true))
+        XCTAssertEqual(
+            DepthEntryGate.map(
+                service: .needsDownload(hasDigest: false), running: false),
+            .download(armed: false),
+            "the fail-closed face renders the DISABLED download entry")
+        XCTAssertEqual(
+            DepthEntryGate.map(service: .downloading(0.3), running: false),
+            .downloading(0.3))
+        XCTAssertEqual(
+            DepthEntryGate.map(
+                service: .failed("re-download will self-heal"), running: false),
+            .retry)
+    }
+
     // MARK: - The commit seam (race guard + one history item)
 
     private static let fixtureDirectory: URL = {
