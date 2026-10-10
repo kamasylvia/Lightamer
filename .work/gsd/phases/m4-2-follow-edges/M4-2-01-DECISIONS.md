@@ -74,4 +74,41 @@
 
 ## 3. 偏差注记（申报外扩 / 计划内收窄）
 
-（T7 收口补全）
+- **T4 活动阈值管线缺口（KD-4 收窄）**：`FollowEdgesSurface` 增加
+  `var edgeThreshold: Float = 0.25`（memberwise 三参构造点零漂移），但冻结的
+  overlay 腿无法把滑杆实时值穿进 surface——surface 阈值恒缺省 0.25。非缺省
+  阈值走 walker 的新鲜 lazy 路径（`RidgeGraph.high` 戳拒绝旧 carrier，行为
+  恒正确、只是不缓存）；缓存只在缺省阈值生效 = **观察项挂账**（修复需
+  LightamerApp 装配线或 overlay 一行——两者皆出本 plan front-matter 边界）。
+  机检面：E1 折键一致性测 + stale-refusal 测双在册。
+- **T4 `FollowEdgesRidgeCache` 落位 PipeCoordinator.swift 内**（plan front-matter
+  的 PipeCoordinator 行原文——不开新 App 源文件）；测试文件
+  `FollowEdgesRidgeCacheTests.swift` 为 front-matter 在册新增。
+- **T2-T4 期间观察到 `RasterEditFaceTests.testRestoreWinsOverDerive` 间歇失败**
+  （M4-1 挂账 #6 同族）：T3 基线 stash 后仍复现（与本批零相关）；单测隔离轮
+  通过、带插桩负载通过、全套轮再跑通过（708/0/0 终值绿）——load 敏感的
+  seed/restore 竞态，修复方向已在 M4-1 R1-R4 对账在案，归 M4-1 挂账 #6 所有，
+  本批不动。
+- **T3 snap 对照轨门读法收窄**（§1 已录）：「首点距 snapTarget 结果 ≤2px」
+  字面在均匀脊上不可满足（snapTarget = 最强像素 tie 扫描序首中，沿脊可偏
+  12px），按「共享贴边几何」执行——首点与 snap 结果各自贴真值 ≤2px。
+
+## 4. T5 门判定与 T6 处置（2026-10-10 收口）
+
+- **T5 = FAIL（0/8，{0.25, 0.15} 双阈，双跑逐行一致）**。证据正本 = evidence 仓
+  `m4-2-01/probe/`（`156b7cf`）。V2 同协议实质优于 V1（attach 5/5、弧长 22px vs
+  V1 ≤3 点/≤4px + 82/100 空）但未过 ≥6/8 门。
+- **KD-5 三分支判别**：主导 = **「细脊缺响应」→ P2 armed**（DIAG mle=1024：best
+  walk 24 点/81px，功能双腿均满足——升级口有效）；附随 = 算法层观察项
+  （DIAG-2 纯骑行分数 0.38：碎片网 junction 门致骑行掉链），随报不上分支。
+- **T6 未执行**（门 = T5 PASS）：`LayerEditingState` 缺省维持 `.snap`（`d10f681`
+  熔断态不变）；`mask_follow_strength_hint` 键未加（0 键——随 T6 一并搁置，回翻
+  批再议）。M4-2-02 触发判定 = **armed**（GOAL-STATE 续接点登记）。
+- **勘误（账面对射）**：plan 头引「`60582c3` 熔断一行」维持 plan 期勘误 =
+  **`d10f681`**（`git log -S "FollowEdgesParams(mode: .snap)"` 亲证）；本批
+  M1 双撤出后的收口 grep：`maxPoints` 全仓仅 FollowEdges.swift 单文件命中、
+  params 字段零命中、`stepPixels`/`initialHeading`/`strongestRingGradient`
+  全仓零命中（机检亲证）。
+- **与本批无关的随报项**：`RasterEditFaceTests.testRestoreWinsOverDerive` 间歇
+  失败（T3 基线 stash 复现、隔离/带载/重跑通过、App 708/0/0 终值绿）= M4-1
+  挂账 #6 同族 seed/restore 竞态，归 M4-1 所有。
