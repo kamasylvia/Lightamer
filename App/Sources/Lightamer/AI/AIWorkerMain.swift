@@ -134,6 +134,10 @@ private actor WorkerLoop {
     /// The enhancement family's sessions (Plan M2-10-06): one per
     /// (profile, units), carrying the model's shape facts.
     private var enhancementSessions: [String: EnhancementSession] = [:]
+    /// The depth family's sessions (M4-3-01): one per (profile, units);
+    /// the static shape lives in the manifest, so the open response
+    /// carries no facts.
+    private var depthSessions: [String: DepthSession] = [:]
     private var anonymousID: UInt64 = 0
 
     init(input: FileHandle, output: FileHandle) {
@@ -194,6 +198,7 @@ private actor WorkerLoop {
                 send(AIWorkerResponse(id: request.id, ok: true))
                 sessions.removeAll()
                 enhancementSessions.removeAll()
+                depthSessions.removeAll()
                 return
             case nil:
                 #if DEBUG
@@ -253,33 +258,82 @@ private actor WorkerLoop {
                 request.id, "profile assets absent: \(profile)", nil)
             return
         }
-        // The enhancement family opens through its OWN leg (M2-10-06): one
-        // package, the static-shape facts read from the model description.
-        guard manifest.embeddingDim != nil else {
+        // The KD-2 family dispatch (M4-3-01): three legs, each preserving
+        // its prior body verbatim — clip (the M2-10-05 tower leg),
+        // enhancement (the M2-10-06 tile leg), depth (the new leg).
+        switch manifest.family {
+        case .clip:
+            guard let profileDirectory = locator.bundledProfileURL(profile) else {
+                sendError(
+                    request.id, "profile assets absent: \(profile)", nil)
+                return
+            }
+            // Units-level load failure (the ANE/GPU compilation can
+            // genuinely fail per device): answered WITH the culprit — the
+            // client's degradation bookkeeping input (KD-2).
+            do {
+                let imageURL = profileDirectory.appendingPathComponent(
+                    manifest.assetFileName)
+                let textURL = profileDirectory.appendingPathComponent(
+                    manifest.assetFileName.replacingOccurrences(
+                        of: "-img.", with: "-txt."))
+                let runner = try InProcessMLModelRunner(
+                    imageModelURL: imageURL, textModelURL: textURL,
+                    computeUnits: units.mlComputeUnits,
+                    compileCacheDirectory: AIWorkerMain.compiledCacheDirectory(
+                        profile: profile))
+                sessions[key] = runner
+            } catch {
+                sendError(
+                    request.id,
+                    "model load failed on \(units.rawValue): \(error)", units)
+                return
+            }
+            send(AIWorkerResponse(
+                id: request.id, ok: true,
+                result: AIWorkerResult(profile: profile, units: units.rawValue)))
+        case .enhancement:
             openEnhancementLeg(
                 request, profile: profile, units: units, manifest: manifest)
+        case .depth:
+            openDepthLeg(
+                request, profile: profile, units: units, manifest: manifest)
+        }
+    }
+
+    /// The depth open leg (M4-3-01 KD-2): resolve the extracted package
+    /// (the DepthMaskService resolver owns the unzip; this reads what is on
+    /// disk), compile+load with the requested compute units. The static
+    /// shape is manifest-borne, so — unlike the enhancement leg — the open
+    /// response carries NO facts (m5's two-leg shape difference: depth nil
+    /// tileEdges/scale, enhancement non-nil). Asset absence = profile-level
+    /// (no culprit); a load failure on the requested units = units-level.
+    private func openDepthLeg(
+        _ request: AIWorkerRequest,
+        profile: String, units: AIComputeUnits,
+        manifest: ModelAssetManifest
+    ) {
+        let key = AIWorkerMain.sessionKey(profile: profile, units: units)
+        if depthSessions[key] != nil {
+            send(AIWorkerResponse(
+                id: request.id, ok: true,
+                result: AIWorkerResult(profile: profile, units: units.rawValue)))
             return
         }
-        guard let profileDirectory = locator.bundledProfileURL(profile) else {
+        guard let package = DepthSession.resolvePackage(
+            profile: profile, manifest: manifest, locator: locator)
+        else {
             sendError(
                 request.id, "profile assets absent: \(profile)", nil)
             return
         }
-        // Units-level load failure (the ANE/GPU compilation can genuinely
-        // fail per device): answered WITH the culprit — the client's
-        // degradation bookkeeping input (KD-2).
         do {
-            let imageURL = profileDirectory.appendingPathComponent(
-                manifest.assetFileName)
-            let textURL = profileDirectory.appendingPathComponent(
-                manifest.assetFileName.replacingOccurrences(
-                    of: "-img.", with: "-txt."))
-            let runner = try InProcessMLModelRunner(
-                imageModelURL: imageURL, textModelURL: textURL,
+            let session = try DepthSession(
+                packageURL: package, manifest: manifest,
                 computeUnits: units.mlComputeUnits,
                 compileCacheDirectory: AIWorkerMain.compiledCacheDirectory(
                     profile: profile))
-            sessions[key] = runner
+            depthSessions[key] = session
         } catch {
             sendError(
                 request.id,
@@ -363,6 +417,10 @@ private actor WorkerLoop {
             await forwardPathRun(request, session: enhancement, payload: payload)
             return
         }
+        if let depth = depthSessions[key] {
+            await forwardDepthRun(request, session: depth, payload: payload)
+            return
+        }
         sendError(
             request.id, "run before open: \(request.profile ?? "-")", nil)
     }
@@ -432,6 +490,36 @@ private actor WorkerLoop {
                 outPath: URL(fileURLWithPath: outPath),
                 feedHeight: feedHeight, feedWidth: feedWidth,
                 amount: payload.tile?.amount)
+            send(AIWorkerResponse(
+                id: request.id, ok: true,
+                result: AIWorkerResult(outPath: outPath)))
+        } catch {
+            // The worker stays healthy (the Lumen error-frame parity).
+            sendError(request.id, "run failed: \(error)", nil)
+        }
+    }
+
+    /// The depth PATH-channel leg (M4-3-01 KD-2): the session decodes the
+    /// sRGB preview JPEG, stretches to the static manifest shape, forwards,
+    /// and writes the F32 plane (8-byte header) to `outPath`. A run-level
+    /// failure leaves the worker healthy (no culprit — the error-frame
+    /// parity above; the client surfaces it typed without chain cost).
+    private func forwardDepthRun(
+        _ request: AIWorkerRequest, session: DepthSession,
+        payload: AIWorkerPayload
+    ) async {
+        guard let inPath = payload.inPath,
+              let outPath = payload.outPath
+        else {
+            sendError(
+                request.id,
+                "path-channel run requires inPath and outPath", nil)
+            return
+        }
+        do {
+            try await session.run(
+                inPath: URL(fileURLWithPath: inPath),
+                outPath: URL(fileURLWithPath: outPath))
             send(AIWorkerResponse(
                 id: request.id, ok: true,
                 result: AIWorkerResult(outPath: outPath)))

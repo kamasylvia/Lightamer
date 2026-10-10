@@ -247,6 +247,37 @@ public final class AIWorkerClient: AIInferencing, @unchecked Sendable {
         }
     }
 
+    /// One depth inference through the PATH channel (M4-3-01 KD-2, the
+    /// enhanceTile form field-for-field): the worker decodes the sRGB
+    /// preview JPEG at `inPath`, stretches to the static manifest shape,
+    /// forwards, and writes the F32 plane (8-byte header) to `outPath`.
+    /// The fallback chain wraps the whole leg (ANE-native crash →
+    /// CompatRecord bookkeeping + respawn + next-rung retry); a run-level
+    /// error frame is typed without chain consumption. The open response
+    /// carries no facts (static shape = manifest) — `lastEnhancementModel-
+    /// Facts` stays nil through a depth open (ensureOpen's nil arm).
+    @discardableResult
+    public func runDepth(
+        _ profileID: String, inPath: String, outPath: String
+    ) async throws -> String {
+        try await runOnQueue {
+            try self.withFallbackChain(profile: profileID) { units in
+                let response = try self.requestSync(
+                    AIWorkerRequest(
+                        id: self.nextRequestID(), op: AIWorkerOp.run.rawValue,
+                        profile: profileID, units: units.rawValue,
+                        payload: AIWorkerPayload(
+                            inPath: inPath, outPath: outPath)),
+                    timeout: self.configuration.runTimeout)
+                guard response.ok, let outPath = response.result?.outPath else {
+                    throw AIWorkerClientError.requestFailed(
+                        response.error ?? "depth run returned no output path")
+                }
+                return outPath
+            }
+        }
+    }
+
     // MARK: - Liveness (tests + health diagnostics)
 
     /// One ping round trip against a (possibly freshly spawned) worker.

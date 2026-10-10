@@ -580,3 +580,7 @@ LAYERS	8	DepthMaskPipelineTests.swift
 #   M4-3-01 T2 增行（2026-10-10，登记随文件同 commit）：DepthMaskPipelineTests =
 #   LAYERS/Core 级（numpy 锚 percentile + 两级靶三断言 + 斜坡单调/窗带/Double 参考
 #   golden + 窗平移参数扫描 + 双 typed 负测 + NaN 负测 + byteIdentity 纯函数性），8 法。
+APP	3	DepthWorkerLegTests.swift
+#   M4-3-01 T3 增行（2026-10-10，登记随文件同 commit）：DepthWorkerLegTests =
+#   APP/真子进程（crash 注入链走 runDepth + envelope 零新字段往返 + 资产缺席
+#   typed 无 culprit 门控轮），3 法。

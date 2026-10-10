@@ -132,24 +132,32 @@ final class LCRSettingsTests: XCTestCase {
 
     // MARK: - 2: refresh over the real store (temp locator)
 
-    func testRefreshBuildsFiveRowsWithFailClosedReleaseFaces() async {
+    func testRefreshBuildsSixRowsWithFailClosedReleaseFaces() async {
         let model = makeModel(workerProbe: { .ready })
         await model.refresh()
-        XCTAssertEqual(model.rows.count, 5, "the whole M2-10-01 catalog")
+        XCTAssertEqual(model.rows.count, 6, "the M2-10-01 catalog + M4-3-01 depth")
         XCTAssertEqual(model.readiness, .ready)
 
         // The two bundled profiles: present in the test host's bundle.
         XCTAssertEqual(row(model, "chinese-clip-vitb16-int8").action, .builtIn)
         XCTAssertEqual(row(model, "realesr-general-x4v3-fp16").action, .builtIn)
 
-        // The three release profiles: digests unpublished (the 01 wave
-        // fail-closed state) → 「待发布」 with no download button.
+        // The three pre-depth release profiles: digests unpublished (the
+        // 01 wave fail-closed state) → 「待发布」 with no download button.
         for id in ["jina-clip-v2-int8", "real-esrgan-x4plus-fp16", "drunet-color-fp16"] {
             XCTAssertEqual(
                 row(model, id).action, .awaitingRelease,
                 "\(id) digest is nil — download refused, honest copy shown")
             XCTAssertNil(row(model, id).sizeCopy)
         }
+
+        // The M4-3-01 depth profile: digest published in-repo (build-time,
+        // plan-sanctioned digest-before-upload) → the download action arms
+        // (a pending-asset 404 surfaces as the typed allSourcesFailed face)
+        // with the size copy from the real digest.
+        let depth = row(model, "depth-anything-v2-small-f16")
+        XCTAssertEqual(depth.action, .download)
+        XCTAssertNotNil(depth.sizeCopy, "published digest → the size face")
     }
 
     func testRemoveDropsTheInstalledArtifactToTerminalState() async throws {
