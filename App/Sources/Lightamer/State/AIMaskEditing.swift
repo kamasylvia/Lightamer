@@ -33,6 +33,10 @@ enum AIMaskSource: String, Sendable {
     case segment = "ai-segment"
     /// SkinRegionLocator skin mask (SkinSmoothPanel「定位皮肤」).
     case skin = "ai-skin"
+    /// DepthMaskService near mask (MaskToolbar「深度」— M4-3-01). The
+    /// `ai-depth` prefix stays disjoint from the segment marker, so the
+    /// LayerEditingState segment discriminant is untouched.
+    case depth = "ai-depth"
 
     /// The stable per-layer mask file name (same name on every re-bake —
     /// D-07-CONTEXT-5 overwrite semantics).
@@ -44,7 +48,7 @@ enum AIMaskSource: String, Sendable {
     /// marker: re-arming the tap mode on a layer-B mask seeds a REFINE
     /// session pointing at the same file).
     static func source(ofFileName fileName: String) -> AIMaskSource? {
-        for source in [AIMaskSource.subject, .segment, .skin]
+        for source in [AIMaskSource.subject, .segment, .skin, .depth]
         where fileName.hasPrefix(source.rawValue + "-") {
             return source
         }
