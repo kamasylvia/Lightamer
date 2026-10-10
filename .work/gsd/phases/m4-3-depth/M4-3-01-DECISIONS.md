@@ -128,3 +128,48 @@ DepthWorkerLegTests 的门控轮在真机全真跑。本机已装，2026-10-10�
 - **fixture 生成器偏离申报**：「真实 RAW 降采样样张」不可满足（隐私红线：
   个人照片不入开源仓；许可证红线：参考仓图像为 GPL UI 截图）→ 确定性
   合成自然样张替代（seed 20261010），README 偏差节在案。
+
+## §7 T8 收口补记：跨 bundle fixture 污染事故（本批引入，已修复自证）
+
+- **现象**：App bundle 的 RasterEditFaceTests（restore/seed 两法）在 T4 落地后
+  的全量轮间歇失败（今日 5 轮中 3 挂），隔离/静默轮恒绿。
+- **真因**：DepthMaskEditingTests 的 commit 直驱测试直接 load 共享 fixture
+  （srgb-matrix-8.tif）→ `commitRasterMask` 的 masks 目录 + sidecar 落在
+  fixture 旁（`ai-depth-*.png` mtime = 本批测试运行时刻实锤）→ 与
+  RasterEditFaceTests 的 restore 读跨 bundle 互踩（M4-1 挂账 #6 同形，但
+  污染源是本批新测试）。
+- **修复**：commit 测试改 tempFixtureCopy（fixture 拷 temp 再 load，tearDown
+  随目录清除）；残留 `.lra`/`.lra.masks` 手工清除（untracked 不入 git）。
+- **自证**：修复后 DepthMaskEditingTests 9/0/0 + fixture 目录零残留；
+  RasterEditFaceTests 7/0/0；全 App bundle 711/4/0 全绿（含全量 Depth 测试
+  真跑）。对照实验存档：深度包移除（Depth 测试全 skip）轮 flaky 仍挂 →
+  当时排除了「本批测试负载」假说但未抓到污染真因；最终由 fixture 目录
+  mtime 取证定位。**教训入 LESSONS（L072）**：直驱 commit 类测试的图片锚
+  必须 temp 化——共享 fixture 旁的 sidecar/masks 是跨 bundle 共享态。
+- **遗留（非本批）**：Layers bundle 基线测试仍有 debounce 泄漏（22:38 的
+  `.lra` 写入发生在本批测试全 temp 化之后；写入者 = Raster* 基线族）——
+  挂账 #6 原有形态延续，untracked 不阻塞。
+
+## §8 Release 上传与真下载端到端走查（spike ② 兑现）
+
+- Release `ai-models-v1` 创建（仓 = kamasylvia/Lightamer，PUBLIC）+ zip 上传：
+  **45,759,882 bytes = digest byteCount 逐位**。
+- 真下载走查（standalone harness 走真链）：删本地安装位 →
+  `ModelAssetStore.download`（真网，GitHub Release URL 优先源）→
+  status notInstalled→installed → resolver ensurePackage 解包 →
+  DepthSession 生成一轮（812,232 bytes，header 518×392）→ 下载 zip 的
+  SHA-256 与在库 digest **逐位一致**（sha match: true）。
+- 走查 harness = 一次性 /tmp 编译（AIWorkerDepth + ModelAssetStore + 目录
+  真源 + walkmain），即弃。
+
+## §9 m1..m7 处方回勾（checker 报告兑现表）
+
+| 项 | 处方 | 落点 | 状态 |
+|---|---|---|---|
+| m1 | bundle CLI 名 = Layers/Library/App 小写 | 全部执行/验收命令 | ✅（照 checker 勘误执行，plan 文本未改） |
+| m2 | 读回头校验消费 spike 钉死的 (H,W) 单源 | DepthSession init 从 manifest 取 (inputSize, inputShortEdge)；DepthMaskService.readDepthPlane 同源 | ✅（**spike 真值 392 非 396**，§1） |
+| m3 | DepthSession 输出 isfinite 守卫 → typed inferenceFailed | DepthSession.floatPlane nonFiniteOutput（run 级错误帧 → requestFailed） | ✅ |
+| m4 | zip 内容断言落点脚本自检 | build-depth-release-asset.sh zipinfo 6 条目断言 + NOTICE 署名断言（缺件 exit≠0）+ §2 记录 | ✅（处方①） |
+| m5 | 三腿路由负测 = family 穷举 + env 门控真模型 open 形状 | (a) ModelAssetCatalogTests.testFamilyExhaustiveOverAllProfiles（T1）；(b) DepthGoldenTests.testWorkerLoopEndToEnd（lastEnhancementModelFacts nil 断言） | ✅ |
+| m6 | 两级靶近区面积 >5% | 两级靶近区 10.25%（DepthMaskPipelineTests）；过渡带断言由斜坡件承载 | ✅ |
+| m7 | HEADLESS import 白名单补 LightamerCore + AC#3 grep 门豁免 SemanticEngine | AIWorkerDepth 头注白名单四项；grep 门 = App target 产线构造点仅在 worker 三文件（T8 机检） | ✅ |
