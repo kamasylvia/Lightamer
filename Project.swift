@@ -470,6 +470,7 @@ let project = Project(
             sources: [
                 "Tests/LightamerTests/Fixtures.swift",
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
+                "Tests/LightamerTests/ColorMatchOklabTests.swift",
                 "Tests/LightamerTests/AIMaskDeterminismTests.swift",
                 "Tests/LightamerTests/AIMaskEditPathsTests.swift",
                 "Tests/LightamerTests/AIMaskGeometryTests.swift",
