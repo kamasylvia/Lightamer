@@ -646,3 +646,4 @@ LIB	5	MertensProvenanceTests.swift
 IOP	13	MertensLegTests.swift
 IOP	5	MertensRasterDomainTests.swift
 APP	3	MertensMergeUITests.swift
+EXPORT	1	MertensFusionPerfProbeTests.swift
