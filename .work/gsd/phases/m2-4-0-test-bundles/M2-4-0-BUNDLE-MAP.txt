@@ -620,3 +620,11 @@ APP	1	DepthPerfProbeTests.swift
 #   M4-3-01 T7 增行（2026-10-10，登记随文件同 commit）：DepthPerfProbeTests =
 #   APP/env 门控探针（LIGHTAMER_PERF_PROBE=1 + 资产门控双 skip；三档 N=5 中位
 #   数 + 端到端一趟），1 法（默认套件 skip 零失败）。
+
+# M5-2-01 增行记录（2026-10-13 执行期，checker E2 测试登记纪律）：四新测试文件
+#   随各自任务 commit 登记进对应 bundle（归属按 front-matter 判定：
+#   MertensFusionTests / MertensMergeKindTests = IOP/Core 级（FocusStackTests/
+#   StackMergeServiceTests 同位）；MertensFusionGoldenTests = IOPP 级（Golden*
+#   域惯例）；MertensProvenanceTests = LIB/Core 级（ProvenanceV4Tests 同位）。
+#   行内 method 数以终态对账为准。运行期总数基线上移（3477 起算）。
+IOP	13	MertensFusionTests.swift
