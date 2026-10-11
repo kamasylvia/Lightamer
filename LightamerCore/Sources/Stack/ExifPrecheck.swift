@@ -290,6 +290,97 @@ public enum ExifPrecheck {
         return verdicts
     }
 
+    // MARK: - The MERTENS verdict run (Plan M5-2-01 T3; KD-6 / OQ-5)
+
+    /// The exposure-fusion admissibility gate: ZERO rejections, period.
+    /// The Mertens mode's value IS metadata-free admissibility (no CRF, no
+    /// EV requirement — a same-exposure pack is merely unprofitable, never
+    /// illegal), so every difference here is a WARNING: body / lens /
+    /// focal / aperture / ISO / missing metadata. Shutter carries NO
+    /// requirement at all (equal shutters are legal — the mode's own
+    /// value proposition).
+    ///
+    /// The ΔEV is STILL composed (the 08-1 BRIGHTNESS-multiple formula:
+    /// shutter ratio + ISO ratio, reference-relative; missing components
+    /// contribute 0 — the stack-family flat-zero precedent) but only as
+    /// bookkeeping: it is recorded in provenance, NEVER consumed by the
+    /// fusion weights (the Mertens weights are content-driven). The
+    /// consumer (warnings + the provenance EV ride) is the M5-2-02 leg.
+    public static func mertensVerdicts(
+        reference: CaptureMetadata, candidate: CaptureMetadata
+    ) -> Verdict {
+        var warnings: [String] = []
+
+        if !metadataMatches(reference.cameraModel, candidate.cameraModel) {
+            warnings.append(
+                "camera mismatch: \(reference.cameraModel ?? "?") vs "
+                    + "\(candidate.cameraModel ?? "?")")
+        }
+        if reference.lensModel != nil || candidate.lensModel != nil,
+           reference.lensModel != candidate.lensModel {
+            warnings.append(
+                "lens mismatch: \(reference.lensModel ?? "?") vs "
+                    + "\(candidate.lensModel ?? "?")")
+        }
+        if let refFocal = reference.focalLength, let candFocal = candidate.focalLength {
+            if abs(refFocal - candFocal) > 0.5 {
+                warnings.append(
+                    "focal length mismatch: \(refFocal)mm vs \(candFocal)mm")
+            }
+        } else {
+            warnings.append("focal length metadata missing")
+        }
+        if let refAperture = reference.aperture, let candAperture = candidate.aperture {
+            if abs(refAperture - candAperture) > 0.05 {
+                warnings.append(
+                    String(
+                        format: "aperture mismatch: f/%.1f vs f/%.1f",
+                        refAperture, candAperture))
+            }
+        } else {
+            warnings.append("aperture metadata missing")
+        }
+        var isoRatio = 1.0
+        if let refISO = reference.iso, let candISO = candidate.iso {
+            if refISO != candISO {
+                isoRatio = Double(candISO) / Double(refISO)
+                warnings.append("ISO mismatch: \(refISO) vs \(candISO)")
+            }
+        } else {
+            warnings.append("ISO metadata missing")
+        }
+        // NO shutter requirement (equal = legal); missing metadata warns.
+        if reference.shutterSpeed == nil || candidate.shutterSpeed == nil {
+            warnings.append("shutter metadata missing")
+        }
+
+        // The EV composition (the 08-1 BRIGHTNESS-multiple semantics,
+        // missing components → 0) — recorded, never consumed.
+        var exposureEV = 0.0
+        if let refShutter = reference.shutterSpeed, let candShutter = candidate.shutterSpeed,
+           candShutter > 0 {
+            exposureEV += log2(candShutter / refShutter)
+        }
+        exposureEV += log2(isoRatio)
+
+        if warnings.isEmpty {
+            return .ok(exposureEV: exposureEV)
+        }
+        return .admittedWithWarning(exposureEV: exposureEV, reasons: warnings)
+    }
+
+    /// The run of the whole Mertens bracket (reference first; the
+    /// reference's own verdict is `.ok(0)` — the strict-runs' shape).
+    public static func mertensVerdicts(captures: [CaptureMetadata]) -> [Verdict] {
+        guard let reference = captures.first else { return [] }
+        var verdicts: [Verdict] = [.ok(exposureEV: 0)]
+        for index in captures.indices.dropFirst() {
+            verdicts.append(
+                mertensVerdicts(reference: reference, candidate: captures[index]))
+        }
+        return verdicts
+    }
+
     // MARK: - The runtime exposure-ratio self-check (§1.2)
 
     /// Compare the MEASURED median ratio of the two frames' unclipped luma
