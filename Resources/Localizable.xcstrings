@@ -31505,6 +31505,23 @@
           }
         }
       }
+    },
+    "editor_stack_add_module" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Module"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加模块"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

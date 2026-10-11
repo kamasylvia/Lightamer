@@ -217,7 +217,10 @@ APP	71	PanelWiringTests.swift
 APP	17	NodeGraphCommandTests.swift
 APP	6	NodeOwnershipCatalogTests.swift
 APP	8	McpRegistrySnapshotTests.swift
-APP	12	EditorStackRoutingTests.swift
+APP	13	EditorStackRoutingTests.swift
+#   M5-1-02 OMP-fix 增行（2026-10-11，登记随 commit）：+1 法 testColormatchAddRowGate-
+#   AndBaseChainAttach（E-omp1 修复面：LUT 页 add 行 gate 纯函数 + base-chain attach
+#   seam + layer-scope 负测；12→13）。
 APP	9	CatalogAddFaceTests.swift
 APP	9	McpLauncherSentinelTests.swift
 APP	9	SettingsPagesTests.swift
@@ -274,7 +277,10 @@ LAYERS	8	ColorMatchCDFSolverTests.swift
 LAYERS	6	ColorMatchPoolingTests.swift
 LAYERS	6	ColorMatchBakeGoldenTests.swift
 LAYERS	8	ColormatchCubeAssetTests.swift
-APP	6	ColorMatchServiceTests.swift
+APP	7	ColorMatchServiceTests.swift
+#   cbd1afa 同类勘误补记（2026-10-11，OMP-fix 批随账）：4cc1c52 T8 给本文件 +1 法
+#   （invalidateAll gate 扩展面）但 cbd1afa 只修了 IOPP 两行——本行 6 滞留为 P1 值，
+#   实数 7（grep 互证；App bundle 执行总数 724 不受扰，仅 per-file 账面）。
 APP	6	ColorMatchPanelModelTests.swift
 LAYERS	10	AIMaskSemanticTests.swift
 LAYERS	10	LayerCacheTests.swift

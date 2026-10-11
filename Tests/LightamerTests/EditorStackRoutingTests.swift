@@ -365,6 +365,50 @@ final class EditorStackRoutingTests: XCTestCase {
             ])
     }
 
+    // MARK: - M5-1-02 E-omp1 fix: the LUT page's colormatch add row
+
+    /// The default-face bootstrap: the LUT page's add row is the ONLY GUI
+    /// path to the first colormatch instance in the gate-false face (the
+    /// legacy「添加模块」menu rides InspectorView, structurally unreachable
+    /// here). The gate is base-scope-only while the base chain carries no
+    /// colormatch record; the attach rides the SAME seam the Solve face
+    /// runs (`addModuleToBaseChain`, ColorMatchService.solveAndAttach).
+    func testColormatchAddRowGateAndBaseChainAttach() throws {
+        // The template factory carries the colormatch case (M5-1-01 T5's
+        // 20th row) — a nil template would silently drop the menu entry.
+        let template = try XCTUnwrap(
+            EditorState.templateInstance(for: ColormatchModule.opName))
+        XCTAssertEqual(template.opName, ColormatchModule.opName)
+
+        // Gate: base scope + no colormatch instance → the row shows.
+        let editor = EditorState()
+        XCTAssertTrue(
+            EditorAdjustmentStackView.lutColormatchAddRowGate(
+                instances: editor.instances, layerID: nil),
+            "base scope with no colormatch record shows the add row")
+
+        // The attach lands the record on the base chain and closes the gate
+        // (a second press cannot duplicate — the gate is presence-keyed).
+        let record = try XCTUnwrap(
+            editor.addModuleToBaseChain(template: template))
+        XCTAssertEqual(
+            editor.instances.first { $0.opName == ColormatchModule.opName }?.id,
+            record.id,
+            "the add lands the colormatch record on the base chain")
+        XCTAssertFalse(
+            EditorAdjustmentStackView.lutColormatchAddRowGate(
+                instances: editor.instances, layerID: nil),
+            "an existing colormatch record hides the add row (the row+panel face takes over)")
+
+        // Layer scope never offers the row: colormatch is base-resident by
+        // design (the Solve face attaches to the base chain), so a layer-
+        // scope add could never close the gate.
+        XCTAssertFalse(
+            EditorAdjustmentStackView.lutColormatchAddRowGate(
+                instances: [], layerID: UUID()),
+            "a selected layer hides the add row")
+    }
+
     // MARK: - The disabled-six constant (the M2-1 disable face, quoted once)
 
     private static let disabledSix: Set<String> = [
