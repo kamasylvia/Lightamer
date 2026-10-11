@@ -1180,8 +1180,13 @@ internal final class PixelPipe: @unchecked Sendable {
             record: params.record, film: params.filmProfile, paper: params.paperProfile,
             materialPairHash: params.materialPairHash, histogram: histogram,
             plane: input, metal: metal)
-        defer { FilmMethodBox.runContext = nil }
-        FilmMethodBox.runContext = assembled.payloads
+        // fix(film-leg): the payloads ride the box INSTANCE (handed in
+        // through `FilmTailAssembly.instances` below) — the former
+        // process-wide `FilmMethodBox.runContext` static slot was set here
+        // and cleared by defer across the `runSub` await window, so two
+        // overlapping coordinator renders stomped each other's payloads
+        // (over-release → the `_swift_release_dealloc` crash; M5-1-03
+        // ACCEPTANCE §7). Instance state has no cross-run window.
         let filmPipe = PixelPipe(resolution: resolution, cache: cache)
         filmPipe.imageID = imageID
         filmPipe.layerStack = layerStack
@@ -1193,7 +1198,8 @@ internal final class PixelPipe: @unchecked Sendable {
             solvedPackHash: assembled.solvedPackHash)
         let (output, _) = try await filmPipe.runSub(
             input: input, inputROI: inputROI,
-            instances: FilmTailAssembly.instances(method: assembled.method),
+            instances: FilmTailAssembly.instances(
+                method: assembled.method, payloads: assembled.payloads),
             decodeHash: seed, metal: metal, layerID: cacheLayerID)
         let outputHash = Self.chain(
             seed, FilmTailAssembly.methodParamsHash(method: assembled.method))

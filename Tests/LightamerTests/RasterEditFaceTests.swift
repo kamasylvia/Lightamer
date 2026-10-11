@@ -174,6 +174,11 @@ final class RasterEditFaceTests: XCTestCase {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let url = try fixture("srgb-matrix-8.tif")
         let sidecarURL = LightamerSidecar.sidecarURL(for: url)
+        // Entry pre-clean (M4-1 ledger #6): this test assumes a clean
+        // start — a stale orphan sidecar (e.g. from an older run's
+        // write-behind) must not satisfy the restore leg before the forge
+        // below writes its own record.
+        try? FileManager.default.removeItem(at: sidecarURL)
         defer { try? FileManager.default.removeItem(at: sidecarURL) }
 
         // Build a persisted edit through the REAL write path.

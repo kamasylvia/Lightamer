@@ -286,9 +286,26 @@ final class RasterRoundTripTests: XCTestCase {
     // MARK: - The edit replay
 
     func testEditReplaySurvivesFlushAndReload() async throws {
-        let source = try fixture("srgb-matrix-8.tif")
+        // M4-1 ledger #6: the sidecar WRITE leg rides a TMP copy of the
+        // fixture — the repo `Tests/Fixtures/` directory never grows a
+        // `.lra` (the App bundle's testRestoreWinsOverDerive reads this
+        // exact fixture path and assumes a clean start; an orphan left
+        // here poisoned the next round deterministically).
+        let repoFixture = try fixture("srgb-matrix-8.tif")
+        let repoSidecarURL = LightamerSidecar.sidecarURL(for: repoFixture)
+        // Entry pre-clean: a stale orphan from an older run must not
+        // poison this round (defensive — this test no longer writes the
+        // repo path at all).
+        try? FileManager.default.removeItem(at: repoSidecarURL)
+        let source = tempDirectory.appendingPathComponent("srgb-matrix-8.tif")
+        try FileManager.default.copyItem(at: repoFixture, to: source)
         let sidecarURL = LightamerSidecar.sidecarURL(for: source)
-        defer { try? FileManager.default.removeItem(at: sidecarURL) }
+        // Exit sweep (belt and braces — tempDirectory teardown already
+        // covers the tmp domain; the repo sweep is the defensive face).
+        defer {
+            try? FileManager.default.removeItem(at: sidecarURL)
+            try? FileManager.default.removeItem(at: repoSidecarURL)
+        }
 
         func makeAssembly() async throws -> (
             EditorState, PipeCoordinator, WorkspaceModel, MetalContext
