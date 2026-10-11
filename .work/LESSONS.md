@@ -756,3 +756,20 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **golden 侧**：三假说递进——①ICC 缺失致 CG/PIL 输入分歧（嵌 sRGB profile 数字逐位不变 → 证伪；全平面 byte-diff=0）；②ANE vs CPU 设备分叉（standalone .cpuOnly session 与 coremltools CPU predict **逐位一致** max-diff=0.000000 → 证伪）；③**真因 = 测试参考块错索引**——ref-f32.bin 按生成器五输入序排块，测试用 gate 列表枚举序取块 → edges 对上 horizon 的参考。**教训：golden 对照失败先证「参考侧对位」（输出-vs-参考的索引/序映射单源化），再疑产线执行路径**；`referenceOrder` 显式单源 + 探针三路对拍（session/py/ref）是最快定位手法。
 - **污染侧**：直驱 `commitRasterMask` 的测试直接 load 共享 fixture → masks 目录（`.lra.masks/ai-depth-*.png`）+ sidecar（`.lra`）落在 fixture 旁 → 跨 bundle 污染 RasterEditFaceTests 的 restore 读竞态（mtime 取证实锤 = 本批测试运行时刻）。**教训：凡产线缝会「图片 URL 旁写文件」的测试，图片锚一律 temp 拷贝**（`tempFixtureCopy` 形态）；共享 fixture 目录是跨 bundle 共享态，mtime 是污染归属的第一证据。对照实验纪律：一次「嫌疑测试全 skip 仍挂」只能排除负载假说，不能排除已落盘残留——**先清场再对照**。
 - **处置**：修复（tempFixtureCopy + 残留清除）后 App 711/4/0 全绿 + RasterEditFaceTests 7/0/0；三向对照存档 = `phases/m4-3-depth/M4-3-01-DECISIONS.md` §7。
+
+## L075（2026-10-12）— test-direct.sh 直用 DerivedData 产物：改测试后必须先 build-for-testing 对应 scheme（M5-1-03 假红事故）
+
+- **现象**：改完测试文件直接跑 `Scripts/test-direct.sh --bundle App <类>`，两轮
+  结果与行号逐字节相同（5 败 → 修完 → 仍同 5 败）——跑的是**旧宿主产物里的旧
+  测试代码**；补 `xcodebuild build-for-testing -scheme <对应 bundle 的 scheme>`
+  后立刻转为真实结果。
+- **根因**：test-direct.sh 直启 `DerivedData/.../LightamerTests<Bundle>.xctest`
+  宿主（L019b 直启纪律的副作用），**自身不触发编译**；`-quiet` 下编译步骤
+  缺位 = 产物陈旧不可见。首批新测试能跑到，是因为此前刚为编译验证跑过
+  build-for-testing——掩盖了脚本无编译步的事实。
+- **对策**：①任何测试文件改动后，先对**受影响 bundle 的 scheme**（含同文件
+  重新编列的其它 bundle）跑 `build-for-testing`，再进 test-direct；②连续两轮
+  输出逐字节相同 + 行号不动 = 陈旧产物签名，先怀疑产物不怀疑修复；③L041
+  （tuist generate 在文件落盘后）管的是工程编列，本条管的是**产物新鲜度**，
+  两道工序缺一不可。
+- **适用**：一切 test-direct.sh 定向轮/收口轮；执行波与验收波同罚。
