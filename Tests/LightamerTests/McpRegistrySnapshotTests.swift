@@ -13,7 +13,7 @@ import XCTest
 //   - probe    → this file (retires at 14-4 T1 together with the tools)
 //   - editing  → 14-2 fills this file with its expected list
 //   - culling  → 14-3's own McpCullingToolsetTests
-//   - the cross-domain union (the frozen 19-tool closed set) → 14-4 T3
+//   - the cross-domain union (the frozen 20-tool closed set) → 14-4 T3
 //
 // The InMemoryTransport leg (research §RQ-14-1③ test dividend) is the third
 // host form: the SAME registry kernel asserted end-to-end inside one process.
@@ -26,7 +26,7 @@ final class McpRegistrySnapshotTests: XCTestCase {
     /// Asserts one domain's snapshot: the name set, each descriptor's schema
     /// (verbatim JSON) and the annotations hints. `expected` is the full
     /// expected list for the registry under test (domain-scoped registries
-    /// assert their own list; the 14-4 union asserts all 19).
+    /// assert their own list; the 14-4 union asserts all 20).
     static func assertSnapshot(
         registry: McpToolRegistry,
         expected: [McpToolDescriptor],
@@ -160,6 +160,14 @@ final class McpRegistrySnapshotTests: XCTestCase {
                     inputSchemaJSON:
                         #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"format":{"type":"string","enum":["jpeg","png","tiff","heic","avif","webp"],"default":"jpeg"},"quality":{"type":"integer","minimum":1,"maximum":100,"default":90,"description":"Lossy formats only"},"sizing":{"type":"object","properties":{"mode":{"type":"string","enum":["original","longEdge","shortEdge"],"default":"original"},"px":{"type":"integer","minimum":1,"description":"Required for longEdge/shortEdge"}}},"colorSpace":{"type":"string","enum":["sRGB","displayP3","adobeRGB","proPhoto","rec2020"],"default":"sRGB"},"yiyin":{"type":"boolean","default":false,"description":"Render through the image's existing yiyin frame/watermark configuration"}},"required":["relPath"]}"#,
                     destructiveHint: true),
+                McpToolDescriptor(
+                    // M5-1-03 (checker E3): match_color joins the editing
+                    // domain — this domain snapshot edits consciously.
+                    name: "match_color",
+                    description: "match",
+                    inputSchemaJSON:
+                        #"{"type":"object","properties":{"reference":{"type":"string","description":"Reference image: a library image id (digits) or an open-session relPath"},"targets":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}],"maxItems":30,"description":"Target relPath(s) relative to the session root; default = the editor's current image"},"strength":{"type":"number","minimum":0,"maximum":1,"default":1,"description":"The solve/identity blend"},"solver":{"type":"string","enum":["gaussian-ot","reinhard","cdf"],"default":"gaussian-ot"},"attach":{"type":"boolean","default":true,"description":"false = return the params for apply_params instead of writing"}},"required":["reference"]}"#,
+                    destructiveHint: true),
             ])
     }
 
@@ -167,7 +175,7 @@ final class McpRegistrySnapshotTests: XCTestCase {
 
     /// The 14-1 probe pair (ping/count_images) is retired: a bare kernel
     /// (no editing/culling seams) must expose NO tools at all — the tool
-    /// face is exactly the closed 19-tool set, never a probe residue.
+    /// face is exactly the closed 20-tool set, never a probe residue.
     func testProbeFaceRetiredFromBareRegistry() async throws {
         let registry = await makeProbeRegistry()
         let descriptors = await registry.descriptors()
@@ -183,7 +191,7 @@ final class McpRegistrySnapshotTests: XCTestCase {
         let names = await registryWithFaces.descriptors().map(\.name)
         XCTAssertFalse(names.contains("ping"), "ping is retired")
         XCTAssertFalse(names.contains("count_images"), "count_images is retired")
-        XCTAssertEqual(names.count, 19, "the closed face is exactly 19 tools")
+        XCTAssertEqual(names.count, 20, "the closed face is exactly 20 tools (M5-1-03 match_color joined)")
     }
 
     /// A minimal LOCAL double for the transport-echo tests (the registry

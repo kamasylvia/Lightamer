@@ -5,23 +5,26 @@ import XCTest
 @testable import Lightamer
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Plan 14-4 T3: the FINAL snapshot — the frozen 19-tool closed set (research
-// §A is the canonical table; D-14-CONTEXT-3③: the tool face IS a security
-// face) + the whitelist negative + the SC#7 launcher end-to-end chain with
-// the dual-entry coexistence proof.
+// Plan 14-4 T3: the FINAL snapshot — the frozen closed set (research §A is
+// the canonical table; D-14-CONTEXT-3③: the tool face IS a security face) +
+// the whitelist negative + the SC#7 launcher end-to-end chain with the
+// dual-entry coexistence proof. M5-1-03 (KD-1, checker E3): match_color
+// joined the editing domain — the freeze is the 20-tool set, all19 → all20.
 //
 // Snapshot layers (all three must consciously change together):
-//   - the editing domain (5)      → McpRegistrySnapshotTests (14-2)
+//   - the editing domain (6)      → McpRegistrySnapshotTests (14-2)
 //   - the culling domain (14)     → McpCullingToolsetTests (14-3)
-//   - THE UNION (19)              → this file (the final freeze)
+//   - THE UNION (20)              → this file (the final freeze)
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class McpFinalSnapshotTests: XCTestCase {
 
-    // MARK: - The frozen 19-tool table (research §A verbatim)
+    // MARK: - The frozen 20-tool table (research §A verbatim + M5-1-03)
 
     /// §A #1 load_image … #4 list_iops, #3 render_preview, #19 export_image
-    /// (the 14-2 face; schemas byte-equal the registration source).
+    /// (the 14-2 face; schemas byte-equal the registration source), plus
+    /// #20 match_color (M5-1-03 — checker E3: the descriptor rides the
+    /// frozen table, the count assertions 19→20, NOT an executor side edit).
     static let editingTools: [McpToolDescriptor] = [
         McpToolDescriptor(
             name: "apply_params",
@@ -52,6 +55,12 @@ final class McpFinalSnapshotTests: XCTestCase {
             inputSchemaJSON:
                 #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"}},"required":["relPath"]}"#,
             readOnlyHint: true),
+        McpToolDescriptor(
+            name: "match_color",
+            description: "snapshot",
+            inputSchemaJSON:
+                #"{"type":"object","properties":{"reference":{"type":"string","description":"Reference image: a library image id (digits) or an open-session relPath"},"targets":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}],"maxItems":30,"description":"Target relPath(s) relative to the session root; default = the editor's current image"},"strength":{"type":"number","minimum":0,"maximum":1,"default":1,"description":"The solve/identity blend"},"solver":{"type":"string","enum":["gaussian-ot","reinhard","cdf"],"default":"gaussian-ot"},"attach":{"type":"boolean","default":true,"description":"false = return the params for apply_params instead of writing"}},"required":["reference"]}"#,
+            destructiveHint: true),
     ]
 
     /// §A #5-10 + #11-18: the 14-tool culling face (schemas byte-equal the
@@ -143,7 +152,7 @@ final class McpFinalSnapshotTests: XCTestCase {
             destructiveHint: true),
     ]
 
-    static var all19: [McpToolDescriptor] { editingTools + cullingTools }
+    static var all20: [McpToolDescriptor] { editingTools + cullingTools }
 
     // MARK: - The assembly
 
@@ -155,21 +164,21 @@ final class McpFinalSnapshotTests: XCTestCase {
             culling: McpServerController.makeCullingContext(session: { nil }))
     }
 
-    /// THE final freeze: every host assembles exactly these 19 descriptors —
+    /// THE final freeze: every host assembles exactly these 20 descriptors —
     /// names, VERBATIM inputSchema JSON and the §A annotation column.
-    func testFinalSnapshotUnion19Verbatim() async throws {
+    func testFinalSnapshotUnion20Verbatim() async throws {
         let registry = await makeUnionRegistry()
         try await McpRegistrySnapshotTests.assertSnapshot(
-            registry: registry, expected: Self.all19)
+            registry: registry, expected: Self.all20)
         let descriptors = await registry.descriptors()
-        XCTAssertEqual(descriptors.count, 19, "D3: the final count is 19")
-        // §A annotations at a glance: exactly 8 destructive tools, 11 read.
+        XCTAssertEqual(descriptors.count, 20, "D3: the final count is 20 (M5-1-03 match_color joined)")
+        // §A annotations at a glance: exactly 9 destructive tools, 11 read.
         let destructive = descriptors.filter { $0.destructiveHint == true }.map(\.name)
         XCTAssertEqual(
             Set(destructive),
-            ["apply_params", "export_image", "set_rating", "set_flag",
+            ["apply_params", "export_image", "match_color", "set_rating", "set_flag",
                 "set_color_label", "append_note", "set_keywords", "apply_preset"],
-            "the write face is the §A destructive column")
+            "the write face is the §A destructive column + match_color (M5-1-03)")
     }
 
     /// Domain consistency: the editing-only and culling-only assemblies are
@@ -190,13 +199,14 @@ final class McpFinalSnapshotTests: XCTestCase {
         XCTAssertEqual(Set(c), Set(Self.cullingTools.map(\.name)))
         XCTAssertTrue(Set(e).isDisjoint(with: Set(c)), "no tool rides two domains")
         XCTAssertEqual(Set(u), Set(e).union(Set(c)))
-        XCTAssertEqual(u.count, 19)
+        XCTAssertEqual(u.count, 20)
     }
 
-    /// The whitelist negative: a 20th tool does NOT exist. `match_color` is
-    /// the named zero-occupancy case (研究项 C — §RQ-14-15: the closed
-    /// enumeration never reserved it); a random name rides the same error.
-    func testTwentiethToolIsWhitelistNegative() async throws {
+    /// The whitelist negative: a 21st tool does NOT exist. `match_color` WAS
+    /// the named zero-occupancy case until M5-1-03 landed it (the closed
+    /// enumeration grew by one deliberate edit — this snapshot); a random
+    /// name rides the same error.
+    func testPostUnionToolIsWhitelistNegative() async throws {
         let registry = await makeUnionRegistry()
         let pair = await InMemoryTransport.createConnectedPair()
         let server = await McpAdapters.makeServer(registry: registry)
@@ -206,7 +216,7 @@ final class McpFinalSnapshotTests: XCTestCase {
         defer {
             Task { await client.disconnect(); await server.stop() }
         }
-        for name in ["match_color", "delete_file", "run_shell"] {
+        for name in ["delete_file", "run_shell"] {
             do {
                 _ = try await client.callTool(name: name)
                 XCTFail("'\(name)' must NOT exist (tool face = security face)")
@@ -217,7 +227,7 @@ final class McpFinalSnapshotTests: XCTestCase {
             }
         }
         let tools = try await client.listTools().tools
-        XCTAssertEqual(tools.count, 19, "no 20th tool rides the list either")
+        XCTAssertEqual(tools.count, 20, "no 21st tool rides the list either")
     }
 
     // MARK: - zh/en description keys (D-14-CONTEXT-3②: the L025 face)
@@ -244,6 +254,7 @@ final class McpFinalSnapshotTests: XCTestCase {
         "get_detail_crop": "mcp_tool_desc_get_detail_crop",
         "list_bursts": "mcp_tool_desc_list_bursts",
         "get_face_regions": "mcp_tool_desc_get_face_regions",
+        "match_color": "mcp_tool_desc_match_color",
     ]
 
     /// Every final tool has a zh description key with a non-empty value AND
@@ -359,7 +370,7 @@ final class McpFinalSnapshotTests: XCTestCase {
         let direct = MCP.Client(name: "direct-entry", version: "0.0.1")
         try await direct.connect(transport: directTransport)
         let directTools = try await direct.listTools().tools.map(\.name)
-        XCTAssertEqual(directTools.count, 19, "the direct entry sees the full face")
+        XCTAssertEqual(directTools.count, 20, "the direct entry sees the full face")
 
         // ── Entry 2: the LAUNCHER pulls the sentinel agent. ──
         let script = Self.agentScript(agentDir: agentDir.path)

@@ -155,6 +155,7 @@ enum EditingToolset {
             handler: { arguments in
                 try await exportImageBody(arguments: arguments, seams: seams)
             })
+        await MatchColorToolset.register(into: registry, seams: seams)  // M5-1-03 T1: the whole implementation is MatchColorToolset.swift (sealed-face minimal diff — this file's only edit)
     }
 
     // MARK: - Shared argument faces
