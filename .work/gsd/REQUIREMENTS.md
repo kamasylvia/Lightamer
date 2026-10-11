@@ -634,7 +634,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 
 ## V2 Requirements
 
-### Color Transfer / 追色 (TRACK)【V2；2026-09-22 用户指令维持 V2（当日曾短暂提级 Phase 7，已回撤）】—— **M5-1 执行完成（2026-10-12，三 plan 收口；OQ-M5-1-1..8 全按推荐 2026-10-11 用户回批；五门台账正本 = `phases/m5-1-track/M5-1-GATE-LEDGER.md`，终态 Delivered 由 VALIDATION 批盖）**（research 正本 = `phases/m5-1-track/`；charter 正本 = ROADMAP §Milestone 5）
+### Color Transfer / 追色 (TRACK)【V2；2026-09-22 用户指令维持 V2（当日曾短暂提级 Phase 7，已回撤）】—— **M5-1 phase closed（2026-10-13 VALIDATION signed——`phases/m5-1-track/M5-1-VALIDATION.md`：三 plan 双验收全 PASS〔02 波 omp FAIL→fix→复验闭环〕+ 五门全绿 + 终态 3477/21skip/0fail；OQ-M5-1-1..8 全按推荐 2026-10-11 用户回批；五门台账正本 = `phases/m5-1-track/M5-1-GATE-LEDGER.md`；TRACK-01..05 终态 Delivered 本 VALIDATION 盖验落签）**（research 正本 = `phases/m5-1-track/`；charter 正本 = ROADMAP §Milestone 5）
 
 > **定位再确认（2026-09-26）**：计算核 native 不可外包——追色是统计算法（Reinhard/CDF/OT → 3D LUT），TRACK-05 确定性门与 TRACK-02 多参考统计聚合排除 agent vision 迭代路线（LumaRescue 类方法论无色彩匹配算法）。MCP+agent 作**编排皮**：选参考/批量触发/强度/事后微调（MCP-09 研究项 C `match_color` 工具位，依赖本模块 colormatch iop）；与 AIV2-01「AI 追色」的语义由编排层承载。GUI 拖入交互（TRACK-04）与 agent 编排并存不冲突。
 
