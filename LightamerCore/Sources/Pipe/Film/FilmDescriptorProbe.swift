@@ -6,10 +6,10 @@ import Metal
 // §8.1): a 1024×1 neutral ramp (pixels = 0.184·2^E, E uniform on
 // [−12, +12]) through the REAL film sub-run — the payload assembly rides
 // `PixelPipe.assembleFilmLeg` (the production film leg's own factory) and
-// the dispatch rides the production `FilmMethodBox` with its run-context
-// seam. NO parallel implementation of the chain exists anywhere here: the
-// probe is definitionally correct because it is the same code path as the
-// picture.
+// the dispatch rides the production `FilmMethodBox` with its per-run
+// instance payload carrier. NO parallel implementation of the chain exists
+// anywhere here: the probe is definitionally correct because it is the same
+// code path as the picture.
 //
 // PROBE CONFIG (auto exposure off): the neutral pack (the solve's M0/Y0),
 // zero manual shifts, strength 1, record exposureEv 0, and gain = 1 —
@@ -86,13 +86,14 @@ public enum FilmDescriptorProbe {
             throw ProbeError.payloadAssemblyDegraded
         }
 
-        // ③ The production box dispatch (the run-context seam — set/clear
-        // inside this synchronous window, runFilmLeg's own escape).
-        let box = FilmMethodBox(record: assembled.method.record, method: assembled.method)
+        // ③ The production box dispatch (the payloads ride the BOX INSTANCE
+        // — fix(film-leg): the former process-wide runContext static slot
+        // set/cleared here is gone; the instance has no cross-run window).
+        let box = FilmMethodBox(
+            record: assembled.method.record, method: assembled.method,
+            payloads: payloads)
         var piece = IOPiece()
         box.commitParams(assembled.method, into: &piece)
-        FilmMethodBox.runContext = payloads
-        defer { FilmMethodBox.runContext = nil }
         try await box.process(
             input: input, output: output, roiIn: ROI(), roiOut: ROI(),
             piece: &piece, metal: metal)

@@ -136,8 +136,13 @@ public enum FilmTailAssembly {
     /// `[FilmMethodBox]` — the film sub-run's whole chain (the fused
     /// transform is ONE box; the negative segment and the print LUT sample
     /// live in a single kernel, KD-1's no-intermediate-plane discipline).
-    public static func instances(method: FilmMethodBox.Params) -> [any ModuleBoxing] {
-        [ModuleBox(module: FilmMethodBox(record: method.record, method: method))]
+    /// The run's GPU payloads ride the box INSTANCE (fix(film-leg): the
+    /// per-run carrier — never a shared slot).
+    public static func instances(
+        method: FilmMethodBox.Params, payloads: FilmGPUPayloads?
+    ) -> [any ModuleBoxing] {
+        [ModuleBox(module: FilmMethodBox(
+            record: method.record, method: method, payloads: payloads))]
     }
 
     /// The display-replay resident filter (the 3×2 matrix's replay half,
@@ -228,10 +233,23 @@ public final class FilmMethodBox: IOPModule {
     /// The resolved method params (the T1 identity face when the materials
     /// never resolved — the caller hands the same Params in).
     public let method: Params
+    /// The run's GPU payloads, carried BY the box instance (the fix(film-leg)
+    /// batch, M5-1-03 ACCEPTANCE §7): the film leg constructs this box fresh
+    /// per run and hands the payloads in at construction — the former
+    /// process-wide `runContext` static slot hung across the leg's await
+    /// window, and concurrent coordinator renders over-released /
+    /// cross-consumed each other's payloads (the `_swift_release_dealloc`
+    /// crash family). Instance state has exactly one owner chain per run:
+    /// the box lives in the leg pipe's pieces for the sub-run's duration.
+    /// nil (or the test seam) = the identity degrade.
+    public let runPayloads: FilmGPUPayloads?
 
-    public init(record: FilmRecord, method: Params? = nil) {
+    public init(
+        record: FilmRecord, method: Params? = nil, payloads: FilmGPUPayloads? = nil
+    ) {
         self.record = record
         self.method = method ?? Params(record: record)
+        self.runPayloads = payloads
     }
 
     public func reloadDefaults(image: DecodedImage) async -> Params {
@@ -260,11 +278,11 @@ public final class FilmMethodBox: IOPModule {
         metal: MetalContext
     ) async throws {
         // The fused leg needs the run's GPU payloads (the curve buffer +
-        // the baked table — installed by the pipe's film leg assembly).
-        // Absent payloads = the identity degrade: the T1 carrier face (a
-        // box processed outside the film leg's assembly — unresolved
-        // materials, tests without profiles).
-        guard let context = FilmMethodBox.runContext ?? FilmMethodBox.assemblyContextForTesting,
+        // the baked table — handed in at construction by the pipe's film
+        // leg assembly). Absent payloads = the identity degrade: the T1
+        // carrier face (a box processed outside the film leg's assembly —
+        // unresolved materials, tests without profiles).
+        guard let context = runPayloads ?? FilmMethodBox.assemblyContextForTesting,
             let command = context.payload(for: method)
         else {
             try blitIdentity(input: input, output: output, metal: metal)
@@ -297,14 +315,18 @@ public final class FilmMethodBox: IOPModule {
 
     /// The film leg uploads the curve buffer + the baked print table PER
     /// RUN (the profiles are per-document; the buffers are run-scoped —
-    /// never cached beyond the run, the PlaneCache discipline). The pipe
-    /// films this context onto the leg pipe; the box reads it at process.
-    /// `nonisolated(unsafe)` + explicit set/clear INSIDE runFilmLeg — the
-    /// same escape the DisplayProfile seam uses (one writer, synchronous
-    /// window, no cross-run leakage).
-    nonisolated(unsafe) static var runContext: FilmGPUPayloads?
-
-    /// Test injection face (never set by production code).
+    /// never cached beyond the run, the PlaneCache discipline). The payloads
+    /// ride the BOX INSTANCE (`runPayloads`, handed in at construction) —
+    /// the fix(film-leg) batch removed the former process-wide `runContext`
+    /// static slot here: its set → await runSub → defer-clear window was
+    /// cross-run shared state, and overlapping coordinator renders
+    /// over-released / cross-consumed each other's payloads (the
+    /// single-writer assumption broke under concurrency; M5-1-03
+    /// ACCEPTANCE §7). The instance carries the same value with exactly one
+    /// owner chain per run — no ambient channel, no window.
+    ///
+    /// The test injection face below remains the only static (never written
+    /// by production code; a box with nil `runPayloads` consults it).
     nonisolated(unsafe) static var assemblyContextForTesting: FilmGPUPayloads?
 }
 
