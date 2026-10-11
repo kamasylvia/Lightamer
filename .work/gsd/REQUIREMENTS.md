@@ -371,7 +371,7 @@ Deferred to future release. Tracked but not in current roadmap.
 来源 = `.work/gsd/research/LUMEN-RAW-NOTES.md`（MIT 项目，只借鉴模式不搬代码）；DNG 导出候选经用户裁决**不采纳**。
 
 - **IOP-HDR-06**: Mertens 曝光融合——无 CRF 估计的快速 HDR 合并第二模式（含多档 deghosting），与已交付 Robertson02（IOP-HDR-01）互为合并选项；输出 32f HDR 进 IOP-HDR-04 管线 —— **✅ Delivered（2026-10-15 M5-2 VALIDATION signed，`phases/m5-2-mertens/M5-2-VALIDATION.md`；双验收双波全 PASS，IOP-HDR-06 三列对账锚 = 七 Mertens 测试文件 47 法；终态 = 定向七 bundle 拼表 `TOTAL 3538/22/0`〔分割重跑，修复后基线 3539/22/0〕；交付面 = MertensFusion 纯函数族〔三因子权重 + 分位映射 + deghost 四态默认 medium + Float64 孪生〕+ `mertensVerdicts` 免 EV 预检零拒绝面 + `hdrMertens` 生产腿流式〔MTB 对齐复用 + band-outer halo 流式 + 共享 union 掩码单通道 + 129 点置换 LUT in-pass〕+ sRGB-tagged 32f 经 M4-1 raster ingest〔两域判别钉〕+ UI 两菜单项并存 + `_mertens` 分账 + provenance `hdr-merge-mertens`；预算 = ru_maxrss 6248MB<8G 门 + 融合核 172.24s@100MP×5 预算内零 GPU 化触发；六门 G1-G5 全绿 + G6 行 2/5 omp 实机回填〔余行挂账 M5-4〕；E-1 生产腿 LUT 兜底缺口随验收批 `358abd8` 单源化修复闭环）**（2026-10-11 M5 立项）
-- **IOP-PANO-01**: 全景合成——特征匹配对齐 + 相机参数优化 + 球面投影 + 分块羽化融合，输出 100MP+ 大图入正常编辑管线；v1 合成族（HDR/焦点堆栈/降噪堆栈）之外的新合成模式 —— **→ M5-3（▶ next：research 起草中，C 档第 1 停）**（2026-10-11 M5 立项）
+- **IOP-PANO-01**: 全景合成——特征匹配对齐 + 相机参数优化 + 球面投影 + 分块羽化融合，输出 100MP+ 大图入正常编辑管线；v1 合成族（HDR/焦点堆栈/降噪堆栈）之外的新合成模式 —— **→ M5-3（research 起草完成 2026-10-15，正本 = `phases/m5-3-pano/M5-3-CONTEXT.md` + `RESEARCH-NOTES.md`；OQ-M5-3-1..7 待裁决 = C 档第 1 停；Delivered 翻账随 phase VALIDATION）**（2026-10-11 M5 立项）
 
 ### Film Simulation Extensions (v2) — SpektraLab 借鉴（2026-10-02 用户指令吸纳）
 
