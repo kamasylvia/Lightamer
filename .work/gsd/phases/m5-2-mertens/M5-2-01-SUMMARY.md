@@ -22,7 +22,7 @@ L075 build-for-testing 先于每轮 test-direct）。
 
 | AC | 生效值 | 证据 | 状态 |
 |---|---|---|---|
-| 1 OQ-1 自实现 | 纯 Swift + MIT 注记；`git grep -i opencv LightamerCore/ App/` 零命中；Project.swift dependencies 块 0 diff（`git diff 1d1f438 -- Project.swift \| grep -c '^[+-].*\.package'` = 0）；零新 `.metal`（`git diff 1d1f438 --name-only \| grep -c '.metal$'` = 0） | T1/T5 | ✅ |
+| 1 OQ-1 自实现 | 纯 Swift + MIT 注记；`git grep -i opencv LightamerCore/ App/` **零代码符号/import 命中**（验收批勘误：字面 grep 有 11 处**注释级**行为锚命中——plan T1 明文要求写「OpenCV `createMergeMertens(1.,1.,1.)` 行为锚」算法注记，AC1 的 grep 门措辞与该要求字面冲突；实质零依赖零符号达成，`Project.swift` dependencies 块 0 diff（`git diff 1d1f438 -- Project.swift \| grep -c '^[+-].*\.package'` = 0）；零新 `.metal`（`git diff 1d1f438 --name-only \| grep -c '.metal$'` = 0） | T1/T5 | ✅ |
 | 2 OQ-3 deghost 四态 | off/low/medium/high 档表三行 golden + `resolved(from:)` nil/未知→medium + 零 App 文件（本批结构自证：diff 只触 Core Stack/ + 测试 + 账面） | T1/T2 | ✅ |
 | 3 OQ-5 免 EV | `mertensVerdicts` 零拒绝面全表（同曝光合法/aperture/ISO warning/缺 metadata 0 占位/EV 组成表）+ 严格版 `precheck` 对照负测（同输入 strict 拒 / mertens 收） | T3 | ✅ |
 | 4 OQ-6 数学面 | `DrtEotfMath.srgbPiecewise`（类型名勘误 DECISIONS §7）+ `adaptiveLevels` 真值表（六行 + 边界）+ `haloRows = max(32, 2^L)`（32@5 = defaultHaloRows 精确锚）+ clamp [0,1] 域约定（曲线自带） | T1 | ✅ |
