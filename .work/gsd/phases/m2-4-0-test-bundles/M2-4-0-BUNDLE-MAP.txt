@@ -629,4 +629,5 @@ APP	1	DepthPerfProbeTests.swift
 #   行内 method 数以终态对账为准。运行期总数基线上移（3477 起算）。
 IOP	13	MertensFusionTests.swift
 IOP	14	MertensMergeKindTests.swift
+IOPP	7	MertensFusionGoldenTests.swift
 LIB	5	MertensProvenanceTests.swift
