@@ -212,3 +212,78 @@ min_votes 语义：两路串行验收对总 verdict 分歧（PASS vs FAIL）—�
   GUI 进程已杀，资源监控无异常——测试宿主峰值 6045MB < 8G）
 - 首验报告：M5-1-02-ACCEPTANCE.md §0-9；执行批：M5-1-02-DECISIONS.md；
   计划：M5-1-02-PLAN.md（AC#7 为 E-omp1 判据源）
+
+## 复验（修复后）
+
+> 复验 2026-10-11（omp 复验员；对象 = 修复批 `M5-1-02-OMP-FIX.md` +
+> 修复提交 `3ae3daf` + 账面 `3be69ee`；HEAD `3be69ee`）。
+> **结论：PASS**——E-omp1 关闭，MANIFEST 行 1-4 实机走通。
+
+### ① 报告核对（缺口归因与修复逻辑）
+
+| 面 | 报告声称 | 复验 |
+|---|---|---|
+| 路由行/面板 provider 已在 | 非缺口（T6 已落） | ✅ 读码一致：`EditorTabRoute` LUT 页 colormatch 行 + `registerDefaultProviders` 在位（首验/二验已确证，不复述） |
+| 缺口 = add 菜单行缺失 | `EditorAdjustmentStackView` 无 add 入口；legacy 菜单 gate-false 面结构不可达 | ✅ 成立：修复前 `row(for:)`/`pageRows` 无实例不渲染行，`ContentView.inspector` binding 仅 export/film 页挂载——与二验 §4.1 机制链一致 |
+| 修复 = LUT 页 add 行 | `pageContent` 的 `.lut` tab 在 `pageRows` 后渲染 `lutColormatchAddRow` | ✅ 在位：`EditorAdjustmentStackView.swift` :163-166 |
+| gate 纯函数 | `lutColormatchAddRowGate` = base scope（layerID==nil）+ 链上无 colormatch | ✅ 在位：:323-328，逻辑与报告 §2 一致 |
+| attach 同缝 | `templateInstance(for:)` 第 20 行 case → `addModuleToBaseChain`（与 Solve 同缝）→ `selectPanel` | ✅ 三调用点亲证：模板厂 `EditorState.swift` :982-983；服务缝 `ColorMatchService.swift` :351；新行 :357-361；legacy 菜单同缝 :226-238——四路同一 `addModuleToBaseChain` |
+| 产线零触碰红线 | 路由/provider/模块/服务/DRT/Film/.metal/导出矩阵零 diff | ✅ `git diff 4a0062e..3ae3daf --name-only -- *.metal *.swift`（除 Tests）= 仅 `EditorAdjustmentStackView.swift` 一文件（+61 行）；runModal App/Sources 零命中 |
+| 新键 | `editor_stack_add_module` 尾块纯插入 | ✅ `Localizable.xcstrings` :31509 `extractionState manual`；`Label("key", systemImage:)` scanner 不可见注记属实（同 legacy 先例） |
+| 新测试 | `testColormatchAddRowGateAndBaseChainAttach` + BUNDLE-MAP 登记 | ✅ 文件 diff 在案（+44 行）；执行数信任修复批 App 定向轮 725/4/0（本复验未重跑 bundle——复验程序仅三步） |
+
+归因判定：**准确**——鸡生蛋闭环定位与二验机制链互证，修复缝选 base chain（colormatch base-resident 设计面）正确，
+> base-scope-only 门（layer 恒 false 防重复实例）逻辑成立。
+
+### ② computer-use 实机复测
+
+环境：HEAD 重建 Debug 产物（Lightamer-accept，11:10 前构建，含 `3ae3daf`）直启 +
+`-la_film_probe /tmp/la-ompre/solo`（单图 main.ARW 75MB 会话；ref-warm.ARW 置同级目录外作参考图源）；
+> 探针前置：`library.ai.labelingMode=never` 消 AI 弹询 sheet 阻塞（走查后已 `defaults delete` 复原；另误删写入的
+> `labelingPrompts.rememberChoice` 实验键亦已删）；file-open 路由仍经探针缝（o-omp2 未变）。
+> 证据截图 /tmp/la-ompre/shots/（20 张即弃）+ 关键 6 张 staging /tmp/la-ompre/*.png（即弃体例，不入 git）。
+
+| 步 | 实测 | 证据 |
+|---|---|---|
+| LUT 页 add 行渲染 | `editor.stack.lut.addmodule` AXMenuButton「添加模块」在位（base scope 无实例态；同行 lut3d 行） | AX 亲证 + 07-app-front（识图：LUT 页 + 添加模块行） |
+| 菜单开 | AX press → `AXMenuItem title=追色 id=menuAction:`（cliclick 坐标点击菜单不开——合成输入环境限制，走 AX press，m5fix 报告同法） | AX 亲证 |
+| 选「追色」 | `inspector.row.colormatch` 行渲染 + 面板挂载：`colormatch.solverPicker`（高斯最优传输/Reinhard/CDF 匹配）+ 参考图空态 + `colormatch.solve` + `colormatch.strength`=0.0 + 读数节 | AX 亲证 + 10-colormatch-added（识图：四件全 + zh 无裸键＊） |
+| 添加参考图 | `colormatch.addReference` → NSOpenPanel（PanelPresentation 缝，落在 /tmp/la-omp-walk/imgs 记忆目录）→ 双击 ref-warm.ARW → `colormatch.weight.<uuid>`=1.0 + 移除钮 | AX 亲证 + 12-ref-added |
+| 追色 | 按钮复原；读数节 = 统计哈希 **14288275262918843225** + 支撑域 L ±0.69 a ±0.21 b ±0.19（与 m5fix-08 **逐位一致**——同输入对同解，确定性互证） | AX 亲证 + 13-after-solve |
+| 强度拖拽→1.00 | cliclick 拖拽 slider → AX value=1.0，读数 1.00；视口假彩色（cyan 基 + 红/黄/品红块——与 m5fix-09 同族观感；自然片 + 强度 1 全量追色的预期内观感） | AX 亲证 + 14b-strength-after |
+| 撤销 | ⌘Z 合成击键 ×2 无效（焦点环境问题）；编辑→撤销菜单点击 → **回退两级**（强度 commit + 追色 commit 均撤销，回到「添加模块」item；position=0）：LUT 页 = lut3d 行 + add 行重现，colormatch 行消失 | AX 亲证 + 16-history（3 items）+ 18-after-menu-undo |
+| sidecar 真相 | `main.ARW.lra` schema 9：3 items（默认观感/添加模块/追色）position=0 + add/solve 快照均含 colormatch | python 亲读 |
+| 资源 | GUI 进程 RSS 峰值 ~855MB（874736KB）< 3G 触发线，无异常 | ps 亲证 |
+
+＊裸键注记：`lut3d`/`colormatch` 行名系模块 opName 原文（产品既有形状，非 xcstrings 键），不计裸键；
+> 与 m-omp1（MANIFEST 配方-产品面不符）无关——配方已由修复批按实际挂载重写，复验逐项走通即证。
+
+**obs（不计数）**：
+- o-ompre1：filmstrip 行点击（AX press/AXConfirm/cliclick 单双击）均不换图——探针多图会话末图锁定，
+>  复验改单图会话绕行。疑似 filmstrip onOpen 路由缺口（M2-2 面，非本批域），挂账面。
+- o-ompre2：⌘Z 合成击键无效而菜单撤销有效——合成输入环境限制（M3-3-03 §6 click-dead 同族），非产品缺陷。
+- o-ompre3：菜单撤销一次回退两级（强度 + 追色）——D-H1 恰一 commit 语义要求「强度拖拽松手恰一次撤销回到追色态」；
+>  本轮回到添加模块态（position=0）。可能系连续两次菜单动作合并或强度 commit 未独立落位——**单测面 D-H1 恰一 commit 已绿
+>  （ColorMatchPanelModelTests），GUI 面 undo 粒度待首验/执行方确认**；E-omp1（可达性）已关闭，此项不阻塞 PASS，记 obs。
+
+### ③ 读码 grep 在位
+
+```
+EditorAdjustmentStackView.swift :165  lutColormatchAddRow（.lut tab pageRows 后）
+                            :323  static func lutColormatchAddRowGate(instances:layerID:) -> Bool
+                            :344  Label("editor_stack_add_module", systemImage: "plus.circle")
+                            :349  .accessibilityIdentifier("editor.stack.lut.addmodule")
+                            :358-359  templateInstance(for:) → addModuleToBaseChain(template:)
+                            :361  inspectorState.selectPanel(instanceID:)（面板自选）
+EditorState.swift            :982-983  templateInstance colormatch case（第 20 行）
+ColorMatchService.swift      :351  solveAndAttach 同缝 addModuleToBaseChain
+Localizable.xcstrings        :31509  "editor_stack_add_module"（en Add Module / zh 添加模块）
+```
+
+### 复验结论
+
+`OMP-REVERIFY: PASS`——E-omp1 关闭：gate-false 默认编辑器面 LUT 页「添加模块」→「追色」
+> 全链路可达（添加 → 参考 → 求解 → 强度 → 读数 → sidecar 持久化），面板/服务/读数节 AX 全可达，
+> zh 无裸键；修复逻辑（gate + 模板厂 + 同缝 attach）读码成立，产线红线零触碰。
+> m-omp1（配方-产品面不符）随修复批 MANIFEST 重写关闭；m-omp2（108B 账面勘误）文档面不阻塞。
+> M5-1-02 双重验收闭合：首验 PASS + omp 二验 FAIL(E-omp1) + 修复批 + **本复验 PASS** → 可签核。
