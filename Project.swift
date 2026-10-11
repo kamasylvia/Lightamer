@@ -413,6 +413,7 @@ let project = Project(
                 "Tests/LightamerTests/MemoryBudgetTests.swift",
                 "Tests/LightamerTests/M2DefaultChainPerfTests.swift",
                 "Tests/LightamerTests/MertensFusionTests.swift",
+                "Tests/LightamerTests/MertensLegTests.swift",
                 "Tests/LightamerTests/MertensMergeKindTests.swift",
                 "Tests/LightamerTests/MetalContextTests.swift",
                 "Tests/LightamerTests/ModuleBoundaryTests.swift",

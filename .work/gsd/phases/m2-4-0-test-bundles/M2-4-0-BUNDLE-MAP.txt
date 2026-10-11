@@ -631,3 +631,16 @@ IOP	13	MertensFusionTests.swift
 IOP	14	MertensMergeKindTests.swift
 IOPP	7	MertensFusionGoldenTests.swift
 LIB	5	MertensProvenanceTests.swift
+
+# M5-2-02 增行记录（2026-10-14 执行期，checker E2 测试登记纪律）：新测试文件随
+#   各自任务 commit 登记进对应 bundle（归属按 front-matter 判定：
+#   MertensLegTests = IOP/Core 级（StackMergeServiceTests 同位——生产腿经合成
+#   decode leg + 真 merge leg 直驱）；MertensRasterDomainTests = IOP/Core 级
+#   （RasterColorDescriptionTests 同位——writeFloatTIFF 域判别回归钉）；
+#   MertensMergeUITests = APP/App 级（SessionBrowser/Coordinator seam 面）；
+#   MertensFusionPerfProbeTests = EXPORT 级（KD-6 rationale：IOP 为贴线
+#   bundle〔7654MB 在案〕，probe 运行态 +2..3GB 会破 8G 门；EXPORT 有余量且
+#   融合产物落地面〔float-TIFF writer〕与 Export 域同族；env 门
+#   LIGHTAMER_PERF_PROBE=1 默认套件 skip）。行内 method 数以终态对账为准。
+#   运行期总数基线相应上移（对账以各行 method 数为准）。
+IOP	13	MertensLegTests.swift

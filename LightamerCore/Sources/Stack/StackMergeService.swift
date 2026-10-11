@@ -870,18 +870,503 @@ public actor StackMergeService {
         }
     }
 
-    /// The Mertens production leg — a TYPED STUB in Plan M5-2-01 (KD-4, the
-    /// M4-1-01 "route-don't-switch" posture): the dispatch arm is final
-    /// structure (M5-2-02 only swaps the body for the band-outer streaming
-    /// leg, zero second-pass dispatch edits); the typed failure pins the
-    /// not-yet-landed state so an accidental enqueue fails honestly instead
-    /// of silently no-op'ing.
+    /// The Mertens production leg (Plan M5-2-02 T1, KD-1): the exposure
+    /// fusion streaming pipeline — ① the EV-free precheck (OQ-5: warnings
+    /// never reject, the composed ΔEV is RECORDED in provenance, never
+    /// consumed) → ② the MTB alignment (the KD-3 helper, `withNCC: false`)
+    /// → ③ the stage pass: per source ONE decode-render, display-encoded
+    /// in place (sRGB piecewise + the curve's own [0,1] clamp — the 01
+    /// KD-1 convention) and staged to disk; the deghost segment (tier ≠
+    /// off) accumulates the per-frame binary motion against the resident
+    /// reference gray, then the union dilates + feathers ONCE (merge.py
+    /// :120-138 exact order) and stages as a SHARED UInt8 soft mask → ④
+    /// the substitution LUTs (129 points/channel) estimated over the
+    /// static cells of the FINAL mask from the staged pixels' decimation
+    /// grid (merge.py:141-159; the whole-frame faces stay untouched) → ⑤
+    /// the band-outer fusion: grid-aligned bands (band starts divisible by
+    /// 2^(L−1) — the 01 DECISIONS §6 constraint), halo rows
+    /// `haloRows(L)`, the reference substitution runs IN-PASS inside the
+    /// provider (`prepared = strip·(1−α) + LUT(refStrip)·α`), NaN
+    /// out-of-overlap samples sanitize to 0 (natural E³≈8.5e-5 weight
+    /// suppression — the 01 G3③ constant) → ⑥ the shared landing path
+    /// (`landStackProduct`, the additive EV/ghost arms).
+    ///
+    /// Resident set: the output plane (16 B/px) + ONE band's strips + the
+    /// stage-time reference gray (single plane, freed per source) + the
+    /// mask finalization transient. Full-resolution masks NEVER ride the
+    /// fusion pass (the staged 1 B/px channel). Progress = 4N+3 exactly
+    /// (decode N + align N + stage N + fuse N + write + sidecar + settle),
+    /// the SAME window with tier off (the skipped substitution is not a
+    /// step — KD-1's off-contract).
     nonisolated private static func runMertensLeg(
         _ work: StackMergeWork
     ) async throws -> StackMergeOutcome {
-        throw AppError.invalidParameter(
-            "hdr-merge-mertens production leg lands in M5-2-02")
+        guard work.decoded.count == work.sources.count, work.decoded.count >= 2
+        else {
+            throw AppError.invalidParameter(
+                "mertens merge: \(work.decoded.count) decoded frames for "
+                    + "\(work.sources.count) sources")
+        }
+        let refExtent = work.decoded[0].ciImage.extent
+        for image in work.decoded.dropFirst()
+        where image.ciImage.extent != refExtent {
+            throw AppError.invalidParameter(
+                "mertens frames differ in extent: \(refExtent.size) vs "
+                    + "\(image.ciImage.extent.size)")
+        }
+        let width = Int(refExtent.width)
+        let height = Int(refExtent.height)
+
+        // ── the EV-free precheck (OQ-5): zero rejections, the ΔEV rides
+        // provenance only ────────────────────────────────────────────────
+        let verdicts = ExifPrecheck.mertensVerdicts(
+            captures: work.decoded.map(\.capture))
+        var exposureEVs: [Double] = []
+        var warnings: [String] = []
+        for (index, verdict) in verdicts.enumerated() {
+            switch verdict {
+            case .ok(let ev):
+                exposureEVs.append(ev)
+            case .admittedWithWarning(let ev, let reasons):
+                exposureEVs.append(ev)
+                warnings.append(
+                    "source \(index): " + reasons.joined(separator: "; "))
+                AppError.logger.warning(
+                    "mertens source \(index, privacy: .public): \(reasons.joined(separator: "; "), privacy: .public)")
+            case .rejected(let reasons):
+                // Unreachable by the mertensVerdicts zero-rejection face —
+                // kept as the typed honesty arm.
+                throw AppError.invalidParameter(
+                    "mertens source \(index) rejected: "
+                        + reasons.joined(separator: "; "))
+            }
+        }
+
+        // ── the alignment pass (the KD-3 helper; no NCC for brackets) ───
+        let (shifts, labels, _, _) = try await runMTBAlignment(
+            work, width: width, height: height, withNCC: false)
+
+        let tier = MertensFusion.DeghostLevel.resolved(
+            from: work.params.mertensDeghost)
+        let levels = max(1, work.params.mertensLevels
+            ?? MertensFusion.adaptiveLevels(minEdge: min(width, height)))
+        let halo = MertensFusion.haloRows(levels: levels)
+
+        // ── the stage pass: encode + deghost motion + staged pixels ─────
+        let staging = StagedSet(count: work.decoded.count, width: width, height: height)
+        defer { staging.cleanUp() }
+        // The union motion accumulator (pre-dilation binary, merge.py :127)
+        // and the reference-side precomputes — one plane each, freed after
+        // the mask finalizes.
+        var union: [Float]?
+        var referenceGray: [Float]?
+        var referenceBlur: [Float]?
+        var referenceQuantiles: [Float] = []
+        if tier != .off {
+            union = [Float](repeating: 0, count: width * height)
+        }
+        for index in work.decoded.indices {
+            let plane = try work.render.renderFullFloatRGBA(work.decoded[index].ciImage)
+            mertensDisplayEncodeInPlace(plane)
+            if tier != .off {
+                let luma = mertensGrayFromPlane(plane)
+                if index == 0 {
+                    referenceGray = luma
+                    referenceBlur = MertensFusion.gaussianBlurGray(
+                        luma, width: width, height: height,
+                        sigma: MertensFusion.residualBlurSigma)
+                    let step = MertensFusion.decimationStep(width: width, height: height)
+                    let sortedReference = stridedSorted(
+                        luma, width: width, height: height, step: step)
+                    referenceQuantiles = MertensFusion.linspace(2, 98, 33)
+                        .map { MertensFusion.percentileOfSorted(sortedReference, $0) }
+                } else {
+                    accumulateMertensMotion(
+                        luma, into: &union!, referenceGray: referenceGray!,
+                        referenceBlur: referenceBlur!,
+                        referenceQuantiles: referenceQuantiles,
+                        tier: tier, width: width, height: height)
+                }
+            }
+            try staging.writePixels(plane, index: index)
+            await work.progress.step() // stage/encode step
+            // The transient plane dies with the loop iteration.
+        }
+
+        // ── the mask finalization (merge.py :136-138 order: the union is
+        // complete FIRST, then one dilate + one feather) → staged shared ─
+        var softMask: [Float]?
+        if tier != .off, union != nil {
+            let radius = max(1, Int(
+                (Float(tier.baseDilateRadius) * Float(max(width, height)) / 1800)
+                    .rounded()))
+            var dilated = mertensSeparableDilate(
+                union!, radius: radius, width: width, height: height)
+            dilated = MertensFusion.gaussianBlurGray(
+                dilated, width: width, height: height,
+                sigma: max(1, Float(radius) / 2))
+            for pixel in dilated.indices {
+                dilated[pixel] = min(max(dilated[pixel], 0), 1)
+            }
+            softMask = dilated
+            try staging.writeMask(
+                dilated.map { UInt8(($0 * 255).rounded()) })
+        }
+        union = nil
+        referenceGray = nil
+        referenceBlur = nil
+
+        // ── the substitution LUTs (129 points/channel, static cells of the
+        // FINAL mask — the staged pixels' decimation grid) ────────────────
+        var luts: [[MertensFusion.ChannelLUT]] = []
+        if tier != .off, let mask = softMask {
+            let step = MertensFusion.decimationStep(width: width, height: height)
+            let gridWidth = (width + step - 1) / step
+            let gridHeight = (height + step - 1) / step
+            var staticGrid = [Bool](repeating: false, count: gridWidth * gridHeight)
+            for gy in 0..<gridHeight {
+                for gx in 0..<gridWidth {
+                    staticGrid[gy * gridWidth + gx] =
+                        mask[min(gy * step, height - 1) * width
+                            + min(gx * step, width - 1)] < 0.01
+                }
+            }
+            luts.reserveCapacity(work.decoded.count)
+            for index in work.decoded.indices {
+                luts.append(try mertensStageSubstituteLUTs(
+                    staging: staging, width: width, height: height, step: step,
+                    referenceIndex: 0, frameIndex: index,
+                    staticGrid: staticGrid, gridWidth: gridWidth,
+                    gridHeight: gridHeight))
+            }
+        }
+        softMask = nil // the full-resolution mask never rides the fusion pass
+
+        // ── the band-outer fusion (grid-aligned bands; the substitution
+        // runs IN-PASS inside the provider) ──────────────────────────────
+        var ghostUnion: [UInt8]? = tier != .off
+            ? [UInt8](repeating: 0, count: width * height) : nil
+        let outputPlane = try await mertensBandOuterFuse(
+            staging: staging, width: width, height: height,
+            sources: work.decoded.count, levels: levels, halo: halo,
+            tier: tier, luts: luts, shifts: shifts,
+            ghostUnion: &ghostUnion, progress: work.progress,
+            bumpBudget: work.decoded.count)
+
+        // The params snapshot carries the resolved Mertens record (the
+        // 08-3 `pyramidLevels` precedent — provenance states what ran).
+        var provenanceParams = work.params
+        provenanceParams.mertensDeghost = tier.rawValue
+        provenanceParams.mertensLevels = levels
+
+        return try await landStackProduct(
+            work, width: width, height: height, rgba: outputPlane,
+            holeFraction: 0, alignmentLabels: labels, warnings: warnings,
+            provenanceParams: provenanceParams,
+            algorithmName: ProvenanceReplay.mertensAlgorithmName,
+            implementationVersion: ProvenanceReplay.mertensImplementationVersion,
+            exposureEVs: exposureEVs, ghostUnion: ghostUnion)
     }
+
+    // MARK: - Mertens stage/fuse internals (T1; shared with the perf probe)
+
+    /// In-place sRGB piecewise display encode over the plane's RGB channels
+    /// (the curve clamps to [0,1] by construction — the 01 KD-1 convention;
+    /// alpha rides through untouched). Bit-identical to
+    /// `MertensFusion.displayEncodePlane` per element (the same curve
+    /// function) without the full-plane array copy.
+    nonisolated private static func mertensDisplayEncodeInPlace(
+        _ plane: StackRenderedPlane
+    ) {
+        let floats = plane.pointer.bindMemory(to: Float.self, capacity: plane.width * plane.height * 4)
+        for index in 0..<(plane.width * plane.height) {
+            let base = index * 4
+            for channel in 0..<3 {
+                floats[base + channel] = Float(
+                    DrtEotfMath.srgbPiecewiseEncode(Double(floats[base + channel])))
+            }
+        }
+    }
+
+    /// Rec709 luma straight off the rendered plane buffer (the
+    /// `MertensFusion.grayPlane` math without the plane array copy).
+    nonisolated private static func mertensGrayFromPlane(
+        _ plane: StackRenderedPlane
+    ) -> [Float] {
+        let c = MertensFusion.grayCoefficients
+        let pixelCount = plane.width * plane.height
+        let floats = UnsafeRawBufferPointer(
+            start: plane.pointer, count: plane.bytesPerRow * plane.height)
+            .bindMemory(to: Float.self)
+        var gray = [Float](repeating: 0, count: pixelCount)
+        for index in 0..<pixelCount {
+            let base = index * 4
+            gray[index] = c.r * floats[base] + c.g * floats[base + 1]
+                + c.b * floats[base + 2]
+        }
+        return gray
+    }
+
+    /// The sorted strided samples (`plane[::step, ::step]`, sorted) — the
+    /// quantile input face shared by the motion + LUT passes.
+    nonisolated private static func stridedSorted(
+        _ plane: [Float], width: Int, height: Int, step: Int
+    ) -> [Float] {
+        MertensFusion.stridedSamples(plane, width: width, height: height, step: step)
+            .sorted()
+    }
+
+    /// One frame's binary motion against the reference (merge.py :125-134
+    /// verbatim decomposition: quantile brightness mapping → σ1.2 blur →
+    /// absolute difference → threshold → the (0.015, 0.985) usable gate),
+    /// MAX-accumulated into the union (the merge.py `np.maximum` fold).
+    nonisolated private static func accumulateMertensMotion(
+        _ luma: [Float], into union: inout [Float],
+        referenceGray: [Float], referenceBlur: [Float],
+        referenceQuantiles: [Float], tier: MertensFusion.DeghostLevel,
+        width: Int, height: Int
+    ) {
+        let step = MertensFusion.decimationStep(width: width, height: height)
+        let samples = stridedSorted(luma, width: width, height: height, step: step)
+        let quantiles = MertensFusion.linspace(2, 98, 33)
+        let values = quantiles.map { MertensFusion.percentileOfSorted(samples, $0) }
+        let (unique, positions) = MertensFusion.uniqueWithFirstPositions(values)
+        let mappedTargets = positions.map { referenceQuantiles[$0] }
+        var mapped = [Float](repeating: 0, count: width * height)
+        for pixel in mapped.indices {
+            mapped[pixel] = MertensFusion.interp(
+                luma[pixel], xs: unique, ys: mappedTargets)
+        }
+        let mappedBlur = MertensFusion.gaussianBlurGray(
+            mapped, width: width, height: height,
+            sigma: MertensFusion.residualBlurSigma)
+        for pixel in union.indices {
+            let usable = luma[pixel] > MertensFusion.usableGateLow
+                && luma[pixel] < MertensFusion.usableGateHigh
+                && referenceGray[pixel] > MertensFusion.usableGateLow
+                && referenceGray[pixel] < MertensFusion.usableGateHigh
+            if abs(mappedBlur[pixel] - referenceBlur[pixel]) > tier.residualThreshold,
+               usable {
+                union[pixel] = 1
+            }
+        }
+    }
+
+    /// Separable square max filter (horizontal pass then vertical pass,
+    /// clamp edges) — output-IDENTICAL to `MertensFusion.dilate` (the max
+    /// filter decomposes exactly over its two axes) at O(radius) per pixel
+    /// per axis instead of O(radius²) per pixel: the production 100 MP
+    /// dilate radius is 32-58 (tier-scaled), where the quadratic form is
+    /// minutes and this form is seconds. The golden face stays untouched.
+    nonisolated static func mertensSeparableDilate(
+        _ plane: [Float], radius: Int, width: Int, height: Int
+    ) -> [Float] {
+        precondition(
+            plane.count == width * height, "mertens dilate: plane size mismatch")
+        let clampedRadius = max(0, radius)
+        var horizontal = [Float](repeating: 0, count: width * height)
+        for y in 0..<height {
+            let row = y * width
+            for x in 0..<width {
+                var maximum: Float = 0
+                let lower = max(0, x - clampedRadius)
+                let upper = min(width - 1, x + clampedRadius)
+                for sx in lower...upper {
+                    maximum = max(maximum, plane[row + sx])
+                }
+                horizontal[row + x] = maximum
+            }
+        }
+        var out = [Float](repeating: 0, count: width * height)
+        for y in 0..<height {
+            let lower = max(0, y - clampedRadius)
+            let upper = min(height - 1, y + clampedRadius)
+            for x in 0..<width {
+                var maximum: Float = 0
+                for sy in lower...upper {
+                    maximum = max(maximum, horizontal[sy * width + x])
+                }
+                out[y * width + x] = maximum
+            }
+        }
+        return out
+    }
+
+    /// The per-channel 129-point quantile LUTs estimated over the static
+    /// cells of the decimation grid, reading ONLY the grid rows from the
+    /// staged pixel files (merge.py :147-159 — `im[::step, ::step][static]`;
+    /// the whole-frame `MertensFusion.substituteLUTs` face stays untouched).
+    /// Sample order is grid order (y-major), the same walk the whole-frame
+    /// face performs — the percentile multisets are order-independent.
+    nonisolated static func mertensStageSubstituteLUTs(
+        staging: StagedSet, width: Int, height: Int, step: Int,
+        referenceIndex: Int, frameIndex: Int,
+        staticGrid: [Bool], gridWidth: Int, gridHeight: Int
+    ) throws -> [MertensFusion.ChannelLUT] {
+        let quantiles = MertensFusion.linspace(0, 100, 129)
+        var referenceRows = [[Float]](repeating: [], count: gridHeight)
+        var frameRows = [[Float]](repeating: [], count: gridHeight)
+        for gy in 0..<gridHeight {
+            let y = min(gy * step, height - 1)
+            referenceRows[gy] = try staging.readPixelRow(
+                index: referenceIndex, row: y)
+            frameRows[gy] = try staging.readPixelRow(index: frameIndex, row: y)
+        }
+        var luts: [MertensFusion.ChannelLUT] = []
+        for channel in 0..<3 {
+            var referenceSamples: [Float] = []
+            var frameSamples: [Float] = []
+            referenceSamples.reserveCapacity(staticGrid.count)
+            frameSamples.reserveCapacity(staticGrid.count)
+            for gy in 0..<gridHeight {
+                for gx in 0..<gridWidth where staticGrid[gy * gridWidth + gx] {
+                    let x = min(gx * step, width - 1)
+                    let base = (x * 4) + channel
+                    referenceSamples.append(referenceRows[gy][base])
+                    frameSamples.append(frameRows[gy][base])
+                }
+            }
+            let sortedReference = referenceSamples.sorted()
+            let sortedFrame = frameSamples.sorted()
+            let values = quantiles.map { MertensFusion.percentileOfSorted(sortedReference, $0) }
+            let target = quantiles.map { MertensFusion.percentileOfSorted(sortedFrame, $0) }
+            let (unique, positions) = MertensFusion.uniqueWithFirstPositions(values)
+            luts.append(MertensFusion.ChannelLUT(
+                xs: unique, ys: positions.map { target[$0] }))
+        }
+        return luts
+    }
+
+    /// The grid-aligned band list: band starts divisible by 2^(L−1) (the
+    /// deepest reduce grid — the 01 DECISIONS §6 constraint that keeps the
+    /// strip pyramids' decimation grids aligned with the frame grid), band
+    /// heights rounded up to the same multiple (≈ the 256-row default).
+    nonisolated static func mertensAlignedBands(
+        height: Int, width: Int, levels: Int
+    ) -> [TilingPlan.Tile] {
+        guard height > 0, width > 0 else { return [] }
+        let align = 1 << max(0, max(1, levels) - 1)
+        let baseRows = BandStreamer.defaultBandHeight
+        let bandRows = max(align, (baseRows + align - 1) / align * align)
+        var result: [TilingPlan.Tile] = []
+        var y = 0
+        while y < height {
+            result.append(TilingPlan.Tile(
+                x: 0, y: y, width: width, height: min(bandRows, height - y)))
+            y += bandRows
+        }
+        return result
+    }
+
+    /// The band-outer fusion driver (KD-1 ⑤⑥): per aligned band, the N
+    /// shifted pixel strips + the shared mask band feed `fuseStrip` with
+    /// the reference substitution running IN-PASS inside the provider
+    /// (`prepared = strip·(1−α) + LUT(refStrip)·α`; the reference source
+    /// rides untouched — merge.py :154). NaN out-of-overlap samples
+    /// sanitize to 0 BEFORE the weights (the E³≈8.5e-5 natural suppression
+    /// — the caller-side contract from the MertensFusion header). The
+    /// fused band's rows copy into the RGBA output plane; the ghost union
+    /// accumulates any band row the substitution actually touched (α > 0).
+    /// Fuse-step progress is band-paced with the focus leg's bump budget.
+    nonisolated static func mertensBandOuterFuse(
+        staging: StagedSet, width: Int, height: Int,
+        sources: Int, levels: Int, halo: Int,
+        tier: MertensFusion.DeghostLevel,
+        luts: [[MertensFusion.ChannelLUT]],
+        shifts: [(dx: Int, dy: Int)],
+        ghostUnion: inout [UInt8]?,
+        progress: StackMergeProgress, bumpBudget: Int
+    ) async throws -> [Float] {
+        var outputPlane = [Float](repeating: 0, count: width * height * 4)
+        var bumpBudget = bumpBudget
+        for band in mertensAlignedBands(height: height, width: width, levels: levels) {
+            let stripFirst = max(0, band.y - halo)
+            let stripRows = min(height, band.y + band.height + halo) - stripFirst
+            let maskBand: [UInt8]? = tier != .off
+                ? try staging.readMaskBand(firstRow: stripFirst, rows: stripRows)
+                : nil
+            var maskStrip: [Float]?
+            if let maskBand {
+                maskStrip = maskBand.map { Float($0) / 255 }
+            }
+            let referenceStrip = sanitizedStrip(try staging.readShiftedPixels(
+                index: 0, firstRow: stripFirst, rows: stripRows,
+                dx: shifts[0].dx, dy: shifts[0].dy))
+            // The provider contract is non-throwing (the 01 fuseStrip
+            // face); the staged reads ride a captured error box — the
+            // dummy strip only flows on the corrupted path, which throws
+            // right after the fold returns.
+            var readError: Error?
+            let fused = MertensFusion.fuseStrip(
+                width: width, height: stripRows, sources: sources,
+                levels: levels) { sourceIndex in
+                    do {
+                        let strip = sanitizedStrip(try staging.readShiftedPixels(
+                            index: sourceIndex, firstRow: stripFirst,
+                            rows: stripRows,
+                            dx: shifts[sourceIndex].dx, dy: shifts[sourceIndex].dy))
+                        guard tier != .off, sourceIndex != 0,
+                              let mask = maskStrip, !luts.isEmpty else {
+                            return strip
+                        }
+                        return MertensFusion.applySubstitution(
+                            original: strip, reference: referenceStrip,
+                            motion: mask, luts: luts[sourceIndex],
+                            width: width, height: stripRows)
+                    } catch {
+                        readError = error
+                        return [Float](repeating: 0, count: stripRows * width * 4)
+                    }
+                }
+            if let readError { throw readError }
+            // Copy the band's rows (strip-local offset) into the output +
+            // the ghost union (any pixel the substitution touched).
+            let offsetInStrip = band.y - stripFirst
+            for row in 0..<band.height {
+                let sourceRow = offsetInStrip + row
+                let destinationRow = band.y + row
+                if let maskBand, ghostUnion != nil {
+                    let unionRow = destinationRow * width
+                    let maskRow = sourceRow * width
+                    for x in 0..<width where maskBand[maskRow + x] > 0 {
+                        ghostUnion![unionRow + x] = 1
+                    }
+                }
+                for x in 0..<width {
+                    let s = (sourceRow * width + x) * 3
+                    let d = (destinationRow * width + x) * 4
+                    outputPlane[d] = fused[s]
+                    outputPlane[d + 1] = fused[s + 1]
+                    outputPlane[d + 2] = fused[s + 2]
+                    outputPlane[d + 3] = 1
+                }
+            }
+            if bumpBudget > 0 {
+                bumpBudget -= 1
+                await progress.step() // fuse step (band-paced)
+            }
+        }
+        while bumpBudget > 0 {
+            bumpBudget -= 1
+            await progress.step() // pad to the declared total
+        }
+        return outputPlane
+    }
+
+    /// The staged-strip NaN sanitize (the MertensFusion header contract):
+    /// out-of-alignment-overlap samples read NaN and become 0 — the black
+    /// code carries the near-zero E³≈8.5e-5 weight (the 01 G3③ constant),
+    /// so no explicit weight gating is needed.
+    nonisolated private static func sanitizedStrip(
+        _ strip: [Float]
+    ) -> [Float] {
+        var strip = strip
+        for index in strip.indices where strip[index].isNaN {
+            strip[index] = 0
+        }
+        return strip
+    }
+
 
     /// The 08-1 HDR production pipeline (T2-T6, accepted verbatim — only
     /// moved behind the kind dispatch, zero semantic change): EXIF precheck
@@ -1143,9 +1628,10 @@ public actor StackMergeService {
 
     /// The shared STACK-variant front half: the precheck (shutter/ISO are
     /// NOT required to differ — the rail/stack shutter is constant; the
-    /// aperture stays STRICT) + the MTB alignment pass (08-1 T2 reused
-    /// verbatim) + the optional NCC scale-drift self-check (research §5.3
-    /// — focus only; a WARNING, never a merge block).
+    /// aperture stays STRICT) + the MTB alignment pass (delegated to
+    /// `runMTBAlignment` — the Plan M5-2-02 KD-3 behavior-preserving
+    /// extraction; the precheck stays HERE because the Mertens bracket runs
+    /// EV-free and must never see the aperture-strict stack precheck).
     nonisolated private static func runStackPrecheckAndAlignment(
         _ work: StackMergeWork, width: Int, height: Int, withNCC: Bool
     ) async throws -> (shifts: [(dx: Int, dy: Int)], labels: [String],
@@ -1166,7 +1652,22 @@ public actor StackMergeService {
                         + reasons.joined(separator: "; "))
             }
         }
+        return try await runMTBAlignment(
+            work, width: width, height: height, withNCC: withNCC)
+    }
 
+    /// The MTB alignment pass (Plan M5-2-02 KD-3): the 08-1 T2 body extracted
+    /// VERBATIM from `runStackPrecheckAndAlignment` (behavior-preserving —
+    /// the existing focus/stack/HDR tests are the zero-diff witness) so the
+    /// Mertens leg can ride the same alignment vocabulary (labels + the
+    /// align-step bump duty) WITHOUT the stack precheck (OQ-5: the Mertens
+    /// bracket is EV-free, aperture differences are warnings at most).
+    /// `withNCC` = the focus leg's scale-drift self-check; NCC is meaningless
+    /// for exposure brackets (same framing), so Mertens passes false.
+    nonisolated private static func runMTBAlignment(
+        _ work: StackMergeWork, width: Int, height: Int, withNCC: Bool
+    ) async throws -> (shifts: [(dx: Int, dy: Int)], labels: [String],
+                       warnings: [String], nccMin: Double) {
         var shifts: [(dx: Int, dy: Int)] = [(0, 0)]
         var labels: [String] = ["full"]
         var warnings: [String] = []
@@ -1422,10 +1923,30 @@ public actor StackMergeService {
     /// The shared 08-3 product landing (the 08-1 tail shape: the
     /// ExportNamer-collision-free float TIFF + the v4 provenance sidecar;
     /// stacks land NO ghost mask and a nil layer stack).
+    ///
+    /// Plan M5-2-02 KD-4 additive arms — every new parameter defaults nil
+    /// and the nil path is BYTE-IDENTICAL to the pre-M5-2-02 behavior (the
+    /// pinned negative test):
+    ///   • `exposureEVs` — non-nil = the per-source provenance EVs (the
+    ///     Mertens verdicts; OQ-5 "EV 有则记 provenance 不消费"); nil = the
+    ///     stack-family flat-zero per source.
+    ///   • `ghostUnion` — non-nil AND containing 1 = the runHDRLeg tail
+    ///     shape (dilate + the Ghost Suppression layer stack; the Mertens
+    ///     mask semantics = the substitution mask); nil = no mask, nil
+    ///     layer stack.
+    ///   • `implementationVersion` — non-nil = the algorithm-specific
+    ///     version constant (the Mertens identity is independent of the
+    ///     Robertson02 one); nil = the historical HDR version (the stack
+    ///     legs' existing value).
+    ///   • `productColorSpace` (T2, KD-2) — non-nil = the product TIFF's
+    ///     embedded color space tag; nil = the working space (zero drift).
     nonisolated private static func landStackProduct(
         _ work: StackMergeWork, width: Int, height: Int, rgba: [Float],
         holeFraction: Float, alignmentLabels: [String], warnings: [String],
-        provenanceParams: StackMergeService.MergeParams, algorithmName: String
+        provenanceParams: StackMergeService.MergeParams, algorithmName: String,
+        implementationVersion: String? = nil,
+        exposureEVs: [Double]? = nil,
+        ghostUnion: [UInt8]? = nil
     ) async throws -> StackMergeOutcome {
         let directory = work.sessionRoot
             ?? work.sources[0].deletingLastPathComponent()
@@ -1439,10 +1960,22 @@ public actor StackMergeService {
         try BandStreamer.writeFloatTIFF(rgba, width: width, height: height, to: productURL)
         await work.progress.step() // write step
 
+        // The ghost mask (the runHDRLeg tail shape — the additive
+        // `ghostUnion` arm; NOTHING lands when nil or all-zero).
+        var landedMask: GhostMaskWriter.LandedMask?
+        if let union = ghostUnion, union.contains(1) {
+            let dilated = GhostMaskWriter.dilate(
+                union, width: width, height: height)
+            landedMask = try GhostMaskWriter.land(
+                dilated, width: width, height: height,
+                productURL: productURL, maskID: UUID())
+        }
+
         let sessionRoot = work.sessionRoot
             ?? work.sources[0].deletingLastPathComponent()
         let provenanceSources: [SidecarProvenance.Source] = try work.sources
-            .map { url -> SidecarProvenance.Source in
+            .enumerated()
+            .map { (index: Int, url: URL) -> SidecarProvenance.Source in
                 let absolute = url.path
                 let rootPrefix = sessionRoot.path + "/"
                 let relPath = absolute.hasPrefix(rootPrefix)
@@ -1452,15 +1985,18 @@ public actor StackMergeService {
                     throw AppError.fileUnreadable(url.path)
                 }
                 // Stacks carry no exposure weighting — the EV is a
-                // flat zero for every source.
+                // flat zero for every source; the Mertens arm records
+                // its composed verdicts (recorded, never consumed).
                 return SidecarProvenance.Source(
-                    relPath: relPath, stableHash: hash, exposureEV: 0)
+                    relPath: relPath, stableHash: hash,
+                    exposureEV: exposureEVs?[index] ?? 0)
             }
         let provenance = SidecarProvenance(
             kind: work.kind.provenanceKind,
             algorithm: SidecarProvenance.Algorithm(
                 name: algorithmName,
-                implementationVersion: ProvenanceReplay.hdrImplementationVersion,
+                implementationVersion: implementationVersion
+                    ?? ProvenanceReplay.hdrImplementationVersion,
                 params: provenanceParams),
             sources: provenanceSources,
             alignment: alignmentLabels,
@@ -1477,7 +2013,7 @@ public actor StackMergeService {
             instances: [],
             history: emptyStack,
             historyHash: HistoryHash.hash(stack: emptyStack, decodeParamsHash: decodeHash),
-            layerStack: nil,
+            layerStack: GhostMaskWriter.ghostSuppressionLayerStack(landedMask),
             provenance: provenance)
         let sidecarEncoder = JSONEncoder()
         sidecarEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -1491,15 +2027,17 @@ public actor StackMergeService {
             holeFraction: holeFraction,
             alignment: alignmentLabels,
             exposureRatioVerified: Array(repeating: true, count: work.sources.count),
-            ghostMask: nil,
-            exposureEVs: [],
+            ghostMask: landedMask,
+            exposureEVs: exposureEVs ?? [],
             warnings: warnings)
     }
 
     /// The staged-files working set (the temp-dir cleanup discipline: the
     /// whole directory dies with the leg — error paths included, via the
-    /// caller's `defer`).
-    private struct StagedSet {
+    /// caller's `defer`). Plan M5-2-02: the nested type widened private →
+    /// internal (the 01 KD-2 one-line access precedent) so the perf probe
+    /// can drive the REAL band-outer fusion face; zero behavior change.
+    struct StagedSet {
         let directory: URL
         let width: Int
         let height: Int
@@ -1524,6 +2062,12 @@ public actor StackMergeService {
         private func qualityURL(_ index: Int) -> URL {
             directory.appendingPathComponent("quality_\(index).f16")
         }
+        /// The SHARED soft mask (the Mertens deghost union — one channel
+        /// for the whole set, UInt8 1 B/px; the per-source split would
+        /// double-count: merge.py's motion mask is a single union plane).
+        fileprivate func maskURL() -> URL {
+            directory.appendingPathComponent("mask.u8")
+        }
 
         /// Stream one plane's rows to the staged file (no whole-file Data).
         func writePixels(_ plane: StackRenderedPlane, index: Int) throws {
@@ -1545,6 +2089,64 @@ public actor StackMergeService {
         func writeQuality(_ map: [UInt16], index: Int) throws {
             let data = map.withUnsafeBufferPointer { Data(buffer: $0) }
             try data.write(to: qualityURL(index), options: .atomic)
+        }
+
+        /// Stream the SHARED soft mask to the staged file (KD-1's mask byte
+        /// channel; UInt8 [0,255] quantized, 1 B/px on disk).
+        func writeMask(_ bytes: [UInt8]) throws {
+            FileManager.default.createFile(atPath: maskURL().path, contents: nil)
+            let handle = try FileHandle(forWritingTo: maskURL())
+            defer { try? handle.close() }
+            let rowsPerChunk = 512
+            var y = 0
+            while y < height {
+                let rows = min(rowsPerChunk, height - y)
+                try handle.write(contentsOf: Data(
+                    bytes[y * width..<((y + rows) * width)]))
+                y += rows
+            }
+        }
+
+        /// The soft-mask band read — NO shift (the mask lives in the
+        /// reference/output frame; the substitution α does not ride the
+        /// MTB shift). Out-of-frame rows read 0.
+        func readMaskBand(firstRow: Int, rows: Int) throws -> [UInt8] {
+            var result = [UInt8](repeating: 0, count: rows * width)
+            let sourceFirst = max(0, firstRow)
+            let sourceLast = min(height, firstRow + rows) // exclusive
+            guard sourceLast > sourceFirst else { return result }
+            let handle = try FileHandle(forReadingFrom: maskURL())
+            defer { try? handle.close() }
+            try handle.seek(toOffset: UInt64(sourceFirst * width))
+            let want = (sourceLast - sourceFirst) * width
+            guard let data = try handle.read(upToCount: want), data.count == want
+            else {
+                throw AppError.fileUnreadable("staged mask truncated")
+            }
+            result.withUnsafeMutableBytes { raw in
+                data.withUnsafeBytes { raw.copyBytes(from: $0) }
+            }
+            return result
+        }
+
+        /// One staged pixel row, unshifted (the substitution-LUT grid pass
+        /// reads ONLY the decimation rows — `plane[::step, ::step]` needs
+        /// whole rows, not the grid cells' scattered addresses).
+        func readPixelRow(index: Int, row: Int) throws -> [Float] {
+            var result = [Float](repeating: 0, count: width * 4)
+            guard row >= 0, row < height else { return result }
+            let handle = try FileHandle(forReadingFrom: pixelsURL(index))
+            defer { try? handle.close() }
+            try handle.seek(toOffset: UInt64(row * width * 16))
+            let want = width * 16
+            guard let data = try handle.read(upToCount: want), data.count == want
+            else {
+                throw AppError.fileUnreadable("staged pixels row truncated")
+            }
+            result.withUnsafeMutableBytes { raw in
+                data.withUnsafeBytes { raw.copyBytes(from: $0) }
+            }
+            return result
         }
 
         /// The ALIGNED read: output pixel (x, y) samples the staged source
