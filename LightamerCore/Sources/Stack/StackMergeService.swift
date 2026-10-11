@@ -1065,7 +1065,8 @@ public actor StackMergeService {
             provenanceParams: provenanceParams,
             algorithmName: ProvenanceReplay.mertensAlgorithmName,
             implementationVersion: ProvenanceReplay.mertensImplementationVersion,
-            exposureEVs: exposureEVs, ghostUnion: ghostUnion)
+            exposureEVs: exposureEVs, ghostUnion: ghostUnion,
+            productColorSpace: CGColorSpace(name: CGColorSpace.sRGB))
     }
 
     // MARK: - Mertens stage/fuse internals (T1; shared with the perf probe)
@@ -1946,7 +1947,8 @@ public actor StackMergeService {
         provenanceParams: StackMergeService.MergeParams, algorithmName: String,
         implementationVersion: String? = nil,
         exposureEVs: [Double]? = nil,
-        ghostUnion: [UInt8]? = nil
+        ghostUnion: [UInt8]? = nil,
+        productColorSpace: CGColorSpace? = nil
     ) async throws -> StackMergeOutcome {
         let directory = work.sessionRoot
             ?? work.sources[0].deletingLastPathComponent()
@@ -1957,7 +1959,9 @@ public actor StackMergeService {
             tag: work.params.tag ?? Self.defaultTag(for: work.kind),
             ext: "tif",
             occupiedNames: occupied)
-        try BandStreamer.writeFloatTIFF(rgba, width: width, height: height, to: productURL)
+        try BandStreamer.writeFloatTIFF(
+            rgba, width: width, height: height, to: productURL,
+            colorSpace: productColorSpace ?? WorkingSpace.colorSpace)
         await work.progress.step() // write step
 
         // The ghost mask (the runHDRLeg tail shape — the additive

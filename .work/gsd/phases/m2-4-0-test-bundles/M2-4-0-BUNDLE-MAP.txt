@@ -644,3 +644,4 @@ LIB	5	MertensProvenanceTests.swift
 #   LIGHTAMER_PERF_PROBE=1 默认套件 skip）。行内 method 数以终态对账为准。
 #   运行期总数基线相应上移（对账以各行 method 数为准）。
 IOP	13	MertensLegTests.swift
+IOP	5	MertensRasterDomainTests.swift
