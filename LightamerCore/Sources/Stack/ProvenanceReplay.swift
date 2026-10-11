@@ -33,13 +33,16 @@ import Foundation
 public struct SidecarProvenance: Codable, Sendable, Equatable {
 
     /// The merge backend that produced the document (the service's kind
-    /// vocabulary, verbatim).
+    /// vocabulary, verbatim). `hdrMertens` mirrors the service kind's raw
+    /// value (Plan M5-2-01 KD-5 — the two enums' raw values stay aligned
+    /// one-to-one).
     public enum Kind: String, Codable, Sendable, CaseIterable {
         case hdrMerge = "hdr-merge"
         case focusStack = "focus-stack"
         case stackAverage = "stack-average"
         case stackMedian = "stack-median"
         case stackSigma = "stack-sigma"
+        case hdrMertens = "hdr-merge-mertens"
     }
 
     /// The algorithm identity + its parameter snapshot (the replay's
@@ -142,6 +145,13 @@ public enum ProvenanceReplay {
     public static let hdrImplementationVersion = "1"
     /// The v1 HDR algorithm family name.
     public static let hdrAlgorithmName = "robertson02-mtb"
+    /// The Mertens algorithm family name (Plan M5-2-01 KD-5 — INDEPENDENT
+    /// of the HDR identity: the two algorithms evolve without entangling
+    /// each other's replay warnings).
+    public static let mertensAlgorithmName = "mertens-exposure-fusion"
+    /// The Mertens implementation version (a re-merge across a Mertens math
+    /// change bumps THIS, never the HDR version).
+    public static let mertensImplementationVersion = "1"
 
     // MARK: - Source hashing (the drift anchor)
 

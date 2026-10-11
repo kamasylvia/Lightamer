@@ -244,12 +244,15 @@ public actor StackMergeService {
 
     /// The merge backend selector (D-08-CONTEXT-3 — one service, the stack
     /// kinds only swap the terminal segment; v1 implements hdr-merge).
+    /// `hdrMertens` (Plan M5-2-01 KD-4) is PURELY additive — the five
+    /// existing kinds' rows are byte-identical (the G5 zero-regression lock).
     public enum MergeKind: String, Codable, Sendable, CaseIterable {
         case hdrMerge = "hdr-merge"
         case focusStack = "focus-stack"
         case stackAverage = "stack-average"
         case stackMedian = "stack-median"
         case stackSigma = "stack-sigma"
+        case hdrMertens = "hdr-merge-mertens"
 
         /// The provenance vocabulary mapping (identical raw values).
         public var provenanceKind: SidecarProvenance.Kind {
@@ -259,6 +262,7 @@ public actor StackMergeService {
             case .stackAverage: return .stackAverage
             case .stackMedian: return .stackMedian
             case .stackSigma: return .stackSigma
+            case .hdrMertens: return .hdrMertens
             }
         }
     }
@@ -310,6 +314,18 @@ public actor StackMergeService {
         public var nccThreshold: Double?
         public var nccMeasuredMin: Double?
 
+        /// The Mertens deghost tier (`off/low/medium/high`; Plan M5-2-01
+        /// KD-4). nil = UNSPECIFIED — the leg resolves it to `medium`
+        /// (OQ-3's default; the UI always passes an explicit tier).
+        /// Additive optional — old sidecars decode fine and re-encode
+        /// byte-identical (the synthesized encodeIfPresent).
+        public var mertensDeghost: String?
+
+        /// The Mertens pyramid depth override (nil = the resolution-adaptive
+        /// `MertensFusion.adaptiveLevels`; a measured run writes the parsed
+        /// value back — the 08-3 `pyramidLevels` snapshot precedent).
+        public var mertensLevels: Int?
+
         public init(
             deGhost: Bool = true,
             sigma: Float = 0.2,
@@ -321,7 +337,9 @@ public actor StackMergeService {
             pyramidLevels: Int? = nil,
             sigmaClipK: Float? = nil,
             nccThreshold: Double? = nil,
-            nccMeasuredMin: Double? = nil
+            nccMeasuredMin: Double? = nil,
+            mertensDeghost: String? = nil,
+            mertensLevels: Int? = nil
         ) {
             self.deGhost = deGhost
             self.sigma = sigma
@@ -334,6 +352,8 @@ public actor StackMergeService {
             self.sigmaClipK = sigmaClipK
             self.nccThreshold = nccThreshold
             self.nccMeasuredMin = nccMeasuredMin
+            self.mertensDeghost = mertensDeghost
+            self.mertensLevels = mertensLevels
         }
     }
 
@@ -544,7 +564,12 @@ public actor StackMergeService {
 
     /// The kind-aware total (Plan 08-3): HDR keeps its formula verbatim;
     /// focus/stack kinds run THREE per-source passes (align, stage,
-    /// fuse/aggregate) + the same 3-step tail.
+    /// fuse/aggregate) + the same 3-step tail. Mertens (Plan M5-2-01 KD-8)
+    /// declares honestly from day one: decode N + align N + stage/encode N
+    /// + fuse N + write 1 + sidecar 1 + settle 1 = 4N+3 (the 08-3 kinds'
+    /// declared 3N+3 omits the decode N — the recorded observation, NOT
+    /// fixed here: changing their declared total is an existing-kind
+    /// behavior change, the G5 red line).
     nonisolated static func stepTotal(
         for sources: Int, params: MergeParams, kind: MergeKind
     ) -> Int {
@@ -553,6 +578,8 @@ public actor StackMergeService {
             return Self.stepTotal(for: sources, params: params)
         case .focusStack, .stackAverage, .stackMedian, .stackSigma:
             return sources * 3 + 3
+        case .hdrMertens:
+            return sources * 4 + 3
         }
     }
 
@@ -565,6 +592,7 @@ public actor StackMergeService {
         case .stackAverage: return "stack_avg"
         case .stackMedian: return "stack_med"
         case .stackSigma: return "stack_sig"
+        case .hdrMertens: return "mertens"
         }
     }
 
@@ -837,7 +865,22 @@ public actor StackMergeService {
             return try await runFocusStackLeg(work)
         case .stackAverage, .stackMedian, .stackSigma:
             return try await runStackAggregateLeg(work)
+        case .hdrMertens:
+            return try await runMertensLeg(work)
         }
+    }
+
+    /// The Mertens production leg — a TYPED STUB in Plan M5-2-01 (KD-4, the
+    /// M4-1-01 "route-don't-switch" posture): the dispatch arm is final
+    /// structure (M5-2-02 only swaps the body for the band-outer streaming
+    /// leg, zero second-pass dispatch edits); the typed failure pins the
+    /// not-yet-landed state so an accidental enqueue fails honestly instead
+    /// of silently no-op'ing.
+    nonisolated private static func runMertensLeg(
+        _ work: StackMergeWork
+    ) async throws -> StackMergeOutcome {
+        throw AppError.invalidParameter(
+            "hdr-merge-mertens production leg lands in M5-2-02")
     }
 
     /// The 08-1 HDR production pipeline (T2-T6, accepted verbatim — only
