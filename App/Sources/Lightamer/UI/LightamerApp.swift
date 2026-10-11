@@ -1171,6 +1171,19 @@ internal struct LightamerApp: App {
                                 ExportState.makeYiyinInjector(logoStore: browserLogoStore)
                             }
                         })
+                    // M5-1-03 (KD-1): the match_color tool shares the app's ONE
+                    // colormatch service (the session curves) and reads the open
+                    // project's library for id-form reference resolution (the
+                    // assembly-only wiring — the tool face itself is seams-pure).
+                    MatchColorToolset.installColorMatchService(colorMatchService)
+                    MatchColorToolset.installLibraryProvider { [libraryProjects] in
+                        await MainActor.run {
+                            guard let store = libraryProjects.projectStore,
+                                let url = libraryProjects.projectURL
+                            else { return nil }
+                            return (LibraryStore(store: store), url)
+                        }
+                    }
                     await McpServerController.startEmbeddedIfPreferenceEnabled(
                         editing: editingSeams,
                         culling: cullingContext)

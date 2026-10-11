@@ -31522,6 +31522,16 @@
           }
         }
       }
+    },
+    "mcp_tool_desc_match_color" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以一张参考图的色彩分布追色一张或多张目标图（TRACK 求解族）：提取参考图 pristine 态与各目标当前编辑链的 Oklab 统计，逐目标独立求解，并为每个目标落位一个 colormatch 模块实例（每目标一次可撤销写盘，工具返回前落盘）。批量语义：各目标对同一参考统计独立求解——解随目标不同是设计行为。reference：库内图片 id（纯数字）或会话内 relPath；每次调用一张参考图。targets：一个 relPath 或数组（最多 30 个）；缺省 = 编辑器当前图。solver：gaussian-ot（缺省）| reinhard | cdf。strength：0...1（缺省 1）——求解/恒等混合。attach：true（缺省）= 落位 colormatch 实例并返回 {instanceId, params 摘要, solveHash}；false = 只返回参数组——由你用 apply_params 自行落位（cdf 解携带 assetRef/assetHash：派生 .cube 资产写在目标图旁，该引用只在该图上有效）。attach 后微调 = apply_params（如 params {\"strength\":0.7}）；目视验收 = render_preview；参数键参考 = list_iops。确定性：相同 reference/target/参数 → 相同 solveHash（十进制字符串）——可重复调用自行比对。错误：notSessionMember（reference/target 不可寻址）、imageLiveInEditor（attach 目标在编辑器中打开）、invalidParams、renderFailed、renderTimeout。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
