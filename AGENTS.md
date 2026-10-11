@@ -399,6 +399,17 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **SC#1 收口事实（02 T7）**：HDR TIFF 导出落地 16-bit PQ，系统名 ICC 经 ColorSync 序列化**呈现 LUT 型** → 重导入走 `iccLutConverted` CI 臂（KD-1 唯一 LUT 面，PQ 语义在 ColorSync 管理内幸存）；γ 行重解析落 u8Fixed8 网格（2.2→2.19921875）；inverse→forward 带 8e-3 相对门；编辑重放 = D-H1 生产提交面（setLiveParams+commitContinuousEdit，**plain recordChange 不调度 D-S3 写**——测试缝教训）。
 - **测试基建纪要**：NeutralTarget **容器 = PNG**（16-bit 像素恒等转换；禁回转 TIFF——会走新腿重钉 ~10 套件）；BUNDLE-MAP 已按 omp-obs-1/-2 勘误 + 七新行登记。键族：`rawdecode_raster_*` 18 + `import_type_*`/`import_dialog_types` 7（xcstrings 尾块纯插入；UserDefaults 新增 `library.import.categories` 一键）。
 
+### M5-2 架构增量（2026-10-14，M5-2-01/02 执行批——Mertens 生产腿约定正本）
+
+- **runMertensLeg 流式腿形（02 KD-1 终形）**：EV-free 预检（verdicts 只记 provenance 不消费）→ MTB 对齐（`runMTBAlignment` 行为保持抽取——KD-3，stack 严格预检留在 `runStackPrecheckAndAlignment`，Mertens 直调 helper `withNCC: false`）→ 阶段（每源一渲染 + **原位 sRGB 编码**〔平面指针逐元素 `DrtEotfMath.srgbPiecewiseEncode`，RGB 三通道，与 `displayEncodePlane` 逐位同〕+ staged 像素）→ **共享 union 掩码单通道**（merge.py 并集语义：union 跨源 max 累积 → 全帧**一次** dilate + **一次** feather → 单 `mask.u8`；per-source 全流水 = 近似非正本——dilate max 可分配、feather 不可分配）→ staged 网格行读回估 129 点置换 LUT（static 格定义在最终掩码上；等价测试钉整帧 `substituteLUTs`）→ **对齐带 band-outer**（`mertensAlignedBands`：起点整除 2^(L−1)、band 高同倍数取整——01 DECISIONS §6 约束兑现；halo = max(32,2^L) 恒为对齐模倍数故 stripFirst 保持对齐；带内行 vs 整帧逐位有驱动级测试）+ 置换 in-pass（provider 内 `applySubstitution`；NaN→0 = E³≈8.5e-5 自然近零权）→ `landStackProduct` 单一路径。进度恒式 4N+3 两档（tier off 同值）。
+- **StagedSet 面**：嵌套类型 private→internal（01 KD-2 访问先例）+ `writeMask`/`readMaskBand`（共享掩码无 shift——α 在参考/输出帧坐标，不随 MTB shift）+ `readPixelRow`（LUT 网格行）。
+- **分离式 dilate**：`mertensSeparableDilate` = max filter 轴分解，与 golden naive `MertensFusion.dilate` **逐位恒等**（测试钉死）；生产半径 32-58（tier 缩放）下 O(r²) naive 为分钟级、分离式秒级；golden 面零触碰。
+- **域判别（KD-2 正本）**：`writeFloatTIFF` additive `colorSpace`（缺省 working space 零漂移负测钉字节相等）；Mertens 产物 sRGB-tagged 32f → 重导入 `.srgbPiecewise`/`.displayReferred`（Primé 不触发）；两域两门互证测试在册（Robertson02 产物 = Primé → sceneLinear 对照臂）。无 ICC float32 = scene-linear ② 规则回归钉在册。
+- **landStackProduct additive 四臂**：`exposureEVs`/`ghostUnion`/`implementationVersion`/`productColorSpace` 全 default-nil、nil = 既有字节零漂移（既有 kind 快照负测）；ghostUnion 含 1 → runHDRLeg 尾形（dilate + Ghost Suppression layer stack），掩码语义 = 置换掩码。
+- **UI 面（KD-5）**：`SessionBrowserView.onHDRMertens`（≥2 多选 gate + 简形 sheet：标题/body/开始零档位控件）→ `ContentView` 穿线 → `SessionCoordinator.mertensMergeHandler` → LightamerApp `enqueue(.hdrMertens, MergeParams(deGhost: false, tag: nil, mertensDeghost: "medium"))` + `toast_hdr_mertens_queued`——tier 恒显式、deGhost 为 Robertson02 旋钮恒 off、tag nil = mertens 缺省。
+- **键族登记**：`browser_menu_hdr_mertens`/`hdr_mertens_dialog_title`/`hdr_mertens_dialog_body`/`hdr_mertens_dialog_start`/`toast_hdr_mertens_queued` 五键（xcstrings 尾块纯插入）；UserDefaults 零新增。
+- **探针/预算惯例（正本 = `phases/m5-2-mertens/perf.md`）**：`MertensFusionPerfProbeTests`（EXPORT，`LIGHTAMER_PERF_PROBE=1` 门）；PERF 行走 **stderr 无缓冲**（stdout 块缓冲在异常退出丢行）；staged 写后 `synchronizeFile`（GB 级脏页计入 phys_footprint 会引发系统性压力杀进程——ru_maxrss 本身达标也会死）；**被杀进程 defer 不跑 → `$TMPDIR` 残留，探针/基准轮前后清扫**（LESSONS L077）；16GB 机器 100MP×5 全路径磁盘轮系统性边缘——CPU 数值面走 `swiftc -O` 脚手架（genbench 无盘模式），staged-IO 段独立出数；Release 直启 WebP 包 framework 动态链接不对称（Debug 静态/Release 动态且未 embed）= 环境债在册（perf.md §事故 4；D-09-04-D9 重签+entitlements 配方不达——根因 framework 未产出）。
+
 ## Architecture
 
 Architecture not yet mapped. Follow existing patterns found in the codebase.
