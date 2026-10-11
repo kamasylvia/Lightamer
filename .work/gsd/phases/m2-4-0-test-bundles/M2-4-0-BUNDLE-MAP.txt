@@ -227,6 +227,7 @@ APP	9	McpLauncherSentinelTests.swift
 #   parity 3 法（均 = APP/App 级——工具经 EditingToolset.register 注册；快照族
 #   四文件计数改 19→20 不增法）。
 APP	21	McpMatchColorToolsetTests.swift
+APP	3	McpMatchColorParityTests.swift
 APP	9	SettingsPagesTests.swift
 APP	10	SidecarV5Tests.swift
 APP	8	DrtSidecarTests.swift
