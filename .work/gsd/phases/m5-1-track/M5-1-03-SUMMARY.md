@@ -11,8 +11,8 @@
 |---|---|---|
 | T1 | `e13d750` | feat(mcp): match color tool with per target fan out（工具 + register 一行 + 快照族 19→20 + ToolsetTests 21 法 + xcstrings +1 键 + GUI 装配两行 + Project.swift/BUNDLE-MAP） |
 | T2 | `1f4270e` | test(mcp): match color end to end render parity（G4 三法） |
-| T3 | `<回填>` | docs(m5-1): five gate ledger with closeout runs（GATE-LEDGER + 收口轮） |
-| T4 | `<回填>` | docs(m5-1): close track phase with requirements ledger（翻账 + SUMMARY/DECISIONS/GOAL-STATE/TODO） |
+| T3 | `c99e149` | docs(m5-1): five gate ledger with closeout runs（GATE-LEDGER + 收口轮） |
+| T4 | `2002779` | docs(m5-1): close track phase with requirements ledger（翻账 + SUMMARY/DECISIONS/GOAL-STATE/TODO） |
 
 ## 1. T1 — match_color 工具（KD-1 / OQ-6 生效值）
 

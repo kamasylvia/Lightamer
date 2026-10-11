@@ -773,3 +773,25 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   （tuist generate 在文件落盘后）管的是工程编列，本条管的是**产物新鲜度**，
   两道工序缺一不可。
 - **适用**：一切 test-direct.sh 定向轮/收口轮；执行波与验收波同罚。
+
+## L076（2026-10-12）— 验收遇非本批缺陷：同签名 .ips 序列 + 单类复现定性，定向亲跑补齐批内面，挂账不掩盖（M5-1-03 验收批）
+
+- **现象**：M5-1-03 验收全套 `--all` 轮 App bundle 宿主 SIGSEGV；L055 重跑
+  两轮同点复发；`--bundle App FilmPanelTests` 单类隔离 3/3 复现（崩点 =
+  `testShiftSliderLiveWindowCommitsOnce`，签名 = `runFilmLeg` 的
+  `FilmMethodBox.Params`/`FilmGPUPayloads` 过度释放）。执行 worker 当日两轮
+  全绿——时序敏感潜伏竞态（`FilmMethodBox.runContext` 进程级静态槽跨 await
+  悬挂窗，连续 coordinator 渲染互踩），非本批引入（zero Core diff 铁证 +
+  PixelPipe 末触 M4 批溯源）。
+- **定性路径（可复用）**：①崩溃轮日志即存副本（重跑会覆盖 `/tmp`）+
+  DiagnosticReports `.ips` 同签名序列（≥2 同签名 = 非随机）+ 当日系统内存
+  压力背景（swap 占用）一并取证；②归因先做**零 diff 溯源**（`git log -1
+  -- <嫌疑文件>`）分清「本批引入」vs「预存暴露」；③**单类隔离复现**把
+  「全套偶发」收敛为「确定性载体」；④批内验收面用定向轮补齐亲跑
+  （`--bundle <b> <类>` 不受全 bundle 缺陷扰）；⑤全套单轮全绿未达时以
+  三重互证替代（验收方逐位 + 批内定向逐位 + 对方日志逐份重析），**诚实
+  记录替代口径，不得以对方数字充己方亲跑**。
+- **处置**：挂账独立修复批（不混入被验收批——修复闸门禁照单全修的同义
+  延伸：验收批不顺手修域外竞态）；registry = `M5-1-03-ACCEPTANCE.md` §7 +
+  GOAL-STATE/TODO 挂账行 + .ips 证据入 `phases/*/evidence/`。
+- **适用**：一切验收批遭遇疑似非本批 crash/缺陷的定性流程。
