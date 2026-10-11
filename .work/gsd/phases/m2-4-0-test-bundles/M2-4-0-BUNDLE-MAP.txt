@@ -643,7 +643,11 @@ LIB	5	MertensProvenanceTests.swift
 #   融合产物落地面〔float-TIFF writer〕与 Export 域同族；env 门
 #   LIGHTAMER_PERF_PROBE=1 默认套件 skip）。行内 method 数以终态对账为准。
 #   运行期总数基线相应上移（对账以各行 method 数为准）。
-IOP	13	MertensLegTests.swift
+IOP	14	MertensLegTests.swift
 IOP	5	MertensRasterDomainTests.swift
 APP	3	MertensMergeUITests.swift
 EXPORT	1	MertensFusionPerfProbeTests.swift
+
+# 2026-10-14 验收批（zcode）：MertensLegTests 13→14（+1 = 验收发现 merge.py:145
+#   全格兜底在腿侧缺失的回归法 testStageLUTsFallBackOnAllMotionMask；修复 =
+#   腿侧 staticGrid 改直调 01 面 staticSampleMask）。IOP 定向复跑 609/1/0。

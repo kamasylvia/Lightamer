@@ -1021,16 +1021,16 @@ public actor StackMergeService {
         var luts: [[MertensFusion.ChannelLUT]] = []
         if tier != .off, let mask = softMask {
             let step = MertensFusion.decimationStep(width: width, height: height)
-            let gridWidth = (width + step - 1) / step
-            let gridHeight = (height + step - 1) / step
-            var staticGrid = [Bool](repeating: false, count: gridWidth * gridHeight)
-            for gy in 0..<gridHeight {
-                for gx in 0..<gridWidth {
-                    staticGrid[gy * gridWidth + gx] =
-                        mask[min(gy * step, height - 1) * width
-                            + min(gx * step, width - 1)] < 0.01
-                }
-            }
+            // The static grid rides the 01 whole-frame face (the SAME
+            // walk + the merge.py:145 degenerate fallback `static < 64 →
+            // the whole grid counts as static` — the 01 checker minor-1
+            // rule). The inline walk this replaces had NO fallback: an
+            // all-motion mask would estimate over an empty sample set
+            // (the percentile precondition crash) and a near-all-motion
+            // one over a starved sample (silent divergence from the
+            // reference).
+            let (staticGrid, gridWidth, gridHeight, _) = MertensFusion
+                .staticSampleMask(motion: mask, width: width, height: height)
             luts.reserveCapacity(work.decoded.count)
             for index in work.decoded.indices {
                 luts.append(try mertensStageSubstituteLUTs(
