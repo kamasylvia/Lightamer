@@ -1,22 +1,25 @@
 ---
 phase: M5-2
 slug: mertens-exposure-fusion
-status: validated-pending-signoff
+status: validated
 nyquist_compliant: true
 created: 2026-10-14
 validated: 2026-10-14
+signed: 2026-10-15
 ---
 
 # Phase M5-2 — Validation（Mertens 曝光融合：免 CRF 快速 HDR 合并第二模式 + 多档 deghosting）
 
 > 体例对齐 `phases/m5-1-track/M5-1-VALIDATION.md`（M2-11 同源）。**状态 =
-> validated-pending-signoff**——C 档第 3 停（phase 签核前停）：结论给用户
-> 过目后翻 `status: validated`。双重验收（config `dual_acceptance`）本波
-> 双路结论落 `M5-2-02-ACCEPTANCE.md`（zcode 独立验收 → 串行 omp 二次验收，
-> 严禁并发；本文件成文于执行批收口，验收波回填 ACCEPTANCE 后签核生效）。
+> validated**（2026-10-15 签核批翻账；夜间全自动授权在案，晨审可推翻）——
+> C 档第 3 停已过：双重验收（config `dual_acceptance`）双路全 PASS——
+> zcode 首验 **PASS / 1E+0M+5obs**（E-1 已随验收批 `358abd8` 修复闭环）+
+> omp 串行二验 **PASS / 0E+2M+4obs**（与首验零实质分歧；两 minor 均
+> 批外已知域，不阻断）。结论正本 = `M5-2-02-ACCEPTANCE.md` +
+> `M5-2-02-ACCEPTANCE-OMP.md`。
 > **SC 数字对账基线 = 七 bundle 定向拼表 `TOTAL 3538/22/0`**（分割重跑
 > 口径，M5-1 先例；单命令 `--all` 批准制未申请）。对账链
-> **3477 + 39 + 22 = 3538 逐位闭合**。
+> **3477 + 39 + 22 = 3538 逐位闭合**；修复后基线 = **3539/22/0**。
 
 ---
 
@@ -48,15 +51,14 @@ validated: 2026-10-14
 | **G3 合成语义靶** | 四靶 | ✅ 01 交付（双帧恒等 8.94e-08 / 连贯暗物体 mask≈1.0+置换 1.8e-7 / 过曝占比 0.0 / halo 带内逐位+负门）——本批驱动级多 band 逐位测试（`testBandOuterFuseMatchesWholeFrameGolden`）为 G3④ 的生产驱动面延伸 |
 | **G4 Lumen 结构对照** | 非门值报告在册 | ✅ `evidence/lumen-structural-compare/report.md`（ρ=0.990 RGB/luma、max 0.105、mean 0.038、凸包 0.960/0.927；四节形态一致；偏差归因 = gray 系数/归一化层/层数未对齐——**非门值，无数值断言**，测试不入 CI） |
 | **G5 共存零回归** | 既有路径零 diff | ✅ 红线机检（密封面/.metal/SPM/runHDRLeg 体全零 diff）+ 七 bundle 拼表零失败 + 既有 kind 快照/字节零漂移负测（01 vocabulary 钉 + 本批 additive-default 臂负测） |
-| **G6 走查** | MANIFEST 行配方 + 证据 | ✅ 配方在册（五行 Manual-Only）/ ⏳ 证据待回填（执行 = 用户/orchestrator；VALIDATION 挂账形态收口，M3-4 先例） |
+| **G6 走查** | MANIFEST 行配方 + 证据 | ✅ 配方在册（五行 Manual-Only）/ 行 2（Mertens sheet + `_mertens` 分账）与行 5（重导入编辑链）**omp 实机取证已回填**（`.work/gui-acceptance/m5-2/omp-g6/` 五截图：menu/sheet/product/edit/wb + 产物 32f sRGB 三重机检）/ 行 1/3/4 待执行（挂账移交，见下） |
 
 ## 双重验收记录
 
 | 波 | zcode 首验 | omp 二验 | 分歧 |
 |---|---|---|---|
-| M5-2-02 | 待验收波落盘 | 待验收波落盘（串行，严禁并发） | — |
-
-（回填处：`M5-2-02-ACCEPTANCE.md`——FAIL 回注修复批后重走验收。）
+| M5-2-01 | **PASS / 0E+0M+4obs**（`M5-2-01-ACCEPTANCE.md`，2026-10-14） | **PASS / 0E+0M**（`M5-2-01-ACCEPTANCE-OMP.md`，2026-10-13——先于首验成文，零实质分歧） | 零实质分歧（首验批勘误「opencv 零代码符号命中」措辞 = plan 措辞矛盾非执行虚报） |
+| M5-2-02 | **PASS / 1E+0M+5obs**（`M5-2-02-ACCEPTANCE.md`，2026-10-14/15；E-1 生产腿 LUT 缺 merge.py:145 全格兜底 → `358abd8` 单源化修复 + 回归法 + 定向 IOP 609/1/0 绿） | **PASS / 0E+2M+4obs**（`M5-2-02-ACCEPTANCE-OMP.md`，2026-10-12 串行；定向三 bundle 逐位闭合 + 实机端到端取证；两 minor 均**批外**：Library Import 收尾疑似卡住 → Library 另案 / L057-B 同族崩溃 → 专项行在案） | 零实质分歧（omp §5 五项逐项复核同意） |
 
 ## Per-Plan Map
 
@@ -75,7 +77,10 @@ GPL 零复制（Lumen MIT 语义移植带归属注记，`MertensFusion.swift` �
 ## 挂账汇编（单一移交清单）
 
 - **移交 M5-4 / 用户侧**：
-  - **G6 Manual-Only 五行走查**（证据回填 ACCEPTANCE）——配方
+  - **G6 Manual-Only 余下走查行（1/3/4）**——行 2/5 已由 omp 实机取证回填
+    （`.work/gui-acceptance/m5-2/omp-g6/`）；行 1（Robertson02 对照合并）/
+    行 3（deghost 三档对比，需 enqueue 参数通道 v1 无面板）/ 行 4（`_hdr`
+    并存分账）证据回填 ACCEPTANCE——配方
     `.work/gui-acceptance/m5-2/MANIFEST.md`。
   - **M5-4 = VALIDATION 汇总 + 瘦身手术第二次触发**（SPEC 正本：strip 集
     按 SPEC 重算非空才动手）——M5-2 证据链（两批 SUMMARY/DECISIONS +
