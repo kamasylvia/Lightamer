@@ -63,7 +63,7 @@ validated: 2026-10-14
 | Plan | 交付 | 终态 commits | 测试增量 |
 |---|---|---|---|
 | M5-2-01 | 纯函数族 + MergeKind/params/provenance additive + 免 EV 预检 + G1/G2/G3 golden + G5 三 bundle 复验 | `075114a`/`fc66033`/`288467a`/`a141814`/`06a3b9c` + 验收 `7d9708f` | +39 |
-| M5-2-02 | 生产腿（流式/置换/域判别）+ sRGB 落盘 + UI 两菜单项 + 预算机检 + G4/G6 收口 | `826fa5b`/`5afa952`/`45bcfe4`/`e52bd6f`/本批 | +22 |
+| M5-2-02 | 生产腿（流式/置换/域判别）+ sRGB 落盘 + UI 两菜单项 + 预算机检 + G4/G6 收口 | `826fa5b`/`5afa952`/`45bcfe4`/`e52bd6f`/本批 + 验收 `358abd8`（E-1 LUT 兜底修复，zcode 验收批） | +22（验收批 +1 回归法 = 后续基线 3539） |
 
 零红线域终态（phase 全窗 `git diff 0f7e10b..HEAD` 两批机检互证）：`V50Order`/
 `Registry`/`HistoryStack`/`HistoryHash`/`PipelineDocument`/sidecar schema/
