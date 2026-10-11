@@ -795,3 +795,29 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   延伸：验收批不顺手修域外竞态）；registry = `M5-1-03-ACCEPTANCE.md` §7 +
   GOAL-STATE/TODO 挂账行 + .ips 证据入 `phases/*/evidence/`。
 - **适用**：一切验收批遭遇疑似非本批 crash/缺陷的定性流程。
+
+## L077（2026-10-14）— 大面探针三连环：脏页 footpring 杀进程 / defer 不跑残留吃盘 / PERF 行要 stderr（M5-2-02 探针轮）
+
+- **背景**：M5-2-02 T4 100MP×5 预算探针（staged 8.1GB + 融合工作集 ~4GB，
+  16GB 机器基线 swap 已 6.2GB）。三起连环环境事故，产线零缺陷。
+- **现象与根因**：
+  ①首轮 Debug 探针 fuse 段被系统杀死（3277s，无 .ips，`time` 报
+  `signal: Invalid argument`）——ru_maxrss 本身 6248MB 达标（8G 门内），
+  但 **8.1GB staged 未回写脏页计入 phys_footprint**（dirty file cache 是
+  footprint 组成），叠加工作集把 footprint 推到 16.28GB → 系统内存压力
+  杀进程。**ru_maxrss 达标 ≠ 系统层面安全**：大面 staged 写必须逐文件
+  `synchronizeFile` 强制回写（脏→净，语义也更诚实——融合读的就是盘上
+  字节）。
+  ②被杀进程 **`defer` 清理不跑** → `$TMPDIR/la-stack-*` staged 残留
+  8.1GB×2 轮两度吃满系统盘 → **ENOSPC 让 harness 无法开命令日志**
+  （L049 同族新变体：不是测试夹具失败路径泄漏，是宿主被杀后清理段整个
+  跳过）。手工清扫恢复；同批顺手清 3 个陈旧 DerivedData 容器（7.3GB）。
+  ③PERF 计时行走 stdout（块缓冲）——进程被杀时缓冲全丢，一轮 55 分钟
+  跑完零数据。**探针计时行一律 stderr**（无缓冲，逐行落盘）。
+- **对策**（runbook 化）：大面探针轮 = ①staged 写后 sync ②PERF 行 stderr
+  ③**轮前后清扫 `$TMPDIR` 模式目录**（la-stack-*/mertens-* 等本批命名）
+  ④先查盘（`df`）再开跑，基线 swap 一并看（`sysctl vm.swapusage`）。
+  CPU 数值面在直启 Release 链不可达时走 `swiftc -O` 独立脚手架
+  （M2-7-3 先例；生产驱动形镜像 + 产线函数本体，来源入 evidence 存证）。
+- **适用**：一切 GB 级 staged IO 的测试/基准（100MP 级 merge/export/
+  panorama 族）；一切后台/夜间批的磁盘预算管理。
