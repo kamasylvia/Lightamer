@@ -144,10 +144,18 @@ public enum BandStreamer {
     /// - Parameters:
     ///   - destination: the FINAL product URL (`<base>_hdr.tif`).
     ///   - plane: the full-frame RGBA float32 (row-major, tight rows).
+    ///   - colorSpace: the embedded color-space TAG (Plan M5-2-02 KD-2).
+    ///     The default = the working space (the linear-Rec2020 product tag
+    ///     — every pre-M5-2-02 caller is byte-identical); the Mertens leg
+    ///     passes sRGB (the display-referred [0,1] product domain — an
+    ///     untagged/working-tagged float32 would resolve as scene-linear
+    ///     through `RasterColorDescription.resolve` ②/①′ and be domain-
+    ///     misjudged on reimport).
     /// - Throws: `AppError.encodeFailed` on any ImageIO/IO failure (the
     ///   retry-able hard-failure typing).
     public static func writeFloatTIFF(
-        _ plane: [Float], width: Int, height: Int, to destination: URL
+        _ plane: [Float], width: Int, height: Int, to destination: URL,
+        colorSpace: CGColorSpace = WorkingSpace.colorSpace
     ) throws {
         guard plane.count == width * height * 4 else {
             throw AppError.encodeFailed(
@@ -162,8 +170,10 @@ public enum BandStreamer {
 
         // The CGImage rides the SAME bitmap-info shape ImageIOEncodeCore
         // uses for the float32 tier (premultiplied-last RGBA, little-endian
-        // float components) but in the WORKING space — the product is a
-        // linear Rec2020 document, tagged as such (FOUND-02).
+        // float components) in the caller's tag space — the Robertson02
+        // products are linear-Rec2020 documents (the working space,
+        // FOUND-02); the Mertens products are sRGB-tagged display codes
+        // (the M5-2-02 KD-2 domain declaration).
         let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
             | CGBitmapInfo.floatComponents.rawValue
             | CGBitmapInfo.byteOrder32Little.rawValue
@@ -178,7 +188,7 @@ public enum BandStreamer {
             bitsPerComponent: 32,
             bitsPerPixel: 128,
             bytesPerRow: width * 16,
-            space: WorkingSpace.colorSpace,
+            space: colorSpace,
             bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
             provider: provider,
             decode: nil,
