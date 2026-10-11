@@ -161,6 +161,9 @@ struct EditorAdjustmentStackView: View {
                     EmptyView()
                 }
                 pageRows(tab, session: session)
+                if tab == .lut {
+                    lutColormatchAddRow
+                }
                 selectedPanelBody(tab, session: session)
             }
             .padding(.vertical, 4)
@@ -299,6 +302,64 @@ struct EditorAdjustmentStackView: View {
     }
 
     // MARK: - Special pages
+
+    // M5-1-02 E-omp1 fix: the LUT page's colormatch add row. The routing
+    // row (`.page(colormatch, .lut)`) and the panel provider both landed
+    // with T6, but a descriptor with no instance renders no row (the M1
+    // chain-list semantics) and this face has NO other add surface — the
+    // legacy「添加模块」menu rides InspectorView, which mounts here only
+    // behind the export/film page switches (never its standardBody). The
+    // add row closes the bootstrap: one Menu → the template factory's
+    // colormatch case → the SAME base-chain attach seam the Solve face
+    // runs (`addModuleToBaseChain`, ColorMatchService.solveAndAttach) —
+    // then the row renders and the panel body mounts (solver picker /
+    // reference list / Solve / strength).
+
+    /// The add-row gate (pure — the machine-check face): BASE scope only,
+    /// and only while the base chain carries no colormatch record. Colormatch
+    /// is base-resident by design (the Solve face attaches through
+    /// `addModuleToBaseChain`), so a layer scope never offers the row —
+    /// a second add could not close the gate (duplicates by construction).
+    static func lutColormatchAddRowGate(
+        instances: [ModuleInstance], layerID: UUID?
+    ) -> Bool {
+        guard layerID == nil else { return false }
+        return !instances.contains { $0.opName == ColormatchModule.opName }
+    }
+
+    /// The「添加模块」row (the legacy add-menu's stack-face form). The
+    /// fresh-identity clone lands as ONE structure commit and the panel
+    /// selects itself so the solver/reference/strength face is immediately
+    /// reachable (AC#7's entry step — the MANIFEST 行 1 flow).
+    @ViewBuilder
+    private var lutColormatchAddRow: some View {
+        if Self.lutColormatchAddRowGate(
+            instances: editorState.instances, layerID: activeLayerID)
+        {
+            Menu {
+                Button(String(localized: "module_colormatch")) {
+                    addColormatchToBaseChain()
+                }
+            } label: {
+                Label("editor_stack_add_module", systemImage: "plus.circle")
+                    .font(.caption)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .accessibilityIdentifier("editor.stack.lut.addmodule")
+        }
+    }
+
+    /// The attach: the template factory's colormatch case (the M5-1-01 T5
+    /// 20th row) fresh-identity-cloned onto the base chain; the new record
+    /// becomes the selected panel (the LUT page's `selectedPanelBody` then
+    /// mounts the colormatch panel).
+    private func addColormatchToBaseChain() {
+        guard let template = EditorState.templateInstance(for: ColormatchModule.opName),
+            let record = editorState.addModuleToBaseChain(template: template)
+        else { return }
+        inspectorState.selectPanel(instanceID: record.id)
+    }
 
     // M2-6-3 T2: the Display Transform placeholder view is RETIRED — the
     // page's special-content arm mounts the live DrtPanelView (see the
