@@ -459,6 +459,11 @@ internal struct ContentView: View {
                         // coordinator's merge seam (enqueue + toasts).
                         Task { await sessionCoordinator.hdrMergeHandler?(relPaths, deGhost) }
                     },
+                    onHDRMertens: { relPaths in
+                        // Plan M5-2-02 (KD-5): the Mertens quick-merge entry
+                        // (the second merge option, same seam shape).
+                        Task { await sessionCoordinator.mertensMergeHandler?(relPaths) }
+                    },
                     onFocusStack: { relPaths in
                         // Plan 08-3 T4: the focus-stack entry (same seam
                         // shape as the HDR merge).

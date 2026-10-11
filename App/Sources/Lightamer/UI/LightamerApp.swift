@@ -926,6 +926,32 @@ internal struct LightamerApp: App {
                                         error.localizedDescription)
                                 }
                             }
+                            // Plan M5-2-02 (KD-5, OQ-4): the Mertens
+                            // quick-merge handler — the second merge option.
+                            // The tier rides EXPLICITLY ("medium", the OQ-3
+                            // default; deGhost is the Robertson02 knob and
+                            // stays off; tag nil = the mertens default tag).
+                            sessionCoordinator.mertensMergeHandler = { relPaths in
+                                guard let root = sessionState.currentSessionURL else {
+                                    return
+                                }
+                                let urls = relPaths.map {
+                                    root.appendingPathComponent($0)
+                                }
+                                do {
+                                    _ = try await mergeService.enqueue(
+                                        kind: .hdrMertens, sources: urls,
+                                        params: StackMergeService.MergeParams(
+                                            deGhost: false, tag: nil,
+                                            mertensDeghost: "medium"),
+                                        sessionRoot: root)
+                                    editorState.presentToast(
+                                        String(localized: "toast_hdr_mertens_queued"))
+                                } catch {
+                                    editorState.presentToast(
+                                        error.localizedDescription)
+                                }
+                            }
                             sessionCoordinator.stackDenoiseHandler = { relPaths, mode in
                                 guard let root = sessionState.currentSessionURL else {
                                     return

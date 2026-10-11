@@ -31532,6 +31532,91 @@
           }
         }
       }
+    },
+    "browser_menu_hdr_mertens" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR Merge (Mertens Quick)"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR 合并（Mertens 快速）"
+          }
+        }
+      }
+    },
+    "hdr_mertens_dialog_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blend the selected exposure bracket into one HDR image without exposure metadata. The default medium de-ghost tier runs (moving objects are replaced from the reference frame)."
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将所选曝光包围照片融合为一张 HDR 图像（无需曝光元数据）。默认运行中档去鬼影（运动物体由参考帧内容替换）。"
+          }
+        }
+      }
+    },
+    "hdr_mertens_dialog_start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Merge"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始合并"
+          }
+        }
+      }
+    },
+    "hdr_mertens_dialog_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR Merge (Mertens Quick)"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR 合并（Mertens 快速）"
+          }
+        }
+      }
+    },
+    "toast_hdr_mertens_queued" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR merge (Mertens) queued"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HDR 合并（Mertens）已加入队列"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

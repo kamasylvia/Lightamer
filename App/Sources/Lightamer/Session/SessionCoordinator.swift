@@ -126,6 +126,11 @@ final class SessionCoordinator {
     /// entry renders disabled/unwired.
     var hdrMergeHandler: ((_ relPaths: [String], _ deGhost: Bool) async -> Void)?
 
+    /// Plan M5-2-02 (KD-5, OQ-4): the Mertens quick-merge orchestration
+    /// seam (the hdrMergeHandler twin — the second merge option enqueues
+    /// `.hdrMertens` with the explicit default tier). nil = unwired.
+    var mertensMergeHandler: ((_ relPaths: [String]) async -> Void)?
+
     /// Plan 08-3 T4: the stacking seams (the same menu → service shape;
     /// the mode maps 1:1 onto the service's stack kinds). nil = unwired.
     var focusStackHandler: ((_ relPaths: [String]) async -> Void)?
