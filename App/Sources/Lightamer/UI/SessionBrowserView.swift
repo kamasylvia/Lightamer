@@ -54,6 +54,13 @@ internal struct SessionBrowserView: View {
     /// stays hidden (no service wired).
     var onHDRMerge: ((_ relPaths: [String], _ deGhost: Bool) -> Void)?
 
+    /// Plan M5-2-02 (KD-5, OQ-4): the Mertens quick-merge entry — the
+    /// second HDR option beside `onHDRMerge` (the two coexist as merge
+    /// OPTIONS; no automatic preference). Same multi-select gate + the
+    /// simple confirm sheet (no tier controls — v1 has no panel, OQ-3).
+    /// nil = the menu item stays hidden (the same gate shape).
+    var onHDRMertens: ((_ relPaths: [String]) -> Void)?
+
     /// Plan 08-3 T4: the stacking entries — the focus stack and the three-
     /// mode stack denoise (same multi-select + confirm-dialog shape as the
     /// HDR entry). nil = the menu items stay hidden (no service wired).
@@ -154,6 +161,17 @@ internal struct SessionBrowserView: View {
                                 pendingTargets = targets
                                 hdrMergeDeGhost = true
                                 showHDRMergeDialog = true
+                            }
+                        }
+                        // Plan M5-2-02 (KD-5): the Mertens quick-merge entry
+                        // — the second merge option, same gate + sheet shape.
+                        if targets.count >= 2, onHDRMertens != nil {
+                            if onHDRMerge == nil {
+                                Divider()
+                            }
+                            Button(String(localized: "browser_menu_hdr_mertens")) {
+                                pendingTargets = targets
+                                showHDRMertensDialog = true
                             }
                         }
                         // Plan 08-3 T4: the stacking entries (same
@@ -326,6 +344,33 @@ internal struct SessionBrowserView: View {
             .padding(20)
             .frame(width: 360)
         }
+        // Plan M5-2-02 (KD-5): the Mertens confirm sheet — the SIMPLE form
+        // (title/body/start; zero tier controls, OQ-3's no-panel v1; the
+        // body names the default medium deghost tier). SwiftUI .sheet — the
+        // L057 runModal-family ban does not apply by construction.
+        .sheet(isPresented: $showHDRMertensDialog) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(String(localized: "hdr_mertens_dialog_title"))
+                    .font(.headline)
+                Text(String(localized: "hdr_mertens_dialog_body"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Spacer()
+                    Button(String(localized: "alert_cancel"), role: .cancel) {
+                        showHDRMertensDialog = false
+                    }
+                    Button(String(localized: "hdr_mertens_dialog_start")) {
+                        let targets = pendingTargets
+                        showHDRMertensDialog = false
+                        onHDRMertens?(targets)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20)
+            .frame(width: 360)
+        }
     }
 
     // The right-clicked cell joins the selection when outside it — the
@@ -342,6 +387,8 @@ internal struct SessionBrowserView: View {
     /// Plan 08-1 T1: the HDR-merge confirm dialog state (de-ghost toggle).
     @State private var showHDRMergeDialog = false
     @State private var hdrMergeDeGhost = true
+    /// Plan M5-2-02 (KD-5): the Mertens confirm sheet state.
+    @State private var showHDRMertensDialog = false
     /// Plan 08-3 T4: the stacking dialog states.
     @State private var showFocusStackDialog = false
     @State private var showStackDenoiseDialog = false
