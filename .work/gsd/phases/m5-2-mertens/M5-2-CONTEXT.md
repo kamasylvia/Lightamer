@@ -145,3 +145,7 @@ additive + runMertensLeg + G1/G2/G3/G5 → 02 = UI 两入口 + zh 键族 + 域�
 ## 裁决记录
 
 （待用户回批后回填：OQ-M5-2-1..7 各项生效值 + 日期 + 回批载体。）
+
+## 裁决记录（用户回批 2026-10-11）
+
+**OQ-1..7 全部按推荐采纳（全 A）**：①自实现 + Lumen MIT 语义移植注记（零新 SPM）②display-referred [0,1] 32f + M4-1 raster ingest 链衔接 ③deghost off/low/medium/high 默认 medium，v1 无面板 ④互为选项两菜单项 + `_mertens` 分账 ⑤免 EV（aperture/ISO 差异降 warning）⑥sRGB piecewise 编码 + 层数自适应 + halo 流式 + ru_maxrss 8G 机检 ⑦golden 六门（bit-identity/Float64 孪生 parity/合成靶四件/Lumen 结构对照非门值/共存零回归/走查）。
