@@ -159,28 +159,49 @@ final class MertensMergeKindTests: XCTestCase {
         XCTAssertEqual(final.done, 15)
     }
 
-    /// The production stub (KD-4): an enqueue of `.hdrMertens` with the
-    /// PRODUCTION merge leg fails typed — `invalidParameter` naming the
-    /// M5-2-02 landing plan (the M4-1-01 route-don't-switch shape).
-    func testProductionStubFailsTypedNamingM5_2_02() async throws {
+    /// The production leg (Plan M5-2-02 T1 replaced the typed stub — the
+    /// M4-1-01 route-don't-switch shape completed): an enqueue of
+    /// `.hdrMertens` with the PRODUCTION merge leg and a real synthetic
+    /// bracket now LANDS a product (the stub's typed failure is retired
+    /// with the landing plan it named).
+    func testProductionLegLandsAfterM5_2_02() async throws {
         let (dir, sources) = try makeSources(count: 2)
-        let service = try makeService(
-            decodeLeg: { _ in Self.stubDecodedImage() },
-            mergeLeg: nil) // nil = the production leg = the Mertens stub
-        _ = try await service.enqueue(
-            kind: .hdrMertens, sources: sources, params: .init(), sessionRoot: dir)
-        let terminal = await Self.awaitTerminal(service)
-        guard case .failed(let error)? = terminal?.state else {
-            XCTFail("expected .failed, got \(String(describing: terminal?.state))")
-            return
+        // A real 16×12 synthetic bracket (half-exact values — the CI half
+        // working format passes them through unchanged).
+        var floats = [Float](repeating: 0, count: 16 * 12 * 4)
+        for pixel in 0..<(16 * 12) {
+            let base = pixel * 4
+            let ramp = Float(pixel % 8) / 8
+            floats[base] = 0.25 + ramp * 0.25
+            floats[base + 1] = 0.25
+            floats[base + 2] = 0.25 + ramp * 0.5
+            floats[base + 3] = 1
         }
-        guard case .invalidParameter(let message) = error else {
-            XCTFail("expected invalidParameter, got \(error)")
+        let data = floats.withUnsafeBufferPointer { Data(buffer: $0) }
+        let decodeLeg: StackDecodeLeg = { _ in
+            let ci = CIImage(
+                bitmapData: data, bytesPerRow: 16 * 16,
+                size: CGSize(width: 16, height: 12),
+                format: CIFormat.RGBAf, colorSpace: WorkingSpace.colorSpace)
+            return DecodedImage(
+                ciImage: ci, rawTech: RAWTechnicalParams(),
+                capture: CaptureMetadata(), segmentationSkyMatte: nil,
+                decoderVersionUsed: .v8)
+        }
+        let service = try makeService(decodeLeg: decodeLeg, mergeLeg: nil)
+        _ = try await service.enqueue(
+            kind: .hdrMertens, sources: sources,
+            params: .init(deGhost: false, tag: nil, mertensDeghost: "off"),
+            sessionRoot: dir)
+        let terminal = await Self.awaitTerminal(service)
+        guard case .done(let url)? = terminal?.state else {
+            XCTFail("expected .done, got \(String(describing: terminal?.state))")
             return
         }
         XCTAssertTrue(
-            message.contains("M5-2-02"),
-            "the stub must name its landing plan, got: \(message)")
+            url.lastPathComponent.contains("_mertens"),
+            "the landed product carries the mertens tag")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
     }
 
     // MARK: - The MergeParams additive fields (KD-4)
