@@ -459,6 +459,60 @@ final class MertensLegTests: XCTestCase {
         XCTAssertEqual(streamed, wholeFrame, "the grid IO form is the golden form")
     }
 
+    /// The merge.py:145 degenerate-mask fallback rides the PRODUCTION
+    /// staged grid-row pass: the static grid comes from the 01 whole-frame
+    /// face (`staticSampleMask` — `static < 64 → the whole grid counts as
+    /// static`), so an all-motion soft mask estimates over the WHOLE grid
+    /// (no empty/starved sample set) and the streamed LUTs equal the
+    /// whole-frame face on the same inputs. (The M5-2-02 acceptance
+    /// finding: the leg's first cut built the grid inline WITHOUT the
+    /// fallback — an all-motion mask would hit the percentile
+    /// precondition.)
+    func testStageLUTsFallBackOnAllMotionMask() throws {
+        let width = 512, height = 64
+        var seed: UInt64 = 0x5CA1EDF00DBA11D7
+        func noise() -> Float {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            return 0.125 + Float((seed >> 40) % 2048) / 4096
+        }
+        var reference = [Float](repeating: 0, count: width * height * 4)
+        var frame = reference
+        for pixel in 0..<(width * height) {
+            let base = pixel * 4
+            reference[base] = noise(); reference[base + 1] = noise()
+            reference[base + 2] = noise(); reference[base + 3] = 1
+            frame[base] = noise(); frame[base + 1] = noise()
+            frame[base + 2] = noise(); frame[base + 3] = 1
+        }
+        // ALL-motion soft mask (every grid cell ≥ 0.01): the degenerate
+        // the fallback exists for.
+        let allMotion = [Float](repeating: 1, count: width * height)
+        let step = MertensFusion.decimationStep(width: width, height: height)
+        let (staticGrid, gridWidth, gridHeight, fellBack) = MertensFusion
+            .staticSampleMask(motion: allMotion, width: width, height: height)
+        XCTAssertTrue(fellBack, "all-motion must trip the < 64 fallback")
+        XCTAssertTrue(staticGrid.allSatisfy(\.self), "fallback = the whole grid")
+        let staging = StackMergeService.StagedSet(count: 2, width: width, height: height)
+        defer { staging.cleanUp() }
+        try staging.writePlaneForProbe(reference, index: 0)
+        try staging.writePlaneForProbe(frame, index: 1)
+        let streamed = try StackMergeService.mertensStageSubstituteLUTs(
+            staging: staging, width: width, height: height, step: step,
+            referenceIndex: 0, frameIndex: 1,
+            staticGrid: staticGrid, gridWidth: gridWidth, gridHeight: gridHeight)
+        let wholeFrame = MertensFusion.substituteLUTs(
+            reference: reference, frame: frame, motion: allMotion,
+            width: width, height: height)
+        XCTAssertEqual(
+            streamed, wholeFrame,
+            "the fallback faces must coincide (129-point LUTs, all-static)")
+        XCTAssertEqual(streamed.count, 3)
+        for lut in streamed {
+            XCTAssertEqual(lut.xs.count, 129, "the LUT stays fully populated")
+            XCTAssertEqual(lut.ys.count, 129)
+        }
+    }
+
     /// The band-outer driver reproduces the whole-frame golden fusion
     /// BIT-EXACTLY: multi-band runs coincide on every output row
     /// (grid-aligned starts + the halo cover the whole receptive field —
