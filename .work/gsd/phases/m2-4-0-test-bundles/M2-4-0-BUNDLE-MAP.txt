@@ -674,3 +674,4 @@ IOPP	5	PanoGoldenTests.swift
 #   rationale 同 M5-2-02：IOP 贴线族不宜叠加 GB 级探针，EXPORT 余量最宽）。
 IOP	8	PanoWarpTests.swift
 IOP	14	PanoGainTests.swift
+IOP	10	PanoCropTests.swift
