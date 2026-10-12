@@ -73,8 +73,9 @@ final class MertensMergeKindTests: XCTestCase {
         XCTAssertEqual(StackMergeService.MergeKind.hdrMertens.rawValue, "hdr-merge-mertens")
         XCTAssertEqual(
             StackMergeService.MergeKind(rawValue: "hdr-merge-mertens"), .hdrMertens)
-        // CaseIterable +1 (five existing + the additive case).
-        XCTAssertEqual(StackMergeService.MergeKind.allCases.count, 6)
+        // CaseIterable +1 (five existing + the additive Mertens case;
+        // M5-3-01 added the pano case — the count is now 7).
+        XCTAssertEqual(StackMergeService.MergeKind.allCases.count, 7)
     }
 
     func testProvenanceKindMirrorAcrossAllCases() {
@@ -85,7 +86,8 @@ final class MertensMergeKindTests: XCTestCase {
                 kind.provenanceKind.rawValue, kind.rawValue,
                 "provenance mirror broke at \(kind.rawValue)")
         }
-        XCTAssertEqual(SidecarProvenance.Kind.allCases.count, 6)
+        // + the M5-3-01 pano mirror case.
+        XCTAssertEqual(SidecarProvenance.Kind.allCases.count, 7)
     }
 
     func testDefaultTagVocabularyIncludingMertens() {
