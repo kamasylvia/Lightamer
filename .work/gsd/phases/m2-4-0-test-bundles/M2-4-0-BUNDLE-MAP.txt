@@ -675,5 +675,5 @@ IOPP	5	PanoGoldenTests.swift
 IOP	8	PanoWarpTests.swift
 IOP	14	PanoGainTests.swift
 IOP	10	PanoCropTests.swift
-IOP	8	PanoLegTests.swift
+IOP	10	PanoLegTests.swift
 EXPORT	1	PanoFusionPerfProbeTests.swift
