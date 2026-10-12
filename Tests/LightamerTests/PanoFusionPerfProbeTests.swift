@@ -268,9 +268,9 @@ final class PanoFusionPerfProbeTests: XCTestCase {
                 var strip: [Float] = []
                 for tileX in stride(
                     from: crop.x0, to: crop.x1, by: 512) {
-                    for source in geometries {
+                    for (sourceIndex, source) in geometries.enumerated() {
                         _ = try staging.readRows(
-                            index: geometries.firstIndex(of: source)!,
+                            index: sourceIndex,
                             firstRow: crop.y0 + firstRow,
                             rows: min(512, crop.height - firstRow),
                             bytesPerRow: source.width * 16, into: &strip)
