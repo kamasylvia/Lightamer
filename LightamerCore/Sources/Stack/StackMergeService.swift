@@ -253,6 +253,11 @@ public actor StackMergeService {
         case stackMedian = "stack-median"
         case stackSigma = "stack-sigma"
         case hdrMertens = "hdr-merge-mertens"
+        /// The spherical-feature panorama merge (Plan M5-3-01 KD-6). PURELY
+        /// additive — the six existing kinds' rows are byte-identical (the
+        /// G5 zero-regression lock); the production leg lands in M5-3-02
+        /// (this plan ships the typed stub).
+        case pano = "pano-merge"
 
         /// The provenance vocabulary mapping (identical raw values).
         public var provenanceKind: SidecarProvenance.Kind {
@@ -263,6 +268,7 @@ public actor StackMergeService {
             case .stackMedian: return .stackMedian
             case .stackSigma: return .stackSigma
             case .hdrMertens: return .hdrMertens
+            case .pano: return .panoMerge
             }
         }
     }
@@ -326,6 +332,22 @@ public actor StackMergeService {
         /// value back — the 08-3 `pyramidLevels` snapshot precedent).
         public var mertensLevels: Int?
 
+        /// The resolved panorama canvas [w, h] (Plan M5-3-01 KD-7). nil =
+        /// not a pano merge / not yet resolved. Additive optional — old
+        /// sidecars decode fine and re-encode byte-identical (the
+        /// synthesized encodeIfPresent). Consumption + write-back = the
+        /// M5-3-02 leg (the 08-3 `pyramidLevels` resolved-snapshot
+        /// precedent — provenance states what ran).
+        public var panoCanvas: [Int]?
+
+        /// The resolved exposure gains, reference frame first (KD-7).
+        /// nil = not a pano merge / not yet resolved.
+        public var panoGains: [Double]?
+
+        /// The resolved inner-crop rectangle [x0, y0, x1, y1] (KD-7).
+        /// nil = not a pano merge / not yet resolved.
+        public var panoCrop: [Int]?
+
         public init(
             deGhost: Bool = true,
             sigma: Float = 0.2,
@@ -339,7 +361,10 @@ public actor StackMergeService {
             nccThreshold: Double? = nil,
             nccMeasuredMin: Double? = nil,
             mertensDeghost: String? = nil,
-            mertensLevels: Int? = nil
+            mertensLevels: Int? = nil,
+            panoCanvas: [Int]? = nil,
+            panoGains: [Double]? = nil,
+            panoCrop: [Int]? = nil
         ) {
             self.deGhost = deGhost
             self.sigma = sigma
@@ -354,6 +379,9 @@ public actor StackMergeService {
             self.nccMeasuredMin = nccMeasuredMin
             self.mertensDeghost = mertensDeghost
             self.mertensLevels = mertensLevels
+            self.panoCanvas = panoCanvas
+            self.panoGains = panoGains
+            self.panoCrop = panoCrop
         }
     }
 
@@ -527,6 +555,13 @@ public actor StackMergeService {
             throw AppError.invalidParameter(
                 "stack merge needs ≥ 2 sources, got \(sources.count)")
         }
+        // The pano 2..32 gate (Plan M5-3-01 KD-6; OQ-4): the kind-
+        // CONDITIONAL upper bound — the six existing kinds' path is
+        // byte-identical (a pure additive if).
+        if kind == .pano, sources.count > 32 {
+            throw AppError.invalidParameter(
+                "pano merge accepts at most 32 sources, got \(sources.count)")
+        }
         seqCounter += 1
         progressTotal += Self.stepTotal(for: sources.count, params: params, kind: kind)
         let job = MergeJob(
@@ -580,6 +615,12 @@ public actor StackMergeService {
             return sources * 3 + 3
         case .hdrMertens:
             return sources * 4 + 3
+        case .pano:
+            // The honest pano declaration (Plan M5-3-01 KD-6): decode N +
+            // features N + fusion N (the tile-paced leg consumption,
+            // M5-3-02) + 6 = matching/BA/wave 1 + canvas/ROI 1 + gains 1 +
+            // write 1 + sidecar 1 + settle 1.
+            return sources * 3 + 6
         }
     }
 
@@ -593,6 +634,7 @@ public actor StackMergeService {
         case .stackMedian: return "stack_med"
         case .stackSigma: return "stack_sig"
         case .hdrMertens: return "mertens"
+        case .pano: return "pano"
         }
     }
 
@@ -867,7 +909,21 @@ public actor StackMergeService {
             return try await runStackAggregateLeg(work)
         case .hdrMertens:
             return try await runMertensLeg(work)
+        case .pano:
+            return try await runPanoLeg(work)
         }
+    }
+
+    /// The pano production leg (Plan M5-3-01 KD-6) — a TYPED STUB this plan:
+    /// the dispatch structure is final (the M5-2-01/M4-1-01 routing-not-
+    /// switched precedent — M5-3-02 only swaps the leg body, zero second
+    /// edits to the kind surface). The failure is the typed retry-able
+    /// invalidParameter, the Mertens stub's exact shape.
+    nonisolated private static func runPanoLeg(
+        _ work: StackMergeWork
+    ) async throws -> StackMergeOutcome {
+        throw AppError.invalidParameter(
+            "pano-merge production leg lands in M5-3-02")
     }
 
     /// The Mertens production leg (Plan M5-2-02 T1, KD-1): the exposure
