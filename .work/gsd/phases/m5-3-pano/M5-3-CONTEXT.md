@@ -106,3 +106,7 @@ IOP-PANO-01：全景合成——特征匹配对齐 + 相机参数优化 + 球面
 **C 档第 1 停**：OQ-M5-3-1..7 交用户裁决（全带推荐）→ 回批后 plan round
 （执行分工照 Phase 执行模型 = omp 执行 + subagent 验收）→ M5-4 VALIDATION
 兼「全史瘦身手术」第二次（strip 集重算非空才动手）。
+
+## 裁决记录（用户回批 2026-10-16）
+
+**OQ-1..7 全部按推荐采纳（全 A）**：①特征/对齐自实现（Vision pairwise 备选）②单焦 f+N×R LM BA + 横向 wave correct ③sRGB 编码 float32 + sRGB 32f TIFF（Mertens 同域）④200MP 画布帽 + 2..32 张 + 8G 探针钉 ⑤恒 inner_crop + alpha 不写 ⑥v1 全 CPU（Accelerate），越门 GPU 另立项 ⑦`.pano` additive + 简形 sheet；预览/手选参考/use_edits 挂 V2。
