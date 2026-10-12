@@ -624,6 +624,78 @@ final class PanoLegTests: XCTestCase {
         XCTAssertEqual(covered, validCount, "valid = weight > 0")
     }
 
+    func testTwoPassCropEqualsNaiveFullCanvasFusion() throws {
+        // The KD-5 G3 pin: fusing ONLY the crop window (pass 2's bounded
+        // walk) lands BYTE-IDENTICAL rows to fusing the FULL canvas (the
+        // naive single-pass reference) and cropping afterwards — the
+        // per-pixel math carries no cross-pixel state, so the read-window
+        // bounds cannot move a bit.
+        let sourceWidth = 120
+        let sourceHeight = 90
+        var geometries: [PanoSourceGeometry] = []
+        for yaw in [-6.0, 6.0] {
+            geometries.append(PanoSourceGeometry(
+                width: sourceWidth, height: sourceHeight, focal: 120,
+                rotation: PanoCamera.rotation(
+                    fromAxisAngle: SIMD3(0, yaw * Double.pi / 180, 0))))
+        }
+        let canvas = try PanoWarp.boundedCanvas(
+            sources: geometries,
+            scale: PanoWarp.globalScale(focals: geometries.map(\.focal)))
+        let staging = StackMergeService.StagedSet(
+            count: 2, width: sourceWidth, height: sourceHeight)
+        defer { staging.cleanUp() }
+        for (index, color) in [Float(0.3), Float(0.7)].enumerated() {
+            var floats = [Float](
+                repeating: 0, count: sourceWidth * sourceHeight * 4)
+            for index2 in stride(from: 0, to: floats.count, by: 4) {
+                floats[index2] = color
+                floats[index2 + 1] = color
+                floats[index2 + 2] = color
+                floats[index2 + 3] = 1
+            }
+            // The plane OWNS the pointer (its deinit deallocates).
+            let plane = StackRenderedPlane(
+                pointer: UnsafeMutableRawPointer.allocate(
+                    byteCount: sourceWidth * sourceHeight * 16,
+                    alignment: 64),
+                width: sourceWidth, height: sourceHeight,
+                bytesPerRow: sourceWidth * 16)
+            plane.pointer.copyMemory(
+                from: floats, byteCount: sourceWidth * sourceHeight * 16)
+            try staging.writePixels(plane, index: index)
+        }
+        let valid = StackMergeService.panoValidMask(
+            sources: geometries, rois: canvas.rois, canvas: canvas)
+        let crop = try PanoCrop.innerCrop(
+            valid: valid, width: canvas.width, height: canvas.height)
+        // pass 2: the crop-window fusion (the production walk).
+        let windowed = try StackMergeService.panoFuseRows(
+            staging: staging, sources: geometries, rois: canvas.rois,
+            gains: [1, 1], canvas: canvas,
+            cropX0: crop.x0, cropX1: crop.x1,
+            firstRow: crop.y0, rowCount: crop.height)
+        // naive: the FULL canvas fused, then cropped.
+        let full = try StackMergeService.panoFuseRows(
+            staging: staging, sources: geometries, rois: canvas.rois,
+            gains: [1, 1], canvas: canvas,
+            cropX0: 0, cropX1: canvas.width,
+            firstRow: 0, rowCount: canvas.height)
+        for row in 0..<crop.height {
+            for x in 0..<crop.width {
+                let windowedIndex = (row * crop.width + x) * 4
+                let fullIndex = ((crop.y0 + row) * canvas.width
+                    + crop.x0 + x) * 4
+                for channel in 0..<4 {
+                    XCTAssertEqual(
+                        windowed[windowedIndex + channel].bitPattern,
+                        full[fullIndex + channel].bitPattern,
+                        "pixel (\(x), \(row)) ch \(channel) diverged")
+                }
+            }
+        }
+    }
+
     // MARK: - The streaming writer (KD-9)
 
     func testFloatTIFFWriterRowBandsRoundTripThroughImageIO() throws {
