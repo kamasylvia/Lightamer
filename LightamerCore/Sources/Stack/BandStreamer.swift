@@ -358,6 +358,15 @@ public enum BandStreamer {
                  rows: rowCount))
         }
 
+        /// The diagnostic flush (the probe's footprint localization):
+        /// sync the product's dirty page-cache pages back to the volume
+        /// WITHOUT finishing — the L077 dirty-file-cache footprint share,
+        /// measured per band.
+        func syncForDiagnostics() throws {
+            guard let handle else { return }
+            try handle.synchronizeFile()
+        }
+
         /// Append the IFD (+ the external values and the ICC payload),
         /// backfill the header offset, and promote tmp → destination.
         public func finish() throws {
