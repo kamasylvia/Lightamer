@@ -651,3 +651,12 @@ EXPORT	1	MertensFusionPerfProbeTests.swift
 # 2026-10-14 验收批（zcode）：MertensLegTests 13→14（+1 = 验收发现 merge.py:145
 #   全格兜底在腿侧缺失的回归法 testStageLUTsFallBackOnAllMotionMask；修复 =
 #   腿侧 staticGrid 改直调 01 面 staticSampleMask）。IOP 定向复跑 609/1/0。
+
+# M5-3-01 增行记录（2026-10-09 执行期，checker E2 测试登记纪律）：新测试文件随
+#   各自任务 commit 登记进对应 bundle（归属按 front-matter 判定：
+#   PanoFeatureTests / PanoMatchTests / PanoCameraTests / PanoMergeKindTests =
+#   IOP/Core 级（HDRMergeMathTests / StackMergeServiceTests 同位）；
+#   PanoProvenanceTests = LIB/Core 级（MertensProvenanceTests 同位）；
+#   PanoGoldenTests = IOPP 级（*Golden* 域模式）。全部小 fixture（≤1200² 预览
+#   域合成面），零大图单测。行内 method 数以终态对账为准。
+IOP	9	PanoFeatureTests.swift
