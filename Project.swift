@@ -427,6 +427,7 @@ let project = Project(
                 "Tests/LightamerTests/NoiseProfileStoreTests.swift",
                 "Tests/LightamerTests/PanoCameraTests.swift",
                 "Tests/LightamerTests/PanoFeatureTests.swift",
+                "Tests/LightamerTests/PanoCropTests.swift",
                 "Tests/LightamerTests/PanoGainTests.swift",
                 "Tests/LightamerTests/PanoMatchTests.swift",
                 "Tests/LightamerTests/PanoMergeKindTests.swift",
