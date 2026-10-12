@@ -27,12 +27,14 @@ import XCTest
 // are swept BEFORE and AFTER the round (the killed process skips its defer
 // — the ENOSPC harness lockup); ④ the round preflights df + swapusage and
 // SKIPS (honestly, not failing) when the disk budget is not met — the
-// staged set is 8 × 50 MP ≈ 6.4 GB and the product ≈ 3.2 GB.
+// staged set is 8 × 28.3 MP ≈ 3.6 GB and the product ≈ 3.2 GB.
 //
-// PROBE GEOMETRY (fixed): 8 sources of 8192×6144 (≈50 MP each, ≈6.4 GB
-// staged) on 10°-yaw cameras at f = 30 k — the first bounded-canvas round
-// overshoots 200 MP so the shrink loop runs and lands just under the cap
-// (the production mechanism decides the output size, KD-4).
+// PROBE GEOMETRY (fixed): 8 sources of 6144×4608 (≈28.3 MP each, ≈3.6 GB
+// staged — the first draft rode 8192×6144 ≈50 MP and was trimmed after the
+// fusion-kill incident, see the property note below) on 10°-yaw cameras at
+// f = 30 k — the first bounded-canvas round overshoots 200 MP so the shrink
+// loop runs and lands just under the cap (the production mechanism decides
+// the output size, KD-4).
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class PanoFusionPerfProbeTests: XCTestCase {
