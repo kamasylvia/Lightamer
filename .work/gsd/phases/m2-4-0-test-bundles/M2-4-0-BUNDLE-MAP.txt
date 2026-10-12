@@ -648,6 +648,13 @@ IOP	5	MertensRasterDomainTests.swift
 APP	3	MertensMergeUITests.swift
 EXPORT	1	MertensFusionPerfProbeTests.swift
 
+# 2026-10-16 增行记录（M5-3-03 执行批，checker E2 测试登记纪律）：新测试文件
+#   随任务 commit 登记进 LightamerTestsApp（归属按 front-matter 判定：
+#   PanoMergeUITests = APP/App 级——MertensMergeUITests 同位，SessionBrowser/
+#   Coordinator seam 面 + App 侧 typed 失败词汇 zh 映射纯函数）。行内 method
+#   数以终态对账为准。运行期总数基线相应上移（对账以各行 method 数为准）。
+APP	5	PanoMergeUITests.swift
+
 # 2026-10-14 验收批（zcode）：MertensLegTests 13→14（+1 = 验收发现 merge.py:145
 #   全格兜底在腿侧缺失的回归法 testStageLUTsFallBackOnAllMotionMask；修复 =
 #   腿侧 staticGrid 改直调 01 面 staticSampleMask）。IOP 定向复跑 609/1/0。

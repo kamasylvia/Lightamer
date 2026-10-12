@@ -60,6 +60,64 @@ final class McpWriteFaceBox: @unchecked Sendable {
         _provider = provider
         lock.unlock()
     }
+}
+
+/// Plan M5-3-03 (KD-3): the typed pano failure vocabulary's display-layer
+/// mapping — the P1 canonical prefixes (pinned in Core,
+/// `PanoMatch.FailurePrefix`) map onto the three zh keys at the merge
+/// failureHook's consumption face. The Core error vocabulary stays
+/// untouched; a message without a pano prefix passes through
+/// byte-identically (the existing error face's zero-change invariant).
+enum PanoFailureCopy {
+
+    /// The prefix table (canonical Core prefix → catalog key). Pure and
+    /// machine-checked (three prefixes, both directions).
+    static func failureKey(for message: String) -> String? {
+        let table: [(prefix: String, key: String)] = [
+            (PanoMatch.FailurePrefix.alignment, "pano_error_alignment"),
+            (PanoMatch.FailurePrefix.disconnected, "pano_error_disconnected"),
+            (PanoMatch.FailurePrefix.canvas, "pano_error_canvas"),
+        ]
+        for entry in table where message.contains(entry.prefix) {
+            return entry.key
+        }
+        return nil
+    }
+
+    /// The failureHook consumption face: a matched message renders as
+    /// "<localized copy>: <typed detail>" (the AppError boilerplate head
+    /// is dropped with the substitution); a non-pano message returns the
+    /// input unchanged.
+    static func failureMessage(for raw: String) -> String {
+        guard let key = failureKey(for: raw) else { return raw }
+        let localized: String
+        // V14 discipline: dynamic key positions resolve through an
+        // explicit switch returning STATIC keys (no runtime-key
+        // LocalizationValue lookup).
+        switch key {
+        case "pano_error_alignment":
+            localized = String(localized: "pano_error_alignment")
+        case "pano_error_disconnected":
+            localized = String(localized: "pano_error_disconnected")
+        case "pano_error_canvas":
+            localized = String(localized: "pano_error_canvas")
+        default:
+            return raw
+        }
+        // The canonical prefixes carry their own ": " tail — the typed
+        // detail (when present) follows them in the raw message.
+        var detail = ""
+        for prefix in [PanoMatch.FailurePrefix.alignment,
+                       PanoMatch.FailurePrefix.disconnected,
+                       PanoMatch.FailurePrefix.canvas] {
+            if let range = raw.range(of: prefix) {
+                detail = String(raw[range.upperBound...])
+                break
+            }
+        }
+        let trimmed = detail.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? localized : localized + ": " + trimmed
+    }
 }/// Plan 14-1 T1 (D-14-CONTEXT-2⑤): the process entry fork. A headless MCP
 /// launch (`--mcp-stdio` / `--mcp-http`) NEVER constructs the SwiftUI App
 /// struct below — `@NSApplicationDelegateAdaptor` and the whole `@State`
@@ -1023,8 +1081,14 @@ internal struct LightamerApp: App {
                                 }
                             }
                             await mergeService.setFailureHook { snapshot, error in
+                                // Plan M5-3-03 (KD-3): the typed pano
+                                // three-state mapping rides the hook's
+                                // display layer — a non-pano message is
+                                // byte-identical (existing face zero change).
+                                let detail = PanoFailureCopy.failureMessage(
+                                    for: error.localizedDescription)
                                 let message = String(localized:
-                                    "toast_hdr_merge_failed \(error.localizedDescription)")
+                                    "toast_hdr_merge_failed \(detail)")
                                 await MainActor.run {
                                     editorState.presentToast(message)
                                 }
