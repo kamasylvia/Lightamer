@@ -1330,13 +1330,19 @@ public actor StackMergeService {
     /// The tile-fusion core (KD-5 pass 2; the probe's direct-drive seam —
     /// the `mertensBandOuterFuse` precedent): fuses canvas rows
     /// [firstRow, firstRow+rowCount) restricted to canvas columns
-    /// [cropX0, cropX1) into crop-local RGBA rows (alpha 1). Per tile and
-    /// source: the ROI intersect skip, the spherical map, ONE staged row-
-    /// span read, the clamped bilinear gather (the BORDER_REPLICATE
-    /// semantics — the alpha gate zeroes the outside), the feather alpha
-    /// and the gain; the per-pixel normalize rides `accum/max(weight,1e-8)`
-    /// clamped to [0,1] (merge.py:283-288). Deterministic order: tiles
-    /// top-to-bottom/left-to-right, sources in index order (G1's anchor).
+    /// [cropX0, cropX1) into crop-local RGBA rows (alpha 1). Per band and
+    /// source: ONE union row-span staged read (the span from a strided map
+    /// sampling of the band, padded — the probe-round finding: per-TILE
+    /// reads re-read the same source rows 84× per band, and the read
+    /// volume carried a linear phys_footprint climb that system-killed
+    /// the 200 MP probe rounds at ~25 GB; the band-level read cuts the
+    /// volume ~84× and holds the footprint flat). Per col-tile then: the
+    /// spherical map, the clamped bilinear gather out of the band strip
+    /// (the BORDER_REPLICATE semantics — the alpha gate zeroes the
+    /// outside), the feather alpha and the gain; the per-pixel normalize
+    /// rides `accum/max(weight,1e-8)` clamped to [0,1] (merge.py:283-288).
+    /// Deterministic order: tiles top-to-bottom/left-to-right, sources in
+    /// index order (G1's anchor).
     nonisolated static func panoFuseRows(
         staging: StagedSet, sources: [PanoSourceGeometry], rois: [PanoROI],
         gains: [Float], canvas: PanoCanvasPlan,
@@ -1345,6 +1351,59 @@ public actor StackMergeService {
     ) throws -> [Float] {
         let outWidth = cropX1 - cropX0
         precondition(outWidth >= 1 && rowCount >= 1, "degenerate fuse band")
+
+        // ── the band's per-source union spans + the staged strips ────────
+        // The span sampler walks the band on a 64×64 grid (the map varies
+        // smoothly — the sample miss is bounded well under the pad) and
+        // the pad covers the sampling grid plus the rotation stretch.
+        let sampleStride = 64
+        let spanPad = 2 * sampleStride
+        var spans = [(first: Int, last: Int, count: Int)](
+            repeating: (0, 0, 0), count: sources.count)
+        var strips = [[Float]](repeating: [], count: sources.count)
+        for (index, source) in sources.enumerated() {
+            let roi = rois[index]
+            guard roi.x + roi.width > cropX0, roi.x < cropX1,
+                  roi.y + roi.height > canvas.originY + firstRow,
+                  roi.y < canvas.originY + firstRow + rowCount
+            else { continue }
+            var minRow = Int.max
+            var maxRow = Int.min
+            var y = firstRow
+            while y < firstRow + rowCount {
+                var x = cropX0
+                let sampleHeight = min(sampleStride, firstRow + rowCount - y)
+                while x < cropX1 {
+                    let sampleWidth = min(sampleStride, cropX1 - x)
+                    let (mx, my) = PanoWarp.sphericalMap(
+                        rectX: Double(canvas.originX + x),
+                        rectY: Double(canvas.originY + y),
+                        width: sampleWidth, height: sampleHeight,
+                        scale: canvas.scale, source: source)
+                    for sampleIndex in mx.indices {
+                        let sx = mx[sampleIndex]
+                        let sy = my[sampleIndex]
+                        if sx >= 0, sy >= 0, sx <= Float(source.width - 1),
+                           sy <= Float(source.height - 1) {
+                            let row = Int(sy)
+                            minRow = min(minRow, row)
+                            maxRow = max(maxRow, row + 1)
+                        }
+                    }
+                    x += sampleStride
+                }
+                y += sampleStride
+            }
+            guard minRow != Int.max else { continue }
+            let first = max(0, minRow - spanPad)
+            let last = min(source.height - 1, maxRow + spanPad)
+            let count = try staging.readRows(
+                index: index, firstRow: first, rows: last - first + 1,
+                bytesPerRow: source.width * 16, into: &strips[index])
+            spans[index] = (first, last, count)
+        }
+
+        // ── the tile walk (maps + gathers out of the band strips) ────────
         var accum = [Float](repeating: 0, count: rowCount * outWidth * 3)
         var weight = [Float](repeating: 0, count: rowCount * outWidth)
         for tileY in stride(
@@ -1355,6 +1414,8 @@ public actor StackMergeService {
                 let rectX = Double(canvas.originX + tileX)
                 let rectY = Double(canvas.originY + tileY)
                 for (index, source) in sources.enumerated() {
+                    let span = spans[index]
+                    guard span.count > 0 else { continue }
                     let roi = rois[index]
                     if roi.x + roi.width < canvas.originX + tileX
                         || roi.x > canvas.originX + tileX + tileWidth
@@ -1366,25 +1427,7 @@ public actor StackMergeService {
                         rectX: rectX, rectY: rectY, width: tileWidth,
                         height: tileHeight, scale: canvas.scale,
                         source: source)
-                    // The staged row span the INSIDE samples touch — one
-                    // read per tile×source.
-                    var minRow = Int.max
-                    var maxRow = Int.min
-                    for sampleIndex in mx.indices
-                    where panoFeatherAlpha(
-                        mx: mx[sampleIndex], my: my[sampleIndex],
-                        source: source) > 0 {
-                        let row = Int(my[sampleIndex])
-                        minRow = min(minRow, row)
-                        maxRow = max(maxRow, row + 1)
-                    }
-                    guard minRow != Int.max else { continue }
-                    let spanFirst = max(0, minRow)
-                    let spanLast = min(source.height - 1, maxRow)
-                    let rows = try staging.readRows(
-                        index: index, firstRow: spanFirst,
-                        rows: spanLast - spanFirst + 1,
-                        bytesPerRow: source.width * 16)
+                    let rows = strips[index]
                     let strideFloats = source.width * 4
                     let gain = gains[index]
                     let sourceWidth = source.width
@@ -1406,10 +1449,16 @@ public actor StackMergeService {
                             let iy0 = min(max(Int(sy), 0), sourceHeight - 1)
                             let fy = sy - Float(iy0)
                             let iy1 = min(iy0 + 1, sourceHeight - 1)
-                            let row0 = (iy0 - spanFirst) * strideFloats
-                            let row1 = (iy1 - spanFirst) * strideFloats
+                            let row0 = (iy0 - span.first) * strideFloats
+                            let row1 = (iy1 - span.first) * strideFloats
                             let c0 = ix0 * 4
                             let c1 = ix1 * 4
+                            // The filled-prefix bound (the union span
+                            // covers every inside neighborhood; the guard
+                            // is the honest stale-tail defense).
+                            if row0 < 0 || row1 + c1 + 3 >= span.count {
+                                continue
+                            }
                             let invFx = 1 - fx
                             let invFy = 1 - fy
                             let topR = rows[row0 + c0] * invFx
@@ -2749,6 +2798,50 @@ public actor StackMergeService {
         /// stride (mixed source sizes are legal — the KD-10 no-extent-gate
         /// posture). Rows outside the set's height zero-fill (the
         /// readMaskBand shape).
+        ///
+        /// The `into` variant (the probe-round finding) reads into the
+        /// CALLER's reusable buffer — the fusion walk churns hundreds of
+        /// multi-MB row spans per band, and fresh large allocations put
+        /// the resident footprint on a monotonic climb (libmalloc's freed
+        /// large blocks stay resident — the probe-pinned 10 GB-per-4-bands
+        /// growth) where one grown-once buffer keeps the working set flat.
+        /// Returns the float count actually filled (prefix of the buffer).
+        func readRows(
+            index: Int, firstRow: Int, rows: Int, bytesPerRow: Int? = nil,
+            into buffer: inout [Float]
+        ) throws -> Int {
+            let strideBytes = bytesPerRow ?? width * 16
+            let floatsPerRow = strideBytes / 4
+            let wantFloats = max(0, rows) * floatsPerRow
+            if buffer.count < wantFloats {
+                buffer = [Float](repeating: 0, count: wantFloats)
+            }
+            guard rows > 0 else { return 0 }
+            let sourceFirst = max(0, firstRow)
+            let sourceLast = min(height, firstRow + rows) // exclusive
+            guard sourceLast > sourceFirst else { return 0 }
+            let handle = try FileHandle(forReadingFrom: pixelsURL(index))
+            defer { try? handle.close() }
+            try handle.seek(toOffset: UInt64(sourceFirst * strideBytes))
+            let want = (sourceLast - sourceFirst) * strideBytes
+            guard let data = try handle.read(upToCount: want),
+                  data.count == want
+            else {
+                throw AppError.fileUnreadable("staged pixels rows truncated")
+            }
+            let filled = (sourceLast - sourceFirst) * floatsPerRow
+            let destinationRow0 = sourceFirst - firstRow
+            buffer.withUnsafeMutableBytes { raw in
+                data.withUnsafeBytes { stagedRaw in
+                    raw.baseAddress!
+                        .advanced(by: destinationRow0 * strideBytes)
+                        .copyMemory(
+                            from: stagedRaw.baseAddress!, byteCount: want)
+                }
+            }
+            return filled
+        }
+
         func readRows(
             index: Int, firstRow: Int, rows: Int, bytesPerRow: Int? = nil
         ) throws -> [Float] {
