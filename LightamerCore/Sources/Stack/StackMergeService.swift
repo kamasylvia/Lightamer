@@ -914,16 +914,542 @@ public actor StackMergeService {
         }
     }
 
-    /// The pano production leg (Plan M5-3-01 KD-6) — a TYPED STUB this plan:
-    /// the dispatch structure is final (the M5-2-01/M4-1-01 routing-not-
-    /// switched precedent — M5-3-02 only swaps the leg body, zero second
-    /// edits to the kind surface). The failure is the typed retry-able
-    /// invalidParameter, the Mertens stub's exact shape.
+    /// The pano production leg (Plan M5-3-02 T4; KD-10): the staged
+    /// pipeline — ① per source ONE decode-render, sRGB display-encoded in
+    /// place (KD-1's Mertens-leg domain), staged to disk, and the preview
+    /// gray derived from the SAME encoded plane (the checker-minor-2 seam:
+    /// the M5-3-01 `rgbaEncoded` face, no second encode) — the feature step
+    /// per source; ② the M5-3-01 chain over the previews (all-pairs knn →
+    /// Lowe → ONE seeded RANSAC stream → the edge gate → the reference BFS
+    /// connectivity → focal initials → LM BA → wave correct) — one step;
+    /// ③ the canvas segment (preview-focal back-projection, the median
+    /// scale, the bounded shrink loop) — one step; ④ the gain segment (the
+    /// ≤900px sample canvases over the staged planes + the anchored min-
+    /// norm lstsq) — one step; ⑤ pass 1: the geometry-only valid mask
+    /// (weight > 0 is pure geometry — the crop resolves before any staged
+    /// pixel is read, the memory red line's mathematical basis) + the
+    /// histogram-stack inner crop; ⑥ pass 2: the 512px tile fusion
+    /// streaming crop rows band by band through the rowProvider into the
+    /// `FloatTIFFWriter` — N band-paced steps (padded after landing).
+    ///
+    /// THE EXTENT GATE IS DELIBERATELY ABSENT (KD-10): different viewpoints
+    /// legitimately differ in size — the key divergence from the
+    /// Mertens/HDR bracket legs (the DECISIONS note).
+    ///
+    /// Progress = 2N+5 inside this leg (features N + chain 1 + canvas 1 +
+    /// gains 1 + fusion N + write 1 + sidecar 1); with the service's decode
+    /// N and the settle 1 the declared total is exactly 3N+6.
     nonisolated private static func runPanoLeg(
         _ work: StackMergeWork
     ) async throws -> StackMergeOutcome {
-        throw AppError.invalidParameter(
-            "pano-merge production leg lands in M5-3-02")
+        guard work.decoded.count == work.sources.count,
+              work.decoded.count >= 2
+        else {
+            throw AppError.invalidParameter(
+                "pano merge: \(work.decoded.count) decoded frames for "
+                    + "\(work.sources.count) sources")
+        }
+        let sourceCount = work.decoded.count
+
+        let staging = StagedSet(count: sourceCount, width: 1, height: 1)
+        defer { staging.cleanUp() }
+
+        // ── ① the stage pass: encode → staged → preview gray → features ──
+        var keypoints: [[PanoKeypoint]] = []
+        var descriptors: [[PanoDescriptor]] = []
+        var sourceSizes: [(width: Int, height: Int)] = []
+        var previewSizes: [(width: Int, height: Int)] = []
+        keypoints.reserveCapacity(sourceCount)
+        descriptors.reserveCapacity(sourceCount)
+        sourceSizes.reserveCapacity(sourceCount)
+        previewSizes.reserveCapacity(sourceCount)
+        for index in work.decoded.indices {
+            let plane = try work.render.renderFullFloatRGBA(
+                work.decoded[index].ciImage)
+            let sourceSize = (width: plane.width, height: plane.height)
+            mertensDisplayEncodeInPlace(plane)
+            try staging.writePixels(plane, index: index)
+            let preview = panoPreviewGrayFromEncoded(plane)
+            // The transient full plane dies with the loop iteration.
+            let detection = PanoFeature.detectAndDescribe(preview)
+            guard detection.keypoints.count >= PanoFeature.minFeaturesPerImage
+            else {
+                throw AppError.invalidParameter(
+                    PanoMatch.FailurePrefix.alignment + "image \(index) has "
+                        + "\(detection.keypoints.count) features (< "
+                        + "\(PanoFeature.minFeaturesPerImage))")
+            }
+            keypoints.append(detection.keypoints)
+            descriptors.append(detection.descriptors)
+            sourceSizes.append(sourceSize)
+            previewSizes.append(
+                (width: preview.width, height: preview.height))
+            await work.progress.step() // feature step
+        }
+
+        // ── ② the match chain (all pairs; ONE seeded stream) ─────────────
+        var rng = PanoRNG()
+        var adjacency: [Set<Int>] = (0..<sourceCount).map { [$0] }
+        var bundles: [PanoMatchBundle] = []
+        var edgeHomographies: [Mat3D] = []
+        var edgePairs: [(first: Int, second: Int)] = []
+        for i in 0..<sourceCount {
+            let centerI = (
+                x: (Double(previewSizes[i].width) - 1) / 2,
+                y: (Double(previewSizes[i].height) - 1) / 2)
+            for j in (i + 1)..<sourceCount {
+                let centerJ = (
+                    x: (Double(previewSizes[j].width) - 1) / 2,
+                    y: (Double(previewSizes[j].height) - 1) / 2)
+                let matches = PanoMatch.ratioFilter(PanoMatch.knn2(
+                    query: descriptors[i], train: descriptors[j]))
+                guard !matches.isEmpty else { continue }
+                let correspondences = matches.map { match -> PanoCorrespondence in
+                    let first = keypoints[i][match.queryIndex]
+                    let second = keypoints[j][match.bestIndex]
+                    return PanoCorrespondence(
+                        first.x - centerI.x, first.y - centerI.y,
+                        second.x - centerJ.x, second.y - centerJ.y)
+                }
+                guard let estimate = PanoMatch.ransacHomography(
+                    correspondences, rng: &rng)
+                else { continue }
+                let confidence = PanoMatch.matchConfidence(
+                    inliers: estimate.inliers.count,
+                    matches: correspondences.count)
+                guard PanoMatch.isValidEdge(
+                    confidence: confidence,
+                    inliers: estimate.inliers.count)
+                else { continue }
+                adjacency[i].insert(j)
+                adjacency[j].insert(i)
+                edgePairs.append((i, j))
+                edgeHomographies.append(estimate.homography)
+                bundles.append(PanoMatchBundle(
+                    first: i, second: j,
+                    correspondences: estimate.inliers.map {
+                        correspondences[$0]
+                    }))
+            }
+        }
+        guard let initialFocal = PanoCamera.medianFocal(edgeHomographies) else {
+            throw AppError.invalidParameter(
+                PanoMatch.FailurePrefix.alignment
+                    + "no image pair carries focal information")
+        }
+        let component = PanoMatch.connectedComponent(
+            imageCount: sourceCount, adjacency: adjacency, reference: 0)
+        guard component.count == sourceCount else {
+            throw AppError.invalidParameter(
+                PanoMatch.FailurePrefix.disconnected + "\(component.count) of "
+                    + "\(sourceCount) images in the closure")
+        }
+        // The rotation seeds: BFS from the reference over the valid edges,
+        // R_child = orthogonalize(K⁻¹·H_parent→child·K) · R_parent (the
+        // H ≈ K·R_child·R_parentᵀ·K⁻¹ decomposition; the gauge rides on
+        // the reference identity — the G2 wiring shape).
+        var initialRotations = [Mat3D](
+            repeating: Mat3D.identity, count: sourceCount)
+        var visited: Set<Int> = [0]
+        var queue = [0]
+        while !queue.isEmpty {
+            let parent = queue.removeFirst()
+            for child in adjacency[parent].sorted() where !visited.contains(child) {
+                visited.insert(child)
+                queue.append(child)
+                // The stored homography maps edge.first → edge.second.
+                let homography: Mat3D
+                if let edgeIndex = edgePairs.firstIndex(where: {
+                    ($0.first == parent && $0.second == child)
+                        || ($0.first == child && $0.second == parent)
+                }) {
+                    homography = edgePairs[edgeIndex].first == parent
+                        ? edgeHomographies[edgeIndex]
+                        : (edgeHomographies[edgeIndex].inverted()
+                            ?? Mat3D.identity)
+                } else {
+                    continue
+                }
+                guard let relative = PanoCamera.initialRotation(
+                    from: homography, focal: initialFocal)
+                else { continue }
+                initialRotations[child] = Mat3D.mul(relative, initialRotations[parent])
+            }
+        }
+        guard let solution = PanoCamera.bundleAdjust(
+            matches: bundles, imageCount: sourceCount,
+            initialFocal: initialFocal, initialRotations: initialRotations)
+        else {
+            throw AppError.invalidParameter(
+                PanoMatch.FailurePrefix.alignment
+                    + "bundle adjustment did not converge")
+        }
+        let rotations = PanoCamera.waveCorrectHorizontally(solution.rotations)
+        await work.progress.step() // the matching/BA/wave step
+
+        // ── ③ the canvas segment (KD-3/KD-4) ────────────────────────────
+        var sources: [PanoSourceGeometry] = []
+        sources.reserveCapacity(sourceCount)
+        for index in 0..<sourceCount {
+            let focal = PanoWarp.fullResolutionFocal(
+                previewFocal: solution.focal,
+                previewWidth: previewSizes[index].width,
+                fullWidth: sourceSizes[index].width)
+            sources.append(PanoSourceGeometry(
+                width: sourceSizes[index].width,
+                height: sourceSizes[index].height,
+                focal: focal, rotation: rotations[index]))
+        }
+        let scale = PanoWarp.globalScale(focals: sources.map(\.focal))
+        let canvas = try PanoWarp.boundedCanvas(sources: sources, scale: scale)
+        await work.progress.step() // the canvas/ROI step
+
+        // ── ④ the gains segment (KD-6) ──────────────────────────────────
+        let sampleSize = PanoGain.sampleCanvasSize(
+            canvasWidth: canvas.width, canvasHeight: canvas.height)
+        let sampleRatio = Double(sampleSize.width) / Double(max(1, canvas.width))
+        var samplePlanes: [PanoGainSamplePlane] = []
+        samplePlanes.reserveCapacity(sourceCount)
+        for index in 0..<sourceCount {
+            let source = sources[index]
+            let plane = try PanoGain.samplePlane(
+                rectX: Double(canvas.originX) * sampleRatio,
+                rectY: Double(canvas.originY) * sampleRatio,
+                width: sampleSize.width, height: sampleSize.height,
+                scale: canvas.scale * sampleRatio, source: source,
+                rowReader: { first, count in
+                    try staging.readRows(
+                        index: index, firstRow: first, rows: count,
+                        bytesPerRow: source.width * 16)
+                })
+            samplePlanes.append(plane)
+        }
+        let (gains, gainsClipped) = PanoGain.gains(
+            planes: samplePlanes, reference: 0)
+        var warnings: [String] = []
+        if gainsClipped {
+            warnings.append(
+                "panorama exposure gains clamped at the ±"
+                    + "\(PanoGain.clipLimit) log ceiling")
+        }
+        await work.progress.step() // the gains step
+
+        // ── ⑤ pass 1: the geometry valid mask + the inner crop ──────────
+        let valid = panoValidMask(
+            sources: sources, rois: canvas.rois, canvas: canvas)
+        let crop = try PanoCrop.innerCrop(
+            valid: valid, width: canvas.width, height: canvas.height)
+        // The mask dies here — pass 2 rides the crop bounds only.
+
+        // ── ⑥ pass 2 + landing: the streaming row-band provider ─────────
+        let gainFactors = gains.map { Float($0) }
+        var fusionBudget = sourceCount
+        let rowProvider: (_ firstRow: Int, _ rowCount: Int) async throws -> [Float] =
+            { firstRow, rowCount in
+                let rows = try Self.panoFuseRows(
+                    staging: staging, sources: sources, rois: canvas.rois,
+                    gains: gainFactors, canvas: canvas,
+                    cropX0: crop.x0, cropX1: crop.x1,
+                    firstRow: crop.y0 + firstRow, rowCount: rowCount)
+                // The Lumen finite gate (merge_images tail) — the typed
+                // non-prefix pass-through (the zh mapping's non-prefix arm).
+                for value in rows where !value.isFinite {
+                    throw AppError.invalidParameter(
+                        "panorama merge produced non-finite pixels")
+                }
+                if fusionBudget > 0 {
+                    fusionBudget -= 1
+                    await work.progress.step() // the fusion step (band-paced)
+                }
+                return rows
+            }
+
+        // The provenance snapshot states what ran (the 08-3 pyramidLevels
+        // resolved-snapshot precedent).
+        var provenanceParams = work.params
+        provenanceParams.panoCanvas = [canvas.width, canvas.height]
+        provenanceParams.panoGains = gains
+        provenanceParams.panoCrop = [crop.x0, crop.y0, crop.x1, crop.y1]
+
+        // The alignment vocabulary (KD-9): deterministic per-source labels.
+        var alignmentLabels: [String] = []
+        alignmentLabels.reserveCapacity(sourceCount)
+        for index in 0..<sourceCount {
+            if index == 0 {
+                alignmentLabels.append("reference")
+            } else {
+                let inliers = bundles.reduce(0) { total, bundle in
+                    bundle.first == index || bundle.second == index
+                        ? total + bundle.correspondences.count : total
+                }
+                alignmentLabels.append("inliers=\(inliers)")
+            }
+        }
+
+        let outcome = try await landStackProduct(
+            work, width: crop.width, height: crop.height, rgba: [],
+            holeFraction: 0, alignmentLabels: alignmentLabels,
+            warnings: warnings, provenanceParams: provenanceParams,
+            algorithmName: ProvenanceReplay.panoAlgorithmName,
+            implementationVersion: ProvenanceReplay.panoImplementationVersion,
+            exposureEVs: nil, ghostUnion: nil,
+            productColorSpace: CGColorSpace(name: CGColorSpace.sRGB),
+            rowProvider: rowProvider)
+        // The tiny-canvas pad (fewer bands than N — the honest count still
+        // closes to the declared total).
+        while fusionBudget > 0 {
+            fusionBudget -= 1
+            await work.progress.step()
+        }
+        return outcome
+    }
+
+    // MARK: - Pano leg internals (T4; the probe's direct-drive seams)
+
+    /// The sRGB-encoded preview gray off an ALREADY-ENCODED plane buffer
+    /// (the checker-minor-2 seam consumed from the buffer): the fused
+    /// luma+box-downsample walk — NO full-resolution intermediates (the
+    /// 01 `preparePreviewGray(rgbaEncoded:)` face with the encode skipped
+    /// and the array copy fused into the box walk; bit-identical, pinned
+    /// by the drift-guard test).
+    nonisolated static func panoPreviewGrayFromEncoded(
+        _ plane: StackRenderedPlane
+    ) -> PanoGrayPlane {
+        let cr = Double(MertensFusion.grayCoefficients.r)
+        let cg = Double(MertensFusion.grayCoefficients.g)
+        let cb = Double(MertensFusion.grayCoefficients.b)
+        let floats = UnsafeRawBufferPointer(
+            start: plane.pointer, count: plane.bytesPerRow * plane.height)
+            .bindMemory(to: Float.self)
+        func lumaAt(_ index: Int) -> Float {
+            let base = index * 4
+            return Float(
+                cr * Double(floats[base]) + cg * Double(floats[base + 1])
+                    + cb * Double(floats[base + 2]))
+        }
+        let longEdge = max(plane.width, plane.height)
+        guard longEdge > PanoFeature.previewMaxEdge else {
+            var luma = [Float](
+                repeating: 0, count: plane.width * plane.height)
+            for index in luma.indices {
+                luma[index] = lumaAt(index)
+            }
+            return PanoGrayPlane(
+                width: plane.width, height: plane.height, pixels: luma)
+        }
+        // The box downsample (the PanoFeature.prepare walk verbatim — the
+        // pinned fractional-boundary shared-pixel property included).
+        let scale = Double(PanoFeature.previewMaxEdge) / Double(longEdge)
+        let tw = max(1, Int((Double(plane.width) * scale).rounded()))
+        let th = max(1, Int((Double(plane.height) * scale).rounded()))
+        var out = [Float](repeating: 0, count: tw * th)
+        for y in 0..<th {
+            let y0 = y * plane.height / th
+            let y1 = min(plane.height, ((y + 1) * plane.height + th - 1) / th)
+            for x in 0..<tw {
+                let x0 = x * plane.width / tw
+                let x1 = min(plane.width, ((x + 1) * plane.width + tw - 1) / tw)
+                var sum = Float(0)
+                for yy in y0..<y1 {
+                    let row = yy * plane.width
+                    for xx in x0..<x1 {
+                        sum += lumaAt(row + xx)
+                    }
+                }
+                out[y * tw + x] = sum / Float((y1 - y0) * (x1 - x0))
+            }
+        }
+        return PanoGrayPlane(width: tw, height: th, pixels: out)
+    }
+
+    /// The per-source geometric feather alpha (merge.py:279-281 — the 12%
+    /// short-edge fade band): clip(edge/(min(ih,iw)×0.12), 0.001, 1) ×
+    /// inside. PURE GEOMETRY (no pixel values — the pass-1/pass-2 weight
+    /// identity's basis).
+    nonisolated static func panoFeatherAlpha(
+        mx: Float, my: Float, source: PanoSourceGeometry
+    ) -> Float {
+        guard mx >= 0, my >= 0, mx <= Float(source.width - 1),
+              my <= Float(source.height - 1)
+        else { return 0 }
+        let edge = min(
+            min(mx + 1, Float(source.width) - mx),
+            min(my + 1, Float(source.height) - my))
+        let feather = edge / (Float(min(source.height, source.width)) * 0.12)
+        return min(max(feather, 0.001), 1)
+    }
+
+    /// The geometry pass (KD-5 pass 1): the canvas valid mask (UInt8 1 B/px
+    /// — 200 MB at the 200 MP cap). A pixel is valid iff ANY source maps
+    /// it inside (weight = Σ alpha > 0 ⟺ some alpha > 0, the pure-geometry
+    /// identity). Tile-walked; the ROI intersect only skips provably-empty
+    /// tiles (the ROIs err large).
+    nonisolated static func panoValidMask(
+        sources: [PanoSourceGeometry], rois: [PanoROI],
+        canvas: PanoCanvasPlan, tileSize: Int = 512
+    ) -> [UInt8] {
+        var valid = [UInt8](
+            repeating: 0, count: canvas.width * canvas.height)
+        for tileY in stride(from: 0, to: canvas.height, by: tileSize) {
+            let tileHeight = min(tileSize, canvas.height - tileY)
+            for tileX in stride(from: 0, to: canvas.width, by: tileSize) {
+                let tileWidth = min(tileSize, canvas.width - tileX)
+                let rectX = Double(canvas.originX + tileX)
+                let rectY = Double(canvas.originY + tileY)
+                for (index, source) in sources.enumerated() {
+                    let roi = rois[index]
+                    if roi.x + roi.width < canvas.originX + tileX
+                        || roi.x > canvas.originX + tileX + tileWidth
+                        || roi.y + roi.height < canvas.originY + tileY
+                        || roi.y > canvas.originY + tileY + tileHeight {
+                        continue
+                    }
+                    let (mx, my) = PanoWarp.sphericalMap(
+                        rectX: rectX, rectY: rectY, width: tileWidth,
+                        height: tileHeight, scale: canvas.scale, source: source)
+                    for row in 0..<tileHeight {
+                        let canvasRow = (tileY + row) * canvas.width
+                        let tileRow = row * tileWidth
+                        for column in 0..<tileWidth
+                        where valid[canvasRow + tileX + column] == 0 {
+                            let sx = mx[tileRow + column]
+                            let sy = my[tileRow + column]
+                            if sx >= 0, sy >= 0,
+                               sx <= Float(source.width - 1),
+                               sy <= Float(source.height - 1) {
+                                valid[canvasRow + tileX + column] = 1
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return valid
+    }
+
+    /// The tile-fusion core (KD-5 pass 2; the probe's direct-drive seam —
+    /// the `mertensBandOuterFuse` precedent): fuses canvas rows
+    /// [firstRow, firstRow+rowCount) restricted to canvas columns
+    /// [cropX0, cropX1) into crop-local RGBA rows (alpha 1). Per tile and
+    /// source: the ROI intersect skip, the spherical map, ONE staged row-
+    /// span read, the clamped bilinear gather (the BORDER_REPLICATE
+    /// semantics — the alpha gate zeroes the outside), the feather alpha
+    /// and the gain; the per-pixel normalize rides `accum/max(weight,1e-8)`
+    /// clamped to [0,1] (merge.py:283-288). Deterministic order: tiles
+    /// top-to-bottom/left-to-right, sources in index order (G1's anchor).
+    nonisolated static func panoFuseRows(
+        staging: StagedSet, sources: [PanoSourceGeometry], rois: [PanoROI],
+        gains: [Float], canvas: PanoCanvasPlan,
+        cropX0: Int, cropX1: Int,
+        firstRow: Int, rowCount: Int, tileSize: Int = 512
+    ) throws -> [Float] {
+        let outWidth = cropX1 - cropX0
+        precondition(outWidth >= 1 && rowCount >= 1, "degenerate fuse band")
+        var accum = [Float](repeating: 0, count: rowCount * outWidth * 3)
+        var weight = [Float](repeating: 0, count: rowCount * outWidth)
+        for tileY in stride(
+            from: firstRow, to: firstRow + rowCount, by: tileSize) {
+            let tileHeight = min(tileSize, firstRow + rowCount - tileY)
+            for tileX in stride(from: cropX0, to: cropX1, by: tileSize) {
+                let tileWidth = min(tileSize, cropX1 - tileX)
+                let rectX = Double(canvas.originX + tileX)
+                let rectY = Double(canvas.originY + tileY)
+                for (index, source) in sources.enumerated() {
+                    let roi = rois[index]
+                    if roi.x + roi.width < canvas.originX + tileX
+                        || roi.x > canvas.originX + tileX + tileWidth
+                        || roi.y + roi.height < canvas.originY + tileY
+                        || roi.y > canvas.originY + tileY + tileHeight {
+                        continue
+                    }
+                    let (mx, my) = PanoWarp.sphericalMap(
+                        rectX: rectX, rectY: rectY, width: tileWidth,
+                        height: tileHeight, scale: canvas.scale,
+                        source: source)
+                    // The staged row span the INSIDE samples touch — one
+                    // read per tile×source.
+                    var minRow = Int.max
+                    var maxRow = Int.min
+                    for sampleIndex in mx.indices
+                    where panoFeatherAlpha(
+                        mx: mx[sampleIndex], my: my[sampleIndex],
+                        source: source) > 0 {
+                        let row = Int(my[sampleIndex])
+                        minRow = min(minRow, row)
+                        maxRow = max(maxRow, row + 1)
+                    }
+                    guard minRow != Int.max else { continue }
+                    let spanFirst = max(0, minRow)
+                    let spanLast = min(source.height - 1, maxRow)
+                    let rows = try staging.readRows(
+                        index: index, firstRow: spanFirst,
+                        rows: spanLast - spanFirst + 1,
+                        bytesPerRow: source.width * 16)
+                    let strideFloats = source.width * 4
+                    let gain = gains[index]
+                    let sourceWidth = source.width
+                    let sourceHeight = source.height
+                    for row in 0..<tileHeight {
+                        let outputRow = tileY + row - firstRow
+                        for column in 0..<tileWidth {
+                            let tileIndex = row * tileWidth + column
+                            let sx = mx[tileIndex]
+                            let sy = my[tileIndex]
+                            let alpha = panoFeatherAlpha(
+                                mx: sx, my: sy, source: source)
+                            if alpha <= 0 { continue }
+                            // Clamped bilinear gather (BORDER_REPLICATE
+                            // semantics; inside ⇒ sx, sy ∈ [0, dim−1]).
+                            let ix0 = min(max(Int(sx), 0), sourceWidth - 1)
+                            let fx = sx - Float(ix0)
+                            let ix1 = min(ix0 + 1, sourceWidth - 1)
+                            let iy0 = min(max(Int(sy), 0), sourceHeight - 1)
+                            let fy = sy - Float(iy0)
+                            let iy1 = min(iy0 + 1, sourceHeight - 1)
+                            let row0 = (iy0 - spanFirst) * strideFloats
+                            let row1 = (iy1 - spanFirst) * strideFloats
+                            let c0 = ix0 * 4
+                            let c1 = ix1 * 4
+                            let invFx = 1 - fx
+                            let invFy = 1 - fy
+                            let topR = rows[row0 + c0] * invFx
+                                + rows[row0 + c1] * fx
+                            let topG = rows[row0 + c0 + 1] * invFx
+                                + rows[row0 + c1 + 1] * fx
+                            let topB = rows[row0 + c0 + 2] * invFx
+                                + rows[row0 + c1 + 2] * fx
+                            let bottomR = rows[row1 + c0] * invFx
+                                + rows[row1 + c1] * fx
+                            let bottomG = rows[row1 + c0 + 1] * invFx
+                                + rows[row1 + c1 + 1] * fx
+                            let bottomB = rows[row1 + c0 + 2] * invFx
+                                + rows[row1 + c1 + 2] * fx
+                            let shared = alpha * gain
+                            let outputIndex =
+                                (outputRow * outWidth + tileX + column - cropX0)
+                            accum[outputIndex * 3]
+                                += (topR * invFy + bottomR * fy) * shared
+                            accum[outputIndex * 3 + 1]
+                                += (topG * invFy + bottomG * fy) * shared
+                            accum[outputIndex * 3 + 2]
+                                += (topB * invFy + bottomB * fy) * shared
+                            weight[outputIndex] += alpha
+                        }
+                    }
+                }
+            }
+        }
+        var out = [Float](repeating: 0, count: rowCount * outWidth * 4)
+        for index in 0..<(rowCount * outWidth) {
+            let denominator = max(weight[index], 1e-8)
+            out[index * 4] = min(max(accum[index * 3] / denominator, 0), 1)
+            out[index * 4 + 1] =
+                min(max(accum[index * 3 + 1] / denominator, 0), 1)
+            out[index * 4 + 2] =
+                min(max(accum[index * 3 + 2] / denominator, 0), 1)
+            out[index * 4 + 3] = 1
+        }
+        return out
     }
 
     /// The Mertens production leg (Plan M5-2-02 T1, KD-1): the exposure
@@ -1997,6 +2523,12 @@ public actor StackMergeService {
     ///     legs' existing value).
     ///   • `productColorSpace` (T2, KD-2) — non-nil = the product TIFF's
     ///     embedded color space tag; nil = the working space (zero drift).
+    ///   • `rowProvider` (Plan M5-3-02 KD-9) — non-nil = the ROW-BAND
+    ///     landing: the provider streams (crop-region) RGBA rows band by
+    ///     band into the `FloatTIFFWriter` (the full plane NEVER rides
+    ///     memory — the pano red line); nil = the `writeFloatTIFF` full-
+    ///     plane path, BYTE-IDENTICAL to the pre-M5-3-02 behavior (the
+    ///     existing legs' tests are the pinned negative witness).
     nonisolated private static func landStackProduct(
         _ work: StackMergeWork, width: Int, height: Int, rgba: [Float],
         holeFraction: Float, alignmentLabels: [String], warnings: [String],
@@ -2004,7 +2536,8 @@ public actor StackMergeService {
         implementationVersion: String? = nil,
         exposureEVs: [Double]? = nil,
         ghostUnion: [UInt8]? = nil,
-        productColorSpace: CGColorSpace? = nil
+        productColorSpace: CGColorSpace? = nil,
+        rowProvider: ((_ firstRow: Int, _ rowCount: Int) async throws -> [Float])? = nil
     ) async throws -> StackMergeOutcome {
         let directory = work.sessionRoot
             ?? work.sources[0].deletingLastPathComponent()
@@ -2015,9 +2548,28 @@ public actor StackMergeService {
             tag: work.params.tag ?? Self.defaultTag(for: work.kind),
             ext: "tif",
             occupiedNames: occupied)
-        try BandStreamer.writeFloatTIFF(
-            rgba, width: width, height: height, to: productURL,
-            colorSpace: productColorSpace ?? WorkingSpace.colorSpace)
+        if let rowProvider {
+            let writer = try BandStreamer.FloatTIFFWriter(
+                width: width, height: height, destination: productURL,
+                colorSpace: productColorSpace ?? WorkingSpace.colorSpace)
+            var firstRow = 0
+            while firstRow < height {
+                let rowCount = min(BandStreamer.defaultBandHeight, height - firstRow)
+                let band = try await rowProvider(firstRow, rowCount)
+                guard band.count == rowCount * width * 4 else {
+                    throw AppError.encodeFailed(
+                        "rowProvider band size mismatch: \(band.count) floats"
+                            + " for \(rowCount)×\(width)")
+                }
+                try writer.write(rows: band)
+                firstRow += rowCount
+            }
+            try writer.finish()
+        } else {
+            try BandStreamer.writeFloatTIFF(
+                rgba, width: width, height: height, to: productURL,
+                colorSpace: productColorSpace ?? WorkingSpace.colorSpace)
+        }
         await work.progress.step() // write step
 
         // The ghost mask (the runHDRLeg tail shape — the additive
@@ -2189,11 +2741,53 @@ public actor StackMergeService {
             return result
         }
 
+        /// One FULL-WIDTH row band, NO shift (Plan M5-3-02 KD-1: the pano
+        /// tile gather's row source — the pano displacement is a continuous
+        /// warp, so the integer-shift `readShiftedPixels` face does not
+        /// apply). `bytesPerRow` nil = the set's uniform width stride (the
+        /// byte-identical default); the pano leg passes each source's own
+        /// stride (mixed source sizes are legal — the KD-10 no-extent-gate
+        /// posture). Rows outside the set's height zero-fill (the
+        /// readMaskBand shape).
+        func readRows(
+            index: Int, firstRow: Int, rows: Int, bytesPerRow: Int? = nil
+        ) throws -> [Float] {
+            let strideBytes = bytesPerRow ?? width * 16
+            precondition(
+                strideBytes > 0 && strideBytes % 4 == 0,
+                "row stride must be positive and float-aligned")
+            let floatsPerRow = strideBytes / 4
+            var result = [Float](
+                repeating: 0, count: max(0, rows) * floatsPerRow)
+            guard rows > 0 else { return result }
+            let sourceFirst = max(0, firstRow)
+            let sourceLast = min(height, firstRow + rows) // exclusive
+            guard sourceLast > sourceFirst else { return result }
+            let handle = try FileHandle(forReadingFrom: pixelsURL(index))
+            defer { try? handle.close() }
+            try handle.seek(toOffset: UInt64(sourceFirst * strideBytes))
+            let want = (sourceLast - sourceFirst) * strideBytes
+            guard let data = try handle.read(upToCount: want),
+                  data.count == want
+            else {
+                throw AppError.fileUnreadable("staged pixels rows truncated")
+            }
+            result.withUnsafeMutableBytes { raw in
+                data.withUnsafeBytes { stagedRaw in
+                    let destinationRow0 = sourceFirst - firstRow
+                    raw.baseAddress!
+                        .advanced(by: destinationRow0 * strideBytes)
+                        .copyMemory(
+                            from: stagedRaw.baseAddress!, byteCount: want)
+                }
+            }
+            return result
+        }
+
         /// One staged pixel row, unshifted (the substitution-LUT grid pass
         /// reads ONLY the decimation rows — `plane[::step, ::step]` needs
         /// whole rows, not the grid cells' scattered addresses).
-        func readPixelRow(index: Int, row: Int) throws -> [Float] {
-            var result = [Float](repeating: 0, count: width * 4)
+        func readPixelRow(index: Int, row: Int) throws -> [Float] {            var result = [Float](repeating: 0, count: width * 4)
             guard row >= 0, row < height else { return result }
             let handle = try FileHandle(forReadingFrom: pixelsURL(index))
             defer { try? handle.close() }
