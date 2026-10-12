@@ -664,3 +664,4 @@ IOP	9	PanoMatchTests.swift
 IOP	7	PanoCameraTests.swift
 IOP	8	PanoMergeKindTests.swift
 LIB	5	PanoProvenanceTests.swift
+IOPP	5	PanoGoldenTests.swift
