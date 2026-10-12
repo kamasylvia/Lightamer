@@ -464,6 +464,11 @@ internal struct ContentView: View {
                         // (the second merge option, same seam shape).
                         Task { await sessionCoordinator.mertensMergeHandler?(relPaths) }
                     },
+                    onPano: { relPaths in
+                        // Plan M5-3-03 (KD-1): the panorama merge entry
+                        // (the third merge option, same seam shape).
+                        Task { await sessionCoordinator.panoMergeHandler?(relPaths) }
+                    },
                     onFocusStack: { relPaths in
                         // Plan 08-3 T4: the focus-stack entry (same seam
                         // shape as the HDR merge).

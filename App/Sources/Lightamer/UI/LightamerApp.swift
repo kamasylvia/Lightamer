@@ -952,6 +952,32 @@ internal struct LightamerApp: App {
                                         error.localizedDescription)
                                 }
                             }
+                            // Plan M5-3-03 (KD-2, OQ-7): the panorama
+                            // merge handler — the third merge option.
+                            // deGhost is NOT consumed by the pano leg; the
+                            // App passes the explicit false. tag nil = the
+                            // "pano" default tag (the _pano split-account
+                            // name).
+                            sessionCoordinator.panoMergeHandler = { relPaths in
+                                guard let root = sessionState.currentSessionURL else {
+                                    return
+                                }
+                                let urls = relPaths.map {
+                                    root.appendingPathComponent($0)
+                                }
+                                do {
+                                    _ = try await mergeService.enqueue(
+                                        kind: .pano, sources: urls,
+                                        params: StackMergeService.MergeParams(
+                                            deGhost: false, tag: nil),
+                                        sessionRoot: root)
+                                    editorState.presentToast(
+                                        String(localized: "toast_pano_queued"))
+                                } catch {
+                                    editorState.presentToast(
+                                        error.localizedDescription)
+                                }
+                            }
                             sessionCoordinator.stackDenoiseHandler = { relPaths, mode in
                                 guard let root = sessionState.currentSessionURL else {
                                     return

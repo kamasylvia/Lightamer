@@ -31617,6 +31617,142 @@
           }
         }
       }
+    },
+    "browser_menu_pano" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Panorama Merge"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全景合成"
+          }
+        }
+      }
+    },
+    "pano_dialog_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Panorama Merge"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全景合成"
+          }
+        }
+      }
+    },
+    "pano_dialog_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose photos taken from the same viewpoint with about 30% overlap. The canvas is capped at 200 megapixels (larger sets scale down automatically), and the result is always cropped to the valid area."
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择同一视点、重叠约 30% 以上的照片；画布上限 2 亿像素，超限自动等比缩小；结果恒自动裁去无效边缘。"
+          }
+        }
+      }
+    },
+    "pano_dialog_start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Merge"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始合成"
+          }
+        }
+      }
+    },
+    "toast_pano_queued" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Panorama merge queued"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全景合成已加入队列"
+          }
+        }
+      }
+    },
+    "pano_error_alignment" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Panorama alignment failed"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全景对齐失败"
+          }
+        }
+      }
+    },
+    "pano_error_disconnected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Panorama photos are disconnected (insufficient overlap)"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全景照片不连通（重叠不足）"
+          }
+        }
+      }
+    },
+    "pano_error_canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Panorama canvas invalid"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全景画布无效"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

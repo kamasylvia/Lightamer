@@ -131,6 +131,12 @@ final class SessionCoordinator {
     /// `.hdrMertens` with the explicit default tier). nil = unwired.
     var mertensMergeHandler: ((_ relPaths: [String]) async -> Void)?
 
+    /// Plan M5-3-03 (KD-1, OQ-7): the panorama merge orchestration seam
+    /// (the mertensMergeHandler twin — the THIRD merge option enqueues
+    /// `.pano` with the nil tag → the `pano` default tag, the `_pano`
+    /// split-account name). nil = unwired (the menu item stays hidden).
+    var panoMergeHandler: ((_ relPaths: [String]) async -> Void)?
+
     /// Plan 08-3 T4: the stacking seams (the same menu → service shape;
     /// the mode maps 1:1 onto the service's stack kinds). nil = unwired.
     var focusStackHandler: ((_ relPaths: [String]) async -> Void)?
