@@ -1,0 +1,48 @@
+# M5-3-03 G5 红线机检 transcript（T4 收口，2026-10-16）
+base = 60aad61（M5-3-02 终点）  head = 2d57bc37
+
+## 1. 红线路径零 diff（LightamerIOP/ + LightamerCore/ 全域 + *.metal）
+→ 0 行（上方无输出）
+
+## 2. 腿体与落盘器零 diff（六 kind 路径字节面）
+StackMergeService.swift diff lines: 0
+BandStreamer.swift (writeFloatTIFF) diff lines: 0
+ProvenanceReplay.swift diff lines: 0
+
+## 3. dependencies 块零 diff（Project.swift = 测试登记单行）
+diff --git a/Project.swift b/Project.swift
+index 052af2b2..92d7b374 100644
+--- a/Project.swift
++++ b/Project.swift
+@@ -829,6 +829,7 @@ let project = Project(
+                 "Tests/LightamerTests/NodesPanelModelTests.swift",
+                 "Tests/LightamerTests/NodeOwnershipCatalogTests.swift",
+                 "Tests/LightamerTests/PanelWiringTests.swift",
++                "Tests/LightamerTests/PanoMergeUITests.swift",
+                 "Tests/LightamerTests/SettingsPagesTests.swift",
+                 "Tests/LightamerTests/ACASettingsTests.swift",
+                 "Tests/LightamerTests/LCRSettingsTests.swift",
+
+## 4. 禁系统随机源 grep（hardened 门，checker minor-4：含 \.random\( 底层形态）
+→ 0 命中
+
+## 5. runModal 门（L057：App/Sources 零命中）
+→ 0 命中
+
+## 6. String.LocalizationValue 插值前缀禁形（V15；代码命中 0——唯一命中 = 注释 :1921 禁形文档）
+App/Sources/Lightamer/UI/LightamerApp.swift:1921:    /// `String(localized: String.LocalizationValue("metadata_rating_\(stars)"))`
+
+## 7. sidecar schemaVersion 零触（Sidecar/ 零 diff ⊂ §1 全域零 diff）
+Sidecar/ diff lines: 0
+
+## 8. xcstrings 尾块纯插入（删除行 0）
+136	0	Resources/Localizable.xcstrings
+
+## 9. UI 既有项零回退（T1 批全仓 diff：0 deletions——菜单前两项/focus/stack 项字节不动）
+49	0	App/Sources/Lightamer/UI/SessionBrowserView.swift
+
+## 10. zh-audit --check（T2 实跑）
+zh-audit --check PASS (1651 source keys, 1890 catalog keys, zh complete, locale codes = {en, zh})
+
+## 11. 既有六 kind 零回归证人（App 定向轮 + --all 拼表见 SUMMARY/VALIDATION）
+App bundle 757/4/0（752+5，T2 定向轮 2026-10-16，零 MEMFAIL 2832MB）
