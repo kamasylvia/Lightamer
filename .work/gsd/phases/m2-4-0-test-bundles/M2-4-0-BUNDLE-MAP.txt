@@ -665,3 +665,11 @@ IOP	7	PanoCameraTests.swift
 IOP	8	PanoMergeKindTests.swift
 LIB	5	PanoProvenanceTests.swift
 IOPP	5	PanoGoldenTests.swift
+
+# M5-3-02 增行记录（2026-10-09 执行期，checker E2 测试登记纪律）：新测试文件随
+#   各自任务 commit 登记进对应 bundle（归属按 front-matter 判定：
+#   PanoWarpTests / PanoGainTests / PanoCropTests / PanoLegTests =
+#   IOP/Core 级（PanoCameraTests / MertensLegTests 同位）；
+#   PanoFusionPerfProbeTests = EXPORT 级（MertensFusionPerfProbeTests 同位；
+#   rationale 同 M5-2-02：IOP 贴线族不宜叠加 GB 级探针，EXPORT 余量最宽）。
+IOP	8	PanoWarpTests.swift
