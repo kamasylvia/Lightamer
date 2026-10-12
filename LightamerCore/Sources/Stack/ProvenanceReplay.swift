@@ -43,6 +43,10 @@ public struct SidecarProvenance: Codable, Sendable, Equatable {
         case stackMedian = "stack-median"
         case stackSigma = "stack-sigma"
         case hdrMertens = "hdr-merge-mertens"
+        /// The spherical-feature panorama merge (Plan M5-3-01 KD-8 — the
+        /// raw-value mirror of the service kind, the two enums' raw values
+        /// stay aligned one-to-one).
+        case panoMerge = "pano-merge"
     }
 
     /// The algorithm identity + its parameter snapshot (the replay's
@@ -152,6 +156,13 @@ public enum ProvenanceReplay {
     /// The Mertens implementation version (a re-merge across a Mertens math
     /// change bumps THIS, never the HDR version).
     public static let mertensImplementationVersion = "1"
+    /// The panorama algorithm family name (Plan M5-3-01 KD-8 — INDEPENDENT
+    /// of the HDR/Mertens identities: the three algorithms evolve without
+    /// entangling each other's replay warnings).
+    public static let panoAlgorithmName = "spherical-feature-panorama"
+    /// The panorama implementation version (a re-merge across a pano math
+    /// change bumps THIS, never the HDR or Mertens versions).
+    public static let panoImplementationVersion = "1"
 
     // MARK: - Source hashing (the drift anchor)
 
