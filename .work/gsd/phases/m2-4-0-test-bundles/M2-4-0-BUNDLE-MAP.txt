@@ -661,3 +661,4 @@ EXPORT	1	MertensFusionPerfProbeTests.swift
 #   域合成面），零大图单测。行内 method 数以终态对账为准。
 IOP	9	PanoFeatureTests.swift
 IOP	9	PanoMatchTests.swift
+IOP	7	PanoCameraTests.swift
