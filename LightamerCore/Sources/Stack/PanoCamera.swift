@@ -16,12 +16,18 @@ import Foundation
 // for the multi-pair initial scale (merge.py:251). Swift rewrite; OpenCV
 // detail API semantics read-only, code zero-copied.
 //
-// MODEL: each image has ONE rotation R (world→camera) and the set shares a
-// SINGLE focal f (square pixels, principal point at the optical center):
-// K = diag(f, f, 1). The reprojection residual is the CHORDAL ANGULAR error
-// between matched rays (the BundleAdjusterRay semantics): for a match
-// (x₁ in image i, x₂ in image j) both rays are lifted to the unit sphere in
-// their camera frames and the residual is their 3-vector difference.
+// MODEL: each image has ONE rotation R (world→camera: cam_ray = R·world_dir)
+// and the set shares a SINGLE focal f (square pixels, principal point at the
+// optical center): K = diag(f, f, 1). COORDINATE CONTRACT: the pixel
+// coordinates fed to every entry point here are CENTERED on the principal
+// point (the M5-3-02 leg centers by the frame midline) — an un-centered H
+// mixes principal-point terms into the h2 row and biases the focal estimate
+// ~4-6× (the probe-pinned inflation). The reprojection residual is the
+// CHORDAL ANGULAR error between matched rays' WORLD directions (the
+// BundleAdjusterRay semantics): for a match (x₁ in image i, x₂ in image j)
+// both rays lift to the unit sphere and the residual is Rᵀ·u₁ − Rᵀ·u₂ — the
+// world side is load-bearing (R·u is the transpose family, whose fitted
+// rotations come out transposed).
 //
 // GAUGE: pure-rotation cameras carry a global gauge freedom — replacing
 // every Rᵢ by Q·Rᵢ leaves every pairwise ray constraint unchanged. The
@@ -118,6 +124,49 @@ public enum PanoCamera {
         return median(estimates)
     }
 
+    /// The classical initial rotation from one pair homography (the
+    /// HomographyBasedEstimator semantics): R = orthogonalize(K⁻¹·H·K) for
+    /// CENTERED pixel coordinates and the given focal. This is the bundle
+    /// adjustment's rotation seed — identity initialization descends into
+    /// the transpose family of the chordal cost (an exact symmetry: the
+    /// probe-pinned 2θ anchored error) and never reaches the true basin.
+    /// nil when H's K⁻¹·H·K is degenerate (non-invertible H).
+    public static func initialRotation(
+        from homography: Mat3D, focal: Double
+    ) -> Mat3D? {
+        let k = calibrationK(focal: focal)
+        guard let kInverse = k.inverted() else { return nil }
+        let candidate = Mat3D.mul(Mat3D.mul(kInverse, homography), k)
+        // Deterministic Gram-Schmidt over the rows (the projection's
+        // nearest rotation).
+        var rows = [
+            (candidate[0, 0], candidate[0, 1], candidate[0, 2]),
+            (candidate[1, 0], candidate[1, 1], candidate[1, 2]),
+            (candidate[2, 0], candidate[2, 1], candidate[2, 2]),
+        ]
+        for r in 1..<3 {
+            for q in 0..<r {
+                let dot = rows[r].0 * rows[q].0 + rows[r].1 * rows[q].1
+                    + rows[r].2 * rows[q].2
+                rows[r].0 -= dot * rows[q].0
+                rows[r].1 -= dot * rows[q].1
+                rows[r].2 -= dot * rows[q].2
+            }
+        }
+        for r in 0..<3 {
+            let norm = sqrt(rows[r].0 * rows[r].0 + rows[r].1 * rows[r].1
+                + rows[r].2 * rows[r].2)
+            guard norm > 1e-12 else { return nil }
+            rows[r].0 /= norm
+            rows[r].1 /= norm
+            rows[r].2 /= norm
+        }
+        return Mat3D(
+            rows[0].0, rows[0].1, rows[0].2,
+            rows[1].0, rows[1].1, rows[1].2,
+            rows[2].0, rows[2].1, rows[2].2)
+    }
+
     /// The median (odd → the middle; even → the mean of the two middles —
     /// the numpy.median convention).
     static func median(_ values: [Double]) -> Double {
@@ -187,17 +236,19 @@ public enum PanoCamera {
     /// Double internals): chordal angular residuals over all match bundles,
     /// a dense forward-difference Jacobian, the damped normal equations
     /// solved by dgesv, λ adaptive (÷3 on accept, ×10 on reject, fail past
-    /// 1e12). Convergence = the relative cost decrease below `tolerance` OR
-    /// the residual RMS at or below `residualGate` — the forward-difference
-    /// noise floor stalls the relative metric long after the solution is
-    /// already good (the probe-pinned LM nil), so the absolute gate carries
-    /// the final verdict on every exit path. nil (typed failure) when the
-    /// loop exhausts with the RMS above the gate, or the inputs are empty.
+    /// 1e12). SUCCESS = the fit meaningfully reduced the cost — the final
+    /// cost sits ≤ (1 − improvementFloor)·initial — checked on EVERY exit
+    /// path (the relative-decrease early exit, the λ explosion, or the
+    /// iteration cap). An absolute RMS gate cannot work here: pixel-domain
+    /// quantization floors the achievable angular residual at ~pixel/f
+    /// (the probe-pinned all-nil), so the verdict is data-relative. nil
+    /// (typed failure) when no meaningful fit was reached, or the inputs
+    /// are empty.
     public static func bundleAdjust(
         matches: [PanoMatchBundle], imageCount: Int,
         initialFocal: Double, initialRotations: [Mat3D],
         maxIterations: Int = 50, tolerance: Double = 1e-10,
-        residualGate: Double = 1e-6
+        improvementFloor: Double = 1e-6
     ) -> PanoCameraSolution? {
         guard imageCount >= 1, initialRotations.count == imageCount,
               !matches.isEmpty
@@ -218,11 +269,16 @@ public enum PanoCamera {
                     p[1 + 3 * bundle.second], p[2 + 3 * bundle.second],
                     p[3 + 3 * bundle.second]))
                 for pair in bundle.correspondences {
-                    // K⁻¹(x, y, 1) = (x/f, y/f, 1).
+                    // K⁻¹(x, y, 1) = (x/f, y/f, 1); the WORLD direction of
+                    // a camera ray is Rᵀ·u (cam = R·world — the stored
+                    // world→camera convention). The chordal cost is
+                    // invariant under the R ↔ Rᵀ family, so this side is
+                    // load-bearing: R·u silently fits the transposed
+                    // rotations (the probe-pinned 2θ anchored-error).
                     let d1 = SIMD3(pair.x1 / focal, pair.y1 / focal, 1)
                     let d2 = SIMD3(pair.x2 / focal, pair.y2 / focal, 1)
-                    let lifted1 = rotate(ri, d1)
-                    let lifted2 = rotate(rj, d2)
+                    let lifted1 = rotate(ri.transposed(), d1)
+                    let lifted2 = rotate(rj.transposed(), d2)
                     let n1 = lifted1.x * lifted1.x + lifted1.y * lifted1.y
                         + lifted1.z * lifted1.z
                     let n2 = lifted2.x * lifted2.x + lifted2.y * lifted2.y
@@ -267,16 +323,17 @@ public enum PanoCamera {
                 residualRMS: sqrt(2 * cost / Double(max(1, residual.count / 3))),
                 iterations: iterations)
         }
-        func rms(_ residual: [Double], _ cost: Double) -> Double {
-            sqrt(2 * cost / Double(max(1, residual.count / 3)))
-        }
         var (residual, cost) = evaluate(p)
+        let initialCost = cost
         var lambda = 1e-3
         var iterations = 0
+        // The exit verdict: a MEANINGFUL joint fit happened (the data-
+        // relative criterion — an absolute RMS gate cannot clear the
+        // pixel-quantization floor).
+        func meaningfulFit() -> Bool {
+            cost <= initialCost * (1 - improvementFloor)
+        }
         while iterations < maxIterations {
-            if rms(residual, cost) <= residualGate {
-                return solution(p, residual, cost, iterations)
-            }
             iterations += 1
             // The dense forward-difference Jacobian (3M × (3N+1)).
             let residualCount = residual.count
@@ -323,7 +380,7 @@ public enum PanoCamera {
             dgesv_(&n, &nrhs, &aMatrix, &lda, &pivots, &bVector, &ldb, &info)
             guard info == 0 else {
                 lambda *= 10
-                if lambda > 1e12 { return nil }
+                if lambda > 1e12 { break }
                 continue
             }
             var trial = p
@@ -337,19 +394,15 @@ public enum PanoCamera {
                 residual = trialResidual
                 cost = trialCost
                 lambda = max(lambda / 3, 1e-12)
-                if relativeDecrease < tolerance
-                    || rms(residual, cost) <= residualGate {
-                    return solution(p, residual, cost, iterations)
+                if relativeDecrease < tolerance {
+                    break // plateau — the meaningfulFit verdict rules below
                 }
             } else {
                 lambda *= 10
-                if lambda > 1e12 {
-                    return rms(residual, cost) <= residualGate
-                        ? solution(p, residual, cost, iterations) : nil
-                }
+                if lambda > 1e12 { break }
             }
         }
-        return rms(residual, cost) <= residualGate
+        return meaningfulFit()
             ? solution(p, residual, cost, iterations) : nil
     }
 
