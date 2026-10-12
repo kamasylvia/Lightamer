@@ -55,6 +55,12 @@ T 收口 DECISIONS 随手吸收）。逐维审查如下。
 - **置信度公式** `1 − inliers/(8 + 0.3·matches)`：OpenCV detail 公式正确；
   10/3 上界 = inliers/(8+0.3m) 的 m→∞ 极限，与 :225-226 注释语义一致；
   对 conf>0.6 门控，min-clamp 差异无观测后果。✅
+  **勘误注记（2026-10-13 M5-3-02 验收批补，M5-3-01-ACCEPTANCE-OMP m-omp-1）**：
+  本行按 01-PLAN 笔误原文背书——OpenCV detail 原形无 `1 −` 前缀，正确式 =
+  `inliers/(8 + 0.3·matches)`（`1 −` 形上界 1，数学不可达 10/3；D-1 勘误
+  两路验收独立复算均成立，正本 = M5-3-01-ACCEPTANCE §二 + ACCEPTANCE-OMP
+  §二/§六 d-1 + PanoMatch 产线式）。本行结论「OpenCV detail 公式正确」仅
+  在去 `1 −` 后成立；工程结论（10/3 上界、>0.6 门语义）不受影响。
 - **DoG 定夺（research 留白的 planner 裁决）**：KD-1 裁 DoG（SIFT 同构，
   Lumen 低对比地形注释 :217-218 在案）+ 依据落 DECISIONS 义务 + 亚像素精化
   剪裁（3px RANSAC 阈下收益边际）显式申报——程序合规。✅
