@@ -660,3 +660,4 @@ EXPORT	1	MertensFusionPerfProbeTests.swift
 #   PanoGoldenTests = IOPP 级（*Golden* 域模式）。全部小 fixture（≤1200² 预览
 #   域合成面），零大图单测。行内 method 数以终态对账为准。
 IOP	9	PanoFeatureTests.swift
+IOP	9	PanoMatchTests.swift
