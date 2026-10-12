@@ -240,4 +240,303 @@ public enum BandStreamer {
                 "promote failed for \(destination.lastPathComponent): \(error)")
         }
     }
+
+    // MARK: - The streaming strip-TIFF writer (Plan M5-3-02 KD-9)
+
+    /// The ROW-BAND streaming float32 RGBA TIFF writer — the pano leg's
+    /// product face. NOT an ImageIO face: ImageIO finalizes a TIFF in one
+    /// shot over a finished plane (the header note above), which would
+    /// re-materialize the full canvas the pano memory red line forbids.
+    /// The container strategy (the checker-minor-3 ruling: the plan's
+    /// "internal delegation to writeFloatTIFF" hedge has no streaming
+    /// semantics) = a HAND-WRITTEN classic strip TIFF: a little-endian
+    /// header, the RGBA float32 rows streamed strip by strip, and the IFD
+    /// (with the ICC payload embedded via `CGColorSpaceCopyICCData`)
+    /// appended at `finish()` with the header offset backfilled — the tmp
+    /// file then promotes atomically in the destination directory (L009).
+    /// The existing `writeFloatTIFF` face stays byte-identical (the pinned
+    /// default-colorSpace negative test in MertensRasterDomainTests).
+    public final class FloatTIFFWriter {
+
+        private let width: Int
+        private let height: Int
+        private let colorSpace: CGColorSpace
+        private let destination: URL
+        private let temporary: URL
+        private var handle: FileHandle?
+        /// (file offset, byte count, row count) per strip, in write order.
+        private var strips: [(offset: UInt32, byteCount: UInt32, rows: Int)] = []
+        private var bytesWritten: UInt64 = 8 // the header placeholder
+        private var firstStripRows = 0
+        private var finished = false
+
+        /// - Parameters:
+        ///   - destination: the FINAL product URL (the writer writes a
+        ///     same-directory tmp and promotes on `finish()`).
+        ///   - colorSpace: the embedded ICC payload (the pano leg passes
+        ///     sRGB — the Mertens T2 `productColorSpace` twin).
+        public init(
+            width: Int, height: Int, destination: URL, colorSpace: CGColorSpace
+        ) throws {
+            guard width >= 1, height >= 1 else {
+                throw AppError.encodeFailed(
+                    "float TIFF writer: degenerate \(width)×\(height) canvas")
+            }
+            self.width = width
+            self.height = height
+            self.colorSpace = colorSpace
+            self.destination = destination
+            temporary = destination.deletingLastPathComponent()
+                .appendingPathComponent(
+                    destination.lastPathComponent + ".tmp-\(UUID().uuidString)",
+                    isDirectory: false)
+            FileManager.default.createFile(
+                atPath: temporary.path, contents: nil)
+            let handle = try FileHandle(forWritingTo: temporary)
+            // The 8-byte little-endian header placeholder (the IFD offset
+            // backfills at finish).
+            var header = [UInt8]()
+            header.append(contentsOf: [0x49, 0x49]) // "II"
+            header.append(contentsOf: Self.u16Little(42))
+            header.append(contentsOf: Self.u32Little(8))
+            try handle.write(contentsOf: Data(header))
+            self.handle = handle
+        }
+
+        deinit {
+            if !finished {
+                try? handle?.close()
+                try? FileManager.default.removeItem(at: temporary)
+            }
+        }
+
+        /// Stream one row band (RGBA float32, tight rows — `rows.count ==
+        /// rowCount × width × 4`). Each call lands one strip; every strip
+        /// except the last must carry the first strip's row count (the
+        /// classic-TIFF RowsPerStrip contract, checked at `finish`).
+        /// Chunked at 64 rows (the StagedSet.writePixels posture) so the
+        /// transient stays band-bounded.
+        public func write(rows: [Float]) throws {
+            guard !finished, handle != nil else {
+                throw AppError.encodeFailed(
+                    "float TIFF writer: write after finish")
+            }
+            let rowCount = rows.count / max(1, width * 4)
+            guard rowCount >= 1, rows.count == rowCount * width * 4 else {
+                throw AppError.encodeFailed(
+                    "float TIFF writer: band size mismatch (\(rows.count) "
+                        + "floats for width \(width))")
+            }
+            guard bytesWritten + UInt64(rowCount * width * 16)
+                <= UInt64(UInt32.max)
+            else {
+                throw AppError.encodeFailed(
+                    "float TIFF writer: product exceeds the classic TIFF "
+                        + "4 GiB offset limit")
+            }
+            if strips.isEmpty {
+                firstStripRows = rowCount
+            }
+            let stripOffset = UInt32(bytesWritten)
+            let chunkRows = 64
+            var chunkStart = 0
+            try rows.withUnsafeBufferPointer { buffer in
+                while chunkStart < rowCount {
+                    let chunk = min(chunkRows, rowCount - chunkStart)
+                    let data = Data(
+                        bytes: buffer.baseAddress!
+                            .advanced(by: chunkStart * width * 4),
+                        count: chunk * width * 16)
+                    try handle?.write(contentsOf: data)
+                    chunkStart += chunk
+                }
+            }
+            bytesWritten += UInt64(rowCount * width * 16)
+            strips.append(
+                (offset: stripOffset,
+                 byteCount: UInt32(rowCount * width * 16),
+                 rows: rowCount))
+        }
+
+        /// Append the IFD (+ the external values and the ICC payload),
+        /// backfill the header offset, and promote tmp → destination.
+        public func finish() throws {
+            guard !finished, let handle else {
+                throw AppError.encodeFailed(
+                    "float TIFF writer: finish without an open writer")
+            }
+            guard let first = strips.first else {
+                throw AppError.encodeFailed(
+                    "float TIFF writer: finish with no strips written")
+            }
+            // The RowsPerStrip contract: only the last strip may shrink.
+            for strip in strips.dropLast()
+            where strip.rows != firstStripRows {
+                throw AppError.encodeFailed(
+                    "float TIFF writer: non-uniform strip rows "
+                        + "\(strip.rows) vs \(firstStripRows)")
+            }
+
+            let ifdOffset = Self.aligned(bytesWritten)
+            if UInt64(ifdOffset) > bytesWritten {
+                // Strip bytes are 16-row multiples — always even; the pad
+                // is belt-and-braces for the word-aligned IFD offset.
+                let pad = Int(UInt64(ifdOffset) - bytesWritten)
+                try handle.write(contentsOf: Data(repeating: 0, count: pad))
+            }
+
+            // The external value pool (laid out first, offsets captured),
+            // then the 14-entry tag-ascending IFD.
+            let ifdSize = 2 + 14 * 12 + 4
+            var external = Data()
+            func place(_ payload: [UInt8]) -> UInt32 {
+                var at = ifdOffset + UInt32(ifdSize) + UInt32(external.count)
+                if at % 2 == 1 {
+                    external.append(0)
+                    at += 1
+                }
+                external.append(contentsOf: payload)
+                return at
+            }
+            func even(_ payload: [UInt8]) -> [UInt8] {
+                var copy = payload
+                if copy.count % 2 == 1 {
+                    copy.append(0)
+                }
+                return copy
+            }
+            let icc = Self.iccData(colorSpace) ?? Data()
+            let iccBytes = Array(icc)
+            let software = Array("Lightamer pano merge\0".utf8)
+            let stripCount = strips.count
+
+            let bitsOffset = place(Self.u16ArrayLittle([32, 32, 32, 32]))
+            let stripOffsets: [UInt8] = strips.flatMap {
+                Self.u32Little($0.offset)
+            }
+            let stripCounts: [UInt8] = strips.flatMap {
+                Self.u32Little($0.byteCount)
+            }
+            let offsetsOffset = stripCount > 1 ? place(stripOffsets) : 0
+            let countsOffset = stripCount > 1 ? place(stripCounts) : 0
+            let formatOffset = place(Self.u16ArrayLittle([3, 3, 3, 3]))
+            let softwareOffset = place(even(software))
+            let iccOffset = place(even(iccBytes))
+
+            func entry(
+                _ tag: UInt16, _ type: UInt16, _ count: UInt32,
+                inline: UInt32? = nil, short: UInt16? = nil,
+                at: UInt32? = nil
+            ) -> [UInt8] {
+                var bytes: [UInt8] = []
+                bytes.append(contentsOf: Self.u16Little(tag))
+                bytes.append(contentsOf: Self.u16Little(type))
+                bytes.append(contentsOf: Self.u32Little(count))
+                if let inline {
+                    bytes.append(contentsOf: Self.u32Little(inline))
+                } else if let short {
+                    bytes.append(contentsOf: Self.u16Little(short))
+                    bytes.append(contentsOf: Self.u16Little(0))
+                } else if let at {
+                    bytes.append(contentsOf: Self.u32Little(at))
+                } else {
+                    bytes.append(contentsOf: Self.u32Little(0))
+                }
+                return bytes
+            }
+
+            var ifd: [UInt8] = []
+            ifd.append(contentsOf: Self.u16Little(14))
+            ifd.append(contentsOf: entry(256, 4, 1, inline: UInt32(width)))
+            ifd.append(contentsOf: entry(257, 4, 1, inline: UInt32(height)))
+            ifd.append(contentsOf: entry(258, 3, 4, at: bitsOffset))
+            ifd.append(contentsOf: entry(259, 3, 1, short: 1))
+            ifd.append(contentsOf: entry(262, 3, 1, short: 2))
+            if stripCount > 1 {
+                ifd.append(
+                    contentsOf: entry(273, 4, UInt32(stripCount),
+                        at: offsetsOffset))
+            } else {
+                ifd.append(
+                    contentsOf: entry(273, 4, 1, inline: strips[0].offset))
+            }
+            ifd.append(contentsOf: entry(277, 3, 1, short: 4))
+            ifd.append(
+                contentsOf: entry(278, 4, 1, inline: UInt32(firstStripRows)))
+            if stripCount > 1 {
+                ifd.append(
+                    contentsOf: entry(279, 4, UInt32(stripCount),
+                        at: countsOffset))
+            } else {
+                ifd.append(
+                    contentsOf: entry(279, 4, 1, inline: strips[0].byteCount))
+            }
+            ifd.append(contentsOf: entry(284, 3, 1, short: 1))
+            ifd.append(
+                contentsOf: entry(305, 2, UInt32(software.count),
+                    at: softwareOffset))
+            ifd.append(contentsOf: entry(338, 3, 1, short: 1))
+            ifd.append(contentsOf: entry(339, 3, 4, at: formatOffset))
+            ifd.append(
+                contentsOf: entry(34675, 7, UInt32(icc.count), at: iccOffset))
+            ifd.append(contentsOf: Self.u32Little(0))
+            precondition(
+                ifd.count == ifdSize,
+                "IFD layout drifted from the external-offset arithmetic")
+
+            try handle.write(contentsOf: Data(ifd))
+            try handle.write(contentsOf: external)
+            // Backfill the header's IFD offset.
+            try handle.seek(toOffset: 4)
+            try handle.write(contentsOf: Data(Self.u32Little(ifdOffset)))
+            try handle.synchronizeFile()
+            try handle.close()
+            self.handle = nil
+            finished = true
+
+            // The atomic promote (never overwrite — D-08-CONTEXT-11).
+            do {
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    try? FileManager.default.removeItem(at: temporary)
+                    throw AppError.encodeFailed(
+                        "refusing to overwrite existing "
+                            + "\(destination.lastPathComponent)")
+                }
+                try FileManager.default.moveItem(
+                    at: temporary, to: destination)
+            } catch let error as AppError {
+                throw error
+            } catch {
+                try? FileManager.default.removeItem(at: temporary)
+                throw AppError.encodeFailed(
+                    "promote failed for \(destination.lastPathComponent): "
+                        + "\(error)")
+            }
+        }
+
+        // MARK: little-endian helpers
+
+        private static func u16Little(_ value: UInt16) -> [UInt8] {
+            [UInt8(value & 0xFF), UInt8(value >> 8)]
+        }
+
+        private static func u32Little(_ value: UInt32) -> [UInt8] {
+            [
+                UInt8(value & 0xFF), UInt8((value >> 8) & 0xFF),
+                UInt8((value >> 16) & 0xFF), UInt8((value >> 24) & 0xFF),
+            ]
+        }
+
+        private static func u16ArrayLittle(_ values: [UInt16]) -> [UInt8] {
+            values.flatMap { u16Little($0) }
+        }
+
+        private static func aligned(_ offset: UInt64) -> UInt32 {
+            UInt32((offset + 1) & ~UInt64(1))
+        }
+
+        private static func iccData(_ colorSpace: CGColorSpace) -> Data? {
+            colorSpace.copyICCData() as Data?
+        }
+    }
 }

@@ -4,12 +4,14 @@ import Metal
 import XCTest
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PanoMergeKindTests (Plan M5-3-01 T4; KD-6/KD-7) — the additive vocabulary
-// face for the `pano` kind (raw value / provenance mirror / defaultTag /
-// stepTotal 3N+6 / the done==total constant up to the typed failure point /
-// the typed stub failure / the 32-source kind-conditional gate), plus the
-// SIX existing kinds' unchanged snapshots (the G5 negative) and the
-// MergeParams additive fields' nil-default + round-trip.
+// PanoMergeKindTests (Plan M5-3-01 T4; KD-6/KD-7; M5-3-02 T4 stub
+// retirement) — the additive vocabulary face for the `pano` kind (raw value /
+// provenance mirror / defaultTag / stepTotal 3N+6 / the done==total constant
+// up to the typed failure point / the 32-source kind-conditional gate), plus
+// the SIX existing kinds' unchanged snapshots (the G5 negative) and the
+// MergeParams additive fields' nil-default + round-trip. The typed-stub
+// failure test RETIRED with the M5-3-02 leg swap (the M5-2-02 precedent):
+// the production leg's typed failures live in PanoLegTests.
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class PanoMergeKindTests: XCTestCase {
@@ -127,28 +129,8 @@ final class PanoMergeKindTests: XCTestCase {
             StackMergeService.stepTotal(for: 3, params: params, kind: .hdrMertens), 15)
     }
 
-    // MARK: - The typed stub (KD-6)
-
-    func testPanoStubTypedFailure() async throws {
-        let (dir, sources) = try makeSources(count: 2)
-        let service = try makeService(
-            decodeLeg: { _ in Self.stubDecodedImage() }, mergeLeg: nil)
-        _ = try await service.enqueue(
-            kind: .pano, sources: sources, params: .init(tag: nil),
-            sessionRoot: dir)
-        let terminal = await Self.awaitTerminal(service)
-        guard case .failed(let error)? = terminal?.state else {
-            XCTFail("expected .failed, got \(String(describing: terminal?.state))")
-            return
-        }
-        guard case .invalidParameter(let message) = error else {
-            XCTFail("expected invalidParameter, got \(error)")
-            return
-        }
-        XCTAssertTrue(
-            message.contains("M5-3-02"),
-            "the stub names the plan that swaps the leg body: \(message)")
-    }
+    // MARK: - The window arithmetic (KD-6; the M5-3-02 stub's constant,
+    // re-checked by the real leg in PanoLegTests)
 
     /// The KD-6 constant: with a synthetic leg bumping the pano duty
     /// (2N+5 = features N + fusion N + the 6-tail minus its own settle)

@@ -662,7 +662,7 @@ EXPORT	1	MertensFusionPerfProbeTests.swift
 IOP	9	PanoFeatureTests.swift
 IOP	9	PanoMatchTests.swift
 IOP	7	PanoCameraTests.swift
-IOP	8	PanoMergeKindTests.swift
+IOP	7	PanoMergeKindTests.swift
 LIB	5	PanoProvenanceTests.swift
 IOPP	5	PanoGoldenTests.swift
 
@@ -675,3 +675,4 @@ IOPP	5	PanoGoldenTests.swift
 IOP	8	PanoWarpTests.swift
 IOP	14	PanoGainTests.swift
 IOP	10	PanoCropTests.swift
+IOP	8	PanoLegTests.swift
