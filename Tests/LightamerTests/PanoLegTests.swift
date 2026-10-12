@@ -513,6 +513,117 @@ final class PanoLegTests: XCTestCase {
         }
     }
 
+    // MARK: - G3②: the feather band + the weight normalization (KD-11)
+
+    func testFeatherAlphaBandProfile() {
+        // The 12%-short-edge band table (merge.py:279-281): a 200×100
+        // source (short edge 100 → the 12 px band): outside = 0; the left
+        // edge starts at the 0.001 floor; 12 px in = full weight; deep
+        // inside = 1.
+        let source = PanoSourceGeometry(
+            width: 200, height: 100, focal: 500,
+            rotation: Mat3D.identity)
+        let points: [(mx: Float, my: Float, expected: Float)] = [
+            (-1, 50, 0),          // outside (left)
+            (200, 50, 0),         // outside (right — mx ≤ w−1 fails)
+            (0, 50, 1.0 / 12),    // edge = mx+1 = 1 → 1/12 (the floor is sub-pixel-unreachable)
+            (6, 50, 7.0 / 12),    // edge+6 of the 12 px band
+            (12, 50, 1),          // the band's end
+            (100, 50, 1),         // deep inside
+            (100, -0.5, 0),       // outside (top)
+            (100, 99, 1.0 / 12),  // the bottom-edge band starts (h−my = 1)
+        ]
+        for point in points {
+            let alpha = StackMergeService.panoFeatherAlpha(
+                mx: point.mx, my: point.my, source: source)
+            XCTAssertEqual(
+                alpha, point.expected, accuracy: 0.01,
+                "alpha(\(point.mx), \(point.my)): \(alpha)")
+        }
+    }
+
+    func testFusedRowsWeightNormalizationProfile() throws {
+        // Two constant-color sources (0.3 / 0.7, gains 1) over one shared
+        // canvas: the fused rows must equal the α-weighted mean — single
+        // cover = own color, deep overlap = 0.5, and source A's feather
+        // edge inside the overlap reads ≈ B's color (α_A → the 0.001
+        // floor). This pins `accum/max(weight,1e-8)` end to end.
+        let sourceWidth = 120
+        let sourceHeight = 90
+        func constantSource(_ color: Float, yaw: Double)
+            -> PanoSourceGeometry {
+            PanoSourceGeometry(
+                width: sourceWidth, height: sourceHeight,
+                focal: 120, rotation: PanoCamera.rotation(
+                    fromAxisAngle: SIMD3(0, yaw, 0)))
+        }
+        let geometries = [
+            constantSource(0.3, yaw: -6 * Double.pi / 180),
+            constantSource(0.7, yaw: 6 * Double.pi / 180),
+        ]
+        let canvas = try PanoWarp.boundedCanvas(
+            sources: geometries,
+            scale: PanoWarp.globalScale(focals: geometries.map(\.focal)))
+        let staging = StackMergeService.StagedSet(
+            count: 2, width: sourceWidth, height: sourceHeight)
+        defer { staging.cleanUp() }
+        for (index, color) in [Float(0.3), Float(0.7)].enumerated() {
+            var floats = [Float](
+                repeating: 0, count: sourceWidth * sourceHeight * 4)
+            for index2 in stride(from: 0, to: floats.count, by: 4) {
+                floats[index2] = color
+                floats[index2 + 1] = color
+                floats[index2 + 2] = color
+                floats[index2 + 3] = 1
+            }
+            // The plane OWNS the pointer (its deinit deallocates — no
+            // test-side free; the double free was the probe-pinned abort).
+            let plane = StackRenderedPlane(
+                pointer: UnsafeMutableRawPointer.allocate(
+                    byteCount: sourceWidth * sourceHeight * 16,
+                    alignment: 64),
+                width: sourceWidth, height: sourceHeight,
+                bytesPerRow: sourceWidth * 16)
+            plane.pointer.copyMemory(
+                from: floats, byteCount: sourceWidth * sourceHeight * 16)
+            try staging.writePixels(
+                plane, index: index)
+        }
+        let valid = StackMergeService.panoValidMask(
+            sources: geometries, rois: canvas.rois, canvas: canvas)
+        let rows = try StackMergeService.panoFuseRows(
+            staging: staging, sources: geometries, rois: canvas.rois,
+            gains: [1, 1], canvas: canvas,
+            cropX0: 0, cropX1: canvas.width,
+            firstRow: canvas.height / 2, rowCount: 4)
+        let outWidth = canvas.width
+        // The single-cover bands read each source's own color.
+        var sawOwnA = false
+        var sawOwnB = false
+        var sawMean = false
+        for x in 0..<outWidth {
+            let base = (2 * outWidth + x) * 4 // the middle row of the band
+            let value = rows[base]
+            guard value > 0.01 else { continue }
+            if abs(value - 0.3) < 0.02 { sawOwnA = true }
+            if abs(value - 0.7) < 0.02 { sawOwnB = true }
+            if abs(value - 0.5) < 0.03 { sawMean = true }
+        }
+        XCTAssertTrue(sawOwnA, "source A's single-cover band")
+        XCTAssertTrue(sawOwnB, "source B's single-cover band")
+        XCTAssertTrue(sawMean, "the deep-overlap mean")
+        // The valid mask matches the fused support (weight > 0).
+        var covered = 0
+        for x in 0..<outWidth
+        where rows[(2 * outWidth + x) * 4] > 0.01 { covered += 1 }
+        var validCount = 0
+        let maskRow = (canvas.height / 2 + 2) * canvas.width
+        for x in 0..<canvas.width where valid[maskRow + x] == 1 {
+            validCount += 1
+        }
+        XCTAssertEqual(covered, validCount, "valid = weight > 0")
+    }
+
     // MARK: - The streaming writer (KD-9)
 
     func testFloatTIFFWriterRowBandsRoundTripThroughImageIO() throws {
