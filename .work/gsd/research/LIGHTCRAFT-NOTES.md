@@ -107,3 +107,7 @@ MIT OR Apache-2.0（任选其一）——**代码级移植合法**（与 darktab
 - `README.md` / `ROADMAP.md` / `AGENTS.md`（clean-room 与 never-crash 纪律）
 - `docs/architecture.md`（分层与规模）、`docs/gpu-pipeline.md`（oracle/健壮性/内存）、`docs/process-versions.md`（process 版本规则）、`docs/mcp.md` + `docs/control-protocol.md`（命令注册表/MCP/库锁/进度取消）、`docs/xmp-interop.md`（sidecar owned-properties 合并）、`docs/denoise.md` + `docs/ai-masks.md`（模型安装器/SAM 3）、`docs/merge.md`（HDR/全景）、`docs/gaps.md`（排名 gap 方法论）、`docs/raw/coverage.tsv`（逐机型验证）
 - 对照内部正本：本仓 AGENTS.md（M2-2/.lalb、M2-6 DRT、M2-7 蒙版、M2-8 versions、M2-9 导出、M2-10 AI、M5 MCP-09/ALCE 挂账）、`.work/gsd/research/LUMEN-RAW-NOTES.md`（格式先例）
+
+## 六、裁决记录（用户回批 2026-10-11）
+
+**OQ-LC-1..6 全部按推荐采纳**：①MCP-09-A 按「单写者锁 + 活实例转发」立项 ②ALCE-03 解冻（先 spike AVFoundation auxiliary 原生路，LightCraft 实现兜底）③引入 per-photo process version（M5 TRACK/Mertens 落地后 iop 调参概率升高，越早越省）④AI 分割蒙版先零成本 spike Apple VNGenerateForegroundInstanceMask，达标即收 ⑤图库功能包 stacks + auto-stack 优先（smart albums 次之，挑片视图/watched folders 挂账）⑥ALCEDO-FEATURE-MAP 升维 ID 化 parity 清单 + CI 对账（作为 M6 对标里程碑第一个 plan）。立项站点随 M5 后续站/M6 charter 排布。
