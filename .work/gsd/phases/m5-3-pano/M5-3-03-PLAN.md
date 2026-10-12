@@ -10,6 +10,7 @@ estimated_tests: "+5..8"
 test_bundles: [App]
 files_modified:
   - App/Sources/Lightamer/UI/SessionBrowserView.swift      # 修改：merge 菜单第三项（browser_menu_pano）+ 全景确认 sheet（简形：标题/正文/取消/开始——零档位控件，OQ-7）+ onPano seam（nil = 隐藏，既有 gate 形）
+  - App/Sources/Lightamer/UI/ContentView.swift             # 修改：onPano 穿线第四段（SessionBrowserView 装配点 :461-464 同位——checker minor-1 补登记）
   - App/Sources/Lightamer/Session/SessionCoordinator.swift # 修改：panoMergeHandler seam（mertensMergeHandler/focusStackHandler 同形）
   - App/Sources/Lightamer/UI/LightamerApp.swift            # 修改：app root 接线——enqueue kind: .pano + MergeParams(deGhost: false, tag: nil) + toast_pano_queued + typed 三态 zh 映射面（failureHook 前缀表 → 三 zh 键，纯函数可机检）
   - Resources/Localizable.xcstrings                        # 修改：8 键尾块纯插入（browser_menu_pano / pano_dialog_title / pano_dialog_body / pano_dialog_start / toast_pano_queued / pano_error_alignment / pano_error_disconnected / pano_error_canvas）

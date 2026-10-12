@@ -61,6 +61,13 @@ internal struct SessionBrowserView: View {
     /// nil = the menu item stays hidden (the same gate shape).
     var onHDRMertens: ((_ relPaths: [String]) -> Void)?
 
+    /// Plan M5-3-03 (KD-1, OQ-7): the panorama merge entry — the THIRD
+    /// merge option (same multi-select gate + the ZERO-tier confirm
+    /// sheet: title/body/cancel/start only — the body carries the four
+    /// effective values, OQ-4/5/7). nil = the menu item stays hidden
+    /// (the same gate shape).
+    var onPano: ((_ relPaths: [String]) -> Void)?
+
     /// Plan 08-3 T4: the stacking entries — the focus stack and the three-
     /// mode stack denoise (same multi-select + confirm-dialog shape as the
     /// HDR entry). nil = the menu items stay hidden (no service wired).
@@ -172,6 +179,17 @@ internal struct SessionBrowserView: View {
                             Button(String(localized: "browser_menu_hdr_mertens")) {
                                 pendingTargets = targets
                                 showHDRMertensDialog = true
+                            }
+                        }
+                        // Plan M5-3-03 (KD-1): the panorama merge entry —
+                        // the THIRD merge option, same gate + sheet shape.
+                        if targets.count >= 2, onPano != nil {
+                            if onHDRMerge == nil, onHDRMertens == nil {
+                                Divider()
+                            }
+                            Button(String(localized: "browser_menu_pano")) {
+                                pendingTargets = targets
+                                showPanoDialog = true
                             }
                         }
                         // Plan 08-3 T4: the stacking entries (same
@@ -371,6 +389,35 @@ internal struct SessionBrowserView: View {
             .padding(20)
             .frame(width: 360)
         }
+        // Plan M5-3-03 (KD-1, OQ-7): the panorama confirm sheet — the
+        // SIMPLE form (title/body/cancel/start; ZERO tier controls — the
+        // body names the four effective values: same viewpoint, ~30%
+        // overlap, the 200MP canvas cap with proportional shrink, the
+        // always-on valid-domain crop). SwiftUI .sheet — the L057
+        // runModal-family ban does not apply by construction.
+        .sheet(isPresented: $showPanoDialog) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(String(localized: "pano_dialog_title"))
+                    .font(.headline)
+                Text(String(localized: "pano_dialog_body"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Spacer()
+                    Button(String(localized: "alert_cancel"), role: .cancel) {
+                        showPanoDialog = false
+                    }
+                    Button(String(localized: "pano_dialog_start")) {
+                        let targets = pendingTargets
+                        showPanoDialog = false
+                        onPano?(targets)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20)
+            .frame(width: 360)
+        }
     }
 
     // The right-clicked cell joins the selection when outside it — the
@@ -389,6 +436,8 @@ internal struct SessionBrowserView: View {
     @State private var hdrMergeDeGhost = true
     /// Plan M5-2-02 (KD-5): the Mertens confirm sheet state.
     @State private var showHDRMertensDialog = false
+    /// Plan M5-3-03 (KD-1): the panorama confirm sheet state.
+    @State private var showPanoDialog = false
     /// Plan 08-3 T4: the stacking dialog states.
     @State private var showFocusStackDialog = false
     @State private var showStackDenoiseDialog = false
