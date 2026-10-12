@@ -1363,7 +1363,13 @@ public actor StackMergeService {
         var strips = [[Float]](repeating: [], count: sources.count)
         for (index, source) in sources.enumerated() {
             let roi = rois[index]
-            guard roi.x + roi.width > cropX0, roi.x < cropX1,
+            // The ROIs live in the angle·scale frame — both crop bounds
+            // need the origin shift into that frame (the Y pair below
+            // already carries it; the X pair lost it once — E-omp-1: any
+            // non-zero originX opened a |originX|-wide kill band that
+            // skipped whole sources).
+            guard roi.x + roi.width > canvas.originX + cropX0,
+                  roi.x < canvas.originX + cropX1,
                   roi.y + roi.height > canvas.originY + firstRow,
                   roi.y < canvas.originY + firstRow + rowCount
             else { continue }
@@ -2880,7 +2886,8 @@ public actor StackMergeService {
         /// One staged pixel row, unshifted (the substitution-LUT grid pass
         /// reads ONLY the decimation rows — `plane[::step, ::step]` needs
         /// whole rows, not the grid cells' scattered addresses).
-        func readPixelRow(index: Int, row: Int) throws -> [Float] {            var result = [Float](repeating: 0, count: width * 4)
+        func readPixelRow(index: Int, row: Int) throws -> [Float] {
+            var result = [Float](repeating: 0, count: width * 4)
             guard row >= 0, row < height else { return result }
             let handle = try FileHandle(forReadingFrom: pixelsURL(index))
             defer { try? handle.close() }

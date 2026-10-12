@@ -125,6 +125,21 @@ final class PanoFusionPerfProbeTests: XCTestCase {
             valid: valid, width: canvas.width, height: canvas.height)
         Self.perf(
             "pano-crop|\(crop.width)×\(crop.height) at [\(crop.x0),\(crop.y0)]")
+        // The E-omp-1 participation gate: how many sources survive the
+        // band-span X/Y guard over the crop (the fixed guard = 8/8; the
+        // pre-fix bug killed 3/8 — ACCEPTANCE-OMP §五). Probe-side
+        // arithmetic over the SAME rois + crop the fusion consumes —
+        // zero reimplementation.
+        let participating = geometries.indices.filter { index in
+            let roi = canvas.rois[index]
+            return roi.x + roi.width > canvas.originX + crop.x0
+                && roi.x < canvas.originX + crop.x1
+                && roi.y + roi.height > canvas.originY + crop.y0
+                && roi.y < canvas.originY + crop.y0 + crop.height
+        }
+        Self.perf(
+            "pano-participation|\(participating.count)/\(sources)|sources="
+                + participating.map(String.init).joined(separator: ","))
 
         // ── the gain segment (the REAL staged-sample face) ───────────────
         let gainStart = Date()
