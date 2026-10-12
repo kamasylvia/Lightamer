@@ -54,12 +54,40 @@
    （自由 12-16GB 紧）+ 事故定位期减半缓存压力；画布仍 ≈200MP（测量
    对象不变）。DECISIONS 申报。
 
+## 修复批重测轮（2026-10-13，E-omp-1 修复后——8/8 全源，本节为全源基线正本）
+
+> E-omp-1（ACCEPTANCE-OMP §五）：band-span X 守卫漏 originX，批准轮实为
+> **5/8 源融合**（src5/6/7 整源静默丢失）——上节批准轮的融合语义数字
+> （吞吐/产物内容）不可引用为全源基线（墙钟量级结论方向不受影响）。
+> 一行修复 + 非对称几何回归法后，同协议双跑（Debug 直启宿主，
+> `/usr/bin/time -l` ru_maxrss 机检，probe 自带 10GB 磁盘预检）。
+> 新增参与门 PERF 行：`pano-participation|<n>/8`（probe 侧以同一 rois+
+> crop 复算守卫谓词，零重实现）。
+
+| 段 | 修复后 R1 / R2 | 批准轮（5/8） | 备注 |
+|---|---|---|---|
+| 参与门 | **8/8 / 8/8**（sources=0..7） | （未测，事后复算 = 5/8） | E-omp-1 修复的直接门 |
+| 画布/crop | 42774×4599 = 196MP / crop 42732×4536 at [42,42] | 同 | 几何 pass 与守卫无关，逐位复现 |
+| staged 写 | 27.2s / 23.7s（3.6GB） | 24.4s | 同域 |
+| 几何 pass | 184.8s / 185.6s | 183.8s | 同域 |
+| 融合+流写 | **1630.9s / 1634.1s**（0.1 MPx/s，双跑 ±0.2%） | 895.4s（0.2 MPx/s） | **1.82×** = 3 个补回源的 span 读+gather 增量（m-omp-1 估 ~1.6× 同向）；仍 CPU 预算同量级，无 GPU 化触发 |
+| 产物字节 | 3 101 321 140 / 3 101 321 140 | 3 101 321 140 | 逐位同（crop 尺寸决定；内容 = 8 源融合） |
+| ru_maxrss（机检） | **5033 MB / 5653 MB** | 3814 MB | 8G 门内宽裕；3 条带/band 增量 |
+| phys_footprint 峰值 | 8.67GB / 8.70GB（+388MB/band 爬升） | 6.76GB（+242MB/band） | freed-but-resident 计账同机理放大；RSS 口径健康 |
+| 磁盘预算 | free 20GB 开跑 → 12GB 收尾（Δ≈8GB） | 20→14GB | L077 ④ 预检行在册 |
+
+对账：**CPU 预算仍未证伪**（全源融合 27 分钟级 = 批准轮 15 分钟级 ×
+1.82，同域外推成立）；遗留观察项 footprint 爬升斜率随源数放大
+（+388 vs +242 MB/band），RSS/ru_maxrss 仍 8G 门内，挂账不变。
+
 ## 遗留观察项
 
-- 融合段残余 +242MB/band footprint 爬升（band 16 达 6.8GB，RSS 仍
-  3.8GB）：freed-but-resident 大块计账行为，RSS/ru_maxrss 口径健康
-  （8G 门内宽裕）；若未来宿主 RAM 更紧，可再把 accum/out 改带间复用
-  （挂 perf.md，不阻塞）。
-- 融合吞吐 0.2 MPx/s（Debug 直启 `-Onone`）：Release/`-O` 预计 3-5×；
+- 融合段残余 footprint 爬升（批准轮 +242MB/band @5/8 源；修复批重测
+  +388MB/band @8/8 源，band 18 达 8.67GB；RSS/ru_maxrss 口径均健康，
+  8G 门内宽裕）：freed-but-resident 大块计账行为，斜率随每 band 条带
+  数（参与源数）放大；若未来宿主 RAM 更紧，可再把 accum/out 改带间
+  复用（挂 perf.md，不阻塞）。
+- 融合吞吐 0.1-0.2 MPx/s（Debug 直启 `-Onone`；0.2 = 5/8 源批准轮，
+  0.1 = 8/8 源修复批）：Release/`-O` 预计 3-5×；
   Mertens 先例（Release 链不可达时 swiftc -O 脚手架口径）——本批 NO
   GATE 不做 Release 复测，挂 M5-4 VALIDATION 可选项。

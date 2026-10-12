@@ -696,6 +696,125 @@ final class PanoLegTests: XCTestCase {
         }
     }
 
+    func testFuseRowsBandSpanGuardAsymmetricOriginX() throws {
+        // E-omp-1 regression (M5-3-02-ACCEPTANCE-OMP §五): the band-span X
+        // guard in `panoFuseRows` compared WORLD-frame ROI edges against
+        // CANVAS-LOCAL crop bounds — any non-zero originX opens a kill
+        // band of width |originX| where whole sources are silently
+        // skipped (the 196 MP probe lost 3/8 sources). The symmetric
+        // fixtures above were a systematic blind spot: their source right
+        // edges stay positive in the angle frame while |originX| is small,
+        // so the kill band never intersects a covered column. This
+        // fixture shifts the geometry (±10° yaw at f = 800 → originX =
+        // −478) so the LEFT source's exclusive columns sit inside the
+        // kill band (exclusive end 279 vs world right edge 199). Two legs:
+        //   • boundary overlap — the band window lies in the left
+        //     source's EXCLUSIVE span, right of its world-frame right
+        //     edge: the buggy comparison kills the source and the window
+        //     fuses black; the fixed guard keeps it and the single-cover
+        //     columns read its own color.
+        //   • disjoint — the band window lies past the left source's
+        //     LOCAL right edge, covered only by the right source: both
+        //     guards skip the genuinely disjoint left source, and the
+        //     fixed guard must still keep the right source (pre-fix this
+        //     window fused black too — the buggy comparison kills the
+        //     right source there as well).
+        // The color pins subsume the span.count > 0 chain: a skipped
+        // source leaves its covered columns black (weight 0 → the
+        // `max(weight, 1e-8)` normalize).
+        let sourceWidth = 720
+        let sourceHeight = 520
+        // yaw +10° lands LEFT (local [0, 677)), yaw −10° lands RIGHT.
+        func constantSource(_ color: Float, yaw: Double) -> PanoSourceGeometry {
+            PanoSourceGeometry(
+                width: sourceWidth, height: sourceHeight, focal: 800,
+                rotation: PanoCamera.rotation(
+                    fromAxisAngle: SIMD3(0, yaw * Double.pi / 180, 0)))
+        }
+        let geometries = [
+            constantSource(0.3, yaw: 10),
+            constantSource(0.7, yaw: -10),
+        ]
+        let canvas = try PanoWarp.boundedCanvas(
+            sources: geometries,
+            scale: PanoWarp.globalScale(focals: geometries.map(\.focal)))
+        // The asymmetric shape the regression depends on (loud if the
+        // fixture geometry ever drifts).
+        let leftROI = canvas.rois[0]
+        let rightROI = canvas.rois[1]
+        let worldRightLeft = leftROI.x + leftROI.width
+        let leftLocalRight = worldRightLeft - canvas.originX
+        let rightLocalLeft = rightROI.x - canvas.originX
+        XCTAssertLessThan(canvas.originX, 0, "asymmetric origin required")
+        XCTAssertLessThan(worldRightLeft, rightLocalLeft, "exclusive-span window must exist")
+        let staging = StackMergeService.StagedSet(
+            count: 2, width: sourceWidth, height: sourceHeight)
+        defer { staging.cleanUp() }
+        for (index, color) in [Float(0.3), Float(0.7)].enumerated() {
+            var floats = [Float](
+                repeating: 0, count: sourceWidth * sourceHeight * 4)
+            for index2 in stride(from: 0, to: floats.count, by: 4) {
+                floats[index2] = color
+                floats[index2 + 1] = color
+                floats[index2 + 2] = color
+                floats[index2 + 3] = 1
+            }
+            // The plane OWNS the pointer (its deinit deallocates).
+            let plane = StackRenderedPlane(
+                pointer: UnsafeMutableRawPointer.allocate(
+                    byteCount: sourceWidth * sourceHeight * 16,
+                    alignment: 64),
+                width: sourceWidth, height: sourceHeight,
+                bytesPerRow: sourceWidth * 16)
+            plane.pointer.copyMemory(
+                from: floats, byteCount: sourceWidth * sourceHeight * 16)
+            try staging.writePixels(plane, index: index)
+        }
+        let firstRow = canvas.height / 2
+        let rowCount = 4
+
+        // Leg 1 — boundary overlap: the window starts right of the left
+        // source's world-frame right edge (inside the pre-fix kill band)
+        // but ends before the right source's local left edge, so every
+        // window column is single-covered by the left source.
+        let overlapX0 = (worldRightLeft + rightLocalLeft) / 2
+        let overlapX1 = rightLocalLeft - 10
+        XCTAssertGreaterThan(overlapX0, worldRightLeft, "inside the kill band")
+        let overlapRows = try StackMergeService.panoFuseRows(
+            staging: staging, sources: geometries, rois: canvas.rois,
+            gains: [1, 1], canvas: canvas,
+            cropX0: overlapX0, cropX1: overlapX1,
+            firstRow: firstRow, rowCount: rowCount)
+        let overlapWidth = overlapX1 - overlapX0
+        for x in 0..<overlapWidth {
+            let value = overlapRows[(2 * overlapWidth + x) * 4]
+            XCTAssertEqual(
+                value, 0.3, accuracy: 0.02,
+                "left source's exclusive column \(overlapX0 + x) must read " +
+                    "its own color, got \(value)")
+        }
+
+        // Leg 2 — disjoint: the window starts right of the left source's
+        // LOCAL right edge (genuinely disjoint — both guards must skip
+        // it) and is covered only by the right source.
+        let disjointX0 = leftLocalRight + 20
+        let disjointX1 = disjointX0 + 60
+        XCTAssertLessThanOrEqual(leftLocalRight, disjointX0, "genuinely disjoint")
+        let disjointRows = try StackMergeService.panoFuseRows(
+            staging: staging, sources: geometries, rois: canvas.rois,
+            gains: [1, 1], canvas: canvas,
+            cropX0: disjointX0, cropX1: disjointX1,
+            firstRow: firstRow, rowCount: rowCount)
+        let disjointWidth = disjointX1 - disjointX0
+        for x in 0..<disjointWidth {
+            let value = disjointRows[(2 * disjointWidth + x) * 4]
+            XCTAssertEqual(
+                value, 0.7, accuracy: 0.02,
+                "right-source-only column \(disjointX0 + x) must read the " +
+                    "right source's own color, got \(value)")
+        }
+    }
+
     // MARK: - The streaming writer (KD-9)
 
     func testFloatTIFFWriterRowBandsRoundTripThroughImageIO() throws {
