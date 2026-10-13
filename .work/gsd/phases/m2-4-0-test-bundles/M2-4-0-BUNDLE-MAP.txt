@@ -692,3 +692,4 @@ EXPORT	1	PanoFusionPerfProbeTests.swift
 #   行内 method 数以终态对账为准。运行期总数基线相应上移（3631 起算，E1 回注 53 法）。
 LIB	8	SingleWriterLockTests.swift
 LIB	10	ProjectLockTests.swift
+APP	6	ProjectReadOnlyFaceTests.swift

@@ -831,6 +831,7 @@ let project = Project(
                 "Tests/LightamerTests/NodesPanelModelTests.swift",
                 "Tests/LightamerTests/NodeOwnershipCatalogTests.swift",
                 "Tests/LightamerTests/PanelWiringTests.swift",
+                "Tests/LightamerTests/ProjectReadOnlyFaceTests.swift",
                 "Tests/LightamerTests/PanoMergeUITests.swift",
                 "Tests/LightamerTests/SettingsPagesTests.swift",
                 "Tests/LightamerTests/ACASettingsTests.swift",
