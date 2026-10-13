@@ -1,0 +1,54 @@
+# M3-1-ACCEPTANCE-OMP-R2 — W1 前置批双路并发终验（OMP 路）
+
+> 验收员 OMP，日期 2026-10-10，HEAD `f2969d24`。方法：三 ACCEPTANCE+三 SUMMARY+01/02/03 DECISIONS+AGENTS.md M3-1 节亲读，上一轮 14 抽查点提炼后独立重验 8 个可机检项（读码/git/计数/脚本亲跑），零测试套件复跑。
+> 口径：HEAD 已远超 M3-1 收官；后演进差异逐处标注，不记账。**历史再次重写**：上一轮引用的 14 个 SHA（含其亲定位的 01 六个）本轮全部失效；新链已亲定位（01：`eac566ae/db7c1ebe/1b6263ac/0d0ea07b/1315b0e6/7d0a4f2b`；02：`a3903461/1d03c642/fb47f4e8/4b20ae6e`；03：`78432f8d/f68b7f01/f8309546/91fdce51/f070afb5`+签核 `e42c7df7`），内容面逐项亲核一致。
+
+## 结论头
+
+**PASS / 0 error + 0 minor**
+
+## 一、编码目录 17 行 + hash 零漂移 + 方向探针 → 成立
+
+- `LutEncodingCatalog.swift:32-50` 亲数 17 case（scene 11：acescc~linear_rec2020；display 6：bt1886~hlg1000），与 SC 语义逐位。
+- `Lut3dEncodingTests.swift:25` `testCatalogRowCounts` 钉 17/11/6；`:435` `testParamsEncodingZeroDrift`（`Params()` 编码 == `{"colorspace":"sRGB","interpolation":"tetrahedral"}` 逐字节）；`:545/:566/:589` 三方向探针在册；`:713` 非单位域默认对 verbatim 在册。
+- `grep -c "func test"` 七文件 = 24/7/16/5/14/5/6（Lut3dEncoding/Golden/LibraryStore/EncodingPanel/SheetSizing/CollisionPicker/DragDowngrade），与 BUNDLE-MAP 登记行值逐位。
+
+## 二、yiyin sheet 双域交 + quantize3 + 两键 → 成立
+
+- `YiyinSheetSizing.swift:55-70`：`lo=max(pxMin,域×ratioMin)`、`hi=min(pxMax,域×ratioMax)`、`min(max(px,lo),hi)` 双域交亲读；`:94-96` quantize3 = `round(×1000)/1000`；`:43-44` 首用锚 420/560。
+- `YiyinSheetMetrics.swift:15-16` 两键拼写 `yiyin.sheet.widthRatio/heightRatio`；`:26-42` typed 读 + 拖尾写面在位。
+- `git show --name-only a3903461`（新 T1）= BUNDLE-MAP+Metrics+Sizing+Project.swift+14 测 5 文件，与 02-SUMMARY 申报逐项一致。
+
+## 三、denoise 旁路三防线代码面 → 成立
+
+- `EditorState.swift:239` `previewDenoiseBypass: [UUID: Bool]`；`:248-256` arm 记先验/双 arm 幂等/disarm 复原+无 arm no-op；`:217` commit 自愈 removeValue；`:153/:449` load+rebuild 双清扫；`:429-431` upsert 强制压 false。三防线逐窗亲读在位。
+- 注：行号较上一轮漂移（后演进插入 M6 只读门等），语义逐窗一致，后演进不记账。
+
+## 四、冲突档透传链闭合 → 成立
+
+- `ExportInspectorView.swift:230` Picker 三 tag 绑 `ExportCollisionPolicy`；`:630` 默认 `.increment`；`:846` `makeRunAssembly` 纯缝、`:875` policy 入 `RunAssembly`(`:826` 值类型)；`ExportState.swift:492` 既有形参 `collisionPolicy:` → `:541` `queue.enqueue`。逐跳闭合。
+- `git show --name-only 78432f8d`（新 T1）= BUNDLE-MAP+ExportInspectorView+Project.swift+xcstrings+5 测，与 03-SUMMARY 申报一致。后演进：装配束/`enqueueExportM2` 附加 `filmTails` 参（M3-3），不记账。
+
+## 五、面板 118/0 纯增量 → 成立
+
+- `git show --numstat 0d0ea07b`（新 T4）：`118 0 LutPanelView.swift` + BUNDLE-MAP/Project/xcstrings/241 行新测；`grep -c '^-[^-]'` 该文件 diff = 0，纯增量亲证（xcstrings 1 删 = 尾部 JSON 结构行，后演进无关）。
+
+## 六、红线零命中两 range → 成立
+
+- 01 range `eac566ae~1..1315b0e6` 对 10 红线名 grep = 0；03 range `78432f8d~1..91fdce51` 对 13 红线名 grep = 0。
+- `LocalizationValue("prefix_\(` 禁形在 ExportInspectorView/LutPanelView = 零命中。
+
+## 七、zh 提取器硬化 + self-test → 成立
+
+- `Scripts/zh-audit.py:120-121` `PENDING_LOCALIZED_RE`/`LEAD_LITERAL_RE` 在位；`--self-test` 亲跑 = SELF-TEST PASS（含 continuation 样例）；`--check` 亲跑 = PASS（1661 source/1900 catalog，zh complete）。
+- 数值较终态 1534/1772 增长 = 后演进增键，不记账；`--check` PASS 态维持。
+
+## 八、证据文件核对 → 成立
+
+- `.work/gui-acceptance/m3-1/` 14 件全在（6 张 02 图+5 张 03 图+1 .ips+MANIFEST+walk.py），字节非零（最小 9595 walk.py，最大 602KB 02-05 图）。禁截图走查口径下未做识图复核，采信上一轮两图逐字记录（无反证）。
+
+## 分歧项
+
+**无**。实质判定与上一轮（PASS/0+0）一致；上一轮结论全部独立取证成立，未发现漏检/误判。唯一演进注记：上一轮 §六 obs-1 定位的 14 个 SHA 本轮已全部失效（M3 后第二轮历史重写，`fd8207c6` rewrite-map 在案），本轮重定位新链亲核——属账面演进非上一轮缺陷。
+
+OMP-VERDICT: PASS
