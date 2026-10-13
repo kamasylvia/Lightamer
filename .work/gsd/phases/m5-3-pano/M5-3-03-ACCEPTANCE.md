@@ -103,7 +103,22 @@
 - UI/typed 映射/zh 键族/G4/G5/G6/commit 边界七面审计全绿（§二..§八）；四提交边界干净、政策 B 合规、checker 五项采纳分账准确。
 - M5-3-03 申报与实物**零实质偏差**；发现的 1 minor 为收口文档锚数字精度（已更正），3 观察均零动作。
 
-## 十一、第二路 = omp 二次验收（待 orchestrator 串行派遣）
+## 十一、第二路 = omp 二次验收（已闭环，签核批回填）
 
-- （待填——**严禁与 zcode 路并发**；可选含 omp 实机 G6 五行走查取证回填，M5-2 G6 行 2/5 先例。）
-- 结论：＿＿＿（PASS / FAIL + 证据指针；FAIL 回注修复批后重走验收。）
+- **结论：PASS / 0 error + 1 minor + 3 obs**（串行二验，与 zcode 路零实质
+  分歧；报告正本 = `M5-3-03-ACCEPTANCE-OMP.md`，五步独立执行）。
+- 要点：App 定向复跑 **757/4/0 逐位**（含 peakRSS 2832MB，`OK (direct
+  launch, no testmanagerd)` 亲见）；实机端到端取证 = 右键菜单 13 项
+  （第三项落位）/ sheet AX 逐字（零档位控件）/ queued toast zh 逐字 /
+  生产腿热栈（`runPanoLeg → PanoFeature` 源码行号一致）/ typed canonical
+  log（同源复制对 → alignment 臂）；G4 探针仓外独立复跑与
+  `probe-output.txt` **diff 空**（G4-BITIDENTICAL）；红线十二项全零/全绿
+  （base `60aad61f`）。
+- minor-1（omp 路）= 实机 FAIL toast 屏上像素未取证（4s auto-clear +
+  12 分钟 AX 轮询零命中；映射语义由测试三臂 + AX 锚 + log canonical
+  前缀三方闭合）——不阻断。obs：o-omp1（零视差对落 alignment 臂的
+  guard 序注记——G6 行 4 执行时 alignment/disconnected 两臂均接受）/
+  o-omp2（焦点堆栈 sheet 计数 0 疑似脱节，08-3 面另案登记）/ o-omp3
+  （Metal `MDB_MAP_FULL` + Spotlight/XPC 环境噪音）。
+- 双路全 PASS → `M5-3-VALIDATION.md` 已随签核批翻 `validated` +
+  `signed: 2026-10-13`（兼 M5 milestone 收口，`milestone_closeout: M5`）。
