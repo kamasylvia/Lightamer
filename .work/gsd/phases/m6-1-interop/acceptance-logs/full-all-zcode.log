@@ -1,0 +1,25 @@
+BUNDLE|IOP|684/1/0|peakRSS=6684MB|438s|sampling=time
+BUNDLE|IOPParity|460/3/0|peakRSS=5844MB|771s|sampling=time
+BUNDLE|Layers|466/4/0|peakRSS=1177MB|170s|sampling=time
+BUNDLE|Library|654/4/0|peakRSS=611MB|79s|sampling=time
+BUNDLE|Sessions|279/4/2|peakRSS=1200MB|108s|sampling=time
+  ↳ Sessions FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-Sessions.log
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/CatalogModeIsolationTests.swift:246: error: -[LightamerTestsSessions.CatalogModeIsolationTests testSessionsModeFullFlowCreatesNoCatalogFile] : XCTAssertFalse failed
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/CatalogModeIsolationTests.swift:252: error: -[LightamerTestsSessions.CatalogModeIsolationTests testSessionsModeFullFlowCreatesNoCatalogFile] : XCTAssertTrue failed - enabled: the detached hook projects
+Test Case '-[LightamerTestsSessions.CatalogModeIsolationTests testSessionsModeFullFlowCreatesNoCatalogFile]' failed (15.382 seconds).
+Test Suite 'CatalogModeIsolationTests' failed at 2026-10-13 14:13:00.815.
+--
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/CatalogProjectorTests.swift:566: error: -[LightamerTestsSessions.CatalogProjectorTests testOpenAndSyncHookRespectsGuard] : XCTAssertTrue failed - enabled: the hook projects
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/CatalogProjectorTests.swift:577: error: -[LightamerTestsSessions.CatalogProjectorTests testOpenAndSyncHookRespectsGuard] : XCTAssertEqual failed: ("0") is not equal to ("1")
+Test Case '-[LightamerTestsSessions.CatalogProjectorTests testOpenAndSyncHookRespectsGuard]' failed (21.183 seconds).
+--
+Test Case '-[LightamerTestsSessions.CatalogProjectorTests testWatermarkIncrementalIdempotentNoLoss]' started.
+Test Case '-[LightamerTestsSessions.CatalogProjectorTests testWatermarkIncrementalIdempotentNoLoss]' passed (0.015 seconds).
+Test Suite 'CatalogProjectorTests' failed at 2026-10-13 14:13:22.391.
+--
+Test Suite 'ThumbnailMemoryCacheTests' passed at 2026-10-13 14:14:27.964.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.005 (0.006) seconds
+Test Suite 'LightamerTestsSessions.xctest' failed at 2026-10-13 14:14:27.964.
+	 Executed 279 tests, with 4 tests skipped and 5 failures (0 unexpected) in 106.952 (107.101) seconds
+Test Suite 'All tests' failed at 2026-10-13 14:14:27.964.
+TOTAL|2543/16/2|1566s
