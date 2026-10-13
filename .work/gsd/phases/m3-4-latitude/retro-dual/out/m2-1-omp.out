@@ -1,0 +1,54 @@
+Working...
+# M2-1 双路回溯二次验收报告（OMP 路）— dt 面 feature-flag 禁用
+
+- 验收员：OMP（独立回溯二次验收员，零共享上下文）；日期：2026-10-10；HEAD：`5ff6ff48`。
+- 方法：亲读正本三件 + DECISIONS + 上一轮 OMP-R1 报告 + AGENTS.md 相关节，独立重验 R1 全部 4 个抽查点（file:line / git / grep 机检），测试不复跑（引用 R1 定向终值 + 后演进 diff 亲证）。
+- 后演进声明：HEAD 远超 M2-1 收官 `c4ebef17`；下文差异凡后演进所致均标「后演进，不记账」。
+
+**结论头：`PASS / 0 error + 1 minor`**
+
+## 抽查点 1：禁用集常量 + gatedRegister 与矩阵逐字一致（重验 R1-§1）
+
+- `LightamerIOP/Sources/Registry.swift:39-50`：`defaultFaceDisabledOpNames` 恰 6 项，全由模块 `opName` 常量构建（FilmicRGB/Sigmoid/AgX/DenoiseProfile/NLMeans/Bilateral），集合字面量内零字符串字面量；D1/D2 分组注释标矩阵行号。行号与 R1 记值逐位同。
+- 6 常量字面亲证（`git grep 'opName.*=.*"'`）：`filmicrgb`(FilmicRGBModule.swift:197)、`sigmoid`(SigmoidModule.swift:382)、`agx`(AgXModule.swift:178)、`denoiseprofile`(DenoiseProfileModule.swift:197)、`nlmeans`(NLMeansModule.swift:80)、`bilateral`(BilateralModule.swift:77)——与 `M2-1-MATRIX.md:17-22` 逐字一致。
+- `gatedRegister` 定义 `:97-106`（`if defaultFace, contains → return`）；调用点恰 6 处：`:199` sigmoid(row2)、`:220` filmicrgb(row1)、`:229` agx(row3)、`:342` nlmeans(row5)、`:356` denoiseprofile(row4)、`:368` bilateral(row6)，每处注释矩阵行号。（行号 vs R1 记值整体下移约 15 行 = 后演进插入所致，不记账。）
+- 反向机检：禁用 6 模块 `await registry.register(opName: …)` 零直接注册（grep 禁用 6 名仅命中 gated 调用点 + 常量集 + seed filter）；直接注册 46 处 vs R1 时 45（M5-1 colormatch 新增 1 = 后演进，不记账）；`git diff c4ebef17..HEAD -- Registry.swift` 中禁用缝相关行零 diff——M2-1 交付面逐字节在位。
+
+## 抽查点 2：默认面三面收窄 + env 口 + 组装点在位（重验 R1-§2）
+
+- 种子面：`Registry.swift:780-784` `if defaultFace { seed.removeAll {…} }` 在 `sorted` 之前——过滤在 sort 前成立（行号漂移 = 后演进，不记账）。
+- 面板面：`InspectorState.swift:106-115` `registerDefaultProviders(defaultFace:)` 经 `gated()` 对注册表常量取交集；`grep -c gated(` = 7（1 定义 + 6 调用：`:123` Sigmoid、`:128` FilmicRGB、`:129` AgX、`:162` NLMeans、`:164` DenoiseProfile、`:166` Bilateral）。与 R1 逐位同。
+- 生产组装点：`LightamerApp.swift:1124-1128` 一处读 `!isFullFaceRequested` 分发 populate/attach，`:1164` panels，`seedInstances()`（`:2310-2317`）同开关；`PipeCoordinator.swift:995-997` `attach(registry:defaultFace:)` 注入式（D-EXEC-1），消费点 `:1209`、`:1410`。`grep -rn "editingDefaultInstances()" App/Sources` 零命中——无裸调用残留。
+- MCP 面：`McpServerController.swift:535-547` 同源 face（同一 `let defaultFace` 喂 populate + stamp `seams.defaultFace`）；`EditingToolset.swift` `Seams.defaultFace` 载体（`:86/:125-132`）、`catalogJSON(defaultFace:)` 调用 `:160`、`editingSeed/defaultRecord/projectInstances` 透传 `:582-713`；`IopCatalog.swift:309-320` `defaultFaceOps()` 对注册表常量过滤 + `catalogJSON(defaultFace:)` 选源（`ops` 数据不动）。env 口 `Registry.swift:57-58` 键名 `LIGHTAMER_FULL_IOP_FACE`（R1 对任务书笔误的注记属实）。
+- 正反双向钉：`DefaultFaceTests.swift` 8 测试方法（`:76/:88/:107/:130/:163/:290/:331/:364`，与 R1 记值逐位同）；`matrixDisabledNames`（`:42-45`）= 6 字面集，唯一合法字面量处。
+
+## 抽查点 3：DefaultFaceTests 面（重验 R1-§3，不复跑）
+
+- 引用 R1 定向终值：`Scripts/test-direct.sh --bundle IOP 'DefaultFaceTests'` = 8/0/0（`BUNDLE|IOP|8/0/0|peakRSS=195MB`），与首验 8 例 0 fail 逐值一致。
+- R1「该文件自收官后零改动」结论已过期：`git log c4ebef17..HEAD -- DefaultFaceTests.swift` 命中 `518bd873`（colormatch 注册批）——diff 亲证仅改 catalog 计数断言 18→19 / 15→16（colormatch 非禁用集，`defaultFaceOps` 机械 +1），禁用集断言（`:42-45`、`:76-81`）零触。后演进，不记账；禁用面测试语义未变。
+- `IopCatalog.swift:316-318` 注释已同步 16/19（与 `518bd873` 同批），注释与断言一致。
+
+## 抽查点 4：git 机检（重验 R1-§4；SHA 体系已变，见分歧 D1）
+
+- R1 定位的 `d734067/9b71843/7babcb0/d3f5744` 在当前仓库全部 `unknown revision`——历史再次改写。按 message 亲证定位到：`d2026dec`(T1 feat iop)/`801715b7`(T2 feat app)/`f5dfe597`(T3 feat mcp) + squash `c4ebef17`（M2-1 收官，含三批全量）。
+- 三 feat `--stat` 与首验 §AC10 申报对照：T1 = Registry + DefaultFaceTests（新建）2 文件 ✓；T2 = InspectorState + PipeCoordinator + LightamerApp + DefaultFaceTests 4 文件 ✓；T3 = McpServerController + EditingToolset + IopCatalog + DefaultFaceTests + McpHostTests 5 文件 ✓（McpHostTests diff 亲证 = D-EXEC-3 申报：`import LightamerIOP` + 期望元组同源 face）。
+- 红线：`git diff --stat c4ebef17~1..c4ebef17 -- LightamerCore/` 输出为空 → `LightamerCore/` 零改动 ✓。收官基 `c4ebef17~1 = b1e94bde`（项目重定义提交），range 干净无中间 commits。
+- 三方逐字一致：Registry 常量 6 值（抽查点 1）== 矩阵字面集（MATRIX:17-22）== 测试 `matrixDisabledNames`（:42-45）== 8 法机检绿（R1 定向终值）。
+
+## 分歧项（与 R1 / 首验的判定差异）
+
+| # | 级别 | 内容 |
+|---|---|---|
+| D1 | minor（本轮唯一认定） | **执行 commits SHA 二次漂移**：R1 记 `d734067/9b71843/7babcb0/d3f5744`，现仓库均 unknown；实际为 `d2026dec/801715b7/f5dfe597` + squash 收官 `c4ebef17`（message 与 PLAN 约定对应，stat/diff 亲证即 M2-1 批）。属标识漂移，代码/测试态可追溯，不影响任何 AC。另 MATRIX 签注「代码态 f2a3618」旧 SHA 残留仍在（R1 已注）。 |
+| D2 | note（后演进，不记账） | R1「DefaultFaceTests 自收官零改动」在 HEAD 下不成立（`518bd873` 改 catalog 计数 18→19/15→16）；禁用集断言零触，M2-1 语义未变。R1 结论在其验收时点（2026-10-09）成立。 |
+| D3 | note | 首验 minor（MATRIX:24 表标题计数「12+trio」「独有 7+native 2」与实际行数不符）亲读属实；已签核正本不改，维持首验处置。AGENTS.md 侧 M2-1 引用（M2LIB-06 D-EXEC-1 同款、M2DRT-06 `defaultFaceDisabledOpNames` 零 diff、M3-1-03 nlmeans 不可达注记）与现状一致。 |
+
+实质分歧（测试红、代码与矩阵不符、文件集越界）：无。
+
+## 会话卫生
+
+- 只读验收：未修改任何源码与既有文档；唯一写入 = 本报告文件。未 push，未发起网络动作。
+- 测试纪律：未跑任何测试（引用 R1 定向 8/0/0 终值 + `518bd873` diff 亲证覆盖后演进段）。
+- 工作区滞留物未触碰。
+
+OMP-VERDICT: PASS
