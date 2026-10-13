@@ -1,0 +1,52 @@
+# M2-1 回溯二次验收报告（pi 路，双路并发批）— dt 面 feature-flag 禁用
+
+- 验收员身份：PI 路独立回溯二次验收（零共享上下文，与 omp R2 路任务书相同、各写各报）。
+- 日期：2026-10-10。HEAD short-sha = `f42dc13c`。
+- 方法：亲读正本三件 + SUMMARY/DECISIONS + 上一轮 `M2-1-ACCEPTANCE-OMP.md`，提炼其 4 个抽查面后逐项独立取证（git 机检 + 读码 + 计数），不照抄其结论；测试默认不跑（引用正本已记录终值）。
+- 口径：HEAD 远超 M2-1 收官；凡后续 phase 造成的现状差异逐处标「后演进，不记账」。
+
+**结论头：`PASS / 0 error + 2 minor`**
+
+## 抽查点 1：禁用集常量 + gatedRegister 与矩阵对应（独立重验）
+
+- `LightamerIOP/Sources/Registry.swift:39-50`：`defaultFaceDisabledOpNames` 恰 6 项，全部由模块 `opName` 常量构建（`FilmicRGBModule/SigmoidModule/AgXModule/DenoiseProfileModule/NLMeansModule/BilateralModule`），集合内零字符串字面量，D1/D2 注释各标矩阵行组（rows 1-3 / 4-6）。
+- 6 常量字面亲证（独立 grep，目录现为按模块分子目录）：`FilmicRGB/FilmicRGBModule.swift:197 "filmicrgb"`、`Sigmoid/SigmoidModule.swift:382 "sigmoid"`、`AgX/AgXModule.swift:178 "agx"`、`DenoiseProfile/DenoiseProfileModule.swift:197 "denoiseprofile"`、`NLMeans/NLMeansModule.swift:80 "nlmeans"`、`Bilateral/BilateralModule.swift:77 "bilateral"`——与 `M2-1-MATRIX.md` 禁用表 6 行逐字一致。
+- `gatedRegister` 定义 `Registry.swift:97-106`（`if defaultFace, contains → return`）；调用点恰 6 处：`:199` sigmoid(row 2)、`:220` filmicrgb(row 1)、`:229` agx(row 3)、`:342` nlmeans(row 5)、`:356` denoiseprofile(row 4)、`:368` bilateral(row 6)，每处 `matrixVerdict` 注释矩阵行号（sed 逐点亲读）。direct register 面混入禁用 6 = `grep -nE ... | grep -v gatedRegister` 零命中（exit 1）。后演进注记：direct register 现 46 处（M2-1 时 34）= M2-5/M3-3/M5-1 等后加模块，gated 恒 6，不记账。
+
+## 抽查点 2：默认面三面收窄 + env 口（独立重验）
+
+- 种子面：`Registry.swift:780-782` `if defaultFace { seed.removeAll { … } }` 在 `:783-785` `sorted` 之前——过滤先于 v50 sort 成立。
+- 面板面：`App/Sources/Lightamer/State/InspectorState.swift:106-115` `registerDefaultProviders(defaultFace:)` 经 `gated()`；gated 恰 6 panel：`:123/:128/:129/:162/:164/:166`（Sigmoid/FilmicRGB/AgX/NLMeans/DenoiseProfile/Bilateral）。
+- 组装点：`LightamerApp.swift:1124-1128` 一处 `let defaultFace = !LightamerIOPRegistry.isFullFaceRequested` 分发 populate/attach、`:1164` panels、`:2313-2320` seedInstances 同开关；`PipeCoordinator.swift:386` 私有属性（默认 false=full face）+ `:995-997` `attach(registry:defaultFace:)` 注入式（D-EXEC-1 在位），消费点 `:1209/:1410`。`grep -rn "editingDefaultInstances()" App/Sources` = 0（零裸调用）。后演进注记：LightamerApp/McpServerController 行号较上一轮大幅漂移（文件后增内容），接线形态不变，不记账。
+- MCP 面：`McpServerController.swift:541-550` 同一次 `isFullFaceRequested` 读同喂 populate 与 `seams.defaultFace`；`EditingToolset.swift:86` Seams 字段 + `:160/:582/:586` 消费、`editingSeed/defaultRecord` `:632-676` 透传；`IopCatalog.swift:309-320` `defaultFaceOps()` 对 registry 常量取交集（D-EXEC-4）+ `catalogJSON(defaultFace:)` 选源。
+- env 口：`Registry.swift:57-59` 键名 `LIGHTAMER_FULL_IOP_FACE`（与正本一致）。
+
+## 抽查点 3：测试态与归属（独立重验；未复跑）
+
+- `Tests/LightamerTests/DefaultFaceTests.swift` 现 8 个 `func test`（grep -c）；bundle 归属 `M2-4-0-BUNDLE-MAP.txt:134 → IOP 8 DefaultFaceTests.swift`。
+- 正本终值引用：首验独立复跑全套 1889/11skip/0fail（735.751s）+ 定向 DefaultFaceTests 8/0fail；上一轮定向复跑 `BUNDLE|IOP|8/0/0`。本轮按约束未复跑（独立 derivedDataPath 全量构建超 8 分钟预算，且下述「测试文件后演进」使复跑对象已非 M2-1 态断言，边际价值低）——标 uncertain 面仅限「当前 HEAD 上该测试类仍全绿」，M2-1 收官时点的绿有两轮独立记录互证。
+- **后演进，不记账（关键甄别）**：`518bd873`（M5-1-01 colormatch，2026-10-11 02:09，上一轮验收之后）改写该测试文件 catalog 断言 `18→19 / 15→16`（`:365/:370`，带机制耦合注释「colormatch is NOT in the disable set」）；`git log` 该文件 c4ebef17..HEAD 仅此 1 个真实改动 + 3 个 M2-1 自身提交。禁用集/门控断言面零触碰——属 catalog 表增长的机械耦合更新，非 M2-1 交付回退。
+
+## 抽查点 4：git 机检（diff 边界 + 红线 + SHA 漯移）
+
+- **HEAD 链上 M2-1 批次实存形态**：`d2026dec`（T1：Registry.swift 119± + DefaultFaceTests 322±，2 文件）/ `801715b7`（T2：InspectorState+PipeCoordinator+LightamerApp+tests，4 文件）/ `f5dfe597`（T3：McpServerController+EditingToolset+IopCatalog+DefaultFaceTests+McpHostTests，5 文件）/ `da70dc95`（T4 docs 收口）——与 SUMMARY 申报的 T1-T4 文件集逐一对上；批窗口内夹 5 个 `docs(m2)` 中间提交（仅 md）。
+- 红线：`git diff --stat d2026dec~1 f5dfe597 -- LightamerCore/` 为空 → **LightamerCore/ 零改动**（AC10 成立）。
+- **SHA 二次漂移（minor #2）**：首验记录 `f5bcfa2/561ca59/f2a3618/902d942` 与上一轮定位 `d734067/9b71843/7babcb0/d3f5744` 在当前仓库**均已 `Not a valid object`**（git cat-file 逐个亲验）；HEAD 链实存 = `d2026dec/801715b7/f5dfe597/da70dc95`（message 与 plan 任务对应，日期 2026-09-28 原始执行时间保留）。另发现**游离 squash 提交 `c4ebef17`**（2026-10-07，9 文件 = 三代码提交并集，单提交形态）——只在 `release` 分支与 `github/main` 上，**不在本地 HEAD 链**（merge-base 亲验互非祖先）。交付内容两种形态并存，HEAD 态已按上文逐点验证完整；标识可追溯性受损，属账面问题不影响任何 AC。
+- D-EXEC-3 残留亲证：`McpHostTests.swift:2 import LightamerIOP` + `:735 defaultFace: !LightamerIOPRegistry.isFullFaceRequested` 仍在位。
+- 矩阵 minor 复核（首验 minor 独立确认）：`M2-1-MATRIX.md` §10 表标题「12 + trio」实际 rows 7-16 = 10 行；「独有 7 + native 2」实际 rows 34-43 = 8 dt + 2 native——标题计数与行数不符属实，verdict 与头注计数口径自洽无误，纯表述瑕疵（维持首验处置：留触碰时顺手修）。
+
+## 分歧项（与上一轮 OMP 报告的判定差异）
+
+| # | 级别 | 内容 |
+|---|---|---|
+| 1 | note | **SHA 定位二次失效**：上一轮定位的 4 个 SHA（`d734067/…/d3f5744`）现已全部不存在（历史再度改写）；当前 HEAD 链实存批次 = `d2026dec/801715b7/f5dfe597/da70dc95`，另检出 release/github 线游离 squash `c4ebef17`。上一轮判定在其时点成立，非误判；但其 SHA 清单现已过期，后续引用应以本报告清单为准。 |
+| 2 | note | **「DefaultFaceTests 自收口后零改动」已不成立（后演进）**：上一轮 `git log d3f5744..HEAD` 为空的时点性结论，被 `518bd873`（M5-1-01 colormatch，发生在上一轮验收之后）打破——catalog 断言 18/15 → 19/16。上一轮在其时点判定正确；本轮按「后演进，不记账」甄别为机械耦合更新，禁用集断言面零触碰。 |
+
+实质分歧（测试红、代码与矩阵不符、文件集越界、门控面缺失）：无。四个抽查面全部独立重验成立。
+
+## 会话卫生
+
+- 只读验收：未修改任何仓库文件；唯一写入 = 本报告。未 push、未跑测试、无网络动作。
+- 工作区滞留物（dt-clone-archive/、gui-acceptance jpg 等）与 M2-1 无关，未触碰。
+
+PI-VERDICT: PASS

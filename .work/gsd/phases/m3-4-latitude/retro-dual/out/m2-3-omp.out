@@ -1,0 +1,54 @@
+Working...
+# M2-3「UI 壳」回溯二次验收 R2（OMP 双路并发终验）
+
+> 验收员 = OMP（零共享上下文，上一轮结论不采信，逐项独立取证）。日期 2026-10-10，HEAD = `e2a493c0`（main）。
+> 方法：亲读 M2-3-1..4 ACCEPTANCE 四正本 + 上一轮报告抽查点提炼 + 6 项独立机检重验（读码/git/ls/grep/zh-audit）。
+> 口径：HEAD 远超 M2-3 收官，phase 后演进逐处标「后演进，不记账」。
+
+## 结论头
+
+**PASS / 0 error + 0 minor**
+
+（上一轮 minor-1 即 SHA 失效仍为事实，但属已在案历史账，不重复计数。）
+
+## 抽查点 1：菜单 IA 电路 + 剥离门接线 — PASS
+
+- `MenuCommandID` 17 case 逐字节在位：`App/Sources/Lightamer/UI/Shell/MenuCommandSet.swift:23-54`（session 4 / project 6 / workspace 2 / search 1 / view 3 / M2-8-2 追加 editCopyAdjustments 1）；纯函数 `visibleCommandIDs(gate:phase:)`（:78-85）形态与上一轮描述一致。
+- 双注册表 `sessionRoutes`（:59-61）/`newShellRoutes`（:65-72）不相交；LightamerApp 单点求值 `LibraryLegacyGate.isLegacyLibraryRequested()`（`LightamerApp.swift:432`，行号较上一轮 :357 漂移 = 后演进，不记账）。
+- ContentView gate=false → `WorkspaceHostView`（:192），gate=true → `legacyBody`（:176）；`ProjectWorkspaceFace` 结构存续（:731 起）。
+
+## 抽查点 2：tab 矩阵对账测试 + 禁用名零命中 — PASS
+
+- 对账测试存续：`Tests/LightamerTests/EditorStackRoutingTests.swift:299` `testTabMatrixMatchesTheRoutingTableLineByLine`。
+- 禁用名机检：`grep -nE 'filmicrgb|sigmoid|denoiseprofile|nlmeans|bilateral' EditorTabRoute.swift` = **零命中**（上一轮称 agx 仅 E1 勘误注释提及；现连注释命中亦无 = 注释清理后演进，不记账）。
+- BUNDLE-MAP 登记延续：`WorkspaceRoutingTests APP/11`（MAP:197）、`LibraryLegacyGateTests LIB/11`（MAP:346）。
+
+## 抽查点 3：视图 body 零 ProcessInfo 直读 — PASS
+
+- `UI/Shell/EditorTabRoute.swift` ProcessInfo 零命中；ContentView 唯一命中 = :50 纪律声明注释；WorkspaceHostView 命中 = `-la_editor_probe`/`-la_film_probe` 探针分支（:1533-1633，后者 M3-3/4 新增探针 = 后演进，不记账）。生产路由/门控零直读，上一轮口径复核成立。
+
+## 抽查点 4：L057 runModal 禁令 grep 机检 — PASS
+
+- `grep -rn "\.runModal(" App/Sources | wc -l` = **0**。`runModal` 字面 15 命中全为注释/文档（PanelPresentation begin 缝说明、L057 注记），无调用点。L057 约定在现 HEAD 持续成立。
+- `PanelPresentation.present` begin 缝存续（`App/Sources/Lightamer/UI/PanelPresentation.swift:6-34`）。
+
+## 抽查点 5：键族在册 + zh-audit — PASS
+
+- `uv run python3 Scripts/zh-audit.py --check` → `PASS (1661 source keys, 1900 catalog keys, zh complete, {en, zh})`（上一轮 1584/1822，增长 = 后演进加键，不记账）。
+- xcstrings 键族计数（`Resources/Localizable.xcstrings`，路径与上一轮引用一致）：shell_ 5 / filmstrip_ 1 / tasks_ 31 / menu_ 33 / editor_ 32 / search_ 21 / relink_ 16。
+- M2-3-4 F1 挂账已闭：`ContentView.swift:746-760` 四处 verbatim 改 `String(localized: project_face_*)`，注释明示「M3-1-03 T4 F1 闭账」（后演进改善）。
+
+## 抽查点 6：走查证据归档 + SHA 状态 — PASS
+
+- 证据目录 `.work/archive/gui-acceptance/m2-3/` 在位：MANIFEST.md + 20 屏目录 + walk.py + spot1-3 复验 png；`editor-filmstrip/` 三件套齐（alcedo.png/lightamer.png/md）；MANIFEST 汇总矩阵 20 屏 = 15 基线 + 5 增补（与 M2-3-4-ACCEPTANCE:27 一致）。
+- 4 个 plan 执行期 SHA 抽样（609662f/fe068a2/46e13fb/8e41851）main 下 `git cat-file -t` 全部 MISSING；`08c2e48`（M2-3 压缩 commit）`cat-file -t` = commit（release 分支在位）——与上一轮 minor-1 描述一致，不重复计数。
+
+## 分歧项
+
+无。上一轮 5 抽查点结论逐项复核成立；新增发现均为后演进（agx 注释清理、-la_film_probe、F1 闭账、键数增长），无漏检/误判。
+
+## 会话卫生
+
+只读验收：除本报告外零写入；测试未跑（引用既有终值）；未发起网络动作。
+
+OMP-VERDICT: PASS
