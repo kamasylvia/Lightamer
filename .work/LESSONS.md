@@ -821,3 +821,15 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
   （M2-7-3 先例；生产驱动形镜像 + 产线函数本体，来源入 evidence 存证）。
 - **适用**：一切 GB 级 staged IO 的测试/基准（100MP 级 merge/export/
   panorama 族）；一切后台/夜间批的磁盘预算管理。
+
+## L078（2026-10-13）— 键入册 xcstrings 后 defaultValue 插值走表格式：非 String 参数过 %@ 崩进程（M6-1-01 仲裁批）
+- **现象**：T6 子进程三连死（「read-only arm must stay resident」×3）——指引 JSON 已出、stderr 人类行缺席，进程在 emit 中段消失。前一轮全绿、本轮唯一差异 = 两枚 stderr 键入册 xcstrings。
+- **根因**：`String(localized:defaultValue:)` 在键**不在**表里时走 defaultValue 的类型安全编译插值（Int32 直插无碍）；键**入册**后运行时改走表格式字符串（%@/%d）+ 参数盒——表值用 `%1$@` 而 Int32 实参过 %@ = Foundation 格式 precondition 失败，进程即崩。**同一行代码，键入册前后行为分叉**。
+- **对策**：①凡 defaultValue 插值会被入册的键，插值实参一律显式 `String(...)` 化（表值占位符恒 %@）；②「新增键必须实跑 zh-audit --check + 受影响 fixture 复跑」是硬闭环——本例正是 T9 要求的复跑抓到的（V15 教训「硬化首轮实跑对账」同族：**提取器/目录面改动后必须实跑一轮再收工**）。
+- **适用**：一切 String Catalog 新键批（含插值键）；排查「键入册后进程崩/行为分叉」先查占位符类型与实参类型匹配。
+
+## L079（2026-10-13）— flock 按 open file description 仲裁：同一把锁全进程只许一个获锁点（M6-1-01 writer 臂自锁）
+- **现象**：headless writer 臂子进程起手即 typed `projectHeldByOther(pid=自己)`——外部 acquire 成功后 `store.open(role:)` 内部再 acquire 同路径锁，同进程第二 fd EWOULDBLOCK 打自己。
+- **根因**：Darwin flock 仲裁对象是 open file description（非进程/非 fd）：同进程两次独立 `open()` 的第二把 EX|NB 锁照样 EWOULDBLOCK（checker o1 cc 实证的同一语义，反向咬了自己）。「锁在我手里」不等于「probe/acquire 会成功」。
+- **对策**：①一把锁在一个进程内**只许一个获锁点**——项目锁的唯一获锁点 = `ProjectFileStore.open(role:)/create(role:)` 内部（held 分支即冲突臂触发器）；装配层只传 role，不做外部 acquire。②自持态判定（probe 闭包/自持豁免）不靠「试锁成功」，靠装配态显式传布尔（writer 臂 `selfHeld` 直返 writable）——「探自己的锁」结构性禁止。
+- **适用**：一切 flock/SingleWriterLock 消费点（现有：mcp-endpoint 锁、`.lalb.lock`、session.lock；未来任何同件消费）；评审项 = 「锁的获锁点唯一性 + 自持豁免来源」两问。
