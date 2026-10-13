@@ -811,6 +811,13 @@ internal struct LightamerApp: App {
                     // Plan 09-3: the progressive-ingest seam — scanner
                     // pages land as placeholder grid rows BEFORE the sync
                     // transaction commits (边扫边出).
+                    // M6-1-01 T2: the legacy session.lock ride-along's typed
+                    // conflict rides the SAME error face every other session
+                    // failure uses (the toast; the legacy read-only fallback
+                    // face is the explicit M6-5 boundary).
+                    sessionIndexController.sessionLockConflictHandler = {
+                        editorState.presentToast($0)
+                    }
                     sessionIndexController.scanPageObserver = { page in
                         browserModel.ingestPlaceholderPage(entries: page.entries)
                     }
@@ -1211,6 +1218,11 @@ internal struct LightamerApp: App {
                         // cleans up through the kernel + the discovery
                         // probe).
                         McpServerController.stopEmbeddedForTermination()
+                        // M6-1-01 T4 (KD-2): the open project's bounded
+                        // close — checkpoint → handle close → project-lock
+                        // release (5s cap, the same shape as the flushes
+                        // above).
+                        libraryProjects.flushForTermination()
                         // Plan M2-8-2 T4 (KD-6): the sentinel clears AFTER
                         // the bounded flushes return — a kill inside the
                         // flush window leaves the flag set, which is the
@@ -1331,10 +1343,50 @@ internal struct LightamerApp: App {
                         onOpenRecent: { url in
                             Task {
                                 try? await libraryProjects.openProject(at: url)
-                                libraryWelcomePresented = false
+                                // M6-1-01: a published conflict keeps the
+                                // welcome up until the dialog answers —
+                                // dismiss only on a clean open.
+                                if libraryProjects.pendingConflict == nil {
+                                    libraryWelcomePresented = false
+                                }
                             }
                         },
                         onDismiss: { libraryWelcomePresented = false })
+                }
+                .sheet(item: Binding(
+                    get: { libraryProjects.pendingConflict },
+                    set: { libraryProjects.pendingConflict = $0 }
+                )) { conflict in
+                    // M6-1-01 T4 (KD-3/OQ-2): the symmetric read-only
+                    // fallback — 只读打开 / 重试 / 取消 (zh verbatim KD-3).
+                    // Plain values + closures: no @Environment reads inside
+                    // the sheet (the M2-8-3 FINDING-A boundary rule).
+                    ProjectConflictDialog(
+                        conflict: conflict,
+                        onReadOnly: {
+                            Task {
+                                do {
+                                    try await libraryProjects.openProjectReadOnly(
+                                        at: conflict.url)
+                                    libraryProjects.dismissConflict()
+                                    libraryWelcomePresented = false
+                                } catch {
+                                    libraryProjects.reportError(
+                                        error.localizedDescription)
+                                    libraryProjects.dismissConflict()
+                                }
+                            }
+                        },
+                        onRetry: {
+                            Task {
+                                try? await libraryProjects.openProject(
+                                    at: conflict.url)
+                                if libraryProjects.pendingConflict == nil {
+                                    libraryWelcomePresented = false
+                                }
+                            }
+                        },
+                        onCancel: { libraryProjects.dismissConflict() })
                 }
                 .sheet(isPresented: $adjustmentTransferPresented) {
                     // Plan M2-8-2 T3 (KD-3): the Copy Adjustments transfer
@@ -1461,7 +1513,11 @@ internal struct LightamerApp: App {
                         Button(url.lastPathComponent) {
                             Task {
                                 try? await libraryProjects.openProject(at: url)
-                                libraryWelcomePresented = false
+                                // M6-1-01: same conflict-holds rule as the
+                                // welcome route.
+                                if libraryProjects.pendingConflict == nil {
+                                    libraryWelcomePresented = false
+                                }
                             }
                         }
                     }
@@ -1817,7 +1873,11 @@ internal struct LightamerApp: App {
         guard let url = await LibraryPanels.openProject() else { return }
         do {
             try await libraryProjects.openProject(at: url)
-            libraryWelcomePresented = false
+            // M6-1-01: a published conflict answers through the dialog —
+            // the welcome only dismisses on a clean open.
+            if libraryProjects.pendingConflict == nil {
+                libraryWelcomePresented = false
+            }
         } catch {
             libraryProjects.reportError(error.localizedDescription)
         }

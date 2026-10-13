@@ -23,6 +23,20 @@ import SwiftUI
 // `library.recentProjects` through the injectable defaults suite.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// M6-1-01 T4 (KD-3): one project-open conflict — the dialog sheet's
+/// payload (sheet(item:) identity per conflict; Equatable for the
+/// @Observable diffing).
+struct ProjectOpenConflict: Equatable, Identifiable, Sendable {
+    let id = UUID()
+    /// The package the second instance tried to open.
+    let url: URL
+    /// The holder's pid from the lock payload (nil = payload absent/stale —
+    /// the「pid 未知」diagnostics fallback; NEVER a liveness criterion).
+    let holderPid: Int32?
+    /// The holder's claimed role raw value (nil = same fallback rules).
+    let holderRole: String?
+}
+
 @MainActor
 @Observable
 final class LibraryProjectController {
@@ -49,6 +63,22 @@ final class LibraryProjectController {
     /// The last surfaced failure (project lifecycle or import) — the
     /// alert's payload; `clearLastError` dismisses.
     private(set) var lastError: String?
+
+    // ── M6-1-01 T4 (KD-3): the symmetric read-only fallback face ──────────
+
+    /// The pending open conflict (nil = none). The app root presents it as
+    /// the three-choice dialog sheet (只读打开 / 重试 / 取消). Settable so
+    /// the sheet(item:) binding can dismiss it; only the open path publishes.
+    var pendingConflict: ProjectOpenConflict?
+
+    /// Whether the current project is the READ-ONLY face (the second
+    /// instance's fallback). Source of the banner copy, the disabled
+    /// projections and the write guards (one boolean, three seams).
+    private(set) var isReadOnly = false
+
+    /// The holder pid recorded at the read-only open (the banner's「pid N」
+    /// source; nil = unknown holder).
+    private(set) var readOnlyHolderPid: Int32?
 
     /// M2LIB-07① red-line seams (the ImportService twins): the injected
     /// verify for the cross-volume move leg and the volume probe forcing
@@ -89,12 +119,84 @@ final class LibraryProjectController {
     }
 
     /// Open an existing package (the Open/Open-Recent routes converge).
+    /// M6-1-01 (KD-3/OQ-2): a held project lock is the TYPED conflict —
+    /// published as `pendingConflict` (the three-choice dialog's payload)
+    /// and NOT rethrown: the dialog is the answer, not the generic alert.
+    /// Every other error still throws.
     func openProject(at url: URL) async throws {
         let store = ProjectFileStore(at: url)
-        _ = try await store.open()
+        do {
+            _ = try await store.open(role: .gui)
+        } catch let error as LibraryError {
+            if case .projectHeldByOther = error {
+                publishConflict(for: url)
+                return
+            }
+            throw error
+        }
         projectStore = store
         projectURL = url
+        isReadOnly = false
+        readOnlyHolderPid = nil
         promoteRecent(url)
+    }
+
+    /// The dialog's 只读打开 leg (KD-3): lockless read-only open, the face
+    /// flag + holder pid recorded. NO auto-upgrade — the read-only face
+    /// lasts until close/reopen (a reopen re-arbitrates; the dialog's
+    /// 重试 leg is the explicit upgrade path).
+    func openProjectReadOnly(at url: URL) async throws {
+        let store = ProjectFileStore(at: url)
+        _ = try await store.openReadOnly()
+        projectStore = store
+        projectURL = url
+        isReadOnly = true
+        readOnlyHolderPid = Self.readHolderPid(at: url)
+        promoteRecent(url)
+    }
+
+    /// The dialog's 取消 leg: clear the conflict, open nothing.
+    func dismissConflict() {
+        pendingConflict = nil
+    }
+
+    /// Build the conflict payload from the lock file (the pid/role ride the
+    /// payload; absent = nil — the「pid 未知」display fallback).
+    private func publishConflict(for url: URL) {
+        let lockURL = url.deletingPathExtension()
+            .appendingPathExtension("lalb.lock")
+        let payload = SingleWriterLock.readPayload(at: lockURL)
+        pendingConflict = ProjectOpenConflict(
+            url: url,
+            holderPid: payload?.pid,
+            holderRole: payload.map { payload in
+                SingleWriterRole(rawValue: payload.role)?.rawValue ?? payload.role
+            })
+    }
+
+    /// Read the holder pid off a package's lock payload (the read-only
+    /// open's banner source; nil = unknown).
+    nonisolated private static func readHolderPid(at url: URL) -> Int32? {
+        let lockURL = url.deletingPathExtension()
+            .appendingPathExtension("lalb.lock")
+        return SingleWriterLock.readPayload(at: lockURL)?.pid
+    }
+
+    /// The applicationWillTerminate leg (M6-1-01 KD-2): a SYNCHRONOUS
+    /// bounded wait (5s — the `stopEmbeddedForTermination` shape) closing
+    /// the open store (checkpoint → handle close → lock release) before
+    /// the process exits. A hung volume must not block termination forever;
+    /// the process exit + kernel release is the floor either way.
+    func flushForTermination() {
+        guard let store = projectStore else { return }
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached {
+            try? await store.close()
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 5)
+        projectStore = nil
+        projectURL = nil
     }
 
     /// Close the current project (checkpoint discipline inside).
@@ -103,6 +205,8 @@ final class LibraryProjectController {
         try await store.close()
         projectStore = nil
         projectURL = nil
+        isReadOnly = false
+        readOnlyHolderPid = nil
     }
 
     /// The ONLY sanctioned copy path (KD-5: `sqlite3_backup` online
@@ -422,6 +526,65 @@ enum LibraryPanels {
         panel.nameFieldStringValue = defaultName
         panel.canCreateDirectories = true
         return await PanelPresentation.present(panel)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// M6-1-01 T4 (KD-3/OQ-2) — the project-open conflict dialog (zh verbatim
+// 定稿). Pure SwiftUI sheet face (the L057 runModal ban holds — the app root
+// presents it via .sheet(item:)); plain values + closures only, NO
+// @Environment Observable reads (the M2-8-3 FINDING-A sheet-boundary rule —
+// an app-root sheet must not rely on the chain's .environment writes).
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct ProjectConflictDialog: View {
+    let conflict: ProjectOpenConflict
+    let onReadOnly: () -> Void
+    let onRetry: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text(String(localized: "project_read_only_dialog_title",
+                        defaultValue: "项目已由另一实例打开"))
+                .font(.headline)
+            Text(String(
+                localized: "project_read_only_dialog_message",
+                defaultValue: "“\(conflict.url.deletingPathExtension().lastPathComponent)” 由另一实例持有（pid \(pidText)）。可只读打开浏览，或重试获取写权。"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 12) {
+                Button {
+                    onReadOnly()
+                } label: {
+                    Text(String(localized: "project_read_only_open",
+                                defaultValue: "只读打开"))
+                }
+                Button {
+                    onRetry()
+                } label: {
+                    Text(String(localized: "project_read_only_retry",
+                                defaultValue: "重试"))
+                }
+                Button {
+                    onCancel()
+                } label: {
+                    Text(String(localized: "project_read_only_cancel",
+                                defaultValue: "取消"))
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding(28)
+        .frame(minWidth: 420)
+        .accessibilityIdentifier("project.conflict.dialog")
+    }
+
+    /// The「pid N」display face (「pid 未知」when the payload was absent —
+    /// diagnostics only, never a liveness claim).
+    private var pidText: String {
+        conflict.holderPid.map { String($0) } ?? "未知"
     }
 }
 
