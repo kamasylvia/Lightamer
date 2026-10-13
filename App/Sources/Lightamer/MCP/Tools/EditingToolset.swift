@@ -102,6 +102,15 @@ enum EditingToolset {
         /// `McpTimeouts.apply` production constant (D-14-2-T6-1).
         var applyTimeoutOverride: Double?
 
+        /// M6-1-01 T7 (KD-5, OQ-5): the project-lock probe — consulted
+        /// AFTER the live-image judge on every write face (apply_params /
+        /// export_image bodies; the culling write-five/preset frames and
+        /// match_color carry their own on the context/seams). nil (the
+        /// default) = no gate: every existing construction and test is
+        /// zero-diff. NON-HOLDING by contract (`McpProjectLockVerdict`);
+        /// the self-held exemption lives in the assembly closure.
+        var projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)?
+
         /// The WRITE serial gate: apply_params runs under a FIFO mutex so
         /// two concurrent MCP writes never interleave their three segments
         /// (§RQ-14-14: write-face requests queue, they do not reject).
@@ -159,6 +168,19 @@ enum EditingToolset {
     }
 
     // MARK: - Shared argument faces
+
+    /// The project-probe → typed-rejection hop (M6-1-01 KD-5; the copy
+    /// single source is the verdict's `errorMessage`). A nil probe = no
+    /// gate (every existing construction).
+    static func rejectIfProjectReadOnly(
+        _ probe: (@Sendable () async -> McpProjectLockVerdict)?
+    ) async throws {
+        guard let probe else { return }
+        let verdict = await probe()
+        if case .held = verdict {
+            throw McpToolError.projectReadOnly(verdict.errorMessage)
+        }
+    }
 
     /// The required `relPath` argument (D5: every tool carries it).
     static func requiredRelPath(
@@ -287,6 +309,9 @@ enum EditingToolset {
     private static func exportImageBody(
         arguments: [String: McpJSON], seams: Seams
     ) async throws -> McpToolOutput {
+        // M6-1-01 (KD-5): the project-lock probe at the write body's head
+        // (export_image carries no live judge — the D8 asymmetry note).
+        try await EditingToolset.rejectIfProjectReadOnly(seams.projectWriteProbe)
         let relPath = try requiredRelPath(arguments)
         let member = try await resolveMember(relPath: relPath, seams: seams)
 
@@ -525,6 +550,11 @@ enum EditingToolset {
                         + " / The image is open in the Lightamer editor; ask the "
                         + "user to close it and retry, or edit in the GUI instead")
             }
+
+            // M6-1-01 (KD-5/OQ-5): the project-lock probe — AFTER the live
+            // judge (the finer-grained criterion hits first; the生效值 hard
+            // order). Still inside the gate, outside the apply budget.
+            try await EditingToolset.rejectIfProjectReadOnly(seams.projectWriteProbe)
 
             // The apply body races the §RQ-14-14 timeout (`McpTimeouts.apply`
             // = 10s; D-14-2-T6-1): compose + claim + write + flush is all

@@ -422,6 +422,11 @@ final class SessionIndexController {
     /// rides). nil = the conflict is logged and the open fails honestly.
     var sessionLockConflictHandler: ((String) -> Void)?
 
+    /// M6-1-01 T7 (KD-5 m2): whether THIS controller holds the session
+    /// ride-along lock — the legacy-face MCP probe's self-held exemption
+    /// source (a holder probing its own lock would EWOULDBLOCK).
+    var holdsSessionLock: Bool { sessionLock != nil }
+
     /// ④ the real sync leg: open + scan + single-transaction diff.
     func openAndSync(root: URL) async -> SessionCoordinator.SessionOpenSyncResult {
         // M6-1-01: acquire the session-root lock BEFORE the index open (the

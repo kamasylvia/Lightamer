@@ -129,9 +129,39 @@ enum McpServerController {
         return McpEndpointPaths.makeDefault()
     }
 
-    /// The headless writer arm's open project store (the process parks
-    /// forever; the STORE holds the project lock internally — the single
-    /// acquisition point, KD-2; close releases in the EOF leg). Same
+    /// The connect-guidance text for a probe `.held` verdict (KD-5 — the
+    /// copy rides the typed error; the discovery file is the single source
+    /// for the alive endpoint, absence = the fallback line). Bilingual
+    /// mixed per the existing McpToolError message convention.
+    static func connectGuidanceText() -> String {
+        if case .alive(let info) = McpEndpointDiscovery.discover(
+            in: headlessEndpointPaths) {
+            return "请连接其 MCP 端点 \(info.host):\(info.port) 后重试 / connect to "
+                + "the live instance's MCP endpoint at \(info.host):\(info.port)"
+        }
+        return "请关闭另一实例或在其上开启 MCP server 后重试 / close the other "
+            + "instance or enable its MCP server"
+    }
+
+    /// The project probe closure for the headless arms (KD-5): the writer
+    /// arm returns `.writable` outright (the SELF-HELD exemption — its own
+    /// fd would EWOULDBLOCK the probe); the read-only arm really probes
+    /// (the holder exiting = natural recovery, OQ-5's per-call semantics).
+    static func makeProjectWriteProbe(
+        selfHeld: Bool, lockURL: URL
+    ) -> @Sendable () async -> McpProjectLockVerdict {
+        { [selfHeld, lockURL] in
+            if selfHeld { return .writable }
+            if SingleWriterLock.probeLockAvailable(at: lockURL) { return .writable }
+            return .held(
+                holderSummary: SingleWriterLock.holderSummary(at: lockURL),
+                guidance: Self.connectGuidanceText())
+        }
+    }
+
+    /// The headless project store (the writer arm's carrier — the process
+    /// parks forever; the STORE holds the project lock internally — the
+    /// single acquisition point, KD-2; close releases in the EOF leg). Same
     /// `nonisolated(unsafe)` shape as the embedded-state box; the EOF
     /// watcher's close leg is the only second toucher.
     private nonisolated(unsafe) static var headlessProjectStore: ProjectFileStore?
@@ -254,18 +284,26 @@ enum McpServerController {
                 exit(0)
             }
         }
+        // M6-1-01 T7 (KD-5): the write-face probe — self-held on the writer
+        // arm, the real non-holding probe on the read-only arm.
+        let probe = makeProjectWriteProbe(selfHeld: isWriter, lockURL: lockURL)
         switch mode {
         case .stdio:
-            await startHeadlessStdioHost(paths: headlessEndpointPaths)
+            await startHeadlessStdioHost(
+                paths: headlessEndpointPaths, projectWriteProbe: probe)
         case .http:
             if isWriter {
                 // Writer arm: the full legacy http daemon (endpoint lock →
                 // bind → discovery json → serve).
                 do {
+                    var editing = await makeEditingSeams(session: { nil })
+                    editing.projectWriteProbe = probe
+                    var culling = makeCullingContext(session: { nil })
+                    culling.projectWriteProbe = probe
                     let handle = try await startHTTPHost(
                         paths: headlessEndpointPaths,
-                        editing: await makeEditingSeams(session: { nil }),
-                        culling: makeCullingContext(session: { nil }))
+                        editing: editing,
+                        culling: culling)
                     await log(
                         "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
                             + " — endpoint file \(handle.paths.jsonURL.path)")
@@ -281,7 +319,8 @@ enum McpServerController {
                 // endpoint), no lock steal. The startHTTPHost contract
                 // (writer-less daemons don't fake-liven the network) keeps
                 // its shape; this is the separate honest read-only face.
-                await startReadOnlyHTTPHost(paths: headlessEndpointPaths)
+                await startReadOnlyHTTPHost(
+                    paths: headlessEndpointPaths, projectWriteProbe: probe)
             }
         }
     }
@@ -330,10 +369,15 @@ enum McpServerController {
     /// loopback ephemeral WITHOUT the endpoint writer right and writes NO
     /// discovery json; every write-face tool fails at call time (the
     /// writerCheck false + the T7 project probe when wired).
-    private static func startReadOnlyHTTPHost(paths: McpEndpointPaths) async {
-        let registry = await makeRegistry(
-            editing: await makeEditingSeams(session: { nil }),
-            culling: makeCullingContext(session: { nil }))
+    private static func startReadOnlyHTTPHost(
+        paths: McpEndpointPaths,
+        projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil
+    ) async {
+        var editing = await makeEditingSeams(session: { nil })
+        editing.projectWriteProbe = projectWriteProbe
+        var culling = makeCullingContext(session: { nil })
+        culling.projectWriteProbe = projectWriteProbe
+        let registry = await makeRegistry(editing: editing, culling: culling)
         await registry.setWriterCheck { false }
         let host = McpHTTPHost(
             configuration: .init(host: McpHTTPHost.loopbackHost, port: 0),
@@ -358,7 +402,10 @@ enum McpServerController {
     /// extracted verbatim so the `--project` arms and the no-project path
     /// share ONE implementation (the M6-1 diff moved, not changed — the
     /// McpHostTests stdio fixtures pin the behavior).
-    private static func startHeadlessStdioHost(paths: McpEndpointPaths) async {
+    private static func startHeadlessStdioHost(
+        paths: McpEndpointPaths,
+        projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil
+    ) async {
         let stderr = FileHandle.standardError
         do {
             let lock: McpEndpointLock?
@@ -377,9 +424,11 @@ enum McpServerController {
                         .data(using: .utf8)!)
                 exit(1)
             }
-            let registry = await makeRegistry(
-                editing: await makeEditingSeams(session: { nil }),
-                culling: makeCullingContext(session: { nil }))
+            var editing = await makeEditingSeams(session: { nil })
+            editing.projectWriteProbe = projectWriteProbe
+            var culling = makeCullingContext(session: { nil })
+            culling.projectWriteProbe = projectWriteProbe
+            let registry = await makeRegistry(editing: editing, culling: culling)
             await registry.setWriterCheck { @Sendable in lock != nil }
             let server = await McpAdapters.makeServer(registry: registry)
             try await server.start(transport: StdioTransport())

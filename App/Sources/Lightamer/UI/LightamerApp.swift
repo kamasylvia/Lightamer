@@ -1257,7 +1257,7 @@ internal struct LightamerApp: App {
                     // The metadata seed is the app-wide default chain
                     // (the same face MetadataController.configure rides).
                     let mcpSeed = await seedInstances()
-                    let cullingContext = McpCullingContext(
+                    var cullingContext = McpCullingContext(
                         store: { [sessionIndexController] in
                             await MainActor.run { sessionIndexController.currentStore }
                         },
@@ -1292,7 +1292,43 @@ internal struct LightamerApp: App {
                         thumbnailProvider: { [mcpWriteFace] in mcpWriteFace.provider },
                         decodeImage: McpCullingContext.defaultDecodeImage(),
                         renderGate: McpServerController.sharedRenderGate)
-                    let editingSeams = await McpServerController.makeEditingSeams(
+                    // M6-1-01 T7 (KD-5): the write-face project probe — the
+                    // SELF-HELD exemption on the normal (writer) GUI face,
+                    // the real non-holding probe on the read-only face
+                    // (holder exiting = natural recovery), and the legacy
+                    // face's session.lock self-held branch (m2 回注接线).
+                    let projectWriteProbe: @Sendable () async -> McpProjectLockVerdict = {
+                        [libraryProjects, sessionIndexController, legacyLibraryEnabled] in
+                        if legacyLibraryEnabled {
+                            if await sessionIndexController.holdsSessionLock {
+                                return .writable
+                            }
+                            guard let root = await sessionIndexController.currentSession?.root
+                            else { return .writable }
+                            let sessionLockURL = root.appendingPathComponent(".lightamer")
+                                .appendingPathComponent("session.lock")
+                            if SingleWriterLock.probeLockAvailable(at: sessionLockURL) {
+                                return .writable
+                            }
+                            return .held(
+                                holderSummary: SingleWriterLock.holderSummary(at: sessionLockURL),
+                                guidance: McpServerController.connectGuidanceText())
+                        }
+                        let readOnly = await libraryProjects.isReadOnly
+                        guard readOnly else { return .writable }
+                        guard let url = await libraryProjects.projectURL else {
+                            return .writable
+                        }
+                        let lockURL = url.deletingPathExtension()
+                            .appendingPathExtension("lalb.lock")
+                        if SingleWriterLock.probeLockAvailable(at: lockURL) {
+                            return .writable
+                        }
+                        return .held(
+                            holderSummary: SingleWriterLock.holderSummary(at: lockURL),
+                            guidance: McpServerController.connectGuidanceText())
+                    }
+                    var editingSeams = await McpServerController.makeEditingSeams(
                         session: { [sessionIndexController] in
                             await MainActor.run { sessionIndexController.currentSession }
                         },
@@ -1304,6 +1340,8 @@ internal struct LightamerApp: App {
                                 ExportState.makeYiyinInjector(logoStore: browserLogoStore)
                             }
                         })
+                    editingSeams.projectWriteProbe = projectWriteProbe
+                    cullingContext.projectWriteProbe = projectWriteProbe
                     // M5-1-03 (KD-1): the match_color tool shares the app's ONE
                     // colormatch service (the session curves) and reads the open
                     // project's library for id-form reference resolution (the

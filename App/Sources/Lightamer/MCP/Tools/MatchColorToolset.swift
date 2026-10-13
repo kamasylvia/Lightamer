@@ -410,6 +410,12 @@ enum MatchColorToolset {
                     + "user to close it and retry, or edit in the GUI instead")
         }
 
+        // M6-1-01 (KD-5/OQ-5): the project-lock probe — the same attach gate
+        // as the live judge (per-target, the finer criterion first).
+        if attach {
+            try await EditingToolset.rejectIfProjectReadOnly(seams.projectWriteProbe)
+        }
+
         // The source statistics: the target's CURRENT edit chain tapped at
         // the colormatch input plane (E5) at the pinned 512 preview bucket
         // (E6) — the pipeline-level API, headless.
