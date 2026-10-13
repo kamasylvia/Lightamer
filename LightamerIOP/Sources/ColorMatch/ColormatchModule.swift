@@ -1,3 +1,4 @@
+import Foundation
 import LightamerCore
 import Metal
 
@@ -79,15 +80,37 @@ public protocol ColormatchAssetResolving: Sendable {
 /// SharedForwardingResolver 同形): boxes constructed by the factory read
 /// THROUGH the forward to whatever session resolver is installed —
 /// already-built boxes keep resolving the live instance after a swap.
+///
+/// M6-1-01 T8 (OQ-6 搭车, KD-6): the bare `nonisolated(unsafe) static var`
+/// narrows behind an NSLock holder — the `LutLibraryStore.shared` 体例
+/// mirrored line-for-line (AGENTS M2-5 shared holder 节). Reads lock-scope
+/// the value into a LOCAL (never a second read outside the lock); swaps go
+/// through `replaceShared`.
 public enum ColormatchResolverBox {
+
+    private static let sharedLock = NSLock()
+    private nonisolated(unsafe) static var sharedInstance: ColormatchAssetResolving?
+
     /// The installed session resolver (nil = no session — every load
     /// degrades to the typed reason, the arm blits).
-    public nonisolated(unsafe) static var shared: ColormatchAssetResolving?
+    public static var shared: ColormatchAssetResolving? {
+        sharedLock.lock()
+        defer { sharedLock.unlock() }
+        return sharedInstance
+    }
+
+    /// Atomically replace the installed resolver (the session-swap /
+    /// install legs — `LutLibraryStore.replaceShared` 同形).
+    public static func replaceShared(_ resolver: ColormatchAssetResolving?) {
+        sharedLock.lock()
+        sharedInstance = resolver
+        sharedLock.unlock()
+    }
 }
 
 /// The factory-facing forward: reads the box at CALL time (the registry
 /// factory captures THIS value at populate time — never the session
-/// resolver itself).
+/// resolver itself). Each read locks once and drops the value into a local.
 public struct ColormatchSharedResolverForward: ColormatchAssetResolving, @unchecked Sendable {
     public init() {}
 
@@ -103,7 +126,9 @@ public struct ColormatchSharedResolverForward: ColormatchAssetResolving, @unchec
     public func cdfSolution(
         sourceStatsHash: String, referenceStatsHash: String
     ) -> ColorMatchCDFSolution? {
-        ColormatchResolverBox.shared?.cdfSolution(
+        // Lock-scope read → local (KD-6: no second read outside the lock).
+        let resolver = ColormatchResolverBox.shared
+        return resolver?.cdfSolution(
             sourceStatsHash: sourceStatsHash, referenceStatsHash: referenceStatsHash)
     }
 }

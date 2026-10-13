@@ -451,7 +451,7 @@ enum MatchColorToolset {
             // box safety net + the curve store + the COMMIT-time asset write
             // (the params carry {assetRef, assetHash}; the solve identity is
             // the shared cache-key fold).
-            ColormatchResolverBox.shared = service.resolver
+            ColormatchResolverBox.replaceShared(service.resolver)
             let solution = ColorMatchCDFSolver.solve(
                 source: sourceStats, reference: referenceStats)
             service.resolver.storeCurves(
