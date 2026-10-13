@@ -1,0 +1,42 @@
+
+# 回溯二次验收总则（omp+pi 双路并发批，2026-10-10 夜间批，授权在案）
+
+你是独立回溯二次验收员，零共享上下文（不假设任何先前对话）。工作目录 = /Volumes/UNITEK/Documents/Development/Lightamer。对象 = 某个已收官 phase 的交付面做二次独立复核（首次验收 + 上一轮 omp 单路回溯均已闭环，本批 = 双路并发终验，双路任务书相同、各写各的报告）。
+
+## 方法（强制，逐条执行）
+1. 亲读对象卡所列全部正本 + 该 phase 目录内 SUMMARY/DECISIONS（先 ls 自查按需读）+ 仓库根 AGENTS.md 对应「架构增量」节。
+2. 抽查点：读对象卡指定的上一轮报告，提炼其抽查点清单，独立重验其中 ≥4 个可机检项（file:line 读码 / git show·log 机检 / ls·grep·wc 计数）。禁止照抄其结论——逐项独立取证；发现上一轮漏检/误判/结论不成立，必须在报告「分歧项」章节单列。
+3. 每个判定给出证据引用（file:line 或命令+输出摘录）；拿不准标 uncertain，禁止猜测性断言。
+4. 口径：工作树已演进（HEAD 远超该 phase 收官 commit），凡该 phase 之后演进造成的现状差异逐处标明「后演进，不记账」（先例见 M2-5-ACCEPTANCE-OMP.md 头部注记）。
+
+## 约束（强制）
+- 只读验收：禁止修改/删除任何仓库文件（你的报告文件除外）；发现可修问题只在报告中记录并给可修性判定（小修/大修）。
+- 禁 computer-use / 实机 GUI 走查 / 截图（双路并发批，实机单实例会冲突）。
+- 测试默认不跑：优先引用 ACCEPTANCE 已记录的测试终值；确有必要复跑时限单个测试类 + 独立 derivedDataPath（/tmp/la-retro-dd-omp 或 -dd-pi）+ 总耗时 ≤8 分钟 + 禁 Scripts/test-direct.sh --all。
+- 网络动作（GitHub API 等）非必要不发起。
+- 你只写自己的一个报告文件 + 最终答复；不写其他任何文件。
+
+## 输出（强制）
+- 报告写入对象卡指定的你的路径（UTF-8 中文，章节标题可用英文约定）。
+- 结构：头部 = 验收员身份 / 日期(2026-10-10) / HEAD short-sha / 方法一句话；然后「结论头」一行 = `PASS / N error + N minor` 或 `FAIL / N error + N minor`（N=你实际认定数）；然后逐抽查点证据；然后「分歧项」（与上一轮报告的判定差异，无则写「无」）；FAIL 时附「FAIL 明细与可修性」。
+- 篇幅纪律：每抽查点 3-8 行证据，总长控制在 150 行内，重证据轻铺陈。
+- 报告文件末行必须是单独一行：`OMP-VERDICT: PASS` / `OMP-VERDICT: FAIL` / `OMP-VERDICT: SKIPPED-PARTIAL`（按你身份用 OMP 前缀；PI 路用 PI-VERDICT）。
+- 最终答复消息 = 把报告全文合并为最后一条消息一次性完整输出（stdout 仅为兜底留档）。
+
+---
+
+# 对象卡：M3-2「FSIM research + spike」
+
+- 报告输出路径（二选一，见执行指令你的身份）：
+  - OMP 路写 → /Volumes/UNITEK/Documents/Development/Lightamer/.work/gsd/phases/m3-4-latitude/retro-dual/../../../m3-2-fsim-research/M3-2-ACCEPTANCE-OMP-R2.md
+  - PI 路写 → /Volumes/UNITEK/Documents/Development/Lightamer/.work/gsd/phases/m3-4-latitude/retro-dual/../../../m3-2-fsim-research/M3-2-ACCEPTANCE-PI.md
+- 上一轮报告（抽查点提炼来源，结论不得照抄）：/Volumes/UNITEK/Documents/Development/Lightamer/.work/gsd/phases/m3-4-latitude/retro-dual/../../../m3-2-fsim-research/M3-2-ACCEPTANCE-OMP.md
+- 正本（全部亲读）：
+  - .work/gsd/phases/m3-2-fsim-research/RESEARCH-NOTES.md
+  - .work/gsd/phases/m3-2-fsim-research/M3-2-CONTEXT.md
+  - .work/gsd/phases/m3-2-fsim-research/evidence/（ls 自查亲读关键件）
+- 范围注记：research+spike 型（无产品代码）。抽核：研究结论与 M3-3/M3-4 交付的兑现映射（光谱不可达注记/材料对资产五件套/K 标定/session 反演等关键裁决在 RESEARCH-NOTES 的出处）、spike 证据在档。若 spike 产物在 .work/gsd/spikes/ 下自行定位。
+- 路径均相对 /Volumes/UNITEK/Documents/Development/Lightamer。
+
+
+【你的身份】OMP 路（验收员身份 = OMP）。只写 OMP 版报告（对象卡中 OMP 路径），报告末行 = OMP-VERDICT: PASS|FAIL|SKIPPED-PARTIAL。PI 版报告由并行另一路负责，禁止创建或改动。
