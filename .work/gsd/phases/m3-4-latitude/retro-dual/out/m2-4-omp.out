@@ -1,0 +1,56 @@
+Working...
+# M2-4-ACCEPTANCE-OMP-R2 — M2-4 双路回溯终验（OMP 路）
+
+> 验收员 = OMP / 日期 2026-10-10 / HEAD `e0e20573` / 方法 = 正本亲读 + 上一轮抽查点独立机检重验（git/squash/grep/awk 三向对账，未跑测试）。
+> 口径：per-task SHA（`ab629d5`…`716db07`、`ec83ced`…`2f2bf45`）本仓已全部 unknown——公开侧压缩后演进，仅 squash `01ed6f8` 存活；快照对账改走 squash 等价面，逐处标「后演进，不记账」。
+
+## 结论头
+
+**PASS / 0 error + 2 minor**
+
+## 抽查点 1：八新测试文件归属 + 计数（重验上一轮 1a）✅
+
+- squash `01ed6f8` 内八文件 `func test` 实数 = 5/17/6/10/9/5/9/14，与上一轮 M2-4 快照值逐一相等。
+- 现 HEAD 实数 = 5/17/6/**11**/**14**/5/9/14：仅 SidecarV5 10→11、MaskItemSemantics 9→14 漂移 = M2-7/M2-10 后演进扩测（上一轮 O1 同口径），map 行值滞后不记账。
+- squash 不含 `.work/`（`git ls-tree -r 01ed6f8 | grep BUNDLE-MAP` 零命中，后演进压缩面），上一轮 1c（`716db07`=2240）快照不可直验——改由现 HEAD 三向对账替代（见抽查点 2）。
+
+## 抽查点 2：map↔Project↔磁盘三向对账（重验上一轮 1b）✅ + 新 observation
+
+- 现 HEAD map 域文件 = IOPP60/IOP73/LAYERS53/LIB63/SESS25/EXPORT38/APP86（+SHARED3），tests=3649；磁盘 `Tests/LightamerTests/*.swift` = 401 = map 数据行 401，`map-disk/disk-map` 双向零差。
+- map→Project `only_map=[]`；Project→map 多出仅 SHARED 编列 15 项（IOPP/IOP 三件、LAYERS/LIB/EXPORT 两件、SESS 一件，与豁免注记一致）；去重后域计数逐域 = map。
+- 七 target 声明行现 HEAD = Project.swift:288/379/482/563/660/712/778（行号漂移，后演进）；测试 target 显式清单无 glob（glob 命中仅产品/资源 target，测试面注释明示 No directory glob）。
+- **新发现 O-NEW（observation，后演进，不计数）**：Project.swift:861-865 APP 数组含重复行（RasterEditFaceTests×2、RasterHdrViewportTests×3，total 91 vs uniq 88），引入 = `ad9f7dc2`（2026-10-10 M4-1 raster 批，上一轮报告之后）。map 行单条且计数 7/5 与文件实数相符；重复编列疑为同文件三次粘贴失误，可修性 = 小修（删 3 行 + generate）。非 M2-4 面。
+
+## 抽查点 3：test-direct.sh 门与 verdict 链（重验上一轮抽查点 2）✅ + minor M1 复现
+
+- `RSS_LIMIT_MB=8192` 现 HEAD :70 ✓；门注释援引 SPIKE 证伪链 ✓；squash 期脚本 :59 同值 + 头注「七个域」✓（F1 修复在 M2-4 交付内）。
+- M1 复现成立：:128 注释写 `crash > no-total-line > MEMFAIL > executed-0 > fail > ok`，实际 if/elif 链为 crash(:132)→no-total-line(:136)→MEMFAIL(:140)→**fail(:143)→executed-0(:145)**。两条件互斥（failed>0 vs failed==0∧executed==0），零语义影响；分支形态为 M2-11-01 后演进。沿用 minor。
+
+## 抽查点 4：SPIKE 证据对表（重验上一轮 4a/4b）✅ + minor M2 复现
+
+- TilingOverlap 隔离峰值：`IOP.TilingOverlapOnly.timeline.tsv` col3max=**7864**（vs SPIKE 7865，轮询 vs 内核高水位口径差 1MB）；run.log `Executed 2 tests…95.564s` ✓。
+- 交叉值：IOPP 525.8MB 回落行（timeline :72 `191.63 06:07:22 2843 525.8M` 逐字）✓；IOPP 末行 rss=1557 ✓；IOP rssmax=7324 ✓；IOPP/Export/Layers/Library max = 5969/5940/827/274，与上一轮逐值吻合。
+- M2 复现成立：43s 内 max=**1252**（40.35s 行），SPIKE「前 43s ≤764MB」字面逐点不成立；「重测启动前无 GB 级峰值」结论仍成立（43.25s 后才 2039MB+）。沿用 minor（措辞精度）。
+
+## 抽查点 5：squash 红线 + 语义 pin（替代上一轮 5b/5c 的逐 commit 面）✅
+
+- `git diff 01ed6f8~1..01ed6f8 --name-only`：`Pipe/` 零文件、`*.metal` 零命中、LibrarySchema/.lalb 零命中；PixelPipe.swift squash 前后 md5 同值（`75ed367a…`）。AC8/AC6 红线成立。
+- squash 期 `NodeOwnershipCatalog.swift` 引号数 = **0** ✓（现 HEAD 43 命中 = M2-5+ catalogID/panelExposures 后演进）；13-pin（`XCTAssertEqual…13`）在 squash 期测试 :88 ✓；NodeKind squash 期三 case ✓。
+
+## 抽查点 6：对象卡指定面——命令/NodeKind/V50 零改动 ✅
+
+- `git diff 01ed6f8..HEAD -- Graph/NodeGraphCommand.swift` = 空；`Graph/` 全目录 diff 仅 +3 新文件（Drt/Film/RasterDefaultRecord），零修改行。
+- NodeKind 现 HEAD 仍三 case（PipelineDocument.swift:44-48）；FilmCardTests:166-182 钉死（kinds 三元 count==3 + filmCardID 非 document 节点）；film 卡 = `filmCardID` 编译期常量 + `includesFilmCard` 默认参 App 侧投影，`grep "case film" Graph/` 零命中。
+- V50Order add-only 纪律在位（头注 106 entries + filmPlacement 20.8 行）；AGENTS.md 资源监控节 8G 口径与 film 卡节「M2-4 语义零改动红线」表述均与机检一致。
+
+## 分歧项
+
+实质分歧：无。上一轮 PASS 结论、M1/M2 两 minor、O1 后演进漂移口径经独立取证全部成立。
+新增仅 O-NEW（Project.swift APP 重复 3 行，`ad9f7dc2` 后演进，上一轮报告时点尚不存在——不构成对上一轮的漏检指控）。
+
+## 会话卫生
+
+- 读取：6 正本 + 3 SUMMARY + 3 DECISIONS + SPIKE/SUMMARY/DECISIONS + 脚本全文 + spike 证据抽核 + git 约 25 次。写入：仅本报告。
+- 未跑任何测试（引用 ACCEPTANCE 终值：2240/14/0）；未改仓库文件；未发起网络动作。
+
+OMP-VERDICT: PASS

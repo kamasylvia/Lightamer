@@ -1,0 +1,58 @@
+# M2-6「DRT」回溯二次验收 R2（OMP 双路终验）
+
+> 验收员：OMP；日期：2026-10-10；HEAD：`1c96e639`。方法：三份 ACCEPTANCE + 三份 SUMMARY + AGENTS.md M2-6 节亲读，上一轮 6 抽查点提炼 8 项机检独立重验（读码/git/log/grep 计数），零测试复跑（引用首验终值 + BUNDLE-MAP 机检）。
+
+**结论头：PASS / 0 error + 0 minor**
+
+## 逐抽查点证据
+
+### R1. DrtRecord 53+12 与 stableHash ✅
+- `LightamerCore/Sources/Graph/DrtRecord.swift`：`OpenDrtDetailedParams` struct 内 `case` 计数=**53**（awk 精确；CodingKeys :218-272）；顶层 CodingKeys :389-402 = method+11 snake_case+parameters，扣嵌套=**12 顶层**。
+- `stableHash()` :429-438 = sortedKeys JSON → `StableHash.hash`；`StableHash` FNV-1a（offset `0xcbf29ce484222325`，:25）与申报一致。
+- rawValue 抽验：`aces_2_0`:39、`open_drt`:41、`p3_d65`:49、`gamma_2_2`:74 全符 Alcedo cpp 终式。
+
+### R2. legalEOTFs 单源 ✅（后演进：8 值 EOTF）
+- 定义唯一 `DrtRecord.swift:448`；全仓引用 5 文件均为调用（grep -l）：DrtPanelModel（原生）+ RasterDefaultRecord/DrtOutputColorSpace/ExportChainBuilder（**后演进 M4-1/M2-9 新增调用，不记账**）。
+- 现状 EOTF=8 值：`srgbPiecewise`（:79）为 M4-1-01 后加；`legalEOTFs` rec709/p3d65 行含该值（:454-455），HDR 族/单值集零触。M2-6 七值交付面不受扰。
+
+### R3. TerminalTailPolicy 三臂 + 尾段序 + seed ✅
+- 三臂 `PixelPipe.swift:1614-1626`（`.sdrGamma/.edrLinear/.drt`，穷举；行号较上一轮漂移=后演进插入所致）。
+- 序：DrtMethodBox 74.0（:1832）→ post 槽 74.1+（TailOrderedBox :1750 注释「74→74.1+→75→76→77」）→ EotfBox 75.0（:1930）→ borders 76/watermark 77（LayerCompositeDriver :106/:213-214 注释钉值）。
+- `DrtTailAssembly.seed`（~:1690）：recordHash⊕policyTag⊕post 集身份（非空才折 sorted）⊕upstream；注释明言参数值走 sub-run levelHash 链——E5 等价偏离申报一致。
+
+### R4. 尾平面格式纪律 ✅（EOTF 前 float32）
+- `tailPixelFormat` :346-400：`.drt` 腿 EOTF 位起 `DrtTailDisplay.format`（HDR→16F/linear→float32/余 bgra8，:1664-1674），EOTF 前恒 `WorkingSpace.pixelFormat`；主链顶面显示格式分支退休注释在位（D9）。
+- **后演进**：`tailFormatFloatOverride` 一行（M2-9-02 KD-3 导出面），display 腿零路径默认不变。
+
+### R5. 持久化四件 + HistoryHash ✅
+- ①carrier `App/.../UI/Shell/WorkspaceModel.swift:249/258/267-271`（per-url，默认 record 不入 map）；②写腿 `updateDrtRecord` PipeCoordinator:577（非当前图跳过+scheduleSidecarWrite）；③restore 腿 :598（三态：nil 零动作/失配 error+field wins/同值跳过）；④run 传点 `terminalTailPolicy` :656-670（non-thumbnail+hasDrtRecord→.drt，余 edr/sdr；thumbnail 恒 legacy）。
+- HistoryHash（`Pipe/History/HistoryStack.swift` ~:571）：drt stableHash 末位折入；**后演进 film 位**紧随其后（nil 零影响）。`commitDrt` :274 + `drtDocumentScope` 在位。
+
+### R6. HDR 视口四态 + follow gate ✅
+- `followGateActive` EditorMTKView:431-432 = `!edrActive && !drtTailActive`（与上一轮同行，逐字成立）。
+- `drtLayerColorSpace` :732-762：rec2020→itur_2100_PQ/HLG、p3d65→displayP3_PQ/HLG、linear→extendedLinearSRGB、SDR 幂 calibrated；SDK 无 extendedITUR_2100 修正注释 :719-721 在位。**后演进**：srgbPiecewise 进 SDR 组以 2.2 幂近似（:755-760，M4-1-01 KD-8）。
+
+### R7. 许可链 ✅
+- 仓根 NOTICE（5341B；较上一轮 +440B = M4-1 注记行，**后演进不记账**）：条目 jedypod v1.1.0（:12）+ aces-core `069b0bc3…`（:43-44）在位。
+- `third_party_licenses/aces-core-LICENSE-Apache-2.0.txt` 11356B 在位；四移植文件署名实质在位（Cam16/Aces2Limiting/Aces2Kernels.metal 字面命中；Aces2Reference 头注 :9-12 为 PORTED FROM 块，三要素 SHA/Apache-2.0/see NOTICE 全，短语被换行拆开致字面 grep 不命中——署名成立，见分歧 D4）。
+
+### R8. git 机检（真实 SHA 重验）✅
+- 上一轮 SHA（7c2d5de/979ea15/b1ac572 等）全仓 `rev-parse` fatal——不可复现（见分歧 D1）。真实 commit 重验：
+- T1 `470002f9` stat = 4 文件（DrtRecord.swift 468 行新 + DrtRecordTests 327 行新 + MAP/Project 各 1 行），与上一轮申报逐位一致。
+- T5 `2654d5d2` stat = 8 文件（PixelPipe 177/xcstrings −17/DrtPostMigrationTests 349 新/RoutingTests 13），逐位一致。
+- 注册面：`git log --since=2026-10-01 --until=2026-10-02 -- LightamerIOP/` = 空；`defaultFaceDisabledOpNames` D1 trio（filmic/sigmoid/agx，Registry :39-50）在位——M2-6 窗口注册面零触碰成立。
+- BUNDLE-MAP 机检：DrtRecordTests=17（:330）、DrtTailTests=14（:334，上一轮注记 d6b8d9c +2 在案）、DrtPostMigrationTests=7（:335）。
+
+### 后演进接口现状（注记，不记账）
+- 共享序已改为 film→DRT→display：`runTerminalTails`（PixelPipe :1089-1100），`DrtTailAssembly.seed(upstream:)` 签名零改（注释亲证「only the VALUE changed hands」）。
+
+## 分歧项
+- **D1（上一轮报告记账缺陷，结论复核成立）**：上一轮 §六/M2-6 范围引用的全部 SHA（`7c2d5de..979ea15` 等）在本仓无此 revision，其 git 机检证据锚失效。但文件级申报内容经我用真实 SHA（`470002f9`/`2654d5d2`）重验逐位成立——内容取证真实，SHA 记录错位（疑仓历史重写或异仓取号）。交付面无影响。
+- **D2（计数差异）**：上一轮 O1 minor（F3 st2084 仿算未落独立文件）我不延续——DECISIONS 数学论证在册 + 首验已独立复现同机制同量级（分母 rel 9.35e-6 → 包络 5.87e-5），验证需求已覆盖，交付面无线缺口。故我计 0 minor。
+- **D3（引用精度注记，非误判）**：上一轮 PixelPipe 行号（1483/1553/1590/1701 等）现状全漂（M3-3/M2-9 插入所致），语义亲读成立；`WorkspaceModel.swift` 实际路径含 `UI/Shell/` 段；`HistoryStack.swift` 现状在 `Pipe/History/` 下（是否后演进搬迁 uncertain）。
+- **D4（署名面注记，非缺陷）**：上一轮称 Aces2Reference.swift:11-12 带署名短语字面——现状该文件头注为 PORTED FROM 块（:9-12），短语被换行拆分致字面 grep 不命中；SHA/许可/see NOTICE 三要素齐，署名成立。
+
+## FAIL 明细与可修性
+无（PASS）。
+
+OMP-VERDICT: PASS
