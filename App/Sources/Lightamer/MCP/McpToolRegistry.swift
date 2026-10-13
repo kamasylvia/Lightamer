@@ -72,6 +72,7 @@ public enum McpToolError: Error, Sendable {
     case keywordContainsSeparator(String)
     case exportPresetNotApplicable(String)
     case unknownPreset(String)
+    case projectReadOnly(String)
     case internalError(String)
 
     /// The stable snake_case code surfaced to MCP clients.
@@ -90,6 +91,7 @@ public enum McpToolError: Error, Sendable {
         case .keywordContainsSeparator: "keywordContainsSeparator"
         case .exportPresetNotApplicable: "exportPresetNotApplicable"
         case .unknownPreset: "unknownPreset"
+        case .projectReadOnly: "projectReadOnly"
         case .internalError: "internalError"
         }
     }
@@ -102,8 +104,33 @@ public enum McpToolError: Error, Sendable {
             .renderTimeout(let m), .exportFailed(let m), .invalidFilter(let m),
             .roiOutOfBounds(let m), .keywordContainsSeparator(let m),
             .exportPresetNotApplicable(let m), .unknownPreset(let m),
-            .internalError(let m):
+            .projectReadOnly(let m), .internalError(let m):
             m
+        }
+    }
+}
+
+/// M6-1-01 T7 (KD-5): the project-lock probe verdict — `.writable` (the
+/// caller holds the project write right or the lock is free) or `.held`
+/// (another live instance owns it). The probe is NON-HOLDING
+/// (`probeLockAvailable` semantics — OQ-5's per-write-call check, no lock
+/// handle kept); the SELF-HELD exemption belongs to the assembly closure
+/// (a holder probing its own lock would EWOULDBLOCK against itself —
+/// flock arbiters per open file description).
+public enum McpProjectLockVerdict: Sendable {
+    case writable
+    case held(holderSummary: String, guidance: String)
+
+    /// The typed rejection message (the copy SINGLE SOURCE): the localized
+    /// key + the holder summary + the connect guidance / fallback line.
+    public var errorMessage: String {
+        switch self {
+        case .writable:
+            ""
+        case .held(let holderSummary, let guidance):
+            String(
+                localized: "mcp_error_project_read_only",
+                defaultValue: "项目由另一实例持有（\(holderSummary)）——\(guidance)")
         }
     }
 }

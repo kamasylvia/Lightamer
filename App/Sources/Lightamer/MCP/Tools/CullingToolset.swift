@@ -70,6 +70,12 @@ struct McpCullingContext: Sendable {
     /// The render-class serial gate (14-1 seam — concurrency 1).
     var renderGate: McpRenderGate
 
+    /// M6-1-01 T7 (KD-5, OQ-5): the project-lock probe — consulted after
+    /// `requireMembers` on the write-five and the apply_preset frame (the
+    /// metadata face's no-live-judge asymmetry, D-8, stays). nil (the
+    /// default) = no gate — every existing construction zero-diff.
+    var projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)?
+
     init(
         store: @escaping @Sendable () async -> SessionIndexStore? = { nil },
         sessionRoot: @escaping @Sendable () async -> URL? = { nil },
@@ -79,7 +85,8 @@ struct McpCullingContext: Sendable {
         liveRelPaths: @escaping @Sendable () async -> Set<String> = { [] },
         thumbnailProvider: @escaping @Sendable () async -> SessionThumbnailProvider? = { nil },
         decodeImage: @escaping @Sendable (URL) async throws -> CGImage,
-        renderGate: McpRenderGate = McpRenderGate()
+        renderGate: McpRenderGate = McpRenderGate(),
+        projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil
     ) {
         self.store = store
         self.sessionRoot = sessionRoot
@@ -90,6 +97,7 @@ struct McpCullingContext: Sendable {
         self.thumbnailProvider = thumbnailProvider
         self.decodeImage = decodeImage
         self.renderGate = renderGate
+        self.projectWriteProbe = projectWriteProbe
     }
 
     /// The production decode leg (the host assembly's default): RAWDecoder
@@ -340,6 +348,11 @@ enum McpCullingToolset {
                         let relPaths = try requireRelPaths(arguments, max: 1000)
                         let (store, _) = try await requireSession(context)
                         try await requireMembers(relPaths, store: store)
+                        // M6-1-01 (KD-5/OQ-5): the project-lock probe after
+                        // membership (the frame-wide insertion — all five
+                        // tools inherit it; nil = no gate).
+                        try await EditingToolset.rejectIfProjectReadOnly(
+                            context.projectWriteProbe)
                         let outcome = try await body(metadata, relPaths, arguments)
                         return .text(
                             McpJSONSerialization.text(from: .object([
@@ -557,6 +570,10 @@ enum McpCullingToolset {
                     }
                     let (store, root) = try await requireSession(context)
                     try await requireMembers(relPaths, store: store)
+                    // M6-1-01 (KD-5/OQ-5): the preset-trio's write member
+                    // probe (after membership; list_presets stays probe-free).
+                    try await EditingToolset.rejectIfProjectReadOnly(
+                        context.projectWriteProbe)
                     guard let writer = await context.sidecarWriter() else {
                         throw McpToolError.internalError(
                             "sidecar writer unavailable in this host")

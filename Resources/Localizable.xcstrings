@@ -31754,6 +31754,23 @@
         }
       }
      },
+    "mcp_error_project_read_only" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The project is held by another instance (%1$@) — %2$@"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目由另一实例持有（%1$@）——%2$@"
+          }
+        }
+      }
+    },
     "project_read_only_banner" : {
       "extractionState" : "manual",
       "localizations" : {

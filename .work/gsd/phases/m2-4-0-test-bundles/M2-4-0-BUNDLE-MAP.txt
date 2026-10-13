@@ -694,3 +694,4 @@ LIB	8	SingleWriterLockTests.swift
 LIB	10	ProjectLockTests.swift
 APP	6	ProjectReadOnlyFaceTests.swift
 APP	9	McpProjectArbitrationTests.swift
+APP	8	McpProjectReadOnlyErrorTests.swift
