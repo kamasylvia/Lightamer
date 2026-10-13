@@ -349,15 +349,18 @@ enum McpServerController {
             // The machine face failed to encode — impossible for this
             // struct, but the human face still fires below.
         }
-        if endpoint != nil {
+        if let endpoint {
+            // The interpolated args ride the STRING-CATALOG table when the
+            // key exists — %@ requires String arguments (an Int32 through
+            // the table format crashes the host); stringify explicitly.
             let line = String(
                 localized: "mcp_connect_guidance_stderr",
-                defaultValue: "项目已由另一实例持有（pid \(holderPid)）——请连接其 MCP 端点，或关闭该实例后重试。\n")
+                defaultValue: "项目已由另一实例持有（pid \(String(holderPid))）——请连接其 MCP 端点 \(endpoint.host):\(endpoint.port)，或关闭该实例后重试。\n")
             FileHandle.standardError.write(Data(line.utf8))
         } else {
             let line = String(
                 localized: "mcp_connect_guidance_stderr_noendpoint",
-                defaultValue: "项目由另一实例持有（pid \(holderPid)）——关闭它或在其上开启 MCP server。\n")
+                defaultValue: "项目由另一实例持有（pid \(String(holderPid))）——关闭它或在其上开启 MCP server。\n")
             FileHandle.standardError.write(Data(line.utf8))
         }
         if mode == .http {
