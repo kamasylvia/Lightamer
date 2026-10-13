@@ -684,3 +684,10 @@ IOP	14	PanoGainTests.swift
 IOP	10	PanoCropTests.swift
 IOP	11	PanoLegTests.swift
 EXPORT	1	PanoFusionPerfProbeTests.swift
+
+# M6-1-01 增行记录（2026-10-16 执行期，checker E2 测试登记纪律）：新测试文件随各自任务
+#   commit 登记进对应 bundle（归属按 front-matter 判定：SingleWriterLockTests /
+#   ProjectLockTests = LIB/Core 级；McpProjectArbitrationTests / McpProjectReadOnlyErrorTests
+#   / ProjectReadOnlyFaceTests = APP/App 级；ColormatchResolverBoxTests = IOP/Core 级）。
+#   行内 method 数以终态对账为准。运行期总数基线相应上移（3631 起算，E1 回注 53 法）。
+LIB	8	SingleWriterLockTests.swift

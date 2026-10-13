@@ -624,6 +624,7 @@ let project = Project(
                 "Tests/LightamerTests/SidecarTieBreakTests.swift",
                 "Tests/LightamerTests/SmartAlbumStoreTests.swift",
                 "Tests/LightamerTests/StableHashTests.swift",
+                "Tests/LightamerTests/SingleWriterLockTests.swift",
                 "Tests/LightamerTests/WordPieceTokenizerTests.swift",
                 "Tests/LightamerTests/XMPContainerInjectorTests.swift",
                 "Tests/LightamerTests/XMPExportMatrixTests.swift",
