@@ -117,3 +117,7 @@ MCP 端点 + GUI 只读回退面 + MCP 工具写类 typed 拒绝面。
 research 起草完成（2026-10-16，M6 立项合并批）→ **C 档第 1 停**：
 OQ-M6-1-1..6 交用户裁决（全带推荐；晨审/用户可随时推翻）→ 裁决回批后进
 plan round（执行分工照 Phase 执行模型 = omp 执行 + subagent 验收）。
+
+## 裁决记录（用户回批 2026-10-14）
+
+**OQ-1..6 全部按推荐采纳（全 A）**：①锁粒度 = 项目锁 `<stem>.lalb.lock` + legacy session 根 ride-along ②对称单写者 + GUI 只读回退（否 GUI 特权非对称）③无头撞锁后行为 = 只读 server 常驻 + connect 指引（否立即退出/代理）④GUI 只读面范围 = 最小只读面（浏览可用 + 编辑入点禁用 + banner）⑤锁检查时机 = 启动 + 每写类调用前 probe（错误码 additive 一枚）⑥范围搭车 = o-2 `ColormatchResolverBox` NSLock 收紧随 M6-1（否决转 M6-5）。
