@@ -1349,13 +1349,16 @@ internal struct LightamerApp: App {
                     MatchColorToolset.installColorMatchService(colorMatchService)
                     // M6-1-01 T5 (KD-3): the read-only gates — ONE boolean
                     // (`libraryProjects.isReadOnly`) drives the banner, the
-                    // disabled projections and the EditorState/ExportState
-                    // write seams (the LibraryStore withWriteBatch breaker is
-                    // store-internal, KD-2).
+                    // disabled projections and the EditorState/ExportState/
+                    // VersionCoordinator write seams (the LibraryStore
+                    // withWriteBatch breaker is store-internal, KD-2).
                     editorState.projectReadOnlyGate = { [libraryProjects] in
                         libraryProjects.isReadOnly
                     }
                     exportState.projectReadOnlyGate = { [libraryProjects] in
+                        libraryProjects.isReadOnly
+                    }
+                    versionCoordinator.projectReadOnlyGate = { [libraryProjects] in
                         libraryProjects.isReadOnly
                     }
                     MatchColorToolset.installLibraryProvider { [libraryProjects] in

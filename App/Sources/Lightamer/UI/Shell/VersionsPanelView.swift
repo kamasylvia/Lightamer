@@ -17,7 +17,11 @@ import SwiftUI
 //     param replay, milliseconds), and
 //   • the EMPTY-STATE guidance (slots empty = the implicit single version):
 //     the placeholder copy upgrades to guidance + the two buttons stay
-//     (guidance IS action).
+//     (guidance IS action),
+//   • and the read-only face (M6-1-01 omp E-OMP-1 (d)): every write control
+//     (create / branch / tap-switch / rename / remove) disables off the
+//     coordinator's `isReadOnly` — the same-source boolean the gate backstop
+//     reads.
 //
 // KD-1's name rule: default-name generation lives HERE (the UI layer —
 // `versions_panel_default %lld`); the coordinator commands take explicit
@@ -92,6 +96,7 @@ struct VersionsPanelView: View {
                 Image(systemName: "plus")
             }
             .buttonStyle(.borderless)
+            .disabled(versions.isReadOnly)
             .accessibilityIdentifier(Self.newButtonMarker)
             .accessibilityLabel(Text(String(
                 localized: "versions_panel_new", defaultValue: "New Version")))
@@ -103,6 +108,7 @@ struct VersionsPanelView: View {
                 Image(systemName: "arrow.triangle.branch")
             }
             .buttonStyle(.borderless)
+            .disabled(versions.isReadOnly)
             .accessibilityIdentifier(Self.branchButtonMarker)
             .accessibilityLabel(Text(String(
                 localized: "versions_panel_branch",
@@ -143,6 +149,7 @@ struct VersionsPanelView: View {
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
+                .disabled(versions.isReadOnly)
                 .accessibilityIdentifier(Self.newButtonMarker)
 
                 Button {
@@ -155,6 +162,7 @@ struct VersionsPanelView: View {
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
+                .disabled(versions.isReadOnly)
                 .accessibilityIdentifier(Self.branchButtonMarker)
             }
             .padding(.bottom, 8)
@@ -183,6 +191,7 @@ struct VersionsPanelView: View {
                 }
                 removeTargetID = nil
             }
+            .disabled(versions.isReadOnly)
             Button(String(
                 localized: "versions_panel_cancel", defaultValue: "Cancel"),
                 role: .cancel
@@ -271,6 +280,10 @@ struct VersionsPanelView: View {
                 versions.switchTo(slot.id)
             }
         }
+        // E-OMP-1 (d): tap = switchTo is a write — read-only disables the
+        // whole row face (the gesture sits INSIDE this modifier so the
+        // blocked state is authoritative; menu items disable explicitly).
+        .disabled(versions.isReadOnly)
         .contextMenu {
             Button {
                 renameTargetID = slot.id
@@ -282,6 +295,7 @@ struct VersionsPanelView: View {
                         defaultValue: "Rename"),
                     systemImage: "pencil")
             }
+            .disabled(versions.isReadOnly)
             .accessibilityIdentifier(Self.renameButtonMarker(id: slot.id))
 
             Button(role: .destructive) {
@@ -293,6 +307,7 @@ struct VersionsPanelView: View {
                         defaultValue: "Remove…"),
                     systemImage: "trash")
             }
+            .disabled(versions.isReadOnly)
             .accessibilityIdentifier(Self.removeButtonMarker(id: slot.id))
             // Removing the LAST version is legal — the P1 remove-last
             // semantics return to the implicit single-version state.

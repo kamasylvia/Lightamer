@@ -80,6 +80,43 @@ final class VersionCoordinator {
     /// The `.lalb` projection sink (KD-5; injected by the shell, T3).
     var projection: VersionProjectionSink?
 
+    // ── M6-1-01 omp E-OMP-1 (b): the coordinator-level read-only gate ────
+
+    /// Injectable read-only gate — the app root reads
+    /// `libraryProjects.isReadOnly` into it (the ExportState seam shape;
+    /// nil default = writable, every existing construction and test is
+    /// zero-diff). When the gate reads TRUE every write command below
+    /// (createFromScratch / branchFromCurrent / pasteChain / switchTo /
+    /// rename / remove) typed-no-ops: the FIRST defense is the Versions
+    /// panel's disabled projection (E-OMP-1 (d)), this is the backstop so
+    /// no stray path lands sidecar bytes through `installVersionChain` +
+    /// `finishVersionAction` (and the version_ref projection tail). No
+    /// throw, no crash, no new copy key — the EditorState guard family's
+    /// silent shape.
+    var projectReadOnlyGate: (() -> Bool)? = nil
+
+    /// The same-source boolean for the panel's disabled projection
+    /// (E-OMP-1 (d)): true = the open project is on the read-only face.
+    /// Body-evaluation reads stay Observable-tracked: the closure executes
+    /// synchronously inside the view body, so the captured controller's
+    /// `isReadOnly` is a tracked access.
+    var isReadOnly: Bool {
+        guard let projectReadOnlyGate else { return false }
+        return projectReadOnlyGate()
+    }
+
+    nonisolated private static let readOnlyLogger = Logger(
+        subsystem: "com.kamasylvia.lightamer", category: "versions-readonly"
+    )
+
+    /// The gate read (shared by the write-command family): true = suppressed.
+    private func projectWriteSuppressed() -> Bool {
+        guard let projectReadOnlyGate, projectReadOnlyGate() else { return false }
+        Self.readOnlyLogger.debug(
+            "version command suppressed: project is read-only")
+        return true
+    }
+
     /// Wire the editor + pipe faces (called once by the app root beside the
     /// other attaches).
     func attach(editorState: EditorState, pipeCoordinator: PipeCoordinator) {
@@ -153,6 +190,8 @@ final class VersionCoordinator {
     /// generation lives in the UI layer; only the materialized implicit
     /// slot's 「版本 1」 stays coordinator-internal.
     func createFromScratch(name: String) {
+        // M6-1-01 omp E-OMP-1 (b): a write command — read-only refuses.
+        if projectWriteSuppressed() { return }
         guard let editorState else { return }
         materializeImplicitChainIfNeeded()
         let now = Date()
@@ -176,6 +215,8 @@ final class VersionCoordinator {
     /// (`HistoryStack.copyingPrefixOf`). P2 KD-1: `name` is caller-supplied
     /// (the panel's UI-side default-name face).
     func branchFromCurrent(name: String) {
+        // M6-1-01 omp E-OMP-1 (b): a write command — read-only refuses.
+        if projectWriteSuppressed() { return }
         guard let editorState else { return }
         materializeImplicitChainIfNeeded()
         let now = Date()
@@ -217,6 +258,8 @@ final class VersionCoordinator {
         drtRecord: DrtRecord?,
         name: String
     ) {
+        // M6-1-01 omp E-OMP-1 (b): a write command — read-only refuses.
+        if projectWriteSuppressed() { return }
         guard let editorState, !records.isEmpty || drtRecord != nil else { return }
         materializeImplicitChainIfNeeded()
         var chain = HistoryStack()
@@ -255,6 +298,9 @@ final class VersionCoordinator {
     /// chain → target cleared → activate. Same-image switches never
     /// re-decode (PipeCache); switching to the active id is a no-op.
     func switchTo(_ id: UUID) {
+        // M6-1-01 omp E-OMP-1 (b): a write command (chain swap + updatedAt
+        // touch) — read-only refuses.
+        if projectWriteSuppressed() { return }
         guard let editorState, id != activeVersionID,
             let targetIndex = slots.firstIndex(where: { $0.id == id })
         else { return }
@@ -270,6 +316,9 @@ final class VersionCoordinator {
 
     /// Rename a version (metadata only — no chain move, no activation).
     func rename(_ id: UUID, to rawName: String) {
+        // M6-1-01 omp E-OMP-1 (b): a write command (the .lra version list
+        // is metadata truth) — read-only refuses.
+        if projectWriteSuppressed() { return }
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty,
             let index = slots.firstIndex(where: { $0.id == id })
@@ -284,6 +333,9 @@ final class VersionCoordinator {
     /// single-version state (slots cleared, the current chain kept — the
     /// version structure disappears, the edits do not).
     func remove(_ id: UUID) {
+        // M6-1-01 omp E-OMP-1 (b): a write command (chain deletion +
+        // possible activation move) — read-only refuses.
+        if projectWriteSuppressed() { return }
         guard let index = slots.firstIndex(where: { $0.id == id }) else { return }
         let wasActive = slots[index].id == activeVersionID
         slots.remove(at: index)
