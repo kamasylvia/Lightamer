@@ -82,3 +82,9 @@ dual_acceptance = true
 # 硬约束：两次验收严禁并发（computer-use 单实例会打架），严格串行；
 # omp 二次验收结论同样落 ACCEPTANCE 记录（PASS/FAIL + 证据），FAIL 回注修复批；
 # 推送动作仍收敛主会话（worker 禁 push 纪律不变）。
+
+# 计划复审制度（2026-10-14 用户指令；消费方 = orchestrator，planner 完成后必读）
+plan_review_by_omp = true
+# planner 写完 plan 后，先交 omp 做计划复审（`omp -p --auto-approve --thinking max "<复审 prompt>"`，
+# prompt 含 plan 文件路径 + checker 前科教训），omp 复审结论与 zcode checker 并行或串行均可，
+# 两者发现合并回注修复批。双重验收（dual_acceptance）制度不变。
