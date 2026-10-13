@@ -6,7 +6,7 @@ wave: 1
 depends_on: []
 autonomous: true
 requirements: ["MCP-09-A（REQUIREMENTS reopened→M6-1 注记原位）"]
-estimated_tests: "+48..58"
+estimated_tests: "+52..62"
 test_bundles: [LIB, APP, IOP]
 files_modified:
   - LightamerCore/Sources/Foundation/SingleWriterLock.swift        # 新建：五态 flock 泛化件（acquire(at:)/probeLockAvailable(at:)/unlock/readPayload/writePayload）+ SingleWriterLockPayload（schema v1 冻结拼写：schemaVersion/role/pid/startedAt）+ SingleWriterRole（gui|headless）；五态注释与 L009 目录纪律逐条继承 McpEndpointLock（KD-1）
@@ -19,18 +19,20 @@ files_modified:
   - App/Sources/Lightamer/MCP/Tools/CullingToolset.swift           # 修改：McpCullingContext additive `projectWriteProbe`（default nil）+ write-five/preset-trio 注册 frame 内 probe（requireMembers 之后）
   - App/Sources/Lightamer/MCP/Tools/MatchColorToolset.swift        # 修改：写面 probe 接线（经 seams）+ :448 安装点改 `ColormatchResolverBox.replaceShared`（o-2 写点三之一）
   - App/Sources/Lightamer/Library/LibraryProjectController.swift   # 修改：openProject(at:role:) typed 冲突面（projectHeldByOther → pendingConflict 发布）+ openProjectReadOnly(at:) + isReadOnly/readOnlyHolderPid @Observable 面 + flushForTermination()（5s 有界同窗先例）+ 备份/移动语义零变化
-  - App/Sources/Lightamer/Session/SessionCoordinator.swift         # 修改：legacy ride-along——openAndSync acquire `<root>/.lightamer/session.lock`（role .gui）+ close 释放 + typed 冲突经既有 alert 面（legacy 无只读回退面 = 显式边界，KD-3）
-  - App/Sources/Lightamer/State/EditorState.swift                  # 修改：additive `projectReadOnlyGate: (() -> Bool)? = nil` 注入缝 + commit* 家族（recordChange/commitMaskEdit/commitLayerEdit/commitRetouchEdit/commitLayerStructure/recordDrtChange/recordFilmChange——m3b 勘误真名；HistoryStack 零触）入口 backstop guard（关闭 = typed no-op + logger——UI .disabled 为第一防线，guard 为兜底，KD-3）
+  - App/Sources/Lightamer/Session/SessionCoordinator.swift         # 修改：legacy ride-along——openAndSync acquire `<root>/.lightamer/session.lock`（role .gui）+ close 释放 + typed 冲突经 `sessionLockConflictHandler` → toast 面（omp 回注勘误「lastError alert 面」锚虚构；legacy 无只读回退面 = 显式边界，KD-3）
+  - App/Sources/Lightamer/State/EditorState.swift                  # 修改：additive `projectReadOnlyGate: (() -> Bool)? = nil` 注入缝 + commit* 家族（recordChange/commitMaskEdit/commitLayerEdit/commitRetouchEdit/commitLayerStructure/recordDrtChange/recordFilmChange——m3b 勘误真名）+ 历史导航族（performUndo/performRedo/performJump）+ paste/version 装入族（installMergePaste/installOverwritePaste/installVersionChain——omp 回注 E-OMP-1 补入）入口 backstop guard（关闭 = typed no-op + logger——UI .disabled 为第一防线，guard 为兜底；HistoryStack 零触，KD-3）
+  - App/Sources/Lightamer/State/VersionCoordinator.swift           # 修改：写命令族 coordinator 级 `isReadOnly` 门（omp 回注 E-OMP-1 (b)——缝形照 ExportState，装配点接 libraryProjects.isReadOnly）
   - App/Sources/Lightamer/State/ColorMatchService.swift            # 修改：:138/:309 两安装点改 `ColormatchResolverBox.replaceShared`（o-2 写点）
   - App/Sources/Lightamer/Export/ExportState.swift                 # 修改：enqueue 面 additive 只读 guard（关 = typed 拒 + 控件禁用投影同源）
-  - App/Sources/Lightamer/UI/LightamerApp.swift                    # 修改：三条项目打开路由（:1333/:1463/:1817）接冲突对话框 sheet + 只读打开腿 + terminateHandler 增 `libraryProjects.flushForTermination()`（:1204 窗内）+ GUI 内嵌宿主装配点接 projectWriteProbe（:1278/:1243 两闭包族）+ EditorState 注入 projectReadOnlyGate
+  - App/Sources/Lightamer/UI/LightamerApp.swift                    # 修改：三条项目打开路由（:1333/:1463/:1817）接冲突对话框 sheet + 只读打开腿 + terminateHandler 增 `libraryProjects.flushForTermination()`（:1204 窗内）+ GUI 内嵌宿主装配点接 projectWriteProbe（:1278/:1243 两闭包族）+ EditorState 注入 projectReadOnlyGate + pasteToSelection（:2239）batch 入口项目面只读门 + Edit 菜单 undo/redo/paste `.disabled` 追加 `|| isReadOnly`（omp 回注 E-OMP-1 (c)(d)）
   - App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift         # 修改：只读 banner（顶部 safeAreaInset 常驻 + accessibilityIdentifier）+ 编辑入点 .disabled 投影（同源布尔）+ 只读打开一次性 toast（ToastBarView 既有面）
+  - App/Sources/Lightamer/UI/Shell/VersionsPanelView.swift         # 修改：版本写命令控件 `.disabled` 接 isReadOnly（omp 回注 E-OMP-1 (d) 第一防线）
   - LightamerIOP/Sources/ColorMatch/ColormatchModule.swift         # 修改：o-2——`nonisolated(unsafe) static var shared` → `sharedLock: NSLock` + `sharedInstance` + getter 锁内读 + `replaceShared(_:)`（LutLibraryStore.swift:105-123 同模块体例镜像）；ColormatchSharedResolverForward 与模块内 :97/:106 读点改走 getter（锁内读值落局部，禁跨锁二读）
-  - Resources/Localizable.xcstrings                                # 修改：新键 9 枚尾块纯插入（KD-7 清单）
+  - Resources/Localizable.xcstrings                                # 修改：新键 10 枚尾块纯插入（KD-7 清单——含 legacy `session_lock_held`，omp 回注 M-OMP-1 补登记）
   - Project.swift                                                  # 修改：六新测试文件登记对应 target 数组（显式清单无 glob）+ tuist generate 恒为该批最后一个动作（L041）
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt     # 修改：六新测试文件增行登记（E2 纪律，随各自任务 commit）
   - .work/gsd/phases/m6-1-interop/M6-1-01-SUMMARY.md               # 新建（T10）
-  - .work/gsd/phases/m6-1-interop/M6-1-01-DECISIONS.md             # 新建（T10——含只读写入口禁用清单表 + 快照族影响申报 + legacy 边界登记）
+  - .work/gsd/phases/m6-1-interop/M6-1-01-DECISIONS.md             # 新建（T10——含只读写入口禁用清单表（接线点逐项标注）+ 快照族影响申报 + legacy 边界登记 + 导入兜底孤儿副作用注记）
   - .work/gsd/phases/m6-1-interop/M6-1-01-ACCEPTANCE.md            # 新建（m1 双重验收记录——zcode PASS 后串行 omp 二次验收，严禁并发）
   - .work/gui-acceptance/m6-1/MANIFEST.md                          # 新建（T9——GUI 只读面走查配方）
   - .work/GOAL-STATE.md                                            # 修改：续接点
@@ -55,7 +57,7 @@ files_modified:
 > （2026-10-10），M4-3 +32 = 3367（pre-M5-1，M5-1-GATE-LEDGER :114），M5-1/-2/-3
 > 已 +264 = 3631/24/0；**M5 删除批不存在**（IOP-HDR-06/IOP-PANO-01/TRACK 全
 > Delivered 在库，REQUIREMENTS/STATE 亲核）——照 M5-2-01 基线先例记亲核后的现行
-> 真值，phase 对账链 = 3631/24/0 + 本批增量，全套预期 `3679..3689/24/0` 留验收
+> 真值，phase 对账链 = 3631/24/0 + 本批增量，全套预期 `3683..3693/24/0` 留验收
 > 对账（全套 `--all` 轮照批准制，收口才申请）。App bundle 轮前删孤儿
 > `Tests/Fixtures/TiffRaster/srgb-matrix-8.tif.lra`（M4-1 挂账 #6，在树未跟踪亲证；
 > M5-1 验收先例）。
@@ -135,13 +137,33 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
 - **`create(name:role:)` / `open(role:)` additive 参数 `role: SingleWriterRole? = nil`
   （nil = 不锁）**——裁定依据：flock 互斥语义按 open file description 计（同进程
   二 fd 同样 EWOULDBLOCK，Darwin flock(2) 亲核），若 open() 恒锁则既有 LIB 测试面
-  （双 store 打开/换腿/迁移轮）成片破坏；生产强制点 = 装配层
-  （`LibraryProjectController` 恒传 `.gui`、`McpServerController` headless 恒传
-  `.headless`），一切生产打开路径经此两点，语义闭合。既有 `store.open()` 调用点
-  与测试零 diff（负测：role nil 档行为逐字节不变）。
+  （双 store 打开/换腿/迁移轮）成片破坏；生产强制点 = 装配层，一切生产打开路径
+  **显式传 role**（GUI 面全集见下方 omp 回注 M-OMP-4 五处清单；无头面 =
+  `McpServerController` headless 恒传 `.headless`），语义闭合。既有 `store.open()`
+  调用点与测试零 diff（负测：role nil 档行为逐字节不变）。
+  > omp 计划复审回注（2026-10-13）（M-OMP-4）：原文宣称「生产强制点 = 装配层
+  > 两点（LibraryProjectController 恒传 .gui / McpServerController 恒传 .headless），
+  > 一切生产打开路径经此两点，语义闭合」——亲核不成立：生产打开路径实为五处，
+  > 其中三处缺 role——`createProject→store.create(name:)`
+  > （LibraryProjectController.swift:115）、move 失败回开 `store.open()`（:266）、
+  > move 新位重开 `moved.open()`（:273）。后果 = 新建/移动后项目无锁常驻，另一
+  > 实例 `open(role:)` 获写成功 = 双写（第一实例无锁读写、第二实例持锁读写，
+  > 互不知晓）；移动窗口注记「乘入落 typed 冲突面」以重开持锁为前提，前提不
+  > 成立。处方三选一钉死，本批取**显式传参**：create 传 `.gui`、move 两重开腿
+  > 传 `.gui`（新建/移动后与正常打开同态 = 锁常驻；上述移动窗口前提由此恢复
+  > 成立）。
 - **时序**：acquire（写 payload）→ `SQLiteHandle` open → `dispatchSchema`（KD-2
   迁移三岔照旧）——**锁失败在任何写之前** typed 抛
   `LibraryError.projectHeldByOther(detail:)`（detail = payload 读得的角色/pid 摘要）。
+  **flock 本身不可用**（网络卷 `ENOTSUP` 等非互斥类 ioError）→ 同样拒绝打开
+  （`ioError` → openFailed 形 + 文案说明「所在卷不支持单写者锁」）——**不做
+  LightCraft 式无锁警告开**（无锁开 = 双写复活窗，直违 phase goal；macOS 独占
+  本地/外置盘为主，外置盘 flock 可用不受影响）。
+  > omp 计划复审回注（2026-10-13）（M-OMP-5）：网络卷 flock 不可用策略原文
+  > 未钉——LightCraft 对照（`lock.rs:22-24`，issue #171 测试）为「锁文件不可锁
+  > → 开但警告」，本 plan 若照 ioError→openFailed 字面 = 项目打不开（行为未
+  > 申报）。二选一钉死 = **拒绝并文案说明**（安全向：单写者语义不打折；用户
+  > 可将项目移至本地盘）。
 - `openReadOnly()`：无锁、`readOnlyMode = true`、连接照常建立（WAL 读面不变）；
   **schema 三岔钉死（E2 回注）**：先读 `PRAGMA user_version`——
   `stored == LibrarySchema.schemaVersion` 才直开（连接读面）；`stored == 0`
@@ -169,9 +191,20 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
 - 崩溃/强杀 = kernel 自释放，**无残留清扫代码**（五态③④；锁文件本体是 fixture
   非证据）。移动窗口注记：move = close→move→reopen，锁在搬移窗内短暂释放
   （第二实例可乘入 → 落 typed 冲突面，可接受；DECISIONS 登记）。
+- `close()`：`checkpointTruncate` → handle close → **`lock.unlock()`（释放序在
+  checkpoint 之后——WAL 尾安全）**；幂等照旧；terminate 腿 = `flushForTermination()`
+  （AppKit 同步回调 + 5s 有界等待，`stopEmbeddedForTermination` :473 同型）。
 - **legacy ride-along**：`SessionCoordinator.openAndSync` acquire
   `<root>/.lightamer/session.lock`（`.gui`）+ `close` 释放 + 冲突 typed
-  `projectHeldByOther` 经既有 `lastError` alert 面。**显式边界（KD 登记）**：
+  `projectHeldByOther` 经 `sessionLockConflictHandler` → toast 面（文案键
+  `session_lock_held`，KD-7）。
+  > omp 计划复审回注（2026-10-13）（M-OMP-2）：原文「经既有 `lastError` alert
+  > 面」为锚虚构——`SessionCoordinator` 无 `lastError` 成员（基线/HEAD 双亲证
+  > 0 命中；`lastError` 仅在 LibraryProjectController），实际执行 =
+  > `sessionLockConflictHandler`（SessionCoordinator.swift:423 声明/:450 调用，
+  > LightamerApp.swift:823 接线）→ toast（文案键 `session_lock_held`，
+  > SessionCoordinator.swift:452 消费）。T4 m3a 并档断言同步改锚。
+  **显式边界（KD 登记）**：
   legacy 面只落锁 + 冲突告警（重试 = 手动重开），**不做**只读回退对话框/banner
   （OQ-1 生效值 = 锁同件 ride-along；OQ-2/OQ-4 的回退面验收形态定义在项目面；
   legacy 为 `LIGHTAMER_LEGACY_LIBRARY=1` QA 通道）——只读回退面 legacy 版挂账
@@ -193,27 +226,69 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
   1. **LibraryStore 层**：`withWriteBatch` typed 拒（KD-2）——库面写（相册操作/
      网格 rating/keywords/导入）天然断路，UI catch → toast；
   2. **EditorState 层**：`projectReadOnlyGate: (() -> Bool)? = nil` 注入
-     （装配点闭包读 `libraryProjects.isReadOnly`）——commit* 家族
-     （recordChange/commitMaskEdit/commitLayerEdit/commitRetouchEdit/
-     commitLayerStructure/recordDrtChange/recordFilmChange）入口 backstop
-     guard（关闭 = typed no-op + logger，**不 throw 不崩**——第一防线是 UI
-     禁用）；
+     （装配点闭包读 `libraryProjects.isReadOnly`）——写入口 backstop guard
+     全集 = **13 入口**：commit* 家族（recordChange/commitMaskEdit/
+     commitLayerEdit/commitRetouchEdit/commitLayerStructure/recordDrtChange/
+     recordFilmChange）**+ 历史导航族**（performUndo:370/performRedo:379/
+     performJump:388——undo/redo 返 `false` 不翻栈，jump no-op）**+
+     paste/version 装入族**（installMergePaste:330/installOverwritePaste:341/
+     installVersionChain:132——不装新栈）。同形：gate 关 = typed no-op +
+     logger，**不 throw 不崩**——第一防线是 UI 禁用；
      > checker 回注（2026-10-10）（m3b）：guard 家族名单勘误——EditorState 层
      > 真名 = `recordDrtChange`（:250）/ `recordFilmChange`（:273；checker 写
      > :270 为锚漂，亲核 :273）。原名单「commitDrt/commitFilm」是其内部调用的
      > **HistoryStack** 方法（`LightamerCore/Sources/Pipe/History/HistoryStack.swift`
      > :274/:299）——HistoryStack 属封存面零 diff 红线，guard 一律落 EditorState
      > 包装层，**HistoryStack 零触**。
+     > omp 计划复审回注（2026-10-13）（E-OMP-1 a）：guard 名单原封闭 7 函数，
+     > 不含任何 history 导航/装入入口——只读第二实例 ⌘Z → performUndo 直改
+     > history 栈 → `scheduleSidecarWrite` 改写 `.lra` position，切版本/粘贴
+     > 同理 = 单写者语义泄漏（直违 phase goal 与 OQ-4 生效值）。六函数补入
+     > （EditorState.swift 行号 2026-10-13 亲核）。**门落法安全性亲证**：
+     > `installVersionChain` 全仓调用点仅在 VersionCoordinator 命令路径
+     > （:167/:191/:249/:263/:302），`hydrate`（:100）不经它——只读打开的
+     > 版本恢复合法流不受门影响；`installMergePaste/installOverwritePaste`
+     > 仅 LightamerApp paste 组合路（:2302/:2304）；undo/redo 返 false 时
+     > PipeCoordinator（:1827/:1836）guard 早退零副作用。HistoryStack 零触
+     > 维持（m3b 纪律）——guard 一律落 EditorState 包装层。
   3. **ExportState 层**：enqueue 面 additive guard + 控件禁用同源布尔
      （yiyin sheet 入口一并禁用）。
+- **历史导航/版本/paste 落位（omp 计划复审回注 2026-10-13，E-OMP-1 (b)(c)(d)）**：
+  上列三 seam + EditorState 13 入口 guard 之外，三组写入口的分层落位钉死——
+  - **(b) VersionCoordinator 写命令族 coordinator 级门**：全部写命令
+    （createFromScratch:155/branchFromCurrent:178/pasteChain:214/switchTo:257/
+    rename:272/remove:286——行号 2026-10-13 亲核）经 `installVersionChain` +
+    `finishVersionAction→versionActionDidChange→scheduleSidecarWrite` 落盘，
+    任一入口无门 = 只读态切版本改写 `.lra`。门形 = coordinator 级 `isReadOnly`
+    缝（照 ExportState 缝形，装配点接 `libraryProjects.isReadOnly`），写命令
+    全集过门（入口 guard，拒时 toast/typed 拒）。
+  - **(c) pasteToSelection batch 路项目面门**：`LightamerApp.pasteToSelection`
+    （:2239）入口项目面 guard——gate 关 = toast 拒 + batch 不执行
+    （`SessionBatchApplier` + `batchSidecarWriter` 直写 `.lra` 原零门）。
+    **legacy 会话面 paste 不受项目锁门**（legacy/项目面二分既定——legacy 判据
+    源走 session.lock，KD-5 m2 回注同源）。
+  - **(d) `.disabled` 第一防线接线点逐项**（同源布尔 = `libraryProjects.isReadOnly`）：
+    Edit 菜单 undo（LightamerApp:1669）/ redo（:1674）/ paste 两项（:1689/:1694
+    ——现仅 `canUndo/canRedo/hasPayload` 判据，追加 `|| isReadOnly`）+
+    `VersionsPanelView` 版本写命令控件。export/yiyin 两处既有接线
+    （WorkspaceHostView:610/:623）不变。jump 面板无 `.disabled` 要求
+    （performJump guard no-op 兜底已足）。
+  - **导入兜底孤儿副作用注记**：`withWriteBatch` typed 拒兜底若在 Media/ 文件
+    placement 之后触发会留 Media/ 孤儿文件（ImportService.writeRow→insertRow
+    经断路、盘上文件已落）——**导入以 UI 禁用为主、typed 拒为兜底**，孤儿
+    副作用 DECISIONS 登记（清扫归 M6-5 清算批承接）。
 - **禁用清单表（OQ-4 生效值兑现面；executor 逐项落实 + 机检清单入 DECISIONS）**：
   Inspector 调整栈 / 节点图命令（UI 投影 + guard 兜底，NodeGraphCommand 零 diff）/
   蒙版编辑（overlay 编辑模式禁入）/ 批量 apply / Copy-Paste Adjustments /
-  导出入队 + yiyin / DRT·Film·LUT 面板写入 / 版本三命令（create/branch/paste）/
-  **历史写项含 undo/redo/jump（均产生新 sidecar 字节 = 写项）** / 导入。
+  导出入队 + yiyin / DRT·Film·LUT 面板写入 / **版本命令族（create/branch/paste/
+  switch/rename/remove 全集——omp 回注扩面，原「版本三命令」为下限，switch/
+  rename/remove 同为写项，收紧方向不违 OQ-4 生效值）** /
+  **历史写项含 undo/redo/jump（均产生新 sidecar 字节 = 写项；含 Edit 菜单与
+  jump 面板入口）** / 导入。
   **保持可用**：浏览/检索/查看/soft proof/EDR 查看/缩略图/备份（只读拷贝）。
   机检形 = 「每个 UI 写入口要么被 .disabled 投影覆盖、要么被三 seam 之一兜底」
-  清单表（DECISIONS），走查逐项对照。
+  清单表（DECISIONS），**逐项标注接线点（.disabled 落点 文件:行 / seam 归属）**
+  ——omp 回注后清单必含 undo/redo/jump/版本/paste/batch 六组接线点；走查逐项对照。
 - **banner**：`WorkspaceHostView` 顶部 `safeAreaInset(edge: .top)` 常驻
   「只读——项目已由另一实例（pid N）打开」（`accessibilityIdentifier` 供 AX 断言）；
   只读打开动作时 `ToastBarView` 一次性告知（同文案键，4s auto-clear 既有面）。
@@ -241,7 +316,12 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
     ① `readPayload`（holder 诊断）+ `McpEndpointDiscovery.discover()`（活端点）；
     ② **机读指引单行 JSON**（schema 钉死）：`{"event":"connect-guidance","endpoint":{
     "transport":"streamable-http","host":"127.0.0.1","port":P,"auth":"none"|"bearer"}|null,
-    "holderPid":N}`；
+    "holderPid":N}`；**payload 缺席**（acquire 与 payload write 间崩溃窗）→
+    `holderPid: -1`（缺席值钉死，McpServerController.swift:334 执行同形）；
+    > omp 计划复审回注（2026-10-13）（M-OMP-3）：指引 JSON 原只钉
+    > event/endpoint/holderPid 三键拼写，payload 缺席时执行用 `-1` 而 plan 无
+    > 定义、门 3 无 `-1` 变体——本批钉死；门 3 断言补 `holderPid == -1` 变体
+    > （并入门 2 序 A 既有降级变体法，计数不变）。
     ③ stderr 人类可读行（`String(localized:)` 随 locale）；**端点缺席
     （noEndpointFile/staleResidueRemoved）= 降级指引**（`endpoint: null` + 文案
     「项目由另一实例持有（pid N）——关闭它或在其上开启 MCP server」）；
@@ -317,14 +397,20 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
   Colormatch 既有 IOP 测试原样全绿；新增并发压测小法（swap/load 竞争无 data race
   面断言——TSan 轮可选项，DECISIONS 记）。
 
-### KD-7 本地化新键清单（9 枚，尾块纯插入）
+### KD-7 本地化新键清单（10 枚，尾块纯插入）
 
 `project_read_only_banner`（banner+toast 共用，pid 插值）/ `project_read_only_dialog_title`
 / `project_read_only_dialog_message`（名+pid 插值）/ `project_read_only_open` /
 `project_read_only_retry` / `project_read_only_cancel` / `mcp_error_project_read_only`
 （pid+指引插值）/ `mcp_connect_guidance_stderr`（pid+端点插值）/
-`mcp_connect_guidance_stderr_noendpoint`（降级臂）。全部静态键 + `defaultValue`
+`mcp_connect_guidance_stderr_noendpoint`（降级臂）/ **`session_lock_held`（legacy
+会话冲突 toast 文案——`SessionCoordinator.swift:452` 经
+`sessionLockConflictHandler` 消费；T4 执行已插而本清单原漏登记，omp 回注补录
+9→10）**。全部静态键 + `defaultValue`
 插值形态（V15 提取器可见）；zh-audit `--check` 新键全入册。
+> omp 计划复审回注（2026-10-13）（M-OMP-1）：guidance 双键 catalog 缺席问题
+> （在码 `McpServerController:354/:359` 引用而 catalog 缺席 = en 用户回落中文
+> defaultValue）已随 T9 收口批插齐（commit `81fdb0fc`），本注记为对账记录。
 
 ### KD-8 测试设计与 golden 五门（T1..T8，RESEARCH §4 + ROADMAP M6-1 验收形态）
 
@@ -343,24 +429,31 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
   - **确定性门**：双向序各自连续两跑结论逐位一致（赢家/输家角色对称确定，不依赖
     调度序）；序 A 持锁父退出后子重跑获 writer 臂（五态③窗口实测）。
 - **门 3（connect 指引机读）**：并入门 2 序 A 断言（JSON schema 逐键 + 降级形态
-  `endpoint: null` 变体——持锁父不开 MCP host 场景）。
-- **门 4（GUI 只读面）**`ProjectReadOnlyFaceTests`（APP）：三 seam 负测家族
-  （readOnlyMode → withWriteBatch typed 拒 / projectReadOnlyGate 关 → commit*
-  家族 no-op / ExportState enqueue 拒）+ `openReadOnly` 无锁面 + banner AX 标识
-  + 禁用投影同源布尔 + 重试臂（持锁者退出后重开获写）+ 冲突 detail 文案。
+  `endpoint: null` 变体——持锁父不开 MCP host 场景）+ `holderPid == -1` 缺席值
+  变体断言（payload 缺席场景，omp 回注 M-OMP-3——并入既有降级变体法，计数不变）。
+- **门 4（GUI 只读面）**`ProjectReadOnlyFaceTests`（APP，**18 法** = T4 前半 6 +
+  T5 后半 12）：三 seam 负测家族（readOnlyMode → withWriteBatch typed 拒 /
+  projectReadOnlyGate 关 → 写入口全集 13 函数 no-op / ExportState enqueue 拒）+
+  `openReadOnly` 无锁面 + banner AX 标识 + 禁用投影同源布尔 + 重试臂（持锁者
+  退出后重开获写）+ 冲突 detail 文案 **+ history 导航/版本/paste 四法（omp 计划
+  复审回注 2026-10-13，E-OMP-1 (e)）：①gate 关 → performUndo/performRedo/
+  performJump no-op 不翻栈（sidecar 字节不变）；②版本写命令族拒（coordinator
+  级门——create/branch/paste/switch 取 representative 断言）；③单图 paste 拒
+  （installMergePaste/installOverwritePaste no-op）；④pasteToSelection batch
+  入口拒（toast/不执行）**。
   实机走查 = T9 MANIFEST（Manual-Only 行：双实例 `open -n` 撞锁对话框三选/
-  banner 常驻/禁用清单逐项/浏览可用）。
+  banner 常驻/禁用清单逐项（含 undo/redo/jump/版本/paste 接线点）/浏览可用）。
 - **门 5（MCP typed projectReadOnly）**`McpProjectReadOnlyErrorTests`（APP）：
   probe `.held` → 写类工具 typed `projectReadOnly`（code 断言 + 文案携 pid+指引）/
   读类工具照常 / `imageLiveInEditor` 先判序负测（live 图 + 锁 held →
   imageLiveInEditor 而非 projectReadOnly）/ probe nil 档零行为门（既有 toolset
   测试面零 diff 亲证）/ `serverReadOnly` 旧语义保留负测 / 20 工具封闭集快照族
   零 diff / writerCheck 顺序（endpoint 门 → probe）断言。
-- **SC 数字门**：LIB 636/4/0 + 18 = `654/4/0`；APP 757/4/0 + 31 = `788/4/0`
+- **SC 数字门**：LIB 636/4/0 + 18 = `654/4/0`；APP 757/4/0 + 35 = `792/4/0`
   （**跑前删孤儿 .lra**）；IOP 684/1/0 + 4 = `688/1/0`；全套预期
-  `3631 + 53 = 3684/24/0`（估带 3679..3689，验收轮对账；全套轮批准制）。
-  静态登记：六新文件 BUNDLE-MAP 增行（8+10+14+9+8+4 = 53 法预估——
-  ProjectReadOnlyFaceTests = 14（T4 前半 6 + T5 后半 8），终态对账勘误
+  `3631 + 57 = 3688/24/0`（估带 3683..3693，验收轮对账；全套轮批准制）。
+  静态登记：六新文件 BUNDLE-MAP 增行（8+10+18+9+8+4 = 57 法预估——
+  ProjectReadOnlyFaceTests = 18（T4 前半 6 + T5 后半 12），终态对账勘误
   惯例照 M2-8 批）。
   > checker 回注（2026-10-10）（E1）：SC 算术补计——原「六新文件 8+10+6+8+9+4
   > = 45 法」只计了 ProjectReadOnlyFaceTests 的 T4 前半 6 法，**T5 后半 8 法**
@@ -371,6 +464,12 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
   > 全套预期 **3631+53 = 3684**；估带 3671..3681 上移为 **3679..3689**；
   > front-matter `estimated_tests` 同步 "+40..50" → "+48..58"。同步点五处：
   > front-matter / plan 头基线注 / 本段（KD-8 SC）/ T10 验收 / AC8。
+  > omp 计划复审回注（2026-10-13）（E-OMP-1 e）：门 4/T5 增 4 法（undo no-op /
+  > 版本命令拒 / paste 拒 / batch 拒）→ ProjectReadOnlyFaceTests 14→**18**
+  > （T4 前半 6 + T5 后半 12）、六文件 53→**57**、APP +31→**+35**（= **792**）、
+  > 全套预期 **3688**、估带上移 **3683..3693**、front-matter `estimated_tests`
+  > "+48..58"→"+52..62"；同步点仍五处（front-matter / plan 头基线注 / 本段
+  > （KD-8 SC）/ T10 验收 / AC8），均已同步。
 
 ## read_first
 
@@ -395,8 +494,12 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
 8. `App/Sources/Lightamer/UI/LightamerApp.swift`（:128 EntryPoint fork/:1204
    terminateHandler 窗/:1243-1310 内嵌宿主装配与三打开路由）
 9. `App/Sources/Lightamer/State/EditorState.swift`（commit* 家族入口清单 :176/:696/
-   :784/:1059/:1181 + recordDrtChange :250 / recordFilmChange :273（m3b 补）——
-   guard 落点）+ `App/Sources/Lightamer/State/ColorMatchService.swift`
+   :784/:1059/:1181 + recordDrtChange :250 / recordFilmChange :273（m3b 补）+
+   performUndo :370 / performRedo :379 / performJump :388 / installMergePaste :330 /
+   installOverwritePaste :341 / installVersionChain :132（omp E-OMP-1 补）——
+   guard 落点）+ `App/Sources/Lightamer/State/VersionCoordinator.swift`
+   （写命令族 :155-:286 + `finishVersionAction` 尾——omp E-OMP-1 (b) 落点）+
+   `App/Sources/Lightamer/State/ColorMatchService.swift`
    （:138/:309）+ `LightamerIOP/Sources/ColorMatch/ColormatchModule.swift`
    （:82-113 box+forward）
 10. `LightamerIOP/Sources/Lut3d/LutLibraryStore.swift:105-123`（shared holder 体例
@@ -452,8 +555,10 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
   原语直测）/ 迁移前置锁（pre-migrate 快照腿在锁内）。
   > checker 回注（2026-10-10）（m3a）：legacy **冲突面**断言移 APP——
   > SessionCoordinator 在 App target（App/Sources/Lightamer/Session/），LIB
-  > （LightamerCore 测试）不可达；冲突断言（typed alert 经 lastError）并入
-  > T4 前半冲突投影法（同法双断言并档，计数不变）。
+  > （LightamerCore 测试）不可达；冲突断言（typed 冲突经
+  > `sessionLockConflictHandler` → toast——omp 计划复审回注 2026-10-13 勘误：
+  > 原「lastError alert 面」为锚虚构）并入 T4 前半冲突投影法（同法双断言并档，
+  > 计数不变）。
 
 ### T3 App McpEndpointLock 薄封装（KD-1 行为零 diff 门）
 
@@ -468,8 +573,9 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
 - read_first 7/8 → `LibraryProjectController`（pendingConflict/openProjectReadOnly/
   isReadOnly/flushForTermination）+ LightamerApp 三路由 sheet + terminate 腿。
 - 验收：`ProjectReadOnlyFaceTests` 前半（6 法）——typed 冲突→pendingConflict
-  投影（含 legacy 冲突面同法断言：SessionCoordinator typed alert 经
-  lastError——m3a 并档，计数不变）/ 三选腿各一（只读=store.readOnlyMode、
+  投影（含 legacy 冲突面同法断言：SessionCoordinator 冲突经
+  `sessionLockConflictHandler` → toast——m3a 并档 + omp 回注勘误，计数不变）/
+  三选腿各一（只读=store.readOnlyMode、
   重试=五态③窗口后获写、取消=不开）/
   flushForTermination 有界面（锁释放断言）；runModal 零命中自证。
 
@@ -478,9 +584,12 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
 - read_first 8/9 → `EditorState.projectReadOnlyGate` + commit* 家族 guard +
   `ExportState` enqueue guard + `WorkspaceHostView` banner/toast/`.disabled`
   投影 + 装配点接线（LightamerApp）。
-- 验收：`ProjectReadOnlyFaceTests` 后半（8 法）——三 seam 负测 + banner AX +
-  同源布尔投影 + 禁用清单机检表（DECISIONS）；**只读 walkthrough 断言面**：
-  gate 关时 commit 全 no-op 不崩。
+- 验收：`ProjectReadOnlyFaceTests` 后半（**12 法**）——三 seam 负测 + banner AX +
+  同源布尔投影 + 禁用清单机检表（DECISIONS，接线点逐项标注）**+ history 导航/
+  版本/paste 四法（omp 计划复审回注 2026-10-13，E-OMP-1 (e)：undo no-op 不翻栈 /
+  版本命令族拒 / 单图 paste 拒 / batch 入口拒——落位设计见 KD-3 历史导航/版本/
+  paste 落位段）**；**只读 walkthrough 断言面**：gate 关时写入口全集（commit* +
+  performUndo/performRedo/performJump + install*）全 no-op 不崩。
 
 ### T6 无头 `--project` 仲裁 + connect 指引（KD-4）
 
@@ -511,17 +620,18 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
   `open -n` 双实例撞锁对话框三选 / banner 常驻 / 禁用清单逐项 / 浏览检索可用 /
   headless connect 指引终端目测——Manual-Only 行显式标注 + 机检行自证：
   runModal 零命中 / Schema 零 diff / dependencies 零 diff / 快照族零 diff）。
-- 验收：MANIFEST 在盘；机检行全绿截屏入 SUMMARY；zh-audit `--check` 对 9 新键
-  全入册 PASS。
+- 验收：MANIFEST 在盘；机检行全绿截屏入 SUMMARY；zh-audit `--check` 对 10 新键
+  全入册 PASS（含 legacy `session_lock_held`——omp 回注 M-OMP-1 补登记）。
 
 ### T10 收口
 
-- SUMMARY（任务序/bundle 分账/对账链）+ DECISIONS（KD 偏差/禁用清单表/快照族
-  申报/legacy 边界（含 m2 legacy probe 判据源接线登记）/移动窗口注记）+
+- SUMMARY（任务序/bundle 分账/对账链）+ DECISIONS（KD 偏差/禁用清单表（接线点
+  逐项标注 + 导入兜底孤儿副作用注记——omp E-OMP-1）/快照族申报/legacy 边界
+  （含 m2 legacy probe 判据源接线登记）/移动窗口注记）+
   GOAL-STATE 续接点 + TODO 同批。
 - 验收：定向轮 `--bundle LIB/APP/IOP` 全绿（exit 0 + 零 MEMFAIL，SC 分账对表）；
-  **申请全套 `--all` 批准轮**（预期 3684/24/0 带，估带 3679..3689——E1 回注
-  修正值）；**双重验收（config
+  **申请全套 `--all` 批准轮**（预期 3688/24/0 带，估带 3683..3693——E1 + omp
+  E-OMP-1 回注修正值）；**双重验收（config
   `dual_acceptance = true`，m1）**：zcode subagent 独立验收 PASS 后 → **串行**
   omp 二次验收（严禁并发——computer-use 单实例）；两路结论落
   `M6-1-01-ACCEPTANCE.md`；FAIL 回注修复批后重走验收。
@@ -540,7 +650,8 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
    （stdout 零污染负测）+ 端点缺席降级指引（门 2/门 3）；无立即退出臂、无转发
    代理（负测：只读臂进程存活 + serve）。【T6】
 4. **OQ 生效值④（GUI 最小只读面）**：banner 常驻 + toast 一次性 + 禁用清单逐项
-   （DECISIONS 机检表 + AX 断言 + MANIFEST 走查）+ 浏览/检索/查看/备份可用 +
+   （DECISIONS 机检表（接线点逐项标注）+ AX 断言 + MANIFEST 走查；含 history
+   导航/版本命令族/paste 接线点——omp E-OMP-1）+ 浏览/检索/查看/备份可用 +
    重试臂持锁者退出后可升级。【T5/T9/门 4】
 5. **OQ 生效值⑤（检查时机与错误面）**：启动 + 每写类调用前 probe（非持有式、
    自持豁免）；`projectReadOnly` additive 一枚（文案携 pid + connect 指引语）；
@@ -552,9 +663,9 @@ M6-1 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
 7. **零回归门**：McpHostTests 原样全绿（宿主锁零 diff）；20 工具封闭集快照族零
    diff；G4 parity 零触；`Project.swift` dependencies 零 diff；QuickLook appex
    零触碰；无 `--project` 无头路径行为逐字节不变（冒烟负测）。【T3/T7/T9】
-8. **SC 数字门**：LIB 654/4/0 + APP 788/4/0 + IOP 688/1/0 定向对表；全套
-   预期 3679..3689/24/0（批准轮对账，基线 3631/24/0 亲核记录在 plan 头；
-   数字 = E1 回注修正——六新文件 53 法，APP +31）。【T10】
+8. **SC 数字门**：LIB 654/4/0 + APP 792/4/0 + IOP 688/1/0 定向对表；全套
+   预期 3683..3693/24/0（批准轮对账，基线 3631/24/0 亲核记录在 plan 头；
+   数字 = E1 + omp E-OMP-1 回注修正——六新文件 57 法，APP +35）。【T10】
 
 ## 风险与边界
 
