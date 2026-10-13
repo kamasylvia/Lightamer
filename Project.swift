@@ -305,6 +305,7 @@ let project = Project(
                 "Tests/LightamerTests/ColormatchIdentityGoldenTests.swift",
                 "Tests/LightamerTests/ColormatchKernelParityTests.swift",
                 "Tests/LightamerTests/ColormatchModuleTests.swift",
+                "Tests/LightamerTests/ColormatchResolverBoxTests.swift",
                 "Tests/LightamerTests/ColorBalanceRGBParityTests.swift",
                 "Tests/LightamerTests/ColorZonesParityTests.swift",
                 "Tests/LightamerTests/CropParityTests.swift",

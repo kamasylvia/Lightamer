@@ -135,7 +135,7 @@ final class ColorMatchService {
     func configure(metal: MetalContext, registry: ModuleRegistry) {
         self.metal = metal
         self.registry = registry
-        ColormatchResolverBox.shared = resolver
+        ColormatchResolverBox.replaceShared(resolver)
     }
 
     /// The session resolver (installed into every colormatch box the
@@ -306,7 +306,7 @@ final class ColorMatchService {
             // The shared-box safety net: any solve wires THIS session's
             // resolver into the factory forward (the app holds ONE service;
             // idempotent with configure()).
-            ColormatchResolverBox.shared = resolver
+            ColormatchResolverBox.replaceShared(resolver)
             let solution = ColorMatchCDFSolver.solve(source: source, reference: pooled)
             resolver.storeCurves(
                 solution, sourceHash: source.statsHash, referenceHash: pooled.statsHash)
