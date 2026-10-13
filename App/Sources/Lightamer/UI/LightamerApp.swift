@@ -1669,12 +1669,15 @@ internal struct LightamerApp: App {
                 Button(String(localized: "menu_undo")) {
                     Task { await pipeCoordinator.undo() }
                 }
-                .disabled(!editorState.canUndo)
+                // M6-1-01 omp E-OMP-1 (d): undo lands a sidecar position
+                // write — read-only disables it (first line of defense; the
+                // EditorState guard is the backstop).
+                .disabled(!editorState.canUndo || libraryProjects.isReadOnly)
                 .keyboardShortcut("z", modifiers: .command)
                 Button(String(localized: "menu_redo")) {
                     Task { await pipeCoordinator.redo() }
                 }
-                .disabled(!editorState.canRedo)
+                .disabled(!editorState.canRedo || libraryProjects.isReadOnly)
                 .keyboardShortcut("z", modifiers: [.command, .shift])
                 Divider()
                 // 09-04 HIST-05 (was the Phase 9 disabled placeholder):
@@ -1689,12 +1692,12 @@ internal struct LightamerApp: App {
                 Button(String(localized: "menu_paste_adjustments")) {
                     Task { await pasteToSelection(selection: nil, mode: .merge) }
                 }
-                .disabled(!pasteboard.hasPayload)
+                .disabled(!pasteboard.hasPayload || libraryProjects.isReadOnly)
                 .keyboardShortcut("v", modifiers: [.command, .shift])
                 Button(String(localized: "menu_paste_partial")) {
                     pastePartialRequested = true
                 }
-                .disabled(!pasteboard.hasPayload)
+                .disabled(!pasteboard.hasPayload || libraryProjects.isReadOnly)
                 Divider()
                 // Plan M2-8-2 T3 (KD-3, D-M2-8-CONTEXT-7): the Copy
                 // Adjustments transfer DIALOG — the three-pane checked
@@ -2245,6 +2248,17 @@ internal struct LightamerApp: App {
         guard let payload = pasteboard.peek(), !payload.instances.isEmpty else {
             return
         }
+        // M6-1-01 omp E-OMP-1 (c): the batch entry's project-face gate —
+        // SessionBatchApplier + batchSidecarWriter land .lra bytes directly,
+        // so a read-only project refuses HERE with the one-shot toast (the
+        // legacy session face stays ungated: no project open = the gate
+        // reads false — the KD-5 m2 two-face split). The live-image leg is
+        // separately backstopped by the EditorState install guards.
+        if Self.batchPasteBlocked(gate: editorState.projectReadOnlyGate) {
+            editorState.presentToast(
+                Self.readOnlyPasteToast(holderPid: libraryProjects.readOnlyHolderPid))
+            return
+        }
         let seed = await seedInstances()
         let targets = browserModel.selectedOrderedPaths
         let sessionRoot = sessionState.currentSessionURL
@@ -2283,6 +2297,24 @@ internal struct LightamerApp: App {
             // No session selection — the current image is the target.
             await pasteLive(payload: payload, selection: selection, mode: mode, seed: seed)
         }
+    }
+
+    // MARK: - M6-1-01 omp E-OMP-1 (c): the batch-paste read-only face
+
+    /// The batch entry predicate: true = the read-only face must refuse the
+    /// paste. Internal + pure so the golden gate asserts the refusal without
+    /// constructing the App struct; `pasteToSelection` consults it with the
+    /// live EditorState gate (nil = writable — the zero-diff default).
+    static func batchPasteBlocked(gate: (() -> Bool)?) -> Bool {
+        gate?() ?? false
+    }
+
+    /// The refusal copy — the banner key family (the read-only open toast's
+    /// exact shape), pid interpolation included.
+    static func readOnlyPasteToast(holderPid: Int32?) -> String {
+        String(
+            localized: "project_read_only_banner",
+            defaultValue: "只读——项目已由另一实例（pid \(holderPid.map(String.init) ?? "未知")）打开")
     }
 
     /// The LIVE paste leg (the currently edited image): compose against
