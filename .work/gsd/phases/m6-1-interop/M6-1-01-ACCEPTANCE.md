@@ -146,11 +146,13 @@
 
 ## 第二路：omp 二次验收（串行，第一路 PASS 后）
 
-- status: **pending**（待 orchestrator 派遣；注意验收树已前移至
-  0f6bdcd7——含 omp 回注批与 zcode 修复 `5d814958`，全套对账值 = **3688**；
-  Manual-Only 行 = 本文件第一路第 4 条移交清单）
-- 结论：
-- 证据：
+- status: **已执行,未及正式落账 → 由最终独立验收吸收收口**（2026-10-14 终验批
+  注记）:omp 走查批实际运行（GUI 走查 8 截图 2026-10-13 15:33-15:39 = `.work/
+  gui-acceptance/m6-1/omp/`;**error 发现 M-OMP-4** = create/move 生产路径缺
+  role 的无锁双写窗,修复以工作树未提交形态遗留在位）。终验 subagent 亲验该
+  修复、补真断言、亲跑 FaceTests 19/0/0 后以 `908526fe` 落库;走查截图经终验
+  目检与 MANIFEST A1/A2/B 相符。**终态正本 = `M6-1-01-ACCEPTANCE-FINAL.md`**
+  （结论头 PASS / 0 error + 0 minor,全套 3689/24/0 亲跑,验收树 `908526fe`）。
 
 ## 处置记录
 
