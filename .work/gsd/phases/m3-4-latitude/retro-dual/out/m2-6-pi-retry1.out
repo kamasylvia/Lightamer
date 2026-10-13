@@ -1,0 +1,75 @@
+[custom-provider] 加载规格缓存: 459 个模型
+[custom-provider] 保存规格缓存: 459 个模型
+报告已写入 `.work/gsd/phases/m2-6-drt/M2-6-ACCEPTANCE-PI.md`。以下为报告全文：
+
+---
+
+# M2-6「DRT」回溯二次验收（PI 路，双路并发终验批）
+
+> 验收：PI 验收员，2026-10-10。零共享上下文——正本三份 ACCEPTANCE 亲读、上一轮 OMP 报告抽查点清单独立重验（不照抄结论）、逐项机检取证。HEAD = `1c96e639`。
+> 对象 = M2-6 三 plans（现行 SHA 范围 `470002f9^..1353d5b7`，22 commits——旧 SHA 纪元已死，见「后演进」A）。
+
+**结论头：PASS / 0 error + 1 minor**
+
+## 逐抽查点证据
+
+### 1. DrtRecord 结构 + 单源三件 + stableHash ✅
+
+- 53 detailed 键：`Graph/DrtRecord.swift:218` CodingKeys 块 `grep -c 'case '` = **53**；顶层键块（:389-403）= 13 case，扣除嵌套组 `parameters` = **12 顶层**（method + 11 snake_case，与申报逐键同名）。
+- 单源三件全仓唯一定义：`legalEOTFs`（:448）、`isHdrEncoding`（:463）、`isDrtRecordDefault`（:473）——`grep -rn` App/ LightamerCore/（排除 Tests）仅命中 DrtRecord.swift 三行。
+- stableHash（:429-437）= `JSONEncoder[.sortedKeys]` → `StableHash.hash(data)`（FNV-1a 64）。
+- rawValue 对表 Alcedo 亲验（本路独立抽 5 值）：`aces_2_0`/:39 ↔ `drt_node_model.cpp:26`、`open_drt`/:41 ↔ :26、`p3_d65`/:49 ↔ :38、`gamma_2_6`/:69 ↔ :64、`bt1886`/:72 ↔ :66——全符。
+
+### 2. TerminalTailPolicy 三臂 + 尾段序 + 平面格式 ✅
+
+- 三臂穷举：`Pipe/PixelPipe.swift:1614-1631`（`.sdrGamma`/`.edrLinear`/`.drt(DrtTailParams)`；位移 1483→1614 = 后演进 film 缝前置，见「后演进」C）。
+- 尾段序：装配注释 :1713「74 → post slots 74.1+ → 75 → 76 → 77」+ `TailOrderedBox` slotOrder = `74.0 + Float(index+1)*0.1`（:1743）；`DrtMethodBox.iopOrder=74.0`（:1832）、`EotfBox.iopOrder=75.0`（:1930）。
+- E5 键折叠：seed 折 post 集身份（非空才折，`guard !params.postOpNames.isEmpty` :1730）——与上一轮「集身份非参数值、T5 commit body 已申报」记载一致。
+- 平面格式纪律：`tailPixelFormat(at:)`（:346-382）亲读——EOTF box 起 `DrtTailDisplay.format`（:1661-1671：HDR→rgba16Float、linear→working float32、余→gamma 8-bit）；**EOTF 之前（method + post replay）恒 `WorkingSpace.pixelFormat`**（:369-371）；主链顶面默认 float32（P1 display-format-for-top 分支 retired，:373-381 注释在案）。`tailFormatFloatOverride` = M2-9 后演进缝，注明不记账。
+
+### 3. 持久化四件 + HistoryHash 末位折叠 ✅
+
+- carrier：`App/.../UI/Shell/WorkspaceModel.swift:249` per-url `drtRecords`（默认 record `removeValue` :269-271 不入 map）。**写腿** `PipeCoordinator.swift:577-585`（非当前图跳过 + `scheduleSidecarWrite()`）；**恢复腿** :598-608（nil 零动作 / 失配 error 日志 + field wins / 同 session 跳过）；**run 传点** `terminalTailPolicy(for:)` :656-670（thumbnail 双分支恒 legacy；postOpNames App 侧注入）。
+- HistoryHash：现位 `Pipe/History/HistoryStack.swift:548-583`——drtRecord.stableHash() 末位折入（:572），filmRecord :577 = M3-3 后演进 additive（default nil，无 drt item 档零折叠位等注释在册）。
+
+### 4. HDR 视口终式 + follow gate ✅
+
+- `EditorMTKView.swift:431-432` `followGateActive = !edrActive && !drtTailActive`，draw 唯一调用点 :529。
+- `drtLayerColorSpace`（:732-760）：st2084/hlg → rec2020=`itur_2100_PQ/HLG`（:739）、p3d65=`displayP3_PQ/HLG`（:741-742）、余四空间 rec709 侧同 itur_2100（:743-744）；linear→`extendedLinearSRGB`（:748）；SDR 幂组 calibrated 面（:750+）。`srgbPiecewise`（:758-766）= M4-1 后演进 additive，不记账。
+
+### 5. 许可红线 ✅
+
+- 仓根 `NOTICE`（5341B，较 M2-6 时 4901B 增长 = 后演进新条目）：jedypod/open-display-transform v1.1.0 条目（:12-13）+ aces-core 条目（:37-45，SHA `069b0bc3…`、Apache-2.0）在位；`third_party_licenses/aces-core-LICENSE-Apache-2.0.txt` 11356B 在位。
+- 四移植文件头注（现位 `Pipe/Drt/`，后演进位移）：`Cam16.swift:20-21`、`Aces2Limiting.swift:17`、`Aces2Reference.swift:11`、`Aces2Kernels.metal:9` 全带「Portions Copyright Contributors to the ACES Project; Apache-2.0; see NOTICE」。
+
+### 6. git 机检（含本路独立发现）✅
+
+- **旧 SHA 纪元全灭（本路核心机检）**：`git rev-parse --verify` + `git cat-file -t` 亲测——上一轮报告引用的全部范围 SHA（7c2d5de/979ea15/b6e1f38/1580f08/4beb632…）**对象整体缺席**（非仅解引用失败）；AGENTS.md 全部旧引用 SHA（70e09e5/2fee806/e9c03af/c5f5dce/4e7fc58）同灭，唯 `633378b`（M4-2-02，2026-10-10）存活 → 单次历史改写（root ≤ 2026-09-30，完成于 2026-10-10 前）。
+- **现行范围重建**：按 subject 定位 `470002f9`（= 旧 7c2d5de「drt record schema with eotf linkage」）/`2654d5d2`（= 旧 b6e1f38「migrate post four」）/`1353d5b7`（phase 收口）；`git log 470002f9^..1353d5b7 | wc -l` = **22**，与上一轮「22 commits」口径吻合。
+- 抽 commit 文件清单：`470002f9` = 4 文件（BUNDLE-MAP + DrtRecord.swift 468 行 + Project.swift + DrtRecordTests 327 行）；`2654d5d2` = 8 文件（PipeCoordinator 8 行 + EditorTabRoute 22 + PixelPipe 177 + xcstrings −17 + DrtPostMigrationTests 349 行新 + …）——与上一轮引用的两 commit 抽查逐项一致。
+- 注册面零 diff：`git log 470002f9^..1353d5b7 -- Registry.swift NodeOwnershipCatalog.swift` = **0**；`git diff --stat` over `LightamerIOP/` = **空**；`defaultFaceDisabledOpNames` 现态（Registry.swift:39-50）= filmic/sigmoid/agx + denoise 三件原地。
+
+### 7. 测试计数（不重跑，引用正本终值 + BUNDLE-MAP 现值）✅
+
+- 首验三域终值（M2-6-1: 2402 基线 / M2-6-2: 2435 / M2-6-3: 2464）不重跑（约束纪律）。BUNDLE-MAP 现值：DrtRecordTests=17（:330）、DrtTailTests=14（:334）、DrtPresetsTests=11、DrtPostMigrationTests=7、DrtPersistenceTests=7、DrtViewportTests=7、Aces2MathTests=28——与上一轮实测计数（17/14）一致；DrtEotfTests 13→15 = M4-1 srgbPiecewise 后演进增量，不记账。
+
+## 后演进差异注记（逐处「后演进，不记账」）
+
+- **A. 历史改写跨纪元**：旧 SHA 对象全灭、subject 全保留、内容级证据链经新 SHA 全部复验成立——上一轮报告的 git 证据引用已死链，但**结论全部在新纪元下复现**。影响 = 一切 ≤ M4-1 的旧 SHA 引用永久失效（后续验收轮应改引 subject 或新 SHA）。
+- **B. 文件位移**：HistoryStack → `Pipe/History/`、WorkspaceModel → `App/.../UI/Shell/`、Aces2*/Cam16/OpenDrt*/DrtPresets → `Pipe/Drt/`——结构与内容零变化（本路逐文件读码亲证），仅路径。
+- **C. M3-3 film 共享序**：`runTerminalTails`（PixelPipe.swift:1101）现承载 film → DRT tail → display replay 共享序（:886-890 注释明言 nil filmTail = byte-identical）；M2-6 本体的三臂/尾段序/格式面不受扰（亲读 §2）。
+- **D. NOTICE 增长 + xcstrings 增量**：均为后续 phase additive。
+
+## 分歧项
+
+- 无实质分歧。上一轮报告全部抽查点经本路独立取证全部成立；其遗漏处仅一条（非误判）：**未报告旧 SHA 纪元已死**——其报告（2026-10-09）写作时 SHA 或仍存活（改写完成于 10-10 前），属时间窗问题，不计其误判。
+
+## Findings（0 error + 1 minor）
+
+- **P1（minor，注记，延续上一轮 O1）**：st2084 decode 5e-5 升带 numpy 仿算佐证仍未落独立文件——本路同样未重做仿算（读码确认 DECISIONS §D2/§D4 数学论证在册 + 首验已独立复现同机制同量级）。不阻塞；建议触 EOTF 容差的后续 phase 顺手补归档。
+
+## FAIL 明细与可修性
+
+- 无（PASS）。
+
+PI-VERDICT: PASS

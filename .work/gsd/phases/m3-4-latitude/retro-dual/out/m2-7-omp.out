@@ -1,0 +1,53 @@
+Working...
+# M2-7 ACCEPTANCE-OMP-R2 — 蒙版双路并发终验（OMP 路）
+
+> 验收员：OMP（零共享上下文）。日期 2026-10-10。HEAD `1c96e639`。方法 = 三正本 + 上轮 OMP 报告亲读 + 9 抽查点独立机检取证（读码/grep/git/python 计数），零测试复跑，结论引用首验终值。
+> 结论头：`PASS / 0 error + 1 minor`
+
+## 一、抽查点证据（独立重验上轮 ≥4 项，实际 9 项）
+
+### 1. 熔断态 ✅（与上轮 §二-1 逐项吻合；行号漂移=后演进）
+- App 单点 `LayerEditingState.swift:195` = `FollowEdgesParams(mode: .snap)`（上轮 :193；+2 行 = M4-2 parked 注记追加，后演进不记账）。
+- Core 缺省 `FollowEdges.swift:66` 仍 `.streamline`；双臂 `:108-109` 在位；`default:` 全文件 grep 零命中。
+- 选择器 `MaskToolbarView.swift:219-220` 双 tag 绑 `followEdgesParams.mode`（上轮 :210-214，漂移同因）。
+- AGENTS.md:323 熔断注记 + :326 V2 删除终裁（回落 M2-7 基线）互洽——现态 = 熔断基线。
+
+### 2. bump 写点 8 处 ✅（与上轮 §二-7 逐值一致）
+- grep `bumpContentRevision\(\)`：定义 `MaskSpec.swift:388` + 调用 7 处（`AIMaskEditing:189` / `EditorState:754` / `LayerEditingState:408,431,516,546` / `MaskOverlayHost:843,860`），归因与上轮一一对应，零申报外写点。行号漂移=后演进。
+
+### 3. probe.log ✅（48 行关键值逐值复核一致）
+- `:2` FIELD max=0.4941/mean=0.01801/p99=0.1808；`:3` COLD median 6.3/min 6.1/max 7.3；`:4` WARM empty=82/100 avgPts=0.2。
+- 8 景盒 ×2 阈值 stream n≤3（A 系 n=3 最大，余 0-2）；`:42-45` DIAG functionalChains=0/3；`:47` FULL 73.7ms。与上轮引数逐值一致。
+
+### 4. incident.log ✅（9 行逐值一致）
+- `TOTAL|2179/16/0|764s`；IOPParity 16/3/0 截断（16+346=362 闭合）；余六 bundle `467/1、298/3、430/4、279/4、260/1、429/0` 逐值吻合。
+
+### 5. git 机检 ✅（subject 映射成立；SHA 体系再次过期见 minor）
+- 上轮 SHA `59ac74f`/`8d67b5d` 现 `git show` 报 unknown revision（历史再压缩，后演进）。
+- subject 映射：`d10f6817 chore(m2-7): follow edges default to snap mode` = 单文件 6+/2-；`d84dc2a8 feat(core): follow edges walker…` = 六文件 725+/1-。与上轮 §二-5 申报精确吻合。
+
+### 6. zh 52 键 ✅（全族机检 52/52）
+- 按 M2-7-2-DECISIONS §五清单（面板 14+Range 12+FE 8+Behavior 5+命令 12+AI 1）逐键查 `Resources/Localizable.xcstrings`：`missing [] emptyzh []`。catalog 总量 1900（上轮 1822，增量=后演进）。
+
+### 7. E5 校验次序 ✅（读码吻合）
+- `MaskOverlayHost.swift:765` press 后快照 + `:787-788` mutate 兜底 + `:830-831` 先 `matchesExpected` 门 → 相等 `:860` bump 后 commit；失配 append 重放 / mutate-only 拒绝。与首验 §二②逐段吻合。
+
+### 8. 白名单 + 双羽化单源 ✅（读码吻合）
+- `panelMenuCases` 五项 `LayerEditingState:109-111` + 唯一消费 `LayersPanelView:396`；`MaskCommand.allCases` 全仓零消费（仅 `MaskTool.allCases` 正确裸消费）。
+- kernel 分流 `MaskRasterKernels.metal:171` + `hasDualFeather` `MaskSpec:148-150` + `matchesExpected` `:409-411` 均在位。
+
+### 9. evidence 在档 + 教训登记 ✅（1 口径澄清见分歧项）
+- `find evidence -type f` = 16（m2-7-2 三张 + m2-7-3 十三：9 顶层 + probe 4）。probe 三源码 + log 齐。
+- AGENTS.md:329 误杀教训在位（含 `ps -o ppid` parentage 口径）。
+- `test-direct.sh` 内 `ppid/parent` grep 零命中——parentage 止于文档纪律，脚本无防护面（首验/上轮均未声称有，不记账，见分歧项）。
+
+## 二、分歧项（与上轮报告）
+- 实质分歧：无。熔断语义、bump 归因、证据数字、commit 文件集、zh 族账五面全部成立。
+- 澄清 1（非分歧）：上轮「probe 三源码共 16 文件」之 16 = 全 evidence 树计数（m2-7-2 三张 + m2-7-3 十三），m2-7-3 单目录实为 13 文件。总数真值无误，仅限定语补足。
+- minor ×1（文档时效延续，与上轮 minor 同类）：上轮 §二-5 引用的新 SHA 体系（`59ac74f`/`8d67b5d`）本次已不可解析，需经 subject 二次映射（`d10f6817`/`d84dc2a8`）。交付态零影响；是否补 SHA 映射表由 orchestrator 定。可修性：小修（文档附表）。
+- 范围注记回执：test-direct.sh 无 parentage 脚本防护——属流程纪律面（AGENTS 登记即交付），非 M2-7 交付缺口，不记账。
+
+## 三、会话卫生
+- 只读遵守：除本报告零写入；零测试复跑（引用首验 TOTAL|2525/16/0|877s + 上轮定向 8/0/0、9/0/0）；零网络动作。
+
+OMP-VERDICT: PASS

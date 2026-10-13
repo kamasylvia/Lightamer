@@ -11,7 +11,7 @@ mkdir -p "$D/prompts" "$D/out"
 cd "$WS" || exit 9
 perl -e 'alarm shift; exec @ARGV' 600 omp -p --auto-approve --thinking max "$(cat "$D/prompts/$slug-omp.txt")" > "$D/out/$slug-omp.out" 2>&1 &
 p1=$!
-perl -e 'alarm shift; exec @ARGV' 600 pi -p -a --thinking max "$(cat "$D/prompts/$slug-pi.txt")" > "$D/out/$slug-pi.out" 2>&1 &
+perl -e 'alarm shift; exec @ARGV' 600 pi -p -a --model opencode-go/glm-5.3 --thinking high "$(cat "$D/prompts/$slug-pi.txt")" > "$D/out/$slug-pi.out" 2>&1 &
 p2=$!
 wait $p1; e1=$?
 wait $p2; e2=$?
