@@ -1853,6 +1853,11 @@ final class PipeCoordinator {
     /// cheaply (all cache hits).
     func jumpToHistory(_ index: Int) async {
         guard let editorState else { return }
+        // M6-1-01 omp E-OMP-1 (a): a read-only face never jumps — beyond
+        // EditorState's backstop guard, the sidecar tail below MUST skip:
+        // makeSidecarDocument touches the active version slot's updatedAt,
+        // so a blocked jump would still land a real `.lra` mutation.
+        if editorState.projectReadOnlyGate?() == true { return }
         editorState.performJump(to: index)
         syncDrtCarrierWithHistory()
         syncFilmCarrierWithHistory()
