@@ -1,0 +1,19 @@
+BUNDLE|IOP|684/1/0|peakRSS=5360MB|499s|sampling=time
+BUNDLE|IOPParity|460/3/0|peakRSS=7311MB|744s|sampling=time
+BUNDLE|Layers|466/4/0|peakRSS=1174MB|168s|sampling=time
+BUNDLE|Library|654/4/0|peakRSS=615MB|77s|sampling=time
+BUNDLE|Sessions|279/4/0|peakRSS=1622MB|73s|sampling=time
+BUNDLE|Export|353/4/0|peakRSS=6095MB|201s|sampling=time
+BUNDLE|App|792/4/1|peakRSS=2832MB|403s|sampling=time
+  ↳ App FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-App.log
+Test Case '-[LightamerTestsApp.ProjectReadOnlyFaceTests testVersionCoordinatorGateRejectsWriteCommands]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ProjectReadOnlyFaceTests.swift:459: error: -[LightamerTestsApp.ProjectReadOnlyFaceTests testVersionCoordinatorGateRejectsWriteCommands] : XCTAssertEqual failed: ("Optional("版本 1")") is not equal to ("Optional("V2")") - a read-only rename must not land
+Test Case '-[LightamerTestsApp.ProjectReadOnlyFaceTests testVersionCoordinatorGateRejectsWriteCommands]' failed (4.953 seconds).
+Test Suite 'ProjectReadOnlyFaceTests' failed at 2026-10-13 15:01:13.373.
+--
+Test Suite 'YiyinSheetSizingTests' passed at 2026-10-13 15:01:57.886.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 2.190 (2.195) seconds
+Test Suite 'LightamerTestsApp.xctest' failed at 2026-10-13 15:01:57.887.
+	 Executed 792 tests, with 4 tests skipped and 1 failure (0 unexpected) in 393.892 (394.437) seconds
+Test Suite 'All tests' failed at 2026-10-13 15:01:57.887.
+TOTAL|3688/24/1|2165s
