@@ -427,20 +427,57 @@ final class SessionIndexController {
     /// source (a holder probing its own lock would EWOULDBLOCK).
     var holdsSessionLock: Bool { sessionLock != nil }
 
-    /// ④ the real sync leg: open + scan + single-transaction diff.
-    func openAndSync(root: URL) async -> SessionCoordinator.SessionOpenSyncResult {
-        // M6-1-01: acquire the session-root lock BEFORE the index open (the
-        // same acquire-before-any-write ordering the project lock uses).
+    /// The registry key this controller's `sessionLock` was taken under
+    /// (the standardized root path; nil = no seat / the ioError degrade).
+    private var sessionLockKey: String?
+
+    /// The in-process live session locks, keyed by the standardized root
+    /// path (M6-1-01 acceptance fix). Darwin flock(2) arbiters per OPEN
+    /// FILE DESCRIPTION, so a second `openAndSync` on an already-open root
+    /// — same controller re-sync, or a second controller instance — would
+    /// EWOULDBLOCK against OUR OWN pid's fd and self-report the foreign-
+    /// instance conflict face. The payload's pid IS the writer identity:
+    /// same process = same writer, so the registry hands the LIVE lock
+    /// object to the re-opening controller instead of taking a second fd.
+    /// Cross-process arbitration is untouched (no entry in THIS process =
+    /// the real acquire, and a foreign holder still EWOULDBLOCKs it).
+    /// MainActor-confined: every touch site (openAndSync / close) is on
+    /// the @MainActor class.
+    private struct LiveSessionLockEntry {
+        let lock: SingleWriterLock
+        var holders: [ObjectIdentifier]
+    }
+
+    private static var liveSessionLocks: [String: LiveSessionLockEntry] = [:]
+
+    /// Stand up this controller's seat. The same-root reopen path shares
+    /// the registered live lock; a fresh root acquires (the real five-state
+    /// arbitration — heldByOther stays the typed conflict face).
+    private func acquireSessionLockSeat(for root: URL) -> Bool {
+        let key = root.standardizedFileURL.path
+        releaseSessionLockSeat()
+        if var entry = Self.liveSessionLocks[key] {
+            // In-process reuse: our own process already holds this root.
+            sessionLock = entry.lock
+            sessionLockKey = key
+            entry.holders.append(ObjectIdentifier(self))
+            Self.liveSessionLocks[key] = entry
+            return true
+        }
         switch SingleWriterLock.acquire(
             at: root.appendingPathComponent(".lightamer")
                 .appendingPathComponent("session.lock"))
         {
         case .success(let acquired):
             sessionLock = acquired
+            sessionLockKey = key
             acquired.writePayload(
                 SingleWriterLockPayload(
                     role: .gui, pid: getpid(),
                     startedAt: SingleWriterLockPayload.nowISO8601()))
+            Self.liveSessionLocks[key] = LiveSessionLockEntry(
+                lock: acquired, holders: [ObjectIdentifier(self)])
+            return true
         case .failure(.heldByOther):
             let lockPath = root.appendingPathComponent(".lightamer")
                 .appendingPathComponent("session.lock")
@@ -451,13 +488,49 @@ final class SessionIndexController {
                 String(
                     localized: "session_lock_held",
                     defaultValue: "该照片文件夹已由另一 Lightamer 实例打开（\(summary)）。关闭那个实例后重试。"))
-            return SessionCoordinator.SessionOpenSyncResult(failed: true)
+            return false
         case .failure(.ioError(let reason)):
             Self.logger.error(
                 "session lock acquire failed: \(reason, privacy: .public)")
             // The lock is a concurrency discipline, not data: an I/O
             // failure here degrades to the legacy unlocked behavior rather
             // than bricking folder opens (DECISIONS M6-1-01 note).
+            sessionLock = nil
+            sessionLockKey = nil
+            return true
+        }
+    }
+
+    /// Give the seat back. The flock unlocks only when the LAST in-process
+    /// holder stands up (an abandoned controller never blocks its successor).
+    private func releaseSessionLockSeat() {
+        guard let held = sessionLock else { return }
+        defer {
+            sessionLock = nil
+            sessionLockKey = nil
+        }
+        guard let key = sessionLockKey,
+            var entry = Self.liveSessionLocks[key],
+            let index = entry.holders.firstIndex(of: ObjectIdentifier(self))
+        else { return }
+        entry.holders.remove(at: index)
+        if entry.holders.isEmpty {
+            Self.liveSessionLocks.removeValue(forKey: key)
+            held.unlock()
+        } else {
+            Self.liveSessionLocks[key] = entry
+        }
+    }
+
+    /// ④ the real sync leg: open + scan + single-transaction diff.
+    func openAndSync(root: URL) async -> SessionCoordinator.SessionOpenSyncResult {
+        // M6-1-01: acquire the session-root lock BEFORE the index open (the
+        // same acquire-before-any-write ordering the project lock uses).
+        // The seat registry makes the SAME-PROCESS reopen share the live
+        // lock instead of self-conflicting (flock per open file
+        // description); a foreign holder still lands the conflict face.
+        guard acquireSessionLockSeat(for: root) else {
+            return SessionCoordinator.SessionOpenSyncResult(failed: true)
         }
         let store = SessionIndexStore(sessionRoot: root)
         self.store = store
@@ -499,8 +572,7 @@ final class SessionIndexController {
             await store.close()
             self.store = nil
             sessionRootURL = nil
-            sessionLock?.unlock()
-            sessionLock = nil
+            releaseSessionLockSeat()
             return SessionCoordinator.SessionOpenSyncResult(failed: true)
         }
     }
@@ -511,9 +583,10 @@ final class SessionIndexController {
         store = nil
         sessionRootURL = nil
         // M6-1-01: the ride-along lock releases with the session (kernel
-        // release on process death remains the crash leg).
-        sessionLock?.unlock()
-        sessionLock = nil
+        // release on process death remains the crash leg). The seat
+        // registry keeps the flock alive while any other in-process
+        // controller still holds the same root.
+        releaseSessionLockSeat()
     }
 
     /// The open session's root (Plan 14-2 — see `currentSession`).
