@@ -38,7 +38,7 @@ signed: ""
 
 | SC | 判据 | 终态 |
 |---|---|---|
-| **IOP-PANO-01** | 全景合成——特征匹配对齐 + 相机参数优化 + 球面投影 + 分块羽化融合，输出 100MP+ 大图入正常编辑管线；v1 合成族之外的新合成模式 | **Delivered**：①自实现特征链（DoG 多尺度 + 128 维定向描述子 + knn Lowe 0.3 + RANSAC 3px/3000 + BFS 连通门，OQ-1；PanoRNG LCG 种子 121 单流确定性全握，OpenCV 零入仓，Lumen MIT 语义移植注记）②单焦 f + N×R LM BA（3N+1）+ 横向 wave correct（OQ-2；typed 收敛门 + N=2 退化守底）③全链 sRGB 编码 float32 + sRGB-tagged 32f TIFF 落盘 → M4-1 raster ingest（OQ-3；REAL 域判别在册）④200MP 画布帽 + 2..32 张 + 8G ru_maxrss 机检（OQ-4；196MP/8 源探针 RSS 5033-5653MB）⑤恒 inner_crop 直方图栈 + alpha 不写 + `_pano` 分账 + provenance details 三字段（OQ-5）⑥v1 全 CPU 零 `.metal`（OQ-6；NO GATE，越门 GPU 另立项）⑦`.pano` additive 第七 case + Session legacy 菜单第三项 + 简形 sheet 零控件（OQ-7；预览画布/参考帧手选/use_edits 挂 V2）——锚 = Pano*Tests 九文件 + PanoMergeKindTests + PanoMergeUITests（01+02+03 合计 88 法 + MergeUI 5 = 93 法） |
+| **IOP-PANO-01** | 全景合成——特征匹配对齐 + 相机参数优化 + 球面投影 + 分块羽化融合，输出 100MP+ 大图入正常编辑管线；v1 合成族之外的新合成模式 | **Delivered**：①自实现特征链（DoG 多尺度 + 128 维定向描述子 + knn Lowe 0.3 + RANSAC 3px/3000 + BFS 连通门，OQ-1；PanoRNG LCG 种子 121 单流确定性全握，OpenCV 零入仓，Lumen MIT 语义移植注记）②单焦 f + N×R LM BA（3N+1）+ 横向 wave correct（OQ-2；typed 收敛门 + N=2 退化守底）③全链 sRGB 编码 float32 + sRGB-tagged 32f TIFF 落盘 → M4-1 raster ingest（OQ-3；REAL 域判别在册）④200MP 画布帽 + 2..32 张 + 8G ru_maxrss 机检（OQ-4；196MP/8 源探针 RSS 5033-5653MB）⑤恒 inner_crop 直方图栈 + alpha 不写 + `_pano` 分账 + provenance details 三字段（OQ-5）⑥v1 全 CPU 零 `.metal`（OQ-6；NO GATE，越门 GPU 另立项）⑦`.pano` additive 第七 case + Session legacy 菜单第三项 + 简形 sheet 零控件（OQ-7；预览画布/参考帧手选/use_edits 挂 V2）——锚 = Pano*Tests 九文件 + PanoMergeKindTests + PanoMergeUITests（01+02+03 合计 85 法 + MergeUI 5 = 90 法；zcode 验收批 grep 复核更正——原 88/93 系 BUNDLE-MAP Gain/Leg 错记口径的陈旧算术，Gain 13/Leg 12 实数见 02-ACCEPTANCE m-a） |
 
 ## 七门全表（G1..G6 + 预算门；OQ 终验面落位）
 
