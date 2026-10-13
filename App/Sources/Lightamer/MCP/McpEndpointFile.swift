@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import LightamerCore
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan 14-1 T3 (research §RQ-14-2 / §RQ-14-3②): the single-writer machinery.
@@ -76,6 +77,13 @@ struct McpEndpointInfo: Codable, Equatable, Sendable {
 /// An owned flock. The file descriptor stays open for the object's lifetime —
 /// the lock releases on `unlock()` OR process death (whichever comes first;
 /// the kernel is the sole arbiter, there is no residue to clean).
+///
+/// M6-1-01 (KD-1): the implementation now DELEGATES to the Core-level
+/// `SingleWriterLock` generalization (LightamerCore/Foundation) — every
+/// public signature, the five-state header discipline and the observable
+/// behavior are unchanged (the zero-diff gate = McpHostTests green
+/// untouched). This App-side wrapper keeps the `McpEndpointPaths`-shaped
+/// call sites and the endpoint machinery's vocabulary intact.
 final class McpEndpointLock: @unchecked Sendable {
 
     enum AcquireError: Error, Equatable {
@@ -84,64 +92,47 @@ final class McpEndpointLock: @unchecked Sendable {
         case heldByOther
         /// Opening/locking failed for a real I/O reason.
         case ioError(String)
+
+        /// M6-1-01: mirror the Core error into this file's own vocabulary
+        /// (the existing call sites pattern-match THESE cases).
+        static func from(_ core: SingleWriterLock.AcquireError) -> AcquireError {
+            switch core {
+            case .heldByOther: .heldByOther
+            case .ioError(let reason): .ioError(reason)
+            }
+        }
     }
 
-    private let fileDescriptor: Int32
-    private let path: String
+    private let inner: SingleWriterLock
 
-    private init(fileDescriptor: Int32, path: String) {
-        self.fileDescriptor = fileDescriptor
-        self.path = path
+    private init(inner: SingleWriterLock) {
+        self.inner = inner
     }
 
     /// Tries one non-blocking EX flock. Blocking waits do not exist in this
     /// design: you are the writer, or you are read-only, immediately.
     static func acquire(in paths: McpEndpointPaths) -> Result<McpEndpointLock, AcquireError> {
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: paths.directory.path) {
-            do {
-                try fm.createDirectory(
-                    at: paths.directory, withIntermediateDirectories: true)
-            } catch {
-                return .failure(.ioError("mkdir \(paths.directory.path): \(error)"))
-            }
+        switch SingleWriterLock.acquire(at: paths.lockURL) {
+        case .success(let inner):
+            return .success(McpEndpointLock(inner: inner))
+        case .failure(let error):
+            return .failure(.from(error))
         }
-        // O_RDWR (not O_CREAT-exclusive — the lock file itself is a fixture,
-        // flock is the mutual-exclusion primitive).
-        let fd = open(paths.lockURL.path, O_RDWR | O_CREAT, 0o600)
-        guard fd >= 0 else {
-            return .failure(.ioError("open \(paths.lockURL.path): errno \(errno)"))
-        }
-        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
-            let heldByOther = errno == EWOULDBLOCK || errno == EAGAIN
-            close(fd)
-            if heldByOther {
-                return .failure(.heldByOther)
-            }
-            return .failure(.ioError("flock \(paths.lockURL.path): errno \(errno)"))
-        }
-        return .success(McpEndpointLock(fileDescriptor: fd, path: paths.lockURL.path))
     }
 
     /// Whether a writer right is IMMEDIATELY available WITHOUT keeping it
     /// (the discovery probe's stale-residue test: a successful probe means
     /// nobody alive holds the lock, so a json on disk is residue).
     static func probeLockAvailable(in paths: McpEndpointPaths) -> Bool {
-        let fd = open(paths.lockURL.path, O_RDWR | O_CREAT, 0o600)
-        guard fd >= 0 else { return false }
-        defer { close(fd) }
-        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { return false }
-        flock(fd, LOCK_UN)
-        return true
+        SingleWriterLock.probeLockAvailable(at: paths.lockURL)
     }
 
     /// Releases the writer right (idempotent through the fd lifecycle).
     func unlock() {
-        flock(fileDescriptor, LOCK_UN)
-        close(fileDescriptor)
+        inner.unlock()
     }
 
-    var lockPath: String { path }
+    var lockPath: String { inner.lockPath }
 }
 
 // MARK: - The discovery file
