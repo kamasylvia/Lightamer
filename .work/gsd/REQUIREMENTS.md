@@ -3,7 +3,7 @@
 **Defined:** 2026-08-03
 **Core Value:** 在 macOS 上用 Metal 加速提供 100MP+ 大图下零延迟的 RAW 调整体验，并让 Capture One Session 工作流与 Darktable 级调整深度在同一原生 app 中共存。
 
-> ⚠️ **2026-09-27 项目重定义（用户指令）**：产品目标改为 **macOS 独占、RAW 9 解码、UI 完全模仿 Alcedo Studio 的 Alcedo 克隆**；dt 独有已交付代码保留但默认不启用；图片管理改 Alcedo 方式（Sessions/Catalogs 剥离）；导出格式保留原矩阵、可选项按 Alcedo；水印相框保留 yiyin；蒙版 = Alcedo + Nitro Photo（不用 dt 方案）；以上全部属 **V1**。**下方既存 v1 Requirements 为里程碑 1 历史账（已交付面照旧有效，交付面被剥离者标 disabled）**；新 V1 需求家族待 `ALCEDO-FEATURE-MAP.md` 测绘落盘后统一登记（ROADMAP M2-0），本文件暂不重写历史节。V2 节 ALCE-01/04/05/06/07 随重定义**提级 V1**；ALCE-02（OpenEXR）/ALCE-03（Ultra HDR JPEG）维持 V2（用户：导出格式保留原方案）。
+> ⚠️ **2026-09-27 项目重定义（用户指令）**：产品目标改为 **macOS 独占、RAW 9 解码、UI 完全模仿 Alcedo Studio 的 Alcedo 克隆**；dt 独有已交付代码保留但默认不启用；图片管理改 Alcedo 方式（Sessions/Catalogs 剥离）；导出格式保留原矩阵、可选项按 Alcedo；水印相框保留 yiyin；蒙版 = Alcedo + Nitro Photo（不用 dt 方案）；以上全部属 **V1**。**下方既存 v1 Requirements 为里程碑 1 历史账（已交付面照旧有效，交付面被剥离者标 disabled）**；新 V1 需求家族待 `ALCEDO-FEATURE-MAP.md` 测绘落盘后统一登记（ROADMAP M2-0），本文件暂不重写历史节。V2 节 ALCE-01/04/05/06/07 随重定义**提级 V1**；ALCE-02（OpenEXR）/ALCE-03（Ultra HDR JPEG）维持 V2（用户：导出格式保留原方案）。〔2026-10-16 M6 立项批更新：ALCE-03 随 LightCraft 裁决②**解冻 → M6-3**（ImageIO auxiliary 原生路先试）；ALCE-02 维持 V2 原位挂账〕
 
 ## V1 Requirements — Milestone 2: Alcedo V1（2026-09-27 重定义；✅ D1-D6 已签核全按推荐，M2-1 起可执行）
 
@@ -400,6 +400,15 @@ Deferred to future release. Tracked but not in current roadmap.
   - [x] **Delivered（M3-1-01，2026-10-08）**：编码目录 17 条表驱动（scene 11 = camera log 10 + linear working 1 + display 6，KD-1）+ 传递曲线 Float64 正逆函数族（`LutEncodingCatalog` / `LutTransferMath`，公开标准公式，golden = 各标准公开参考值；gamut 矩阵 Bradford 自算非手抄）+ Params additive 编码对（nil = working 直通逐字节保现状，旧档 paramsHash 零漂移专测）+ 宿主侧复合表重烘焙（零新 kernel，Alcedo `Compose` :273 同构方向，LRU 16 + bakeCount 可观测 + stateLock）+ 库内逐 LUT 记忆三层序 + 内置 40 张 seeder 补标 {arri_logc4_awg4, rec709_bt1886}（adoption 路径盖章）+ 面板双 Picker（scene/display 分组 + 记住 Toggle）。**交付注记：新选内置 LUT 的观感变化 = 偏差修正非回归**（补标前 = log 表按线性直套的系统性偏差本体；既有文档按三层序停在旧渲染）。**FSIM-01 软前置交付物 = 目录 + 曲线族即 M3-3 消费面**。测试新增 37（IOPP 31 + LIB 6 + APP 5，口径 = Lut3dEncodingTests.swift 两类 24 + FullChain 2 + LIB 6 + APP 5）+ 既有 LUT 族零 diff 全绿（IOP 471/1/0 逐位基线）。
 - **注记（非需求）**：OCIO ACES 2.0 reference forward transform（上游 `8f8e712`）= M2-6 aces-core 移植的交叉验证测试资产机会，规划 parity 测试时取用；图库编辑时间分组（#276）/后台任务岛（#275）= UI parity 参照，不立项。
 
+### M6 Interop & Library Hardening (M6INT) — LightCraft 六裁决点（2026-10-16 M6 立项批登记）
+
+来源 = `.work/gsd/research/LIGHTCRAFT-NOTES.md` §六（用户回批 2026-10-11 全按推荐采纳）；家族正本 = ROADMAP §Milestone 6。许可面 = LightCraft **MIT OR Apache-2.0 双许可**——代码级移植合法（与 darktable GPL-3.0「只读参考不复制」红线不同级），成段移植仍须 NOTICE 归属同 commit 登记。MCP-09-A 与 ALCE-03 两件为原位注记（见 MCP-09 / ALCE-03 行），不重复立 ID。
+
+- **M6INT-01**: per-photo process version——`.lra` additive 可选 `process` 键：改观感的 iop 语义变更必须开新 process 号 + 旧号冻结（老照片渲染零漂移直至显式迁移）+ legacy 缺键不序列化语义（HistoryHash/缓存键逐字节不变，LightCraft hash64 技巧同构）—— **→ M6-2**（2026-10-16；设计前瞻 = `phases/m6-1-interop/RESEARCH-NOTES.md` process version 节）
+- **M6INT-02**: 图库 stacks + auto-stack——`.lalb` 手动堆叠（封面/展开/收起 + 网格堆叠徽章）+ 拍摄时间间隔聚类自动堆叠（burst/bracket）；schema 迁移 plan 期定 —— **→ M6-4**（2026-10-16；裁决⑤：smart albums 次之、挑片视图/watched folders 挂账不立项）
+- **M6INT-03**: AI 分割蒙版原生 spike——对照 Phase 7 AI-01 已交付面（`VNGenerateForegroundInstanceMaskRequest` + tap/scribble/lasso 精修）审计 LightCraft SAM 3 能力集缺口（点击 Object 精修 / Describe 文本选择 / 延迟高分辨率 patch 精修 / Edge 羽化）；原生零模型成本路先试（Vision + M2-10 CLIP 基建），不达标再裁 SAM CoreML（大件，OQ 另裁）—— **→ M6-4 spike**（2026-10-16；裁决④「达标即收」）
+- **M6INT-04**: ALCEDO-FEATURE-MAP 升维 ID 化 parity 清单 + CI 对账门（清单引用 id 必须存在 + id 唯一性 + 状态词表机检，`zh-audit --check` 同型）—— **→ M6-6**（2026-10-16；裁决⑥；「M6 第一个 plan」编排偏差登记见 ROADMAP M6-6 行，晨审/用户可随时提前）
+
 ### Editor Workflow Extensions
 
 - **WORK-01**: 标签/收藏夹集合（虚拟文件夹跨 Session）
@@ -616,7 +625,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 - [x] **MCP-06**: 筛选写面（2026-09-26 扩充）：set_rating / set_flag / set_color_label / append_note——写回以 sidecar 为真，复用 Phase 9 批量管线（段1 内存变换 + 段2 索引单事务 + 段3 串行写队列）语义，GUI 缩略图 stale 再生联动可见
 - [x] **MCP-07**: culling 辅助（2026-09-26 扩充）：burst/连拍分组查询（拍摄时间+机型聚类）+ 脸部区域定位（复用 Phase 7 Vision faceLandmarks 基建）支撑细节裁剪
 - [x] **MCP-08**: 筛选写回安全边界（2026-09-26 扩充）：写回限元数据字段（rating/flag/color/note），禁止像素修改与文件删除/移动；传输安全同 MCP-04
-- [x] **MCP-09**: 筛选/修图扩充工具组（2026-09-26 登记）：list_presets / apply_preset / diff_presets（预设三件套，上游依赖 PRES-01..04）+ export_image（尺寸/质量/格式落盘，render_preview 不落盘之补位）+ set_keywords（关键词写面，上游依赖 META-04）。**研究项**（Phase 14 research 定案）：A = GUI 与无头 MCP 同会话并发 sidecar 双写对策（WAL 仅覆盖索引层；单写者锁/后开者只读/移交）；B = 多版本参数组/历史快照 MCP 语义（多版本交付需保存/切换/对比参数组工具面）；C = match_color MCP 工具位（agent 编排层：选参考/批量触发 colormatch/强度/事后 apply_params 微调；签名预留，依赖 V2 TRACK colormatch iop，与 Phase 12 .cube LUT 协同）**→ 兑现（M5-1-03 2026-10-12）**：`match_color(reference, targets?, strength?, solver?, attach?)` 五参最小面（OQ-M5-1-6 裁决生效值）——reference 库内 id/路径双形态解析（LibraryStore.image→ImageLinker.resolve / resolveMember）、targets 批量 fan-out 逐目标独立求解、strength/solver（gaussian-ot|reinhard|cdf）、attach 自动落位 + `{instanceId, params 摘要, solveHash}` 返回、微调/验收/元数据全走既有 apply_params/render_preview/list_iops 零新增面；19-tool 快照族 19→20；G4 parity byte-identical【`McpMatchColorToolsetTests` 21 法 + `McpMatchColorParityTests` 3 法】
+- [x] **MCP-09**: 筛选/修图扩充工具组（2026-09-26 登记）：list_presets / apply_preset / diff_presets（预设三件套，上游依赖 PRES-01..04）+ export_image（尺寸/质量/格式落盘，render_preview 不落盘之补位）+ set_keywords（关键词写面，上游依赖 META-04）。**研究项**（Phase 14 research 定案）：A = GUI 与无头 MCP 同会话并发 sidecar 双写对策（WAL 仅覆盖索引层；单写者锁/后开者只读/移交）；B = 多版本参数组/历史快照 MCP 语义（多版本交付需保存/切换/对比参数组工具面）；C = match_color MCP 工具位（agent 编排层：选参考/批量触发 colormatch/强度/事后 apply_params 微调；签名预留，依赖 V2 TRACK colormatch iop，与 Phase 12 .cube LUT 协同）**→ 兑现（M5-1-03 2026-10-12）**：`match_color(reference, targets?, strength?, solver?, attach?)` 五参最小面（OQ-M5-1-6 裁决生效值）——reference 库内 id/路径双形态解析（LibraryStore.image→ImageLinker.resolve / resolveMember）、targets 批量 fan-out 逐目标独立求解、strength/solver（gaussian-ot|reinhard|cdf）、attach 自动落位 + `{instanceId, params 摘要, solveHash}` 返回、微调/验收/元数据全走既有 apply_params/render_preview/list_iops 零新增面；19-tool 快照族 19→20；G4 parity byte-identical【`McpMatchColorToolsetTests` 21 法 + `McpMatchColorParityTests` 3 法】。**研究项 A 重开 → M6-1（2026-10-16 LightCraft 裁决①，用户回批全按推荐）**：14 关闭的是 **MCP 宿主级**单写者（flock 五态 + 只读降级 + GUI-live 判据）；未决残面 = **库/项目级**并发——无头实例与活 GUI 同开同一项目时的 `.lalb`/`.lra` 双写。M6-1 = LightCraft `catalog.lock` + `--connect` 范式的项目级兑现（项目打开权单写者 + 撞活实例拒写并转发指引 + GUI 只读回退面）。charter 正本 = ROADMAP §Milestone 6（M6-1）；research 正本 = `phases/m6-1-interop/`
 - [x] **MCP-10**: GUI launcher（2026-09-26 用户裁决进 V1）：偏好存 agent CLI 启动命令模板（如 pi/omp）+ 可选任务 prompt 模板（筛图口径/修图审美方向）+「一键 AI 筛图/修图」动作——app 拉起 agent 进程挂自身 MCP server，写回由 server 完成（sidecar 真身），输出日志面板显示 agent 文字流；agent 的 provider 配置归 agent 自身体系，app 零 AI 代码；launcher 拉起路径 app 侧串行化（研究项 A）
 
 > **Phase 14 交付（2026-09-28 签核）**：MCP-01..10 全 Delivered——19 工具封闭集冻结（终快照逐字 + 第 20 工具白名单负例）；研究项 A 关闭（flock 单写者五态 + 只读降级 + GUI-live 判据）、B 维持 v1 history append（版本面 defer v2）、C 零占用（负例钉死）。证据： `14-VALIDATION.md` SC#1-7 三列 + `14-4-SUMMARY.md` 安全走查五条；终轮 1881/11skip/0fail。
@@ -650,7 +659,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 
 - [ ] **ALCE-01**: LGG 三向色轮（Lift/Gamma/Gain，grading 标准 3-way）——每 adjustment layer 一个色轮实例，蒙版可绑；与现有 colorbalancergb/colisa 并存。UI 色轮 + Metal kernel + golden-image 门
 - [ ] **ALCE-02**: OpenEXR 导出（32-bit float，half/float 可选）——现导出矩阵 JPG/PNG/TIFF/HEIF/WebP/AVIF 无 EXR；HDR/堆栈工作流回传 3D 软件需要 —— **随 RASTER-IN 推迟，M4 不立项**（2026-10-08 用户裁决：M4 范围收窄 TIFF only；EXR 读写依赖对比存档 V2-PROPOSAL OQ-V2-5，届时独立裁决）
-- [ ] **ALCE-03**: Ultra HDR JPEG 导出（gain map，SDR base + HDR 增益层）——嵌入现有 JPEG 编码腿，EDR 渲染值映射 gain map
+- [ ] **ALCE-03**: Ultra HDR JPEG 导出（gain map，SDR base + HDR 增益层）——嵌入现有 JPEG 编码腿，EDR 渲染值映射 gain map。**解冻 → M6-3（2026-10-16 LightCraft 裁决②，用户回批全按推荐）**：spike 先行 = ImageIO 原生路（`CGImageDestinationAddAuxiliaryDataInfo` + `kCGImageAuxiliaryDataTypeISOGainMap`〔macOS 15+〕/ `kCGImageDestinationEncodeGenerateGainMapWithBaseImage`〔macOS 16+〕——两键均在 macOS 27 底线内，SDK 实测在案），对照臂 = LightCraft 纯 Rust metadata writer 的 Swift 移植（MIT/Apache-2.0 双许可，NOTICE 义务）；原生路容器字节达标即收。charter 正本 = ROADMAP §Milestone 6（M6-3）
 - [ ] **ALCE-04**: DRT 扩容——ACES 2.0 输出变换 + OpenDRT（现有 filmicrgb/sigmoid/agx 三个 DRT 之外）；目标色彩空间/传递函数/峰值亮度可选，与 EDR 输出联动（参考 Alcedo display-transform 面板与 jedypod/open-display-transform、aces-aswf/aces-core 算法）
 - [ ] **ALCE-05**: 每片命名版本（named versions）——同一原片多个命名编辑版本并存，可从 history stack 任意步分叉；sidecar schema 扩展 + 浏览器版本切换 UI
 - [ ] **ALCE-06**: in-app 自然语言搜索 + 自动打标签——本地 CLIP 多语言模型（导入后后台索引），按自然语言查询图库；对标 Alcedo 图库搜索；与 Phase 14 MCP 外接 AI 通道互补（不依赖外部 MCP 客户端）

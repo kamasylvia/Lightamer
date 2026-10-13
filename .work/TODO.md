@@ -345,6 +345,18 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 ---
 
+## Milestone 6（互操作与图库强化——ROADMAP §Milestone 6，2026-10-16 立项：M5 收官后接棒；组成 = LightCraft 六裁决点全按推荐〔`research/LIGHTCRAFT-NOTES.md` §六，用户回批 2026-10-11〕：①MCP-09-A 项目级单写者锁 + `--connect` ②ALCE-03 UltraHDR 解冻 ③per-photo process version ④AI 分割蒙版原生 spike ⑤stacks + auto-stack ⑥FEATURE-MAP ID 化 + CI 对账）—— M6-0 ✅ 闭环（charter 批 2026-10-16：五正本落账 = ROADMAP §M6 块 + REQUIREMENTS M6INT 族四条 + MCP-09-A/ALCE-03 原位注记 + STATE M6 段 + 本头部 + GOAL-STATE 续接点；M6-1 research 同批起草完成〔C 档第 1 停待 OQ-M6-1-1..6 裁决〕）；下一步 = OQ 裁决回批 → M6-1 plan round（omp 执行 + subagent 验收）→ M6-2 → M6-3 → M6-4 → M6-5（M5 三 VALIDATION 挂账汇编清偿）→ M6-6（FEATURE-MAP + VALIDATION 收口）。范围红线：瘦身手术第二次触发不在 M6（主会话专属）；ALCE-02 维持 V2；零新 SPM
+
+- [x] **M6-0 立项与站规格** —— 完成（2026-10-16 charter 批，doc-only 零源码）
+- [ ] **M6-1 MCP-09-A 项目级单写者锁 + `--connect` 活实例转发**（裁决①）—— research ✅ 起草（2026-10-16，正本 = `phases/m6-1-interop/`：`M6-1-CONTEXT.md` OQ-M6-1-1..6 全带推荐 + `RESEARCH-NOTES.md`；要点 = 14-1 宿主级锁已关闭、残面 = 项目级双写；设计 = Core 级 SingleWriterLock 泛化件〔复用五态 flock〕+ `<stem>.lalb.lock` 项目锁 + 无头撞锁拒写转发 connect 指引 + GUI 只读回退面 + MCP 写类 typed 拒绝）—— **待 OQ 裁决 → plan round**
+- [ ] **M6-2 per-photo process version**（裁决③）—— `.lra` additive 可选 process 键 + 旧号冻结纪律 + legacy 缺键不序列化语义（HistoryHash/缓存键逐字节不变）；设计前瞻 = M6-1 research process version 节
+- [ ] **M6-3 ALCE-03 UltraHDR gain map JPEG 导出解冻**（裁决②）—— spike 先行 = ImageIO 原生路（`kCGImageAuxiliaryDataTypeISOGainMap` macOS 15+ / `kCGImageDestinationEncodeGenerateGainMapWithBaseImage` macOS 16+，SDK 实测均在 27 底线内）vs LightCraft Rust 移植对照臂（NOTICE 义务）；集成点 = `ImageIOEncoders` JPEG 腿 additive
+- [ ] **M6-4 图库 stacks + auto-stack + AI 分割蒙版原生 spike**（裁决⑤④）—— `.lalb` schema 迁移 + 手动堆叠/封面/展开 UI + 时间间隔聚类 auto-stack；AI 蒙版 = 对照 Phase 7 AI-01 审计 SAM 3 缺口（点击精修/文本选择/延迟 hi-res patch），Vision + M2-10 CLIP 零模型成本路先试，不达标再裁 SAM CoreML（OQ）
+- [ ] **M6-5 M5 挂账清算批** —— 三 VALIDATION 挂账汇编逐项清偿或转 V2（L057-B 尾款 / depth 挂账〔enhancement resolver 顺延〕/ `McpServerController` 头注 19→20 / o-2 `ColormatchResolverBox` 收紧搭车候选 / G6 余行走查 + Manual-Only 目测行 / bake 生产耗时 / 修复后全套 `--all` 复跑轮〔须批准 + 8G 门〕/ Release 直启注入链环境债）
+- [ ] **M6-6 FEATURE-MAP ID 化升维 + CI 对账门 + M6 VALIDATION 收口**（裁决⑥）—— `ALCEDO-FEATURE-MAP.md` → ID 化 parity 清单 + CI 门（id 存在性/唯一性/状态词表机检）；编排偏差登记 = 裁决⑥「第一个 plan」原文落收口段，晨审/用户可随时提前
+
+---
+
 ## Milestone 5（追色与合成——ROADMAP §Milestone 5，2026-10-11 立项：M4 收官后接棒；组成 = V2 滚存已批项 TRACK-01..05 + IOP-HDR-06 Mertens + IOP-PANO-01）—— M5-0 ✅ 闭环（charter 批：五正本落账 = ROADMAP §M5 块 + REQUIREMENTS TRACK/IOP-HDR-06/IOP-PANO-01「→ M5」注记 + STATE M5 段 + 本头部 + GOAL-STATE 续接点；手术第二次改挂 M5-4〔strip 集重算非空才动手〕）—— **M5-1 ✅ 闭环（VALIDATION signed 2026-10-13，终态 3477/21skip/0fail；翻账正本 = `phases/m5-1-track/M5-1-VALIDATION.md`）**—— **M5-2 ✅ 闭环（VALIDATION signed 2026-10-15，定向七 bundle 拼表 `TOTAL 3538/22/0` 修复后基线 3539/22/0；翻账正本 = `phases/m5-2-mertens/M5-2-VALIDATION.md`；IOP-HDR-06 Delivered）**—— **M5-3 ✅ 闭环（VALIDATION signed 2026-10-13 兼 M5 milestone 收口〔milestone_closeout: M5〕，全套 `--all` 批准轮 `TOTAL 3631/24/0`；翻账正本 = `phases/m5-3-pano/M5-3-VALIDATION.md`；IOP-PANO-01 Delivered；双验收三波全 PASS：01 零分歧 / 02 omp FAIL→fix `60aad61`→复验 PASS / 03 零实质分歧）**—— **M5 收官（2026-10-13）：M5-0..M5-4 全闭环（M5-4 = 收口由 M5-3-VALIDATION 兼承载〔单文档收口 M2-11/M4-3 先例〕+ 手术第二次触发移交主会话），milestone closed；M5 Ledger 5/5 + plans 154/154；收口正本 = `phases/m5-3-pano/M5-3-VALIDATION.md`；终态全套 `TOTAL 3631/24/0`；下一步 = 主会话「全史瘦身手术」第二次触发〔strip 集重算非空才动手，SPEC = `research/HISTORY-SLIM-SURGERY-SPEC.md`〕→ V2/Maintenance 站（未立项态）；夜间授权链晨审可推翻**
 
 - [x] **M5-0 立项与站规格** —— 完成（2026-10-11 charter 批，doc-only 零源码）
