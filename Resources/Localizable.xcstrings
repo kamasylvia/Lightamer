@@ -31754,6 +31754,40 @@
         }
       }
      },
+    "mcp_connect_guidance_stderr" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The project is held by another instance (pid %1$@) — connect to its MCP endpoint %2$@, or close that instance and retry."
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目已由另一实例持有（pid %1$@）——请连接其 MCP 端点 %2$@，或关闭该实例后重试。"
+          }
+        }
+      }
+    },
+    "mcp_connect_guidance_stderr_noendpoint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The project is held by another instance (pid %1$@) — close it or enable its MCP server."
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目由另一实例持有（pid %1$@）——关闭它或在其上开启 MCP server。"
+          }
+        }
+      }
+    },
     "mcp_error_project_read_only" : {
       "extractionState" : "manual",
       "localizations" : {
