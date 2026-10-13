@@ -74,8 +74,10 @@ writeCallCount 行为断言）与 McpFinalSnapshotTests（20 工具白名单）*
 | 导出入队（两代面） | ExportState gate（enqueueExport/enqueueExportM2 typed 拒） |
 | yiyin sheet | 顶栏按钮 disabled 投影 + ExportState gate（队列腿同缝） |
 | DRT/Film/LUT 面板 | recordDrtChange/recordFilmChange/recordChange guard |
-| 版本三命令 | withWriteBatch + commit 族 guard 断路 |
-| 历史写项（undo/redo/jump） | commit 族 guard（跳转后任何落项均写 sidecar = 被断） |
+| ~~版本三命令~~（omp 复审更正） | **VersionCoordinator coordinator 级 gate（六写命令全集）+ EditorState installVersionChain guard + VersionsPanelView 全控件 .disabled**——原「withWriteBatch + commit 族 guard 断路」宣称不成立（版本命令不经 commit 族），omp E-OMP-1 (b) 证伪后本批落地 |
+| ~~历史写项（undo/redo/jump）~~（omp 复审更正） | **EditorState performUndo/performRedo（拒 false → PipeCoordinator 早退）+ performJump（no-op）+ PipeCoordinator.jumpToHistory 门读（堵 sidecar 尾 touchActive 写）+ Edit 菜单 .disabled**——原「跳转后任何落项均写 sidecar = 被断」宣称不成立（undo/redo/jump 本身直翻栈），omp E-OMP-1 (a) 证伪后本批落地 |
+| 单图 paste（⌘V live 腿） | EditorState installMergePaste/installOverwritePaste guard（omp E-OMP-1 (a)） |
+| batch paste（⌘⇧V 选择集） | pasteToSelection 入口门 + toast 拒（omp E-OMP-1 (c)；legacy 会话面不受项目锁门） |
 | 导入 | LibraryStore withWriteBatch typed 拒 |
 | Move Project | controller typed guard（moveProject isReadOnly 拒） |
 | 顶栏导出/yiyin 按钮 | `.disabled(isReadOnly)` 投影（同源布尔） |
@@ -99,3 +101,47 @@ writeCallCount 行为断言）与 McpFinalSnapshotTests（20 工具白名单）*
   pre-migrate 快照在锁内），plan 风险条照登。
 - **孤儿 fixture** `Tests/Fixtures/TiffRaster/srgb-matrix-8.tif.lra` 已删
   （M4-1 挂账 #6；untracked；后续轮未复活）。
+
+## D-11 omp 计划复审批落地（2026-10-16 执行批，E-OMP-1 四 commits + 测试一批）
+
+omp plan-review（`M6-1-01-PLAN-REVIEW-OMP.md` FAIL / 1E+5M）回注 plan 后的本批
+执行记录（commits `f42dc13c` / `ed6ca3e7` / `cf36190a` / `f8e0671c` + docs）：
+
+- **guard 家族 7→13**（E-OMP-1 (a)）：performUndo/performRedo 拒 `false`
+  （PipeCoordinator :1827/:1836 既有 guard 早退零副作用）；performJump no-op；
+  installVersionChain/installMergePaste/installOverwritePaste no-op。
+  **执行期追加 `PipeCoordinator.jumpToHistory` 门读**（plan 处方外的一行）：
+  makeSidecarDocument 对带版本结构的文档恒 `touchActive()`——blocked jump 若不
+  堵尾仍会调度 sidecar 写 = 真 `.lra` updatedAt 突变；故 jump 腿在
+  scheduleSidecarWrite 前读同一 EditorState gate（nil = 可写，零行为差）。
+  installVersionChain 门安全性 = omp 亲证（全仓调用点仅 VersionCoordinator
+  命令路径，hydrate 恢复流不走它）。
+- **coordinator 级门拒时面 = typed no-op + logger（静默）**（E-OMP-1 (b) 处方
+  「toast/typed 拒」取 typed 拒臂）：零新文案键（KD-7 十键清单不动），
+  EditorState guard 同形；第一防线 = VersionsPanelView `.disabled` 投影
+  （header/emptyState 四按钮 + 行 tap=switch + rename/remove 菜单项 + remove
+  确认钮，同源布尔 = `versions.isReadOnly` → 装配点闭包读
+  `libraryProjects.isReadOnly`——body 求值内闭包同步执行，Observable 追踪传递
+  命中）。行 `.disabled` 落在 `.onTapGesture` 之后（gesture 在 disabled 子树内
+  才权威失效）。
+- **batch paste 门**（E-OMP-1 (c)）：`pasteToSelection` 入口 guard + toast 拒
+  （复用 `project_read_only_banner` 键——holder pid 插值，只读打开 toast 同族，
+  零新键）；谓词抽 `LightamerApp.batchPasteBlocked(gate:)` internal 纯函数 +
+  `readOnlyPasteToast(holderPid:)` = golden 法④的可测缝（App struct 不可在测试
+  构造）；legacy 会话面不受项目锁门（无项目打开 = gate 读 false，m2 二分天然
+  满足）。
+- **Edit 菜单四处 `.disabled` 追加 `|| libraryProjects.isReadOnly`**（E-OMP-1
+  (d)）：undo/redo/paste-adjustments/paste-partial；jump 面板无 `.disabled`
+  要求（performJump guard 兜底已足，plan 钉死）。
+- **门 4 补 4 法**（E-OMP-1 (e)）：undo no-op / 版本命令六连拒（representative
+  升级为全集）/ 单图 paste 拒 / batch 入口拒+toast——14→18 法；断言锚
+  setup 后状态（gate 开的 createFromScratch 合法装空链，非 gate 泄漏）；
+  rename 断言锚改名前捕获值（隐式槽名 locale 相关，不可字面比对）。
+- **BUNDLE-MAP 6→18**：o-OMP-1 的 T10 终态对账（6→14）漏做，本批直落 18；
+  六文件合计 57 法，全套预期 **3688**（估带 3683..3693）。
+- **计数实测**：App **792/4/0**（= 788+4 精确命中）/ Library 654/4/0 不变 /
+  App 峰值 2832MB；Schema/dependencies 零 diff 复验（`git diff a18cfb82..HEAD`
+  两文件零命中）。
+- **并发注记**：本批执行中途 sibling 验收修复批在同仓落 `5d814958`（session
+  lock 同进程同根重开 seat 共享——M6-1-01 验收发现，非本批范围）；工作区无
+  交叠文件冲突，commit 序 cf36190a → 5d814958 → f8e0671c 交错在案。
