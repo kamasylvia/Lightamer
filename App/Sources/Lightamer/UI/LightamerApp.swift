@@ -135,6 +135,11 @@ enum LightamerEntryPoint {
         if McpServerController.holdLockFixtureIfRequested() {
             return // parks inside; never returns
         }
+        // M6-1-01: the PROJECT-lock fixture (the arbitration tests) — same
+        // short-circuit shape, parks inside.
+        if McpServerController.holdProjectLockFixtureIfRequested() {
+            return // parks inside; never returns
+        }
         #endif
         if let mode = McpServerController.headlessModeIfRequested() {
             McpServerController.runHeadless(mode: mode) // parks forever
