@@ -1,8 +1,11 @@
+import AppKit
+import ApplicationServices
 import Foundation
-import LightamerCore
+import SwiftUI
 import XCTest
 
 @testable import Lightamer
+@testable import LightamerCore
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan M6-1-01 T4/T5 (KD-8 golden gate 4): the GUI read-only fallback face —
@@ -189,5 +192,244 @@ final class ProjectReadOnlyFaceTests: XCTestCase {
         XCTAssertTrue(
             hits.isEmpty,
             "L057 ban: .runModal( must stay out of App/Sources — \(hits)")
+    }
+
+    // MARK: - T5 后半（8 法）
+
+    /// Seam 1 through a REAL consumer: the read-only open's LibraryStore
+    /// write (createAlbum) typed-rejects via the withWriteBatch breaker.
+    func testReadOnlyStoreRejectsLibraryStoreWrite() async throws {
+        try await makePackage()
+        let holder = try holdPackageLock(pid: 9)
+        let controller = LibraryProjectController()
+        try await controller.openProjectReadOnly(at: packageURL)
+        let library = LibraryStore(store: controller.projectStore!)
+        do {
+            _ = try await library.createAlbum(kind: .album, name: "Blocked")
+            XCTFail("a read-only library must reject album writes")
+        } catch let error as LibraryError {
+            guard case .projectReadOnly = error else {
+                return XCTFail("wrong typed error: \(error)")
+            }
+        }
+        holder.unlock()
+        try await controller.closeProject()
+    }
+
+    /// Seam 2, gate CLOSED: every commit* entry no-ops (typed no-throw, no
+    /// history items, no crash) — the commit family名单 (KD-3 m3b 勘误):
+    /// recordChange / commitMaskEdit / commitLayerEdit / commitRetouchEdit /
+    /// commitLayerStructure / recordDrtChange / recordFilmChange.
+    func testGateClosedCommitsAreNoOps() {
+        let editorState = EditorState()
+        editorState.projectReadOnlyGate = { true }
+        let module = Self.record("exposure")
+        // recordChange — suppressed.
+        editorState.recordChange(module, label: "history_test")
+        // Drt/Film records — suppressed.
+        editorState.recordDrtChange(DrtRecord(), label: "history_drt_param")
+        editorState.recordFilmChange(FilmRecord(), label: "history_film_param")
+        // Layer family — suppressed (structure + edit + mask + retouch).
+        editorState.commitMaskEdit(
+            layerID: UUID(), label: "history_mask_item") { _ in }
+        editorState.commitLayerEdit(
+            AdjustmentLayer(name: "L"), label: "history_layer_test")
+        editorState.commitRetouchEdit(
+            RetouchLayer(name: "R"), label: "history_retouch_test")
+        let canUndo = editorState.canUndo
+        XCTAssertFalse(canUndo, "no history item may land read-only")
+        XCTAssertTrue(editorState.instances.isEmpty, "the live set stays put")
+    }
+
+    /// The internal raw-field init (the AdjustmentTransferTests fixture
+    /// shape — @testable).
+    private static func record(
+        _ opName: String, multiPriority: Int = 0
+    ) -> ModuleInstance {
+        ModuleInstance(
+            id: UUID(), opName: opName, multiPriority: multiPriority,
+            multiName: "", iopOrder: 50, version: 1, enabled: true,
+            paramsData: Data("{}".utf8), paramsHash: 0)
+    }
+
+    /// Seam 2, gate OPEN (nil): the same recordChange lands — the guard is
+    /// zero-diff for every unwired construction.
+    func testGateOpenCommitsLand() {
+        let editorState = EditorState()
+        editorState.recordChange(Self.record("exposure"), label: "history_test")
+        XCTAssertTrue(editorState.canUndo, "the gate nil default must not block")
+    }
+
+    /// Seam 3: ExportState gate closed → both enqueue faces typed-reject
+    /// with the read-only copy BEFORE any environment lookup.
+    func testExportStateGateRejectsEnqueues() async throws {
+        let exportState = ExportState()
+        exportState.projectReadOnlyGate = { true }
+        do {
+            _ = try await exportState.enqueueExportM2(
+                images: [], instancesOverrides: [], drtRecord: DrtRecord(),
+                variant: ExportVariant(format: .jpeg(quality: 0.9)),
+                destination: tempDirectory,
+                subfolder: nil, namingPattern: "{stem}")
+            XCTFail("the read-only face must reject the M2 enqueue")
+        } catch let error as AppError {
+            guard case .invalidParameter(let message) = error,
+                message.contains("read-only")
+            else {
+                return XCTFail("wrong typed error: \(error)")
+            }
+        }
+        do {
+            try await exportState.enqueueExport(images: [])
+            XCTFail("the read-only face must reject the session enqueue")
+        } catch let error as AppError {
+            guard case .invalidParameter(let message) = error,
+                message.contains("read-only")
+            else {
+                return XCTFail("wrong typed error: \(error)")
+            }
+        }
+    }
+
+    /// Seam 3 zero-diff: gate nil → the pre-existing failure face (no
+    /// queue = the「no export queue」rejection, NOT the read-only copy).
+    func testExportStateGateOpenKeepsLegacyFace() async throws {
+        let exportState = ExportState()
+        do {
+            try await exportState.enqueueExport(images: [])
+            XCTFail("no-queue enqueue must still throw")
+        } catch let error as AppError {
+            guard case .invalidParameter(let message) = error,
+                message.contains("no export queue")
+            else {
+                return XCTFail("the legacy face changed: \(error)")
+            }
+        }
+    }
+
+    /// The banner: mounted on a REAL on-screen WorkspaceHostView (the
+    /// ToastFaceTests AX-window shape), read-only = the banner surfaces in
+    /// the accessibility tree; writable = absent. The same-source boolean
+    /// (`controller.isReadOnly`) drives it.
+    func testBannerAccessibilityFace() async throws {
+        try await makePackage()
+        let holder = try holdPackageLock(pid: 6161)
+        let readOnlyController = LibraryProjectController()
+        try await readOnlyController.openProjectReadOnly(at: packageURL)
+        XCTAssertTrue(readOnlyController.isReadOnly)
+
+        func pumpMount(_ controller: LibraryProjectController) -> Set<String> {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+                styleMask: [.titled, .closable],
+                backing: .buffered, defer: false)
+            let host = NSHostingView(
+                rootView: FaceHostRoot(projectController: controller))
+            host.frame = NSRect(x: 0, y: 0, width: 900, height: 600)
+            window.contentView = host
+            window.orderFrontRegardless()
+            let deadline = Date().addingTimeInterval(3)
+            var identifiers = Set<String>()
+            while Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+                host.layoutSubtreeIfNeeded()
+                identifiers = []
+                Self.collectIdentifiers(
+                    AXUIElementCreateApplication(
+                        ProcessInfo.processInfo.processIdentifier),
+                    into: &identifiers)
+                if identifiers.contains("shell.readonly.banner") { break }
+            }
+            window.orderOut(nil)
+            window.contentView = nil
+            return identifiers
+        }
+
+        // Read-only mount: the banner is in the AX tree.
+        let readOnlyIDs = pumpMount(readOnlyController)
+        XCTAssertTrue(
+            readOnlyIDs.contains("shell.readonly.banner"),
+            "the read-only face must surface the banner")
+
+        // Writable mount (a fresh controller, no project): no banner chrome.
+        let writableIDs = pumpMount(LibraryProjectController())
+        XCTAssertFalse(
+            writableIDs.contains("shell.readonly.banner"),
+            "the writable face must not render the banner")
+        holder.unlock()
+        try await readOnlyController.closeProject()
+    }
+
+    /// The move face refuses on the read-only project (the controller
+    /// typed backstop; the UI disables the entry — DECISIONS table).
+    func testReadOnlyMoveTypedRefused() async throws {
+        try await makePackage()
+        let holder = try holdPackageLock()
+        let controller = LibraryProjectController()
+        try await controller.openProjectReadOnly(at: packageURL)
+        do {
+            try await controller.moveProject(
+                to: tempDirectory.appendingPathComponent("Moved"))
+            XCTFail("a read-only move must refuse")
+        } catch let error as LibraryError {
+            guard case .projectReadOnly = error else {
+                return XCTFail("wrong typed error: \(error)")
+            }
+        }
+        holder.unlock()
+        try await controller.closeProject()
+    }
+
+    /// The keep-available set: backup (the ONLY sanctioned copy path)
+    /// stays reachable on the read-only face, through the controller.
+    func testReadOnlyBackupStillAvailable() async throws {
+        try await makePackage()
+        let holder = try holdPackageLock()
+        let controller = LibraryProjectController()
+        try await controller.openProjectReadOnly(at: packageURL)
+        let destination = tempDirectory.appendingPathComponent("Ro-backup.lalb")
+        try await controller.backupProject(to: destination)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: destination.path),
+            "the read-only face keeps the backup path alive")
+        holder.unlock()
+        try await controller.closeProject()
+    }
+
+    // MARK: - Shared harness (the ToastFaceTests mount shape)
+
+    /// A hosting root carrying exactly the injections WorkspaceHostView
+    /// reads at its depth (the ToastFaceTests HostRoot + the controller).
+    private struct FaceHostRoot: View {
+        let projectController: LibraryProjectController?
+
+        var body: some View {
+            WorkspaceHostView(projectController: projectController, onImportFolder: { })
+                .environment(EditorState())
+                .environment(PipeCoordinator())
+                .environment(ExportState())
+                .environment(InspectorState())
+        }
+    }
+
+    /// Depth-first AX identifier walk (the ToastFaceTests collector — the
+    /// AX attribute tree, self-app needs no TCC grant).
+    private static func collectIdentifiers(
+        _ element: AXUIElement, into set: inout Set<String>, depth: Int = 0
+    ) {
+        guard depth < 40 else { return }
+        var value: CFTypeRef?
+        if AXUIElementCopyAttributeValue(
+            element, kAXIdentifierAttribute as CFString, &value) == .success,
+            let identifier = value as? String {
+            set.insert(identifier)
+        }
+        var children: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element, kAXChildrenAttribute as CFString, &children) == .success,
+            let kids = children as? [AXUIElement] else { return }
+        for kid in kids {
+            collectIdentifiers(kid, into: &set, depth: depth + 1)
+        }
     }
 }

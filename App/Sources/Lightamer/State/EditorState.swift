@@ -147,6 +147,30 @@ final class EditorState {
         clearPreviewDenoiseBypass()
     }
 
+    // ── M6-1-01 T5 (KD-3 seam 2): the project read-only backstop gate ─────
+
+    /// Injectable read-only gate — the app root reads
+    /// `libraryProjects.isReadOnly` into it. nil (the default) = writable:
+    /// every existing construction and test is zero-diff. When the gate
+    /// reads TRUE, every commit* entry below no-ops (typed no-throw: the
+    /// FIRST defense is the UI's disabled projection; this is the
+    /// backstop so no stray path can land sidecar bytes). HistoryStack
+    /// itself is untouched (the封存面 red line) — the guard lives HERE,
+    /// in the App-side wrapper layer.
+    var projectReadOnlyGate: (() -> Bool)? = nil
+
+    nonisolated private static let readOnlyLogger = Logger(
+        subsystem: "com.kamasylvia.lightamer", category: "editor-readonly"
+    )
+
+    /// The gate read (shared by the commit* family): true = suppressed.
+    private func projectWriteSuppressed() -> Bool {
+        guard let projectReadOnlyGate, projectReadOnlyGate() else { return false }
+        Self.readOnlyLogger.debug(
+            "editor commit suppressed: project is read-only")
+        return true
+    }
+
     /// 02-06 sidecar RESTORE (replaces the pristine reset when a `.lra`
     /// exists): installs the decoded history and derives the live set with
     /// the SAME merge rule as undo/redo. `baseInstances` = the persisted
@@ -174,6 +198,7 @@ final class EditorState {
     /// rendered the live state during the drag, so the post-commit pass
     /// proves cache hits).
     func recordChange(_ snapshot: ModuleInstance, label: String) {
+        if projectWriteSuppressed() { return }
         history.commit(snapshot, label: label)
         // M3-1-03 KD-3: a commit IS the truth landing — an armed bypass on
         // the committed instance yields here (the real flow disarms before
@@ -248,6 +273,7 @@ final class EditorState {
     /// coordinator's navigation faces (the carrier re-syncs from
     /// `effectiveDrtRecord()` there).
     func recordDrtChange(_ record: DrtRecord, label: String) {
+        if projectWriteSuppressed() { return }
         let placeholder = instances.first ?? baseInstances.first
         guard let placeholder else { return }
         history.commitDrt(record: record, placeholder: placeholder, label: label)
@@ -271,6 +297,7 @@ final class EditorState {
     /// history item whose payload rides `filmRecord`; the placeholder slot
     /// keeps the instance set unpolluted (the commitDrt shape).
     func recordFilmChange(_ record: FilmRecord, label: String) {
+        if projectWriteSuppressed() { return }
         let placeholder = instances.first ?? baseInstances.first
         guard let placeholder else { return }
         history.commitFilm(record: record, placeholder: placeholder, label: label)
@@ -694,6 +721,7 @@ final class EditorState {
     /// exactly once (KD-5's division: the facade setters are value writes;
     /// the producer = this seam).
     func commitMaskEdit(layerID: UUID, label: String, mutate: (inout MaskSpec) -> Void) {
+        if projectWriteSuppressed() { return }
         guard let layer = adjustmentLayer(id: layerID) else { return }
         var mask = layer.mask ?? MaskSpec()
         mutate(&mask)
@@ -782,6 +810,7 @@ final class EditorState {
     /// D-H1 COMMIT leg for a property/mask edit on `layer`: exactly ONE
     /// structure item carrying the post-edit stack snapshot.
     func commitLayerEdit(_ layer: AdjustmentLayer, label: String) {
+        if projectWriteSuppressed() { return }
         guard let layerStack,
               layerStack.adjustmentLayers.contains(where: { $0.id == layer.id })
         else { return }
@@ -1059,6 +1088,7 @@ final class EditorState {
     private func commitLayerStructure(
         layerID: UUID, label: String, schedulePersist: Bool = true
     ) {
+        if projectWriteSuppressed() { return }
         guard let layerStack else { return }
         // Placeholder snapshot: the CURRENT top global record. The
         // `layerStructureScope` marker keeps it out of the global AND
@@ -1179,6 +1209,7 @@ final class EditorState {
     /// structure item (the stackSnapshot path — strokes ride the frozen
     /// snapshot spelling).
     func commitRetouchEdit(_ layer: RetouchLayer, label: String) {
+        if projectWriteSuppressed() { return }
         guard let layerStack,
               layerStack.adjustmentLayers.contains(where: { $0.id == layer.id })
         else { return }

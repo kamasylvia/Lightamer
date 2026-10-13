@@ -1304,6 +1304,17 @@ internal struct LightamerApp: App {
                     // project's library for id-form reference resolution (the
                     // assembly-only wiring — the tool face itself is seams-pure).
                     MatchColorToolset.installColorMatchService(colorMatchService)
+                    // M6-1-01 T5 (KD-3): the read-only gates — ONE boolean
+                    // (`libraryProjects.isReadOnly`) drives the banner, the
+                    // disabled projections and the EditorState/ExportState
+                    // write seams (the LibraryStore withWriteBatch breaker is
+                    // store-internal, KD-2).
+                    editorState.projectReadOnlyGate = { [libraryProjects] in
+                        libraryProjects.isReadOnly
+                    }
+                    exportState.projectReadOnlyGate = { [libraryProjects] in
+                        libraryProjects.isReadOnly
+                    }
                     MatchColorToolset.installLibraryProvider { [libraryProjects] in
                         await MainActor.run {
                             guard let store = libraryProjects.projectStore,
@@ -1370,6 +1381,11 @@ internal struct LightamerApp: App {
                                         at: conflict.url)
                                     libraryProjects.dismissConflict()
                                     libraryWelcomePresented = false
+                                    // The one-shot「只读」toast (KD-3) — the
+                                    // same copy family as the banner key.
+                                    editorState.presentToast(String(
+                                        localized: "project_read_only_banner",
+                                        defaultValue: "只读——项目已由另一实例（pid \(libraryProjects.readOnlyHolderPid.map(String.init) ?? "未知")）打开"))
                                 } catch {
                                     libraryProjects.reportError(
                                         error.localizedDescription)
