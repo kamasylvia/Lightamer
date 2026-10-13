@@ -513,6 +513,53 @@ final class ProjectReadOnlyFaceTests: XCTestCase {
             "the refusal raises the read-only toast face")
     }
 
+    /// M-OMP-4 (the omp second acceptance's error finding): create/move
+    /// carry the SAME lock as a normal roled open — a second instance's
+    /// `open(role:)` must see `heldByOther` after a create, and after
+    /// both move reopens. Without the role the first instance writes
+    /// lockless while the second takes the writer right unknowingly.
+    func testCreateAndMoveReopensHoldTheWriterLock() async throws {
+        let controller = LibraryProjectController()
+        let name = "LockLife"
+        let directory = tempDirectory.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent(name)
+            .appendingPathExtension("lalb")
+        try await controller.createProject(at: url, name: name)
+        // The create leg holds the lock: a foreign open is typed-held.
+        let second = ProjectFileStore(at: url)
+        do {
+            _ = try await second.open(role: .gui)
+            XCTFail("a created project must hold the writer lock")
+        } catch let error as LibraryError {
+            guard case .projectHeldByOther = error else {
+                return XCTFail("expected projectHeldByOther, got \(error)")
+            }
+        }
+        // The happy-path move reopen holds the lock at the NEW location.
+        let destination = tempDirectory.appendingPathComponent("Moved", isDirectory: true)
+        try await controller.moveProject(to: destination)
+        let newPackage = destination.appendingPathComponent("\(name).lalb")
+        // The moved package's own lock (the harness `lockURL` targets the
+        // setUp Widget package, not this one) must be HELD at the new
+        // location — a free probe here would mean the reopen leg lost it.
+        let newLockURL = newPackage.deletingPathExtension()
+            .appendingPathExtension("lalb.lock")
+        XCTAssertFalse(
+            SingleWriterLock.probeLockAvailable(at: newLockURL),
+            "the moved project's lock must be held at the new location")
+        let third = ProjectFileStore(at: newPackage)
+        do {
+            _ = try await third.open(role: .gui)
+            XCTFail("the moved project must hold the writer lock")
+        } catch let error as LibraryError {
+            guard case .projectHeldByOther = error else {
+                return XCTFail("expected projectHeldByOther, got \(error)")
+            }
+        }
+        try await controller.closeProject()
+    }
     // MARK: - Shared harness (the ToastFaceTests mount shape)
 
     /// A hosting root carrying exactly the injections WorkspaceHostView

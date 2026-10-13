@@ -112,7 +112,12 @@ final class LibraryProjectController {
     /// and open it as the current project.
     func createProject(at url: URL, name: String) async throws {
         let store = ProjectFileStore(at: url)
-        _ = try await store.create(name: name)
+        // M6-1-01 omp M-OMP-4: a freshly created project enters the same
+        // locked state as a normally opened one (the plan's explicit-
+        // parameter prescription — otherwise the first instance writes
+        // lockless while a second instance's `open(role:)` takes the
+        // writer right unknowingly = dual write).
+        _ = try await store.create(name: name, role: .gui)
         projectStore = store
         projectURL = url
         promoteRecent(url)
@@ -262,15 +267,19 @@ final class LibraryProjectController {
                 from: oldDirectory, to: newDirectory, stem: stem,
                 verify: verifyStrategy, uuidProbe: uuidProbe)
         } catch {
-            // The old directory is intact by the red line — reopen there.
-            _ = try? await store.open()
+            // The old directory is intact by the red line — reopen there
+            // (M-OMP-4: re-acquire the lock, same as the pre-move state).
+            _ = try? await store.open(role: .gui)
             throw error
         }
         let newPackage = newDirectory
             .appendingPathComponent(stem)
             .appendingPathExtension(LibrarySchema.fileExtension)
         let moved = ProjectFileStore(at: newPackage)
-        _ = try await moved.open()
+        // M-OMP-4: the new-location reopen re-acquires the lock — the
+        // move-window note's "intrusion lands the typed conflict face"
+        // premise rests on this re-acquisition.
+        _ = try await moved.open(role: .gui)
         projectStore = moved
         projectURL = newPackage
         promoteRecent(newPackage)
