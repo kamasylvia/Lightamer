@@ -32,4 +32,14 @@ public enum LibraryError: Error, Equatable, Sendable {
     case constraintViolation(detail: String)
     /// The operation needs an open package but the store holds no handle.
     case notOpen
+    /// The package lock (`<stem>.lalb.lock`, M6-1-01) is held by another
+    /// live process — the caller takes its read-only / conflict fallback.
+    /// `detail` carries the holder summary (role/pid/startedAt, or the
+    /// pid-unknown fallback).
+    case projectHeldByOther(detail: String)
+    /// A write leg was attempted while the package is open READ-ONLY (the
+    /// M6-1-01 second-instance face): `withWriteBatch` typed rejection, or
+    /// a lockless `openReadOnly` on a package that still needs the
+    /// create/migrate write leg (E2).
+    case projectReadOnly(detail: String)
 }

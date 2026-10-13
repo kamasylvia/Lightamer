@@ -48,6 +48,30 @@ public actor ProjectFileStore {
     private var handle: SQLiteHandle?
     private let url: URL
 
+    // ── M6-1-01 (KD-2): the project-level single-writer lock ──────────────
+    // The lock is a `<stem>.lalb.lock` SIBLING (never inside the package —
+    // `LibrarySchema`/`project_meta`/backups are untouched; the flock is the
+    // sole arbiter, the payload is diagnostics). `role == nil` = the caller
+    // opted OUT of locking (every pre-existing call site and the double-store
+    // LIB test family — flock is per open file description, so an
+    // always-locking open() would EWOULDBLOCK the second in-process handle).
+    // Production call paths lock through the assembly layer only
+    // (LibraryProjectController always `.gui`, the headless `--project` arm
+    // always `.headless`).
+
+    /// The held project lock (nil = unlocked / the role-nil open paths).
+    private var lock: SingleWriterLock?
+
+    /// Whether this store is the READ-ONLY face (the second instance's
+    /// fallback). Write legs (`withWriteBatch`) typed-reject; reads and
+    /// `backup(to:)` stay available.
+    private var readOnlyMode = false
+
+    /// The sibling lock path (`<stem>.lalb.lock`).
+    private var lockURL: URL {
+        url.deletingPathExtension().appendingPathExtension("lalb.lock")
+    }
+
     /// Last TRUNCATE checkpoint wall time (throttle clock).
     private var lastCheckpointAt: TimeInterval = 0
     /// Committed write batches since the last checkpoint.
@@ -72,9 +96,13 @@ public actor ProjectFileStore {
     /// Create a NEW package at `url`: suffix-validated `.lalb`, refuse an
     /// existing file, fresh-create the schema (KD-2 fresh leg) with the
     /// project name seeded. Returns self (the open store) for call-chain
-    /// ergonomics.
+    /// ergonomics. M6-1-01: `role != nil` acquires the sibling project lock
+    /// BEFORE any write leg (the payload rides the lock fd; a held lock is
+    /// the typed `projectHeldByOther` with the holder summary).
     @discardableResult
-    public func create(name: String) throws -> ProjectFileStore {
+    public func create(
+        name: String, role: SingleWriterRole? = nil
+    ) throws -> ProjectFileStore {
         guard url.pathExtension.lowercased() == LibrarySchema.fileExtension else {
             throw LibraryError.openFailed(
                 path: url.path, code: 0,
@@ -84,48 +112,153 @@ public actor ProjectFileStore {
             throw LibraryError.openFailed(
                 path: url.path, code: 0, message: "package already exists")
         }
+        try acquireProjectLockIfRoled(role)
         // Ensure the parent directory exists (a save panel can target a
         // fresh folder).
         let parent = url.deletingLastPathComponent()
         if !FileManager.default.fileExists(atPath: parent.path) {
-            try FileManager.default.createDirectory(
-                at: parent, withIntermediateDirectories: true)
+            do {
+                try FileManager.default.createDirectory(
+                    at: parent, withIntermediateDirectories: true)
+            } catch {
+                releaseProjectLock()
+                throw error
+            }
         }
-        let opened = try SQLiteHandle(path: url.path)
+        let opened: SQLiteHandle
+        do {
+            opened = try SQLiteHandle(path: url.path)
+        } catch {
+            releaseProjectLock()
+            throw error
+        }
         do {
             try LibrarySchema.apply(to: opened, projectName: name)
         } catch {
             opened.close()
             // A failed fresh create must not leave a half-born file.
             try? FileManager.default.removeItem(at: url)
+            releaseProjectLock()
             throw error
         }
         handle = opened
         batchesSinceCheckpoint = 0
         lastCheckpointAt = Date().timeIntervalSince1970
+        readOnlyMode = false
         return self
     }
 
     /// Open an EXISTING package: existence check + the KD-2 three-way
     /// dispatch (fresh on absent/0 — a zero-byte stub file heals into a
     /// valid package; ok on 1; typed REFUSE on >1 BEFORE any write).
+    /// M6-1-01: `role != nil` acquires the sibling project lock BEFORE the
+    /// handle opens — a lock failure precedes EVERY write leg (the
+    /// migration snapshot included) and is the typed `projectHeldByOther`.
     @discardableResult
-    public func open() throws -> ProjectFileStore {
+    public func open(role: SingleWriterRole? = nil) throws -> ProjectFileStore {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw LibraryError.openFailed(
+                path: url.path, code: 0, message: "package file does not exist")
+        }
+        try acquireProjectLockIfRoled(role)
+        let opened: SQLiteHandle
+        do {
+            opened = try SQLiteHandle(path: url.path)
+        } catch {
+            releaseProjectLock()
+            throw error
+        }
+        do {
+            try dispatchSchema(on: opened)
+        } catch {
+            opened.close()
+            releaseProjectLock()
+            throw error
+        }
+        handle = opened
+        batchesSinceCheckpoint = 0
+        lastCheckpointAt = Date().timeIntervalSince1970
+        readOnlyMode = false
+        return self
+    }
+
+    /// Open an EXISTING package READ-ONLY (the M6-1-01 second-instance
+    /// fallback): NO lock is taken or probed-held, write legs are
+    /// typed-rejected at `withWriteBatch`, `backup(to:)` stays available.
+    ///
+    /// E2 (checker 回注) — the schema three-way is pinned HERE: the
+    /// `dispatchSchema` legs for `stored == 0` (zero-byte stub = the full
+    /// fresh DDL) and `0 < stored < current` (pre-migrate snapshot
+    /// rotation + migrate) are WRITE legs; a lockless read-only open must
+    /// NEVER trigger them (a stale-read concurrent migrate = double
+    /// snapshot/migrate window; a stub silently self-healing = the
+    /// read-only semantics lie). So: only `stored == current` opens;
+    /// older/zero stubs typed-reject with the「需要一次读写打开」copy;
+    /// `stored > current` keeps the existing `futureSchema` refusal.
+    @discardableResult
+    public func openReadOnly() throws -> ProjectFileStore {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw LibraryError.openFailed(
                 path: url.path, code: 0, message: "package file does not exist")
         }
         let opened = try SQLiteHandle(path: url.path)
         do {
-            try dispatchSchema(on: opened)
+            // Connection-local read-face pragmas ONLY — no journal_mode
+            // write leg on this path.
+            try opened.exec("PRAGMA synchronous=NORMAL")
+            try opened.exec("PRAGMA foreign_keys=ON")
+            let stored = try LibrarySchema.readUserVersion(from: opened)
+            guard stored <= LibrarySchema.schemaVersion else {
+                throw LibraryError.futureSchema(version: stored)
+            }
+            guard stored == LibrarySchema.schemaVersion else {
+                opened.close()
+                throw LibraryError.projectReadOnly(detail:
+                    "package needs a read-write open to create or migrate the "
+                        + "schema (stored user_version \(stored), current "
+                        + "\(LibrarySchema.schemaVersion))")
+            }
+            handle = opened
+            batchesSinceCheckpoint = 0
+            readOnlyMode = true
+            return self
         } catch {
             opened.close()
             throw error
         }
-        handle = opened
-        batchesSinceCheckpoint = 0
-        lastCheckpointAt = Date().timeIntervalSince1970
-        return self
+    }
+
+    // MARK: - Project lock legs (M6-1-01 KD-2)
+
+    /// Acquire the sibling lock when a role is given. A `heldByOther`
+    /// becomes the typed conflict carrying the holder summary; a real I/O
+    /// failure rethrows as openFailed. Idempotent for a store that already
+    /// holds the lock (the reopen flows never double-acquire — the same
+    /// process's second fd would EWOULDBLOCK against itself).
+    private func acquireProjectLockIfRoled(_ role: SingleWriterRole?) throws {
+        guard role != nil else { return }
+        guard lock == nil else { return }
+        switch SingleWriterLock.acquire(at: lockURL) {
+        case .success(let acquired):
+            lock = acquired
+            acquired.writePayload(
+                SingleWriterLockPayload(
+                    role: role ?? .headless, pid: getpid(),
+                    startedAt: SingleWriterLockPayload.nowISO8601()))
+        case .failure(.heldByOther):
+            throw LibraryError.projectHeldByOther(
+                detail: SingleWriterLock.holderSummary(at: lockURL))
+        case .failure(.ioError(let reason)):
+            throw LibraryError.openFailed(
+                path: lockURL.path, code: 0, message: reason)
+        }
+    }
+
+    /// Release the held lock (idempotent; the close leg calls this AFTER
+    /// the checkpoint — WAL tail safety, KD-2's release order).
+    private func releaseProjectLock() {
+        lock?.unlock()
+        lock = nil
     }
 
     /// The KD-2 dispatch, shared by create/open (and the migration hook).
@@ -164,12 +297,18 @@ public actor ProjectFileStore {
     /// non-zero busy/log counter = typed error — surfaced, never silent),
     /// then the deterministic handle close. Idempotent (a closed store
     /// reports `.notOpen` for further work but `close()` again is a no-op).
+    /// M6-1-01: the project lock releases AFTER the checkpoint + handle
+    /// close (KD-2's release order — the WAL tail is safe before another
+    /// instance can acquire). The read-only face resets here too.
     public func close() throws {
-        guard let handle else { return }
-        try checkpointTruncate(handle)
-        handle.close()
-        self.handle = nil
-        batchesSinceCheckpoint = 0
+        if let handle {
+            try checkpointTruncate(handle)
+            handle.close()
+            self.handle = nil
+            batchesSinceCheckpoint = 0
+        }
+        releaseProjectLock()
+        readOnlyMode = false
     }
 
     // MARK: - Checkpoint discipline (KD-6)
@@ -315,6 +454,15 @@ public actor ProjectFileStore {
     func withWriteBatch<T: Sendable>(
         _ body: sending (SQLiteHandle) throws -> T
     ) throws -> T {
+        // M6-1-01 (KD-3): the read-only face's write-leg circuit breaker —
+        // the SINGLE point every library write exits through
+        // (LibraryStore + ExifSearchIndexer), so the second instance's
+        // fallback is typed at the seam, never silent.
+        if readOnlyMode {
+            throw LibraryError.projectReadOnly(detail:
+                "the package is open read-only (another instance holds the "
+                    + "project lock)")
+        }
         guard let handle else { throw LibraryError.notOpen }
         try handle.exec("BEGIN IMMEDIATE")
         do {

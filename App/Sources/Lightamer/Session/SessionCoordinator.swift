@@ -407,8 +407,53 @@ final class SessionIndexController {
     /// render while the walk runs). App-root wired to the browser model.
     var scanPageObserver: ((SessionScanPage) -> Void)?
 
+    // ── M6-1-01 T2 (KD-2): the legacy Session-root ride-along lock ────────
+    // `<root>/.lightamer/session.lock` — the SAME SingleWriterLock general-
+    // ization, second call site (zero marginal cost). The legacy face (QA
+    // channel) gets the lock + the typed conflict report ONLY: no read-only
+    // fallback dialog/banner here (explicit M6-5 boundary). The app root
+    // wires the conflict handler onto the existing error face.
+
+    /// The held session lock (nil = no session open / the release leg ran).
+    private var sessionLock: SingleWriterLock?
+
+    /// The typed conflict face for a held `session.lock` (the app root
+    /// wires it onto the same error surface every other session failure
+    /// rides). nil = the conflict is logged and the open fails honestly.
+    var sessionLockConflictHandler: ((String) -> Void)?
+
     /// ④ the real sync leg: open + scan + single-transaction diff.
     func openAndSync(root: URL) async -> SessionCoordinator.SessionOpenSyncResult {
+        // M6-1-01: acquire the session-root lock BEFORE the index open (the
+        // same acquire-before-any-write ordering the project lock uses).
+        switch SingleWriterLock.acquire(
+            at: root.appendingPathComponent(".lightamer")
+                .appendingPathComponent("session.lock"))
+        {
+        case .success(let acquired):
+            sessionLock = acquired
+            acquired.writePayload(
+                SingleWriterLockPayload(
+                    role: .gui, pid: getpid(),
+                    startedAt: SingleWriterLockPayload.nowISO8601()))
+        case .failure(.heldByOther):
+            let lockPath = root.appendingPathComponent(".lightamer")
+                .appendingPathComponent("session.lock")
+            let summary = SingleWriterLock.holderSummary(at: lockPath)
+            Self.logger.error(
+                "session lock held elsewhere (\(summary, privacy: .public))")
+            sessionLockConflictHandler?(
+                String(
+                    localized: "session_lock_held",
+                    defaultValue: "该照片文件夹已由另一 Lightamer 实例打开（\(summary)）。关闭那个实例后重试。"))
+            return SessionCoordinator.SessionOpenSyncResult(failed: true)
+        case .failure(.ioError(let reason)):
+            Self.logger.error(
+                "session lock acquire failed: \(reason, privacy: .public)")
+            // The lock is a concurrency discipline, not data: an I/O
+            // failure here degrades to the legacy unlocked behavior rather
+            // than bricking folder opens (DECISIONS M6-1-01 note).
+        }
         let store = SessionIndexStore(sessionRoot: root)
         self.store = store
         sessionRootURL = root
@@ -448,6 +493,9 @@ final class SessionIndexController {
             )
             await store.close()
             self.store = nil
+            sessionRootURL = nil
+            sessionLock?.unlock()
+            sessionLock = nil
             return SessionCoordinator.SessionOpenSyncResult(failed: true)
         }
     }
@@ -457,6 +505,10 @@ final class SessionIndexController {
         await store?.close()
         store = nil
         sessionRootURL = nil
+        // M6-1-01: the ride-along lock releases with the session (kernel
+        // release on process death remains the crash leg).
+        sessionLock?.unlock()
+        sessionLock = nil
     }
 
     /// The open session's root (Plan 14-2 — see `currentSession`).
