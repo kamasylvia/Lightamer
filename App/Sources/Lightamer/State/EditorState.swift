@@ -130,6 +130,12 @@ final class EditorState {
     /// is deliberately untouched: the pristine seed is shared across
     /// versions (only chain-owned instances differ).
     func installVersionChain(_ chain: HistoryStack) {
+        // M6-1-01 omp E-OMP-1 (a): the install face is a history WRITER —
+        // read-only no-ops it. Safe by construction: every caller is the
+        // VersionCoordinator command path (hydrate restores ride
+        // `restoreFromSidecar`, never here), so the read-only open's
+        // legitimate version restore is unaffected.
+        if projectWriteSuppressed() { return }
         history = chain
         rebuildInstances()
         rebuildLayerStack()
@@ -152,11 +158,15 @@ final class EditorState {
     /// Injectable read-only gate — the app root reads
     /// `libraryProjects.isReadOnly` into it. nil (the default) = writable:
     /// every existing construction and test is zero-diff. When the gate
-    /// reads TRUE, every commit* entry below no-ops (typed no-throw: the
-    /// FIRST defense is the UI's disabled projection; this is the
-    /// backstop so no stray path can land sidecar bytes). HistoryStack
-    /// itself is untouched (the封存面 red line) — the guard lives HERE,
-    /// in the App-side wrapper layer.
+    /// reads TRUE every history-writing entry below no-ops (typed
+    /// no-throw: the FIRST defense is the UI's disabled projection; this
+    /// is the backstop so no stray path can land sidecar bytes). The
+    /// guarded family is 13 entries (M6-1-01 omp E-OMP-1 (a)): the seven
+    /// commit* records + the history NAVIGATION trio (performUndo /
+    /// performRedo — refused with `false`; performJump — no-op) + the
+    /// paste/version INSTALL trio (installVersionChain / installMergePaste
+    /// / installOverwritePaste). HistoryStack itself is untouched (the封存
+    /// 面 red line) — the guard lives HERE, in the App-side wrapper layer.
     var projectReadOnlyGate: (() -> Bool)? = nil
 
     nonisolated private static let readOnlyLogger = Logger(
@@ -328,6 +338,8 @@ final class EditorState {
     /// already carries the ONE paste item; the base set is untouched
     /// (undo-safe). One ⌘Z steps back over the paste item.
     func installMergePaste(history newHistory: HistoryStack) {
+        // M6-1-01 omp E-OMP-1 (a): the paste install is a history WRITER.
+        if projectWriteSuppressed() { return }
         history = newHistory
         rebuildInstances()
         rebuildLayerStack()
@@ -341,6 +353,9 @@ final class EditorState {
     func installOverwritePaste(
         history newHistory: HistoryStack, seed: [ModuleInstance]
     ) {
+        // M6-1-01 omp E-OMP-1 (a): the paste install is a history WRITER
+        // (it also re-merges the base seed).
+        if projectWriteSuppressed() { return }
         history = newHistory
         var merged = seed
         for record in baseInstances
@@ -368,6 +383,9 @@ final class EditorState {
     /// already pristine. Rebuilds the live instance set from the stack.
     @discardableResult
     func performUndo() -> Bool {
+        // M6-1-01 omp E-OMP-1 (a): undo moves the pointer (the sidecar
+        // position is a WRITE) — read-only refuses, the stack stays put.
+        if projectWriteSuppressed() { return false }
         guard history.undo() != nil else { return false }
         rebuildInstances()
         rebuildLayerStack()
@@ -377,6 +395,9 @@ final class EditorState {
     /// HIST-02 navigation: step forward into an untruncated tail.
     @discardableResult
     func performRedo() -> Bool {
+        // M6-1-01 omp E-OMP-1 (a): redo moves the pointer — read-only
+        // refuses, the tail stays unconsumed.
+        if projectWriteSuppressed() { return false }
         guard history.redo() != nil else { return false }
         rebuildInstances()
         rebuildLayerStack()
@@ -386,6 +407,11 @@ final class EditorState {
     /// HIST-02/D-H3 navigation: jump to an arbitrary point (the stack
     /// clamps out-of-range indices; −1 = pristine).
     func performJump(to index: Int) {
+        // M6-1-01 omp E-OMP-1 (a): jump moves the pointer — read-only
+        // no-ops (PipeCoordinator.jumpToHistory additionally skips its
+        // sidecar tail on a suppressed gate: a blocked jump must not
+        // schedule the write that touches the active slot's updatedAt).
+        if projectWriteSuppressed() { return }
         history.jump(to: index)
         rebuildInstances()
         rebuildLayerStack()
