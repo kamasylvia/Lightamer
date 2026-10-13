@@ -693,3 +693,4 @@ EXPORT	1	PanoFusionPerfProbeTests.swift
 LIB	8	SingleWriterLockTests.swift
 LIB	10	ProjectLockTests.swift
 APP	6	ProjectReadOnlyFaceTests.swift
+APP	9	McpProjectArbitrationTests.swift

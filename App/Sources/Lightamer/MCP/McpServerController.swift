@@ -56,6 +56,86 @@ enum McpServerController {
         return LaunchMode.allCases.first { arguments.contains($0.rawValue) }
     }
 
+    // MARK: - M6-1-01 T6: the headless `--project` arbitration (KD-4)
+
+    /// The project-arbitration CLI flag (the token whose NEXT argv slot
+    /// carries the `.lalb` path).
+    static let projectFlag = "--project"
+
+    /// The machine-read guidance event name (the frozen v1 schema).
+    static let connectGuidanceEvent = "connect-guidance"
+
+    /// The `--project` assembly parameter: the flag token's neighbor slot.
+    /// Flag present but path missing, or a non-`.lalb` suffix → stderr
+    /// error + exit 1 (the KD-4 validation shape).
+    static func headlessProjectPathIfRequested() -> URL? {
+        let arguments = CommandLine.arguments
+        guard let index = arguments.firstIndex(of: projectFlag) else { return nil }
+        guard arguments.count > index + 1 else {
+            FileHandle.standardError.write(Data(
+                "\(projectFlag): a .\(LibrarySchema.fileExtension) package path is required\n".utf8))
+            exit(1)
+        }
+        let path = arguments[index + 1]
+        guard path.lowercased().hasSuffix("." + LibrarySchema.fileExtension) else {
+            FileHandle.standardError.write(Data(
+                "\(projectFlag): not a .\(LibrarySchema.fileExtension) package path: \(path)\n".utf8))
+            exit(1)
+        }
+        return URL(fileURLWithPath: path)
+    }
+
+    /// The connect-guidance payload (schema v1 FROZEN: event / endpoint |
+    /// null / holderPid). The endpoint mirrors the holder's discovery json
+    /// (`McpEndpointDiscovery` single source — the Core lock payload never
+    /// carries it, KD-1).
+    struct McpConnectGuidance: Codable, Equatable, Sendable {
+        struct Endpoint: Codable, Equatable, Sendable {
+            var transport: String
+            var host: String
+            var port: Int
+            var auth: String
+        }
+        var event: String
+        var endpoint: Endpoint?
+        var holderPid: Int32
+    }
+
+    /// The guidance channel fork (KD-4, the LightCraft docs/mcp.md
+    /// discipline: stdout carries ONLY protocol messages on a stdio host —
+    /// an HTTP host owns its stdout, so its guidance rides stdout; a stdio
+    /// host's guidance goes to stderr, both the machine JSON and the human
+    /// line).
+    static func connectGuidanceChannel(for mode: LaunchMode) -> FileHandle {
+        switch mode {
+        case .http: FileHandle.standardOutput
+        case .stdio: FileHandle.standardError
+        }
+    }
+
+    /// The endpoint paths the headless arms use. DEBUG tests spawn THIS
+    /// binary and cannot inject constructor parameters — the env override
+    /// (read ONCE at this assembly root, the L036 discipline) redirects the
+    /// discovery machinery into a per-test temp directory. Release builds
+    /// never see the branch.
+    static var headlessEndpointPaths: McpEndpointPaths {
+        #if DEBUG
+        if let directory = ProcessInfo.processInfo
+            .environment["LIGHTAMER_MCP_ENDPOINT_DIR"] {
+            return McpEndpointPaths(
+                directory: URL(fileURLWithPath: directory, isDirectory: true))
+        }
+        #endif
+        return McpEndpointPaths.makeDefault()
+    }
+
+    /// The headless writer arm's open project store (the process parks
+    /// forever; the STORE holds the project lock internally — the single
+    /// acquisition point, KD-2; close releases in the EOF leg). Same
+    /// `nonisolated(unsafe)` shape as the embedded-state box; the EOF
+    /// watcher's close leg is the only second toucher.
+    private nonisolated(unsafe) static var headlessProjectStore: ProjectFileStore?
+
     /// Runs the headless server for `mode` and parks the process forever
     /// (stdio: the transport reads stdin from its own task; the entry point
     /// parks via `dispatchMain`). Errors are fatal by design — the failure
@@ -67,36 +147,23 @@ enum McpServerController {
     /// (D2 — nobody discovers a stdio host). Losing the lock is NOT fatal:
     /// the host starts READ-ONLY and write-face tools fail with
     /// `serverReadOnly` (the T2 registry writer-check hook).
+    ///
+    /// M6-1-01 T6 (KD-4/OQ-3): with `--project <path>` armed, the project
+    /// lock arbitrates FIRST — acquire → writer arm (open + serve, the
+    /// `.lalb` write right lives here); heldByOther → read-only arm
+    /// (guidance emitted, serve continues). Without the flag the body
+    /// below is byte-identical legacy (the zero-regression surface).
     static func runHeadless(mode: LaunchMode) {
         let stderr = FileHandle.standardError
         Task<Void, Never> {
             do {
+                if let projectURL = headlessProjectPathIfRequested() {
+                    await runHeadlessArbitrated(mode: mode, projectURL: projectURL)
+                    return
+                }
                 switch mode {
                 case .stdio:
-                    let paths = McpEndpointPaths.makeDefault()
-                    let lock: McpEndpointLock?
-                    switch McpEndpointLock.acquire(in: paths) {
-                    case .success(let acquired):
-                        lock = acquired
-                        await log("headless MCP stdio host: writer lock held")
-                    case .failure(.heldByOther):
-                        lock = nil
-                        await log(
-                            "headless MCP stdio host: writer lock held elsewhere — READ-ONLY mode"
-                        )
-                    case .failure(.ioError(let reason)):
-                        stderr.write(
-                            "headless MCP stdio host: lock acquire failed: \(reason)\n"
-                                .data(using: .utf8)!)
-                        exit(1)
-                    }
-                    let registry = await makeRegistry(
-                        editing: await makeEditingSeams(session: { nil }),
-                        culling: makeCullingContext(session: { nil }))
-                    await registry.setWriterCheck { @Sendable in lock != nil }
-                    let server = await McpAdapters.makeServer(registry: registry)
-                    try await server.start(transport: StdioTransport())
-                    await log("headless MCP server up (stdio)")
+                    await startHeadlessStdioHost(paths: McpEndpointPaths.makeDefault())
                 case .http:
                     // The headless HTTP daemon: same binding discipline as
                     // the GUI host (writer lock → bind 127.0.0.1 → write the
@@ -131,6 +198,197 @@ enum McpServerController {
         // Never returns — keeps the process alive while the transport tasks
         // pump stdin/stdout (the research §RQ-14-1④ parked shape).
         dispatchMain()
+    }
+
+    /// The `--project` two-arm body (KD-4). The STORE is the single
+    /// acquisition point (KD-2): `open(role: .headless)` arbitrating held =
+    /// the READ-ONLY arm (guidance + serve-on), success = the WRITER arm
+    /// (the store owns the lock; the legacy serve assembly, `SessionProvider`
+    /// stays `{ nil }` — m1: v1 positioning is the lock carrier + open
+    /// validation; the tool service face is unchanged, project-level tooling
+    /// is M6-2's). An external acquire here would double-lock (flock per
+    /// open file description: the store's own second fd would EWOULDBLOCK
+    /// against the arm's first — the T6 execution fix).
+    private static func runHeadlessArbitrated(mode: LaunchMode, projectURL: URL) async {
+        let stderr = FileHandle.standardError
+        let lockURL = projectURL.deletingPathExtension()
+            .appendingPathExtension("lalb.lock")
+        var isWriter = false
+        let store = ProjectFileStore(at: projectURL)
+        do {
+            _ = try await store.open(role: .headless)
+            headlessProjectStore = store
+            isWriter = true
+            await log("headless project writer arm: \(projectURL.path)")
+        } catch let error as LibraryError {
+            if case .projectHeldByOther = error {
+                emitConnectGuidance(mode: mode, lockURL: lockURL)
+                await log("headless project read-only arm: held by another instance")
+            } else {
+                stderr.write(Data(
+                    "--project: package open failed: \(error)\n".utf8))
+                exit(1)
+            }
+        } catch {
+            stderr.write(Data(
+                "--project: package open failed: \(error)\n".utf8))
+            exit(1)
+        }
+        // The stdio EOF graceful leg (KD-4, armed only with --project): the
+        // agent disconnecting releases the project right best-effort
+        // (checkpoint → unlock → exit; process death is the kernel floor).
+        // poll(2) with a zero event mask watches HUP WITHOUT stealing bytes
+        // from the transport's stdin reader.
+        if mode == .stdio {
+            Task.detached(priority: .utility) {
+                var fds = [pollfd(fd: STDIN_FILENO, events: 0, revents: 0)]
+                while true {
+                    let count = poll(&fds, 1, -1)
+                    if count > 0,
+                        fds[0].revents & (Int16(POLLHUP) | Int16(POLLERR)) != 0 {
+                        break
+                    }
+                    fds[0].revents = 0
+                }
+                try? await headlessProjectStore?.close()
+                exit(0)
+            }
+        }
+        switch mode {
+        case .stdio:
+            await startHeadlessStdioHost(paths: headlessEndpointPaths)
+        case .http:
+            if isWriter {
+                // Writer arm: the full legacy http daemon (endpoint lock →
+                // bind → discovery json → serve).
+                do {
+                    let handle = try await startHTTPHost(
+                        paths: headlessEndpointPaths,
+                        editing: await makeEditingSeams(session: { nil }),
+                        culling: makeCullingContext(session: { nil }))
+                    await log(
+                        "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
+                            + " — endpoint file \(handle.paths.jsonURL.path)")
+                } catch {
+                    stderr.write(Data(
+                        "--project http: host start failed: \(error)\n".utf8))
+                    exit(1)
+                }
+            } else {
+                // Read-only arm: serve WITHOUT the endpoint writer right —
+                // no discovery json (that file belongs to the writer; the
+                // guidance already pointed the agent at the holder's real
+                // endpoint), no lock steal. The startHTTPHost contract
+                // (writer-less daemons don't fake-liven the network) keeps
+                // its shape; this is the separate honest read-only face.
+                await startReadOnlyHTTPHost(paths: headlessEndpointPaths)
+            }
+        }
+    }
+
+    /// The connect-guidance emission (KD-4 ②③): one machine-readable JSON
+    /// line on the mode's channel + one human line on stderr. Endpoint
+    /// absent (noEndpointFile / staleResidueRemoved) = the DEGRADED form
+    /// (`endpoint: null` — close it or turn on its MCP server).
+    private static func emitConnectGuidance(mode: LaunchMode, lockURL: URL) {
+        let payload = SingleWriterLock.readPayload(at: lockURL)
+        let holderPid = payload?.pid ?? -1
+        var endpoint: McpConnectGuidance.Endpoint?
+        if case .alive(let info) = McpEndpointDiscovery.discover(
+            in: headlessEndpointPaths) {
+            endpoint = McpConnectGuidance.Endpoint(
+                transport: info.transport, host: info.host,
+                port: info.port, auth: info.auth)
+        }
+        let guidance = McpConnectGuidance(
+            event: connectGuidanceEvent, endpoint: endpoint, holderPid: holderPid)
+        do {
+            var data = try JSONEncoder().encode(guidance)
+            data.append(0x0A)
+            connectGuidanceChannel(for: mode).write(data)
+        } catch {
+            // The machine face failed to encode — impossible for this
+            // struct, but the human face still fires below.
+        }
+        if endpoint != nil {
+            let line = String(
+                localized: "mcp_connect_guidance_stderr",
+                defaultValue: "项目已由另一实例持有（pid \(holderPid)）——请连接其 MCP 端点，或关闭该实例后重试。\n")
+            FileHandle.standardError.write(Data(line.utf8))
+        } else {
+            let line = String(
+                localized: "mcp_connect_guidance_stderr_noendpoint",
+                defaultValue: "项目由另一实例持有（pid \(holderPid)）——关闭它或在其上开启 MCP server。\n")
+            FileHandle.standardError.write(Data(line.utf8))
+        }
+        if mode == .http {
+            syncStdoutBestEffort()
+        }
+    }
+
+    /// The read-only HTTP serve face (the project read-only arm): binds
+    /// loopback ephemeral WITHOUT the endpoint writer right and writes NO
+    /// discovery json; every write-face tool fails at call time (the
+    /// writerCheck false + the T7 project probe when wired).
+    private static func startReadOnlyHTTPHost(paths: McpEndpointPaths) async {
+        let registry = await makeRegistry(
+            editing: await makeEditingSeams(session: { nil }),
+            culling: makeCullingContext(session: { nil }))
+        await registry.setWriterCheck { false }
+        let host = McpHTTPHost(
+            configuration: .init(host: McpHTTPHost.loopbackHost, port: 0),
+            validationPipeline: nil
+        ) { _ in
+            await McpAdapters.makeServer(registry: registry)
+        }
+        do {
+            try await host.start()
+            if let bound = await host.boundPort {
+                await log(
+                    "headless MCP read-only http face up on 127.0.0.1:\(bound)"
+                        + " (no discovery file — the writer owns it)")
+            }
+        } catch {
+            FileHandle.standardError.write(Data(
+                "--project read-only http face failed: \(error)\n".utf8))
+        }
+    }
+
+    /// The legacy stdio body (endpoint lock acquire → registry → serve),
+    /// extracted verbatim so the `--project` arms and the no-project path
+    /// share ONE implementation (the M6-1 diff moved, not changed — the
+    /// McpHostTests stdio fixtures pin the behavior).
+    private static func startHeadlessStdioHost(paths: McpEndpointPaths) async {
+        let stderr = FileHandle.standardError
+        do {
+            let lock: McpEndpointLock?
+            switch McpEndpointLock.acquire(in: paths) {
+            case .success(let acquired):
+                lock = acquired
+                await log("headless MCP stdio host: writer lock held")
+            case .failure(.heldByOther):
+                lock = nil
+                await log(
+                    "headless MCP stdio host: writer lock held elsewhere — READ-ONLY mode"
+                )
+            case .failure(.ioError(let reason)):
+                stderr.write(
+                    "headless MCP stdio host: lock acquire failed: \(reason)\n"
+                        .data(using: .utf8)!)
+                exit(1)
+            }
+            let registry = await makeRegistry(
+                editing: await makeEditingSeams(session: { nil }),
+                culling: makeCullingContext(session: { nil }))
+            await registry.setWriterCheck { @Sendable in lock != nil }
+            let server = await McpAdapters.makeServer(registry: registry)
+            try await server.start(transport: StdioTransport())
+            await log("headless MCP server up (stdio)")
+        } catch {
+            stderr.write(
+                "headless MCP server failed: \(error)\n".data(using: .utf8)!)
+            exit(1)
+        }
     }
 
     // MARK: - The single kernel (registry assembly)
@@ -565,6 +823,39 @@ enum McpServerController {
         }
         // Park until stdin EOF (the test harness closes the pipe), then
         // exit cleanly — releasing the lock through the kernel.
+        let _ = FileHandle.standardInput.readDataToEndOfFile()
+        exit(0)
+    }
+
+    /// The `-la_project_hold_lock <lalb路径>` fixture mode (M6-1-01 T6,
+    /// KD-4 — the `-la_mcp_hold_lock` shape on the PROJECT lock): acquire
+    /// the `<stem>.lalb.lock` writer right, write the headless payload,
+    /// print PROJECT-LOCKED, then park until stdin closes (EOF = the
+    /// parent is done with us). The arbitration tests spawn THIS HOST
+    /// BINARY with the flag to exercise the real two-process project-lock
+    /// states. Never ships: #if DEBUG.
+    static func holdProjectLockFixtureIfRequested() -> Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-la_project_hold_lock"),
+            arguments.count > index + 1
+        else { return false }
+        let packageURL = URL(fileURLWithPath: arguments[index + 1])
+        let lockURL = packageURL.deletingPathExtension()
+            .appendingPathExtension("lalb.lock")
+        switch SingleWriterLock.acquire(at: lockURL) {
+        case .success(let lock):
+            lock.writePayload(
+                SingleWriterLockPayload(
+                    role: .headless, pid: getpid(),
+                    startedAt: SingleWriterLockPayload.nowISO8601()))
+            print("PROJECT-LOCKED \(lockURL.path)")
+            syncStdoutBestEffort()
+        case .failure(let error):
+            print("PROJECT-LOCK-FAIL \(error)")
+            syncStdoutBestEffort()
+            exit(3)
+        }
+        // Park until stdin EOF, then exit cleanly (kernel release).
         let _ = FileHandle.standardInput.readDataToEndOfFile()
         exit(0)
     }
