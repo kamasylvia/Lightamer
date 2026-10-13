@@ -1,0 +1,71 @@
+# M2-10「AI 图库」回溯二次验收（OMP 双路终验）
+
+> 验收员：OMP（零共享上下文，双路并发终验之一路）。日期：2026-10-10。HEAD：`efef1462`。方法：六正本 ACCEPTANCE + 07-SUMMARY + VALIDATION 全读，上一轮 6 抽查点独立重验机检项 9 个（零测试重跑，引用终轮亲证值）。
+
+## 结论头
+
+**PASS / 0 error + 1 minor**
+
+## 抽查点证据
+
+### R1. 语义七表激活面（M2-2 占位 → M2-10 激活）
+
+- `LibrarySchema.swift:92-100`：v3→v4 注释明示七表激活（`semantic_model`/`image_embedding`/`image_label`/`label_query`/`ai_understanding`+`_fts`/`ai_rating`），纯 additive 零旧列改动。
+- `LibrarySchema.swift:400-474` 列序冻结 + `:539-606` DDL（三 understanding FTS 触发器 ai/ad/au + external-content `ai_understanding_fts`）。M2-2 注释占位已实质激活。
+- E5 契约：`SemanticStore.swift:25-29` 文件头合同 + `AIDescriptionService.swift:153-156`（`MATCH ? AND u.active = 1` JOIN）在位，02→04 消费链完整。
+
+### R2. worker 进程隔离面（05 波）
+
+- 分叉臂：`App/Sources/Lightamer/UI/LightamerApp.swift:131-156`（flock→mcp→`AIWorkerMain.runIfRequested()`→GUI，行号后演进，臂序不变——后演进，不记账）。
+- crash 钩子双门：`AIWorkerMain.swift:78-95`（`#if DEBUG` + env 名常量）+ `:249-253` open 前 `Darwin.exit(9)`。
+- L063：`AIWorkerProtocol.swift:317-324` 逐字节 `UInt32` 宽化再移位 + 注释；8MB 构造期拒 `:238/:246-249`。
+- 无头纪律：worker 五文件 grep `Sidecar|import SwiftUI|import AppKit` = 0（亲跑）。
+- InProcess 生产构造仅 `AIWorkerMain.swift:280` worker 会话一处；`AIInferenceService.swift:76` 换刀注释在位。OQ-5-A 成立。
+
+### R3. 凭证面 + https 双道门（04 波）
+
+- `AICredentialStore.swift:8,38-39` 零状态 enum + 错误族仅载 OSStatus；service=bundle id，account=`rating-provider`（:49）；`kSecClassGenericPassword` 三写面。
+- `AIEndpointPolicy.swift:33-50`：https 直放 + http 仅三 loopback（含双 IPv6 拼写）；全仓 AI 域 grep `allowHTTP|allowInsecure|httpEnabled|insecureAllow` = 0——无暗开关成立。
+
+### R4. SidecarV8 + EnhanceCopy（06 波）
+
+- `LightamerSidecar.swift:482-483` decodeIfPresent + `:552` encodeIfPresent（M2-8 惯例）；v9 film（:484/:553）沿用同惯例反证 v8 为先例。
+- `ImportService.swift:633-654` `aiProvenance` 孪生缝 + Media 内断言在位；`EnhanceCopyWriter.swift:27-28` O_EXCL 独占预约头注在位。
+
+### R5. 测试法计数对表（不跑测试，计数机检）
+
+- `grep -c 'func test'`：Protocol 10 / Client 9 / Compat 8 / WordPiece 9 / SemanticSearch 10 / V8 5 / Copy 8 / TileInference 13 / LabelEngine 12 / ProviderClient 22 / RatingDescription 15 / FulltextSearch 13 / CredentialStore 7 / EndpointPolicy 9 / Scanner 8 / SemanticStore 10 / Registry 13 / LabelingDefaults 13 / ACA 10 / LCR 10 / EntryPoints 6——与 ACCEPTANCE/BUNDLE-MAP 逐位一致。
+- EnhanceDialog 13（非 10）= `c573087` M-1 修复 +3 后演进，不记账。终轮值引用：2955/16/0（07 续班终轮亲证）。
+
+### R6. VALIDATION 数字对表
+
+- 02 sanity 2.373s（02-ACC:39 ↔ VALIDATION:36）、03 真原型 2.586s（03-ACC:39 ↔ :36）、05 worker 真链 2.409s（05-ACC:60,215 ↔ :36）、06 金样 3.352s（06-ACC:19,51 ↔ :36）——四数逐字一致。
+- 06-ACC:52 `testRealModelEmbedImageThroughWorkerProcess` 2.373s 与 02 波另一测试同值至毫秒——毫秒计时不可回溯复算，维持上一轮 O-2 观察项。
+
+### R7. git 机检 + 体积红线
+
+- `e36a589e` squash 在位：90 文件 22917+/279-；执行期短 SHA 已压缩不可解析（与上一轮同），本轮改 HEAD 源码亲核。
+- `git ls-files Resources/AIModels/` = 仅 `.keep`（亲跑）——体积红线沿用成立。
+
+### R8. rating 第二写面溯源（上一轮 O-3 独立复核）
+
+- `SessionIndexStore.swift:1189` `claimMetadataApplySQL` 含 rating 列；`git log -S` 溯源 = `2718d212 feat(12-1)`（Phase 12 元数据认领）——**后演进，不记账**；M2-10 时代 `AIRatingService.swift:233` 单写面结论当时成立。
+- 注：上一轮报告路径写 `App/Sources/.../SessionIndexStore.swift`，实测文件在 `LightamerCore/Sources/Session/`——路径笔误，结论一致。
+
+### R9. AGENTS 键登记缺口（上一轮 M-1 独立复核）
+
+- 代码侧五键常量亲验在位：`library.ai.ratingConfirm`（AIRatingController:35）、`library.ai.connection/strictness/outputLanguage`（LibraryConnectionStore:57-59）、`library.ai.labelingMode`（LibraryPreferences:63）。
+- `grep -c 'library\.ai\.' AGENTS.md` = **0**——上一轮 M-1 复核成立，延续 minor（文档缺口，零行为面）。建议下次触 AGENTS 时补行。
+
+## 分歧项
+
+无实质分歧。账面注记两项（均不触及判定）：
+
+- D-1：上一轮 O-3 路径笔误（App/ vs LightamerCore/），结论一致（见 R8）。
+- D-2：上一轮「HEAD `bade569`」→ 本轮 `efef1462`，行号漂移（分叉臂等）均为后演进，不记账。
+
+## 会话卫生
+
+- 只读验收：除本报告外零写入；测试零重跑（未用 --all，未跑定向类）；网络动作零；无进程残留。
+
+OMP-VERDICT: PASS

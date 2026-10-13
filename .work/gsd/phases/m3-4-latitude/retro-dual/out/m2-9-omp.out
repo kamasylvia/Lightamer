@@ -1,0 +1,64 @@
+Working...
+# M2-9-ACCEPTANCE-OMP-R2 — 导出 Alcedo 化双路并发终验（OMP 路）
+
+**验收员:** OMP 独立回溯二次验收（零共享上下文，亲读亲检）
+**Date:** 2026-10-10
+**HEAD:** `efef1462`
+**方法:** 亲读五 ACCEPTANCE + 02-DECISIONS + AGENTS.md M2-9 增量节，独立重验上一轮 8 抽查点中的 7 个可机检项；禁跑全套、零测试复跑（引用首验/上一轮终值）。
+
+注记：工作树已演进——上一轮引用的 `4416f07..c2600d5` 链与 `90d079d` 当前树全不可解（历史二次改写）；本轮以现存链 `129a4bf8..5ce73298`（feat(m2-9)×13 + fix×4 + docs）为机检基线。现状差异凡后演进所致逐处标明，不记账。
+
+## 结论头
+
+# PASS / 0 error + 1 minor
+
+## 逐抽查点证据
+
+### R1. ExportVariant 载体 + OQ-7 强制联动 + peak 闸门（对上一轮 §1 前半）
+- `LightamerCore/Sources/Export/ExportRecipe.swift:59` `drtOutput: DrtRecord?` + `:110` decodeIfPresent 旧档兼容 + `:76` 默认 nil。
+- 强制联动 `App/Sources/Lightamer/State/ExportState.swift:527` `assembled.drtOutput = drtRecord` 恒写（行号较上一轮 :499-500 漂移，属后演进位移，语义在）。
+- peak 闸门 `ExportRecipe.swift:129-135`：drtOutput 非 nil 才 `isFinite + >0` typed 拒绝，message 含 "peak"。与首验 03 §五.6 一致 ✓。
+
+### R2. TaskLocal 递缝三件套 + 尾平面 float32（对上一轮 §2）
+- `ExportRenderer.swift:107` jobDrtTail / `:117` jobExifSoftware / `:153` jobNamingCarrier 三 @TaskLocal 在位，注释明示 contract-frozen 递缝纪律。
+- 消费 `request.drtTail ?? Self.jobDrtTail`（:430）、`tailFormatFloatOverride = drtTail != nil`（:499）与上一轮引用逐行吻合。
+- `:125` jobFilmTail = M3-3 后演进（AGENTS.md M3-3 节在案），不记账 ✓。
+
+### R3. STANDARD 剥离 + {TIFF} 座位 + 自建 ICC 穷举（对上一轮 §1 后半/§3）
+- `ExportMetadataPolicy.swift:67-69` location/serials/editingHistory 默认 false + `:83` standard 单源 ✓。
+- 座位 `ImageIOEncoders.swift:149-150` `tiff[kCGImagePropertyTIFFSoftware] = software`（已占即跳）✓。
+- `DrtOutputColorSpace.swift` 全文件 `grep "default:"` = **0**；`:264` Bradford / `:347-362` chad / `:381` curvGamma 在位。`srgbPiecewise` 新增臂 = M4-1 后演进（RGC-off 政策），不记账 ✓。
+
+### R4. 记忆键族六键 + typed 读（对上一轮 §4）
+- 五键 `ExportState.swift:345-349`（lastDirectory/jpeg/heic/avif/webpQuality）+ 第六键 `App/Sources/Lightamer/Export/ExportNamingTemplates.swift:30` `export.namingTemplates`，拼写与 AGENTS.md 键册逐字一致 ✓。
+- typed 读 `:389-390` `as? Double` + `isFinite` + `qualityRange.contains`，0.0 真记忆语义在 ✓。
+
+### R5. 测试终值引用 + 方法数对账（对上一轮 §5，不复跑）
+- `find` 定位四测试文件（已搬 `Tests/LightamerTests/`，后演进路径迁移，不记账）：`func test` 数 = 11/8/8/10，与 BUNDLE-MAP 行值（430/444/445/436 行）逐一相等 ✓。
+- 引用 VALIDATION 对账链终值 TOTAL|2693/16/0（M2-9-05 首验单轮干净绿）；本轮零复跑，计数面对账成立。
+
+### R6. 六格式矩阵红线 + commit 文件集对照（对上一轮 §1 红线/§7）
+- `git log --oneline 129a4bf8..5ce73298 -- WebPEncoder/ExportQuantizer/ExportQueueContract` = **全空** ✓；`ImageIOEncoders.swift` 波内恰 1 commit（`0a091514` T2 装配腿）✓。
+- 文件集对照：`129a4bf8` 恰 4 文件 +534/−22（= 首验 6835bd2 申报）；`24b560d0` 恰 4 文件 +787 全插入（= 首验 e87b25e）；`7fdeea84` 恰 4 文件；`1044ddb8` 恰 5 文件 +795/−20；`deb73d1d` 恰 10 文件 +1328/−5——数字逐值吻合 ✓。
+
+### R7. 走查证据 + F-2 修复（对上一轮 §6）
+- `#4 dump` 亲读：9504×6336 / Software FOUND @120 / ICC Rec709 + D50 wtpt + chad + curv γ2.3984 / GPS 仅熵流——与 05 §四 #4 一致 ✓。
+- `#9 dump` 亲读：desc "Rec. ITU-R BT.2100 PQ" + CICP 9/16 + A2B0/B2A0 ✓。证据目录 36 件（含 F-2 复验 2 截图）。
+- F-2 实 SHA = **`0c928a15`**（首验 afb1f88 / 上一轮 90d079d 均不可解，见 minor）：diff 亲考 = `LocalizationValue("export_format_" + kind.rawValue)` 一行 + L058 注释，与根因描述逐字对应 ✓。
+
+### R8. 冲突档挂账关闭口径（对象卡范围注记）
+- M3-1-03 `78432f8d` feat(app): export m2 collision policy picker（5 文件 +351/−31，含 ExportCollisionPickerTests）= 挂账关闭交付，后演进，不记 M2-9 账 ✓。
+- AGENTS.md M2-9 增量节仍含「档位 UI 缺口挂账」历史措辞（M3-1 节已记关闭），属历史快照文本，非交付缺陷，不记账。
+
+## 分歧项
+
+| # | 级别 | 内容 |
+|---|---|---|
+| 1 | minor | **首验/上一轮 SHA 命名空间二次漂移**：上一轮 8 个对照 SHA（4416f07 系）+ F-2 实考 90d079d 当前树全不可解（`git rev-parse` fatal 亲验）；内容以 `129a4bf8..5ce73298` 系 SHA 存于祖先链，message 与 --stat 数字逐一对应（见 R6）。属标识漂移（M2-1/M2-4/上一轮 minor#1 同族），代码态逐 commit 可追溯，不影响任何 AC 结论。F-2 现 SHA = 0c928a15。 |
+| 2 | 澄清（非分歧） | 上一轮「ExportPanelView 在 4416f07..c2600d5 零 commit」= 范围起点互斥（`A..B` 不含 A）所致的表述形态；T1 本体含 PanelView 补臂（129a4bf8 stat 中 ExportPanelView.swift +7，首验 01 §二申报在案的 front-matter 补臂）。legacy 冻结红线实质（04 波 0 行，首验 04 §三亲跑）不受影响，维持上一轮结论。 |
+
+## 会话卫生
+
+- 只读验收：零源码/文档修改；唯一写入 = 本报告文件；未 push；零测试复跑；零网络动作。
+
+OMP-VERDICT: PASS

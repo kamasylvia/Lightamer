@@ -1,0 +1,102 @@
+# M2-8 ACCEPTANCE-PI — 「版本与历史」回溯二次验收（双路并发批，PI 路）
+
+> 验收员：PI（零共享上下文独立复核，不轻信首验与上一轮 omp 回溯结论）。
+> 日期：2026-10-10；HEAD = `efef1462`。
+> 方法：亲读三 ACCEPTANCE 正本 + M2-8-3-DECISIONS + AGENTS.md「M2-8 架构增量」节 + 上一轮
+> `M2-8-ACCEPTANCE-OMP.md`（提炼抽查点、独立重取证）；只读验收，测试未复跑（引首验/上轮记录终值）。
+> **结论头：PASS / 0 error + 1 minor（SHA 引用链再漂移，见分歧项）**
+
+## 一、逐抽查点证据（独立重验 6 项，均不照抄上轮结论）
+
+### ① sidecar v7 双键 + items 不双写 + v6 零漂移 — PASS
+
+- 双键在位：`LightamerSidecar.swift:302` `versions: [SidecarVersionRecord]?`、`:308`
+  `activeVersionID: String?`；父 document `decodeIfPresent` 双键 `:474-476` +
+  `encodeIfPresent` 双键 `:546-547`（nil = 键缺席 = v6 形零漂移，编码面亲证）。
+- 不双写：`SidecarVersionRecord`（`:833-888` 同上轮口径，现树行号未漂）——`chain`
+  internal 存储 + `encodeIfPresent(chain)`（active 槽键缺席注释钉明）；public
+  `init(chain: HistoryStack?)` 单点铸造 + `chainStack` 读回（亲读函数体）。
+- 时代树核：`git show 5ca8c546:.../LightamerSidecar.swift` → `:178
+  schemaVersionCurrent = 7` + 双键在位；现树 `:207 = 9`（M2-10 v8 / film v9 后演进
+  加法扩展，不记账——与上轮注记同判）。
+- hash 隔离：首验负测（篡改 `versions[].name` → `driftDetected == false`）+
+  `SidecarV7Tests` 8 法在场（见⑤对账）采信；`HistoryHash` 签名面结构无版本入口（首验 AC2）。
+
+### ② version_ref reduced DDL + pre-migrate 轮换 — PASS
+
+- `LibrarySchema.swift:373-382` `createVersionRefTableSQL` 恰 5 列（version_id PK /
+  element_id FK CASCADE / display_name / created_at_unix / updated_at_unix）；
+  `versionRefColumns`（`:395` 起）逐列与 DDL 一致。
+- `head_commit_hash` 不激活双证：`:87` 注释钉明 + `:841` 预留草图注释；
+  `reservedTableNames`（`:653`）收窄三名 `edit_commit/image_edit_state/pipeline_root`。
+- 快照轮换：`ProjectFileStore.swift:278-286` 代际命名
+  `pre-migrate.<stored>-<to>.bak`（`.appendingPathExtension` 亲读）；
+  `LibraryStore.replaceVersionRefs` 在位（`:507`）。
+
+### ③ 版本 swap 单路径 + pristine 收窄 — PASS
+
+- `VersionCoordinator.switchTo`（现树 `:300`）函数体亲读 = `captureActiveChain` →
+  `installVersionChain(incoming)` → `slots[i].chain = nil` → `activeVersionID = id` →
+  `finishVersionAction`——单路径成立。`:302-303` 与 `EditorState.swift:133-138` 的
+  `projectWriteSuppressed` guard 为 M6-1-01（2026-10-13）只读写门增量，**后演进不记账**；
+  `installVersionChain` 核心 = `history = chain + rebuildInstances() + rebuildLayerStack()`
+  亲读在位（EditorState 半径无 decode 面）。
+- sink 注入：`VersionProjectionSink`（`VersionCoordinator.swift:50`）+ 装配点
+  `EditorWorkspaceShellView.swift:192-196`（projectStore 有值装配 / nil 清空）——单点。
+- pristine 收窄：`SessionBatchApplier.swift:191` + `SessionIndexStore.swift:792`
+  `hasEdits: document.history.position >= 0 ? 1 : 0`（两处行号与上轮引用逐位一致）；
+  版本结构不翻转判定 = active 链续住 `history` 键的编码面推论（①已证）。
+
+### ④ 两 FINDING 修复回归现状在位 — PASS（SHA 见分歧项）
+
+- FINDING-A：`AdjustmentTransferView.swift:330-340` `AdjustmentTransferSheetContent`
+  （init 双参 + 内容面 `.environment(versions)` / `.environment(editorState)` 重注入）
+  在位；`git show 5ca8c546 -- AdjustmentTransferView.swift LightamerApp.swift` diff
+  亲读 = 新增内容面 + app-root 闭包改挂该面，与首验 §三申报机制一致。
+- FINDING-B：`WorkspaceHostView.swift:166-168` 底部 `.safeAreaInset(edge: .bottom)`
+  挂 `ToastBarView(toast:)` + `:1488` `status_toast` AX 标识；`git show d6271a9c`
+  diff 亲读同构。legacyBody 零触（diff 文件集仅 4 件：WorkspaceHostView/Project.swift/
+  BUNDLE-MAP/ToastFaceTests）。
+- 回归测试 `SheetEnvironmentInjectionTests`（1 法）+ `ToastFaceTests`（3 法）在
+  Project.swift/BUNDLE-MAP 双登记（见⑤）；上轮定向实跑 1/0/0 与 3/0/0、全套
+  2577/16/0（首验 M2-8-3-ACCEPTANCE §四）为记录终值，本轮按约束未复跑。
+
+### ⑤ BUNDLE-MAP 八行对账 — PASS
+
+`M2-4-0-BUNDLE-MAP.txt:311-318` 登记 vs `grep -c "func test"` 实况：
+SidecarV7Tests 8/8 · VersionSwapTests 11/11 · VersionsPanelTests 5/5 ·
+HistoryRowJumpTests 7/7 · AdjustmentTransferTests 8/8 · CleanTerminateSentinelTests 3/3 ·
+SheetEnvironmentInjectionTests 1/1 · ToastFaceTests 3/3——**八行逐值一致**（独立计数，
+与上轮结论同值但非照抄）。
+
+### ⑥ isAdjustmentTransferable 排除面单源 — PASS
+
+`AdjustmentTransfer.swift:35-38` 单谓词 =
+`!AdjustmentTransferTerminalTrio.opNames.contains(opName) && owner(of:) == .grade`；
+`:42-46` trio = `ColorInModule.opName / ColorOutModule.opName / GammaModule.opName`
+模块常量，**零字符串字面量**——与上轮 `:35-38/:42-46` 引用逐位同（行号未漂）。
+
+## 二、分歧项（与上一轮 M2-8-ACCEPTANCE-OMP.md）
+
+1. **SHA 引用链再漂移（本轮唯一 minor）**：上轮以 `66f0cb7`/`9d9ed87` 为两 fix 实 SHA、
+   `a26b005` 为时代树锚，并判 `e9c03af`/`4e7fc58` 为历史重写漂移。本轮现树
+   （`efef1462`）机检：`git cat-file -t` 五者（66f0cb7/9d9ed87/a26b005/e9c03af/4e7fc58）
+   **全部 Not a valid object**；首验三 ACCEPTANCE 所引 M2-8 全部提交 SHA
+   （2afeb3a…5102ea4）亦全部 unknown。按主题 `git log --all --grep` 独立找到等价锚：
+   两 fix = `5ca8c546`（re-inject Copy Adjustments sheet environment）与 `d6271a9c`
+   （mount D-26 toast render site），dated 2026-10-02、父链 `5ca8c546→d6271a9c` 连续、
+   均 HEAD 祖先（main/origin-main 在册），`--stat` 文件集（5 件/4 件）与 diff 内容与
+   上轮对 66f0cb7/9d9ed87 的描述逐项一致；另有 squash 形 `b10fa4cf`（35 文件全 M2-8 面）
+   在 `release`/github 分支。判定 = **上轮验收（2026-10-09）之后历史再度重写**，上轮
+   SHA 引用现树不可解析（上轮未报此点——本轮新发现，非误判其当时结论）。内容面
+   （修复代码/回归测试/登记）现树全部在位（抽查点④），故记 minor 不记 error。
+2. 其余无分歧：`schemaVersionCurrent` 7→9、行号漂移（switchTo :257→:300、sink
+   :192→:193、pre-migrate :144→:278）均系后演进（M2-10 v8 / M6-1-01 只读门 /
+   M2-11 等）加法扩展，两轮判定同向。
+
+## 三、会话卫生
+
+只读验收：除本报告文件外零写入、零源码/文档改动、零 push、零网络动作、
+测试零复跑（引用首验与上轮记录终值）；未触 `test-direct.sh`（双路并发纪律）。
+
+PI-VERDICT: PASS
