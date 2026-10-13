@@ -221,6 +221,14 @@ final class LibraryProjectController {
     /// source (verify failure = typed throw, the old project untouched and
     /// reopened). Reopens at the new location and promotes the recent list.
     func moveProject(to newDirectory: URL) async throws {
+        // M6-1-01 (KD-2/KD-3): the move window needs the write right —
+        // the read-only face refuses (UI disables the entry; this is the
+        // typed backstop; the lock semantics note lives in DECISIONS).
+        if isReadOnly {
+            throw LibraryError.projectReadOnly(detail:
+                "the project is open read-only (another instance holds the "
+                    + "project lock); close and reopen read-write to move")
+        }
         guard let store = projectStore, let packageURL = projectURL else {
             throw LibraryError.notOpen
         }

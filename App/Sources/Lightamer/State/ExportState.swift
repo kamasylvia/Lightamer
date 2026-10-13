@@ -35,6 +35,22 @@ final class ExportState {
         self.defaults = defaults
     }
 
+    // ── M6-1-01 T5 (KD-3 seam 3): the project read-only enqueue guard ─────
+
+    /// Injectable read-only gate — the app root reads
+    /// `libraryProjects.isReadOnly` into it. nil (the default) = writable.
+    /// When the gate reads TRUE both enqueue faces typed-reject (the yiyin
+    /// sheet's queue leg rides the same two entries, so the frame/watermark
+    /// export path is covered without a second seam).
+    var projectReadOnlyGate: (() -> Bool)? = nil
+
+    /// The gate read: true = the project is the read-only face.
+    private func projectWriteSuppressed() -> Bool {
+        guard let projectReadOnlyGate, projectReadOnlyGate() else { return false }
+        Self.logger.info("export enqueue suppressed: project is read-only")
+        return true
+    }
+
     // MARK: - Queue plumbing (configured by the app root, D-03b-safe)
 
     private var metal: MetalContext?
@@ -210,6 +226,10 @@ final class ExportState {
         images: [(url: URL, relPath: String)],
         canvasSize: SIMD2<Int>? = nil
     ) async throws {
+        if projectWriteSuppressed() {
+            throw AppError.invalidParameter(
+                "project is open read-only (another instance holds the project lock)")
+        }
         guard let queue else {
             throw AppError.invalidParameter("no export queue (no session open)")
         }
@@ -477,6 +497,13 @@ final class ExportState {
             throw AppError.invalidParameter(
                 "export m2: per-image filmTails count \(filmTails.count) "
                     + "!= image count \(images.count)")
+        }
+        // M6-1-01 (KD-3 seam 3): the read-only enqueue rejection — BEFORE
+        // any environment lookup (the same typed-rejection-first posture as
+        // the count guard below).
+        if projectWriteSuppressed() {
+            throw AppError.invalidParameter(
+                "project is open read-only (another instance holds the project lock)")
         }
         // The M2-9-02 acceptance O-2 前车之鉴: the per-image carriers are
         // INDEXED — a count mismatch is a caller bug and gets the typed

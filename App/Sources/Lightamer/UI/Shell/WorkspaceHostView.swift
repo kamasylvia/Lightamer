@@ -146,6 +146,15 @@ struct WorkspaceHostView: View {
         }
         .background(ThemeTokens.windowBackground)
         .accessibilityIdentifier(ThemeTokens.Markers.workspaceHost)
+        // M6-1-01 T5 (KD-3/OQ-4): the read-only banner — a persistent TOP
+        // safe-area inset while the project is the second instance's
+        // read-only face (the AX identifier is the walkthrough/test
+        // assertion surface). Zero-height when writable (no chrome).
+        .safeAreaInset(edge: .top, spacing: 0) {
+            ProjectReadOnlyBannerView(
+                isReadOnly: projectController?.isReadOnly ?? false,
+                holderPid: projectController?.readOnlyHolderPid)
+        }
         // M2-8-3 acceptance FINDING-B fix: the DEFAULT shell's D-26 toast
         // render site. The M2-3-1 shell swap moved the project workspace onto
         // this host and left `EditorState.presentToast`'s channel with no
@@ -589,24 +598,29 @@ struct WorkspaceHostView: View {
                 // M2-9-04 (OQ-1 A / KD-1): the M2 export entry — routes to
                 // the Inspector Export page (the page switch + the column
                 // raise in one arm via ContentView's inspector mount; the
-                // legacy sheet face is not reachable here).
+                // legacy sheet face is not reachable here). M6-1-01: the
+                // read-only face disables the export entry (the OQ-4
+                // 禁用投影 — the enqueue seam below is the backstop).
                 Button {
                     inspectorState.openExportPage()
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .buttonStyle(.borderless)
+                .disabled(projectController?.isReadOnly ?? false)
                 .accessibilityIdentifier("shell.topbar.export")
                 .accessibilityLabel(Text(String(localized: "menu_export")))
                 // The D4 独有入口: the yiyin 印框/水印 sheet (the export-domain
                 // first-class panel — no Alcedo counterpart; TextOverlay is
-                // the sheet's text carrier).
+                // the sheet's text carrier). M6-1-01: disabled read-only
+                // (the yiyin export leg rides the same ExportState seam).
                 Button {
                     isYiyinSheetPresented = true
                 } label: {
                     Image(systemName: "signature")
                 }
                 .buttonStyle(.borderless)
+                .disabled(projectController?.isReadOnly ?? false)
                 .accessibilityIdentifier("shell.topbar.yiyin")
                 .accessibilityLabel(Text(String(
                     localized: "shell_topbar_yiyin",
@@ -1402,6 +1416,47 @@ struct YiyinTopBarSheet: View {
                 case .height: model.heightEnd()
                 }
             }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ProjectReadOnlyBannerView (M6-1-01 T5, KD-3/OQ-4) — the read-only face's
+// persistent top banner. The same contract family as ToastBarView: writable
+// = NO chrome (EmptyView), read-only = the hairline-bar face with the
+//「只读——项目已由另一实例（pid N）打开」copy (「pid 未知」when the holder
+// payload was absent — diagnostics only). The AX identifier
+// `shell.readonly.banner` is the walkthrough/test assertion surface.
+// ─────────────────────────────────────────────────────────────────────────────
+struct ProjectReadOnlyBannerView: View {
+
+    let isReadOnly: Bool
+    let holderPid: Int32?
+
+    var body: some View {
+        if isReadOnly {
+            HStack(spacing: 8) {
+                Image(systemName: "lock.fill")
+                    .font(.caption)
+                Text(String(
+                    localized: "project_read_only_banner",
+                    defaultValue: "只读——项目已由另一实例（pid \(pidText)）打开"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(ThemeTokens.windowBackground)
+            .overlay(alignment: .bottom) {
+                Divider()
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("shell.readonly.banner")
+        }
+    }
+
+    private var pidText: String {
+        holderPid.map { String($0) } ?? "未知"
     }
 }
 
