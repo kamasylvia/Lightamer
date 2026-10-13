@@ -694,9 +694,12 @@ EXPORT	1	PanoFusionPerfProbeTests.swift
 #   （ColormatchIdentityGolden/KernelParity/ModuleTests 三行均 IOPP），归属按邻域
 #   落位；AC8 分账修正 = IOP 684/1/0 不变 + IOPParity 456→460/3/0，全套 3684 不变。
 #   行内 method 数以终态对账为准。运行期总数基线相应上移（3631 起算，E1 回注 53 法）。
+#   omp 复审批（2026-10-16）对账：ProjectReadOnlyFaceTests 6→18（T4 前半 6 + T5 后半 8
+#   + omp E-OMP-1 (e) 回注 4；o-OMP-1 的 6→14 终态对账 T10 漏做，本批直落 18）。
+#   六文件合计 57 法（8+10+9+8+18+4），全套预期 3688（E-OMP-1 e 回注修正值）。
 LIB	8	SingleWriterLockTests.swift
 LIB	10	ProjectLockTests.swift
-APP	6	ProjectReadOnlyFaceTests.swift
+APP	18	ProjectReadOnlyFaceTests.swift
 APP	9	McpProjectArbitrationTests.swift
 APP	8	McpProjectReadOnlyErrorTests.swift
 IOPP	4	ColormatchResolverBoxTests.swift

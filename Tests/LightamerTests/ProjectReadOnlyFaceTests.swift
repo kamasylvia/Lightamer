@@ -11,7 +11,10 @@ import XCTest
 // Plan M6-1-01 T4/T5 (KD-8 golden gate 4): the GUI read-only fallback face —
 // the conflict projection (controller + the legacy ride-along, m3a), the
 // dialog three legs, the termination flush, the three write-seam guards and
-// the red-line self-checks. L009: fixtures on NSTemporaryDirectory.
+// the red-line self-checks. The omp plan-review batch (E-OMP-1 (e), 4 more
+// methods) covers the history-navigation / version-command / paste / batch
+// entry faces the original 14 could not see. L009: fixtures on
+// NSTemporaryDirectory.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
@@ -394,6 +397,120 @@ final class ProjectReadOnlyFaceTests: XCTestCase {
             "the read-only face keeps the backup path alive")
         holder.unlock()
         try await controller.closeProject()
+    }
+
+    // MARK: - omp E-OMP-1 (e) 回注（4 法）：history 导航 / 版本 / paste / batch
+
+    /// ① gate closed → history navigation no-ops: undo/redo refuse (false),
+    /// jump never steps — the stack pointer stays exactly where it was, so
+    /// the sidecar position write these moves schedule can never diverge
+    /// (PipeCoordinator guards on the false return; jumpToHistory reads the
+    /// gate before its sidecar tail).
+    func testGateClosedHistoryNavigationIsNoOp() {
+        let editorState = EditorState()
+        editorState.recordChange(Self.record("exposure"), label: "history_test")
+        editorState.recordChange(Self.record("saturation"), label: "history_test")
+        editorState.performUndo()  // gate still open: the legit step to 0
+        XCTAssertEqual(editorState.history.position, 0)
+        editorState.projectReadOnlyGate = { true }
+        XCTAssertFalse(editorState.performUndo(), "a read-only undo must refuse")
+        XCTAssertFalse(editorState.performRedo(), "a read-only redo must refuse")
+        editorState.performJump(to: -1)
+        XCTAssertEqual(
+            editorState.history.position, 0,
+            "a read-only jump must not move the pointer")
+        XCTAssertTrue(editorState.canUndo, "the stack was never stepped back")
+        XCTAssertTrue(editorState.canRedo, "the redo tail was never consumed")
+    }
+
+    /// ② the coordinator-level gate: all six write commands refuse
+    /// read-only (create / branch / paste / switch / rename / remove) — no
+    /// slot growth, no activation move, no metadata mutation, and the
+    /// EditorState chain the commands install through stays untouched.
+    func testVersionCoordinatorGateRejectsWriteCommands() throws {
+        let editorState = EditorState()
+        let versions = VersionCoordinator()
+        versions.attach(
+            editorState: editorState, pipeCoordinator: PipeCoordinator())
+        editorState.recordChange(Self.record("exposure"), label: "history_test")
+        // Gate open: materialize the structure the gate will then protect
+        // (implicit 「版本 1」 + one created version). createFromScratch
+        // legitimately installs the new empty chain here — the gate's
+        // contract is that NOTHING lands AFTER it reads true.
+        versions.createFromScratch(name: "V2")
+        XCTAssertEqual(versions.slots.count, 2)
+        let activeID = try XCTUnwrap(versions.activeVersionID)
+        let otherID = try XCTUnwrap(
+            versions.slots.first(where: { $0.id != activeID })?.id)
+        let otherNameBefore = versions.slots
+            .first(where: { $0.id == otherID })?.name
+        let setupPosition = editorState.history.position
+        let setupCanUndo = editorState.canUndo
+        versions.projectReadOnlyGate = { true }
+        XCTAssertTrue(versions.isReadOnly)
+        versions.createFromScratch(name: "Blocked")
+        versions.branchFromCurrent(name: "Blocked")
+        versions.pasteChain(
+            records: [Self.record("saturation")], layerSnapshot: nil,
+            drtRecord: nil, name: "Blocked")
+        versions.switchTo(otherID)
+        XCTAssertEqual(
+            versions.activeVersionID, activeID,
+            "a read-only switch must not move the activation")
+        versions.rename(otherID, to: "Renamed")
+        XCTAssertEqual(
+            versions.slots.first(where: { $0.id == otherID })?.name,
+            otherNameBefore,
+            "a read-only rename must not land")
+        versions.remove(otherID)
+        XCTAssertEqual(versions.slots.count, 2, "a read-only remove must not land")
+        XCTAssertEqual(
+            editorState.history.position, setupPosition,
+            "no command ever reached the install face")
+        XCTAssertEqual(editorState.canUndo, setupCanUndo)
+        XCTAssertFalse(editorState.canRedo, "the pasteChain chain never landed")
+    }
+
+    /// ③ gate closed → the two paste installs no-op: neither the live set
+    /// nor the stack may change (⌘V's live leg has no landing read-only).
+    func testGateClosedPasteInstallsAreNoOps() {
+        let editorState = EditorState()
+        editorState.recordChange(Self.record("exposure"), label: "history_test")
+        let namesBefore = editorState.instances.map(\.opName)
+        var pasted = HistoryStack()
+        pasted.commit(Self.record("saturation"), label: "history_test")
+        editorState.projectReadOnlyGate = { true }
+        editorState.installMergePaste(history: pasted)
+        editorState.installOverwritePaste(
+            history: pasted, seed: [Self.record("noise_reduction")])
+        XCTAssertEqual(
+            editorState.instances.map(\.opName), namesBefore,
+            "the live set must stay put")
+        XCTAssertEqual(
+            editorState.history.position, 0,
+            "the pasted chain never installed")
+        XCTAssertFalse(editorState.canRedo, "no paste tail landed")
+    }
+
+    /// ④ the batch entry predicate: gate closed = the batch paste refuses
+    /// through the SAME EditorState toast face the read-only open uses;
+    /// nil/false stay writable (the zero-diff default).
+    func testBatchPasteEntryGateBlocksAndToasts() {
+        XCTAssertTrue(LightamerApp.batchPasteBlocked(gate: { true }))
+        XCTAssertFalse(LightamerApp.batchPasteBlocked(gate: { false }))
+        XCTAssertFalse(
+            LightamerApp.batchPasteBlocked(gate: nil),
+            "the nil default must stay writable")
+        let editorState = EditorState()
+        editorState.projectReadOnlyGate = { true }
+        if LightamerApp.batchPasteBlocked(gate: editorState.projectReadOnlyGate) {
+            editorState.presentToast(
+                LightamerApp.readOnlyPasteToast(holderPid: 4242))
+        }
+        XCTAssertEqual(
+            editorState.toast,
+            LightamerApp.readOnlyPasteToast(holderPid: 4242),
+            "the refusal raises the read-only toast face")
     }
 
     // MARK: - Shared harness (the ToastFaceTests mount shape)
