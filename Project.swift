@@ -588,6 +588,7 @@ let project = Project(
                 "Tests/LightamerTests/ImportCategoryTests.swift",
                 "Tests/LightamerTests/ImportTransportTiffTests.swift",
                 "Tests/LightamerTests/ImportServiceTests.swift",
+                "Tests/LightamerTests/ImportMergeStackTests.swift",
                 "Tests/LightamerTests/LibraryBenchmarkHarness.swift",
                 "Tests/LightamerTests/LibraryDocumentTests.swift",
                 "Tests/LightamerTests/LibraryFilterDomainTests.swift",
