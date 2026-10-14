@@ -7,24 +7,27 @@ depends_on: []
 autonomous: true
 requirements: ["M6INT-02（REQUIREMENTS :409）"]
 estimated_tests: "+52..58"
-test_bundles: [LIB, APP]
+test_bundles: [LIB]
+# ^ 六新测试文件全 LIB（评审 S3 聚拢裁决：LIB target 依赖 Lightamer App 模块
+# ——Project.swift :646-652 `.target(name: "Lightamer")` 亲证；LibraryGridModelTests
+# 等 App 侧 Library 模型族先例同域）。App bundle 零新法，回归绿走 T8 收口定向轮。
 files_modified:
   - LightamerCore/Sources/Library/LibrarySchema.swift            # 修改：schemaVersion 4→5 + v5 注记段 + stacks/stack_content 两张 CREATE SQL + idx_stack_content_image + stacksColumns/stackContentColumns 冻结面数组 + indexNames 追加 + migrate v4→v5 槽（幂等 CREATE IF NOT EXISTS×3）+ apply() fresh-create 面追加（KD-1）
   - LightamerCore/Sources/Library/LibraryStore.swift             # 修改：LibraryStack 值类型 + stacks CRUD 命令面（createStack/group/stackWith/setTop/moveInStack/splitStack/ungroup/removeFromStacks/setCollapsed/setAllCollapsed/stacks()/stackContaining/members — 全部单事务 + 不变量校验 + removeImage 追加同事务解散清扫，KD-2/KD-3）
   - LightamerCore/Sources/Library/StackClustering.swift          # 新建：纯函数聚类（capture 升序 + 相邻 ≤ gap 归簇 + runs ≥2 + 跳过已堆叠/无 capture + defaultGapSeconds = 60 + preview 组数）+ store 落地面（autoStack(ids:gap:preview:)，KD-4）
-  - LightamerCore/Sources/Library/LibraryQueries.swift           # 修改：StackDisplayMode 参数（.flat 缺省 = SQL 字节零变化 / .collapsed = NOT-IN 谓词，searchPage+searchNullTail 双腿）+ stackMemberships(ids:) + rows(byIDs:) + stackOverviews()（KD-5）
-  - LightamerCore/Sources/Library/ImportService.swift            # 修改：导入批完成缝 merge 产物自动成栈（provenance kind ∈ {hdr-merge, hdr-merge-mertens, pano-merge} + sources relPath 解析 + stackWith collapsed + 源不全 typed skip + ImportOutcome additive 计数，KD-6）
+  - LightamerCore/Sources/Library/LibraryQueries.swift           # 修改：StackDisplayMode 参数（.flat 缺省 = SQL 字节零变化 / .collapsed = NOT-IN 谓词，searchPage+searchNullTail 双腿）+ stackMemberships(ids:) + rows(byIDs:) + stackOverviews()（KD-5）；overviewCount/groupCounts 口径差申报（KD-5 尾注，M1）
+  - LightamerCore/Sources/Library/ImportService.swift            # 修改：导入批完成缝 merge 产物自动成栈（provenance kind ∈ {hdr-merge, hdr-merge-mertens, pano-merge} + sources relPath 后缀匹配为主/folderName 候选兜底 + stackWith collapsed + 源不全 typed skip + ImportOutcome additive 双计数，KD-6）
   - App/Sources/Lightamer/Library/LibraryGridModel.swift         # 修改：stackDisplayMode 会话态（缺省 .collapsed）+ 展开态 forward-only fixup（有界补拉 + 已显示集合去重）+ 命令面（toggleCollapse/expandAll/collapseAll/group/ungroup/setCover/removeFromStack/autoStack 路由，KD-7）
   - App/Sources/Lightamer/Library/Views/LibraryGridView.swift    # 修改：cell 堆叠徽章 overlay（封面徽章 + 成员计数 + 收起/展开 chevron）+ contextMenu（成栈/解栈/设为封面/从栈移除/自动成栈…，KD-8）
   - App/Sources/Lightamer/Library/Views/LibraryAutoStackDialog.swift # 新建：auto-stack 确认对话框（gap stepper + preview 组数 + 开始/取消；SwiftUI sheet/alert 缝，禁 runModal，KD-8）
   - App/Sources/Lightamer/UI/LightamerApp.swift                  # 修改：View 菜单「堆叠」节（expand/collapse all；非图库面 no-op 守卫，KD-8）
-  - Resources/Localizable.xcstrings                              # 修改：13 新键尾块纯插入（menu_view_stacks_* 2 + library_stack_* 11，清单见 T5）
+  - Resources/Localizable.xcstrings                              # 修改：13 新键尾块纯插入（menu_view_stacks_* 2 + library_stack_* 11，清单见 KD-8）
   - Tests/LightamerTests/LibrarySchemaV5Tests.swift              # 新建（LIB，8 法）：fresh-create 出生面 + v4→v5 迁移 + 幂等重跑 + v1→v5 全腿 + futureSchema typed 拒 + 冻结面零触碰 + UNIQUE 不变量负测 + CASCADE 解散
   - Tests/LightamerTests/LibraryStackStoreTests.swift            # 新建（LIB，16 法）：CRUD 全 op 族 + 不变量负测 + stackWith 语义 + 时间戳
   - Tests/LightamerTests/AutoStackClusteringTests.swift          # 新建（LIB，8 法）：聚类 golden 表 + 边界 + skip 面 + preview/commit + round-trip
   - Tests/LightamerTests/StackPaginationTests.swift              # 新建（LIB，9 法）：collapsed 谓词 + flat 字节恒等 + nullTail + memberships + fixup 纯函数 + anchor 一致性 + 全走查 union golden
-  - Tests/LightamerTests/ImportMergeStackTests.swift             # 新建（LIB，4 法）：merge kind 检测 + 封面语义 + 源缺 skip + 非 merge 不触
-  - Tests/LightamerTests/LibraryGridStackTests.swift             # 新建（APP，10 法）：缺省收起态 + fixup 无重复 + 展开态 union golden + 徽章投影 + 命令路由 + auto-stack 池选择
+  - Tests/LightamerTests/ImportMergeStackTests.swift             # 新建（LIB，5 法）：规范导入流正测（真 ImportService 建库）+ 匹配细则表 + 封面语义 + 源缺 skip 计数 + 非 merge 不触
+  - Tests/LightamerTests/LibraryGridStackTests.swift             # 新建（LIB，10 法）：缺省收起态 + fixup 无重复 + 展开态 union golden + 徽章投影 + 命令路由 + auto-stack 池选择（App 侧 Library 模型族归 LIB 聚拢——S3 裁决）
   - Project.swift                                                # 修改：六新测试文件登记对应 target 数组（显式清单无 glob）+ `tuist generate` 恒为该批最后一个动作（L041）
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt   # 修改：六新行登记（E2 纪律，随各自任务 commit）
   - AGENTS.md                                                    # 修改：M6-4 架构增量节（面 A stacks 段；T7）
@@ -34,7 +37,7 @@ files_modified:
   - .work/TODO.md                                                # 修改：M6-4 条目
   - .work/LESSONS.md                                             # 如踩坑
   - .work/gsd/phases/m6-4-gallery-stacks/M6-4-01-SUMMARY.md      # 新建（T8）
-  - .work/gsd/phases/m6-4-gallery-stacks/M6-4-01-DECISIONS.md    # 新建（T8——KD 偏差 + fixup forward-only 偏离登记 + 无 undo 偏离 + 导入缝匹配细则 + 计数器零 UI 注记）
+  - .work/gsd/phases/m6-4-gallery-stacks/M6-4-01-DECISIONS.md    # 新建（T8——KD 偏差 + fixup forward-only 偏离 + 无 undo 偏离 + 导入缝匹配细则（后缀主式版本化条款）+ 收起态无顶替偏离 + 计数口径分裂 + link 模式登记 + schema 测试定向更新两法 + 计数器零 UI 注记）
   - .work/gsd/phases/m6-4-gallery-stacks/M6-4-01-ACCEPTANCE.md   # 新建（T8——双重验收：zcode PASS 后串行 omp 二次验收，严禁并发）
 ---
 
@@ -51,8 +54,16 @@ files_modified:
 > **基线**：**3759/24/0**（M6-3-VALIDATION 终验 `TOTAL|3759/24/0|` 两路独立
 > 亲跑同值，exit 0 零 MEMFAIL；亲证记录 = `phases/m6-3-ultrahdr/
 > M6-3-01-ACCEPTANCE.md` :23）。本批预期全套 **3811..3817/24/0**
-> （+52..58；五新 LIB 文件 45 法 + 一新 APP 文件 10 法 = 计划 55，带留
-> ±3 记账滑差——M6-3 minor-1 教训：申报带按顶沿预估）。
+> （+52..58；六新 LIB 文件 56 法〔8+16+8+9+5+10——LibraryGridStackTests 归
+> LIB 聚拢，S3 裁决〕+ 零新 APP 法 = 计划 56，带留 ±3 记账滑差——M6-3
+> minor-1 教训：申报带按顶沿预估）。
+>
+> **修订注记（2026-10-13 评审回注批）**：本 plan 按
+> `M6-4-PLANS-REVIEW.md` 修订——E1（KD-6 匹配细则改后缀匹配为主 +
+> folderName 候选兜底 + T5 真导入流 fixture）、M1（收起态无顶替偏离登记 +
+> 计数口径申报）、M2（`.flat` 恒等双证据口径）、M3（schema 测试浮出指名 +
+> AC7 措辞）、M4（mergeStacksSkipped 计数载体）、S1-S6 顺带。七项 OQ 生效值
+> 不动。
 
 ## 已定裁决（生效值，硬约束，不得重开）
 
@@ -134,7 +145,9 @@ M6-4 OQ-1..4（面 A 相关项）**全部按推荐裁**（CONTEXT 裁决记录 2
     stackID:imageID:delta:)`（±1 步进，越界 clamp）；
   - `splitStack(stackID:atImageID:)`：从该图起切后缀为独立栈；后缀 ==1 →
     退化为 removeFromStacks（该图出栈）；切分后任一半 <2 → 该半解散
-    （LightCraft「余 <2 解散」同构）；
+    （LightCraft「余 <2 解散」同构）；**atImageID = 封面（前缀空）= no-op
+    保原栈 id**（S6 边界钉死——空「切点在前」交叠面按 no-op 语义收敛，观测
+    等价且栈 id 稳定；T2⑫ 断言）；
   - `ungroup(stackID:)` / `removeFromStacks(imageID:)`（移行 + 重编号 +
     余 <2 同事务解散）/ `setCollapsed(stackID:collapsed:)` /
     `setAllCollapsed(_:)`；
@@ -181,8 +194,13 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
   `rows(byIDs:) -> [LibraryImageRow]`（fixup 有界补拉）；
   `stackOverviews() -> [(stackID, size, collapsed)]`（View 菜单/统计消费，
   可选交付）。
+- **计数口径申报（M1 附带，零实现）**：`overviewCount`/`groupCounts`
+  （`LibraryQueries.swift:274/:290`）不加 stackMode → 收起态下 Overview
+  总数与分组计数按全量行统计、网格按封面行显示——两口径分裂（Lightroom
+  收起态计数只数封面）。v1 接受该分裂 + DECISIONS 登记；stackMode 参数 =
+  V2 候选（不实现——零调用点消费）。
 
-### KD-6 导入缝 merge→stack（T5→T6，OQ-4 生效值落点）
+### KD-6 导入缝 merge→stack（T5→T6，OQ-4 生效值落点；评审 E1/M4/S1 修订版）
 
 - `ImportService.importFolder` 行插入完成后追加 `autoStackMergeProducts()`：
   - 对本批每个落盘 destination 探测 `.lra`（`sidecarURL(for:ext:)` 同位）
@@ -190,16 +208,33 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
   - kind ∈ `{"hdr-merge", "hdr-merge-mertens", "pano-merge"}`（=
     `ProvenanceReplay.Kind` merge 三 case 的 rawValue；focus-stack/average/
     median/sigma 不入——LightCraft 语义只挂 HDR/pano 域）才参与；
-  - 源解析：对每条 `relPath` 依次试库内 image_path 候选
-    `["Media/" + relPath, relPath]` 精确匹配（本批新行 map 优先，回落全库
-    查询）；末段文件名 stem 唯一命中兜底；**任一源解析失败 → 整组 typed
-    skip**（计数上浮，零半栈）；
+  - **源解析（E1 修订版匹配细则，版本化条款入 DECISIONS）**：sidecar
+    `relPath` = 相对 session root（`ProvenanceReplay.swift:13-15/:81`），
+    而导入行 `image_path = Media/<folderName>/<relPath>`（makePlan
+    :220-228 无条件 folderName 前缀 + writeRow :579-583 `Media/` 前缀
+    亲证）——精确等值候选结构性恒 miss，故：
+    1. **后缀匹配（主式）**：`image_path` 以 `"/" + relPath` 结尾
+      （`hasSuffix` 语义；SQL = 参数化 `LIKE '%' || ?` + LIKE 元字符
+      ESCAPE 转义；本批新行 map 优先，回落全库查询）。relPath 结构段随
+      导入树保真 → 覆盖任意 folderName 前缀与 root 外源回落名
+      （`StackMergeService.swift:2195-2198`）；
+    2. 后缀**多命中**（同名子树重导歧义）→ **批内 folderName 候选消歧**：
+      精确 `"Media/" + 本批 folderName + "/" + relPath`（同批导入的源与
+      产物共享前缀）——唯一命中即用，仍歧义 = skip；
+    3. 后缀**零命中** → 批内 folderName 候选兜底 → 末段文件名 stem 唯一
+      命中兜底；
+    4. **任一源解析失败/歧义未消 → 整组 typed skip（mergeStacksSkipped
+      计数上浮，零半栈）**。
   - 全解析 → `LibraryStore.stackWith(productID:sourceIDs:)`（collapsed）；
     product 或任一源已属他栈 → skip（导入缝不合并既有栈——group 并组语义
     留给手动 `group` 入口）。
-- `ImportOutcome` additive `var mergeStacksCreated: Int = 0`（显式默认值 =
-  既有构造点零 diff）；**v1 零 UI 呈现**（进度面零改），计数仅测试消费——
-  展示面挂账 DECISIONS。
+- `ImportOutcome` additive 双计数 `var mergeStacksCreated: Int = 0` +
+  `var mergeStacksSkipped: Int = 0`（显式默认值 = 既有构造点零 diff，
+  M4——skip 断言有载体）；**v1 零 UI 呈现**（进度面零改），计数仅测试
+  消费——展示面挂账 DECISIONS。
+- **link 模式登记（S1）**：`executeLink`（:436-446）不迁移 sidecar
+  （⑤明文 `.lra` 留原点）→ link 模式导入的 merge 产物永不自动成栈——
+  安全侧行为，KD-6/风险节显式登记：**自动成栈限 move/copy 导入**。
 - 代价面：每导入文件至多一次 sidecar JSON 读（tolerant decode；无
   provenance 键即跳过）——导入已是逐文件 IO 密集面，增量有界。
 
@@ -214,16 +249,30 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
   栈，`rows(byIDs:)` 补拉缺失成员；③成员**向前**插入到该栈在本页最早出现
   成员的槽位之后（栈内 position 序），**已显示集合（displayed-IDs Set）
   命中即跳过**；④displayed 集合随 append/插入同步生长。
-  - 正确性三件套（R1 兑现）：**无重复**（displayed 集合守卫——后页补拉到
-    前页位置的成员，其 keyset 位置 ≤ 当前 anchor，后页 keyset seek 永不
-    再取）；**无丢失**（全走查 union golden：展开态完整走查的 displayed
-    集合 == `.flat` 全走查集合，测试钉死）；**幂等有界**（重复 loadNextPage
-    零增量；补拉量 ≤ 页内栈的总成员数，栈小——burst 量级）。
+  - 正确性三件套（R1 兑现）：**无重复**（displayed 集合守卫——后页 append
+    行命中已显示集合即跳过。S2 论证勘误：前拉成员的 keyset 位**可后于**
+    当前 anchor（封面在前页、成员 keyset 位在后页，fixup 在前页把成员拉
+    前），「后页 keyset seek 永不再取」不成立；无重复实由 displayed-set
+    保证，anchor 推进取 raw page last 不受扰）；**无丢失**（全走查 union
+    golden：展开态完整走查的 displayed 集合 == `.flat` 全走查集合，测试
+    钉死）；**幂等有界**（重复 loadNextPage 零增量；补拉量 ≤ 页内栈的总
+    成员数，栈小——burst 量级）。
   - **forward-only 偏离**（对 LightCraft gather-to-first-member）：已在
     早前页显示的成员不回拉（不重写已显示面）；DECISIONS 登记。
+- **收起态谓词语义边界（M1 登记，零实现）**：RESEARCH A1（LightCraft
+  arrange_stacks）明文「顶图被当前过滤隐藏时由首个可见成员顶替」——纯谓词
+  裁决（D-M6-4-3）下该语义**不落**：封面被 filter/语义腿滤掉时整栈从网格
+  消失（无顶替），语义搜索命中成员不命中封面 = 漏召回。亲核 SQL 可落性
+  （`runPage` :223-269 + `appendFilterLeg` :503 装配形）：谓词腿补
+  visible-cover 分支需滤片复制 + `i` 别名改写 + binds 复制的侵入形（双
+  真相滤片面），违背 D-M6-4-3「纯谓词、keyset 零扰动」精神 → 不实现，
+  DECISIONS 显式登记偏离 + V2 候选（**语义腿顶替 App 侧可行**——hit 集是
+  有限 id 表；keyset 腿顶替需 SQL 改动 = 裁决已排除的形态）。
 - 语义覆盖面（semanticHits != nil）**绕过 fixup**（hit 序投影即显示序，
-  两腿不混——KD-3 既有纪律的延伸）；收起态谓词在语义全走查腿同样生效
-  （收起语义 = 集合过滤器，与排序正交）。
+  两腿不混——实名引用：M2-10-02/M2-3 的 semanticHits 裁决，
+  `LibraryGridModel.swift:44-49` 头注为两腿互斥纪律正本；S5 悬空引用
+  勘误）；收起态谓词在语义全走查腿同样生效（收起语义 = 集合过滤器，与
+  排序正交；漏召回面 = 上行 M1 登记）。
 - 命令面：`toggleCollapse(stackID:)` / `expandAll()` / `collapseAll()` /
   `groupSelection()`（选区 ≥2）/ `ungroup(stackID:)` / `setCover(imageID:)` /
   `removeFromStack(imageID:)` / `autoStack(gap:preview:)`（池 = selectedIDs
@@ -235,7 +284,9 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
 
 - **网格徽章**（`LibraryGridView` cell overlay 落点）：封面 cell 叠加徽章
   （栈成员计数 × 收起/展开 chevron）；chevron 点击 = `toggleCollapse`；
-  accessibility label = `library_stack_members_hint`（%lld 成员）。
+  accessibility label = `library_stack_members_hint %lld`（%lld 成员——
+  S4：格式键对齐既有「键内带 %lld 后缀」惯例，`focus_stack_dialog_title
+  %lld` 在册先例同形）。
 - **contextMenu**：成栈（选区 ≥2）/ 解栈 / 设为封面 / 从栈移除 / 自动
   成栈…——路由走 `LibraryGridModel` 命令面；**自动成栈确认对话框**
   （`LibraryAutoStackDialog` 新文件）：gap stepper（秒，初值 60）+
@@ -244,12 +295,13 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
 - **View 菜单**（`LightamerApp.swift` :1727 CommandMenu）：「堆叠」节 =
   展开全部 / 收起全部——静态项 + 图库面非激活时动作 no-op 守卫（既有菜单
   惯例；零 MenuCommandID/零快捷键）。
-- **xcstrings 13 新键**（尾块纯插入）：`menu_view_stacks_expand_all` /
-  `menu_view_stacks_collapse_all` / `library_stack_members_hint` /
+- **xcstrings 13 新键**（尾块纯插入；两个格式键按 %lld 后缀惯例，S4）：
+  `menu_view_stacks_expand_all` /
+  `menu_view_stacks_collapse_all` / `library_stack_members_hint %lld` /
   `library_stack_group` / `library_stack_ungroup` /
   `library_stack_set_cover` / `library_stack_remove_from_stack` /
   `library_stack_auto_menu` / `library_stack_auto_title` /
-  `library_stack_auto_gap_label` / `library_stack_auto_preview_fmt` /
+  `library_stack_auto_gap_label` / `library_stack_auto_preview %lld` /
   `library_stack_auto_start` / `library_stack_auto_cancel`。
 
 ## read_first
@@ -280,7 +332,8 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
    :39-49（Kind rawValue 表）
 8. `Tests/LightamerTests/LibraryStoreTests.swift` + `LibraryQueriesTests.swift`
    （真 `.lalb` fixture 力学正本）+ `LibrarySchemaTests.swift`（冻结面
-   断言形——v5 新面仿写）+ `LibraryGridModelTests.swift`（APP 级注入形）
+   断言形——v5 新面仿写）+ `LibraryGridModelTests.swift`（App 模型注入
+   形——LIB 域，BUNDLE-MAP :356 先例 = S3 聚拢同域依据）
 9. `Scripts/test-direct.sh`（:165 bundle 注册表）+ BUNDLE-MAP 登记纪律 +
    AGENTS.md M2-2/M2-8 架构增量节（Library 域红线文风）
 
@@ -329,7 +382,8 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
   ⑤stackContaining 反查 ⑥members 序 ⑦setTop（封面换位 + 全员重编号）
   ⑧move ±delta 与越界 clamp ⑨setCollapsed 单栈 ⑩setAllCollapsed ⑪split
   后缀 ≥2（两栈都 ≥2 的中点切）⑫split 边界（后缀 =1 → 出栈语义；前缀
-  <2 → 解散）⑬ungroup ⑭removeFromStacks（重编号 + 余 <2 解散）⑮group
+  <2 → 解散；**atImageID = 封面空前缀 → no-op 保原栈 id**——S6 钉死断言）
+  ⑬ungroup ⑭removeFromStacks（重编号 + 余 <2 解散）⑮group
   并组（他栈整栈跟入 + 序保全）⑯stackWith（封面 = product + collapsed =
   true）+ modified_time stamp 抽查。
 
@@ -348,8 +402,12 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
 - read_first 4 → StackDisplayMode 双腿谓词 + stackMemberships + rows(byIDs:)
   （+ stackOverviews 可选）。
 - 验收：`StackPaginationTests.swift`（LIB，9 法）——①collapsed 谓词：收起
-  栈只余封面行 ②`.flat` 缺省参调用与无参调用行序逐行恒等（字节恒等的行级
-  代理 + SQL 组装零 diff 断言）③nullTail 腿谓词生效 ④混合收起/展开栈的
+  栈只余封面行 ②`.flat` 缺省参调用与无参调用行序逐行恒等——**双证据口径
+  （M2 修订）**：调用点 grep 清单（searchPage/searchNullTail 全仓调用点
+  零改——MCP PhotoProjection/filmstrip/semanticHits 点名申报）+ 行级恒等
+  测试；runPage SQL 为函数内私有装配（`LibraryQueries.swift:223-269`，
+  无捕获/注入缝），**不写「SQL 组装零 diff 断言」类不可落断言**
+  ③nullTail 腿谓词生效 ④混合收起/展开栈的
   过滤面 ⑤memberships map 正确性（position/size/collapsed）⑥rows(byIDs:)
   序与缺 id 面 ⑦fixup 纯函数（KD-7 ③单趟变换的 Core 侧可测形：页行 +
   memberships + 补拉行 → 重排结果——前插 + displayed 去重 + 保序）⑧跨 3 页
@@ -357,19 +415,28 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
   union golden：展开态（查询+fixup）完整走查 id 集合 == `.flat` 全走查
   id 集合。
 
-### T5 导入缝 merge→stack（KD-6）
+### T5 导入缝 merge→stack（KD-6，评审 E1 修订版）
 
-- read_first 7 → `autoStackMergeProducts()` + ImportOutcome additive 计数。
-- 验收：`ImportMergeStackTests.swift`（LIB，4 法）——①导入含 hdr-merge
-  产物 + 全源的目录 → 产物栈成立（封面 = 产物 + collapsed）②Mertens/pano
-  kind 各一法覆盖（参数化或三断言合一）③源缺一 → skip 计数 + 零栈 +
-  零半写 ④无 sidecar/非 merge kind（如 focus-stack）零触 + 既有 Import
-  断言族原样绿（Outcome additive 默认值零漂移亲证）。
+- read_first 7 → `autoStackMergeProducts()` + ImportOutcome additive 双计数。
+- **fixture 纪律（E1）**：库一律经**真 ImportService 导入流**建立
+  （`importFolder` 真盘上 session 根目录树 + 真 sidecar 文件落盘）——
+  **禁手拼 image_path 行**（测试与生产路径分叉 = 假绿形态）。
+- 验收：`ImportMergeStackTests.swift`（LIB，5 法）——①**规范流正测**：
+  导入含 hdr-merge 产物 + 全源的 session 根目录（真导入流，image_path =
+  `Media/<folderName>/Burst/…` 形）→ 产物栈成立（封面 = 产物 + collapsed）
+  ②匹配细则表：后缀命中（嵌套 relPath 保全）/批内 folderName 候选消歧
+  （同名子树重导歧义场景）/root 外源回落名命中/stem 撞名 → 整组 skip
+  ③Mertens/pano kind 各一法覆盖（参数化或断言合一）④源缺一 →
+  `mergeStacksSkipped` 计数 + 零栈 + 零半写 ⑤无 sidecar/非 merge kind
+  （如 focus-stack）零触 + 既有 Import 断言族原样绿（Outcome additive
+  默认值零漂移亲证）。
 
 ### T6 App 侧模型层（KD-7）
 
 - read_first 5 → LibraryGridModel 显示态 + fixup + 命令面。
-- 验收：`LibraryGridStackTests.swift`（APP，10 法）——①缺省 `.collapsed`
+- 验收：`LibraryGridStackTests.swift`（**LIB**，10 法——S3 聚拢：App 侧
+  Library 模型族归 LIB 域，`LibraryGridModelTests` :356 同域先例；LIB
+  target 依赖 Lightamer App 模块亲证）——①缺省 `.collapsed`
   （首查行集 = 谓词面）②展开态 fixup：成员跨页场景无重复显示 ③展开态
   全走查 union == flat 全走查（R1 终测）④徽章投影（memberships → cell
   计数/chevron 态的模型面）⑤toggleCollapse 后行集刷新正确 ⑥expandAll/
@@ -380,7 +447,8 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
 ### T7 App UI + 文档同步（KD-8）
 
 - read_first 6 → 徽章 overlay + contextMenu + AutoStackDialog（sheet 缝）+
-  View 菜单节 + xcstrings 13 键尾块插入 + AGENTS M6-4 架构增量节（面 A 段）
+  View 菜单节 + xcstrings 13 键尾块插入（两格式键 %lld 后缀）+ AGENTS
+  M6-4 架构增量节（面 A 段）
   + ROADMAP/REQUIREMENTS 注记 + GOAL-STATE/TODO。
 - 验收：构建零警告新增；`grep -rn "\.runModal(" App/Sources` 零命中；
   zh-audit `--check` 对账（13 新键 MISSING = 0）；LocalizationValue 插值
@@ -389,14 +457,18 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
 ### T8 收口
 
 - SUMMARY（任务序/bundle 分账/对账链）+ DECISIONS（KD 偏差申报：**无 undo
-  偏离**〔KD-3〕/**fixup forward-only 偏离**〔KD-7〕/**导入缝匹配细则与
-  skip 语义**〔KD-6〕/**auto-stack 池全集走查的性能注记**〔20k 级全走查
-  代价与分页恢复语义〕/计数器零 UI 挂账）+ ACCEPTANCE（双重验收：zcode
-  subagent 独立验收 PASS 后 → **串行** omp 二次验收，严禁并发——FAIL 回注
-  修复批后重走）。
-- 验收：定向轮 `--bundle Library` + `--bundle App` 全绿（exit 0 + 零
-  MEMFAIL，SC 分账对表）；**申请全套 `--all` 批准轮**（预期 3811..3817/24/0，
-  基线 3759/24/0 亲核在 plan 头）。
+  偏离**〔KD-3〕/**fixup forward-only 偏离**〔KD-7〕/**导入缝匹配细则
+  （后缀主式 + folderName 消歧/兜底 + stem 兜底，版本化条款）与 skip 语义
+  （双计数）**〔KD-6，E1〕/**link 模式不自动成栈登记**〔S1〕/**收起态无
+  顶替偏离 + 语义腿漏召回面（V2 候选：语义腿 App 侧可行）**〔KD-7，M1〕/
+  **overviewCount/groupCounts 口径分裂**〔KD-5，M1〕/**auto-stack 池全集
+  走查的性能注记**〔20k 级全走查代价与分页恢复语义〕/**schema 测试定向
+  更新两法**〔M3，风险节指名〕/计数器零 UI 挂账）+ ACCEPTANCE（双重验收：
+  zcode subagent 独立验收 PASS 后 → **串行** omp 二次验收，严禁并发——
+  FAIL 回注修复批后重走）。
+- 验收：定向轮 `--bundle Library` 全绿 + `--bundle App` 回归轮全绿（exit 0
+  + 零 MEMFAIL，SC 分账对表）；**申请全套 `--all` 批准轮**（预期
+  3811..3817/24/0，基线 3759/24/0 亲核在 plan 头）。
 
 ## 验收标准（AC 总表）
 
@@ -411,39 +483,56 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
 3. **OQ 生效值③（auto-stack）**：聚类 golden 表 + gap 边界 + runs ≥2 +
    双 skip + preview 零写 + commit collapsed 落栈 + 缺省 60s 常量。
    【T3】
-4. **OQ 生效值④（分页×堆叠）**：collapsed 谓词双腿 + `.flat` 字节恒等 +
+4. **OQ 生效值④（分页×堆叠）**：collapsed 谓词双腿 + `.flat` 字节恒等
+   （双证据 = 调用点 grep 清单 + 行级恒等测试，M2 口径）+
    fixup 三件套（无重复/无丢失/幂等有界）+ 全走查 union golden +
-   forward-only 偏离登记。【T4/T6】
+   forward-only 偏离登记 + 收起态无顶替偏离登记（M1）。【T4/T6】
 5. **OQ 生效值⑤（merge→stack 导入缝）**：merge 三 kind 检测 + stackWith
-   collapsed 成栈 + 源缺 skip + 非 merge 零触 + Outcome additive 零漂移。
-   【T5】
+   collapsed 成栈（真导入流 fixture）+ 源缺 `mergeStacksSkipped` 计数 +
+   非 merge 零触 + Outcome additive 双计数零漂移。【T5】
 6. **UI 面**：徽章/chevron/contextMenu/AutoStackDialog（sheet 缝零
-   runModal）/View 菜单节 + 13 键 xcstrings 尾块纯插入 + zh-audit 对账零
-   MISSING。【T6/T7】
+   runModal）/View 菜单节 + 13 键 xcstrings 尾块纯插入（两格式键 %lld
+   后缀）+ zh-audit 对账零 MISSING。【T6/T7】
 7. **零回归门**：`.flat` 调用点 SQL 零变化（MCP/semanticHits/filmstrip
    面原样绿）+ sidecar schema 零触 + V50Order/封存面零触 + `.metal` 零
    diff + UserDefaults 零新键 + dependencies 块零 diff + 既有
-   Library/Import 测试族原样绿。【T7】
-8. **SC 数字门**：LIB +45 / APP +10（计划 55，带 52..58 记账区间）定向
-   对表；全套预期 **3811..3817/24/0**（批准轮对账，基线 3759/24/0 亲核
-   在 plan 头）。【T8】
+   Library/Import 测试族**除指名定向更新点外**原样绿（M3：LibrarySchemaTests
+   的 extras allowlist 与 user_version 断言两法定向更新后绿）。【T7】
+8. **SC 数字门**：LIB +56（六新文件全 LIB，S3 聚拢）/ APP +0，计划 56 带
+   52..58 记账区间定向对表；全套预期 **3811..3817/24/0**（批准轮对账，
+   基线 3759/24/0 亲核在 plan 头）。【T8】
 
 ## 风险与边界
 
-- **冻结计数断言浮出**：若既有测试钉 indexNames/表清单的精确计数 → 按
-  additive 登记定向更新 + DECISIONS 申报（预期不浮出——数组遍历形断言
-  为主，亲读 LibrarySchemaTests 后执行方确认）。
+- **既有测试浮出（M3 指名，方向勘误）**：既有测试**必然**浮出两处，处置
+  = additive 定向更新 + DECISIONS 申报（已授权路径）——①
+  `LibrarySchemaTests.testPackageTablesCreated`（:149）extras **allowlist
+  断言**（:163-169）：`stacks`/`stack_content` 入库即硬红 → 白名单增两名
+  （FTS shadow 表谓词不动）；②`testFreshCreateStampsUserVersionFour...`
+  （:181）钉 `user_version == 4`（:187）→ v5 出生面定向改 5。其余数组
+  遍历形断言无害预期不浮出。AC7 措辞已同步（「除指名定向更新点外原样
+  绿」）。
 - **UNIQUE 竞态（R5）**：组栈 UX 与一图一栈约束的竞态在 store 单事务内
   消解（group = 整栈并入；createStack 先查后写 + UNIQUE 兜底）——双保险
   已在 KD-2，负测钉死。
-- **导入缝匹配脆弱性**：relPath 匹配依赖导入树保持 session 相对结构
-  （copy/move 模式 image_path = `Media/` + relPath；link 模式候选二式）；
-  全失败 → skip 计数（安全侧）——DECISIONS 登记匹配规则为版本化细则。
+- **导入缝匹配脆弱性（E1 勘误版）**：导入行 `image_path =
+  Media/<folderName>/<relPath>`（makePlan :220-228 folderName 前缀无条件
+  + writeRow :579-583 亲证——原「`Media/` + relPath」公式漏 folderName
+  段，勘误）；匹配主式 = **后缀匹配**（folderName 无关，E1）+ 批内
+  folderName 候选消歧/兜底 + stem 兜底；全失败/歧义未消 → skip 双计数
+  （安全侧）——DECISIONS 登记匹配规则为版本化细则。**link 模式不自动
+  成栈**（`.lra` 留原点，executeLink :436-446；S1 登记——自动成栈限
+  move/copy 导入）。
+- **收起态谓词语义边界（M1）**：封面被过滤隐藏时整栈隐藏（无顶替）+
+  语义腿命中成员不命中封面 = 漏召回——D-M6-4-3 纯谓词裁决的已登记代价
+  （KD-7 亲核 SQL 可落性论证），V2 候选挂账；收起态 Overview/分组计数
+  按全量行统计与网格封面行显示两口径分裂（KD-5 申报）。
 - **性能**：collapsed 谓词为 NOT-IN 子查询（stack_content 规模 = 栈成员
   数，远小于 images；UNIQUE 索引使子查询为索引扫描）；展开态补拉按页有界
   ——20k 行库走查 golden 即性能冒烟。
-- **APP bundle 贴线**：本批 APP 新法均为 Library 模型/命令面（无重测族）；
-  IOP/IOPParity 零触碰预期零漂移。
+- **bundle 分账（S3 后）**：六新测试文件全 LIB（App 侧 Library 模型族
+  聚拢，Project.swift :646-652 LIB 依赖 Lightamer App 模块亲证）；
+  `--bundle App` 仅回归轮（零新法）；IOP/IOPParity 零触碰预期零漂移。
 
 ## 提交约定
 
@@ -464,9 +553,10 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
    `triggerNames` 数组必须零命中；`indexNames` 只允许一行追加。任何「顺手
    整理」列序/注释 = 违反（M2-2 冻结契约 + M4-1 先例）。
 2. **`.flat` 字节恒等的验证方式**：checker 应要求执行方给出「缺省参 =
-   既有调用点零改」的编译面证据（调用点清单 grep）+ 行级恒等测试（AC4②），
-   而非只信「加了个 enum 参数」的口头申报——谓词拼进 WHERE 的字符串装配
-   点（runPage）是唯一合法 diff 位。
+   既有调用点零改」的编译面证据（调用点清单 grep——M2 双证据口径）+
+   行级恒等测试（AC4②），而非只信「加了个 enum 参数」的口头申报——谓词
+   拼进 WHERE 的字符串装配点（runPage）是唯一合法 diff 位；**禁「SQL
+   组装零 diff 断言」类不可落断言**（runPage 无 SQL 捕获缝）。
 3. **fixup 正确性三件套缺一不可**：无重复（displayed 集合）/无丢失（union
    golden）/幂等有界（重复 load 零增量）——checker 重点审 union golden 的
    构造是否真跨页（成员与封面分处两页的 fixture），同页 fixture 过不了关。
@@ -476,6 +566,6 @@ undo**。DECISIONS 登记偏离；auto-stack 不存出处（OQ-2 生效值）与
 5. **L057/L041/E2 程序红线**：runModal grep 零命中；新测试文件 Project.swift
    + BUNDLE-MAP 同 commit 登记 + tuist generate 末位；xcstrings diff 必须
    是纯插入（历史键字节/顺序零触碰）。
-6. **数字对账**：LIB 45 / APP 10 计划值逐文件核对（六新文件法数）；全套
+6. **数字对账**：LIB 56（六新文件法数）/ APP 0 计划值逐文件核对；全套
    3811..3817 带内放行，出带 = 记账滑差申报（M6-3 minor-1 先例：申报链
    必须机械闭合）。
