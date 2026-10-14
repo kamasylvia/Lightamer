@@ -728,3 +728,16 @@ APP	8	ProcessVersionCarrierTests.swift
 #   落 9 法；T2 +13 后 22（容器组按 plan 四分列拆分）; T4 +3 后共 25）。运行期总数基线相应上移。
 EXPORT	25	ExportGainMapTests.swift
 APP	9	ExportGainMapPanelTests.swift
+
+# M6-4-01 增行记录（2026-10-14 执行期，checker E2 测试登记纪律）：六新测试文件
+#   随各自任务 commit 登记进 LIB bundle（S3 聚拢裁决：App 侧 Library 模型族
+#   归 LIB——LibraryGridStackTests 与 LibraryGridModelTests :356 同域）。行内
+#   method 数以终态实测对账：8+16+8+9+5+10 = 56 全 LIB；App bundle 零新法。
+#   运行期总数基线相应上移（M6-3 终验 3759/24/0 起算 +56 → 02 的 S8 重算
+#   基线 = 01 收口申报值）。
+LIB	8	LibrarySchemaV5Tests.swift
+LIB	8	AutoStackClusteringTests.swift
+LIB	16	LibraryStackStoreTests.swift
+LIB	9	StackPaginationTests.swift
+LIB	5	ImportMergeStackTests.swift
+LIB	10	LibraryGridStackTests.swift
