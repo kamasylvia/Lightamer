@@ -52,6 +52,46 @@ public struct BatchApplyOutcome: Sendable, Equatable {
 
 public enum SessionBatchApplier {
 
+    /// M6-5 T2 (the M6-2 ledger #2 fix): the document-level OPTIONAL face
+    /// carried through the EXISTING-document arm — the seven additive
+    /// fields (`provenance`/`rawOverrides`/`displayTransform`/`versions`/
+    /// `activeVersionID`/`aiProvenance`/`filmRecord`, the original ledger
+    /// list) plus the five metadata fields (`rating`/`flag`/`colorLabel`/
+    /// `keywords`/`note`) the original ledger text omitted (both written
+    /// by `MetadataService` set* legs). Paste only touches the adjustment
+    /// structure — the target's own document-level state travels with it.
+    /// A pristine target (no readable sidecar) carries nil: the composed
+    /// document keeps the default-nil face (zero byte drift).
+    private struct CarriedDocumentState {
+        var rating: Int?
+        var flag: Int?
+        var colorLabel: Int?
+        var keywords: [String]?
+        var note: String?
+        var provenance: SidecarProvenance?
+        var rawOverrides: RAWTechnicalOverrides?
+        var displayTransform: DrtRecord?
+        var versions: [SidecarVersionRecord]?
+        var activeVersionID: String?
+        var aiProvenance: SidecarAIProvenanceRecord?
+        var filmRecord: FilmRecord?
+
+        init(_ document: LightamerSidecar) {
+            rating = document.rating
+            flag = document.flag
+            colorLabel = document.colorLabel
+            keywords = document.keywords
+            note = document.note
+            provenance = document.provenance
+            rawOverrides = document.rawOverrides
+            displayTransform = document.displayTransform
+            versions = document.versions
+            activeVersionID = document.activeVersionID
+            aiProvenance = document.aiProvenance
+            filmRecord = document.filmRecord
+        }
+    }
+
     private static let logger = Logger(
         subsystem: "com.kamasylvia.lightamer", category: "batch-apply")
 
@@ -101,13 +141,13 @@ public enum SessionBatchApplier {
             // existing document's stored value rides through VERBATIM (nil
             // = legacy = the ABSENT key; a forward larger number rides
             // along); a pristine target (a NEW document) stamps
-            // `.current`. NOTE: this arm rebuilds a FRESH document at the
-            // shared constructor below (only 5 fields + the stamp are
-            // promoted) — every OTHER document-level additive field is
-            // dropped by the pre-M6-2 shape (registered in DECISIONS,
-            // out of scope here); the process key would be dropped with
-            // them without this explicit carry.
+            // `.current`. M6-5 T2 (the M6-2 ledger #2 fix): the
+            // existing-document arm ALSO carries the document-level
+            // OPTIONAL face (the CarriedDocumentState above) — the
+            // constructor rebuilds a FRESH document, so anything not
+            // promoted here would be silently dropped.
             let processStamp: RenderProcessVersion?
+            var carried: CarriedDocumentState?
             if let data = try? Data(contentsOf: sidecarURL),
                let document = try? decoder.decode(LightamerSidecar.self, from: data) {
                 targetHistory = document.history
@@ -116,6 +156,7 @@ public enum SessionBatchApplier {
                 imageID = document.imageID
                 decoderVersion = document.decoderVersionUsed
                 processStamp = document.process
+                carried = CarriedDocumentState(document)
             } else {
                 // A pristine target (no readable sidecar) composes from the
                 // empty stack + the seed. The decode stamp is unknowable
@@ -155,6 +196,20 @@ public enum SessionBatchApplier {
                 historyHash: historyHash,
                 appVersion: LightamerSidecar.currentAppVersion,
                 layerStack: result.layerStack,
+                // M6-5 T2: the 12 document-level optionals ride through
+                // (nil on the pristine arm — the default-nil face).
+                rating: carried?.rating,
+                flag: carried?.flag,
+                colorLabel: carried?.colorLabel,
+                keywords: carried?.keywords,
+                note: carried?.note,
+                provenance: carried?.provenance,
+                rawOverrides: carried?.rawOverrides,
+                displayTransform: carried?.displayTransform,
+                versions: carried?.versions,
+                activeVersionID: carried?.activeVersionID,
+                aiProvenance: carried?.aiProvenance,
+                filmRecord: carried?.filmRecord,
                 // M6-2-01 T4 (KD-7/E1): the branch-conditional stamp (the
                 // per-arm processStamp above). The cross-arm
                 // `document.process ?? .current` form is FORBIDDEN — a nil

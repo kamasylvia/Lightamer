@@ -113,6 +113,14 @@ legacy 记 0 非 V1=1）。LightCraft MIT OR Apache-2.0 全程思想/命名级�
    时被静默丢弃——**pre-M6-2 数据保真缺陷非本批引入**，process 的显式携带 =
    M6-2 新增面（E1 双登记第二半）；修复归属 M6-5 挂账清算批候选或独立 fix
    batch（晨审裁）。
+   - **〔2026-10-16 M6-5 T2 修批对表补记〕**：原文七字段清单本身漏列——对表
+     `LightamerSidecar` 文档字段面（`LightamerSidecar.swift:293-309`）后，
+     五个 optional 元数据字段 `rating`/`flag`/`colorLabel`/`keywords`/`note`
+     同样被既有档臂丢弃（产线写腿 = `MetadataService.swift` setRating/
+     setFlag/setColorLabel/setKeywords/appendNote 五点）。M6-5 T2 修批按
+     **12 字段全带**清偿（七 additive + 五元数据；`SessionBatchApplierTests`
+     +4 法：12 字段携带正测 / pristine 臂 additive 面负测 / rating、keywords
+     保真各一），pristine 臂缺省 nil 零漂移，process 分支条件盖章纪律零触。
 3. **孤儿 fixture 全套轮复活**（两路双证）：`Tests/Fixtures/TiffRaster/
    srgb-matrix-8.tif.lra` 跑前删跑后复活——**M4-1 挂账 #6（测试 sidecar 泄漏）
    仍活**（M6-1 挂账清单同款延续）；清偿归属 M6-5 清算批或 M4-1 侧修复批（晨审裁）。
