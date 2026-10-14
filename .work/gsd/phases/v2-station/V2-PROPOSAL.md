@@ -171,3 +171,91 @@
 - **在飞修复批隔离**：FINDING-F（L057 家族）+ ToneEqual 根因排查已派遣在飞（§4.5②）——本站所有 waves 派遣前复核 `git log`/GOAL-STATE，不得与修复批 owned 文件（IOP ToneEqual 面 / LUT 导入面板面）并行触碰。
 - **zh 清算批**（V14/V15）原锚 Phase 15——随 M3-W1 搭车属提前执行，非另立 phase；若用户愿维持 Phase 15 独立批则从 W1 剔除（不影响两案主体）。
 - 依赖红线：新 SPM 依赖裁决权在用户（ALCE-02/RASTER-IN EXR 面为唯一已知候选，OQ-5）。
+
+---
+
+## 七、M6 清算批转 V2 挂账（2026-10-16 M6-5 批登记）
+
+> 登记体例沿用本提案「触发条件档」节（规模 + 触发 + 一句话）。
+> **登记 ≠ 立项，终裁在用户。** 来源正本 = `phases/m6-5-ledger-clearing/
+> M6-5-CONTEXT.md` §1/§5（40 项盘点的转 V2 分类行）；各来源 VALIDATION
+> 挂账节原文在案可 grep。
+
+### 1. TRACK-MULTIREF（M5-1）
+
+- **来源锚**：`phases/m5-1-track/M5-1-VALIDATION.md` 挂账 A11（OQ-6 v1 裁决字面）。
+- **触发条件**：agent 编排高频多参考工作流出现（需求驱动）。
+- **规模**：S（GUI 面板多参考已交付，本件纯 MCP 面）。
+- **一句话**：MCP `match_color` 多参考聚合 + 求解结果 preset 化（存 LUT 库条目）。
+
+### 2. RELEASE-DIRECT-INJECT（M5-2）
+
+- **来源锚**：`phases/m5-2-mertens/M5-2-VALIDATION.md` 挂账 + `perf.md` §事故 4 正本。
+- **触发条件**：Release 直启基准轮需求出现（工具链债，无需求不动）。
+- **规模**：S。
+- **一句话**：Release 直启 WebP 包 framework 动态链接不对称修复（Debug 静态/
+  Release 动态且未 embed；根因 = framework 未产出，D-09-04-D9 配方不达）。
+
+### 3. PANO-V2（M5-3，五件）
+
+- **来源锚**：`phases/m5-3-pano/M5-3-VALIDATION.md` 挂账（OQ-M5-3 裁决 V2 字面）。
+- **触发条件**：全景合成用户反馈/需求出现（OQ 裁决 V2 字面，无触发不立项）。
+- **规模**：L（独立 research 环）。
+- **一句话**：预览合成画布 / 参考帧手选 / use_edits / per-image 焦距（畸变/
+  tilt）/ multiband 融合。
+
+### 4. SESSION-LEGACY-READONLY（M6-1）
+
+- **来源锚**：`phases/m6-1-interop/M6-1-VALIDATION.md` 挂账 B3（`SessionCoordinator.swift:489` 仍仅 `session_lock_held` toast）。
+- **触发条件**：用户诉求出现再裁（legacy 面 env 门控 QA 通道 `LIGHTAMER_LEGACY_LIBRARY`，默认隐藏，可见面趋零——维持 M6-1 范围裁定）。
+- **规模**：M。
+- **一句话**：legacy Session 根只读回退 GUI 面（现仅 typed toast，无 GUI 只读回退）。
+
+### 5. PROCESS-WIRING（M6-2，触发条件档）
+
+- **来源锚**：`phases/m6-2-process-version/M6-2-VALIDATION.md` 挂账 #1 原文 +
+  `M6-2-01-DECISIONS.md` §6 四件套正本。
+- **触发条件**（与 M6-2 VALIDATION 挂账 #1 原文同文）：
+  **首个真实 iop 语义分叉/bump 批触发时四件同批**：①PipeCoordinator 各 render 调用点读
+  processVersion 载体传 `renderProcess:` ②分叉 iop 在 `process` 内消费
+  `RenderProcess.resolving(piece.renderProcess)` + 穷举 switch ③该 stage
+  缓存键按「非 legacy 才折」折值 ④「Update to Current Process」迁移 UX
+  同批裁形（OQ-5 挂账；LightCraft `develop.updateProcess` 一步 undo 为
+  参考底稿）。
+- **规模**：M。
+- **一句话**：coordinator 传值接线件 + 分叉消费件 + 迁移 UX 同批裁形
+  （by-design 挂账非缺陷；生产零传值维持，M6-2 双路亲证）。
+
+### 6. ULTRAHDR-EXIF（M6-3）
+
+- **来源锚**：`phases/m6-3-ultrahdr/M6-3-VALIDATION.md` 挂账 D1。
+- **触发条件**：用户/生态对 EXIF 元数据的硬需求出现（by-design 降级预授权；
+  Software 存活座位 = xmp:CreatorTool）。
+- **规模**：M。
+- **一句话**：gain map 档 EXIF v2/EXIF APP1 注入器批（禁自建 APP1 注入器裁决
+  在案——段级注入与 MPF 副图偏移互斥；届时与 LightCraft C 路〔封存零代码〕
+  同批评估路线）。
+
+### 7. STACKS-SEMANTICS（M6-4，D-06）
+
+- **来源锚**：`phases/m6-4-gallery-stacks/M6-4-VALIDATION.md` 挂账 E1（`§D-06` 同条）。
+- **触发条件**：图库 stacks 用户反馈出现。
+- **规模**：M。
+- **一句话**：栈顶被滤「首可见成员顶替」语义腿（LightCraft arrange 式 App 侧
+  实现，hit 集有限 id 表）+ `overviewCount`/`groupCounts` 收起态口径合一。
+
+### 8. SAM-COREML（M6-4，charter 裁决⑦）
+
+- **来源锚**：`phases/m6-4-gallery-stacks/M6-4-VALIDATION.md` 挂账 E4。
+- **触发条件**：用户裁立项 = 另开独立 phase（原生不可达收口在案）。
+- **规模**：L（3.4GB Meta License 永不入仓 + 全族自转换；ModelAssetStore
+  安装链 + AIWorkerProtocol 第四腿已备）。
+- **一句话**：Describe 文本选择分割 → SAM CoreML 大件。
+
+### 9. PATCH-LIVEPLANE（M6-4，D-13 残差）
+
+- **来源锚**：`phases/m6-4-gallery-stacks/M6-4-VALIDATION.md` 挂账 E5（D-13 申报两笔）。
+- **触发条件**：V2 语义批一并裁（登记级零用户可见面；主修已闭环 `b49215bb`）。
+- **规模**：S。
+- **一句话**：livePlane eager 释放（EditorState→LayerEditingState 新横 wire）
+  + patch pass 互斥锁（confirm 在飞切图竞态消解）。
