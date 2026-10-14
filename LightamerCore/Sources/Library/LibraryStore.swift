@@ -398,10 +398,14 @@ public actor LibraryStore {
         }
     }
 
-    /// Remove the images row — the album_content FK cascade takes every
-    /// membership with it (the KD-4 cleanup). The refcount column dies
-    /// WITH the row, so no decrement bookkeeping. Unknown id = typed
-    /// rejection.
+    /// Remove the images row — the album_content AND stack_content FK
+    /// cascades take every membership with it (the KD-4 cleanup). The
+    /// refcount column dies WITH the row, so no decrement bookkeeping. The
+    /// stack sweep (KD-2): with the membership rows gone, any stack whose
+    /// remainder fell below 2 (including the fully-cascaded one-member
+    /// stack, which has NO rows left) dissolves IN THE SAME TRANSACTION
+    /// (LightCraft remove_from_stacks semantics, the delete arm). Unknown
+    /// id = typed rejection.
     public func removeImage(id: Int64) async throws {
         _ = try await store.withWriteBatch { handle in
             let delete = try handle.prepare("DELETE FROM images WHERE id = ?")
@@ -411,6 +415,16 @@ public actor LibraryStore {
                 throw LibraryError.constraintViolation(
                     detail: "unknown image id \(id)")
             }
+            // The stack dissolution sweep: empty stacks (all rows cascaded)
+            // plus stacks holding a single remaining member.
+            let sweep = try handle.prepare("""
+                DELETE FROM stacks WHERE
+                  id NOT IN (SELECT stack_id FROM stack_content)
+                  OR id IN (
+                    SELECT stack_id FROM stack_content
+                    GROUP BY stack_id HAVING COUNT(*) < 2)
+                """)
+            _ = try sweep.step()
             return true
         }
     }
@@ -556,6 +570,472 @@ public actor LibraryStore {
             }
             return rows
         }
+    }
+
+    // MARK: - Photo stacks (M6-4-01 KD-2/KD-3; the LightCraft op family)
+
+    /// One stack as read back (KD-2's typed face). `memberIDs` is POSITION
+    /// order — index 0 IS the cover (no cover column; the single truth).
+    public struct LibraryStack: Sendable, Equatable, Identifiable {
+        public let id: Int64
+        public var collapsed: Bool
+        public var memberIDs: [Int64]
+        public var addedTime: Double?
+        public var modifiedTime: Double?
+
+        public init(
+            id: Int64, collapsed: Bool, memberIDs: [Int64],
+            addedTime: Double?, modifiedTime: Double?
+        ) {
+            self.id = id
+            self.collapsed = collapsed
+            self.memberIDs = memberIDs
+            self.addedTime = addedTime
+            self.modifiedTime = modifiedTime
+        }
+    }
+
+    /// Create a stack from ≥2 unstacked images (validate rules 1-3: count,
+    /// no duplicates, one-image-one-stack — the store pre-check gives the
+    /// READABLE typed error, the UNIQUE index is the race backstop).
+    /// Positions land dense 0..n−1 in the given order; index 0 = the cover.
+    @discardableResult
+    public func createStack(
+        memberIDs rawMembers: [Int64], collapsed: Bool = false
+    ) async throws -> LibraryStack {
+        try Self.validateStackInput(rawMembers)
+        return try await store.withWriteBatch { handle in
+            for member in rawMembers {
+                try Self.assertImageExists(handle, id: member)
+                if let existing = try Self.stackID(of: member, on: handle) {
+                    throw LibraryError.constraintViolation(
+                        detail: "image \(member) already belongs to stack \(existing)")
+                }
+            }
+            return try Self.insertStack(
+                memberIDs: rawMembers, collapsed: collapsed, on: handle)
+        }
+    }
+
+    /// The LightCraft `group_ops` union (KD-2): the named members JOINED BY
+    /// every stack they already belong to — a stacked member pulls its WHOLE
+    /// stack in, members in each involved stack keeping their original
+    /// (position) order, first-mention order otherwise. The union below 2
+    /// members is a typed no-op (nil, nothing written). Manual groups are
+    /// born COLLAPSED (the grid's default-collapsed display makes the new
+    /// stack appear as its cover — DECISIONS-registered birth choice).
+    @discardableResult
+    public func group(memberIDs rawMembers: [Int64]) async throws -> LibraryStack? {
+        try await store.withWriteBatch { handle in
+            let union = try Self.unionMembers(handle, heads: rawMembers, pinnedHead: nil)
+            guard union.members.count >= 2 else { return nil }
+            for stackID in union.involved {
+                let delete = try handle.prepare("DELETE FROM stacks WHERE id = ?")
+                try delete.bindInt(1, stackID)
+                _ = try delete.step()
+            }
+            return try Self.insertStack(
+                memberIDs: union.members, collapsed: true, on: handle)
+        }
+    }
+
+    /// The LightCraft `stack_with_ops` merge-product semantics (KD-6's
+    /// consumer): the group union with the PRODUCT PINNED as head (cover)
+    /// and the stack born COLLAPSED. The union below 2 members is a typed
+    /// no-op (nil). ONE transaction.
+    @discardableResult
+    public func stackWith(
+        productID: Int64, sourceIDs: [Int64]
+    ) async throws -> LibraryStack? {
+        try await store.withWriteBatch { handle in
+            let union = try Self.unionMembers(
+                handle, heads: sourceIDs, pinnedHead: productID)
+            guard union.members.count >= 2 else { return nil }
+            for stackID in union.involved {
+                let delete = try handle.prepare("DELETE FROM stacks WHERE id = ?")
+                try delete.bindInt(1, stackID)
+                _ = try delete.step()
+            }
+            return try Self.insertStack(
+                memberIDs: union.members, collapsed: true, on: handle)
+        }
+    }
+
+    /// Move `imageID` to the head (the cover — LightCraft `set_top_ops`,
+    /// "cover = photos[0]" same mechanism). Whole-stack renumber, one
+    /// transaction, `modified_time` stamped.
+    public func setTop(stackID: Int64, imageID: Int64) async throws {
+        _ = try await store.withWriteBatch { handle in
+            var members = try Self.existingMembers(stackID: stackID, on: handle)
+            guard let index = members.firstIndex(of: imageID) else {
+                throw LibraryError.constraintViolation(
+                    detail: "image \(imageID) is not a member of stack \(stackID)")
+            }
+            members.remove(at: index)
+            members.insert(imageID, at: 0)
+            try Self.writePositions(
+                stackID: stackID, members: members, on: handle)
+            return true
+        }
+    }
+
+    /// Step one member ±`delta` slots (LightCraft `move_in_stack_ops`); the
+    /// target index clamps to the member range (no wrap, no cross-stack).
+    public func moveInStack(
+        stackID: Int64, imageID: Int64, delta: Int
+    ) async throws {
+        _ = try await store.withWriteBatch { handle in
+            var members = try Self.existingMembers(stackID: stackID, on: handle)
+            guard let index = members.firstIndex(of: imageID) else {
+                throw LibraryError.constraintViolation(
+                    detail: "image \(imageID) is not a member of stack \(stackID)")
+            }
+            let target = max(0, min(members.count - 1, index + delta))
+            guard target != index else { return true }
+            members.remove(at: index)
+            members.insert(imageID, at: target)
+            try Self.writePositions(stackID: stackID, members: members, on: handle)
+            return true
+        }
+    }
+
+    /// Cut a new stack starting AT `atImageID` (LightCraft `split_stack_ops`):
+    /// the suffix becomes its own stack (the original's collapsed flag
+    /// carried over — DECISIONS-registered), any half below 2 dissolves (its
+    /// members leave ALL stacks), and a cut at the cover (empty prefix) is a
+    /// typed NO-OP that keeps the original stack id (S6). Returns the
+    /// surviving halves (nil = that half dissolved / was a no-op tail).
+    @discardableResult
+    public func splitStack(
+        stackID: Int64, atImageID imageID: Int64
+    ) async throws -> (head: LibraryStack?, tail: LibraryStack?) {
+        try await store.withWriteBatch { handle in
+            let members = try Self.existingMembers(stackID: stackID, on: handle)
+            let originalCollapsed = try Self.stackCollapsed(
+                stackID: stackID, on: handle)
+            guard let index = members.firstIndex(of: imageID) else {
+                throw LibraryError.constraintViolation(
+                    detail: "image \(imageID) is not a member of stack \(stackID)")
+            }
+            guard index > 0 else {
+                // S6: the cut point at the cover = an empty prefix — no-op,
+                // the original stack (same id) stands unchanged.
+                let unchanged = try Self.readStack(id: stackID, on: handle)
+                return (unchanged, nil)
+            }
+            let prefix = Array(members[..<index])
+            let suffix = Array(members[index...])
+            // The original's memberships all leave; the prefix re-seats into
+            // the SAME stack id when it stays ≥2 (positions rewritten); the
+            // below-2 prefix dissolves (its members leave, the stack row goes).
+            let delete = try handle.prepare(
+                "DELETE FROM stack_content WHERE stack_id = ?")
+            try delete.bindInt(1, stackID)
+            _ = try delete.step()
+            var head: LibraryStack?
+            if prefix.count >= 2 {
+                try Self.writePositions(
+                    stackID: stackID, members: prefix, on: handle)
+                head = try Self.readStack(id: stackID, on: handle)
+            } else {
+                let drop = try handle.prepare("DELETE FROM stacks WHERE id = ?")
+                try drop.bindInt(1, stackID)
+                _ = try drop.step()
+            }
+            var tail: LibraryStack?
+            if suffix.count >= 2 {
+                tail = try Self.insertStack(
+                    memberIDs: suffix, collapsed: originalCollapsed, on: handle)
+            }
+            return (head, tail)
+        }
+    }
+
+    /// Dissolve a whole stack (LightCraft `ungroup_ops`): the stack row
+    /// goes, the FK cascade takes every membership — members stay in the
+    /// library, simply unstacked.
+    public func ungroup(stackID: Int64) async throws {
+        _ = try await store.withWriteBatch { handle in
+            try Self.assertStackExists(handle, id: stackID)
+            let delete = try handle.prepare("DELETE FROM stacks WHERE id = ?")
+            try delete.bindInt(1, stackID)
+            _ = try delete.step()
+            return true
+        }
+    }
+
+    /// Remove ONE image from whatever stack holds it (LightCraft
+    /// `remove_from_stacks_ops`): the remainder renumbers, and a remainder
+    /// below 2 dissolves IN THE SAME TRANSACTION. A non-member is a typed
+    /// rejection (the caller's bookkeeping is broken — say so).
+    public func removeFromStacks(imageID: Int64) async throws {
+        _ = try await store.withWriteBatch { handle in
+            guard let stackID = try Self.stackID(of: imageID, on: handle) else {
+                throw LibraryError.constraintViolation(
+                    detail: "image \(imageID) is not in any stack")
+            }
+            var members = try Self.existingMembers(stackID: stackID, on: handle)
+            members.removeAll { $0 == imageID }
+            if members.count >= 2 {
+                try Self.writePositions(
+                    stackID: stackID, members: members, on: handle)
+            } else {
+                // The below-2 remainder dissolves: the stack row goes and
+                // the FK cascade takes the (≤1) leftover membership.
+                let drop = try handle.prepare("DELETE FROM stacks WHERE id = ?")
+                try drop.bindInt(1, stackID)
+                _ = try drop.step()
+            }
+            return true
+        }
+    }
+
+    /// Flip one stack's collapsed flag (LightCraft `set_collapsed_ops`).
+    public func setCollapsed(stackID: Int64, collapsed: Bool) async throws {
+        _ = try await store.withWriteBatch { handle in
+            let update = try handle.prepare(
+                "UPDATE stacks SET collapsed = ?, modified_time = ? WHERE id = ?")
+            try update.bindInt(1, collapsed ? 1 : 0)
+            try update.bindDouble(2, Date().timeIntervalSince1970)
+            try update.bindInt(3, stackID)
+            _ = try update.step()
+            guard handle.changes() == 1 else {
+                throw LibraryError.constraintViolation(
+                    detail: "unknown stack id \(stackID)")
+            }
+            return true
+        }
+    }
+
+    /// Flip EVERY stack's collapsed flag (the View-menu collapse-all face).
+    public func setAllCollapsed(_ collapsed: Bool) async throws {
+        _ = try await store.withWriteBatch { handle in
+            let update = try handle.prepare(
+                "UPDATE stacks SET collapsed = ?, modified_time = ?")
+            try update.bindInt(1, collapsed ? 1 : 0)
+            try update.bindDouble(2, Date().timeIntervalSince1970)
+            _ = try update.step()
+            return true
+        }
+    }
+
+    /// Every stack, id-ordered (stable iteration for the read faces).
+    public func stacks() async throws -> [LibraryStack] {
+        try await store.withHandle { handle in
+            let statement = try handle.prepare("SELECT id FROM stacks ORDER BY id")
+            var stacks: [LibraryStack] = []
+            while try statement.step() {
+                if let id = statement.columnInt(0),
+                   let stack = try Self.readStack(id: id, on: handle) {
+                    stacks.append(stack)
+                }
+            }
+            return stacks
+        }
+    }
+
+    /// The stack holding `imageID` (the UNIQUE index reverse lookup);
+    /// nil = unstacked.
+    public func stackContaining(imageID: Int64) async throws -> LibraryStack? {
+        try await store.withHandle { handle in
+            guard let stackID = try Self.stackID(of: imageID, on: handle) else {
+                return nil
+            }
+            return try Self.readStack(id: stackID, on: handle)
+        }
+    }
+
+    /// The member ids of one stack in POSITION order (cover first). Unknown
+    /// stack = typed rejection.
+    public func members(ofStack stackID: Int64) async throws -> [Int64] {
+        try await store.withHandle { handle in
+            try Self.existingMembers(stackID: stackID, on: handle)
+        }
+    }
+
+    // MARK: Stack helpers (static — actor-confined closures carry no self)
+
+    /// Validate rules 1-2 (KD-2): ≥2 members, no duplicates. Rule 3 (one
+    /// image one stack) is the caller's per-id check — it names the image.
+    static func validateStackInput(_ members: [Int64]) throws {
+        guard members.count >= 2 else {
+            throw LibraryError.constraintViolation(
+                detail: "a stack needs at least two members, got \(members.count)")
+        }
+        var seen = Set<Int64>()
+        for member in members {
+            guard seen.insert(member).inserted else {
+                throw LibraryError.constraintViolation(
+                    detail: "duplicate stack member \(member)")
+            }
+        }
+    }
+
+    /// The group-union walk (KD-2): the head members plus the WHOLE of every
+    /// stack they already belong to. `pinnedHead` (the merge product) is
+    /// admitted FIRST so it stays the cover; nil = plain mention order.
+    static func unionMembers(
+        _ handle: SQLiteHandle, heads: [Int64], pinnedHead: Int64?
+    ) throws -> (members: [Int64], involved: Set<Int64>) {
+        var ordered: [Int64] = []
+        var seen = Set<Int64>()
+        var involved = Set<Int64>()
+        func admit(_ id: Int64) {
+            if seen.insert(id).inserted { ordered.append(id) }
+        }
+        if let pinnedHead {
+            try assertImageExists(handle, id: pinnedHead)
+            if let stackID = try Self.stackID(of: pinnedHead, on: handle) {
+                involved.insert(stackID)
+                for member in try Self.existingMembers(
+                    stackID: stackID, on: handle) {
+                    admit(member)
+                }
+            } else {
+                admit(pinnedHead)
+            }
+        }
+        for head in heads where head != pinnedHead {
+            try assertImageExists(handle, id: head)
+            if let stackID = try Self.stackID(of: head, on: handle) {
+                involved.insert(stackID)
+                for member in try Self.existingMembers(
+                    stackID: stackID, on: handle) {
+                    admit(member)
+                }
+            } else {
+                admit(head)
+            }
+        }
+        return (ordered, involved)
+    }
+
+    /// Insert one stacks row + its dense-position memberships (the shared
+    /// create face for createStack/group/stackWith/split — one spelling).
+    static func insertStack(
+        memberIDs members: [Int64], collapsed: Bool,
+        on handle: SQLiteHandle
+    ) throws -> LibraryStack {
+        let now = Date().timeIntervalSince1970
+        let insert = try handle.prepare(
+            "INSERT INTO stacks (collapsed, added_time, modified_time)"
+                + " VALUES (?, ?, ?)")
+        try insert.bindInt(1, collapsed ? 1 : 0)
+        try insert.bindDouble(2, now)
+        try insert.bindDouble(3, now)
+        _ = try insert.step()
+        let stackID = handle.lastInsertRowID()
+        try writeMemberRows(stackID: stackID, members: members, on: handle)
+        return LibraryStack(
+            id: stackID, collapsed: collapsed, memberIDs: members,
+            addedTime: now, modifiedTime: now)
+    }
+
+    /// Rewrite a stack's memberships to the given order (dense renumber) +
+    /// stamp `modified_time` — the ONE renumbering face every mutating op
+    /// reuses (KD-2's "positions stay dense 0..n−1" duty). The old rows
+    /// leave FIRST: the UNIQUE image index makes a blind INSERT a violation.
+    static func writePositions(
+        stackID: Int64, members: [Int64], on handle: SQLiteHandle
+    ) throws {
+        let delete = try handle.prepare(
+            "DELETE FROM stack_content WHERE stack_id = ?")
+        try delete.bindInt(1, stackID)
+        _ = try delete.step()
+        try writeMemberRows(stackID: stackID, members: members, on: handle)
+        let stamp = try handle.prepare(
+            "UPDATE stacks SET modified_time = ? WHERE id = ?")
+        try stamp.bindDouble(1, Date().timeIntervalSince1970)
+        try stamp.bindInt(2, stackID)
+        _ = try stamp.step()
+    }
+
+    static func writeMemberRows(
+        stackID: Int64, members: [Int64], on handle: SQLiteHandle
+    ) throws {
+        let insert = try handle.prepare(
+            "INSERT INTO stack_content (stack_id, image_id, position)"
+                + " VALUES (?, ?, ?)")
+        for (position, member) in members.enumerated() {
+            try insert.reset()
+            try insert.bindInt(1, stackID)
+            try insert.bindInt(2, member)
+            try insert.bindInt(3, Int64(position))
+            _ = try insert.step()
+        }
+    }
+
+    /// The stack holding `imageID` (nil = unstacked) — the UNIQUE reverse
+    /// index's read face.
+    static func stackID(
+        of imageID: Int64, on handle: SQLiteHandle
+    ) throws -> Int64? {
+        let statement = try handle.prepare(
+            "SELECT stack_id FROM stack_content WHERE image_id = ?")
+        try statement.bindInt(1, imageID)
+        return try statement.step() ? statement.columnInt(0) : nil
+    }
+
+    static func assertStackExists(
+        _ handle: SQLiteHandle, id: Int64
+    ) throws {
+        let statement = try handle.prepare("SELECT 1 FROM stacks WHERE id = ?")
+        try statement.bindInt(1, id)
+        guard try statement.step() else {
+            throw LibraryError.constraintViolation(
+                detail: "unknown stack id \(id)")
+        }
+    }
+
+    /// The members of a KNOWN stack in position order; unknown stack =
+    /// typed rejection (the notFound face).
+    static func existingMembers(
+        stackID: Int64, on handle: SQLiteHandle
+    ) throws -> [Int64] {
+        try assertStackExists(handle, id: stackID)
+        return try memberIDs(stackID: stackID, on: handle)
+    }
+
+    static func memberIDs(
+        stackID: Int64, on handle: SQLiteHandle
+    ) throws -> [Int64] {
+        let statement = try handle.prepare(
+            "SELECT image_id FROM stack_content WHERE stack_id = ?"
+                + " ORDER BY position")
+        try statement.bindInt(1, stackID)
+        var members: [Int64] = []
+        while try statement.step() {
+            if let id = statement.columnInt(0) { members.append(id) }
+        }
+        return members
+    }
+
+    static func stackCollapsed(
+        stackID: Int64, on handle: SQLiteHandle
+    ) throws -> Bool {
+        let statement = try handle.prepare(
+            "SELECT collapsed FROM stacks WHERE id = ?")
+        try statement.bindInt(1, stackID)
+        guard try statement.step() else {
+            throw LibraryError.constraintViolation(
+                detail: "unknown stack id \(stackID)")
+        }
+        return (statement.columnInt(0) ?? 0) != 0
+    }
+
+    static func readStack(
+        id: Int64, on handle: SQLiteHandle
+    ) throws -> LibraryStack? {
+        let statement = try handle.prepare(
+            "SELECT collapsed, added_time, modified_time FROM stacks WHERE id = ?")
+        try statement.bindInt(1, id)
+        guard try statement.step() else { return nil }
+        return LibraryStack(
+            id: id,
+            collapsed: (statement.columnInt(0) ?? 0) != 0,
+            memberIDs: try memberIDs(stackID: id, on: handle),
+            addedTime: statement.columnDouble(1),
+            modifiedTime: statement.columnDouble(2))
     }
 
     // MARK: - Row helpers (static — actor-confined closures carry no self)
