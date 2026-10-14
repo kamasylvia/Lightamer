@@ -349,6 +349,188 @@ final class SessionBatchApplierTests: XCTestCase {
             "a rendered thumb of an applied target is stale-marked (只失效不重渲 — the 9-3 queue regenerates)")
         XCTAssertEqual(row.thumbParamsHash, "111", "the OLD binding stays (the stale ruling reads it)")
     }
+
+    // MARK: - M6-5 T2 (the M6-2 ledger #2 fix): the 12 document-level
+    // optionals ride through the EXISTING-document arm
+
+    /// A target document carrying ALL 12 document-level optionals (the
+    /// seven additive fields + the five metadata fields) on disk.
+    private func writeTwelveFieldSidecar(_ rel: String) throws -> LightamerSidecar {
+        var history = HistoryStack()
+        let exposure = ModuleInstance(
+            module: ExposureModule.self, params: ExposureModule.Params(exposure: 1.0))
+        history.commit(exposure, label: "exposure +1")
+        let decodeHash = UInt64(4242)
+        var drt = DrtRecord()
+        drt.method = .aces20
+        drt.peakLuminance = 400
+        var film = FilmRecord()
+        film.filmStock = "portra400"
+        film.strength = 0.8
+        let versionID = UUID()
+        let document = LightamerSidecar(
+            imageID: UUID(), decoderVersionUsed: "v8",
+            decodeParamsHash: decodeHash,
+            instances: history.effectiveInstances(),
+            history: history,
+            historyHash: HistoryHash.hash(stack: history, decodeParamsHash: decodeHash),
+            rating: 3,
+            flag: 1,
+            colorLabel: 2,
+            keywords: ["Nature|Flower|Rose"],
+            note: "batch-carry-note",
+            provenance: SidecarProvenance(
+                kind: .hdrMerge,
+                algorithm: .init(
+                    name: ProvenanceReplay.hdrAlgorithmName,
+                    implementationVersion: ProvenanceReplay.hdrImplementationVersion,
+                    params: StackMergeService.MergeParams()),
+                sources: [.init(relPath: "src.ARW", stableHash: 12345, exposureEV: 0)],
+                alignment: ["full"], exposureRatioVerified: [true],
+                holeFraction: 0,
+                createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+                appVersion: "test"),
+            rawOverrides: RAWTechnicalOverrides(
+                noiseReductionAmount: 0.4, decoderVersion: .forceV8),
+            displayTransform: drt,
+            versions: [
+                SidecarVersionRecord(
+                    id: versionID, name: "Version 1",
+                    createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+                    updatedAt: Date(timeIntervalSince1970: 1_700_000_100),
+                    chain: nil)
+            ],
+            activeVersionID: versionID.uuidString,
+            aiProvenance: SidecarAIProvenanceRecord(
+                operation: .upscale, scale: 2, amount: 0,
+                sourceFile: "orig.ARW", sourceImageID: UUID().uuidString,
+                backend: "coreml-worker"),
+            filmRecord: film,
+            process: .current)
+        let url = LightamerSidecar.sidecarURL(for: sessionRoot.appendingPathComponent(rel))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(document).write(to: url)
+        return document
+    }
+
+    /// The compose REBUILDS a fresh document — the M6-2-01 shape promoted
+    /// only 5 fields + the process stamp, silently dropping every other
+    /// document-level optional (the M6-2 ledger #2 gap). The M6-5 T2 fix
+    /// carries ALL 12 through the existing-document arm; the process stamp
+    /// keeps riding the stored value verbatim (the branch-conditional
+    /// discipline, zero change).
+    func testBatchApplyCarriesDocumentLevelAdditiveFields() async throws {
+        let seed = await seedInstances()
+        let rel = "carrying.ARW"
+        try writeImage(rel)
+        let document = try writeTwelveFieldSidecar(rel)
+        try await openIndex(knownRels: [rel])
+
+        let composed = try XCTUnwrap(SessionBatchApplier.composeSegment(
+            root: sessionRoot, relPaths: [rel], skipRelPaths: [],
+            payload: payload(), mode: .merge, seed: seed,
+            label: applyLabel()).composed.first)
+
+        XCTAssertEqual(composed.document.rating, document.rating)
+        XCTAssertEqual(composed.document.flag, document.flag)
+        XCTAssertEqual(composed.document.colorLabel, document.colorLabel)
+        XCTAssertEqual(composed.document.keywords, document.keywords)
+        XCTAssertEqual(composed.document.note, document.note)
+        XCTAssertEqual(composed.document.provenance, document.provenance)
+        XCTAssertEqual(composed.document.rawOverrides, document.rawOverrides)
+        XCTAssertEqual(composed.document.displayTransform, document.displayTransform)
+        XCTAssertEqual(composed.document.versions, document.versions)
+        XCTAssertEqual(composed.document.activeVersionID, document.activeVersionID)
+        XCTAssertEqual(composed.document.aiProvenance, document.aiProvenance)
+        XCTAssertEqual(composed.document.filmRecord, document.filmRecord)
+        // The process stamp keeps the EXISTING-arm verbatim ride.
+        XCTAssertEqual(composed.document.process, document.process)
+    }
+
+    /// The pristine arm (no readable sidecar) composes a NEW document —
+    /// its additive face stays the default-nil (zero byte drift on the
+    /// pristine arm; the existing-arm carry must not leak into it).
+    func testBatchApplyPristineArmKeepsAdditiveFaceEmpty() async throws {
+        let seed = await seedInstances()
+        let rel = "pristine-carry.ARW"
+        try writeImage(rel)
+        try await openIndex(knownRels: [rel])
+
+        let composed = try XCTUnwrap(SessionBatchApplier.composeSegment(
+            root: sessionRoot, relPaths: [rel], skipRelPaths: [],
+            payload: payload(), mode: .overwrite, seed: seed,
+            label: applyLabel()).composed.first)
+
+        XCTAssertNil(composed.document.rating)
+        XCTAssertNil(composed.document.flag)
+        XCTAssertNil(composed.document.colorLabel)
+        XCTAssertNil(composed.document.keywords)
+        XCTAssertNil(composed.document.note)
+        XCTAssertNil(composed.document.provenance)
+        XCTAssertNil(composed.document.rawOverrides)
+        XCTAssertNil(composed.document.displayTransform)
+        XCTAssertNil(composed.document.versions)
+        XCTAssertNil(composed.document.activeVersionID)
+        XCTAssertNil(composed.document.aiProvenance)
+        XCTAssertNil(composed.document.filmRecord)
+    }
+
+    /// A non-zero rating rides through UNCHANGED (never nil-ed, never
+    /// clamped); a target without a rating keeps rating nil after the
+    /// apply (typed level — the five metadata keys are constant-write
+    /// `null` for nil on the wire, so the honest assertion is the typed
+    /// nil, not key absence).
+    func testBatchApplyPreservesRatingFidelity() async throws {
+        let seed = await seedInstances()
+
+        // ① rating = 3 rides through.
+        let rated = "rated.ARW"
+        try writeImage(rated)
+        _ = try writeTwelveFieldSidecar(rated)
+        try await openIndex(knownRels: [rated])
+        let composed = try XCTUnwrap(SessionBatchApplier.composeSegment(
+            root: sessionRoot, relPaths: [rated], skipRelPaths: [],
+            payload: payload(), mode: .merge, seed: seed,
+            label: applyLabel()).composed.first)
+        XCTAssertEqual(composed.document.rating, 3, "rating rides through the rebuild")
+
+        // ② A nil-rating target keeps nil.
+        let unrated = "unrated.ARW"
+        try writeImage(unrated)
+        _ = try writeEditedSidecar(unrated)
+        try await openIndex(knownRels: [unrated])
+        let composed2 = try XCTUnwrap(SessionBatchApplier.composeSegment(
+            root: sessionRoot, relPaths: [unrated], skipRelPaths: [],
+            payload: payload(), mode: .merge, seed: seed,
+            label: applyLabel()).composed.first)
+        XCTAssertNil(composed2.document.rating, "no rating is minted for a nil-rating target")
+    }
+
+    /// Hierarchical keywords (`Nature|Flower|Rose`, the full-path form)
+    /// ride through element-for-element — the array identity survives the
+    /// rebuild (no flattening, no reordering, no case mangling).
+    func testBatchApplyPreservesKeywordsFidelity() async throws {
+        let seed = await seedInstances()
+        let rel = "keyworded.ARW"
+        try writeImage(rel)
+        var document = try writeTwelveFieldSidecar(rel)
+        document.keywords = ["Nature|Flower|Rose", "Travel|2026"]
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(document).write(
+            to: LightamerSidecar.sidecarURL(for: sessionRoot.appendingPathComponent(rel)))
+        try await openIndex(knownRels: [rel])
+
+        let composed = try XCTUnwrap(SessionBatchApplier.composeSegment(
+            root: sessionRoot, relPaths: [rel], skipRelPaths: [],
+            payload: payload(), mode: .merge, seed: seed,
+            label: applyLabel()).composed.first)
+
+        XCTAssertEqual(
+            composed.document.keywords, ["Nature|Flower|Rose", "Travel|2026"],
+            "the keyword array survives element-for-element")
+    }
 }
 
 // MARK: - T4: segment 3 (the serial sidecar write queue + crash heal)
