@@ -320,6 +320,8 @@ APP	5	VersionsPanelTests.swift
 APP	7	HistoryRowJumpTests.swift
 APP	8	AdjustmentTransferTests.swift
 APP	3	CleanTerminateSentinelTests.swift
+#   M6-4-02 T4（2026-10-14，登记随文件同 commit）：App patch/羽化流 4 法入 APP。
+APP	4	AIMaskPatchFlowTests.swift
 APP	1	SheetEnvironmentInjectionTests.swift
 APP	3	ToastFaceTests.swift
 LAYERS	5	LayerSkeletonTests.swift

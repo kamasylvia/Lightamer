@@ -130,6 +130,20 @@ enum AIMaskEditing {
     ///   no silent overwrite, no auto-rebake; the rebake decision is the
     ///   user's). The install itself is a history commit leg: it bumps the
     ///   revision exactly once before the commit.
+    /// - `patchRebake`: M6-4-02 (KD-1) — TRUE for the patch pass's own
+    ///   re-bake: it skips the livePlane capture and the debounce
+    ///   re-schedule (otherwise the patch would loop itself). Existing
+    ///   callers default false.
+    ///
+    /// SEGMENT-SESSION SIDES (M6-4-02, source == .segment only): (a) the
+    /// session's `featherPercent` resolves the feather — positive → the
+    /// GPU bake radius = `AIMaskFeather.sigma` (the existing
+    /// `featherRadius` seam, passed value honored only at percent 0);
+    /// negative → the CPU logit-gain leg AND the bake radius FORCED 0
+    /// (the double-feather pin — one feather, one primitive); zero →
+    /// byte-identical to the pre-M6-4-02 path. (b) A successful commit
+    /// captures the upsampled (pre-feather) plane as the session's
+    /// `livePlane` and schedules the 1s-debounced patch refine.
     @discardableResult
     static func commitRasterMask(
         plane: AIMaskPlane,
@@ -145,7 +159,8 @@ enum AIMaskEditing {
         editorState: EditorState,
         editingState: LayerEditingState,
         metal: MetalContext,
-        expectedRevision: Int? = nil
+        expectedRevision: Int? = nil,
+        patchRebake: Bool = false
     ) async throws -> RasterMaskRef {
         guard let layerID = editingState.selectedLayerID,
               let layer = editorState.adjustmentLayer(id: layerID)
@@ -165,12 +180,21 @@ enum AIMaskEditing {
         } else {
             upsampled = plane
         }
-        let texture = try AIMaskResample.texture(from: upsampled, metal: metal)
+        // The segment-session feather resolution (KD-3/M5 — the double-
+        // feather pin lives HERE: the negative leg's bake radius is 0).
+        var bakePlane = upsampled
+        var bakeRadius = featherRadius
+        if source == .segment {
+            (bakePlane, bakeRadius) = resolveFeather(
+                plane: upsampled, percent: editingState.segmentSession.featherPercent,
+                fallbackRadius: featherRadius)
+        }
+        let texture = try AIMaskResample.texture(from: bakePlane, metal: metal)
         let directory = RasterMaskStore.masksDirectory(forImageURL: anchor)
         let ref = try await RasterMaskStore.bake(
             plane: texture, directory: directory,
             fileName: source.fileName(forLayerID: layerID),
-            invert: invert, featherRadius: featherRadius, metal: metal)
+            invert: invert, featherRadius: bakeRadius, metal: metal)
 
         // The mask slot write: KEEP existing payloads (a refine/draw-patch
         // world — the raster ref joins drawn/parametric through the
@@ -203,6 +227,110 @@ enum AIMaskEditing {
         if let activateTool {
             editingState.setTool(activateTool)
         }
+        // The segment session sides (KD-1/M6): the base plane is held and
+        // the 1s-debounced patch pass is armed — but NOT for the patch
+        // pass's own re-bake (patchRebake breaks the loop).
+        if source == .segment, !patchRebake {
+            editingState.segmentSession.livePlane = upsampled
+            let coordinator = coordinator
+            let editorState = editorState
+            let editingState = editingState
+            let metal = metal
+            schedulePatchRefine(session: editingState.segmentSession) {
+                await runPatchRefine(
+                    coordinator: coordinator, editorState: editorState,
+                    editingState: editingState, metal: metal)
+            }
+        }
         return ref
+    }
+
+    // MARK: - M6-4-02: hi-res patch refine + Edge feather (KD-1/KD-3)
+
+    /// The feather RESOLUTION face (the double-feather pin's parameter
+    /// surface): percent > 0 → the plane unchanged + the GPU bake radius =
+    /// sigma (the CPU face untouched); percent < 0 → the CPU logit-gain
+    /// plane + radius FORCED 0; percent == 0 → both legs inert (the
+    /// fallback radius — 0 at every existing call site — passes through,
+    /// byte-identical to the pre-M6-4-02 path).
+    static func resolveFeather(
+        plane: AIMaskPlane, percent: Float, fallbackRadius: Float = 0
+    ) -> (plane: AIMaskPlane, radius: Float) {
+        if percent > 0 {
+            let longEdge = max(plane.width, plane.height)
+            return (plane, AIMaskFeather.sigma(percent: percent, longEdgePixels: longEdge))
+        }
+        if percent < 0 {
+            return (AIMaskFeather.applyFeatherNegative(plane: plane, percent: percent), 0)
+        }
+        return (plane, fallbackRadius)
+    }
+
+    /// The patch-refine DEBOUNCE (KD-1: 1s after the LAST interaction —
+    /// each schedule cancels the previous task, so a burst of interactions
+    /// collapses into ONE pass; the last scheduled operation is the one
+    /// that runs). `delay` is the injected clock seam (tests shrink it).
+    static func schedulePatchRefine(
+        session: SegmentSession,
+        delay: Duration = .seconds(1),
+        operation: @escaping @MainActor () async -> Void
+    ) {
+        session.patchDebounceTask?.cancel()
+        session.patchDebounceTask = Task {
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            await operation()
+        }
+    }
+
+    /// ONE patch pass (KD-1): plan on the current composed state → patch
+    /// re-analysis through `segmentPatch` (the ROI leg, quality .accurate)
+    /// → FIFO-cap → recompose → feather-resolved re-bake (same maskID
+    /// overwrite, D-07-CONTEXT-5). The skip gates (empty/oversized/min-
+    /// side) leave the session plane untouched; ANY failure = the typed
+    /// toast + the session plane unchanged (generation failure ≠ load
+    /// failure — never an all-ones fallback).
+    static func runPatchRefine(
+        coordinator: PipeCoordinator,
+        editorState: EditorState,
+        editingState: LayerEditingState,
+        metal: MetalContext
+    ) async {
+        let session = editingState.segmentSession
+        guard session.hasSeed, !session.isGenerating, let base = session.livePlane
+        else { return }
+        session.patchState = .refining
+        defer { session.patchState = .done(count: session.patches.count) }
+        do {
+            guard let (input, width, height) = decodeFrameInput(coordinator) else {
+                return
+            }
+            // Plan on the CURRENT state (base + already-held patches).
+            let current = AIPatchComposer.compose(base: base, patches: session.patches)
+            guard let rect = AIPatchPlanner.planPatch(plane: current) else {
+                return // a skip gate — legitimately no patch this pass
+            }
+            let normalized = rect.normalized(
+                imageWidth: current.width, imageHeight: current.height)
+            guard case let seed? = session.seed else { return }
+            let plane = try await AIMaskService.segmentPatch(
+                input: input, seed: seed, refine: session.refinePoints,
+                patchRect: normalized)
+            session.patches = AIPatchComposer.capped(
+                session.patches + [AIPatch(rect: rect, plane: plane)])
+            let composed = AIPatchComposer.compose(
+                base: base, patches: session.patches)
+            _ = try await commitRasterMask(
+                plane: composed, source: .segment,
+                decodeWidth: width, decodeHeight: height,
+                label: String(localized: "history_ai_mask"),
+                activateTool: nil,
+                coordinator: coordinator, editorState: editorState,
+                editingState: editingState, metal: metal,
+                patchRebake: true)
+        } catch {
+            editorState.presentToast(
+                String(localized: "ai_toast_generate_failed") + " (\(error))")
+        }
     }
 }
