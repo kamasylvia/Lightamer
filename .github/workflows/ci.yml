@@ -111,3 +111,14 @@ jobs:
           body: |
             Unsigned build — after downloading, right-click the app and
             choose Open the first time (Gatekeeper).
+
+  parity:
+    # Doc-level parity gate (M6-6 ruling 6): every FEAT id unique, status /
+    # source vocabulary, cited evidence paths exist, generated blocks fresh.
+    # Pure stdlib Python - no macOS runner needed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Parity checklist audit
+        run: python3 Scripts/parity-audit.py --check
