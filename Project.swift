@@ -611,6 +611,7 @@ let project = Project(
                 "Tests/LightamerTests/Phase5SidecarTests.swift",
                 "Tests/LightamerTests/Phase6SidecarTests.swift",
                 "Tests/LightamerTests/FilmSidecarTests.swift",
+                "Tests/LightamerTests/SidecarV10Tests.swift",
                 "Tests/LightamerTests/PresetApplierTests.swift",
                 "Tests/LightamerTests/PresetsStoreTests.swift",
                 "Tests/LightamerTests/ProvenanceV4Tests.swift",
