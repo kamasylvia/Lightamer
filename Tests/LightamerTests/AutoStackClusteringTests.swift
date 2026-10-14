@@ -11,7 +11,8 @@ import XCTest
 //   golden (3 bursts + scatter, hand-computed) · gap boundary (== joins,
 //   over breaks) · sort determinism (scrambled input, capture ties by id)
 //   · runs ≥ 2 · the stacked skip (store leg) · the no-capture skip ·
-//   preview zero-write (byte-identical package) · commit round-trip.
+//   preview zero-write (byte-identical package) · commit round-trip ·
+//   the empty-pool guard (acceptance N-1, symmetric with stackedIDs).
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class AutoStackClusteringTests: XCTestCase {
@@ -242,5 +243,19 @@ final class AutoStackClusteringTests: XCTestCase {
         }
         let containingLoner = try await store.stackContaining(imageID: loner)
         XCTAssertNil(containingLoner)
+    }
+
+    // MARK: - ⑨ the empty-pool guard (acceptance N-1)
+
+    func testEmptyPoolAnswersZeroWithoutInvalidSQL() async throws {
+        // The read leg builds `WHERE id IN (...)` from the pool — an empty
+        // pool would spell invalid `IN ()` SQL. The guard (symmetric with
+        // stackedIDs below it) short-circuits to zero on both faces.
+        let preview = try await store.autoStack(ids: [], preview: true)
+        XCTAssertEqual(preview, 0, "an empty pool previews nothing")
+        let created = try await store.autoStack(ids: [], preview: false)
+        XCTAssertEqual(created, 0, "an empty pool creates nothing")
+        let stacks = try await store.stacks()
+        XCTAssertTrue(stacks.isEmpty, "no half-landed stack")
     }
 }

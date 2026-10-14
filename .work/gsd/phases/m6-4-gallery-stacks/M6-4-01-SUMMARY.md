@@ -2,7 +2,8 @@
 
 > 执行 = 夜间全自动授权（先例 D-07-3-T5-1；`paused=false` / `auto=true`
 > 开工确认）。plan 正本 = 同目录 `M6-4-01-PLAN.md`（修订版）；裁决正本 =
-> `M6-4-CONTEXT.md`；偏差登记正本 = `M6-4-01-DECISIONS.md`（D-01..D-12）。
+> `M6-4-CONTEXT.md`；偏差登记正本 = `M6-4-01-DECISIONS.md`
+> （D-01..D-12 执行批 + D-13..D-15 验收修复批）。
 > **ACCEPTANCE 未写**（双重验收归验收批：zcode subagent 独立验收 PASS 后
 > 串行 omp 二次验收，严禁并发）。
 
@@ -78,6 +79,33 @@ Sessions/Export 六 bundle 本批零新法）。全套 `--all` 本 plan 未跑�
 | D-10 | T5 fixture 批内隔离设计（多导入批构造细则表） | §D-10 |
 | D-11 | auto-stack 池全集走查性能注记 | §D-11 |
 | D-12 | `.flat` 字节恒等双证据（调用点 grep 清单 + 行级恒等测试） | §D-12 |
+
+## 修复批（双重验收后，minor 清偿；2026-10-14 夜）
+
+双路验收（ACCEPTANCE + ACCEPTANCE-2ND）PASS / 0 error 后的登记 minor
+清偿批，逐项落点：
+
+- **M-a**：`ImportMergeStackTests` +1 法（⑥ ESCAPE 回归钉）——`%`/`_`/
+  字面反斜杠三转义全走真 importFolder 的库级 LIKE 回落，三 decoy 行钉死
+  wildcard 不泄漏（`%`/`_` 泄漏 = 命中集变宽 → folderName 歧义整组
+  skip；`\` 不转义 = 错配无反斜杠 decoy）。
+- **N-1**（O-i 升格，第二路建议采纳）：`LibraryStore.autoStack` 读腿补
+  空池守卫（对称 `stackedIDs(in:)` 形态，`IN ()` 非法 SQL 不可达）+
+  `AutoStackClusteringTests` +1 空池负测（preview/commit 双面 = 0）。
+- **M-c**：`LibraryGridModel` :525 / `LibraryQueries` :381 两处悬空
+  「DECISIONS-registered」注记改指 D-14（登记落账见 DECISIONS §D-14）。
+- **M-b/M-d/M-e（doc-only）**：DECISIONS 补 D-13（files_modified 范围外
+  两文件补登记）+ D-15（翻账推迟编号）+ D-12 调用点清单勘误 5→7 处
+  （collectAllIDs 双段 :540/:551，显式五处行号刷新 :206/:218/:265/:277/
+  :285）。
+- **定向回归（本批亲跑）**：Library bundle **`729/4skip/0`**（727 + 2 新
+  法，exit 0，peakRSS 621MB）/ App bundle **`810/4skip/0`**（零漂移，
+  peakRSS 2832MB）。
+- **全套预期重算**：3815 + 2 新法 = **3817/24/0**（02 plan 的 S8 重算
+  基线随之 3817；上节 3815 为执行链收口时点值，历史行不回写）。
+- 红线自检：本批 diff 零 xcstrings / 零 UserDefaults 新键 / 零 `.metal`
+  / 零 runModal / 零 `String.LocalizationValue("` 插值形态；只动清单面
+  （两测试文件 +2 法、三源文件守卫与注记、两账本文档）。
 
 ## 翻账建议（闭环批统一做，本批零翻账）
 

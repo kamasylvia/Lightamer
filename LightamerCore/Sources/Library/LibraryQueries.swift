@@ -378,7 +378,7 @@ public actor LibraryQueries {
     /// The position-ordered member id lists for the given stacks (the
     /// fixup's gather source). Additive to the KD-5 list — the fixup needs
     /// the full member set of a stack, which `stackMemberships(ids:)`
-    /// cannot see for ids OUTSIDE the page (DECISIONS-registered).
+    /// cannot see for ids OUTSIDE the page (D-14-registered).
     public func stackMembers(
         ofStacks stackIDs: [Int64]
     ) async throws -> [Int64: [Int64]] {
