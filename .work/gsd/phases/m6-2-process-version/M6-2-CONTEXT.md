@@ -150,3 +150,7 @@ plan_review_by_omp = true）。
 ## 裁决记录
 
 （待用户回批后补记。）
+
+## 裁决记录（用户回批 2026-10-14）
+
+**OQ-1..6 全部按推荐采纳（全 A）**：①additive `process: Int?` + v10 bump + 拼写 `process` ②hash isolation + 分叉点折键 + Copy Adjustments 不携带 ③LightCraft lenient 原形（损坏 → legacy 不保留 / 大号保留钳渲染）④机制 armed + 渲染零行为 + 枚举账本，否决演示性 bump ⑤v1 无迁移动作，挂账至首个真实 bump 场景 ⑥四门（补 mint 门于 ROADMAP 三件之上）。
