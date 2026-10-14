@@ -63,6 +63,39 @@ final class ImportServiceTests: XCTestCase {
         })
     }
 
+    // MARK: - M6-2-01 T4 (KD-7 ②): the AI-copy birth sidecar stamps .current
+
+    func testAICopyBirthSidecarStampsCurrentProcess() async throws {
+        // A copy already placed under Media/ (the EnhanceCopyWriter's
+        // half is the writer's domain — the twin takes it from here).
+        let media = packageDirectory.appendingPathComponent(
+            LibrarySchema.mediaDirectoryName, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: media, withIntermediateDirectories: true)
+        let copy = media.appendingPathComponent("DSC09991-增强.tif")
+        try Self.syntheticBytes(seed: 9).write(to: copy)
+
+        let provenance = SidecarAIProvenanceRecord(
+            operation: .upscale, scale: 4, amount: 0,
+            sourceFile: "DSC09991.tif",
+            sourceImageID: "6F1D2FB2-7A34-4C1E-9E8A-55B0C3A1D2E4",
+            backend: "coreml-worker")
+        _ = try await service.importFile(
+            at: copy, projectDirectory: packageDirectory, albumID: nil,
+            aiProvenance: provenance)
+
+        let sidecarURL = LightamerSidecar.sidecarURL(for: copy)
+        let data = try Data(contentsOf: sidecarURL)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["process"] as? Int, 1, "the AI-copy birth stamp")
+        let document = try JSONDecoder().decode(LightamerSidecar.self, from: data)
+        XCTAssertEqual(document.process, .current)
+        XCTAssertEqual(document.aiProvenance, provenance)
+        XCTAssertTrue(document.history.items.isEmpty, "the copy starts pristine")
+        XCTAssertFalse(document.driftDetected)
+    }
+
     @discardableResult
     private func makeFile(_ path: String, bytes: Data) throws -> URL {
         let url = root.appendingPathComponent(path)

@@ -401,6 +401,119 @@ final class StackMergeServiceTests: XCTestCase {
         }
     }
 
+    // MARK: - M6-2-01 T4 (KD-7 ③④): the merge birth sidecars stamp .current
+
+    /// A deterministic half-exact bracket plane (the MertensLegTests
+    /// fixture discipline: the CI working format is RGBAh — only half-exact
+    /// values survive bit-exactly; the checker background gives the MTB
+    /// alignment texture).
+    private static func bracketPlane(index: Int, width: Int = 64, height: Int = 48)
+        -> Data
+    {
+        var floats = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let base = (y * width + x) * 4
+                let checker = ((x / 4) + (y / 4)) % 2 == 0
+                var value: Float = checker ? 0.75 : 0.25
+                if x >= 8 + index * 8, x < 20 + index * 8, y >= 16, y < 30 {
+                    value = 0.0625
+                }
+                floats[base] = value
+                floats[base + 1] = value
+                floats[base + 2] = value
+                floats[base + 3] = 1
+            }
+        }
+        return floats.withUnsafeBufferPointer { Data(buffer: $0) }
+    }
+
+    /// The synthetic decode leg over `src<N>.tif` files (shutters 1/125 →
+    /// 1/250 — the EXIF precheck's bracket; the bitmap payload rides the
+    /// keep box).
+    private static func bracketDecodeLeg(shutters: [Double]) -> StackDecodeLeg {
+        final class Keep: @unchecked Sendable { var payloads: [Data] = [] }
+        let keep = Keep()
+        return { url in
+            let stem = url.lastPathComponent
+                .replacingOccurrences(of: "src", with: "")
+                .replacingOccurrences(of: ".tif", with: "")
+            let index = Int(stem) ?? 0
+            let data = bracketPlane(index: index)
+            keep.payloads.append(data)
+            let ci = CIImage(
+                bitmapData: data, bytesPerRow: 64 * 16,
+                size: CGSize(width: 64, height: 48),
+                format: CIFormat.RGBAf, colorSpace: WorkingSpace.colorSpace)
+            var capture = CaptureMetadata()
+            capture.cameraModel = "ILCE-7M4"
+            capture.shutterSpeed = index < shutters.count ? shutters[index] : nil
+            capture.iso = 100
+            return DecodedImage(
+                ciImage: ci, rawTech: RAWTechnicalParams(), capture: capture,
+                segmentationSkyMatte: nil, decoderVersionUsed: .v8)
+        }
+    }
+
+    /// The REAL HDR leg (mergeLeg nil = production): the product sidecar
+    /// carries `"process": 1` (the KD-7 birth stamp — the runHDRLeg tail
+    /// writer).
+    func testHDRLegBirthSidecarStampsCurrentProcess() async throws {
+        let (dir, sources) = try makeSources()
+        try FileManager.default.createDirectory(
+            at: dir, withIntermediateDirectories: true)
+        let service = try makeService(
+            decodeLeg: Self.bracketDecodeLeg(shutters: [1.0 / 125.0, 1.0 / 250.0]))
+        _ = try await service.enqueue(
+            kind: .hdrMerge, sources: sources,
+            params: StackMergeService.MergeParams(deGhost: false),
+            sessionRoot: dir)
+        let terminal = await Self.awaitTerminal(service, timeout: 30)
+        let product: URL
+        guard case .done(let url)? = terminal?.state else {
+            return XCTFail(
+                "expected .done, got \(String(describing: terminal?.state))")
+        }
+        product = url
+
+        // The product's birth .lra: the stamp in the JSON bytes AND typed.
+        let sidecarURL = LightamerSidecar.sidecarURL(for: product)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: sidecarURL)) as? [String: Any])
+        XCTAssertEqual(object["process"] as? Int, 1, "the HDR birth stamp")
+        let document = try JSONDecoder().decode(
+            LightamerSidecar.self, from: Data(contentsOf: sidecarURL))
+        XCTAssertEqual(document.process, .current)
+        XCTAssertEqual(document.provenance?.kind, .hdrMerge)
+    }
+
+    /// The REAL Mertens leg: the shared landStackProduct writer stamps the
+    /// birth sidecar too (the Mertens+Pano arm, KD-7 ④).
+    func testMertensLegBirthSidecarStampsCurrentProcess() async throws {
+        let (dir, sources) = try makeSources()
+        let service = try makeService(
+            decodeLeg: Self.bracketDecodeLeg(
+                shutters: [1.0 / 125.0, 1.0 / 250.0, 1.0 / 500.0]))
+        _ = try await service.enqueue(
+            kind: .hdrMertens, sources: sources,
+            params: StackMergeService.MergeParams(),
+            sessionRoot: dir)
+        let terminal = await Self.awaitTerminal(service, timeout: 60)
+        guard case .done(let product)? = terminal?.state else {
+            return XCTFail(
+                "expected .done, got \(String(describing: terminal?.state))")
+        }
+
+        let sidecarURL = LightamerSidecar.sidecarURL(for: product)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: sidecarURL)) as? [String: Any])
+        XCTAssertEqual(object["process"] as? Int, 1, "the Mertens birth stamp")
+        let document = try JSONDecoder().decode(
+            LightamerSidecar.self, from: Data(contentsOf: sidecarURL))
+        XCTAssertEqual(document.process, .current)
+        XCTAssertEqual(document.provenance?.kind, .hdrMertens)
+    }
+
     // MARK: - CIRAW decode-timing first probe (perf.md anchor, no gate)
 
     /// RESEARCH §12's dominant segment pinned on the REAL decode chain

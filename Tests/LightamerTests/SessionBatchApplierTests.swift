@@ -268,6 +268,66 @@ final class SessionBatchApplierTests: XCTestCase {
             payload().instances.map(\.opName))
     }
 
+    // MARK: - M6-2-01 T4 (KD-7 ⑤a/E1): the branch-conditional process stamp
+
+    /// The batch compose's stamp is BRANCH-CONDITIONAL: a pristine target
+    /// (a NEW document) mints `.current`; an existing document's stored
+    /// value rides through VERBATIM — legacy stays ABSENT (never passively
+    /// upgraded), 1 stays 1, a forward 7 stays 7. The compose REBUILDS a
+    /// fresh document here (only 5 fields + the stamp are promoted), so
+    /// without the explicit carry every state would collapse to ABSENT.
+    func testBatchApplyStampsProcessBranchConditionally() async throws {
+        let seed = await seedInstances()
+        let payloadItems = payload()
+
+        // ① The pristine arm: the minted document carries 1.
+        let pristineRel = "pristine.ARW"
+        try writeImage(pristineRel)
+        try await openIndex(knownRels: [pristineRel])
+        let pristine = try XCTUnwrap(SessionBatchApplier.composeSegment(
+            root: sessionRoot, relPaths: [pristineRel], skipRelPaths: [],
+            payload: payloadItems, mode: .overwrite, seed: seed,
+            label: applyLabel()).composed.first)
+        let pristineObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(pristine.document)) as? [String: Any])
+        XCTAssertEqual(pristineObject["process"] as? Int, 1, "the pristine mint")
+
+        // ②③④ The existing arm's three states (one sweep): the stamp rides
+        // the STORED value through the rebuild.
+        for (stored, want) in [
+            (Optional<RenderProcessVersion>.none, Optional<Int>.none),
+            (RenderProcessVersion.current, 1),
+            (RenderProcessVersion(rawValue: 7)!, 7),
+        ] {
+            let rel = "existing-\(want.map(String.init) ?? "legacy").ARW"
+            try writeImage(rel)
+            var document = try writeEditedSidecar(rel)
+            document.process = stored
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(document).write(
+                to: LightamerSidecar.sidecarURL(
+                    for: sessionRoot.appendingPathComponent(rel)))
+            try await openIndex(knownRels: [rel])
+
+            let composed = try XCTUnwrap(SessionBatchApplier.composeSegment(
+                root: sessionRoot, relPaths: [rel], skipRelPaths: [],
+                payload: payload(), mode: .merge, seed: seed,
+                label: applyLabel()).composed.first)
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(composed.document)) as? [String: Any])
+            if let want {
+                XCTAssertEqual(
+                    object["process"] as? Int, want,
+                    "the stored \(want) rides through the rebuild")
+            } else {
+                XCTAssertFalse(
+                    object.keys.contains("process"),
+                    "the legacy existing document is NEVER minted (OQ-1)")
+            }
+        }
+    }
+
     func testBatchApplyFlipsThumbnailStateToStaleForRenderedRows() async throws {
         let seed = await seedInstances()
         let rel = "a.ARW"

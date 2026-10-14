@@ -2225,7 +2225,10 @@ public actor StackMergeService {
             history: emptyStack,
             historyHash: HistoryHash.hash(stack: emptyStack, decodeParamsHash: decodeHash),
             layerStack: GhostMaskWriter.ghostSuppressionLayerStack(landedMask),
-            provenance: provenance)
+            provenance: provenance,
+            // M6-2-01 T4 (KD-7 ③④): the merge product is a NEW document —
+            // its birth sidecar stamps the current process generation.
+            process: .current)
         let sidecarEncoder = JSONEncoder()
         sidecarEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let sidecarData = try sidecarEncoder.encode(sidecar)
@@ -2681,7 +2684,10 @@ public actor StackMergeService {
             history: emptyStack,
             historyHash: HistoryHash.hash(stack: emptyStack, decodeParamsHash: decodeHash),
             layerStack: GhostMaskWriter.ghostSuppressionLayerStack(landedMask),
-            provenance: provenance)
+            provenance: provenance,
+            // M6-2-01 T4 (KD-7 ③④): the merge product is a NEW document —
+            // its birth sidecar stamps the current process generation.
+            process: .current)
         let sidecarEncoder = JSONEncoder()
         sidecarEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let sidecarData = try sidecarEncoder.encode(sidecar)
