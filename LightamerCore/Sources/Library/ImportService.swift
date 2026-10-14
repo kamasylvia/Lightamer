@@ -128,21 +128,33 @@ public struct ImportPlan: Sendable, Equatable {
     }
 }
 
-/// The run summary (KD-2's outcome face).
+/// The run summary (KD-2's outcome face). The M6-4-01 KD-6 tail counts are
+/// additive with explicit defaults — every pre-stacks construction site
+/// compiles and compares byte-identical (the M4 zero-drift guarantee; the
+/// counts are TEST-consumed in v1, zero UI face).
 public struct ImportOutcome: Sendable, Equatable {
     public var imported: Int
     public var failed: Int
     public var skippedDuplicates: Int
     public var cancelled: Bool
+    /// Merge products whose source set fully resolved → stacks landed
+    /// (stackWith, collapsed, product = cover).
+    public var mergeStacksCreated: Int
+    /// Merge-kind products whose source resolution failed or stayed
+    /// ambiguous → the WHOLE group skipped, zero half-stacks (KD-6).
+    public var mergeStacksSkipped: Int
 
     public init(
         imported: Int = 0, failed: Int = 0, skippedDuplicates: Int = 0,
-        cancelled: Bool = false
+        cancelled: Bool = false,
+        mergeStacksCreated: Int = 0, mergeStacksSkipped: Int = 0
     ) {
         self.imported = imported
         self.failed = failed
         self.skippedDuplicates = skippedDuplicates
         self.cancelled = cancelled
+        self.mergeStacksCreated = mergeStacksCreated
+        self.mergeStacksSkipped = mergeStacksSkipped
     }
 }
 
@@ -167,6 +179,10 @@ public actor ImportService {
     private var verifyStrategy: VerifyStrategy?
     private var uuidProbe: UUIDProbe?
     private var cancelRequested = false
+    /// The batch's landed rows `(rowid, imagePath)` in landing order — the
+    /// import-seam auto-stack's first-choice match source (KD-6: the batch
+    /// map wins, the full-library query is the fallback).
+    private var batchImportedRows: [(id: Int64, imagePath: String)] = []
 
     public init(store: ProjectFileStore) {
         self.projectStore = store
@@ -280,6 +296,7 @@ public actor ImportService {
     /// one FTS rebuild at the batch tail (only when rows were written).
     public func importFolder(_ plan: ImportPlan) async throws -> ImportOutcome {
         cancelRequested = false
+        batchImportedRows = []
         var progress = ImportProgress(
             phase: .importing, total: plan.items.count,
             excludedType: plan.excludedTypeCount)
@@ -327,6 +344,17 @@ public actor ImportService {
 
         if wroteAnyRow {
             try await indexer.rebuildFTS()
+            // M6-4-01 (KD-6, OQ-4): the import-batch completion seam —
+            // merge products whose `.lra` provenance carries a merge-kind
+            // kind AND whose sources all resolve stack up right here
+            // (product = cover, collapsed). Link-mode imports never join:
+            // their `.lra` stayed at the origin (S1), so the sidecar probe
+            // below never fires for them.
+            let account = try await autoStackMergeProducts(
+                batchRows: batchImportedRows,
+                folderName: plan.sourceFolder.lastPathComponent)
+            outcome.mergeStacksCreated = account.created
+            outcome.mergeStacksSkipped = account.skipped
         }
         if !outcome.cancelled {
             progress.phase = .completed
@@ -432,16 +460,19 @@ public actor ImportService {
 
     /// Link: no bytes move — the row carries the ImageLinker record; the
     /// `.lra` stays at the origin (⑤). Always writes a row (there is no
-    /// placement to duplicate).
+    /// placement to duplicate). The row joins the batch map (harmless — the
+    /// auto-stack seam's sidecar probe can never fire for a link row, S1).
     private func executeLink(
         _ item: ImportPlan.Item, projectDirectory: URL
     ) async throws -> StepResult {
         let record = ImageLinker.record(
             for: item.source, projectDirectory: projectDirectory,
             uuidProbe: uuidProbe)
-        try await insertRow(
+        let rowID = try await insertRow(
             imagePath: record.imagePath, pathKind: record.pathKind,
             volumeUUID: record.volumeUUID, file: item.source)
+        batchImportedRows.append(
+            (id: rowID, imagePath: record.imagePath))
         return .imported
     }
 
@@ -575,11 +606,16 @@ public actor ImportService {
 
     /// The images row — KD-2's invariant: only after placement success.
     /// kind0 + the project-relative `Media/...` path (move/copy); the
-    /// EXIF materialization rides the M2-2-1 indexer seam (KD-6).
+    /// EXIF materialization rides the M2-2-1 indexer seam (KD-6). The row
+    /// joins the batch map (the auto-stack seam's first-choice source).
     private func writeRow(destination: URL, item: ImportPlan.Item) async throws {
-        try await insertRow(
+        let rowID = try await insertRow(
             imagePath: LibrarySchema.mediaDirectoryName + "/" + item.mediaRelativePath,
             pathKind: .projectRelative, volumeUUID: nil, file: destination)
+        batchImportedRows.append(
+            (id: rowID,
+             imagePath: LibrarySchema.mediaDirectoryName + "/"
+                 + item.mediaRelativePath))
     }
 
     @discardableResult
@@ -699,5 +735,179 @@ public actor ImportService {
 
     private func emit(_ progress: ImportProgress) async {
         await progressHandler?(progress)
+    }
+
+    // MARK: - Import-seam auto-stack (M6-4-01 KD-6; OQ-4; E1 matching)
+
+    /// The merge-kind whitelist (EXACTLY the three HDR/pano merge kinds of
+    /// `SidecarProvenance.Kind` — focus-stack / stack-average / stack-median
+    /// / stack-sigma stay OUT; LightCraft's stack_with semantics only bind
+    /// the HDR/pano domains). rawValues mirror the Kind enum's coding.
+    static let mergeStackKinds: Set<String> = [
+        "hdr-merge", "hdr-merge-mertens", "pano-merge",
+    ]
+
+    /// The batch-tail seam: for every landed destination, probe the sibling
+    /// `.lra`, tolerant-decode the provenance, and stack the merge products
+    /// whose sources all resolve (KD-6). Any unresolved/ambiguous source →
+    /// the WHOLE group skipped (zero half-stacks). Products (or sources)
+    /// already in a stack skip too — the import seam never merges existing
+    /// stacks (the group-union semantics belong to the manual `group` face).
+    private func autoStackMergeProducts(
+        batchRows: [(id: Int64, imagePath: String)],
+        folderName: String
+    ) async throws -> (created: Int, skipped: Int) {
+        var created = 0
+        var skipped = 0
+        let projectDirectory = await projectStore.fileURL.deletingLastPathComponent()
+        for row in batchRows {
+            // Only Media/-carrying (move/copy) rows can carry a migrated
+            // sidecar; link rows' `.lra` stayed at the origin (S1).
+            guard row.imagePath.hasPrefix(
+                LibrarySchema.mediaDirectoryName + "/") else { continue }
+            let destination = projectDirectory
+                .appendingPathComponent(row.imagePath)
+            let sidecarURL = URL(fileURLWithPath: destination.path + ".lra")
+            guard FileManager.default.fileExists(atPath: sidecarURL.path),
+                let data = try? Data(contentsOf: sidecarURL),
+                let document = try? JSONDecoder().decode(
+                    LightamerSidecar.self, from: data),
+                let provenance = document.provenance,
+                Self.mergeStackKinds.contains(provenance.kind.rawValue)
+            else { continue }
+            // The source resolution (E1's versioned matching rules).
+            var sourceIDs: [Int64] = []
+            var resolved = true
+            for source in provenance.sources {
+                if let id = try await resolveSourcePath(
+                    relPath: source.relPath, folderName: folderName,
+                    batchRows: batchRows) {
+                    sourceIDs.append(id)
+                } else {
+                    resolved = false
+                    break
+                }
+            }
+            guard resolved, !sourceIDs.isEmpty else {
+                skipped += 1
+                continue
+            }
+            // The seam never merges existing stacks: product or any source
+            // already stacked → skip (safe side, zero writes).
+            let involved = [row.id] + sourceIDs
+            var alreadyStacked = false
+            for id in involved {
+                if try await libraryStore.stackContaining(imageID: id) != nil {
+                    alreadyStacked = true
+                    break
+                }
+            }
+            guard !alreadyStacked else {
+                skipped += 1
+                continue
+            }
+            if try await libraryStore.stackWith(
+                productID: row.id, sourceIDs: sourceIDs) != nil {
+                created += 1
+            } else {
+                // Below-2 union (a product with zero resolvable sources
+                // cannot reach here — the guard above) — defensive skip.
+                skipped += 1
+            }
+        }
+        return (created, skipped)
+    }
+
+    /// E1's versioned matching rules (the DECISIONS clause carrier):
+    ///   1. SUFFIX match (primary) — `image_path` ends with "/" + relPath;
+    ///      the batch map wins, the full-library parameterized
+    ///      `LIKE '%' || ? ESCAPE '\'` query is the fallback. relPath's
+    ///      structural segments survive the import tree verbatim, so this
+    ///      covers any folderName prefix and out-of-root source names.
+    ///   2. MULTIPLE suffix hits (same-name subtree re-import) → the
+    ///      batch's folderName candidate disambiguates:
+    ///      exact `Media/<folderName>/<relPath>` — a unique hit wins,
+    ///      still ambiguous = fail.
+    ///   3. ZERO suffix hits → the folderName exact candidate (batch map,
+    ///      then the library) → the last-segment FILE-STEM unique hit.
+    ///   4. Any failure / unresolved ambiguity → nil (the caller skips the
+    ///      whole group — mergeStacksSkipped).
+    private func resolveSourcePath(
+        relPath: String, folderName: String,
+        batchRows: [(id: Int64, imagePath: String)]
+    ) async throws -> Int64? {
+        let suffix = "/" + relPath
+        // 1. Suffix match, batch map first.
+        var candidates = batchRows.filter { $0.imagePath.hasSuffix(suffix) }
+        if candidates.isEmpty {
+            candidates = try await libraryRows(
+                "SELECT id, image_path FROM images"
+                    + " WHERE image_path LIKE '%' || ? ESCAPE '\\'",
+                    binds: [.text(Self.likeEscaped(suffix))])
+        }
+        if candidates.count == 1 { return candidates[0].id }
+        if candidates.count > 1 {
+            // 2. folderName candidate disambiguation.
+            let exact = Self.folderNameCandidate(
+                folderName: folderName, relPath: relPath)
+            let exactHits = candidates.filter { $0.imagePath == exact }
+            return exactHits.count == 1 ? exactHits[0].id : nil
+        }
+        // 3. Zero suffix hits: the folderName exact candidate (batch, then
+        // the library), then the unique file-stem fallback.
+        let exact = Self.folderNameCandidate(
+            folderName: folderName, relPath: relPath)
+        let batchExact = batchRows.filter { $0.imagePath == exact }
+        if batchExact.count == 1 { return batchExact[0].id }
+        if batchExact.isEmpty {
+            let libraryExact = try await libraryRows(
+                "SELECT id, image_path FROM images WHERE image_path = ?",
+                binds: [.text(exact)])
+            if libraryExact.count == 1 { return libraryExact[0].id }
+        }
+        let stem = relPath.split(separator: "/").last.map(String.init) ?? relPath
+        let stemNoExt = stem.contains("/")
+            ? stem
+            : (stem as NSString).deletingPathExtension
+        guard !stemNoExt.isEmpty else { return nil }
+        let stemHits = try await libraryRows(
+            "SELECT id, image_path FROM images WHERE file_stem = ?",
+            binds: [.text(stemNoExt)])
+        return stemHits.count == 1 ? stemHits[0].id : nil
+    }
+
+    /// `Media/<folderName>/<relPath>` — the batch's unconditional landing
+    /// shape (makePlan folderName prefix + writeRow's Media/ prefix).
+    nonisolated private static func folderNameCandidate(
+        folderName: String, relPath: String
+    ) -> String {
+        LibrarySchema.mediaDirectoryName + "/" + folderName + "/" + relPath
+    }
+
+    /// LIKE-pattern escaping (the DECISIONS versioned clause): the escape
+    /// character is `\`; it escapes ITSELF plus the two pattern metachars
+    /// (`%`/`_`) — a relPath carrying wildcards matches literally.
+    nonisolated private static func likeEscaped(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+    }
+
+    private func libraryRows(
+        _ sql: String, binds: [FilterSQLBind]
+    ) async throws -> [(id: Int64, imagePath: String)] {
+        try await projectStore.withHandle { handle in
+            let statement = try handle.prepare(sql)
+            try FilterSQL.apply(binds, to: statement)
+            var rows: [(id: Int64, imagePath: String)] = []
+            while try statement.step() {
+                if let id = statement.columnInt(0),
+                    let path = statement.columnText(1) {
+                    rows.append((id: id, imagePath: path))
+                }
+            }
+            return rows
+        }
     }
 }

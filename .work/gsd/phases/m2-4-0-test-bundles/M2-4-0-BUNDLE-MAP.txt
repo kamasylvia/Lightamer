@@ -336,6 +336,7 @@ LAYERS	7	DrtPostMigrationTests.swift
 LAYERS	28	Aces2MathTests.swift
 LIB	10	FilterPredicateTests.swift
 LIB	11	ImportServiceTests.swift
+LIB	5	ImportMergeStackTests.swift
 LIB	16	ImportCategoryTests.swift
 LIB	4	ImportTransportTiffTests.swift
 LIB	10	LibraryFilterDomainTests.swift
