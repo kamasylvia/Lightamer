@@ -472,7 +472,7 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **三活体键清偿（01 E-3）**：`edr_headroom_label %@` / `settings_displays_overridden %@` / `softproof_active_label %@` 三格式变体键尾块纯插入（51/0，en+zh 值与既有裸键值同文；裸键经 interp 前缀族覆盖留目录）——清偿前 ABSENT 3 键 = M2-9 F-2 家族活体（运行时回退裸键观感）；调用点代码零改。UserDefaults 零新增。
 - **T1 孤儿 fixture 根治（M4-1 #6 终局）**：App bundle repo 路径写腿全集 = **restore + undo 两法**（归因勘误：M5-1「defer 输给迟到 write-behind」错位——真残写源 = undo 法 post-test 2s debounce 写，M6-2 VALIDATION :60 排除项直证 undo 到顶照写）；`RasterEditFaceTests` 双法改 `tempFixtureCopy`（DepthMaskEditingTests verbatim 同款 helper + UUID tempDirectory）+ `loadRaster(at:)` URL 孪生；repo fixture 路径只读 + 一行防御性孤儿清扫；全套轮毕 `find Tests/Fixtures -name "*.lra"` 零命中为常态门。
 - **T2 batch apply 12 字段携带（M6-2 挂账 #2 终局）**：`SessionBatchApplier` 既有档臂捕获 **12 文档级 optional 全带**（七 additive `provenance`/`rawOverrides`/`displayTransform`/`versions`/`activeVersionID`/`aiProvenance`/`filmRecord` + 五元数据 `rating`/`flag`/`colorLabel`/`keywords`/`note`——原挂账清单漏列五元数据，产线写腿 = MetadataService 五 set* 点）；pristine 臂缺省 nil 零漂移；process 分支条件盖章纪律零触（禁 `?? .current` 维持）。
-- **全套 `--all` 确认轮终值**：PLACEHOLDER-T9（收口时回填）。
+- **全套 `--all` 确认轮终值**：**3848/24/0**（exit 0 + 0 MEMFAIL + 七 bundle 全 8G 门内 2099s；对账 = 3841 M6-4 实测 + 2 修批 + 5 本批〔T2 +4 / T4 +1〕精确；贴线族 IOP 7560 / IOPParity 7242 门内）；轮毕孤儿复扫零命中（T1 终证）；正本 = `phases/m6-5-ledger-clearing/M6-5-01-{SUMMARY,DECISIONS}.md`（40 项终局对表在 SUMMARY §五）+ `evidence/t9-all-run.log`。**执行批事故登记（I-1，LESSONS 候选）**：test-direct.sh 前置 = `xcodebuild build-for-testing`（脚本不含构建步）——漏步 = 陈旧二进制假绿（类计数差/方法过滤 0/0/0 为暴露信号）；测试命令序列 = build-for-testing → test-direct.sh。
 
 ## Architecture
 
