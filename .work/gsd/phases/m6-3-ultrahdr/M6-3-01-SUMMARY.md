@@ -20,16 +20,16 @@
 
 | bundle | 终值 | 新法 | peak RSS | 判定 |
 |---|---|---|---|---|
-| Export | **378/4/0**（基线 353/4/0） | **+22**（ExportGainMapTests） | 5708MB | OK，零 MEMFAIL |
+| Export | **378/4/0**（基线 353/4/0） | **+25**（ExportGainMapTests） | 5708MB | OK，零 MEMFAIL |
 | App | **810/4/0**（基线 801/4/0） | **+9**（ExportGainMapPanelTests） | 2832MB | OK，零 MEMFAIL |
 | IOP | 686/1/0（与 M6-2 基线一致） | 0 | 7975MB | 零漂移；贴线（<8192 门）无 MEMFAIL |
 | Layers | 474/4/0（与 M6-2 基线一致） | 0 | 1163MB | 零漂移 |
 
-- 新法合计 **31** ∈ plan `estimated_tests "+28..34"`；全套预期 = 3725 + 31 =
-  **3756/24/0** ∈ plan 预期带 **3753..3759/24/0**（基线 3725/24/0 =
+- 新法合计 **34** ∈ plan `estimated_tests "+28..34"`；全套预期 = 3725 + 34 =
+  **3759/24/0** ∈ plan 预期带 **3753..3759/24/0**（基线 3725/24/0 =
   M6-2-VALIDATION 终验亲证值）。
 - **全套 `--all` 未跑**（orchestrator 批准制）——**批准申请**随本 SUMMARY 上报：
-  预期 3756/24/0；贴线 bundle = IOP（本批定向轮 7975MB，重测顺序漂移 ±3%
+  预期 3759/24/0；贴线 bundle = IOP（本批定向轮 7975MB，重测顺序漂移 ±3%
   方差在案，MEMFAIL 机检兜底在位）。
 
 ## AC 对账（八条）
@@ -61,7 +61,7 @@
    （7+2，hunk-header 逐一对照在 DECISIONS §2）；`.metal`/dependencies/
    UserDefaults 零 diff；runModal/LocalizationValue 插值禁形零命中；非
    gain-map 负测 + 既有套件原样绿（Export 378 全绿含全部既有面）✓。
-8. **SC 数字门** = Export +22 / App +9（31 ∈ +28..34）；全套预期 3756 ∈
+8. **SC 数字门** = Export +25 / App +9（34 ∈ +28..34）；全套预期 3759 ∈
    3753..3759；plan「App +8」为 planner 近似（实落 9 法，维度恰覆盖五维门
    5+复位+装配+enqueue+默认关），SC 带内 ✓（DECISIONS §6 勘误注记）。
 

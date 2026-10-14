@@ -70,7 +70,7 @@
    串键断言，'L008' 以 bigEndian fourcc 解码比对。
 7. **App 面测试 9 法 vs plan「8 法」**：五维门拆 5 法（plan 文本也按维度
    分列）+ 复位 + 装配/兜底 + enqueue + 默认关 = 9；SC 带 +28..34 内
-   （31 实值），全套预期 3756 ∈ 3753..3759。BUNDLE-MAP 行已按终态登记。
+   （34 实值），全套预期 3759 ∈ 3753..3759。BUNDLE-MAP 行已按终态登记。
 8. **容器组 4 法保持 plan 口径**（MPF 与 ISO 分列两法）：T2 首轮曾并档为 3
    法，对账发现即拆回——总数 25 与 KD-7 一致。
 9. **run-face 复核在 `makeRunAssembly` 内复位 + `RunAssembly.gainMapAutoReset`
