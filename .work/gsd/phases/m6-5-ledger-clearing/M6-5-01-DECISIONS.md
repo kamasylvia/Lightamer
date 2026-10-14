@@ -86,14 +86,19 @@
   `xcodebuild build-for-testing` 生成」是**前置条件非内置步**；执行批照
   plan 的单测标准命令直跑，漏了构建前置。
 - **处置**：`caffeinate -dis xcodebuild build-for-testing`（exit 0）后三
-  bundle 全部复跑——App 7/0/0（改后双法真跑）+ Sessions 17/0/0（9 旧+4 新）
+  bundle 全部复跑——App 7/0/0（改后双法真跑）+ Sessions 17/0/0（13 旧+4
+  新〔勘误 2026-10-16 闭环批：原记「9 旧」为 arithmetic 残留，真旧集 13；
+  正本 = `M6-5-VALIDATION.md` §挂账单一清单①〕）
   + Export 26/0/0（25 旧+1 新）+ RasterRoundTripTests 3/0/0 复验；孤儿复扫
   零命中在**新二进制**轮后补做（sleep 3s 过 debounce 窗）。
 - **LESSONS 候选**（翻账批落）：「test-direct.sh 不含构建；执行批的测试
   命令序列 = build-for-testing → test-direct.sh，漏前者 = 陈旧二进制假绿
   （类计数/方法过滤 0/0/0 是暴露信号）」。
-- **污染面评估**：首轮假绿未入任何 commit/申报数字（定向轮数字以复跑轮为
-  准）；T9 全套轮在本 I-1 处置后的二进制上执行。
+- **污染面评估**（勘误 2026-10-16 闭环批）：首轮假绿未入 SUMMARY/申报
+  终值（定向轮数字以复跑轮为准）；`bd81f859` commit message Verified 行
+  残留首轮数字 `13/0/0 (9 existing … + 4 new)`（不可变历史，不回写——
+  M6-3 原位改数先例延伸），以 `M6-5-VALIDATION.md` §挂账单一清单① 为
+  勘误正本；T9 全套轮在本 I-1 处置后的二进制上执行。
 
 ## 4. plan 偏差清单（对 plan 正本）
 
