@@ -686,7 +686,11 @@ public actor ImportService {
             history: HistoryStack(),
             historyHash: HistoryHash.hash(
                 stack: HistoryStack(), decodeParamsHash: decodeHash),
-            aiProvenance: provenance)
+            aiProvenance: provenance,
+            // M6-2-01 T4 (KD-7 ②): the AI copy is a NEW image — its birth
+            // document stamps the current process generation (this build's
+            // product never reads "born legacy").
+            process: .current)
         let store = SidecarStore(
             destination: LightamerSidecar.sidecarURL(for: fileURL))
         await store.scheduleWrite(document)

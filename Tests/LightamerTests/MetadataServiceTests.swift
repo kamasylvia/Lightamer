@@ -323,6 +323,45 @@ final class MetadataServiceTests: XCTestCase {
         XCTAssertEqual(pending, 0)
     }
 
+    // MARK: - M6-2-01 T4 (KD-7 ⑤b): the metadata mint stamps .current
+
+    /// The pristine target's MINT stamps the current generation; the
+    /// existing target's arm is a true inout round-trip (`mutate`), so a
+    /// stored value is preserved without any code — legacy stays ABSENT.
+    func testMetadataMintStampsCurrentProcessAndExistingIsPreserved() async throws {
+        let edited = try writeImage("a.arw", rating: 4)
+        let pristine = "b.arw"
+        try Data(repeating: 0xCD, count: 16).write(
+            to: sessionRoot.appendingPathComponent(pristine))
+        try await openIndex([edited, pristine])
+
+        let writer = BatchSidecarWriter(root: sessionRoot, store: store)
+        let service = makeService(writer: writer, seed: await seedDefaults())
+        let outcome = try await service.setRating(3, relPaths: [edited, pristine])
+        XCTAssertEqual(outcome.appliedRelPaths, [edited, pristine])
+        let pending = await writer.pendingCountForTesting
+        XCTAssertEqual(pending, 0)
+
+        // The EXISTING arm (true round-trip): the legacy document's key
+        // stays ABSENT — never passively upgraded by a metadata write.
+        let docA = try readDiskDocument(edited)
+        XCTAssertNil(docA.process, "the legacy existing arm is never minted")
+        XCTAssertEqual(docA.rating, 3)
+
+        // The PRISTINE arm (a new document): the birth stamp rides.
+        let docB = try readDiskDocument(pristine)
+        XCTAssertEqual(docB.process, .current, "the metadata mint stamps .current")
+        XCTAssertEqual(docB.rating, 3)
+        XCTAssertFalse(docB.driftDetected)
+
+        // And the JSON byte face carries the key on the mint only.
+        let pristineObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(contentsOf: LightamerSidecar.sidecarURL(
+                for: sessionRoot.appendingPathComponent(pristine))))
+            as? [String: Any])
+        XCTAssertEqual(pristineObject["process"] as? Int, 1)
+    }
+
     func testUnreadableSidecarIsSkippedNeverClobbered() async throws {
         let rel = "a.arw"
         let url = sessionRoot.appendingPathComponent(rel)

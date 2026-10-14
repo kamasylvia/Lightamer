@@ -97,6 +97,17 @@ public enum SessionBatchApplier {
             let decodeParamsHash: UInt64
             let imageID: UUID
             let decoderVersion: String
+            // M6-2-01 T4 (KD-7/E1): the process stamp travels per-arm — an
+            // existing document's stored value rides through VERBATIM (nil
+            // = legacy = the ABSENT key; a forward larger number rides
+            // along); a pristine target (a NEW document) stamps
+            // `.current`. NOTE: this arm rebuilds a FRESH document at the
+            // shared constructor below (only 5 fields + the stamp are
+            // promoted) — every OTHER document-level additive field is
+            // dropped by the pre-M6-2 shape (registered in DECISIONS,
+            // out of scope here); the process key would be dropped with
+            // them without this explicit carry.
+            let processStamp: RenderProcessVersion?
             if let data = try? Data(contentsOf: sidecarURL),
                let document = try? decoder.decode(LightamerSidecar.self, from: data) {
                 targetHistory = document.history
@@ -104,6 +115,7 @@ public enum SessionBatchApplier {
                 decodeParamsHash = document.decodeParamsHash
                 imageID = document.imageID
                 decoderVersion = document.decoderVersionUsed
+                processStamp = document.process
             } else {
                 // A pristine target (no readable sidecar) composes from the
                 // empty stack + the seed. The decode stamp is unknowable
@@ -117,6 +129,7 @@ public enum SessionBatchApplier {
                 decodeParamsHash = 0
                 imageID = UUID()
                 decoderVersion = "unknown-batch"
+                processStamp = .current
             }
 
             guard let result = PasteSemantics.paste(
@@ -141,7 +154,13 @@ public enum SessionBatchApplier {
                 history: result.history,
                 historyHash: historyHash,
                 appVersion: LightamerSidecar.currentAppVersion,
-                layerStack: result.layerStack)
+                layerStack: result.layerStack,
+                // M6-2-01 T4 (KD-7/E1): the branch-conditional stamp (the
+                // per-arm processStamp above). The cross-arm
+                // `document.process ?? .current` form is FORBIDDEN — a nil
+                // hitting `?? .current` would mint a loaded legacy
+                // document (OQ-1's never-passively-upgraded rule).
+                process: processStamp)
             composed.append((relPath, document))
         }
         return (composed, skipped, failed)

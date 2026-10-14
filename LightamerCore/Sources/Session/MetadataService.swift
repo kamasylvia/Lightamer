@@ -208,7 +208,14 @@ public struct MetadataService: Sendable {
                     historyHash: HistoryHash.hash(
                         stack: history, decodeParamsHash: 0),
                     appVersion: LightamerSidecar.currentAppVersion,
-                    layerStack: nil)
+                    layerStack: nil,
+                    // M6-2-01 T4 (KD-7 ⑤b): the metadata mint is a NEW
+                    // document — it stamps the current process generation.
+                    // The EXISTING-document arm above is a true inout
+                    // round-trip (`mutate(&document)`), so a stored value
+                    // there is preserved without any code (KD-2's
+                    // canonical form).
+                    process: .current)
                 mutate(&document)
                 composed.append((relPath, document))
             }
