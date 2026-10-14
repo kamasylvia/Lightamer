@@ -597,6 +597,7 @@ let project = Project(
                 "Tests/LightamerTests/LibraryQueriesTests.swift",
                 "Tests/LightamerTests/LibraryRelinkModelTests.swift",
                 "Tests/LightamerTests/LibrarySchemaTests.swift",
+                "Tests/LightamerTests/LibrarySchemaV5Tests.swift",
                 "Tests/LightamerTests/LibrarySearchModelTests.swift",
                 "Tests/LightamerTests/LibraryStoreTests.swift",
                 "Tests/LightamerTests/LibraryThumbnailBridgeTests.swift",

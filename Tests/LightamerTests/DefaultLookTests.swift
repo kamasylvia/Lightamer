@@ -271,11 +271,11 @@ final class DefaultLookTests: XCTestCase {
         let store = ProjectFileStore(at: v1URL)
         _ = try await store.open()
         let snapshotURL = v1URL.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.1-4.bak")  // M2-8-1 E2: generation-named
+            .appendingPathExtension("pre-migrate.1-5.bak")  // M2-8-1 E2: generation-named
         XCTAssertTrue(
             FileManager.default.fileExists(atPath: snapshotURL.path),
             "the pre-migration sqlite3_backup snapshot hook consumed")
-        XCTAssertEqual(try readUserVersion(v1URL), 4)
+        XCTAssertEqual(try readUserVersion(v1URL), 5)
 
         let library = LibraryStore(store: store)
         // The legacy row: flag 0 (old imports never mint).
@@ -290,12 +290,12 @@ final class DefaultLookTests: XCTestCase {
         try await library.clearDefaultLookPending(imageRowID: newID)
         let cleared = try await library.defaultLookPending(imageRowID: newID)
         XCTAssertFalse(cleared)
-        // The migration is IDEMPOTENT: a second open (stored == 4) neither
+        // The migration is IDEMPOTENT: a second open (stored == 5) neither
         // re-runs it nor re-snapshots (the dispatch short-circuits).
         try await store.close()
         let reopened = ProjectFileStore(at: v1URL)
         _ = try await reopened.open()
-        XCTAssertEqual(try readUserVersion(v1URL), 4)
+        XCTAssertEqual(try readUserVersion(v1URL), 5)
         try await reopened.close()
     }
 

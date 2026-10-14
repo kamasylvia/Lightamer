@@ -99,7 +99,21 @@ public enum LibrarySchema {
     /// (`dim*2` bytes, native endian); retrieval scans them through the
     /// SemanticEngine's vDSP full sweep (D-M2-10-CONTEXT-1: sqlite-vec stays
     /// the escape hatch, the SCHEMA never changes for it).
-    public static let schemaVersion = 4
+    ///
+    /// M6-4-01 (KD-1): v4 → v5 = the FOURTH migration — the photo STACK
+    /// family activates (OQ-M6-4-1 = A): `stacks` + `stack_content` (the
+    /// WITHOUT ROWID join, album_content/version_ref precedent form) + the
+    /// UNIQUE `idx_stack_content_image` (the one-image-one-stack invariant
+    /// is DB-LEVEL — LightCraft validate rule 3 SQL-ized). PURE ADDITIVE —
+    /// zero column changes on any existing table, zero backfill (stacks
+    /// start EMPTY), CASCADE follows both `stacks` and `images`. The cover
+    /// is NOT a column: cover = the position-0 member (LightCraft
+    /// `photos[0]` isomorph — single truth). `stacks` is an ACTIVATED
+    /// entity table — it never enters `reservedTableNames` (that sketch
+    /// stays the three mini-git names). Old packages open through the
+    /// ProjectFileStore dispatch (pre-migration `sqlite3_backup` snapshot →
+    /// the v4→v5 slot below).
+    public static let schemaVersion = 5
 
     // MARK: - Package layout constants (KD-1; consumed by P2 import, M2-3 UI)
 
@@ -395,6 +409,68 @@ public enum LibrarySchema {
         ("updated_at_unix", "INTEGER"),      // epoch seconds (the .lra record's)
     ]
 
+    // MARK: - Photo stacks (M6-4-01 KD-1; OQ-M6-4-1 = A)
+
+    /// The `stacks` table (v5): one row per photo stack. `collapsed` is the
+    /// per-stack display flag (the grid's collapsed predicate folds it
+    /// through the join); `added_time`/`modified_time` = epoch REAL (the
+    /// albums-row convention) — every write path stamps `modified_time`.
+    static let createStacksTableSQL = """
+        CREATE TABLE IF NOT EXISTS stacks (
+          id INTEGER PRIMARY KEY,
+          collapsed INTEGER NOT NULL DEFAULT 0,
+          added_time REAL,
+          modified_time REAL
+        )
+        """
+
+    /// The `stack_content` membership join (v5 — the album_content
+    /// WITHOUT-ROWID precedent form). `position` is DENSE 0..n−1 (the store
+    /// renumbers on every write path, ONE transaction); **position 0 IS the
+    /// cover** — no cover column (LightCraft `photos[0]` isomorph, single
+    /// truth). Both FK legs CASCADE: stack delete → memberships gone;
+    /// image delete → memberships gone (the store sweeps the <2 remainder
+    /// in the SAME transaction, KD-2).
+    static let createStackContentTableSQL = """
+        CREATE TABLE IF NOT EXISTS stack_content (
+          stack_id INTEGER REFERENCES stacks(id) ON DELETE CASCADE,
+          image_id INTEGER REFERENCES images(id) ON DELETE CASCADE,
+          position INTEGER NOT NULL,
+          PRIMARY KEY (stack_id, image_id)
+        ) WITHOUT ROWID
+        """
+
+    /// The one-image-one-stack invariant, DB-LEVEL (OQ-M6-4-1: LightCraft
+    /// validate rule 3 SQL-ized) + the stack-of reverse lookup seat. The
+    /// store's pre-checks give READABLE typed errors; this index is the
+    /// race-proof backstop.
+    static let createStackContentImageIndexSQL =
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_stack_content_image"
+            + " ON stack_content(image_id)"
+
+    /// The `stacks` columns IN ORDER (the v5 freeze face; the
+    /// LibrarySchemaV5Tests column pin reads this).
+    public static let stacksColumns: [(name: String, type: String)] = [
+        ("id", "INTEGER"),                   // PK — rowid alias
+        ("collapsed", "INTEGER"),            // 0/1 per-stack display flag
+        ("added_time", "REAL"),              // epoch REAL (albums convention)
+        ("modified_time", "REAL"),           // stamped on every write path
+    ]
+
+    /// The `stack_content` columns IN ORDER (the v5 freeze face).
+    public static let stackContentColumns: [(name: String, type: String)] = [
+        ("stack_id", "INTEGER"),             // PK half — FK → stacks.id CASCADE
+        ("image_id", "INTEGER"),             // PK half — FK → images.id CASCADE
+        ("position", "INTEGER"),             // dense 0..n−1; 0 = the cover
+    ]
+
+    /// The v5 family's three CREATE statements (KD-1 spelling VERBATIM; the
+    /// migrate slot AND the fresh-create path share them — both idempotent).
+    static let createStackTableSQL: [String] = [
+        createStacksTableSQL, createStackContentTableSQL,
+        createStackContentImageIndexSQL,
+    ]
+
     // MARK: - AI-library semantic tables (M2-10-02 KD-1; D-M2-10-CONTEXT-2)
 
     /// The `semantic_model` columns IN ORDER (the v4 freeze face). One row
@@ -642,6 +718,7 @@ public enum LibrarySchema {
         "idx_images_capture", "idx_album_content_image",
         "idx_semantic_model_active", "idx_image_embedding_model",
         "idx_ai_understanding_image", "idx_ai_rating_image",
+        "idx_stack_content_image",
     ]
 
     /// The still-RESERVED mini-git table names (OQ-2-A: comment placeholder
@@ -711,6 +788,9 @@ public enum LibrarySchema {
         try handle.execute(createUnderstandingFTSSQL)
         for sql in createUnderstandingTriggerSQL { try handle.execute(sql) }
         for sql in createSemanticIndexSQL { try handle.execute(sql) }
+        // M6-4-01 (KD-1): the stack family joins the fresh DDL — a v5 fresh
+        // create carries both tables + the UNIQUE index from birth.
+        for sql in createStackTableSQL { try handle.execute(sql) }
 
         if stored == 0 {
             // Fresh create: seed the manifest (name when provided,
@@ -753,8 +833,10 @@ public enum LibrarySchema {
     /// the seven AI-library tables + FTS + triggers + indexes — IDEMPOTENT
     /// three times over (every statement `CREATE IF NOT EXISTS`); the
     /// ProjectFileStore dispatch issues ONE `migrate(from:stored, to:)` per
-    /// open, so a v1 package walks ALL legs (1→2→3→4) inside this single
-    /// call and a single transaction. The PRE-migration automatic
+    /// open, so a v1 package walks ALL legs (1→2→3→4→5) inside this single
+    /// call and a single transaction. The v4→v5 slot (M6-4-01 KD-1) creates
+    /// the two stack tables + the UNIQUE image index — IDEMPOTENT four
+    /// times over. The PRE-migration automatic
     /// `sqlite3_backup` snapshot lives at the ProjectFileStore dispatch
     /// (the hook's consumers: the v1→v2 first migration, the v2 packages
     /// since M2-8-1, and — since M2-10-02 — every ≤v3 package opening under
@@ -772,6 +854,9 @@ public enum LibrarySchema {
             }
             if from <= 3 && to >= 4 {
                 try createSemanticTables(on: handle)
+            }
+            if from <= 4 && to >= 5 {
+                try createStackTables(on: handle)
             }
             try writeUserVersion(to, to: handle)
             try handle.exec("COMMIT")
@@ -801,6 +886,14 @@ public enum LibrarySchema {
     static func createVersionRefTable(on handle: SQLiteHandle) throws {
         try handle.execute(createVersionRefTableSQL)
         try handle.execute(createVersionRefIndexSQL)
+    }
+
+    /// The v4→v5 additive stack family (M6-4-01 KD-1). Idempotent FOUR
+    /// times over: every statement (two tables + the UNIQUE index) is
+    /// `CREATE IF NOT EXISTS`, so a partially-migrated snapshot re-runs
+    /// clean (the v2→v3 slot's same discipline, two generations on).
+    static func createStackTables(on handle: SQLiteHandle) throws {
+        for sql in createStackTableSQL { try handle.execute(sql) }
     }
 
     /// The v1→v2 additive column (append-only; every frozen column's
