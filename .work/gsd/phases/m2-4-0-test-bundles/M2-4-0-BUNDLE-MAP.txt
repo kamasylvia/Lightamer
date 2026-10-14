@@ -355,6 +355,7 @@ LIB	13	SidecarRoundTripTests.swift
 LIB	14	ExifFoldTests.swift
 LIB	15	ImageLinkerTests.swift
 LIB	16	LibraryGridModelTests.swift
+LIB	10	LibraryGridStackTests.swift
 LIB	23	LibrarySchemaTests.swift
 LIB	8	LibrarySchemaV5Tests.swift
 LIB	8	AutoStackClusteringTests.swift

@@ -114,6 +114,22 @@ final class LibraryGridModel {
     /// The multi-select set (library rowids).
     private(set) var selectedIDs: Set<Int64> = []
 
+    /// The stack display mode (KD-7, M6-4-01): `.collapsed` is the BIRTH
+    /// state (with no stacks both modes render identically — the Lightroom
+    /// convention); session-scoped, ZERO persistence (no UserDefaults key).
+    /// Collapsed mode = the query-face predicate (flag-aware); expanded
+    /// mode = the flat walk + the forward-only fixup.
+    private(set) var stackDisplayMode: StackDisplayMode = .collapsed
+
+    /// The memberships of the loaded rows (one JOIN per page append) — the
+    /// badge projection's single source (T6④).
+    private(set) var stackMemberships: [Int64: StackMembership] = [:]
+
+    /// The stack WRITE face (KD-7's command routing). Optional so every
+    /// pre-stacks construction site compiles unchanged; the commands
+    /// no-op without a store (the shell always passes one).
+    private(set) var store: LibraryStore?
+
     /// The current image (the one the editor is/would be opened on).
     private(set) var currentImageID: Int64?
 
@@ -130,9 +146,14 @@ final class LibraryGridModel {
     private let queries: LibraryQueries
     let pageSize: Int
 
-    init(queries: LibraryQueries, pageSize: Int = LibraryQueries.defaultPageSize) {
+    init(
+        queries: LibraryQueries,
+        pageSize: Int = LibraryQueries.defaultPageSize,
+        store: LibraryStore? = nil
+    ) {
         self.queries = queries
         self.pageSize = pageSize
+        self.store = store
     }
 
     // MARK: - Filter / sort application (KD-3: reset + refetch)
@@ -163,7 +184,10 @@ final class LibraryGridModel {
     /// filter/sort (the existing pagination faces — zero new SQL), then the
     /// loaded rows filtered to the hit set IN HIT ORDER (有序表保序过滤).
     /// Hit IDs missing from the walk (deleted rows / other-project ids)
-    /// drop out. `nil` = leave semantic mode and reload normally.
+    /// drop out. `nil` = leave semantic mode and reload normally. The walk
+    /// carries the stack display mode (the collapsed predicate is a set
+    /// filter, orthogonal to ordering — the overlay still bypasses the
+    /// FIXUP; hit order IS the display order, the two legs never mix).
     func apply(semanticHits newHits: [Int64]?) async throws {
         semanticHits = newHits
         guard let hits = newHits else {
@@ -178,7 +202,8 @@ final class LibraryGridModel {
         var anchor: LibraryPageAnchor?
         while true {
             let page = try await queries.searchPage(
-                filter: filter, sort: sort, anchor: anchor, limit: pageSize)
+                filter: filter, sort: sort, anchor: anchor, limit: pageSize,
+                stackMode: stackDisplayMode)
             for row in page where hitSet.contains(row.id) { byID[row.id] = row }
             guard page.count == pageSize,
                   let last = page.last, let next = LibraryPageAnchor.anchor(of: last, key: sort.key)
@@ -189,7 +214,8 @@ final class LibraryGridModel {
         var tailAnchor: LibraryPageAnchor?
         while true {
             let page = try await queries.searchNullTail(
-                filter: filter, sort: sort, anchor: tailAnchor, limit: pageSize)
+                filter: filter, sort: sort, anchor: tailAnchor, limit: pageSize,
+                stackMode: stackDisplayMode)
             for row in page where hitSet.contains(row.id) { byID[row.id] = row }
             guard page.count == pageSize, let last = page.last else { break }
             tailAnchor = LibraryPageAnchor(
@@ -203,6 +229,7 @@ final class LibraryGridModel {
         mainAnchor = nil
         tailAnchor = nil
         selectedIDs = selectedIDs.filter { byID[$0] != nil }
+        await refreshStackMemberships(for: rows)
     }
 
     /// Apply filter AND sort in one reset + refetch.
@@ -234,8 +261,9 @@ final class LibraryGridModel {
         switch segment {
         case .main:
             let page = try await queries.searchPage(
-                filter: filter, sort: sort, anchor: mainAnchor, limit: pageSize)
-            append(page)
+                filter: filter, sort: sort, anchor: mainAnchor, limit: pageSize,
+                stackMode: stackDisplayMode)
+            await append(page)
             if page.count == pageSize, let last = page.last {
                 mainAnchor = LibraryPageAnchor.anchor(of: last, key: sort.key)
                 return true
@@ -245,15 +273,17 @@ final class LibraryGridModel {
             let remaining = pageSize - page.count
             guard remaining > 0 else { return true }
             let tail = try await queries.searchNullTail(
-                filter: filter, sort: sort, anchor: tailAnchor, limit: remaining)
-            append(tail)
+                filter: filter, sort: sort, anchor: tailAnchor, limit: remaining,
+                stackMode: stackDisplayMode)
+            await append(tail)
             advanceTail(after: tail)
             return !tail.isEmpty
 
         case .nullTail:
             let tail = try await queries.searchNullTail(
-                filter: filter, sort: sort, anchor: tailAnchor, limit: pageSize)
-            append(tail)
+                filter: filter, sort: sort, anchor: tailAnchor, limit: pageSize,
+                stackMode: stackDisplayMode)
+            await append(tail)
             advanceTail(after: tail)
             return !tail.isEmpty
         }
@@ -275,12 +305,66 @@ final class LibraryGridModel {
             keyValue: .int(nil), imagePath: last.imagePath)
     }
 
-    private func append(_ page: [LibraryImageRow]) {
-        rows.append(contentsOf: page)
+    /// The page-landing leg (KD-7): raw keyset append + the expanded-mode
+    /// fixup + the badge-membership refresh. In collapsed mode (or under
+    /// the semantic overlay) the page rows ARE the display order — the raw
+    /// append only.
+    private func append(_ page: [LibraryImageRow]) async {
+        guard !page.isEmpty else { return }
+        if stackDisplayMode == .collapsed || semanticHits != nil {
+            rows.append(contentsOf: page)
+        } else {
+            // The displayed-set guard (S2): a keyset row already pulled
+            // forward by an earlier page's fixup NEVER lands twice — the
+            // anchor advance below still rides the RAW page's last row.
+            let displayed = Set(rows.map(\.id))
+            rows.append(contentsOf: page.filter { !displayed.contains($0.id) })
+            await runFixup(for: page)
+        }
+        await refreshStackMemberships(for: page)
+    }
+
+    /// The forward-only fixup's async wrapper (KD-7 ①②→③④): discover the
+    /// page's stacks, pull the missing members, then the pure transform.
+    private func runFixup(for page: [LibraryImageRow]) async {
+        let pageIDs = page.map(\.id)
+        guard let pageMemberships = try? await queries.stackMemberships(
+            ids: pageIDs), !pageMemberships.isEmpty else { return }
+        let stackIDs = Set(
+            pageMemberships.values.filter { $0.size >= 2 }.map(\.stackID))
+        guard !stackIDs.isEmpty,
+            let memberLists = try? await queries.stackMembers(
+                ofStacks: Array(stackIDs))
+        else { return }
+        let shown = Set(rows.map(\.id))
+        let missing = memberLists.values.flatMap { $0 }
+            .filter { !shown.contains($0) }
+        guard !missing.isEmpty,
+            let supplementalRows = try? await queries.rows(byIDs: missing)
+        else { return }
+        let supplemental = Dictionary(
+            uniqueKeysWithValues: supplementalRows.map { ($0.id, $0) })
+        let outcome = Self.stackAdjacencyFixup(
+            rows: rows,
+            memberships: pageMemberships,
+            memberLists: memberLists,
+            supplemental: supplemental,
+            displayed: shown)
+        rows = outcome.rows
+    }
+
+    /// Merge the memberships of the given rows into the badge map (one
+    /// JOIN per page — bounded by the page size).
+    private func refreshStackMemberships(for page: [LibraryImageRow]) async {
+        guard !page.isEmpty,
+            let fetched = try? await queries.stackMemberships(ids: page.map(\.id))
+        else { return }
+        stackMemberships.merge(fetched) { _, new in new }
     }
 
     private func resetCursor() {
         rows.removeAll()
+        stackMemberships.removeAll()
         segment = .main
         mainAnchor = nil
         tailAnchor = nil
@@ -328,5 +412,149 @@ final class LibraryGridModel {
     /// Clear the current image (project close / row removal faces).
     func clearCurrentImage() {
         currentImageID = nil
+    }
+
+    // MARK: - Stack commands (KD-7, M6-4-01)
+
+    /// The badge projection (T6④): the row's stack membership when the
+    /// stack is real (≥2 members). The view decides cover/member rendering
+    /// from `position` and `collapsed`.
+    func stackBadge(for imageID: Int64) -> StackMembership? {
+        guard let membership = stackMemberships[imageID], membership.size >= 2
+        else { return nil }
+        return membership
+    }
+
+    /// Switch the display mode (the collapsed predicate ↔ the flat walk +
+    /// fixup) and reload. Zero stacks ⇒ both modes render identically.
+    func setStackDisplayMode(_ mode: StackDisplayMode) async throws {
+        guard mode != stackDisplayMode else { return }
+        stackDisplayMode = mode
+        try await reloadFirstPage()
+    }
+
+    /// The per-stack collapse toggle (the badge chevron): flip the stack's
+    /// flag, reload. In collapsed mode the expanded stack's members then
+    /// appear at their keyset positions (the gather is a global-expanded
+    /// property — the DECISIONS-registered v1 semantics).
+    func toggleCollapse(stackID: Int64) async {
+        guard let store else { return }
+        let current = stackMemberships.values
+            .first { $0.stackID == stackID }?.collapsed ?? true
+        try? await store.setCollapsed(stackID: stackID, collapsed: !current)
+        await reloadShrinkingSelection()
+    }
+
+    /// Expand every stack (unfold all flags + the gathered expanded view).
+    func expandAll() async {
+        guard let store else { return }
+        try? await store.setAllCollapsed(false)
+        stackDisplayMode = .flat
+        await reloadShrinkingSelection()
+    }
+
+    /// Collapse every stack (fold all flags + the cover-only view).
+    func collapseAll() async {
+        guard let store else { return }
+        try? await store.setAllCollapsed(true)
+        stackDisplayMode = .collapsed
+        await reloadShrinkingSelection()
+    }
+
+    /// Group the selection (LightCraft group union; ≥2 members gate — a
+    /// smaller selection is a no-op). Reload + selection shrink after.
+    func groupSelection() async {
+        guard let store else { return }
+        let ordered = rows.map(\.id).filter { selectedIDs.contains($0) }
+        guard ordered.count >= 2 else { return }
+        _ = try? await store.group(memberIDs: ordered)
+        await reloadShrinkingSelection()
+    }
+
+    /// Dissolve the stack (ungroup — the ONLY reverse move; the KD-3
+    /// no-undo posture).
+    func ungroup(stackID: Int64) async {
+        guard let store else { return }
+        try? await store.ungroup(stackID: stackID)
+        await reloadShrinkingSelection()
+    }
+
+    /// Make the image its stack's cover (setTop). No-op for unstacked rows.
+    func setCover(imageID: Int64) async {
+        guard let store else { return }
+        let containing = try? await store.stackContaining(imageID: imageID)
+        guard let stack = containing else { return }
+        try? await store.setTop(stackID: stack.id, imageID: imageID)
+        await reloadShrinkingSelection()
+    }
+
+    /// Remove the image from its stack (the <2 remainder dissolves store-
+    /// side). No-op for unstacked rows.
+    func removeFromStack(imageID: Int64) async {
+        guard let store else { return }
+        try? await store.removeFromStacks(imageID: imageID)
+        await reloadShrinkingSelection()
+    }
+
+    /// The auto-stack entry (KD-7): the pool is the selection when it holds
+    /// ≥2 rows, otherwise the FULL current-collection walk (the semantic
+    /// overlay's finite hit set, else both keyset segments). `preview`
+    /// returns the cluster count and touches NOTHING.
+    @discardableResult
+    func autoStack(
+        gap: Double = StackClustering.defaultGapSeconds, preview: Bool
+    ) async throws -> Int {
+        let pool: [Int64]
+        let selectedOrder = rows.map(\.id).filter { selectedIDs.contains($0) }
+        if selectedOrder.count >= 2 {
+            pool = selectedOrder
+        } else if let hits = semanticHits {
+            pool = hits
+        } else {
+            pool = try await collectAllIDs()
+        }
+        guard let store else { return 0 }
+        let count = try await store.autoStack(ids: pool, gap: gap, preview: preview)
+        if !preview {
+            await reloadShrinkingSelection()
+        }
+        return count
+    }
+
+    /// Reload + shrink the selection to the rows that survived (KD-7's
+    /// post-write face — v1 keeps no scroll position, DECISIONS-registered).
+    private func reloadShrinkingSelection() async {
+        try? await reloadFirstPage()
+        selectedIDs = selectedIDs.filter { id in
+            rows.contains(where: { $0.id == id })
+        }
+    }
+
+    /// The full-collection id walk (the apply(semanticHits:) shape, ids
+    /// only — the autoStack pool's default face).
+    private func collectAllIDs() async throws -> [Int64] {
+        var ids: [Int64] = []
+        let pageSize = 500
+        var anchor: LibraryPageAnchor?
+        while true {
+            let page = try await queries.searchPage(
+                filter: filter, sort: sort, anchor: anchor, limit: pageSize)
+            ids.append(contentsOf: page.map(\.id))
+            guard page.count == pageSize,
+                let last = page.last,
+                let next = LibraryPageAnchor.anchor(of: last, key: sort.key)
+            else { break }
+            anchor = next
+        }
+        var tailAnchor: LibraryPageAnchor?
+        while true {
+            let page = try await queries.searchNullTail(
+                filter: filter, sort: sort, anchor: tailAnchor, limit: pageSize)
+            ids.append(contentsOf: page.map(\.id))
+            guard page.count == pageSize, let last = page.last else { break }
+            tailAnchor = LibraryPageAnchor(
+                keyValue: .int(nil), imagePath: last.imagePath)
+        }
+        return ids
     }
 }
