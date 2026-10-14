@@ -720,5 +720,5 @@ APP	8	ProcessVersionCarrierTests.swift
 #   EXPORT/Core 级——validate 六门 + renderStage capture + queue box 生命周期，
 #   全 Core 面（ExportDrtTailE2ETests 同位）。行内 method 数以终态对账为准（T1
 #   落 9 法；T2 +13 后 22（容器组按 plan 四分列拆分）; T4 +3 后共 25）。运行期总数基线相应上移。
-EXPORT	22	ExportGainMapTests.swift
+EXPORT	25	ExportGainMapTests.swift
 APP	9	ExportGainMapPanelTests.swift
