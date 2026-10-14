@@ -5,6 +5,13 @@
 > **目的**: Lightamer 重定义为「macOS 独占 + Core Image RAW 9 解码 + UI 完全模仿 Alcedo Studio」的产品对标研究。只做功能/交互层面测绘，不复制 GPL 代码。
 > **技术底座（背景）**: C++20 + Qt6/QML（QuickQanava 节点图），GPU 管线 Windows = CUDA/OpenCL、macOS = Metal；RAW 解码 = 自维护 LibRaw fork；图库 = DuckDB；AI 侧车 = Rust gRPC 服务 `rust/puerh_mind`（tonic + ort/CoreML）。GPL-3.0-only。支持 Win10/11 x64 与 macOS 13.3+ Apple Silicon（`README.md:19,114-115`）。
 
+> **指针（2026-10-16，M6-6 升维）**：本 survey 是研究正本（源码索引 / 勘误
+> 注记 / 上游增量测绘保留于此，正文零改写）。逐条 **stable-ID 对账正本已
+> 升维至 repo 树 `docs/parity-checklist.md`**（`FEAT-<DOM>-NN` 体系 +
+> 六状态词表 + CI 门 `Scripts/parity-audit.py`）。**`FEAT-` id 唯一 mint
+> 点在 checklist**——本文件永不新增 id；状态判定以 checklist 为准，本
+> 文只承载 prose 证据。门 = `python3 Scripts/parity-audit.py --check`。
+
 ---
 
 ## 1. UI 结构总览（UI Structure）
