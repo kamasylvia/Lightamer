@@ -22,10 +22,33 @@ import XCTest
 //   • undo-to-top KEEPS the raster DRT carrier (the Alcedo「DRT 恒在」
 //     semantics — the explicit RAW-deviation);
 //   • the default-look mint is SKIPPED for raster documents (upstream D2).
+//
+// M4-1 ledger #6 FINAL (M6-5 T1): BOTH real write legs — the restore
+// forge (recordDrtChange + flushUntilPersisted) AND the undo leg
+// (recordDrtChange + the undo persistence reschedule, which lands after
+// the test returns via the 2s debounce) — run on TEMP fixture copies
+// (the L074 discipline; the DepthMaskEditingTests helper verbatim). The
+// repo fixture path is READ-ONLY here. Attribution correction (M5-1): the
+// orphan regrew through the UNDO leg's post-test debounce write, not
+// through the restore leg's defer losing a race.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
 final class RasterEditFaceTests: XCTestCase {
+
+    private var tempDirectory: URL!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("raster-edit-face-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    }
+
+    override func tearDown() async throws {
+        try? FileManager.default.removeItem(at: tempDirectory)
+        try await super.tearDown()
+    }
 
     private static let fixtureDirectory: URL = {
         let root = URL(fileURLWithPath: #filePath)
@@ -41,6 +64,21 @@ final class RasterEditFaceTests: XCTestCase {
             throw XCTSkip("fixture missing: \(name)")
         }
         return url
+    }
+
+    /// The real DRT write legs (load → recordDrtChange → flush, and the
+    /// undo persistence reschedule) write the sidecar NEXT TO the loaded
+    /// image URL — loading the SHARED repo fixture directly would pollute
+    /// `Tests/Fixtures/TiffRaster/` (the M4-1 ledger #6 family). Every
+    /// write-leg test loads a TEMP COPY (L074).
+    private func tempFixtureCopy(_ name: String) throws -> URL {
+        let source = Self.fixtureDirectory.appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            throw XCTSkip("fixture missing: \(name)")
+        }
+        let destination = tempDirectory.appendingPathComponent(name)
+        try FileManager.default.copyItem(at: source, to: destination)
+        return destination
     }
 
     private func makeAssembly() async throws -> (
@@ -92,6 +130,20 @@ final class RasterEditFaceTests: XCTestCase {
         metal: MetalContext)
     ) async throws -> (url: URL, decoded: DecodedImage) {
         let url = try fixture(name)
+        let decoded = try await RAWDecoder().decode(url)
+        await assembly.coordinator.load(
+            url: url, decoded: decoded, instances: [], metal: assembly.metal)
+        return (url, decoded)
+    }
+
+    /// URL twin of `loadRaster(_:)` — the temp-copy entry for tests whose
+    /// write legs must stay off the repo fixture path (L074).
+    @discardableResult
+    private func loadRaster(
+        at url: URL, _ assembly: (editorState: EditorState,
+        coordinator: PipeCoordinator, workspace: WorkspaceModel,
+        metal: MetalContext)
+    ) async throws -> (url: URL, decoded: DecodedImage) {
         let decoded = try await RAWDecoder().decode(url)
         await assembly.coordinator.load(
             url: url, decoded: decoded, instances: [], metal: assembly.metal)
@@ -172,12 +224,22 @@ final class RasterEditFaceTests: XCTestCase {
 
     func testRestoreWinsOverDerive() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
-        let url = try fixture("srgb-matrix-8.tif")
+        // Defensive repo-side sweep (M4-1 ledger #6): a stale orphan
+        // sidecar from older runs must not survive in the repo fixtures
+        // (read-only discipline from M6-5 T1 on).
+        try? FileManager.default.removeItem(
+            at: LightamerSidecar.sidecarURL(
+                for: Self.fixtureDirectory.appendingPathComponent("srgb-matrix-8.tif")))
+
+        // The real write path runs on a TEMP fixture copy — the repo
+        // fixture path is never written (L074; the M4-1 ledger #6 final
+        // fix, M6-5 T1).
+        let url = try tempFixtureCopy("srgb-matrix-8.tif")
         let sidecarURL = LightamerSidecar.sidecarURL(for: url)
-        // Entry pre-clean (M4-1 ledger #6): this test assumes a clean
-        // start — a stale orphan sidecar (e.g. from an older run's
-        // write-behind) must not satisfy the restore leg before the forge
-        // below writes its own record.
+        // Entry pre-clean: this test assumes a clean start — a stale
+        // temp sidecar (e.g. from an older run's write-behind) must not
+        // satisfy the restore leg before the forge below writes its own
+        // record.
         try? FileManager.default.removeItem(at: sidecarURL)
         defer { try? FileManager.default.removeItem(at: sidecarURL) }
 
@@ -202,7 +264,14 @@ final class RasterEditFaceTests: XCTestCase {
     func testUndoToTopKeepsRasterDrtCarrier() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let assembly = try await makeAssembly()
-        let (url, decoded) = try await loadRaster("srgb-matrix-8.tif", assembly)
+        // The edit write legs (recordDrtChange + the undo persistence
+        // reschedule, whose 2s debounce write can land AFTER the test
+        // returns) run on a TEMP fixture copy — the repo fixture path is
+        // never written (L074; the M4-1 ledger #6 final fix, M6-5 T1).
+        // The assertions below are carrier-only, so the tmp copy is
+        // semantically neutral.
+        let fixtureURL = try tempFixtureCopy("srgb-matrix-8.tif")
+        let (url, decoded) = try await loadRaster(at: fixtureURL, assembly)
         let seeded = assembly.workspace.drtRecord(for: url)
 
         // One DRT edit, then undo back to the all-default history.
