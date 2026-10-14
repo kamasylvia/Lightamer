@@ -19,6 +19,9 @@ import XCTest
 //   ④ a missing source → mergeStacksSkipped, zero stacks, zero half-writes
 //   ⑤ no sidecar / non-merge kinds zero-touch + the Outcome additive
 //      defaults (zero drift) + the other outcome counters unchanged
+//   ⑥ the ESCAPE regression nail (acceptance M-a): `%` / `_` / a literal
+//      backslash in a relPath resolve LITERALLY through the library LIKE
+//      fallback — decoy rows prove the wildcards never leak
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class ImportMergeStackTests: XCTestCase {
@@ -321,6 +324,64 @@ final class ImportMergeStackTests: XCTestCase {
             ImportOutcome(), ImportOutcome(
                 imported: 0, failed: 0, skippedDuplicates: 0, cancelled: false,
                 mergeStacksCreated: 0, mergeStacksSkipped: 0))
+    }
+
+    // MARK: - ⑥ the ESCAPE regression nail (acceptance M-a)
+
+    func testEscapeSensitiveRelPathsResolveLiterallyNotAsWildcards() async throws {
+        // D-07's versioned clause: the library LIKE fallback escapes the
+        // escape char ITSELF plus `%` and `_`. Each real source lands
+        // beside a decoy an UNESCAPED pattern would leak to (or wrongly
+        // resolve to): `%`→`X` and `_`→`X` widen the hit set into a
+        // folderName ambiguity (whole-group skip), and an unescaped `\s`
+        // consumes the escape char and resolves the backslash-less decoy.
+        let reals = [
+            "Deep/100%zoom.arw",
+            "Deep/raw_file.arw",
+            "Deep/back\\slash.arw",
+        ]
+        let decoys = [
+            "Deep/100Xzoom.arw",
+            "Deep/rawXfile.arw",
+            "Deep/backslash.arw",
+        ]
+        for (index, relPath) in (reals + decoys).enumerated() {
+            try makeFile("Esc/\(relPath)", seed: UInt8(index + 1))
+        }
+        _ = try await importFolder("Esc")
+
+        // The product imports ALONE (its sources live in the earlier
+        // batch) — the batch map has no candidates, the ESCAPE'd library
+        // LIKE query must resolve all three literally.
+        try makeFile("EscProd/W.tif", seed: 60)
+        try writeMergeSidecar(
+            "EscProd/W.tif", kind: .hdrMerge,
+            sources: [("Deep/100%zoom.arw", 0),
+                      ("Deep/raw_file.arw", 0),
+                      ("Deep/back\\slash.arw", 0)])
+        let outcome = try await importFolder("EscProd")
+        XCTAssertEqual(
+            outcome.mergeStacksCreated, 1,
+            "every escape-sensitive source resolved through the LIKE fallback")
+        XCTAssertEqual(outcome.mergeStacksSkipped, 0)
+
+        let store = LibraryStore(store: fileStore)
+        let stacks = try await store.stacks()
+        let stack = try XCTUnwrap(stacks.first)
+        XCTAssertEqual(stack.memberIDs.count, 4)
+        // The members are the REAL rows — not the wildcard-leak decoys
+        // (`100Xzoom` / `rawXfile` / `backslash` stay unstacked).
+        let productRow = try await rowsByStem(store: store, stem: "W")
+        let realIDs = try await rowsByStems(store: store, stems: [
+            "100%zoom", "raw_file", "back\\slash",
+        ])
+        XCTAssertEqual(Set(stack.memberIDs), Set([productRow] + realIDs))
+        let decoyIDs = try await rowsByStems(store: store, stems: [
+            "100Xzoom", "rawXfile", "backslash",
+        ])
+        XCTAssertTrue(
+            Set(stack.memberIDs).isDisjoint(with: decoyIDs),
+            "the wildcards never leaked to the decoys")
     }
 
     // MARK: - Row helpers

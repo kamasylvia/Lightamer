@@ -114,22 +114,56 @@ plan M3 指名两处（`testPackageTablesCreated` extras allowlist +
 
 ## D-12 `.flat` 字节恒等双证据（M2 口径，checker 关注点 2）
 
-1. **调用点清单（grep 实测）**：生产 SQL 消费点 = `LibraryGridModel.swift`
-   的 5 处（:180/:191/:236/:247/:254——分页双段 + semanticHits 双段全走
-   查）；MCP PhotoProjection = **Session 域**（SessionIndexStore 行，零
-   `.lalb` 接触，本批零 diff 亲证）；filmstrip 消费 `model.rows`（零
-   SQL）。缺省参 `.flat` 使全部非堆叠消费者编译面零改。
+1. **调用点清单（grep 实测；验收 M-d 勘误版）**：生产 SQL 消费点 =
+   `LibraryGridModel.swift` 的 **7 处**——显式传参 5 处（:206/:218/:265/
+   :277/:285——分页双段 + semanticHits 双段全走查；原申报 :180/:191/:236/
+   :247/:254 为 T6 时点行号）+ `collectAllIDs` 双段 2 处（:540/:551，缺省
+   `.flat`——D-11 池走查语义，本就不受收起谓词影响）；MCP
+   PhotoProjection = **Session 域**（SessionIndexStore 行，零 `.lalb`
+   接触，本批零 diff 亲证）；filmstrip 消费 `model.rows`（零 SQL）。
+   缺省参 `.flat` 使全部非堆叠消费者编译面零改。
 2. **行级恒等测试**：`StackPaginationTests.testFlatDefaultArgumentIsRowIdentical`
    （无参调用 vs 显式 `.flat` 逐行恒等，跨双段）。runPage 为函数内私有
    装配（无捕获缝），不落「SQL 组装零 diff 断言」类不可落断言。
+
+## D-13 files_modified 范围外两文件补登记（验收 M-b）
+
+T7 `923f3a85` 触碰 plan front-matter `files_modified` 之外的两文件：
+`App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift`（+13 行
+onChange 消费 + LibraryStore 注入）与 `App/Sources/Lightamer/
+WorkspaceModel.swift`（+27 行 `pendingStackCommand` 载体）。定性 =
+KD-8「View 菜单 + 非图库面 no-op 守卫」的必要机械依赖（pendingAIEnhance
+既有命令路由模式复用，additive，零既有行为面变更——App bundle 零新法
+零漂移佐证），补登记即闭环。
+
+## D-14 两处「DECISIONS-registered」注记的登记落账（验收 M-c）
+
+执行批两处代码头注自称 DECISIONS-registered 但无对应条目（事实正确、
+登记缺失），本条补账、两处注记已改指本条：
+
+1. `LibraryGridModel.reloadShrinkingSelection`（:525）：KD-7 post-write
+   face——v1 **不保滚动位**（简形：reload 首页 + 选择收缩到幸存行），
+   Lightroom 位保持语义 = V2 候选。
+2. `LibraryQueries.stackMembers(ofStacks:)`（:382）：KD-5 additive 面
+   ——fixup 的 gather 源需要整栈成员集，`stackMemberships(ids:)` 的页
+   内投射看不到页外 id，故独立 additive 查询（非滤片复制、非 KD-5 清单
+   改写）。
+
+## D-15 翻账推迟申报编号（验收 M-e）
+
+全批零翻账（plan `files_modified` 列名的 AGENTS/ROADMAP/REQUIREMENTS/
+GOAL-STATE/TODO 五文档未动）——执行期开放式申报（SUMMARY「翻账建议」
+节 + 本文件「建议翻账点」节）但未编号，属程序偏差，本条补编号。清偿 =
+闭环批统一翻账，素材 = 本文件 D-01..D-15 + SUMMARY「实际收口 TOTAL」
+节（02 的 S8 重算基线随修复批 +2 新法，见 SUMMARY 修复批节）。
 
 ## 待供件清单
 
 无（全批零「无源待核」项）。
 
-## 建议翻账点（闭环批统一做，本批未动）
+## 建议翻账点（闭环批统一做，本批未动——推迟申报编号 = D-15）
 
-- AGENTS.md：M6-4 架构增量节（面 A 段）——本文件 D-01..D-12 为素材正本。
+- AGENTS.md：M6-4 架构增量节（面 A 段）——本文件 D-01..D-15 为素材正本。
 - ROADMAP：M6-4 行面 A 注记（✅ 归 plan 02 收口）。
 - REQUIREMENTS：M6INT-02 兑现注记（面 A 部分）。
 - GOAL-STATE：续接点（02 的 T7 对账基线 = 本 SUMMARY「实际收口 TOTAL」）。

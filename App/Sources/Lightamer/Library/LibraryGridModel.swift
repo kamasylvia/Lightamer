@@ -522,7 +522,7 @@ final class LibraryGridModel {
     }
 
     /// Reload + shrink the selection to the rows that survived (KD-7's
-    /// post-write face — v1 keeps no scroll position, DECISIONS-registered).
+    /// post-write face — v1 keeps no scroll position; D-14-registered).
     private func reloadShrinkingSelection() async {
         try? await reloadFirstPage()
         selectedIDs = selectedIDs.filter { id in

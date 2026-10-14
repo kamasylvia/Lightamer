@@ -860,8 +860,12 @@ public actor LibraryStore {
         preview: Bool
     ) async throws -> Int {
         // The read leg: capture times + existing memberships for the pool.
+        // The empty-pool guard mirrors `stackedIDs` below — an empty pool
+        // must not spell an invalid `IN ()` statement (it clusters nothing,
+        // so both faces answer 0).
         let rows: [(id: Int64, capture: Double?)] = try await store.withHandle {
             handle in
+            guard !ids.isEmpty else { return [] }
             var rows: [(id: Int64, capture: Double?)] = []
             let placeholders = ids.map { _ in "?" }.joined(separator: ",")
             let statement = try handle.prepare(
