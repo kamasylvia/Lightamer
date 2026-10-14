@@ -287,6 +287,8 @@ APP	7	ColorMatchServiceTests.swift
 #   （invalidateAll gate 扩展面）但 cbd1afa 只修了 IOPP 两行——本行 6 滞留为 P1 值，
 #   实数 7（grep 互证；App bundle 执行总数 724 不受扰，仅 per-file 账面）。
 APP	6	ColorMatchPanelModelTests.swift
+#   M6-4-02 T1（2026-10-14，登记随文件同 commit）：AI patch 纯函数 9 法入 LAYERS。
+LAYERS	9	AIPatchAssemblyTests.swift
 LAYERS	10	AIMaskSemanticTests.swift
 LAYERS	10	LayerCacheTests.swift
 LAYERS	10	LayerCompositeTests.swift
