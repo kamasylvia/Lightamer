@@ -1167,6 +1167,13 @@ final class PipeCoordinator {
                         document: document, url: url, decoded: decoded
                     )
                     Self.logger.info("pipe load: sidecar restore done")
+                    // M6-2-01 T3 (KD-4): the process carrier prime — a
+                    // stored value (or the legacy default for a key-less
+                    // document; corrupt values normalized at the sidecar
+                    // decode) rides the same actor turn. NO write-back —
+                    // the document is the value's source.
+                    workspace?.restoreProcessVersion(
+                        document.process ?? .legacy, for: url)
                     // M2-4-1 T5 (KD-5/E1): the persisted RAW-overrides
                     // restore leg — prime the session carrier + re-decode
                     // with the stored overrides (pristine documents skip).
@@ -1194,6 +1201,12 @@ final class PipeCoordinator {
                     // M2-8-1 T2 (KD-4/E4): a pristine seed (no `.lra`) is
                     // ALSO the implicit single-version state — clear any
                     // outgoing image's slot list (the same E4 path).
+                    // M6-2-01 T3 (KD-4): the pristine branch MINTS
+                    // `.current` into the carrier ("盘上无 sidecar,
+                    // imageID mint 同批" — the birth stamp; the write leg
+                    // turns it into the persisted key at the first
+                    // committed edit).
+                    workspace?.restoreProcessVersion(.current, for: url)
                     // Pristine seed (Plan 03-02-T4): terminal trio + the
                     // LightamerIOP tone iops with permanent panels at
                     // IDENTITY params — their Inspector panels need
@@ -1477,6 +1490,16 @@ final class PipeCoordinator {
         }
         let filmForField: FilmRecord? =
             sessionFilm.flatMap { isFilmRecordDefault($0) ? nil : $0 }
+        // M6-2-01 T3 (KD-4): the per-image process version reads the
+        // SESSION carrier the same way. The write form is the KD-2
+        // canonical rule: a legacy carrier value (0, the map's default)
+        // writes the ABSENT key — a loaded legacy document is NEVER
+        // passively upgraded; a non-legacy value (the pristine mint or a
+        // stored forward larger number) round-trips verbatim. A detached
+        // workspace (tests) reads the same `.legacy` default → no key.
+        let processCarrier = currentImageURL.map {
+            workspace?.processVersion(for: $0) ?? .legacy
+        } ?? .legacy
         // M2-8-1 T2 (KD-4): the version face. A structure-less session
         // (nil) keeps the v6 byte shape (both keys absent); a structured
         // one touches the active slot (KD-2's write-face updatedAt rule)
@@ -1514,7 +1537,8 @@ final class PipeCoordinator {
             displayTransform: drtForField,
             versions: versionRecords,
             activeVersionID: activeVersionID,
-            filmRecord: filmForField)
+            filmRecord: filmForField,
+            process: processCarrier.rawValue == 0 ? nil : processCarrier)
     }
 
     /// D-S3: every committed history MOVE throttles a `.lra` write (2s

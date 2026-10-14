@@ -336,6 +336,43 @@ final class WorkspaceModel {
         filmRecords.removeAll()
     }
 
+    // MARK: - Render process version carrier (Plan M6-2-01 T3, KD-3 — the
+    // rawDecodeOverrides/drtRecords/filmRecords carrier family's shape)
+
+    /// The session-level per-image render process versions, keyed by the
+    /// source file path. Session-scoped by contract (the carrier family's
+    /// shape): a switched-away image keeps its value for the session;
+    /// closing the editor drops them. **ABSENT KEY = `.legacy`** — unlike
+    /// the drt/film carriers (where the absent key means pristine) the
+    /// legacy IS a legal steady value here, so the read face defaults to
+    /// `.legacy` and the map only ever carries non-legacy entries. No
+    /// runtime write face exists in M6-2 (OQ-5: the value lands ONLY in
+    /// the load leg's two branches — a loaded document primes it, a
+    /// pristine image mints `.current`).
+    private(set) var processVersions: [String: RenderProcessVersion] = [:]
+
+    /// The read face (legacy when the image has no session value).
+    func processVersion(for url: URL) -> RenderProcessVersion {
+        processVersions[url.path] ?? .legacy
+    }
+
+    /// The restore-leg priming face (the `restoreSessionOverrides` twin:
+    /// NO coordinator write-back echo — the loaded document IS this
+    /// value's source, so a write-back would schedule a redundant sidecar
+    /// write).
+    func restoreProcessVersion(_ version: RenderProcessVersion, for url: URL) {
+        if version == .legacy {
+            processVersions.removeValue(forKey: url.path)
+        } else {
+            processVersions[url.path] = version
+        }
+    }
+
+    /// The editor-close drop face (the 关图丢弃 family).
+    func dropSessionProcessVersions() {
+        processVersions.removeAll()
+    }
+
 
     // MARK: - AI enhancement entry requests (Plan M2-10-07 T3, KD-3)
 
@@ -400,6 +437,7 @@ final class WorkspaceModel {
         dropSessionOverrides()
         dropSessionDrtRecords()
         dropSessionFilmRecords()  // M3-3-02 T5: the film carrier rides the close (KD-6)
+        dropSessionProcessVersions()  // M6-2-01 T3: the process carrier rides the close (KD-3)
         phase = .library
     }
 
