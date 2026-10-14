@@ -758,6 +758,184 @@ final class ExportGainMapTests: XCTestCase {
         XCTAssertEqual(cg.height, 32)
     }
 
+    // MARK: - T4: base fidelity + the gain semantic band + reimport (KD-7 tail)
+
+    /// A small synthetic rgba8 gradient plane (the fidelity fixture).
+    private func fidelityPlane(size: Int = 32) -> ExportQuantizedPlane {
+        var rgba = [UInt8](repeating: 255, count: size * size * 4)
+        for y in 0..<size {
+            for x in 0..<size {
+                let i = (y * size + x) * 4
+                rgba[i] = UInt8(x * 7 % 256)
+                rgba[i + 1] = UInt8(y * 7 % 256)
+                rgba[i + 2] = UInt8((x + y) * 3 % 256)
+                rgba[i + 3] = 255
+            }
+        }
+        return ExportQuantizedPlane(
+            data: Data(rgba), width: size, height: size, layout: .rgba8)
+    }
+
+    /// An rgba32Float texture filled with `fill` (the capture carrier face).
+    private func makeFloatTexture(
+        _ width: Int, _ height: Int, fill: (Int, Int) -> (Float, Float, Float)
+    ) throws -> (any MTLTexture, any MTLCommandQueue) {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let queue = try XCTUnwrap(device.makeCommandQueue())
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: width, height: height, mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        let texture = try XCTUnwrap(device.makeTexture(descriptor: descriptor))
+        var floats = [Float](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let (r, g, b) = fill(x, y)
+                let i = (y * width + x) * 4
+                floats[i] = r
+                floats[i + 1] = g
+                floats[i + 2] = b
+                floats[i + 3] = 1
+            }
+        }
+        floats.withUnsafeBytes {
+            texture.replace(
+                region: MTLRegionMake3D(0, 0, 0, width, height, 1), mipmapLevel: 0,
+                slice: 0, withBytes: $0.baseAddress!, bytesPerRow: width * 16,
+                bytesPerImage: width * 16)
+        }
+        return (texture, queue)
+    }
+
+    /// Decode a JPEG into RGBA8 bytes (the fidelity readback face).
+    private func decodedRGBA8(_ url: URL) throws -> (
+        bytes: [UInt8], width: Int, height: Int
+    ) {
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let cg = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let context = try XCTUnwrap(CGContext(
+            data: nil, width: cg.width, height: cg.height,
+            bitsPerComponent: 8, bytesPerRow: cg.width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+        let data = try XCTUnwrap(context.data)
+        let count = cg.width * cg.height * 4
+        let bytes = Array(
+            UnsafeBufferPointer(
+                start: data.assumingMemoryBound(to: UInt8.self), count: count))
+        return (bytes, cg.width, cg.height)
+    }
+
+    /// The base-plane fidelity (KD-7 ①, the E2 method): the gain map
+    /// product's SDR base decodes to the SAME samples as a plain
+    /// JPEGEncoder product of the SAME plane — CI does not rewrite our
+    /// base pixels. S1 漂移伞: two BLACK-BOX encoders (CI's internal JPEG
+    /// vs ImageIO's JPEGEncoder) equaling is a single-host observation —
+    /// the standing assertion is the ±1 LSB per-point band (the DECISIONS
+    /// entry pre-registers the fallback; a macOS upgrade may retune either
+    /// encoder and only this band prevents a fake red).
+    func testBasePlaneFidelityMatchesPlainJPEGEncoder() throws {
+        let srgb = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+        let plane = fidelityPlane()
+        let (texture, queue) = try makeFloatTexture(32, 32) { x, y in
+            (Float(x * 7 % 256) / 255 * 4, Float(y * 7 % 256) / 255 * 4, 0.9)
+        }
+        let hdrPlane = ExportGainMapHDRPlane(
+            texture: texture, commandQueue: queue, width: 32, height: 32,
+            headroom: 4)
+        let gainURL = outputDirectory.appendingPathComponent("fidelity-gain.jpg")
+        _ = try ExportGainMapEncoder.encode(
+            plane: plane, hdrPlane: hdrPlane, targetColorSpace: srgb, quality: 0.9,
+            destination: gainURL, sourceURL: nil, exifSoftware: nil,
+            metadataPolicy: .standard)
+        let plainURL = outputDirectory.appendingPathComponent("fidelity-plain.jpg")
+        _ = try JPEGEncoder().encode(ExportEncodeRequest(
+            plane: plane, spec: .jpeg(quality: 0.9), colorSpace: srgb,
+            destination: plainURL))
+
+        let gain = try decodedRGBA8(gainURL)
+        let plain = try decodedRGBA8(plainURL)
+        XCTAssertEqual(gain.width, plain.width)
+        XCTAssertEqual(gain.height, plain.height)
+        // sample points: corners + center, all four channels, ±1 LSB.
+        let size = 32
+        for (x, y) in [(0, 0), (size - 1, 0), (size / 2, size / 2), (0, size - 1), (size - 1, size - 1)] {
+            for c in 0..<4 {
+                let i = (y * size + x) * 4 + c
+                let delta = abs(Int(gain.bytes[i]) - Int(plain.bytes[i]))
+                XCTAssertLessThanOrEqual(
+                    delta, 1,
+                    "base fidelity at (\(x),\(y)) ch\(c): "
+                        + "\(gain.bytes[i]) vs \(plain.bytes[i])")
+            }
+        }
+    }
+
+    /// The gain semantic band (KD-7 ②, the E4 counter-proof): a UNIFORM SDR
+    /// plane with HDR = SDR × 2^k yields GainMapMin == GainMapMax ≈ k — the
+    /// gain ratios were taken over LINEAR LIGHT (PQ/HLG code values would
+    /// produce a wildly different face; the capture point + validate gate ⑤
+    /// structurally exclude it). The band tolerates the CI black box (the
+    /// measured value lands in DECISIONS).
+    func testGainSemanticBandProvesLinearLightFeed() throws {
+        let srgb = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+        let k: Float = 2
+        var base = [UInt8](repeating: 0, count: 32 * 32 * 4)
+        for i in stride(from: 0, to: base.count, by: 4) {
+            base[i] = 128; base[i + 1] = 128; base[i + 2] = 128; base[i + 3] = 255
+        }
+        let plane = ExportQuantizedPlane(
+            data: Data(base), width: 32, height: 32, layout: .rgba8)
+        // the HDR plane must carry the base's LINEAR-DECODED value × 2^k —
+        // the sRGB-encoded 128/255 would be the E4-adjacent wrong face (the
+        // first probe run measured 3.2167 = log2(encoded×4/linear) exactly,
+        // which incidentally PROVES CI decodes the base before the ratio).
+        let sdrLinear = pow(((Float(128) / 255 + 0.055) / 1.055), 2.4)
+        let (texture, queue) = try makeFloatTexture(32, 32) { _, _ in
+            (sdrLinear * pow(2, k), sdrLinear * pow(2, k), sdrLinear * pow(2, k))
+        }
+        let hdrPlane = ExportGainMapHDRPlane(
+            texture: texture, commandQueue: queue, width: 32, height: 32,
+            headroom: pow(2, k))
+        let url = outputDirectory.appendingPathComponent("semantic-band.jpg")
+        _ = try ExportGainMapEncoder.encode(
+            plane: plane, hdrPlane: hdrPlane, targetColorSpace: srgb, quality: 0.9,
+            destination: url, sourceURL: nil, exifSoftware: nil,
+            metadataPolicy: .standard)
+
+        let dict = try auxGainMapDict(url)
+        let metadataBox = try XCTUnwrap(dict[kCGImageAuxiliaryDataInfoMetadata])
+        let metadata = unsafeDowncast(metadataBox as AnyObject, to: CGImageMetadata.self)
+        let xmp = (CGImageMetadataCreateXMPData(metadata, nil)! as CFData) as Data
+        let xmpString = String(decoding: xmp, as: UTF8.self)
+
+        func gainMapValue(_ key: String) -> Float? {
+            guard let keyRange = xmpString.range(of: key) else { return nil }
+            guard let open = xmpString.range(of: ">", range: keyRange.upperBound..<xmpString.endIndex)
+            else { return nil }
+            guard let close = xmpString.range(of: "<", range: open.upperBound..<xmpString.endIndex)
+            else { return nil }
+            return Float(xmpString[open.upperBound..<close.lowerBound])
+        }
+        let gainMax = try XCTUnwrap(gainMapValue("GainMapMax"), "no GainMapMax in the XMP")
+        let gainMin = try XCTUnwrap(gainMapValue("GainMapMin"), "no GainMapMin in the XMP")
+        XCTAssertEqual(gainMax, k, accuracy: 0.5, "uniform ×2^k → max gain ≈ k")
+        XCTAssertEqual(gainMin, k, accuracy: 0.5, "uniform plane → min == max ≈ k")
+    }
+
+    /// The reimport compatibility (KD-7 ③): the product re-enters through
+    /// the M4-1 raster chain — `decodeRaster` succeeds, the size matches,
+    /// the SDR base is what decodes (the gain ignored = the correct
+    /// degrade; the future HDR-aware face rides kCIImageAuxiliaryHDRGainMap
+    /// and is out of scope).
+    func testReimportThroughTheRasterChainDecodesTheBase() async throws {
+        let url = try await renderGainMapJPEG(stem: "GAINREIMP_0001")
+        let decoded = try await RAWDecoder().decode(url)
+        XCTAssertEqual(Int(decoded.ciImage.extent.width), 48)
+        XCTAssertEqual(Int(decoded.ciImage.extent.height), 32)
+    }
+
     /// Poll a job to its terminal state (the ExportQueueTests shape).
     private func awaitTerminal(
         _ queue: ExportQueue, jobID: UUID, timeout: TimeInterval = 15
