@@ -502,6 +502,7 @@ let project = Project(
                 "Tests/LightamerTests/AIMaskGeometryTests.swift",
                 "Tests/LightamerTests/AIMaskPlaneFormatTests.swift",
                 "Tests/LightamerTests/AIMaskSemanticTests.swift",
+                "Tests/LightamerTests/PersonInstanceMaskTests.swift",
                 "Tests/LightamerTests/ACESccEnvelopeTests.swift",
                 "Tests/LightamerTests/Aces2MathTests.swift",
                 "Tests/LightamerTests/DepthMaskEditingTests.swift",

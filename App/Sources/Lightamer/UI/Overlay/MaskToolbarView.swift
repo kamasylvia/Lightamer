@@ -50,6 +50,10 @@ internal struct MaskToolbarView: View {
     @State private var depthPhase: AIGenerationPhase = .idle
     /// Non-nil = the layer-A multi-subject picker is up.
     @State private var instanceCatalog: AIInstanceCatalog?
+    /// Non-nil = the person-instance picker is up (M6-4-02 KD-5/S7 — the
+    /// layer-A `instanceCatalog` shape reused; the session-state host is
+    /// THIS view's @State, not LayerEditingState).
+    @State private var personCatalog: AIInstanceCatalog?
     /// The T7 sugar: the invert assembly rides the pending generation (the
     /// multi-subject picker's confirm consumes it).
     @State private var pendingInvert = false
@@ -326,6 +330,24 @@ internal struct MaskToolbarView: View {
                 .disabled(!hasSelection)
                 .accessibilityLabel(Text("ai_mask_subject_inverted"))
                 .accessibilityIdentifier("ai.mask.subject.inverted")
+
+                // 人物实例 — the person-instance generation (M6-4-02 KD-2/
+                // KD-5): OS-built-in multi-person model, NO download gate
+                // (the `assets` three-state does not apply); multi-person
+                // scenes raise the instance picker, a single person bakes
+                // straight through (the layer-A form).
+                Button {
+                    Task { await generatePersonInstances() }
+                } label: {
+                    Image(systemName: "person.2")
+                        .font(.callout)
+                        .frame(width: 24, height: 22)
+                        .cornerRadius(4)
+                }
+                .buttonStyle(.borderless)
+                .disabled(!hasSelection)
+                .accessibilityLabel(Text("ai_mask_person_instance"))
+                .accessibilityIdentifier("ai.mask.person")
             }
         }
         .popover(item: $instanceCatalog) { catalog in
@@ -341,6 +363,20 @@ internal struct MaskToolbarView: View {
                     instanceCatalog = nil
                     pendingInvert = false
                 })
+        }
+        .popover(item: $personCatalog) { catalog in
+            // The person-instance picker (M6-4-02 KD-5): the SAME overlay
+            // view — the confirm routes to the `.person` commit source
+            // (a disjoint mask file family; the max-union plane comes from
+            // AIMaskService.personInstanceMask inside the picker's
+            // label-composite read).
+            InstancePickerOverlay(
+                catalog: catalog,
+                onConfirm: { plane in
+                    personCatalog = nil
+                    Task { await commitPersonPlane(plane) }
+                },
+                onCancel: { personCatalog = nil })
         }
 
         // 点击选取 — layer B entry, the asset-phase gate.
@@ -561,6 +597,58 @@ internal struct MaskToolbarView: View {
             try await commitAIMask(
                 plane: plane, source: .subject, invert: invert, metal: metal)
             aiPhase = .idle
+        } catch {
+            aiPhase = .failed("\(error)")
+            editorState.presentToast(
+                String(localized: "ai_toast_generate_failed") + " (\(error))")
+        }
+    }
+
+    /// The person-instance picker's confirmed union (the commitSubjectPlane
+    /// twin over the `.person` source family).
+    private func commitPersonPlane(_ plane: AIMaskPlane) async {
+        guard let metal = metalContext else { return }
+        aiPhase = .running
+        defer { if case .running = aiPhase { aiPhase = .idle } }
+        do {
+            try await commitAIMask(plane: plane, source: .person, metal: metal)
+            aiPhase = .idle
+        } catch {
+            aiPhase = .failed("\(error)")
+            editorState.presentToast(
+                String(localized: "ai_toast_generate_failed") + " (\(error))")
+        }
+    }
+
+    /// The person-instance generation (M6-4-02 KD-2): detect → a
+    /// multi-person scene raises the picker, a single person bakes
+    /// straight through the `.person` source (a disjoint mask file
+    /// family). Zero detected people = the honest typed toast (NEVER a
+    /// fallback plane — the generation-failure discipline).
+    private func generatePersonInstances() async {
+        guard let metal = metalContext else { return }
+        aiPhase = .running
+        defer { if case .running = aiPhase { aiPhase = .idle } }
+        do {
+            guard let (input, _, _) = AIMaskEditing.decodeFrameInput(pipeCoordinator) else {
+                throw AIMaskError.invalidInput("no decoded frame for inference")
+            }
+            let catalog = try await AIMaskService.detectPersonInstances(input: input)
+            if catalog.instances.count > 1 {
+                aiPhase = .idle
+                personCatalog = catalog
+            } else {
+                let plane = try AIMaskService.personInstanceMask(
+                    from: catalog, selection: .all)
+                try await commitAIMask(plane: plane, source: .person, metal: metal)
+                aiPhase = .idle
+            }
+        } catch let error as AIMaskError {
+            aiPhase = .failed("\(error)")
+            editorState.presentToast(
+                error == .noSubject
+                    ? String(localized: "ai_mask_person_none")
+                    : String(localized: "ai_toast_generate_failed") + " (\(error))")
         } catch {
             aiPhase = .failed("\(error)")
             editorState.presentToast(

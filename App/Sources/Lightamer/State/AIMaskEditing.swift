@@ -37,6 +37,11 @@ enum AIMaskSource: String, Sendable {
     /// `ai-depth` prefix stays disjoint from the segment marker, so the
     /// LayerEditingState segment discriminant is untouched.
     case depth = "ai-depth"
+    /// Person instance mask (MaskToolbar「人物实例」— M6-4-02 KD-2/KD-5).
+    /// The `ai-person` prefix stays disjoint from the segment marker for
+    /// the same reason (a person re-bake must never seed a segment
+    /// session — `armSegmentSession` keys on `.segment` only).
+    case person = "ai-person"
 
     /// The stable per-layer mask file name (same name on every re-bake —
     /// D-07-CONTEXT-5 overwrite semantics).
@@ -48,7 +53,7 @@ enum AIMaskSource: String, Sendable {
     /// marker: re-arming the tap mode on a layer-B mask seeds a REFINE
     /// session pointing at the same file).
     static func source(ofFileName fileName: String) -> AIMaskSource? {
-        for source in [AIMaskSource.subject, .segment, .skin, .depth]
+        for source in [AIMaskSource.subject, .segment, .skin, .depth, .person]
         where fileName.hasPrefix(source.rawValue + "-") {
             return source
         }
