@@ -204,7 +204,47 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     ///   • nil film face keeps the key ABSENT — the v8 byte shape
     ///     survives untouched (FilmSidecarTests pins the byte faces; a v8
     ///     document decodes and re-encodes byte-exact).
-    public static let schemaVersionCurrent = 9
+    ///
+    /// v10 (Plan M6-2-01 T1, KD-2): the RENDER PROCESS face joins additively
+    /// — ONE optional key (the versions/aiProvenance/filmRecord "write ONLY
+    /// when present" discipline):
+    ///   • `process: RenderProcessVersion?` — the per-photo render-process
+    ///     generation (the ledger lives in `Pipe/RenderProcess.swift`).
+    ///     Canonical rule in one line: **nil ⇔ key ABSENT ⇔ semantic
+    ///     legacy**. The legacy document's re-encode keeps the key ABSENT —
+    ///     a pre-M6-2 document is NEVER passively upgraded (the zero-drift
+    ///     promise's本体; LightCraft `skip_serializing_if =
+    ///     "ProcessVersion::is_legacy"` form).
+    ///   • LENIENT decode (LightCraft `settings.rs` form; the M1 DOUBLE-GATE
+    ///     note: this STORED-value gate starts at 1 — the value-type domain
+    ///     gate in `RenderProcessVersion.init?(rawValue:)` is the other
+    ///     gate and includes 0): key absent → nil; integer `1...0xFFFF_FFFF`
+    ///     → that version (a FORWARD LARGER number is RETAINED verbatim —
+    ///     the render clamps at `RenderProcess.resolving`, user data is
+    ///     never downgraded); integral float `2.0` → 2; EVERYTHING else
+    ///     (0 / negative / non-integral float / string / null / array /
+    ///     2^32) → nil — a corrupt value destroys NOTHING else in the
+    ///     document (the tolerant-decode discipline) and is NOT retained
+    ///     (the next write leaves the key ABSENT; stored-0 ≡ absent ≡
+    ///     legacy are one semantic, the SidecarV10Tests negative pins the
+    ///     normalization). The decode never throws on this key.
+    ///   • HASH ISOLATION: the process is a render-semantics LABEL, not a
+    ///     pixel edit — it never enters `HistoryHash.hash` /
+    ///     `driftDetected` (the v3/v4/v7/v8 metadata judgment; a future
+    ///     semantic bump must never false-positive as external-edit drift),
+    ///     and it produces zero history items.
+    ///   • 「入册 ≠ 升级」: 9→10 is the key family's REGISTRATION only —
+    ///     there is NO coupled migration semantics. A v10 document without
+    ///     the key IS legacy (identical semantics to a v9 document without
+    ///     it). An unedited v9 document is never rewritten (SidecarStore
+    ///     schedules writes only after commits); an EDITED legacy document
+    ///     re-saves as v10 (schemaVersion reflects the writer — the existing
+    ///     convention) with the `process` key STILL ABSENT — the "v9 bytes
+    ///     unchanged" promise's precise scope is the KEY FACE (process
+    ///     permanently absent + every existing key byte-identical).
+    ///   • nil process face keeps the key ABSENT — the v9 byte shape
+    ///     survives untouched (SidecarV10Tests pins the three byte faces).
+    public static let schemaVersionCurrent = 10
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int
@@ -324,6 +364,18 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// judgment).
     public var filmRecord: FilmRecord?
 
+    // MARK: - Render process (v10, Plan M6-2-01 — the per-photo process ledger)
+
+    /// The per-photo render-process generation (KD-2; nil = legacy — the
+    /// key is ABSENT on disk and the document's render semantics stay
+    /// frozen; LightCraft `skip_serializing_if = "ProcessVersion::is_legacy"`
+    /// form). HASH-ISOLATED: a render-semantics label, never a pixel edit —
+    /// it never enters `HistoryHash.hash` / `driftDetected` and produces
+    /// zero history items. Decode is LENIENT (the v10 doc comment above):
+    /// corrupt values normalize to nil, forward larger numbers are retained
+    /// verbatim (the render clamps at `RenderProcess.resolving`).
+    public var process: RenderProcessVersion?
+
     // MARK: - Paths (D-S2)
 
     /// `…/DSC09991.ARW` → `…/DSC09991.ARW.lra` — the FULL original name
@@ -378,7 +430,8 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         versions: [SidecarVersionRecord]? = nil,
         activeVersionID: String? = nil,
         aiProvenance: SidecarAIProvenanceRecord? = nil,
-        filmRecord: FilmRecord? = nil
+        filmRecord: FilmRecord? = nil,
+        process: RenderProcessVersion? = nil
     ) {
         self.schemaVersion = Self.schemaVersionCurrent
         self.appVersion = appVersion
@@ -401,6 +454,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         self.activeVersionID = activeVersionID
         self.aiProvenance = aiProvenance
         self.filmRecord = filmRecord
+        self.process = process
     }
 
     // MARK: - Codable (projection through the String-hash records)
@@ -414,6 +468,7 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         case versions, activeVersionID
         case aiProvenance
         case filmRecord
+        case process
     }
 
     public init(from decoder: Decoder) throws {
@@ -487,6 +542,28 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // tolerance contract :94-97).
         filmRecord = try container.decodeIfPresent(
             FilmRecord.self, forKey: .filmRecord)
+        // v10 process (M6-2-01 T1, KD-2): the LENIENT decode table — the
+        // M1 double-gate note applies: THIS stored-value gate starts at 1
+        // (stored-0 / null / corrupt normalize to nil = ABSENT = legacy).
+        // The decode NEVER throws on this key (all `try?`): a corrupt value
+        // costs the key alone, never the document (tolerant decode). A
+        // forward larger number (a newer build's generation) is retained
+        // verbatim — the render clamps at `RenderProcess.resolving`.
+        if container.contains(.process) {
+            if let raw = try? container.decode(Int.self, forKey: .process),
+                raw >= 1, raw <= 0xFFFF_FFFF {
+                process = RenderProcessVersion(rawValue: raw)
+            } else if let raw = try? container.decode(Double.self, forKey: .process),
+                raw >= 1, raw <= Double(0xFFFF_FFFF), raw == raw.rounded() {
+                // The integral-float form (`2.0` → 2; 2.5 fails the
+                // integrality check and lands in the nil arm below).
+                process = RenderProcessVersion(rawValue: Int(raw))
+            } else {
+                process = nil // stored-0 / negative / corrupt — NOT retained
+            }
+        } else {
+            process = nil // key ABSENT = legacy (the canonical default)
+        }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -555,6 +632,15 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
         // documents without a film session stay byte-compatible with the
         // v8 shape; FilmSidecarTests pins the byte faces).
         try container.encodeIfPresent(filmRecord, forKey: .filmRecord)
+        // Render process (v10): write ONLY when present — nil (legacy)
+        // keeps the key ABSENT so the pre-M6-2 documents re-encode
+        // byte-compatible with the v9 shape (the never-passively-upgraded
+        // zero-drift AC; SidecarV10Tests pins the three byte faces). The
+        // stored-0 normalization rides the decode: a decoded 0 IS nil, so
+        // `"process": 0` re-encodes ABSENT (0 ≡ absent ≡ legacy).
+        if let process {
+            try container.encode(process.rawValue, forKey: .process)
+        }
     }
 }
 
