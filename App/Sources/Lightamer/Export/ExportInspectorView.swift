@@ -280,6 +280,15 @@ internal struct ExportInspectorView: View {
             destination: displayDestination,
             filmTailForLoaded: pipeCoordinator.filmTailPolicy(for: .export))
         guard let assembly else { return }
+        // M6-3-01 (KD-6/checker C-2): the run-face re-check reset the flag —
+        // the toast names the blocking dimension (the gate moved on the DRT
+        // panel; the batch runs with the reset face, never a typed refusal).
+        if let resetDimension = assembly.gainMapAutoReset {
+            // V14 discipline: the switch returns the STATIC key, the lookup
+            // wraps it explicitly (never an interpolated LocalizationValue).
+            editorState.presentToast(String(localized: String.LocalizationValue(
+                Self.gainMapResetToastKey(for: resetDimension))))
+        }
         let software = ExportState.currentExifSoftware
         Task {
             await pipeCoordinator.flushSidecar()
@@ -304,6 +313,23 @@ internal struct ExportInspectorView: View {
         }
     }
 
+    /// M6-3-01: the run-face auto-reset's toast copy (V14 discipline — an
+    /// explicit switch returning STATIC keys, never an interpolated
+    /// LocalizationValue). The page-observable dimensions reuse their
+    /// unavailable copies; the format/embedICC dimensions reset in their
+    /// own setters (a run-face reset for them is unreachable).
+    nonisolated static func gainMapResetToastKey(
+        for dimension: ExportM2PanelModel.GainMapGateDimension
+    ) -> String {
+        switch dimension {
+        case .peak: return "export_gainmap_unavailable_peak"
+        case .encoding: return "export_gainmap_unavailable_encoding"
+        case .format: return "export_gainmap_unavailable_format"
+        case .embedICC: return "export_gainmap_hint"
+        case .noRecord: return "export_gainmap_hint"
+        }
+    }
+
     // MARK: - Section 3: Metadata & Color (OQ-6 / OQ-7)
 
     private var metadataColorSection: some View {
@@ -315,7 +341,7 @@ internal struct ExportInspectorView: View {
             Text(String(localized: "export_metadata_note"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Toggle(String(localized: "export_embed_icc"), isOn: $model.embedICC)
+            Toggle(String(localized: "export_embed_icc"), isOn: embedICCBinding)
                 .accessibilityIdentifier("export.page.embed_icc")
             if iccStripUnavailableNoteVisible {
                 Text(String(localized: "export_embed_icc_unavailable"))
@@ -338,6 +364,19 @@ internal struct ExportInspectorView: View {
                 || model.formatKind == .webp)
     }
 
+    /// M6-3-01 (KD-6/M2 + C-3): turning the ICC embed OFF breaks the gain
+    /// map gate's embedICC dimension — the linkage reset runs in the setter
+    /// (the C-3 enable-under-broken-gate entry: the checkbox disables AND
+    /// the flag clears, so the broken state can never be armed).
+    private var embedICCBinding: Binding<Bool> {
+        Binding(
+            get: { model.embedICC },
+            set: { newValue in
+                model.embedICC = newValue
+                model.resetGainMapIfGateBroken(effectiveRecord: currentEffectiveRecord)
+            })
+    }
+
     /// The DRT encoding triple readout (OQ-7's UI expression): space /
     /// EOTF / peak from the CURRENT image's effective record (nil history
     /// record = the default record face; no image = hidden). The values
@@ -346,9 +385,11 @@ internal struct ExportInspectorView: View {
     /// M3-1-03 KD-2: the HDR arms (st2084/hlg — the `isHdrEncoding` Core
     /// single source, never re-written here) append the peak-ICC caption:
     /// the ICC profile carries space+TRC only, the peak rides the render
-    /// (EotfBox record) and the enqueue gate (ExportVariant.validate) —
-    /// the true HDR container (UltraHDR) is the M4 ALCE-02 face
-    /// (M2-9-02-DECISIONS boundary). SDR arms render byte-identical.
+    /// (EotfBox record) and the enqueue gate (ExportVariant.validate).
+    /// M6-3-01: the true HDR container (UltraHDR gain map JPEG) is the
+    /// ALCE-03 face — LANDED on this page's SDR section (the DRT-HDR PQ/HLG
+    /// container remains the M4 ALCE-02 face, M2-9-02-DECISIONS boundary).
+    /// SDR arms render byte-identical.
     @ViewBuilder
     private var drtReadout: some View {
         if editorState.loadedImageURL != nil {
@@ -395,6 +436,8 @@ internal struct ExportInspectorView: View {
             }
             .accessibilityIdentifier("export.page.format")
 
+            gainMapToggle
+
             formatKnobs
 
             Picker(String(localized: "export_sizing_label"), selection: $model.sizingMode) {
@@ -434,7 +477,8 @@ internal struct ExportInspectorView: View {
 
     /// The format switch ALSO swaps the quality memory in (OQ-10: each
     /// knob remembers its own value — a kind change loads that kind's
-    /// remembered quality).
+    /// remembered quality). M6-3-01 (KD-6/M2): leaving jpeg breaks the
+    /// gain map gate's format dimension — the linkage reset runs here.
     private var formatSelection: Binding<ExportM2FormatKind> {
         Binding(
             get: { model.formatKind },
@@ -445,7 +489,63 @@ internal struct ExportInspectorView: View {
                     let remembered = exportState.loadM2Quality(forKey: key) {
                     model.activeQuality = remembered
                 }
+                model.resetGainMapIfGateBroken(effectiveRecord: currentEffectiveRecord)
             })
+    }
+
+    /// The current image's effective DRT record face (nil = no image — the
+    /// gate treats it as `.noRecord`; the same judgment `drtReadout` uses).
+    private var currentEffectiveRecord: DrtRecord? {
+        editorState.loadedImageURL != nil
+            ? editorState.history.effectiveDrtRecord() : nil
+    }
+
+    /// The UltraHDR gain map toggle (M6-3-01 KD-6/OQ-5): five-dimension
+    /// availability gate + the three unavailable copies + the embedICC
+    /// hint-copy reuse (C-3 — no extra key). Disabled = the checkbox grays
+    /// AND the caption explains.
+    @ViewBuilder
+    private var gainMapToggle: some View {
+        let gate = model.gainMapGate(effectiveRecord: currentEffectiveRecord)
+        Toggle(String(localized: "export_gainmap_label"), isOn: $model.gainMapHDR)
+            .disabled({
+                if case .available = gate { return false }
+                return true
+            }())
+            .accessibilityIdentifier("export.page.gainmap")
+        switch gate {
+        case .available:
+            if model.gainMapHDR {
+                Text(String(localized: "export_gainmap_hint"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("export.page.gainmap_hint")
+            }
+        case .blocked(.format):
+            Text(String(localized: "export_gainmap_unavailable_format"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("export.page.gainmap_unavailable")
+        case .blocked(.peak):
+            Text(String(localized: "export_gainmap_unavailable_peak"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("export.page.gainmap_unavailable")
+        case .blocked(.encoding):
+            Text(String(localized: "export_gainmap_unavailable_encoding"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("export.page.gainmap_unavailable")
+        case .blocked(.embedICC):
+            // C-3: the embedICC dimension REUSES the hint copy (the tier
+            // rides the embedded-ICC form) — no extra catalog key.
+            Text(String(localized: "export_gainmap_hint"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("export.page.gainmap_unavailable")
+        case .blocked(.noRecord):
+            EmptyView()
+        }
     }
 
     @ViewBuilder
@@ -657,6 +757,59 @@ final class ExportM2PanelModel {
         metadataOn ? .standard : .none
     }
 
+    // MARK: The gain map tier (M6-3-01 KD-6, OQ-5 — the ALCE-03 face)
+
+    /// The UltraHDR gain map switch (M6-3-01 KD-6): session-lifetime like
+    /// `collisionPolicy`/`embedICC` — the M2-9 memory-key family stays at
+    /// its registered set (UserDefaults zero-new), the flag rides the run
+    /// assembly into `makeVariant` (the S4 落点) and `enqueueExportM2`'s
+    /// forced DRT linkage pairs it with the tail carrier.
+    var gainMapHDR = false
+
+    /// The five-dimension availability gate's blocked dimensions (KD-6:
+    /// the UI mirror of the Core validate gates — 「UI 可用但 validate 拒」
+    /// 矛盾态结构性排除). `.noRecord` = no image/no readout (silent face).
+    enum GainMapGateDimension: Equatable {
+        case format
+        case embedICC
+        case noRecord
+        case peak
+        case encoding
+    }
+
+    /// The gate verdict (pure — the KD-6 机检缝; the view only renders it).
+    enum GainMapGate: Equatable {
+        case available
+        case blocked(GainMapGateDimension)
+    }
+
+    /// The five-dimension availability gate (KD-6): jpeg ∧ readout-in-册 ∧
+    /// peak ≥ the Core single-source 203 (headroom ≥ 1) ∧ SDR encoding
+    /// (D-M6-3-7's UI sync — `isHdrEncoding` Core single source) ∧ embedICC
+    /// on (checker C-3 — the enable-under-broken-gate entry closed).
+    /// Validate-only gate ⑥ (yiyin) has NO UI face (the M2 page cannot
+    /// reach it).
+    func gainMapGate(effectiveRecord: DrtRecord?) -> GainMapGate {
+        guard formatKind == .jpeg else { return .blocked(.format) }
+        guard embedICC else { return .blocked(.embedICC) }
+        guard let record = effectiveRecord else { return .blocked(.noRecord) }
+        guard record.peakLuminance >= ExportGainMapEncoder.sdrReferenceWhite else {
+            return .blocked(.peak)
+        }
+        guard !isHdrEncoding(record.encodingEotf) else { return .blocked(.encoding) }
+        return .available
+    }
+
+    /// The linkage reset (KD-6/M2 + checker C-2): a gate break clears the
+    /// flag (page-level setters call this for embedICC/format; the run-face
+    /// re-check covers the NON-page dimensions — peak/encoding move on the
+    /// DRT panel, a page this panel cannot observe).
+    func resetGainMapIfGateBroken(effectiveRecord: DrtRecord?) {
+        if gainMapHDR, case .blocked = gainMapGate(effectiveRecord: effectiveRecord) {
+            gainMapHDR = false
+        }
+    }
+
     // MARK: SDR Export (section 4, OQ-10/OQ-12)
 
     /// The format picker face (the six-format matrix; the keys reuse the
@@ -810,13 +963,15 @@ final class ExportM2PanelModel {
 
     /// The variant the assembly consumes (KD-4): sizing × format + the
     /// metadata/ICC policy. The DRT record rides the assembly (T3) — the
-    /// panel hands it over per run.
+    /// panel hands it over per run. M6-3-01 (KD-6/S4): the gain map flag
+    /// lands HERE — one line, the `RunAssembly.variant` is the carrier.
     func makeVariant() -> ExportVariant {
         ExportVariant(
             sizing: makeSizing(),
             format: makeFormat(),
             metadataPolicy: makeMetadataPolicy(),
-            embedICC: embedICC)
+            embedICC: embedICC,
+            gainMapHDR: gainMapHDR)
     }
 
     /// The run-face assembly bundle (M3-1-03 KD-1): everything the queue
@@ -836,6 +991,11 @@ final class ExportM2PanelModel {
         /// image's session carrier via the coordinator's policy; the batch
         /// siblings nil — the M2 page's carrier walk boundary, DECISIONS).
         var filmTails: [FilmTailParams?]?
+        /// M6-3-01 (KD-6/checker C-2): the run-face re-check AUTO-RESET the
+        /// gain map flag before this assembly was built — the value is the
+        /// blocking dimension (the caller toasts its copy; the assembly's
+        /// variant already carries the reset face). nil = no reset.
+        let gainMapAutoReset: GainMapGateDimension?
     }
 
     /// The run assembly (KD-4's panel half + M3-1-03 KD-1): the OPEN image
@@ -866,6 +1026,20 @@ final class ExportM2PanelModel {
         let filmTails: [FilmTailParams?]? = targets.map { url in
             (url.path == loadedImageURL?.path) ? filmTailForLoaded : nil
         }
+        // M6-3-01 (KD-6/checker C-2): the run-face re-check — the peak/
+        // encoding gate dimensions move on the DRT panel (no page-internal
+        // setter exists), so the assembly re-evaluates the five-dimension
+        // gate BEFORE building the variant and auto-resets a broken flag
+        // (the toast copy rides the caller). This closes the last
+        // 「UI 可用但 validate 拒」矛盾态 entrance: a stale flag can never
+        // reach enqueueExportM2.
+        var autoResetDimension: GainMapGateDimension?
+        if gainMapHDR,
+            case .blocked(let dimension) = gainMapGate(effectiveRecord: effectiveDrtRecord)
+        {
+            gainMapHDR = false
+            autoResetDimension = dimension
+        }
         return RunAssembly(
             batch: targets,
             overrides: overrides,
@@ -875,7 +1049,8 @@ final class ExportM2PanelModel {
             collisionPolicy: collisionPolicy,
             destination: destination,
             subfolder: subfolder,
-            filmTails: filmTails)
+            filmTails: filmTails,
+            gainMapAutoReset: autoResetDimension)
     }
 
     /// The quality write-back snapshot: (key, value) for the ACTIVE format
