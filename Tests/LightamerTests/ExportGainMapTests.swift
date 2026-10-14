@@ -924,6 +924,128 @@ final class ExportGainMapTests: XCTestCase {
         XCTAssertEqual(gainMin, k, accuracy: 0.5, "uniform plane → min == max ≈ k")
     }
 
+    /// The row-order directionality (M6-5 T4, the D2 ledger fix): the
+    /// texture→CIImage bridge's `.oriented(.downMirrored)`
+    /// (ExportGainMapEncoder.swift:137) is the ONLY carrier of the
+    /// HDR-plane/base row alignment — every pre-existing test face feeds
+    /// symmetric (uniform or per-axis-gradient) surfaces a vertical flip
+    /// cannot disturb. This test feeds a NON-uniform gain plane
+    /// (image-top ≈ ×2 / image-bottom ≈ ×4) over an ASYMMETRIC base
+    /// (top mid-gray, bottom highlight) and asserts the DIRECTION of the
+    /// product's gain map: the base-highlight half must carry the larger
+    /// gain. Dropping the down-mirror swaps the pairing and flips the
+    /// product's direction (gain_top ≈ log2(4·0.956/0.216) ≈ 4.15 /
+    /// gain_bottom ≈ -1.15) — a one-way trip this assertion catches.
+    ///
+    /// Orientation notes: the texture follows the PIPE convention (memory
+    /// row 0 = image top — exactly what `.downMirrored` validates, since
+    /// CIImage(mtlTexture:) reads memory row 0 as the image BOTTOM); the
+    /// aux bitmap readback is asserted in the top-down frame (readback row
+    /// 0 = image top). The GainMapMin/Max XMP anchors are orientation-free
+    /// and pin the two-decade face independently.
+    func testGainMapRowOrderIsTheDownMirroredAlignment() throws {
+        let srgb = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+        let width = 32, height = 32
+
+        // The ASYMMETRIC base: top half mid-gray (sRGB 128), bottom half
+        // highlight (sRGB 250) — rgba8 row 0 = image TOP (the quantized-
+        // plane convention).
+        var base = [UInt8](repeating: 0, count: width * height * 4)
+        var baseLinear = [Float](repeating: 0, count: height)
+        for y in 0..<height {
+            let encoded: Float = y < height / 2 ? 128 : 250
+            let linear = pow((encoded / 255 + 0.055) / 1.055, 2.4)
+            baseLinear[y] = linear
+            for x in 0..<width {
+                let i = (y * width + x) * 4
+                base[i] = UInt8(encoded)
+                base[i + 1] = UInt8(encoded)
+                base[i + 2] = UInt8(encoded)
+                base[i + 3] = 255
+            }
+        }
+        let plane = ExportQuantizedPlane(
+            data: Data(base), width: width, height: height, layout: .rgba8)
+
+        // The HDR plane, image-top = ×2^1 (gain 1.0), image-bottom = ×2^2
+        // (gain 2.0) — the expected DOWN-MIRRORED product.
+        let kTop: Float = 1
+        let kBottom: Float = 2
+        let (texture, queue) = try makeFloatTexture(width, height) { _, y in
+            let v = baseLinear[y] * pow(2, y < height / 2 ? kTop : kBottom)
+            return (v, v, v)
+        }
+        let hdrPlane = ExportGainMapHDRPlane(
+            texture: texture, commandQueue: queue, width: width, height: height,
+            headroom: pow(2, kBottom))
+        let url = outputDirectory.appendingPathComponent("row-order.jpg")
+        _ = try ExportGainMapEncoder.encode(
+            plane: plane, hdrPlane: hdrPlane, targetColorSpace: srgb, quality: 0.9,
+            destination: url, sourceURL: nil, exifSoftware: nil,
+            metadataPolicy: .standard)
+
+        // Readback: the aux bitmap + the GainMapMin/Max XMP anchors.
+        let dict = try auxGainMapDict(url)
+        let data = try XCTUnwrap(dict[kCGImageAuxiliaryDataInfoData] as? Data)
+        XCTAssertEqual(data.count, width * height, "full-resolution L008 bitmap")
+        let metadataBox = try XCTUnwrap(dict[kCGImageAuxiliaryDataInfoMetadata])
+        let metadata = unsafeDowncast(metadataBox as AnyObject, to: CGImageMetadata.self)
+        let xmpString = String(
+            decoding: (CGImageMetadataCreateXMPData(metadata, nil)! as CFData) as Data,
+            as: UTF8.self)
+        func gainMapValue(_ key: String) -> Float? {
+            guard let keyRange = xmpString.range(of: key) else { return nil }
+            guard let open = xmpString.range(
+                of: ">", range: keyRange.upperBound..<xmpString.endIndex)
+            else { return nil }
+            guard let close = xmpString.range(
+                of: "<", range: open.upperBound..<xmpString.endIndex)
+            else { return nil }
+            return Float(xmpString[open.upperBound..<close.lowerBound])
+        }
+        let gainMin = try XCTUnwrap(gainMapValue("GainMapMin"), "no GainMapMin")
+        let gainMax = try XCTUnwrap(gainMapValue("GainMapMax"), "no GainMapMax")
+        // The two-decade face (orientation-free): min ≈ 1.0 (the ×2 half),
+        // max ≈ 2.0 (the ×4 half).
+        XCTAssertEqual(gainMin, kTop, accuracy: 0.4, "min gain anchors the ×2 half")
+        XCTAssertEqual(gainMax, kBottom, accuracy: 0.4, "max gain anchors the ×4 half")
+        XCTAssertGreaterThan(gainMax - gainMin, 0.5, "the asymmetric feed survived")
+
+        // The DIRECTION: in the top-down readback frame, the base-highlight
+        // half (image BOTTOM = the bitmap's second half) carries the larger
+        // gain. Band means over each half's middle third (JPEG bleed at the
+        // half boundary and the frame edges stays out).
+        func bandMean(rows: Range<Int>) -> Float {
+            var total: Float = 0
+            var count: Float = 0
+            for y in rows {
+                for x in (width / 4)..<(3 * width / 4) {
+                    total += Float(data[data.startIndex + y * width + x])
+                    count += 1
+                }
+            }
+            return total / count
+        }
+        let topMean = bandMean(rows: height / 6..<(height / 2 - 3))
+        let bottomMean = bandMean(rows: (height / 2 + 3)..<(5 * height / 6))
+        XCTAssertLessThan(
+            topMean, 64,
+            "the ×2 half sits at the min anchor (byte ≈ 0): measured \(topMean)")
+        XCTAssertGreaterThan(
+            bottomMean, 192,
+            "the ×4 half sits at the max anchor (byte ≈ 255): measured \(bottomMean)")
+        XCTAssertGreaterThan(
+            bottomMean - topMean, 128,
+            "the base-highlight half must carry the larger gain — the "
+                + "down-mirrored alignment's one-way direction")
+        // The derived semantic face: map the band means back through the
+        // min/max anchors — image top ≈ kTop, image bottom ≈ kBottom.
+        let derivedTop = gainMin + (gainMax - gainMin) * topMean / 255
+        let derivedBottom = gainMin + (gainMax - gainMin) * bottomMean / 255
+        XCTAssertEqual(derivedTop, kTop, accuracy: 0.45)
+        XCTAssertEqual(derivedBottom, kBottom, accuracy: 0.45)
+    }
+
     /// The reimport compatibility (KD-7 ③): the product re-enters through
     /// the M4-1 raster chain — `decodeRaster` succeeds, the size matches,
     /// the SDR base is what decodes (the gain ignored = the correct
