@@ -29,6 +29,60 @@ import SwiftUI
 @Observable
 final class LibraryGridModel {
 
+    /// The expanded-mode stack gather (KD-7 ③④, the forward-only fixup) —
+    /// the PURE transform the async append wrapper feeds (T4⑦'s Core-side
+    /// testable shape; the stateful wiring lives in the pagination legs).
+    /// Members of the page's ≥2 stacks are pulled FORWARD to just after the
+    /// earliest displayed member of their stack, in stack position order;
+    /// members already displayed are NEVER re-pulled (forward-only — the
+    /// DECISIONS deviation vs LightCraft's gather-to-first-member), and the
+    /// inserted set joins the displayed set.
+    static func stackAdjacencyFixup(
+        rows: [LibraryImageRow],
+        memberships: [Int64: StackMembership],
+        memberLists: [Int64: [Int64]],
+        supplemental: [Int64: LibraryImageRow],
+        displayed: Set<Int64>
+    ) -> (rows: [LibraryImageRow], inserted: [Int64], displayed: Set<Int64>) {
+        var result = rows
+        var shown = displayed
+        var rowIndex: [Int64: Int] = [:]
+        for (index, row) in result.enumerated() { rowIndex[row.id] = index }
+        // Collect per-stack insertions with their anchor (the earliest
+        // displayed member index).
+        struct Pending {
+            let anchor: Int
+            let inserts: [LibraryImageRow]
+        }
+        var pending: [Pending] = []
+        for (stackID, members) in memberLists {
+            guard members.count >= 2 else { continue }
+            // Only stacks the page actually surfaced participate (the
+            // memberships gate keeps stray memberLists inert).
+            guard memberships.values.contains(where: { $0.stackID == stackID })
+            else { continue }
+            var anchor: Int?
+            var inserts: [LibraryImageRow] = []
+            for member in members {
+                if let index = rowIndex[member] {
+                    anchor = min(anchor ?? index, index)
+                } else if !shown.contains(member), let row = supplemental[member] {
+                    inserts.append(row)
+                }
+            }
+            guard let anchor, !inserts.isEmpty else { continue }
+            pending.append(Pending(anchor: anchor, inserts: inserts))
+        }
+        // Insert descending by anchor so earlier indices stay valid.
+        for item in pending.sorted(by: { $0.anchor > $1.anchor }) {
+            result.insert(contentsOf: item.inserts, at: item.anchor + 1)
+        }
+        for item in pending {
+            for row in item.inserts { shown.insert(row.id) }
+        }
+        return (result, pending.flatMap { $0.inserts.map(\.id) }, shown)
+    }
+
     /// Which keyset segment the cursor is walking. The main segment holds
     /// every row whose sort key is non-NULL; the NULL tier waits in its own
     /// `searchNullTail` walk (every library sort key is nullable).

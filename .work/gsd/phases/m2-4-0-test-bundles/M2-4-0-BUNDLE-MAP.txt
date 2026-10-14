@@ -361,6 +361,7 @@ LIB	16	LibraryStackStoreTests.swift
 LIB	2	ImportCompletionRegressionTests.swift
 LIB	2	LibraryBenchmarkHarness.swift
 LIB	20	LibraryQueriesTests.swift
+LIB	9	StackPaginationTests.swift
 LIB	21	ExifSearchParserTests.swift
 LIB	27	FilterSQLTests.swift
 LIB	3	SidecarTieBreakTests.swift

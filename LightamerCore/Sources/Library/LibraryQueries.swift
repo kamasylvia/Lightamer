@@ -167,6 +167,36 @@ public struct LibraryFilterDescription: Sendable, Equatable {
     }
 }
 
+/// The stack display mode (KD-5, M6-4-01): `.flat` = the plain keyset walk
+/// (SQL BYTE-IDENTICAL to the pre-stacks face — the default argument keeps
+/// every existing call site untouched); `.collapsed` = the same walk plus a
+/// pure WHERE predicate that hides the non-cover members of COLLAPSED
+/// stacks (keyset seek shape untouched — the anchor rides the filtered
+/// rows, D-M6-4-3's pure-predicate ruling).
+public enum StackDisplayMode: Sendable, Equatable {
+    case flat
+    case collapsed
+}
+
+/// One image's stack membership as the badge/fixup consumers read it
+/// (KD-5): the owning stack, this row's position (0 = the cover), the
+/// stack's size and collapsed flag — ONE JOIN round-trip for a page.
+public struct StackMembership: Sendable, Equatable {
+    public let stackID: Int64
+    public let position: Int64
+    public let size: Int
+    public let collapsed: Bool
+
+    public init(
+        stackID: Int64, position: Int64, size: Int, collapsed: Bool
+    ) {
+        self.stackID = stackID
+        self.position = position
+        self.size = size
+        self.collapsed = collapsed
+    }
+}
+
 public actor LibraryQueries {
 
     /// The KD-3 library sort whitelist (the five legal keys — `scanEpoch`
@@ -188,44 +218,64 @@ public actor LibraryQueries {
 
     /// One keyset page over the ordering index. `anchor = nil` = the first
     /// page. A sort key outside the library whitelist is a typed rejection.
+    /// `stackMode` defaults `.flat` — the SQL is byte-identical to the
+    /// pre-stacks face on every existing call site (MCP PhotoProjection /
+    /// filmstrip / the semantic full walk ride the default).
     public func searchPage(
         filter: ExifSearchFilter = ExifSearchFilter(),
         sort: FilterSort,
         anchor: LibraryPageAnchor? = nil,
-        limit: Int = LibraryQueries.defaultPageSize
+        limit: Int = LibraryQueries.defaultPageSize,
+        stackMode: StackDisplayMode = .flat
     ) async throws -> [LibraryImageRow] {
         try Self.validateSortKey(sort.key)
         return try await store.withHandle { handle in
             try Self.runPage(
                 handle, filter: filter, sort: sort, anchor: anchor,
-                limit: limit, nullTail: false)
+                limit: limit, nullTail: false, stackMode: stackMode)
         }
     }
 
     /// The NULL tier of the sort key (rows whose key IS NULL), walked by
     /// `image_path`. The main segment exhausts first; this continues the
     /// collection (every library sort key is nullable — unlike catalog's
-    /// filename — so the tail face is legal for ALL five keys).
+    /// filename — so the tail face is legal for ALL five keys). The stack
+    /// predicate rides BOTH legs (KD-5).
     public func searchNullTail(
         filter: ExifSearchFilter = ExifSearchFilter(),
         sort: FilterSort,
         anchor: LibraryPageAnchor? = nil,
-        limit: Int = LibraryQueries.defaultPageSize
+        limit: Int = LibraryQueries.defaultPageSize,
+        stackMode: StackDisplayMode = .flat
     ) async throws -> [LibraryImageRow] {
         try Self.validateSortKey(sort.key)
         return try await store.withHandle { handle in
             try Self.runPage(
                 handle, filter: filter, sort: sort, anchor: anchor,
-                limit: limit, nullTail: true)
+                limit: limit, nullTail: true, stackMode: stackMode)
         }
     }
 
+    /// The collapsed-mode WHERE predicate (KD-5): hide the non-cover
+    /// members of COLLAPSED stacks. Pure predicate — no filter-fragment
+    /// surgery, no alias rewrite, the keyset seek untouched (D-M6-4-3).
+    /// The per-stack `collapsed` flag rides the join (the mixed
+    /// collapsed/expanded grid face — expanded stacks show their members).
+    static let stackCollapsedPredicate =
+        " AND i.id NOT IN (SELECT sc.image_id FROM stack_content sc"
+            + " JOIN stacks s ON s.id = sc.stack_id"
+            + " WHERE s.collapsed != 0 AND sc.position > 0)"
+
     private static func runPage(
         _ handle: SQLiteHandle, filter: ExifSearchFilter, sort: FilterSort,
-        anchor: LibraryPageAnchor?, limit: Int, nullTail: Bool
+        anchor: LibraryPageAnchor?, limit: Int, nullTail: Bool,
+        stackMode: StackDisplayMode
     ) throws -> [LibraryImageRow] {
         var sql = "SELECT \(rowSelectColumns) FROM images i "
         var binds = try Self.appendFilterLeg(&sql, filter)
+        if case .collapsed = stackMode {
+            sql += Self.stackCollapsedPredicate
+        }
         if nullTail {
             sql += " AND i.\(sort.key.column) IS NULL"
             if let anchor {
@@ -266,6 +316,115 @@ public actor LibraryQueries {
             rows.append(readRow(statement))
         }
         return rows
+    }
+
+    // MARK: - Stack reads (KD-5, M6-4-01)
+
+    /// The stack memberships of the given ids in ONE JOIN round-trip — the
+    /// grid badge + the fixup's single data source. ids absent from every
+    /// stack are absent from the map.
+    public func stackMemberships(
+        ids: [Int64]
+    ) async throws -> [Int64: StackMembership] {
+        guard !ids.isEmpty else { return [:] }
+        return try await store.withHandle { handle -> [Int64: StackMembership] in
+            let placeholders = ids.map { _ in "?" }.joined(separator: ",")
+            let statement = try handle.prepare("""
+                SELECT sc.image_id, sc.stack_id, sc.position, s.collapsed, \
+                (SELECT COUNT(*) FROM stack_content c2 \
+                WHERE c2.stack_id = sc.stack_id) \
+                FROM stack_content sc JOIN stacks s ON s.id = sc.stack_id \
+                WHERE sc.image_id IN (\(placeholders))
+                """)
+            for (index, id) in ids.enumerated() {
+                try statement.bindInt(Int32(index + 1), id)
+            }
+            var memberships: [Int64: StackMembership] = [:]
+            while try statement.step() {
+                guard let imageID = statement.columnInt(0),
+                    let stackID = statement.columnInt(1),
+                    let position = statement.columnInt(2)
+                else { continue }
+                memberships[imageID] = StackMembership(
+                    stackID: stackID, position: position,
+                    size: Int(statement.columnInt(4) ?? 0),
+                    collapsed: (statement.columnInt(3) ?? 0) != 0)
+            }
+            return memberships
+        }
+    }
+
+    /// The rows for the given ids, in the GIVEN order (the fixup's bounded
+    /// supplemental pull). Ids with no row drop out (the deletion race).
+    public func rows(byIDs ids: [Int64]) async throws -> [LibraryImageRow] {
+        guard !ids.isEmpty else { return [] }
+        return try await store.withHandle { handle -> [LibraryImageRow] in
+            let placeholders = ids.map { _ in "?" }.joined(separator: ",")
+            let statement = try handle.prepare(
+                "SELECT \(Self.rowSelectColumns) FROM images i"
+                    + " WHERE i.id IN (\(placeholders))")
+            for (index, id) in ids.enumerated() {
+                try statement.bindInt(Int32(index + 1), id)
+            }
+            var byID: [Int64: LibraryImageRow] = [:]
+            while try statement.step() {
+                let row = Self.readRow(statement)
+                byID[row.id] = row
+            }
+            return ids.compactMap { byID[$0] }
+        }
+    }
+
+    /// The position-ordered member id lists for the given stacks (the
+    /// fixup's gather source). Additive to the KD-5 list — the fixup needs
+    /// the full member set of a stack, which `stackMemberships(ids:)`
+    /// cannot see for ids OUTSIDE the page (DECISIONS-registered).
+    public func stackMembers(
+        ofStacks stackIDs: [Int64]
+    ) async throws -> [Int64: [Int64]] {
+        guard !stackIDs.isEmpty else { return [:] }
+        return try await store.withHandle { handle -> [Int64: [Int64]] in
+            let placeholders = stackIDs.map { _ in "?" }.joined(separator: ",")
+            let statement = try handle.prepare(
+                "SELECT stack_id, image_id FROM stack_content"
+                    + " WHERE stack_id IN (\(placeholders))"
+                    + " ORDER BY stack_id, position")
+            for (index, id) in stackIDs.enumerated() {
+                try statement.bindInt(Int32(index + 1), id)
+            }
+            var members: [Int64: [Int64]] = [:]
+            while try statement.step() {
+                guard let stackID = statement.columnInt(0),
+                    let imageID = statement.columnInt(1)
+                else { continue }
+                members[stackID, default: []].append(imageID)
+            }
+            return members
+        }
+    }
+
+    /// One summary row per stack: id, member count, collapsed flag
+    /// (KD-5's optional face — statistics/menu consumers).
+    public func stackOverviews()
+        async throws -> [(stackID: Int64, size: Int, collapsed: Bool)]
+    {
+        try await store.withHandle { handle in
+            let statement = try handle.prepare("""
+                SELECT s.id, COUNT(sc.image_id), s.collapsed \
+                FROM stacks s LEFT JOIN stack_content sc ON sc.stack_id = s.id \
+                GROUP BY s.id ORDER BY s.id
+                """)
+            var overviews: [(stackID: Int64, size: Int, collapsed: Bool)] = []
+            while try statement.step() {
+                if let id = statement.columnInt(0) {
+                    overviews.append((
+                        stackID: id,
+                        size: Int(statement.columnInt(1) ?? 0),
+                        collapsed: (statement.columnInt(2) ?? 0) != 0))
+                }
+            }
+            return overviews
+        }
     }
 
     // MARK: - Counts and aggregates (KD-4)
