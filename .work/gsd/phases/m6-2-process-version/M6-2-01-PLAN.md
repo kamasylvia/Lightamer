@@ -18,14 +18,14 @@ files_modified:
   - App/Sources/Lightamer/State/PipeCoordinator.swift               # 修改：load 腿双分支 prime（有档 = document.process ?? .legacy 载体恢复；pristine 无档 = RenderProcessVersion.current mint 盖章——「盘上无 sidecar，imageID mint 同批」判据）+ makeSidecarDocument 写值（carrier legacy → nil 键 ABSENT；非 legacy → 原值含前向大号，KD-4）
   - LightamerCore/Sources/Library/ImportService.swift               # 修改：mintProvenanceSidecar(:675) AI 副本出生档盖章 process = current（§3.7 表行兑现）
   - LightamerCore/Sources/Stack/StackMergeService.swift             # 修改：两出生点（HDR :2220 / Mertens+Pano :2676）产物 sidecar 盖章 process = current
-  - LightamerCore/Sources/Session/SessionBatchApplier.swift         # 修改：pristine 臂（无档分支）新档盖章 current；既有档臂经 decode round-trip 原值自动保全（零改）
+  - LightamerCore/Sources/Session/SessionBatchApplier.swift         # 修改：pristine 臂（无档分支）新档盖章 current；既有档臂非 round-trip（:100-106 字段挑选重建只提 5 字段，:136-144 两臂共汇全新档构造）——+2 行 additive 显式携带 process（局部提升 existingProcess + 构造点分支条件盖章，禁 `?? .current`，KD-7）
   - LightamerCore/Sources/Session/MetadataService.swift             # 修改：pristine 臂同上；既有档臂零改
   - Tests/LightamerTests/SidecarV10Tests.swift                      # 新建（LIB，15 法，FilmSidecarTests 同位同力学）：byte-face 三档 + lenient 全表 + hash isolation + 归一化 + FUTURE-version + 版本/预设不携带负测 + 账本/钳制表（G1 门 + G4 损坏值门）
   - Tests/LightamerTests/RenderProcessSeamTests.swift               # 新建（LAYERS，8 法，DrtTailTests 同位 pipe harness）：IOPiece stamp 贯通 + G2 三式（冻结门/分叉可见门/缺键=legacy 臂）+ G3 零行为门（0/1 逐位恒等）+ 缓存键面零变化 + 前向大号 pipe 面不降级
   - Tests/LightamerTests/ProcessVersionCarrierTests.swift           # 新建（APP，8 法，SidecarV5Tests 同位真 load 链）：mint 门/legacy 保全/前向大号保全/corrupt 档/undo+swap 零触/Copy Adjustments 不携带/关图重开幂等/workspace 缺席面（G4 门）
   - Tests/LightamerTests/StackMergeServiceTests.swift               # 修改：+2 法（HDR 臂 / Mertens-Pano 臂产物 `.lra` 含 "process": 1）
   - Tests/LightamerTests/ImportServiceTests.swift                   # 修改：+1 法（AI 副本出生档 process=1）
-  - Tests/LightamerTests/SessionBatchApplierTests.swift             # 修改：+1 法（pristine 臂 =1 + 既有档臂原值保全）
+  - Tests/LightamerTests/SessionBatchApplierTests.swift             # 修改：+1 法（pristine 臂 =1 + 既有档臂三态一法覆盖：legacy 保 ABSENT / process=1 保全 / 前向 7 保全）
   - Tests/LightamerTests/MetadataServiceTests.swift                 # 修改：+1 法（pristine mint =1 + 既有档保全）
   - Project.swift                                                   # 修改：三新测试文件登记对应 target 数组（显式清单无 glob）+ `tuist generate` 恒为该批最后一个动作（L041）
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt      # 修改：三新行登记 + 四既有行 method 数更新（E2 纪律，随各自任务 commit）
@@ -33,12 +33,23 @@ files_modified:
   - .work/gsd/ROADMAP.md                                            # 修改：M6-2 行 ✅（T6 收口同批）
   - .work/gsd/REQUIREMENTS.md                                       # 修改：M6INT-01 兑现终态注记（T6）
   - .work/gsd/phases/m6-2-process-version/M6-2-01-SUMMARY.md        # 新建（T6）
-  - .work/gsd/phases/m6-2-process-version/M6-2-01-DECISIONS.md      # 新建（T6——含 KD 偏差登记 + 出生点盖章字节面影响申报 + 钳制形式正确性注记 + resolving 无生产消费点申报）
+  - .work/gsd/phases/m6-2-process-version/M6-2-01-DECISIONS.md      # 新建（T6——含 KD 偏差登记 + 出生点盖章字节面影响申报 + 钳制形式正确性注记 + resolving 无生产消费点申报 + E1 双登记〔pre-M6-2 SessionBatchApplier 既有档臂文档级字段丢弃缺口明确不修出范围 + process 在本臂的携带 = 显式新增面非自动保全〕+ M1 值类型域门/sidecar 存储门双门分离一行注记 + M4 ProcessProbeModule 测试替身可行性确认）
   - .work/gsd/phases/m6-2-process-version/M6-2-01-ACCEPTANCE.md     # 新建（m1 双重验收记录——zcode PASS 后串行 omp 二次验收，严禁并发）
   - .work/GOAL-STATE.md                                             # 修改：续接点
   - .work/TODO.md                                                   # 修改：M6-2 条目
   - .work/LESSONS.md                                                # 如踩坑
 ---
+
+> checker 回注（2026-10-14）：E1 修复批 front-matter 三行同批修订——①
+> `SessionBatchApplier.swift` 行：既有档臂**非 round-trip**（:100-106 只从
+> decode 出的 document 提取 5 字段；:136-144 pristine/既有两臂共汇
+> `LightamerSidecar(` 全新档构造），「decode round-trip 原值自动保全（零改）」
+> 原文与源码事实相反，改写为 +2 行 additive 显式携带（分支条件盖章，KD-7）；
+> ②`SessionBatchApplierTests.swift` 行：既有档臂测试意图不变、改三态一法
+> 覆盖（legacy ABSENT / process=1 保全 / 前向 7 保全），法数仍 +1；③
+> DECISIONS 行：追加 E1 双登记 + M1 双门注记 + M4 可行性确认。逐节细则见
+> KD-7 / T4 / T6 各节回注。依据 = `M6-2-CHECKER.md`（E1/M1/M2/M4，源码
+> file:line 为 2026-10-16 HEAD `c4ff891e` 亲核）。
 
 # Plan M6-2-01 — per-photo process version（单 plan 全量批）
 
@@ -217,10 +228,32 @@ M6-2 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
   :2676 Mertens+Pano——产物档恒新档）；⑤`SessionBatchApplier`（:126-140 pristine
   臂）+ `MetadataService`（:202-215 pristine 臂）——后两处同语义补盖（新建档 =
   本 build 产物，不留「出生即 legacy」的无法溯源类；legacy Session 域语义一致化）。
-  **既有档 read-modify-write 臂零改**（decode→encode round-trip 经 KD-2 canonical
-  形自动原值保全/legacy 恒 ABSENT）。字节面影响申报：Session 两 writer 的 mint 臂
+  **既有档臂分 writer 而论**：`MetadataService` 既有档臂**零改**（`mutate(&document)`
+  :186-189 = 真 inout round-trip，既有字段含 process 全保——KD-2 canonical 形自动
+  原值保全/legacy 恒 ABSENT）；`SessionBatchApplier` 既有档臂**非 round-trip**——
+  :100-106 只从 decode 出的 document 提取 5 字段（`history`/`instances`/
+  `decodeParamsHash`/`imageID`/`decoderVersionUsed`），随后与 pristine 臂共汇
+  :136-144 同一 `LightamerSidecar(` 构造点重建**全新档**（文档级 additive 字段
+  `provenance`/`rawOverrides`/`displayTransform`/`versions`/`activeVersionID`/
+  `aiProvenance`/`filmRecord` 在既有档 batch apply 时今日已被静默丢弃——pre-M6-2
+  数据保真缺口，M6-2 不修，DECISIONS 出范围登记）——process 须**显式携带**：
+  :100-106 臂内把 `document.process` 提升为局部
+  `existingProcess: RenderProcessVersion?`，构造点盖章走**分支条件式**（pristine
+  臂 → `.current`；既有档臂 → `existingProcess`——nil = legacy = ABSENT，原值含
+  前向大号照搬）。**禁用跨臂共享 `document.process ?? .current` 形**（nil 撞上
+  `?? .current` = 给 legacy 既有档 mint，违反 OQ-1「永不被动升级」）。
+  SessionBatchApplier 因此**不是零改**（+2 行 additive：一局部一参数）。
+  字节面影响申报：Session 两 writer 的 mint 臂
   产物新增 `"process": 1` 键（新档，非既有档漂移）——若既有测试钉其全字节 →
   定向修 + DECISIONS 申报（G4 范围内行为变化）。
+
+> checker 回注（2026-10-14）：E1——原文「既有档 read-modify-write 臂零改
+> （decode→encode round-trip 经 KD-2 canonical 形自动原值保全）」把
+> MetadataService 的真 round-trip 形（`mutate(&document)` :186-189）错误外推到
+> SessionBatchApplier（实为 :100-106 字段挑选重建非 round-trip，:136-144 两臂
+> 共汇全新档构造），已改写为分 writer 表述 + 分支条件盖章处方（禁
+> `?? .current`）+ pre-M6-2 字段丢弃缺口出范围注记。依据 =
+> `M6-2-CHECKER.md` E1 节源码亲核。
 
 ## read_first
 
@@ -335,13 +368,21 @@ M6-2 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
 ### T4 出生点盖章（KD-7）
 
 - read_first 7 → ImportService + StackMergeService×2 + SessionBatchApplier
-  pristine 臂 + MetadataService pristine 臂，`process: .current` 显式盖章
-  （additive 一参/处）。
+  两臂（pristine 臂 `.current` 盖章 + 既有档臂显式携带，KD-7 分支条件式）+
+  MetadataService pristine 臂（`.current` 显式盖章，additive 一参/处；Metadata
+  既有档臂零改——真 round-trip）。
 - 验收：additive 5 法——`StackMergeServiceTests`（IOP）+2（HDR 臂 / Mertens-Pano
   臂产物 `.lra` JSON 含 `"process": 1`）+ `ImportServiceTests`（LIB）+1（AI 副本
   出生档 =1）+ `SessionBatchApplierTests`（SESS）+1（pristine 臂 =1 + 既有档臂
-  原值保全）+ `MetadataServiceTests`（LIB）+1（pristine mint =1 + 既有档保全）。
+  三态一法覆盖：legacy 保 ABSENT / process=1 保全 / 前向 7 保全——分支条件盖章
+  后可测）+ `MetadataServiceTests`（LIB）+1（pristine mint =1 + 既有档保全）。
   既有 mint 臂字节断言若浮出 → 定向修 + 申报（KD-7 预登记）。
+
+> checker 回注（2026-10-14）：E1——原文「既有档臂原值保全（零改前提下）」不可
+> 实现（SessionBatchApplier 既有档臂非 round-trip），已改写为分支条件盖章前提
+> 下的三态测试意图（pristine =1 / 既有档 legacy 保 ABSENT / process=1 保全 /
+> 前向 7 保全），测试意图不变、修订后可测。依据 = `M6-2-CHECKER.md` E1 处方
+> 第 2 步。
 
 ### T5 红线自证 + 文档同步（KD-6/KD-7 程序面）
 
@@ -359,13 +400,35 @@ M6-2 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-14 用户回�
 
 - SUMMARY（任务序/bundle 分账/对账链）+ DECISIONS（KD 偏差/出生点字节面影响申报/
   钳制形式正确性注记〔M6-2 时点钳制目标 == legacy 行为，无观感差异——诚实申报〕/
-  resolving 无生产消费点申报〔KD-5〕/coordinator 传值接线挂账）+
+  resolving 无生产消费点申报〔KD-5〕/coordinator 传值接线挂账/**E1 双登记**
+  〔①pre-M6-2 数据保真缺口：SessionBatchApplier 既有档 batch apply 臂今日已静默
+  丢弃文档级 additive 字段（provenance/rawOverrides/displayTransform/versions/
+  activeVersionID/aiProvenance/filmRecord）——明确 M6-2 不修（范围纪律），挂观察
+  项待未来 fix batch；②process 在本臂的携带 = M6-2 显式新增面（局部提升 + 分支
+  条件盖章），非「自动保全」〕/**M1 双门分离注记**〔值类型域门
+  `RenderProcessVersion.init?(rawValue:)` = `0...0xFFFF_FFFF`（含 0 = legacy
+  哨兵）；sidecar 存储值 decode 域门 = `1...0xFFFF_FFFF`（stored-0/null/损坏 →
+  nil 归一 ABSENT）——执行期不得照 OQ-3 散文表「合法域 = 0..2^32−1」把 stored-0
+  保留为 0，KD-2 的 stored-0 归一化钉死面优先〕/**M4 ProcessProbeModule 可行性
+  确认**〔`IOPModule.process(... piece: inout IOPiece)`（IOPModule.swift
+  :125-130）+ `IOPiece` public struct（IOPiece.swift :30）+ `RenderProcessVersion`
+  落 `LightamerCore/Sources/Pipe/` 与 IOPiece 同模块——T2 测试替身读
+  `piece.renderProcess` 可见性无碍，TestGainModule test-local 先例在案〕）+
   `M6-2-01-ACCEPTANCE.md`（双重验收：zcode subagent 独立验收 PASS 后 → **串行**
   omp 二次验收，严禁并发——computer-use 单实例；FAIL 回注修复批后重走验收）。
-- 验收：定向轮 `--bundle LIB/LAYERS/APP/IOP/SESS` 全绿（exit 0 + 零 MEMFAIL，SC
-  分账对表）；**申请全套 `--all` 批准轮**（预期 3721..3727/24/0，基线 3689/24/0
-  亲核在 plan 头）；ROADMAP M6-2 行 ✅ + REQUIREMENTS M6INT-01 兑现注记 + TODO
-  翻账同批。
+- 验收：定向轮 `--bundle Library/Layers/App/IOP/Sessions` 全绿（exit 0 + 零
+  MEMFAIL，SC 分账对表；拼写 = `Scripts/test-direct.sh` 注册表
+  `BUNDLES=(IOP IOPParity Layers Library Sessions Export App)` :165——散文缩写
+  LIB/LAYERS/APP/SESS 不入命令行）；**申请全套 `--all` 批准轮**（预期
+  3721..3727/24/0，基线 3689/24/0 亲核在 plan 头）；ROADMAP M6-2 行 ✅ +
+  REQUIREMENTS M6INT-01 兑现注记 + TODO 翻账同批。
+
+> checker 回注（2026-10-14）：①M2——T6 定向轮命令原文缩写
+> `LIB/LAYERS/APP/IOP/SESS` 改为注册表拼写 `Library/Layers/App/IOP/Sessions`
+> （执行命令须过 `test-direct.sh` case 匹配；散文缩写仍是 BUNDLE-MAP/m6-1 既定
+> 词汇，AC8/正文分账不改）；②DECISIONS 登记面扩容 = E1 双登记 + M1 双门注记 +
+> M4 可行性确认（checker 处置摘要 1/2 步 + M1/M4 处方）。依据 =
+> `M6-2-CHECKER.md` E1/M1/M2/M4 节。
 
 ## 验收标准（AC 总表）
 
