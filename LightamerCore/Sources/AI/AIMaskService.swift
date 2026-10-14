@@ -211,7 +211,31 @@ public enum AIMaskService {
     private static func labelCompositeMask(
         from catalog: AIInstanceCatalog, instances: IndexSet
     ) throws -> AIMaskPlane {
-        return try catalog.observation.allInstancesMask.pixelBuffer.withUnsafeBuffer { buffer -> AIMaskPlane in
+        try labelComposite(
+            labelBuffer: catalog.observation.allInstancesMask.pixelBuffer,
+            instances: instances)
+    }
+
+    /// The observation-type-agnostic LABEL COMPOSITE (Plan M6-4-02 T3, E2
+    /// parameterization of 07-1's layer-A leg): label ∈ `instances` → 1,
+    /// else 0, at the LABEL MAP's resolution (bake-time upsample is the
+    /// caller's, via AIMaskResample). The input is the label-map pixel
+    /// buffer (the `CVReadOnlyPixelBuffer` face — tests bridge synthetic
+    /// `CVPixelBuffer` fixtures through `init(unsafeBuffer:)`, so the
+    /// extraction leg is unit-testable with zero Vision execution and zero
+    /// entitlement, R4's extension). Any request whose observation is an
+    /// InstanceMaskObservation shares this leg (layer A AND the
+    /// person-instance family; the person instance IS a label in the map).
+    /// `generateScaledMask` stays DISABLED for every consumer of this leg
+    /// (macOS 27.0b double corruption — subset semantics + geometry
+    /// offset, 07-1 D-07-1-T2-4; the upgrade seam note lives on
+    /// `scaledMask` below). Label 0 = background, always excluded; a
+    /// selection covering no pixels = typed `invalidMask` (never an empty
+    /// plane).
+    static func labelComposite(
+        labelBuffer: CVReadOnlyPixelBuffer, instances: IndexSet
+    ) throws -> AIMaskPlane {
+        try labelBuffer.withUnsafeBuffer { buffer -> AIMaskPlane in
             CVPixelBufferLockBaseAddress(buffer, [])
             defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
             let width = CVPixelBufferGetWidth(buffer)
@@ -439,6 +463,165 @@ public enum AIMaskService {
                 "pin refused: \(name) exposes no compute-device API (legacy Vision request)")
         }
     }
+
+    // MARK: - Person instance masks (Plan M6-4-02 T3, KD-2)
+
+    /// Detect person instances (`GeneratePersonInstanceMaskRequest`,
+    /// macOS 15+ struct API — OS-built-in, offline, NO download gate:
+    /// unlike layer B the `assets` parameter of the one-shot leg is NOT
+    /// consumed, the signature keeps the AI-service call-shape symmetry
+    /// only). Returns the SAME `AIInstanceCatalog` carrier layer A uses —
+    /// both requests observe `InstanceMaskObservation`, and the extraction
+    /// leg below is observation-type-agnostic (E2), so the 07-3 checkbox
+    /// overlay and the selection faces reuse verbatim.
+    ///
+    /// Zero instances = typed `AIMaskError.noSubject` (never an all-ones
+    /// plane — the generation-failure discipline).
+    public static func detectPersonInstances(
+        input: AIMaskInput,
+        device: AIDevicePolicy = .anePreferred
+    ) async throws -> AIInstanceCatalog {
+        let request = try buildPersonInstanceRequest(device: device)
+        let handler = ImageRequestHandler(input.ciImage)
+        do {
+            guard let observation = try await handler.perform(request),
+                  !observation.allInstances.isEmpty
+            else {
+                throw AIMaskError.noSubject
+            }
+            return AIInstanceCatalog(
+                instances: observation.allInstances.sorted(),
+                observation: observation, handler: handler)
+        } catch let error as AIMaskError {
+            throw error
+        } catch {
+            throw AIMaskError.inferenceFailed(String(describing: error))
+        }
+    }
+
+    /// The person-instance request assembly face (buildLayerBRequest
+    /// precedent): the revision is PINNED `.revision1` (the only member of
+    /// supportedRevisions on this OS — the runtime probe is a DECISIONS
+    /// declaration; the request carries no quality surface, interface
+    /// verified); the device pin follows the LAYER-A form (validated
+    /// against the request's own supported map FIRST — the trap guard).
+    static func buildPersonInstanceRequest(
+        device: AIDevicePolicy
+    ) throws -> GeneratePersonInstanceMaskRequest {
+        var request = GeneratePersonInstanceMaskRequest(.revision1)
+        try apply(device, to: &request)
+        return request
+    }
+
+    /// Apply the policy to a person-instance request (the layer-A form:
+    /// a validated pin is LEGAL here — this request exposes the
+    /// compute-device API, unlike the legacy person/faces requests; the
+    /// RESEARCH B2 probe reports main = [ane, gpu, cpu]).
+    static func apply(
+        _ policy: AIDevicePolicy, to request: inout GeneratePersonInstanceMaskRequest
+    ) throws {
+        guard let device = try pinnedDevice(policy) else { return }
+        let supported = request.supportedComputeStageDevices[.main] ?? []
+        guard supported.contains(where: { sameDevice($0, device) }) else {
+            throw AIMaskError.deviceUnavailable(
+                "pin rejected: device not in the person-instance " +
+                    "supportedComputeStageDevices (\(supported.map(\.description)))")
+        }
+        request.setComputeDevice(device, for: .main)
+        request.setComputeDevice(device, for: .postProcessing)
+    }
+
+    /// One-shot person-instance leg: the per-instance planes in observation
+    /// order (sorted instance indices — deterministic), each extracted
+    /// through the LABEL COMPOSITE at the label map's resolution (E2 — the
+    /// bake-time upsample is the caller's existing seam).
+    public static func personInstanceMasks(
+        input: AIMaskInput,
+        device: AIDevicePolicy = .anePreferred,
+        assets: AIAssetStore = .shared
+    ) async throws -> [AIMaskPlane] {
+        // `assets` intentionally unconsumed: the person-instance model
+        // ships with the OS (no DownloadableAssetsRequest — the layer-B
+        // three-state gate does not apply to this family).
+        _ = assets
+        let catalog = try await detectPersonInstances(input: input, device: device)
+        return try catalog.instances.map { instance in
+            try personInstancePlane(from: catalog, instance: instance)
+        }
+    }
+
+    /// One instance's plane: label ∈ {instance} → 1 else 0, at the label
+    /// map's resolution (E2: `generateScaledMask`'s double corruption —
+    /// subset semantics + geometry offset, 07-1 D-07-1-T2-4 — keeps the
+    /// person family on the label composite too; the disabled-seam note
+    /// lives on `subjectMask`/`scaledMask` above).
+    public static func personInstancePlane(
+        from catalog: AIInstanceCatalog, instance: Int
+    ) throws -> AIMaskPlane {
+        guard catalog.instances.contains(instance) else {
+            throw AIMaskError.invalidInput(
+                "person instance \(instance) not in catalog \(catalog.instances)")
+        }
+        return try labelComposite(
+            labelBuffer: catalog.observation.allInstancesMask.pixelBuffer,
+            instances: IndexSet([instance]))
+    }
+
+    /// The selected instances' MAX union = ONE plane (the 07-3 checkbox
+    /// confirm payload — `AIInstanceSelection` reuse). `.all` = every
+    /// instance; `.subset` = the picked ones (an unknown index = typed
+    /// invalidInput); an EMPTY selection = typed `noSubject` (nothing was
+    /// asked for — never an empty/all-ones plane).
+    public static func personInstanceMask(
+        from catalog: AIInstanceCatalog, selection: AIInstanceSelection
+    ) throws -> AIMaskPlane {
+        try unionSelection(
+            selection, instances: catalog.instances
+        ) { instance in
+            try personInstancePlane(from: catalog, instance: instance)
+        }
+    }
+
+    /// The max-union selection core (the pure/testable seam — production
+    /// closes `extract` over the catalog; the tests close it over synthetic
+    /// planes). Selection resolution + per-instance max-fold live here.
+    static func unionSelection(
+        _ selection: AIInstanceSelection,
+        instances: [Int],
+        extract: (Int) throws -> AIMaskPlane
+    ) throws -> AIMaskPlane {
+        let picked: [Int]
+        switch selection {
+        case .all:
+            picked = instances
+        case .subset(let set):
+            let known = Set(instances)
+            for index in set where !known.contains(index) {
+                throw AIMaskError.invalidInput(
+                    "person instance \(index) not in catalog \(instances)")
+            }
+            guard !set.isEmpty else { throw AIMaskError.noSubject }
+            picked = set.sorted()
+        }
+        var result: AIMaskPlane?
+        for instance in picked {
+            let plane = try extract(instance)
+            result = result.map { maxPlane($0, plane) } ?? plane
+        }
+        guard let union = result else { throw AIMaskError.noSubject }
+        return union
+    }
+
+    /// The pixel-wise max of two equally-shaped planes (the union
+    /// primitive for hard 0/1 label planes; max(0,a)∪max(0,b) identity).
+    private static func maxPlane(_ a: AIMaskPlane, _ b: AIMaskPlane) -> AIMaskPlane {
+        precondition(a.width == b.width && a.height == b.height,
+                     "maxPlane needs equally-shaped planes")
+        var floats = a.floats
+        for i in floats.indices where b.floats[i] > floats[i] { floats[i] = b.floats[i] }
+        return AIMaskPlane(width: a.width, height: a.height, floats: floats)
+    }
+
 
     /// The IOP-side provider seam (SkinRegionLocator's
     /// VisionFaceLandmarkProvider) — the pin-refusal guard, public for the

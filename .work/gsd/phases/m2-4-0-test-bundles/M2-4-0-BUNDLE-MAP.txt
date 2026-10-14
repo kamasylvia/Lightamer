@@ -291,6 +291,8 @@ APP	6	ColorMatchPanelModelTests.swift
 LAYERS	9	AIPatchAssemblyTests.swift
 #   M6-4-02 T2（2026-10-14，登记随文件同 commit）：羽化映射 + logit-gain 负腿 6 法入 LAYERS。
 LAYERS	6	AIMaskFeatherTests.swift
+#   M6-4-02 T3（2026-10-14，登记随文件同 commit）：人物实例 5 法入 LAYERS（合成 label-buffer fixture，零 entitlement）。
+LAYERS	5	PersonInstanceMaskTests.swift
 LAYERS	10	AIMaskSemanticTests.swift
 LAYERS	10	LayerCacheTests.swift
 LAYERS	10	LayerCompositeTests.swift
