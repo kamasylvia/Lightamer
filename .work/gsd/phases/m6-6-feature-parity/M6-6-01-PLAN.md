@@ -6,13 +6,13 @@ wave: 1
 depends_on: []
 autonomous: true
 requirements: ["M6INT-04（REQUIREMENTS M6 族——FEATURE-MAP ID 化 parity 清单 + CI 对账门）", "ROADMAP §M6-6 行（裁决⑥ + M6 VALIDATION 收口 + 编排偏差登记落收口段）", "M6-5-VALIDATION §挂账单一清单（N-1 rider ② + 其余五项处置见 CONTEXT §2 D7）"]
-estimated_tests: "+0（ΔN = 0——零 Swift 测试面；T2 rider 纯 xcstrings 三键；N-1 清偿后 zh-audit --check 断言 5 三键 ABSENT → PRESENT 转绿）"
+estimated_tests: "+0（ΔN = 0——零 Swift 测试面；T2 rider 纯 xcstrings 三键；N-1 清偿后 zh-audit --check 前后 PASS 恒定 + catalog keys 1926→1929 + grep 三 %lld 变体键在册〔断言 5 不扫 Text 族——V16 限定在册，无 ABSENT→PRESENT 可观测态，评审 F1〕）"
 test_bundles: []
 baseline: "3848/24/0（M6-5 三路实测，2026-10-16；对账基线单一实测口径在案）"
 expected_all: "3848/24/0（ΔN = 0——本批零 Swift 触碰；对账式 = M6-5 实测 + 0；任何 ΔN≠0 或 fail = 停手上报）"
 success_criteria:
   - "SC1 uv run python3 Scripts/parity-audit.py --check exit 0（A1-A6 零违规，含 id 唯一性）"
-  - "SC2 uv run python3 Scripts/parity-audit.py --self-test PASS（红绿 golden：坏 id 形 / 重复 id / 非法状态 / 缺失 src 路径各 ≥1 红例 + 1 净例 + 公开树分支〔.work 缺席〕例）"
+  - "SC2 uv run python3 Scripts/parity-audit.py --self-test PASS（红绿 golden：坏 id 形 / 重复 id / 非法状态 / 缺失 src 路径各 ≥1 红例 + 1 净例 + 公开树分支〔.work 缺席——--tree-root 注入缝打确定性形态，评审 F5〕例）"
   - "SC3 docs/parity-checklist.md gaps 块行数 ≥ 10（T3 transcript 记 SUMMARY）"
   - "SC4 .github/workflows/ci.yml 含 parity job（ubuntu-latest + parity-audit --check）；裸 python3 形态本地 PASS"
   - "SC5 全套 --all TOTAL|3848/24/0|（ΔN=0；build-for-testing 前置；异常停手上报）"
@@ -41,6 +41,20 @@ files_modified:
 > Project.swift 零 diff（Scripts 与 docs 不入 tuist 登记面，无需
 > tuist generate）**。行措辞纪律：checklist 我方语言转写，零 Alcedo
 > prose 复制（GPL-3.0 只读红线）；`docs/` 树文件全英文（公开树纪律）。
+
+> **修订（2026-10-16，评审同批带入；review 正本 = `M6-6-01-PLAN-REVIEW.md`，
+> verdict 须修后放行）**：F1 须修——rider 三处 AC 改可观测判据
+> （`zh-audit --check` 前后 PASS 恒定 + catalog keys 1926→1929 + grep
+> 三 `%lld` 变体在册；删「断言 5 ABSENT→PRESENT / 27 键」不可观测表述，
+> front-matter / T2 AC / red_lines 三处同口径）；F2——EXR 统一归 V2
+> （ALCE-02 原位注记 + V2-PROPOSAL OQ-V2-5 锚；D2 语义内部勘误，不入
+> OOS）；F3——D7② 改引 M6-5 原文「下一清算批候选」+ T4 VALIDATION
+> 登记「提前清偿」偏差；F4——T1 唯一性 grep `{3,4}`→`{3,5}`（SHELL
+> 5 字母域）；F5——self-test 公开树分支加 `--tree-root` 注入缝；
+> F6-F9 注记逐条落位（§2.6 归 DRT 域 + 增量节对表、`:line` 纪律头注、
+> `doc:` 公开树知情申报、引言区措辞、rg 替 `grep -P`、tags 注记、
+> STATE :117 陈旧行勘误、R4 ruby fallback）。CONTEXT 同批改
+> D2/D4/D7②/§1.6。
 
 # Plan M6-6-01 — FEATURE-MAP ID 化 + CI 对账门 + M6 milestone 收口（单 plan）
 
@@ -77,7 +91,13 @@ files_modified:
        prose 正本指针 = `.work/gsd/research/ALCEDO-FEATURE-MAP.md`，
        公开树不可见注记）+ 三词表（Domain 12 码 / Source 3 词 /
        Status 6 词，逐词一句话定义）+ 证据指针两级规则（`src:` 无条件
-       机检 / `doc:` 条件机检 + gitignored 证据域恒 format-only）+
+       机检 / `doc:` 条件机检 + gitignored 证据域恒 format-only；
+       **`:line` 仅用于低波动文件**，高波动文件用路径级指针——行漂移
+       由落该行的同 commit 维护（LightCraft 同款），跨 feature 漂移的
+       CI 噪音成本 = 显式接受并 DECISIONS 申报〔评审 F7〕；
+       **`doc:` 公开树知情申报**——Evidence 列 `.work/` 路径字符串本身
+       公开（内容不公开：公开树排除 `.work/`；phase slug 低敏），取舍
+       显式申报〔评审 F8〕）+
        **id 稳定不重编号**纪律 + 维护纪律（「whoever lands a feature
        updates its row in the same commit」LightCraft 同款 + 账面
        Delivered 优先判定序）。
@@ -85,28 +105,37 @@ files_modified:
        Lightamer-exclusive surface`，节序按 CONTEXT §3 表）：每行
        `| FEAT-<DOM>-NN | <feature, own words> | <Source> | <Status> |
        <Evidence> | <Notes> |`。盘点覆盖 CONTEXT §3 全域；预估
-       120-140 行（粒度合并允许，功能面零遗漏为准绳）。**状态判定 =
+       120-140 行（粒度合并允许，功能面零遗漏为准绳）。**§2.6 Detail
+       面板（Post 四件套 UI）并入 DRT 域**（M2-6 惯例，评审 F6）；
+       survey 附录「上游增量测绘」节逐条对表——已有我方对应件（M4-1
+       raster 输入链 / M3-1 LUT 编码维 / aces20 DRT 等）并入既有域行
+       Notes，无对应件 mint 行或显式注记（防盘点遗漏）。**状态判定 =
        账面优先序**（CONTEXT §1.1）：REQUIREMENTS Delivered 标记 →
        STATE Ledger 终态列 → phase VALIDATION → AGENTS 架构增量节；
        账面沉默面 → Missing 保守侧 + note（R2）。`OOS` 行带裁决锚
-       （Updates 页 = 2026-09-27 渠道终裁 / EXR = ALCE-02 V2 裁决 /
-       Nikon HE 恢复 = CIRAW 路线 / demosaic 算法菜单 = STACK.md
-       不可达注记）；`V2` 行带 V2-PROPOSAL §七 / REQUIREMENTS 锚；
-       `Parked` 行带重启条件锚（IOP-MASK-06 形）。
+       （Updates 页 = 2026-09-27 渠道终裁 / Nikon HE 恢复 = CIRAW
+       路线 / demosaic 算法菜单 = STACK.md 不可达注记）；`V2` 行带
+       V2-PROPOSAL §七 / REQUIREMENTS 锚（**EXR = ALCE-02 原位注记 +
+       V2-PROPOSAL OQ-V2-5 锚**——评审 F2 勘误：EXR 有重启条件属
+       「等条件」归 V2，不入 OOS）；`Parked` 行带重启条件锚
+       （IOP-MASK-06 形）。
      - **两生成标记块占位**：`<!-- parity:summary -->` /
        `<!-- /parity:summary -->` 与 `<!-- parity:gaps -->` /
        `<!-- /parity:gaps -->`（空块占位，T3 `--write` 填充）。
-  2. `.work/gsd/research/ALCEDO-FEATURE-MAP.md` 文件头（front-matter
-     之后的引言区）插入指针段（**纯 additive**）：survey 正本保留
+  2. `.work/gsd/research/ALCEDO-FEATURE-MAP.md` 文件头（标题与头部
+     blockquote 之后的引言区——survey 无 YAML front-matter，评审 F9
+     措辞落点）插入指针段（**纯 additive**）：survey 正本保留
      声明 + checklist 路径 + FEAT id 唯一 mint 点纪律 + 升维日期与
      phase 锚。正文 330 行零改写。
 - **验收标准（机检）**：
   - row 总数 ∈ [100, 160]（grep `^| FEAT-` 计数）；12 域节标题在位。
-  - `FEAT-` id 无重复（`grep -o 'FEAT-[A-Z]\{3,4\}-[0-9]\{2\}' |
-    sort | uniq -d` 零输出）——T2 门落地前的临时自检，T2 后由 A2 承载。
+  - `FEAT-` id 无重复（`grep -o 'FEAT-[A-Z]\{3,5\}-[0-9]\{2\}' |
+    sort | uniq -d` 零输出——`{3,5}` 覆盖 SHELL 5 字母域，评审 F4）
+    ——T2 门落地前的临时自检，T2 后由 A2 承载。
   - Status 列词表内（六词精确匹配；临时 grep 自检）。
-  - checklist 全英文（非 ASCII 抽查：允许行内中文零出现——`grep -P
-    '[\x{4e00}-\x{9fff}]'` 零命中）。
+  - checklist 全英文（非 ASCII 抽查：允许行内中文零出现——
+    `rg -n '[\x{4e00}-\x{9FFF}]' docs/parity-checklist.md` 零命中；
+    macOS BSD grep 无 `-P`，评审 F9）。
   - survey 文件 diff = 纯插入指针段，`git diff --stat` 正文行数不变。
 - **commit**: `docs(m6-6): mint the FEAT-id parity checklist from the Alcedo feature map`
 
@@ -132,9 +161,13 @@ files_modified:
        `--report`（人读：域×状态计数 + gaps 预览）/ `--write`（刷新两
        生成块）/ `--self-test`（golden 红绿：坏 id 形 / 重复 id /
        非法 Status / 缺失 `src:` 路径 各 ≥1 红例 + 1 净例 +
-       **公开树分支例**〔临时树无 `.work/`，A4 走 skip 分支且不误报〕；
+       **公开树分支例**〔`.work/` 缺席态经 `--tree-root` 注入缝打出，
+       A4 走 skip 分支且不误报〕；
        全命中 exit 0）。`--checklist PATH` 覆盖（self-test 用内嵌
-       fixture，不打真件）。
+       fixture，不打真件）+ **`--tree-root PATH` 注入缝**（A4 的
+       `.work/` 存在性判定与 A5 被扫文件根走参数——本仓 `.work/` 恒在，
+       仅换 checklist 路径打不开「`.work/` 缺席」分支，注入缝使公开树
+       分支例确定性可测；zh-audit `--root` 先例同型，评审 F5）。
      - 报告体例照 zh-audit（violations 计数 + 逐条 detail）。
   2. `.github/workflows/ci.yml` 追加 job（**纯 additive，既有两 job
      零触碰**）：
@@ -167,8 +200,11 @@ files_modified:
   - `git diff .github/workflows/ci.yml` = 纯追加 job 块；既有 job 行
     零 diff。
   - `git diff Resources/Localizable.xcstrings` = 恰三键尾块纯插入
-    （SC6）；`uv run python3 Scripts/zh-audit.py --check` PASS 且断言
-    5 三键 ABSENT → PRESENT。
+    （SC6）；`uv run python3 Scripts/zh-audit.py --check` rider 前后
+    **PASS 恒定** + catalog keys **1926→1929** + grep 三 `%lld` 变体键
+    在册（断言 5 不扫 Text 族——M6-5 N-2 V16 限定在册，rider 前后
+    键集 30→30 不变，无 ABSENT 前态可观测；三新键经 `INTERP_PREFIX_RE`
+    进断言 2 rule c 覆盖，评审 F1）。
   - Swift 树零 diff（`git status --short` 无 `*.swift`）。
 - **commit**: `feat(m6-6): add the parity-audit gate script and CI job`
   + rider 单独一笔 `fix(m6-6): add catalog variants for three McpLauncher interpolation keys`
@@ -208,7 +244,10 @@ files_modified:
      （M6-1 3689 / M6-2 3725 / M6-3 3759 / M6-4 3841→核销 3848 链 /
      M6-5 3848 / 本批实测——VALIDATION 正本指针逐行）+ **六裁决兑现
      表**（CONTEXT §2 D6 六行）+ **编排偏差登记落收口段**（裁决⑥
-     「第一个 plan」原文 + 互操作先行编排 + flippable 申报）+
+     「第一个 plan」原文 + 互操作先行编排 + flippable 申报 +
+     **N-1 rider 提前清偿偏差**——M6-5 VALIDATION :124 原文
+     =「→ 下一清算批候选」未点名 M6-6，本批先行属提前处置，挂账表
+     引原文并显式登记，晨审可翻〔评审 F3〕）+
      **铭谢/边界节**（CONTEXT §2 D9 全文落位：LightCraft 方法论铭谢
      零 NOTICE 义务申报 + §1 边界清单 + §4 挂账单一清单六项）+
      授权记录（夜间授权链 + C 档第 3 停形态 + 晨审可推翻）+ 签核节。
@@ -237,7 +276,9 @@ files_modified:
      头部 Milestone 6 段追加 **closed**。
   4. `STATE.md`：front-matter `m6_phases_complete: 7` + current_phase/
      status 翻 M6 closed（milestone 字段与 closed 语义随 M5 收口批
-     先例核对后落）+ M6 Ledger M6-6 行 complete + 终值列。
+     先例核对后落）+ M6 Ledger M6-6 行 complete + 终值列 + Notes
+     陈旧行顺带订正（:117「GitHub repo not yet created」——13-4 已建
+     仓，GOAL-STATE 在案；评审 F9 可选注记兑现）。
   5. `TODO.md`：M6-6 条目 [x]（执行 + 验收 + VALIDATION 摘要，带日期
      历史行只追加）+ M6 头部收官行（六 phase 全闭环 + 挂账移交指针）。
   6. `GOAL-STATE.md`：续接点翻新 = M6 closed → 晨审/主会话队列
@@ -265,8 +306,9 @@ files_modified:
 - UserDefaults 零新键；`\.runModal(` App/Sources 零命中；
   `String.LocalizationValue("` 插值禁形零命中。
 - `*.xcstrings` **除 N-1 三键尾块纯插入外零 diff**（SC6）；
-  `uv run python3 Scripts/zh-audit.py --check` PASS（含 V16 断言 5
-  ABSENT 零命中——N-1 三键转绿后 27 键全 PRESENT）。
+  `uv run python3 Scripts/zh-audit.py --check` PASS 前后恒定（rider
+  三新键经 `INTERP_PREFIX_RE` 进断言 2 rule c 覆盖；断言 5 不扫
+  Text 族——键集 30→30 不变，评审 F1 口径；catalog keys 1926→1929）。
 - 工作树零新增 untracked 源文件；既有三 untracked 兄弟件
   （`M3-1-ACCEPTANCE-PI.md` / `retro-dual/backfill-pi.zsh` /
   `research/dt-clone-archive/`）零触碰零入库。
@@ -279,10 +321,13 @@ files_modified:
   复盘粒度约定再续。
 - R2 状态判定争议 → 账面优先序 + Missing 保守侧；争议行进 DECISIONS
   台账，验收/晨审可翻。
-- R3 双树态 → self-test 公开树分支例强制（T2 AC）；A4/A5 skip 分支
-  报告显式注记（禁静默 skip）。
+- R3 双树态 → self-test 公开树分支例强制（T2 AC，`--tree-root` 注入
+  缝打出）；A4/A5 skip 分支报告显式注记（禁静默 skip）。
 - R4 ci.yml 回归 → 纯 additive diff 审计；YAML 本地校验 + CI 首跑
-  兜底（CONTEXT §6 R4）。
+  兜底（CONTEXT §6 R4）——pyyaml 本地双缺（system python3 与 uv env
+  亲证均无），fallback = `ruby -ryaml -e 'YAML.load_file(
+  ".github/workflows/ci.yml")'`（macOS 自带 ruby，评审 F9）；CI 首跑
+  兜底不变。
 - R5 N-1 键值措辞 → 与既有裸键同文纪律；`--check` PASS 为门，措辞
   争议留走查。
 - R6 --all 异常 → 停手上报（fail / ΔN≠0 / 段和≠TOTAL 三态任一）；

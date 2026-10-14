@@ -23,7 +23,9 @@ status: drafted
 > `.github/workflows/ci.yml`（113 行亲读）；`Scripts/zh-audit.py`
 > （CLI 形态亲读——`--report/--check/--self-test` 三模式 + uv 红线）；
 > `phases/m6-5-ledger-clearing/M6-5-VALIDATION.md`（挂账单一清单六项
-> + 移交语言「移交 M6-6 收口批、GUI 批与晨审」）；`.work/gsd/STATE.md`
+> + 移交语言「移交 M6-6 收口批、GUI 批与晨审」〔:270 汇总句——逐项
+> 处置以挂账清单本体为准，N-1 项级原文 = :124「下一清算批候选」，
+> 见 D7②〕）；`.work/gsd/STATE.md`
 > （M6 Ledger 6/7 正本）；LightCraft 本地仓对照
 > `/Volumes/UNITEK/Documents/Development/lightcraft`（`docs/gaps.md` 排名
 > 清单 + `docs/parity-checklist.md` 逐条 ID 表 + `xtask/src/parity.rs`
@@ -75,8 +77,10 @@ status: drafted
 6. **N-1 顺带清偿（rider）**——M6-5 挂账②：`McpLauncherPanelView.swift`
    :225/:242/:246 三插值键（`mcp_launcher_status_running/done_writes/
    exit_code`）补 `%lld` 目录变体（xcstrings 尾块纯插入，M6-5 T6 同款
-   形）。M6-5 VALIDATION 移交语言点名 M6-6 收口批；S 量级零风险，
-   milestone 收口前清掉一枚已知 zh 活体缺陷（D7）。
+   形）。M6-5 VALIDATION :124 原文 =「→ **下一清算批候选**」（未点名
+   M6-6，评审 F3 勘误）——本批顺带清偿属**提前处置**（T4 VALIDATION
+   挂账表引原文并显式登记该偏差，晨审可翻）；S 量级零风险，milestone
+   收口前清掉一枚已知 zh 活体缺陷（D7）。
 
 **不入范围（边界，随收口显式移交）**：
 
@@ -129,11 +133,13 @@ checklist 是 FEAT id 唯一 mint 点，survey 永不新增 id。
 - **Status 词表（6 态）**：`Delivered | Partial | Missing | V2 | Parked |
   OOS`。任务书推荐五态（Delivered/Partial/Missing/V2/parked），
   **增设 `OOS` 为显式偏离申报**：存在结构性不可达/范围裁减项（Updates
-  页〔2026-09-27 砍苹果渠道终裁〕、Nikon HE 恢复〔CIRAW 路线不可达〕、
-  EXR 导出〔ALCE-02 用户裁决 V2〕）——用 `Parked`（含重启条件语义）
-  表达「暂时不做」会把「永不做」混进「等条件」；拆出 `OOS`（范围外，
-  带裁决锚）两态各得其所。大小写统一（`parked` → `Parked`，词表机检
-  需要精确匹配）。
+  页〔2026-09-27 砍苹果渠道终裁〕、Nikon HE 恢复〔CIRAW 路线不可达〕）
+  ——用 `Parked`（含重启条件语义）表达「暂时不做」会把「永不做」混进
+  「等条件」；拆出 `OOS`（范围外，带裁决锚）两态各得其所。**EXR 导出
+  归 `V2` 不归 OOS**（评审 F2 语义内部勘误：EXR 有重启条件 =
+  V2-PROPOSAL OQ-V2-5 依赖对比再裁，属「等条件」非结构性不可达——
+  锚 = ALCE-02 原位注记 + OQ-V2-5，与 §3 EXP 行「EXR→V2 行」同口径）。
+  大小写统一（`parked` → `Parked`，词表机检需要精确匹配）。
 - 状态判定证据规则：`Delivered` 行必须带 ≥1 证据指针；`Missing` 行必须
   带 note（缺什么一句话）；`V2` 行必须带 V2-PROPOSAL/REQUIREMENTS 锚；
   `Parked` 行必须带重启条件锚（如 IOP-MASK-06 先例）；`OOS` 行必须带
@@ -182,7 +188,9 @@ checklist 是 FEAT id 唯一 mint 点，survey 永不新增 id。
 - **CI 接线**：`.github/workflows/ci.yml` 新增独立 `parity` job
   （`ubuntu-latest`，`python3 Scripts/parity-audit.py --check`，
   timeout 5min）——纯 doc 检查秒级完成，**不占 macos-27 runner、不阻塞
-  build-and-test**；触发面沿用既有 `on:`（push main/PR/dispatch）。
+  build-and-test**；触发面沿用既有 `on:`（push main/PR/tag/dispatch——
+  评审 F9 注记：`on:` 实含 `tags: ['v*']`，tag push 也会跑 parity
+  job，无害）。
 - **CI 有效性申报（非降级）**：CI 存在且本批 additive 接线落地；因
   项目处于 local-only push 态（STATE Notes 在案），**本批门的实质验收 =
   本地 `--check` PASS + job 定义在树**；CI 在线跑绿随下次 push 兑现
@@ -216,7 +224,7 @@ M6-4-01 / ⑥FEATURE-MAP + CI 门 → **本批**。**编排偏差登记落收口
 | # | 挂账项 | M6-6 处置 |
 |---|---|---|
 | ① | minor-1 勘误正本 | **已落**（M6-5 闭环批 VALIDATION §挂账①）——零动作 |
-| ② | N-1 三插值键 → 下一清算批 | **顺带清偿**（本批 T2 rider：三键 `%lld` 变体尾块纯插入；M6-5 VALIDATION 移交语言点名 M6-6 收口批；milestone 收口前清一枚已知 zh 活体） |
+| ② | N-1 三插值键 → 下一清算批 | **顺带清偿（提前清偿偏差，晨审可翻）**（本批 T2 rider：三键 `%lld` 变体尾块纯插入；M6-5 VALIDATION :124 原文 =「→ **下一清算批候选**」，未点名 M6-6〔评审 F3 勘误：旧稿「移交语言点名 M6-6 收口批」系误引〕——本批先行清偿属提前处置，T4 VALIDATION 挂账表引原文并显式登记该偏差；milestone 收口前清一枚已知 zh 活体） |
 | ③ | N-2 V16 门覆盖限定 + V17 候选 | 限定语**已落**（AGENTS M6-5 节）；V17 门扩展**不入本批**（新门 ≠ zh-audit 扩展；候选登记随收口移交机检硬化批） |
 | ④ | Manual-Only 19 行 → 下一 GUI 批 | **不入本批**（GUI 批性质；随 M6 挂账单一清单显式移交，配方在 `gui-acceptance/m6-5/MANIFEST.md`） |
 | ⑤ | V2 九项 + 留置五项指针 | **随收口移交** V2/Maintenance 站（V2-PROPOSAL §七登记 ≠ 立项正本不动） |
