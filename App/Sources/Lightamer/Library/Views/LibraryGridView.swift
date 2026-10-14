@@ -84,6 +84,10 @@ struct LibraryGridView: View {
     var onAIUpscale: ((Int64) -> Void)?
     var onAIDenoise: ((Int64) -> Void)?
 
+    // M6-4-01 (KD-8): the auto-stack confirm dialog (the SwiftUI sheet seam
+    // — L057's runModal ban).
+    @State private var autoStackPresented = false
+
     @State private var pager: LibraryGridPager?
 
     /// The adaptive cell width (the Alcedo thumbnail-grid density intent:
@@ -117,6 +121,11 @@ struct LibraryGridView: View {
                 pager = LibraryGridPager(grid: grid)
             }
         }
+        // M6-4-01 (KD-8): the auto-stack confirm dialog — the sheet seam.
+        .sheet(isPresented: $autoStackPresented) {
+            LibraryAutoStackDialog(
+                model: grid, isPresented: $autoStackPresented)
+        }
     }
 
     private func gridBody(_ pager: LibraryGridPager) -> some View {
@@ -143,11 +152,16 @@ struct LibraryGridView: View {
     }
 
     private func cell(_ row: LibraryImageRow, pager: LibraryGridPager) -> some View {
-        LibraryGridCellView(
+        let stackBadge = grid.stackBadge(for: row.id)
+        return LibraryGridCellView(
             row: row,
             isSelected: grid.selectedIDs.contains(row.id),
             isCurrent: grid.currentImageID == row.id,
-            bridge: bridge)
+            bridge: bridge,
+            stackBadge: stackBadge,
+            onToggleCollapse: stackBadge == nil ? nil : { stackID in
+                Task { await grid.toggleCollapse(stackID: stackID) }
+            })
             .accessibilityIdentifier("library.grid.cell.\(row.id)")
             .onAppear {
                 if let index = grid.rows.firstIndex(where: { $0.id == row.id }) {
@@ -168,7 +182,9 @@ struct LibraryGridView: View {
             }
             // Plan M2-10-07 (KD-3): the two AI enhancement entries — the
             // right-click acts on the clicked row (selected first, so the
-            // host's selection resolution sees it).
+            // host's selection resolution sees it). M6-4-01 (KD-8): the
+            // stack face joins the menu (成栈 needs a ≥2 selection; the
+            // per-row stack routes need a membership).
             .contextMenu {
                 if let onAIUpscale {
                     Button {
@@ -194,6 +210,58 @@ struct LibraryGridView: View {
                     }
                     .accessibilityIdentifier("library.grid.cell.aiDenoise")
                 }
+                Divider()
+                if grid.selectedIDs.count >= 2 {
+                    Button {
+                        Task { await grid.groupSelection() }
+                    } label: {
+                        Label(String(
+                            localized: "library_stack_group",
+                            defaultValue: "Group into Stack"),
+                            systemImage: "square.stack.3d.up")
+                    }
+                    .accessibilityIdentifier("library.grid.cell.group")
+                }
+                if let badge = stackBadge {
+                    Button {
+                        Task { await grid.ungroup(stackID: badge.stackID) }
+                    } label: {
+                        Label(String(
+                            localized: "library_stack_ungroup",
+                            defaultValue: "Ungroup"),
+                            systemImage: "square.stack.3d.up.slash")
+                    }
+                    .accessibilityIdentifier("library.grid.cell.ungroup")
+                    if badge.position != 0 {
+                        Button {
+                            Task { await grid.setCover(imageID: row.id) }
+                        } label: {
+                            Label(String(
+                                localized: "library_stack_set_cover",
+                                defaultValue: "Make Cover"),
+                                systemImage: "star.square.on.square")
+                        }
+                        .accessibilityIdentifier("library.grid.cell.setCover")
+                    }
+                    Button {
+                        Task { await grid.removeFromStack(imageID: row.id) }
+                    } label: {
+                        Label(String(
+                            localized: "library_stack_remove_from_stack",
+                            defaultValue: "Remove from Stack"),
+                            systemImage: "minus.square.on.square")
+                    }
+                    .accessibilityIdentifier("library.grid.cell.removeFromStack")
+                }
+                Button {
+                    autoStackPresented = true
+                } label: {
+                    Label(String(
+                        localized: "library_stack_auto_menu",
+                        defaultValue: "Auto-Stack…"),
+                        systemImage: "timer")
+                }
+                .accessibilityIdentifier("library.grid.cell.autoStack")
             }
     }
 
@@ -227,6 +295,11 @@ private struct LibraryGridCellView: View {
     let isSelected: Bool
     let isCurrent: Bool
     let bridge: LibraryThumbnailBridge?
+    /// M6-4-01 (KD-8): the stack badge payload (nil = an unstacked row —
+    /// the badge overlay stays hidden).
+    var stackBadge: StackMembership?
+    /// The badge chevron's tap route (nil = badge-only, no control).
+    var onToggleCollapse: ((Int64) -> Void)?
 
     @State private var thumbnail: CGImage?
 
@@ -263,6 +336,39 @@ private struct LibraryGridCellView: View {
                     .foregroundStyle(ThemeTokens.textPrimary)
                     .padding(6)
                     .accessibilityIdentifier("library.grid.cell.rating.\(row.id)")
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            // The stack badge (KD-8): member count + the collapse chevron —
+            // the Lightroom/LightCraft convention (A2: Alcedo has no stacks).
+            if let stackBadge {
+                HStack(spacing: 3) {
+                    Text(verbatim: "\(stackBadge.size)")
+                        .font(.caption2.weight(.medium))
+                        .monospacedDigit()
+                    if let onToggleCollapse {
+                        Button {
+                            onToggleCollapse(stackBadge.stackID)
+                        } label: {
+                            Image(systemName: stackBadge.collapsed
+                                ? "chevron.down" : "chevron.up")
+                                .font(.caption2.weight(.semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier(
+                            "library.grid.cell.chevron.\(row.id)")
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.ultraThinMaterial, in: Capsule())
+                .foregroundStyle(ThemeTokens.textPrimary)
+                .padding(6)
+                // The S4 format-key spelling (%lld suffix) — the count is
+                // the badge's accessibility announcement.
+                .accessibilityLabel(Text(String(
+                    localized: "library_stack_members_hint \(stackBadge.size)")))
+                .accessibilityIdentifier("library.grid.cell.stackBadge.\(row.id)")
             }
         }
         .overlay(

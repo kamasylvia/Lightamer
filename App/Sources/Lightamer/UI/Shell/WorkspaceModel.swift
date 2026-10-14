@@ -409,6 +409,33 @@ final class WorkspaceModel {
         return request
     }
 
+    // MARK: - Stack view commands (Plan M6-4-01 T7, KD-8)
+
+    /// The View ▸ Stacks section's two commands route through HERE (the
+    /// pendingAIEnhance pattern: one presentation/command owner — the menu
+    /// sets the request, WorkspaceHostView consumes it and drives the
+    /// grid; with the library face inactive the request is simply never
+    /// consumed = the no-op guard, the M3-4 unflagged-static-item
+    /// precedent: zero MenuCommandID, zero keyboardShortcut).
+    enum StackViewCommand: Equatable, Sendable {
+        case expandAll
+        case collapseAll
+    }
+
+    /// The pending stack command (nil = nothing pending).
+    var pendingStackCommand: StackViewCommand?
+
+    func requestStackCommand(_ command: StackViewCommand) {
+        pendingStackCommand = command
+    }
+
+    /// The one consumption face (the host clears after reading).
+    func consumeStackCommand() -> StackViewCommand? {
+        let command = pendingStackCommand
+        pendingStackCommand = nil
+        return command
+    }
+
     // MARK: - Phase transitions (the D2 semantics)
 
     /// Enter the editor on `imageID` (nil = reopen the last image — the

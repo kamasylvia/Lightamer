@@ -1769,6 +1769,21 @@ internal struct LightamerApp: App {
                     viewportState.fit()
                 }
                 .keyboardShortcut("f", modifiers: [])
+                // M6-4-01 (KD-8): the View ▸ Stacks section — expand/collapse
+                // all through the pending-command carrier (WorkspaceModel;
+                // WorkspaceHostView consumes and drives the grid). Static
+                // items, NO MenuCommandID / NO shortcut (the M3-4 precedent);
+                // the non-library face drops the request unconsumed = the
+                // no-op guard.
+                Divider()
+                Button(String(localized: "menu_view_stacks_expand_all")) {
+                    focusedWorkspace?.requestStackCommand(.expandAll)
+                }
+                .accessibilityIdentifier("menu.view.stacks.expandAll")
+                Button(String(localized: "menu_view_stacks_collapse_all")) {
+                    focusedWorkspace?.requestStackCommand(.collapseAll)
+                }
+                .accessibilityIdentifier("menu.view.stacks.collapseAll")
                 if visibleMenuCommands.contains(.viewToolRail) {
                     Divider()
                     // Plan M2-3-1 (KD-6): the editor-shell visibility toggles
