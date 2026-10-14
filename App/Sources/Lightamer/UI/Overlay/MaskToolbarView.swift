@@ -153,6 +153,15 @@ internal struct MaskToolbarView: View {
 
             aiGroup
 
+            // The segment-session feather + patch face (M6-4-02 KD-3): the
+            // slider is SESSION domain (the next bake — patch pass or
+            // re-generate — picks the value up through the rebake
+            // overwrite; dragging commits nothing); the refining indicator
+            // watches the patch state.
+            if editingState.segmentActive {
+                featherSection
+            }
+
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 8)
@@ -200,6 +209,48 @@ internal struct MaskToolbarView: View {
     }
 
     private var hasSelection: Bool { editingState.selectedLayerID != nil }
+
+    // MARK: - Segment session feather + patch face (M6-4-02 KD-3)
+
+    /// The Edge feather slider (−100...100; negative = the CPU logit-gain
+    /// crisper leg, positive = the GPU bake radius, 0 = off) + the reset +
+    /// the hi-res patch refining indicator. EDITING-MODE state only: the
+    /// value rides the session and lands on the NEXT bake — nothing here
+    /// commits history.
+    private var featherSection: some View {
+        HStack(spacing: 8) {
+            if editingState.segmentSession.patchState == .refining {
+                Text("ai_mask_patch_refining")
+                    .font(.caption2)
+                    .foregroundStyle(LightamerColors.textSecondary)
+                    .accessibilityIdentifier("ai.mask.patch.refining")
+            }
+            Text("ai_mask_feather_label")
+                .font(.caption)
+                .accessibilityIdentifier("ai.mask.feather.label")
+            Slider(value: Binding(
+                get: { Double(editingState.segmentSession.featherPercent) },
+                set: { editingState.segmentSession.featherPercent = Float($0) }
+            ), in: -100...100)
+            .controlSize(.small)
+            .frame(width: 110)
+            .accessibilityIdentifier("ai.mask.feather")
+            Text(verbatim: String(format: "%.0f", editingState.segmentSession.featherPercent))
+                .font(.caption2)
+                .monospacedDigit()
+                .frame(width: 28, alignment: .trailing)
+                .accessibilityIdentifier("ai.mask.feather.value")
+            Button {
+                editingState.segmentSession.featherPercent = 0
+            } label: {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.caption2)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("ai_mask_feather_reset"))
+            .accessibilityIdentifier("ai.mask.feather.reset")
+        }
+    }
 
     // MARK: - Follow Edges parameters (T5, KD-5)
 

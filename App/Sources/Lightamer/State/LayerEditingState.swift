@@ -696,6 +696,45 @@ final class SegmentSession {
     /// The in-flight generation flag (the host's spinner).
     var isGenerating = false
 
+    // MARK: hi-res patch + feather session state (Plan M6-4-02, KD-1/KD-3)
+
+    /// The session's LIVE BASE PLANE (M6 落位): the decode-frame-resolution
+    /// float plane captured at every successful `.segment` generation
+    /// (AIMaskEditing.commitRasterMask's seam — the host stays untouched).
+    /// Patch passes compose onto THIS plane; a NEW generation overwrites
+    /// it. HELD from the first successful generation until the session
+    /// tears down (mode exit / armSegmentSession replace / a new seed) —
+    /// the memory posture (accurate = full-resolution float32 single
+    /// channel, ~400 MB magnitude at 100MP, session-held) is the DECISIONS
+    /// declaration; UI-STATE ONLY (never the sidecar, never params).
+    var livePlane: AIMaskPlane?
+
+    /// The accumulated hi-res detail patches (≤4 — `AIPatchComposer.capped`
+    /// FIFO replaces the earliest). The bake recomposes
+    /// `compose(livePlane, capped(patches))` fresh each pass, so the FIFO
+    /// drop really removes the earliest patch's detail.
+    var patches: [AIPatch] = []
+
+    /// The patch-refine state face (the toolbar's refining indicator).
+    enum PatchRefineState: Equatable {
+        case idle
+        case refining
+        case done(count: Int)
+    }
+    var patchState: PatchRefineState = .idle
+
+    /// The Edge feather percent (−100...100, 0 = off) — KD-3's session
+    /// value. Positive = the GPU bake seam's radius; negative = the CPU
+    /// logit-gain leg (bake radius forced 0 — the double-feather pin).
+    /// The next bake (patch pass or re-generate) picks it up; UI state
+    /// only, never persisted.
+    var featherPercent: Float = 0
+
+    /// The 1s debounce handle (KD-1: the last interaction's task wins —
+    /// each schedule cancels the previous). The patch pass itself is
+    /// `AIMaskEditing.runPatchRefine`.
+    var patchDebounceTask: Task<Void, Never>?
+
     /// The point budget for the CURRENT seed kind (before a seed exists
     /// the point-seeded budget is the ceiling — the first tap decides).
     var pointBudget: Int {
@@ -717,12 +756,20 @@ final class SegmentSession {
     var budgetFull: Bool { usedPoints >= pointBudget }
 
     /// Record the seed. A second seed REPLACES the first (fresh request)
-    /// and clears the accumulated refine points.
+    /// and clears the accumulated refine points. The patch face resets
+    /// with it: the patches and the held live plane belong to the OLD
+    /// subject (M6's release point — a new seed releases the plane until
+    /// the next generation captures a fresh one).
     func recordSeed(_ newSeed: AISubjectSeed) {
         guard newSeed != .scribble else { return } // the v1 typed seam
         seed = newSeed
         included = []
         excluded = []
+        patches = []
+        livePlane = nil
+        patchState = .idle
+        patchDebounceTask?.cancel()
+        patchDebounceTask = nil
     }
 
     /// The budget-gated point adds (throwing keeps the UI honest — the
