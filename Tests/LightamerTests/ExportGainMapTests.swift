@@ -67,11 +67,12 @@ final class ExportGainMapTests: XCTestCase {
         embedICC: Bool = true,
         yiyin: Bool = false,
         gainMapHDR: Bool = true,
-        sizing: YiyinExportSettings = YiyinExportSettings()
+        sizing: YiyinExportSettings = YiyinExportSettings(),
+        policy: ExportMetadataPolicy = .standard
     ) -> ExportVariant {
         ExportVariant(
             sizing: sizing, format: format, yiyin: yiyin, drtOutput: record,
-            embedICC: embedICC, gainMapHDR: gainMapHDR)
+            metadataPolicy: policy, embedICC: embedICC, gainMapHDR: gainMapHDR)
     }
 
     private nonisolated static func gainRecordStatic() -> DrtRecord {
@@ -449,6 +450,312 @@ final class ExportGainMapTests: XCTestCase {
                 try? await Task.sleep(nanoseconds: 10_000_000)
             }
         }
+    }
+
+    // MARK: - T2: the CI encode leg (KD-4/KD-5)
+
+    /// The full gain map render→encode through `ExportRenderer.render` (the
+    /// production face), with the EXIF Software carrier scoped in.
+    private func renderGainMapJPEG(
+        stem: String, policy: ExportMetadataPolicy = .standard,
+        software: String? = "Lightamer 0.4.0-gainmap-probe",
+        longEdge: Int = 48
+    ) async throws -> URL {
+        try await makeRegistryReady()
+        let source = try writePNG(width: 96, height: 64, stem: stem)
+        try await writeSidecar(imageURL: source, records: await seedRecords())
+        let variant = gainVariant(
+            sizing: YiyinExportSettings(mode: .longEdge(px: longEdge)),
+            policy: policy)
+        let request = makeRequest(
+            source: source, variant: variant, drtTail: sdrGainTail())
+        return try await ExportRenderer.$jobExifSoftware.withValue(software) {
+            try await ExportRenderer.render(
+                request: request, metal: metal, registry: registry,
+                decodeLeg: { try await Self.syntheticDecode(url: $0) })
+        }.destination
+    }
+
+    private func jpegBytes(_ url: URL) throws -> [UInt8] {
+        try Data(contentsOf: url).map { $0 }
+    }
+
+    /// The MPF APP2 index segment payload: `"MPF\0MM\0*"` — the scan is on
+    /// the PAYLOAD (the segment's 2-byte length sits between the FF E2
+    /// marker and the payload, so the marker+payload concatenation never
+    /// matches; probed on a real CI product).
+    private func hasMPF(_ bytes: [UInt8]) -> Bool {
+        Self.contains(bytes, Array("MPF\0MM\0*".utf8))
+    }
+
+    /// The ISO 21496-1 URN version marker (an APP2 payload).
+    private func hasISOURN(_ bytes: [UInt8]) -> Bool {
+        Self.contains(bytes, Array("urn:iso:std:iso:ts:21496".utf8))
+    }
+
+    private static func contains(_ bytes: [UInt8], _ needle: [UInt8]) -> Bool {
+        guard needle.count <= bytes.count else { return false }
+        outer: for i in 0...(bytes.count - needle.count) {
+            for j in 0..<needle.count where bytes[i + j] != needle[j] {
+                continue outer
+            }
+            return true
+        }
+        return false
+    }
+
+    private func auxGainMapDict(_ url: URL) throws -> [CFString: Any] {
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let dict = CGImageSourceCopyAuxiliaryDataInfoAtIndex(
+            source, 0, kCGImageAuxiliaryDataTypeISOGainMap)
+        return try XCTUnwrap(dict as? [CFString: Any], "no ISO gain map aux")
+    }
+
+    /// The container byte face ①: the MPF APP2 index segment is present
+    /// (the multi-picture container's spine).
+    func testGainMapContainerMPFIndexSegmentIsPresent() async throws {
+        let url = try await renderGainMapJPEG(stem: "GAINMPF_0001")
+        XCTAssertTrue(hasMPF(try jpegBytes(url)), "the MPF index must be present")
+    }
+
+    /// The container byte face ②: the ISO 21496-1 URN version marker rides
+    /// its own APP2 (the D1 spike dump's layout).
+    func testGainMapContainerISO21496URNMarkerIsPresent() async throws {
+        let url = try await renderGainMapJPEG(stem: "GAINISO_0001")
+        XCTAssertTrue(
+            hasISOURN(try jpegBytes(url)),
+            "the ISO 21496-1 URN marker must be present")
+    }
+
+    /// The container byte face ③: a trailing gain map subimage EXISTS (the
+    /// MPF-indexed second complete JPEG — two SOIs and two EOIs in the file).
+    func testGainMapContainerCarriesTrailingSubimage() async throws {
+        let url = try await renderGainMapJPEG(stem: "GAINTAIL_0001")
+        let bytes = try jpegBytes(url)
+        let soi: [UInt8] = [0xFF, 0xD8]
+        let eoi: [UInt8] = [0xFF, 0xD9]
+        func count(_ needle: [UInt8]) -> Int {
+            var count = 0
+            outer: for i in 0...(bytes.count - needle.count) {
+                for j in 0..<needle.count where bytes[i + j] != needle[j] {
+                    continue outer
+                }
+                count += 1
+            }
+            return count
+        }
+        XCTAssertGreaterThanOrEqual(
+            count(soi), 2, "the primary SOI plus the subimage SOI")
+        XCTAssertGreaterThanOrEqual(
+            count(eoi), 2, "the primary EOI plus the subimage EOI")
+        // the LAST EOI closes the file (the subimage trails the primary).
+        XCTAssertEqual(Array(bytes.suffix(2)), eoi, "the file ends on an EOI")
+    }
+
+    /// The container byte face ④ (L009): the promotion leaves NO tmp
+    /// residue in the landing directory.
+    func testGainMapPromotionLeavesNoTmpResidue() async throws {
+        let url = try await renderGainMapJPEG(stem: "GAINTMP_0001")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        let entries = try FileManager.default.contentsOfDirectory(
+            atPath: outputDirectory.path)
+        let residues = entries.filter { $0.contains(".tmp") }
+        XCTAssertTrue(
+            residues.isEmpty, "tmp residue in the landing zone: \(residues)")
+    }
+
+    /// The aux readback ①: the ISO gain map aux dict carries the
+    /// single-channel luminance format 'L008' (OQ-4 — `hdrGainMapAsRGB` is
+    /// NOT set) with BytesPerRow == width. (The description dict's keys are
+    /// PLAIN STRINGS — "PixelFormat"/"Width"/"Height"/"BytesPerRow",
+    /// probed; no CFString constants exist for them.)
+    func testAuxReadbackReportsL008SingleChannel() async throws {
+        let url = try await renderGainMapJPEG(stem: "GAINAUX_0001")
+        let dict = try auxGainMapDict(url)
+        let description = try XCTUnwrap(
+            dict[kCGImageAuxiliaryDataInfoDataDescription] as? [CFString: Any])
+        let format = try XCTUnwrap(description["PixelFormat" as CFString] as? UInt32)
+        let fourCC = String(
+            decoding: withUnsafeBytes(of: format.bigEndian) { [UInt8]($0) },
+            as: UTF8.self)
+        XCTAssertEqual(fourCC, "L008", "the gain map must be single-channel")
+        let bytesPerRow = try XCTUnwrap(
+            description["BytesPerRow" as CFString] as? UInt32)
+        let width = try XCTUnwrap(description["Width" as CFString] as? UInt32)
+        XCTAssertEqual(Int(bytesPerRow), Int(width), "single channel: 1 byte/px")
+        let data = try XCTUnwrap(dict[kCGImageAuxiliaryDataInfoData] as? Data)
+        let height = try XCTUnwrap(description["Height" as CFString] as? UInt32)
+        XCTAssertEqual(
+            data.count, Int(width) * Int(height),
+            "full-resolution L008 bitmap (\(width)×\(height))")
+    }
+
+    /// The aux readback ②: the gain map dimensions MATCH the base plane
+    /// (the entry plane the CI gain computation rode).
+    func testAuxReadbackDimensionsMatchTheBasePlane() async throws {
+        let url = try await renderGainMapJPEG(stem: "GAINAUX2_0001")
+        let dict = try auxGainMapDict(url)
+        let description = try XCTUnwrap(
+            dict[kCGImageAuxiliaryDataInfoDataDescription] as? [CFString: Any])
+        let width = try XCTUnwrap(description["Width" as CFString] as? UInt32)
+        let height = try XCTUnwrap(description["Height" as CFString] as? UInt32)
+        XCTAssertEqual(Int(width), 48)
+        XCTAssertEqual(Int(height), 32)
+    }
+
+    /// The rewrap survival (F5 gate) + the hdrgm:Version mount + the
+    /// policy-.none arm (one method, double assertion per KD-7): the
+    /// standard-policy product carries the primary XMP `hdrgm:Version` AND
+    /// the aux readback SURVIVES the rewrap; the `.none` product has no XMP
+    /// but the container stays UltraHDR.
+    func testRewrapSurvivesAndPolicyNoneStaysUltraHDR() async throws {
+        // standard policy: hdrgm:Version + aux survival.
+        let url = try await renderGainMapJPEG(stem: "GAINRW_0001")
+        let bytes = try jpegBytes(url)
+        XCTAssertTrue(
+            Self.contains(bytes, Array("hdrgm:Version".utf8)),
+            "the primary XMP must carry hdrgm:Version")
+        XCTAssertTrue(
+            Self.contains(bytes, Array("Lightamer 0.4.0-gainmap-probe".utf8)),
+            "the Software signature must ride the XMP")
+        _ = try auxGainMapDict(url)  // the F5 gate: the aux survives the rewrap
+        XCTAssertTrue(hasMPF(bytes), "the MPF survives the rewrap")
+
+        // .none policy: no XMP at all, the container stays UltraHDR.
+        let noneURL = try await renderGainMapJPEG(
+            stem: "GAINRW2_0001", policy: .none, software: nil)
+        let noneBytes = try jpegBytes(noneURL)
+        XCTAssertFalse(
+            Self.contains(noneBytes, Array("hdrgm:Version".utf8)),
+            "the .none policy mounts no XMP")
+        XCTAssertTrue(hasMPF(noneBytes), "the .none container stays UltraHDR")
+        XCTAssertTrue(hasISOURN(noneBytes))
+        _ = try auxGainMapDict(noneURL)
+    }
+
+    /// The post-processing gate ①: the gain map arm skips the ICC strip —
+    /// the product keeps its embedded profile (the MPF survives, which a
+    /// strip would have broken).
+    func testGainMapArmSkipsTheICCStrip() async throws {
+        let url = try await renderGainMapJPEG(stem: "GAINICC_0001")
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let props = try XCTUnwrap(
+            CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
+        let profile = props[kCGImagePropertyProfileName] as? String
+        XCTAssertFalse(
+            (profile ?? "").isEmpty,
+            "the embedded profile must survive (the strip never ran)")
+        XCTAssertTrue(hasMPF(try jpegBytes(url)))
+    }
+
+    /// The post-processing gate ②: the gain map arm skips mountXMP — the
+    /// product carries EXACTLY ONE XMP packet (the rewrap's; a second APP1
+    /// injection would corrupt the offsets). The scan rides `<x:xmpmeta`
+    /// (the packet is robust across the two APP1 header spellings).
+    func testGainMapArmDoesNotDoubleInjectXMP() async throws {
+        let url = try await renderGainMapJPEG(stem: "GAINXMP_0001")
+        let bytes = try jpegBytes(url)
+        let packet = Array("<x:xmpmeta".utf8)
+        var packetCount = 0
+        outer: for i in 0...(bytes.count - packet.count) {
+            for j in 0..<packet.count where bytes[i + j] != packet[j] {
+                continue outer
+            }
+            packetCount += 1
+        }
+        XCTAssertEqual(
+            packetCount, 1, "exactly one XMP packet (the rewrap's) — no double inject")
+    }
+
+    /// The post-processing gate ③ (zero-diff negative): a NON-gain-map job
+    /// keeps the existing post-encode face — with the DEFAULT policy the XMP
+    /// mount skips (the editing-history gate closes it, M2-9-03's fixed
+    /// posture), and with embedICC=false the strip runs; NO MPF exists.
+    func testNonGainMapPostProcessingRunsAsBefore() async throws {
+        try await makeRegistryReady()
+        let source = try writePNG(width: 96, height: 64, stem: "GAINNEG_0001")
+        try await writeSidecar(imageURL: source, records: await seedRecords())
+        let variant = ExportVariant(
+            format: .jpeg(quality: 0.9), drtOutput: gainRecord(), embedICC: false)
+        XCTAssertFalse(variant.gainMapHDR)
+        let outcome = try await ExportRenderer.render(
+            request: makeRequest(source: source, variant: variant, drtTail: sdrGainTail()),
+            metal: metal, registry: registry,
+            decodeLeg: { try await Self.syntheticDecode(url: $0) })
+        let bytes = try jpegBytes(outcome.destination)
+        XCTAssertFalse(hasMPF(bytes), "a plain JPEG carries no MPF")
+        XCTAssertFalse(
+            Self.contains(bytes, Array("ICC_PROFILE\0".utf8)),
+            "the strip ran (embedICC=false)")
+        XCTAssertFalse(
+            Self.contains(bytes, Array("<x:xmpmeta".utf8)),
+            "the default policy's editing-history gate keeps the XMP unmounted")
+    }
+
+    /// The fail-loud guard (M4): an armed encode WITHOUT a captured plane
+    /// is a typed refusal — never a silently-plain JPEG.
+    func testEncodeStageFailsLoudWhenArmedWithoutPlane() throws {
+        let plane = ExportQuantizedPlane(
+            data: Data(repeating: 128, count: 8 * 8 * 4), width: 8, height: 8,
+            layout: .rgba8)
+        let destination = outputDirectory.appendingPathComponent("fail-loud.jpg")
+        XCTAssertThrowsError(
+            try ExportRenderer.encodeStage(
+                plane: plane, formatSpec: .jpeg(quality: 0.9),
+                targetColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+                dpi: 72, sourceURL: outputDirectory, editorSignature: nil,
+                destination: destination, gainMapHDR: true, hdrGainPlane: nil)
+        ) { error in
+            guard case AppError.invalidParameter = error else {
+                return XCTFail("expected invalidParameter, got \(error)")
+            }
+        }
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: destination.path),
+            "the refusal leaves nothing on disk")
+    }
+
+    /// The quality knob rides the CI write path (E3 form): explicit quality
+    /// values finalize fine; the size face responds in the expected
+    /// direction (0.95 ≥ 0.5 — band-safe, no byte equality).
+    func testQualityKnobReachesTheCIWritePath() async throws {
+        try await makeRegistryReady()
+        let lowSource = try writePNG(width: 96, height: 64, stem: "GAINQLOW_0001")
+        try await writeSidecar(imageURL: lowSource, records: await seedRecords())
+        let variant = gainVariant(
+            format: .jpeg(quality: 0.5),
+            sizing: YiyinExportSettings(mode: .longEdge(px: 96)))
+        let low = try await ExportRenderer.render(
+            request: makeRequest(source: lowSource, variant: variant, drtTail: sdrGainTail()),
+            metal: metal, registry: registry,
+            decodeLeg: { try await Self.syntheticDecode(url: $0) })
+        .destination
+        let highSource = try writePNG(width: 96, height: 64, stem: "GAINQHIGH_0001")
+        try await writeSidecar(imageURL: highSource, records: await seedRecords())
+        let highVariant = gainVariant(
+            format: .jpeg(quality: 0.95),
+            sizing: YiyinExportSettings(mode: .longEdge(px: 96)))
+        let high = try await ExportRenderer.render(
+            request: makeRequest(
+                source: highSource, variant: highVariant, drtTail: sdrGainTail()),
+            metal: metal, registry: registry,
+            decodeLeg: { try await Self.syntheticDecode(url: $0) })
+        .destination
+        let lowSize = try Data(contentsOf: low).count
+        let highSize = try Data(contentsOf: high).count
+        XCTAssertGreaterThan(lowSize, 0)
+        XCTAssertGreaterThanOrEqual(
+            highSize, lowSize, "higher quality never shrinks the product")
+    }
+
+    /// The promotion face: the destination file decodes AT the entry size
+    /// (the sips-level sanity — the promoted artifact is a real image).
+    func testPromotedFileDecodesAtTheEntrySize() async throws {
+        let url = try await renderGainMapJPEG(stem: "GAINPROMO_0001")
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let cg = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        XCTAssertEqual(cg.width, 48)
+        XCTAssertEqual(cg.height, 32)
     }
 
     /// Poll a job to its terminal state (the ExportQueueTests shape).

@@ -310,7 +310,10 @@ public enum ExportRenderer {
             sourceURL: stage.sourceURL, editorSignature: stage.editorSignature,
             destination: stage.destination,
             metadataPolicy: request.variant.metadataPolicy,
-            embedICC: request.variant.embedICC)
+            exifSoftware: Self.jobExifSoftware,
+            embedICC: request.variant.embedICC,
+            gainMapHDR: request.variant.gainMapHDR,
+            hdrGainPlane: stage.hdrGainPlane)
         return Outcome(
             destination: destination,
             outputWidth: stage.outputWidth,
@@ -655,8 +658,40 @@ public enum ExportRenderer {
         destination: URL,
         metadataPolicy: ExportMetadataPolicy = .standard,
         exifSoftware: String? = nil,
-        embedICC: Bool = true
+        embedICC: Bool = true,
+        gainMapHDR: Bool = false,
+        hdrGainPlane: ExportGainMapHDRPlane? = nil
     ) throws -> URL {
+        // ── the gain map arm (M6-3-01 KD-5): registry-BYPASSING encode —
+        // the layout gate does not fit the two-plane tier. The arm-first
+        // fail-loud guard (M4): the capture assembly arms on
+        // `variant.gainMapHDR && drtTail != nil` while validate gate ② reads
+        // `variant.drtOutput` — the two carriers are API-independent (the M2
+        // page force-links them; a directly-constructed Request can carry
+        // only one), and a silently-plain JPEG would be the failure shape.
+        if gainMapHDR {
+            guard let hdrGainPlane else {
+                throw AppError.invalidParameter(
+                    "export gainMapHDR: no captured HDR plane — the DRT tail "
+                        + "carrier was absent at the render stage or the capture "
+                        + "did not fire (validate gate ② checks variant.drtOutput, "
+                        + "a different carrier)")
+            }
+            let url = try ExportGainMapEncoder.encode(
+                plane: plane, hdrPlane: hdrGainPlane,
+                targetColorSpace: targetColorSpace, quality: formatSpec.quality,
+                destination: destination, sourceURL: sourceURL,
+                exifSoftware: exifSoftware, metadataPolicy: metadataPolicy)
+            // The post-encode passes are BOTH skipped here (RESEARCH §8.4):
+            // stripICC deletes APP2 segments and mountXMP injects an APP1 —
+            // EITHER moves the file's absolute offsets and invalidates the
+            // MPF subimage pointers. The ICC embed is the forced form
+            // (validate gate ④) and the XMP is ALREADY inside the product
+            // (the encoder's rewrap).
+            Self.logger.info(
+                "export: \(url.lastPathComponent, privacy: .public) gain map \(plane.width, privacy: .public) x \(plane.height, privacy: .public) hdr")
+            return url
+        }
         let encodeRequest = ExportEncodeRequest(
             plane: plane,
             spec: formatSpec,
