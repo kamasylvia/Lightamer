@@ -31923,6 +31923,91 @@
           }
         }
       }
+    },
+    "export_gainmap_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Embeds an ISO 21496-1 gain map in the JPEG (UltraHDR). HDR-capable viewers render the extended highlights; the base stays a normal SDR JPEG."
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 JPEG 内嵌入 ISO 21496-1 gain map（UltraHDR）。支持 HDR 的查看器会渲染高光扩展；基图仍是普通 SDR JPEG。"
+          }
+        }
+      }
+    },
+    "export_gainmap_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UltraHDR (gain map)"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UltraHDR（gain map）"
+          }
+        }
+      }
+    },
+    "export_gainmap_unavailable_encoding" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The DRT Encoding is PQ/HLG — the base is not an SDR rendition, the gain map is unavailable."
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRT Encoding 为 PQ/HLG——基图非 SDR rendition，gain map 不可用。"
+          }
+        }
+      }
+    },
+    "export_gainmap_unavailable_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UltraHDR requires the JPEG format."
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UltraHDR 仅适用于 JPEG 格式。"
+          }
+        }
+      }
+    },
+    "export_gainmap_unavailable_peak" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raise the DRT Peak to 203 nits or above to enable (no HDR headroom below the SDR reference white)."
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 DRT Peak 提升至 203 nits 以上以启用（低于 SDR 参考白无 HDR 余量）。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
