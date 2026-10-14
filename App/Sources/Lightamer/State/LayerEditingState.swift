@@ -703,7 +703,8 @@ final class SegmentSession {
     /// (AIMaskEditing.commitRasterMask's seam — the host stays untouched).
     /// Patch passes compose onto THIS plane; a NEW generation overwrites
     /// it. HELD from the first successful generation until the session
-    /// tears down (mode exit / armSegmentSession replace / a new seed) —
+    /// tears down (mode exit / armSegmentSession replace / a new seed / an
+    /// image-or-layer identity change at the wire seams — N-1) —
     /// the memory posture (accurate = full-resolution float32 single
     /// channel, ~400 MB magnitude at 100MP, session-held) is the DECISIONS
     /// declaration; UI-STATE ONLY (never the sidecar, never params).
@@ -734,6 +735,43 @@ final class SegmentSession {
     /// each schedule cancels the previous). The patch pass itself is
     /// `AIMaskEditing.runPatchRefine`.
     var patchDebounceTask: Task<Void, Never>?
+
+    /// The identity the CURRENT patch flow was armed against (M6-4-02
+    /// N-1): the image session + the selected layer captured at every
+    /// schedule. A mismatch at a consumption seam (the next schedule, or
+    /// the debounce fire) means the held face belongs to the PREVIOUS
+    /// image/layer — the pass must not bake a mixed-input patch, and the
+    /// face releases.
+    var patchImageURL: URL?
+    var patchLayerID: UUID?
+
+    /// Release the patch-flow transient face (the N-1 release point): the
+    /// held live plane, the accumulated patches, and the in-flight debounce
+    /// task. `recordSeed`/`armSegmentSession` already reset the same face
+    /// for their own flows; this is the switch-driven form (the image or
+    /// the layer changed under the armed session — the plane and the
+    /// patches belong to the PREVIOUS identity and must not compose onto a
+    /// future base).
+    func releaseLivePatchState() {
+        livePlane = nil
+        patches = []
+        patchState = .idle
+        patchDebounceTask?.cancel()
+        patchDebounceTask = nil
+    }
+
+    /// The N-1 identity guard: when the CURRENT image/layer differs from
+    /// the schedule stamp, the held face belongs to the previous identity —
+    /// release it. Called at the wire's two consumption seams (the next
+    /// schedule in `AIMaskEditing.commitRasterMask`, the debounce fire in
+    /// `AIMaskEditing.runPatchRefine`); nil stamps (a never-scheduled
+    /// session) only mismatch against a live image session, releasing an
+    /// empty face — a no-op by construction.
+    func releaseIfIdentityChanged(imageURL: URL?, layerID: UUID?) {
+        if patchImageURL != imageURL || patchLayerID != layerID {
+            releaseLivePatchState()
+        }
+    }
 
     /// The point budget for the CURRENT seed kind (before a seed exists
     /// the point-seeded budget is the ceiling — the first tap decides).

@@ -110,6 +110,35 @@ final class AIMaskPatchFlowTests: XCTestCase {
             editingState: editingState, metal: metal)
     }
 
+    /// Real fixture copies (the image-switch test loads through the
+    /// `EditorState.load` seam — the production switch — so the identity
+    /// stamp has a live `loadedImageURL` to mismatch against).
+    private static let fixtureDirectory: URL = {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return root.appendingPathComponent("Tests/Fixtures/TiffRaster", isDirectory: true)
+    }()
+
+    private func tempFixtureCopy(_ name: String) throws -> URL {
+        let source = Self.fixtureDirectory.appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            throw XCTSkip("fixture missing: \(name)")
+        }
+        let destination = tempDirectory.appendingPathComponent(name)
+        try FileManager.default.copyItem(at: source, to: destination)
+        return destination
+    }
+
+    private func waitDecodeSettled() async throws {
+        let start = Date()
+        while editorState.isDecoding, Date().timeIntervalSince(start) < 30 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+
     // MARK: ① debounce merge
 
     /// Five schedules inside the window → exactly ONE operation runs and
@@ -263,5 +292,87 @@ final class AIMaskPatchFlowTests: XCTestCase {
                 .appendingPathComponent(ref2.fileName))
         XCTAssertNotEqual(bytes1, bytes2, "the old pixels are replaced on disk")
         editingState.segmentSession.patchDebounceTask?.cancel()
+    }
+
+    // MARK: ⑤ N-1: the 切层/切图 release (the identity guard at the wire)
+
+    /// The IMAGE switch under an armed session (the N-1 gap — the session
+    /// itself is not torn down): at the fire seam the schedule stamp
+    /// mismatches the LIVE image session → the held face releases (the
+    /// ~400MB-magnitude plane posture) and the stale pass discards —
+    /// nothing lands on the new image's session. The fire seam is driven
+    /// directly (the debounce task calls exactly `runPatchRefine`); the
+    /// end-to-end debounce wire is test ②'s real-delay form below.
+    func testImageSwitchReleasesHeldPlaneAtPatchFire() async throws {
+        let first = try tempFixtureCopy("srgb-matrix-8.tif")
+        let second = try tempFixtureCopy("no-icc-8.tif")
+        editorState.load(
+            url: first, decoder: RAWDecoder(), metal: metal,
+            logger: EditorState.decodeLogger)
+        try await waitDecodeSettled()
+        let layer = try XCTUnwrap(editorState.addAdjustmentLayer())
+        editingState.select(layer.id)
+        editingState.segmentSession.recordSeed(.point(AIMaskPoint(x: 0.5, y: 0.5)))
+        _ = try await commit(halfPlane(left: true), layer: layer, featherPercent: 0)
+        let session = editingState.segmentSession
+        XCTAssertNotNil(session.livePlane, "the commit holds the live plane")
+        XCTAssertEqual(session.patchImageURL, first, "the schedule stamp (image)")
+        XCTAssertEqual(session.patchLayerID, layer.id, "the schedule stamp (layer)")
+
+        // The switch: a second document loads OVER the armed session (the
+        // load flips `loadedImageURL` at entry; the session survives —
+        // exactly the N-1 premise).
+        editorState.load(
+            url: second, decoder: RAWDecoder(), metal: metal,
+            logger: EditorState.decodeLogger)
+        try await waitDecodeSettled()
+        XCTAssertNotEqual(editorState.loadedImageURL, first)
+        let itemsAfterSwitch = editorState.history.items.count
+
+        // The stale pass fires into the switched session → the identity
+        // guard releases the face and discards the pass.
+        session.patchDebounceTask?.cancel()
+        await AIMaskEditing.runPatchRefine(
+            coordinator: coordinator, editorState: editorState,
+            editingState: editingState, metal: metal)
+
+        XCTAssertNil(session.livePlane, "N-1: the held plane releases at the fire")
+        XCTAssertTrue(session.patches.isEmpty, "the carried patches release with it")
+        XCTAssertEqual(session.patchState, .idle, "the pass never entered refining")
+        XCTAssertNil(session.patchDebounceTask, "the debounce handle releases")
+        XCTAssertEqual(
+            editorState.history.items.count, itemsAfterSwitch,
+            "the stale pass lands NOTHING on the new image's session")
+    }
+
+    /// The LAYER switch flavor through the REAL debounce wire (the switch
+    /// is synchronous, so it deterministically precedes the 1s fire): the
+    /// stale pass must NOT bake the old plane onto the NEWLY selected
+    /// layer — the mixed-input bake N-1 describes.
+    func testLayerSwitchDiscardsStalePatchPassThroughDebounce() async throws {
+        try await loadSynthetic()
+        let first = try XCTUnwrap(editorState.addAdjustmentLayer())
+        let second = try XCTUnwrap(editorState.addAdjustmentLayer())
+        editingState.select(first.id)
+        editingState.segmentSession.recordSeed(.point(AIMaskPoint(x: 0.5, y: 0.5)))
+        let ref = try await commit(halfPlane(left: true), layer: first, featherPercent: 0)
+        let session = editingState.segmentSession
+        XCTAssertNotNil(session.livePlane)
+
+        // The switch: another layer of the SAME image is selected while
+        // the patch debounce is pending (before the 1s fire).
+        editingState.select(second.id)
+        try await Task.sleep(for: .milliseconds(1600))
+
+        XCTAssertNil(session.livePlane, "the release landed at the fire")
+        XCTAssertTrue(session.patches.isEmpty)
+        XCTAssertEqual(session.patchState, .idle)
+        XCTAssertNil(session.patchDebounceTask, "the firing task released its handle")
+        XCTAssertNil(
+            editorState.adjustmentLayer(id: second.id)?.mask?.raster,
+            "the stale pass never bakes onto the newly selected layer")
+        XCTAssertEqual(
+            editorState.adjustmentLayer(id: first.id)?.mask?.raster?.maskHash,
+            ref.maskHash, "the original layer's payload is untouched")
     }
 }

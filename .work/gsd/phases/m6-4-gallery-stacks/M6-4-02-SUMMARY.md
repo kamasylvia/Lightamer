@@ -3,9 +3,14 @@
 > 执行 = 夜间全自动授权（先例 D-07-3-T5-1；`paused=false` / `auto=true`
 > 开工确认）。plan 正本 = 同目录 `M6-4-02-PLAN.md`（修订版，HEAD `984e0256`
 > 面）；裁决正本 = `M6-4-CONTEXT.md`（七 OQ 全 A）；偏差登记正本 =
-> `M6-4-02-DECISIONS.md`（D-01..D-12）。**ACCEPTANCE 未写**（双重验收归
+> `M6-4-02-DECISIONS.md`（D-01..D-13）。**ACCEPTANCE 未写**（双重验收归
 > 验收批：zcode subagent 独立验收 PASS 后串行 omp 二次验收，严禁并发）。
 > **翻账零**（闭环批统一；D-12 编号申报）。
+>
+> **验收修复批增补（2026-10-15，N-1 实修）**：双重验收 PASS 后按
+> ACCEPTANCE-2ND §5.2 升格建议实修 livePlane 切层/切图释放（D-13）——
+> AIMaskPatchFlowTests +2 法（App bundle 预期 814→**816**），全英
+> commit `fix(m6-4-02)`；全套预期中心随之 **3841→3843/24/0**。
 
 ## 任务序与 commit 链（每任务独立提交，全英文 Conventional Commits）
 
@@ -27,10 +32,14 @@
 - **SC 分账**：LAYERS +20（三新文件 9+6+5，BUNDLE-MAP 三行与实测逐一相符）
   / APP +4（一新文件）= 计划 24 ∈ 带 21..25 ✓（D-08：KD-4 行 2 判据并入
   ⑤，方法计数不带新）。
+- **验收修复批增补**（D-13，2026-10-15）：AIMaskPatchFlowTests +2 法
+  （切图 livePlane 释放 + 切层旧 pass 不落地）→ **APP 814→816/4/0 预期**；
+  单类轮 6/0/0 亲跑（含负验证：撤守卫恰两新法红）。
 - **实际收口 TOTAL（闭环批 S8 对账基线申报值）**：
-  **`TOTAL|3841/24/0|`（推算）= plan 01 实际收口 3817/24/0 + 本批 +24**，
-  落预期带 **3838..3842** ✓。全套 `--all` 本 plan 未跑（批准制）——验收
-  批准轮实跑时以 3841 为预期中心、3838..3842 为对账带。
+  **`TOTAL|3843/24/0|`（推算）= plan 01 实际收口 3817/24/0 + 本批 +24
+  + 修复批 +2**，
+  落预期带 **3840..3844** ✓。全套 `--all` 本 plan 未跑（批准制）——验收
+  批准轮实跑时以 3843 为预期中心、3840..3844 为对账带。
 - zh-audit `--check`：**PASS**（1682 source keys / 1923 catalog keys /
   zh complete / locale {en, zh}）——5 新键全数入册，MISSING = 0。
 
@@ -83,14 +92,18 @@ AIWorkerProtocol 第四腿已备）②scribble 激活（typed 拒缝保持）③
 ④livePlane 降档（quality-tier 分辨率驻留 + patch 后一次性上采样，若实测
 驻留成痛点）⑤负腿 GPU 迁移（若 CPU 双趟越秒级痛点）。
 
-## livePlane 内存姿态申报（M6）
+## livePlane 内存姿态申报（M6 + 验收修复批 D-13 修订）
 
 `SegmentSession.livePlane` = decode-frame 分辨率 float32 单通道平面，首次
 `.segment` 生成成功起持至会话拆（释放点 = 模式退出 / armSegmentSession
-替换 / 新 seed / 新生成覆写）。accurate 档 100MP ≈ **400MB 量级会话期
-驻留**——与 AGENTS 资源监控 GUI app >3G 触发线同域（巡检口径内）。patch
-列表另持 ≤4 份 ROI 平面（帽 4 上限界定量级）。瞬时峰值 = runPatchRefine
-的 compose 中间面（每次 pass 一份，pass 后释放）。V2 降档挂账见上。
+替换 / 新 seed / 新生成覆写 / **切层·切图身份比对失配（D-13——schedule
+stamp vs fire/下次 commit 缝的当下身份，失配即 releaseLivePatchState）**）。
+accurate 档 100MP ≈ **400MB 量级会话期驻留**——与 AGENTS 资源监控 GUI
+app >3G 触发线同域（巡检口径内）；**D-13 残差**：末次 pass 完成后切图且
+无 pending debounce 时驻留至上述其余释放点（窄面，DECISIONS §D-13 申报）。
+patch 列表另持 ≤4 份 ROI 平面（帽 4 上限界定量级；D-13 起随身份失配一并
+清空）。瞬时峰值 = runPatchRefine 的 compose 中间面（每次 pass 一份，
+pass 后释放）。V2 降档挂账见上。
 
 ## 挂账申报（DECISIONS 详目）
 
@@ -108,6 +121,7 @@ AIWorkerProtocol 第四腿已备）②scribble 激活（typed 拒缝保持）③
 | D-10 | T5 Manual-Only 降级 + MANIFEST gitignored（T5 commit 空转） | §D-10 |
 | D-11 | 环境事件两笔（worker 测试一次性挂起 + 死代理 L080） | §D-11 |
 | D-12 | 翻账推迟编号（闭环批统一） | §D-12 |
+| D-13 | N-1 实修：livePlane 切层/切图身份比对释放（验收修复批，+2 法） | §D-13 |
 
 ## 翻账建议（闭环批统一做，本批零翻账）
 
@@ -118,8 +132,9 @@ REQUIREMENTS（M6INT-03 终态注记，含 Describe 收口）/ GOAL-STATE（续�
 
 ## 待复验项（VALIDATION 落签前置）
 
-1. **全套 `--all` 终验**（orchestrator 批准轮）：预期中心 **3841/24/0**，
-   对账带 **3838..3842**；运行门 8G + MEMFAIL 机检 + 运行中监视照册。
+1. **全套 `--all` 终验**（orchestrator 批准轮）：预期中心 **3843/24/0**
+   （修复批 +2 后），对账带 **3840..3844**；运行门 8G + MEMFAIL 机检 +
+   运行中监视照册。
 2. **GUI 轮 M-1..M-4**（`.work/gui-acceptance/m6-4/MANIFEST.md` 四行）：
    验收批（omp computer-use）或人工；layer B 资产引导下载为前置。
 3. D-07/D-06 两实测申报随 M-1/M-2 补录。

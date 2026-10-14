@@ -136,6 +136,42 @@ ROADMAP（M6-4 行 ✅）/ REQUIREMENTS（M6INT-03 终态注记）/ GOAL-STATE
 （续接点）/ TODO（M6-4 条目）五文档未动——闭环批统一翻账，素材 =
 本文件 D-01..D-12 + SUMMARY §spike 判定表 + 「实际收口 TOTAL」节。
 
+## D-13 N-1 实修：livePlane 生命周期补「切层/切图」身份比对（验收批修复批）
+
+第二路验收（ACCEPTANCE-2ND §5.2）升格建议的**小修臂**（不采声明订正臂）：
+切层/切图路径补 livePlane 释放。**落定 = fire 缝身份比对**（建议原文
+「schedule 时捕获 imageURL/layerID、fire 时身份比对」）+ 同机制前置于
+schedule 缝：
+
+- **stamp**（`SegmentSession.patchImageURL/patchLayerID`）：schedule 缝
+  （`commitRasterMask` 的 `.segment` 非 patchRebake 臂）逐次盖当前
+  `editorState.loadedImageURL` + `selectedLayerID`——patch 流所属身份。
+- **fire 守卫**（`runPatchRefine` 顶部，先于 hasSeed/livePlane 门）：
+  `releaseIfIdentityChanged` 比对 stamp vs **当下** image/layer——失配 =
+  `releaseLivePatchState()`（livePlane=nil + patches=[] + patchState=.idle
+  + debounce task cancel/nil）后丢弃本 pass。**混合输入 patch 烘焙面关闭**
+  （N-1 后果②）；1s 窗内切图的在飞结果不落地。
+- **schedule 缝前置同判**：下一次 commit 时 stamp 已陈旧（切图后新图上再
+  confirm）→ 释放携带面**再**捕获新 plane + 重盖 stamp——否则旧 patches
+  会经 composer 混入新基面（ fire 守卫单独堵不住的旁路）。
+- patches 随释放清空（N-1 字面只提 livePlane）：不清则旧 ROI patch 在
+  新身份的 compose(base:patches:) 门重新打开——释放语义必须含 patches。
+
+**残差登记（不阻断，诚实申报）**：①切图发生在末次 pass 完成之后且无
+pending debounce 时，平面驻留至模式退出/新 seed/下一次 wire 活动——
+与 ACCEPTANCE-2ND 对 N-1 后果①「跨图驻留直至模式退出」的定性一致，
+窄面（segment 模式跨图滞留 + 不再交互）；②confirm 生成**在飞中**切图
+（非 debounce 窗）= O-1 同族在飞竞态，维持登记级不改。Eager 释放需
+EditorState→LayerEditingState 新横 wire，超出小修臂量级，不做。
+
+**测试**（AIMaskPatchFlowTests +2，APP 分账 814→816）：切图后 livePlane
+置 nil 断言（`testImageSwitchReleasesHeldPlaneAtPatchFire`，真
+`EditorState.load` 切换 + fire 缝直驱）+ 切层经真 debounce wire 后旧
+pass 不落地断言（`testLayerSwitchDiscardsStalePatchPassThroughDebounce`，
+L2 蒙版恒 nil + 原层 payload 不动）。负验证亲跑：撤 fire 守卫重建 →
+恰两新法红（livePlane 非 nil 断言咬合）、既有四法不咬 → 回补复绿。
+红线族：零 .metal/零 xcstrings/零 UserDefaults/零 runModal 面。
+
 ## 待供件清单
 
 | # | 项 | 供件方 | 验证方法 |
@@ -143,7 +179,7 @@ ROADMAP（M6-4 行 ✅）/ REQUIREMENTS（M6INT-03 终态注记）/ GOAL-STATE
 | 1 | GUI 轮 M-1..M-4（patch 真图/多人实例/无人像/羽化三档） | 验收批（omp computer-use）或人工 | MANIFEST 逐行判定 |
 | 2 | layer B ROI 产物分辨率实测值 | M-1 走查时 | bundle 探针/log 分辨率读数 → 补录本文件 D-07 |
 | 3 | person 标签编号域实测（起点/背景语义） | M-2 走查时 | 多人照 label map 读数 → 补录 D-06 |
-| 4 | 全套 `--all` 终验（预期 3841/24/0 中心，带 3838..3842） | orchestrator 批准轮 | test-direct.sh --all + VALIDATION 对表 |
+| 4 | 全套 `--all` 终验（预期 3843/24/0 中心〔D-13 修复批 +2 后〕，带 3840..3844） | orchestrator 批准轮 | test-direct.sh --all + VALIDATION 对表 |
 
 ## 建议翻账点（闭环批统一做，本批未动——推迟申报编号 = D-12）
 
