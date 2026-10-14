@@ -514,6 +514,14 @@ public enum ExportRenderer {
         // split (KD-5/M4). nil sink = the zero path, both entries byte-
         // unchanged.
         let gainMapArmed = variant.gainMapHDR && drtTail != nil
+        // API-CONSUMER CONTRACT (M6-5 T5, the M6-3 ledger D4 residue): this
+        // headroom reads the drtTail carrier's record — the validate gate ③
+        // checks the OTHER carrier (variant.drtOutput). A Request built
+        // directly against the public API can fork the two (gate ③ green +
+        // a low tail peak) and land a product with headroom < 1 — weakened
+        // gain semantics, never a crash. Same-source is the API consumer's
+        // duty to prove; the UI path is structurally safe (enqueueExportM2
+        // forces drtOutput = drtRecord — see ExportRecipe gate ③).
         let gainCapture: ExportGainMapCapture? = gainMapArmed
             ? ExportGainMapCapture(
                 headroom: ExportGainMapEncoder.headroom(
