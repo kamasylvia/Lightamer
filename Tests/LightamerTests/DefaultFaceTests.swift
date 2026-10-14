@@ -358,7 +358,7 @@ final class DefaultFaceTests: XCTestCase {
     /// AC7: the default-face MCP seams narrow the list_iops output to the
     /// 16 cataloged enabled ops (the D1 trio drops) while the tool
     /// registration face stays intact (M2DIS-05: no tool is deleted — the
-    /// 19-tool closed set is pinned by McpRegistrySnapshotTests, zero
+    /// 20-tool closed set is pinned by McpRegistrySnapshotTests, zero
     /// changes) and IopCatalog.ops keeps all 19 entries (the reflection
     /// guard's data source, untouched — KD-2).
     func testMCPDefaultFaceCatalogAndToolFace() async throws {
