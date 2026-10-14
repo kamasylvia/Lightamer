@@ -845,6 +845,82 @@ public actor LibraryStore {
         }
     }
 
+    /// The capture-time auto-stack commit face (KD-4; OQ-M6-4-2 = A). The
+    /// pool is the CALLER-given id set (the App picks the multi-select or
+    /// the full sweep); rows already in a stack and rows without a capture
+    /// time drop out (the store leg of the double defense — the pure
+    /// function defends the nil-capture half). `preview = true` reports the
+    /// cluster COUNT and writes NOTHING; `false` lands one collapsed stack
+    /// per cluster in ONE transaction (LightCraft's "one undo batch" as a
+    /// transactional equivalent — the KD-3 no-undo posture). Returns the
+    /// previewed / created cluster count.
+    public func autoStack(
+        ids: [Int64],
+        gap: Double = StackClustering.defaultGapSeconds,
+        preview: Bool
+    ) async throws -> Int {
+        // The read leg: capture times + existing memberships for the pool.
+        let rows: [(id: Int64, capture: Double?)] = try await store.withHandle {
+            handle in
+            var rows: [(id: Int64, capture: Double?)] = []
+            let placeholders = ids.map { _ in "?" }.joined(separator: ",")
+            let statement = try handle.prepare(
+                "SELECT id, capture_date FROM images WHERE id IN (\(placeholders))")
+            for (index, id) in ids.enumerated() {
+                try statement.bindInt(Int32(index + 1), id)
+            }
+            while try statement.step() {
+                guard let id = statement.columnInt(0) else { continue }
+                rows.append((id: id, capture: statement.columnDouble(1)))
+            }
+            return rows
+        }
+        let stacked = try await stackedIDs(in: ids)
+        let candidates = rows.filter { !stacked.contains($0.id) }
+        let clusters = StackClustering.clusters(candidates, gap: gap)
+        if preview { return clusters.count }
+        // The commit leg: one batch, one collapsed stack per cluster. The
+        // per-cluster re-check (KD-4's belt) keeps a concurrent stacker from
+        // half-landing a cluster — a contended cluster is skipped whole.
+        return try await store.withWriteBatch { handle in
+            var created = 0
+            for cluster in clusters {
+                var contended = false
+                for member in cluster {
+                    if try Self.stackID(of: member, on: handle) != nil {
+                        contended = true
+                        break
+                    }
+                }
+                guard !contended else { continue }
+                _ = try Self.insertStack(
+                    memberIDs: cluster, collapsed: true, on: handle)
+                created += 1
+            }
+            return created
+        }
+    }
+
+    /// The stack memberships of the given ids (the autoStack double-defense
+    /// read leg).
+    private func stackedIDs(in ids: [Int64]) async throws -> Set<Int64> {
+        guard !ids.isEmpty else { return [] }
+        return try await store.withHandle { handle in
+            var stacked = Set<Int64>()
+            let placeholders = ids.map { _ in "?" }.joined(separator: ",")
+            let statement = try handle.prepare(
+                "SELECT image_id FROM stack_content"
+                    + " WHERE image_id IN (\(placeholders))")
+            for (index, id) in ids.enumerated() {
+                try statement.bindInt(Int32(index + 1), id)
+            }
+            while try statement.step() {
+                if let id = statement.columnInt(0) { stacked.insert(id) }
+            }
+            return stacked
+        }
+    }
+
     /// The member ids of one stack in POSITION order (cover first). Unknown
     /// stack = typed rejection.
     public func members(ofStack stackID: Int64) async throws -> [Int64] {
