@@ -706,7 +706,11 @@ public actor ExportQueue {
             // the encode leg (the frozen ExportRenderStage payload cannot
             // carry them); exifSoftware is App-carried (KD-4 — the 04
             // assembly face) through the `$jobExifSoftware` TaskLocal that
-            // `execute` scopes this call in.
+            // `execute` scopes this call in. M6-3-01 KD-3: the gain map arm
+            // consumes the stashed HDR plane under the artifact's token
+            // (one shot; non-gain-map jobs never touch the box).
+            let hdrGainPlane = variant.gainMapHDR
+                ? gainMapBox.consume(artifact.token) : nil
             return try ExportRenderer.encodeStage(
                 plane: stage.plane, formatSpec: stage.formatSpec,
                 targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
@@ -714,7 +718,9 @@ public actor ExportQueue {
                 destination: stage.destination,
                 metadataPolicy: variant.metadataPolicy,
                 exifSoftware: ExportRenderer.jobExifSoftware,
-                embedICC: variant.embedICC)
+                embedICC: variant.embedICC,
+                gainMapHDR: variant.gainMapHDR,
+                hdrGainPlane: hdrGainPlane)
         }
         return (renderLeg, encodeLeg)
     }
