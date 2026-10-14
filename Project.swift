@@ -593,6 +593,7 @@ let project = Project(
                 "Tests/LightamerTests/LibraryDocumentTests.swift",
                 "Tests/LightamerTests/LibraryFilterDomainTests.swift",
                 "Tests/LightamerTests/LibraryGridModelTests.swift",
+                "Tests/LightamerTests/LibraryGridStackTests.swift",
                 "Tests/LightamerTests/LibraryInspectorModelTests.swift",
                 "Tests/LightamerTests/LibraryLegacyGateTests.swift",
                 "Tests/LightamerTests/LibraryProjectControllerTests.swift",
