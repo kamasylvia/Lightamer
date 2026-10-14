@@ -91,7 +91,8 @@ gain map 档不引入新 tag/formatName（仍 "jpeg"）——容器本就是超�
 
 research 定稿 + OQ 全裁（本文，夜间授权批）→ plan round
 （`M6-3-01-PLAN.md`，执行分工照 Phase 执行模型；plan_review_by_omp = true，
-双重验收 dual_acceptance = true）。
+双重验收 dual_acceptance = true）→ plan 评审修订批（`M6-3-01-PLAN-REVIEW.md`
+E1/E2/M1-M4/S1-S4 回注，增补裁决 D-M6-3-7 落本文增补节，2026-10-13）。
 
 ## 裁决记录
 
@@ -101,3 +102,22 @@ research 定稿 + OQ 全裁（本文，夜间授权批）→ plan round
 APP1 注入器）③primary XMP 补 `hdrgm:Version` 接受、LightCraft C 路降兜底封存
 ④单通道 'L008'（`hdrGainMapAsRGB` 不开）⑤M2 页 SDR 导出节 checkbox
 （drtOutput≠nil ∧ .jpeg ∧ peak≥203 可用）⑥不加新 tag（仍 "jpeg" 同池）。
+
+## 裁决增补（夜间授权批，2026-10-13 评审回注）
+
+**D-M6-3-7（M6-3-01-PLAN-REVIEW M3 处置，orchestrator 裁准）= validate 增
+第五门**：`gainMapHDR ∧ DRT record encodingEotf ∈ {st2084, hlg}` → typed 拒
+（validate 门 + M2 页 UI 可用门同步 + 负测各一；validate 门数 4→5，相关 AC
+文本同步）。**理由**：UltraHDR/ISO 21496-1 语义要求 base = SDR rendition；
+PQ/HLG 编码 base（M2-6 DRT-HDR 面，peak 通常 ≥203 可过既有三门）是 **E4
+反证禁止形态的 base 侧复现**（gain 比率对 PQ/HLG 编码码值取、SDR 屏不可读
+——与「`.hdrImage` 恒喂线性光」同一物理约束在 base 侧的投影），**不豁免**。
+Core 单源 = `isHdrEncoding(_:)`（`DrtRecord.swift:463`）。**性质注记**：此门
+是对 D-M6-3-5 生效值可用门集的**收窄**（三条件 → 四维），超出 planner 独行
+权限，故由本增补节裁准——晨审/用户可推翻，推翻 = 撤门三处回退（validate/UI
+谓词与文案/负测）+ DECISIONS 语义豁免显式登记，不得维持静默。
+
+**同批随录（planner 权限内，非裁决）**：validate 第六门 `gainMapHDR ∧ yiyin`
+→ typed 拒（REVIEW E1——borders/watermark 在 EotfBox 后回放致 capture 面与
+出口位图尺寸分叉、gain 语义未定义；variant public API 可构造，M2 页不可达 =
+validate-only 门，UI 文案不展开）。六项 OQ 生效值本体无一改动。

@@ -1,24 +1,25 @@
 ---
 phase: m6-3
 plan: "M6-3-01"
-title: "ALCE-03 UltraHDR gain map JPEG 导出（单 plan 全量批）——ExportVariant additive `gainMapHDR` 字段与 validate 四门（非 jpeg / drtOutput 缺席 / peak<203 headroom<1 / embedICC=false typed 拒——MPF 偏移雷结构性排除）+ HDR 线性面取缝（DRT 尾 EOTF-box 前线性级，PixelPipe 窄缝解封申报 + owned-copy 纹理 + headroom=peak/203 单源）+ 渲染→编码 queue 级 box 交接（ExportQueueContract 零 diff）+ ExportGainMapEncoder（CI writeJPEGRepresentation `.hdrImage` 全服务路 + 同目录 tmp 原子晋升 L009 + CopyImageSource 元数据 rewrap〔XMP F5 形 + EXIF probe 先行降级〕）+ encodeStage 分支与后处理门（ICC strip / XMP 注入双旁路——MPF 偏移雷消解）+ M2 页 SDR 节 checkbox 三态门与 enqueue 联动 + 容器/读回/基面保真/gain 语义 golden + reimport raster 链兼容"
+title: "ALCE-03 UltraHDR gain map JPEG 导出（单 plan 全量批）——ExportVariant additive `gainMapHDR` 字段与 validate 六门（非 jpeg / drtOutput 缺席 / peak<203 headroom<1 / embedICC=false / HDR-encoding EOTF / yiyin 全 typed 拒——MPF 偏移雷与 gain 语义雷结构性排除）+ HDR 线性面取缝（DRT 尾 EOTF-box 前线性级，PixelPipe+LayerCompositeDriver 窄缝解封申报〔9 hunk 清单〕+ owned-copy 纹理 + headroom=peak/203 单源）+ 渲染→编码 queue 级 box 交接（ExportQueueContract 零 diff）+ ExportGainMapEncoder（CI writeJPEGRepresentation `.hdrImage` 全服务路 + 同目录 tmp 原子晋升 L009 + CopyImageSource 元数据 rewrap〔XMP F5 形 + EXIF probe 先行降级〕）+ encodeStage 分支与后处理门（ICC strip / XMP 注入双旁路 + fail-loud guard——MPF 偏移雷消解）+ M2 页 SDR 节 checkbox 可用门与联动复位 + 容器/读回/基面保真/gain 语义 golden + reimport raster 链兼容"
 wave: 1
 depends_on: []
 autonomous: true
 requirements: ["ALCE-03（REQUIREMENTS 原位注记，解冻 → M6-3）"]
-estimated_tests: "+24..30"
+estimated_tests: "+28..34"
 test_bundles: [EXPORT, APP]
 files_modified:
-  - LightamerCore/Sources/Export/ExportRecipe.swift                # 修改：ExportVariant additive `public var gainMapHDR: Bool = false`（KD-1：decode decodeIfPresent ?? false 旧档零漂移；variant 不持久化——M2-9 既定）+ validate() 四门（gainMapHDR ∧ format != .jpeg / ∧ drtOutput == nil / ∧ peakLuminance < 203 / ∧ !embedICC → AppError typed 拒）；ExportFormatSpec 类型面零 diff（红线）
-  - LightamerCore/Sources/Pipe/PixelPipe.swift                     # 修改：run-scoped `linearGainCapture: ((MTLTexture, SIMD2<Int>) -> Void)? = nil` 窄缝（缺省 nil = 全部既有路径字节零变化）+ runTerminalTails 的 EotfBox 输入点单调用位；**封存面解封申报**（M3-3 清单内窄缝 additive，M4-1「封存面解封」先例，DECISIONS 登记）
-  - LightamerCore/Sources/Export/ExportRenderer.swift              # 修改：StageOutput additive `hdrGainPlane: ExportGainMapHDRPlane?`（internal 载体）+ renderStage 装配 capture（variant.gainMapHDR ∧ drtTail != nil 时置 pipe.linearGainCapture，owned-copy 纹理）+ encodeStage additive 参数 `gainMapHDR: Bool = false, hdrGainPlane: ExportGainMapHDRPlane? = nil`（缺省 = 全部既有调用点零 diff）+ 分支旁路 registry 直调 ExportGainMapEncoder + 后处理门（gain-map 臂跳过 stripICC 与 mountXMP）
-  - LightamerCore/Sources/Export/ExportQueue.swift                 # 修改：makeLegs 双腿共享 `ExportGainMapPlaneBox`（final class + NSLock + [Int: plane] keyed by artifact.token；render 腿 stash / encode 腿 consume+clear / cancel-retry 清理）——ExportQueueContract 封存面零 diff（contract 载体不扩）
+  - LightamerCore/Sources/Export/ExportRecipe.swift                # 修改：ExportVariant additive `public var gainMapHDR: Bool = false`（KD-1：decode decodeIfPresent ?? false 旧档零漂移；variant 不持久化——M2-9 既定）+ validate() 六门（gainMapHDR ∧ format != .jpeg / ∧ drtOutput == nil / ∧ peakLuminance < 203 / ∧ !embedICC / ∧ encodingEotf ∈ {st2084, hlg} / ∧ yiyin → AppError typed 拒）；ExportFormatSpec 类型面零 diff（红线）
+  - LightamerCore/Sources/Pipe/PixelPipe.swift                     # 修改：run-scoped `linearGainCapture: ((MTLTexture, SIMD2<Int>) -> Void)? = nil` 窄缝（缺省 nil = 全部既有路径字节零变化）；**封存面解封申报 = 9 hunk 清单**（E2 修订：本文件 7 hunk——属性声明 + process/processComposite additive 缺省参数与赋值穿双入口 + runDrtTailLeg tailPipe 继承 + processRec 走查体 EotfBox 位回调；M4-1「封存面解封」先例，DECISIONS 登记 hunk 清单）；`.metal` 零 diff
+  - LightamerCore/Sources/Pipe/LayerCompositeDriver.swift          # 修改（非封存文件，additive 穿线 2 hunk）：composite additive 缺省参数 + terminalPipe 赋值——composite 导出（layered 文档常态）的 capture 活性承载（tailFormatFloatOverride 同缝先例 :553-559 注记正本）；一并入 E2 申报清单
+  - LightamerCore/Sources/Export/ExportRenderer.swift              # 修改：StageOutput additive `hdrGainPlane: ExportGainMapHDRPlane?`（internal 载体）+ renderStage 装配 capture（variant.gainMapHDR ∧ drtTail != nil 时经 additive 缺省参数穿 RenderPipeline 双入口，owned-copy 纹理）+ encodeStage additive 参数 `gainMapHDR: Bool = false, hdrGainPlane: ExportGainMapHDRPlane? = nil`（缺省 = 全部既有调用点零 diff）+ 分支旁路 registry 直调 ExportGainMapEncoder + 后处理门（gain-map 臂跳过 stripICC 与 mountXMP）+ 臂首行 fail-loud guard（M4）
+  - LightamerCore/Sources/Export/ExportQueue.swift                 # 修改：productionLegs 双腿共享 `ExportGainMapPlaneBox`（final class + NSLock + [Int: plane] keyed by artifact.token；render 腿 stash / encode 腿 consume+clear）+ box 以 actor 实例属性持有、finish/finishCancelled/generation 换代/retry 按 queued.seq 清理（M1——retry = fresh seq 新 key 无覆盖语义，失败残面显式清）；ExportQueueContract 封存面零 diff（contract 载体不扩）
   - LightamerCore/Sources/Export/ExportGainMapEncoder.swift        # 新建：CI writeJPEGRepresentation 全服务编码（KD-4）+ SDR 参考白常量 `sdrReferenceWhite: Float = 203` 单源 + 同目录 tmp→原子晋升（L009）+ CopyImageSource 元数据 rewrap（XMP F5 形 + EXIF probe 先行）
-  - App/Sources/Lightamer/Export/ExportInspectorView.swift         # 修改：SDR 导出节 UltraHDR checkbox（三态可用门 + 两条不可用文案）+ ExportM2PanelModel additive `var gainMapHDR = false`（会话态，同 embedICC 层）+ :350 陈旧「UltraHDR 是 M4 ALCE-02 面」注记原位更新（ALCE-03 落地）
-  - App/Sources/Lightamer/State/ExportState.swift                  # 修改：RunAssembly/enqueueExportM2 联动——assembled.gainMapHDR = panel 开关（M3-1-03 makeRunAssembly 纯缝延续；drtOutput 强制联动语义不变）
-  - Resources/Localizable.xcstrings                                # 修改：新键 4 枚尾块纯插入（KD-6 清单；UserDefaults 零新增）
-  - Tests/LightamerTests/ExportGainMapTests.swift                  # 新建（Export bundle，21 法，KD-7）：validate 四门 + additive 零漂移 + capture 两态 + 容器字节面 + aux 读回字典 + rewrap 存活 + 后处理双旁路门 + 质量旋钮 + tmp 晋升 + 基面保真 + gain 语义带 + reimport 兼容
-  - Tests/LightamerTests/ExportGainMapPanelTests.swift             # 新建（App，6 法，KD-6 机检缝）：三态可用门 + 装配携带 + enqueue 联动 + 默认关零 diff
+  - App/Sources/Lightamer/Export/ExportInspectorView.swift         # 修改：SDR 导出节 UltraHDR checkbox（四维可用门 + 三条不可用文案 + 联动复位）+ ExportM2PanelModel additive `var gainMapHDR = false`（会话态，同 embedICC 层）+ makeVariant 旗标落点一行（S4）+ :350 陈旧「UltraHDR 是 M4 ALCE-02 面」注记原位更新（ALCE-03 落地）
+  - App/Sources/Lightamer/State/ExportState.swift                  # 零 diff 预期（S4 落点定死）：旗标载体 = makeVariant（ExportInspectorView）一行，RunAssembly.variant 即携带面；enqueueExportM2 drtOutput 强制联动（:526-528）不变、drtTails 载体零新增——ExportState 侧零新参数穿线；T4 机检族核对该文件零命中（实现中若发现非触不可，偏差入 DECISIONS）
+  - Resources/Localizable.xcstrings                                # 修改：新键 5 枚尾块纯插入（KD-6 清单；UserDefaults 零新增）
+  - Tests/LightamerTests/ExportGainMapTests.swift                  # 新建（Export bundle，25 法，KD-7）：validate 六门 + additive 零漂移 + capture 两态 + fail-loud 负测 + box 泄漏负测 + 容器字节面 + aux 读回字典 + rewrap 存活 + 后处理双旁路门 + 质量旋钮 + tmp 晋升 + 基面保真 + gain 语义带 + reimport 兼容
+  - Tests/LightamerTests/ExportGainMapPanelTests.swift             # 新建（App，8 法，KD-6 机检缝）：四维可用门（format/readout/peak/encoding）+ 联动复位负测（embedICC off / peak 降档）+ 装配携带 + enqueue 联动 + 默认关零 diff
   - Project.swift                                                  # 修改：两新测试文件登记对应 target 数组（显式清单无 glob）+ `tuist generate` 恒为该批最后一个动作（L041）
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt     # 修改：两新行登记（E2 纪律，随各自任务 commit）
   - .work/gui-acceptance/m6-3/MANIFEST.md                          # 新建（T5——跨生态目检 Manual-Only 配方：Preview/Photos HDR 渲染 + sips + Chrome/Android 如有 + LightCraft 参考产物互读可选行）
@@ -46,8 +47,8 @@ files_modified:
 >
 > **基线**：**3725/24/0**（M6-2-VALIDATION 2026-10-14 终验亲证值，ROADMAP 头部
 > 亲核「M6-2 closed 2026-10-14 terminal 3725/24/0, dual independent acceptance
-> PASS」）。本批预期全套 **3749..3755/24/0**（+24..30；两新文件 27 法预估），
-> 对账留 T5 验收；bundle 分账 = Export +21 / App +6（基线分账以 M6-2 VALIDATION
+> PASS」）。本批预期全套 **3753..3759/24/0**（+28..34；两新文件 33 法预估），
+> 对账留 T5 验收；bundle 分账 = Export +25 / App +8（基线分账以 M6-2 VALIDATION
 > 终验表为准，验收轮对表）。
 
 ## 已定裁决（生效值，硬约束，不得重开）
@@ -72,20 +73,29 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
    peak/203 ≥ 1.0）；不可用态给 ExportICCStrip 文案形说明。
 6. **OQ-6 = A（tag）**：**不加新 tag/formatName**（仍 "jpeg" 同池冲突递增）。
 
+**增补裁决（评审回注，同批夜间授权 2026-10-13，正本 = CONTEXT「裁决增补」节）**：
+validate 第五门 = **HDR-encoding EOTF 拒**（评审 M3/E3——`gainMapHDR ∧ DRT
+record encoding ∈ {st2084, hlg} → typed 拒`，UI 可用门同步 + 负测；PQ/HLG 编码
+base 是 E4 禁止形态的 base 侧复现，不豁免；此为 OQ-5 可用门集的收窄，orchestrator
+夜间授权批裁准，晨审可推翻——推翻则撤门 + DECISIONS 语义豁免登记）；validate
+第六门 = **yiyin 拒**（评审 E1——planner 权限内 validate 完备性修订，UI 文案
+不展开）。六项 OQ 生效值本体无一改动。
+
 **架构红线（本 plan 全程 + checker 机检面）**：
 - **六格式矩阵既有路径零 diff**：`ImageIOEncoders.swift` 与 `WebPEncoder.swift`
   **文件级零 diff**（比「既有路径零改」更强姿态——本批零触碰）；`ExportFormatSpec`
   类型零改动（`ExportRecipe.swift` 内该面零 diff，本批对该文件改动 =
-  ExportVariant 字段 + validate 四门）；`ExportEncoderRegistry`（expectedLayout /
+  ExportVariant 字段 + validate 六门）；`ExportEncoderRegistry`（expectedLayout /
   encoder dispatch）与 quantizer 阶梯零改。
 - **`ExportICCStrip` 本体零 diff**（`ExportEncoder.swift` 文件级零 diff）——
   gain map 档经 encodeStage 门旁路，strip 代码不动。
 - **`ExportQueueContract.swift` 零 diff**（M3-3 封存面）——HDR 面交接走
   ExportQueue 级 box，contract 载体不扩。
-- **`PixelPipe.swift` 窄缝解封申报制**：M3-3 封存清单内文件，本批仅 additive
-  run-scoped capture 属性 + 单调用位（M4-1「封存面解封②兑现」先例），
-  DECISIONS 申报 diff 范围；**`.metal` 零 diff**（零新 kernel——gain 计算全在
-  CI 黑盒内）。
+- **`PixelPipe.swift` 窄缝解封申报制（E2 修订口径）**：M3-3 封存清单内文件，
+  本批 additive 触点 = **9 hunk 清单**（本文件 7 + `LayerCompositeDriver.swift`
+  非封存文件 2，逐 hunk 见 KD-2「申报清单」；M4-1「封存面解封②兑现」先例），
+  DECISIONS 申报 diff 范围按清单逐 hunk 自证；**`.metal` 零 diff**（零新
+  kernel——gain 计算全在 CI 黑盒内）。
 - 零新 SPM；V50Order/GradeCatalog/Registry/HistoryStack/HistoryHash/sidecar
   schema/MCP 20 工具封闭集/QuickLook+Spotlight appex 零触碰。
 - **L057/L058 禁令**（无面板呈现新面——checkbox 为内联 SwiftUI Toggle；新键
@@ -95,54 +105,115 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
 
 ## 关键设计决策（planner 裁决，执行中不重开）
 
-### KD-1 ExportVariant additive 字段与 validate 四门（T1）
+### KD-1 ExportVariant additive 字段与 validate 六门（T1）
 
 - `public var gainMapHDR: Bool = false`（`ExportRecipe.swift` :23 结构体内
   additive；decode `decodeIfPresent ?? false`——无键旧 variant 零漂移；encode
   走既有合成面即可，variant 不持久化 = M2-9 既定，零迁移面）。
-- `validate()`（:119）追加**四门**，全 typed `AppError.invalidParameter`：
+- `validate()`（:119）追加**六门**，全 typed `AppError.invalidParameter`：
   ①`gainMapHDR && format != .jpeg` → 拒（六格式其余五格式 = typed 不可达，
   文案形同 ExportICCStrip 不可达说明）；②`gainMapHDR && drtOutput == nil` →
   拒（HDR 面来源 = DRT record——OQ-7 强制联动语义的镜像）；③
   `gainMapHDR && !peakLuminance.isFinite || peakLuminance < 203` → 拒
   （headroom = peak/203 < 1.0 = 无 HDR 余量；文案说明 SDR 参考白）；④
   `gainMapHDR && !embedICC` → 拒（**§8.4 雷结构性排除**——stripJPEGICC 删
-  APP2 会使 MPF 副图绝对偏移失效，gain map 档强制 embedICC 形态）。
-  既有 finite-positive 闸（:130）不触，四门为 additive 追加。
+  APP2 会使 MPF 副图绝对偏移失效，gain map 档强制 embedICC 形态）；⑤
+  `gainMapHDR && isHdrEncoding(record.encodingEotf)` → 拒（**增补裁决门**——
+  `DrtRecord.swift:463` Core 单源现成；UltraHDR/ISO 21496-1 语义要求 base =
+  SDR rendition，st2084/hlg 编码 base〔M2-6 DRT-HDR 面，peak 通常 ≥203 可过
+  既有三门〕是 E4 反证禁止形态的 base 侧复现——gain 比率对 PQ/HLG 码值取、
+  SDR 屏不可读，**不豁免**；裁决正本 = CONTEXT「裁决增补」节）；⑥
+  `gainMapHDR && yiyin` → 拒（**评审 E1**——borders/watermark 在 EotfBox
+  **之后**回放〔DrtTailAssembly :1741-1777 回放序 74→75→76→77〕，带边框时
+  尾输出/出口位图画布尺寸**大于** EOTF-box 输入平面 = capture 面
+  〔`ExportRenderer.swift:248-251` Outcome「borders canvas extension
+  INCLUDED」注记亲证〕→ `.hdrImage` 输入与 SDR base 尺寸失配，gain 计算
+  语义未定义 = 结构成立但语义损坏的 MPF 容器；`yiyin ∧ drtOutput≠nil` 可
+  构造〔step 5 注入与 drtTail 正交，:466-473〕，M2 页不可达但 variant 是
+  public API——validate-only 门，UI 文案不展开）。既有 finite-positive 闸
+  （:130）不触，六门为 additive 追加。
 - **SDR 参考白常量单源**：`ExportGainMapEncoder.sdrReferenceWhite: Float = 203`
   （Core 单源）；validate 与 UI 门读同一常量（禁双源漂移）。
 
-### KD-2 HDR 线性面取缝（T1，OQ-1 生效值）
+### KD-2 HDR 线性面取缝（T1，OQ-1 生效值；E2 修订申报口径）
 
-- **capture 点** = `PixelPipe.runTerminalTails`（:1126）尾段 sub-run 的
-  **EotfBox 输入平面**（M2-6 增量正本：「EOTF 之前的尾平面恒 working
-  float32（display-referred 线性）」——该平面即线性光 HDR 面）。缝形 =
-  run-scoped `linearGainCapture: ((MTLTexture, SIMD2<Int>) -> Void)? = nil`
-  （缺省 nil = 既有路径字节零变化），尾段回放在 EotfBox 消费前单点回调。
+- **capture 点（语义）** = DRT 尾段 sub-run 的 **EotfBox 输入平面**（M2-6
+  增量正本：「EOTF 之前的尾平面恒 working float32（display-referred 线性）」
+  ——该平面即线性光 HDR 面）。缝形 = run-scoped
+  `linearGainCapture: ((MTLTexture, SIMD2<Int>) -> Void)? = nil`（缺省 nil =
+  既有路径字节零变化）。
+- **capture 点（物理）**（E2 修订——原「runTerminalTails 单调用位」申报失实，
+  代码事实三则）：①renderStage **持不住 pipe 实例**——`RenderPipeline.process
+  / processComposite` 是静态入口、pipe 在函数体内建造（`PixelPipe.swift:2012`
+  起），capture 闭包必须作为 additive 缺省参数**穿双入口**（`tailFormatFloat
+  Override`/`filmTail`/`renderProcess` 三先例同形）；②`processComposite` 腿
+  经 `LayerCompositeDriver` 建造 terminalPipe（`LayerCompositeDriver.swift`
+  :553-559 同缝注记正本：「this pipe is built INSIDE the driver… the
+  composite export path (the layered document's 常态)」）——**该文件必须一并
+  穿线**，否则 layered 文档（常态）capture 静默失活；③EOTF-box 的输入平面
+  只在尾段 sub-run 走查体可见——唯一可捕获点 = `processRec` 走查体 upstream
+  解析后、box 派发前（`:1498-1596`），按 `box is EotfBox` 判定回调（EotfBox
+  全仓唯一构造点 = `DrtTailAssembly.instances` :1756——回调只会在尾段
+  sub-run 触发，主链/editor 视口零触发；cache 命中臂同样可达——upstream
+  解析先于 box 处理，export 无缓存腿恒走 uncached 臂单处，FULL 缓存臂至多
+  +1 处同判定）。
+- **解封申报清单（9 hunk，两文件；DECISIONS 按清单逐 hunk 自证）**：
+  - `PixelPipe.swift`（封存面解封）7 hunk：
+    1. `linearGainCapture` 属性声明（:155 `tailFormatFloatOverride` 同位）；
+    2. `RenderPipeline.process` additive 缺省参数（:2081 同位）；
+    3. `process` 内 pipe 属性赋值（:2095 同位）；
+    4. `RenderPipeline.processComposite` additive 缺省参数（:2143 同位）；
+    5. `processComposite` 传递进 `LayerCompositeDriver.composite`（:2155 同位）；
+    6. `runDrtTailLeg` 的 tailPipe 继承赋值（:1100 `tailFormatFloatOverride`
+       同位——flat 直跑与 composite terminalPipe 两条路径的 DRT 尾 sub-run
+       共用此继承点）；
+    7. `processRec` 走查体 EotfBox 位回调判定（见上③）。
+  - `LayerCompositeDriver.swift`（**非封存文件**，additive 穿线一并申报）
+    2 hunk：
+    8. `composite` additive 缺省参数（:205 同位）；
+    9. `terminalPipe.linearGainCapture` 赋值（:553-559 同位——composite
+       导出〔layered 文档常态〕capture 活性承载，缺省 nil = 非增益档零触）。
+  - 注：评审 E2 修法行「全在 PixelPipe.swift 内 ~5 hunk」未追完 composite
+    腿——`LayerCompositeDriver.swift` 物理必需（上述②），修订按代码事实
+    申报 9 hunk；`.metal` 零 diff 维持。
 - **owned-copy 纪律**：回调内将平面 blit 到 capture 专属纹理（防 pipe 池
   复用/下一 run 覆写）；载体 `ExportGainMapHDRPlane`（`ExportGainMapEncoder.swift`
   内值类型：texture + width/height + headroom）。GPU→GPU 交接（同设备
   CIContext），无 CPU 读回无 L014 fence 需求；测试侧 GPU 读回仍走既有
   fence 形。
-- **装配点** = `ExportRenderer.renderStage` 的 pipe 装配窗（:499-518
-  `tailFormatFloatOverride` 同位）：`variant.gainMapHDR && drtTail != nil` 时
-  置 capture，回调产出 `StageOutput.hdrGainPlane`（additive internal 字段，
+- **装配点** = `ExportRenderer.renderStage` 的 pipe 装配窗（:499-522，
+  `tailFormatFloatOverride` 同位）：`variant.gainMapHDR && drtTail != nil`
+  时把 capture 闭包作为 additive 缺省参数传入 `process/processComposite`
+  双入口，回调产出 `StageOutput.hdrGainPlane`（additive internal 字段，
   :263 结构体）。headroom = `drtOutput.peakLuminance / 203`（KD-1 常量单源）。
 - **双臂同链纪律**（OQ-1 硬约束）：SDR base = 既有链逐字节不变；HDR 面与
   base 共用同一 record 同一尾段回放，只差 capture 点在 EOTF-box 前——禁任何
-  独立第二渲染链。禁 PQ/HLG 码值直喂（E4 反证；capture 点结构性排除）。
+  独立第二渲染链。禁 PQ/HLG 码值直喂（E4 反证；capture 点结构性排除 + KD-1
+  门⑤ typed 拒双层）。
 
-### KD-3 渲染→编码 HDR 面交接（T1，contract 零 diff 裁定）
+### KD-3 渲染→编码 HDR 面交接（T1，contract 零 diff 裁定；M1 修订生命周期）
 
 - `ExportRenderStage`/`ExportRenderArtifact` 在 `ExportQueueContract.swift`
   （:207/:247）= M3-3 封存面，**零 diff**——HDR 面不走 contract 载体。
-- 交接 = `ExportQueue.makeLegs` 内双腿闭包共享的 **`ExportGainMapPlaneBox`**
-  （final class + NSLock + `[Int: ExportGainMapHDRPlane]`，key =
-  `artifact.token`（snapshot.seq）；render 腿闭包（:590-617）从 StageOutput
-  stash；encode 腿闭包（:618-636）按 `variant.gainMapHDR` consume + clear）。
-- **生命周期**：consume 即 clear；cancel/generation 换代/finish 路径清残余
-  （retry 重跑 render 腿覆盖写同 key——token 复用语义 = 覆盖，DECISIONS 注记）；
-  非 gain-map job 恒不触 box（零行为）。
+- 交接 = `ExportQueue.productionLegs`（:581-638，S4 勘误：原名 `makeLegs`
+  不存在）内双腿闭包共享的 **`ExportGainMapPlaneBox`**（final class + NSLock
+  + `[Int: ExportGainMapHDRPlane]`，key = `artifact.token`（snapshot.seq）；
+  render 腿闭包（:590-617）从 StageOutput stash；encode 腿闭包（:618-636）
+  按 `variant.gainMapHDR` consume + clear）。
+- **生命周期（M1 修订——源码事实：retry = fresh seq，`ExportQueue.swift`
+  :332-335 `seqCounter += 1; job.seq = seqCounter`，重跑 render 腿写的是
+  **新 key**，失败尝试旧 seq 下的残面**永不被覆盖**）**：
+  - box 以 **ExportQueue actor 实例属性**持有（`productionLegs` 生产腿装配
+    时创建注入；测试注入腿时为 nil = 零行为）——双腿闭包捕获同一实例，
+    actor 侧清理路径可达；
+  - `finish`（:521）/`finishCancelled`（:547）/generation 换代路径
+    （`cancelAll` :280 换代 + `execute` 门 :394 stale 出口）按 `queued.seq`
+    清除该 job 的残面；retry（:320）入队前显式清旧 seq 残面；
+  - 非 gain-map job 恒不触 box（零行为）。
+  - **泄漏负测**（KD-7）：failed/cancelled gain-map job 终态后 box 字典空
+    （owned-copy 全分辨率 float32 面 ~100MP ≈ 1.6GB 不残留——小尺寸 proxy
+    断言 box 计数归零；AGENTS 资源监控口径）；DECISIONS 注记按本节①②③
+    改写（原「token 复用 = 覆盖写」为假事实，作废）。
 
 ### KD-4 ExportGainMapEncoder（T2，CI 全服务路正本）
 
@@ -178,6 +249,13 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
   `ExportEncoderRegistry.encoder`** 直调 `ExportGainMapEncoder`（registry 与
   JPEGEncoder 零触——布局门对 gain map 双平面结构不适用）；假时既有路径
   逐字节。
+- **臂首行 fail-loud guard（M4）**：`guard !gainMapHDR || hdrGainPlane !=
+  nil else { throw AppError.invalidParameter(...) }`——capture 装配条件 =
+  `variant.gainMapHDR && drtTail != nil`（KD-2）而 validate 门② 查
+  `variant.drtOutput == nil`，两载体 API 级独立（M2 页由 `enqueueExportM2`
+  双写强制同源 `ExportState.swift:526-528`；直接构造 `Request` 可只填
+  drtOutput 不带 drtTail——六门全过、capture 不装、产物**无声变普通
+  JPEG**）；guard 同时兜住 capture 回调异常未触发的面。负测一条（KD-7）。
 - **后处理门**（MPF 偏移雷——RESEARCH §8.4 正本）：gain-map 臂
   `!embedICC` 的 `stripICC` 调用（:663-672）与 `mountXMP` 调用（:681-689）
   **双双跳过**——APP2 删除/APP1 注入都会移动文件内绝对偏移使 MPF 副图失效；
@@ -187,25 +265,39 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
 - 非 gain-map 路径（其余五格式 + 普通 JPEG）行为零 diff：后处理门只看
   `gainMapHDR` 旗标，负测一条钉死。
 
-### KD-6 M2 页 UI（T3，OQ-5 生效值）
+### KD-6 M2 页 UI（T3，OQ-5 生效值；M2/M3/S4 修订）
 
 - `ExportM2PanelModel`（ExportInspectorView.swift :609）additive
   `var gainMapHDR = false`（会话态，同 `embedICC` :652 层；跨会话不记忆 =
   collisionPolicy 同裁定，UserDefaults 零新增）。
-- **checkbox**（SDR 导出节 :382，format picker 之后）：可用门三态谓词 =
+- **checkbox**（SDR 导出节 :382，format picker 之后）：可用门**四维**谓词 =
   `formatKind == .jpeg` ∧ 当前图 drt readout 在册（:354 同判据）∧
-  `effectiveDrtRecord().peakLuminance ≥ 203`（KD-1 常量）。禁用态两条说明
+  `effectiveDrtRecord().peakLuminance ≥ 203`（KD-1 常量）∧
+  `!isHdrEncoding(effectiveDrtRecord().encodingEotf)`（**增补裁决门⑤ UI
+  同步**——`DrtRecord.swift:463` Core 单源）。禁用态三条说明
   （ExportICCStrip 不可达文案形 ：332-339 镜像）：非 JPEG /
-  peak < 203（「提升 DRT Peak 至 203 nits 以上以启用」语义）。
-- **联动**：RunAssembly/enqueueExportM2（`ExportState.swift` :484-545）——
-  `assembled.gainMapHDR = model.gainMapHDR`（drtOutput 强制联动 ：527 不变；
-  variant 携带旗标入队，drivetTails 载体零新增——旗标随 variant 过双腿）。
-  默认 false = 装配面零 diff。
+  peak < 203（「提升 DRT Peak 至 203 nits 以上以启用」语义）/
+  HDR-encoding EOTF（「DRT Encoding 为 PQ/HLG 时 base 非 SDR rendition，
+  gain map 不可用」语义）；yiyin 门⑥无 UI 面（M2 页恒 false 不可达，
+  validate-only）。
+- **联动复位规则（M2——矛盾态闭环）**：任一可用门破坏 →
+  `model.gainMapHDR` **自动复位 false**（embedICC toggle 关 / format 切走
+  jpeg / DRT peak 降 <203 / encoding 转 HDR——三处门位变化入口同批调用
+  复位；会话态纪律同 collisionPolicy），checkbox 回落 off + 置灰 + 对应
+  不可用文案——**「UI 可用但 validate 拒」矛盾态结构性排除**（否则整批
+  job typed 拒失败）。负测：embedICC off → 旗标复位断言（KD-7 T3 面）。
+- **联动落点（S4 定死）**：旗标落 **`makeVariant`（ExportInspectorView.swift
+  :814-820）一行** `ExportVariant(..., gainMapHDR: gainMapHDR)`——
+  `RunAssembly.variant` 即旗标载体；`enqueueExportM2`（`ExportState.swift`
+  :484-545）drtOutput 强制联动（:527）不变、**drtTails**（S4 拼写勘误）
+  载体零新增——ExportState 侧零新参数穿线（front-matter 该文件零 diff
+  预期）。默认 false = 装配面零 diff。
 - 陈旧注记原位更新：:350 「the true HDR container (UltraHDR) is the M4
   ALCE-02 face」→ ALCE-03 已落地（本文档级注释，零行为）。
-- **新键 4 枚**（尾块纯插入）：`export_gainmap_label` / `export_gainmap_hint`
+- **新键 5 枚**（尾块纯插入）：`export_gainmap_label` / `export_gainmap_hint`
   （启用态说明：ISO 21496-1 gain map 随 JPEG 嵌入）/ 
-  `export_gainmap_unavailable_format` / `export_gainmap_unavailable_peak`。
+  `export_gainmap_unavailable_format` / `export_gainmap_unavailable_peak` /
+  `export_gainmap_unavailable_encoding`（门⑤ UI 文案）。
   zh-audit `--check` 全入册。
 
 ### KD-7 测试设计与 golden 门（T1..T4，RESEARCH §1.5/§8.2 钉法）
@@ -214,10 +306,12 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
   band 断言」，**禁字节级全量比对**（RESEARCH §8.2——字节级钉不住第三方
   黑盒，OS 升级假红）。测试面全部小尺寸合成平面（≤256px），Export bundle
   宿主既有 GPU 先例。
-- **ExportGainMapTests（Export bundle，21 法）**：
-  - validate 四门 + additive 零漂移（4 法，T1）：非 jpeg 拒（同法并档
+- **ExportGainMapTests（Export bundle，25 法）**：
+  - validate 六门 + additive 零漂移（6 法，T1）：非 jpeg 拒（同法并档
     additive decode 零漂移双断言：无键旧 variant == false 且既有 validate
-    面零 diff）/ drtOutput nil 拒 / peak<203 拒 / embedICC=false 拒。
+    面零 diff）/ drtOutput nil 拒 / peak<203 拒 / embedICC=false 拒 /
+    **encodingEotf ∈ {st2084, hlg} 拒（门⑤，增补裁决）** / **yiyin=true 拒
+    （门⑥）**。
   - capture 两态（2 法，T1）：flag∧tail 才捕获（面尺寸/headroom 载体断言）；
     非 flag job 的 StageOutput.hdrGainPlane == nil（零行为门）。
   - 容器字节面（4 法，T2）：MPF APP2 段在位（`FF E2 "MPF\0"` 字节扫）/
@@ -229,21 +323,30 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
   - rewrap 存活（1 法，T2）：primary XMP 含 `hdrgm:Version`（字节扫）∧
     rewrap 后 aux 读回仍 PRESENT（F5 门）∧ metadataPolicy .none 臂无 XMP
     但容器仍 UltraHDR（并入本法双断言）。
-  - 后处理双旁路门（3 法，T2）：gain-map 臂产物 MPF 在位（strip 未跑——
+  - 后处理门 + fail-loud（4 法，T2）：gain-map 臂产物 MPF 在位（strip 未跑——
     embedICC true 强制形态）/ gain-map 臂无双 XMP（mountXMP 未跑——APP1
-    xap 头单实例）/ 非 gain-map job 后处理照旧（零 diff 负测）。
+    xap 头单实例）/ 非 gain-map job 后处理照旧（零 diff 负测）/
+    **`gainMapHDR=true ∧ hdrGainPlane=nil` → encodeStage typed 拒（M4
+    fail-loud 负测——drtOutput/drtTail 载体独立缝隙 + capture 异常兜底）**。
   - 质量旋钮 + tmp 晋升（2 法，T2）：q 显式传递 finalize 成功（E3 形）/
     晋升后目标文件在位。
+  - **box 生命周期泄漏负测（1 法，T1，M1）**：gain-map job 注入失败/取消
+    终态后 box 字典空（小尺寸 proxy 断言计数归零——fresh seq 新 key 无
+    覆盖语义下的 actor 清理路径覆盖）。
   - 基面保真 + gain 语义带 + reimport（3 法，T4）：①基面解码采样点 ==
     纯 JPEGEncoder 编码同平面解码值（E2 方法；L048——比较前 decode 回
-    linear，f32 产线常数升维）②合成平面 SDR 常量 + HDR = SDR×2^k → aux
+    linear，f32 产线常数升维；**S1：该法与 gain band 同纳入 DECISIONS
+    漂移伞**——两黑盒编码器〔CI 内部 JPEG vs ImageIO JPEGEncoder〕跨实现
+    相等仅本 host 单次亲证，预登记容差回退预案 = 逐点 ±1 LSB band 或样本
+    数下限，防 macOS 升级假红）②合成平面 SDR 常量 + HDR = SDR×2^k → aux
     metadata GainMapMax 落 k 的 band（线性光喂入证明——E4 反证；CI 黑盒
     band 容差 DECISIONS 登记）③导出产物重导入走 M4-1 raster 链
     `decodeRaster` 成功、尺寸匹配、SDR base 解出（gain 忽略 = 正确降级）。
-- **ExportGainMapPanelTests（App，6 法，T3）**：三态门（非 jpeg 禁 / 
-  peak<203 禁 + hint 面 / jpeg+peak≥203 启用）+ 装配携带（RunAssembly
-  gainMapHDR 进 variant）+ enqueueExportM2 联动（assembled 旗标在位）+
-  默认关装配零 diff。
+- **ExportGainMapPanelTests（App，8 法，T3）**：四维可用门（非 jpeg 禁 /
+  peak<203 禁 + hint 面 / **HDR-encoding 禁 + encoding 文案态** / 
+  jpeg+peak≥203+SDR-encoding 启用）+ **联动复位负测（embedICC off → 旗标
+  复位断言，M2）** + 装配携带（RunAssembly gainMapHDR 进 variant）+
+  enqueueExportM2 联动（variant 旗标过 assembly）+ 默认关装配零 diff。
 
 ## read_first
 
@@ -260,12 +363,17 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
 4. `LightamerCore/Sources/Export/ExportRenderer.swift`（TaskLocal 递缝范式
    :103-135 / StageOutput :263 / drtTail 消费 :430 / tailFormatFloatOverride
    :499-518 / encodeStage :621-694 后处理两段）
-5. `LightamerCore/Sources/Export/ExportQueue.swift`（enqueue :196-260 / pump
-   双腿 :415-473 / makeLegs :590-636）+ `ExportQueueContract.swift`
-   （:207/:247 封存面零 diff 正本）
-6. `LightamerCore/Sources/Pipe/PixelPipe.swift`（runTerminalTails :1126 /
-   DrtTailAssembly :1707 / tailFormatFloatOverride :155/:381——capture 窄缝
-   落点；M2-6 增量节「EOTF 之前的尾平面恒 working float32」正本 = AGENTS.md）
+5. `LightamerCore/Sources/Export/ExportQueue.swift`（enqueue :196-260 /
+   pump :377-389 / execute 双腿段 :415-473 / productionLegs :581-638 /
+   retry :320 / finish :521 / finishCancelled :547——S4 锚点勘误后口径）+
+   `ExportQueueContract.swift`（:207/:247 封存面零 diff 正本）
+6. `LightamerCore/Sources/Pipe/PixelPipe.swift`（属性 :155 / runTerminalTails
+   :1126 / runDrtTailLeg tailPipe 继承 :1100 / processRec 走查体 :1423-1596 /
+   DrtTailAssembly :1707（EotfBox 唯一构造 :1756）/ RenderPipeline 双入口
+   :2070/:2128（参数同位 :2081/:2143，赋值/传递同位 :2095/:2155）——
+   capture 窄缝 9 hunk 清单落点，KD-2；M2-6 增量节「EOTF 之前的尾平面恒
+   working float32」正本 = AGENTS.md）+ `LayerCompositeDriver.swift`
+   （composite 参数 :205 / terminalPipe 装配 :553-559——同缝先例注记）
 7. `LightamerCore/Sources/Export/XMPContainerInjector.swift`（APP1 注入形
    ——为何 gain map 臂必须旁路 mountXMP 的机制正本）+ `XMPWriter.swift` +
    `ExportChainBuilder.mountXMP`（XMP 载体单源——encoder rewrap 复用面）
@@ -273,7 +381,7 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
    :484-545 / m2DrtTail :466）+ `App/Sources/Lightamer/Export/
    ExportInspectorView.swift`（metadataColorSection :309 / drtReadout
    :352-378 / sdrSection :382+ / panel model :609+ / embedICC :652 /
-   装配 :819）
+   makeVariant :814-820——旗标落点 S4 定死）
 9. AGENTS.md「M2-9 架构增量」（ExportVariant/drtOutput 强制联动/peak 闸）+
    「M2-6 架构增量」（DrtRecord/EOTF-box 尾段/尾平面格式）+「M4-1 架构增量」
    （raster 链/封存面解封先例）+「M3-3」（封存面清单）+ L057/L058/L009/L014/
@@ -304,9 +412,17 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
 - 零 diff 红线自证（T4）：`git diff <基线>..HEAD -- LightamerCore/Sources/
   Export/ImageIOEncoders.swift LightamerCore/Sources/Export/WebPEncoder.swift
   LightamerCore/Sources/Export/ExportEncoder.swift
-  LightamerCore/Sources/Export/ExportQueueContract.swift` 文件级零命中 +
-  `git diff` ExportRecipe.swift 内 ExportFormatSpec 面 + PixelPipe diff 范围
-  申报（仅 capture 窄缝）+ xcstrings/UserDefaults 零新增 + dependencies 块
+  LightamerCore/Sources/Export/ExportQueueContract.swift
+  LightamerCore/Sources/Export/ExportChainBuilder.swift
+  LightamerCore/Sources/Export/XMPWriter.swift
+  LightamerCore/Sources/Export/XMPContainerInjector.swift
+  LightamerCore/Sources/Export/ExportNamer.swift
+  LightamerCore/Sources/Export/ExportQuantizer.swift` 文件级零命中
+  （**四文件红线 + S3 五文件补列**——全部预期零触碰，`XMPContainerInjector`
+  不被 gain map 臂复用由此获机检托底）+ `git diff` ExportRecipe.swift 内
+  ExportFormatSpec 面 + PixelPipe/LayerCompositeDriver diff 按 KD-2 申报
+  **9 hunk 清单逐 hunk 对照**（E2 口径）+ ExportState.swift 零命中（S4
+  落点定死后预期零触）+ xcstrings/UserDefaults 零新增 + dependencies 块
   零 diff。
 - 中文标注（待核/待定/待补）一律显式；无源待核项入 DECISIONS 待供件清单。
 
@@ -314,45 +430,53 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
 
 ### T1 渲染面：variant 字段 + validate 门 + capture 窄缝 + box 交接（KD-1/KD-2/KD-3）
 
-- read_first 2/4/5/6 → `ExportVariant.gainMapHDR` + validate 四门（含
-  embedICC 组合门）→ `PixelPipe.linearGainCapture` 窄缝（解封申报面）→
-  `ExportRenderer.renderStage` capture 装配 + `StageOutput.hdrGainPlane` →
-  `ExportQueue.makeLegs` box stash/consume/cleanup。
-- 验收：`ExportGainMapTests` 前 6 法（validate 4 + capture 2）全绿；构建零
-  警告新增；既有 Export 套件原样绿（零回归初证）；PixelPipe diff 范围 =
-  capture 属性 + 单调用位（git diff 自证入任务报告）。
+- read_first 2/4/5/6 → `ExportVariant.gainMapHDR` + validate 六门（含
+  embedICC/encoding/yiyin 组合门）→ `PixelPipe.linearGainCapture` 窄缝 +
+  `LayerCompositeDriver` 穿线（解封申报面 = KD-2 9 hunk 清单）→
+  `ExportRenderer.renderStage` capture 装配（additive 参数穿双入口）+
+  `StageOutput.hdrGainPlane` → `ExportQueue.productionLegs` box
+  stash/consume/actor 清理（finish/finishCancelled/generation/retry 按 seq）。
+- 验收：`ExportGainMapTests` 前 9 法（validate 6 + capture 2 + box 泄漏 1）
+  全绿；构建零警告新增；既有 Export 套件原样绿（零回归初证）；diff 自证
+  按 KD-2 申报 **9 hunk 清单逐 hunk 对照**入任务报告（PixelPipe 7 +
+  LayerCompositeDriver 2，E2 口径——超清单触点 = 偏差登记）。
 
 ### T2 CI 编码腿：ExportGainMapEncoder + encodeStage 分支 + 后处理门（KD-4/KD-5）
 
 - read_first 3/4/7 → `ExportGainMapEncoder.swift` 新建（CI 写路 + tmp 晋升 +
   rewrap + EXIF probe + 203 常量）→ `encodeStage` additive 参数与分支 +
-  strip/XMP 双旁路门 → queue encodeLeg 接线。
-- 验收：`ExportGainMapTests` 中 12 法（容器 4 + 读回 2 + rewrap 1 + 后处理门
-  3 + 质量/晋升 2）全绿；**EXIF probe 结论落 DECISIONS 双态登记**（OQ-2）；
-  ImageIOEncoders/WebPEncoder/ExportEncoder/ExportQueueContract 四文件
-  `git diff` 零命中（红线初证）。
+  臂首行 fail-loud guard（M4）+ strip/XMP 双旁路门 → queue encodeLeg 接线。
+- 验收：`ExportGainMapTests` 中 13 法（容器 4 + 读回 2 + rewrap 1 + 后处理门
+  与 fail-loud 4 + 质量/晋升 2）全绿；**EXIF probe 结论落 DECISIONS 双态
+  登记**（OQ-2）；ImageIOEncoders/WebPEncoder/ExportEncoder/
+  ExportQueueContract 四文件 `git diff` 零命中（红线初证）。
 
-### T3 M2 页 UI：checkbox 三态门 + 装配联动（KD-6）
+### T3 M2 页 UI：checkbox 可用门 + 联动复位 + 装配落点（KD-6）
 
-- read_first 8 → panel model 字段 + checkbox 与两文案 + RunAssembly/
-  enqueueExportM2 联动 + :350 陈旧注记更新 + 4 键 xcstrings 尾块纯插入。
-- 验收：`ExportGainMapPanelTests` 6 法全绿；zh-audit `--check` 4 新键全入册
+- read_first 8 → panel model 字段 + checkbox 四维门与三条不可用文案 +
+  联动复位规则（embedICC/format/peak/encoding 门位）+ makeVariant 旗标落点
+  + :350 陈旧注记更新 + 5 键 xcstrings 尾块纯插入。
+- 验收：`ExportGainMapPanelTests` 8 法全绿；zh-audit `--check` 5 新键全入册
   PASS；UserDefaults 零新增（grep 自证）；非 jpeg 格式选中态 UI 面零 diff
-  （门谓词负测）。
+  （门谓词负测）；ExportState.swift 零命中（S4 落点自证）。
 
 ### T4 集成 golden + 读回兼容 + 红线自证（KD-7 尾）
 
-- read_first 10 → `ExportGainMapTests` 尾 3 法（基面保真 E2 形 / gain 语义
-  band / reimport raster 链）+ 零 diff 机检族（四文件 + ExportFormatSpec 面 +
-  PixelPipe 范围申报 + xcstrings/UserDefaults/dependencies）。
-- 验收：27 法全绿（Export bundle 21 + App 6）；机检行全绿截屏入任务报告；
-  分账 Export 353+21 / App +6 对表。
+- read_first 10 → `ExportGainMapTests` 尾 3 法（基面保真 E2 形〔S1 漂移伞
+  预案随法登记〕/ gain 语义 band / reimport raster 链）+ 零 diff 机检族
+  （四文件红线 + S3 五文件补列 + ExportFormatSpec 面 + PixelPipe/
+  LayerCompositeDriver 9 hunk 清单 + ExportState 零命中 +
+  xcstrings/UserDefaults/dependencies）。
+- 验收：33 法全绿（Export bundle 25 + App 8）；机检行全绿截屏入任务报告；
+  分账 Export 353+25 / App +8 对表。
 
 ### T5 收口
 
 - SUMMARY（任务序/bundle 分账/对账链）+ DECISIONS（EXIF probe 双态结论 /
-  PixelPipe 解封申报 / band 容差与 CI 黑盒漂移注记 / headroom<203 默认禁用
-  UX 注记 / box token 覆盖写语义）+ `gui-acceptance/m6-3/MANIFEST.md`
+  PixelPipe+LayerCompositeDriver 9 hunk 解封申报 / band 容差与 CI 黑盒漂移
+  注记〔含基面保真法 S1 漂移伞预案〕/ headroom<203 默认禁用 UX 注记 / box
+  fresh-seq + actor 清理语义〔M1——原「token 覆盖写」假事实作废〕/
+  encoding 门⑤ 裁决增补引用）+ `gui-acceptance/m6-3/MANIFEST.md`
   （Manual-Only：Preview/Photos HDR 目检 + sips + Chrome/Android 如有 +
   LightCraft 产物互读可选行）+ AGENTS.md M6-3 架构增量节 + ROADMAP M6-3 行
   ✅ + REQUIREMENTS ALCE-03 兑现注记 + GOAL-STATE 续接点 + TODO 同批 +
@@ -362,13 +486,16 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
 - 验收：定向轮 `--bundle Export` / `--bundle App` 全绿（exit 0 + 零 MEMFAIL，
   SC 分账对表；拼写 = test-direct.sh 注册表 `BUNDLES=(IOP IOPParity Layers
   Library Sessions Export App)`）；**申请全套 `--all` 批准轮**（预期
-  3749..3755/24/0，基线 3725/24/0 亲核在 plan 头）。
+  3753..3759/24/0，基线 3725/24/0 亲核在 plan 头）。
 
 ## 验收标准（AC 总表）
 
 1. **OQ 生效值①（HDR 面取平面点）**：capture 点 = DRT 尾 EOTF-box 前线性级
    （gain 语义 band 测试间接证明线性光喂入；PQ 码值面结构性不可达——capture
-   点单源）；独立 EDR 链零存在（无第二渲染链文件/装配面）。【T1/T4】
+   点单源）；独立 EDR 链零存在（无第二渲染链文件/装配面）；**增补裁决门⑤** =
+   `gainMapHDR ∧ encodingEotf ∈ {st2084, hlg}` typed 拒 + **门⑥** =
+   `gainMapHDR ∧ yiyin` typed 拒（validate 负测各一；正本 = CONTEXT「裁决
+   增补」节）。【T1/T3/T4】
 2. **OQ 生效值②（EXIF probe 先行）**：probe 结论入 DECISIONS 双态登记；
    probe 失败形态下产物容器/aux/XMP 全存活且无 EXIF（降级负测，若 probe 成功
    则改为 EXIF 在位正测）。【T2】
@@ -377,16 +504,21 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
    （`git log`/grep 无移植面佐证）。【T2】
 4. **OQ 生效值④（单通道）**：aux 读回 PixelFormat == 'L008' 且
    BytesPerRow == width；`hdrGainMapAsRGB` 全仓零出现（grep 机检）。【T2】
-5. **OQ 生效值⑤（UI 位）**：SDR 节 checkbox 三态门机检（6 法）+ 不可用文案
-   两态 + enqueue 联动 + 203 阈值与 Core 常量同源。【T3】
+5. **OQ 生效值⑤（UI 位）**：SDR 节 checkbox 四维可用门机检（8 法）+ 不可用
+   文案三态（format/peak/encoding）+ 联动复位规则负测（embedICC off → 旗标
+   复位）+ enqueue 联动（makeVariant 落点）+ 203 阈值与 Core 常量同源 +
+   encoding 维与 `isHdrEncoding` Core 单源同源。【T3】
 6. **OQ 生效值⑥（无新 tag）**：formatName 恒 "jpeg"（无新 tag 常量/分支——
    grep 机检）+ 同池冲突递增行为不变（既有 Namer 测试原样绿）。【T3/T4】
 7. **零回归门**：ImageIOEncoders/WebPEncoder/ExportEncoder/ExportQueueContract
-   四文件级零 diff + ExportFormatSpec 类型面零 diff + ExportICCStrip 本体零
-   diff + 非 gain-map 路径零 diff 负测 + 既有 Export 套件原样绿 + 既有
-   reimport/图库路径零触。【T2/T4】
-8. **SC 数字门**：Export 353+21 / App +6 定向对表；全套预期
-   3749..3755/24/0（批准轮对账，基线 3725/24/0 亲核记录在 plan 头）。【T5】
+   四文件级零 diff + S3 五文件补列（ExportChainBuilder/XMPWriter/
+   XMPContainerInjector/ExportNamer/ExportQuantizer）零 diff +
+   ExportFormatSpec 类型面零 diff + ExportICCStrip 本体零 diff +
+   PixelPipe/LayerCompositeDriver diff 按 KD-2 9 hunk 清单逐 hunk 对照 +
+   ExportState 零命中 + 非 gain-map 路径零 diff 负测 + 既有 Export 套件
+   原样绿 + 既有 reimport/图库路径零触。【T2/T4】
+8. **SC 数字门**：Export 353+25 / App +8 定向对表；全套预期
+   3753..3759/24/0（批准轮对账，基线 3725/24/0 亲核记录在 plan 头）。【T5】
 
 ## 风险与边界
 
@@ -395,14 +527,25 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
   （KD-7 钉法；假红 = band 容差 DECISIONS 调整点）。
 - **headroom<203 默认禁用**：默认 record peak=100 → checkbox 默认灰 + hint
   （诚实语义：SDR 参考白下无 HDR 余量）；UX 预期管理注记入 DECISIONS。
-- **ExportQueueContract 封存约束**：box 交接 = 封存面下的最小 additive 形；
-  若 checker 裁 box 形不可接受 → 备选 = encode 腿内二次尾段回放（缓存命中，
-  成本低）——切换属 KD-3 偏差，须 checker 会审裁定非 executor 自行切换。
+- **增补裁决门⑤ 晨审可推翻**：HDR-encoding EOTF 拒是对 OQ-5 可用门集的
+  收窄（CONTEXT「裁决增补」节，夜间授权批裁准）——晨审推翻 = 撤门三处
+  回退（validate/UI 谓词与文案/负测）+ DECISIONS 语义豁免显式登记
+  （st2084/hlg ∧ gainMapHDR 组合的产物预期），**不得维持零字静默**。
+- **ExportQueueContract 封存约束（S2 备选改写）**：box 交接 = 封存面下的
+  最小 additive 形；若 checker 裁 box 形不可接受 → **「encode 腿内二次尾段
+  回放（缓存命中，成本低）」不可行，作废**——encode 腿只持 contract 冻结
+  载体（量化 rgba8 平面 + `ExportRenderStage`，`ExportQueueContract.swift`
+  :247-286 无 float32 上游面/box 链/metal 上下文），且 `PipeCache()` 是
+  renderStage 局部（`ExportRenderer.swift:488`）跨腿不存活，「缓存命中二次
+  回放」= 整链重渲。真实备选 = 契约面解封申报修订（M4-1 先例）或 encode 腿
+  全链重渲（成本全新评估）——切换属 KD-3 偏差，须 checker 会审裁定非
+  executor 自行切换。
 - **EXIF probe 不可达**：v1 无 EXIF = 已裁降级（OQ-2）非缺口；挂账登记。
 - **外部校验缺口**：exiftool 本机不可用、Android/Chrome 设备环境不保证 →
   Manual-Only 走查批（MANIFEST 可选行显式标注，不可达不阻断收口）。
-- **纹理跨腿交接**：owned-copy 防 pool 复用；cancel/retry 清理覆盖（KD-3）；
-  同设备 CI 上下文 + Metal 默认 hazard tracking。
+- **纹理跨腿交接**：owned-copy 防 pool 复用；cancel/retry/generation 清理
+  覆盖（KD-3 fresh-seq + actor 清理 + 泄漏负测）；同设备 CI 上下文 + Metal
+  默认 hazard tracking。
 - **APP bundle 贴线**：IOP/IOPParity 本批零触碰（预期零漂移）；Export bundle
   新法全小尺寸合成面（内存增量 ≪ 8G 门）。
 
@@ -410,25 +553,30 @@ M6-3 OQ-1..6 **全部按推荐裁**（CONTEXT 裁决记录 2026-10-13 夜间授�
 
 1. **MPF 偏移脆弱面**：任何对产物文件的段级后处理都会破坏 MPF 绝对偏移——
    机检 encodeStage gain-map 臂 strip/XMP 双旁路 + `XMPContainerInjector`
-   不得被 gain map 臂复用（APP1 注入同样移偏移）；非 gain-map 臂零 diff。
+   不得被 gain map 臂复用（APP1 注入同样移偏移；S3 五文件零 diff 机检托底）；
+   非 gain-map 臂零 diff。
 2. **contract 零 diff 交接形**：ExportQueueContract 封存面下的 box 载体是否
-   成立（备选 = encode 腿二次尾段回放）；box 的 retry/generation/cancel
-   生命周期覆盖是否完备（token 覆盖写语义已登记）。
-3. **PixelPipe 解封申报范围**：diff 是否严格限于 capture 属性 + 单调用位；
-   有无借道扩面（M3-3 清单纪律）。
+   成立（备选 = 契约面解封申报修订或 encode 腿全链重渲——「二次尾段回放」
+   不可行已作废，见风险节）；box 的 retry/generation/cancel 生命周期覆盖
+   是否完备（M1：retry = fresh seq 新 key 无覆盖语义——actor 持 box 按
+   queued.seq 清理 + 泄漏负测，语义已登记）。
+3. **PixelPipe/LayerCompositeDriver 解封申报范围**：diff 是否严格限于 KD-2
+   **9 hunk 清单**（PixelPipe 7 + LayerCompositeDriver 2）逐 hunk 对照；
+   有无借道扩面（M3-3 清单纪律；E2 修订口径——原「单调用位」申报失实已
+   改写）。
 4. **203 双源风险**：validate 门 / UI 门 / encoder headroom 三消费点是否全走
    `sdrReferenceWhite` 单源；默认 peak=100 → checkbox 默认灰的 UX 是否与
    OQ-5 生效值文案一致。
 5. **E4 红线的测试可证性**：gain 语义 band 法是否足以反证「PQ 码值直喂」未
-   发生（capture 点结构性排除 + band 断言双层）。
+   发生（capture 点结构性排除 + 门⑤ typed 拒 + band 断言三层）。
 6. **CI 黑盒钉法**：有无字节级全量断言混入（假红源）；band 容差是否登记
-   DECISIONS。
-7. **validate 门与 UI 门的语义一致**：非 jpeg / drtOutput nil / peak<203 /
-   embedICC=false 四门在 UI 端的可用门是否同集（UI 禁用 + validate typed 拒
-   双防线，无「UI 可用但 validate 拒」的矛盾态；embedICC 门在 UI 端由
-   「embedICC toggle 默认开 + gain map 档文档形」承载，检查有无裸露矛盾面）。
-8. **SC 对账**：两新文件法数（21+6）与 front-matter `estimated_tests`
-   "+24..30"、全套预期 3749..3755 三处一致。
+   DECISIONS（含基面保真法 S1 漂移伞预案）。
+7. **validate 门与 UI 门的语义一致**：六门在 UI 端的可用门是否同集——UI
+   四维（jpeg / drt readout / peak≥203 / !isHdrEncoding）+ embedICC 联动
+   复位规则（M2 矛盾态闭环负测）；门⑥ yiyin = validate-only（M2 页不可达
+   ——「UI 可用但 validate 拒」矛盾态不可达性核验）。
+8. **SC 对账**：两新文件法数（25+8）与 front-matter `estimated_tests`
+   "+28..34"、全套预期 3753..3759 三处一致。
 
 ## 提交约定
 
