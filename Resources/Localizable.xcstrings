@@ -32365,6 +32365,57 @@
           }
         }
       }
+    },
+    "mcp_launcher_done_writes %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session completed — %lld write-back(s)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务完成——本次会话写回 %lld 次"
+          }
+        }
+      }
+    },
+    "mcp_launcher_exit_code %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent exited with code %lld"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 非零退出（退出码 %lld）"
+          }
+        }
+      }
+    },
+    "mcp_launcher_status_running %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent running (pid %lld)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 运行中（pid %lld）"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
