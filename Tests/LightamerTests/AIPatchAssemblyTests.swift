@@ -92,12 +92,18 @@ final class AIPatchAssemblyTests: XCTestCase {
         XCTAssertNotNil(AIPatchPlanner.planPatch(plane: at))
     }
 
-    // MARK: ⑤ composer in/out byte identity
+    // MARK: ⑤ composer in/out byte identity + the KD-4 row-2 numeric gates
 
-    /// Inside the rect (deeper than the seam band) the value is the PATCH's
-    /// exactly; outside every rect the base floats pass through byte-identical.
-    /// The patch plane arrives at a DIFFERENT resolution (the layer-B ROI
-    /// runtime fact) — the composer's bilinear absorbs it.
+    /// (A) Inside the rect (deeper than the seam band) the value is the
+    /// PATCH's exactly; outside every rect the base floats pass through
+    /// byte-identical. The patch plane arrives at a DIFFERENT resolution
+    /// (the layer-B ROI runtime fact) — the composer's bilinear absorbs it.
+    /// (B)+(C) the KD-4 row-2 dual-resolution fixture: the SAME analytic
+    /// circle rendered as the full-frame leg (soft) and the hi-res patch
+    /// leg (twice-finer softness) — the composed transition's 10-90 rise
+    /// is ≤ 0.6× the full-frame leg's (the patch carries real detail), and
+    /// the 0.5-contour lands within 1 px of ground truth (the seam/
+    /// resample misalignment gate).
     func testComposerInsidePatchOutsideBaseByteIdentity() {
         let w = 60, h = 40
         var baseFloats = [Float](repeating: 0, count: w * h)
@@ -134,6 +140,68 @@ final class AIPatchAssemblyTests: XCTestCase {
         }
         XCTAssertGreaterThan(comparedInside, 0, "防空转: no inside pixels compared")
         XCTAssertGreaterThan(comparedOutside, 0, "防空转: no outside pixels compared")
+
+        // (B)+(C) the dual-resolution synthetic scene (KD-4 row 2).
+        let fw = 64, fh = 64
+        let center = SIMD2<Double>(32, 32), radius = 12.0
+        func circle(_ x: Double, _ y: Double, softness s: Double) -> Float {
+            let r = ((x - center.x) * (x - center.x)
+                   + (y - center.y) * (y - center.y)).squareRoot()
+            return Float(1.0 / (1.0 + exp(-(r - radius) / s)))
+        }
+        // The full-frame leg: softness 2 px in output space.
+        var fullFloats = [Float](repeating: 0, count: fw * fh)
+        for y in 0..<fh {
+            for x in 0..<fw {
+                fullFloats[y * fw + x] = circle(Double(x) + 0.5, Double(y) + 0.5, softness: 2.0)
+            }
+        }
+        let fullFrame = AIMaskPlane(width: fw, height: fh, floats: fullFloats)
+        // The hi-res patch leg: the SAME circle over the patch rect,
+        // rendered at 2× the rect's resolution, softness 2 px in PATCH
+        // space = 1 px in output space (twice finer physically). The pixel
+        // grid follows the composer's half-texel convention (dst j ← src
+        // (j + 0.5)·scale − 0.5 in rect-local coordinates).
+        let scale = 2
+        let pRect = AIPatchRect(x: 16, y: 16, width: 32, height: 32)
+        let pw = pRect.width * scale, ph = pRect.height * scale
+        var patchFloats = [Float](repeating: 0, count: pw * ph)
+        for j in 0..<ph {
+            for i in 0..<pw {
+                let ox = Double(pRect.x) + (Double(i) + 0.5) / Double(scale) - 0.5
+                let oy = Double(pRect.y) + (Double(j) + 0.5) / Double(scale) - 0.5
+                patchFloats[j * pw + i] = circle(ox, oy, softness: 2.0 / Double(scale))
+            }
+        }
+        let patch = AIPatch(rect: pRect, plane: AIMaskPlane(width: pw, height: ph, floats: patchFloats))
+        let composed = AIPatchComposer.compose(base: fullFrame, patches: [patch])
+
+        // Measure the 10-90 rise along the center row's LEFT edge (well
+        // clear of the seam band: the edge at x ≈ 20 is 4 px inside the
+        // rect whose band is 2 px).
+        func rise(_ plane: AIMaskPlane) -> (width: Double, x05: Double) {
+            let y = 32
+            var x10 = -1.0, x90 = -1.0, x05 = -1.0
+            for x in 1..<fw {
+                let v = Double(plane.floats[y * fw + x])
+                let pv = Double(plane.floats[y * fw + x - 1])
+                if x90 < 0 && pv >= 0.9 && v < 0.9 { x90 = Double(x) }
+                if x05 < 0 && pv >= 0.5 && v < 0.5 { x05 = Double(x) - 0.5 }
+                if x10 < 0 && pv >= 0.1 && v < 0.1 { x10 = Double(x) - 0.5 }
+            }
+            return (x10 - x90, x05)
+        }
+        let fullRise = rise(fullFrame)
+        let composedRise = rise(composed)
+        XCTAssertGreaterThan(fullRise.width, 0, "防空转: the full-frame rise measured")
+        XCTAssertLessThanOrEqual(
+            composedRise.width, 0.6 * fullRise.width,
+            "KD-4 row 2: the patch leg's transition ≤ 0.6× the full-frame leg's " +
+                "(got \(composedRise.width) vs \(fullRise.width))")
+        // The 0.5 contour = ground truth edge (center.x − radius = 20).
+        XCTAssertEqual(composedRise.x05, center.x - radius, accuracy: 1.0,
+                       "KD-4 row 2: the seam/resample misalignment ≤ 1 px " +
+                           "(got \(composedRise.x05))")
     }
 
     // MARK: ⑥ seam ramp band + linear profile
