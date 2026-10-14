@@ -44,6 +44,59 @@ public actor ExportQueue {
 
     private static let logger = AppError.logger
 
+    // MARK: - The gain map plane box (M6-3-01 KD-3)
+
+    /// The render→encode HDR-plane handoff (M6-3-01 KD-3): the two
+    /// production legs share ONE instance (both closures capture it); the
+    /// render leg stashes the captured plane keyed by `artifact.token`
+    /// (= `snapshot.seq`), the encode leg consumes+clears it. NOT a contract
+    /// carrier — `ExportRenderStage` stays byte-frozen (M3-3 sealed face),
+    /// the HDR plane rides OUTSIDE the contract on this queue-level box.
+    ///
+    /// Lifecycle (M1): retry re-queues under a FRESH seq (`seqCounter += 1`),
+    /// so a failed attempt's plane under the old key is NEVER overwritten —
+    /// the actor-side cleanup paths clear it instead: `finish` /
+    /// `finishCancelled` clear by the job's seq, `retry` clears the old seq
+    /// before re-queueing (idempotent if `finish` already did), and a
+    /// generation change funnels every stale exit through
+    /// `finishCancelled`. A non-gain-map job never touches the box (zero
+    /// behavior); the lock protects the actor-boundary crossing (the legs
+    /// run as detached tasks OUTSIDE the actor's isolation).
+    final class ExportGainMapPlaneBox: @unchecked Sendable {
+
+        private let lock = NSLock()
+        private var planes: [Int: ExportGainMapHDRPlane] = [:]
+
+        func stash(_ plane: ExportGainMapHDRPlane, for token: Int) {
+            lock.lock()
+            defer { lock.unlock() }
+            planes[token] = plane
+        }
+
+        /// Consume + clear (the encode leg's take — one shot).
+        func consume(_ token: Int) -> ExportGainMapHDRPlane? {
+            lock.lock()
+            defer { lock.unlock() }
+            return planes.removeValue(forKey: token)
+        }
+
+        /// Clear without consuming (the failure/cancel cleanup paths).
+        func clear(_ token: Int) {
+            lock.lock()
+            defer { lock.unlock() }
+            planes.removeValue(forKey: token)
+        }
+
+        /// The leak-probe face (tests only — the box must be EMPTY at every
+        /// terminal state; an owned float32 plane is ~1.6 GB at 100MP and
+        /// must never linger past a settled job).
+        var countForTesting: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return planes.count
+        }
+    }
+
     // MARK: - The job record (actor-private; never crosses the boundary)
 
     private struct ExportJob {
@@ -102,6 +155,12 @@ public actor ExportQueue {
     /// same-batch predecessor's promoted file is seen). The default
     /// provider lists the directory's entries; tests inject fixed sets.
     private let occupiedNamesProvider: @Sendable (URL) -> Set<String>
+
+    /// The gain map HDR-plane box (M6-3-01 KD-3): ALWAYS present so the
+    /// actor-side cleanup paths are unconditional; injected test legs never
+    /// stash into it, so it stays EMPTY = the zero behavior (the leak probe
+    /// reads it through `gainMapBoxForTesting`).
+    private let gainMapBox = ExportGainMapPlaneBox()
 
     // MARK: - Queue state (the 9-3 shape)
 
@@ -171,7 +230,7 @@ public actor ExportQueue {
         } else {
             (self.renderLeg, self.encodeLeg) = Self.productionLegs(
                 metal: metal, registry: registry, yiyinInjector: yiyinInjector,
-                decodeLeg: decodeLeg)
+                decodeLeg: decodeLeg, gainMapBox: gainMapBox)
         }
         self.occupiedNamesProvider = occupiedNamesProvider ?? Self.defaultOccupiedNames
     }
@@ -327,6 +386,11 @@ public actor ExportQueue {
         }
         job.state = .pending
         job.generation = generation
+        // M6-3-01 KD-3 (M1): the old seq's stashed plane (if any) is
+        // explicitly cleared BEFORE the fresh-seq re-queue — a retry never
+        // inherits a failed attempt's plane (fresh seq = new key, the old
+        // residue must not linger; idempotent if `finish` already cleared).
+        gainMapBox.clear(job.seq)
         seqCounter += 1
         job.seq = seqCounter
         let requeued = job
@@ -519,6 +583,12 @@ public actor ExportQueue {
     }
 
     private func finish(jobID: UUID, generation jobGeneration: Int, error: Error) async {
+        // M6-3-01 KD-3 (M1): a failed job's stashed plane (render leg
+        // succeeded, encode leg threw — or the render itself threw after a
+        // stash) is cleared HERE under the OLD seq (a retry re-keys fresh).
+        if let job = jobs[jobID] {
+            gainMapBox.clear(job.seq)
+        }
         // A STALE generation's failure is a silent void — the job already
         // reads .cancelled in the books (cancelAll marked the pendings;
         // in-flight stragglers get the terminal stamp here).
@@ -545,6 +615,12 @@ public actor ExportQueue {
     /// route here): stamp `.cancelled` if not yet terminal, settle the
     /// progress tally (current generation only), release the worker, pump.
     private func finishCancelled(jobID: UUID) async {
+        // M6-3-01 KD-3 (M1): the cancel exit clears the job's stashed plane
+        // too (a stale-generation straggler or a gate-cancelled job never
+        // reaches the encode leg's consume).
+        if let job = jobs[jobID] {
+            gainMapBox.clear(job.seq)
+        }
         cancelledInFlight.remove(jobID)
         if var job = jobs[jobID], !job.state.isTerminal {
             job.state = .cancelled
@@ -582,7 +658,8 @@ public actor ExportQueue {
         metal: MetalContext?,
         registry: ModuleRegistry,
         yiyinInjector: ExportYiyinInjector?,
-        decodeLeg: (@Sendable (URL) async throws -> DecodedImage)?
+        decodeLeg: (@Sendable (URL) async throws -> DecodedImage)?,
+        gainMapBox: ExportGainMapPlaneBox
     ) -> (ExportRenderLeg, ExportEncodeLeg) {
         let renderLeg: ExportRenderLeg = { snapshot, context in
             guard let metal else {
@@ -602,6 +679,11 @@ public actor ExportQueue {
             let stage = try await ExportRenderer.renderStage(
                 request: request, metal: metal, registry: registry,
                 decodeLeg: decodeLeg, yiyinInjector: yiyinInjector)
+            // M6-3-01 KD-3: stash the captured HDR plane under this job's
+            // token (the encode leg consumes it; the failure paths clear it).
+            if let plane = stage.hdrGainPlane {
+                gainMapBox.stash(plane, for: snapshot.seq)
+            }
             return ExportRenderArtifact(
                 token: snapshot.seq,
                 width: stage.outputWidth,
@@ -651,4 +733,10 @@ public actor ExportQueue {
 
     /// The in-flight occupancy probe (the concurrency-1 test's window).
     public func inFlightCountForTesting() -> Int { inFlight }
+
+    /// The gain map box leak probe (M6-3-01 KD-3): the box must be EMPTY at
+    /// every settled job's terminal state (an owned float32 plane is
+    /// ~1.6 GB at 100MP — residue past a settled job is a leak). Internal —
+    /// the tests reach it through `@testable` (the box type is internal).
+    func gainMapBoxForTesting() -> ExportGainMapPlaneBox { gainMapBox }
 }

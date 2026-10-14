@@ -66,6 +66,18 @@ public struct ExportVariant: Codable, Hashable, Sendable {
     /// (the Alcedo default), `false` = OMIT (M2-9-03's post-encode strip).
     public var embedICC: Bool
 
+    // ── M6-3-01 T1 additive carrier (KD-1, ALCE-03) ─────────────────────────
+
+    /// `true` = this JPEG variant carries an ISO 21496-1 gain map layer
+    /// (UltraHDR): the render captures the DRT tail's pre-EOTF linear plane
+    /// and the encode leg goes through `ExportGainMapEncoder` (the CI
+    /// full-service write). Session-lifetime recipe face like every other
+    /// field (the variant is never persisted — M2-9 既定); the decode falls
+    /// back to `false` on every pre-M6-3 payload, so the old bytes are
+    /// zero-drift. The six validate gates below make every illegal
+    /// combination a typed refusal at the variant gate.
+    public var gainMapHDR: Bool
+
     public init(
         sizing: YiyinExportSettings = YiyinExportSettings(),
         scalePercent: Double? = nil,
@@ -75,7 +87,8 @@ public struct ExportVariant: Codable, Hashable, Sendable {
         outputTag: String? = nil,
         drtOutput: DrtRecord? = nil,
         metadataPolicy: ExportMetadataPolicy = .standard,
-        embedICC: Bool = true
+        embedICC: Bool = true,
+        gainMapHDR: Bool = false
     ) {
         self.sizing = sizing
         self.scalePercent = scalePercent
@@ -86,6 +99,7 @@ public struct ExportVariant: Codable, Hashable, Sendable {
         self.drtOutput = drtOutput
         self.metadataPolicy = metadataPolicy
         self.embedICC = embedICC
+        self.gainMapHDR = gainMapHDR
     }
 
     // MARK: - Codable (KD-2 additive decode tolerance)
@@ -96,7 +110,7 @@ public struct ExportVariant: Codable, Hashable, Sendable {
     // encode face stays synthesized (additive keys only).
     private enum CodingKeys: String, CodingKey {
         case sizing, scalePercent, format, colorSpace, yiyin, outputTag
-        case drtOutput, metadataPolicy, embedICC
+        case drtOutput, metadataPolicy, embedICC, gainMapHDR
     }
 
     public init(from decoder: Decoder) throws {
@@ -111,6 +125,7 @@ public struct ExportVariant: Codable, Hashable, Sendable {
         metadataPolicy = try container.decodeIfPresent(
             ExportMetadataPolicy.self, forKey: .metadataPolicy) ?? .standard
         embedICC = try container.decodeIfPresent(Bool.self, forKey: .embedICC) ?? true
+        gainMapHDR = try container.decodeIfPresent(Bool.self, forKey: .gainMapHDR) ?? false
     }
 
     /// Validate every dimension BEFORE a queue action consumes it
@@ -131,6 +146,70 @@ public struct ExportVariant: Codable, Hashable, Sendable {
                 throw AppError.invalidParameter(
                     "export drtOutput peak must be a finite positive value, "
                         + "got \(record.peakLuminance)")
+            }
+        }
+        // ── M6-3-01 KD-1: the six gain map gates (ALCE-03). Every illegal
+        // combination is a typed refusal HERE so a misassembled batch fails
+        // at the variant gate, never as a silently-wrong product.
+        // ① UltraHDR rides JPEG only (the five other formats are typed-
+        //    unreachable — the ExportICCStrip unreachable-copy face).
+        // ② The HDR plane's source IS the DRT record (the OQ-7 linkage's
+        //    mirror): no record → no pre-EOTF linear plane → no gain map.
+        // ③ The peak must clear the SDR reference white (headroom =
+        //    peak/203 ≥ 1.0) — below it there is no HDR headroom to encode.
+        // ④ embedICC is FORCED (RESEARCH §8.4): stripping the APP2 ICC
+        //    segment shifts every absolute file offset and invalidates the
+        //    MPF subimage pointers — the gain map tier only exists in the
+        //    embed form.
+        // ⑤ The base must be an SDR rendition (D-M6-3-7): st2084/hlg bases
+        //    are the E4 forbidden shape's base-side projection — gain ratios
+        //    over PQ/HLG code values are unreadable on an SDR display.
+        // ⑥ yiyin is refused (review E1): borders/watermark replay AFTER the
+        //    EotfBox, so the tail output's canvas can exceed the captured
+        //    EOTF-box input plane — a `.hdrImage` input that no longer
+        //    matches the SDR base (a structurally valid, semantically broken
+        //    container). Validate-only: the M2 page cannot reach it.
+        if gainMapHDR {
+            guard case .jpeg = format else {
+                throw AppError.invalidParameter(
+                    "export gainMapHDR requires the jpeg format "
+                        + "(ISO 21496-1 gain map rides JPEG only); "
+                        + "\(format.formatName) is typed-unreachable for the tier")
+            }
+            guard let record = drtOutput else {
+                throw AppError.invalidParameter(
+                    "export gainMapHDR requires a drtOutput record — the HDR "
+                        + "linear plane is captured at the DRT tail's pre-EOTF "
+                        + "stage (no record, no plane)")
+            }
+            guard record.peakLuminance.isFinite,
+                  record.peakLuminance >= ExportGainMapEncoder.sdrReferenceWhite
+            else {
+                throw AppError.invalidParameter(
+                    "export gainMapHDR requires peakLuminance ≥ "
+                        + "\(ExportGainMapEncoder.sdrReferenceWhite) nits (the SDR "
+                        + "reference white — headroom = peak/203 ≥ 1.0), got "
+                        + "\(record.peakLuminance)")
+            }
+            guard !isHdrEncoding(record.encodingEotf) else {
+                throw AppError.invalidParameter(
+                    "export gainMapHDR requires an SDR encoding EOTF — a "
+                        + "st2084/hlg base is not an SDR rendition, the gain "
+                        + "ratios would be taken over PQ/HLG code values "
+                        + "(D-M6-3-7), got \(record.encodingEotf)")
+            }
+            guard embedICC else {
+                throw AppError.invalidParameter(
+                    "export gainMapHDR requires embedICC — a post-encode ICC "
+                        + "strip deletes the APP2 segment and invalidates the "
+                        + "MPF subimage absolute offsets (RESEARCH §8.4)")
+            }
+            guard !yiyin else {
+                throw AppError.invalidParameter(
+                    "export gainMapHDR cannot ride the yiyin face — borders/"
+                        + "watermark replay after the EotfBox, so the SDR base "
+                        + "canvas can exceed the captured HDR plane (gain map "
+                        + "semantics undefined)")
             }
         }
     }

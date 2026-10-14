@@ -204,7 +204,8 @@ enum LayerCompositeDriver {
         terminalTail: TerminalTailPolicy = .sdrGamma,
         tailFormatFloatOverride: Bool = false,
         filmTail: FilmTailPolicy? = nil,
-        renderProcess: RenderProcessVersion = .legacy
+        renderProcess: RenderProcessVersion = .legacy,
+        linearGainCapture: ((any MTLTexture, SIMD2<Int>) -> Void)? = nil
     ) async throws -> LayerCompositeResult {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -568,6 +569,14 @@ enum LayerCompositeDriver {
             // runs assembled INSIDE the terminal pipe inherit through
             // PixelPipe's own derived-pipe legs).
             terminalPipe.renderProcess = renderProcess
+            // M6-3-01 KD-2 (hunk 9): the gain map capture rides the SAME
+            // seam — this pipe is built INSIDE the driver (it never crosses
+            // RenderPipeline's static entry), so without the pass-through
+            // the composite export path (the layered document's 常态) would
+            // silently lose the capture and the fail-loud encode guard
+            // would refuse every layered gain map export. Default nil =
+            // every pre-existing call site byte-unchanged.
+            terminalPipe.linearGainCapture = linearGainCapture
             // GUI-21 (2026-09-24): the terminal's hash seed is the FINAL
             // composite prefix identity — NOT the bare decode hash. The
             // decode-only seed made the terminal's cache lines blind to

@@ -154,6 +154,20 @@ internal final class PixelPipe: @unchecked Sendable {
     /// leg's pipe produces the final plane).
     internal var tailFormatFloatOverride = false
 
+    /// The gain map HDR linear-plane capture seam (M6-3-01 KD-2): nil = OFF
+    /// — the zero path (every pre-M6-3 run byte-identical; only the export
+    /// gain map tier arms it). Non-nil = when the DRT tail sub-run's
+    /// `processRec` reaches the EotfBox INPUT plane (the display-referred
+    /// linear working-float32 stage — the OQ-1 capture point), the callback
+    /// receives it ONCE and blits an owned copy (the pipe's scratch/pool
+    /// planes are never safe to hold). The EotfBox's ONLY construction site
+    /// is `DrtTailAssembly.instances`, so the callback can never fire on a
+    /// main-chain or editor-viewport run. RenderPipeline's two entries +
+    /// LayerCompositeDriver carry it additively (default nil — every
+    /// existing call site unchanged); `runDrtTailLeg` forwards it to the
+    /// tail pipe.
+    internal var linearGainCapture: ((any MTLTexture, SIMD2<Int>) -> Void)? = nil
+
     /// The film sub-run policy (M3-3-02 T1, KD-1): nil = OFF — the zero
     /// path (every pre-M3-3 byte identical). Non-nil = the film leg runs at
     /// the fixed point AFTER the main chain's top plane and BEFORE the
@@ -1098,6 +1112,11 @@ internal final class PixelPipe: @unchecked Sendable {
         // M2-9-02 KD-3: the export float override rides the same seam (the
         // tail leg's pipe decides the final plane's format).
         tailPipe.tailFormatFloatOverride = tailFormatFloatOverride
+        // M6-3-01 KD-2 (hunk 6): the gain map capture rides the same seam —
+        // the flat run's tail pipe AND the composite terminal pipe's tail
+        // pipe both inherit it here (the EotfBox input plane only exists
+        // inside THIS sub-run's walk).
+        tailPipe.linearGainCapture = linearGainCapture
         // M6-2-01 T2 (KD-5): the derived sub-run inherits the run's process
         // version (the same seam discipline — the tail leg renders under
         // the document's generation).
@@ -1595,6 +1614,22 @@ internal final class PixelPipe: @unchecked Sendable {
                 && upstream.texture.height == roiIn.height,
             "negotiated ROI violated (uncached) at pos \(position) (\(pieces[position].box.opName)): roiOut=\(roiOut.width)x\(roiOut.height)@\(roiOut.x),\(roiOut.y)s\(roiOut.scale) roiIn=\(roiIn.width)x\(roiIn.height)@\(roiIn.x),\(roiIn.y)s\(roiIn.scale) upstream=\(upstream.texture.width)x\(upstream.texture.height)"
         )
+        // M6-3-01 KD-2 (hunk 7): the gain map capture — the EotfBox INPUT
+        // plane is exactly `upstream.texture` here (the display-referred
+        // linear working-float32 stage BEFORE the EOTF encode; the OQ-1
+        // capture point). The EotfBox exists ONLY in the DRT tail assembly,
+        // so this arms exclusively inside the tail sub-run; export runs never
+        // cache (the cached arm above is unreachable for the tier), the
+        // callback blits its OWNED copy synchronously (pipe scratch is
+        // unsafe to hold), and nil capture = the zero path (no branch cost
+        // beyond one nil check). The judgment is on the RUNTIME wrapper
+        // (`ModuleBox<EotfBox>` — the assembly boxes modules, the bare
+        // EotfBox never reaches the pieces) and the wrapper is never a
+        // TailOrderedBox for this op (the post-four replay wraps only the
+        // Post-four set).
+        if let capture = linearGainCapture, box is ModuleBox<EotfBox> {
+            capture(upstream.texture, SIMD2(upstream.texture.width, upstream.texture.height))
+        }
         pieces[position].state.processedROIIn = roiIn
         pieces[position].state.processedROIOut = roiOut
         // The FINAL output must not alias scratch the next run overwrites:
@@ -2080,7 +2115,8 @@ public enum RenderPipeline {
         terminalTail: TerminalTailPolicy = .sdrGamma,
         tailFormatFloatOverride: Bool = false,
         filmTail: FilmTailPolicy? = nil,
-        renderProcess: RenderProcessVersion = .legacy
+        renderProcess: RenderProcessVersion = .legacy,
+        linearGainCapture: ((any MTLTexture, SIMD2<Int>) -> Void)? = nil
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
         defer { signposter.endInterval("pixelpipe", interval) }
@@ -2093,6 +2129,10 @@ public enum RenderPipeline {
         // M2-9-02 KD-3: the export tail-format override (default false —
         // every pre-existing call site is byte-unchanged).
         pipe.tailFormatFloatOverride = tailFormatFloatOverride
+        // M6-3-01 KD-2 (hunks 2/3): the gain map capture seam (default nil —
+        // every pre-existing call site is byte-unchanged; only the export
+        // gain map tier arms it).
+        pipe.linearGainCapture = linearGainCapture
         // M3-3-02 T3 (KD-4): the film sub-run policy (default nil = OFF —
         // every pre-existing call site is byte-unchanged).
         pipe.filmTail = filmTail
@@ -2142,7 +2182,8 @@ public enum RenderPipeline {
         terminalTail: TerminalTailPolicy = .sdrGamma,
         tailFormatFloatOverride: Bool = false,
         filmTail: FilmTailPolicy? = nil,
-        renderProcess: RenderProcessVersion = .legacy
+        renderProcess: RenderProcessVersion = .legacy,
+        linearGainCapture: ((any MTLTexture, SIMD2<Int>) -> Void)? = nil
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -2154,7 +2195,8 @@ public enum RenderPipeline {
             terminalTail: terminalTail,
             tailFormatFloatOverride: tailFormatFloatOverride,
             filmTail: filmTail,
-            renderProcess: renderProcess)
+            renderProcess: renderProcess,
+            linearGainCapture: linearGainCapture)
         var stats = result.baseStats
         for layer in result.layerStats {
             stats.hits += layer.run.hits
