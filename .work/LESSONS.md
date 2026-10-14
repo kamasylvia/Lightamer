@@ -833,3 +833,9 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：Darwin flock 仲裁对象是 open file description（非进程/非 fd）：同进程两次独立 `open()` 的第二把 EX|NB 锁照样 EWOULDBLOCK（checker o1 cc 实证的同一语义，反向咬了自己）。「锁在我手里」不等于「probe/acquire 会成功」。
 - **对策**：①一把锁在一个进程内**只许一个获锁点**——项目锁的唯一获锁点 = `ProjectFileStore.open(role:)/create(role:)` 内部（held 分支即冲突臂触发器）；装配层只传 role，不做外部 acquire。②自持态判定（probe 闭包/自持豁免）不靠「试锁成功」，靠装配态显式传布尔（writer 臂 `selfHeld` 直返 writable）——「探自己的锁」结构性禁止。
 - **适用**：一切 flock/SingleWriterLock 消费点（现有：mcp-endpoint 锁、`.lalb.lock`、session.lock；未来任何同件消费）；评审项 = 「锁的获锁点唯一性 + 自持豁免来源」两问。
+
+## L080（2026-10-15）— 会话 shell 的死代理 env 撞 SPM re-resolve：build 用 env -u 旁路（M6-4-02 执行批）
+- **现象**：TaskStop 杀后台测试轮后重build，SPM 突然重新 clone 依赖并全数失败——`Failed to connect to server 127.0.0.1:10809`（github 直连被会话 shell 继承的 http_proxy/ALL_PROXY 指到未运行的 xray 端口）。此前多轮 build 一直成功（包缓存命中，从未触发 resolve）。
+- **根因**：交互 shell 快照导出 proxy env；xray daemon 不在跑时该 env 是死指针。SPM 缓存命中时无害，任何触发 re-resolve 的操作（DerivedData 状态变化/包图重算）即撞死代理。
+- **对策**：①build 命令一律 `env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY xcodebuild …` 旁路（本机 github 直连可达）；或先 `px --up` 再 build。②夜间批见到「products missing → 重build → clone 失败」三连，先查 proxy env 再查网络。
+- **适用**：一切本机 SPM/xcodebuild 自动化轮（后台 worker 尤甚——其 shell 快照同样带死代理）。
