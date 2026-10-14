@@ -183,7 +183,7 @@ IOP	7	ScopeReduceTests.swift
 IOP	8	SkinRegionGeometryTests.swift
 IOP	12	SoftProofStageTests.swift
 IOP	11	StackAggregateTests.swift
-IOP	11	StackMergeServiceTests.swift
+IOP	13	StackMergeServiceTests.swift
 IOP	14	TerminalTrioTests.swift
 IOP	6	TextOverlayTests.swift
 IOP	5	TileNegotiationRegressionTests.swift
@@ -335,7 +335,7 @@ LAYERS	14	DrtTailTests.swift
 LAYERS	7	DrtPostMigrationTests.swift
 LAYERS	28	Aces2MathTests.swift
 LIB	10	FilterPredicateTests.swift
-LIB	10	ImportServiceTests.swift
+LIB	11	ImportServiceTests.swift
 LIB	16	ImportCategoryTests.swift
 LIB	4	ImportTransportTiffTests.swift
 LIB	10	LibraryFilterDomainTests.swift
@@ -345,7 +345,7 @@ LIB	11	LibraryDocumentTests.swift
 LIB	11	LibraryInspectorModelTests.swift
 LIB	11	LibraryLegacyGateTests.swift
 LIB	14	LibraryStoreTests.swift
-LIB	11	MetadataServiceTests.swift
+LIB	12	MetadataServiceTests.swift
 LIB	11	Phase6SidecarTests.swift
 LIB	12	Phase5SidecarTests.swift
 LIB	12	PresetsStoreTests.swift
@@ -383,7 +383,7 @@ LIB	9	XMPContainerInjectorTests.swift
 SESS	11	SessionBrowserModelTests.swift
 SESS	11	SessionIndexMigrationTests.swift
 SESS	12	CatalogProjectorTests.swift
-SESS	12	SessionBatchApplierTests.swift
+SESS	13	SessionBatchApplierTests.swift
 SESS	13	SessionSwitchTests.swift
 SESS	13	SessionTreeScannerTests.swift
 SESS	15	CatalogFilterSQLTests.swift
