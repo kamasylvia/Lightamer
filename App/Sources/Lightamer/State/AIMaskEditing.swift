@@ -143,7 +143,10 @@ enum AIMaskEditing {
     /// (the double-feather pin — one feather, one primitive); zero →
     /// byte-identical to the pre-M6-4-02 path. (b) A successful commit
     /// captures the upsampled (pre-feather) plane as the session's
-    /// `livePlane` and schedules the 1s-debounced patch refine.
+    /// `livePlane` and schedules the 1s-debounced patch refine, stamping
+    /// the image/layer identity the pass is armed against (the N-1 switch
+    /// guard — a mismatch at the next schedule or the fire releases the
+    /// face and discards the pass).
     @discardableResult
     static func commitRasterMask(
         plane: AIMaskPlane,
@@ -231,12 +234,21 @@ enum AIMaskEditing {
         // the 1s-debounced patch pass is armed — but NOT for the patch
         // pass's own re-bake (patchRebake breaks the loop).
         if source == .segment, !patchRebake {
-            editingState.segmentSession.livePlane = upsampled
+            let session = editingState.segmentSession
+            // N-1 (schedule seam): a stale stamp — the image/layer switched
+            // since the last arm — releases the carried face BEFORE the
+            // fresh capture (the old plane/patches belong to the previous
+            // identity and must not compose onto the new base).
+            session.releaseIfIdentityChanged(
+                imageURL: editorState.loadedImageURL, layerID: layerID)
+            session.livePlane = upsampled
+            session.patchImageURL = editorState.loadedImageURL
+            session.patchLayerID = layerID
             let coordinator = coordinator
             let editorState = editorState
             let editingState = editingState
             let metal = metal
-            schedulePatchRefine(session: editingState.segmentSession) {
+            schedulePatchRefine(session: session) {
                 await runPatchRefine(
                     coordinator: coordinator, editorState: editorState,
                     editingState: editingState, metal: metal)
@@ -297,6 +309,13 @@ enum AIMaskEditing {
         metal: MetalContext
     ) async {
         let session = editingState.segmentSession
+        // N-1 (fire seam): the schedule stamp vs the LIVE image/layer. A
+        // switch between the schedule and this fire means the base plane
+        // belongs to the previous identity — release it and discard the
+        // pass (a mixed-input patch must never bake onto the new image's
+        // layer).
+        session.releaseIfIdentityChanged(
+            imageURL: editorState.loadedImageURL, layerID: editingState.selectedLayerID)
         guard session.hasSeed, !session.isGenerating, let base = session.livePlane
         else { return }
         session.patchState = .refining
