@@ -157,6 +157,18 @@ public struct ExportVariant: Codable, Hashable, Sendable {
         //    mirror): no record → no pre-EOTF linear plane → no gain map.
         // ③ The peak must clear the SDR reference white (headroom =
         //    peak/203 ≥ 1.0) — below it there is no HDR headroom to encode.
+        //    API-CONSUMER CONTRACT (M6-5 T5, the M6-3 ledger D4 residue):
+        //    this gate reads `variant.drtOutput.peakLuminance` only — the
+        //    RENDER-side headroom comes from the OTHER carrier
+        //    (`drtTail.record.peakLuminance`, ExportRenderer's capture
+        //    assembly). A Request built directly against this public API
+        //    can therefore assemble "drtOutput ≥ 203 (gate ③ passes) +
+        //    drtTail.record peak low" → a legal gate face whose product
+        //    carries headroom < 1 (weakened gain semantics, never a crash).
+        //    The two carriers being same-source is the API consumer's duty
+        //    to prove; the production UI path cannot reach the fork —
+        //    enqueueExportM2 forces the drtOutput = drtRecord linkage
+        //    (OQ-7), dual-path acceptance on record (M6-3 VALIDATION).
         // ④ embedICC is FORCED (RESEARCH §8.4): stripping the APP2 ICC
         //    segment shifts every absolute file offset and invalidates the
         //    MPF subimage pointers — the gain map tier only exists in the
