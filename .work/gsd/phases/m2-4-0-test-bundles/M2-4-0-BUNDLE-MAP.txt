@@ -289,6 +289,8 @@ APP	7	ColorMatchServiceTests.swift
 APP	6	ColorMatchPanelModelTests.swift
 #   M6-4-02 T1（2026-10-14，登记随文件同 commit）：AI patch 纯函数 9 法入 LAYERS。
 LAYERS	9	AIPatchAssemblyTests.swift
+#   M6-4-02 T2（2026-10-14，登记随文件同 commit）：羽化映射 + logit-gain 负腿 6 法入 LAYERS。
+LAYERS	6	AIMaskFeatherTests.swift
 LAYERS	10	AIMaskSemanticTests.swift
 LAYERS	10	LayerCacheTests.swift
 LAYERS	10	LayerCompositeTests.swift

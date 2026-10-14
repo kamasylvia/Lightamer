@@ -304,6 +304,39 @@ public enum AIMaskService {
         }
     }
 
+    /// Layer B hi-res PATCH leg (Plan M6-4-02 T2, KD-1/S6'): the
+    /// segmentSubject ROI shape as a THIN WRAPPER — this body is ONE
+    /// delegation expression; there is deliberately NO second request
+    /// assembly path (buildLayerBRequest stays the only one, byte-zero).
+    ///
+    /// `patchRect` is the planner's rect in view-normalized coordinates and
+    /// rides the same single Y-flip seam (`visionRect`) into the request's
+    /// `regionOfInterest`. The seed/refine points stay in FULL-IMAGE
+    /// normalized coordinates UNCHANGED: Vision's ROI is a processing-window
+    /// crop, not a coordinate-space change (seed and ROI already share the
+    /// one normalized space — the App patch flow plans the rect on the same
+    /// plane geometry the points are normalized against). Quality is pinned
+    /// to `.accurate` (the patch exists to add resolution the base pass
+    /// lacked); the pin refusal (`.gpuPinned` aborts on this OS build) is
+    /// inherited through segmentSubject's existing typed face.
+    ///
+    /// The returned plane is at the runtime ROI output resolution (a
+    /// runtime fact, not assumed) — the caller's composer resamples it to
+    /// the patch rect's pixel size (AIPatchComposer.compose).
+    public static func segmentPatch(
+        input: AIMaskInput,
+        seed: AISubjectSeed,
+        refine: [AIRefinePoint] = [],
+        patchRect: AIMaskRect,
+        device: AIDevicePolicy = .anePreferred,
+        assets: AIAssetStore = .shared
+    ) async throws -> AIMaskPlane {
+        try await segmentSubject(
+            input: input, seed: seed, refine: refine,
+            quality: .accurate, regionOfInterest: patchRect,
+            device: device, assets: assets)
+    }
+
     /// Assemble the layer-B request (seed inits, point budget, quality,
     /// ROI, device pin — the point-count gate throws BEFORE Vision can).
     static func buildLayerBRequest(
