@@ -271,6 +271,12 @@ public enum ExportRenderer {
         public let outputWidth: Int
         public let outputHeight: Int
         public let mainImageSize: SIMD2<Int>
+        /// The captured HDR linear plane (M6-3-01 KD-2, additive internal
+        /// carrier): non-nil ONLY when the variant armed the gain map tier
+        /// AND the DRT tail's pre-EOTF capture fired. Crosses the queue's
+        /// render→encode boundary OUTSIDE the contract-frozen
+        /// `ExportRenderStage` (the ExportQueue-level box carries it).
+        var hdrGainPlane: ExportGainMapHDRPlane?
     }
 
     // MARK: - The pipeline
@@ -497,6 +503,24 @@ public enum ExportRenderer {
         let terminalTailPolicy: TerminalTailPolicy =
             drtTail.map { .drt($0) } ?? .sdrGamma
         let tailFormatFloatOverride = drtTail != nil
+        // ── M6-3-01 KD-2: the gain map capture assembly (the KD-2 装配点,
+        // tailFormatFloatOverride 同位). Armed ONLY when the variant carries
+        // the gain map flag AND a DRT tail exists — the two carriers are API
+        // independent (variant.drtOutput vs Request/TaskLocal drtTail), and
+        // the encode leg's fail-loud guard refuses the armed-but-missing
+        // split (KD-5/M4). nil sink = the zero path, both entries byte-
+        // unchanged.
+        let gainMapArmed = variant.gainMapHDR && drtTail != nil
+        let gainCapture: ExportGainMapCapture? = gainMapArmed
+            ? ExportGainMapCapture(
+                headroom: ExportGainMapEncoder.headroom(
+                    peakLuminance: drtTail!.record.peakLuminance),
+                metal: metal)
+            : nil
+        let linearGainCapture: ((any MTLTexture, SIMD2<Int>) -> Void)? =
+            gainCapture.map { sink in
+                { texture, size in sink.capture(texture: texture, size: size) }
+            }
         if let layerStack {
             let (texture, _) = try await MetalContext.$routesToExportQueue.withValue(true) {
                 try await RenderPipeline.processComposite(
@@ -506,7 +530,8 @@ public enum ExportRenderer {
                     roiHint: nil, policy: .export,
                     terminalTail: terminalTailPolicy,
                     tailFormatFloatOverride: tailFormatFloatOverride,
-                    filmTail: filmTail)
+                    filmTail: filmTail,
+                    linearGainCapture: linearGainCapture)
             }
             outputTexture = texture
         } else {
@@ -516,7 +541,8 @@ public enum ExportRenderer {
                     resolution: .export, cache: cache, metal: metal,
                     longEdge: entryLongEdge, terminalTail: terminalTailPolicy,
                     tailFormatFloatOverride: tailFormatFloatOverride,
-                    filmTail: filmTail)
+                    filmTail: filmTail,
+                    linearGainCapture: linearGainCapture)
             }
             outputTexture = texture
         }
@@ -610,7 +636,8 @@ public enum ExportRenderer {
             editorSignature: request.editorSignature,
             outputWidth: encoded.width,
             outputHeight: encoded.height,
-            mainImageSize: SIMD2(planeWidth, planeHeight))
+            mainImageSize: SIMD2(planeWidth, planeHeight),
+            hdrGainPlane: gainCapture?.capturedPlane)
     }
 
     /// The encode stage — step 9's write half: quantized plane → encoder →
