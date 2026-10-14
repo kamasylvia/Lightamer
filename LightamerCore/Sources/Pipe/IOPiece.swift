@@ -71,6 +71,20 @@ public struct IOPiece {
     public var processedROIIn: ROI
     public var processedROIOut: ROI
 
+    /// The run's render process version (Plan M6-2-01 T2, KD-5 — the
+    /// iscale/pipeType run-constant stamp precedent): stamped ONCE by
+    /// `PixelPipe.run`/`forwardWalk` from the pipe's `renderProcess`
+    /// property. Run-level constant — the TILE drivers must not rewrite it.
+    /// NOT folded into `paramsHash` (the piece-level run-constant
+    /// convention: params identity is param bytes only; a future fork
+    /// point folds the process at ITS cache key per the「非 legacy 才折」
+    /// contract, `RenderProcess.swift` header). Default `.legacy` = every
+    /// pre-M6-2 construction site byte-unchanged. Consumption form (the
+    /// first fork batch): `RenderProcess.resolving(piece.renderProcess)`
+    /// then an exhaustive switch — M6-2 itself has zero consumers (armed,
+    /// zero behavior; OQ-4).
+    public var renderProcess: RenderProcessVersion
+
     /// Module-private piece data (Darktable `piece->data`, iop_api.h:188) —
     /// typically a uniforms buffer written by `commitParams`.
     public var data: (any MTLBuffer)?
@@ -83,6 +97,7 @@ public struct IOPiece {
         pipeType: PipeResolution = .full,
         processedROIIn: ROI = ROI(),
         processedROIOut: ROI = ROI(),
+        renderProcess: RenderProcessVersion = .legacy,
         data: (any MTLBuffer)? = nil
     ) {
         self.paramsHash = paramsHash
@@ -92,6 +107,7 @@ public struct IOPiece {
         self.pipeType = pipeType
         self.processedROIIn = processedROIIn
         self.processedROIOut = processedROIOut
+        self.renderProcess = renderProcess
         self.data = data
     }
 }

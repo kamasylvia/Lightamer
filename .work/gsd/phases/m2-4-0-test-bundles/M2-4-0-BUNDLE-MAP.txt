@@ -712,3 +712,4 @@ IOPP	4	ColormatchResolverBoxTests.swift
 #   同位）；ProcessVersionCarrierTests = APP/App 级（SidecarV5Tests 真 load 链同位）。
 #   行内 method 数以终态对账为准。运行期总数基线相应上移（3689 起算，+36 预估）。
 LIB	15	SidecarV10Tests.swift
+LAYERS	8	RenderProcessSeamTests.swift

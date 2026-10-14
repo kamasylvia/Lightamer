@@ -203,7 +203,8 @@ enum LayerCompositeDriver {
         maskDirectory: URL? = nil,
         terminalTail: TerminalTailPolicy = .sdrGamma,
         tailFormatFloatOverride: Bool = false,
-        filmTail: FilmTailPolicy? = nil
+        filmTail: FilmTailPolicy? = nil,
+        renderProcess: RenderProcessVersion = .legacy
     ) async throws -> LayerCompositeResult {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -236,6 +237,10 @@ enum LayerCompositeDriver {
         let basePipe = PixelPipe(resolution: resolution, cache: cache)
         basePipe.imageID = imageID
         basePipe.layerStack = layerStack
+        // M6-2-01 T2 (KD-5): the sub-run pipes inherit the composite's
+        // process version (the tailFormatFloatOverride seam twin; default
+        // .legacy = every pre-existing call site byte-unchanged).
+        basePipe.renderProcess = renderProcess
         if let roiHint {
             basePipe.entryROIHInt = Self.expandedHint(
                 hint: roiHint, layerStack: layerStack, baseChain: baseChain,
@@ -392,6 +397,7 @@ enum LayerCompositeDriver {
             boxes = LayerCompositeSeam.acesccEnvelope(boxes)
             let layerPipe = PixelPipe(resolution: resolution, cache: cache)
             layerPipe.imageID = imageID
+            layerPipe.renderProcess = renderProcess
             // GUI-21 (2026-09-24): the sub-run's hash seed is the INPUT
             // accumulator's composite identity (`prefixHash` — it folds the
             // base levelHash and every lower layer's chain/blend/mask
@@ -557,6 +563,11 @@ enum LayerCompositeDriver {
             // — the film consumes the pre-display plane only). Default nil
             // = OFF, every pre-existing call site byte-unchanged.
             terminalPipe.filmTail = filmTail
+            // M6-2-01 T2 (KD-5): the terminal leg inherits the composite's
+            // process version (the filmTail seam twin — the DRT/film sub-
+            // runs assembled INSIDE the terminal pipe inherit through
+            // PixelPipe's own derived-pipe legs).
+            terminalPipe.renderProcess = renderProcess
             // GUI-21 (2026-09-24): the terminal's hash seed is the FINAL
             // composite prefix identity — NOT the bare decode hash. The
             // decode-only seed made the terminal's cache lines blind to
