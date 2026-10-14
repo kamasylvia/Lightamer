@@ -164,6 +164,21 @@ internal final class PixelPipe: @unchecked Sendable {
     /// `DrtTailAssembly.seed(upstream:)` signature-unchanged hand-off).
     internal var filmTail: FilmTailPolicy?
 
+    /// The run's render process version (M6-2-01 T2, KD-5 — the
+    /// `terminalTail`/`filmTail` run-scoped property precedent): the
+    /// document-level `.lra` `process` value threaded to the pieces. The
+    /// default `.legacy` is the ZERO path — every pre-M6-2 construction
+    /// site and test is byte-unchanged, and the stamp never enters any
+    /// cache key (M6-2 has zero semantic forks; a future fork point folds
+    /// the value at ITS key per the「非 legacy 才折」contract). Stamped
+    /// onto every piece in `forwardWalk` alongside iscale/pipeType and
+    /// inherited by every internal derived sub-run pipe (the DRT tail, the
+    /// film leg, the film display replay). M6-2 has NO production
+    /// consumption point — the seam is armed, zero behavior (OQ-4); the
+    /// coordinator → pipe production threading is the first fork batch's
+    /// registered follow-up (DECISIONS M6-2-01).
+    internal var renderProcess: RenderProcessVersion = .legacy
+
     /// The film-leg re-entry guard (the `isDrtTailLeg` twin): the film leg
     /// AND the display-replay leg run as their own sub-run pipes; THOSE
     /// pipes must not demote anything (their residents process verbatim)
@@ -965,6 +980,12 @@ internal final class PixelPipe: @unchecked Sendable {
             // on PREVIEW/THUMBNAIL). Run-level constant — the TILE drivers
             // must not rewrite it (same contract as iscale).
             pieces[index].state.pipeType = resolution
+            // renderProcess stamp (M6-2-01 T2, KD-5): the run's process
+            // version, the same one-stamp-per-run constant family (not
+            // folded into paramsHash — the piece-level run-constant
+            // convention; the fork-point fold lives at the cache key when
+            // a real fork lands).
+            pieces[index].state.renderProcess = renderProcess
             // Freeze the FORWARD piece state for the backward pass: the
             // miss closures capture `pieces[index].state` by value at
             // probe time (Swift copy), and `processRec` mutates the LIVE
@@ -1077,6 +1098,10 @@ internal final class PixelPipe: @unchecked Sendable {
         // M2-9-02 KD-3: the export float override rides the same seam (the
         // tail leg's pipe decides the final plane's format).
         tailPipe.tailFormatFloatOverride = tailFormatFloatOverride
+        // M6-2-01 T2 (KD-5): the derived sub-run inherits the run's process
+        // version (the same seam discipline — the tail leg renders under
+        // the document's generation).
+        tailPipe.renderProcess = renderProcess
         let (output, _) = try await tailPipe.runSub(
             input: input, inputROI: inputROI,
             instances: DrtTailAssembly.instances(
@@ -1193,6 +1218,9 @@ internal final class PixelPipe: @unchecked Sendable {
         filmPipe.cacheLayerID = cacheLayerID
         filmPipe.isFilmTailLeg = true
         filmPipe.tailFormatFloatOverride = tailFormatFloatOverride
+        // M6-2-01 T2 (KD-5): the derived sub-run inherits the run's process
+        // version (the tailPipe seam twin).
+        filmPipe.renderProcess = renderProcess
         let seed = FilmTailAssembly.seed(
             upstream: upstreamSeed, params: params,
             solvedPackHash: assembled.solvedPackHash)
@@ -1343,6 +1371,9 @@ internal final class PixelPipe: @unchecked Sendable {
         replayPipe.cacheLayerID = cacheLayerID
         replayPipe.isFilmTailLeg = true
         replayPipe.tailFormatFloatOverride = tailFormatFloatOverride
+        // M6-2-01 T2 (KD-5): the derived sub-run inherits the run's process
+        // version (the tailPipe/filmPipe seam twin).
+        replayPipe.renderProcess = renderProcess
         let (output, _) = try await replayPipe.runSub(
             input: input, inputROI: inputROI,
             instances: residents,
@@ -2016,6 +2047,10 @@ public enum RenderPipeline {
         defer { signposter.endInterval("pixelpipe", interval) }
         let pipe = PixelPipe(resolution: .preview, cache: PipeCache()) // throwaway: no-op path keeps no state
         pipe.layerStack = layerStack
+        // M6-2-01 (KD-5/checker M3): the no-op throwaway is EXEMPT from the
+        // renderProcess inheritance — an empty-instance golden-harness path
+        // with no pieces to stamp and no static-entry caller surface; the
+        // default `.legacy` is its permanent value.
         let (texture, _) = try await pipe.run(image: image, instances: [], metal: metal, longEdge: nil)
         return texture
     }
@@ -2044,7 +2079,8 @@ public enum RenderPipeline {
         roiHint: ROI? = nil,
         terminalTail: TerminalTailPolicy = .sdrGamma,
         tailFormatFloatOverride: Bool = false,
-        filmTail: FilmTailPolicy? = nil
+        filmTail: FilmTailPolicy? = nil,
+        renderProcess: RenderProcessVersion = .legacy
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("pixelpipe", id: signposter.makeSignpostID())
         defer { signposter.endInterval("pixelpipe", interval) }
@@ -2060,6 +2096,11 @@ public enum RenderPipeline {
         // M3-3-02 T3 (KD-4): the film sub-run policy (default nil = OFF —
         // every pre-existing call site is byte-unchanged).
         pipe.filmTail = filmTail
+        // M6-2-01 T2 (KD-5): the render process seam (default .legacy —
+        // every pre-existing call site is byte-unchanged; M6-2 has NO
+        // production caller passing it — the coordinator threading is the
+        // first fork batch's registered follow-up).
+        pipe.renderProcess = renderProcess
         if let maxTileWorkingBytes {
             // Test/parametric injection of the per-tile budget (03-05-T6).
             pipe.maxTileWorkingBytes = maxTileWorkingBytes
@@ -2100,7 +2141,8 @@ public enum RenderPipeline {
         maskDirectory: URL? = nil,
         terminalTail: TerminalTailPolicy = .sdrGamma,
         tailFormatFloatOverride: Bool = false,
-        filmTail: FilmTailPolicy? = nil
+        filmTail: FilmTailPolicy? = nil,
+        renderProcess: RenderProcessVersion = .legacy
     ) async throws -> (any MTLTexture, PipeRunStats) {
         let interval = signposter.beginInterval("composite", id: signposter.makeSignpostID())
         defer { signposter.endInterval("composite", interval) }
@@ -2111,7 +2153,8 @@ public enum RenderPipeline {
             policy: policy, hotLayerID: hotLayerID, maskDirectory: maskDirectory,
             terminalTail: terminalTail,
             tailFormatFloatOverride: tailFormatFloatOverride,
-            filmTail: filmTail)
+            filmTail: filmTail,
+            renderProcess: renderProcess)
         var stats = result.baseStats
         for layer in result.layerStats {
             stats.hits += layer.run.hits

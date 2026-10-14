@@ -509,6 +509,7 @@ let project = Project(
                 "Tests/LightamerTests/RasterDefaultRecordTests.swift",
                 "Tests/LightamerTests/DrtPresetsTests.swift",
                 "Tests/LightamerTests/DrtTailTests.swift",
+                "Tests/LightamerTests/RenderProcessSeamTests.swift",
                 "Tests/LightamerTests/DrtPostMigrationTests.swift",
                 "Tests/LightamerTests/GradeEnvelopePerfProbeTests.swift",
                 "Tests/LightamerTests/DrawnMaskRasterTests.swift",
