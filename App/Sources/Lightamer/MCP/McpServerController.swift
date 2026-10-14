@@ -12,9 +12,9 @@ import MCP
 // difference is assembly-only, the registry kernel is single-implementation.
 //
 // Plan 14-4 T1: the 14-1 PROBE toolset (ping/count_images) is RETIRED — the
-// tool face is now the closed 19-tool set exactly (5 editing + 14 culling;
-// D-14-CONTEXT-3, research §A). The old StoreProvider seam retired with the
-// probe (count_images was its only consumer).
+// tool face is now the closed 20-tool set exactly (6 editing + 14 culling;
+// D-14-CONTEXT-3, research §A; + match_color, M5-1-03). The old StoreProvider
+// seam retired with the probe (count_images was its only consumer).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Host orchestration for the Lightamer MCP server.
@@ -445,8 +445,9 @@ enum McpServerController {
 
     // MARK: - The single kernel (registry assembly)
 
-    /// The CLOSED tool face: 5 editing tools (Plan 14-2) + 14 culling tools
-    /// (Plan 14-3) = the frozen 19-tool set (research §A; D-14-CONTEXT-3).
+    /// The CLOSED tool face: 6 editing tools (Plan 14-2 + match_color,
+    /// M5-1-03) + 14 culling tools (Plan 14-3) = the frozen 20-tool set
+    /// (research §A; D-14-CONTEXT-3).
     /// The 14-1 probe pair (ping/count_images) retired at 14-4 T1 — a host
     /// with NEITHER face assembled yields an EMPTY registry (tests assert
     /// the retirement; the whitelist negative rides the snapshot tests).

@@ -561,7 +561,7 @@ final class McpRenderParityTests: XCTestCase {
         try await httpClient.connect(transport: httpTransport)
         let tools = try await httpClient.listTools()
         // The five editing tools ALL ride the second host (the closed
-        // 19-tool face — Plan 14-4 retired the probe pair).
+        // 20-tool face — Plan 14-4 retired the probe pair).
         let httpNames = Set(tools.0.map(\.name))
         XCTAssertTrue(
             ["load_image", "apply_params", "render_preview", "list_iops", "export_image"]
