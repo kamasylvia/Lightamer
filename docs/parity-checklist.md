@@ -78,11 +78,45 @@ review may flip it.
 ## Summary
 
 <!-- parity:summary -->
+| Domain | Delivered | Partial | Missing | V2 | Parked | OOS | Rows |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| SHELL | 3 | 2 | 0 | 0 | 0 | 1 | 6 |
+| LIB | 12 | 1 | 3 | 0 | 0 | 0 | 16 |
+| EDT | 15 | 0 | 0 | 0 | 0 | 0 | 15 |
+| ADJ | 18 | 1 | 0 | 0 | 0 | 0 | 19 |
+| DEV | 5 | 1 | 0 | 0 | 0 | 2 | 8 |
+| GEO | 3 | 0 | 0 | 0 | 0 | 0 | 3 |
+| NODE | 8 | 0 | 0 | 0 | 0 | 0 | 8 |
+| MASK | 10 | 0 | 0 | 1 | 1 | 0 | 12 |
+| DRT | 10 | 0 | 0 | 0 | 0 | 0 | 10 |
+| EXP | 12 | 1 | 0 | 1 | 0 | 0 | 14 |
+| AI | 10 | 0 | 0 | 1 | 0 | 0 | 11 |
+| OWN | 11 | 1 | 0 | 0 | 0 | 0 | 12 |
+| **Total** | 117 | 7 | 3 | 3 | 1 | 3 | 134 |
 <!-- /parity:summary -->
 
 ## Gaps
 
 <!-- parity:gaps -->
+| Id | Domain | Status | Feature |
+|---|---|---|---|
+| FEAT-LIB-04 | LIB | Missing | Activity view (photos-per-day chart, click a day to filter) |
+| FEAT-LIB-13 | LIB | Missing | Smart albums (saved filter collections) |
+| FEAT-LIB-15 | LIB | Missing | Watched folders (auto-ingest on folder change) |
+| FEAT-AI-10 | AI | V2 | AI segmentation masks (subject/sky/people via SAM-class models) |
+| FEAT-EXP-02 | EXP | V2 | OpenEXR export |
+| FEAT-MASK-11 | MASK | V2 | AI subject/sky/people masks (segmentation) |
+| FEAT-MASK-12 | MASK | Parked | Edge-following brush (contour-aware stroke) |
+| FEAT-DEV-05 | DEV | OOS | Demosaic algorithm menu (RCD / AMaZE / Markesteijn / ... selectable) |
+| FEAT-DEV-06 | DEV | OOS | Highlights reconstruction (raw-domain, default on) |
+| FEAT-SHELL-06 | SHELL | OOS | In-app updates page (signed auto-update channel) |
+| FEAT-ADJ-19 | ADJ | Partial | dt-derived adjustment superset (39 modules: channel mixers, filmic/sigmoid/AgX, tone equal, denoise family, retouch, liquify, borders, watermark, etc.) |
+| FEAT-DEV-07 | DEV | Partial | Lens calibration (enable + scale + projection with profile database and auto-detection) |
+| FEAT-EXP-13 | EXP | Partial | TIFF compression options (none / LZW / zip) |
+| FEAT-LIB-14 | LIB | Partial | Culling/pick pass over the library |
+| FEAT-OWN-12 | OWN | Partial | Denoise family (bilateral / NL-means / profiled) plus retouch, liquify, borders, watermark and the remaining dt-era modules |
+| FEAT-SHELL-03 | SHELL | Partial | Dark theme token family (card surface/border colors) |
+| FEAT-SHELL-05 | SHELL | Partial | Keyboard settings page with conflict display and restore defaults |
 <!-- /parity:gaps -->
 
 ## SHELL - workspace shell
