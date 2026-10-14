@@ -25,6 +25,20 @@ Key extraction (assertion 1 — source keys must exist in the catalog)
     comments, doc comments). The snake-shape filter is the prose false-positive
     guard (KD-1).
 
+Interpolated localization keys (assertion 5 — V16)
+    ``String(localized: "K \\(expr)"`` extracts at build time as a FORMAT
+    key (``"K %@"`` / ``"K %lld"`` … — the xcstrings convention). The
+    scanner records these separately (same-line form + the form-1c
+    continuation line opening with an interpolated literal) as
+    ``localized_interp_keys``, and assertion 5 requires every such key K
+    to own a catalog FORMAT-VARIANT key starting with ``K + " "``. The
+    bare static key ``K`` never satisfies the gate: a catalog entry that
+    only carries ``K`` (its value holding the placeholder) means the
+    runtime lookup of the variant key fails and the UI falls back to the
+    raw key text (the M2-9 F-2 live defect family). Specifier-shape
+    deep-checking (``%lld`` vs ``%@`` mismatches while a variant exists)
+    stays a manual-walk item — the gate is the PRESENT/ABSENT triage.
+
 Coverage (assertion 2 — catalog keys must be referenced or exempted)
     A catalog key is *covered* when any of the following holds:
       a. it was extracted as a static key (shape 1/2 above);
@@ -48,7 +62,7 @@ Modes
     --report    human-readable report (exit 0 unless IO/format errors)
     --check     machine check: any violation prints key-level detail, exit 1;
                 all pass → exit 0
-    --self-test run the built-in golden fixtures (four violation cases + one
+    --self-test run the built-in golden fixtures (violation cases + one
                 clean case) and verify the scanner detects each; exit 0/1
 
 Extra flags
@@ -119,6 +133,12 @@ LITERAL_RE = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 # must OPEN with the key literal.
 PENDING_LOCALIZED_RE = re.compile(r'(?:String\(\s*)?localized:\s*$')
 LEAD_LITERAL_RE = re.compile(r'^"([A-Za-z0-9_]+)"')
+# V16 (assertion 5): interpolated localization literals — the same-line
+# `String(localized: "K \(expr)"` form, and the form-1c continuation line
+# OPENING with an interpolated literal. The extracted key is the literal's
+# static prefix; the build-time format variant is `K <specifier>`.
+LOCATED_INTERP_RE = re.compile(r'\bString\(\s*localized:\s*"([A-Za-z0-9_]+)\s*\\\(')
+LEAD_INTERP_RE = re.compile(r'^"([A-Za-z0-9_]+)\s*\\\(')
 
 SKIP_DIR_PARTS = {
     "Tests",
@@ -140,6 +160,10 @@ class ScanResult:
     static_keys: dict[str, list[str]] = field(default_factory=dict)
     literals: set[str] = field(default_factory=set)
     interp_prefixes: set[str] = field(default_factory=set)
+    # V16 (assertion 5): interpolated localization keys — the static prefix
+    # of a `String(localized: "K \(…)"` literal (same-line + form-1c
+    # continuation), with the reference paths for the report.
+    localized_interp_keys: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -148,6 +172,7 @@ class AuditViolations:
     orphans: list[str] = field(default_factory=list)       # assertion 2
     zh_missing: list[str] = field(default_factory=list)    # assertion 3
     code_violations: list[str] = field(default_factory=list)  # assertion 4
+    interp_missing_variant: list[str] = field(default_factory=list)  # assertion 5
 
     @property
     def total(self) -> int:
@@ -156,6 +181,7 @@ class AuditViolations:
             + len(self.orphans)
             + len(self.zh_missing)
             + len(self.code_violations)
+            + len(self.interp_missing_variant)
         )
 
     def ok(self) -> bool:
@@ -212,8 +238,15 @@ def scan_source(root: str) -> ScanResult:
             if pending_localized:
                 pending_localized = False
                 lead = LEAD_LITERAL_RE.match(line)
+                lead_interp = LEAD_INTERP_RE.match(line)
                 if lead and KEY_SHAPE.match(lead.group(1)):
                     result.static_keys.setdefault(lead.group(1), []).append(rel)
+                elif lead_interp and KEY_SHAPE.match(lead_interp.group(1)):
+                    # V16: the continuation line may also OPEN with an
+                    # interpolated literal (`"K \(expr)"`) — the form-1c
+                    # interpolation twin joins the interp-key set.
+                    result.localized_interp_keys.setdefault(
+                        lead_interp.group(1), []).append(rel)
             for match in LOCATED_RE.finditer(line):
                 key = match.group(1)
                 if KEY_SHAPE.match(key):
@@ -226,6 +259,10 @@ def scan_source(root: str) -> ScanResult:
                 key = match.group(1)
                 if KEY_SHAPE.match(key):
                     result.static_keys.setdefault(key, []).append(rel)
+            for match in LOCATED_INTERP_RE.finditer(line):
+                key = match.group(1)
+                if KEY_SHAPE.match(key):
+                    result.localized_interp_keys.setdefault(key, []).append(rel)
             for match in LITERAL_RE.finditer(line):
                 result.literals.add(match.group(1))
             for match in INTERP_PREFIX_RE.finditer(line):
@@ -318,6 +355,17 @@ def audit(
             if locale not in ("en", "zh"):
                 violations.code_violations.append(f"{key} [{locale}]")
 
+    # Assertion 5 (V16) — every localized interpolation key must own a
+    # catalog FORMAT-VARIANT key (any catalog key starting with `K + " "`:
+    # the build-time extraction of `String(localized: "K \(…)")` spells the
+    # key `K %@` / `K %lld` …). The bare static key K never satisfies the
+    # gate — a catalog that only carries K sends the runtime lookup of the
+    # variant to the raw-key fallback (the M2-9 F-2 family). Specifier
+    # deep-checking stays manual (the PRESENT/ABSENT triage is the gate).
+    for key in sorted(scan.localized_interp_keys):
+        if not any(ck.startswith(key + " ") for ck in catalog_keys):
+            violations.interp_missing_variant.append(key)
+
     return violations
 
 
@@ -328,6 +376,7 @@ def format_report(violations: AuditViolations, scan: ScanResult, catalog: dict) 
     lines.append(f"  source static keys : {len(scan.static_keys)}")
     lines.append(f"  catalog keys       : {catalog_keys}")
     lines.append(f"  dynamic families   : {len(scan.interp_prefixes)}")
+    lines.append(f"  interp format keys : {len(scan.localized_interp_keys)}")
     lines.append("")
     lines.append(f"[1] source keys missing from catalog : {len(violations.missing)}")
     for key in violations.missing:
@@ -341,6 +390,15 @@ def format_report(violations: AuditViolations, scan: ScanResult, catalog: dict) 
     lines.append(f"[4] locale-code violations           : {len(violations.code_violations)}")
     for entry in violations.code_violations:
         lines.append(f"    LOCALE   {entry}")
+    lines.append(
+        "[5] interpolation keys w/o catalog format variant : "
+        f"{len(violations.interp_missing_variant)}")
+    for key in sorted(scan.localized_interp_keys):
+        absent = key in violations.interp_missing_variant
+        status = "ABSENT " if absent else "PRESENT"
+        marker = "  ! " if absent else "    "
+        paths = ", ".join(scan.localized_interp_keys[key])
+        lines.append(f"{marker}{status}  {key}  (at {paths})")
     lines.append("")
     lines.append(
         "RESULT: PASS" if violations.ok() else f"RESULT: FAIL ({violations.total} violations)"
@@ -367,6 +425,9 @@ struct FixtureView: View {
             Button(String(localized: "selftest_orphan_hunter")) {}
             let n = 3
             _ = String(localized: "selftest_family \\(n)")
+            // V16 assertion 5 red: an interpolated localization whose
+            // catalog has NO format variant (the M2-9 F-2 live family).
+            _ = String(localized: "selftest_novariant \\(n)")
             // V15 form 1c: `localized:` ends the line, the key opens the
             // next scanned line — the per-line regexes miss this shape.
             _ = String(
@@ -451,6 +512,12 @@ def run_selftest() -> int:
                             },
                         },
                     ),
+                    # V16 assertion 5 green: the format variants for the two
+                    # interpolated localization keys (same-line + form-1c
+                    # continuation twins).
+                    "selftest_family %lld": entry("Family %lld", "家族 %lld"),
+                    "selftest_family_cont %lld": entry(
+                        "Family cont %lld", "家族续行 %lld"),
                 }
             ),
         )
@@ -475,6 +542,32 @@ def run_selftest() -> int:
         check(
             "interp continuation prefix registered (V15)",
             "selftest_family_cont" in scan.interp_prefixes,
+        )
+        # V16 assertion 5: interp keys register from BOTH forms; the
+        # variant-less one is flagged, the family twins stay green.
+        check(
+            "A5 interp keys registered (same-line + 1c continuation)",
+            "selftest_family" in scan.localized_interp_keys
+            and "selftest_novariant" in scan.localized_interp_keys
+            and "selftest_family_cont" in scan.localized_interp_keys,
+        )
+        check(
+            "A5 interp key w/o catalog variant flagged",
+            "selftest_novariant" in violations.interp_missing_variant,
+        )
+        check(
+            "A5 family keys variant-PRESENT (green)",
+            "selftest_family" not in violations.interp_missing_variant
+            and "selftest_family_cont" not in violations.interp_missing_variant,
+        )
+        check(
+            "A5 total counts assertion 5",
+            violations.total
+            == len(violations.missing)
+            + len(violations.orphans)
+            + len(violations.zh_missing)
+            + len(violations.code_violations)
+            + len(violations.interp_missing_variant),
         )
         check("A2 orphan detects selftest_orphan_key", "selftest_orphan_key" in violations.orphans)
         # selftest_family is an interpolation prefix; it must NOT be an orphan.
@@ -517,7 +610,10 @@ def run_selftest() -> int:
         for item in failures:
             print(f"  - {item}")
         return 1
-    print("SELF-TEST PASS (missing / orphan / zh-missing / zh-Hans detected; clean passes; allowlist works)")
+    print(
+        "SELF-TEST PASS (missing / orphan / zh-missing / zh-Hans / interp-no-variant "
+        "detected; clean passes; allowlist works)"
+    )
     return 0
 
 
@@ -563,6 +659,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "zh-audit --check PASS "
             f"({len(scan.static_keys)} source keys, {len(catalog['strings'])} catalog keys, "
+            f"{len(scan.localized_interp_keys)} interp keys all variant-PRESENT, "
             "zh complete, locale codes = {en, zh})"
         )
         return 0
