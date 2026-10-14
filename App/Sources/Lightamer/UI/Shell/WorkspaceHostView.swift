@@ -256,6 +256,19 @@ struct WorkspaceHostView: View {
             aiEntry.openEnhance(
                 kind: request.kind, imageIDs: request.imageIDs)
         }
+        // M6-4-01 (KD-8): the View ▸ Stacks commands — consumed here and
+        // turned into the grid model's faces; with the library face
+        // inactive (gridModel nil) the request is dropped = the no-op
+        // guard.
+        .onChange(of: workspace.pendingStackCommand) { _, command in
+            guard let command else { return }
+            _ = workspace.consumeStackCommand()
+            guard let grid = gridModel else { return }
+            switch command {
+            case .expandAll: Task { await grid.expandAll() }
+            case .collapseAll: Task { await grid.collapseAll() }
+            }
+        }
         // M2-10-07: the AI enhancement sheet — one dialog per queued image
         // (the v1 sequential batch; a finished non-final job auto-advances,
         // a user close aborts the remainder and stops the worker client).
@@ -537,7 +550,9 @@ struct WorkspaceHostView: View {
         }
         let bridge = LibraryThumbnailBridge(
             thumbsDirectory: thumbsDirectory, renderLeg: nil, resolveURL: resolve)
-        let grid = LibraryGridModel(queries: LibraryQueries(store: store))
+        let grid = LibraryGridModel(
+            queries: LibraryQueries(store: store),
+            store: LibraryStore(store: store))
         let inspector = LibraryInspectorModel(
             grid: grid,
             queries: LibraryQueries(store: store),
