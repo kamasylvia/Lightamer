@@ -254,6 +254,17 @@ internal struct EditorAreaView: View {
                 // MTKView carries its own label in the loaded state.
                 .accessibilityIdentifier("Image viewport")
                 .animation(.easeInOut(duration: 0.2), value: editorState.loadedImageURL)
+                // V2M-02 T3 (residual ① eager release, the image-switch
+                // leg): the segment session's patch face (livePlane +
+                // patches + debounce task) belongs to the PREVIOUS image —
+                // an image switch releases it HERE instead of holding the
+                // ~400 MB plane until the next wire activity (the D-13
+                // residual). Releasing an empty face is a no-op by
+                // construction. The layer-switch leg lives in
+                // LayerEditingState.select(_:).
+                .onChange(of: editorState.loadedImageURL) {
+                    editingState.segmentSession.releaseLivePatchState()
+                }
                 // Geometry → the coordinator's bucket re-evaluation (D-C3).
                 // Fire-and-forget Task: the view NEVER awaits or renders.
                 // POINT sizes are passed through (the bucket function owns

@@ -153,7 +153,16 @@ final class LayerEditingState {
 
     /// Select a layer (nil = back to the global/base scope). Selecting a
     /// layer arms the LAYERS Inspector surface; the mask toolbar enables.
+    /// V2M-02 T3 (residual ① eager release): the patch-flow face belongs
+    /// to the PREVIOUS layer identity — switching layers releases it
+    /// immediately instead of holding the live plane until the next wire
+    /// activity (the D-13 residual: a switch after the last pass with no
+    /// pending debounce kept the plane resident until mode exit / a new
+    /// seed / the next wire event). A same-value re-select is a no-op.
     func select(_ layerID: UUID?) {
+        if selectedLayerID != layerID {
+            segmentSession.releaseLivePatchState()
+        }
         selectedLayerID = layerID
     }
 

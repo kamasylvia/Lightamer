@@ -375,4 +375,93 @@ final class AIMaskPatchFlowTests: XCTestCase {
             editorState.adjustmentLayer(id: first.id)?.mask?.raster?.maskHash,
             ref.maskHash, "the original layer's payload is untouched")
     }
+
+    // MARK: V2M-02 T3 (PATCH-LIVEPLANE residuals ①②)
+
+    /// Residual ① (the eager release, layer leg): a held patch face
+    /// releases the MOMENT a different layer is selected — not at the
+    /// next wire activity (the D-13 residual: a switch after the last
+    /// pass with no pending debounce kept the plane resident until mode
+    /// exit / a new seed / the next wire event).
+    func testLayerSelectReleasesHeldPatchFace() async throws {
+        try await loadSynthetic()
+        let first = try XCTUnwrap(editorState.addAdjustmentLayer())
+        let second = try XCTUnwrap(editorState.addAdjustmentLayer())
+        editingState.select(first.id)
+        editingState.segmentSession.recordSeed(.point(AIMaskPoint(x: 0.5, y: 0.5)))
+        _ = try await commit(halfPlane(left: true), layer: first, featherPercent: 0)
+        let session = editingState.segmentSession
+        XCTAssertNotNil(session.livePlane, "precondition: the commit holds the face")
+
+        // The eager release: the selection change alone (no pending
+        // debounce involvement) drops the held plane immediately.
+        editingState.select(second.id)
+        XCTAssertNil(session.livePlane, "the plane releases at the selection change")
+        XCTAssertTrue(session.patches.isEmpty, "the patches release with the plane")
+        XCTAssertEqual(session.patchState, .idle)
+        XCTAssertNil(session.patchDebounceTask, "the debounce handle releases")
+
+        // A same-value re-select is a no-op (an armed face survives it).
+        _ = try await commit(halfPlane(left: false), layer: second, featherPercent: 0)
+        XCTAssertNotNil(session.livePlane)
+        editingState.select(second.id)
+        XCTAssertNotNil(session.livePlane, "re-selecting the SAME layer keeps the face")
+    }
+
+    /// Residual ② (the in-flight switch): a commit whose generation was
+    /// armed against image A lands while the editor is on image B — the
+    /// mask leg lands on the CAPTURED layer (correct), but the session
+    /// face must NOT arm (no stale plane, no stamp carrying the stale
+    /// identity through the fire seam's match). This is the O-1-family
+    /// race D-13 registered: the old code stamped the SWITCHED-TO url,
+    /// so the fire seam re-validated a stale plane against the new image.
+    func testMidFlightImageSwitchLeavesNoSessionFace() async throws {
+        let first = try tempFixtureCopy("srgb-matrix-8.tif")
+        let second = try tempFixtureCopy("no-icc-8.tif")
+        editorState.load(
+            url: first, decoder: RAWDecoder(), metal: metal,
+            logger: EditorState.decodeLogger)
+        try await waitDecodeSettled()
+        let layer = try XCTUnwrap(editorState.addAdjustmentLayer())
+        editingState.select(layer.id)
+        editingState.segmentSession.recordSeed(.point(AIMaskPoint(x: 0.5, y: 0.5)))
+
+        // The generation runs on a task; the switch lands while the bake
+        // is in flight. The upsample-to-6000² leg (decodeWidth/Height)
+        // widens the GPU+IO bake window so the switch deterministically
+        // lands INSIDE the commit's await (a tiny plane bakes in tens of
+        // ms and the switch would lose the race — the face would arm on
+        // the pre-switch identity and the gate would never see it).
+        let job = Task {
+            try await AIMaskEditing.commitRasterMask(
+                plane: halfPlane(left: true), source: .segment,
+                decodeWidth: 6000, decodeHeight: 6000,
+                imageURL: tempDirectory, label: "ai mid flight",
+                activateTool: nil,
+                coordinator: coordinator, editorState: editorState,
+                editingState: editingState, metal: metal)
+        }
+        // Give the commit the decode/bake head start, then switch mid
+        // flight (EditorState.load flips loadedImageURL at entry).
+        try await Task.sleep(for: .milliseconds(50))
+        editorState.load(
+            url: second, decoder: RAWDecoder(), metal: metal,
+            logger: EditorState.decodeLogger)
+        try await waitDecodeSettled()
+        _ = try await job.value
+
+        let session = editingState.segmentSession
+        XCTAssertNil(
+            session.livePlane,
+            "the arm gate refuses a stale-identity session face")
+        XCTAssertNil(session.patchImageURL, "no stamp carries the stale identity")
+        XCTAssertNil(session.patchLayerID)
+        XCTAssertNil(session.patchDebounceTask, "no pass is scheduled")
+        // The mask leg itself: the switch already swapped the layer stack
+        // (EditorState.load drops it), so commitLayerEdit is a safe no-op —
+        // nothing lands on the NEW image's history either.
+        XCTAssertEqual(
+            editorState.history.items.count, 0,
+            "the mid-flight mask lands nowhere on the switched-to image")
+    }
 }

@@ -173,6 +173,13 @@ enum AIMaskEditing {
         guard let anchor = imageURL ?? editorState.loadedImageURL else {
             throw AIMaskError.invalidInput("no image session for the AI mask")
         }
+        // The generation's ARMED image identity (captured BEFORE any await —
+        // V2M-02 T3 residual ②: an image switch while the bake is in flight
+        // must never stamp the session with the SWITCHED-TO URL, or the fire
+        // seam's identity match re-validates a stale plane against the NEW
+        // image). The segment-session arm gate below compares this against
+        // the LIVE url at completion time.
+        let armedImageURL = editorState.loadedImageURL
         // Normalize to the decode frame (layer B's quality-level planes and
         // layer A's label map may be smaller — bilinear, never nearest).
         let upsampled: AIMaskPlane
@@ -234,15 +241,29 @@ enum AIMaskEditing {
         // the 1s-debounced patch pass is armed — but NOT for the patch
         // pass's own re-bake (patchRebake breaks the loop).
         if source == .segment, !patchRebake {
+            // V2M-02 T3 (residual ② arm gate): if the image or the layer
+            // switched while the generation was in flight, the plane below
+            // belongs to the PREVIOUS identity — the mask leg landed on the
+            // CAPTURED identity (correct), but no session face may arm for
+            // a stale identity (the eager release in LayerEditingState/
+            // EditorAreaView already cleared the face; re-arming it here
+            // would re-hold ~400 MB of a dead plane and re-open the
+            // mixed-input door the fire guard would only close one second
+            // later). Same identity → the N-1 schedule-seam pre-check and
+            // the stamp proceed exactly as before, with the stamp taken
+            // from the ARMED url (never the switched-to one).
+            guard editorState.loadedImageURL == armedImageURL,
+                  editingState.selectedLayerID == layerID
+            else { return ref }
             let session = editingState.segmentSession
             // N-1 (schedule seam): a stale stamp — the image/layer switched
             // since the last arm — releases the carried face BEFORE the
             // fresh capture (the old plane/patches belong to the previous
             // identity and must not compose onto the new base).
             session.releaseIfIdentityChanged(
-                imageURL: editorState.loadedImageURL, layerID: layerID)
+                imageURL: armedImageURL, layerID: layerID)
             session.livePlane = upsampled
-            session.patchImageURL = editorState.loadedImageURL
+            session.patchImageURL = armedImageURL
             session.patchLayerID = layerID
             let coordinator = coordinator
             let editorState = editorState
