@@ -34,7 +34,7 @@ status: executed
   与 perf.md §事故 4 / D-09-04-D9 重签环境债同族。处置 = 两 appex 盘上
   `codesign --force --sign -` 强制 ad-hoc 重签（Signature=adhoc 亲证）→
   增量重跑 build-for-testing 通过。零源码触碰、零 Project.swift diff。
-  教训登记 LESSONS（L080）。
+  教训登记 LESSONS（L081）。
 
 ## SC1-SC6 逐条实测
 
