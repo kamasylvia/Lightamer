@@ -483,6 +483,10 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **终值**：全套 `--all` **`TOTAL|3848/24/0|` 2131s exit 0**（ΔN = 0 精确；0 MEMFAIL；七 bundle 全 8G 门内，峰值 IOP 7456 / IOPParity 7254 皆 ±3% 带内；段和 = TOTAL 机核通过）；transcript = `phases/m6-6-feature-parity/all-run-m66-01.log`。执行期事件 = appex 残留 "Lightamer Dev" CMS 签名与 ad-hoc 父不匹配（环境签名债，盘上强签后增量 build-for-testing 绿；LESSONS L081）。
 - **M6 milestone closed**：M6-0..M6-6 七 phase 全闭环；收口正本 = `phases/m6-6-feature-parity/M6-6-VALIDATION.md`（`milestone_closeout: M6`；六 phase 终态汇编 + 六裁决兑现表 + 编排偏差登记〔裁决⑥「第一个 plan」→ 互操作先行 + N-1 提前清偿〕+ LightCraft 方法论铭谢〔零代码移植零 NOTICE〕+ 挂账单一清单六项移交：Manual-Only 19 行 → GUI 批 / V17 → 机检硬化批 / V2 九项+留置五项 → V2 站 / charter 挂账〔smart albums、挑片、watched folders、SAM CoreML、ALCE-02〕/ 编排偏差 / 瘦身手术触发确认——主会话专属）。
 
+### V2-Maintenance 架构增量（2026-10-16 起，V2M 波次执行批约定正本）
+
+- **zh-audit V17 门（V2M-02 T1）**：`Scripts/zh-audit.py` 断言 6 = specifier 深检——插值键（`String(localized:)` 族 + **Text 族**〔`Text("K \(…)"` 单行 + `Text(` 行尾续行形〕）的实参静态类型逐参有序比对目录变体 spec 序（长度不等或任一位错配 = MISMATCH；映射表 = 全 Int 族→`%lld` / Float|Double→`%lf` / String→`%@`；`%@` 须显式入 spec 正则字符类）。供给面收窄禁误报：带注解 let/var + func/init 参数 + 字面量 + `Int(…)` 包装形 + 深度 0 算式传播；成员链/闭包参数/跨文件/泛型 = EXEMPT 报告不判。self-test golden 八例（spec 错配红 / Text 无变体红 / 跨行绿 / 豁免例 / 位置错配红 / Int32 绿 / Float=Double 绿 / 注释免疫）。**后续批红线电池引用形 = `uv run python3 Scripts/zh-audit.py --check` PASS（ABSENT/MISMATCH 零命中）+ `--self-test` PASS**。活体清偿：`catalog_session_remove_confirm_body %@` 尾块纯插入（SidebarView.swift:262 裸键运行时 face 根治，调用点零改）；首跑分诊红面 = 1 ABSENT（该键）+ 0 MISMATCH，D-5 键 `toast_hdr_merge_done` 绿例亲证（函数参数→`Int(…rounded())`→`%lld`）。
+
 ## Architecture
 
 Architecture not yet mapped. Follow existing patterns found in the codebase.

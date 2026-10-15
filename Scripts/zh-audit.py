@@ -25,19 +25,36 @@ Key extraction (assertion 1 — source keys must exist in the catalog)
     comments, doc comments). The snake-shape filter is the prose false-positive
     guard (KD-1).
 
-Interpolated localization keys (assertion 5 — V16)
+Interpolated localization keys (assertion 5 — V16; V17 extends to Text)
     ``String(localized: "K \\(expr)"`` extracts at build time as a FORMAT
     key (``"K %@"`` / ``"K %lld"`` … — the xcstrings convention). The
-    scanner records these separately (same-line form + the form-1c
-    continuation line opening with an interpolated literal) as
-    ``localized_interp_keys``, and assertion 5 requires every such key K
-    to own a catalog FORMAT-VARIANT key starting with ``K + " "``. The
-    bare static key ``K`` never satisfies the gate: a catalog entry that
-    only carries ``K`` (its value holding the placeholder) means the
-    runtime lookup of the variant key fails and the UI falls back to the
-    raw key text (the M2-9 F-2 live defect family). Specifier-shape
-    deep-checking (``%lld`` vs ``%@`` mismatches while a variant exists)
-    stays a manual-walk item — the gate is the PRESENT/ABSENT triage.
+    scanner records these as ``interp_sites`` keyed by the static prefix.
+    V17 adds the SwiftUI ``Text("K \\(expr)")`` interpolation family (the
+    same build-time FORMAT extraction, single-line + the ``Text(``
+    end-of-line continuation form) to the same gate. Assertion 5 requires
+    every such key K to own a catalog FORMAT-VARIANT key starting with
+    ``K + " "``. The bare static key ``K`` never satisfies the gate: a
+    catalog entry that only carries ``K`` (its value holding the
+    placeholder) means the runtime lookup of the variant key fails and the
+    UI falls back to the raw key text (the M2-9 F-2 live defect family).
+
+Specifier deep-checking (assertion 6 — V17)
+    For every interpolation key whose interpolated argument expressions are
+    statically derivable, the gate compares the DERIVED argument spec
+    sequence against the catalog variant's spec sequence IN ORDER (length
+    + per-position). Types map: the whole Int family (Int/Int32/Int64/
+    UInt…) → ``%lld``; Float and Double share ``%lf``; String → ``%@``.
+    The derivation supply side is deliberately narrow (false-MISMATCH
+    guard): annotated ``let``/``var`` declarations, function/init
+    parameter declarations, integer/float/string literals, ``Int(…)``
+    wrapper calls (covers ``.rounded()`` chain tails), and simple depth-0
+    arithmetic/ternary/nil-coalescing propagation. Everything else —
+    member chains (``progress.completed``), un-annotated closure
+    parameters, cross-file inference, generics, protocol types — is
+    EXEMPT: reported, never judged (no false positives). MISMATCH is a
+    violation: a variant exists but its ordered spec sequence differs
+    from the derived one, so the runtime lookup misses (the D-5 live
+    defect signature: Float interpolation vs an ``%lld``-only catalog).
 
 Coverage (assertion 2 — catalog keys must be referenced or exempted)
     A catalog key is *covered* when any of the following holds:
@@ -63,7 +80,8 @@ Modes
     --check     machine check: any violation prints key-level detail, exit 1;
                 all pass → exit 0
     --self-test run the built-in golden fixtures (violation cases + one
-                clean case) and verify the scanner detects each; exit 0/1
+                clean case + the V17 eight-case golden bundle) and verify
+                the scanner detects each; exit 0/1
 
 Extra flags
     --allowlist FILE   one catalog key or ``prefix*`` per line, '#' comments;
@@ -133,12 +151,16 @@ LITERAL_RE = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 # must OPEN with the key literal.
 PENDING_LOCALIZED_RE = re.compile(r'(?:String\(\s*)?localized:\s*$')
 LEAD_LITERAL_RE = re.compile(r'^"([A-Za-z0-9_]+)"')
-# V16 (assertion 5): interpolated localization literals — the same-line
-# `String(localized: "K \(expr)"` form, and the form-1c continuation line
-# OPENING with an interpolated literal. The extracted key is the literal's
-# static prefix; the build-time format variant is `K <specifier>`.
+# V16/V17 (assertions 5+6): interpolated localization literals. Same-line
+# `String(localized: "K \(expr)"`, the form-1c continuation line OPENING
+# with an interpolated literal, and (V17) the SwiftUI `Text("K \(expr)"`
+# family — same-line plus the `Text(` end-of-line continuation. The
+# extracted key is the literal's static prefix; the build-time format
+# variant is `K <specifier>`.
 LOCATED_INTERP_RE = re.compile(r'\bString\(\s*localized:\s*"([A-Za-z0-9_]+)\s*\\\(')
 LEAD_INTERP_RE = re.compile(r'^"([A-Za-z0-9_]+)\s*\\\(')
+TEXT_INTERP_RE = re.compile(r'\bText\(\s*"([A-Za-z0-9_]+)\s*\\\(')
+TEXT_OPEN_RE = re.compile(r'\bText\($')
 
 SKIP_DIR_PARTS = {
     "Tests",
@@ -154,16 +176,57 @@ SKIP_DIR_PARTS = {
 }
 SKIP_DIR_SUFFIXES = (".xcodeproj", ".xcworkspace", ".app")
 
+# V17 specifier deep-checking: type → format-specifier mapping. The whole
+# Int family shares `%lld` (Int32 pids and Int counts alike); Float and
+# Double share `%lf`; String maps to `%@`.
+INT_FAMILY = frozenset(
+    {"Int", "Int8", "Int16", "Int32", "Int64",
+     "UInt", "UInt8", "UInt16", "UInt32", "UInt64"}
+)
+TYPE_SPEC: dict[str, str] = {t: "%lld" for t in INT_FAMILY}
+TYPE_SPEC["Float"] = "%lf"
+TYPE_SPEC["Double"] = "%lf"
+TYPE_SPEC["String"] = "%@"
+
+# Supply-side declaration shapes (per-file symbol table). Annotated
+# let/var only — type inference from the RHS is out of scope (EXEMPT).
+LET_DECL_RE = re.compile(
+    r'\b(?:let|var)\s+([A-Za-z_]\w*)\s*:\s*'
+    r'([A-Za-z_]\w*(?:\?)?)\b'
+)
+FUNC_HEAD_RE = re.compile(r'\b(?:func|init)\s+[A-Za-z_]\w*\s*\(')
+
+
+@dataclass
+class InterpSite:
+    """One interpolated localization literal site (V16/V17)."""
+
+    path: str
+    family: str                       # "localized" | "text"
+    exprs: tuple[str, ...] | None     # None = literal unterminated on its
+                                      # line — deep-check exempt (the V16
+                                      # line-based scan cannot see the rest).
+
 
 @dataclass
 class ScanResult:
     static_keys: dict[str, list[str]] = field(default_factory=dict)
     literals: set[str] = field(default_factory=set)
     interp_prefixes: set[str] = field(default_factory=set)
-    # V16 (assertion 5): interpolated localization keys — the static prefix
-    # of a `String(localized: "K \(…)"` literal (same-line + form-1c
-    # continuation), with the reference paths for the report.
-    localized_interp_keys: dict[str, list[str]] = field(default_factory=dict)
+    # V16+V17: interpolated localization sites — key → sites, covering the
+    # String(localized:) family (same-line + form-1c continuation) AND the
+    # SwiftUI Text family (same-line + Text( continuation).
+    interp_sites: dict[str, list[InterpSite]] = field(default_factory=dict)
+    # Per-file annotated-declaration symbol tables (V17 derivation supply
+    # side): path → name → set of candidate types.
+    symbols: dict[str, dict[str, set[str]]] = field(default_factory=dict)
+
+    def interp_paths(self, key: str) -> list[str]:
+        seen: list[str] = []
+        for site in self.interp_sites.get(key, ()):
+            if site.path not in seen:
+                seen.append(site.path)
+        return seen
 
 
 @dataclass
@@ -173,6 +236,7 @@ class AuditViolations:
     zh_missing: list[str] = field(default_factory=list)    # assertion 3
     code_violations: list[str] = field(default_factory=list)  # assertion 4
     interp_missing_variant: list[str] = field(default_factory=list)  # assertion 5
+    interp_spec_mismatch: list[str] = field(default_factory=list)    # assertion 6
 
     @property
     def total(self) -> int:
@@ -182,10 +246,190 @@ class AuditViolations:
             + len(self.zh_missing)
             + len(self.code_violations)
             + len(self.interp_missing_variant)
+            + len(self.interp_spec_mismatch)
         )
 
     def ok(self) -> bool:
         return self.total == 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Paren/interpolation parsing helpers (V17).
+# ─────────────────────────────────────────────────────────────────────────────
+
+def match_paren(text: str, open_pos: int) -> int | None:
+    """Index of the paren closing ``open_pos``, or None if unbalanced."""
+    depth = 0
+    for i in range(open_pos, len(text)):
+        c = text[i]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+    return None
+
+
+def parse_interp_literal(line: str, open_pos: int) -> tuple[str, ...] | None:
+    """Extract the interpolated expressions of a literal.
+
+    ``open_pos`` points at the ``(`` of the FIRST ``\\(``. Walks
+    interpolation → plain-text → interpolation … until the literal's
+    closing quote. Returns None when the literal does not close on this
+    line (the caller then keeps the site deep-check-exempt).
+    """
+    exprs: list[str] = []
+    pos = open_pos
+    while True:
+        end = match_paren(line, pos)
+        if end is None:
+            return None
+        exprs.append(line[pos + 1:end])
+        j = end + 1
+        while j < len(line):
+            c = line[j]
+            if c == "\\" and j + 1 < len(line) and line[j + 1] == "(":
+                break
+            if c == '"':
+                return tuple(exprs)
+            j += 1
+        else:
+            return None
+        pos = j + 1
+
+
+def collect_declarations(source: str) -> dict[str, set[str]]:
+    """Per-file symbol table from annotated let/var + func/init parameters."""
+    symbols: dict[str, set[str]] = {}
+    known = set(TYPE_SPEC)
+
+    def record(name: str, type_name: str) -> None:
+        base = type_name.rstrip("?").strip()
+        if base in known:
+            symbols.setdefault(name, set()).add(base)
+
+    for m in LET_DECL_RE.finditer(source):
+        record(m.group(1), m.group(2))
+
+    for m in FUNC_HEAD_RE.finditer(source):
+        open_pos = m.end() - 1
+        close = match_paren(source, open_pos)
+        if close is None:
+            continue
+        params = source[open_pos + 1:close]
+        # Split the parameter list on depth-0 commas.
+        depth = 0
+        start = 0
+        pieces: list[str] = []
+        for i, c in enumerate(params):
+            if c == "(":
+                depth += 1
+            elif c == ")":
+                depth -= 1
+            elif c == "," and depth == 0:
+                pieces.append(params[start:i])
+                start = i + 1
+        pieces.append(params[start:])
+        for piece in pieces:
+            piece = piece.strip()
+            if not piece or piece.startswith("@"):
+                # Best-effort: strip attributes/argument labels; take the
+                # trailing `name: Type` pair.
+                pass
+            pm = re.search(r'([A-Za-z_]\w*)\s*:\s*([A-Za-z_]\w*(?:\?)?)\s*$',
+                           piece)
+            if pm:
+                record(pm.group(1), pm.group(2))
+    return symbols
+
+
+def derive_type(expr: str, symbols: dict[str, set[str]]) -> str | None:
+    """Conservatively derive the static type of one interpolated argument.
+
+    Returns the mapped base type (a TYPE_SPEC key) or None when the
+    expression is outside the derivation supply face (EXEMPT — never a
+    guess; false MISMATCH is the failure mode this guard exists for).
+    """
+    e = expr.strip()
+    if not e:
+        return None
+    # Whole-expression parentheses.
+    if e.startswith("(") and (close := match_paren(e, 0)) == len(e) - 1:
+        return derive_type(e[1:-1], symbols)
+    # Typed wrapper calls — `Int(…)`, `Int32(…)`, `Double(…)`, `String(…)`.
+    wm = re.match(r'^([A-Za-z_]\w*)\s*\(', e)
+    if wm:
+        head = wm.group(1)
+        if head in TYPE_SPEC and match_paren(e, wm.end() - 1) == len(e) - 1:
+            return head
+    # Literals: integer → Int, float → Double, string → String.
+    if re.match(r'^\d+$', e):
+        return "Int"
+    if re.match(r'^\d+\.\d*$', e):
+        return "Double"
+    if len(e) >= 2 and e.startswith('"') and e.endswith('"'):
+        return "String"
+    # Bare identifier — symbol-table lookup (single candidate type only).
+    if re.match(r'^[A-Za-z_]\w*$', e):
+        types = symbols.get(e)
+        if types and len(types) == 1:
+            return next(iter(types))
+        return None
+    # Depth-0 binary propagation: arithmetic (+ - * / %), nil-coalescing
+    # (??), ternary (?:). Both sides must derive and agree.
+    for op in ("??", "+", "-", "*", "/", "%"):
+        depth = 0
+        i = 0
+        while i < len(e):
+            c = e[i]
+            if c == "(":
+                depth += 1
+            elif c == ")":
+                depth -= 1
+            elif depth == 0 and e.startswith(op, i):
+                left = derive_type(e[:i], symbols)
+                right = derive_type(e[i + len(op):], symbols)
+                if left is not None and left == right:
+                    return left
+                return None
+            elif c == "?" and depth == 0:
+                # Ternary: `cond ? a : b` — split on the matching ':' at
+                # depth 0.
+                colon = None
+                depth2 = 0
+                for j in range(i + 1, len(e)):
+                    c2 = e[j]
+                    if c2 == "(":
+                        depth2 += 1
+                    elif c2 == ")":
+                        depth2 -= 1
+                    elif c2 == ":" and depth2 == 0:
+                        colon = j
+                        break
+                if colon is None:
+                    return None
+                left = derive_type(e[i + 1:colon], symbols)
+                right = derive_type(e[colon + 1:], symbols)
+                if left is not None and left == right:
+                    return left
+                return None
+            i += 1
+    return None
+
+
+SPEC_RE = re.compile(r"%(?:@|[a-zA-Z]+)")
+
+
+def variant_specs(variant_key: str, base: str) -> tuple[str, ...]:
+    """Ordered format-specifier sequence of a catalog variant key.
+
+    `%@` counts: the `@` is not a letter, so the character class must
+    carry it explicitly (a bare `%[a-zA-Z]+` parses `%@` into an empty
+    sequence and phantom-mismatches every String-arg key).
+    """
+    suffix = variant_key[len(base) + 1:]
+    return tuple(SPEC_RE.findall(suffix))
 
 
 def iter_swift_files(root: str):
@@ -209,8 +453,14 @@ def scan_source(root: str) -> ScanResult:
         except (OSError, UnicodeDecodeError):
             continue
         rel = os.path.relpath(path, root)
+        try:
+            with open(path, encoding="utf-8") as fh:
+                result.symbols[rel] = collect_declarations(fh.read())
+        except (OSError, UnicodeDecodeError):
+            result.symbols[rel] = {}
         in_block_comment = False
         pending_localized = False
+        pending_text = False
         for raw in lines:
             line = raw.strip()
             if in_block_comment:
@@ -244,9 +494,22 @@ def scan_source(root: str) -> ScanResult:
                 elif lead_interp and KEY_SHAPE.match(lead_interp.group(1)):
                     # V16: the continuation line may also OPEN with an
                     # interpolated literal (`"K \(expr)"`) — the form-1c
-                    # interpolation twin joins the interp-key set.
-                    result.localized_interp_keys.setdefault(
-                        lead_interp.group(1), []).append(rel)
+                    # interpolation twin joins the interp-key set. V17:
+                    # capture the expressions for the deep-check.
+                    exprs = parse_interp_literal(line, lead_interp.end() - 1)
+                    result.interp_sites.setdefault(
+                        lead_interp.group(1), []).append(
+                            InterpSite(rel, "localized", exprs))
+            elif pending_text:
+                # V17 Text-family continuation: the previous scanned line
+                # ended with `Text(`; the literal must OPEN this line.
+                pending_text = False
+                lead_interp = LEAD_INTERP_RE.match(line)
+                if lead_interp and KEY_SHAPE.match(lead_interp.group(1)):
+                    exprs = parse_interp_literal(line, lead_interp.end() - 1)
+                    result.interp_sites.setdefault(
+                        lead_interp.group(1), []).append(
+                            InterpSite(rel, "text", exprs))
             for match in LOCATED_RE.finditer(line):
                 key = match.group(1)
                 if KEY_SHAPE.match(key):
@@ -262,13 +525,23 @@ def scan_source(root: str) -> ScanResult:
             for match in LOCATED_INTERP_RE.finditer(line):
                 key = match.group(1)
                 if KEY_SHAPE.match(key):
-                    result.localized_interp_keys.setdefault(key, []).append(rel)
+                    exprs = parse_interp_literal(line, match.end() - 1)
+                    result.interp_sites.setdefault(key, []).append(
+                        InterpSite(rel, "localized", exprs))
+            for match in TEXT_INTERP_RE.finditer(line):
+                key = match.group(1)
+                if KEY_SHAPE.match(key):
+                    exprs = parse_interp_literal(line, match.end() - 1)
+                    result.interp_sites.setdefault(key, []).append(
+                        InterpSite(rel, "text", exprs))
             for match in LITERAL_RE.finditer(line):
                 result.literals.add(match.group(1))
             for match in INTERP_PREFIX_RE.finditer(line):
                 result.interp_prefixes.add(match.group(1))
             if PENDING_LOCALIZED_RE.search(line):
                 pending_localized = True
+            elif TEXT_OPEN_RE.search(line):
+                pending_text = True
     return result
 
 
@@ -355,16 +628,55 @@ def audit(
             if locale not in ("en", "zh"):
                 violations.code_violations.append(f"{key} [{locale}]")
 
-    # Assertion 5 (V16) — every localized interpolation key must own a
-    # catalog FORMAT-VARIANT key (any catalog key starting with `K + " "`:
-    # the build-time extraction of `String(localized: "K \(…)")` spells the
-    # key `K %@` / `K %lld` …). The bare static key K never satisfies the
-    # gate — a catalog that only carries K sends the runtime lookup of the
-    # variant to the raw-key fallback (the M2-9 F-2 family). Specifier
-    # deep-checking stays manual (the PRESENT/ABSENT triage is the gate).
-    for key in sorted(scan.localized_interp_keys):
+    # Assertion 5 (V16, V17-extended) — every interpolation key (both the
+    # String(localized:) and the Text family) must own a catalog
+    # FORMAT-VARIANT key (any catalog key starting with `K + " "`). The
+    # bare static key K never satisfies the gate.
+    for key in sorted(scan.interp_sites):
         if not any(ck.startswith(key + " ") for ck in catalog_keys):
             violations.interp_missing_variant.append(key)
+
+    # Assertion 6 (V17) — specifier deep-checking. For every site whose
+    # argument expressions are statically derivable, the derived ordered
+    # spec sequence must equal SOME catalog variant's spec sequence
+    # (length + per-position). Undecivable sites are EXEMPT (reported,
+    # never judged — no false positives).
+    exempt_records: list[tuple[str, str, str]] = []
+    for key in sorted(scan.interp_sites):
+        if key in violations.interp_missing_variant:
+            continue  # ABSENT already fails the key; deep-check is moot.
+        variants = [ck for ck in catalog_keys if ck.startswith(key + " ")]
+        variant_spec_seqs = [variant_specs(ck, key) for ck in variants]
+        symbols_by_path: dict[str, dict[str, set[str]]] = {}
+        for site in scan.interp_sites[key]:
+            if site.path not in symbols_by_path:
+                symbols_by_path[site.path] = scan.symbols.get(site.path, {})
+        for site in scan.interp_sites[key]:
+            if site.exprs is None:
+                exempt_records.append((key, site.path, "unterminated literal"))
+                continue
+            symbols = symbols_by_path[site.path]
+            derived = [derive_type(e, symbols) for e in site.exprs]
+            if any(d is None for d in derived):
+                reason = "undecivable argument type (" + ", ".join(
+                    e.strip() if d is None else ""
+                    for e, d in zip(site.exprs, derived)
+                    if d is None
+                ) + ")"
+                exempt_records.append((key, site.path, reason))
+                continue
+            expected = tuple(TYPE_SPEC[d] for d in derived)
+            if expected not in variant_spec_seqs:
+                shown = " | ".join(
+                    f"catalog='{ck}'" for ck in variants)
+                violations.interp_spec_mismatch.append(
+                    f"{key}  (at {site.path})  "
+                    f"expected='{key} {' '.join(expected)}'  vs  {shown}"
+                )
+
+    # Stash the exempt records on the violations object for the report
+    # (attribute is not part of the violation count).
+    violations.exempt_records = exempt_records  # type: ignore[attr-defined]
 
     return violations
 
@@ -376,7 +688,7 @@ def format_report(violations: AuditViolations, scan: ScanResult, catalog: dict) 
     lines.append(f"  source static keys : {len(scan.static_keys)}")
     lines.append(f"  catalog keys       : {catalog_keys}")
     lines.append(f"  dynamic families   : {len(scan.interp_prefixes)}")
-    lines.append(f"  interp format keys : {len(scan.localized_interp_keys)}")
+    lines.append(f"  interp keys        : {len(scan.interp_sites)}")
     lines.append("")
     lines.append(f"[1] source keys missing from catalog : {len(violations.missing)}")
     for key in violations.missing:
@@ -393,12 +705,23 @@ def format_report(violations: AuditViolations, scan: ScanResult, catalog: dict) 
     lines.append(
         "[5] interpolation keys w/o catalog format variant : "
         f"{len(violations.interp_missing_variant)}")
-    for key in sorted(scan.localized_interp_keys):
+    for key in sorted(scan.interp_sites):
         absent = key in violations.interp_missing_variant
         status = "ABSENT " if absent else "PRESENT"
         marker = "  ! " if absent else "    "
-        paths = ", ".join(scan.localized_interp_keys[key])
-        lines.append(f"{marker}{status}  {key}  (at {paths})")
+        families = sorted({site.family for site in scan.interp_sites[key]})
+        paths = ", ".join(scan.interp_paths(key))
+        lines.append(
+            f"{marker}{status}  {key}  [{'+'.join(families)}]  (at {paths})")
+    lines.append(
+        "[6] specifier deep-check (V17) mismatches : "
+        f"{len(violations.interp_spec_mismatch)}")
+    for entry in violations.interp_spec_mismatch:
+        lines.append(f"  ! MISMATCH  {entry}")
+    exempt = getattr(violations, "exempt_records", [])
+    lines.append(f"    exempt sites (reported, not judged) : {len(exempt)}")
+    for key, path, reason in exempt:
+        lines.append(f"      EXEMPT  {key}  (at {path})  {reason}")
     lines.append("")
     lines.append(
         "RESULT: PASS" if violations.ok() else f"RESULT: FAIL ({violations.total} violations)"
@@ -408,8 +731,9 @@ def format_report(violations: AuditViolations, scan: ScanResult, catalog: dict) 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Self-test (golden fixtures). Builds a synthetic source tree + catalog in a
-# temp directory and asserts the scanner reports exactly the four seeded
-# violations, and a clean fixture passes. AC M2-3-4 #2.
+# temp directory and asserts the scanner reports exactly the seeded
+# violations, and a clean fixture passes. AC M2-3-4 #2; the V17 golden
+# eight-case bundle pins the specifier deep-check (E-2 revised).
 # ─────────────────────────────────────────────────────────────────────────────
 
 SELFTEST_SOURCE_BAD = """\
@@ -453,6 +777,52 @@ struct CleanView: View {
 }
 """
 
+# V17 golden eight-case bundle (E-2 revised):
+#   1. spec-mismatch red   (Int arg vs a %@-only catalog variant)
+#   2. Text-family no-variant red
+#   3. cross-line (form-1c continuation) green
+#   4. exempt example      (member chain — reported, never judged)
+#   5. position-mismatch red ([String, Int] vs `%lld %lld` — the ordered
+#      comparison must NOT be fooled by a non-empty type-set intersection)
+#   6. Int32 → %lld green  (the all-Int-family mapping anchor)
+#   7. Float=Double share %lf green (the D-5 sample's mapping, catalog side)
+#   8. comment immunity    (a doc comment containing an interpolation
+#      literal stays unscanned — no false ABSENT)
+V17_SOURCE = """\
+import SwiftUI
+
+struct V17Fixture: View {
+    var body: some View {
+        VStack {
+            let count: Int = fetch()
+            // g1: spec mismatch red — Int arg, catalog variant is %@-only.
+            _ = String(localized: "g1_spec_mismatch \\(count)")
+            // g2: Text family no-variant red.
+            Text("g2_text_novar \\(count)")
+            // g3: cross-line green (form-1c continuation, variant in
+            // catalog).
+            _ = String(
+                localized:
+                    "g3_continuation \\(count)")
+            // g4: exempt — a member chain stays unjudged (元组成员豁免).
+            Text("g4_exempt_member \\(item.name)")
+            // g5: position mismatch red — [String, Int] vs `%lld %lld`.
+            let name: String = label()
+            _ = String(localized: "g5_position \\(name) \\(count)")
+            // g6: Int32 maps to %lld like every Int-family member — green.
+            let code: Int32 = 7
+            _ = String(localized: "g6_int32 \\(code)")
+            // g7: Float and Double share the %lf mapping — green.
+            let ratio: Float = 0.5
+            let scale: Double = 2.0
+            _ = String(localized: "g7_float \\(ratio) \\(scale)")
+            // g8 comment immunity: the doc-comment literal below —
+            // Text("g8_comment \\(count)") — must stay unscanned.
+        }
+    }
+}
+"""
+
 
 def make_catalog(entries: dict[str, dict]) -> dict:
     return {"sourceLanguage": "en", "strings": entries}
@@ -490,7 +860,7 @@ def run_selftest() -> int:
             failures.append(label)
 
     with tempfile.TemporaryDirectory(prefix="zh-audit-selftest-") as tmp:
-        # Case bundle A — four seeded violations must all be detected.
+        # Case bundle A — seeded violations must all be detected.
         _, cat_path = write_fixture(
             tmp,
             SELFTEST_SOURCE_BAD,
@@ -547,9 +917,9 @@ def run_selftest() -> int:
         # variant-less one is flagged, the family twins stay green.
         check(
             "A5 interp keys registered (same-line + 1c continuation)",
-            "selftest_family" in scan.localized_interp_keys
-            and "selftest_novariant" in scan.localized_interp_keys
-            and "selftest_family_cont" in scan.localized_interp_keys,
+            "selftest_family" in scan.interp_sites
+            and "selftest_novariant" in scan.interp_sites
+            and "selftest_family_cont" in scan.interp_sites,
         )
         check(
             "A5 interp key w/o catalog variant flagged",
@@ -567,7 +937,8 @@ def run_selftest() -> int:
             + len(violations.orphans)
             + len(violations.zh_missing)
             + len(violations.code_violations)
-            + len(violations.interp_missing_variant),
+            + len(violations.interp_missing_variant)
+            + len(violations.interp_spec_mismatch),
         )
         check("A2 orphan detects selftest_orphan_key", "selftest_orphan_key" in violations.orphans)
         # selftest_family is an interpolation prefix; it must NOT be an orphan.
@@ -605,14 +976,84 @@ def run_selftest() -> int:
         violations4 = audit(scan3, catalog, [], ["selftest_orphan"])
         check("C prefix allowlist exempts orphan", "selftest_orphan_key" not in violations4.orphans)
 
+        # ─────────────────────────────────────────────────────────────────
+        # Case bundle D — V17 golden eight cases.
+        # ─────────────────────────────────────────────────────────────────
+        tmp_d = os.path.join(tmp, "v17")
+        os.makedirs(tmp_d, exist_ok=True)
+        _, cat_path_d = write_fixture(
+            tmp_d,
+            V17_SOURCE,
+            make_catalog(
+                {
+                    # g1: variant EXISTS but with the wrong specifier — the
+                    # D-5 live-defect signature (golden ①).
+                    "g1_spec_mismatch %@": entry("G1 %@", "G1 %@"),
+                    # g2: NO variant at all (golden ②) — ABSENT via the
+                    # Text-family gate.
+                    # g3: continuation form with a matching variant (③).
+                    "g3_continuation %lld": entry("G3 %lld", "G3 %lld"),
+                    # g4: a variant that WOULD mismatch if the member chain
+                    # were judged — its absence from the mismatch list
+                    # proves the exemption actually bypasses judgment (④).
+                    "g4_exempt_member %@": entry("G4 %@", "G4 %@"),
+                    # g5: same type MULTISET, wrong ORDER — the ordered
+                    # per-position comparison must flag it (golden ⑤).
+                    "g5_position %lld %lld": entry("G5", "G5"),
+                    # g6: Int32 → %lld, the all-Int-family anchor (⑥).
+                    "g6_int32 %lld": entry("G6 %lld", "G6 %lld"),
+                    # g7: Float and Double both derive %lf (⑦).
+                    "g7_float %lf %lf": entry("G7 %lf %lf", "G7 %lf %lf"),
+                    # g8 exists ONLY in the doc comment — nothing in the
+                    # catalog, and the scan must not flag it (⑧).
+                }
+            ),
+        )
+        scan_d = scan_source(tmp_d)
+        catalog_d = load_catalog(cat_path_d)
+        v17 = audit(scan_d, catalog_d, [], [])
+        exempt = {k: r for k, _, r in getattr(v17, "exempt_records", [])}
+
+        check("D g1 site registered", "g1_spec_mismatch" in scan_d.interp_sites)
+        check("D g1 spec-mismatch red (golden 1)",
+              any(e.startswith("g1_spec_mismatch ") for e in v17.interp_spec_mismatch))
+        check("D g1 not flagged ABSENT (variant exists)",
+              "g1_spec_mismatch" not in v17.interp_missing_variant)
+        check("D g2 registered as a TEXT-family site (golden 2)",
+              any(s.family == "text" for s in scan_d.interp_sites.get("g2_text_novar", [])))
+        check("D g2 Text-family no-variant red (golden 2)",
+              "g2_text_novar" in v17.interp_missing_variant)
+        check("D g3 continuation site registered (golden 3)",
+              any(s.exprs == ("count",) for s in scan_d.interp_sites.get("g3_continuation", [])))
+        check("D g3 cross-line green (golden 3)",
+              "g3_continuation" not in v17.interp_missing_variant
+              and not any(e.startswith("g3_continuation ") for e in v17.interp_spec_mismatch))
+        check("D g4 member chain exempt (golden 4)",
+              "g4_exempt_member" in exempt
+              and not any(e.startswith("g4_exempt_member ") for e in v17.interp_spec_mismatch))
+        check("D g5 position-mismatch red (golden 5)",
+              any(e.startswith("g5_position ") for e in v17.interp_spec_mismatch))
+        check("D g6 Int32→%lld green (golden 6)",
+              "g6_int32" not in v17.interp_missing_variant
+              and not any(e.startswith("g6_int32 ") for e in v17.interp_spec_mismatch))
+        check("D g7 Float=Double share %lf green (golden 7)",
+              "g7_float" not in v17.interp_missing_variant
+              and not any(e.startswith("g7_float ") for e in v17.interp_spec_mismatch))
+        check("D g8 doc-comment literal unscanned (golden 8)",
+              "g8_comment" not in scan_d.interp_sites
+              and "g8_comment" not in v17.interp_missing_variant)
+        check("D g7 exprs parsed from one literal",
+              any(s.exprs == ("ratio", "scale")
+                  for s in scan_d.interp_sites.get("g7_float", [])))
+
     if failures:
         print("SELF-TEST FAIL:")
         for item in failures:
             print(f"  - {item}")
         return 1
     print(
-        "SELF-TEST PASS (missing / orphan / zh-missing / zh-Hans / interp-no-variant "
-        "detected; clean passes; allowlist works)"
+        "SELF-TEST PASS (missing / orphan / zh-missing / zh-Hans / interp-no-variant / "
+        "spec-mismatch detected; V17 golden eight cases hold; clean passes; allowlist works)"
     )
     return 0
 
@@ -659,7 +1100,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "zh-audit --check PASS "
             f"({len(scan.static_keys)} source keys, {len(catalog['strings'])} catalog keys, "
-            f"{len(scan.localized_interp_keys)} interp keys all variant-PRESENT, "
+            f"{len(scan.interp_sites)} interp keys all variant-PRESENT + spec-matched, "
             "zh complete, locale codes = {en, zh})"
         )
         return 0
