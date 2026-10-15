@@ -65,7 +65,7 @@ status: closed
    盘上 `codesign --force --sign -` 强制 ad-hoc（`Signature=adhoc` 亲证）
    → 增量重跑 build-for-testing **TEST BUILD SUCCEEDED**。零源码触碰、
    零 Project.swift diff、零 DerivedData 全清（时长代价 ≈ 0，增量）。
-   LESSONS L080 登记。
+   LESSONS L081 登记。
 2. **parity-audit 自测揪出解析器真缺陷（T2 内闭环）**：gaps 生成行同以
    `| FEAT-` 开头，解析器原样吸入行集 → 摘要重算自污染（stale fixture
    往返测试红）。修复 = 解析器跳过四 marker 内部（生成块是门输出不是
