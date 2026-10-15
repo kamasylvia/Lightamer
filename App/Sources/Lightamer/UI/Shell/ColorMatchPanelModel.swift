@@ -10,9 +10,10 @@ import Observation
 //
 // READ (the three-level projection): the open live window's pending
 // params FIRST (the strength drag reads back its own value), then the
-// passed-in instance record (the inspector's committed projection — the
-// per-instance channel has no document carrier), finally the pristine
-// default.
+// SNAPSHOT of the chain's committed record (decoded once per committed
+// change at a discrete refresh point — V2M-01 T1 defect D-1: the binding
+// get must stay a pure local read, never a per-layout coordinator scan +
+// JSONDecoder), finally the pristine default.
 //
 // WRITE: every discrete action lands exactly ONE history item through the
 // InspectorEditSession face (the per-instance params channel — ZERO new
@@ -57,6 +58,19 @@ final class ColorMatchPanelModel {
     private weak var pipeCoordinator: PipeCoordinator?
     private let decoder = RAWDecoder()
 
+    // The committed-truth SNAPSHOT (Plan V2M-01 T1, defect D-1): the chain
+    // record decoded ONCE per committed change at a discrete refresh point
+    // (init / the view-level `updateInstance` hook / the solve backfill /
+    // the strength-commit tail) — NEVER per binding-get read. The strength
+    // slider's binding get runs during SwiftUI layout; reading through
+    // `pipeCoordinator.instanceRecord` there re-scans `editorState.instances`
+    // and re-runs JSONDecoder on EVERY layout pass, registering the hot
+    // observables as layout-attribute dependencies and starving the
+    // MainActor (the D-1 flush storm). The getters below read ONLY local
+    // state; the coordinator is touched exclusively from action contexts.
+    private var snapshotParams: ColormatchModule.Params?
+    private var snapshotRecord: ModuleInstance?
+
     /// The service (owned by the shell composition root; shared across
     /// panel lifetimes — the session curves + the pipe faces live there).
     private let service: ColorMatchService
@@ -83,6 +97,34 @@ final class ColorMatchPanelModel {
         self.pipeCoordinator = pipeCoordinator
         self.service = service
         self.editSession = editSession
+        refreshSnapshot(from: instance)
+    }
+
+    // MARK: - The committed-truth snapshot refresh (V2M-01 T1)
+
+    /// Adopt a new committed projection: the view's `.onChange(of: instance)`
+    /// seam fires this on every re-render that carries a new instance value
+    /// (instance switch / post-commit re-render / MCP `apply_params`
+    /// external writes / undo-redo + version-swap `rebuildInstances`). The
+    /// passed value IS the committed truth (both sides derive from
+    /// `editorState.instances`), so decoding it here needs no coordinator
+    /// read. Action/hook context only — never layout.
+    func updateInstance(_ newInstance: ModuleInstance?) {
+        instance = newInstance
+        refreshSnapshot(from: newInstance)
+    }
+
+    /// Re-decode the snapshot from a record (one decode per refresh).
+    private func refreshSnapshot(from record: ModuleInstance?) {
+        snapshotRecord = record
+        snapshotParams = record.flatMap { try? $0.params(of: ColormatchModule.self) }
+    }
+
+    /// Re-read the chain's current record and refresh the snapshot from it
+    /// (the solve backfill — action context, never layout).
+    private func refreshSnapshotFromChain() {
+        let current = pipeCoordinator?.instanceRecord(opName: ColormatchModule.opName)
+        refreshSnapshot(from: current ?? instance)
     }
 
     // MARK: - Read projection (the three-level face)
@@ -92,18 +134,14 @@ final class ColorMatchPanelModel {
 
     var hasImage: Bool { pipeCoordinator?.liveImageURL != nil }
 
-    /// The current params: the live drag window's value → the CHAIN's
-    /// current record (the coordinator's instance lookup — the commit's
-    /// truth, never a stale cached copy) → the passed-in record (layer
-    /// scopes / pre-assembly) → the pristine default.
+    /// The current params: the live drag window's value → the SNAPSHOT of
+    /// the chain's committed record (refreshed at discrete points — the
+    /// binding get is a pure local read, zero coordinator touches; V2M-01
+    /// T1) → the passed-in record (layer scopes / pre-assembly) → the
+    /// pristine default.
     var params: ColormatchModule.Params {
         if let liveParams { return liveParams }
-        if let coordinator = pipeCoordinator,
-            let current = coordinator.instanceRecord(opName: ColormatchModule.opName),
-            let decoded = try? current.params(of: ColormatchModule.self)
-        {
-            return decoded
-        }
+        if let snapshotParams { return snapshotParams }
         if let instance, let decoded = try? instance.params(of: ColormatchModule.self) {
             return decoded
         }
@@ -184,6 +222,10 @@ final class ColorMatchPanelModel {
                 self?.clearRowErrors()
                 self?.liveParams = nil
                 self?.solveError = nil
+                // The solve backfill: the attach landed new committed
+                // params — refresh the snapshot from the chain (action
+                // context; the view seam re-confirms on the next re-render).
+                self?.refreshSnapshotFromChain()
             } catch {
                 self?.solveError = String(localized: "colormatch_error_solve_failed")
                 self?.pipeCoordinator?.presentToast("\(error.localizedDescription)")
@@ -202,16 +244,15 @@ final class ColorMatchPanelModel {
 
     // MARK: - The strength D-H1 trio (the M2-5 per-op session shape)
 
-    /// The chain's CURRENT record (the same lookup the read face runs) —
-    /// the drag's base. Basing ticks on the STALE passed-in record would
-    /// wipe fields the panel doesn't edit (the solved assetRef family).
+    /// The drag's base — the SNAPSHOT record (V2M-01 T1: zero coordinator
+    /// touches; the commit's async landing re-seats the snapshot through
+    /// the view seam, and the commit-tail refresh below carries the final
+    /// live params so a re-drag before that landing builds on its own
+    /// value). Basing ticks on the STALE passed-in record would wipe
+    /// fields the panel doesn't edit (the solved assetRef family) — the
+    /// snapshot keeps the committed identity + the freshest params.
     private var currentRecord: ModuleInstance? {
-        if let coordinator = pipeCoordinator,
-            let current = coordinator.instanceRecord(opName: ColormatchModule.opName)
-        {
-            return current
-        }
-        return instance
+        snapshotRecord ?? instance
     }
 
     func beginStrengthDrag() {
@@ -229,7 +270,21 @@ final class ColorMatchPanelModel {
     }
 
     func commitStrengthDrag() {
+        // The commit-tail snapshot refresh (refresh point ④ — the LIVE
+        // VALUE arm, C-2): the commit lands asynchronously, so re-reading
+        // the chain record HERE would seat the pre-drag value for the
+        // window until the view seam re-fires; the last live value IS the
+        // commit's snapshot (the tick = the commit payload), so adopting
+        // it directly keeps the read face continuous across the async gap.
+        let lastLive = liveParams
         liveParams = nil
+        if let lastLive {
+            snapshotParams = lastLive
+            if var record = snapshotRecord ?? instance {
+                try? record.setParams(lastLive, as: ColormatchModule.self)
+                snapshotRecord = record
+            }
+        }
         editSession?.endEditing(label: String(localized: "history_colormatch"))
     }
 

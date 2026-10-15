@@ -81,6 +81,16 @@ internal struct ColorMatchPanelView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityIdentifier("colormatch.panel")
+        // The committed-truth refresh seam (V2M-01 T1, defect D-1): every
+        // re-render that carries a new instance value (instance switch /
+        // post-commit re-render / MCP `apply_params` external writes /
+        // undo-redo + version-swap rebuilds) re-seats the model's params
+        // snapshot here — the binding gets stay pure local reads. Attached
+        // on the non-nil `model` scope (the hook needs the unwrapped
+        // model — CHECKER C-1).
+        .onChange(of: instance) { _, newInstance in
+            model.updateInstance(newInstance)
+        }
     }
 
     // MARK: - The solver picker

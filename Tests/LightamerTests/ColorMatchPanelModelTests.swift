@@ -129,6 +129,69 @@ final class ColorMatchPanelModelTests: XCTestCase {
         XCTAssertEqual(model.params.strength, 0.9)
     }
 
+    // MARK: - The committed-truth snapshot (V2M-01 T1, defect D-1)
+
+    @MainActor
+    private func makeInstance(strength: Float, id: UUID = UUID()) -> ModuleInstance {
+        var params = ColormatchModule.Params()
+        params.strength = strength
+        return ModuleInstance(
+            id: id, module: ColormatchModule.self, multiPriority: 0, params: params)
+    }
+
+    /// The snapshot refresh semantics: a committed chain-record change →
+    /// the refresh hook (`updateInstance`, the view's `.onChange(of:
+    /// instance)` seam) → the snapshot syncs (the getter answers the NEW
+    /// value with zero coordinator reads).
+    @MainActor
+    func testSnapshotRefreshFollowsTheCommittedRecord() async throws {
+        let assembly = try await makeAssembly()
+        let identity = UUID()
+        let first = makeInstance(strength: 0.2, id: identity)
+        let model = makeModel(assembly, instance: first)
+        XCTAssertEqual(model.params.strength, 0.2, "init seeds the snapshot")
+
+        // A committed change (the external-write / post-commit shape): the
+        // chain carries a new record and the view seam hands it over.
+        let second = makeInstance(strength: 0.7, id: identity)
+        assembly.editorState.resetHistoryForNewImage(defaultInstances: [])
+        assembly.editorState.recordChange(second, label: "test_external_write")
+        model.updateInstance(second)
+        XCTAssertEqual(model.params.strength, 0.7, "the hook re-seats the snapshot")
+
+        // The instance-switch shape: a different record id entirely.
+        let switched = makeInstance(strength: 0.45)
+        model.updateInstance(switched)
+        XCTAssertEqual(model.params.strength, 0.45)
+        XCTAssertTrue(model.hasInstance)
+        XCTAssertEqual(model.instance?.id, switched.id)
+    }
+
+    /// The liveParams window priority: while the drag window is open the
+    /// live value pins the read over the snapshot; after the commit the
+    /// read falls back to the commit-tail-refreshed snapshot (the last
+    /// live value) — continuous across the async landing gap.
+    @MainActor
+    func testLiveWindowOverridesTheSnapshotUntilCommit() async throws {
+        let assembly = try await makeAssembly()
+        let model = makeModel(assembly, instance: makeInstance(strength: 0.2))
+        XCTAssertEqual(model.params.strength, 0.2)
+
+        model.beginStrengthDrag()
+        model.setStrengthLive(0.6)
+        XCTAssertEqual(
+            model.params.strength, 0.6, "the open window's live value wins over the snapshot")
+        model.commitStrengthDrag()
+        XCTAssertEqual(
+            model.params.strength, 0.6,
+            "the commit tail refreshes the snapshot to the last live value")
+        XCTAssertEqual(model.params.strength, 0.6, "the read is stable across repeated reads")
+
+        // The next committed change (the async landing re-seat) wins again.
+        model.updateInstance(makeInstance(strength: 0.4))
+        XCTAssertEqual(model.params.strength, 0.4)
+    }
+
     // MARK: - The reference list actions (KD-7)
 
     @MainActor
