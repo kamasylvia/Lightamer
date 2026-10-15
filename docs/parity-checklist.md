@@ -1,8 +1,8 @@
 # Lightamer parity checklist (vs Alcedo Studio)
 
-> **Last updated:** 2026-10-16 · **Target:** Alcedo Studio 0.3.2 (GPL-3.0,
+> **Last updated:** 2026-10-16; **Target:** Alcedo Studio 0.3.2 (GPL-3.0,
 > surveyed read-only at commit `34241d0` + upstream delta through `f1fae5d`)
-> · **Gate:** `python3 Scripts/parity-audit.py --check` (CI job `parity`)
+> ; **Gate:** `python3 Scripts/parity-audit.py --check` (CI job `parity`)
 
 Row-by-row feature checklist against Alcedo Studio, the app Lightamer's UI
 and feature surface mirrors (2026-09-27 project re-definition). One row per
@@ -81,7 +81,7 @@ review may flip it.
 | Domain | Delivered | Partial | Missing | V2 | Parked | OOS | Rows |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | SHELL | 3 | 2 | 0 | 0 | 0 | 1 | 6 |
-| LIB | 12 | 1 | 3 | 0 | 0 | 0 | 16 |
+| LIB | 14 | 1 | 1 | 0 | 0 | 0 | 16 |
 | EDT | 15 | 0 | 0 | 0 | 0 | 0 | 15 |
 | ADJ | 18 | 1 | 0 | 0 | 0 | 0 | 19 |
 | DEV | 5 | 1 | 0 | 0 | 0 | 2 | 8 |
@@ -92,7 +92,7 @@ review may flip it.
 | EXP | 12 | 1 | 0 | 1 | 0 | 0 | 14 |
 | AI | 10 | 0 | 0 | 1 | 0 | 0 | 11 |
 | OWN | 11 | 1 | 0 | 0 | 0 | 0 | 12 |
-| **Total** | 117 | 7 | 3 | 3 | 1 | 3 | 134 |
+| **Total** | 119 | 7 | 1 | 3 | 1 | 3 | 134 |
 <!-- /parity:summary -->
 
 ## Gaps
@@ -100,8 +100,6 @@ review may flip it.
 <!-- parity:gaps -->
 | Id | Domain | Status | Feature |
 |---|---|---|---|
-| FEAT-LIB-04 | LIB | Missing | Activity view (photos-per-day chart, click a day to filter) |
-| FEAT-LIB-13 | LIB | Missing | Smart albums (saved filter collections) |
 | FEAT-LIB-15 | LIB | Missing | Watched folders (auto-ingest on folder change) |
 | FEAT-AI-10 | AI | V2 | AI segmentation masks (subject/sky/people via SAM-class models) |
 | FEAT-EXP-02 | EXP | V2 | OpenEXR export |
@@ -137,7 +135,7 @@ review may flip it.
 | FEAT-LIB-01 | Single-file project model (one file carrying albums and full edit history, freely movable/backable) | Alcedo | Delivered | `src:LightamerCore/Sources/Library/ProjectFileStore.swift`, `src:LightamerCore/Sources/Library/LibrarySchema.swift`, `doc:.work/gsd/phases/m2-2-library-project/M2-2-1-ACCEPTANCE.md` | `.lalb` SQLite project, Alcedo `.alcd`/DuckDB analogue; media stays by reference |
 | FEAT-LIB-02 | Thumbnail grid browsing (GPU-rendered thumbnails, on-disk thumbnail cache) | Alcedo | Delivered | `src:App/Sources/Lightamer/Library/Views/LibraryGridView.swift`, `src:App/Sources/Lightamer/Library/LibraryGridModel.swift`, `src:App/Sources/Lightamer/Library/LibraryThumbnailBridge.swift` | |
 | FEAT-LIB-03 | Library inspector (overview card, grouping by capture date/camera/label/lens, active search-filter readout) | Alcedo | Delivered | `src:App/Sources/Lightamer/Library/Views/LibraryInspectorView.swift`, `src:App/Sources/Lightamer/Library/LibraryInspectorModel.swift`, `src:LightamerCore/Sources/Library/LibraryQueries.swift` | |
-| FEAT-LIB-04 | Activity view (photos-per-day chart, click a day to filter) | Alcedo | Missing | | No per-day activity chart in the project workspace; ledger-silent surface |
+| FEAT-LIB-04 | Activity view (photos-per-day chart, click a day to filter) | Alcedo | Delivered | `src:App/Sources/Lightamer/Library/Views/LibraryInspectorView.swift`, `src:App/Sources/Lightamer/Library/LibraryInspectorModel.swift`, `src:LightamerCore/Sources/Library/LibraryQueries.swift`, `doc:.work/gsd/REQUIREMENTS.md` | |
 | FEAT-LIB-05 | EXIF lexical search (camera/lens/date/ISO/focal/aperture/file-type tokens, AND-composable) | Alcedo | Delivered | `src:LightamerCore/Sources/Library/ExifSearchParser.swift`, `src:LightamerCore/Sources/Library/ExifSearchIndexer.swift`, `src:App/Sources/Lightamer/Library/Views/GlobalSearchDialog.swift` | Materialized search columns + word-boundary index, Alcedo `image_search_columns` analogue |
 | FEAT-LIB-06 | Natural-language semantic search (CLIP-family local embeddings) | Alcedo | Delivered | `src:LightamerCore/Sources/AI/SemanticEngine.swift`, `src:App/Sources/Lightamer/Library/Views/GlobalSearchDialog.swift`, `doc:.work/gsd/phases/m2-10-ai-library/M2-10-VALIDATION.md` | |
 | FEAT-LIB-07 | AI caption/tag full-text search | Alcedo | Delivered | `src:LightamerCore/Sources/AI/LabelEngine.swift`, `src:LightamerCore/Sources/AI/SemanticStore.swift`, `doc:.work/gsd/phases/m2-10-ai-library/M2-10-VALIDATION.md` | |
@@ -146,7 +144,7 @@ review may flip it.
 | FEAT-LIB-10 | Project welcome/open/create flow with recents | Alcedo | Delivered | `src:App/Sources/Lightamer/Library/LibraryProjectController.swift`, `src:App/Sources/Lightamer/UI/EmptyStateView.swift` | Welcome sheet when no project is open; recents dedupe + dead-path sweep |
 | FEAT-LIB-11 | Image stacks (manual stack/unstack, cover = first slot, badge in grid) | LightCraft | Delivered | `src:LightamerCore/Sources/Library/LibraryStore.swift`, `src:App/Sources/Lightamer/Library/Views/LibraryAutoStackDialog.swift`, `doc:.work/gsd/phases/m6-4-gallery-stacks/M6-4-VALIDATION.md` | M6 charter ruling 5 |
 | FEAT-LIB-12 | Auto-stack by capture time (preview-first, full semantics) | LightCraft | Delivered | `src:LightamerCore/Sources/Library/LibraryStore.swift`, `doc:.work/gsd/phases/m6-4-gallery-stacks/M6-4-VALIDATION.md` | |
-| FEAT-LIB-13 | Smart albums (saved filter collections) | Alcedo | Missing | `src:LightamerCore/Sources/Session/SmartAlbumStore.swift` | Charter ruling 5 left smart albums unchartered; only a legacy session-era store exists, no project-workspace smart albums |
+| FEAT-LIB-13 | Smart albums (saved filter collections) | Alcedo | Delivered | `src:LightamerCore/Sources/Session/SmartAlbumStore.swift`, `src:App/Sources/Lightamer/UI/SidebarView.swift`, `src:App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift`, `src:App/Sources/Lightamer/Library/Views/LibraryInspectorView.swift`, `doc:.work/gsd/REQUIREMENTS.md` | CRUD, project-workspace assembly and the evaluate(.library) member loop are delivered (M2LIB-02/M2LIB-05); the LightCraft-semantic enhancement left unchartered by charter ruling 5 stays a separate candidate |
 | FEAT-LIB-14 | Culling/pick pass over the library | LightCraft | Partial | `src:App/Sources/Lightamer/UI/CullingView.swift` | Phase 9 two-pane compare mode delivered; a flag-driven culling pass is not chartered (ruling 5) |
 | FEAT-LIB-15 | Watched folders (auto-ingest on folder change) | LightCraft | Missing | | Charter ruling 5 left watched folders unchartered |
 | FEAT-LIB-16 | Project move and consistent backup | Alcedo | Delivered | `src:LightamerCore/Sources/Library/ProjectFileStore.swift`, `doc:.work/gsd/phases/m2-2-library-project/M2-2-3-ACCEPTANCE.md` | Online-consistent `sqlite3_backup` copy; move = whole project directory |
