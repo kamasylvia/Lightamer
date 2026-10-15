@@ -839,3 +839,9 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：交互 shell 快照导出 proxy env；xray daemon 不在跑时该 env 是死指针。SPM 缓存命中时无害，任何触发 re-resolve 的操作（DerivedData 状态变化/包图重算）即撞死代理。
 - **对策**：①build 命令一律 `env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY xcodebuild …` 旁路（本机 github 直连可达）；或先 `px --up` 再 build。②夜间批见到「products missing → 重build → clone 失败」三连，先查 proxy env 再查网络。
 - **适用**：一切本机 SPM/xcodebuild 自动化轮（后台 worker 尤甚——其 shell 快照同样带死代理）。
+
+## L081（2026-10-16）— DerivedData appex 残留旧身份 CMS 签名卡 ValidateEmbeddedBinary：盘上强签 ad-hoc 旁路（M6-6-01 执行批）
+- **现象**：`xcodebuild build-for-testing`（CODE_SIGN_IDENTITY=- Manual）ValidateEmbeddedBinary 双 appex（Spotlight/QuickLook）失败——Embedded Binary Signing Certificate = "Lightamer Dev"、Parent = Ad Hoc；build 内 CodeSign 步虽打印 "replacing existing signature"，校验读到的仍是 2026-10-15 的旧 CMS 签名。
+- **根因**：DerivedData 内 appex 产物残留历史真实证书签名（同族环境债 = M5-2 perf.md §事故 4 / D-09-04-D9 Release 直启重签不达）；增量构建的校验序与重签序跨 target 交错，陈旧签名先被 Validate 读中。
+- **对策**：对两个 appex 盘上 `codesign --force --sign - <appex>`（`codesign -dv` 验 `Signature=adhoc`）→ 增量重跑 build-for-testing 即绿；无需全清 DerivedData。判别信号 = ValidateEmbeddedBinary 报文里的 Embedded/Parent Certificate 对照行。
+- **适用**：一切 ad-hoc Manual 签名构建（本项目 CI/本地全套轮同参）；同类「build 图序与签名态赛跑」问题先查盘上实际签名（`codesign -dv`），不动源码。
