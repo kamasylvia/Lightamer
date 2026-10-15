@@ -97,16 +97,26 @@ struct EditorWorkspaceShellView: View {
         // The filmstrip click → current-image switch (T1 action 4): the
         // strip routes selection through the GRID state machine; the shell
         // maps a single-selection change onto the editor face (same source,
-        // no second selection truth).
+        // no second selection truth). V2M-01 T3 (defect D-3): both switch
+        // legs (this selection watcher AND the filmstrip's onOpen) converge
+        // into the ONE `switchCurrent(to:)` mutation — a single guard +
+        // write path, no second ordering to pin.
         .onChange(of: workspace.editorGrid?.selectedIDs) { _, selected in
-            guard workspace.phase == .editor,
-                let selected,
-                selected.count == 1,
-                let id = selected.first,
-                id != workspace.editorPhase.currentImageID else { return }
-            workspace.editorGrid?.openCurrent(id)
-            workspace.updateEditorPhase { $0.currentImageID = id }
+            guard let selected, selected.count == 1, let id = selected.first else { return }
+            switchCurrent(to: id)
         }
+    }
+
+    /// The ONE current-image switch mutation (V2M-01 T3, defect D-3): the
+    /// grid's selection watcher and the filmstrip's onOpen both land here —
+    /// the editor-phase guard + the `openCurrent` selection convergence +
+    /// the single phase write. Idempotent by the current-id guard (a
+    /// re-entrant activation of the held image is a no-op, never a reload).
+    private func switchCurrent(to id: Int64) {
+        guard workspace.phase == .editor,
+            id != workspace.editorPhase.currentImageID else { return }
+        workspace.editorGrid?.openCurrent(id)
+        workspace.updateEditorPhase { $0.currentImageID = id }
     }
 
     // MARK: - Left ②: the filmstrip
@@ -116,10 +126,10 @@ struct EditorWorkspaceShellView: View {
         if let grid = workspace.editorGrid {
             FilmstripView(grid: grid, bridge: bridge, onOpen: { id in
                 // Already in the editor: a strip activation just switches
-                // the current image (the single-tap leg did the select).
-                if id != workspace.editorPhase.currentImageID {
-                    workspace.updateEditorPhase { $0.currentImageID = id }
-                }
+                // the current image. V2M-01 T3 (defect D-3): the strip's
+                // open leg rides the SAME converged switch mutation as the
+                // selection watcher — one guard, one write path.
+                switchCurrent(to: id)
             })
         } else {
             Text(String(
@@ -181,6 +191,15 @@ struct EditorWorkspaceShellView: View {
             let libraryStore = LibraryStore(store: store)
             defaultLookPending =
                 (try? await libraryStore.defaultLookPending(imageRowID: row.id)) ?? false
+            // V2M-01 T3 (defect D-3): the `.task(id:)` restart CANCELS the
+            // superseded task, but nothing here heeded cancellation — a
+            // rapid second switch let the stale task resume past this await
+            // and overwrite the projection + issue a STALE `EditorState.load`
+            // (the clicked row never reached the viewport: the "click did
+            // not switch" phenotype). Every await below is followed by a
+            // cancellation checkpoint, so a superseded switch dead-drops
+            // before any state write.
+            if Task.isCancelled { return }
         }
         // M2-8-1 T3 (KD-5): the version projection sink — assembled HERE
         // (the row.id seam, the defaultLookPending read's same place) and
