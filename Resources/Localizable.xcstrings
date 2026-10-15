@@ -32416,6 +32416,23 @@
           }
         }
       }
+    },
+    "catalog_session_remove_confirm_body %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The catalog rows of session “%@” and their category/collection memberships will be deleted. Files on disk are not touched; the session re-enters the catalog on its next open."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话「%@」的目录库行及其分类/集合归属将被删除。磁盘文件不受影响；下次打开该会话会重新入册。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
