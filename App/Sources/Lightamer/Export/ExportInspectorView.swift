@@ -40,6 +40,8 @@ internal struct ExportInspectorView: View {
             Divider()
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 0) {
+                    presetSection
+                    sectionDivider
                     destinationSection
                     sectionDivider
                     namingSection
@@ -114,6 +116,105 @@ internal struct ExportInspectorView: View {
 
     private var sectionDivider: some View {
         Divider().padding(.vertical, 6)
+    }
+
+    // MARK: - Section 0: Presets (V2M-02 T5, EXPORT-PRESET-01)
+
+    @State private var presetNameDraft = ""
+    @State private var presetRenameTarget: ExportPreset?
+
+    /// The preset face: the picker applies on selection (a LAUNCHER — the
+    /// apply lands the :401 capture face; the collision tier and the
+    /// gain-map flag are structurally outside it), save captures the
+    /// CURRENT face under a name, and user presets rename/delete. Built-ins
+    /// are read-only anchors (never deletable — they live in code).
+    private var presetSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(String(localized: "export_preset_section"))
+                .font(.headline)
+            HStack(spacing: 8) {
+                Picker(
+                    String(localized: "export_preset_picker_label"),
+                    selection: presetSelection
+                ) {
+                    ForEach(model.presetStore.allPresets()) { preset in
+                        Text(preset.name).tag(preset.id as UUID?)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: 220)
+                .accessibilityIdentifier("export.preset.picker")
+
+                Button(String(localized: "export_preset_save")) {
+                    presetNameDraft = ""
+                    presetSavePresented = true
+                }
+                .accessibilityIdentifier("export.preset.save")
+
+                if let picked = pickedUserPreset {
+                    Button(String(localized: "export_preset_rename")) {
+                        presetNameDraft = picked.name
+                        presetRenameTarget = picked
+                        presetSavePresented = true
+                    }
+                    .accessibilityIdentifier("export.preset.rename")
+                    Button(String(localized: "export_preset_delete"), role: .destructive) {
+                        model.presetStore.remove(id: picked.id)
+                        model.selectedPresetID = nil
+                    }
+                    .accessibilityIdentifier("export.preset.delete")
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 8)
+        .accessibilityIdentifier("export.section.preset")
+        .alert(
+            String(localized: "export_preset_name_prompt"),
+            isPresented: $presetSavePresented
+        ) {
+            TextField(
+                String(localized: "export_preset_name_placeholder"),
+                text: $presetNameDraft)
+            Button(String(localized: "alert_ok")) { commitPresetName() }
+            Button(String(localized: "alert_cancel"), role: .cancel) {}
+        }
+    }
+
+    @State private var presetSavePresented = false
+
+    /// The picker binding: selection applies the preset; picking nothing is
+    /// a no-op. The binding round-trips the id so the highlight follows.
+    private var presetSelection: Binding<UUID?> {
+        Binding(
+            get: { model.selectedPresetID },
+            set: { newValue in
+                model.selectedPresetID = newValue
+                guard let id = newValue,
+                    let preset = model.presetStore.allPresets().first(where: { $0.id == id })
+                else { return }
+                model.applyPreset(preset)
+            })
+    }
+
+    /// The picked USER preset (rename/delete act only on stored presets —
+    /// the built-ins are code anchors).
+    private var pickedUserPreset: ExportPreset? {
+        guard let id = model.selectedPresetID else { return nil }
+        return model.presetStore.loadPresets().first { $0.id == id }
+    }
+
+    private func commitPresetName() {
+        let name = presetNameDraft.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        if let target = presetRenameTarget {
+            model.presetStore.rename(id: target.id, to: name)
+            presetRenameTarget = nil
+        } else {
+            let preset = ExportPresetProjector.capture(name: name, from: model.face)
+            model.presetStore.save(preset)
+            model.selectedPresetID = preset.id
+        }
     }
 
     // MARK: - Section 1: Destination (OQ-3 / OQ-11)
@@ -707,6 +808,91 @@ internal struct ExportInspectorView: View {
 @Observable
 @MainActor
 final class ExportM2PanelModel {
+
+    // MARK: Presets (V2M-02 T5, EXPORT-PRESET-01)
+
+    /// The named-preset store (the NamingTemplateStore injection discipline:
+    /// the default init passes `.standard`; tests pass an isolated suite).
+    var presetStore = ExportPresetStore()
+
+    /// The preset Picker's session selection (nil = no preset picked). The
+    /// selection is a LAUNCHER, not persisted state — applying never makes
+    /// the preset "current" beyond the picker highlight.
+    var selectedPresetID: UUID?
+
+    /// The first-use face (the projection's typed-degrade fallback target):
+    /// exactly the field defaults the model's stored properties declare.
+    static var defaultFace: ExportPresetPanelFace {
+        ExportPresetPanelFace(
+            formatKind: .jpeg,
+            jpegQuality: 0.95, heicQuality: 0.95, avifQuality: 0.95,
+            webpQuality: 0.95,
+            pngBitDepth: .eight, tiffBitDepth: .sixteen,
+            tiffCompression: .none, heicBitDepth: .eight, avifBitDepth: .ten,
+            webpLossless: false,
+            sizingMode: .original, longEdgePx: 2048,
+            boundsWidth: 2048, boundsHeight: 2048,
+            physicalWidth: 210, physicalHeight: 297,
+            physicalUnit: .millimeters, physicalDpi: 300,
+            allowUpscale: false, maximumEdgePixels: 0,
+            metadataOn: true, embedICC: true,
+            namingPattern: NamingTemplateStore.builtIns[0].pattern)
+    }
+
+    /// The current panel state as the projectable face (the save action's
+    /// source). The collision tier and the gain-map flag are structurally
+    /// outside the face (the M-5 pin / the :401 capture list).
+    var face: ExportPresetPanelFace {
+        ExportPresetPanelFace(
+            formatKind: formatKind,
+            jpegQuality: jpegQuality, heicQuality: heicQuality,
+            avifQuality: avifQuality, webpQuality: webpQuality,
+            pngBitDepth: pngBitDepth, tiffBitDepth: tiffBitDepth,
+            tiffCompression: tiffCompression, heicBitDepth: heicBitDepth,
+            avifBitDepth: avifBitDepth, webpLossless: webpLossless,
+            sizingMode: sizingMode, longEdgePx: longEdgePx,
+            boundsWidth: boundsWidth, boundsHeight: boundsHeight,
+            physicalWidth: physicalWidth, physicalHeight: physicalHeight,
+            physicalUnit: physicalUnit, physicalDpi: physicalDpi,
+            allowUpscale: allowUpscale, maximumEdgePixels: maximumEdgePixels,
+            metadataOn: metadataOn, embedICC: embedICC,
+            namingPattern: pattern)
+    }
+
+    /// Apply a preset (the picker's action): the pure projection lands the
+    /// captured fields; the collision tier and the gain-map flag are NOT
+    /// touched (structurally impossible — the face does not carry them).
+    func applyPreset(_ preset: ExportPreset) {
+        applyFace(ExportPresetProjector.project(preset, defaultFace: Self.defaultFace))
+    }
+
+    /// Land a projected face onto the panel fields (the apply consumer).
+    func applyFace(_ face: ExportPresetPanelFace) {
+        formatKind = face.formatKind
+        jpegQuality = face.jpegQuality
+        heicQuality = face.heicQuality
+        avifQuality = face.avifQuality
+        webpQuality = face.webpQuality
+        pngBitDepth = face.pngBitDepth
+        tiffBitDepth = face.tiffBitDepth
+        tiffCompression = face.tiffCompression
+        heicBitDepth = face.heicBitDepth
+        avifBitDepth = face.avifBitDepth
+        webpLossless = face.webpLossless
+        sizingMode = face.sizingMode
+        longEdgePx = face.longEdgePx
+        boundsWidth = face.boundsWidth
+        boundsHeight = face.boundsHeight
+        physicalWidth = face.physicalWidth
+        physicalHeight = face.physicalHeight
+        physicalUnit = face.physicalUnit
+        physicalDpi = face.physicalDpi
+        allowUpscale = face.allowUpscale
+        maximumEdgePixels = face.maximumEdgePixels
+        metadataOn = face.metadataOn
+        embedICC = face.embedICC
+        pattern = face.namingPattern
+    }
 
     // MARK: Destination (section 1)
 
