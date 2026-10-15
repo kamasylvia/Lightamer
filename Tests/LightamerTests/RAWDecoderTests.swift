@@ -86,11 +86,14 @@ final class RAWDecoderTests: XCTestCase {
         }
     }
 
-    // MARK: - RAW-05 / D-22 / L001 (RAW 9 opt-in + silent fallback)
+    // MARK: - RAW-05 / D-22 / L001 (version request resolution; V2M-01 T2)
 
-    /// RAW-05 — RAW 9 opt-in: the A7R V sample reports `version9` at GM
-    /// (Spike B measured `.v9` on this exact file), and `RAWDecoder` requests
-    /// it by default (D-22), so `decoderVersionUsed == .v9`.
+    /// RAW-05 — the DEFAULT (automatic) decode resolves to **v8** (V2M-01
+    /// T2, defect D-2: the automatic v9 opt-in is RETIRED — the v9 output
+    /// converted through the color-managed working space to a channel-
+    /// skewed plane while the v8 output of the same file converted neutral;
+    /// see phases/v2-maintenance/evidence/V2M-01/d2-bisect/). v9 is
+    /// reachable ONLY through the explicit `.forceV9` request.
     func testRAW9OptIn() async throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("RAW 9 requires macOS 27 (L001)")
@@ -98,15 +101,23 @@ final class RAWDecoderTests: XCTestCase {
         try Fixtures.require(Fixtures.arw)
         let decoded = try await RAWDecoder().decode(Fixtures.arw)
         XCTAssertEqual(
-            decoded.decoderVersionUsed, .v9,
-            "RAW-9-capable file must decode under v9 (D-22 default opt-in)"
+            decoded.decoderVersionUsed, .v8,
+            "the automatic arm stays on v8 after the D-2 ruling (V2M-01 T2)"
+        )
+        // The explicit forceV9 leg still reaches v9 on a capable file.
+        let forced = try await RAWDecoder().decode(
+            Fixtures.arw, technicalOverrides: RAWTechnicalOverrides(decoderVersion: .forceV9))
+        XCTAssertEqual(
+            forced.decoderVersionUsed, .v9,
+            "RAW-9-capable file must decode under v9 when explicitly forced"
         )
     }
 
-    /// RAW-05 — silent `.version8` fallback: the Z8 is NOT in the macOS
-    /// 27.0 GM v9 camera list (Spike A `models.txt`), and setting v9 on an
-    /// unsupported file silently clamps instead of throwing (Spike A #8) —
-    /// so `decoderVersionUsed` must come back `.v8`.
+    /// RAW-05 — the Z8 is NOT in the macOS 27.0 GM v9 camera list (Spike A
+    /// `models.txt`). The DEFAULT decode answers `.v8` (post-V2M-01 the
+    /// automatic arm is v8 unconditionally; the forced-v9-on-unsupported
+    /// typed degrade is pinned by the resolve matrix in
+    /// RawDecodeOverridesTests).
     ///
     /// Version-pinned expectation: Apple expands the v9 list across the
     /// macOS 27 lifecycle. If a later SDK/OTA adds the Z8, this assertion

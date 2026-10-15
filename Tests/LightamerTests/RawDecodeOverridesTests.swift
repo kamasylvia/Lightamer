@@ -55,7 +55,11 @@ final class RawDecodeOverridesTests: XCTestCase {
         let v8Only = [CIRAWDecoderVersion.version8]
         let both = [CIRAWDecoderVersion.version8, CIRAWDecoderVersion.version9]
 
-        // Automatic: v9 iff the OS AND the file offer it.
+        // Automatic: v8 — ALWAYS (V2M-01 T2, defect D-2: the automatic v9
+        // opt-in is retired; the v9 output converted through the
+        // color-managed working space to a channel-skewed plane while the
+        // v8 output of the same file converted neutral. v9 is reachable
+        // only through the explicit forceV9 request).
         XCTAssertEqual(
             RAWDecoder.resolveDecoderVersion(
                 request: .automatic, supported: v8Only, isRAW9Available: true),
@@ -63,7 +67,8 @@ final class RawDecodeOverridesTests: XCTestCase {
         XCTAssertEqual(
             RAWDecoder.resolveDecoderVersion(
                 request: .automatic, supported: both, isRAW9Available: true),
-            .version9)
+            .version8,
+            "automatic stays on v8 even when the file + OS both offer v9")
         XCTAssertEqual(
             RAWDecoder.resolveDecoderVersion(
                 request: .automatic, supported: both, isRAW9Available: false),
@@ -212,5 +217,63 @@ final class RawDecodeOverridesTests: XCTestCase {
         // Setting a leg moves it.
         tech.applyOverrides(RAWTechnicalOverrides(boost: 0.25))
         XCTAssertNotNil(tech.boost)
+    }
+
+    // MARK: - 6: the D-2 green-cast regression pin (V2M-01 T2)
+
+    /// The untracked green-cast specimen (ILCE-7RM5, the D-2 repro file —
+    /// gitignored like the rest of input/RAW/, XCTSkip when absent).
+    private var greenCastSampleURL: URL {
+        let testsDir = (#filePath as NSString).deletingLastPathComponent
+        let repoRoot = ((testsDir as NSString).deletingLastPathComponent as NSString)
+            .deletingLastPathComponent
+        return URL(fileURLWithPath: repoRoot)
+            .appendingPathComponent("input/RAW/GREENCAST-7RM5.ARW")
+    }
+
+    /// The D-2 pin: the AUTOMATIC decode of the green-cast specimen, when
+    /// rendered through the production working-space context shape
+    /// (working = linear Rec2020, the CIContextPool configuration), must
+    /// stay channel-neutral. The defect's bisect showed the v9 output
+    /// converting at linear G/R ≈ 3.9 while the v8 output sits at ≈ 1.06
+    /// — the bound below discriminates with a wide margin and holds for
+    /// any correctly converted image whose UNCONVERTED channels are
+    /// near-balanced (asserted first from the unmanaged render).
+    func testAutomaticDecodeStaysChannelNeutralInTheWorkingSpace() async throws {
+        let fixture = greenCastSampleURL
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
+            throw XCTSkip("green-cast specimen missing: \(fixture.path)")
+        }
+        let decoder = RAWDecoder()
+        let image = try await decoder.decode(fixture)  // the DEFAULT (automatic) path
+        // Post-fix the automatic arm resolves to v8 — assert the pin is
+        // pinning the fixed behavior (and would re-flag a silent opt-in
+        // regression).
+        XCTAssertEqual(image.decoderVersionUsed, .v8)
+
+        let cs = WorkingSpace.colorSpace
+        let context = CIContext(options: [.workingColorSpace: cs, .outputColorSpace: cs])
+        let extent = image.ciImage.extent
+        let scale = min(1.0, 512.0 / max(extent.width, extent.height))
+        let w = max(1, Int(extent.width * scale)), h = max(1, Int(extent.height * scale))
+        var floats = [Float](repeating: 0, count: w * h * 4)
+        try context.render(
+            image.ciImage, toBitmap: &floats, rowBytes: w * 16,
+            bounds: CGRect(x: 0, y: 0, width: w, height: h),
+            format: .RGBAf, colorSpace: cs)
+
+        var sums = [Double](repeating: 0, count: 3)
+        for p in 0..<(w * h) {
+            for c in 0..<3 { sums[c] += Double(floats[p * 4 + c]) }
+        }
+        let n = Double(w * h)
+        for i in 0..<3 { sums[i] /= n }
+        // The specimen's scene is a near-neutral night street (the
+        // unmanaged means sit within ±10% across channels) — so a correct
+        // working-space conversion stays roughly neutral too.
+        let spread = (sums.max()! - sums.min()!) / max(sums.max()!, 1e-6)
+        XCTAssertLessThan(
+            spread, 0.5,
+            "the working-space plane must stay channel-neutral (R=\(sums[0]) G=\(sums[1]) B=\(sums[2])); a wide spread = the D-2 conversion poisoning regressed")
     }
 }
