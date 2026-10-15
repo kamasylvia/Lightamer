@@ -167,7 +167,7 @@ internal struct SessionBrowserView: View {
                             Button(String(localized: "browser_menu_hdr_merge")) {
                                 pendingTargets = targets
                                 hdrMergeDeGhost = true
-                                showHDRMergeDialog = true
+                                hdrMergeDialog = MergeDialogCount(count: targets.count)
                             }
                         }
                         // Plan M5-2-02 (KD-5): the Mertens quick-merge entry
@@ -197,14 +197,14 @@ internal struct SessionBrowserView: View {
                         if targets.count >= 2, onFocusStack != nil {
                             Button(String(localized: "browser_menu_focus_stack")) {
                                 pendingTargets = targets
-                                showFocusStackDialog = true
+                                focusStackDialog = MergeDialogCount(count: targets.count)
                             }
                         }
                         if targets.count >= 2, onStackDenoise != nil {
                             Button(String(localized: "browser_menu_stack_denoise")) {
                                 pendingTargets = targets
                                 stackDenoiseMode = .average
-                                showStackDenoiseDialog = true
+                                stackDenoiseDialog = MergeDialogCount(count: targets.count)
                             }
                         }
                     }
@@ -275,9 +275,13 @@ internal struct SessionBrowserView: View {
         }
         // Plan 08-3 T4: the focus-stack confirm dialog (the HDR dialog's
         // shape; SML + quality-weighted pyramid fusion behind it).
-        .sheet(isPresented: $showFocusStackDialog) {
+        // V2M-01 T4 (defect D-4): the three count-bearing dialogs ride
+        // `.sheet(item:)` — the title count arrives IN the item value (the
+        // presentation trigger's payload), decoupled from the live-state
+        // read whose first render consumed the pre-arm array ("0 张").
+        .sheet(item: $focusStackDialog) { dialog in
             VStack(alignment: .leading, spacing: 12) {
-                Text(String(localized: "focus_stack_dialog_title \(pendingTargets.count)"))
+                Text(String(localized: "focus_stack_dialog_title \(dialog.count)"))
                     .font(.headline)
                 Text(String(localized: "focus_stack_dialog_body"))
                     .font(.caption)
@@ -285,11 +289,11 @@ internal struct SessionBrowserView: View {
                 HStack {
                     Spacer()
                     Button(String(localized: "alert_cancel"), role: .cancel) {
-                        showFocusStackDialog = false
+                        focusStackDialog = nil
                     }
                     Button(String(localized: "focus_stack_dialog_start")) {
                         let targets = pendingTargets
-                        showFocusStackDialog = false
+                        focusStackDialog = nil
                         onFocusStack?(targets)
                     }
                     .keyboardShortcut(.defaultAction)
@@ -300,9 +304,9 @@ internal struct SessionBrowserView: View {
         }
         // Plan 08-3 T4: the stack-denoise confirm dialog (mode Picker:
         // average / median / sigma-clipped).
-        .sheet(isPresented: $showStackDenoiseDialog) {
+        .sheet(item: $stackDenoiseDialog) { dialog in
             VStack(alignment: .leading, spacing: 12) {
-                Text(String(localized: "stack_denoise_dialog_title \(pendingTargets.count)"))
+                Text(String(localized: "stack_denoise_dialog_title \(dialog.count)"))
                     .font(.headline)
                 Text(String(localized: "stack_denoise_dialog_body"))
                     .font(.caption)
@@ -319,12 +323,12 @@ internal struct SessionBrowserView: View {
                 HStack {
                     Spacer()
                     Button(String(localized: "alert_cancel"), role: .cancel) {
-                        showStackDenoiseDialog = false
+                        stackDenoiseDialog = nil
                     }
                     Button(String(localized: "stack_denoise_dialog_start")) {
                         let targets = pendingTargets
                         let mode = stackDenoiseMode
-                        showStackDenoiseDialog = false
+                        stackDenoiseDialog = nil
                         onStackDenoise?(targets, mode)
                     }
                     .keyboardShortcut(.defaultAction)
@@ -334,10 +338,11 @@ internal struct SessionBrowserView: View {
             .frame(width: 360)
         }
         // Plan 08-1 T1: the HDR-merge confirm dialog (N-source summary +
-        // the de-ghost toggle → enqueue).
-        .sheet(isPresented: $showHDRMergeDialog) {
+        // the de-ghost toggle → enqueue). V2M-01 T4: item-payload count
+        // (the focus-stack block's rationale applies verbatim).
+        .sheet(item: $hdrMergeDialog) { dialog in
             VStack(alignment: .leading, spacing: 12) {
-                Text(String(localized: "hdr_merge_dialog_title \(pendingTargets.count)"))
+                Text(String(localized: "hdr_merge_dialog_title \(dialog.count)"))
                     .font(.headline)
                 Text(String(localized: "hdr_merge_dialog_body"))
                     .font(.caption)
@@ -348,12 +353,12 @@ internal struct SessionBrowserView: View {
                 HStack {
                     Spacer()
                     Button(String(localized: "alert_cancel"), role: .cancel) {
-                        showHDRMergeDialog = false
+                        hdrMergeDialog = nil
                     }
                     Button(String(localized: "hdr_merge_dialog_merge")) {
                         let targets = pendingTargets
                         let deGhost = hdrMergeDeGhost
-                        showHDRMergeDialog = false
+                        hdrMergeDialog = nil
                         onHDRMerge?(targets, deGhost)
                     }
                     .keyboardShortcut(.defaultAction)
@@ -431,16 +436,27 @@ internal struct SessionBrowserView: View {
     /// The targets captured when the alert's OK is pressed (the closure
     /// re-derivation inside the alert would lose the right-click context).
     @State private var pendingTargets: [String] = []
+    /// The count-bearing merge-dialog payload (V2M-01 T4, defect D-4): the
+    /// title count rides the ITEM value into `.sheet(item:)` — the sheet's
+    /// first render consumes the presentation trigger's payload instead of
+    /// a live state read (whose first render consumed the pre-arm array
+    /// and titled "0 张" while the click-time button read saw the correct
+    /// targets). The action face (pendingTargets + the start buttons) is
+    /// byte-identical to the pre-fix shape.
+    internal struct MergeDialogCount: Identifiable, Equatable {
+        let id = UUID()
+        let count: Int
+    }
+    @State private var hdrMergeDialog: MergeDialogCount?
     /// Plan 08-1 T1: the HDR-merge confirm dialog state (de-ghost toggle).
-    @State private var showHDRMergeDialog = false
     @State private var hdrMergeDeGhost = true
     /// Plan M5-2-02 (KD-5): the Mertens confirm sheet state.
     @State private var showHDRMertensDialog = false
     /// Plan M5-3-03 (KD-1): the panorama confirm sheet state.
     @State private var showPanoDialog = false
-    /// Plan 08-3 T4: the stacking dialog states.
-    @State private var showFocusStackDialog = false
-    @State private var showStackDenoiseDialog = false
+    /// Plan 08-3 T4: the stacking dialog states (V2M-01 T4: item payloads).
+    @State private var focusStackDialog: MergeDialogCount?
+    @State private var stackDenoiseDialog: MergeDialogCount?
     @State private var stackDenoiseMode: StackDenoiseMode = .average
     /// The drop-affordance face (13-3 T4).
     @State private var isDropTargeted = false
