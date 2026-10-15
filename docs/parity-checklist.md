@@ -80,19 +80,19 @@ review may flip it.
 <!-- parity:summary -->
 | Domain | Delivered | Partial | Missing | V2 | Parked | OOS | Rows |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| SHELL | 3 | 2 | 0 | 0 | 0 | 1 | 6 |
+| SHELL | 4 | 1 | 0 | 0 | 0 | 1 | 6 |
 | LIB | 14 | 1 | 1 | 0 | 0 | 0 | 16 |
 | EDT | 15 | 0 | 0 | 0 | 0 | 0 | 15 |
 | ADJ | 18 | 1 | 0 | 0 | 0 | 0 | 19 |
-| DEV | 5 | 1 | 0 | 0 | 0 | 2 | 8 |
+| DEV | 5 | 1 | 0 | 0 | 0 | 3 | 9 |
 | GEO | 3 | 0 | 0 | 0 | 0 | 0 | 3 |
 | NODE | 8 | 0 | 0 | 0 | 0 | 0 | 8 |
 | MASK | 10 | 0 | 0 | 1 | 1 | 0 | 12 |
 | DRT | 10 | 0 | 0 | 0 | 0 | 0 | 10 |
-| EXP | 12 | 1 | 0 | 1 | 0 | 0 | 14 |
+| EXP | 13 | 0 | 1 | 1 | 0 | 0 | 15 |
 | AI | 10 | 0 | 0 | 1 | 0 | 0 | 11 |
 | OWN | 11 | 1 | 0 | 0 | 0 | 0 | 12 |
-| **Total** | 119 | 7 | 1 | 3 | 1 | 3 | 134 |
+| **Total** | 121 | 5 | 2 | 3 | 1 | 4 | 136 |
 <!-- /parity:summary -->
 
 ## Gaps
@@ -100,6 +100,7 @@ review may flip it.
 <!-- parity:gaps -->
 | Id | Domain | Status | Feature |
 |---|---|---|---|
+| FEAT-EXP-15 | EXP | Missing | PNG compression-level option (UI 0-9) |
 | FEAT-LIB-15 | LIB | Missing | Watched folders (auto-ingest on folder change) |
 | FEAT-AI-10 | AI | V2 | AI segmentation masks (subject/sky/people via SAM-class models) |
 | FEAT-EXP-02 | EXP | V2 | OpenEXR export |
@@ -107,13 +108,12 @@ review may flip it.
 | FEAT-MASK-12 | MASK | Parked | Edge-following brush (contour-aware stroke) |
 | FEAT-DEV-05 | DEV | OOS | Demosaic algorithm menu (RCD / AMaZE / Markesteijn / ... selectable) |
 | FEAT-DEV-06 | DEV | OOS | Highlights reconstruction (raw-domain, default on) |
+| FEAT-DEV-09 | DEV | OOS | Nikon HE (high-efficiency NEF) recovery |
 | FEAT-SHELL-06 | SHELL | OOS | In-app updates page (signed auto-update channel) |
 | FEAT-ADJ-19 | ADJ | Partial | dt-derived adjustment superset (39 modules: channel mixers, filmic/sigmoid/AgX, tone equal, denoise family, retouch, liquify, borders, watermark, etc.) |
 | FEAT-DEV-07 | DEV | Partial | Lens calibration (enable + scale + projection with profile database and auto-detection) |
-| FEAT-EXP-13 | EXP | Partial | TIFF compression options (none / LZW / zip) |
 | FEAT-LIB-14 | LIB | Partial | Culling/pick pass over the library |
 | FEAT-OWN-12 | OWN | Partial | Denoise family (bilateral / NL-means / profiled) plus retouch, liquify, borders, watermark and the remaining dt-era modules |
-| FEAT-SHELL-03 | SHELL | Partial | Dark theme token family (card surface/border colors) |
 | FEAT-SHELL-05 | SHELL | Partial | Keyboard settings page with conflict display and restore defaults |
 <!-- /parity:gaps -->
 
@@ -123,7 +123,7 @@ review may flip it.
 |---|---|---|---|---|---|
 | FEAT-SHELL-01 | Dual workspace shell (library workspace and editor workspace behind one window host) | Alcedo | Delivered | `src:App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift`, `src:App/Sources/Lightamer/UI/Shell/EditorWorkspaceShellView.swift`, `doc:.work/gsd/phases/m2-3-ui-shell/M2-3-1-ACCEPTANCE.md` | Native SwiftUI chrome replaces Alcedo's custom frameless-window layer by design |
 | FEAT-SHELL-02 | Workspace navigation (library <-> editor switching, sidebar structure) | Alcedo | Delivered | `src:App/Sources/Lightamer/UI/ContentView.swift`, `src:App/Sources/Lightamer/UI/SidebarView.swift` | |
-| FEAT-SHELL-03 | Dark theme token family (card surface/border colors) | Alcedo | Partial | `src:App/Sources/Lightamer/UI/Theme` | Native macOS dark appearance plus a small local theme layer; Alcedo's bespoke glass-token set is not replicated one-for-one |
+| FEAT-SHELL-03 | Dark theme token family (card surface/border colors) | Alcedo | Delivered | `src:App/Sources/Lightamer/UI/Theme/ThemeTokens.swift`, `doc:.work/gsd/REQUIREMENTS.md` | Seven self-written glass families are the single color source for the new shell (values self-authored per the GPL red line, not a one-for-one copy); M2UIW-01 delivered, machine-checked in M2-3-1 AC1 |
 | FEAT-SHELL-04 | Settings page family (language/theme, default behavior, cache, local content recognition, advanced content analysis, about) | Alcedo | Delivered | `src:App/Sources/Lightamer/Settings/SettingsPages.swift`, `src:App/Sources/Lightamer/Settings/LCRSettingsModel.swift`, `src:App/Sources/Lightamer/Settings/ACASettingsModel.swift` | 7 of Alcedo's 9 pages plus 4 Lightamer-only pages (import defaults, displays, MCP, gated catalogs face) |
 | FEAT-SHELL-05 | Keyboard settings page with conflict display and restore defaults | Alcedo | Partial | `src:App/Sources/Lightamer/Settings/SettingsPages.swift` | Page shows/detects conflicts and restores defaults (v1); per-shortcut rebinding not implemented |
 | FEAT-SHELL-06 | In-app updates page (signed auto-update channel) | Alcedo | OOS | `doc:.work/gsd/PROJECT.md` | 2026-09-27 ruling: Apple distribution channel cut; unsigned DMG/zip distribution, no updater |
@@ -205,6 +205,7 @@ review may flip it.
 | FEAT-DEV-06 | Highlights reconstruction (raw-domain, default on) | Alcedo | OOS | `doc:.work/gsd/research/STACK.md` | Raw-domain stage unreachable on the CIRAW route; the engine handles recovery internally |
 | FEAT-DEV-07 | Lens calibration (enable + scale + projection with profile database and auto-detection) | Alcedo | Partial | `src:LightamerIOP/Sources/Lens`, `src:App/Sources/Lightamer/UI/Inspector/LensPanelView.swift` | Embedded lens opcodes applied at decode; no user-tunable lens database (Lensfun data-only approach is the recorded v1 stance) |
 | FEAT-DEV-08 | Raster input route (TIFF/raster files enter the editor; display-referred inverse chain for LUT-ICC payloads) | Alcedo | Delivered | `src:LightamerCore/Sources/Decode/RasterDecoder.swift`, `src:LightamerCore/Sources/Pipe/Input/RasterInputStage.swift`, `doc:.work/gsd/phases/m4-1-tiff-raster/M4-1-VALIDATION.md` | Upstream delta #265-270 counterpart (RASTER-IN family), delivered for TIFF + raster in M4-1 |
+| FEAT-DEV-09 | Nikon HE (high-efficiency NEF) recovery | Alcedo | OOS | `doc:.work/gsd/research/STACK.md` | A separate HE-recovery path is unreachable/unneeded on the CIRAW route (the OS raw engine owns HE decode); Alcedo surface = NikonHeRecoveryDialog |
 
 ## GEO - geometry
 
@@ -275,8 +276,9 @@ review may flip it.
 | FEAT-EXP-10 | Optional export subfolder | Alcedo | Delivered | `src:LightamerCore/Sources/Export/ExportNamer.swift` | |
 | FEAT-EXP-11 | Export queue (per-item states, progress, retry, bounded queue) | Alcedo | Delivered | `src:LightamerCore/Sources/Export/ExportQueue.swift`, `src:App/Sources/Lightamer/Export/ExportQueueFaceView.swift` | |
 | FEAT-EXP-12 | Cross-session quality memory (per-format quality + last directory) | Alcedo | Delivered | `src:App/Sources/Lightamer/Export/ExportPanelView.swift`, `doc:.work/gsd/phases/m2-9-export/M2-9-VALIDATION.md` | Defaults keys per format |
-| FEAT-EXP-13 | TIFF compression options (none / LZW / zip) | Alcedo | Partial | `src:LightamerCore/Sources/Export/ImageIOEncoders.swift` | 8/16/32-bit TIFF delivered; an explicit compression picker is not exposed (encoder defaults) |
+| FEAT-EXP-13 | TIFF compression options (none / LZW / zip) | Alcedo | Delivered | `src:LightamerCore/Sources/Export/ImageIOEncoders.swift`, `src:App/Sources/Lightamer/Export/ExportInspectorView.swift`, `doc:.work/gsd/REQUIREMENTS.md` | 8/16/32-bit TIFF with all three compression values delivered; picker on the M2 export page and the legacy sheet, wired into the format spec (v1 EXP-01) |
 | FEAT-EXP-14 | Software tag written into exports (producer identification) | Alcedo | Delivered | `src:LightamerCore/Sources/Export/ExportQueue.swift` | EXIF Software via the TIFF dictionary seat |
+| FEAT-EXP-15 | PNG compression-level option (UI 0-9) | Alcedo | Missing | | Not exposed; the PNG encoder runs ImageIO defaults with no compression-level control |
 
 ## AI - AI features
 
