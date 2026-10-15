@@ -6,15 +6,15 @@ wave: 1
 depends_on: []
 autonomous: true
 requirements: ["V2/Maintenance 修复批（RESEARCH §一.A 缺陷族 D-1..D-5 全 open 逐项闭合；正本 = phases/v2-maintenance/RESEARCH.md + V2M-CONTEXT.md OQ 裁决）"]
-success_criteria: "SC 全可机检——T1：ColorMatchPanelModel params 读取链静态机检（binding get 零 coordinator 触达）+ 快照刷新单测 + GUI-M6C-03/05/08 三零消除走查证据；T2：bisect 七步 transcript + 修法落地 + 绿染目测复验证据；T3：复现加固脚本 N 轮零卡死；T4：三 sheet 标题读快照属性 grep + 走查证据；T5：调用点 Int 化 grep + zh-audit --check PASS；T6：全套 --all = 3848+ΔN 对账闭合"
-estimated_tests: "+3..5（T1 快照刷新/优先级单测 +1..2 / T2 回归钉 +1..2〔供件缺席可合法 ΔN 更小〕/ T3 +0..1；执行时逐任务如实记账）"
+success_criteria: "SC 全可机检——T1：ColorMatchPanelModel params 读取链静态机检（binding get 零 coordinator 触达）+ 快照刷新单测 + GUI-M6C-03/05/08 三零消除走查证据；T2：bisect 七步 transcript + 修法落地 + 绿染目测复验证据；T3：复现加固脚本 N 轮零卡死；T4：三 sheet 标题读快照属性或 payload grep + 走查证据；T5：调用点 Int 化 grep + zh-audit --check PASS；T6：全套 --all = 3848+ΔN 对账闭合"
+estimated_tests: "+3..5（T1 快照刷新/优先级单测 +2〔两具名测试均必做——M-4 组成闭合〕/ T2 回归钉 +1..2〔供件缺席可合法 ΔN 更小〕/ T3 +0..1；执行时逐任务如实记账）"
 test_bundles: [App, Sessions, IOP, Library]
 baseline: "3848/24/0（M6-5 T9 确认轮终值，三路亲跑同值）"
 expected_all: "3848 + ΔN₁（对账式；ΔN₁ = 本批实增测试数，预期带 +3..5，执行时按实记账；供件缺席面如实记小）"
 files_modified:
   - App/Sources/Lightamer/UI/Shell/ColorMatchPanelModel.swift        # T1：params 快照修法——链记录读取从 getter 热路径摘除（snapshot 存储属性 + 刷新钩子补真〔doc comment :54 已许诺 updateInstance 而实现缺席——本批兑现〕）；binding get 退化纯本地读；D-H1 liveParams 窗口语义零变
-  - App/Sources/Lightamer/UI/Shell/ColorMatchPanelView.swift         # T1：:187 binding get 保持 `model.params.strength` 字面（读取链下沉 model 内）；如修法需传参形态则同批微调；onEditingChanged D-H1 三件零触
-  - Tests/LightamerTests/ColorMatchPanelModelTests.swift             # T1：+1..2 法（APP bundle :289 现归域）——快照刷新语义（链记录变更 → 刷新钩子 → 快照同步）+ liveParams 窗口优先级保持负测
+  - App/Sources/Lightamer/UI/Shell/ColorMatchPanelView.swift         # T1：:187 binding get 保持 `model.params.strength` 字面（读取链下沉 model 内）+ **view 级 instance 钩子挂点**（`.onChange(of: instance)` → `model.updateInstance`——E-1 修订正形，provider 是值工厂不可作挂点）；onEditingChanged D-H1 三件零触
+  - Tests/LightamerTests/ColorMatchPanelModelTests.swift             # T1：+2 法（APP bundle :289 现归域，两具名测试均必做）——快照刷新语义（链记录变更 → 刷新钩子 → 快照同步）+ liveParams 窗口优先级保持负测
   - App/Sources/Lightamer/UI/Shell/FilmPanelModel.swift              # T1 同构面排查（同病同修改此文件；健康则零 diff 登记 DECISIONS）
   - App/Sources/Lightamer/UI/Shell/DrtPanelModel.swift               # T1 同构面排查（同上——record getter 穿 editorState.history.effectiveDrtRecord / workspace.drtRecord，无 JSONDecoder 热解码，先验风险低于 ColorMatch；读码裁定）
   - LightamerCore/Sources/Decode/RAWDecoder.swift                    # T2：按 bisect 裁定修法落点（H-Aa 三选：resolveDecoderVersion automatic 收紧 / 机身白名单 / 解码后通道健全性门；H-Ab/H-B 各自落点）——形态执行批定，DECISIONS 申报
@@ -85,15 +85,30 @@ files_modified:
 > **planner 补充亲核**：`ColorMatchPanelModel.swift:54` doc comment 许诺
 > 「the model refreshes through `updateInstance`」而**该方法实现缺席**
 > （全仓 grep 仅注释命中）——getter 每读穿 coordinator 正是对缺席钩子的
-> 补偿读取。本批兑现该钩子 = 修法正形。
+> 补偿读取。本批兑现该钩子 = 修法正形。**挂点形态已定（评审 E-1 修订，
+> 弃「provider 调钩子」初稿）**：provider（`ColorMatchPanelProvider`）是
+> `panel(for:edit:)` 值工厂，不持 model、只在 InspectorView body 求值期
+> 被调——挂点在 **view 级**（`ColorMatchPanelView` 的
+> `.onChange(of: instance)`，见 action 1②）。
 
 - **action**：
   1. `ColorMatchPanelModel` 增链记录快照：普通存储属性
      `snapshotParams: ColormatchModule.Params?`（或含 record 身份戳的
-     快照结构），刷新时机 = ①init ②实例切换/revision 变更钩子（兑现
-     `updateInstance`——由面板 provider 在 instance 参数变化时调用；
-     provider 侧挂点按现挂载面最小改动定）③solve 成功回填点
-     （`solve` 尾 `liveParams = nil` 处同批刷快照）。
+     快照结构），刷新时机 = ①init ②**view 级 instance 值钩子**（兑现
+     `updateInstance`——挂点写 `ColorMatchPanelView`：
+     `.onChange(of: instance) { model.updateInstance(instance) }`（或
+     `.task(id:)` 同效形；`ModuleInstance` 已 `Equatable, Hashable`，
+     `instance` 是 InspectorView 每次重渲都携新值的 `let`——该 seam
+     天然覆盖**实例切换 / commit 后重渲 / MCP `apply_params` 外部写腿**
+     三类路径：外部写改 `editorState.instances` → InspectorView 重渲 →
+     新 instance value → 钩子触发）。**不可走 provider**：provider 是
+     `panel(for:edit:)` 值工厂（返回 view value 不持 model），在 body
+     求值期调钩子 = view update 期副作用，正是本修法要消灭的形态类别）
+     ③solve 成功回填点（`solve` 尾 `liveParams = nil` 处同批刷快照）
+     ④**`commitStrengthDrag()` 尾**（:231-234——commit 置 `liveParams
+     = nil` 后 getter 落到快照层，漏刷则滑杆/读数回跳拖动前值一帧以上；
+     同批从末次 live 值或重读 record 刷快照——action 上下文非 layout
+     期，此处读 coordinator 不违修法本意）。
   2. `params` getter 重排：`liveParams` → `snapshotParams` → 传入
      `instance` 解码（保持既有三级序语义）→ pristine default；
      **getter 零 `pipeCoordinator` 触达**。`currentRecord`（:208-215，
@@ -111,7 +126,8 @@ files_modified:
      且读面是 history/carrier 而非 instances 线性扫。裁定三分：
      同病（layout 期热读 + 重解码）→ 同修；仅热读无重解码 → 按实测
      sample 证据裁（无证据不预防性重写，登记 DECISIONS）；健康 → 登记。
-  5. 回归测试（APP bundle 归域 :289）：`ColorMatchPanelModelTests` +1..2 法
+  5. 回归测试（APP bundle 归域 :289）：`ColorMatchPanelModelTests` **+2 法
+     （两具名测试均必做，M-4 组成闭合）**
      ——①快照刷新语义：链记录变更 → 刷新钩子 → 快照同步（getter 返回
      新值）；②liveParams 窗口优先级：拖动窗内快照被 liveParams 压住，
      commit 后回落快照。layout 期零观察读取属 SwiftUI 运行时行为
@@ -164,19 +180,26 @@ files_modified:
      路径修。落点优先 `RAWDecoder.swift` 既有 declared seam（M2-3-3 T4
      technicalOverrides 面；`resolveDecoderVersion` :257-273 纯函数面
      单测友好）。**若裁定需要 `.metal` → 停手修订 plan 申报（红线）**。
-  3. **绿染回归钉（fixture 级）**：供件可入 fixtures → 缺陷文件（或同
-     机身小样张）入 `Tests/Fixtures/` + 通道统计断言法（IOP bundle 归域
-     :175/:181）；供件不可入（尺寸/许可）→ 钉**规则**不钉文件
-     （`resolveDecoderVersion` 行为矩阵 / 健全性门合成数据单测），
-     DECISIONS 记选择。修后 GUI 复现配方重跑两图非绿（目测走查证据 +
-     直方图面复验）。
+  3. **绿染回归钉**：主路径 = 既定 **untracked 供件机制**（两 tier 设计
+     成文：小 raster 走 `Resources/TestFixtures/**` 资源 glob，真机 RAW
+     样张明确 NOT tracked / NOT bundled——搜索序 = `LIGHTAMER_RAW_SAMPLES_DIR`
+     → TestRAW 镜像 → `.work/plans/01-05/samples`，样张缺席条件 XCTSkip，
+     RAW03Tests 同款口径，BUNDLE-MAP「无样张环境 XCTSkip——skip 对账」）
+     ——缺陷文件（或同机身小样张）落 untracked 样张域 + 通道统计断言法
+     （IOP bundle 归域 :175/:181，钉在 RawDecodeOverridesTests/
+     RAWDecoderTests）。**禁 `Tests/Fixtures/` tracked 具名落盘**（真机
+     RAW 样张通常 MB 级，tracked 二进制进开源仓违两 tier 成文设计；
+     落 `Resources/TestFixtures/` 则 glob 使其乘 7 bundle，同为体积敏感
+     反例）。供件全缺 → 钉**规则**不钉文件（`resolveDecoderVersion` 行为
+     矩阵 / 健全性门合成数据单测），DECISIONS 记选择。修后 GUI 复现配方
+     重跑两图非绿（目测走查证据 + 直方图面复验）。
 - **验收标准（机检）**：
   - bisect transcript 七步逐步在案（`evidence/v2m/d2-bisect/`，含每步
     判定 + 探针脚本/输出）；Alcedo 交叉证人记录在案。
   - 修法落地 + 定向轮绿（IOP bundle 含 RawDecodeOverridesTests/RAWDecoderTests
     新旧法全绿；App bundle 解码消费面不受扰）。
-  - 回归钉在案（fixture 级或规则级，+1..2 法如实记账；供件缺席 = ΔN
-    如实记 0 + 缺口登记）。
+  - 回归钉在案（供件级〔untracked 样张域〕或规则级，+1..2 法如实记账；
+    供件缺席 = ΔN 如实记 0 + 缺口登记）。
   - 绿染复验证据：两图重开非绿（截图 + 直方图非单色饱和）。
   - `git diff LightamerCore/Sources/Decode/RAWDecoder.swift` 落窗内
     （decode/resolve/健全性门缝）；`.metal` 零 diff（除非修订申报获批）。
@@ -213,24 +236,39 @@ files_modified:
 > 根因（RESEARCH 定位 + planner 现码复核）：`.sheet` 内容闭包读**活的**
 > `pendingTargets.count`（`SessionBrowserView.swift:340` hdr_merge；
 > **:280 focus_stack / :305 stack_denoise 同族同构**——RESEARCH 只登记
-> HDR，同族扫描本批一并修），sheet 渲染时点计数已 0（正文静态串故正确；
-> 为何 live read 取 0 的机制定案 = 执行批 DECISIONS 义务——候选：
-> 菜单收起引发视图身份/状态重置 vs 竞态，走查复验）。
+> HDR，同族扫描本批一并修），sheet 渲染时点计数已 0。**机制定案 =
+> 主修前置步（评审 M-1 修订——`pendingTargets` 全文件无清空路径，仅
+> 7 处 arm 写 + 捕获读 + @State 声明，「live read 取 0」只剩两候选**：
+> ①视图身份/状态店重建（@State 同灭——主修快照属性**同样同灭**）
+> ②呈现事务对写前 view value 的陈旧快照（sheet 闭包捕捉旧值——快照
+> 属性**同样陈旧**）；GUI-M6C-13 合并动作以正确 targets 跑通证明状态
+> 店未整体失效，机制进一步收窄到「呈现时点快照」族。先判定候选哪个
+> 成立，再择主修形态）。
 
 - **action**：
-  1. arm 点（`pendingTargets = targets` 各赋值点，:152/:157/:168/:180/
-     :191/:199/:205）同点快照计数（`@State private var
-     pendingTargetsCount: Int` 或同形——以「arm 一次写、sheet 只读」为
-     纪律）。
-  2. 三 sheet 标题（:280/:305/:340）改读快照属性；启动按钮
-     （`let targets = pendingTargets` 捕获面）零改（动作面仍用全数组）。
-  3. 机制定案走查：AX harness 重跑 HDR merge 对话框（合成 bracket 供件
-     配方 = m6-closeout 批注记）标题计数正确 + 三 sheet 走查各一轮；
-     机制解释（为何原形态取 0）落 DECISIONS。
+  1. **机制定案走查（前置）**：AX harness 重跑 HDR merge 对话框（合成
+     bracket 供件配方 = m6-closeout 批注记）取证「标题计数取 0」时点 +
+     状态店存活证据（同窗 GUI-M6C-13 动作面是否以正确 targets 跑通）；
+     机制解释（为何原形态取 0 + 两候选判定）落 DECISIONS，主修形态随
+     定案择定。
+  2. **主修（按定案择形）**：
+     - 定案为「呈现时点陈旧快照」族 → arm 点（`pendingTargets = targets`
+       各赋值点，:152/:157/:168/:180/:191/:199/:205）同点快照计数
+       （`@State private var pendingTargetsCount: Int` 或同形——以
+       「arm 一次写、sheet 只读」为纪律），三 sheet 标题（:280/:305/
+       :340）改读快照属性；
+     - 定案为「视图身份/状态店重建」（快照属性同灭）→ **`.sheet(item:)`
+       携带 payload 形**：arm 时构造 payload（targets + count）走
+       `.sheet(item:)` 呈现，标题读 payload——与状态店/呈现快照两机制
+       解耦（两候选下都鲁棒）。
+     启动按钮（`let targets = pendingTargets` 捕获面）零改（动作面仍用
+     全数组）。
+  3. 走查复验：三 sheet 走查各一轮（标题计数正确）。
 - **验收标准（机检）**：
   - `grep -n "pendingTargets.count" App/Sources/Lightamer/UI/
-    SessionBrowserView.swift` 仅剩 arm 赋值点右侧（或零命中——快照后
-    sheet 闭包零直读）；三 sheet 标题行读快照属性（grep 三行在案）。
+    SessionBrowserView.swift` 仅剩 arm 赋值点右侧（或零命中——快照/
+    payload 后 sheet 闭包零直读）；三 sheet 标题行读快照属性或
+    `.sheet(item:)` payload（grep 三行在案）。
   - 走查证据：三对话框标题计数正确（截图/AX transcript 落
     `.work/gui-acceptance/v2m/`）。
   - 零新本地化键（标题键族 `%lld` 变体原位复用）；`--bundle Sessions`
@@ -248,7 +286,12 @@ files_modified:
 > en/zh 两值按整数百分数语义撰写（`%lld%%`），`%lf` 变体会渲染
 > 「12.340000%」反劣化且 xcstrings 零改动；RESEARCH §四「补 %lf 变体」
 > 的替代形态，翻案 = 加 `%lf` 变体尾块纯插入 + DECISIONS 申报。
-> 与 V17 同款机检：V17（波 2）specifier 深检落地后此键成为绿例活体。
+> 与 V17 同款机检（措辞与 E-2 修订对齐，两 plan 一次修订生效）：V17
+> specifier 深检的推导供给面**含函数参数声明 + `Int(…)` 包装调用形
+> 传播**——本修后调用点 `Int((holeFraction * 100).rounded())`
+> （`holeFraction: Float` 为函数参数）可判为 Int → `%lld` 与目录一致，
+> 此键成为**绿例活体**（V2M-02 Checker #2 同批生效；供给面若缺该两形
+> 此键落 EXEMPT 非绿 = 波间交叉引用失守的哨兵）。
 
 - **action**：`LightamerApp.swift:2019` 插值表达式 Int 化（rounded 半分
   边界行为 = DECISIONS 记一句）；其余零触。
@@ -290,15 +333,22 @@ files_modified:
   `tuist generate` 恒末位（L041）+ red_lines 本条修订申报）。
 - `*.xcstrings` 零 diff（D-5 主形态；翻案形态 = 恰一变体键尾块纯插入）；
   UserDefaults 零新键；`\.runModal(` App/Sources 零命中；
-  `String.LocalizationValue("` 插值禁形零命中；`zh-audit --check` PASS。
+  `String.LocalizationValue("` **插值字面形、代码行（非注释）**零命中
+  （M-3 钉形——裸 grep 会双命中两处已知豁免锚：`LightamerApp.swift:2061`
+  doc comment 内注记字面〔V15/FINDING-G 旧形存档，注释免疫〕+
+  `ExportInspectorView.swift:433` **拼接形**动态查表键〔`"export_format_"
+  + kind.rawValue`，非插值字面，在用豁免锚〕；:433 是否顺带 V17 化
+  〔显式 switch 静态键，V14 先例〕由执行批裁量非本批义务）；
+  `zh-audit --check` PASS。
 - 工作树零新增 untracked 源文件（探针/走查产物全落 /tmp 即弃域与
   gitignored 证据域）。
 
 ## 风险与回退
 
-- **T1**：快照刷新钩子的 provider 侧挂点若改动面超预期（挂载链深）→
-  回退预案 = coordinator 侧 revision 通知（Notification/闭包注入）替代
-  provider 传参，DECISIONS 记选择；D-H1 行为法红 = 硬停（语义回归禁收）。
+- **T1**：view 级 `.onChange(of: instance)` seam 若实测覆盖面有缺口
+  （SwiftUI 钩子行为差异 / view identity 重建路径漏触发）→ 回退预案 =
+  coordinator 侧 revision 通知（Notification/闭包注入）替代 view 钩子，
+  DECISIONS 记选择；D-H1 行为法红 = 硬停（语义回归禁收）。
 - **T2**：bisect 无法收敛（七步后假说均不成立）→ 停手上报 orchestrator
   （research 复审 / 降级接受 / 另立专项三选），**禁押注修**；供件缺失 =
   同面目（复现配方以同机身样张替代；再缺 = T2 只交 transcript）。
@@ -324,7 +374,9 @@ files_modified:
    default 序与修前 live → coordinator record → instance → default 语义
    等价性——「committed truth, never a stale cached copy」注释（:96-98）
    与快照化的张力：刷新钩子时机覆盖所有 committed 变更路径（solve 回填 /
-   history move / 实例切换）吗？checker 反向找漏刷新路径。
+   commitStrengthDrag 尾 / 实例切换 / commit 后重渲 / MCP `apply_params`
+   外部写 / undo-redo 与版本 swap 的 instances 重建）吗？checker 反向找
+   漏刷新路径（E-1 修订后挂点 = view 级 instance 值键控，穷举第五路径）。
 4. **Film/Drt 三分裁定**：同病同修 / 登记 / 健康的证据充分性（DECISIONS
    是否引 sample/读码证据，非直觉）。
 5. **D-2 三段式**：bisect transcript 逐步可复跑；修法与裁定证据链一致

@@ -7,10 +7,10 @@ depends_on: ["V2M-01"]
 autonomous: true
 requirements: ["V2/Maintenance 清算批（RESEARCH §一.B/C/F + §四波 2 编排；正本 = phases/v2-maintenance/RESEARCH.md + V2M-CONTEXT.md OQ 裁决；V2 S 件正本 = phases/v2-station/V2-PROPOSAL.md §七）"]
 success_criteria: "SC 全可机检——T1：zh-audit --self-test PASS + --check PASS（ABSENT 零命中 + spec 错配零命中）+ xcstrings diff = 恰活体清偿键尾块纯插入；T2：MANIFEST 余行逐行终态 + 证据指针（local-only 零 commit）；T3/T4：余量盘点结论 + 修复/销账双向收口；T5：预设存取单测 + 新键登记 + zh-audit PASS；T6：全套 --all = 波 1 终值 + ΔN₂ 对账闭合"
-estimated_tests: "+0..6（T3 顺带 +0..2 / T5 预设层 +2..4；V17 self-test = 脚本侧非 XCT 记 ΔN 0；执行时逐任务如实记账）"
+estimated_tests: "+2..6（T3 顺带 +0..2〔销账形态 ΔN=0 合法，另记〕/ T5 预设层 +2..4〔波尾固定范围，下界不可为 0——M-4 组成闭合〕；V17 self-test = 脚本侧非 XCT 记 ΔN 0；执行时逐任务如实记账）"
 test_bundles: [App, Export]
 baseline: "V2M-01 终值（= 3848 + ΔN₁；本批开工时以 V2M-01 T6 全套轮实测为准）"
-expected_all: "波 1 终值 + ΔN₂（对账式；ΔN₂ 预期带 +0..6，执行时按实记账）"
+expected_all: "波 1 终值 + ΔN₂（对账式；ΔN₂ 预期带 +2..6〔T5 波尾固定范围使下界为 2——M-4〕，执行时按实记账）"
 files_modified:
   - Scripts/zh-audit.py                                              # T1：V17——V16 状态机扩展（断言 5 PRESENT/ABSENT 之上加 specifier 类型深检 + Text 插值族扫描 + String( 跨行族合门）；不可判面豁免登记；报告节扩展；self-test golden 负测
   - Resources/Localizable.xcstrings                                  # T1：活体 ABSENT 键尾块纯插入（planner 预扫已证 1 键：catalog_session_remove_confirm_body %@——xcstrings:2072 裸键在册无变体 + SidebarView.swift:262 活体；全表以 V17 首跑 transcript 为准）+ T5 预设 UI 键族（如有）
@@ -18,7 +18,7 @@ files_modified:
   - App/Sources/Lightamer/State/EditorState.swift                     # T3（顺带候选）：livePlane eager 释放（EditorState→LayerEditingState 新横 wire）——余量盘点后按裁执行或零 diff 销账
   - App/Sources/Lightamer/State/LayerEditingState.swift               # T3：同上（planner 已核路径在位：App/Sources/Lightamer/State/）
   - Scripts/make-release-direct-launchable.sh                         # T4（顺带候选）：Release 直启自足化助手（embed PackageFrameworks + ad-hoc 全量重签——m6-closeout P1 批注记已验证配方脚本化）；形态（脚本 vs Tuist 配置）执行批裁
-  - App/Sources/Lightamer/State/ExportState.swift                     # T5：命名预设层模型面（预设存取 + 套用投影 + collisionPolicy 同位；planner 已核路径在位）+ makeRunAssembly 纯缝扩展（M3-1-03 范式）
+  - App/Sources/Lightamer/State/ExportState.swift                     # T5：命名预设层模型面（预设存取 + 套用投影；**预设不捕获 collisionPolicy**——M-5/M3-1-03 KD-1 会话态裁定锚；planner 已核路径在位）+ makeRunAssembly 纯缝扩展（M3-1-03 范式）
   - App/Sources/Lightamer/Export/ExportInspectorView.swift            # T5：预设选择器/管理 UI（M2 页载体，planner 已核路径在位）；zh 键族尾块纯插入
   - Tests/LightamerTests/ExportPresetTests.swift                      # T5：+2..4 法（归域按 BUNDLE-MAP 核对后定；新文件则 Project.swift/BUNDLE-MAP 同批登记 + tuist generate 恒末位）
   - .work/gsd/phases/v2-maintenance/V2M-02-SUMMARY.md                 # T6：执行摘要
@@ -38,7 +38,10 @@ files_modified:
 > 本批唯一预设新键口**——键形执行批裁后登记）；`.metal` 零 diff；xcstrings
 > 尾块纯插入 + `zh-audit --check` PASS 对账（T1 落新门后以新门跑）；
 > `\.runModal(` App/Sources 零命中；`String.LocalizationValue("` 插值禁形
-> 零命中（V17 落地后由门自动兜）；封存面零触；测试文件新设须 Project.swift
+> **代码行（非注释）**零命中（M-3 钉形——两处已知豁免锚 =
+> `LightamerApp.swift:2061` doc comment 注记字面 / `ExportInspectorView.
+> swift:433` 拼接形在用，同 V2M-01 red_lines 登记口径；V17 落地后由门
+> 自动兜）；封存面零触；测试文件新设须 Project.swift
 > + BUNDLE-MAP 同批登记 + `tuist generate` 恒末位（L041）。构建
 > `caffeinate -dis` 包裹；单测 = `Scripts/test-direct.sh`（bundle token
 > 大小写敏感：`App`/`Export`/…）。
@@ -83,24 +86,45 @@ files_modified:
      - **Text 族提取**：`Text("K \(…)")` 单行 + 多行形态 regex（键形同
        KEY_SHAPE 小写偏置——大写/数字键盲区与 V15/V16 同口径，范围注记
        登记）→ `text_interp_keys`（key → 路径表）。
-     - **specifier 深检**：对每个插值键推导实参静态类型（字面变量声明
-       类型 + 简单算式传播；`Int`→`%lld` / `Float|Double`→`%lf`/
-       `String`→`%@`；**不可判面豁免登记**（tap 面收窄：跨文件推断/
-       泛型/协议类型不判，报告 EXEMPT 节），禁误报）。目录变体 specifier
-       集合 ∩ 推导类型集合 = 空 → 红。
+     - **specifier 深检**：对每个插值键推导实参静态类型。**推导供给面
+       （E-2 修订扩形）**= `let/var` 声明 + **函数参数声明** + 简单算式
+       传播 + **`Int(…)` 包装调用形**（覆盖 `.rounded()` 等链尾——D-5
+       修后调用点 `Int((holeFraction * 100).rounded())`，`holeFraction`
+       为函数参数；供给面不含函数参数/包装形则此键落 EXEMPT 非绿，波间
+       交叉引用的「D-5 绿例活体」不可交付）。**类型映射表 = 全 Int 族
+       （Int/Int32/Int64/UInt…）→ `%lld`**（`mcp_launcher_status_running`
+       的 pid = Int32 对 `%lld` 变体在册活体，M6-6 rider 亲证）/
+       `Float|Double` → `%lf`（同映射）/ `String` → `%@`；
+       **不可判面豁免登记**（tap 面收窄：跨文件推断/泛型/协议类型/元组
+       成员不判，报告 EXEMPT 节），禁误报。
      - **断言 6**（V17）：插值键 K 必须存在目录变体 `K <specs>` 且 specs
-       与推导类型一致（PRESENT/ABSENT/spec-MISMATCH 三态；ABSENT = V16
-       断言 5 语义延伸，MISMATCH = V17 新增）。
+       与推导类型**逐参有序一致**（PRESENT/ABSENT/spec-MISMATCH 三态；
+       ABSENT = V16 断言 5 语义延伸，MISMATCH = V17 新增）。**判定式 =
+       逐参有序比对（E-2 修订）：长度不等或任一位错配 = MISMATCH——
+       弃「集合 ∩ = 空」形**（`[String, Int]` vs `%lld %lld` 的类型集合
+       交集非空会放行逐位错配；在册多参活体
+       `settings_catalogs_rebuild_progress %lld %lld`〔SettingsPages.swift:
+       1406 / CatalogBrowserView.swift:71 两调用点〕/ `session_counts
+       %lld %lld %lld` / `toast_import_partial %lld %lld` 即门一上线就要
+       面对的形态）。
      - 报告节扩展（[5] 节扩三态 + Text 族并入或独立节）；`AuditViolations`
        计入 total。
-     - **self-test golden 负测**：spec 错配红例 + Text 族无变体红例 +
-       跨行绿例 + 豁免例——`--self-test` PASS 为 AC。
+     - **self-test golden 八例（E-2 修订扩四例）**：①spec 错配红例
+       ②Text 族无变体红例 ③跨行绿例 ④豁免例 ⑤**位置错配红例**
+       （`[String, Int]` vs `%lld %lld` 型逐位错配——集合交集形会误
+       放行的洞）⑥**Int32→`%lld` 正例**（全 Int 族映射表锚）⑦
+       **Float=Double 同映射 `%lf` 正例**（D-5 样本同款）⑧**注释免疫
+       例**（doc comment 内含插值禁形字面不红——`LightamerApp.swift:
+       2061` 在册活体；V15 form 1c「注释行保持 pending」逻辑同款延伸到
+       Text 族 regex，否则 V17 新增误报源）——`--self-test` PASS 为 AC。
   2. V17 首跑分诊 transcript（清偿前红面全表定格 → 清偿后全绿），记
      SUMMARY。
   3. **活体 ABSENT 清偿**：首跑红面逐键尾块纯插入（planner 预扫已证 1 键
      = `catalog_session_remove_confirm_body %@`；全表以首跑为准；键值
      措辞对齐既有相邻键族 `catalog_session_remove_confirm_*`）。D-5 键
-     （波 1 已 Int 化）应全绿——红则波 1 修法翻案信号，停手上报。
+     （波 1 已 Int 化）应全绿——供给链 = 函数参数 `holeFraction: Float`
+     → `Int(…rounded())` 包装形 → Int → `%lld` 与目录一致（E-2 供给面
+     扩形后可判，非 EXEMPT）；红则波 1 修法翻案信号，停手上报。
   4. AGENTS 登记 V17 门形态一行（后续批红线电池引用 =
      `zh-audit --check` ABSENT/MISMATCH 零命中）。
 - **验收标准（机检）**：`python3 Scripts/zh-audit.py --self-test` PASS；
@@ -115,11 +139,17 @@ files_modified:
 > **队列正本** = `.work/gui-acceptance/m6-closeout/MANIFEST.md`（42 行
 > 总队列；local-only 不入 git）。余行集 = Blocked-Manual/Blocked-Env/
 > Blocked-Defect 中**波 1 解锁后可达**的行：GUI-M6C-06/07（色彩目测，
-> D-2 解锁）+ 16/17/18/19（pano 四行）+ 26（sips 重导出，D-2 解锁 +
+> D-2 解锁；**06 行波 1 T1 已走数值面〔solve 产物符号〕以波 1 证据为准
+> 不重跑，本波只走 D-2 解锁后的色彩目测剩余面——M-6 防双走条款，同
+> 03/05/08**）+ 16/17/18/19（pano 四行）+ 26（sips 重导出，D-2 解锁 +
 > UltraHDR 供件）+ 32/33（AI 蒙版族）+ 34-38（栈面五行，连拍/import 缝
 > 供件）+ 39（D-06/D-07 补录）+ 40（guided filter F 行）+ 03/05/08 复查
 > （波 1 T1 已走则以波 1 证据为准不重跑）。C 类硬锁行（24/25 HDR 屏、
-> 27/28/29 生态可选）**不入本波**——留真人工清单原样。
+> 27/28/29 生态可选）**不入本波**——留真人工清单原样。**显式排除注记
+> （M-6 供件矩阵孤儿项处置）**：GUI-M6C-30（layer B patch 真图，
+> Blocked-Env assetStatus=notReady）不入可达行集——blocker = SAM 资产
+> 供件而非波 1 缺陷，与 14（双通道缺席）/31（真多人素材）同族；SAM
+> 资产到位即可走，届时随缺口清单补入。
 
 - **action**：
   1. 开工盘点：余行 × 供件矩阵（自然样张 / 真无人像照片 / layer B 资产 /
@@ -186,7 +216,12 @@ files_modified:
 > 正本 = REQUIREMENTS :401 行 + `research/ALCEDO-PARITY-2026-10.md` §二
 > （上游 `7052355` 全选项预设形态）。**范围**：格式/质量/位深/sizing/
 > 元数据策略/ICC/命名模板整组存具名预设 + Export 页一键套用 + 内置默认
-> + 用户预设管理（增删改/重命名）。**数据基座零撞**：既有逐项记忆键族
+> + 用户预设管理（增删改/重命名）。**预设不捕获 collisionPolicy（M-5
+> 钉死）**：REQUIREMENTS :401 字段清单无冲突档 + M3-1-03 KD-1 裁定其为
+> Export 页会话态（页关即复位）——预设捕获即静默开立 KD-1 挂账的
+> 「跨会话记忆」；套用只动面板态，冲突档仍由用户显式选。执行批若要
+> 捕获 = 先修订申报。
+> **数据基座零撞**：既有逐项记忆键族
 > （`export.jpegQuality` 等 6 键）不动，预设层为加层（`export.presets`
 > 单键 JSON 数组形态候选——键形执行批裁，**AGENTS 键族登记义务**）；
 > 无 Core/管线触碰（封存面红线：六格式矩阵/sidecar/ExportQueueContract
@@ -201,7 +236,9 @@ files_modified:
      （M3-1-03 范式——picker→queue 路径可机检）。
   3. zh 键族（预设 UI 面）尾块纯插入 + zh-audit 对账（T1 新门全绿）。
   4. 单测 +2..4 法：预设 encode/decode round-trip + 套用投影（变体字段
-     逐项落位）+ 内置默认不可删 + 损坏 JSON typed 容错。
+     逐项落位——含悬挂命名模板引用 typed degrade〔NamingTemplateStore
+     三内置 + Custom 回落先例〕与 collisionPolicy 不在捕获面断言）+
+     内置默认不可删 + 损坏 JSON typed 容错。
 - **验收标准（机检）**：`--bundle App` + `--bundle Export` 全绿（新法
   在案）；新键 AGENTS 登记；`zh-audit --check` PASS + xcstrings diff =
   尾块纯插入；封存面零 diff（六格式矩阵/ExportQueueContract/sidecar）；
@@ -240,8 +277,11 @@ files_modified:
 - `*.xcstrings`：**仅 T1 活体清偿键 + T5 预设 UI 键族尾块纯插入**；
   `zh-audit --check`（V17 新门）PASS——ABSENT/MISMATCH 零命中。
 - UserDefaults：仅 T5 预设键（键形裁后 AGENTS 登记）；其余零新键。
-- `\.runModal(` App/Sources 零命中；`String.LocalizationValue("` 插值禁形
-  零命中。
+- `\.runModal(` App/Sources 零命中；`String.LocalizationValue("` 插值
+  字面形、代码行（非注释）零命中（M-3 钉形——已知豁免锚两处：
+  `LightamerApp.swift:2061` doc comment 注记字面〔注释免疫，V15 form 1c
+  同款〕/ `ExportInspectorView.swift:433` 拼接形动态查表键〔非插值
+  字面，在用豁免锚〕；:433 V17 化由执行批裁量非本批义务）。
 - T2 走查批：App/Sources + LightamerCore/Sources + LightamerIOP/Sources
   零 diff（走查零源码改动——T2 时窗内逐 commit 核）。
 - 工作树零新增 untracked 源文件（探针/走查产物落 /tmp 即弃与 gitignored
@@ -272,12 +312,17 @@ files_modified:
    5 项 + V2 大件 7 项零触碰（不越批）；无孤儿项。
 2. **V17 门语义**：三态（PRESENT/ABSENT/MISMATCH）与 D-5 活体的对应关系
    ——checker 用波 1 修后树干跑 `--check`：`toast_hdr_merge_done %lld`
-   应为绿例（Int 插值推导 %lld 与目录一致）；`catalog_session_remove_
-   confirm_body` 应为 ABSENT 红（清偿前）→ 绿（清偿后）。spec 推导的
-   豁免边界（EXEMPT 节）不放水复核。
+   应为绿例（供给链 = 函数参数 `holeFraction: Float` → `Int(…rounded())`
+   包装形 → Int → `%lld` 与目录一致——供给面缺函数参数/包装形则此键
+   EXEMPT 非绿，即 E-2 修订失守的哨兵）；多参活体
+   `settings_catalogs_rebuild_progress %lld %lld` 应走逐参有序比对
+   不误放（位置洞哨兵）；`catalog_session_remove_confirm_body` 应为
+   ABSENT 红（清偿前）→ 绿（清偿后）。spec 推导的豁免边界（EXEMPT 节）
+   不放水复核。
 3. **T2 行集口径**：m6-closeout MANIFEST 余行逐行对表——C 类硬锁行
-   （24/25/27/28/29）确实未混入本波；03/05/08 不重跑（波 1 证据为准）；
-   供件矩阵真实（不硬造判定）。
+   （24/25/27/28/29）确实未混入本波；03/05/08/06 不重跑（波 1 证据为
+   准，06 只走 D-2 解锁后的色彩目测剩余面）；30 行排除理由注记在案
+   （SAM 资产供件族）；供件矩阵真实（不硬造判定）。
 4. **S 件余量盘点诚实性**：T3 销账形态须引 `b49215bb` diff + 挂账 E5
    原文逐笔对照；修复形态须证「主修未覆盖的残余」确实存在。
 5. **T5 边界**：预设层零撞键族（6 既有 `export.*` 键零 diff）；封存面
