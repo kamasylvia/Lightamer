@@ -2015,8 +2015,16 @@ internal struct LightamerApp: App {
     /// the EXPLICIT reconcile ingest (the import seam's posture).
     @MainActor
     private func refreshGridAfterMerge(holeFraction: Float) async {
+        // V2M-01 T5 (defect D-5): the interpolation is Int-ized to match
+        // the catalog's `%lld` variant (`toast_hdr_merge_done %lld`,
+        // xcstrings in-manual). The old Float interpolation looked the key
+        // up as `%lf` - a guaranteed miss rendering the bare key face.
+        // `rounded()` on the half boundary rounds away from zero (the
+        // Foundation rounding rule for .rounded()); a 12.34% hole
+        // presents as 12 - the integer-percentage semantics the catalog
+        // strings are written in.
         let message = String(localized:
-            "toast_hdr_merge_done \(holeFraction * 100)")
+            "toast_hdr_merge_done \(Int((holeFraction * 100).rounded()))")
         editorState.presentToast(message)
         if let root = sessionState.currentSessionURL {
             _ = await sessionReconciler.reconcileHandler?(root)
