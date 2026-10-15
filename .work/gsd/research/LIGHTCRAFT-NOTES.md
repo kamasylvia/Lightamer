@@ -1,6 +1,30 @@
 # LightCraft 调研速记（2026-10-09）
 
 > 来源：github.com/storytold/lightcraft（本地克隆 `/Volumes/UNITEK/Documents/Development/lightcraft`，HEAD `25ef65c` Release 0.7.0，2026-10-11 docs）。
+
+## 〇、历史重写通告（2026-10-13 对表批，先读本节）
+
+**上游 2026-09-30 起重写全部历史**（force-push 重构），本地仓已按「纯参考仓无本地修改」裁决
+`git reset --hard` 到新 HEAD。后果与结论：
+
+- **旧 SHA 全部作废**：本文正文引用的 `25ef65c`（旧 Release 0.7.0 HEAD）及一切旧 commit/PR 锚
+  在新历史中不存在；v0.7.0 tag 不存在于新历史。**新 HEAD 锚 = `a82a001d`**
+  （0.8.0 主干，"Merge pull request #1857 integrate-batch-38"）；新历史带 tag
+  v0.5.0 / v0.6.0 / v0.7.1 / v0.8.0。本文正文 SHA 仅作历史阅读用，重查一律以新 HEAD `a82a001d`
+  树为准（正文引用的 docs/*.md 路径与主题均已核在新树中仍在）。
+- **本次对表结论（gainmap.rs 比对）**：M6-3/ALCE-03 兜底臂引用的
+  `crates/codecs/src/gainmap.rs`（ISO 21496-1 gain map writer：MPF 索引 + ISO marker +
+  Adobe `hdrgm` XMP + Apple 描述 + `read_jpeg` 读回）**旧（834 行）↔ 新（834 行）逐字节相同**
+  （`diff` 空，工作区版本 0.8.0；许可仍 = 工作区级 MIT OR Apache-2.0，文件内无独立许可头）。
+  **ALCE-03 兜底参考实现不受重写影响。**
+- **已落袋借鉴（M6INT 家族五件：M6-1 单写者锁/M6-2 process version/M6-4 stacks+AI 蒙版 spike/
+  M6-6 parity 清单 CI 门）不受影响**——借鉴的是思想与范式（单写者锁语义、process 冻结规则、
+  auto-stack 间隔聚类、parity 对账纪律），均非绑定旧 SHA 的代码；新 HEAD 面上这些范式仍在
+  （`catalog.lock` / `docs/process-versions.md` / `docs/gaps.md` 路径已核在新树）。
+- 重写体量：旧 0.7.0 快照 ↔ 新 0.8.0 HEAD = 564 files changed，+92k/−4.8k 行（上游批量
+  integrate-batch PR 涌入所致）；对借鉴判定无增量主题（gainmap 之外的 delta 属上游功能面扩张，
+  M6 charter 已裁定的借鉴清单不因此扩项）。
+
 > 许可：**MIT OR Apache-2.0 双许可**（可选其一；代码级移植合法，需 NOTICE 归属）。~10.7k 星。
 > 定位：Adobe Lightroom 的 **clean-room 纯 Rust 复刻**——照片图库 + RAW 显影 + 非破坏编辑；macOS/Windows/Linux/FreeBSD/WASM 多端；MCP server 内置；纯 Rust ~202k 行 / 505 文件 / 24 库 crate + 3 app。状态 alpha，自评 Lightroom 功能广度 81.1%、实做就绪 ~61%（按受众分：主力摄影师 ~49%）。
 
