@@ -153,11 +153,13 @@ public actor RAWDecoder {
 
     // MARK: - RAW path (CIRAWFilter, D-21/D-22)
 
-    /// CIRAW decode with RAW 9 opt-in (D-22, RAW-05, L001):
+    /// CIRAW decode with the version request (D-22, RAW-05, L001; V2M-01
+    /// T2: the AUTOMATIC arm resolves to v8 — the v9 opt-in is explicit
+    /// only, see `resolveDecoderVersion`):
     /// 1. probe `supportedDecoderVersions` on a scratch filter (the key is
     ///    read-only — setting it raises; RESEARCH §2 gotcha),
-    /// 2. under `#available(macOS 27, *)` request `.version9` when the file
-    ///    reports it, else silently fall back to `.version8`,
+    /// 2. under `#available(macOS 27, *)` request `.version9` ONLY when the
+    ///    override asked for it (the explicit forceV9 leg), else `.version8`,
     /// 3. read the three D-23 metadata classes off the real filter.
     internal func decodeRAW(
         _ url: URL, overrides: RAWTechnicalOverrides
@@ -253,9 +255,10 @@ public actor RAWDecoder {
     }
 
     /// The M2-3-3 T4 version resolution (the pure face the tests pin):
-    /// automatic = v9 when the OS offers it AND the file supports it, v8
-    /// otherwise; forceV8 = v8 always; forceV9 = v9 only when BOTH the OS
-    /// and the file support it (else the typed v8 downgrade).
+    /// automatic = v8 (V2M-01 T2, defect D-2 — the automatic v9 opt-in is
+    /// RETIRED, see the case comment); forceV8 = v8 always; forceV9 = v9
+    /// only when BOTH the OS and the file support it (else the typed v8
+    /// downgrade).
     public static func resolveDecoderVersion(
         request: RAWTechnicalOverrides.DecoderRequest,
         supported: [CIRAWDecoderVersion],
@@ -268,7 +271,21 @@ public actor RAWDecoder {
         case .forceV9:
             return (isRAW9Available && fileHasV9) ? .version9 : .version8
         case .automatic:
-            return (isRAW9Available && fileHasV9) ? .version9 : .version8
+            // V2M-01 T2 (defect D-2, the bisect ruling): automatic NO
+            // LONGER opts into v9. The decode probe (evidence/
+            // v2m/d2-bisect/) showed the v9 (CoreML) output converting
+            // through a color-managed CIContext (working = linear Rec2020,
+            // the CIContextPool shape) into a CHANNEL-SKEWED working plane
+            // (green cast: linear G/R ≈ 3.9×), while the v8 output of the
+            // SAME file converts neutral (G/R ≈ 1.06) — and the probe's
+            // unmanaged render showed both versions' pixel data near
+            // identical. The poisoning leg is the CI color-managed
+            // conversion OF the v9 output, not the decode itself. v9 stays
+            // reachable through the explicit `.forceV9` panel request.
+            // Re-entry condition: re-run the probe's working-space leg on
+            // a v9-capable body and only restore the opt-in once the
+            // conversion renders neutral.
+            return .version8
         }
     }
 
