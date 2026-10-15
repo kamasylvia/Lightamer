@@ -42,7 +42,7 @@ status: executed
 |---|---|---|---|
 | SC1 | `uv run python3 Scripts/parity-audit.py --check` exit 0 | `parity-audit --check PASS (134 rows, id-unique, vocab clean, evidence paths verified)`；A1-A6 全 0；uv 与裸 python3 双形态同值 | ✅ |
 | SC2 | `--self-test` PASS（红绿 golden + 公开树分支） | `SELF-TEST PASS (bad id shape / duplicate id / illegal status / illegal source / missing src path / ruleless Delivered-Missing-V2 rows / stale block all detected; clean + placeholder passes; --write heals; public-tree branch skips with explicit notes)`——红例 7 族 + 净例 + `--tree-root` 注入公开树分支例（`.work/` 缺席 → A4 doc: 走 skip 分支 + 显式注记不误报） | ✅ |
-| SC3 | gaps 块行数 ≥ 10 | `<!-- parity:gaps -->` 块内表行 = **17**（3 Missing + 3 V2 + 1 Parked + 3 OOS + 7 Partial），awk 计数在案 | ✅ |
+| SC3 | gaps 块行数 ≥ 10 | `<!-- parity:gaps -->` 块内表行 = **15**（2 Missing + 3 V2 + 1 Parked + 4 OOS + 5 Partial——双验修后终值；T3 时点 17，同过 ≥10），awk 计数在案 | ✅ |
 | SC4 | ci.yml 含 parity job + 裸 python3 本地 PASS | `git diff ci.yml` = 纯追加 11 行 job 块（build-and-test / release 两 job 零 diff）；`ruby -ryaml` 实载 OK；`python3 Scripts/parity-audit.py --check` exit 0 | ✅ |
 | SC5 | 全套 `--all` `TOTAL|3848/24/0|`（ΔN=0） | 见 §全套终验 | ✅ |
 | SC6 | xcstrings diff = 恰 N-1 三键尾块纯插入 | `git diff` = 51+/0- 单 hunk 尾部；`zh-audit --check` 前后 PASS 恒定；catalog keys **1926→1929**；grep 三 `%lld` 变体键恰 3 命中；断言 5 键集 30→30（三新键经 `INTERP_PREFIX_RE` 动态族覆盖，V16 限定口径在案） | ✅ |
