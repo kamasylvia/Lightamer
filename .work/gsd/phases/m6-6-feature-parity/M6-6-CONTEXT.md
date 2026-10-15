@@ -300,7 +300,9 @@ Row 措辞纪律：**我方语言转写，零 Alcedo prose 复制**（GPL-3.0 �
 - SC1 `uv run python3 Scripts/parity-audit.py --check` exit 0（A1-A6
   零违规；id 唯一性在内）。
 - SC2 `--self-test` PASS（红绿 golden：坏 id 形 / 重复 id / 非法状态 /
-  缺失 src 路径各 ≥1 红例 + 1 净例）。
+  缺失 src 路径各 ≥1 红例 + 1 净例 + 公开树分支例〔`.work/` 缺席态经
+  `--tree-root` 注入缝打出——2026-10-16 执行批随 CHECKER minor-1 同步，
+  以 plan 为准〕）。
 - SC3 首轮 gaps 块行数 ≥ 10（T3 transcript 记 SUMMARY）。
 - SC4 `.github/workflows/ci.yml` 含 `parity` job；裸 `python3
   Scripts/parity-audit.py --check`（CI 形态）本地亦 PASS。
@@ -320,8 +322,10 @@ Row 措辞纪律：**我方语言转写，零 Alcedo prose 复制**（GPL-3.0 �
   防门只在本地绿。
 - **R4 ci.yml 编辑回归**：只加 job 块不动既有两 job（diff 审计 =
   纯 additive）；YAML 层面本地 `python3 -c "import yaml,sys;
-  yaml.safe_load(open('.github/workflows/ci.yml'))"` 校验（stdlib 无
-  pyyaml 时以缩进目检 + CI 首跑兜底）。
+  yaml.safe_load(open('.github/workflows/ci.yml'))"` 校验——pyyaml 本地
+  双缺时 fallback = `ruby -ryaml -e 'YAML.load_file(
+  ".github/workflows/ci.yml")'`（macOS 自带 ruby；2026-10-16 执行批随
+  CHECKER minor-2 同步 plan R4 措辞，CI 首跑兜底不变）。
 - **R5 N-1 rider 键值措辞**：三键 `%lld` 变体 en+zh 值与既有裸键同文
   （M6-5 T6 三键同款先例）——zh-audit `--check` PASS 为门，措辞争议
   留走查。
