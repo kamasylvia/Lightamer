@@ -749,3 +749,9 @@ LIB	16	LibraryStackStoreTests.swift
 LIB	9	StackPaginationTests.swift
 LIB	5	ImportMergeStackTests.swift
 LIB	10	LibraryGridStackTests.swift
+
+# V2M-02 增行记录（2026-10-16 执行期，checker E2 测试登记纪律）：一个新测试文件
+#   同 commit 登记进对应 bundle（归属按 front-matter 判定：ExportPresetTests =
+#   APP/App 级——ExportM2PanelModel 是 App 层 @Observable 面板模型）。运行期总数
+#   基线相应上移（对账以各行 method 数为准）。
+APP	4	ExportPresetTests.swift
