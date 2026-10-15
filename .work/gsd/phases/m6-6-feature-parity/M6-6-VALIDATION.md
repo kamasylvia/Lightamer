@@ -137,9 +137,60 @@ Apache-2.0）。本批**零代码移植**（方法论/形态借鉴 + `parity.rs`
 > 串行 omp 二验（omp 配额阻塞时双 zcode 独立眼替代，偏差登记 §四.3）。
 > 结论行由验收波回填；本节仅为占位脚手架。
 
-- [ ] 第一路（zcode 独立验收）：PASS / FAIL + 证据指针 —— 待回填
-- [ ] 第二路（omp 或双 zcode 替代）：PASS / FAIL + 证据指针 —— 待回填
-- [ ] `ACCEPTANCE` 正本文件：验收波落位
+- [x] 第一路（zcode 独立验收）：**PASS**（SC1-SC6 全数独立复跑过，含独立全套亲跑
+  `TOTAL|3848/24/0|2381s` exit 0 ΔN=0）——附 **2 项必修内容更正**（checklist
+  FEAT-LIB-04 / FEAT-LIB-13 状态误判 Missing，账面 REQUIREMENTS M2LIB-05/:26 与
+  M2LIB-02/:23 明文 Delivered + 活代码在树；详见正本
+  `M6-6-01-ACCEPTANCE.md` §七 E-1/E-2）+ 2 minor + 2 nit；修法 = docs-only
+  翻行 + `--write` 复跑（gaps 降至 16-17 行仍 ≥10，一次性 AC 不回退）。
+  证据正本 = `M6-6-01-ACCEPTANCE.md` + 验收独立 transcript
+  `evidence/acc1/acc1-all-run.log`（local-only）。—— 已回填（2026-10-16 验收波）
+- [x] 第二路（omp 制度位由第二 zcode 独立眼替代，偏差登记 §四.3 同款）：**PASS**（SC1-SC6 全数独立复跑过，含**独立全套亲跑**
+  `TOTAL|3848/24/0|2104s` exit 0 ΔN=0——build-for-testing 前置亲跑，段和
+  686+460+494+729+284+379+816 = 3848 / skip 1+3+4+4+4+4+4 = 24 机核精确，
+  0 MEMFAIL，七 bundle 峰值 6575/5591/1175/616/1211/4983/2832 MB 全 8G 门
+  内，逐 bundle 值与执行方/第一路逐行同值）——**checklist 134 行全量终审**
+  （非抽样；本路核心职责）另报 **3 项 error 级内容更正候选 + 2 minor**（
+  FEAT-EXP-13 Partial 误判应 Delivered〔M2 页 + legacy 双 UI picker + 编码
+  器三档实装 + v1 EXP-01 账面 Delivered 含「压缩选项」〕/ FEAT-SHELL-03
+  Partial 违反账面优先序应 Delivered〔M2UIW-01 明文 tokens Delivered +
+  M2-3-1-ACCEPTANCE AC1 + ThemeTokens.swift 七族自证〕/ Nikon HE 恢复行缺
+  席〔plan T1 明文要求该 OOS 锚，survey :49 在列，grep 零命中〕+ PNG 压缩
+  等级选项无行〔Alcedo 0-9 UI，我方无 UI 亦无行，与 EXP-13 行粒度不对称〕
+  / 微修批后 STATE/SUMMARY 计数残留 117/17 未同步 119/15）；均 docs-only、
+  不翻任何 SC、gaps 15 行在任何建议修后仍 ≥10。正本 =
+  `M6-6-01-ACCEPTANCE-2ND.md` + 验收独立 transcript
+  `evidence/acc2/acc2-all-run.log`（local-only）。—— 已回填（2026-10-16 第二
+  路验收波）
+- [x] `ACCEPTANCE` 正本文件：第一路 = `M6-6-01-ACCEPTANCE.md`；第二路 =
+  `M6-6-01-ACCEPTANCE-2ND.md`（双路正本随本收敛批 commit 入库——4e61977b
+  先例的「留工作树待收敛」到此兑现）
+- [x] **分歧两处终裁（双路对表后落定，晨审可翻）**：
+  - **分歧 1（LIB-13 修法）—— 追认落地版 Delivered**：第一路建议保守侧
+    Partial，微修批 `4e61977b` 落地 Delivered；第二路独立判定 Delivered
+    正确（判定序第一条即命中 REQUIREMENTS M2LIB-02/:23 + M2LIB-05/:26 双
+    Delivered 锚 + META-06 Phase 12 三保险；Partial 反与 checklist 自申
+    判定序相悖）——**追认落地版**，行 note 保留「LightCraft 语义增强未
+    立项 = 独立候选」nuance。
+  - **分歧 2（SHELL-03 处置）—— 判 E 级、采纳修正**：第一路宽免为「在册
+    争议可翻不算违规」；第二路判违反判定序且争议前提不实（M2UIW-01 明文
+    tokens Delivered + `M2-3-1-ACCEPTANCE.md` AC1 机检 + ThemeTokens.swift
+    七族自证三方一致，DECISIONS §2 前提句被证伪）——**采纳 E 级更正**，
+    翻 Delivered。
+- [x] **四项内容更正全部落地（终收敛批 `0174a1b6`，docs-only 零 Swift、
+  零复测全套）**：E-3 EXP-13 → Delivered / E-4 SHELL-03 → Delivered /
+  E-5 mint FEAT-DEV-09（Nikon HE 恢复，OOS，STACK.md 锚）/ M-3 mint
+  FEAT-EXP-15（PNG compression-level，Missing）+ M-4 计数同步（STATE
+  现状位 + SUMMARY SC3）；`--write` 后实测终值 = **136 rows / Delivered
+  121 / Partial 5 / Missing 2 / V2 3 / Parked 1 / OOS 4 / gaps 15 行**
+  （2+3+1+4+5，仍 ≥10 一次性 AC 不回退）；`--check` + `--self-test` 终跑
+  全绿。带日期历史行零改写（T3 时点值以注记保留，链锚引文不动）。
+- [x] **两编排偏差追认落定（双路独立追认一致）**：§四.1 互操作先行编排
+  （双路同判实质更优——checklist 判定序以账面为准，FEATURE-MAP 若按原文
+  先行，首轮 gaps 必然大面积失真、收口前须整体重审）+ §四.2 N-1 提前
+  清偿（:124 项级 / :270 汇总两层原文亲读无误，S 量级零风险、收口前清
+  一枚已知 zh 活体）——**追认成立**；登记通道（ROADMAP pre-flip 注记 +
+  §四 + M6 closed 块 flippable 注记）维持，晨审/用户可随时推翻。
 
 ## 签核
 
@@ -149,4 +200,12 @@ Apache-2.0）。本批**零代码移植**（方法论/形态借鉴 + `parity.rs`
 - `status: validated` + `nyquist_compliant: true` + `milestone_closeout: M6`。
 - **M6（互操作与图库强化）milestone closed**：M6-0..M6-6 七 phase 全闭
   环；六裁决件全兑现（§三）；M6 milestone 挂账单一清单六项移交（§六）。
-- 双重验收回填 ACCEPTANCE 后签核生效；夜间授权批落签，**晨审可推翻**。
+- 双重验收双 PASS 已回填（§八）：第一路 `M6-6-01-ACCEPTANCE.md`（2 error
+  修正式）+ 第二路 `M6-6-01-ACCEPTANCE-2ND.md`（全量终审 4 项发现）；四项
+  内容更正随终收敛批 `0174a1b6` 落地、三门终跑全绿（136 rows / gaps 15）；
+  分歧两处终裁 + 两编排偏差追认落定（§八）。
+- **签核：signed 2026-10-16（M6-6 终收敛批落签）**——夜间全自动授权链在案
+  （先例 `D-07-3-T5-1`：用户显式「开跑，不要停」续指令 = 规划与执行授权；
+  M2-8..M6-5 各 VALIDATION 同款沿用），C 档第 3 停以本签核行使；
+  **晨审可推翻**（推翻窗内任何判定被翻 → 按 checklist 判定序 + 本件 §八
+  终裁注记重开对应面，SC5 零 Swift 面不需复测全套）。
