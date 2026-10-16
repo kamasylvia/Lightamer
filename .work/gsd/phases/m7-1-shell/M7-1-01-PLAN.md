@@ -27,7 +27,7 @@ files_modified:
   - App/Sources/Lightamer/UI/LightamerApp.swift                         # T1：装配点求值 + plain Bool 分发；T3：carrier 消费端重排（@FocusedValue/@FocusedBinding → carrier 字段读取）+ keyboardShortcut gate 收窄 + visibleMenuCommands phase 镜像断边
   - App/Sources/Lightamer/UI/ContentView.swift                          # T1：案 B——.inspector SystemSplitView 宿主（:205-223）flag-on 臂换条件尾列（宽度终式 clamped(inspectorWidth,200,460)〔N-4〕，M3-4-01 T4 语义逐字迁移）；flag-off 臂字节冻结；T3：:228 exportPanelRequest 写点并 carrier
   - App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift              # T1：案 A——双 safeAreaInset（:153-157/:166-169）flag-on 臂迁 VStack 槽位（banner 上 topBar 之上 / toast 下 BackgroundTaskBarView 之下）；flag-off 臂字节冻结；T3：:170 focusedSceneValue 写点并 carrier；T6：挂账⑤ DEBUG 探针缝 exit(0) 兜底（DEBUG-only，产线行为零变更）
-  - App/Sources/Lightamer/UI/InspectorView.swift                        # T3：:429 metadataFieldFocused 发布点**原位保留**（MetadataInfoSection 双面共用——legacy 面 disarm 依赖；不并 carrier，F-1 拓扑钉 = 3→2）；InspectorView 两构造点（legacyBody/ContentView gate=false 列）传 face 标记以承载门内面行为（本体调整面其余零触）
+  - App/Sources/Lightamer/UI/InspectorView.swift                        # T3：:429 metadataFieldFocused 发布点**原位保留**（MetadataInfoSection 双面共用——legacy 面 disarm 依赖；不并 carrier，F-1 拓扑钉 = 3→2，无需 face 标记 / mirror store）；本体调整面其余零触
   - App/Sources/Lightamer/UI/Shell/EditorWorkspaceShellView.swift       # T2 条件触面（C3 饿死裁定后才落产线：HStack 三段 → viewport hero + 可收起 overlay，flag-on 臂；flag-off 臂 = 现行三段字节冻结；不饿死则本行零 diff 撤销）
   - Tests/LightamerTests/ShellReducedTreeGateTests.swift                # T1 新增 +2..3 法（三分注入钉：缺省 ON / UserDefaults false off / env "0" 覆盖；Project.swift 恰一行 + tuist generate 末位）
   - Tests/LightamerTests/ToastFaceTests.swift                           # T1：3 法 AX wiring 断言随座位移过门（方法数零增减，断言面适配 VStack 槽位）；:69 WorkspaceHostView 裸构造点同批补 flag 必需参数
@@ -80,6 +80,10 @@ files_modified:
 >   带正本 = D-FIX2-1 第 5 条 ~28% c1/c2-sample——案 A/B 与 C1/C2 形
 >   等效摘除，底噪地板已实测，乙案 scratch 重测为重复计价故不采）；
 >   T1 走查注记升格为正式裁定条款（AC 承载），T4 判据一同步。
+>   **R-1 supersede 注记**：RESEARCH §6.1（「目标 <5%」）与 §6.2 案 A+B
+>   铁条行（「CPU <5%」+「底噪注记不判 FAIL」）为本条款的前身稿，被本
+>   AC 取代——read_first 引 RESEARCH 铁条处一律以本 plan AC 底噪带
+>   条款为准（research 稿面不回写）。
 > - **F-1**：carrier 拓扑钉 = **保 legacy 3→2 形**——carrier 槽 =
 >   workspace model + exportPanelRequest；`InspectorView:429`
 >   metadataFieldFocused 发布点原位保留（MetadataInfoSection 双面共用，
@@ -353,9 +357,9 @@ files_modified:
      ——carrier 覆盖的两键消费端读 carrier 优先、旧键回落，形态
      DECISIONS 申报；装配宿主 = WorkspaceHostView——gate=false 面
      workspace 载体天然单点〔topBar 已读 inspectorState〕；
-     InspectorView 两构造点（legacyBody:269 / ContentView gate=false
-     列）如需 face 标记承载门内面行为，以注入参数形态落，legacy 臂
-     行为字节等价）。**mount-time priming 语义铁钉（FIX2 M-2 教训）**：
+     metadataFieldFocused 走旧键原路径，两面共用发布点原位服务，
+     **无需 face 标记 / mirror store**（F-1 降级面——真 3→1 路线
+     不行使）。**mount-time priming 语义铁钉（FIX2 M-2 教训）**：
      窗口打开至首次 phase 翻转之间 ⌘E/⌘W/⌘F/View toggles 可用
      （carrier 挂载发布腿覆盖）——启动即按走查点验。
   2. **keyboardShortcut gate 收窄——审计三产出形（F-3）**：29 个
@@ -391,8 +395,10 @@ files_modified:
      面（RESEARCH §0.2：签名一致性 = 判据，非计数一致性）。
 - **验收标准（机检）**：
   - **机制面证明（主判据）**：gate=false 面 `.focusedSceneValue` 发布
-    点计数 grep 机检 = **2**（carrier 单发布〔workspace +
-    exportPanelRequest 两槽〕+ InspectorView:429 原位，F-1）+ carrier
+    点计数 grep 机检 = **2**（WorkspaceHostView carrier 载体发布 1
+    〔workspace + exportPanelRequest 两槽〕+ InspectorView:429 原位 1
+    ——ContentView gate=false 分支 = 0〔:228 撤除并入 carrier〕，
+    legacyBody :287-288 原 2 处冻结不计入；F-1）+ carrier
     两槽单发布点测试断言；四项计数对照表（flag-off 臂、每面 ≥2 窗
     median）在案，prependValue 预期降 ~1/3（3→2 形状）如实记录
     （计数为旁证非门，样本窗差异注记，F-2）。
@@ -436,7 +442,11 @@ files_modified:
      杜绝 cherry-pick 空间）。
   4. **flag 双向判别**：flag-off 重开项目 + 进编辑器全配方 = 复现
      23-34%（空载，median 口径）/ 82-90%（编辑器）——转绿是修法
-     效果非环境漂移的判别力证。
+     效果非环境漂移的判别力证。**判别力主锚 = flag-off 臂环活着**
+     （transcript 重估行非零 + sample 环核心符号 > 门，R-2）；
+     23-34% 带为预期读数——T3 燃料减频（prependValue 削 ~1/3 次数）
+     可使带下沿小幅下移：越带下沿先归因 T3 效应（DECISIONS 注记），
+     越上沿或形态异常 = 判别臂失效停手（禁静默放宽带界）。
   5. **挂账⑥导入零行间歇复测（N≥3 轮；CONTEXT D-M7-1-5）**：probe
      配方（`-la_editor_probe` 建项目 → 杀进程重启 → zh 菜名 AX 腿 →
      导入 ≥6 供件〔`/tmp/fix2acc-import` 或新备同量供件〕）× N≥3 轮
